@@ -2,6 +2,9 @@ version: "2"
 
 run:
   timeout: 5m
+  # Without this the linter never parses the files behind the tag, so they rot unchecked.
+  build-tags:
+    - integration
 
 linters:
   # `standard` means errcheck, govet, ineffassign, staticcheck, unused.

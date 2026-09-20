@@ -27,6 +27,9 @@ test: ## Run unit tests
 test-race: ## Run unit tests with the race detector
 	go test -race ./...
 
+test-integration: ## Run tests against the live API. Needs TYPESAFE_API_KEY or a .env
+	go test -tags integration -race -count=1 -timeout 5m ./internal/jev/ -run 'TestLive' -v
+
 cover: ## Run tests with coverage and open the HTML report
 	@mkdir -p bin
 	go test -coverprofile=bin/coverage.out -covermode=atomic ./...
