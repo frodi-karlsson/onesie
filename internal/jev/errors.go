@@ -332,7 +332,3 @@ func (e *AnswerError) Error() string {
 
 	return fmt.Sprintf("jev: answer %q is a %s, not a %s", e.Name, e.Got, e.Want)
 }
-
-func parseRetryAfter(_ http.Header, _ time.Time) (time.Duration, bool) {
-	return 0, false
-}
