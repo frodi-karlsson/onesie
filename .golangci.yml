@@ -39,8 +39,9 @@ linters:
       allow-unused: false
     revive:
       rules:
+        # No checkPrivateReceivers. AGENTS.md forbids doc comments on unexported declarations,
+        # and that argument demands them on methods with an unexported receiver.
         - name: exported
-          arguments: [checkPrivateReceivers]
     staticcheck:
       checks: ["all"]
   exclusions:
