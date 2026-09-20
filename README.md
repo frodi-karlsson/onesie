@@ -54,6 +54,20 @@ internal/cli/    the cobra command tree, unexported and testable in process
 API. New packages go under `internal/` first and graduate out only when
 something outside this module needs them.
 
+## Configuration
+
+`jev` reads its API key from `TYPESAFE_API_KEY`. The repo carries a gitignored `.env`, populated
+from 1Password.
+
+| Variable | Default |
+| :-- | :-- |
+| `TYPESAFE_API_KEY` | none, required |
+| `TYPESAFE_BASE_URL` | `https://api.typesafe.ai` |
+| `TYPESAFE_DEFAULT_MODEL` | `jev-latest` |
+
+Timeouts are per attempt, not per call. With the default policy a call retries twice, so it can
+outlast the attempt timeout. Bound a whole call with a context deadline or `WithTotalTimeout`.
+
 ## Conventions
 
 See `AGENTS.md`. Follow it without being asked.
