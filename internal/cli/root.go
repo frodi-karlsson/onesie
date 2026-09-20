@@ -3,11 +3,20 @@
 package cli
 
 import (
+	"context"
+
 	"github.com/spf13/cobra"
+
+	"github.com/frodi-karlsson/jev-cli/internal/jev"
 )
 
 // NewRootCmd builds a fresh command tree that reads and writes no global state.
-func NewRootCmd(info BuildInfo) *cobra.Command {
+func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
+	settings := rootSettings{newClient: defaultClientFactory(info)}
+	for _, opt := range opts {
+		opt(&settings)
+	}
+
 	root := &cobra.Command{
 		Use:   "jev",
 		Short: "Command line interface for TypeSafe Jev",
@@ -25,9 +34,24 @@ func NewRootCmd(info BuildInfo) *cobra.Command {
 	}
 
 	root.SetVersionTemplate("{{.Name}} {{.Version}}\n")
+	root.AddCommand(newAskCmd(settings.newClient))
 	root.AddCommand(newVersionCmd(info))
 
 	return root
+}
+
+// RootOption customises the command tree. It exists so tests inject a client.
+type RootOption func(*rootSettings)
+
+// WithClientFactory replaces how commands build their API client.
+func WithClientFactory(newClient func(ctx context.Context) (*jev.Client, error)) RootOption {
+	return func(s *rootSettings) {
+		s.newClient = newClient
+	}
+}
+
+type rootSettings struct {
+	newClient clientFactory
 }
 
 // BuildInfo carries the build metadata stamped into the binary at link time.
