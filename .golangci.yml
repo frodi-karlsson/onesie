@@ -1,0 +1,64 @@
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  # `standard` means errcheck, govet, ineffassign, staticcheck, unused.
+  default: standard
+  enable:
+    # Correctness: these catch defects, not style.
+    - bodyclose      # HTTP response bodies that leak connections
+    - errorlint      # == on errors instead of errors.Is/As
+    - copyloopvar    # redundant loop variable copies, Go >= 1.22
+    - durationcheck  # multiplying two durations
+    - nilerr         # `return nil` when err is non nil
+    - noctx          # HTTP requests built without a context
+    - rowserrcheck   # `sql.Rows.Err` not checked
+    - sqlclosecheck  # `sql.Rows` or `sql.Stmt` left open
+    - makezero       # append to a made slice that has a length
+    - testifylint    # a no op today, free once testify shows up
+    # Hygiene: cheap, low false positive rate.
+    - misspell
+    - nolintlint     # a nolint directive without an explanation
+    - revive         # golint's successor, default rules only
+    - unconvert      # redundant type conversions
+    - unparam        # always identical or unused function parameters
+    - wastedassign
+  settings:
+    errcheck:
+      check-type-assertions: true
+      check-blank: true
+    govet:
+      enable-all: true
+      disable:
+        - fieldalignment # a micro optimisation. It costs more readability than it saves bytes
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+      allow-unused: false
+    revive:
+      rules:
+        - name: exported
+          arguments: [checkPrivateReceivers]
+    staticcheck:
+      checks: ["all"]
+  exclusions:
+    generated: lax
+    rules:
+      # Tests are allowed to be blunt about errors and long lines.
+      - path: _test\.go$
+        linters:
+          - bodyclose
+          - errcheck
+          - noctx
+          - unparam
+
+formatters:
+  enable:
+    - gofumpt    # stricter superset of gofmt
+    - goimports  # import grouping/ordering
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/frodi-karlsson/jev-cli

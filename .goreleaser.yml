@@ -1,0 +1,80 @@
+version: 2
+
+project_name: jev-cli
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: jev
+    main: ./cmd/jev
+    binary: jev
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+      - -X main.version={{ .Version }}
+      - -X main.commit={{ .Commit }}
+      - -X main.date={{ .CommitDate }}
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+archives:
+  - formats: [tar.gz]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+
+checksum:
+  name_template: 'checksums.txt'
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  use: github
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - '^chore:'
+
+release:
+  # Not a draft: a cask pushed to homebrew-tap points at this release's
+  # assets, which stay unreachable while the release is unpublished.
+  draft: false
+  prerelease: auto
+
+homebrew_casks:
+  - name: jev
+    binaries:
+      - jev
+    # INERT. The cask is built into dist/ but never pushed. To start
+    # publishing, flip this to false and add HOMEBREW_TAP_TOKEN to this
+    # repo's secrets.
+    skip_upload: true
+    repository:
+      owner: frodi-karlsson
+      name: homebrew-tap
+      # Pushing to another repo needs more than the workflow's GITHUB_TOKEN.
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    commit_author:
+      name: goreleaserbot
+      email: goreleaser@carlosbecker.com
+    homepage: "https://github.com/frodi-karlsson/jev-cli"
+    description: "Command line interface for TypeSafe Jev"
+    license: "MIT"
+    hooks:
+      post:
+        # The binary is unsigned, so macOS quarantines it on download and
+        # Gatekeeper refuses to run it. Strip the attribute on install.
+        install: |
+          if system_command("/usr/bin/xattr", args: ["-h"]).exit_status == 0
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/jev"]
+          end

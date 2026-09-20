@@ -1,0 +1,21 @@
+# Build artifacts
+/bin/
+/dist/
+
+# Test & profiling output
+*.out
+*.test
+*.prof
+
+# Editors / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Local environment
+.env
+.env.local
+
+# Local notes, not published with the repo
+/docs/
