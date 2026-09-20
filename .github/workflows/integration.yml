@@ -1,0 +1,31 @@
+name: Integration
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Mondays at 06:00 UTC. Catches API drift without spending budget on every commit.
+    - cron: "0 6 * * 1"
+
+# Third party code is pinned by digest rather than by tag, so a retagged
+# release cannot silently change what runs here. Trailing comments record the
+# human readable version each digest corresponds to.
+jobs:
+  live:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+
+      - name: Run the live suite
+        env:
+          # Absent on a fork or before the secret is added. The suite skips rather than failing.
+          TYPESAFE_API_KEY: ${{ secrets.TYPESAFE_API_KEY }}
+        run: make test-integration
