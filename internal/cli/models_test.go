@@ -146,18 +146,18 @@ func TestNewRootCmdListModelsFlags(t *testing.T) {
 		{
 			name:    "should reject -o with --list-models",
 			args:    []string{"--list-models", "-o", "json"},
-			wantErr: "jev: -o does not apply to --list-models, which prints a fixed listing",
+			wantErr: "jev: -o does not apply to --list-models, which writes a fixed listing",
 		},
 		{
 			// Its own rule rather than the -o one, since run leaves Output empty for a bare -r.
 			name:    "should reject -r with --list-models",
 			args:    []string{"--list-models", "-r"},
-			wantErr: "jev: -r does not apply to --list-models, which prints a fixed listing",
+			wantErr: "jev: -r does not apply to --list-models, which writes a fixed listing",
 		},
 		{
 			name:    "should reject -q with --list-models",
 			args:    []string{"--list-models", "-q"},
-			wantErr: "jev: -q suppresses output, which leaves --list-models nothing to print",
+			wantErr: "jev: -q suppresses output, which leaves --list-models nothing to write",
 		},
 		{
 			name: "should reject --usage with --list-models",

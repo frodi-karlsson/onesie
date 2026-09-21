@@ -198,9 +198,9 @@ func checkListModels(cfg Config) error {
 			"which reads no state"},
 		{cfg.HasInput, "jev: -i does not apply to --list-models, which reads no input"},
 		{cfg.Output != "", "jev: -o does not apply to --list-models, " +
-			"which prints a fixed listing"},
-		{cfg.Raw, "jev: -r does not apply to --list-models, which prints a fixed listing"},
-		{cfg.Quiet, "jev: -q suppresses output, which leaves --list-models nothing to print"},
+			"which writes a fixed listing"},
+		{cfg.Raw, "jev: -r does not apply to --list-models, which writes a fixed listing"},
+		{cfg.Quiet, "jev: -q suppresses output, which leaves --list-models nothing to write"},
 		{cfg.Usage, "jev: --usage reports the tokens a question cost, " +
 			"which --list-models does not ask"},
 		{cfg.Merge, "jev: " + mergeFlag(cfg) + " needs answers to fold in, " +
