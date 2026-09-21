@@ -25,6 +25,10 @@ func Load(data []byte) (*File, error) {
 			"jev: a question file is a mapping of question id to definition")
 	}
 
+	if _, found := lookup(top, "assert"); found {
+		return nil, errors.New("jev: a top level 'assert' key is not available yet")
+	}
+
 	if _, isBody := lookup(top, "questions"); isBody {
 		return loadBody(top)
 	}

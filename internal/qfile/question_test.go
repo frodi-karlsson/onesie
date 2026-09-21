@@ -2,6 +2,7 @@ package qfile_test
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/frodi-karlsson/jev-cli/internal/plan"
@@ -383,6 +384,130 @@ func TestLoadRate(t *testing.T) {
 			if tc.wantErr {
 				if err == nil {
 					t.Fatalf("expected an error, got %#v", got)
+				}
+
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			tc.check(t, got.Questions[0])
+		})
+	}
+}
+
+func TestLoadPolicy(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		doc     string
+		wantErr string
+		check   func(t *testing.T, q plan.Question)
+	}{
+		{
+			name: "should read a threshold on a yes/no question",
+			doc:  "urgent:\n  ask: q\n  threshold: 0.85\n",
+			check: func(t *testing.T, q plan.Question) {
+				t.Helper()
+
+				if q.Policy.Threshold == nil || *q.Policy.Threshold != 0.85 {
+					t.Errorf("threshold = %v, want 0.85", q.Policy.Threshold)
+				}
+			},
+		},
+		{
+			name: "should read min_confidence and fallback on a pick question",
+			doc: "team:\n  ask: q\n  pick: [a, b]\n" +
+				"  min_confidence: 0.7\n  fallback: human\n",
+			check: func(t *testing.T, q plan.Question) {
+				t.Helper()
+
+				if q.Policy.MinConfidence == nil || *q.Policy.MinConfidence != 0.7 {
+					t.Errorf("min_confidence = %v, want 0.7", q.Policy.MinConfidence)
+				}
+
+				if q.Policy.Fallback == nil || q.Policy.Fallback.Text != "human" {
+					t.Errorf("fallback = %+v, want human", q.Policy.Fallback)
+				}
+			},
+		},
+		{
+			name: "should resolve a yes/no fallback of true to a boolean at load time",
+			doc:  "urgent:\n  ask: q\n  fallback: true\n",
+			check: func(t *testing.T, q plan.Question) {
+				t.Helper()
+
+				if q.Policy.Fallback == nil {
+					t.Fatal("fallback should be set")
+				}
+
+				if !q.Policy.Fallback.Boolean {
+					t.Error("a yes/no fallback of true must resolve to Boolean true at load")
+				}
+			},
+		},
+		{
+			name: "should resolve a yes/no fallback of yes to a boolean at load time",
+			doc:  "urgent:\n  ask: q\n  fallback: yes\n",
+			check: func(t *testing.T, q plan.Question) {
+				t.Helper()
+
+				// strconv.ParseBool rejects yes, so this is the case that catches the wrong
+				// parser being used. It would silently resolve to false, the opposite decision.
+				if !q.Policy.Fallback.Boolean {
+					t.Error("a yes/no fallback of yes must resolve to Boolean true at load")
+				}
+			},
+		},
+		{
+			name: "should leave a pick fallback as text",
+			doc:  "team:\n  ask: q\n  pick: [a, b]\n  fallback: human\n",
+			check: func(t *testing.T, q plan.Question) {
+				t.Helper()
+
+				if q.Policy.Fallback.Boolean {
+					t.Error("a pick fallback is a string and must not set Boolean")
+				}
+			},
+		},
+		{
+			name:    "should reject a non numeric threshold",
+			doc:     "urgent:\n  ask: q\n  threshold: soon\n",
+			wantErr: "threshold",
+		},
+		{
+			name:    "should reject a non numeric min_confidence",
+			doc:     "team:\n  ask: q\n  pick: [a, b]\n  min_confidence: high\n",
+			wantErr: "min_confidence",
+		},
+		{
+			name:    "should reject a top level assert key until it is supported",
+			doc:     "assert: 'urgent.value < 0.5'\nurgent: q\n",
+			wantErr: "not available yet",
+		},
+		{
+			name:    "should reject an unknown key in a question definition",
+			doc:     "urgent:\n  ask: q\n  thresold: 0.85\n",
+			wantErr: "thresold",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := qfile.Load([]byte(tc.doc))
+
+			if tc.wantErr != "" {
+				if err == nil {
+					t.Fatalf("expected an error, got %#v", got)
+				}
+
+				if !strings.Contains(err.Error(), tc.wantErr) {
+					t.Errorf("error = %q, want it to mention %q", err.Error(), tc.wantErr)
 				}
 
 				return

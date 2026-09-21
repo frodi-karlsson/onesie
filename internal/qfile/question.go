@@ -88,6 +88,14 @@ func buildQuestion(id string, value any) (plan.Question, error) {
 		question.Criteria = nil
 	}
 
+	if err := readPolicy(&question, fields); err != nil {
+		return question, err
+	}
+
+	if err := checkKeys(id, fields); err != nil {
+		return question, err
+	}
+
 	return question, nil
 }
 
@@ -184,6 +192,76 @@ func readLevel(id string, entry any) (plan.Level, error) {
 		Label: fmt.Sprintf("%v", items[0].Key),
 		Desc:  plain(items[0].Value),
 	}, nil
+}
+
+func readPolicy(question *plan.Question, fields yaml.MapSlice) error {
+	if value, found := lookup(fields, "threshold"); found {
+		number, err := readNumber(question.ID, "threshold", value)
+		if err != nil {
+			return err
+		}
+
+		question.Policy.Threshold = &number
+	}
+
+	if value, found := lookup(fields, "min_confidence"); found {
+		number, err := readNumber(question.ID, "min_confidence", value)
+		if err != nil {
+			return err
+		}
+
+		question.Policy.MinConfidence = &number
+	}
+
+	if value, found := lookup(fields, "fallback"); found {
+		text := fmt.Sprintf("%v", value)
+		question.Policy.Fallback = &plan.Fallback{Text: text}
+
+		// Resolved here rather than during validation, so nothing downstream depends on the order
+		// the two ran in. Unparseable text is still reported by validation.
+		if question.Shape == plan.Noul {
+			if parsed, ok := plan.ParseFallback(text); ok {
+				question.Policy.Fallback.Boolean = parsed
+			}
+		}
+	}
+
+	return nil
+}
+
+func readNumber(id, key string, value any) (float64, error) {
+	// goccy yields a bare integer as uint64, a negative one as int64 and anything with a decimal
+	// point or a sign on the exponent as float64.
+	switch typed := value.(type) {
+	case float64:
+		return typed, nil
+	case int64:
+		return float64(typed), nil
+	case uint64:
+		return float64(typed), nil
+	default:
+		return 0, fmt.Errorf(
+			"jev: '%s' in question '%s' must be a number, got '%v'", key, id, value)
+	}
+}
+
+func checkKeys(id string, fields yaml.MapSlice) error {
+	known := map[string]struct{}{
+		"ask": {}, "yes_means": {}, "no_means": {}, "true": {}, "false": {},
+		"pick": {}, "rate": {},
+		"threshold": {}, "min_confidence": {}, "fallback": {},
+	}
+
+	for _, item := range fields {
+		name := fmt.Sprintf("%v", item.Key)
+		if _, ok := known[name]; !ok {
+			// A silently ignored misspelling leaves the user believing a policy is in force when
+			// it is not, and a question file is written once and trusted afterwards.
+			return fmt.Errorf("jev: question '%s' has an unknown key '%s'", id, name)
+		}
+	}
+
+	return nil
 }
 
 func firstOf(fields yaml.MapSlice, names ...string) (any, bool) {

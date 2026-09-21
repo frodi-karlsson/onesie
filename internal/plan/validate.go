@@ -251,7 +251,7 @@ func checkPolicy(q *Question, yesNo bool) error {
 	}
 
 	if yesNo && policy.Fallback != nil {
-		if _, err := parseBool(policy.Fallback.Text); err != nil {
+		if _, ok := ParseFallback(policy.Fallback.Text); !ok {
 			return fmt.Errorf(
 				"jev: --fallback on a yes/no question takes true, false, yes or no, got '%s'",
 				policy.Fallback.Text)
@@ -370,14 +370,16 @@ func firstDuplicate(names []string) string {
 	return ""
 }
 
-func parseBool(text string) (bool, error) {
+// ParseFallback reads a yes/no fallback value. The second result is false when the text is not one
+// of true, yes, false or no, which validation reports.
+func ParseFallback(text string) (bool, bool) {
 	switch strings.ToLower(text) {
 	case "true", "yes":
-		return true, nil
+		return true, true
 	case "false", "no":
-		return false, nil
+		return false, true
 	default:
-		return false, fmt.Errorf("not a boolean: '%s'", text)
+		return false, false
 	}
 }
 

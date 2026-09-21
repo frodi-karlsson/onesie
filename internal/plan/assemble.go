@@ -143,7 +143,7 @@ func build(g group, readFile func(string) ([]byte, error)) (Question, error) {
 	// the time anything reads it, whether or not validation ran. Unparseable text is reported by
 	// checkPolicy, which owns the user facing message.
 	if question.Shape == Noul && question.Policy.Fallback != nil {
-		if value, err := parseBool(question.Policy.Fallback.Text); err == nil {
+		if value, ok := ParseFallback(question.Policy.Fallback.Text); ok {
 			question.Policy.Fallback.Boolean = value
 		}
 	}
