@@ -466,14 +466,14 @@ func runRecorded(t *testing.T, args []string, stdin string) (string, string, int
 
 	root := NewRootCmd(
 		BuildInfo{Version: "1.2.3"},
-		WithClientFactory(func(context.Context) (*jev.Client, error) {
+		WithClientFactory(func(_ context.Context, opts ...jev.Option) (*jev.Client, error) {
 			// The client gets its own blank environment as well as the command, so the machine
 			// running the test cannot supply a default model to one side of the comparison.
-			return jev.New(
+			return jev.New(append([]jev.Option{
 				jev.WithAPIKey("k"),
 				jev.WithBaseURL(srv.URL),
 				jev.WithEnv(func(string) (string, bool) { return "", false }),
-			)
+			}, opts...)...)
 		}),
 		WithStdin(strings.NewReader(stdin)),
 		WithStdinTTY(false),

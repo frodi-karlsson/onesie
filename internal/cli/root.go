@@ -158,8 +158,11 @@ func Execute(ctx context.Context, root *cobra.Command) int {
 type RootOption func(*rootSettings)
 
 // WithClientFactory replaces how commands build their API client, so a test can point one at a
-// stub server rather than steering the real constructor through flags.
-func WithClientFactory(newClient func(ctx context.Context) (*jev.Client, error)) RootOption {
+// stub server rather than steering the real constructor through flags. The options are the ones
+// the run itself needs on the client, so a replacement has to pass them on.
+func WithClientFactory(
+	newClient func(ctx context.Context, opts ...jev.Option) (*jev.Client, error),
+) RootOption {
 	return func(s *rootSettings) {
 		s.newClient = newClient
 	}

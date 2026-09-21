@@ -169,18 +169,18 @@ func TestStreaming(t *testing.T) {
 
 			root := cli.NewRootCmd(
 				cli.BuildInfo{Version: "1.2.3"},
-				cli.WithClientFactory(func(context.Context) (*jev.Client, error) {
+				cli.WithClientFactory(func(_ context.Context, opts ...jev.Option) (*jev.Client, error) {
 					// No retries. The 500 cases would otherwise spend the client's backoff twice
 					// per record for no coverage, and --retries is not a flag until a later
 					// milestone.
 					policy := jev.DefaultRetryPolicy()
 					policy.MaxRetries = 0
 
-					return jev.New(
+					return jev.New(append([]jev.Option{
 						jev.WithAPIKey("k"),
 						jev.WithBaseURL(srv.URL),
 						jev.WithRetry(policy),
-					)
+					}, opts...)...)
 				}),
 				cli.WithStdin(strings.NewReader(tc.stdin)),
 				cli.WithStdinTTY(false),
@@ -255,8 +255,10 @@ func TestMergeAutoOutput(t *testing.T) {
 
 		root := cli.NewRootCmd(
 			cli.BuildInfo{Version: "1.2.3"},
-			cli.WithClientFactory(func(context.Context) (*jev.Client, error) {
-				return jev.New(jev.WithAPIKey("k"), jev.WithBaseURL(srv.URL))
+			cli.WithClientFactory(func(_ context.Context, opts ...jev.Option) (*jev.Client, error) {
+				return jev.New(append([]jev.Option{
+					jev.WithAPIKey("k"), jev.WithBaseURL(srv.URL),
+				}, opts...)...)
 			}),
 			cli.WithStdin(strings.NewReader(`{"id":7}`)),
 			cli.WithStdinTTY(false),
@@ -342,8 +344,10 @@ func TestSingleRecordMerge(t *testing.T) {
 
 			root := cli.NewRootCmd(
 				cli.BuildInfo{Version: "1.2.3"},
-				cli.WithClientFactory(func(context.Context) (*jev.Client, error) {
-					return jev.New(jev.WithAPIKey("k"), jev.WithBaseURL(srv.URL))
+				cli.WithClientFactory(func(_ context.Context, opts ...jev.Option) (*jev.Client, error) {
+					return jev.New(append([]jev.Option{
+						jev.WithAPIKey("k"), jev.WithBaseURL(srv.URL),
+					}, opts...)...)
 				}),
 				cli.WithStdin(strings.NewReader(tc.stdin)),
 				cli.WithStdinTTY(false),
@@ -461,8 +465,10 @@ func TestStreamingWire(t *testing.T) {
 
 			root := cli.NewRootCmd(
 				cli.BuildInfo{Version: "1.2.3"},
-				cli.WithClientFactory(func(context.Context) (*jev.Client, error) {
-					return jev.New(jev.WithAPIKey("k"), jev.WithBaseURL(srv.URL))
+				cli.WithClientFactory(func(_ context.Context, opts ...jev.Option) (*jev.Client, error) {
+					return jev.New(append([]jev.Option{
+						jev.WithAPIKey("k"), jev.WithBaseURL(srv.URL),
+					}, opts...)...)
 				}),
 				cli.WithStdin(strings.NewReader(tc.stdin)),
 				cli.WithStdinTTY(false),
@@ -512,12 +518,13 @@ func TestStreamSourceFailure(t *testing.T) {
 
 		root := cli.NewRootCmd(
 			cli.BuildInfo{Version: "1.2.3"},
-			cli.WithClientFactory(func(context.Context) (*jev.Client, error) {
+			cli.WithClientFactory(func(_ context.Context, opts ...jev.Option) (*jev.Client, error) {
 				policy := jev.DefaultRetryPolicy()
 				policy.MaxRetries = 0
 
-				return jev.New(
-					jev.WithAPIKey("k"), jev.WithBaseURL(srv.URL), jev.WithRetry(policy))
+				return jev.New(append([]jev.Option{
+					jev.WithAPIKey("k"), jev.WithBaseURL(srv.URL), jev.WithRetry(policy),
+				}, opts...)...)
 			}),
 			cli.WithStdin(&breakingReader{lines: "first\n"}),
 			cli.WithStdinTTY(false),

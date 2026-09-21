@@ -734,8 +734,10 @@ func TestNewRootCmd(t *testing.T) {
 
 			root := cli.NewRootCmd(
 				cli.BuildInfo{Version: "1.2.3", Commit: "abc1234", Date: "2026-01-01"},
-				cli.WithClientFactory(func(context.Context) (*jev.Client, error) {
-					return jev.New(jev.WithAPIKey("k"), jev.WithBaseURL(srv.URL))
+				cli.WithClientFactory(func(_ context.Context, opts ...jev.Option) (*jev.Client, error) {
+					return jev.New(append([]jev.Option{
+						jev.WithAPIKey("k"), jev.WithBaseURL(srv.URL),
+					}, opts...)...)
 				}),
 				cli.WithStdin(strings.NewReader(tc.stdin)),
 				cli.WithStdinTTY(false),
@@ -962,8 +964,10 @@ func TestNewRootCmdQuestionOrder(t *testing.T) {
 
 			root := cli.NewRootCmd(
 				cli.BuildInfo{Version: "1.2.3", Commit: "abc1234", Date: "2026-01-01"},
-				cli.WithClientFactory(func(context.Context) (*jev.Client, error) {
-					return jev.New(jev.WithAPIKey("k"), jev.WithBaseURL(srv.URL))
+				cli.WithClientFactory(func(_ context.Context, opts ...jev.Option) (*jev.Client, error) {
+					return jev.New(append([]jev.Option{
+						jev.WithAPIKey("k"), jev.WithBaseURL(srv.URL),
+					}, opts...)...)
 				}),
 				cli.WithStdin(strings.NewReader("the server is down")),
 				cli.WithStdinTTY(false),
@@ -1120,8 +1124,10 @@ func TestNewRootCmdInterrupt(t *testing.T) {
 
 		root := cli.NewRootCmd(
 			cli.BuildInfo{Version: "1.2.3"},
-			cli.WithClientFactory(func(context.Context) (*jev.Client, error) {
-				return jev.New(jev.WithAPIKey("k"), jev.WithBaseURL(srv.URL))
+			cli.WithClientFactory(func(_ context.Context, opts ...jev.Option) (*jev.Client, error) {
+				return jev.New(append([]jev.Option{
+					jev.WithAPIKey("k"), jev.WithBaseURL(srv.URL),
+				}, opts...)...)
 			}),
 			cli.WithStdin(strings.NewReader("a ticket")),
 			cli.WithStdinTTY(false),

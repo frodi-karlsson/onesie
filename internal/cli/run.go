@@ -731,14 +731,14 @@ func (*rejectedError) Error() string {
 	return "policy did not accept the answer"
 }
 
-type clientFactory func(ctx context.Context) (*jev.Client, error)
+type clientFactory func(ctx context.Context, opts ...jev.Option) (*jev.Client, error)
 
 func defaultClientFactory(
 	info BuildInfo,
 	flags *runFlags,
 	lookupEnv func(string) (string, bool),
 ) clientFactory {
-	return func(context.Context) (*jev.Client, error) {
+	return func(_ context.Context, extra ...jev.Option) (*jev.Client, error) {
 		opts := []jev.Option{
 			jev.WithUserAgent("jev-cli/" + info.Version),
 			jev.WithEnv(lookupEnv),
@@ -766,6 +766,10 @@ func defaultClientFactory(
 		policy.MaxRetryAfter = time.Duration(flags.maxRetryAfter) * time.Second
 
 		opts = append(opts, jev.WithRetry(policy))
+
+		// Last, so a caller that needs the attempt observer or any other per run option wins over
+		// what the flags asked for.
+		opts = append(opts, extra...)
 
 		return jev.New(opts...)
 	}

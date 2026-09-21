@@ -774,12 +774,12 @@ func runAgainst(t *testing.T, args []string, stdin, baseURL string) (string, str
 
 	root := NewRootCmd(
 		BuildInfo{Version: "1.2.3"},
-		WithClientFactory(func(context.Context) (*jev.Client, error) {
-			return jev.New(
+		WithClientFactory(func(_ context.Context, opts ...jev.Option) (*jev.Client, error) {
+			return jev.New(append([]jev.Option{
 				jev.WithAPIKey("k"),
 				jev.WithBaseURL(baseURL),
 				jev.WithEnv(func(string) (string, bool) { return "", false }),
-			)
+			}, opts...)...)
 		}),
 		WithStdin(strings.NewReader(stdin)),
 		WithStdinTTY(false),
