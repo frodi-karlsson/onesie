@@ -102,8 +102,16 @@ func buildBodyNoul(question plan.Question, criteria any) (plan.Question, error) 
 		return question, nil
 	}
 
-	yes, _ := lookup(items, "true")
-	no, _ := lookup(items, "false")
+	if err := checkNoulCriteriaKeys(question.ID, items); err != nil {
+		return question, err
+	}
+
+	yes, hasYes := lookup(items, "true")
+	no, hasNo := lookup(items, "false")
+
+	if !hasYes && !hasNo {
+		return question, nil
+	}
 
 	rubric, err := readYesNo(question.ID, "true", "false", yes, no)
 	if err != nil {
@@ -113,6 +121,24 @@ func buildBodyNoul(question plan.Question, criteria any) (plan.Question, error) 
 	question.Criteria = rubric
 
 	return question, nil
+}
+
+func checkNoulCriteriaKeys(id string, items yaml.MapSlice) error {
+	for _, item := range items {
+		// An unquoted true or false arrives as a Go bool, and %v spells both the way the wire
+		// does.
+		name := fmt.Sprintf("%v", item.Key)
+		if name == "true" || name == "false" {
+			continue
+		}
+
+		// A noul rubric is the two keys and nothing else. Dropping the rest in silence would
+		// leave the user believing they reached the API.
+		return fmt.Errorf(
+			"jev: question '%s' in a request body has an unknown criteria key '%s'", id, name)
+	}
+
+	return nil
 }
 
 func buildBodyChoice(question plan.Question, criteria any) (plan.Question, error) {

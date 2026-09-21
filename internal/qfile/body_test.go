@@ -168,6 +168,34 @@ func TestLoadBody(t *testing.T) {
 			},
 		},
 		{
+			name: "should leave an empty noul criteria unset",
+			doc:  `{"questions":{"a":{"type":"noul","instructions":"q","criteria":{}}}}`,
+			check: func(t *testing.T, f *qfile.File) {
+				t.Helper()
+
+				if f.Questions[0].Criteria != nil {
+					t.Errorf("criteria = %+v, want nil for a body that named neither key",
+						f.Questions[0].Criteria)
+				}
+			},
+		},
+		{
+			name: "should keep a noul criteria that names only one key",
+			doc:  `{"questions":{"a":{"type":"noul","instructions":"q","criteria":{"true":"y"}}}}`,
+			check: func(t *testing.T, f *qfile.File) {
+				t.Helper()
+
+				if f.Questions[0].Criteria == nil || f.Questions[0].Criteria.Yes != "y" {
+					t.Errorf("criteria = %+v, want the true key kept", f.Questions[0].Criteria)
+				}
+			},
+		},
+		{
+			name:    "should reject an unknown key in a noul criteria",
+			doc:     `{"questions":{"a":{"type":"noul","criteria":{"true":"y","maybe":"m"}}}}`,
+			wantErr: "question 'a' in a request body has an unknown criteria key 'maybe'",
+		},
+		{
 			name:    "should reject an unknown question type",
 			doc:     `{"questions":{"a":{"type":"vibes","instructions":"q"}}}`,
 			wantErr: "vibes",
