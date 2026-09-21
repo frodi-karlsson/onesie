@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/frodi-karlsson/jev-cli/internal/argv"
@@ -390,7 +391,11 @@ func TestAssemble(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := plan.Assemble(tc.events, tc.positional, readFile)
+			got, err := plan.Assemble(plan.Source{
+				Events:     tc.events,
+				Positional: tc.positional,
+				ReadFile:   readFile,
+			})
 
 			if tc.wantErr {
 				if err == nil {
@@ -415,16 +420,188 @@ func TestAssembleFileError(t *testing.T) {
 	t.Run("should wrap the underlying read error", func(t *testing.T) {
 		t.Parallel()
 
-		_, err := plan.Assemble(
-			[]argv.Event{{Name: "ask", Value: "a=@gone.txt"}},
-			"",
-			func(string) ([]byte, error) { return nil, os.ErrNotExist },
-		)
+		_, err := plan.Assemble(plan.Source{
+			Events:   []argv.Event{{Name: "ask", Value: "a=@gone.txt"}},
+			ReadFile: func(string) ([]byte, error) { return nil, os.ErrNotExist },
+		})
 
 		if !errors.Is(err, os.ErrNotExist) {
 			t.Errorf("error = %v, want it to wrap os.ErrNotExist", err)
 		}
 	})
+}
+
+func TestAssembleWithFile(t *testing.T) {
+	t.Parallel()
+
+	readFile := func(string) ([]byte, error) { return nil, nil }
+
+	fileQuestions := func() []plan.Question {
+		return []plan.Question{
+			{ID: "urgent", Shape: plan.Noul, Instructions: "is this urgent", Named: true},
+			{ID: "team", Shape: plan.Noul, Instructions: "which team", Named: true},
+		}
+	}
+
+	tests := []struct {
+		name    string
+		src     plan.Source
+		wantErr string
+		check   func(t *testing.T, p *plan.Plan)
+	}{
+		{
+			name: "should keep file questions in file order",
+			src:  plan.Source{File: fileQuestions(), ReadFile: readFile},
+			check: func(t *testing.T, p *plan.Plan) {
+				t.Helper()
+
+				if len(p.Questions) != 2 || p.Questions[0].ID != "urgent" {
+					t.Errorf("questions = %+v", p.Questions)
+				}
+			},
+		},
+		{
+			name: "should append ask questions after file questions",
+			src: plan.Source{
+				File:     fileQuestions(),
+				Events:   []argv.Event{{Name: "ask", Value: "extra=one more"}},
+				ReadFile: readFile,
+			},
+			check: func(t *testing.T, p *plan.Plan) {
+				t.Helper()
+
+				want := []string{"urgent", "team", "extra"}
+				for i, q := range p.Questions {
+					if q.ID != want[i] {
+						t.Errorf("question %d = %s, want %s", i, q.ID, want[i])
+					}
+				}
+			},
+		},
+		{
+			name: "should reject an id defined in both sources",
+			src: plan.Source{
+				File:     fileQuestions(),
+				FileName: "triage.yaml",
+				Events:   []argv.Event{{Name: "ask", Value: "team=override"}},
+				ReadFile: readFile,
+			},
+			wantErr: "'team' is defined in triage.yaml and by --ask. Pass --replace to override",
+		},
+		{
+			name: "should let replace win while keeping the file position",
+			src: plan.Source{
+				File:     fileQuestions(),
+				Events:   []argv.Event{{Name: "ask", Value: "urgent=override"}},
+				Replace:  true,
+				ReadFile: readFile,
+			},
+			check: func(t *testing.T, p *plan.Plan) {
+				t.Helper()
+
+				if p.Questions[0].ID != "urgent" {
+					t.Fatalf("the replaced question must keep its file position, got %s",
+						p.Questions[0].ID)
+				}
+
+				if p.Questions[0].Instructions != "override" {
+					t.Errorf("instructions = %v, want the --ask text to win",
+						p.Questions[0].Instructions)
+				}
+
+				if len(p.Questions) != 2 {
+					t.Errorf("replace must not add a question, got %d", len(p.Questions))
+				}
+			},
+		},
+		{
+			name: "should bind top level flags to a lone file question",
+			src: plan.Source{
+				File: []plan.Question{
+					{ID: "team", Shape: plan.Noul, Instructions: "which team", Named: true},
+				},
+				Events:   []argv.Event{{Name: "pick", Value: "billing,technical"}},
+				ReadFile: readFile,
+			},
+			check: func(t *testing.T, p *plan.Plan) {
+				t.Helper()
+
+				if p.Questions[0].Shape != plan.Pick {
+					t.Errorf("shape = %s, want pick", p.Questions[0].Shape)
+				}
+
+				if len(p.Questions[0].Options) != 2 {
+					t.Errorf("options = %+v, want two", p.Questions[0].Options)
+				}
+
+				if len(p.Orphans) != 0 {
+					t.Errorf("orphans = %v, want none", p.Orphans)
+				}
+			},
+		},
+		{
+			name: "should orphan top level flags when the file has several questions",
+			src: plan.Source{
+				File:     fileQuestions(),
+				Events:   []argv.Event{{Name: "pick", Value: "a,b"}},
+				ReadFile: readFile,
+			},
+			check: func(t *testing.T, p *plan.Plan) {
+				t.Helper()
+
+				if len(p.Orphans) != 1 {
+					t.Errorf("orphans = %v, want one", p.Orphans)
+				}
+			},
+		},
+		{
+			name: "should bind a policy flag to a lone file question",
+			src: plan.Source{
+				File: []plan.Question{
+					{ID: "urgent", Shape: plan.Noul, Instructions: "is this urgent", Named: true},
+				},
+				Events:   []argv.Event{{Name: "threshold", Value: "0.9"}},
+				ReadFile: readFile,
+			},
+			check: func(t *testing.T, p *plan.Plan) {
+				t.Helper()
+
+				if p.Questions[0].Policy.Threshold == nil {
+					t.Fatal("a top level policy flag must bind to a lone file question")
+				}
+
+				if *p.Questions[0].Policy.Threshold != 0.9 {
+					t.Errorf("threshold = %v, want 0.9", *p.Questions[0].Policy.Threshold)
+				}
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := plan.Assemble(tc.src)
+
+			if tc.wantErr != "" {
+				if err == nil {
+					t.Fatalf("expected an error, got %+v", got)
+				}
+
+				if !strings.Contains(err.Error(), tc.wantErr) {
+					t.Errorf("error = %q, want it to mention %q", err.Error(), tc.wantErr)
+				}
+
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			tc.check(t, got)
+		})
+	}
 }
 
 func wantFallbackBoolean(want bool) func(t *testing.T, p *plan.Plan) {

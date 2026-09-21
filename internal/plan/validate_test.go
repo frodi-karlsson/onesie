@@ -276,7 +276,11 @@ func TestValidate(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			built, err := plan.Assemble(tc.events, tc.positional, readFile)
+			built, err := plan.Assemble(plan.Source{
+				Events:     tc.events,
+				Positional: tc.positional,
+				ReadFile:   readFile,
+			})
 			if err != nil {
 				t.Fatalf("assembling: %v", err)
 			}

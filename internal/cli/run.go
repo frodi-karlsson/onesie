@@ -22,7 +22,11 @@ func run(
 	positional string,
 	flags *runFlags,
 ) error {
-	built, err := plan.Assemble(events, positional, settings.readFile)
+	built, err := plan.Assemble(plan.Source{
+		Events:     events,
+		Positional: positional,
+		ReadFile:   settings.readFile,
+	})
 	if err != nil {
 		return err
 	}

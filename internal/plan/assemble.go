@@ -13,27 +13,54 @@ const PositionalID = "answer"
 
 const defaultSeparator = ","
 
-// Assemble folds a recorded command line into a Plan. positional is the bare QUESTION argument or
-// the empty string. readFile resolves @FILE references, injected so tests need nothing on disk.
-func Assemble(
-	events []argv.Event,
-	positional string,
-	readFile func(string) ([]byte, error),
-) (*Plan, error) {
-	groups, orphans := split(events, positional)
+const unnamedFile = "the question file"
 
-	built := &Plan{Orphans: orphans}
+// Assemble folds a recorded command line and any file questions into a Plan.
+func Assemble(src Source) (*Plan, error) {
+	groups, orphans := split(src.Events, src.Positional)
+
+	built := &Plan{Questions: append([]Question(nil), src.File...)}
+	fromFile := positions(src.File)
 
 	for _, g := range groups {
-		question, err := build(g, readFile)
+		question, err := build(g, src.ReadFile)
 		if err != nil {
 			return nil, err
 		}
 
-		built.Questions = append(built.Questions, question)
+		if err := merge(built, fromFile, question, src.Replace, src.FileName); err != nil {
+			return nil, err
+		}
 	}
 
+	// Top level flags bind when exactly one question was asked from any source. split already
+	// handles a lone --ask group, so this covers the case where the single question came from a
+	// file. With any other count they have nothing to bind to and validation reports them.
+	if len(orphans) > 0 && len(built.Questions) == 1 {
+		if err := applyEvents(&built.Questions[0], orphans, src.ReadFile); err != nil {
+			return nil, err
+		}
+
+		orphans = nil
+	}
+
+	built.Orphans = orphans
+
 	return built, nil
+}
+
+// Source is where a plan's questions come from.
+type Source struct {
+	Events []argv.Event
+	// Positional is the bare QUESTION argument, or the empty string.
+	Positional string
+	File       []Question
+	// FileName names the file in a collision message, since a user with several files needs to
+	// know which one defined the id.
+	FileName string
+	Replace  bool
+	// ReadFile resolves @FILE references, injected so tests need nothing on disk.
+	ReadFile func(string) ([]byte, error)
 }
 
 func split(events []argv.Event, positional string) ([]group, []argv.Event) {
@@ -90,12 +117,57 @@ func build(g group, readFile func(string) ([]byte, error)) (Question, error) {
 		question.Named = true
 	}
 
+	if err := applyEvents(&question, g.events, readFile); err != nil {
+		return question, err
+	}
+
+	return question, nil
+}
+
+func merge(built *Plan, fromFile map[string]int, question Question, replace bool, name string) error {
+	at, defined := fromFile[question.ID]
+	if !defined {
+		// Two --ask flags sharing an id are not a cross source collision. They append, and
+		// validation reports the duplicate with the message it owns.
+		built.Questions = append(built.Questions, question)
+
+		return nil
+	}
+
+	if !replace {
+		if name == "" {
+			name = unnamedFile
+		}
+
+		return fmt.Errorf(
+			"jev: '%s' is defined in %s and by --ask. Pass --replace to override",
+			question.ID, name)
+	}
+
+	// The replacement keeps the file's position, so output order is stable whether or not a
+	// question was overridden.
+	built.Questions[at] = question
+	delete(fromFile, question.ID)
+
+	return nil
+}
+
+func positions(questions []Question) map[string]int {
+	byID := make(map[string]int, len(questions))
+	for i, question := range questions {
+		byID[question.ID] = i
+	}
+
+	return byID
+}
+
+func applyEvents(question *Question, events []argv.Event, readFile func(string) ([]byte, error)) error {
 	separator := defaultSeparator
 	descriptions := map[string]any{}
 
 	var descOrder []string
 
-	for _, event := range g.events {
+	for _, event := range events {
 		switch event.Name {
 		case "sep":
 			separator = event.Value
@@ -112,12 +184,12 @@ func build(g group, readFile func(string) ([]byte, error)) (Question, error) {
 		case "desc":
 			key, text, ok := strings.Cut(event.Value, "=")
 			if !ok {
-				return question, fmt.Errorf("jev: --desc takes KEY=TEXT, got '%s'", event.Value)
+				return fmt.Errorf("jev: --desc takes KEY=TEXT, got '%s'", event.Value)
 			}
 
 			resolved, err := resolve(text, readFile)
 			if err != nil {
-				return question, err
+				return err
 			}
 
 			if _, seen := descriptions[key]; !seen {
@@ -126,14 +198,14 @@ func build(g group, readFile func(string) ([]byte, error)) (Question, error) {
 
 			descriptions[key] = resolved
 		default:
-			if err := applyPolicy(&question, event); err != nil {
-				return question, err
+			if err := applyPolicy(question, event); err != nil {
+				return err
 			}
 		}
 	}
 
-	question.DescOrder = descOrder
-	attach(&question, descriptions)
+	question.DescOrder = append(question.DescOrder, descOrder...)
+	attach(question, descriptions)
 
 	if question.Shape == Rate {
 		question.Labelled = true
@@ -148,7 +220,7 @@ func build(g group, readFile func(string) ([]byte, error)) (Question, error) {
 		}
 	}
 
-	return question, nil
+	return nil
 }
 
 func applyPolicy(question *Question, event argv.Event) error {
@@ -204,8 +276,16 @@ func attach(question *Question, descriptions map[string]any) {
 	}
 
 	// Whatever matched nothing stays behind, so validation can report it against the question's
-	// own vocabulary.
-	question.UnknownDesc = descriptions
+	// own vocabulary. A file question can already carry keys, so the leftovers merge in.
+	if question.UnknownDesc == nil {
+		question.UnknownDesc = descriptions
+
+		return
+	}
+
+	for key, desc := range descriptions {
+		question.UnknownDesc[key] = desc
+	}
 }
 
 func resolve(text string, readFile func(string) ([]byte, error)) (string, error) {

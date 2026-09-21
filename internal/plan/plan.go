@@ -32,7 +32,7 @@ type Question struct {
 
 	// Labelled is meaningful only when Shape is Rate. A pick question always has option names and
 	// a yes/no question never has labels, so only a score question can arrive unlabelled, through
-	// a request body in a later milestone. It selects which normalization applies.
+	// a request body. It selects which normalization applies.
 	Labelled bool
 
 	// DescOrder is the order --desc keys appeared, so validation can report them as written.
