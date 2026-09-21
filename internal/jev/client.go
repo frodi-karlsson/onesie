@@ -118,7 +118,7 @@ func (c *Client) SystemOne(ctx context.Context, req Request, opts ...RequestOpti
 		return nil, err
 	}
 
-	model := req.Model
+	model := strings.TrimSpace(req.Model)
 	if model == "" {
 		model = c.defaultModel
 	}
