@@ -193,6 +193,7 @@ func checkListModels(cfg Config) error {
 		message string
 	}{
 		{cfg.FileName != "", "jev: -f does not apply to --list-models, which asks no question"},
+		{cfg.Replace, "jev: --replace applies to -f, which --list-models does not accept"},
 		{cfg.HasState, "jev: --state does not apply to --list-models, which reads no state"},
 		{cfg.HasStateFile, "jev: --state-file does not apply to --list-models, " +
 			"which reads no state"},
@@ -207,6 +208,12 @@ func checkListModels(cfg Config) error {
 			"which --list-models does not produce"},
 		{cfg.JobsSet, "jev: -j does not apply to --list-models, which makes one request"},
 		{cfg.HasModel, "jev: -m names a model to ask, which --list-models does not do"},
+		{cfg.Unordered, "jev: --unordered applies to streaming input, " +
+			"which --list-models does not read"},
+		{cfg.StopOnError, "jev: --stop-on-error applies to streaming input, " +
+			"which --list-models does not read"},
+		{cfg.SkipBlank, "jev: --skip-blank applies to streaming input, " +
+			"which --list-models does not read"},
 		{cfg.PrintRequest, "jev: --print-request and --list-models each write a different " +
 			"thing to stdout. Pass one"},
 		{cfg.PrintQuestions, "jev: --print-questions and --list-models each write a different " +

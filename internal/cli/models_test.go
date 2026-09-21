@@ -117,6 +117,11 @@ func TestNewRootCmdListModelsFlags(t *testing.T) {
 			wantErr: "jev: -f does not apply to --list-models, which asks no question",
 		},
 		{
+			name:    "should reject --replace with --list-models",
+			args:    []string{"--list-models", "--replace"},
+			wantErr: "jev: --replace applies to -f, which --list-models does not accept",
+		},
+		{
 			name:    "should reject --state with --list-models",
 			args:    []string{"--list-models", "--state", "x"},
 			wantErr: "jev: --state does not apply to --list-models, which reads no state",
@@ -186,6 +191,24 @@ func TestNewRootCmdListModelsFlags(t *testing.T) {
 			name:    "should reject -m with --list-models",
 			args:    []string{"--list-models", "-m", "jev-1.13.0"},
 			wantErr: "jev: -m names a model to ask, which --list-models does not do",
+		},
+		{
+			name: "should reject --unordered with --list-models",
+			args: []string{"--list-models", "--unordered"},
+			wantErr: "jev: --unordered applies to streaming input, " +
+				"which --list-models does not read",
+		},
+		{
+			name: "should reject --stop-on-error with --list-models",
+			args: []string{"--list-models", "--stop-on-error"},
+			wantErr: "jev: --stop-on-error applies to streaming input, " +
+				"which --list-models does not read",
+		},
+		{
+			name: "should reject --skip-blank with --list-models",
+			args: []string{"--list-models", "--skip-blank"},
+			wantErr: "jev: --skip-blank applies to streaming input, " +
+				"which --list-models does not read",
 		},
 		{
 			name: "should reject --print-request with --list-models",
