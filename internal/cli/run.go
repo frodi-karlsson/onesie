@@ -144,7 +144,7 @@ func ask(
 	}
 
 	if outputMode == output.Table {
-		return output.WriteTable(cmd.OutOrStdout(), record, output.Width(settings.lookupEnv))
+		return output.WriteTable(cmd.OutOrStdout(), record, output.Width(settings.lookupEnv, terminalWidth))
 	}
 
 	return output.Write(cmd.OutOrStdout(), outputMode, record)
@@ -171,13 +171,20 @@ func writeFailure(
 	}
 
 	if mode == output.Table {
-		return output.WriteTable(cmd.OutOrStdout(), record, output.Width(settings.lookupEnv))
+		return output.WriteTable(cmd.OutOrStdout(), record, output.Width(settings.lookupEnv, terminalWidth))
 	}
 
 	return output.Write(cmd.OutOrStdout(), mode, record)
 }
 
 func describe(cause error) *output.Failure {
+	var unusable *jev.ResponseError
+	if errors.As(cause, &unusable) {
+		status := unusable.Status
+
+		return &output.Failure{Kind: "http", Status: &status, Message: cause.Error()}
+	}
+
 	var api *jev.APIError
 	if errors.As(cause, &api) {
 		status := api.Status
@@ -282,9 +289,16 @@ func (*rejectedError) Error() string {
 // rather than steering the real constructor through flags.
 type clientFactory func(ctx context.Context) (*jev.Client, error)
 
-func defaultClientFactory(info BuildInfo, flags *runFlags) clientFactory {
+func defaultClientFactory(
+	info BuildInfo,
+	flags *runFlags,
+	lookupEnv func(string) (string, bool),
+) clientFactory {
 	return func(context.Context) (*jev.Client, error) {
-		opts := []jev.Option{jev.WithUserAgent("jev-cli/" + info.Version)}
+		opts := []jev.Option{
+			jev.WithUserAgent("jev-cli/" + info.Version),
+			jev.WithEnv(lookupEnv),
+		}
 
 		if flags.apiKey != "" {
 			opts = append(opts, jev.WithAPIKey(flags.apiKey))

@@ -13,24 +13,51 @@ func TestWidth(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name    string
-		columns string
-		want    int
+		name     string
+		columns  string
+		terminal int
+		hasTerm  bool
+		want     int
 	}{
 		{name: "should prefer a numeric COLUMNS", columns: "120", want: 120},
+		{
+			name:    "should prefer COLUMNS over the terminal",
+			columns: "120", terminal: 200, hasTerm: true, want: 120,
+		},
 		{name: "should ignore a non numeric COLUMNS", columns: "wide", want: 80},
+		{
+			name:    "should fall back to the terminal when COLUMNS is not numeric",
+			columns: "wide", terminal: 200, hasTerm: true, want: 200,
+		},
 		{name: "should fall back to eighty when COLUMNS is unset", columns: "", want: 80},
+		{
+			name:     "should use the terminal when COLUMNS is unset",
+			terminal: 132, hasTerm: true, want: 132,
+		},
 		{name: "should ignore a zero COLUMNS", columns: "0", want: 80},
 		{name: "should ignore a negative COLUMNS", columns: "-5", want: 80},
+		{
+			name:    "should fall back to eighty when the terminal query fails",
+			hasTerm: false, want: 80,
+		},
+		{
+			name:     "should fall back to eighty when the terminal reports no width",
+			terminal: 0, hasTerm: true, want: 80,
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := output.Width(func(string) (string, bool) {
-				return tc.columns, tc.columns != ""
-			})
+			got := output.Width(
+				func(string) (string, bool) {
+					return tc.columns, tc.columns != ""
+				},
+				func() (int, bool) {
+					return tc.terminal, tc.hasTerm
+				},
+			)
 
 			if got != tc.want {
 				t.Errorf("width = %d, want %d", got, tc.want)

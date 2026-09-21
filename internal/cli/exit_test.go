@@ -71,6 +71,13 @@ func TestClassify(t *testing.T) {
 			want: cli.ExitUnavailable,
 		},
 		{
+			name: "should report unavailable for an unusable 200 body",
+			err: &jev.ResponseError{
+				Status: http.StatusOK, Err: errors.New("invalid character 'n'"),
+			},
+			want: cli.ExitUnavailable,
+		},
+		{
 			name: "should report transport for a connection failure",
 			err:  &jev.ConnectionError{Err: errors.New("refused")}, want: cli.ExitTransport,
 		},

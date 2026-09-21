@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 
 	"github.com/frodi-karlsson/jev-cli/internal/argv"
 	"github.com/frodi-karlsson/jev-cli/internal/jev"
@@ -36,7 +37,7 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 	// The factory reads flags, which are parsed after this returns, so it closes over the pointer.
 	// Installing it only when absent keeps an injected factory winning.
 	if settings.newClient == nil {
-		settings.newClient = defaultClientFactory(info, flags)
+		settings.newClient = defaultClientFactory(info, flags, settings.lookupEnv)
 	}
 
 	recorder := argv.New()
@@ -207,6 +208,15 @@ func limitsBlock() string {
 	}
 
 	return out.String()
+}
+
+func terminalWidth() (int, bool) {
+	columns, _, err := term.GetSize(int(os.Stdout.Fd()))
+	if err != nil || columns <= 0 {
+		return 0, false
+	}
+
+	return columns, true
 }
 
 func isTerminal(f *os.File) bool {

@@ -139,6 +139,15 @@ func build(g group, readFile func(string) ([]byte, error)) (Question, error) {
 		question.Labelled = true
 	}
 
+	// The shape is only final once the loop ends, and a yes/no fallback has to be a boolean by
+	// the time anything reads it, whether or not validation ran. Unparseable text is reported by
+	// checkPolicy, which owns the user facing message.
+	if question.Shape == Noul && question.Policy.Fallback != nil {
+		if value, err := parseBool(question.Policy.Fallback.Text); err == nil {
+			question.Policy.Fallback.Boolean = value
+		}
+	}
+
 	return question, nil
 }
 

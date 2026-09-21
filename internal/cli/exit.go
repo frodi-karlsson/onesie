@@ -50,6 +50,13 @@ func Classify(err error) int {
 		return ExitUnavailable
 	}
 
+	// A 2xx body jev cannot use is a server fault, not a usage error, and retrying it is
+	// reasonable, which is what exit 4 means.
+	var unusable *jev.ResponseError
+	if errors.As(err, &unusable) {
+		return ExitUnavailable
+	}
+
 	if errors.Is(err, jev.ErrAuthentication) || errors.Is(err, jev.ErrPermissionDenied) {
 		return ExitAuth
 	}

@@ -18,13 +18,17 @@ const (
 	minBarWidth = 8
 )
 
-// Width resolves the width for the probability bars. lookupEnv is injected, so this package reads
-// no environment of its own.
-func Width(lookupEnv func(string) (string, bool)) int {
+// Width resolves the width for the probability bars. Both lookups are injected, so this package
+// reads no environment and opens no terminal of its own.
+func Width(lookupEnv func(string) (string, bool), terminalWidth func() (int, bool)) int {
 	if raw, ok := lookupEnv("COLUMNS"); ok {
 		if columns, err := strconv.Atoi(raw); err == nil && columns > 0 {
 			return columns
 		}
+	}
+
+	if columns, ok := terminalWidth(); ok && columns > 0 {
+		return columns
 	}
 
 	return fallbackWidth

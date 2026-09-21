@@ -10,8 +10,7 @@ import (
 )
 
 // Validate checks a plan and returns the non fatal warnings plus the first fatal error, so a
-// caller can print the warnings whether or not validation succeeded. It also resolves a yes/no
-// --fallback onto the question it belongs to.
+// caller can print the warnings whether or not validation succeeded.
 func Validate(p *Plan, cfg Config) ([]string, error) {
 	if len(p.Questions) == 0 {
 		return nil, errors.New("jev: no question given. Pass a question, --ask, or -f")
@@ -252,14 +251,11 @@ func checkPolicy(q *Question, yesNo bool) error {
 	}
 
 	if yesNo && policy.Fallback != nil {
-		value, err := parseBool(policy.Fallback.Text)
-		if err != nil {
+		if _, err := parseBool(policy.Fallback.Text); err != nil {
 			return fmt.Errorf(
 				"jev: --fallback on a yes/no question takes true, false, yes or no, got '%s'",
 				policy.Fallback.Text)
 		}
-
-		policy.Fallback.Boolean = value
 	}
 
 	return nil

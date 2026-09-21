@@ -317,6 +317,54 @@ func TestAssemble(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			name:       "should resolve a yes/no fallback to true with no validation",
+			positional: "is this urgent",
+			events:     []argv.Event{{Name: "fallback", Value: "true"}},
+			check:      wantFallbackBoolean(true),
+		},
+		{
+			name:       "should resolve an uppercase yes fallback with no validation",
+			positional: "is this urgent",
+			events:     []argv.Event{{Name: "fallback", Value: "YES"}},
+			check:      wantFallbackBoolean(true),
+		},
+		{
+			name:       "should resolve a yes/no fallback to false with no validation",
+			positional: "is this urgent",
+			events:     []argv.Event{{Name: "fallback", Value: "false"}},
+			check:      wantFallbackBoolean(false),
+		},
+		{
+			name:       "should resolve a fallback given before the shape is known",
+			positional: "how frustrated is the customer",
+			events: []argv.Event{
+				{Name: "fallback", Value: "calm"},
+				{Name: "rate", Value: "calm,annoyed"},
+			},
+			check: func(t *testing.T, p *plan.Plan) {
+				t.Helper()
+
+				fallback := p.Questions[0].Policy.Fallback
+				if fallback == nil {
+					t.Fatal("the question must carry its fallback")
+				}
+
+				if fallback.Boolean {
+					t.Error("a rate fallback must not be parsed as a boolean")
+				}
+
+				if fallback.Text != "calm" {
+					t.Errorf("text = %q, want calm", fallback.Text)
+				}
+			},
+		},
+		{
+			name:       "should leave an unparseable yes/no fallback for validation to report",
+			positional: "is this urgent",
+			events:     []argv.Event{{Name: "fallback", Value: "maybe"}},
+			check:      wantFallbackBoolean(false),
+		},
+		{
 			name:    "should reject an empty ask",
 			events:  []argv.Event{{Name: "ask", Value: ""}},
 			wantErr: true,
@@ -372,4 +420,19 @@ func TestAssembleFileError(t *testing.T) {
 			t.Errorf("error = %v, want it to wrap os.ErrNotExist", err)
 		}
 	})
+}
+
+func wantFallbackBoolean(want bool) func(t *testing.T, p *plan.Plan) {
+	return func(t *testing.T, p *plan.Plan) {
+		t.Helper()
+
+		fallback := p.Questions[0].Policy.Fallback
+		if fallback == nil {
+			t.Fatal("the question must carry its fallback")
+		}
+
+		if fallback.Boolean != want {
+			t.Errorf("boolean = %t, want %t", fallback.Boolean, want)
+		}
+	}
 }

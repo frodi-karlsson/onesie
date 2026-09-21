@@ -180,6 +180,21 @@ func TestNewRootCmd(t *testing.T) {
 			absent:   []string{"refuse"},
 		},
 		{
+			name: "should emit an http error for a 200 body it cannot use",
+			args: []string{
+				"--ask", "team=which team", "--pick", "billing,technical",
+				"--min-confidence", "0.7", "--fallback", "human", "-o", "json",
+			},
+			stdin:    "body",
+			response: "not json at all",
+			wantCode: cli.ExitUnavailable,
+			contains: []string{
+				`"error"`, `"kind":"http"`, `"status":200`,
+				`"decision":"human"`, `"fallback":"error"`,
+			},
+			absent: []string{`"kind":"transport"`},
+		},
+		{
 			name: "should emit the error key in json on failure",
 			args: []string{
 				"--ask", "team=which team", "--pick", "billing,technical",
@@ -295,4 +310,108 @@ func TestNewRootCmdFlagDrivenClient(t *testing.T) {
 			t.Errorf("Authorization header = %q, want it to carry the flag's key", gotAuth)
 		}
 	})
+}
+
+func TestNewRootCmdEnvDrivenClient(t *testing.T) {
+	t.Parallel()
+
+	const answered = `{"model":"jev-1.13.0","answers":{"answer":{"type":"noul","noul":0.5}}}`
+
+	t.Run("should build a client from the injected environment", func(t *testing.T) {
+		t.Parallel()
+
+		var gotAuth string
+
+		srv := stubAnswering(t, answered, func(r *http.Request) {
+			gotAuth = r.Header.Get("Authorization")
+		})
+		defer srv.Close()
+
+		env := map[string]string{
+			jev.EnvAPIKey:  "from-env",
+			jev.EnvBaseURL: srv.URL,
+		}
+
+		out, code := runWithEnv(t, env, []string{"is this urgent", "-r"})
+
+		if code != cli.ExitOK {
+			t.Fatalf("exit code = %d, output:\n%s", code, out)
+		}
+
+		if !strings.Contains(gotAuth, "from-env") {
+			t.Errorf("Authorization header = %q, want it to carry the environment key", gotAuth)
+		}
+	})
+
+	t.Run("should let --base-url override the environment", func(t *testing.T) {
+		t.Parallel()
+
+		var wanted, unwanted int
+
+		flagged := stubAnswering(t, answered, func(*http.Request) { wanted++ })
+		defer flagged.Close()
+
+		fromEnv := stubAnswering(t, answered, func(*http.Request) { unwanted++ })
+		defer fromEnv.Close()
+
+		env := map[string]string{
+			jev.EnvAPIKey:  "from-env",
+			jev.EnvBaseURL: fromEnv.URL,
+		}
+
+		out, code := runWithEnv(t, env,
+			[]string{"is this urgent", "-r", "--base-url", flagged.URL})
+
+		if code != cli.ExitOK {
+			t.Fatalf("exit code = %d, output:\n%s", code, out)
+		}
+
+		if wanted != 1 {
+			t.Errorf("the flag's base url took %d requests, want 1", wanted)
+		}
+
+		if unwanted != 0 {
+			t.Errorf("the environment's base url took %d requests, want 0", unwanted)
+		}
+	})
+}
+
+func runWithEnv(t *testing.T, env map[string]string, args []string) (string, int) {
+	t.Helper()
+
+	var out bytes.Buffer
+
+	// No WithClientFactory, so the real factory runs and the injected lookup is the only thing
+	// standing between it and the process environment.
+	root := cli.NewRootCmd(
+		cli.BuildInfo{Version: "1.2.3"},
+		cli.WithStdin(strings.NewReader("body")),
+		cli.WithStdinTTY(false),
+		cli.WithStdoutTTY(false),
+		cli.WithLookupEnv(func(name string) (string, bool) {
+			value, ok := env[name]
+
+			return value, ok
+		}),
+	)
+
+	root.SetOut(&out)
+	root.SetErr(&out)
+	root.SetArgs(args)
+
+	code := cli.Execute(t.Context(), root)
+
+	return out.String(), code
+}
+
+func stubAnswering(t *testing.T, body string, observe func(*http.Request)) *httptest.Server {
+	t.Helper()
+
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		observe(r)
+
+		if _, err := w.Write([]byte(body)); err != nil {
+			t.Errorf("writing stub response: %v", err)
+		}
+	}))
 }
