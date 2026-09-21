@@ -112,6 +112,13 @@ func wireValue(value any) (any, error) {
 
 		return json.RawMessage(encoded), nil
 	default:
+		// A scalar is checked rather than returned on trust, so a value encoding/json refuses,
+		// .nan and .inf among them, is reported here against the key that carries it rather than
+		// as a bare marshal failure once the request is built.
+		if _, err := json.Marshal(value); err != nil {
+			return nil, err
+		}
+
 		return value, nil
 	}
 }

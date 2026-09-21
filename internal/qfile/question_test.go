@@ -566,3 +566,59 @@ func TestLoadPolicy(t *testing.T) {
 		})
 	}
 }
+
+func TestLoadStructured(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		doc     string
+		wantErr string
+	}{
+		{
+			name:    "should name the question when a structured ask cannot be sent",
+			doc:     "q:\n  ask:\n    what: hi\n    score: .nan\n",
+			wantErr: "jev: 'ask' in question 'q' cannot be sent",
+		},
+		{
+			name:    "should name the question when a scalar ask cannot be sent",
+			doc:     "q:\n  ask: .nan\n",
+			wantErr: "jev: 'ask' in question 'q' cannot be sent",
+		},
+		{
+			name:    "should name the rubric key when a yes_means cannot be sent",
+			doc:     "q:\n  ask: hi\n  yes_means:\n    what: y\n    score: .nan\n",
+			wantErr: "jev: 'yes_means' in question 'q' cannot be sent",
+		},
+		{
+			name:    "should name the option when a pick description cannot be sent",
+			doc:     "q:\n  ask: hi\n  pick:\n    a:\n      score: .nan\n    b: second\n",
+			wantErr: "jev: 'pick' option 'a' in question 'q' cannot be sent",
+		},
+		{
+			name:    "should name the level when a rate description cannot be sent",
+			doc:     "q:\n  ask: hi\n  rate:\n    low:\n      score: .nan\n    high: h\n",
+			wantErr: "jev: 'rate' level 'low' in question 'q' cannot be sent",
+		},
+		{
+			name:    "should name the level when a rate sequence description cannot be sent",
+			doc:     "q:\n  ask: hi\n  rate:\n    - low:\n        score: .nan\n    - high: h\n",
+			wantErr: "jev: 'rate' level 'low' in question 'q' cannot be sent",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := qfile.Load([]byte(tc.doc))
+			if err == nil {
+				t.Fatalf("expected an error, got %#v", got)
+			}
+
+			if !strings.Contains(err.Error(), tc.wantErr) {
+				t.Errorf("error = %q, want it to mention %q", err.Error(), tc.wantErr)
+			}
+		})
+	}
+}

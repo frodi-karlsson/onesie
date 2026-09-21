@@ -48,7 +48,7 @@ func buildQuestion(id string, value any) (plan.Question, error) {
 
 	instructions, err := wireValue(ask)
 	if err != nil {
-		return question, err
+		return question, fmt.Errorf("jev: 'ask' in question '%s' cannot be sent: %w", id, err)
 	}
 
 	question.Instructions = instructions
@@ -57,7 +57,7 @@ func buildQuestion(id string, value any) (plan.Question, error) {
 	no, noKey, hasNo := firstOf(fields, "no_means", "false")
 
 	if hasYes || hasNo {
-		criteria, err := readYesNo(yes, no)
+		criteria, err := readYesNo(id, yesKey, noKey, yes, no)
 		if err != nil {
 			return question, err
 		}
@@ -109,15 +109,17 @@ func buildQuestion(id string, value any) (plan.Question, error) {
 	return question, nil
 }
 
-func readYesNo(yes, no any) (*plan.YesNoCriteria, error) {
+func readYesNo(id, yesKey, noKey string, yes, no any) (*plan.YesNoCriteria, error) {
 	wireYes, err := wireValue(yes)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf(
+			"jev: '%s' in question '%s' cannot be sent: %w", yesKey, id, err)
 	}
 
 	wireNo, err := wireValue(no)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf(
+			"jev: '%s' in question '%s' cannot be sent: %w", noKey, id, err)
 	}
 
 	return &plan.YesNoCriteria{Yes: wireYes, No: wireNo}, nil
@@ -160,13 +162,16 @@ func readPick(id string, value any) ([]plan.Option, error) {
 		options := make([]plan.Option, 0, len(items))
 
 		for _, item := range items {
+			name := fmt.Sprintf("%v", item.Key)
+
 			desc, err := wireValue(item.Value)
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf(
+					"jev: 'pick' option '%s' in question '%s' cannot be sent: %w", name, id, err)
 			}
 
 			options = append(options, plan.Option{
-				Name: fmt.Sprintf("%v", item.Key),
+				Name: name,
 				Desc: desc,
 			})
 		}
@@ -201,13 +206,16 @@ func readRate(id string, value any) ([]plan.Level, error) {
 		levels := make([]plan.Level, 0, len(items))
 
 		for _, item := range items {
+			label := fmt.Sprintf("%v", item.Key)
+
 			desc, err := wireValue(item.Value)
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf(
+					"jev: 'rate' level '%s' in question '%s' cannot be sent: %w", label, id, err)
 			}
 
 			levels = append(levels, plan.Level{
-				Label: fmt.Sprintf("%v", item.Key),
+				Label: label,
 				Desc:  desc,
 			})
 		}
@@ -256,13 +264,16 @@ func readLevel(id string, entry any) (plan.Level, error) {
 				"each entry names one level", id, len(items))
 	}
 
+	label := fmt.Sprintf("%v", items[0].Key)
+
 	desc, err := wireValue(items[0].Value)
 	if err != nil {
-		return plan.Level{}, err
+		return plan.Level{}, fmt.Errorf(
+			"jev: 'rate' level '%s' in question '%s' cannot be sent: %w", label, id, err)
 	}
 
 	return plan.Level{
-		Label: fmt.Sprintf("%v", items[0].Key),
+		Label: label,
 		Desc:  desc,
 	}, nil
 }

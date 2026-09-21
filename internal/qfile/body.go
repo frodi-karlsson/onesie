@@ -74,7 +74,8 @@ func buildBodyQuestion(id string, value any) (plan.Question, error) {
 	if instructions, found := lookup(fields, "instructions"); found {
 		wired, err := wireValue(instructions)
 		if err != nil {
-			return question, err
+			return question, fmt.Errorf(
+				"jev: 'instructions' in question '%s' cannot be sent: %w", id, err)
 		}
 
 		question.Instructions = wired
@@ -104,7 +105,7 @@ func buildBodyNoul(question plan.Question, criteria any) (plan.Question, error) 
 	yes, _ := lookup(items, "true")
 	no, _ := lookup(items, "false")
 
-	rubric, err := readYesNo(yes, no)
+	rubric, err := readYesNo(question.ID, "true", "false", yes, no)
 	if err != nil {
 		return question, err
 	}
@@ -124,13 +125,16 @@ func buildBodyChoice(question plan.Question, criteria any) (plan.Question, error
 	question.Shape = plan.Pick
 
 	for _, item := range items {
+		name := fmt.Sprintf("%v", item.Key)
+
 		desc, err := wireValue(item.Value)
 		if err != nil {
-			return question, err
+			return question, fmt.Errorf(
+				"jev: criteria '%s' in question '%s' cannot be sent: %w", name, question.ID, err)
 		}
 
 		question.Options = append(question.Options, plan.Option{
-			Name: fmt.Sprintf("%v", item.Key),
+			Name: name,
 			Desc: desc,
 		})
 	}
@@ -147,10 +151,11 @@ func buildBodyScore(question plan.Question, criteria any) (plan.Question, error)
 
 	question.Shape = plan.Rate
 
-	for _, entry := range entries {
+	for index, entry := range entries {
 		desc, err := wireValue(entry)
 		if err != nil {
-			return question, err
+			return question, fmt.Errorf(
+				"jev: criteria %d in question '%s' cannot be sent: %w", index, question.ID, err)
 		}
 
 		// Labelled stays false and Label stays empty. A body's criteria is a bare array with no
