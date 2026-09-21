@@ -1345,6 +1345,40 @@ func TestMarshalQuestionsBody(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("should agree with MarshalBody on every field but the state", func(t *testing.T) {
+		t.Parallel()
+
+		req := jev.Request{
+			State: "s",
+			Model: "jev-1.13.0",
+			Questions: jev.Questions{
+				{ID: "urgent", Question: jev.Noul{Instructions: "q"}},
+			},
+		}
+
+		full, err := jev.MarshalBody(req)
+		if err != nil {
+			t.Fatalf("MarshalBody: %v", err)
+		}
+
+		const prefix = `{"state":"s",`
+
+		if !strings.HasPrefix(string(full), prefix) {
+			t.Fatalf("MarshalBody = %s, want it to open with %s", full, prefix)
+		}
+
+		want := "{" + string(full)[len(prefix):]
+
+		got, err := jev.MarshalQuestionsBody(req)
+		if err != nil {
+			t.Fatalf("MarshalQuestionsBody: %v", err)
+		}
+
+		if string(got) != want {
+			t.Errorf("MarshalQuestionsBody = %s, want %s", got, want)
+		}
+	})
 }
 
 func TestResolveModel(t *testing.T) {
@@ -1371,6 +1405,27 @@ func TestResolveModel(t *testing.T) {
 			name: "should fall back to the built in default",
 			want: jev.DefaultModel,
 		},
+		{
+			name:  "should trim an explicit model",
+			model: " jev-1.13.0 ",
+			want:  "jev-1.13.0",
+		},
+		{
+			name:  "should treat a whitespace only model as absent",
+			model: "   ",
+			want:  jev.DefaultModel,
+		},
+		{
+			name:  "should treat a tab only model as absent",
+			model: "\t",
+			want:  jev.DefaultModel,
+		},
+		{
+			name:  "should fall back to the environment for a whitespace only model",
+			model: "   ",
+			env:   map[string]string{jev.EnvDefaultModel: "jev-1.2.0"},
+			want:  "jev-1.2.0",
+		},
 	}
 
 	for _, tc := range tests {
@@ -1384,29 +1439,34 @@ func TestResolveModel(t *testing.T) {
 	}
 
 	// A client resolving the model its own way is the drift this guards against, so every case is
-	// asserted twice: once against ResolveModel and once against the model a client really sends.
+	// asserted twice: once against ResolveModel and once against the body a client really sends.
 	for _, tc := range tests {
 		t.Run(tc.name+" in a sent body", func(t *testing.T) {
 			t.Parallel()
 
+			// The whole body rather than its model field, so a client that grew its own encoder
+			// instead of calling MarshalBody fails here too.
+			want, marshalErr := jev.MarshalBody(jev.Request{
+				State: "s", Model: tc.want, Questions: oneNoul(),
+			})
+			if marshalErr != nil {
+				t.Fatalf("MarshalBody: %v", marshalErr)
+			}
+
 			var (
-				mu   sync.Mutex
-				body struct {
-					Model string `json:"model"`
-				}
+				mu  sync.Mutex
+				raw []byte
 			)
 
 			server := httptest.NewServer(http.HandlerFunc(
 				func(w http.ResponseWriter, r *http.Request) {
-					raw, readErr := io.ReadAll(r.Body)
+					read, readErr := io.ReadAll(r.Body)
 					if readErr != nil {
 						t.Errorf("reading the request body: %v", readErr)
 					}
 
 					mu.Lock()
-					if err := json.Unmarshal(raw, &body); err != nil {
-						t.Errorf("decoding the request body: %v", err)
-					}
+					raw = read
 					mu.Unlock()
 
 					w.Header().Set("Content-Type", "application/json")
@@ -1432,8 +1492,8 @@ func TestResolveModel(t *testing.T) {
 			mu.Lock()
 			defer mu.Unlock()
 
-			if body.Model != tc.want {
-				t.Errorf("sent model = %s, want %s", body.Model, tc.want)
+			if string(raw) != string(want) {
+				t.Errorf("sent body = %s, want %s", raw, want)
 			}
 		})
 	}

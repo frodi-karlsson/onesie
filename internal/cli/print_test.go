@@ -2,10 +2,15 @@ package cli
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/frodi-karlsson/jev-cli/internal/jev"
@@ -359,6 +364,185 @@ func TestPrintRequest(t *testing.T) {
 			t.Errorf("printed %s, want %s", printed, body)
 		}
 	})
+}
+
+func TestPrintRequestMatchesSentBody(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		args  []string
+		stdin string
+		file  string
+	}{
+		{
+			name:  "should print the trimmed model an untrimmed -m sends",
+			args:  []string{"--ask", "urgent=is this urgent", "-m", " jev-1.13.0 "},
+			stdin: "the server is down",
+		},
+		{
+			name:  "should print the resolved model a whitespace only -m sends",
+			args:  []string{"--ask", "urgent=is this urgent", "-m", "   "},
+			stdin: "the server is down",
+		},
+		{
+			name: "should print the trimmed model an untrimmed request body sends",
+			file: `{"state":"the server is down","model":" jev-1.13.0 ","questions":` +
+				`{"urgent":{"type":"noul","instructions":"is this urgent"}}}`,
+		},
+		{
+			name: "should print the resolved model a tab only request body sends",
+			file: `{"state":"the server is down","model":"\t","questions":` +
+				`{"urgent":{"type":"noul","instructions":"is this urgent"}}}`,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			args := tc.args
+
+			if tc.file != "" {
+				path := filepath.Join(t.TempDir(), "body.json")
+				if err := os.WriteFile(path, []byte(tc.file), 0o600); err != nil {
+					t.Fatalf("writing the body: %v", err)
+				}
+
+				args = []string{"-f", path}
+			}
+
+			printArgs := make([]string, 0, len(args)+1)
+			printArgs = append(printArgs, args...)
+			printArgs = append(printArgs, "--print-request")
+
+			printed, errOut, code := runOfflineStdin(t, printArgs, tc.stdin)
+			if code != ExitOK {
+				t.Fatalf("printing exit code = %d, want %d\nstderr:\n%s", code, ExitOK, errOut)
+			}
+
+			sent, errOut, code := runRecorded(t, args, tc.stdin)
+			if code != ExitOK {
+				t.Fatalf("sending exit code = %d, want %d\nstderr:\n%s", code, ExitOK, errOut)
+			}
+
+			if want := strings.TrimSuffix(printed, "\n"); sent != want {
+				t.Errorf("sent body    %s\nprinted body %s", sent, want)
+			}
+		})
+	}
+}
+
+// runRecorded runs the given arguments against a stub that answers one noul, and returns the
+// request body it received.
+func runRecorded(t *testing.T, args []string, stdin string) (string, string, int) {
+	t.Helper()
+
+	var (
+		mu   sync.Mutex
+		sent string
+	)
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Errorf("reading the request body: %v", err)
+		}
+
+		mu.Lock()
+		sent = string(body)
+		mu.Unlock()
+
+		w.Header().Set("Content-Type", "application/json")
+
+		if _, err := io.WriteString(w,
+			`{"model":"m","answers":{"urgent":{"type":"noul","noul":0.1}},"usage":{}}`); err != nil {
+			t.Errorf("writing the stub response: %v", err)
+		}
+	}))
+	defer srv.Close()
+
+	var out, errOut bytes.Buffer
+
+	root := NewRootCmd(
+		BuildInfo{Version: "1.2.3"},
+		WithClientFactory(func(context.Context) (*jev.Client, error) {
+			// The client gets its own blank environment as well as the command, so the machine
+			// running the test cannot supply a default model to one side of the comparison.
+			return jev.New(
+				jev.WithAPIKey("k"),
+				jev.WithBaseURL(srv.URL),
+				jev.WithEnv(func(string) (string, bool) { return "", false }),
+			)
+		}),
+		WithStdin(strings.NewReader(stdin)),
+		WithStdinTTY(false),
+		WithStdoutTTY(false),
+		WithLookupEnv(func(string) (string, bool) { return "", false }),
+	)
+
+	root.SetOut(&out)
+	root.SetErr(&errOut)
+	root.SetArgs(args)
+
+	code := Execute(t.Context(), root)
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	return sent, errOut.String(), code
+}
+
+func TestPrintRequestMerge(t *testing.T) {
+	t.Parallel()
+
+	const body = `{"state":{"answers":1},"model":"jev-latest","questions":` +
+		`{"urgent":{"type":"noul","instructions":"is this urgent"}}}` + "\n"
+
+	tests := []struct {
+		name  string
+		args  []string
+		stdin string
+		want  string
+	}{
+		{
+			name: "should print a body whose state already holds the merge key",
+			args: []string{
+				"--ask", "urgent=is this urgent", "-i", "json", "--print-request", "--merge",
+			},
+			stdin: `{"answers":1}`,
+			want:  body,
+		},
+		{
+			name: "should print a streamed body whose state already holds the merge key",
+			args: []string{
+				"--ask", "urgent=is this urgent", "-i", "jsonl", "--print-request", "--merge",
+			},
+			stdin: `{"answers":1}` + "\n",
+			want:  body,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			out, errOut, code := runOfflineStdin(t, tc.args, tc.stdin)
+
+			if code != ExitOK {
+				t.Fatalf("exit code = %d, want %d\nstdout:\n%s\nstderr:\n%s",
+					code, ExitOK, out, errOut)
+			}
+
+			if out != tc.want {
+				t.Errorf("stdout = %s, want %s", out, tc.want)
+			}
+
+			if errOut != "" {
+				t.Errorf("stderr should be empty, got:\n%s", errOut)
+			}
+		})
+	}
 }
 
 func TestStreamRequests(t *testing.T) {
