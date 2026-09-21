@@ -16,45 +16,33 @@ func Validate(p *Plan, cfg Config) ([]string, error) {
 		return nil, errors.New("jev: no question given. Pass a question, --ask, or -f")
 	}
 
-	if cfg.Raw && cfg.Output != "" {
-		return nil, errors.New("jev: -r and -o are mutually exclusive")
-	}
-
-	if cfg.HasState && cfg.HasStateFile {
-		return nil, errors.New("jev: --state and --state-file are mutually exclusive")
-	}
-
-	if cfg.Replace && cfg.FileName == "" {
-		return nil, errors.New("jev: --replace applies to -f, which was not given")
-	}
-
-	if err := checkBodyPolicy(p, cfg.FileName); err != nil {
-		return nil, err
-	}
-
-	if err := checkOrphans(p); err != nil {
-		return nil, err
-	}
-
-	if err := checkSources(p); err != nil {
-		return nil, err
-	}
-
-	if err := checkDuplicateIDs(p); err != nil {
-		return nil, err
-	}
-
 	var warnings []string
 
 	// Ahead of checkSingle, so a streaming -q reports the streaming message rather than the single
 	// question policy one.
-	streamHint, streamErr := checkStreaming(cfg)
-	if streamHint != "" {
-		warnings = append(warnings, streamHint)
+	flagHint, flagErr := CheckFlags(cfg)
+	if flagHint != "" {
+		warnings = append(warnings, flagHint)
 	}
 
-	if streamErr != nil {
-		return warnings, streamErr
+	if flagErr != nil {
+		return warnings, flagErr
+	}
+
+	if err := checkBodyPolicy(p, cfg.FileName); err != nil {
+		return warnings, err
+	}
+
+	if err := checkOrphans(p); err != nil {
+		return warnings, err
+	}
+
+	if err := checkSources(p); err != nil {
+		return warnings, err
+	}
+
+	if err := checkDuplicateIDs(p); err != nil {
+		return warnings, err
 	}
 
 	for i := range p.Questions {
@@ -75,6 +63,30 @@ func Validate(p *Plan, cfg Config) ([]string, error) {
 	return warnings, nil
 }
 
+// CheckFlags reports the flag combination rules, which are the rules that need no plan. It is
+// exported because -i request carries its own questions and so never builds one.
+func CheckFlags(cfg Config) (string, error) {
+	// Ahead of every other rule, so a flag -i request rejects outright is named by the message
+	// that says so rather than by a general one that happens to fire first.
+	if err := checkRequestMode(cfg); err != nil {
+		return "", err
+	}
+
+	if cfg.Raw && cfg.Output != "" {
+		return "", errors.New("jev: -r and -o are mutually exclusive")
+	}
+
+	if cfg.HasState && cfg.HasStateFile {
+		return "", errors.New("jev: --state and --state-file are mutually exclusive")
+	}
+
+	if cfg.Replace && cfg.FileName == "" {
+		return "", errors.New("jev: --replace applies to -f, which was not given")
+	}
+
+	return checkStreaming(cfg)
+}
+
 // Config carries the invocation settings validation needs beyond the questions themselves.
 type Config struct {
 	Raw          bool
@@ -88,8 +100,22 @@ type Config struct {
 	// body policy message and marks whether -f was used at all.
 	FileName string
 
+	// HasAsk and HasPositional record which question source the user typed, which -i request
+	// rejects one message apiece. A plan cannot answer this, since -i request never builds one.
+	HasAsk        bool
+	HasPositional bool
+
+	// HasModel records that -m was given, which an empty Model string cannot do on its own.
+	HasModel       bool
+	Usage          bool
+	PrintQuestions bool
+
 	// Streaming is true for an input mode that reads one record per line.
 	Streaming bool
+
+	// RequestMode is true for -i request, which carries its own questions and forwards raw
+	// responses. Streaming is true for it too, so the two are not interchangeable.
+	RequestMode bool
 	// InputName is the -i value as the user spelled it, so a message names the mode they gave.
 	InputName   string
 	Unordered   bool
@@ -110,6 +136,45 @@ type Config struct {
 
 	MaxRetryAfter    int
 	MaxRetryAfterSet bool
+}
+
+func checkRequestMode(cfg Config) error {
+	if !cfg.RequestMode {
+		return nil
+	}
+
+	// In the order section 13 lists the flags, so a command line with several offenders reports a
+	// predictable one rather than whichever check happened to be written first.
+	for _, rule := range []struct {
+		given   bool
+		message string
+	}{
+		{cfg.HasPositional, "jev: -i request carries its own questions. " +
+			"Drop the question argument"},
+		{cfg.HasAsk, "jev: -i request carries its own questions. Drop --ask"},
+		{cfg.FileName != "", "jev: -f does not apply to -i request, " +
+			"which carries its own questions"},
+		{cfg.Replace, "jev: --replace applies to -f, which -i request does not accept"},
+		{cfg.HasState, "jev: --state does not apply to -i request, " +
+			"whose bodies carry their own state"},
+		{cfg.HasStateFile, "jev: --state-file does not apply to -i request, " +
+			"whose bodies carry their own state"},
+		{cfg.Output != "", "jev: -o does not apply to -i request, which forwards raw responses"},
+		{cfg.Quiet, "jev: -q needs a policy to report, which -i request has none of"},
+		{cfg.Usage, "jev: --usage does not apply to -i request, " +
+			"whose response bodies already carry usage"},
+		{cfg.Merge, "jev: --merge does not apply to -i request, which forwards raw responses"},
+		{cfg.HasModel, "jev: -m does not apply to -i request, " +
+			"whose bodies carry their own model"},
+		{cfg.PrintQuestions, "jev: --print-questions needs questions of its own, " +
+			"which -i request does not build"},
+	} {
+		if rule.given {
+			return errors.New(rule.message)
+		}
+	}
+
+	return nil
 }
 
 func checkStreaming(cfg Config) (string, error) {

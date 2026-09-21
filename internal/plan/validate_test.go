@@ -812,3 +812,139 @@ func bodyQuestions(n int) []plan.Question {
 
 	return questions
 }
+
+func TestCheckFlags(t *testing.T) {
+	t.Parallel()
+
+	request := func(apply func(*plan.Config)) plan.Config {
+		cfg := plan.Config{Streaming: true, RequestMode: true, InputName: "request", Jobs: 1}
+		apply(&cfg)
+
+		return cfg
+	}
+
+	tests := []struct {
+		name    string
+		cfg     plan.Config
+		wantErr string
+	}{
+		{
+			name: "should reject a positional question with -i request",
+			cfg:  request(func(c *plan.Config) { c.HasPositional = true }),
+			wantErr: "jev: -i request carries its own questions. " +
+				"Drop the question argument",
+		},
+		{
+			name:    "should reject --ask with -i request",
+			cfg:     request(func(c *plan.Config) { c.HasAsk = true }),
+			wantErr: "jev: -i request carries its own questions. Drop --ask",
+		},
+		{
+			name: "should reject -f with -i request",
+			cfg:  request(func(c *plan.Config) { c.FileName = "q.yaml" }),
+			wantErr: "jev: -f does not apply to -i request, " +
+				"which carries its own questions",
+		},
+		{
+			name:    "should reject --replace with -i request",
+			cfg:     request(func(c *plan.Config) { c.Replace = true }),
+			wantErr: "jev: --replace applies to -f, which -i request does not accept",
+		},
+		{
+			name: "should reject --state with -i request",
+			cfg:  request(func(c *plan.Config) { c.HasState = true }),
+			wantErr: "jev: --state does not apply to -i request, " +
+				"whose bodies carry their own state",
+		},
+		{
+			name: "should reject --state-file with -i request",
+			cfg:  request(func(c *plan.Config) { c.HasStateFile = true }),
+			wantErr: "jev: --state-file does not apply to -i request, " +
+				"whose bodies carry their own state",
+		},
+		{
+			name:    "should reject -o with -i request",
+			cfg:     request(func(c *plan.Config) { c.Output = "json" }),
+			wantErr: "jev: -o does not apply to -i request, which forwards raw responses",
+		},
+		{
+			name:    "should reject -q with -i request",
+			cfg:     request(func(c *plan.Config) { c.Quiet = true }),
+			wantErr: "jev: -q needs a policy to report, which -i request has none of",
+		},
+		{
+			name: "should reject --usage with -i request",
+			cfg:  request(func(c *plan.Config) { c.Usage = true }),
+			wantErr: "jev: --usage does not apply to -i request, " +
+				"whose response bodies already carry usage",
+		},
+		{
+			name:    "should reject --merge with -i request",
+			cfg:     request(func(c *plan.Config) { c.Merge = true }),
+			wantErr: "jev: --merge does not apply to -i request, which forwards raw responses",
+		},
+		{
+			name: "should reject -m with -i request",
+			cfg:  request(func(c *plan.Config) { c.HasModel = true }),
+			wantErr: "jev: -m does not apply to -i request, " +
+				"whose bodies carry their own model",
+		},
+		{
+			name: "should reject --print-questions with -i request",
+			cfg:  request(func(c *plan.Config) { c.PrintQuestions = true }),
+			wantErr: "jev: --print-questions needs questions of its own, " +
+				"which -i request does not build",
+		},
+		{
+			name: "should accept the streaming flags with -i request",
+			cfg: request(func(c *plan.Config) {
+				c.Unordered = true
+				c.StopOnError = true
+				c.SkipBlank = true
+				c.Jobs = 4
+				c.JobsSet = true
+			}),
+		},
+		{
+			name: "should still reject -j 0 with -i request",
+			cfg: request(func(c *plan.Config) {
+				c.Jobs = 0
+				c.JobsSet = true
+			}),
+			wantErr: "jev: -j takes a positive number of records in flight, got 0",
+		},
+		{
+			name:    "should reject -r with -o outside request mode",
+			cfg:     plan.Config{Raw: true, Output: "json", InputName: "text"},
+			wantErr: "jev: -r and -o are mutually exclusive",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			warning, err := plan.CheckFlags(tc.cfg)
+
+			if tc.wantErr == "" {
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+
+				if warning != "" {
+					t.Errorf("warning = %q, want none", warning)
+				}
+
+				return
+			}
+
+			if err == nil {
+				t.Fatalf("expected an error, got none")
+			}
+
+			if err.Error() != tc.wantErr {
+				t.Errorf("error = %q, want %q", err.Error(), tc.wantErr)
+			}
+		})
+	}
+}
