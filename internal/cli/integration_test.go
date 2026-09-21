@@ -390,6 +390,212 @@ func TestFileIntegration(t *testing.T) {
 	}
 }
 
+func TestStreamIntegration(t *testing.T) {
+	requireAPIKey(t)
+
+	const tickets = `{"id":1,"body":"EVERYTHING IS DOWN, CALL ME NOW"}
+{"id":2,"body":"just following up, no rush at all"}
+{"id":3,"body":"I was charged twice and need a refund today"}
+{"id":4,"body":"thanks for the quick fix yesterday"}
+{"id":5,"body":"THIS IS THE FOURTH TIME I HAVE WRITTEN, CANCEL MY ACCOUNT"}
+{"id":6,"body":"quick question about your pricing page"}
+`
+
+	tests := []struct {
+		name  string
+		args  []string
+		stdin string
+		check func(t *testing.T, out string)
+	}{
+		{
+			name:  "should answer every record in input order under concurrency",
+			args:  []string{"does `body` convey urgency", "-i", "jsonl", "-j", "4", "--merge"},
+			stdin: tickets,
+			check: func(t *testing.T, out string) {
+				t.Helper()
+
+				lines := nonEmptyLines(out)
+				if len(lines) != 6 {
+					t.Fatalf("lines = %d, want 6:\n%s", len(lines), out)
+				}
+
+				// The merge keeps the input's own fields, so the ids prove the output is in input
+				// order even though four workers were running against real, variable latency.
+				// This is the assertion no stub can make, because a stub answers instantly and
+				// uniformly and would come back in order by accident.
+				for i, line := range lines {
+					var record struct {
+						ID      int `json:"id"`
+						Answers struct {
+							Answer struct {
+								Value float64 `json:"value"`
+							} `json:"answer"`
+						} `json:"answers"`
+					}
+
+					if err := json.Unmarshal([]byte(line), &record); err != nil {
+						t.Fatalf("line %d is not valid json: %q", i, line)
+					}
+
+					if record.ID != i+1 {
+						t.Errorf("line %d has id %d, want %d. The output is out of order",
+							i, record.ID, i+1)
+					}
+				}
+			},
+		},
+		{
+			name:  "should score the urgent tickets above the calm ones",
+			args:  []string{"does `body` convey urgency", "-i", "jsonl", "-j", "4", "-o", "json"},
+			stdin: tickets,
+			check: func(t *testing.T, out string) {
+				t.Helper()
+
+				lines := nonEmptyLines(out)
+				if len(lines) != 6 {
+					t.Fatalf("lines = %d, want 6", len(lines))
+				}
+
+				values := make([]float64, 0, 6)
+
+				for _, line := range lines {
+					var record map[string]json.RawMessage
+					if err := json.Unmarshal([]byte(line), &record); err != nil {
+						t.Fatalf("decoding %q: %v", line, err)
+					}
+
+					var answer struct {
+						Value float64 `json:"value"`
+					}
+
+					if err := json.Unmarshal(record["answer"], &answer); err != nil {
+						t.Fatalf("decoding the answer: %v", err)
+					}
+
+					values = append(values, answer.Value)
+				}
+
+				// Records 1 and 5 are shouting, 2 and 4 are not. Comparing them to each other
+				// rather than to a fixed threshold keeps this alive across model releases.
+				urgent := []int{0, 4}
+				calm := []int{1, 3}
+
+				for _, u := range urgent {
+					for _, c := range calm {
+						if values[u] <= values[c] {
+							t.Errorf(
+								"record %d scored %.4f and record %d scored %.4f, "+
+									"want the urgent one higher",
+								u+1, values[u], c+1, values[c])
+						}
+					}
+				}
+			},
+		},
+		{
+			name:  "should emit every record exactly once under unordered",
+			args:  []string{"does `body` convey urgency", "-i", "jsonl", "-j", "4", "--unordered", "--merge"},
+			stdin: tickets,
+			check: func(t *testing.T, out string) {
+				t.Helper()
+
+				lines := nonEmptyLines(out)
+				if len(lines) != 6 {
+					t.Fatalf("lines = %d, want 6:\n%s", len(lines), out)
+				}
+
+				// Order is explicitly not guaranteed here, so the assertion is that every id
+				// appears exactly once. A dropped or duplicated record is the failure that
+				// matters, and it is the one --unordered could plausibly introduce.
+				seen := map[int]int{}
+
+				for _, line := range lines {
+					var record struct {
+						ID int `json:"id"`
+					}
+
+					if err := json.Unmarshal([]byte(line), &record); err != nil {
+						t.Fatalf("line is not valid json: %q", line)
+					}
+
+					seen[record.ID]++
+				}
+
+				for id := 1; id <= 6; id++ {
+					if seen[id] != 1 {
+						t.Errorf("id %d appeared %d times, want once. Got %v", id, seen[id], seen)
+					}
+				}
+			},
+		},
+		{
+			name: "should keep going after a record jev could not read",
+			args: []string{"does `body` convey urgency", "-i", "jsonl", "-j", "2"},
+			stdin: `{"id":1,"body":"EVERYTHING IS DOWN"}
+not json at all
+{"id":3,"body":"no rush"}
+`,
+			check: func(t *testing.T, out string) {
+				t.Helper()
+
+				lines := nonEmptyLines(out)
+				if len(lines) != 3 {
+					t.Fatalf("lines = %d, want 3, one per input line:\n%s", len(lines), out)
+				}
+
+				var middle map[string]json.RawMessage
+				if err := json.Unmarshal([]byte(lines[1]), &middle); err != nil {
+					t.Fatalf("the failure line is not valid json: %q", lines[1])
+				}
+
+				if _, ok := middle["error"]; !ok {
+					t.Errorf("the middle line should carry an error key, got %q", lines[1])
+				}
+
+				// The records either side must be real answers, so one bad line costs one record
+				// rather than the batch.
+				for _, i := range []int{0, 2} {
+					var record map[string]json.RawMessage
+					if err := json.Unmarshal([]byte(lines[i]), &record); err != nil {
+						t.Fatalf("line %d is not valid json: %q", i, lines[i])
+					}
+
+					if _, ok := record["error"]; ok {
+						t.Errorf("line %d should be an answer, not an error: %q", i, lines[i])
+					}
+				}
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var out bytes.Buffer
+
+			root := cli.NewRootCmd(
+				cli.BuildInfo{Version: "integration"},
+				cli.WithStdin(strings.NewReader(tc.stdin)),
+				cli.WithStdinTTY(false),
+				cli.WithStdoutTTY(false),
+			)
+
+			root.SetOut(&out)
+			root.SetErr(&out)
+			root.SetArgs(tc.args)
+
+			code := cli.Execute(t.Context(), root)
+
+			// The malformed line case finishes with one failed record, which is exit 6 rather
+			// than a failure of the run.
+			if code != cli.ExitOK && code != cli.ExitRecords {
+				t.Fatalf("exit code = %d, output:\n%s", code, out.String())
+			}
+
+			tc.check(t, out.String())
+		})
+	}
+}
+
 func decodeRecord(t *testing.T, out string) map[string]json.RawMessage {
 	t.Helper()
 
@@ -408,6 +614,18 @@ func keysOf(values map[string]float64) []string {
 	}
 
 	return keys
+}
+
+func nonEmptyLines(out string) []string {
+	lines := make([]string, 0, 8)
+
+	for _, line := range strings.Split(out, "\n") {
+		if strings.TrimSpace(line) != "" {
+			lines = append(lines, line)
+		}
+	}
+
+	return lines
 }
 
 func requireAPIKey(t *testing.T) {
