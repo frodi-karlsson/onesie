@@ -114,7 +114,7 @@ func TestLoadYesNo(t *testing.T) {
 					t.Fatalf("marshalling: %v", err)
 				}
 
-				want := `{"examples":["buy now"],"what":"Is this spam?"}`
+				want := `{"what":"Is this spam?","examples":["buy now"]}`
 				if string(encoded) != want {
 					t.Errorf("got  %s\nwant %s", encoded, want)
 				}
@@ -242,7 +242,7 @@ func TestLoadPick(t *testing.T) {
 					t.Fatalf("marshalling: %v", err)
 				}
 
-				want := `{"examples":["refund"],"what":"money"}`
+				want := `{"what":"money","examples":["refund"]}`
 				if string(encoded) != want {
 					t.Errorf("got  %s\nwant %s", encoded, want)
 				}
@@ -362,7 +362,7 @@ func TestLoadRate(t *testing.T) {
 					t.Fatalf("marshalling: %v", err)
 				}
 
-				want := `{"examples":["following up"],"what":"no affect"}`
+				want := `{"what":"no affect","examples":["following up"]}`
 				if string(encoded) != want {
 					t.Errorf("got  %s\nwant %s", encoded, want)
 				}

@@ -180,9 +180,9 @@ func stream(
 		return err
 	}
 
-	questions := make(map[string]jev.Question, len(built.Questions))
+	questions := make(jev.Questions, 0, len(built.Questions))
 	for _, question := range built.Questions {
-		questions[question.ID] = wire(question)
+		questions = append(questions, jev.NamedQuestion{ID: question.ID, Question: wire(question)})
 	}
 
 	source := input.NewStream(settings.stdin, inputMode, flags.skipBlank)
@@ -371,9 +371,9 @@ func ask(
 		return err
 	}
 
-	questions := make(map[string]jev.Question, len(built.Questions))
+	questions := make(jev.Questions, 0, len(built.Questions))
 	for _, question := range built.Questions {
-		questions[question.ID] = wire(question)
+		questions = append(questions, jev.NamedQuestion{ID: question.ID, Question: wire(question)})
 	}
 
 	record, err := evaluate(cmd.Context(), client, built, questions, resolved.Wire, flags.usage)
@@ -445,7 +445,7 @@ func evaluate(
 	ctx context.Context,
 	client *jev.Client,
 	built *plan.Plan,
-	questions map[string]jev.Question,
+	questions jev.Questions,
 	state any,
 	withUsage bool,
 ) (output.Record, error) {
@@ -559,9 +559,9 @@ func quietResult(question plan.Question, a *answer.Answer) error {
 func wire(q plan.Question) jev.Question {
 	switch q.Shape {
 	case plan.Pick:
-		criteria := make(map[string]any, len(q.Options))
+		criteria := make(jev.Criteria, 0, len(q.Options))
 		for _, option := range q.Options {
-			criteria[option.Name] = option.Desc
+			criteria = append(criteria, jev.NamedCriterion{Name: option.Name, Desc: option.Desc})
 		}
 
 		return jev.Choice{Instructions: q.Instructions, Criteria: criteria}

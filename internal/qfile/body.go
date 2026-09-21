@@ -72,14 +72,19 @@ func buildBodyQuestion(id string, value any) (plan.Question, error) {
 	}
 
 	if instructions, found := lookup(fields, "instructions"); found {
-		question.Instructions = plain(instructions)
+		wired, err := wireValue(instructions)
+		if err != nil {
+			return question, err
+		}
+
+		question.Instructions = wired
 	}
 
 	criteria, _ := lookup(fields, "criteria")
 
 	switch fmt.Sprintf("%v", kind) {
 	case "noul":
-		return buildBodyNoul(question, criteria), nil
+		return buildBodyNoul(question, criteria)
 	case "choice":
 		return buildBodyChoice(question, criteria)
 	case "score":
@@ -90,17 +95,23 @@ func buildBodyQuestion(id string, value any) (plan.Question, error) {
 	}
 }
 
-func buildBodyNoul(question plan.Question, criteria any) plan.Question {
+func buildBodyNoul(question plan.Question, criteria any) (plan.Question, error) {
 	items, ok := mapping(criteria)
 	if !ok {
-		return question
+		return question, nil
 	}
 
 	yes, _ := lookup(items, "true")
 	no, _ := lookup(items, "false")
-	question.Criteria = &plan.YesNoCriteria{Yes: plain(yes), No: plain(no)}
 
-	return question
+	rubric, err := readYesNo(yes, no)
+	if err != nil {
+		return question, err
+	}
+
+	question.Criteria = rubric
+
+	return question, nil
 }
 
 func buildBodyChoice(question plan.Question, criteria any) (plan.Question, error) {
@@ -113,9 +124,14 @@ func buildBodyChoice(question plan.Question, criteria any) (plan.Question, error
 	question.Shape = plan.Pick
 
 	for _, item := range items {
+		desc, err := wireValue(item.Value)
+		if err != nil {
+			return question, err
+		}
+
 		question.Options = append(question.Options, plan.Option{
 			Name: fmt.Sprintf("%v", item.Key),
-			Desc: plain(item.Value),
+			Desc: desc,
 		})
 	}
 
@@ -132,9 +148,14 @@ func buildBodyScore(question plan.Question, criteria any) (plan.Question, error)
 	question.Shape = plan.Rate
 
 	for _, entry := range entries {
+		desc, err := wireValue(entry)
+		if err != nil {
+			return question, err
+		}
+
 		// Labelled stays false and Label stays empty. A body's criteria is a bare array with no
 		// names, which is the case the index keyed normalization exists for.
-		question.Levels = append(question.Levels, plan.Level{Desc: plain(entry)})
+		question.Levels = append(question.Levels, plan.Level{Desc: desc})
 	}
 
 	return question, nil

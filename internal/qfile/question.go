@@ -46,13 +46,23 @@ func buildQuestion(id string, value any) (plan.Question, error) {
 		return question, fmt.Errorf("jev: question '%s' has no 'ask'", id)
 	}
 
-	question.Instructions = plain(ask)
+	instructions, err := wireValue(ask)
+	if err != nil {
+		return question, err
+	}
+
+	question.Instructions = instructions
 
 	yes, yesKey, hasYes := firstOf(fields, "yes_means", "true")
 	no, noKey, hasNo := firstOf(fields, "no_means", "false")
 
 	if hasYes || hasNo {
-		question.Criteria = &plan.YesNoCriteria{Yes: plain(yes), No: plain(no)}
+		criteria, err := readYesNo(yes, no)
+		if err != nil {
+			return question, err
+		}
+
+		question.Criteria = criteria
 	}
 
 	pickValue, hasPick := lookup(fields, "pick")
@@ -99,6 +109,20 @@ func buildQuestion(id string, value any) (plan.Question, error) {
 	return question, nil
 }
 
+func readYesNo(yes, no any) (*plan.YesNoCriteria, error) {
+	wireYes, err := wireValue(yes)
+	if err != nil {
+		return nil, err
+	}
+
+	wireNo, err := wireValue(no)
+	if err != nil {
+		return nil, err
+	}
+
+	return &plan.YesNoCriteria{Yes: wireYes, No: wireNo}, nil
+}
+
 func shapeKey(hasPick, hasRate bool) string {
 	switch {
 	case hasPick:
@@ -134,10 +158,16 @@ func checkShapeAndRubric(id, shape, yesKey, noKey string) error {
 func readPick(id string, value any) ([]plan.Option, error) {
 	if items, ok := mapping(value); ok {
 		options := make([]plan.Option, 0, len(items))
+
 		for _, item := range items {
+			desc, err := wireValue(item.Value)
+			if err != nil {
+				return nil, err
+			}
+
 			options = append(options, plan.Option{
 				Name: fmt.Sprintf("%v", item.Key),
-				Desc: plain(item.Value),
+				Desc: desc,
 			})
 		}
 
@@ -169,10 +199,16 @@ func readPick(id string, value any) ([]plan.Option, error) {
 func readRate(id string, value any) ([]plan.Level, error) {
 	if items, ok := mapping(value); ok {
 		levels := make([]plan.Level, 0, len(items))
+
 		for _, item := range items {
+			desc, err := wireValue(item.Value)
+			if err != nil {
+				return nil, err
+			}
+
 			levels = append(levels, plan.Level{
 				Label: fmt.Sprintf("%v", item.Key),
-				Desc:  plain(item.Value),
+				Desc:  desc,
 			})
 		}
 
@@ -220,9 +256,14 @@ func readLevel(id string, entry any) (plan.Level, error) {
 				"each entry names one level", id, len(items))
 	}
 
+	desc, err := wireValue(items[0].Value)
+	if err != nil {
+		return plan.Level{}, err
+	}
+
 	return plan.Level{
 		Label: fmt.Sprintf("%v", items[0].Key),
-		Desc:  plain(items[0].Value),
+		Desc:  desc,
 	}, nil
 }
 

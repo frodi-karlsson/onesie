@@ -34,7 +34,10 @@ func TestQuestionMarshalJSON(t *testing.T) {
 			name: "should marshal a choice with its criteria map",
 			question: jev.Choice{
 				Instructions: "Which team?",
-				Criteria:     map[string]any{"billing": "Payments", "technical": nil},
+				Criteria: jev.Criteria{
+					{Name: "billing", Desc: "Payments"},
+					{Name: "technical"},
+				},
 			},
 			want: `{"type":"choice","instructions":"Which team?","criteria":{"billing":"Payments","technical":null}}`,
 		},
@@ -118,7 +121,9 @@ func TestQuestionsMarshalJSON(t *testing.T) {
 			name: "should fail when a question cannot be marshalled",
 			questions: jev.Questions{
 				{ID: "a", Question: jev.Noul{Instructions: "fine"}},
-				{ID: "b", Question: jev.Choice{Criteria: map[string]any{"c": make(chan int)}}},
+				{ID: "b", Question: jev.Choice{
+					Criteria: jev.Criteria{{Name: "c", Desc: make(chan int)}},
+				}},
 			},
 			wantErr: "unsupported type: chan int",
 		},
@@ -224,7 +229,7 @@ func TestValidateQuestions(t *testing.T) {
 					ID: "team",
 					Question: jev.Choice{
 						Instructions: "Which?",
-						Criteria:     map[string]any{"a": nil, "b": nil},
+						Criteria:     jev.Criteria{{Name: "a"}, {Name: "b"}},
 					},
 				},
 				{
@@ -335,4 +340,47 @@ func TestLevels(t *testing.T) {
 			t.Errorf("got %#v, want empty", got)
 		}
 	})
+}
+
+func TestChoice(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		choice jev.Choice
+		want   string
+	}{
+		{
+			name: "should marshal criteria in slice order",
+			choice: jev.Choice{
+				Instructions: "pick one",
+				Criteria: jev.Criteria{
+					{Name: "zebra", Desc: "last alphabetically"},
+					{Name: "alpha", Desc: "first alphabetically"},
+				},
+			},
+			want: `{"type":"choice","instructions":"pick one","criteria":` +
+				`{"zebra":"last alphabetically","alpha":"first alphabetically"}}`,
+		},
+		{
+			name:   "should marshal absent criteria as null",
+			choice: jev.Choice{Instructions: "q"},
+			want:   `{"type":"choice","instructions":"q","criteria":null}`,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := json.Marshal(tc.choice)
+			if err != nil {
+				t.Fatalf("Marshal: %v", err)
+			}
+
+			if string(got) != tc.want {
+				t.Errorf("Marshal = %s, want %s", got, tc.want)
+			}
+		})
+	}
 }

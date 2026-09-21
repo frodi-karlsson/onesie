@@ -97,3 +97,21 @@ func MarshalOrdered(value any) ([]byte, error) {
 		return json.Marshal(value)
 	}
 }
+
+func wireValue(value any) (any, error) {
+	// Only a mapping or a sequence is wrapped. Order is a property of those two and of nothing
+	// else, so a scalar stays the Go value it already was. That keeps a file's plain string
+	// description the same type as the one --desc produces, which is what lets the two authoring
+	// paths compare equal.
+	switch value.(type) {
+	case yaml.MapSlice, []any:
+		encoded, err := MarshalOrdered(value)
+		if err != nil {
+			return nil, err
+		}
+
+		return json.RawMessage(encoded), nil
+	default:
+		return value, nil
+	}
+}

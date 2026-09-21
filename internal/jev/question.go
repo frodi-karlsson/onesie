@@ -30,36 +30,12 @@ type NamedQuestion struct {
 
 // MarshalJSON writes the questions as a JSON object, keeping slice order.
 func (q Questions) MarshalJSON() ([]byte, error) {
-	var buf bytes.Buffer
-
-	buf.WriteByte('{')
-
-	for i, named := range q {
-		if i > 0 {
-			buf.WriteByte(',')
-		}
-
-		// Through json.Marshal rather than quoting by hand, because an id is not character checked
-		// here and one carrying a quote would otherwise produce a body no parser can read.
-		key, err := json.Marshal(named.ID)
-		if err != nil {
-			return nil, err
-		}
-
-		buf.Write(key)
-		buf.WriteByte(':')
-
-		value, err := json.Marshal(named.Question)
-		if err != nil {
-			return nil, err
-		}
-
-		buf.Write(value)
+	pairs := make([]pair, 0, len(q))
+	for _, named := range q {
+		pairs = append(pairs, pair{key: named.ID, value: named.Question})
 	}
 
-	buf.WriteByte('}')
-
-	return buf.Bytes(), nil
+	return marshalObject(pairs)
 }
 
 // ValidateQuestions rejects a request the API would reject, before it is sent.
@@ -144,20 +120,46 @@ type NoulCriteria struct {
 // Choice picks one option from a set and is answered with a distribution over them.
 type Choice struct {
 	Instructions any
-	Criteria     map[string]any
+	Criteria     Criteria
 }
 
 // MarshalJSON encodes the question in the shape the API expects.
 func (q Choice) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
-		Type         string         `json:"type"`
-		Instructions any            `json:"instructions"`
-		Criteria     map[string]any `json:"criteria"`
+		Type         string   `json:"type"`
+		Instructions any      `json:"instructions"`
+		Criteria     Criteria `json:"criteria"`
 	}{Type: "choice", Instructions: q.Instructions, Criteria: q.Criteria})
 }
 
 func (Choice) validate(string) error {
 	return nil
+}
+
+// Criteria is an ordered set of choice options. Like Questions it is a slice so a body keeps the
+// order it was written in.
+type Criteria []NamedCriterion
+
+// NamedCriterion is one option and what it means.
+type NamedCriterion struct {
+	Name string
+	Desc any
+}
+
+// MarshalJSON writes the set as a JSON object, keeping slice order. A nil set is null rather than
+// an empty object, so the zero value encodes to something the API can reject cleanly. jev never
+// produces one, because --pick requires two options.
+func (c Criteria) MarshalJSON() ([]byte, error) {
+	if c == nil {
+		return []byte("null"), nil
+	}
+
+	pairs := make([]pair, 0, len(c))
+	for _, named := range c {
+		pairs = append(pairs, pair{key: named.Name, value: named.Desc})
+	}
+
+	return marshalObject(pairs)
 }
 
 // Score rates the state against an ordered rubric and is answered with a weighted value.
@@ -187,4 +189,42 @@ func (q Score) validate(name string) error {
 			name, len(q.Criteria),
 		),
 	}
+}
+
+type pair struct {
+	key   string
+	value any
+}
+
+func marshalObject(pairs []pair) ([]byte, error) {
+	var buf bytes.Buffer
+
+	buf.WriteByte('{')
+
+	for i, p := range pairs {
+		if i > 0 {
+			buf.WriteByte(',')
+		}
+
+		// Through json.Marshal rather than quoting by hand, because a key is not character checked
+		// here and one carrying a quote would otherwise produce a body no parser can read.
+		key, err := json.Marshal(p.key)
+		if err != nil {
+			return nil, err
+		}
+
+		buf.Write(key)
+		buf.WriteByte(':')
+
+		value, err := json.Marshal(p.value)
+		if err != nil {
+			return nil, err
+		}
+
+		buf.Write(value)
+	}
+
+	buf.WriteByte('}')
+
+	return buf.Bytes(), nil
 }

@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -568,6 +569,57 @@ func TestNewRootCmd(t *testing.T) {
 			wantCode: cli.ExitOK,
 			contains: []string{"0 Calm", "1 Frustrated"},
 		},
+		{
+			name: "should keep flag choice criteria in the order they were given",
+			args: []string{
+				"--ask", "team=who owns this", "--pick", "zebra,mike,alpha", "-o", "json",
+			},
+			stdin: "the server is down",
+			response: `{"model":"jev-1.13.0","answers":{"team":{"type":"choice",` +
+				`"choice":"zebra","confidence":0.9,` +
+				`"probabilities":{"zebra":0.9,"mike":0.05,"alpha":0.05}}},` +
+				`"usage":{"input_tokens":10,"output_tokens":2}}`,
+			wantCode: cli.ExitOK,
+			sends:    []string{`"criteria":{"zebra":null,"mike":null,"alpha":null}`},
+		},
+		{
+			name: "should keep a body's choice criteria in the order they were written",
+			args: []string{"-f", "body.json", "-o", "json"},
+			files: map[string]string{
+				"body.json": `{"state":"x","questions":` +
+					`{"bq":{"type":"choice","instructions":"q",` +
+					`"criteria":{"zebra":"z","mike":"m","alpha":"a"}}}}`,
+			},
+			response: `{"model":"jev-1.13.0","answers":{"bq":{"type":"choice",` +
+				`"choice":"zebra","confidence":0.9,` +
+				`"probabilities":{"zebra":0.9,"mike":0.05,"alpha":0.05}}},` +
+				`"usage":{"input_tokens":10,"output_tokens":2}}`,
+			wantCode: cli.ExitOK,
+			sends:    []string{`"criteria":{"zebra":"z","mike":"m","alpha":"a"}`},
+		},
+		{
+			name: "should keep question ids in the order they were given",
+			args: []string{
+				"--ask", "zebra=one", "--ask", "mike=two", "--ask", "alpha=three", "-o", "json",
+			},
+			stdin: "the server is down",
+			response: `{"model":"jev-1.13.0","answers":{"zebra":{"type":"noul","noul":0.1},` +
+				`"mike":{"type":"noul","noul":0.2},"alpha":{"type":"noul","noul":0.3}},` +
+				`"usage":{"input_tokens":10,"output_tokens":2}}`,
+			wantCode: cli.ExitOK,
+			sends:    []string{`"questions":{"zebra":`, `"mike":`, `"alpha":`},
+		},
+		{
+			name: "should keep structured instructions in file order",
+			args: []string{"-f", "q.yaml", "-o", "json"},
+			files: map[string]string{
+				"q.yaml": "urgent:\n  ask:\n    zebra: z\n    mike: m\n    alpha: a\n",
+			},
+			stdin:    "the server is down",
+			response: `{"model":"jev-1.13.0","answers":{"urgent":{"type":"noul","noul":0.3}}}`,
+			wantCode: cli.ExitOK,
+			sends:    []string{`"instructions":{"zebra":"z","mike":"m","alpha":"a"}`},
+		},
 	}
 
 	for _, tc := range tests {
@@ -784,6 +836,84 @@ func runWithEnv(t *testing.T, env map[string]string, args []string) (string, int
 	code := cli.Execute(t.Context(), root)
 
 	return out.String(), code
+}
+
+func TestNewRootCmdQuestionOrder(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		args  []string
+		order []string
+	}{
+		{
+			name: "should send question ids in argv order",
+			args: []string{
+				"--ask", "zebra=one", "--ask", "mike=two", "--ask", "alpha=three",
+			},
+			order: []string{`"zebra"`, `"mike"`, `"alpha"`},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var sent string
+
+			srv := stubAnswering(t,
+				`{"model":"jev-1.13.0","answers":{"zebra":{"type":"noul","noul":0.1},`+
+					`"mike":{"type":"noul","noul":0.2},`+
+					`"alpha":{"type":"noul","noul":0.3}}}`,
+				func(r *http.Request) {
+					body, err := io.ReadAll(r.Body)
+					if err != nil {
+						t.Errorf("reading the request body: %v", err)
+
+						return
+					}
+
+					sent = string(body)
+				})
+			defer srv.Close()
+
+			var out bytes.Buffer
+
+			root := cli.NewRootCmd(
+				cli.BuildInfo{Version: "1.2.3", Commit: "abc1234", Date: "2026-01-01"},
+				cli.WithClientFactory(func(context.Context) (*jev.Client, error) {
+					return jev.New(jev.WithAPIKey("k"), jev.WithBaseURL(srv.URL))
+				}),
+				cli.WithStdin(strings.NewReader("the server is down")),
+				cli.WithStdinTTY(false),
+				cli.WithStdoutTTY(false),
+				cli.WithLookupEnv(func(string) (string, bool) { return "", false }),
+			)
+
+			root.SetOut(&out)
+			root.SetErr(&out)
+			root.SetArgs(append(tc.args, "-o", "json"))
+
+			if code := cli.Execute(t.Context(), root); code != cli.ExitOK {
+				t.Fatalf("exit code = %d, want %d\noutput:\n%s", code, cli.ExitOK, out.String())
+			}
+
+			at := make([]int, 0, len(tc.order))
+
+			for _, id := range tc.order {
+				found := strings.Index(sent, id)
+				if found < 0 {
+					t.Fatalf("id %s absent from %s", id, sent)
+				}
+
+				at = append(at, found)
+			}
+
+			if !slices.IsSorted(at) {
+				t.Errorf("ids out of order in %s, positions %v", sent, at)
+			}
+		})
+	}
 }
 
 func stubAnswering(t *testing.T, body string, observe func(*http.Request)) *httptest.Server {

@@ -235,7 +235,7 @@ func TestLoadBodyStructured(t *testing.T) {
 			t.Fatalf("marshalling: %v", err)
 		}
 
-		want := `{"examples":["call me now"],"what":"is this urgent"}`
+		want := `{"what":"is this urgent","examples":["call me now"]}`
 		if string(encoded) != want {
 			t.Errorf("got  %s\nwant %s", encoded, want)
 		}

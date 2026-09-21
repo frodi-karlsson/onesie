@@ -59,10 +59,10 @@ func TestLiveSystemOne(t *testing.T) {
 					ID: "department",
 					Question: jev.Choice{
 						Instructions: "Which team should handle this?",
-						Criteria: map[string]any{
-							"billing":   "Payments, invoicing, payouts, refunds",
-							"technical": "Bugs, outages, integrations",
-							"sales":     "Pricing, upgrades, new accounts",
+						Criteria: jev.Criteria{
+							{Name: "billing", Desc: "Payments, invoicing, payouts, refunds"},
+							{Name: "technical", Desc: "Bugs, outages, integrations"},
+							{Name: "sales", Desc: "Pricing, upgrades, new accounts"},
 						},
 					},
 				},
