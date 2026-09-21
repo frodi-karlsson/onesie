@@ -55,6 +55,14 @@ func buildQuestion(id string, value any) (plan.Question, error) {
 		question.Criteria = &plan.YesNoCriteria{Yes: plain(yes), No: plain(no)}
 	}
 
+	_, hasPick := lookup(fields, "pick")
+	rateValue, hasRate := lookup(fields, "rate")
+
+	if hasPick && hasRate {
+		return question, fmt.Errorf(
+			"jev: question '%s' has both 'pick' and 'rate'. A question is one or the other", id)
+	}
+
 	if value, found := lookup(fields, "pick"); found {
 		options, err := readPick(id, value)
 		if err != nil {
@@ -65,6 +73,18 @@ func buildQuestion(id string, value any) (plan.Question, error) {
 		question.Options = options
 		// A file giving both a yes or no rubric and pick is contradictory, and carrying the rubric
 		// onto a choice question would send a criteria shape the API does not expect for the type.
+		question.Criteria = nil
+	}
+
+	if hasRate {
+		levels, err := readRate(id, rateValue)
+		if err != nil {
+			return question, err
+		}
+
+		question.Shape = plan.Rate
+		question.Levels = levels
+		question.Labelled = true
 		question.Criteria = nil
 	}
 
@@ -104,6 +124,66 @@ func readPick(id string, value any) ([]plan.Option, error) {
 	}
 
 	return options, nil
+}
+
+func readRate(id string, value any) ([]plan.Level, error) {
+	if items, ok := mapping(value); ok {
+		levels := make([]plan.Level, 0, len(items))
+		for _, item := range items {
+			levels = append(levels, plan.Level{
+				Label: fmt.Sprintf("%v", item.Key),
+				Desc:  plain(item.Value),
+			})
+		}
+
+		return levels, nil
+	}
+
+	entries, ok := value.([]any)
+	if !ok {
+		return nil, fmt.Errorf(
+			"jev: 'rate' in question '%s' must be a sequence of levels or a mapping of level to "+
+				"description", id)
+	}
+
+	levels := make([]plan.Level, 0, len(entries))
+
+	for _, entry := range entries {
+		level, err := readLevel(id, entry)
+		if err != nil {
+			return nil, err
+		}
+
+		levels = append(levels, level)
+	}
+
+	return levels, nil
+}
+
+func readLevel(id string, entry any) (plan.Level, error) {
+	if label, ok := entry.(string); ok {
+		// Desc stays nil so the wire conversion sends the label, which is what a bare --rate does.
+		// Copying the label in would also break the all described or all bare check in validation.
+		return plan.Level{Label: label}, nil
+	}
+
+	items, ok := mapping(entry)
+	if !ok {
+		return plan.Level{}, fmt.Errorf(
+			"jev: 'rate' in question '%s' has a level that is neither a name nor a "+
+				"single key mapping", id)
+	}
+
+	if len(items) != 1 {
+		return plan.Level{}, fmt.Errorf(
+			"jev: 'rate' in question '%s' has a sequence entry with %d keys, "+
+				"each entry names one level", id, len(items))
+	}
+
+	return plan.Level{
+		Label: fmt.Sprintf("%v", items[0].Key),
+		Desc:  plain(items[0].Value),
+	}, nil
 }
 
 func firstOf(fields yaml.MapSlice, names ...string) (any, bool) {

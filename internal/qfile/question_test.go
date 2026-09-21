@@ -271,3 +271,128 @@ func TestLoadPick(t *testing.T) {
 		})
 	}
 }
+
+func TestLoadRate(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		doc     string
+		wantErr bool
+		check   func(t *testing.T, q plan.Question)
+	}{
+		{
+			name: "should read a sequence of single key mappings in order",
+			doc: "frustration:\n  ask: How frustrated?\n  rate:\n" +
+				"    - calm: States facts\n    - annoyed: Civil but terse\n" +
+				"    - furious: Threats to leave\n",
+			check: func(t *testing.T, q plan.Question) {
+				t.Helper()
+
+				if q.Shape != plan.Rate {
+					t.Fatalf("shape = %s, want rate", q.Shape)
+				}
+
+				if !q.Labelled {
+					t.Error("a file rate question carries labels and must be Labelled")
+				}
+
+				want := []string{"calm", "annoyed", "furious"}
+				for i, level := range q.Levels {
+					if level.Label != want[i] {
+						t.Errorf("level %d = %s, want %s", i, level.Label, want[i])
+					}
+				}
+
+				if q.Levels[0].Desc != "States facts" {
+					t.Errorf("desc = %v", q.Levels[0].Desc)
+				}
+			},
+		},
+		{
+			name: "should read a sequence of strings as bare levels",
+			doc:  "severity:\n  ask: How bad?\n  rate: [minor, major, critical]\n",
+			check: func(t *testing.T, q plan.Question) {
+				t.Helper()
+
+				if len(q.Levels) != 3 || q.Levels[2].Label != "critical" {
+					t.Fatalf("levels = %+v", q.Levels)
+				}
+
+				for _, level := range q.Levels {
+					if level.Desc != nil {
+						t.Errorf("level %s should carry no description", level.Label)
+					}
+				}
+			},
+		},
+		{
+			name: "should read a mapping in file order",
+			doc:  "severity:\n  ask: How bad?\n  rate:\n    zebra: Z\n    apple: A\n",
+			check: func(t *testing.T, q plan.Question) {
+				t.Helper()
+
+				if q.Levels[0].Label != "zebra" || q.Levels[1].Label != "apple" {
+					t.Errorf("levels = %s,%s, want zebra,apple",
+						q.Levels[0].Label, q.Levels[1].Label)
+				}
+			},
+		},
+		{
+			name: "should carry a structured level description through as an object",
+			doc: "frustration:\n  ask: How frustrated?\n  rate:\n" +
+				"    - calm:\n        what: no affect\n        examples: [\"following up\"]\n" +
+				"    - angry: shouting\n",
+			check: func(t *testing.T, q plan.Question) {
+				t.Helper()
+
+				encoded, err := json.Marshal(q.Levels[0].Desc)
+				if err != nil {
+					t.Fatalf("marshalling: %v", err)
+				}
+
+				want := `{"examples":["following up"],"what":"no affect"}`
+				if string(encoded) != want {
+					t.Errorf("got  %s\nwant %s", encoded, want)
+				}
+			},
+		},
+		{
+			name:    "should reject a sequence entry with more than one key",
+			doc:     "severity:\n  ask: q\n  rate:\n    - a: one\n      b: two\n",
+			wantErr: true,
+		},
+		{
+			name:    "should reject a rate that is neither a mapping nor a sequence",
+			doc:     "severity:\n  ask: q\n  rate: critical\n",
+			wantErr: true,
+		},
+		{
+			name:    "should reject both pick and rate on one question",
+			doc:     "severity:\n  ask: q\n  pick: [a, b]\n  rate: [c, d]\n",
+			wantErr: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := qfile.Load([]byte(tc.doc))
+
+			if tc.wantErr {
+				if err == nil {
+					t.Fatalf("expected an error, got %#v", got)
+				}
+
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			tc.check(t, got.Questions[0])
+		})
+	}
+}
