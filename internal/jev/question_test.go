@@ -3,6 +3,7 @@ package jev_test
 import (
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/frodi-karlsson/jev-cli/internal/jev"
@@ -78,13 +79,14 @@ func TestQuestionMarshalJSON(t *testing.T) {
 	}
 }
 
-func TestQuestions(t *testing.T) {
+func TestQuestionsMarshalJSON(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		name      string
 		questions jev.Questions
 		want      string
+		wantErr   string
 	}{
 		{
 			name: "should marshal to an object in slice order",
@@ -101,11 +103,24 @@ func TestQuestions(t *testing.T) {
 			want:      `{}`,
 		},
 		{
+			name:      "should marshal a nil set to an empty object",
+			questions: nil,
+			want:      `{}`,
+		},
+		{
 			name: "should escape a key that carries a quote",
 			questions: jev.Questions{
 				{ID: `a"b`, Question: jev.Noul{Instructions: "q"}},
 			},
 			want: `{"a\"b":{"type":"noul","instructions":"q"}}`,
+		},
+		{
+			name: "should fail when a question cannot be marshalled",
+			questions: jev.Questions{
+				{ID: "a", Question: jev.Noul{Instructions: "fine"}},
+				{ID: "b", Question: jev.Choice{Criteria: map[string]any{"c": make(chan int)}}},
+			},
+			wantErr: "unsupported type: chan int",
 		},
 	}
 
@@ -114,6 +129,19 @@ func TestQuestions(t *testing.T) {
 			t.Parallel()
 
 			got, err := json.Marshal(tc.questions)
+
+			if tc.wantErr != "" {
+				if err == nil {
+					t.Fatalf("expected an error, got %s", got)
+				}
+
+				if !strings.Contains(err.Error(), tc.wantErr) {
+					t.Errorf("\n got: %s\nwant it to contain: %s", err, tc.wantErr)
+				}
+
+				return
+			}
+
 			if err != nil {
 				t.Fatalf("Marshal: %v", err)
 			}
@@ -176,12 +204,17 @@ func TestValidateQuestions(t *testing.T) {
 				{ID: "a", Question: jev.Noul{Instructions: "one"}},
 				{ID: "a", Question: jev.Noul{Instructions: "two"}},
 			},
-			wantErr: "jev: duplicate question name a",
+			wantErr: `jev: duplicate question id "a"`,
 		},
 		{
 			name:      "should reject a nil question",
 			questions: jev.Questions{{ID: "a", Question: nil}},
-			wantErr:   "jev: question a must not be nil",
+			wantErr:   `jev: question "a" must not be nil`,
+		},
+		{
+			name:      "should reject a typed nil question",
+			questions: jev.Questions{{ID: "a", Question: (*jev.Score)(nil)}},
+			wantErr:   `jev: question "a" must not be nil`,
 		},
 		{
 			name: "should accept a valid mixed set",
@@ -237,22 +270,49 @@ func TestValidateQuestions(t *testing.T) {
 func TestValidateQuestionsNamesTheQuestion(t *testing.T) {
 	t.Parallel()
 
-	t.Run("should carry the offending question name as a field", func(t *testing.T) {
-		t.Parallel()
+	tests := []struct {
+		name      string
+		questions jev.Questions
+		want      string
+	}{
+		{
+			name: "should carry the offending question id when a score is short",
+			questions: jev.Questions{
+				{ID: "severity", Question: jev.Score{Criteria: jev.Levels("One")}},
+			},
+			want: "severity",
+		},
+		{
+			name: "should carry the offending question id when an id repeats",
+			questions: jev.Questions{
+				{ID: "team", Question: jev.Noul{Instructions: "one"}},
+				{ID: "team", Question: jev.Noul{Instructions: "two"}},
+			},
+			want: "team",
+		},
+		{
+			name:      "should carry the offending question id when a question is nil",
+			questions: jev.Questions{{ID: "urgent", Question: nil}},
+			want:      "urgent",
+		},
+	}
 
-		err := jev.ValidateQuestions(jev.Questions{
-			{ID: "severity", Question: jev.Score{Criteria: jev.Levels("One")}},
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := jev.ValidateQuestions(tc.questions)
+
+			var invalid *jev.ValidationError
+			if !errors.As(err, &invalid) {
+				t.Fatalf("expected a *ValidationError, got %T", err)
+			}
+
+			if invalid.Question != tc.want {
+				t.Errorf("question got %q, want %q", invalid.Question, tc.want)
+			}
 		})
-
-		var invalid *jev.ValidationError
-		if !errors.As(err, &invalid) {
-			t.Fatalf("expected a *ValidationError, got %T", err)
-		}
-
-		if invalid.Question != "severity" {
-			t.Errorf("question got %q, want %q", invalid.Question, "severity")
-		}
-	})
+	}
 }
 
 func TestLevels(t *testing.T) {

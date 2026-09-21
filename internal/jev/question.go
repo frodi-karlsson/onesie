@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"reflect"
 )
 
 // Levels widens plain strings into Score criteria, which is what most rubrics are.
@@ -16,9 +17,9 @@ func Levels(levels ...string) []any {
 	return widened
 }
 
-// Questions is an ordered set of questions. It is a slice rather than a map so a request body
-// reaches the wire in the order it was written, which is what lets --print-request hand a user
-// their own body back unchanged.
+// Questions is an ordered list of questions, written to the wire as a JSON object in slice order,
+// so a request body carries its questions in the order they were authored. A shared value must not
+// be appended to, since two appends onto a base with spare capacity write the same backing array.
 type Questions []NamedQuestion
 
 // NamedQuestion pairs a question with the id it answers under.
@@ -27,7 +28,7 @@ type NamedQuestion struct {
 	Question Question
 }
 
-// MarshalJSON writes the set as a JSON object, keeping slice order.
+// MarshalJSON writes the questions as a JSON object, keeping slice order.
 func (q Questions) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 
@@ -70,16 +71,21 @@ func ValidateQuestions(questions Questions) error {
 	seen := make(map[string]struct{}, len(questions))
 
 	for _, named := range questions {
-		// A slice can carry a duplicate id where a map could not, and the API would answer only
-		// one of them, so the check is new with the ordered type rather than inherited.
+		// The body is keyed by id, so a repeated one collapses into a single API answer.
 		if _, taken := seen[named.ID]; taken {
-			return &ValidationError{Message: "duplicate question name " + named.ID}
+			return &ValidationError{
+				Question: named.ID,
+				Message:  fmt.Sprintf("duplicate question id %q", named.ID),
+			}
 		}
 
 		seen[named.ID] = struct{}{}
 
-		if named.Question == nil {
-			return &ValidationError{Message: "question " + named.ID + " must not be nil"}
+		if isNil(named.Question) {
+			return &ValidationError{
+				Question: named.ID,
+				Message:  fmt.Sprintf("question %q must not be nil", named.ID),
+			}
 		}
 
 		if err := named.Question.validate(named.ID); err != nil {
@@ -88,6 +94,18 @@ func ValidateQuestions(questions Questions) error {
 	}
 
 	return nil
+}
+
+func isNil(question Question) bool {
+	if question == nil {
+		return true
+	}
+
+	// A typed nil pointer is not equal to nil, and every validate has a value receiver, so calling
+	// through one would dereference it and panic.
+	value := reflect.ValueOf(question)
+
+	return value.Kind() == reflect.Pointer && value.IsNil()
 }
 
 // Question is one of Noul, Choice or Score. The interface is closed, because validate is
