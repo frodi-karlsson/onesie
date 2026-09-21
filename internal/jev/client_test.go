@@ -1131,6 +1131,78 @@ func TestWithAttemptObserver(t *testing.T) {
 	}
 }
 
+func TestWithAttemptObserverOnAnUnreadableBody(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		body string
+		want int
+	}{
+		{
+			name: "should report an attempt whose body was too large to read",
+			body: strings.Repeat("x", 64),
+			want: 1,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				if _, err := io.WriteString(w, tc.body); err != nil {
+					t.Errorf("writing stub response: %v", err)
+				}
+			}))
+			defer srv.Close()
+
+			var (
+				mu       sync.Mutex
+				observed int
+			)
+
+			client, err := jev.New(
+				jev.WithAPIKey("test"),
+				jev.WithBaseURL(srv.URL),
+				jev.WithMaxResponseBytes(8),
+				jev.WithRetry(noRetries()),
+				jev.WithAttemptObserver(func(jev.Attempt) {
+					mu.Lock()
+					defer mu.Unlock()
+
+					observed++
+				}),
+			)
+			if err != nil {
+				t.Fatalf("New: %v", err)
+			}
+
+			if _, reqErr := client.SystemOne(
+				t.Context(), jev.Request{State: "x", Questions: oneNoul()}); reqErr == nil {
+				t.Fatal("SystemOne succeeded, want an oversized body error")
+			}
+
+			mu.Lock()
+			defer mu.Unlock()
+
+			// A round trip the server answered is an attempt, whatever jev could do with the body.
+			// An observer that never saw it would under count, and a --stats run would carry a
+			// terminal failure with no attempt behind it.
+			if observed != tc.want {
+				t.Errorf("observed %d attempts, want %d", observed, tc.want)
+			}
+		})
+	}
+}
+
+func noRetries() jev.RetryPolicy {
+	policy := jev.DefaultRetryPolicy()
+	policy.MaxRetries = 0
+
+	return policy
+}
+
 func TestClientSystemOneRaw(t *testing.T) {
 	t.Parallel()
 

@@ -380,13 +380,23 @@ func (c *Client) attempt(
 
 	data, err := io.ReadAll(io.LimitReader(resp.Body, c.maxResponseBytes+1))
 	if err != nil {
-		return nil, classify(ctx, actx, err, cfg.attemptTimeout)
+		failure := classify(ctx, actx, err, cfg.attemptTimeout)
+		// Observed like any other failed round trip. The request was sent and the server answered,
+		// so an observer that skipped it would under count attempts and would see a failure it
+		// never saw an attempt for.
+		c.observe(Attempt{Index: attempt, Err: failure, Duration: c.clock.Now().Sub(started)})
+
+		return nil, failure
 	}
 
 	if int64(len(data)) > c.maxResponseBytes {
-		return nil, &ConnectionError{
+		failure := &ConnectionError{
 			Err: fmt.Errorf("response body exceeded %d bytes", c.maxResponseBytes),
 		}
+
+		c.observe(Attempt{Index: attempt, Err: failure, Duration: c.clock.Now().Sub(started)})
+
+		return nil, failure
 	}
 
 	c.logger.InfoContext(actx, "jev response",
