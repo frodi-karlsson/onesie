@@ -72,6 +72,13 @@ func CheckFlags(cfg Config) (string, error) {
 		return "", err
 	}
 
+	// Ahead of the output and streaming rules, so a dry run is rejected before anything it would
+	// have written reaches stdout. -i request reaches this too, which is why it lives here rather
+	// than in checkStreaming.
+	if err := checkPrintFlags(cfg); err != nil {
+		return "", err
+	}
+
 	if cfg.Raw && cfg.Output != "" {
 		return "", errors.New("jev: -r and -o are mutually exclusive")
 	}
@@ -113,6 +120,12 @@ type Config struct {
 	HasModel       bool
 	Usage          bool
 	PrintQuestions bool
+	PrintRequest   bool
+
+	// Stats is --stats, which summarises a run that made requests. It sits here rather than beside
+	// the timing flags because the only rules it has are the print flags it cannot be combined
+	// with.
+	Stats bool
 
 	// Streaming is true for an input mode that reads one record per line.
 	Streaming bool
@@ -194,6 +207,52 @@ func checkRequestMode(cfg Config) error {
 	}
 
 	return nil
+}
+
+func checkPrintFlags(cfg Config) error {
+	if cfg.PrintRequest && cfg.PrintQuestions {
+		return errors.New("jev: --print-request and --print-questions each write a " +
+			"different thing to stdout. Pass one")
+	}
+
+	name, writes := printFlag(cfg)
+	if name == "" {
+		return nil
+	}
+
+	// Section 8 rejects a flag that would quietly do nothing, and a dry run accepts none of these.
+	for _, rule := range []struct {
+		given   bool
+		message string
+	}{
+		{cfg.Output != "", fmt.Sprintf(
+			"jev: -o does not apply to %s, which writes %s", name, writes)},
+		{cfg.Raw, fmt.Sprintf("jev: -r does not apply to %s, which writes %s", name, writes)},
+		{cfg.Merge, fmt.Sprintf(
+			"jev: %s needs answers to fold in, which %s does not produce", mergeFlag(cfg), name)},
+		{cfg.Quiet, fmt.Sprintf(
+			"jev: -q suppresses output, which leaves %s nothing to write", name)},
+		{cfg.Stats, fmt.Sprintf(
+			"jev: --stats has nothing to report with %s, which makes no request", name)},
+	} {
+		if rule.given {
+			return errors.New(rule.message)
+		}
+	}
+
+	return nil
+}
+
+func printFlag(cfg Config) (string, string) {
+	if cfg.PrintRequest {
+		return "--print-request", "a request body"
+	}
+
+	if cfg.PrintQuestions {
+		return "--print-questions", "a question file"
+	}
+
+	return "", ""
 }
 
 func given(cfg Config, name string) bool {

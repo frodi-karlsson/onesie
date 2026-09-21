@@ -101,6 +101,8 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 		"write a question file to stdout and exit")
 	root.Flags().BoolVar(&flags.printRequest, "print-request", false,
 		"write api shaped request bodies to stdout and exit")
+	root.Flags().BoolVar(&flags.stats, "stats", false,
+		"write a one line summary of the run to stderr at exit")
 	root.Flags().IntVarP(&flags.jobs, "jobs", "j", 1, "records in flight at once")
 	root.Flags().IntVar(&flags.timeout, "timeout", int(limits.DefaultAttemptTimeout.Seconds()),
 		"seconds per attempt")

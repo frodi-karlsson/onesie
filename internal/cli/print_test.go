@@ -496,30 +496,35 @@ func runRecorded(t *testing.T, args []string, stdin string) (string, string, int
 func TestPrintRequestMerge(t *testing.T) {
 	t.Parallel()
 
-	const body = `{"state":{"answers":1},"model":"jev-latest","questions":` +
-		`{"urgent":{"type":"noul","instructions":"is this urgent"}}}` + "\n"
+	const message = "jev: --merge needs answers to fold in, " +
+		"which --print-request does not produce"
 
 	tests := []struct {
 		name  string
 		args  []string
 		stdin string
-		want  string
 	}{
 		{
-			name: "should print a body whose state already holds the merge key",
+			name: "should reject merge on a single body",
 			args: []string{
 				"--ask", "urgent=is this urgent", "-i", "json", "--print-request", "--merge",
 			},
 			stdin: `{"answers":1}`,
-			want:  body,
 		},
 		{
-			name: "should print a streamed body whose state already holds the merge key",
+			name: "should reject merge on a streamed body",
 			args: []string{
 				"--ask", "urgent=is this urgent", "-i", "jsonl", "--print-request", "--merge",
 			},
 			stdin: `{"answers":1}` + "\n",
-			want:  body,
+		},
+		{
+			name: "should reject merge-key on a streamed body",
+			args: []string{
+				"--ask", "urgent=is this urgent", "-i", "jsonl", "--print-request",
+				"--merge-key", "jev",
+			},
+			stdin: `{"answers":1}` + "\n",
 		},
 	}
 
@@ -529,17 +534,23 @@ func TestPrintRequestMerge(t *testing.T) {
 
 			out, errOut, code := runOfflineStdin(t, tc.args, tc.stdin)
 
-			if code != ExitOK {
+			if code != ExitUsage {
 				t.Fatalf("exit code = %d, want %d\nstdout:\n%s\nstderr:\n%s",
-					code, ExitOK, out, errOut)
+					code, ExitUsage, out, errOut)
 			}
 
-			if out != tc.want {
-				t.Errorf("stdout = %s, want %s", out, tc.want)
+			// Nothing on stdout, which is the point of rejecting before the body is written.
+			if out != "" {
+				t.Errorf("stdout should be empty, got:\n%s", out)
 			}
 
-			if errOut != "" {
-				t.Errorf("stderr should be empty, got:\n%s", errOut)
+			want := message
+			if strings.Contains(strings.Join(tc.args, " "), "--merge-key") {
+				want = strings.Replace(message, "--merge", "--merge-key", 1)
+			}
+
+			if !strings.Contains(errOut, want) {
+				t.Errorf("stderr = %q, want it to contain %q", errOut, want)
 			}
 		})
 	}

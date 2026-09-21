@@ -981,6 +981,56 @@ func TestCheckFlags(t *testing.T) {
 			cfg:     plan.Config{Raw: true, Output: "json", InputName: "text"},
 			wantErr: "jev: -r and -o are mutually exclusive",
 		},
+		{
+			name: "should reject both print flags at once",
+			cfg: plan.Config{
+				PrintRequest: true, PrintQuestions: true, InputName: "text",
+			},
+			wantErr: "jev: --print-request and --print-questions each write a different " +
+				"thing to stdout. Pass one",
+		},
+		{
+			name:    "should reject -o with --print-questions",
+			cfg:     plan.Config{PrintQuestions: true, Output: "json", InputName: "text"},
+			wantErr: "jev: -o does not apply to --print-questions, which writes a question file",
+		},
+		{
+			name:    "should reject -r with --print-request",
+			cfg:     plan.Config{PrintRequest: true, Raw: true, InputName: "text"},
+			wantErr: "jev: -r does not apply to --print-request, which writes a request body",
+		},
+		{
+			name: "should name --merge-key when that is the spelling given",
+			cfg: plan.Config{
+				PrintRequest: true, Merge: true, MergeName: "--merge-key", InputName: "text",
+			},
+			wantErr: "jev: --merge-key needs answers to fold in, " +
+				"which --print-request does not produce",
+		},
+		{
+			name:    "should reject -q with --print-request",
+			cfg:     plan.Config{PrintRequest: true, Quiet: true, InputName: "text"},
+			wantErr: "jev: -q suppresses output, which leaves --print-request nothing to write",
+		},
+		{
+			name: "should reject --stats with --print-questions",
+			cfg:  plan.Config{PrintQuestions: true, Stats: true, InputName: "text"},
+			wantErr: "jev: --stats has nothing to report with --print-questions, " +
+				"which makes no request",
+		},
+		{
+			name: "should reject --stats with --print-request under -i request",
+			cfg: request(func(c *plan.Config) {
+				c.PrintRequest = true
+				c.Stats = true
+			}),
+			wantErr: "jev: --stats has nothing to report with --print-request, " +
+				"which makes no request",
+		},
+		{
+			name: "should accept --stats on its own under -i request",
+			cfg:  request(func(c *plan.Config) { c.Stats = true }),
+		},
 	}
 
 	for _, tc := range tests {

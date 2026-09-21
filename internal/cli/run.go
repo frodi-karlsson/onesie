@@ -48,6 +48,8 @@ func run(
 		HasModel:       cmd.Flags().Changed("model"),
 		Usage:          flags.usage,
 		PrintQuestions: flags.printQuestions,
+		PrintRequest:   flags.printRequest,
+		Stats:          flags.stats,
 		Streaming:      inputMode.Streaming(),
 		RequestMode:    inputMode == input.Request,
 		InputName:      inputName(flags.input),
@@ -83,7 +85,9 @@ func run(
 			return checkErr
 		}
 
-		return streamRaw(cmd, settings, flags)
+		return withStats(cmd, flags, func(stats *collector) error {
+			return streamRaw(cmd, settings, flags, stats)
+		})
 	}
 
 	// Every other mode needs a question, and reporting that here rather than from Assemble keeps
@@ -157,7 +161,9 @@ func run(
 	}
 
 	if inputMode.Streaming() {
-		return stream(cmd, settings, built, inputMode, outputMode, flags)
+		return withStats(cmd, flags, func(stats *collector) error {
+			return stream(cmd, settings, built, inputMode, outputMode, flags, stats)
+		})
 	}
 
 	resolved, err := input.Resolve(input.Query{
@@ -212,7 +218,9 @@ func run(
 			mergeKey(flags))
 	}
 
-	return ask(cmd, settings, built, resolved, outputMode, flags)
+	return withStats(cmd, flags, func(stats *collector) error {
+		return ask(cmd, settings, built, resolved, outputMode, flags, stats)
+	})
 }
 
 func asked(events []argv.Event) bool {
@@ -251,12 +259,13 @@ func stream(
 	inputMode input.Mode,
 	outputMode output.Mode,
 	flags *runFlags,
+	stats *collector,
 ) error {
 	if flags.printRequest {
 		return streamRequests(cmd, settings, built, inputMode, flags)
 	}
 
-	client, err := settings.newClient(cmd.Context())
+	client, err := settings.newClient(cmd.Context(), observing(stats)...)
 	if err != nil {
 		return err
 	}
@@ -270,6 +279,10 @@ func stream(
 		Source: source,
 		Evaluate: func(ctx context.Context, rec input.Record) (line, error) {
 			if rec.Err != nil {
+				// A line jev could not read is a record that never became a request, and it
+				// carried no questions to the wire either.
+				stats.recordFailure(false, 0)
+
 				return line{record: failureRecord(built, rec.Err), raw: rec.Raw}, rec.Err
 			}
 
@@ -297,7 +310,8 @@ func stream(
 				}, taken
 			}
 
-			record, evalErr := evaluate(ctx, client, built, questions, rec.Wire, flags.usage)
+			record, evalErr := evaluate(
+				ctx, client, built, questions, rec.Wire, flags.usage, stats)
 
 			return line{record: record, raw: rec.Raw, state: rec.Wire}, evalErr
 		},
@@ -343,6 +357,10 @@ func (e *sourceError) Unwrap() error {
 func plural(count int, noun string) string {
 	if count == 1 {
 		return fmt.Sprintf("%d %s", count, noun)
+	}
+
+	if noun == "retry" {
+		return fmt.Sprintf("%d retries", count)
 	}
 
 	return fmt.Sprintf("%d %ss", count, noun)
@@ -454,15 +472,17 @@ func ask(
 	resolved input.Resolved,
 	outputMode output.Mode,
 	flags *runFlags,
+	stats *collector,
 ) error {
-	client, err := settings.newClient(cmd.Context())
+	client, err := settings.newClient(cmd.Context(), observing(stats)...)
 	if err != nil {
 		return err
 	}
 
 	questions := wireAll(built.Questions)
 
-	record, err := evaluate(cmd.Context(), client, built, questions, resolved.Wire, flags.usage)
+	record, err := evaluate(
+		cmd.Context(), client, built, questions, resolved.Wire, flags.usage, stats)
 	if err != nil {
 		// The exit code still comes from the error. This only adds the fallback word the caller
 		// asked for, so a shell guard reads a decision rather than an empty string. An interrupt
@@ -534,14 +554,37 @@ func evaluate(
 	questions jev.Questions,
 	state any,
 	withUsage bool,
+	stats *collector,
 ) (output.Record, error) {
+	record, usage, err := answered(ctx, client, built, questions, state, withUsage)
+	if err != nil {
+		// The request was made whatever went wrong afterwards, and the questions went with it, so
+		// a failed record still carries them into the count section 10 asks for.
+		stats.recordFailure(true, len(questions))
+
+		return record, err
+	}
+
+	stats.record(record.Model, usage, len(questions))
+
+	return record, nil
+}
+
+func answered(
+	ctx context.Context,
+	client *jev.Client,
+	built *plan.Plan,
+	questions jev.Questions,
+	state any,
+	withUsage bool,
+) (output.Record, jev.Usage, error) {
 	result, err := client.SystemOne(ctx, jev.Request{
 		State:     state,
 		Model:     built.Model,
 		Questions: questions,
 	})
 	if err != nil {
-		return failureRecord(built, err), err
+		return failureRecord(built, err), jev.Usage{}, err
 	}
 
 	record := output.Record{Model: result.Model}
@@ -561,12 +604,12 @@ func evaluate(
 				Message: fmt.Sprintf("jev: response carries no answer for '%s'", question.ID),
 			}
 
-			return failureRecord(built, missing), missing
+			return failureRecord(built, missing), result.Usage, missing
 		}
 
 		normalized, normErr := answer.Normalize(question, raw)
 		if normErr != nil {
-			return failureRecord(built, normErr), normErr
+			return failureRecord(built, normErr), result.Usage, normErr
 		}
 
 		answer.Apply(question, normalized)
@@ -575,7 +618,7 @@ func evaluate(
 			output.Named{ID: question.ID, Answer: normalized})
 	}
 
-	return record, nil
+	return record, result.Usage, nil
 }
 
 func failureRecord(built *plan.Plan, cause error) output.Record {
@@ -713,6 +756,7 @@ type runFlags struct {
 
 	printQuestions bool
 	printRequest   bool
+	stats          bool
 
 	jobs          int
 	timeout       int

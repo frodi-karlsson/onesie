@@ -13,12 +13,17 @@ import (
 	"github.com/frodi-karlsson/jev-cli/internal/jev"
 )
 
-func streamRaw(cmd *cobra.Command, settings rootSettings, flags *runFlags) error {
+func streamRaw(
+	cmd *cobra.Command,
+	settings rootSettings,
+	flags *runFlags,
+	stats *collector,
+) error {
 	var client *jev.Client
 
 	// Built only when the run makes a request, so -i request --print-request needs no key.
 	if requests(flags) {
-		built, err := settings.newClient(cmd.Context())
+		built, err := settings.newClient(cmd.Context(), observing(stats)...)
 		if err != nil {
 			return err
 		}
@@ -34,6 +39,8 @@ func streamRaw(cmd *cobra.Command, settings rootSettings, flags *runFlags) error
 			if rec.Err != nil {
 				// A value alongside the error, because the engine writes every outcome. Returning
 				// nil here would print a blank line rather than the record.
+				stats.recordFailure(false, 0)
+
 				return errorLine(rec.Err), rec.Err
 			}
 
@@ -45,10 +52,20 @@ func streamRaw(cmd *cobra.Command, settings rootSettings, flags *runFlags) error
 				return []byte(rec.Raw), nil
 			}
 
+			// From the request rather than the response, per section 10. A failed record has no
+			// answers but did carry questions, and counting the response would report zero for
+			// exactly the records a user turned --stats on to understand.
+			asked := rawQuestions([]byte(rec.Raw))
+
 			body, err := client.SystemOneRaw(ctx, json.RawMessage(rec.Raw))
 			if err != nil {
+				stats.recordFailure(true, asked)
+
 				return errorLine(err), err
 			}
+
+			model, usage := rawSummary(body)
+			stats.record(model, usage, asked)
 
 			return oneLine(body), nil
 		},
@@ -81,4 +98,31 @@ func oneLine(body []byte) []byte {
 
 	// Not JSON, so there is nothing to compact. The newlines still have to go.
 	return bytes.ReplaceAll(bytes.TrimRight(body, "\n"), []byte("\n"), []byte(" "))
+}
+
+func rawSummary(response []byte) (string, jev.Usage) {
+	var probe struct {
+		Model string    `json:"model"`
+		Usage jev.Usage `json:"usage"`
+	}
+
+	// A body jev cannot read still counts as a request. Only the model and the token numbers are
+	// lost, and reporting nothing for them beats failing a record the server answered.
+	if err := json.Unmarshal(response, &probe); err != nil {
+		return "", jev.Usage{}
+	}
+
+	return probe.Model, probe.Usage
+}
+
+func rawQuestions(request []byte) int {
+	var probe struct {
+		Questions map[string]json.RawMessage `json:"questions"`
+	}
+
+	if err := json.Unmarshal(request, &probe); err != nil {
+		return 0
+	}
+
+	return len(probe.Questions)
 }
