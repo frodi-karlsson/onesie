@@ -62,6 +62,22 @@ func TestStatsRender(t *testing.T) {
 				"model jev-1.13.0, 3 attempts (1 retry: 429×1), 10s/attempt, 1s",
 		},
 		{
+			name: "should round a sub second elapsed to milliseconds",
+			stats: cli.Stats{
+				Requests: 1, Questions: 1, Attempts: 1,
+				AttemptTimeout: 10 * time.Second, Elapsed: 3040959 * time.Nanosecond,
+			},
+			want: "1 request, 1 question, 0 in / 0 out, 1 attempt, 10s/attempt, 3ms",
+		},
+		{
+			name: "should round elapsed to a tenth of a second above one second",
+			stats: cli.Stats{
+				Requests: 1, Questions: 1, Attempts: 1,
+				AttemptTimeout: 10 * time.Second, Elapsed: 11432123456 * time.Nanosecond,
+			},
+			want: "1 request, 1 question, 0 in / 0 out, 1 attempt, 10s/attempt, 11.4s",
+		},
+		{
 			name: "should omit the retry clause when nothing was retried",
 			stats: cli.Stats{
 				Requests: 1, Questions: 1, Models: []string{"jev-1.13.0"},

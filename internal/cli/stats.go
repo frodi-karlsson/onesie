@@ -66,7 +66,17 @@ func (s Stats) String() string {
 	return strings.Join(append(parts,
 		s.attemptClause(),
 		s.AttemptTimeout.String()+"/attempt",
-		s.Elapsed.String()), ", ")
+		roundElapsed(s.Elapsed)), ", ")
+}
+
+func roundElapsed(d time.Duration) string {
+	// A Duration prints every digit it holds, which puts nanoseconds in a summary section 10
+	// writes as 11.4s. Rounded to the resolution a reader can act on.
+	if d < time.Second {
+		return d.Round(time.Millisecond).String()
+	}
+
+	return d.Round(100 * time.Millisecond).String()
 }
 
 func (s Stats) modelClause() string {
