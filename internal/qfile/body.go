@@ -81,11 +81,11 @@ func buildBodyQuestion(id string, value any) (plan.Question, error) {
 		question.Instructions = wired
 	}
 
-	criteria, _ := lookup(fields, "criteria")
+	criteria, hasCriteria := lookup(fields, "criteria")
 
 	switch fmt.Sprintf("%v", kind) {
 	case "noul":
-		return buildBodyNoul(question, criteria)
+		return buildBodyNoul(question, criteria, hasCriteria)
 	case "choice":
 		return buildBodyChoice(question, criteria)
 	case "score":
@@ -96,10 +96,18 @@ func buildBodyQuestion(id string, value any) (plan.Question, error) {
 	}
 }
 
-func buildBodyNoul(question plan.Question, criteria any) (plan.Question, error) {
+func buildBodyNoul(question plan.Question, criteria any, present bool) (plan.Question, error) {
+	// A noul rubric is optional, so an absent key is not a mistake. An explicit null is treated the
+	// same way, since the wire field is omitted when empty and a body carrying one replays as a
+	// bare question.
+	if !present || criteria == nil {
+		return question, nil
+	}
+
 	items, ok := mapping(criteria)
 	if !ok {
-		return question, nil
+		return question, fmt.Errorf(
+			"jev: question '%s' is a noul and needs a criteria mapping", question.ID)
 	}
 
 	if err := checkNoulCriteriaKeys(question.ID, items); err != nil {

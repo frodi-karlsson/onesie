@@ -196,6 +196,27 @@ func TestLoadBody(t *testing.T) {
 			wantErr: "question 'a' in a request body has an unknown criteria key 'maybe'",
 		},
 		{
+			name:    "should reject a noul criteria that is not a mapping",
+			doc:     `{"questions":{"a":{"type":"noul","criteria":"shouting"}}}`,
+			wantErr: "question 'a' is a noul and needs a criteria mapping",
+		},
+		{
+			name:    "should reject a noul criteria sequence",
+			doc:     `{"questions":{"a":{"type":"noul","criteria":["y","n"]}}}`,
+			wantErr: "question 'a' is a noul and needs a criteria mapping",
+		},
+		{
+			name: "should treat a null noul criteria as absent",
+			doc:  `{"questions":{"a":{"type":"noul","criteria":null}}}`,
+			check: func(t *testing.T, f *qfile.File) {
+				t.Helper()
+
+				if f.Questions[0].Criteria != nil {
+					t.Errorf("criteria = %+v, want nil", f.Questions[0].Criteria)
+				}
+			},
+		},
+		{
 			name:    "should reject an unknown question type",
 			doc:     `{"questions":{"a":{"type":"vibes","instructions":"q"}}}`,
 			wantErr: "vibes",
