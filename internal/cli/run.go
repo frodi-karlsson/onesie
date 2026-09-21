@@ -666,13 +666,11 @@ func defaultClientFactory(
 			opts = append(opts, jev.WithBaseURL(flags.baseURL))
 		}
 
-		if flags.timeout > 0 {
-			opts = append(opts, jev.WithAttemptTimeout(
-				time.Duration(flags.timeout)*time.Second))
-		}
+		opts = append(opts, jev.WithAttemptTimeout(
+			time.Duration(flags.timeout)*time.Second))
 
 		// Started from the default rather than a zero value, because a Go struct cannot tell an
-		// unset field from a zero one and the policy carries eight fields this run does not touch.
+		// unset field from a zero one and the policy carries seven fields this run does not touch.
 		policy := jev.DefaultRetryPolicy()
 		policy.MaxRetries = flags.retries
 		policy.MaxRetryAfter = time.Duration(flags.maxRetryAfter) * time.Second
