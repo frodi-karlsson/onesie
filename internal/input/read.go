@@ -53,6 +53,11 @@ type Resolved struct {
 	Source Source
 	State  any
 	Raw    string
+
+	// Wire is what reaches the API and any merge wrapper. It is the raw bytes for a JSON mode, so
+	// a large integer keeps its digits and an object keeps its key order, and the parsed value for
+	// a text mode. State stays parsed, for the checks that need a Go value.
+	Wire any
 }
 
 func fromStdin(req Request) (Resolved, error) {
@@ -84,7 +89,7 @@ func fromText(source Source, label, text string, mode Mode, stripNewline bool) (
 			text = strings.TrimSuffix(text, "\n")
 		}
 
-		return Resolved{Source: source, State: text, Raw: text}, nil
+		return Resolved{Source: source, State: text, Raw: text, Wire: text}, nil
 	}
 
 	var value any
@@ -96,7 +101,9 @@ func fromText(source Source, label, text string, mode Mode, stripNewline bool) (
 		return Resolved{}, fmt.Errorf("jev: %w", err)
 	}
 
-	return Resolved{Source: source, State: value, Raw: text}, nil
+	return Resolved{
+		Source: source, State: value, Raw: text, Wire: json.RawMessage(text),
+	}, nil
 }
 
 // CheckState rejects a state the API would refuse, so a caller holding a state that never passed

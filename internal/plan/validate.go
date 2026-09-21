@@ -136,6 +136,13 @@ func checkStreaming(cfg Config) (string, error) {
 			cfg.InputName)
 	}
 
+	// Section 8 asks for one JSON line per input line. A table is several lines with a repeated
+	// header, and section 7 gave raw its streaming semantics explicitly where table has none.
+	if cfg.Output == "table" {
+		return "", fmt.Errorf("jev: -o table reads one record. Drop -i %s or use -o json",
+			cfg.InputName)
+	}
+
 	return "", nil
 }
 

@@ -51,7 +51,16 @@ echo "$ticket" | jev --ask urgent='does this convey urgency' \
 if echo "$patch" | jev 'does this contain a credential' -q --threshold 0.9 ; then
   echo 'possible leak'
 fi
+
+# one record per line, four at a time, answers folded into each record
+jev 'does `body` convey urgency' -i jsonl -j 4 --merge < tickets.jsonl \
+  | jq -c 'select(.answers.answer.value > 0.8)'
 ```
+
+`-i jsonl` and `-i lines` stream: one output line per input line, in input order, with at most `-j`
+requests in flight. A record that fails still prints a line carrying an `error` key, the run
+continues, and the exit status is 6. `--unordered` drops the ordering for throughput, and
+`--stop-on-error` ends the run at the first failure with that failure's own code.
 
 ### Exit codes
 
@@ -63,6 +72,7 @@ fi
 | 3 | authentication or permission |
 | 4 | the server did not answer after retries |
 | 5 | transport error or timeout |
+| 6 | a stream finished with one or more failed records |
 | 130 | interrupted |
 
 ### Configuration
@@ -112,6 +122,7 @@ internal/cli/     the cobra command tree, unexported and testable in process
 internal/argv/    records the group local flags in the order they arrive
 internal/plan/    folds a recorded command line into a validated invocation
 internal/input/   resolves where the state comes from and reads it
+internal/engine/  runs one evaluation per record, bounded by -j and ordered by input
 internal/jev/     the API client, ported from the JavaScript SDK
 internal/answer/  normalizes an answer and applies the question's policy
 internal/output/  encodes a normalized record in each output mode

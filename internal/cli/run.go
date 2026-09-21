@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 
 	"github.com/spf13/cobra"
 
@@ -132,7 +133,12 @@ func run(
 		}
 
 		resolved = input.Resolved{
-			Source: input.SourceBody, State: loaded.State, Raw: string(body),
+			Source: input.SourceBody,
+			State:  loaded.State,
+			Raw:    string(body),
+			// A body's own state is already raw JSON, so it reaches the wire the way every other
+			// JSON source does.
+			Wire: json.RawMessage(body),
 		}
 
 		if err := input.CheckState(resolved.State); err != nil {
@@ -219,9 +225,9 @@ func stream(
 				}, taken
 			}
 
-			record, evalErr := evaluate(ctx, client, built, questions, rec.State, flags.usage)
+			record, evalErr := evaluate(ctx, client, built, questions, rec.Wire, flags.usage)
 
-			return line{record: record, raw: rec.Raw, state: rec.State}, evalErr
+			return line{record: record, raw: rec.Raw, state: rec.Wire}, evalErr
 		},
 		Write: func(l line) error {
 			if !merge {
@@ -236,17 +242,45 @@ func stream(
 		Abort:       aborting,
 	})
 	if err != nil {
-		return err
+		// The source stopping the run is the worse outcome and takes the exit code, since a
+		// truncated stream is not something a caller can tell from a complete one. The records
+		// that had already failed are named in the message rather than dropped.
+		return &sourceError{cause: err, failed: result.Failed}
 	}
 
 	return streamResult(result)
 }
 
+type sourceError struct {
+	cause  error
+	failed int
+}
+
+func (e *sourceError) Error() string {
+	if e.failed == 0 {
+		return e.cause.Error()
+	}
+
+	return fmt.Sprintf("%v, after %s failed", e.cause, plural(e.failed, "record"))
+}
+
+func (e *sourceError) Unwrap() error {
+	return e.cause
+}
+
+func plural(count int, noun string) string {
+	if count == 1 {
+		return fmt.Sprintf("%d %s", count, noun)
+	}
+
+	return fmt.Sprintf("%d %ss", count, noun)
+}
+
 type line struct {
 	record output.Record
 	raw    string
-	// state is what was sent to the API, which --merge needs so a text line keeps its type. It is
-	// nil for a record jev could not read.
+	// state is what was sent to the API, which --merge needs so a text line keeps its type and a
+	// JSON line keeps its digits. It is nil for a record jev could not read.
 	state any
 }
 
@@ -347,13 +381,17 @@ func ask(
 		questions[question.ID] = wire(question)
 	}
 
-	record, err := evaluate(cmd.Context(), client, built, questions, resolved.State, flags.usage)
+	record, err := evaluate(cmd.Context(), client, built, questions, resolved.Wire, flags.usage)
 	if err != nil {
 		// The exit code still comes from the error. This only adds the fallback word the caller
-		// asked for, so a shell guard reads a decision rather than an empty string.
-		if writeErr := writeFailure(
-			cmd, settings, outputMode, flags, resolved, record); writeErr != nil {
-			return writeErr
+		// asked for, so a shell guard reads a decision rather than an empty string. An interrupt
+		// is skipped: the caller ended the run themselves, and a transport record written into the
+		// pipe they were closing reports a network fault that never happened.
+		if !errors.Is(err, context.Canceled) {
+			if writeErr := writeFailure(
+				cmd, settings, outputMode, flags, resolved, record); writeErr != nil {
+				return writeErr
+			}
 		}
 
 		return err
@@ -381,7 +419,7 @@ func writeMerged(
 	resolved input.Resolved,
 	flags *runFlags,
 ) error {
-	return output.WriteMerged(w, mode, record, resolved.Raw, resolved.State, mergeKey(flags))
+	return output.WriteMerged(w, mode, record, resolved.Raw, resolved.Wire, mergeKey(flags))
 }
 
 func writeFailure(
@@ -435,7 +473,12 @@ func evaluate(
 		if !ok {
 			// A failure record rather than an empty one. In a stream an empty record writes a bare
 			// {} with no error key, which a consumer reads as a successful answer to nothing.
-			missing := fmt.Errorf("jev: response carries no answer for '%s'", question.ID)
+			// Typed rather than bare, so section 8 gives it kind response with status 200 rather
+			// than the transport default, and a single shot run exits 4.
+			missing := &jev.ResponseError{
+				Status:  http.StatusOK,
+				Message: fmt.Sprintf("jev: response carries no answer for '%s'", question.ID),
+			}
 
 			return failureRecord(built, missing), missing
 		}
@@ -475,9 +518,11 @@ func describe(cause error) *output.Failure {
 
 	var unusable *jev.ResponseError
 	if errors.As(cause, &unusable) {
+		// A 2xx whose body jev could not use is deterministic. Calling it http would name a status
+		// the caller may retry, and calling it transport a connection blip that never happened.
 		status := unusable.Status
 
-		return &output.Failure{Kind: "http", Status: &status, Message: cause.Error()}
+		return &output.Failure{Kind: "response", Status: &status, Message: cause.Error()}
 	}
 
 	var api *jev.APIError
@@ -603,6 +648,10 @@ func defaultClientFactory(
 			jev.WithEnv(lookupEnv),
 		}
 
+		if transport := pooled(flags.jobs); transport != nil {
+			opts = append(opts, jev.WithHTTPClient(&http.Client{Transport: transport}))
+		}
+
 		if flags.apiKey != "" {
 			opts = append(opts, jev.WithAPIKey(flags.apiKey))
 		}
@@ -613,6 +662,31 @@ func defaultClientFactory(
 
 		return jev.New(opts...)
 	}
+}
+
+func pooled(jobs int) http.RoundTripper {
+	if jobs < 1 {
+		jobs = 1
+	}
+
+	base, ok := http.DefaultTransport.(*http.Transport)
+	if !ok {
+		// Something replaced the default. Building one here would drop whatever proxy and dialer
+		// settings that replacement carries, so the client keeps its own default instead.
+		return nil
+	}
+
+	// Cloned rather than built from scratch, so proxy support, the dial timeouts and HTTP/2 come
+	// along. The default of two idle connections per host means most of a -j run pays for a fresh
+	// handshake on a request the server answers in a fraction of that time.
+	transport := base.Clone()
+	transport.MaxIdleConnsPerHost = jobs
+
+	if transport.MaxIdleConns < jobs {
+		transport.MaxIdleConns = jobs
+	}
+
+	return transport
 }
 
 func worthReporting(err error) bool {

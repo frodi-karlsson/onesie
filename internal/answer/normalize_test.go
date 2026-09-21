@@ -2,7 +2,9 @@ package answer_test
 
 import (
 	"encoding/json"
+	"errors"
 	"math"
+	"net/http"
 	"sort"
 	"testing"
 
@@ -213,6 +215,18 @@ func TestNormalizeRejects(t *testing.T) {
 
 			if tc.wantErr != "" && err.Error() != tc.wantErr {
 				t.Errorf("error = %q, want %q", err.Error(), tc.wantErr)
+			}
+
+			// A shape the question did not ask for is deterministic, so it is a 200 whose body jev
+			// could not use. Left untyped it took the transport kind and exit 5, which tells a
+			// pipeline to retry something that will never change.
+			var unusable *jev.ResponseError
+			if !errors.As(err, &unusable) {
+				t.Fatalf("error = %T, want *jev.ResponseError", err)
+			}
+
+			if unusable.Status != http.StatusOK {
+				t.Errorf("status = %d, want %d", unusable.Status, http.StatusOK)
 			}
 		})
 	}

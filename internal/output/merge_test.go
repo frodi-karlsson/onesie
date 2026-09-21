@@ -1,6 +1,7 @@
 package output_test
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -142,6 +143,42 @@ func TestWriteMerged(t *testing.T) {
 			rec:   simple,
 			want: `{"state":"{\"a\":1}","answers":{"model":"jev-1.13.0",` +
 				`"urgent":{"value":0.92}}}`,
+		},
+		{
+			name:  "should fold answers into a raw json object",
+			mode:  output.JSON,
+			raw:   `{"zebra":1,"alpha":2}`,
+			state: json.RawMessage(`{"zebra":1,"alpha":2}`),
+			key:   "answers",
+			rec:   simple,
+			want: `{"zebra":1,"alpha":2,"answers":{"model":"jev-1.13.0",` +
+				`"urgent":{"value":0.92}}}`,
+		},
+		{
+			name: "should keep a large integer's digits when wrapping an array",
+			mode: output.JSON,
+			raw:  `[12345678901234567890]`,
+			// A parsed state would have gone through float64 and come back 12345678901234567000,
+			// handing the caller a number they never sent.
+			state: json.RawMessage(`[12345678901234567890]`),
+			key:   "answers",
+			rec:   simple,
+			want: `{"state":[12345678901234567890],"answers":{"model":"jev-1.13.0",` +
+				`"urgent":{"value":0.92}}}`,
+		},
+		{
+			name: "should wrap a raw json object when there is no line to fold into",
+			mode: output.JSON,
+			raw:  "",
+			// The merge key was already taken, so the record failed and its object goes under
+			// state rather than being folded into a line that is not there.
+			state: json.RawMessage(`{"answers":"mine"}`),
+			key:   "answers",
+			rec: output.Record{Failure: &output.Failure{
+				Kind: "input", Message: "line 1: --merge would overwrite",
+			}},
+			want: `{"state":{"answers":"mine"},"answers":{"error":{"kind":"input",` +
+				`"status":null,"message":"line 1: --merge would overwrite"}}}`,
 		},
 		{
 			name:    "should refuse to overwrite an existing key",

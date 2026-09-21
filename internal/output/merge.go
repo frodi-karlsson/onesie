@@ -40,8 +40,9 @@ func WriteMerged(w io.Writer, mode Mode, rec Record, raw string, state any, key 
 func merge(raw string, state any, key string, name, answers []byte) (string, error) {
 	// The shape follows what was actually sent, not what the line looks like. Under -i lines a
 	// line reading {"a":1} was sent as a string, so it wraps rather than folding, and a merged
-	// record never claims a shape the API did not receive.
-	if _, object := state.(map[string]any); object {
+	// record never claims a shape the API did not receive. An empty raw is a record with no line
+	// to fold into, which wraps whatever its state is.
+	if raw != "" && sentObject(state) {
 		return splice(raw, key, name, answers)
 	}
 
@@ -51,6 +52,21 @@ func merge(raw string, state any, key string, name, answers []byte) (string, err
 	}
 
 	return fmt.Sprintf(`{"state":%s,%s:%s}`, encoded, name, answers), nil
+}
+
+func sentObject(state any) bool {
+	switch typed := state.(type) {
+	case map[string]any:
+		return true
+	case json.RawMessage:
+		// The bytes are only ever set from a value that already parsed, so the first token decides
+		// the shape without a second parse.
+		trimmed := bytes.TrimLeft(typed, " \t\r\n")
+
+		return len(trimmed) > 0 && trimmed[0] == '{'
+	default:
+		return false
+	}
 }
 
 func splice(raw string, key string, name, answers []byte) (string, error) {

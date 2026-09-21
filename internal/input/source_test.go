@@ -308,3 +308,53 @@ func TestModeStreaming(t *testing.T) {
 		})
 	}
 }
+
+func TestResolveWire(t *testing.T) {
+	t.Parallel()
+
+	const big = `{"ticket_id":12345678901234567890,"zebra":1,"alpha":2}`
+
+	tests := []struct {
+		name string
+		mode input.Mode
+		text string
+		want string
+	}{
+		{
+			name: "should carry json bytes verbatim so a large integer keeps its digits",
+			mode: input.JSON,
+			text: big,
+			want: big,
+		},
+		{
+			name: "should carry the text itself in a text mode",
+			mode: input.Text,
+			text: "a ticket",
+			want: `"a ticket"`,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := input.Resolve(input.Request{
+				Mode:     tc.mode,
+				State:    tc.text,
+				HasState: true,
+			})
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			encoded, err := json.Marshal(got.Wire)
+			if err != nil {
+				t.Fatalf("marshalling wire: %v", err)
+			}
+
+			if string(encoded) != tc.want {
+				t.Errorf("wire = %s, want %s", encoded, tc.want)
+			}
+		})
+	}
+}

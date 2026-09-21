@@ -1,6 +1,7 @@
 package input_test
 
 import (
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
@@ -273,8 +274,10 @@ func TestStreamReadError(t *testing.T) {
 			t.Errorf("line = %d, want 0", lineErr.Line)
 		}
 
-		if !strings.HasPrefix(lineErr.Error(), "stdin: ") {
-			t.Errorf("message = %q, want it to start with %q", lineErr.Error(), "stdin: ")
+		// Named once. The wrap used to add a spelling of its own, so the user read
+		// jev: stdin: reading stdin: disk fell over.
+		if got := lineErr.Error(); got != "stdin: disk fell over" {
+			t.Errorf("message = %q, want %q", got, "stdin: disk fell over")
 		}
 	})
 }
@@ -283,4 +286,58 @@ type failingReader struct{}
 
 func (failingReader) Read([]byte) (int, error) {
 	return 0, errors.New("disk fell over")
+}
+
+func TestStreamWire(t *testing.T) {
+	t.Parallel()
+
+	const big = `{"ticket_id":12345678901234567890,"zebra":1,"alpha":2}`
+
+	tests := []struct {
+		name string
+		mode input.Mode
+		line string
+		want string
+	}{
+		{
+			name: "should carry json bytes verbatim so a large integer keeps its digits",
+			mode: input.JSONL,
+			line: big,
+			want: big,
+		},
+		{
+			name: "should carry json bytes verbatim so an object keeps its key order",
+			mode: input.JSONL,
+			line: `{"zebra":1,"alpha":2}`,
+			want: `{"zebra":1,"alpha":2}`,
+		},
+		{
+			name: "should carry the line itself in a text mode",
+			mode: input.Lines,
+			line: `{"zebra":1}`,
+			want: `"{\"zebra\":1}"`,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			stream := input.NewStream(strings.NewReader(tc.line+"\n"), tc.mode, false)
+
+			record, ok, err := stream.Next()
+			if err != nil || !ok {
+				t.Fatalf("next = %v, %v", ok, err)
+			}
+
+			encoded, err := json.Marshal(record.Wire)
+			if err != nil {
+				t.Fatalf("marshalling wire: %v", err)
+			}
+
+			if string(encoded) != tc.want {
+				t.Errorf("wire = %s, want %s", encoded, tc.want)
+			}
+		})
+	}
 }

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"net/http"
 	"sort"
 	"strconv"
 
@@ -17,13 +18,13 @@ import (
 // question carries no labels.
 func Normalize(q plan.Question, raw jev.Answer) (*Answer, error) {
 	if raw == nil {
-		return nil, fmt.Errorf("jev: question '%s' has no answer", q.ID)
+		return nil, unusable("jev: question '%s' has no answer", q.ID)
 	}
 
 	// Checked once here rather than per branch, since every branch below reads labels the
 	// question only has for its own shape.
 	if want := wireKind(q.Shape); want != raw.Kind() {
-		return nil, fmt.Errorf("jev: question '%s' expects a %s answer, got %s",
+		return nil, unusable("jev: question '%s' expects a %s answer, got %s",
 			q.ID, want, raw.Kind())
 	}
 
@@ -35,9 +36,16 @@ func Normalize(q plan.Question, raw jev.Answer) (*Answer, error) {
 	case *jev.ScoreAnswer:
 		return normalizeScore(q, typed), nil
 	default:
-		return nil, fmt.Errorf("jev: question '%s' returned an unknown answer type '%s'",
+		return nil, unusable("jev: question '%s' returned an unknown answer type '%s'",
 			q.ID, raw.Kind())
 	}
+}
+
+func unusable(format string, args ...any) error {
+	// A shape the question did not ask for is deterministic, so it is a 200 whose body jev could
+	// not use rather than a transport failure. Typing it is what gives it kind response in a
+	// stream and exit 4 in a single shot run.
+	return &jev.ResponseError{Status: http.StatusOK, Message: fmt.Sprintf(format, args...)}
 }
 
 func wireKind(shape plan.Shape) string {

@@ -39,12 +39,16 @@ func (s *Stream) Next() (Record, bool, error) {
 				return Record{}, false, nil
 			}
 
-			return Record{}, false, &LineError{Err: fmt.Errorf("reading stdin: %w", err)}
+			// Not wrapped with a spelling of its own. LineError already prefixes stdin for line
+			// zero, and carrying both would report the same word twice.
+			return Record{}, false, &LineError{Err: err}
 		}
 
 		s.line++
 
 		if tooLong {
+			// The line itself is dropped rather than buffered, so Raw is empty and --merge wraps
+			// an empty state. LineError already names the line, which is what locates the record.
 			return s.fail("", errors.New("line is longer than the limit")), true, nil
 		}
 
@@ -71,8 +75,12 @@ type Record struct {
 	// Line is the input line number, counting from one. It differs from Index as soon as
 	// --skip-blank drops a line, and it is the number a message must quote.
 	Line int
-	// State is the value sent to the API. It is nil when Err is set.
+	// State is the parsed value, which the pre flight checks read. It is nil when Err is set.
 	State any
+	// Wire is what reaches the API and any merge wrapper. It is the raw bytes for a JSON mode, so
+	// a large integer keeps its digits and an object keeps its key order, and the parsed value for
+	// a text mode. State stays parsed, for the checks that need a Go value.
+	Wire any
 	// Raw is the line exactly as read, which --merge folds the answers into.
 	Raw string
 	// Err marks an input error. No request is made for such a record.
@@ -140,7 +148,7 @@ func (s *Stream) record(line string) Record {
 	}
 
 	if s.mode == Lines {
-		return s.ok(line, line)
+		return s.ok(line, line, line)
 	}
 
 	var value any
@@ -152,11 +160,11 @@ func (s *Stream) record(line string) Record {
 		return s.fail(line, err)
 	}
 
-	return s.ok(line, value)
+	return s.ok(line, value, json.RawMessage(line))
 }
 
-func (s *Stream) ok(line string, state any) Record {
-	record := Record{Index: s.index, Line: s.line, State: state, Raw: line}
+func (s *Stream) ok(line string, state, wire any) Record {
+	record := Record{Index: s.index, Line: s.line, State: state, Raw: line, Wire: wire}
 	s.index++
 
 	return record

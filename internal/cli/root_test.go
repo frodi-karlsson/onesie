@@ -5,10 +5,15 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/frodi-karlsson/jev-cli/internal/cli"
 	"github.com/frodi-karlsson/jev-cli/internal/jev"
@@ -208,7 +213,20 @@ func TestNewRootCmd(t *testing.T) {
 			absent:   []string{"refuse"},
 		},
 		{
-			name: "should emit an http error for a 200 body it cannot use",
+			name:  "should exit unavailable when the answer has the wrong shape",
+			args:  []string{"is this urgent", "-o", "json"},
+			stdin: "body",
+			response: `{"model":"jev-1.13.0","answers":{"answer":{"type":"choice",` +
+				`"choice":"a","confidence":0.5,"probabilities":{"a":1}}}}`,
+			wantCode: cli.ExitUnavailable,
+			contains: []string{
+				`"kind":"response"`, `"status":200`,
+				"expects a noul answer, got choice",
+			},
+			absent: []string{`"kind":"transport"`},
+		},
+		{
+			name: "should emit a response error for a 200 body it cannot use",
 			args: []string{
 				"--ask", "team=which team", "--pick", "billing,technical",
 				"--min-confidence", "0.7", "--fallback", "human", "-o", "json",
@@ -217,10 +235,10 @@ func TestNewRootCmd(t *testing.T) {
 			response: "not json at all",
 			wantCode: cli.ExitUnavailable,
 			contains: []string{
-				`"error"`, `"kind":"http"`, `"status":200`,
+				`"error"`, `"kind":"response"`, `"status":200`,
 				`"decision":"human"`, `"fallback":"error"`,
 			},
-			absent: []string{`"kind":"transport"`},
+			absent: []string{`"kind":"transport"`, `"kind":"http"`},
 		},
 		{
 			name: "should emit the error key in json on failure",
@@ -720,4 +738,144 @@ func stubAnswering(t *testing.T, body string, observe func(*http.Request)) *http
 			t.Errorf("writing stub response: %v", err)
 		}
 	}))
+}
+
+func TestNewRootCmdConnectionPool(t *testing.T) {
+	t.Parallel()
+
+	t.Run("should reuse connections across a job count above two", func(t *testing.T) {
+		t.Parallel()
+
+		const (
+			jobs    = 8
+			records = 120
+		)
+
+		var opened atomic.Int64
+
+		srv := httptest.NewUnstartedServer(http.HandlerFunc(
+			func(w http.ResponseWriter, _ *http.Request) {
+				// Slow enough that every worker really is in flight at once, which is what makes
+				// the pool size rather than the request count decide the connection count.
+				time.Sleep(2 * time.Millisecond)
+
+				if _, err := w.Write([]byte(
+					`{"model":"jev-1.13.0","answers":{"answer":{"type":"noul","noul":0.5}}}`,
+				)); err != nil {
+					t.Errorf("writing stub response: %v", err)
+				}
+			}))
+
+		srv.Config.ConnState = func(_ net.Conn, state http.ConnState) {
+			if state == http.StateNew {
+				opened.Add(1)
+			}
+		}
+
+		srv.Start()
+
+		defer srv.Close()
+
+		var stdin strings.Builder
+		for i := range records {
+			fmt.Fprintf(&stdin, "line %d\n", i)
+		}
+
+		var out bytes.Buffer
+
+		// No WithClientFactory, so the real composition root builds the transport from -j.
+		root := cli.NewRootCmd(
+			cli.BuildInfo{Version: "1.2.3"},
+			cli.WithStdin(strings.NewReader(stdin.String())),
+			cli.WithStdinTTY(false),
+			cli.WithStdoutTTY(false),
+			cli.WithLookupEnv(func(name string) (string, bool) {
+				switch name {
+				case jev.EnvAPIKey:
+					return "k", true
+				case jev.EnvBaseURL:
+					return srv.URL, true
+				default:
+					return "", false
+				}
+			}),
+		)
+
+		root.SetOut(&out)
+		root.SetErr(&out)
+		root.SetArgs([]string{"x", "-i", "lines", "-j", strconv.Itoa(jobs), "-o", "values"})
+
+		if code := cli.Execute(t.Context(), root); code != cli.ExitOK {
+			t.Fatalf("exit code = %d, output:\n%s", code, out.String())
+		}
+
+		// The default transport pools two idle connections per host, which had three quarters of
+		// the records paying for a fresh handshake. A run that pools per job opens one connection
+		// per worker and reuses it.
+		if got := opened.Load(); got > jobs {
+			t.Errorf("new connections = %d for %d records at -j %d, want at most %d",
+				got, records, jobs, jobs)
+		}
+	})
+}
+
+func TestNewRootCmdInterrupt(t *testing.T) {
+	t.Parallel()
+
+	t.Run("should write nothing when a single record run is cancelled", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithCancel(t.Context())
+
+		var once sync.Once
+
+		started := make(chan struct{})
+
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			once.Do(func() { close(started) })
+
+			// Bounded rather than waiting on the request context. A net/http server only notices
+			// a client that hung up when it next reads the connection, so a handler blocked on
+			// Done would hold Close open past the test's deadline.
+			time.Sleep(200 * time.Millisecond)
+			w.WriteHeader(http.StatusInternalServerError)
+		}))
+		defer srv.Close()
+
+		go func() {
+			<-started
+			cancel()
+		}()
+
+		var out, errOut bytes.Buffer
+
+		root := cli.NewRootCmd(
+			cli.BuildInfo{Version: "1.2.3"},
+			cli.WithClientFactory(func(context.Context) (*jev.Client, error) {
+				return jev.New(jev.WithAPIKey("k"), jev.WithBaseURL(srv.URL))
+			}),
+			cli.WithStdin(strings.NewReader("a ticket")),
+			cli.WithStdinTTY(false),
+			cli.WithStdoutTTY(false),
+			cli.WithLookupEnv(func(string) (string, bool) { return "", false }),
+		)
+
+		root.SetOut(&out)
+		root.SetErr(&errOut)
+		root.SetArgs([]string{"is this urgent", "-o", "values"})
+
+		if code := cli.Execute(ctx, root); code != cli.ExitInterrupt {
+			t.Errorf("exit code = %d, want %d", code, cli.ExitInterrupt)
+		}
+
+		// The caller ended the run themselves. A transport record written into the pipe they were
+		// closing reports a network fault that never happened.
+		if out.String() != "" {
+			t.Errorf("stdout = %q, want nothing", out.String())
+		}
+
+		if errOut.String() != "" {
+			t.Errorf("stderr = %q, want nothing", errOut.String())
+		}
+	})
 }

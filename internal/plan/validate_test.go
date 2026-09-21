@@ -580,6 +580,17 @@ func TestValidate(t *testing.T) {
 			wantErr:    "-q reads one record. Drop -i jsonl",
 		},
 		{
+			name:       "should reject a table in a stream",
+			positional: "is this urgent",
+			cfg:        plan.Config{Streaming: true, Output: "table", InputName: "lines"},
+			wantErr:    "-o table reads one record. Drop -i lines or use -o json",
+		},
+		{
+			name:       "should accept a table outside a stream",
+			positional: "is this urgent",
+			cfg:        plan.Config{Output: "table", InputName: "text"},
+		},
+		{
 			name:        "should warn about jobs outside a stream",
 			positional:  "is this urgent",
 			cfg:         plan.Config{Jobs: 8, JobsSet: true, InputName: "text"},

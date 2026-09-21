@@ -4,9 +4,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 
@@ -73,6 +76,25 @@ func TestStreaming(t *testing.T) {
 			wantCode:  cli.ExitRecords,
 			wantLines: 2,
 			contains:  []string{`"kind":"http"`, `"status":500`},
+		},
+		{
+			name:  "should report an answer shape mismatch as a response failure",
+			args:  []string{"is this urgent", "-i", "lines"},
+			stdin: "first\n",
+			response: `{"model":"jev-1.13.0","answers":{"answer":{"type":"choice",` +
+				`"choice":"a","confidence":0.5,"probabilities":{"a":1}}}}`,
+			wantCode:  cli.ExitRecords,
+			wantLines: 1,
+			contains:  []string{`"kind":"response"`, `"status":200`},
+		},
+		{
+			name:      "should report a missing answer as a response failure",
+			args:      []string{"is this urgent", "-i", "lines"},
+			stdin:     "first\n",
+			response:  `{"model":"jev-1.13.0","answers":{"other":{"type":"noul","noul":0.5}}}`,
+			wantCode:  cli.ExitRecords,
+			wantLines: 1,
+			contains:  []string{`"kind":"response"`, `"status":200`},
 		},
 		{
 			name:      "should abort the whole stream on an authentication failure",
@@ -347,4 +369,193 @@ func TestSingleRecordMerge(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestStreamingWire(t *testing.T) {
+	t.Parallel()
+
+	const answered = `{"model":"jev-1.13.0","answers":{"answer":{"type":"noul","noul":0.9}}}`
+
+	const record = `{"ticket_id":12345678901234567890,"zebra":1,"alpha":2}`
+
+	tests := []struct {
+		name  string
+		args  []string
+		stdin string
+		// wantWire is the state as the request body spelled it.
+		wantWire string
+		wantOut  string
+	}{
+		{
+			name:     "should send a nineteen digit integer unchanged under jsonl",
+			args:     []string{"x", "-i", "jsonl", "-o", "values"},
+			stdin:    record + "\n",
+			wantWire: record,
+			wantOut:  `{"answer":0.9}`,
+		},
+		{
+			name:     "should send a nineteen digit integer unchanged under json",
+			args:     []string{"x", "-i", "json", "-o", "values"},
+			stdin:    record,
+			wantWire: record,
+			wantOut:  `{"answer":0.9}`,
+		},
+		{
+			name:     "should keep an array's large integer through merge under jsonl",
+			args:     []string{"x", "-i", "jsonl", "--merge", "-o", "values"},
+			stdin:    "[12345678901234567890]\n",
+			wantWire: `[12345678901234567890]`,
+			wantOut:  `{"state":[12345678901234567890],"answers":{"answer":0.9}}`,
+		},
+		{
+			name:     "should keep an array's large integer through merge under json",
+			args:     []string{"x", "-i", "json", "--merge", "-o", "values"},
+			stdin:    "[12345678901234567890]",
+			wantWire: `[12345678901234567890]`,
+			wantOut:  `{"state":[12345678901234567890],"answers":{"answer":0.9}}`,
+		},
+		{
+			name:     "should keep an object's key order through merge under jsonl",
+			args:     []string{"x", "-i", "jsonl", "--merge", "-o", "values"},
+			stdin:    record + "\n",
+			wantWire: record,
+			wantOut: `{"ticket_id":12345678901234567890,"zebra":1,"alpha":2,` +
+				`"answers":{"answer":0.9}}`,
+		},
+		{
+			name:     "should keep an object's key order through merge under json",
+			args:     []string{"x", "-i", "json", "--merge", "-o", "values"},
+			stdin:    record,
+			wantWire: record,
+			wantOut: `{"ticket_id":12345678901234567890,"zebra":1,"alpha":2,` +
+				`"answers":{"answer":0.9}}`,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var (
+				mu   sync.Mutex
+				body string
+			)
+
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				sent, err := io.ReadAll(r.Body)
+				if err != nil {
+					t.Errorf("reading request body: %v", err)
+				}
+
+				mu.Lock()
+				body = string(sent)
+				mu.Unlock()
+
+				if _, err := w.Write([]byte(answered)); err != nil {
+					t.Errorf("writing stub response: %v", err)
+				}
+			}))
+			defer srv.Close()
+
+			var out, errOut bytes.Buffer
+
+			root := cli.NewRootCmd(
+				cli.BuildInfo{Version: "1.2.3"},
+				cli.WithClientFactory(func(context.Context) (*jev.Client, error) {
+					return jev.New(jev.WithAPIKey("k"), jev.WithBaseURL(srv.URL))
+				}),
+				cli.WithStdin(strings.NewReader(tc.stdin)),
+				cli.WithStdinTTY(false),
+				cli.WithStdoutTTY(false),
+				cli.WithLookupEnv(func(string) (string, bool) { return "", false }),
+			)
+
+			root.SetOut(&out)
+			root.SetErr(&errOut)
+			root.SetArgs(tc.args)
+
+			if code := cli.Execute(t.Context(), root); code != cli.ExitOK {
+				t.Fatalf("exit code = %d\nstdout:\n%s\nstderr:\n%s",
+					code, out.String(), errOut.String())
+			}
+
+			mu.Lock()
+			defer mu.Unlock()
+
+			if !strings.Contains(body, `"state":`+tc.wantWire) {
+				t.Errorf("request body = %s\nwant state %s", body, tc.wantWire)
+			}
+
+			if got := strings.TrimSuffix(out.String(), "\n"); got != tc.wantOut {
+				t.Errorf("output = %s\nwant    %s", got, tc.wantOut)
+			}
+		})
+	}
+}
+
+func TestStreamSourceFailure(t *testing.T) {
+	t.Parallel()
+
+	t.Run("should report the failed records alongside the read failure", func(t *testing.T) {
+		t.Parallel()
+
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusInternalServerError)
+
+			if _, err := w.Write([]byte(`{"error":{"message":"boom"}}`)); err != nil {
+				t.Errorf("writing stub response: %v", err)
+			}
+		}))
+		defer srv.Close()
+
+		var out, errOut bytes.Buffer
+
+		root := cli.NewRootCmd(
+			cli.BuildInfo{Version: "1.2.3"},
+			cli.WithClientFactory(func(context.Context) (*jev.Client, error) {
+				policy := jev.DefaultRetryPolicy()
+				policy.MaxRetries = 0
+
+				return jev.New(
+					jev.WithAPIKey("k"), jev.WithBaseURL(srv.URL), jev.WithRetry(policy))
+			}),
+			cli.WithStdin(&breakingReader{lines: "first\n"}),
+			cli.WithStdinTTY(false),
+			cli.WithStdoutTTY(false),
+			cli.WithLookupEnv(func(string) (string, bool) { return "", false }),
+		)
+
+		root.SetOut(&out)
+		root.SetErr(&errOut)
+		root.SetArgs([]string{"x", "-i", "lines", "-j", "1"})
+
+		// The read failure ends the stream, which a caller cannot tell from a complete one, so it
+		// takes the exit code. The record that had already failed is named rather than dropped.
+		if code := cli.Execute(t.Context(), root); code != cli.ExitUsage {
+			t.Errorf("exit code = %d, want %d\nstderr:\n%s", code, cli.ExitUsage, errOut.String())
+		}
+
+		if !strings.Contains(errOut.String(), "1 record failed") {
+			t.Errorf("stderr = %q, want it to name the failed record", errOut.String())
+		}
+
+		if !strings.Contains(errOut.String(), "stdin: ") {
+			t.Errorf("stderr = %q, want it to name stdin", errOut.String())
+		}
+	})
+}
+
+type breakingReader struct {
+	lines string
+}
+
+func (r *breakingReader) Read(p []byte) (int, error) {
+	if r.lines == "" {
+		return 0, errors.New("disk fell over")
+	}
+
+	n := copy(p, r.lines)
+	r.lines = r.lines[n:]
+
+	return n, nil
 }

@@ -34,6 +34,11 @@ func TestClassify(t *testing.T) {
 			err:  apiError(http.StatusForbidden), want: ExitAuth,
 		},
 		{
+			name: "should report unavailable for a 200 body it could not use",
+			err:  &jev.ResponseError{Status: http.StatusOK, Message: "jev: wrong shape"},
+			want: ExitUnavailable,
+		},
+		{
 			name: "should report usage for an unprocessable entity",
 			err:  apiError(http.StatusUnprocessableEntity), want: ExitUsage,
 		},

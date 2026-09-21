@@ -304,10 +304,18 @@ type ResponseError struct {
 	Status int
 	Body   []byte
 	Err    error
+
+	// Message replaces the generic sentence when the caller has a better one. The CLI's answer
+	// checks do, since their wording is part of the published contract.
+	Message string
 }
 
 // Error describes what could not be read.
 func (e *ResponseError) Error() string {
+	if e.Message != "" {
+		return e.Message
+	}
+
 	return fmt.Sprintf("jev: %d response could not be used: %v", e.Status, e.Err)
 }
 
