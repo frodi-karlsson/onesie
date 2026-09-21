@@ -3,8 +3,6 @@ package main
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
@@ -30,17 +28,5 @@ func run() int {
 
 	root := cli.NewRootCmd(cli.BuildInfo{Version: version, Commit: commit, Date: date})
 
-	if err := root.ExecuteContext(ctx); err != nil {
-		if worthReporting(err) {
-			fmt.Fprintln(os.Stderr, "jev:", err)
-		}
-
-		return 1
-	}
-
-	return 0
-}
-
-func worthReporting(err error) bool {
-	return !errors.Is(err, context.Canceled)
+	return cli.Execute(ctx, root)
 }

@@ -5,12 +5,14 @@ import (
 	"runtime"
 
 	"github.com/spf13/cobra"
+
+	"github.com/frodi-karlsson/jev-cli/internal/limits"
 )
 
 func newVersionCmd(info BuildInfo) *cobra.Command {
 	return &cobra.Command{
 		Use:   "version",
-		Short: "Print version, commit and build date",
+		Short: "Print version, commit, build date and the built in limits",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			// cobra's own Print helpers write to stderr, not stdout.
@@ -26,6 +28,12 @@ func newVersionCmd(info BuildInfo) *cobra.Command {
 
 			for _, row := range rows {
 				if _, err := fmt.Fprintf(out, "%-9s %s\n", row[0], row[1]); err != nil {
+					return err
+				}
+			}
+
+			for _, entry := range limits.Report() {
+				if _, err := fmt.Fprintf(out, "%s %s\n", entry.Name, entry.Value); err != nil {
 					return err
 				}
 			}
