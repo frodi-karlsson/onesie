@@ -80,7 +80,9 @@ func run(
 			return checkErr
 		}
 
-		return listModels(cmd, settings)
+		return withStats(cmd, flags, func(stats *collector) error {
+			return listModels(cmd, settings, stats)
+		})
 	}
 
 	if inputMode == input.Request {
