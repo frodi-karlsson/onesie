@@ -44,7 +44,7 @@ func loadBody(top yaml.MapSlice) (*File, error) {
 }
 
 func buildBodyQuestion(id string, value any) (plan.Question, error) {
-	question := plan.Question{ID: id, Named: true}
+	question := plan.Question{ID: id, Named: true, FromBody: true}
 
 	fields, ok := mapping(value)
 	if !ok {

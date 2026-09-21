@@ -184,6 +184,41 @@ func TestWriteTable(t *testing.T) {
 			absent: []string{"confidence"},
 		},
 		{
+			name:    "should show the legend text beside an index",
+			columns: 80,
+			rec: output.Record{
+				Answers: []output.Named{
+					{ID: "frustration", Answer: &answer.Answer{
+						Value: "1", Confidence: &confidence, Score: &score, Norm: &norm,
+						P: &answer.Probabilities{
+							Keys:   []string{"0", "1", "2"},
+							Values: map[string]float64{"0": 0.05, "1": 0.90, "2": 0.05},
+						},
+						Legend: map[string]string{
+							"0": "Calm", "1": "Frustrated", "2": "Very angry",
+						},
+					}},
+				},
+			},
+			contains: []string{"0 Calm", "1 Frustrated", "2 Very angry"},
+		},
+		{
+			name:    "should keep a bare index when there is no legend",
+			columns: 80,
+			rec: output.Record{
+				Answers: []output.Named{
+					{ID: "frustration", Answer: &answer.Answer{
+						Value: "1",
+						P: &answer.Probabilities{
+							Keys:   []string{"0", "1"},
+							Values: map[string]float64{"0": 0.1, "1": 0.9},
+						},
+					}},
+				},
+			},
+			contains: []string{"  0 ", "  1 "},
+		},
+		{
 			name:    "should narrow the bars on a narrow terminal",
 			columns: 40,
 			rec: output.Record{

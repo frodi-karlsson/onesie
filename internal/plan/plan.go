@@ -30,6 +30,10 @@ type Question struct {
 	// being the reserved id a bare positional question is keyed under.
 	Named bool
 
+	// FromBody is true when the question came from a raw API request body rather than from a
+	// question file or the command line. A body carries no labels and no policy of its own.
+	FromBody bool
+
 	// Labelled is meaningful only when Shape is Rate. A pick question always has option names and
 	// a yes/no question never has labels, so only a score question can arrive unlabelled, through
 	// a request body. It selects which normalization applies.

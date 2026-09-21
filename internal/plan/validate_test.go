@@ -1,6 +1,7 @@
 package plan_test
 
 import (
+	"strconv"
 	"strings"
 	"testing"
 
@@ -279,6 +280,42 @@ func TestValidate(t *testing.T) {
 				{Name: "desc", Value: "major=big"},
 			},
 		},
+		{
+			name: "should accept policy on an ask added beside a one question body",
+			file: bodyQuestions(1),
+			events: []argv.Event{
+				{Name: "ask", Value: "extra=second"},
+				{Name: "threshold", Value: "0.8"},
+			},
+		},
+		{
+			name: "should accept a one question body with no policy at all",
+			file: bodyQuestions(1),
+		},
+		{
+			name:   "should reject a policy flag aimed at a two question body",
+			file:   bodyQuestions(2),
+			events: []argv.Event{{Name: "threshold", Value: "0.8"}},
+			wantErr: "jev: policy flags apply to a request body only when it has one question. " +
+				"The body has 2",
+		},
+		{
+			name: "should count only the body's own questions in the policy error",
+			file: bodyQuestions(2),
+			events: []argv.Event{
+				{Name: "threshold", Value: "0.8"},
+				{Name: "ask", Value: "extra=second"},
+			},
+			wantErr: "The body has 2",
+		},
+		{
+			name: "should reject policy carried by a body question itself",
+			file: append(bodyQuestions(1), plan.Question{
+				ID: "b2", Shape: plan.Noul, Instructions: "q", Named: true, FromBody: true,
+				Policy: plan.Policy{Threshold: pointerTo(0.8)},
+			}),
+			wantErr: "The body has 2",
+		},
 	}
 
 	for _, tc := range tests {
@@ -342,4 +379,19 @@ func TestValidate(t *testing.T) {
 
 func pointerTo[T any](value T) *T {
 	return &value
+}
+
+func bodyQuestions(n int) []plan.Question {
+	questions := make([]plan.Question, 0, n)
+	for i := range n {
+		questions = append(questions, plan.Question{
+			ID:           "b" + strconv.Itoa(i),
+			Shape:        plan.Noul,
+			Instructions: "q",
+			Named:        true,
+			FromBody:     true,
+		})
+	}
+
+	return questions
 }

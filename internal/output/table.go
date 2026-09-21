@@ -118,10 +118,17 @@ func writeBlock(w io.Writer, named Named, bars int) error {
 	}
 
 	for _, key := range a.P.Keys {
+		// The index stays visible beside the legend text, since value reports the index and a
+		// reader needs to match the two.
+		label := key
+		if text, ok := a.Legend[key]; ok {
+			label = key + " " + text
+		}
+
 		value := a.P.Values[key]
 
 		if _, err := fmt.Fprintf(w, "  %-*s %s %.4f\n",
-			labelWidth, truncate(key), bar(value, bars), value); err != nil {
+			labelWidth, truncate(label), bar(value, bars), value); err != nil {
 			return err
 		}
 	}

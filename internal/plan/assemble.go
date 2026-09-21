@@ -17,7 +17,7 @@ const unnamedFile = "the question file"
 
 // Assemble folds a recorded command line and any file questions into a Plan.
 func Assemble(src Source) (*Plan, error) {
-	groups, orphans := split(src.Events, src.Positional)
+	groups, orphans := split(src.Events, src.Positional, len(src.File) > 0)
 
 	built := &Plan{Questions: append([]Question(nil), src.File...)}
 	fromFile := positions(src.File)
@@ -37,6 +37,16 @@ func Assemble(src Source) (*Plan, error) {
 	// handles a lone --ask group, so this covers the case where the single question came from a
 	// file. With any other count they have nothing to bind to and validation reports them.
 	if len(orphans) > 0 && len(built.Questions) == 1 {
+		if built.Questions[0].FromBody {
+			for _, event := range orphans {
+				if !policyFlag(event.Name) {
+					return nil, fmt.Errorf(
+						"jev: --%s cannot reshape a request body's question. "+
+							"A body carries its own type and criteria", event.Name)
+				}
+			}
+		}
+
 		if err := applyEvents(&built.Questions[0], orphans, src.ReadFile); err != nil {
 			return nil, err
 		}
@@ -63,7 +73,7 @@ type Source struct {
 	ReadFile func(string) ([]byte, error)
 }
 
-func split(events []argv.Event, positional string) ([]group, []argv.Event) {
+func split(events []argv.Event, positional string, hasFile bool) ([]group, []argv.Event) {
 	var (
 		groups  []group
 		leading []argv.Event
@@ -87,9 +97,9 @@ func split(events []argv.Event, positional string) ([]group, []argv.Event) {
 		return append([]group{{id: PositionalID, text: positional, events: leading}}, groups...), nil
 	}
 
-	// A lone --ask absorbs the top level flags. With any other count they have nothing to bind to,
-	// so they are returned for validation to report.
-	if len(groups) == 1 {
+	// A lone --ask absorbs the top level flags only when it is the only question. With a file
+	// also supplying questions, Assemble decides, since it is the only place that knows the total.
+	if len(groups) == 1 && !hasFile {
 		groups[0].events = append(leading, groups[0].events...)
 
 		return groups, nil
@@ -269,7 +279,20 @@ func attach(question *Question, descriptions map[string]any) {
 		no, hasNo := descriptions["no"]
 
 		if hasYes || hasNo {
-			question.Criteria = &YesNoCriteria{Yes: yes, No: no}
+			// Merge rather than replace. A file may already have set one half through yes_means
+			// or no_means, and a --desc naming only the other half must not erase it.
+			if question.Criteria == nil {
+				question.Criteria = &YesNoCriteria{}
+			}
+
+			if hasYes {
+				question.Criteria.Yes = yes
+			}
+
+			if hasNo {
+				question.Criteria.No = no
+			}
+
 			delete(descriptions, "yes")
 			delete(descriptions, "no")
 		}

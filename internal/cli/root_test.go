@@ -20,6 +20,10 @@ func TestNewRootCmd(t *testing.T) {
 	const answered = `{"model":"jev-1.13.0","answers":{"answer":{"type":"noul","noul":0.92}},` +
 		`"usage":{"input_tokens":10,"output_tokens":2}}`
 
+	const twoAnswers = `{"model":"jev-1.13.0","answers":` +
+		`{"a":{"type":"noul","noul":0.92},"extra":{"type":"noul","noul":0.92}},` +
+		`"usage":{"input_tokens":10,"output_tokens":2}}`
+
 	const picked = `{"model":"jev-1.13.0","answers":{"answer":{"type":"choice",` +
 		`"choice":"billing","confidence":0.91,` +
 		`"probabilities":{"billing":0.91,"technical":0.09}}},` +
@@ -346,7 +350,100 @@ func TestNewRootCmd(t *testing.T) {
 					`"b":{"type":"noul","instructions":"q"}}}`,
 			},
 			wantCode: cli.ExitUsage,
-			contains: []string{"one question"},
+			contains: []string{"one question", "The body has 2"},
+		},
+		{
+			name: "should allow policy on an ask added beside a one question body",
+			args: []string{
+				"-f", "body.json", "--ask", "extra=is this urgent",
+				"--threshold", "0.8", "-o", "json",
+			},
+			files: map[string]string{
+				"body.json": `{"state":"x","questions":` +
+					`{"a":{"type":"noul","instructions":"q"}}}`,
+			},
+			response: twoAnswers,
+			wantCode: cli.ExitOK,
+			contains: []string{`"a":{"value":0.92`, `"extra":{"value":0.92`},
+		},
+		{
+			name: "should orphan a top level flag when a file and one ask both ask",
+			args: []string{
+				"-f", "one.yaml", "--threshold", "0.8", "--ask", "other=is this urgent",
+			},
+			files:    map[string]string{"one.yaml": "urgent: is this urgent\n"},
+			stdin:    "the server is down",
+			wantCode: cli.ExitUsage,
+			contains: []string{"--threshold given with no --ask to bind to and 2 questions asked"},
+		},
+		{
+			name:     "should reject a question file holding a second document",
+			args:     []string{"-f", "md.yaml"},
+			files:    map[string]string{"md.yaml": "a: q1\n---\nb: q2\n"},
+			stdin:    "the server is down",
+			wantCode: cli.ExitUsage,
+			contains: []string{"a question file is one document"},
+		},
+		{
+			name:  "should load a question file holding a separator inside a block scalar",
+			args:  []string{"-f", "block.yaml", "-o", "json"},
+			files: map[string]string{"block.yaml": "a:\n  ask: |-\n    one\n    ---\n    two\n"},
+			stdin: "the server is down",
+			response: `{"model":"jev-1.13.0","answers":{"a":{"type":"noul","noul":0.92}},` +
+				`"usage":{"input_tokens":10,"output_tokens":2}}`,
+			wantCode: cli.ExitOK,
+			sends:    []string{`"instructions":"one\n---\ntwo"`},
+		},
+		{
+			name: "should merge a top level desc into the file's yes/no criteria",
+			args: []string{"-f", "y.yaml", "--desc", "yes=CLI YES", "-o", "json"},
+			files: map[string]string{
+				"y.yaml": "urgent:\n  ask: q\n  yes_means: FILE YES\n  no_means: FILE NO\n",
+			},
+			stdin: "the server is down",
+			response: `{"model":"jev-1.13.0","answers":{"urgent":{"type":"noul","noul":0.92}},` +
+				`"usage":{"input_tokens":10,"output_tokens":2}}`,
+			wantCode: cli.ExitOK,
+			sends:    []string{`"true":"CLI YES"`, `"false":"FILE NO"`},
+		},
+		{
+			name: "should reject a shape flag aimed at a request body",
+			args: []string{"-f", "body.json", "--pick", "x,y"},
+			files: map[string]string{
+				"body.json": `{"state":"x","questions":` +
+					`{"bq":{"type":"noul","instructions":"q"}}}`,
+			},
+			wantCode: cli.ExitUsage,
+			contains: []string{"--pick cannot reshape a request body's question"},
+		},
+		{
+			name: "should keep a body's null score criteria null on the wire",
+			args: []string{"-f", "body.json", "-o", "json"},
+			files: map[string]string{
+				"body.json": `{"state":"x","questions":` +
+					`{"bq":{"type":"score","instructions":"q","criteria":[null,null]}}}`,
+			},
+			response: `{"model":"jev-1.13.0","answers":{"bq":{"type":"score","score":1.0,` +
+				`"confidence":0.92,"legend":{"0":"Calm","1":"Frustrated"},` +
+				`"probabilities":{"0":0.1,"1":0.9}}},` +
+				`"usage":{"input_tokens":10,"output_tokens":2}}`,
+			wantCode: cli.ExitOK,
+			sends:    []string{`"criteria":[null,null]`},
+			absent:   []string{`"criteria":["",""]`},
+		},
+		{
+			name: "should show the legend beside the index in the table",
+			args: []string{"-f", "body.json", "-o", "table"},
+			files: map[string]string{
+				"body.json": `{"state":"x","questions":` +
+					`{"bq":{"type":"score","instructions":"q","criteria":[null,null]}}}`,
+			},
+			response: `{"model":"jev-1.13.0","answers":{"bq":{"type":"score","score":1.0,` +
+				`"confidence":0.92,"legend":{"0":"Calm","1":"Frustrated"},` +
+				`"probabilities":{"0":0.1,"1":0.9}}},` +
+				`"usage":{"input_tokens":10,"output_tokens":2}}`,
+			wantCode: cli.ExitOK,
+			contains: []string{"0 Calm", "1 Frustrated"},
 		},
 	}
 

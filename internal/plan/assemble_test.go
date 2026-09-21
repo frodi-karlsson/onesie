@@ -575,6 +575,162 @@ func TestAssembleWithFile(t *testing.T) {
 				}
 			},
 		},
+		{
+			name: "should orphan a leading flag when a file question joins a lone ask",
+			src: plan.Source{
+				File: []plan.Question{
+					{ID: "urgent", Shape: plan.Noul, Instructions: "is this urgent", Named: true},
+				},
+				Events: []argv.Event{
+					{Name: "threshold", Value: "0.8"},
+					{Name: "ask", Value: "other=second"},
+				},
+				ReadFile: readFile,
+			},
+			check: func(t *testing.T, p *plan.Plan) {
+				t.Helper()
+
+				if len(p.Orphans) != 1 || p.Orphans[0].Name != "threshold" {
+					t.Fatalf("orphans = %v, want the leading --threshold", p.Orphans)
+				}
+
+				for _, question := range p.Questions {
+					if question.Policy.Threshold != nil {
+						t.Errorf("'%s' must not absorb a top level flag when two questions "+
+							"were asked", question.ID)
+					}
+				}
+			},
+		},
+		{
+			name: "should still absorb a leading flag into a lone ask with no file",
+			src: plan.Source{
+				Events: []argv.Event{
+					{Name: "threshold", Value: "0.8"},
+					{Name: "ask", Value: "other=second"},
+				},
+				ReadFile: readFile,
+			},
+			check: func(t *testing.T, p *plan.Plan) {
+				t.Helper()
+
+				if len(p.Orphans) != 0 {
+					t.Fatalf("orphans = %v, want none", p.Orphans)
+				}
+
+				if p.Questions[0].Policy.Threshold == nil {
+					t.Fatal("a lone --ask must still absorb the leading flags")
+				}
+			},
+		},
+		{
+			name: "should merge a top level desc into the file's yes/no criteria",
+			src: plan.Source{
+				File: []plan.Question{
+					{
+						ID: "urgent", Shape: plan.Noul, Instructions: "q", Named: true,
+						Criteria: &plan.YesNoCriteria{Yes: "FILE YES", No: "FILE NO"},
+					},
+				},
+				Events:   []argv.Event{{Name: "desc", Value: "yes=CLI YES"}},
+				ReadFile: readFile,
+			},
+			check: func(t *testing.T, p *plan.Plan) {
+				t.Helper()
+
+				criteria := p.Questions[0].Criteria
+				if criteria == nil {
+					t.Fatal("criteria = nil, want the file's criteria refined")
+				}
+
+				if criteria.Yes != "CLI YES" {
+					t.Errorf("yes = %v, want the flag to win", criteria.Yes)
+				}
+
+				if criteria.No != "FILE NO" {
+					t.Errorf("no = %v, want the file's half kept", criteria.No)
+				}
+			},
+		},
+		{
+			name: "should keep the file's yes half when only no is named",
+			src: plan.Source{
+				File: []plan.Question{
+					{
+						ID: "urgent", Shape: plan.Noul, Instructions: "q", Named: true,
+						Criteria: &plan.YesNoCriteria{Yes: "FILE YES", No: "FILE NO"},
+					},
+				},
+				Events:   []argv.Event{{Name: "desc", Value: "no=CLI NO"}},
+				ReadFile: readFile,
+			},
+			check: func(t *testing.T, p *plan.Plan) {
+				t.Helper()
+
+				criteria := p.Questions[0].Criteria
+				if criteria.Yes != "FILE YES" || criteria.No != "CLI NO" {
+					t.Errorf("criteria = %+v, want FILE YES and CLI NO", criteria)
+				}
+			},
+		},
+		{
+			name: "should still build criteria for a question that had none",
+			src: plan.Source{
+				File: []plan.Question{
+					{ID: "urgent", Shape: plan.Noul, Instructions: "q", Named: true},
+				},
+				Events:   []argv.Event{{Name: "desc", Value: "yes=CLI YES"}},
+				ReadFile: readFile,
+			},
+			check: func(t *testing.T, p *plan.Plan) {
+				t.Helper()
+
+				criteria := p.Questions[0].Criteria
+				if criteria == nil || criteria.Yes != "CLI YES" || criteria.No != nil {
+					t.Errorf("criteria = %+v, want only the yes half set", criteria)
+				}
+			},
+		},
+		{
+			name: "should reject a shape flag aimed at a body question",
+			src: plan.Source{
+				File: []plan.Question{
+					{ID: "bq", Shape: plan.Noul, Instructions: "q", Named: true, FromBody: true},
+				},
+				Events:   []argv.Event{{Name: "pick", Value: "x,y"}},
+				ReadFile: readFile,
+			},
+			wantErr: "jev: --pick cannot reshape a request body's question. " +
+				"A body carries its own type and criteria",
+		},
+		{
+			name: "should reject a desc aimed at a body question",
+			src: plan.Source{
+				File: []plan.Question{
+					{ID: "bq", Shape: plan.Noul, Instructions: "q", Named: true, FromBody: true},
+				},
+				Events:   []argv.Event{{Name: "desc", Value: "yes=nope"}},
+				ReadFile: readFile,
+			},
+			wantErr: "jev: --desc cannot reshape a request body's question",
+		},
+		{
+			name: "should bind a policy flag to a lone body question",
+			src: plan.Source{
+				File: []plan.Question{
+					{ID: "bq", Shape: plan.Noul, Instructions: "q", Named: true, FromBody: true},
+				},
+				Events:   []argv.Event{{Name: "threshold", Value: "0.8"}},
+				ReadFile: readFile,
+			},
+			check: func(t *testing.T, p *plan.Plan) {
+				t.Helper()
+
+				if p.Questions[0].Policy.Threshold == nil {
+					t.Fatal("policy is the one thing a body question accepts from a flag")
+				}
+			},
+		},
 	}
 
 	for _, tc := range tests {

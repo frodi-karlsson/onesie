@@ -24,7 +24,7 @@ func Validate(p *Plan, cfg Config) ([]string, error) {
 		return nil, errors.New("jev: --state and --state-file are mutually exclusive")
 	}
 
-	if err := checkBodyPolicy(p, cfg); err != nil {
+	if err := checkBodyPolicy(p); err != nil {
 		return nil, err
 	}
 
@@ -67,29 +67,37 @@ type Config struct {
 	Output       string
 	HasState     bool
 	HasStateFile bool
-
-	// FromBody is true when the questions came from a raw API request body, which carries no
-	// labels and no policy of its own.
-	FromBody bool
 }
 
-func checkBodyPolicy(p *Plan, cfg Config) error {
-	if !cfg.FromBody || len(p.Questions) < 2 {
+func checkBodyPolicy(p *Plan) error {
+	body := 0
+
+	for _, question := range p.Questions {
+		if question.FromBody {
+			body++
+		}
+	}
+
+	if body <= 1 {
 		return nil
 	}
 
-	// A top level policy flag stays an orphan with more than one question, so both the bound and
-	// the unbound spelling have to be caught here, before checkOrphans reports the generic case.
+	// A policy flag that found no question to bind to is still a policy flag aimed at the body,
+	// since Assemble only binds top level flags when exactly one question was asked.
 	for _, event := range p.Orphans {
 		if policyFlag(event.Name) {
-			return bodyPolicyError(len(p.Questions))
+			return bodyPolicyError(body)
 		}
 	}
 
 	for _, question := range p.Questions {
+		if !question.FromBody {
+			continue
+		}
+
 		if question.Policy.Threshold != nil || question.Policy.MinConfidence != nil ||
 			question.Policy.Fallback != nil {
-			return bodyPolicyError(len(p.Questions))
+			return bodyPolicyError(body)
 		}
 	}
 

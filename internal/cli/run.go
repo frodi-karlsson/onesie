@@ -65,7 +65,6 @@ func run(
 		Output:       flags.output,
 		HasState:     cmd.Flags().Changed("state"),
 		HasStateFile: cmd.Flags().Changed("state-file"),
-		FromBody:     loaded != nil && loaded.IsBody,
 	})
 
 	// Warnings print whether or not validation succeeded, so a run that fails for one reason still
@@ -275,15 +274,16 @@ func wire(q plan.Question) jev.Question {
 		criteria := make([]any, 0, len(q.Levels))
 
 		for _, level := range q.Levels {
-			if level.Desc != nil {
-				criteria = append(criteria, level.Desc)
+			// An undescribed rubric sends the labels themselves, which is the documented
+			// behaviour for a bare --rate. A body question has no labels, so substituting an
+			// empty string would rewrite its criteria on the way out.
+			if level.Desc == nil && q.Labelled {
+				criteria = append(criteria, level.Label)
 
 				continue
 			}
 
-			// An undescribed rubric sends the labels themselves, which is the documented
-			// behaviour for a bare --rate.
-			criteria = append(criteria, level.Label)
+			criteria = append(criteria, level.Desc)
 		}
 
 		return jev.Score{Instructions: q.Instructions, Criteria: criteria}
