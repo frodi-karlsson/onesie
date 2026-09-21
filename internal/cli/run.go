@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 
 	"github.com/spf13/cobra"
 
@@ -62,6 +63,11 @@ func run(
 		built.Model = loaded.Model
 	}
 
+	inputMode, err := input.ParseMode(flags.input)
+	if err != nil {
+		return err
+	}
+
 	warnings, err := plan.Validate(built, plan.Config{
 		Raw:          flags.raw,
 		Quiet:        flags.quiet,
@@ -70,6 +76,14 @@ func run(
 		HasStateFile: cmd.Flags().Changed("state-file"),
 		Replace:      flags.replace,
 		FileName:     flags.file,
+		Streaming:    inputMode.Streaming(),
+		InputName:    inputName(flags.input),
+		Unordered:    flags.unordered,
+		StopOnError:  flags.stopOnError,
+		SkipBlank:    flags.skipBlank,
+		Merge:        merging(flags),
+		Jobs:         flags.jobs,
+		JobsSet:      cmd.Flags().Changed("jobs"),
 	})
 
 	// Warnings print whether or not validation succeeded, so a run that fails for one reason still
@@ -84,13 +98,9 @@ func run(
 		return err
 	}
 
-	inputMode, err := input.ParseMode(flags.input)
-	if err != nil {
-		return err
-	}
-
 	// Both modes are parsed before the request, so a mistyped flag costs nothing.
-	outputMode, err := output.ParseMode(outputName(flags), settings.stdoutTTY, false)
+	outputMode, err := output.ParseMode(
+		outputName(flags), settings.stdoutTTY, inputMode.Streaming(), merging(flags))
 	if err != nil {
 		return err
 	}
@@ -116,7 +126,14 @@ func run(
 	// Resolve reporting no source is exactly the case where stdin, --state and --state-file all
 	// supplied nothing, which is when a body's own state gets its turn.
 	if resolved.Source == input.SourceNone && loaded != nil && loaded.HasState {
-		resolved = input.Resolved{Source: input.SourceBody, State: loaded.State}
+		body, marshalErr := json.Marshal(loaded.State)
+		if marshalErr != nil {
+			return marshalErr
+		}
+
+		resolved = input.Resolved{
+			Source: input.SourceBody, State: loaded.State, Raw: string(body),
+		}
 
 		if err := input.CheckState(resolved.State); err != nil {
 			return fmt.Errorf("jev: %w", err)
@@ -128,7 +145,25 @@ func run(
 			"jev: no state given. Pipe one to stdin, or pass --state or --state-file")
 	}
 
+	// Checked here rather than at write time, so a taken key costs no request. Section 11 opens
+	// with every check running before any network call.
+	if merging(flags) && hasKey(resolved.State, mergeKey(flags)) {
+		return fmt.Errorf(
+			"jev: --merge would overwrite the input's '%s' key. Pass --merge-key",
+			mergeKey(flags))
+	}
+
 	return ask(cmd, settings, built, resolved, outputMode, flags)
+}
+
+func inputName(flag string) string {
+	// The flag defaults to the empty string when it was not given, and every message that names
+	// the mode would otherwise read -i with nothing after it.
+	if flag == "" {
+		return "text"
+	}
+
+	return flag
 }
 
 func stream(
@@ -151,7 +186,7 @@ func stream(
 
 	source := input.NewStream(settings.stdin, inputMode, flags.skipBlank)
 	out := cmd.OutOrStdout()
-	merging := flags.merge || flags.mergeKey != ""
+	merge := merging(flags)
 
 	result, err := engine.Run(cmd.Context(), engine.Config[line]{
 		Source: source,
@@ -160,7 +195,7 @@ func stream(
 				return line{record: failureRecord(built, rec.Err), raw: rec.Raw}, rec.Err
 			}
 
-			if merging && hasKey(rec.State, mergeKey(flags)) {
+			if merge && hasKey(rec.State, mergeKey(flags)) {
 				// Detected here rather than inside Write, because the engine accounts a failure
 				// from the evaluator's error and a rewrite inside Write would be counted as a
 				// success. One such input is that record's problem, not the batch's.
@@ -189,7 +224,7 @@ func stream(
 			return line{record: record, raw: rec.Raw, state: rec.State}, evalErr
 		},
 		Write: func(l line) error {
-			if !merging {
+			if !merge {
 				return output.Write(out, outputMode, l.record)
 			}
 
@@ -241,6 +276,10 @@ func aborting(err error) bool {
 	// Every later record would fail the same way, and a bad key should be reported once rather
 	// than once per line.
 	return errors.Is(err, jev.ErrAuthentication) || errors.Is(err, jev.ErrPermissionDenied)
+}
+
+func merging(flags *runFlags) bool {
+	return flags.merge || flags.mergeKey != ""
 }
 
 func mergeKey(flags *runFlags) string {
@@ -312,7 +351,8 @@ func ask(
 	if err != nil {
 		// The exit code still comes from the error. This only adds the fallback word the caller
 		// asked for, so a shell guard reads a decision rather than an empty string.
-		if writeErr := writeFailure(cmd, settings, outputMode, flags, record); writeErr != nil {
+		if writeErr := writeFailure(
+			cmd, settings, outputMode, flags, resolved, record); writeErr != nil {
 			return writeErr
 		}
 
@@ -323,6 +363,10 @@ func ask(
 		return quietResult(built.Questions[0], record.Answers[0].Answer)
 	}
 
+	if merging(flags) {
+		return writeMerged(cmd.OutOrStdout(), outputMode, record, resolved, flags)
+	}
+
 	if outputMode == output.Table {
 		return output.WriteTable(cmd.OutOrStdout(), record, output.Width(settings.lookupEnv, terminalWidth))
 	}
@@ -330,16 +374,31 @@ func ask(
 	return output.Write(cmd.OutOrStdout(), outputMode, record)
 }
 
+func writeMerged(
+	w io.Writer,
+	mode output.Mode,
+	record output.Record,
+	resolved input.Resolved,
+	flags *runFlags,
+) error {
+	return output.WriteMerged(w, mode, record, resolved.Raw, resolved.State, mergeKey(flags))
+}
+
 func writeFailure(
 	cmd *cobra.Command,
 	settings rootSettings,
 	mode output.Mode,
 	flags *runFlags,
+	resolved input.Resolved,
 	record output.Record,
 ) error {
 	// -q suppresses output entirely, so the exit code carries the whole result.
 	if flags.quiet {
 		return nil
+	}
+
+	if merging(flags) {
+		return writeMerged(cmd.OutOrStdout(), mode, record, resolved, flags)
 	}
 
 	if mode == output.Table {
@@ -562,7 +621,14 @@ func worthReporting(err error) bool {
 	}
 
 	var rejected *rejectedError
+	if errors.As(err, &rejected) {
+		// -q suppresses output entirely, so its rejection is carried by the exit code alone.
+		return false
+	}
 
-	// -q suppresses output entirely, so its rejection is carried by the exit code alone.
-	return !errors.As(err, &rejected)
+	var records *recordsError
+
+	// The exit code already says a record failed, and the per record lines on stdout carry the
+	// detail.
+	return !errors.As(err, &records)
 }

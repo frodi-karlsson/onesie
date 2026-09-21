@@ -47,10 +47,12 @@ type Request struct {
 	ReadFile     func(string) ([]byte, error)
 }
 
-// Resolved is the outcome. State is nil when Source is SourceNone.
+// Resolved is the outcome. State is nil when Source is SourceNone, and Raw is the text the state
+// was read from, which --merge splices its answers into.
 type Resolved struct {
 	Source Source
 	State  any
+	Raw    string
 }
 
 func fromStdin(req Request) (Resolved, error) {
@@ -82,7 +84,7 @@ func fromText(source Source, label, text string, mode Mode, stripNewline bool) (
 			text = strings.TrimSuffix(text, "\n")
 		}
 
-		return Resolved{Source: source, State: text}, nil
+		return Resolved{Source: source, State: text, Raw: text}, nil
 	}
 
 	var value any
@@ -94,7 +96,7 @@ func fromText(source Source, label, text string, mode Mode, stripNewline bool) (
 		return Resolved{}, fmt.Errorf("jev: %w", err)
 	}
 
-	return Resolved{Source: source, State: value}, nil
+	return Resolved{Source: source, State: value, Raw: text}, nil
 }
 
 // CheckState rejects a state the API would refuse, so a caller holding a state that never passed

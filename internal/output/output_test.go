@@ -169,6 +169,7 @@ func TestParseMode(t *testing.T) {
 		flag      string
 		tty       bool
 		streaming bool
+		merge     bool
 		want      output.Mode
 		wantErr   bool
 	}{
@@ -178,6 +179,10 @@ func TestParseMode(t *testing.T) {
 			name: "should default to json when streaming even on a terminal",
 			flag: "", tty: true, streaming: true, want: output.JSON,
 		},
+		{
+			name: "should default to json under merge even on a terminal",
+			flag: "", tty: true, merge: true, want: output.JSON,
+		},
 		{name: "should accept an explicit mode", flag: "values", want: output.Values},
 		{name: "should reject an unknown mode", flag: "yaml", wantErr: true},
 	}
@@ -186,7 +191,7 @@ func TestParseMode(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := output.ParseMode(tc.flag, tc.tty, tc.streaming)
+			got, err := output.ParseMode(tc.flag, tc.tty, tc.streaming, tc.merge)
 
 			if tc.wantErr {
 				if err == nil {

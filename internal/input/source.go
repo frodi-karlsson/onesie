@@ -54,7 +54,7 @@ func ParseMode(name string) (Mode, error) {
 	case "request":
 		return Text, fmt.Errorf("jev: -i %s is not available yet", name)
 	default:
-		return Text, fmt.Errorf("jev: -i takes text or json, got '%s'", name)
+		return Text, fmt.Errorf("jev: -i takes text, json, jsonl or lines, got '%s'", name)
 	}
 }
 

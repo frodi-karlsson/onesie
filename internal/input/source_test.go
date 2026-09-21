@@ -251,7 +251,7 @@ func TestParseMode(t *testing.T) {
 		{
 			name:    "should reject an unknown mode",
 			flag:    "yaml",
-			wantErr: "jev: -i takes text or json, got 'yaml'",
+			wantErr: "jev: -i takes text, json, jsonl or lines, got 'yaml'",
 		},
 	}
 

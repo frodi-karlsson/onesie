@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/frodi-karlsson/jev-cli/internal/cli"
@@ -176,6 +177,12 @@ func TestStreaming(t *testing.T) {
 					code, tc.wantCode, out.String(), errOut.String())
 			}
 
+			// The exit code already says a record failed and the per record lines carry the
+			// detail, so a failing stream reports nothing on stderr.
+			if tc.wantCode == cli.ExitRecords && errOut.String() != "" {
+				t.Errorf("stderr = %q, want nothing", errOut.String())
+			}
+
 			lines := 0
 			for _, line := range strings.Split(strings.TrimSuffix(out.String(), "\n"), "\n") {
 				if line != "" {
@@ -202,6 +209,141 @@ func TestStreaming(t *testing.T) {
 				if err := json.Unmarshal([]byte(line), &probe); err != nil {
 					t.Errorf("line is not valid json: %q", line)
 				}
+			}
+		})
+	}
+}
+
+func TestMergeAutoOutput(t *testing.T) {
+	t.Parallel()
+
+	t.Run("should resolve auto to json under merge on a terminal", func(t *testing.T) {
+		t.Parallel()
+
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			if _, err := w.Write([]byte(
+				`{"model":"jev-1.13.0","answers":{"answer":{"type":"noul","noul":0.9}}}`,
+			)); err != nil {
+				t.Errorf("writing stub response: %v", err)
+			}
+		}))
+		defer srv.Close()
+
+		var out bytes.Buffer
+
+		root := cli.NewRootCmd(
+			cli.BuildInfo{Version: "1.2.3"},
+			cli.WithClientFactory(func(context.Context) (*jev.Client, error) {
+				return jev.New(jev.WithAPIKey("k"), jev.WithBaseURL(srv.URL))
+			}),
+			cli.WithStdin(strings.NewReader(`{"id":7}`)),
+			cli.WithStdinTTY(false),
+			// A terminal in a non streaming mode would normally choose the table, which --merge
+			// forbids. Section 7 says json wins.
+			cli.WithStdoutTTY(true),
+			cli.WithLookupEnv(func(string) (string, bool) { return "", false }),
+		)
+
+		root.SetOut(&out)
+		root.SetErr(&out)
+		root.SetArgs([]string{"is this urgent", "-i", "json", "--merge"})
+
+		if code := cli.Execute(t.Context(), root); code != cli.ExitOK {
+			t.Fatalf("exit code = %d, output:\n%s", code, out.String())
+		}
+
+		if !strings.Contains(out.String(), `"answers":{`) {
+			t.Errorf("want merged json, got:\n%s", out.String())
+		}
+
+		if !strings.Contains(out.String(), `"id":7`) {
+			t.Errorf("want the input's fields kept, got:\n%s", out.String())
+		}
+	})
+}
+
+func TestSingleRecordMerge(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		args     []string
+		stdin    string
+		wantCode int
+		contains string
+		requests int
+	}{
+		{
+			name:     "should wrap a text state under state",
+			args:     []string{"is this urgent", "--merge"},
+			stdin:    "a ticket",
+			wantCode: cli.ExitOK,
+			contains: `{"state":"a ticket","answers":{`,
+			requests: 1,
+		},
+		{
+			name:     "should fold the answers into an object state",
+			args:     []string{"is this urgent", "-i", "json", "--merge-key", "out"},
+			stdin:    `{"id":7}`,
+			wantCode: cli.ExitOK,
+			contains: `{"id":7,"out":{`,
+			requests: 1,
+		},
+		{
+			name:     "should reject a taken merge key before any request",
+			args:     []string{"is this urgent", "-i", "json", "--merge"},
+			stdin:    `{"answers":1}`,
+			wantCode: cli.ExitUsage,
+			contains: "",
+			requests: 0,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var calls atomic.Int64
+
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				calls.Add(1)
+
+				if _, err := w.Write([]byte(
+					`{"model":"jev-1.13.0","answers":{"answer":{"type":"noul","noul":0.9}}}`,
+				)); err != nil {
+					t.Errorf("writing stub response: %v", err)
+				}
+			}))
+			defer srv.Close()
+
+			var out, errOut bytes.Buffer
+
+			root := cli.NewRootCmd(
+				cli.BuildInfo{Version: "1.2.3"},
+				cli.WithClientFactory(func(context.Context) (*jev.Client, error) {
+					return jev.New(jev.WithAPIKey("k"), jev.WithBaseURL(srv.URL))
+				}),
+				cli.WithStdin(strings.NewReader(tc.stdin)),
+				cli.WithStdinTTY(false),
+				cli.WithStdoutTTY(false),
+				cli.WithLookupEnv(func(string) (string, bool) { return "", false }),
+			)
+
+			root.SetOut(&out)
+			root.SetErr(&errOut)
+			root.SetArgs(tc.args)
+
+			if code := cli.Execute(t.Context(), root); code != tc.wantCode {
+				t.Fatalf("exit code = %d, want %d\nstdout:\n%s\nstderr:\n%s",
+					code, tc.wantCode, out.String(), errOut.String())
+			}
+
+			if got := int(calls.Load()); got != tc.requests {
+				t.Errorf("requests = %d, want %d", got, tc.requests)
+			}
+
+			if tc.contains != "" && !strings.Contains(out.String(), tc.contains) {
+				t.Errorf("output missing %q\ngot:\n%s", tc.contains, out.String())
 			}
 		})
 	}

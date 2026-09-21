@@ -46,6 +46,17 @@ func Validate(p *Plan, cfg Config) ([]string, error) {
 
 	var warnings []string
 
+	// Ahead of checkSingle, so a streaming -q reports the streaming message rather than the single
+	// question policy one.
+	streamHint, streamErr := checkStreaming(cfg)
+	if streamHint != "" {
+		warnings = append(warnings, streamHint)
+	}
+
+	if streamErr != nil {
+		return warnings, streamErr
+	}
+
 	for i := range p.Questions {
 		hint, err := checkQuestion(&p.Questions[i])
 		if err != nil {
@@ -76,6 +87,90 @@ type Config struct {
 	// FileName is the -f argument, empty when the flag was not given. It names the file in the
 	// body policy message and marks whether -f was used at all.
 	FileName string
+
+	// Streaming is true for an input mode that reads one record per line.
+	Streaming bool
+	// InputName is the -i value as the user spelled it, so a message names the mode they gave.
+	InputName   string
+	Unordered   bool
+	StopOnError bool
+	SkipBlank   bool
+	Merge       bool
+	Jobs        int
+	// JobsSet distinguishes -j 0 from -j absent, which an int cannot do on its own.
+	JobsSet bool
+}
+
+func checkStreaming(cfg Config) (string, error) {
+	// Checked for every mode, since section 7 defines --merge for the non streaming ones too.
+	if cfg.Merge && !mergeable(cfg) {
+		return "", errors.New("jev: --merge needs -o json or -o values")
+	}
+
+	// Also for every mode. The rule is rejected rather than clamped, and a typo in a shared alias
+	// is exactly as wrong outside a stream as inside one. Gated on JobsSet because Jobs is an int
+	// and its zero value cannot be told from the flag being absent.
+	if cfg.JobsSet && cfg.Jobs < 1 {
+		return "", fmt.Errorf("jev: -j takes a positive number of records in flight, got %d",
+			cfg.Jobs)
+	}
+
+	if !cfg.Streaming {
+		return checkSingleRecord(cfg)
+	}
+
+	// The flag the user actually typed and the mode they actually gave. Naming --state for a
+	// --state-file mistake sends them to the wrong flag, and naming jsonl for a lines run sends
+	// them to the wrong mode.
+	if cfg.HasState {
+		return "", fmt.Errorf("jev: --state cannot be combined with -i %s", cfg.InputName)
+	}
+
+	if cfg.HasStateFile {
+		return "", fmt.Errorf("jev: --state-file cannot be combined with -i %s", cfg.InputName)
+	}
+
+	if cfg.Quiet {
+		return "", fmt.Errorf(
+			"jev: -q reads one record. Drop -i %s or use -o values and filter the stream",
+			cfg.InputName)
+	}
+
+	return "", nil
+}
+
+func mergeable(cfg Config) bool {
+	if cfg.Raw {
+		return false
+	}
+
+	return cfg.Output == "" || cfg.Output == "json" || cfg.Output == "values"
+}
+
+func checkSingleRecord(cfg Config) (string, error) {
+	for _, flag := range []struct {
+		name string
+		set  bool
+	}{
+		{"--unordered", cfg.Unordered},
+		{"--stop-on-error", cfg.StopOnError},
+		{"--skip-blank", cfg.SkipBlank},
+	} {
+		if flag.set {
+			return "", fmt.Errorf(
+				"jev: %s applies to streaming input. -i %s reads one record",
+				flag.name, cfg.InputName)
+		}
+	}
+
+	if cfg.Jobs > 1 {
+		// A resource hint rather than a semantic one, and it may reasonably come from a shared
+		// alias, so it warns and proceeds rather than failing.
+		return fmt.Sprintf(
+			"warning: -j %d ignored. -i %s reads one record", cfg.Jobs, cfg.InputName), nil
+	}
+
+	return "", nil
 }
 
 func checkBodyPolicy(p *Plan, name string) error {

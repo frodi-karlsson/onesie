@@ -25,8 +25,8 @@ func Write(w io.Writer, mode Mode, rec Record) error {
 	}
 }
 
-// ParseMode maps the -o flag onto a Mode. tty and streaming decide what auto resolves to.
-func ParseMode(name string, tty, streaming bool) (Mode, error) {
+// ParseMode maps the -o flag onto a Mode. tty, streaming and merge decide what auto resolves to.
+func ParseMode(name string, tty, streaming, merge bool) (Mode, error) {
 	switch name {
 	case "json":
 		return JSON, nil
@@ -37,7 +37,7 @@ func ParseMode(name string, tty, streaming bool) (Mode, error) {
 	case "raw":
 		return Raw, nil
 	case "", "auto":
-		if tty && !streaming {
+		if tty && !streaming && !merge {
 			return Table, nil
 		}
 

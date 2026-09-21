@@ -515,6 +515,93 @@ func TestValidate(t *testing.T) {
 			wantExact: "jev: -q on 'team' needs 'min_confidence' and 'fallback'. " +
 				"Without a policy the exit code is always 0",
 		},
+		{
+			name:       "should reject unordered outside a stream",
+			positional: "is this urgent",
+			cfg:        plan.Config{Unordered: true, InputName: "text"},
+			wantErr:    "--unordered applies to streaming input. -i text reads one record",
+		},
+		{
+			name:       "should reject stop on error outside a stream",
+			positional: "is this urgent",
+			cfg:        plan.Config{StopOnError: true, InputName: "json"},
+			wantErr:    "--stop-on-error applies to streaming input. -i json reads one record",
+		},
+		{
+			name:       "should reject skip blank outside a stream",
+			positional: "is this urgent",
+			cfg:        plan.Config{SkipBlank: true, InputName: "text"},
+			wantErr:    "--skip-blank applies to streaming input",
+		},
+		{
+			name:       "should accept unordered in a stream",
+			positional: "is this urgent",
+			cfg:        plan.Config{Unordered: true, Streaming: true, InputName: "lines"},
+		},
+		{
+			name:       "should reject state with a streaming mode",
+			positional: "is this urgent",
+			cfg:        plan.Config{Streaming: true, HasState: true, InputName: "jsonl"},
+			wantErr:    "--state cannot be combined with -i jsonl",
+		},
+		{
+			name:       "should reject state-file with a streaming mode naming the flag used",
+			positional: "is this urgent",
+			cfg:        plan.Config{Streaming: true, HasStateFile: true, InputName: "lines"},
+			wantErr:    "--state-file cannot be combined with -i lines",
+		},
+		{
+			name:       "should reject merge with raw output",
+			positional: "is this urgent",
+			cfg:        plan.Config{Streaming: true, Merge: true, Output: "raw", InputName: "lines"},
+			wantErr:    "--merge needs -o json or -o values",
+		},
+		{
+			name:       "should reject merge with table output outside a stream too",
+			positional: "is this urgent",
+			cfg:        plan.Config{Merge: true, Output: "table", InputName: "text"},
+			wantErr:    "--merge needs -o json or -o values",
+		},
+		{
+			name:       "should reject merge with the -r spelling of raw",
+			positional: "is this urgent",
+			cfg:        plan.Config{Merge: true, Raw: true, InputName: "text"},
+			wantErr:    "--merge needs -o json or -o values",
+		},
+		{
+			name:       "should accept merge with values output",
+			positional: "is this urgent",
+			cfg:        plan.Config{Streaming: true, Merge: true, Output: "values", InputName: "jsonl"},
+		},
+		{
+			name:       "should reject quiet in a stream",
+			positional: "is this urgent",
+			cfg:        plan.Config{Streaming: true, Quiet: true, InputName: "jsonl"},
+			wantErr:    "-q reads one record. Drop -i jsonl",
+		},
+		{
+			name:        "should warn about jobs outside a stream",
+			positional:  "is this urgent",
+			cfg:         plan.Config{Jobs: 8, JobsSet: true, InputName: "text"},
+			wantWarning: "-j 8 ignored. -i text reads one record",
+		},
+		{
+			name:       "should reject a zero job count",
+			positional: "is this urgent",
+			cfg:        plan.Config{Streaming: true, Jobs: 0, JobsSet: true, InputName: "lines"},
+			wantErr:    "-j takes a positive number",
+		},
+		{
+			name:       "should reject a negative job count",
+			positional: "is this urgent",
+			cfg:        plan.Config{Streaming: true, Jobs: -2, JobsSet: true, InputName: "lines"},
+			wantErr:    "-j takes a positive number",
+		},
+		{
+			name:       "should accept a config that never set jobs",
+			positional: "is this urgent",
+			cfg:        plan.Config{Streaming: true, InputName: "lines"},
+		},
 	}
 
 	for _, tc := range tests {
