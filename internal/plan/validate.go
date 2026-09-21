@@ -99,6 +99,17 @@ type Config struct {
 	Jobs        int
 	// JobsSet distinguishes -j 0 from -j absent, which an int cannot do on its own.
 	JobsSet bool
+
+	// Timeout is --timeout in seconds. TimeoutSet distinguishes an explicit 0 from the flag being
+	// absent, the same problem JobsSet solves.
+	Timeout    int
+	TimeoutSet bool
+
+	Retries    int
+	RetriesSet bool
+
+	MaxRetryAfter    int
+	MaxRetryAfterSet bool
 }
 
 func checkStreaming(cfg Config) (string, error) {
@@ -113,6 +124,25 @@ func checkStreaming(cfg Config) (string, error) {
 	if cfg.JobsSet && cfg.Jobs < 1 {
 		return "", fmt.Errorf("jev: -j takes a positive number of records in flight, got %d",
 			cfg.Jobs)
+	}
+
+	if cfg.TimeoutSet && cfg.Timeout < 1 {
+		return "", fmt.Errorf("jev: --timeout takes a positive number of seconds, got %d",
+			cfg.Timeout)
+	}
+
+	if cfg.RetriesSet && cfg.Retries < 0 {
+		return "", fmt.Errorf("jev: --retries takes a retry count of zero or more, got %d",
+			cfg.Retries)
+	}
+
+	// Positive, not zero or more, which is the message section 11 already publishes. Zero would
+	// have to mean either never honour the header or honour it without bound, and the spec picks
+	// neither, so it is rejected rather than given a meaning here.
+	if cfg.MaxRetryAfterSet && cfg.MaxRetryAfter < 1 {
+		return "", fmt.Errorf(
+			"jev: --max-retry-after must be a positive number of seconds, got %d",
+			cfg.MaxRetryAfter)
 	}
 
 	if !cfg.Streaming {

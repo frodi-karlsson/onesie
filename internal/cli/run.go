@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -85,6 +86,13 @@ func run(
 		Merge:        merging(flags),
 		Jobs:         flags.jobs,
 		JobsSet:      cmd.Flags().Changed("jobs"),
+
+		Timeout:          flags.timeout,
+		TimeoutSet:       cmd.Flags().Changed("timeout"),
+		Retries:          flags.retries,
+		RetriesSet:       cmd.Flags().Changed("retries"),
+		MaxRetryAfter:    flags.maxRetryAfter,
+		MaxRetryAfterSet: cmd.Flags().Changed("max-retry-after"),
 	})
 
 	// Warnings print whether or not validation succeeded, so a run that fails for one reason still
@@ -616,12 +624,15 @@ type runFlags struct {
 	file      string
 	replace   bool
 
-	jobs        int
-	unordered   bool
-	stopOnError bool
-	skipBlank   bool
-	merge       bool
-	mergeKey    string
+	jobs          int
+	timeout       int
+	retries       int
+	maxRetryAfter int
+	unordered     bool
+	stopOnError   bool
+	skipBlank     bool
+	merge         bool
+	mergeKey      string
 }
 
 type rejectedError struct{}
@@ -654,6 +665,19 @@ func defaultClientFactory(
 		if flags.baseURL != "" {
 			opts = append(opts, jev.WithBaseURL(flags.baseURL))
 		}
+
+		if flags.timeout > 0 {
+			opts = append(opts, jev.WithAttemptTimeout(
+				time.Duration(flags.timeout)*time.Second))
+		}
+
+		// Started from the default rather than a zero value, because a Go struct cannot tell an
+		// unset field from a zero one and the policy carries eight fields this run does not touch.
+		policy := jev.DefaultRetryPolicy()
+		policy.MaxRetries = flags.retries
+		policy.MaxRetryAfter = time.Duration(flags.maxRetryAfter) * time.Second
+
+		opts = append(opts, jev.WithRetry(policy))
 
 		return jev.New(opts...)
 	}

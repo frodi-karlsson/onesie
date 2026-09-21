@@ -613,6 +613,35 @@ func TestValidate(t *testing.T) {
 			positional: "is this urgent",
 			cfg:        plan.Config{Streaming: true, InputName: "lines"},
 		},
+		{
+			name:       "should reject a timeout of zero",
+			positional: "is this urgent",
+			cfg:        plan.Config{Timeout: 0, TimeoutSet: true, InputName: "text"},
+			wantErr:    "jev: --timeout takes a positive number of seconds, got 0",
+		},
+		{
+			name:       "should reject a negative retry count",
+			positional: "is this urgent",
+			cfg:        plan.Config{Retries: -1, RetriesSet: true, InputName: "text"},
+			wantErr:    "jev: --retries takes a retry count of zero or more, got -1",
+		},
+		{
+			name:       "should reject a max retry after of zero",
+			positional: "is this urgent",
+			cfg:        plan.Config{MaxRetryAfter: 0, MaxRetryAfterSet: true, InputName: "text"},
+			wantErr:    "jev: --max-retry-after must be a positive number of seconds, got 0",
+		},
+		{
+			name:       "should reject a negative max retry after",
+			positional: "is this urgent",
+			cfg:        plan.Config{MaxRetryAfter: -5, MaxRetryAfterSet: true, InputName: "text"},
+			wantErr:    "jev: --max-retry-after must be a positive number of seconds, got -5",
+		},
+		{
+			name:       "should accept a retry count of zero",
+			positional: "is this urgent",
+			cfg:        plan.Config{Retries: 0, RetriesSet: true, InputName: "text"},
+		},
 	}
 
 	for _, tc := range tests {

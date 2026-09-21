@@ -1148,3 +1148,69 @@ func TestNewRootCmdInterrupt(t *testing.T) {
 		}
 	})
 }
+
+func TestNewRootCmdRetryFlags(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		args     []string
+		attempts int
+	}{
+		{
+			name:     "should make one attempt with retries disabled",
+			args:     []string{"--retries", "0"},
+			attempts: 1,
+		},
+		{
+			name:     "should make three attempts by default",
+			args:     []string{},
+			attempts: 3,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var attempts atomic.Int64
+
+			srv := httptest.NewServer(http.HandlerFunc(
+				func(w http.ResponseWriter, _ *http.Request) {
+					attempts.Add(1)
+					// 503 is retryable per DefaultRetryStatus, and Retry-After is omitted so the
+					// run uses jev's own backoff rather than a server requested wait.
+					w.WriteHeader(http.StatusServiceUnavailable)
+				}))
+			defer srv.Close()
+
+			args := append([]string{
+				"is this urgent", "--base-url", srv.URL, "--api-key", "test", "--timeout", "1",
+			}, tc.args...)
+
+			var out bytes.Buffer
+
+			// No WithClientFactory, since the flags are wired onto the client by the real factory
+			// and a stub one would never see them.
+			root := cli.NewRootCmd(
+				cli.BuildInfo{Version: "1.2.3"},
+				cli.WithStdin(strings.NewReader("the server is down")),
+				cli.WithStdinTTY(false),
+				cli.WithStdoutTTY(false),
+				cli.WithLookupEnv(func(string) (string, bool) { return "", false }),
+			)
+
+			root.SetOut(&out)
+			root.SetErr(&out)
+			root.SetArgs(args)
+
+			if code := cli.Execute(t.Context(), root); code == cli.ExitOK {
+				t.Fatalf("exit code = %d, want a failure. output:\n%s", code, out.String())
+			}
+
+			if got := attempts.Load(); got != int64(tc.attempts) {
+				t.Errorf("attempts = %d, want %d", got, tc.attempts)
+			}
+		})
+	}
+}

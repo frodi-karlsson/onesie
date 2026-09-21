@@ -100,6 +100,13 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 	root.Flags().StringVarP(&flags.file, "file", "f", "", "question file or request body")
 	root.Flags().BoolVar(&flags.replace, "replace", false, "--ask overrides an id from -f")
 	root.Flags().IntVarP(&flags.jobs, "jobs", "j", 1, "records in flight at once")
+	root.Flags().IntVar(&flags.timeout, "timeout", int(limits.DefaultAttemptTimeout.Seconds()),
+		"seconds per attempt")
+	root.Flags().IntVar(&flags.retries, "retries", limits.DefaultRetries,
+		"retries after a failed attempt")
+	root.Flags().IntVar(&flags.maxRetryAfter, "max-retry-after",
+		int(limits.DefaultMaxRetryAfter.Seconds()),
+		"honour a server Retry-After up to this many seconds")
 	root.Flags().BoolVar(&flags.unordered, "unordered", false,
 		"streaming only, emit records as they complete")
 	root.Flags().BoolVar(&flags.stopOnError, "stop-on-error", false,
