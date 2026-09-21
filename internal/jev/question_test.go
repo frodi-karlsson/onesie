@@ -165,10 +165,10 @@ func TestValidateQuestions(t *testing.T) {
 		{
 			name: "should name the first offender in slice order",
 			questions: jev.Questions{
-				{ID: "alpha", Question: jev.Score{Criteria: jev.Levels("One")}},
 				{ID: "zebra", Question: jev.Score{Criteria: jev.Levels("One")}},
+				{ID: "alpha", Question: jev.Score{Criteria: jev.Levels("One")}},
 			},
-			wantErr: `jev: score question "alpha" has 1 criteria, at least two are required`,
+			wantErr: `jev: score question "zebra" has 1 criteria, at least two are required`,
 		},
 		{
 			name: "should reject a duplicate question id",
