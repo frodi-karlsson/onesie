@@ -140,9 +140,48 @@ func TestNewRootCmdListModelsFlags(t *testing.T) {
 			wantErr: "jev: --list-models asks no question. Drop --ask",
 		},
 		{
+			name:    "should reject -o with --list-models",
+			args:    []string{"--list-models", "-o", "json"},
+			wantErr: "jev: -o does not apply to --list-models, which prints a fixed listing",
+		},
+		{
+			// Its own rule rather than the -o one, since run leaves Output empty for a bare -r.
+			name:    "should reject -r with --list-models",
+			args:    []string{"--list-models", "-r"},
+			wantErr: "jev: -r does not apply to --list-models, which prints a fixed listing",
+		},
+		{
+			name:    "should reject -q with --list-models",
+			args:    []string{"--list-models", "-q"},
+			wantErr: "jev: -q suppresses output, which leaves --list-models nothing to print",
+		},
+		{
+			name: "should reject --usage with --list-models",
+			args: []string{"--list-models", "--usage"},
+			wantErr: "jev: --usage reports the tokens a question cost, " +
+				"which --list-models does not ask",
+		},
+		{
+			name: "should reject --merge with --list-models",
+			args: []string{"--list-models", "--merge"},
+			wantErr: "jev: --merge needs answers to fold in, " +
+				"which --list-models does not produce",
+		},
+		{
+			name: "should name --merge-key when that is the merge flag given",
+			args: []string{"--list-models", "--merge-key", "out"},
+			wantErr: "jev: --merge-key needs answers to fold in, " +
+				"which --list-models does not produce",
+		},
+		{
 			name:    "should reject -j with --list-models",
 			args:    []string{"--list-models", "-j", "4"},
 			wantErr: "jev: -j does not apply to --list-models, which makes one request",
+		},
+		{
+			name:    "should reject -m with --list-models",
+			args:    []string{"--list-models", "-m", "jev-1.13.0"},
+			wantErr: "jev: -m names a model to ask, which --list-models does not do",
 		},
 		{
 			name: "should reject --print-request with --list-models",

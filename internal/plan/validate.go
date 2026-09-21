@@ -187,6 +187,7 @@ func checkListModels(cfg Config) error {
 		return fmt.Errorf("jev: --list-models asks no question. Drop --%s", cfg.GroupFlags[0])
 	}
 
+	// In the order section 13 lists the flags, for the same reason checkRequestMode is.
 	for _, rule := range []struct {
 		given   bool
 		message string
@@ -196,7 +197,16 @@ func checkListModels(cfg Config) error {
 		{cfg.HasStateFile, "jev: --state-file does not apply to --list-models, " +
 			"which reads no state"},
 		{cfg.HasInput, "jev: -i does not apply to --list-models, which reads no input"},
+		{cfg.Output != "", "jev: -o does not apply to --list-models, " +
+			"which prints a fixed listing"},
+		{cfg.Raw, "jev: -r does not apply to --list-models, which prints a fixed listing"},
+		{cfg.Quiet, "jev: -q suppresses output, which leaves --list-models nothing to print"},
+		{cfg.Usage, "jev: --usage reports the tokens a question cost, " +
+			"which --list-models does not ask"},
+		{cfg.Merge, "jev: " + mergeFlag(cfg) + " needs answers to fold in, " +
+			"which --list-models does not produce"},
 		{cfg.JobsSet, "jev: -j does not apply to --list-models, which makes one request"},
+		{cfg.HasModel, "jev: -m names a model to ask, which --list-models does not do"},
 		{cfg.PrintRequest, "jev: --print-request and --list-models each write a different " +
 			"thing to stdout. Pass one"},
 		{cfg.PrintQuestions, "jev: --print-questions and --list-models each write a different " +
