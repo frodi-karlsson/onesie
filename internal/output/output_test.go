@@ -211,3 +211,41 @@ func TestParseMode(t *testing.T) {
 		})
 	}
 }
+
+func TestEncodeFailure(t *testing.T) {
+	t.Parallel()
+
+	status := 422
+
+	tests := []struct {
+		name    string
+		failure *output.Failure
+		want    string
+	}{
+		{
+			name:    "should encode a failure with no status",
+			failure: &output.Failure{Kind: "input", Message: "line 2: not valid JSON"},
+			want:    `{"error":{"kind":"input","status":null,"message":"line 2: not valid JSON"}}`,
+		},
+		{
+			name:    "should encode a failure carrying a status",
+			failure: &output.Failure{Kind: "http", Status: &status, Message: "boom"},
+			want:    `{"error":{"kind":"http","status":422,"message":"boom"}}`,
+		},
+		{
+			name:    "should encode an empty object when there is no failure",
+			failure: nil,
+			want:    `{}`,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := string(output.EncodeFailure(tc.failure)); got != tc.want {
+				t.Errorf("EncodeFailure = %s, want %s", got, tc.want)
+			}
+		})
+	}
+}

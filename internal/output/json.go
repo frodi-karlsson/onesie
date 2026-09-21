@@ -44,7 +44,7 @@ func jsonBytes(rec Record) ([]byte, error) {
 	var buf []byte
 
 	buf = append(buf, '{')
-	buf = appendFailure(buf, rec)
+	buf = appendFailure(buf, rec.Failure)
 
 	if rec.Model != "" {
 		buf = appendKey(buf, "model")
@@ -90,7 +90,7 @@ func valuesBytes(rec Record) ([]byte, error) {
 	var buf []byte
 
 	buf = append(buf, '{')
-	buf = appendFailure(buf, rec)
+	buf = appendFailure(buf, rec.Failure)
 
 	for _, named := range rec.Answers {
 		if named.Answer == nil {
@@ -110,14 +110,20 @@ func valuesBytes(rec Record) ([]byte, error) {
 	return append(buf, '}'), nil
 }
 
-func appendFailure(buf []byte, rec Record) []byte {
-	if rec.Failure == nil {
+// EncodeFailure encodes a failure on its own, which is the record a caller writes when it has a
+// failure and no answers to carry it.
+func EncodeFailure(failure *Failure) []byte {
+	return append(appendFailure([]byte{'{'}, failure), '}')
+}
+
+func appendFailure(buf []byte, failure *Failure) []byte {
+	if failure == nil {
 		return buf
 	}
 
 	// The reserved error key goes first, so a consumer reading a stream can branch on it before
 	// parsing the rest of the line.
-	encoded, err := json.Marshal(rec.Failure)
+	encoded, err := json.Marshal(failure)
 	if err != nil {
 		encoded = []byte(`{"kind":"input","status":null,"message":"unencodable failure"}`)
 	}
