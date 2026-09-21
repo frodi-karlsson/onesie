@@ -62,6 +62,48 @@ requests in flight. A record that fails still prints a line carrying an `error` 
 continues, and the exit status is 6. `--unordered` drops the ordering for throughput, and
 `--stop-on-error` ends the run at the first failure with that failure's own code.
 
+### Dry runs and freezing
+
+`--print-request` and `--print-questions` write to stdout and exit without calling the API, so they
+need no key and cost no tokens. They are the way to see what a command will send, and to turn a
+command line into a file. Under `-i request`, `--print-request` is the identity, so it drops into
+any pipeline as a dry run switch.
+
+```sh
+# see the request body a command would send
+echo "$ticket" | jev --ask urgent='does this convey urgency' --print-request
+
+# freeze a command line into a question file, then reload it
+jev --ask urgent='does this convey urgency' \
+    --ask team='who owns this' --pick billing,platform \
+    --print-questions > questions.yaml
+echo "$ticket" | jev -f questions.yaml -o values
+
+# freeze a whole stream, then replay it later
+jev -i jsonl --ask urgent='does this convey urgency' --print-request < tickets.jsonl > frozen.jsonl
+jev -i request < frozen.jsonl > answers.jsonl
+```
+
+`-i request` reads complete API request bodies and writes raw response bodies, one per line. It does
+no normalization and accepts no question source, so a frozen file replays exactly as it was written.
+A question file carries questions, labels, policy and order. It does not carry a model or a state,
+and `--print-questions` warns when it drops one.
+
+### Measuring and introspection
+
+```sh
+# a summary on stderr, so stdout stays clean for the pipeline
+echo "$ticket" | jev --ask urgent='is this urgent' --stats -o json > answers.json
+# 1 request, 1 question, 312 in / 20 out, model jev-1.13.0, 1 attempt, 10s/attempt, 662ms
+
+# what the account can ask
+jev --list-models
+```
+
+Retries are bounded by `--retries`, each attempt by `--timeout`, and a server's `Retry-After` is
+honoured up to `--max-retry-after`. `--stats` breaks the retries out by status, so a slow run tells
+you whether rate limiting or transport ate the time.
+
 ### Exit codes
 
 | Code | Meaning |
@@ -74,6 +116,10 @@ continues, and the exit status is 6. `--unordered` drops the ordering for throug
 | 5 | transport error or timeout |
 | 6 | a stream finished with one or more failed records |
 | 130 | interrupted |
+
+A consumer that stops reading, as `head` does, is not an error. `jev … | head -1` exits 0 and prints
+nothing to stderr, in every mode. A missing API key exits 2 rather than 3, since it is caught before
+any network call alongside every other check. Exit 3 is for a key that exists and was refused.
 
 ### Configuration
 
@@ -122,6 +168,7 @@ internal/cli/     the cobra command tree, unexported and testable in process
 internal/argv/    records the group local flags in the order they arrive
 internal/plan/    folds a recorded command line into a validated invocation
 internal/input/   resolves where the state comes from and reads it
+internal/qfile/   loads and writes a question file or a raw request body
 internal/engine/  runs one evaluation per record, bounded by -j and ordered by input
 internal/jev/     the API client, ported from the JavaScript SDK
 internal/answer/  normalizes an answer and applies the question's policy
@@ -153,9 +200,9 @@ git tag v0.1.0 && git push origin v0.1.0
 
 The cask is currently inert. `homebrew_casks[0].skip_upload: true` in
 `.goreleaser.yml` means the cask is written to `dist/homebrew/Casks/jev.rb` and
-never pushed. To go live, set `skip_upload: false` and add a
-`HOMEBREW_TAP_TOKEN` secret with write access to `frodi-karlsson/homebrew-tap`.
-The workflow's own `GITHUB_TOKEN` cannot write to another repository.
+never pushed. The `HOMEBREW_TAP_TOKEN` secret is already set, with write access
+to `frodi-karlsson/homebrew-tap`, because the workflow's own `GITHUB_TOKEN`
+cannot write to another repository. To go live, set `skip_upload: false`.
 
 Dry run the whole pipeline without tagging:
 
