@@ -112,7 +112,7 @@ func run(
 		resolved = input.Resolved{Source: input.SourceBody, State: loaded.State}
 
 		if err := input.CheckState(resolved.State); err != nil {
-			return err
+			return fmt.Errorf("jev: %w", err)
 		}
 	}
 

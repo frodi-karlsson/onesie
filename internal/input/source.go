@@ -4,6 +4,10 @@ package input
 
 import "fmt"
 
+// maxLineBytes caps one input line. bufio's default of 64KiB is too small for a state that is a
+// whole document, and an unbounded reader would let one malformed line exhaust memory.
+const maxLineBytes = 8 << 20
+
 // Source names where the state came from. It is resolved once, before any read.
 type Source int
 
@@ -50,7 +54,12 @@ func ParseMode(name string) (Mode, error) {
 	}
 }
 
-// Mode is the input mode. The streaming modes arrive in a later milestone.
+// Streaming reports whether the mode reads one record per line.
+func (m Mode) Streaming() bool {
+	return m == JSONL || m == Lines
+}
+
+// Mode is the input mode.
 type Mode int
 
 const (
@@ -58,4 +67,8 @@ const (
 	Text Mode = iota
 	// JSON parses all of stdin as one JSON value.
 	JSON
+	// JSONL parses one JSON value per line.
+	JSONL
+	// Lines sends one text line per record, as a JSON string.
+	Lines
 )

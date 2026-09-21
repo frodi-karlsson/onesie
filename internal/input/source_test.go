@@ -247,6 +247,16 @@ func TestParseMode(t *testing.T) {
 			wantErr: "jev: -i jsonl is not available yet",
 		},
 		{
+			name:    "should report lines as not available yet",
+			flag:    "lines",
+			wantErr: "jev: -i lines is not available yet",
+		},
+		{
+			name:    "should report request as not available yet",
+			flag:    "request",
+			wantErr: "jev: -i request is not available yet",
+		},
+		{
 			name:    "should reject an unknown mode",
 			flag:    "yaml",
 			wantErr: "jev: -i takes text or json, got 'yaml'",
@@ -277,6 +287,31 @@ func TestParseMode(t *testing.T) {
 
 			if mode != tc.wantMode {
 				t.Errorf("mode = %v, want %v", mode, tc.wantMode)
+			}
+		})
+	}
+}
+
+func TestModeStreaming(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		mode input.Mode
+		want bool
+	}{
+		{name: "should not stream under text", mode: input.Text},
+		{name: "should not stream under json", mode: input.JSON},
+		{name: "should stream under jsonl", mode: input.JSONL, want: true},
+		{name: "should stream under lines", mode: input.Lines, want: true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := tc.mode.Streaming(); got != tc.want {
+				t.Errorf("Streaming() = %v, want %v", got, tc.want)
 			}
 		})
 	}

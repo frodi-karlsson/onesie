@@ -91,24 +91,24 @@ func fromText(source Source, label, text string, mode Mode, stripNewline bool) (
 	}
 
 	if err := CheckState(value); err != nil {
-		return Resolved{}, err
+		return Resolved{}, fmt.Errorf("jev: %w", err)
 	}
 
 	return Resolved{Source: source, State: value}, nil
 }
 
 // CheckState rejects a state the API would refuse, so a caller holding a state that never passed
-// through Resolve can still check it.
+// through Resolve can still check it. Its message carries no jev prefix, so a caller adds one.
 func CheckState(value any) error {
 	// The API refuses these, so rejecting them locally saves a request that would come back a 422.
 	switch value.(type) {
 	case string, map[string]any, []any:
 		return nil
 	case nil:
-		return errors.New("jev: state must be a string, object or array, got null")
+		return errors.New("state must be a string, object or array, got null")
 	case bool:
-		return errors.New("jev: state must be a string, object or array, got boolean")
+		return errors.New("state must be a string, object or array, got boolean")
 	default:
-		return errors.New("jev: state must be a string, object or array, got number")
+		return errors.New("state must be a string, object or array, got number")
 	}
 }
