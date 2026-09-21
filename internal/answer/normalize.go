@@ -5,6 +5,7 @@ package answer
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"sort"
 	"strconv"
 
@@ -15,6 +16,10 @@ import (
 // Normalize turns one API answer into the printed shape, keeping the API's own keys when the
 // question carries no labels.
 func Normalize(q plan.Question, raw jev.Answer) (*Answer, error) {
+	if raw == nil {
+		return nil, fmt.Errorf("jev: question '%s' has no answer", q.ID)
+	}
+
 	switch typed := raw.(type) {
 	case *jev.NoulAnswer:
 		return &Answer{Value: typed.Noul}, nil
@@ -99,9 +104,16 @@ func (p Probabilities) MarshalJSON() ([]byte, error) {
 			return nil, err
 		}
 
+		// strconv writes NaN and infinities bare, which is not valid JSON. This tool's contract is
+		// one parseable line per record, so failing loudly beats breaking every consumer.
+		value := p.Values[key]
+		if math.IsNaN(value) || math.IsInf(value, 0) {
+			return nil, fmt.Errorf("jev: probability for '%s' is not a finite number", key)
+		}
+
 		buf = append(buf, name...)
 		buf = append(buf, ':')
-		buf = strconv.AppendFloat(buf, p.Values[key], 'g', -1, 64)
+		buf = strconv.AppendFloat(buf, value, 'g', -1, 64)
 	}
 
 	return append(buf, '}'), nil

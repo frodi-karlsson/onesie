@@ -2,6 +2,8 @@ package answer_test
 
 import (
 	"encoding/json"
+	"math"
+	"sort"
 	"testing"
 
 	"github.com/frodi-karlsson/jev-cli/internal/answer"
@@ -153,6 +155,80 @@ func TestNormalize(t *testing.T) {
 
 			if string(encoded) != tc.want {
 				t.Errorf("got  %s\nwant %s", encoded, tc.want)
+			}
+		})
+	}
+}
+
+func TestNormalizeRejects(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		question plan.Question
+		raw      jev.Answer
+	}{
+		{
+			name:     "should reject a nil answer rather than panicking",
+			question: plan.Question{ID: "urgent", Shape: plan.Noul},
+			raw:      nil,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if _, err := answer.Normalize(tc.question, tc.raw); err == nil {
+				t.Error("expected an error, got none")
+			}
+		})
+	}
+}
+
+func TestProbabilitiesMarshalJSON(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		values  map[string]float64
+		wantErr bool
+	}{
+		{
+			name:   "should encode finite probabilities in key order",
+			values: map[string]float64{"b": 0.25, "a": 0.75},
+		},
+		{
+			name:    "should refuse to encode a NaN rather than emitting invalid json",
+			values:  map[string]float64{"a": math.NaN()},
+			wantErr: true,
+		},
+		{
+			name:    "should refuse to encode an infinity rather than emitting invalid json",
+			values:  map[string]float64{"a": math.Inf(1)},
+			wantErr: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			keys := make([]string, 0, len(tc.values))
+			for key := range tc.values {
+				keys = append(keys, key)
+			}
+
+			sort.Strings(keys)
+
+			_, err := json.Marshal(answer.Probabilities{Keys: keys, Values: tc.values})
+
+			if tc.wantErr && err == nil {
+				t.Error("expected an error, got none")
+			}
+
+			if !tc.wantErr && err != nil {
+				t.Errorf("unexpected error: %v", err)
 			}
 		})
 	}
