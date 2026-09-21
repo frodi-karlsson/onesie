@@ -3,6 +3,7 @@ package qfile
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -39,7 +40,16 @@ func Write(questions []plan.Question) ([]byte, error) {
 func writeQuestion(question plan.Question) (yaml.MapSlice, error) {
 	instructions, err := yamlValue(question.Instructions)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf(
+			"jev: 'ask' in question '%s' cannot be written: %w", question.ID, err)
+	}
+
+	if question.Criteria != nil && question.Shape != plan.Noul {
+		// Dropping the rubric silently would leave the user believing it reached the API, which is
+		// the line the loader already holds against a file carrying both.
+		return nil, fmt.Errorf(
+			"jev: question '%s' has both 'yes_means' and '%s'. A question is one or the other",
+			question.ID, question.Shape)
 	}
 
 	body := yaml.MapSlice{{Key: "ask", Value: instructions}}
@@ -77,7 +87,9 @@ func writeOptions(question plan.Question) (yaml.MapSlice, error) {
 	for _, option := range question.Options {
 		desc, err := yamlValue(option.Desc)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf(
+				"jev: 'pick' option '%s' in question '%s' cannot be written: %w",
+				option.Name, question.ID, err)
 		}
 
 		options = append(options, yaml.MapItem{Key: option.Name, Value: desc})
@@ -102,7 +114,9 @@ func writeLevels(question plan.Question) ([]any, error) {
 
 		desc, err := yamlValue(level.Desc)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf(
+				"jev: 'rate' level '%s' in question '%s' cannot be written: %w",
+				label, question.ID, err)
 		}
 
 		levels = append(levels, yaml.MapSlice{{Key: label, Value: desc}})
@@ -118,12 +132,14 @@ func writeRubric(question plan.Question) (yaml.MapSlice, error) {
 
 	yes, err := yamlValue(question.Criteria.Yes)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf(
+			"jev: 'yes_means' in question '%s' cannot be written: %w", question.ID, err)
 	}
 
 	no, err := yamlValue(question.Criteria.No)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf(
+			"jev: 'no_means' in question '%s' cannot be written: %w", question.ID, err)
 	}
 
 	// yes_means and no_means, not yes and no. Under the YAML 1.2 core schema goccy implements a
