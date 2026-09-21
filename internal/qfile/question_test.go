@@ -135,6 +135,16 @@ func TestLoadYesNo(t *testing.T) {
 			doc:     "- just\n- a list\n",
 			wantErr: true,
 		},
+		{
+			name:    "should reject a yes rubric alongside pick",
+			doc:     "team:\n  ask: q\n  yes_means: something\n  pick: [a, b]\n",
+			wantErr: true,
+		},
+		{
+			name:    "should reject a false alias alongside rate",
+			doc:     "severity:\n  ask: q\n  false: nope\n  rate: [a, b]\n",
+			wantErr: true,
+		},
 	}
 
 	for _, tc := range tests {
@@ -472,6 +482,31 @@ func TestLoadPolicy(t *testing.T) {
 					t.Error("a pick fallback is a string and must not set Boolean")
 				}
 			},
+		},
+		{
+			name: "should read an unquoted boolean fallback as its text",
+			doc:  "urgent:\n  ask: q\n  fallback: false\n",
+			check: func(t *testing.T, q plan.Question) {
+				t.Helper()
+
+				if q.Policy.Fallback.Text != "false" {
+					t.Errorf("fallback text = %q, want false", q.Policy.Fallback.Text)
+				}
+
+				if q.Policy.Fallback.Boolean {
+					t.Error("a fallback of false must resolve to Boolean false")
+				}
+			},
+		},
+		{
+			name:    "should reject a structured fallback",
+			doc:     "team:\n  ask: q\n  pick: [a, b]\n  fallback:\n    x: 1\n",
+			wantErr: "'fallback' in question 'team' must be a string",
+		},
+		{
+			name:    "should reject a sequence fallback",
+			doc:     "team:\n  ask: q\n  pick: [a, b]\n  fallback: [a, b]\n",
+			wantErr: "'fallback' in question 'team' must be a string",
 		},
 		{
 			name:    "should reject a non numeric threshold",

@@ -24,7 +24,11 @@ func Validate(p *Plan, cfg Config) ([]string, error) {
 		return nil, errors.New("jev: --state and --state-file are mutually exclusive")
 	}
 
-	if err := checkBodyPolicy(p); err != nil {
+	if cfg.Replace && cfg.FileName == "" {
+		return nil, errors.New("jev: --replace applies to -f, which was not given")
+	}
+
+	if err := checkBodyPolicy(p, cfg.FileName); err != nil {
 		return nil, err
 	}
 
@@ -67,9 +71,14 @@ type Config struct {
 	Output       string
 	HasState     bool
 	HasStateFile bool
+	Replace      bool
+
+	// FileName is the -f argument, empty when the flag was not given. It names the file in the
+	// body policy message and marks whether -f was used at all.
+	FileName string
 }
 
-func checkBodyPolicy(p *Plan) error {
+func checkBodyPolicy(p *Plan, name string) error {
 	body := 0
 
 	for _, question := range p.Questions {
@@ -86,7 +95,7 @@ func checkBodyPolicy(p *Plan) error {
 	// since Assemble only binds top level flags when exactly one question was asked.
 	for _, event := range p.Orphans {
 		if policyFlag(event.Name) {
-			return bodyPolicyError(body)
+			return bodyPolicyError(name, body)
 		}
 	}
 
@@ -97,7 +106,7 @@ func checkBodyPolicy(p *Plan) error {
 
 		if question.Policy.Threshold != nil || question.Policy.MinConfidence != nil ||
 			question.Policy.Fallback != nil {
-			return bodyPolicyError(body)
+			return bodyPolicyError(name, body)
 		}
 	}
 
@@ -113,10 +122,14 @@ func policyFlag(name string) bool {
 	}
 }
 
-func bodyPolicyError(questions int) error {
+func bodyPolicyError(name string, questions int) error {
+	if name == "" {
+		name = unnamedFile
+	}
+
 	return fmt.Errorf(
 		"jev: policy flags apply to a request body only when it has one question. "+
-			"The body has %d", questions)
+			"%s has %d", name, questions)
 }
 
 func checkOrphans(p *Plan) error {
@@ -159,7 +172,7 @@ func checkDuplicateIDs(p *Plan) error {
 
 	// The request body is keyed by id, so a repeated one would collapse into a single question
 	// while the output still carries the key twice.
-	if dupe := firstDuplicate(ids); dupe != "" {
+	if dupe, found := firstDuplicate(ids); found {
 		return fmt.Errorf("jev: question id '%s' is given twice", dupe)
 	}
 
@@ -196,14 +209,13 @@ func checkPick(q *Question) (string, error) {
 
 	switch {
 	case len(q.Options) < limits.MinChoiceOptions:
-		return "", fmt.Errorf("jev: --pick needs at least two options, got %d: %s",
-			len(q.Options), strings.Join(names, ", "))
+		return "", tooFew("--pick", "options", len(q.Options), names)
 	case len(q.Options) > limits.MaxChoiceOptions:
 		return "", fmt.Errorf("jev: --pick takes at most %d options, got %d",
 			limits.MaxChoiceOptions, len(q.Options))
 	}
 
-	if dupe := firstDuplicate(names); dupe != "" {
+	if dupe, found := firstDuplicate(names); found {
 		return "", fmt.Errorf(
 			"jev: --pick option '%s' is listed twice in question '%s'", dupe, q.ID)
 	}
@@ -216,25 +228,57 @@ func checkPick(q *Question) (string, error) {
 		return "", err
 	}
 
+	// A body's null criteria are already frozen and legal, so the partial description warning
+	// names nothing the user can act on.
+	if q.FromBody {
+		return "", nil
+	}
+
 	return describedHint(q, names, described(q)), nil
 }
 
 func checkRate(q *Question) error {
-	labels := make([]string, 0, len(q.Levels))
-	for _, level := range q.Levels {
-		labels = append(labels, level.Label)
+	var labels []string
+
+	// A body's levels carry no labels at all, so every rule written around them is skipped and
+	// nothing prints an empty list.
+	if q.Labelled {
+		labels = make([]string, 0, len(q.Levels))
+		for _, level := range q.Levels {
+			labels = append(labels, level.Label)
+		}
 	}
 
 	switch {
 	case len(q.Levels) < limits.MinScoreLevels:
-		return fmt.Errorf("jev: --rate needs at least two levels, got %d: %s",
-			len(q.Levels), strings.Join(labels, ", "))
+		return tooFew("--rate", "levels", len(q.Levels), labels)
 	case len(q.Levels) > limits.MaxScoreLevels:
 		return fmt.Errorf("jev: --rate takes at most %d levels, got %d",
 			limits.MaxScoreLevels, len(q.Levels))
 	}
 
-	if dupe := firstDuplicate(labels); dupe != "" {
+	if q.Labelled {
+		if err := checkRubric(q, labels); err != nil {
+			return err
+		}
+	}
+
+	return checkPolicy(q, false)
+}
+
+func tooFew(flag, noun string, count int, names []string) error {
+	// A single unnamed entry is the empty list spelling, from --pick with an empty value or from
+	// a body's unlabelled levels. Naming it would print the separator and nothing else.
+	listed := strings.Join(names, ", ")
+	if listed == "" {
+		return fmt.Errorf("jev: %s needs at least two %s, got %d", flag, noun, count)
+	}
+
+	return fmt.Errorf("jev: %s needs at least two %s, got %d: %s", flag, noun, count, listed)
+}
+
+func checkRubric(q *Question, labels []string) error {
+	if dupe, found := firstDuplicate(labels); found {
 		return fmt.Errorf("jev: --rate label '%s' is listed twice in question '%s'", dupe, q.ID)
 	}
 
@@ -252,7 +296,7 @@ func checkRate(q *Question) error {
 		)
 	}
 
-	return checkPolicy(q, false)
+	return nil
 }
 
 func checkNoul(q *Question) error {
@@ -411,18 +455,18 @@ func missing(all, have []string) []string {
 	return absent
 }
 
-func firstDuplicate(names []string) string {
+func firstDuplicate(names []string) (string, bool) {
 	seen := make(map[string]struct{}, len(names))
 
 	for _, name := range names {
 		if _, ok := seen[name]; ok {
-			return name
+			return name, true
 		}
 
 		seen[name] = struct{}{}
 	}
 
-	return ""
+	return "", false
 }
 
 // ParseFallback reads a yes/no fallback value. The second result is false when the text is not one
@@ -444,7 +488,7 @@ func reserved(id string) bool {
 	}
 
 	switch id {
-	case "answers", "error", "model", "usage", "questions", "state":
+	case "answers", "assert", "error", "model", "usage", "questions", "state":
 		return true
 	default:
 		return false

@@ -21,6 +21,7 @@ func TestValidate(t *testing.T) {
 		positional   string
 		cfg          plan.Config
 		wantErr      string
+		wantExact    string
 		wantWarning  string
 		wantFallback *bool
 	}{
@@ -297,7 +298,7 @@ func TestValidate(t *testing.T) {
 			file:   bodyQuestions(2),
 			events: []argv.Event{{Name: "threshold", Value: "0.8"}},
 			wantErr: "jev: policy flags apply to a request body only when it has one question. " +
-				"The body has 2",
+				"the question file has 2",
 		},
 		{
 			name: "should count only the body's own questions in the policy error",
@@ -306,7 +307,7 @@ func TestValidate(t *testing.T) {
 				{Name: "threshold", Value: "0.8"},
 				{Name: "ask", Value: "extra=second"},
 			},
-			wantErr: "The body has 2",
+			wantErr: "the question file has 2",
 		},
 		{
 			name: "should reject policy carried by a body question itself",
@@ -314,7 +315,60 @@ func TestValidate(t *testing.T) {
 				ID: "b2", Shape: plan.Noul, Instructions: "q", Named: true, FromBody: true,
 				Policy: plan.Policy{Threshold: pointerTo(0.8)},
 			}),
-			wantErr: "The body has 2",
+			wantErr: "the question file has 2",
+		},
+		{
+			name:    "should name the body's file in the policy error",
+			file:    bodyQuestions(2),
+			events:  []argv.Event{{Name: "threshold", Value: "0.8"}},
+			cfg:     plan.Config{FileName: "triage.json"},
+			wantErr: "triage.json has 2",
+		},
+		{
+			name:    "should reject the reserved assert id",
+			events:  []argv.Event{{Name: "ask", Value: "assert=first"}},
+			wantErr: "jev: question id 'assert' is reserved",
+		},
+		{
+			name:       "should reject replace with no file given",
+			positional: "is this urgent",
+			cfg:        plan.Config{Replace: true},
+			wantErr:    "jev: --replace applies to -f, which was not given",
+		},
+		{
+			name: "should accept replace alongside a file",
+			file: []plan.Question{
+				{ID: "urgent", Shape: plan.Noul, Instructions: "q", Named: true},
+			},
+			cfg: plan.Config{Replace: true, FileName: "triage.yaml"},
+		},
+		{
+			name: "should report an empty pick without a trailing separator",
+			events: []argv.Event{
+				{Name: "ask", Value: "a=first"},
+				{Name: "pick", Value: ""},
+			},
+			wantExact: "jev: --pick needs at least two options, got 1",
+		},
+		{
+			name:      "should report an unlabelled body's level count without a list",
+			file:      bodyLevels(1),
+			wantExact: "jev: --rate needs at least two levels, got 1",
+		},
+		{
+			name: "should not hold an unlabelled body to the all described or all bare rule",
+			file: bodyLevels(2),
+		},
+		{
+			name: "should accept an unlabelled body whose levels share the empty label",
+			file: bodyLevels(3),
+		},
+		{
+			name: "should not warn about a body's partly described options",
+			file: []plan.Question{{
+				ID: "bq", Shape: plan.Pick, Instructions: "q", Named: true, FromBody: true,
+				Options: []plan.Option{{Name: "x", Desc: "X"}, {Name: "y"}},
+			}},
 		},
 	}
 
@@ -333,6 +387,18 @@ func TestValidate(t *testing.T) {
 			}
 
 			warnings, err := plan.Validate(built, tc.cfg)
+
+			if tc.wantExact != "" {
+				if err == nil {
+					t.Fatalf("expected the error %q, got none", tc.wantExact)
+				}
+
+				if err.Error() != tc.wantExact {
+					t.Errorf("error = %q\nwant %q", err.Error(), tc.wantExact)
+				}
+
+				return
+			}
 
 			if tc.wantErr != "" {
 				if err == nil {
@@ -379,6 +445,26 @@ func TestValidate(t *testing.T) {
 
 func pointerTo[T any](value T) *T {
 	return &value
+}
+
+func bodyLevels(n int) []plan.Question {
+	levels := make([]plan.Level, 0, n)
+	for i := range n {
+		// Only the first level is described, which is the mixed rubric a labelled question is
+		// rejected for.
+		if i == 0 {
+			levels = append(levels, plan.Level{Desc: "x"})
+
+			continue
+		}
+
+		levels = append(levels, plan.Level{})
+	}
+
+	return []plan.Question{{
+		ID: "bq", Shape: plan.Rate, Instructions: "q", Named: true, FromBody: true,
+		Levels: levels,
+	}}
 }
 
 func bodyQuestions(n int) []plan.Question {

@@ -12,7 +12,13 @@ func loadBody(top yaml.MapSlice) (*File, error) {
 	file := &File{IsBody: true}
 
 	if value, found := lookup(top, "model"); found {
-		file.Model = fmt.Sprintf("%v", value)
+		name, ok := value.(string)
+		if !ok {
+			return nil, fmt.Errorf(
+				"jev: 'model' in a request body must be a string, got '%v'", value)
+		}
+
+		file.Model = name
 	}
 
 	if value, found := lookup(top, "state"); found {

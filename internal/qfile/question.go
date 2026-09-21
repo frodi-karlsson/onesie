@@ -2,6 +2,7 @@ package qfile
 
 import (
 	"fmt"
+	"strconv"
 
 	"github.com/goccy/go-yaml"
 
@@ -48,14 +49,14 @@ func buildQuestion(id string, value any) (plan.Question, error) {
 
 	question.Instructions = plain(ask)
 
-	yes, hasYes := firstOf(fields, "yes_means", "true")
-	no, hasNo := firstOf(fields, "no_means", "false")
+	yes, yesKey, hasYes := firstOf(fields, "yes_means", "true")
+	no, noKey, hasNo := firstOf(fields, "no_means", "false")
 
 	if hasYes || hasNo {
 		question.Criteria = &plan.YesNoCriteria{Yes: plain(yes), No: plain(no)}
 	}
 
-	_, hasPick := lookup(fields, "pick")
+	pickValue, hasPick := lookup(fields, "pick")
 	rateValue, hasRate := lookup(fields, "rate")
 
 	if hasPick && hasRate {
@@ -63,17 +64,18 @@ func buildQuestion(id string, value any) (plan.Question, error) {
 			"jev: question '%s' has both 'pick' and 'rate'. A question is one or the other", id)
 	}
 
-	if value, found := lookup(fields, "pick"); found {
-		options, err := readPick(id, value)
+	if err := checkShapeAndRubric(id, shapeKey(hasPick, hasRate), yesKey, noKey); err != nil {
+		return question, err
+	}
+
+	if hasPick {
+		options, err := readPick(id, pickValue)
 		if err != nil {
 			return question, err
 		}
 
 		question.Shape = plan.Pick
 		question.Options = options
-		// A file giving both a yes or no rubric and pick is contradictory, and carrying the rubric
-		// onto a choice question would send a criteria shape the API does not expect for the type.
-		question.Criteria = nil
 	}
 
 	if hasRate {
@@ -85,7 +87,6 @@ func buildQuestion(id string, value any) (plan.Question, error) {
 		question.Shape = plan.Rate
 		question.Levels = levels
 		question.Labelled = true
-		question.Criteria = nil
 	}
 
 	if err := readPolicy(&question, fields); err != nil {
@@ -97,6 +98,38 @@ func buildQuestion(id string, value any) (plan.Question, error) {
 	}
 
 	return question, nil
+}
+
+func shapeKey(hasPick, hasRate bool) string {
+	switch {
+	case hasPick:
+		return "pick"
+	case hasRate:
+		return "rate"
+	default:
+		return ""
+	}
+}
+
+func checkShapeAndRubric(id, shape, yesKey, noKey string) error {
+	if shape == "" {
+		return nil
+	}
+
+	rubric := yesKey
+	if rubric == "" {
+		rubric = noKey
+	}
+
+	if rubric == "" {
+		return nil
+	}
+
+	// Dropping the rubric silently would leave the user believing it reached the API, and a
+	// question file is written once and trusted afterwards.
+	return fmt.Errorf(
+		"jev: question '%s' has both '%s' and '%s'. A question is one or the other",
+		id, rubric, shape)
 }
 
 func readPick(id string, value any) ([]plan.Option, error) {
@@ -214,7 +247,11 @@ func readPolicy(question *plan.Question, fields yaml.MapSlice) error {
 	}
 
 	if value, found := lookup(fields, "fallback"); found {
-		text := fmt.Sprintf("%v", value)
+		text, err := readFallback(question.ID, value)
+		if err != nil {
+			return err
+		}
+
 		question.Policy.Fallback = &plan.Fallback{Text: text}
 
 		// Resolved here rather than during validation, so nothing downstream depends on the order
@@ -245,6 +282,20 @@ func readNumber(id, key string, value any) (float64, error) {
 	}
 }
 
+func readFallback(id string, value any) (string, error) {
+	switch typed := value.(type) {
+	case string:
+		return typed, nil
+	case bool:
+		// An unquoted 'fallback: true' reaches the loader as a Go bool, while 'fallback: yes'
+		// stays a string under the YAML 1.2 core schema.
+		return strconv.FormatBool(typed), nil
+	default:
+		return "", fmt.Errorf(
+			"jev: 'fallback' in question '%s' must be a string, got '%v'", id, value)
+	}
+}
+
 func checkKeys(id string, fields yaml.MapSlice) error {
 	known := map[string]struct{}{
 		"ask": {}, "yes_means": {}, "no_means": {}, "true": {}, "false": {},
@@ -264,14 +315,14 @@ func checkKeys(id string, fields yaml.MapSlice) error {
 	return nil
 }
 
-func firstOf(fields yaml.MapSlice, names ...string) (any, bool) {
+func firstOf(fields yaml.MapSlice, names ...string) (any, string, bool) {
 	for _, name := range names {
 		// Names are tried in order, so the documented _means spelling wins over the true and false
 		// aliases when a file carries both.
 		if value, ok := lookup(fields, name); ok {
-			return value, true
+			return value, name, true
 		}
 	}
 
-	return nil, false
+	return nil, "", false
 }

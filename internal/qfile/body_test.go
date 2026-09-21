@@ -182,6 +182,11 @@ func TestLoadBody(t *testing.T) {
 			doc:     `{"questions":[1,2]}`,
 			wantErr: "questions",
 		},
+		{
+			name:    "should reject a structured model",
+			doc:     `{"model":{"name":"jev"},"questions":{"a":{"type":"noul"}}}`,
+			wantErr: "'model' in a request body must be a string",
+		},
 	}
 
 	for _, tc := range tests {

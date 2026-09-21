@@ -65,6 +65,8 @@ func run(
 		Output:       flags.output,
 		HasState:     cmd.Flags().Changed("state"),
 		HasStateFile: cmd.Flags().Changed("state-file"),
+		Replace:      flags.replace,
+		FileName:     flags.file,
 	})
 
 	// Warnings print whether or not validation succeeded, so a run that fails for one reason still

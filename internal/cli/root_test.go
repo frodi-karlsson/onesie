@@ -350,7 +350,7 @@ func TestNewRootCmd(t *testing.T) {
 					`"b":{"type":"noul","instructions":"q"}}}`,
 			},
 			wantCode: cli.ExitUsage,
-			contains: []string{"one question", "The body has 2"},
+			contains: []string{"one question", "body.json has 2"},
 		},
 		{
 			name: "should allow policy on an ask added beside a one question body",
@@ -430,6 +430,53 @@ func TestNewRootCmd(t *testing.T) {
 			wantCode: cli.ExitOK,
 			sends:    []string{`"criteria":[null,null]`},
 			absent:   []string{`"criteria":["",""]`},
+		},
+		{
+			name:     "should reject replace with no file to override",
+			args:     []string{"--replace", "is this urgent"},
+			stdin:    "the server is down",
+			wantCode: cli.ExitUsage,
+			contains: []string{"jev: --replace applies to -f, which was not given"},
+		},
+		{
+			name: "should reject a structured fallback in a question file",
+			args: []string{"-f", "policy.yaml"},
+			files: map[string]string{
+				"policy.yaml": "team:\n  ask: q\n  pick: [a, b]\n" +
+					"  min_confidence: 0.7\n  fallback:\n    x: 1\n",
+			},
+			stdin:    "the server is down",
+			wantCode: cli.ExitUsage,
+			contains: []string{"'fallback' in question 'team' must be a string"},
+			absent:   []string{`"decision"`},
+		},
+		{
+			name: "should stay quiet about a replayed body's partly described criteria",
+			args: []string{"-f", "body.json", "-o", "json"},
+			files: map[string]string{
+				"body.json": `{"state":"x","questions":` +
+					`{"bq":{"type":"choice","instructions":"q",` +
+					`"criteria":{"x":"X","y":null}}}}`,
+			},
+			response: `{"model":"jev-1.13.0","answers":{"bq":{"type":"choice",` +
+				`"choice":"x","confidence":0.91,"probabilities":{"x":0.91,"y":0.09}}},` +
+				`"usage":{"input_tokens":10,"output_tokens":2}}`,
+			wantCode: cli.ExitOK,
+			absent:   []string{"warning:"},
+		},
+		{
+			name: "should replay a body's mixed score criteria without a rubric complaint",
+			args: []string{"-f", "body.json", "-o", "json"},
+			files: map[string]string{
+				"body.json": `{"state":"x","questions":` +
+					`{"bq":{"type":"score","instructions":"q","criteria":["x",null]}}}`,
+			},
+			response: `{"model":"jev-1.13.0","answers":{"bq":{"type":"score","score":1.0,` +
+				`"confidence":0.92,"legend":{"0":"x","1":"y"},` +
+				`"probabilities":{"0":0.1,"1":0.9}}},` +
+				`"usage":{"input_tokens":10,"output_tokens":2}}`,
+			wantCode: cli.ExitOK,
+			sends:    []string{`"criteria":["x",null]`},
 		},
 		{
 			name: "should show the legend beside the index in the table",
