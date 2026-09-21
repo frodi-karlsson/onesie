@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/spf13/cobra"
+
 	"github.com/frodi-karlsson/jev-cli/internal/jev"
 )
 
@@ -477,6 +479,54 @@ func TestNewRootCmdStatsRequestMode(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestWithStats(t *testing.T) {
+	t.Parallel()
+
+	ran := errors.New("the run failed")
+
+	tests := []struct {
+		name string
+		run  error
+		want error
+	}{
+		{
+			name: "should prefer the run's error over a summary that could not be written",
+			run:  ran, want: ran,
+		},
+		{
+			name: "should report a failed summary write when the run succeeded",
+			want: errBroken,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			cmd := &cobra.Command{}
+			cmd.SetErr(brokenWriter{})
+
+			got := withStats(cmd, &runFlags{stats: true}, func(c *collector) error {
+				c.record("jev-1.13.0", jev.Usage{}, 1)
+
+				return tc.run
+			})
+
+			if !errors.Is(got, tc.want) {
+				t.Errorf("withStats() = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+var errBroken = errors.New("stderr is gone")
+
+type brokenWriter struct{}
+
+func (brokenWriter) Write([]byte) (int, error) {
+	return 0, errBroken
 }
 
 func TestNewRootCmdPrintFlagRejections(t *testing.T) {

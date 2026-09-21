@@ -129,7 +129,10 @@ func withStats(cmd *cobra.Command, flags *runFlags, body func(*collector) error)
 
 	// Stderr, because stdout carries the answers. A summary on stdout would corrupt every
 	// pipeline the flag exists to measure.
-	if _, printErr := fmt.Fprintln(cmd.ErrOrStderr(), summary); printErr != nil {
+	//
+	// The run's own error wins, since a summary that failed to print is the smaller loss and
+	// reporting it would replace the exit code the caller is waiting on.
+	if _, printErr := fmt.Fprintln(cmd.ErrOrStderr(), summary); printErr != nil && err == nil {
 		return printErr
 	}
 
