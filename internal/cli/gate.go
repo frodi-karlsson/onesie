@@ -1,8 +1,9 @@
 package cli
 
 func requests(flags *runFlags) bool {
-	// The dry run paths need no key and no state, and a check that fires for them turns a flag
-	// whose whole point is working offline into one that does not. The key itself is required by
-	// jev.New, which only the requesting paths reach, so nothing about it is decided here.
+	// Inert today, since --print-questions returns before the no state check reaches this. It is
+	// here for --print-request, which cannot take that early return: section 10 has it include
+	// state when stdin or --state or --state-file supplied one, so it goes through input.Resolve
+	// and then needs a question only body rather than a failure when nothing did.
 	return !flags.printQuestions
 }
