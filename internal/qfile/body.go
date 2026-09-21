@@ -26,6 +26,15 @@ func loadBody(top yaml.MapSlice) (*File, error) {
 		// together would hide the mistake.
 		file.State = plain(value)
 		file.HasState = true
+
+		// The ordered bytes are what reaches the wire. A request body is the wire format and is
+		// meant to be replayed as it was written, so its key order is part of the content.
+		wire, err := MarshalOrdered(value)
+		if err != nil {
+			return nil, err
+		}
+
+		file.StateWire = wire
 	}
 
 	raw, _ := lookup(top, "questions")

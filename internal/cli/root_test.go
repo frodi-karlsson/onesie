@@ -314,6 +314,19 @@ func TestNewRootCmd(t *testing.T) {
 			sends:    []string{`"state":"from the body"`},
 		},
 		{
+			name: "should send a body's state in the order it was written",
+			args: []string{"-f", "body.json", "-o", "json"},
+			files: map[string]string{
+				"body.json": `{"state":{"ticket_id":12345678901234567890,"zebra":1,"alpha":2},` +
+					`"questions":{"a":{"type":"noul","instructions":"q"}}}`,
+			},
+			response: `{"model":"jev-1.13.0","answers":{"a":{"type":"noul","noul":0.3}}}`,
+			wantCode: cli.ExitOK,
+			sends: []string{
+				`"state":{"ticket_id":12345678901234567890,"zebra":1,"alpha":2}`,
+			},
+		},
+		{
 			name:  "should let stdin override a body's state",
 			args:  []string{"-f", "body.json", "-o", "json"},
 			stdin: "from stdin",

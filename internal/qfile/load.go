@@ -3,6 +3,7 @@
 package qfile
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -49,6 +50,10 @@ type File struct {
 	// State is the body's state. HasState distinguishes an absent state from a null one.
 	State    any
 	HasState bool
+
+	// StateWire is the body's state as ordered JSON, which is what reaches the API. State is the
+	// parsed form, for the checks that need a Go value.
+	StateWire json.RawMessage
 }
 
 // DecodeOrdered parses YAML or JSON keeping every mapping as an ordered yaml.MapSlice, so the

@@ -127,18 +127,13 @@ func run(
 	// Resolve reporting no source is exactly the case where stdin, --state and --state-file all
 	// supplied nothing, which is when a body's own state gets its turn.
 	if resolved.Source == input.SourceNone && loaded != nil && loaded.HasState {
-		body, marshalErr := json.Marshal(loaded.State)
-		if marshalErr != nil {
-			return marshalErr
-		}
-
 		resolved = input.Resolved{
 			Source: input.SourceBody,
 			State:  loaded.State,
-			Raw:    string(body),
-			// A body's own state is already raw JSON, so it reaches the wire the way every other
-			// JSON source does.
-			Wire: json.RawMessage(body),
+			Raw:    string(loaded.StateWire),
+			// The ordered bytes the loader kept, rather than a re-marshalled Go map, so the body
+			// reaches the wire in the order it was written.
+			Wire: loaded.StateWire,
 		}
 
 		if err := input.CheckState(resolved.State); err != nil {

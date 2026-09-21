@@ -1,6 +1,7 @@
 package qfile
 
 import (
+	"encoding/json"
 	"fmt"
 
 	"github.com/goccy/go-yaml"
@@ -40,5 +41,59 @@ func plain(value any) any {
 		return out
 	default:
 		return value
+	}
+}
+
+// MarshalOrdered encodes a decoded tree as JSON keeping every mapping in the order it was written.
+// plain is the right choice for a value bound for a Go consumer, and this is the right choice for
+// one bound for the wire, where a request body is meant to be replayed as it was given.
+func MarshalOrdered(value any) ([]byte, error) {
+	switch typed := value.(type) {
+	case yaml.MapSlice:
+		buf := []byte{'{'}
+
+		for i, item := range typed {
+			if i > 0 {
+				buf = append(buf, ',')
+			}
+
+			// Through json.Marshal rather than wrapping in quotes. A key is not character checked
+			// anywhere, so one carrying a quote would otherwise produce a body no parser can read.
+			key, err := json.Marshal(fmt.Sprintf("%v", item.Key))
+			if err != nil {
+				return nil, err
+			}
+
+			buf = append(buf, key...)
+			buf = append(buf, ':')
+
+			encoded, err := MarshalOrdered(item.Value)
+			if err != nil {
+				return nil, err
+			}
+
+			buf = append(buf, encoded...)
+		}
+
+		return append(buf, '}'), nil
+	case []any:
+		buf := []byte{'['}
+
+		for i, item := range typed {
+			if i > 0 {
+				buf = append(buf, ',')
+			}
+
+			encoded, err := MarshalOrdered(item)
+			if err != nil {
+				return nil, err
+			}
+
+			buf = append(buf, encoded...)
+		}
+
+		return append(buf, ']'), nil
+	default:
+		return json.Marshal(value)
 	}
 }
