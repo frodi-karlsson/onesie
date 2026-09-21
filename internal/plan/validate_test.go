@@ -64,7 +64,7 @@ func TestValidate(t *testing.T) {
 				{Name: "ask", Value: "a=first"},
 				{Name: "pick", Value: "safe"},
 			},
-			wantErr: "jev: --pick needs at least two options, got 1: safe",
+			wantErr: "jev: --pick needs at least two options in question 'a', got 1: safe",
 		},
 		{
 			name: "should reject a single level rate",
@@ -72,7 +72,7 @@ func TestValidate(t *testing.T) {
 				{Name: "ask", Value: "a=first"},
 				{Name: "rate", Value: "calm"},
 			},
-			wantErr: "jev: --rate needs at least two levels, got 1: calm",
+			wantErr: "jev: --rate needs at least two levels in question 'a', got 1: calm",
 		},
 		{
 			name: "should reject a duplicate option",
@@ -106,7 +106,8 @@ func TestValidate(t *testing.T) {
 				{Name: "rate", Value: "minor,major,critical"},
 				{Name: "desc", Value: "minor=small"},
 			},
-			wantErr: "jev: --rate levels must all be described or all bare. 'severity' describes",
+			wantErr: "jev: --rate levels must all be described or all bare in question 'severity'. " +
+				"Described minor but not major, critical",
 		},
 		{
 			name: "should reject a desc naming an unknown option",
@@ -348,12 +349,12 @@ func TestValidate(t *testing.T) {
 				{Name: "ask", Value: "a=first"},
 				{Name: "pick", Value: ""},
 			},
-			wantExact: "jev: --pick needs at least two options, got 1",
+			wantExact: "jev: --pick needs at least two options in question 'a', got 1",
 		},
 		{
 			name:      "should report an unlabelled body's level count without a list",
 			file:      bodyLevels(1),
-			wantExact: "jev: 'criteria' needs at least two levels, got 1",
+			wantExact: "jev: 'criteria' needs at least two levels in question 'bq', got 1",
 		},
 		{
 			name: "should name criteria when a body's choice has one option",
@@ -361,7 +362,7 @@ func TestValidate(t *testing.T) {
 				ID: "bq", Shape: plan.Pick, Instructions: "q", Origin: plan.OriginBody,
 				Options: []plan.Option{{Name: "only"}},
 			}},
-			wantExact: "jev: 'criteria' needs at least two options, got 1: only",
+			wantExact: "jev: 'criteria' needs at least two options in question 'bq', got 1: only",
 		},
 		{
 			name: "should not hold an unlabelled body to the all described or all bare rule",
@@ -381,7 +382,7 @@ func TestValidate(t *testing.T) {
 		{
 			name:      "should name the pick key when a file question has one option",
 			file:      filePick("only"),
-			wantExact: "jev: 'pick' needs at least two options, got 1: only",
+			wantExact: "jev: 'pick' needs at least two options in question 'team', got 1: only",
 		},
 		{
 			name: "should keep the flag spelling when the question was opened with ask",
@@ -389,7 +390,58 @@ func TestValidate(t *testing.T) {
 				{Name: "ask", Value: "team=first"},
 				{Name: "pick", Value: "only"},
 			},
-			wantExact: "jev: --pick needs at least two options, got 1: only",
+			wantExact: "jev: --pick needs at least two options in question 'team', got 1: only",
+		},
+		{
+			name:       "should omit the question from a positional pick's option count",
+			positional: "is this urgent",
+			events:     []argv.Event{{Name: "pick", Value: "only"}},
+			wantExact:  "jev: --pick needs at least two options, got 1: only",
+		},
+		{
+			name:       "should omit the question from a positional rate's level count",
+			positional: "is this urgent",
+			events:     []argv.Event{{Name: "rate", Value: "calm"}},
+			wantExact:  "jev: --rate needs at least two levels, got 1: calm",
+		},
+		{
+			name:      "should name the question when a file's pick has too many options",
+			file:      filePick(generated("o", 256)...),
+			wantExact: "jev: 'pick' takes at most 255 options in question 'team', got 256",
+		},
+		{
+			name:       "should omit the question when a positional pick has too many options",
+			positional: "is this urgent",
+			events: []argv.Event{
+				{Name: "pick", Value: strings.Join(generated("o", 256), ",")},
+			},
+			wantExact: "jev: --pick takes at most 255 options, got 256",
+		},
+		{
+			name: "should name the question when a rate has too many levels",
+			events: []argv.Event{
+				{Name: "ask", Value: "severity=first"},
+				{Name: "rate", Value: strings.Join(generated("l", 11), ",")},
+			},
+			wantExact: "jev: --rate takes at most 10 levels in question 'severity', got 11",
+		},
+		{
+			name:       "should omit the question when a positional rate has too many levels",
+			positional: "is this urgent",
+			events: []argv.Event{
+				{Name: "rate", Value: strings.Join(generated("l", 11), ",")},
+			},
+			wantExact: "jev: --rate takes at most 10 levels, got 11",
+		},
+		{
+			name:       "should omit the question from a positional mixed rubric",
+			positional: "is this urgent",
+			events: []argv.Event{
+				{Name: "rate", Value: "minor,major"},
+				{Name: "desc", Value: "minor=small"},
+			},
+			wantExact: "jev: --rate levels must all be described or all bare. " +
+				"Described minor but not major",
 		},
 		{
 			name:      "should name the pick key for a file's duplicate option",
@@ -412,8 +464,8 @@ func TestValidate(t *testing.T) {
 					{Label: "minor"}, {Label: "major", Desc: "bad"},
 				},
 			}},
-			wantExact: "jev: 'rate' levels must all be described or all bare. " +
-				"'severity' describes major but not minor",
+			wantExact: "jev: 'rate' levels must all be described or all bare in question " +
+				"'severity'. Described major but not minor",
 		},
 		{
 			name: "should name the file's keys when min_confidence has no fallback",
@@ -550,6 +602,15 @@ func filePick(options ...string) []plan.Question {
 		ID: "team", Shape: plan.Pick, Instructions: "q", Origin: plan.OriginFile,
 		Options: named,
 	}}
+}
+
+func generated(prefix string, n int) []string {
+	names := make([]string, 0, n)
+	for i := range n {
+		names = append(names, prefix+strconv.Itoa(i))
+	}
+
+	return names
 }
 
 func withPolicy(questions []plan.Question, policy plan.Policy) []plan.Question {

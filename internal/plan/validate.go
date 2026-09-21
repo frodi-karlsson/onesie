@@ -211,10 +211,9 @@ func checkPick(q *Question) (string, error) {
 
 	switch {
 	case len(q.Options) < limits.MinChoiceOptions:
-		return "", tooFew(pick, "options", len(q.Options), names)
+		return "", tooFew(q, pick, "options", len(q.Options), names)
 	case len(q.Options) > limits.MaxChoiceOptions:
-		return "", fmt.Errorf("jev: %s takes at most %d options, got %d",
-			pick, limits.MaxChoiceOptions, len(q.Options))
+		return "", tooMany(q, pick, "options", limits.MaxChoiceOptions, len(q.Options))
 	}
 
 	if dupe, found := firstDuplicate(names); found {
@@ -255,10 +254,9 @@ func checkRate(q *Question) error {
 
 	switch {
 	case len(q.Levels) < limits.MinScoreLevels:
-		return tooFew(rate, "levels", len(q.Levels), labels)
+		return tooFew(q, rate, "levels", len(q.Levels), labels)
 	case len(q.Levels) > limits.MaxScoreLevels:
-		return fmt.Errorf("jev: %s takes at most %d levels, got %d",
-			rate, limits.MaxScoreLevels, len(q.Levels))
+		return tooMany(q, rate, "levels", limits.MaxScoreLevels, len(q.Levels))
 	}
 
 	if q.Labelled {
@@ -270,15 +268,22 @@ func checkRate(q *Question) error {
 	return checkPolicy(q, false)
 }
 
-func tooFew(name, noun string, count int, names []string) error {
+func tooFew(q *Question, name, noun string, count int, names []string) error {
 	// A single unnamed entry is the empty list spelling, from --pick with an empty value or from
 	// a body's unlabelled levels. Naming it would print the separator and nothing else.
 	listed := strings.Join(names, ", ")
 	if listed == "" {
-		return fmt.Errorf("jev: %s needs at least two %s, got %d", name, noun, count)
+		return fmt.Errorf("jev: %s needs at least two %s%s, got %d",
+			name, noun, questionClause(q), count)
 	}
 
-	return fmt.Errorf("jev: %s needs at least two %s, got %d: %s", name, noun, count, listed)
+	return fmt.Errorf("jev: %s needs at least two %s%s, got %d: %s",
+		name, noun, questionClause(q), count, listed)
+}
+
+func tooMany(q *Question, name, noun string, limit, count int) error {
+	return fmt.Errorf("jev: %s takes at most %d %s%s, got %d",
+		name, limit, noun, questionClause(q), count)
 }
 
 func checkRubric(q *Question, rate string, labels []string) error {
@@ -295,12 +300,23 @@ func checkRubric(q *Question, rate string, labels []string) error {
 	have := described(q)
 	if len(have) != 0 && len(have) != len(labels) {
 		return fmt.Errorf(
-			"jev: %s levels must all be described or all bare. '%s' describes %s but not %s",
-			rate, q.ID, strings.Join(have, ", "), strings.Join(missing(labels, have), ", "),
+			"jev: %s levels must all be described or all bare%s. Described %s but not %s",
+			rate, questionClause(q), strings.Join(have, ", "),
+			strings.Join(missing(labels, have), ", "),
 		)
 	}
 
 	return nil
+}
+
+func questionClause(q *Question) string {
+	// The positional question's id is the reserved answer, which the user never typed. Naming it
+	// would point the reader at something they cannot find in their own command line.
+	if q.Origin == OriginPositional {
+		return ""
+	}
+
+	return " in question '" + q.ID + "'"
 }
 
 func checkNoul(q *Question) error {
