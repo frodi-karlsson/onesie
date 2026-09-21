@@ -156,7 +156,7 @@ func run(
 		}
 	}
 
-	if resolved.Source == input.SourceNone {
+	if requests(flags) && resolved.Source == input.SourceNone {
 		return errors.New(
 			"jev: no state given. Pipe one to stdin, or pass --state or --state-file")
 	}
