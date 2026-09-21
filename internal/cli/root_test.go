@@ -27,6 +27,7 @@ func TestNewRootCmd(t *testing.T) {
 		name     string
 		args     []string
 		stdin    string
+		status   int
 		response string
 		wantCode int
 		contains []string
@@ -135,6 +136,42 @@ func TestNewRootCmd(t *testing.T) {
 			wantCode: cli.ExitUsage,
 			contains: []string{"-o takes"},
 		},
+		{
+			name: "should print the fallback word when the request fails",
+			args: []string{
+				"is this safe", "--pick", "safe,refuse",
+				"--min-confidence", "0.7", "--fallback", "refuse", "-r",
+			},
+			stdin:    "rm -rf /",
+			status:   http.StatusInternalServerError,
+			response: `{"error":{"message":"boom"}}`,
+			wantCode: cli.ExitUnavailable,
+			contains: []string{"refuse"},
+		},
+		{
+			name:     "should print an empty line when a failed question has no fallback",
+			args:     []string{"is this urgent", "-r"},
+			stdin:    "body",
+			status:   http.StatusInternalServerError,
+			response: `{"error":{"message":"boom"}}`,
+			wantCode: cli.ExitUnavailable,
+			absent:   []string{"refuse"},
+		},
+		{
+			name: "should emit the error key in json on failure",
+			args: []string{
+				"--ask", "team=which team", "--pick", "billing,technical",
+				"--min-confidence", "0.7", "--fallback", "human", "-o", "json",
+			},
+			stdin:    "body",
+			status:   http.StatusInternalServerError,
+			response: `{"error":{"message":"boom"}}`,
+			wantCode: cli.ExitUnavailable,
+			contains: []string{
+				`"error"`, `"kind":"http"`, `"status":500`,
+				`"decision":"human"`, `"fallback":"error"`,
+			},
+		},
 	}
 
 	for _, tc := range tests {
@@ -142,6 +179,13 @@ func TestNewRootCmd(t *testing.T) {
 			t.Parallel()
 
 			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				status := tc.status
+				if status == 0 {
+					status = http.StatusOK
+				}
+
+				w.WriteHeader(status)
+
 				if _, err := w.Write([]byte(tc.response)); err != nil {
 					t.Errorf("writing stub response: %v", err)
 				}
@@ -184,4 +228,49 @@ func TestNewRootCmd(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestNewRootCmdFlagDrivenClient(t *testing.T) {
+	t.Parallel()
+
+	t.Run("should build a client from --api-key and --base-url", func(t *testing.T) {
+		t.Parallel()
+
+		var gotAuth string
+
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			gotAuth = r.Header.Get("Authorization")
+
+			if _, err := w.Write([]byte(
+				`{"model":"jev-1.13.0","answers":{"answer":{"type":"noul","noul":0.5}}}`,
+			)); err != nil {
+				t.Errorf("writing stub response: %v", err)
+			}
+		}))
+		defer srv.Close()
+
+		var out bytes.Buffer
+
+		root := cli.NewRootCmd(
+			cli.BuildInfo{Version: "1.2.3"},
+			cli.WithStdin(strings.NewReader("body")),
+			cli.WithStdinTTY(false),
+			cli.WithStdoutTTY(false),
+			cli.WithLookupEnv(func(string) (string, bool) { return "", false }),
+		)
+
+		root.SetOut(&out)
+		root.SetErr(&out)
+		root.SetArgs([]string{
+			"is this urgent", "-r", "--api-key", "secret", "--base-url", srv.URL,
+		})
+
+		if code := cli.Execute(t.Context(), root); code != cli.ExitOK {
+			t.Fatalf("exit code = %d, output:\n%s", code, out.String())
+		}
+
+		if !strings.Contains(gotAuth, "secret") {
+			t.Errorf("Authorization header = %q, want it to carry the flag's key", gotAuth)
+		}
+	})
 }

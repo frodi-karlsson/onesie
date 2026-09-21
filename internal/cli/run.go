@@ -106,6 +106,12 @@ func ask(
 		Questions: questions,
 	})
 	if err != nil {
+		// The exit code still comes from the error. This only adds the fallback word the caller
+		// asked for, so a shell guard reads a decision rather than an empty string.
+		if writeErr := writeFailure(cmd, settings, built, outputMode, flags, err); writeErr != nil {
+			return writeErr
+		}
+
 		return err
 	}
 
@@ -142,6 +148,44 @@ func ask(
 	}
 
 	return output.Write(cmd.OutOrStdout(), outputMode, record)
+}
+
+func writeFailure(
+	cmd *cobra.Command,
+	settings rootSettings,
+	built *plan.Plan,
+	mode output.Mode,
+	flags *runFlags,
+	cause error,
+) error {
+	// -q suppresses output entirely, so the exit code carries the whole result.
+	if flags.quiet {
+		return nil
+	}
+
+	record := output.Record{Failure: describe(cause)}
+
+	for _, question := range built.Questions {
+		record.Answers = append(record.Answers,
+			output.Named{ID: question.ID, Answer: answer.Failed(question)})
+	}
+
+	if mode == output.Table {
+		return output.WriteTable(cmd.OutOrStdout(), record, output.Width(settings.lookupEnv))
+	}
+
+	return output.Write(cmd.OutOrStdout(), mode, record)
+}
+
+func describe(cause error) *output.Failure {
+	var api *jev.APIError
+	if errors.As(cause, &api) {
+		status := api.Status
+
+		return &output.Failure{Kind: "http", Status: &status, Message: cause.Error()}
+	}
+
+	return &output.Failure{Kind: "transport", Message: cause.Error()}
 }
 
 func quietResult(question plan.Question, a *answer.Answer) error {
