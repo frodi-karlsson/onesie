@@ -1122,3 +1122,103 @@ func TestWithAttemptObserver(t *testing.T) {
 		})
 	}
 }
+
+func TestClientSystemOneRaw(t *testing.T) {
+	t.Parallel()
+
+	compact := json.RawMessage(`{"state":"hi","model":"jev-latest","questions":{}}`)
+
+	tests := []struct {
+		name     string
+		status   int
+		response string
+		send     json.RawMessage
+		wantSent string
+		wantErr  bool
+	}{
+		{
+			name:     "should return the response body unchanged",
+			status:   http.StatusOK,
+			response: `{"model":"jev-1.0.0","answers":{"q":{"type":"noul","noul":0.25}}}`,
+		},
+		{
+			name:     "should return an api error for a non 2xx",
+			status:   http.StatusUnprocessableEntity,
+			response: `{"error":{"message":"state too large"}}`,
+			wantErr:  true,
+		},
+		{
+			name:     "should compact a pretty printed body without reordering it",
+			status:   http.StatusOK,
+			response: `{"model":"jev-1.0.0","answers":{}}`,
+			send:     json.RawMessage("{\n  \"state\": \"hi\",\n  \"model\": \"jev-latest\"\n}"),
+			wantSent: `{"state":"hi","model":"jev-latest"}`,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var (
+				mu   sync.Mutex
+				sent []byte
+			)
+
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				body, err := io.ReadAll(r.Body)
+				if err != nil {
+					t.Errorf("reading request body: %v", err)
+				}
+
+				mu.Lock()
+				sent = body
+				mu.Unlock()
+
+				w.WriteHeader(tc.status)
+				if _, err := w.Write([]byte(tc.response)); err != nil {
+					t.Errorf("writing stub response: %v", err)
+				}
+			}))
+			defer srv.Close()
+
+			client, _ := newTestClient(t, srv.URL)
+
+			body := tc.send
+			if body == nil {
+				body = compact
+			}
+
+			got, err := client.SystemOneRaw(t.Context(), body)
+
+			if tc.wantErr {
+				if err == nil {
+					t.Fatal("expected an error, got none")
+				}
+
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			wantSent := tc.wantSent
+			if wantSent == "" {
+				wantSent = string(body)
+			}
+
+			mu.Lock()
+			gotSent := string(sent)
+			mu.Unlock()
+
+			if gotSent != wantSent {
+				t.Errorf("sent body = %s, want %s", gotSent, wantSent)
+			}
+
+			if string(got) != tc.response {
+				t.Errorf("returned body = %s, want %s", got, tc.response)
+			}
+		})
+	}
+}

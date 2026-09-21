@@ -154,6 +154,22 @@ func (c *Client) SystemOne(ctx context.Context, req Request, opts ...RequestOpti
 	return result, nil
 }
 
+// SystemOneRaw sends a prepared request body and returns the response body unchanged. It runs the
+// same retry loop as SystemOne and performs no validation or normalization. The request body is
+// compacted on the way out, since encoding/json compacts whatever a Marshaler returns.
+func (c *Client) SystemOneRaw(
+	ctx context.Context,
+	body json.RawMessage,
+	opts ...RequestOption,
+) (json.RawMessage, error) {
+	res, err := c.do(ctx, http.MethodPost, systemOnePath, body, nil, opts...)
+	if err != nil {
+		return nil, err
+	}
+
+	return res.body, nil
+}
+
 // ListModels reports the model names this account may send.
 func (c *Client) ListModels(ctx context.Context, opts ...RequestOption) ([]ModelCard, error) {
 	var wire struct {
