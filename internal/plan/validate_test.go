@@ -638,6 +638,39 @@ func TestValidate(t *testing.T) {
 			wantErr:    "jev: --max-retry-after must be a positive number of seconds, got -5",
 		},
 		{
+			name:       "should reject a timeout above the ceiling",
+			positional: "is this urgent",
+			cfg:        plan.Config{Timeout: 86401, TimeoutSet: true, InputName: "text"},
+			wantErr:    "jev: --timeout takes at most 86400 seconds, got 86401",
+		},
+		{
+			name:       "should reject a timeout that would wrap a duration to a fraction",
+			positional: "is this urgent",
+			cfg:        plan.Config{Timeout: 18446744074, TimeoutSet: true, InputName: "text"},
+			wantErr:    "jev: --timeout takes at most 86400 seconds, got 18446744074",
+		},
+		{
+			name:       "should reject a max retry after above the ceiling",
+			positional: "is this urgent",
+			cfg: plan.Config{
+				MaxRetryAfter: 86401, MaxRetryAfterSet: true, InputName: "text",
+			},
+			wantErr: "jev: --max-retry-after takes at most 86400 seconds, got 86401",
+		},
+		{
+			name:       "should reject a max retry after that would wrap a duration to a fraction",
+			positional: "is this urgent",
+			cfg: plan.Config{
+				MaxRetryAfter: 18446744074, MaxRetryAfterSet: true, InputName: "text",
+			},
+			wantErr: "jev: --max-retry-after takes at most 86400 seconds, got 18446744074",
+		},
+		{
+			name:       "should accept a timeout at the ceiling",
+			positional: "is this urgent",
+			cfg:        plan.Config{Timeout: 86400, TimeoutSet: true, InputName: "text"},
+		},
+		{
 			name:       "should accept a retry count of zero",
 			positional: "is this urgent",
 			cfg:        plan.Config{Retries: 0, RetriesSet: true, InputName: "text"},

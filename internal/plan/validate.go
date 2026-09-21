@@ -131,6 +131,10 @@ func checkStreaming(cfg Config) (string, error) {
 			cfg.Timeout)
 	}
 
+	if err := tooManySeconds("--timeout", cfg.Timeout, cfg.TimeoutSet); err != nil {
+		return "", err
+	}
+
 	if cfg.RetriesSet && cfg.Retries < 0 {
 		return "", fmt.Errorf("jev: --retries takes a retry count of zero or more, got %d",
 			cfg.Retries)
@@ -143,6 +147,11 @@ func checkStreaming(cfg Config) (string, error) {
 		return "", fmt.Errorf(
 			"jev: --max-retry-after must be a positive number of seconds, got %d",
 			cfg.MaxRetryAfter)
+	}
+
+	err := tooManySeconds("--max-retry-after", cfg.MaxRetryAfter, cfg.MaxRetryAfterSet)
+	if err != nil {
+		return "", err
 	}
 
 	if !cfg.Streaming {
@@ -174,6 +183,16 @@ func checkStreaming(cfg Config) (string, error) {
 	}
 
 	return "", nil
+}
+
+func tooManySeconds(flag string, seconds int, set bool) error {
+	if !set || seconds <= limits.MaxSeconds {
+		return nil
+	}
+
+	// Seconds become a time.Duration downstream, and past a point that multiplication wraps. A
+	// wrap to a positive value would hand a user who asked for centuries a fraction of a second.
+	return fmt.Errorf("jev: %s takes at most %d seconds, got %d", flag, limits.MaxSeconds, seconds)
 }
 
 func mergeable(cfg Config) bool {

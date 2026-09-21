@@ -23,6 +23,10 @@ const (
 	DefaultRetries = 2
 	// DefaultMaxRetryAfter is the longest server requested delay jev will wait out.
 	DefaultMaxRetryAfter = 60 * time.Second
+	// MaxSeconds is the ceiling on a flag given in whole seconds. A day is beyond any sensible
+	// attempt timeout or server requested delay, and it leaves the conversion to a Duration far
+	// from the overflow that would turn a huge number into a fraction of a second.
+	MaxSeconds = 86400
 )
 
 // Report lists every constant in this package, for the --version dump.
@@ -35,6 +39,7 @@ func Report() []Entry {
 		{Name: "attempt-timeout", Value: DefaultAttemptTimeout.String()},
 		{Name: "retries", Value: strconv.Itoa(DefaultRetries)},
 		{Name: "max-retry-after", Value: DefaultMaxRetryAfter.String()},
+		{Name: "max-seconds", Value: strconv.Itoa(MaxSeconds)},
 	}
 }
 
