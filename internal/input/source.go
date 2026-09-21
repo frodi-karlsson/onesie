@@ -52,15 +52,16 @@ func ParseMode(name string) (Mode, error) {
 	case "lines":
 		return Lines, nil
 	case "request":
-		return Text, fmt.Errorf("jev: -i %s is not available yet", name)
+		return Request, nil
 	default:
-		return Text, fmt.Errorf("jev: -i takes text, json, jsonl or lines, got '%s'", name)
+		return Text, fmt.Errorf(
+			"jev: -i takes text, json, jsonl, lines or request, got '%s'", name)
 	}
 }
 
 // Streaming reports whether the mode reads one record per line.
 func (m Mode) Streaming() bool {
-	return m == JSONL || m == Lines
+	return m == JSONL || m == Lines || m == Request
 }
 
 // Mode is the input mode.
@@ -75,4 +76,6 @@ const (
 	JSONL
 	// Lines sends one text line per record, as a JSON string.
 	Lines
+	// Request reads one complete API request body per line and forwards it unchanged.
+	Request
 )

@@ -11,7 +11,7 @@ import (
 
 // Resolve decides where the state comes from and reads it. It performs no network call and reads
 // stdin at most once.
-func Resolve(req Request) (Resolved, error) {
+func Resolve(req Query) (Resolved, error) {
 	switch {
 	case req.HasStateFile:
 		body, err := req.ReadFile(req.StateFile)
@@ -34,9 +34,9 @@ func Resolve(req Request) (Resolved, error) {
 	}
 }
 
-// Request is everything Resolve needs. Stdin, the tty answer and the file reader are injected so a
+// Query is everything Resolve needs. Stdin, the tty answer and the file reader are injected so a
 // test controls all three without a real terminal or a fixture on disk.
-type Request struct {
+type Query struct {
 	Mode         Mode
 	Stdin        io.Reader
 	StdinTTY     bool
@@ -60,7 +60,7 @@ type Resolved struct {
 	Wire any
 }
 
-func fromStdin(req Request) (Resolved, error) {
+func fromStdin(req Query) (Resolved, error) {
 	if req.Stdin == nil {
 		return Resolved{Source: SourceNone}, nil
 	}

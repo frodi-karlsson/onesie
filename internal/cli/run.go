@@ -29,12 +29,72 @@ func run(
 	positional string,
 	flags *runFlags,
 ) error {
+	inputMode, err := input.ParseMode(flags.input)
+	if err != nil {
+		return err
+	}
+
+	cfg := plan.Config{
+		Raw:            flags.raw,
+		Quiet:          flags.quiet,
+		Output:         flags.output,
+		HasState:       cmd.Flags().Changed("state"),
+		HasStateFile:   cmd.Flags().Changed("state-file"),
+		Replace:        flags.replace,
+		FileName:       flags.file,
+		HasAsk:         asked(events),
+		HasPositional:  positional != "",
+		HasModel:       cmd.Flags().Changed("model"),
+		Usage:          flags.usage,
+		PrintQuestions: flags.printQuestions,
+		Streaming:      inputMode.Streaming(),
+		RequestMode:    inputMode == input.Request,
+		InputName:      inputName(flags.input),
+		Unordered:      flags.unordered,
+		StopOnError:    flags.stopOnError,
+		SkipBlank:      flags.skipBlank,
+		Merge:          merging(flags),
+		Jobs:           flags.jobs,
+		JobsSet:        cmd.Flags().Changed("jobs"),
+
+		Timeout:          flags.timeout,
+		TimeoutSet:       cmd.Flags().Changed("timeout"),
+		Retries:          flags.retries,
+		RetriesSet:       cmd.Flags().Changed("retries"),
+		MaxRetryAfter:    flags.maxRetryAfter,
+		MaxRetryAfterSet: cmd.Flags().Changed("max-retry-after"),
+	}
+
+	// Ahead of the plan, because -i request carries its own questions and assembling one would
+	// fail for want of a question the user was right not to give. CheckFlags is called here and
+	// nowhere else on this path, so its warning prints once.
+	if inputMode == input.Request {
+		warning, checkErr := plan.CheckFlags(cfg)
+		if warning != "" {
+			if _, printErr := fmt.Fprintln(cmd.ErrOrStderr(), warning); printErr != nil {
+				return printErr
+			}
+		}
+
+		if checkErr != nil {
+			return checkErr
+		}
+
+		return streamRaw(cmd, settings, flags)
+	}
+
+	// Every other mode needs a question, and reporting that here rather than from Assemble keeps
+	// the message the same whichever source was missing.
+	if positional == "" && len(events) == 0 && flags.file == "" {
+		return errors.New("jev: no question given. Pass a question, --ask, or -f")
+	}
+
 	var loaded *qfile.File
 
 	if flags.file != "" {
-		data, err := settings.readFile(flags.file)
-		if err != nil {
-			return fmt.Errorf("jev: reading %s: %w", flags.file, err)
+		data, readErr := settings.readFile(flags.file)
+		if readErr != nil {
+			return fmt.Errorf("jev: reading %s: %w", flags.file, readErr)
 		}
 
 		loaded, err = qfile.Load(data)
@@ -65,35 +125,7 @@ func run(
 		built.Model = loaded.Model
 	}
 
-	inputMode, err := input.ParseMode(flags.input)
-	if err != nil {
-		return err
-	}
-
-	warnings, err := plan.Validate(built, plan.Config{
-		Raw:          flags.raw,
-		Quiet:        flags.quiet,
-		Output:       flags.output,
-		HasState:     cmd.Flags().Changed("state"),
-		HasStateFile: cmd.Flags().Changed("state-file"),
-		Replace:      flags.replace,
-		FileName:     flags.file,
-		Streaming:    inputMode.Streaming(),
-		InputName:    inputName(flags.input),
-		Unordered:    flags.unordered,
-		StopOnError:  flags.stopOnError,
-		SkipBlank:    flags.skipBlank,
-		Merge:        merging(flags),
-		Jobs:         flags.jobs,
-		JobsSet:      cmd.Flags().Changed("jobs"),
-
-		Timeout:          flags.timeout,
-		TimeoutSet:       cmd.Flags().Changed("timeout"),
-		Retries:          flags.retries,
-		RetriesSet:       cmd.Flags().Changed("retries"),
-		MaxRetryAfter:    flags.maxRetryAfter,
-		MaxRetryAfterSet: cmd.Flags().Changed("max-retry-after"),
-	})
+	warnings, err := plan.Validate(built, cfg)
 
 	// Warnings print whether or not validation succeeded, so a run that fails for one reason still
 	// reports the others.
@@ -125,7 +157,7 @@ func run(
 		return stream(cmd, settings, built, inputMode, outputMode, flags)
 	}
 
-	resolved, err := input.Resolve(input.Request{
+	resolved, err := input.Resolve(input.Query{
 		Mode:         inputMode,
 		Stdin:        settings.stdin,
 		StdinTTY:     settings.stdinTTY,
@@ -178,6 +210,16 @@ func run(
 	}
 
 	return ask(cmd, settings, built, resolved, outputMode, flags)
+}
+
+func asked(events []argv.Event) bool {
+	for _, event := range events {
+		if event.Name == "ask" {
+			return true
+		}
+	}
+
+	return false
 }
 
 func inputName(flag string) string {

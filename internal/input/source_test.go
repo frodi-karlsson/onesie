@@ -14,7 +14,7 @@ func TestResolve(t *testing.T) {
 
 	tests := []struct {
 		name        string
-		req         input.Request
+		req         input.Query
 		wantSource  input.Source
 		wantState   any
 		wantErr     bool
@@ -22,7 +22,7 @@ func TestResolve(t *testing.T) {
 	}{
 		{
 			name: "should read stdin when it is a pipe",
-			req: input.Request{
+			req: input.Query{
 				Mode:     input.Text,
 				Stdin:    strings.NewReader("a ticket body"),
 				StdinTTY: false,
@@ -32,7 +32,7 @@ func TestResolve(t *testing.T) {
 		},
 		{
 			name: "should strip one trailing newline under text",
-			req: input.Request{
+			req: input.Query{
 				Mode:  input.Text,
 				Stdin: strings.NewReader("a ticket body\n"),
 			},
@@ -41,7 +41,7 @@ func TestResolve(t *testing.T) {
 		},
 		{
 			name: "should report no state for an empty pipe",
-			req: input.Request{
+			req: input.Query{
 				Mode:  input.Text,
 				Stdin: strings.NewReader(""),
 			},
@@ -49,7 +49,7 @@ func TestResolve(t *testing.T) {
 		},
 		{
 			name: "should report no state for a terminal",
-			req: input.Request{
+			req: input.Query{
 				Mode:     input.Text,
 				Stdin:    strings.NewReader("ignored"),
 				StdinTTY: true,
@@ -58,7 +58,7 @@ func TestResolve(t *testing.T) {
 		},
 		{
 			name: "should read a terminal when state is a dash",
-			req: input.Request{
+			req: input.Query{
 				Mode:     input.Text,
 				Stdin:    strings.NewReader("typed by hand"),
 				StdinTTY: true,
@@ -70,7 +70,7 @@ func TestResolve(t *testing.T) {
 		},
 		{
 			name: "should prefer an explicit state over stdin",
-			req: input.Request{
+			req: input.Query{
 				Mode:     input.Text,
 				Stdin:    strings.NewReader("ignored"),
 				State:    "from the flag",
@@ -81,7 +81,7 @@ func TestResolve(t *testing.T) {
 		},
 		{
 			name: "should keep a trailing newline given through --state",
-			req: input.Request{
+			req: input.Query{
 				Mode:     input.Text,
 				State:    "kept\n",
 				HasState: true,
@@ -91,7 +91,7 @@ func TestResolve(t *testing.T) {
 		},
 		{
 			name: "should read the state from a file",
-			req: input.Request{
+			req: input.Query{
 				Mode:         input.Text,
 				StateFile:    "ticket.txt",
 				HasStateFile: true,
@@ -104,7 +104,7 @@ func TestResolve(t *testing.T) {
 		},
 		{
 			name: "should report a missing state file",
-			req: input.Request{
+			req: input.Query{
 				Mode:         input.Text,
 				StateFile:    "gone.txt",
 				HasStateFile: true,
@@ -116,7 +116,7 @@ func TestResolve(t *testing.T) {
 		},
 		{
 			name: "should parse json mode into a value",
-			req: input.Request{
+			req: input.Query{
 				Mode:  input.JSON,
 				Stdin: strings.NewReader(`{"id":7}`),
 			},
@@ -125,7 +125,7 @@ func TestResolve(t *testing.T) {
 		},
 		{
 			name: "should reject a bare number under json",
-			req: input.Request{
+			req: input.Query{
 				Mode:  input.JSON,
 				Stdin: strings.NewReader("42"),
 			},
@@ -133,7 +133,7 @@ func TestResolve(t *testing.T) {
 		},
 		{
 			name: "should reject null under json",
-			req: input.Request{
+			req: input.Query{
 				Mode:  input.JSON,
 				Stdin: strings.NewReader("null"),
 			},
@@ -142,7 +142,7 @@ func TestResolve(t *testing.T) {
 		},
 		{
 			name: "should reject a boolean under json",
-			req: input.Request{
+			req: input.Query{
 				Mode:  input.JSON,
 				Stdin: strings.NewReader("true"),
 			},
@@ -150,7 +150,7 @@ func TestResolve(t *testing.T) {
 		},
 		{
 			name: "should accept an array under json",
-			req: input.Request{
+			req: input.Query{
 				Mode:  input.JSON,
 				Stdin: strings.NewReader(`["a"]`),
 			},
@@ -159,7 +159,7 @@ func TestResolve(t *testing.T) {
 		},
 		{
 			name: "should accept a bare string under json",
-			req: input.Request{
+			req: input.Query{
 				Mode:  input.JSON,
 				Stdin: strings.NewReader(`"just a string"`),
 			},
@@ -168,7 +168,7 @@ func TestResolve(t *testing.T) {
 		},
 		{
 			name: "should reject invalid utf8 under text",
-			req: input.Request{
+			req: input.Query{
 				Mode:  input.Text,
 				Stdin: strings.NewReader("bad \xff byte"),
 			},
@@ -243,15 +243,11 @@ func TestParseMode(t *testing.T) {
 		{name: "should parse json", flag: "json", wantMode: input.JSON},
 		{name: "should parse jsonl", flag: "jsonl", wantMode: input.JSONL},
 		{name: "should parse lines", flag: "lines", wantMode: input.Lines},
-		{
-			name:    "should report request as not available yet",
-			flag:    "request",
-			wantErr: "jev: -i request is not available yet",
-		},
+		{name: "should parse request", flag: "request", wantMode: input.Request},
 		{
 			name:    "should reject an unknown mode",
 			flag:    "yaml",
-			wantErr: "jev: -i takes text, json, jsonl or lines, got 'yaml'",
+			wantErr: "jev: -i takes text, json, jsonl, lines or request, got 'yaml'",
 		},
 	}
 
@@ -296,6 +292,7 @@ func TestModeStreaming(t *testing.T) {
 		{name: "should not stream under json", mode: input.JSON},
 		{name: "should stream under jsonl", mode: input.JSONL, want: true},
 		{name: "should stream under lines", mode: input.Lines, want: true},
+		{name: "should stream under request", mode: input.Request, want: true},
 	}
 
 	for _, tc := range tests {
@@ -338,7 +335,7 @@ func TestResolveWire(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := input.Resolve(input.Request{
+			got, err := input.Resolve(input.Query{
 				Mode:     tc.mode,
 				State:    tc.text,
 				HasState: true,

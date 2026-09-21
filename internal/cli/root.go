@@ -62,14 +62,11 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 				positional = args[0]
 			}
 
-			if positional == "" && len(recorder.Events()) == 0 && flags.file == "" {
-				// A bare jev is a request for help. Anything else is a real invocation that
-				// forgot its question, and help on stdout would corrupt the caller's pipe.
-				if cmd.Flags().NFlag() == 0 && len(args) == 0 {
-					return cmd.Help()
-				}
-
-				return errors.New("jev: no question given. Pass a question, --ask, or -f")
+			// A bare jev is a request for help. Anything else is a real invocation, and help on
+			// stdout would corrupt the caller's pipe. Whether it needs a question at all is left
+			// to run, since -i request carries its own.
+			if cmd.Flags().NFlag() == 0 && len(args) == 0 {
+				return cmd.Help()
 			}
 
 			return run(cmd, settings, recorder.Events(), positional, flags)
@@ -90,7 +87,8 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 	root.Flags().BoolVarP(&flags.quiet, "quiet", "q", false,
 		"suppress output, the exit code carries the answer")
 	root.Flags().BoolVar(&flags.usage, "usage", false, "add the api usage object to json output")
-	root.Flags().StringVarP(&flags.input, "input", "i", "text", "text, json, jsonl or lines")
+	root.Flags().StringVarP(&flags.input, "input", "i", "text",
+		"text, json, jsonl, lines or request")
 	root.Flags().StringVar(&flags.state, "state", "", "state to evaluate, or - to read stdin")
 	root.Flags().StringVar(&flags.stateFile, "state-file", "", "read the state from this file")
 	root.Flags().StringVarP(&flags.model, "model", "m", "", "model override")
