@@ -105,6 +105,10 @@ type Config struct {
 	HasAsk        bool
 	HasPositional bool
 
+	// GroupFlags names every group local flag the user typed, in argv order. A Config field per
+	// flag would say nothing a name cannot, and these only ever need to be rejected.
+	GroupFlags []string
+
 	// HasModel records that -m was given, which an empty Model string cannot do on its own.
 	HasModel       bool
 	Usage          bool
@@ -122,7 +126,10 @@ type Config struct {
 	StopOnError bool
 	SkipBlank   bool
 	Merge       bool
-	Jobs        int
+	// MergeName is the merge flag as the user spelled it, so a message names --merge-key when that
+	// is what was given. It defaults to --merge when empty.
+	MergeName string
+	Jobs      int
 	// JobsSet distinguishes -j 0 from -j absent, which an int cannot do on its own.
 	JobsSet bool
 
@@ -155,15 +162,27 @@ func checkRequestMode(cfg Config) error {
 		{cfg.FileName != "", "jev: -f does not apply to -i request, " +
 			"which carries its own questions"},
 		{cfg.Replace, "jev: --replace applies to -f, which -i request does not accept"},
+		{given(cfg, "pick"), "jev: -i request carries its own questions. Drop --pick"},
+		{given(cfg, "rate"), "jev: -i request carries its own questions. Drop --rate"},
+		{given(cfg, "desc"), "jev: -i request carries its own questions. Drop --desc"},
+		{given(cfg, "sep"), "jev: -i request carries its own questions. Drop --sep"},
+		{given(cfg, "threshold"), "jev: --threshold does not apply to -i request, " +
+			"which carries no policy"},
+		{given(cfg, "min-confidence"), "jev: --min-confidence does not apply to -i request, " +
+			"which carries no policy"},
+		{given(cfg, "fallback"), "jev: --fallback does not apply to -i request, " +
+			"which carries no policy"},
 		{cfg.HasState, "jev: --state does not apply to -i request, " +
 			"whose bodies carry their own state"},
 		{cfg.HasStateFile, "jev: --state-file does not apply to -i request, " +
 			"whose bodies carry their own state"},
 		{cfg.Output != "", "jev: -o does not apply to -i request, which forwards raw responses"},
+		{cfg.Raw, "jev: -r does not apply to -i request, which forwards raw responses"},
 		{cfg.Quiet, "jev: -q needs a policy to report, which -i request has none of"},
 		{cfg.Usage, "jev: --usage does not apply to -i request, " +
 			"whose response bodies already carry usage"},
-		{cfg.Merge, "jev: --merge does not apply to -i request, which forwards raw responses"},
+		{cfg.Merge, "jev: " + mergeFlag(cfg) +
+			" does not apply to -i request, which forwards raw responses"},
 		{cfg.HasModel, "jev: -m does not apply to -i request, " +
 			"whose bodies carry their own model"},
 		{cfg.PrintQuestions, "jev: --print-questions needs questions of its own, " +
@@ -177,10 +196,28 @@ func checkRequestMode(cfg Config) error {
 	return nil
 }
 
+func given(cfg Config, name string) bool {
+	for _, flag := range cfg.GroupFlags {
+		if flag == name {
+			return true
+		}
+	}
+
+	return false
+}
+
+func mergeFlag(cfg Config) string {
+	if cfg.MergeName == "" {
+		return "--merge"
+	}
+
+	return cfg.MergeName
+}
+
 func checkStreaming(cfg Config) (string, error) {
 	// Checked for every mode, since section 7 defines --merge for the non streaming ones too.
 	if cfg.Merge && !mergeable(cfg) {
-		return "", errors.New("jev: --merge needs -o json or -o values")
+		return "", fmt.Errorf("jev: %s needs -o json or -o values", mergeFlag(cfg))
 	}
 
 	// Also for every mode. The rule is rejected rather than clamped, and a typo in a shared alias

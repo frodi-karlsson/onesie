@@ -163,6 +163,87 @@ func TestStream(t *testing.T) {
 	}
 }
 
+func TestStreamRequestBody(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		in      string
+		wantErr string
+	}{
+		{
+			name: "should accept an object",
+			in:   `{"state":"x","questions":{}}`,
+		},
+		{
+			name: "should accept an object the api will reject, since the 422 is the answer",
+			in:   `{"hello":1}`,
+		},
+		{
+			name:    "should reject a number",
+			in:      "12",
+			wantErr: "line 1: a request body must be a JSON object, got number",
+		},
+		{
+			name:    "should reject an array",
+			in:      "[1,2,3]",
+			wantErr: "line 1: a request body must be a JSON object, got array",
+		},
+		{
+			name:    "should reject a string",
+			in:      `"just a string"`,
+			wantErr: "line 1: a request body must be a JSON object, got string",
+		},
+		{
+			name:    "should reject a boolean",
+			in:      "true",
+			wantErr: "line 1: a request body must be a JSON object, got boolean",
+		},
+		{
+			name:    "should reject null",
+			in:      "null",
+			wantErr: "line 1: a request body must be a JSON object, got null",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			stream := input.NewStream(strings.NewReader(tc.in+"\n"), input.Request, false)
+
+			record, ok, err := stream.Next()
+			if err != nil {
+				t.Fatalf("unexpected read error: %v", err)
+			}
+
+			if !ok {
+				t.Fatal("expected a record, got none")
+			}
+
+			if tc.wantErr == "" {
+				if record.Err != nil {
+					t.Fatalf("unexpected record error: %v", record.Err)
+				}
+
+				if record.Raw != tc.in {
+					t.Errorf("raw = %q, want %q", record.Raw, tc.in)
+				}
+
+				return
+			}
+
+			if record.Err == nil {
+				t.Fatal("expected a record error, got none")
+			}
+
+			if record.Err.Error() != tc.wantErr {
+				t.Errorf("error = %q, want %q", record.Err.Error(), tc.wantErr)
+			}
+		})
+	}
+}
+
 func TestStreamLineNumbers(t *testing.T) {
 	t.Parallel()
 

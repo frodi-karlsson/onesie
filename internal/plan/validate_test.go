@@ -563,6 +563,17 @@ func TestValidate(t *testing.T) {
 			wantErr:    "--merge needs -o json or -o values",
 		},
 		{
+			name:       "should name --merge-key when that is the flag given",
+			positional: "is this urgent",
+			cfg: plan.Config{
+				Merge:     true,
+				MergeName: "--merge-key",
+				Output:    "table",
+				InputName: "text",
+			},
+			wantErr: "--merge-key needs -o json or -o values",
+		},
+		{
 			name:       "should reject merge with the -r spelling of raw",
 			positional: "is this urgent",
 			cfg:        plan.Config{Merge: true, Raw: true, InputName: "text"},
@@ -851,6 +862,44 @@ func TestCheckFlags(t *testing.T) {
 			wantErr: "jev: --replace applies to -f, which -i request does not accept",
 		},
 		{
+			name:    "should reject --pick with -i request",
+			cfg:     request(func(c *plan.Config) { c.GroupFlags = []string{"pick"} }),
+			wantErr: "jev: -i request carries its own questions. Drop --pick",
+		},
+		{
+			name:    "should reject --rate with -i request",
+			cfg:     request(func(c *plan.Config) { c.GroupFlags = []string{"rate"} }),
+			wantErr: "jev: -i request carries its own questions. Drop --rate",
+		},
+		{
+			name:    "should reject --desc with -i request",
+			cfg:     request(func(c *plan.Config) { c.GroupFlags = []string{"desc"} }),
+			wantErr: "jev: -i request carries its own questions. Drop --desc",
+		},
+		{
+			name:    "should reject --sep with -i request",
+			cfg:     request(func(c *plan.Config) { c.GroupFlags = []string{"sep"} }),
+			wantErr: "jev: -i request carries its own questions. Drop --sep",
+		},
+		{
+			name: "should reject --threshold with -i request",
+			cfg:  request(func(c *plan.Config) { c.GroupFlags = []string{"threshold"} }),
+			wantErr: "jev: --threshold does not apply to -i request, " +
+				"which carries no policy",
+		},
+		{
+			name: "should reject --min-confidence with -i request",
+			cfg:  request(func(c *plan.Config) { c.GroupFlags = []string{"min-confidence"} }),
+			wantErr: "jev: --min-confidence does not apply to -i request, " +
+				"which carries no policy",
+		},
+		{
+			name: "should reject --fallback with -i request",
+			cfg:  request(func(c *plan.Config) { c.GroupFlags = []string{"fallback"} }),
+			wantErr: "jev: --fallback does not apply to -i request, " +
+				"which carries no policy",
+		},
+		{
 			name: "should reject --state with -i request",
 			cfg:  request(func(c *plan.Config) { c.HasState = true }),
 			wantErr: "jev: --state does not apply to -i request, " +
@@ -868,6 +917,11 @@ func TestCheckFlags(t *testing.T) {
 			wantErr: "jev: -o does not apply to -i request, which forwards raw responses",
 		},
 		{
+			name:    "should reject -r with -i request",
+			cfg:     request(func(c *plan.Config) { c.Raw = true }),
+			wantErr: "jev: -r does not apply to -i request, which forwards raw responses",
+		},
+		{
 			name:    "should reject -q with -i request",
 			cfg:     request(func(c *plan.Config) { c.Quiet = true }),
 			wantErr: "jev: -q needs a policy to report, which -i request has none of",
@@ -882,6 +936,15 @@ func TestCheckFlags(t *testing.T) {
 			name:    "should reject --merge with -i request",
 			cfg:     request(func(c *plan.Config) { c.Merge = true }),
 			wantErr: "jev: --merge does not apply to -i request, which forwards raw responses",
+		},
+		{
+			name: "should name --merge-key when that is the flag given",
+			cfg: request(func(c *plan.Config) {
+				c.Merge = true
+				c.MergeName = "--merge-key"
+			}),
+			wantErr: "jev: --merge-key does not apply to -i request, " +
+				"which forwards raw responses",
 		},
 		{
 			name: "should reject -m with -i request",

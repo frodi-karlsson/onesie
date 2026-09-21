@@ -156,11 +156,42 @@ func (s *Stream) record(line string) Record {
 		return s.fail(line, fmt.Errorf("line is not one complete JSON value: %w", err))
 	}
 
-	if err := CheckState(value); err != nil {
+	if err := s.check(value); err != nil {
 		return s.fail(line, err)
 	}
 
 	return s.ok(line, value, json.RawMessage(line))
+}
+
+func (s *Stream) check(value any) error {
+	if s.mode != Request {
+		return CheckState(value)
+	}
+
+	// Section 10 forwards a request body opaquely, so only its outermost shape is checked. A body
+	// the API will reject for its contents is still sent, and the 422 is the answer.
+	if _, object := value.(map[string]any); object {
+		return nil
+	}
+
+	return fmt.Errorf("a request body must be a JSON object, got %s", jsonNoun(value))
+}
+
+func jsonNoun(value any) string {
+	switch value.(type) {
+	case nil:
+		return "null"
+	case bool:
+		return "boolean"
+	case string:
+		return "string"
+	case []any:
+		return "array"
+	case map[string]any:
+		return "object"
+	default:
+		return "number"
+	}
 }
 
 func (s *Stream) ok(line string, state, wire any) Record {

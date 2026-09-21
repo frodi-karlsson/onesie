@@ -43,6 +43,7 @@ func run(
 		Replace:        flags.replace,
 		FileName:       flags.file,
 		HasAsk:         asked(events),
+		GroupFlags:     eventNames(events),
 		HasPositional:  positional != "",
 		HasModel:       cmd.Flags().Changed("model"),
 		Usage:          flags.usage,
@@ -54,6 +55,7 @@ func run(
 		StopOnError:    flags.stopOnError,
 		SkipBlank:      flags.skipBlank,
 		Merge:          merging(flags),
+		MergeName:      mergeName(flags),
 		Jobs:           flags.jobs,
 		JobsSet:        cmd.Flags().Changed("jobs"),
 
@@ -67,7 +69,8 @@ func run(
 
 	// Ahead of the plan, because -i request carries its own questions and assembling one would
 	// fail for want of a question the user was right not to give. CheckFlags is called here and
-	// nowhere else on this path, so its warning prints once.
+	// nowhere else on this path, so its warning prints once. No rule warns for a streaming mode
+	// today, so the print below is for a warning a later rule may add.
 	if inputMode == input.Request {
 		warning, checkErr := plan.CheckFlags(cfg)
 		if warning != "" {
@@ -222,6 +225,15 @@ func asked(events []argv.Event) bool {
 	return false
 }
 
+func eventNames(events []argv.Event) []string {
+	names := make([]string, 0, len(events))
+	for _, event := range events {
+		names = append(names, event.Name)
+	}
+
+	return names
+}
+
 func inputName(flag string) string {
 	// The flag defaults to the empty string when it was not given, and every message that names
 	// the mode would otherwise read -i with nothing after it.
@@ -374,6 +386,18 @@ func aborting(err error) bool {
 
 func merging(flags *runFlags) bool {
 	return flags.merge || flags.mergeKey != ""
+}
+
+func mergeName(flags *runFlags) string {
+	if flags.merge {
+		return "--merge"
+	}
+
+	if flags.mergeKey != "" {
+		return "--merge-key"
+	}
+
+	return ""
 }
 
 func mergeKey(flags *runFlags) string {

@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/frodi-karlsson/jev-cli/internal/jev"
 )
@@ -66,6 +67,50 @@ func TestStreamRaw(t *testing.T) {
 			wantCode: ExitOK,
 		},
 		{
+			name:     "should write one line for a newline terminated response",
+			args:     []string{"-i", "request"},
+			stdin:    "{\"state\":\"a\"}\n{\"state\":\"b\"}\n",
+			response: `{"answers":{}}` + "\n",
+			wantSent: []string{`{"state":"a"}`, `{"state":"b"}`},
+			wantOut:  []string{`{"answers":{}}`, `{"answers":{}}`},
+			wantCode: ExitOK,
+		},
+		{
+			name:     "should write one line for a pretty printed response",
+			args:     []string{"-i", "request"},
+			stdin:    "{\"state\":\"a\"}\n{\"state\":\"b\"}\n",
+			response: "{\n  \"answers\": {\n    \"a\": 1\n  }\n}\n",
+			wantSent: []string{`{"state":"a"}`, `{"state":"b"}`},
+			wantOut:  []string{`{"answers":{"a":1}}`, `{"answers":{"a":1}}`},
+			wantCode: ExitOK,
+		},
+		{
+			name:     "should write one line for a response that is not JSON at all",
+			args:     []string{"-i", "request"},
+			stdin:    "{\"state\":\"a\"}\n",
+			response: "not json\nat all\n",
+			wantSent: []string{`{"state":"a"}`},
+			wantOut:  []string{"not json at all"},
+			wantCode: ExitOK,
+		},
+		{
+			name:     "should send a body the way --print-request printed it",
+			args:     []string{"-i", "request"},
+			stdin:    `{"state":"a < b & c > d"}` + "\n",
+			response: answered,
+			wantSent: []string{`{"state":"a < b & c > d"}`},
+			wantOut:  []string{answered},
+			wantCode: ExitOK,
+		},
+		{
+			name:     "should print a spaced body unchanged under --print-request",
+			args:     []string{"-i", "request", "--print-request"},
+			stdin:    "{\"state\": \"a < b\"}\n",
+			response: answered,
+			wantOut:  []string{`{"state": "a < b"}`},
+			wantCode: ExitOK,
+		},
+		{
 			name:     "should write nothing for an empty stream",
 			args:     []string{"-i", "request"},
 			stdin:    "",
@@ -104,33 +149,74 @@ func TestStreamRawFailures(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name     string
-		args     []string
-		stdin    string
-		status   int
-		response string
-		wantSent int
-		wantOut  []string
-		wantCode int
+		name      string
+		args      []string
+		stdin     string
+		status    int
+		response  string
+		wantSent  int
+		wantLines int
+		wantOut   []string
+		wantErr   string
+		wantCode  int
 	}{
 		{
-			name:     "should write an error record for a line that is not JSON",
-			args:     []string{"-i", "request"},
-			stdin:    "{\"state\":\"one\"}\nnot json\n",
-			response: `{"answers":{}}`,
-			wantSent: 1,
-			wantOut:  []string{`{"answers":{}}`, `{"error":{"kind":"input"`, "line 2"},
+			name:      "should write an error record for a line that is not JSON",
+			args:      []string{"-i", "request"},
+			stdin:     "{\"state\":\"one\"}\nnot json\n",
+			response:  `{"answers":{}}`,
+			wantSent:  1,
+			wantLines: 2,
+			wantOut:   []string{`{"answers":{}}`, `{"error":{"kind":"input"`, "line 2"},
+			wantCode:  ExitRecords,
+		},
+		{
+			name:      "should write an error record for a line that is not a JSON object",
+			args:      []string{"-i", "request"},
+			stdin:     "{\"state\":\"one\"}\n12\n[1,2,3]\n\"just a string\"\n",
+			response:  `{"answers":{}}`,
+			wantSent:  1,
+			wantLines: 4,
+			wantOut: []string{
+				"line 2: a request body must be a JSON object, got number",
+				"line 3: a request body must be a JSON object, got array",
+				"line 4: a request body must be a JSON object, got string",
+			},
 			wantCode: ExitRecords,
 		},
 		{
-			name:     "should write an error record when the server rejects a body",
-			args:     []string{"-i", "request"},
-			stdin:    "{\"state\":\"one\"}\n",
-			status:   http.StatusUnprocessableEntity,
-			response: `{"error":{"message":"questions is required"}}`,
-			wantSent: 1,
-			wantOut:  []string{`{"error":{"kind":"http"`, `"status":422`},
-			wantCode: ExitRecords,
+			name:      "should send an object the API will reject rather than judging it",
+			args:      []string{"-i", "request"},
+			stdin:     "{\"hello\":1}\n",
+			status:    http.StatusUnprocessableEntity,
+			response:  `{"error":{"message":"questions is required"}}`,
+			wantSent:  1,
+			wantLines: 1,
+			wantOut:   []string{`{"error":{"kind":"http"`, `"status":422`},
+			wantCode:  ExitRecords,
+		},
+		{
+			name:      "should write an error record when the server rejects a body",
+			args:      []string{"-i", "request"},
+			stdin:     "{\"state\":\"one\"}\n",
+			status:    http.StatusUnprocessableEntity,
+			response:  `{"error":{"message":"questions is required"}}`,
+			wantSent:  1,
+			wantLines: 1,
+			wantOut:   []string{`{"error":{"kind":"http"`, `"status":422`},
+			wantCode:  ExitRecords,
+		},
+		{
+			name:      "should end the run at a 401 rather than failing every line",
+			args:      []string{"-i", "request"},
+			stdin:     "{\"state\":\"one\"}\n{\"state\":\"two\"}\n{\"state\":\"three\"}\n",
+			status:    http.StatusUnauthorized,
+			response:  `{"error":{"message":"invalid api key"}}`,
+			wantSent:  1,
+			wantLines: 1,
+			wantOut:   []string{`{"error":{"kind":"http"`, `"status":401`},
+			wantErr:   "jev:",
+			wantCode:  ExitAuth,
 		},
 	}
 
@@ -152,10 +238,10 @@ func TestStreamRawFailures(t *testing.T) {
 			written := outputLines(out)
 
 			// One line per input line, which is what a consumer reading line by line needs. A
-			// failure writes jev's error record rather than a blank line.
-			if len(written) != len(outputLines(tc.stdin)) {
-				t.Errorf("wrote %d lines, want %d\ngot:\n%s",
-					len(written), len(outputLines(tc.stdin)), out)
+			// failure writes jev's error record rather than a blank line, and a run that aborts
+			// writes the prefix it completed rather than a record for every line left.
+			if len(written) != tc.wantLines {
+				t.Errorf("wrote %d lines, want %d\ngot:\n%s", len(written), tc.wantLines, out)
 			}
 
 			for i, line := range written {
@@ -170,8 +256,222 @@ func TestStreamRawFailures(t *testing.T) {
 				}
 			}
 
-			if errOut != "" {
+			if tc.wantErr == "" && errOut != "" {
 				t.Errorf("stderr should be empty, got:\n%s", errOut)
+			}
+
+			if tc.wantErr != "" && !strings.Contains(errOut, tc.wantErr) {
+				t.Errorf("stderr missing %q, got:\n%s", tc.wantErr, errOut)
+			}
+		})
+	}
+}
+
+func TestStreamRawJobs(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		args    []string
+		flight  int
+		records int
+	}{
+		{
+			name:    "should keep -j records in flight at once",
+			args:    []string{"-i", "request", "-j", "4"},
+			flight:  4,
+			records: 8,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Every request blocks until as many as -j allows are in flight together, so a run
+			// that serialises them never opens the gate and fails on the deadline rather than
+			// passing by accident.
+			var (
+				mu      sync.Mutex
+				arrived int
+			)
+
+			gate := make(chan struct{})
+
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				mu.Lock()
+				arrived++
+
+				if arrived == tc.flight {
+					close(gate)
+				}
+
+				mu.Unlock()
+
+				select {
+				case <-gate:
+				case <-time.After(3 * time.Second):
+					t.Errorf("only %d requests were in flight, want %d", arrived, tc.flight)
+				}
+
+				w.Header().Set("Content-Type", "application/json")
+
+				if _, err := io.WriteString(w, `{"answers":{}}`); err != nil {
+					t.Errorf("writing the stub response: %v", err)
+				}
+			}))
+			defer srv.Close()
+
+			var stdin strings.Builder
+
+			for i := range tc.records {
+				fmt.Fprintf(&stdin, "{\"state\":%d}\n", i)
+			}
+
+			out, errOut, code := runAgainst(t, tc.args, stdin.String(), srv.URL)
+
+			if code != ExitOK {
+				t.Fatalf("exit code = %d, want %d\nstdout:\n%s\nstderr:\n%s",
+					code, ExitOK, out, errOut)
+			}
+
+			if got := len(outputLines(out)); got != tc.records {
+				t.Errorf("wrote %d lines, want %d\ngot:\n%s", got, tc.records, out)
+			}
+		})
+	}
+}
+
+func TestStreamRawUnordered(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		args     []string
+		wantLast string
+	}{
+		{
+			name:     "should write a record as it completes rather than in input order",
+			args:     []string{"-i", "request", "--unordered", "-j", "3"},
+			wantLast: `{"state":0}`,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			// The first record is held until the two behind it have been answered, so input order
+			// and completion order disagree and only a run that writes on completion can put the
+			// first record last.
+			var (
+				mu   sync.Mutex
+				done int
+			)
+
+			others := make(chan struct{})
+
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				body, err := io.ReadAll(r.Body)
+				if err != nil {
+					t.Errorf("reading the request body: %v", err)
+				}
+
+				if bytes.Contains(body, []byte(`{"state":0}`)) {
+					select {
+					case <-others:
+					case <-time.After(3 * time.Second):
+						t.Errorf("the later records never completed")
+					}
+
+					// The gate says the two responses were written, not that the client has read
+					// them. A settle is the only thing that separates the two.
+					time.Sleep(200 * time.Millisecond)
+				}
+
+				w.Header().Set("Content-Type", "application/json")
+
+				if _, err := w.Write(body); err != nil {
+					t.Errorf("writing the stub response: %v", err)
+				}
+
+				mu.Lock()
+				done++
+
+				if done == 2 {
+					close(others)
+				}
+
+				mu.Unlock()
+			}))
+			defer srv.Close()
+
+			out, errOut, code := runAgainst(
+				t, tc.args, "{\"state\":0}\n{\"state\":1}\n{\"state\":2}\n", srv.URL)
+
+			if code != ExitOK {
+				t.Fatalf("exit code = %d, want %d\nstdout:\n%s\nstderr:\n%s",
+					code, ExitOK, out, errOut)
+			}
+
+			written := outputLines(out)
+			if len(written) != 3 {
+				t.Fatalf("wrote %d lines, want 3\ngot:\n%s", len(written), out)
+			}
+
+			if written[len(written)-1] != tc.wantLast {
+				t.Errorf("last line = %s, want %s\ngot:\n%s",
+					written[len(written)-1], tc.wantLast, out)
+			}
+		})
+	}
+}
+
+func TestStreamRawStopOnError(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		args      []string
+		stdin     string
+		wantSent  int
+		wantLines int
+		wantCode  int
+	}{
+		{
+			name:      "should end the run at the first failed record",
+			args:      []string{"-i", "request", "--stop-on-error"},
+			stdin:     "not json\n{\"state\":\"a\"}\n{\"state\":\"b\"}\n",
+			wantSent:  0,
+			wantLines: 1,
+			wantCode:  ExitUsage,
+		},
+		{
+			name:      "should read every record without it",
+			args:      []string{"-i", "request"},
+			stdin:     "not json\n{\"state\":\"a\"}\n{\"state\":\"b\"}\n",
+			wantSent:  2,
+			wantLines: 3,
+			wantCode:  ExitRecords,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			sent, out, _, code := runRequestMode(t, tc.args, tc.stdin, 0, `{"answers":{}}`)
+
+			if code != tc.wantCode {
+				t.Fatalf("exit code = %d, want %d\nstdout:\n%s", code, tc.wantCode, out)
+			}
+
+			if len(sent) != tc.wantSent {
+				t.Errorf("sent %d bodies, want %d: %q", len(sent), tc.wantSent, sent)
+			}
+
+			if got := len(outputLines(out)); got != tc.wantLines {
+				t.Errorf("wrote %d lines, want %d\ngot:\n%s", got, tc.wantLines, out)
 			}
 		})
 	}
@@ -267,6 +567,44 @@ func TestNewRootCmdRequestFlags(t *testing.T) {
 			wantErr: "jev: --replace applies to -f, which -i request does not accept",
 		},
 		{
+			name:    "should reject --pick with -i request",
+			args:    []string{"-i", "request", "--pick", "a,b"},
+			wantErr: "jev: -i request carries its own questions. Drop --pick",
+		},
+		{
+			name:    "should reject --rate with -i request",
+			args:    []string{"-i", "request", "--rate", "low,high"},
+			wantErr: "jev: -i request carries its own questions. Drop --rate",
+		},
+		{
+			name:    "should reject --desc with -i request",
+			args:    []string{"-i", "request", "--desc", "a=first"},
+			wantErr: "jev: -i request carries its own questions. Drop --desc",
+		},
+		{
+			name:    "should reject --sep with -i request",
+			args:    []string{"-i", "request", "--sep", ";"},
+			wantErr: "jev: -i request carries its own questions. Drop --sep",
+		},
+		{
+			name: "should reject --threshold with -i request",
+			args: []string{"-i", "request", "--threshold", "0.5"},
+			wantErr: "jev: --threshold does not apply to -i request, " +
+				"which carries no policy",
+		},
+		{
+			name: "should reject --min-confidence with -i request",
+			args: []string{"-i", "request", "--min-confidence", "0.5"},
+			wantErr: "jev: --min-confidence does not apply to -i request, " +
+				"which carries no policy",
+		},
+		{
+			name: "should reject --fallback with -i request",
+			args: []string{"-i", "request", "--fallback", "maybe"},
+			wantErr: "jev: --fallback does not apply to -i request, " +
+				"which carries no policy",
+		},
+		{
 			name: "should reject --state with -i request",
 			args: []string{"-i", "request", "--state", "x"},
 			wantErr: "jev: --state does not apply to -i request, " +
@@ -284,6 +622,11 @@ func TestNewRootCmdRequestFlags(t *testing.T) {
 			wantErr: "jev: -o does not apply to -i request, which forwards raw responses",
 		},
 		{
+			name:    "should reject -r with -i request",
+			args:    []string{"-i", "request", "-r"},
+			wantErr: "jev: -r does not apply to -i request, which forwards raw responses",
+		},
+		{
 			name:    "should reject -q with -i request",
 			args:    []string{"-i", "request", "-q"},
 			wantErr: "jev: -q needs a policy to report, which -i request has none of",
@@ -298,6 +641,12 @@ func TestNewRootCmdRequestFlags(t *testing.T) {
 			name:    "should reject --merge with -i request",
 			args:    []string{"-i", "request", "--merge"},
 			wantErr: "jev: --merge does not apply to -i request, which forwards raw responses",
+		},
+		{
+			name: "should name --merge-key when that is the flag given",
+			args: []string{"-i", "request", "--merge-key", "verdict"},
+			wantErr: "jev: --merge-key does not apply to -i request, " +
+				"which forwards raw responses",
 		},
 		{
 			name: "should reject -m with -i request",
@@ -410,6 +759,17 @@ func runRequestMode(
 	}))
 	defer srv.Close()
 
+	out, errOut, code := runAgainst(t, args, stdin, srv.URL)
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	return sent, out, errOut, code
+}
+
+func runAgainst(t *testing.T, args []string, stdin, baseURL string) (string, string, int) {
+	t.Helper()
+
 	var out, errOut bytes.Buffer
 
 	root := NewRootCmd(
@@ -417,7 +777,7 @@ func runRequestMode(
 		WithClientFactory(func(context.Context) (*jev.Client, error) {
 			return jev.New(
 				jev.WithAPIKey("k"),
-				jev.WithBaseURL(srv.URL),
+				jev.WithBaseURL(baseURL),
 				jev.WithEnv(func(string) (string, bool) { return "", false }),
 			)
 		}),
@@ -433,10 +793,7 @@ func runRequestMode(
 
 	code := Execute(t.Context(), root)
 
-	mu.Lock()
-	defer mu.Unlock()
-
-	return sent, out.String(), errOut.String(), code
+	return out.String(), errOut.String(), code
 }
 
 func compareLines(got, want []string) string {

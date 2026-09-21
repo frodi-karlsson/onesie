@@ -255,7 +255,19 @@ func (c *Client) do(
 
 	var payload []byte
 
-	if body != nil {
+	switch prepared := body.(type) {
+	case nil:
+	case json.RawMessage:
+		// Compacted rather than re-marshalled. json.Marshal HTML escapes, and a caller that
+		// prepared its own body is entitled to have it forwarded as written.
+		var flat bytes.Buffer
+
+		if err := json.Compact(&flat, prepared); err != nil {
+			return nil, fmt.Errorf("jev: encoding request: %w", err)
+		}
+
+		payload = flat.Bytes()
+	default:
 		encoded, err := json.Marshal(body)
 		if err != nil {
 			return nil, fmt.Errorf("jev: encoding request: %w", err)

@@ -1156,6 +1156,18 @@ func TestClientSystemOneRaw(t *testing.T) {
 			wantErr:  true,
 		},
 		{
+			name:     "should forward a body without HTML escaping it",
+			status:   http.StatusOK,
+			response: `{"model":"jev-1.0.0","answers":{}}`,
+			send:     json.RawMessage(`{"state":"a < b & c > d"}`),
+		},
+		{
+			name:     "should forward the line separators json.Marshal would escape",
+			status:   http.StatusOK,
+			response: `{"model":"jev-1.0.0","answers":{}}`,
+			send:     json.RawMessage("{\"state\":\"a\u2028b\u2029c\"}"),
+		},
+		{
 			name:     "should compact a pretty printed body without reordering it",
 			status:   http.StatusOK,
 			response: `{"model":"jev-1.0.0","answers":{}}`,

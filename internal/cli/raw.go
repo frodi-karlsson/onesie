@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -49,7 +50,7 @@ func streamRaw(cmd *cobra.Command, settings rootSettings, flags *runFlags) error
 				return errorLine(err), err
 			}
 
-			return body, nil
+			return oneLine(body), nil
 		},
 		Write: func(body []byte) error {
 			_, writeErr := fmt.Fprintln(out, string(body))
@@ -66,4 +67,18 @@ func streamRaw(cmd *cobra.Command, settings rootSettings, flags *runFlags) error
 	}
 
 	return streamResult(result)
+}
+
+func oneLine(body []byte) []byte {
+	// A server that newline terminates or pretty prints its JSON would otherwise turn one record
+	// into several output lines, which is the one promise section 8 makes about this mode. Every
+	// other streaming path encodes its own record and never faces this.
+	var flat bytes.Buffer
+
+	if err := json.Compact(&flat, body); err == nil {
+		return flat.Bytes()
+	}
+
+	// Not JSON, so there is nothing to compact. The newlines still have to go.
+	return bytes.ReplaceAll(bytes.TrimRight(body, "\n"), []byte("\n"), []byte(" "))
 }
