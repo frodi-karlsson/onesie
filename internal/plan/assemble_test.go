@@ -50,8 +50,8 @@ func TestAssemble(t *testing.T) {
 					t.Errorf("shape = %s, want noul", p.Questions[0].Shape)
 				}
 
-				if p.Questions[0].Named {
-					t.Error("a positional question must not be marked Named")
+				if p.Questions[0].Origin != plan.OriginPositional {
+					t.Error("a positional question must carry the positional origin")
 				}
 			},
 		},
@@ -438,8 +438,8 @@ func TestAssembleWithFile(t *testing.T) {
 
 	fileQuestions := func() []plan.Question {
 		return []plan.Question{
-			{ID: "urgent", Shape: plan.Noul, Instructions: "is this urgent", Named: true},
-			{ID: "team", Shape: plan.Noul, Instructions: "which team", Named: true},
+			{ID: "urgent", Shape: plan.Noul, Instructions: "is this urgent", Origin: plan.OriginFile},
+			{ID: "team", Shape: plan.Noul, Instructions: "which team", Origin: plan.OriginFile},
 		}
 	}
 
@@ -518,7 +518,7 @@ func TestAssembleWithFile(t *testing.T) {
 			name: "should bind top level flags to a lone file question",
 			src: plan.Source{
 				File: []plan.Question{
-					{ID: "team", Shape: plan.Noul, Instructions: "which team", Named: true},
+					{ID: "team", Shape: plan.Noul, Instructions: "which team", Origin: plan.OriginFile},
 				},
 				Events:   []argv.Event{{Name: "pick", Value: "billing,technical"}},
 				ReadFile: readFile,
@@ -558,7 +558,7 @@ func TestAssembleWithFile(t *testing.T) {
 			name: "should bind a policy flag to a lone file question",
 			src: plan.Source{
 				File: []plan.Question{
-					{ID: "urgent", Shape: plan.Noul, Instructions: "is this urgent", Named: true},
+					{ID: "urgent", Shape: plan.Noul, Instructions: "is this urgent", Origin: plan.OriginFile},
 				},
 				Events:   []argv.Event{{Name: "threshold", Value: "0.9"}},
 				ReadFile: readFile,
@@ -579,7 +579,7 @@ func TestAssembleWithFile(t *testing.T) {
 			name: "should orphan a leading flag when a file question joins a lone ask",
 			src: plan.Source{
 				File: []plan.Question{
-					{ID: "urgent", Shape: plan.Noul, Instructions: "is this urgent", Named: true},
+					{ID: "urgent", Shape: plan.Noul, Instructions: "is this urgent", Origin: plan.OriginFile},
 				},
 				Events: []argv.Event{
 					{Name: "threshold", Value: "0.8"},
@@ -628,7 +628,7 @@ func TestAssembleWithFile(t *testing.T) {
 			src: plan.Source{
 				File: []plan.Question{
 					{
-						ID: "urgent", Shape: plan.Noul, Instructions: "q", Named: true,
+						ID: "urgent", Shape: plan.Noul, Instructions: "q", Origin: plan.OriginFile,
 						Criteria: &plan.YesNoCriteria{Yes: "FILE YES", No: "FILE NO"},
 					},
 				},
@@ -657,7 +657,7 @@ func TestAssembleWithFile(t *testing.T) {
 			src: plan.Source{
 				File: []plan.Question{
 					{
-						ID: "urgent", Shape: plan.Noul, Instructions: "q", Named: true,
+						ID: "urgent", Shape: plan.Noul, Instructions: "q", Origin: plan.OriginFile,
 						Criteria: &plan.YesNoCriteria{Yes: "FILE YES", No: "FILE NO"},
 					},
 				},
@@ -677,7 +677,7 @@ func TestAssembleWithFile(t *testing.T) {
 			name: "should still build criteria for a question that had none",
 			src: plan.Source{
 				File: []plan.Question{
-					{ID: "urgent", Shape: plan.Noul, Instructions: "q", Named: true},
+					{ID: "urgent", Shape: plan.Noul, Instructions: "q", Origin: plan.OriginFile},
 				},
 				Events:   []argv.Event{{Name: "desc", Value: "yes=CLI YES"}},
 				ReadFile: readFile,
@@ -695,7 +695,7 @@ func TestAssembleWithFile(t *testing.T) {
 			name: "should reject a shape flag aimed at a body question",
 			src: plan.Source{
 				File: []plan.Question{
-					{ID: "bq", Shape: plan.Noul, Instructions: "q", Named: true, FromBody: true},
+					{ID: "bq", Shape: plan.Noul, Instructions: "q", Origin: plan.OriginBody},
 				},
 				Events:   []argv.Event{{Name: "pick", Value: "x,y"}},
 				ReadFile: readFile,
@@ -707,7 +707,7 @@ func TestAssembleWithFile(t *testing.T) {
 			name: "should reject a desc aimed at a body question",
 			src: plan.Source{
 				File: []plan.Question{
-					{ID: "bq", Shape: plan.Noul, Instructions: "q", Named: true, FromBody: true},
+					{ID: "bq", Shape: plan.Noul, Instructions: "q", Origin: plan.OriginBody},
 				},
 				Events:   []argv.Event{{Name: "desc", Value: "yes=nope"}},
 				ReadFile: readFile,
@@ -718,7 +718,7 @@ func TestAssembleWithFile(t *testing.T) {
 			name: "should bind a policy flag to a lone body question",
 			src: plan.Source{
 				File: []plan.Question{
-					{ID: "bq", Shape: plan.Noul, Instructions: "q", Named: true, FromBody: true},
+					{ID: "bq", Shape: plan.Noul, Instructions: "q", Origin: plan.OriginBody},
 				},
 				Events:   []argv.Event{{Name: "threshold", Value: "0.8"}},
 				ReadFile: readFile,

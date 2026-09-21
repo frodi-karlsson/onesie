@@ -82,7 +82,7 @@ func checkBodyPolicy(p *Plan, name string) error {
 	body := 0
 
 	for _, question := range p.Questions {
-		if question.FromBody {
+		if question.Origin == OriginBody {
 			body++
 		}
 	}
@@ -100,7 +100,7 @@ func checkBodyPolicy(p *Plan, name string) error {
 	}
 
 	for _, question := range p.Questions {
-		if !question.FromBody {
+		if question.Origin != OriginBody {
 			continue
 		}
 
@@ -147,7 +147,7 @@ func checkSources(p *Plan) error {
 	named, positional := 0, 0
 
 	for _, question := range p.Questions {
-		if question.Named {
+		if question.Origin.Chosen() {
 			named++
 
 			continue
@@ -182,7 +182,7 @@ func checkDuplicateIDs(p *Plan) error {
 func checkQuestion(q *Question) (string, error) {
 	// The positional question is keyed answer by design, so the reserved list only applies to an
 	// id the user chose.
-	if q.Named && (reserved(q.ID) || q.ID == PositionalID) {
+	if q.Origin.Chosen() && (reserved(q.ID) || q.ID == PositionalID) {
 		return "", fmt.Errorf("jev: question id '%s' is reserved", q.ID)
 	}
 
@@ -207,20 +207,22 @@ func checkPick(q *Question) (string, error) {
 		names = append(names, option.Name)
 	}
 
+	pick := shapeName(q, "--pick")
+
 	switch {
 	case len(q.Options) < limits.MinChoiceOptions:
-		return "", tooFew("--pick", "options", len(q.Options), names)
+		return "", tooFew(pick, "options", len(q.Options), names)
 	case len(q.Options) > limits.MaxChoiceOptions:
-		return "", fmt.Errorf("jev: --pick takes at most %d options, got %d",
-			limits.MaxChoiceOptions, len(q.Options))
+		return "", fmt.Errorf("jev: %s takes at most %d options, got %d",
+			pick, limits.MaxChoiceOptions, len(q.Options))
 	}
 
 	if dupe, found := firstDuplicate(names); found {
 		return "", fmt.Errorf(
-			"jev: --pick option '%s' is listed twice in question '%s'", dupe, q.ID)
+			"jev: %s option '%s' is listed twice in question '%s'", pick, dupe, q.ID)
 	}
 
-	if err := checkUnknownDesc(q, names, "--pick"); err != nil {
+	if err := checkUnknownDesc(q, names, pick); err != nil {
 		return "", err
 	}
 
@@ -230,7 +232,7 @@ func checkPick(q *Question) (string, error) {
 
 	// A body's null criteria are already frozen and legal, so the partial description warning
 	// names nothing the user can act on.
-	if q.FromBody {
+	if q.Origin == OriginBody {
 		return "", nil
 	}
 
@@ -249,16 +251,18 @@ func checkRate(q *Question) error {
 		}
 	}
 
+	rate := shapeName(q, "--rate")
+
 	switch {
 	case len(q.Levels) < limits.MinScoreLevels:
-		return tooFew("--rate", "levels", len(q.Levels), labels)
+		return tooFew(rate, "levels", len(q.Levels), labels)
 	case len(q.Levels) > limits.MaxScoreLevels:
-		return fmt.Errorf("jev: --rate takes at most %d levels, got %d",
-			limits.MaxScoreLevels, len(q.Levels))
+		return fmt.Errorf("jev: %s takes at most %d levels, got %d",
+			rate, limits.MaxScoreLevels, len(q.Levels))
 	}
 
 	if q.Labelled {
-		if err := checkRubric(q, labels); err != nil {
+		if err := checkRubric(q, rate, labels); err != nil {
 			return err
 		}
 	}
@@ -266,23 +270,23 @@ func checkRate(q *Question) error {
 	return checkPolicy(q, false)
 }
 
-func tooFew(flag, noun string, count int, names []string) error {
+func tooFew(name, noun string, count int, names []string) error {
 	// A single unnamed entry is the empty list spelling, from --pick with an empty value or from
 	// a body's unlabelled levels. Naming it would print the separator and nothing else.
 	listed := strings.Join(names, ", ")
 	if listed == "" {
-		return fmt.Errorf("jev: %s needs at least two %s, got %d", flag, noun, count)
+		return fmt.Errorf("jev: %s needs at least two %s, got %d", name, noun, count)
 	}
 
-	return fmt.Errorf("jev: %s needs at least two %s, got %d: %s", flag, noun, count, listed)
+	return fmt.Errorf("jev: %s needs at least two %s, got %d: %s", name, noun, count, listed)
 }
 
-func checkRubric(q *Question, labels []string) error {
+func checkRubric(q *Question, rate string, labels []string) error {
 	if dupe, found := firstDuplicate(labels); found {
-		return fmt.Errorf("jev: --rate label '%s' is listed twice in question '%s'", dupe, q.ID)
+		return fmt.Errorf("jev: %s label '%s' is listed twice in question '%s'", rate, dupe, q.ID)
 	}
 
-	if err := checkUnknownDesc(q, labels, "--rate"); err != nil {
+	if err := checkUnknownDesc(q, labels, rate); err != nil {
 		return err
 	}
 
@@ -291,8 +295,8 @@ func checkRubric(q *Question, labels []string) error {
 	have := described(q)
 	if len(have) != 0 && len(have) != len(labels) {
 		return fmt.Errorf(
-			"jev: --rate levels must all be described or all bare. '%s' describes %s but not %s",
-			q.ID, strings.Join(have, ", "), strings.Join(missing(labels, have), ", "),
+			"jev: %s levels must all be described or all bare. '%s' describes %s but not %s",
+			rate, q.ID, strings.Join(have, ", "), strings.Join(missing(labels, have), ", "),
 		)
 	}
 
@@ -312,6 +316,9 @@ func checkNoul(q *Question) error {
 
 func checkPolicy(q *Question, yesNo bool) error {
 	policy := q.Policy
+	threshold := spelling(q.Origin, "--threshold")
+	confidence := spelling(q.Origin, "--min-confidence")
+	fallback := spelling(q.Origin, "--fallback")
 
 	if policy.Threshold != nil {
 		if !yesNo {
@@ -321,53 +328,57 @@ func checkPolicy(q *Question, yesNo bool) error {
 			}
 
 			return fmt.Errorf(
-				"jev: --threshold cuts a yes/no probability. '%s' has %s, "+
-					"use --min-confidence with --fallback", q.ID, noun)
+				"jev: %s cuts a yes/no probability. '%s' has %s, use %s with %s",
+				threshold, q.ID, noun, confidence, fallback)
 		}
 
 		if *policy.Threshold < 0 || *policy.Threshold > 1 {
-			return fmt.Errorf("jev: --threshold must be between 0 and 1, got %s",
-				strconv.FormatFloat(*policy.Threshold, 'g', -1, 64))
+			return fmt.Errorf("jev: %s must be between 0 and 1, got %s",
+				threshold, strconv.FormatFloat(*policy.Threshold, 'g', -1, 64))
 		}
 	}
 
 	if policy.MinConfidence != nil {
 		if yesNo {
 			return fmt.Errorf(
-				"jev: --min-confidence needs a confidence value. '%s' is a yes/no question, "+
-					"use --threshold, or add --pick or --rate", q.ID)
+				"jev: %s needs a confidence value. '%s' is a yes/no question, "+
+					"use %s, or add %s or %s",
+				confidence, q.ID, threshold,
+				spelling(q.Origin, "--pick"), spelling(q.Origin, "--rate"))
 		}
 
 		if *policy.MinConfidence < 0 || *policy.MinConfidence > 1 {
-			return fmt.Errorf("jev: --min-confidence must be between 0 and 1, got %s",
-				strconv.FormatFloat(*policy.MinConfidence, 'g', -1, 64))
+			return fmt.Errorf("jev: %s must be between 0 and 1, got %s",
+				confidence, strconv.FormatFloat(*policy.MinConfidence, 'g', -1, 64))
 		}
 
 		if policy.Fallback == nil {
 			return fmt.Errorf(
-				"jev: --min-confidence needs --fallback, nothing to substitute for '%s'", q.ID)
+				"jev: %s needs %s, nothing to substitute for '%s'", confidence, fallback, q.ID)
 		}
 	}
 
 	if yesNo && policy.Fallback != nil {
 		if _, ok := ParseFallback(policy.Fallback.Text); !ok {
 			return fmt.Errorf(
-				"jev: --fallback on a yes/no question takes true, false, yes or no, got '%s'",
-				policy.Fallback.Text)
+				"jev: %s on a yes/no question takes true, false, yes or no, got '%s'",
+				fallback, policy.Fallback.Text)
 		}
 	}
 
 	return nil
 }
 
-func checkUnknownDesc(q *Question, vocabulary []string, flag string) error {
+func checkUnknownDesc(q *Question, vocabulary []string, shape string) error {
 	for _, key := range q.DescOrder {
 		if _, unknown := q.UnknownDesc[key]; !unknown {
 			continue
 		}
 
+		// The key itself always comes from --desc, since a file has no way to name one. Only the
+		// vocabulary it missed is spelled the way the question was written.
 		return fmt.Errorf("jev: --desc names an unknown key '%s' in question '%s'. %s has: %s",
-			key, q.ID, flag, strings.Join(vocabulary, ", "))
+			key, q.ID, shape, strings.Join(vocabulary, ", "))
 	}
 
 	return nil
@@ -404,11 +415,42 @@ func checkSingle(p *Plan, cfg Config) error {
 	only := p.Questions[0]
 	if cfg.Quiet && only.Shape != Noul && only.Policy.MinConfidence == nil {
 		return fmt.Errorf(
-			"jev: -q on '%s' needs --min-confidence and --fallback. "+
-				"Without a policy the exit code is always 0", only.ID)
+			"jev: -q on '%s' needs %s and %s. Without a policy the exit code is always 0",
+			only.ID, spelling(only.Origin, "--min-confidence"), spelling(only.Origin, "--fallback"))
 	}
 
 	return nil
+}
+
+func shapeName(q *Question, flag string) string {
+	// A body has neither flags nor file keys. Its options and levels are the entries of a single
+	// criteria key, which is the only thing a message can point the reader at.
+	if q.Origin == OriginBody {
+		return "'criteria'"
+	}
+
+	return spelling(q.Origin, flag)
+}
+
+func spelling(origin Origin, flag string) string {
+	if origin != OriginFile {
+		return flag
+	}
+
+	switch flag {
+	case "--pick":
+		return "'pick'"
+	case "--rate":
+		return "'rate'"
+	case "--threshold":
+		return "'threshold'"
+	case "--min-confidence":
+		return "'min_confidence'"
+	case "--fallback":
+		return "'fallback'"
+	default:
+		return flag
+	}
 }
 
 func describedHint(q *Question, names, have []string) string {

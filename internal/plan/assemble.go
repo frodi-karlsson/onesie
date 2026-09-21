@@ -37,7 +37,7 @@ func Assemble(src Source) (*Plan, error) {
 	// handles a lone --ask group, so this covers the case where the single question came from a
 	// file. With any other count they have nothing to bind to and validation reports them.
 	if len(orphans) > 0 && len(built.Questions) == 1 {
-		if built.Questions[0].FromBody {
+		if built.Questions[0].Origin == OriginBody {
 			for _, event := range orphans {
 				if !policyFlag(event.Name) {
 					return nil, fmt.Errorf(
@@ -109,7 +109,7 @@ func split(events []argv.Event, positional string, hasFile bool) ([]group, []arg
 }
 
 func build(g group, readFile func(string) ([]byte, error)) (Question, error) {
-	question := Question{ID: g.id, Instructions: g.text}
+	question := Question{ID: g.id, Instructions: g.text, Origin: OriginPositional}
 
 	if g.asked {
 		id, text, ok := strings.Cut(g.ask, "=")
@@ -124,7 +124,7 @@ func build(g group, readFile func(string) ([]byte, error)) (Question, error) {
 
 		question.ID = id
 		question.Instructions = resolved
-		question.Named = true
+		question.Origin = OriginFlag
 	}
 
 	if err := applyEvents(&question, g.events, readFile); err != nil {

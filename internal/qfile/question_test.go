@@ -37,8 +37,8 @@ func TestLoadYesNo(t *testing.T) {
 					t.Errorf("instructions = %v", q.Instructions)
 				}
 
-				if !q.Named {
-					t.Error("a file question must be Named, so reserved ids are rejected")
+				if q.Origin != plan.OriginFile {
+					t.Error("a file question must carry the file origin, so reserved ids are rejected")
 				}
 			},
 		},
@@ -499,24 +499,34 @@ func TestLoadPolicy(t *testing.T) {
 			},
 		},
 		{
-			name:    "should reject a structured fallback",
+			name:    "should name the kind of a structured fallback",
 			doc:     "team:\n  ask: q\n  pick: [a, b]\n  fallback:\n    x: 1\n",
-			wantErr: "'fallback' in question 'team' must be a string",
+			wantErr: "'fallback' in question 'team' must be a string, got a mapping",
 		},
 		{
-			name:    "should reject a sequence fallback",
+			name:    "should name the kind of a sequence fallback",
 			doc:     "team:\n  ask: q\n  pick: [a, b]\n  fallback: [a, b]\n",
-			wantErr: "'fallback' in question 'team' must be a string",
+			wantErr: "'fallback' in question 'team' must be a string, got a sequence",
+		},
+		{
+			name:    "should name an empty fallback as null",
+			doc:     "team:\n  ask: q\n  pick: [a, b]\n  fallback:\n",
+			wantErr: "'fallback' in question 'team' must be a string, got null",
 		},
 		{
 			name:    "should reject a non numeric threshold",
 			doc:     "urgent:\n  ask: q\n  threshold: soon\n",
-			wantErr: "threshold",
+			wantErr: "'threshold' in question 'urgent' must be a number, got 'soon'",
+		},
+		{
+			name:    "should name the kind of a structured min_confidence",
+			doc:     "team:\n  ask: q\n  pick: [a, b]\n  min_confidence:\n    x: 1\n",
+			wantErr: "'min_confidence' in question 'team' must be a number, got a mapping",
 		},
 		{
 			name:    "should reject a non numeric min_confidence",
 			doc:     "team:\n  ask: q\n  pick: [a, b]\n  min_confidence: high\n",
-			wantErr: "min_confidence",
+			wantErr: "'min_confidence' in question 'team' must be a number, got 'high'",
 		},
 		{
 			name:    "should reject a top level assert key until it is supported",

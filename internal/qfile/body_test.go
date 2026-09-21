@@ -183,9 +183,9 @@ func TestLoadBody(t *testing.T) {
 			wantErr: "questions",
 		},
 		{
-			name:    "should reject a structured model",
+			name:    "should name the kind of a structured model",
 			doc:     `{"model":{"name":"jev"},"questions":{"a":{"type":"noul"}}}`,
-			wantErr: "'model' in a request body must be a string",
+			wantErr: "'model' in a request body must be a string, got a mapping",
 		},
 	}
 

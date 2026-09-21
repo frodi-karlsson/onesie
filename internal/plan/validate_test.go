@@ -39,7 +39,7 @@ func TestValidate(t *testing.T) {
 			name:       "should reject a positional combined with a file question",
 			positional: "is this urgent",
 			file: []plan.Question{
-				{ID: "urgent", Shape: plan.Noul, Instructions: "is this urgent", Named: true},
+				{ID: "urgent", Shape: plan.Noul, Instructions: "is this urgent", Origin: plan.OriginFile},
 			},
 			wantErr: "jev: a positional question cannot be combined with --ask or -f",
 		},
@@ -312,7 +312,7 @@ func TestValidate(t *testing.T) {
 		{
 			name: "should reject policy carried by a body question itself",
 			file: append(bodyQuestions(1), plan.Question{
-				ID: "b2", Shape: plan.Noul, Instructions: "q", Named: true, FromBody: true,
+				ID: "b2", Shape: plan.Noul, Instructions: "q", Origin: plan.OriginBody,
 				Policy: plan.Policy{Threshold: pointerTo(0.8)},
 			}),
 			wantErr: "the question file has 2",
@@ -338,7 +338,7 @@ func TestValidate(t *testing.T) {
 		{
 			name: "should accept replace alongside a file",
 			file: []plan.Question{
-				{ID: "urgent", Shape: plan.Noul, Instructions: "q", Named: true},
+				{ID: "urgent", Shape: plan.Noul, Instructions: "q", Origin: plan.OriginFile},
 			},
 			cfg: plan.Config{Replace: true, FileName: "triage.yaml"},
 		},
@@ -353,7 +353,15 @@ func TestValidate(t *testing.T) {
 		{
 			name:      "should report an unlabelled body's level count without a list",
 			file:      bodyLevels(1),
-			wantExact: "jev: --rate needs at least two levels, got 1",
+			wantExact: "jev: 'criteria' needs at least two levels, got 1",
+		},
+		{
+			name: "should name criteria when a body's choice has one option",
+			file: []plan.Question{{
+				ID: "bq", Shape: plan.Pick, Instructions: "q", Origin: plan.OriginBody,
+				Options: []plan.Option{{Name: "only"}},
+			}},
+			wantExact: "jev: 'criteria' needs at least two options, got 1: only",
 		},
 		{
 			name: "should not hold an unlabelled body to the all described or all bare rule",
@@ -366,9 +374,94 @@ func TestValidate(t *testing.T) {
 		{
 			name: "should not warn about a body's partly described options",
 			file: []plan.Question{{
-				ID: "bq", Shape: plan.Pick, Instructions: "q", Named: true, FromBody: true,
+				ID: "bq", Shape: plan.Pick, Instructions: "q", Origin: plan.OriginBody,
 				Options: []plan.Option{{Name: "x", Desc: "X"}, {Name: "y"}},
 			}},
+		},
+		{
+			name:      "should name the pick key when a file question has one option",
+			file:      filePick("only"),
+			wantExact: "jev: 'pick' needs at least two options, got 1: only",
+		},
+		{
+			name: "should keep the flag spelling when the question was opened with ask",
+			events: []argv.Event{
+				{Name: "ask", Value: "team=first"},
+				{Name: "pick", Value: "only"},
+			},
+			wantExact: "jev: --pick needs at least two options, got 1: only",
+		},
+		{
+			name:      "should name the pick key for a file's duplicate option",
+			file:      filePick("billing", "billing"),
+			wantExact: "jev: 'pick' option 'billing' is listed twice in question 'team'",
+		},
+		{
+			name:   "should name the pick key in a file question's desc vocabulary",
+			file:   filePick("billing", "technical"),
+			events: []argv.Event{{Name: "desc", Value: "bilingl=x"}},
+			wantExact: "jev: --desc names an unknown key 'bilingl' in question 'team'. " +
+				"'pick' has: billing, technical",
+		},
+		{
+			name: "should name the rate key for a file's mixed rubric",
+			file: []plan.Question{{
+				ID: "severity", Shape: plan.Rate, Instructions: "q", Origin: plan.OriginFile,
+				Labelled: true,
+				Levels: []plan.Level{
+					{Label: "minor"}, {Label: "major", Desc: "bad"},
+				},
+			}},
+			wantExact: "jev: 'rate' levels must all be described or all bare. " +
+				"'severity' describes major but not minor",
+		},
+		{
+			name: "should name the file's keys when min_confidence has no fallback",
+			file: withPolicy(filePick("billing", "technical"), plan.Policy{
+				MinConfidence: pointerTo(0.7),
+			}),
+			wantExact: "jev: 'min_confidence' needs 'fallback', nothing to substitute for 'team'",
+		},
+		{
+			name: "should name the file's keys in the threshold remedy",
+			file: withPolicy(filePick("billing", "technical"), plan.Policy{
+				Threshold: pointerTo(0.8),
+			}),
+			wantExact: "jev: 'threshold' cuts a yes/no probability. 'team' has options, " +
+				"use 'min_confidence' with 'fallback'",
+		},
+		{
+			name: "should name the file's keys when min_confidence lands on a yes/no question",
+			file: []plan.Question{{
+				ID: "urgent", Shape: plan.Noul, Instructions: "q", Origin: plan.OriginFile,
+				Policy: plan.Policy{MinConfidence: pointerTo(0.7)},
+			}},
+			wantExact: "jev: 'min_confidence' needs a confidence value. 'urgent' is a yes/no " +
+				"question, use 'threshold', or add 'pick' or 'rate'",
+		},
+		{
+			name: "should name the threshold key when a file's value is out of range",
+			file: []plan.Question{{
+				ID: "urgent", Shape: plan.Noul, Instructions: "q", Origin: plan.OriginFile,
+				Policy: plan.Policy{Threshold: pointerTo(85.0)},
+			}},
+			wantExact: "jev: 'threshold' must be between 0 and 1, got 85",
+		},
+		{
+			name: "should name the fallback key when a file's yes/no value is not a boolean",
+			file: []plan.Question{{
+				ID: "urgent", Shape: plan.Noul, Instructions: "q", Origin: plan.OriginFile,
+				Policy: plan.Policy{Fallback: &plan.Fallback{Text: "human"}},
+			}},
+			wantExact: "jev: 'fallback' on a yes/no question takes true, false, yes or no, " +
+				"got 'human'",
+		},
+		{
+			name: "should name the file's keys in the quiet policy remedy",
+			file: filePick("billing", "technical"),
+			cfg:  plan.Config{Quiet: true},
+			wantExact: "jev: -q on 'team' needs 'min_confidence' and 'fallback'. " +
+				"Without a policy the exit code is always 0",
 		},
 	}
 
@@ -447,6 +540,24 @@ func pointerTo[T any](value T) *T {
 	return &value
 }
 
+func filePick(options ...string) []plan.Question {
+	named := make([]plan.Option, 0, len(options))
+	for _, option := range options {
+		named = append(named, plan.Option{Name: option})
+	}
+
+	return []plan.Question{{
+		ID: "team", Shape: plan.Pick, Instructions: "q", Origin: plan.OriginFile,
+		Options: named,
+	}}
+}
+
+func withPolicy(questions []plan.Question, policy plan.Policy) []plan.Question {
+	questions[0].Policy = policy
+
+	return questions
+}
+
 func bodyLevels(n int) []plan.Question {
 	levels := make([]plan.Level, 0, n)
 	for i := range n {
@@ -462,7 +573,7 @@ func bodyLevels(n int) []plan.Question {
 	}
 
 	return []plan.Question{{
-		ID: "bq", Shape: plan.Rate, Instructions: "q", Named: true, FromBody: true,
+		ID: "bq", Shape: plan.Rate, Instructions: "q", Origin: plan.OriginBody,
 		Levels: levels,
 	}}
 }
@@ -474,8 +585,7 @@ func bodyQuestions(n int) []plan.Question {
 			ID:           "b" + strconv.Itoa(i),
 			Shape:        plan.Noul,
 			Instructions: "q",
-			Named:        true,
-			FromBody:     true,
+			Origin:       plan.OriginBody,
 		})
 	}
 

@@ -26,13 +26,9 @@ type Question struct {
 	// Criteria is set only for a Noul question, from --desc yes= and --desc no=.
 	Criteria *YesNoCriteria
 
-	// Named is true when the user chose the id, through --ask or a question file, rather than it
-	// being the reserved id a bare positional question is keyed under.
-	Named bool
-
-	// FromBody is true when the question came from a raw API request body rather than from a
-	// question file or the command line. A body carries no labels and no policy of its own.
-	FromBody bool
+	// Origin is where the question came from. A body carries no labels and no policy of its own,
+	// and a message spells the offending thing the way the origin does.
+	Origin Origin
 
 	// Labelled is meaningful only when Shape is Rate. A pick question always has option names and
 	// a yes/no question never has labels, so only a score question can arrive unlabelled, through
@@ -69,6 +65,27 @@ func (s Shape) String() string {
 	default:
 		return "noul"
 	}
+}
+
+// Origin is where a question came from, which decides how a message spells the thing that is
+// wrong. A file says pick where the command line says --pick.
+type Origin int
+
+const (
+	// OriginPositional is the bare QUESTION argument, keyed under the reserved positional id.
+	OriginPositional Origin = iota
+	// OriginFlag is a question opened with --ask.
+	OriginFlag
+	// OriginFile is a question read from a question file.
+	OriginFile
+	// OriginBody is a question read from a raw API request body.
+	OriginBody
+)
+
+// Chosen reports whether the user picked the question's id, which is every origin but the
+// positional one.
+func (o Origin) Chosen() bool {
+	return o != OriginPositional
 }
 
 // Option is one choice, with the description sent as criteria. A nil Desc sends null, which the

@@ -27,8 +27,7 @@ func loadQuestions(top yaml.MapSlice) (*File, error) {
 }
 
 func buildQuestion(id string, value any) (plan.Question, error) {
-	// Named gates the reserved id check, and a file id is chosen by the user just as an --ask id is.
-	question := plan.Question{ID: id, Named: true}
+	question := plan.Question{ID: id, Origin: plan.OriginFile}
 
 	if text, ok := value.(string); ok {
 		question.Instructions = text
@@ -278,7 +277,7 @@ func readNumber(id, key string, value any) (float64, error) {
 		return float64(typed), nil
 	default:
 		return 0, fmt.Errorf(
-			"jev: '%s' in question '%s' must be a number, got '%v'", key, id, value)
+			"jev: '%s' in question '%s' must be a number, got %s", key, id, describe(value))
 	}
 }
 
@@ -292,7 +291,7 @@ func readFallback(id string, value any) (string, error) {
 		return strconv.FormatBool(typed), nil
 	default:
 		return "", fmt.Errorf(
-			"jev: 'fallback' in question '%s' must be a string, got '%v'", id, value)
+			"jev: 'fallback' in question '%s' must be a string, got %s", id, describe(value))
 	}
 }
 

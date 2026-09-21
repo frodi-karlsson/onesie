@@ -15,7 +15,7 @@ func loadBody(top yaml.MapSlice) (*File, error) {
 		name, ok := value.(string)
 		if !ok {
 			return nil, fmt.Errorf(
-				"jev: 'model' in a request body must be a string, got '%v'", value)
+				"jev: 'model' in a request body must be a string, got %s", describe(value))
 		}
 
 		file.Model = name
@@ -50,7 +50,7 @@ func loadBody(top yaml.MapSlice) (*File, error) {
 }
 
 func buildBodyQuestion(id string, value any) (plan.Question, error) {
-	question := plan.Question{ID: id, Named: true, FromBody: true}
+	question := plan.Question{ID: id, Origin: plan.OriginBody}
 
 	fields, ok := mapping(value)
 	if !ok {

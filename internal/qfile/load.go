@@ -107,3 +107,18 @@ func mapping(value any) (yaml.MapSlice, bool) {
 
 	return items, ok
 }
+
+func describe(value any) string {
+	// Printing a mapping or a sequence with %v gives Go's own formatting, which is neither the
+	// YAML nor the JSON the reader wrote, so only a scalar is quoted back at them.
+	switch typed := value.(type) {
+	case yaml.MapSlice:
+		return "a mapping"
+	case []any:
+		return "a sequence"
+	case nil:
+		return "null"
+	default:
+		return fmt.Sprintf("'%v'", typed)
+	}
+}
