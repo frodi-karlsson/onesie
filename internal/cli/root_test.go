@@ -598,6 +598,87 @@ func TestNewRootCmd(t *testing.T) {
 			sends:    []string{`"criteria":{"zebra":"z","mike":"m","alpha":"a"}`},
 		},
 		{
+			name: "should keep a structured body choice criterion in written order",
+			args: []string{"-f", "body.json", "-o", "json"},
+			files: map[string]string{
+				"body.json": `{"state":"x","questions":` +
+					`{"bq":{"type":"choice","instructions":"q",` +
+					`"criteria":{"zebra":{"what":"z","examples":["zz"]},"alpha":"a"}}}}`,
+			},
+			response: `{"model":"jev-1.13.0","answers":{"bq":{"type":"choice",` +
+				`"choice":"zebra","confidence":0.9,` +
+				`"probabilities":{"zebra":0.9,"alpha":0.1}}},` +
+				`"usage":{"input_tokens":10,"output_tokens":2}}`,
+			wantCode: cli.ExitOK,
+			sends: []string{
+				`"criteria":{"zebra":{"what":"z","examples":["zz"]},"alpha":"a"}`,
+			},
+		},
+		{
+			name: "should keep a structured body noul rubric in written order",
+			args: []string{"-f", "body.json", "-o", "json"},
+			files: map[string]string{
+				"body.json": `{"state":"x","questions":` +
+					`{"bq":{"type":"noul","instructions":"q",` +
+					`"criteria":{"true":{"what":"y","examples":["yy"]},"false":"n"}}}}`,
+			},
+			response: `{"model":"jev-1.13.0","answers":{"bq":{"type":"noul","noul":0.92}},` +
+				`"usage":{"input_tokens":10,"output_tokens":2}}`,
+			wantCode: cli.ExitOK,
+			sends: []string{
+				`"criteria":{"true":{"what":"y","examples":["yy"]},"false":"n"}`,
+			},
+		},
+		{
+			name: "should keep a structured body score criterion in written order",
+			args: []string{"-f", "body.json", "-o", "json"},
+			files: map[string]string{
+				"body.json": `{"state":"x","questions":` +
+					`{"bq":{"type":"score","instructions":"q",` +
+					`"criteria":[{"what":"z","examples":["zz"]},"a"]}}}`,
+			},
+			response: `{"model":"jev-1.13.0","answers":{"bq":{"type":"score","score":1.0,` +
+				`"confidence":0.92,"legend":{"0":"a","1":"b"},` +
+				`"probabilities":{"0":0.1,"1":0.9}}},` +
+				`"usage":{"input_tokens":10,"output_tokens":2}}`,
+			wantCode: cli.ExitOK,
+			sends: []string{
+				`"criteria":[{"what":"z","examples":["zz"]},"a"]`,
+			},
+		},
+		{
+			name: "should keep a question file's structured rubric in file order",
+			args: []string{"-f", "q.yaml", "-o", "json"},
+			files: map[string]string{
+				"q.yaml": "urgent:\n  ask: q\n  yes_means:\n    what: y\n" +
+					"    examples: [yy]\n  no_means: n\n",
+			},
+			stdin: "the server is down",
+			response: `{"model":"jev-1.13.0","answers":{"urgent":{"type":"noul","noul":0.92}},` +
+				`"usage":{"input_tokens":10,"output_tokens":2}}`,
+			wantCode: cli.ExitOK,
+			sends: []string{
+				`"criteria":{"true":{"what":"y","examples":["yy"]},"false":"n"}`,
+			},
+		},
+		{
+			name: "should keep a question file's structured level description in file order",
+			args: []string{"-f", "q.yaml", "-o", "json"},
+			files: map[string]string{
+				"q.yaml": "mood:\n  ask: how is it\n  rate:\n    low:\n      what: z\n" +
+					"      examples: [zz]\n    high: h\n",
+			},
+			stdin: "the server is down",
+			response: `{"model":"jev-1.13.0","answers":{"mood":{"type":"score","score":1.0,` +
+				`"confidence":0.92,"legend":{"0":"a","1":"b"},` +
+				`"probabilities":{"0":0.1,"1":0.9}}},` +
+				`"usage":{"input_tokens":10,"output_tokens":2}}`,
+			wantCode: cli.ExitOK,
+			sends: []string{
+				`"criteria":[{"what":"z","examples":["zz"]},"h"]`,
+			},
+		},
+		{
 			name: "should keep question ids in the order they were given",
 			args: []string{
 				"--ask", "zebra=one", "--ask", "mike=two", "--ask", "alpha=three", "-o", "json",
