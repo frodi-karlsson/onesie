@@ -1230,3 +1230,219 @@ func TestClientSystemOneRaw(t *testing.T) {
 		})
 	}
 }
+
+func TestMarshalBody(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		req  jev.Request
+		want string
+	}{
+		{
+			name: "should encode state model and questions in that order",
+			req: jev.Request{
+				State: "the server is down",
+				Model: "jev-1.13.0",
+				Questions: jev.Questions{
+					{ID: "urgent", Question: jev.Noul{Instructions: "q"}},
+				},
+			},
+			want: `{"state":"the server is down","model":"jev-1.13.0","questions":` +
+				`{"urgent":{"type":"noul","instructions":"q"}}}`,
+		},
+		{
+			name: "should keep a raw state's key order and its digits",
+			req: jev.Request{
+				State: json.RawMessage(`{"ticket_id":12345678901234567890,"zebra":1}`),
+				Model: "jev-1.13.0",
+				Questions: jev.Questions{
+					{ID: "a", Question: jev.Noul{Instructions: "q"}},
+				},
+			},
+			want: `{"state":{"ticket_id":12345678901234567890,"zebra":1},` +
+				`"model":"jev-1.13.0","questions":` +
+				`{"a":{"type":"noul","instructions":"q"}}}`,
+		},
+		{
+			name: "should keep the questions in slice order",
+			req: jev.Request{
+				State: "s",
+				Model: "m",
+				Questions: jev.Questions{
+					{ID: "zebra", Question: jev.Noul{Instructions: "z"}},
+					{ID: "alpha", Question: jev.Noul{Instructions: "a"}},
+				},
+			},
+			want: `{"state":"s","model":"m","questions":` +
+				`{"zebra":{"type":"noul","instructions":"z"},` +
+				`"alpha":{"type":"noul","instructions":"a"}}}`,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := jev.MarshalBody(tc.req)
+			if err != nil {
+				t.Fatalf("MarshalBody: %v", err)
+			}
+
+			if string(got) != tc.want {
+				t.Errorf("MarshalBody = %s, want %s", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestMarshalQuestionsBody(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		req  jev.Request
+		want string
+	}{
+		{
+			name: "should omit the state entirely",
+			req: jev.Request{
+				State: "ignored",
+				Model: "jev-1.13.0",
+				Questions: jev.Questions{
+					{ID: "urgent", Question: jev.Noul{Instructions: "q"}},
+				},
+			},
+			want: `{"model":"jev-1.13.0","questions":` +
+				`{"urgent":{"type":"noul","instructions":"q"}}}`,
+		},
+		{
+			name: "should keep the questions in slice order",
+			req: jev.Request{
+				Model: "m",
+				Questions: jev.Questions{
+					{ID: "zebra", Question: jev.Noul{Instructions: "z"}},
+					{ID: "alpha", Question: jev.Noul{Instructions: "a"}},
+				},
+			},
+			want: `{"model":"m","questions":` +
+				`{"zebra":{"type":"noul","instructions":"z"},` +
+				`"alpha":{"type":"noul","instructions":"a"}}}`,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := jev.MarshalQuestionsBody(tc.req)
+			if err != nil {
+				t.Fatalf("MarshalQuestionsBody: %v", err)
+			}
+
+			if string(got) != tc.want {
+				t.Errorf("MarshalQuestionsBody = %s, want %s", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestResolveModel(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		model string
+		env   map[string]string
+		want  string
+	}{
+		{
+			name:  "should prefer an explicit model",
+			model: "jev-1.9.9",
+			env:   map[string]string{jev.EnvDefaultModel: "jev-1.2.0"},
+			want:  "jev-1.9.9",
+		},
+		{
+			name: "should fall back to the environment",
+			env:  map[string]string{jev.EnvDefaultModel: "jev-1.2.0"},
+			want: "jev-1.2.0",
+		},
+		{
+			name: "should fall back to the built in default",
+			want: jev.DefaultModel,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := jev.ResolveModel(tc.model, lookupFrom(tc.env)); got != tc.want {
+				t.Errorf("ResolveModel = %s, want %s", got, tc.want)
+			}
+		})
+	}
+
+	// A client resolving the model its own way is the drift this guards against, so every case is
+	// asserted twice: once against ResolveModel and once against the model a client really sends.
+	for _, tc := range tests {
+		t.Run(tc.name+" in a sent body", func(t *testing.T) {
+			t.Parallel()
+
+			var (
+				mu   sync.Mutex
+				body struct {
+					Model string `json:"model"`
+				}
+			)
+
+			server := httptest.NewServer(http.HandlerFunc(
+				func(w http.ResponseWriter, r *http.Request) {
+					raw, readErr := io.ReadAll(r.Body)
+					if readErr != nil {
+						t.Errorf("reading the request body: %v", readErr)
+					}
+
+					mu.Lock()
+					if err := json.Unmarshal(raw, &body); err != nil {
+						t.Errorf("decoding the request body: %v", err)
+					}
+					mu.Unlock()
+
+					w.Header().Set("Content-Type", "application/json")
+
+					if _, err := io.WriteString(w, shortAnswer); err != nil {
+						t.Errorf("writing the response: %v", err)
+					}
+				}))
+			defer server.Close()
+
+			client, err := jev.New(jev.WithEnv(lookupFrom(tc.env)),
+				jev.WithAPIKey("sk-test"), jev.WithBaseURL(server.URL))
+			if err != nil {
+				t.Fatalf("New: %v", err)
+			}
+
+			if _, err := client.SystemOne(t.Context(), jev.Request{
+				State: "s", Model: tc.model, Questions: oneNoul(),
+			}); err != nil {
+				t.Fatalf("SystemOne: %v", err)
+			}
+
+			mu.Lock()
+			defer mu.Unlock()
+
+			if body.Model != tc.want {
+				t.Errorf("sent model = %s, want %s", body.Model, tc.want)
+			}
+		})
+	}
+}
+
+func lookupFrom(env map[string]string) func(string) (string, bool) {
+	return func(name string) (string, bool) {
+		value, ok := env[name]
+
+		return value, ok
+	}
+}

@@ -43,7 +43,7 @@ func New(opts ...Option) (*Client, error) {
 
 	c.apiKey = orEnv(c.apiKey, c.lookupEnv, EnvAPIKey)
 	c.baseURL = strings.TrimRight(orDefault(orEnv(c.baseURL, c.lookupEnv, EnvBaseURL), DefaultBaseURL), "/")
-	c.defaultModel = orDefault(orEnv(c.defaultModel, c.lookupEnv, EnvDefaultModel), DefaultModel)
+	c.defaultModel = ResolveModel(c.defaultModel, c.lookupEnv)
 
 	// Computed once here rather than behind a package level singleton, which AGENTS.md bans.
 	c.runtime = fmt.Sprintf("go/%s %s/%s", runtime.Version(), runtime.GOOS, runtime.GOARCH)
@@ -123,15 +123,14 @@ func (c *Client) SystemOne(ctx context.Context, req Request, opts ...RequestOpti
 		model = c.defaultModel
 	}
 
-	body := struct {
-		State     any       `json:"state"`
-		Model     string    `json:"model"`
-		Questions Questions `json:"questions"`
-	}{State: req.State, Model: model, Questions: req.Questions}
+	body, err := MarshalBody(Request{State: req.State, Model: model, Questions: req.Questions})
+	if err != nil {
+		return nil, err
+	}
 
 	result := &Result{}
 
-	res, err := c.do(ctx, http.MethodPost, systemOnePath, body, result, opts...)
+	res, err := c.do(ctx, http.MethodPost, systemOnePath, json.RawMessage(body), result, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -152,6 +151,26 @@ func (c *Client) SystemOne(ctx context.Context, req Request, opts ...RequestOpti
 	}
 
 	return result, nil
+}
+
+// MarshalBody encodes a request exactly as SystemOne sends it. A printed body and a sent body come
+// from this one encoder, which is what makes a printed body safe to replay.
+func MarshalBody(req Request) ([]byte, error) {
+	return json.Marshal(struct {
+		State     any       `json:"state"`
+		Model     string    `json:"model"`
+		Questions Questions `json:"questions"`
+	}{State: req.State, Model: req.Model, Questions: req.Questions})
+}
+
+// MarshalQuestionsBody encodes a request with no state at all, which is the body a question only
+// print produces and which -f accepts. A state that is legitimately null or empty is why this is a
+// second encoder rather than an omitempty tag on the first.
+func MarshalQuestionsBody(req Request) ([]byte, error) {
+	return json.Marshal(struct {
+		Model     string    `json:"model"`
+		Questions Questions `json:"questions"`
+	}{Model: req.Model, Questions: req.Questions})
 }
 
 // SystemOneRaw sends a prepared request body and returns the response body unchanged. It runs the

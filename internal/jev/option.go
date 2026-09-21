@@ -28,6 +28,12 @@ const (
 	EnvDefaultModel = "TYPESAFE_DEFAULT_MODEL"
 )
 
+// ResolveModel reports the model a request will carry. It exists so a caller that prints a request
+// without building a client fills the model the way a client would.
+func ResolveModel(model string, lookupEnv func(string) (string, bool)) string {
+	return orDefault(orEnv(model, lookupEnv, EnvDefaultModel), DefaultModel)
+}
+
 // Option configures a Client at construction.
 type Option func(*Client) error
 
