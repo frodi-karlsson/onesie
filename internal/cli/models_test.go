@@ -1,0 +1,181 @@
+package cli
+
+import (
+	"strings"
+	"testing"
+)
+
+func TestListModels(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		response string
+		status   int
+		wantCode int
+		wantOut  string
+	}{
+		{
+			name: "should print one line per model in the order the api returned them",
+			response: `{"models":[` +
+				`{"name":"jev-latest","description":"alias","release_date":"2026-08-01"},` +
+				`{"name":"jev-1.13.0","description":"current","release_date":"2026-08-01"}]}`,
+			wantCode: ExitOK,
+			wantOut: "jev-latest  alias  2026-08-01\n" +
+				"jev-1.13.0  current  2026-08-01\n",
+		},
+		{
+			name:     "should print nothing when the account has no models",
+			response: `{"models":[]}`,
+			wantCode: ExitOK,
+			wantOut:  "",
+		},
+		{
+			name:     "should exit 3 on a rejected key",
+			response: `{"error":{"message":"invalid api key"}}`,
+			status:   401,
+			wantCode: ExitAuth,
+			wantOut:  "",
+		},
+		{
+			name:     "should exit 3 on a forbidden key",
+			response: `{"error":{"message":"forbidden"}}`,
+			status:   403,
+			wantCode: ExitAuth,
+			wantOut:  "",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			sent, out, errOut, code := runRequestMode(
+				t, []string{"--list-models"}, "", tc.status, tc.response)
+
+			if code != tc.wantCode {
+				t.Fatalf("exit code = %d, want %d\nstdout:\n%s\nstderr:\n%s",
+					code, tc.wantCode, out, errOut)
+			}
+
+			if out != tc.wantOut {
+				t.Errorf("stdout = %q, want %q", out, tc.wantOut)
+			}
+
+			// The listing is the whole output, so a success case that wrote anything to stderr
+			// would be writing part of it to the wrong stream.
+			if tc.wantCode == ExitOK && errOut != "" {
+				t.Errorf("stderr should be empty, got:\n%s", errOut)
+			}
+
+			if len(sent) != 1 {
+				t.Fatalf("made %d requests, want 1", len(sent))
+			}
+
+			if sent[0] != "" {
+				t.Errorf("request body = %q, want no body at all", sent[0])
+			}
+		})
+	}
+}
+
+func TestNewRootCmdListModelsFlags(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		args    []string
+		wantErr string
+	}{
+		{
+			name:    "should reject a positional question with --list-models",
+			args:    []string{"--list-models", "is this urgent"},
+			wantErr: "jev: --list-models asks no question. Drop the question argument",
+		},
+		{
+			name:    "should reject --ask with --list-models",
+			args:    []string{"--list-models", "--ask", "urgent=is this urgent"},
+			wantErr: "jev: --list-models asks no question. Drop --ask",
+		},
+		{
+			name:    "should reject --pick with --list-models",
+			args:    []string{"--list-models", "--pick", "a,b"},
+			wantErr: "jev: --list-models asks no question. Drop --pick",
+		},
+		{
+			name:    "should reject --fallback with --list-models",
+			args:    []string{"--list-models", "--fallback", "maybe"},
+			wantErr: "jev: --list-models asks no question. Drop --fallback",
+		},
+		{
+			name:    "should reject -f with --list-models before it is read",
+			args:    []string{"--list-models", "-f", "nowhere.yaml"},
+			wantErr: "jev: -f does not apply to --list-models, which asks no question",
+		},
+		{
+			name:    "should reject --state with --list-models",
+			args:    []string{"--list-models", "--state", "x"},
+			wantErr: "jev: --state does not apply to --list-models, which reads no state",
+		},
+		{
+			name:    "should reject --state-file with --list-models",
+			args:    []string{"--list-models", "--state-file", "x"},
+			wantErr: "jev: --state-file does not apply to --list-models, which reads no state",
+		},
+		{
+			name:    "should reject -i with --list-models",
+			args:    []string{"--list-models", "-i", "jsonl"},
+			wantErr: "jev: -i does not apply to --list-models, which reads no input",
+		},
+		{
+			name:    "should reject -i request with --list-models by name",
+			args:    []string{"--list-models", "-i", "request"},
+			wantErr: "jev: -i does not apply to --list-models, which reads no input",
+		},
+		{
+			name: "should blame --list-models rather than -i request for a shared offender",
+			args: []string{
+				"--list-models", "-i", "request", "--ask", "urgent=is this urgent",
+			},
+			wantErr: "jev: --list-models asks no question. Drop --ask",
+		},
+		{
+			name:    "should reject -j with --list-models",
+			args:    []string{"--list-models", "-j", "4"},
+			wantErr: "jev: -j does not apply to --list-models, which makes one request",
+		},
+		{
+			name: "should reject --print-request with --list-models",
+			args: []string{"--list-models", "--print-request"},
+			wantErr: "jev: --print-request and --list-models each write a different thing " +
+				"to stdout. Pass one",
+		},
+		{
+			name: "should reject --print-questions with --list-models",
+			args: []string{"--list-models", "--print-questions"},
+			wantErr: "jev: --print-questions and --list-models each write a different thing " +
+				"to stdout. Pass one",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			out, errOut, code := runOfflineStdin(t, tc.args, `{"state":"x"}`+"\n")
+
+			if code != ExitUsage {
+				t.Fatalf("exit code = %d, want %d\nstdout:\n%s\nstderr:\n%s",
+					code, ExitUsage, out, errOut)
+			}
+
+			if strings.TrimSpace(errOut) != tc.wantErr {
+				t.Errorf("stderr = %q, want %q", strings.TrimSpace(errOut), tc.wantErr)
+			}
+
+			if out != "" {
+				t.Errorf("stdout should be empty, got:\n%s", out)
+			}
+		})
+	}
+}

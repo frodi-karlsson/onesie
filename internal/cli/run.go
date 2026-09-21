@@ -52,7 +52,9 @@ func run(
 		Stats:          flags.stats,
 		Streaming:      inputMode.Streaming(),
 		RequestMode:    inputMode == input.Request,
+		ListModels:     flags.listModels,
 		InputName:      inputName(flags.input),
+		HasInput:       cmd.Flags().Changed("input"),
 		Unordered:      flags.unordered,
 		StopOnError:    flags.stopOnError,
 		SkipBlank:      flags.skipBlank,
@@ -69,19 +71,20 @@ func run(
 		MaxRetryAfterSet: cmd.Flags().Changed("max-retry-after"),
 	}
 
-	// Ahead of the plan, because -i request carries its own questions and assembling one would
-	// fail for want of a question the user was right not to give. CheckFlags is called here and
-	// nowhere else on this path, so its warning prints once. No rule warns for a streaming mode
-	// today, so the print below is for a warning a later rule may add.
-	if inputMode == input.Request {
-		warning, checkErr := plan.CheckFlags(cfg)
-		if warning != "" {
-			if _, printErr := fmt.Fprintln(cmd.ErrOrStderr(), warning); printErr != nil {
-				return printErr
-			}
+	// Both branches sit ahead of the plan, because neither has a question to assemble one from and
+	// failing for want of a question the user was right not to give would send them to the wrong
+	// flag. --list-models comes first, so it names itself rather than the mode it was combined
+	// with.
+	if flags.listModels {
+		if checkErr := checkFlags(cmd, cfg); checkErr != nil {
+			return checkErr
 		}
 
-		if checkErr != nil {
+		return listModels(cmd, settings)
+	}
+
+	if inputMode == input.Request {
+		if checkErr := checkFlags(cmd, cfg); checkErr != nil {
 			return checkErr
 		}
 
@@ -219,6 +222,21 @@ func run(
 	return withStats(cmd, flags, func(stats *collector) error {
 		return ask(cmd, settings, built, resolved, outputMode, flags, stats)
 	})
+}
+
+func checkFlags(cmd *cobra.Command, cfg plan.Config) error {
+	warning, err := plan.CheckFlags(cfg)
+
+	// No rule warns for either of the two paths that call this today, so the print is here for a
+	// warning a later rule may add. Validate prints the same warnings on the path that builds a
+	// plan, and no run reaches both, so nothing is reported twice.
+	if warning != "" {
+		if _, printErr := fmt.Fprintln(cmd.ErrOrStderr(), warning); printErr != nil {
+			return printErr
+		}
+	}
+
+	return err
 }
 
 func asked(events []argv.Event) bool {
@@ -757,6 +775,7 @@ type runFlags struct {
 
 	printQuestions bool
 	printRequest   bool
+	listModels     bool
 	stats          bool
 
 	jobs          int

@@ -66,6 +66,12 @@ func Validate(p *Plan, cfg Config) ([]string, error) {
 // CheckFlags reports the flag combination rules, which are the rules that need no plan. It is
 // exported because -i request carries its own questions and so never builds one.
 func CheckFlags(cfg Config) (string, error) {
+	// Ahead of the request mode rules, so a flag both of them reject is reported against
+	// --list-models, which is the flag that made the mode meaningless.
+	if err := checkListModels(cfg); err != nil {
+		return "", err
+	}
+
 	// Ahead of every other rule, so a flag -i request rejects outright is named by the message
 	// that says so rather than by a general one that happens to fire first.
 	if err := checkRequestMode(cfg); err != nil {
@@ -133,8 +139,16 @@ type Config struct {
 	// RequestMode is true for -i request, which carries its own questions and forwards raw
 	// responses. Streaming is true for it too, so the two are not interchangeable.
 	RequestMode bool
+
+	// ListModels is --list-models, which asks no question, reads nothing and makes one request of
+	// its own. Every flag around a question run is rejected for it.
+	ListModels bool
+
 	// InputName is the -i value as the user spelled it, so a message names the mode they gave.
-	InputName   string
+	InputName string
+	// HasInput records that -i was given, which InputName cannot do since it names the default
+	// mode when the flag was absent.
+	HasInput    bool
 	Unordered   bool
 	StopOnError bool
 	SkipBlank   bool
@@ -156,6 +170,44 @@ type Config struct {
 
 	MaxRetryAfter    int
 	MaxRetryAfterSet bool
+}
+
+func checkListModels(cfg Config) error {
+	if !cfg.ListModels {
+		return nil
+	}
+
+	if cfg.HasPositional {
+		return errors.New("jev: --list-models asks no question. Drop the question argument")
+	}
+
+	// Every group flag at once, since a listing has no use for any of them and the only part of
+	// the message that varies is the name the user typed.
+	if len(cfg.GroupFlags) > 0 {
+		return fmt.Errorf("jev: --list-models asks no question. Drop --%s", cfg.GroupFlags[0])
+	}
+
+	for _, rule := range []struct {
+		given   bool
+		message string
+	}{
+		{cfg.FileName != "", "jev: -f does not apply to --list-models, which asks no question"},
+		{cfg.HasState, "jev: --state does not apply to --list-models, which reads no state"},
+		{cfg.HasStateFile, "jev: --state-file does not apply to --list-models, " +
+			"which reads no state"},
+		{cfg.HasInput, "jev: -i does not apply to --list-models, which reads no input"},
+		{cfg.JobsSet, "jev: -j does not apply to --list-models, which makes one request"},
+		{cfg.PrintRequest, "jev: --print-request and --list-models each write a different " +
+			"thing to stdout. Pass one"},
+		{cfg.PrintQuestions, "jev: --print-questions and --list-models each write a different " +
+			"thing to stdout. Pass one"},
+	} {
+		if rule.given {
+			return errors.New(rule.message)
+		}
+	}
+
+	return nil
 }
 
 func checkRequestMode(cfg Config) error {
