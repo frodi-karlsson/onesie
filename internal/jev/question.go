@@ -137,7 +137,8 @@ func (Choice) validate(string) error {
 }
 
 // Criteria is an ordered set of choice options. Like Questions it is a slice so a body keeps the
-// order it was written in.
+// order it was written in, and like Questions a shared value must not be appended to, since two
+// appends onto a base with spare capacity write the same backing array.
 type Criteria []NamedCriterion
 
 // NamedCriterion is one option and what it means.
