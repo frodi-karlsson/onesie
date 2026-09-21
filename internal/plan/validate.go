@@ -503,7 +503,7 @@ func bodyPolicyError(name string, questions int) error {
 
 	return fmt.Errorf(
 		"jev: policy flags apply to a request body only when it has one question. "+
-			"%s has %d", name, questions)
+			"%s has %d, freeze with --print-questions first", name, questions)
 }
 
 func checkOrphans(p *Plan) error {

@@ -299,7 +299,7 @@ func TestValidate(t *testing.T) {
 			file:   bodyQuestions(2),
 			events: []argv.Event{{Name: "threshold", Value: "0.8"}},
 			wantErr: "jev: policy flags apply to a request body only when it has one question. " +
-				"the question file has 2",
+				"the question file has 2, freeze with --print-questions first",
 		},
 		{
 			name: "should count only the body's own questions in the policy error",
