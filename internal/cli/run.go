@@ -161,19 +161,20 @@ func run(
 			"jev: no state given. Pipe one to stdin, or pass --state or --state-file")
 	}
 
+	// After the state is resolved, so the body carries the state a real run would send, and above
+	// the --merge check, because --merge folds answers into an input record and a request body
+	// carries no answers to collide with. streamRequests branches in the same place.
+	if flags.printRequest {
+		return printRequest(cmd.OutOrStdout(), built.Questions, resolved,
+			jev.ResolveModel(built.Model, settings.lookupEnv))
+	}
+
 	// Checked here rather than at write time, so a taken key costs no request. Section 11 opens
 	// with every check running before any network call.
 	if merging(flags) && hasKey(resolved.State, mergeKey(flags)) {
 		return fmt.Errorf(
 			"jev: --merge would overwrite the input's '%s' key. Pass --merge-key",
 			mergeKey(flags))
-	}
-
-	// After the state is resolved and after every check a real run makes, so a dry run rejects
-	// everything the run it stands in for would.
-	if flags.printRequest {
-		return printRequest(cmd.OutOrStdout(), built.Questions, resolved,
-			jev.ResolveModel(built.Model, settings.lookupEnv))
 	}
 
 	return ask(cmd, settings, built, resolved, outputMode, flags)
