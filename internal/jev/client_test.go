@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -1049,6 +1050,74 @@ func TestClientRetryAfterCap(t *testing.T) {
 				if !errors.Is(err, jev.ErrRateLimit) {
 					t.Error("expected errors.Is to reach ErrRateLimit through Unwrap")
 				}
+			}
+		})
+	}
+}
+
+func TestWithAttemptObserver(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		statuses    []int
+		wantReports []int
+	}{
+		{
+			name:        "should report one attempt for a clean request",
+			statuses:    []int{http.StatusOK},
+			wantReports: []int{200},
+		},
+		{
+			name:        "should report every attempt including the retries",
+			statuses:    []int{http.StatusTooManyRequests, http.StatusInternalServerError, http.StatusOK},
+			wantReports: []int{429, 500, 200},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var index atomic.Int64
+
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				status := tc.statuses[int(index.Add(1))-1]
+				w.WriteHeader(status)
+
+				body := `{"error":{"message":"nope"}}`
+				if status == http.StatusOK {
+					body = `{"model":"jev-1.0.0","answers":{"q":{"type":"noul","noul":0.5}},` +
+						`"usage":{"input_tokens":1,"output_tokens":1}}`
+				}
+
+				if _, err := w.Write([]byte(body)); err != nil {
+					t.Errorf("writing stub response: %v", err)
+				}
+			}))
+			defer srv.Close()
+
+			var (
+				mu      sync.Mutex
+				reports []int
+			)
+
+			client, _ := newTestClient(t, srv.URL, jev.WithAttemptObserver(func(a jev.Attempt) {
+				mu.Lock()
+				defer mu.Unlock()
+
+				reports = append(reports, a.Status)
+			}))
+
+			if _, err := client.SystemOne(t.Context(), jev.Request{State: "x", Questions: oneNoul()}); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			mu.Lock()
+			defer mu.Unlock()
+
+			if !slices.Equal(reports, tc.wantReports) {
+				t.Errorf("observed statuses = %v, want %v", reports, tc.wantReports)
 			}
 		})
 	}

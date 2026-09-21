@@ -32,6 +32,7 @@ func New(opts ...Option) (*Client, error) {
 		lookupEnv:        os.LookupEnv,
 		clock:            systemClock{},
 		random:           rand.Float64,
+		observe:          func(Attempt) {},
 	}
 
 	for _, opt := range opts {
@@ -83,6 +84,7 @@ type Client struct {
 	clock            Clock
 	random           func() float64
 	requests         atomic.Uint64
+	observe          func(Attempt)
 }
 
 // RetryPolicy returns a copy, so a caller can modify one field and pass it to WithRequestRetry.
@@ -179,6 +181,14 @@ type ModelCard struct {
 	Name        string `json:"name"`
 	Description string `json:"description"`
 	ReleaseDate string `json:"release_date"`
+}
+
+// Attempt describes one HTTP round trip. An observer sees every attempt, retries included.
+type Attempt struct {
+	Index    int
+	Status   int
+	Err      error
+	Duration time.Duration
 }
 
 // do runs one logical request, retrying per the policy, and decodes a 2xx body into out.
@@ -309,7 +319,10 @@ func (c *Client) attempt(
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return nil, classify(ctx, actx, err, cfg.attemptTimeout)
+		failure := classify(ctx, actx, err, cfg.attemptTimeout)
+		c.observe(Attempt{Index: attempt, Err: failure, Duration: c.clock.Now().Sub(started)})
+
+		return nil, failure
 	}
 
 	defer func() {
@@ -335,6 +348,12 @@ func (c *Client) attempt(
 		"elapsed", c.clock.Now().Sub(started),
 		"request_id", resp.Header.Get(requestIDHeader),
 	)
+
+	c.observe(Attempt{
+		Index:    attempt,
+		Status:   resp.StatusCode,
+		Duration: c.clock.Now().Sub(started),
+	})
 
 	return &rawResponse{status: resp.StatusCode, header: resp.Header, body: data}, nil
 }

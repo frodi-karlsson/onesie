@@ -199,6 +199,20 @@ func WithRandom(random func() float64) Option {
 	}
 }
 
+// WithAttemptObserver reports every HTTP attempt, so a caller can count retries by status. It is
+// called from every goroutine sharing the client, so it must be safe for concurrent use.
+func WithAttemptObserver(fn func(Attempt)) Option {
+	return func(c *Client) error {
+		if fn == nil {
+			return &ValidationError{Message: "attempt observer must not be nil"}
+		}
+
+		c.observe = fn
+
+		return nil
+	}
+}
+
 // RequestOption overrides client settings for one call.
 type RequestOption func(*requestConfig) error
 
