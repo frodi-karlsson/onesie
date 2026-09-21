@@ -152,6 +152,25 @@ func TestAPIErrorFields(t *testing.T) {
 	})
 }
 
+func TestRetryAfterError(t *testing.T) {
+	t.Parallel()
+
+	t.Run("should name the status, the requested delay and the cap", func(t *testing.T) {
+		t.Parallel()
+
+		err := &RetryAfterError{
+			APIError:   APIError{Status: 429},
+			RetryAfter: 2 * time.Minute,
+			Cap:        time.Minute,
+		}
+
+		want := "jev: status 429, the server asked to retry after 2m0s, above the 1m0s cap"
+		if got := err.Error(); got != want {
+			t.Errorf("message got %q, want %q", got, want)
+		}
+	})
+}
+
 func TestTimeoutError(t *testing.T) {
 	t.Parallel()
 

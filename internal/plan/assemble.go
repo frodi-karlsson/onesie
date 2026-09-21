@@ -76,7 +76,7 @@ func build(g group, readFile func(string) ([]byte, error)) (Question, error) {
 
 	if g.asked {
 		id, text, ok := strings.Cut(g.ask, "=")
-		if !ok {
+		if !ok || id == "" {
 			return question, fmt.Errorf("jev: --ask takes NAME=QUESTION, got '%s'", g.ask)
 		}
 

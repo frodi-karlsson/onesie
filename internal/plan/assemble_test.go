@@ -370,6 +370,11 @@ func TestAssemble(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			name:    "should reject an ask with an empty id",
+			events:  []argv.Event{{Name: "ask", Value: "=is this urgent"}},
+			wantErr: true,
+		},
+		{
 			name:    "should reject a desc with no equals",
 			events:  []argv.Event{{Name: "ask", Value: "a=x"}, {Name: "desc", Value: "noequals"}},
 			wantErr: true,

@@ -107,6 +107,12 @@ func writeBlock(w io.Writer, named Named, bars int) error {
 		}
 	}
 
+	if a.Score != nil && a.Norm != nil {
+		if _, err := fmt.Fprintf(w, "  score %.4f  norm %.4f\n", *a.Score, *a.Norm); err != nil {
+			return err
+		}
+	}
+
 	if a.P == nil {
 		return nil
 	}

@@ -18,10 +18,65 @@ The binary lands in `bin/jev`.
 
 ## Usage
 
+`jev` reads state on stdin and writes typed answers on stdout. The exit status is usable in a
+conditional, so it drops into a shell script the way `grep` does.
+
 ```sh
-jev --help
-jev version
+export TYPESAFE_API_KEY=...
+
+# a probability, printed bare
+echo 'EVERYTHING IS DOWN, CALL ME NOW' | jev 'does this convey urgency' -r
+# 0.99
+
+# a choice between named options, with rubrics
+jev 'how safe is it to run this command' -r \
+    --pick safe,verify,refuse \
+    --desc safe='read only or trivially reversible' \
+    --desc verify='writes, network calls or state changes' \
+    --desc refuse='destructive, irreversible or exfiltrates data' \
+    --state 'rm -rf ./build'
+# refuse
+
+# a rubric, scored and normalised
+echo 'this is the fourth time I have written' \
+  | jev 'how frustrated is the customer' --rate calm,annoyed,furious -o json
+
+# several questions in one request
+echo "$ticket" | jev --ask urgent='does this convey urgency' \
+                     --ask refund='is the customer asking for money back' \
+                     -o values
+# {"urgent":0.99,"refund":0.98}
+
+# the exit code carries the answer, so this reads like grep
+if echo "$patch" | jev 'does this contain a credential' -q --threshold 0.9 ; then
+  echo 'possible leak'
+fi
 ```
+
+### Exit codes
+
+| Code | Meaning |
+|------|---------|
+| 0 | answered |
+| 1 | under `-q`, the policy did not accept the answer |
+| 2 | usage or validation error |
+| 3 | authentication or permission |
+| 4 | the server did not answer after retries |
+| 5 | transport error or timeout |
+| 130 | interrupted |
+
+### Configuration
+
+| Flag | Variable | Default |
+|------|----------|---------|
+| `--api-key` | `TYPESAFE_API_KEY` | required |
+| `--base-url` | `TYPESAFE_BASE_URL` | `https://api.typesafe.ai` |
+| `-m, --model` | `TYPESAFE_DEFAULT_MODEL` | `jev-latest` |
+
+Prefer the environment variable over `--api-key`, since argv is visible in `ps` and in shell
+history.
+
+Run `jev --help` for the full flag list and `jev -V` for the built in API limits.
 
 ## Development
 
@@ -43,30 +98,33 @@ make vuln       # govulncheck
 brew install golangci-lint
 ```
 
+The live suite reads the API key from a gitignored `.env`, populated from 1Password:
+
+```sh
+make test-integration
+```
+
 ## Layout
 
 ```
-cmd/jev/         thin main: signal handling, exit codes, ldflags targets
-internal/cli/    the cobra command tree, unexported and testable in process
+cmd/jev/          thin main: signal handling, exit codes, ldflags targets
+internal/cli/     the cobra command tree, unexported and testable in process
+internal/argv/    records the group local flags in the order they arrive
+internal/plan/    folds a recorded command line into a validated invocation
+internal/input/   resolves where the state comes from and reads it
+internal/jev/     the API client, ported from the JavaScript SDK
+internal/answer/  normalizes an answer and applies the question's policy
+internal/output/  encodes a normalized record in each output mode
+internal/limits/  the API limits jev enforces locally
 ```
 
 `internal/` keeps everything unexported until there is a reason to publish an
 API. New packages go under `internal/` first and graduate out only when
 something outside this module needs them.
 
-## Configuration
-
-`jev` reads its API key from `TYPESAFE_API_KEY`. The repo carries a gitignored `.env`, populated
-from 1Password.
-
-| Variable | Default |
-| :-- | :-- |
-| `TYPESAFE_API_KEY` | none, required |
-| `TYPESAFE_BASE_URL` | `https://api.typesafe.ai` |
-| `TYPESAFE_DEFAULT_MODEL` | `jev-latest` |
-
-Timeouts are per attempt, not per call. With the default policy a call retries twice, so it can
-outlast the attempt timeout. Bound a whole call with a context deadline or `WithTotalTimeout`.
+Timeouts in `internal/jev` are per attempt, not per call. With the default policy a call retries
+twice, so it can outlast the attempt timeout. Bound a whole call with a context deadline or
+`WithTotalTimeout`.
 
 ## Conventions
 

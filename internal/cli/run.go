@@ -285,8 +285,6 @@ func (*rejectedError) Error() string {
 	return "policy did not accept the answer"
 }
 
-// clientFactory builds the API client. It is injected so tests supply one pointed at a stub server
-// rather than steering the real constructor through flags.
 type clientFactory func(ctx context.Context) (*jev.Client, error)
 
 func defaultClientFactory(

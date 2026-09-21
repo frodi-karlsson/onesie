@@ -238,7 +238,7 @@ type RetryAfterError struct {
 // Error names the delay the server asked for and the cap that rejected it.
 func (e *RetryAfterError) Error() string {
 	return fmt.Sprintf(
-		"jev: %d server asked to retry after %s, above the %s cap",
+		"jev: status %d, the server asked to retry after %s, above the %s cap",
 		e.Status, e.RetryAfter, e.Cap,
 	)
 }

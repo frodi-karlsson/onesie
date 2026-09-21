@@ -47,7 +47,9 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 		Short: "Ask Jev typed questions about state on stdin",
 		Long: "jev is a Unix filter over the TypeSafe System One API.\n\n" +
 			"State arrives on stdin, typed answers leave on stdout, and the exit status is " +
-			"usable in a conditional.",
+			"usable in a conditional.\n\n" +
+			"A question that begins with a dash needs -- before it, with any flags placed " +
+			"first, as in jev -o json -- '-is this urgent'.",
 		Version: info.Version,
 		Args:    cobra.MaximumNArgs(1),
 		// Cobra otherwise buries every returned error under the full help text. Execute owns the
@@ -115,7 +117,14 @@ func Execute(ctx context.Context, root *cobra.Command) int {
 	}
 
 	if worthReporting(err) {
-		if _, printErr := fmt.Fprintln(root.ErrOrStderr(), err); printErr != nil {
+		message := err.Error()
+		// Cobra's own parse errors are the only ones that do not already carry the prefix, and a
+		// consumer filtering stderr should not have to know which layer produced a line.
+		if !strings.HasPrefix(message, "jev: ") {
+			message = "jev: " + message
+		}
+
+		if _, printErr := fmt.Fprintln(root.ErrOrStderr(), message); printErr != nil {
 			return ExitUsage
 		}
 	}
@@ -127,7 +136,8 @@ func Execute(ctx context.Context, root *cobra.Command) int {
 // terminal answers.
 type RootOption func(*rootSettings)
 
-// WithClientFactory replaces how commands build their API client.
+// WithClientFactory replaces how commands build their API client, so a test can point one at a
+// stub server rather than steering the real constructor through flags.
 func WithClientFactory(newClient func(ctx context.Context) (*jev.Client, error)) RootOption {
 	return func(s *rootSettings) {
 		s.newClient = newClient

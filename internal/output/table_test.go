@@ -140,6 +140,32 @@ func TestWriteTable(t *testing.T) {
 			contains: []string{"zebra"},
 		},
 		{
+			name:    "should print the score and the norm of a rate answer",
+			columns: 80,
+			rec: output.Record{
+				Answers: []output.Named{
+					{ID: "mood", Answer: &answer.Answer{
+						Value: "furious", Confidence: &confidence, Score: &score, Norm: &norm,
+						P: &answer.Probabilities{
+							Keys:   []string{"calm", "furious"},
+							Values: map[string]float64{"calm": 0.36, "furious": 0.64},
+						},
+					}},
+				},
+			},
+			contains: []string{"score 1.0000", "norm 0.5000"},
+		},
+		{
+			name:    "should omit the score and the norm of a yes/no answer",
+			columns: 80,
+			rec: output.Record{
+				Answers: []output.Named{
+					{ID: "urgent", Answer: &answer.Answer{Value: 0.92, Confidence: &confidence}},
+				},
+			},
+			absent: []string{"score", "norm"},
+		},
+		{
 			name:    "should report the failure instead of answers",
 			columns: 80,
 			rec: output.Record{

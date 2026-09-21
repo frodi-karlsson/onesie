@@ -52,6 +52,26 @@ func TestNewRootCmd(t *testing.T) {
 			contains: []string{"version   1.2.3", "commit    abc1234", "min-score-levels 2"},
 		},
 		{
+			name:     "should prefix a cobra parse error",
+			args:     []string{"--nope"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"jev: unknown flag: --nope"},
+		},
+		{
+			name:     "should document how to ask a question that begins with a dash",
+			args:     []string{"--help"},
+			wantCode: cli.ExitOK,
+			contains: []string{"begins with a dash", "jev -o json -- '-is this urgent'"},
+		},
+		{
+			name:     "should answer a question that begins with a dash after --",
+			args:     []string{"-o", "json", "--", "-is this urgent"},
+			stdin:    "the server is down",
+			response: answered,
+			wantCode: cli.ExitOK,
+			contains: []string{`"answer":{"value":0.92}`},
+		},
+		{
 			name:     "should answer a positional question from stdin",
 			args:     []string{"is this urgent", "-o", "json"},
 			stdin:    "the server is down",
