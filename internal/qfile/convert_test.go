@@ -1,10 +1,8 @@
-package qfile_test
+package qfile
 
 import (
 	"encoding/json"
 	"testing"
-
-	"github.com/frodi-karlsson/jev-cli/internal/qfile"
 )
 
 func TestDecode(t *testing.T) {
@@ -52,7 +50,7 @@ func TestDecode(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := qfile.Decode([]byte(tc.doc))
+			got, err := decode([]byte(tc.doc))
 
 			if tc.wantErr {
 				if err == nil {
@@ -122,12 +120,12 @@ func TestMarshalOrdered(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			raw, err := qfile.DecodeOrdered([]byte(tc.doc))
+			raw, err := DecodeOrdered([]byte(tc.doc))
 			if err != nil {
 				t.Fatalf("decoding: %v", err)
 			}
 
-			got, err := qfile.MarshalOrdered(raw)
+			got, err := MarshalOrdered(raw)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}

@@ -7,9 +7,7 @@ import (
 	"github.com/goccy/go-yaml"
 )
 
-// Decode parses YAML or JSON and returns a value safe to hand to encoding/json. JSON is a subset of
-// YAML, so one parser covers both.
-func Decode(data []byte) (any, error) {
+func decode(data []byte) (any, error) {
 	var raw any
 
 	// UseOrderedMap keeps every nesting level as a MapSlice. Without it a nested mapping becomes a
