@@ -463,6 +463,51 @@ func TestNewRootCmd(t *testing.T) {
 			absent:   []string{`"criteria":["",""]`},
 		},
 		{
+			name: "should keep flag score criteria in the order they were given",
+			args: []string{
+				"--ask", "mood=how is it", "--rate", "urgent,normal,cold", "-o", "json",
+			},
+			stdin: "the server is down",
+			response: `{"model":"jev-1.13.0","answers":{"mood":{"type":"score","score":1.0,` +
+				`"confidence":0.92,"legend":{"0":"a","1":"b","2":"c"},` +
+				`"probabilities":{"0":0.1,"1":0.1,"2":0.8}}},` +
+				`"usage":{"input_tokens":10,"output_tokens":2}}`,
+			wantCode: cli.ExitOK,
+			sends:    []string{`"criteria":["urgent","normal","cold"]`},
+		},
+		{
+			name: "should keep a question file's score criteria in file order",
+			args: []string{"-f", "q.yaml", "-o", "json"},
+			files: map[string]string{
+				"q.yaml": "mood:\n  ask: how is it\n  rate:\n    urgent: sky falling\n" +
+					"    normal: a normal day\n    cold: nothing happening\n",
+			},
+			stdin: "the server is down",
+			response: `{"model":"jev-1.13.0","answers":{"mood":{"type":"score","score":1.0,` +
+				`"confidence":0.92,"legend":{"0":"a","1":"b","2":"c"},` +
+				`"probabilities":{"0":0.1,"1":0.1,"2":0.8}}},` +
+				`"usage":{"input_tokens":10,"output_tokens":2}}`,
+			wantCode: cli.ExitOK,
+			sends: []string{
+				`"criteria":["sky falling","a normal day","nothing happening"]`,
+			},
+		},
+		{
+			name: "should keep a body's score criteria in the order they were written",
+			args: []string{"-f", "body.json", "-o", "json"},
+			files: map[string]string{
+				"body.json": `{"state":"x","questions":` +
+					`{"bq":{"type":"score","instructions":"q",` +
+					`"criteria":["zulu","mike","alpha"]}}}`,
+			},
+			response: `{"model":"jev-1.13.0","answers":{"bq":{"type":"score","score":1.0,` +
+				`"confidence":0.92,"legend":{"0":"a","1":"b","2":"c"},` +
+				`"probabilities":{"0":0.1,"1":0.1,"2":0.8}}},` +
+				`"usage":{"input_tokens":10,"output_tokens":2}}`,
+			wantCode: cli.ExitOK,
+			sends:    []string{`"criteria":["zulu","mike","alpha"]`},
+		},
+		{
 			name:     "should reject replace with no file to override",
 			args:     []string{"--replace", "is this urgent"},
 			stdin:    "the server is down",
