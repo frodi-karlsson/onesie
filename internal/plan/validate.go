@@ -72,17 +72,12 @@ func CheckFlags(cfg Config) (string, error) {
 		return "", err
 	}
 
-	// Ahead of every other rule, so a flag -i request rejects outright is named by the message
-	// that says so rather than by a general one that happens to fire first.
-	if err := checkRequestMode(cfg); err != nil {
-		return "", err
-	}
-
-	// Ahead of the output and streaming rules, so a dry run is rejected before anything it would
-	// have written reaches stdout. -i request reaches this too, which is why it lives here rather
-	// than in checkStreaming.
-	if err := checkPrintFlags(cfg); err != nil {
-		return "", err
+	// Both ahead of the output and streaming rules, so a dry run is rejected before anything it
+	// would have written reaches stdout.
+	for _, check := range flagChecks(cfg) {
+		if err := check(cfg); err != nil {
+			return "", err
+		}
 	}
 
 	if cfg.Raw && cfg.Output != "" {
@@ -170,6 +165,19 @@ type Config struct {
 
 	MaxRetryAfter    int
 	MaxRetryAfterSet bool
+}
+
+func flagChecks(cfg Config) []func(Config) error {
+	// A dry run forwards nothing, writes no response body and makes no request, which is what
+	// every output facing reason in the request mode table claims. Its own message is the true one
+	// here, so it answers first.
+	if cfg.PrintRequest {
+		return []func(Config) error{checkPrintFlags, checkRequestMode}
+	}
+
+	// Otherwise the request mode rules lead, so a flag -i request rejects outright is named by the
+	// message that says so rather than by a general one that happens to fire first.
+	return []func(Config) error{checkRequestMode, checkPrintFlags}
 }
 
 func checkListModels(cfg Config) error {

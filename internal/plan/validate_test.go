@@ -1031,6 +1031,24 @@ func TestCheckFlags(t *testing.T) {
 			name: "should accept --stats on its own under -i request",
 			cfg:  request(func(c *plan.Config) { c.Stats = true }),
 		},
+		{
+			// The request mode reason is untrue once --print-request is set, since nothing is
+			// forwarded and no request is made.
+			name: "should blame the dry run rather than the mode for -o under -i request",
+			cfg: request(func(c *plan.Config) {
+				c.PrintRequest = true
+				c.Output = "json"
+			}),
+			wantErr: "jev: -o does not apply to --print-request, which writes a request body",
+		},
+		{
+			name: "should keep the request mode reason for a flag the dry run has no rule for",
+			cfg: request(func(c *plan.Config) {
+				c.PrintRequest = true
+				c.HasAsk = true
+			}),
+			wantErr: "jev: -i request carries its own questions. Drop --ask",
+		},
 	}
 
 	for _, tc := range tests {
