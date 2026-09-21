@@ -1185,7 +1185,7 @@ func TestNewRootCmdRetryFlags(t *testing.T) {
 			defer srv.Close()
 
 			args := append([]string{
-				"is this urgent", "--base-url", srv.URL, "--api-key", "test", "--timeout", "1",
+				"is this urgent", "--base-url", srv.URL, "--api-key", "test",
 			}, tc.args...)
 
 			var out bytes.Buffer
@@ -1210,6 +1210,240 @@ func TestNewRootCmdRetryFlags(t *testing.T) {
 
 			if got := attempts.Load(); got != int64(tc.attempts) {
 				t.Errorf("attempts = %d, want %d", got, tc.attempts)
+			}
+		})
+	}
+}
+
+func TestNewRootCmdMaxRetryAfterFlag(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		args     []string
+		attempts int
+	}{
+		{
+			name:     "should stop at the first attempt when Retry-After is above the cap",
+			args:     []string{"--retries", "1", "--max-retry-after", "1"},
+			attempts: 1,
+		},
+		{
+			name:     "should retry when Retry-After is below the default cap",
+			args:     []string{"--retries", "1"},
+			attempts: 2,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var attempts atomic.Int64
+
+			srv := httptest.NewServer(http.HandlerFunc(
+				func(w http.ResponseWriter, _ *http.Request) {
+					attempts.Add(1)
+					// Two seconds, so the run is terminal under a cap of one and retryable under
+					// the default of sixty.
+					w.Header().Set("Retry-After", "2")
+					w.WriteHeader(http.StatusServiceUnavailable)
+				}))
+			defer srv.Close()
+
+			args := append([]string{
+				"is this urgent", "--base-url", srv.URL, "--api-key", "test",
+			}, tc.args...)
+
+			var out bytes.Buffer
+
+			// No WithClientFactory, since the flag is wired onto the client by the real factory
+			// and a stub one would never see it.
+			root := cli.NewRootCmd(
+				cli.BuildInfo{Version: "1.2.3"},
+				cli.WithStdin(strings.NewReader("the server is down")),
+				cli.WithStdinTTY(false),
+				cli.WithStdoutTTY(false),
+				cli.WithLookupEnv(func(string) (string, bool) { return "", false }),
+			)
+
+			root.SetOut(&out)
+			root.SetErr(&out)
+			root.SetArgs(args)
+
+			if code := cli.Execute(t.Context(), root); code == cli.ExitOK {
+				t.Fatalf("exit code = %d, want a failure. output:\n%s", code, out.String())
+			}
+
+			if got := attempts.Load(); got != int64(tc.attempts) {
+				t.Errorf("attempts = %d, want %d", got, tc.attempts)
+			}
+		})
+	}
+}
+
+func TestNewRootCmdTimeoutFlag(t *testing.T) {
+	t.Parallel()
+
+	t.Run("should abandon an attempt the server never answers", func(t *testing.T) {
+		t.Parallel()
+
+		blocked := make(chan struct{})
+
+		srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+			<-blocked
+		}))
+
+		// Both through Cleanup rather than defer, and in this order, so the handler is released
+		// before Close waits on it. A deferred Close would block on the handler it is waiting for.
+		t.Cleanup(srv.Close)
+		t.Cleanup(func() { close(blocked) })
+
+		var out, errOut bytes.Buffer
+
+		// No WithClientFactory, since the flag is wired onto the client by the real factory and a
+		// stub one would never see it.
+		root := cli.NewRootCmd(
+			cli.BuildInfo{Version: "1.2.3"},
+			cli.WithStdin(strings.NewReader("the server is quiet")),
+			cli.WithStdinTTY(false),
+			cli.WithStdoutTTY(false),
+			cli.WithLookupEnv(func(string) (string, bool) { return "", false }),
+		)
+
+		root.SetOut(&out)
+		root.SetErr(&errOut)
+		root.SetArgs([]string{
+			"is this urgent", "--base-url", srv.URL, "--api-key", "test",
+			"--timeout", "1", "--retries", "0",
+		})
+
+		if code := cli.Execute(t.Context(), root); code != cli.ExitTransport {
+			t.Fatalf("exit code = %d, want %d. output:\n%s", code, cli.ExitTransport, out.String())
+		}
+
+		// The duration is part of the claim. Without the flag on the client the attempt runs to
+		// the ten second default, which this handler outlasts.
+		if !strings.Contains(errOut.String(), "timed out after 1s") {
+			t.Errorf("stderr = %q, want it to name the one second timeout", errOut.String())
+		}
+	})
+}
+
+func TestNewRootCmdFlagValidation(t *testing.T) {
+	t.Parallel()
+
+	const answered = `{"model":"jev-1.13.0","answers":{"answer":{"type":"noul","noul":0.92}},` +
+		`"usage":{"input_tokens":10,"output_tokens":2}}`
+
+	tests := []struct {
+		name     string
+		args     []string
+		code     int
+		contains string
+		requests int64
+	}{
+		{
+			name:     "should reject a timeout of zero",
+			args:     []string{"--timeout", "0"},
+			code:     cli.ExitUsage,
+			contains: "jev: --timeout takes a positive number of seconds, got 0",
+		},
+		{
+			name:     "should reject a timeout above the ceiling",
+			args:     []string{"--timeout", "86401"},
+			code:     cli.ExitUsage,
+			contains: "jev: --timeout takes at most 86400 seconds, got 86401",
+		},
+		{
+			name:     "should reject a timeout that would overflow a duration",
+			args:     []string{"--timeout", "18446744074"},
+			code:     cli.ExitUsage,
+			contains: "jev: --timeout takes at most 86400 seconds, got 18446744074",
+		},
+		{
+			name:     "should reject a negative retry count",
+			args:     []string{"--retries=-1"},
+			code:     cli.ExitUsage,
+			contains: "jev: --retries takes a retry count of zero or more, got -1",
+		},
+		{
+			name:     "should reject a negative retry after cap",
+			args:     []string{"--max-retry-after=-5"},
+			code:     cli.ExitUsage,
+			contains: "jev: --max-retry-after must be a positive number of seconds, got -5",
+		},
+		{
+			name:     "should reject a retry after cap that would overflow a duration",
+			args:     []string{"--max-retry-after", "18446744074"},
+			code:     cli.ExitUsage,
+			contains: "jev: --max-retry-after takes at most 86400 seconds, got 18446744074",
+		},
+		{
+			name:     "should reject a job count of zero",
+			args:     []string{"-j", "0"},
+			code:     cli.ExitUsage,
+			contains: "jev: -j takes a positive number of records in flight, got 0",
+		},
+		{
+			name: "should reach the request with every flag in range",
+			args: []string{
+				"--timeout", "86400", "--retries", "0", "--max-retry-after", "86400", "-j", "1",
+			},
+			code:     cli.ExitOK,
+			requests: 1,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var requests atomic.Int64
+
+			srv := httptest.NewServer(http.HandlerFunc(
+				func(w http.ResponseWriter, _ *http.Request) {
+					requests.Add(1)
+					w.Header().Set("Content-Type", "application/json")
+
+					if _, err := io.WriteString(w, answered); err != nil {
+						t.Errorf("writing the response: %v", err)
+					}
+				}))
+			defer srv.Close()
+
+			args := append([]string{
+				"is this urgent", "--base-url", srv.URL, "--api-key", "test",
+			}, tc.args...)
+
+			var out bytes.Buffer
+
+			// No WithClientFactory, since these flags reach the client through the real factory
+			// and the point of the test is the plumbing a stub would replace.
+			root := cli.NewRootCmd(
+				cli.BuildInfo{Version: "1.2.3"},
+				cli.WithStdin(strings.NewReader("a ticket")),
+				cli.WithStdinTTY(false),
+				cli.WithStdoutTTY(false),
+				cli.WithLookupEnv(func(string) (string, bool) { return "", false }),
+			)
+
+			root.SetOut(&out)
+			root.SetErr(&out)
+			root.SetArgs(args)
+
+			if code := cli.Execute(t.Context(), root); code != tc.code {
+				t.Errorf("exit code = %d, want %d. output:\n%s", code, tc.code, out.String())
+			}
+
+			if tc.contains != "" && !strings.Contains(out.String(), tc.contains) {
+				t.Errorf("output = %q, want it to contain %q", out.String(), tc.contains)
+			}
+
+			// A rejected flag must be caught before anything is sent, which is what lets the
+			// error cases run without a reachable server at all.
+			if got := requests.Load(); got != tc.requests {
+				t.Errorf("requests = %d, want %d", got, tc.requests)
 			}
 		})
 	}
