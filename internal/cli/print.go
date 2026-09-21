@@ -7,8 +7,8 @@ import (
 	"github.com/frodi-karlsson/jev-cli/internal/qfile"
 )
 
-func printQuestions(w io.Writer, built *plan.Plan) error {
-	out, err := qfile.Write(built.Questions)
+func printQuestions(w io.Writer, questions []plan.Question) error {
+	out, err := qfile.Write(questions)
 	if err != nil {
 		return err
 	}
