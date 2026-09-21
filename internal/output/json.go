@@ -11,6 +11,36 @@ import (
 type Answer = answer.Answer
 
 func writeJSON(w io.Writer, rec Record) error {
+	buf, err := jsonBytes(rec)
+	if err != nil {
+		return err
+	}
+
+	_, err = w.Write(append(buf, '\n'))
+
+	return err
+}
+
+func writeValues(w io.Writer, rec Record) error {
+	buf, err := valuesBytes(rec)
+	if err != nil {
+		return err
+	}
+
+	_, err = w.Write(append(buf, '\n'))
+
+	return err
+}
+
+func encode(mode Mode, rec Record) ([]byte, error) {
+	if mode == Values {
+		return valuesBytes(rec)
+	}
+
+	return jsonBytes(rec)
+}
+
+func jsonBytes(rec Record) ([]byte, error) {
 	var buf []byte
 
 	buf = append(buf, '{')
@@ -21,7 +51,7 @@ func writeJSON(w io.Writer, rec Record) error {
 
 		model, err := json.Marshal(rec.Model)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		buf = append(buf, model...)
@@ -32,7 +62,7 @@ func writeJSON(w io.Writer, rec Record) error {
 
 		usage, err := json.Marshal(rec.Usage)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		buf = append(buf, usage...)
@@ -47,20 +77,16 @@ func writeJSON(w io.Writer, rec Record) error {
 
 		encoded, err := json.Marshal(named.Answer)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		buf = append(buf, encoded...)
 	}
 
-	buf = append(buf, '}', '\n')
-
-	_, err := w.Write(buf)
-
-	return err
+	return append(buf, '}'), nil
 }
 
-func writeValues(w io.Writer, rec Record) error {
+func valuesBytes(rec Record) ([]byte, error) {
 	var buf []byte
 
 	buf = append(buf, '{')
@@ -75,17 +101,13 @@ func writeValues(w io.Writer, rec Record) error {
 
 		encoded, err := json.Marshal(scalar(named.Answer))
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		buf = append(buf, encoded...)
 	}
 
-	buf = append(buf, '}', '\n')
-
-	_, err := w.Write(buf)
-
-	return err
+	return append(buf, '}'), nil
 }
 
 func appendFailure(buf []byte, rec Record) []byte {
