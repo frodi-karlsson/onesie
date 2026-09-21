@@ -202,9 +202,7 @@ func run(
 			"jev: no state given. Pipe one to stdin, or pass --state or --state-file")
 	}
 
-	// After the state is resolved, so the body carries the state a real run would send, and above
-	// the --merge check, because --merge folds answers into an input record and a request body
-	// carries no answers to collide with. streamRequests branches in the same place.
+	// After the state is resolved, so the body carries the state a real run would send.
 	if flags.printRequest {
 		return printRequest(cmd.OutOrStdout(), built.Questions, resolved,
 			jev.ResolveModel(built.Model, settings.lookupEnv))
