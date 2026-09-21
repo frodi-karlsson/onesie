@@ -99,6 +99,8 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 	root.Flags().StringVar(&flags.baseURL, "base-url", "", "api root override")
 	root.Flags().StringVarP(&flags.file, "file", "f", "", "question file or request body")
 	root.Flags().BoolVar(&flags.replace, "replace", false, "--ask overrides an id from -f")
+	root.Flags().BoolVar(&flags.printQuestions, "print-questions", false,
+		"write a question file to stdout and exit")
 	root.Flags().IntVarP(&flags.jobs, "jobs", "j", 1, "records in flight at once")
 	root.Flags().IntVar(&flags.timeout, "timeout", int(limits.DefaultAttemptTimeout.Seconds()),
 		"seconds per attempt")

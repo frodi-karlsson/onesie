@@ -107,6 +107,13 @@ func run(
 		return err
 	}
 
+	// Before the output mode, because a question file is not an output mode and -o has no meaning
+	// for it. After validation, because a dry run that accepted a plan the real run would reject
+	// would be worse than useless.
+	if flags.printQuestions {
+		return printQuestions(cmd.OutOrStdout(), built)
+	}
+
 	// Both modes are parsed before the request, so a mistyped flag costs nothing.
 	outputMode, err := output.ParseMode(
 		outputName(flags), settings.stdoutTTY, inputMode.Streaming(), merging(flags))
@@ -623,6 +630,8 @@ type runFlags struct {
 	baseURL   string
 	file      string
 	replace   bool
+
+	printQuestions bool
 
 	jobs          int
 	timeout       int
