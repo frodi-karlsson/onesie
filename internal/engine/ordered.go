@@ -61,15 +61,15 @@ func runOrdered[T any](ctx context.Context, cfg Config[T]) (Result, error) {
 	}
 }
 
-// fifoCap is one less than the job count, because the writer is always holding one popped channel.
-// That caps outstanding records at the job count, which is what makes the spec's bound of one fewer
-// completed records buffered true. A job count of one gives an unbuffered channel and a fully
-// serial run.
 func fifoCap(jobs int) int {
 	if jobs < 2 {
+		// A job count of one gives an unbuffered channel and a fully serial run.
 		return 0
 	}
 
+	// One less than the job count, because the writer is always holding one popped channel. That
+	// caps outstanding records at the job count, which is what makes the spec's bound of one fewer
+	// completed records buffered true.
 	return jobs - 1
 }
 
@@ -182,8 +182,6 @@ func consume[T any](
 	return result
 }
 
-// flush writes the longest completed prefix and stops at the first record still in flight, so the
-// output is always a prefix of the input rather than a prefix with a hole in it.
 func flush[T any](cfg Config[T], queue <-chan chan outcome[T], result *Result) {
 	for {
 		select {
@@ -198,6 +196,9 @@ func flush[T any](cfg Config[T], queue <-chan chan outcome[T], result *Result) {
 					return
 				}
 			default:
+				// Stopping at the first record still in flight is what writes the longest
+				// completed prefix and keeps the output a prefix of the input rather than a
+				// prefix with a hole in it.
 				return
 			}
 		default:
@@ -206,8 +207,6 @@ func flush[T any](cfg Config[T], queue <-chan chan outcome[T], result *Result) {
 	}
 }
 
-// emit accounts for one outcome and writes it. It reports false when the run should stop, which is
-// either a closed output pipe or a write that failed for a reason of jev's own.
 func emit[T any](cfg Config[T], got outcome[T], result *Result) bool {
 	result.Records++
 
@@ -222,7 +221,7 @@ func emit[T any](cfg Config[T], got outcome[T], result *Result) bool {
 
 	if broken(err) {
 		// The consumer stopped reading, which is its right. Nothing is reported and the run
-		// succeeded.
+		// succeeded, so false here means stop rather than fail.
 		result.Broken = true
 
 		return false

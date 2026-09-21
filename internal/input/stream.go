@@ -104,8 +104,6 @@ func (e *LineError) Unwrap() error {
 	return e.Err
 }
 
-// read assembles one line. A line longer than the limit is reported rather than buffered, so one
-// oversized record can neither exhaust memory nor stop the batch.
 func (s *Stream) read() (string, bool, error) {
 	var (
 		builder strings.Builder
@@ -120,6 +118,8 @@ func (s *Stream) read() (string, bool, error) {
 			return "", false, err
 		}
 
+		// An oversized line is reported rather than buffered, so one such record can neither
+		// exhaust memory nor stop the batch.
 		if builder.Len()+len(chunk) > maxLineBytes {
 			tooLong = true
 		}
