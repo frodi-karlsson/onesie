@@ -4,8 +4,12 @@ import (
 	"encoding/json"
 	"errors"
 	"strconv"
+	"strings"
 
 	"github.com/goccy/go-yaml"
+	"github.com/goccy/go-yaml/ast"
+	"github.com/goccy/go-yaml/printer"
+	"github.com/goccy/go-yaml/token"
 
 	"github.com/frodi-karlsson/jev-cli/internal/plan"
 )
@@ -29,7 +33,7 @@ func Write(questions []plan.Question) ([]byte, error) {
 		doc = append(doc, yaml.MapItem{Key: question.ID, Value: body})
 	}
 
-	return yaml.Marshal(doc)
+	return marshal(doc)
 }
 
 func writeQuestion(question plan.Question) (yaml.MapSlice, error) {
@@ -161,4 +165,68 @@ func yamlValue(value any) (any, error) {
 	// a mapping in its original order rather than as the byte sequence goccy renders a
 	// json.RawMessage as.
 	return DecodeOrdered(raw)
+}
+
+func marshal(doc yaml.MapSlice) ([]byte, error) {
+	node, err := yaml.ValueToNode(doc)
+	if err != nil {
+		return nil, err
+	}
+
+	ast.Walk(quoter{}, node)
+
+	var out printer.Printer
+
+	return out.PrintNode(node), nil
+}
+
+type quoter struct{}
+
+func (q quoter) Visit(node ast.Node) ast.Visitor {
+	switch typed := node.(type) {
+	case *ast.MappingValueNode:
+		if key, ok := requote(typed.Key).(ast.MapKeyNode); ok {
+			typed.Key = key
+		}
+
+		typed.Value = requote(typed.Value)
+	case *ast.SequenceNode:
+		for i, item := range typed.Values {
+			typed.Values[i] = requote(item)
+		}
+	}
+
+	return q
+}
+
+func requote(node ast.Node) ast.Node {
+	text, ok := scalarText(node)
+	if !ok || !strings.ContainsAny(text, "\t\r") {
+		// Every other scalar is left to goccy, because section 10 means the file to be read and
+		// edited and forcing every multi line description onto one quoted line loses the block
+		// scalar that makes it readable.
+		return node
+	}
+
+	// goccy emits a tab as a plain scalar and a carriage return as a block scalar whose breaks are
+	// carriage returns, and its own parser drops the first and rewrites the second as a line feed.
+	// JSON string escaping is a strict subset of YAML's double quoted escaping, so encoding/json is
+	// a correct emitter for the one form that survives.
+	encoded, err := json.Marshal(text)
+	if err != nil {
+		return node
+	}
+
+	return ast.String(token.New(string(encoded), string(encoded), node.GetToken().Position))
+}
+
+func scalarText(node ast.Node) (string, bool) {
+	switch typed := node.(type) {
+	case *ast.StringNode:
+		return typed.Value, true
+	case *ast.LiteralNode:
+		return typed.Value.Value, true
+	default:
+		return "", false
+	}
 }
