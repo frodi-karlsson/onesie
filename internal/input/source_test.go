@@ -241,16 +241,8 @@ func TestParseMode(t *testing.T) {
 		{name: "should default an empty flag to text", flag: "", wantMode: input.Text},
 		{name: "should parse text", flag: "text", wantMode: input.Text},
 		{name: "should parse json", flag: "json", wantMode: input.JSON},
-		{
-			name:    "should report a streaming mode as not available yet",
-			flag:    "jsonl",
-			wantErr: "jev: -i jsonl is not available yet",
-		},
-		{
-			name:    "should report lines as not available yet",
-			flag:    "lines",
-			wantErr: "jev: -i lines is not available yet",
-		},
+		{name: "should parse jsonl", flag: "jsonl", wantMode: input.JSONL},
+		{name: "should parse lines", flag: "lines", wantMode: input.Lines},
 		{
 			name:    "should report request as not available yet",
 			flag:    "request",

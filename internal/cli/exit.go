@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/frodi-karlsson/jev-cli/internal/input"
 	"github.com/frodi-karlsson/jev-cli/internal/jev"
 )
 
@@ -33,6 +34,16 @@ const (
 func Classify(err error) int {
 	if err == nil {
 		return ExitOK
+	}
+
+	var records *recordsError
+	if errors.As(err, &records) {
+		return ExitRecords
+	}
+
+	var bad *input.LineError
+	if errors.As(err, &bad) {
+		return ExitUsage
 	}
 
 	if errors.Is(err, context.Canceled) {

@@ -90,7 +90,7 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 	root.Flags().BoolVarP(&flags.quiet, "quiet", "q", false,
 		"suppress output, the exit code carries the answer")
 	root.Flags().BoolVar(&flags.usage, "usage", false, "add the api usage object to json output")
-	root.Flags().StringVarP(&flags.input, "input", "i", "text", "text or json")
+	root.Flags().StringVarP(&flags.input, "input", "i", "text", "text, json, jsonl or lines")
 	root.Flags().StringVar(&flags.state, "state", "", "state to evaluate, or - to read stdin")
 	root.Flags().StringVar(&flags.stateFile, "state-file", "", "read the state from this file")
 	root.Flags().StringVarP(&flags.model, "model", "m", "", "model override")
@@ -99,6 +99,16 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 	root.Flags().StringVar(&flags.baseURL, "base-url", "", "api root override")
 	root.Flags().StringVarP(&flags.file, "file", "f", "", "question file or request body")
 	root.Flags().BoolVar(&flags.replace, "replace", false, "--ask overrides an id from -f")
+	root.Flags().IntVarP(&flags.jobs, "jobs", "j", 1, "records in flight at once")
+	root.Flags().BoolVar(&flags.unordered, "unordered", false,
+		"streaming only, emit records as they complete")
+	root.Flags().BoolVar(&flags.stopOnError, "stop-on-error", false,
+		"streaming only, end the run at the first failure")
+	root.Flags().BoolVar(&flags.skipBlank, "skip-blank", false,
+		"streaming only, drop blank lines with no output line")
+	root.Flags().BoolVar(&flags.merge, "merge", false, "fold the answers into the input record")
+	root.Flags().StringVar(&flags.mergeKey, "merge-key", "",
+		"where the answers land in the merged record, implies --merge")
 
 	root.AddCommand(newVersionCmd(info))
 

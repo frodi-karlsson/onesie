@@ -1,7 +1,9 @@
 package cli
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -9,6 +11,7 @@ import (
 
 	"github.com/frodi-karlsson/jev-cli/internal/answer"
 	"github.com/frodi-karlsson/jev-cli/internal/argv"
+	"github.com/frodi-karlsson/jev-cli/internal/engine"
 	"github.com/frodi-karlsson/jev-cli/internal/input"
 	"github.com/frodi-karlsson/jev-cli/internal/jev"
 	"github.com/frodi-karlsson/jev-cli/internal/output"
@@ -92,6 +95,10 @@ func run(
 		return err
 	}
 
+	if inputMode.Streaming() {
+		return stream(cmd, settings, built, inputMode, outputMode, flags)
+	}
+
 	resolved, err := input.Resolve(input.Request{
 		Mode:         inputMode,
 		Stdin:        settings.stdin,
@@ -124,6 +131,165 @@ func run(
 	return ask(cmd, settings, built, resolved, outputMode, flags)
 }
 
+func stream(
+	cmd *cobra.Command,
+	settings rootSettings,
+	built *plan.Plan,
+	inputMode input.Mode,
+	outputMode output.Mode,
+	flags *runFlags,
+) error {
+	client, err := settings.newClient(cmd.Context())
+	if err != nil {
+		return err
+	}
+
+	questions := make(map[string]jev.Question, len(built.Questions))
+	for _, question := range built.Questions {
+		questions[question.ID] = wire(question)
+	}
+
+	source := input.NewStream(settings.stdin, inputMode, flags.skipBlank)
+	out := cmd.OutOrStdout()
+	merging := flags.merge || flags.mergeKey != ""
+
+	result, err := engine.Run(cmd.Context(), engine.Config[line]{
+		Source: source,
+		Evaluate: func(ctx context.Context, rec input.Record) (line, error) {
+			if rec.Err != nil {
+				return line{record: failureRecord(built, rec.Err), raw: rec.Raw}, rec.Err
+			}
+
+			if merging && hasKey(rec.State, mergeKey(flags)) {
+				// Detected here rather than inside Write, because the engine accounts a failure
+				// from the evaluator's error and a rewrite inside Write would be counted as a
+				// success. One such input is that record's problem, not the batch's.
+				//
+				// Built as a LineError so describe gives it kind input rather than the transport
+				// default, so --stop-on-error reaches the row that exits 2, and so the line number
+				// comes along without a jev prefix inside the JSON.
+				taken := &input.LineError{
+					Line: rec.Line,
+					Err: fmt.Errorf(
+						"--merge would overwrite the input's '%s' key, pass --merge-key",
+						mergeKey(flags)),
+				}
+
+				return line{
+					record: failureRecord(built, taken),
+					// raw is deliberately left empty, which is what sends merge down the wrapper
+					// path rather than the splice. The object goes under state as raw JSON rather
+					// than a Go map, so its key order survives.
+					state: json.RawMessage(compact(rec.Raw)),
+				}, taken
+			}
+
+			record, evalErr := evaluate(ctx, client, built, questions, rec.State, flags.usage)
+
+			return line{record: record, raw: rec.Raw, state: rec.State}, evalErr
+		},
+		Write: func(l line) error {
+			if !merging {
+				return output.Write(out, outputMode, l.record)
+			}
+
+			return output.WriteMerged(out, outputMode, l.record, l.raw, l.state, mergeKey(flags))
+		},
+		Jobs:        flags.jobs,
+		Unordered:   flags.unordered,
+		StopOnError: flags.stopOnError,
+		Abort:       aborting,
+	})
+	if err != nil {
+		return err
+	}
+
+	return streamResult(result)
+}
+
+type line struct {
+	record output.Record
+	raw    string
+	// state is what was sent to the API, which --merge needs so a text line keeps its type. It is
+	// nil for a record jev could not read.
+	state any
+}
+
+func hasKey(state any, key string) bool {
+	object, ok := state.(map[string]any)
+	if !ok {
+		return false
+	}
+
+	_, exists := object[key]
+
+	return exists
+}
+
+func compact(raw string) []byte {
+	var flat bytes.Buffer
+
+	if err := json.Compact(&flat, []byte(raw)); err != nil {
+		// Unreachable for a line that parsed, which is the only way this is called.
+		return []byte(raw)
+	}
+
+	return flat.Bytes()
+}
+
+func aborting(err error) bool {
+	// Every later record would fail the same way, and a bad key should be reported once rather
+	// than once per line.
+	return errors.Is(err, jev.ErrAuthentication) || errors.Is(err, jev.ErrPermissionDenied)
+}
+
+func mergeKey(flags *runFlags) string {
+	if flags.mergeKey != "" {
+		return flags.mergeKey
+	}
+
+	return "answers"
+}
+
+func streamResult(result engine.Result) error {
+	if result.Broken {
+		// The consumer stopped reading, which is its right. Nothing is reported and the run
+		// succeeded.
+		return nil
+	}
+
+	if result.Aborted {
+		// Reported by returning it rather than by printing here. Execute already writes the error
+		// to stderr and adds the jev prefix only when it is missing, so printing here as well
+		// would report the abort twice, and once with a doubled prefix.
+		return &abortError{cause: result.Cause}
+	}
+
+	if result.Failed > 0 {
+		return &recordsError{}
+	}
+
+	return nil
+}
+
+type abortError struct {
+	cause error
+}
+
+func (e *abortError) Error() string {
+	return e.cause.Error()
+}
+
+func (e *abortError) Unwrap() error {
+	return e.cause
+}
+
+type recordsError struct{}
+
+func (*recordsError) Error() string {
+	return "one or more records failed"
+}
+
 func ask(
 	cmd *cobra.Command,
 	settings rootSettings,
@@ -142,43 +308,15 @@ func ask(
 		questions[question.ID] = wire(question)
 	}
 
-	result, err := client.SystemOne(cmd.Context(), jev.Request{
-		State:     resolved.State,
-		Model:     built.Model,
-		Questions: questions,
-	})
+	record, err := evaluate(cmd.Context(), client, built, questions, resolved.State, flags.usage)
 	if err != nil {
 		// The exit code still comes from the error. This only adds the fallback word the caller
 		// asked for, so a shell guard reads a decision rather than an empty string.
-		if writeErr := writeFailure(cmd, settings, built, outputMode, flags, err); writeErr != nil {
+		if writeErr := writeFailure(cmd, settings, outputMode, flags, record); writeErr != nil {
 			return writeErr
 		}
 
 		return err
-	}
-
-	record := output.Record{Model: result.Model}
-	if flags.usage {
-		record.Usage = &result.Usage
-	}
-
-	for _, question := range built.Questions {
-		raw, ok := result.Answers[question.ID]
-		if !ok {
-			// Normalize would call Kind on a nil interface and panic. SystemOne already checks
-			// this, so reaching here means a stub or a future code path skipped it.
-			return fmt.Errorf("jev: response carries no answer for '%s'", question.ID)
-		}
-
-		normalized, normErr := answer.Normalize(question, raw)
-		if normErr != nil {
-			return normErr
-		}
-
-		answer.Apply(question, normalized)
-
-		record.Answers = append(record.Answers,
-			output.Named{ID: question.ID, Answer: normalized})
 	}
 
 	if flags.quiet {
@@ -195,21 +333,13 @@ func ask(
 func writeFailure(
 	cmd *cobra.Command,
 	settings rootSettings,
-	built *plan.Plan,
 	mode output.Mode,
 	flags *runFlags,
-	cause error,
+	record output.Record,
 ) error {
 	// -q suppresses output entirely, so the exit code carries the whole result.
 	if flags.quiet {
 		return nil
-	}
-
-	record := output.Record{Failure: describe(cause)}
-
-	for _, question := range built.Questions {
-		record.Answers = append(record.Answers,
-			output.Named{ID: question.ID, Answer: answer.Failed(question)})
 	}
 
 	if mode == output.Table {
@@ -219,7 +349,71 @@ func writeFailure(
 	return output.Write(cmd.OutOrStdout(), mode, record)
 }
 
+func evaluate(
+	ctx context.Context,
+	client *jev.Client,
+	built *plan.Plan,
+	questions map[string]jev.Question,
+	state any,
+	withUsage bool,
+) (output.Record, error) {
+	result, err := client.SystemOne(ctx, jev.Request{
+		State:     state,
+		Model:     built.Model,
+		Questions: questions,
+	})
+	if err != nil {
+		return failureRecord(built, err), err
+	}
+
+	record := output.Record{Model: result.Model}
+	if withUsage {
+		record.Usage = &result.Usage
+	}
+
+	for _, question := range built.Questions {
+		raw, ok := result.Answers[question.ID]
+		if !ok {
+			// A failure record rather than an empty one. In a stream an empty record writes a bare
+			// {} with no error key, which a consumer reads as a successful answer to nothing.
+			missing := fmt.Errorf("jev: response carries no answer for '%s'", question.ID)
+
+			return failureRecord(built, missing), missing
+		}
+
+		normalized, normErr := answer.Normalize(question, raw)
+		if normErr != nil {
+			return failureRecord(built, normErr), normErr
+		}
+
+		answer.Apply(question, normalized)
+
+		record.Answers = append(record.Answers,
+			output.Named{ID: question.ID, Answer: normalized})
+	}
+
+	return record, nil
+}
+
+func failureRecord(built *plan.Plan, cause error) output.Record {
+	record := output.Record{Failure: describe(cause)}
+
+	for _, question := range built.Questions {
+		record.Answers = append(record.Answers,
+			output.Named{ID: question.ID, Answer: answer.Failed(question)})
+	}
+
+	return record
+}
+
 func describe(cause error) *output.Failure {
+	var bad *input.LineError
+	if errors.As(cause, &bad) {
+		// No request was sent, so there is no status. Calling it transport would blame the network
+		// for a line jev could not read.
+		return &output.Failure{Kind: "input", Message: cause.Error()}
+	}
+
 	var unusable *jev.ResponseError
 	if errors.As(cause, &unusable) {
 		status := unusable.Status
@@ -322,6 +516,13 @@ type runFlags struct {
 	baseURL   string
 	file      string
 	replace   bool
+
+	jobs        int
+	unordered   bool
+	stopOnError bool
+	skipBlank   bool
+	merge       bool
+	mergeKey    string
 }
 
 type rejectedError struct{}
