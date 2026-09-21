@@ -136,7 +136,8 @@ func checkSources(p *Plan) error {
 	}
 
 	if named > 0 && positional > 0 {
-		return errors.New("jev: a positional question cannot be combined with --ask")
+		return errors.New(
+			"jev: a positional question cannot be combined with --ask or -f")
 	}
 
 	return nil

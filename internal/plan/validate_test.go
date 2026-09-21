@@ -16,6 +16,7 @@ func TestValidate(t *testing.T) {
 	tests := []struct {
 		name         string
 		events       []argv.Event
+		file         []plan.Question
 		positional   string
 		cfg          plan.Config
 		wantErr      string
@@ -30,7 +31,15 @@ func TestValidate(t *testing.T) {
 			name:       "should reject a positional combined with ask",
 			positional: "is this urgent",
 			events:     []argv.Event{{Name: "ask", Value: "a=first"}},
-			wantErr:    "jev: a positional question cannot be combined with --ask",
+			wantErr:    "jev: a positional question cannot be combined with --ask or -f",
+		},
+		{
+			name:       "should reject a positional combined with a file question",
+			positional: "is this urgent",
+			file: []plan.Question{
+				{ID: "urgent", Shape: plan.Noul, Instructions: "is this urgent", Named: true},
+			},
+			wantErr: "jev: a positional question cannot be combined with --ask or -f",
 		},
 		{
 			name:    "should reject a reserved id",
@@ -278,6 +287,7 @@ func TestValidate(t *testing.T) {
 
 			built, err := plan.Assemble(plan.Source{
 				Events:     tc.events,
+				File:       tc.file,
 				Positional: tc.positional,
 				ReadFile:   readFile,
 			})
