@@ -287,6 +287,8 @@ func stream(
 			}
 
 			if merge && hasKey(rec.State, mergeKey(flags)) {
+				stats.recordFailure(false, 0)
+
 				// Detected here rather than inside Write, because the engine accounts a failure
 				// from the evaluator's error and a rewrite inside Write would be counted as a
 				// success. One such input is that record's problem, not the batch's.

@@ -284,6 +284,20 @@ func TestNewRootCmdStats(t *testing.T) {
 			wantOutHas: []string{`"status":400`},
 		},
 		{
+			// The mutation this catches is counting the record as neither a record nor a failure,
+			// which suppresses both clauses and reports a clean run beside exit 6.
+			name: "should count a merge collision as a failed record",
+			args: []string{
+				"--ask", "urgent=is this urgent", "-i", "jsonl", "-o", "json",
+				"--merge", "--stats",
+			},
+			stdin:      "{\"id\":1}\n{\"id\":2,\"answers\":{}}\n{\"id\":3}\n",
+			handler:    func() http.HandlerFunc { return answerHandler(answered) },
+			wantCode:   ExitRecords,
+			wantErr:    []string{"3 records, 1 failed, 2 requests, 2 questions"},
+			wantOutHas: []string{"would overwrite"},
+		},
+		{
 			name: "should total every record when they run concurrently",
 			args: []string{
 				"--ask", "urgent=is this urgent", "-i", "jsonl", "-o", "json",
