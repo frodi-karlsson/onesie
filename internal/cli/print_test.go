@@ -200,17 +200,274 @@ func wireBody(t *testing.T, data []byte) string {
 	return string(encoded)
 }
 
+func TestPrintRequest(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		args     []string
+		stdin    string
+		wantCode int
+		stdout   []string
+		absent   []string
+		stderr   []string
+	}{
+		{
+			name:     "should print one request body and exit without a request",
+			args:     []string{"--ask", "urgent=is this urgent", "--print-request"},
+			stdin:    "the server is down",
+			wantCode: ExitOK,
+			stdout: []string{
+				`{"state":"the server is down","model":"jev-latest","questions":` +
+					`{"urgent":{"type":"noul","instructions":"is this urgent"}}}` + "\n",
+			},
+		},
+		{
+			name:     "should omit state when none was given",
+			args:     []string{"--ask", "urgent=is this urgent", "--print-request"},
+			wantCode: ExitOK,
+			stdout: []string{
+				`{"model":"jev-latest","questions":` +
+					`{"urgent":{"type":"noul","instructions":"is this urgent"}}}` + "\n",
+			},
+			absent: []string{`"state"`},
+		},
+		{
+			name: "should keep the state's key order and its digits",
+			args: []string{
+				"--ask", "urgent=is this urgent", "-i", "json", "--print-request",
+			},
+			stdin:    `{"ticket_id":12345678901234567890,"zebra":1,"alpha":2}`,
+			wantCode: ExitOK,
+			stdout:   []string{`"state":{"ticket_id":12345678901234567890,"zebra":1,"alpha":2}`},
+		},
+		{
+			name: "should print the questions in the order they were asked",
+			args: []string{
+				"--ask", "zebra=z", "--ask", "mike=m", "--ask", "alpha=a", "--print-request",
+			},
+			stdin:    "s",
+			wantCode: ExitOK,
+			stdout: []string{
+				`"questions":{"zebra":{"type":"noul","instructions":"z"},` +
+					`"mike":{"type":"noul","instructions":"m"},` +
+					`"alpha":{"type":"noul","instructions":"a"}}`,
+			},
+		},
+		{
+			name: "should print a body for a positional question",
+			args: []string{"is this urgent", "--print-request"},
+			// A positional question is rejected by --print-questions and accepted here, because a
+			// request body needs no name a caller has to type.
+			stdin:    "the server is down",
+			wantCode: ExitOK,
+			stdout:   []string{`"answer":{"type":"noul","instructions":"is this urgent"}`},
+		},
+		{
+			// The control for every case above. The same command without the flag needs a key it
+			// does not have, so an exit of zero there is the dry run and not an empty run.
+			name:     "should report the missing key when the run does make a request",
+			args:     []string{"--ask", "urgent=is this urgent"},
+			stdin:    "the server is down",
+			wantCode: ExitUsage,
+			stderr:   []string{"jev: no API key"},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			out, errOut, code := runOfflineStdin(t, tc.args, tc.stdin)
+
+			if code != tc.wantCode {
+				t.Errorf("exit code = %d, want %d\nstdout:\n%s\nstderr:\n%s",
+					code, tc.wantCode, out, errOut)
+			}
+
+			for _, want := range tc.stdout {
+				if !strings.Contains(out, want) {
+					t.Errorf("stdout missing %q\ngot:\n%s", want, out)
+				}
+			}
+
+			for _, unwanted := range tc.absent {
+				if strings.Contains(out, unwanted) {
+					t.Errorf("stdout should not contain %q\ngot:\n%s", unwanted, out)
+				}
+			}
+
+			for _, want := range tc.stderr {
+				if !strings.Contains(errOut, want) {
+					t.Errorf("stderr missing %q\ngot:\n%s", want, errOut)
+				}
+			}
+
+			// The body belongs on stdout, so a case that names nothing on a stream expects that
+			// stream to stay empty rather than to carry the body it forgot to ask for.
+			if len(tc.stdout) == 0 && out != "" {
+				t.Errorf("stdout should be empty, got:\n%s", out)
+			}
+
+			if len(tc.stderr) == 0 && errOut != "" {
+				t.Errorf("stderr should be empty, got:\n%s", errOut)
+			}
+		})
+	}
+
+	t.Run("should print a question only body that -f accepts", func(t *testing.T) {
+		t.Parallel()
+
+		printed, errOut, code := runOffline(t,
+			[]string{"--ask", "urgent=is this urgent", "--print-request"})
+		if code != ExitOK {
+			t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, ExitOK, errOut)
+		}
+
+		path := filepath.Join(t.TempDir(), "body.json")
+		if err := os.WriteFile(path, []byte(printed), 0o600); err != nil {
+			t.Fatalf("writing the body: %v", err)
+		}
+
+		reloaded, errOut, code := runOffline(t, []string{"-f", path, "--print-request"})
+		if code != ExitOK {
+			t.Fatalf("reloading exit code = %d, want %d\nstderr:\n%s", code, ExitOK, errOut)
+		}
+
+		if reloaded != printed {
+			t.Errorf("the body did not survive -f\nprinted  %s\nreloaded %s", printed, reloaded)
+		}
+	})
+
+	t.Run("should carry the state a request body brought with it", func(t *testing.T) {
+		t.Parallel()
+
+		const body = `{"state":{"zebra":1,"alpha":2},"model":"jev-1.13.0",` +
+			`"questions":{"urgent":{"type":"noul","instructions":"is this urgent"}}}`
+
+		path := filepath.Join(t.TempDir(), "body.json")
+		if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+			t.Fatalf("writing the body: %v", err)
+		}
+
+		printed, errOut, code := runOffline(t, []string{"-f", path, "--print-request"})
+		if code != ExitOK {
+			t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, ExitOK, errOut)
+		}
+
+		if printed != body+"\n" {
+			t.Errorf("printed %s, want %s", printed, body)
+		}
+	})
+}
+
+func TestStreamRequests(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		args      []string
+		stdin     string
+		wantCode  int
+		wantLines int
+		stdout    []string
+	}{
+		{
+			name:      "should print one body per input line",
+			args:      []string{"--ask", "urgent=is this urgent", "-i", "jsonl", "--print-request"},
+			stdin:     "{\"a\":1}\n{\"b\":2}\n",
+			wantCode:  ExitOK,
+			wantLines: 2,
+			stdout:    []string{`"state":{"a":1}`, `"state":{"b":2}`},
+		},
+		{
+			name:      "should print one body per line in lines mode",
+			args:      []string{"--ask", "urgent=is this urgent", "-i", "lines", "--print-request"},
+			stdin:     "first\nsecond\nthird\n",
+			wantCode:  ExitOK,
+			wantLines: 3,
+			stdout:    []string{`"state":"first"`, `"state":"second"`, `"state":"third"`},
+		},
+		{
+			name:      "should fail a bad line and still write a line for it",
+			args:      []string{"--ask", "urgent=is this urgent", "-i", "jsonl", "--print-request"},
+			stdin:     "{\"a\":1}\nnot json\n",
+			wantCode:  ExitRecords,
+			wantLines: 2,
+			stdout:    []string{`"state":{"a":1}`, `{"error":{"kind":"input"`, "line 2"},
+		},
+		{
+			name:      "should write nothing for an empty stream",
+			args:      []string{"--ask", "urgent=is this urgent", "-i", "jsonl", "--print-request"},
+			stdin:     "",
+			wantCode:  ExitOK,
+			wantLines: 0,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			out, errOut, code := runOfflineStdin(t, tc.args, tc.stdin)
+
+			if code != tc.wantCode {
+				t.Errorf("exit code = %d, want %d\nstdout:\n%s\nstderr:\n%s",
+					code, tc.wantCode, out, errOut)
+			}
+
+			written := outputLines(out)
+			if len(written) != tc.wantLines {
+				t.Errorf("wrote %d lines, want %d\ngot:\n%s", len(written), tc.wantLines, out)
+			}
+
+			// A failed record writes its error record rather than nothing, which is what keeps the
+			// output one line per input line.
+			for i, written := range written {
+				if written == "" {
+					t.Errorf("line %d is blank\ngot:\n%s", i+1, out)
+				}
+			}
+
+			for _, want := range tc.stdout {
+				if !strings.Contains(out, want) {
+					t.Errorf("stdout missing %q\ngot:\n%s", want, out)
+				}
+			}
+
+			if errOut != "" {
+				t.Errorf("stderr should be empty, got:\n%s", errOut)
+			}
+		})
+	}
+}
+
+func outputLines(out string) []string {
+	trimmed := strings.TrimSuffix(out, "\n")
+	if trimmed == "" {
+		return nil
+	}
+
+	return strings.Split(trimmed, "\n")
+}
+
 func runOffline(t *testing.T, args []string) (string, string, int) {
+	t.Helper()
+
+	return runOfflineStdin(t, args, "")
+}
+
+func runOfflineStdin(t *testing.T, args []string, stdin string) (string, string, int) {
 	t.Helper()
 
 	var out, errOut bytes.Buffer
 
-	// No client factory and no environment, so the real factory runs against a machine with no key
-	// and no state on stdin. A case that exits ok here reached neither the network nor stdin, which
-	// is the whole claim --print-questions makes.
+	// No client factory and no environment, so the real factory runs against a machine with no key.
+	// A case that exits ok here reached no network at all, which is the whole claim the two print
+	// flags make.
 	root := NewRootCmd(
 		BuildInfo{Version: "1.2.3"},
-		WithStdin(strings.NewReader("")),
+		WithStdin(strings.NewReader(stdin)),
 		WithStdinTTY(false),
 		WithStdoutTTY(false),
 		WithLookupEnv(func(string) (string, bool) { return "", false }),

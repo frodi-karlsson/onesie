@@ -169,6 +169,13 @@ func run(
 			mergeKey(flags))
 	}
 
+	// After the state is resolved and after every check a real run makes, so a dry run rejects
+	// everything the run it stands in for would.
+	if flags.printRequest {
+		return printRequest(cmd.OutOrStdout(), built.Questions, resolved,
+			jev.ResolveModel(built.Model, settings.lookupEnv))
+	}
+
 	return ask(cmd, settings, built, resolved, outputMode, flags)
 }
 
@@ -190,16 +197,16 @@ func stream(
 	outputMode output.Mode,
 	flags *runFlags,
 ) error {
+	if flags.printRequest {
+		return streamRequests(cmd, settings, built, inputMode, flags)
+	}
+
 	client, err := settings.newClient(cmd.Context())
 	if err != nil {
 		return err
 	}
 
-	questions := make(jev.Questions, 0, len(built.Questions))
-	for _, question := range built.Questions {
-		questions = append(questions, jev.NamedQuestion{ID: question.ID, Question: wire(question)})
-	}
-
+	questions := wireAll(built.Questions)
 	source := input.NewStream(settings.stdin, inputMode, flags.skipBlank)
 	out := cmd.OutOrStdout()
 	merge := merging(flags)
@@ -386,10 +393,7 @@ func ask(
 		return err
 	}
 
-	questions := make(jev.Questions, 0, len(built.Questions))
-	for _, question := range built.Questions {
-		questions = append(questions, jev.NamedQuestion{ID: question.ID, Question: wire(question)})
-	}
+	questions := wireAll(built.Questions)
 
 	record, err := evaluate(cmd.Context(), client, built, questions, resolved.Wire, flags.usage)
 	if err != nil {
@@ -571,6 +575,15 @@ func quietResult(question plan.Question, a *answer.Answer) error {
 	return nil
 }
 
+func wireAll(questions []plan.Question) jev.Questions {
+	wired := make(jev.Questions, 0, len(questions))
+	for _, question := range questions {
+		wired = append(wired, jev.NamedQuestion{ID: question.ID, Question: wire(question)})
+	}
+
+	return wired
+}
+
 func wire(q plan.Question) jev.Question {
 	switch q.Shape {
 	case plan.Pick:
@@ -632,6 +645,7 @@ type runFlags struct {
 	replace   bool
 
 	printQuestions bool
+	printRequest   bool
 
 	jobs          int
 	timeout       int

@@ -1,8 +1,16 @@
 package cli
 
 import (
+	"context"
+	"fmt"
 	"io"
 
+	"github.com/spf13/cobra"
+
+	"github.com/frodi-karlsson/jev-cli/internal/engine"
+	"github.com/frodi-karlsson/jev-cli/internal/input"
+	"github.com/frodi-karlsson/jev-cli/internal/jev"
+	"github.com/frodi-karlsson/jev-cli/internal/output"
 	"github.com/frodi-karlsson/jev-cli/internal/plan"
 	"github.com/frodi-karlsson/jev-cli/internal/qfile"
 )
@@ -16,4 +24,73 @@ func printQuestions(w io.Writer, questions []plan.Question) error {
 	_, err = w.Write(out)
 
 	return err
+}
+
+func printRequest(
+	w io.Writer,
+	questions []plan.Question,
+	resolved input.Resolved,
+	model string,
+) error {
+	req := jev.Request{Model: model, Questions: wireAll(questions)}
+
+	encode := jev.MarshalQuestionsBody
+	if resolved.Source != input.SourceNone {
+		req.State = resolved.Wire
+		encode = jev.MarshalBody
+	}
+
+	body, err := encode(req)
+	if err != nil {
+		return err
+	}
+
+	_, err = fmt.Fprintln(w, string(body))
+
+	return err
+}
+
+func streamRequests(
+	cmd *cobra.Command,
+	settings rootSettings,
+	built *plan.Plan,
+	inputMode input.Mode,
+	flags *runFlags,
+) error {
+	questions := wireAll(built.Questions)
+	model := jev.ResolveModel(built.Model, settings.lookupEnv)
+	out := cmd.OutOrStdout()
+
+	result, err := engine.Run(cmd.Context(), engine.Config[[]byte]{
+		Source: input.NewStream(settings.stdin, inputMode, flags.skipBlank),
+		Evaluate: func(_ context.Context, rec input.Record) ([]byte, error) {
+			if rec.Err != nil {
+				// A value alongside the error, because the engine writes every outcome. Returning
+				// nil here would print a blank line rather than the record.
+				return errorLine(rec.Err), rec.Err
+			}
+
+			return jev.MarshalBody(jev.Request{
+				State: rec.Wire, Model: model, Questions: questions,
+			})
+		},
+		Write: func(body []byte) error {
+			_, writeErr := fmt.Fprintln(out, string(body))
+
+			return writeErr
+		},
+		Jobs:        flags.jobs,
+		Unordered:   flags.unordered,
+		StopOnError: flags.stopOnError,
+		Abort:       aborting,
+	})
+	if err != nil {
+		return &sourceError{cause: err, failed: result.Failed}
+	}
+
+	return streamResult(result)
+}
+
+func errorLine(cause error) []byte {
+	return output.EncodeFailure(describe(cause))
 }
