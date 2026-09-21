@@ -35,7 +35,7 @@ func writeModels(w io.Writer, models []jev.ModelCard) error {
 		_, err := fmt.Fprintf(w, "%s  %s  %s\n",
 			model.Name, model.Description, model.ReleaseDate)
 		if err != nil {
-			return err
+			return written(err)
 		}
 	}
 

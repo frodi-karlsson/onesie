@@ -871,6 +871,12 @@ func worthReporting(err error) bool {
 		return false
 	}
 
+	if engine.BrokenPipe(err) {
+		// The consumer closed the pipe jev was writing to, and a line about it would go to a
+		// stderr the same consumer is often reading.
+		return false
+	}
+
 	var rejected *rejectedError
 	if errors.As(err, &rejected) {
 		// -q suppresses output entirely, so its rejection is carried by the exit code alone.

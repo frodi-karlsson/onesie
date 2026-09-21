@@ -23,7 +23,7 @@ func printQuestions(w io.Writer, questions []plan.Question) error {
 
 	_, err = w.Write(out)
 
-	return err
+	return written(err)
 }
 
 func printRequest(
@@ -47,7 +47,7 @@ func printRequest(
 
 	_, err = fmt.Fprintln(w, string(body))
 
-	return err
+	return written(err)
 }
 
 func streamRequests(
@@ -93,4 +93,14 @@ func streamRequests(
 
 func errorLine(cause error) []byte {
 	return output.EncodeFailure(describe(cause))
+}
+
+func written(err error) error {
+	// The consumer stopped reading, which is its right. The engine already ends a stream this way,
+	// and a listing or a dry run piped into head must not exit differently for it.
+	if engine.BrokenPipe(err) {
+		return nil
+	}
+
+	return err
 }

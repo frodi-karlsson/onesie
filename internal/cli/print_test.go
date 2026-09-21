@@ -4,13 +4,16 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
+	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 
 	"github.com/frodi-karlsson/jev-cli/internal/jev"
@@ -644,6 +647,134 @@ func outputLines(out string) []string {
 	}
 
 	return strings.Split(trimmed, "\n")
+}
+
+func TestNewRootCmdClosedConsumer(t *testing.T) {
+	t.Parallel()
+
+	const models = `{"models":[{"name":"jev-latest","description":"alias",` +
+		`"release_date":"2026-08-01"}]}`
+
+	tests := []struct {
+		name   string
+		args   []string
+		stdin  string
+		server bool
+	}{
+		{
+			name: "should exit 0 when the consumer of --print-questions stops reading",
+			args: []string{"--ask", "urgent=is this urgent", "--print-questions"},
+		},
+		{
+			name:  "should exit 0 when the consumer of --print-request stops reading",
+			args:  []string{"--ask", "urgent=is this urgent", "--print-request"},
+			stdin: "the server is down",
+		},
+		{
+			name:   "should exit 0 when the consumer of --list-models stops reading",
+			args:   []string{"--list-models"},
+			server: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			baseURL := ""
+
+			if tc.server {
+				srv := httptest.NewServer(http.HandlerFunc(
+					func(w http.ResponseWriter, _ *http.Request) {
+						w.Header().Set("Content-Type", "application/json")
+
+						if _, err := io.WriteString(w, models); err != nil {
+							t.Errorf("writing the stub response: %v", err)
+						}
+					}))
+				defer srv.Close()
+
+				baseURL = srv.URL
+			}
+
+			errOut, code := runClosed(t, tc.args, tc.stdin, baseURL)
+
+			if code != ExitOK {
+				t.Errorf("exit code = %d, want %d\nstderr:\n%s", code, ExitOK, errOut)
+			}
+
+			if errOut != "" {
+				t.Errorf("stderr should be empty, got:\n%s", errOut)
+			}
+		})
+	}
+}
+
+func runClosed(t *testing.T, args []string, stdin, baseURL string) (string, int) {
+	t.Helper()
+
+	var errOut bytes.Buffer
+
+	opts := []RootOption{
+		WithStdin(strings.NewReader(stdin)),
+		WithStdinTTY(false),
+		WithStdoutTTY(false),
+		WithLookupEnv(func(string) (string, bool) { return "", false }),
+	}
+
+	if baseURL != "" {
+		opts = append(opts, WithClientFactory(
+			func(_ context.Context, extra ...jev.Option) (*jev.Client, error) {
+				return jev.New(append([]jev.Option{
+					jev.WithAPIKey("k"),
+					jev.WithBaseURL(baseURL),
+					jev.WithEnv(func(string) (string, bool) { return "", false }),
+				}, extra...)...)
+			}))
+	}
+
+	root := NewRootCmd(BuildInfo{Version: "1.2.3"}, opts...)
+
+	root.SetOut(closedConsumer{})
+	root.SetErr(&errOut)
+	root.SetArgs(args)
+
+	code := Execute(t.Context(), root)
+
+	return errOut.String(), code
+}
+
+func TestWritten(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		err     error
+		wantErr bool
+	}{
+		{name: "should pass a write failure of jev's own on", err: errors.New("no space"), wantErr: true},
+		{
+			name: "should swallow a consumer that stopped reading",
+			err:  &fs.PathError{Op: "write", Path: "/dev/stdout", Err: syscall.EPIPE},
+		},
+		{name: "should pass a successful write on", err: nil},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := written(tc.err); (got != nil) != tc.wantErr {
+				t.Errorf("written(%v) = %v, want an error %t", tc.err, got, tc.wantErr)
+			}
+		})
+	}
+}
+
+type closedConsumer struct{}
+
+func (closedConsumer) Write([]byte) (int, error) {
+	return 0, syscall.EPIPE
 }
 
 func runOffline(t *testing.T, args []string) (string, string, int) {

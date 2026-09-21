@@ -219,7 +219,7 @@ func emit[T any](cfg Config[T], got outcome[T], result *Result) bool {
 		return true
 	}
 
-	if broken(err) {
+	if BrokenPipe(err) {
 		// The consumer stopped reading, which is its right. Nothing is reported and the run
 		// succeeded, so false here means stop rather than fail.
 		result.Broken = true
@@ -234,7 +234,10 @@ func emit[T any](cfg Config[T], got outcome[T], result *Result) bool {
 	return false
 }
 
-func broken(err error) bool {
+// BrokenPipe reports whether a write failed because the consumer stopped reading. Every jev
+// writer treats that as a successful end rather than a failure, so it is exported for the ones
+// outside this package.
+func BrokenPipe(err error) bool {
 	return errors.Is(err, syscall.EPIPE) || errors.Is(err, io.ErrClosedPipe)
 }
 

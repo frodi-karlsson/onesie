@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"net/http"
+	"syscall"
 	"testing"
 	"time"
 
@@ -124,6 +126,18 @@ func TestClassify(t *testing.T) {
 			err:  fmt.Errorf("while asking: %w", apiError(http.StatusUnauthorized)),
 			want: ExitAuth,
 		},
+		{
+			name: "should report success when the consumer stopped reading",
+			err:  &fs.PathError{Op: "write", Path: "/dev/stdout", Err: syscall.EPIPE},
+			want: ExitOK,
+		},
+		{
+			// The socket rather than stdout. A connection that broke under jev is a transport
+			// fault whatever errno the kernel chose for it.
+			name: "should still report transport for a connection that broke with EPIPE",
+			err:  &jev.ConnectionError{Err: syscall.EPIPE},
+			want: ExitTransport,
+		},
 	}
 
 	for _, tc := range tests {
@@ -132,6 +146,35 @@ func TestClassify(t *testing.T) {
 
 			if got := Classify(tc.err); got != tc.want {
 				t.Errorf("Classify(%v) = %d, want %d", tc.err, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestWorthReporting(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{name: "should report an ordinary failure", err: errors.New("boom"), want: true},
+		{name: "should stay quiet for an interrupt", err: context.Canceled},
+		{name: "should stay quiet for a policy rejection", err: &rejectedError{}},
+		{name: "should stay quiet for a stream that failed records", err: &recordsError{}},
+		{
+			name: "should stay quiet when the consumer stopped reading",
+			err:  &fs.PathError{Op: "write", Path: "/dev/stdout", Err: syscall.EPIPE},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := worthReporting(tc.err); got != tc.want {
+				t.Errorf("worthReporting(%v) = %t, want %t", tc.err, got, tc.want)
 			}
 		})
 	}

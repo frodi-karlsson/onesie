@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/frodi-karlsson/jev-cli/internal/engine"
 	"github.com/frodi-karlsson/jev-cli/internal/input"
 	"github.com/frodi-karlsson/jev-cli/internal/jev"
 )
@@ -79,6 +80,13 @@ func Classify(err error) int {
 
 	if errors.Is(err, jev.ErrConnection) || errors.Is(err, jev.ErrTimeout) {
 		return ExitTransport
+	}
+
+	// After the transport checks, so a socket write that failed with EPIPE is still reported as
+	// the transport failure it is. What reaches here is jev's own stdout, and section 12 has no
+	// code meaning the consumer stopped reading.
+	if engine.BrokenPipe(err) {
+		return ExitOK
 	}
 
 	return ExitUsage
