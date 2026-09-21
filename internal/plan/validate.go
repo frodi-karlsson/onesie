@@ -298,17 +298,41 @@ func checkPrintFlags(cfg Config) error {
 	}
 
 	// Section 8 rejects a flag that would quietly do nothing, and a dry run accepts none of these.
+	// In the order section 13 lists the flags, for the same reason checkListModels is. The rules
+	// gated on PrintQuestions are the ones --print-request genuinely consumes.
 	for _, rule := range []struct {
 		given   bool
 		message string
 	}{
+		{
+			cfg.PrintQuestions && cfg.HasState,
+			"jev: --state does not apply to --print-questions, which reads no state",
+		},
+		{
+			cfg.PrintQuestions && cfg.HasStateFile,
+			"jev: --state-file does not apply to --print-questions, which reads no state",
+		},
+		{
+			cfg.PrintQuestions && cfg.HasInput,
+			"jev: -i does not apply to --print-questions, which reads no input",
+		},
 		{cfg.Output != "", fmt.Sprintf(
 			"jev: -o does not apply to %s, which writes %s", name, writes)},
 		{cfg.Raw, fmt.Sprintf("jev: -r does not apply to %s, which writes %s", name, writes)},
-		{cfg.Merge, fmt.Sprintf(
-			"jev: %s needs answers to fold in, which %s does not produce", mergeFlag(cfg), name)},
 		{cfg.Quiet, fmt.Sprintf(
 			"jev: -q suppresses output, which leaves %s nothing to write", name)},
+		{cfg.Usage, fmt.Sprintf(
+			"jev: --usage reports the tokens a question cost, which %s does not ask", name)},
+		{cfg.Merge, fmt.Sprintf(
+			"jev: %s needs answers to fold in, which %s does not produce", mergeFlag(cfg), name)},
+		{
+			cfg.PrintQuestions && cfg.JobsSet,
+			"jev: -j does not apply to --print-questions, which makes no request",
+		},
+		{
+			cfg.PrintQuestions && cfg.HasModel,
+			"jev: -m names a model to ask, which --print-questions does not do",
+		},
 		{cfg.Stats, fmt.Sprintf(
 			"jev: --stats has nothing to report with %s, which makes no request", name)},
 	} {

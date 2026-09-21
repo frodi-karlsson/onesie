@@ -65,13 +65,66 @@ func TestNewRootCmdPrintQuestions(t *testing.T) {
 			stdout:   []string{"yes_means: bulk or bot sent", "no_means: written by a person"},
 		},
 		{
-			name: "should read no state at all",
+			name: "should reject --state with --print-questions",
+			args: []string{
+				"--ask", "urgent=is this urgent", "--state", "x", "--print-questions",
+			},
+			wantCode: ExitUsage,
+			stderr: []string{
+				"jev: --state does not apply to --print-questions, which reads no state",
+			},
+		},
+		{
+			name: "should reject --state-file with --print-questions before it is read",
 			args: []string{
 				"--ask", "urgent=is this urgent", "--state-file", "/nonexistent",
 				"--print-questions",
 			},
-			wantCode: ExitOK,
-			stdout:   []string{"urgent:\n  ask: is this urgent\n"},
+			wantCode: ExitUsage,
+			stderr: []string{
+				"jev: --state-file does not apply to --print-questions, which reads no state",
+			},
+		},
+		{
+			name: "should reject -i with --print-questions",
+			args: []string{
+				"--ask", "urgent=is this urgent", "-i", "json", "--print-questions",
+			},
+			wantCode: ExitUsage,
+			stderr: []string{
+				"jev: -i does not apply to --print-questions, which reads no input",
+			},
+		},
+		{
+			name: "should reject --usage with --print-questions",
+			args: []string{
+				"--ask", "urgent=is this urgent", "--usage", "--print-questions",
+			},
+			wantCode: ExitUsage,
+			stderr: []string{
+				"jev: --usage reports the tokens a question cost, " +
+					"which --print-questions does not ask",
+			},
+		},
+		{
+			name: "should reject -j with --print-questions",
+			args: []string{
+				"--ask", "urgent=is this urgent", "-j", "8", "--print-questions",
+			},
+			wantCode: ExitUsage,
+			stderr: []string{
+				"jev: -j does not apply to --print-questions, which makes no request",
+			},
+		},
+		{
+			name: "should reject -m with --print-questions",
+			args: []string{
+				"--ask", "urgent=is this urgent", "-m", "jev-9", "--print-questions",
+			},
+			wantCode: ExitUsage,
+			stderr: []string{
+				"jev: -m names a model to ask, which --print-questions does not do",
+			},
 		},
 		{
 			name:     "should reject print-questions for a positional question",
@@ -128,6 +181,56 @@ func TestNewRootCmdPrintQuestions(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("should warn that a body's model and state are not carried", func(t *testing.T) {
+		t.Parallel()
+
+		const body = `{"state":{"zebra":1},"model":"jev-1.13.0","questions":` +
+			`{"urgent":{"type":"noul","instructions":"is this urgent"}}}`
+
+		path := filepath.Join(t.TempDir(), "body.json")
+		if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+			t.Fatalf("writing the body: %v", err)
+		}
+
+		out, errOut, code := runOffline(t, []string{"-f", path, "--print-questions"})
+		if code != ExitOK {
+			t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, ExitOK, errOut)
+		}
+
+		for _, want := range []string{
+			"warning: --print-questions does not carry the body's model 'jev-1.13.0'. " +
+				"Pass -m when you reload",
+			"warning: --print-questions does not carry the body's state. " +
+				"Pass --state when you reload",
+		} {
+			if !strings.Contains(errOut, want) {
+				t.Errorf("stderr missing %q\ngot:\n%s", want, errOut)
+			}
+		}
+
+		if !strings.Contains(out, "urgent:") {
+			t.Errorf("stdout missing the question file, got:\n%s", out)
+		}
+	})
+
+	t.Run("should warn about nothing for a question file", func(t *testing.T) {
+		t.Parallel()
+
+		path := filepath.Join(t.TempDir(), "q.yaml")
+		if err := os.WriteFile(path, []byte("urgent:\n  ask: is this urgent\n"), 0o600); err != nil {
+			t.Fatalf("writing the question file: %v", err)
+		}
+
+		_, errOut, code := runOffline(t, []string{"-f", path, "--print-questions"})
+		if code != ExitOK {
+			t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, ExitOK, errOut)
+		}
+
+		if errOut != "" {
+			t.Errorf("stderr should be empty, got:\n%s", errOut)
+		}
+	})
 }
 
 func TestWire(t *testing.T) {
@@ -270,6 +373,18 @@ func TestPrintRequest(t *testing.T) {
 			stdin:    "the server is down",
 			wantCode: ExitOK,
 			stdout:   []string{`"answer":{"type":"noul","instructions":"is this urgent"}`},
+		},
+		{
+			name: "should reject --usage with --print-request",
+			args: []string{"--ask", "urgent=is this urgent", "--usage", "--print-request"},
+			// A printed body has no usage object to add one to, so the flag is as inert here as
+			// it is under --print-questions.
+			stdin:    "the server is down",
+			wantCode: ExitUsage,
+			stderr: []string{
+				"jev: --usage reports the tokens a question cost, " +
+					"which --print-request does not ask",
+			},
 		},
 		{
 			// The control for every case above. The same command without the flag needs a key it

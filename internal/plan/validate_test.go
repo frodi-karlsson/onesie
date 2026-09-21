@@ -1042,6 +1042,16 @@ func TestCheckFlags(t *testing.T) {
 			wantErr: "jev: -o does not apply to --print-request, which writes a request body",
 		},
 		{
+			// Same, and there is no response body to carry a usage object either.
+			name: "should blame the dry run rather than the mode for --usage under -i request",
+			cfg: request(func(c *plan.Config) {
+				c.PrintRequest = true
+				c.Usage = true
+			}),
+			wantErr: "jev: --usage reports the tokens a question cost, " +
+				"which --print-request does not ask",
+		},
+		{
 			name: "should keep the request mode reason for a flag the dry run has no rule for",
 			cfg: request(func(c *plan.Config) {
 				c.PrintRequest = true

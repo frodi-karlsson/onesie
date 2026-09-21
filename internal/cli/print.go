@@ -15,15 +15,50 @@ import (
 	"github.com/frodi-karlsson/jev-cli/internal/qfile"
 )
 
-func printQuestions(w io.Writer, questions []plan.Question) error {
-	out, err := qfile.Write(questions)
+func printQuestions(
+	out, errOut io.Writer,
+	questions []plan.Question,
+	loaded *qfile.File,
+) error {
+	if err := warnUncarried(errOut, loaded); err != nil {
+		return err
+	}
+
+	file, err := qfile.Write(questions)
 	if err != nil {
 		return err
 	}
 
-	_, err = w.Write(out)
+	_, err = out.Write(file)
 
 	return written(err)
+}
+
+func warnUncarried(w io.Writer, loaded *qfile.File) error {
+	// A question file has no model key and no state key, so only a request body loses anything on
+	// the way into one.
+	if loaded == nil || !loaded.IsBody {
+		return nil
+	}
+
+	if loaded.Model != "" {
+		_, err := fmt.Fprintf(w,
+			"warning: --print-questions does not carry the body's model '%s'. "+
+				"Pass -m when you reload\n", loaded.Model)
+		if err != nil {
+			return err
+		}
+	}
+
+	if !loaded.HasState {
+		return nil
+	}
+
+	_, err := fmt.Fprintln(w,
+		"warning: --print-questions does not carry the body's state. "+
+			"Pass --state when you reload")
+
+	return err
 }
 
 func printRequest(

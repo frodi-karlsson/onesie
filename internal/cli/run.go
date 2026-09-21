@@ -155,7 +155,8 @@ func run(
 	// for it. After validation, because a dry run that accepted a plan the real run would reject
 	// would be worse than useless.
 	if flags.printQuestions {
-		return printQuestions(cmd.OutOrStdout(), built.Questions)
+		return printQuestions(
+			cmd.OutOrStdout(), cmd.ErrOrStderr(), built.Questions, loaded)
 	}
 
 	// Both modes are parsed before the request, so a mistyped flag costs nothing.
