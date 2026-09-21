@@ -13,6 +13,7 @@ import (
 	"github.com/frodi-karlsson/jev-cli/internal/jev"
 	"github.com/frodi-karlsson/jev-cli/internal/output"
 	"github.com/frodi-karlsson/jev-cli/internal/plan"
+	"github.com/frodi-karlsson/jev-cli/internal/qfile"
 )
 
 func run(
@@ -22,16 +23,41 @@ func run(
 	positional string,
 	flags *runFlags,
 ) error {
-	built, err := plan.Assemble(plan.Source{
+	var loaded *qfile.File
+
+	if flags.file != "" {
+		data, err := settings.readFile(flags.file)
+		if err != nil {
+			return fmt.Errorf("jev: reading %s: %w", flags.file, err)
+		}
+
+		loaded, err = qfile.Load(data)
+		if err != nil {
+			return err
+		}
+	}
+
+	source := plan.Source{
 		Events:     events,
 		Positional: positional,
+		FileName:   flags.file,
+		Replace:    flags.replace,
 		ReadFile:   settings.readFile,
-	})
+	}
+
+	if loaded != nil {
+		source.File = loaded.Questions
+	}
+
+	built, err := plan.Assemble(source)
 	if err != nil {
 		return err
 	}
 
 	built.Model = flags.model
+	if built.Model == "" && loaded != nil {
+		built.Model = loaded.Model
+	}
 
 	warnings, err := plan.Validate(built, plan.Config{
 		Raw:          flags.raw,
@@ -39,6 +65,7 @@ func run(
 		Output:       flags.output,
 		HasState:     cmd.Flags().Changed("state"),
 		HasStateFile: cmd.Flags().Changed("state-file"),
+		FromBody:     loaded != nil && loaded.IsBody,
 	})
 
 	// Warnings print whether or not validation succeeded, so a run that fails for one reason still
@@ -76,6 +103,16 @@ func run(
 	})
 	if err != nil {
 		return err
+	}
+
+	// Resolve reporting no source is exactly the case where stdin, --state and --state-file all
+	// supplied nothing, which is when a body's own state gets its turn.
+	if resolved.Source == input.SourceNone && loaded != nil && loaded.HasState {
+		resolved = input.Resolved{Source: input.SourceBody, State: loaded.State}
+
+		if err := input.CheckState(resolved.State); err != nil {
+			return err
+		}
 	}
 
 	if resolved.Source == input.SourceNone {
@@ -281,6 +318,8 @@ type runFlags struct {
 	model     string
 	apiKey    string
 	baseURL   string
+	file      string
+	replace   bool
 }
 
 type rejectedError struct{}

@@ -3,6 +3,8 @@ package cli_test
 import (
 	"bytes"
 	"context"
+	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -27,11 +29,13 @@ func TestNewRootCmd(t *testing.T) {
 		name     string
 		args     []string
 		stdin    string
+		files    map[string]string
 		status   int
 		response string
 		wantCode int
 		contains []string
 		absent   []string
+		sends    []string
 	}{
 		{
 			name:     "should print help when given no arguments",
@@ -229,13 +233,137 @@ func TestNewRootCmd(t *testing.T) {
 				`"decision":"human"`, `"fallback":"error"`,
 			},
 		},
+		{
+			name:  "should answer questions from a file",
+			args:  []string{"-f", "q.yaml", "-o", "json"},
+			stdin: "the server is down",
+			files: map[string]string{"q.yaml": "urgent: does this convey urgency\n"},
+			response: `{"model":"jev-1.13.0","answers":{"urgent":{"type":"noul","noul":0.92}},` +
+				`"usage":{"input_tokens":1,"output_tokens":1}}`,
+			wantCode: cli.ExitOK,
+			contains: []string{`"urgent":{"value":0.92}`},
+		},
+		{
+			name:  "should apply policy from a file",
+			args:  []string{"-f", "q.yaml", "-o", "json"},
+			stdin: "the server is down",
+			files: map[string]string{
+				"q.yaml": "urgent:\n  ask: does this convey urgency\n  threshold: 0.5\n",
+			},
+			response: `{"model":"jev-1.13.0","answers":{"urgent":{"type":"noul","noul":0.92}}}`,
+			wantCode: cli.ExitOK,
+			contains: []string{`"decision":true`},
+		},
+		{
+			name:     "should reject an id defined in both the file and --ask",
+			args:     []string{"-f", "q.yaml", "--ask", "urgent=different"},
+			stdin:    "body",
+			files:    map[string]string{"q.yaml": "urgent: does this convey urgency\n"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"q.yaml", "Pass --replace to override"},
+		},
+		{
+			name:     "should let --replace override a file question",
+			args:     []string{"-f", "q.yaml", "--ask", "urgent=different", "--replace", "-r"},
+			stdin:    "body",
+			files:    map[string]string{"q.yaml": "urgent: does this convey urgency\n"},
+			response: `{"model":"jev-1.13.0","answers":{"urgent":{"type":"noul","noul":0.5}}}`,
+			wantCode: cli.ExitOK,
+			contains: []string{"0.5"},
+			sends:    []string{"different"},
+		},
+		{
+			name:     "should report a missing file",
+			args:     []string{"-f", "absent.yaml"},
+			stdin:    "body",
+			wantCode: cli.ExitUsage,
+			contains: []string{"absent.yaml"},
+		},
+		{
+			name: "should take the state from a request body",
+			args: []string{"-f", "body.json", "-o", "json"},
+			files: map[string]string{
+				"body.json": `{"state":"from the body","questions":` +
+					`{"a":{"type":"noul","instructions":"q"}}}`,
+			},
+			response: `{"model":"jev-1.13.0","answers":{"a":{"type":"noul","noul":0.3}}}`,
+			wantCode: cli.ExitOK,
+			contains: []string{`"a":{"value":0.3}`},
+			sends:    []string{`"state":"from the body"`},
+		},
+		{
+			name:  "should let stdin override a body's state",
+			args:  []string{"-f", "body.json", "-o", "json"},
+			stdin: "from stdin",
+			files: map[string]string{
+				"body.json": `{"state":"from the body","questions":` +
+					`{"a":{"type":"noul","instructions":"q"}}}`,
+			},
+			response: `{"model":"jev-1.13.0","answers":{"a":{"type":"noul","noul":0.3}}}`,
+			wantCode: cli.ExitOK,
+			contains: []string{`"a":{"value":0.3}`},
+			sends:    []string{`"state":"from stdin"`},
+		},
+		{
+			name: "should take the model from a request body",
+			args: []string{"-f", "body.json", "-o", "json"},
+			files: map[string]string{
+				"body.json": `{"state":"x","model":"jev-1.9.9","questions":` +
+					`{"a":{"type":"noul","instructions":"q"}}}`,
+			},
+			response: `{"model":"jev-1.9.9","answers":{"a":{"type":"noul","noul":0.3}}}`,
+			wantCode: cli.ExitOK,
+			contains: []string{`"model":"jev-1.9.9"`},
+			sends:    []string{`"model":"jev-1.9.9"`},
+		},
+		{
+			name: "should let -m override a request body's model",
+			args: []string{"-f", "body.json", "-o", "json", "-m", "jev-1.2.0"},
+			files: map[string]string{
+				"body.json": `{"state":"x","model":"jev-1.9.9","questions":` +
+					`{"a":{"type":"noul","instructions":"q"}}}`,
+			},
+			response: `{"model":"jev-1.2.0","answers":{"a":{"type":"noul","noul":0.3}}}`,
+			wantCode: cli.ExitOK,
+			sends:    []string{`"model":"jev-1.2.0"`},
+		},
+		{
+			name: "should reject a null state in a request body",
+			args: []string{"-f", "body.json"},
+			files: map[string]string{
+				"body.json": `{"state":null,"questions":` +
+					`{"a":{"type":"noul","instructions":"q"}}}`,
+			},
+			wantCode: cli.ExitUsage,
+			contains: []string{"state must be a string, object or array"},
+		},
+		{
+			name: "should reject a policy flag on a multi question body",
+			args: []string{"-f", "body.json", "--threshold", "0.5"},
+			files: map[string]string{
+				"body.json": `{"state":"x","questions":` +
+					`{"a":{"type":"noul","instructions":"q"},` +
+					`"b":{"type":"noul","instructions":"q"}}}`,
+			},
+			wantCode: cli.ExitUsage,
+			contains: []string{"one question"},
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			var sent []byte
+
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				body, readErr := io.ReadAll(r.Body)
+				if readErr != nil {
+					t.Errorf("reading the request body: %v", readErr)
+				}
+
+				sent = body
+
 				status := tc.status
 				if status == 0 {
 					status = http.StatusOK
@@ -260,6 +388,14 @@ func TestNewRootCmd(t *testing.T) {
 				cli.WithStdinTTY(false),
 				cli.WithStdoutTTY(false),
 				cli.WithLookupEnv(func(string) (string, bool) { return "", false }),
+				cli.WithReadFile(func(name string) ([]byte, error) {
+					body, ok := tc.files[name]
+					if !ok {
+						return nil, fmt.Errorf("open %s: no such file or directory", name)
+					}
+
+					return []byte(body), nil
+				}),
 			)
 
 			root.SetOut(&out)
@@ -281,6 +417,12 @@ func TestNewRootCmd(t *testing.T) {
 			for _, unwanted := range tc.absent {
 				if strings.Contains(out.String(), unwanted) {
 					t.Errorf("output should not contain %q\ngot:\n%s", unwanted, out.String())
+				}
+			}
+
+			for _, want := range tc.sends {
+				if !strings.Contains(string(sent), want) {
+					t.Errorf("request missing %q\nsent:\n%s", want, sent)
 				}
 			}
 		})

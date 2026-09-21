@@ -24,6 +24,10 @@ func Validate(p *Plan, cfg Config) ([]string, error) {
 		return nil, errors.New("jev: --state and --state-file are mutually exclusive")
 	}
 
+	if err := checkBodyPolicy(p, cfg); err != nil {
+		return nil, err
+	}
+
 	if err := checkOrphans(p); err != nil {
 		return nil, err
 	}
@@ -63,6 +67,48 @@ type Config struct {
 	Output       string
 	HasState     bool
 	HasStateFile bool
+
+	// FromBody is true when the questions came from a raw API request body, which carries no
+	// labels and no policy of its own.
+	FromBody bool
+}
+
+func checkBodyPolicy(p *Plan, cfg Config) error {
+	if !cfg.FromBody || len(p.Questions) < 2 {
+		return nil
+	}
+
+	// A top level policy flag stays an orphan with more than one question, so both the bound and
+	// the unbound spelling have to be caught here, before checkOrphans reports the generic case.
+	for _, event := range p.Orphans {
+		if policyFlag(event.Name) {
+			return bodyPolicyError(len(p.Questions))
+		}
+	}
+
+	for _, question := range p.Questions {
+		if question.Policy.Threshold != nil || question.Policy.MinConfidence != nil ||
+			question.Policy.Fallback != nil {
+			return bodyPolicyError(len(p.Questions))
+		}
+	}
+
+	return nil
+}
+
+func policyFlag(name string) bool {
+	switch name {
+	case "threshold", "min-confidence", "fallback":
+		return true
+	default:
+		return false
+	}
+}
+
+func bodyPolicyError(questions int) error {
+	return fmt.Errorf(
+		"jev: policy flags apply to a request body only when it has one question. "+
+			"The body has %d", questions)
 }
 
 func checkOrphans(p *Plan) error {

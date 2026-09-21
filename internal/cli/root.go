@@ -62,7 +62,7 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 				positional = args[0]
 			}
 
-			if positional == "" && len(recorder.Events()) == 0 {
+			if positional == "" && len(recorder.Events()) == 0 && flags.file == "" {
 				// A bare jev is a request for help. Anything else is a real invocation that
 				// forgot its question, and help on stdout would corrupt the caller's pipe.
 				if cmd.Flags().NFlag() == 0 && len(args) == 0 {
@@ -97,6 +97,8 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 	root.Flags().StringVar(&flags.apiKey, "api-key", "",
 		"api key. Prefer TYPESAFE_API_KEY, since argv is visible in ps")
 	root.Flags().StringVar(&flags.baseURL, "base-url", "", "api root override")
+	root.Flags().StringVarP(&flags.file, "file", "f", "", "question file or request body")
+	root.Flags().BoolVar(&flags.replace, "replace", false, "--ask overrides an id from -f")
 
 	root.AddCommand(newVersionCmd(info))
 

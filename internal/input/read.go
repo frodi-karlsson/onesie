@@ -90,14 +90,16 @@ func fromText(source Source, label, text string, mode Mode, stripNewline bool) (
 		return Resolved{}, fmt.Errorf("jev: %s is not valid JSON: %w", label, err)
 	}
 
-	if err := checkType(value); err != nil {
+	if err := CheckState(value); err != nil {
 		return Resolved{}, err
 	}
 
 	return Resolved{Source: source, State: value}, nil
 }
 
-func checkType(value any) error {
+// CheckState rejects a state the API would refuse, so a caller holding a state that never passed
+// through Resolve can still check it.
+func CheckState(value any) error {
 	// The API refuses these, so rejecting them locally saves a request that would come back a 422.
 	switch value.(type) {
 	case string, map[string]any, []any:
