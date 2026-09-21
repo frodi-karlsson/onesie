@@ -26,7 +26,8 @@ type Question struct {
 	// Criteria is set only for a Noul question, from --desc yes= and --desc no=.
 	Criteria *YesNoCriteria
 
-	// Named is true when the id came from --ask rather than from the positional argument.
+	// Named is true when the user chose the id, through --ask or a question file, rather than it
+	// being the reserved id a bare positional question is keyed under.
 	Named bool
 
 	// Labelled is meaningful only when Shape is Rate. A pick question always has option names and
