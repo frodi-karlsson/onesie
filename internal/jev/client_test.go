@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -93,8 +94,15 @@ func TestNew(t *testing.T) {
 	t.Run("should fail without an api key", func(t *testing.T) {
 		t.Parallel()
 
-		if _, err := jev.New(jev.WithEnv(mockEnv(nil))); err == nil {
+		_, err := jev.New(jev.WithEnv(mockEnv(nil)))
+		if err == nil {
 			t.Fatalf("expected an error, got none")
+		}
+
+		for _, want := range []string{"--api-key", jev.EnvAPIKey} {
+			if !strings.Contains(err.Error(), want) {
+				t.Errorf("error = %q, want it to name %q", err.Error(), want)
+			}
 		}
 	})
 

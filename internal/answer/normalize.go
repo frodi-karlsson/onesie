@@ -20,6 +20,13 @@ func Normalize(q plan.Question, raw jev.Answer) (*Answer, error) {
 		return nil, fmt.Errorf("jev: question '%s' has no answer", q.ID)
 	}
 
+	// Checked once here rather than per branch, since every branch below reads labels the
+	// question only has for its own shape.
+	if want := wireKind(q.Shape); want != raw.Kind() {
+		return nil, fmt.Errorf("jev: question '%s' expects a %s answer, got %s",
+			q.ID, want, raw.Kind())
+	}
+
 	switch typed := raw.(type) {
 	case *jev.NoulAnswer:
 		return &Answer{Value: typed.Noul}, nil
@@ -30,6 +37,17 @@ func Normalize(q plan.Question, raw jev.Answer) (*Answer, error) {
 	default:
 		return nil, fmt.Errorf("jev: question '%s' returned an unknown answer type '%s'",
 			q.ID, raw.Kind())
+	}
+}
+
+func wireKind(shape plan.Shape) string {
+	switch shape {
+	case plan.Pick:
+		return "choice"
+	case plan.Rate:
+		return "score"
+	default:
+		return "noul"
 	}
 }
 

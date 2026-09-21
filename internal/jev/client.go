@@ -49,7 +49,7 @@ func New(opts ...Option) (*Client, error) {
 	c.runtime = fmt.Sprintf("go/%s %s/%s", runtime.Version(), runtime.GOOS, runtime.GOARCH)
 
 	if c.apiKey == "" {
-		return nil, &ValidationError{Message: "no API key. Pass WithAPIKey or set " + EnvAPIKey}
+		return nil, &ValidationError{Message: "no API key. Pass --api-key or set " + EnvAPIKey}
 	}
 
 	if err := validateBaseURL(c.baseURL); err != nil {

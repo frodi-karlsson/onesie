@@ -103,10 +103,10 @@ func checkType(value any) error {
 	case string, map[string]any, []any:
 		return nil
 	case nil:
-		return errors.New("jev: state must be a string, object or array; got null")
+		return errors.New("jev: state must be a string, object or array, got null")
 	case bool:
-		return errors.New("jev: state must be a string, object or array; got boolean")
+		return errors.New("jev: state must be a string, object or array, got boolean")
 	default:
-		return errors.New("jev: state must be a string, object or array; got number")
+		return errors.New("jev: state must be a string, object or array, got number")
 	}
 }

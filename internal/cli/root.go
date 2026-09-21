@@ -60,7 +60,13 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 			}
 
 			if positional == "" && len(recorder.Events()) == 0 {
-				return cmd.Help()
+				// A bare jev is a request for help. Anything else is a real invocation that
+				// forgot its question, and help on stdout would corrupt the caller's pipe.
+				if cmd.Flags().NFlag() == 0 && len(args) == 0 {
+					return cmd.Help()
+				}
+
+				return errors.New("jev: no question given. Pass a question, --ask, or -f")
 			}
 
 			return run(cmd, settings, recorder.Events(), positional, flags)

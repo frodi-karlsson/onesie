@@ -204,6 +204,28 @@ func TestValidate(t *testing.T) {
 			wantErr: "jev: -r needs a single question. 'a', 'b' were asked",
 		},
 		{
+			name: "should reject -o raw with more than one question",
+			events: []argv.Event{
+				{Name: "ask", Value: "a=one"},
+				{Name: "ask", Value: "b=two"},
+			},
+			cfg:     plan.Config{Output: "raw"},
+			wantErr: "jev: -o raw needs a single question. 'a', 'b' were asked",
+		},
+		{
+			name:       "should accept -o raw with a single question",
+			positional: "is this urgent",
+			cfg:        plan.Config{Output: "raw"},
+		},
+		{
+			name: "should reject two questions sharing an id",
+			events: []argv.Event{
+				{Name: "ask", Value: "a=one"},
+				{Name: "ask", Value: "a=two"},
+			},
+			wantErr: "jev: question id 'a' is given twice",
+		},
+		{
 			name: "should reject quiet on a pick with no policy",
 			events: []argv.Event{
 				{Name: "ask", Value: "team=first"},

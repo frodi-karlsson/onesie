@@ -103,7 +103,15 @@ func TestNewRootCmd(t *testing.T) {
 			name:     "should reject a state-less invocation",
 			args:     []string{"is this urgent"},
 			wantCode: cli.ExitUsage,
-			contains: []string{"no state given"},
+			contains: []string{"jev: no state given. Pipe one to stdin, or pass --state or --state-file"},
+		},
+		{
+			name:     "should reject a flagged invocation that carries no question",
+			args:     []string{"-o", "json"},
+			stdin:    "the server is down",
+			wantCode: cli.ExitUsage,
+			contains: []string{"jev: no question given. Pass a question, --ask, or -f"},
+			absent:   []string{"Usage:", "Flags:"},
 		},
 		{
 			name:     "should reject -r with two questions",
@@ -111,6 +119,20 @@ func TestNewRootCmd(t *testing.T) {
 			stdin:    "body",
 			wantCode: cli.ExitUsage,
 			contains: []string{"-r needs a single question"},
+		},
+		{
+			name:     "should reject -o raw with two questions",
+			args:     []string{"--ask", "a=one", "--ask", "b=two", "-o", "raw"},
+			stdin:    "body",
+			wantCode: cli.ExitUsage,
+			contains: []string{"jev: -o raw needs a single question. 'a', 'b' were asked"},
+		},
+		{
+			name:     "should reject two --ask flags sharing an id",
+			args:     []string{"--ask", "a=one", "--ask", "a=two"},
+			stdin:    "body",
+			wantCode: cli.ExitUsage,
+			contains: []string{"jev: question id 'a' is given twice"},
 		},
 		{
 			name:     "should reject a reserved question id",

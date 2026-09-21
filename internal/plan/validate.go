@@ -33,6 +33,10 @@ func Validate(p *Plan, cfg Config) ([]string, error) {
 		return nil, err
 	}
 
+	if err := checkDuplicateIDs(p); err != nil {
+		return nil, err
+	}
+
 	var warnings []string
 
 	for i := range p.Questions {
@@ -88,6 +92,21 @@ func checkSources(p *Plan) error {
 
 	if named > 0 && positional > 0 {
 		return errors.New("jev: a positional question cannot be combined with --ask")
+	}
+
+	return nil
+}
+
+func checkDuplicateIDs(p *Plan) error {
+	ids := make([]string, 0, len(p.Questions))
+	for _, question := range p.Questions {
+		ids = append(ids, question.ID)
+	}
+
+	// The request body is keyed by id, so a repeated one would collapse into a single question
+	// while the output still carries the key twice.
+	if dupe := firstDuplicate(ids); dupe != "" {
+		return fmt.Errorf("jev: question id '%s' is given twice", dupe)
 	}
 
 	return nil
@@ -260,7 +279,11 @@ func checkUnknownDesc(q *Question, vocabulary []string, flag string) error {
 }
 
 func checkSingle(p *Plan, cfg Config) error {
-	if !cfg.Raw && !cfg.Quiet {
+	// Both spellings of the raw mode take a single question. Only the -r spelling is exclusive
+	// with -o, which is why the two are still distinguished above.
+	raw := cfg.Raw || cfg.Output == "raw"
+
+	if !raw && !cfg.Quiet {
 		return nil
 	}
 
@@ -270,8 +293,12 @@ func checkSingle(p *Plan, cfg Config) error {
 	}
 
 	flag := "-r"
-	if cfg.Quiet {
+
+	switch {
+	case cfg.Quiet:
 		flag = "-q"
+	case !cfg.Raw:
+		flag = "-o raw"
 	}
 
 	if len(p.Questions) != 1 {

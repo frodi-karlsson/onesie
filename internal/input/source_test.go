@@ -13,11 +13,12 @@ func TestResolve(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name       string
-		req        input.Request
-		wantSource input.Source
-		wantState  any
-		wantErr    bool
+		name        string
+		req         input.Request
+		wantSource  input.Source
+		wantState   any
+		wantErr     bool
+		wantMessage string
 	}{
 		{
 			name: "should read stdin when it is a pipe",
@@ -136,7 +137,8 @@ func TestResolve(t *testing.T) {
 				Mode:  input.JSON,
 				Stdin: strings.NewReader("null"),
 			},
-			wantErr: true,
+			wantErr:     true,
+			wantMessage: "jev: state must be a string, object or array, got null",
 		},
 		{
 			name: "should reject a boolean under json",
@@ -185,6 +187,10 @@ func TestResolve(t *testing.T) {
 					t.Fatalf("expected an error, got %+v", got)
 				}
 
+				if tc.wantMessage != "" && err.Error() != tc.wantMessage {
+					t.Errorf("error = %q, want %q", err.Error(), tc.wantMessage)
+				}
+
 				return
 			}
 
@@ -221,4 +227,57 @@ func equalJSON(t *testing.T, got, want any) bool {
 	}
 
 	return string(gotBytes) == string(wantBytes)
+}
+
+func TestParseMode(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		flag     string
+		wantMode input.Mode
+		wantErr  string
+	}{
+		{name: "should default an empty flag to text", flag: "", wantMode: input.Text},
+		{name: "should parse text", flag: "text", wantMode: input.Text},
+		{name: "should parse json", flag: "json", wantMode: input.JSON},
+		{
+			name:    "should report a streaming mode as not available yet",
+			flag:    "jsonl",
+			wantErr: "jev: -i jsonl is not available yet",
+		},
+		{
+			name:    "should reject an unknown mode",
+			flag:    "yaml",
+			wantErr: "jev: -i takes text or json, got 'yaml'",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			mode, err := input.ParseMode(tc.flag)
+
+			if tc.wantErr != "" {
+				if err == nil {
+					t.Fatalf("expected an error containing %q, got none", tc.wantErr)
+				}
+
+				if err.Error() != tc.wantErr {
+					t.Errorf("error = %q, want %q", err.Error(), tc.wantErr)
+				}
+
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if mode != tc.wantMode {
+				t.Errorf("mode = %v, want %v", mode, tc.wantMode)
+			}
+		})
+	}
 }

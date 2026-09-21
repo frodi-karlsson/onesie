@@ -167,11 +167,38 @@ func TestNormalizeRejects(t *testing.T) {
 		name     string
 		question plan.Question
 		raw      jev.Answer
+		wantErr  string
 	}{
 		{
 			name:     "should reject a nil answer rather than panicking",
 			question: plan.Question{ID: "urgent", Shape: plan.Noul},
 			raw:      nil,
+		},
+		{
+			name:     "should reject a choice answer to a yes/no question",
+			question: plan.Question{ID: "urgent", Shape: plan.Noul},
+			raw:      &jev.ChoiceAnswer{Choice: "x", Confidence: 0.5},
+			wantErr:  "jev: question 'urgent' expects a noul answer, got choice",
+		},
+		{
+			name: "should reject a noul answer to a pick question",
+			question: plan.Question{
+				ID:      "team",
+				Shape:   plan.Pick,
+				Options: []plan.Option{{Name: "billing"}, {Name: "technical"}},
+			},
+			raw:     &jev.NoulAnswer{Noul: 0.4},
+			wantErr: "jev: question 'team' expects a choice answer, got noul",
+		},
+		{
+			name: "should reject a choice answer to a rate question",
+			question: plan.Question{
+				ID:     "severity",
+				Shape:  plan.Rate,
+				Levels: []plan.Level{{Label: "low"}, {Label: "high"}},
+			},
+			raw:     &jev.ChoiceAnswer{Choice: "low", Confidence: 0.5},
+			wantErr: "jev: question 'severity' expects a score answer, got choice",
 		},
 	}
 
@@ -179,8 +206,13 @@ func TestNormalizeRejects(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			if _, err := answer.Normalize(tc.question, tc.raw); err == nil {
-				t.Error("expected an error, got none")
+			_, err := answer.Normalize(tc.question, tc.raw)
+			if err == nil {
+				t.Fatal("expected an error, got none")
+			}
+
+			if tc.wantErr != "" && err.Error() != tc.wantErr {
+				t.Errorf("error = %q, want %q", err.Error(), tc.wantErr)
 			}
 		})
 	}

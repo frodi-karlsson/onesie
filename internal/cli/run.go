@@ -76,7 +76,7 @@ func run(
 
 	if resolved.Source == input.SourceNone {
 		return errors.New(
-			"jev: no state given, pipe one to stdin, or pass --state or --state-file")
+			"jev: no state given. Pipe one to stdin, or pass --state or --state-file")
 	}
 
 	return ask(cmd, settings, built, resolved, outputMode, flags)
