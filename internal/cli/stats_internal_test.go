@@ -300,6 +300,18 @@ func TestNewRootCmdStats(t *testing.T) {
 			wantOutHas: []string{"would overwrite"},
 		},
 		{
+			// A stream that carried nothing still ran, so 0 records is the measurement rather
+			// than a summary of a run that never started.
+			name: "should report an empty stream as zero records",
+			args: []string{
+				"--ask", "urgent=is this urgent", "-i", "jsonl", "-o", "json", "--stats",
+			},
+			stdin:    "",
+			handler:  func() http.HandlerFunc { return answerHandler(answered) },
+			wantCode: ExitOK,
+			wantErr:  []string{"0 requests, 0 questions, 0 in / 0 out, 0 attempts, 10s/attempt,"},
+		},
+		{
 			name: "should total every record when they run concurrently",
 			args: []string{
 				"--ask", "urgent=is this urgent", "-i", "jsonl", "-o", "json",
@@ -476,6 +488,44 @@ func TestNewRootCmdStatsRequestMode(t *testing.T) {
 
 			if strings.Contains(out, "questions,") {
 				t.Errorf("stdout should not carry the summary, got:\n%s", out)
+			}
+		})
+	}
+}
+
+func TestNewRootCmdStatsWithoutARun(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		args   []string
+		stdin  string
+		want   string
+		absent string
+	}{
+		{
+			// A line of zeros beside the error reads as a run that was made and came back with
+			// nothing, which is the one thing --stats must never say.
+			name:   "should suppress the summary when the client could not be built",
+			args:   []string{"--ask", "urgent=is this urgent", "--stats"},
+			stdin:  "the server is down",
+			want:   "jev: no API key",
+			absent: "0 requests",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, errOut, _ := runOfflineStdin(t, tc.args, tc.stdin)
+
+			if !strings.Contains(errOut, tc.want) {
+				t.Errorf("stderr missing %q\ngot:\n%s", tc.want, errOut)
+			}
+
+			if strings.Contains(errOut, tc.absent) {
+				t.Errorf("stderr should not contain %q\ngot:\n%s", tc.absent, errOut)
 			}
 		})
 	}

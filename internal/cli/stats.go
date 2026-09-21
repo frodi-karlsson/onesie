@@ -137,6 +137,13 @@ func withStats(cmd *cobra.Command, flags *runFlags, body func(*collector) error)
 
 	summary := stats.snapshot(time.Duration(flags.timeout)*time.Second, time.Since(started))
 
+	// A run that failed before it read a record or made an attempt never started, and a line of
+	// zeros beside the error reads as a run that was made and came back empty. An empty stream is
+	// the other case: it succeeded, and 0 records is the measurement.
+	if err != nil && summary.Records == 0 && summary.Attempts == 0 {
+		return err
+	}
+
 	// Stderr, because stdout carries the answers. A summary on stdout would corrupt every
 	// pipeline the flag exists to measure.
 	//
