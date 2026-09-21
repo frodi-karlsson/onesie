@@ -6,6 +6,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/frodi-karlsson/jev-cli/internal/limits"
 )
 
 const (
@@ -14,7 +16,7 @@ const (
 	// DefaultModel is the model used when a request omits one.
 	DefaultModel = "jev-latest"
 	// DefaultAttemptTimeout bounds one HTTP attempt, not the whole call.
-	DefaultAttemptTimeout = 10 * time.Second
+	DefaultAttemptTimeout = limits.DefaultAttemptTimeout
 	// DefaultMaxResponseBytes caps how much of a response body is read.
 	DefaultMaxResponseBytes = 8 << 20
 

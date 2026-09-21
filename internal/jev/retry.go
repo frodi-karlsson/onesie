@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"strconv"
 	"time"
+
+	"github.com/frodi-karlsson/jev-cli/internal/limits"
 )
 
 const (
@@ -15,13 +17,13 @@ const (
 // DefaultRetryPolicy returns the policy the API's own SDK uses. The numbers are theirs.
 func DefaultRetryPolicy() RetryPolicy {
 	return RetryPolicy{
-		MaxRetries:        2,
+		MaxRetries:        limits.DefaultRetries,
 		BackoffInitial:    500 * time.Millisecond,
 		BackoffMax:        5 * time.Second,
 		BackoffJitter:     0.25,
 		RetryStatus:       DefaultRetryStatus,
 		RespectRetryAfter: true,
-		MaxRetryAfter:     60 * time.Second,
+		MaxRetryAfter:     limits.DefaultMaxRetryAfter,
 		RetryConnection:   true,
 		RetryTimeout:      true,
 	}
