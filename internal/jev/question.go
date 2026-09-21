@@ -1,10 +1,9 @@
 package jev
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
-	"maps"
-	"slices"
 )
 
 // Levels widens plain strings into Score criteria, which is what most rubrics are.
@@ -17,15 +16,73 @@ func Levels(levels ...string) []any {
 	return widened
 }
 
+// Questions is an ordered set of questions. It is a slice rather than a map so a request body
+// reaches the wire in the order it was written, which is what lets --print-request hand a user
+// their own body back unchanged.
+type Questions []NamedQuestion
+
+// NamedQuestion pairs a question with the id it answers under.
+type NamedQuestion struct {
+	ID       string
+	Question Question
+}
+
+// MarshalJSON writes the set as a JSON object, keeping slice order.
+func (q Questions) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+
+	buf.WriteByte('{')
+
+	for i, named := range q {
+		if i > 0 {
+			buf.WriteByte(',')
+		}
+
+		// Through json.Marshal rather than quoting by hand, because an id is not character checked
+		// here and one carrying a quote would otherwise produce a body no parser can read.
+		key, err := json.Marshal(named.ID)
+		if err != nil {
+			return nil, err
+		}
+
+		buf.Write(key)
+		buf.WriteByte(':')
+
+		value, err := json.Marshal(named.Question)
+		if err != nil {
+			return nil, err
+		}
+
+		buf.Write(value)
+	}
+
+	buf.WriteByte('}')
+
+	return buf.Bytes(), nil
+}
+
 // ValidateQuestions rejects a request the API would reject, before it is sent.
-func ValidateQuestions(questions map[string]Question) error {
+func ValidateQuestions(questions Questions) error {
 	if len(questions) == 0 {
 		return &ValidationError{Message: "at least one question is required"}
 	}
 
-	// Sorted so the reported offender does not depend on map iteration order.
-	for _, name := range slices.Sorted(maps.Keys(questions)) {
-		if err := questions[name].validate(name); err != nil {
+	seen := make(map[string]struct{}, len(questions))
+
+	for _, named := range questions {
+		// A slice can carry a duplicate id where a map could not, and the API would answer only
+		// one of them, so the check is new with the ordered type rather than inherited.
+		if _, taken := seen[named.ID]; taken {
+			return &ValidationError{Message: "duplicate question name " + named.ID}
+		}
+
+		seen[named.ID] = struct{}{}
+
+		if named.Question == nil {
+			return &ValidationError{Message: "question " + named.ID + " must not be nil"}
+		}
+
+		if err := named.Question.validate(named.ID); err != nil {
 			return err
 		}
 	}

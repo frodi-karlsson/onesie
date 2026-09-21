@@ -107,7 +107,7 @@ const (
 // Request is one evaluation. All questions see the same state and are answered independently.
 type Request struct {
 	State     any
-	Questions map[string]Question
+	Questions Questions
 	Model     string
 }
 
@@ -124,9 +124,9 @@ func (c *Client) SystemOne(ctx context.Context, req Request, opts ...RequestOpti
 	}
 
 	body := struct {
-		State     any                 `json:"state"`
-		Model     string              `json:"model"`
-		Questions map[string]Question `json:"questions"`
+		State     any       `json:"state"`
+		Model     string    `json:"model"`
+		Questions Questions `json:"questions"`
 	}{State: req.State, Model: model, Questions: req.Questions}
 
 	result := &Result{}
@@ -141,12 +141,12 @@ func (c *Client) SystemOne(ctx context.Context, req Request, opts ...RequestOpti
 
 	// The dropped TypeScript generics guaranteed this at compile time. Checking it here recovers
 	// most of what they gave.
-	for name := range req.Questions {
-		if _, ok := result.Answers[name]; !ok {
+	for _, named := range req.Questions {
+		if _, ok := result.Answers[named.ID]; !ok {
 			return nil, &ResponseError{
 				Status: res.status,
 				Body:   res.body,
-				Err:    fmt.Errorf("no answer for question %q", name),
+				Err:    fmt.Errorf("no answer for question %q", named.ID),
 			}
 		}
 	}

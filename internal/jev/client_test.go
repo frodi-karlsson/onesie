@@ -74,8 +74,8 @@ func newTestClient(t *testing.T, url string, opts ...jev.Option) (*jev.Client, *
 	return client, clock
 }
 
-func oneNoul() map[string]jev.Question {
-	return map[string]jev.Question{"q": jev.Noul{Instructions: "Urgent?"}}
+func oneNoul() jev.Questions {
+	return jev.Questions{{ID: "q", Question: jev.Noul{Instructions: "Urgent?"}}}
 }
 
 const shortAnswer = `{"model":"m","answers":{"q":{"type":"noul","noul":0.1}},"usage":{}}`

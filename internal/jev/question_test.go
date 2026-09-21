@@ -78,17 +78,64 @@ func TestQuestionMarshalJSON(t *testing.T) {
 	}
 }
 
+func TestQuestions(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		questions jev.Questions
+		want      string
+	}{
+		{
+			name: "should marshal to an object in slice order",
+			questions: jev.Questions{
+				{ID: "zebra", Question: jev.Noul{Instructions: "z"}},
+				{ID: "alpha", Question: jev.Noul{Instructions: "a"}},
+			},
+			want: `{"zebra":{"type":"noul","instructions":"z"},` +
+				`"alpha":{"type":"noul","instructions":"a"}}`,
+		},
+		{
+			name:      "should marshal an empty set to an empty object",
+			questions: jev.Questions{},
+			want:      `{}`,
+		},
+		{
+			name: "should escape a key that carries a quote",
+			questions: jev.Questions{
+				{ID: `a"b`, Question: jev.Noul{Instructions: "q"}},
+			},
+			want: `{"a\"b":{"type":"noul","instructions":"q"}}`,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := json.Marshal(tc.questions)
+			if err != nil {
+				t.Fatalf("Marshal: %v", err)
+			}
+
+			if string(got) != tc.want {
+				t.Errorf("Marshal = %s, want %s", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestValidateQuestions(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		name      string
-		questions map[string]jev.Question
+		questions jev.Questions
 		wantErr   string
 	}{
 		{
 			name:      "should reject an empty question set",
-			questions: map[string]jev.Question{},
+			questions: jev.Questions{},
 			wantErr:   "jev: at least one question is required",
 		},
 		{
@@ -97,34 +144,63 @@ func TestValidateQuestions(t *testing.T) {
 			wantErr:   "jev: at least one question is required",
 		},
 		{
-			name:      "should reject a score with one level",
-			questions: map[string]jev.Question{"severity": jev.Score{Criteria: jev.Levels("Only one")}},
-			wantErr:   `jev: score question "severity" has 1 criteria, at least two are required`,
+			name: "should reject a score with one level",
+			questions: jev.Questions{
+				{ID: "severity", Question: jev.Score{Criteria: jev.Levels("Only one")}},
+			},
+			wantErr: `jev: score question "severity" has 1 criteria, at least two are required`,
 		},
 		{
 			name:      "should reject a score with no levels",
-			questions: map[string]jev.Question{"severity": jev.Score{}},
+			questions: jev.Questions{{ID: "severity", Question: jev.Score{}}},
 			wantErr:   `jev: score question "severity" has 0 criteria, at least two are required`,
 		},
 		{
-			name:      "should reject a score behind a pointer",
-			questions: map[string]jev.Question{"severity": &jev.Score{Criteria: jev.Levels("Only one")}},
-			wantErr:   `jev: score question "severity" has 1 criteria, at least two are required`,
+			name: "should reject a score behind a pointer",
+			questions: jev.Questions{
+				{ID: "severity", Question: &jev.Score{Criteria: jev.Levels("Only one")}},
+			},
+			wantErr: `jev: score question "severity" has 1 criteria, at least two are required`,
 		},
 		{
-			name: "should name the first offender in sorted order",
-			questions: map[string]jev.Question{
-				"zebra": jev.Score{Criteria: jev.Levels("One")},
-				"alpha": jev.Score{Criteria: jev.Levels("One")},
+			name: "should name the first offender in slice order",
+			questions: jev.Questions{
+				{ID: "alpha", Question: jev.Score{Criteria: jev.Levels("One")}},
+				{ID: "zebra", Question: jev.Score{Criteria: jev.Levels("One")}},
 			},
 			wantErr: `jev: score question "alpha" has 1 criteria, at least two are required`,
 		},
 		{
+			name: "should reject a duplicate question id",
+			questions: jev.Questions{
+				{ID: "a", Question: jev.Noul{Instructions: "one"}},
+				{ID: "a", Question: jev.Noul{Instructions: "two"}},
+			},
+			wantErr: "jev: duplicate question name a",
+		},
+		{
+			name:      "should reject a nil question",
+			questions: jev.Questions{{ID: "a", Question: nil}},
+			wantErr:   "jev: question a must not be nil",
+		},
+		{
 			name: "should accept a valid mixed set",
-			questions: map[string]jev.Question{
-				"urgent":   jev.Noul{Instructions: "Urgent?"},
-				"team":     jev.Choice{Instructions: "Which?", Criteria: map[string]any{"a": nil, "b": nil}},
-				"severity": jev.Score{Instructions: "How bad?", Criteria: jev.Levels("Low", "High")},
+			questions: jev.Questions{
+				{ID: "urgent", Question: jev.Noul{Instructions: "Urgent?"}},
+				{
+					ID: "team",
+					Question: jev.Choice{
+						Instructions: "Which?",
+						Criteria:     map[string]any{"a": nil, "b": nil},
+					},
+				},
+				{
+					ID: "severity",
+					Question: jev.Score{
+						Instructions: "How bad?",
+						Criteria:     jev.Levels("Low", "High"),
+					},
+				},
 			},
 		},
 	}
@@ -164,8 +240,8 @@ func TestValidateQuestionsNamesTheQuestion(t *testing.T) {
 	t.Run("should carry the offending question name as a field", func(t *testing.T) {
 		t.Parallel()
 
-		err := jev.ValidateQuestions(map[string]jev.Question{
-			"severity": jev.Score{Criteria: jev.Levels("One")},
+		err := jev.ValidateQuestions(jev.Questions{
+			{ID: "severity", Question: jev.Score{Criteria: jev.Levels("One")}},
 		})
 
 		var invalid *jev.ValidationError

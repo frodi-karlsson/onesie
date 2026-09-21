@@ -50,19 +50,28 @@ func TestLiveSystemOne(t *testing.T) {
 
 		result, err := client.SystemOne(liveContext(t, time.Minute), jev.Request{
 			State: urgentState,
-			Questions: map[string]jev.Question{
-				"is_urgent": jev.Noul{Instructions: "Does this message convey urgency?"},
-				"department": jev.Choice{
-					Instructions: "Which team should handle this?",
-					Criteria: map[string]any{
-						"billing":   "Payments, invoicing, payouts, refunds",
-						"technical": "Bugs, outages, integrations",
-						"sales":     "Pricing, upgrades, new accounts",
+			Questions: jev.Questions{
+				{
+					ID:       "is_urgent",
+					Question: jev.Noul{Instructions: "Does this message convey urgency?"},
+				},
+				{
+					ID: "department",
+					Question: jev.Choice{
+						Instructions: "Which team should handle this?",
+						Criteria: map[string]any{
+							"billing":   "Payments, invoicing, payouts, refunds",
+							"technical": "Bugs, outages, integrations",
+							"sales":     "Pricing, upgrades, new accounts",
+						},
 					},
 				},
-				"frustration": jev.Score{
-					Instructions: "How frustrated is the customer?",
-					Criteria:     jev.Levels("Calm", "Frustrated", "Very angry"),
+				{
+					ID: "frustration",
+					Question: jev.Score{
+						Instructions: "How frustrated is the customer?",
+						Criteria:     jev.Levels("Calm", "Frustrated", "Very angry"),
+					},
 				},
 			},
 		})
@@ -142,8 +151,8 @@ func TestLiveSystemOne(t *testing.T) {
 		client := liveClient(t)
 		ctx := liveContext(t, time.Minute)
 
-		question := map[string]jev.Question{
-			"is_urgent": jev.Noul{Instructions: "Does this message convey urgency?"},
+		question := jev.Questions{
+			{ID: "is_urgent", Question: jev.Noul{Instructions: "Does this message convey urgency?"}},
 		}
 
 		hot, err := client.SystemOne(ctx, jev.Request{State: urgentState, Questions: question})
@@ -192,9 +201,12 @@ func TestLiveSystemOne(t *testing.T) {
 				},
 				"refund_policy": "Duplicate charges are eligible for a refund.",
 			},
-			Questions: map[string]jev.Question{
-				"refund_requested": jev.Noul{
-					Instructions: "Does `ticket.messages[0].text` request a refund?",
+			Questions: jev.Questions{
+				{
+					ID: "refund_requested",
+					Question: jev.Noul{
+						Instructions: "Does `ticket.messages[0].text` request a refund?",
+					},
 				},
 			},
 		})
@@ -219,12 +231,15 @@ func TestLiveSystemOne(t *testing.T) {
 
 		result, err := client.SystemOne(liveContext(t, time.Minute), jev.Request{
 			State: urgentState,
-			Questions: map[string]jev.Question{
-				"time_sensitive": jev.Noul{
-					Instructions: "Is this time sensitive?",
-					Criteria: &jev.NoulCriteria{
-						True:  "The customer states or implies a deadline or ongoing loss",
-						False: "No time pressure is expressed",
+			Questions: jev.Questions{
+				{
+					ID: "time_sensitive",
+					Question: jev.Noul{
+						Instructions: "Is this time sensitive?",
+						Criteria: &jev.NoulCriteria{
+							True:  "The customer states or implies a deadline or ongoing loss",
+							False: "No time pressure is expressed",
+						},
 					},
 				},
 			},
@@ -288,7 +303,7 @@ func TestLiveErrors(t *testing.T) {
 
 		_, err = client.SystemOne(liveContext(t, 30*time.Second), jev.Request{
 			State:     "x",
-			Questions: map[string]jev.Question{"q": jev.Noul{Instructions: "Is this a test?"}},
+			Questions: jev.Questions{{ID: "q", Question: jev.Noul{Instructions: "Is this a test?"}}},
 		})
 
 		if !errors.Is(err, jev.ErrAuthentication) {
@@ -313,7 +328,7 @@ func TestLiveErrors(t *testing.T) {
 		_, err := client.SystemOne(liveContext(t, 30*time.Second), jev.Request{
 			State:     "x",
 			Model:     "jev-does-not-exist",
-			Questions: map[string]jev.Question{"q": jev.Noul{Instructions: "Is this a test?"}},
+			Questions: jev.Questions{{ID: "q", Question: jev.Noul{Instructions: "Is this a test?"}}},
 		})
 
 		var api *jev.APIError
