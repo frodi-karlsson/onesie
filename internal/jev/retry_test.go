@@ -246,6 +246,73 @@ func TestDefaultRetryStatus(t *testing.T) {
 	}
 }
 
+func TestRetryAfterTooLong(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 9, 21, 12, 0, 0, 0, time.UTC)
+
+	tests := []struct {
+		name      string
+		header    http.Header
+		cap       time.Duration
+		wantDelay time.Duration
+		wantLong  bool
+	}{
+		{
+			name:     "should not fire when no header is present",
+			header:   http.Header{},
+			cap:      60 * time.Second,
+			wantLong: false,
+		},
+		{
+			name:     "should not fire when the delay is inside the cap",
+			header:   http.Header{"Retry-After": []string{"30"}},
+			cap:      60 * time.Second,
+			wantLong: false,
+		},
+		{
+			name:      "should fire when the delay is above the cap",
+			header:    http.Header{"Retry-After": []string{"120"}},
+			cap:       60 * time.Second,
+			wantDelay: 120 * time.Second,
+			wantLong:  true,
+		},
+		{
+			name:      "should prefer retry-after-ms over retry-after",
+			header:    http.Header{"Retry-After": []string{"1"}, "Retry-After-Ms": []string{"90000"}},
+			cap:       60 * time.Second,
+			wantDelay: 90 * time.Second,
+			wantLong:  true,
+		},
+		{
+			name:     "should not fire when the policy ignores the header",
+			header:   http.Header{"Retry-After": []string{"120"}},
+			cap:      0,
+			wantLong: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			policy := DefaultRetryPolicy()
+			policy.MaxRetryAfter = tc.cap
+			policy.RespectRetryAfter = tc.cap > 0
+
+			delay, tooLong := retryAfterTooLong(tc.header, policy, now)
+
+			if tooLong != tc.wantLong {
+				t.Fatalf("tooLong = %v, want %v", tooLong, tc.wantLong)
+			}
+
+			if tooLong && delay != tc.wantDelay {
+				t.Errorf("delay = %s, want %s", delay, tc.wantDelay)
+			}
+		})
+	}
+}
+
 func TestRetryPolicyValidate(t *testing.T) {
 	t.Parallel()
 

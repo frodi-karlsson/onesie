@@ -69,6 +69,19 @@ func DefaultRetryStatus(status int) bool {
 		(status >= 500 && status <= 599)
 }
 
+func retryAfterTooLong(header http.Header, policy RetryPolicy, now time.Time) (time.Duration, bool) {
+	if !policy.RespectRetryAfter || header == nil {
+		return 0, false
+	}
+
+	delay, ok := parseRetryAfter(header, now)
+	if !ok {
+		return 0, false
+	}
+
+	return delay, delay > policy.MaxRetryAfter
+}
+
 // retryDelay picks a server supplied delay when the policy allows it, otherwise capped exponential
 // backoff. random returns a value from 0 up to but excluding 1.
 func retryDelay(

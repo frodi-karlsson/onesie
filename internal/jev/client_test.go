@@ -975,3 +975,81 @@ func TestListModels(t *testing.T) {
 		}
 	})
 }
+
+func TestClientRetryAfterCap(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		retryAfter string
+		cap        time.Duration
+		wantCalls  int
+		wantErr    bool
+	}{
+		{
+			name:       "should stop immediately when the header exceeds the cap",
+			retryAfter: "120",
+			cap:        60 * time.Second,
+			wantCalls:  1,
+			wantErr:    true,
+		},
+		{
+			name:       "should retry normally when the header is inside the cap",
+			retryAfter: "1",
+			cap:        60 * time.Second,
+			wantCalls:  3,
+			wantErr:    true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var calls atomic.Int64
+
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				calls.Add(1)
+				w.Header().Set("Retry-After", tc.retryAfter)
+				w.WriteHeader(http.StatusTooManyRequests)
+				if _, err := w.Write([]byte(`{"error":{"message":"slow down"}}`)); err != nil {
+					t.Errorf("writing stub response: %v", err)
+				}
+			}))
+			defer srv.Close()
+
+			policy := jev.DefaultRetryPolicy()
+			policy.MaxRetryAfter = tc.cap
+
+			client, _ := newTestClient(t, srv.URL, jev.WithRetry(policy))
+
+			_, err := client.SystemOne(t.Context(), jev.Request{
+				State:     "hello",
+				Questions: oneNoul(),
+			})
+
+			if tc.wantErr && err == nil {
+				t.Fatal("expected an error, got none")
+			}
+
+			if got := int(calls.Load()); got != tc.wantCalls {
+				t.Errorf("server calls = %d, want %d", got, tc.wantCalls)
+			}
+
+			if tc.wantCalls == 1 {
+				var tooLong *jev.RetryAfterError
+				if !errors.As(err, &tooLong) {
+					t.Fatalf("expected a *RetryAfterError, got %T: %v", err, err)
+				}
+
+				if tooLong.RetryAfter != 120*time.Second {
+					t.Errorf("RetryAfter = %s, want 2m0s", tooLong.RetryAfter)
+				}
+
+				if !errors.Is(err, jev.ErrRateLimit) {
+					t.Error("expected errors.Is to reach ErrRateLimit through Unwrap")
+				}
+			}
+		})
+	}
+}

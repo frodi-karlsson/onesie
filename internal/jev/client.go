@@ -253,6 +253,16 @@ func (c *Client) do(
 			return nil, apiErr
 		}
 
+		// A server asking for longer than the cap has already told us the answer. Spending the
+		// remaining retries on jev's own backoff would just arrive early and fail again.
+		if delay, tooLong := retryAfterTooLong(res.header, cfg.retry, c.clock.Now()); tooLong {
+			return nil, &RetryAfterError{
+				APIError:   *apiErr,
+				RetryAfter: delay,
+				Cap:        cfg.retry.MaxRetryAfter,
+			}
+		}
+
 		reason := strconv.Itoa(res.status)
 		if waitErr := c.backOff(ctx, tag, attempt, retriesLeft, reason, res.header, cfg); waitErr != nil {
 			return nil, waitErr

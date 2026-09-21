@@ -226,6 +226,28 @@ func decodeBody(body []byte) any {
 	return parsed
 }
 
+// RetryAfterError reports a server requested delay jev refused to wait out, because spending the
+// remaining retries on a known answer is worse than failing now.
+type RetryAfterError struct {
+	APIError
+
+	RetryAfter time.Duration
+	Cap        time.Duration
+}
+
+// Error names the delay the server asked for and the cap that rejected it.
+func (e *RetryAfterError) Error() string {
+	return fmt.Sprintf(
+		"jev: %d server asked to retry after %s, above the %s cap",
+		e.Status, e.RetryAfter, e.Cap,
+	)
+}
+
+// Unwrap returns the embedded APIError, so errors.As and errors.Is reach it.
+func (e *RetryAfterError) Unwrap() error {
+	return &e.APIError
+}
+
 // ConnectionError is a transport failure, including a body that stopped arriving.
 type ConnectionError struct {
 	Err error
