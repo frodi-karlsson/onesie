@@ -300,6 +300,24 @@ func TestNewRootCmdStats(t *testing.T) {
 			wantOutHas: []string{"would overwrite"},
 		},
 		{
+			// The typed path's mirror of the -i request case. Mutating the question count to zero
+			// passes without it.
+			name: "should count the questions a failed record carried",
+			args: []string{
+				"--ask", "urgent=is this urgent", "--ask", "spam=is this spam",
+				"-o", "json", "--stats",
+			},
+			stdin: "the server is down",
+			handler: func() http.HandlerFunc {
+				return status(http.StatusInternalServerError)
+			},
+			wantCode: ExitUnavailable,
+			wantErr: []string{
+				"1 request, 1 failed, 2 questions, 0 in / 0 out, " +
+					"3 attempts (2 retries: 500×2)",
+			},
+		},
+		{
 			// A stream that carried nothing still ran, so 0 records is the measurement rather
 			// than a summary of a run that never started.
 			name: "should report an empty stream as zero records",
