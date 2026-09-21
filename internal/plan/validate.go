@@ -10,10 +10,11 @@ import (
 )
 
 // Validate checks a plan and returns the non fatal warnings plus the first fatal error, so a
-// caller can print the warnings whether or not validation succeeded.
+// caller can print the warnings whether or not validation succeeded. It also resolves a yes/no
+// --fallback onto the question it belongs to.
 func Validate(p *Plan, cfg Config) ([]string, error) {
 	if len(p.Questions) == 0 {
-		return nil, errors.New("jev: no question given; pass a question, --ask, or -f")
+		return nil, errors.New("jev: no question given. Pass a question, --ask, or -f")
 	}
 
 	if cfg.Raw && cfg.Output != "" {
@@ -101,7 +102,7 @@ func checkQuestion(q *Question) (string, error) {
 
 	if len(q.Options) > 0 && len(q.Levels) > 0 {
 		return "", errors.New(
-			"jev: --pick and --rate are mutually exclusive, a question is one or the other")
+			"jev: --pick and --rate are mutually exclusive. A question is one or the other")
 	}
 
 	switch q.Shape {
@@ -173,7 +174,7 @@ func checkRate(q *Question) error {
 	have := described(q)
 	if len(have) != 0 && len(have) != len(labels) {
 		return fmt.Errorf(
-			"jev: --rate levels must all be described or all bare; '%s' describes %s but not %s",
+			"jev: --rate levels must all be described or all bare. '%s' describes %s but not %s",
 			q.ID, strings.Join(have, ", "), strings.Join(missing(labels, have), ", "),
 		)
 	}
@@ -185,7 +186,7 @@ func checkNoul(q *Question) error {
 	for _, key := range q.DescOrder {
 		if key != "yes" && key != "no" {
 			return fmt.Errorf(
-				"jev: --desc on a yes/no question takes 'yes' or 'no'; got '%s'", key)
+				"jev: --desc on a yes/no question takes 'yes' or 'no', got '%s'", key)
 		}
 	}
 
@@ -197,9 +198,14 @@ func checkPolicy(q *Question, yesNo bool) error {
 
 	if policy.Threshold != nil {
 		if !yesNo {
+			noun := "options"
+			if q.Shape == Rate {
+				noun = "levels"
+			}
+
 			return fmt.Errorf(
-				"jev: --threshold cuts a yes/no probability; '%s' has options, "+
-					"use --min-confidence with --fallback", q.ID)
+				"jev: --threshold cuts a yes/no probability. '%s' has %s, "+
+					"use --min-confidence with --fallback", q.ID, noun)
 		}
 
 		if *policy.Threshold < 0 || *policy.Threshold > 1 {
@@ -211,7 +217,7 @@ func checkPolicy(q *Question, yesNo bool) error {
 	if policy.MinConfidence != nil {
 		if yesNo {
 			return fmt.Errorf(
-				"jev: --min-confidence needs a confidence value; '%s' is a yes/no question, "+
+				"jev: --min-confidence needs a confidence value. '%s' is a yes/no question, "+
 					"use --threshold, or add --pick or --rate", q.ID)
 		}
 
@@ -222,7 +228,7 @@ func checkPolicy(q *Question, yesNo bool) error {
 
 		if policy.Fallback == nil {
 			return fmt.Errorf(
-				"jev: --min-confidence needs --fallback; nothing to substitute for '%s'", q.ID)
+				"jev: --min-confidence needs --fallback, nothing to substitute for '%s'", q.ID)
 		}
 	}
 
@@ -230,7 +236,7 @@ func checkPolicy(q *Question, yesNo bool) error {
 		value, err := parseBool(policy.Fallback.Text)
 		if err != nil {
 			return fmt.Errorf(
-				"jev: --fallback on a yes/no question takes true, false, yes or no; got '%s'",
+				"jev: --fallback on a yes/no question takes true, false, yes or no, got '%s'",
 				policy.Fallback.Text)
 		}
 
@@ -246,7 +252,7 @@ func checkUnknownDesc(q *Question, vocabulary []string, flag string) error {
 			continue
 		}
 
-		return fmt.Errorf("jev: --desc names an unknown key '%s' in question '%s'; %s has: %s",
+		return fmt.Errorf("jev: --desc names an unknown key '%s' in question '%s'. %s has: %s",
 			key, q.ID, flag, strings.Join(vocabulary, ", "))
 	}
 
@@ -269,15 +275,15 @@ func checkSingle(p *Plan, cfg Config) error {
 	}
 
 	if len(p.Questions) != 1 {
-		return fmt.Errorf("jev: %s needs a single question; %s were asked",
+		return fmt.Errorf("jev: %s needs a single question. %s were asked",
 			flag, strings.Join(names, ", "))
 	}
 
 	only := p.Questions[0]
 	if cfg.Quiet && only.Shape != Noul && only.Policy.MinConfidence == nil {
 		return fmt.Errorf(
-			"jev: -q on '%s' needs --min-confidence and --fallback; "+
-				"without a policy the exit code is always 0", only.ID)
+			"jev: -q on '%s' needs --min-confidence and --fallback. "+
+				"Without a policy the exit code is always 0", only.ID)
 	}
 
 	return nil

@@ -24,7 +24,7 @@ func TestValidate(t *testing.T) {
 	}{
 		{
 			name:    "should reject an empty invocation",
-			wantErr: "jev: no question given; pass a question, --ask, or -f",
+			wantErr: "jev: no question given. Pass a question, --ask, or -f",
 		},
 		{
 			name:       "should reject a positional combined with ask",
@@ -95,7 +95,7 @@ func TestValidate(t *testing.T) {
 				{Name: "rate", Value: "minor,major,critical"},
 				{Name: "desc", Value: "minor=small"},
 			},
-			wantErr: "jev: --rate levels must all be described or all bare; 'severity' describes",
+			wantErr: "jev: --rate levels must all be described or all bare. 'severity' describes",
 		},
 		{
 			name: "should reject a desc naming an unknown option",
@@ -104,7 +104,7 @@ func TestValidate(t *testing.T) {
 				{Name: "pick", Value: "billing,technical"},
 				{Name: "desc", Value: "bilingl=typo"},
 			},
-			wantErr: "jev: --desc names an unknown key 'bilingl' in question 'team'",
+			wantErr: "jev: --desc names an unknown key 'bilingl' in question 'team'. --pick has: billing, technical",
 		},
 		{
 			name: "should reject a desc other than yes or no on a yes/no question",
@@ -112,7 +112,7 @@ func TestValidate(t *testing.T) {
 				{Name: "ask", Value: "urgent=first"},
 				{Name: "desc", Value: "maybe=unclear"},
 			},
-			wantErr: "jev: --desc on a yes/no question takes 'yes' or 'no'; got 'maybe'",
+			wantErr: "jev: --desc on a yes/no question takes 'yes' or 'no', got 'maybe'",
 		},
 		{
 			name: "should reject min-confidence on a yes/no question",
@@ -121,7 +121,7 @@ func TestValidate(t *testing.T) {
 				{Name: "min-confidence", Value: "0.7"},
 				{Name: "fallback", Value: "true"},
 			},
-			wantErr: "jev: --min-confidence needs a confidence value; 'urgent' is a yes/no question",
+			wantErr: "jev: --min-confidence needs a confidence value. 'urgent' is a yes/no question",
 		},
 		{
 			name: "should reject threshold on a pick question",
@@ -130,7 +130,16 @@ func TestValidate(t *testing.T) {
 				{Name: "pick", Value: "x,y"},
 				{Name: "threshold", Value: "0.5"},
 			},
-			wantErr: "jev: --threshold cuts a yes/no probability; 'team' has options",
+			wantErr: "jev: --threshold cuts a yes/no probability. 'team' has options",
+		},
+		{
+			name: "should reject threshold on a rate question",
+			events: []argv.Event{
+				{Name: "ask", Value: "severity=first"},
+				{Name: "rate", Value: "low,high"},
+				{Name: "threshold", Value: "0.5"},
+			},
+			wantErr: "jev: --threshold cuts a yes/no probability. 'severity' has levels",
 		},
 		{
 			name: "should reject min-confidence with no fallback",
@@ -139,7 +148,7 @@ func TestValidate(t *testing.T) {
 				{Name: "pick", Value: "x,y"},
 				{Name: "min-confidence", Value: "0.7"},
 			},
-			wantErr: "jev: --min-confidence needs --fallback; nothing to substitute for 'team'",
+			wantErr: "jev: --min-confidence needs --fallback, nothing to substitute for 'team'",
 		},
 		{
 			name: "should reject a threshold outside zero to one",
@@ -165,7 +174,7 @@ func TestValidate(t *testing.T) {
 				{Name: "ask", Value: "urgent=first"},
 				{Name: "fallback", Value: "human"},
 			},
-			wantErr: "jev: --fallback on a yes/no question takes true, false, yes or no; got 'human'",
+			wantErr: "jev: --fallback on a yes/no question takes true, false, yes or no, got 'human'",
 		},
 		{
 			name: "should accept yes as a boolean fallback",
@@ -192,7 +201,7 @@ func TestValidate(t *testing.T) {
 				{Name: "ask", Value: "b=two"},
 			},
 			cfg:     plan.Config{Raw: true},
-			wantErr: "jev: -r needs a single question; 'a', 'b' were asked",
+			wantErr: "jev: -r needs a single question. 'a', 'b' were asked",
 		},
 		{
 			name: "should reject quiet on a pick with no policy",
@@ -201,8 +210,8 @@ func TestValidate(t *testing.T) {
 				{Name: "pick", Value: "x,y"},
 			},
 			cfg: plan.Config{Quiet: true},
-			wantErr: "jev: -q on 'team' needs --min-confidence and --fallback; " +
-				"without a policy the exit code is always 0",
+			wantErr: "jev: -q on 'team' needs --min-confidence and --fallback. " +
+				"Without a policy the exit code is always 0",
 		},
 		{
 			name:       "should reject raw combined with output",
