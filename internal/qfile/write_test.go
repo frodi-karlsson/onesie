@@ -115,11 +115,56 @@ func TestWrite(t *testing.T) {
 			want: "team:\n  ask: who owns this\n  pick:\n    zebra: z\n    alpha: a\n",
 		},
 		{
+			name: "should quote a tab so the parser keeps it",
+			questions: []plan.Question{
+				{ID: "q", Shape: plan.Noul, Instructions: "col\tvalue"},
+			},
+			want: "q:\n  ask: \"col\\tvalue\"\n",
+		},
+		{
+			name: "should quote a carriage return so it stays a carriage return",
+			questions: []plan.Question{
+				{ID: "q", Shape: plan.Noul, Instructions: "a\rb"},
+			},
+			want: "q:\n  ask: \"a\\rb\"\n",
+		},
+		{
+			name: "should leave a line feed as a block scalar",
+			questions: []plan.Question{
+				{ID: "q", Shape: plan.Noul, Instructions: "line one\nline two"},
+			},
+			want: "q:\n  ask: |-\n    line one\n    line two\n",
+		},
+		{
 			name: "should reject the reserved positional id",
 			questions: []plan.Question{
 				{ID: "answer", Shape: plan.Noul, Instructions: "q"},
 			},
 			wantErr: "jev: --print-questions needs a named question. Use --ask NAME=QUESTION",
+		},
+		{
+			name: "should reject a rubric on a pick question",
+			questions: []plan.Question{
+				{
+					ID: "team", Shape: plan.Pick, Instructions: "who owns this",
+					Options:  []plan.Option{{Name: "billing", Desc: "money"}},
+					Criteria: &plan.YesNoCriteria{Yes: "y", No: "n"},
+				},
+			},
+			wantErr: "jev: question 'team' has both 'yes_means' and 'pick'. " +
+				"A question is one or the other",
+		},
+		{
+			name: "should reject a rubric on a rate question",
+			questions: []plan.Question{
+				{
+					ID: "mood", Shape: plan.Rate, Labelled: true, Instructions: "how is it",
+					Levels:   []plan.Level{{Label: "calm", Desc: "nothing"}},
+					Criteria: &plan.YesNoCriteria{Yes: "y", No: "n"},
+				},
+			},
+			wantErr: "jev: question 'mood' has both 'yes_means' and 'rate'. " +
+				"A question is one or the other",
 		},
 	}
 
@@ -221,6 +266,127 @@ func TestWriteRoundTrip(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "should reload a tab in a question id",
+			questions: []plan.Question{
+				{ID: "a\tb", Shape: plan.Noul, Instructions: "is this urgent"},
+			},
+		},
+		{
+			name: "should reload a carriage return in a question id",
+			questions: []plan.Question{
+				{ID: "a\rb", Shape: plan.Noul, Instructions: "is this urgent"},
+			},
+		},
+		{
+			name: "should reload a tab in a pick option name",
+			questions: []plan.Question{
+				{
+					ID: "team", Shape: plan.Pick, Instructions: "who owns this",
+					Options: []plan.Option{
+						{Name: "bil\tling", Desc: "money"},
+						{Name: "platform", Desc: "systems"},
+					},
+				},
+			},
+		},
+		{
+			name: "should reload a carriage return in a pick option name",
+			questions: []plan.Question{
+				{
+					ID: "team", Shape: plan.Pick, Instructions: "who owns this",
+					Options: []plan.Option{
+						{Name: "bil\rling", Desc: "money"},
+						{Name: "platform", Desc: "systems"},
+					},
+				},
+			},
+		},
+		{
+			name: "should reload a tab in a rate level label",
+			questions: []plan.Question{
+				{
+					ID: "mood", Shape: plan.Rate, Labelled: true, Instructions: "how is it",
+					Levels: []plan.Level{
+						{Label: "ca\tlm", Desc: "nothing"},
+						{Label: "angry", Desc: "everything"},
+					},
+				},
+			},
+		},
+		{
+			name: "should reload a carriage return in a rate level label",
+			questions: []plan.Question{
+				{
+					ID: "mood", Shape: plan.Rate, Labelled: true, Instructions: "how is it",
+					Levels: []plan.Level{
+						{Label: "ca\rlm", Desc: "nothing"},
+						{Label: "angry", Desc: "everything"},
+					},
+				},
+			},
+		},
+		{
+			name: "should reload a tab in an instruction",
+			questions: []plan.Question{
+				{ID: "urgent", Shape: plan.Noul, Instructions: "col\tvalue"},
+			},
+		},
+		{
+			name: "should reload a carriage return in an instruction",
+			questions: []plan.Question{
+				{ID: "urgent", Shape: plan.Noul, Instructions: "line one\rline two"},
+			},
+		},
+		{
+			name: "should reload a tab in a description",
+			questions: []plan.Question{
+				{
+					ID: "team", Shape: plan.Pick, Instructions: "who owns this",
+					Options: []plan.Option{{Name: "billing", Desc: "col\tvalue"}},
+				},
+			},
+		},
+		{
+			name: "should reload a carriage return in a description",
+			questions: []plan.Question{
+				{
+					ID: "team", Shape: plan.Pick, Instructions: "who owns this",
+					Options: []plan.Option{{Name: "billing", Desc: "line one\rline two"}},
+				},
+			},
+		},
+		{
+			name: "should reload a structured instruction that is a sequence",
+			questions: []plan.Question{
+				{
+					ID: "urgent", Shape: plan.Noul,
+					Instructions: json.RawMessage(`["first","second","third"]`),
+				},
+			},
+		},
+		{
+			name: "should reload a pick whose options have no description",
+			questions: []plan.Question{
+				{
+					ID: "team", Shape: plan.Pick, Instructions: "who owns this",
+					Options: []plan.Option{{Name: "billing"}, {Name: "platform"}},
+				},
+			},
+		},
+		{
+			name: "should reload all three policy keys on one question",
+			questions: []plan.Question{
+				{
+					ID: "urgent", Shape: plan.Noul, Instructions: "is this urgent",
+					Policy: plan.Policy{
+						Threshold:     ptr(0.75),
+						MinConfidence: ptr(0.6),
+						Fallback:      &plan.Fallback{Text: "false"},
+					},
+				},
+			},
+		},
 	}
 
 	for _, tc := range tests {
@@ -243,6 +409,15 @@ func TestWriteRoundTrip(t *testing.T) {
 			if !reflect.DeepEqual(want, got) {
 				t.Errorf("round trip lost information\nwant %#v\ngot  %#v\nfile was\n%s",
 					want, got, written)
+			}
+
+			rewritten, err := qfile.Write(reloaded.Questions)
+			if err != nil {
+				t.Fatalf("Write after Load: %v", err)
+			}
+
+			if string(rewritten) != string(written) {
+				t.Errorf("rewriting changed the file\nfirst\n%s\nsecond\n%s", written, rewritten)
 			}
 		})
 	}
