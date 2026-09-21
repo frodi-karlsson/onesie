@@ -1,6 +1,9 @@
 package cli
 
 import (
+	"context"
+	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -57,7 +60,7 @@ func TestCollectorConcurrent(t *testing.T) {
 		workers int
 		each    int
 	}{
-		{name: "should count every attempt under concurrency", workers: 16, each: 50},
+		{name: "should separate retries from terminals under concurrency", workers: 16, each: 50},
 	}
 
 	for _, tc := range tests {
@@ -74,9 +77,17 @@ func TestCollectorConcurrent(t *testing.T) {
 				go func() {
 					defer wg.Done()
 
-					for i := range tc.each {
-						c.observe(jev.Attempt{Index: i % 2, Status: 429})
+					for range tc.each {
+						// A record that was rate limited once and then answered.
+						c.observe(jev.Attempt{Index: 0, Status: http.StatusTooManyRequests})
+						c.observe(jev.Attempt{Index: 1, Status: http.StatusOK})
 						c.record("jev-1.13.0", jev.Usage{InputTokens: 2, OutputTokens: 1}, 1)
+
+						// A record the server refused outright, which is a failed attempt that
+						// caused no retry.
+						c.observe(jev.Attempt{Index: 0, Status: http.StatusBadRequest})
+						c.terminalAttempt(&jev.APIError{Status: http.StatusBadRequest})
+						c.recordFailure(true, 1)
 					}
 				}()
 			}
@@ -84,24 +95,95 @@ func TestCollectorConcurrent(t *testing.T) {
 			wg.Wait()
 
 			got := c.snapshot(time.Second, time.Second)
+			each := tc.workers * tc.each
 
-			if got.Attempts != tc.workers*tc.each {
-				t.Errorf("Attempts = %d, want %d", got.Attempts, tc.workers*tc.each)
+			if got.Attempts != 3*each {
+				t.Errorf("Attempts = %d, want %d", got.Attempts, 3*each)
 			}
 
-			if got.Requests != tc.workers*tc.each {
-				t.Errorf("Requests = %d, want %d", got.Requests, tc.workers*tc.each)
+			if got.Requests != 2*each {
+				t.Errorf("Requests = %d, want %d", got.Requests, 2*each)
 			}
 
-			// Half of each worker's attempts carry a non zero index, which is what makes them
-			// retries rather than first attempts.
-			wantRetries := tc.workers * tc.each / 2
-			if got.Retries[429] != wantRetries {
-				t.Errorf("Retries[429] = %d, want %d", got.Retries[429], wantRetries)
+			if got.Failed != each {
+				t.Errorf("Failed = %d, want %d", got.Failed, each)
 			}
 
-			if got.InputTokens != 2*tc.workers*tc.each {
-				t.Errorf("InputTokens = %d, want %d", got.InputTokens, 2*tc.workers*tc.each)
+			if got.Retries[http.StatusTooManyRequests] != each {
+				t.Errorf("Retries[429] = %d, want %d",
+					got.Retries[http.StatusTooManyRequests], each)
+			}
+
+			// The status that ended its record every time it was seen was never retried, and
+			// naming it in the breakdown would report a retry that cannot have happened.
+			if _, named := got.Retries[http.StatusBadRequest]; named {
+				t.Errorf("Retries names 400, which was never retried: %v", got.Retries)
+			}
+
+			if got.InputTokens != 2*each {
+				t.Errorf("InputTokens = %d, want %d", got.InputTokens, 2*each)
+			}
+		})
+	}
+}
+
+func TestTerminalStatus(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		err         error
+		wantStatus  int
+		wantCounted bool
+	}{
+		{
+			name: "should take the status from an API error",
+			err:  &jev.APIError{Status: http.StatusBadRequest}, wantStatus: 400, wantCounted: true,
+		},
+		{
+			name: "should reach the API error a retry after error embeds",
+			err: &jev.RetryAfterError{
+				APIError: jev.APIError{Status: http.StatusTooManyRequests},
+			},
+			wantStatus: 429, wantCounted: true,
+		},
+		{
+			name: "should count a transport failure as statusless",
+			err:  &jev.ConnectionError{Err: errors.New("reset")}, wantCounted: true,
+		},
+		{
+			name:        "should count a timeout as statusless",
+			err:         &jev.TimeoutError{ConnectionError: jev.ConnectionError{Err: errors.New("x")}},
+			wantCounted: true,
+		},
+		{
+			name: "should count an interrupt as statusless",
+			err:  fmt.Errorf("jev: #1: %w", context.Canceled), wantCounted: true,
+		},
+		{
+			// Its attempt came back 2xx and was counted as a success, so subtracting it here
+			// would hide a real transport retry.
+			name: "should not count a 2xx body that could not be used",
+			err:  &jev.ResponseError{Status: http.StatusOK, Err: errors.New("bad json")},
+		},
+		{
+			name: "should not count a request rejected before it was sent",
+			err:  &jev.ValidationError{Message: "no API key"},
+		},
+		{
+			name: "should not count an answer the response was missing",
+			err:  &jev.AnswerError{Name: "urgent", Missing: true},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			status, counted := terminalStatus(tc.err)
+			if status != tc.wantStatus || counted != tc.wantCounted {
+				t.Errorf("terminalStatus() = (%d, %t), want (%d, %t)",
+					status, counted, tc.wantStatus, tc.wantCounted)
 			}
 		})
 	}
@@ -172,6 +254,36 @@ func TestNewRootCmdStats(t *testing.T) {
 			wantOutHas: []string{`"urgent"`},
 		},
 		{
+			// The 400 ended its record, so it caused no retry. Naming it in the breakdown is the
+			// report a caller cannot tell from a real one.
+			name: "should name only the status that was retried",
+			args: []string{
+				"--ask", "urgent=is this urgent", "-i", "jsonl", "-o", "json",
+				"-j", "1", "--stats",
+			},
+			stdin: "{\"id\":1}\n{\"id\":2}\n",
+			handler: func() http.HandlerFunc {
+				return scripted(http.StatusBadRequest, http.StatusTooManyRequests, answered)
+			},
+			wantCode:   ExitRecords,
+			wantErr:    []string{"3 attempts (1 retry: 429×1)"},
+			wantOutHas: []string{`"status":400`},
+		},
+		{
+			name: "should name only the status that was retried under concurrency",
+			args: []string{
+				"--ask", "urgent=is this urgent", "-i", "jsonl", "-o", "json",
+				"-j", "2", "--unordered", "--stats",
+			},
+			stdin: "{\"id\":1}\n{\"id\":2}\n",
+			handler: func() http.HandlerFunc {
+				return scripted(http.StatusBadRequest, http.StatusTooManyRequests, answered)
+			},
+			wantCode:   ExitRecords,
+			wantErr:    []string{"3 attempts (1 retry: 429×1)"},
+			wantOutHas: []string{`"status":400`},
+		},
+		{
 			name: "should total every record when they run concurrently",
 			args: []string{
 				"--ask", "urgent=is this urgent", "-i", "jsonl", "-o", "json",
@@ -229,6 +341,34 @@ func answerHandler(body string) http.HandlerFunc {
 		w.Header().Set("Content-Type", "application/json")
 
 		if _, err := io.WriteString(w, body); err != nil {
+			panic(err)
+		}
+	}
+}
+
+func scripted(first, second int, body string) http.HandlerFunc {
+	var seen atomic.Int32
+
+	// Keyed by call order rather than by record, because -j 2 --unordered decides that order and
+	// the point of the case is that the summary does not.
+	return func(w http.ResponseWriter, r *http.Request) {
+		switch seen.Add(1) {
+		case 1:
+			status(first)(w, r)
+		case 2:
+			status(second)(w, r)
+		default:
+			answerHandler(body)(w, r)
+		}
+	}
+}
+
+func status(code int) http.HandlerFunc {
+	return func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(code)
+
+		if _, err := io.WriteString(w, `{"error":{"message":"stub"}}`); err != nil {
 			panic(err)
 		}
 	}

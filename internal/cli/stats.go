@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"maps"
 	"slices"
@@ -145,11 +147,15 @@ type collector struct {
 	outputTokens int
 	models       map[string]struct{}
 	attempts     int
-	retries      map[int]int
-	// pending holds the status of every failed attempt that has not yet been matched to the retry
-	// it caused, keyed by the index it failed at. A run's last failure is never matched, which is
-	// what keeps a terminal failure out of the retry breakdown.
-	pending map[int][]int
+	// failedAttempts counts every attempt that did not come back 2xx, by status. terminal counts
+	// the subset that ended its record instead of causing a retry, so the difference between the
+	// two is the retry breakdown.
+	failedAttempts map[int]int
+	terminal       map[int]int
+}
+
+func observing(c *collector) []jev.Option {
+	return []jev.Option{jev.WithAttemptObserver(c.observe)}
 }
 
 func (c *collector) observe(a jev.Attempt) {
@@ -158,41 +164,54 @@ func (c *collector) observe(a jev.Attempt) {
 
 	c.attempts++
 
-	// Index counts from zero, so anything above it is a retry. The status the breakdown wants is
-	// the one that caused the retry rather than the one the retry itself came back with, since a
-	// successful retry returns 200 and section 10 asks whether rate limiting or transport ate the
-	// time.
-	if a.Index > 0 {
-		c.credit(a.Index - 1)
-	}
-
 	if a.Err == nil && a.Status >= 200 && a.Status < 300 {
 		return
 	}
 
-	if c.pending == nil {
-		c.pending = make(map[int][]int)
+	if c.failedAttempts == nil {
+		c.failedAttempts = make(map[int]int)
 	}
 
-	c.pending[a.Index] = append(c.pending[a.Index], a.Status)
+	c.failedAttempts[a.Status]++
 }
 
-func (c *collector) credit(index int) {
-	if c.retries == nil {
-		c.retries = make(map[int]int)
-	}
-
-	queue := c.pending[index]
-	if len(queue) == 0 {
-		// Unreachable while the observer sees every attempt, since a retry only ever follows a
-		// failure. Counted as statusless rather than dropped, so the total stays honest.
-		c.retries[0]++
-
+func (c *collector) terminalAttempt(err error) {
+	status, counted := terminalStatus(err)
+	if !counted {
 		return
 	}
 
-	c.retries[queue[0]]++
-	c.pending[index] = queue[1:]
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.terminal == nil {
+		c.terminal = make(map[int]int)
+	}
+
+	c.terminal[status]++
+}
+
+func terminalStatus(err error) (int, bool) {
+	var api *jev.APIError
+	if errors.As(err, &api) {
+		return api.Status, true
+	}
+
+	var connection *jev.ConnectionError
+	if errors.As(err, &connection) {
+		// A transport failure has no status, which is the key its attempt was counted under.
+		return 0, true
+	}
+
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		// An interrupt reaches the caller as the context error itself, and the attempt it cut
+		// short was observed with no status like any other transport failure.
+		return 0, true
+	}
+
+	// Anything else either never reached the wire or came back 2xx, so its attempt was never
+	// counted as failed. Subtracting it would hide a real retry.
+	return 0, false
 }
 
 func (c *collector) record(model string, usage jev.Usage, questions int) {
@@ -233,10 +252,17 @@ func (c *collector) snapshot(attemptTimeout, elapsed time.Duration) Stats {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	// Copied rather than handed out, because the collector keeps running until the process exits
-	// and a caller holding the live map would read it without the lock.
-	retries := make(map[int]int, len(c.retries))
-	maps.Copy(retries, c.retries)
+	// Built here rather than handed out, because the collector keeps running until the process
+	// exits and a caller holding a live map would read it without the lock.
+	retries := make(map[int]int, len(c.failedAttempts))
+
+	// Every failed attempt either caused a retry or ended its record, so what is left after the
+	// terminals are taken out is exactly what was retried.
+	for status, count := range c.failedAttempts {
+		if left := count - c.terminal[status]; left > 0 {
+			retries[status] = left
+		}
+	}
 
 	return Stats{
 		Records: c.records, Requests: c.requests, Failed: c.failed, Questions: c.questions,
@@ -244,8 +270,4 @@ func (c *collector) snapshot(attemptTimeout, elapsed time.Duration) Stats {
 		Models: slices.Sorted(maps.Keys(c.models)), Attempts: c.attempts, Retries: retries,
 		AttemptTimeout: attemptTimeout, Elapsed: elapsed,
 	}
-}
-
-func observing(c *collector) []jev.Option {
-	return []jev.Option{jev.WithAttemptObserver(c.observe)}
 }

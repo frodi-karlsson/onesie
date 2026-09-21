@@ -561,6 +561,7 @@ func evaluate(
 		// The request was made whatever went wrong afterwards, and the questions went with it, so
 		// a failed record still carries them into the count section 10 asks for.
 		stats.recordFailure(true, len(questions))
+		stats.terminalAttempt(err)
 
 		return record, err
 	}

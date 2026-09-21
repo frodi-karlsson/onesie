@@ -60,6 +60,7 @@ func streamRaw(
 			body, err := client.SystemOneRaw(ctx, json.RawMessage(rec.Raw))
 			if err != nil {
 				stats.recordFailure(true, asked)
+				stats.terminalAttempt(err)
 
 				return errorLine(err), err
 			}
