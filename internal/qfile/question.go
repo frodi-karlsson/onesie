@@ -55,13 +55,61 @@ func buildQuestion(id string, value any) (plan.Question, error) {
 		question.Criteria = &plan.YesNoCriteria{Yes: plain(yes), No: plain(no)}
 	}
 
+	if value, found := lookup(fields, "pick"); found {
+		options, err := readPick(id, value)
+		if err != nil {
+			return question, err
+		}
+
+		question.Shape = plan.Pick
+		question.Options = options
+		// A file giving both a yes or no rubric and pick is contradictory, and carrying the rubric
+		// onto a choice question would send a criteria shape the API does not expect for the type.
+		question.Criteria = nil
+	}
+
 	return question, nil
 }
 
-// firstOf returns the first name present, so the documented _means spelling wins over the true and
-// false aliases when a file carries both.
+func readPick(id string, value any) ([]plan.Option, error) {
+	if items, ok := mapping(value); ok {
+		options := make([]plan.Option, 0, len(items))
+		for _, item := range items {
+			options = append(options, plan.Option{
+				Name: fmt.Sprintf("%v", item.Key),
+				Desc: plain(item.Value),
+			})
+		}
+
+		return options, nil
+	}
+
+	names, ok := value.([]any)
+	if !ok {
+		return nil, fmt.Errorf(
+			"jev: 'pick' in question '%s' must be a mapping of option to description, "+
+				"or a sequence of option names", id)
+	}
+
+	options := make([]plan.Option, 0, len(names))
+
+	for _, entry := range names {
+		name, ok := entry.(string)
+		if !ok {
+			return nil, fmt.Errorf(
+				"jev: 'pick' in question '%s' has a non string option name", id)
+		}
+
+		options = append(options, plan.Option{Name: name})
+	}
+
+	return options, nil
+}
+
 func firstOf(fields yaml.MapSlice, names ...string) (any, bool) {
 	for _, name := range names {
+		// Names are tried in order, so the documented _means spelling wins over the true and false
+		// aliases when a file carries both.
 		if value, ok := lookup(fields, name); ok {
 			return value, true
 		}

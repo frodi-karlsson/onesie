@@ -20,11 +20,11 @@ func Decode(data []byte) (any, error) {
 	return plain(raw), nil
 }
 
-// plain rewrites a decoded tree so encoding/json renders mappings as objects. A yaml.MapSlice
-// marshals to an array of key and value pairs, which is valid JSON and the wrong shape entirely.
 func plain(value any) any {
 	switch typed := value.(type) {
 	case yaml.MapSlice:
+		// A yaml.MapSlice marshals to an array of key and value pairs, which is valid JSON and the
+		// wrong shape entirely, so it is rewritten into a map here before encoding/json ever sees it.
 		out := make(map[string]any, len(typed))
 		for _, item := range typed {
 			out[fmt.Sprintf("%v", item.Key)] = plain(item.Value)

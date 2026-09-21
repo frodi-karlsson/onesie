@@ -158,3 +158,116 @@ func TestLoadYesNo(t *testing.T) {
 		})
 	}
 }
+
+func TestLoadPick(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		doc     string
+		wantErr bool
+		check   func(t *testing.T, q plan.Question)
+	}{
+		{
+			name: "should read a mapping of option to description in file order",
+			doc: "team:\n  ask: Which team?\n  pick:\n" +
+				"    zebra: Z\n    apple: A\n    middle: M\n",
+			check: func(t *testing.T, q plan.Question) {
+				t.Helper()
+
+				if q.Shape != plan.Pick {
+					t.Fatalf("shape = %s, want pick", q.Shape)
+				}
+
+				want := []string{"zebra", "apple", "middle"}
+				for i, option := range q.Options {
+					if option.Name != want[i] {
+						t.Errorf("option %d = %s, want %s", i, option.Name, want[i])
+					}
+				}
+
+				if q.Options[0].Desc != "Z" {
+					t.Errorf("desc = %v, want Z", q.Options[0].Desc)
+				}
+			},
+		},
+		{
+			name: "should read an empty description as a null criteria",
+			doc:  "team:\n  ask: Which team?\n  pick:\n    billing: Payments\n    sales:\n",
+			check: func(t *testing.T, q plan.Question) {
+				t.Helper()
+
+				if q.Options[1].Desc != nil {
+					t.Errorf("desc = %v, want nil for an empty value", q.Options[1].Desc)
+				}
+			},
+		},
+		{
+			name: "should read a sequence of strings as undescribed options",
+			doc:  "team:\n  ask: Which team?\n  pick: [billing, technical, sales]\n",
+			check: func(t *testing.T, q plan.Question) {
+				t.Helper()
+
+				if len(q.Options) != 3 {
+					t.Fatalf("options = %d, want 3", len(q.Options))
+				}
+
+				for _, option := range q.Options {
+					if option.Desc != nil {
+						t.Errorf("option %s should have no description", option.Name)
+					}
+				}
+			},
+		},
+		{
+			name: "should carry a structured description through as an object",
+			doc: "team:\n  ask: Which team?\n  pick:\n    billing:\n" +
+				"      what: money\n      examples: [\"refund\"]\n    sales: deals\n",
+			check: func(t *testing.T, q plan.Question) {
+				t.Helper()
+
+				encoded, err := json.Marshal(q.Options[0].Desc)
+				if err != nil {
+					t.Fatalf("marshalling: %v", err)
+				}
+
+				want := `{"examples":["refund"],"what":"money"}`
+				if string(encoded) != want {
+					t.Errorf("got  %s\nwant %s", encoded, want)
+				}
+			},
+		},
+		{
+			name:    "should reject a pick that is neither a mapping nor a sequence",
+			doc:     "team:\n  ask: Which team?\n  pick: billing\n",
+			wantErr: true,
+		},
+		{
+			name:    "should reject a non string entry in a pick sequence",
+			doc:     "team:\n  ask: Which team?\n  pick: [billing, 7]\n",
+			wantErr: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := qfile.Load([]byte(tc.doc))
+
+			if tc.wantErr {
+				if err == nil {
+					t.Fatalf("expected an error, got %#v", got)
+				}
+
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			tc.check(t, got.Questions[0])
+		})
+	}
+}
