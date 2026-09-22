@@ -679,31 +679,86 @@ func TestClear(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name   string
-		absent bool
+		name    string
+		absent  bool
+		dir     bool
+		symlink bool
+		wantErr string
 	}{
 		{name: "should remove an existing file"},
 		{name: "should report an absent file as success", absent: true},
+		{
+			// The link is what sits at the credential path, so removing it is what Clear was
+			// asked to do. A stat by path here would follow it and refuse a link to a directory.
+			name:    "should remove a symlink at the credential path",
+			symlink: true,
+		},
+		{
+			// os.Remove calls rmdir on a directory, so without a check Clear would delete one it
+			// was never asked to touch. Load refuses the same path for the same reason.
+			name:    "should refuse a directory at the credential path",
+			dir:     true,
+			wantErr: "is not a regular file",
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
+			if tc.symlink && runtime.GOOS == "windows" {
+				t.Skip("windows has no symlink without elevation")
+			}
+
 			path := filepath.Join(t.TempDir(), "credentials.json")
 
-			if !tc.absent {
+			if tc.dir {
+				if err := os.Mkdir(path, 0o700); err != nil {
+					t.Fatalf("creating the fixture directory: %v", err)
+				}
+			}
+
+			target := ""
+
+			if tc.symlink {
+				target = t.TempDir()
+				if err := os.Symlink(target, path); err != nil {
+					t.Fatalf("linking: %v", err)
+				}
+			}
+
+			if !tc.absent && !tc.dir && !tc.symlink {
 				if err := os.WriteFile(path, []byte(`{"api_key":"k"}`), 0o600); err != nil {
 					t.Fatalf("writing the fixture: %v", err)
 				}
 			}
 
-			if err := creds.NewStore().Clear(path); err != nil {
-				t.Fatalf("Clear: %v", err)
+			clearErr := creds.NewStore().Clear(path)
+
+			if tc.wantErr != "" {
+				if clearErr == nil || !strings.Contains(clearErr.Error(), tc.wantErr) {
+					t.Fatalf("Clear error = %v, want it to contain %s", clearErr, tc.wantErr)
+				}
+
+				if _, statErr := os.Lstat(path); statErr != nil {
+					t.Errorf("Clear removed the directory it refused, stat = %v", statErr)
+				}
+
+				return
 			}
 
-			if _, err := os.Lstat(path); !errors.Is(err, os.ErrNotExist) {
-				t.Errorf("after Clear the path stats as %v, want it gone", err)
+			if clearErr != nil {
+				t.Fatalf("Clear: %v", clearErr)
+			}
+
+			if _, statErr := os.Lstat(path); !errors.Is(statErr, os.ErrNotExist) {
+				t.Errorf("after Clear the path stats as %v, want it gone", statErr)
+			}
+
+			if tc.symlink {
+				if _, statErr := os.Stat(target); statErr != nil {
+					t.Errorf("Clear removed the link's target, stat = %v", statErr)
+				}
 			}
 		})
 	}

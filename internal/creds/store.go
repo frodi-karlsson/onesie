@@ -238,6 +238,13 @@ func (e *ModeWarning) Error() string {
 // Clear deletes the credential file. An absent file is not an error, since auth clear is defined to
 // exit 0 either way.
 func (s Store) Clear(path string) error {
+	// os.Remove calls rmdir on a directory, so without this Clear would delete a directory it was
+	// never asked to touch. os.Lstat rather than os.Stat, since a symlink at this path is the link
+	// to remove and not the thing it points at.
+	if info, statErr := os.Lstat(path); statErr == nil && info.IsDir() {
+		return fmt.Errorf("jev: credential file %s is not a regular file", path)
+	}
+
 	if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("jev: removing %s: %w", path, err)
 	}
