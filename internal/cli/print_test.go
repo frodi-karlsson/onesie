@@ -830,11 +830,14 @@ func runClosed(t *testing.T, args []string, stdin, baseURL string) (string, int)
 
 	var errOut bytes.Buffer
 
+	// JEV_CONFIG_DIR points at an empty directory for the same reason runOfflineStdin does it: the
+	// cases with no base URL build no client, and a credential file in the developer's home would
+	// have them build one.
 	opts := []RootOption{
 		WithStdin(strings.NewReader(stdin)),
 		WithStdinTTY(false),
 		WithStdoutTTY(false),
-		WithLookupEnv(func(string) (string, bool) { return "", false }),
+		WithLookupEnv(lookupFrom(map[string]string{"JEV_CONFIG_DIR": t.TempDir()})),
 	}
 
 	if baseURL != "" {
@@ -903,15 +906,18 @@ func runOfflineStdin(t *testing.T, args []string, stdin string) (string, string,
 
 	var out, errOut bytes.Buffer
 
-	// No client factory and no environment, so the real factory runs against a machine with no key.
-	// A case that exits ok here reached no network at all, which is the whole claim the two print
-	// flags make.
+	// No client factory, so the real factory runs against a machine with no key. A case that exits
+	// ok here reached no network at all, which is the whole claim the two print flags make.
+	//
+	// JEV_CONFIG_DIR points at an empty directory rather than nothing, because section 16.1's third
+	// source would otherwise resolve against the developer's own home and read a real key into
+	// these tests.
 	root := NewRootCmd(
 		BuildInfo{Version: "1.2.3"},
 		WithStdin(strings.NewReader(stdin)),
 		WithStdinTTY(false),
 		WithStdoutTTY(false),
-		WithLookupEnv(func(string) (string, bool) { return "", false }),
+		WithLookupEnv(lookupFrom(map[string]string{"JEV_CONFIG_DIR": t.TempDir()})),
 	)
 
 	root.SetOut(&out)
