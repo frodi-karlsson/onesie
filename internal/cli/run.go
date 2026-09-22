@@ -809,15 +809,11 @@ func (*rejectedError) Error() string {
 
 type clientFactory func(ctx context.Context, opts ...jev.Option) (*jev.Client, error)
 
-func defaultClientFactory(
-	info BuildInfo,
-	flags *runFlags,
-	lookupEnv func(string) (string, bool),
-) clientFactory {
+func defaultClientFactory(info BuildInfo, flags *runFlags, settings rootSettings) clientFactory {
 	return func(_ context.Context, extra ...jev.Option) (*jev.Client, error) {
 		opts := []jev.Option{
 			jev.WithUserAgent("jev-cli/" + info.Version),
-			jev.WithEnv(lookupEnv),
+			jev.WithEnv(settings.lookupEnv),
 		}
 
 		if transport := pooled(flags.jobs); transport != nil {
@@ -831,6 +827,15 @@ func defaultClientFactory(
 		if flags.baseURL != "" {
 			opts = append(opts, jev.WithBaseURL(flags.baseURL))
 		}
+
+		// Section 16.1's third step. Every dry run returns before a client is built, so opening the
+		// file here is what makes it invisible to a run that needs no key.
+		stored, err := storedCredentials(settings, flags)
+		if err != nil {
+			return nil, err
+		}
+
+		opts = append(opts, stored...)
 
 		opts = append(opts, jev.WithAttemptTimeout(
 			time.Duration(flags.timeout)*time.Second))
@@ -849,6 +854,24 @@ func defaultClientFactory(
 
 		return jev.New(opts...)
 	}
+}
+
+func storedCredentials(settings rootSettings, flags *runFlags) ([]jev.Option, error) {
+	source, err := resolveKey(settings, flags)
+	if err != nil {
+		return nil, err
+	}
+
+	// Section 16.1's third step is the only one that builds options here, since jev.New applies
+	// --api-key and then TYPESAFE_API_KEY itself. The guard changes no behaviour today, because
+	// resolveKey has already returned for both earlier sources and neither of them carries a
+	// stored base URL, but the rule belongs where the file's options are built rather than left to
+	// be inferred from what a keySource happens to hold.
+	if source.name != sourceFile {
+		return nil, nil
+	}
+
+	return storedOptions(settings, flags, source), nil
 }
 
 func pooled(jobs int) http.RoundTripper {

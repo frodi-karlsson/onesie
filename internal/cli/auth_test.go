@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 
@@ -892,6 +893,237 @@ func TestCredentialPath(t *testing.T) {
 	}
 }
 
+func TestNewRootCmdFileDrivenClient(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		// fileBase names the server the credential file points at, WANTED or UNWANTED, and is
+		// empty for a file carrying no base_url. Every arg and environment value is substituted
+		// the same way, since the addresses are only known once the case is running.
+		fileBase string
+		fileKey  string
+		fileMode os.FileMode
+		unixOnly bool
+		env      map[string]string
+		args     []string
+		status   int
+		wantCode int
+		wantAuth string
+		wantErr  string
+		wanted   int
+	}{
+		{
+			name:     "should take the key and the base url from the file",
+			fileKey:  "SECRET-FILE",
+			fileBase: "WANTED",
+			args:     []string{"is this urgent", "-r"},
+			wantCode: ExitOK,
+			wantAuth: "Bearer SECRET-FILE",
+			wanted:   1,
+		},
+		{
+			// The mode is the assertion. A run that opened this file would exit 3 rather than
+			// reach either server, so passing proves the file was never opened at all.
+			name:     "should leave a file others can reach unopened when the environment has a key",
+			fileKey:  "SECRET-FILE",
+			fileBase: "UNWANTED",
+			fileMode: 0o644,
+			unixOnly: true,
+			env:      map[string]string{jev.EnvAPIKey: "SECRET-ENV"},
+			args:     []string{"is this urgent", "-r", "--base-url", "WANTED"},
+			wantCode: ExitOK,
+			wantAuth: "Bearer SECRET-ENV",
+			wanted:   1,
+		},
+		{
+			name:     "should send the refused environment key rather than falling back to the file",
+			fileKey:  "SECRET-FILE",
+			fileBase: "UNWANTED",
+			env:      map[string]string{jev.EnvAPIKey: "SECRET-ENV"},
+			args:     []string{"is this urgent", "-r", "--base-url", "WANTED"},
+			status:   http.StatusUnauthorized,
+			wantCode: ExitAuth,
+			wantAuth: "Bearer SECRET-ENV",
+			wanted:   1,
+		},
+		{
+			name:     "should refuse a file others can reach when no earlier source has a key",
+			fileKey:  "SECRET-FILE",
+			fileBase: "WANTED",
+			fileMode: 0o644,
+			unixOnly: true,
+			args:     []string{"is this urgent", "-r"},
+			wantCode: ExitAuth,
+			wantErr:  "is accessible by others, mode 644",
+		},
+		{
+			name:     "should let --api-key outrank the file",
+			fileKey:  "SECRET-FILE",
+			fileBase: "UNWANTED",
+			args: []string{
+				"is this urgent", "-r", "--api-key", "SECRET-FLAG", "--base-url", "WANTED",
+			},
+			wantCode: ExitOK,
+			wantAuth: "Bearer SECRET-FLAG",
+			wanted:   1,
+		},
+		{
+			name:     "should let --api-key outrank the environment and the file",
+			fileKey:  "SECRET-FILE",
+			fileBase: "UNWANTED",
+			env:      map[string]string{jev.EnvAPIKey: "SECRET-ENV"},
+			args: []string{
+				"is this urgent", "-r", "--api-key", "SECRET-FLAG", "--base-url", "WANTED",
+			},
+			wantCode: ExitOK,
+			wantAuth: "Bearer SECRET-FLAG",
+			wanted:   1,
+		},
+		{
+			name:     "should let --base-url outrank the file's",
+			fileKey:  "SECRET-FILE",
+			fileBase: "UNWANTED",
+			args:     []string{"is this urgent", "-r", "--base-url", "WANTED"},
+			wantCode: ExitOK,
+			wantAuth: "Bearer SECRET-FILE",
+			wanted:   1,
+		},
+		{
+			name:     "should let TYPESAFE_BASE_URL outrank the file's",
+			fileKey:  "SECRET-FILE",
+			fileBase: "UNWANTED",
+			env:      map[string]string{jev.EnvBaseURL: "WANTED"},
+			args:     []string{"is this urgent", "-r"},
+			wantCode: ExitOK,
+			wantAuth: "Bearer SECRET-FILE",
+			wanted:   1,
+		},
+		{
+			name:     "should report no key when the file is absent",
+			args:     []string{"is this urgent", "-r", "--base-url", "WANTED"},
+			wantCode: ExitUsage,
+			wantErr:  "jev: no API key",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if tc.unixOnly && runtime.GOOS == "windows" {
+				t.Skip("windows carries no unix permission bits, so the mode check does not apply")
+			}
+
+			wanted, wantedAuths := recordingServer(t, tc.status)
+			unwanted, unwantedAuths := recordingServer(t, 0)
+
+			urls := map[string]string{"WANTED": wanted.URL, "UNWANTED": unwanted.URL}
+
+			env := map[string]string{
+				"JEV_CONFIG_DIR": credentialDir(
+					t, credentialContent(t, tc.fileKey, urls[tc.fileBase]), tc.fileMode),
+			}
+
+			for name, value := range tc.env {
+				env[name] = substituted(value, urls)
+			}
+
+			args := make([]string, 0, len(tc.args))
+			for _, arg := range tc.args {
+				args = append(args, substituted(arg, urls))
+			}
+
+			out, errOut, code := runCredentialFile(t, args, "the server is down", env)
+
+			// First, because every other assertion below would pass on output that had the key
+			// spliced into it.
+			assertNoSecret(t, out, errOut)
+
+			if code != tc.wantCode {
+				t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, tc.wantCode, errOut)
+			}
+
+			if tc.wantErr != "" && !strings.Contains(errOut, tc.wantErr) {
+				t.Errorf("stderr missing %q\ngot:\n%s", tc.wantErr, errOut)
+			}
+
+			auths := wantedAuths()
+			if len(auths) != tc.wanted {
+				t.Errorf("the wanted base url took %d requests, want %d", len(auths), tc.wanted)
+			}
+
+			for _, auth := range auths {
+				// The header is compared rather than reported. Naming what it held would print the
+				// key the whole subcommand exists to keep out of every stream.
+				if auth != tc.wantAuth {
+					t.Error("a request carried a key from the wrong source")
+				}
+			}
+
+			if got := len(unwantedAuths()); got != 0 {
+				t.Errorf("the unwanted base url took %d requests, want 0", got)
+			}
+		})
+	}
+}
+
+func TestNewRootCmdDryRunWithACredentialFile(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		args  []string
+		stdin string
+	}{
+		{
+			name:  "should not open the file for --print-request",
+			args:  []string{"is this urgent", "--print-request"},
+			stdin: "the server is down",
+		},
+		{
+			name: "should not open the file for --print-questions",
+			args: []string{"--ask", "urgent=is this urgent", "--print-questions"},
+		},
+		{
+			name:  "should not open the file for -i request --print-request",
+			args:  []string{"-i", "request", "--print-request"},
+			stdin: `{"state":"the server is down"}`,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if runtime.GOOS == "windows" {
+				t.Skip("windows carries no unix permission bits, so the mode check does not apply")
+			}
+
+			// Mode 0644 is the assertion. Section 16.1 opens the file only when the run needs a
+			// key, so a dry run that opened this one would exit 3 instead of writing its body.
+			dir := credentialDir(t, `{"api_key":"SECRET-FILE"}`, 0o644)
+
+			out, errOut, code := runCredentialFile(t, tc.args, tc.stdin,
+				map[string]string{"JEV_CONFIG_DIR": dir})
+
+			assertNoSecret(t, out, errOut)
+
+			if code != ExitOK {
+				t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, ExitOK, errOut)
+			}
+
+			if errOut != "" {
+				t.Errorf("stderr = %q, want nothing", errOut)
+			}
+
+			if out == "" {
+				t.Error("stdout is empty, want the dry run's body")
+			}
+		})
+	}
+}
+
 func runAuth(t *testing.T, args []string, opts ...RootOption) (string, string, int) {
 	t.Helper()
 
@@ -915,6 +1147,97 @@ func runAuth(t *testing.T, args []string, opts ...RootOption) (string, string, i
 	return out.String(), errOut.String(), code
 }
 
+func runCredentialFile(
+	t *testing.T,
+	args []string,
+	stdin string,
+	env map[string]string,
+) (string, string, int) {
+	t.Helper()
+
+	var out, errOut bytes.Buffer
+
+	// Neither WithClientFactory nor WithCredentialPath, so the production resolver and the
+	// production factory both run. The injected lookup carrying JEV_CONFIG_DIR is the only thing
+	// standing between the resolver and the developer's own credential file.
+	root := NewRootCmd(
+		BuildInfo{Version: "1.2.3"},
+		WithStdin(strings.NewReader(stdin)),
+		WithStdinTTY(false),
+		WithStdoutTTY(false),
+		WithLookupEnv(lookupFrom(env)),
+	)
+
+	root.SetOut(&out)
+	root.SetErr(&errOut)
+	root.SetArgs(args)
+
+	code := Execute(t.Context(), root)
+
+	return out.String(), errOut.String(), code
+}
+
+// recordingServer answers one question and hands back every Authorization header it was sent, so a
+// case can name which source the key came from without printing it.
+func recordingServer(t *testing.T, status int) (*httptest.Server, func() []string) {
+	t.Helper()
+
+	var mu sync.Mutex
+
+	var auths []string
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		auths = append(auths, r.Header.Get("Authorization"))
+		mu.Unlock()
+
+		w.Header().Set("Content-Type", "application/json")
+
+		body := `{"model":"jev-1.13.0","answers":{"answer":{"type":"noul","noul":0.5}}}`
+		if status != 0 {
+			w.WriteHeader(status)
+
+			body = `{"error":{"message":"the key was refused"}}`
+		}
+
+		if _, err := io.WriteString(w, body); err != nil {
+			t.Errorf("writing the stub response: %v", err)
+		}
+	}))
+
+	t.Cleanup(srv.Close)
+
+	return srv, func() []string {
+		mu.Lock()
+		defer mu.Unlock()
+
+		return append([]string(nil), auths...)
+	}
+}
+
+func credentialContent(t *testing.T, key, baseURL string) string {
+	t.Helper()
+
+	if key == "" {
+		return ""
+	}
+
+	encoded, err := json.Marshal(creds.File{APIKey: key, BaseURL: baseURL})
+	if err != nil {
+		t.Fatalf("encoding the credential fixture: %v", err)
+	}
+
+	return string(encoded)
+}
+
+func substituted(value string, urls map[string]string) string {
+	if url, ok := urls[value]; ok {
+		return url
+	}
+
+	return value
+}
+
 func stubFactory(base string) func(context.Context, ...jev.Option) (*jev.Client, error) {
 	return func(_ context.Context, extra ...jev.Option) (*jev.Client, error) {
 		policy := jev.DefaultRetryPolicy()
@@ -934,11 +1257,20 @@ func stubFactory(base string) func(context.Context, ...jev.Option) (*jev.Client,
 func credentialFixture(t *testing.T, content string, mode os.FileMode) string {
 	t.Helper()
 
-	path := filepath.Join(t.TempDir(), "credentials.json")
+	return filepath.Join(credentialDir(t, content, mode), "credentials.json")
+}
+
+// credentialDir returns the directory JEV_CONFIG_DIR names, holding the file when there is content
+// for one, so a case can exercise the production path resolver rather than stand in for it.
+func credentialDir(t *testing.T, content string, mode os.FileMode) string {
+	t.Helper()
+
+	dir := t.TempDir()
 	if content == "" {
-		return path
+		return dir
 	}
 
+	path := filepath.Join(dir, "credentials.json")
 	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
 		t.Fatalf("writing the credential fixture: %v", err)
 	}
@@ -952,7 +1284,7 @@ func credentialFixture(t *testing.T, content string, mode os.FileMode) string {
 		t.Fatalf("setting the credential fixture mode: %v", err)
 	}
 
-	return path
+	return dir
 }
 
 func fixedPath(path string) func() (string, error) {

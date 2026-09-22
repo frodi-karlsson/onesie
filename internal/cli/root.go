@@ -38,16 +38,16 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 		opt(&settings)
 	}
 
+	// Installed after the options, since it reads the environment lookup a test may have replaced,
+	// and before the factory, which resolves the credential file through it.
+	if settings.credPath == nil {
+		settings.credPath = credentialPath(settings.lookupEnv)
+	}
+
 	// The factory reads flags, which are parsed after this returns, so it closes over the pointer.
 	// Installing it only when absent keeps an injected factory winning.
 	if settings.newClient == nil {
-		settings.newClient = defaultClientFactory(info, flags, settings.lookupEnv)
-	}
-
-	// Installed after the options for the same reason, since it reads the environment lookup a
-	// test may have replaced.
-	if settings.credPath == nil {
-		settings.credPath = credentialPath(settings.lookupEnv)
+		settings.newClient = defaultClientFactory(info, flags, settings)
 	}
 
 	recorder := argv.New()
