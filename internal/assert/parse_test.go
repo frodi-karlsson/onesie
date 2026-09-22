@@ -2,6 +2,7 @@ package assert
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 )
 
@@ -9,6 +10,8 @@ func TestParse(t *testing.T) {
 	t.Parallel()
 
 	unclosed := `team.p["needs review" > 0.2`
+	tooDeep := strings.Repeat("(", maxDepth) + `a.value < 1` + strings.Repeat(")", maxDepth)
+	deepEnough := strings.Repeat("(", maxDepth-1) + `a.value < 1` + strings.Repeat(")", maxDepth-1)
 
 	tests := []struct {
 		name    string
@@ -60,6 +63,11 @@ func TestParse(t *testing.T) {
 			name:  "should parse in over a list",
 			input: `team.value in ["billing", "technical"]`,
 			want:  `(in team.value ["billing" "technical"])`,
+		},
+		{
+			name:  "should parse an expression nesting just inside the bound",
+			input: deepEnough,
+			want:  `(< a.value 1)`,
 		},
 		{
 			name:  "should parse a bare model path",
@@ -135,6 +143,11 @@ func TestParse(t *testing.T) {
 			name:    "should report a lexer error as the lexer wrote it",
 			input:   `team.value == 'billing'`,
 			wantErr: "strings use double quotes, got 'billing'",
+		},
+		{
+			name:    "should reject an expression that nests too deeply",
+			input:   tooDeep,
+			wantErr: fmt.Sprintf("parse error at column %d, the expression nests too deeply", maxDepth+1),
 		},
 	}
 

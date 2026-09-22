@@ -6,6 +6,10 @@ import (
 	"strings"
 )
 
+// A hand written gate nests a handful of levels deep. This is far past anything a person types and
+// far short of what exhausts a stack, and it bounds the walks Check and Eval make over the tree.
+const maxDepth = 256
+
 // Parse reads one §17.2 expression. Its errors carry the column they were found at and no jev
 // prefix, which the caller owns.
 func Parse(source string) (*Expr, error) {
@@ -63,6 +67,7 @@ type Expr struct {
 type parser struct {
 	tokens []token
 	at     int
+	depth  int
 }
 
 func (p *parser) parseExpr() (node, error) {
@@ -111,7 +116,16 @@ func (p *parser) parseAnd() (node, error) {
 	return left, nil
 }
 
+// Every path back into parseExpr runs through here, so counting this one entry bounds the descent.
+// A stack overflow is a fatal error no recover reaches, and §17.5's assert key has no size limit.
 func (p *parser) parseUnary() (node, error) {
+	p.depth++
+	defer func() { p.depth-- }()
+
+	if p.depth > maxDepth {
+		return nil, parseError(p.peek().col, "the expression nests too deeply")
+	}
+
 	switch tok := p.peek(); tok.kind {
 	case kindNot:
 		p.next()
