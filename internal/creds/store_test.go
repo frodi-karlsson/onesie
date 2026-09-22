@@ -308,7 +308,8 @@ func TestSave(t *testing.T) {
 			}
 
 			if strings.TrimSpace(string(data)) != tc.want {
-				t.Errorf("wrote %s, want %s", data, tc.want)
+				// Never printed, since a parameterised case would make this the key.
+				t.Errorf("wrote %d bytes that do not match the expected object", len(data))
 			}
 
 			// The mode is the point of this feature, so assert it rather than the bytes alone.
