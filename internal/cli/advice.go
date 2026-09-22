@@ -22,6 +22,14 @@ func advise(err error, model string) error {
 		}
 	}
 
+	if countRejected(api) {
+		return &advisedError{
+			cause: err,
+			message: err.Error() +
+				". jev's own check passed, so its built in limits may be stale. Run jev -V",
+		}
+	}
+
 	return err
 }
 
@@ -47,4 +55,19 @@ func unknownModel(api *jev.APIError, model string) bool {
 	}
 
 	return strings.Contains(api.Error(), "Unknown model")
+}
+
+func countRejected(api *jev.APIError) bool {
+	if api.Status != http.StatusUnprocessableEntity {
+		return false
+	}
+
+	// A heuristic. The server owns the wording, so jev cannot know every phrasing, and it matches
+	// the flattened "path: msg" form instead: an option or level count names criteria as the last
+	// path segment, or as the parent of an index. It is acceptable here because the advice is
+	// additive. A phrasing this misses leaves the server's text exactly as it stands, and a 422
+	// naming criteria for another reason still points at the limits that built the request.
+	message := api.Error()
+
+	return strings.Contains(message, "criteria:") || strings.Contains(message, "criteria.")
 }

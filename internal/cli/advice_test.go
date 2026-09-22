@@ -107,6 +107,73 @@ func TestNewRootCmdUnknownModel(t *testing.T) {
 	}
 }
 
+func TestNewRootCmdRejectedCriteria(t *testing.T) {
+	t.Parallel()
+
+	const tooMany = `{"detail":[{"loc":["body","questions","team","criteria"],` +
+		`"msg":"too many items"}]}`
+
+	const note = ". jev's own check passed, so its built in limits may be stale. Run jev -V"
+
+	tests := []adviceCase{
+		{
+			name:     "should say the local check passed when the server rejects a count",
+			args:     []string{"--ask", "team=which team", "--pick", "billing,technical"},
+			stdin:    "a ticket",
+			status:   http.StatusUnprocessableEntity,
+			response: tooMany,
+			wantCode: ExitUsage,
+			wantErr:  "jev: 422 questions.team.criteria: too many items" + note + "\n",
+		},
+		{
+			name:   "should say the same when the path names an index under criteria",
+			args:   []string{"--ask", "team=which team", "--pick", "billing,technical"},
+			stdin:  "a ticket",
+			status: http.StatusUnprocessableEntity,
+			response: `{"detail":[{"loc":["body","questions","team","criteria",0],` +
+				`"msg":"too long"}]}`,
+			wantCode: ExitUsage,
+			wantErr:  "jev: 422 questions.team.criteria.0: too long" + note + "\n",
+		},
+		{
+			name:     "should carry the note into a streaming error record",
+			args:     []string{"--ask", "team=which team", "--pick", "billing,technical", "-i", "lines"},
+			stdin:    "a ticket\n",
+			status:   http.StatusUnprocessableEntity,
+			response: tooMany,
+			wantCode: ExitRecords,
+			wantOut: []string{`"error":{"kind":"http","status":422,` +
+				`"message":"jev: 422 questions.team.criteria: too many items` + note + `"}`},
+		},
+		{
+			name:     "should leave a 422 about another field unchanged",
+			args:     []string{"is this urgent"},
+			stdin:    "a ticket",
+			status:   http.StatusUnprocessableEntity,
+			response: `{"detail":[{"loc":["body","state"],"msg":"field required"}]}`,
+			wantCode: ExitUsage,
+			wantErr:  "jev: 422 state: field required\n",
+		},
+		{
+			// A listing sends no criteria, so this response is contrived. It is here to pin the
+			// listing call site, which would otherwise be the one path whose errors go unadvised.
+			name:     "should advise a listing as well",
+			args:     []string{"--list-models"},
+			status:   http.StatusUnprocessableEntity,
+			response: tooMany,
+			wantCode: ExitUsage,
+			wantErr:  "jev: 422 questions.team.criteria: too many items" + note + "\n",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			checkAdvice(t, tc)
+		})
+	}
+}
+
 type adviceCase struct {
 	name     string
 	args     []string
