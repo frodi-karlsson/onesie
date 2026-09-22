@@ -279,7 +279,9 @@ type requestConfig struct {
 	header         http.Header
 }
 
-func validateBaseURL(raw string) error {
+// ValidateBaseURL reports whether a base URL is an absolute http or https URL. It is exported so
+// jev auth set rejects a typo before storing it, rather than a second validator disagreeing.
+func ValidateBaseURL(raw string) error {
 	parsed, err := url.Parse(raw)
 	if err != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {
 		return &ValidationError{Message: "base URL must be an absolute http or https URL, got " + raw}

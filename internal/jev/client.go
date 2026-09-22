@@ -52,7 +52,7 @@ func New(opts ...Option) (*Client, error) {
 		return nil, &ValidationError{Message: "no API key. Pass --api-key or set " + EnvAPIKey}
 	}
 
-	if err := validateBaseURL(c.baseURL); err != nil {
+	if err := ValidateBaseURL(c.baseURL); err != nil {
 		return nil, err
 	}
 
