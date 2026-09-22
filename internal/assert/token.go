@@ -128,11 +128,13 @@ func lexNumber(runes []rune, i int) (token, int, error) {
 	// A dot never follows a number in the grammar, so taking every dot here turns 1.2.3 into one
 	// bad literal rather than a number and a stray path.
 	text := string(runes[start:i])
-	if _, err := strconv.ParseFloat(text, 64); err != nil {
+
+	value, err := strconv.ParseFloat(text, 64)
+	if err != nil {
 		return token{}, 0, fmt.Errorf("invalid number '%s'", text)
 	}
 
-	return token{kind: kindNumber, text: text, col: start + 1}, i, nil
+	return token{kind: kindNumber, text: text, number: value, col: start + 1}, i, nil
 }
 
 func lexOperator(runes []rune, i int) (token, int, error) {
@@ -185,9 +187,10 @@ func twoRuneKind(text string) (kind, bool) {
 }
 
 type token struct {
-	kind kind
-	text string
-	col  int
+	kind   kind
+	text   string
+	number float64
+	col    int
 }
 
 type kind int

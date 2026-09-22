@@ -2,7 +2,6 @@ package assert
 
 import (
 	"fmt"
-	"strconv"
 	"strings"
 )
 
@@ -204,12 +203,7 @@ func (p *parser) parseOperand() (node, error) {
 	case kindNumber:
 		p.next()
 
-		value, err := strconv.ParseFloat(tok.text, 64)
-		if err != nil {
-			return nil, parseError(tok.col, "expected a value")
-		}
-
-		return &numberNode{value: value, column: tok.col}, nil
+		return &numberNode{value: tok.number, column: tok.col}, nil
 	case kindString:
 		p.next()
 
