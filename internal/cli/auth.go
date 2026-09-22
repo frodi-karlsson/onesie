@@ -139,8 +139,13 @@ func firstLine(r io.Reader) (string, error) {
 	scanner := bufio.NewScanner(r)
 
 	key := ""
+
 	if scanner.Scan() {
 		key = strings.TrimSpace(scanner.Text())
+	} else if err := scanner.Err(); err != nil {
+		// Without this a key over the scanner's 64KiB cap leaves the first Scan empty and the loop
+		// below hands back the remainder, which reads as a second line and is rejected as one.
+		return "", fmt.Errorf("jev: reading the key from stdin: %w", err)
 	}
 
 	// pass show and its siblings print the secret first and metadata after it, so a second non
