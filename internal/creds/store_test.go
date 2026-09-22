@@ -69,6 +69,20 @@ func TestLoad(t *testing.T) {
 			wantErr:  "is accessible by others, mode 640",
 		},
 		{
+			name:     "should refuse a file its owner cannot read",
+			contents: `{"api_key":"k"}`,
+			mode:     0o060,
+			unixOnly: true,
+			wantErr:  "is accessible by others, mode 60",
+		},
+		{
+			name:     "should refuse a file only the world can read",
+			contents: `{"api_key":"k"}`,
+			mode:     0o006,
+			unixOnly: true,
+			wantErr:  "is accessible by others, mode 6",
+		},
+		{
 			name:     "should refuse a file with no api_key",
 			contents: `{}`,
 			mode:     0o600,

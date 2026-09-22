@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"runtime"
 )
@@ -50,6 +51,17 @@ func (s Store) Load(path string) (file File, found bool, err error) {
 	}
 
 	if err != nil {
+		// A file whose owner cannot read it fails the open before the mode is ever looked at, so
+		// the mode is named here too. Otherwise the same file refuses with a bare permission denied
+		// for an ordinary user and with the mode for root.
+		if errors.Is(err, fs.ErrPermission) {
+			if info, statErr := os.Lstat(path); statErr == nil {
+				if modeErr := checkMode(path, info.Mode()); modeErr != nil {
+					return File{}, false, modeErr
+				}
+			}
+		}
+
 		return File{}, false, fmt.Errorf("jev: reading %s: %w", path, err)
 	}
 
