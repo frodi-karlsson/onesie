@@ -17,10 +17,14 @@ func listModels(cmd *cobra.Command, settings rootSettings, stats *collector) err
 
 	models, err := client.ListModels(cmd.Context())
 	if err != nil {
-		stats.recordFailure(true, 0)
-		stats.terminalAttempt(err)
+		// A listing carries no model of its own, so there is none to name in a remedy. It is
+		// advised all the same, so every call that reaches the API answers the same way.
+		advised := advise(err, "")
 
-		return err
+		stats.recordFailure(true, 0)
+		stats.terminalAttempt(advised)
+
+		return advised
 	}
 
 	// No usage, no questions, and no model of its own. The ids in the listing are what the account

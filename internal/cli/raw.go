@@ -59,10 +59,13 @@ func streamRaw(
 
 			body, err := client.SystemOneRaw(ctx, json.RawMessage(rec.Raw))
 			if err != nil {
-				stats.recordFailure(true, asked)
-				stats.terminalAttempt(err)
+				// The body reached the wire unchanged, so the model it named is the one jev sent.
+				advised := advise(err, rawModel([]byte(rec.Raw)))
 
-				return errorLine(err), err
+				stats.recordFailure(true, asked)
+				stats.terminalAttempt(advised)
+
+				return errorLine(advised), advised
 			}
 
 			model, usage := rawSummary(body)
@@ -114,6 +117,18 @@ func rawSummary(response []byte) (string, jev.Usage) {
 	}
 
 	return probe.Model, probe.Usage
+}
+
+func rawModel(request []byte) string {
+	var probe struct {
+		Model string `json:"model"`
+	}
+
+	if err := json.Unmarshal(request, &probe); err != nil {
+		return ""
+	}
+
+	return probe.Model
 }
 
 func rawQuestions(request []byte) int {

@@ -290,6 +290,7 @@ func stream(
 	}
 
 	questions := wireAll(built.Questions)
+	model := jev.ResolveModel(built.Model, settings.lookupEnv)
 	source := input.NewStream(settings.stdin, inputMode, flags.skipBlank)
 	out := cmd.OutOrStdout()
 	merge := merging(flags)
@@ -332,7 +333,7 @@ func stream(
 			}
 
 			record, evalErr := evaluate(
-				ctx, client, built, questions, rec.Wire, flags.usage, stats)
+				ctx, client, built, model, questions, rec.Wire, flags.usage, stats)
 
 			return line{record: record, raw: rec.Raw, state: rec.Wire}, evalErr
 		},
@@ -501,9 +502,10 @@ func ask(
 	}
 
 	questions := wireAll(built.Questions)
+	model := jev.ResolveModel(built.Model, settings.lookupEnv)
 
 	record, err := evaluate(
-		cmd.Context(), client, built, questions, resolved.Wire, flags.usage, stats)
+		cmd.Context(), client, built, model, questions, resolved.Wire, flags.usage, stats)
 	if err != nil {
 		// The exit code still comes from the error. This only adds the fallback word the caller
 		// asked for, so a shell guard reads a decision rather than an empty string. An interrupt
@@ -572,12 +574,13 @@ func evaluate(
 	ctx context.Context,
 	client *jev.Client,
 	built *plan.Plan,
+	model string,
 	questions jev.Questions,
 	state any,
 	withUsage bool,
 	stats *collector,
 ) (output.Record, error) {
-	record, usage, err := answered(ctx, client, built, questions, state, withUsage)
+	record, usage, err := answered(ctx, client, built, model, questions, state, withUsage)
 	if err != nil {
 		// The request was made whatever went wrong afterwards, and the questions went with it, so
 		// a failed record still carries them into the count section 10 asks for.
@@ -596,6 +599,7 @@ func answered(
 	ctx context.Context,
 	client *jev.Client,
 	built *plan.Plan,
+	model string,
 	questions jev.Questions,
 	state any,
 	withUsage bool,
@@ -606,7 +610,11 @@ func answered(
 		Questions: questions,
 	})
 	if err != nil {
-		return failureRecord(built, err), jev.Usage{}, err
+		// Wrapped here rather than at either caller, so the stderr line and the streaming record
+		// carry the same remedy.
+		advised := advise(err, model)
+
+		return failureRecord(built, advised), jev.Usage{}, advised
 	}
 
 	record := output.Record{Model: result.Model}
