@@ -218,6 +218,22 @@ func TestCombine(t *testing.T) {
 			want:       `(and (and (< a.value 1) (< b.value 2)) (< c.value 3))`,
 			wantSource: `(a.value < 1) and (b.value < 2) and (c.value < 3)`,
 		},
+		{
+			name:  "should return nil when every expression is nil",
+			input: []string{``},
+		},
+		{
+			name:       "should skip a nil expression",
+			input:      []string{``, `a.value < 1`},
+			want:       `(< a.value 1)`,
+			wantSource: `a.value < 1`,
+		},
+		{
+			name:       "should skip a nil expression before folding the rest",
+			input:      []string{``, `a.value < 1`, ``, `b.value < 2`},
+			want:       `(and (< a.value 1) (< b.value 2))`,
+			wantSource: `(a.value < 1) and (b.value < 2)`,
+		},
 	}
 
 	for _, tc := range tests {
@@ -225,13 +241,22 @@ func TestCombine(t *testing.T) {
 			t.Parallel()
 
 			exprs := make([]*Expr, 0, len(tc.input))
+			present := 0
+
 			for _, source := range tc.input {
+				if source == "" {
+					exprs = append(exprs, nil)
+
+					continue
+				}
+
 				expr, err := Parse(source)
 				if err != nil {
 					t.Fatalf("Parse(%q) error = %v, want no error", source, err)
 				}
 
 				exprs = append(exprs, expr)
+				present++
 			}
 
 			got := Combine(exprs...)
@@ -252,7 +277,7 @@ func TestCombine(t *testing.T) {
 			if got.source != tc.wantSource {
 				t.Errorf("Combine(%q) source = %q, want %q", tc.input, got.source, tc.wantSource)
 			}
-			if len(exprs) == 1 && got != exprs[0] {
+			if present == 1 && got != exprs[len(exprs)-1] {
 				t.Errorf("Combine(%q) rebuilt the one expression, want it returned as it was", tc.input)
 			}
 		})

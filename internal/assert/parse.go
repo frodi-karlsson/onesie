@@ -36,20 +36,28 @@ func Parse(source string) (*Expr, error) {
 }
 
 // Combine folds several expressions into one, joined by and, in the order given. It is what makes
-// several --assert flags a single gate. Combining none returns nil, which a caller reads as no
-// assertion to evaluate.
+// several --assert flags a single gate. A nil entry is skipped, and combining none or only nil
+// returns nil, which a caller reads as no assertion to evaluate. A node column stays relative to
+// the source its own expression was parsed from and does not index into the combined source.
 func Combine(exprs ...*Expr) *Expr {
-	switch len(exprs) {
+	present := make([]*Expr, 0, len(exprs))
+	for _, expr := range exprs {
+		if expr != nil {
+			present = append(present, expr)
+		}
+	}
+
+	switch len(present) {
 	case 0:
 		return nil
 	case 1:
-		return exprs[0]
+		return present[0]
 	}
 
-	root := exprs[0].root
-	sources := []string{"(" + exprs[0].source + ")"}
+	root := present[0].root
+	sources := []string{"(" + present[0].source + ")"}
 
-	for _, expr := range exprs[1:] {
+	for _, expr := range present[1:] {
 		root = &binaryNode{op: kindAnd, left: root, right: expr.root, column: expr.root.pos()}
 		sources = append(sources, "("+expr.source+")")
 	}
