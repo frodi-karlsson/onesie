@@ -197,6 +197,16 @@ func (e *ModeWarning) Error() string {
 		"warning: could not set mode 600 on %s. The key is not protected by the filesystem", e.Path)
 }
 
+// Clear deletes the credential file. An absent file is not an error, since auth clear is defined to
+// exit 0 either way.
+func (s Store) Clear(path string) error {
+	if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("jev: removing %s: %w", path, err)
+	}
+
+	return nil
+}
+
 // File is the contents of a credential file. BaseURL is empty when the file carries none.
 type File struct {
 	APIKey  string `json:"api_key"`

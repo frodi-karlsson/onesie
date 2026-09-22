@@ -569,3 +569,37 @@ func TestSaveWhenChmodFails(t *testing.T) {
 		}
 	})
 }
+
+func TestClear(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		absent bool
+	}{
+		{name: "should remove an existing file"},
+		{name: "should report an absent file as success", absent: true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			path := filepath.Join(t.TempDir(), "credentials.json")
+
+			if !tc.absent {
+				if err := os.WriteFile(path, []byte(`{"api_key":"k"}`), 0o600); err != nil {
+					t.Fatalf("writing the fixture: %v", err)
+				}
+			}
+
+			if err := creds.NewStore().Clear(path); err != nil {
+				t.Fatalf("Clear: %v", err)
+			}
+
+			if _, err := os.Lstat(path); !errors.Is(err, os.ErrNotExist) {
+				t.Errorf("after Clear the path stats as %v, want it gone", err)
+			}
+		})
+	}
+}
