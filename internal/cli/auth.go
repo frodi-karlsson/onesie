@@ -214,6 +214,9 @@ func authTest(cmd *cobra.Command, settings rootSettings, flags *runFlags) error 
 		return err
 	}
 
+	// defaultClientFactory resolves the file itself, so this repeats a read on the production
+	// path. It is passed anyway because an injected factory does no resolution of its own and
+	// would otherwise be handed a client with no key.
 	client, err := settings.newClient(cmd.Context(), storedOptions(settings, flags, source)...)
 	if err != nil {
 		return err

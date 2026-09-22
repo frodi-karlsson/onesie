@@ -251,6 +251,11 @@ func (s Store) Clear(path string) error {
 	// os.Remove calls rmdir on a directory, so without this Clear would delete a directory it was
 	// never asked to touch. os.Lstat rather than os.Stat, since a symlink at this path is the link
 	// to remove and not the thing it points at.
+	//
+	// Only a directory is refused, so Clear is deliberately laxer than Load. A symlink, a FIFO, a
+	// socket or a device node at the credential path is removed rather than reported, since auth
+	// clear is asked to leave nothing there and the alternative is a user who cannot clear a path
+	// jev itself will not read.
 	if info, statErr := os.Lstat(path); statErr == nil && info.IsDir() {
 		return fmt.Errorf("jev: credential file %s is not a regular file", path)
 	}
