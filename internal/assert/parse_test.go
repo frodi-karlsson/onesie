@@ -219,6 +219,12 @@ func TestCombine(t *testing.T) {
 			wantSource: `(a.value < 1) and (b.value < 2) and (c.value < 3)`,
 		},
 		{
+			name:       "should bracket a folded expression so and cannot reach inside its or",
+			input:      []string{`a.value < 1 or b.value < 1`, `c.value < 1`},
+			want:       `(and (or (< a.value 1) (< b.value 1)) (< c.value 1))`,
+			wantSource: `(a.value < 1 or b.value < 1) and (c.value < 1)`,
+		},
+		{
 			name:  "should return nil when every expression is nil",
 			input: []string{``},
 		},
@@ -276,6 +282,14 @@ func TestCombine(t *testing.T) {
 			}
 			if got.source != tc.wantSource {
 				t.Errorf("Combine(%q) source = %q, want %q", tc.input, got.source, tc.wantSource)
+			}
+
+			reparsed, err := Parse(got.source)
+			if err != nil {
+				t.Fatalf("Parse(%q) error = %v, want the combined source to parse", got.source, err)
+			}
+			if rendered := reparsed.root.render(); rendered != tc.want {
+				t.Errorf("Parse(%q) = %q, want %q, so the source says what the tree says", got.source, rendered, tc.want)
 			}
 			if present == 1 && got != exprs[len(exprs)-1] {
 				t.Errorf("Combine(%q) rebuilt the one expression, want it returned as it was", tc.input)
