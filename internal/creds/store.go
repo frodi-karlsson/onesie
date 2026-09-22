@@ -135,13 +135,19 @@ func (s Store) Load(path string) (file File, found bool, err error) {
 // Save writes the credential file atomically, creating its directory. The file is written to a
 // temporary name in the same directory and renamed, so a reader never sees a half written key. A
 // non nil first result means the file was written but its mode could not be set, which is a warning
-// for the caller to print rather than a failure.
+// for the caller to print rather than a failure. A symlink at the credential path is replaced rather
+// than followed, but a symlink at its directory is resolved, since creating the directory and the
+// temporary file inside it both have to walk that path. Whoever can replace the directory already
+// owns the config location.
 func (s Store) Save(path string, file File) (*ModeWarning, error) {
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return nil, fmt.Errorf("jev: creating %s: %w", dir, err)
 	}
 
+	// Unreachable while File is plain strings, since json.Marshal cannot fail on those. A future
+	// field of any other type makes it reachable, and json.UnsupportedValueError.Error embeds the
+	// offending value verbatim, so such a field must keep the key out of this %w.
 	data, err := json.Marshal(file)
 	if err != nil {
 		return nil, fmt.Errorf("jev: encoding the credential file: %w", err)
