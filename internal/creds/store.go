@@ -64,7 +64,10 @@ func (s Store) Load(path string) (file File, found bool, err error) {
 		// the mode is named here too. Otherwise the same file refuses with a bare permission denied
 		// for an ordinary user and with the mode for root.
 		if errors.Is(err, fs.ErrPermission) {
-			if info, statErr := os.Lstat(path); statErr == nil {
+			// os.Stat rather than os.Lstat. Open follows a symlink, so the refusal came from the
+			// target, and Lstat would name the link's own mode instead. Measured on a link to an
+			// 0o060 file: Lstat reports 755, Stat reports 60.
+			if info, statErr := os.Stat(path); statErr == nil {
 				if modeErr := checkMode(path, info.Mode()); modeErr != nil {
 					return File{}, false, modeErr
 				}
