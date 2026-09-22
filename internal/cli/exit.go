@@ -3,8 +3,10 @@ package cli
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 
+	"github.com/frodi-karlsson/jev-cli/internal/creds"
 	"github.com/frodi-karlsson/jev-cli/internal/engine"
 	"github.com/frodi-karlsson/jev-cli/internal/input"
 	"github.com/frodi-karlsson/jev-cli/internal/jev"
@@ -35,6 +37,11 @@ const (
 func Classify(err error) int {
 	if err == nil {
 		return ExitOK
+	}
+
+	var silent *silentError
+	if errors.As(err, &silent) {
+		return silent.code
 	}
 
 	var records *recordsError
@@ -73,6 +80,13 @@ func Classify(err error) int {
 		return ExitAuth
 	}
 
+	// A credential file anyone else can reach is an authentication failure rather than a usage
+	// one. Section 16.2 is explicit that this is a refusal and not a warning.
+	var readable *creds.ReadableError
+	if errors.As(err, &readable) {
+		return ExitAuth
+	}
+
 	var api *jev.APIError
 	if errors.As(err, &api) {
 		return classifyStatus(api.Status)
@@ -90,6 +104,14 @@ func Classify(err error) int {
 	}
 
 	return ExitUsage
+}
+
+type silentError struct {
+	code int
+}
+
+func (e *silentError) Error() string {
+	return fmt.Sprintf("exit %d with nothing left to report", e.code)
 }
 
 func classifyStatus(status int) int {

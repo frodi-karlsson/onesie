@@ -893,6 +893,13 @@ func worthReporting(err error) bool {
 		return false
 	}
 
+	var silent *silentError
+	if errors.As(err, &silent) {
+		// The command already wrote the whole result to stdout, so a stderr line would repeat it
+		// with nothing added. auth status printing source: none and exiting 3 is the case.
+		return false
+	}
+
 	var records *recordsError
 
 	// The exit code already says a record failed, and the per record lines on stdout carry the

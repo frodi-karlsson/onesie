@@ -8,12 +8,14 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"runtime"
 	"strings"
 
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 
 	"github.com/frodi-karlsson/jev-cli/internal/argv"
+	"github.com/frodi-karlsson/jev-cli/internal/creds"
 	"github.com/frodi-karlsson/jev-cli/internal/jev"
 	"github.com/frodi-karlsson/jev-cli/internal/limits"
 )
@@ -23,11 +25,13 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 	flags := &runFlags{}
 
 	settings := rootSettings{
-		stdin:     os.Stdin,
-		stdinTTY:  isTerminal(os.Stdin),
-		stdoutTTY: isTerminal(os.Stdout),
-		readFile:  os.ReadFile,
-		lookupEnv: os.LookupEnv,
+		stdin:      os.Stdin,
+		stdinTTY:   isTerminal(os.Stdin),
+		stdoutTTY:  isTerminal(os.Stdout),
+		readFile:   os.ReadFile,
+		lookupEnv:  os.LookupEnv,
+		credStore:  creds.NewStore(),
+		readSecret: readHiddenSecret,
 	}
 
 	for _, opt := range opts {
@@ -38,6 +42,12 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 	// Installing it only when absent keeps an injected factory winning.
 	if settings.newClient == nil {
 		settings.newClient = defaultClientFactory(info, flags, settings.lookupEnv)
+	}
+
+	// Installed after the options for the same reason, since it reads the environment lookup a
+	// test may have replaced.
+	if settings.credPath == nil {
+		settings.credPath = credentialPath(settings.lookupEnv)
 	}
 
 	recorder := argv.New()
@@ -124,6 +134,7 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 		"where the answers land in the merged record, implies --merge")
 
 	root.AddCommand(newVersionCmd(info))
+	root.AddCommand(newAuthCmd(settings, flags))
 
 	return root
 }
@@ -208,6 +219,28 @@ func WithLookupEnv(lookup func(string) (string, bool)) RootOption {
 	}
 }
 
+// WithCredentialPath replaces how the credential file's location is resolved, so a test needs no
+// real home directory.
+func WithCredentialPath(path func() (string, error)) RootOption {
+	return func(s *rootSettings) {
+		s.credPath = path
+	}
+}
+
+// WithCredentialStore replaces the store the auth subcommands read and write through.
+func WithCredentialStore(store creds.Store) RootOption {
+	return func(s *rootSettings) {
+		s.credStore = store
+	}
+}
+
+// WithSecretReader replaces the hidden prompt, which needs a real terminal a test does not have.
+func WithSecretReader(read func() (string, error)) RootOption {
+	return func(s *rootSettings) {
+		s.readSecret = read
+	}
+}
+
 // BuildInfo carries the build metadata stamped into the binary at link time.
 type BuildInfo struct {
 	Version string
@@ -216,12 +249,15 @@ type BuildInfo struct {
 }
 
 type rootSettings struct {
-	newClient clientFactory
-	stdin     io.Reader
-	stdinTTY  bool
-	stdoutTTY bool
-	readFile  func(string) ([]byte, error)
-	lookupEnv func(string) (string, bool)
+	newClient  clientFactory
+	stdin      io.Reader
+	stdinTTY   bool
+	stdoutTTY  bool
+	readFile   func(string) ([]byte, error)
+	lookupEnv  func(string) (string, bool)
+	credPath   func() (string, error)
+	credStore  creds.Store
+	readSecret func() (string, error)
 }
 
 var groupFlagHelp = map[string]string{
@@ -255,6 +291,25 @@ func terminalWidth() (int, bool) {
 	}
 
 	return columns, true
+}
+
+func credentialPath(lookupEnv func(string) (string, bool)) func() (string, error) {
+	return func() (string, error) {
+		return creds.Path(creds.Env{
+			Lookup: lookupEnv,
+			GOOS:   runtime.GOOS,
+			Home:   os.UserHomeDir,
+		})
+	}
+}
+
+func readHiddenSecret() (string, error) {
+	secret, err := term.ReadPassword(int(os.Stdin.Fd()))
+	if err != nil {
+		return "", fmt.Errorf("jev: reading the key from the terminal: %w", err)
+	}
+
+	return string(secret), nil
 }
 
 func isTerminal(f *os.File) bool {
