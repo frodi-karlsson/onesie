@@ -897,6 +897,11 @@ func worthReporting(err error) bool {
 	if errors.As(err, &silent) {
 		// The command already wrote the whole result to stdout, so a stderr line would repeat it
 		// with nothing added. auth status printing source: none and exiting 3 is the case.
+		//
+		// Unlike Classify, this cannot be reordered to spare a joined error: every branch here
+		// returns false, so there is no positive one to put first. A silentError joined to a real
+		// error would therefore lose the real message, which is why the type is only ever
+		// returned on its own.
 		return false
 	}
 
