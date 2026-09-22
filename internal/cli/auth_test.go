@@ -1022,6 +1022,18 @@ func TestNewRootCmdFileDrivenClient(t *testing.T) {
 			wanted:   1,
 		},
 		{
+			// A whitespace only value is nothing to resolveKey and to storedOptions, so the file's
+			// base URL is what the request goes to. Passing the flag on raw would install an
+			// option jev.New trims back to empty, which reads as a flag that was honoured.
+			name:     "should ignore a whitespace only --base-url and keep the file's",
+			fileKey:  "SECRET-FILE",
+			fileBase: "WANTED",
+			args:     []string{"is this urgent", "-r", "--base-url", "   "},
+			wantCode: ExitOK,
+			wantAuth: "Bearer SECRET-FILE",
+			wanted:   1,
+		},
+		{
 			name:     "should let TYPESAFE_BASE_URL outrank the file's",
 			fileKey:  "SECRET-FILE",
 			fileBase: "UNWANTED",

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -820,12 +821,15 @@ func defaultClientFactory(info BuildInfo, flags *runFlags, settings rootSettings
 			opts = append(opts, jev.WithHTTPClient(&http.Client{Transport: transport}))
 		}
 
-		if flags.apiKey != "" {
-			opts = append(opts, jev.WithAPIKey(flags.apiKey))
+		// Trimmed, so a whitespace only flag is the same nothing here that it is to resolveKey
+		// and storedOptions. Passing it raw installs an option jev.New trims back to empty, which
+		// reads as a flag that was honoured.
+		if key := strings.TrimSpace(flags.apiKey); key != "" {
+			opts = append(opts, jev.WithAPIKey(key))
 		}
 
-		if flags.baseURL != "" {
-			opts = append(opts, jev.WithBaseURL(flags.baseURL))
+		if baseURL := strings.TrimSpace(flags.baseURL); baseURL != "" {
+			opts = append(opts, jev.WithBaseURL(baseURL))
 		}
 
 		// Section 16.1's third step. Every dry run returns before a client is built, so opening the
