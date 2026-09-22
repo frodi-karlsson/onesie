@@ -1,6 +1,7 @@
 package assert
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 )
@@ -15,7 +16,8 @@ func Parse(source string) (*Expr, error) {
 
 	p := &parser{tokens: tokens}
 	if p.peek().kind == kindEOF {
-		return nil, parseError(p.peek().col, "the expression is empty")
+		// Column 1 of an empty string is not a place, so this is the one parse failure without one.
+		return nil, errors.New("the expression is empty")
 	}
 
 	root, err := p.parseExpr()

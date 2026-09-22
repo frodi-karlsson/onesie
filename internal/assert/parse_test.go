@@ -94,7 +94,7 @@ func TestParse(t *testing.T) {
 		{
 			name:    "should reject an empty expression",
 			input:   ``,
-			wantErr: "parse error at column 1, the expression is empty",
+			wantErr: "the expression is empty",
 		},
 		{
 			name:    "should reject a trailing operator",
