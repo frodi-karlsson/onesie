@@ -764,6 +764,61 @@ func TestKeySourceString(t *testing.T) {
 	}
 }
 
+func TestCredentialPath(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		variable string
+		// nested names the directories creds.Path appends to the one the variable holds.
+		nested []string
+	}{
+		{
+			name:     "should resolve the credential file from JEV_CONFIG_DIR",
+			variable: "JEV_CONFIG_DIR",
+		},
+		{
+			name:     "should resolve the credential file from XDG_CONFIG_HOME",
+			variable: "XDG_CONFIG_HOME",
+			nested:   []string{"jev"},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			dir := t.TempDir()
+
+			holding := filepath.Join(append([]string{dir}, tc.nested...)...)
+			if err := os.MkdirAll(holding, 0o700); err != nil {
+				t.Fatalf("creating the config directory: %v", err)
+			}
+
+			path := filepath.Join(holding, "credentials.json")
+			if err := os.WriteFile(path, []byte(`{"api_key":"SECRET-FILE"}`), 0o600); err != nil {
+				t.Fatalf("writing the credential fixture: %v", err)
+			}
+
+			// Only the environment is replaced. WithCredentialPath would stand in for the resolver
+			// under test, and with it the ordering in NewRootCmd that hands the resolver the
+			// injected lookup rather than the real environment.
+			out, errOut, code := runAuth(t, []string{"auth", "status"},
+				WithLookupEnv(lookupFrom(map[string]string{tc.variable: dir})))
+
+			assertNoSecret(t, out, errOut)
+
+			if code != ExitOK {
+				t.Errorf("exit code = %d, want %d\nstderr:\n%s", code, ExitOK, errOut)
+			}
+
+			if want := "source: file " + path + "\n"; out != want {
+				t.Errorf("stdout = %q, want %q", out, want)
+			}
+		})
+	}
+}
+
 func runAuth(t *testing.T, args []string, opts ...RootOption) (string, string, int) {
 	t.Helper()
 
