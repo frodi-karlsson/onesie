@@ -183,11 +183,7 @@ func (s Store) Save(path string, file File) (*ModeWarning, error) {
 			os.Remove(name))
 	}
 
-	// The rename only survives a power loss once the directory entry itself is on the disk. It is
-	// dropped rather than reported, because the file is written and renamed by the time this runs,
-	// and a filesystem that refuses to sync a directory would turn a completed save into a failure
-	// the user cannot act on.
-	//nolint:errcheck // a best effort flush, see above
+	// The rename only survives a power loss once the directory entry itself is on the disk.
 	syncDir(dir)
 
 	return warning, nil
@@ -213,19 +209,27 @@ func writeAndClose(file *os.File, data []byte) error {
 	return nil
 }
 
-func syncDir(dir string) error {
+func syncDir(dir string) {
 	// Windows has no durable directory flush. FlushFileBuffers refuses a directory handle, so this
 	// would fail on every save there rather than only where the filesystem cannot do it.
 	if runtime.GOOS == "windows" {
-		return nil
+		return
 	}
 
 	handle, err := os.Open(dir)
 	if err != nil {
-		return err
+		return
 	}
 
-	return errors.Join(handle.Sync(), handle.Close())
+	// Returned by neither this function nor Save. The file is written and renamed by the time this
+	// runs, so the save has succeeded, and a filesystem that refuses to sync a directory handle,
+	// as some network and FUSE mounts do, would otherwise turn a completed save into a failure the
+	// user cannot act on. The asymmetry with the file sync is deliberate: skipping that one leaves
+	// a present but zero length credential file, which reads as corruption, while skipping this
+	// one leaves the previous consistent state.
+	if err := errors.Join(handle.Sync(), handle.Close()); err != nil {
+		return
+	}
 }
 
 // ModeWarning means the file was written but its mode could not be set, which happens on a
