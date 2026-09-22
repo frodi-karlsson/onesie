@@ -101,7 +101,9 @@ func authSet(cmd *cobra.Command, settings rootSettings, baseURL string, hasBaseU
 	}
 
 	if warning != nil {
-		_, printErr := fmt.Fprintln(cmd.ErrOrStderr(), "jev: "+warning.Error())
+		// No jev prefix. The word warning classifies the line already, and the streaming warnings
+		// in run.go and print.go are printed the same way.
+		_, printErr := fmt.Fprintln(cmd.ErrOrStderr(), warning.Error())
 
 		return printErr
 	}

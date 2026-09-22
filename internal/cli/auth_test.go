@@ -171,6 +171,8 @@ func TestAuthClear(t *testing.T) {
 func TestAuthSet(t *testing.T) {
 	t.Parallel()
 
+	errNoChmod := errors.New("the test chmod failed")
+
 	tests := []struct {
 		name         string
 		args         []string
@@ -180,6 +182,7 @@ func TestAuthSet(t *testing.T) {
 		existing     string
 		existingMode os.FileMode
 		unixOnly     bool
+		chmodFails   bool
 		wantKey      string
 		wantBase     string
 		wantNoFile   bool
@@ -280,6 +283,16 @@ func TestAuthSet(t *testing.T) {
 			wantKey:  "SECRET-PROMPT",
 			wantCode: ExitOK,
 		},
+		{
+			// The store is injected rather than the filesystem steered, since no temporary
+			// directory refuses a chmod. Only this case reaches the warning branch, so the whole
+			// of stderr is compared below rather than searched.
+			name:       "should warn when the mode cannot be set and still store the key",
+			stdin:      "SECRET-STDIN\n",
+			chmodFails: true,
+			wantKey:    "SECRET-STDIN",
+			wantCode:   ExitOK,
+		},
 	}
 
 	for _, tc := range tests {
@@ -292,12 +305,20 @@ func TestAuthSet(t *testing.T) {
 
 			path := credentialFixture(t, tc.existing, tc.existingMode)
 
-			out, errOut, code := runAuth(t, append([]string{"auth", "set"}, tc.args...),
+			opts := []RootOption{
 				WithCredentialPath(fixedPath(path)),
 				WithLookupEnv(lookupFrom(nil)),
 				WithStdin(strings.NewReader(tc.stdin)),
 				WithStdinTTY(tc.tty),
-				WithSecretReader(func() (string, error) { return tc.secret, nil }))
+				WithSecretReader(func() (string, error) { return tc.secret, nil }),
+			}
+
+			if tc.chmodFails {
+				opts = append(opts, WithCredentialStore(creds.NewStore(
+					creds.WithChmod(func(string, os.FileMode) error { return errNoChmod }))))
+			}
+
+			out, errOut, code := runAuth(t, append([]string{"auth", "set"}, tc.args...), opts...)
 
 			assertNoSecret(t, out, errOut)
 
@@ -325,6 +346,17 @@ func TestAuthSet(t *testing.T) {
 
 			if !strings.Contains(errOut, "jev: writing "+path) {
 				t.Errorf("stderr = %q, want it to name the path being written", errOut)
+			}
+
+			// Section 11 quotes the warning without the jev prefix, which the word warning already
+			// stands in for. Compared whole, so a second prefix in front of it fails here.
+			if tc.chmodFails {
+				want := "jev: writing " + path + "\n" +
+					"warning: could not set mode 600 on " + path +
+					". The key is not protected by the filesystem\n"
+				if errOut != want {
+					t.Errorf("stderr = %q, want %q", errOut, want)
+				}
 			}
 
 			if tc.tty && !strings.Contains(errOut, "API key: ") {
