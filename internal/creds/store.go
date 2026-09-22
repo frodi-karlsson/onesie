@@ -41,12 +41,19 @@ func WithChmod(chmod func(string, os.FileMode) error) StoreOption {
 }
 
 // Load reads the credential file. The second result is false when the file does not exist, which is
-// not an error. A file any other user can reach is refused rather than read.
+// not an error. A file any other user can reach is refused rather than read. A caller has to check
+// the error before found, since a failing Close on an otherwise good read returns a populated File
+// beside a non nil error, and a key from a read that reported failure must not be used.
 func (s Store) Load(path string) (file File, found bool, err error) {
+	// A named pipe at this path blocks the open until something writes to it. Known, and out of
+	// scope: the fix needs syscall.O_NONBLOCK behind a unix build tag, and planting the pipe needs
+	// write access to a 0700 directory, which buys an attacker worse than a hang.
+	//
 	// Opened before the mode is checked, and read from the same handle, so the file cannot be
 	// replaced between the check and the read. A stat by path and a later read by path are two
 	// different files on a filesystem someone else can write to, which is the case this check
-	// exists for.
+	// exists for. No test catches a regression here, since the swap needs a second process between
+	// the two calls. The reasoning above is the only guard.
 	handle, err := os.Open(path)
 	if errors.Is(err, os.ErrNotExist) {
 		return File{}, false, nil
