@@ -76,6 +76,13 @@ func (s Store) Load(path string) (file File, found bool, err error) {
 		return File{}, false, fmt.Errorf("jev: reading %s: %w", path, err)
 	}
 
+	// Ahead of the mode check, since a directory or a device node is not a credential file at a bad
+	// mode. Checking the mode first would call a directory a credential file, drop the type bit from
+	// the message, and tell the reader to chmod 600 something no chmod will fix.
+	if !info.Mode().IsRegular() {
+		return File{}, false, fmt.Errorf("jev: credential file %s is not a regular file", path)
+	}
+
 	if modeErr := checkMode(path, info.Mode()); modeErr != nil {
 		return File{}, false, modeErr
 	}

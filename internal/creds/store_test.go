@@ -20,6 +20,7 @@ func TestLoad(t *testing.T) {
 		contents string
 		mode     os.FileMode
 		absent   bool
+		dir      bool
 		unixOnly bool
 		want     creds.File
 		wantErr  string
@@ -83,6 +84,19 @@ func TestLoad(t *testing.T) {
 			wantErr:  "is accessible by others, mode 6",
 		},
 		{
+			name:     "should refuse a directory before it complains about its mode",
+			dir:      true,
+			mode:     0o755,
+			unixOnly: true,
+			wantErr:  "is not a regular file",
+		},
+		{
+			name:    "should refuse a directory at the credential path",
+			dir:     true,
+			mode:    0o700,
+			wantErr: "is not a regular file",
+		},
+		{
 			name:     "should refuse a file with no api_key",
 			contents: `{}`,
 			mode:     0o600,
@@ -124,7 +138,17 @@ func TestLoad(t *testing.T) {
 
 			path := filepath.Join(t.TempDir(), "credentials.json")
 
-			if !tc.absent {
+			if tc.dir {
+				if err := os.Mkdir(path, tc.mode); err != nil {
+					t.Fatalf("creating the fixture directory: %v", err)
+				}
+				// Mkdir respects umask, so the mode is set explicitly afterwards.
+				if err := os.Chmod(path, tc.mode); err != nil {
+					t.Fatalf("setting the fixture directory mode: %v", err)
+				}
+			}
+
+			if !tc.absent && !tc.dir {
 				if err := os.WriteFile(path, []byte(tc.contents), tc.mode); err != nil {
 					t.Fatalf("writing the fixture: %v", err)
 				}
