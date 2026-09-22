@@ -104,6 +104,40 @@ Retries are bounded by `--retries`, each attempt by `--timeout`, and a server's 
 honoured up to `--max-retry-after`. `--stats` breaks the retries out by status, so a slow run tells
 you whether rate limiting or transport ate the time.
 
+### Credentials
+
+A key can live in a file jev owns rather than in the environment of every shell that calls it.
+
+```sh
+# read the key from a prompt, or from stdin in a script
+jev auth set
+pass show typesafe | jev auth set
+
+# which source is in use, without printing the key
+jev auth status
+# source: file /home/you/.config/jev/credentials.json
+
+# check the key against the API, which costs no tokens
+jev auth test
+# source: file /home/you/.config/jev/credentials.json
+# models: 2
+
+jev auth clear
+```
+
+The key is taken from `--api-key`, then `TYPESAFE_API_KEY`, then the file. A source found later is
+never used when an earlier one is set, even if the earlier key is rejected, so a run always sends
+the key you chose for it. The file is one source taken whole: its optional `base_url` applies exactly
+when its key does.
+
+The file lives at `$JEV_CONFIG_DIR/credentials.json`, else `$XDG_CONFIG_HOME/jev/credentials.json`,
+else `%APPDATA%\jev\credentials.json` on Windows, else `~/.config/jev/credentials.json`. It is
+written atomically at mode `600` in a directory at mode `700`, and **jev refuses to read one any
+other user can reach**, exiting 3 with the path and the mode. A readable key is a leaked key.
+
+`jev auth set` reads only the first line of stdin, since `pass show` and its siblings print the
+secret first and metadata after it. No subcommand ever prints the key.
+
 ### Exit codes
 
 | Code | Meaning |
@@ -125,12 +159,12 @@ any network call alongside every other check. Exit 3 is for a key that exists an
 
 | Flag | Variable | Default |
 |------|----------|---------|
-| `--api-key` | `TYPESAFE_API_KEY` | required |
+| `--api-key` | `TYPESAFE_API_KEY` | required, or `jev auth set` |
 | `--base-url` | `TYPESAFE_BASE_URL` | `https://api.typesafe.ai` |
 | `-m, --model` | `TYPESAFE_DEFAULT_MODEL` | `jev-latest` |
 
-Prefer the environment variable over `--api-key`, since argv is visible in `ps` and in shell
-history.
+Prefer `jev auth set` or the environment variable over `--api-key`, since argv is visible in `ps`
+and in shell history.
 
 Run `jev --help` for the full flag list and `jev -V` for the built in API limits.
 
@@ -173,6 +207,7 @@ internal/engine/  runs one evaluation per record, bounded by -j and ordered by i
 internal/jev/     the API client, ported from the JavaScript SDK
 internal/answer/  normalizes an answer and applies the question's policy
 internal/output/  encodes a normalized record in each output mode
+internal/creds/   resolves, reads and writes the credential file
 internal/limits/  the API limits jev enforces locally
 ```
 
