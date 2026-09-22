@@ -25,6 +25,8 @@ func TestPath(t *testing.T) {
 		homeErr error
 		want    []string
 		wantErr string
+		// wantIs pins the %w wrapping. A %v would still carry the text and lose the chain.
+		wantIs error
 	}{
 		{
 			name: "should prefer JEV_CONFIG_DIR",
@@ -35,6 +37,30 @@ func TestPath(t *testing.T) {
 			goos: "linux",
 			home: "/home/x",
 			want: []string{"/cfg", "credentials.json"},
+		},
+		{
+			// A container with no HOME makes os.UserHomeDir fail, and setting JEV_CONFIG_DIR is
+			// how a user copes with that. Resolving the home directory before the variables were
+			// consulted would break every variable rule at once on exactly those machines.
+			name:    "should not consult the home directory when JEV_CONFIG_DIR is set",
+			env:     map[string]string{"JEV_CONFIG_DIR": "/cfg"},
+			goos:    "linux",
+			homeErr: errNoHome,
+			want:    []string{"/cfg", "credentials.json"},
+		},
+		{
+			name:    "should not consult the home directory when XDG_CONFIG_HOME is set",
+			env:     map[string]string{"XDG_CONFIG_HOME": "/xdg"},
+			goos:    "linux",
+			homeErr: errNoHome,
+			want:    []string{"/xdg", "jev", "credentials.json"},
+		},
+		{
+			name:    "should not consult the home directory when APPDATA is set on windows",
+			env:     map[string]string{"APPDATA": "/roaming"},
+			goos:    "windows",
+			homeErr: errNoHome,
+			want:    []string{"/roaming", "jev", "credentials.json"},
 		},
 		{
 			name: "should fall back to XDG_CONFIG_HOME",
@@ -85,6 +111,7 @@ func TestPath(t *testing.T) {
 			goos:    "linux",
 			homeErr: errNoHome,
 			wantErr: errNoHome.Error(),
+			wantIs:  errNoHome,
 		},
 		{
 			name:    "should fail rather than resolve under an empty home directory",
@@ -117,6 +144,16 @@ func TestPath(t *testing.T) {
 
 				if !strings.Contains(err.Error(), tc.wantErr) {
 					t.Fatalf("Path error = %v, want it to contain %s", err, tc.wantErr)
+				}
+
+				// Every user facing error in this repo opens with the prefix, and a consumer
+				// filtering stderr should not have to know which package produced a line.
+				if !strings.HasPrefix(err.Error(), "jev: ") {
+					t.Errorf("Path error = %v, want it to start with the jev prefix", err)
+				}
+
+				if tc.wantIs != nil && !errors.Is(err, tc.wantIs) {
+					t.Errorf("Path error = %v, want it to wrap %v", err, tc.wantIs)
 				}
 
 				if got != "" {
