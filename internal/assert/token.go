@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 	"unicode"
 )
 
@@ -72,10 +73,24 @@ func lexString(runes []rune, i int) (token, int, error) {
 	raw := string(runes[start : i+1])
 	text, err := strconv.Unquote(raw)
 	if err != nil {
-		return token{}, 0, fmt.Errorf("invalid string %s", raw)
+		return token{}, 0, badString(raw)
 	}
 
 	return token{kind: kindString, text: text, col: start + 1}, i + 1, nil
+}
+
+func badString(raw string) error {
+	// Quoting the raw text would keep the control character, and a message carrying one spans two
+	// terminal lines or moves the cursor. The CLI writes one error per line.
+	at := strings.IndexFunc(raw, unicode.IsControl)
+	switch {
+	case at < 0:
+		return fmt.Errorf("invalid string %s", raw)
+	case raw[at] == '\n' || raw[at] == '\r':
+		return errors.New("a string cannot contain a line break")
+	default:
+		return errors.New("a string cannot contain a control character")
+	}
 }
 
 func startsIdent(runes []rune, i int) bool {

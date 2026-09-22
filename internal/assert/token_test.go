@@ -108,6 +108,16 @@ func TestLex(t *testing.T) {
 			wantErr: `invalid string "bil\qing"`,
 		},
 		{
+			name:    "should reject a line break inside a string",
+			input:   "team.value == \"line\nbreak\"",
+			wantErr: "a string cannot contain a line break",
+		},
+		{
+			name:    "should reject a control character inside a string",
+			input:   "team.value == \"bil\x1b\\qing\"",
+			wantErr: "a string cannot contain a control character",
+		},
+		{
 			name:    "should reject an unknown character",
 			input:   `urgent.value % 2`,
 			wantErr: "unexpected character '%'",
