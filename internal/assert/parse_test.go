@@ -65,6 +65,11 @@ func TestParse(t *testing.T) {
 			want:  `(in team.value ["billing" "technical"])`,
 		},
 		{
+			name:  "should parse a bracket path as a list member",
+			input: `team.value in [["needs review"].value, "billing"]`,
+			want:  `(in team.value [["needs review"].value "billing"])`,
+		},
+		{
 			name:  "should parse an expression nesting just inside the bound",
 			input: deepEnough,
 			want:  `(< a.value 1)`,
@@ -143,6 +148,11 @@ func TestParse(t *testing.T) {
 			name:    "should report a lexer error as the lexer wrote it",
 			input:   `team.value == 'billing'`,
 			wantErr: "strings use double quotes, got 'billing'",
+		},
+		{
+			name:    "should reject a list inside a list",
+			input:   `team.value in [["billing"]]`,
+			wantErr: "parse error at column 16, a list holds values, not another list",
 		},
 		{
 			name:    "should reject an expression that nests too deeply",

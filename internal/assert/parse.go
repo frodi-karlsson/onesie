@@ -192,6 +192,10 @@ func (p *parser) parseIn(operand node, column int) (node, error) {
 
 	var list []node
 	for {
+		if p.nestedList() {
+			return nil, parseError(p.peek().col, "a list holds values, not another list")
+		}
+
 		member, err := p.parseOperand()
 		if err != nil {
 			return nil, err
@@ -210,6 +214,21 @@ func (p *parser) parseIn(operand node, column int) (node, error) {
 	p.next()
 
 	return &inNode{operand: operand, list: list, column: column}, nil
+}
+
+func (p *parser) nestedList() bool {
+	// A member may open with a bracket, because a path head takes the bracket form. It is a list
+	// rather than a path only when nothing continues the path after the closing bracket, and any
+	// other shape is left to parseOperand, which names what is actually wrong with it.
+	rest := p.tokens[p.at:]
+	if len(rest) < 4 || rest[0].kind != kindLBracket || rest[1].kind != kindString {
+		return false
+	}
+	if rest[2].kind != kindRBracket {
+		return false
+	}
+
+	return rest[3].kind != kindDot && rest[3].kind != kindLBracket
 }
 
 func (p *parser) parseOperand() (node, error) {
