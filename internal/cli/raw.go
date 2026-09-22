@@ -59,8 +59,9 @@ func streamRaw(
 
 			body, err := client.SystemOneRaw(ctx, json.RawMessage(rec.Raw))
 			if err != nil {
-				// The body reached the wire unchanged, so the model it named is the one jev sent.
-				advised := advise(err, rawModel([]byte(rec.Raw)))
+				// The body reached the wire unchanged, so the model it named is the one jev sent,
+				// and nothing inside it was checked locally, so no local bound is implicated.
+				advised := advise(err, rawModel([]byte(rec.Raw)), false)
 
 				stats.recordFailure(true, asked)
 				stats.terminalAttempt(advised)

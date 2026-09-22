@@ -12,7 +12,7 @@ const (
 	MinChoiceOptions = 2
 	// MaxChoiceOptions is the API's ceiling on options per choice question.
 	MaxChoiceOptions = 255
-	// MinScoreLevels is the API's floor on levels per score question.
+	// MinScoreLevels is jev's own floor. A one level score has nothing to rank.
 	MinScoreLevels = 2
 	// MaxScoreLevels is the API's ceiling on levels per score question.
 	MaxScoreLevels = 10

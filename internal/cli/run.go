@@ -611,8 +611,9 @@ func answered(
 	})
 	if err != nil {
 		// Wrapped here rather than at either caller, so the stderr line and the streaming record
-		// carry the same remedy.
-		advised := advise(err, model)
+		// carry the same remedy. Every question on this path passed jev's own bounds check, so a
+		// count the server rejects says something about those bounds.
+		advised := advise(err, model, true)
 
 		return failureRecord(built, advised), jev.Usage{}, advised
 	}

@@ -107,62 +107,133 @@ func TestNewRootCmdUnknownModel(t *testing.T) {
 	}
 }
 
-func TestNewRootCmdRejectedCriteria(t *testing.T) {
+func TestNewRootCmdRejectedCount(t *testing.T) {
 	t.Parallel()
 
-	const tooMany = `{"detail":[{"loc":["body","questions","team","criteria"],` +
-		`"msg":"too many items"}]}`
+	// The wording the live API answered with on 2026-09-22, for a score carrying eleven levels.
+	const tooManyLevels = `{"detail":"Too many score levels. Must have at most 10 levels."}`
 
-	const note = ". jev's own check passed, so its built in limits may be stale. Run jev -V"
+	const rejected = "jev: 400 Too many score levels. Must have at most 10 levels."
+
+	const note = " jev's own check passed, so its built in limits may be stale. Run jev -V"
+
+	const file = "team:\n  ask: which team\n  pick:\n    billing: payments\n    technical: bugs\n"
+
+	const frozen = `{"state":"a ticket","model":"jev-1.12",` +
+		`"questions":{"severity":{"type":"score","instructions":"how bad",` +
+		`"criteria":["calm","annoyed","angry"]}}}`
 
 	tests := []adviceCase{
 		{
-			name:     "should say the local check passed when the server rejects a count",
-			args:     []string{"--ask", "team=which team", "--pick", "billing,technical"},
+			name:     "should say the local check passed when the server rejects a level count",
+			args:     []string{"--ask", "severity=how bad is it", "--rate", "calm,annoyed,angry"},
+			stdin:    "a ticket",
+			status:   http.StatusBadRequest,
+			response: tooManyLevels,
+			wantCode: ExitUsage,
+			wantErr:  rejected + note + "\n",
+		},
+		{
+			name:     "should say the same for an option count from a question file",
+			args:     []string{"-f", "questions.yaml"},
+			stdin:    "a ticket",
+			files:    map[string]string{"questions.yaml": file},
+			status:   http.StatusBadRequest,
+			response: `{"detail":"Too many choice options. Must have at most 255 options."}`,
+			wantCode: ExitUsage,
+			wantErr: "jev: 400 Too many choice options. Must have at most 255 options." +
+				note + "\n",
+		},
+		{
+			name:     "should say the same for a 422, which the API reference documents",
+			args:     []string{"--ask", "severity=how bad is it", "--rate", "calm,annoyed,angry"},
 			stdin:    "a ticket",
 			status:   http.StatusUnprocessableEntity,
-			response: tooMany,
+			response: tooManyLevels,
 			wantCode: ExitUsage,
-			wantErr:  "jev: 422 questions.team.criteria: too many items" + note + "\n",
+			wantErr: "jev: 422 Too many score levels. Must have at most 10 levels." +
+				note + "\n",
 		},
 		{
-			name:   "should say the same when the path names an index under criteria",
-			args:   []string{"--ask", "team=which team", "--pick", "billing,technical"},
-			stdin:  "a ticket",
-			status: http.StatusUnprocessableEntity,
-			response: `{"detail":[{"loc":["body","questions","team","criteria",0],` +
-				`"msg":"too long"}]}`,
-			wantCode: ExitUsage,
-			wantErr:  "jev: 422 questions.team.criteria.0: too long" + note + "\n",
-		},
-		{
-			name:     "should carry the note into a streaming error record",
-			args:     []string{"--ask", "team=which team", "--pick", "billing,technical", "-i", "lines"},
-			stdin:    "a ticket\n",
-			status:   http.StatusUnprocessableEntity,
-			response: tooMany,
+			name:     "should leave the same rejection alone under -i request, which never checked",
+			args:     []string{"-i", "request"},
+			stdin:    frozen + "\n",
+			status:   http.StatusBadRequest,
+			response: tooManyLevels,
 			wantCode: ExitRecords,
-			wantOut: []string{`"error":{"kind":"http","status":422,` +
-				`"message":"jev: 422 questions.team.criteria: too many items` + note + `"}`},
+			wantErr:  "",
+			wantOut: []string{`{"error":{"kind":"http","status":400,` +
+				`"message":"` + rejected + `"}}`},
 		},
 		{
-			name:     "should leave a 422 about another field unchanged",
-			args:     []string{"is this urgent"},
+			name: "should carry the note into a streaming error record",
+			args: []string{
+				"--ask", "severity=how bad is it", "--rate", "calm,annoyed,angry", "-i", "lines",
+			},
+			stdin:    "a ticket\n",
+			status:   http.StatusBadRequest,
+			response: tooManyLevels,
+			wantCode: ExitRecords,
+			wantOut: []string{`"error":{"kind":"http","status":400,` +
+				`"message":"` + rejected + note + `"}`},
+		},
+		{
+			name:     "should leave a 400 reading Invalid request untouched",
+			args:     []string{"--ask", "severity=how bad is it", "--rate", "calm,annoyed,angry"},
 			stdin:    "a ticket",
-			status:   http.StatusUnprocessableEntity,
+			status:   http.StatusBadRequest,
+			response: `{"detail":"Invalid request."}`,
+			wantCode: ExitUsage,
+			wantErr:  "jev: 400 Invalid request.\n",
+		},
+		{
+			name:     "should leave a 400 about a level that is not a count untouched",
+			args:     []string{"--ask", "severity=how bad is it", "--rate", "calm,annoyed,angry"},
+			stdin:    "a ticket",
+			status:   http.StatusBadRequest,
+			response: `{"detail":"Score levels must be strings."}`,
+			wantCode: ExitUsage,
+			wantErr:  "jev: 400 Score levels must be strings.\n",
+		},
+		{
+			name:     "should leave a 400 bounding something other than a count untouched",
+			args:     []string{"--ask", "severity=how bad is it", "--rate", "calm,annoyed,angry"},
+			stdin:    "a ticket",
+			status:   http.StatusBadRequest,
+			response: `{"detail":"Request too large. Must have at most 32000 tokens."}`,
+			wantCode: ExitUsage,
+			wantErr:  "jev: 400 Request too large. Must have at most 32000 tokens.\n",
+		},
+		{
+			name:     "should leave a 400 naming another field untouched",
+			args:     []string{"--ask", "severity=how bad is it", "--rate", "calm,annoyed,angry"},
+			stdin:    "a ticket",
+			status:   http.StatusBadRequest,
 			response: `{"detail":[{"loc":["body","state"],"msg":"field required"}]}`,
 			wantCode: ExitUsage,
-			wantErr:  "jev: 422 state: field required\n",
+			wantErr:  "jev: 400 state: field required\n",
 		},
 		{
-			// A listing sends no criteria, so this response is contrived. It is here to pin the
-			// listing call site, which would otherwise be the one path whose errors go unadvised.
-			name:     "should advise a listing as well",
-			args:     []string{"--list-models"},
-			status:   http.StatusUnprocessableEntity,
-			response: tooMany,
+			name: "should keep the model remedy when the rejection is an unknown model",
+			args: []string{
+				"--ask", "severity=how bad is it", "--rate", "calm,annoyed,angry",
+				"-m", "jev-1.12",
+			},
+			stdin:    "a ticket",
+			status:   http.StatusBadRequest,
+			response: `{"detail":"Unknown model: jev-1.12"}`,
 			wantCode: ExitUsage,
-			wantErr:  "jev: 422 questions.team.criteria: too many items" + note + "\n",
+			wantErr:  "jev: model 'jev-1.12' not found. Try --list-models\n",
+		},
+		{
+			// A listing sends no questions, so no local bound was checked and the note would name
+			// a check that never ran. This pins the one remaining call site.
+			name:     "should leave a listing untouched, since it sends no questions",
+			args:     []string{"--list-models"},
+			status:   http.StatusBadRequest,
+			response: tooManyLevels,
+			wantCode: ExitUsage,
+			wantErr:  rejected + "\n",
 		},
 	}
 

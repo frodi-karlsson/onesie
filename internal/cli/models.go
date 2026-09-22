@@ -17,9 +17,10 @@ func listModels(cmd *cobra.Command, settings rootSettings, stats *collector) err
 
 	models, err := client.ListModels(cmd.Context())
 	if err != nil {
-		// A listing carries no model of its own, so there is none to name in a remedy. It is
-		// advised all the same, so every call that reaches the API answers the same way.
-		advised := advise(err, "")
+		// A listing carries no model of its own, so there is none to name in a remedy, and it
+		// sends no questions, so no local bound was checked. It is advised all the same, so every
+		// call that reaches the API answers the same way.
+		advised := advise(err, "", false)
 
 		stats.recordFailure(true, 0)
 		stats.terminalAttempt(advised)

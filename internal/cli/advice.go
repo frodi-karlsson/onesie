@@ -9,7 +9,7 @@ import (
 	"github.com/frodi-karlsson/jev-cli/internal/jev"
 )
 
-func advise(err error, model string) error {
+func advise(err error, model string, validated bool) error {
 	var api *jev.APIError
 	if !errors.As(err, &api) {
 		return err
@@ -22,12 +22,11 @@ func advise(err error, model string) error {
 		}
 	}
 
-	if countRejected(api) {
-		return &advisedError{
-			cause: err,
-			message: err.Error() +
-				". jev's own check passed, so its built in limits may be stale. Run jev -V",
-		}
+	// Only where jev ran its own bounds check. A body replayed through -i request is sent
+	// unchecked by design, so a note about jev's limits being stale would blame a check that never
+	// ran and send the caller after a binary that is fine.
+	if validated && countRejected(api) {
+		return &advisedError{cause: err, message: staleLimits(err.Error())}
 	}
 
 	return err
@@ -58,16 +57,43 @@ func unknownModel(api *jev.APIError, model string) bool {
 }
 
 func countRejected(api *jev.APIError) bool {
-	if api.Status != http.StatusUnprocessableEntity {
+	// Every content rejection seen live was a 400. A 422 is here because the API reference
+	// documents one, not because one was observed.
+	if api.Status != http.StatusBadRequest && api.Status != http.StatusUnprocessableEntity {
 		return false
 	}
 
-	// A heuristic. The server owns the wording, so jev cannot know every phrasing, and it matches
-	// the flattened "path: msg" form instead: an option or level count names criteria as the last
-	// path segment, or as the parent of an index. It is acceptable here because the advice is
-	// additive. A phrasing this misses leaves the server's text exactly as it stands, and a 422
-	// naming criteria for another reason still points at the limits that built the request.
-	message := api.Error()
+	// A heuristic, since the server owns the wording. The one count rejection seen live reads
+	// "Too many score levels. Must have at most 10 levels.", so the match pairs a word about a
+	// bound with the thing counted rather than pinning that sentence. Everything else keeps the
+	// server's text, "Invalid request." included, and a phrasing this misses costs only the note.
+	message := strings.ToLower(api.Error())
 
-	return strings.Contains(message, "criteria:") || strings.Contains(message, "criteria.")
+	return boundWord(message) && countedSubject(message)
+}
+
+func boundWord(message string) bool {
+	for _, phrase := range []string{"too many", "too few", "at most", "at least"} {
+		if strings.Contains(message, phrase) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func countedSubject(message string) bool {
+	return strings.Contains(message, "level") || strings.Contains(message, "option")
+}
+
+func staleLimits(message string) string {
+	const note = "jev's own check passed, so its built in limits may be stale. Run jev -V"
+
+	// The server ends its own sentence, and a second full stop right before the note reads as a
+	// typo rather than as a boundary.
+	if strings.HasSuffix(message, ".") {
+		return message + " " + note
+	}
+
+	return message + ". " + note
 }
