@@ -14,6 +14,9 @@ import (
 )
 
 const (
+	// sourceFlag cannot be reached from auth status. Section 16.3 keeps --api-key root local, so
+	// cobra rejects it on a subcommand in either position. It is here for the ordinary run path,
+	// where the flag is reachable and outranks both later sources.
 	sourceFlag = "flag"
 	sourceEnv  = "env"
 	sourceFile = "file"
