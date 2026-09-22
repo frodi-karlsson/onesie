@@ -141,11 +141,15 @@ func lexNumber(runes []rune, i int) (token, int, error) {
 	}
 
 	// A dot never follows a number in the grammar, so taking every dot here turns 1.2.3 into one
-	// bad literal rather than a number and a stray path.
-	text := string(runes[start:i])
+	// bad literal rather than a number and a stray path. Swallowing a trailing identifier does the
+	// same for 1e5 and 0x1f, which would otherwise be a number beside a name nothing expects.
+	digits := string(runes[start:i])
+	for ; i < len(runes) && (startsIdent(runes, i) || unicode.IsDigit(runes[i])); i++ {
+	}
 
-	value, err := strconv.ParseFloat(text, 64)
-	if err != nil {
+	text := string(runes[start:i])
+	value, err := strconv.ParseFloat(digits, 64)
+	if err != nil || text != digits {
 		return token{}, 0, fmt.Errorf("invalid number '%s'", text)
 	}
 

@@ -132,6 +132,21 @@ func TestLex(t *testing.T) {
 			input:   `urgent.value < 1.2.3`,
 			wantErr: "invalid number '1.2.3'",
 		},
+		{
+			name:    "should reject an exponent in a number",
+			input:   `urgent.value < 1e5`,
+			wantErr: "invalid number '1e5'",
+		},
+		{
+			name:    "should reject a hexadecimal number",
+			input:   `urgent.value < 0x1f`,
+			wantErr: "invalid number '0x1f'",
+		},
+		{
+			name:    "should reject a number running straight into a keyword",
+			input:   `urgent.value < 1and b.value < 1`,
+			wantErr: "invalid number '1and'",
+		},
 	}
 
 	for _, tc := range tests {
