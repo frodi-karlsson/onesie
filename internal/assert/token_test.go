@@ -131,13 +131,13 @@ func TestLex(t *testing.T) {
 			got, err := lex(tc.input)
 			if tc.wantErr != "" {
 				if err == nil {
-					t.Fatalf("lex(%q) = %v, want error %q", tc.input, render(got), tc.wantErr)
+					t.Fatalf("lex(%q) = %v, want error %q", tc.input, renderTokens(got), tc.wantErr)
 				}
 				if err.Error() != tc.wantErr {
 					t.Errorf("lex(%q) error = %q, want %q", tc.input, err.Error(), tc.wantErr)
 				}
 				if got != nil {
-					t.Errorf("lex(%q) = %v, want no tokens beside the error", tc.input, render(got))
+					t.Errorf("lex(%q) = %v, want no tokens beside the error", tc.input, renderTokens(got))
 				}
 
 				return
@@ -146,7 +146,7 @@ func TestLex(t *testing.T) {
 				t.Fatalf("lex(%q) error = %v, want no error", tc.input, err)
 			}
 
-			if rendered := render(got); !slices.Equal(rendered, tc.want) {
+			if rendered := renderTokens(got); !slices.Equal(rendered, tc.want) {
 				t.Errorf("lex(%q) = %v, want %v", tc.input, rendered, tc.want)
 			}
 			if cols := columns(got); !slices.Equal(cols, tc.wantCols) {
@@ -156,24 +156,24 @@ func TestLex(t *testing.T) {
 	}
 }
 
-func render(tokens []Token) []string {
+func renderTokens(tokens []token) []string {
 	var out []string
 	for _, tok := range tokens {
-		switch tok.Kind {
-		case KindIdent, KindNumber, KindString:
-			out = append(out, tok.Kind.String()+":"+tok.Text)
+		switch tok.kind {
+		case kindIdent, kindNumber, kindString:
+			out = append(out, tok.kind.String()+":"+tok.text)
 		default:
-			out = append(out, tok.Kind.String())
+			out = append(out, tok.kind.String())
 		}
 	}
 
 	return out
 }
 
-func columns(tokens []Token) []int {
+func columns(tokens []token) []int {
 	var out []int
 	for _, tok := range tokens {
-		out = append(out, tok.Col)
+		out = append(out, tok.col)
 	}
 
 	return out

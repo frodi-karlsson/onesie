@@ -9,13 +9,13 @@ import (
 	"unicode"
 )
 
-func lex(expr string) ([]Token, error) {
+func lex(expr string) ([]token, error) {
 	runes := []rune(expr)
-	tokens := []Token{}
+	tokens := []token{}
 
 	for i := 0; i < len(runes); {
 		var (
-			tok  Token
+			tok  token
 			next int
 			err  error
 		)
@@ -44,7 +44,7 @@ func lex(expr string) ([]Token, error) {
 		i = next
 	}
 
-	return append(tokens, Token{Kind: KindEOF, Col: len(runes) + 1}), nil
+	return append(tokens, token{kind: kindEOF, col: len(runes) + 1}), nil
 }
 
 func singleQuoted(runes []rune, i int) error {
@@ -58,7 +58,7 @@ func singleQuoted(runes []rune, i int) error {
 	return fmt.Errorf("strings use double quotes, got '%s'", string(runes[i+1:end]))
 }
 
-func lexString(runes []rune, i int) (Token, int, error) {
+func lexString(runes []rune, i int) (token, int, error) {
 	start := i
 	for i++; i < len(runes) && runes[i] != '"'; i++ {
 		if runes[i] == '\\' {
@@ -66,48 +66,48 @@ func lexString(runes []rune, i int) (Token, int, error) {
 		}
 	}
 	if i >= len(runes) {
-		return Token{}, 0, errors.New("unterminated string")
+		return token{}, 0, errors.New("unterminated string")
 	}
 
 	raw := string(runes[start : i+1])
 	text, err := strconv.Unquote(raw)
 	if err != nil {
-		return Token{}, 0, fmt.Errorf("invalid string %s", raw)
+		return token{}, 0, fmt.Errorf("invalid string %s", raw)
 	}
 
-	return Token{Kind: KindString, Text: text, Col: start + 1}, i + 1, nil
+	return token{kind: kindString, text: text, col: start + 1}, i + 1, nil
 }
 
 func startsIdent(runes []rune, i int) bool {
 	return unicode.IsLetter(runes[i]) || runes[i] == '_'
 }
 
-func lexIdent(runes []rune, i int) (Token, int) {
+func lexIdent(runes []rune, i int) (token, int) {
 	start := i
 	for ; i < len(runes) && (startsIdent(runes, i) || unicode.IsDigit(runes[i])); i++ {
 	}
 
 	text := string(runes[start:i])
 
-	return Token{Kind: keywordKind(text), Text: text, Col: start + 1}, i
+	return token{kind: keywordKind(text), text: text, col: start + 1}, i
 }
 
-func keywordKind(text string) Kind {
+func keywordKind(text string) kind {
 	switch text {
 	case "and":
-		return KindAnd
+		return kindAnd
 	case "or":
-		return KindOr
+		return kindOr
 	case "not":
-		return KindNot
+		return kindNot
 	case "in":
-		return KindIn
+		return kindIn
 	case "true":
-		return KindTrue
+		return kindTrue
 	case "false":
-		return KindFalse
+		return kindFalse
 	default:
-		return KindIdent
+		return kindIdent
 	}
 }
 
@@ -120,7 +120,7 @@ func startsNumber(runes []rune, i int) bool {
 	return runes[i] == '-' && i+1 < len(runes) && unicode.IsDigit(runes[i+1])
 }
 
-func lexNumber(runes []rune, i int) (Token, int, error) {
+func lexNumber(runes []rune, i int) (token, int, error) {
 	start := i
 	for i++; i < len(runes) && (unicode.IsDigit(runes[i]) || runes[i] == '.'); i++ {
 	}
@@ -129,163 +129,137 @@ func lexNumber(runes []rune, i int) (Token, int, error) {
 	// bad literal rather than a number and a stray path.
 	text := string(runes[start:i])
 	if _, err := strconv.ParseFloat(text, 64); err != nil {
-		return Token{}, 0, fmt.Errorf("invalid number '%s'", text)
+		return token{}, 0, fmt.Errorf("invalid number '%s'", text)
 	}
 
-	return Token{Kind: KindNumber, Text: text, Col: start + 1}, i, nil
+	return token{kind: kindNumber, text: text, col: start + 1}, i, nil
 }
 
-func lexOperator(runes []rune, i int) (Token, int, error) {
+func lexOperator(runes []rune, i int) (token, int, error) {
 	if i+1 < len(runes) {
-		if kind, found := twoRuneKind(string(runes[i : i+2])); found {
-			return Token{Kind: kind, Col: i + 1}, i + 2, nil
+		if found, ok := twoRuneKind(string(runes[i : i+2])); ok {
+			return token{kind: found, col: i + 1}, i + 2, nil
 		}
 	}
 
-	var kind Kind
+	var found kind
 	switch runes[i] {
 	case '<':
-		kind = KindLt
+		found = kindLt
 	case '>':
-		kind = KindGt
+		found = kindGt
 	case '.':
-		kind = KindDot
+		found = kindDot
 	case ',':
-		kind = KindComma
+		found = kindComma
 	case '[':
-		kind = KindLBracket
+		found = kindLBracket
 	case ']':
-		kind = KindRBracket
+		found = kindRBracket
 	case '(':
-		kind = KindLParen
+		found = kindLParen
 	case ')':
-		kind = KindRParen
+		found = kindRParen
 	case '=':
-		return Token{}, 0, errors.New("equality is '==', got '='")
+		return token{}, 0, errors.New("equality is '==', got '='")
 	default:
-		return Token{}, 0, fmt.Errorf("unexpected character '%c'", runes[i])
+		return token{}, 0, fmt.Errorf("unexpected character '%c'", runes[i])
 	}
 
-	return Token{Kind: kind, Col: i + 1}, i + 1, nil
+	return token{kind: found, col: i + 1}, i + 1, nil
 }
 
-func twoRuneKind(text string) (Kind, bool) {
+func twoRuneKind(text string) (kind, bool) {
 	switch text {
 	case "==":
-		return KindEq, true
+		return kindEq, true
 	case "!=":
-		return KindNe, true
+		return kindNe, true
 	case "<=":
-		return KindLe, true
+		return kindLe, true
 	case ">=":
-		return KindGe, true
+		return kindGe, true
 	default:
-		return KindIdent, false
+		return kindIdent, false
 	}
 }
 
-// Token is one terminal of the §17.2 grammar. Col counts runes from 1 into the expression as it was
-// typed, so a parse error can point at a character.
-type Token struct {
-	Kind Kind
-	Text string
-	Col  int
+type token struct {
+	kind kind
+	text string
+	col  int
 }
 
-// Kind is what a Token is. Only an identifier, a number and a string carry Text.
-type Kind int
+type kind int
 
 const (
-	// KindIdent is a question id or a field name.
-	KindIdent Kind = iota
-	// KindNumber is a numeric literal.
-	KindNumber
-	// KindString is a double quoted literal, with its escapes resolved.
-	KindString
-	// KindDot is the path separator.
-	KindDot
-	// KindComma is the list separator.
-	KindComma
-	// KindLBracket opens a bracket path or a list.
-	KindLBracket
-	// KindRBracket closes a bracket path or a list.
-	KindRBracket
-	// KindLParen opens a grouped expression.
-	KindLParen
-	// KindRParen closes a grouped expression.
-	KindRParen
-	// KindEq is the == operator.
-	KindEq
-	// KindNe is the != operator.
-	KindNe
-	// KindLt is the < operator.
-	KindLt
-	// KindLe is the <= operator.
-	KindLe
-	// KindGt is the > operator.
-	KindGt
-	// KindGe is the >= operator.
-	KindGe
-	// KindAnd is the and keyword.
-	KindAnd
-	// KindOr is the or keyword.
-	KindOr
-	// KindNot is the not keyword.
-	KindNot
-	// KindIn is the in keyword.
-	KindIn
-	// KindTrue is the true keyword.
-	KindTrue
-	// KindFalse is the false keyword.
-	KindFalse
-	// KindEOF closes every token list and carries the column one past the expression.
-	KindEOF
+	kindIdent kind = iota
+	kindNumber
+	kindString
+	kindDot
+	kindComma
+	kindLBracket
+	kindRBracket
+	kindLParen
+	kindRParen
+	kindEq
+	kindNe
+	kindLt
+	kindLe
+	kindGt
+	kindGe
+	kindAnd
+	kindOr
+	kindNot
+	kindIn
+	kindTrue
+	kindFalse
+	kindEOF
 )
 
-// String names the kind as a parse error spells it.
-func (k Kind) String() string {
+func (k kind) String() string {
 	switch k {
-	case KindIdent:
+	case kindIdent:
 		return "ident"
-	case KindNumber:
+	case kindNumber:
 		return "number"
-	case KindString:
+	case kindString:
 		return "string"
-	case KindDot:
+	case kindDot:
 		return "dot"
-	case KindComma:
+	case kindComma:
 		return "comma"
-	case KindLBracket:
+	case kindLBracket:
 		return "lbracket"
-	case KindRBracket:
+	case kindRBracket:
 		return "rbracket"
-	case KindLParen:
+	case kindLParen:
 		return "lparen"
-	case KindRParen:
+	case kindRParen:
 		return "rparen"
-	case KindEq:
+	case kindEq:
 		return "eq"
-	case KindNe:
+	case kindNe:
 		return "ne"
-	case KindLt:
+	case kindLt:
 		return "lt"
-	case KindLe:
+	case kindLe:
 		return "le"
-	case KindGt:
+	case kindGt:
 		return "gt"
-	case KindGe:
+	case kindGe:
 		return "ge"
-	case KindAnd:
+	case kindAnd:
 		return "and"
-	case KindOr:
+	case kindOr:
 		return "or"
-	case KindNot:
+	case kindNot:
 		return "not"
-	case KindIn:
+	case kindIn:
 		return "in"
-	case KindTrue:
+	case kindTrue:
 		return "true"
-	case KindFalse:
+	case kindFalse:
 		return "false"
 	default:
 		return "eof"

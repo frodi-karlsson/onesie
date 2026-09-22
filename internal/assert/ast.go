@@ -12,7 +12,7 @@ type node interface {
 }
 
 type binaryNode struct {
-	op          Kind
+	op          kind
 	left, right node
 	column      int
 }
@@ -39,7 +39,7 @@ func (n *notNode) render() string {
 }
 
 type comparisonNode struct {
-	op          Kind
+	op          kind
 	left, right node
 	column      int
 }
@@ -139,27 +139,27 @@ func sexpr(parts ...string) string {
 	return "(" + strings.Join(parts, " ") + ")"
 }
 
-func opSymbol(kind Kind) string {
-	switch kind {
-	case KindEq:
+func opSymbol(k kind) string {
+	switch k {
+	case kindEq:
 		return "=="
-	case KindNe:
+	case kindNe:
 		return "!="
-	case KindLt:
+	case kindLt:
 		return "<"
-	case KindLe:
+	case kindLe:
 		return "<="
-	case KindGt:
+	case kindGt:
 		return ">"
-	case KindGe:
+	case kindGe:
 		return ">="
 	default:
-		return kind.String()
+		return k.String()
 	}
 }
 
 func bareSegment(segment string) bool {
-	if segment == "" || keywordKind(segment) != KindIdent {
+	if segment == "" || keywordKind(segment) != kindIdent {
 		return false
 	}
 

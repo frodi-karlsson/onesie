@@ -15,16 +15,16 @@ func Parse(source string) (*Expr, error) {
 	}
 
 	p := &parser{tokens: tokens}
-	if p.peek().Kind == KindEOF {
-		return nil, parseError(p.peek().Col, "the expression is empty")
+	if p.peek().kind == kindEOF {
+		return nil, parseError(p.peek().col, "the expression is empty")
 	}
 
 	root, err := p.parseExpr()
 	if err != nil {
 		return nil, err
 	}
-	if rest := p.peek(); rest.Kind != KindEOF {
-		return nil, parseError(rest.Col, "expected the end of the expression")
+	if rest := p.peek(); rest.kind != kindEOF {
+		return nil, parseError(rest.col, "expected the end of the expression")
 	}
 
 	return &Expr{root: root, source: source}, nil
@@ -45,7 +45,7 @@ func Combine(exprs ...*Expr) *Expr {
 	sources := []string{"(" + exprs[0].source + ")"}
 
 	for _, expr := range exprs[1:] {
-		root = &binaryNode{op: KindAnd, left: root, right: expr.root, column: expr.root.pos()}
+		root = &binaryNode{op: kindAnd, left: root, right: expr.root, column: expr.root.pos()}
 		sources = append(sources, "("+expr.source+")")
 	}
 
@@ -60,7 +60,7 @@ type Expr struct {
 }
 
 type parser struct {
-	tokens []Token
+	tokens []token
 	at     int
 }
 
@@ -74,8 +74,8 @@ func (p *parser) parseOr() (node, error) {
 		return nil, err
 	}
 
-	for p.peek().Kind == KindOr {
-		column := p.next().Col
+	for p.peek().kind == kindOr {
+		column := p.next().col
 
 		var right node
 		right, err = p.parseAnd()
@@ -83,7 +83,7 @@ func (p *parser) parseOr() (node, error) {
 			return nil, err
 		}
 
-		left = &binaryNode{op: KindOr, left: left, right: right, column: column}
+		left = &binaryNode{op: kindOr, left: left, right: right, column: column}
 	}
 
 	return left, nil
@@ -95,8 +95,8 @@ func (p *parser) parseAnd() (node, error) {
 		return nil, err
 	}
 
-	for p.peek().Kind == KindAnd {
-		column := p.next().Col
+	for p.peek().kind == kindAnd {
+		column := p.next().col
 
 		var right node
 		right, err = p.parseUnary()
@@ -104,15 +104,15 @@ func (p *parser) parseAnd() (node, error) {
 			return nil, err
 		}
 
-		left = &binaryNode{op: KindAnd, left: left, right: right, column: column}
+		left = &binaryNode{op: kindAnd, left: left, right: right, column: column}
 	}
 
 	return left, nil
 }
 
 func (p *parser) parseUnary() (node, error) {
-	switch tok := p.peek(); tok.Kind {
-	case KindNot:
+	switch tok := p.peek(); tok.kind {
+	case kindNot:
 		p.next()
 
 		operand, err := p.parseUnary()
@@ -120,16 +120,16 @@ func (p *parser) parseUnary() (node, error) {
 			return nil, err
 		}
 
-		return &notNode{operand: operand, column: tok.Col}, nil
-	case KindLParen:
+		return &notNode{operand: operand, column: tok.col}, nil
+	case kindLParen:
 		p.next()
 
 		inner, err := p.parseExpr()
 		if err != nil {
 			return nil, err
 		}
-		if p.peek().Kind != KindRParen {
-			return nil, parseError(p.peek().Col, "expected a closing parenthesis")
+		if p.peek().kind != kindRParen {
+			return nil, parseError(p.peek().col, "expected a closing parenthesis")
 		}
 		p.next()
 
@@ -146,11 +146,11 @@ func (p *parser) parseComparison() (node, error) {
 	}
 
 	op := p.peek()
-	if op.Kind == KindIn {
-		return p.parseIn(left, op.Col)
+	if op.kind == kindIn {
+		return p.parseIn(left, op.col)
 	}
-	if !comparisonOp(op.Kind) {
-		return nil, parseError(op.Col, "expected a comparison")
+	if !comparisonOp(op.kind) {
+		return nil, parseError(op.col, "expected a comparison")
 	}
 	p.next()
 
@@ -160,19 +160,19 @@ func (p *parser) parseComparison() (node, error) {
 		return nil, err
 	}
 
-	return &comparisonNode{op: op.Kind, left: left, right: right, column: op.Col}, nil
+	return &comparisonNode{op: op.kind, left: left, right: right, column: op.col}, nil
 }
 
 func (p *parser) parseIn(operand node, column int) (node, error) {
 	p.next()
 
-	if p.peek().Kind != KindLBracket {
-		return nil, parseError(p.peek().Col, "expected a list after in")
+	if p.peek().kind != kindLBracket {
+		return nil, parseError(p.peek().col, "expected a list after in")
 	}
 	p.next()
 
-	if p.peek().Kind == KindRBracket {
-		return nil, parseError(p.peek().Col, "a list needs at least one value")
+	if p.peek().kind == kindRBracket {
+		return nil, parseError(p.peek().col, "a list needs at least one value")
 	}
 
 	var list []node
@@ -183,13 +183,13 @@ func (p *parser) parseIn(operand node, column int) (node, error) {
 		}
 
 		list = append(list, member)
-		if p.peek().Kind != KindComma {
+		if p.peek().kind != kindComma {
 			break
 		}
 		p.next()
 	}
 
-	if p.peek().Kind != KindRBracket {
+	if p.peek().kind != kindRBracket {
 		return nil, p.unclosedBracket()
 	}
 	p.next()
@@ -198,33 +198,33 @@ func (p *parser) parseIn(operand node, column int) (node, error) {
 }
 
 func (p *parser) parseOperand() (node, error) {
-	switch tok := p.peek(); tok.Kind {
-	case KindIdent, KindLBracket:
+	switch tok := p.peek(); tok.kind {
+	case kindIdent, kindLBracket:
 		return p.parsePath()
-	case KindNumber:
+	case kindNumber:
 		p.next()
 
-		value, err := strconv.ParseFloat(tok.Text, 64)
+		value, err := strconv.ParseFloat(tok.text, 64)
 		if err != nil {
-			return nil, parseError(tok.Col, "expected a value")
+			return nil, parseError(tok.col, "expected a value")
 		}
 
-		return &numberNode{value: value, column: tok.Col}, nil
-	case KindString:
+		return &numberNode{value: value, column: tok.col}, nil
+	case kindString:
 		p.next()
 
-		return &stringNode{value: tok.Text, column: tok.Col}, nil
-	case KindTrue, KindFalse:
+		return &stringNode{value: tok.text, column: tok.col}, nil
+	case kindTrue, kindFalse:
 		p.next()
 
-		return &boolNode{value: tok.Kind == KindTrue, column: tok.Col}, nil
+		return &boolNode{value: tok.kind == kindTrue, column: tok.col}, nil
 	default:
-		return nil, parseError(tok.Col, "expected a value")
+		return nil, parseError(tok.col, "expected a value")
 	}
 }
 
 func (p *parser) parsePath() (node, error) {
-	column := p.peek().Col
+	column := p.peek().col
 
 	head, err := p.parseHead()
 	if err != nil {
@@ -233,16 +233,16 @@ func (p *parser) parsePath() (node, error) {
 
 	segments := []string{head}
 	for {
-		switch p.peek().Kind {
-		case KindDot:
+		switch p.peek().kind {
+		case kindDot:
 			p.next()
 
-			if p.peek().Kind != KindIdent {
-				return nil, parseError(p.peek().Col, "expected a field name after the dot")
+			if p.peek().kind != kindIdent {
+				return nil, parseError(p.peek().col, "expected a field name after the dot")
 			}
 
-			segments = append(segments, p.next().Text)
-		case KindLBracket:
+			segments = append(segments, p.next().text)
+		case kindLBracket:
 			var segment string
 
 			segment, err = p.parseBracketName()
@@ -258,8 +258,8 @@ func (p *parser) parsePath() (node, error) {
 }
 
 func (p *parser) parseHead() (string, error) {
-	if p.peek().Kind == KindIdent {
-		return p.next().Text, nil
+	if p.peek().kind == kindIdent {
+		return p.next().text, nil
 	}
 
 	return p.parseBracketName()
@@ -268,12 +268,12 @@ func (p *parser) parseHead() (string, error) {
 func (p *parser) parseBracketName() (string, error) {
 	p.next()
 
-	if p.peek().Kind != KindString {
-		return "", parseError(p.peek().Col, "expected a quoted name in the brackets")
+	if p.peek().kind != kindString {
+		return "", parseError(p.peek().col, "expected a quoted name in the brackets")
 	}
 
-	name := p.next().Text
-	if p.peek().Kind != KindRBracket {
+	name := p.next().text
+	if p.peek().kind != kindRBracket {
 		return "", p.unclosedBracket()
 	}
 	p.next()
@@ -281,11 +281,11 @@ func (p *parser) parseBracketName() (string, error) {
 	return name, nil
 }
 
-func (p *parser) peek() Token {
+func (p *parser) peek() token {
 	return p.tokens[p.at]
 }
 
-func (p *parser) next() Token {
+func (p *parser) next() token {
 	tok := p.tokens[p.at]
 	if p.at < len(p.tokens)-1 {
 		p.at++
@@ -297,12 +297,12 @@ func (p *parser) next() Token {
 func (p *parser) unclosedBracket() error {
 	// §17.8 publishes this message with a column one past the input, because the bracket was never
 	// closed anywhere, not at the token that happened to follow it.
-	return parseError(p.tokens[len(p.tokens)-1].Col, "expected a closing bracket before the end")
+	return parseError(p.tokens[len(p.tokens)-1].col, "expected a closing bracket before the end")
 }
 
-func comparisonOp(kind Kind) bool {
-	switch kind {
-	case KindEq, KindNe, KindLt, KindLe, KindGt, KindGe:
+func comparisonOp(k kind) bool {
+	switch k {
+	case kindEq, kindNe, kindLt, kindLe, kindGt, kindGe:
 		return true
 	default:
 		return false
