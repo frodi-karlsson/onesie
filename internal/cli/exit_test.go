@@ -138,6 +138,18 @@ func TestClassify(t *testing.T) {
 			err:  &jev.ConnectionError{Err: syscall.EPIPE},
 			want: ExitTransport,
 		},
+		{
+			name: "should report the code a silent error carries",
+			err:  &silentError{code: ExitAuth},
+			want: ExitAuth,
+		},
+		{
+			// A silent error means the command printed the whole result itself. Matched first it
+			// would take the code from every error it was joined to, so it is matched last.
+			name: "should keep the code of a real error joined to a silent one",
+			err:  errors.Join(&silentError{code: ExitAuth}, &recordsError{}),
+			want: ExitRecords,
+		},
 	}
 
 	for _, tc := range tests {

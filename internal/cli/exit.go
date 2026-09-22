@@ -33,15 +33,11 @@ const (
 )
 
 // Classify maps an error onto its exit code. The order of the checks matters: RetryAfterError
-// embeds APIError, so the typed check has to precede the sentinels it would otherwise match.
+// embeds APIError, so the typed check has to precede the sentinels it would otherwise match, and
+// silentError comes last so a real error joined to one still reports its own code.
 func Classify(err error) int {
 	if err == nil {
 		return ExitOK
-	}
-
-	var silent *silentError
-	if errors.As(err, &silent) {
-		return silent.code
 	}
 
 	var records *recordsError
@@ -101,6 +97,11 @@ func Classify(err error) int {
 	// code meaning the consumer stopped reading.
 	if engine.BrokenPipe(err) {
 		return ExitOK
+	}
+
+	var silent *silentError
+	if errors.As(err, &silent) {
+		return silent.code
 	}
 
 	return ExitUsage
