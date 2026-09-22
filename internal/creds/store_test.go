@@ -97,6 +97,18 @@ func TestLoad(t *testing.T) {
 			wantErr: "is not a regular file",
 		},
 		{
+			name:     "should read a file at exactly the read cap",
+			contents: `{"api_key":"` + strings.Repeat("k", (1<<20)-14) + `"}`,
+			mode:     0o600,
+			want:     creds.File{APIKey: strings.Repeat("k", (1<<20)-14)},
+		},
+		{
+			name:     "should refuse a file larger than the read cap",
+			contents: `{"api_key":"` + strings.Repeat("k", 1<<20) + `"}`,
+			mode:     0o600,
+			wantErr:  "is larger than 1048576 bytes",
+		},
+		{
 			name:     "should refuse a file with no api_key",
 			contents: `{}`,
 			mode:     0o600,

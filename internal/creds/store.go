@@ -10,6 +10,8 @@ import (
 	"runtime"
 )
 
+const maxCredentialBytes = 1 << 20
+
 // NewStore builds a Store over the real filesystem. A test overrides only what it must.
 func NewStore(opts ...StoreOption) Store {
 	store := Store{chmod: os.Chmod}
@@ -87,9 +89,17 @@ func (s Store) Load(path string) (file File, found bool, err error) {
 		return File{}, false, modeErr
 	}
 
-	data, err := io.ReadAll(handle)
+	// One byte past the cap, so a file at exactly the cap still loads and the first byte beyond it
+	// is refused. A plain limit would truncate instead, and a truncated file that still parsed would
+	// hand back half a credential as if it were whole.
+	data, err := io.ReadAll(io.LimitReader(handle, maxCredentialBytes+1))
 	if err != nil {
 		return File{}, false, fmt.Errorf("jev: reading %s: %w", path, err)
+	}
+
+	if len(data) > maxCredentialBytes {
+		return File{}, false, fmt.Errorf(
+			"jev: credential file %s is larger than %d bytes", path, maxCredentialBytes)
 	}
 
 	if decodeErr := json.Unmarshal(data, &file); decodeErr != nil || file.APIKey == "" {
