@@ -281,9 +281,7 @@ func (p *parser) peek() token {
 
 func (p *parser) next() token {
 	tok := p.tokens[p.at]
-	if p.at < len(p.tokens)-1 {
-		p.at++
-	}
+	p.at++
 
 	return tok
 }
