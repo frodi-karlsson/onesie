@@ -103,7 +103,7 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 	root.Flags().StringVar(&flags.stateFile, "state-file", "", "read the state from this file")
 	root.Flags().StringVarP(&flags.model, "model", "m", "", "model override")
 	root.Flags().StringVar(&flags.apiKey, "api-key", "",
-		"api key. Prefer TYPESAFE_API_KEY, since argv is visible in ps")
+		"api key. Prefer TYPESAFE_API_KEY or jev auth set, since argv is visible in ps")
 	root.Flags().StringVar(&flags.baseURL, "base-url", "", "api root override")
 	root.Flags().StringVarP(&flags.file, "file", "f", "", "question file or request body")
 	root.Flags().BoolVar(&flags.replace, "replace", false, "--ask overrides an id from -f")
