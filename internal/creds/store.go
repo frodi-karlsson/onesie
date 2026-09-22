@@ -7,6 +7,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"path/filepath"
 	"runtime"
 )
 
@@ -121,6 +122,79 @@ func (s Store) Load(path string) (file File, found bool, err error) {
 	}
 
 	return file, true, nil
+}
+
+// Save writes the credential file atomically, creating its directory. The file is written to a
+// temporary name in the same directory and renamed, so a reader never sees a half written key. A
+// non nil first result means the file was written but its mode could not be set, which is a warning
+// for the caller to print rather than a failure.
+func (s Store) Save(path string, file File) (*ModeWarning, error) {
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return nil, fmt.Errorf("jev: creating %s: %w", dir, err)
+	}
+
+	data, err := json.Marshal(file)
+	if err != nil {
+		return nil, fmt.Errorf("jev: encoding the credential file: %w", err)
+	}
+
+	// Created in the same directory as the target, because a rename across filesystems is not
+	// atomic and os.TempDir may be on another one. os.CreateTemp also opens with O_CREATE and
+	// O_EXCL at 0600, which is what keeps a planted symlink in the config directory from
+	// redirecting the key. Never write to path itself.
+	temp, err := os.CreateTemp(dir, ".credentials-*")
+	if err != nil {
+		return nil, fmt.Errorf("jev: creating a temporary file in %s: %w", dir, err)
+	}
+
+	// Named now so every later failure can remove it. A temporary file holding a key must not
+	// outlive this function.
+	name := temp.Name()
+
+	if writeErr := writeAndClose(temp, data); writeErr != nil {
+		return nil, errors.Join(writeErr, os.Remove(name))
+	}
+
+	// os.CreateTemp already creates at 0600 before umask, so this only does work on a filesystem
+	// that ignored that, which is the same filesystem that will refuse here. Section 16.2 says such
+	// a filesystem gets a warning and a written file, not a failure.
+	var warning *ModeWarning
+	if chmodErr := s.chmod(name, 0o600); chmodErr != nil {
+		warning = &ModeWarning{Path: path}
+	}
+
+	if renameErr := os.Rename(name, path); renameErr != nil {
+		return nil, errors.Join(fmt.Errorf("jev: renaming %s to %s: %w", name, path, renameErr),
+			os.Remove(name))
+	}
+
+	return warning, nil
+}
+
+func writeAndClose(file *os.File, data []byte) error {
+	if _, err := file.Write(data); err != nil {
+		return errors.Join(fmt.Errorf("jev: writing %s: %w", file.Name(), err), file.Close())
+	}
+
+	if err := file.Close(); err != nil {
+		return fmt.Errorf("jev: closing %s: %w", file.Name(), err)
+	}
+
+	return nil
+}
+
+// ModeWarning means the file was written but its mode could not be set, which happens on a
+// filesystem that does not carry unix permission bits. The key is on disk and readable by anyone
+// who can reach the path.
+type ModeWarning struct {
+	Path string
+}
+
+// Error names the path so the caller can tell the user where the unprotected file is.
+func (e *ModeWarning) Error() string {
+	return fmt.Sprintf(
+		"warning: could not set mode 600 on %s. The key is not protected by the filesystem", e.Path)
 }
 
 // File is the contents of a credential file. BaseURL is empty when the file carries none.
