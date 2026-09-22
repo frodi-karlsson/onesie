@@ -351,8 +351,15 @@ func TestAuthTest(t *testing.T) {
 		response  string
 		wantOut   string
 		wantPath  bool
+		wantErr   string
 		wantCode  int
 	}{
+		{
+			// The message is jev.New's. auth test carries no copy of it, so the two cannot drift.
+			name:     "should exit 2 when no source holds a key",
+			wantErr:  "jev: no API key. Pass --api-key or set " + jev.EnvAPIKey,
+			wantCode: ExitUsage,
+		},
 		{
 			name:     "should print the source and the model count",
 			env:      map[string]string{jev.EnvAPIKey: "SECRET-ENV"},
@@ -438,6 +445,10 @@ func TestAuthTest(t *testing.T) {
 
 			if out != want {
 				t.Errorf("stdout = %q, want %q", out, want)
+			}
+
+			if tc.wantErr != "" && !strings.Contains(errOut, tc.wantErr) {
+				t.Errorf("stderr = %q, want it to contain %q", errOut, tc.wantErr)
 			}
 		})
 	}

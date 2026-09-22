@@ -207,10 +207,6 @@ func authTest(cmd *cobra.Command, settings rootSettings, flags *runFlags) error 
 		return err
 	}
 
-	if source.name == sourceNone {
-		return errors.New("jev: no API key. Pass --api-key or set " + jev.EnvAPIKey)
-	}
-
 	client, err := settings.newClient(cmd.Context(), storedOptions(settings, flags, source)...)
 	if err != nil {
 		return err
