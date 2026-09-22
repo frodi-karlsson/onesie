@@ -106,6 +106,12 @@ func TestLoad(t *testing.T) {
 			mode:     0o600,
 			wantErr:  "is not a JSON object",
 		},
+		{
+			name:     "should refuse a file whose base_url is not a string",
+			contents: `{"api_key":"k","base_url":42}`,
+			mode:     0o600,
+			wantErr:  "is not a JSON object",
+		},
 	}
 
 	for _, tc := range tests {
@@ -137,6 +143,10 @@ func TestLoad(t *testing.T) {
 
 				if found {
 					t.Errorf("found = true, want false alongside an error")
+				}
+
+				if got != (creds.File{}) {
+					t.Errorf("Load returned %+v alongside an error, want the zero File", got)
 				}
 
 				return
