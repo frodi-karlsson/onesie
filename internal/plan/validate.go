@@ -402,6 +402,11 @@ func checkStreaming(cfg Config) (string, error) {
 			cfg.Retries)
 	}
 
+	if cfg.RetriesSet && cfg.Retries > limits.MaxRetries {
+		return "", fmt.Errorf("jev: --retries takes at most %d, got %d",
+			limits.MaxRetries, cfg.Retries)
+	}
+
 	// Positive, not zero or more, which is the message section 11 already publishes. Zero would
 	// have to mean either never honour the header or honour it without bound, and the spec picks
 	// neither, so it is rejected rather than given a meaning here.

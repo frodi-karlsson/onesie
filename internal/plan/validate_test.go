@@ -637,6 +637,17 @@ func TestValidate(t *testing.T) {
 			wantErr:    "jev: --retries takes a retry count of zero or more, got -1",
 		},
 		{
+			name:       "should reject a retry count above the ceiling",
+			positional: "is this urgent",
+			cfg:        plan.Config{Retries: 100001, RetriesSet: true, InputName: "text"},
+			wantErr:    "jev: --retries takes at most 100, got 100001",
+		},
+		{
+			name:       "should accept a retry count at the ceiling",
+			positional: "is this urgent",
+			cfg:        plan.Config{Retries: 100, RetriesSet: true, InputName: "text"},
+		},
+		{
 			name:       "should reject a max retry after of zero",
 			positional: "is this urgent",
 			cfg:        plan.Config{MaxRetryAfter: 0, MaxRetryAfterSet: true, InputName: "text"},
