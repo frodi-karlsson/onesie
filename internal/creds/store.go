@@ -15,7 +15,7 @@ const maxCredentialBytes = 1 << 20
 
 // NewStore builds a Store over the real filesystem. A test overrides only what it must.
 func NewStore(opts ...StoreOption) Store {
-	store := Store{chmod: os.Chmod}
+	store := Store{chmod: os.Chmod, createTemp: os.CreateTemp}
 
 	for _, opt := range opts {
 		opt(&store)
@@ -27,7 +27,8 @@ func NewStore(opts ...StoreOption) Store {
 // Store reads and writes credential files. Build one with NewStore, since the zero value has no
 // chmod to call.
 type Store struct {
-	chmod func(string, os.FileMode) error
+	chmod      func(string, os.FileMode) error
+	createTemp func(dir, pattern string) (*os.File, error)
 }
 
 // StoreOption customises a Store. It exists so a test can fail a chmod without finding a
@@ -38,6 +39,13 @@ type StoreOption func(*Store)
 func WithChmod(chmod func(string, os.FileMode) error) StoreOption {
 	return func(s *Store) {
 		s.chmod = chmod
+	}
+}
+
+// WithCreateTemp replaces how a Store opens the temporary file it writes before the rename.
+func WithCreateTemp(createTemp func(dir, pattern string) (*os.File, error)) StoreOption {
+	return func(s *Store) {
+		s.createTemp = createTemp
 	}
 }
 
@@ -143,7 +151,7 @@ func (s Store) Save(path string, file File) (*ModeWarning, error) {
 	// atomic and os.TempDir may be on another one. os.CreateTemp also opens with O_CREATE and
 	// O_EXCL at 0600, which is what keeps a planted symlink in the config directory from
 	// redirecting the key. Never write to path itself.
-	temp, err := os.CreateTemp(dir, ".credentials-*")
+	temp, err := s.createTemp(dir, ".credentials-*")
 	if err != nil {
 		return nil, fmt.Errorf("jev: creating a temporary file in %s: %w", dir, err)
 	}

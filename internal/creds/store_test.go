@@ -570,6 +570,111 @@ func TestSaveWhenChmodFails(t *testing.T) {
 	})
 }
 
+func TestSaveCreatesTheTemporaryFileBesideTheTarget(t *testing.T) {
+	t.Parallel()
+
+	// A rename out of os.TempDir crosses a mount and fails with EXDEV, and the key would sit in a
+	// world listable directory on the way. The directory passed here is the only guard on that.
+	t.Run("should create it in the credential file's own directory", func(t *testing.T) {
+		t.Parallel()
+
+		path := filepath.Join(t.TempDir(), "jev", "credentials.json")
+
+		gotDir := ""
+		createTemp := func(dir, pattern string) (*os.File, error) {
+			gotDir = dir
+
+			return os.CreateTemp(dir, pattern)
+		}
+
+		store := creds.NewStore(creds.WithCreateTemp(createTemp))
+		if _, err := store.Save(path, creds.File{APIKey: "k"}); err != nil {
+			t.Fatalf("Save: %v", err)
+		}
+
+		if gotDir != filepath.Dir(path) {
+			t.Errorf("temporary file created in %q, want %s", gotDir, filepath.Dir(path))
+		}
+	})
+}
+
+func TestSaveWhenTheTemporaryFileCannotBeWritten(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		handle  func(t *testing.T, dir string) (*os.File, error)
+		wantErr string
+	}{
+		{
+			// A real file opened read only, so the write fails with a real EBADF and the file is
+			// still on disk for Save to remove.
+			name: "should fail and remove the temporary file when the write fails",
+			handle: func(_ *testing.T, dir string) (*os.File, error) {
+				return os.OpenFile(filepath.Join(dir, ".credentials-stub"),
+					os.O_RDONLY|os.O_CREATE|os.O_EXCL, 0o600)
+			},
+			wantErr: "writing",
+		},
+		{
+			// A pipe takes the write and refuses the flush, which is the only handle that reaches
+			// the flush branch without crashing the machine.
+			name: "should fail when the temporary file cannot be flushed",
+			handle: func(t *testing.T, _ string) (*os.File, error) {
+				read, write, err := os.Pipe()
+				if err != nil {
+					return nil, err
+				}
+
+				// Held open until the test ends, so the write lands in the pipe buffer instead of
+				// failing with EPIPE and reaching the wrong branch.
+				t.Cleanup(func() { read.Close() })
+
+				return write, nil
+			},
+			wantErr: "flushing",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			dir := t.TempDir()
+			path := filepath.Join(dir, "credentials.json")
+
+			createTemp := func(d, _ string) (*os.File, error) {
+				return tc.handle(t, d)
+			}
+
+			store := creds.NewStore(creds.WithCreateTemp(createTemp))
+
+			_, err := store.Save(path, creds.File{APIKey: "k"})
+			if err == nil {
+				t.Fatal("Save succeeded on a handle it could not write, want a failure")
+			}
+
+			if !strings.Contains(err.Error(), tc.wantErr) {
+				t.Errorf("Save error = %v, want it to contain %s", err, tc.wantErr)
+			}
+
+			entries, err := os.ReadDir(dir)
+			if err != nil {
+				t.Fatalf("reading the directory: %v", err)
+			}
+
+			if len(entries) != 0 {
+				names := make([]string, 0, len(entries))
+				for _, entry := range entries {
+					names = append(names, entry.Name())
+				}
+
+				t.Fatalf("directory holds %v, want it empty", names)
+			}
+		})
+	}
+}
+
 func TestClear(t *testing.T) {
 	t.Parallel()
 
