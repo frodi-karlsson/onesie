@@ -8,14 +8,9 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/frodi-karlsson/jev-cli/internal/skillgen"
 )
-
-// Bounds one example. A dry run makes no network call and should return instantaneously, so a
-// jev that hangs is treated as a failure rather than left to stall CI.
-const runTimeout = 10 * time.Second
 
 // Check runs every rule's bad and good example under root through runner. An example that cannot
 // be parsed as a jev invocation is skipped rather than counted as a failure, since a jq filter or
@@ -89,44 +84,27 @@ func checkRule(
 		return nil
 	}
 
-	args, reason, err := prepare(command)
+	result, err := runner.DryRun(ctx, command)
 	if err != nil {
 		return fmt.Errorf("jev: skill '%s' rule '%s' %s example: %w", skill, ruleID, kind, err)
 	}
 
-	if reason != "" {
+	if result.Skipped != "" {
 		report.Skipped = append(report.Skipped, Skip{
-			Skill: skill, RuleID: ruleID, Kind: kind, Command: command, Reason: reason,
+			Skill: skill, RuleID: ruleID, Kind: kind, Command: command, Reason: result.Skipped,
 		})
 
 		return nil
 	}
 
-	runCtx, cancel := context.WithTimeout(ctx, runTimeout)
-	defer cancel()
-
-	exitCode, stderr, err := runner.run(runCtx, args)
-	if err != nil {
-		return fmt.Errorf("jev: skill '%s' rule '%s' %s example: %w", skill, ruleID, kind, err)
-	}
-
 	report.Checked++
 
-	if passed := exitCode == 0; passed != wantPass {
+	if passed := result.ExitCode == 0; passed != wantPass {
 		report.Failures = append(report.Failures,
-			outcomeMessage(skill, ruleID, kind, wantPass, exitCode, args, stderr))
+			outcomeMessage(skill, ruleID, kind, wantPass, result.ExitCode, result.Args, result.Stderr))
 	}
 
 	return nil
-}
-
-func prepare(command string) (args []string, reason string, err error) {
-	tokens, reason := tokenize(command)
-	if reason != "" {
-		return nil, reason, nil
-	}
-
-	return dryRunArgs(tokens)
 }
 
 func outcomeMessage(skill, ruleID, kind string, wantPass bool, exitCode int, args []string, stderr string) string {

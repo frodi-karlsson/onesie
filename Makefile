@@ -8,7 +8,7 @@ LDFLAGS := -s -w \
 	-X main.commit=$(COMMIT) \
 	-X main.date=$(DATE)
 
-.PHONY: help build run install test test-race cover bench lint lint-fix fmt tidy vuln check tools clean skills skills-check
+.PHONY: help build run install test test-race cover bench lint lint-fix fmt tidy vuln check tools clean skills skills-check skills-eval
 
 build: ## Build the jev binary into bin/
 	@mkdir -p bin
@@ -62,6 +62,10 @@ skills: ## Generate the per client skill files from skills/
 
 skills-check: ## Dry run every example in every skill
 	go run ./cmd/skillcheck
+
+skills-eval: ## Measure the skills against an agent, run by hand
+	claude plugin eval . --ablation with-without --keep-temp --no-publish --threshold 0 $(EVALARGS)
+	go run ./cmd/skilleval
 
 check: ## Run lint and tests
 	@echo "--- Lint ---"

@@ -19,3 +19,6 @@
 
 # Local notes, not published with the repo
 /docs/
+
+# claude plugin eval output, rewritten on every run
+/evals/results/

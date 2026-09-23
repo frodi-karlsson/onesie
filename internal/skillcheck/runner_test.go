@@ -3,6 +3,7 @@ package skillcheck
 import (
 	"context"
 	"os"
+	"strings"
 	"testing"
 	"time"
 )
@@ -52,4 +53,49 @@ func TestHelperProcessSleeps(t *testing.T) {
 	}
 
 	time.Sleep(10 * time.Second)
+}
+
+func TestRunnerDryRun(t *testing.T) {
+	t.Parallel()
+
+	t.Run("should strip -q and run under --print-request, reporting the exit code and stderr", func(t *testing.T) {
+		t.Parallel()
+
+		var gotArgs []string
+
+		runner := &Runner{Binary: "jev", exec: func(_ context.Context, _ string, args []string) (int, string, error) {
+			gotArgs = args
+
+			return 2, "jev: bad", nil
+		}}
+
+		result, err := runner.DryRun(context.Background(), "jev 'is this safe' -q --state 'ls'")
+		if err != nil {
+			t.Fatalf("DryRun(...) error = %v", err)
+		}
+
+		want := "--print-request is this safe --state ls"
+		if got := strings.Join(gotArgs, " "); got != want {
+			t.Errorf("args = %q, want %q", got, want)
+		}
+
+		if result.ExitCode != 2 || result.Stderr != "jev: bad" || result.Skipped != "" {
+			t.Errorf("DryRun(...) = %+v, want exit 2 with stderr and no skip", result)
+		}
+	})
+
+	t.Run("should skip a command it cannot parse without running anything", func(t *testing.T) {
+		t.Parallel()
+
+		runner := &Runner{Binary: "jev", exec: neverCalled(t)}
+
+		result, err := runner.DryRun(context.Background(), "jev 'is this safe' | jq .")
+		if err != nil {
+			t.Fatalf("DryRun(...) error = %v", err)
+		}
+
+		if result.Skipped != "contains a pipe" {
+			t.Errorf("Skipped = %q, want contains a pipe", result.Skipped)
+		}
+	})
 }
