@@ -646,6 +646,16 @@ func TestValidate(t *testing.T) {
 			wantWarning: "-j 8 ignored. -i text reads one record",
 		},
 		{
+			name:       "should report the warnings alongside a fatal error",
+			positional: "which team",
+			events: []argv.Event{
+				{Name: "pick", Value: "billing"},
+			},
+			cfg:         plan.Config{Jobs: 8, JobsSet: true, InputName: "text"},
+			wantErr:     "jev: --pick needs at least two options, got 1: billing",
+			wantWarning: "-j 8 ignored. -i text reads one record",
+		},
+		{
 			name:       "should reject a zero job count",
 			positional: "is this urgent",
 			cfg:        plan.Config{Streaming: true, Jobs: 0, JobsSet: true, InputName: "lines"},
@@ -752,6 +762,7 @@ func TestValidate(t *testing.T) {
 			}
 
 			warnings, err := plan.Validate(built, tc.cfg)
+			assertWarning(t, warnings, tc.wantWarning, tc.wantErr != "" || tc.wantExact != "")
 
 			if tc.wantExact != "" {
 				if err == nil {
@@ -791,20 +802,26 @@ func TestValidate(t *testing.T) {
 					t.Errorf("fallback boolean = %v, want %v", parsed.Boolean, *tc.wantFallback)
 				}
 			}
-
-			if tc.wantWarning == "" {
-				if len(warnings) != 0 {
-					t.Errorf("unexpected warnings: %v", warnings)
-				}
-
-				return
-			}
-
-			joined := strings.Join(warnings, "\n")
-			if !strings.Contains(joined, tc.wantWarning) {
-				t.Errorf("warnings = %q\nwant one containing %q", joined, tc.wantWarning)
-			}
 		})
+	}
+}
+
+func assertWarning(t *testing.T, warnings []string, want string, failing bool) {
+	t.Helper()
+
+	if want == "" {
+		// A passing case that warns is a rule firing where no rule was expected. A failing one is
+		// allowed to carry whatever the checks reached before the fatal error.
+		if !failing && len(warnings) != 0 {
+			t.Errorf("unexpected warnings: %v", warnings)
+		}
+
+		return
+	}
+
+	joined := strings.Join(warnings, "\n")
+	if !strings.Contains(joined, want) {
+		t.Errorf("warnings = %q\nwant one containing %q", joined, want)
 	}
 }
 

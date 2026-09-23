@@ -1392,6 +1392,12 @@ func TestNewRootCmdFlagValidation(t *testing.T) {
 			contains: "jev: -j takes a positive number of records in flight, got 0",
 		},
 		{
+			name:     "should print the warnings when validation fails",
+			args:     []string{"-j", "8", "--pick", "billing"},
+			code:     cli.ExitUsage,
+			contains: "warning: -j 8 ignored. -i text reads one record",
+		},
+		{
 			name: "should reach the request with every flag in range",
 			args: []string{
 				"--timeout", "86400", "--retries", "0", "--max-retry-after", "86400", "-j", "1",
