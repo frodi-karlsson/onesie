@@ -262,7 +262,14 @@ func (c *collector) record(model string, usage jev.Usage, questions int) {
 	}
 }
 
-func (c *collector) recordFailure(reached bool, questions int) {
+func (c *collector) recordFailure(cause error, reached bool, questions int) {
+	// A stop or an interrupt cancels whatever was in flight, and those requests come back
+	// context.Canceled. Nothing about them failed, so counting them reports failed records for a
+	// run in which nothing failed. writeFailure skips the same error for the same reason.
+	if errors.Is(cause, context.Canceled) {
+		return
+	}
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
 

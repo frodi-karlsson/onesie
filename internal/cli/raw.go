@@ -39,7 +39,7 @@ func streamRaw(
 			if rec.Err != nil {
 				// A value alongside the error, because the engine writes every outcome. Returning
 				// nil here would print a blank line rather than the record.
-				stats.recordFailure(false, 0)
+				stats.recordFailure(rec.Err, false, 0)
 
 				return errorLine(rec.Err), rec.Err
 			}
@@ -63,7 +63,7 @@ func streamRaw(
 				// and nothing inside it was checked locally, so no local bound is implicated.
 				advised := advise(err, rawModel([]byte(rec.Raw)), false)
 
-				stats.recordFailure(true, asked)
+				stats.recordFailure(advised, true, asked)
 				stats.terminalAttempt(advised)
 
 				return errorLine(advised), advised

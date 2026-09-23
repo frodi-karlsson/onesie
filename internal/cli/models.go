@@ -22,7 +22,7 @@ func listModels(cmd *cobra.Command, settings rootSettings, stats *collector) err
 		// call that reaches the API answers the same way.
 		advised := advise(err, "", false)
 
-		stats.recordFailure(true, 0)
+		stats.recordFailure(advised, true, 0)
 		stats.terminalAttempt(advised)
 
 		return advised

@@ -809,3 +809,99 @@ func runAssertedStream(t *testing.T, args []string, stdin string, wantCode int) 
 
 	return out.String(), errOut.String()
 }
+
+func TestStopOnAssertStats(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		want string
+	}{
+		{
+			name: "should count no failed record for a request the stop cancelled",
+			want: "1 request, 1 false assertion, 1 question",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			errOut := runStoppedStream(t)
+
+			if !strings.Contains(errOut, tc.want) {
+				t.Errorf("stderr = %q, want it to contain %q", errOut, tc.want)
+			}
+
+			if strings.Contains(errOut, "failed") {
+				t.Errorf("stderr = %q, want no failed record", errOut)
+			}
+		})
+	}
+}
+
+func runStoppedStream(t *testing.T) string {
+	t.Helper()
+
+	// The second record blocks until its own request context is cancelled, and the first answers
+	// only once the second is in flight. So the stop always has a request to cancel, which is the
+	// record that used to be counted as a failure.
+	inFlight := make(chan struct{})
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, readErr := io.ReadAll(r.Body)
+		if readErr != nil {
+			t.Errorf("reading request body: %v", readErr)
+
+			return
+		}
+
+		if bytes.Contains(body, []byte("wait")) {
+			close(inFlight)
+			<-r.Context().Done()
+
+			return
+		}
+
+		<-inFlight
+
+		if _, writeErr := w.Write([]byte(urgent)); writeErr != nil {
+			t.Errorf("writing stub response: %v", writeErr)
+		}
+	}))
+	defer srv.Close()
+
+	var out, errOut bytes.Buffer
+
+	root := cli.NewRootCmd(
+		cli.BuildInfo{Version: "1.2.3"},
+		cli.WithClientFactory(func(_ context.Context, opts ...jev.Option) (*jev.Client, error) {
+			policy := jev.DefaultRetryPolicy()
+			policy.MaxRetries = 0
+
+			return jev.New(append([]jev.Option{
+				jev.WithAPIKey("k"),
+				jev.WithBaseURL(srv.URL),
+				jev.WithRetry(policy),
+			}, opts...)...)
+		}),
+		cli.WithStdin(strings.NewReader("hot\nwait\n")),
+		cli.WithStdinTTY(false),
+		cli.WithStdoutTTY(false),
+		cli.WithLookupEnv(func(string) (string, bool) { return "", false }),
+	)
+
+	root.SetOut(&out)
+	root.SetErr(&errOut)
+	root.SetArgs([]string{
+		"is this urgent", "-i", "lines", "-j", "2",
+		"--assert", "answer.value < 0.5", "--stop-on-assert", "--stats",
+	})
+
+	if code := cli.Execute(t.Context(), root); code != cli.ExitRejected {
+		t.Errorf("exit code = %d, want %d\nstdout:\n%s\nstderr:\n%s",
+			code, cli.ExitRejected, out.String(), errOut.String())
+	}
+
+	return errOut.String()
+}

@@ -372,13 +372,13 @@ func stream(
 			if rec.Err != nil {
 				// A line jev could not read is a record that never became a request, and it
 				// carried no questions to the wire either.
-				stats.recordFailure(false, 0)
+				stats.recordFailure(rec.Err, false, 0)
 
 				return line{record: failureRecord(built, rec.Err), raw: rec.Raw}, rec.Err
 			}
 
 			if merge && hasKey(rec.State, mergeKey(flags)) {
-				stats.recordFailure(false, 0)
+				stats.recordFailure(nil, false, 0)
 
 				// Detected here rather than inside Write, because the engine accounts a failure
 				// from the evaluator's error and a rewrite inside Write would be counted as a
@@ -729,7 +729,7 @@ func evaluate(
 	if err != nil {
 		// The request was made whatever went wrong afterwards, and the questions went with it, so
 		// a failed record still carries them into the count section 10 asks for.
-		stats.recordFailure(true, len(questions))
+		stats.recordFailure(err, true, len(questions))
 		stats.terminalAttempt(err)
 
 		return record, err

@@ -97,7 +97,7 @@ func TestCollectorConcurrent(t *testing.T) {
 						// caused no retry.
 						c.observe(jev.Attempt{Index: 0, Status: http.StatusBadRequest})
 						c.terminalAttempt(&jev.APIError{Status: http.StatusBadRequest})
-						c.recordFailure(true, 1)
+						c.recordFailure(&jev.APIError{Status: http.StatusBadRequest}, true, 1)
 					}
 				}()
 			}
@@ -132,6 +132,54 @@ func TestCollectorConcurrent(t *testing.T) {
 
 			if got.InputTokens != 2*each {
 				t.Errorf("InputTokens = %d, want %d", got.InputTokens, 2*each)
+			}
+		})
+	}
+}
+
+func TestCollectorRecordFailure(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		cause        error
+		wantRecords  int
+		wantRequests int
+		wantFailed   int
+	}{
+		{
+			name:         "should count a record the server refused",
+			cause:        &jev.APIError{Status: http.StatusBadRequest},
+			wantRecords:  1,
+			wantRequests: 1,
+			wantFailed:   1,
+		},
+		{
+			name:  "should count nothing for a request the run cancelled",
+			cause: fmt.Errorf("jev: #1 POST /v1/one: %w", context.Canceled),
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var c collector
+
+			c.recordFailure(tc.cause, true, 1)
+
+			got := c.snapshot(time.Second, time.Second)
+
+			if got.Records != tc.wantRecords {
+				t.Errorf("Records = %d, want %d", got.Records, tc.wantRecords)
+			}
+
+			if got.Requests != tc.wantRequests {
+				t.Errorf("Requests = %d, want %d", got.Requests, tc.wantRequests)
+			}
+
+			if got.Failed != tc.wantFailed {
+				t.Errorf("Failed = %d, want %d", got.Failed, tc.wantFailed)
 			}
 		})
 	}
