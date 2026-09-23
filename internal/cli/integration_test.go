@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -634,4 +636,288 @@ func requireAPIKey(t *testing.T) {
 	if _, ok := os.LookupEnv("TYPESAFE_API_KEY"); !ok {
 		t.Skip("TYPESAFE_API_KEY is not set, skipping the live suite")
 	}
+}
+
+func TestAssertIntegration(t *testing.T) {
+	requireAPIKey(t)
+
+	const (
+		urgentState = "EVERYTHING IS DOWN, CUSTOMERS CANNOT CHECK OUT, CALL ME NOW"
+		calmState   = "Thanks, that fixed it. No rush on the rest."
+	)
+
+	tests := []struct {
+		name     string
+		args     []string
+		stdin    string
+		wantCode int
+		wantKeys []string
+	}{
+		{
+			name: "should open the gate when the answer satisfies the assertion",
+			args: []string{
+				"--ask", "urgent=does this convey urgency",
+				"--assert", "urgent.value > 0.5", "-o", "json",
+			},
+			stdin:    urgentState,
+			wantCode: cli.ExitOK,
+			wantKeys: []string{"urgent"},
+		},
+		{
+			// The record is still written. Section 17.4 closes the gate and shows the caller why,
+			// which is the whole reason the assert key exists rather than a bare exit code.
+			name: "should close the gate and still print the record",
+			args: []string{
+				"--ask", "urgent=does this convey urgency",
+				"--assert", "urgent.value > 0.5", "-o", "json",
+			},
+			stdin:    calmState,
+			wantCode: cli.ExitRejected,
+			wantKeys: []string{"assert", "urgent"},
+		},
+		{
+			// One assertion that any probability satisfies and one that this state does not, so
+			// the false result comes from the combination rather than from a single judgment.
+			name: "should combine repeated assertions with and",
+			args: []string{
+				"--ask", "urgent=does this convey urgency",
+				"--assert", "urgent.value >= 0",
+				"--assert", "urgent.value > 0.5", "-o", "json",
+			},
+			stdin:    calmState,
+			wantCode: cli.ExitRejected,
+			wantKeys: []string{"assert", "urgent"},
+		},
+		{
+			name: "should assert membership of a pick answer",
+			args: []string{
+				"--ask", "team=which team should handle this",
+				"--pick", "billing,technical",
+				"--assert", `team.value in ["billing", "technical"]`, "-o", "json",
+			},
+			stdin:    "I was charged twice and need a refund",
+			wantCode: cli.ExitOK,
+			wantKeys: []string{"team"},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			out, _, code := runLive(t, tc.args, tc.stdin)
+
+			if code != tc.wantCode {
+				t.Fatalf("exit code = %d, want %d, output:\n%s", code, tc.wantCode, out)
+			}
+
+			record := decodeRecord(t, out)
+			for _, key := range tc.wantKeys {
+				if _, ok := record[key]; !ok {
+					t.Errorf("record has no %q key: %s", key, out)
+				}
+			}
+
+			if tc.wantCode != cli.ExitRejected {
+				return
+			}
+
+			if string(record["assert"]) != "false" {
+				t.Errorf("assert = %s, want false", record["assert"])
+			}
+		})
+	}
+}
+
+func TestStatsIntegration(t *testing.T) {
+	requireAPIKey(t)
+
+	t.Run("should summarise a live request on stderr", func(t *testing.T) {
+		out, errOut, code := runLive(t,
+			[]string{"does this convey urgency", "--stats", "-o", "json"},
+			"EVERYTHING IS DOWN, CALL ME NOW")
+
+		if code != cli.ExitOK {
+			t.Fatalf("exit code = %d, stderr:\n%s", code, errOut)
+		}
+
+		if len(nonEmptyLines(errOut)) != 1 {
+			t.Fatalf("--stats must write one line, got:\n%s", errOut)
+		}
+
+		// Token counts and a model name are the parts no stub can supply, since they come back
+		// from the request itself.
+		for _, want := range []string{"1 request", "1 question", " in / ", "model jev", "/attempt"} {
+			if !strings.Contains(errOut, want) {
+				t.Errorf("stats line is missing %q: %s", want, errOut)
+			}
+		}
+
+		if strings.Contains(errOut, "failed") {
+			t.Errorf("a successful run must report no failures: %s", errOut)
+		}
+
+		// A positional question is unnamed, so its answer lands under the reserved answer key.
+		if _, ok := decodeRecord(t, out)["answer"]; !ok {
+			t.Errorf("--stats must leave stdout alone: %s", out)
+		}
+	})
+}
+
+func TestListModelsIntegration(t *testing.T) {
+	requireAPIKey(t)
+
+	t.Run("should list the models the account may ask", func(t *testing.T) {
+		out, errOut, code := runLive(t, []string{"--list-models"}, "")
+
+		if code != cli.ExitOK {
+			t.Fatalf("exit code = %d, stderr:\n%s", code, errOut)
+		}
+
+		lines := nonEmptyLines(out)
+		if len(lines) == 0 {
+			t.Fatal("--list-models printed nothing")
+		}
+
+		for i, line := range lines {
+			if strings.TrimSpace(strings.Fields(line)[0]) == "" {
+				t.Errorf("line %d has no model id: %q", i, line)
+			}
+		}
+	})
+}
+
+func TestRequestRoundTripIntegration(t *testing.T) {
+	requireAPIKey(t)
+
+	t.Run("should answer a body its own --print-request produced", func(t *testing.T) {
+		// No -o on the first run. --print-request writes a request body rather than a record, so
+		// the CLI rejects an output format there, and the format belongs to the run that answers.
+		args := []string{"--ask", "urgent=does this convey urgency"}
+
+		body, errOut, code := runLive(t,
+			append(slices.Clone(args), "--print-request"),
+			"EVERYTHING IS DOWN, CALL ME NOW")
+
+		if code != cli.ExitOK {
+			t.Fatalf("--print-request exit code = %d, stderr:\n%s", code, errOut)
+		}
+
+		// Section 15's round trip crosses two runs, so the body is fed back in as the second one's
+		// stdin exactly as it was printed.
+		out, errOut, code := runLive(t, []string{"-i", "request"}, body)
+
+		if code != cli.ExitOK {
+			t.Fatalf("-i request exit code = %d, stderr:\n%s", code, errOut)
+		}
+
+		// -i request forwards the API's own response rather than a jev record, so the question id
+		// is read back out of the wire shape.
+		var answers struct {
+			Answers map[string]json.RawMessage `json:"answers"`
+		}
+
+		if err := json.Unmarshal([]byte(out), &answers); err != nil {
+			t.Fatalf("decoding the forwarded response %q: %v", out, err)
+		}
+
+		if _, ok := answers.Answers["urgent"]; !ok {
+			t.Errorf("the round tripped body lost its question: %s", out)
+		}
+	})
+}
+
+func TestAuthTestIntegration(t *testing.T) {
+	requireAPIKey(t)
+
+	t.Run("should authenticate with a key read back from the file", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "credentials.json")
+
+		// The key is piped in and never held in a variable this test formats. Every assertion
+		// below is on the source line or the model count, so a failure cannot print it.
+		_, errOut, code := runStored(t, path, []string{"auth", "set"}, os.Getenv("TYPESAFE_API_KEY"))
+		if code != cli.ExitOK {
+			t.Fatalf("auth set exit code = %d, stderr:\n%s", code, errOut)
+		}
+
+		out, errOut, code := runStored(t, path, []string{"auth", "test"}, "")
+		if code != cli.ExitOK {
+			t.Fatalf("auth test exit code = %d, stderr:\n%s", code, errOut)
+		}
+
+		// The environment is hidden from this run, so reaching the API at all proves the key came
+		// off disk. This is the one credential path with no offline equivalent.
+		if want := "source: file " + path; !strings.Contains(out, want) {
+			t.Errorf("auth test output = %q, want it to name %s", out, want)
+		}
+
+		count, err := strconv.Atoi(strings.TrimPrefix(nonEmptyLines(out)[1], "models: "))
+		if err != nil {
+			t.Fatalf("parsing the model count from %q: %v", out, err)
+		}
+
+		if count < 1 {
+			t.Errorf("models = %d, want at least one", count)
+		}
+
+		if _, err := os.Stat(path); err != nil {
+			t.Fatalf("the credential file is gone before clear: %v", err)
+		}
+
+		if _, errOut, code = runStored(t, path, []string{"auth", "clear"}, ""); code != cli.ExitOK {
+			t.Fatalf("auth clear exit code = %d, stderr:\n%s", code, errOut)
+		}
+
+		if _, err := os.Stat(path); !os.IsNotExist(err) {
+			t.Errorf("auth clear left the file behind, stat error = %v", err)
+		}
+	})
+}
+
+func runLive(t *testing.T, args []string, stdin string) (string, string, int) {
+	t.Helper()
+
+	var out, errOut bytes.Buffer
+
+	root := cli.NewRootCmd(
+		cli.BuildInfo{Version: "integration"},
+		cli.WithStdin(strings.NewReader(stdin)),
+		cli.WithStdinTTY(false),
+		cli.WithStdoutTTY(false),
+	)
+
+	root.SetOut(&out)
+	root.SetErr(&errOut)
+	root.SetArgs(args)
+
+	// Execute is called on its own line. In a return statement the two String calls are evaluated
+	// before it and would report empty buffers.
+	code := cli.Execute(t.Context(), root)
+
+	return out.String(), errOut.String(), code
+}
+
+func runStored(t *testing.T, path string, args []string, stdin string) (string, string, int) {
+	t.Helper()
+
+	var out, errOut bytes.Buffer
+
+	root := cli.NewRootCmd(
+		cli.BuildInfo{Version: "integration"},
+		cli.WithStdin(strings.NewReader(stdin)),
+		cli.WithStdinTTY(false),
+		cli.WithStdoutTTY(false),
+		cli.WithCredentialPath(func() (string, error) { return path, nil }),
+		// The live key is in the environment of whoever runs this suite, and it would otherwise
+		// outrank the file and make the stored key untested.
+		cli.WithLookupEnv(func(string) (string, bool) { return "", false }),
+	)
+
+	root.SetOut(&out)
+	root.SetErr(&errOut)
+	root.SetArgs(args)
+
+	// Execute is called on its own line. In a return statement the two String calls are evaluated
+	// before it and would report empty buffers.
+	code := cli.Execute(t.Context(), root)
+
+	return out.String(), errOut.String(), code
 }
