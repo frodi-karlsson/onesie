@@ -604,6 +604,25 @@ func TestValidate(t *testing.T) {
 			cfg:        plan.Config{Streaming: true, Merge: true, Output: "values", InputName: "jsonl"},
 		},
 		{
+			name:       "should accept merge with an explicit auto output",
+			positional: "is this urgent",
+			cfg: plan.Config{
+				Streaming: true, Merge: true, Output: "auto", InputName: "jsonl",
+			},
+		},
+		{
+			name:       "should accept merge with json output",
+			positional: "is this urgent",
+			cfg: plan.Config{
+				Streaming: true, Merge: true, Output: "json", InputName: "jsonl",
+			},
+		},
+		{
+			name:       "should accept merge with an absent output",
+			positional: "is this urgent",
+			cfg:        plan.Config{Streaming: true, Merge: true, InputName: "jsonl"},
+		},
+		{
 			name:       "should reject quiet in a stream",
 			positional: "is this urgent",
 			cfg:        plan.Config{Streaming: true, Quiet: true, InputName: "jsonl"},

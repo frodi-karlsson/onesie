@@ -507,7 +507,14 @@ func mergeable(cfg Config) bool {
 		return false
 	}
 
-	return cfg.Output == "" || cfg.Output == "json" || cfg.Output == "values"
+	// auto resolves to json under a merge, so an explicit auto is as mergeable as an absent flag.
+	// The other -o rejections deliberately fire on auto, since a mode they ignore does nothing there.
+	switch cfg.Output {
+	case "", "auto", "json", "values":
+		return true
+	default:
+		return false
+	}
 }
 
 func checkSingleRecord(cfg Config) (string, error) {

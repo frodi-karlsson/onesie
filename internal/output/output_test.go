@@ -213,6 +213,10 @@ func TestParseMode(t *testing.T) {
 			name: "should default to json under merge even on a terminal",
 			flag: "", tty: true, merge: true, want: output.JSON,
 		},
+		{
+			name: "should resolve an explicit auto under merge to json",
+			flag: "auto", tty: true, merge: true, want: output.JSON,
+		},
 		{name: "should accept an explicit mode", flag: "values", want: output.Values},
 		{name: "should reject an unknown mode", flag: "yaml", wantErr: true},
 	}
