@@ -467,184 +467,225 @@ func TestSystemOne(t *testing.T) {
 			t.Errorf("error got %v, want ErrConnection", err)
 		}
 	})
-}
 
-func TestSystemOneRetry(t *testing.T) {
-	t.Parallel()
-
-	t.Run("should retry a 429 then succeed", func(t *testing.T) {
+	t.Run("should retry a failed request when the policy allows it", func(t *testing.T) {
 		t.Parallel()
 
-		var (
-			calls  atomic.Int32
-			mu     sync.Mutex
-			counts []string
-		)
+		t.Run("should retry a 429 then succeed", func(t *testing.T) {
+			t.Parallel()
 
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			var (
+				calls  atomic.Int32
+				mu     sync.Mutex
+				counts []string
+			)
+
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				mu.Lock()
+				counts = append(counts, r.Header.Get("X-TypeSafe-Retry-Count"))
+				mu.Unlock()
+
+				if calls.Add(1) == 1 {
+					w.WriteHeader(http.StatusTooManyRequests)
+
+					return
+				}
+
+				_, _ = io.WriteString(w, shortAnswer)
+			}))
+			defer server.Close()
+
+			client, clock := newTestClient(t, server.URL)
+
+			if _, err := client.SystemOne(t.Context(), jev.Request{State: "x", Questions: oneNoul()}); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if calls.Load() != 2 {
+				t.Errorf("call count got %d, want 2", calls.Load())
+			}
+
+			if slept := clock.Slept(); len(slept) != 1 || slept[0] != 500*time.Millisecond {
+				t.Errorf("waits got %v, want one 500ms wait", slept)
+			}
+
 			mu.Lock()
-			counts = append(counts, r.Header.Get("X-TypeSafe-Retry-Count"))
-			mu.Unlock()
+			defer mu.Unlock()
 
-			if calls.Add(1) == 1 {
-				w.WriteHeader(http.StatusTooManyRequests)
+			if len(counts) != 2 || counts[0] != "" || counts[1] != "1" {
+				t.Errorf("retry count header got %v", counts)
+			}
+		})
 
-				return
+		t.Run("should honour retry after on a 429", func(t *testing.T) {
+			t.Parallel()
+
+			var calls atomic.Int32
+
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				if calls.Add(1) == 1 {
+					w.Header().Set("Retry-After", "2")
+					w.WriteHeader(http.StatusTooManyRequests)
+
+					return
+				}
+
+				_, _ = io.WriteString(w, shortAnswer)
+			}))
+			defer server.Close()
+
+			client, clock := newTestClient(t, server.URL)
+
+			if _, err := client.SystemOne(t.Context(), jev.Request{State: "x", Questions: oneNoul()}); err != nil {
+				t.Fatalf("unexpected error: %v", err)
 			}
 
-			_, _ = io.WriteString(w, shortAnswer)
-		}))
-		defer server.Close()
+			if slept := clock.Slept(); len(slept) != 1 || slept[0] != 2*time.Second {
+				t.Errorf("waits got %v, want one 2s wait", slept)
+			}
+		})
 
-		client, clock := newTestClient(t, server.URL)
+		t.Run("should floor a zero retry after rather than retrying immediately", func(t *testing.T) {
+			t.Parallel()
 
-		if _, err := client.SystemOne(t.Context(), jev.Request{State: "x", Questions: oneNoul()}); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+			var calls atomic.Int32
 
-		if calls.Load() != 2 {
-			t.Errorf("call count got %d, want 2", calls.Load())
-		}
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				if calls.Add(1) == 1 {
+					w.Header().Set("Retry-After", "0")
+					w.WriteHeader(http.StatusServiceUnavailable)
 
-		if slept := clock.Slept(); len(slept) != 1 || slept[0] != 500*time.Millisecond {
-			t.Errorf("waits got %v, want one 500ms wait", slept)
-		}
+					return
+				}
 
-		mu.Lock()
-		defer mu.Unlock()
+				_, _ = io.WriteString(w, shortAnswer)
+			}))
+			defer server.Close()
 
-		if len(counts) != 2 || counts[0] != "" || counts[1] != "1" {
-			t.Errorf("retry count header got %v", counts)
-		}
-	})
+			client, clock := newTestClient(t, server.URL)
 
-	t.Run("should honour retry after on a 429", func(t *testing.T) {
-		t.Parallel()
-
-		var calls atomic.Int32
-
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			if calls.Add(1) == 1 {
-				w.Header().Set("Retry-After", "2")
-				w.WriteHeader(http.StatusTooManyRequests)
-
-				return
+			if _, err := client.SystemOne(t.Context(), jev.Request{State: "x", Questions: oneNoul()}); err != nil {
+				t.Fatalf("unexpected error: %v", err)
 			}
 
-			_, _ = io.WriteString(w, shortAnswer)
-		}))
-		defer server.Close()
+			if slept := clock.Slept(); len(slept) != 1 || slept[0] != 500*time.Millisecond {
+				t.Errorf("waits got %v, want the 500ms floor", slept)
+			}
+		})
 
-		client, clock := newTestClient(t, server.URL)
+		t.Run("should not retry a 422", func(t *testing.T) {
+			t.Parallel()
 
-		if _, err := client.SystemOne(t.Context(), jev.Request{State: "x", Questions: oneNoul()}); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+			var calls atomic.Int32
 
-		if slept := clock.Slept(); len(slept) != 1 || slept[0] != 2*time.Second {
-			t.Errorf("waits got %v, want one 2s wait", slept)
-		}
-	})
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				calls.Add(1)
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusUnprocessableEntity)
+				_, _ = io.WriteString(w, `{"detail":[{"loc":["body","state"],"msg":"field required"}]}`)
+			}))
+			defer server.Close()
 
-	t.Run("should floor a zero retry after rather than retrying immediately", func(t *testing.T) {
-		t.Parallel()
+			client, _ := newTestClient(t, server.URL)
 
-		var calls atomic.Int32
+			_, err := client.SystemOne(t.Context(), jev.Request{State: "x", Questions: oneNoul()})
 
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			if calls.Add(1) == 1 {
-				w.Header().Set("Retry-After", "0")
-				w.WriteHeader(http.StatusServiceUnavailable)
-
-				return
+			if !errors.Is(err, jev.ErrUnprocessableEntity) {
+				t.Fatalf("error got %v, want ErrUnprocessableEntity", err)
 			}
 
-			_, _ = io.WriteString(w, shortAnswer)
-		}))
-		defer server.Close()
-
-		client, clock := newTestClient(t, server.URL)
-
-		if _, err := client.SystemOne(t.Context(), jev.Request{State: "x", Questions: oneNoul()}); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-
-		if slept := clock.Slept(); len(slept) != 1 || slept[0] != 500*time.Millisecond {
-			t.Errorf("waits got %v, want the 500ms floor", slept)
-		}
-	})
-
-	t.Run("should not retry a 422", func(t *testing.T) {
-		t.Parallel()
-
-		var calls atomic.Int32
-
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			calls.Add(1)
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusUnprocessableEntity)
-			_, _ = io.WriteString(w, `{"detail":[{"loc":["body","state"],"msg":"field required"}]}`)
-		}))
-		defer server.Close()
-
-		client, _ := newTestClient(t, server.URL)
-
-		_, err := client.SystemOne(t.Context(), jev.Request{State: "x", Questions: oneNoul()})
-
-		if !errors.Is(err, jev.ErrUnprocessableEntity) {
-			t.Fatalf("error got %v, want ErrUnprocessableEntity", err)
-		}
-
-		if calls.Load() != 1 {
-			t.Errorf("call count got %d, want 1", calls.Load())
-		}
-	})
-
-	t.Run("should give up after MaxRetries and return the last error", func(t *testing.T) {
-		t.Parallel()
-
-		var calls atomic.Int32
-
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			calls.Add(1)
-			w.WriteHeader(529)
-		}))
-		defer server.Close()
-
-		client, clock := newTestClient(t, server.URL)
-
-		_, err := client.SystemOne(t.Context(), jev.Request{State: "x", Questions: oneNoul()})
-
-		if !errors.Is(err, jev.ErrServer) {
-			t.Fatalf("error got %v, want ErrServer", err)
-		}
-
-		if calls.Load() != 3 {
-			t.Errorf("call count got %d, want 3, one attempt plus two retries", calls.Load())
-		}
-
-		want := []time.Duration{500 * time.Millisecond, time.Second}
-		slept := clock.Slept()
-
-		if len(slept) != len(want) {
-			t.Fatalf("waits got %v, want %v", slept, want)
-		}
-
-		for i, d := range want {
-			if slept[i] != d {
-				t.Errorf("wait %d got %v, want %v", i, slept[i], d)
+			if calls.Load() != 1 {
+				t.Errorf("call count got %d, want 1", calls.Load())
 			}
-		}
-	})
+		})
 
-	t.Run("should retry a connection failure when the policy allows it", func(t *testing.T) {
-		t.Parallel()
+		t.Run("should give up after MaxRetries and return the last error", func(t *testing.T) {
+			t.Parallel()
 
-		var calls atomic.Int32
+			var calls atomic.Int32
 
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			if calls.Add(1) == 1 {
-				// Hijack and close without a response, which the client sees as a connection error.
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				calls.Add(1)
+				w.WriteHeader(529)
+			}))
+			defer server.Close()
+
+			client, clock := newTestClient(t, server.URL)
+
+			_, err := client.SystemOne(t.Context(), jev.Request{State: "x", Questions: oneNoul()})
+
+			if !errors.Is(err, jev.ErrServer) {
+				t.Fatalf("error got %v, want ErrServer", err)
+			}
+
+			if calls.Load() != 3 {
+				t.Errorf("call count got %d, want 3, one attempt plus two retries", calls.Load())
+			}
+
+			want := []time.Duration{500 * time.Millisecond, time.Second}
+			slept := clock.Slept()
+
+			if len(slept) != len(want) {
+				t.Fatalf("waits got %v, want %v", slept, want)
+			}
+
+			for i, d := range want {
+				if slept[i] != d {
+					t.Errorf("wait %d got %v, want %v", i, slept[i], d)
+				}
+			}
+		})
+
+		t.Run("should retry a connection failure when the policy allows it", func(t *testing.T) {
+			t.Parallel()
+
+			var calls atomic.Int32
+
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				if calls.Add(1) == 1 {
+					// Hijack and close without a response, which the client sees as a connection error.
+					hijacker, ok := w.(http.Hijacker)
+					if !ok {
+						return
+					}
+
+					conn, _, hijackErr := hijacker.Hijack()
+					if hijackErr != nil {
+						return
+					}
+
+					_ = conn.Close()
+
+					return
+				}
+
+				_, _ = io.WriteString(w, shortAnswer)
+			}))
+			defer server.Close()
+
+			client, clock := newTestClient(t, server.URL)
+
+			if _, err := client.SystemOne(t.Context(), jev.Request{State: "x", Questions: oneNoul()}); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if calls.Load() != 2 {
+				t.Errorf("call count got %d, want 2", calls.Load())
+			}
+
+			if len(clock.Slept()) != 1 {
+				t.Errorf("waits got %v, want one", clock.Slept())
+			}
+		})
+
+		t.Run("should not retry a connection failure when RetryConnection is off", func(t *testing.T) {
+			t.Parallel()
+
+			var calls atomic.Int32
+
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				calls.Add(1)
+
 				hijacker, ok := w.(http.Hijacker)
 				if !ok {
 					return
@@ -656,233 +697,192 @@ func TestSystemOneRetry(t *testing.T) {
 				}
 
 				_ = conn.Close()
+			}))
+			defer server.Close()
 
-				return
+			policy := jev.DefaultRetryPolicy()
+			policy.RetryConnection = false
+
+			client, _ := newTestClient(t, server.URL, jev.WithRetry(policy))
+
+			_, err := client.SystemOne(t.Context(), jev.Request{State: "x", Questions: oneNoul()})
+
+			if !errors.Is(err, jev.ErrConnection) {
+				t.Fatalf("error got %v, want ErrConnection", err)
 			}
 
-			_, _ = io.WriteString(w, shortAnswer)
-		}))
-		defer server.Close()
-
-		client, clock := newTestClient(t, server.URL)
-
-		if _, err := client.SystemOne(t.Context(), jev.Request{State: "x", Questions: oneNoul()}); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-
-		if calls.Load() != 2 {
-			t.Errorf("call count got %d, want 2", calls.Load())
-		}
-
-		if len(clock.Slept()) != 1 {
-			t.Errorf("waits got %v, want one", clock.Slept())
-		}
-	})
-
-	t.Run("should not retry a connection failure when RetryConnection is off", func(t *testing.T) {
-		t.Parallel()
-
-		var calls atomic.Int32
-
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			calls.Add(1)
-
-			hijacker, ok := w.(http.Hijacker)
-			if !ok {
-				return
+			if calls.Load() != 1 {
+				t.Errorf("call count got %d, want 1", calls.Load())
 			}
-
-			conn, _, hijackErr := hijacker.Hijack()
-			if hijackErr != nil {
-				return
-			}
-
-			_ = conn.Close()
-		}))
-		defer server.Close()
-
-		policy := jev.DefaultRetryPolicy()
-		policy.RetryConnection = false
-
-		client, _ := newTestClient(t, server.URL, jev.WithRetry(policy))
-
-		_, err := client.SystemOne(t.Context(), jev.Request{State: "x", Questions: oneNoul()})
-
-		if !errors.Is(err, jev.ErrConnection) {
-			t.Fatalf("error got %v, want ErrConnection", err)
-		}
-
-		if calls.Load() != 1 {
-			t.Errorf("call count got %d, want 1", calls.Load())
-		}
-	})
-
-	t.Run("should respect a per call retry override", func(t *testing.T) {
-		t.Parallel()
-
-		var calls atomic.Int32
-
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			calls.Add(1)
-			w.WriteHeader(http.StatusServiceUnavailable)
-		}))
-		defer server.Close()
-
-		client, _ := newTestClient(t, server.URL)
-
-		policy := client.RetryPolicy()
-		policy.MaxRetries = 0
-
-		_, err := client.SystemOne(
-			t.Context(),
-			jev.Request{State: "x", Questions: oneNoul()},
-			jev.WithRequestRetry(policy),
-		)
-		if err == nil {
-			t.Fatalf("expected an error, got none")
-		}
-
-		if calls.Load() != 1 {
-			t.Errorf("call count got %d, want 1", calls.Load())
-		}
-	})
-}
-
-func TestSystemOneCancellation(t *testing.T) {
-	t.Parallel()
-
-	blockingServer := func(t *testing.T) *httptest.Server {
-		t.Helper()
-
-		release := make(chan struct{})
-
-		server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
-			<-release
-		}))
-
-		t.Cleanup(func() {
-			close(release)
-			server.Close()
 		})
 
-		return server
-	}
+		t.Run("should respect a per call retry override", func(t *testing.T) {
+			t.Parallel()
 
-	t.Run("should return the context error when the caller cancels", func(t *testing.T) {
+			var calls atomic.Int32
+
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				calls.Add(1)
+				w.WriteHeader(http.StatusServiceUnavailable)
+			}))
+			defer server.Close()
+
+			client, _ := newTestClient(t, server.URL)
+
+			policy := client.RetryPolicy()
+			policy.MaxRetries = 0
+
+			_, err := client.SystemOne(
+				t.Context(),
+				jev.Request{State: "x", Questions: oneNoul()},
+				jev.WithRequestRetry(policy),
+			)
+			if err == nil {
+				t.Fatalf("expected an error, got none")
+			}
+
+			if calls.Load() != 1 {
+				t.Errorf("call count got %d, want 1", calls.Load())
+			}
+		})
+	})
+
+	t.Run("should stop a request that is cancelled or times out", func(t *testing.T) {
 		t.Parallel()
 
-		client, _ := newTestClient(t, blockingServer(t).URL)
+		blockingServer := func(t *testing.T) *httptest.Server {
+			t.Helper()
 
-		ctx, cancel := context.WithCancel(t.Context())
-		go func() {
-			time.Sleep(20 * time.Millisecond)
+			release := make(chan struct{})
+
+			server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+				<-release
+			}))
+
+			t.Cleanup(func() {
+				close(release)
+				server.Close()
+			})
+
+			return server
+		}
+
+		t.Run("should return the context error when the caller cancels", func(t *testing.T) {
+			t.Parallel()
+
+			client, _ := newTestClient(t, blockingServer(t).URL)
+
+			ctx, cancel := context.WithCancel(t.Context())
+			go func() {
+				time.Sleep(20 * time.Millisecond)
+				cancel()
+			}()
+
+			_, err := client.SystemOne(ctx, jev.Request{State: "x", Questions: oneNoul()})
+
+			if !errors.Is(err, context.Canceled) {
+				t.Errorf("error got %v, want context.Canceled", err)
+			}
+		})
+
+		t.Run("should report a timeout as a connection error", func(t *testing.T) {
+			t.Parallel()
+
+			policy := jev.DefaultRetryPolicy()
+			policy.MaxRetries = 0
+
+			client, _ := newTestClient(t, blockingServer(t).URL, jev.WithRetry(policy))
+
+			_, err := client.SystemOne(
+				t.Context(),
+				jev.Request{State: "x", Questions: oneNoul()},
+				jev.WithRequestAttemptTimeout(30*time.Millisecond),
+			)
+
+			if !errors.Is(err, jev.ErrTimeout) {
+				t.Fatalf("error got %v, want ErrTimeout", err)
+			}
+
+			if !errors.Is(err, jev.ErrConnection) {
+				t.Errorf("a timeout should also match ErrConnection")
+			}
+		})
+
+		t.Run("should give each attempt a fresh timeout rather than one budget", func(t *testing.T) {
+			t.Parallel()
+
+			var calls atomic.Int32
+
+			release := make(chan struct{})
+
+			server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+				calls.Add(1)
+				<-release
+			}))
+
+			defer func() {
+				close(release)
+				server.Close()
+			}()
+
+			client, _ := newTestClient(t, server.URL)
+
+			_, err := client.SystemOne(
+				t.Context(),
+				jev.Request{State: "x", Questions: oneNoul()},
+				jev.WithRequestAttemptTimeout(30*time.Millisecond),
+			)
+
+			if !errors.Is(err, jev.ErrTimeout) {
+				t.Fatalf("error got %v, want ErrTimeout", err)
+			}
+
+			// Three attempts each got their own deadline, proving the budget is not shared.
+			if calls.Load() != 3 {
+				t.Errorf("call count got %d, want 3", calls.Load())
+			}
+		})
+
+		t.Run("should abort while waiting to retry", func(t *testing.T) {
+			t.Parallel()
+
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(http.StatusServiceUnavailable)
+			}))
+			defer server.Close()
+
+			ctx, cancel := context.WithCancel(t.Context())
+
+			// The mock clock returns immediately, so cancel before the call to make the wait the
+			// first thing that observes the cancellation.
 			cancel()
-		}()
 
-		_, err := client.SystemOne(ctx, jev.Request{State: "x", Questions: oneNoul()})
+			client, _ := newTestClient(t, server.URL)
 
-		if !errors.Is(err, context.Canceled) {
-			t.Errorf("error got %v, want context.Canceled", err)
-		}
-	})
+			_, err := client.SystemOne(ctx, jev.Request{State: "x", Questions: oneNoul()})
 
-	t.Run("should report a timeout as a connection error", func(t *testing.T) {
-		t.Parallel()
+			if !errors.Is(err, context.Canceled) {
+				t.Errorf("error got %v, want context.Canceled", err)
+			}
+		})
 
-		policy := jev.DefaultRetryPolicy()
-		policy.MaxRetries = 0
+		t.Run("should honour a total timeout across retries", func(t *testing.T) {
+			t.Parallel()
 
-		client, _ := newTestClient(t, blockingServer(t).URL, jev.WithRetry(policy))
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				time.Sleep(20 * time.Millisecond)
+				w.WriteHeader(http.StatusServiceUnavailable)
+			}))
+			defer server.Close()
 
-		_, err := client.SystemOne(
-			t.Context(),
-			jev.Request{State: "x", Questions: oneNoul()},
-			jev.WithRequestAttemptTimeout(30*time.Millisecond),
-		)
+			client, _ := newTestClient(t, server.URL, jev.WithTotalTimeout(30*time.Millisecond))
 
-		if !errors.Is(err, jev.ErrTimeout) {
-			t.Fatalf("error got %v, want ErrTimeout", err)
-		}
+			_, err := client.SystemOne(t.Context(), jev.Request{State: "x", Questions: oneNoul()})
 
-		if !errors.Is(err, jev.ErrConnection) {
-			t.Errorf("a timeout should also match ErrConnection")
-		}
-	})
-
-	t.Run("should give each attempt a fresh timeout rather than one budget", func(t *testing.T) {
-		t.Parallel()
-
-		var calls atomic.Int32
-
-		release := make(chan struct{})
-
-		server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
-			calls.Add(1)
-			<-release
-		}))
-
-		defer func() {
-			close(release)
-			server.Close()
-		}()
-
-		client, _ := newTestClient(t, server.URL)
-
-		_, err := client.SystemOne(
-			t.Context(),
-			jev.Request{State: "x", Questions: oneNoul()},
-			jev.WithRequestAttemptTimeout(30*time.Millisecond),
-		)
-
-		if !errors.Is(err, jev.ErrTimeout) {
-			t.Fatalf("error got %v, want ErrTimeout", err)
-		}
-
-		// Three attempts each got their own deadline, proving the budget is not shared.
-		if calls.Load() != 3 {
-			t.Errorf("call count got %d, want 3", calls.Load())
-		}
-	})
-
-	t.Run("should abort while waiting to retry", func(t *testing.T) {
-		t.Parallel()
-
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			w.WriteHeader(http.StatusServiceUnavailable)
-		}))
-		defer server.Close()
-
-		ctx, cancel := context.WithCancel(t.Context())
-
-		// The mock clock returns immediately, so cancel before the call to make the wait the
-		// first thing that observes the cancellation.
-		cancel()
-
-		client, _ := newTestClient(t, server.URL)
-
-		_, err := client.SystemOne(ctx, jev.Request{State: "x", Questions: oneNoul()})
-
-		if !errors.Is(err, context.Canceled) {
-			t.Errorf("error got %v, want context.Canceled", err)
-		}
-	})
-
-	t.Run("should honour a total timeout across retries", func(t *testing.T) {
-		t.Parallel()
-
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			time.Sleep(20 * time.Millisecond)
-			w.WriteHeader(http.StatusServiceUnavailable)
-		}))
-		defer server.Close()
-
-		client, _ := newTestClient(t, server.URL, jev.WithTotalTimeout(30*time.Millisecond))
-
-		_, err := client.SystemOne(t.Context(), jev.Request{State: "x", Questions: oneNoul()})
-
-		if !errors.Is(err, context.DeadlineExceeded) {
-			t.Errorf("error got %v, want context.DeadlineExceeded", err)
-		}
+			if !errors.Is(err, context.DeadlineExceeded) {
+				t.Errorf("error got %v, want context.DeadlineExceeded", err)
+			}
+		})
 	})
 }
 
