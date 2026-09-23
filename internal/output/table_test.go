@@ -268,6 +268,41 @@ func TestWriteTable(t *testing.T) {
 			},
 			contains: []string{"█"},
 		},
+		{
+			name: "should print the decision beside the probability for a decided yes/no answer",
+			rec: output.Record{
+				Model: "jev-1.13.0",
+				Answers: []output.Named{{ID: "urgent", Answer: &answer.Answer{
+					Value: 0.92, Decided: true, Decision: true,
+				}}},
+			},
+			columns:  80,
+			contains: []string{"\nurgent  true  0.9200"},
+		},
+		{
+			name: "should print the bare probability for an undecided yes/no answer",
+			rec: output.Record{
+				Model:   "jev-1.13.0",
+				Answers: []output.Named{{ID: "urgent", Answer: &answer.Answer{Value: 0.92}}},
+			},
+			columns:  80,
+			contains: []string{"urgent  0.9200"},
+		},
+		{
+			name: "should leave a decided pick answer unchanged",
+			rec: output.Record{
+				Model: "jev-1.13.0",
+				Answers: []output.Named{{ID: "team", Answer: &answer.Answer{
+					Value: "billing", Decided: true, Decision: "human",
+					P: &answer.Probabilities{
+						Keys:   []string{"billing"},
+						Values: map[string]float64{"billing": 0.41},
+					},
+				}}},
+			},
+			columns:  80,
+			contains: []string{"\nteam  human\n"},
+		},
 	}
 
 	for _, tc := range tests {

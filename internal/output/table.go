@@ -98,9 +98,15 @@ func writeBlock(w io.Writer, named Named, bars int) error {
 	headline := fmt.Sprintf("%v", scalar(a))
 
 	// A bare probability reads better at a fixed four places than in Go's shortest form, and a
-	// question with a distribution puts its numbers in the rows below instead.
+	// question with a distribution puts its numbers in the rows below instead. The decision is
+	// what the exit code follows, and the probability beside it is how close the call was.
 	if probability, ok := a.Value.(float64); ok && a.P == nil {
-		headline = strconv.FormatFloat(probability, 'f', 4, 64)
+		formatted := strconv.FormatFloat(probability, 'f', 4, 64)
+
+		headline = formatted
+		if a.Decided {
+			headline = fmt.Sprintf("%v  %s", a.Decision, formatted)
+		}
 	}
 
 	if _, err := fmt.Fprintf(w, "\n%s  %s\n", named.ID, headline); err != nil {
