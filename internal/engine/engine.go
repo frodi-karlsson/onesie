@@ -1,16 +1,12 @@
-// Package engine runs one evaluation per input record, bounded by concurrency and ordered by input
-// position. It knows nothing about HTTP, answers or output formats.
+// Package engine runs one evaluation per record the source yields, bounded by concurrency and
+// ordered by input position. It knows nothing about HTTP, answers or output formats.
 package engine
 
-import (
-	"context"
-
-	"github.com/frodi-karlsson/jev-cli/internal/input"
-)
+import "context"
 
 // Run evaluates every record the source yields and writes one line per record. It returns when the
 // input is exhausted or the run aborts.
-func Run[T any](ctx context.Context, cfg Config[T]) (Result, error) {
+func Run[R, T any](ctx context.Context, cfg Config[R, T]) (Result, error) {
 	if cfg.Jobs < 1 {
 		cfg.Jobs = 1
 	}
@@ -24,9 +20,9 @@ func Run[T any](ctx context.Context, cfg Config[T]) (Result, error) {
 
 // Config is everything Run needs. Every dependency is injected, so the engine is tested with no
 // network and no files.
-type Config[T any] struct {
-	Source   Source
-	Evaluate func(context.Context, input.Record) (T, error)
+type Config[R, T any] struct {
+	Source   Source[R]
+	Evaluate func(context.Context, R) (T, error)
 	Write    func(T) error
 
 	Jobs        int
@@ -44,8 +40,8 @@ type Config[T any] struct {
 }
 
 // Source yields records in input order. The second result is false at end of input.
-type Source interface {
-	Next() (input.Record, bool, error)
+type Source[R any] interface {
+	Next() (R, bool, error)
 }
 
 // Result reports what happened, so the caller can choose an exit code.
@@ -61,8 +57,8 @@ type Result struct {
 	Fatal error
 }
 
-type job[T any] struct {
-	record input.Record
+type job[R, T any] struct {
+	record R
 	out    chan outcome[T]
 }
 

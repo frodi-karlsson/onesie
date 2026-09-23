@@ -5,11 +5,11 @@ import (
 	"sync"
 )
 
-func runUnordered[T any](ctx context.Context, cfg Config[T]) (Result, error) {
+func runUnordered[R, T any](ctx context.Context, cfg Config[R, T]) (Result, error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	jobs := make(chan job[T])
+	jobs := make(chan job[R, T])
 	done := make(chan outcome[T], cfg.Jobs)
 	failed := make(chan error, 1)
 
@@ -62,7 +62,7 @@ func runUnordered[T any](ctx context.Context, cfg Config[T]) (Result, error) {
 			}
 
 			select {
-			case jobs <- job[T]{record: rec}:
+			case jobs <- job[R, T]{record: rec}:
 			case <-ctx.Done():
 				return
 			}
@@ -93,10 +93,10 @@ func runUnordered[T any](ctx context.Context, cfg Config[T]) (Result, error) {
 	}
 }
 
-func drain[T any](
+func drain[R, T any](
 	ctx context.Context,
 	cancel context.CancelFunc,
-	cfg Config[T],
+	cfg Config[R, T],
 	done <-chan outcome[T],
 ) Result {
 	var result Result

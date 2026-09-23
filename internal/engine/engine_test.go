@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -75,7 +76,7 @@ func TestRun(t *testing.T) {
 				written []string
 			)
 
-			result, err := engine.Run(t.Context(), engine.Config[string]{
+			result, err := engine.Run(t.Context(), engine.Config[input.Record, string]{
 				Source: &counting{total: tc.records},
 				Evaluate: func(_ context.Context, rec input.Record) (string, error) {
 					if tc.failAt[rec.Index] {
@@ -121,6 +122,51 @@ func TestRun(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("should run over a source of any record type", func(t *testing.T) {
+		t.Parallel()
+
+		source := &sliceSource[string]{items: []string{"a", "b", "c"}}
+
+		var written []string
+
+		result, err := engine.Run(t.Context(), engine.Config[string, string]{
+			Source:   source,
+			Evaluate: func(_ context.Context, rec string) (string, error) { return rec + "!", nil },
+			Write:    func(line string) error { written = append(written, line); return nil },
+			Jobs:     1,
+		})
+		if err != nil {
+			t.Fatalf("Run: %v", err)
+		}
+
+		if result.Records != 3 {
+			t.Errorf("Records = %d, want 3", result.Records)
+		}
+
+		want := []string{"a!", "b!", "c!"}
+		if !slices.Equal(written, want) {
+			t.Errorf("written = %v, want %v", written, want)
+		}
+	})
+}
+
+type sliceSource[R any] struct {
+	items []R
+	at    int
+}
+
+func (s *sliceSource[R]) Next() (R, bool, error) {
+	if s.at >= len(s.items) {
+		var zero R
+
+		return zero, false, nil
+	}
+
+	item := s.items[s.at]
+	s.at++
+
+	return item, true, nil
 }
 
 func TestRunOrdering(t *testing.T) {
@@ -136,7 +182,7 @@ func TestRunOrdering(t *testing.T) {
 			written []string
 		)
 
-		result, err := engine.Run(t.Context(), engine.Config[string]{
+		result, err := engine.Run(t.Context(), engine.Config[input.Record, string]{
 			Source: &counting{total: 12},
 			Evaluate: func(_ context.Context, rec input.Record) (string, error) {
 				if rec.Index == 0 {
@@ -187,7 +233,7 @@ func TestRunConcurrencyBound(t *testing.T) {
 
 		const jobs = 4
 
-		_, err := engine.Run(t.Context(), engine.Config[string]{
+		_, err := engine.Run(t.Context(), engine.Config[input.Record, string]{
 			Source: &counting{total: 200},
 			Evaluate: func(_ context.Context, rec input.Record) (string, error) {
 				current := live.Add(1)
@@ -239,7 +285,7 @@ func TestRunWriteFailure(t *testing.T) {
 
 			// Nothing is asserted in here. Logging to a test that has already failed its timeout
 			// panics, which would mask the deadlock message with an unrelated failure.
-			result, runErr = engine.Run(t.Context(), engine.Config[string]{
+			result, runErr = engine.Run(t.Context(), engine.Config[input.Record, string]{
 				Source: &counting{total: 500},
 				Evaluate: func(_ context.Context, rec input.Record) (string, error) {
 					return strconv.Itoa(rec.Index), nil
@@ -271,7 +317,7 @@ func TestRunWriteFailure(t *testing.T) {
 
 		boom := errors.New("could not merge into the input line")
 
-		result, err := engine.Run(t.Context(), engine.Config[string]{
+		result, err := engine.Run(t.Context(), engine.Config[input.Record, string]{
 			Source: &counting{total: 10},
 			Evaluate: func(_ context.Context, rec input.Record) (string, error) {
 				return strconv.Itoa(rec.Index), nil
@@ -304,7 +350,7 @@ func TestRunAbort(t *testing.T) {
 				written []string
 			)
 
-			result, err := engine.Run(t.Context(), engine.Config[string]{
+			result, err := engine.Run(t.Context(), engine.Config[input.Record, string]{
 				Source: &counting{total: 200},
 				Evaluate: func(ctx context.Context, rec input.Record) (string, error) {
 					if rec.Index == 10 {

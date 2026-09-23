@@ -97,7 +97,7 @@ func streamRequests(
 	model := jev.ResolveModel(built.Model, settings.lookupEnv)
 	out := cmd.OutOrStdout()
 
-	result, err := engine.Run(cmd.Context(), engine.Config[[]byte]{
+	result, err := engine.Run(cmd.Context(), engine.Config[input.Record, []byte]{
 		Source: input.NewStream(settings.stdin, inputMode, flags.skipBlank),
 		Evaluate: func(_ context.Context, rec input.Record) ([]byte, error) {
 			if rec.Err != nil {

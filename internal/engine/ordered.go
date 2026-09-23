@@ -8,11 +8,11 @@ import (
 	"syscall"
 )
 
-func runOrdered[T any](ctx context.Context, cfg Config[T]) (Result, error) {
+func runOrdered[R, T any](ctx context.Context, cfg Config[R, T]) (Result, error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	jobs := make(chan job[T])
+	jobs := make(chan job[R, T])
 	queue := make(chan chan outcome[T], fifoCap(cfg.Jobs))
 	failed := make(chan error, 1)
 
@@ -73,10 +73,10 @@ func fifoCap(jobs int) int {
 	return jobs - 1
 }
 
-func dispatch[T any](
+func dispatch[R, T any](
 	ctx context.Context,
-	cfg Config[T],
-	jobs chan<- job[T],
+	cfg Config[R, T],
+	jobs chan<- job[R, T],
 	queue chan<- chan outcome[T],
 	failed chan<- error,
 ) {
@@ -117,17 +117,17 @@ func dispatch[T any](
 		}
 
 		select {
-		case jobs <- job[T]{record: rec, out: out}:
+		case jobs <- job[R, T]{record: rec, out: out}:
 		case <-ctx.Done():
 			return
 		}
 	}
 }
 
-func consume[T any](
+func consume[R, T any](
 	ctx context.Context,
 	cancel context.CancelFunc,
-	cfg Config[T],
+	cfg Config[R, T],
 	queue <-chan chan outcome[T],
 ) Result {
 	var result Result
@@ -192,7 +192,7 @@ func consume[T any](
 	return result
 }
 
-func flush[T any](cfg Config[T], queue <-chan chan outcome[T], result *Result) {
+func flush[R, T any](cfg Config[R, T], queue <-chan chan outcome[T], result *Result) {
 	for {
 		select {
 		case out, ok := <-queue:
@@ -217,7 +217,7 @@ func flush[T any](cfg Config[T], queue <-chan chan outcome[T], result *Result) {
 	}
 }
 
-func emit[T any](cfg Config[T], got outcome[T], result *Result) bool {
+func emit[R, T any](cfg Config[R, T], got outcome[T], result *Result) bool {
 	result.Records++
 
 	if got.err != nil {
@@ -251,7 +251,7 @@ func BrokenPipe(err error) bool {
 	return errors.Is(err, syscall.EPIPE) || errors.Is(err, io.ErrClosedPipe)
 }
 
-func aborts[T any](cfg Config[T], err error) bool {
+func aborts[R, T any](cfg Config[R, T], err error) bool {
 	if err == nil {
 		return false
 	}
@@ -263,6 +263,6 @@ func aborts[T any](cfg Config[T], err error) bool {
 	return cfg.StopOnError
 }
 
-func stops[T any](cfg Config[T], line T) bool {
+func stops[R, T any](cfg Config[R, T], line T) bool {
 	return cfg.Stop != nil && cfg.Stop(line)
 }

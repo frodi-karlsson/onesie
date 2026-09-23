@@ -220,7 +220,7 @@ func stream(
 	out := cmd.OutOrStdout()
 	merge := merging(flags)
 
-	result, err := engine.Run(cmd.Context(), engine.Config[line]{
+	result, err := engine.Run(cmd.Context(), engine.Config[input.Record, line]{
 		Source: source,
 		Evaluate: func(ctx context.Context, rec input.Record) (line, error) {
 			if rec.Err != nil {

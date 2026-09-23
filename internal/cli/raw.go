@@ -33,7 +33,7 @@ func streamRaw(
 
 	out := cmd.OutOrStdout()
 
-	result, err := engine.Run(cmd.Context(), engine.Config[[]byte]{
+	result, err := engine.Run(cmd.Context(), engine.Config[input.Record, []byte]{
 		Source: input.NewStream(settings.stdin, input.Request, flags.skipBlank),
 		Evaluate: func(ctx context.Context, rec input.Record) ([]byte, error) {
 			if rec.Err != nil {

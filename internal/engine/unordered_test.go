@@ -26,7 +26,7 @@ func TestRunUnordered(t *testing.T) {
 			written []string
 		)
 
-		result, err := engine.Run(t.Context(), engine.Config[string]{
+		result, err := engine.Run(t.Context(), engine.Config[input.Record, string]{
 			Source: &counting{total: 100},
 			Evaluate: func(_ context.Context, rec input.Record) (string, error) {
 				return strconv.Itoa(rec.Index), nil
@@ -79,7 +79,7 @@ func TestRunUnordered(t *testing.T) {
 			written []string
 		)
 
-		if _, err := engine.Run(t.Context(), engine.Config[string]{
+		if _, err := engine.Run(t.Context(), engine.Config[input.Record, string]{
 			Source: &counting{total: 20},
 			Evaluate: func(_ context.Context, rec input.Record) (string, error) {
 				if rec.Index == 0 {
@@ -121,7 +121,7 @@ func TestRunUnordered(t *testing.T) {
 
 		const jobs = 4
 
-		if _, err := engine.Run(t.Context(), engine.Config[string]{
+		if _, err := engine.Run(t.Context(), engine.Config[input.Record, string]{
 			Source: &counting{total: 200},
 			Evaluate: func(_ context.Context, rec input.Record) (string, error) {
 				current := live.Add(1)
@@ -157,7 +157,7 @@ func TestRunUnordered(t *testing.T) {
 
 		var written atomic.Int64
 
-		result, err := engine.Run(t.Context(), engine.Config[string]{
+		result, err := engine.Run(t.Context(), engine.Config[input.Record, string]{
 			Source: &counting{total: 300},
 			Evaluate: func(ctx context.Context, rec input.Record) (string, error) {
 				if rec.Index == 10 {
@@ -209,7 +209,7 @@ func TestRunUnordered(t *testing.T) {
 
 			// Nothing is asserted in here. Logging to a test that has already failed its timeout
 			// panics, which would mask the hang with an unrelated failure.
-			result, runErr = engine.Run(t.Context(), engine.Config[string]{
+			result, runErr = engine.Run(t.Context(), engine.Config[input.Record, string]{
 				Source: &counting{total: 500},
 				Evaluate: func(_ context.Context, rec input.Record) (string, error) {
 					return strconv.Itoa(rec.Index), nil
