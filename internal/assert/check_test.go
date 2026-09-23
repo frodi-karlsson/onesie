@@ -318,7 +318,8 @@ func TestCheck(t *testing.T) {
 }
 
 // TestCheckedPaths is §17.3's promise as a test: every path the table allows is accepted with the
-// type the table gives it and is present in a normalized record, and everything else is rejected.
+// type the table gives it and resolves to that value in a normalized record, and everything else
+// is rejected. Check types it and Eval reads it, so the promise is proved end to end.
 func TestCheckedPaths(t *testing.T) {
 	t.Parallel()
 
@@ -353,9 +354,13 @@ func TestCheckedPaths(t *testing.T) {
 
 	// Both sides of the min-confidence branch in answer.Apply, so a decision is read back whether
 	// the model's answer stood or the fallback replaced it.
-	records := map[string]output.Record{
-		"a confident record":      fullRecord(t, built, 0.9),
-		"a low confidence record": fullRecord(t, built, 0.5),
+	records := []struct {
+		name   string
+		record output.Record
+		low    bool
+	}{
+		{name: "a confident record", record: fullRecord(t, built, 0.9)},
+		{name: "a low confidence record", record: fullRecord(t, built, 0.5), low: true},
 	}
 
 	// Every field name the record could carry, including ones belonging to another question, so a
@@ -368,82 +373,98 @@ func TestCheckedPaths(t *testing.T) {
 	tests := []struct {
 		name    string
 		id      string
-		allowed map[string]valueType
+		allowed map[string]string
+		low     map[string]string
 	}{
 		{
 			name: "should carry only a number value on a yes/no question",
 			id:   "urgent",
-			allowed: map[string]valueType{
-				"value": typeNumber,
+			allowed: map[string]string{
+				"value": "0.8",
 			},
 		},
 		{
 			name: "should carry a boolean decision on a yes/no question with a threshold",
 			id:   "gated",
-			allowed: map[string]valueType{
-				"value": typeNumber, "decision": typeBoolean, "fallback": typeString,
+			allowed: map[string]string{
+				"value": "0.8", "decision": "true", "fallback": `""`,
 			},
 		},
 		{
 			name: "should carry a fallback but no decision on a yes/no question with only a fallback",
 			id:   "guessed",
-			allowed: map[string]valueType{
-				"value": typeNumber, "fallback": typeString,
+			allowed: map[string]string{
+				"value": "0.8", "fallback": `""`,
 			},
 		},
 		{
 			name: "should carry a string value and probabilities on a pick question",
 			id:   "team",
-			allowed: map[string]valueType{
-				"value": typeString, "confidence": typeNumber,
-				"p.billing": typeNumber, "p.technical": typeNumber,
+			allowed: map[string]string{
+				"value": `"technical"`, "confidence": "0.9",
+				"p.billing": "0.25", "p.technical": "0.5",
 			},
+			low: map[string]string{"confidence": "0.5"},
 		},
 		{
 			name: "should carry a string decision on a pick question with min-confidence",
 			id:   "routed",
-			allowed: map[string]valueType{
-				"value": typeString, "confidence": typeNumber,
-				"p.billing": typeNumber, "p.technical": typeNumber,
-				"decision": typeString, "fallback": typeString,
+			allowed: map[string]string{
+				"value": `"technical"`, "confidence": "0.9",
+				"p.billing": "0.25", "p.technical": "0.5",
+				"decision": `"technical"`, "fallback": `""`,
+			},
+			low: map[string]string{
+				"confidence": "0.5", "decision": `"human"`, "fallback": `"low_confidence"`,
 			},
 		},
 		{
 			name: "should carry no decision on a pick question with min-confidence and no fallback",
 			id:   "unsure",
-			allowed: map[string]valueType{
-				"value": typeString, "confidence": typeNumber,
-				"p.billing": typeNumber, "p.technical": typeNumber,
-				"fallback": typeString,
+			allowed: map[string]string{
+				"value": `"technical"`, "confidence": "0.9",
+				"p.billing": "0.25", "p.technical": "0.5",
+				"fallback": `""`,
 			},
+			low: map[string]string{"confidence": "0.5"},
 		},
 		{
 			name: "should carry a score and a norm on a labelled rate question",
 			id:   "severity",
-			allowed: map[string]valueType{
-				"value": typeString, "confidence": typeNumber,
-				"score": typeNumber, "norm": typeNumber,
-				"p.low": typeNumber, "p.high": typeNumber, "p.critical": typeNumber,
+			allowed: map[string]string{
+				"value": `"critical"`, "confidence": "0.9",
+				"score": "1", "norm": "0.5",
+				"p.low": "0.16666666666666666", "p.high": "0.3333333333333333",
+				"p.critical": "0.5",
 			},
+			low: map[string]string{"confidence": "0.5"},
 		},
 		{
 			name: "should carry a string decision on a rate question with min-confidence",
 			id:   "graded",
-			allowed: map[string]valueType{
-				"value": typeString, "confidence": typeNumber,
-				"score": typeNumber, "norm": typeNumber,
-				"p.low": typeNumber, "p.high": typeNumber, "p.critical": typeNumber,
-				"decision": typeString, "fallback": typeString,
+			allowed: map[string]string{
+				"value": `"critical"`, "confidence": "0.9",
+				"score": "1", "norm": "0.5",
+				"p.low": "0.16666666666666666", "p.high": "0.3333333333333333",
+				"p.critical": "0.5",
+				"decision":   `"critical"`, "fallback": `""`,
+			},
+			// The fallback text repeats the model's own answer, so only fallback tells the two
+			// branches apart here. routed is the pair where decision itself changes.
+			low: map[string]string{
+				"confidence": "0.5", "fallback": `"low_confidence"`,
 			},
 		},
 		{
 			name: "should carry probabilities by index on an unlabelled rate question",
 			id:   "indexed",
-			allowed: map[string]valueType{
-				"value": typeString, "confidence": typeNumber,
-				"score": typeNumber, "norm": typeNumber,
-				`p["0"]`: typeNumber, `p["1"]`: typeNumber, `p["2"]`: typeNumber,
+			allowed: map[string]string{
+				"value": `"2"`, "confidence": "0.9",
+				"score": "1", "norm": "0.5",
+				`p["0"]`: "0.16666666666666666", `p["1"]`: "0.3333333333333333",
+				`p["2"]`: "0.5",
 			},
+			low: map[string]string{"confidence": "0.5"},
 		},
 	}
 
@@ -453,7 +474,7 @@ func TestCheckedPaths(t *testing.T) {
 
 			for _, field := range slices.Sorted(maps.Keys(tc.allowed)) {
 				path := tc.id + "." + field
-				want := tc.allowed[field]
+				want := literalType(t, tc.allowed[field])
 
 				if got, ok := probe(t, built, path); !ok || got != want {
 					t.Errorf("Check over %q typed it %v, %v, want %v, true", path, got, ok, want)
@@ -461,16 +482,15 @@ func TestCheckedPaths(t *testing.T) {
 					continue
 				}
 
-				for name, rec := range records {
-					value, ok := lookup(rec, pathSegments(t, path))
-					if !ok {
-						t.Errorf("%q is absent from %s, want a %v", path, name, want)
-
-						continue
+				for _, rec := range records {
+					literal := tc.allowed[field]
+					if override, ok := tc.low[field]; ok && rec.low {
+						literal = override
 					}
 
-					if got, known := goType(value); !known || got != want {
-						t.Errorf("%q is a %T in %s, want a %v", path, value, name, want)
+					source := path + " == " + literal
+					if !Eval(mustParse(t, source), rec.record) {
+						t.Errorf("Eval(%q) over %s = false, want true", source, rec.name)
 					}
 				}
 			}
@@ -499,14 +519,10 @@ func TestCheckedPaths(t *testing.T) {
 			t.Errorf("Check over %q typed it %v, %v, want string, true", "model", got, ok)
 		}
 
-		for name, rec := range records {
-			value, ok := lookup(rec, []string{"model"})
-			if !ok {
-				t.Fatalf("'model' is absent from %s, want a string", name)
-			}
-
-			if got, known := goType(value); !known || got != typeString {
-				t.Errorf("'model' is a %T in %s, want a string", value, name)
+		for _, rec := range records {
+			source := `model == "jev-1.13.0"`
+			if !Eval(mustParse(t, source), rec.record) {
+				t.Errorf("Eval(%q) over %s = false, want true", source, rec.name)
 			}
 		}
 	})
@@ -552,14 +568,7 @@ func probe(t *testing.T, built *plan.Plan, path string) (valueType, bool) {
 	)
 
 	for want, literal := range literals {
-		source := path + " == " + literal
-
-		expr, err := Parse(source)
-		if err != nil {
-			t.Fatalf("Parse(%q) error = %v, want no error", source, err)
-		}
-
-		if Check(expr, built) == nil {
+		if Check(mustParse(t, path+" == "+literal), built) == nil {
 			found = want
 			accepted++
 		}
@@ -572,86 +581,33 @@ func probe(t *testing.T, built *plan.Plan, path string) (valueType, bool) {
 	return found, accepted == 1
 }
 
-func pathSegments(t *testing.T, path string) []string {
+func literalType(t *testing.T, literal string) valueType {
 	t.Helper()
 
-	expr, err := Parse(path + " == 1")
+	comparison, ok := mustParse(t, literal+" == "+literal).root.(*comparisonNode)
+	if !ok {
+		t.Fatalf("Parse(%q) is not a comparison, want one", literal)
+	}
+
+	switch comparison.left.(type) {
+	case *stringNode:
+		return typeString
+	case *boolNode:
+		return typeBoolean
+	default:
+		return typeNumber
+	}
+}
+
+func mustParse(t *testing.T, source string) *Expr {
+	t.Helper()
+
+	expr, err := Parse(source)
 	if err != nil {
-		t.Fatalf("Parse(%q) error = %v, want no error", path, err)
+		t.Fatalf("Parse(%q) error = %v, want no error", source, err)
 	}
 
-	comparison, ok := expr.root.(*comparisonNode)
-	if !ok {
-		t.Fatalf("Parse(%q) root = %T, want a comparison", path, expr.root)
-	}
-
-	operand, ok := comparison.left.(*pathNode)
-	if !ok {
-		t.Fatalf("Parse(%q) left = %T, want a path", path, comparison.left)
-	}
-
-	return operand.segments
-}
-
-func lookup(rec output.Record, segments []string) (any, bool) {
-	if segments[0] == "model" {
-		return rec.Model, len(segments) == 1
-	}
-
-	at := slices.IndexFunc(rec.Answers, func(named output.Named) bool {
-		return named.ID == segments[0]
-	})
-	if at < 0 || rec.Answers[at].Answer == nil || len(segments) < 2 {
-		return nil, false
-	}
-
-	a := rec.Answers[at].Answer
-
-	switch segments[1] {
-	case "value":
-		return a.Value, len(segments) == 2 && a.Value != nil
-	case "confidence":
-		return number(a.Confidence, len(segments) == 2)
-	case "score":
-		return number(a.Score, len(segments) == 2)
-	case "norm":
-		return number(a.Norm, len(segments) == 2)
-	case "p":
-		if a.P == nil || len(segments) != 3 || !slices.Contains(a.P.Keys, segments[2]) {
-			return nil, false
-		}
-
-		value, ok := a.P.Values[segments[2]]
-
-		return value, ok
-	case "decision":
-		return a.Decision, len(segments) == 2 && a.Decided
-	case "fallback":
-		return a.Fallback, len(segments) == 2
-	default:
-		return nil, false
-	}
-}
-
-func number(value *float64, ok bool) (any, bool) {
-	if value == nil || !ok {
-		return nil, false
-	}
-
-	return *value, true
-}
-
-func goType(value any) (valueType, bool) {
-	switch value.(type) {
-	case float64:
-		return typeNumber, true
-	case string:
-		return typeString, true
-	case bool:
-		return typeBoolean, true
-	default:
-		return typeNumber, false
-	}
+	return expr
 }
 
 func fullRecord(t *testing.T, built *plan.Plan, confidence float64) output.Record {
