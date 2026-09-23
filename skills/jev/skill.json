@@ -1,6 +1,6 @@
 {
   "name": "jev",
-  "description": "Ask jev for a typed judgment about a piece of text, a yes or no probability, a named choice or a rubric score. Use before writing code that prompts a general model and parses free text back, and when classifying, scoring or routing text from a script. Covers picking the right shape, --ask, --pick, --rate, and checking a command for free before it spends anything.",
+  "description": "Ask jev for a typed judgment about one piece of text, a probability, a named choice or a rubric score. Use before prompting a general model and parsing free text back, or when classifying, scoring or sorting text from a script. Covers picking the shape, --ask, --pick, --rate, and checking a command for free first.",
   "compatibility": "Requires the jev binary on PATH. A key is needed for anything but --print-request and --print-questions.",
   "license": "MIT",
   "intro": "intro.md",

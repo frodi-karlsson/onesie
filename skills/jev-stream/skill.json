@@ -1,0 +1,37 @@
+{
+  "name": "jev-stream",
+  "description": "Run jev over many records with -i jsonl, -i lines or -i request. Covers -j concurrency, --merge, per record error records, jq consumption and freezing a run for replay. Use when evaluating a file of tickets, rows or diffs, building a pipeline that reads jev output, or debugging a batch run that exits 6 or 3.",
+  "compatibility": "Requires the jev binary on PATH.",
+  "license": "MIT",
+  "intro": "intro.md",
+  "rules": [
+    {
+      "id": "check-error-first",
+      "short": "Read .error before you read any answer.",
+      "why": "A failed record still prints a line, carrying an error key rather than answers. Answers sit at the top level keyed by question id, and only move under an answers key when --merge folds them into the input record, `--merge-key` renaming it. A missing field reads as null in `jq`, and null sorts below every number, so a threshold check with `<` silently admits a failed record as if it had passed. Verified live: a stream of three records with one bad line produced exit 6, the failed line's own record carrying `.error` and no `.urgent`, and a naive `select` let it through.",
+      "bad": "jev --ask urgent='is this urgent' -i jsonl < in.jsonl | jq -c 'select(.urgent.value < 0.8)'",
+      "good": "jev --ask urgent='is this urgent' -i jsonl < in.jsonl | jq -c 'if .error then empty else select(.urgent.value < 0.8) end'"
+    },
+    {
+      "id": "one-line-per-line",
+      "short": "Output is one line per input line, in input order, whatever -j is.",
+      "why": "Verified live: three records run with `-j 3` produced three lines back in input order, the failed second record's error line landing exactly where the second record went in. `--unordered` trades that ordering for throughput and should only be used when the consumer does not care which record a line answers."
+    },
+    {
+      "id": "exit-6-is-partial-success",
+      "short": "Exit 6 means some records failed and every line is still present.",
+      "why": "Verified live: a three record stream with one bad line exited 6 and printed all three lines, the bad one carrying `.error` in place of answers. Exit 3 is an auth abort and exit 1 under `--stop-on-assert` both truncate the stream instead, so the output is a prefix of the input and a consumer counting lines has to handle it."
+    },
+    {
+      "id": "merge-needs-a-structured-mode",
+      "short": "--merge needs a structured output, so not table and not raw.",
+      "why": "`--merge` folds the answers into the input record, which only means something in a structured mode. An absent -o, an explicit auto, and `-o values` are all accepted under a merge. `-o table` and `-o raw` are rejected with `--merge needs -o json or -o values`. The fold collides when the record already carries an answers key, which `--merge-key` renames."
+    },
+    {
+      "id": "freeze-then-replay",
+      "short": "Freeze a run with --print-request and replay it with -i request.",
+      "why": "`--print-request` over a stream writes one body per input line. `-i request` reads those bodies back and does no validation, no normalization and no policy, so a body the server would reject on its contents is sent as is and answered with its own error record. `--print-request` under `-i request` is the identity, verified byte for byte, which makes it a drop in dry run switch for a pipeline.",
+      "good": "jev -i jsonl --print-request < in.jsonl > bodies.jsonl && jev -i request < bodies.jsonl"
+    }
+  ]
+}
