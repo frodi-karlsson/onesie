@@ -184,6 +184,22 @@ func TestValidate(t *testing.T) {
 			},
 		},
 		{
+			name: "should accept a rule with bad_passes set",
+			skill: skillgen.Skill{
+				Name: "my-skill", Description: "does a thing",
+				Rules: []skillgen.Rule{
+					{ID: "r1", Short: "do it", Why: "because", Bad: "not so ok", BadPasses: true},
+				},
+			},
+		},
+		{
+			name: "should default bad_passes to false when absent",
+			skill: skillgen.Skill{
+				Name: "my-skill", Description: "does a thing",
+				Rules: []skillgen.Rule{{ID: "r1", Short: "do it", Why: "because", Bad: "not so ok"}},
+			},
+		},
+		{
 			name: "should reject an intro entry naming a file that does not exist",
 			skill: skillgen.Skill{
 				Name: "my-skill", Description: "does a thing", Intro: "intro.md",

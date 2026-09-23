@@ -82,6 +82,38 @@ func TestCheckRule(t *testing.T) {
 			exitCode: 0,
 			wantPass: false,
 			wantFail: true,
+			wantChecks: func(t *testing.T, failure string) {
+				t.Helper()
+
+				if !strings.Contains(failure, "good_fails") || !strings.Contains(failure, "supposed to fail") {
+					t.Errorf("failure = %q, want it to say the good_fails example was supposed to fail", failure)
+				}
+			},
+		},
+		{
+			name:     "should invert for a bad example marked bad_passes, passing on exit 0",
+			kind:     "bad",
+			exitCode: 0,
+			wantPass: true,
+			wantFail: false,
+		},
+		{
+			name:     "should invert for a bad example marked bad_passes, failing on exit 2",
+			kind:     "bad",
+			exitCode: 2,
+			wantPass: true,
+			wantFail: true,
+			wantChecks: func(t *testing.T, failure string) {
+				t.Helper()
+
+				if !strings.Contains(failure, "bad_passes") || !strings.Contains(failure, "supposed to pass") {
+					t.Errorf("failure = %q, want it to say the bad_passes example was supposed to pass", failure)
+				}
+
+				if strings.Contains(failure, "supposed to fail") {
+					t.Errorf("failure = %q, want it not to say the example was supposed to fail", failure)
+				}
+			},
 		},
 	}
 

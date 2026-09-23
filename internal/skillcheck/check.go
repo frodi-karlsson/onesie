@@ -1,5 +1,6 @@
 // Package skillcheck runs every rule's bad and good example in a skill through a jev dry run, per
-// spec section 6.1. A good must pass, a bad must fail, and a good marked good_fails must fail.
+// spec section 6.1. A good passes unless it carries good_fails, and a bad fails unless it carries
+// bad_passes.
 package skillcheck
 
 import (
@@ -31,7 +32,7 @@ func Check(ctx context.Context, root string, runner *Runner) (Report, error) {
 		for _, rule := range f.Skill.Rules {
 			if rule.Bad != "" {
 				if err := checkRule(
-					ctx, runner, f.Skill.Name, rule.ID, "bad", rule.Bad, false, &report,
+					ctx, runner, f.Skill.Name, rule.ID, "bad", rule.Bad, rule.BadPasses, &report,
 				); err != nil {
 					return Report{}, err
 				}
@@ -121,12 +122,14 @@ func outcomeMessage(skill, ruleID, kind string, wantPass bool, exitCode int, arg
 	var clause string
 
 	switch {
-	case wantPass:
+	case kind == "good" && wantPass:
 		clause = fmt.Sprintf("good example failed the dry run with exit %d", exitCode)
-	case kind == "bad":
-		clause = "bad example was supposed to fail the dry run but exited 0"
-	default:
+	case kind == "good":
 		clause = "good example marked good_fails was supposed to fail the dry run but exited 0"
+	case wantPass:
+		clause = fmt.Sprintf("bad example marked bad_passes was supposed to pass the dry run but exited %d", exitCode)
+	default:
+		clause = "bad example was supposed to fail the dry run but exited 0"
 	}
 
 	message := fmt.Sprintf("jev: skill '%s' rule '%s': %s\n  ran: jev %s",

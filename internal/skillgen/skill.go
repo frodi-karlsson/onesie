@@ -67,6 +67,7 @@ type Rule struct {
 	Bad       string `json:"bad,omitempty"`
 	Good      string `json:"good,omitempty"`
 	GoodFails bool   `json:"good_fails,omitempty"`
+	BadPasses bool   `json:"bad_passes,omitempty"`
 }
 
 // Validate enforces the skill.json field rules from spec section 2.1. path is the skill.json file
