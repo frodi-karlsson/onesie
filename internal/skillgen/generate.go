@@ -26,20 +26,23 @@ var mirrorDirs = []string{
 // nothing. A failure partway through the write loop can leave a partial tree, which a later
 // successful run repairs since every write is independent.
 func Generate(root string) error {
-	names, err := skillNames(root)
+	found, err := Skills(root)
 	if err != nil {
 		return err
 	}
 
 	var outputs []output
 
-	for _, name := range names {
-		built, err := skillOutputs(root, name)
+	names := make([]string, 0, len(found))
+
+	for _, f := range found {
+		built, err := skillOutputs(root, f.Dir, f.Skill)
 		if err != nil {
 			return err
 		}
 
 		outputs = append(outputs, built...)
+		names = append(names, f.Dir)
 	}
 
 	for _, out := range outputs {
@@ -57,7 +60,14 @@ func Generate(root string) error {
 	return nil
 }
 
-func skillNames(root string) ([]string, error) {
+// Found is a skill together with the directory it was read from.
+type Found struct {
+	Dir   string
+	Skill Skill
+}
+
+// Skills reads and validates every skills/*/skill.json under root, in directory order.
+func Skills(root string) ([]Found, error) {
 	skillsRoot := filepath.Join(root, skillsDir)
 
 	entries, err := os.ReadDir(skillsRoot)
@@ -69,14 +79,16 @@ func skillNames(root string) ([]string, error) {
 		return nil, fmt.Errorf("jev: %w", err)
 	}
 
-	names := make([]string, 0, len(entries))
+	var found []Found
 
 	for _, entry := range entries {
 		if !entry.IsDir() {
 			continue
 		}
 
-		if _, err := os.Stat(filepath.Join(skillsRoot, entry.Name(), "skill.json")); err != nil {
+		path := filepath.Join(skillsRoot, entry.Name(), "skill.json")
+
+		if _, err := os.Stat(path); err != nil {
 			if errors.Is(err, fs.ErrNotExist) {
 				continue
 			}
@@ -84,10 +96,15 @@ func skillNames(root string) ([]string, error) {
 			return nil, fmt.Errorf("jev: %w", err)
 		}
 
-		names = append(names, entry.Name())
+		skill, err := Load(path)
+		if err != nil {
+			return nil, err
+		}
+
+		found = append(found, Found{Dir: entry.Name(), Skill: skill})
 	}
 
-	return names, nil
+	return found, nil
 }
 
 type output struct {
@@ -95,13 +112,8 @@ type output struct {
 	content []byte
 }
 
-func skillOutputs(root, name string) ([]output, error) {
+func skillOutputs(root, name string, skill Skill) ([]output, error) {
 	skillDir := filepath.Join(root, skillsDir, name)
-
-	skill, err := Load(filepath.Join(skillDir, "skill.json"))
-	if err != nil {
-		return nil, err
-	}
 
 	intro, err := readFragment(skillDir, skill.Intro)
 	if err != nil {
