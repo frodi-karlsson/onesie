@@ -121,6 +121,10 @@ func run(
 		// The file's assertion is the same gate --assert is, §17.5, so it answers the -q rule the
 		// same way. The config is built before the file is read, which is why this is not up there
 		// with the flags.
+		if loaded.Assert != "" && !cfg.HasAssert {
+			cfg.AssertName = plan.Spelling(plan.OriginFile, "--assert")
+		}
+
 		cfg.HasAssert = cfg.HasAssert || loaded.Assert != ""
 	}
 

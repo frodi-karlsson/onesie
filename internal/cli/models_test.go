@@ -165,6 +165,16 @@ func TestNewRootCmdListModelsFlags(t *testing.T) {
 			wantErr: "jev: -q suppresses output, which leaves --list-models nothing to write",
 		},
 		{
+			name:    "should reject --assert with --list-models",
+			args:    []string{"--list-models", "--assert", "answer.value > 0.5"},
+			wantErr: "jev: --assert judges an answer, which --list-models does not produce",
+		},
+		{
+			name:    "should reject an unparseable --assert with --list-models",
+			args:    []string{"--list-models", "--assert", "nonsense syntax here !!"},
+			wantErr: "jev: --assert judges an answer, which --list-models does not produce",
+		},
+		{
 			name: "should reject --usage with --list-models",
 			args: []string{"--list-models", "--usage"},
 			wantErr: "jev: --usage reports the tokens a question cost, " +

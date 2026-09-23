@@ -632,6 +632,18 @@ func TestNewRootCmdRequestFlags(t *testing.T) {
 			wantErr: "jev: -q needs a policy to report, which -i request has none of",
 		},
 		{
+			name: "should reject --assert with -i request",
+			args: []string{"-i", "request", "--assert", "answer.value > 0.5"},
+			wantErr: "jev: --assert does not apply to -i request, " +
+				"which forwards raw responses",
+		},
+		{
+			name: "should reject an unparseable --assert with -i request",
+			args: []string{"-i", "request", "--assert", "nonsense syntax here !!"},
+			wantErr: "jev: --assert does not apply to -i request, " +
+				"which forwards raw responses",
+		},
+		{
 			name: "should reject --usage with -i request",
 			args: []string{"-i", "request", "--usage"},
 			wantErr: "jev: --usage does not apply to -i request, " +

@@ -1089,6 +1089,54 @@ func TestCheckFlags(t *testing.T) {
 			}),
 			wantErr: "jev: -i request carries its own questions. Drop --ask",
 		},
+		{
+			name: "should reject --assert with -i request",
+			cfg:  request(func(c *plan.Config) { c.HasAssert = true }),
+			wantErr: "jev: --assert does not apply to -i request, " +
+				"which forwards raw responses",
+		},
+		{
+			name: "should reject --assert with --list-models",
+			cfg: plan.Config{
+				ListModels: true, HasAssert: true, InputName: "text",
+			},
+			wantErr: "jev: --assert judges an answer, which --list-models does not produce",
+		},
+		{
+			name: "should reject --assert with --print-request",
+			cfg: plan.Config{
+				PrintRequest: true, HasAssert: true, InputName: "text",
+			},
+			wantErr: "jev: --assert judges an answer, which --print-request does not produce",
+		},
+		{
+			name: "should name the file's key when only the file carried the assertion",
+			cfg: plan.Config{
+				PrintRequest: true, HasAssert: true, AssertName: "'assert'",
+				FileName: "q.yaml", InputName: "text",
+			},
+			wantErr: "jev: 'assert' judges an answer, which --print-request does not produce",
+		},
+		{
+			name: "should accept --assert with --print-questions",
+			cfg: plan.Config{
+				PrintQuestions: true, HasAssert: true, InputName: "text",
+			},
+		},
+		{
+			name: "should reject --stop-on-assert with --print-request",
+			cfg: plan.Config{
+				PrintRequest: true, StopOnAssert: true, Streaming: true, InputName: "lines",
+			},
+			wantErr: "jev: --stop-on-assert ends a stream on a false assertion, " +
+				"which --print-request does not produce",
+		},
+		{
+			name: "should accept --stop-on-error with --print-request",
+			cfg: plan.Config{
+				PrintRequest: true, StopOnError: true, Streaming: true, InputName: "lines",
+			},
+		},
 	}
 
 	for _, tc := range tests {

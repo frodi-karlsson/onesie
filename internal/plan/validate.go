@@ -100,9 +100,13 @@ type Config struct {
 	Raw   bool
 	Quiet bool
 
-	// HasAssert records that --assert was given, which is the second way a pick or rate question
-	// satisfies the -q rule. §17.5.
+	// HasAssert records that an assertion was given, which is the second way a pick or rate
+	// question satisfies the -q rule. §17.5. A question file's top level key counts, so this is
+	// not the same as the flag being typed.
 	HasAssert bool
+	// AssertName is the assertion as the user spelled it, so a message names a file's 'assert' key
+	// when that is where the gate came from. It defaults to --assert when empty.
+	AssertName string
 
 	Output       string
 	HasState     bool
@@ -218,6 +222,8 @@ func checkListModels(cfg Config) error {
 			"which writes a fixed listing"},
 		{cfg.Raw, "jev: -r does not apply to --list-models, which writes a fixed listing"},
 		{cfg.Quiet, "jev: -q suppresses output, which leaves --list-models nothing to write"},
+		{cfg.HasAssert, "jev: --assert judges an answer, " +
+			"which --list-models does not produce"},
 		{cfg.Usage, "jev: --usage reports the tokens a question cost, " +
 			"which --list-models does not ask"},
 		{cfg.Merge, "jev: " + mergeFlag(cfg) + " needs answers to fold in, " +
@@ -279,6 +285,8 @@ func checkRequestMode(cfg Config) error {
 		{cfg.Output != "", "jev: -o does not apply to -i request, which forwards raw responses"},
 		{cfg.Raw, "jev: -r does not apply to -i request, which forwards raw responses"},
 		{cfg.Quiet, "jev: -q needs a policy to report, which -i request has none of"},
+		{cfg.HasAssert, "jev: --assert does not apply to -i request, " +
+			"which forwards raw responses"},
 		{cfg.Usage, "jev: --usage does not apply to -i request, " +
 			"whose response bodies already carry usage"},
 		{cfg.Merge, "jev: " + mergeFlag(cfg) +
@@ -333,6 +341,11 @@ func checkPrintFlags(cfg Config) error {
 		{cfg.Raw, fmt.Sprintf("jev: -r does not apply to %s, which writes %s", name, writes)},
 		{cfg.Quiet, fmt.Sprintf(
 			"jev: -q suppresses output, which leaves %s nothing to write", name)},
+		// Guarded to --print-request, since --print-questions writes the assertion into the file
+		// it prints and so is the one dry run that carries it. §17.5.
+		{cfg.PrintRequest && cfg.HasAssert, fmt.Sprintf(
+			"jev: %s judges an answer, which --print-request does not produce",
+			assertFlag(cfg))},
 		{cfg.Usage, fmt.Sprintf(
 			"jev: --usage reports the tokens a question cost, which %s does not ask", name)},
 		{cfg.Merge, fmt.Sprintf(
@@ -344,6 +357,13 @@ func checkPrintFlags(cfg Config) error {
 		{
 			cfg.PrintQuestions && cfg.HasModel,
 			"jev: -m names a model to ask, which --print-questions does not do",
+		},
+		// --stop-on-error and --unordered are absent because streamRequests honours both. Only the
+		// assertion is a judgment a dry run never makes, so only its stop condition is rejected.
+		{
+			cfg.PrintRequest && cfg.StopOnAssert,
+			"jev: --stop-on-assert ends a stream on a false assertion, " +
+				"which --print-request does not produce",
 		},
 		{cfg.Stats, fmt.Sprintf(
 			"jev: --stats has nothing to report with %s, which makes no request", name)},
@@ -376,6 +396,14 @@ func given(cfg Config, name string) bool {
 	}
 
 	return false
+}
+
+func assertFlag(cfg Config) string {
+	if cfg.AssertName == "" {
+		return "--assert"
+	}
+
+	return cfg.AssertName
 }
 
 func mergeFlag(cfg Config) string {
@@ -899,6 +927,8 @@ func Spelling(origin Origin, flag string) string {
 		return "'min_confidence'"
 	case "--fallback":
 		return "'fallback'"
+	case "--assert":
+		return "'assert'"
 	default:
 		return flag
 	}

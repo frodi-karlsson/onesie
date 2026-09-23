@@ -674,6 +674,76 @@ func TestPrintRequestMerge(t *testing.T) {
 	}
 }
 
+func TestPrintRequestAssert(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "q.yaml")
+
+	if err := os.WriteFile(path,
+		[]byte("assert: urgent.value > 0.5\nurgent:\n  ask: is this urgent\n"), 0o600); err != nil {
+		t.Fatalf("writing the question file: %v", err)
+	}
+
+	tests := []struct {
+		name  string
+		args  []string
+		stdin string
+		want  string
+	}{
+		{
+			name: "should reject a valid --assert with --print-request",
+			args: []string{
+				"is this urgent", "--print-request", "--state", "x",
+				"--assert", "answer.value > 0.99",
+			},
+			want: "jev: --assert judges an answer, which --print-request does not produce",
+		},
+		{
+			name: "should reject an unparseable --assert with --print-request",
+			args: []string{
+				"is this urgent", "--print-request", "--state", "x",
+				"--assert", "nonsense syntax here !!",
+			},
+			want: "jev: --assert judges an answer, which --print-request does not produce",
+		},
+		{
+			name: "should name the file's key when the file carried the assertion",
+			args: []string{"-f", path, "--print-request", "--state", "x"},
+			want: "jev: 'assert' judges an answer, which --print-request does not produce",
+		},
+		{
+			name:  "should reject --stop-on-assert with --print-request in a stream",
+			args:  []string{"is this urgent", "--print-request", "-i", "lines", "--stop-on-assert"},
+			stdin: "a\nb\n",
+			want: "jev: --stop-on-assert ends a stream on a false assertion, " +
+				"which --print-request does not produce",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			out, errOut, code := runOfflineStdin(t, tc.args, tc.stdin)
+
+			if code != ExitUsage {
+				t.Fatalf("exit code = %d, want %d\nstdout:\n%s\nstderr:\n%s",
+					code, ExitUsage, out, errOut)
+			}
+
+			// Nothing on stdout, which is what tells a rejected dry run from an honoured one.
+			if out != "" {
+				t.Errorf("stdout should be empty, got:\n%s", out)
+			}
+
+			if !strings.Contains(errOut, tc.want) {
+				t.Errorf("stderr = %q, want it to contain %q", errOut, tc.want)
+			}
+		})
+	}
+}
+
 func TestStreamRequests(t *testing.T) {
 	t.Parallel()
 
