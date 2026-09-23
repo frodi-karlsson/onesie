@@ -18,13 +18,14 @@ import (
 func printQuestions(
 	out, errOut io.Writer,
 	questions []plan.Question,
+	assertion string,
 	loaded *qfile.File,
 ) error {
 	if err := warnUncarried(errOut, loaded); err != nil {
 		return err
 	}
 
-	file, err := qfile.Write(questions)
+	file, err := qfile.Write(questions, assertion)
 	if err != nil {
 		return err
 	}

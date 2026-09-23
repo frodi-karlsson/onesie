@@ -15,6 +15,7 @@ func TestWrite(t *testing.T) {
 	tests := []struct {
 		name      string
 		questions []plan.Question
+		assertion string
 		want      string
 		wantErr   string
 	}{
@@ -136,6 +137,21 @@ func TestWrite(t *testing.T) {
 			want: "q:\n  ask: |-\n    line one\n    line two\n",
 		},
 		{
+			name: "should write an assertion above the questions",
+			questions: []plan.Question{
+				{ID: "urgent", Shape: plan.Noul, Instructions: "is this urgent"},
+			},
+			assertion: `urgent.value > 0.5`,
+			want:      "assert: urgent.value > 0.5\nurgent:\n  ask: is this urgent\n",
+		},
+		{
+			name: "should write no assert key for an empty assertion",
+			questions: []plan.Question{
+				{ID: "urgent", Shape: plan.Noul, Instructions: "is this urgent"},
+			},
+			want: "urgent:\n  ask: is this urgent\n",
+		},
+		{
 			name: "should reject the reserved positional id",
 			questions: []plan.Question{
 				{ID: "answer", Shape: plan.Noul, Instructions: "q"},
@@ -172,7 +188,7 @@ func TestWrite(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := qfile.Write(tc.questions)
+			got, err := qfile.Write(tc.questions, tc.assertion)
 			if tc.wantErr != "" {
 				if err == nil || err.Error() != tc.wantErr {
 					t.Fatalf("Write error = %v, want %s", err, tc.wantErr)
@@ -198,6 +214,7 @@ func TestWriteRoundTrip(t *testing.T) {
 	tests := []struct {
 		name      string
 		questions []plan.Question
+		assertion string
 	}{
 		{
 			name: "should reload a labelled rate to the same plan",
@@ -375,6 +392,33 @@ func TestWriteRoundTrip(t *testing.T) {
 			},
 		},
 		{
+			name: "should reload an assertion holding a quoted string",
+			questions: []plan.Question{
+				{
+					ID: "team", Shape: plan.Pick, Instructions: "who owns this",
+					Options: []plan.Option{{Name: "billing"}, {Name: "technical"}},
+				},
+			},
+			assertion: `team.value == "billing"`,
+		},
+		{
+			name: "should reload an assertion holding a list",
+			questions: []plan.Question{
+				{
+					ID: "team", Shape: plan.Pick, Instructions: "who owns this",
+					Options: []plan.Option{{Name: "billing"}, {Name: "technical"}},
+				},
+			},
+			assertion: `team.value in ["billing", "technical"]`,
+		},
+		{
+			name: "should reload an assertion that opens with a quoted string",
+			questions: []plan.Question{
+				{ID: "urgent", Shape: plan.Noul, Instructions: "is this urgent"},
+			},
+			assertion: `"yes" == "yes" and urgent.value > 0.5`,
+		},
+		{
 			name: "should reload all three policy keys on one question",
 			questions: []plan.Question{
 				{
@@ -393,7 +437,7 @@ func TestWriteRoundTrip(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			written, err := qfile.Write(tc.questions)
+			written, err := qfile.Write(tc.questions, tc.assertion)
 			if err != nil {
 				t.Fatalf("Write: %v", err)
 			}
@@ -401,6 +445,11 @@ func TestWriteRoundTrip(t *testing.T) {
 			reloaded, err := qfile.Load(written)
 			if err != nil {
 				t.Fatalf("Load: %v\nfile was\n%s", err, written)
+			}
+
+			if reloaded.Assert != tc.assertion {
+				t.Errorf("round trip changed the assertion\nwant %q\ngot  %q\nfile was\n%s",
+					tc.assertion, reloaded.Assert, written)
 			}
 
 			want := fileShaped(tc.questions)
@@ -411,7 +460,7 @@ func TestWriteRoundTrip(t *testing.T) {
 					want, got, written)
 			}
 
-			rewritten, err := qfile.Write(reloaded.Questions)
+			rewritten, err := qfile.Write(reloaded.Questions, reloaded.Assert)
 			if err != nil {
 				t.Fatalf("Write after Load: %v", err)
 			}

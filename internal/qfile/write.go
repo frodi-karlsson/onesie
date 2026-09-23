@@ -15,10 +15,16 @@ import (
 	"github.com/frodi-karlsson/jev-cli/internal/plan"
 )
 
-// Write renders questions as a jev question file, preserving order, labels and policy, so the
-// result reloads through Load to the same plan.
-func Write(questions []plan.Question) ([]byte, error) {
-	doc := make(yaml.MapSlice, 0, len(questions))
+// Write renders questions and an assertion as a jev question file, preserving order, labels and
+// policy, so the result reloads through Load to the same plan. An empty assertion writes no key.
+func Write(questions []plan.Question, assertion string) ([]byte, error) {
+	doc := make(yaml.MapSlice, 0, len(questions)+1)
+
+	if assertion != "" {
+		// Above the questions, because the gate reads all of them and every other top level key
+		// in the file names one.
+		doc = append(doc, yaml.MapItem{Key: "assert", Value: assertion})
+	}
 
 	for _, question := range questions {
 		if question.ID == plan.PositionalID {

@@ -116,6 +116,11 @@ func run(
 		if err != nil {
 			return err
 		}
+
+		// The file's assertion is the same gate --assert is, §17.5, so it answers the -q rule the
+		// same way. The config is built before the file is read, which is why this is not up there
+		// with the flags.
+		cfg.HasAssert = cfg.HasAssert || loaded.Assert != ""
 	}
 
 	source := plan.Source{
@@ -157,7 +162,7 @@ func run(
 	// After validation, since the checker reads a plan the run has already accepted, and before
 	// every mode below, because §17.3 has an assertion checked against the plan rather than
 	// against an answer and §11 opens with every check running before any network call.
-	gate, err := gateOf(flags.assert, built)
+	gate, err := gateOf(fileAssertion(loaded), flags.assert, built)
 	if err != nil {
 		return err
 	}
@@ -167,7 +172,7 @@ func run(
 	// would be worse than useless.
 	if flags.printQuestions {
 		return printQuestions(
-			cmd.OutOrStdout(), cmd.ErrOrStderr(), built.Questions, loaded)
+			cmd.OutOrStdout(), cmd.ErrOrStderr(), built.Questions, gate.Source(), loaded)
 	}
 
 	// Both modes are parsed before the request, so a mistyped flag costs nothing.
@@ -238,24 +243,57 @@ func run(
 	})
 }
 
-func gateOf(sources []string, built *plan.Plan) (*assert.Expr, error) {
-	exprs := make([]*assert.Expr, 0, len(sources))
+func gateOf(fileSource string, sources []string, built *plan.Plan) (*assert.Expr, error) {
+	exprs := make([]*assert.Expr, 0, len(sources)+1)
 
-	for _, source := range sources {
-		expr, err := assert.Parse(source)
+	// The file leads and the command line follows. The file's assertion is the more general gate,
+	// and argv puts --assert after the -f that named the file. §17.5 combines the two by and, and
+	// and is commutative, so the order is a matter of which one an error names first.
+	if fileSource != "" {
+		// Spelled the way the file spells it, which is the rule plan holds every other message to
+		// that names where a setting came from.
+		expr, err := gateExpr(fileSource, "'assert'", built)
 		if err != nil {
-			return nil, fmt.Errorf("jev: --assert: %w", err)
+			return nil, err
 		}
 
 		exprs = append(exprs, expr)
 	}
 
-	gate := assert.Combine(exprs...)
-	if checkErr := assert.Check(gate, built); checkErr != nil {
-		return nil, fmt.Errorf("jev: --assert: %w", checkErr)
+	for _, source := range sources {
+		expr, err := gateExpr(source, "--assert", built)
+		if err != nil {
+			return nil, err
+		}
+
+		exprs = append(exprs, expr)
 	}
 
-	return gate, nil
+	return assert.Combine(exprs...), nil
+}
+
+func gateExpr(source, named string, built *plan.Plan) (*assert.Expr, error) {
+	expr, err := assert.Parse(source)
+	if err != nil {
+		return nil, fmt.Errorf("jev: %s: %w", named, err)
+	}
+
+	// Each source is checked on its own rather than the combined gate, so a message names the one
+	// that carried the mistake. Every source is a boolean in its own right, so a combination adds
+	// nothing for the checker to reject.
+	if checkErr := assert.Check(expr, built); checkErr != nil {
+		return nil, fmt.Errorf("jev: %s: %w", named, checkErr)
+	}
+
+	return expr, nil
+}
+
+func fileAssertion(loaded *qfile.File) string {
+	if loaded == nil {
+		return ""
+	}
+
+	return loaded.Assert
 }
 
 func checkFlags(cmd *cobra.Command, cfg plan.Config) error {

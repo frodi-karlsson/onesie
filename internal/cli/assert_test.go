@@ -343,6 +343,7 @@ func runAsserted(
 	status int,
 	response string,
 	wantCode int,
+	extra ...cli.RootOption,
 ) (string, string, int64) {
 	t.Helper()
 
@@ -363,8 +364,7 @@ func runAsserted(
 
 	var out, errOut bytes.Buffer
 
-	root := cli.NewRootCmd(
-		cli.BuildInfo{Version: "1.2.3"},
+	options := []cli.RootOption{
 		cli.WithClientFactory(func(_ context.Context, opts ...jev.Option) (*jev.Client, error) {
 			// No retries. A 500 case would otherwise spend the client's backoff for no coverage.
 			policy := jev.DefaultRetryPolicy()
@@ -380,7 +380,9 @@ func runAsserted(
 		cli.WithStdinTTY(false),
 		cli.WithStdoutTTY(false),
 		cli.WithLookupEnv(func(string) (string, bool) { return "", false }),
-	)
+	}
+
+	root := cli.NewRootCmd(cli.BuildInfo{Version: "1.2.3"}, append(options, extra...)...)
 
 	root.SetOut(&out)
 	root.SetErr(&errOut)
@@ -392,4 +394,192 @@ func runAsserted(
 	}
 
 	return out.String(), errOut.String(), requests.Load()
+}
+
+func TestAssertFromFile(t *testing.T) {
+	t.Parallel()
+
+	const answered = `{"model":"jev-1.13.0","answers":{"urgent":{"type":"noul","noul":0.9}}}`
+
+	const picked = `{"model":"jev-1.13.0","answers":{"team":{"type":"choice",` +
+		`"choice":"billing","confidence":0.9,` +
+		`"probabilities":{"billing":0.8,"technical":0.2}}}}`
+
+	const question = "urgent: is this urgent\n"
+
+	tests := []struct {
+		name      string
+		file      string
+		args      []string
+		response  string
+		wantCode  int
+		contains  []string
+		missing   []string
+		wantErr   string
+		noRequest bool
+	}{
+		{
+			name:     "should exit one when the file's assertion is false",
+			file:     "assert: urgent.value > 0.95\n" + question,
+			args:     []string{"-o", "json"},
+			wantCode: cli.ExitRejected,
+			contains: []string{`"assert":false`, `"urgent":{"value":0.9}`},
+		},
+		{
+			name:     "should exit zero when the file's assertion holds",
+			file:     "assert: urgent.value > 0.5\n" + question,
+			args:     []string{"-o", "json"},
+			wantCode: cli.ExitOK,
+			contains: []string{`"urgent":{"value":0.9}`},
+			missing:  []string{"assert"},
+		},
+		{
+			name:     "should exit one when the command line's assertion is false",
+			file:     "assert: urgent.value > 0.5\n" + question,
+			args:     []string{"-o", "json", "--assert", "urgent.value > 0.95"},
+			wantCode: cli.ExitRejected,
+			contains: []string{`"assert":false`},
+		},
+		{
+			name:     "should exit one when the file's assertion is the false half",
+			file:     "assert: urgent.value > 0.95\n" + question,
+			args:     []string{"-o", "json", "--assert", "urgent.value > 0.5"},
+			wantCode: cli.ExitRejected,
+			contains: []string{`"assert":false`},
+		},
+		{
+			name:     "should exit zero when both assertions hold",
+			file:     "assert: urgent.value > 0.5\n" + question,
+			args:     []string{"-o", "json", "--assert", "urgent.value < 0.95"},
+			wantCode: cli.ExitOK,
+			missing:  []string{"assert"},
+		},
+		{
+			name:      "should name the file's key when its assertion cannot parse",
+			file:      "assert: urgent.value >\n" + question,
+			wantCode:  cli.ExitUsage,
+			wantErr:   "jev: 'assert': parse error at column 15",
+			noRequest: true,
+		},
+		{
+			name:      "should name the file's key when its assertion names an unknown question",
+			file:      "assert: sevrity.value > 0.5\n" + question,
+			wantCode:  cli.ExitUsage,
+			wantErr:   "jev: 'assert': unknown question 'sevrity'. Questions: urgent",
+			noRequest: true,
+		},
+		{
+			name:      "should name the flag when the command line's assertion is the bad one",
+			file:      "assert: urgent.value > 0.5\n" + question,
+			args:      []string{"--assert", "sevrity.value > 0.5"},
+			wantCode:  cli.ExitUsage,
+			wantErr:   "jev: --assert: unknown question 'sevrity'. Questions: urgent",
+			noRequest: true,
+		},
+		{
+			name:     "should let the file's assertion answer the quiet rule on a pick",
+			file:     "assert: team.p.billing > 0.5\nteam:\n  ask: which team\n  pick: [billing, technical]\n",
+			args:     []string{"-q"},
+			response: picked,
+			wantCode: cli.ExitOK,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			response := tc.response
+			if response == "" {
+				response = answered
+			}
+
+			out, errOut, requests := runAsserted(t,
+				append([]string{"-f", "q.yaml"}, tc.args...), 0, response, tc.wantCode,
+				cli.WithReadFile(func(string) ([]byte, error) { return []byte(tc.file), nil }))
+
+			for _, want := range tc.contains {
+				if !strings.Contains(out, want) {
+					t.Errorf("stdout missing %q\ngot:\n%s", want, out)
+				}
+			}
+
+			for _, unwanted := range tc.missing {
+				if strings.Contains(out, unwanted) {
+					t.Errorf("stdout carries %q\ngot:\n%s", unwanted, out)
+				}
+			}
+
+			if tc.wantErr == "" && errOut != "" {
+				t.Errorf("stderr = %q, want nothing", errOut)
+			}
+
+			if tc.wantErr != "" && !strings.Contains(errOut, tc.wantErr) {
+				t.Errorf("stderr = %q, want it to contain %q", errOut, tc.wantErr)
+			}
+
+			if tc.noRequest && requests != 0 {
+				t.Errorf("requests = %d, want none", requests)
+			}
+		})
+	}
+}
+
+func TestAssertPrintQuestions(t *testing.T) {
+	t.Parallel()
+
+	const question = "urgent: is this urgent\n"
+
+	tests := []struct {
+		name    string
+		file    string
+		args    []string
+		wantOut string
+	}{
+		{
+			name:    "should write the file's assertion back unchanged",
+			file:    "assert: urgent.value > 0.5\n" + question,
+			args:    []string{"-f", "q.yaml"},
+			wantOut: "assert: urgent.value > 0.5\nurgent:\n  ask: is this urgent\n",
+		},
+		{
+			name: "should write the file's assertion ahead of the command line's",
+			file: "assert: urgent.value > 0.5\n" + question,
+			args: []string{"-f", "q.yaml", "--assert", "urgent.value < 0.95"},
+			wantOut: "assert: (urgent.value > 0.5) and (urgent.value < 0.95)\n" +
+				"urgent:\n  ask: is this urgent\n",
+		},
+		{
+			name:    "should write an assertion given only on the command line",
+			args:    []string{"--ask", "urgent=is this urgent", "--assert", "urgent.value > 0.5"},
+			wantOut: "assert: urgent.value > 0.5\nurgent:\n  ask: is this urgent\n",
+		},
+		{
+			name:    "should write no assert key when nothing asserted",
+			args:    []string{"--ask", "urgent=is this urgent"},
+			wantOut: "urgent:\n  ask: is this urgent\n",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			out, errOut, requests := runAsserted(t,
+				append([]string{"--print-questions"}, tc.args...), 0, "", cli.ExitOK,
+				cli.WithReadFile(func(string) ([]byte, error) { return []byte(tc.file), nil }))
+
+			if out != tc.wantOut {
+				t.Errorf("stdout =\n%s\nwant\n%s", out, tc.wantOut)
+			}
+
+			if errOut != "" {
+				t.Errorf("stderr = %q, want nothing", errOut)
+			}
+
+			if requests != 0 {
+				t.Errorf("requests = %d, want none", requests)
+			}
+		})
+	}
 }
