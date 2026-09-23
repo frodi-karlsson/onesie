@@ -82,8 +82,6 @@ func retryAfterTooLong(header http.Header, policy RetryPolicy, now time.Time) (t
 	return delay, delay > policy.MaxRetryAfter
 }
 
-// retryDelay picks a server supplied delay when the policy allows it, otherwise capped exponential
-// backoff. random returns a value from 0 up to but excluding 1.
 func retryDelay(
 	attempt int,
 	header http.Header,
@@ -121,13 +119,15 @@ func exponential(attempt int, policy RetryPolicy) time.Duration {
 	return delay
 }
 
-// jitter is subtracted, so a delay never exceeds the value it was computed from.
 func jitter(delay time.Duration, policy RetryPolicy, random func() float64) time.Duration {
+	// Subtracted, so a delay never exceeds the value it was computed from, which holds because
+	// random returns a value at or above zero. The upper bound does the work at the other edge,
+	// since random staying below one keeps a fully jittered delay off zero.
 	return time.Duration(math.Round(float64(delay) * (1 - random()*policy.BackoffJitter)))
 }
 
-// parseRetryAfter reads the server's requested delay. Retry-After-Ms wins because it is exact.
 func parseRetryAfter(header http.Header, now time.Time) (time.Duration, bool) {
+	// Retry-After-Ms wins because it is exact.
 	if raw := header.Get(retryAfterMsHeader); raw != "" {
 		if ms, err := strconv.ParseFloat(raw, 64); err == nil && ms >= 0 {
 			return seconds(ms / 1000), true
@@ -159,11 +159,11 @@ func parseRetryAfter(header http.Header, now time.Time) (time.Duration, bool) {
 	return 0, false
 }
 
-// seconds clamps rather than relying on the conversion of a float that does not fit a Duration,
-// which the language spec leaves implementation dependent.
 func seconds(value float64) time.Duration {
 	const maxSeconds = float64(math.MaxInt64) / float64(time.Second)
 
+	// Clamped rather than relying on the conversion of a float that does not fit a Duration, which
+	// the language spec leaves implementation dependent.
 	if value >= maxSeconds {
 		return time.Duration(math.MaxInt64)
 	}

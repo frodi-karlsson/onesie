@@ -226,7 +226,6 @@ type Attempt struct {
 	Duration time.Duration
 }
 
-// do runs one logical request, retrying per the policy, and decodes a 2xx body into out.
 func (c *Client) do(
 	ctx context.Context,
 	method, path string,
@@ -327,8 +326,6 @@ func (c *Client) do(
 	}
 }
 
-// attempt is one HTTP round trip. The body is fully read under the attempt deadline, so a slow
-// body cannot outlive the timeout.
 func (c *Client) attempt(
 	ctx context.Context,
 	tag string,
@@ -358,6 +355,8 @@ func (c *Client) attempt(
 			"tag", tag,
 			"url", url,
 			"headers", redactedHeader(req.Header),
+			// Not redacted, matching the JavaScript SDK, so debug logging a request discloses its
+			// payload.
 			"body", string(payload),
 		)
 	}
@@ -378,6 +377,7 @@ func (c *Client) attempt(
 		}
 	}()
 
+	// Read fully under the attempt deadline, so a slow body cannot outlive the timeout.
 	data, err := io.ReadAll(io.LimitReader(resp.Body, c.maxResponseBytes+1))
 	if err != nil {
 		failure := classify(ctx, actx, err, cfg.attemptTimeout)
@@ -489,7 +489,6 @@ func decodeInto(res *rawResponse, out any) error {
 	return nil
 }
 
-// classify decides whether a transport failure was the caller, the attempt deadline, or the network.
 func classify(ctx, actx context.Context, err error, timeout time.Duration) error {
 	if ctx.Err() != nil {
 		return ctx.Err()

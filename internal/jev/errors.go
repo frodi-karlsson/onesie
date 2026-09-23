@@ -40,7 +40,6 @@ var (
 	ErrValidation = errors.New("invalid request")
 )
 
-// newAPIError builds the error for a non 2xx response. now resolves an HTTP date in Retry-After.
 func newAPIError(status int, header http.Header, body []byte, now time.Time) *APIError {
 	parsed := decodeBody(body)
 
@@ -97,6 +96,8 @@ func (e *APIError) Is(target error) bool {
 
 func describe(status int, body any) string {
 	if detail := extractMessage(body); detail != "" {
+		// Truncated here rather than inside extraction, so a hostile body arriving as a bare string
+		// cannot reach a log line at full length.
 		return fmt.Sprintf("jev: %d %s", status, truncate(detail))
 	}
 
@@ -112,8 +113,6 @@ func describe(status int, body any) string {
 	return fmt.Sprintf("jev: %d %s", status, truncate(string(encoded)))
 }
 
-// truncate runs after extraction, not instead of it, so a hostile body cannot reach a log line at
-// full length by arriving as a plain string.
 func truncate(raw string) string {
 	if len(raw) <= maxBodyInError {
 		return raw
@@ -122,7 +121,6 @@ func truncate(raw string) string {
 	return raw[:maxBodyInError] + "..."
 }
 
-// extractMessage walks the shapes the API uses for error bodies, most specific first.
 func extractMessage(body any) string {
 	if text, ok := body.(string); ok {
 		return text
@@ -191,7 +189,6 @@ func describeValidation(entries []any) string {
 	return strings.Join(parts, ", ")
 }
 
-// validationPath joins a FastAPI style location, dropping the leading "body" segment.
 func validationPath(loc any) string {
 	list, ok := loc.([]any)
 	if !ok {
@@ -200,6 +197,7 @@ func validationPath(loc any) string {
 
 	segments := make([]string, 0, len(list))
 
+	// A FastAPI style location, so the leading "body" segment is dropped.
 	for _, item := range list {
 		text := fmt.Sprint(item)
 		if text == "body" {
@@ -212,13 +210,13 @@ func validationPath(loc any) string {
 	return strings.Join(segments, ".")
 }
 
-// decodeBody is lenient because proxies do not always set a JSON content type.
 func decodeBody(body []byte) any {
 	if len(body) == 0 {
 		return nil
 	}
 
 	var parsed any
+	// Lenient, since proxies do not always set a JSON content type.
 	if err := json.Unmarshal(body, &parsed); err != nil {
 		return string(body)
 	}
