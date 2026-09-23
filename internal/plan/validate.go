@@ -625,7 +625,7 @@ func checkPick(q *Question) (string, error) {
 		names = append(names, option.Name)
 	}
 
-	pick := shapeName(q, "--pick")
+	pick := ShapeName(q, "--pick")
 
 	switch {
 	case len(q.Options) < limits.MinChoiceOptions:
@@ -668,7 +668,7 @@ func checkRate(q *Question) error {
 		}
 	}
 
-	rate := shapeName(q, "--rate")
+	rate := ShapeName(q, "--rate")
 
 	switch {
 	case len(q.Levels) < limits.MinScoreLevels:
@@ -750,9 +750,9 @@ func checkNoul(q *Question) error {
 
 func checkPolicy(q *Question, yesNo bool) error {
 	policy := q.Policy
-	threshold := spelling(q.Origin, "--threshold")
-	confidence := spelling(q.Origin, "--min-confidence")
-	fallback := spelling(q.Origin, "--fallback")
+	threshold := Spelling(q.Origin, "--threshold")
+	confidence := Spelling(q.Origin, "--min-confidence")
+	fallback := Spelling(q.Origin, "--fallback")
 
 	if policy.Threshold != nil {
 		if !yesNo {
@@ -778,7 +778,7 @@ func checkPolicy(q *Question, yesNo bool) error {
 				"jev: %s needs a confidence value. '%s' is a yes/no question, "+
 					"use %s, or add %s or %s",
 				confidence, q.ID, threshold,
-				spelling(q.Origin, "--pick"), spelling(q.Origin, "--rate"))
+				Spelling(q.Origin, "--pick"), Spelling(q.Origin, "--rate"))
 		}
 
 		if *policy.MinConfidence < 0 || *policy.MinConfidence > 1 {
@@ -850,23 +850,27 @@ func checkSingle(p *Plan, cfg Config) error {
 	if cfg.Quiet && only.Shape != Noul && only.Policy.MinConfidence == nil {
 		return fmt.Errorf(
 			"jev: -q on '%s' needs %s and %s. Without a policy the exit code is always 0",
-			only.ID, spelling(only.Origin, "--min-confidence"), spelling(only.Origin, "--fallback"))
+			only.ID, Spelling(only.Origin, "--min-confidence"), Spelling(only.Origin, "--fallback"))
 	}
 
 	return nil
 }
 
-func shapeName(q *Question, flag string) string {
+// ShapeName spells a question's shape flag the way its origin wrote it, so a message points at the
+// thing the reader typed. It is exported because §17 checks an assertion against the same plan.
+func ShapeName(q *Question, flag string) string {
 	// A body has neither flags nor file keys. Its options and levels are the entries of a single
 	// criteria key, which is the only thing a message can point the reader at.
 	if q.Origin == OriginBody {
 		return "'criteria'"
 	}
 
-	return spelling(q.Origin, flag)
+	return Spelling(q.Origin, flag)
 }
 
-func spelling(origin Origin, flag string) string {
+// Spelling renders a flag the way the origin spells it. A file says 'min_confidence' where the
+// command line says --min-confidence. It is exported for the same reason ShapeName is.
+func Spelling(origin Origin, flag string) string {
 	if origin != OriginFile {
 		return flag
 	}
