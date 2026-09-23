@@ -3,6 +3,7 @@ package answer_test
 import (
 	"encoding/json"
 	"errors"
+	"maps"
 	"math"
 	"net/http"
 	"sort"
@@ -157,6 +158,99 @@ func TestNormalize(t *testing.T) {
 
 			if string(encoded) != tc.want {
 				t.Errorf("got  %s\nwant %s", encoded, tc.want)
+			}
+		})
+	}
+}
+
+// TestNormalizeFills is §17.3's promise at its source: the record carries a number under every key
+// the question asked about, so a reader of the map answers the same as the printed record.
+func TestNormalizeFills(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		question plan.Question
+		raw      jev.Answer
+		want     map[string]float64
+		wantJSON string
+	}{
+		{
+			name: "should fill an option the answer left out with a zero",
+			question: plan.Question{
+				ID:    "team",
+				Shape: plan.Pick,
+				Options: []plan.Option{
+					{Name: "billing"}, {Name: "technical"}, {Name: "human"},
+				},
+			},
+			raw: &jev.ChoiceAnswer{
+				Choice:        "billing",
+				Confidence:    0.9,
+				Probabilities: map[string]float64{"billing": 0.7, "technical": 0.3},
+			},
+			want: map[string]float64{"billing": 0.7, "technical": 0.3, "human": 0},
+			wantJSON: `{"value":"billing","confidence":0.9,` +
+				`"p":{"billing":0.7,"technical":0.3,"human":0}}`,
+		},
+		{
+			name: "should fill a label the answer left out with a zero",
+			question: plan.Question{
+				ID:       "severity",
+				Shape:    plan.Rate,
+				Labelled: true,
+				Levels:   []plan.Level{{Label: "low"}, {Label: "high"}},
+			},
+			raw: &jev.ScoreAnswer{
+				Score:         1,
+				Confidence:    0.5,
+				Probabilities: map[string]float64{"1": 1},
+			},
+			want:     map[string]float64{"low": 0, "high": 1},
+			wantJSON: `{"value":"high","score":1,"norm":1,"confidence":0.5,"p":{"low":0,"high":1}}`,
+		},
+		{
+			name: "should fill an index the answer left out with a zero",
+			question: plan.Question{
+				ID:     "indexed",
+				Shape:  plan.Rate,
+				Levels: []plan.Level{{Desc: "calm"}, {Desc: "cross"}, {Desc: "angry"}},
+			},
+			raw: &jev.ScoreAnswer{
+				Score:         1,
+				Confidence:    0.5,
+				Probabilities: map[string]float64{"1": 1},
+			},
+			want: map[string]float64{"0": 0, "1": 1, "2": 0},
+			wantJSON: `{"value":"1","score":1,"norm":0.5,"confidence":0.5,` +
+				`"p":{"0":0,"1":1,"2":0}}`,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := answer.Normalize(tc.question, tc.raw)
+			if err != nil {
+				t.Fatalf("Normalize(%q) error = %v, want no error", tc.question.ID, err)
+			}
+
+			if got.P == nil {
+				t.Fatalf("Normalize(%q) carries no probabilities, want some", tc.question.ID)
+			}
+
+			if !maps.Equal(got.P.Values, tc.want) {
+				t.Errorf("values = %v, want %v", got.P.Values, tc.want)
+			}
+
+			encoded, err := json.Marshal(got)
+			if err != nil {
+				t.Fatalf("marshalling: %v", err)
+			}
+
+			if string(encoded) != tc.wantJSON {
+				t.Errorf("got  %s\nwant %s", encoded, tc.wantJSON)
 			}
 		})
 	}

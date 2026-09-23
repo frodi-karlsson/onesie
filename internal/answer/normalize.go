@@ -5,6 +5,7 @@ package answer
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"math"
 	"net/http"
 	"sort"
@@ -147,16 +148,24 @@ func (p Probabilities) MarshalJSON() ([]byte, error) {
 
 func normalizeChoice(q plan.Question, raw *jev.ChoiceAnswer) *Answer {
 	keys := make([]string, 0, len(q.Options))
+	values := make(map[string]float64, len(q.Options)+len(raw.Probabilities))
+
+	// An option the API left out of its distribution carries no mass, so it is a zero rather than
+	// a missing key. The printed record already reads it that way through Keys, and a reader of
+	// the map has to agree with it.
 	for _, option := range q.Options {
 		keys = append(keys, option.Name)
+		values[option.Name] = 0
 	}
+
+	maps.Copy(values, raw.Probabilities)
 
 	confidence := raw.Confidence
 
 	return &Answer{
 		Value:      raw.Choice,
 		Confidence: &confidence,
-		P:          &Probabilities{Keys: keys, Values: raw.Probabilities},
+		P:          &Probabilities{Keys: keys, Values: values},
 	}
 }
 
@@ -186,7 +195,7 @@ func normalizeScore(q plan.Question, raw *jev.ScoreAnswer) *Answer {
 	if !q.Labelled {
 		out.Value = winner
 		out.Legend = raw.Legend
-		out.P = &Probabilities{Keys: indexes, Values: raw.Probabilities}
+		out.P = byIndex(q, raw.Probabilities)
 
 		return out
 	}
@@ -203,6 +212,17 @@ func normalizeScore(q plan.Question, raw *jev.ScoreAnswer) *Answer {
 	out.P = &Probabilities{Keys: labels, Values: values}
 
 	return out
+}
+
+func byIndex(q plan.Question, probabilities map[string]float64) *Probabilities {
+	values := make(map[string]float64, len(q.Levels)+len(probabilities))
+	for i := range q.Levels {
+		values[strconv.Itoa(i)] = 0
+	}
+
+	maps.Copy(values, probabilities)
+
+	return &Probabilities{Keys: sortedIndexes(values), Values: values}
 }
 
 func sortedIndexes(probabilities map[string]float64) []string {

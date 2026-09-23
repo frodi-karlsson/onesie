@@ -153,20 +153,46 @@ func TestEval(t *testing.T) {
 		}
 	})
 
+	t.Run("should read a key the answer left out as zero in both shapes", func(t *testing.T) {
+		t.Parallel()
+
+		// The API is free to name only the winner, and Normalize fills the rest of the keys the
+		// question asked about. §17.2 rules out a tolerance so that the ordered and the equality
+		// readings of one pair of numbers can never disagree, which is what this holds them to.
+		omitted := omittedRecord(t, built)
+
+		for _, source := range []string{
+			`team.p.technical == 0`, `team.p.technical <= 0`, `team.p.technical < 0.5`,
+			`severity.p.low == 0`, `severity.p.low <= 0`, `severity.p.low < 0.5`,
+		} {
+			if !Eval(mustParse(t, source), omitted) {
+				t.Errorf("Eval(%q) over an omitted key = false, want true", source)
+			}
+		}
+
+		for _, source := range []string{
+			`team.p.technical != 0`, `team.p.technical > 0`,
+			`severity.p.low != 0`, `severity.p.low > 0`,
+		} {
+			if Eval(mustParse(t, source), omitted) {
+				t.Errorf("Eval(%q) over an omitted key = true, want false", source)
+			}
+		}
+	})
+
 	t.Run("should read what an incomplete answer does not carry as no value", func(t *testing.T) {
 		t.Parallel()
 
-		// The API is free to leave an option out of its probabilities, so a key Check proved
-		// against the plan can still be missing from the record it names.
+		// Nothing in the pipeline builds a record this thin, since Normalize fills every field its
+		// shape has. It is here so a caller that assembles one itself gets an answer and not a
+		// crash.
 		partial := output.Record{Answers: []output.Named{
-			{ID: "team", Answer: &answer.Answer{Value: "billing", P: &answer.Probabilities{
-				Keys: []string{"billing", "technical"}, Values: map[string]float64{"billing": 1},
-			}}},
+			{ID: "team", Answer: &answer.Answer{Value: "billing"}},
 			{ID: "severity", Answer: &answer.Answer{}},
 		}}
 
 		for _, source := range []string{
-			`team.p.technical > 0`, `team.p.technical == 0`, `team.confidence > 0`,
+			`team.p.billing > 0`, `team.confidence > 0`,
 			`severity.p.low > 0`, `severity.score > 0`, `severity.value == ""`,
 		} {
 			if Eval(mustParse(t, source), partial) {
@@ -227,6 +253,44 @@ func evalRecord(t *testing.T, built *plan.Plan, confidence float64) output.Recor
 	}
 
 	return record
+}
+
+func omittedRecord(t *testing.T, built *plan.Plan) output.Record {
+	t.Helper()
+
+	record := output.Record{Model: built.Model}
+
+	for _, q := range built.Questions {
+		normalized, err := answer.Normalize(q, evalOmitted(q))
+		if err != nil {
+			t.Fatalf("Normalize(%q) error = %v, want no error", q.ID, err)
+		}
+
+		record.Answers = append(record.Answers, output.Named{ID: q.ID, Answer: normalized})
+	}
+
+	return record
+}
+
+func evalOmitted(q plan.Question) jev.Answer {
+	// Only the winner is named, which is what a model that says nothing about the other keys
+	// sends back.
+	switch q.Shape {
+	case plan.Pick:
+		return &jev.ChoiceAnswer{
+			Choice:        "billing",
+			Confidence:    0.9,
+			Probabilities: map[string]float64{"billing": 1},
+		}
+	case plan.Rate:
+		return &jev.ScoreAnswer{
+			Score:         2,
+			Confidence:    0.9,
+			Probabilities: map[string]float64{"2": 1},
+		}
+	default:
+		return &jev.NoulAnswer{Noul: 0.9}
+	}
 }
 
 func evalRaw(q plan.Question, confidence float64) jev.Answer {
