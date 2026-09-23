@@ -15,6 +15,19 @@ func loadQuestions(top yaml.MapSlice) (*File, error) {
 	for _, item := range top {
 		id := fmt.Sprintf("%v", item.Key)
 
+		// 'assert' is a reserved question id, section 11, so a top level key spelled that way is
+		// the file's gate over every answer rather than a question of its own.
+		if id == "assert" {
+			expression, err := readAssert(item.Value)
+			if err != nil {
+				return nil, err
+			}
+
+			file.Assert = expression
+
+			continue
+		}
+
 		question, err := buildQuestion(id, item.Value)
 		if err != nil {
 			return nil, err
@@ -24,6 +37,15 @@ func loadQuestions(top yaml.MapSlice) (*File, error) {
 	}
 
 	return file, nil
+}
+
+func readAssert(value any) (string, error) {
+	expression, ok := value.(string)
+	if !ok {
+		return "", fmt.Errorf("jev: 'assert' must be a string, got %s", describe(value))
+	}
+
+	return expression, nil
 }
 
 func buildQuestion(id string, value any) (plan.Question, error) {

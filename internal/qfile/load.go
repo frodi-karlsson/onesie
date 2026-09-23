@@ -28,10 +28,6 @@ func Load(data []byte) (*File, error) {
 			"jev: a question file is a mapping of question id to definition")
 	}
 
-	if _, found := lookup(top, "assert"); found {
-		return nil, errors.New("jev: a top level 'assert' key is not available yet")
-	}
-
 	if _, isBody := lookup(top, "questions"); isBody {
 		return loadBody(top)
 	}
@@ -42,6 +38,10 @@ func Load(data []byte) (*File, error) {
 // File is a loaded question file or request body. Questions are in file order.
 type File struct {
 	Questions []plan.Question
+
+	// Assert is the file's top level assertion, empty when the file carries none. A request body
+	// carries none at all.
+	Assert string
 
 	// IsBody is true when the file was a raw API request body rather than a question file.
 	IsBody bool

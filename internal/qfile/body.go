@@ -1,6 +1,7 @@
 package qfile
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/goccy/go-yaml"
@@ -10,6 +11,13 @@ import (
 
 func loadBody(top yaml.MapSlice) (*File, error) {
 	file := &File{IsBody: true}
+
+	if _, found := lookup(top, "assert"); found {
+		// Section 17.5. A body is the wire format, and the API has no assertion, so a key here
+		// would promise a gate the request cannot carry.
+		return nil, errors.New(
+			"jev: a request body carries no 'assert'. Pass --assert on the command line")
+	}
 
 	if value, found := lookup(top, "model"); found {
 		name, ok := value.(string)

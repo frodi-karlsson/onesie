@@ -232,6 +232,11 @@ func TestLoadBody(t *testing.T) {
 			wantErr: "questions",
 		},
 		{
+			name:    "should reject a top level assert in a request body",
+			doc:     `{"assert":"a.value > 0.5","questions":{"a":{"type":"noul"}}}`,
+			wantErr: "jev: a request body carries no 'assert'. Pass --assert on the command line",
+		},
+		{
 			name:    "should name the kind of a structured model",
 			doc:     `{"model":{"name":"jev"},"questions":{"a":{"type":"noul"}}}`,
 			wantErr: "'model' in a request body must be a string, got a mapping",

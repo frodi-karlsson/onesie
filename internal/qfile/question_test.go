@@ -2,6 +2,7 @@ package qfile_test
 
 import (
 	"encoding/json"
+	"slices"
 	"strings"
 	"testing"
 
@@ -529,11 +530,6 @@ func TestLoadPolicy(t *testing.T) {
 			wantErr: "'min_confidence' in question 'team' must be a number, got 'high'",
 		},
 		{
-			name:    "should reject a top level assert key until it is supported",
-			doc:     "assert: 'urgent.value < 0.5'\nurgent: q\n",
-			wantErr: "not available yet",
-		},
-		{
 			name:    "should reject an unknown key in a question definition",
 			doc:     "urgent:\n  ask: q\n  thresold: 0.85\n",
 			wantErr: "thresold",
@@ -563,6 +559,83 @@ func TestLoadPolicy(t *testing.T) {
 			}
 
 			tc.check(t, got.Questions[0])
+		})
+	}
+}
+
+func TestLoadAssert(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		doc           string
+		wantAssert    string
+		wantQuestions []string
+		wantErr       string
+	}{
+		{
+			name:          "should read a top level assert as the file's gate",
+			doc:           "assert: 'urgent.value < 0.5'\nurgent: q\n",
+			wantAssert:    "urgent.value < 0.5",
+			wantQuestions: []string{"urgent"},
+		},
+		{
+			name:          "should read an assert written below the questions",
+			doc:           "urgent: q\nassert: 'urgent.value < 0.5'\n",
+			wantAssert:    "urgent.value < 0.5",
+			wantQuestions: []string{"urgent"},
+		},
+		{
+			name:          "should leave the assertion empty when a file carries none",
+			doc:           "urgent: q\n",
+			wantQuestions: []string{"urgent"},
+		},
+		{
+			name:    "should reject a mapping assert",
+			doc:     "assert:\n  value: 1\nurgent: q\n",
+			wantErr: "jev: 'assert' must be a string, got a mapping",
+		},
+		{
+			name:    "should reject an empty assert as null",
+			doc:     "assert:\nurgent: q\n",
+			wantErr: "jev: 'assert' must be a string, got null",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := qfile.Load([]byte(tc.doc))
+
+			if tc.wantErr != "" {
+				if err == nil {
+					t.Fatalf("expected an error, got %#v", got)
+				}
+
+				if err.Error() != tc.wantErr {
+					t.Errorf("error = %q, want %q", err.Error(), tc.wantErr)
+				}
+
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if got.Assert != tc.wantAssert {
+				t.Errorf("assert = %q, want %q", got.Assert, tc.wantAssert)
+			}
+
+			ids := make([]string, 0, len(got.Questions))
+			for _, question := range got.Questions {
+				ids = append(ids, question.ID)
+			}
+
+			if !slices.Equal(ids, tc.wantQuestions) {
+				t.Errorf("questions = %v, want %v", ids, tc.wantQuestions)
+			}
 		})
 	}
 }
