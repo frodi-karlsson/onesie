@@ -15,7 +15,7 @@ const maxCredentialBytes = 1 << 20
 
 // NewStore builds a Store over the real filesystem. A test overrides only what it must.
 func NewStore(opts ...StoreOption) Store {
-	store := Store{chmod: os.Chmod, createTemp: os.CreateTemp}
+	store := Store{chmod: os.Chmod, createTemp: os.CreateTemp, goos: runtime.GOOS}
 
 	for _, opt := range opts {
 		opt(&store)
@@ -25,10 +25,11 @@ func NewStore(opts ...StoreOption) Store {
 }
 
 // Store reads and writes credential files. Build one with NewStore, since the zero value has no
-// chmod to call.
+// chmod to call. Its zero value also assumes a unix filesystem.
 type Store struct {
 	chmod      func(string, os.FileMode) error
 	createTemp func(dir, pattern string) (*os.File, error)
+	goos       string
 }
 
 // StoreOption customises a Store. It exists so a test can fail a chmod without finding a
@@ -46,6 +47,13 @@ func WithChmod(chmod func(string, os.FileMode) error) StoreOption {
 func WithCreateTemp(createTemp func(dir, pattern string) (*os.File, error)) StoreOption {
 	return func(s *Store) {
 		s.createTemp = createTemp
+	}
+}
+
+// WithGOOS replaces the operating system a Store assumes.
+func WithGOOS(goos string) StoreOption {
+	return func(s *Store) {
+		s.goos = goos
 	}
 }
 
@@ -77,7 +85,7 @@ func (s Store) Load(path string) (file File, found bool, err error) {
 			// target, and Lstat would name the link's own mode instead. Measured on a link to an
 			// 0o060 file: Lstat reports 755, Stat reports 60.
 			if info, statErr := os.Stat(path); statErr == nil {
-				if modeErr := checkMode(path, info.Mode()); modeErr != nil {
+				if modeErr := s.checkMode(path, info.Mode()); modeErr != nil {
 					return File{}, false, modeErr
 				}
 			}
@@ -104,7 +112,7 @@ func (s Store) Load(path string) (file File, found bool, err error) {
 		return File{}, false, fmt.Errorf("jev: credential file %s is not a regular file", path)
 	}
 
-	if modeErr := checkMode(path, info.Mode()); modeErr != nil {
+	if modeErr := s.checkMode(path, info.Mode()); modeErr != nil {
 		return File{}, false, modeErr
 	}
 
@@ -184,7 +192,7 @@ func (s Store) Save(path string, file File) (*ModeWarning, error) {
 	}
 
 	// The rename only survives a power loss once the directory entry itself is on the disk.
-	syncDir(dir)
+	s.syncDir(dir)
 
 	return warning, nil
 }
@@ -209,10 +217,10 @@ func writeAndClose(file *os.File, data []byte) error {
 	return nil
 }
 
-func syncDir(dir string) {
+func (s Store) syncDir(dir string) {
 	// Windows has no durable directory flush. FlushFileBuffers refuses a directory handle, so this
 	// would fail on every save there rather than only where the filesystem cannot do it.
-	if runtime.GOOS == "windows" {
+	if s.goos == "windows" {
 		return
 	}
 
@@ -273,11 +281,11 @@ type File struct {
 	BaseURL string `json:"base_url,omitempty"`
 }
 
-func checkMode(path string, mode os.FileMode) error {
+func (s Store) checkMode(path string, mode os.FileMode) error {
 	// Windows does not carry unix permission bits, so the check would reject every file or accept
 	// every file depending on how the bits happen to be reported. Section 16.2 scopes the rule to
 	// platforms that support modes.
-	if runtime.GOOS == "windows" {
+	if s.goos == "windows" {
 		return nil
 	}
 

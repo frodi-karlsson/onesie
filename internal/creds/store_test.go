@@ -86,6 +86,7 @@ func TestLoad(t *testing.T) {
 		absent   bool
 		dir      bool
 		unixOnly bool
+		goos     string
 		want     creds.File
 		wantErr  string
 	}{
@@ -202,6 +203,21 @@ func TestLoad(t *testing.T) {
 			mode:     0o600,
 			wantErr:  "is not a JSON object",
 		},
+		{
+			name:     "should refuse a group readable file on a unix filesystem",
+			contents: `{"api_key":"k"}`,
+			goos:     "linux",
+			mode:     0o640,
+			unixOnly: true,
+			wantErr:  "is accessible by others, mode 640",
+		},
+		{
+			name:     "should accept a group readable file on windows, where the mode carries no meaning",
+			contents: `{"api_key":"k"}`,
+			goos:     "windows",
+			mode:     0o640,
+			want:     creds.File{APIKey: "k"},
+		},
 	}
 
 	for _, tc := range tests {
@@ -234,7 +250,12 @@ func TestLoad(t *testing.T) {
 				}
 			}
 
-			got, found, err := creds.NewStore().Load(path)
+			goos := tc.goos
+			if goos == "" {
+				goos = runtime.GOOS
+			}
+
+			got, found, err := creds.NewStore(creds.WithGOOS(goos)).Load(path)
 
 			if tc.wantErr != "" {
 				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
