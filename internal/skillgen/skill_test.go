@@ -200,6 +200,56 @@ func TestValidate(t *testing.T) {
 			},
 		},
 		{
+			name: "should accept a rule with bad_unverifiable set and no bad_passes",
+			skill: skillgen.Skill{
+				Name: "my-skill", Description: "does a thing",
+				Rules: []skillgen.Rule{
+					{
+						ID: "r1", Short: "do it", Why: "because", Bad: "not so ok",
+						BadUnverifiable: "the checker strips the flag this depends on",
+					},
+				},
+			},
+		},
+		{
+			name: "should accept a rule with good_unverifiable set and no good_fails",
+			skill: skillgen.Skill{
+				Name: "my-skill", Description: "does a thing",
+				Rules: []skillgen.Rule{
+					{
+						ID: "r1", Short: "do it", Why: "because", Good: "ok",
+						GoodUnverifiable: "the checker strips the flag this depends on",
+					},
+				},
+			},
+		},
+		{
+			name: "should reject a rule setting both bad_passes and bad_unverifiable",
+			skill: skillgen.Skill{
+				Name: "my-skill", Description: "does a thing",
+				Rules: []skillgen.Rule{
+					{
+						ID: "r1", Short: "do it", Why: "because", Bad: "not so ok",
+						BadPasses: true, BadUnverifiable: "the checker strips the flag this depends on",
+					},
+				},
+			},
+			wantErr: "rules[0] 'r1': bad_passes and bad_unverifiable contradict, keep one",
+		},
+		{
+			name: "should reject a rule setting both good_fails and good_unverifiable",
+			skill: skillgen.Skill{
+				Name: "my-skill", Description: "does a thing",
+				Rules: []skillgen.Rule{
+					{
+						ID: "r1", Short: "do it", Why: "because", Good: "ok",
+						GoodFails: true, GoodUnverifiable: "the checker strips the flag this depends on",
+					},
+				},
+			},
+			wantErr: "rules[0] 'r1': good_fails and good_unverifiable contradict, keep one",
+		},
+		{
 			name: "should reject an intro entry naming a file that does not exist",
 			skill: skillgen.Skill{
 				Name: "my-skill", Description: "does a thing", Intro: "intro.md",

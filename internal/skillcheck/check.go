@@ -1,6 +1,7 @@
 // Package skillcheck runs every rule's bad and good example in a skill through a jev dry run, per
 // spec section 6.1. A good passes unless it carries good_fails, and a bad fails unless it carries
-// bad_passes.
+// bad_passes. An example carrying good_unverifiable or bad_unverifiable is skipped with that reason
+// rather than run.
 package skillcheck
 
 import (
@@ -32,7 +33,8 @@ func Check(ctx context.Context, root string, runner *Runner) (Report, error) {
 		for _, rule := range f.Skill.Rules {
 			if rule.Bad != "" {
 				if err := checkRule(
-					ctx, runner, f.Skill.Name, rule.ID, "bad", rule.Bad, rule.BadPasses, &report,
+					ctx, runner, f.Skill.Name, rule.ID, "bad", rule.Bad, rule.BadPasses,
+					rule.BadUnverifiable, &report,
 				); err != nil {
 					return Report{}, err
 				}
@@ -40,7 +42,8 @@ func Check(ctx context.Context, root string, runner *Runner) (Report, error) {
 
 			if rule.Good != "" {
 				if err := checkRule(
-					ctx, runner, f.Skill.Name, rule.ID, "good", rule.Good, !rule.GoodFails, &report,
+					ctx, runner, f.Skill.Name, rule.ID, "good", rule.Good, !rule.GoodFails,
+					rule.GoodUnverifiable, &report,
 				); err != nil {
 					return Report{}, err
 				}
@@ -76,8 +79,16 @@ type Skip struct {
 
 func checkRule(
 	ctx context.Context, runner *Runner, skill, ruleID, kind, command string, wantPass bool,
-	report *Report,
+	unverifiable string, report *Report,
 ) error {
+	if unverifiable != "" {
+		report.Skipped = append(report.Skipped, Skip{
+			Skill: skill, RuleID: ruleID, Kind: kind, Command: command, Reason: unverifiable,
+		})
+
+		return nil
+	}
+
 	args, reason, err := prepare(command)
 	if err != nil {
 		return fmt.Errorf("jev: skill '%s' rule '%s' %s example: %w", skill, ruleID, kind, err)

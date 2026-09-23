@@ -132,7 +132,7 @@ func TestCheckRule(t *testing.T) {
 
 			err := checkRule(
 				context.Background(), runner, "demo-skill", "r1", tc.kind,
-				"jev --ask a=x", tc.wantPass, report,
+				"jev --ask a=x", tc.wantPass, "", report,
 			)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
@@ -170,7 +170,7 @@ func TestCheckRuleReturnsAnErrorRatherThanASkip(t *testing.T) {
 		report := &Report{}
 
 		err := checkRule(
-			context.Background(), runner, "demo-skill", "r1", "good", "jev --ask a=x", true, report,
+			context.Background(), runner, "demo-skill", "r1", "good", "jev --ask a=x", true, "", report,
 		)
 		if err == nil {
 			t.Fatalf("checkRule(...) error = nil, want an error")
@@ -188,6 +188,55 @@ func TestCheckRuleReturnsAnErrorRatherThanASkip(t *testing.T) {
 			t.Errorf("report.Skipped = %v, want none", report.Skipped)
 		}
 	})
+}
+
+func TestCheckRuleSkipsAnUnverifiableExample(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		kind string
+	}{
+		{name: "should skip a bad example carrying an unverifiable reason, without running it", kind: "bad"},
+		{name: "should skip a good example carrying an unverifiable reason, without running it", kind: "good"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			runner := &Runner{Binary: "jev", exec: neverCalled(t)}
+			report := &Report{}
+
+			err := checkRule(
+				context.Background(), runner, "demo-skill", "r1", tc.kind, "jev --ask a=x", true,
+				"the checker strips -q before every dry run", report,
+			)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if report.Checked != 0 {
+				t.Errorf("report.Checked = %d, want 0", report.Checked)
+			}
+
+			if len(report.Failures) != 0 {
+				t.Errorf("report.Failures = %v, want none", report.Failures)
+			}
+
+			if len(report.Skipped) != 1 {
+				t.Fatalf("report.Skipped = %v, want one entry", report.Skipped)
+			}
+
+			skip := report.Skipped[0]
+			if skip.Skill != "demo-skill" || skip.RuleID != "r1" || skip.Kind != tc.kind ||
+				skip.Command != "jev --ask a=x" ||
+				skip.Reason != "the checker strips -q before every dry run" {
+				t.Errorf("report.Skipped[0] = %+v, want it to name the skill, rule, kind, "+
+					"command and the unverifiable reason", skip)
+			}
+		})
+	}
 }
 
 func TestCheck(t *testing.T) {
@@ -270,6 +319,72 @@ func TestCheck(t *testing.T) {
 		if skip.Skill != "demo" || skip.RuleID != "r2" || skip.Kind != "bad" ||
 			skip.Command != "jq '.value > 0.5'" || skip.Reason != "is not a jev invocation" {
 			t.Errorf("report.Skipped[0] = %+v, want it to name the skill, rule, kind, command and reason", skip)
+		}
+
+		if len(report.Failures) != 0 {
+			t.Errorf("report.Failures = %v, want none", report.Failures)
+		}
+	})
+
+	t.Run("should skip a bad_unverifiable and a good_unverifiable example, joining the existing skip list", func(t *testing.T) {
+		t.Parallel()
+
+		root := t.TempDir()
+		writeCheckFixture(t, root, "demo", `{
+			"name": "demo",
+			"description": "a demo skill",
+			"rules": [
+				{
+					"id": "r1",
+					"short": "Do the thing.",
+					"why": "because",
+					"bad": "jev --ask a=x -q --state 'rm -rf ./build'",
+					"bad_unverifiable": "the checker strips -q before every dry run",
+					"good": "jev --ask a=x",
+					"good_unverifiable": "the checker strips -q before every dry run too"
+				},
+				{
+					"id": "r2",
+					"short": "Filter, not a command.",
+					"why": "because",
+					"bad": "jq '.value > 0.5'"
+				}
+			]
+		}`)
+
+		report, err := Check(context.Background(), root, &Runner{Binary: "jev", exec: neverCalled(t)})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if report.Checked != 0 {
+			t.Errorf("report.Checked = %d, want 0", report.Checked)
+		}
+
+		if len(report.Skipped) != 3 {
+			t.Fatalf("report.Skipped = %v, want three entries", report.Skipped)
+		}
+
+		want := []Skip{
+			{
+				Skill: "demo", RuleID: "r1", Kind: "bad",
+				Command: "jev --ask a=x -q --state 'rm -rf ./build'",
+				Reason:  "the checker strips -q before every dry run",
+			},
+			{
+				Skill: "demo", RuleID: "r1", Kind: "good", Command: "jev --ask a=x",
+				Reason: "the checker strips -q before every dry run too",
+			},
+			{
+				Skill: "demo", RuleID: "r2", Kind: "bad", Command: "jq '.value > 0.5'",
+				Reason: "is not a jev invocation",
+			},
+		}
+
+		for i, s := range want {
+			if report.Skipped[i] != s {
+				t.Errorf("report.Skipped[%d] = %+v, want %+v", i, report.Skipped[i], s)
+			}
 		}
 
 		if len(report.Failures) != 0 {

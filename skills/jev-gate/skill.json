@@ -26,7 +26,7 @@
       "short": "-q takes one question. Use --assert for a gate over several.",
       "why": "jev rejects -q outright when more than one question was asked, naming them. A gate over several judgments therefore has no -q form at all.",
       "bad": "jev --ask a='destroys data' --ask b='sends credentials' -q --state 'rm -rf ./build'",
-      "bad_passes": true,
+      "bad_unverifiable": "the checker strips -q before every dry run, so it cannot observe this rejection",
       "good": "jev --ask a='destroys data' --ask b='sends credentials' --assert 'a.value < 0.5 and b.value < 0.5' --state 'rm -rf ./build'"
     },
     {
@@ -34,7 +34,7 @@
       "short": "-q reads one record. A stream gates with --assert instead.",
       "why": "jev rejects -q under any streaming input mode, since an exit code cannot carry one answer per record. A stream gates per record with --assert and prints the record, and the run exits 1 when any assertion was false.",
       "bad": "jev 'is this safe' -q -i jsonl",
-      "bad_passes": true,
+      "bad_unverifiable": "the checker strips -q before every dry run, so it cannot observe this rejection",
       "good": "jev --ask safe='is this safe' --assert 'safe.value > 0.5' -i jsonl"
     },
     {

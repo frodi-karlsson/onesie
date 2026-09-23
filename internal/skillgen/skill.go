@@ -61,13 +61,15 @@ type Skill struct {
 
 // Rule is one entry in a skill's rules list.
 type Rule struct {
-	ID        string `json:"id"`
-	Short     string `json:"short"`
-	Why       string `json:"why"`
-	Bad       string `json:"bad,omitempty"`
-	Good      string `json:"good,omitempty"`
-	GoodFails bool   `json:"good_fails,omitempty"`
-	BadPasses bool   `json:"bad_passes,omitempty"`
+	ID               string `json:"id"`
+	Short            string `json:"short"`
+	Why              string `json:"why"`
+	Bad              string `json:"bad,omitempty"`
+	Good             string `json:"good,omitempty"`
+	GoodFails        bool   `json:"good_fails,omitempty"`
+	BadPasses        bool   `json:"bad_passes,omitempty"`
+	BadUnverifiable  string `json:"bad_unverifiable,omitempty"`
+	GoodUnverifiable string `json:"good_unverifiable,omitempty"`
 }
 
 // Validate enforces the skill.json field rules from spec section 2.1. path is the skill.json file
@@ -191,6 +193,16 @@ func (v validator) rules(rules []Rule) error {
 		}
 
 		seen[rule.ID] = true
+
+		if rule.BadPasses && rule.BadUnverifiable != "" {
+			return v.errorf("%s: bad_passes and bad_unverifiable contradict, keep one",
+				ruleLabel(i, rule.ID))
+		}
+
+		if rule.GoodFails && rule.GoodUnverifiable != "" {
+			return v.errorf("%s: good_fails and good_unverifiable contradict, keep one",
+				ruleLabel(i, rule.ID))
+		}
 	}
 
 	return nil
