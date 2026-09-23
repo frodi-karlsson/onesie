@@ -125,6 +125,12 @@ func drain[T any](
 
 				return result
 			}
+
+			if stops(cfg, got.line) {
+				cancel()
+
+				return result
+			}
 		case <-ctx.Done():
 			result.Aborted = true
 			result.Cause = ctx.Err()

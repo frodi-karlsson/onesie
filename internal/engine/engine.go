@@ -36,6 +36,11 @@ type Config[T any] struct {
 	// Abort reports whether a failure ends the whole run rather than the one record. It is how an
 	// authentication failure stops a stream that would otherwise fail the same way on every line.
 	Abort func(error) bool
+
+	// Stop reports whether a written line ends the run, for an outcome that is not a failure. It
+	// is how --stop-on-assert ends a stream at the first false assertion, which is a judgment
+	// about a complete record rather than a reason to count it failed.
+	Stop func(T) bool
 }
 
 // Source yields records in input order. The second result is false at end of input.

@@ -158,6 +158,16 @@ func consume[T any](
 
 				return result
 			}
+
+			if stops(cfg, got.line) {
+				// No Cause and no Aborted, because the record that ended the run succeeded. The
+				// caller reads the outcome off the lines it was handed, and the flush leaves the
+				// same completed prefix an abort does.
+				cancel()
+				flush(cfg, queue, &result)
+
+				return result
+			}
 		case <-ctx.Done():
 			result.Aborted = true
 			result.Cause = ctx.Err()
@@ -251,4 +261,8 @@ func aborts[T any](cfg Config[T], err error) bool {
 	}
 
 	return cfg.StopOnError
+}
+
+func stops[T any](cfg Config[T], line T) bool {
+	return cfg.Stop != nil && cfg.Stop(line)
 }
