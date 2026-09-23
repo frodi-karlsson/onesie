@@ -286,7 +286,7 @@ func checkRequestMode(cfg Config) error {
 		{cfg.HasModel, "jev: -m does not apply to -i request, " +
 			"whose bodies carry their own model"},
 		{cfg.StopOnAssert, "jev: --stop-on-assert does not apply to -i request, " +
-			"which carries no assertion"},
+			"whose bodies carry no assertion"},
 		{cfg.PrintQuestions, "jev: --print-questions needs questions of its own, " +
 			"which -i request does not build"},
 	} {
