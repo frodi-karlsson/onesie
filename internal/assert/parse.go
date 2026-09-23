@@ -7,7 +7,9 @@ import (
 )
 
 // A hand written gate nests a handful of levels deep. This is far past anything a person types and
-// far short of what exhausts a stack, and it bounds the walks Check and Eval make over the tree.
+// far short of what exhausts a stack, and it bounds the nesting Parse accepts from one source.
+// Combine chains parsed expressions outside it, so a walk over the result is one level deeper per
+// expression combined.
 const maxDepth = 256
 
 // Parse reads one §17.2 expression. Its errors carry the column they were found at and no jev
