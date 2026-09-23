@@ -336,8 +336,8 @@ func eventNames(events []argv.Event) []string {
 }
 
 func inputName(flag string) string {
-	// The flag defaults to the empty string when it was not given, and every message that names
-	// the mode would otherwise read -i with nothing after it.
+	// Reachable only by passing -i with an empty value, since the flag defaults to text. Every
+	// message that names the mode would otherwise read -i with nothing after it.
 	if flag == "" {
 		return "text"
 	}
