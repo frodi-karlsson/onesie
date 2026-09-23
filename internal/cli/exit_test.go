@@ -116,6 +116,7 @@ func TestClassify(t *testing.T) {
 			name: "should report records for a stream that finished with failures",
 			err:  &recordsError{}, want: ExitRecords,
 		},
+		{name: "should classify a rejected policy as exit one", err: &rejectedError{}, want: ExitRejected},
 		{
 			name: "should report usage for an input error",
 			err:  &input.LineError{Line: 3, Err: errors.New("line is not one complete JSON value")},

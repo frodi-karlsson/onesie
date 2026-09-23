@@ -4,7 +4,6 @@ package cli
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -165,11 +164,6 @@ func Execute(ctx context.Context, root *cobra.Command) int {
 	err := root.ExecuteContext(ctx)
 	if err == nil {
 		return ExitOK
-	}
-
-	var rejected *rejectedError
-	if errors.As(err, &rejected) {
-		return ExitRejected
 	}
 
 	if worthReporting(err) {
