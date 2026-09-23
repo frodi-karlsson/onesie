@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/frodi-karlsson/jev-cli/internal/answer"
+	"github.com/frodi-karlsson/jev-cli/internal/argv"
 	"github.com/frodi-karlsson/jev-cli/internal/jev"
 	"github.com/frodi-karlsson/jev-cli/internal/output"
 	"github.com/frodi-karlsson/jev-cli/internal/plan"
@@ -28,13 +29,19 @@ func TestCheck(t *testing.T) {
 				ID: "decided", Shape: plan.Pick, Options: []plan.Option{{Name: "a"}, {Name: "b"}},
 				Policy: plan.Policy{MinConfidence: ptr(0.7), Fallback: &plan.Fallback{Text: "b"}},
 			},
+			// A pair §11 rejects on its own. answer.Apply has nothing to substitute without a
+			// fallback and leaves decision unset, so the message names the flag that is missing.
+			{
+				ID: "unsure", Shape: plan.Pick, Options: []plan.Option{{Name: "a"}, {Name: "b"}},
+				Policy: plan.Policy{MinConfidence: ptr(0.7)},
+			},
 			{ID: "gated", Shape: plan.Noul, Policy: plan.Policy{Threshold: ptr(0.6)}},
 			{ID: "indexed", Shape: plan.Rate, Levels: []plan.Level{{}, {}, {}}},
 			{ID: "a.b", Shape: plan.Noul},
 		},
 	}
 
-	questions := "urgent, severity, team, decided, gated, indexed, a.b"
+	questions := "urgent, severity, team, decided, unsure, gated, indexed, a.b"
 
 	tests := []struct {
 		name      string
@@ -167,6 +174,11 @@ func TestCheck(t *testing.T) {
 			name:    "should reject decision without a policy",
 			input:   `team.decision == "billing"`,
 			wantErr: "'team.decision' needs --threshold or --min-confidence on 'team'",
+		},
+		{
+			name:    "should name the fallback a decision is short rather than the confidence it has",
+			input:   `unsure.decision == "a"`,
+			wantErr: "'unsure.decision' needs --fallback on 'unsure'",
 		},
 		{
 			name:    "should reject fallback without a policy",
@@ -375,6 +387,16 @@ func TestCheckSpellsTheOrigin(t *testing.T) {
 			input:   `team.decision == "billing"`,
 			wantErr: "'team.decision' needs 'threshold' or 'min_confidence' on 'team'",
 		},
+		{
+			name: "should name the file's fallback key a decision is short",
+			question: plan.Question{
+				ID: "team", Shape: plan.Pick, Origin: plan.OriginFile,
+				Options: []plan.Option{{Name: "billing"}, {Name: "technical"}},
+				Policy:  plan.Policy{MinConfidence: ptr(0.7)},
+			},
+			input:   `team.decision == "billing"`,
+			wantErr: "'team.decision' needs 'fallback' on 'team'",
+		},
 	}
 
 	for _, tc := range tests {
@@ -432,28 +454,12 @@ func TestCheckedPaths(t *testing.T) {
 
 	// Both sides of the min-confidence branch in answer.Apply, so a decision is read back whether
 	// the model's answer stood or the fallback replaced it.
-	records := []struct {
-		name   string
-		record output.Record
-		low    bool
-	}{
+	records := []pathRecord{
 		{name: "a confident record", record: fullRecord(t, built, 0.9)},
 		{name: "a low confidence record", record: fullRecord(t, built, 0.5), low: true},
 	}
 
-	// Every field name the record could carry, including ones belonging to another question, so a
-	// path that is not listed as allowed below is asserted to be rejected.
-	universe := []string{
-		"value", "confidence", "score", "norm", "p", "decision", "fallback", "legend",
-		"p.billing", "p.low", `p["0"]`, "p.nope", "value.x",
-	}
-
-	tests := []struct {
-		name    string
-		id      string
-		allowed map[string]string
-		low     map[string]string
-	}{
+	tests := []pathCase{
 		{
 			name: "should carry only a number value on a yes/no question",
 			id:   "urgent",
@@ -546,7 +552,97 @@ func TestCheckedPaths(t *testing.T) {
 		},
 	}
 
-	for _, tc := range tests {
+	runPathCases(t, built, records, tests)
+
+	t.Run("should carry the model as a string", func(t *testing.T) {
+		t.Parallel()
+
+		if got, ok := probe(t, built, "model"); !ok || got != typeString {
+			t.Errorf("Check over %q typed it %v, %v, want string, true", "model", got, ok)
+		}
+
+		for _, rec := range records {
+			source := `model == "jev-1.13.0"`
+			if !Eval(mustParse(t, source), rec.record) {
+				t.Errorf("Eval(%q) over %s = false, want true", source, rec.name)
+			}
+		}
+	})
+
+	t.Run("should reject a question the plan does not have", func(t *testing.T) {
+		t.Parallel()
+
+		for _, path := range []string{"nothing", "nothing.value", "model.value", `["team"].value.x`} {
+			if got, ok := probe(t, built, path); ok {
+				t.Errorf("Check over %q typed it %v, want it rejected", path, got)
+			}
+		}
+	})
+}
+
+// TestCheckedPathsOnAssembledPlan is the same promise over a plan every other check in jev accepts.
+// TestCheckedPaths builds its fixture by hand and includes a question §11 rejects, so on its own it
+// leaves the promise unproved for the plans the pipeline actually produces.
+func TestCheckedPathsOnAssembledPlan(t *testing.T) {
+	t.Parallel()
+
+	built := assembledPlan(t)
+
+	records := []pathRecord{
+		{name: "a confident record", record: fullRecord(t, built, 0.9)},
+		{name: "a low confidence record", record: fullRecord(t, built, 0.5), low: true},
+	}
+
+	runPathCases(t, built, records, []pathCase{
+		{
+			name:    "should carry only a number value on a yes/no question",
+			id:      "urgent",
+			allowed: map[string]string{"value": "0.8"},
+		},
+		{
+			name: "should carry a boolean decision on a yes/no question with a threshold",
+			id:   "gated",
+			allowed: map[string]string{
+				"value": "0.8", "decision": "true", "fallback": `""`,
+			},
+		},
+		{
+			name: "should carry a string decision on a pick question with min-confidence",
+			id:   "routed",
+			allowed: map[string]string{
+				"value": `"technical"`, "confidence": "0.9",
+				"p.billing": "0.25", "p.technical": "0.5",
+				"decision": `"technical"`, "fallback": `""`,
+			},
+			low: map[string]string{
+				"confidence": "0.5", "decision": `"human"`, "fallback": `"low_confidence"`,
+			},
+		},
+		{
+			name: "should carry a score and a norm on a labelled rate question",
+			id:   "severity",
+			allowed: map[string]string{
+				"value": `"critical"`, "confidence": "0.9",
+				"score": "1", "norm": "0.5",
+				"p.low": "0.16666666666666666", "p.high": "0.3333333333333333",
+				"p.critical": "0.5",
+			},
+			low: map[string]string{"confidence": "0.5"},
+		},
+	})
+}
+
+func runPathCases(t *testing.T, built *plan.Plan, records []pathRecord, cases []pathCase) {
+	t.Helper()
+
+	// Every field name a record could carry, including ones belonging to another question, so a
+	// path a case does not list as allowed is asserted to be rejected.
+	universe := []string{
+		"value", "confidence", "score", "norm", "p", "decision", "fallback", "legend",
+		"p.billing", "p.low", `p["0"]`, "p.nope", "value.x",
+	}
+
+	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -589,31 +685,44 @@ func TestCheckedPaths(t *testing.T) {
 			}
 		})
 	}
+}
 
-	t.Run("should carry the model as a string", func(t *testing.T) {
-		t.Parallel()
+type pathRecord struct {
+	name   string
+	record output.Record
+	low    bool
+}
 
-		if got, ok := probe(t, built, "model"); !ok || got != typeString {
-			t.Errorf("Check over %q typed it %v, %v, want string, true", "model", got, ok)
-		}
+type pathCase struct {
+	name    string
+	id      string
+	allowed map[string]string
+	low     map[string]string
+}
 
-		for _, rec := range records {
-			source := `model == "jev-1.13.0"`
-			if !Eval(mustParse(t, source), rec.record) {
-				t.Errorf("Eval(%q) over %s = false, want true", source, rec.name)
-			}
-		}
-	})
+func assembledPlan(t *testing.T) *plan.Plan {
+	t.Helper()
 
-	t.Run("should reject a question the plan does not have", func(t *testing.T) {
-		t.Parallel()
+	built, err := plan.Assemble(plan.Source{Events: []argv.Event{
+		{Name: "ask", Value: "urgent=is this urgent"},
+		{Name: "ask", Value: "gated=is this a release blocker"},
+		{Name: "threshold", Value: "0.6"},
+		{Name: "ask", Value: "routed=which team owns this"},
+		{Name: "pick", Value: "billing,technical"},
+		{Name: "min-confidence", Value: "0.7"},
+		{Name: "fallback", Value: "human"},
+		{Name: "ask", Value: "severity=how severe is this"},
+		{Name: "rate", Value: "low,high,critical"},
+	}})
+	if err != nil {
+		t.Fatalf("Assemble error = %v, want no error", err)
+	}
 
-		for _, path := range []string{"nothing", "nothing.value", "model.value", `["team"].value.x`} {
-			if got, ok := probe(t, built, path); ok {
-				t.Errorf("Check over %q typed it %v, want it rejected", path, got)
-			}
-		}
-	})
+	if _, err := plan.Validate(built, plan.Config{}); err != nil {
+		t.Fatalf("Validate error = %v, want no error", err)
+	}
+
+	return built
 }
 
 func parseAll(sources ...string) (*Expr, error) {

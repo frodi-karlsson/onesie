@@ -233,9 +233,7 @@ func (c *checker) probability(q plan.Question, n *pathNode) (valueType, int, boo
 
 func (c *checker) decision(q plan.Question) (valueType, int, bool) {
 	if !decided(q) {
-		c.fail("'%s.decision' needs %s or %s on '%s'", q.ID,
-			plan.Spelling(q.Origin, "--threshold"),
-			plan.Spelling(q.Origin, "--min-confidence"), q.ID)
+		c.fail("'%s.decision' needs %s on '%s'", q.ID, decisionNeeds(q), q.ID)
 
 		return typeString, 0, false
 	}
@@ -245,6 +243,18 @@ func (c *checker) decision(q plan.Question) (valueType, int, bool) {
 	}
 
 	return typeString, 2, true
+}
+
+func decisionNeeds(q plan.Question) string {
+	// answer.Apply needs something to put in the decision's place, so a pick or rate question that
+	// already carries the confidence is short the fallback rather than either of the two flags
+	// §17.8 names.
+	if q.Shape != plan.Noul && q.Policy.MinConfidence != nil {
+		return plan.Spelling(q.Origin, "--fallback")
+	}
+
+	return plan.Spelling(q.Origin, "--threshold") + " or " +
+		plan.Spelling(q.Origin, "--min-confidence")
 }
 
 func (c *checker) fail(format string, args ...any) {
