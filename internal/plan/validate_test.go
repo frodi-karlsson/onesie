@@ -244,8 +244,16 @@ func TestValidate(t *testing.T) {
 				{Name: "pick", Value: "x,y"},
 			},
 			cfg: plan.Config{Quiet: true},
-			wantErr: "jev: -q on 'team' needs --min-confidence and --fallback. " +
-				"Without a policy the exit code is always 0",
+			wantErr: "jev: -q on 'team' needs --min-confidence and --fallback, or --assert. " +
+				"Without one the exit code is always 0",
+		},
+		{
+			name: "should accept quiet on a pick carrying only an assertion",
+			events: []argv.Event{
+				{Name: "ask", Value: "team=first"},
+				{Name: "pick", Value: "x,y"},
+			},
+			cfg: plan.Config{Quiet: true, HasAssert: true},
 		},
 		{
 			name:       "should reject raw combined with output",
@@ -512,8 +520,8 @@ func TestValidate(t *testing.T) {
 			name: "should name the file's keys in the quiet policy remedy",
 			file: filePick("billing", "technical"),
 			cfg:  plan.Config{Quiet: true},
-			wantExact: "jev: -q on 'team' needs 'min_confidence' and 'fallback'. " +
-				"Without a policy the exit code is always 0",
+			wantExact: "jev: -q on 'team' needs 'min_confidence' and 'fallback', or --assert. " +
+				"Without one the exit code is always 0",
 		},
 		{
 			name:       "should reject unordered outside a stream",

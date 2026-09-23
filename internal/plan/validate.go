@@ -97,8 +97,13 @@ func CheckFlags(cfg Config) (string, error) {
 
 // Config carries the invocation settings validation needs beyond the questions themselves.
 type Config struct {
-	Raw          bool
-	Quiet        bool
+	Raw   bool
+	Quiet bool
+
+	// HasAssert records that --assert was given, which is the second way a pick or rate question
+	// satisfies the -q rule. §17.5.
+	HasAssert bool
+
 	Output       string
 	HasState     bool
 	HasStateFile bool
@@ -847,9 +852,9 @@ func checkSingle(p *Plan, cfg Config) error {
 	}
 
 	only := p.Questions[0]
-	if cfg.Quiet && only.Shape != Noul && only.Policy.MinConfidence == nil {
+	if cfg.Quiet && only.Shape != Noul && only.Policy.MinConfidence == nil && !cfg.HasAssert {
 		return fmt.Errorf(
-			"jev: -q on '%s' needs %s and %s. Without a policy the exit code is always 0",
+			"jev: -q on '%s' needs %s and %s, or --assert. Without one the exit code is always 0",
 			only.ID, Spelling(only.Origin, "--min-confidence"), Spelling(only.Origin, "--fallback"))
 	}
 
