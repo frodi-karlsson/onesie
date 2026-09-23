@@ -197,7 +197,7 @@ func validationPath(loc any) string {
 
 	segments := make([]string, 0, len(list))
 
-	// A FastAPI style location, so the leading "body" segment is dropped.
+	// The location comes from FastAPI, which prefixes it with the request part.
 	for _, item := range list {
 		text := fmt.Sprint(item)
 		if text == "body" {

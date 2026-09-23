@@ -61,6 +61,7 @@ func TestDecodeOrdered(t *testing.T) {
 			doc:     "a: q1\n---\nb: q2\n---\nc: q3\n",
 			wantErr: separated,
 		},
+		{name: "should reject malformed yaml", doc: "a:\n  - b\n c: broken\n", wantErr: "jev: "},
 	}
 
 	for _, tc := range tests {

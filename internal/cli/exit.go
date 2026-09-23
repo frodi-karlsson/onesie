@@ -40,14 +40,14 @@ func Classify(err error) int {
 		return ExitOK
 	}
 
-	var rejected *rejectedError
-	if errors.As(err, &rejected) {
-		return ExitRejected
-	}
-
 	var records *recordsError
 	if errors.As(err, &records) {
 		return ExitRecords
+	}
+
+	var rejected *rejectedError
+	if errors.As(err, &rejected) {
+		return ExitRejected
 	}
 
 	var bad *input.LineError

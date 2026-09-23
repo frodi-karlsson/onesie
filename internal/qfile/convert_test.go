@@ -1,6 +1,55 @@
 package qfile
 
-import "testing"
+import (
+	"encoding/json"
+	"testing"
+)
+
+func TestPlain(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		doc  string
+		want string
+	}{
+		{
+			name: "should rewrite a nested mapping into a plain map",
+			doc:  "what: States facts\nexamples: [\"ok\"]\n",
+			want: `{"examples":["ok"],"what":"States facts"}`,
+		},
+		{
+			name: "should rewrite a mapping nested inside a sequence",
+			doc:  "levels:\n  - calm:\n      what: no affect\n",
+			want: `{"levels":[{"calm":{"what":"no affect"}}]}`,
+		},
+		{
+			name: "should stringify a non string mapping key",
+			doc:  "1: x\n",
+			want: `{"1":"x"}`,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			raw, err := DecodeOrdered([]byte(tc.doc))
+			if err != nil {
+				t.Fatalf("decoding: %v", err)
+			}
+
+			encoded, err := json.Marshal(plain(raw))
+			if err != nil {
+				t.Fatalf("marshalling: %v", err)
+			}
+
+			if string(encoded) != tc.want {
+				t.Errorf("got  %s\nwant %s", encoded, tc.want)
+			}
+		})
+	}
+}
 
 func TestMarshalOrdered(t *testing.T) {
 	t.Parallel()

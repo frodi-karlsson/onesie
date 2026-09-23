@@ -33,8 +33,8 @@ func maskKey(value string) string {
 		scheme, secret = "", value
 	}
 
-	// Only the last four characters are kept. The leading characters of an API key are the
-	// structured, guessable part, so they are exactly what must not reach a log line.
+	// The leading characters of an API key are the structured, guessable part, so they are exactly
+	// what must not reach a log line.
 	tail := ""
 	if len(secret) > 8 {
 		tail = secret[len(secret)-4:]
