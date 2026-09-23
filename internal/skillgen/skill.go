@@ -1,0 +1,226 @@
+// Package skillgen decodes and validates skill.json, the schema a generated skill is built from.
+package skillgen
+
+import (
+	"bytes"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io/fs"
+	"os"
+	"path/filepath"
+	"regexp"
+	"unicode/utf8"
+)
+
+var nameShape = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
+
+// Load reads a skill.json file, decodes it rejecting unknown fields, and validates it.
+func Load(path string) (Skill, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return Skill{}, fmt.Errorf("jev: %w", err)
+	}
+
+	var s Skill
+
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	// DisallowUnknownFields, so a to_verify marker left on a rule cannot survive into a committed
+	// skill.json by accident.
+	decoder.DisallowUnknownFields()
+
+	if err := decoder.Decode(&s); err != nil {
+		return Skill{}, fmt.Errorf("jev: %s: %w", path, err)
+	}
+
+	if decoder.More() {
+		return Skill{}, fmt.Errorf("jev: %s: trailing content after the skill object", path)
+	}
+
+	if err := Validate(path, s); err != nil {
+		return Skill{}, err
+	}
+
+	return s, nil
+}
+
+// Skill is the decoded shape of a skill.json file, per spec section 2.1.
+type Skill struct {
+	Name          string            `json:"name"`
+	Description   string            `json:"description"`
+	Compatibility string            `json:"compatibility,omitempty"`
+	License       string            `json:"license,omitempty"`
+	Metadata      map[string]string `json:"metadata,omitempty"`
+	Intro         string            `json:"intro,omitempty"`
+	Rules         []Rule            `json:"rules,omitempty"`
+	Sections      []string          `json:"sections,omitempty"`
+	References    []string          `json:"references,omitempty"`
+}
+
+// Rule is one entry in a skill's rules list.
+type Rule struct {
+	ID        string `json:"id"`
+	Short     string `json:"short"`
+	Why       string `json:"why"`
+	Bad       string `json:"bad,omitempty"`
+	Good      string `json:"good,omitempty"`
+	GoodFails bool   `json:"good_fails,omitempty"`
+}
+
+// Validate enforces the skill.json field rules from spec section 2.1. path is the skill.json file
+// itself, and fragment paths are checked for existence against its directory.
+func Validate(path string, s Skill) error {
+	v := validator{path: path, dir: filepath.Dir(path)}
+
+	if err := v.name(s.Name); err != nil {
+		return err
+	}
+
+	if err := v.description(s.Description); err != nil {
+		return err
+	}
+
+	if err := v.rules(s.Rules); err != nil {
+		return err
+	}
+
+	if err := v.fragment("intro", s.Intro); err != nil {
+		return err
+	}
+
+	if err := v.fragments("sections", s.Sections); err != nil {
+		return err
+	}
+
+	if err := v.fragments("references", s.References); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+type validator struct {
+	path string
+	dir  string
+}
+
+func (v validator) name(name string) error {
+	if name == "" {
+		return v.errorf("name is required")
+	}
+
+	if utf8.RuneCountInString(name) > 64 {
+		return v.errorf("name '%s' must be at most 64 characters", name)
+	}
+
+	if !nameShape.MatchString(name) {
+		return v.errorf(
+			"name '%s' must be lowercase letters, digits and single hyphens, "+
+				"with no leading, trailing or consecutive hyphen", name)
+	}
+
+	if want := filepath.Base(v.dir); name != want {
+		return v.errorf("name '%s' must equal the directory name '%s'", name, want)
+	}
+
+	return nil
+}
+
+func (v validator) description(description string) error {
+	if description == "" {
+		return v.errorf("description is required")
+	}
+
+	if utf8.RuneCountInString(description) > 1024 {
+		return v.errorf("description must be at most 1024 characters")
+	}
+
+	return nil
+}
+
+func (v validator) rules(rules []Rule) error {
+	seen := make(map[string]bool, len(rules))
+
+	for i, rule := range rules {
+		if rule.ID == "" {
+			return v.errorf("%s: id is required", ruleLabel(i, ""))
+		}
+
+		if rule.Short == "" {
+			return v.errorf("%s: short is required", ruleLabel(i, rule.ID))
+		}
+
+		if rule.Why == "" {
+			return v.errorf("%s: why is required", ruleLabel(i, rule.ID))
+		}
+
+		if seen[rule.ID] {
+			return v.errorf("%s: id is already used by another rule", ruleLabel(i, rule.ID))
+		}
+
+		seen[rule.ID] = true
+	}
+
+	return nil
+}
+
+func ruleLabel(i int, id string) string {
+	if id == "" {
+		return fmt.Sprintf("rules[%d]", i)
+	}
+
+	return fmt.Sprintf("rules[%d] '%s'", i, id)
+}
+
+func (v validator) fragment(field, name string) error {
+	if name == "" {
+		return nil
+	}
+
+	return v.fragmentEntry(field, name)
+}
+
+func (v validator) fragments(field string, names []string) error {
+	seen := make(map[string]bool, len(names))
+
+	for i, name := range names {
+		label := fmt.Sprintf("%s[%d]", field, i)
+
+		if seen[name] {
+			return v.errorf("%s '%s' is already listed", label, name)
+		}
+
+		seen[name] = true
+
+		if err := v.fragmentEntry(label, name); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (v validator) fragmentEntry(label, name string) error {
+	if !fs.ValidPath(name) {
+		return v.errorf("%s '%s' must be a relative path inside the skill directory", label, name)
+	}
+
+	info, err := os.Stat(filepath.Join(v.dir, name))
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return v.errorf("%s '%s' does not exist", label, name)
+		}
+
+		return v.errorf("%s '%s': %w", label, name, err)
+	}
+
+	if !info.Mode().IsRegular() {
+		return v.errorf("%s '%s' must be a regular file", label, name)
+	}
+
+	return nil
+}
+
+func (v validator) errorf(format string, args ...any) error {
+	return fmt.Errorf("jev: %s: "+format, append([]any{v.path}, args...)...)
+}
