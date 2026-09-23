@@ -132,6 +132,24 @@ func TestNewRootCmdListModelsFlags(t *testing.T) {
 			wantErr: "jev: --state-file does not apply to --list-models, which reads no state",
 		},
 		{
+			// --input's default is text, so a rejection here can only come from Changed, not from
+			// the value differing from the default.
+			name:    "should reject --input given by its long name with --list-models",
+			args:    []string{"--list-models", "--input", "text"},
+			wantErr: "jev: -i does not apply to --list-models, which reads no input",
+		},
+		{
+			// --jobs's default is 1, for the same reason as the --input case above.
+			name:    "should reject --jobs given by its long name with --list-models",
+			args:    []string{"--list-models", "--jobs", "1"},
+			wantErr: "jev: -j does not apply to --list-models, which makes one request",
+		},
+		{
+			name:    "should reject --model given by its long name with --list-models",
+			args:    []string{"--list-models", "--model", "x"},
+			wantErr: "jev: -m names a model to ask, which --list-models does not do",
+		},
+		{
 			name:    "should reject -i with --list-models",
 			args:    []string{"--list-models", "-i", "jsonl"},
 			wantErr: "jev: -i does not apply to --list-models, which reads no input",

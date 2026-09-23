@@ -52,11 +52,11 @@ func newAuthSetCmd(settings rootSettings) *cobra.Command {
 		Short: "Read a key from a prompt or stdin and store it",
 		Args:  authNoArgs("set", "It reads the key from a prompt or stdin"),
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return authSet(cmd, settings, baseURL, cmd.Flags().Changed("base-url"))
+			return authSet(cmd, settings, baseURL, cmd.Flags().Changed(flagBaseURL))
 		},
 	}
 
-	cmd.Flags().StringVar(&baseURL, "base-url", "", "api root stored beside the key")
+	cmd.Flags().StringVar(&baseURL, flagBaseURL, "", "api root stored beside the key")
 
 	return cmd
 }

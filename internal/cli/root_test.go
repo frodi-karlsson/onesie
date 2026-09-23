@@ -1399,6 +1399,12 @@ func TestNewRootCmdFlagValidation(t *testing.T) {
 			code:     cli.ExitOK,
 			requests: 1,
 		},
+		{
+			name:     "should accept the long spelling of --jobs",
+			args:     []string{"--input", "lines", "--jobs", "2"},
+			code:     cli.ExitOK,
+			requests: 1,
+		},
 	}
 
 	for _, tc := range tests {

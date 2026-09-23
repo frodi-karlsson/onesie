@@ -20,6 +20,20 @@ import (
 	"github.com/frodi-karlsson/jev-cli/internal/limits"
 )
 
+// Changed reports false for a name pflag does not know, and reports no error, so a name that has
+// to survive a rename is spelled once. A flag nothing passes to Changed needs no constant.
+const (
+	flagState         = "state"
+	flagStateFile     = "state-file"
+	flagModel         = "model"
+	flagInput         = "input"
+	flagJobs          = "jobs"
+	flagTimeout       = "timeout"
+	flagRetries       = "retries"
+	flagMaxRetryAfter = "max-retry-after"
+	flagBaseURL       = "base-url"
+)
+
 // NewRootCmd builds a fresh command tree that reads and writes no global state.
 func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 	flags := &runFlags{}
@@ -101,14 +115,14 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 	// anywhere in argv, and StringArrayVar keeps the order it was given in.
 	root.Flags().StringArrayVar(&flags.assert, "assert", nil,
 		"boolean expression over the record, repeatable, combined with and")
-	root.Flags().StringVarP(&flags.input, "input", "i", "text",
+	root.Flags().StringVarP(&flags.input, flagInput, "i", "text",
 		"text, json, jsonl, lines or request")
-	root.Flags().StringVar(&flags.state, "state", "", "state to evaluate, or - to read stdin")
-	root.Flags().StringVar(&flags.stateFile, "state-file", "", "read the state from this file")
-	root.Flags().StringVarP(&flags.model, "model", "m", "", "model override")
+	root.Flags().StringVar(&flags.state, flagState, "", "state to evaluate, or - to read stdin")
+	root.Flags().StringVar(&flags.stateFile, flagStateFile, "", "read the state from this file")
+	root.Flags().StringVarP(&flags.model, flagModel, "m", "", "model override")
 	root.Flags().StringVar(&flags.apiKey, "api-key", "",
 		"api key. Prefer TYPESAFE_API_KEY or jev auth set, since argv is visible in ps")
-	root.Flags().StringVar(&flags.baseURL, "base-url", "", "api root override")
+	root.Flags().StringVar(&flags.baseURL, flagBaseURL, "", "api root override")
 	root.Flags().StringVarP(&flags.file, "file", "f", "", "question file or request body")
 	root.Flags().BoolVar(&flags.replace, "replace", false, "--ask overrides an id from -f")
 	root.Flags().BoolVar(&flags.printQuestions, "print-questions", false,
@@ -119,12 +133,12 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 		"write the available models to stdout and exit")
 	root.Flags().BoolVar(&flags.stats, "stats", false,
 		"write a one line summary of the run to stderr at exit")
-	root.Flags().IntVarP(&flags.jobs, "jobs", "j", 1, "records in flight at once")
-	root.Flags().IntVar(&flags.timeout, "timeout", int(limits.DefaultAttemptTimeout.Seconds()),
+	root.Flags().IntVarP(&flags.jobs, flagJobs, "j", 1, "records in flight at once")
+	root.Flags().IntVar(&flags.timeout, flagTimeout, int(limits.DefaultAttemptTimeout.Seconds()),
 		"seconds per attempt")
-	root.Flags().IntVar(&flags.retries, "retries", limits.DefaultRetries,
+	root.Flags().IntVar(&flags.retries, flagRetries, limits.DefaultRetries,
 		"retries after a failed attempt")
-	root.Flags().IntVar(&flags.maxRetryAfter, "max-retry-after",
+	root.Flags().IntVar(&flags.maxRetryAfter, flagMaxRetryAfter,
 		int(limits.DefaultMaxRetryAfter.Seconds()),
 		"honour a server Retry-After up to this many seconds")
 	root.Flags().BoolVar(&flags.unordered, "unordered", false,
