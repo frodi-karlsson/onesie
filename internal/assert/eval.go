@@ -95,28 +95,14 @@ func (e *evaluator) resolve(n *pathNode) any {
 		return nil
 	}
 
-	switch segment(n, 1) {
-	case "value":
-		return a.Value
-	case "confidence":
-		return unwrap(a.Confidence)
-	case "score":
-		return unwrap(a.Score)
-	case "norm":
-		return unwrap(a.Norm)
-	case "p":
-		return probability(a, segment(n, 2))
-	case "decision":
-		// Apply sets Decision only alongside Decided, so an undecided answer already reads as nil
-		// and Decided adds nothing here.
-		return a.Decision
-	case "fallback":
-		// §17.3 reads an absent fallback as the empty string, which is what the field already
-		// holds when no policy replaced the answer.
-		return a.Fallback
-	default:
+	f, ok := lookup(segment(n, 1))
+	if !ok {
+		// Check rejects an unknown field before Eval runs, so this is unreachable by design and
+		// exists only so the lookup is total.
 		return nil
 	}
+
+	return f.read(a, segment(n, 2))
 }
 
 func (e *evaluator) answer(id string) *answer.Answer {

@@ -170,58 +170,52 @@ func (c *checker) question(id string) *plan.Question {
 }
 
 func (c *checker) fieldType(q plan.Question, n *pathNode) (valueType, int, bool) {
-	switch field := n.segments[1]; field {
-	case "value":
-		if q.Shape == plan.Noul {
-			return typeNumber, 2, true
-		}
+	name := n.segments[1]
 
-		return typeString, 2, true
-	case "confidence":
-		if q.Shape == plan.Noul {
-			return c.absent(q, field)
-		}
-
-		return typeNumber, 2, true
-	case "score", "norm":
-		if q.Shape != plan.Rate {
-			return c.absent(q, field)
-		}
-
-		return typeNumber, 2, true
-	case "p":
-		if q.Shape == plan.Noul {
-			return c.absent(q, field)
-		}
-
-		return c.probability(q, n)
-	case "decision":
-		return c.decision(q)
-	case "fallback":
-		if !policed(q) {
-			c.fail("'%s.fallback' needs %s, %s or %s on '%s'", q.ID,
-				plan.Spelling(q.Origin, "--threshold"),
-				plan.Spelling(q.Origin, "--min-confidence"),
-				plan.Spelling(q.Origin, "--fallback"), q.ID)
-
-			return typeString, 0, false
-		}
-
-		return typeString, 2, true
-	default:
-		c.fail("'%s' has no field '%s'", q.ID, field)
+	f, ok := lookup(name)
+	if !ok {
+		c.fail("'%s' has no field '%s'", q.ID, name)
 
 		return typeString, 0, false
 	}
+
+	if !f.available(q) {
+		return c.unavailable(q, f)
+	}
+
+	// p is the only field that takes a key, and the key has to be one this question carries.
+	if f.takesKey {
+		return c.probability(q, n, f)
+	}
+
+	return f.typeOf(q), 2, true
 }
 
-func (c *checker) absent(q plan.Question, field string) (valueType, int, bool) {
-	c.fail("'%s' is a %s question and has no '%s'", q.ID, shapeWord(q.Shape), field)
+func (c *checker) unavailable(q plan.Question, f field) (valueType, int, bool) {
+	switch f.reason {
+	case reasonDecision:
+		c.fail("'%s.decision' needs %s on '%s'", q.ID, decisionNeeds(q), q.ID)
+
+		return typeString, 0, false
+	case reasonFallback:
+		c.fail("'%s.fallback' needs %s, %s or %s on '%s'", q.ID,
+			plan.Spelling(q.Origin, "--threshold"),
+			plan.Spelling(q.Origin, "--min-confidence"),
+			plan.Spelling(q.Origin, "--fallback"), q.ID)
+
+		return typeString, 0, false
+	default:
+		return c.absent(q, f.name)
+	}
+}
+
+func (c *checker) absent(q plan.Question, name string) (valueType, int, bool) {
+	c.fail("'%s' is a %s question and has no '%s'", q.ID, shapeWord(q.Shape), name)
 
 	return typeNumber, 0, false
 }
 
-func (c *checker) probability(q plan.Question, n *pathNode) (valueType, int, bool) {
+func (c *checker) probability(q plan.Question, n *pathNode, f field) (valueType, int, bool) {
 	keys := keysOf(q)
 
 	if len(n.segments) < 3 {
@@ -236,21 +230,7 @@ func (c *checker) probability(q plan.Question, n *pathNode) (valueType, int, boo
 		return typeNumber, 0, false
 	}
 
-	return typeNumber, 3, true
-}
-
-func (c *checker) decision(q plan.Question) (valueType, int, bool) {
-	if !decided(q) {
-		c.fail("'%s.decision' needs %s on '%s'", q.ID, decisionNeeds(q), q.ID)
-
-		return typeString, 0, false
-	}
-
-	if q.Shape == plan.Noul {
-		return typeBoolean, 2, true
-	}
-
-	return typeString, 2, true
+	return f.typeOf(q), 3, true
 }
 
 func decisionNeeds(q plan.Question) string {
@@ -318,46 +298,6 @@ type keyset struct {
 	noun  string
 	want  string
 	has   string
-}
-
-func fieldsOf(q plan.Question) []string {
-	fields := []string{"value"}
-
-	if q.Shape != plan.Noul {
-		fields = append(fields, "confidence")
-	}
-
-	if q.Shape == plan.Rate {
-		fields = append(fields, "score", "norm")
-	}
-
-	if q.Shape != plan.Noul {
-		fields = append(fields, "p")
-	}
-
-	if decided(q) {
-		fields = append(fields, "decision")
-	}
-
-	if policed(q) {
-		fields = append(fields, "fallback")
-	}
-
-	return fields
-}
-
-func decided(q plan.Question) bool {
-	if q.Shape == plan.Noul {
-		return q.Policy.Threshold != nil
-	}
-
-	// answer.Apply has nothing to substitute without a fallback and leaves decision unset, so the
-	// path is only there when both flags are, which §11 already requires of the pair.
-	return q.Policy.MinConfidence != nil && q.Policy.Fallback != nil
-}
-
-func policed(q plan.Question) bool {
-	return q.Policy.Threshold != nil || q.Policy.MinConfidence != nil || q.Policy.Fallback != nil
 }
 
 func shapeWord(shape plan.Shape) string {
