@@ -161,169 +161,169 @@ func TestNormalize(t *testing.T) {
 			}
 		})
 	}
-}
 
-// TestNormalizeFills is §17.3's promise at its source: the record carries a number under every key
-// the question asked about, so a reader of the map answers the same as the printed record.
-func TestNormalizeFills(t *testing.T) {
-	t.Parallel()
+	// §17.3's promise at its source: the record carries a number under every key the question
+	// asked about, so a reader of the map answers the same as the printed record.
+	t.Run("should fill a key the answer left out with a zero", func(t *testing.T) {
+		t.Parallel()
 
-	tests := []struct {
-		name     string
-		question plan.Question
-		raw      jev.Answer
-		want     map[string]float64
-		wantJSON string
-	}{
-		{
-			name: "should fill an option the answer left out with a zero",
-			question: plan.Question{
-				ID:    "team",
-				Shape: plan.Pick,
-				Options: []plan.Option{
-					{Name: "billing"}, {Name: "technical"}, {Name: "human"},
+		tests := []struct {
+			name     string
+			question plan.Question
+			raw      jev.Answer
+			want     map[string]float64
+			wantJSON string
+		}{
+			{
+				name: "should fill an option the answer left out with a zero",
+				question: plan.Question{
+					ID:    "team",
+					Shape: plan.Pick,
+					Options: []plan.Option{
+						{Name: "billing"}, {Name: "technical"}, {Name: "human"},
+					},
 				},
+				raw: &jev.ChoiceAnswer{
+					Choice:        "billing",
+					Confidence:    0.9,
+					Probabilities: map[string]float64{"billing": 0.7, "technical": 0.3},
+				},
+				want: map[string]float64{"billing": 0.7, "technical": 0.3, "human": 0},
+				wantJSON: `{"value":"billing","confidence":0.9,` +
+					`"p":{"billing":0.7,"technical":0.3,"human":0}}`,
 			},
-			raw: &jev.ChoiceAnswer{
-				Choice:        "billing",
-				Confidence:    0.9,
-				Probabilities: map[string]float64{"billing": 0.7, "technical": 0.3},
+			{
+				name: "should fill a label the answer left out with a zero",
+				question: plan.Question{
+					ID:       "severity",
+					Shape:    plan.Rate,
+					Labelled: true,
+					Levels:   []plan.Level{{Label: "low"}, {Label: "high"}},
+				},
+				raw: &jev.ScoreAnswer{
+					Score:         1,
+					Confidence:    0.5,
+					Probabilities: map[string]float64{"1": 1},
+				},
+				want:     map[string]float64{"low": 0, "high": 1},
+				wantJSON: `{"value":"high","score":1,"norm":1,"confidence":0.5,"p":{"low":0,"high":1}}`,
 			},
-			want: map[string]float64{"billing": 0.7, "technical": 0.3, "human": 0},
-			wantJSON: `{"value":"billing","confidence":0.9,` +
-				`"p":{"billing":0.7,"technical":0.3,"human":0}}`,
-		},
-		{
-			name: "should fill a label the answer left out with a zero",
-			question: plan.Question{
-				ID:       "severity",
-				Shape:    plan.Rate,
-				Labelled: true,
-				Levels:   []plan.Level{{Label: "low"}, {Label: "high"}},
+			{
+				name: "should fill an index the answer left out with a zero",
+				question: plan.Question{
+					ID:     "indexed",
+					Shape:  plan.Rate,
+					Levels: []plan.Level{{Desc: "calm"}, {Desc: "cross"}, {Desc: "angry"}},
+				},
+				raw: &jev.ScoreAnswer{
+					Score:         1,
+					Confidence:    0.5,
+					Probabilities: map[string]float64{"1": 1},
+				},
+				want: map[string]float64{"0": 0, "1": 1, "2": 0},
+				wantJSON: `{"value":"1","score":1,"norm":0.5,"confidence":0.5,` +
+					`"p":{"0":0,"1":1,"2":0}}`,
 			},
-			raw: &jev.ScoreAnswer{
-				Score:         1,
-				Confidence:    0.5,
-				Probabilities: map[string]float64{"1": 1},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				got, err := answer.Normalize(tc.question, tc.raw)
+				if err != nil {
+					t.Fatalf("Normalize(%q) error = %v, want no error", tc.question.ID, err)
+				}
+
+				if got.P == nil {
+					t.Fatalf("Normalize(%q) carries no probabilities, want some", tc.question.ID)
+				}
+
+				if !maps.Equal(got.P.Values, tc.want) {
+					t.Errorf("values = %v, want %v", got.P.Values, tc.want)
+				}
+
+				encoded, err := json.Marshal(got)
+				if err != nil {
+					t.Fatalf("marshalling: %v", err)
+				}
+
+				if string(encoded) != tc.wantJSON {
+					t.Errorf("got  %s\nwant %s", encoded, tc.wantJSON)
+				}
+			})
+		}
+	})
+
+	t.Run("should reject an answer whose shape does not match the question", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name     string
+			question plan.Question
+			raw      jev.Answer
+			wantErr  string
+		}{
+			{
+				name:     "should reject a nil answer rather than panicking",
+				question: plan.Question{ID: "urgent", Shape: plan.Noul},
+				raw:      nil,
 			},
-			want:     map[string]float64{"low": 0, "high": 1},
-			wantJSON: `{"value":"high","score":1,"norm":1,"confidence":0.5,"p":{"low":0,"high":1}}`,
-		},
-		{
-			name: "should fill an index the answer left out with a zero",
-			question: plan.Question{
-				ID:     "indexed",
-				Shape:  plan.Rate,
-				Levels: []plan.Level{{Desc: "calm"}, {Desc: "cross"}, {Desc: "angry"}},
+			{
+				name:     "should reject a choice answer to a yes/no question",
+				question: plan.Question{ID: "urgent", Shape: plan.Noul},
+				raw:      &jev.ChoiceAnswer{Choice: "x", Confidence: 0.5},
+				wantErr:  "jev: question 'urgent' expects a noul answer, got choice",
 			},
-			raw: &jev.ScoreAnswer{
-				Score:         1,
-				Confidence:    0.5,
-				Probabilities: map[string]float64{"1": 1},
+			{
+				name: "should reject a noul answer to a pick question",
+				question: plan.Question{
+					ID:      "team",
+					Shape:   plan.Pick,
+					Options: []plan.Option{{Name: "billing"}, {Name: "technical"}},
+				},
+				raw:     &jev.NoulAnswer{Noul: 0.4},
+				wantErr: "jev: question 'team' expects a choice answer, got noul",
 			},
-			want: map[string]float64{"0": 0, "1": 1, "2": 0},
-			wantJSON: `{"value":"1","score":1,"norm":0.5,"confidence":0.5,` +
-				`"p":{"0":0,"1":1,"2":0}}`,
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			got, err := answer.Normalize(tc.question, tc.raw)
-			if err != nil {
-				t.Fatalf("Normalize(%q) error = %v, want no error", tc.question.ID, err)
-			}
-
-			if got.P == nil {
-				t.Fatalf("Normalize(%q) carries no probabilities, want some", tc.question.ID)
-			}
-
-			if !maps.Equal(got.P.Values, tc.want) {
-				t.Errorf("values = %v, want %v", got.P.Values, tc.want)
-			}
-
-			encoded, err := json.Marshal(got)
-			if err != nil {
-				t.Fatalf("marshalling: %v", err)
-			}
-
-			if string(encoded) != tc.wantJSON {
-				t.Errorf("got  %s\nwant %s", encoded, tc.wantJSON)
-			}
-		})
-	}
-}
-
-func TestNormalizeRejects(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name     string
-		question plan.Question
-		raw      jev.Answer
-		wantErr  string
-	}{
-		{
-			name:     "should reject a nil answer rather than panicking",
-			question: plan.Question{ID: "urgent", Shape: plan.Noul},
-			raw:      nil,
-		},
-		{
-			name:     "should reject a choice answer to a yes/no question",
-			question: plan.Question{ID: "urgent", Shape: plan.Noul},
-			raw:      &jev.ChoiceAnswer{Choice: "x", Confidence: 0.5},
-			wantErr:  "jev: question 'urgent' expects a noul answer, got choice",
-		},
-		{
-			name: "should reject a noul answer to a pick question",
-			question: plan.Question{
-				ID:      "team",
-				Shape:   plan.Pick,
-				Options: []plan.Option{{Name: "billing"}, {Name: "technical"}},
+			{
+				name: "should reject a choice answer to a rate question",
+				question: plan.Question{
+					ID:     "severity",
+					Shape:  plan.Rate,
+					Levels: []plan.Level{{Label: "low"}, {Label: "high"}},
+				},
+				raw:     &jev.ChoiceAnswer{Choice: "low", Confidence: 0.5},
+				wantErr: "jev: question 'severity' expects a score answer, got choice",
 			},
-			raw:     &jev.NoulAnswer{Noul: 0.4},
-			wantErr: "jev: question 'team' expects a choice answer, got noul",
-		},
-		{
-			name: "should reject a choice answer to a rate question",
-			question: plan.Question{
-				ID:     "severity",
-				Shape:  plan.Rate,
-				Levels: []plan.Level{{Label: "low"}, {Label: "high"}},
-			},
-			raw:     &jev.ChoiceAnswer{Choice: "low", Confidence: 0.5},
-			wantErr: "jev: question 'severity' expects a score answer, got choice",
-		},
-	}
+		}
 
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
 
-			_, err := answer.Normalize(tc.question, tc.raw)
-			if err == nil {
-				t.Fatal("expected an error, got none")
-			}
+				_, err := answer.Normalize(tc.question, tc.raw)
+				if err == nil {
+					t.Fatal("expected an error, got none")
+				}
 
-			if tc.wantErr != "" && err.Error() != tc.wantErr {
-				t.Errorf("error = %q, want %q", err.Error(), tc.wantErr)
-			}
+				if tc.wantErr != "" && err.Error() != tc.wantErr {
+					t.Errorf("error = %q, want %q", err.Error(), tc.wantErr)
+				}
 
-			// A shape the question did not ask for is deterministic, so it is a 200 whose body jev
-			// could not use. Left untyped it took the transport kind and exit 5, which tells a
-			// pipeline to retry something that will never change.
-			var unusable *jev.ResponseError
-			if !errors.As(err, &unusable) {
-				t.Fatalf("error = %T, want *jev.ResponseError", err)
-			}
+				// A shape the question did not ask for is deterministic, so it is a 200 whose body
+				// jev could not use. Left untyped it took the transport kind and exit 5, which tells
+				// a pipeline to retry something that will never change.
+				var unusable *jev.ResponseError
+				if !errors.As(err, &unusable) {
+					t.Fatalf("error = %T, want *jev.ResponseError", err)
+				}
 
-			if unusable.Status != http.StatusOK {
-				t.Errorf("status = %d, want %d", unusable.Status, http.StatusOK)
-			}
-		})
-	}
+				if unusable.Status != http.StatusOK {
+					t.Errorf("status = %d, want %d", unusable.Status, http.StatusOK)
+				}
+			})
+		}
+	})
 }
 
 func TestProbabilitiesMarshalJSON(t *testing.T) {
