@@ -23,8 +23,13 @@ func main() {
 		os.Exit(1)
 	}
 
-	fmt.Printf("jev: checked %d example(s) across %d skill(s), skipped %d\n",
-		report.Checked, report.Skills, report.Skipped)
+	fmt.Printf("jev: checked %d examples across %d skills, skipped %d\n",
+		report.Checked, report.Skills, len(report.Skipped))
+
+	for _, skip := range report.Skipped {
+		fmt.Printf("jev: skill '%s' rule '%s' %s example skipped: %s\n  %s\n",
+			skip.Skill, skip.RuleID, skip.Kind, skip.Reason, skip.Command)
+	}
 
 	if report.Passed() {
 		return

@@ -5,13 +5,20 @@ package skillcheck
 import (
 	"context"
 	"fmt"
+	"strings"
+	"time"
 
 	"github.com/frodi-karlsson/jev-cli/internal/skillgen"
 )
 
+// Bounds one example. A dry run makes no network call and should return instantaneously, so a
+// jev that hangs is treated as a failure rather than left to stall CI.
+const runTimeout = 10 * time.Second
+
 // Check runs every rule's bad and good example under root through runner. An example that cannot
 // be parsed as a jev invocation is skipped rather than counted as a failure, since a jq filter or
-// a rule about model behaviour carries no command a dry run can replay.
+// a rule about model behaviour carries no command a dry run can replay. Every skip is reported
+// with why, so a skill drifting to unverifiable examples is visible rather than merely countable.
 func Check(ctx context.Context, root string, runner *Runner) (Report, error) {
 	found, err := skillgen.Skills(root)
 	if err != nil {
@@ -47,7 +54,7 @@ func Check(ctx context.Context, root string, runner *Runner) (Report, error) {
 type Report struct {
 	Skills   int
 	Checked  int
-	Skipped  int
+	Skipped  []Skip
 	Failures []string
 }
 
@@ -56,55 +63,78 @@ func (r Report) Passed() bool {
 	return len(r.Failures) == 0
 }
 
+// Skip records one example Check declined to run, and why, so a skill drifting to examples the
+// checker cannot verify is visible rather than only countable.
+type Skip struct {
+	Skill   string
+	RuleID  string
+	Kind    string
+	Command string
+	Reason  string
+}
+
 func checkRule(
 	ctx context.Context, runner *Runner, skill, ruleID, kind, command string, wantPass bool,
 	report *Report,
 ) error {
-	args, ok := prepare(command)
-	if !ok {
-		report.Skipped++
+	args, reason, err := prepare(command)
+	if err != nil {
+		return fmt.Errorf("jev: skill '%s' rule '%s' %s example: %w", skill, ruleID, kind, err)
+	}
+
+	if reason != "" {
+		report.Skipped = append(report.Skipped, Skip{
+			Skill: skill, RuleID: ruleID, Kind: kind, Command: command, Reason: reason,
+		})
 
 		return nil
 	}
 
-	exitCode, err := runner.run(ctx, args)
+	runCtx, cancel := context.WithTimeout(ctx, runTimeout)
+	defer cancel()
+
+	exitCode, stderr, err := runner.run(runCtx, args)
 	if err != nil {
-		return fmt.Errorf("jev: skill '%s' rule '%s': %w", skill, ruleID, err)
+		return fmt.Errorf("jev: skill '%s' rule '%s' %s example: %w", skill, ruleID, kind, err)
 	}
 
 	report.Checked++
 
 	if passed := exitCode == 0; passed != wantPass {
-		report.Failures = append(report.Failures, outcomeMessage(skill, ruleID, kind, wantPass, exitCode))
+		report.Failures = append(report.Failures,
+			outcomeMessage(skill, ruleID, kind, wantPass, exitCode, args, stderr))
 	}
 
 	return nil
 }
 
-func prepare(command string) ([]string, bool) {
-	tokens, ok := tokenize(command)
-	if !ok {
-		return nil, false
+func prepare(command string) (args []string, reason string, err error) {
+	tokens, reason := tokenize(command)
+	if reason != "" {
+		return nil, reason, nil
 	}
 
 	return dryRunArgs(tokens)
 }
 
-func outcomeMessage(skill, ruleID, kind string, wantPass bool, exitCode int) string {
-	if wantPass {
-		return fmt.Sprintf(
-			"jev: skill '%s' rule '%s': good example failed the dry run with exit %d",
-			skill, ruleID, exitCode)
+func outcomeMessage(skill, ruleID, kind string, wantPass bool, exitCode int, args []string, stderr string) string {
+	var clause string
+
+	switch {
+	case wantPass:
+		clause = fmt.Sprintf("good example failed the dry run with exit %d", exitCode)
+	case kind == "bad":
+		clause = "bad example was supposed to fail the dry run but exited 0"
+	default:
+		clause = "good example marked good_fails was supposed to fail the dry run but exited 0"
 	}
 
-	if kind == "bad" {
-		return fmt.Sprintf(
-			"jev: skill '%s' rule '%s': bad example was supposed to fail the dry run but exited 0",
-			skill, ruleID)
+	message := fmt.Sprintf("jev: skill '%s' rule '%s': %s\n  ran: jev %s",
+		skill, ruleID, clause, strings.Join(args, " "))
+
+	if stderr = strings.TrimSpace(stderr); stderr != "" {
+		message += "\n  " + stderr
 	}
 
-	return fmt.Sprintf(
-		"jev: skill '%s' rule '%s': good example marked good_fails was supposed to fail "+
-			"the dry run but exited 0",
-		skill, ruleID)
+	return message
 }

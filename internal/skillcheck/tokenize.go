@@ -2,12 +2,15 @@ package skillcheck
 
 import "regexp"
 
-// trailingRedirect matches the redirections an example keeps a dry run's output out of the
-// reader's way with. A dry run never runs through a shell, so these are noise rather than argv.
+// The forms an example keeps a dry run's output out of the reader's way with. A dry run never
+// runs through a shell, so these are noise rather than argv.
 var trailingRedirect = regexp.MustCompile(
 	`(?:\s+(?:>\s*/dev/null|[12]?>&[12]|[12]>\s*/dev/null))+\s*$`)
 
-func tokenize(command string) (tokens []string, ok bool) {
+// reason is empty on success. On failure it names, in words a skill author can act on, the one
+// thing about the command this package refuses to guess at: a pipe, a chain, a redirection, an
+// expansion, a glob, or malformed quoting.
+func tokenize(command string) (tokens []string, reason string) {
 	command = trailingRedirect.ReplaceAllString(command, "")
 
 	var current []rune
@@ -27,39 +30,33 @@ func tokenize(command string) (tokens []string, ok bool) {
 	for i := 0; i < len(runes); i++ {
 		r := runes[i]
 
-		switch {
-		case r == '\'':
+		switch r {
+		case '\'':
 			end, closed := scanSingleQuote(runes, i+1)
 			if !closed {
-				return nil, false
+				return nil, "an unterminated single quote"
 			}
 
 			current = append(current, runes[i+1:end]...)
 			word = true
 			i = end
 
-		case r == '"':
-			end, body, safe := scanDoubleQuote(runes, i+1)
-			if !safe {
-				return nil, false
+		case '"':
+			end, body, quoteReason := scanDoubleQuote(runes, i+1)
+			if quoteReason != "" {
+				return nil, quoteReason
 			}
 
 			current = append(current, body...)
 			word = true
 			i = end
 
-		case r == ' ' || r == '\t' || r == '\n':
+		case ' ', '\t', '\n':
 			flush()
 
-		// A pipe, a chain, a redirection or an expansion needs a shell to resolve, and this
-		// package never hands a parsed command to one. The whole example is skipped rather than
-		// guessed at.
-		case isShellMeta(r):
-			return nil, false
-
-		case r == '\\':
+		case '\\':
 			if i+1 >= len(runes) {
-				return nil, false
+				return nil, "a trailing backslash"
 			}
 
 			current = append(current, runes[i+1])
@@ -67,6 +64,13 @@ func tokenize(command string) (tokens []string, ok bool) {
 			i++
 
 		default:
+			// A pipe, a chain, a redirection, an expansion or a glob needs a shell, a filesystem
+			// or an environment to resolve, and this package hands a parsed command to none of
+			// them. The whole example is skipped rather than guessed at.
+			if hazard := shellHazard(r); hazard != "" {
+				return nil, "contains " + hazard
+			}
+
 			current = append(current, r)
 			word = true
 		}
@@ -75,18 +79,38 @@ func tokenize(command string) (tokens []string, ok bool) {
 	flush()
 
 	if len(tokens) == 0 {
-		return nil, false
+		return nil, "an empty command"
 	}
 
-	return tokens, true
+	return tokens, ""
 }
 
-func isShellMeta(r rune) bool {
+func shellHazard(r rune) string {
 	switch r {
-	case '|', '&', ';', '<', '>', '(', ')', '`', '$':
-		return true
+	case '|':
+		return "a pipe"
+	case '&':
+		return "a background operator"
+	case ';':
+		return "a command separator"
+	case '<', '>':
+		return "a redirection"
+	case '(', ')':
+		return "a subshell"
+	case '`':
+		return "a command substitution"
+	case '$':
+		return "a variable or a command substitution"
+	case '*', '?', '[':
+		return "a glob"
+	case '{':
+		return "a brace expansion"
+	case '~':
+		return "a home directory expansion"
+	case '#':
+		return "a comment marker"
 	default:
-		return false
+		return ""
 	}
 }
 
@@ -100,18 +124,18 @@ func scanSingleQuote(runes []rune, start int) (end int, closed bool) {
 	return 0, false
 }
 
-func scanDoubleQuote(runes []rune, start int) (end int, body []rune, safe bool) {
+func scanDoubleQuote(runes []rune, start int) (end int, body []rune, reason string) {
 	for i := start; i < len(runes); i++ {
 		switch r := runes[i]; r {
 		case '"':
-			return i, body, true
+			return i, body, ""
 
 		case '$', '`':
-			return 0, nil, false
+			return 0, nil, "a variable or a command substitution"
 
 		case '\\':
 			if i+1 >= len(runes) {
-				return 0, nil, false
+				return 0, nil, "an unterminated double quote"
 			}
 
 			switch next := runes[i+1]; next {
@@ -127,5 +151,5 @@ func scanDoubleQuote(runes []rune, start int) (end int, body []rune, safe bool) 
 		}
 	}
 
-	return 0, nil, false
+	return 0, nil, "an unterminated double quote"
 }

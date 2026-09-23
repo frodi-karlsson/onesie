@@ -1,9 +1,14 @@
 package skillcheck
 
-import "strings"
+import (
+	"fmt"
+	"strings"
+)
 
-// alwaysStripped are the flags checkPrintFlags in internal/plan/validate.go rejects on every dry
-// run, print-request and print-questions alike.
+// Rejected on every dry run this package builds, whichever mode runs. Most are checkPrintFlags's
+// own rejections in internal/plan/validate.go, unconditional there. --stop-on-assert is here for
+// a second reason too: checkPrintFlags rejects it under --print-request, and checkSingleRecord
+// rejects it under --print-questions once -i is stripped and the run becomes single record.
 var alwaysStripped = []flagSpec{
 	{long: "output", short: "o", value: true},
 	{long: "raw", short: "r"},
@@ -13,16 +18,22 @@ var alwaysStripped = []flagSpec{
 	// Not in checkPrintFlags by name, but --merge-key implies --merge the same rejection covers.
 	{long: "merge-key", value: true},
 	{long: "stats"},
+	{long: "stop-on-assert"},
 }
 
-// questionsOnlyStripped are the flags checkPrintFlags rejects only for --print-questions, since
-// --print-request still needs them to build a request body.
+// Rejected only when the dry run is --print-questions. The first five, checkPrintFlags rejects
+// outright, since --print-request still needs them to build a request body. The last three,
+// checkSingleRecord rejects instead, and only because stripping -i turns the run into a single
+// record one, which is streaming input's own rule rather than a print flag's.
 var questionsOnlyStripped = []flagSpec{
 	{long: "input", short: "i", value: true},
 	{long: "jobs", short: "j", value: true},
 	{long: "model", short: "m", value: true},
 	{long: "state", value: true},
 	{long: "state-file", value: true},
+	{long: "unordered"},
+	{long: "stop-on-error"},
+	{long: "skip-blank"},
 }
 
 var printFlags = []flagSpec{
@@ -30,12 +41,12 @@ var printFlags = []flagSpec{
 	{long: "print-questions"},
 }
 
-// assertFlag is never stripped. It is in the catalog purely so a value that happens to spell
-// --assert is never misread as the flag itself.
+// Never stripped. It is in the catalog purely so a value that happens to spell --assert is never
+// misread as the flag itself.
 var assertFlag = flagSpec{long: "assert", value: true}
 
-// catalog is every flag dryRunArgs recognises positionally. A value belonging to a flag it keeps
-// must never be mistaken for a flag of its own, and this is what makes that possible.
+// Every flag dryRunArgs recognises positionally, so a value belonging to a flag it keeps is never
+// mistaken for a flag of its own.
 var catalog = append(append(append(append([]flagSpec{}, printFlags...), alwaysStripped...),
 	questionsOnlyStripped...), assertFlag)
 
@@ -45,17 +56,22 @@ type flagSpec struct {
 	value bool
 }
 
-// occurrence is one genuine, positionally verified match of a catalog flag. A value token
-// consumed by the flag before it is never itself an occurrence, however it happens to be spelled.
+// A value token consumed by the flag before it is never itself an occurrence, however it happens
+// to be spelled.
 type occurrence struct {
 	index  int
 	spec   flagSpec
 	joined bool
 }
 
-func dryRunArgs(tokens []string) (args []string, ok bool) {
+type flagMatch struct {
+	spec   flagSpec
+	joined bool
+}
+
+func dryRunArgs(tokens []string) (args []string, reason string, err error) {
 	if len(tokens) == 0 || tokens[0] != "jev" {
-		return nil, false
+		return nil, "is not a jev invocation", nil
 	}
 
 	raw := tokens[1:]
@@ -73,10 +89,13 @@ func dryRunArgs(tokens []string) (args []string, ok bool) {
 	final := insertFlag(stripFlags(raw, strip), mode)
 
 	if !provenDryRun(final, strip) {
-		return nil, false
+		return nil, "", fmt.Errorf(
+			"jev: built %s from %s, which is not provably a dry run. "+
+				"this is a skillcheck bug, not a skill problem",
+			strings.Join(final, " "), strings.Join(tokens, " "))
 	}
 
-	return final, true
+	return final, "", nil
 }
 
 func hasFlag(args []string, long string) bool {
@@ -115,18 +134,17 @@ func stripFlags(args []string, strip []flagSpec) []string {
 	return out
 }
 
-// insertFlag places flag at the very front of args, immediately after the binary itself. Nothing
-// ever precedes that position, so no flag jev knows about, catalogued here or not, can consume it
-// as a value. Appending it at the end, or ahead of a literal --, still left it in reach of
+// Nothing precedes index 0, so no flag jev knows about, catalogued here or not, can ever consume
+// it as a value. Appending it at the end, or ahead of a literal --, still left it in reach of
 // whatever came directly before.
 func insertFlag(args []string, flag string) []string {
 	return append([]string{flag}, args...)
 }
 
-// provenDryRun re-derives the flag occurrences in a built argument list from scratch rather than
-// trusting stripFlags and insertFlag got it right. It fails closed. Anything other than exactly
-// one dry run flag, or a flag strip was supposed to remove still occurring, is not proof, and the
-// caller must not run what it cannot prove.
+// A second line of defence once stripFlags and insertFlag are trusted to have done their job, so
+// it never fires today. It goes false again only if stripFlags stops dropping a value flag's
+// value together with the flag, insertFlag stops placing the mode flag at index 0, or a spec is
+// removed from catalog while it still appears in a strip set.
 func provenDryRun(args []string, strip []flagSpec) bool {
 	modeCount := 0
 
@@ -154,14 +172,22 @@ func flagOccurrences(args []string, specs []flagSpec) []occurrence {
 			continue
 		}
 
-		spec, joined, matched := matchFlag(arg, specs)
+		// Everything from here on is positional, per pflag's own rule, so nothing after it is
+		// eligible to match a flag.
+		if arg == "--" {
+			break
+		}
+
+		matches, matched := matchFlag(arg, specs)
 		if !matched {
 			continue
 		}
 
-		occs = append(occs, occurrence{index: i, spec: spec, joined: joined})
+		for _, m := range matches {
+			occs = append(occs, occurrence{index: i, spec: m.spec, joined: m.joined})
+		}
 
-		if spec.value && !joined {
+		if last := matches[len(matches)-1]; last.spec.value && !last.joined {
 			protected = true
 		}
 	}
@@ -179,12 +205,16 @@ func specIn(spec flagSpec, specs []flagSpec) bool {
 	return false
 }
 
-func matchFlag(token string, specs []flagSpec) (flagSpec, bool, bool) {
+// Every form pflag itself accepts is recognised here: the long spelling bare or joined with =,
+// the short spelling bare or joined with =, a short flag with its value attached directly as in
+// -ojson, and a cluster of short boolean flags as in -rq, ending in a value flag that claims the
+// remainder of the token if one is present.
+func matchFlag(token string, specs []flagSpec) ([]flagMatch, bool) {
 	for _, candidate := range specs {
 		if long := "--" + candidate.long; token == long {
-			return candidate, false, true
+			return []flagMatch{{spec: candidate, joined: false}}, true
 		} else if strings.HasPrefix(token, long+"=") {
-			return candidate, true, true
+			return []flagMatch{{spec: candidate, joined: true}}, true
 		}
 
 		if candidate.short == "" {
@@ -192,11 +222,60 @@ func matchFlag(token string, specs []flagSpec) (flagSpec, bool, bool) {
 		}
 
 		if short := "-" + candidate.short; token == short {
-			return candidate, false, true
+			return []flagMatch{{spec: candidate, joined: false}}, true
 		} else if strings.HasPrefix(token, short+"=") {
-			return candidate, true, true
+			return []flagMatch{{spec: candidate, joined: true}}, true
 		}
 	}
 
-	return flagSpec{}, false, false
+	return matchShortCluster(token, specs)
+}
+
+// A single dash token is read one character at a time, each one a short flag from specs. A
+// boolean flag consumes one character and the read continues. A value flag consumes every
+// character left in the token as its value, joined when any remain and unjoined, needing the next
+// token instead, when the value flag is the token's last character. An unrecognised character
+// anywhere in the cluster means the whole token is not a match, since a partial read cannot be
+// trusted to mean what the rest of it says.
+func matchShortCluster(token string, specs []flagSpec) ([]flagMatch, bool) {
+	if len(token) < 3 || token[0] != '-' || token[1] == '-' {
+		return nil, false
+	}
+
+	body := token[1:]
+
+	var matches []flagMatch
+
+	for i := 0; i < len(body); i++ {
+		spec, found := shortSpec(body[i], specs)
+		if !found {
+			return nil, false
+		}
+
+		if !spec.value {
+			matches = append(matches, flagMatch{spec: spec, joined: false})
+
+			continue
+		}
+
+		matches = append(matches, flagMatch{spec: spec, joined: i+1 < len(body)})
+
+		break
+	}
+
+	if len(matches) == 0 {
+		return nil, false
+	}
+
+	return matches, true
+}
+
+func shortSpec(b byte, specs []flagSpec) (flagSpec, bool) {
+	for _, candidate := range specs {
+		if candidate.short != "" && candidate.short[0] == b {
+			return candidate, true
+		}
+	}
+
+	return flagSpec{}, false
 }

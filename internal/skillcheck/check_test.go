@@ -15,6 +15,7 @@ func TestCheckRule(t *testing.T) {
 		name       string
 		kind       string
 		exitCode   int
+		stderr     string
 		wantPass   bool
 		wantFail   bool
 		wantChecks func(t *testing.T, failure string)
@@ -27,16 +28,23 @@ func TestCheckRule(t *testing.T) {
 			wantFail: false,
 		},
 		{
-			name:     "should fail a good example that exits 2, naming the skill and the rule id",
+			name: "should fail a good example that exits 2, naming the skill, the rule id, " +
+				"the argv and jev's own stderr",
 			kind:     "good",
 			exitCode: 2,
+			stderr:   "jev: --fallback on a yes/no question takes true, false, yes or no, got 'x'",
 			wantPass: true,
 			wantFail: true,
 			wantChecks: func(t *testing.T, failure string) {
 				t.Helper()
 
-				if !strings.Contains(failure, "demo-skill") || !strings.Contains(failure, "r1") {
-					t.Errorf("failure = %q, want it to name the skill and the rule id", failure)
+				for _, want := range []string{
+					"demo-skill", "r1", "ran: jev --print-request --ask a=x",
+					"--fallback on a yes/no question",
+				} {
+					if !strings.Contains(failure, want) {
+						t.Errorf("failure = %q, want it to contain %q", failure, want)
+					}
 				}
 			},
 		},
@@ -83,8 +91,8 @@ func TestCheckRule(t *testing.T) {
 
 			runner := &Runner{
 				Binary: "jev",
-				exec: func(context.Context, string, []string) (int, error) {
-					return tc.exitCode, nil
+				exec: func(context.Context, string, []string) (int, string, error) {
+					return tc.exitCode, tc.stderr, nil
 				},
 			}
 
@@ -114,6 +122,42 @@ func TestCheckRule(t *testing.T) {
 	}
 }
 
+func TestCheckRuleReturnsAnErrorRatherThanASkip(t *testing.T) {
+	t.Parallel()
+
+	t.Run("should surface a run error rather than count it as checked or skipped", func(t *testing.T) {
+		t.Parallel()
+
+		runner := &Runner{
+			Binary: "jev",
+			exec: func(context.Context, string, []string) (int, string, error) {
+				return 0, "", context.DeadlineExceeded
+			},
+		}
+
+		report := &Report{}
+
+		err := checkRule(
+			context.Background(), runner, "demo-skill", "r1", "good", "jev --ask a=x", true, report,
+		)
+		if err == nil {
+			t.Fatalf("checkRule(...) error = nil, want an error")
+		}
+
+		if !strings.Contains(err.Error(), "demo-skill") || !strings.Contains(err.Error(), "r1") {
+			t.Errorf("err = %q, want it to name the skill and the rule id", err.Error())
+		}
+
+		if report.Checked != 0 {
+			t.Errorf("report.Checked = %d, want 0", report.Checked)
+		}
+
+		if len(report.Skipped) != 0 {
+			t.Errorf("report.Skipped = %v, want none", report.Skipped)
+		}
+	})
+}
+
 func TestCheck(t *testing.T) {
 	t.Parallel()
 
@@ -127,7 +171,7 @@ func TestCheck(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		if report.Skills != 0 || report.Checked != 0 || report.Skipped != 0 || len(report.Failures) != 0 {
+		if report.Skills != 0 || report.Checked != 0 || len(report.Skipped) != 0 || len(report.Failures) != 0 {
 			t.Errorf("report = %+v, want an empty, passing report", report)
 		}
 
@@ -136,7 +180,7 @@ func TestCheck(t *testing.T) {
 		}
 	})
 
-	t.Run("should skip an example it cannot parse as a jev invocation and check the rest", func(t *testing.T) {
+	t.Run("should skip an example it cannot parse as a jev invocation, naming why, and check the rest", func(t *testing.T) {
 		t.Parallel()
 
 		root := t.TempDir()
@@ -162,14 +206,14 @@ func TestCheck(t *testing.T) {
 
 		runner := &Runner{
 			Binary: "jev",
-			exec: func(_ context.Context, _ string, args []string) (int, error) {
+			exec: func(_ context.Context, _ string, args []string) (int, string, error) {
 				for _, arg := range args {
 					if strings.Contains(arg, "BADMARKER") {
-						return 2, nil
+						return 2, "", nil
 					}
 				}
 
-				return 0, nil
+				return 0, "", nil
 			},
 		}
 
@@ -186,8 +230,14 @@ func TestCheck(t *testing.T) {
 			t.Errorf("report.Checked = %d, want 2", report.Checked)
 		}
 
-		if report.Skipped != 1 {
-			t.Errorf("report.Skipped = %d, want 1", report.Skipped)
+		if len(report.Skipped) != 1 {
+			t.Fatalf("report.Skipped = %v, want one entry", report.Skipped)
+		}
+
+		skip := report.Skipped[0]
+		if skip.Skill != "demo" || skip.RuleID != "r2" || skip.Kind != "bad" ||
+			skip.Command != "jq '.value > 0.5'" || skip.Reason != "is not a jev invocation" {
+			t.Errorf("report.Skipped[0] = %+v, want it to name the skill, rule, kind, command and reason", skip)
 		}
 
 		if len(report.Failures) != 0 {
@@ -216,10 +266,10 @@ func TestCheck(t *testing.T) {
 
 		runner := &Runner{
 			Binary: "jev",
-			exec: func(context.Context, string, []string) (int, error) {
+			exec: func(context.Context, string, []string) (int, string, error) {
 				called = true
 
-				return 0, nil
+				return 0, "", nil
 			},
 		}
 
@@ -236,23 +286,53 @@ func TestCheck(t *testing.T) {
 			t.Errorf("report.Checked = %d, want 1", report.Checked)
 		}
 
-		if report.Skipped != 0 {
-			t.Errorf("report.Skipped = %d, want 0", report.Skipped)
+		if len(report.Skipped) != 0 {
+			t.Errorf("report.Skipped = %v, want none", report.Skipped)
 		}
 
 		if len(report.Failures) != 0 {
 			t.Errorf("report.Failures = %v, want none", report.Failures)
 		}
 	})
+
+	t.Run("should abort with an error rather than skip when a run cannot complete", func(t *testing.T) {
+		t.Parallel()
+
+		root := t.TempDir()
+		writeCheckFixture(t, root, "demo", `{
+			"name": "demo",
+			"description": "a demo skill",
+			"rules": [
+				{
+					"id": "r1",
+					"short": "Runs forever.",
+					"why": "demonstrates a run failure surfacing as an error",
+					"good": "jev --ask a=x"
+				}
+			]
+		}`)
+
+		runner := &Runner{
+			Binary: "jev",
+			exec: func(context.Context, string, []string) (int, string, error) {
+				return 0, "", context.DeadlineExceeded
+			},
+		}
+
+		_, err := Check(context.Background(), root, runner)
+		if err == nil {
+			t.Fatalf("Check(...) error = nil, want an error")
+		}
+	})
 }
 
-func neverCalled(t *testing.T) func(context.Context, string, []string) (int, error) {
+func neverCalled(t *testing.T) func(context.Context, string, []string) (int, string, error) {
 	t.Helper()
 
-	return func(context.Context, string, []string) (int, error) {
+	return func(context.Context, string, []string) (int, string, error) {
 		t.Fatalf("the runner was called, want no example to reach it")
 
-		return 0, nil
+		return 0, "", nil
 	}
 }
 
