@@ -23,9 +23,7 @@
     "longDescription": "Teach Codex to drive the jev CLI: ask for a probability, a pick or a rating on one piece of text, gate a CI step on a judgment, and stream a file of records through jev.",
     "developerName": "Frodi Karlsson",
     "category": "Developer Tools",
-    "capabilities": [
-      "Instructions"
-    ],
+    "capabilities": [],
     "websiteURL": "https://github.com/frodi-karlsson/jev-cli",
     "defaultPrompt": [
       "Use jev to judge this text.",
