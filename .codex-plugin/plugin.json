@@ -1,0 +1,36 @@
+{
+  "name": "jev",
+  "version": "0.1.0",
+  "description": "Skills that teach Codex to drive the jev CLI: single judgments, CI gates and streamed batches.",
+  "author": {
+    "name": "Frodi Karlsson",
+    "url": "https://github.com/frodi-karlsson"
+  },
+  "homepage": "https://github.com/frodi-karlsson/jev-cli",
+  "repository": "https://github.com/frodi-karlsson/jev-cli",
+  "license": "MIT",
+  "keywords": [
+    "jev",
+    "typesafe",
+    "cli",
+    "skills",
+    "codex"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "jev",
+    "shortDescription": "Correct jev invocations for judgments, gates and batches",
+    "longDescription": "Teach Codex to drive the jev CLI: ask for a probability, a pick or a rating on one piece of text, gate a CI step on a judgment, and stream a file of records through jev.",
+    "developerName": "Frodi Karlsson",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Instructions"
+    ],
+    "websiteURL": "https://github.com/frodi-karlsson/jev-cli",
+    "defaultPrompt": [
+      "Use jev to judge this text.",
+      "Gate this CI step on a jev judgment.",
+      "Run this file of records through jev."
+    ]
+  }
+}

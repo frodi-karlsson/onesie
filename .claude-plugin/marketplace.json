@@ -1,0 +1,16 @@
+{
+  "$schema": "https://www.schemastore.org/claude-code-marketplace.json",
+  "name": "jev-cli",
+  "description": "Skills for the jev CLI, the command line interface for TypeSafe Jev.",
+  "owner": {
+    "name": "Frodi Karlsson"
+  },
+  "plugins": [
+    {
+      "name": "jev",
+      "description": "Teach an agent to write correct jev invocations.",
+      "source": "./",
+      "category": "development"
+    }
+  ]
+}
