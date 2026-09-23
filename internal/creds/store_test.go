@@ -629,12 +629,23 @@ func TestSave(t *testing.T) {
 			wantErr string
 		}{
 			{
-				// A real file opened read only, so the write fails with a real EBADF and the file is
-				// still on disk for Save to remove.
+				// A real file closed before Save reaches it, so the write fails the same way
+				// everywhere. A read only handle is not portable here, since Go grants windows an
+				// O_RDONLY handle write access whenever O_CREATE is also set. The file stays on
+				// disk for Save to remove.
 				name: "should fail and remove the temporary file when the write fails",
 				handle: func(_ *testing.T, dir string) (*os.File, error) {
-					return os.OpenFile(filepath.Join(dir, ".credentials-stub"),
-						os.O_RDONLY|os.O_CREATE|os.O_EXCL, 0o600)
+					file, err := os.OpenFile(filepath.Join(dir, ".credentials-stub"),
+						os.O_RDWR|os.O_CREATE|os.O_EXCL, 0o600)
+					if err != nil {
+						return nil, err
+					}
+
+					if closeErr := file.Close(); closeErr != nil {
+						return nil, closeErr
+					}
+
+					return file, nil
 				},
 				wantErr: "writing",
 			},
