@@ -191,8 +191,10 @@ func (c *checker) fieldType(q plan.Question, n *pathNode) (valueType, int, bool)
 		return c.decision(q)
 	case "fallback":
 		if !policed(q) {
-			c.fail("'%s.fallback' needs --threshold, --min-confidence or --fallback on '%s'",
-				q.ID, q.ID)
+			c.fail("'%s.fallback' needs %s, %s or %s on '%s'", q.ID,
+				plan.Spelling(q.Origin, "--threshold"),
+				plan.Spelling(q.Origin, "--min-confidence"),
+				plan.Spelling(q.Origin, "--fallback"), q.ID)
 
 			return typeString, 0, false
 		}
@@ -231,7 +233,9 @@ func (c *checker) probability(q plan.Question, n *pathNode) (valueType, int, boo
 
 func (c *checker) decision(q plan.Question) (valueType, int, bool) {
 	if !decided(q) {
-		c.fail("'%s.decision' needs --threshold or --min-confidence on '%s'", q.ID, q.ID)
+		c.fail("'%s.decision' needs %s or %s on '%s'", q.ID,
+			plan.Spelling(q.Origin, "--threshold"),
+			plan.Spelling(q.Origin, "--min-confidence"), q.ID)
 
 		return typeString, 0, false
 	}
@@ -258,7 +262,7 @@ func keysOf(q plan.Question) keyset {
 			names: names,
 			noun:  "option",
 			want:  "an option name",
-			has:   "--pick has: " + strings.Join(names, ", "),
+			has:   plan.ShapeName(&q, "--pick") + " has: " + strings.Join(names, ", "),
 		}
 	}
 
@@ -272,7 +276,7 @@ func keysOf(q plan.Question) keyset {
 			names: labels,
 			noun:  "label",
 			want:  "a level label",
-			has:   "--rate has: " + strings.Join(labels, ", "),
+			has:   plan.ShapeName(&q, "--rate") + " has: " + strings.Join(labels, ", "),
 		}
 	}
 

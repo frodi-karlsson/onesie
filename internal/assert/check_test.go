@@ -317,6 +317,84 @@ func TestCheck(t *testing.T) {
 	})
 }
 
+// TestCheckSpellsTheOrigin holds the assertion messages to plan's rule, that a message spells the
+// offending thing the way the question was written. §17.8 publishes the flag spelling, which is
+// what a command line question still gets.
+func TestCheckSpellsTheOrigin(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		question plan.Question
+		input    string
+		wantErr  string
+	}{
+		{
+			name: "should spell a file's options the way the file keys them",
+			question: plan.Question{
+				ID: "team", Shape: plan.Pick, Origin: plan.OriginFile,
+				Options: []plan.Option{{Name: "billing"}, {Name: "technical"}},
+			},
+			input:   `team.p.bilingl > 0.2`,
+			wantErr: "'team' has no option 'bilingl'. 'pick' has: billing, technical",
+		},
+		{
+			name: "should spell a body's options as its criteria",
+			question: plan.Question{
+				ID: "team", Shape: plan.Pick, Origin: plan.OriginBody,
+				Options: []plan.Option{{Name: "billing"}, {Name: "technical"}},
+			},
+			input:   `team.p.bilingl > 0.2`,
+			wantErr: "'team' has no option 'bilingl'. 'criteria' has: billing, technical",
+		},
+		{
+			name: "should spell a file's labels the way the file keys them",
+			question: plan.Question{
+				ID: "severity", Shape: plan.Rate, Origin: plan.OriginFile, Labelled: true,
+				Levels: []plan.Level{{Label: "low"}, {Label: "high"}},
+			},
+			input:   `severity.p.lo > 0.2`,
+			wantErr: "'severity' has no label 'lo'. 'rate' has: low, high",
+		},
+		{
+			name: "should spell a file's policy keys in the fallback message",
+			question: plan.Question{
+				ID: "team", Shape: plan.Pick, Origin: plan.OriginFile,
+				Options: []plan.Option{{Name: "billing"}, {Name: "technical"}},
+			},
+			input: `team.fallback == ""`,
+			wantErr: "'team.fallback' needs 'threshold', 'min_confidence' or 'fallback' " +
+				"on 'team'",
+		},
+		{
+			name: "should spell a file's policy keys in the decision message",
+			question: plan.Question{
+				ID: "team", Shape: plan.Pick, Origin: plan.OriginFile,
+				Options: []plan.Option{{Name: "billing"}, {Name: "technical"}},
+			},
+			input:   `team.decision == "billing"`,
+			wantErr: "'team.decision' needs 'threshold' or 'min_confidence' on 'team'",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			built := &plan.Plan{Questions: []plan.Question{tc.question}}
+
+			got := Check(mustParse(t, tc.input), built)
+			if got == nil {
+				t.Fatalf("Check(%q) = nil, want error %q", tc.input, tc.wantErr)
+			}
+
+			if got.Error() != tc.wantErr {
+				t.Errorf("Check(%q) error = %q, want %q", tc.input, got.Error(), tc.wantErr)
+			}
+		})
+	}
+}
+
 // TestCheckedPaths is §17.3's promise as a test: every path the table allows is accepted with the
 // type the table gives it and resolves to that value in a normalized record, and everything else
 // is rejected. Check types it and Eval reads it, so the promise is proved end to end.
