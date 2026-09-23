@@ -194,6 +194,56 @@ func TestCheck(t *testing.T) {
 			t.Errorf("report.Failures = %v, want none", report.Failures)
 		}
 	})
+
+	t.Run("should check rather than skip a command whose value collides with an unstripped flag", func(t *testing.T) {
+		t.Parallel()
+
+		root := t.TempDir()
+		writeCheckFixture(t, root, "demo", `{
+			"name": "demo",
+			"description": "a demo skill",
+			"rules": [
+				{
+					"id": "r1",
+					"short": "Fallback is not part of the catalog.",
+					"why": "the mode flag leads, so nothing can consume it as a value regardless",
+					"good": "jev --ask a=x --fallback --merge"
+				}
+			]
+		}`)
+
+		var called bool
+
+		runner := &Runner{
+			Binary: "jev",
+			exec: func(context.Context, string, []string) (int, error) {
+				called = true
+
+				return 0, nil
+			},
+		}
+
+		report, err := Check(context.Background(), root, runner)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if !called {
+			t.Errorf("the runner was never called, want the example to reach it")
+		}
+
+		if report.Checked != 1 {
+			t.Errorf("report.Checked = %d, want 1", report.Checked)
+		}
+
+		if report.Skipped != 0 {
+			t.Errorf("report.Skipped = %d, want 0", report.Skipped)
+		}
+
+		if len(report.Failures) != 0 {
+			t.Errorf("report.Failures = %v, want none", report.Failures)
+		}
+	})
 }
 
 func neverCalled(t *testing.T) func(context.Context, string, []string) (int, error) {
