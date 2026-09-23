@@ -23,6 +23,14 @@ import (
 func TestNewRootCmdPrintQuestions(t *testing.T) {
 	t.Parallel()
 
+	const body = `{"questions":{"frustration":{"type":"score",` +
+		`"instructions":"how cross is the writer","criteria":["calm","annoyed","furious"]}}}`
+
+	bodyFile := filepath.Join(t.TempDir(), "body.json")
+	if err := os.WriteFile(bodyFile, []byte(body), 0o600); err != nil {
+		t.Fatalf("writing the body: %v", err)
+	}
+
 	tests := []struct {
 		name     string
 		args     []string
@@ -63,6 +71,15 @@ func TestNewRootCmdPrintQuestions(t *testing.T) {
 			},
 			wantCode: ExitOK,
 			stdout:   []string{"yes_means: bulk or bot sent", "no_means: written by a person"},
+		},
+		{
+			name: "should print a body's score question given policy flags",
+			args: []string{
+				"-f", bodyFile, "--min-confidence", "0.7", "--fallback", "human",
+				"--print-questions",
+			},
+			stdout:   []string{"frustration:", "rate:", `"0": calm`, `"2": furious`},
+			wantCode: ExitOK,
 		},
 		{
 			name: "should reject --state with --print-questions",

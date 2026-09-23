@@ -188,6 +188,10 @@ func applyEvents(question *Question, events []argv.Event, readFile func(string) 
 			}
 		case "rate":
 			question.Shape = Rate
+			// Labelled is set here rather than from the final shape. Assemble applies top level
+			// flags in a second pass, and a request body's score question carries criteria by
+			// index with no labels, so keying off the shape would relabel it with empty strings.
+			question.Labelled = true
 			for _, label := range strings.Split(event.Value, separator) {
 				question.Levels = append(question.Levels, Level{Label: label})
 			}
@@ -216,10 +220,6 @@ func applyEvents(question *Question, events []argv.Event, readFile func(string) 
 
 	question.DescOrder = append(question.DescOrder, descOrder...)
 	attach(question, descriptions)
-
-	if question.Shape == Rate {
-		question.Labelled = true
-	}
 
 	// The shape is only final once the loop ends, and a yes/no fallback has to be a boolean by
 	// the time anything reads it, whether or not validation ran. Unparseable text is reported by

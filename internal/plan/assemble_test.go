@@ -731,6 +731,32 @@ func TestAssembleWithFile(t *testing.T) {
 				}
 			},
 		},
+		{
+			name: "should leave a body's score question unlabelled when policy flags are applied",
+			src: plan.Source{
+				File: []plan.Question{{
+					ID: "frustration", Shape: plan.Rate, Origin: plan.OriginBody,
+					Levels:   []plan.Level{{}, {}, {}},
+					Labelled: false,
+				}},
+				Events: []argv.Event{
+					{Name: "min-confidence", Value: "0.7"},
+					{Name: "fallback", Value: "human"},
+				},
+				ReadFile: readFile,
+			},
+			check: func(t *testing.T, p *plan.Plan) {
+				t.Helper()
+
+				if p.Questions[0].Labelled {
+					t.Error("a body's score question must stay unlabelled, its criteria are by index")
+				}
+
+				if p.Questions[0].Policy.Fallback == nil {
+					t.Error("the fallback flag must still bind")
+				}
+			},
+		},
 	}
 
 	for _, tc := range tests {
