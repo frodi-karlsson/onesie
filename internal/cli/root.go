@@ -97,6 +97,10 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 	root.Flags().BoolVarP(&flags.quiet, "quiet", "q", false,
 		"suppress output, the exit code carries the answer")
 	root.Flags().BoolVar(&flags.usage, "usage", false, "add the api usage object to json output")
+	// Not a group flag. §17.5 makes it global, so it binds to no --ask group and may appear
+	// anywhere in argv, and StringArrayVar keeps the order it was given in.
+	root.Flags().StringArrayVar(&flags.assert, "assert", nil,
+		"boolean expression over the record, repeatable, combined with and")
 	root.Flags().StringVarP(&flags.input, "input", "i", "text",
 		"text, json, jsonl, lines or request")
 	root.Flags().StringVar(&flags.state, "state", "", "state to evaluate, or - to read stdin")

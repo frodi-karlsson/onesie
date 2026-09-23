@@ -15,6 +15,7 @@ import (
 
 	"github.com/frodi-karlsson/jev-cli/internal/answer"
 	"github.com/frodi-karlsson/jev-cli/internal/argv"
+	"github.com/frodi-karlsson/jev-cli/internal/assert"
 	"github.com/frodi-karlsson/jev-cli/internal/engine"
 	"github.com/frodi-karlsson/jev-cli/internal/input"
 	"github.com/frodi-karlsson/jev-cli/internal/jev"
@@ -38,6 +39,7 @@ func run(
 	cfg := plan.Config{
 		Raw:            flags.raw,
 		Quiet:          flags.quiet,
+		HasAssert:      len(flags.assert) > 0,
 		Output:         flags.output,
 		HasState:       cmd.Flags().Changed("state"),
 		HasStateFile:   cmd.Flags().Changed("state-file"),
@@ -152,6 +154,14 @@ func run(
 		return err
 	}
 
+	// After validation, since the checker reads a plan the run has already accepted, and before
+	// every mode below, because §17.3 has an assertion checked against the plan rather than
+	// against an answer and §11 opens with every check running before any network call.
+	gate, err := gateOf(flags.assert, built)
+	if err != nil {
+		return err
+	}
+
 	// Before the output mode, because a question file is not an output mode and -o has no meaning
 	// for it. After validation, because a dry run that accepted a plan the real run would reject
 	// would be worse than useless.
@@ -224,8 +234,28 @@ func run(
 	}
 
 	return withStats(cmd, flags, func(stats *collector) error {
-		return ask(cmd, settings, built, resolved, outputMode, flags, stats)
+		return ask(cmd, settings, built, resolved, outputMode, flags, gate, stats)
 	})
+}
+
+func gateOf(sources []string, built *plan.Plan) (*assert.Expr, error) {
+	exprs := make([]*assert.Expr, 0, len(sources))
+
+	for _, source := range sources {
+		expr, err := assert.Parse(source)
+		if err != nil {
+			return nil, fmt.Errorf("jev: --assert: %w", err)
+		}
+
+		exprs = append(exprs, expr)
+	}
+
+	gate := assert.Combine(exprs...)
+	if checkErr := assert.Check(gate, built); checkErr != nil {
+		return nil, fmt.Errorf("jev: --assert: %w", checkErr)
+	}
+
+	return gate, nil
 }
 
 func checkFlags(cmd *cobra.Command, cfg plan.Config) error {
@@ -495,6 +525,7 @@ func ask(
 	resolved input.Resolved,
 	outputMode output.Mode,
 	flags *runFlags,
+	gate *assert.Expr,
 	stats *collector,
 ) error {
 	client, err := settings.newClient(cmd.Context(), observing(stats)...)
@@ -522,29 +553,37 @@ func ask(
 		return err
 	}
 
+	// Only a record that arrived is evaluated, which is §17.4's third row. A failed request
+	// returns above, and it would reach the evaluator as an answer whose every value reads as
+	// zero, so a gate such as answer.value < 0.5 would hold for a request that never happened.
+	record.AssertFailed = !assert.Eval(gate, record)
+
 	if flags.quiet {
-		return quietResult(built.Questions[0], record.Answers[0].Answer)
+		// Both the policy and the assertion are asked, so neither masks the other. §17.5.
+		if rejectErr := quietResult(
+			built.Questions[0], record.Answers[0].Answer); rejectErr != nil {
+			return rejectErr
+		}
+
+		return assertResult(record)
 	}
 
-	if merging(flags) {
-		return writeMerged(cmd.OutOrStdout(), outputMode, record, resolved, flags)
+	// The record prints whatever the assertion said, §17.4, and the exit code follows it.
+	if writeErr := writeRecord(cmd, settings, outputMode, flags, resolved, record); writeErr != nil {
+		return writeErr
 	}
 
-	if outputMode == output.Table {
-		return output.WriteTable(cmd.OutOrStdout(), record, output.Width(settings.lookupEnv, terminalWidth))
-	}
-
-	return output.Write(cmd.OutOrStdout(), outputMode, record)
+	return assertResult(record)
 }
 
-func writeMerged(
-	w io.Writer,
-	mode output.Mode,
-	record output.Record,
-	resolved input.Resolved,
-	flags *runFlags,
-) error {
-	return output.WriteMerged(w, mode, record, resolved.Raw, resolved.Wire, mergeKey(flags))
+func assertResult(record output.Record) error {
+	if record.AssertFailed {
+		// §17.4 calls a false assertion the same statement a policy rejection makes over one
+		// answer, so it takes the same error and the same exit code.
+		return &rejectedError{}
+	}
+
+	return nil
 }
 
 func writeFailure(
@@ -560,15 +599,37 @@ func writeFailure(
 		return nil
 	}
 
+	return writeRecord(cmd, settings, mode, flags, resolved, record)
+}
+
+func writeRecord(
+	cmd *cobra.Command,
+	settings rootSettings,
+	mode output.Mode,
+	flags *runFlags,
+	resolved input.Resolved,
+	record output.Record,
+) error {
 	if merging(flags) {
 		return writeMerged(cmd.OutOrStdout(), mode, record, resolved, flags)
 	}
 
 	if mode == output.Table {
-		return output.WriteTable(cmd.OutOrStdout(), record, output.Width(settings.lookupEnv, terminalWidth))
+		return output.WriteTable(
+			cmd.OutOrStdout(), record, output.Width(settings.lookupEnv, terminalWidth))
 	}
 
 	return output.Write(cmd.OutOrStdout(), mode, record)
+}
+
+func writeMerged(
+	w io.Writer,
+	mode output.Mode,
+	record output.Record,
+	resolved input.Resolved,
+	flags *runFlags,
+) error {
+	return output.WriteMerged(w, mode, record, resolved.Raw, resolved.Wire, mergeKey(flags))
 }
 
 func evaluate(
@@ -786,6 +847,8 @@ type runFlags struct {
 	file      string
 	replace   bool
 
+	assert []string
+
 	printQuestions bool
 	printRequest   bool
 	listModels     bool
@@ -916,7 +979,8 @@ func worthReporting(err error) bool {
 
 	var rejected *rejectedError
 	if errors.As(err, &rejected) {
-		// -q suppresses output entirely, so its rejection is carried by the exit code alone.
+		// A rejection is carried by the exit code alone. Under -q nothing is printed at all, and
+		// a false assertion has already printed the record §17.4 asks for.
 		return false
 	}
 
