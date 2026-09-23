@@ -49,6 +49,12 @@ func TestWrite(t *testing.T) {
 		},
 	}
 
+	asserted := output.Record{
+		Model:        "jev-1.13.0",
+		Answers:      simple.Answers,
+		AssertFailed: true,
+	}
+
 	tests := []struct {
 		name string
 		mode output.Mode
@@ -125,6 +131,30 @@ func TestWrite(t *testing.T) {
 			},
 			want: `{"error":{"kind":"transport","status":null,` +
 				`"message":"connection refused"}}`,
+		},
+		{
+			name: "should write the assert key in json output when the assertion is false",
+			mode: output.JSON,
+			rec:  asserted,
+			want: `{"assert":false,"model":"jev-1.13.0","urgent":{"value":0.92}}`,
+		},
+		{
+			name: "should write the assert key in values output too",
+			mode: output.Values,
+			rec:  asserted,
+			want: `{"assert":false,"urgent":0.92}`,
+		},
+		{
+			name: "should leave the assert key out of json output when the assertion held",
+			mode: output.JSON,
+			rec:  simple,
+			want: `{"model":"jev-1.13.0","urgent":{"value":0.92}}`,
+		},
+		{
+			name: "should print nothing for a false assertion in raw output",
+			mode: output.Raw,
+			rec:  asserted,
+			want: "0.92",
 		},
 		{
 			name: "should print the fallback word in raw output on failure",

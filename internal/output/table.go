@@ -72,16 +72,22 @@ func WriteTable(w io.Writer, rec Record, columns int) error {
 }
 
 func writeHeader(w io.Writer, rec Record) error {
-	if rec.Model == "" {
+	if rec.Model != "" {
+		line := "model " + rec.Model
+		if rec.Usage != nil {
+			line += fmt.Sprintf("  %d in / %d out", rec.Usage.InputTokens, rec.Usage.OutputTokens)
+		}
+
+		if _, err := fmt.Fprintln(w, line); err != nil {
+			return err
+		}
+	}
+
+	if !rec.AssertFailed {
 		return nil
 	}
 
-	line := "model " + rec.Model
-	if rec.Usage != nil {
-		line += fmt.Sprintf("  %d in / %d out", rec.Usage.InputTokens, rec.Usage.OutputTokens)
-	}
-
-	_, err := fmt.Fprintln(w, line)
+	_, err := fmt.Fprintln(w, "assert false")
 
 	return err
 }

@@ -68,6 +68,10 @@ type Record struct {
 	Usage   *jev.Usage
 	Answers []Named
 	Failure *Failure
+
+	// AssertFailed is §17.4's reserved assert key. It is written as false and only when an
+	// assertion did not hold, so a record without the key passed.
+	AssertFailed bool
 }
 
 // Named pairs a question id with its normalized answer. Answer is nil when the request failed and

@@ -92,6 +92,41 @@ func TestWriteTable(t *testing.T) {
 			contains: []string{"model jev-1.13.0", "urgent", "0.9200"},
 		},
 		{
+			name:    "should print a false assertion beside the model in the header",
+			columns: 80,
+			rec: output.Record{
+				Model: "jev-1.13.0",
+				Answers: []output.Named{
+					{ID: "urgent", Answer: &answer.Answer{Value: 0.92}},
+				},
+				AssertFailed: true,
+			},
+			contains: []string{"model jev-1.13.0\nassert false\n"},
+		},
+		{
+			name:    "should print no assert line when the assertion held",
+			columns: 80,
+			rec: output.Record{
+				Model: "jev-1.13.0",
+				Answers: []output.Named{
+					{ID: "urgent", Answer: &answer.Answer{Value: 0.92}},
+				},
+			},
+			absent: []string{"assert"},
+		},
+		{
+			name:    "should print a false assertion with no model in the header",
+			columns: 80,
+			rec: output.Record{
+				Answers: []output.Named{
+					{ID: "urgent", Answer: &answer.Answer{Value: 0.92}},
+				},
+				AssertFailed: true,
+			},
+			contains: []string{"assert false"},
+			absent:   []string{"model"},
+		},
+		{
 			name:    "should add usage to the header when present",
 			columns: 80,
 			rec: output.Record{
