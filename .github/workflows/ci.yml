@@ -69,7 +69,7 @@ jobs:
           go-version-file: go.mod
 
       - name: Run tests
-        run: go test -race ./...
+        run: go tool gotestsum --format testname -- -race -timeout 2m ./...
 
   tidy:
     runs-on: ubuntu-latest

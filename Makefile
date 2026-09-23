@@ -22,10 +22,10 @@ install: ## Install jev to $(GOPATH)/bin
 	go install -trimpath -ldflags '$(LDFLAGS)' $(PKG)
 
 test: ## Run unit tests
-	go test ./... $(TESTARGS)
+	go test -timeout 2m ./... $(TESTARGS)
 
 test-race: ## Run unit tests with the race detector
-	go test -race ./...
+	go tool gotestsum --format testname -- -race -timeout 2m ./...
 
 test-integration: ## Run tests against the live API. Needs TYPESAFE_API_KEY or a .env
 	go test -tags integration -race -count=1 -timeout 5m ./internal/jev/ ./internal/cli/ -run 'TestLive|TestFilterIntegration|TestFileIntegration|TestStreamIntegration' -v
