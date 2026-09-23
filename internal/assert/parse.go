@@ -74,6 +74,16 @@ type Expr struct {
 	source string
 }
 
+// Source is the expression as it was written. A combined expression is its parts parenthesised and
+// joined by and, which parses back to the same tree, and a nil expression has no source.
+func (e *Expr) Source() string {
+	if e == nil {
+		return ""
+	}
+
+	return e.source
+}
+
 type parser struct {
 	tokens []token
 	at     int

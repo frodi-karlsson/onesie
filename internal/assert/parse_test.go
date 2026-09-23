@@ -367,3 +367,48 @@ func positions(n node) []int {
 
 	return out
 }
+
+func TestExprSource(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		input []string
+		want  string
+	}{
+		{
+			name: "should report nothing for a nil expression",
+		},
+		{
+			name:  "should report one expression as it was written",
+			input: []string{`a.value < 1`},
+			want:  `a.value < 1`,
+		},
+		{
+			name:  "should report a combined expression as its parenthesised parts",
+			input: []string{`a.value < 1`, `b.value < 2`},
+			want:  `(a.value < 1) and (b.value < 2)`,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			exprs := make([]*Expr, 0, len(tc.input))
+
+			for _, source := range tc.input {
+				expr, err := Parse(source)
+				if err != nil {
+					t.Fatalf("Parse(%q) error = %v, want no error", source, err)
+				}
+
+				exprs = append(exprs, expr)
+			}
+
+			if got := Combine(exprs...).Source(); got != tc.want {
+				t.Errorf("Source() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
