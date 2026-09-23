@@ -112,6 +112,43 @@ func Classify(err error) int {
 	return ExitUsage
 }
 
+func worthReporting(err error) bool {
+	if errors.Is(err, context.Canceled) {
+		return false
+	}
+
+	if engine.BrokenPipe(err) {
+		// The consumer closed the pipe jev was writing to, and a line about it would go to a
+		// stderr the same consumer is often reading.
+		return false
+	}
+
+	var rejected *rejectedError
+	if errors.As(err, &rejected) {
+		// A rejection is carried by the exit code alone. Under -q nothing is printed at all, and
+		// a false assertion has already printed the record §17.4 asks for.
+		return false
+	}
+
+	var silent *silentError
+	if errors.As(err, &silent) {
+		// The command already wrote the whole result to stdout, so a stderr line would repeat it
+		// with nothing added. auth status printing source: none and exiting 3 is the case.
+		//
+		// Unlike Classify, this cannot be reordered to spare a joined error: every branch here
+		// returns false, so there is no positive one to put first. A silentError joined to a real
+		// error would therefore lose the real message, which is why the type is only ever
+		// returned on its own.
+		return false
+	}
+
+	var records *recordsError
+
+	// The exit code already says a record failed, and the per record lines on stdout carry the
+	// detail.
+	return !errors.As(err, &records)
+}
+
 type silentError struct {
 	code int
 }
@@ -129,4 +166,45 @@ func classifyStatus(status int) int {
 	default:
 		return ExitUsage
 	}
+}
+
+type sourceError struct {
+	cause  error
+	failed int
+}
+
+func (e *sourceError) Error() string {
+	if e.failed == 0 {
+		return e.cause.Error()
+	}
+
+	return fmt.Sprintf("%v, after %s failed", e.cause, plural(e.failed, "record"))
+}
+
+func (e *sourceError) Unwrap() error {
+	return e.cause
+}
+
+type abortError struct {
+	cause error
+}
+
+func (e *abortError) Error() string {
+	return e.cause.Error()
+}
+
+func (e *abortError) Unwrap() error {
+	return e.cause
+}
+
+type recordsError struct{}
+
+func (*recordsError) Error() string {
+	return "one or more records failed"
+}
+
+type rejectedError struct{}
+
+func (*rejectedError) Error() string {
+	return "policy did not accept the answer"
 }
