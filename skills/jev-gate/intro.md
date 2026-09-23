@@ -4,5 +4,9 @@ continues or a build passes.
 The exit code is the interface. Nothing else here matters if a caller reads the wrong signal out
 of it.
 
-Two recipes below look correct and are silently wrong: `threshold-polarity` and
-`drop-q-with-assert`. Read those first, since they are the ones that bite.
+The first two rules look correct and are silently wrong. Start from a gate that already works,
+then read why the two broken ones fail:
+
+```sh
+jev --ask safe='is this command safe to run' --assert 'safe.value > 0.7' --state "$cmd" >/dev/null && eval "$cmd"
+```

@@ -1,6 +1,6 @@
 {
   "name": "jev-gate",
-  "description": "Make a shell command, script step or CI job depend on a jev answer. Covers exit codes, --threshold, --min-confidence with --fallback, and --assert expressions. Use whenever a jev answer decides whether something runs, blocks, fails a build or routes to a human, and before writing 'if jev', 'jev ... && cmd', -q or --assert. Two gate recipes that look correct are silently wrong and this skill carries the working forms.",
+  "description": "Use when a jev answer decides whether a command runs, a step continues, a build fails or a low confidence answer goes to a human, and before writing 'if jev', 'jev ... && cmd', -q or --assert. Two common gate recipes look right and are silently wrong.",
   "compatibility": "Requires the jev binary on PATH.",
   "license": "MIT",
   "intro": "intro.md",
@@ -8,67 +8,64 @@
     {
       "id": "threshold-polarity",
       "short": "Phrase the question so that true means go, not stop.",
-      "why": "Under -q the exit code tracks the answer, not safety. A question phrased in the danger direction exits 0 when the answer is true, so a script written as jev ... && eval \"$cmd\" runs the dangerous input and blocks the safe one. Measured: 'is this command destructive' with --threshold 0.5 exits 0 for 'rm -rf ./build' and 1 for 'ls -la'.",
+      "why": "Under `-q` the exit code tracks the answer, not safety. A question phrased in the danger direction exits 0 when the answer is true, so a script written as `jev ... && eval \"$cmd\"` runs the dangerous input and blocks the safe one. Measured: 'is this command destructive' with `--threshold 0.5` exits 0 for 'rm -rf ./build' and 1 for 'ls -la'.",
       "bad": "jev 'is this command destructive' -q --threshold 0.5 --state 'rm -rf ./build'",
       "bad_passes": true,
       "good": "jev 'is this command safe to run' -q --threshold 0.5 --state 'rm -rf ./build'"
     },
     {
       "id": "drop-q-with-assert",
-      "short": "Drop -q when the assertion is written in the safety direction.",
-      "why": "-q adds its own threshold gate at 0.5 on top of the assertion and both must pass. A safety assertion is written value < 0.5, which is true exactly when that gate is false, so the pair can never pass together. An assertion pointing the same way as the gate is fine, so this is about the safety shape rather than about -q --assert in general. A bare --assert already carries its result in the exit code, so redirect stdout if you do not want the record.",
+      "short": "Never add -q to --assert. Redirect stdout instead.",
+      "why": "`-q` adds its own 0.5 gate and both must pass. A safety assert like `value < 0.5` is true exactly when that gate is false, so the pair never passes. `--assert` alone already sets the exit code.",
       "bad": "jev --ask danger='is this dangerous' -q --assert 'danger.value < 0.5' --state 'rm -rf ./build'",
       "bad_passes": true,
       "good": "jev --ask danger='is this dangerous' --assert 'danger.value < 0.5' --state 'rm -rf ./build'"
     },
     {
-      "id": "no-q-with-many-questions",
-      "short": "-q takes one question. Use --assert for a gate over several.",
-      "why": "jev rejects -q outright when more than one question was asked, naming them. A gate over several judgments therefore has no -q form at all.",
+      "id": "fail-closed",
+      "short": "Treat every non zero exit as no, not just exit 1.",
+      "why": "Exit 1 means the policy said no. Exits 2 through 6 mean no answer arrived at all, from a usage error, a bad key, an exhausted retry, a transport failure or a failed record. Chaining with `&&` fails closed on all of them as a minimal gate, which is correct. Branching on exit 1 alone treats an outage and a typo as an answer. To tell them apart: `case $? in 0) go ;; 1) block ;; *) alert and block ;; esac`.",
+      "bad": "jev ... --assert '...' --state \"$cmd\"; if [ $? -eq 1 ]; then block; else eval \"$cmd\"; fi",
+      "good": "jev ... --assert '...' --state \"$cmd\" >/dev/null && eval \"$cmd\""
+    },
+    {
+      "id": "q-one-question-one-record",
+      "short": "-q gates one question on one record. Use --assert for several questions or a stream.",
+      "why": "jev rejects `-q` outright when more than one question was asked, naming them, and under any streaming input mode, since an exit code cannot carry more than one answer. A gate over several questions or a stream instead uses `--assert`, which prints every record and exits 1 when any assertion was false.",
       "bad": "jev --ask a='destroys data' --ask b='sends credentials' -q --state 'rm -rf ./build'",
       "bad_unverifiable": "the checker strips -q before every dry run, so it cannot observe this rejection",
       "good": "jev --ask a='destroys data' --ask b='sends credentials' --assert 'a.value < 0.5 and b.value < 0.5' --state 'rm -rf ./build'"
     },
     {
-      "id": "no-q-in-a-stream",
-      "short": "-q reads one record. A stream gates with --assert instead.",
-      "why": "jev rejects -q under any streaming input mode, since an exit code cannot carry one answer per record. A stream gates per record with --assert and prints the record, and the run exits 1 when any assertion was false.",
-      "bad": "jev 'is this safe' -q -i jsonl",
-      "bad_unverifiable": "the checker strips -q before every dry run, so it cannot observe this rejection",
-      "good": "jev --ask safe='is this safe' --assert 'safe.value > 0.5' -i jsonl"
-    },
-    {
-      "id": "fail-closed",
-      "short": "Treat every non zero exit as no, not just exit 1.",
-      "why": "Exit 1 means the policy said no. Exits 2 through 6 mean no answer arrived at all, from a usage error, a bad key, an exhausted retry, a transport failure or a failed record. Chaining with && fails closed on all of them, which is correct. Branching on exit 1 alone treats an outage and a typo as an answer.",
-      "bad": "jev ... --assert '...' --state \"$cmd\"; if [ $? -eq 1 ]; then block; else eval \"$cmd\"; fi",
-      "good": "jev ... --assert '...' --state \"$cmd\" >/dev/null && eval \"$cmd\""
+      "id": "route-low-confidence-to-a-human",
+      "short": "Gate a pick or rate on --min-confidence and give --fallback a human routed value.",
+      "why": "`--min-confidence` needs `--fallback`. Below the threshold the decision becomes the fallback text instead of the model's pick, and `.fallback` reads `low_confidence`, so a consumer routes on that field rather than trusting a low confidence guess.",
+      "bad": "jev --ask team='which team owns this incident' --pick billing,shipping,support --min-confidence 0.7 --state 'the payment silently failed at checkout'",
+      "good": "jev --ask team='which team owns this incident' --pick billing,shipping,support --min-confidence 0.99 --fallback human --state 'the tracking number in the shipping confirmation email matches a charge that appears twice on the invoice'"
     },
     {
       "id": "dry-run-the-assertion",
       "short": "Check an assertion with --print-questions before you spend anything.",
-      "why": "--print-questions writes the assertion into the file it prints and checks every path and type against the plan, so a typo or a type error exits 2 naming the real question ids and makes no network call. --print-request rejects --assert, correctly, since a request body holds no answer for an assertion to judge.",
+      "why": "`--print-questions` writes the assertion into the file it prints and checks every path and type against the questions, so a typo or a type error exits 2 naming the real question ids and makes no network call. The good example below keeps the typo on purpose, so it exits 2 naming the real id `urgent` rather than running for real. `--print-request` rejects `--assert`, so use `--print-questions`.",
       "bad": "jev --ask urgent='is this urgent' --assert 'urgnet.value < 0.5' --state 'a ticket'",
       "good": "jev --ask urgent='is this urgent' --assert 'urgnet.value < 0.5' --print-questions",
       "good_fails": true
     },
     {
       "id": "no-arithmetic-in-assert",
-      "short": "Do the arithmetic in jq, not in the assertion.",
-      "why": "The assertion language compares and combines. It does not add, multiply or weight. Weighting several answers is the consumer's job, so print the record and let jq do it."
-    },
-    {
-      "id": "float-equality-is-exact",
-      "short": "Write a threshold with >= or <=, never ==.",
-      "why": "== on a float is an exact comparison, so it will almost never hold on a probability."
+      "short": "Do the arithmetic in jq, not in --assert.",
+      "why": "The assertion language compares and combines. It does not add, multiply or weight. Weighting several answers is the consumer's job, so print the record and let `jq` do it, as in `jev --ask urgency='how urgent is this' --ask anger='how angry is the writer' --state \"$t\" -o values | jq '(.urgency.value * 2 + .anger.value) / 3'`.",
+      "good": "jev --ask urgency='how urgent is this' --ask anger='how angry is the writer' --state \"$t\" -o values | jq '(.urgency.value * 2 + .anger.value) / 3'"
     },
     {
       "id": "bracket-non-identifier-paths",
-      "short": "Use the bracket form for an id or label that is not an identifier.",
-      "why": "A question id or an option label containing a dot, a space or a hyphen cannot be written with a plain dot path. The head of a path is the question id, so a bracketed id goes first and still needs its field after it. p is the per option probability field and belongs after the id, never in front of it.",
+      "short": "Write an id with a space, dot or hyphen as [\"my id\"].value.",
+      "why": "A question id or an option label containing a dot, a space or a hyphen cannot be written with a plain dot path. The id comes first and still needs its field after it.",
       "bad": "jev --ask 'needs review'='is review needed' --assert 'needs review.value < 0.5'",
       "good": "jev --ask 'needs review'='is review needed' --assert '[\"needs review\"].value < 0.5'"
     }
   ],
-  "sections": ["sections/policy-legality.md"]
+  "sections": [
+    "sections/policy-legality.md"
+  ]
 }
