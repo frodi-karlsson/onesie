@@ -10,6 +10,8 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
+	"strings"
 	"unicode/utf8"
 )
 
@@ -80,6 +82,10 @@ func Validate(path string, s Skill) error {
 		return err
 	}
 
+	if err := v.metadata(s.Metadata); err != nil {
+		return err
+	}
+
 	if err := v.rules(s.Rules); err != nil {
 		return err
 	}
@@ -135,6 +141,23 @@ func (v validator) description(description string) error {
 		return v.errorf("description must be at most 1024 characters")
 	}
 
+	return v.noControlChars("description", description)
+}
+
+func (v validator) metadata(metadata map[string]string) error {
+	keys := make([]string, 0, len(metadata))
+	for key := range metadata {
+		keys = append(keys, key)
+	}
+
+	sort.Strings(keys)
+
+	for _, key := range keys {
+		if err := v.noControlChars("metadata '"+key+"'", metadata[key]); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -150,8 +173,16 @@ func (v validator) rules(rules []Rule) error {
 			return v.errorf("%s: short is required", ruleLabel(i, rule.ID))
 		}
 
-		if rule.Why == "" {
+		if err := v.noControlChars(ruleLabel(i, rule.ID)+": short", rule.Short); err != nil {
+			return err
+		}
+
+		if strings.TrimSpace(rule.Why) == "" {
 			return v.errorf("%s: why is required", ruleLabel(i, rule.ID))
+		}
+
+		if err := v.noControlChars(ruleLabel(i, rule.ID)+": why", rule.Why); err != nil {
+			return err
 		}
 
 		if seen[rule.ID] {
@@ -216,6 +247,20 @@ func (v validator) fragmentEntry(label, name string) error {
 
 	if !info.Mode().IsRegular() {
 		return v.errorf("%s '%s' must be a regular file", label, name)
+	}
+
+	return nil
+}
+
+func (v validator) noControlChars(context, s string) error {
+	for _, r := range s {
+		if r == '\n' || r == '\t' {
+			continue
+		}
+
+		if r < 0x20 || r == 0x7f {
+			return v.errorf("%s has a control character", context)
+		}
 	}
 
 	return nil

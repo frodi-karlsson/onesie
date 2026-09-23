@@ -85,6 +85,23 @@ func TestValidate(t *testing.T) {
 			},
 		},
 		{
+			name:    "should reject a description containing a control character",
+			skill:   skillgen.Skill{Name: "my-skill", Description: "does a thing\x01"},
+			wantErr: "description has a control character",
+		},
+		{
+			name:  "should accept a description containing a newline and a tab",
+			skill: skillgen.Skill{Name: "my-skill", Description: "does a thing\nwith a\ttab"},
+		},
+		{
+			name: "should reject a metadata value containing a control character",
+			skill: skillgen.Skill{
+				Name: "my-skill", Description: "does a thing",
+				Metadata: map[string]string{"version": "0.1.0\x01"},
+			},
+			wantErr: "metadata 'version' has a control character",
+		},
+		{
 			name: "should reject a rule missing id",
 			skill: skillgen.Skill{
 				Name: "my-skill", Description: "does a thing",
@@ -107,6 +124,30 @@ func TestValidate(t *testing.T) {
 				Rules: []skillgen.Rule{{ID: "r1", Short: "do it"}},
 			},
 			wantErr: "rules[0] 'r1': why is required",
+		},
+		{
+			name: "should reject a rule with a whitespace only why",
+			skill: skillgen.Skill{
+				Name: "my-skill", Description: "does a thing",
+				Rules: []skillgen.Rule{{ID: "r1", Short: "do it", Why: "   "}},
+			},
+			wantErr: "rules[0] 'r1': why is required",
+		},
+		{
+			name: "should reject a rule short containing a control character",
+			skill: skillgen.Skill{
+				Name: "my-skill", Description: "does a thing",
+				Rules: []skillgen.Rule{{ID: "r1", Short: "do it\x01", Why: "because"}},
+			},
+			wantErr: "rules[0] 'r1': short has a control character",
+		},
+		{
+			name: "should reject a rule why containing a control character",
+			skill: skillgen.Skill{
+				Name: "my-skill", Description: "does a thing",
+				Rules: []skillgen.Rule{{ID: "r1", Short: "do it", Why: "because\x01"}},
+			},
+			wantErr: "rules[0] 'r1': why has a control character",
 		},
 		{
 			name: "should reject two rules sharing an id",
