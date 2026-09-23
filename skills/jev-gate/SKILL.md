@@ -19,6 +19,8 @@ then read why the two broken ones fail:
 jev --ask safe='is this command safe to run' --assert 'safe.value > 0.7' --state "$cmd" >/dev/null && eval "$cmd"
 ```
 
+See the jev skill's failures reference for the exit code table and the auth flow.
+
 ## Rules
 
 ### Phrase the question so that true means go, not stop.
@@ -55,7 +57,7 @@ jev --ask danger='is this dangerous' --assert 'danger.value < 0.5' --state 'rm -
 
 ### Treat every non zero exit as no, not just exit 1.
 
-Exit 1 means the policy said no. Exits 2 through 6 mean no answer arrived at all, from a usage error, a bad key, an exhausted retry, a transport failure or a failed record. Chaining with `&&` fails closed on all of them as a minimal gate, which is correct. Branching on exit 1 alone treats an outage and a typo as an answer. To tell them apart: `case $? in 0) go ;; 1) block ;; *) alert and block ;; esac`.
+Exit 1 means the policy said no. Exits 2 through 5 mean no answer arrived at all, from a usage error, a bad key, an exhausted retry or a transport failure. Exit 6 means a stream finished with at least one failed record, so a gate over a stream still has to fail closed on it. Chaining with `&&` fails closed on all of them as a minimal gate, which is correct. Branching on exit 1 alone treats an outage and a typo as an answer. To tell them apart: `case $? in 0) go ;; 1) block ;; *) alert and block ;; esac`.
 
 **Bad:**
 

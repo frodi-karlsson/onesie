@@ -10,6 +10,7 @@ jev --ask team='which team owns this' --pick billing,shipping,support --state 'm
 jev --ask anger='how angry is the writer' --rate calm,annoyed,furious --state 'I want a refund now'
 ```
 
-Batching is the default, not an optimisation. Ask every question you need about one piece of text
-in a single call, and spend nothing finding out whether a command is well formed before you spend
-anything on the model itself.
+A positional question with no `--ask` is keyed `answer` in the output, in `-o values`, and in
+every `--assert` path.
+
+On a non zero exit or a key error, read `references/failures.md`.

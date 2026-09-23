@@ -10,3 +10,5 @@ then read why the two broken ones fail:
 ```sh
 jev --ask safe='is this command safe to run' --assert 'safe.value > 0.7' --state "$cmd" >/dev/null && eval "$cmd"
 ```
+
+See the jev skill's failures reference for the exit code table and the auth flow.

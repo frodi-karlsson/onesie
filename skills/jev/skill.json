@@ -1,6 +1,6 @@
 {
   "name": "jev",
-  "description": "Ask jev for a typed judgment about one piece of text, a probability, a named choice or a rubric score. Use before prompting a general model and parsing free text back, or when classifying, scoring or sorting text from a script. Covers picking the shape, --ask, --pick, --rate, and checking a command for free first.",
+  "description": "Use when a script needs a jev judgment on one piece of text, as a probability, one of several named options or a rubric level, and before prompting a general model and parsing its reply. Covers --ask, --pick, --rate and free dry runs. For a file of many records, also load jev-stream.",
   "compatibility": "Requires the jev binary on PATH. A key is needed for anything but --print-request and --print-questions.",
   "license": "MIT",
   "intro": "intro.md",
@@ -8,32 +8,43 @@
     {
       "id": "batch-everything",
       "short": "Ask every question you might need in one call.",
-      "why": "Questions in one request are evaluated in parallel against the same state, so adding a question barely moves latency. A thirteen question briefing measured 8.9 times cheaper and about 12.7 times faster in one call than in thirteen separate ones, timed directly against the live API. Ask everything you might want and ignore the answers you do not use. A second call is justified only when the first answer decides what the next state or option set contains.",
-      "bad": "for q in urgent refund angry; do jev \"is the writer $q\" --state \"$t\"; done",
+      "why": "Questions in one request are evaluated in parallel against the same state, so adding a question barely moves latency. A thirteen question briefing measured about 9 times cheaper and about 13 times faster in one call than in thirteen separate ones. Ask everything you might want and ignore the answers you do not use. A second call is justified only when the first answer decides what the next state or option set contains.",
+      "bad": "for q in 'is this urgent' 'do they want money back' 'is the writer angry'; do jev \"$q\" --state \"$t\"; done",
       "good": "jev --ask urgent='is this urgent' --ask refund='do they want money back' --ask angry='is the writer angry' --state 'The customer wants a refund and says the shipment never arrived.' -o values"
     },
     {
+      "id": "flags-bind-to-the-nearest-ask",
+      "short": "Put each shape or policy flag right after the --ask it belongs to.",
+      "why": "Nothing warns when you meant a flag for every question. With two asks and a trailing `--threshold`, `--print-questions` shows the threshold attached only to the second question and the first left with none.",
+      "bad": "jev --ask urgent='is this urgent' --ask refund='do they want money back' --threshold 0.5 --print-questions",
+      "bad_passes": true,
+      "good": "jev --ask urgent='is this urgent' --threshold 0.5 --ask refund='do they want money back' --threshold 0.5 --print-questions"
+    },
+    {
       "id": "pick-the-shape",
-      "short": "A proposition is bare, one of N takes --pick, a degree takes --rate.",
-      "why": "A bare question returns a probability from 0 to 1 and no confidence, because one number describes a two outcome distribution fully. `--pick` returns the winning name, a confidence and a distribution. `--rate` returns a level, a score, a normalized score and a confidence. Confirmed against the live API for all three shapes."
+      "short": "Ask yes or no as a plain question, one of N with --pick, a degree with --rate.",
+      "why": "A bare question returns a probability from 0 to 1 and no confidence, because one number describes a two outcome distribution fully. `--pick` returns the winning name, a confidence and a distribution. `--rate` returns a level, a score, a normalized score and a confidence.",
+      "bad": "jev 'which team owns this, billing, shipping or support' --state 'my package never arrived'",
+      "bad_passes": true,
+      "good": "jev --ask team='which team owns this' --pick billing,shipping,support --state 'my package never arrived'"
     },
     {
       "id": "value-is-not-a-scale",
-      "short": "A yes or no probability does not measure how much.",
-      "why": "Asking whether a candidate is strong in Python measured 0.32 for two years of professional experience and 0.76 for eight. That number is the model's confidence in the proposition, not a measure of experience. Use `--rate` when you want degree.",
+      "short": "Use --rate, not a yes or no probability, to measure how much.",
+      "why": "Asking whether a candidate is strong in Python measured 0.32 for two years of professional experience and 0.76 for eight. 0.32 means the model doubts the claim, not that the candidate is a third of the way to expert. There is no cutoff that maps either number onto a level, so use `--rate` when you want degree.",
       "bad": "jev 'is the candidate strong in Python' --state 'The candidate has two years of professional experience writing Python.'",
       "bad_passes": true,
       "good": "jev 'how strong is the candidate in Python' --rate none,basic,working,expert --state 'The candidate has two years of professional experience writing Python.'"
     },
     {
       "id": "nothing-holds-across-shapes",
-      "short": "A threshold tuned on one shape means nothing on another.",
-      "why": "The same question over the same state measured 0.61 as a bare question and 0.84 as the yes probability under a yes or no choice. A question and its negation measured 0.53 and 0.66 on the same state, summing to 1.19, not 1. There are no structural invariants, so never carry a threshold across shapes and never expect arithmetic identities between questions."
+      "short": "Retune a threshold whenever the shape or the model changes.",
+      "why": "The gap between shapes is not a fixed offset. Asking whether a report is good measured 0.61 as a bare question against 0.84 for yes under a yes or no choice, and asking whether an essay is well organized measured 0.33 against 0.02, the order reversed. A question and its negation summed to 0.96, 1.04 and 1.20 across three different questions, never landing on exactly 1. Retune any threshold when the shape changes, and log the model from the response, since `jev-latest` moves on release and a tuned threshold drifts with it."
     },
     {
       "id": "no-arithmetic-no-dates-no-counting",
       "short": "Compute the fact in code, then ask about the computed fact.",
-      "why": "`docs/jev.md` documents that jev is not a calculator, it reads dates as text rather than as ordered quantities, and it does not count reliably. jev accepts a question shaped like the bad example below and answers anyway, with no warning that the arithmetic is unreliable. Compute the age, the count or the comparison first, and pass the computed fact in the state.",
+      "why": "jev does no arithmetic, reads dates as text and miscounts. It answers the bad example below anyway, with no warning. Compute the age, the count or the comparison first, and pass the computed fact in the state.",
       "bad": "jev 'is this ticket more than 30 days old' --state 'created 2024-01-01'",
       "bad_passes": true,
       "good": "jev 'is this ticket stale' -i json --state '{\"age_days\":45}'"
@@ -41,23 +52,16 @@
     {
       "id": "keep-the-state-tight",
       "short": "Send the field the question is about, not the whole record.",
-      "why": "`docs/jev.md` documents that accuracy falls as unrelated content grows in the state, and falls further when the answer requires following a reference through the state rather than reading it directly. Filter and inline before you ask, do not hand over the whole record and hope."
-    },
-    {
-      "id": "flags-bind-to-the-nearest-ask",
-      "short": "A shape or policy flag attaches to the last --ask before it.",
-      "why": "Nothing warns when you meant a flag for every question. With two asks and a trailing `--threshold`, `--print-questions` shows the threshold attached only to the second question and the first left with none. A positional question is keyed answer, which is the key in `-o values` and the head of every `--assert` path.",
-      "bad": "jev --ask a='x' --ask b='y' --threshold 0.5 --print-questions",
+      "why": "Accuracy drops as unrelated fields pile up in the state, and drops further when the answer means following a reference from one field to another. Pass only the field the question is about.",
+      "bad": "jev 'is this ticket urgent' -i json --state '{\"id\":482,\"customer\":\"Jordan Miles\",\"address\":\"219 Birch Ln\",\"ticket\":{\"text\":\"the server is down\"}}'",
       "bad_passes": true,
-      "good": "jev --ask a='x' --threshold 0.5 --ask b='y' --threshold 0.5 --print-questions"
+      "good": "jev 'is this ticket urgent' --state 'the server is down'"
     },
     {
       "id": "iterate-for-free",
       "short": "Run it once with --print-request before running it for real.",
-      "why": "`--print-request` and `--print-questions` write to stdout, make no network call and need no key, so a mistake in the flags is safe to find without a key configured at all. A partial `--desc` set on a `--rate` question is a hard error, caught by validation before any request is built, whether the command is a dry run or the real thing. Make `--print-request` the reflex anyway, since not every mistake is validation shaped and only the dry run guarantees no call is ever made. Log the model from the response, since jev-latest moves when a release ships and a tuned threshold drifts silently.",
-      "bad": "jev 'how cross is the writer' --rate calm,annoyed,furious --desc calm='not cross' --state 'a heated complaint about a late shipment'",
-      "good": "jev 'how cross is the writer' --rate calm,annoyed,furious --desc calm='not cross' --print-request",
-      "good_fails": true
+      "why": "`--print-request` and `--print-questions` make no network call and need no key. They show the exact request, the state and which flag bound to which question, before anything is spent.",
+      "good": "jev --ask urgent='is this urgent' --ask team='which team owns this' --pick billing,shipping,support --state 'my package never arrived' --print-request"
     }
   ],
   "references": ["references/failures.md"]
