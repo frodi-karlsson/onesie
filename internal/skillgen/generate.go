@@ -1,0 +1,235 @@
+package skillgen
+
+import (
+	"bytes"
+	"errors"
+	"fmt"
+	"io/fs"
+	"os"
+	"path/filepath"
+)
+
+const skillsDir = "skills"
+
+// mirrorDirs are the fully generated copies of skills/, each pruned of any skill that no longer
+// exists there. A path added here is automatically covered by every write and every prune.
+var mirrorDirs = []string{
+	filepath.Join(".agents", "skills"),
+	filepath.Join(".cursor", "skills"),
+}
+
+// Generate reads every skills/*/skill.json under root, validates it, and writes the generated
+// outputs from spec section 3 into skills/, .agents/skills/ and .cursor/skills/. It writes only
+// the bytes that changed, so a no op run leaves every file's modification time untouched. A mirror
+// directory whose source skill no longer exists is removed. Every skill is loaded and rendered
+// before the first write, so a validation failure returns an error naming the skill and writes
+// nothing. A failure partway through the write loop can leave a partial tree, which a later
+// successful run repairs since every write is independent.
+func Generate(root string) error {
+	names, err := skillNames(root)
+	if err != nil {
+		return err
+	}
+
+	var outputs []output
+
+	for _, name := range names {
+		built, err := skillOutputs(root, name)
+		if err != nil {
+			return err
+		}
+
+		outputs = append(outputs, built...)
+	}
+
+	for _, out := range outputs {
+		if err := writeIfChanged(out.path, out.content); err != nil {
+			return err
+		}
+	}
+
+	for _, mirror := range mirrorDirs {
+		if err := pruneMirror(filepath.Join(root, mirror), names); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func skillNames(root string) ([]string, error) {
+	skillsRoot := filepath.Join(root, skillsDir)
+
+	entries, err := os.ReadDir(skillsRoot)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil, nil
+		}
+
+		return nil, fmt.Errorf("jev: %w", err)
+	}
+
+	names := make([]string, 0, len(entries))
+
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+
+		if _, err := os.Stat(filepath.Join(skillsRoot, entry.Name(), "skill.json")); err != nil {
+			if errors.Is(err, fs.ErrNotExist) {
+				continue
+			}
+
+			return nil, fmt.Errorf("jev: %w", err)
+		}
+
+		names = append(names, entry.Name())
+	}
+
+	return names, nil
+}
+
+type output struct {
+	path    string
+	content []byte
+}
+
+func skillOutputs(root, name string) ([]output, error) {
+	skillDir := filepath.Join(root, skillsDir, name)
+
+	skill, err := Load(filepath.Join(skillDir, "skill.json"))
+	if err != nil {
+		return nil, err
+	}
+
+	intro, err := readFragment(skillDir, skill.Intro)
+	if err != nil {
+		return nil, err
+	}
+
+	sections, err := readFragments(skillDir, skill.Sections)
+	if err != nil {
+		return nil, err
+	}
+
+	source := filepath.Join(skillsDir, name, "skill.json")
+	skillMD := RenderSkill(skill, intro, sections, source)
+
+	outputs := []output{
+		{path: filepath.Join(skillDir, "SKILL.md"), content: skillMD},
+		{path: filepath.Join(skillDir, "agents", "gemini.toml"), content: RenderGemini(skill, source)},
+	}
+	outputs = append(outputs, mirrorOutputs(root, name, "SKILL.md", skillMD)...)
+
+	references, err := referenceCopies(root, skillDir, name, skill.References)
+	if err != nil {
+		return nil, err
+	}
+
+	return append(outputs, references...), nil
+}
+
+func readFragments(skillDir string, names []string) ([]string, error) {
+	contents := make([]string, len(names))
+
+	for i, name := range names {
+		content, err := readFragment(skillDir, name)
+		if err != nil {
+			return nil, err
+		}
+
+		contents[i] = content
+	}
+
+	return contents, nil
+}
+
+func readFragment(skillDir, name string) (string, error) {
+	if name == "" {
+		return "", nil
+	}
+
+	data, err := os.ReadFile(filepath.Join(skillDir, name))
+	if err != nil {
+		return "", fmt.Errorf("jev: %w", err)
+	}
+
+	return string(data), nil
+}
+
+func referenceCopies(root, skillDir, name string, references []string) ([]output, error) {
+	var outputs []output
+
+	for _, ref := range references {
+		data, err := os.ReadFile(filepath.Join(skillDir, ref))
+		if err != nil {
+			return nil, fmt.Errorf("jev: %w", err)
+		}
+
+		outputs = append(outputs, mirrorOutputs(root, name, ref, data)...)
+	}
+
+	return outputs, nil
+}
+
+func mirrorOutputs(root, name, rel string, content []byte) []output {
+	outputs := make([]output, 0, len(mirrorDirs))
+
+	for _, mirror := range mirrorDirs {
+		outputs = append(outputs, output{path: filepath.Join(root, mirror, name, rel), content: content})
+	}
+
+	return outputs
+}
+
+func writeIfChanged(path string, content []byte) error {
+	existing, err := os.ReadFile(path)
+
+	switch {
+	case err == nil && bytes.Equal(existing, content):
+		return nil
+	case err != nil && !errors.Is(err, fs.ErrNotExist):
+		return fmt.Errorf("jev: %w", err)
+	}
+
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return fmt.Errorf("jev: %w", err)
+	}
+
+	if err := os.WriteFile(path, content, 0o644); err != nil {
+		return fmt.Errorf("jev: %w", err)
+	}
+
+	return nil
+}
+
+func pruneMirror(mirrorRoot string, keep []string) error {
+	entries, err := os.ReadDir(mirrorRoot)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil
+		}
+
+		return fmt.Errorf("jev: %w", err)
+	}
+
+	keepSet := make(map[string]bool, len(keep))
+	for _, name := range keep {
+		keepSet[name] = true
+	}
+
+	for _, entry := range entries {
+		if keepSet[entry.Name()] {
+			continue
+		}
+
+		// mirrorRoot is always .agents/skills or .cursor/skills, so this can never reach outside a
+		// mirror directory.
+		if err := os.RemoveAll(filepath.Join(mirrorRoot, entry.Name())); err != nil {
+			return fmt.Errorf("jev: %w", err)
+		}
+	}
+
+	return nil
+}

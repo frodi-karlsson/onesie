@@ -48,6 +48,12 @@ jobs:
       - name: Run check
         run: make check
 
+      - name: Check the skills are current
+        run: |
+          make skills
+          git status --porcelain
+          test -z "$(git status --porcelain)"
+
   # The check job already covers linux. This is the cross platform half
   # only, since the release ships darwin and windows binaries too.
   test:
