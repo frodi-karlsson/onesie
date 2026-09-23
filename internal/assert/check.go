@@ -156,6 +156,14 @@ func (c *checker) question(id string) *plan.Question {
 		ids = append(ids, q.ID)
 	}
 
+	// Naming a plan with no question at all would print the separator and nothing after it, which
+	// is the reason tooFew in plan splits the same message in two.
+	if len(ids) == 0 {
+		c.fail("unknown question '%s'", id)
+
+		return nil
+	}
+
 	c.fail("unknown question '%s'. Questions: %s", id, strings.Join(ids, ", "))
 
 	return nil

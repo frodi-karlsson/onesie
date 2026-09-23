@@ -327,6 +327,20 @@ func TestCheck(t *testing.T) {
 			t.Errorf("Check(nil) error = %v, want no error", err)
 		}
 	})
+
+	t.Run("should name no questions when the plan carries none", func(t *testing.T) {
+		t.Parallel()
+
+		got := Check(mustParse(t, `x.value > 0`), &plan.Plan{})
+		if got == nil {
+			t.Fatal("Check over an empty plan = nil, want an error")
+		}
+
+		if got.Error() != "unknown question 'x'" {
+			t.Errorf("Check over an empty plan error = %q, want %q",
+				got.Error(), "unknown question 'x'")
+		}
+	})
 }
 
 // TestCheckSpellsTheOrigin holds the assertion messages to plan's rule, that a message spells the
