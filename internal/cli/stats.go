@@ -20,9 +20,13 @@ import (
 type Stats struct {
 	// Records is every input record. Requests is the subset that reached the client, which is
 	// smaller whenever a line failed to parse.
-	Records        int
-	Requests       int
-	Failed         int
+	Records  int
+	Requests int
+	Failed   int
+	// FalseAsserts counts the records whose assertion did not hold. A false assertion is a
+	// judgment about a complete record rather than a failure, so §17.6 gives it a count of its
+	// own beside Failed.
+	FalseAsserts   int
 	Questions      int
 	InputTokens    int
 	OutputTokens   int
@@ -35,7 +39,7 @@ type Stats struct {
 
 // String renders the summary as the single line --stats writes to stderr.
 func (s Stats) String() string {
-	parts := make([]string, 0, 8)
+	parts := make([]string, 0, 9)
 
 	// A non streaming run has one record and one request and says so once. A stream reports both
 	// only when they differ, which is exactly when a record never became a request.
@@ -49,6 +53,10 @@ func (s Stats) String() string {
 
 	if s.Failed > 0 {
 		parts = append(parts, fmt.Sprintf("%d failed", s.Failed))
+	}
+
+	if s.FalseAsserts > 0 {
+		parts = append(parts, plural(s.FalseAsserts, "false assertion"))
 	}
 
 	if split {
@@ -162,6 +170,7 @@ type collector struct {
 	records      int
 	requests     int
 	failed       int
+	falseAsserts int
 	questions    int
 	inputTokens  int
 	outputTokens int
@@ -268,6 +277,20 @@ func (c *collector) recordFailure(reached bool, questions int) {
 	}
 }
 
+func (c *collector) assertFailed() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.falseAsserts++
+}
+
+func (c *collector) falseAssertions() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	return c.falseAsserts
+}
+
 func (c *collector) snapshot(attemptTimeout, elapsed time.Duration) Stats {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -285,7 +308,8 @@ func (c *collector) snapshot(attemptTimeout, elapsed time.Duration) Stats {
 	}
 
 	return Stats{
-		Records: c.records, Requests: c.requests, Failed: c.failed, Questions: c.questions,
+		Records: c.records, Requests: c.requests, Failed: c.failed,
+		FalseAsserts: c.falseAsserts, Questions: c.questions,
 		InputTokens: c.inputTokens, OutputTokens: c.outputTokens,
 		Models: slices.Sorted(maps.Keys(c.models)), Attempts: c.attempts, Retries: retries,
 		AttemptTimeout: attemptTimeout, Elapsed: elapsed,

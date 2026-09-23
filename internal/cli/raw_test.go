@@ -655,6 +655,12 @@ func TestNewRootCmdRequestFlags(t *testing.T) {
 				"whose bodies carry their own model",
 		},
 		{
+			name: "should reject --stop-on-assert with -i request",
+			args: []string{"-i", "request", "--stop-on-assert"},
+			wantErr: "jev: --stop-on-assert does not apply to -i request, " +
+				"which carries no assertion",
+		},
+		{
 			name: "should reject --print-questions with -i request",
 			args: []string{"-i", "request", "--print-questions"},
 			wantErr: "jev: --print-questions needs questions of its own, " +

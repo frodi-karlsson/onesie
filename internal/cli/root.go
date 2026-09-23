@@ -131,6 +131,8 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 		"streaming only, emit records as they complete")
 	root.Flags().BoolVar(&flags.stopOnError, "stop-on-error", false,
 		"streaming only, end the run at the first failure")
+	root.Flags().BoolVar(&flags.stopOnAssert, "stop-on-assert", false,
+		"streaming only, end the run at the first false assertion")
 	root.Flags().BoolVar(&flags.skipBlank, "skip-blank", false,
 		"streaming only, drop blank lines with no output line")
 	root.Flags().BoolVar(&flags.merge, "merge", false, "fold the answers into the input record")

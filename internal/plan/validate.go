@@ -151,8 +151,11 @@ type Config struct {
 	HasInput    bool
 	Unordered   bool
 	StopOnError bool
-	SkipBlank   bool
-	Merge       bool
+	// StopOnAssert is --stop-on-assert, which ends a stream at the first record whose assertion
+	// was false. §17.6.
+	StopOnAssert bool
+	SkipBlank    bool
+	Merge        bool
 	// MergeName is the merge flag as the user spelled it, so a message names --merge-key when that
 	// is what was given. It defaults to --merge when empty.
 	MergeName string
@@ -225,6 +228,8 @@ func checkListModels(cfg Config) error {
 			"which --list-models does not read"},
 		{cfg.StopOnError, "jev: --stop-on-error applies to streaming input, " +
 			"which --list-models does not read"},
+		{cfg.StopOnAssert, "jev: --stop-on-assert applies to streaming input, " +
+			"which --list-models does not read"},
 		{cfg.SkipBlank, "jev: --skip-blank applies to streaming input, " +
 			"which --list-models does not read"},
 		{cfg.PrintRequest, "jev: --print-request and --list-models each write a different " +
@@ -280,6 +285,8 @@ func checkRequestMode(cfg Config) error {
 			" does not apply to -i request, which forwards raw responses"},
 		{cfg.HasModel, "jev: -m does not apply to -i request, " +
 			"whose bodies carry their own model"},
+		{cfg.StopOnAssert, "jev: --stop-on-assert does not apply to -i request, " +
+			"which carries no assertion"},
 		{cfg.PrintQuestions, "jev: --print-questions needs questions of its own, " +
 			"which -i request does not build"},
 	} {
@@ -482,6 +489,7 @@ func checkSingleRecord(cfg Config) (string, error) {
 	}{
 		{"--unordered", cfg.Unordered},
 		{"--stop-on-error", cfg.StopOnError},
+		{"--stop-on-assert", cfg.StopOnAssert},
 		{"--skip-blank", cfg.SkipBlank},
 	} {
 		if flag.set {

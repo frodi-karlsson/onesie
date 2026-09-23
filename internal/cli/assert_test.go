@@ -3,6 +3,7 @@ package cli_test
 import (
 	"bytes"
 	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -114,6 +115,16 @@ func TestAssert(t *testing.T) {
 			wantCode: cli.ExitRejected,
 			wantOut: "{\"state\":\"a ticket\",\"answers\":{\"assert\":false," +
 				"\"model\":\"jev-1.13.0\",\"answer\":{\"value\":0.9}}}\n",
+		},
+		{
+			name: "should count a false assertion in the stats line",
+			args: []string{
+				"is this urgent", "-o", "json", "--assert", "answer.value > 0.95", "--stats",
+			},
+			response: urgent,
+			wantCode: cli.ExitRejected,
+			contains: []string{`"assert":false`},
+			wantErr:  "1 request, 1 false assertion, 1 question",
 		},
 		{
 			name:      "should reject a bad expression before any request",
@@ -582,4 +593,219 @@ func TestAssertPrintQuestions(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestAssertStreaming(t *testing.T) {
+	t.Parallel()
+
+	const gate = "answer.value < 0.5"
+
+	tests := []struct {
+		name      string
+		args      []string
+		stdin     string
+		wantCode  int
+		wantLines int
+		wantFalse int
+		contains  []string
+		missing   []string
+		wantErr   string
+	}{
+		{
+			name:      "should print every line and exit one when one assertion is false",
+			args:      []string{"is this urgent", "-i", "lines", "--assert", gate},
+			stdin:     "cold\nhot\ncold\n",
+			wantCode:  cli.ExitRejected,
+			wantLines: 3,
+			wantFalse: 1,
+			contains:  []string{`"answer":{"value":0.9}`, `"answer":{"value":0.1}`},
+		},
+		{
+			name:      "should exit zero when every record's assertion holds",
+			args:      []string{"is this urgent", "-i", "lines", "--assert", gate},
+			stdin:     "cold\ncold\n",
+			wantCode:  cli.ExitOK,
+			wantLines: 2,
+			missing:   []string{"assert"},
+		},
+		{
+			name: "should count no failed record when an assertion is false",
+			args: []string{
+				"is this urgent", "-i", "lines", "--assert", gate, "--stats",
+			},
+			stdin:     "cold\nhot\ncold\n",
+			wantCode:  cli.ExitRejected,
+			wantLines: 3,
+			wantFalse: 1,
+			wantErr:   "3 requests, 1 false assertion, 3 questions",
+		},
+		{
+			name:      "should exit six when a failed record precedes a false assertion",
+			args:      []string{"is this urgent", "-i", "lines", "--assert", gate},
+			stdin:     "boom\nhot\n",
+			wantCode:  cli.ExitRecords,
+			wantLines: 2,
+			wantFalse: 1,
+			contains:  []string{`"kind":"http"`},
+		},
+		{
+			name:      "should exit six when a false assertion precedes a failed record",
+			args:      []string{"is this urgent", "-i", "lines", "--assert", gate},
+			stdin:     "hot\nboom\n",
+			wantCode:  cli.ExitRecords,
+			wantLines: 2,
+			wantFalse: 1,
+			contains:  []string{`"kind":"http"`},
+		},
+		{
+			name: "should not evaluate the assertion on a failed record",
+			args: []string{
+				"is this urgent", "-i", "lines", "--assert", "answer.value > 0.5",
+			},
+			stdin:     "boom\n",
+			wantCode:  cli.ExitRecords,
+			wantLines: 1,
+			contains:  []string{`"kind":"http"`},
+			missing:   []string{"assert"},
+		},
+		{
+			name: "should end the run at the first false assertion under stop on assert",
+			args: []string{
+				"is this urgent", "-i", "lines", "--assert", gate, "--stop-on-assert",
+			},
+			stdin:     "cold\nhot\ncold\n",
+			wantCode:  cli.ExitRejected,
+			wantLines: 2,
+			wantFalse: 1,
+		},
+		{
+			name: "should end an unordered run at the first false assertion",
+			args: []string{
+				"is this urgent", "-i", "lines", "--assert", gate,
+				"--stop-on-assert", "--unordered",
+			},
+			stdin:     "cold\nhot\ncold\n",
+			wantCode:  cli.ExitRejected,
+			wantLines: 2,
+			wantFalse: 1,
+		},
+		{
+			name: "should read the whole stream under stop on assert when nothing is false",
+			args: []string{
+				"is this urgent", "-i", "lines", "--assert", gate, "--stop-on-assert",
+			},
+			stdin:     "cold\ncold\ncold\n",
+			wantCode:  cli.ExitOK,
+			wantLines: 3,
+			missing:   []string{"assert"},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			out, errOut := runAssertedStream(t, tc.args, tc.stdin, tc.wantCode)
+
+			lines := 0
+
+			for _, line := range strings.Split(out, "\n") {
+				if line != "" {
+					lines++
+				}
+			}
+
+			if lines != tc.wantLines {
+				t.Errorf("lines = %d, want %d\ngot:\n%s", lines, tc.wantLines, out)
+			}
+
+			if got := strings.Count(out, `"assert":false`); got != tc.wantFalse {
+				t.Errorf("false assertions = %d, want %d\ngot:\n%s", got, tc.wantFalse, out)
+			}
+
+			for _, want := range tc.contains {
+				if !strings.Contains(out, want) {
+					t.Errorf("stdout missing %q\ngot:\n%s", want, out)
+				}
+			}
+
+			for _, unwanted := range tc.missing {
+				if strings.Contains(out, unwanted) {
+					t.Errorf("stdout carries %q\ngot:\n%s", unwanted, out)
+				}
+			}
+
+			if tc.wantErr == "" && errOut != "" {
+				t.Errorf("stderr = %q, want nothing", errOut)
+			}
+
+			if tc.wantErr != "" && !strings.Contains(errOut, tc.wantErr) {
+				t.Errorf("stderr = %q, want it to contain %q", errOut, tc.wantErr)
+			}
+
+			if tc.wantErr != "" && strings.Contains(errOut, "failed") {
+				t.Errorf("stderr = %q, want no failed record", errOut)
+			}
+		})
+	}
+}
+
+func runAssertedStream(t *testing.T, args []string, stdin string, wantCode int) (string, string) {
+	t.Helper()
+
+	// Keyed on the state the body carries rather than on a call counter, so a case reads the same
+	// whatever order the records complete in.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, readErr := io.ReadAll(r.Body)
+		if readErr != nil {
+			t.Errorf("reading request body: %v", readErr)
+		}
+
+		reply := `{"model":"jev-1.13.0","answers":{"answer":{"type":"noul","noul":0.1}}}`
+
+		switch {
+		case bytes.Contains(body, []byte("boom")):
+			w.WriteHeader(http.StatusInternalServerError)
+
+			reply = `{"error":{"message":"boom"}}`
+		case bytes.Contains(body, []byte("hot")):
+			reply = `{"model":"jev-1.13.0","answers":{"answer":{"type":"noul","noul":0.9}}}`
+		}
+
+		if _, writeErr := w.Write([]byte(reply)); writeErr != nil {
+			t.Errorf("writing stub response: %v", writeErr)
+		}
+	}))
+	defer srv.Close()
+
+	var out, errOut bytes.Buffer
+
+	root := cli.NewRootCmd(
+		cli.BuildInfo{Version: "1.2.3"},
+		cli.WithClientFactory(func(_ context.Context, opts ...jev.Option) (*jev.Client, error) {
+			policy := jev.DefaultRetryPolicy()
+			policy.MaxRetries = 0
+
+			return jev.New(append([]jev.Option{
+				jev.WithAPIKey("k"),
+				jev.WithBaseURL(srv.URL),
+				jev.WithRetry(policy),
+			}, opts...)...)
+		}),
+		cli.WithStdin(strings.NewReader(stdin)),
+		cli.WithStdinTTY(false),
+		cli.WithStdoutTTY(false),
+		cli.WithLookupEnv(func(string) (string, bool) { return "", false }),
+	)
+
+	root.SetOut(&out)
+	root.SetErr(&errOut)
+	root.SetArgs(args)
+
+	if code := cli.Execute(t.Context(), root); code != wantCode {
+		t.Errorf("exit code = %d, want %d\nstdout:\n%s\nstderr:\n%s",
+			code, wantCode, out.String(), errOut.String())
+	}
+
+	return out.String(), errOut.String()
 }

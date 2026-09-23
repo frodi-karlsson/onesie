@@ -205,6 +205,12 @@ func TestNewRootCmdListModelsFlags(t *testing.T) {
 				"which --list-models does not read",
 		},
 		{
+			name: "should reject --stop-on-assert with --list-models",
+			args: []string{"--list-models", "--stop-on-assert"},
+			wantErr: "jev: --stop-on-assert applies to streaming input, " +
+				"which --list-models does not read",
+		},
+		{
 			name: "should reject --skip-blank with --list-models",
 			args: []string{"--list-models", "--skip-blank"},
 			wantErr: "jev: --skip-blank applies to streaming input, " +

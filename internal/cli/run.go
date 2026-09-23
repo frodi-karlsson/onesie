@@ -60,6 +60,7 @@ func run(
 		HasInput:       cmd.Flags().Changed("input"),
 		Unordered:      flags.unordered,
 		StopOnError:    flags.stopOnError,
+		StopOnAssert:   flags.stopOnAssert,
 		SkipBlank:      flags.skipBlank,
 		Merge:          merging(flags),
 		MergeName:      mergeName(flags),
@@ -184,7 +185,7 @@ func run(
 
 	if inputMode.Streaming() {
 		return withStats(cmd, flags, func(stats *collector) error {
-			return stream(cmd, settings, built, inputMode, outputMode, flags, stats)
+			return stream(cmd, settings, built, inputMode, outputMode, flags, gate, stats)
 		})
 	}
 
@@ -347,6 +348,7 @@ func stream(
 	inputMode input.Mode,
 	outputMode output.Mode,
 	flags *runFlags,
+	gate *assert.Expr,
 	stats *collector,
 ) error {
 	if flags.printRequest {
@@ -403,8 +405,21 @@ func stream(
 
 			record, evalErr := evaluate(
 				ctx, client, built, model, questions, rec.Wire, flags.usage, stats)
+			if evalErr != nil {
+				// Returned before the gate is asked, which is §17.4's third row. A failed record
+				// reaches the evaluator as an answer whose every value reads as zero, so a gate
+				// such as answer.value < 0.5 would hold for a request that never happened. The
+				// single shot path is safe because its error return precedes the evaluation, and
+				// this path writes the record rather than returning it, so the check is explicit.
+				return line{record: record, raw: rec.Raw, state: rec.Wire}, evalErr
+			}
 
-			return line{record: record, raw: rec.Raw, state: rec.Wire}, evalErr
+			// §17.6 asks the gate per record. A false assertion is not an engine failure: the
+			// record succeeded and the answer is complete, so it is carried on the line rather
+			// than returned as an error the engine would count against result.Failed.
+			record.AssertFailed = asserted(gate, record, stats)
+
+			return line{record: record, raw: rec.Raw, state: rec.Wire}, nil
 		},
 		Write: func(l line) error {
 			if !merge {
@@ -417,6 +432,7 @@ func stream(
 		Unordered:   flags.unordered,
 		StopOnError: flags.stopOnError,
 		Abort:       aborting,
+		Stop:        stopping(flags),
 	})
 	if err != nil {
 		// The source stopping the run is the worse outcome and takes the exit code, since a
@@ -425,7 +441,7 @@ func stream(
 		return &sourceError{cause: err, failed: result.Failed}
 	}
 
-	return streamResult(result)
+	return streamResult(result, stats.falseAssertions())
 }
 
 type sourceError struct {
@@ -493,6 +509,18 @@ func aborting(err error) bool {
 	return errors.Is(err, jev.ErrAuthentication) || errors.Is(err, jev.ErrPermissionDenied)
 }
 
+func stopping(flags *runFlags) func(line) bool {
+	if !flags.stopOnAssert {
+		// Nil rather than a predicate that always says no, so the engine asks nothing of a run
+		// that did not pass the flag.
+		return nil
+	}
+
+	return func(l line) bool {
+		return l.record.AssertFailed
+	}
+}
+
 func merging(flags *runFlags) bool {
 	return flags.merge || flags.mergeKey != ""
 }
@@ -517,7 +545,7 @@ func mergeKey(flags *runFlags) string {
 	return "answers"
 }
 
-func streamResult(result engine.Result) error {
+func streamResult(result engine.Result, falseAsserts int) error {
 	if result.Broken {
 		// The consumer stopped reading, which is its right. Nothing is reported and the run
 		// succeeded.
@@ -533,6 +561,13 @@ func streamResult(result engine.Result) error {
 
 	if result.Failed > 0 {
 		return &recordsError{}
+	}
+
+	// After the failed records and before the successful return, which is where §8 places a false
+	// assertion. A stream carrying both exits 6, since a record that never answered says more
+	// than a gate that answered no.
+	if falseAsserts > 0 {
+		return &rejectedError{}
 	}
 
 	return nil
@@ -594,7 +629,7 @@ func ask(
 	// Only a record that arrived is evaluated, which is §17.4's third row. A failed request
 	// returns above, and it would reach the evaluator as an answer whose every value reads as
 	// zero, so a gate such as answer.value < 0.5 would hold for a request that never happened.
-	record.AssertFailed = !assert.Eval(gate, record)
+	record.AssertFailed = asserted(gate, record, stats)
 
 	if flags.quiet {
 		// Both the policy and the assertion are asked, so neither masks the other. §17.5.
@@ -622,6 +657,16 @@ func assertResult(record output.Record) error {
 	}
 
 	return nil
+}
+
+func asserted(gate *assert.Expr, record output.Record, stats *collector) bool {
+	if assert.Eval(gate, record) {
+		return false
+	}
+
+	stats.assertFailed()
+
+	return true
 }
 
 func writeFailure(
@@ -898,6 +943,7 @@ type runFlags struct {
 	maxRetryAfter int
 	unordered     bool
 	stopOnError   bool
+	stopOnAssert  bool
 	skipBlank     bool
 	merge         bool
 	mergeKey      string

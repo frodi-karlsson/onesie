@@ -536,6 +536,17 @@ func TestValidate(t *testing.T) {
 			wantErr:    "--stop-on-error applies to streaming input. -i json reads one record",
 		},
 		{
+			name:       "should reject stop on assert outside a stream",
+			positional: "is this urgent",
+			cfg:        plan.Config{StopOnAssert: true, InputName: "text"},
+			wantErr:    "--stop-on-assert applies to streaming input. -i text reads one record",
+		},
+		{
+			name:       "should accept stop on assert in a stream",
+			positional: "is this urgent",
+			cfg:        plan.Config{StopOnAssert: true, Streaming: true, InputName: "jsonl"},
+		},
+		{
 			name:       "should reject skip blank outside a stream",
 			positional: "is this urgent",
 			cfg:        plan.Config{SkipBlank: true, InputName: "text"},

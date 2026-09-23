@@ -88,7 +88,8 @@ func streamRaw(
 		return &sourceError{cause: err, failed: result.Failed}
 	}
 
-	return streamResult(result)
+	// §17.5 has a request body carry no assertion, so no record can have failed one.
+	return streamResult(result, 0)
 }
 
 func oneLine(body []byte) []byte {

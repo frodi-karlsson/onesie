@@ -87,6 +87,27 @@ func TestStatsRender(t *testing.T) {
 				"1 attempt, 10s/attempt, 1s",
 		},
 		{
+			name: "should render a false assertion count beside the failed count",
+			stats: cli.Stats{
+				Requests: 40, Failed: 2, FalseAsserts: 1, Questions: 80,
+				InputTokens: 10000, OutputTokens: 400,
+				Models: []string{"jev-1.13.0"}, Attempts: 40,
+				AttemptTimeout: 10 * time.Second, Elapsed: 30 * time.Second,
+			},
+			want: "40 requests, 2 failed, 1 false assertion, 80 questions, " +
+				"10000 in / 400 out, model jev-1.13.0, 40 attempts, 10s/attempt, 30s",
+		},
+		{
+			name: "should omit the false assertion clause when every assertion held",
+			stats: cli.Stats{
+				Requests: 40, Questions: 80, InputTokens: 10000, OutputTokens: 400,
+				Models: []string{"jev-1.13.0"}, Attempts: 40,
+				AttemptTimeout: 10 * time.Second, Elapsed: 30 * time.Second,
+			},
+			want: "40 requests, 80 questions, 10000 in / 400 out, model jev-1.13.0, " +
+				"40 attempts, 10s/attempt, 30s",
+		},
+		{
 			name: "should omit the model clause when no model was seen",
 			stats: cli.Stats{
 				Requests: 1, Failed: 1, Questions: 1, Attempts: 1,
