@@ -54,6 +54,11 @@ jobs:
           git status --porcelain
           test -z "$(git status --porcelain)"
 
+      - name: Check the skill examples
+        run: |
+          make build
+          PATH="$PWD/bin:$PATH" make skills-check
+
   # The check job already covers linux. This is the cross platform half
   # only, since the release ships darwin and windows binaries too.
   test:

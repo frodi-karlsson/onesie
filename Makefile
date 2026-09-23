@@ -8,7 +8,7 @@ LDFLAGS := -s -w \
 	-X main.commit=$(COMMIT) \
 	-X main.date=$(DATE)
 
-.PHONY: help build run install test test-race cover bench lint lint-fix fmt tidy vuln check tools clean skills
+.PHONY: help build run install test test-race cover bench lint lint-fix fmt tidy vuln check tools clean skills skills-check
 
 build: ## Build the jev binary into bin/
 	@mkdir -p bin
@@ -59,6 +59,9 @@ vuln: ## Scan dependencies for known vulnerabilities
 
 skills: ## Generate the per client skill files from skills/
 	go run ./cmd/skillgen
+
+skills-check: ## Dry run every example in every skill
+	go run ./cmd/skillcheck
 
 check: ## Run lint and tests
 	@echo "--- Lint ---"
