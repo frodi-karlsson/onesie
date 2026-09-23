@@ -625,6 +625,7 @@ func TestSave(t *testing.T) {
 		tests := []struct {
 			name    string
 			handle  func(t *testing.T, dir string) (*os.File, error)
+			sync    func(*os.File) error
 			wantErr string
 		}{
 			{
@@ -638,21 +639,12 @@ func TestSave(t *testing.T) {
 				wantErr: "writing",
 			},
 			{
-				// A pipe takes the write and refuses the flush, which is the only handle that reaches
-				// the flush branch without crashing the machine.
+				// The flush is stubbed to fail, since a handle whose flush fails is not portable.
 				name: "should fail when the temporary file cannot be flushed",
-				handle: func(t *testing.T, _ string) (*os.File, error) {
-					read, write, err := os.Pipe()
-					if err != nil {
-						return nil, err
-					}
-
-					// Held open until the test ends, so the write lands in the pipe buffer instead of
-					// failing with EPIPE and reaching the wrong branch.
-					t.Cleanup(func() { read.Close() })
-
-					return write, nil
+				handle: func(_ *testing.T, dir string) (*os.File, error) {
+					return os.CreateTemp(dir, ".credentials-stub")
 				},
+				sync:    func(*os.File) error { return errors.New("stub flush failure") },
 				wantErr: "flushing",
 			},
 		}
@@ -668,7 +660,12 @@ func TestSave(t *testing.T) {
 					return tc.handle(t, d)
 				}
 
-				store := creds.NewStore(creds.WithCreateTemp(createTemp))
+				opts := []creds.StoreOption{creds.WithCreateTemp(createTemp)}
+				if tc.sync != nil {
+					opts = append(opts, creds.WithSync(tc.sync))
+				}
+
+				store := creds.NewStore(opts...)
 
 				_, err := store.Save(path, creds.File{APIKey: "k"})
 				if err == nil {

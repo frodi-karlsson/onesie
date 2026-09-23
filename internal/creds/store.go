@@ -15,7 +15,7 @@ const maxCredentialBytes = 1 << 20
 
 // NewStore builds a Store over the real filesystem. A test overrides only what it must.
 func NewStore(opts ...StoreOption) Store {
-	store := Store{chmod: os.Chmod, createTemp: os.CreateTemp, goos: runtime.GOOS}
+	store := Store{chmod: os.Chmod, createTemp: os.CreateTemp, sync: (*os.File).Sync, goos: runtime.GOOS}
 
 	for _, opt := range opts {
 		opt(&store)
@@ -29,6 +29,7 @@ func NewStore(opts ...StoreOption) Store {
 type Store struct {
 	chmod      func(string, os.FileMode) error
 	createTemp func(dir, pattern string) (*os.File, error)
+	sync       func(*os.File) error
 	goos       string
 }
 
@@ -47,6 +48,13 @@ func WithChmod(chmod func(string, os.FileMode) error) StoreOption {
 func WithCreateTemp(createTemp func(dir, pattern string) (*os.File, error)) StoreOption {
 	return func(s *Store) {
 		s.createTemp = createTemp
+	}
+}
+
+// WithSync replaces how a Store flushes the temporary file before the rename.
+func WithSync(sync func(*os.File) error) StoreOption {
+	return func(s *Store) {
+		s.sync = sync
 	}
 }
 
@@ -174,7 +182,7 @@ func (s Store) Save(path string, file File) (*ModeWarning, error) {
 	// outlive this function.
 	name := temp.Name()
 
-	if writeErr := writeAndClose(temp, data); writeErr != nil {
+	if writeErr := s.writeAndClose(temp, data); writeErr != nil {
 		return nil, errors.Join(writeErr, os.Remove(name))
 	}
 
@@ -197,7 +205,7 @@ func (s Store) Save(path string, file File) (*ModeWarning, error) {
 	return warning, nil
 }
 
-func writeAndClose(file *os.File, data []byte) error {
+func (s Store) writeAndClose(file *os.File, data []byte) error {
 	if _, err := file.Write(data); err != nil {
 		return errors.Join(fmt.Errorf("jev: writing %s: %w", file.Name(), err), file.Close())
 	}
@@ -206,7 +214,7 @@ func writeAndClose(file *os.File, data []byte) error {
 	// contents never reached the disk. Without it the credential file can come back zero length on
 	// a filesystem that delays data behind metadata, which reads as a corrupt file rather than an
 	// absent one.
-	if err := file.Sync(); err != nil {
+	if err := s.sync(file); err != nil {
 		return errors.Join(fmt.Errorf("jev: flushing %s: %w", file.Name(), err), file.Close())
 	}
 
