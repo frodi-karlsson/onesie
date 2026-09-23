@@ -328,40 +328,40 @@ func TestWriteTable(t *testing.T) {
 			}
 		})
 	}
-}
 
-func TestWriteTableBarWidth(t *testing.T) {
-	t.Parallel()
+	t.Run("should not panic on an extreme bar width", func(t *testing.T) {
+		t.Parallel()
 
-	tests := []struct {
-		name    string
-		columns int
-	}{
-		{name: "should not panic on a zero width", columns: 0},
-		{name: "should not panic on a negative width", columns: -20},
-		{name: "should not panic on an absurd width", columns: 100000},
-	}
+		tests := []struct {
+			name    string
+			columns int
+		}{
+			{name: "should not panic on a zero width", columns: 0},
+			{name: "should not panic on a negative width", columns: -20},
+			{name: "should not panic on an absurd width", columns: 100000},
+		}
 
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
 
-			var buf strings.Builder
+				var buf strings.Builder
 
-			rec := output.Record{
-				Answers: []output.Named{
-					{ID: "team", Answer: &answer.Answer{
-						P: &answer.Probabilities{
-							Keys:   []string{"a"},
-							Values: map[string]float64{"a": 0.5},
-						},
-					}},
-				},
-			}
+				rec := output.Record{
+					Answers: []output.Named{
+						{ID: "team", Answer: &answer.Answer{
+							P: &answer.Probabilities{
+								Keys:   []string{"a"},
+								Values: map[string]float64{"a": 0.5},
+							},
+						}},
+					},
+				}
 
-			if err := output.WriteTable(&buf, rec, tc.columns); err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
-		})
-	}
+				if err := output.WriteTable(&buf, rec, tc.columns); err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+			})
+		}
+	})
 }
