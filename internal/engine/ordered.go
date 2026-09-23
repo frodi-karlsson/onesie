@@ -2,10 +2,7 @@ package engine
 
 import (
 	"context"
-	"errors"
-	"io"
 	"sync"
-	"syscall"
 )
 
 func runOrdered[R, T any](ctx context.Context, cfg Config[R, T]) (Result, error) {
@@ -242,13 +239,6 @@ func emit[R, T any](cfg Config[R, T], got outcome[T], result *Result) bool {
 	result.Fatal = err
 
 	return false
-}
-
-// BrokenPipe reports whether a write failed because the consumer stopped reading. Every jev
-// writer treats that as a successful end rather than a failure, so it is exported for the ones
-// outside this package.
-func BrokenPipe(err error) bool {
-	return errors.Is(err, syscall.EPIPE) || errors.Is(err, io.ErrClosedPipe)
 }
 
 func aborts[R, T any](cfg Config[R, T], err error) bool {
