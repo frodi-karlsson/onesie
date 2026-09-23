@@ -499,73 +499,206 @@ func TestPrintRequest(t *testing.T) {
 			t.Errorf("printed %s, want %s", printed, body)
 		}
 	})
-}
 
-func TestPrintRequestMatchesSentBody(t *testing.T) {
-	t.Parallel()
+	t.Run("should print a body matching what the equivalent request would send", func(t *testing.T) {
+		t.Parallel()
 
-	tests := []struct {
-		name  string
-		args  []string
-		stdin string
-		file  string
-	}{
-		{
-			name:  "should print the trimmed model an untrimmed -m sends",
-			args:  []string{"--ask", "urgent=is this urgent", "-m", " jev-1.13.0 "},
-			stdin: "the server is down",
-		},
-		{
-			name:  "should print the resolved model a whitespace only -m sends",
-			args:  []string{"--ask", "urgent=is this urgent", "-m", "   "},
-			stdin: "the server is down",
-		},
-		{
-			name: "should print the trimmed model an untrimmed request body sends",
-			file: `{"state":"the server is down","model":" jev-1.13.0 ","questions":` +
-				`{"urgent":{"type":"noul","instructions":"is this urgent"}}}`,
-		},
-		{
-			name: "should print the resolved model a tab only request body sends",
-			file: `{"state":"the server is down","model":"\t","questions":` +
-				`{"urgent":{"type":"noul","instructions":"is this urgent"}}}`,
-		},
-	}
+		tests := []struct {
+			name  string
+			args  []string
+			stdin string
+			file  string
+		}{
+			{
+				name:  "should print the trimmed model an untrimmed -m sends",
+				args:  []string{"--ask", "urgent=is this urgent", "-m", " jev-1.13.0 "},
+				stdin: "the server is down",
+			},
+			{
+				name:  "should print the resolved model a whitespace only -m sends",
+				args:  []string{"--ask", "urgent=is this urgent", "-m", "   "},
+				stdin: "the server is down",
+			},
+			{
+				name: "should print the trimmed model an untrimmed request body sends",
+				file: `{"state":"the server is down","model":" jev-1.13.0 ","questions":` +
+					`{"urgent":{"type":"noul","instructions":"is this urgent"}}}`,
+			},
+			{
+				name: "should print the resolved model a tab only request body sends",
+				file: `{"state":"the server is down","model":"\t","questions":` +
+					`{"urgent":{"type":"noul","instructions":"is this urgent"}}}`,
+			},
+		}
 
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
 
-			args := tc.args
+				args := tc.args
 
-			if tc.file != "" {
-				path := filepath.Join(t.TempDir(), "body.json")
-				if err := os.WriteFile(path, []byte(tc.file), 0o600); err != nil {
-					t.Fatalf("writing the body: %v", err)
+				if tc.file != "" {
+					path := filepath.Join(t.TempDir(), "body.json")
+					if err := os.WriteFile(path, []byte(tc.file), 0o600); err != nil {
+						t.Fatalf("writing the body: %v", err)
+					}
+
+					args = []string{"-f", path}
 				}
 
-				args = []string{"-f", path}
-			}
+				printArgs := make([]string, 0, len(args)+1)
+				printArgs = append(printArgs, args...)
+				printArgs = append(printArgs, "--print-request")
 
-			printArgs := make([]string, 0, len(args)+1)
-			printArgs = append(printArgs, args...)
-			printArgs = append(printArgs, "--print-request")
+				printed, errOut, code := runOfflineStdin(t, printArgs, tc.stdin)
+				if code != ExitOK {
+					t.Fatalf("printing exit code = %d, want %d\nstderr:\n%s", code, ExitOK, errOut)
+				}
 
-			printed, errOut, code := runOfflineStdin(t, printArgs, tc.stdin)
-			if code != ExitOK {
-				t.Fatalf("printing exit code = %d, want %d\nstderr:\n%s", code, ExitOK, errOut)
-			}
+				sent, errOut, code := runRecorded(t, args, tc.stdin)
+				if code != ExitOK {
+					t.Fatalf("sending exit code = %d, want %d\nstderr:\n%s", code, ExitOK, errOut)
+				}
 
-			sent, errOut, code := runRecorded(t, args, tc.stdin)
-			if code != ExitOK {
-				t.Fatalf("sending exit code = %d, want %d\nstderr:\n%s", code, ExitOK, errOut)
-			}
+				if want := strings.TrimSuffix(printed, "\n"); sent != want {
+					t.Errorf("sent body    %s\nprinted body %s", sent, want)
+				}
+			})
+		}
+	})
 
-			if want := strings.TrimSuffix(printed, "\n"); sent != want {
-				t.Errorf("sent body    %s\nprinted body %s", sent, want)
-			}
-		})
-	}
+	t.Run("should reject --merge with --print-request", func(t *testing.T) {
+		t.Parallel()
+
+		const message = "jev: --merge needs answers to fold in, " +
+			"which --print-request does not produce"
+
+		tests := []struct {
+			name  string
+			args  []string
+			stdin string
+		}{
+			{
+				name: "should reject merge on a single body",
+				args: []string{
+					"--ask", "urgent=is this urgent", "-i", "json", "--print-request", "--merge",
+				},
+				stdin: `{"answers":1}`,
+			},
+			{
+				name: "should reject merge on a streamed body",
+				args: []string{
+					"--ask", "urgent=is this urgent", "-i", "jsonl", "--print-request", "--merge",
+				},
+				stdin: `{"answers":1}` + "\n",
+			},
+			{
+				name: "should reject merge-key on a streamed body",
+				args: []string{
+					"--ask", "urgent=is this urgent", "-i", "jsonl", "--print-request",
+					"--merge-key", "jev",
+				},
+				stdin: `{"answers":1}` + "\n",
+			},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				out, errOut, code := runOfflineStdin(t, tc.args, tc.stdin)
+
+				if code != ExitUsage {
+					t.Fatalf("exit code = %d, want %d\nstdout:\n%s\nstderr:\n%s",
+						code, ExitUsage, out, errOut)
+				}
+
+				// Nothing on stdout, which is the point of rejecting before the body is written.
+				if out != "" {
+					t.Errorf("stdout should be empty, got:\n%s", out)
+				}
+
+				want := message
+				if strings.Contains(strings.Join(tc.args, " "), "--merge-key") {
+					want = strings.Replace(message, "--merge", "--merge-key", 1)
+				}
+
+				if !strings.Contains(errOut, want) {
+					t.Errorf("stderr = %q, want it to contain %q", errOut, want)
+				}
+			})
+		}
+	})
+
+	t.Run("should reject --assert with --print-request", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		path := filepath.Join(dir, "q.yaml")
+
+		if err := os.WriteFile(path,
+			[]byte("assert: urgent.value > 0.5\nurgent:\n  ask: is this urgent\n"), 0o600); err != nil {
+			t.Fatalf("writing the question file: %v", err)
+		}
+
+		tests := []struct {
+			name  string
+			args  []string
+			stdin string
+			want  string
+		}{
+			{
+				name: "should reject a valid --assert with --print-request",
+				args: []string{
+					"is this urgent", "--print-request", "--state", "x",
+					"--assert", "answer.value > 0.99",
+				},
+				want: "jev: --assert judges an answer, which --print-request does not produce",
+			},
+			{
+				name: "should reject an unparseable --assert with --print-request",
+				args: []string{
+					"is this urgent", "--print-request", "--state", "x",
+					"--assert", "nonsense syntax here !!",
+				},
+				want: "jev: --assert judges an answer, which --print-request does not produce",
+			},
+			{
+				name: "should name the file's key when the file carried the assertion",
+				args: []string{"-f", path, "--print-request", "--state", "x"},
+				want: "jev: 'assert' judges an answer, which --print-request does not produce",
+			},
+			{
+				name:  "should reject --stop-on-assert with --print-request in a stream",
+				args:  []string{"is this urgent", "--print-request", "-i", "lines", "--stop-on-assert"},
+				stdin: "a\nb\n",
+				want: "jev: --stop-on-assert ends a stream on a false assertion, " +
+					"which --print-request does not produce",
+			},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				out, errOut, code := runOfflineStdin(t, tc.args, tc.stdin)
+
+				if code != ExitUsage {
+					t.Fatalf("exit code = %d, want %d\nstdout:\n%s\nstderr:\n%s",
+						code, ExitUsage, out, errOut)
+				}
+
+				// Nothing on stdout, which is what tells a rejected dry run from an honoured one.
+				if out != "" {
+					t.Errorf("stdout should be empty, got:\n%s", out)
+				}
+
+				if !strings.Contains(errOut, tc.want) {
+					t.Errorf("stderr = %q, want it to contain %q", errOut, tc.want)
+				}
+			})
+		}
+	})
 }
 
 // runRecorded runs the given arguments against a stub that answers one noul, and returns the
@@ -626,139 +759,6 @@ func runRecorded(t *testing.T, args []string, stdin string) (string, string, int
 	defer mu.Unlock()
 
 	return sent, errOut.String(), code
-}
-
-func TestPrintRequestMerge(t *testing.T) {
-	t.Parallel()
-
-	const message = "jev: --merge needs answers to fold in, " +
-		"which --print-request does not produce"
-
-	tests := []struct {
-		name  string
-		args  []string
-		stdin string
-	}{
-		{
-			name: "should reject merge on a single body",
-			args: []string{
-				"--ask", "urgent=is this urgent", "-i", "json", "--print-request", "--merge",
-			},
-			stdin: `{"answers":1}`,
-		},
-		{
-			name: "should reject merge on a streamed body",
-			args: []string{
-				"--ask", "urgent=is this urgent", "-i", "jsonl", "--print-request", "--merge",
-			},
-			stdin: `{"answers":1}` + "\n",
-		},
-		{
-			name: "should reject merge-key on a streamed body",
-			args: []string{
-				"--ask", "urgent=is this urgent", "-i", "jsonl", "--print-request",
-				"--merge-key", "jev",
-			},
-			stdin: `{"answers":1}` + "\n",
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			out, errOut, code := runOfflineStdin(t, tc.args, tc.stdin)
-
-			if code != ExitUsage {
-				t.Fatalf("exit code = %d, want %d\nstdout:\n%s\nstderr:\n%s",
-					code, ExitUsage, out, errOut)
-			}
-
-			// Nothing on stdout, which is the point of rejecting before the body is written.
-			if out != "" {
-				t.Errorf("stdout should be empty, got:\n%s", out)
-			}
-
-			want := message
-			if strings.Contains(strings.Join(tc.args, " "), "--merge-key") {
-				want = strings.Replace(message, "--merge", "--merge-key", 1)
-			}
-
-			if !strings.Contains(errOut, want) {
-				t.Errorf("stderr = %q, want it to contain %q", errOut, want)
-			}
-		})
-	}
-}
-
-func TestPrintRequestAssert(t *testing.T) {
-	t.Parallel()
-
-	dir := t.TempDir()
-	path := filepath.Join(dir, "q.yaml")
-
-	if err := os.WriteFile(path,
-		[]byte("assert: urgent.value > 0.5\nurgent:\n  ask: is this urgent\n"), 0o600); err != nil {
-		t.Fatalf("writing the question file: %v", err)
-	}
-
-	tests := []struct {
-		name  string
-		args  []string
-		stdin string
-		want  string
-	}{
-		{
-			name: "should reject a valid --assert with --print-request",
-			args: []string{
-				"is this urgent", "--print-request", "--state", "x",
-				"--assert", "answer.value > 0.99",
-			},
-			want: "jev: --assert judges an answer, which --print-request does not produce",
-		},
-		{
-			name: "should reject an unparseable --assert with --print-request",
-			args: []string{
-				"is this urgent", "--print-request", "--state", "x",
-				"--assert", "nonsense syntax here !!",
-			},
-			want: "jev: --assert judges an answer, which --print-request does not produce",
-		},
-		{
-			name: "should name the file's key when the file carried the assertion",
-			args: []string{"-f", path, "--print-request", "--state", "x"},
-			want: "jev: 'assert' judges an answer, which --print-request does not produce",
-		},
-		{
-			name:  "should reject --stop-on-assert with --print-request in a stream",
-			args:  []string{"is this urgent", "--print-request", "-i", "lines", "--stop-on-assert"},
-			stdin: "a\nb\n",
-			want: "jev: --stop-on-assert ends a stream on a false assertion, " +
-				"which --print-request does not produce",
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			out, errOut, code := runOfflineStdin(t, tc.args, tc.stdin)
-
-			if code != ExitUsage {
-				t.Fatalf("exit code = %d, want %d\nstdout:\n%s\nstderr:\n%s",
-					code, ExitUsage, out, errOut)
-			}
-
-			// Nothing on stdout, which is what tells a rejected dry run from an honoured one.
-			if out != "" {
-				t.Errorf("stdout should be empty, got:\n%s", out)
-			}
-
-			if !strings.Contains(errOut, tc.want) {
-				t.Errorf("stderr = %q, want it to contain %q", errOut, tc.want)
-			}
-		})
-	}
 }
 
 func TestStreamRequests(t *testing.T) {
