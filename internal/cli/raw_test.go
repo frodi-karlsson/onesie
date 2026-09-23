@@ -143,338 +143,338 @@ func TestStreamRaw(t *testing.T) {
 			}
 		})
 	}
-}
 
-func TestStreamRawFailures(t *testing.T) {
-	t.Parallel()
+	t.Run("should write an error record for a failed line", func(t *testing.T) {
+		t.Parallel()
 
-	tests := []struct {
-		name      string
-		args      []string
-		stdin     string
-		status    int
-		response  string
-		wantSent  int
-		wantLines int
-		wantOut   []string
-		wantErr   string
-		wantCode  int
-	}{
-		{
-			name:      "should write an error record for a line that is not JSON",
-			args:      []string{"-i", "request"},
-			stdin:     "{\"state\":\"one\"}\nnot json\n",
-			response:  `{"answers":{}}`,
-			wantSent:  1,
-			wantLines: 2,
-			wantOut:   []string{`{"answers":{}}`, `{"error":{"kind":"input"`, "line 2"},
-			wantCode:  ExitRecords,
-		},
-		{
-			name:      "should write an error record for a line that is not a JSON object",
-			args:      []string{"-i", "request"},
-			stdin:     "{\"state\":\"one\"}\n12\n[1,2,3]\n\"just a string\"\n",
-			response:  `{"answers":{}}`,
-			wantSent:  1,
-			wantLines: 4,
-			wantOut: []string{
-				"line 2: a request body must be a JSON object, got number",
-				"line 3: a request body must be a JSON object, got array",
-				"line 4: a request body must be a JSON object, got string",
+		tests := []struct {
+			name      string
+			args      []string
+			stdin     string
+			status    int
+			response  string
+			wantSent  int
+			wantLines int
+			wantOut   []string
+			wantErr   string
+			wantCode  int
+		}{
+			{
+				name:      "should write an error record for a line that is not JSON",
+				args:      []string{"-i", "request"},
+				stdin:     "{\"state\":\"one\"}\nnot json\n",
+				response:  `{"answers":{}}`,
+				wantSent:  1,
+				wantLines: 2,
+				wantOut:   []string{`{"answers":{}}`, `{"error":{"kind":"input"`, "line 2"},
+				wantCode:  ExitRecords,
 			},
-			wantCode: ExitRecords,
-		},
-		{
-			name:      "should send an object the API will reject rather than judging it",
-			args:      []string{"-i", "request"},
-			stdin:     "{\"hello\":1}\n",
-			status:    http.StatusUnprocessableEntity,
-			response:  `{"error":{"message":"questions is required"}}`,
-			wantSent:  1,
-			wantLines: 1,
-			wantOut:   []string{`{"error":{"kind":"http"`, `"status":422`},
-			wantCode:  ExitRecords,
-		},
-		{
-			name:      "should write an error record when the server rejects a body",
-			args:      []string{"-i", "request"},
-			stdin:     "{\"state\":\"one\"}\n",
-			status:    http.StatusUnprocessableEntity,
-			response:  `{"error":{"message":"questions is required"}}`,
-			wantSent:  1,
-			wantLines: 1,
-			wantOut:   []string{`{"error":{"kind":"http"`, `"status":422`},
-			wantCode:  ExitRecords,
-		},
-		{
-			name:      "should end the run at a 401 rather than failing every line",
-			args:      []string{"-i", "request"},
-			stdin:     "{\"state\":\"one\"}\n{\"state\":\"two\"}\n{\"state\":\"three\"}\n",
-			status:    http.StatusUnauthorized,
-			response:  `{"error":{"message":"invalid api key"}}`,
-			wantSent:  1,
-			wantLines: 1,
-			wantOut:   []string{`{"error":{"kind":"http"`, `"status":401`},
-			wantErr:   "jev:",
-			wantCode:  ExitAuth,
-		},
-	}
+			{
+				name:      "should write an error record for a line that is not a JSON object",
+				args:      []string{"-i", "request"},
+				stdin:     "{\"state\":\"one\"}\n12\n[1,2,3]\n\"just a string\"\n",
+				response:  `{"answers":{}}`,
+				wantSent:  1,
+				wantLines: 4,
+				wantOut: []string{
+					"line 2: a request body must be a JSON object, got number",
+					"line 3: a request body must be a JSON object, got array",
+					"line 4: a request body must be a JSON object, got string",
+				},
+				wantCode: ExitRecords,
+			},
+			{
+				name:      "should send an object the API will reject rather than judging it",
+				args:      []string{"-i", "request"},
+				stdin:     "{\"hello\":1}\n",
+				status:    http.StatusUnprocessableEntity,
+				response:  `{"error":{"message":"questions is required"}}`,
+				wantSent:  1,
+				wantLines: 1,
+				wantOut:   []string{`{"error":{"kind":"http"`, `"status":422`},
+				wantCode:  ExitRecords,
+			},
+			{
+				name:      "should write an error record when the server rejects a body",
+				args:      []string{"-i", "request"},
+				stdin:     "{\"state\":\"one\"}\n",
+				status:    http.StatusUnprocessableEntity,
+				response:  `{"error":{"message":"questions is required"}}`,
+				wantSent:  1,
+				wantLines: 1,
+				wantOut:   []string{`{"error":{"kind":"http"`, `"status":422`},
+				wantCode:  ExitRecords,
+			},
+			{
+				name:      "should end the run at a 401 rather than failing every line",
+				args:      []string{"-i", "request"},
+				stdin:     "{\"state\":\"one\"}\n{\"state\":\"two\"}\n{\"state\":\"three\"}\n",
+				status:    http.StatusUnauthorized,
+				response:  `{"error":{"message":"invalid api key"}}`,
+				wantSent:  1,
+				wantLines: 1,
+				wantOut:   []string{`{"error":{"kind":"http"`, `"status":401`},
+				wantErr:   "jev:",
+				wantCode:  ExitAuth,
+			},
+		}
 
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
 
-			sent, out, errOut, code := runRequestMode(t, tc.args, tc.stdin, tc.status, tc.response)
+				sent, out, errOut, code := runRequestMode(t, tc.args, tc.stdin, tc.status, tc.response)
 
-			if code != tc.wantCode {
-				t.Fatalf("exit code = %d, want %d\nstdout:\n%s\nstderr:\n%s",
-					code, tc.wantCode, out, errOut)
-			}
-
-			if len(sent) != tc.wantSent {
-				t.Errorf("sent %d bodies, want %d: %q", len(sent), tc.wantSent, sent)
-			}
-
-			written := outputLines(out)
-
-			// One line per input line, which is what a consumer reading line by line needs. A
-			// failure writes jev's error record rather than a blank line, and a run that aborts
-			// writes the prefix it completed rather than a record for every line left.
-			if len(written) != tc.wantLines {
-				t.Errorf("wrote %d lines, want %d\ngot:\n%s", len(written), tc.wantLines, out)
-			}
-
-			for i, line := range written {
-				if line == "" {
-					t.Errorf("line %d is blank\ngot:\n%s", i+1, out)
-				}
-			}
-
-			for _, want := range tc.wantOut {
-				if !strings.Contains(out, want) {
-					t.Errorf("stdout missing %q\ngot:\n%s", want, out)
-				}
-			}
-
-			if tc.wantErr == "" && errOut != "" {
-				t.Errorf("stderr should be empty, got:\n%s", errOut)
-			}
-
-			if tc.wantErr != "" && !strings.Contains(errOut, tc.wantErr) {
-				t.Errorf("stderr missing %q, got:\n%s", tc.wantErr, errOut)
-			}
-		})
-	}
-}
-
-func TestStreamRawJobs(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name    string
-		args    []string
-		flight  int
-		records int
-	}{
-		{
-			name:    "should keep -j records in flight at once",
-			args:    []string{"-i", "request", "-j", "4"},
-			flight:  4,
-			records: 8,
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			// Every request blocks until as many as -j allows are in flight together, so a run
-			// that serialises them never opens the gate and fails on the deadline rather than
-			// passing by accident.
-			var (
-				mu      sync.Mutex
-				arrived int
-			)
-
-			gate := make(chan struct{})
-
-			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-				mu.Lock()
-				arrived++
-
-				if arrived == tc.flight {
-					close(gate)
+				if code != tc.wantCode {
+					t.Fatalf("exit code = %d, want %d\nstdout:\n%s\nstderr:\n%s",
+						code, tc.wantCode, out, errOut)
 				}
 
-				mu.Unlock()
-
-				select {
-				case <-gate:
-				case <-time.After(3 * time.Second):
-					t.Errorf("only %d requests were in flight, want %d", arrived, tc.flight)
+				if len(sent) != tc.wantSent {
+					t.Errorf("sent %d bodies, want %d: %q", len(sent), tc.wantSent, sent)
 				}
 
-				w.Header().Set("Content-Type", "application/json")
+				written := outputLines(out)
 
-				if _, err := io.WriteString(w, `{"answers":{}}`); err != nil {
-					t.Errorf("writing the stub response: %v", err)
-				}
-			}))
-			defer srv.Close()
-
-			var stdin strings.Builder
-
-			for i := range tc.records {
-				fmt.Fprintf(&stdin, "{\"state\":%d}\n", i)
-			}
-
-			out, errOut, code := runAgainst(t, tc.args, stdin.String(), srv.URL)
-
-			if code != ExitOK {
-				t.Fatalf("exit code = %d, want %d\nstdout:\n%s\nstderr:\n%s",
-					code, ExitOK, out, errOut)
-			}
-
-			if got := len(outputLines(out)); got != tc.records {
-				t.Errorf("wrote %d lines, want %d\ngot:\n%s", got, tc.records, out)
-			}
-		})
-	}
-}
-
-func TestStreamRawUnordered(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name     string
-		args     []string
-		wantLast string
-	}{
-		{
-			name:     "should write a record as it completes rather than in input order",
-			args:     []string{"-i", "request", "--unordered", "-j", "3"},
-			wantLast: `{"state":0}`,
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			// The first record is held until the two behind it have been answered, so input order
-			// and completion order disagree and only a run that writes on completion can put the
-			// first record last.
-			var (
-				mu   sync.Mutex
-				done int
-			)
-
-			others := make(chan struct{})
-
-			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				body, err := io.ReadAll(r.Body)
-				if err != nil {
-					t.Errorf("reading the request body: %v", err)
+				// One line per input line, which is what a consumer reading line by line needs. A
+				// failure writes jev's error record rather than a blank line, and a run that aborts
+				// writes the prefix it completed rather than a record for every line left.
+				if len(written) != tc.wantLines {
+					t.Errorf("wrote %d lines, want %d\ngot:\n%s", len(written), tc.wantLines, out)
 				}
 
-				if bytes.Contains(body, []byte(`{"state":0}`)) {
-					select {
-					case <-others:
-					case <-time.After(3 * time.Second):
-						t.Errorf("the later records never completed")
+				for i, line := range written {
+					if line == "" {
+						t.Errorf("line %d is blank\ngot:\n%s", i+1, out)
+					}
+				}
+
+				for _, want := range tc.wantOut {
+					if !strings.Contains(out, want) {
+						t.Errorf("stdout missing %q\ngot:\n%s", want, out)
+					}
+				}
+
+				if tc.wantErr == "" && errOut != "" {
+					t.Errorf("stderr should be empty, got:\n%s", errOut)
+				}
+
+				if tc.wantErr != "" && !strings.Contains(errOut, tc.wantErr) {
+					t.Errorf("stderr missing %q, got:\n%s", tc.wantErr, errOut)
+				}
+			})
+		}
+	})
+
+	t.Run("should keep multiple requests in flight under -j", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name    string
+			args    []string
+			flight  int
+			records int
+		}{
+			{
+				name:    "should keep -j records in flight at once",
+				args:    []string{"-i", "request", "-j", "4"},
+				flight:  4,
+				records: 8,
+			},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				// Every request blocks until as many as -j allows are in flight together, so a run
+				// that serialises them never opens the gate and fails on the deadline rather than
+				// passing by accident.
+				var (
+					mu      sync.Mutex
+					arrived int
+				)
+
+				gate := make(chan struct{})
+
+				srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					mu.Lock()
+					arrived++
+
+					if arrived == tc.flight {
+						close(gate)
 					}
 
-					// The gate says the two responses were written, not that the client has read
-					// them. A settle is the only thing that separates the two.
-					time.Sleep(200 * time.Millisecond)
+					mu.Unlock()
+
+					select {
+					case <-gate:
+					case <-time.After(3 * time.Second):
+						t.Errorf("only %d requests were in flight, want %d", arrived, tc.flight)
+					}
+
+					w.Header().Set("Content-Type", "application/json")
+
+					if _, err := io.WriteString(w, `{"answers":{}}`); err != nil {
+						t.Errorf("writing the stub response: %v", err)
+					}
+				}))
+				defer srv.Close()
+
+				var stdin strings.Builder
+
+				for i := range tc.records {
+					fmt.Fprintf(&stdin, "{\"state\":%d}\n", i)
 				}
 
-				w.Header().Set("Content-Type", "application/json")
+				out, errOut, code := runAgainst(t, tc.args, stdin.String(), srv.URL)
 
-				if _, err := w.Write(body); err != nil {
-					t.Errorf("writing the stub response: %v", err)
+				if code != ExitOK {
+					t.Fatalf("exit code = %d, want %d\nstdout:\n%s\nstderr:\n%s",
+						code, ExitOK, out, errOut)
 				}
 
-				mu.Lock()
-				done++
+				if got := len(outputLines(out)); got != tc.records {
+					t.Errorf("wrote %d lines, want %d\ngot:\n%s", got, tc.records, out)
+				}
+			})
+		}
+	})
 
-				if done == 2 {
-					close(others)
+	t.Run("should write records in completion order under --unordered", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name     string
+			args     []string
+			wantLast string
+		}{
+			{
+				name:     "should write a record as it completes rather than in input order",
+				args:     []string{"-i", "request", "--unordered", "-j", "3"},
+				wantLast: `{"state":0}`,
+			},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				// The first record is held until the two behind it have been answered, so input order
+				// and completion order disagree and only a run that writes on completion can put the
+				// first record last.
+				var (
+					mu   sync.Mutex
+					done int
+				)
+
+				others := make(chan struct{})
+
+				srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					body, err := io.ReadAll(r.Body)
+					if err != nil {
+						t.Errorf("reading the request body: %v", err)
+					}
+
+					if bytes.Contains(body, []byte(`{"state":0}`)) {
+						select {
+						case <-others:
+						case <-time.After(3 * time.Second):
+							t.Errorf("the later records never completed")
+						}
+
+						// The gate says the two responses were written, not that the client has read
+						// them. A settle is the only thing that separates the two.
+						time.Sleep(200 * time.Millisecond)
+					}
+
+					w.Header().Set("Content-Type", "application/json")
+
+					if _, err := w.Write(body); err != nil {
+						t.Errorf("writing the stub response: %v", err)
+					}
+
+					mu.Lock()
+					done++
+
+					if done == 2 {
+						close(others)
+					}
+
+					mu.Unlock()
+				}))
+				defer srv.Close()
+
+				out, errOut, code := runAgainst(
+					t, tc.args, "{\"state\":0}\n{\"state\":1}\n{\"state\":2}\n", srv.URL)
+
+				if code != ExitOK {
+					t.Fatalf("exit code = %d, want %d\nstdout:\n%s\nstderr:\n%s",
+						code, ExitOK, out, errOut)
 				}
 
-				mu.Unlock()
-			}))
-			defer srv.Close()
+				written := outputLines(out)
+				if len(written) != 3 {
+					t.Fatalf("wrote %d lines, want 3\ngot:\n%s", len(written), out)
+				}
 
-			out, errOut, code := runAgainst(
-				t, tc.args, "{\"state\":0}\n{\"state\":1}\n{\"state\":2}\n", srv.URL)
+				if written[len(written)-1] != tc.wantLast {
+					t.Errorf("last line = %s, want %s\ngot:\n%s",
+						written[len(written)-1], tc.wantLast, out)
+				}
+			})
+		}
+	})
 
-			if code != ExitOK {
-				t.Fatalf("exit code = %d, want %d\nstdout:\n%s\nstderr:\n%s",
-					code, ExitOK, out, errOut)
-			}
+	t.Run("should stop at the first failed record under --stop-on-error", func(t *testing.T) {
+		t.Parallel()
 
-			written := outputLines(out)
-			if len(written) != 3 {
-				t.Fatalf("wrote %d lines, want 3\ngot:\n%s", len(written), out)
-			}
+		tests := []struct {
+			name      string
+			args      []string
+			stdin     string
+			wantSent  int
+			wantLines int
+			wantCode  int
+		}{
+			{
+				name:      "should end the run at the first failed record",
+				args:      []string{"-i", "request", "--stop-on-error"},
+				stdin:     "not json\n{\"state\":\"a\"}\n{\"state\":\"b\"}\n",
+				wantSent:  0,
+				wantLines: 1,
+				wantCode:  ExitUsage,
+			},
+			{
+				name:      "should read every record without it",
+				args:      []string{"-i", "request"},
+				stdin:     "not json\n{\"state\":\"a\"}\n{\"state\":\"b\"}\n",
+				wantSent:  2,
+				wantLines: 3,
+				wantCode:  ExitRecords,
+			},
+		}
 
-			if written[len(written)-1] != tc.wantLast {
-				t.Errorf("last line = %s, want %s\ngot:\n%s",
-					written[len(written)-1], tc.wantLast, out)
-			}
-		})
-	}
-}
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
 
-func TestStreamRawStopOnError(t *testing.T) {
-	t.Parallel()
+				sent, out, _, code := runRequestMode(t, tc.args, tc.stdin, 0, `{"answers":{}}`)
 
-	tests := []struct {
-		name      string
-		args      []string
-		stdin     string
-		wantSent  int
-		wantLines int
-		wantCode  int
-	}{
-		{
-			name:      "should end the run at the first failed record",
-			args:      []string{"-i", "request", "--stop-on-error"},
-			stdin:     "not json\n{\"state\":\"a\"}\n{\"state\":\"b\"}\n",
-			wantSent:  0,
-			wantLines: 1,
-			wantCode:  ExitUsage,
-		},
-		{
-			name:      "should read every record without it",
-			args:      []string{"-i", "request"},
-			stdin:     "not json\n{\"state\":\"a\"}\n{\"state\":\"b\"}\n",
-			wantSent:  2,
-			wantLines: 3,
-			wantCode:  ExitRecords,
-		},
-	}
+				if code != tc.wantCode {
+					t.Fatalf("exit code = %d, want %d\nstdout:\n%s", code, tc.wantCode, out)
+				}
 
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
+				if len(sent) != tc.wantSent {
+					t.Errorf("sent %d bodies, want %d: %q", len(sent), tc.wantSent, sent)
+				}
 
-			sent, out, _, code := runRequestMode(t, tc.args, tc.stdin, 0, `{"answers":{}}`)
-
-			if code != tc.wantCode {
-				t.Fatalf("exit code = %d, want %d\nstdout:\n%s", code, tc.wantCode, out)
-			}
-
-			if len(sent) != tc.wantSent {
-				t.Errorf("sent %d bodies, want %d: %q", len(sent), tc.wantSent, sent)
-			}
-
-			if got := len(outputLines(out)); got != tc.wantLines {
-				t.Errorf("wrote %d lines, want %d\ngot:\n%s", got, tc.wantLines, out)
-			}
-		})
-	}
+				if got := len(outputLines(out)); got != tc.wantLines {
+					t.Errorf("wrote %d lines, want %d\ngot:\n%s", got, tc.wantLines, out)
+				}
+			})
+		}
+	})
 }
 
 func TestRequestIdentity(t *testing.T) {
