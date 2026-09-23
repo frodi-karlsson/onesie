@@ -7,18 +7,6 @@ import (
 	"github.com/goccy/go-yaml"
 )
 
-func decode(data []byte) (any, error) {
-	var raw any
-
-	// UseOrderedMap keeps every nesting level as a MapSlice. Without it a nested mapping becomes a
-	// Go map, and the rate mapping form in the spec would have a nondeterministic level order.
-	if err := yaml.UnmarshalWithOptions(data, &raw, yaml.UseOrderedMap()); err != nil {
-		return nil, fmt.Errorf("jev: %w", err)
-	}
-
-	return plain(raw), nil
-}
-
 func plain(value any) any {
 	switch typed := value.(type) {
 	case yaml.MapSlice:

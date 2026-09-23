@@ -156,6 +156,42 @@ func TestLoadBody(t *testing.T) {
 			},
 		},
 		{
+			name: "should rewrite a nested mapping state into a plain map",
+			doc: "state:\n  what: States facts\n  examples: [\"ok\"]\n" +
+				"questions:\n  a:\n    type: noul\n    instructions: q\n",
+			check: func(t *testing.T, f *qfile.File) {
+				t.Helper()
+
+				encoded, err := json.Marshal(f.State)
+				if err != nil {
+					t.Fatalf("marshalling state: %v", err)
+				}
+
+				want := `{"examples":["ok"],"what":"States facts"}`
+				if string(encoded) != want {
+					t.Errorf("state = %s, want %s", encoded, want)
+				}
+			},
+		},
+		{
+			name: "should rewrite a mapping nested inside a state sequence",
+			doc: "state:\n  levels:\n    - calm:\n        what: no affect\n" +
+				"questions:\n  a:\n    type: noul\n    instructions: q\n",
+			check: func(t *testing.T, f *qfile.File) {
+				t.Helper()
+
+				encoded, err := json.Marshal(f.State)
+				if err != nil {
+					t.Fatalf("marshalling state: %v", err)
+				}
+
+				want := `{"levels":[{"calm":{"what":"no affect"}}]}`
+				if string(encoded) != want {
+					t.Errorf("state = %s, want %s", encoded, want)
+				}
+			},
+		},
+		{
 			name: "should load a body written as yaml",
 			doc: "state: a ticket\nquestions:\n  a:\n    type: noul\n" +
 				"    instructions: is this urgent\n",
