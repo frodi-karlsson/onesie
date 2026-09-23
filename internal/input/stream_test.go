@@ -161,204 +161,258 @@ func TestStream(t *testing.T) {
 			}
 		})
 	}
-}
 
-func TestStreamRequestBody(t *testing.T) {
-	t.Parallel()
+	t.Run("should reject a request body that is not a json object", func(t *testing.T) {
+		t.Parallel()
 
-	tests := []struct {
-		name    string
-		in      string
-		wantErr string
-	}{
-		{
-			name: "should accept an object",
-			in:   `{"state":"x","questions":{}}`,
-		},
-		{
-			name: "should accept an object the api will reject, since the 422 is the answer",
-			in:   `{"hello":1}`,
-		},
-		{
-			name:    "should reject a number",
-			in:      "12",
-			wantErr: "line 1: a request body must be a JSON object, got number",
-		},
-		{
-			name:    "should reject an array",
-			in:      "[1,2,3]",
-			wantErr: "line 1: a request body must be a JSON object, got array",
-		},
-		{
-			name:    "should reject a string",
-			in:      `"just a string"`,
-			wantErr: "line 1: a request body must be a JSON object, got string",
-		},
-		{
-			name:    "should reject a boolean",
-			in:      "true",
-			wantErr: "line 1: a request body must be a JSON object, got boolean",
-		},
-		{
-			name:    "should reject null",
-			in:      "null",
-			wantErr: "line 1: a request body must be a JSON object, got null",
-		},
-	}
+		tests := []struct {
+			name    string
+			in      string
+			wantErr string
+		}{
+			{
+				name: "should accept an object",
+				in:   `{"state":"x","questions":{}}`,
+			},
+			{
+				name: "should accept an object the api will reject, since the 422 is the answer",
+				in:   `{"hello":1}`,
+			},
+			{
+				name:    "should reject a number",
+				in:      "12",
+				wantErr: "line 1: a request body must be a JSON object, got number",
+			},
+			{
+				name:    "should reject an array",
+				in:      "[1,2,3]",
+				wantErr: "line 1: a request body must be a JSON object, got array",
+			},
+			{
+				name:    "should reject a string",
+				in:      `"just a string"`,
+				wantErr: "line 1: a request body must be a JSON object, got string",
+			},
+			{
+				name:    "should reject a boolean",
+				in:      "true",
+				wantErr: "line 1: a request body must be a JSON object, got boolean",
+			},
+			{
+				name:    "should reject null",
+				in:      "null",
+				wantErr: "line 1: a request body must be a JSON object, got null",
+			},
+		}
 
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				stream := input.NewStream(strings.NewReader(tc.in+"\n"), input.Request, false)
+
+				record, ok, err := stream.Next()
+				if err != nil {
+					t.Fatalf("unexpected read error: %v", err)
+				}
+
+				if !ok {
+					t.Fatal("expected a record, got none")
+				}
+
+				if tc.wantErr == "" {
+					if record.Err != nil {
+						t.Fatalf("unexpected record error: %v", record.Err)
+					}
+
+					if record.Raw != tc.in {
+						t.Errorf("raw = %q, want %q", record.Raw, tc.in)
+					}
+
+					return
+				}
+
+				if record.Err == nil {
+					t.Fatal("expected a record error, got none")
+				}
+
+				if record.Err.Error() != tc.wantErr {
+					t.Errorf("error = %q, want %q", record.Err.Error(), tc.wantErr)
+				}
+			})
+		}
+	})
+
+	t.Run("should count line numbers separately from the record index", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("should count lines past a skipped blank", func(t *testing.T) {
 			t.Parallel()
 
-			stream := input.NewStream(strings.NewReader(tc.in+"\n"), input.Request, false)
+			// Index and Line diverge as soon as a line is dropped, and Line is the one a message
+			// must quote, since it is what the user can find in their file.
+			stream := input.NewStream(strings.NewReader("first\n\nthird\n"), input.Lines, true)
 
-			record, ok, err := stream.Next()
-			if err != nil {
-				t.Fatalf("unexpected read error: %v", err)
-			}
+			var lines, indexes []int
 
-			if !ok {
-				t.Fatal("expected a record, got none")
-			}
-
-			if tc.wantErr == "" {
-				if record.Err != nil {
-					t.Fatalf("unexpected record error: %v", record.Err)
+			for {
+				record, ok, err := stream.Next()
+				if err != nil {
+					t.Fatalf("unexpected read error: %v", err)
 				}
 
-				if record.Raw != tc.in {
-					t.Errorf("raw = %q, want %q", record.Raw, tc.in)
+				if !ok {
+					break
 				}
 
-				return
+				lines = append(lines, record.Line)
+				indexes = append(indexes, record.Index)
 			}
 
-			if record.Err == nil {
-				t.Fatal("expected a record error, got none")
+			if len(lines) != 2 {
+				t.Fatalf("records = %d, want 2", len(lines))
 			}
 
-			if record.Err.Error() != tc.wantErr {
-				t.Errorf("error = %q, want %q", record.Err.Error(), tc.wantErr)
+			if lines[0] != 1 || lines[1] != 3 {
+				t.Errorf("lines = %v, want 1 and 3", lines)
+			}
+
+			if indexes[0] != 0 || indexes[1] != 1 {
+				t.Errorf("indexes = %v, want 0 and 1", indexes)
 			}
 		})
-	}
-}
-
-func TestStreamLineNumbers(t *testing.T) {
-	t.Parallel()
-
-	t.Run("should count lines past a skipped blank", func(t *testing.T) {
-		t.Parallel()
-
-		// Index and Line diverge as soon as a line is dropped, and Line is the one a message must
-		// quote, since it is what the user can find in their file.
-		stream := input.NewStream(strings.NewReader("first\n\nthird\n"), input.Lines, true)
-
-		var lines, indexes []int
-
-		for {
-			record, ok, err := stream.Next()
-			if err != nil {
-				t.Fatalf("unexpected read error: %v", err)
-			}
-
-			if !ok {
-				break
-			}
-
-			lines = append(lines, record.Line)
-			indexes = append(indexes, record.Index)
-		}
-
-		if len(lines) != 2 {
-			t.Fatalf("records = %d, want 2", len(lines))
-		}
-
-		if lines[0] != 1 || lines[1] != 3 {
-			t.Errorf("lines = %v, want 1 and 3", lines)
-		}
-
-		if indexes[0] != 0 || indexes[1] != 1 {
-			t.Errorf("indexes = %v, want 0 and 1", indexes)
-		}
 	})
-}
 
-func TestStreamLongLine(t *testing.T) {
-	t.Parallel()
-
-	t.Run("should report an oversized line and keep reading", func(t *testing.T) {
+	t.Run("should handle a line longer than the limit", func(t *testing.T) {
 		t.Parallel()
 
-		// bufio.Scanner would stop the whole batch on a line this long, which is why Stream reads
-		// through bufio.Reader.ReadLine instead.
-		in := "first\n" + strings.Repeat("x", 9<<20) + "\nthird\n"
-		stream := input.NewStream(strings.NewReader(in), input.Lines, false)
+		t.Run("should report an oversized line and keep reading", func(t *testing.T) {
+			t.Parallel()
 
-		var got []string
+			// bufio.Scanner would stop the whole batch on a line this long, which is why Stream
+			// reads through bufio.Reader.ReadLine instead.
+			in := "first\n" + strings.Repeat("x", 9<<20) + "\nthird\n"
+			stream := input.NewStream(strings.NewReader(in), input.Lines, false)
 
-		for {
-			record, ok, err := stream.Next()
-			if err != nil {
-				t.Fatalf("unexpected read error: %v", err)
+			var got []string
+
+			for {
+				record, ok, err := stream.Next()
+				if err != nil {
+					t.Fatalf("unexpected read error: %v", err)
+				}
+
+				if !ok {
+					break
+				}
+
+				if record.Err != nil {
+					got = append(got, record.Err.Error())
+
+					continue
+				}
+
+				got = append(got, record.Raw)
 			}
 
-			if !ok {
-				break
+			want := []string{"first", "line 2: line is longer than the limit", "third"}
+			if len(got) != len(want) {
+				t.Fatalf("records = %d, want %d: %q", len(got), len(want), got)
 			}
 
-			if record.Err != nil {
-				got = append(got, record.Err.Error())
-
-				continue
+			for i := range got {
+				if got[i] != want[i] {
+					t.Errorf("record %d = %q, want %q", i, got[i], want[i])
+				}
 			}
-
-			got = append(got, record.Raw)
-		}
-
-		want := []string{"first", "line 2: line is longer than the limit", "third"}
-		if len(got) != len(want) {
-			t.Fatalf("records = %d, want %d: %q", len(got), len(want), got)
-		}
-
-		for i := range got {
-			if got[i] != want[i] {
-				t.Errorf("record %d = %q, want %q", i, got[i], want[i])
-			}
-		}
+		})
 	})
-}
 
-func TestStreamReadError(t *testing.T) {
-	t.Parallel()
-
-	t.Run("should report a failing reader against stdin rather than a line", func(t *testing.T) {
+	t.Run("should surface a reader error", func(t *testing.T) {
 		t.Parallel()
 
-		stream := input.NewStream(failingReader{}, input.Lines, false)
+		t.Run("should report a failing reader against stdin rather than a line", func(t *testing.T) {
+			t.Parallel()
 
-		record, ok, err := stream.Next()
-		if err == nil {
-			t.Fatalf("expected a read error, got record %+v ok %v", record, ok)
+			stream := input.NewStream(failingReader{}, input.Lines, false)
+
+			record, ok, err := stream.Next()
+			if err == nil {
+				t.Fatalf("expected a read error, got record %+v ok %v", record, ok)
+			}
+
+			if ok {
+				t.Errorf("ok = true, want false")
+			}
+
+			var lineErr *input.LineError
+			if !errors.As(err, &lineErr) {
+				t.Fatalf("error = %T, want *input.LineError", err)
+			}
+
+			if lineErr.Line != 0 {
+				t.Errorf("line = %d, want 0", lineErr.Line)
+			}
+
+			// Named once. The wrap used to add a spelling of its own, so the user read
+			// jev: stdin: reading stdin: disk fell over.
+			if got := lineErr.Error(); got != "stdin: disk fell over" {
+				t.Errorf("message = %q, want %q", got, "stdin: disk fell over")
+			}
+		})
+	})
+
+	t.Run("should carry json bytes verbatim regardless of mode", func(t *testing.T) {
+		t.Parallel()
+
+		const big = `{"ticket_id":12345678901234567890,"zebra":1,"alpha":2}`
+
+		tests := []struct {
+			name string
+			mode input.Mode
+			line string
+			want string
+		}{
+			{
+				name: "should carry json bytes verbatim so a large integer keeps its digits",
+				mode: input.JSONL,
+				line: big,
+				want: big,
+			},
+			{
+				name: "should carry json bytes verbatim so an object keeps its key order",
+				mode: input.JSONL,
+				line: `{"zebra":1,"alpha":2}`,
+				want: `{"zebra":1,"alpha":2}`,
+			},
+			{
+				name: "should carry the line itself in a text mode",
+				mode: input.Lines,
+				line: `{"zebra":1}`,
+				want: `"{\"zebra\":1}"`,
+			},
 		}
 
-		if ok {
-			t.Errorf("ok = true, want false")
-		}
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
 
-		var lineErr *input.LineError
-		if !errors.As(err, &lineErr) {
-			t.Fatalf("error = %T, want *input.LineError", err)
-		}
+				stream := input.NewStream(strings.NewReader(tc.line+"\n"), tc.mode, false)
 
-		if lineErr.Line != 0 {
-			t.Errorf("line = %d, want 0", lineErr.Line)
-		}
+				record, ok, err := stream.Next()
+				if err != nil || !ok {
+					t.Fatalf("next = %v, %v", ok, err)
+				}
 
-		// Named once. The wrap used to add a spelling of its own, so the user read
-		// jev: stdin: reading stdin: disk fell over.
-		if got := lineErr.Error(); got != "stdin: disk fell over" {
-			t.Errorf("message = %q, want %q", got, "stdin: disk fell over")
+				encoded, err := json.Marshal(record.Wire)
+				if err != nil {
+					t.Fatalf("marshalling wire: %v", err)
+				}
+
+				if string(encoded) != tc.want {
+					t.Errorf("wire = %s, want %s", encoded, tc.want)
+				}
+			})
 		}
 	})
 }
@@ -367,58 +421,4 @@ type failingReader struct{}
 
 func (failingReader) Read([]byte) (int, error) {
 	return 0, errors.New("disk fell over")
-}
-
-func TestStreamWire(t *testing.T) {
-	t.Parallel()
-
-	const big = `{"ticket_id":12345678901234567890,"zebra":1,"alpha":2}`
-
-	tests := []struct {
-		name string
-		mode input.Mode
-		line string
-		want string
-	}{
-		{
-			name: "should carry json bytes verbatim so a large integer keeps its digits",
-			mode: input.JSONL,
-			line: big,
-			want: big,
-		},
-		{
-			name: "should carry json bytes verbatim so an object keeps its key order",
-			mode: input.JSONL,
-			line: `{"zebra":1,"alpha":2}`,
-			want: `{"zebra":1,"alpha":2}`,
-		},
-		{
-			name: "should carry the line itself in a text mode",
-			mode: input.Lines,
-			line: `{"zebra":1}`,
-			want: `"{\"zebra\":1}"`,
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			stream := input.NewStream(strings.NewReader(tc.line+"\n"), tc.mode, false)
-
-			record, ok, err := stream.Next()
-			if err != nil || !ok {
-				t.Fatalf("next = %v, %v", ok, err)
-			}
-
-			encoded, err := json.Marshal(record.Wire)
-			if err != nil {
-				t.Fatalf("marshalling wire: %v", err)
-			}
-
-			if string(encoded) != tc.want {
-				t.Errorf("wire = %s, want %s", encoded, tc.want)
-			}
-		})
-	}
 }
