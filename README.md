@@ -59,8 +59,45 @@ jev 'does `body` convey urgency' -i jsonl -j 4 --merge < tickets.jsonl \
 
 `-i jsonl` and `-i lines` stream: one output line per input line, in input order, with at most `-j`
 requests in flight. A record that fails still prints a line carrying an `error` key, the run
-continues, and the exit status is 6. `--unordered` drops the ordering for throughput, and
-`--stop-on-error` ends the run at the first failure with that failure's own code.
+continues, and the exit status is 6. `--unordered` drops the ordering for throughput,
+`--stop-on-error` ends the run at the first failure with that failure's own code, and
+`--stop-on-assert` ends it at the first false assertion.
+
+### Gating on the answer
+
+`--assert` is one boolean over the whole record, evaluated after the policy, whose result goes into
+the exit code. It reads the same field names `-o json` prints.
+
+```sh
+# a gate over two questions at once. The record still prints
+jev --ask destructive='Does this command destroy data?' \
+    --ask creds='Does this command read or send credentials?' \
+    --assert 'destructive.value < 0.5 and creds.value < 0.5' \
+    --state "$cmd" && eval "$cmd"
+
+# quiet, for a shell condition
+jev -f review.yaml -q --assert 'severity.norm < 0.5 or severity.confidence < 0.6' < diff.patch \
+  || echo 'needs review'
+
+# a probability rather than the winner
+jev 'Which team?' --pick billing,technical,human --assert 'answer.p.human < 0.25' < ticket.txt
+
+# per record in a stream, then show the failures
+jev -f triage.yaml -i jsonl -j 8 --assert 'urgent.value < 0.9' < tickets.jsonl \
+  | jq -c 'select(.assert == false)'
+```
+
+A false assertion exits 1 and **still prints the record**, with `"assert": false` added in `json` and
+`values`. It needs no `-q`. Repeating `--assert` combines the expressions with `and`, and a question
+file may carry a top level `assert:` key which is combined the same way and written back by
+`--print-questions`.
+
+Every path and type is checked against the questions before any request, so a typo costs no tokens:
+
+```sh
+jev --ask urgent='is this urgent' --assert 'urgnet.value < 0.5'
+# jev: --assert: unknown question 'urgnet'. Questions: urgent
+```
 
 ### Dry runs and freezing
 
@@ -143,7 +180,7 @@ secret first and metadata after it. No subcommand ever prints the key.
 | Code | Meaning |
 |------|---------|
 | 0 | answered |
-| 1 | under `-q`, the policy did not accept the answer |
+| 1 | a false `--assert`, or under `-q` the policy did not accept the answer |
 | 2 | usage or validation error |
 | 3 | authentication or permission |
 | 4 | the server did not answer after retries |
