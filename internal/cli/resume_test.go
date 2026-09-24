@@ -41,6 +41,7 @@ func TestResumeLedger(t *testing.T) {
 		stdin     string
 		stalePart bool
 		held      bool
+		link      bool
 		runs      []resumeRun
 	}{
 		{
@@ -200,6 +201,30 @@ func TestResumeLedger(t *testing.T) {
 				wantCode:   ExitUsage,
 				wantFile:   idLines(1, 1),
 				wantStderr: "is being resumed by another onesie run. Wait for it to finish",
+			}},
+		},
+		{
+			name:     "should refuse a resume through a link while another run holds its target",
+			existing: fileOf(idLines(1, 1)),
+			sidecar:  byID,
+			stdin:    idRecords(1, 2),
+			held:     true,
+			link:     true,
+			runs: []resumeRun{{
+				args:       values,
+				wantCode:   ExitUsage,
+				wantFile:   idLines(1, 1),
+				wantStderr: "is being resumed by another onesie run. Wait for it to finish",
+			}},
+		},
+		{
+			name:  "should compact through a link whose target does not exist yet and leave the link in place",
+			stdin: idRecords(1, 2),
+			link:  true,
+			runs: []resumeRun{{
+				args:     values,
+				wantFile: idLines(1, 2),
+				wantSent: []string{`{"id":1}`, `{"id":2}`},
 			}},
 		},
 		{
@@ -459,14 +484,27 @@ func TestResumeLedger(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			path := filepath.Join(t.TempDir(), "answers.jsonl")
+			if tc.link && runtime.GOOS == "windows" {
+				t.Skip("creating a symlink on windows needs a privilege the test may not have")
+			}
+
+			dir := t.TempDir()
+			path := filepath.Join(dir, "answers.jsonl")
 			if tc.existing != nil {
 				if err := os.WriteFile(path, []byte(*tc.existing), 0o600); err != nil {
 					t.Fatalf("writing the existing file: %v", err)
 				}
 			}
 
-			writeSidecar(t, path+".onesie", tc.sidecar, false, false)
+			through := path
+			if tc.link {
+				through = filepath.Join(dir, "link.jsonl")
+				if err := os.Symlink(path, through); err != nil {
+					t.Fatalf("linking: %v", err)
+				}
+			}
+
+			writeSidecar(t, through+".onesie", tc.sidecar, false, false)
 
 			if tc.stalePart {
 				if err := os.WriteFile(path+compactSuffix, []byte("stale\n"), 0o600); err != nil {
@@ -488,7 +526,11 @@ func TestResumeLedger(t *testing.T) {
 			}
 
 			for i, run := range tc.runs {
-				runResume(t, fmt.Sprintf("run %d", i+1), path, tc.stdin, run)
+				runResume(t, fmt.Sprintf("run %d", i+1), through, tc.stdin, run)
+			}
+
+			if info, err := os.Lstat(through); err != nil || (info.Mode()&os.ModeSymlink != 0) != tc.link {
+				t.Errorf("%s = %v, %v, want a symlink %v", filepath.Base(through), info, err, tc.link)
 			}
 
 			if !tc.held {

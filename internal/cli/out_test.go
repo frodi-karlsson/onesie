@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -447,6 +448,101 @@ func TestOpenOut(t *testing.T) {
 	}
 }
 
+func TestResolveTarget(t *testing.T) {
+	t.Parallel()
+
+	failed := errors.New("input/output error")
+
+	tests := []struct {
+		name    string
+		file    bool
+		links   map[string]string
+		path    string
+		resolve func(path string) (string, error)
+		want    string
+		wantErr error
+	}{
+		{
+			name: "should keep a path with no file at it",
+			path: "answers.jsonl",
+			want: "answers.jsonl",
+		},
+		{
+			name:  "should follow a link to a file that exists",
+			file:  true,
+			links: map[string]string{"link.jsonl": "answers.jsonl"},
+			path:  "link.jsonl",
+			want:  "answers.jsonl",
+		},
+		{
+			name:  "should follow a chain of links to a file not written yet",
+			links: map[string]string{"link.jsonl": "middle.jsonl", "middle.jsonl": "answers.jsonl"},
+			path:  "link.jsonl",
+			want:  "answers.jsonl",
+		},
+		{
+			name:  "should refuse a loop of links",
+			links: map[string]string{"link.jsonl": "other.jsonl", "other.jsonl": "link.jsonl"},
+			path:  "link.jsonl",
+			resolve: func(string) (string, error) {
+				return "", fs.ErrNotExist
+			},
+			wantErr: errLinkLoop,
+		},
+		{
+			name:    "should return a failure to resolve the path",
+			path:    "answers.jsonl",
+			resolve: func(string) (string, error) { return "", failed },
+			wantErr: failed,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if len(tc.links) > 0 && runtime.GOOS == "windows" {
+				t.Skip("creating a symlink on windows needs a privilege the test may not have")
+			}
+
+			dir, err := filepath.EvalSymlinks(t.TempDir())
+			if err != nil {
+				t.Fatalf("resolving the directory: %v", err)
+			}
+
+			if tc.file {
+				if writeErr := os.WriteFile(filepath.Join(dir, "answers.jsonl"), nil, 0o600); writeErr != nil {
+					t.Fatalf("writing the answers file: %v", writeErr)
+				}
+			}
+
+			for link, target := range tc.links {
+				if linkErr := os.Symlink(target, filepath.Join(dir, link)); linkErr != nil {
+					t.Fatalf("linking: %v", linkErr)
+				}
+			}
+
+			resolve := tc.resolve
+			if resolve == nil {
+				resolve = filepath.EvalSymlinks
+			}
+
+			got, err := resolveTarget(filepath.Join(dir, tc.path), resolve, os.Readlink)
+			if !errors.Is(err, tc.wantErr) || (tc.wantErr == nil) != (err == nil) {
+				t.Fatalf("error = %v, want %v", err, tc.wantErr)
+			}
+
+			if err != nil {
+				return
+			}
+
+			if want := filepath.Join(dir, tc.want); filepath.Clean(got) != want {
+				t.Errorf("target = %q, want %q", got, want)
+			}
+		})
+	}
+}
+
 func TestOutFile_Write(t *testing.T) {
 	t.Parallel()
 
@@ -513,10 +609,10 @@ func TestOutFile_Write(t *testing.T) {
 			var renames []string
 
 			out := &outFile{
-				path:    path,
-				open:    os.OpenFile,
-				remove:  os.Remove,
-				resolve: filepath.EvalSymlinks,
+				path:   path,
+				target: path,
+				open:   os.OpenFile,
+				remove: os.Remove,
 				rename: func(from, to string) error {
 					renames = append(renames, filepath.Base(from)+" "+filepath.Base(to))
 
@@ -685,11 +781,11 @@ func TestOutFile_Finish(t *testing.T) {
 
 					return open(name, flag, perm)
 				},
-				rename:  rename,
-				remove:  os.Remove,
-				resolve: filepath.EvalSymlinks,
-				goos:    goos,
-				resume:  true,
+				target: filepath.Join(resolvedDir, filepath.Base(target)),
+				rename: rename,
+				remove: os.Remove,
+				goos:   goos,
+				resume: true,
 			}
 			if err := out.bind("v1:" + strings.Repeat("a", 64)); err != nil {
 				t.Fatalf("bind: %v", err)

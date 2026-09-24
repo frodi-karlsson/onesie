@@ -24,7 +24,10 @@ const (
 	fingerprintVersion = 1
 	compactSuffix      = ".onesie.part"
 	forwardGap         = 64 << 10
+	maxLinks           = 40
 )
+
+var errLinkLoop = errors.New("too many levels of symbolic links")
 
 func openOut(settings rootSettings, flags *runFlags) (*outFile, error) {
 	if flags.out == "" {
@@ -32,13 +35,21 @@ func openOut(settings rootSettings, flags *runFlags) (*outFile, error) {
 	}
 
 	out := &outFile{
-		path:    flags.out,
-		open:    settings.openFile,
-		rename:  settings.rename,
-		remove:  settings.remove,
-		resolve: settings.resolve,
-		goos:    settings.goos,
+		path:   flags.out,
+		open:   settings.openFile,
+		rename: settings.rename,
+		remove: settings.remove,
+		goos:   settings.goos,
 	}
+
+	// Once, and ahead of the lock, so a run through a symlink and a run into its target take the
+	// same lock and compact beside the same file.
+	target, err := resolveTarget(flags.out, settings.resolve, settings.readlink)
+	if err != nil {
+		return nil, err
+	}
+
+	out.target = target
 
 	if !flags.resume {
 		return out, nil
@@ -100,12 +111,52 @@ func resumesByID(flags *runFlags) bool {
 	return flags.idSource != ""
 }
 
+func resolveTarget(
+	path string,
+	resolve func(path string) (string, error),
+	readlink func(name string) (string, error),
+) (string, error) {
+	at := path
+
+	for range maxLinks {
+		target, err := resolve(at)
+		if err == nil {
+			return target, nil
+		}
+
+		if !errors.Is(err, os.ErrNotExist) {
+			return "", fmt.Errorf("onesie: resolving %s: %w", path, err)
+		}
+
+		// A link to a file not written yet is followed by hand, since the resolver refuses it, and
+		// the answers still have to land in its target for the link to stay one.
+		link, isLink := linkAt(at, readlink)
+		if !isLink {
+			return at, nil
+		}
+
+		if !filepath.IsAbs(link) {
+			link = filepath.Dir(at) + string(filepath.Separator) + link
+		}
+
+		at = link
+	}
+
+	return "", fmt.Errorf("onesie: resolving %s: %w", path, errLinkLoop)
+}
+
+func linkAt(path string, readlink func(name string) (string, error)) (string, bool) {
+	link, err := readlink(path)
+
+	return link, err == nil
+}
+
 type outFile struct {
 	path    string
+	target  string
 	open    func(name string, flag int, perm os.FileMode) (*os.File, error)
 	rename  func(oldpath, newpath string) error
 	remove  func(name string) error
-	resolve func(path string) (string, error)
 	goos    string
 	unlock  func() error
 	resume  bool
@@ -126,7 +177,7 @@ type rewrite struct {
 }
 
 func (o *outFile) lock(take func(answers string) (func() error, error)) error {
-	unlock, err := take(o.path)
+	unlock, err := take(o.target)
 	if errors.Is(err, errLocked) {
 		return fmt.Errorf("onesie: %s is being resumed by another onesie run. Wait for it to finish, "+
 			"then resume again", o.path)
@@ -163,30 +214,12 @@ func (o *outFile) resumeAt(length int64) {
 }
 
 func (o *outFile) removeStalePart() error {
-	target, err := o.target()
-	if err != nil {
-		return err
-	}
-
-	part := target + compactSuffix
+	part := o.target + compactSuffix
 	if err := o.remove(part); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("onesie: removing %s, which an interrupted run left behind: %w", part, err)
 	}
 
 	return nil
-}
-
-func (o *outFile) target() (string, error) {
-	target, err := o.resolve(o.path)
-	if errors.Is(err, os.ErrNotExist) {
-		return o.path, nil
-	}
-
-	if err != nil {
-		return "", fmt.Errorf("onesie: resolving %s: %w", o.path, err)
-	}
-
-	return target, nil
 }
 
 func (o *outFile) offset() int64 {
@@ -248,20 +281,15 @@ func (o *outFile) compact() error {
 	// Written beside the file and renamed over it, so an interrupt or a full disk during the rewrite
 	// leaves every appended answer where it was. Beside the link's target rather than the link, so a
 	// symlink at the path stays one.
-	target, err := o.target()
-	if err != nil {
-		return err
-	}
+	temporary := o.target + compactSuffix
 
-	temporary := target + compactSuffix
-
-	err = o.writeCompacted(temporary)
+	err := o.writeCompacted(temporary)
 	if err == nil {
-		err = o.rename(temporary, target)
+		err = o.rename(temporary, o.target)
 	}
 
 	if err == nil {
-		o.syncDir(filepath.Dir(target))
+		o.syncDir(filepath.Dir(o.target))
 
 		return nil
 	}

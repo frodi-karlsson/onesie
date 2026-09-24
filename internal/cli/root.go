@@ -51,6 +51,7 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 		rename:        os.Rename,
 		remove:        os.Remove,
 		resolve:       filepath.EvalSymlinks,
+		readlink:      os.Readlink,
 		goos:          runtime.GOOS,
 		lock:          newLocker().lockAnswers,
 		lookupEnv:     os.LookupEnv,
@@ -357,6 +358,7 @@ type rootSettings struct {
 	rename        func(oldpath, newpath string) error
 	remove        func(name string) error
 	resolve       func(path string) (string, error)
+	readlink      func(name string) (string, error)
 	goos          string
 	lock          func(answers string) (release func() error, err error)
 	lookupEnv     func(string) (string, bool)
