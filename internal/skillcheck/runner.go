@@ -9,8 +9,6 @@ import (
 	"time"
 )
 
-// Bounds one example. A dry run makes no network call and should return instantaneously, so a
-// jev that hangs is treated as a failure rather than left to stall CI.
 const runTimeout = 10 * time.Second
 
 // NewRunner returns a Runner that runs binary, defaulting to jev on PATH when binary is empty.
@@ -63,7 +61,7 @@ type DryRunResult struct {
 }
 
 func prepare(command string) (args []string, reason string, err error) {
-	tokens, reason := tokenize(command)
+	tokens, reason := Tokenize(command)
 	if reason != "" {
 		return nil, reason, nil
 	}

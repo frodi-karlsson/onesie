@@ -1,5 +1,5 @@
 ---
-description: A jev step in CI must tell exit 1 apart from exits 2 through 6.
+description: A jev step in CI must tell exit 1 apart from exits 2 through 5.
 max_turns: 10
 allowed_tools: [Read, Glob, Grep, Skill]
 ---

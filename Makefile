@@ -64,8 +64,9 @@ skills-check: ## Dry run every example in every skill
 	go run ./cmd/skillcheck
 
 skills-eval: ## Measure the skills against an agent, run by hand
+	@$(MAKE) --no-print-directory build
 	claude plugin eval . --ablation with-without --keep-temp --no-publish --threshold 0 $(EVALARGS)
-	go run ./cmd/skilleval
+	PATH="$(CURDIR)/bin:$$PATH" go run ./cmd/skilleval
 
 check: ## Run lint and tests
 	@echo "--- Lint ---"

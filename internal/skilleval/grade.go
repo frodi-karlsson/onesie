@@ -1,28 +1,42 @@
-// Package skilleval dry runs every jev command an agent wrote during a claude plugin eval run,
-// per spec section 6.2. The eval has no grader that can run code, so this reads the traces the
-// eval kept and reports per case and per arm how many commands jev itself accepts.
+// Package skilleval dry runs every jev command an agent wrote during a claude plugin eval run.
+// The eval has no grader that can run code, so this reads the traces the eval kept and reports
+// per case and per arm how many commands jev itself accepts.
 package skilleval
 
 import (
 	"cmp"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
+	"regexp"
 	"slices"
 	"strings"
 
+	"github.com/spf13/pflag"
+
+	"github.com/frodi-karlsson/jev-cli/internal/cli"
 	"github.com/frodi-karlsson/jev-cli/internal/skillcheck"
 )
 
-// Never passed to a dry run. Each one is a real subcommand rather than a question, and a dry run
-// of a subcommand proves nothing while running it could change the user's credentials.
-var subcommands = []string{"auth", "completion", "help", "version"}
+var (
+	subcommands = []string{"auth", "completion", "help", "version"}
 
-// NewGrader returns a Grader that dry runs every command through runner and reads result and
-// trace files from disk.
+	fileFlags = []string{"file", "state-file"}
+
+	apiKeyValue = regexp.MustCompile(`(--api-key(?:=|\s+))('[^']*'|"(?:[^"\\]|\\.)*"|[^\s'"]+)`)
+)
+
+// NewGrader returns a Grader that dry runs every command through runner, reads result and trace
+// files from disk and parses argv with the flags of the jev built from this tree.
 func NewGrader(runner DryRunner) *Grader {
-	return &Grader{runner: runner, readFile: os.ReadFile}
+	return &Grader{
+		runner:   runner,
+		readFile: os.ReadFile,
+		flags:    cli.NewRootCmd(cli.BuildInfo{}).Flags(),
+	}
 }
 
 // DryRunner dry runs one command line without a shell.
@@ -30,15 +44,21 @@ type DryRunner interface {
 	DryRun(ctx context.Context, command string) (skillcheck.DryRunResult, error)
 }
 
+// FlagLookup finds a jev flag by its long name or its one letter shorthand.
+type FlagLookup interface {
+	Lookup(name string) *pflag.Flag
+	ShorthandLookup(name string) *pflag.Flag
+}
+
 // Grader dry runs the jev commands found in the traces an eval result points at.
 type Grader struct {
 	runner   DryRunner
 	readFile func(name string) ([]byte, error)
+	flags    FlagLookup
 }
 
 // Grade reads the aggregate-result.json at resultPath and dry runs every jev command in every
-// run's trace, arm by arm. A run whose trace is gone is counted, not failed, since the eval only
-// keeps traces under --keep-temp.
+// run's trace, arm by arm. A run whose trace is gone is counted, not failed.
 func (g *Grader) Grade(ctx context.Context, resultPath string) (Report, error) {
 	data, err := g.readFile(resultPath)
 	if err != nil {
@@ -81,18 +101,21 @@ type CaseReport struct {
 	Arms []ArmReport
 }
 
-// ArmReport tallies every run of one case in one arm.
+// ArmReport tallies every run of one case in one arm. QuietWithAssert lists every command that
+// combines -q with --assert, whether or not it was dry run.
 type ArmReport struct {
-	Arm           string
-	Runs          int
-	MissingTraces int
-	Commands      int
-	Clean         int
-	Failed        []Finding
-	Skipped       []Finding
+	Arm             string
+	Runs            int
+	MissingTraces   int
+	Commands        int
+	Clean           int
+	Failed          []Finding
+	Skipped         []Finding
+	QuietWithAssert []Finding
 }
 
-// Finding is one command that failed its dry run or could not be run, and why.
+// Finding is one command that failed its dry run or could not be run, and why. Command has any
+// --api-key value redacted.
 type Finding struct {
 	Run     int
 	Command string
@@ -136,11 +159,21 @@ func (g *Grader) gradeArm(ctx context.Context, arm string, runs []runEntry) (Arm
 	report := ArmReport{Arm: arm, Runs: len(runs)}
 
 	for i, run := range runs {
-		trace, err := g.readFile(run.TracePath)
-		if run.TracePath == "" || err != nil {
+		if run.TracePath == "" {
 			report.MissingTraces++
 
 			continue
+		}
+
+		trace, err := g.readFile(run.TracePath)
+		if errors.Is(err, fs.ErrNotExist) {
+			report.MissingTraces++
+
+			continue
+		}
+
+		if err != nil {
+			return ArmReport{}, fmt.Errorf("%s run %d: reading the trace: %w", arm, i+1, err)
 		}
 
 		scripts, err := traceScripts(trace)
@@ -163,25 +196,30 @@ func (g *Grader) gradeArm(ctx context.Context, arm string, runs []runEntry) (Arm
 func (g *Grader) dryRun(ctx context.Context, run int, command string, report *ArmReport) error {
 	report.Commands++
 
-	if sub := subcommand(command); sub != "" {
-		report.Skipped = append(report.Skipped, Finding{
-			Run: run, Command: command, Detail: "runs the " + sub + " subcommand",
-		})
+	shown := redactAPIKey(command)
+	args := g.parse(command)
+
+	if args.has("quiet") && args.has("assert") {
+		report.QuietWithAssert = append(report.QuietWithAssert, Finding{Run: run, Command: shown})
+	}
+
+	if reason := args.skipReason(); reason != "" {
+		report.Skipped = append(report.Skipped, Finding{Run: run, Command: shown, Detail: reason})
 
 		return nil
 	}
 
 	result, err := g.runner.DryRun(ctx, command)
 	if err != nil {
-		return fmt.Errorf("dry running %s: %w", command, err)
+		return fmt.Errorf("dry running %s: %w", shown, err)
 	}
 
 	switch {
 	case result.Skipped != "":
-		report.Skipped = append(report.Skipped, Finding{Run: run, Command: command, Detail: result.Skipped})
+		report.Skipped = append(report.Skipped, Finding{Run: run, Command: shown, Detail: result.Skipped})
 	case result.ExitCode != 0:
 		report.Failed = append(report.Failed, Finding{
-			Run: run, Command: command, Detail: fmt.Sprintf("exit %d: %s", result.ExitCode, result.Stderr),
+			Run: run, Command: shown, Detail: fmt.Sprintf("exit %d: %s", result.ExitCode, result.Stderr),
 		})
 	default:
 		report.Clean++
@@ -190,14 +228,95 @@ func (g *Grader) dryRun(ctx context.Context, run int, command string, report *Ar
 	return nil
 }
 
-func subcommand(command string) string {
-	fields := strings.Fields(command)
-	if len(fields) < 2 {
-		return ""
+func redactAPIKey(command string) string {
+	return apiKeyValue.ReplaceAllString(command, "${1}REDACTED")
+}
+
+func (g *Grader) parse(command string) parsedArgs {
+	tokens, reason := skillcheck.Tokenize(command)
+	if reason != "" || len(tokens) == 0 {
+		return parsedArgs{}
 	}
 
-	if name := strings.Trim(fields[1], `'"`); slices.Contains(subcommands, name) {
-		return name
+	return parseArgs(tokens[1:], g.flags)
+}
+
+type parsedArgs struct {
+	flags      []string
+	subcommand string
+}
+
+func parseArgs(args []string, flags FlagLookup) parsedArgs {
+	var parsed parsedArgs
+
+	positionalSeen := false
+
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+
+		switch {
+		case arg == "--":
+			return parsed
+
+		case len(arg) > 2 && strings.HasPrefix(arg, "--"):
+			name, _, joined := strings.Cut(arg[2:], "=")
+			parsed.flags = append(parsed.flags, name)
+
+			if !joined && takesValue(flags.Lookup(name)) {
+				i++
+			}
+
+		case len(arg) > 1 && arg[0] == '-':
+			if shorthandTakesNextArg(arg[1:], flags, &parsed) {
+				i++
+			}
+
+		case !positionalSeen:
+			positionalSeen = true
+
+			if slices.Contains(subcommands, arg) {
+				parsed.subcommand = arg
+			}
+		}
+	}
+
+	return parsed
+}
+
+func takesValue(flag *pflag.Flag) bool {
+	return flag != nil && flag.NoOptDefVal == ""
+}
+
+func shorthandTakesNextArg(cluster string, flags FlagLookup, parsed *parsedArgs) bool {
+	for i := range len(cluster) {
+		flag := flags.ShorthandLookup(cluster[i : i+1])
+		if flag == nil {
+			return false
+		}
+
+		parsed.flags = append(parsed.flags, flag.Name)
+
+		if takesValue(flag) {
+			return i == len(cluster)-1
+		}
+	}
+
+	return false
+}
+
+func (p parsedArgs) has(long string) bool {
+	return slices.Contains(p.flags, long)
+}
+
+func (p parsedArgs) skipReason() string {
+	if p.subcommand != "" {
+		return "runs the " + p.subcommand + " subcommand"
+	}
+
+	for _, name := range fileFlags {
+		if p.has(name) {
+			return "reads a file through --" + name
+		}
 	}
 
 	return ""

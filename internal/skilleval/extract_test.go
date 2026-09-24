@@ -21,17 +21,17 @@ func TestJevCommands(t *testing.T) {
 		{
 			name:   "should stop at a chain and drop a redirection, replacing the variable",
 			script: `jev --ask safe='is this safe' --assert 'safe.value > 0.7' --state "$cmd" >/dev/null && eval "$cmd"`,
-			want:   []string{`jev --ask safe='is this safe' --assert 'safe.value > 0.7' --state "x"`},
+			want:   []string{`jev --ask safe='is this safe' --assert 'safe.value > 0.7' --state "{}"`},
 		},
 		{
 			name:   "should find a command after if and drop 2>&1",
 			script: `if jev 'is this safe' -q --state "${cmd}" 2>&1; then eval "$cmd"; fi`,
-			want:   []string{`jev 'is this safe' -q --state "x"`},
+			want:   []string{`jev 'is this safe' -q --state "{}"`},
 		},
 		{
 			name:   "should find a command inside a command substitution in double quotes",
 			script: `out="$(jev --ask a='x y' -o values --state "$t")"`,
-			want:   []string{`jev --ask a='x y' -o values --state "x"`},
+			want:   []string{`jev --ask a='x y' -o values --state "{}"`},
 		},
 		{
 			name:   "should read the jev side of a pipe on both ends",
@@ -61,7 +61,37 @@ func TestJevCommands(t *testing.T) {
 		{
 			name:   "should find a command after a bare variable argument",
 			script: `echo $cmd; jev 'is this safe' --state "$cmd"`,
-			want:   []string{`jev 'is this safe' --state "x"`},
+			want:   []string{`jev 'is this safe' --state "{}"`},
+		},
+		{
+			name:   "should replace a bare variable with a placeholder that stays one word",
+			script: `jev 'is this safe' --state $cmd`,
+			want:   []string{`jev 'is this safe' --state '{}'`},
+		},
+		{
+			name:   "should treat a GitHub expression as one expansion",
+			script: `jev 'does this explain why' --state "${{ github.event.pull_request.body }}"`,
+			want:   []string{`jev 'does this explain why' --state "{}"`},
+		},
+		{
+			name:   "should drop a quoted here string target with spaces",
+			script: `jev 'is this urgent' -i text <<< "a b" -o json`,
+			want:   []string{`jev 'is this urgent' -i text  -o json`},
+		},
+		{
+			name:   "should find a command after a brace group, exec, command and env",
+			script: "{ jev 'a'; }\nexec jev 'b'\ncommand jev 'c'\nenv TYPESAFE_API_KEY=k jev 'd'",
+			want:   []string{"jev 'a'", "jev 'b'", "jev 'c'", "jev 'd'"},
+		},
+		{
+			name:   "should read a command run by path",
+			script: "./bin/jev 'is this urgent' --state 'down'",
+			want:   []string{"jev 'is this urgent' --state 'down'"},
+		},
+		{
+			name:   "should not read command -v jev as a run",
+			script: "command -v jev",
+			want:   nil,
 		},
 		{
 			name:   "should ignore a word that only starts with jev",

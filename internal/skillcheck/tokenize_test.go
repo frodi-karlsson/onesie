@@ -135,9 +135,9 @@ func TestTokenize(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, reason := tokenize(tc.command)
+			got, reason := Tokenize(tc.command)
 			if reason != tc.wantReason {
-				t.Fatalf("tokenize(%q) reason = %q, want %q", tc.command, reason, tc.wantReason)
+				t.Fatalf("Tokenize(%q) reason = %q, want %q", tc.command, reason, tc.wantReason)
 			}
 
 			if tc.wantReason != "" {
@@ -145,7 +145,7 @@ func TestTokenize(t *testing.T) {
 			}
 
 			if !reflect.DeepEqual(got, tc.want) {
-				t.Errorf("tokenize(%q) = %#v, want %#v", tc.command, got, tc.want)
+				t.Errorf("Tokenize(%q) = %#v, want %#v", tc.command, got, tc.want)
 			}
 		})
 	}

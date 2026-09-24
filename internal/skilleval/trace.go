@@ -8,7 +8,6 @@ import (
 	"strings"
 )
 
-// A trace line can carry a whole skill body, so the scanner's default 64 KiB line cap is too small.
 const maxTraceLine = 16 << 20
 
 func traceScripts(trace []byte) ([]string, error) {
@@ -73,8 +72,6 @@ type contentBlock struct {
 }
 
 func fencedBlocks(text string) []string {
-	// Prose is left out on purpose. A command named in a sentence is usually a fragment, and a
-	// dry run of a fragment says nothing about what the agent would have run.
 	var blocks []string
 
 	var current []string

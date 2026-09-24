@@ -7,10 +7,9 @@ import "regexp"
 var trailingRedirect = regexp.MustCompile(
 	`(?:\s+(?:>\s*/dev/null|[12]?>&[12]|[12]>\s*/dev/null))+\s*$`)
 
-// reason is empty on success. On failure it names, in words a skill author can act on, the one
-// thing about the command this package refuses to guess at: a pipe, a chain, a redirection, an
-// expansion, a glob, or malformed quoting.
-func tokenize(command string) (tokens []string, reason string) {
+// Tokenize splits command into argv without a shell. reason is empty on success, and otherwise
+// names what it refuses to guess at: a pipe, a chain, a redirection, an expansion or bad quoting.
+func Tokenize(command string) (tokens []string, reason string) {
 	command = trailingRedirect.ReplaceAllString(command, "")
 
 	var current []rune

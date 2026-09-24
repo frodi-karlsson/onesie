@@ -1,17 +1,21 @@
 package skilleval
 
 import (
+	"regexp"
 	"slices"
 	"strings"
 	"unicode"
 )
 
-// Stands in for every shell variable and command substitution in a command. A dry run needs a
-// literal where the shell would have expanded one, and a state value is the usual place one sits.
-const placeholder = "x"
+const placeholder = "{}"
 
-// A word that leaves the next word in command position, so `if jev ...` is still a jev command.
-var keywords = []string{"if", "then", "do", "else", "elif", "while", "until", "time", "!"}
+var (
+	keywords = []string{
+		"if", "then", "do", "else", "elif", "while", "until", "time", "!", "{", "exec", "command", "env",
+	}
+
+	assignment = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*=`)
+)
 
 func jevCommands(script string) []string {
 	script = strings.ReplaceAll(script, "\\\n", " ")
@@ -26,7 +30,6 @@ func jevCommands(script string) []string {
 }
 
 func trimYAMLRun(line string) string {
-	// A CI answer writes its commands as YAML, where `- run: jev ...` holds a command after a key.
 	line = strings.TrimPrefix(line, "- ")
 
 	if rest, found := strings.CutPrefix(line, "run:"); found {
@@ -98,11 +101,11 @@ func lineCommands(line string) []string {
 			end := max(wordEnd(runes, i), i+1)
 			word := string(runes[i:end])
 
-			if commandPosition && word == "jev" {
-				commands = append(commands, readCommand(runes, i))
+			if commandPosition && (word == "jev" || strings.HasSuffix(word, "/jev")) {
+				commands = append(commands, readCommand(runes, end-len("jev")))
 			}
 
-			commandPosition = commandPosition && (slices.Contains(keywords, word) || strings.HasSuffix(word, "="))
+			commandPosition = commandPosition && (slices.Contains(keywords, word) || assignment.MatchString(word))
 			i = end - 1
 		}
 	}
@@ -121,8 +124,6 @@ func wordEnd(runes []rune, start int) int {
 }
 
 func readCommand(runes []rune, start int) string {
-	// Every variable and substitution becomes the placeholder and every redirection is dropped,
-	// since the dry run runs argv directly and never hands any of it to a shell.
 	var out strings.Builder
 
 	double := false
@@ -133,11 +134,11 @@ func readCommand(runes []rune, start int) string {
 		switch {
 		case r == '$':
 			i = skipExpansion(runes, i)
-			out.WriteString(placeholder)
+			out.WriteString(quotedPlaceholder(double))
 
 		case r == '`':
 			i = skipTo(runes, i+1, '`')
-			out.WriteString(placeholder)
+			out.WriteString(quotedPlaceholder(double))
 
 		case r == '\\' && i+1 < len(runes):
 			out.WriteRune(r)
@@ -180,6 +181,14 @@ func readCommand(runes []rune, start int) string {
 	return strings.TrimSpace(out.String())
 }
 
+func quotedPlaceholder(insideDoubleQuotes bool) string {
+	if insideDoubleQuotes {
+		return placeholder
+	}
+
+	return "'" + placeholder + "'"
+}
+
 func skipExpansion(runes []rune, start int) int {
 	if start+1 >= len(runes) {
 		return start
@@ -203,6 +212,9 @@ func skipExpansion(runes []rune, start int) int {
 
 		return len(runes) - 1
 
+	case next == '{' && start+2 < len(runes) && runes[start+2] == '{':
+		return skipPast(runes, start+3, "}}")
+
 	case next == '{':
 		return skipTo(runes, start+2, '}')
 
@@ -222,6 +234,31 @@ func skipExpansion(runes []rune, start int) int {
 func skipTo(runes []rune, start int, closing rune) int {
 	for i := start; i < len(runes); i++ {
 		if runes[i] == closing {
+			return i
+		}
+	}
+
+	return len(runes) - 1
+}
+
+func skipPast(runes []rune, start int, closing string) int {
+	target := []rune(closing)
+
+	for i := start; i+len(target) <= len(runes); i++ {
+		if slices.Equal(runes[i:i+len(target)], target) {
+			return i + len(target) - 1
+		}
+	}
+
+	return len(runes) - 1
+}
+
+func skipDoubleQuote(runes []rune, start int) int {
+	for i := start; i < len(runes); i++ {
+		switch runes[i] {
+		case '\\':
+			i++
+		case '"':
 			return i
 		}
 	}
@@ -258,6 +295,15 @@ func skipRedirection(runes []rune, start int) int {
 
 	for i+1 < len(runes) && !unicode.IsSpace(runes[i+1]) {
 		i++
+
+		switch runes[i] {
+		case '\'':
+			i = skipTo(runes, i+1, '\'')
+		case '"':
+			i = skipDoubleQuote(runes, i+1)
+		case '$':
+			i = skipExpansion(runes, i)
+		}
 	}
 
 	return i
