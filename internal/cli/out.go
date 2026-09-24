@@ -379,7 +379,9 @@ func (o *outFile) syncDir(dir string) {
 	// Not returned. The rename has already succeeded, and a filesystem that refuses to sync a
 	// directory, as some network and FUSE mounts do, would turn it into a failure the user cannot
 	// act on.
-	_ = errors.Join(handle.Sync(), handle.Close()) //nolint:errcheck // a refused directory flush is not a failure, as above
+	if err := errors.Join(handle.Sync(), handle.Close()); err != nil {
+		return
+	}
 }
 
 func copyLines(w io.Writer, source io.ReaderAt, size, header int64, lines []span) error {
