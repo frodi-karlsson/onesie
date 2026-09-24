@@ -651,6 +651,25 @@ func TestResumeLedger(t *testing.T) {
 			}},
 		},
 		{
+			name:  "should refuse a resume by position into raw output under --assert before any request",
+			stdin: idRecords(1, 2),
+			runs: []resumeRun{
+				{
+					args:     []string{"-i", "jsonl", "-o", "raw", "--assert", "answer.value > 0.9"},
+					input:    idRecords(1, 1),
+					wantCode: ExitRejected,
+					wantFile: "0.5\n",
+					wantSent: []string{`{"id":1}`},
+				},
+				{
+					args:       []string{"-i", "jsonl", "-o", "raw", "--resume", "--assert", "answer.value > 0.9"},
+					wantCode:   ExitUsage,
+					wantFile:   "0.5\n",
+					wantStderr: "raw lines do not keep the gate's outcome. Use -o values or -o json",
+				},
+			},
+		},
+		{
 			name:     "should still refuse --unordered with a resume by position",
 			existing: fileOf("old one\n"),
 			sidecar:  byPosition,

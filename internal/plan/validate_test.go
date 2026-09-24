@@ -977,6 +977,31 @@ func TestCheckFlags(t *testing.T) {
 			wantErr: "onesie: --resume with --id reads the id back from each line, which raw output leaves out. Use -o json, values, csv or tsv",
 		},
 		{
+			name:    "should reject a resume by position with -r and --assert, since a raw line keeps no outcome",
+			cfg:     plan.Config{Streaming: true, InputName: "jsonl", Resume: true, Out: "a.txt", Raw: true, HasAssert: true},
+			wantErr: "onesie: --resume with raw output would count every skipped record as passing --assert, since raw lines do not keep the gate's outcome. Use -o values or -o json",
+		},
+		{
+			name: "should reject a resume by position with -o raw and a file's assert, naming the key",
+			cfg: plan.Config{
+				Streaming: true, InputName: "jsonl", Resume: true, Out: "a.txt", Output: "raw",
+				HasAssert: true, AssertName: "'assert'",
+			},
+			wantErr: "onesie: --resume with raw output would count every skipped record as passing 'assert', since raw lines do not keep the gate's outcome. Use -o values or -o json",
+		},
+		{
+			name: "should keep the id message for a resume by id with -o raw and --assert",
+			cfg: plan.Config{
+				Streaming: true, InputName: "jsonl", Resume: true, Out: "a.txt", Output: "raw", HasID: true,
+				HasAssert: true,
+			},
+			wantErr: "onesie: --resume with --id reads the id back from each line, which raw output leaves out. Use -o json, values, csv or tsv",
+		},
+		{
+			name: "should accept a resume by position with -o raw and no gate",
+			cfg:  plan.Config{Streaming: true, InputName: "jsonl", Resume: true, Out: "a.txt", Output: "raw", Jobs: 1},
+		},
+		{
 			name:    "should reject --prune without --resume",
 			cfg:     plan.Config{Streaming: true, InputName: "jsonl", Out: "a.jsonl", HasID: true, Prune: true, Jobs: 1},
 			wantErr: "onesie: --prune applies to --resume, which was not given",

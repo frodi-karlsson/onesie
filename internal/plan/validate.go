@@ -139,6 +139,10 @@ func checkResume(cfg Config) error {
 	case cfg.HasID && (cfg.Raw || cfg.Output == "raw"):
 		return errors.New("onesie: --resume with --id reads the id back from each line, " +
 			"which raw output leaves out. Use -o json, values, csv or tsv")
+	case cfg.HasAssert && (cfg.Raw || cfg.Output == "raw"):
+		return fmt.Errorf("onesie: --resume with raw output would count every skipped record as "+
+			"passing %s, since raw lines do not keep the gate's outcome. Use -o values or -o json",
+			assertFlag(cfg))
 	default:
 		return nil
 	}
