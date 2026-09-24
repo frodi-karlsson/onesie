@@ -945,6 +945,11 @@ func TestCheckFlags(t *testing.T) {
 			wantErr: "onesie: --merge-key does not apply to -o tsv, which puts the answers in columns",
 		},
 		{
+			name:    "should reject --usage with -q",
+			cfg:     plan.Config{InputName: "text", Quiet: true, Usage: true, Jobs: 1},
+			wantErr: "onesie: --usage does not apply to -q, which suppresses output",
+		},
+		{
 			name:    "should reject --usage with -o tsv",
 			cfg:     plan.Config{Streaming: true, InputName: "csv", Output: "tsv", Usage: true, Jobs: 1},
 			wantErr: "onesie: --usage does not apply to -o tsv, which has no column for it",

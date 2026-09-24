@@ -562,6 +562,8 @@ func checkUsage(cfg Config) error {
 	var mode string
 
 	switch {
+	case cfg.Quiet:
+		return errors.New("onesie: --usage does not apply to -q, which suppresses output")
 	case cfg.Raw:
 		mode = "-r"
 	case cfg.Output == "values", cfg.Output == "raw":
