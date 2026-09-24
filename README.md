@@ -142,6 +142,8 @@ credential file, and no provider falls back to another's key.
 `auth set` stores the key in the OS keychain when there is one: the macOS Keychain, the Secret
 Service on Linux, or the Windows Credential Manager. The credential file then only records that
 the key is there. Without a keychain, or with `auth set --file`, the key goes in the file itself.
+On Linux the key reaches the Secret Service over the session bus unencrypted, readable only by
+your own user.
 The file lives under `$ONESIE_CONFIG_DIR`, `$XDG_CONFIG_HOME/onesie` or `~/.config/onesie`, is
 written at mode `600`, and onesie refuses to read it when anyone else can reach it.
 

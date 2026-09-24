@@ -5,7 +5,6 @@ package cli_test
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"os"
 	"path/filepath"
 	"slices"
@@ -14,7 +13,6 @@ import (
 	"testing"
 
 	"github.com/frodi-karlsson/onesie/internal/cli"
-	"github.com/frodi-karlsson/onesie/internal/creds"
 )
 
 func TestFilterIntegration(t *testing.T) {
@@ -179,6 +177,7 @@ func TestFilterIntegration(t *testing.T) {
 
 			root := cli.NewRootCmd(
 				cli.BuildInfo{Version: "integration"},
+				cli.WithKeychain(offKeychain{}),
 				cli.WithStdin(strings.NewReader(tc.stdin)),
 				cli.WithStdinTTY(false),
 				cli.WithStdoutTTY(false),
@@ -400,6 +399,7 @@ func TestFileIntegration(t *testing.T) {
 
 			root := cli.NewRootCmd(
 				cli.BuildInfo{Version: "integration"},
+				cli.WithKeychain(offKeychain{}),
 				cli.WithStdin(strings.NewReader(tc.stdin)),
 				cli.WithStdinTTY(false),
 				cli.WithStdoutTTY(false),
@@ -602,6 +602,7 @@ not json at all
 
 			root := cli.NewRootCmd(
 				cli.BuildInfo{Version: "integration"},
+				cli.WithKeychain(offKeychain{}),
 				cli.WithStdin(strings.NewReader(tc.stdin)),
 				cli.WithStdinTTY(false),
 				cli.WithStdoutTTY(false),
@@ -905,6 +906,7 @@ func runLive(t *testing.T, args []string, stdin string) (string, string, int) {
 
 	root := cli.NewRootCmd(
 		cli.BuildInfo{Version: "integration"},
+		cli.WithKeychain(offKeychain{}),
 		cli.WithStdin(strings.NewReader(stdin)),
 		cli.WithStdinTTY(false),
 		cli.WithStdoutTTY(false),
@@ -947,18 +949,4 @@ func runStored(t *testing.T, path string, args []string, stdin string) (string, 
 	code := cli.Execute(t.Context(), root)
 
 	return out.String(), errOut.String(), code
-}
-
-type offKeychain struct{}
-
-func (offKeychain) Get(string) (string, error) {
-	return "", &creds.KeychainError{Op: "read the key", Err: errors.New("the live suite never uses the keychain")}
-}
-
-func (offKeychain) Set(string, string) error {
-	return &creds.KeychainError{Op: "store the key", Err: errors.New("the live suite never uses the keychain")}
-}
-
-func (offKeychain) Delete(string) error {
-	return nil
 }

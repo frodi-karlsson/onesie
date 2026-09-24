@@ -3,6 +3,7 @@ package cli_test
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -17,6 +18,7 @@ import (
 	"time"
 
 	"github.com/frodi-karlsson/onesie/internal/cli"
+	"github.com/frodi-karlsson/onesie/internal/creds"
 	"github.com/frodi-karlsson/onesie/internal/jev"
 )
 
@@ -756,6 +758,7 @@ func TestNewRootCmd(t *testing.T) {
 
 			root := cli.NewRootCmd(
 				cli.BuildInfo{Version: "1.2.3", Commit: "abc1234", Date: "2026-01-01"},
+				cli.WithKeychain(offKeychain{}),
 				cli.WithClientFactory(func(_ context.Context, opts ...jev.Option) (*jev.Client, error) {
 					return jev.New(append([]jev.Option{
 						jev.WithAPIKey("k"), jev.WithBaseURL(srv.URL),
@@ -829,6 +832,7 @@ func TestNewRootCmdFlagDrivenClient(t *testing.T) {
 
 		root := cli.NewRootCmd(
 			cli.BuildInfo{Version: "1.2.3"},
+			cli.WithKeychain(offKeychain{}),
 			cli.WithStdin(strings.NewReader("body")),
 			cli.WithStdinTTY(false),
 			cli.WithStdoutTTY(false),
@@ -924,6 +928,7 @@ func runWithEnv(t *testing.T, env map[string]string, args []string) (string, int
 	// standing between it and the process environment.
 	root := cli.NewRootCmd(
 		cli.BuildInfo{Version: "1.2.3"},
+		cli.WithKeychain(offKeychain{}),
 		cli.WithStdin(strings.NewReader("body")),
 		cli.WithStdinTTY(false),
 		cli.WithStdoutTTY(false),
@@ -986,6 +991,7 @@ func TestNewRootCmdQuestionOrder(t *testing.T) {
 
 			root := cli.NewRootCmd(
 				cli.BuildInfo{Version: "1.2.3", Commit: "abc1234", Date: "2026-01-01"},
+				cli.WithKeychain(offKeychain{}),
 				cli.WithClientFactory(func(_ context.Context, opts ...jev.Option) (*jev.Client, error) {
 					return jev.New(append([]jev.Option{
 						jev.WithAPIKey("k"), jev.WithBaseURL(srv.URL),
@@ -1081,6 +1087,7 @@ func TestNewRootCmdConnectionPool(t *testing.T) {
 		// No WithClientFactory, so the real composition root builds the transport from -j.
 		root := cli.NewRootCmd(
 			cli.BuildInfo{Version: "1.2.3"},
+			cli.WithKeychain(offKeychain{}),
 			cli.WithStdin(strings.NewReader(stdin.String())),
 			cli.WithStdinTTY(false),
 			cli.WithStdoutTTY(false),
@@ -1146,6 +1153,7 @@ func TestNewRootCmdInterrupt(t *testing.T) {
 
 		root := cli.NewRootCmd(
 			cli.BuildInfo{Version: "1.2.3"},
+			cli.WithKeychain(offKeychain{}),
 			cli.WithClientFactory(func(_ context.Context, opts ...jev.Option) (*jev.Client, error) {
 				return jev.New(append([]jev.Option{
 					jev.WithAPIKey("k"), jev.WithBaseURL(srv.URL),
@@ -1222,6 +1230,7 @@ func TestNewRootCmdRetryFlags(t *testing.T) {
 			// and a stub one would never see them.
 			root := cli.NewRootCmd(
 				cli.BuildInfo{Version: "1.2.3"},
+				cli.WithKeychain(offKeychain{}),
 				cli.WithStdin(strings.NewReader("the server is down")),
 				cli.WithStdinTTY(false),
 				cli.WithStdoutTTY(false),
@@ -1289,6 +1298,7 @@ func TestNewRootCmdMaxRetryAfterFlag(t *testing.T) {
 			// and a stub one would never see it.
 			root := cli.NewRootCmd(
 				cli.BuildInfo{Version: "1.2.3"},
+				cli.WithKeychain(offKeychain{}),
 				cli.WithStdin(strings.NewReader("the server is down")),
 				cli.WithStdinTTY(false),
 				cli.WithStdoutTTY(false),
@@ -1333,6 +1343,7 @@ func TestNewRootCmdTimeoutFlag(t *testing.T) {
 		// stub one would never see it.
 		root := cli.NewRootCmd(
 			cli.BuildInfo{Version: "1.2.3"},
+			cli.WithKeychain(offKeychain{}),
 			cli.WithStdin(strings.NewReader("the server is quiet")),
 			cli.WithStdinTTY(false),
 			cli.WithStdoutTTY(false),
@@ -1462,6 +1473,7 @@ func TestNewRootCmdFlagValidation(t *testing.T) {
 			// and the point of the test is the plumbing a stub would replace.
 			root := cli.NewRootCmd(
 				cli.BuildInfo{Version: "1.2.3"},
+				cli.WithKeychain(offKeychain{}),
 				cli.WithStdin(strings.NewReader("a ticket")),
 				cli.WithStdinTTY(false),
 				cli.WithStdoutTTY(false),
@@ -1487,4 +1499,18 @@ func TestNewRootCmdFlagValidation(t *testing.T) {
 			}
 		})
 	}
+}
+
+type offKeychain struct{}
+
+func (offKeychain) Get(string) (string, error) {
+	return "", &creds.KeychainError{Op: "read the key", Err: errors.New("the live suite never uses the keychain")}
+}
+
+func (offKeychain) Set(string, string) error {
+	return &creds.KeychainError{Op: "store the key", Err: errors.New("the live suite never uses the keychain")}
+}
+
+func (offKeychain) Delete(string) error {
+	return nil
 }

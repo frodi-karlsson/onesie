@@ -792,6 +792,7 @@ func runAgainst(t *testing.T, args []string, stdin, baseURL string) (string, str
 
 	root := NewRootCmd(
 		BuildInfo{Version: "1.2.3"},
+		WithKeychain(noKeychain()),
 		WithClientFactory(func(_ context.Context, opts ...jev.Option) (*jev.Client, error) {
 			return jev.New(append([]jev.Option{
 				jev.WithAPIKey("k"),

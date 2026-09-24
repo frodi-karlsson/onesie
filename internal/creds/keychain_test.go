@@ -53,6 +53,18 @@ func TestKeychain(t *testing.T) {
 		}
 	})
 
+	t.Run("should report an empty item as missing", func(t *testing.T) {
+		t.Parallel()
+
+		backend := newFakeBackend()
+		backend.items["onesie/typesafe"] = ""
+
+		_, err := creds.NewKeychain(creds.WithBackend(backend)).Get("typesafe")
+		if !errors.Is(err, creds.ErrKeychainMissing) {
+			t.Errorf("error = %v, want ErrKeychainMissing", err)
+		}
+	})
+
 	t.Run("should treat deleting a missing item as done", func(t *testing.T) {
 		t.Parallel()
 
@@ -93,8 +105,31 @@ func TestKeychain(t *testing.T) {
 		chain := creds.NewKeychain(creds.WithBackend(backend), creds.WithTimeout(10*time.Millisecond))
 
 		_, err := chain.Get("typesafe")
-		if err == nil || !strings.Contains(err.Error(), "did not answer within") {
-			t.Errorf("error = %v, want a timeout", err)
+		if !errors.Is(err, creds.ErrKeychainTimeout) {
+			t.Errorf("error = %v, want ErrKeychainTimeout", err)
+		}
+	})
+}
+
+func TestKeychainAccount(t *testing.T) {
+	t.Parallel()
+
+	t.Run("should name the provider and differ between credential files", func(t *testing.T) {
+		t.Parallel()
+
+		first := creds.KeychainAccount("typesafe", "/a/credentials.json")
+		second := creds.KeychainAccount("typesafe", "/b/credentials.json")
+
+		if !strings.HasPrefix(first, "typesafe@") {
+			t.Errorf("account = %q, want it to start with typesafe@", first)
+		}
+
+		if first == second {
+			t.Errorf("two credential files share the account %q", first)
+		}
+
+		if again := creds.KeychainAccount("typesafe", "/a/credentials.json"); again != first {
+			t.Errorf("account = %q then %q, want it stable", first, again)
 		}
 	})
 }

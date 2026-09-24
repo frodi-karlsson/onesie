@@ -791,6 +791,7 @@ func TestPrintRequest(t *testing.T) {
 
 			root := NewRootCmd(
 				BuildInfo{Version: "1.2.3"},
+				WithKeychain(noKeychain()),
 				WithStdin(strings.NewReader("the server is down")),
 				WithStdinTTY(false),
 				WithStdoutTTY(false),
@@ -849,6 +850,7 @@ func runRecorded(t *testing.T, args []string, stdin string) (string, string, int
 
 	root := NewRootCmd(
 		BuildInfo{Version: "1.2.3"},
+		WithKeychain(noKeychain()),
 		WithClientFactory(func(_ context.Context, opts ...jev.Option) (*jev.Client, error) {
 			// The client gets its own blank environment as well as the command, so the machine
 			// running the test cannot supply a default model to one side of the comparison.
@@ -1053,7 +1055,7 @@ func runClosed(t *testing.T, args []string, stdin, baseURL string) (string, int)
 			}))
 	}
 
-	root := NewRootCmd(BuildInfo{Version: "1.2.3"}, opts...)
+	root := NewRootCmd(BuildInfo{Version: "1.2.3"}, append(opts, WithKeychain(noKeychain()))...)
 
 	root.SetOut(closedConsumer{})
 	root.SetErr(&errOut)
@@ -1116,6 +1118,7 @@ func runOfflineStdin(t *testing.T, args []string, stdin string) (string, string,
 	// these tests.
 	root := NewRootCmd(
 		BuildInfo{Version: "1.2.3"},
+		WithKeychain(noKeychain()),
 		WithStdin(strings.NewReader(stdin)),
 		WithStdinTTY(false),
 		WithStdoutTTY(false),

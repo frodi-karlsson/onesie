@@ -386,6 +386,30 @@ func TestAuthClear(t *testing.T) {
 			t.Errorf("the credential file is still there, stat error = %v", err)
 		}
 	})
+
+	t.Run("should remove the entry even when the keychain cannot be reached", func(t *testing.T) {
+		t.Parallel()
+
+		path := credentialFixture(t, `{"providers":{"typesafe":{"store":"keychain","account":"typesafe@abc"}}}`, 0)
+
+		out, errOut, code := runAuth(t, []string{"auth", "clear"},
+			WithCredentialPath(fixedPath(path)),
+			WithLookupEnv(lookupFrom(nil)))
+
+		assertNoSecret(t, out, errOut)
+
+		if code != ExitOK {
+			t.Errorf("exit code = %d, want %d\nstderr:\n%s", code, ExitOK, errOut)
+		}
+
+		if !strings.Contains(errOut, "The keychain item typesafe@abc is left behind") {
+			t.Errorf("stderr = %q, want it to name the item left behind", errOut)
+		}
+
+		if _, err := os.Lstat(path); !errors.Is(err, os.ErrNotExist) {
+			t.Errorf("the credential file is still there, stat error = %v", err)
+		}
+	})
 }
 
 func TestAuthSet(t *testing.T) {
@@ -659,14 +683,14 @@ func TestAuthSet(t *testing.T) {
 		{
 			name:         "should store the key in the keychain and point the file at it",
 			args:         []string{"auth", "set"},
-			wantFile:     `{"providers":{"typesafe":{"store":"keychain"}}}`,
+			wantFile:     `{"providers":{"typesafe":{"store":"keychain","account":"ACCOUNT"}}}`,
 			wantKeychain: true,
 			wantErr:      "onesie: stored the typesafe key in the OS keychain",
 		},
 		{
 			name:         "should keep a base url beside a keychain entry",
 			args:         []string{"auth", "set", "--base-url", "https://proxy.example"},
-			wantFile:     `{"providers":{"typesafe":{"store":"keychain","base_url":"https://proxy.example"}}}`,
+			wantFile:     `{"providers":{"typesafe":{"store":"keychain","account":"ACCOUNT","base_url":"https://proxy.example"}}}`,
 			wantKeychain: true,
 		},
 		{
@@ -707,12 +731,18 @@ func TestAuthSet(t *testing.T) {
 				t.Fatalf("reading the credential file: %v", err)
 			}
 
-			if strings.TrimSpace(string(data)) != tc.wantFile {
+			account := creds.KeychainAccount("typesafe", path)
+
+			if strings.TrimSpace(string(data)) != strings.ReplaceAll(tc.wantFile, "ACCOUNT", account) {
 				t.Error("the credential file does not hold the expected entries")
 			}
 
-			if keychain.holds("typesafe") != tc.wantKeychain {
-				t.Errorf("keychain holds the key = %v, want %v", keychain.holds("typesafe"), tc.wantKeychain)
+			if keychain.holds(account) != tc.wantKeychain {
+				t.Errorf("keychain holds the key = %v, want %v", keychain.holds(account), tc.wantKeychain)
+			}
+
+			if keychain.holds("typesafe") {
+				t.Error("the keychain still holds the unscoped item")
 			}
 
 			if tc.wantErr != "" && !strings.Contains(errOut, tc.wantErr) {
@@ -744,6 +774,59 @@ func TestAuthSet(t *testing.T) {
 		}
 
 		assertStored(t, path, "SECRET-NEW", "")
+	})
+
+	t.Run("should remove the new keychain item when the file cannot be saved", func(t *testing.T) {
+		t.Parallel()
+
+		path := credentialFixture(t, "", 0)
+		keychain := workingKeychain(nil)
+		failing := creds.NewStore(creds.WithCreateTemp(func(string, string) (*os.File, error) {
+			return nil, errors.New("the disk is full")
+		}))
+
+		out, errOut, code := runAuth(t, []string{"auth", "set"},
+			WithStdin(strings.NewReader("SECRET-NEW\n")),
+			WithCredentialPath(fixedPath(path)),
+			WithCredentialStore(failing),
+			WithLookupEnv(lookupFrom(nil)),
+			WithKeychain(keychain))
+
+		assertNoSecret(t, out, errOut)
+
+		if code == ExitOK {
+			t.Fatalf("exit code = %d, want a failure", code)
+		}
+
+		if keychain.holds(creds.KeychainAccount("typesafe", path)) {
+			t.Error("the keychain kept an item no file points at")
+		}
+	})
+
+	t.Run("should fail rather than fall back when the keychain times out", func(t *testing.T) {
+		t.Parallel()
+
+		path := credentialFixture(t, "", 0)
+
+		out, errOut, code := runAuth(t, []string{"auth", "set"},
+			WithStdin(strings.NewReader("SECRET-NEW\n")),
+			WithCredentialPath(fixedPath(path)),
+			WithLookupEnv(lookupFrom(nil)),
+			WithKeychain(timingOutKeychain{}))
+
+		assertNoSecret(t, out, errOut)
+
+		if code != ExitAuth {
+			t.Errorf("exit code = %d, want %d", code, ExitAuth)
+		}
+
+		if !strings.Contains(errOut, "onesie auth set --file") {
+			t.Errorf("stderr = %q, want it to suggest --file", errOut)
+		}
+
+		if _, err := os.Lstat(path); !errors.Is(err, os.ErrNotExist) {
+			t.Errorf("a credential file was written, stat error = %v", err)
+		}
 	})
 }
 
@@ -1087,7 +1170,7 @@ func TestNewAuthCmd(t *testing.T) {
 			name: "should reject a question given to auth clear",
 			args: []string{"auth", "clear", "is this urgent"},
 			wantErr: "onesie: auth clear takes no question or state. " +
-				"It removes the provider's key from the credential file",
+				"It removes the provider's key",
 			wantCode: ExitUsage,
 		},
 		{
@@ -1903,12 +1986,12 @@ func (k *fakeKeychain) Get(provider string) (string, error) {
 	defer k.mu.Unlock()
 
 	if k.unavailable {
-		return "", &creds.KeychainError{Op: "read the key", Err: errors.New("no keychain in tests")}
+		return "", &creds.KeychainError{Op: "read the key from", Err: errors.New("no keychain in tests")}
 	}
 
 	key, ok := k.items[provider]
 	if !ok {
-		return "", &creds.KeychainError{Op: "read the key", Err: creds.ErrKeychainMissing}
+		return "", &creds.KeychainError{Op: "read the key from", Err: creds.ErrKeychainMissing}
 	}
 
 	return key, nil
@@ -1919,7 +2002,7 @@ func (k *fakeKeychain) Set(provider, key string) error {
 	defer k.mu.Unlock()
 
 	if k.unavailable {
-		return &creds.KeychainError{Op: "store the key", Err: errors.New("no keychain in tests")}
+		return &creds.KeychainError{Op: "store the key in", Err: errors.New("no keychain in tests")}
 	}
 
 	k.items[provider] = key
@@ -1932,7 +2015,7 @@ func (k *fakeKeychain) Delete(provider string) error {
 	defer k.mu.Unlock()
 
 	if k.unavailable {
-		return &creds.KeychainError{Op: "remove the key", Err: errors.New("no keychain in tests")}
+		return &creds.KeychainError{Op: "remove the key from", Err: errors.New("no keychain in tests")}
 	}
 
 	delete(k.items, provider)
@@ -1947,4 +2030,18 @@ func (k *fakeKeychain) holds(provider string) bool {
 	_, ok := k.items[provider]
 
 	return ok
+}
+
+type timingOutKeychain struct{}
+
+func (timingOutKeychain) Get(string) (string, error) {
+	return "", &creds.KeychainError{Op: "read the key from", Err: creds.ErrKeychainTimeout}
+}
+
+func (timingOutKeychain) Set(string, string) error {
+	return &creds.KeychainError{Op: "store the key in", Err: creds.ErrKeychainTimeout}
+}
+
+func (timingOutKeychain) Delete(string) error {
+	return &creds.KeychainError{Op: "remove the key from", Err: creds.ErrKeychainTimeout}
 }

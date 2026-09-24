@@ -294,11 +294,13 @@ type File struct {
 	Providers map[string]Entry `json:"providers"`
 }
 
-// Entry is one provider's key, or a pointer to it in the keychain when Store is StoreKeychain.
+// Entry is one provider's key, or a pointer to it in the keychain when Store is StoreKeychain, in
+// which case Account names the keychain item.
 // BaseURL is empty when the entry carries none.
 type Entry struct {
 	APIKey  string `json:"api_key,omitempty"`
 	Store   string `json:"store,omitempty"`
+	Account string `json:"account,omitempty"`
 	BaseURL string `json:"base_url,omitempty"`
 }
 
@@ -308,7 +310,7 @@ func (f File) complete() bool {
 	}
 
 	for _, entry := range f.Providers {
-		inFile := entry.APIKey != "" && entry.Store == ""
+		inFile := entry.APIKey != "" && entry.Store == "" && entry.Account == ""
 		inKeychain := entry.APIKey == "" && entry.Store == StoreKeychain
 
 		if !inFile && !inKeychain {

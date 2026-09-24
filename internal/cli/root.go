@@ -263,11 +263,11 @@ func WithKeychain(keychain Keychain) RootOption {
 	}
 }
 
-// Keychain is where auth set stores a key when the OS has one, one item per provider.
+// Keychain is where auth set stores a key when the OS has one, one item per account.
 type Keychain interface {
-	Get(provider string) (string, error)
-	Set(provider, key string) error
-	Delete(provider string) error
+	Get(account string) (string, error)
+	Set(account, key string) error
+	Delete(account string) error
 }
 
 // WithSecretReader replaces the hidden prompt, which needs a real terminal a test does not have.

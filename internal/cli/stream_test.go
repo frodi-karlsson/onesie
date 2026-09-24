@@ -169,6 +169,7 @@ func TestStreaming(t *testing.T) {
 
 			root := cli.NewRootCmd(
 				cli.BuildInfo{Version: "1.2.3"},
+				cli.WithKeychain(offKeychain{}),
 				cli.WithClientFactory(func(_ context.Context, opts ...jev.Option) (*jev.Client, error) {
 					// No retries. The 500 cases would otherwise spend the client's backoff twice
 					// per record for no coverage, and --retries is not a flag until a later
@@ -255,6 +256,7 @@ func TestMergeAutoOutput(t *testing.T) {
 
 		root := cli.NewRootCmd(
 			cli.BuildInfo{Version: "1.2.3"},
+			cli.WithKeychain(offKeychain{}),
 			cli.WithClientFactory(func(_ context.Context, opts ...jev.Option) (*jev.Client, error) {
 				return jev.New(append([]jev.Option{
 					jev.WithAPIKey("k"), jev.WithBaseURL(srv.URL),
@@ -344,6 +346,7 @@ func TestSingleRecordMerge(t *testing.T) {
 
 			root := cli.NewRootCmd(
 				cli.BuildInfo{Version: "1.2.3"},
+				cli.WithKeychain(offKeychain{}),
 				cli.WithClientFactory(func(_ context.Context, opts ...jev.Option) (*jev.Client, error) {
 					return jev.New(append([]jev.Option{
 						jev.WithAPIKey("k"), jev.WithBaseURL(srv.URL),
@@ -465,6 +468,7 @@ func TestStreamingWire(t *testing.T) {
 
 			root := cli.NewRootCmd(
 				cli.BuildInfo{Version: "1.2.3"},
+				cli.WithKeychain(offKeychain{}),
 				cli.WithClientFactory(func(_ context.Context, opts ...jev.Option) (*jev.Client, error) {
 					return jev.New(append([]jev.Option{
 						jev.WithAPIKey("k"), jev.WithBaseURL(srv.URL),
@@ -518,6 +522,7 @@ func TestStreamSourceFailure(t *testing.T) {
 
 		root := cli.NewRootCmd(
 			cli.BuildInfo{Version: "1.2.3"},
+			cli.WithKeychain(offKeychain{}),
 			cli.WithClientFactory(func(_ context.Context, opts ...jev.Option) (*jev.Client, error) {
 				policy := jev.DefaultRetryPolicy()
 				policy.MaxRetries = 0

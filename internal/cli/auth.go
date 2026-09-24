@@ -116,8 +116,9 @@ func authSet(cmd *cobra.Command, settings rootSettings, flags *runFlags, opts se
 	}
 
 	previous := file.Providers[provider.Name]
+	account := creds.KeychainAccount(provider.Name, path)
 
-	entry, err := storeKey(cmd, settings, provider, key, path, opts.toFile)
+	entry, err := storeKey(cmd, settings, provider, key, path, account, opts.toFile)
 	if err != nil {
 		return err
 	}
@@ -126,20 +127,25 @@ func authSet(cmd *cobra.Command, settings rootSettings, flags *runFlags, opts se
 		entry.BaseURL = baseURL
 	}
 
-	// A key moving from the keychain to the file would otherwise leave a stale copy behind.
-	if previous.Store == creds.StoreKeychain && entry.Store != creds.StoreKeychain {
-		if deleteErr := settings.keychain.Delete(provider.Name); deleteErr != nil {
-			if _, printErr := fmt.Fprintln(cmd.ErrOrStderr(), "warning: "+deleteErr.Error()); printErr != nil {
-				return printErr
-			}
-		}
-	}
-
 	file.Providers[provider.Name] = entry
 
 	warning, err := settings.credStore.Save(path, file)
 	if err != nil {
+		// The file still points wherever it pointed before, so a new keychain item would be an orphan.
+		if entry.Store == creds.StoreKeychain {
+			return errors.Join(err, settings.keychain.Delete(account))
+		}
+
 		return err
+	}
+
+	// Only once the file no longer points at it, so a failed save never loses the old key.
+	if stale := previousAccount(previous, provider); stale != "" && stale != entry.Account {
+		if deleteErr := settings.keychain.Delete(stale); deleteErr != nil {
+			if _, printErr := fmt.Fprintln(cmd.ErrOrStderr(), "warning: "+deleteErr.Error()); printErr != nil {
+				return printErr
+			}
+		}
 	}
 
 	if loadErr != nil {
@@ -165,24 +171,42 @@ func storeKey(
 	cmd *cobra.Command,
 	settings rootSettings,
 	provider jev.Provider,
-	key, path string,
+	key, path, account string,
 	toFile bool,
 ) (creds.Entry, error) {
 	if toFile {
 		return creds.Entry{APIKey: key}, nil
 	}
 
-	err := settings.keychain.Set(provider.Name, key)
+	err := settings.keychain.Set(account, key)
 	if err == nil {
 		_, printErr := fmt.Fprintln(cmd.ErrOrStderr(), "onesie: stored the "+provider.Name+" key in the OS keychain")
 
-		return creds.Entry{Store: creds.StoreKeychain}, printErr
+		return creds.Entry{Store: creds.StoreKeychain, Account: account}, printErr
+	}
+
+	// A keychain that timed out may still be waiting on a prompt that stores the key later, so a
+	// fallback here could leave the key in both places.
+	if errors.Is(err, creds.ErrKeychainTimeout) {
+		return creds.Entry{}, fmt.Errorf("%w. Answer the keychain prompt, or run onesie auth set --file", err)
 	}
 
 	_, printErr := fmt.Fprintln(cmd.ErrOrStderr(), "warning: "+strings.TrimPrefix(err.Error(), "onesie: ")+
 		". The key is in "+path+" instead")
 
 	return creds.Entry{APIKey: key}, printErr
+}
+
+func previousAccount(entry creds.Entry, provider jev.Provider) string {
+	if entry.Store != creds.StoreKeychain {
+		return ""
+	}
+
+	if entry.Account == "" {
+		return provider.Name
+	}
+
+	return entry.Account
 }
 
 func readKey(cmd *cobra.Command, settings rootSettings) (string, error) {
@@ -338,15 +362,15 @@ func storedOptions(settings rootSettings, flags *runFlags, source keySource) []j
 func newAuthClearCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 	return &cobra.Command{
 		Use:   "clear",
-		Short: "Remove the provider's key from the credential file",
-		Args:  authNoArgs("clear", "It removes the provider's key from the credential file"),
+		Short: "Remove the provider's key from the credential file and the OS keychain",
+		Args:  authNoArgs("clear", "It removes the provider's key"),
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return authClear(settings, flags)
+			return authClear(cmd, settings, flags)
 		},
 	}
 }
 
-func authClear(settings rootSettings, flags *runFlags) error {
+func authClear(cmd *cobra.Command, settings rootSettings, flags *runFlags) error {
 	provider, err := resolveProvider(settings, flags)
 	if err != nil {
 		return err
@@ -367,9 +391,14 @@ func authClear(settings rootSettings, flags *runFlags) error {
 		return nil
 	}
 
-	if entry.Store == creds.StoreKeychain {
-		if deleteErr := settings.keychain.Delete(provider.Name); deleteErr != nil {
-			return deleteErr
+	// A keychain that cannot be reached must not trap the entry, so it goes either way.
+	if account := previousAccount(entry, provider); account != "" {
+		if deleteErr := settings.keychain.Delete(account); deleteErr != nil {
+			_, printErr := fmt.Fprintln(cmd.ErrOrStderr(), "warning: "+strings.TrimPrefix(deleteErr.Error(), "onesie: ")+
+				". The keychain item "+account+" is left behind")
+			if printErr != nil {
+				return printErr
+			}
 		}
 	}
 
@@ -422,8 +451,8 @@ func resolveKey(settings rootSettings, flags *runFlags) (keySource, error) {
 		return keySource{name: sourceNone, provider: provider}, nil
 	}
 
-	if entry.Store == creds.StoreKeychain {
-		key, keychainErr := settings.keychain.Get(provider.Name)
+	if account := previousAccount(entry, provider); account != "" {
+		key, keychainErr := settings.keychain.Get(account)
 		if keychainErr != nil {
 			return keySource{}, keychainErr
 		}
