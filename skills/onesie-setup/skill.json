@@ -1,14 +1,14 @@
 {
   "name": "onesie-setup",
   "description": "Use when onesie is not on PATH, when no API key resolves, when the session start hook reports either, or when the user asks how to install or set up onesie. Walks the user through installing it, choosing a provider and storing a key, without the key ever entering the conversation.",
-  "compatibility": "Needs a shell, and Homebrew or a Go toolchain to install onesie.",
+  "compatibility": "Needs a shell, and a Go toolchain to install onesie until the first release.",
   "license": "MIT",
   "intro": "intro.md",
   "rules": [
     {
       "id": "the-key-never-enters-the-conversation",
       "short": "Never ask for the key in chat. The user stores it with onesie auth set, outside the conversation.",
-      "why": "Anything typed into the conversation is sent to the model and kept in the transcript. `onesie auth set` reads the key from a hidden prompt in a real terminal, or from the first line of stdin, and never prints it. So ask the user to run `onesie auth set` in their own terminal, or to pipe it from a password manager, as in `pass show typesafe | onesie auth set`. A command that reads from a password manager is safe to run for them, since only the path it wrote comes back."
+      "why": "Anything typed into the conversation is sent to the model and kept in the transcript. `onesie auth set` reads the key from a hidden prompt in a real terminal, or from stdin otherwise, and never prints it. So ask the user to run `onesie auth set` in their own terminal, or to pipe it from a password manager, as in `pass show typesafe | head -n 1 | onesie auth set`. `pass show` and its siblings print metadata after the secret, and `auth set` refuses stdin that holds more than one non blank line, so keep the `head -n 1`. A command that reads from a password manager is safe to run for them, since only the stderr lines naming the file and the keychain come back."
     },
     {
       "id": "choose-the-provider-first",
@@ -18,7 +18,7 @@
     {
       "id": "finish-with-auth-test",
       "short": "End the setup with onesie auth test, not auth status.",
-      "why": "`auth status` only reports where a key would come from. `auth test` sends it to the provider's model listing, which costs no tokens, and exits 3 when the key is refused. Only a clean `auth test` means the next real command will work."
+      "why": "`auth status` only reports where a key would come from, and never reads the keychain. `auth test` resolves the key and sends it to the provider's model listing, which costs no tokens, then prints `provider:`, `source:` and `models:` with a count. It exits 2 when no key resolves, 3 when the provider refuses the key or the keychain cannot give it up, and 4 or 5 when the provider cannot be reached. Only a clean `auth test` means the next real command will work."
     }
   ],
   "sections": [
