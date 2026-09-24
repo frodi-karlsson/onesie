@@ -124,9 +124,11 @@ print nothing. Beside an assertion it only silences the output, and the assertio
 exit code.
 Repeated `--assert` flags combine with `and`.
 
-`--abstain-if` needs `--assert` and is only checked when the assertion is false. When it holds the
-record is an unsure, it exits 7 and prints `"abstain": true` instead of `"assert": false`. Deny
-wins in the tool guard above, since one high answer fails both expressions.
+`--abstain-if` needs an assertion and is only checked for a record that answered and failed it.
+When it holds the record is an unsure: one record exits 7, and json and values carry
+`"abstain": true` instead of `"assert": false`. A stream keeps its most severe code, so a failed
+record or a no outranks an unsure. Deny wins in the tool guard above, since one high answer fails
+both expressions. A question file carries the same expression as `abstain_if`.
 
 ### Dry runs and replay
 
@@ -189,7 +191,7 @@ OpenRouter `typesafe/jev-1.13`. On OpenRouter, `--usage` also reports the cost i
 | 4 | the server did not answer after retries |
 | 5 | transport error or timeout |
 | 6 | a stream finished with one or more failed records |
-| 7 | a false `--assert` that `--abstain-if` turned into an unsure |
+| 7 | the gate could not decide: the assertion failed and `--abstain-if` held |
 | 130 | interrupted |
 
 A consumer that stops reading, as `head` does, is not an error.
