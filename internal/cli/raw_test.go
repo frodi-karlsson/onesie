@@ -785,25 +785,32 @@ func runRequestMode(
 	return sent, out, errOut, code
 }
 
-func runAgainst(t *testing.T, args []string, stdin, baseURL string) (string, string, int) {
+func runAgainst(
+	t *testing.T,
+	args []string,
+	stdin, baseURL string,
+	extra ...RootOption,
+) (string, string, int) {
 	t.Helper()
 
 	var out, errOut bytes.Buffer
 
 	root := NewRootCmd(
 		BuildInfo{Version: "1.2.3"},
-		WithKeychain(noKeychain()),
-		WithClientFactory(func(_ context.Context, opts ...jev.Option) (*jev.Client, error) {
-			return jev.New(append([]jev.Option{
-				jev.WithAPIKey("k"),
-				jev.WithBaseURL(baseURL),
-				jev.WithEnv(func(string) (string, bool) { return "", false }),
-			}, opts...)...)
-		}),
-		WithStdin(strings.NewReader(stdin)),
-		WithStdinTTY(false),
-		WithStdoutTTY(false),
-		WithLookupEnv(func(string) (string, bool) { return "", false }),
+		append([]RootOption{
+			WithKeychain(noKeychain()),
+			WithClientFactory(func(_ context.Context, opts ...jev.Option) (*jev.Client, error) {
+				return jev.New(append([]jev.Option{
+					jev.WithAPIKey("k"),
+					jev.WithBaseURL(baseURL),
+					jev.WithEnv(func(string) (string, bool) { return "", false }),
+				}, opts...)...)
+			}),
+			WithStdin(strings.NewReader(stdin)),
+			WithStdinTTY(false),
+			WithStdoutTTY(false),
+			WithLookupEnv(func(string) (string, bool) { return "", false }),
+		}, extra...)...,
 	)
 
 	root.SetOut(&out)

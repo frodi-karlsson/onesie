@@ -258,11 +258,26 @@ func TestNewRootCmdStats(t *testing.T) {
 		args       []string
 		stdin      string
 		handler    func() http.HandlerFunc
+		opts       []RootOption
 		wantCode   int
 		wantErr    []string
 		absentOut  []string
 		wantOutHas []string
 	}{
+		{
+			name:    "should end the summary with the elapsed time the clock measured",
+			args:    []string{"--ask", "urgent=is this urgent", "-o", "json", "--stats"},
+			stdin:   "the server is down",
+			handler: func() http.HandlerFunc { return answerHandler(answered) },
+			opts: []RootOption{
+				WithNow(ticking(time.Date(2026, 9, 24, 12, 0, 0, 0, time.UTC), 2*time.Second)),
+			},
+			wantCode: ExitOK,
+			wantErr: []string{
+				"1 request, 1 question, 2841 in / 71 out, model onesie-1.13.0, " +
+					"1 attempt, 10s/attempt, 2s\n",
+			},
+		},
 		{
 			name:     "should write the summary to stderr and leave stdout to the answer",
 			args:     []string{"--ask", "urgent=is this urgent", "-o", "json", "--stats"},
@@ -410,7 +425,7 @@ func TestNewRootCmdStats(t *testing.T) {
 			srv := httptest.NewServer(tc.handler())
 			defer srv.Close()
 
-			out, errOut, code := runAgainst(t, tc.args, tc.stdin, srv.URL)
+			out, errOut, code := runAgainst(t, tc.args, tc.stdin, srv.URL, tc.opts...)
 
 			if code != tc.wantCode {
 				t.Fatalf("exit code = %d, want %d\nstdout:\n%s\nstderr:\n%s",
@@ -611,17 +626,32 @@ func TestWithStats(t *testing.T) {
 	ran := errors.New("the run failed")
 
 	tests := []struct {
-		name string
-		run  error
-		want error
+		name     string
+		run      error
+		broken   bool
+		elapsed  time.Duration
+		want     error
+		wantLine string
 	}{
 		{
 			name: "should prefer the run's error over a summary that could not be written",
-			run:  ran, want: ran,
+			run:  ran, broken: true, want: ran,
 		},
 		{
-			name: "should report a failed summary write when the run succeeded",
-			want: errBroken,
+			name:   "should report a failed summary write when the run succeeded",
+			broken: true, want: errBroken,
+		},
+		{
+			name:    "should report the elapsed time between the clock's two readings",
+			elapsed: 1500 * time.Millisecond,
+			wantLine: "1 request, 1 question, 0 in / 0 out, model onesie-1.13.0, 0 attempts, " +
+				"10s/attempt, 1.5s\n",
+		},
+		{
+			name:    "should report a sub second run to the millisecond",
+			elapsed: 250*time.Millisecond + 400*time.Microsecond,
+			wantLine: "1 request, 1 question, 0 in / 0 out, model onesie-1.13.0, 0 attempts, " +
+				"10s/attempt, 250ms\n",
 		},
 	}
 
@@ -629,10 +659,18 @@ func TestWithStats(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			cmd := &cobra.Command{}
-			cmd.SetErr(brokenWriter{})
+			var errOut strings.Builder
 
-			got := withStats(cmd, &runFlags{stats: true}, func(c *collector) error {
+			cmd := &cobra.Command{}
+			cmd.SetErr(&errOut)
+
+			if tc.broken {
+				cmd.SetErr(brokenWriter{})
+			}
+
+			now := ticking(time.Date(2026, 9, 24, 12, 0, 0, 0, time.UTC), tc.elapsed)
+
+			got := withStats(cmd, now, &runFlags{stats: true, timeout: 10}, func(c *collector) error {
 				c.record("onesie-1.13.0", jev.Usage{}, 1)
 
 				return tc.run
@@ -641,7 +679,22 @@ func TestWithStats(t *testing.T) {
 			if !errors.Is(got, tc.want) {
 				t.Errorf("withStats() = %v, want %v", got, tc.want)
 			}
+
+			if tc.wantLine != "" && errOut.String() != tc.wantLine {
+				t.Errorf("stderr = %q, want %q", errOut.String(), tc.wantLine)
+			}
 		})
+	}
+}
+
+func ticking(start time.Time, step time.Duration) func() time.Time {
+	next := start
+
+	return func() time.Time {
+		current := next
+		next = next.Add(step)
+
+		return current
 	}
 }
 

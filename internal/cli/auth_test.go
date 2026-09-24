@@ -1457,6 +1457,10 @@ func TestCredentialPath(t *testing.T) {
 		nested []string
 	}{
 		{
+			name:   "should resolve the credential file under the home directory",
+			nested: []string{".config", "onesie"},
+		},
+		{
 			name:     "should resolve the credential file from ONESIE_CONFIG_DIR",
 			variable: "ONESIE_CONFIG_DIR",
 		},
@@ -1483,11 +1487,17 @@ func TestCredentialPath(t *testing.T) {
 				t.Fatalf("writing the credential fixture: %v", err)
 			}
 
-			// Only the environment is replaced. WithCredentialPath would stand in for the resolver
-			// under test, and with it the ordering in NewRootCmd that hands the resolver the
-			// injected lookup rather than the real environment.
+			// Only the environment and the home directory are replaced. WithCredentialPath would
+			// stand in for the resolver under test, and with it the ordering in NewRootCmd that
+			// hands the resolver the injected lookups rather than the real ones.
+			env := map[string]string{}
+			if tc.variable != "" {
+				env[tc.variable] = dir
+			}
+
 			out, errOut, code := runAuth(t, []string{"auth", "status"},
-				WithLookupEnv(lookupFrom(map[string]string{tc.variable: dir})))
+				WithLookupEnv(lookupFrom(env)),
+				WithHomeDir(func() (string, error) { return dir, nil }))
 
 			assertNoSecret(t, out, errOut)
 

@@ -133,9 +133,14 @@ func (s Stats) retryBreakdown() string {
 	return strings.Join(parts, ", ")
 }
 
-func withStats(cmd *cobra.Command, flags *runFlags, body func(*collector) error) error {
+func withStats(
+	cmd *cobra.Command,
+	now func() time.Time,
+	flags *runFlags,
+	body func(*collector) error,
+) error {
 	stats := &collector{}
-	started := time.Now()
+	started := now()
 
 	err := body(stats)
 
@@ -143,7 +148,7 @@ func withStats(cmd *cobra.Command, flags *runFlags, body func(*collector) error)
 		return err
 	}
 
-	summary := stats.snapshot(time.Duration(flags.timeout)*time.Second, time.Since(started))
+	summary := stats.snapshot(time.Duration(flags.timeout)*time.Second, now().Sub(started))
 
 	// A run that failed before it read a record or made an attempt never started, and a line of
 	// zeros beside the error reads as a run that was made and came back empty. An empty stream is

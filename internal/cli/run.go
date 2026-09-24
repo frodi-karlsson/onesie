@@ -42,7 +42,7 @@ func run(
 			return checkErr
 		}
 
-		return withStats(cmd, flags, func(stats *collector) error {
+		return withStats(cmd, settings.now, flags, func(stats *collector) error {
 			return listModels(cmd, settings, stats)
 		})
 	}
@@ -52,7 +52,7 @@ func run(
 			return checkErr
 		}
 
-		return withStats(cmd, flags, func(stats *collector) error {
+		return withStats(cmd, settings.now, flags, func(stats *collector) error {
 			return streamRaw(cmd, settings, flags, stats)
 		})
 	}
@@ -91,7 +91,7 @@ func run(
 	}
 
 	if inputMode.Streaming() {
-		return withStats(cmd, flags, func(stats *collector) error {
+		return withStats(cmd, settings.now, flags, func(stats *collector) error {
 			return stream(cmd, settings, built, inputMode, outputMode, flags, gate, stats)
 		})
 	}
@@ -150,7 +150,7 @@ func run(
 			mergeKey(flags))
 	}
 
-	return withStats(cmd, flags, func(stats *collector) error {
+	return withStats(cmd, settings.now, flags, func(stats *collector) error {
 		return ask(cmd, settings, built, resolved, outputMode, flags, gate, stats)
 	})
 }
@@ -586,7 +586,7 @@ func writeRecord(
 
 	if mode == output.Table {
 		return output.WriteTable(
-			cmd.OutOrStdout(), record, output.Width(settings.lookupEnv, terminalWidth))
+			cmd.OutOrStdout(), record, output.Width(settings.lookupEnv, settings.terminalWidth))
 	}
 
 	return output.Write(cmd.OutOrStdout(), mode, record)

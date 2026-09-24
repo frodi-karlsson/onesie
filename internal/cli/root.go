@@ -10,6 +10,7 @@ import (
 	"os"
 	"runtime"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
@@ -39,25 +40,28 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 	flags := &runFlags{}
 
 	settings := rootSettings{
-		stdin:      os.Stdin,
-		stdinTTY:   isTerminal(os.Stdin),
-		stdoutTTY:  isTerminal(os.Stdout),
-		readFile:   os.ReadFile,
-		openFile:   os.OpenFile,
-		lookupEnv:  os.LookupEnv,
-		credStore:  creds.NewStore(),
-		keychain:   creds.NewKeychain(),
-		readSecret: readHiddenSecret,
+		stdin:         os.Stdin,
+		stdinTTY:      isTerminal(os.Stdin),
+		stdoutTTY:     isTerminal(os.Stdout),
+		readFile:      os.ReadFile,
+		openFile:      os.OpenFile,
+		lookupEnv:     os.LookupEnv,
+		homeDir:       os.UserHomeDir,
+		now:           time.Now,
+		terminalWidth: widthOf(os.Stdout),
+		credStore:     creds.NewStore(),
+		keychain:      creds.NewKeychain(),
+		readSecret:    readHiddenSecret,
 	}
 
 	for _, opt := range opts {
 		opt(&settings)
 	}
 
-	// Installed after the options, since it reads the environment lookup a test may have replaced,
-	// and before the factory, which resolves the credential file through it.
+	// Installed after the options, since it reads the environment lookup and home directory a test
+	// may have replaced, and before the factory, which resolves the credential file through it.
 	if settings.credPath == nil {
-		settings.credPath = credentialPath(settings.lookupEnv)
+		settings.credPath = credentialPath(settings.lookupEnv, settings.homeDir)
 	}
 
 	// The factory reads flags, which are parsed after this returns, so it closes over the pointer.
@@ -259,6 +263,29 @@ func WithLookupEnv(lookup func(string) (string, bool)) RootOption {
 	}
 }
 
+// WithHomeDir replaces how the home directory is found, which the credential file falls back to
+// when no environment variable names its location.
+func WithHomeDir(home func() (string, error)) RootOption {
+	return func(s *rootSettings) {
+		s.homeDir = home
+	}
+}
+
+// WithNow replaces the clock the --stats line measures elapsed time with.
+func WithNow(now func() time.Time) RootOption {
+	return func(s *rootSettings) {
+		s.now = now
+	}
+}
+
+// WithTerminalWidth replaces how table output learns the terminal's width, which a test cannot
+// otherwise control.
+func WithTerminalWidth(width func() (int, bool)) RootOption {
+	return func(s *rootSettings) {
+		s.terminalWidth = width
+	}
+}
+
 // WithCredentialPath replaces how the credential file's location is resolved, so a test needs no
 // real home directory.
 func WithCredentialPath(path func() (string, error)) RootOption {
@@ -303,17 +330,20 @@ type BuildInfo struct {
 }
 
 type rootSettings struct {
-	newClient  clientFactory
-	stdin      io.Reader
-	stdinTTY   bool
-	stdoutTTY  bool
-	readFile   func(string) ([]byte, error)
-	openFile   func(name string, flag int, perm os.FileMode) (*os.File, error)
-	lookupEnv  func(string) (string, bool)
-	credPath   func() (string, error)
-	credStore  creds.Store
-	keychain   Keychain
-	readSecret func() (string, error)
+	newClient     clientFactory
+	stdin         io.Reader
+	stdinTTY      bool
+	stdoutTTY     bool
+	readFile      func(string) ([]byte, error)
+	openFile      func(name string, flag int, perm os.FileMode) (*os.File, error)
+	lookupEnv     func(string) (string, bool)
+	homeDir       func() (string, error)
+	now           func() time.Time
+	terminalWidth func() (int, bool)
+	credPath      func() (string, error)
+	credStore     creds.Store
+	keychain      Keychain
+	readSecret    func() (string, error)
 }
 
 var groupFlagHelp = map[string]string{
@@ -340,21 +370,26 @@ func limitsBlock() string {
 	return out.String()
 }
 
-func terminalWidth() (int, bool) {
-	columns, _, err := term.GetSize(int(os.Stdout.Fd()))
-	if err != nil || columns <= 0 {
-		return 0, false
-	}
+func widthOf(f *os.File) func() (int, bool) {
+	return func() (int, bool) {
+		columns, _, err := term.GetSize(int(f.Fd()))
+		if err != nil || columns <= 0 {
+			return 0, false
+		}
 
-	return columns, true
+		return columns, true
+	}
 }
 
-func credentialPath(lookupEnv func(string) (string, bool)) func() (string, error) {
+func credentialPath(
+	lookupEnv func(string) (string, bool),
+	homeDir func() (string, error),
+) func() (string, error) {
 	return func() (string, error) {
 		return creds.Path(creds.Env{
 			Lookup: lookupEnv,
 			GOOS:   runtime.GOOS,
-			Home:   os.UserHomeDir,
+			Home:   homeDir,
 		})
 	}
 }
