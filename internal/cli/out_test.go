@@ -9,11 +9,13 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync/atomic"
 	"testing"
 
 	"github.com/frodi-karlsson/onesie/internal/jev"
+	"github.com/frodi-karlsson/onesie/internal/output"
 	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
@@ -563,6 +565,166 @@ func TestOutFile_Write(t *testing.T) {
 
 			if strings.Join(renames, ",") != strings.Join(tc.wantRenames, ",") {
 				t.Errorf("renames = %q, want %q", renames, tc.wantRenames)
+			}
+		})
+	}
+}
+
+func TestOutFile_Finish(t *testing.T) {
+	t.Parallel()
+
+	const appended = "{\"id\":2,\"answer\":0.5}\n{\"id\":1,\"answer\":0.5}\n"
+
+	const compacted = "{\"id\":1,\"answer\":0.5}\n{\"id\":2,\"answer\":0.5}\n"
+
+	failed := errors.New("disk full")
+
+	tests := []struct {
+		name        string
+		rename      func(string, string) error
+		open        func(string, int, os.FileMode) (*os.File, error)
+		link        bool
+		goos        string
+		wantErr     string
+		wantFile    string
+		wantDirSync bool
+	}{
+		{
+			name:        "should rewrite the file in input order through a rename",
+			wantFile:    compacted,
+			wantDirSync: true,
+		},
+		{
+			name: "should leave the uncompacted file when the rename fails",
+			rename: func(from, to string) error {
+				if strings.HasSuffix(from, compactSuffix) {
+					return failed
+				}
+
+				return os.Rename(from, to)
+			},
+			wantErr:  "disk full",
+			wantFile: appended,
+		},
+		{
+			name: "should leave the uncompacted file when the temporary file cannot be opened",
+			open: func(name string, flag int, perm os.FileMode) (*os.File, error) {
+				if strings.HasSuffix(name, compactSuffix) {
+					return nil, failed
+				}
+
+				return os.OpenFile(name, flag, perm)
+			},
+			wantErr:  "disk full",
+			wantFile: appended,
+		},
+		{
+			name:        "should write through a symlink at the path and leave the link in place",
+			link:        true,
+			wantFile:    compacted,
+			wantDirSync: true,
+		},
+		{
+			name:     "should not flush the directory on windows, which cannot",
+			goos:     "windows",
+			wantFile: compacted,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if tc.link && runtime.GOOS == "windows" {
+				t.Skip("creating a symlink on windows needs a privilege the test may not have")
+			}
+
+			dir := t.TempDir()
+			path := filepath.Join(dir, "answers.jsonl")
+			target := path
+
+			if tc.link {
+				target = filepath.Join(dir, "target.jsonl")
+				if err := os.Symlink(target, path); err != nil {
+					t.Fatalf("linking: %v", err)
+				}
+			}
+
+			if err := os.WriteFile(target, nil, 0o600); err != nil {
+				t.Fatalf("writing the existing file: %v", err)
+			}
+
+			rename := tc.rename
+			if rename == nil {
+				rename = os.Rename
+			}
+
+			open := tc.open
+			if open == nil {
+				open = os.OpenFile
+			}
+
+			goos := tc.goos
+			if goos == "" {
+				goos = "linux"
+			}
+
+			resolvedDir, resolveErr := filepath.EvalSymlinks(dir)
+			if resolveErr != nil {
+				t.Fatalf("resolving the directory: %v", resolveErr)
+			}
+
+			var dirSynced atomic.Bool
+
+			out := &outFile{
+				path: path,
+				open: func(name string, flag int, perm os.FileMode) (*os.File, error) {
+					if name == resolvedDir {
+						dirSynced.Store(true)
+					}
+
+					return open(name, flag, perm)
+				},
+				rename:  rename,
+				remove:  os.Remove,
+				resolve: filepath.EvalSymlinks,
+				goos:    goos,
+				resume:  true,
+			}
+			if err := out.bind("v1:" + strings.Repeat("a", 64)); err != nil {
+				t.Fatalf("bind: %v", err)
+			}
+
+			if _, err := io.WriteString(out, appended); err != nil {
+				t.Fatalf("write: %v", err)
+			}
+
+			half := int64(len(appended) / 2)
+			out.compactInto([]span{{start: half, end: 2 * half}, {start: 0, end: half}}, output.Values)
+
+			err := out.finish(nil)
+			if !strings.Contains(fmt.Sprint(err), tc.wantErr) || (tc.wantErr == "") != (err == nil) {
+				t.Fatalf("error = %v, want %q", err, tc.wantErr)
+			}
+
+			assertFileHolds(t, target, tc.wantFile)
+
+			if runtime.GOOS != "windows" {
+				assertMode(t, target, 0o600)
+			}
+
+			if info, statErr := os.Lstat(path); statErr != nil || (info.Mode()&os.ModeSymlink != 0) != tc.link {
+				t.Errorf("path = %v, %v, want a symlink %v", info, statErr, tc.link)
+			}
+
+			for _, beside := range []string{path, target} {
+				if _, statErr := os.Stat(beside + compactSuffix); !os.IsNotExist(statErr) {
+					t.Errorf("temporary compaction file left behind: %v", statErr)
+				}
+			}
+
+			if dirSynced.Load() != tc.wantDirSync {
+				t.Errorf("directory flushed = %v, want %v", dirSynced.Load(), tc.wantDirSync)
 			}
 		})
 	}
