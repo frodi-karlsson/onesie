@@ -21,7 +21,10 @@ ground. A stream keeps the most severe code: 6 beats 1, and 1 beats 7.
 
 A stream that stops early takes the code of what stopped it. An auth failure stops it with 3.
 `--stop-on-error` stops it with the failing record's own code, such as 4 or 5, not 6.
-`--stop-on-assert` stops it with 1.
+`--stop-on-assert` stops it with 1, or with 6 when an earlier record failed.
+A resume under `--stop-on-assert` stops at a skipped false assertion the same way.
+A resume without `--id` under `--stop-on-error` stops at a skipped error line with the code the
+run that wrote it exited with. With `--id` the failed record is asked again instead.
 
 ## On exit 3
 
@@ -60,15 +63,17 @@ Exit 3 also covers these:
 | `unknown flag`, `unknown command` or `accepts at most 1 arg` | a typo in a flag name, a flag cobra cannot see, such as `--api-key` after a subcommand or any flag after `--`, or an unquoted question |
 | a complaint about a flag you never typed | a question beginning with a dash was read as flags. Put the flags first, then `--`, then the question |
 | `no state given` | nothing arrived on stdin and neither `--state` nor `--state-file` was passed |
-| `an empty state is a request the model cannot answer` | `--state`, `--state-file`, stdin or `--map` gave an empty or all whitespace string. In a stream it is an error line instead |
+| `an empty state is a request the model cannot answer` | `--state`, `--state-file`, stdin, a stream line or `--map` gave an empty or all whitespace string, an empty object or an empty array. In a stream it is an error line instead |
 | `no API key` | nothing resolved for the provider, see the order above. A real run and `auth test` exit 2 here, `auth status` exits 3 |
 | `is being resumed by another onesie run` | another run holds the lock beside the `--out` file |
 | `Drop --resume to start over` | the `--out` file was written by a different run, or has no fingerprint |
-| `--resume with raw output` | raw output keeps neither the id nor the gate's outcome, so a resume refuses it |
+| `--resume needs output that keeps each record's outcome` | `-o raw` and `-r` keep no id, failure or gate outcome, so a resume refuses them. Use `-o values` or `-o json` |
+| `cannot stop at a stored failure` | a resume without `--id` under `--stop-on-error` into `-o csv` or `-o tsv`, whose rows keep only a failure's message. Pass `--id`, or use `-o values` or `-o json` |
 | `the header` | the csv or tsv header is not valid, or has a blank or repeated column name |
 | `a row is longer than the limit`, with no error line | a csv row over `max-line-bytes` from `onesie -V`. It stops the run, since csv cannot find the next row after it. In tsv it is an error line instead |
-| `--usage does not apply to` | the output mode has no place for the usage object. Use `-o json` |
-| `has the name of an output column` | an input column clashes with a question id or an `id`, `assert` or `error` column |
+| `--usage does not apply to` | `-o values`, `-o raw` and `-r` write only the answers, so the message says to use `-o json`. `-o csv` and `-o tsv` have no column for it, and `-q` suppresses output |
+| `--merge-key does not apply to` | `-o csv` and `-o tsv` put the answers in columns, so they refuse `--merge-key` even beside `--merge` |
+| `has the name of an output column` | under `--merge`, an input column clashes with a question id or the `error` column, or with the `assert` column under a gate. An input `id` column never clashes |
 | `model '...' not found` | the provider does not serve that model id. Try `--list-models` |
 
 Every flag and question error is caught before any network call. Reach for `--print-request` or

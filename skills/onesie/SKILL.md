@@ -8,7 +8,8 @@ license: MIT
 
 onesie asks the TypeSafe Jev model one typed question about a piece of text from the command line.
 State goes in on stdin, `--state TEXT` or `--state-file PATH`, and `--state -` reads stdin. An
-empty or all whitespace state exits 2 before any request. A typed answer comes out on stdout, and
+empty or all whitespace string, an empty object or an empty array as state exits 2 before any
+request. A typed answer comes out on stdout, and
 the exit status is usable in a conditional.
 
 There are three question shapes, and the shape decides what you get back:
@@ -146,7 +147,7 @@ onesie --ask team='which team owns this' --pick billing,shipping --desc billing=
 
 ### Use --stats for a run summary and --usage for the tokens of each answer.
 
-`--stats` writes one line to stderr at exit, with the requests, failures, skips, tokens, attempts and model, so it never mixes into the answers on stdout. `--usage` adds the API's `usage` object to each json record and to the table header. `-o values`, `-r`, `-o raw`, `-o csv` and `-o tsv` have no place for it, so they refuse it with exit 2 before any request.
+`--stats` writes one line to stderr at exit, with the requests, failures, skips, tokens, attempts and model, so it never mixes into the answers on stdout. `--usage` adds the API's `usage` object to each json record and to the table header. `-o values`, `-r`, `-o raw`, `-o csv` and `-o tsv` have no place for it, and `-q` writes nothing, so they all refuse it with exit 2 before any request.
 
 **Good:**
 
