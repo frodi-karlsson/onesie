@@ -44,6 +44,9 @@ In Claude Code, the plugin can come first and walk you through the rest:
 - **Streams that resume.** JSONL, lines, CSV and TSV with `-j` in flight, one output record per input
   record in input order. With `--id`, an interrupted run picks up where it stopped, and a changed
   question refuses to mix old answers with new.
+- **Markdown for people.** `-o markdown` writes a PR comment or a job summary, with the gate's
+  verdict as an alert and every id and message in a code span, so an `@name` in the data pings no
+  one.
 - **Freeze and replay.** A command line becomes a question file, a run becomes its exact request
   bodies, and either replays unchanged.
 - **Exit codes that tell a no from an outage.** Nine of them, separating a no, an unsure, a bad key,
@@ -101,6 +104,22 @@ case $status in
     1) echo 'the description does not say why'; exit 1 ;;
     *) echo "onesie gave no answer, exit $status"; exit 1 ;;
 esac
+```
+
+**Comment on a pull request.** The verdict opens the comment as an alert, above a table of the
+answers.
+
+```sh
+onesie 'does this explain why the change is needed' --assert 'answer.value > 0.6' \
+    -o markdown --state "$PR_BODY" | gh pr comment "$PR" --body-file -
+```
+
+A stream becomes one table with a row per record and a summary alert. A comment holds at most 65536
+characters, so send a large stream to the job summary, or write it as csv.
+
+```sh
+onesie 'is this urgent' -i jsonl --map '.body' --id '.id' -o markdown \
+    < tickets.jsonl >> "$GITHUB_STEP_SUMMARY"
 ```
 
 **Pick a gate's cut from labelled tickets.** Calibrate first, then gate on the row you can live
@@ -240,6 +259,9 @@ accepts as a label.
   only if it fails again.
 - Raw output keeps no outcome, so `--resume` refuses `-o raw` and `-r` with exit 2. Use `-o values`
   or `-o json`.
+- `-o markdown`, or `-o md`, is for people. A table cannot be read back into answers, so it refuses
+  `--resume`, `--merge`, `-r` and `-q` with exit 2, while `--out` alone writes the table to a file.
+  An interrupt keeps the rows that finished and drops the summary.
 
 ### Keys and providers
 
