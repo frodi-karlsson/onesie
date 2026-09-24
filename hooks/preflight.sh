@@ -3,7 +3,7 @@
 # Never blocks session start, so every failure exits 0.
 
 if ! command -v onesie >/dev/null 2>&1; then
-  printf '%s\n' 'onesie is not on PATH, so the onesie skills cannot run any command yet. Ask the user to install it with: go install github.com/frodi-karlsson/onesie/cmd/onesie@latest, and to put the Go bin directory on PATH.'
+  printf '%s\n' 'onesie is not on PATH, so the onesie skills cannot run any command yet. Load the onesie-setup skill and walk the user through installing it.'
   exit 0
 fi
 
@@ -18,7 +18,7 @@ case "$source" in
       openrouter) variable=OPENROUTER_API_KEY ;;
       *) variable=TYPESAFE_API_KEY ;;
     esac
-    printf 'onesie is on PATH, but no API key resolves for provider %s. Only --print-request and --print-questions work until the user runs onesie auth set or sets %s.\n' "$provider" "$variable"
+    printf 'onesie is on PATH, but no API key resolves for provider %s. Only --print-request and --print-questions work until the user runs onesie auth set or sets %s. The onesie-setup skill walks them through it.\n' "$provider" "$variable"
     ;;
   ?*)
     printf 'onesie is on PATH and a key resolves, provider: %s, source: %s.\n' "$provider" "$source"
