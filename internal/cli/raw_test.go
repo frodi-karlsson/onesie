@@ -739,8 +739,6 @@ func TestNewRootCmdWarnsOnce(t *testing.T) {
 	}
 }
 
-// runRequestMode runs the given arguments against a stub that answers every body with the same
-// response, and returns the request bodies it received in arrival order.
 func runRequestMode(
 	t *testing.T,
 	args []string,

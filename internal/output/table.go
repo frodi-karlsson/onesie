@@ -8,14 +8,10 @@ import (
 )
 
 const (
-	// fallbackWidth is the conventional terminal width, used when nothing better is known.
 	fallbackWidth = 80
 	labelWidth    = 16
-	// numberWidth covers the two leading spaces, the space before the number, and a value such as
-	// 0.1234.
-	numberWidth = 9
-	// minBarWidth keeps a bar readable on a narrow terminal.
-	minBarWidth = 8
+	numberWidth   = 9 // Two leading spaces, the space before the number and a value such as 0.1234.
+	minBarWidth   = 8
 )
 
 // Width resolves the width for the probability bars. Both lookups are injected, so this package

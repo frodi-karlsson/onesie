@@ -54,9 +54,8 @@ type Resolved struct {
 	State  any
 	Raw    string
 
-	// Wire is what reaches the API and any merge wrapper. It is the raw bytes for a JSON mode, so
-	// a large integer keeps its digits and an object keeps its key order, and the parsed value for
-	// a text mode. State stays parsed, for the checks that need a Go value.
+	// Wire is what reaches the API. It is the raw bytes for a JSON mode, keeping large integers and
+	// key order, and the parsed value for a text mode.
 	Wire any
 }
 

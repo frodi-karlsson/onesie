@@ -65,10 +65,8 @@ func New(opts ...Option) (*Client, error) {
 	return c, nil
 }
 
-// Client talks to the TypeSafe System One API. Build one with New.
-//
-// A Client is safe for concurrent use by multiple goroutines. Any Clock, random source or
-// RetryStatus predicate passed to New must be safe for concurrent use too.
+// Client talks to the TypeSafe System One API and is safe for concurrent use. Build one with New,
+// passing only a Clock, random source or RetryStatus that is safe for concurrent use too.
 type Client struct {
 	apiKey           string
 	baseURL          string
@@ -165,9 +163,8 @@ func MarshalBody(req Request) ([]byte, error) {
 	}{State: req.State, Model: req.Model, Questions: req.Questions})
 }
 
-// MarshalQuestionsBody encodes a request with no state at all, which is the body a question only
-// print produces and which -f accepts. A state that is legitimately null or empty is why this is a
-// second encoder rather than an omitempty tag on the first.
+// MarshalQuestionsBody encodes a request with no state, the body a question only print produces and
+// -f accepts. It is a second encoder because a null or empty state is legitimate.
 func MarshalQuestionsBody(req Request) ([]byte, error) {
 	return json.Marshal(struct {
 		Model     string    `json:"model"`
@@ -175,9 +172,8 @@ func MarshalQuestionsBody(req Request) ([]byte, error) {
 	}{Model: req.Model, Questions: req.Questions})
 }
 
-// SystemOneRaw sends a prepared request body and returns the response body unchanged. It runs the
-// same retry loop as SystemOne and performs no validation or normalization. The request body is
-// compacted on the way out, since encoding/json compacts whatever a Marshaler returns.
+// SystemOneRaw sends a prepared request body through the SystemOne retry loop and returns the
+// response body unchanged, with no validation or normalization.
 func (c *Client) SystemOneRaw(
 	ctx context.Context,
 	body json.RawMessage,

@@ -1,7 +1,5 @@
-// Package skillcheck runs every rule's bad and good example in a skill through a onesie dry run, per
-// spec section 6.1. A good passes unless it carries good_fails, and a bad fails unless it carries
-// bad_passes. An example carrying good_unverifiable or bad_unverifiable is skipped with that reason
-// rather than run.
+// Package skillcheck dry runs every rule's bad and good example in a skill, per spec section 6.1.
+// The good_fails, bad_passes and unverifiable markers invert or skip an example.
 package skillcheck
 
 import (
@@ -12,10 +10,8 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/skillgen"
 )
 
-// Check runs every rule's bad and good example under root through runner. An example that cannot
-// be parsed as a onesie invocation is skipped rather than counted as a failure, since a jq filter or
-// a rule about model behaviour carries no command a dry run can replay. Every skip is reported
-// with why, so a skill drifting to unverifiable examples is visible rather than merely countable.
+// Check runs every rule's bad and good example under root through runner. An example that is not a
+// onesie invocation is skipped, and every skip is reported with its reason.
 func Check(ctx context.Context, root string, runner *Runner) (Report, error) {
 	found, err := skillgen.Skills(root)
 	if err != nil {

@@ -14,9 +14,6 @@ import (
 )
 
 const (
-	// sourceFlag cannot be reached from auth status. Section 16.3 keeps --api-key root local, so
-	// cobra rejects it on a subcommand in either position. It is here for the ordinary run path,
-	// where the flag is reachable and outranks both later sources.
 	sourceFlag     = "flag"
 	sourceEnv      = "env"
 	sourceFile     = "file"
@@ -462,6 +459,9 @@ func locateKey(settings rootSettings, flags *runFlags) (keySource, error) {
 		return keySource{}, err
 	}
 
+	// auth status never reaches this, since section 16.3 keeps --api-key root local and cobra
+	// rejects it on a subcommand. The ordinary run path does, where the flag outranks both later
+	// sources.
 	if key := strings.TrimSpace(flags.apiKey); key != "" {
 		return keySource{name: sourceFlag, provider: provider, key: key}, nil
 	}
@@ -513,10 +513,8 @@ type keySource struct {
 	provider jev.Provider
 	path     string
 	account  string
-	// key is never printed. String is what every caller formats, so a stray %v of a keySource
-	// reports the source rather than the value it carries.
-	key     string
-	baseURL string
+	key      string // Never printed. Callers format String, so a stray %v shows the source.
+	baseURL  string
 }
 
 func (s keySource) String() string {

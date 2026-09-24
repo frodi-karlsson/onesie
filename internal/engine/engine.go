@@ -33,9 +33,8 @@ type Config[R, T any] struct {
 	// authentication failure stops a stream that would otherwise fail the same way on every line.
 	Abort func(error) bool
 
-	// Stop reports whether a written line ends the run, for an outcome that is not a failure. It
-	// is how --stop-on-assert ends a stream at the first false assertion, which is a judgment
-	// about a complete record rather than a reason to count it failed.
+	// Stop reports whether a written line ends the run without counting it failed. It is how
+	// --stop-on-assert ends a stream at the first false assertion.
 	Stop func(T) bool
 }
 

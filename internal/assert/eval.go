@@ -7,9 +7,8 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/output"
 )
 
-// Eval reports whether the expression holds for a record. It returns no error, because Check has
-// already proved every path and every comparison against the plan, which is the promise §17.3
-// makes. A nil expression is no assertion at all, so it holds.
+// Eval reports whether the expression holds for a record, and a nil expression always holds. It
+// returns no error, since Check has already proved the expression against the plan, per §17.3.
 func Eval(expr *Expr, record output.Record) bool {
 	if expr == nil {
 		return true

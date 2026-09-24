@@ -4,9 +4,7 @@ package input
 
 import "fmt"
 
-// maxLineBytes caps one input line. bufio's default of 64KiB is too small for a state that is a
-// whole document, and an unbounded reader would let one malformed line exhaust memory.
-const maxLineBytes = 8 << 20
+const maxLineBytes = 8 << 20 // bufio's 64KiB is too small for a document, and no cap lets a line exhaust memory.
 
 // Source names where the state came from. It is resolved once, before any read.
 type Source int

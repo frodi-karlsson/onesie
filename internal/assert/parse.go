@@ -6,11 +6,7 @@ import (
 	"strings"
 )
 
-// A hand written gate nests a handful of levels deep. This is far past anything a person types and
-// far short of what exhausts a stack, and it bounds the nesting Parse accepts from one source.
-// Combine chains parsed expressions outside it, so a walk over the result is one level deeper per
-// expression combined.
-const maxDepth = 256
+const maxDepth = 256 // Far past anything a person types and far short of what exhausts a stack.
 
 // Parse reads one §17.2 expression. Its errors carry the column they were found at and no onesie
 // prefix, which the caller owns.
@@ -37,10 +33,8 @@ func Parse(source string) (*Expr, error) {
 	return &Expr{root: root, source: source}, nil
 }
 
-// Combine folds several expressions into one, joined by and, in the order given. It is what makes
-// several --assert flags a single gate. A nil entry is skipped, and combining none or only nil
-// returns nil, which a caller reads as no assertion to evaluate. A node column stays relative to
-// the source its own expression was parsed from and does not index into the combined source.
+// Combine joins expressions with and, in the order given, skipping nil entries and returning nil
+// for none. Each node's column stays relative to its own expression's source.
 func Combine(exprs ...*Expr) *Expr {
 	present := make([]*Expr, 0, len(exprs))
 	for _, expr := range exprs {
@@ -136,9 +130,10 @@ func (p *parser) parseAnd() (node, error) {
 	return left, nil
 }
 
-// Every path back into parseExpr runs through here, so counting this one entry bounds the descent.
-// A stack overflow is a fatal error no recover reaches, and §17.5's assert key has no size limit.
 func (p *parser) parseUnary() (node, error) {
+	// Every path back into parseExpr runs through here, so counting this one entry bounds the
+	// descent. A stack overflow is a fatal error no recover reaches, and §17.5's assert key has no
+	// size limit.
 	p.depth++
 	defer func() { p.depth-- }()
 

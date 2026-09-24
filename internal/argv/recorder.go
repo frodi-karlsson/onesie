@@ -42,9 +42,8 @@ func (v *recorded) Set(value string) error {
 	return nil
 }
 
-// String is what pflag prints as the default. These flags are repeatable and have no single
-// default, so it is deliberately empty.
 func (v *recorded) String() string {
+	// pflag prints this as the default, and a repeatable flag has no single default.
 	return ""
 }
 

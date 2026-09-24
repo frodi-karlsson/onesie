@@ -423,8 +423,6 @@ func TestNewRootCmdListModelsTimeoutFlag(t *testing.T) {
 	})
 }
 
-// runRealFactory runs the given arguments through the client factory the binary uses, which is the
-// only one the timing flags are wired onto.
 func runRealFactory(t *testing.T, args []string) (string, string, int) {
 	t.Helper()
 

@@ -98,9 +98,8 @@ type Record struct {
 	Line int
 	// State is the parsed value, which the pre flight checks read. It is nil when Err is set.
 	State any
-	// Wire is what reaches the API and any merge wrapper. It is the raw bytes for a JSON mode, so
-	// a large integer keeps its digits and an object keeps its key order, and the parsed value for
-	// a text mode. State stays parsed, for the checks that need a Go value.
+	// Wire is what reaches the API. It is the raw bytes for a JSON mode, keeping large integers and
+	// key order, and the parsed value for a text mode.
 	Wire any
 	// Raw is the line exactly as read, which --merge folds the answers into. For a csv or tsv row
 	// it is the row as a JSON object, which is what was sent.
@@ -118,9 +117,8 @@ type LineError struct {
 	Err  error
 }
 
-// Error names the line, since a message that locates nothing in a ten thousand line file is not
-// worth printing. There is deliberately no onesie prefix: the stderr writer adds one, and inside a
-// JSON error record the prefix is noise.
+// Error names the line, so the message locates the record. It carries no onesie prefix, since the
+// stderr writer adds one and inside a JSON error record it is noise.
 func (e *LineError) Error() string {
 	// Line zero is stdin itself failing rather than a bad line, and quoting a line number nothing
 	// has would send the reader looking for it.

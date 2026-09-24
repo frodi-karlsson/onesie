@@ -50,8 +50,6 @@ func openOut(settings rootSettings, flags *runFlags) (*outFile, error) {
 	return out, nil
 }
 
-// outFile is only opened on the first write, so a command rejected before it produces anything
-// leaves the file, and the answers a resume needs, untouched.
 type outFile struct {
 	path   string
 	open   func(name string, flag int, perm os.FileMode) (*os.File, error)
@@ -61,6 +59,8 @@ type outFile struct {
 }
 
 func (o *outFile) Write(p []byte) (int, error) {
+	// Opened on the first write, so a command rejected before it writes leaves the file, and the
+	// answers a resume needs, untouched.
 	if o.file == nil {
 		if err := o.create(); err != nil {
 			return 0, err

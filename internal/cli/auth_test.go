@@ -1860,8 +1860,6 @@ func runCredentialFile(
 	return out.String(), errOut.String(), code
 }
 
-// recordingServer answers one question and hands back every Authorization header it was sent, so a
-// case can name which source the key came from without printing it.
 func recordingServer(t *testing.T, status int) (*httptest.Server, func() []string) {
 	t.Helper()
 
@@ -1943,8 +1941,6 @@ func credentialFixture(t *testing.T, content string, mode os.FileMode) string {
 	return filepath.Join(credentialDir(t, content, mode), "credentials.json")
 }
 
-// credentialDir returns the directory ONESIE_CONFIG_DIR names, holding the file when there is content
-// for one, so a case can exercise the production path resolver rather than stand in for it.
 func credentialDir(t *testing.T, content string, mode os.FileMode) string {
 	t.Helper()
 
@@ -1984,14 +1980,11 @@ func lookupFrom(env map[string]string) func(string) (string, bool) {
 	}
 }
 
-// assertNoSecret is the assertion the whole subcommand exists to satisfy. Every fixture key in this
-// file carries the SECRET- prefix, so one scan covers the flag, the environment, the file and the
-// prompt at once.
 func assertNoSecret(t *testing.T, out, errOut string) {
 	t.Helper()
 
-	// Neither stream is printed on failure, since a failure message that quoted it would leak the
-	// key the assertion is about.
+	// Every fixture key in this file carries the SECRET- prefix, so one scan covers every source.
+	// Neither stream is printed on failure, since quoting it would leak the key.
 	if strings.Contains(out, "SECRET-") {
 		t.Error("stdout carries a key")
 	}

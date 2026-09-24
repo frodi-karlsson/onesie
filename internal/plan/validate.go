@@ -125,9 +125,8 @@ type Config struct {
 	Raw   bool
 	Quiet bool
 
-	// HasAssert records that an assertion was given, which is the second way a pick or rate
-	// question satisfies the -q rule. §17.5. A question file's top level key counts, so this is
-	// not the same as the flag being typed.
+	// HasAssert records that an assertion was given, by the flag or by a question file's key. It is
+	// the second way a pick or rate question satisfies the -q rule, per §17.5.
 	HasAssert bool
 	// AssertName is the assertion as the user spelled it, so a message names a file's 'assert' key
 	// when that is where the gate came from. It defaults to --assert when empty.
@@ -157,9 +156,7 @@ type Config struct {
 	PrintQuestions bool
 	PrintRequest   bool
 
-	// Stats is --stats, which summarises a run that made requests. It sits here rather than beside
-	// the timing flags because the only rules it has are the print flags it cannot be combined
-	// with.
+	// Stats is --stats, which summarises a run that made requests.
 	Stats bool
 
 	// Streaming is true for an input mode that reads one record per line.

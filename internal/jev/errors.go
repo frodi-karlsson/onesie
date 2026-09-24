@@ -313,11 +313,8 @@ func (e *ConnectionError) Is(target error) bool {
 	return target == ErrConnection
 }
 
-// TimeoutError is a ConnectionError whose cause was the attempt deadline.
-//
-// Unwrap reaches the embedded ConnectionError and then the transport error, which itself wraps
-// context.DeadlineExceeded. A caller testing errors.Is against context.DeadlineExceeded to detect
-// its own deadline will therefore match an attempt timeout too.
+// TimeoutError is a ConnectionError whose cause was the attempt deadline. It unwraps to
+// context.DeadlineExceeded, so errors.Is against a caller's own deadline matches it too.
 type TimeoutError struct {
 	ConnectionError
 

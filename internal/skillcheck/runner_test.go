@@ -44,9 +44,8 @@ func TestRunProcess(t *testing.T) {
 	})
 }
 
-// TestHelperProcessSleeps is not a real test. TestRunProcess re-execs the test binary as a
-// helper process that runs long enough to be killed by a deadline, the way the exec package's
-// own tests do, since a real hang has to be a real process for the deadline logic to see.
+// TestHelperProcessSleeps is not a real test. TestRunProcess re-execs the binary into it, since
+// only a real process lets the deadline logic see a real hang.
 func TestHelperProcessSleeps(t *testing.T) {
 	if os.Getenv("SKILLCHECK_WANT_HELPER_PROCESS") != "1" {
 		return

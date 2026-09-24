@@ -23,9 +23,8 @@ type Stats struct {
 	Records  int
 	Requests int
 	Failed   int
-	// FalseAsserts counts the records whose assertion did not hold. A false assertion is a
-	// judgment about a complete record rather than a failure, so §17.6 gives it a count of its
-	// own beside Failed.
+	// FalseAsserts counts the records whose assertion did not hold. §17.6 counts them apart from
+	// Failed, since a false assertion judges a complete record.
 	FalseAsserts   int
 	Questions      int
 	InputTokens    int
@@ -170,19 +169,16 @@ func withStats(
 type collector struct {
 	mu sync.Mutex
 
-	records      int
-	requests     int
-	failed       int
-	falseAsserts int
-	questions    int
-	inputTokens  int
-	outputTokens int
-	models       map[string]struct{}
-	attempts     int
-	// failedAttempts counts every attempt that did not come back 2xx, by status. terminal counts
-	// the subset that ended its record instead of causing a retry, so the difference between the
-	// two is the retry breakdown.
-	failedAttempts map[int]int
+	records        int
+	requests       int
+	failed         int
+	falseAsserts   int
+	questions      int
+	inputTokens    int
+	outputTokens   int
+	models         map[string]struct{}
+	attempts       int
+	failedAttempts map[int]int // Non 2xx attempts by status. Less terminal, it is the retry breakdown.
 	terminal       map[int]int
 }
 

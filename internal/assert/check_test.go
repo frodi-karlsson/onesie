@@ -343,9 +343,8 @@ func TestCheck(t *testing.T) {
 	})
 }
 
-// TestCheckSpellsTheOrigin holds the assertion messages to plan's rule, that a message spells the
-// offending thing the way the question was written. §17.8 publishes the flag spelling, which is
-// what a command line question still gets.
+// TestCheckSpellsTheOrigin holds assertion messages to plan's rule of spelling the offending thing
+// the way the question was written. §17.8 publishes the flag spelling.
 func TestCheckSpellsTheOrigin(t *testing.T) {
 	t.Parallel()
 
@@ -431,9 +430,8 @@ func TestCheckSpellsTheOrigin(t *testing.T) {
 	}
 }
 
-// TestCheckedPaths is §17.3's promise as a test: every path the table allows is accepted with the
-// type the table gives it and resolves to that value in a normalized record, and everything else
-// is rejected. Check types it and Eval reads it, so the promise is proved end to end.
+// TestCheckedPaths proves §17.3 end to end: every path the table allows is accepted with its type
+// and resolves in a normalized record, and everything else is rejected.
 func TestCheckedPaths(t *testing.T) {
 	t.Parallel()
 
@@ -594,9 +592,8 @@ func TestCheckedPaths(t *testing.T) {
 	})
 }
 
-// TestCheckedPathsOnAssembledPlan is the same promise over a plan every other check in onesie accepts.
-// TestCheckedPaths builds its fixture by hand and includes a question §11 rejects, so on its own it
-// leaves the promise unproved for the plans the pipeline actually produces.
+// TestCheckedPathsOnAssembledPlan holds the same promise over a plan the pipeline accepts, since
+// TestCheckedPaths includes a question §11 rejects.
 func TestCheckedPathsOnAssembledPlan(t *testing.T) {
 	t.Parallel()
 

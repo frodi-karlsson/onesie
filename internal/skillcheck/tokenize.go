@@ -2,9 +2,7 @@ package skillcheck
 
 import "regexp"
 
-// The forms an example keeps a dry run's output out of the reader's way with. A dry run never
-// runs through a shell, so these are noise rather than argv.
-var trailingRedirect = regexp.MustCompile(
+var trailingRedirect = regexp.MustCompile( // A dry run has no shell, so these are noise, not argv.
 	`(?:\s+(?:>\s*/dev/null|[12]?>&[12]|[12]>\s*/dev/null))+\s*$`)
 
 // Tokenize splits command into argv without a shell. reason is empty on success, and otherwise

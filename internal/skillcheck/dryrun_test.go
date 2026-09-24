@@ -224,15 +224,8 @@ func TestDryRunArgsProtectsAnUnstrippedFlagsValue(t *testing.T) {
 	}
 }
 
-// TestDryRunArgsPlacesTheModeFlagWhereNothingCanConsumeIt is the case that motivated moving the
-// mode flag to the front rather than the end: --fallback is not in the catalog, so its value gets
-// stripped like any unprotected --merge occurrence would, and --fallback ends up as the true last
-// argument with nothing after it. Appending the mode flag used to land right there, where
-// --fallback would consume it as its own value: `onesie --ask a=x --fallback --print-request`
-// against the real binary reports `--fallback on a yes/no question takes true, false, yes or no,
-// got '--print-request'`, a live call. With the mode flag leading instead, there is nothing left
-// for --fallback to consume: `onesie --print-request --ask a=x --fallback` reports `flag needs an
-// argument: --fallback` and exits 2, verified against the real binary, never a request.
+// TestDryRunArgsPlacesTheModeFlagWhereNothingCanConsumeIt pins the mode flag at the front. At the
+// end, a trailing --fallback took it as its value and the dry run became a live call.
 func TestDryRunArgsPlacesTheModeFlagWhereNothingCanConsumeIt(t *testing.T) {
 	t.Parallel()
 

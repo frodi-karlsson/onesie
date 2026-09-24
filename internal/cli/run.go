@@ -328,10 +328,7 @@ func plural(count int, noun string) string {
 type line struct {
 	record output.Record
 	raw    string
-	// state is what was sent to the API, which --merge needs so a text line keeps its type and a
-	// JSON line keeps its digits. It is nil for a record onesie could not read.
-	state any
-	// header and fields are the csv or tsv row the record answers, for a merge into -o csv.
+	state  any // What was sent, so --merge keeps a text line's type and a JSON line's digits.
 	header []string
 	fields map[string]any
 }

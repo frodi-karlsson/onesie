@@ -30,9 +30,8 @@ func plain(value any) any {
 	}
 }
 
-// MarshalOrdered encodes a decoded tree as JSON keeping every mapping in the order it was written.
-// plain is the right choice for a value bound for a Go consumer, and this is the right choice for
-// one bound for the wire, where a request body is meant to be replayed as it was given.
+// MarshalOrdered encodes a decoded tree as JSON, keeping every mapping in its written order. Use it
+// for the wire, where a body is replayed as given, and plain for a Go consumer.
 func MarshalOrdered(value any) ([]byte, error) {
 	switch typed := value.(type) {
 	case yaml.MapSlice:

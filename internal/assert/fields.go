@@ -70,19 +70,12 @@ var fields = []field{
 }
 
 type field struct {
-	name string
-	// takesKey is true only for p, whose third path segment selects which probability to read.
-	takesKey bool
-	// available reports whether a question of this shape and policy carries the field at all.
+	name      string
+	takesKey  bool
 	available func(q plan.Question) bool
-	// typeOf is the value's type on a question that carries it.
-	typeOf func(q plan.Question) valueType
-	// read returns the value from an answer. key is the third path segment, present only when
-	// takesKey is true.
-	read func(a *answer.Answer, key string) any
-	// reason picks the message unavailable gives when available returns false. It goes unused on
-	// a field, such as value, that is always available.
-	reason unavailableReason
+	typeOf    func(q plan.Question) valueType
+	read      func(a *answer.Answer, key string) any
+	reason    unavailableReason
 }
 
 type unavailableReason int

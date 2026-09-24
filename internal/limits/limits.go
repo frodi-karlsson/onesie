@@ -23,16 +23,14 @@ const (
 	DefaultRetries = 2
 	// DefaultMaxRetryAfter is the longest server requested delay onesie will wait out.
 	DefaultMaxRetryAfter = 60 * time.Second
-	// MaxRetries is the ceiling on --retries. Each retry waits out the backoff, capped at 5 s, so a
-	// large count is a run that never ends rather than a policy. A hundred is already far past any
-	// useful policy and bounds the wait at minutes rather than days.
+	// MaxRetries is the ceiling on --retries. Each retry waits out a backoff of up to 5 s, so a
+	// hundred bounds the wait at minutes rather than days.
 	MaxRetries = 100
 	// MaxJobs is the ceiling on -j. Every job is a goroutine and a pooled connection started up
 	// front, and far past this the API rate limits the run long before it goes any faster.
 	MaxJobs = 256
-	// MaxSeconds is the ceiling on a flag given in whole seconds. A day is beyond any sensible
-	// attempt timeout or server requested delay, and it leaves the conversion to a Duration far
-	// from the overflow that would turn a huge number into a fraction of a second.
+	// MaxSeconds is the ceiling on a flag given in whole seconds. A day is past any sensible
+	// timeout and far from the Duration overflow that shrinks a huge number.
 	MaxSeconds = 86400
 )
 

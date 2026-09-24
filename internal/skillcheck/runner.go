@@ -28,9 +28,8 @@ type Runner struct {
 	exec func(ctx context.Context, binary string, args []string) (exitCode int, stderr string, err error)
 }
 
-// DryRun strips the flags a dry run rejects from command, adds --print-request or
-// --print-questions, and runs the result without a shell. A command it cannot parse as a onesie
-// invocation is not run, and Skipped on the result says why.
+// DryRun strips the flags a dry run rejects from command, adds the print flag and runs it without a
+// shell. A command that is not a onesie invocation is not run, and Skipped says why.
 func (r *Runner) DryRun(ctx context.Context, command string) (DryRunResult, error) {
 	args, reason, err := prepare(command)
 	if err != nil {

@@ -129,10 +129,8 @@ func WithGOOS(goos string) StoreOption {
 	}
 }
 
-// Load reads the credential file. The second result is false when the file does not exist, which is
-// not an error. A file any other user can reach is refused rather than read. A caller has to check
-// the error before found, since a failing Close on an otherwise good read returns a populated File
-// beside a non nil error, and a key from a read that reported failure must not be used.
+// Load reads the credential file, refusing one another user can reach, and found is false when it
+// does not exist. Check err first, since a failed Close returns a File beside the error.
 func (s Store) Load(path string) (file File, found bool, err error) {
 	// A named pipe at this path blocks the open until something writes to it. Known and out of
 	// scope: the fix needs O_NONBLOCK behind a unix build tag, and planting the pipe needs write
@@ -210,14 +208,11 @@ func (s Store) Load(path string) (file File, found bool, err error) {
 	return file, true, nil
 }
 
-// Save writes the credential file atomically, creating its directory. The file is written to a
-// temporary name in the same directory and renamed, so a reader never sees a half written key. A
-// non nil first result means the file was written but its mode could not be set, which is a warning
-// for the caller to print rather than a failure. A symlink at the credential path is replaced rather
-// than followed, but a symlink at its directory is resolved, since creating the directory and the
-// temporary file inside it both have to walk that path. Whoever can replace the directory already
-// owns the config location.
+// Save writes the credential file atomically through a renamed temporary file, replacing a symlink
+// at path. A non nil warning means the file was written but its mode could not be set.
 func (s Store) Save(path string, file File) (*ModeWarning, error) {
+	// A symlink at the directory is resolved, since creating it and the temporary file both walk
+	// that path. Whoever can replace the directory already owns the config location.
 	dir := filepath.Dir(path)
 	if err := s.mkdirAll(dir, 0o700); err != nil {
 		return nil, fmt.Errorf("onesie: creating %s: %w", dir, err)
@@ -306,9 +301,8 @@ func (s Store) syncDir(dir string) {
 	}
 }
 
-// ModeWarning means the file was written but its mode could not be set, which happens on a
-// filesystem that does not carry unix permission bits. The key is on disk and readable by anyone
-// who can reach the path.
+// ModeWarning means the file was written but its mode could not be set, as on a filesystem without
+// unix permission bits. The key is readable by anyone who can reach the path.
 type ModeWarning struct {
 	Path string
 }
@@ -343,9 +337,8 @@ type File struct {
 	Providers map[string]Entry `json:"providers"`
 }
 
-// Entry is one provider's key, or a pointer to it in the keychain when Store is StoreKeychain, in
-// which case Account names the keychain item.
-// BaseURL is empty when the entry carries none.
+// Entry is one provider's key, or a pointer to it in the keychain named by Account when Store is
+// StoreKeychain. BaseURL is empty when the entry carries none.
 type Entry struct {
 	APIKey  string `json:"api_key,omitempty"`
 	Store   string `json:"store,omitempty"`

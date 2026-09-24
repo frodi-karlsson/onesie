@@ -816,8 +816,6 @@ func TestPrintRequest(t *testing.T) {
 	}
 }
 
-// runRecorded runs the given arguments against a stub that answers one noul, and returns the
-// request body it received.
 func runRecorded(t *testing.T, args []string, stdin string) (string, string, int) {
 	t.Helper()
 

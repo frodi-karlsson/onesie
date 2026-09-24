@@ -9,9 +9,8 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
-// Check validates an expression against the plan it will run over, so every path and every
-// comparison is known good before any network call. An expression that passes cannot fail to
-// evaluate on a successful record.
+// Check validates an expression against the plan it will run over, before any network call. An
+// expression that passes cannot fail to evaluate on a successful record.
 func Check(expr *Expr, built *plan.Plan) error {
 	if expr == nil {
 		return nil

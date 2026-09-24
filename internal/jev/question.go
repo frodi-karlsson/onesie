@@ -17,9 +17,8 @@ func Levels(levels ...string) []any {
 	return widened
 }
 
-// Questions is an ordered list of questions, written to the wire as a JSON object in slice order,
-// so a request body carries its questions in the order they were authored. A shared value must not
-// be appended to, since two appends onto a base with spare capacity write the same backing array.
+// Questions is an ordered list written to the wire as a JSON object in slice order. A shared value
+// must not be appended to, since two appends can write the same backing array.
 type Questions []NamedQuestion
 
 // NamedQuestion pairs a question with the id it answers under.
@@ -136,9 +135,8 @@ func (Choice) validate(string) error {
 	return nil
 }
 
-// Criteria is an ordered set of choice options. Like Questions it is a slice so a body keeps the
-// order it was written in, and like Questions a shared value must not be appended to, since two
-// appends onto a base with spare capacity write the same backing array.
+// Criteria is an ordered set of choice options, kept as a slice so a body keeps its written order.
+// Like Questions, a shared value must not be appended to.
 type Criteria []NamedCriterion
 
 // NamedCriterion is one option and what it means.
@@ -147,9 +145,8 @@ type NamedCriterion struct {
 	Desc any
 }
 
-// MarshalJSON writes the set as a JSON object, keeping slice order. A nil set is null rather than
-// an empty object, so the zero value encodes to something the API can reject cleanly. onesie never
-// produces one, because --pick requires two options.
+// MarshalJSON writes the set as a JSON object in slice order. A nil set is null, so the zero value
+// encodes to something the API rejects cleanly.
 func (c Criteria) MarshalJSON() ([]byte, error) {
 	if c == nil {
 		return []byte("null"), nil

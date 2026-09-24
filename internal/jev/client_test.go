@@ -17,10 +17,8 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/jev"
 )
 
-// mockClock records every wait instead of performing it, so retry tests finish instantly. It is
-// mutex guarded because the concurrency test drives one client from many goroutines.
 type mockClock struct {
-	mu    sync.Mutex
+	mu    sync.Mutex // The concurrency test drives one client from many goroutines.
 	now   time.Time
 	slept []time.Duration
 }

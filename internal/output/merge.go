@@ -13,9 +13,8 @@ import (
 // whether that ends the run or fails the one record.
 var ErrMergeKeyTaken = errors.New("the input already has the merge key")
 
-// WriteMerged folds a record's answers into the input line under key, so a pipeline keeps the
-// fields it came in with. raw is the input line exactly as read, and state is what was sent to the
-// API, which is nil for a record onesie could not read.
+// WriteMerged folds a record's answers into the input line under key. raw is the line as read, and
+// state is what was sent, nil for a record onesie could not read.
 func WriteMerged(w io.Writer, mode Mode, rec Record, raw string, state any, key string) error {
 	answers, err := encode(mode, rec)
 	if err != nil {

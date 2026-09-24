@@ -1,6 +1,5 @@
-// Package skilleval dry runs every onesie command an agent wrote during a claude plugin eval run.
-// The eval has no grader that can run code, so this reads the traces the eval kept and reports
-// per case and per arm how many commands onesie itself accepts.
+// Package skilleval dry runs every onesie command an agent wrote during a claude plugin eval run,
+// since the eval has no grader that can run code.
 package skilleval
 
 import (

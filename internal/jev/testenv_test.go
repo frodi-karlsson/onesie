@@ -10,7 +10,6 @@ import (
 	"testing"
 )
 
-// apiKey returns the key for the live API, or skips the test. It never logs the value.
 func apiKey(t *testing.T) string {
 	t.Helper()
 
@@ -43,10 +42,10 @@ func openRouterKey(t *testing.T) string {
 	return ""
 }
 
-// fromDotEnv reads one value out of the repo's gitignored .env. It is deliberately minimal:
-// KEY=VALUE per line, no quoting, no interpolation, no export keyword.
 func fromDotEnv(t *testing.T, name string) string {
 	t.Helper()
+
+	// Deliberately minimal: KEY=VALUE per line, with no quoting, interpolation or export keyword.
 
 	file, err := os.Open(filepath.Join("..", "..", ".env"))
 	if err != nil {

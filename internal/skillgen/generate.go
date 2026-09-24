@@ -11,20 +11,13 @@ import (
 
 const skillsDir = "skills"
 
-// mirrorDirs are the fully generated copies of skills/, each pruned of any skill that no longer
-// exists there. A path added here is automatically covered by every write and every prune.
 var mirrorDirs = []string{
 	filepath.Join(".agents", "skills"),
 	filepath.Join(".cursor", "skills"),
 }
 
-// Generate reads every skills/*/skill.json under root, validates it, and writes the generated
-// outputs from spec section 3 into skills/, .agents/skills/ and .cursor/skills/. It writes only
-// the bytes that changed, so a no op run leaves every file's modification time untouched. A mirror
-// directory whose source skill no longer exists is removed. Every skill is loaded and rendered
-// before the first write, so a validation failure returns an error naming the skill and writes
-// nothing. A failure partway through the write loop can leave a partial tree, which a later
-// successful run repairs since every write is independent.
+// Generate validates every skills/*/skill.json under root and writes the spec section 3 outputs and
+// mirrors, touching only changed files. Nothing is written unless every skill validates.
 func Generate(root string) error {
 	found, err := Skills(root)
 	if err != nil {
@@ -45,6 +38,8 @@ func Generate(root string) error {
 		names = append(names, f.Dir)
 	}
 
+	// A failure here can leave a partial tree, which the next successful run repairs, since every
+	// write is independent.
 	for _, out := range outputs {
 		if err := writeIfChanged(out.path, out.content); err != nil {
 			return err

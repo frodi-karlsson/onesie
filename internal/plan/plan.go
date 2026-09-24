@@ -30,9 +30,8 @@ type Question struct {
 	// and a message spells the offending thing the way the origin does.
 	Origin Origin
 
-	// Labelled is meaningful only when Shape is Rate. A pick question always has option names and
-	// a yes/no question never has labels, so only a score question can arrive unlabelled, through
-	// a request body. It selects which normalization applies.
+	// Labelled is meaningful only for Rate, since only a score question from a request body can
+	// arrive unlabelled. It selects which normalization applies.
 	Labelled bool
 
 	// DescOrder is the order --desc keys appeared, so validation can report them as written.
