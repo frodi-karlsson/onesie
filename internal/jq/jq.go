@@ -71,8 +71,8 @@ func (e *Expr) One(ctx context.Context, value any) (any, error) {
 	return nil, ErrManyValues
 }
 
-// Marshal encodes a value an expression yielded as JSON, the way jq prints it. A value nested
-// deeper than encoding/json allows fails with ErrTooDeep, and one longer than limit bytes with ErrTooLarge.
+// Marshal encodes value as compact JSON with its object keys sorted, where jq keeps insertion order.
+// It fails with ErrTooDeep past the nesting encoding/json allows, and with ErrTooLarge past limit bytes.
 func Marshal(value any, limit int) ([]byte, error) {
 	if err := checkBounds(value, limit); err != nil {
 		return nil, err

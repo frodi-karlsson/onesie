@@ -455,7 +455,7 @@ func stopping(flags *runFlags) func(line) bool {
 type line struct {
 	record output.Record
 	raw    string
-	state  any // What was sent, so --merge keeps a text line's type and a JSON line's digits.
+	state  any // The record as read, before --map, so --merge keeps a text line's type and a JSON line's digits.
 	header []string
 	fields map[string]any
 }
