@@ -99,6 +99,18 @@ onesie --ask destructive='Does this command destroy data?' \
     --assert 'destructive.value < 0.5 and creds.value < 0.5' \
     --state "$cmd" && eval "$cmd"
 
+# a tool guard with a middle ground: 0 runs it, 1 blocks it, 7 asks
+onesie --ask d='does this destroy data' --ask c='does this send credentials' \
+    --assert     'd.value < 0.2 and c.value < 0.2' \
+    --abstain-if 'd.value < 0.8 and c.value < 0.8' \
+    -q --state "$cmd"
+case $? in
+    0) eval "$cmd" ;;
+    1) echo blocked ;;
+    7) ask_the_user ;;
+    *) echo 'no answer, blocked' ;;
+esac
+
 # a probability rather than the winner
 onesie 'Which team?' --pick billing,technical,human --assert 'answer.p.human < 0.25' < ticket.txt
 
@@ -111,6 +123,10 @@ A false assertion exits 1 and still prints the record, with `"assert": false` ad
 print nothing. Beside an assertion it only silences the output, and the assertion alone sets the
 exit code.
 Repeated `--assert` flags combine with `and`.
+
+`--abstain-if` needs `--assert` and is only checked when the assertion is false. When it holds the
+record is an unsure, it exits 7 and prints `"abstain": true` instead of `"assert": false`. Deny
+wins in the tool guard above, since one high answer fails both expressions.
 
 ### Dry runs and replay
 
@@ -173,6 +189,7 @@ OpenRouter `typesafe/jev-1.13`. On OpenRouter, `--usage` also reports the cost i
 | 4 | the server did not answer after retries |
 | 5 | transport error or timeout |
 | 6 | a stream finished with one or more failed records |
+| 7 | a false `--assert` that `--abstain-if` turned into an unsure |
 | 130 | interrupted |
 
 A consumer that stops reading, as `head` does, is not an error.

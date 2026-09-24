@@ -9,10 +9,13 @@
 | 4 | The server did not answer after retries |
 | 5 | A transport error or a timeout |
 | 6 | A stream finished with one or more failed records |
+| 7 | The gate could not decide: the assertion did not hold and `--abstain-if` did |
 | 130 | The run was interrupted by a signal |
 
 Only exit 1 means the policy said no. Exits 2 through 5 mean no answer arrived at all. Exit 6
 means a stream finished and only the lines carrying `.error` failed, the rest answered normally.
+Exit 7 is an answer too, neither a yes nor a no, so route it to whoever decides the middle
+ground. A stream keeps the most severe code: 6 beats 1, and 1 beats 7.
 
 ## On exit 3
 
