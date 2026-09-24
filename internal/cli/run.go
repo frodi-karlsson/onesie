@@ -351,7 +351,7 @@ func mapped(mapper *jq.Expr, state, wire any) (any, error) {
 		return nil, fmt.Errorf("--map: %w", checkErr)
 	}
 
-	encoded, err := jq.Marshal(value)
+	encoded, err := jq.Marshal(value, input.MaxLineBytes)
 	if err != nil {
 		return nil, fmt.Errorf("--map: %w", err)
 	}

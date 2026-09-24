@@ -113,30 +113,84 @@ func TestExpr_One(t *testing.T) {
 func TestMarshal(t *testing.T) {
 	t.Parallel()
 
+	const limit = 64
+
 	tests := []struct {
-		name  string
-		value any
-		want  string
+		name    string
+		value   any
+		limit   int
+		want    string
+		wantErr error
 	}{
 		{name: "should write a string", value: "a <b>", want: `"a <b>"`},
 		{name: "should keep the digits of a large number", value: json.Number("12345678901234567890"), want: "12345678901234567890"},
 		{name: "should sort object keys", value: map[string]any{"zebra": 1, "alpha": 2}, want: `{"alpha":2,"zebra":1}`},
+		{name: "should write a value nested as deep as encoding/json allows", value: nested(10000, "x"), limit: 1 << 20, want: strings.Repeat("[", 10000) + `"x"` + strings.Repeat("]", 10000)},
+		{name: "should reject a value nested one level deeper than encoding/json allows", value: nested(10001, "x"), limit: 1 << 26, wantErr: ErrTooDeep},
+		{name: "should reject a value nested far too deep for a recursive encoder", value: nested(1_000_000, "x"), limit: 1 << 26, wantErr: ErrTooDeep},
+		{name: "should reject an object nested too deep", value: nestedObject(10001), limit: 1 << 26, wantErr: ErrTooDeep},
+		{name: "should write a value that fills the limit exactly", value: strings.Repeat("x", limit-2), want: `"` + strings.Repeat("x", limit-2) + `"`},
+		{name: "should reject a string past the limit", value: strings.Repeat("x", limit-1), wantErr: ErrTooLarge},
+		{name: "should reject an array whose separators alone pass the limit", value: make([]any, limit), wantErr: ErrTooLarge},
+		{name: "should reject an object whose keys alone pass the limit", value: wideObject(limit), wantErr: ErrTooLarge},
+		{name: "should reject a value its escapes carry past the limit", value: strings.Repeat("\x01", limit/4), wantErr: ErrTooLarge},
+		{name: "should reject a large value nested inside small ones", value: []any{map[string]any{"a": []any{strings.Repeat("x", limit)}}}, wantErr: ErrTooLarge},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := Marshal(tc.value)
+			if tc.limit == 0 {
+				tc.limit = limit
+			}
+
+			got, err := Marshal(tc.value, tc.limit)
+
+			if tc.wantErr != nil {
+				if !errors.Is(err, tc.wantErr) {
+					t.Fatalf("Marshal() error = %v, want %v", err, tc.wantErr)
+				}
+
+				return
+			}
+
 			if err != nil {
 				t.Fatalf("Marshal(): %v", err)
 			}
 
 			if string(got) != tc.want {
-				t.Errorf("Marshal() = %s, want %s", got, tc.want)
+				t.Errorf("Marshal() = %.80s, want %.80s", got, tc.want)
 			}
 		})
 	}
+}
+
+func nested(depth int, leaf any) any {
+	value := leaf
+	for range depth {
+		value = []any{value}
+	}
+
+	return value
+}
+
+func nestedObject(depth int) any {
+	var value any = "x"
+	for range depth {
+		value = map[string]any{"a": value}
+	}
+
+	return value
+}
+
+func wideObject(size int) map[string]any {
+	object := make(map[string]any, size)
+	for i := range size {
+		object[strings.Repeat("k", i+1)] = nil
+	}
+
+	return object
 }
 
 func decode(t *testing.T, text string) any {

@@ -16,7 +16,13 @@ var (
 	ErrManyValues = errors.New("yields more than one value")
 	// ErrRun means the expression failed while it ran, and wraps the reason gojq gave.
 	ErrRun = errors.New("fails")
+	// ErrTooDeep means a value nests deeper than encoding/json accepts.
+	ErrTooDeep = fmt.Errorf("result nests deeper than %d levels", maxDepth)
+	// ErrTooLarge means a value encodes to more bytes than the limit Marshal was given.
+	ErrTooLarge = errors.New("result encodes to more than the limit")
 )
+
+const maxDepth = 10000
 
 // Compile parses and compiles a jq expression. A syntax error names the column it was found at.
 func Compile(source string) (*Expr, error) {
@@ -64,9 +70,107 @@ func (e *Expr) One(value any) (any, error) {
 	return nil, ErrManyValues
 }
 
-// Marshal encodes a value an expression yielded as JSON, the way jq prints it.
-func Marshal(value any) ([]byte, error) {
-	return gojq.Marshal(value)
+// Marshal encodes a value an expression yielded as JSON, the way jq prints it. A value nested
+// deeper than encoding/json allows fails with ErrTooDeep, and one longer than limit bytes with ErrTooLarge.
+func Marshal(value any, limit int) ([]byte, error) {
+	if err := checkBounds(value, limit); err != nil {
+		return nil, err
+	}
+
+	encoded, err := gojq.Marshal(value)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(encoded) > limit {
+		return nil, tooLarge(limit)
+	}
+
+	return encoded, nil
+}
+
+func checkBounds(value any, limit int) error {
+	// A stack of its own rather than recursion, since the gojq encoder recurses and a value deep
+	// enough overflows the goroutine stack, which Go cannot recover from. Counting the fewest bytes
+	// each value encodes to refuses a value too large to send before anything copies it.
+	pending := [][]any{{value}}
+	size := 0
+
+	for len(pending) > 0 {
+		siblings := pending[len(pending)-1]
+		if len(siblings) == 0 {
+			pending = pending[:len(pending)-1]
+
+			continue
+		}
+
+		current := siblings[0]
+		pending[len(pending)-1] = siblings[1:]
+
+		size += leastBytes(current)
+		if size > limit {
+			return tooLarge(limit)
+		}
+
+		children := childrenOf(current)
+		if children == nil {
+			continue
+		}
+
+		if len(pending) > maxDepth {
+			return ErrTooDeep
+		}
+
+		pending = append(pending, children)
+	}
+
+	return nil
+}
+
+func leastBytes(value any) int {
+	switch v := value.(type) {
+	case string:
+		return len(v) + len(`""`)
+	case nil:
+		return len("null")
+	case bool:
+		if v {
+			return len("true")
+		}
+
+		return len("false")
+	case []any:
+		return len("[]") + max(len(v)-1, 0)
+	case map[string]any:
+		size := len("{}") + max(len(v)-1, 0)
+		for key := range v {
+			size += len(key) + len(`"":`)
+		}
+
+		return size
+	default:
+		return 1
+	}
+}
+
+func childrenOf(value any) []any {
+	switch v := value.(type) {
+	case []any:
+		return v
+	case map[string]any:
+		values := make([]any, 0, len(v))
+		for _, child := range v {
+			values = append(values, child)
+		}
+
+		return values
+	default:
+		return nil
+	}
+}
+
+func tooLarge(limit int) error {
+	return fmt.Errorf("%w of %d bytes", ErrTooLarge, limit)
 }
 
 func runError(result any) error {

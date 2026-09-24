@@ -158,7 +158,7 @@ func (s *Stream) nextFields() ([]string, error) {
 		return s.nextTabbed()
 	}
 
-	s.budget.left = maxLineBytes
+	s.budget.left = MaxLineBytes
 
 	fields, err := s.rows.Read()
 	if errors.Is(err, io.EOF) {
@@ -250,7 +250,7 @@ func (s *Stream) row(fields []string) Record {
 
 	wire.WriteByte('}')
 
-	if wire.Len() > maxLineBytes {
+	if wire.Len() > MaxLineBytes {
 		return s.fail("", errors.New("row is longer than the limit"))
 	}
 
@@ -284,7 +284,7 @@ func (s *Stream) read() (string, bool, error) {
 
 		// An oversized line is reported rather than buffered, so one such record can neither
 		// exhaust memory nor stop the batch.
-		if builder.Len()+len(chunk) > maxLineBytes {
+		if builder.Len()+len(chunk) > MaxLineBytes {
 			tooLong = true
 		}
 

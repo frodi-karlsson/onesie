@@ -487,6 +487,16 @@ func TestPrintRequest(t *testing.T) {
 			stderr:   []string{"onesie: --map fails: "},
 		},
 		{
+			name: "should exit two when one record's result nests too deep",
+			args: []string{
+				"--ask", "urgent=is this urgent", "-i", "json", "--print-request",
+				"--map", `reduce range(10001) as $i ("x"; [.])`,
+			},
+			stdin:    `{"body":"the site is down"}`,
+			wantCode: ExitUsage,
+			stderr:   []string{"onesie: --map: result nests deeper than 10000 levels"},
+		},
+		{
 			name:     "should exit two on a --map syntax error",
 			args:     []string{"--ask", "urgent=is this urgent", "-i", "jsonl", "--map", "{subject, body", "--print-request"},
 			stdin:    "{\"body\":\"a\"}\n",
@@ -1032,7 +1042,21 @@ func TestStreamRequests(t *testing.T) {
 			},
 		},
 		{
-			name: "should write an error line for a record whose body cannot be encoded",
+			name: "should write an error line for a record whose result is too large to send",
+			args: []string{
+				"--ask", "urgent=is this urgent", "-i", "jsonl", "--print-request",
+				"--map", `if .big then "x" * 9000000 else .body end`,
+			},
+			stdin:     "{\"big\":true}\n{\"body\":\"second\"}\n",
+			wantCode:  ExitRecords,
+			wantLines: 2,
+			stdout: []string{
+				`"message":"line 1: --map: result encodes to more than the limit of 8388608 bytes"`,
+				`"state":"second"`,
+			},
+		},
+		{
+			name: "should write an error line for a record that nests too deep",
 			args: []string{
 				"--ask", "urgent=is this urgent", "-i", "jsonl", "--print-request",
 				"--map", `if .deep then reduce range(10001) as $i ("x"; [.]) else .body end`,
@@ -1040,7 +1064,11 @@ func TestStreamRequests(t *testing.T) {
 			stdin:     "{\"deep\":true}\n{\"body\":\"second\"}\n",
 			wantCode:  ExitRecords,
 			wantLines: 2,
-			stdout:    []string{`{"error":{"kind":"input"`, `"message":"line 1: `, `"state":"second"`},
+			stdout: []string{
+				`{"error":{"kind":"input"`,
+				`"message":"line 1: --map: result nests deeper than 10000 levels"`,
+				`"state":"second"`,
+			},
 		},
 	}
 

@@ -142,6 +142,35 @@ func TestStream(t *testing.T) {
 			wantLines: 2,
 		},
 		{
+			name: "should fail a record whose --map result nests too deep and carry on",
+			args: []string{
+				"is this urgent", "-i", "jsonl",
+				"--map", `if .deep then reduce range(10001) as $i ("x"; [.]) else .body end`,
+			},
+			stdin:     "{\"deep\":true}\n{\"body\":\"second\"}\n",
+			response:  answered,
+			wantCode:  cli.ExitRecords,
+			wantLines: 2,
+			contains: []string{
+				`"kind":"input"`, `line 1: --map: result nests deeper than 10000 levels`,
+				`"answer":{"value":0.9}`,
+			},
+		},
+		{
+			name: "should fail a record whose --map result is too large to send and carry on",
+			args: []string{
+				"is this urgent", "-i", "jsonl", "--map", `if .big then "x" * 9000000 else .body end`,
+			},
+			stdin:     "{\"big\":true}\n{\"body\":\"second\"}\n",
+			response:  answered,
+			wantCode:  cli.ExitRecords,
+			wantLines: 2,
+			contains: []string{
+				`"kind":"input"`, `line 1: --map: result encodes to more than the limit of 8388608 bytes`,
+				`"answer":{"value":0.9}`,
+			},
+		},
+		{
 			name:      "should emit every record under unordered",
 			args:      []string{"is this urgent", "-i", "lines", "--unordered", "-j", "4"},
 			stdin:     "a\nb\nc\nd\n",
