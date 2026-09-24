@@ -145,7 +145,7 @@ onesie --ask team='which team owns this' --pick billing,shipping --desc billing=
 
 ### Use --stats for a run summary and --usage for the tokens of each answer.
 
-`--stats` writes one line to stderr at exit, with the requests, failures, skips, tokens, attempts and model, so it never mixes into the answers on stdout. `--usage` adds the API's `usage` object to each json record and to the table header. `-o csv` and `-o tsv` refuse it, and `-o values` and `-r` leave it out.
+`--stats` writes one line to stderr at exit, with the requests, failures, skips, tokens, attempts and model, so it never mixes into the answers on stdout. `--usage` adds the API's `usage` object to each json record and to the table header. `-o values`, `-r`, `-o raw`, `-o csv` and `-o tsv` have no place for it, so they refuse it with exit 2 before any request.
 
 **Good:**
 

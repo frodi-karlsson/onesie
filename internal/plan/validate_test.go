@@ -940,6 +940,25 @@ func TestCheckFlags(t *testing.T) {
 			wantErr: "onesie: --usage does not apply to -o tsv, which has no column for it",
 		},
 		{
+			name:    "should reject --usage with -o values",
+			cfg:     plan.Config{InputName: "text", Output: "values", Usage: true, Jobs: 1},
+			wantErr: "onesie: --usage does not apply to -o values, which writes only the answers. Use -o json",
+		},
+		{
+			name:    "should reject --usage with -o raw",
+			cfg:     plan.Config{Streaming: true, InputName: "jsonl", Output: "raw", Usage: true, Jobs: 1},
+			wantErr: "onesie: --usage does not apply to -o raw, which writes only the answers. Use -o json",
+		},
+		{
+			name:    "should reject --usage with -r",
+			cfg:     plan.Config{InputName: "text", Raw: true, Usage: true, Jobs: 1},
+			wantErr: "onesie: --usage does not apply to -r, which writes only the answers. Use -o json",
+		},
+		{
+			name: "should accept --usage with -o json",
+			cfg:  plan.Config{InputName: "text", Output: "json", Usage: true, Jobs: 1},
+		},
+		{
 			name:    "should reject -j above the cap",
 			cfg:     plan.Config{Streaming: true, InputName: "jsonl", Jobs: 2000000, JobsSet: true},
 			wantErr: "onesie: -j takes at most 256 records in flight, got 2000000",

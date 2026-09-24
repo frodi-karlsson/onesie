@@ -66,6 +66,7 @@ Exit 3 also covers these:
 | `--resume with raw output` | raw output keeps neither the id nor the gate's outcome, so a resume refuses it |
 | `the header` | the csv or tsv header is not valid, or has a blank or repeated column name |
 | `a row is longer than the limit`, with no error line | a csv row over `max-line-bytes` from `onesie -V`. It stops the run, since csv cannot find the next row after it. In tsv it is an error line instead |
+| `--usage does not apply to` | the output mode has no place for the usage object. Use `-o json` |
 | `has the name of an output column` | an input column clashes with a question id or an `id`, `assert` or `error` column |
 | `model '...' not found` | the provider does not serve that model id. Try `--list-models` |
 

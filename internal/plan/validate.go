@@ -426,6 +426,10 @@ func checkStreaming(cfg Config) (string, error) {
 		return "", err
 	}
 
+	if err := checkUsage(cfg); err != nil {
+		return "", err
+	}
+
 	// Also for every mode. The rule is rejected rather than clamped, and a typo in a shared alias
 	// is exactly as wrong outside a stream as inside one. Gated on JobsSet because Jobs is an int
 	// and its zero value cannot be told from the flag being absent.
@@ -552,6 +556,25 @@ func checkDelimited(cfg Config) error {
 	default:
 		return nil
 	}
+}
+
+func checkUsage(cfg Config) error {
+	if !cfg.Usage {
+		return nil
+	}
+
+	var mode string
+
+	switch {
+	case cfg.Raw:
+		mode = "-r"
+	case cfg.Output == "values", cfg.Output == "raw":
+		mode = "-o " + cfg.Output
+	default:
+		return nil
+	}
+
+	return fmt.Errorf("onesie: --usage does not apply to %s, which writes only the answers. Use -o json", mode)
 }
 
 func checkSingleRecord(cfg Config) (string, error) {
