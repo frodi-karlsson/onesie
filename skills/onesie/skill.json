@@ -1,6 +1,6 @@
 {
   "name": "onesie",
-  "description": "Use when a script needs a onesie judgment on one piece of text, as a probability, one of several named options or a rubric level, and before prompting a general model and parsing its reply. Covers --ask, --pick, --rate and free dry runs. For a file of many records, also load onesie-stream.",
+  "description": "Use when a script needs a onesie judgment on one piece of text, as a probability, one of several named options or a rubric level, and before prompting a general model and parsing its reply. Covers --ask, --pick, --rate, --desc, question files and free dry runs. For a file of many records, also load onesie-stream.",
   "compatibility": "Requires the onesie binary on PATH. A key is needed for anything but --print-request and --print-questions.",
   "license": "MIT",
   "intro": "intro.md",
@@ -23,7 +23,7 @@
     {
       "id": "pick-the-shape",
       "short": "Ask yes or no as a plain question, one of N with --pick, a degree with --rate.",
-      "why": "A bare question returns a probability from 0 to 1 and no confidence, because one number describes a two outcome distribution fully. `--pick` returns the winning name, a confidence and a distribution. `--rate` returns a level, a score, a normalized score and a confidence.",
+      "why": "A bare question returns `value`, a probability from 0 to 1, and no confidence, because one number describes a two outcome distribution fully. `--pick` returns `value`, the winning name, with `confidence` and `p`, the probability of each option. `--rate` returns `value`, the most likely level, with `score`, where 0 is the lowest level, `norm`, the score scaled to run from 0 to 1, `confidence` and `p`. A policy flag adds `decision` and `fallback`, covered in the onesie-gate skill, and `-o values` then prints the decision in place of the value. Options split on the comma exactly, so `--pick 'a, b'` names the second option ` b` with its space. When a name holds a comma, set another separator first, as in `--sep '|' --pick 'yes, refund|no, keep'`.",
       "bad": "onesie 'which team owns this, billing, shipping or support' --state 'my package never arrived'",
       "bad_passes": true,
       "good": "onesie --ask team='which team owns this' --pick billing,shipping,support --state 'my package never arrived'"
@@ -58,15 +58,32 @@
       "good": "onesie 'is this ticket urgent' --state 'the server is down'"
     },
     {
+      "id": "describe-what-each-answer-means",
+      "short": "Say what an option, a level or a yes means with --desc.",
+      "why": "`--desc KEY=TEXT` binds to the nearest `--ask` like any group flag. The key is an option name for `--pick`, a level label for `--rate`, and `yes` or `no` for a yes or no question. A key the question does not have exits 2 and lists the ones it does. Describe every level of a `--rate` or none of them, since a partial rubric exits 2. A partly described `--pick` only warns. `--ask NAME=@FILE` and `--desc KEY=@FILE` read the text from a file.",
+      "good": "onesie --ask team='which team owns this' --pick billing,shipping --desc billing='charges, refunds and invoices' --desc shipping='delivery and tracking' --state 'my package never arrived'"
+    },
+    {
+      "id": "freeze-into-a-question-file",
+      "short": "Keep a question set you reuse in a file written by --print-questions, and load it with -f.",
+      "why": "`--print-questions > q.yaml` writes the questions, their descriptions, their policy flags and any assertion as YAML, and `onesie -f q.yaml` reads it back. Each top level key is a question id holding `ask` and optionally `pick` or `rate`, `yes_means` and `no_means`, `threshold`, `min_confidence` and `fallback`. A top level `assert` or `abstain_if` is the file's gate. An unknown key exits 2 rather than being ignored. An `--ask` beside `-f` adds a question, and reusing an id from the file needs `--replace`. `-f` also takes a request body, a file with a `questions` key such as `--print-request` writes."
+    },
+    {
+      "id": "count-the-cost",
+      "short": "Use --stats for a run summary and --usage for the tokens of each answer.",
+      "why": "`--stats` writes one line to stderr at exit, with the requests, failures, skips, tokens, attempts and model, so it never mixes into the answers on stdout. `--usage` adds the API's `usage` object to each json record and to the table header. `-o csv` and `-o tsv` refuse it, and `-o values` and `-r` leave it out.",
+      "good": "onesie 'is this urgent' --state 'the server is down' --stats --usage -o json"
+    },
+    {
       "id": "iterate-for-free",
       "short": "Run it once with --print-request before running it for real.",
-      "why": "`--print-request` and `--print-questions` make no network call and need no key. They show the exact request, the state and which flag bound to which question, before anything is spent.",
+      "why": "`--print-request` and `--print-questions` make no network call and need no key. `--print-request` shows the exact body, the state and the model, but a body carries no policy, so a `--threshold` or `--fallback` does not show there. `--print-questions` shows every question with the policy flags that bound to it and the assertion, and reads no state.",
       "good": "onesie --ask urgent='is this urgent' --ask team='which team owns this' --pick billing,shipping,support --state 'my package never arrived' --print-request"
     },
     {
       "id": "choose-the-provider",
       "short": "Pick the provider with --provider or ONESIE_PROVIDER, and pin models per provider.",
-      "why": "typesafe is the default and reads `TYPESAFE_API_KEY`. openrouter reads `OPENROUTER_API_KEY`, and never falls back to the TypeSafe key. `jev-latest` works on both, but a pinned model id does not carry over: TypeSafe pins `jev-1.13.0`, OpenRouter pins `typesafe/jev-1.13`. `onesie auth status` names the provider and where its key came from.",
+      "why": "typesafe is the default and reads `TYPESAFE_API_KEY`, plus `TYPESAFE_BASE_URL` and `TYPESAFE_DEFAULT_MODEL` when they are set. openrouter reads `OPENROUTER_API_KEY` alone, and never falls back to the TypeSafe key or those two variables. `jev-latest` works on both, but a pinned model id does not carry over: TypeSafe pins `jev-1.13.0`, OpenRouter pins `typesafe/jev-1.13`. `onesie auth status` names the provider and where its key came from.",
       "good": "onesie --provider openrouter 'is this urgent' --state 'the server is down' --print-request"
     }
   ],
