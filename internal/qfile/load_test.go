@@ -89,7 +89,7 @@ func TestDecodeOrdered(t *testing.T) {
 	}
 }
 
-func TestLoadSeparatorInText(t *testing.T) {
+func TestCheckSingleDocument(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {

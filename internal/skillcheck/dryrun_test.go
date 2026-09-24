@@ -172,86 +172,86 @@ func TestDryRunArgs(t *testing.T) {
 			}
 		})
 	}
-}
 
-func TestDryRunArgsProtectsAnUnstrippedFlagsValue(t *testing.T) {
-	t.Parallel()
+	t.Run("should protect the value of a flag it keeps", func(t *testing.T) {
+		t.Parallel()
 
-	tests := []struct {
-		name      string
-		tokens    []string
-		wantValue string
-	}{
-		{
-			name:      "should keep --state's value intact when it spells the mode flag",
-			tokens:    []string{"onesie", "--ask", "a=x", "--state", "--print-request"},
-			wantValue: "--print-request",
-		},
-		{
-			name:      "should keep --state's value intact when it spells an always stripped flag",
-			tokens:    []string{"onesie", "--ask", "a=x", "--state", "--merge"},
-			wantValue: "--merge",
-		},
-	}
+		tests := []struct {
+			name      string
+			tokens    []string
+			wantValue string
+		}{
+			{
+				name:      "should keep --state's value intact when it spells the mode flag",
+				tokens:    []string{"onesie", "--ask", "a=x", "--state", "--print-request"},
+				wantValue: "--print-request",
+			},
+			{
+				name:      "should keep --state's value intact when it spells an always stripped flag",
+				tokens:    []string{"onesie", "--ask", "a=x", "--state", "--merge"},
+				wantValue: "--merge",
+			},
+		}
 
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				got, reason, err := dryRunArgs(tc.tokens)
+				if err != nil || reason != "" {
+					t.Fatalf("dryRunArgs(%v) reason = %q, err = %v, want a clean parse", tc.tokens, reason, err)
+				}
+
+				stateAt := -1
+
+				for i, arg := range got {
+					if arg == "--state" {
+						stateAt = i
+					}
+				}
+
+				if stateAt == -1 || stateAt+1 >= len(got) || got[stateAt+1] != tc.wantValue {
+					t.Fatalf("dryRunArgs(%v) = %#v, want --state immediately followed by %q",
+						tc.tokens, got, tc.wantValue)
+				}
+
+				if modeCount := countModeFlags(got); modeCount != 1 {
+					t.Errorf("dryRunArgs(%v) = %#v, want exactly one dry run flag, counted %d",
+						tc.tokens, got, modeCount)
+				}
+			})
+		}
+	})
+
+	// At the end, a trailing --fallback took the mode flag as its value and the dry run became a
+	// live call.
+	t.Run("should place the mode flag where nothing can consume it", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("should parse and run --fallback --merge rather than skip it", func(t *testing.T) {
 			t.Parallel()
 
-			got, reason, err := dryRunArgs(tc.tokens)
+			tokens := []string{"onesie", "--ask", "a=x", "--fallback", "--merge"}
+
+			got, reason, err := dryRunArgs(tokens)
 			if err != nil || reason != "" {
-				t.Fatalf("dryRunArgs(%v) reason = %q, err = %v, want a clean parse", tc.tokens, reason, err)
+				t.Fatalf("dryRunArgs(%v) reason = %q, err = %v, want a clean parse", tokens, reason, err)
 			}
 
-			stateAt := -1
-
-			for i, arg := range got {
-				if arg == "--state" {
-					stateAt = i
-				}
+			want := []string{"--print-request", "--ask", "a=x", "--fallback"}
+			if !reflect.DeepEqual(got, want) {
+				t.Fatalf("dryRunArgs(%v) = %#v, want %#v", tokens, got, want)
 			}
 
-			if stateAt == -1 || stateAt+1 >= len(got) || got[stateAt+1] != tc.wantValue {
-				t.Fatalf("dryRunArgs(%v) = %#v, want --state immediately followed by %q",
-					tc.tokens, got, tc.wantValue)
+			if got[0] != "--print-request" {
+				t.Errorf("dryRunArgs(%v)[0] = %q, want the mode flag at the very front", tokens, got[0])
 			}
 
 			if modeCount := countModeFlags(got); modeCount != 1 {
 				t.Errorf("dryRunArgs(%v) = %#v, want exactly one dry run flag, counted %d",
-					tc.tokens, got, modeCount)
+					tokens, got, modeCount)
 			}
 		})
-	}
-}
-
-// TestDryRunArgsPlacesTheModeFlagWhereNothingCanConsumeIt pins the mode flag at the front. At the
-// end, a trailing --fallback took it as its value and the dry run became a live call.
-func TestDryRunArgsPlacesTheModeFlagWhereNothingCanConsumeIt(t *testing.T) {
-	t.Parallel()
-
-	t.Run("should parse and run --fallback --merge rather than skip it", func(t *testing.T) {
-		t.Parallel()
-
-		tokens := []string{"onesie", "--ask", "a=x", "--fallback", "--merge"}
-
-		got, reason, err := dryRunArgs(tokens)
-		if err != nil || reason != "" {
-			t.Fatalf("dryRunArgs(%v) reason = %q, err = %v, want a clean parse", tokens, reason, err)
-		}
-
-		want := []string{"--print-request", "--ask", "a=x", "--fallback"}
-		if !reflect.DeepEqual(got, want) {
-			t.Fatalf("dryRunArgs(%v) = %#v, want %#v", tokens, got, want)
-		}
-
-		if got[0] != "--print-request" {
-			t.Errorf("dryRunArgs(%v)[0] = %q, want the mode flag at the very front", tokens, got[0])
-		}
-
-		if modeCount := countModeFlags(got); modeCount != 1 {
-			t.Errorf("dryRunArgs(%v) = %#v, want exactly one dry run flag, counted %d",
-				tokens, got, modeCount)
-		}
 	})
 }
 

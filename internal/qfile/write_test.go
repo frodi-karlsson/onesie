@@ -206,270 +206,270 @@ func TestWrite(t *testing.T) {
 			}
 		})
 	}
-}
 
-func TestWriteRoundTrip(t *testing.T) {
-	t.Parallel()
+	t.Run("should round trip through Load", func(t *testing.T) {
+		t.Parallel()
 
-	tests := []struct {
-		name      string
-		questions []plan.Question
-		assertion string
-	}{
-		{
-			name: "should reload a labelled rate to the same plan",
-			questions: []plan.Question{
-				{
-					ID: "mood", Shape: plan.Rate, Labelled: true,
-					Instructions: "how is it",
-					Levels: []plan.Level{
-						{Label: "calm", Desc: "nothing"},
-						{Label: "angry", Desc: "everything"},
+		tests := []struct {
+			name      string
+			questions []plan.Question
+			assertion string
+		}{
+			{
+				name: "should reload a labelled rate to the same plan",
+				questions: []plan.Question{
+					{
+						ID: "mood", Shape: plan.Rate, Labelled: true,
+						Instructions: "how is it",
+						Levels: []plan.Level{
+							{Label: "calm", Desc: "nothing"},
+							{Label: "angry", Desc: "everything"},
+						},
 					},
 				},
 			},
-		},
-		{
-			name: "should reload noul criteria to the same plan",
-			questions: []plan.Question{
-				{
-					ID: "spam", Shape: plan.Noul, Instructions: "is this spam",
-					Criteria: &plan.YesNoCriteria{
-						Yes: "bulk or bot sent",
-						No:  "written by a person",
+			{
+				name: "should reload noul criteria to the same plan",
+				questions: []plan.Question{
+					{
+						ID: "spam", Shape: plan.Noul, Instructions: "is this spam",
+						Criteria: &plan.YesNoCriteria{
+							Yes: "bulk or bot sent",
+							No:  "written by a person",
+						},
 					},
 				},
 			},
-		},
-		{
-			name: "should reload a pick with policy to the same plan",
-			questions: []plan.Question{
-				{
-					ID: "team", Shape: plan.Pick, Instructions: "who owns this",
-					Options: []plan.Option{
-						{Name: "billing", Desc: "money"},
-						{Name: "platform", Desc: "systems"},
-					},
-					Policy: plan.Policy{MinConfidence: ptr(0.7)},
-				},
-			},
-		},
-		{
-			name: "should reload a structured instruction in its written order",
-			questions: []plan.Question{
-				{
-					ID: "urgent", Shape: plan.Noul,
-					Instructions: json.RawMessage(`{"zebra":"z","mike":"m","alpha":"a"}`),
-				},
-			},
-		},
-		{
-			name: "should reload questions in their written order",
-			questions: []plan.Question{
-				{ID: "zebra", Shape: plan.Noul, Instructions: "z"},
-				{ID: "mike", Shape: plan.Noul, Instructions: "m"},
-				{ID: "alpha", Shape: plan.Noul, Instructions: "a"},
-			},
-		},
-		{
-			name: "should reload a threshold and a fallback to the same plan",
-			questions: []plan.Question{
-				{
-					ID: "urgent", Shape: plan.Noul, Instructions: "is this urgent",
-					Policy: plan.Policy{
-						Threshold: ptr(0.75),
-						Fallback:  &plan.Fallback{Text: "true", Boolean: true},
+			{
+				name: "should reload a pick with policy to the same plan",
+				questions: []plan.Question{
+					{
+						ID: "team", Shape: plan.Pick, Instructions: "who owns this",
+						Options: []plan.Option{
+							{Name: "billing", Desc: "money"},
+							{Name: "platform", Desc: "systems"},
+						},
+						Policy: plan.Policy{MinConfidence: ptr(0.7)},
 					},
 				},
 			},
-		},
-		{
-			name: "should reload a tab in a question id",
-			questions: []plan.Question{
-				{ID: "a\tb", Shape: plan.Noul, Instructions: "is this urgent"},
-			},
-		},
-		{
-			name: "should reload a carriage return in a question id",
-			questions: []plan.Question{
-				{ID: "a\rb", Shape: plan.Noul, Instructions: "is this urgent"},
-			},
-		},
-		{
-			name: "should reload a tab in a pick option name",
-			questions: []plan.Question{
-				{
-					ID: "team", Shape: plan.Pick, Instructions: "who owns this",
-					Options: []plan.Option{
-						{Name: "bil\tling", Desc: "money"},
-						{Name: "platform", Desc: "systems"},
+			{
+				name: "should reload a structured instruction in its written order",
+				questions: []plan.Question{
+					{
+						ID: "urgent", Shape: plan.Noul,
+						Instructions: json.RawMessage(`{"zebra":"z","mike":"m","alpha":"a"}`),
 					},
 				},
 			},
-		},
-		{
-			name: "should reload a carriage return in a pick option name",
-			questions: []plan.Question{
-				{
-					ID: "team", Shape: plan.Pick, Instructions: "who owns this",
-					Options: []plan.Option{
-						{Name: "bil\rling", Desc: "money"},
-						{Name: "platform", Desc: "systems"},
+			{
+				name: "should reload questions in their written order",
+				questions: []plan.Question{
+					{ID: "zebra", Shape: plan.Noul, Instructions: "z"},
+					{ID: "mike", Shape: plan.Noul, Instructions: "m"},
+					{ID: "alpha", Shape: plan.Noul, Instructions: "a"},
+				},
+			},
+			{
+				name: "should reload a threshold and a fallback to the same plan",
+				questions: []plan.Question{
+					{
+						ID: "urgent", Shape: plan.Noul, Instructions: "is this urgent",
+						Policy: plan.Policy{
+							Threshold: ptr(0.75),
+							Fallback:  &plan.Fallback{Text: "true", Boolean: true},
+						},
 					},
 				},
 			},
-		},
-		{
-			name: "should reload a tab in a rate level label",
-			questions: []plan.Question{
-				{
-					ID: "mood", Shape: plan.Rate, Labelled: true, Instructions: "how is it",
-					Levels: []plan.Level{
-						{Label: "ca\tlm", Desc: "nothing"},
-						{Label: "angry", Desc: "everything"},
+			{
+				name: "should reload a tab in a question id",
+				questions: []plan.Question{
+					{ID: "a\tb", Shape: plan.Noul, Instructions: "is this urgent"},
+				},
+			},
+			{
+				name: "should reload a carriage return in a question id",
+				questions: []plan.Question{
+					{ID: "a\rb", Shape: plan.Noul, Instructions: "is this urgent"},
+				},
+			},
+			{
+				name: "should reload a tab in a pick option name",
+				questions: []plan.Question{
+					{
+						ID: "team", Shape: plan.Pick, Instructions: "who owns this",
+						Options: []plan.Option{
+							{Name: "bil\tling", Desc: "money"},
+							{Name: "platform", Desc: "systems"},
+						},
 					},
 				},
 			},
-		},
-		{
-			name: "should reload a carriage return in a rate level label",
-			questions: []plan.Question{
-				{
-					ID: "mood", Shape: plan.Rate, Labelled: true, Instructions: "how is it",
-					Levels: []plan.Level{
-						{Label: "ca\rlm", Desc: "nothing"},
-						{Label: "angry", Desc: "everything"},
+			{
+				name: "should reload a carriage return in a pick option name",
+				questions: []plan.Question{
+					{
+						ID: "team", Shape: plan.Pick, Instructions: "who owns this",
+						Options: []plan.Option{
+							{Name: "bil\rling", Desc: "money"},
+							{Name: "platform", Desc: "systems"},
+						},
 					},
 				},
 			},
-		},
-		{
-			name: "should reload a tab in an instruction",
-			questions: []plan.Question{
-				{ID: "urgent", Shape: plan.Noul, Instructions: "col\tvalue"},
-			},
-		},
-		{
-			name: "should reload a carriage return in an instruction",
-			questions: []plan.Question{
-				{ID: "urgent", Shape: plan.Noul, Instructions: "line one\rline two"},
-			},
-		},
-		{
-			name: "should reload a tab in a description",
-			questions: []plan.Question{
-				{
-					ID: "team", Shape: plan.Pick, Instructions: "who owns this",
-					Options: []plan.Option{{Name: "billing", Desc: "col\tvalue"}},
-				},
-			},
-		},
-		{
-			name: "should reload a carriage return in a description",
-			questions: []plan.Question{
-				{
-					ID: "team", Shape: plan.Pick, Instructions: "who owns this",
-					Options: []plan.Option{{Name: "billing", Desc: "line one\rline two"}},
-				},
-			},
-		},
-		{
-			name: "should reload a structured instruction that is a sequence",
-			questions: []plan.Question{
-				{
-					ID: "urgent", Shape: plan.Noul,
-					Instructions: json.RawMessage(`["first","second","third"]`),
-				},
-			},
-		},
-		{
-			name: "should reload a pick whose options have no description",
-			questions: []plan.Question{
-				{
-					ID: "team", Shape: plan.Pick, Instructions: "who owns this",
-					Options: []plan.Option{{Name: "billing"}, {Name: "platform"}},
-				},
-			},
-		},
-		{
-			name: "should reload an assertion holding a quoted string",
-			questions: []plan.Question{
-				{
-					ID: "team", Shape: plan.Pick, Instructions: "who owns this",
-					Options: []plan.Option{{Name: "billing"}, {Name: "technical"}},
-				},
-			},
-			assertion: `team.value == "billing"`,
-		},
-		{
-			name: "should reload an assertion holding a list",
-			questions: []plan.Question{
-				{
-					ID: "team", Shape: plan.Pick, Instructions: "who owns this",
-					Options: []plan.Option{{Name: "billing"}, {Name: "technical"}},
-				},
-			},
-			assertion: `team.value in ["billing", "technical"]`,
-		},
-		{
-			name: "should reload an assertion that opens with a quoted string",
-			questions: []plan.Question{
-				{ID: "urgent", Shape: plan.Noul, Instructions: "is this urgent"},
-			},
-			assertion: `"yes" == "yes" and urgent.value > 0.5`,
-		},
-		{
-			name: "should reload all three policy keys on one question",
-			questions: []plan.Question{
-				{
-					ID: "urgent", Shape: plan.Noul, Instructions: "is this urgent",
-					Policy: plan.Policy{
-						Threshold:     ptr(0.75),
-						MinConfidence: ptr(0.6),
-						Fallback:      &plan.Fallback{Text: "false"},
+			{
+				name: "should reload a tab in a rate level label",
+				questions: []plan.Question{
+					{
+						ID: "mood", Shape: plan.Rate, Labelled: true, Instructions: "how is it",
+						Levels: []plan.Level{
+							{Label: "ca\tlm", Desc: "nothing"},
+							{Label: "angry", Desc: "everything"},
+						},
 					},
 				},
 			},
-		},
-	}
+			{
+				name: "should reload a carriage return in a rate level label",
+				questions: []plan.Question{
+					{
+						ID: "mood", Shape: plan.Rate, Labelled: true, Instructions: "how is it",
+						Levels: []plan.Level{
+							{Label: "ca\rlm", Desc: "nothing"},
+							{Label: "angry", Desc: "everything"},
+						},
+					},
+				},
+			},
+			{
+				name: "should reload a tab in an instruction",
+				questions: []plan.Question{
+					{ID: "urgent", Shape: plan.Noul, Instructions: "col\tvalue"},
+				},
+			},
+			{
+				name: "should reload a carriage return in an instruction",
+				questions: []plan.Question{
+					{ID: "urgent", Shape: plan.Noul, Instructions: "line one\rline two"},
+				},
+			},
+			{
+				name: "should reload a tab in a description",
+				questions: []plan.Question{
+					{
+						ID: "team", Shape: plan.Pick, Instructions: "who owns this",
+						Options: []plan.Option{{Name: "billing", Desc: "col\tvalue"}},
+					},
+				},
+			},
+			{
+				name: "should reload a carriage return in a description",
+				questions: []plan.Question{
+					{
+						ID: "team", Shape: plan.Pick, Instructions: "who owns this",
+						Options: []plan.Option{{Name: "billing", Desc: "line one\rline two"}},
+					},
+				},
+			},
+			{
+				name: "should reload a structured instruction that is a sequence",
+				questions: []plan.Question{
+					{
+						ID: "urgent", Shape: plan.Noul,
+						Instructions: json.RawMessage(`["first","second","third"]`),
+					},
+				},
+			},
+			{
+				name: "should reload a pick whose options have no description",
+				questions: []plan.Question{
+					{
+						ID: "team", Shape: plan.Pick, Instructions: "who owns this",
+						Options: []plan.Option{{Name: "billing"}, {Name: "platform"}},
+					},
+				},
+			},
+			{
+				name: "should reload an assertion holding a quoted string",
+				questions: []plan.Question{
+					{
+						ID: "team", Shape: plan.Pick, Instructions: "who owns this",
+						Options: []plan.Option{{Name: "billing"}, {Name: "technical"}},
+					},
+				},
+				assertion: `team.value == "billing"`,
+			},
+			{
+				name: "should reload an assertion holding a list",
+				questions: []plan.Question{
+					{
+						ID: "team", Shape: plan.Pick, Instructions: "who owns this",
+						Options: []plan.Option{{Name: "billing"}, {Name: "technical"}},
+					},
+				},
+				assertion: `team.value in ["billing", "technical"]`,
+			},
+			{
+				name: "should reload an assertion that opens with a quoted string",
+				questions: []plan.Question{
+					{ID: "urgent", Shape: plan.Noul, Instructions: "is this urgent"},
+				},
+				assertion: `"yes" == "yes" and urgent.value > 0.5`,
+			},
+			{
+				name: "should reload all three policy keys on one question",
+				questions: []plan.Question{
+					{
+						ID: "urgent", Shape: plan.Noul, Instructions: "is this urgent",
+						Policy: plan.Policy{
+							Threshold:     ptr(0.75),
+							MinConfidence: ptr(0.6),
+							Fallback:      &plan.Fallback{Text: "false"},
+						},
+					},
+				},
+			},
+		}
 
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
 
-			written, err := qfile.Write(tc.questions, tc.assertion)
-			if err != nil {
-				t.Fatalf("Write: %v", err)
-			}
+				written, err := qfile.Write(tc.questions, tc.assertion)
+				if err != nil {
+					t.Fatalf("Write: %v", err)
+				}
 
-			reloaded, err := qfile.Load(written)
-			if err != nil {
-				t.Fatalf("Load: %v\nfile was\n%s", err, written)
-			}
+				reloaded, err := qfile.Load(written)
+				if err != nil {
+					t.Fatalf("Load: %v\nfile was\n%s", err, written)
+				}
 
-			if reloaded.Assert != tc.assertion {
-				t.Errorf("round trip changed the assertion\nwant %q\ngot  %q\nfile was\n%s",
-					tc.assertion, reloaded.Assert, written)
-			}
+				if reloaded.Assert != tc.assertion {
+					t.Errorf("round trip changed the assertion\nwant %q\ngot  %q\nfile was\n%s",
+						tc.assertion, reloaded.Assert, written)
+				}
 
-			want := fileShaped(tc.questions)
-			got := fileShaped(reloaded.Questions)
+				want := fileShaped(tc.questions)
+				got := fileShaped(reloaded.Questions)
 
-			if !reflect.DeepEqual(want, got) {
-				t.Errorf("round trip lost information\nwant %#v\ngot  %#v\nfile was\n%s",
-					want, got, written)
-			}
+				if !reflect.DeepEqual(want, got) {
+					t.Errorf("round trip lost information\nwant %#v\ngot  %#v\nfile was\n%s",
+						want, got, written)
+				}
 
-			rewritten, err := qfile.Write(reloaded.Questions, reloaded.Assert)
-			if err != nil {
-				t.Fatalf("Write after Load: %v", err)
-			}
+				rewritten, err := qfile.Write(reloaded.Questions, reloaded.Assert)
+				if err != nil {
+					t.Fatalf("Write after Load: %v", err)
+				}
 
-			if string(rewritten) != string(written) {
-				t.Errorf("rewriting changed the file\nfirst\n%s\nsecond\n%s", written, rewritten)
-			}
-		})
-	}
+				if string(rewritten) != string(written) {
+					t.Errorf("rewriting changed the file\nfirst\n%s\nsecond\n%s", written, rewritten)
+				}
+			})
+		}
+	})
 }
 
 func fileShaped(questions []plan.Question) []plan.Question {

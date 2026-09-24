@@ -7,7 +7,7 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/cli"
 )
 
-func TestStatsRender(t *testing.T) {
+func TestStatsString(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {

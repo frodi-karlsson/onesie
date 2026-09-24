@@ -341,305 +341,303 @@ func TestCheck(t *testing.T) {
 				got.Error(), "unknown question 'x'")
 		}
 	})
-}
 
-// TestCheckSpellsTheOrigin holds assertion messages to plan's rule of spelling the offending thing
-// the way the question was written. §17.8 publishes the flag spelling.
-func TestCheckSpellsTheOrigin(t *testing.T) {
-	t.Parallel()
+	// Plan's rule, held for assertion messages. §17.8 publishes the flag spelling.
+	t.Run("should spell the offending thing the way the question was written", func(t *testing.T) {
+		t.Parallel()
 
-	tests := []struct {
-		name     string
-		question plan.Question
-		input    string
-		wantErr  string
-	}{
-		{
-			name: "should spell a file's options the way the file keys them",
-			question: plan.Question{
-				ID: "team", Shape: plan.Pick, Origin: plan.OriginFile,
-				Options: []plan.Option{{Name: "billing"}, {Name: "technical"}},
+		tests := []struct {
+			name     string
+			question plan.Question
+			input    string
+			wantErr  string
+		}{
+			{
+				name: "should spell a file's options the way the file keys them",
+				question: plan.Question{
+					ID: "team", Shape: plan.Pick, Origin: plan.OriginFile,
+					Options: []plan.Option{{Name: "billing"}, {Name: "technical"}},
+				},
+				input:   `team.p.bilingl > 0.2`,
+				wantErr: "'team' has no option 'bilingl'. 'pick' has: billing, technical",
 			},
-			input:   `team.p.bilingl > 0.2`,
-			wantErr: "'team' has no option 'bilingl'. 'pick' has: billing, technical",
-		},
-		{
-			name: "should spell a body's options as its criteria",
-			question: plan.Question{
-				ID: "team", Shape: plan.Pick, Origin: plan.OriginBody,
-				Options: []plan.Option{{Name: "billing"}, {Name: "technical"}},
+			{
+				name: "should spell a body's options as its criteria",
+				question: plan.Question{
+					ID: "team", Shape: plan.Pick, Origin: plan.OriginBody,
+					Options: []plan.Option{{Name: "billing"}, {Name: "technical"}},
+				},
+				input:   `team.p.bilingl > 0.2`,
+				wantErr: "'team' has no option 'bilingl'. 'criteria' has: billing, technical",
 			},
-			input:   `team.p.bilingl > 0.2`,
-			wantErr: "'team' has no option 'bilingl'. 'criteria' has: billing, technical",
-		},
-		{
-			name: "should spell a file's labels the way the file keys them",
-			question: plan.Question{
-				ID: "severity", Shape: plan.Rate, Origin: plan.OriginFile, Labelled: true,
-				Levels: []plan.Level{{Label: "low"}, {Label: "high"}},
+			{
+				name: "should spell a file's labels the way the file keys them",
+				question: plan.Question{
+					ID: "severity", Shape: plan.Rate, Origin: plan.OriginFile, Labelled: true,
+					Levels: []plan.Level{{Label: "low"}, {Label: "high"}},
+				},
+				input:   `severity.p.lo > 0.2`,
+				wantErr: "'severity' has no label 'lo'. 'rate' has: low, high",
 			},
-			input:   `severity.p.lo > 0.2`,
-			wantErr: "'severity' has no label 'lo'. 'rate' has: low, high",
-		},
-		{
-			name: "should spell a file's policy keys in the fallback message",
-			question: plan.Question{
-				ID: "team", Shape: plan.Pick, Origin: plan.OriginFile,
-				Options: []plan.Option{{Name: "billing"}, {Name: "technical"}},
+			{
+				name: "should spell a file's policy keys in the fallback message",
+				question: plan.Question{
+					ID: "team", Shape: plan.Pick, Origin: plan.OriginFile,
+					Options: []plan.Option{{Name: "billing"}, {Name: "technical"}},
+				},
+				input: `team.fallback == ""`,
+				wantErr: "'team.fallback' needs 'threshold', 'min_confidence' or 'fallback' " +
+					"on 'team'",
 			},
-			input: `team.fallback == ""`,
-			wantErr: "'team.fallback' needs 'threshold', 'min_confidence' or 'fallback' " +
-				"on 'team'",
-		},
-		{
-			name: "should spell a file's policy keys in the decision message",
-			question: plan.Question{
-				ID: "team", Shape: plan.Pick, Origin: plan.OriginFile,
-				Options: []plan.Option{{Name: "billing"}, {Name: "technical"}},
+			{
+				name: "should spell a file's policy keys in the decision message",
+				question: plan.Question{
+					ID: "team", Shape: plan.Pick, Origin: plan.OriginFile,
+					Options: []plan.Option{{Name: "billing"}, {Name: "technical"}},
+				},
+				input:   `team.decision == "billing"`,
+				wantErr: "'team.decision' needs 'threshold' or 'min_confidence' on 'team'",
 			},
-			input:   `team.decision == "billing"`,
-			wantErr: "'team.decision' needs 'threshold' or 'min_confidence' on 'team'",
-		},
-		{
-			name: "should name the file's fallback key a decision is short",
-			question: plan.Question{
-				ID: "team", Shape: plan.Pick, Origin: plan.OriginFile,
-				Options: []plan.Option{{Name: "billing"}, {Name: "technical"}},
-				Policy:  plan.Policy{MinConfidence: ptr(0.7)},
+			{
+				name: "should name the file's fallback key a decision is short",
+				question: plan.Question{
+					ID: "team", Shape: plan.Pick, Origin: plan.OriginFile,
+					Options: []plan.Option{{Name: "billing"}, {Name: "technical"}},
+					Policy:  plan.Policy{MinConfidence: ptr(0.7)},
+				},
+				input:   `team.decision == "billing"`,
+				wantErr: "'team.decision' needs 'fallback' on 'team'",
 			},
-			input:   `team.decision == "billing"`,
-			wantErr: "'team.decision' needs 'fallback' on 'team'",
-		},
-	}
+		}
 
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				built := &plan.Plan{Questions: []plan.Question{tc.question}}
+
+				got := Check(mustParse(t, tc.input), built)
+				if got == nil {
+					t.Fatalf("Check(%q) = nil, want error %q", tc.input, tc.wantErr)
+				}
+
+				if got.Error() != tc.wantErr {
+					t.Errorf("Check(%q) error = %q, want %q", tc.input, got.Error(), tc.wantErr)
+				}
+			})
+		}
+	})
+
+	// Check types each path and Eval reads it, so the promise holds end to end.
+	t.Run("should accept every path §17.3 allows and reject the rest", func(t *testing.T) {
+		t.Parallel()
+
+		options := []plan.Option{{Name: "billing"}, {Name: "technical"}}
+		levels := []plan.Level{{Label: "low"}, {Label: "high"}, {Label: "critical"}}
+
+		built := &plan.Plan{
+			Questions: []plan.Question{
+				{ID: "urgent", Shape: plan.Noul},
+				{ID: "gated", Shape: plan.Noul, Policy: plan.Policy{Threshold: ptr(0.6)}},
+				{
+					ID: "guessed", Shape: plan.Noul,
+					Policy: plan.Policy{Fallback: &plan.Fallback{Text: "no"}},
+				},
+				{ID: "team", Shape: plan.Pick, Options: options},
+				{ID: "routed", Shape: plan.Pick, Options: options, Policy: plan.Policy{
+					MinConfidence: ptr(0.7), Fallback: &plan.Fallback{Text: "human"},
+				}},
+				// A pair §11 rejects on its own. answer.Apply has nothing to substitute without a
+				// fallback and leaves decision unset, so Check cannot promise the path either.
+				{
+					ID: "unsure", Shape: plan.Pick, Options: options,
+					Policy: plan.Policy{MinConfidence: ptr(0.7)},
+				},
+				{ID: "severity", Shape: plan.Rate, Labelled: true, Levels: levels},
+				{ID: "graded", Shape: plan.Rate, Labelled: true, Levels: levels, Policy: plan.Policy{
+					MinConfidence: ptr(0.7), Fallback: &plan.Fallback{Text: "critical"},
+				}},
+				{ID: "indexed", Shape: plan.Rate, Levels: []plan.Level{{}, {}, {}}},
+			},
+		}
+
+		// Both sides of the min-confidence branch in answer.Apply, so a decision is read back whether
+		// the model's answer stood or the fallback replaced it.
+		records := []pathRecord{
+			{name: "a confident record", record: fullRecord(t, built, 0.9)},
+			{name: "a low confidence record", record: fullRecord(t, built, 0.5), low: true},
+		}
+
+		tests := []pathCase{
+			{
+				name: "should carry only a number value on a yes/no question",
+				id:   "urgent",
+				allowed: map[string]string{
+					"value": "0.8",
+				},
+			},
+			{
+				name: "should carry a boolean decision on a yes/no question with a threshold",
+				id:   "gated",
+				allowed: map[string]string{
+					"value": "0.8", "decision": "true", "fallback": `""`,
+				},
+			},
+			{
+				name: "should carry a fallback but no decision on a yes/no question with only a fallback",
+				id:   "guessed",
+				allowed: map[string]string{
+					"value": "0.8", "fallback": `""`,
+				},
+			},
+			{
+				name: "should carry a string value and probabilities on a pick question",
+				id:   "team",
+				allowed: map[string]string{
+					"value": `"technical"`, "confidence": "0.9",
+					"p.billing": "0.25", "p.technical": "0.5",
+				},
+				low: map[string]string{"confidence": "0.5"},
+			},
+			{
+				name: "should carry a string decision on a pick question with min-confidence",
+				id:   "routed",
+				allowed: map[string]string{
+					"value": `"technical"`, "confidence": "0.9",
+					"p.billing": "0.25", "p.technical": "0.5",
+					"decision": `"technical"`, "fallback": `""`,
+				},
+				low: map[string]string{
+					"confidence": "0.5", "decision": `"human"`, "fallback": `"low_confidence"`,
+				},
+			},
+			{
+				name: "should carry no decision on a pick question with min-confidence and no fallback",
+				id:   "unsure",
+				allowed: map[string]string{
+					"value": `"technical"`, "confidence": "0.9",
+					"p.billing": "0.25", "p.technical": "0.5",
+					"fallback": `""`,
+				},
+				low: map[string]string{"confidence": "0.5"},
+			},
+			{
+				name: "should carry a score and a norm on a labelled rate question",
+				id:   "severity",
+				allowed: map[string]string{
+					"value": `"critical"`, "confidence": "0.9",
+					"score": "1", "norm": "0.5",
+					"p.low": "0.16666666666666666", "p.high": "0.3333333333333333",
+					"p.critical": "0.5",
+				},
+				low: map[string]string{"confidence": "0.5"},
+			},
+			{
+				name: "should carry a string decision on a rate question with min-confidence",
+				id:   "graded",
+				allowed: map[string]string{
+					"value": `"critical"`, "confidence": "0.9",
+					"score": "1", "norm": "0.5",
+					"p.low": "0.16666666666666666", "p.high": "0.3333333333333333",
+					"p.critical": "0.5",
+					"decision":   `"critical"`, "fallback": `""`,
+				},
+				// The fallback text repeats the model's own answer, so only fallback tells the two
+				// branches apart here. routed is the pair where decision itself changes.
+				low: map[string]string{
+					"confidence": "0.5", "fallback": `"low_confidence"`,
+				},
+			},
+			{
+				name: "should carry probabilities by index on an unlabelled rate question",
+				id:   "indexed",
+				allowed: map[string]string{
+					"value": `"2"`, "confidence": "0.9",
+					"score": "1", "norm": "0.5",
+					`p["0"]`: "0.16666666666666666", `p["1"]`: "0.3333333333333333",
+					`p["2"]`: "0.5",
+				},
+				low: map[string]string{"confidence": "0.5"},
+			},
+		}
+
+		runPathCases(t, built, records, tests)
+
+		t.Run("should carry the model as a string", func(t *testing.T) {
 			t.Parallel()
 
-			built := &plan.Plan{Questions: []plan.Question{tc.question}}
-
-			got := Check(mustParse(t, tc.input), built)
-			if got == nil {
-				t.Fatalf("Check(%q) = nil, want error %q", tc.input, tc.wantErr)
+			if got, ok := probe(t, built, "model"); !ok || got != typeString {
+				t.Errorf("Check over %q typed it %v, %v, want string, true", "model", got, ok)
 			}
 
-			if got.Error() != tc.wantErr {
-				t.Errorf("Check(%q) error = %q, want %q", tc.input, got.Error(), tc.wantErr)
+			for _, rec := range records {
+				source := `model == "onesie-1.13.0"`
+				if !Eval(mustParse(t, source), rec.record) {
+					t.Errorf("Eval(%q) over %s = false, want true", source, rec.name)
+				}
 			}
 		})
-	}
-}
 
-// TestCheckedPaths proves §17.3 end to end: every path the table allows is accepted with its type
-// and resolves in a normalized record, and everything else is rejected.
-func TestCheckedPaths(t *testing.T) {
-	t.Parallel()
+		t.Run("should reject a question the plan does not have", func(t *testing.T) {
+			t.Parallel()
 
-	options := []plan.Option{{Name: "billing"}, {Name: "technical"}}
-	levels := []plan.Level{{Label: "low"}, {Label: "high"}, {Label: "critical"}}
-
-	built := &plan.Plan{
-		Questions: []plan.Question{
-			{ID: "urgent", Shape: plan.Noul},
-			{ID: "gated", Shape: plan.Noul, Policy: plan.Policy{Threshold: ptr(0.6)}},
-			{
-				ID: "guessed", Shape: plan.Noul,
-				Policy: plan.Policy{Fallback: &plan.Fallback{Text: "no"}},
-			},
-			{ID: "team", Shape: plan.Pick, Options: options},
-			{ID: "routed", Shape: plan.Pick, Options: options, Policy: plan.Policy{
-				MinConfidence: ptr(0.7), Fallback: &plan.Fallback{Text: "human"},
-			}},
-			// A pair §11 rejects on its own. answer.Apply has nothing to substitute without a
-			// fallback and leaves decision unset, so Check cannot promise the path either.
-			{
-				ID: "unsure", Shape: plan.Pick, Options: options,
-				Policy: plan.Policy{MinConfidence: ptr(0.7)},
-			},
-			{ID: "severity", Shape: plan.Rate, Labelled: true, Levels: levels},
-			{ID: "graded", Shape: plan.Rate, Labelled: true, Levels: levels, Policy: plan.Policy{
-				MinConfidence: ptr(0.7), Fallback: &plan.Fallback{Text: "critical"},
-			}},
-			{ID: "indexed", Shape: plan.Rate, Levels: []plan.Level{{}, {}, {}}},
-		},
-	}
-
-	// Both sides of the min-confidence branch in answer.Apply, so a decision is read back whether
-	// the model's answer stood or the fallback replaced it.
-	records := []pathRecord{
-		{name: "a confident record", record: fullRecord(t, built, 0.9)},
-		{name: "a low confidence record", record: fullRecord(t, built, 0.5), low: true},
-	}
-
-	tests := []pathCase{
-		{
-			name: "should carry only a number value on a yes/no question",
-			id:   "urgent",
-			allowed: map[string]string{
-				"value": "0.8",
-			},
-		},
-		{
-			name: "should carry a boolean decision on a yes/no question with a threshold",
-			id:   "gated",
-			allowed: map[string]string{
-				"value": "0.8", "decision": "true", "fallback": `""`,
-			},
-		},
-		{
-			name: "should carry a fallback but no decision on a yes/no question with only a fallback",
-			id:   "guessed",
-			allowed: map[string]string{
-				"value": "0.8", "fallback": `""`,
-			},
-		},
-		{
-			name: "should carry a string value and probabilities on a pick question",
-			id:   "team",
-			allowed: map[string]string{
-				"value": `"technical"`, "confidence": "0.9",
-				"p.billing": "0.25", "p.technical": "0.5",
-			},
-			low: map[string]string{"confidence": "0.5"},
-		},
-		{
-			name: "should carry a string decision on a pick question with min-confidence",
-			id:   "routed",
-			allowed: map[string]string{
-				"value": `"technical"`, "confidence": "0.9",
-				"p.billing": "0.25", "p.technical": "0.5",
-				"decision": `"technical"`, "fallback": `""`,
-			},
-			low: map[string]string{
-				"confidence": "0.5", "decision": `"human"`, "fallback": `"low_confidence"`,
-			},
-		},
-		{
-			name: "should carry no decision on a pick question with min-confidence and no fallback",
-			id:   "unsure",
-			allowed: map[string]string{
-				"value": `"technical"`, "confidence": "0.9",
-				"p.billing": "0.25", "p.technical": "0.5",
-				"fallback": `""`,
-			},
-			low: map[string]string{"confidence": "0.5"},
-		},
-		{
-			name: "should carry a score and a norm on a labelled rate question",
-			id:   "severity",
-			allowed: map[string]string{
-				"value": `"critical"`, "confidence": "0.9",
-				"score": "1", "norm": "0.5",
-				"p.low": "0.16666666666666666", "p.high": "0.3333333333333333",
-				"p.critical": "0.5",
-			},
-			low: map[string]string{"confidence": "0.5"},
-		},
-		{
-			name: "should carry a string decision on a rate question with min-confidence",
-			id:   "graded",
-			allowed: map[string]string{
-				"value": `"critical"`, "confidence": "0.9",
-				"score": "1", "norm": "0.5",
-				"p.low": "0.16666666666666666", "p.high": "0.3333333333333333",
-				"p.critical": "0.5",
-				"decision":   `"critical"`, "fallback": `""`,
-			},
-			// The fallback text repeats the model's own answer, so only fallback tells the two
-			// branches apart here. routed is the pair where decision itself changes.
-			low: map[string]string{
-				"confidence": "0.5", "fallback": `"low_confidence"`,
-			},
-		},
-		{
-			name: "should carry probabilities by index on an unlabelled rate question",
-			id:   "indexed",
-			allowed: map[string]string{
-				"value": `"2"`, "confidence": "0.9",
-				"score": "1", "norm": "0.5",
-				`p["0"]`: "0.16666666666666666", `p["1"]`: "0.3333333333333333",
-				`p["2"]`: "0.5",
-			},
-			low: map[string]string{"confidence": "0.5"},
-		},
-	}
-
-	runPathCases(t, built, records, tests)
-
-	t.Run("should carry the model as a string", func(t *testing.T) {
-		t.Parallel()
-
-		if got, ok := probe(t, built, "model"); !ok || got != typeString {
-			t.Errorf("Check over %q typed it %v, %v, want string, true", "model", got, ok)
-		}
-
-		for _, rec := range records {
-			source := `model == "onesie-1.13.0"`
-			if !Eval(mustParse(t, source), rec.record) {
-				t.Errorf("Eval(%q) over %s = false, want true", source, rec.name)
+			for _, path := range []string{"nothing", "nothing.value", "model.value", `["team"].value.x`} {
+				if got, ok := probe(t, built, path); ok {
+					t.Errorf("Check over %q typed it %v, want it rejected", path, got)
+				}
 			}
-		}
+		})
 	})
 
-	t.Run("should reject a question the plan does not have", func(t *testing.T) {
+	// The group above includes a question §11 rejects, so this holds the table over a plan the
+	// pipeline accepts.
+	t.Run("should hold the path table over an assembled plan", func(t *testing.T) {
 		t.Parallel()
 
-		for _, path := range []string{"nothing", "nothing.value", "model.value", `["team"].value.x`} {
-			if got, ok := probe(t, built, path); ok {
-				t.Errorf("Check over %q typed it %v, want it rejected", path, got)
-			}
+		built := assembledPlan(t)
+
+		records := []pathRecord{
+			{name: "a confident record", record: fullRecord(t, built, 0.9)},
+			{name: "a low confidence record", record: fullRecord(t, built, 0.5), low: true},
 		}
-	})
-}
 
-// TestCheckedPathsOnAssembledPlan holds the same promise over a plan the pipeline accepts, since
-// TestCheckedPaths includes a question §11 rejects.
-func TestCheckedPathsOnAssembledPlan(t *testing.T) {
-	t.Parallel()
-
-	built := assembledPlan(t)
-
-	records := []pathRecord{
-		{name: "a confident record", record: fullRecord(t, built, 0.9)},
-		{name: "a low confidence record", record: fullRecord(t, built, 0.5), low: true},
-	}
-
-	runPathCases(t, built, records, []pathCase{
-		{
-			name:    "should carry only a number value on a yes/no question",
-			id:      "urgent",
-			allowed: map[string]string{"value": "0.8"},
-		},
-		{
-			name: "should carry a boolean decision on a yes/no question with a threshold",
-			id:   "gated",
-			allowed: map[string]string{
-				"value": "0.8", "decision": "true", "fallback": `""`,
+		runPathCases(t, built, records, []pathCase{
+			{
+				name:    "should carry only a number value on a yes/no question",
+				id:      "urgent",
+				allowed: map[string]string{"value": "0.8"},
 			},
-		},
-		{
-			name: "should carry a string decision on a pick question with min-confidence",
-			id:   "routed",
-			allowed: map[string]string{
-				"value": `"technical"`, "confidence": "0.9",
-				"p.billing": "0.25", "p.technical": "0.5",
-				"decision": `"technical"`, "fallback": `""`,
+			{
+				name: "should carry a boolean decision on a yes/no question with a threshold",
+				id:   "gated",
+				allowed: map[string]string{
+					"value": "0.8", "decision": "true", "fallback": `""`,
+				},
 			},
-			low: map[string]string{
-				"confidence": "0.5", "decision": `"human"`, "fallback": `"low_confidence"`,
+			{
+				name: "should carry a string decision on a pick question with min-confidence",
+				id:   "routed",
+				allowed: map[string]string{
+					"value": `"technical"`, "confidence": "0.9",
+					"p.billing": "0.25", "p.technical": "0.5",
+					"decision": `"technical"`, "fallback": `""`,
+				},
+				low: map[string]string{
+					"confidence": "0.5", "decision": `"human"`, "fallback": `"low_confidence"`,
+				},
 			},
-		},
-		{
-			name: "should carry a score and a norm on a labelled rate question",
-			id:   "severity",
-			allowed: map[string]string{
-				"value": `"critical"`, "confidence": "0.9",
-				"score": "1", "norm": "0.5",
-				"p.low": "0.16666666666666666", "p.high": "0.3333333333333333",
-				"p.critical": "0.5",
+			{
+				name: "should carry a score and a norm on a labelled rate question",
+				id:   "severity",
+				allowed: map[string]string{
+					"value": `"critical"`, "confidence": "0.9",
+					"score": "1", "norm": "0.5",
+					"p.low": "0.16666666666666666", "p.high": "0.3333333333333333",
+					"p.critical": "0.5",
+				},
+				low: map[string]string{"confidence": "0.5"},
 			},
-			low: map[string]string{"confidence": "0.5"},
-		},
+		})
 	})
 }
 

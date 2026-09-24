@@ -62,7 +62,7 @@ func TestPlural(t *testing.T) {
 	}
 }
 
-func TestCollectorConcurrent(t *testing.T) {
+func TestCollectorSnapshot(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -247,174 +247,38 @@ func TestTerminalStatus(t *testing.T) {
 	}
 }
 
-func TestNewRootCmdStats(t *testing.T) {
+func TestWithStats(t *testing.T) {
 	t.Parallel()
 
-	const answered = `{"model":"onesie-1.13.0","answers":{"urgent":{"type":"noul","noul":0.9}},` +
-		`"usage":{"input_tokens":2841,"output_tokens":71}}`
+	ran := errors.New("the run failed")
 
 	tests := []struct {
-		name       string
-		args       []string
-		stdin      string
-		handler    func() http.HandlerFunc
-		opts       []RootOption
-		wantCode   int
-		wantErr    []string
-		absentOut  []string
-		wantOutHas []string
+		name     string
+		run      error
+		broken   bool
+		elapsed  time.Duration
+		want     error
+		wantLine string
 	}{
 		{
-			name:    "should end the summary with the elapsed time the clock measured",
-			args:    []string{"--ask", "urgent=is this urgent", "-o", "json", "--stats"},
-			stdin:   "the server is down",
-			handler: func() http.HandlerFunc { return answerHandler(answered) },
-			opts: []RootOption{
-				WithNow(ticking(time.Date(2026, 9, 24, 12, 0, 0, 0, time.UTC), 2*time.Second)),
-			},
-			wantCode: ExitOK,
-			wantErr: []string{
-				"1 request, 1 question, 2841 in / 71 out, model onesie-1.13.0, " +
-					"1 attempt, 10s/attempt, 2s\n",
-			},
+			name: "should prefer the run's error over a summary that could not be written",
+			run:  ran, broken: true, want: ran,
 		},
 		{
-			name:     "should write the summary to stderr and leave stdout to the answer",
-			args:     []string{"--ask", "urgent=is this urgent", "-o", "json", "--stats"},
-			stdin:    "the server is down",
-			handler:  func() http.HandlerFunc { return answerHandler(answered) },
-			wantCode: ExitOK,
-			wantErr: []string{
-				"1 request, 1 question, 2841 in / 71 out, model onesie-1.13.0, " +
-					"1 attempt, 10s/attempt,",
-			},
-			wantOutHas: []string{`"urgent"`},
-			// The whole reason the line goes to stderr. On stdout it would corrupt every
-			// pipeline --stats exists to measure.
-			absentOut: []string{"1 request", "attempt"},
+			name:   "should report a failed summary write when the run succeeded",
+			broken: true, want: errBroken,
 		},
 		{
-			name:  "should count a retry rather than an attempt and name its status",
-			args:  []string{"--ask", "urgent=is this urgent", "-o", "json", "--stats"},
-			stdin: "the server is down",
-			handler: func() http.HandlerFunc {
-				return onceThen(http.StatusTooManyRequests, answered)
-			},
-			wantCode:   ExitOK,
-			wantErr:    []string{"2 attempts (1 retry: 429×1)"},
-			wantOutHas: []string{`"urgent"`},
+			name:    "should report the elapsed time between the clock's two readings",
+			elapsed: 1500 * time.Millisecond,
+			wantLine: "1 request, 1 question, 0 in / 0 out, model onesie-1.13.0, 0 attempts, " +
+				"10s/attempt, 1.5s\n",
 		},
 		{
-			name:  "should name a retry with no status transport",
-			args:  []string{"--ask", "urgent=is this urgent", "-o", "json", "--stats"},
-			stdin: "the server is down",
-			handler: func() http.HandlerFunc {
-				return hangUpThen(answered)
-			},
-			wantCode:   ExitOK,
-			wantErr:    []string{"2 attempts (1 retry: transport×1)"},
-			wantOutHas: []string{`"urgent"`},
-		},
-		{
-			name: "should separate records from requests when a line fails to parse",
-			args: []string{
-				"--ask", "urgent=is this urgent", "-i", "jsonl", "-o", "json", "--stats",
-			},
-			stdin:      "{\"id\":1}\nnot json\n",
-			handler:    func() http.HandlerFunc { return answerHandler(answered) },
-			wantCode:   ExitRecords,
-			wantErr:    []string{"2 records, 1 failed, 1 request, 1 question, 2841 in / 71 out"},
-			wantOutHas: []string{`"urgent"`},
-		},
-		{
-			// The 400 ended its record, so it caused no retry. Naming it in the breakdown is the
-			// report a caller cannot tell from a real one.
-			name: "should name only the status that was retried",
-			args: []string{
-				"--ask", "urgent=is this urgent", "-i", "jsonl", "-o", "json",
-				"-j", "1", "--stats",
-			},
-			stdin: "{\"id\":1}\n{\"id\":2}\n",
-			handler: func() http.HandlerFunc {
-				return scripted(http.StatusBadRequest, http.StatusTooManyRequests, answered)
-			},
-			wantCode:   ExitRecords,
-			wantErr:    []string{"3 attempts (1 retry: 429×1)"},
-			wantOutHas: []string{`"status":400`},
-		},
-		{
-			name: "should name only the status that was retried under concurrency",
-			args: []string{
-				"--ask", "urgent=is this urgent", "-i", "jsonl", "-o", "json",
-				"-j", "2", "--unordered", "--stats",
-			},
-			stdin: "{\"id\":1}\n{\"id\":2}\n",
-			handler: func() http.HandlerFunc {
-				return scripted(http.StatusBadRequest, http.StatusTooManyRequests, answered)
-			},
-			wantCode:   ExitRecords,
-			wantErr:    []string{"3 attempts (1 retry: 429×1)"},
-			wantOutHas: []string{`"status":400`},
-		},
-		{
-			// The mutation this catches is counting the record as neither a record nor a failure,
-			// which suppresses both clauses and reports a clean run beside exit 6.
-			name: "should count a merge collision as a failed record",
-			args: []string{
-				"--ask", "urgent=is this urgent", "-i", "jsonl", "-o", "json",
-				"--merge", "--stats",
-			},
-			stdin:      "{\"id\":1}\n{\"id\":2,\"answers\":{}}\n{\"id\":3}\n",
-			handler:    func() http.HandlerFunc { return answerHandler(answered) },
-			wantCode:   ExitRecords,
-			wantErr:    []string{"3 records, 1 failed, 2 requests, 2 questions"},
-			wantOutHas: []string{"would overwrite"},
-		},
-		{
-			// The typed path's mirror of the -i request case. Mutating the question count to zero
-			// passes without it.
-			name: "should count the questions a failed record carried",
-			args: []string{
-				"--ask", "urgent=is this urgent", "--ask", "spam=is this spam",
-				"-o", "json", "--stats",
-			},
-			stdin: "the server is down",
-			handler: func() http.HandlerFunc {
-				return status(http.StatusInternalServerError)
-			},
-			wantCode: ExitUnavailable,
-			wantErr: []string{
-				"1 request, 1 failed, 2 questions, 0 in / 0 out, " +
-					"3 attempts (2 retries: 500×2)",
-			},
-		},
-		{
-			// A stream that carried nothing still ran, so 0 records is the measurement rather
-			// than a summary of a run that never started.
-			name: "should report an empty stream as zero records",
-			args: []string{
-				"--ask", "urgent=is this urgent", "-i", "jsonl", "-o", "json", "--stats",
-			},
-			stdin:    "",
-			handler:  func() http.HandlerFunc { return answerHandler(answered) },
-			wantCode: ExitOK,
-			wantErr:  []string{"0 requests, 0 questions, 0 in / 0 out, 0 attempts, 10s/attempt,"},
-		},
-		{
-			name: "should total every record when they run concurrently",
-			args: []string{
-				"--ask", "urgent=is this urgent", "-i", "jsonl", "-o", "json",
-				"-j", "4", "--stats",
-			},
-			stdin: strings.Repeat("{\"id\":1}\n", 8),
-			handler: func() http.HandlerFunc {
-				return answerHandler(answered)
-			},
-			wantCode: ExitOK,
-			wantErr: []string{
-				"8 requests, 8 questions, 22728 in / 568 out, model onesie-1.13.0, 8 attempts",
-			},
-			wantOutHas: []string{`"urgent"`},
+			name:    "should report a sub second run to the millisecond",
+			elapsed: 250*time.Millisecond + 400*time.Microsecond,
+			wantLine: "1 request, 1 question, 0 in / 0 out, model onesie-1.13.0, 0 attempts, " +
+				"10s/attempt, 250ms\n",
 		},
 	}
 
@@ -422,35 +286,332 @@ func TestNewRootCmdStats(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			srv := httptest.NewServer(tc.handler())
-			defer srv.Close()
+			var errOut strings.Builder
 
-			out, errOut, code := runAgainst(t, tc.args, tc.stdin, srv.URL, tc.opts...)
+			cmd := &cobra.Command{}
+			cmd.SetErr(&errOut)
 
-			if code != tc.wantCode {
-				t.Fatalf("exit code = %d, want %d\nstdout:\n%s\nstderr:\n%s",
-					code, tc.wantCode, out, errOut)
+			if tc.broken {
+				cmd.SetErr(brokenWriter{})
 			}
 
-			for _, want := range tc.wantErr {
-				if !strings.Contains(errOut, want) {
-					t.Errorf("stderr missing %q\ngot:\n%s", want, errOut)
-				}
+			now := ticking(time.Date(2026, 9, 24, 12, 0, 0, 0, time.UTC), tc.elapsed)
+
+			got := withStats(cmd, now, &runFlags{stats: true, timeout: 10}, func(c *collector) error {
+				c.record("onesie-1.13.0", jev.Usage{}, 1)
+
+				return tc.run
+			})
+
+			if !errors.Is(got, tc.want) {
+				t.Errorf("withStats() = %v, want %v", got, tc.want)
 			}
 
-			for _, want := range tc.wantOutHas {
-				if !strings.Contains(out, want) {
-					t.Errorf("stdout missing %q\ngot:\n%s", want, out)
-				}
-			}
-
-			for _, unwanted := range tc.absentOut {
-				if strings.Contains(out, unwanted) {
-					t.Errorf("stdout should not contain %q\ngot:\n%s", unwanted, out)
-				}
+			if tc.wantLine != "" && errOut.String() != tc.wantLine {
+				t.Errorf("stderr = %q, want %q", errOut.String(), tc.wantLine)
 			}
 		})
 	}
+
+	t.Run("should summarise a run on stderr", func(t *testing.T) {
+		t.Parallel()
+
+		const answered = `{"model":"onesie-1.13.0","answers":{"urgent":{"type":"noul","noul":0.9}},` +
+			`"usage":{"input_tokens":2841,"output_tokens":71}}`
+
+		tests := []struct {
+			name       string
+			args       []string
+			stdin      string
+			handler    func() http.HandlerFunc
+			opts       []RootOption
+			wantCode   int
+			wantErr    []string
+			absentOut  []string
+			wantOutHas []string
+		}{
+			{
+				name:    "should end the summary with the elapsed time the clock measured",
+				args:    []string{"--ask", "urgent=is this urgent", "-o", "json", "--stats"},
+				stdin:   "the server is down",
+				handler: func() http.HandlerFunc { return answerHandler(answered) },
+				opts: []RootOption{
+					WithNow(ticking(time.Date(2026, 9, 24, 12, 0, 0, 0, time.UTC), 2*time.Second)),
+				},
+				wantCode: ExitOK,
+				wantErr: []string{
+					"1 request, 1 question, 2841 in / 71 out, model onesie-1.13.0, " +
+						"1 attempt, 10s/attempt, 2s\n",
+				},
+			},
+			{
+				name:     "should write the summary to stderr and leave stdout to the answer",
+				args:     []string{"--ask", "urgent=is this urgent", "-o", "json", "--stats"},
+				stdin:    "the server is down",
+				handler:  func() http.HandlerFunc { return answerHandler(answered) },
+				wantCode: ExitOK,
+				wantErr: []string{
+					"1 request, 1 question, 2841 in / 71 out, model onesie-1.13.0, " +
+						"1 attempt, 10s/attempt,",
+				},
+				wantOutHas: []string{`"urgent"`},
+				// The whole reason the line goes to stderr. On stdout it would corrupt every
+				// pipeline --stats exists to measure.
+				absentOut: []string{"1 request", "attempt"},
+			},
+			{
+				name:  "should count a retry rather than an attempt and name its status",
+				args:  []string{"--ask", "urgent=is this urgent", "-o", "json", "--stats"},
+				stdin: "the server is down",
+				handler: func() http.HandlerFunc {
+					return onceThen(http.StatusTooManyRequests, answered)
+				},
+				wantCode:   ExitOK,
+				wantErr:    []string{"2 attempts (1 retry: 429×1)"},
+				wantOutHas: []string{`"urgent"`},
+			},
+			{
+				name:  "should name a retry with no status transport",
+				args:  []string{"--ask", "urgent=is this urgent", "-o", "json", "--stats"},
+				stdin: "the server is down",
+				handler: func() http.HandlerFunc {
+					return hangUpThen(answered)
+				},
+				wantCode:   ExitOK,
+				wantErr:    []string{"2 attempts (1 retry: transport×1)"},
+				wantOutHas: []string{`"urgent"`},
+			},
+			{
+				name: "should separate records from requests when a line fails to parse",
+				args: []string{
+					"--ask", "urgent=is this urgent", "-i", "jsonl", "-o", "json", "--stats",
+				},
+				stdin:      "{\"id\":1}\nnot json\n",
+				handler:    func() http.HandlerFunc { return answerHandler(answered) },
+				wantCode:   ExitRecords,
+				wantErr:    []string{"2 records, 1 failed, 1 request, 1 question, 2841 in / 71 out"},
+				wantOutHas: []string{`"urgent"`},
+			},
+			{
+				// The 400 ended its record, so it caused no retry. Naming it in the breakdown is the
+				// report a caller cannot tell from a real one.
+				name: "should name only the status that was retried",
+				args: []string{
+					"--ask", "urgent=is this urgent", "-i", "jsonl", "-o", "json",
+					"-j", "1", "--stats",
+				},
+				stdin: "{\"id\":1}\n{\"id\":2}\n",
+				handler: func() http.HandlerFunc {
+					return scripted(http.StatusBadRequest, http.StatusTooManyRequests, answered)
+				},
+				wantCode:   ExitRecords,
+				wantErr:    []string{"3 attempts (1 retry: 429×1)"},
+				wantOutHas: []string{`"status":400`},
+			},
+			{
+				name: "should name only the status that was retried under concurrency",
+				args: []string{
+					"--ask", "urgent=is this urgent", "-i", "jsonl", "-o", "json",
+					"-j", "2", "--unordered", "--stats",
+				},
+				stdin: "{\"id\":1}\n{\"id\":2}\n",
+				handler: func() http.HandlerFunc {
+					return scripted(http.StatusBadRequest, http.StatusTooManyRequests, answered)
+				},
+				wantCode:   ExitRecords,
+				wantErr:    []string{"3 attempts (1 retry: 429×1)"},
+				wantOutHas: []string{`"status":400`},
+			},
+			{
+				// The mutation this catches is counting the record as neither a record nor a failure,
+				// which suppresses both clauses and reports a clean run beside exit 6.
+				name: "should count a merge collision as a failed record",
+				args: []string{
+					"--ask", "urgent=is this urgent", "-i", "jsonl", "-o", "json",
+					"--merge", "--stats",
+				},
+				stdin:      "{\"id\":1}\n{\"id\":2,\"answers\":{}}\n{\"id\":3}\n",
+				handler:    func() http.HandlerFunc { return answerHandler(answered) },
+				wantCode:   ExitRecords,
+				wantErr:    []string{"3 records, 1 failed, 2 requests, 2 questions"},
+				wantOutHas: []string{"would overwrite"},
+			},
+			{
+				// The typed path's mirror of the -i request case. Mutating the question count to zero
+				// passes without it.
+				name: "should count the questions a failed record carried",
+				args: []string{
+					"--ask", "urgent=is this urgent", "--ask", "spam=is this spam",
+					"-o", "json", "--stats",
+				},
+				stdin: "the server is down",
+				handler: func() http.HandlerFunc {
+					return status(http.StatusInternalServerError)
+				},
+				wantCode: ExitUnavailable,
+				wantErr: []string{
+					"1 request, 1 failed, 2 questions, 0 in / 0 out, " +
+						"3 attempts (2 retries: 500×2)",
+				},
+			},
+			{
+				// A stream that carried nothing still ran, so 0 records is the measurement rather
+				// than a summary of a run that never started.
+				name: "should report an empty stream as zero records",
+				args: []string{
+					"--ask", "urgent=is this urgent", "-i", "jsonl", "-o", "json", "--stats",
+				},
+				stdin:    "",
+				handler:  func() http.HandlerFunc { return answerHandler(answered) },
+				wantCode: ExitOK,
+				wantErr:  []string{"0 requests, 0 questions, 0 in / 0 out, 0 attempts, 10s/attempt,"},
+			},
+			{
+				name: "should total every record when they run concurrently",
+				args: []string{
+					"--ask", "urgent=is this urgent", "-i", "jsonl", "-o", "json",
+					"-j", "4", "--stats",
+				},
+				stdin: strings.Repeat("{\"id\":1}\n", 8),
+				handler: func() http.HandlerFunc {
+					return answerHandler(answered)
+				},
+				wantCode: ExitOK,
+				wantErr: []string{
+					"8 requests, 8 questions, 22728 in / 568 out, model onesie-1.13.0, 8 attempts",
+				},
+				wantOutHas: []string{`"urgent"`},
+			},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				srv := httptest.NewServer(tc.handler())
+				defer srv.Close()
+
+				out, errOut, code := runAgainst(t, tc.args, tc.stdin, srv.URL, tc.opts...)
+
+				if code != tc.wantCode {
+					t.Fatalf("exit code = %d, want %d\nstdout:\n%s\nstderr:\n%s",
+						code, tc.wantCode, out, errOut)
+				}
+
+				for _, want := range tc.wantErr {
+					if !strings.Contains(errOut, want) {
+						t.Errorf("stderr missing %q\ngot:\n%s", want, errOut)
+					}
+				}
+
+				for _, want := range tc.wantOutHas {
+					if !strings.Contains(out, want) {
+						t.Errorf("stdout missing %q\ngot:\n%s", want, out)
+					}
+				}
+
+				for _, unwanted := range tc.absentOut {
+					if strings.Contains(out, unwanted) {
+						t.Errorf("stdout should not contain %q\ngot:\n%s", unwanted, out)
+					}
+				}
+			})
+		}
+	})
+
+	t.Run("should summarise a request mode stream", func(t *testing.T) {
+		t.Parallel()
+
+		const body = `{"state":{"id":1},"questions":{"a":{"type":"noul","instructions":"q1"},` +
+			`"b":{"type":"noul","instructions":"q2"}}}`
+
+		tests := []struct {
+			name     string
+			status   int
+			response string
+			wantCode int
+			wantErr  string
+		}{
+			{
+				name:   "should take tokens from the response and questions from the request",
+				status: http.StatusOK,
+				response: `{"model":"onesie-1.14.0","answers":{},` +
+					`"usage":{"input_tokens":12,"output_tokens":3}}`,
+				wantCode: ExitOK,
+				wantErr: "1 request, 2 questions, 12 in / 3 out, model onesie-1.14.0, " +
+					"1 attempt, 10s/attempt,",
+			},
+			{
+				// The response carries no questions at all, so a failed record is the case that
+				// proves the count came from the body that was sent.
+				name:     "should count the questions a failed record carried",
+				status:   http.StatusUnprocessableEntity,
+				response: `{"error":{"message":"bad body"}}`,
+				wantCode: ExitRecords,
+				wantErr:  "1 request, 1 failed, 2 questions, 0 in / 0 out, 1 attempt, 10s/attempt,",
+			},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				_, out, errOut, code := runRequestMode(t,
+					[]string{"-i", "request", "--stats"}, body+"\n", tc.status, tc.response)
+
+				if code != tc.wantCode {
+					t.Fatalf("exit code = %d, want %d\nstdout:\n%s\nstderr:\n%s",
+						code, tc.wantCode, out, errOut)
+				}
+
+				if !strings.Contains(errOut, tc.wantErr) {
+					t.Errorf("stderr missing %q\ngot:\n%s", tc.wantErr, errOut)
+				}
+
+				if strings.Contains(out, "questions,") {
+					t.Errorf("stdout should not carry the summary, got:\n%s", out)
+				}
+			})
+		}
+	})
+
+	t.Run("should suppress the summary for a run that never started", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name   string
+			args   []string
+			stdin  string
+			want   string
+			absent string
+		}{
+			{
+				// A line of zeros beside the error reads as a run that was made and came back with
+				// nothing, which is the one thing --stats must never say.
+				name:   "should suppress the summary when the client could not be built",
+				args:   []string{"--ask", "urgent=is this urgent", "--stats"},
+				stdin:  "the server is down",
+				want:   "onesie: no API key",
+				absent: "0 requests",
+			},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				_, errOut, _ := runOfflineStdin(t, tc.args, tc.stdin)
+
+				if !strings.Contains(errOut, tc.want) {
+					t.Errorf("stderr missing %q\ngot:\n%s", tc.want, errOut)
+				}
+
+				if strings.Contains(errOut, tc.absent) {
+					t.Errorf("stderr should not contain %q\ngot:\n%s", tc.absent, errOut)
+				}
+			})
+		}
+	})
 }
 
 func scripted(first, second int, body string) http.HandlerFunc {
@@ -526,167 +687,6 @@ func answerHandler(body string) http.HandlerFunc {
 	}
 }
 
-func TestNewRootCmdStatsRequestMode(t *testing.T) {
-	t.Parallel()
-
-	const body = `{"state":{"id":1},"questions":{"a":{"type":"noul","instructions":"q1"},` +
-		`"b":{"type":"noul","instructions":"q2"}}}`
-
-	tests := []struct {
-		name     string
-		status   int
-		response string
-		wantCode int
-		wantErr  string
-	}{
-		{
-			name:   "should take tokens from the response and questions from the request",
-			status: http.StatusOK,
-			response: `{"model":"onesie-1.14.0","answers":{},` +
-				`"usage":{"input_tokens":12,"output_tokens":3}}`,
-			wantCode: ExitOK,
-			wantErr: "1 request, 2 questions, 12 in / 3 out, model onesie-1.14.0, " +
-				"1 attempt, 10s/attempt,",
-		},
-		{
-			// The response carries no questions at all, so a failed record is the case that
-			// proves the count came from the body that was sent.
-			name:     "should count the questions a failed record carried",
-			status:   http.StatusUnprocessableEntity,
-			response: `{"error":{"message":"bad body"}}`,
-			wantCode: ExitRecords,
-			wantErr:  "1 request, 1 failed, 2 questions, 0 in / 0 out, 1 attempt, 10s/attempt,",
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			_, out, errOut, code := runRequestMode(t,
-				[]string{"-i", "request", "--stats"}, body+"\n", tc.status, tc.response)
-
-			if code != tc.wantCode {
-				t.Fatalf("exit code = %d, want %d\nstdout:\n%s\nstderr:\n%s",
-					code, tc.wantCode, out, errOut)
-			}
-
-			if !strings.Contains(errOut, tc.wantErr) {
-				t.Errorf("stderr missing %q\ngot:\n%s", tc.wantErr, errOut)
-			}
-
-			if strings.Contains(out, "questions,") {
-				t.Errorf("stdout should not carry the summary, got:\n%s", out)
-			}
-		})
-	}
-}
-
-func TestNewRootCmdStatsWithoutARun(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name   string
-		args   []string
-		stdin  string
-		want   string
-		absent string
-	}{
-		{
-			// A line of zeros beside the error reads as a run that was made and came back with
-			// nothing, which is the one thing --stats must never say.
-			name:   "should suppress the summary when the client could not be built",
-			args:   []string{"--ask", "urgent=is this urgent", "--stats"},
-			stdin:  "the server is down",
-			want:   "onesie: no API key",
-			absent: "0 requests",
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			_, errOut, _ := runOfflineStdin(t, tc.args, tc.stdin)
-
-			if !strings.Contains(errOut, tc.want) {
-				t.Errorf("stderr missing %q\ngot:\n%s", tc.want, errOut)
-			}
-
-			if strings.Contains(errOut, tc.absent) {
-				t.Errorf("stderr should not contain %q\ngot:\n%s", tc.absent, errOut)
-			}
-		})
-	}
-}
-
-func TestWithStats(t *testing.T) {
-	t.Parallel()
-
-	ran := errors.New("the run failed")
-
-	tests := []struct {
-		name     string
-		run      error
-		broken   bool
-		elapsed  time.Duration
-		want     error
-		wantLine string
-	}{
-		{
-			name: "should prefer the run's error over a summary that could not be written",
-			run:  ran, broken: true, want: ran,
-		},
-		{
-			name:   "should report a failed summary write when the run succeeded",
-			broken: true, want: errBroken,
-		},
-		{
-			name:    "should report the elapsed time between the clock's two readings",
-			elapsed: 1500 * time.Millisecond,
-			wantLine: "1 request, 1 question, 0 in / 0 out, model onesie-1.13.0, 0 attempts, " +
-				"10s/attempt, 1.5s\n",
-		},
-		{
-			name:    "should report a sub second run to the millisecond",
-			elapsed: 250*time.Millisecond + 400*time.Microsecond,
-			wantLine: "1 request, 1 question, 0 in / 0 out, model onesie-1.13.0, 0 attempts, " +
-				"10s/attempt, 250ms\n",
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			var errOut strings.Builder
-
-			cmd := &cobra.Command{}
-			cmd.SetErr(&errOut)
-
-			if tc.broken {
-				cmd.SetErr(brokenWriter{})
-			}
-
-			now := ticking(time.Date(2026, 9, 24, 12, 0, 0, 0, time.UTC), tc.elapsed)
-
-			got := withStats(cmd, now, &runFlags{stats: true, timeout: 10}, func(c *collector) error {
-				c.record("onesie-1.13.0", jev.Usage{}, 1)
-
-				return tc.run
-			})
-
-			if !errors.Is(got, tc.want) {
-				t.Errorf("withStats() = %v, want %v", got, tc.want)
-			}
-
-			if tc.wantLine != "" && errOut.String() != tc.wantLine {
-				t.Errorf("stderr = %q, want %q", errOut.String(), tc.wantLine)
-			}
-		})
-	}
-}
-
 func ticking(start time.Time, step time.Duration) func() time.Time {
 	next := start
 
@@ -704,87 +704,4 @@ type brokenWriter struct{}
 
 func (brokenWriter) Write([]byte) (int, error) {
 	return 0, errBroken
-}
-
-func TestNewRootCmdPrintFlagRejections(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name string
-		args []string
-		want string
-	}{
-		{
-			name: "should reject stats with print-request",
-			args: []string{"--ask", "urgent=is this urgent", "--print-request", "--stats"},
-			want: "onesie: --stats has nothing to report with --print-request, " +
-				"which makes no request",
-		},
-		{
-			name: "should reject stats with print-questions",
-			args: []string{"--ask", "urgent=is this urgent", "--print-questions", "--stats"},
-			want: "onesie: --stats has nothing to report with --print-questions, " +
-				"which makes no request",
-		},
-		{
-			// The path that returns before a plan is built, so the rule has to sit above it.
-			name: "should reject stats with print-request under a request mode stream",
-			args: []string{"-i", "request", "--print-request", "--stats"},
-			want: "onesie: --stats has nothing to report with --print-request, " +
-				"which makes no request",
-		},
-		{
-			name: "should reject both print flags at once",
-			args: []string{
-				"--ask", "urgent=is this urgent", "--print-request", "--print-questions",
-			},
-			want: "onesie: --print-request and --print-questions each write a different thing " +
-				"to stdout. Pass one",
-		},
-		{
-			name: "should reject an output mode with print-questions",
-			args: []string{
-				"--ask", "urgent=is this urgent", "--print-questions", "-o", "json",
-			},
-			want: "onesie: -o does not apply to --print-questions, which writes a question file",
-		},
-		{
-			name: "should reject an output mode with print-request",
-			args: []string{"--ask", "urgent=is this urgent", "--print-request", "-o", "json"},
-			want: "onesie: -o does not apply to --print-request, which writes a request body",
-		},
-		{
-			name: "should reject the raw shorthand with print-request",
-			args: []string{"--ask", "urgent=is this urgent", "--print-request", "-r"},
-			want: "onesie: -r does not apply to --print-request, which writes a request body",
-		},
-		{
-			name: "should reject quiet with print-questions",
-			args: []string{"--ask", "urgent=is this urgent", "--print-questions", "-q"},
-			want: "onesie: -q suppresses output, which leaves --print-questions nothing to write",
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			out, errOut, code := runOffline(t, tc.args)
-
-			if code != ExitUsage {
-				t.Fatalf("exit code = %d, want %d\nstdout:\n%s\nstderr:\n%s",
-					code, ExitUsage, out, errOut)
-			}
-
-			// Rejected before anything reaches stdout, which is the reason the rule lives in
-			// CheckFlags rather than in the print path.
-			if out != "" {
-				t.Errorf("stdout should be empty, got:\n%s", out)
-			}
-
-			if !strings.Contains(errOut, tc.want) {
-				t.Errorf("stderr = %q, want it to contain %q", errOut, tc.want)
-			}
-		})
-	}
 }

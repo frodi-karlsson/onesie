@@ -8,6 +8,18 @@ import (
 	"time"
 )
 
+func TestMain(m *testing.M) {
+	// TestRunProcess re-execs the test binary into this, since only a real process lets the
+	// deadline logic see a real hang.
+	if os.Getenv("SKILLCHECK_WANT_HELPER_PROCESS") == "1" {
+		time.Sleep(10 * time.Second)
+
+		return
+	}
+
+	os.Exit(m.Run())
+}
+
 func TestNewRunner(t *testing.T) {
 	t.Parallel()
 
@@ -29,29 +41,19 @@ func TestNewRunner(t *testing.T) {
 }
 
 func TestRunProcess(t *testing.T) {
-	// Sets an environment variable the helper process below reads, so it cannot run in parallel
-	// with a sibling that relies on the environment being unchanged.
+	// Sets the variable TestMain reads, so it cannot run in parallel with a sibling that relies on
+	// the environment being unchanged.
 	t.Setenv("SKILLCHECK_WANT_HELPER_PROCESS", "1")
 
 	t.Run("should report an error rather than an ordinary exit code when the deadline kills it", func(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
 		defer cancel()
 
-		_, _, err := runProcess(ctx, os.Args[0], []string{"-test.run=TestHelperProcessSleeps"})
+		_, _, err := runProcess(ctx, os.Args[0], []string{"-test.run=^$"})
 		if err == nil {
 			t.Fatalf("runProcess(...) error = nil, want an error naming the deadline")
 		}
 	})
-}
-
-// TestHelperProcessSleeps is not a real test. TestRunProcess re-execs the binary into it, since
-// only a real process lets the deadline logic see a real hang.
-func TestHelperProcessSleeps(t *testing.T) {
-	if os.Getenv("SKILLCHECK_WANT_HELPER_PROCESS") != "1" {
-		return
-	}
-
-	time.Sleep(10 * time.Second)
 }
 
 func TestRunnerDryRun(t *testing.T) {

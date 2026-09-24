@@ -167,61 +167,61 @@ func TestNewAPIError(t *testing.T) {
 			}
 		}
 	})
-}
 
-func TestAPIErrorFields(t *testing.T) {
-	t.Parallel()
-
-	t.Run("should read the request id from the header", func(t *testing.T) {
+	t.Run("should fill the error's fields from the response", func(t *testing.T) {
 		t.Parallel()
 
-		header := http.Header{"X-Typesafe-Request-Id": {"req_123"}}
+		t.Run("should read the request id from the header", func(t *testing.T) {
+			t.Parallel()
 
-		if got := newAPIError(500, header, "X-TypeSafe-Request-Id", nil, time.Now()).RequestID; got != "req_123" {
-			t.Errorf("request id got %q, want %q", got, "req_123")
-		}
-	})
+			header := http.Header{"X-Typesafe-Request-Id": {"req_123"}}
 
-	t.Run("should read retry after seconds into a duration", func(t *testing.T) {
-		t.Parallel()
+			if got := newAPIError(500, header, "X-TypeSafe-Request-Id", nil, time.Now()).RequestID; got != "req_123" {
+				t.Errorf("request id got %q, want %q", got, "req_123")
+			}
+		})
 
-		header := http.Header{"Retry-After": {"3"}}
+		t.Run("should read retry after seconds into a duration", func(t *testing.T) {
+			t.Parallel()
 
-		if got := newAPIError(429, header, "X-TypeSafe-Request-Id", nil, time.Now()).RetryAfter; got != 3*time.Second {
-			t.Errorf("retry after got %v, want %v", got, 3*time.Second)
-		}
-	})
+			header := http.Header{"Retry-After": {"3"}}
 
-	t.Run("should leave retry after zero when the header is absent", func(t *testing.T) {
-		t.Parallel()
+			if got := newAPIError(429, header, "X-TypeSafe-Request-Id", nil, time.Now()).RetryAfter; got != 3*time.Second {
+				t.Errorf("retry after got %v, want %v", got, 3*time.Second)
+			}
+		})
 
-		if got := newAPIError(429, http.Header{}, "X-TypeSafe-Request-Id", nil, time.Now()).RetryAfter; got != 0 {
-			t.Errorf("retry after got %v, want 0", got)
-		}
-	})
+		t.Run("should leave retry after zero when the header is absent", func(t *testing.T) {
+			t.Parallel()
 
-	t.Run("should truncate a long plain text body", func(t *testing.T) {
-		t.Parallel()
+			if got := newAPIError(429, http.Header{}, "X-TypeSafe-Request-Id", nil, time.Now()).RetryAfter; got != 0 {
+				t.Errorf("retry after got %v, want 0", got)
+			}
+		})
 
-		body := []byte(fmt.Sprintf("%400s", "x"))
+		t.Run("should truncate a long plain text body", func(t *testing.T) {
+			t.Parallel()
 
-		got := newAPIError(500, http.Header{}, "X-TypeSafe-Request-Id", body, time.Now()).Error()
+			body := []byte(fmt.Sprintf("%400s", "x"))
 
-		if len(got) > maxBodyInError+30 {
-			t.Errorf("message was not truncated, length %d", len(got))
-		}
-	})
+			got := newAPIError(500, http.Header{}, "X-TypeSafe-Request-Id", body, time.Now()).Error()
 
-	t.Run("should truncate a long extracted message", func(t *testing.T) {
-		t.Parallel()
+			if len(got) > maxBodyInError+30 {
+				t.Errorf("message was not truncated, length %d", len(got))
+			}
+		})
 
-		body := []byte(fmt.Sprintf(`{"error":"%400s"}`, "x"))
+		t.Run("should truncate a long extracted message", func(t *testing.T) {
+			t.Parallel()
 
-		got := newAPIError(500, http.Header{}, "X-TypeSafe-Request-Id", body, time.Now()).Error()
+			body := []byte(fmt.Sprintf(`{"error":"%400s"}`, "x"))
 
-		if len(got) > maxBodyInError+30 {
-			t.Errorf("extracted message was not truncated, length %d", len(got))
-		}
+			got := newAPIError(500, http.Header{}, "X-TypeSafe-Request-Id", body, time.Now()).Error()
+
+			if len(got) > maxBodyInError+30 {
+				t.Errorf("extracted message was not truncated, length %d", len(got))
+			}
+		})
 	})
 }
 

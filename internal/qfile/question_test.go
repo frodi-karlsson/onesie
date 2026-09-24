@@ -10,7 +10,7 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/qfile"
 )
 
-func TestLoadYesNo(t *testing.T) {
+func TestReadYesNo(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -171,7 +171,7 @@ func TestLoadYesNo(t *testing.T) {
 	}
 }
 
-func TestLoadPick(t *testing.T) {
+func TestReadPick(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -284,7 +284,7 @@ func TestLoadPick(t *testing.T) {
 	}
 }
 
-func TestLoadRate(t *testing.T) {
+func TestReadRate(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -409,7 +409,7 @@ func TestLoadRate(t *testing.T) {
 	}
 }
 
-func TestLoadPolicy(t *testing.T) {
+func TestReadPolicy(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -563,7 +563,7 @@ func TestLoadPolicy(t *testing.T) {
 	}
 }
 
-func TestLoadAssert(t *testing.T) {
+func TestReadAssert(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -640,7 +640,7 @@ func TestLoadAssert(t *testing.T) {
 	}
 }
 
-func TestLoadStructured(t *testing.T) {
+func TestWireValue(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {

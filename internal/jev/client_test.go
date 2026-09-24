@@ -230,7 +230,7 @@ func TestNew(t *testing.T) {
 	})
 }
 
-func TestSystemOne(t *testing.T) {
+func TestClientSystemOne(t *testing.T) {
 	t.Parallel()
 
 	for _, body := range []string{"<!DOCTYPE html><html></html>", "upstream said ok"} {
@@ -974,41 +974,119 @@ func TestSystemOne(t *testing.T) {
 			}
 		})
 	})
-}
 
-func TestClientConcurrency(t *testing.T) {
-	t.Parallel()
-
-	t.Run("should serve many goroutines from one client", func(t *testing.T) {
+	t.Run("should be safe for concurrent use", func(t *testing.T) {
 		t.Parallel()
 
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			w.Header().Set("Content-Type", "application/json")
-			_, _ = io.WriteString(w, shortAnswer)
-		}))
-		defer server.Close()
+		t.Run("should serve many goroutines from one client", func(t *testing.T) {
+			t.Parallel()
 
-		client, _ := newTestClient(t, server.URL)
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = io.WriteString(w, shortAnswer)
+			}))
+			defer server.Close()
 
-		var wg sync.WaitGroup
+			client, _ := newTestClient(t, server.URL)
 
-		for range 16 {
-			wg.Add(1)
+			var wg sync.WaitGroup
 
-			go func() {
-				defer wg.Done()
+			for range 16 {
+				wg.Add(1)
 
-				if _, err := client.SystemOne(t.Context(), jev.Request{State: "x", Questions: oneNoul()}); err != nil {
-					t.Errorf("unexpected error: %v", err)
-				}
-			}()
+				go func() {
+					defer wg.Done()
+
+					if _, err := client.SystemOne(t.Context(), jev.Request{State: "x", Questions: oneNoul()}); err != nil {
+						t.Errorf("unexpected error: %v", err)
+					}
+				}()
+			}
+
+			wg.Wait()
+		})
+	})
+
+	t.Run("should honour the Retry-After cap", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name       string
+			retryAfter string
+			cap        time.Duration
+			wantCalls  int
+			wantErr    bool
+		}{
+			{
+				name:       "should stop immediately when the header exceeds the cap",
+				retryAfter: "120",
+				cap:        60 * time.Second,
+				wantCalls:  1,
+				wantErr:    true,
+			},
+			{
+				name:       "should retry normally when the header is inside the cap",
+				retryAfter: "1",
+				cap:        60 * time.Second,
+				wantCalls:  3,
+				wantErr:    true,
+			},
 		}
 
-		wg.Wait()
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				var calls atomic.Int64
+
+				srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					calls.Add(1)
+					w.Header().Set("Retry-After", tc.retryAfter)
+					w.WriteHeader(http.StatusTooManyRequests)
+					if _, err := w.Write([]byte(`{"error":{"message":"slow down"}}`)); err != nil {
+						t.Errorf("writing stub response: %v", err)
+					}
+				}))
+				defer srv.Close()
+
+				policy := jev.DefaultRetryPolicy()
+				policy.MaxRetryAfter = tc.cap
+
+				client, _ := newTestClient(t, srv.URL, jev.WithRetry(policy))
+
+				_, err := client.SystemOne(t.Context(), jev.Request{
+					State:     "hello",
+					Questions: oneNoul(),
+				})
+
+				if tc.wantErr && err == nil {
+					t.Fatal("expected an error, got none")
+				}
+
+				if got := int(calls.Load()); got != tc.wantCalls {
+					t.Errorf("server calls = %d, want %d", got, tc.wantCalls)
+				}
+
+				if tc.wantCalls == 1 {
+					var tooLong *jev.RetryAfterError
+					if !errors.As(err, &tooLong) {
+						t.Fatalf("expected a *RetryAfterError, got %T: %v", err, err)
+					}
+
+					if tooLong.RetryAfter != 120*time.Second {
+						t.Errorf("RetryAfter = %s, want 2m0s", tooLong.RetryAfter)
+					}
+
+					if !errors.Is(err, jev.ErrRateLimit) {
+						t.Error("expected errors.Is to reach ErrRateLimit through Unwrap")
+					}
+				}
+			})
+		}
 	})
 }
 
-func TestListModels(t *testing.T) {
+func TestClientListModels(t *testing.T) {
 	t.Parallel()
 
 	t.Run("should name the base url when the listing is not JSON", func(t *testing.T) {
@@ -1096,84 +1174,6 @@ func TestListModels(t *testing.T) {
 	})
 }
 
-func TestClientRetryAfterCap(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name       string
-		retryAfter string
-		cap        time.Duration
-		wantCalls  int
-		wantErr    bool
-	}{
-		{
-			name:       "should stop immediately when the header exceeds the cap",
-			retryAfter: "120",
-			cap:        60 * time.Second,
-			wantCalls:  1,
-			wantErr:    true,
-		},
-		{
-			name:       "should retry normally when the header is inside the cap",
-			retryAfter: "1",
-			cap:        60 * time.Second,
-			wantCalls:  3,
-			wantErr:    true,
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			var calls atomic.Int64
-
-			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-				calls.Add(1)
-				w.Header().Set("Retry-After", tc.retryAfter)
-				w.WriteHeader(http.StatusTooManyRequests)
-				if _, err := w.Write([]byte(`{"error":{"message":"slow down"}}`)); err != nil {
-					t.Errorf("writing stub response: %v", err)
-				}
-			}))
-			defer srv.Close()
-
-			policy := jev.DefaultRetryPolicy()
-			policy.MaxRetryAfter = tc.cap
-
-			client, _ := newTestClient(t, srv.URL, jev.WithRetry(policy))
-
-			_, err := client.SystemOne(t.Context(), jev.Request{
-				State:     "hello",
-				Questions: oneNoul(),
-			})
-
-			if tc.wantErr && err == nil {
-				t.Fatal("expected an error, got none")
-			}
-
-			if got := int(calls.Load()); got != tc.wantCalls {
-				t.Errorf("server calls = %d, want %d", got, tc.wantCalls)
-			}
-
-			if tc.wantCalls == 1 {
-				var tooLong *jev.RetryAfterError
-				if !errors.As(err, &tooLong) {
-					t.Fatalf("expected a *RetryAfterError, got %T: %v", err, err)
-				}
-
-				if tooLong.RetryAfter != 120*time.Second {
-					t.Errorf("RetryAfter = %s, want 2m0s", tooLong.RetryAfter)
-				}
-
-				if !errors.Is(err, jev.ErrRateLimit) {
-					t.Error("expected errors.Is to reach ErrRateLimit through Unwrap")
-				}
-			}
-		})
-	}
-}
-
 func TestWithAttemptObserver(t *testing.T) {
 	t.Parallel()
 
@@ -1240,71 +1240,71 @@ func TestWithAttemptObserver(t *testing.T) {
 			}
 		})
 	}
-}
 
-func TestWithAttemptObserverOnAnUnreadableBody(t *testing.T) {
-	t.Parallel()
+	t.Run("should observe an attempt whose body could not be read", func(t *testing.T) {
+		t.Parallel()
 
-	tests := []struct {
-		name string
-		body string
-		want int
-	}{
-		{
-			name: "should report an attempt whose body was too large to read",
-			body: strings.Repeat("x", 64),
-			want: 1,
-		},
-	}
+		tests := []struct {
+			name string
+			body string
+			want int
+		}{
+			{
+				name: "should report an attempt whose body was too large to read",
+				body: strings.Repeat("x", 64),
+				want: 1,
+			},
+		}
 
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
 
-			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-				if _, err := io.WriteString(w, tc.body); err != nil {
-					t.Errorf("writing stub response: %v", err)
+				srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					if _, err := io.WriteString(w, tc.body); err != nil {
+						t.Errorf("writing stub response: %v", err)
+					}
+				}))
+				defer srv.Close()
+
+				var (
+					mu       sync.Mutex
+					observed int
+				)
+
+				client, err := jev.New(
+					jev.WithAPIKey("test"),
+					jev.WithBaseURL(srv.URL),
+					jev.WithMaxResponseBytes(8),
+					jev.WithRetry(noRetries()),
+					jev.WithAttemptObserver(func(jev.Attempt) {
+						mu.Lock()
+						defer mu.Unlock()
+
+						observed++
+					}),
+				)
+				if err != nil {
+					t.Fatalf("New: %v", err)
 				}
-			}))
-			defer srv.Close()
 
-			var (
-				mu       sync.Mutex
-				observed int
-			)
+				if _, reqErr := client.SystemOne(
+					t.Context(), jev.Request{State: "x", Questions: oneNoul()}); reqErr == nil {
+					t.Fatal("SystemOne succeeded, want an oversized body error")
+				}
 
-			client, err := jev.New(
-				jev.WithAPIKey("test"),
-				jev.WithBaseURL(srv.URL),
-				jev.WithMaxResponseBytes(8),
-				jev.WithRetry(noRetries()),
-				jev.WithAttemptObserver(func(jev.Attempt) {
-					mu.Lock()
-					defer mu.Unlock()
+				mu.Lock()
+				defer mu.Unlock()
 
-					observed++
-				}),
-			)
-			if err != nil {
-				t.Fatalf("New: %v", err)
-			}
-
-			if _, reqErr := client.SystemOne(
-				t.Context(), jev.Request{State: "x", Questions: oneNoul()}); reqErr == nil {
-				t.Fatal("SystemOne succeeded, want an oversized body error")
-			}
-
-			mu.Lock()
-			defer mu.Unlock()
-
-			// A round trip the server answered is an attempt, whatever onesie could do with the body.
-			// An observer that never saw it would under count, and a --stats run would carry a
-			// terminal failure with no attempt behind it.
-			if observed != tc.want {
-				t.Errorf("observed %d attempts, want %d", observed, tc.want)
-			}
-		})
-	}
+				// A round trip the server answered is an attempt, whatever onesie could do with the body.
+				// An observer that never saw it would under count, and a --stats run would carry a
+				// terminal failure with no attempt behind it.
+				if observed != tc.want {
+					t.Errorf("observed %d attempts, want %d", observed, tc.want)
+				}
+			})
+		}
+	})
 }
 
 func noRetries() jev.RetryPolicy {

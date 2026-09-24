@@ -192,6 +192,52 @@ func TestParse(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("should place every node at its source column", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name  string
+			input string
+			want  []int
+		}{
+			{
+				name:  "should point a comparison at its operator and its operands at themselves",
+				input: `urgent.value < 0.5`,
+				want:  []int{14, 1, 16},
+			},
+			{
+				name:  "should point and at its keyword and not at its own",
+				input: `not a.value < 1 and b.value < 1`,
+				want:  []int{17, 1, 13, 5, 15, 29, 21, 31},
+			},
+			{
+				name:  "should point or at its keyword",
+				input: `a.value < 1 or b.value < 1`,
+				want:  []int{13, 9, 1, 11, 24, 16, 26},
+			},
+			{
+				name:  "should point in at its keyword and every list member at itself",
+				input: `team.value in ["billing", true]`,
+				want:  []int{12, 1, 16, 27},
+			},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				got, err := Parse(tc.input)
+				if err != nil {
+					t.Fatalf("Parse(%q) error = %v, want no error", tc.input, err)
+				}
+
+				if columns := positions(got.root); !slices.Equal(columns, tc.want) {
+					t.Errorf("Parse(%q) columns = %v, want %v", tc.input, columns, tc.want)
+				}
+			})
+		}
+	})
 }
 
 func TestCombine(t *testing.T) {
@@ -294,52 +340,6 @@ func TestCombine(t *testing.T) {
 			}
 			if present == 1 && got != exprs[len(exprs)-1] {
 				t.Errorf("Combine(%q) rebuilt the one expression, want it returned as it was", tc.input)
-			}
-		})
-	}
-}
-
-func TestPos(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name  string
-		input string
-		want  []int
-	}{
-		{
-			name:  "should point a comparison at its operator and its operands at themselves",
-			input: `urgent.value < 0.5`,
-			want:  []int{14, 1, 16},
-		},
-		{
-			name:  "should point and at its keyword and not at its own",
-			input: `not a.value < 1 and b.value < 1`,
-			want:  []int{17, 1, 13, 5, 15, 29, 21, 31},
-		},
-		{
-			name:  "should point or at its keyword",
-			input: `a.value < 1 or b.value < 1`,
-			want:  []int{13, 9, 1, 11, 24, 16, 26},
-		},
-		{
-			name:  "should point in at its keyword and every list member at itself",
-			input: `team.value in ["billing", true]`,
-			want:  []int{12, 1, 16, 27},
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			got, err := Parse(tc.input)
-			if err != nil {
-				t.Fatalf("Parse(%q) error = %v, want no error", tc.input, err)
-			}
-
-			if columns := positions(got.root); !slices.Equal(columns, tc.want) {
-				t.Errorf("Parse(%q) columns = %v, want %v", tc.input, columns, tc.want)
 			}
 		})
 	}

@@ -117,7 +117,7 @@ func TestResultUnmarshalJSON(t *testing.T) {
 	})
 }
 
-func TestResultAccessors(t *testing.T) {
+func TestResultNoul(t *testing.T) {
 	t.Parallel()
 
 	t.Run("should return the noul answer", func(t *testing.T) {
@@ -132,6 +132,39 @@ func TestResultAccessors(t *testing.T) {
 			t.Errorf("got %v, want 0.95", got.Noul)
 		}
 	})
+
+	t.Run("should report a missing answer", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := loadSample(t).Noul("absent")
+
+		var answerErr *jev.AnswerError
+		if !errors.As(err, &answerErr) {
+			t.Fatalf("expected an *AnswerError, got %T", err)
+		}
+
+		if !answerErr.Missing {
+			t.Errorf("Missing should be set for an absent answer")
+		}
+	})
+
+	t.Run("should report a type mismatch", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := loadSample(t).Noul("department")
+		if err == nil {
+			t.Fatalf("expected an error, got none")
+		}
+
+		want := `onesie: answer "department" is a choice, not a noul`
+		if err.Error() != want {
+			t.Errorf("\n got: %s\nwant: %s", err.Error(), want)
+		}
+	})
+}
+
+func TestResultChoice(t *testing.T) {
+	t.Parallel()
 
 	t.Run("should return the choice answer with a summing distribution", func(t *testing.T) {
 		t.Parallel()
@@ -162,6 +195,10 @@ func TestResultAccessors(t *testing.T) {
 			t.Errorf("an unknown option was reported as present")
 		}
 	})
+}
+
+func TestResultScore(t *testing.T) {
+	t.Parallel()
 
 	t.Run("should return the score answer with its legend", func(t *testing.T) {
 		t.Parallel()
@@ -177,35 +214,6 @@ func TestResultAccessors(t *testing.T) {
 
 		if got.Legend["1"] != "Frustrated" {
 			t.Errorf("legend got %+v", got.Legend)
-		}
-	})
-
-	t.Run("should report a missing answer", func(t *testing.T) {
-		t.Parallel()
-
-		_, err := loadSample(t).Noul("absent")
-
-		var answerErr *jev.AnswerError
-		if !errors.As(err, &answerErr) {
-			t.Fatalf("expected an *AnswerError, got %T", err)
-		}
-
-		if !answerErr.Missing {
-			t.Errorf("Missing should be set for an absent answer")
-		}
-	})
-
-	t.Run("should report a type mismatch", func(t *testing.T) {
-		t.Parallel()
-
-		_, err := loadSample(t).Noul("department")
-		if err == nil {
-			t.Fatalf("expected an error, got none")
-		}
-
-		want := `onesie: answer "department" is a choice, not a noul`
-		if err.Error() != want {
-			t.Errorf("\n got: %s\nwant: %s", err.Error(), want)
 		}
 	})
 }

@@ -268,30 +268,30 @@ func TestLoadBody(t *testing.T) {
 			tc.check(t, got)
 		})
 	}
-}
 
-func TestLoadBodyStructured(t *testing.T) {
-	t.Parallel()
-
-	t.Run("should carry a structured body instruction through as an object", func(t *testing.T) {
+	t.Run("should carry a structured body instruction through", func(t *testing.T) {
 		t.Parallel()
 
-		const doc = `{"questions":{"a":{"type":"noul","instructions":` +
-			`{"what":"is this urgent","examples":["call me now"]}}}}`
+		t.Run("should carry a structured body instruction through as an object", func(t *testing.T) {
+			t.Parallel()
 
-		f, err := qfile.Load([]byte(doc))
-		if err != nil {
-			t.Fatalf("loading: %v", err)
-		}
+			const doc = `{"questions":{"a":{"type":"noul","instructions":` +
+				`{"what":"is this urgent","examples":["call me now"]}}}}`
 
-		encoded, err := json.Marshal(f.Questions[0].Instructions)
-		if err != nil {
-			t.Fatalf("marshalling: %v", err)
-		}
+			f, err := qfile.Load([]byte(doc))
+			if err != nil {
+				t.Fatalf("loading: %v", err)
+			}
 
-		want := `{"what":"is this urgent","examples":["call me now"]}`
-		if string(encoded) != want {
-			t.Errorf("got  %s\nwant %s", encoded, want)
-		}
+			encoded, err := json.Marshal(f.Questions[0].Instructions)
+			if err != nil {
+				t.Fatalf("marshalling: %v", err)
+			}
+
+			want := `{"what":"is this urgent","examples":["call me now"]}`
+			if string(encoded) != want {
+				t.Errorf("got  %s\nwant %s", encoded, want)
+			}
+		})
 	})
 }

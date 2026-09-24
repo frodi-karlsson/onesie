@@ -1512,7 +1512,7 @@ func TestCredentialPath(t *testing.T) {
 	}
 }
 
-func TestNewRootCmdFileDrivenClient(t *testing.T) {
+func TestStoredCredentials(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -1746,62 +1746,62 @@ func TestNewRootCmdFileDrivenClient(t *testing.T) {
 			t.Error("the stored base url did not receive exactly one request carrying the keychain key")
 		}
 	})
-}
 
-func TestNewRootCmdDryRunWithACredentialFile(t *testing.T) {
-	t.Parallel()
+	t.Run("should not open the credential file on a dry run", func(t *testing.T) {
+		t.Parallel()
 
-	tests := []struct {
-		name  string
-		args  []string
-		stdin string
-	}{
-		{
-			name:  "should not open the file for --print-request",
-			args:  []string{"is this urgent", "--print-request"},
-			stdin: "the server is down",
-		},
-		{
-			name: "should not open the file for --print-questions",
-			args: []string{"--ask", "urgent=is this urgent", "--print-questions"},
-		},
-		{
-			name:  "should not open the file for -i request --print-request",
-			args:  []string{"-i", "request", "--print-request"},
-			stdin: `{"state":"the server is down"}`,
-		},
-	}
+		tests := []struct {
+			name  string
+			args  []string
+			stdin string
+		}{
+			{
+				name:  "should not open the file for --print-request",
+				args:  []string{"is this urgent", "--print-request"},
+				stdin: "the server is down",
+			},
+			{
+				name: "should not open the file for --print-questions",
+				args: []string{"--ask", "urgent=is this urgent", "--print-questions"},
+			},
+			{
+				name:  "should not open the file for -i request --print-request",
+				args:  []string{"-i", "request", "--print-request"},
+				stdin: `{"state":"the server is down"}`,
+			},
+		}
 
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
 
-			if runtime.GOOS == "windows" {
-				t.Skip("windows carries no unix permission bits, so the mode check does not apply")
-			}
+				if runtime.GOOS == "windows" {
+					t.Skip("windows carries no unix permission bits, so the mode check does not apply")
+				}
 
-			// Mode 0644 is the assertion. Section 16.1 opens the file only when the run needs a
-			// key, so a dry run that opened this one would exit 3 instead of writing its body.
-			dir := credentialDir(t, `{"providers":{"typesafe":{"api_key":"SECRET-FILE"}}}`, 0o644)
+				// Mode 0644 is the assertion. Section 16.1 opens the file only when the run needs a
+				// key, so a dry run that opened this one would exit 3 instead of writing its body.
+				dir := credentialDir(t, `{"providers":{"typesafe":{"api_key":"SECRET-FILE"}}}`, 0o644)
 
-			out, errOut, code := runCredentialFile(t, tc.args, tc.stdin,
-				map[string]string{"ONESIE_CONFIG_DIR": dir})
+				out, errOut, code := runCredentialFile(t, tc.args, tc.stdin,
+					map[string]string{"ONESIE_CONFIG_DIR": dir})
 
-			assertNoSecret(t, out, errOut)
+				assertNoSecret(t, out, errOut)
 
-			if code != ExitOK {
-				t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, ExitOK, errOut)
-			}
+				if code != ExitOK {
+					t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, ExitOK, errOut)
+				}
 
-			if errOut != "" {
-				t.Errorf("stderr = %q, want nothing", errOut)
-			}
+				if errOut != "" {
+					t.Errorf("stderr = %q, want nothing", errOut)
+				}
 
-			if out == "" {
-				t.Error("stdout is empty, want the dry run's body")
-			}
-		})
-	}
+				if out == "" {
+					t.Error("stdout is empty, want the dry run's body")
+				}
+			})
+		}
+	})
 }
 
 func runAuth(t *testing.T, args []string, opts ...RootOption) (string, string, int) {

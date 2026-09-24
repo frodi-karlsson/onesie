@@ -152,91 +152,91 @@ func TestCheckRule(t *testing.T) {
 			}
 		})
 	}
-}
 
-func TestCheckRuleReturnsAnErrorRatherThanASkip(t *testing.T) {
-	t.Parallel()
-
-	t.Run("should surface a run error rather than count it as checked or skipped", func(t *testing.T) {
+	t.Run("should return an error rather than a skip", func(t *testing.T) {
 		t.Parallel()
 
-		runner := &Runner{
-			Binary: "onesie",
-			exec: func(context.Context, string, []string) (int, string, error) {
-				return 0, "", context.DeadlineExceeded
-			},
-		}
-
-		report := &Report{}
-
-		err := checkRule(
-			context.Background(), runner, "demo-skill", "r1", "good", "onesie --ask a=x", true, "", report,
-		)
-		if err == nil {
-			t.Fatalf("checkRule(...) error = nil, want an error")
-		}
-
-		if !strings.Contains(err.Error(), "demo-skill") || !strings.Contains(err.Error(), "r1") {
-			t.Errorf("err = %q, want it to name the skill and the rule id", err.Error())
-		}
-
-		if report.Checked != 0 {
-			t.Errorf("report.Checked = %d, want 0", report.Checked)
-		}
-
-		if len(report.Skipped) != 0 {
-			t.Errorf("report.Skipped = %v, want none", report.Skipped)
-		}
-	})
-}
-
-func TestCheckRuleSkipsAnUnverifiableExample(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name string
-		kind string
-	}{
-		{name: "should skip a bad example carrying an unverifiable reason, without running it", kind: "bad"},
-		{name: "should skip a good example carrying an unverifiable reason, without running it", kind: "good"},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
+		t.Run("should surface a run error rather than count it as checked or skipped", func(t *testing.T) {
 			t.Parallel()
 
-			runner := &Runner{Binary: "onesie", exec: neverCalled(t)}
+			runner := &Runner{
+				Binary: "onesie",
+				exec: func(context.Context, string, []string) (int, string, error) {
+					return 0, "", context.DeadlineExceeded
+				},
+			}
+
 			report := &Report{}
 
 			err := checkRule(
-				context.Background(), runner, "demo-skill", "r1", tc.kind, "onesie --ask a=x", true,
-				"the checker strips -q before every dry run", report,
+				context.Background(), runner, "demo-skill", "r1", "good", "onesie --ask a=x", true, "", report,
 			)
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
+			if err == nil {
+				t.Fatalf("checkRule(...) error = nil, want an error")
+			}
+
+			if !strings.Contains(err.Error(), "demo-skill") || !strings.Contains(err.Error(), "r1") {
+				t.Errorf("err = %q, want it to name the skill and the rule id", err.Error())
 			}
 
 			if report.Checked != 0 {
 				t.Errorf("report.Checked = %d, want 0", report.Checked)
 			}
 
-			if len(report.Failures) != 0 {
-				t.Errorf("report.Failures = %v, want none", report.Failures)
-			}
-
-			if len(report.Skipped) != 1 {
-				t.Fatalf("report.Skipped = %v, want one entry", report.Skipped)
-			}
-
-			skip := report.Skipped[0]
-			if skip.Skill != "demo-skill" || skip.RuleID != "r1" || skip.Kind != tc.kind ||
-				skip.Command != "onesie --ask a=x" ||
-				skip.Reason != "the checker strips -q before every dry run" {
-				t.Errorf("report.Skipped[0] = %+v, want it to name the skill, rule, kind, "+
-					"command and the unverifiable reason", skip)
+			if len(report.Skipped) != 0 {
+				t.Errorf("report.Skipped = %v, want none", report.Skipped)
 			}
 		})
-	}
+	})
+
+	t.Run("should skip an unverifiable example", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name string
+			kind string
+		}{
+			{name: "should skip a bad example carrying an unverifiable reason, without running it", kind: "bad"},
+			{name: "should skip a good example carrying an unverifiable reason, without running it", kind: "good"},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				runner := &Runner{Binary: "onesie", exec: neverCalled(t)}
+				report := &Report{}
+
+				err := checkRule(
+					context.Background(), runner, "demo-skill", "r1", tc.kind, "onesie --ask a=x", true,
+					"the checker strips -q before every dry run", report,
+				)
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+
+				if report.Checked != 0 {
+					t.Errorf("report.Checked = %d, want 0", report.Checked)
+				}
+
+				if len(report.Failures) != 0 {
+					t.Errorf("report.Failures = %v, want none", report.Failures)
+				}
+
+				if len(report.Skipped) != 1 {
+					t.Fatalf("report.Skipped = %v, want one entry", report.Skipped)
+				}
+
+				skip := report.Skipped[0]
+				if skip.Skill != "demo-skill" || skip.RuleID != "r1" || skip.Kind != tc.kind ||
+					skip.Command != "onesie --ask a=x" ||
+					skip.Reason != "the checker strips -q before every dry run" {
+					t.Errorf("report.Skipped[0] = %+v, want it to name the skill, rule, kind, "+
+						"command and the unverifiable reason", skip)
+				}
+			})
+		}
+	})
 }
 
 func TestCheck(t *testing.T) {

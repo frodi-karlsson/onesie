@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-func TestNewRootCmdTerminalWidth(t *testing.T) {
+func TestWithTerminalWidth(t *testing.T) {
 	t.Parallel()
 
 	const answered = `{"model":"onesie-1.13.0","answers":{"team":{"type":"choice",` +

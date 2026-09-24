@@ -270,54 +270,54 @@ func TestValidateQuestions(t *testing.T) {
 			}
 		})
 	}
-}
 
-func TestValidateQuestionsNamesTheQuestion(t *testing.T) {
-	t.Parallel()
+	t.Run("should name the offending question", func(t *testing.T) {
+		t.Parallel()
 
-	tests := []struct {
-		name      string
-		questions jev.Questions
-		want      string
-	}{
-		{
-			name: "should carry the offending question id when a score is short",
-			questions: jev.Questions{
-				{ID: "severity", Question: jev.Score{Criteria: jev.Levels("One")}},
+		tests := []struct {
+			name      string
+			questions jev.Questions
+			want      string
+		}{
+			{
+				name: "should carry the offending question id when a score is short",
+				questions: jev.Questions{
+					{ID: "severity", Question: jev.Score{Criteria: jev.Levels("One")}},
+				},
+				want: "severity",
 			},
-			want: "severity",
-		},
-		{
-			name: "should carry the offending question id when an id repeats",
-			questions: jev.Questions{
-				{ID: "team", Question: jev.Noul{Instructions: "one"}},
-				{ID: "team", Question: jev.Noul{Instructions: "two"}},
+			{
+				name: "should carry the offending question id when an id repeats",
+				questions: jev.Questions{
+					{ID: "team", Question: jev.Noul{Instructions: "one"}},
+					{ID: "team", Question: jev.Noul{Instructions: "two"}},
+				},
+				want: "team",
 			},
-			want: "team",
-		},
-		{
-			name:      "should carry the offending question id when a question is nil",
-			questions: jev.Questions{{ID: "urgent", Question: nil}},
-			want:      "urgent",
-		},
-	}
+			{
+				name:      "should carry the offending question id when a question is nil",
+				questions: jev.Questions{{ID: "urgent", Question: nil}},
+				want:      "urgent",
+			},
+		}
 
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
 
-			err := jev.ValidateQuestions(tc.questions)
+				err := jev.ValidateQuestions(tc.questions)
 
-			var invalid *jev.ValidationError
-			if !errors.As(err, &invalid) {
-				t.Fatalf("expected a *ValidationError, got %T", err)
-			}
+				var invalid *jev.ValidationError
+				if !errors.As(err, &invalid) {
+					t.Fatalf("expected a *ValidationError, got %T", err)
+				}
 
-			if invalid.Question != tc.want {
-				t.Errorf("question got %q, want %q", invalid.Question, tc.want)
-			}
-		})
-	}
+				if invalid.Question != tc.want {
+					t.Errorf("question got %q, want %q", invalid.Question, tc.want)
+				}
+			})
+		}
+	})
 }
 
 func TestLevels(t *testing.T) {

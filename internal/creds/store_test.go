@@ -14,70 +14,7 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/creds"
 )
 
-func TestLoadThroughASymlink(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name       string
-		targetMode os.FileMode
-		wantErr    string
-	}{
-		{
-			// Open follows the link, so the refusal comes from the target and the message must
-			// name the target's mode. os.Lstat would report the link's own 0o755 here, which
-			// names the wrong object and suggests a chmod that would fix nothing.
-			name:       "should name the target's mode when the owner cannot read it",
-			targetMode: 0o060,
-			wantErr:    "mode 60",
-		},
-		{
-			name:       "should name the target's mode when others can reach it",
-			targetMode: 0o644,
-			wantErr:    "mode 644",
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			if runtime.GOOS == "windows" {
-				t.Skip("windows carries no unix permission bits, so the mode check is a no op")
-			}
-
-			dir := t.TempDir()
-			target := filepath.Join(dir, "target.json")
-			link := filepath.Join(dir, "credentials.json")
-
-			if err := os.WriteFile(target, []byte(`{"providers":{"typesafe":{"api_key":"k"}}}`), 0o600); err != nil {
-				t.Fatalf("writing the target: %v", err)
-			}
-
-			if err := os.Chmod(target, tc.targetMode); err != nil {
-				t.Fatalf("setting the target mode: %v", err)
-			}
-
-			if err := os.Symlink(target, link); err != nil {
-				t.Fatalf("linking: %v", err)
-			}
-
-			_, found, err := creds.NewStore().Load(link)
-			if err == nil {
-				t.Fatalf("Load succeeded, want a refusal naming %s", tc.wantErr)
-			}
-
-			if !strings.Contains(err.Error(), tc.wantErr) {
-				t.Errorf("Load error = %v, want it to contain %s", err, tc.wantErr)
-			}
-
-			if found {
-				t.Error("Load reported found beside a refusal")
-			}
-		})
-	}
-}
-
-func TestLoad(t *testing.T) {
+func TestStoreLoad(t *testing.T) {
 	t.Parallel()
 
 	// unixOnly marks the cases that turn on permission bits. Windows carries none, so the mode
@@ -419,9 +356,72 @@ func TestLoad(t *testing.T) {
 			})
 		}
 	})
+
+	t.Run("should name the target's mode through a symlink", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name       string
+			targetMode os.FileMode
+			wantErr    string
+		}{
+			{
+				// Open follows the link, so the refusal comes from the target and the message must
+				// name the target's mode. os.Lstat would report the link's own 0o755 here, which
+				// names the wrong object and suggests a chmod that would fix nothing.
+				name:       "should name the target's mode when the owner cannot read it",
+				targetMode: 0o060,
+				wantErr:    "mode 60",
+			},
+			{
+				name:       "should name the target's mode when others can reach it",
+				targetMode: 0o644,
+				wantErr:    "mode 644",
+			},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				if runtime.GOOS == "windows" {
+					t.Skip("windows carries no unix permission bits, so the mode check is a no op")
+				}
+
+				dir := t.TempDir()
+				target := filepath.Join(dir, "target.json")
+				link := filepath.Join(dir, "credentials.json")
+
+				if err := os.WriteFile(target, []byte(`{"providers":{"typesafe":{"api_key":"k"}}}`), 0o600); err != nil {
+					t.Fatalf("writing the target: %v", err)
+				}
+
+				if err := os.Chmod(target, tc.targetMode); err != nil {
+					t.Fatalf("setting the target mode: %v", err)
+				}
+
+				if err := os.Symlink(target, link); err != nil {
+					t.Fatalf("linking: %v", err)
+				}
+
+				_, found, err := creds.NewStore().Load(link)
+				if err == nil {
+					t.Fatalf("Load succeeded, want a refusal naming %s", tc.wantErr)
+				}
+
+				if !strings.Contains(err.Error(), tc.wantErr) {
+					t.Errorf("Load error = %v, want it to contain %s", err, tc.wantErr)
+				}
+
+				if found {
+					t.Error("Load reported found beside a refusal")
+				}
+			})
+		}
+	})
 }
 
-func TestSave(t *testing.T) {
+func TestStoreSave(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -995,7 +995,7 @@ func TestSave(t *testing.T) {
 	})
 }
 
-func TestClear(t *testing.T) {
+func TestStoreClear(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {

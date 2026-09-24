@@ -18,7 +18,7 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/jev"
 )
 
-func TestStreaming(t *testing.T) {
+func TestStream(t *testing.T) {
 	t.Parallel()
 
 	const answered = `{"model":"onesie-1.13.0","answers":{"answer":{"type":"noul","noul":0.9}}}`
@@ -235,105 +235,456 @@ func TestStreaming(t *testing.T) {
 			}
 		})
 	}
-}
 
-func TestMergeAutoOutput(t *testing.T) {
-	t.Parallel()
-
-	t.Run("should resolve auto to json under merge on a terminal", func(t *testing.T) {
+	t.Run("should gate every record on its assertion", func(t *testing.T) {
 		t.Parallel()
 
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			if _, err := w.Write([]byte(
-				`{"model":"onesie-1.13.0","answers":{"answer":{"type":"noul","noul":0.9}}}`,
-			)); err != nil {
-				t.Errorf("writing stub response: %v", err)
+		const gate = "answer.value < 0.5"
+
+		tests := []struct {
+			name      string
+			args      []string
+			stdin     string
+			wantCode  int
+			wantLines int
+			wantFalse int
+			contains  []string
+			missing   []string
+			wantErr   string
+		}{
+			{
+				name:      "should print every line and exit one when one assertion is false",
+				args:      []string{"is this urgent", "-i", "lines", "--assert", gate},
+				stdin:     "cold\nhot\ncold\n",
+				wantCode:  cli.ExitRejected,
+				wantLines: 3,
+				wantFalse: 1,
+				contains:  []string{`"answer":{"value":0.9}`, `"answer":{"value":0.1}`},
+			},
+			{
+				name:      "should exit zero when every record's assertion holds",
+				args:      []string{"is this urgent", "-i", "lines", "--assert", gate},
+				stdin:     "cold\ncold\n",
+				wantCode:  cli.ExitOK,
+				wantLines: 2,
+				missing:   []string{"assert"},
+			},
+			{
+				name: "should count no failed record when an assertion is false",
+				args: []string{
+					"is this urgent", "-i", "lines", "--assert", gate, "--stats",
+				},
+				stdin:     "cold\nhot\ncold\n",
+				wantCode:  cli.ExitRejected,
+				wantLines: 3,
+				wantFalse: 1,
+				wantErr:   "3 requests, 1 false assertion, 3 questions",
+			},
+			{
+				name:      "should exit six when a failed record precedes a false assertion",
+				args:      []string{"is this urgent", "-i", "lines", "--assert", gate},
+				stdin:     "boom\nhot\n",
+				wantCode:  cli.ExitRecords,
+				wantLines: 2,
+				wantFalse: 1,
+				contains:  []string{`"kind":"http"`},
+			},
+			{
+				name:      "should exit six when a false assertion precedes a failed record",
+				args:      []string{"is this urgent", "-i", "lines", "--assert", gate},
+				stdin:     "hot\nboom\n",
+				wantCode:  cli.ExitRecords,
+				wantLines: 2,
+				wantFalse: 1,
+				contains:  []string{`"kind":"http"`},
+			},
+			{
+				name: "should not evaluate the assertion on a failed record",
+				args: []string{
+					"is this urgent", "-i", "lines", "--assert", "answer.value > 0.5",
+				},
+				stdin:     "boom\n",
+				wantCode:  cli.ExitRecords,
+				wantLines: 1,
+				contains:  []string{`"kind":"http"`},
+				missing:   []string{"assert"},
+			},
+			{
+				name: "should end the run at the first false assertion under stop on assert",
+				args: []string{
+					"is this urgent", "-i", "lines", "--assert", gate, "--stop-on-assert",
+				},
+				stdin:     "cold\nhot\ncold\n",
+				wantCode:  cli.ExitRejected,
+				wantLines: 2,
+				wantFalse: 1,
+			},
+			{
+				name: "should end an unordered run at the first false assertion",
+				args: []string{
+					"is this urgent", "-i", "lines", "--assert", gate,
+					"--stop-on-assert", "--unordered",
+				},
+				stdin:     "cold\nhot\ncold\n",
+				wantCode:  cli.ExitRejected,
+				wantLines: 2,
+				wantFalse: 1,
+			},
+			{
+				name: "should read the whole stream under stop on assert when nothing is false",
+				args: []string{
+					"is this urgent", "-i", "lines", "--assert", gate, "--stop-on-assert",
+				},
+				stdin:     "cold\ncold\ncold\n",
+				wantCode:  cli.ExitOK,
+				wantLines: 3,
+				missing:   []string{"assert"},
+			},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				out, errOut := runAssertedStream(t, tc.args, tc.stdin, tc.wantCode)
+
+				lines := 0
+
+				for _, line := range strings.Split(out, "\n") {
+					if line != "" {
+						lines++
+					}
+				}
+
+				if lines != tc.wantLines {
+					t.Errorf("lines = %d, want %d\ngot:\n%s", lines, tc.wantLines, out)
+				}
+
+				if got := strings.Count(out, `"assert":false`); got != tc.wantFalse {
+					t.Errorf("false assertions = %d, want %d\ngot:\n%s", got, tc.wantFalse, out)
+				}
+
+				for _, want := range tc.contains {
+					if !strings.Contains(out, want) {
+						t.Errorf("stdout missing %q\ngot:\n%s", want, out)
+					}
+				}
+
+				for _, unwanted := range tc.missing {
+					if strings.Contains(out, unwanted) {
+						t.Errorf("stdout carries %q\ngot:\n%s", unwanted, out)
+					}
+				}
+
+				if tc.wantErr == "" && errOut != "" {
+					t.Errorf("stderr = %q, want nothing", errOut)
+				}
+
+				if tc.wantErr != "" && !strings.Contains(errOut, tc.wantErr) {
+					t.Errorf("stderr = %q, want it to contain %q", errOut, tc.wantErr)
+				}
+
+				if tc.wantErr != "" && strings.Contains(errOut, "failed") {
+					t.Errorf("stderr = %q, want no failed record", errOut)
+				}
+			})
+		}
+	})
+
+	t.Run("should send a large integer unchanged", func(t *testing.T) {
+		t.Parallel()
+
+		const answered = `{"model":"onesie-1.13.0","answers":{"answer":{"type":"noul","noul":0.9}}}`
+
+		const record = `{"ticket_id":12345678901234567890,"zebra":1,"alpha":2}`
+
+		tests := []struct {
+			name  string
+			args  []string
+			stdin string
+			// wantWire is the state as the request body spelled it.
+			wantWire string
+			wantOut  string
+		}{
+			{
+				name:     "should send a nineteen digit integer unchanged under jsonl",
+				args:     []string{"x", "-i", "jsonl", "-o", "values"},
+				stdin:    record + "\n",
+				wantWire: record,
+				wantOut:  `{"answer":0.9}`,
+			},
+			{
+				name:     "should send a nineteen digit integer unchanged under json",
+				args:     []string{"x", "-i", "json", "-o", "values"},
+				stdin:    record,
+				wantWire: record,
+				wantOut:  `{"answer":0.9}`,
+			},
+			{
+				name:     "should keep an array's large integer through merge under jsonl",
+				args:     []string{"x", "-i", "jsonl", "--merge", "-o", "values"},
+				stdin:    "[12345678901234567890]\n",
+				wantWire: `[12345678901234567890]`,
+				wantOut:  `{"state":[12345678901234567890],"answers":{"answer":0.9}}`,
+			},
+			{
+				name:     "should keep an array's large integer through merge under json",
+				args:     []string{"x", "-i", "json", "--merge", "-o", "values"},
+				stdin:    "[12345678901234567890]",
+				wantWire: `[12345678901234567890]`,
+				wantOut:  `{"state":[12345678901234567890],"answers":{"answer":0.9}}`,
+			},
+			{
+				name:     "should keep an object's key order through merge under jsonl",
+				args:     []string{"x", "-i", "jsonl", "--merge", "-o", "values"},
+				stdin:    record + "\n",
+				wantWire: record,
+				wantOut: `{"ticket_id":12345678901234567890,"zebra":1,"alpha":2,` +
+					`"answers":{"answer":0.9}}`,
+			},
+			{
+				name:     "should keep an object's key order through merge under json",
+				args:     []string{"x", "-i", "json", "--merge", "-o", "values"},
+				stdin:    record,
+				wantWire: record,
+				wantOut: `{"ticket_id":12345678901234567890,"zebra":1,"alpha":2,` +
+					`"answers":{"answer":0.9}}`,
+			},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				var (
+					mu   sync.Mutex
+					body string
+				)
+
+				srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					sent, err := io.ReadAll(r.Body)
+					if err != nil {
+						t.Errorf("reading request body: %v", err)
+					}
+
+					mu.Lock()
+					body = string(sent)
+					mu.Unlock()
+
+					if _, err := w.Write([]byte(answered)); err != nil {
+						t.Errorf("writing stub response: %v", err)
+					}
+				}))
+				defer srv.Close()
+
+				var out, errOut bytes.Buffer
+
+				root := cli.NewRootCmd(
+					cli.BuildInfo{Version: "1.2.3"},
+					cli.WithKeychain(offKeychain{}),
+					cli.WithClientFactory(func(_ context.Context, opts ...jev.Option) (*jev.Client, error) {
+						return jev.New(append([]jev.Option{
+							jev.WithAPIKey("k"), jev.WithBaseURL(srv.URL),
+						}, opts...)...)
+					}),
+					cli.WithStdin(strings.NewReader(tc.stdin)),
+					cli.WithStdinTTY(false),
+					cli.WithStdoutTTY(false),
+					cli.WithLookupEnv(func(string) (string, bool) { return "", false }),
+				)
+
+				root.SetOut(&out)
+				root.SetErr(&errOut)
+				root.SetArgs(tc.args)
+
+				if code := cli.Execute(t.Context(), root); code != cli.ExitOK {
+					t.Fatalf("exit code = %d\nstdout:\n%s\nstderr:\n%s",
+						code, out.String(), errOut.String())
+				}
+
+				mu.Lock()
+				defer mu.Unlock()
+
+				if !strings.Contains(body, `"state":`+tc.wantWire) {
+					t.Errorf("request body = %s\nwant state %s", body, tc.wantWire)
+				}
+
+				if got := strings.TrimSuffix(out.String(), "\n"); got != tc.wantOut {
+					t.Errorf("output = %s\nwant    %s", got, tc.wantOut)
+				}
+			})
+		}
+	})
+
+	t.Run("should report the failed records alongside a read failure", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("should report the failed records alongside the read failure", func(t *testing.T) {
+			t.Parallel()
+
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(http.StatusInternalServerError)
+
+				if _, err := w.Write([]byte(`{"error":{"message":"boom"}}`)); err != nil {
+					t.Errorf("writing stub response: %v", err)
+				}
+			}))
+			defer srv.Close()
+
+			var out, errOut bytes.Buffer
+
+			root := cli.NewRootCmd(
+				cli.BuildInfo{Version: "1.2.3"},
+				cli.WithKeychain(offKeychain{}),
+				cli.WithClientFactory(func(_ context.Context, opts ...jev.Option) (*jev.Client, error) {
+					policy := jev.DefaultRetryPolicy()
+					policy.MaxRetries = 0
+
+					return jev.New(append([]jev.Option{
+						jev.WithAPIKey("k"), jev.WithBaseURL(srv.URL), jev.WithRetry(policy),
+					}, opts...)...)
+				}),
+				cli.WithStdin(&breakingReader{lines: "first\n"}),
+				cli.WithStdinTTY(false),
+				cli.WithStdoutTTY(false),
+				cli.WithLookupEnv(func(string) (string, bool) { return "", false }),
+			)
+
+			root.SetOut(&out)
+			root.SetErr(&errOut)
+			root.SetArgs([]string{"x", "-i", "lines", "-j", "1"})
+
+			// The read failure ends the stream, which a caller cannot tell from a complete one, so it
+			// takes the exit code. The record that had already failed is named rather than dropped.
+			if code := cli.Execute(t.Context(), root); code != cli.ExitUsage {
+				t.Errorf("exit code = %d, want %d\nstderr:\n%s", code, cli.ExitUsage, errOut.String())
 			}
-		}))
-		defer srv.Close()
 
-		var out bytes.Buffer
+			if !strings.Contains(errOut.String(), "1 record failed") {
+				t.Errorf("stderr = %q, want it to name the failed record", errOut.String())
+			}
 
-		root := cli.NewRootCmd(
-			cli.BuildInfo{Version: "1.2.3"},
-			cli.WithKeychain(offKeychain{}),
-			cli.WithClientFactory(func(_ context.Context, opts ...jev.Option) (*jev.Client, error) {
-				return jev.New(append([]jev.Option{
-					jev.WithAPIKey("k"), jev.WithBaseURL(srv.URL),
-				}, opts...)...)
-			}),
-			cli.WithStdin(strings.NewReader(`{"id":7}`)),
-			cli.WithStdinTTY(false),
-			// A terminal in a non streaming mode would normally choose the table, which --merge
-			// forbids. Section 7 says json wins.
-			cli.WithStdoutTTY(true),
-			cli.WithLookupEnv(func(string) (string, bool) { return "", false }),
-		)
+			if !strings.Contains(errOut.String(), "stdin: ") {
+				t.Errorf("stderr = %q, want it to name stdin", errOut.String())
+			}
+		})
+	})
 
-		root.SetOut(&out)
-		root.SetErr(&out)
-		root.SetArgs([]string{"is this urgent", "-i", "json", "--merge"})
+	t.Run("should exit 130 on an interrupt", func(t *testing.T) {
+		t.Parallel()
 
-		if code := cli.Execute(t.Context(), root); code != cli.ExitOK {
-			t.Fatalf("exit code = %d, output:\n%s", code, out.String())
+		tests := []struct {
+			name          string
+			args          []string
+			sourceResumes bool
+		}{
+			{
+				name:          "should exit 130 when input arrives after the interrupt",
+				args:          []string{"is this urgent", "-i", "lines"},
+				sourceResumes: true,
+			},
+			{
+				name: "should exit 130 promptly while stdin is idle",
+				args: []string{"is this urgent", "-i", "lines"},
+			},
+			{
+				name:          "should exit 130 unordered when input arrives after the interrupt",
+				args:          []string{"is this urgent", "-i", "lines", "--unordered"},
+				sourceResumes: true,
+			},
+			{
+				name: "should exit 130 promptly unordered while stdin is idle",
+				args: []string{"is this urgent", "-i", "lines", "--unordered"},
+			},
 		}
 
-		if !strings.Contains(out.String(), `"answers":{`) {
-			t.Errorf("want merged json, got:\n%s", out.String())
-		}
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
 
-		if !strings.Contains(out.String(), `"id":7`) {
-			t.Errorf("want the input's fields kept, got:\n%s", out.String())
+				srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					if _, err := w.Write([]byte(
+						`{"model":"onesie-1.13.0","answers":{"answer":{"type":"noul","noul":0.9}}}`,
+					)); err != nil {
+						t.Errorf("writing stub response: %v", err)
+					}
+				}))
+				defer srv.Close()
+
+				stdin, feed := io.Pipe()
+				t.Cleanup(func() { feed.Close() })
+
+				out := &lineCounter{lines: make(chan struct{}, 8)}
+
+				var errOut bytes.Buffer
+
+				root := cli.NewRootCmd(
+					cli.BuildInfo{Version: "1.2.3"},
+					cli.WithKeychain(offKeychain{}),
+					cli.WithClientFactory(func(_ context.Context, opts ...jev.Option) (*jev.Client, error) {
+						return jev.New(append([]jev.Option{
+							jev.WithAPIKey("k"), jev.WithBaseURL(srv.URL),
+						}, opts...)...)
+					}),
+					cli.WithStdin(stdin),
+					cli.WithStdinTTY(false),
+					cli.WithStdoutTTY(false),
+					cli.WithLookupEnv(func(string) (string, bool) { return "", false }),
+				)
+
+				root.SetOut(out)
+				root.SetErr(&errOut)
+				root.SetArgs(tc.args)
+
+				ctx, interrupt := context.WithCancel(t.Context())
+				defer interrupt()
+
+				exited := make(chan int, 1)
+
+				go func() { exited <- cli.Execute(ctx, root) }()
+
+				if _, err := io.WriteString(feed, "one\ntwo\n"); err != nil {
+					t.Fatalf("feeding stdin: %v", err)
+				}
+
+				for range 2 {
+					select {
+					case <-out.lines:
+					case <-time.After(5 * time.Second):
+						t.Fatal("the records fed before the interrupt were never written")
+					}
+				}
+
+				interrupt()
+
+				if tc.sourceResumes {
+					go io.WriteString(feed, "three\n")
+				}
+
+				select {
+				case code := <-exited:
+					if code != cli.ExitInterrupt {
+						t.Errorf("exit code = %d, want %d\nstderr:\n%s",
+							code, cli.ExitInterrupt, errOut.String())
+					}
+				case <-time.After(5 * time.Second):
+					t.Fatal("the stream ignored the interrupt while waiting on stdin")
+				}
+			})
 		}
 	})
 }
 
-func TestSingleRecordMerge(t *testing.T) {
+func TestWriteMerged(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name     string
-		args     []string
-		stdin    string
-		wantCode int
-		contains string
-		requests int
-	}{
-		{
-			name:     "should wrap a text state under state",
-			args:     []string{"is this urgent", "--merge"},
-			stdin:    "a ticket",
-			wantCode: cli.ExitOK,
-			contains: `{"state":"a ticket","answers":{`,
-			requests: 1,
-		},
-		{
-			name:     "should fold the answers into an object state",
-			args:     []string{"is this urgent", "-i", "json", "--merge-key", "out"},
-			stdin:    `{"id":7}`,
-			wantCode: cli.ExitOK,
-			contains: `{"id":7,"out":{`,
-			requests: 1,
-		},
-		{
-			name:     "should reject a taken merge key before any request",
-			args:     []string{"is this urgent", "-i", "json", "--merge"},
-			stdin:    `{"answers":1}`,
-			wantCode: cli.ExitUsage,
-			contains: "",
-			requests: 0,
-		},
-	}
+	t.Run("should resolve auto to json under a merge", func(t *testing.T) {
+		t.Parallel()
 
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
+		t.Run("should resolve auto to json under merge on a terminal", func(t *testing.T) {
 			t.Parallel()
 
-			var calls atomic.Int64
-
 			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-				calls.Add(1)
-
 				if _, err := w.Write([]byte(
 					`{"model":"onesie-1.13.0","answers":{"answer":{"type":"noul","noul":0.9}}}`,
 				)); err != nil {
@@ -342,7 +693,7 @@ func TestSingleRecordMerge(t *testing.T) {
 			}))
 			defer srv.Close()
 
-			var out, errOut bytes.Buffer
+			var out bytes.Buffer
 
 			root := cli.NewRootCmd(
 				cli.BuildInfo{Version: "1.2.3"},
@@ -352,207 +703,119 @@ func TestSingleRecordMerge(t *testing.T) {
 						jev.WithAPIKey("k"), jev.WithBaseURL(srv.URL),
 					}, opts...)...)
 				}),
-				cli.WithStdin(strings.NewReader(tc.stdin)),
+				cli.WithStdin(strings.NewReader(`{"id":7}`)),
 				cli.WithStdinTTY(false),
-				cli.WithStdoutTTY(false),
+				// A terminal in a non streaming mode would normally choose the table, which --merge
+				// forbids. Section 7 says json wins.
+				cli.WithStdoutTTY(true),
 				cli.WithLookupEnv(func(string) (string, bool) { return "", false }),
 			)
 
 			root.SetOut(&out)
-			root.SetErr(&errOut)
-			root.SetArgs(tc.args)
-
-			if code := cli.Execute(t.Context(), root); code != tc.wantCode {
-				t.Fatalf("exit code = %d, want %d\nstdout:\n%s\nstderr:\n%s",
-					code, tc.wantCode, out.String(), errOut.String())
-			}
-
-			if got := int(calls.Load()); got != tc.requests {
-				t.Errorf("requests = %d, want %d", got, tc.requests)
-			}
-
-			if tc.contains != "" && !strings.Contains(out.String(), tc.contains) {
-				t.Errorf("output missing %q\ngot:\n%s", tc.contains, out.String())
-			}
-		})
-	}
-}
-
-func TestStreamingWire(t *testing.T) {
-	t.Parallel()
-
-	const answered = `{"model":"onesie-1.13.0","answers":{"answer":{"type":"noul","noul":0.9}}}`
-
-	const record = `{"ticket_id":12345678901234567890,"zebra":1,"alpha":2}`
-
-	tests := []struct {
-		name  string
-		args  []string
-		stdin string
-		// wantWire is the state as the request body spelled it.
-		wantWire string
-		wantOut  string
-	}{
-		{
-			name:     "should send a nineteen digit integer unchanged under jsonl",
-			args:     []string{"x", "-i", "jsonl", "-o", "values"},
-			stdin:    record + "\n",
-			wantWire: record,
-			wantOut:  `{"answer":0.9}`,
-		},
-		{
-			name:     "should send a nineteen digit integer unchanged under json",
-			args:     []string{"x", "-i", "json", "-o", "values"},
-			stdin:    record,
-			wantWire: record,
-			wantOut:  `{"answer":0.9}`,
-		},
-		{
-			name:     "should keep an array's large integer through merge under jsonl",
-			args:     []string{"x", "-i", "jsonl", "--merge", "-o", "values"},
-			stdin:    "[12345678901234567890]\n",
-			wantWire: `[12345678901234567890]`,
-			wantOut:  `{"state":[12345678901234567890],"answers":{"answer":0.9}}`,
-		},
-		{
-			name:     "should keep an array's large integer through merge under json",
-			args:     []string{"x", "-i", "json", "--merge", "-o", "values"},
-			stdin:    "[12345678901234567890]",
-			wantWire: `[12345678901234567890]`,
-			wantOut:  `{"state":[12345678901234567890],"answers":{"answer":0.9}}`,
-		},
-		{
-			name:     "should keep an object's key order through merge under jsonl",
-			args:     []string{"x", "-i", "jsonl", "--merge", "-o", "values"},
-			stdin:    record + "\n",
-			wantWire: record,
-			wantOut: `{"ticket_id":12345678901234567890,"zebra":1,"alpha":2,` +
-				`"answers":{"answer":0.9}}`,
-		},
-		{
-			name:     "should keep an object's key order through merge under json",
-			args:     []string{"x", "-i", "json", "--merge", "-o", "values"},
-			stdin:    record,
-			wantWire: record,
-			wantOut: `{"ticket_id":12345678901234567890,"zebra":1,"alpha":2,` +
-				`"answers":{"answer":0.9}}`,
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			var (
-				mu   sync.Mutex
-				body string
-			)
-
-			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				sent, err := io.ReadAll(r.Body)
-				if err != nil {
-					t.Errorf("reading request body: %v", err)
-				}
-
-				mu.Lock()
-				body = string(sent)
-				mu.Unlock()
-
-				if _, err := w.Write([]byte(answered)); err != nil {
-					t.Errorf("writing stub response: %v", err)
-				}
-			}))
-			defer srv.Close()
-
-			var out, errOut bytes.Buffer
-
-			root := cli.NewRootCmd(
-				cli.BuildInfo{Version: "1.2.3"},
-				cli.WithKeychain(offKeychain{}),
-				cli.WithClientFactory(func(_ context.Context, opts ...jev.Option) (*jev.Client, error) {
-					return jev.New(append([]jev.Option{
-						jev.WithAPIKey("k"), jev.WithBaseURL(srv.URL),
-					}, opts...)...)
-				}),
-				cli.WithStdin(strings.NewReader(tc.stdin)),
-				cli.WithStdinTTY(false),
-				cli.WithStdoutTTY(false),
-				cli.WithLookupEnv(func(string) (string, bool) { return "", false }),
-			)
-
-			root.SetOut(&out)
-			root.SetErr(&errOut)
-			root.SetArgs(tc.args)
+			root.SetErr(&out)
+			root.SetArgs([]string{"is this urgent", "-i", "json", "--merge"})
 
 			if code := cli.Execute(t.Context(), root); code != cli.ExitOK {
-				t.Fatalf("exit code = %d\nstdout:\n%s\nstderr:\n%s",
-					code, out.String(), errOut.String())
+				t.Fatalf("exit code = %d, output:\n%s", code, out.String())
 			}
 
-			mu.Lock()
-			defer mu.Unlock()
-
-			if !strings.Contains(body, `"state":`+tc.wantWire) {
-				t.Errorf("request body = %s\nwant state %s", body, tc.wantWire)
+			if !strings.Contains(out.String(), `"answers":{`) {
+				t.Errorf("want merged json, got:\n%s", out.String())
 			}
 
-			if got := strings.TrimSuffix(out.String(), "\n"); got != tc.wantOut {
-				t.Errorf("output = %s\nwant    %s", got, tc.wantOut)
+			if !strings.Contains(out.String(), `"id":7`) {
+				t.Errorf("want the input's fields kept, got:\n%s", out.String())
 			}
 		})
-	}
-}
+	})
 
-func TestStreamSourceFailure(t *testing.T) {
-	t.Parallel()
-
-	t.Run("should report the failed records alongside the read failure", func(t *testing.T) {
+	t.Run("should merge a single record", func(t *testing.T) {
 		t.Parallel()
 
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			w.WriteHeader(http.StatusInternalServerError)
-
-			if _, err := w.Write([]byte(`{"error":{"message":"boom"}}`)); err != nil {
-				t.Errorf("writing stub response: %v", err)
-			}
-		}))
-		defer srv.Close()
-
-		var out, errOut bytes.Buffer
-
-		root := cli.NewRootCmd(
-			cli.BuildInfo{Version: "1.2.3"},
-			cli.WithKeychain(offKeychain{}),
-			cli.WithClientFactory(func(_ context.Context, opts ...jev.Option) (*jev.Client, error) {
-				policy := jev.DefaultRetryPolicy()
-				policy.MaxRetries = 0
-
-				return jev.New(append([]jev.Option{
-					jev.WithAPIKey("k"), jev.WithBaseURL(srv.URL), jev.WithRetry(policy),
-				}, opts...)...)
-			}),
-			cli.WithStdin(&breakingReader{lines: "first\n"}),
-			cli.WithStdinTTY(false),
-			cli.WithStdoutTTY(false),
-			cli.WithLookupEnv(func(string) (string, bool) { return "", false }),
-		)
-
-		root.SetOut(&out)
-		root.SetErr(&errOut)
-		root.SetArgs([]string{"x", "-i", "lines", "-j", "1"})
-
-		// The read failure ends the stream, which a caller cannot tell from a complete one, so it
-		// takes the exit code. The record that had already failed is named rather than dropped.
-		if code := cli.Execute(t.Context(), root); code != cli.ExitUsage {
-			t.Errorf("exit code = %d, want %d\nstderr:\n%s", code, cli.ExitUsage, errOut.String())
+		tests := []struct {
+			name     string
+			args     []string
+			stdin    string
+			wantCode int
+			contains string
+			requests int
+		}{
+			{
+				name:     "should wrap a text state under state",
+				args:     []string{"is this urgent", "--merge"},
+				stdin:    "a ticket",
+				wantCode: cli.ExitOK,
+				contains: `{"state":"a ticket","answers":{`,
+				requests: 1,
+			},
+			{
+				name:     "should fold the answers into an object state",
+				args:     []string{"is this urgent", "-i", "json", "--merge-key", "out"},
+				stdin:    `{"id":7}`,
+				wantCode: cli.ExitOK,
+				contains: `{"id":7,"out":{`,
+				requests: 1,
+			},
+			{
+				name:     "should reject a taken merge key before any request",
+				args:     []string{"is this urgent", "-i", "json", "--merge"},
+				stdin:    `{"answers":1}`,
+				wantCode: cli.ExitUsage,
+				contains: "",
+				requests: 0,
+			},
 		}
 
-		if !strings.Contains(errOut.String(), "1 record failed") {
-			t.Errorf("stderr = %q, want it to name the failed record", errOut.String())
-		}
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
 
-		if !strings.Contains(errOut.String(), "stdin: ") {
-			t.Errorf("stderr = %q, want it to name stdin", errOut.String())
+				var calls atomic.Int64
+
+				srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					calls.Add(1)
+
+					if _, err := w.Write([]byte(
+						`{"model":"onesie-1.13.0","answers":{"answer":{"type":"noul","noul":0.9}}}`,
+					)); err != nil {
+						t.Errorf("writing stub response: %v", err)
+					}
+				}))
+				defer srv.Close()
+
+				var out, errOut bytes.Buffer
+
+				root := cli.NewRootCmd(
+					cli.BuildInfo{Version: "1.2.3"},
+					cli.WithKeychain(offKeychain{}),
+					cli.WithClientFactory(func(_ context.Context, opts ...jev.Option) (*jev.Client, error) {
+						return jev.New(append([]jev.Option{
+							jev.WithAPIKey("k"), jev.WithBaseURL(srv.URL),
+						}, opts...)...)
+					}),
+					cli.WithStdin(strings.NewReader(tc.stdin)),
+					cli.WithStdinTTY(false),
+					cli.WithStdoutTTY(false),
+					cli.WithLookupEnv(func(string) (string, bool) { return "", false }),
+				)
+
+				root.SetOut(&out)
+				root.SetErr(&errOut)
+				root.SetArgs(tc.args)
+
+				if code := cli.Execute(t.Context(), root); code != tc.wantCode {
+					t.Fatalf("exit code = %d, want %d\nstdout:\n%s\nstderr:\n%s",
+						code, tc.wantCode, out.String(), errOut.String())
+				}
+
+				if got := int(calls.Load()); got != tc.requests {
+					t.Errorf("requests = %d, want %d", got, tc.requests)
+				}
+
+				if tc.contains != "" && !strings.Contains(out.String(), tc.contains) {
+					t.Errorf("output missing %q\ngot:\n%s", tc.contains, out.String())
+				}
+			})
 		}
 	})
 }
@@ -570,110 +833,6 @@ func (r *breakingReader) Read(p []byte) (int, error) {
 	r.lines = r.lines[n:]
 
 	return n, nil
-}
-
-func TestNewRootCmdInterruptedStream(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name          string
-		args          []string
-		sourceResumes bool
-	}{
-		{
-			name:          "should exit 130 when input arrives after the interrupt",
-			args:          []string{"is this urgent", "-i", "lines"},
-			sourceResumes: true,
-		},
-		{
-			name: "should exit 130 promptly while stdin is idle",
-			args: []string{"is this urgent", "-i", "lines"},
-		},
-		{
-			name:          "should exit 130 unordered when input arrives after the interrupt",
-			args:          []string{"is this urgent", "-i", "lines", "--unordered"},
-			sourceResumes: true,
-		},
-		{
-			name: "should exit 130 promptly unordered while stdin is idle",
-			args: []string{"is this urgent", "-i", "lines", "--unordered"},
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-				if _, err := w.Write([]byte(
-					`{"model":"onesie-1.13.0","answers":{"answer":{"type":"noul","noul":0.9}}}`,
-				)); err != nil {
-					t.Errorf("writing stub response: %v", err)
-				}
-			}))
-			defer srv.Close()
-
-			stdin, feed := io.Pipe()
-			t.Cleanup(func() { feed.Close() })
-
-			out := &lineCounter{lines: make(chan struct{}, 8)}
-
-			var errOut bytes.Buffer
-
-			root := cli.NewRootCmd(
-				cli.BuildInfo{Version: "1.2.3"},
-				cli.WithKeychain(offKeychain{}),
-				cli.WithClientFactory(func(_ context.Context, opts ...jev.Option) (*jev.Client, error) {
-					return jev.New(append([]jev.Option{
-						jev.WithAPIKey("k"), jev.WithBaseURL(srv.URL),
-					}, opts...)...)
-				}),
-				cli.WithStdin(stdin),
-				cli.WithStdinTTY(false),
-				cli.WithStdoutTTY(false),
-				cli.WithLookupEnv(func(string) (string, bool) { return "", false }),
-			)
-
-			root.SetOut(out)
-			root.SetErr(&errOut)
-			root.SetArgs(tc.args)
-
-			ctx, interrupt := context.WithCancel(t.Context())
-			defer interrupt()
-
-			exited := make(chan int, 1)
-
-			go func() { exited <- cli.Execute(ctx, root) }()
-
-			if _, err := io.WriteString(feed, "one\ntwo\n"); err != nil {
-				t.Fatalf("feeding stdin: %v", err)
-			}
-
-			for range 2 {
-				select {
-				case <-out.lines:
-				case <-time.After(5 * time.Second):
-					t.Fatal("the records fed before the interrupt were never written")
-				}
-			}
-
-			interrupt()
-
-			if tc.sourceResumes {
-				go io.WriteString(feed, "three\n")
-			}
-
-			select {
-			case code := <-exited:
-				if code != cli.ExitInterrupt {
-					t.Errorf("exit code = %d, want %d\nstderr:\n%s",
-						code, cli.ExitInterrupt, errOut.String())
-				}
-			case <-time.After(5 * time.Second):
-				t.Fatal("the stream ignored the interrupt while waiting on stdin")
-			}
-		})
-	}
 }
 
 type lineCounter struct {
