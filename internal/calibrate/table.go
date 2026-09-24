@@ -4,16 +4,22 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"slices"
 	"strconv"
 	"strings"
+	"unicode"
+	"unicode/utf8"
+
+	"golang.org/x/text/width"
 
 	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
 const (
-	worstMisses = 5
-	indent      = "  "
-	gutter      = "  "
+	worstMisses  = 5
+	indent       = "  "
+	gutter       = "  "
+	otherHeading = "other answers"
 )
 
 // WriteTable renders the report for reading, one section per question in plan order. Columns are
@@ -53,13 +59,13 @@ func writeQuestion(b *strings.Builder, q QuestionReport) error {
 
 func writeYesNo(b *strings.Builder, id string, s YesNoScore) {
 	fmt.Fprintf(b, "%s, %s: labelled %d, %d yes, %d no, %d failed. %s\n",
-		id, shapeName(plan.Noul), s.Labelled, s.Yes, s.No, s.Failed, aucText(s))
+		printable(id), shapeName(plan.Noul), s.Labelled, s.Yes, s.No, s.Failed, aucText(s))
 
 	if s.Labelled == 0 {
 		return
 	}
 
-	fmt.Fprintf(b, "flagged means %s.value >= cut\n\n", id)
+	fmt.Fprintf(b, "flagged means %s.value >= cut\n\n", printable(id))
 
 	cuts, flagged := make([]string, 0, len(s.Cuts)), make([]string, 0, len(s.Cuts))
 	catches, alarms, right := make([]Share, 0, len(s.Cuts)), make([]Share, 0, len(s.Cuts)), make([]Share, 0, len(s.Cuts))
@@ -89,7 +95,7 @@ func writeYesNo(b *strings.Builder, id string, s YesNoScore) {
 	for _, c := range misses {
 		names = append(names, missName(c.Name, c.Line))
 		labels = append(labels, "labelled "+yesNoText(c.Yes))
-		answers = append(answers, "answered "+strconv.FormatFloat(c.Value, 'f', 2, 64))
+		answers = append(answers, "answered "+cutText(c.Value))
 	}
 
 	b.WriteString("\nworst misses\n")
@@ -113,7 +119,7 @@ func yesNoText(yes bool) string {
 }
 
 func rateLines(s RateScore) []string {
-	lines := []string{"within one level " + inlineShare(s.WithinOne)}
+	lines := []string{"within one level " + countedShare(s.WithinOne)}
 	if s.HasMeanDistance {
 		lines = append(lines, "mean distance "+strconv.FormatFloat(s.MeanDistance, 'f', 2, 64)+" levels")
 	}
@@ -123,7 +129,7 @@ func rateLines(s RateScore) []string {
 
 func writeChoice(b *strings.Builder, id string, shape plan.Shape, noun string, s PickScore, extra []string) {
 	fmt.Fprintf(b, "%s, %s: labelled %d, %d failed. agreement %s\n",
-		id, shapeName(shape), s.Labelled, s.Failed, inlineShare(s.Agreement))
+		printable(id), shapeName(shape), s.Labelled, s.Failed, inlineShare(s.Agreement))
 
 	if s.Labelled == 0 {
 		return
@@ -147,7 +153,7 @@ func writeNames(b *strings.Builder, noun string, rows []PickRow) {
 	found, right := make([]Share, 0, len(rows)), make([]Share, 0, len(rows))
 
 	for _, row := range rows {
-		names = append(names, row.Name)
+		names = append(names, printable(row.Name))
 		labelled = append(labelled, strconv.Itoa(row.Labelled))
 		picked = append(picked, strconv.Itoa(row.Picked))
 		found = append(found, row.Found)
@@ -166,7 +172,7 @@ func writeNames(b *strings.Builder, noun string, rows []PickRow) {
 func writeGrid(b *strings.Builder, s PickScore) {
 	names := make([]string, 0, len(s.Names))
 	for _, row := range s.Names {
-		names = append(names, row.Name)
+		names = append(names, printable(row.Name))
 	}
 
 	columns := []column{{header: `labelled \ picked`, cells: names}}
@@ -180,7 +186,7 @@ func writeGrid(b *strings.Builder, s PickScore) {
 			cells = append(cells, strconv.Itoa(count))
 		}
 
-		columns = append(columns, column{header: "other", cells: cells, right: true})
+		columns = append(columns, column{header: uniqueHeading(otherHeading, names), cells: cells, right: true})
 	}
 
 	writeColumns(b, columns...)
@@ -223,9 +229,9 @@ func writeChoiceMisses(b *strings.Builder, all []ChoiceCase) {
 
 	for _, c := range misses {
 		names = append(names, missName(c.Name, c.Line))
-		labels = append(labels, "labelled "+c.Label)
-		picked = append(picked, "picked "+c.Picked)
-		confidence = append(confidence, "confidence "+strconv.FormatFloat(c.Confidence, 'f', 2, 64))
+		labels = append(labels, "labelled "+printable(c.Label))
+		picked = append(picked, "picked "+printable(c.Picked))
+		confidence = append(confidence, "confidence "+cutText(c.Confidence))
 	}
 
 	b.WriteString("\nworst misses\n")
@@ -234,10 +240,27 @@ func writeChoiceMisses(b *strings.Builder, all []ChoiceCase) {
 
 func missName(name string, line int) string {
 	if name != "" {
-		return name
+		return printable(name)
 	}
 
 	return "line " + strconv.Itoa(line)
+}
+
+func printable(text string) string {
+	if !utf8.ValidString(text) || strings.IndexFunc(text, func(r rune) bool { return !strconv.IsPrint(r) }) >= 0 {
+		return strconv.Quote(text)
+	}
+
+	return text
+}
+
+func uniqueHeading(heading string, taken []string) string {
+	unique := heading
+	for n := 2; slices.Contains(taken, unique); n++ {
+		unique = heading + " " + strconv.Itoa(n)
+	}
+
+	return unique
 }
 
 func writeColumns(b *strings.Builder, columns ...column) {
@@ -245,11 +268,11 @@ func writeColumns(b *strings.Builder, columns ...column) {
 	headed := false
 
 	for i, c := range columns {
-		widths[i] = len(c.header)
+		widths[i] = displayWidth(c.header)
 		headed = headed || c.header != ""
 
 		for _, cell := range c.cells {
-			widths[i] = max(widths[i], len(cell))
+			widths[i] = max(widths[i], displayWidth(cell))
 		}
 	}
 
@@ -278,12 +301,28 @@ func writeRow(b *strings.Builder, widths []int, columns []column, text func(colu
 }
 
 func pad(text string, width int, right bool) string {
-	fill := strings.Repeat(" ", width-len(text))
+	fill := strings.Repeat(" ", max(0, width-displayWidth(text)))
 	if right {
 		return fill + text
 	}
 
 	return text + fill
+}
+
+func displayWidth(text string) int {
+	total := 0
+
+	for _, r := range text {
+		switch {
+		case unicode.In(r, unicode.Mn, unicode.Me, unicode.Cf):
+		case width.LookupRune(r).Kind() == width.EastAsianWide, width.LookupRune(r).Kind() == width.EastAsianFullwidth:
+			total += 2
+		default:
+			total++
+		}
+	}
+
+	return total
 }
 
 func shareCells(shares []Share) []string {
@@ -325,8 +364,21 @@ func inlineShare(s Share) string {
 	return percent(s.Rate) + "% " + percent(s.Low) + "-" + percent(s.High) + "%"
 }
 
+func countedShare(s Share) string {
+	return strconv.Itoa(s.Hits) + "/" + strconv.Itoa(s.Of) + " " + inlineShare(s)
+}
+
 func percent(rate float64) string {
-	return strconv.Itoa(int(math.Round(rate * 100)))
+	rounded := int(math.Round(rate * 100))
+
+	switch {
+	case rounded >= 100 && rate < 1:
+		rounded = 99
+	case rounded <= 0 && rate > 0:
+		rounded = 1
+	}
+
+	return strconv.Itoa(rounded)
 }
 
 func cutText(cut float64) string {

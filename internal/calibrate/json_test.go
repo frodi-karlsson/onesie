@@ -221,42 +221,6 @@ func TestWriteJSON(t *testing.T) {
 		}
 	})
 
-	t.Run("should encode a share with its counts, rate and interval", func(t *testing.T) {
-		t.Parallel()
-
-		share := calibrate.Wilson(45, 47)
-
-		got, err := json.Marshal(share)
-		if err != nil {
-			t.Fatalf("Marshal: %v", err)
-		}
-
-		var decoded map[string]float64
-		decode(t, got, &decoded)
-
-		if want := []string{"hits", "of", "rate", "low", "high"}; !slices.Equal(keysOf(t, got), want) {
-			t.Errorf("keys = %v, want %v", keysOf(t, got), want)
-		}
-
-		if decoded["hits"] != 45 || decoded["of"] != 47 || decoded["rate"] != share.Rate ||
-			decoded["low"] != share.Low || decoded["high"] != share.High {
-			t.Errorf("share = %s, want %+v", got, share)
-		}
-	})
-
-	t.Run("should encode an undefined share with null values", func(t *testing.T) {
-		t.Parallel()
-
-		got, err := json.Marshal(calibrate.Wilson(0, 0))
-		if err != nil {
-			t.Fatalf("Marshal: %v", err)
-		}
-
-		if want := `{"hits":0,"of":0,"rate":null,"low":null,"high":null}`; string(got) != want {
-			t.Errorf("share = %s, want %s", got, want)
-		}
-	})
-
 	t.Run("should give null for an undefined AUC and mean distance", func(t *testing.T) {
 		t.Parallel()
 
@@ -348,6 +312,46 @@ func TestWriteJSON(t *testing.T) {
 		text := out.String()
 		if strings.Count(text, "\n") != 1 || !strings.HasSuffix(text, "\n") {
 			t.Errorf("output is not one line: %q", text)
+		}
+	})
+}
+
+func TestShareMarshalJSON(t *testing.T) {
+	t.Parallel()
+
+	t.Run("should encode a share with its counts, rate and interval", func(t *testing.T) {
+		t.Parallel()
+
+		share := calibrate.Wilson(45, 47)
+
+		got, err := json.Marshal(share)
+		if err != nil {
+			t.Fatalf("Marshal: %v", err)
+		}
+
+		var decoded map[string]float64
+		decode(t, got, &decoded)
+
+		if want := []string{"hits", "of", "rate", "low", "high"}; !slices.Equal(keysOf(t, got), want) {
+			t.Errorf("keys = %v, want %v", keysOf(t, got), want)
+		}
+
+		if decoded["hits"] != 45 || decoded["of"] != 47 || decoded["rate"] != share.Rate ||
+			decoded["low"] != share.Low || decoded["high"] != share.High {
+			t.Errorf("share = %s, want %+v", got, share)
+		}
+	})
+
+	t.Run("should encode an undefined share with null values", func(t *testing.T) {
+		t.Parallel()
+
+		got, err := json.Marshal(calibrate.Wilson(0, 0))
+		if err != nil {
+			t.Fatalf("Marshal: %v", err)
+		}
+
+		if want := `{"hits":0,"of":0,"rate":null,"low":null,"high":null}`; string(got) != want {
+			t.Errorf("share = %s, want %s", got, want)
 		}
 	})
 }
