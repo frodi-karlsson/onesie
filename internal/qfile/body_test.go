@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/frodi-karlsson/jev-cli/internal/plan"
-	"github.com/frodi-karlsson/jev-cli/internal/qfile"
+	"github.com/frodi-karlsson/onesie/internal/plan"
+	"github.com/frodi-karlsson/onesie/internal/qfile"
 )
 
 func TestLoadBody(t *testing.T) {
@@ -14,7 +14,7 @@ func TestLoadBody(t *testing.T) {
 
 	const full = `{
 	  "state": "a ticket body",
-	  "model": "jev-1.13.0",
+	  "model": "onesie-1.13.0",
 	  "questions": {
 	    "urgent": {"type": "noul", "instructions": "is this urgent",
 	               "criteria": {"true": "shouting", "false": "calm"}},
@@ -41,7 +41,7 @@ func TestLoadBody(t *testing.T) {
 					t.Error("a file with a top level questions key is a body")
 				}
 
-				if f.Model != "jev-1.13.0" {
+				if f.Model != "onesie-1.13.0" {
 					t.Errorf("model = %q", f.Model)
 				}
 
@@ -234,11 +234,11 @@ func TestLoadBody(t *testing.T) {
 		{
 			name:    "should reject a top level assert in a request body",
 			doc:     `{"assert":"a.value > 0.5","questions":{"a":{"type":"noul"}}}`,
-			wantErr: "jev: a request body carries no 'assert'. Pass --assert on the command line",
+			wantErr: "onesie: a request body carries no 'assert'. Pass --assert on the command line",
 		},
 		{
 			name:    "should name the kind of a structured model",
-			doc:     `{"model":{"name":"jev"},"questions":{"a":{"type":"noul"}}}`,
+			doc:     `{"model":{"name":"onesie"},"questions":{"a":{"type":"noul"}}}`,
 			wantErr: "'model' in a request body must be a string, got a mapping",
 		},
 	}

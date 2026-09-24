@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/frodi-karlsson/jev-cli/internal/jev"
+	"github.com/frodi-karlsson/onesie/internal/jev"
 )
 
 func TestQuestionMarshalJSON(t *testing.T) {
@@ -169,31 +169,31 @@ func TestValidateQuestions(t *testing.T) {
 		{
 			name:      "should reject an empty question set",
 			questions: jev.Questions{},
-			wantErr:   "jev: at least one question is required",
+			wantErr:   "onesie: at least one question is required",
 		},
 		{
 			name:      "should reject a nil question set",
 			questions: nil,
-			wantErr:   "jev: at least one question is required",
+			wantErr:   "onesie: at least one question is required",
 		},
 		{
 			name: "should reject a score with one level",
 			questions: jev.Questions{
 				{ID: "severity", Question: jev.Score{Criteria: jev.Levels("Only one")}},
 			},
-			wantErr: `jev: score question "severity" has 1 criteria, at least two are required`,
+			wantErr: `onesie: score question "severity" has 1 criteria, at least two are required`,
 		},
 		{
 			name:      "should reject a score with no levels",
 			questions: jev.Questions{{ID: "severity", Question: jev.Score{}}},
-			wantErr:   `jev: score question "severity" has 0 criteria, at least two are required`,
+			wantErr:   `onesie: score question "severity" has 0 criteria, at least two are required`,
 		},
 		{
 			name: "should reject a score behind a pointer",
 			questions: jev.Questions{
 				{ID: "severity", Question: &jev.Score{Criteria: jev.Levels("Only one")}},
 			},
-			wantErr: `jev: score question "severity" has 1 criteria, at least two are required`,
+			wantErr: `onesie: score question "severity" has 1 criteria, at least two are required`,
 		},
 		{
 			name: "should name the first offender in slice order",
@@ -201,7 +201,7 @@ func TestValidateQuestions(t *testing.T) {
 				{ID: "zebra", Question: jev.Score{Criteria: jev.Levels("One")}},
 				{ID: "alpha", Question: jev.Score{Criteria: jev.Levels("One")}},
 			},
-			wantErr: `jev: score question "zebra" has 1 criteria, at least two are required`,
+			wantErr: `onesie: score question "zebra" has 1 criteria, at least two are required`,
 		},
 		{
 			name: "should reject a duplicate question id",
@@ -209,17 +209,17 @@ func TestValidateQuestions(t *testing.T) {
 				{ID: "a", Question: jev.Noul{Instructions: "one"}},
 				{ID: "a", Question: jev.Noul{Instructions: "two"}},
 			},
-			wantErr: `jev: duplicate question id "a"`,
+			wantErr: `onesie: duplicate question id "a"`,
 		},
 		{
 			name:      "should reject a nil question",
 			questions: jev.Questions{{ID: "a", Question: nil}},
-			wantErr:   `jev: question "a" must not be nil`,
+			wantErr:   `onesie: question "a" must not be nil`,
 		},
 		{
 			name:      "should reject a typed nil question",
 			questions: jev.Questions{{ID: "a", Question: (*jev.Score)(nil)}},
-			wantErr:   `jev: question "a" must not be nil`,
+			wantErr:   `onesie: question "a" must not be nil`,
 		},
 		{
 			name: "should accept a valid mixed set",

@@ -12,13 +12,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/frodi-karlsson/jev-cli/internal/jev"
+	"github.com/frodi-karlsson/onesie/internal/jev"
 )
 
 func TestStreamRaw(t *testing.T) {
 	t.Parallel()
 
-	const answered = `{"model":"jev-1.13.0","answers":{"a":{"type":"noul","noul":0.3}}}`
+	const answered = `{"model":"onesie-1.13.0","answers":{"a":{"type":"noul","noul":0.3}}}`
 
 	tests := []struct {
 		name     string
@@ -33,9 +33,9 @@ func TestStreamRaw(t *testing.T) {
 		{
 			name:     "should forward a body byte identical and print the response",
 			args:     []string{"-i", "request"},
-			stdin:    `{"state":"x","model":"jev-1.13.0","questions":{"a":{"type":"noul"}}}` + "\n",
+			stdin:    `{"state":"x","model":"onesie-1.13.0","questions":{"a":{"type":"noul"}}}` + "\n",
 			response: answered,
-			wantSent: []string{`{"state":"x","model":"jev-1.13.0","questions":{"a":{"type":"noul"}}}`},
+			wantSent: []string{`{"state":"x","model":"onesie-1.13.0","questions":{"a":{"type":"noul"}}}`},
 			wantOut:  []string{answered},
 			wantCode: ExitOK,
 		},
@@ -51,9 +51,9 @@ func TestStreamRaw(t *testing.T) {
 		{
 			name:     "should compact a body that was written with whitespace",
 			args:     []string{"-i", "request"},
-			stdin:    "{\"state\": \"x\",  \"model\": \"jev-1.13.0\"}\n",
+			stdin:    "{\"state\": \"x\",  \"model\": \"onesie-1.13.0\"}\n",
 			response: answered,
-			wantSent: []string{`{"state":"x","model":"jev-1.13.0"}`},
+			wantSent: []string{`{"state":"x","model":"onesie-1.13.0"}`},
 			wantOut:  []string{answered},
 			wantCode: ExitOK,
 		},
@@ -214,7 +214,7 @@ func TestStreamRaw(t *testing.T) {
 				wantSent:  1,
 				wantLines: 1,
 				wantOut:   []string{`{"error":{"kind":"http"`, `"status":401`},
-				wantErr:   "jev:",
+				wantErr:   "onesie:",
 				wantCode:  ExitAuth,
 			},
 		}
@@ -237,7 +237,7 @@ func TestStreamRaw(t *testing.T) {
 				written := outputLines(out)
 
 				// One line per input line, which is what a consumer reading line by line needs. A
-				// failure writes jev's error record rather than a blank line, and a run that aborts
+				// failure writes onesie's error record rather than a blank line, and a run that aborts
 				// writes the prefix it completed rather than a record for every line left.
 				if len(written) != tc.wantLines {
 					t.Errorf("wrote %d lines, want %d\ngot:\n%s", len(written), tc.wantLines, out)
@@ -548,134 +548,134 @@ func TestNewRootCmdRequestFlags(t *testing.T) {
 		{
 			name:    "should reject a positional question with -i request",
 			args:    []string{"-i", "request", "is this urgent"},
-			wantErr: "jev: -i request carries its own questions. Drop the question argument",
+			wantErr: "onesie: -i request carries its own questions. Drop the question argument",
 		},
 		{
 			name:    "should reject --ask with -i request",
 			args:    []string{"-i", "request", "--ask", "urgent=is this urgent"},
-			wantErr: "jev: -i request carries its own questions. Drop --ask",
+			wantErr: "onesie: -i request carries its own questions. Drop --ask",
 		},
 		{
 			name: "should reject -f with -i request before it is read",
 			args: []string{"-i", "request", "-f", "nowhere.yaml"},
-			wantErr: "jev: -f does not apply to -i request, " +
+			wantErr: "onesie: -f does not apply to -i request, " +
 				"which carries its own questions",
 		},
 		{
 			name:    "should reject --replace with -i request",
 			args:    []string{"-i", "request", "--replace"},
-			wantErr: "jev: --replace applies to -f, which -i request does not accept",
+			wantErr: "onesie: --replace applies to -f, which -i request does not accept",
 		},
 		{
 			name:    "should reject --pick with -i request",
 			args:    []string{"-i", "request", "--pick", "a,b"},
-			wantErr: "jev: -i request carries its own questions. Drop --pick",
+			wantErr: "onesie: -i request carries its own questions. Drop --pick",
 		},
 		{
 			name:    "should reject --rate with -i request",
 			args:    []string{"-i", "request", "--rate", "low,high"},
-			wantErr: "jev: -i request carries its own questions. Drop --rate",
+			wantErr: "onesie: -i request carries its own questions. Drop --rate",
 		},
 		{
 			name:    "should reject --desc with -i request",
 			args:    []string{"-i", "request", "--desc", "a=first"},
-			wantErr: "jev: -i request carries its own questions. Drop --desc",
+			wantErr: "onesie: -i request carries its own questions. Drop --desc",
 		},
 		{
 			name:    "should reject --sep with -i request",
 			args:    []string{"-i", "request", "--sep", ";"},
-			wantErr: "jev: -i request carries its own questions. Drop --sep",
+			wantErr: "onesie: -i request carries its own questions. Drop --sep",
 		},
 		{
 			name: "should reject --threshold with -i request",
 			args: []string{"-i", "request", "--threshold", "0.5"},
-			wantErr: "jev: --threshold does not apply to -i request, " +
+			wantErr: "onesie: --threshold does not apply to -i request, " +
 				"which carries no policy",
 		},
 		{
 			name: "should reject --min-confidence with -i request",
 			args: []string{"-i", "request", "--min-confidence", "0.5"},
-			wantErr: "jev: --min-confidence does not apply to -i request, " +
+			wantErr: "onesie: --min-confidence does not apply to -i request, " +
 				"which carries no policy",
 		},
 		{
 			name: "should reject --fallback with -i request",
 			args: []string{"-i", "request", "--fallback", "maybe"},
-			wantErr: "jev: --fallback does not apply to -i request, " +
+			wantErr: "onesie: --fallback does not apply to -i request, " +
 				"which carries no policy",
 		},
 		{
 			name: "should reject --state with -i request",
 			args: []string{"-i", "request", "--state", "x"},
-			wantErr: "jev: --state does not apply to -i request, " +
+			wantErr: "onesie: --state does not apply to -i request, " +
 				"whose bodies carry their own state",
 		},
 		{
 			name: "should reject --state-file with -i request",
 			args: []string{"-i", "request", "--state-file", "x"},
-			wantErr: "jev: --state-file does not apply to -i request, " +
+			wantErr: "onesie: --state-file does not apply to -i request, " +
 				"whose bodies carry their own state",
 		},
 		{
 			name:    "should reject -o with -i request",
 			args:    []string{"-i", "request", "-o", "json"},
-			wantErr: "jev: -o does not apply to -i request, which forwards raw responses",
+			wantErr: "onesie: -o does not apply to -i request, which forwards raw responses",
 		},
 		{
 			name:    "should reject -r with -i request",
 			args:    []string{"-i", "request", "-r"},
-			wantErr: "jev: -r does not apply to -i request, which forwards raw responses",
+			wantErr: "onesie: -r does not apply to -i request, which forwards raw responses",
 		},
 		{
 			name:    "should reject -q with -i request",
 			args:    []string{"-i", "request", "-q"},
-			wantErr: "jev: -q needs a policy to report, which -i request has none of",
+			wantErr: "onesie: -q needs a policy to report, which -i request has none of",
 		},
 		{
 			name: "should reject --assert with -i request",
 			args: []string{"-i", "request", "--assert", "answer.value > 0.5"},
-			wantErr: "jev: --assert does not apply to -i request, " +
+			wantErr: "onesie: --assert does not apply to -i request, " +
 				"which forwards raw responses",
 		},
 		{
 			name: "should reject an unparseable --assert with -i request",
 			args: []string{"-i", "request", "--assert", "nonsense syntax here !!"},
-			wantErr: "jev: --assert does not apply to -i request, " +
+			wantErr: "onesie: --assert does not apply to -i request, " +
 				"which forwards raw responses",
 		},
 		{
 			name: "should reject --usage with -i request",
 			args: []string{"-i", "request", "--usage"},
-			wantErr: "jev: --usage does not apply to -i request, " +
+			wantErr: "onesie: --usage does not apply to -i request, " +
 				"whose response bodies already carry usage",
 		},
 		{
 			name:    "should reject --merge with -i request",
 			args:    []string{"-i", "request", "--merge"},
-			wantErr: "jev: --merge does not apply to -i request, which forwards raw responses",
+			wantErr: "onesie: --merge does not apply to -i request, which forwards raw responses",
 		},
 		{
 			name: "should name --merge-key when that is the flag given",
 			args: []string{"-i", "request", "--merge-key", "verdict"},
-			wantErr: "jev: --merge-key does not apply to -i request, " +
+			wantErr: "onesie: --merge-key does not apply to -i request, " +
 				"which forwards raw responses",
 		},
 		{
 			name: "should reject -m with -i request",
-			args: []string{"-i", "request", "-m", "jev-1.13.0"},
-			wantErr: "jev: -m does not apply to -i request, " +
+			args: []string{"-i", "request", "-m", "onesie-1.13.0"},
+			wantErr: "onesie: -m does not apply to -i request, " +
 				"whose bodies carry their own model",
 		},
 		{
 			name: "should reject --stop-on-assert with -i request",
 			args: []string{"-i", "request", "--stop-on-assert"},
-			wantErr: "jev: --stop-on-assert does not apply to -i request, " +
+			wantErr: "onesie: --stop-on-assert does not apply to -i request, " +
 				"whose bodies carry no assertion",
 		},
 		{
 			name: "should reject --print-questions with -i request",
 			args: []string{"-i", "request", "--print-questions"},
-			wantErr: "jev: --print-questions needs questions of its own, " +
+			wantErr: "onesie: --print-questions needs questions of its own, " +
 				"which -i request does not build",
 		},
 	}

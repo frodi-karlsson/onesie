@@ -3,10 +3,10 @@ package assert
 import (
 	"testing"
 
-	"github.com/frodi-karlsson/jev-cli/internal/answer"
-	"github.com/frodi-karlsson/jev-cli/internal/jev"
-	"github.com/frodi-karlsson/jev-cli/internal/output"
-	"github.com/frodi-karlsson/jev-cli/internal/plan"
+	"github.com/frodi-karlsson/onesie/internal/answer"
+	"github.com/frodi-karlsson/onesie/internal/jev"
+	"github.com/frodi-karlsson/onesie/internal/output"
+	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
 func TestEval(t *testing.T) {
@@ -47,7 +47,7 @@ func TestEval(t *testing.T) {
 		{name: "should read a yes/no decision as a boolean", input: `gated.decision == true`, want: true},
 		{name: "should read a yes/no decision the other way", input: `gated.decision == false`, want: false},
 		{name: "should read an absent fallback as empty", input: `team.fallback == ""`, want: true},
-		{name: "should read the model", input: `model == "jev-1.13.0"`, want: true},
+		{name: "should read the model", input: `model == "onesie-1.13.0"`, want: true},
 		{name: "should and", input: `urgent.value > 0.5 and team.value == "billing"`, want: true},
 		{name: "should and a false right side", input: `urgent.value > 0.5 and team.value == "x"`, want: false},
 		{name: "should short circuit and", input: `urgent.value < 0.1 and team.value == "x"`, want: false},
@@ -208,7 +208,7 @@ func TestEval(t *testing.T) {
 
 		for _, source := range []string{
 			`urgent.value > 0.5`, `urgent.value == 0`, `team.value == "billing"`,
-			`team.p.billing > 0.5`, `team.confidence > 0`, `model == "jev-1.13.0"`,
+			`team.p.billing > 0.5`, `team.confidence > 0`, `model == "onesie-1.13.0"`,
 		} {
 			if Eval(mustParse(t, source), empty) {
 				t.Errorf("Eval(%q) over an empty record = true, want false", source)
@@ -219,7 +219,7 @@ func TestEval(t *testing.T) {
 
 func evalPlan() *plan.Plan {
 	return &plan.Plan{
-		Model: "jev-1.13.0",
+		Model: "onesie-1.13.0",
 		Questions: []plan.Question{
 			{ID: "urgent", Shape: plan.Noul},
 			{ID: "gated", Shape: plan.Noul, Policy: plan.Policy{Threshold: ptr(0.6)}},

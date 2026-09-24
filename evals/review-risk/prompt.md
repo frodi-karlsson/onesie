@@ -6,5 +6,5 @@ allowed_tools: [Read, Glob, Grep, Skill]
 
 We want to sort the diffs in a pull request by how risky each one is to review, so reviewers look
 at the riskiest first. Each diff is in its own file under diffs/. Write a bash script that uses
-the jev CLI to give every diff a risk score and prints them sorted, riskiest first. jev is
+the onesie CLI to give every diff a risk score and prints them sorted, riskiest first. onesie is
 installed and has a key.

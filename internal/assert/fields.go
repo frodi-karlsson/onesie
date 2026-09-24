@@ -1,8 +1,8 @@
 package assert
 
 import (
-	"github.com/frodi-karlsson/jev-cli/internal/answer"
-	"github.com/frodi-karlsson/jev-cli/internal/plan"
+	"github.com/frodi-karlsson/onesie/internal/answer"
+	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
 var fields = []field{

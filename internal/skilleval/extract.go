@@ -17,7 +17,7 @@ var (
 	assignment = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*=`)
 )
 
-func jevCommands(script string) []string {
+func onesieCommands(script string) []string {
 	script = strings.ReplaceAll(script, "\\\n", " ")
 
 	var commands []string
@@ -101,8 +101,8 @@ func lineCommands(line string) []string {
 			end := max(wordEnd(runes, i), i+1)
 			word := string(runes[i:end])
 
-			if commandPosition && (word == "jev" || strings.HasSuffix(word, "/jev")) {
-				commands = append(commands, readCommand(runes, end-len("jev")))
+			if commandPosition && (word == "onesie" || strings.HasSuffix(word, "/onesie")) {
+				commands = append(commands, readCommand(runes, end-len("onesie")))
 			}
 
 			commandPosition = commandPosition && (slices.Contains(keywords, word) || assignment.MatchString(word))

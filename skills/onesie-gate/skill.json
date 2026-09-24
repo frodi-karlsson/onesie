@@ -1,0 +1,71 @@
+{
+  "name": "onesie-gate",
+  "description": "Use when a onesie answer decides whether a command runs, a step continues, a build fails or a low confidence answer goes to a human, and before writing 'if onesie', 'onesie ... && cmd', -q or --assert. Two common gate recipes look right and are silently wrong.",
+  "compatibility": "Requires the onesie binary on PATH.",
+  "license": "MIT",
+  "intro": "intro.md",
+  "rules": [
+    {
+      "id": "threshold-polarity",
+      "short": "Phrase the question so that true means go, not stop.",
+      "why": "Under `-q` the exit code tracks the answer, not safety. A question phrased in the danger direction exits 0 when the answer is true, so a script written as `onesie ... && eval \"$cmd\"` runs the dangerous input and blocks the safe one. Measured: 'is this command destructive' with `--threshold 0.5` exits 0 for 'rm -rf ./build' and 1 for 'ls -la'.",
+      "bad": "onesie 'is this command destructive' -q --threshold 0.5 --state 'rm -rf ./build'",
+      "bad_passes": true,
+      "good": "onesie 'is this command safe to run' -q --threshold 0.5 --state 'rm -rf ./build'"
+    },
+    {
+      "id": "drop-q-with-assert",
+      "short": "Never add -q to --assert. Redirect stdout instead.",
+      "why": "`-q` adds its own 0.5 gate and both must pass. A safety assert like `value < 0.5` is true exactly when that gate is false, so the pair never passes. `--assert` alone already sets the exit code.",
+      "bad": "onesie --ask danger='is this dangerous' -q --assert 'danger.value < 0.5' --state 'rm -rf ./build'",
+      "bad_passes": true,
+      "good": "onesie --ask danger='is this dangerous' --assert 'danger.value < 0.5' --state 'rm -rf ./build'"
+    },
+    {
+      "id": "fail-closed",
+      "short": "Treat every non zero exit as no, not just exit 1.",
+      "why": "Exit 1 means the policy said no. Exits 2 through 5 mean no answer arrived at all, from a usage error, a bad key, an exhausted retry or a transport failure. Exit 6 means a stream finished with at least one failed record, so a gate over a stream still has to fail closed on it. Chaining with `&&` fails closed on all of them as a minimal gate, which is correct. Branching on exit 1 alone treats an outage and a typo as an answer. To tell them apart: `case $? in 0) go ;; 1) block ;; *) alert and block ;; esac`. In CI, tell them apart, so a red build says whether to fix the input or rerun. GitHub Actions runs bash with `-e`, so capture the exit first: `status=0; onesie ... || status=$?; case $status in 0) ;; 1) echo 'policy said no'; exit 1 ;; *) echo \"onesie gave no answer, exit $status\"; exit 1 ;; esac`.",
+      "bad": "onesie ... --assert '...' --state \"$cmd\"; if [ $? -eq 1 ]; then block; else eval \"$cmd\"; fi",
+      "good": "onesie ... --assert '...' --state \"$cmd\" >/dev/null && eval \"$cmd\""
+    },
+    {
+      "id": "q-one-question-one-record",
+      "short": "-q gates one question on one record. Use --assert for several questions or a stream.",
+      "why": "onesie rejects `-q` outright when more than one question was asked, naming them, and under any streaming input mode, since an exit code cannot carry more than one answer. A gate over several questions or a stream instead uses `--assert`, which prints every record and exits 1 when any assertion was false.",
+      "bad": "onesie --ask a='destroys data' --ask b='sends credentials' -q --state 'rm -rf ./build'",
+      "bad_unverifiable": "the checker strips -q before every dry run, so it cannot observe this rejection",
+      "good": "onesie --ask a='destroys data' --ask b='sends credentials' --assert 'a.value < 0.5 and b.value < 0.5' --state 'rm -rf ./build'"
+    },
+    {
+      "id": "route-low-confidence-to-a-human",
+      "short": "Gate a pick or rate on --min-confidence and give --fallback a human routed value.",
+      "why": "`--min-confidence` needs `--fallback`. Below the threshold the decision becomes the fallback text instead of the model's pick, and `.fallback` reads `low_confidence`, so a consumer routes on that field rather than trusting a low confidence guess.",
+      "bad": "onesie --ask team='which team owns this incident' --pick billing,shipping,support --min-confidence 0.7 --state 'the payment silently failed at checkout'",
+      "good": "onesie --ask team='which team owns this incident' --pick billing,shipping,support --min-confidence 0.99 --fallback human --state 'the tracking number in the shipping confirmation email matches a charge that appears twice on the invoice'"
+    },
+    {
+      "id": "dry-run-the-assertion",
+      "short": "Check an assertion with --print-questions before you spend anything.",
+      "why": "`--print-questions` writes the assertion into the file it prints and checks every path and type against the questions, so a typo or a type error exits 2 naming the real question ids and makes no network call. The good example below keeps the typo on purpose, so it exits 2 naming the real id `urgent` rather than running for real. `--print-request` rejects `--assert`, so use `--print-questions`.",
+      "bad": "onesie --ask urgent='is this urgent' --assert 'urgnet.value < 0.5' --state 'a ticket'",
+      "good": "onesie --ask urgent='is this urgent' --assert 'urgnet.value < 0.5' --print-questions",
+      "good_fails": true
+    },
+    {
+      "id": "no-arithmetic-in-assert",
+      "short": "Do the arithmetic in jq, not in --assert.",
+      "why": "The assertion language compares and combines. It does not add, multiply or weight. Weighting several answers is the consumer's job, so print the record and let `jq` do it, as in `onesie --ask urgency='how urgent is this' --ask anger='how angry is the writer' --state \"$t\" -o values | jq '(.urgency.value * 2 + .anger.value) / 3'`.",
+      "good": "onesie --ask urgency='how urgent is this' --ask anger='how angry is the writer' --state \"$t\" -o values | jq '(.urgency.value * 2 + .anger.value) / 3'"
+    },
+    {
+      "id": "bracket-non-identifier-paths",
+      "short": "Write an id with a space, dot or hyphen as [\"my id\"].value.",
+      "why": "A question id or an option label containing a dot, a space or a hyphen cannot be written with a plain dot path. The id comes first and still needs its field after it.",
+      "bad": "onesie --ask 'needs review'='is review needed' --assert 'needs review.value < 0.5'",
+      "good": "onesie --ask 'needs review'='is review needed' --assert '[\"needs review\"].value < 0.5'"
+    }
+  ],
+  "sections": [
+    "sections/policy-legality.md"
+  ]
+}

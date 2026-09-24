@@ -5,7 +5,7 @@ import (
 
 	"github.com/spf13/pflag"
 
-	"github.com/frodi-karlsson/jev-cli/internal/argv"
+	"github.com/frodi-karlsson/onesie/internal/argv"
 )
 
 func TestRecorder(t *testing.T) {
@@ -73,7 +73,7 @@ func TestRecorder(t *testing.T) {
 
 			recorder := argv.New()
 
-			set := pflag.NewFlagSet("jev", pflag.ContinueOnError)
+			set := pflag.NewFlagSet("onesie", pflag.ContinueOnError)
 			for _, name := range []string{"ask", "pick", "rate", "desc", "sep"} {
 				set.Var(recorder.Flag(name), name, "recorded")
 			}

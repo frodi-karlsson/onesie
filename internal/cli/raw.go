@@ -8,9 +8,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/frodi-karlsson/jev-cli/internal/engine"
-	"github.com/frodi-karlsson/jev-cli/internal/input"
-	"github.com/frodi-karlsson/jev-cli/internal/jev"
+	"github.com/frodi-karlsson/onesie/internal/engine"
+	"github.com/frodi-karlsson/onesie/internal/input"
+	"github.com/frodi-karlsson/onesie/internal/jev"
 )
 
 func streamRaw(
@@ -59,7 +59,7 @@ func streamRaw(
 
 			body, err := client.SystemOneRaw(ctx, json.RawMessage(rec.Raw))
 			if err != nil {
-				// The body reached the wire unchanged, so the model it named is the one jev sent,
+				// The body reached the wire unchanged, so the model it named is the one onesie sent,
 				// and nothing inside it was checked locally, so no local bound is implicated.
 				advised := advise(err, rawModel([]byte(rec.Raw)), false)
 
@@ -112,7 +112,7 @@ func rawSummary(response []byte) (string, jev.Usage) {
 		Usage jev.Usage `json:"usage"`
 	}
 
-	// A body jev cannot read still counts as a request. Only the model and the token numbers are
+	// A body onesie cannot read still counts as a request. Only the model and the token numbers are
 	// lost, and reporting nothing for them beats failing a record the server answered.
 	if err := json.Unmarshal(response, &probe); err != nil {
 		return "", jev.Usage{}

@@ -6,11 +6,11 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/frodi-karlsson/jev-cli/internal/argv"
-	"github.com/frodi-karlsson/jev-cli/internal/assert"
-	"github.com/frodi-karlsson/jev-cli/internal/input"
-	"github.com/frodi-karlsson/jev-cli/internal/plan"
-	"github.com/frodi-karlsson/jev-cli/internal/qfile"
+	"github.com/frodi-karlsson/onesie/internal/argv"
+	"github.com/frodi-karlsson/onesie/internal/assert"
+	"github.com/frodi-karlsson/onesie/internal/input"
+	"github.com/frodi-karlsson/onesie/internal/plan"
+	"github.com/frodi-karlsson/onesie/internal/qfile"
 )
 
 func configOf(
@@ -70,7 +70,7 @@ func build(
 	// Every mode except --list-models and -i request needs a question, and reporting that here
 	// rather than from Assemble keeps the message the same whichever source was missing.
 	if positional == "" && len(events) == 0 && flags.file == "" {
-		return nil, nil, errors.New("jev: no question given. Pass a question, --ask, or -f")
+		return nil, nil, errors.New("onesie: no question given. Pass a question, --ask, or -f")
 	}
 
 	var loaded *qfile.File
@@ -78,7 +78,7 @@ func build(
 	if flags.file != "" {
 		data, readErr := settings.readFile(flags.file)
 		if readErr != nil {
-			return nil, nil, fmt.Errorf("jev: reading %s: %w", flags.file, readErr)
+			return nil, nil, fmt.Errorf("onesie: reading %s: %w", flags.file, readErr)
 		}
 
 		var loadErr error
@@ -169,14 +169,14 @@ func gateOf(fileSource string, sources []string, built *plan.Plan) (*assert.Expr
 func gateExpr(source, named string, built *plan.Plan) (*assert.Expr, error) {
 	expr, err := assert.Parse(source)
 	if err != nil {
-		return nil, fmt.Errorf("jev: %s: %w", named, err)
+		return nil, fmt.Errorf("onesie: %s: %w", named, err)
 	}
 
 	// Each source is checked on its own rather than the combined gate, so a message names the one
 	// that carried the mistake. Every source is a boolean in its own right, so a combination adds
 	// nothing for the checker to reject.
 	if checkErr := assert.Check(expr, built); checkErr != nil {
-		return nil, fmt.Errorf("jev: %s: %w", named, checkErr)
+		return nil, fmt.Errorf("onesie: %s: %w", named, checkErr)
 	}
 
 	return expr, nil

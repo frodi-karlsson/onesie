@@ -53,7 +53,7 @@ type Result struct {
 	Cause error
 	// Broken is true when the output pipe closed, which is not a failure.
 	Broken bool
-	// Fatal is a write failure of jev's own, as distinct from a consumer that stopped reading.
+	// Fatal is a write failure of onesie's own, as distinct from a consumer that stopped reading.
 	Fatal error
 }
 

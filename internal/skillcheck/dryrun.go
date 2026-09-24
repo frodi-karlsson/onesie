@@ -70,8 +70,8 @@ type flagMatch struct {
 }
 
 func dryRunArgs(tokens []string) (args []string, reason string, err error) {
-	if len(tokens) == 0 || tokens[0] != "jev" {
-		return nil, "is not a jev invocation", nil
+	if len(tokens) == 0 || tokens[0] != "onesie" {
+		return nil, "is not a onesie invocation", nil
 	}
 
 	raw := tokens[1:]
@@ -90,7 +90,7 @@ func dryRunArgs(tokens []string) (args []string, reason string, err error) {
 
 	if !provenDryRun(final, strip) {
 		return nil, "", fmt.Errorf(
-			"jev: built %s from %s, which is not provably a dry run. "+
+			"onesie: built %s from %s, which is not provably a dry run. "+
 				"this is a skillcheck bug, not a skill problem",
 			strings.Join(final, " "), strings.Join(tokens, " "))
 	}
@@ -134,7 +134,7 @@ func stripFlags(args []string, strip []flagSpec) []string {
 	return out
 }
 
-// Nothing precedes index 0, so no flag jev knows about, catalogued here or not, can ever consume
+// Nothing precedes index 0, so no flag onesie knows about, catalogued here or not, can ever consume
 // it as a value. Appending it at the end, or ahead of a literal --, still left it in reach of
 // whatever came directly before.
 func insertFlag(args []string, flag string) []string {

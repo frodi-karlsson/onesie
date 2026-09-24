@@ -15,7 +15,7 @@ var ErrMergeKeyTaken = errors.New("the input already has the merge key")
 
 // WriteMerged folds a record's answers into the input line under key, so a pipeline keeps the
 // fields it came in with. raw is the input line exactly as read, and state is what was sent to the
-// API, which is nil for a record jev could not read.
+// API, which is nil for a record onesie could not read.
 func WriteMerged(w io.Writer, mode Mode, rec Record, raw string, state any, key string) error {
 	answers, err := encode(mode, rec)
 	if err != nil {
@@ -99,7 +99,7 @@ func splice(raw string, key string, name, answers []byte) (string, error) {
 
 func stateFor(state any, raw string) any {
 	if state != nil {
-		// A record jev could not read has no parsed state, so the line itself stands in.
+		// A record onesie could not read has no parsed state, so the line itself stands in.
 		return state
 	}
 

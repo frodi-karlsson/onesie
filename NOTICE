@@ -1,4 +1,4 @@
-jev-cli includes Go code ported from the TypeSafe JavaScript SDK.
+onesie includes Go code ported from the TypeSafe JavaScript SDK.
 
   @typesafe-ai/sdk
   https://github.com/typesafe-ai/typesafe-sdk-js

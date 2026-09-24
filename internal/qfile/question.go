@@ -6,7 +6,7 @@ import (
 
 	"github.com/goccy/go-yaml"
 
-	"github.com/frodi-karlsson/jev-cli/internal/plan"
+	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
 func loadQuestions(top yaml.MapSlice) (*File, error) {
@@ -42,7 +42,7 @@ func loadQuestions(top yaml.MapSlice) (*File, error) {
 func readAssert(value any) (string, error) {
 	expression, ok := value.(string)
 	if !ok {
-		return "", fmt.Errorf("jev: 'assert' must be a string, got %s", describe(value))
+		return "", fmt.Errorf("onesie: 'assert' must be a string, got %s", describe(value))
 	}
 
 	return expression, nil
@@ -60,17 +60,17 @@ func buildQuestion(id string, value any) (plan.Question, error) {
 	fields, ok := mapping(value)
 	if !ok {
 		return question, fmt.Errorf(
-			"jev: question '%s' must be a string or a mapping", id)
+			"onesie: question '%s' must be a string or a mapping", id)
 	}
 
 	ask, found := lookup(fields, "ask")
 	if !found {
-		return question, fmt.Errorf("jev: question '%s' has no 'ask'", id)
+		return question, fmt.Errorf("onesie: question '%s' has no 'ask'", id)
 	}
 
 	instructions, err := wireValue(ask)
 	if err != nil {
-		return question, fmt.Errorf("jev: 'ask' in question '%s' cannot be sent: %w", id, err)
+		return question, fmt.Errorf("onesie: 'ask' in question '%s' cannot be sent: %w", id, err)
 	}
 
 	question.Instructions = instructions
@@ -92,7 +92,7 @@ func buildQuestion(id string, value any) (plan.Question, error) {
 
 	if hasPick && hasRate {
 		return question, fmt.Errorf(
-			"jev: question '%s' has both 'pick' and 'rate'. A question is one or the other", id)
+			"onesie: question '%s' has both 'pick' and 'rate'. A question is one or the other", id)
 	}
 
 	if err := checkShapeAndRubric(id, shapeKey(hasPick, hasRate), yesKey, noKey); err != nil {
@@ -135,13 +135,13 @@ func readYesNo(id, yesKey, noKey string, yes, no any) (*plan.YesNoCriteria, erro
 	wireYes, err := wireValue(yes)
 	if err != nil {
 		return nil, fmt.Errorf(
-			"jev: '%s' in question '%s' cannot be sent: %w", yesKey, id, err)
+			"onesie: '%s' in question '%s' cannot be sent: %w", yesKey, id, err)
 	}
 
 	wireNo, err := wireValue(no)
 	if err != nil {
 		return nil, fmt.Errorf(
-			"jev: '%s' in question '%s' cannot be sent: %w", noKey, id, err)
+			"onesie: '%s' in question '%s' cannot be sent: %w", noKey, id, err)
 	}
 
 	return &plan.YesNoCriteria{Yes: wireYes, No: wireNo}, nil
@@ -175,7 +175,7 @@ func checkShapeAndRubric(id, shape, yesKey, noKey string) error {
 	// Dropping the rubric silently would leave the user believing it reached the API, and a
 	// question file is written once and trusted afterwards.
 	return fmt.Errorf(
-		"jev: question '%s' has both '%s' and '%s'. A question is one or the other",
+		"onesie: question '%s' has both '%s' and '%s'. A question is one or the other",
 		id, rubric, shape)
 }
 
@@ -189,7 +189,7 @@ func readPick(id string, value any) ([]plan.Option, error) {
 			desc, err := wireValue(item.Value)
 			if err != nil {
 				return nil, fmt.Errorf(
-					"jev: 'pick' option '%s' in question '%s' cannot be sent: %w", name, id, err)
+					"onesie: 'pick' option '%s' in question '%s' cannot be sent: %w", name, id, err)
 			}
 
 			options = append(options, plan.Option{
@@ -204,7 +204,7 @@ func readPick(id string, value any) ([]plan.Option, error) {
 	names, ok := value.([]any)
 	if !ok {
 		return nil, fmt.Errorf(
-			"jev: 'pick' in question '%s' must be a mapping of option to description, "+
+			"onesie: 'pick' in question '%s' must be a mapping of option to description, "+
 				"or a sequence of option names", id)
 	}
 
@@ -214,7 +214,7 @@ func readPick(id string, value any) ([]plan.Option, error) {
 		name, ok := entry.(string)
 		if !ok {
 			return nil, fmt.Errorf(
-				"jev: 'pick' in question '%s' has a non string option name", id)
+				"onesie: 'pick' in question '%s' has a non string option name", id)
 		}
 
 		options = append(options, plan.Option{Name: name})
@@ -233,7 +233,7 @@ func readRate(id string, value any) ([]plan.Level, error) {
 			desc, err := wireValue(item.Value)
 			if err != nil {
 				return nil, fmt.Errorf(
-					"jev: 'rate' level '%s' in question '%s' cannot be sent: %w", label, id, err)
+					"onesie: 'rate' level '%s' in question '%s' cannot be sent: %w", label, id, err)
 			}
 
 			levels = append(levels, plan.Level{
@@ -248,7 +248,7 @@ func readRate(id string, value any) ([]plan.Level, error) {
 	entries, ok := value.([]any)
 	if !ok {
 		return nil, fmt.Errorf(
-			"jev: 'rate' in question '%s' must be a sequence of levels or a mapping of level to "+
+			"onesie: 'rate' in question '%s' must be a sequence of levels or a mapping of level to "+
 				"description", id)
 	}
 
@@ -276,13 +276,13 @@ func readLevel(id string, entry any) (plan.Level, error) {
 	items, ok := mapping(entry)
 	if !ok {
 		return plan.Level{}, fmt.Errorf(
-			"jev: 'rate' in question '%s' has a level that is neither a name nor a "+
+			"onesie: 'rate' in question '%s' has a level that is neither a name nor a "+
 				"single key mapping", id)
 	}
 
 	if len(items) != 1 {
 		return plan.Level{}, fmt.Errorf(
-			"jev: 'rate' in question '%s' has a sequence entry with %d keys, "+
+			"onesie: 'rate' in question '%s' has a sequence entry with %d keys, "+
 				"each entry names one level", id, len(items))
 	}
 
@@ -291,7 +291,7 @@ func readLevel(id string, entry any) (plan.Level, error) {
 	desc, err := wireValue(items[0].Value)
 	if err != nil {
 		return plan.Level{}, fmt.Errorf(
-			"jev: 'rate' level '%s' in question '%s' cannot be sent: %w", label, id, err)
+			"onesie: 'rate' level '%s' in question '%s' cannot be sent: %w", label, id, err)
 	}
 
 	return plan.Level{
@@ -351,7 +351,7 @@ func readNumber(id, key string, value any) (float64, error) {
 		return float64(typed), nil
 	default:
 		return 0, fmt.Errorf(
-			"jev: '%s' in question '%s' must be a number, got %s", key, id, describe(value))
+			"onesie: '%s' in question '%s' must be a number, got %s", key, id, describe(value))
 	}
 }
 
@@ -365,7 +365,7 @@ func readFallback(id string, value any) (string, error) {
 		return strconv.FormatBool(typed), nil
 	default:
 		return "", fmt.Errorf(
-			"jev: 'fallback' in question '%s' must be a string, got %s", id, describe(value))
+			"onesie: 'fallback' in question '%s' must be a string, got %s", id, describe(value))
 	}
 }
 
@@ -381,7 +381,7 @@ func checkKeys(id string, fields yaml.MapSlice) error {
 		if _, ok := known[name]; !ok {
 			// A silently ignored misspelling leaves the user believing a policy is in force when
 			// it is not, and a question file is written once and trusted afterwards.
-			return fmt.Errorf("jev: question '%s' has an unknown key '%s'", id, name)
+			return fmt.Errorf("onesie: question '%s' has an unknown key '%s'", id, name)
 		}
 	}
 

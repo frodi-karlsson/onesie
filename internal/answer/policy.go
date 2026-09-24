@@ -1,6 +1,6 @@
 package answer
 
-import "github.com/frodi-karlsson/jev-cli/internal/plan"
+import "github.com/frodi-karlsson/onesie/internal/plan"
 
 // Apply sets decision and fallback from the question's policy. A low confidence fallback is a
 // successful request, so nothing here reports an error.

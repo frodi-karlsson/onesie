@@ -1,4 +1,4 @@
-// Package cli assembles the jev command tree. It sits outside package main so the tree can be
+// Package cli assembles the onesie command tree. It sits outside package main so the tree can be
 // built and exercised in tests without spawning a process.
 package cli
 
@@ -13,10 +13,10 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 
-	"github.com/frodi-karlsson/jev-cli/internal/argv"
-	"github.com/frodi-karlsson/jev-cli/internal/creds"
-	"github.com/frodi-karlsson/jev-cli/internal/jev"
-	"github.com/frodi-karlsson/jev-cli/internal/limits"
+	"github.com/frodi-karlsson/onesie/internal/argv"
+	"github.com/frodi-karlsson/onesie/internal/creds"
+	"github.com/frodi-karlsson/onesie/internal/jev"
+	"github.com/frodi-karlsson/onesie/internal/limits"
 )
 
 // Changed reports false for a name pflag does not know, and reports no error, so a name that has
@@ -66,13 +66,13 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 	recorder := argv.New()
 
 	root := &cobra.Command{
-		Use:   "jev [question]",
+		Use:   "onesie [question]",
 		Short: "Ask Jev typed questions about state on stdin",
-		Long: "jev is a Unix filter over the TypeSafe System One API.\n\n" +
+		Long: "onesie is a Unix filter over the TypeSafe System One API.\n\n" +
 			"State arrives on stdin, typed answers leave on stdout, and the exit status is " +
 			"usable in a conditional.\n\n" +
 			"A question that begins with a dash needs -- before it, with any flags placed " +
-			"first, as in jev -o json -- '-is this urgent'.",
+			"first, as in onesie -o json -- '-is this urgent'.",
 		Version: info.Version,
 		Args:    cobra.MaximumNArgs(1),
 		// Cobra otherwise buries every returned error under the full help text. Execute owns the
@@ -85,7 +85,7 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 				positional = args[0]
 			}
 
-			// A bare jev is a request for help. Anything else is a real invocation, and help on
+			// A bare onesie is a request for help. Anything else is a real invocation, and help on
 			// stdout would corrupt the caller's pipe. Whether it needs a question at all is left
 			// to run, since -i request carries its own.
 			if cmd.Flags().NFlag() == 0 && len(args) == 0 {
@@ -120,7 +120,7 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 	root.Flags().StringVar(&flags.stateFile, flagStateFile, "", "read the state from this file")
 	root.Flags().StringVarP(&flags.model, flagModel, "m", "", "model override")
 	root.Flags().StringVar(&flags.apiKey, "api-key", "",
-		"api key. Prefer TYPESAFE_API_KEY or jev auth set, since argv is visible in ps")
+		"api key. Prefer TYPESAFE_API_KEY or onesie auth set, since argv is visible in ps")
 	root.Flags().StringVar(&flags.baseURL, flagBaseURL, "", "api root override")
 	root.Flags().StringVarP(&flags.file, "file", "f", "", "question file or request body")
 	root.Flags().BoolVar(&flags.replace, "replace", false, "--ask overrides an id from -f")
@@ -170,8 +170,8 @@ func Execute(ctx context.Context, root *cobra.Command) int {
 		message := err.Error()
 		// Cobra's own parse errors are the only ones that do not already carry the prefix, and a
 		// consumer filtering stderr should not have to know which layer produced a line.
-		if !strings.HasPrefix(message, "jev: ") {
-			message = "jev: " + message
+		if !strings.HasPrefix(message, "onesie: ") {
+			message = "onesie: " + message
 		}
 
 		if _, printErr := fmt.Fprintln(root.ErrOrStderr(), message); printErr != nil {
@@ -320,7 +320,7 @@ func credentialPath(lookupEnv func(string) (string, bool)) func() (string, error
 func readHiddenSecret() (string, error) {
 	secret, err := term.ReadPassword(int(os.Stdin.Fd()))
 	if err != nil {
-		return "", fmt.Errorf("jev: reading the key from the terminal: %w", err)
+		return "", fmt.Errorf("onesie: reading the key from the terminal: %w", err)
 	}
 
 	return string(secret), nil

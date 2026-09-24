@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/frodi-karlsson/jev-cli/internal/limits"
+	"github.com/frodi-karlsson/onesie/internal/limits"
 )
 
 func TestReport(t *testing.T) {

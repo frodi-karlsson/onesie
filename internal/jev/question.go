@@ -148,7 +148,7 @@ type NamedCriterion struct {
 }
 
 // MarshalJSON writes the set as a JSON object, keeping slice order. A nil set is null rather than
-// an empty object, so the zero value encodes to something the API can reject cleanly. jev never
+// an empty object, so the zero value encodes to something the API can reject cleanly. onesie never
 // produces one, because --pick requires two options.
 func (c Criteria) MarshalJSON() ([]byte, error) {
 	if c == nil {

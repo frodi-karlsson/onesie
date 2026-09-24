@@ -28,7 +28,7 @@ func New(opts ...Option) (*Client, error) {
 		attemptTimeout:   DefaultAttemptTimeout,
 		maxResponseBytes: DefaultMaxResponseBytes,
 		header:           http.Header{},
-		userAgent:        "jev-cli",
+		userAgent:        "onesie",
 		lookupEnv:        os.LookupEnv,
 		clock:            systemClock{},
 		random:           rand.Float64,
@@ -262,14 +262,14 @@ func (c *Client) do(
 		var flat bytes.Buffer
 
 		if err := json.Compact(&flat, prepared); err != nil {
-			return nil, fmt.Errorf("jev: encoding request: %w", err)
+			return nil, fmt.Errorf("onesie: encoding request: %w", err)
 		}
 
 		payload = flat.Bytes()
 	default:
 		encoded, err := json.Marshal(body)
 		if err != nil {
-			return nil, fmt.Errorf("jev: encoding request: %w", err)
+			return nil, fmt.Errorf("onesie: encoding request: %w", err)
 		}
 
 		payload = encoded
@@ -285,7 +285,7 @@ func (c *Client) do(
 		res, err := c.attempt(ctx, tag, attempt, method, url, payload, cfg)
 		if err != nil {
 			if ctxErr := ctx.Err(); ctxErr != nil {
-				return nil, fmt.Errorf("jev: %s: %w", tag, ctxErr)
+				return nil, fmt.Errorf("onesie: %s: %w", tag, ctxErr)
 			}
 
 			if retriesLeft <= 0 || !retryableError(err, cfg.retry) {
@@ -310,7 +310,7 @@ func (c *Client) do(
 		}
 
 		// A server asking for longer than the cap has already told us the answer. Spending the
-		// remaining retries on jev's own backoff would just arrive early and fail again.
+		// remaining retries on onesie's own backoff would just arrive early and fail again.
 		if delay, tooLong := retryAfterTooLong(res.header, cfg.retry, c.clock.Now()); tooLong {
 			return nil, &RetryAfterError{
 				APIError:   *apiErr,
@@ -345,13 +345,13 @@ func (c *Client) attempt(
 
 	req, err := http.NewRequestWithContext(actx, method, url, reader)
 	if err != nil {
-		return nil, fmt.Errorf("jev: building request: %w", err)
+		return nil, fmt.Errorf("onesie: building request: %w", err)
 	}
 
 	c.setHeaders(req, cfg, attempt, payload != nil)
 
 	if c.logger.Enabled(actx, slog.LevelDebug) {
-		c.logger.DebugContext(actx, "jev request",
+		c.logger.DebugContext(actx, "onesie request",
 			"tag", tag,
 			"url", url,
 			"headers", redactedHeader(req.Header),
@@ -373,7 +373,7 @@ func (c *Client) attempt(
 
 	defer func() {
 		if closeErr := resp.Body.Close(); closeErr != nil {
-			c.logger.DebugContext(actx, "jev closing response body", "tag", tag, "error", closeErr)
+			c.logger.DebugContext(actx, "onesie closing response body", "tag", tag, "error", closeErr)
 		}
 	}()
 
@@ -399,7 +399,7 @@ func (c *Client) attempt(
 		return nil, failure
 	}
 
-	c.logger.InfoContext(actx, "jev response",
+	c.logger.InfoContext(actx, "onesie response",
 		"tag", tag,
 		"status", resp.StatusCode,
 		"elapsed", c.clock.Now().Sub(started),
@@ -452,7 +452,7 @@ func (c *Client) backOff(
 ) error {
 	delay := retryDelay(attempt, header, cfg.retry, c.clock.Now(), c.random)
 
-	c.logger.InfoContext(ctx, "jev retrying",
+	c.logger.InfoContext(ctx, "onesie retrying",
 		"tag", tag,
 		"in", delay,
 		"retry", attempt+1,
@@ -461,7 +461,7 @@ func (c *Client) backOff(
 	)
 
 	if err := c.clock.Sleep(ctx, delay); err != nil {
-		return fmt.Errorf("jev: %s: %w", tag, err)
+		return fmt.Errorf("onesie: %s: %w", tag, err)
 	}
 
 	return nil

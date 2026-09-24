@@ -11,25 +11,25 @@ import (
 
 const runTimeout = 10 * time.Second
 
-// NewRunner returns a Runner that runs binary, defaulting to jev on PATH when binary is empty.
+// NewRunner returns a Runner that runs binary, defaulting to onesie on PATH when binary is empty.
 func NewRunner(binary string) *Runner {
 	if binary == "" {
-		binary = "jev"
+		binary = "onesie"
 	}
 
 	return &Runner{Binary: binary, exec: runProcess}
 }
 
-// Runner runs one jev invocation and reports its exit code and its stderr.
+// Runner runs one onesie invocation and reports its exit code and its stderr.
 type Runner struct {
-	// Binary is the jev executable to run.
+	// Binary is the onesie executable to run.
 	Binary string
 
 	exec func(ctx context.Context, binary string, args []string) (exitCode int, stderr string, err error)
 }
 
 // DryRun strips the flags a dry run rejects from command, adds --print-request or
-// --print-questions, and runs the result without a shell. A command it cannot parse as a jev
+// --print-questions, and runs the result without a shell. A command it cannot parse as a onesie
 // invocation is not run, and Skipped on the result says why.
 func (r *Runner) DryRun(ctx context.Context, command string) (DryRunResult, error) {
 	args, reason, err := prepare(command)
@@ -91,7 +91,7 @@ func runProcess(ctx context.Context, binary string, args []string) (int, string,
 	// nonzero exit. Left unchecked, a bad example that hangs would exit nonzero for the wrong
 	// reason and pass the check by accident.
 	if ctx.Err() != nil {
-		return 0, stderr.String(), fmt.Errorf("jev: running %s: %w", binary, ctx.Err())
+		return 0, stderr.String(), fmt.Errorf("onesie: running %s: %w", binary, ctx.Err())
 	}
 
 	var exitErr *exec.ExitError
@@ -99,5 +99,5 @@ func runProcess(ctx context.Context, binary string, args []string) (int, string,
 		return exitErr.ExitCode(), stderr.String(), nil
 	}
 
-	return 0, stderr.String(), fmt.Errorf("jev: running %s: %w", binary, err)
+	return 0, stderr.String(), fmt.Errorf("onesie: running %s: %w", binary, err)
 }

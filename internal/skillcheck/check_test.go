@@ -29,17 +29,17 @@ func TestCheckRule(t *testing.T) {
 		},
 		{
 			name: "should fail a good example that exits 2, naming the skill, the rule id, " +
-				"the argv and jev's own stderr",
+				"the argv and onesie's own stderr",
 			kind:     "good",
 			exitCode: 2,
-			stderr:   "jev: --fallback on a yes/no question takes true, false, yes or no, got 'x'",
+			stderr:   "onesie: --fallback on a yes/no question takes true, false, yes or no, got 'x'",
 			wantPass: true,
 			wantFail: true,
 			wantChecks: func(t *testing.T, failure string) {
 				t.Helper()
 
 				for _, want := range []string{
-					"demo-skill", "r1", "ran: jev --print-request --ask a=x",
+					"demo-skill", "r1", "ran: onesie --print-request --ask a=x",
 					"--fallback on a yes/no question",
 				} {
 					if !strings.Contains(failure, want) {
@@ -122,7 +122,7 @@ func TestCheckRule(t *testing.T) {
 			t.Parallel()
 
 			runner := &Runner{
-				Binary: "jev",
+				Binary: "onesie",
 				exec: func(context.Context, string, []string) (int, string, error) {
 					return tc.exitCode, tc.stderr, nil
 				},
@@ -132,7 +132,7 @@ func TestCheckRule(t *testing.T) {
 
 			err := checkRule(
 				context.Background(), runner, "demo-skill", "r1", tc.kind,
-				"jev --ask a=x", tc.wantPass, "", report,
+				"onesie --ask a=x", tc.wantPass, "", report,
 			)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
@@ -161,7 +161,7 @@ func TestCheckRuleReturnsAnErrorRatherThanASkip(t *testing.T) {
 		t.Parallel()
 
 		runner := &Runner{
-			Binary: "jev",
+			Binary: "onesie",
 			exec: func(context.Context, string, []string) (int, string, error) {
 				return 0, "", context.DeadlineExceeded
 			},
@@ -170,7 +170,7 @@ func TestCheckRuleReturnsAnErrorRatherThanASkip(t *testing.T) {
 		report := &Report{}
 
 		err := checkRule(
-			context.Background(), runner, "demo-skill", "r1", "good", "jev --ask a=x", true, "", report,
+			context.Background(), runner, "demo-skill", "r1", "good", "onesie --ask a=x", true, "", report,
 		)
 		if err == nil {
 			t.Fatalf("checkRule(...) error = nil, want an error")
@@ -205,11 +205,11 @@ func TestCheckRuleSkipsAnUnverifiableExample(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			runner := &Runner{Binary: "jev", exec: neverCalled(t)}
+			runner := &Runner{Binary: "onesie", exec: neverCalled(t)}
 			report := &Report{}
 
 			err := checkRule(
-				context.Background(), runner, "demo-skill", "r1", tc.kind, "jev --ask a=x", true,
+				context.Background(), runner, "demo-skill", "r1", tc.kind, "onesie --ask a=x", true,
 				"the checker strips -q before every dry run", report,
 			)
 			if err != nil {
@@ -230,7 +230,7 @@ func TestCheckRuleSkipsAnUnverifiableExample(t *testing.T) {
 
 			skip := report.Skipped[0]
 			if skip.Skill != "demo-skill" || skip.RuleID != "r1" || skip.Kind != tc.kind ||
-				skip.Command != "jev --ask a=x" ||
+				skip.Command != "onesie --ask a=x" ||
 				skip.Reason != "the checker strips -q before every dry run" {
 				t.Errorf("report.Skipped[0] = %+v, want it to name the skill, rule, kind, "+
 					"command and the unverifiable reason", skip)
@@ -247,7 +247,7 @@ func TestCheck(t *testing.T) {
 
 		root := t.TempDir()
 
-		report, err := Check(context.Background(), root, &Runner{Binary: "jev", exec: neverCalled(t)})
+		report, err := Check(context.Background(), root, &Runner{Binary: "onesie", exec: neverCalled(t)})
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -261,7 +261,7 @@ func TestCheck(t *testing.T) {
 		}
 	})
 
-	t.Run("should skip an example it cannot parse as a jev invocation, naming why, and check the rest", func(t *testing.T) {
+	t.Run("should skip an example it cannot parse as a onesie invocation, naming why, and check the rest", func(t *testing.T) {
 		t.Parallel()
 
 		root := t.TempDir()
@@ -273,8 +273,8 @@ func TestCheck(t *testing.T) {
 					"id": "r1",
 					"short": "Do the thing.",
 					"why": "because",
-					"bad": "jev --ask a='BADMARKER'",
-					"good": "jev --ask a='ok'"
+					"bad": "onesie --ask a='BADMARKER'",
+					"good": "onesie --ask a='ok'"
 				},
 				{
 					"id": "r2",
@@ -286,7 +286,7 @@ func TestCheck(t *testing.T) {
 		}`)
 
 		runner := &Runner{
-			Binary: "jev",
+			Binary: "onesie",
 			exec: func(_ context.Context, _ string, args []string) (int, string, error) {
 				for _, arg := range args {
 					if strings.Contains(arg, "BADMARKER") {
@@ -317,7 +317,7 @@ func TestCheck(t *testing.T) {
 
 		skip := report.Skipped[0]
 		if skip.Skill != "demo" || skip.RuleID != "r2" || skip.Kind != "bad" ||
-			skip.Command != "jq '.value > 0.5'" || skip.Reason != "is not a jev invocation" {
+			skip.Command != "jq '.value > 0.5'" || skip.Reason != "is not a onesie invocation" {
 			t.Errorf("report.Skipped[0] = %+v, want it to name the skill, rule, kind, command and reason", skip)
 		}
 
@@ -338,9 +338,9 @@ func TestCheck(t *testing.T) {
 					"id": "r1",
 					"short": "Do the thing.",
 					"why": "because",
-					"bad": "jev --ask a=x -q --state 'rm -rf ./build'",
+					"bad": "onesie --ask a=x -q --state 'rm -rf ./build'",
 					"bad_unverifiable": "the checker strips -q before every dry run",
-					"good": "jev --ask a=x",
+					"good": "onesie --ask a=x",
 					"good_unverifiable": "the checker strips -q before every dry run too"
 				},
 				{
@@ -352,7 +352,7 @@ func TestCheck(t *testing.T) {
 			]
 		}`)
 
-		report, err := Check(context.Background(), root, &Runner{Binary: "jev", exec: neverCalled(t)})
+		report, err := Check(context.Background(), root, &Runner{Binary: "onesie", exec: neverCalled(t)})
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -368,16 +368,16 @@ func TestCheck(t *testing.T) {
 		want := []Skip{
 			{
 				Skill: "demo", RuleID: "r1", Kind: "bad",
-				Command: "jev --ask a=x -q --state 'rm -rf ./build'",
+				Command: "onesie --ask a=x -q --state 'rm -rf ./build'",
 				Reason:  "the checker strips -q before every dry run",
 			},
 			{
-				Skill: "demo", RuleID: "r1", Kind: "good", Command: "jev --ask a=x",
+				Skill: "demo", RuleID: "r1", Kind: "good", Command: "onesie --ask a=x",
 				Reason: "the checker strips -q before every dry run too",
 			},
 			{
 				Skill: "demo", RuleID: "r2", Kind: "bad", Command: "jq '.value > 0.5'",
-				Reason: "is not a jev invocation",
+				Reason: "is not a onesie invocation",
 			},
 		}
 
@@ -404,7 +404,7 @@ func TestCheck(t *testing.T) {
 					"id": "r1",
 					"short": "Fallback is not part of the catalog.",
 					"why": "the mode flag leads, so nothing can consume it as a value regardless",
-					"good": "jev --ask a=x --fallback --merge"
+					"good": "onesie --ask a=x --fallback --merge"
 				}
 			]
 		}`)
@@ -412,7 +412,7 @@ func TestCheck(t *testing.T) {
 		var called bool
 
 		runner := &Runner{
-			Binary: "jev",
+			Binary: "onesie",
 			exec: func(context.Context, string, []string) (int, string, error) {
 				called = true
 
@@ -454,13 +454,13 @@ func TestCheck(t *testing.T) {
 					"id": "r1",
 					"short": "Runs forever.",
 					"why": "demonstrates a run failure surfacing as an error",
-					"good": "jev --ask a=x"
+					"good": "onesie --ask a=x"
 				}
 			]
 		}`)
 
 		runner := &Runner{
-			Binary: "jev",
+			Binary: "onesie",
 			exec: func(context.Context, string, []string) (int, string, error) {
 				return 0, "", context.DeadlineExceeded
 			},

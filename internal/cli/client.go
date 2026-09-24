@@ -6,13 +6,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/frodi-karlsson/jev-cli/internal/jev"
+	"github.com/frodi-karlsson/onesie/internal/jev"
 )
 
 func defaultClientFactory(info BuildInfo, flags *runFlags, settings rootSettings) clientFactory {
 	return func(_ context.Context, extra ...jev.Option) (*jev.Client, error) {
 		opts := []jev.Option{
-			jev.WithUserAgent("jev-cli/" + info.Version),
+			jev.WithUserAgent("onesie/" + info.Version),
 			jev.WithEnv(settings.lookupEnv),
 		}
 

@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/frodi-karlsson/jev-cli/internal/engine"
-	"github.com/frodi-karlsson/jev-cli/internal/input"
+	"github.com/frodi-karlsson/onesie/internal/engine"
+	"github.com/frodi-karlsson/onesie/internal/input"
 )
 
 func TestRun(t *testing.T) {
@@ -312,7 +312,7 @@ func TestRun(t *testing.T) {
 			}
 
 			if result.Broken {
-				t.Error("a write failure of jev's own is not a closed pipe")
+				t.Error("a write failure of onesie's own is not a closed pipe")
 			}
 		})
 	})

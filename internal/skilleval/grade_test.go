@@ -7,7 +7,7 @@ import (
 	"io/fs"
 	"testing"
 
-	"github.com/frodi-karlsson/jev-cli/internal/skillcheck"
+	"github.com/frodi-karlsson/onesie/internal/skillcheck"
 )
 
 func TestGraderGrade(t *testing.T) {
@@ -24,16 +24,16 @@ func TestGraderGrade(t *testing.T) {
 
 	files := map[string]string{
 		"/r/aggregate-result.json": result,
-		"/t/with-1.jsonl":          traceOf(`"jev 'is this safe' -q --state x && jev auth clear"`),
-		"/t/without-1.jsonl":       traceOf(`"jev 'is this safe' --bogus; jev 'a' | jq ."`),
+		"/t/with-1.jsonl":          traceOf(`"onesie 'is this safe' -q --state x && onesie auth clear"`),
+		"/t/without-1.jsonl":       traceOf(`"onesie 'is this safe' --bogus; onesie 'a' | jq ."`),
 	}
 
 	runner := fakeRunner(func(command string) skillcheck.DryRunResult {
 		switch command {
-		case "jev 'is this safe' -q --state x", "jev 'a'":
+		case "onesie 'is this safe' -q --state x", "onesie 'a'":
 			return skillcheck.DryRunResult{ExitCode: 0}
 		default:
-			return skillcheck.DryRunResult{ExitCode: 2, Stderr: "jev: unknown flag: --bogus"}
+			return skillcheck.DryRunResult{ExitCode: 2, Stderr: "onesie: unknown flag: --bogus"}
 		}
 	})
 
@@ -81,7 +81,7 @@ func TestGraderGrade(t *testing.T) {
 			t.Fatalf("without arm = %+v, want 1 failed and 1 clean", arms[1])
 		}
 
-		if got := arms[1].Failed[0].Detail; got != "exit 2: jev: unknown flag: --bogus" {
+		if got := arms[1].Failed[0].Detail; got != "exit 2: onesie: unknown flag: --bogus" {
 			t.Errorf("failure detail = %q", got)
 		}
 	})
@@ -132,62 +132,62 @@ func TestGraderGrade(t *testing.T) {
 	}{
 		{
 			name:   "should dry run a quoted question that starts with a subcommand name",
-			script: `jev "help me decide if this is urgent"`,
+			script: `onesie "help me decide if this is urgent"`,
 		},
 		{
 			name:     "should skip a subcommand that follows a value flag",
-			script:   "jev -m x auth clear",
+			script:   "onesie -m x auth clear",
 			wantSkip: "runs the auth subcommand",
 		},
 		{
 			name:     "should skip --state-file with a variable value",
-			script:   `jev 'is this urgent' --state-file "$f"`,
+			script:   `onesie 'is this urgent' --state-file "$f"`,
 			wantSkip: "reads a file through --state-file",
 		},
 		{
 			name:     "should skip -f with a literal value",
-			script:   "jev -f questions.json",
+			script:   "onesie -f questions.json",
 			wantSkip: "reads a file through --file",
 		},
 		{
 			name:     "should skip -f at the end of a short flag cluster",
-			script:   "jev -qf questions.json",
+			script:   "onesie -qf questions.json",
 			wantSkip: "reads a file through --file",
 		},
 		{
 			name:     "should skip --file joined to its value",
-			script:   "jev --file=questions.json",
+			script:   "onesie --file=questions.json",
 			wantSkip: "reads a file through --file",
 		},
 		{
 			name:   "should not read a value that spells a flag as the flag",
-			script: "jev 'is this urgent' --state -f",
+			script: "onesie 'is this urgent' --state -f",
 		},
 		{
 			name:      "should flag -q with --assert",
-			script:    "jev --ask d='is this destructive' -q --assert 'd.value < 0.5' --state x",
+			script:    "onesie --ask d='is this destructive' -q --assert 'd.value < 0.5' --state x",
 			wantQuiet: true,
 		},
 		{
 			name:      "should flag -q inside a short flag cluster with --assert",
-			script:    "jev --ask d='is it' -rq --assert=d.value",
+			script:    "onesie --ask d='is it' -rq --assert=d.value",
 			wantQuiet: true,
 		},
 		{
 			name:      "should flag -q with --assert even when the command is skipped",
-			script:    "jev -f q.json --quiet --assert 'a.value'",
+			script:    "onesie -f q.json --quiet --assert 'a.value'",
 			wantSkip:  "reads a file through --file",
 			wantQuiet: true,
 		},
 		{
 			name:   "should not flag --assert whose value spells -q",
-			script: "jev --ask a='is it' --assert -q",
+			script: "onesie --ask a='is it' --assert -q",
 		},
 		{
 			name:        "should redact the --api-key value in a reported command",
-			script:      "jev --api-key sk-secret auth status",
+			script:      "onesie --api-key sk-secret auth status",
 			wantSkip:    "runs the auth subcommand",
-			wantCommand: "jev --api-key REDACTED auth status",
+			wantCommand: "onesie --api-key REDACTED auth status",
 		},
 	}
 
@@ -254,14 +254,14 @@ func TestRedactAPIKey(t *testing.T) {
 		command string
 		want    string
 	}{
-		{name: "should redact a separate value", command: "jev 'a' --api-key sk-1 -q", want: "jev 'a' --api-key REDACTED -q"},
-		{name: "should redact a joined value", command: "jev --api-key=sk-1 'a'", want: "jev --api-key=REDACTED 'a'"},
+		{name: "should redact a separate value", command: "onesie 'a' --api-key sk-1 -q", want: "onesie 'a' --api-key REDACTED -q"},
+		{name: "should redact a joined value", command: "onesie --api-key=sk-1 'a'", want: "onesie --api-key=REDACTED 'a'"},
 		{
 			name:    "should redact a quoted value with spaces",
-			command: `jev --api-key "sk 1" 'a'`,
-			want:    "jev --api-key REDACTED 'a'",
+			command: `onesie --api-key "sk 1" 'a'`,
+			want:    "onesie --api-key REDACTED 'a'",
 		},
-		{name: "should leave a command without a key alone", command: "jev 'a'", want: "jev 'a'"},
+		{name: "should leave a command without a key alone", command: "onesie 'a'", want: "onesie 'a'"},
 	}
 
 	for _, tc := range tests {

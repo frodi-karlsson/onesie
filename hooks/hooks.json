@@ -7,7 +7,7 @@
             "type": "command",
             "command": "root=\"${CLAUDE_PLUGIN_ROOT:-$PLUGIN_ROOT}\"; [ -n \"$root\" ] && sh \"$root/hooks/preflight.sh\" 2>/dev/null; exit 0",
             "timeout": 10,
-            "statusMessage": "Checking for jev and an API key..."
+            "statusMessage": "Checking for onesie and an API key..."
           }
         ]
       }

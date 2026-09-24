@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/frodi-karlsson/jev-cli/internal/plan"
-	"github.com/frodi-karlsson/jev-cli/internal/qfile"
+	"github.com/frodi-karlsson/onesie/internal/plan"
+	"github.com/frodi-karlsson/onesie/internal/qfile"
 )
 
 func TestLoadYesNo(t *testing.T) {
@@ -593,12 +593,12 @@ func TestLoadAssert(t *testing.T) {
 		{
 			name:    "should reject a mapping assert",
 			doc:     "assert:\n  value: 1\nurgent: q\n",
-			wantErr: "jev: 'assert' must be a string, got a mapping",
+			wantErr: "onesie: 'assert' must be a string, got a mapping",
 		},
 		{
 			name:    "should reject an empty assert as null",
 			doc:     "assert:\nurgent: q\n",
-			wantErr: "jev: 'assert' must be a string, got null",
+			wantErr: "onesie: 'assert' must be a string, got null",
 		},
 	}
 
@@ -651,32 +651,32 @@ func TestLoadStructured(t *testing.T) {
 		{
 			name:    "should name the question when a structured ask cannot be sent",
 			doc:     "q:\n  ask:\n    what: hi\n    score: .nan\n",
-			wantErr: "jev: 'ask' in question 'q' cannot be sent",
+			wantErr: "onesie: 'ask' in question 'q' cannot be sent",
 		},
 		{
 			name:    "should name the question when a scalar ask cannot be sent",
 			doc:     "q:\n  ask: .nan\n",
-			wantErr: "jev: 'ask' in question 'q' cannot be sent",
+			wantErr: "onesie: 'ask' in question 'q' cannot be sent",
 		},
 		{
 			name:    "should name the rubric key when a yes_means cannot be sent",
 			doc:     "q:\n  ask: hi\n  yes_means:\n    what: y\n    score: .nan\n",
-			wantErr: "jev: 'yes_means' in question 'q' cannot be sent",
+			wantErr: "onesie: 'yes_means' in question 'q' cannot be sent",
 		},
 		{
 			name:    "should name the option when a pick description cannot be sent",
 			doc:     "q:\n  ask: hi\n  pick:\n    a:\n      score: .nan\n    b: second\n",
-			wantErr: "jev: 'pick' option 'a' in question 'q' cannot be sent",
+			wantErr: "onesie: 'pick' option 'a' in question 'q' cannot be sent",
 		},
 		{
 			name:    "should name the level when a rate description cannot be sent",
 			doc:     "q:\n  ask: hi\n  rate:\n    low:\n      score: .nan\n    high: h\n",
-			wantErr: "jev: 'rate' level 'low' in question 'q' cannot be sent",
+			wantErr: "onesie: 'rate' level 'low' in question 'q' cannot be sent",
 		},
 		{
 			name:    "should name the level when a rate sequence description cannot be sent",
 			doc:     "q:\n  ask: hi\n  rate:\n    - low:\n        score: .nan\n    - high: h\n",
-			wantErr: "jev: 'rate' level 'low' in question 'q' cannot be sent",
+			wantErr: "onesie: 'rate' level 'low' in question 'q' cannot be sent",
 		},
 	}
 

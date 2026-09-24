@@ -14,7 +14,7 @@ Types follow the same rule. This is the `caller-above-callee` convention.
 ```go
 // Do
 func NewRootCmd(info BuildInfo) *cobra.Command {
-	root := &cobra.Command{Use: "jev"}
+	root := &cobra.Command{Use: "onesie"}
 	root.AddCommand(newVersionCmd(info))
 	return root
 }
@@ -92,7 +92,7 @@ example.
 ```go
 // Do
 if worthReporting(err) {
-	fmt.Fprintln(os.Stderr, "jev:", err)
+	fmt.Fprintln(os.Stderr, "onesie:", err)
 }
 
 func worthReporting(err error) bool {
@@ -103,7 +103,7 @@ func worthReporting(err error) bool {
 // A cancelled context means the user interrupted the run, which is not an
 // error worth printing.
 if !errors.Is(err, context.Canceled) {
-	fmt.Fprintln(os.Stderr, "jev:", err)
+	fmt.Fprintln(os.Stderr, "onesie:", err)
 }
 ```
 

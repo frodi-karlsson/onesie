@@ -16,27 +16,27 @@ func TestDryRunArgs(t *testing.T) {
 	}{
 		{
 			name:   "should strip -o, -r, -q, --usage, --merge and --stats from a command",
-			tokens: []string{"jev", "--ask", "a=x", "-o", "json", "-r", "-q", "--usage", "--merge", "--stats"},
+			tokens: []string{"onesie", "--ask", "a=x", "-o", "json", "-r", "-q", "--usage", "--merge", "--stats"},
 			want:   []string{"--print-request", "--ask", "a=x"},
 		},
 		{
 			name: "should strip --merge-key too, since it implies --merge",
 			tokens: []string{
-				"jev", "--ask", "a=x", "--merge-key", "answers",
+				"onesie", "--ask", "a=x", "--merge-key", "answers",
 			},
 			want: []string{"--print-request", "--ask", "a=x"},
 		},
 		{
 			name: "should strip -i, -j, -m, --state and --state-file when the dry run is --print-questions",
 			tokens: []string{
-				"jev", "--ask", "a=x", "--assert", "a > 0", "-i", "json", "-j", "4", "-m", "jev-latest",
+				"onesie", "--ask", "a=x", "--assert", "a > 0", "-i", "json", "-j", "4", "-m", "jev-latest",
 				"--state", "s", "--state-file", "f",
 			},
 			want: []string{"--print-questions", "--ask", "a=x", "--assert", "a > 0"},
 		},
 		{
 			name:   "should leave -i, -j, -m, --state and --state-file alone for --print-request",
-			tokens: []string{"jev", "--ask", "a=x", "-i", "json", "-j", "4", "-m", "jev-latest", "--state", "s"},
+			tokens: []string{"onesie", "--ask", "a=x", "-i", "json", "-j", "4", "-m", "jev-latest", "--state", "s"},
 			want: []string{
 				"--print-request",
 				"--ask", "a=x", "-i", "json", "-j", "4", "-m", "jev-latest", "--state", "s",
@@ -45,28 +45,28 @@ func TestDryRunArgs(t *testing.T) {
 		{
 			name: "should strip --stop-on-assert regardless of mode, since it is fatal under both",
 			tokens: []string{
-				"jev", "--ask", "a=x", "--stop-on-assert",
+				"onesie", "--ask", "a=x", "--stop-on-assert",
 			},
 			want: []string{"--print-request", "--ask", "a=x"},
 		},
 		{
 			name: "should strip --stop-on-assert under --print-questions too",
 			tokens: []string{
-				"jev", "--ask", "a=x", "--assert", "a > 0", "--stop-on-assert",
+				"onesie", "--ask", "a=x", "--assert", "a > 0", "--stop-on-assert",
 			},
 			want: []string{"--print-questions", "--ask", "a=x", "--assert", "a > 0"},
 		},
 		{
 			name: "should strip --unordered, --stop-on-error and --skip-blank under --print-questions",
 			tokens: []string{
-				"jev", "--ask", "a=x", "--assert", "a > 0", "--unordered", "--stop-on-error", "--skip-blank",
+				"onesie", "--ask", "a=x", "--assert", "a > 0", "--unordered", "--stop-on-error", "--skip-blank",
 			},
 			want: []string{"--print-questions", "--ask", "a=x", "--assert", "a > 0"},
 		},
 		{
 			name: "should leave --unordered, --stop-on-error and --skip-blank alone for --print-request",
 			tokens: []string{
-				"jev", "--ask", "a=x", "--unordered", "--stop-on-error", "--skip-blank",
+				"onesie", "--ask", "a=x", "--unordered", "--stop-on-error", "--skip-blank",
 			},
 			want: []string{
 				"--print-request", "--ask", "a=x", "--unordered", "--stop-on-error", "--skip-blank",
@@ -74,43 +74,43 @@ func TestDryRunArgs(t *testing.T) {
 		},
 		{
 			name:   "should strip a flag and its value when the value is separate",
-			tokens: []string{"jev", "--ask", "a=x", "-o", "json"},
+			tokens: []string{"onesie", "--ask", "a=x", "-o", "json"},
 			want:   []string{"--print-request", "--ask", "a=x"},
 		},
 		{
 			name:   "should strip a flag and its value when the value is joined with an equals sign",
-			tokens: []string{"jev", "--ask", "a=x", "-o=json"},
+			tokens: []string{"onesie", "--ask", "a=x", "-o=json"},
 			want:   []string{"--print-request", "--ask", "a=x"},
 		},
 		{
 			name:   "should strip a long flag and its value when the value is joined with an equals sign",
-			tokens: []string{"jev", "--ask", "a=x", "--output=json"},
+			tokens: []string{"onesie", "--ask", "a=x", "--output=json"},
 			want:   []string{"--print-request", "--ask", "a=x"},
 		},
 		{
 			name:   "should strip a short flag with its value attached, as in -ojson",
-			tokens: []string{"jev", "--ask", "a=x", "-ojson"},
+			tokens: []string{"onesie", "--ask", "a=x", "-ojson"},
 			want:   []string{"--print-request", "--ask", "a=x"},
 		},
 		{
 			name:   "should strip a cluster of short boolean flags, as in -rq",
-			tokens: []string{"jev", "--ask", "a=x", "-rq"},
+			tokens: []string{"onesie", "--ask", "a=x", "-rq"},
 			want:   []string{"--print-request", "--ask", "a=x"},
 		},
 		{
 			name:   "should pick --print-questions for a command carrying --assert",
-			tokens: []string{"jev", "--ask", "a=x", "--assert", "a > 0"},
+			tokens: []string{"onesie", "--ask", "a=x", "--assert", "a > 0"},
 			want:   []string{"--print-questions", "--ask", "a=x", "--assert", "a > 0"},
 		},
 		{
 			name:   "should pick --print-request otherwise",
-			tokens: []string{"jev", "--ask", "a=x"},
+			tokens: []string{"onesie", "--ask", "a=x"},
 			want:   []string{"--print-request", "--ask", "a=x"},
 		},
 		{
 			name: "should leave the question, --ask and the shape flags alone",
 			tokens: []string{
-				"jev", "--ask", "a=x", "--pick", "yes,no", "--rate", "1,2,3", "--desc", "yes=ok",
+				"onesie", "--ask", "a=x", "--pick", "yes,no", "--rate", "1,2,3", "--desc", "yes=ok",
 				"--sep", ";", "--threshold", "0.5", "--min-confidence", "0.5", "--fallback", "no",
 				"is this urgent",
 			},
@@ -123,23 +123,23 @@ func TestDryRunArgs(t *testing.T) {
 		},
 		{
 			name:   "should insert the print flag at the front even when the rest carries a literal --",
-			tokens: []string{"jev", "-o", "json", "--", "-is this urgent"},
+			tokens: []string{"onesie", "-o", "json", "--", "-is this urgent"},
 			want:   []string{"--print-request", "--", "-is this urgent"},
 		},
 		{
 			name:   "should leave a flag looking token alone once it is past a literal --",
-			tokens: []string{"jev", "q", "--", "--merge"},
+			tokens: []string{"onesie", "q", "--", "--merge"},
 			want:   []string{"--print-request", "q", "--", "--merge"},
 		},
 		{
-			name:       "should report a command it cannot parse as a jev invocation as skipped",
+			name:       "should report a command it cannot parse as a onesie invocation as skipped",
 			tokens:     []string{"jq", "'.value > 0.5'"},
-			wantReason: "is not a jev invocation",
+			wantReason: "is not a onesie invocation",
 		},
 		{
 			name:       "should report an empty token list as skipped",
 			tokens:     nil,
-			wantReason: "is not a jev invocation",
+			wantReason: "is not a onesie invocation",
 		},
 		{
 			// Before the mode flag moved to the front, this was the one case provenDryRun caught:
@@ -149,7 +149,7 @@ func TestDryRunArgs(t *testing.T) {
 			// invariant. It parses, and --assert is simply left with no value of its own, which
 			// pflag itself will refuse to run rather than silently swallowing anything.
 			name:   "should no longer need to skip a bare --assert, now that nothing follows it",
-			tokens: []string{"jev", "--ask", "a=x", "--assert"},
+			tokens: []string{"onesie", "--ask", "a=x", "--assert"},
 			want:   []string{"--print-questions", "--ask", "a=x", "--assert"},
 		},
 	}
@@ -188,12 +188,12 @@ func TestDryRunArgsProtectsAnUnstrippedFlagsValue(t *testing.T) {
 	}{
 		{
 			name:      "should keep --state's value intact when it spells the mode flag",
-			tokens:    []string{"jev", "--ask", "a=x", "--state", "--print-request"},
+			tokens:    []string{"onesie", "--ask", "a=x", "--state", "--print-request"},
 			wantValue: "--print-request",
 		},
 		{
 			name:      "should keep --state's value intact when it spells an always stripped flag",
-			tokens:    []string{"jev", "--ask", "a=x", "--state", "--merge"},
+			tokens:    []string{"onesie", "--ask", "a=x", "--state", "--merge"},
 			wantValue: "--merge",
 		},
 	}
@@ -232,10 +232,10 @@ func TestDryRunArgsProtectsAnUnstrippedFlagsValue(t *testing.T) {
 // mode flag to the front rather than the end: --fallback is not in the catalog, so its value gets
 // stripped like any unprotected --merge occurrence would, and --fallback ends up as the true last
 // argument with nothing after it. Appending the mode flag used to land right there, where
-// --fallback would consume it as its own value: `jev --ask a=x --fallback --print-request`
+// --fallback would consume it as its own value: `onesie --ask a=x --fallback --print-request`
 // against the real binary reports `--fallback on a yes/no question takes true, false, yes or no,
 // got '--print-request'`, a live call. With the mode flag leading instead, there is nothing left
-// for --fallback to consume: `jev --print-request --ask a=x --fallback` reports `flag needs an
+// for --fallback to consume: `onesie --print-request --ask a=x --fallback` reports `flag needs an
 // argument: --fallback` and exits 2, verified against the real binary, never a request.
 func TestDryRunArgsPlacesTheModeFlagWhereNothingCanConsumeIt(t *testing.T) {
 	t.Parallel()
@@ -243,7 +243,7 @@ func TestDryRunArgsPlacesTheModeFlagWhereNothingCanConsumeIt(t *testing.T) {
 	t.Run("should parse and run --fallback --merge rather than skip it", func(t *testing.T) {
 		t.Parallel()
 
-		tokens := []string{"jev", "--ask", "a=x", "--fallback", "--merge"}
+		tokens := []string{"onesie", "--ask", "a=x", "--fallback", "--merge"}
 
 		got, reason, err := dryRunArgs(tokens)
 		if err != nil || reason != "" {

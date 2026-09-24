@@ -1,14 +1,14 @@
 {
-  "name": "jev-cli",
+  "name": "onesie",
   "interface": {
-    "displayName": "jev"
+    "displayName": "onesie"
   },
   "plugins": [
     {
-      "name": "jev",
+      "name": "onesie",
       "source": {
         "source": "url",
-        "url": "https://github.com/frodi-karlsson/jev-cli.git",
+        "url": "https://github.com/frodi-karlsson/onesie.git",
         "ref": "main"
       },
       "policy": {

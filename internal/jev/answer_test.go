@@ -5,11 +5,11 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/frodi-karlsson/jev-cli/internal/jev"
+	"github.com/frodi-karlsson/onesie/internal/jev"
 )
 
 const sampleResult = `{
-  "model": "jev-1.13.0",
+  "model": "onesie-1.13.0",
   "answers": {
     "is_urgent": {"type": "noul", "noul": 0.95},
     "department": {
@@ -48,8 +48,8 @@ func TestResultUnmarshalJSON(t *testing.T) {
 
 		result := loadSample(t)
 
-		if result.Model != "jev-1.13.0" {
-			t.Errorf("model got %q, want %q", result.Model, "jev-1.13.0")
+		if result.Model != "onesie-1.13.0" {
+			t.Errorf("model got %q, want %q", result.Model, "onesie-1.13.0")
 		}
 
 		if result.Usage.InputTokens != 296 || result.Usage.OutputTokens != 20 {
@@ -190,7 +190,7 @@ func TestResultAccessors(t *testing.T) {
 			t.Fatalf("expected an error, got none")
 		}
 
-		want := `jev: answer "department" is a choice, not a noul`
+		want := `onesie: answer "department" is a choice, not a noul`
 		if err.Error() != want {
 			t.Errorf("\n got: %s\nwant: %s", err.Error(), want)
 		}

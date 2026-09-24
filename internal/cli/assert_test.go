@@ -10,17 +10,17 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/frodi-karlsson/jev-cli/internal/cli"
-	"github.com/frodi-karlsson/jev-cli/internal/jev"
+	"github.com/frodi-karlsson/onesie/internal/cli"
+	"github.com/frodi-karlsson/onesie/internal/jev"
 )
 
 const (
-	urgent = `{"model":"jev-1.13.0","answers":{"answer":{"type":"noul","noul":0.9}}}`
-	routed = `{"model":"jev-1.13.0","answers":{"answer":{"type":"choice","choice":"billing",` +
+	urgent = `{"model":"onesie-1.13.0","answers":{"answer":{"type":"noul","noul":0.9}}}`
+	routed = `{"model":"onesie-1.13.0","answers":{"answer":{"type":"choice","choice":"billing",` +
 		`"confidence":0.9,"probabilities":{"billing":0.8,"technical":0.2}}}}`
-	unsure = `{"model":"jev-1.13.0","answers":{"answer":{"type":"choice","choice":"billing",` +
+	unsure = `{"model":"onesie-1.13.0","answers":{"answer":{"type":"choice","choice":"billing",` +
 		`"confidence":0.3,"probabilities":{"billing":0.8,"technical":0.2}}}}`
-	both = `{"model":"jev-1.13.0","answers":{"a":{"type":"noul","noul":0.9},` +
+	both = `{"model":"onesie-1.13.0","answers":{"a":{"type":"noul","noul":0.9},` +
 		`"b":{"type":"noul","noul":0.9}}}`
 )
 
@@ -52,7 +52,7 @@ func TestAssert(t *testing.T) {
 			args:     []string{"is this urgent", "-o", "json", "--assert", "answer.value > 0.95"},
 			response: urgent,
 			wantCode: cli.ExitRejected,
-			contains: []string{`"assert":false`, `"answer":{"value":0.9}`, `"model":"jev-1.13.0"`},
+			contains: []string{`"assert":false`, `"answer":{"value":0.9}`, `"model":"onesie-1.13.0"`},
 		},
 		{
 			name:     "should carry the key in values mode",
@@ -66,7 +66,7 @@ func TestAssert(t *testing.T) {
 			args:     []string{"is this urgent", "-o", "table", "--assert", "answer.value > 0.95"},
 			response: urgent,
 			wantCode: cli.ExitRejected,
-			contains: []string{"model jev-1.13.0\nassert false\n", "answer  0.9000"},
+			contains: []string{"model onesie-1.13.0\nassert false\n", "answer  0.9000"},
 		},
 		{
 			name:     "should print the bare scalar and nothing else in raw mode",
@@ -114,7 +114,7 @@ func TestAssert(t *testing.T) {
 			response: urgent,
 			wantCode: cli.ExitRejected,
 			wantOut: "{\"state\":\"a ticket\",\"answers\":{\"assert\":false," +
-				"\"model\":\"jev-1.13.0\",\"answer\":{\"value\":0.9}}}\n",
+				"\"model\":\"onesie-1.13.0\",\"answer\":{\"value\":0.9}}}\n",
 		},
 		{
 			name: "should count a false assertion in the stats line",
@@ -132,7 +132,7 @@ func TestAssert(t *testing.T) {
 			response:  urgent,
 			wantCode:  cli.ExitUsage,
 			wantOut:   "",
-			wantErr:   "jev: --assert: parse error at column 15",
+			wantErr:   "onesie: --assert: parse error at column 15",
 			noRequest: true,
 		},
 		{
@@ -141,7 +141,7 @@ func TestAssert(t *testing.T) {
 			response:  urgent,
 			wantCode:  cli.ExitUsage,
 			wantOut:   "",
-			wantErr:   "jev: --assert: unknown question 'sevrity'. Questions: answer",
+			wantErr:   "onesie: --assert: unknown question 'sevrity'. Questions: answer",
 			noRequest: true,
 		},
 	}
@@ -277,7 +277,7 @@ func TestAssertQuietWithoutPolicy(t *testing.T) {
 			name:     "should reject a pick under quiet with neither a policy nor an assertion",
 			args:     []string{"which team", "--pick", "billing,technical", "-q"},
 			wantCode: cli.ExitUsage,
-			wantErr: "jev: -q on 'answer' needs --min-confidence and --fallback, or --assert. " +
+			wantErr: "onesie: -q on 'answer' needs --min-confidence and --fallback, or --assert. " +
 				"Without one the exit code is always 0",
 		},
 	}
@@ -410,9 +410,9 @@ func runAsserted(
 func TestAssertFromFile(t *testing.T) {
 	t.Parallel()
 
-	const answered = `{"model":"jev-1.13.0","answers":{"urgent":{"type":"noul","noul":0.9}}}`
+	const answered = `{"model":"onesie-1.13.0","answers":{"urgent":{"type":"noul","noul":0.9}}}`
 
-	const picked = `{"model":"jev-1.13.0","answers":{"team":{"type":"choice",` +
+	const picked = `{"model":"onesie-1.13.0","answers":{"team":{"type":"choice",` +
 		`"choice":"billing","confidence":0.9,` +
 		`"probabilities":{"billing":0.8,"technical":0.2}}}}`
 
@@ -469,14 +469,14 @@ func TestAssertFromFile(t *testing.T) {
 			name:      "should name the file's key when its assertion cannot parse",
 			file:      "assert: urgent.value >\n" + question,
 			wantCode:  cli.ExitUsage,
-			wantErr:   "jev: 'assert': parse error at column 15",
+			wantErr:   "onesie: 'assert': parse error at column 15",
 			noRequest: true,
 		},
 		{
 			name:      "should name the file's key when its assertion names an unknown question",
 			file:      "assert: sevrity.value > 0.5\n" + question,
 			wantCode:  cli.ExitUsage,
-			wantErr:   "jev: 'assert': unknown question 'sevrity'. Questions: urgent",
+			wantErr:   "onesie: 'assert': unknown question 'sevrity'. Questions: urgent",
 			noRequest: true,
 		},
 		{
@@ -484,7 +484,7 @@ func TestAssertFromFile(t *testing.T) {
 			file:      "assert: urgent.value > 0.5\n" + question,
 			args:      []string{"--assert", "sevrity.value > 0.5"},
 			wantCode:  cli.ExitUsage,
-			wantErr:   "jev: --assert: unknown question 'sevrity'. Questions: urgent",
+			wantErr:   "onesie: --assert: unknown question 'sevrity'. Questions: urgent",
 			noRequest: true,
 		},
 		{
@@ -761,7 +761,7 @@ func runAssertedStream(t *testing.T, args []string, stdin string, wantCode int) 
 			t.Errorf("reading request body: %v", readErr)
 		}
 
-		reply := `{"model":"jev-1.13.0","answers":{"answer":{"type":"noul","noul":0.1}}}`
+		reply := `{"model":"onesie-1.13.0","answers":{"answer":{"type":"noul","noul":0.1}}}`
 
 		switch {
 		case bytes.Contains(body, []byte("boom")):
@@ -769,7 +769,7 @@ func runAssertedStream(t *testing.T, args []string, stdin string, wantCode int) 
 
 			reply = `{"error":{"message":"boom"}}`
 		case bytes.Contains(body, []byte("hot")):
-			reply = `{"model":"jev-1.13.0","answers":{"answer":{"type":"noul","noul":0.9}}}`
+			reply = `{"model":"onesie-1.13.0","answers":{"answer":{"type":"noul","noul":0.9}}}`
 		}
 
 		if _, writeErr := w.Write([]byte(reply)); writeErr != nil {

@@ -1,7 +1,7 @@
 // Package plan turns a recorded command line into a validated invocation, ready to run.
 package plan
 
-import "github.com/frodi-karlsson/jev-cli/internal/argv"
+import "github.com/frodi-karlsson/onesie/internal/argv"
 
 // Plan is a validated invocation. Questions are in the order they were defined, which is the order
 // the normalized output requires.
@@ -95,7 +95,7 @@ type Option struct {
 	Desc any
 }
 
-// Level is one rung of a score rubric. Label is jev local and never reaches the API.
+// Level is one rung of a score rubric. Label is onesie local and never reaches the API.
 type Level struct {
 	Label string
 	Desc  any

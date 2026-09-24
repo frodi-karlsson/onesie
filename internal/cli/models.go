@@ -6,7 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/frodi-karlsson/jev-cli/internal/jev"
+	"github.com/frodi-karlsson/onesie/internal/jev"
 )
 
 func listModels(cmd *cobra.Command, settings rootSettings, stats *collector) error {

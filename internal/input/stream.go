@@ -87,7 +87,7 @@ type Record struct {
 	Err *LineError
 }
 
-// LineError is a line jev could not read. It is reported per record and counted, and under
+// LineError is a line onesie could not read. It is reported per record and counted, and under
 // --stop-on-error it exits 2 rather than taking a transport code.
 type LineError struct {
 	Line int
@@ -95,7 +95,7 @@ type LineError struct {
 }
 
 // Error names the line, since a message that locates nothing in a ten thousand line file is not
-// worth printing. There is deliberately no jev prefix: the stderr writer adds one, and inside a
+// worth printing. There is deliberately no onesie prefix: the stderr writer adds one, and inside a
 // JSON error record the prefix is noise.
 func (e *LineError) Error() string {
 	// Line zero is stdin itself failing rather than a bad line, and quoting a line number nothing

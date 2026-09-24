@@ -1,16 +1,16 @@
 {
-  "name": "jev",
+  "name": "onesie",
   "version": "0.1.0",
-  "description": "Skills that teach Codex to drive the jev CLI: single judgments, CI gates and streamed batches.",
+  "description": "Skills that teach Codex to drive the onesie CLI: single judgments, CI gates and streamed batches.",
   "author": {
     "name": "Frodi Karlsson",
     "url": "https://github.com/frodi-karlsson"
   },
-  "homepage": "https://github.com/frodi-karlsson/jev-cli",
-  "repository": "https://github.com/frodi-karlsson/jev-cli",
+  "homepage": "https://github.com/frodi-karlsson/onesie",
+  "repository": "https://github.com/frodi-karlsson/onesie",
   "license": "MIT",
   "keywords": [
-    "jev",
+    "onesie",
     "typesafe",
     "cli",
     "skills",
@@ -18,17 +18,17 @@
   ],
   "skills": "./skills/",
   "interface": {
-    "displayName": "jev",
-    "shortDescription": "Correct jev invocations for judgments, gates and batches",
-    "longDescription": "Teach Codex to drive the jev CLI: ask for a probability, a pick or a rating on one piece of text, gate a CI step on a judgment, and stream a file of records through jev.",
+    "displayName": "onesie",
+    "shortDescription": "Correct onesie invocations for judgments, gates and batches",
+    "longDescription": "Teach Codex to drive the onesie CLI: ask for a probability, a pick or a rating on one piece of text, gate a CI step on a judgment, and stream a file of records through onesie.",
     "developerName": "Frodi Karlsson",
     "category": "Developer Tools",
     "capabilities": [],
-    "websiteURL": "https://github.com/frodi-karlsson/jev-cli",
+    "websiteURL": "https://github.com/frodi-karlsson/onesie",
     "defaultPrompt": [
-      "Use jev to judge this text.",
-      "Gate this CI step on a jev judgment.",
-      "Run this file of records through jev."
+      "Use onesie to judge this text.",
+      "Gate this CI step on a onesie judgment.",
+      "Run this file of records through onesie."
     ]
   }
 }

@@ -4,9 +4,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/frodi-karlsson/jev-cli/internal/answer"
-	"github.com/frodi-karlsson/jev-cli/internal/jev"
-	"github.com/frodi-karlsson/jev-cli/internal/output"
+	"github.com/frodi-karlsson/onesie/internal/answer"
+	"github.com/frodi-karlsson/onesie/internal/jev"
+	"github.com/frodi-karlsson/onesie/internal/output"
 )
 
 func TestWrite(t *testing.T) {
@@ -15,14 +15,14 @@ func TestWrite(t *testing.T) {
 	status := 429
 
 	simple := output.Record{
-		Model: "jev-1.13.0",
+		Model: "onesie-1.13.0",
 		Answers: []output.Named{
 			{ID: "urgent", Answer: &answer.Answer{Value: 0.92}},
 		},
 	}
 
 	decided := output.Record{
-		Model: "jev-1.13.0",
+		Model: "onesie-1.13.0",
 		Answers: []output.Named{
 			{ID: "urgent", Answer: &answer.Answer{
 				Value: 0.92, Decision: true, Decided: true,
@@ -42,7 +42,7 @@ func TestWrite(t *testing.T) {
 	}
 
 	ordered := output.Record{
-		Model: "jev-1.13.0",
+		Model: "onesie-1.13.0",
 		Answers: []output.Named{
 			{ID: "zebra", Answer: &answer.Answer{Value: 0.1}},
 			{ID: "apple", Answer: &answer.Answer{Value: 0.2}},
@@ -50,7 +50,7 @@ func TestWrite(t *testing.T) {
 	}
 
 	asserted := output.Record{
-		Model:        "jev-1.13.0",
+		Model:        "onesie-1.13.0",
 		Answers:      simple.Answers,
 		AssertFailed: true,
 	}
@@ -65,23 +65,23 @@ func TestWrite(t *testing.T) {
 			name: "should include the model in json output",
 			mode: output.JSON,
 			rec:  simple,
-			want: `{"model":"jev-1.13.0","urgent":{"value":0.92}}`,
+			want: `{"model":"onesie-1.13.0","urgent":{"value":0.92}}`,
 		},
 		{
 			name: "should keep questions in definition order rather than sorting them",
 			mode: output.JSON,
 			rec:  ordered,
-			want: `{"model":"jev-1.13.0","zebra":{"value":0.1},"apple":{"value":0.2}}`,
+			want: `{"model":"onesie-1.13.0","zebra":{"value":0.1},"apple":{"value":0.2}}`,
 		},
 		{
 			name: "should add usage to json output when present",
 			mode: output.JSON,
 			rec: output.Record{
-				Model:   "jev-1.13.0",
+				Model:   "onesie-1.13.0",
 				Usage:   &jev.Usage{InputTokens: 2841, OutputTokens: 71},
 				Answers: simple.Answers,
 			},
-			want: `{"model":"jev-1.13.0","usage":{"input_tokens":2841,"output_tokens":71},` +
+			want: `{"model":"onesie-1.13.0","usage":{"input_tokens":2841,"output_tokens":71},` +
 				`"urgent":{"value":0.92}}`,
 		},
 		{
@@ -136,7 +136,7 @@ func TestWrite(t *testing.T) {
 			name: "should write the assert key in json output when the assertion is false",
 			mode: output.JSON,
 			rec:  asserted,
-			want: `{"assert":false,"model":"jev-1.13.0","urgent":{"value":0.92}}`,
+			want: `{"assert":false,"model":"onesie-1.13.0","urgent":{"value":0.92}}`,
 		},
 		{
 			name: "should write the assert key in values output too",
@@ -148,7 +148,7 @@ func TestWrite(t *testing.T) {
 			name: "should leave the assert key out of json output when the assertion held",
 			mode: output.JSON,
 			rec:  simple,
-			want: `{"model":"jev-1.13.0","urgent":{"value":0.92}}`,
+			want: `{"model":"onesie-1.13.0","urgent":{"value":0.92}}`,
 		},
 		{
 			name: "should print nothing for a false assertion in raw output",

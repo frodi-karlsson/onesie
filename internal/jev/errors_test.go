@@ -24,49 +24,49 @@ func TestNewAPIError(t *testing.T) {
 			status:   400,
 			body:     `{"error":"bad question"}`,
 			sentinel: ErrBadRequest,
-			message:  "jev: 400 bad question",
+			message:  "onesie: 400 bad question",
 		},
 		{
 			name:     "should map 401 to ErrAuthentication",
 			status:   401,
 			body:     `{"message":"invalid key"}`,
 			sentinel: ErrAuthentication,
-			message:  "jev: 401 invalid key",
+			message:  "onesie: 401 invalid key",
 		},
 		{
 			name:     "should map 403 to ErrPermissionDenied",
 			status:   403,
 			body:     `{"detail":"nope"}`,
 			sentinel: ErrPermissionDenied,
-			message:  "jev: 403 nope",
+			message:  "onesie: 403 nope",
 		},
 		{
 			name:     "should map 404 to ErrNotFound",
 			status:   404,
 			body:     ``,
 			sentinel: ErrNotFound,
-			message:  "jev: 404 status code, no body",
+			message:  "onesie: 404 status code, no body",
 		},
 		{
 			name:     "should map 422 to ErrUnprocessableEntity",
 			status:   422,
 			body:     `{"detail":[{"loc":["body","questions"],"msg":"field required"}]}`,
 			sentinel: ErrUnprocessableEntity,
-			message:  "jev: 422 questions: field required",
+			message:  "onesie: 422 questions: field required",
 		},
 		{
 			name:     "should map 429 to ErrRateLimit",
 			status:   429,
 			body:     `{"error":{"message":"slow down"}}`,
 			sentinel: ErrRateLimit,
-			message:  "jev: 429 slow down",
+			message:  "onesie: 429 slow down",
 		},
 		{
 			name:     "should map 529 to ErrServer",
 			status:   529,
 			body:     `overloaded`,
 			sentinel: ErrServer,
-			message:  "jev: 529 overloaded",
+			message:  "onesie: 529 overloaded",
 		},
 	}
 
@@ -164,7 +164,7 @@ func TestRetryAfterError(t *testing.T) {
 			Cap:        time.Minute,
 		}
 
-		want := "jev: status 429, the server asked to retry after 2m0s, above the 1m0s cap"
+		want := "onesie: status 429, the server asked to retry after 2m0s, above the 1m0s cap"
 		if got := err.Error(); got != want {
 			t.Errorf("message got %q, want %q", got, want)
 		}
@@ -236,12 +236,12 @@ func TestAnswerError(t *testing.T) {
 		{
 			name: "should report a missing answer",
 			err:  &AnswerError{Name: "absent", Missing: true},
-			want: `jev: no answer named "absent"`,
+			want: `onesie: no answer named "absent"`,
 		},
 		{
 			name: "should report a type mismatch",
 			err:  &AnswerError{Name: "department", Want: "noul", Got: "choice"},
-			want: `jev: answer "department" is a choice, not a noul`,
+			want: `onesie: answer "department" is a choice, not a noul`,
 		},
 	}
 

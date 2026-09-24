@@ -1,7 +1,7 @@
 {
-  "name": "jev",
+  "name": "onesie",
   "version": "0.1.0",
-  "description": "Skills that teach an agent to drive the jev CLI: single judgments, CI gates and streamed batches.",
+  "description": "Skills that teach an agent to drive the onesie CLI: single judgments, CI gates and streamed batches.",
   "author": {
     "name": "Frodi Karlsson",
     "url": "https://github.com/frodi-karlsson"

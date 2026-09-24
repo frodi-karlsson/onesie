@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/frodi-karlsson/jev-cli/internal/skillgen"
+	"github.com/frodi-karlsson/onesie/internal/skillgen"
 )
 
 func TestValidate(t *testing.T) {
@@ -17,7 +17,7 @@ func TestValidate(t *testing.T) {
 		skill     skillgen.Skill
 		wantFiles []string
 		wantDirs  []string
-		wantErr   string // the message after "jev: <path>: "
+		wantErr   string // the message after "onesie: <path>: "
 	}{
 		{
 			name:  "should accept a minimal valid skill",
@@ -358,7 +358,7 @@ func TestValidate(t *testing.T) {
 				t.Fatalf("expected an error, got none")
 			}
 
-			if want := "jev: " + path + ": " + tc.wantErr; err.Error() != want {
+			if want := "onesie: " + path + ": " + tc.wantErr; err.Error() != want {
 				t.Errorf("error = %q, want %q", err.Error(), want)
 			}
 		})
@@ -413,7 +413,7 @@ func TestLoad(t *testing.T) {
 			t.Fatalf("expected an error, got none")
 		}
 
-		want := "jev: " + path + ": json: unknown field \"to_verify\""
+		want := "onesie: " + path + ": json: unknown field \"to_verify\""
 		if err.Error() != want {
 			t.Errorf("error = %q, want %q", err.Error(), want)
 		}
@@ -439,7 +439,7 @@ func TestLoad(t *testing.T) {
 			t.Fatalf("expected an error, got none")
 		}
 
-		want := "jev: " + path + ": trailing content after the skill object"
+		want := "onesie: " + path + ": trailing content after the skill object"
 		if err.Error() != want {
 			t.Errorf("error = %q, want %q", err.Error(), want)
 		}

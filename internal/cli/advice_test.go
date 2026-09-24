@@ -11,38 +11,38 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/frodi-karlsson/jev-cli/internal/jev"
+	"github.com/frodi-karlsson/onesie/internal/jev"
 )
 
 func TestNewRootCmdUnknownModel(t *testing.T) {
 	t.Parallel()
 
-	const body = `{"model":"jev-1.12",` +
+	const body = `{"model":"onesie-1.12",` +
 		`"questions":{"urgent":{"type":"noul","instructions":"is this urgent"}}}`
 
 	tests := []adviceCase{
 		{
 			name:     "should name the model -m sent and point at --list-models",
-			args:     []string{"is this urgent", "-m", "jev-1.12"},
+			args:     []string{"is this urgent", "-m", "onesie-1.12"},
 			stdin:    "a ticket",
 			status:   http.StatusBadRequest,
-			response: `{"detail":"Unknown model: jev-1.12"}`,
+			response: `{"detail":"Unknown model: onesie-1.12"}`,
 			wantCode: ExitUsage,
-			wantSent: `"model":"jev-1.12"`,
-			wantErr:  "jev: model 'jev-1.12' not found. Try --list-models\n",
+			wantSent: `"model":"onesie-1.12"`,
+			wantErr:  "onesie: model 'onesie-1.12' not found. Try --list-models\n",
 			wantOut: []string{`"error":{"kind":"http","status":400,` +
-				`"message":"jev: model 'jev-1.12' not found. Try --list-models"}`},
+				`"message":"onesie: model 'onesie-1.12' not found. Try --list-models"}`},
 		},
 		{
 			name:     "should name the model the environment supplied",
 			args:     []string{"is this urgent"},
 			stdin:    "a ticket",
-			env:      map[string]string{jev.EnvDefaultModel: "jev-9.9"},
+			env:      map[string]string{jev.EnvDefaultModel: "onesie-9.9"},
 			status:   http.StatusBadRequest,
-			response: `{"detail":"Unknown model: jev-9.9"}`,
+			response: `{"detail":"Unknown model: onesie-9.9"}`,
 			wantCode: ExitUsage,
-			wantSent: `"model":"jev-9.9"`,
-			wantErr:  "jev: model 'jev-9.9' not found. Try --list-models\n",
+			wantSent: `"model":"onesie-9.9"`,
+			wantErr:  "onesie: model 'onesie-9.9' not found. Try --list-models\n",
 		},
 		{
 			name:     "should name the model a question file body carried",
@@ -50,52 +50,52 @@ func TestNewRootCmdUnknownModel(t *testing.T) {
 			stdin:    "a ticket",
 			files:    map[string]string{"body.json": body},
 			status:   http.StatusBadRequest,
-			response: `{"detail":"Unknown model: jev-1.12"}`,
+			response: `{"detail":"Unknown model: onesie-1.12"}`,
 			wantCode: ExitUsage,
-			wantSent: `"model":"jev-1.12"`,
-			wantErr:  "jev: model 'jev-1.12' not found. Try --list-models\n",
+			wantSent: `"model":"onesie-1.12"`,
+			wantErr:  "onesie: model 'onesie-1.12' not found. Try --list-models\n",
 		},
 		{
 			name:     "should name the model a request body carried",
 			args:     []string{"-i", "request"},
 			stdin:    `{"state":"a ticket",` + body[1:] + "\n",
 			status:   http.StatusBadRequest,
-			response: `{"detail":"Unknown model: jev-1.12"}`,
+			response: `{"detail":"Unknown model: onesie-1.12"}`,
 			wantCode: ExitRecords,
-			wantSent: `"model":"jev-1.12"`,
+			wantSent: `"model":"onesie-1.12"`,
 			wantErr:  "",
 			wantOut: []string{`{"error":{"kind":"http","status":400,` +
-				`"message":"jev: model 'jev-1.12' not found. Try --list-models"}}`},
+				`"message":"onesie: model 'onesie-1.12' not found. Try --list-models"}}`},
 		},
 		{
 			name:     "should carry the remedy into a streaming error record",
-			args:     []string{"is this urgent", "-i", "lines", "-m", "jev-1.12"},
+			args:     []string{"is this urgent", "-i", "lines", "-m", "onesie-1.12"},
 			stdin:    "a ticket\n",
 			status:   http.StatusBadRequest,
-			response: `{"detail":"Unknown model: jev-1.12"}`,
+			response: `{"detail":"Unknown model: onesie-1.12"}`,
 			wantCode: ExitRecords,
-			wantSent: `"model":"jev-1.12"`,
+			wantSent: `"model":"onesie-1.12"`,
 			wantErr:  "",
 			wantOut: []string{`"error":{"kind":"http","status":400,` +
-				`"message":"jev: model 'jev-1.12' not found. Try --list-models"}`},
+				`"message":"onesie: model 'onesie-1.12' not found. Try --list-models"}`},
 		},
 		{
 			name:     "should leave a 400 about anything else unchanged",
-			args:     []string{"is this urgent", "-m", "jev-1.12"},
+			args:     []string{"is this urgent", "-m", "onesie-1.12"},
 			stdin:    "a ticket",
 			status:   http.StatusBadRequest,
 			response: `{"detail":"state must be an object"}`,
 			wantCode: ExitUsage,
-			wantErr:  "jev: 400 state must be an object\n",
+			wantErr:  "onesie: 400 state must be an object\n",
 		},
 		{
 			name:     "should keep the server text for a listing, which sends no model",
 			args:     []string{"--list-models"},
-			env:      map[string]string{jev.EnvDefaultModel: "jev-9.9"},
+			env:      map[string]string{jev.EnvDefaultModel: "onesie-9.9"},
 			status:   http.StatusBadRequest,
-			response: `{"detail":"Unknown model: jev-9.9"}`,
+			response: `{"detail":"Unknown model: onesie-9.9"}`,
 			wantCode: ExitUsage,
-			wantErr:  "jev: 400 Unknown model: jev-9.9\n",
+			wantErr:  "onesie: 400 Unknown model: onesie-9.9\n",
 		},
 	}
 
@@ -113,13 +113,13 @@ func TestNewRootCmdRejectedCount(t *testing.T) {
 	// The wording the live API answered with on 2026-09-22, for a score carrying eleven levels.
 	const tooManyLevels = `{"detail":"Too many score levels. Must have at most 10 levels."}`
 
-	const rejected = "jev: 400 Too many score levels. Must have at most 10 levels."
+	const rejected = "onesie: 400 Too many score levels. Must have at most 10 levels."
 
-	const note = " jev's own check passed, so its built in limits may be stale. Run jev -V"
+	const note = " onesie's own check passed, so its built in limits may be stale. Run onesie -V"
 
 	const file = "team:\n  ask: which team\n  pick:\n    billing: payments\n    technical: bugs\n"
 
-	const frozen = `{"state":"a ticket","model":"jev-1.12",` +
+	const frozen = `{"state":"a ticket","model":"onesie-1.12",` +
 		`"questions":{"severity":{"type":"score","instructions":"how bad",` +
 		`"criteria":["calm","annoyed","angry"]}}}`
 
@@ -141,7 +141,7 @@ func TestNewRootCmdRejectedCount(t *testing.T) {
 			status:   http.StatusBadRequest,
 			response: `{"detail":"Too many choice options. Must have at most 255 options."}`,
 			wantCode: ExitUsage,
-			wantErr: "jev: 400 Too many choice options. Must have at most 255 options." +
+			wantErr: "onesie: 400 Too many choice options. Must have at most 255 options." +
 				note + "\n",
 		},
 		{
@@ -151,7 +151,7 @@ func TestNewRootCmdRejectedCount(t *testing.T) {
 			status:   http.StatusUnprocessableEntity,
 			response: tooManyLevels,
 			wantCode: ExitUsage,
-			wantErr: "jev: 422 Too many score levels. Must have at most 10 levels." +
+			wantErr: "onesie: 422 Too many score levels. Must have at most 10 levels." +
 				note + "\n",
 		},
 		{
@@ -184,7 +184,7 @@ func TestNewRootCmdRejectedCount(t *testing.T) {
 			status:   http.StatusBadRequest,
 			response: `{"detail":"Invalid request."}`,
 			wantCode: ExitUsage,
-			wantErr:  "jev: 400 Invalid request.\n",
+			wantErr:  "onesie: 400 Invalid request.\n",
 		},
 		{
 			name:     "should leave a 400 about a level that is not a count untouched",
@@ -193,7 +193,7 @@ func TestNewRootCmdRejectedCount(t *testing.T) {
 			status:   http.StatusBadRequest,
 			response: `{"detail":"Score levels must be strings."}`,
 			wantCode: ExitUsage,
-			wantErr:  "jev: 400 Score levels must be strings.\n",
+			wantErr:  "onesie: 400 Score levels must be strings.\n",
 		},
 		{
 			name:     "should leave a 400 bounding something other than a count untouched",
@@ -202,7 +202,7 @@ func TestNewRootCmdRejectedCount(t *testing.T) {
 			status:   http.StatusBadRequest,
 			response: `{"detail":"Request too large. Must have at most 32000 tokens."}`,
 			wantCode: ExitUsage,
-			wantErr:  "jev: 400 Request too large. Must have at most 32000 tokens.\n",
+			wantErr:  "onesie: 400 Request too large. Must have at most 32000 tokens.\n",
 		},
 		{
 			name:     "should leave a 400 naming another field untouched",
@@ -211,19 +211,19 @@ func TestNewRootCmdRejectedCount(t *testing.T) {
 			status:   http.StatusBadRequest,
 			response: `{"detail":[{"loc":["body","state"],"msg":"field required"}]}`,
 			wantCode: ExitUsage,
-			wantErr:  "jev: 400 state: field required\n",
+			wantErr:  "onesie: 400 state: field required\n",
 		},
 		{
 			name: "should keep the model remedy when the rejection is an unknown model",
 			args: []string{
 				"--ask", "severity=how bad is it", "--rate", "calm,annoyed,angry",
-				"-m", "jev-1.12",
+				"-m", "onesie-1.12",
 			},
 			stdin:    "a ticket",
 			status:   http.StatusBadRequest,
-			response: `{"detail":"Unknown model: jev-1.12"}`,
+			response: `{"detail":"Unknown model: onesie-1.12"}`,
 			wantCode: ExitUsage,
-			wantErr:  "jev: model 'jev-1.12' not found. Try --list-models\n",
+			wantErr:  "onesie: model 'onesie-1.12' not found. Try --list-models\n",
 		},
 		{
 			// A listing sends no questions, so no local bound was checked and the note would name

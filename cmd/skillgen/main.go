@@ -1,18 +1,18 @@
 // Command skillgen generates the per client skill files from skills/, per
-// docs/jev-skills-spec.md section 3.
+// docs/onesie-skills-spec.md section 3.
 package main
 
 import (
 	"fmt"
 	"os"
 
-	"github.com/frodi-karlsson/jev-cli/internal/skillgen"
+	"github.com/frodi-karlsson/onesie/internal/skillgen"
 )
 
 func main() {
 	root, err := os.Getwd()
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "jev:", err)
+		fmt.Fprintln(os.Stderr, "onesie:", err)
 		os.Exit(1)
 	}
 

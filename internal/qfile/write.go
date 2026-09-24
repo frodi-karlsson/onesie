@@ -12,10 +12,10 @@ import (
 	"github.com/goccy/go-yaml/printer"
 	"github.com/goccy/go-yaml/token"
 
-	"github.com/frodi-karlsson/jev-cli/internal/plan"
+	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
-// Write renders questions and an assertion as a jev question file, preserving order, labels and
+// Write renders questions and an assertion as a onesie question file, preserving order, labels and
 // policy, so the result reloads through Load to the same plan. An empty assertion writes no key.
 func Write(questions []plan.Question, assertion string) ([]byte, error) {
 	doc := make(yaml.MapSlice, 0, len(questions)+1)
@@ -29,7 +29,7 @@ func Write(questions []plan.Question, assertion string) ([]byte, error) {
 	for _, question := range questions {
 		if question.ID == plan.PositionalID {
 			return nil, errors.New(
-				"jev: --print-questions needs a named question. Use --ask NAME=QUESTION")
+				"onesie: --print-questions needs a named question. Use --ask NAME=QUESTION")
 		}
 
 		body, err := writeQuestion(question)
@@ -47,14 +47,14 @@ func writeQuestion(question plan.Question) (yaml.MapSlice, error) {
 	instructions, err := yamlValue(question.Instructions)
 	if err != nil {
 		return nil, fmt.Errorf(
-			"jev: 'ask' in question '%s' cannot be written: %w", question.ID, err)
+			"onesie: 'ask' in question '%s' cannot be written: %w", question.ID, err)
 	}
 
 	if question.Criteria != nil && question.Shape != plan.Noul {
 		// Dropping the rubric silently would leave the user believing it reached the API, which is
 		// the line the loader already holds against a file carrying both.
 		return nil, fmt.Errorf(
-			"jev: question '%s' has both 'yes_means' and '%s'. A question is one or the other",
+			"onesie: question '%s' has both 'yes_means' and '%s'. A question is one or the other",
 			question.ID, question.Shape)
 	}
 
@@ -94,7 +94,7 @@ func writeOptions(question plan.Question) (yaml.MapSlice, error) {
 		desc, err := yamlValue(option.Desc)
 		if err != nil {
 			return nil, fmt.Errorf(
-				"jev: 'pick' option '%s' in question '%s' cannot be written: %w",
+				"onesie: 'pick' option '%s' in question '%s' cannot be written: %w",
 				option.Name, question.ID, err)
 		}
 
@@ -121,7 +121,7 @@ func writeLevels(question plan.Question) ([]any, error) {
 		desc, err := yamlValue(level.Desc)
 		if err != nil {
 			return nil, fmt.Errorf(
-				"jev: 'rate' level '%s' in question '%s' cannot be written: %w",
+				"onesie: 'rate' level '%s' in question '%s' cannot be written: %w",
 				label, question.ID, err)
 		}
 
@@ -139,13 +139,13 @@ func writeRubric(question plan.Question) (yaml.MapSlice, error) {
 	yes, err := yamlValue(question.Criteria.Yes)
 	if err != nil {
 		return nil, fmt.Errorf(
-			"jev: 'yes_means' in question '%s' cannot be written: %w", question.ID, err)
+			"onesie: 'yes_means' in question '%s' cannot be written: %w", question.ID, err)
 	}
 
 	no, err := yamlValue(question.Criteria.No)
 	if err != nil {
 		return nil, fmt.Errorf(
-			"jev: 'no_means' in question '%s' cannot be written: %w", question.ID, err)
+			"onesie: 'no_means' in question '%s' cannot be written: %w", question.ID, err)
 	}
 
 	// yes_means and no_means, not yes and no. Under the YAML 1.2 core schema goccy implements a

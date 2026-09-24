@@ -16,21 +16,21 @@ import (
 	"testing"
 	"time"
 
-	"github.com/frodi-karlsson/jev-cli/internal/cli"
-	"github.com/frodi-karlsson/jev-cli/internal/jev"
+	"github.com/frodi-karlsson/onesie/internal/cli"
+	"github.com/frodi-karlsson/onesie/internal/jev"
 )
 
 func TestNewRootCmd(t *testing.T) {
 	t.Parallel()
 
-	const answered = `{"model":"jev-1.13.0","answers":{"answer":{"type":"noul","noul":0.92}},` +
+	const answered = `{"model":"onesie-1.13.0","answers":{"answer":{"type":"noul","noul":0.92}},` +
 		`"usage":{"input_tokens":10,"output_tokens":2}}`
 
-	const twoAnswers = `{"model":"jev-1.13.0","answers":` +
+	const twoAnswers = `{"model":"onesie-1.13.0","answers":` +
 		`{"a":{"type":"noul","noul":0.92},"extra":{"type":"noul","noul":0.92}},` +
 		`"usage":{"input_tokens":10,"output_tokens":2}}`
 
-	const picked = `{"model":"jev-1.13.0","answers":{"answer":{"type":"choice",` +
+	const picked = `{"model":"onesie-1.13.0","answers":{"answer":{"type":"choice",` +
 		`"choice":"billing","confidence":0.91,` +
 		`"probabilities":{"billing":0.91,"technical":0.09}}},` +
 		`"usage":{"input_tokens":10,"output_tokens":2}}`
@@ -51,13 +51,13 @@ func TestNewRootCmd(t *testing.T) {
 			name:     "should print help when given no arguments",
 			args:     []string{},
 			wantCode: cli.ExitOK,
-			contains: []string{"Usage:", "jev [question]"},
+			contains: []string{"Usage:", "onesie [question]"},
 		},
 		{
 			name:     "should print the limits for the version flag",
 			args:     []string{"-V"},
 			wantCode: cli.ExitOK,
-			contains: []string{"jev 1.2.3", "max-choice-options 255", "max-retry-after 1m0s"},
+			contains: []string{"onesie 1.2.3", "max-choice-options 255", "max-retry-after 1m0s"},
 		},
 		{
 			name:     "should print full provenance for the version subcommand",
@@ -69,13 +69,13 @@ func TestNewRootCmd(t *testing.T) {
 			name:     "should prefix a cobra parse error",
 			args:     []string{"--nope"},
 			wantCode: cli.ExitUsage,
-			contains: []string{"jev: unknown flag: --nope"},
+			contains: []string{"onesie: unknown flag: --nope"},
 		},
 		{
 			name:     "should document how to ask a question that begins with a dash",
 			args:     []string{"--help"},
 			wantCode: cli.ExitOK,
-			contains: []string{"begins with a dash", "jev -o json -- '-is this urgent'"},
+			contains: []string{"begins with a dash", "onesie -o json -- '-is this urgent'"},
 		},
 		{
 			name:     "should answer a question that begins with a dash after --",
@@ -91,7 +91,7 @@ func TestNewRootCmd(t *testing.T) {
 			stdin:    "the server is down",
 			response: answered,
 			wantCode: cli.ExitOK,
-			contains: []string{`"answer":{"value":0.92}`, `"model":"jev-1.13.0"`},
+			contains: []string{`"answer":{"value":0.92}`, `"model":"onesie-1.13.0"`},
 			absent:   []string{`"usage"`},
 		},
 		{
@@ -137,14 +137,14 @@ func TestNewRootCmd(t *testing.T) {
 			name:     "should reject a state-less invocation",
 			args:     []string{"is this urgent"},
 			wantCode: cli.ExitUsage,
-			contains: []string{"jev: no state given. Pipe one to stdin, or pass --state or --state-file"},
+			contains: []string{"onesie: no state given. Pipe one to stdin, or pass --state or --state-file"},
 		},
 		{
 			name:     "should reject a flagged invocation that carries no question",
 			args:     []string{"-o", "json"},
 			stdin:    "the server is down",
 			wantCode: cli.ExitUsage,
-			contains: []string{"jev: no question given. Pass a question, --ask, or -f"},
+			contains: []string{"onesie: no question given. Pass a question, --ask, or -f"},
 			absent:   []string{"Usage:", "Flags:"},
 		},
 		{
@@ -159,14 +159,14 @@ func TestNewRootCmd(t *testing.T) {
 			args:     []string{"--ask", "a=one", "--ask", "b=two", "-o", "raw"},
 			stdin:    "body",
 			wantCode: cli.ExitUsage,
-			contains: []string{"jev: -o raw needs a single question. 'a', 'b' were asked"},
+			contains: []string{"onesie: -o raw needs a single question. 'a', 'b' were asked"},
 		},
 		{
 			name:     "should reject two --ask flags sharing an id",
 			args:     []string{"--ask", "a=one", "--ask", "a=two"},
 			stdin:    "body",
 			wantCode: cli.ExitUsage,
-			contains: []string{"jev: question id 'a' is given twice"},
+			contains: []string{"onesie: question id 'a' is given twice"},
 		},
 		{
 			name:     "should reject a reserved question id",
@@ -217,7 +217,7 @@ func TestNewRootCmd(t *testing.T) {
 			name:  "should exit unavailable when the answer has the wrong shape",
 			args:  []string{"is this urgent", "-o", "json"},
 			stdin: "body",
-			response: `{"model":"jev-1.13.0","answers":{"answer":{"type":"choice",` +
+			response: `{"model":"onesie-1.13.0","answers":{"answer":{"type":"choice",` +
 				`"choice":"a","confidence":0.5,"probabilities":{"a":1}}}}`,
 			wantCode: cli.ExitUnavailable,
 			contains: []string{
@@ -261,7 +261,7 @@ func TestNewRootCmd(t *testing.T) {
 			args:  []string{"-f", "q.yaml", "-o", "json"},
 			stdin: "the server is down",
 			files: map[string]string{"q.yaml": "urgent: does this convey urgency\n"},
-			response: `{"model":"jev-1.13.0","answers":{"urgent":{"type":"noul","noul":0.92}},` +
+			response: `{"model":"onesie-1.13.0","answers":{"urgent":{"type":"noul","noul":0.92}},` +
 				`"usage":{"input_tokens":1,"output_tokens":1}}`,
 			wantCode: cli.ExitOK,
 			contains: []string{`"urgent":{"value":0.92}`},
@@ -273,7 +273,7 @@ func TestNewRootCmd(t *testing.T) {
 			files: map[string]string{
 				"q.yaml": "urgent:\n  ask: does this convey urgency\n  threshold: 0.5\n",
 			},
-			response: `{"model":"jev-1.13.0","answers":{"urgent":{"type":"noul","noul":0.92}}}`,
+			response: `{"model":"onesie-1.13.0","answers":{"urgent":{"type":"noul","noul":0.92}}}`,
 			wantCode: cli.ExitOK,
 			contains: []string{`"decision":true`},
 		},
@@ -290,7 +290,7 @@ func TestNewRootCmd(t *testing.T) {
 			args:     []string{"-f", "q.yaml", "--ask", "urgent=different", "--replace", "-r"},
 			stdin:    "body",
 			files:    map[string]string{"q.yaml": "urgent: does this convey urgency\n"},
-			response: `{"model":"jev-1.13.0","answers":{"urgent":{"type":"noul","noul":0.5}}}`,
+			response: `{"model":"onesie-1.13.0","answers":{"urgent":{"type":"noul","noul":0.5}}}`,
 			wantCode: cli.ExitOK,
 			contains: []string{"0.5"},
 			sends:    []string{"different"},
@@ -309,7 +309,7 @@ func TestNewRootCmd(t *testing.T) {
 				"body.json": `{"state":"from the body","questions":` +
 					`{"a":{"type":"noul","instructions":"q"}}}`,
 			},
-			response: `{"model":"jev-1.13.0","answers":{"a":{"type":"noul","noul":0.3}}}`,
+			response: `{"model":"onesie-1.13.0","answers":{"a":{"type":"noul","noul":0.3}}}`,
 			wantCode: cli.ExitOK,
 			contains: []string{`"a":{"value":0.3}`},
 			sends:    []string{`"state":"from the body"`},
@@ -321,7 +321,7 @@ func TestNewRootCmd(t *testing.T) {
 				"body.json": `{"state":{"ticket_id":12345678901234567890,"zebra":1,"alpha":2},` +
 					`"questions":{"a":{"type":"noul","instructions":"q"}}}`,
 			},
-			response: `{"model":"jev-1.13.0","answers":{"a":{"type":"noul","noul":0.3}}}`,
+			response: `{"model":"onesie-1.13.0","answers":{"a":{"type":"noul","noul":0.3}}}`,
 			wantCode: cli.ExitOK,
 			sends: []string{
 				`"state":{"ticket_id":12345678901234567890,"zebra":1,"alpha":2}`,
@@ -335,7 +335,7 @@ func TestNewRootCmd(t *testing.T) {
 				"body.json": `{"state":"from the body","questions":` +
 					`{"a":{"type":"noul","instructions":"q"}}}`,
 			},
-			response: `{"model":"jev-1.13.0","answers":{"a":{"type":"noul","noul":0.3}}}`,
+			response: `{"model":"onesie-1.13.0","answers":{"a":{"type":"noul","noul":0.3}}}`,
 			wantCode: cli.ExitOK,
 			contains: []string{`"a":{"value":0.3}`},
 			sends:    []string{`"state":"from stdin"`},
@@ -344,24 +344,24 @@ func TestNewRootCmd(t *testing.T) {
 			name: "should take the model from a request body",
 			args: []string{"-f", "body.json", "-o", "json"},
 			files: map[string]string{
-				"body.json": `{"state":"x","model":"jev-1.9.9","questions":` +
+				"body.json": `{"state":"x","model":"onesie-1.9.9","questions":` +
 					`{"a":{"type":"noul","instructions":"q"}}}`,
 			},
-			response: `{"model":"jev-1.9.9","answers":{"a":{"type":"noul","noul":0.3}}}`,
+			response: `{"model":"onesie-1.9.9","answers":{"a":{"type":"noul","noul":0.3}}}`,
 			wantCode: cli.ExitOK,
-			contains: []string{`"model":"jev-1.9.9"`},
-			sends:    []string{`"model":"jev-1.9.9"`},
+			contains: []string{`"model":"onesie-1.9.9"`},
+			sends:    []string{`"model":"onesie-1.9.9"`},
 		},
 		{
 			name: "should let -m override a request body's model",
-			args: []string{"-f", "body.json", "-o", "json", "-m", "jev-1.2.0"},
+			args: []string{"-f", "body.json", "-o", "json", "-m", "onesie-1.2.0"},
 			files: map[string]string{
-				"body.json": `{"state":"x","model":"jev-1.9.9","questions":` +
+				"body.json": `{"state":"x","model":"onesie-1.9.9","questions":` +
 					`{"a":{"type":"noul","instructions":"q"}}}`,
 			},
-			response: `{"model":"jev-1.2.0","answers":{"a":{"type":"noul","noul":0.3}}}`,
+			response: `{"model":"onesie-1.2.0","answers":{"a":{"type":"noul","noul":0.3}}}`,
 			wantCode: cli.ExitOK,
-			sends:    []string{`"model":"jev-1.2.0"`},
+			sends:    []string{`"model":"onesie-1.2.0"`},
 		},
 		{
 			name: "should reject a null state in a request body",
@@ -421,7 +421,7 @@ func TestNewRootCmd(t *testing.T) {
 			args:  []string{"-f", "block.yaml", "-o", "json"},
 			files: map[string]string{"block.yaml": "a:\n  ask: |-\n    one\n    ---\n    two\n"},
 			stdin: "the server is down",
-			response: `{"model":"jev-1.13.0","answers":{"a":{"type":"noul","noul":0.92}},` +
+			response: `{"model":"onesie-1.13.0","answers":{"a":{"type":"noul","noul":0.92}},` +
 				`"usage":{"input_tokens":10,"output_tokens":2}}`,
 			wantCode: cli.ExitOK,
 			sends:    []string{`"instructions":"one\n---\ntwo"`},
@@ -433,7 +433,7 @@ func TestNewRootCmd(t *testing.T) {
 				"y.yaml": "urgent:\n  ask: q\n  yes_means: FILE YES\n  no_means: FILE NO\n",
 			},
 			stdin: "the server is down",
-			response: `{"model":"jev-1.13.0","answers":{"urgent":{"type":"noul","noul":0.92}},` +
+			response: `{"model":"onesie-1.13.0","answers":{"urgent":{"type":"noul","noul":0.92}},` +
 				`"usage":{"input_tokens":10,"output_tokens":2}}`,
 			wantCode: cli.ExitOK,
 			sends:    []string{`"true":"CLI YES"`, `"false":"FILE NO"`},
@@ -455,7 +455,7 @@ func TestNewRootCmd(t *testing.T) {
 				"body.json": `{"state":"x","questions":` +
 					`{"bq":{"type":"score","instructions":"q","criteria":[null,null]}}}`,
 			},
-			response: `{"model":"jev-1.13.0","answers":{"bq":{"type":"score","score":1.0,` +
+			response: `{"model":"onesie-1.13.0","answers":{"bq":{"type":"score","score":1.0,` +
 				`"confidence":0.92,"legend":{"0":"Calm","1":"Frustrated"},` +
 				`"probabilities":{"0":0.1,"1":0.9}}},` +
 				`"usage":{"input_tokens":10,"output_tokens":2}}`,
@@ -469,7 +469,7 @@ func TestNewRootCmd(t *testing.T) {
 				"--ask", "mood=how is it", "--rate", "urgent,normal,cold", "-o", "json",
 			},
 			stdin: "the server is down",
-			response: `{"model":"jev-1.13.0","answers":{"mood":{"type":"score","score":1.0,` +
+			response: `{"model":"onesie-1.13.0","answers":{"mood":{"type":"score","score":1.0,` +
 				`"confidence":0.92,"legend":{"0":"a","1":"b","2":"c"},` +
 				`"probabilities":{"0":0.1,"1":0.1,"2":0.8}}},` +
 				`"usage":{"input_tokens":10,"output_tokens":2}}`,
@@ -484,7 +484,7 @@ func TestNewRootCmd(t *testing.T) {
 					"    normal: a normal day\n    cold: nothing happening\n",
 			},
 			stdin: "the server is down",
-			response: `{"model":"jev-1.13.0","answers":{"mood":{"type":"score","score":1.0,` +
+			response: `{"model":"onesie-1.13.0","answers":{"mood":{"type":"score","score":1.0,` +
 				`"confidence":0.92,"legend":{"0":"a","1":"b","2":"c"},` +
 				`"probabilities":{"0":0.1,"1":0.1,"2":0.8}}},` +
 				`"usage":{"input_tokens":10,"output_tokens":2}}`,
@@ -501,7 +501,7 @@ func TestNewRootCmd(t *testing.T) {
 					`{"bq":{"type":"score","instructions":"q",` +
 					`"criteria":["zulu","mike","alpha"]}}}`,
 			},
-			response: `{"model":"jev-1.13.0","answers":{"bq":{"type":"score","score":1.0,` +
+			response: `{"model":"onesie-1.13.0","answers":{"bq":{"type":"score","score":1.0,` +
 				`"confidence":0.92,"legend":{"0":"a","1":"b","2":"c"},` +
 				`"probabilities":{"0":0.1,"1":0.1,"2":0.8}}},` +
 				`"usage":{"input_tokens":10,"output_tokens":2}}`,
@@ -513,7 +513,7 @@ func TestNewRootCmd(t *testing.T) {
 			args:     []string{"--replace", "is this urgent"},
 			stdin:    "the server is down",
 			wantCode: cli.ExitUsage,
-			contains: []string{"jev: --replace applies to -f, which was not given"},
+			contains: []string{"onesie: --replace applies to -f, which was not given"},
 		},
 		{
 			name: "should reject a structured fallback in a question file",
@@ -535,7 +535,7 @@ func TestNewRootCmd(t *testing.T) {
 					`{"bq":{"type":"choice","instructions":"q",` +
 					`"criteria":{"x":"X","y":null}}}}`,
 			},
-			response: `{"model":"jev-1.13.0","answers":{"bq":{"type":"choice",` +
+			response: `{"model":"onesie-1.13.0","answers":{"bq":{"type":"choice",` +
 				`"choice":"x","confidence":0.91,"probabilities":{"x":0.91,"y":0.09}}},` +
 				`"usage":{"input_tokens":10,"output_tokens":2}}`,
 			wantCode: cli.ExitOK,
@@ -548,7 +548,7 @@ func TestNewRootCmd(t *testing.T) {
 				"body.json": `{"state":"x","questions":` +
 					`{"bq":{"type":"score","instructions":"q","criteria":["x",null]}}}`,
 			},
-			response: `{"model":"jev-1.13.0","answers":{"bq":{"type":"score","score":1.0,` +
+			response: `{"model":"onesie-1.13.0","answers":{"bq":{"type":"score","score":1.0,` +
 				`"confidence":0.92,"legend":{"0":"x","1":"y"},` +
 				`"probabilities":{"0":0.1,"1":0.9}}},` +
 				`"usage":{"input_tokens":10,"output_tokens":2}}`,
@@ -562,7 +562,7 @@ func TestNewRootCmd(t *testing.T) {
 				"body.json": `{"state":"x","questions":` +
 					`{"bq":{"type":"score","instructions":"q","criteria":[null,null]}}}`,
 			},
-			response: `{"model":"jev-1.13.0","answers":{"bq":{"type":"score","score":1.0,` +
+			response: `{"model":"onesie-1.13.0","answers":{"bq":{"type":"score","score":1.0,` +
 				`"confidence":0.92,"legend":{"0":"Calm","1":"Frustrated"},` +
 				`"probabilities":{"0":0.1,"1":0.9}}},` +
 				`"usage":{"input_tokens":10,"output_tokens":2}}`,
@@ -575,7 +575,7 @@ func TestNewRootCmd(t *testing.T) {
 				"--ask", "team=who owns this", "--pick", "zebra,mike,alpha", "-o", "json",
 			},
 			stdin: "the server is down",
-			response: `{"model":"jev-1.13.0","answers":{"team":{"type":"choice",` +
+			response: `{"model":"onesie-1.13.0","answers":{"team":{"type":"choice",` +
 				`"choice":"zebra","confidence":0.9,` +
 				`"probabilities":{"zebra":0.9,"mike":0.05,"alpha":0.05}}},` +
 				`"usage":{"input_tokens":10,"output_tokens":2}}`,
@@ -590,7 +590,7 @@ func TestNewRootCmd(t *testing.T) {
 					`{"bq":{"type":"choice","instructions":"q",` +
 					`"criteria":{"zebra":"z","mike":"m","alpha":"a"}}}}`,
 			},
-			response: `{"model":"jev-1.13.0","answers":{"bq":{"type":"choice",` +
+			response: `{"model":"onesie-1.13.0","answers":{"bq":{"type":"choice",` +
 				`"choice":"zebra","confidence":0.9,` +
 				`"probabilities":{"zebra":0.9,"mike":0.05,"alpha":0.05}}},` +
 				`"usage":{"input_tokens":10,"output_tokens":2}}`,
@@ -605,7 +605,7 @@ func TestNewRootCmd(t *testing.T) {
 					`{"bq":{"type":"choice","instructions":"q",` +
 					`"criteria":{"zebra":{"what":"z","examples":["zz"]},"alpha":"a"}}}}`,
 			},
-			response: `{"model":"jev-1.13.0","answers":{"bq":{"type":"choice",` +
+			response: `{"model":"onesie-1.13.0","answers":{"bq":{"type":"choice",` +
 				`"choice":"zebra","confidence":0.9,` +
 				`"probabilities":{"zebra":0.9,"alpha":0.1}}},` +
 				`"usage":{"input_tokens":10,"output_tokens":2}}`,
@@ -622,7 +622,7 @@ func TestNewRootCmd(t *testing.T) {
 					`{"bq":{"type":"noul","instructions":"q",` +
 					`"criteria":{"true":{"what":"y","examples":["yy"]},"false":"n"}}}}`,
 			},
-			response: `{"model":"jev-1.13.0","answers":{"bq":{"type":"noul","noul":0.92}},` +
+			response: `{"model":"onesie-1.13.0","answers":{"bq":{"type":"noul","noul":0.92}},` +
 				`"usage":{"input_tokens":10,"output_tokens":2}}`,
 			wantCode: cli.ExitOK,
 			sends: []string{
@@ -637,7 +637,7 @@ func TestNewRootCmd(t *testing.T) {
 					`{"bq":{"type":"score","instructions":"q",` +
 					`"criteria":[{"what":"z","examples":["zz"]},"a"]}}}`,
 			},
-			response: `{"model":"jev-1.13.0","answers":{"bq":{"type":"score","score":1.0,` +
+			response: `{"model":"onesie-1.13.0","answers":{"bq":{"type":"score","score":1.0,` +
 				`"confidence":0.92,"legend":{"0":"a","1":"b"},` +
 				`"probabilities":{"0":0.1,"1":0.9}}},` +
 				`"usage":{"input_tokens":10,"output_tokens":2}}`,
@@ -654,7 +654,7 @@ func TestNewRootCmd(t *testing.T) {
 					"    examples: [yy]\n  no_means: n\n",
 			},
 			stdin: "the server is down",
-			response: `{"model":"jev-1.13.0","answers":{"urgent":{"type":"noul","noul":0.92}},` +
+			response: `{"model":"onesie-1.13.0","answers":{"urgent":{"type":"noul","noul":0.92}},` +
 				`"usage":{"input_tokens":10,"output_tokens":2}}`,
 			wantCode: cli.ExitOK,
 			sends: []string{
@@ -669,7 +669,7 @@ func TestNewRootCmd(t *testing.T) {
 					"      examples: [zz]\n    high: h\n",
 			},
 			stdin: "the server is down",
-			response: `{"model":"jev-1.13.0","answers":{"mood":{"type":"score","score":1.0,` +
+			response: `{"model":"onesie-1.13.0","answers":{"mood":{"type":"score","score":1.0,` +
 				`"confidence":0.92,"legend":{"0":"a","1":"b"},` +
 				`"probabilities":{"0":0.1,"1":0.9}}},` +
 				`"usage":{"input_tokens":10,"output_tokens":2}}`,
@@ -684,7 +684,7 @@ func TestNewRootCmd(t *testing.T) {
 				"--ask", "zebra=one", "--ask", "mike=two", "--ask", "alpha=three", "-o", "json",
 			},
 			stdin: "the server is down",
-			response: `{"model":"jev-1.13.0","answers":{"zebra":{"type":"noul","noul":0.1},` +
+			response: `{"model":"onesie-1.13.0","answers":{"zebra":{"type":"noul","noul":0.1},` +
 				`"mike":{"type":"noul","noul":0.2},"alpha":{"type":"noul","noul":0.3}},` +
 				`"usage":{"input_tokens":10,"output_tokens":2}}`,
 			wantCode: cli.ExitOK,
@@ -697,7 +697,7 @@ func TestNewRootCmd(t *testing.T) {
 				"q.yaml": "urgent:\n  ask:\n    zebra: z\n    mike: m\n    alpha: a\n",
 			},
 			stdin:    "the server is down",
-			response: `{"model":"jev-1.13.0","answers":{"urgent":{"type":"noul","noul":0.3}}}`,
+			response: `{"model":"onesie-1.13.0","answers":{"urgent":{"type":"noul","noul":0.3}}}`,
 			wantCode: cli.ExitOK,
 			sends:    []string{`"instructions":{"zebra":"z","mike":"m","alpha":"a"}`},
 		},
@@ -796,7 +796,7 @@ func TestNewRootCmdFlagDrivenClient(t *testing.T) {
 			gotAuth = r.Header.Get("Authorization")
 
 			if _, err := w.Write([]byte(
-				`{"model":"jev-1.13.0","answers":{"answer":{"type":"noul","noul":0.5}}}`,
+				`{"model":"onesie-1.13.0","answers":{"answer":{"type":"noul","noul":0.5}}}`,
 			)); err != nil {
 				t.Errorf("writing stub response: %v", err)
 			}
@@ -832,7 +832,7 @@ func TestNewRootCmdFlagDrivenClient(t *testing.T) {
 func TestNewRootCmdEnvDrivenClient(t *testing.T) {
 	t.Parallel()
 
-	const answered = `{"model":"jev-1.13.0","answers":{"answer":{"type":"noul","noul":0.5}}}`
+	const answered = `{"model":"onesie-1.13.0","answers":{"answer":{"type":"noul","noul":0.5}}}`
 
 	t.Run("should build a client from the injected environment", func(t *testing.T) {
 		t.Parallel()
@@ -945,7 +945,7 @@ func TestNewRootCmdQuestionOrder(t *testing.T) {
 			var sent string
 
 			srv := stubAnswering(t,
-				`{"model":"jev-1.13.0","answers":{"zebra":{"type":"noul","noul":0.1},`+
+				`{"model":"onesie-1.13.0","answers":{"zebra":{"type":"noul","noul":0.1},`+
 					`"mike":{"type":"noul","noul":0.2},`+
 					`"alpha":{"type":"noul","noul":0.3}}}`,
 				func(r *http.Request) {
@@ -1033,7 +1033,7 @@ func TestNewRootCmdConnectionPool(t *testing.T) {
 				time.Sleep(2 * time.Millisecond)
 
 				if _, err := w.Write([]byte(
-					`{"model":"jev-1.13.0","answers":{"answer":{"type":"noul","noul":0.5}}}`,
+					`{"model":"onesie-1.13.0","answers":{"answer":{"type":"noul","noul":0.5}}}`,
 				)); err != nil {
 					t.Errorf("writing stub response: %v", err)
 				}
@@ -1185,7 +1185,7 @@ func TestNewRootCmdRetryFlags(t *testing.T) {
 				func(w http.ResponseWriter, _ *http.Request) {
 					attempts.Add(1)
 					// 503 is retryable per DefaultRetryStatus, and Retry-After is omitted so the
-					// run uses jev's own backoff rather than a server requested wait.
+					// run uses onesie's own backoff rather than a server requested wait.
 					w.WriteHeader(http.StatusServiceUnavailable)
 				}))
 			defer srv.Close()
@@ -1339,7 +1339,7 @@ func TestNewRootCmdTimeoutFlag(t *testing.T) {
 func TestNewRootCmdFlagValidation(t *testing.T) {
 	t.Parallel()
 
-	const answered = `{"model":"jev-1.13.0","answers":{"answer":{"type":"noul","noul":0.92}},` +
+	const answered = `{"model":"onesie-1.13.0","answers":{"answer":{"type":"noul","noul":0.92}},` +
 		`"usage":{"input_tokens":10,"output_tokens":2}}`
 
 	tests := []struct {
@@ -1353,43 +1353,43 @@ func TestNewRootCmdFlagValidation(t *testing.T) {
 			name:     "should reject a timeout of zero",
 			args:     []string{"--timeout", "0"},
 			code:     cli.ExitUsage,
-			contains: "jev: --timeout takes a positive number of seconds, got 0",
+			contains: "onesie: --timeout takes a positive number of seconds, got 0",
 		},
 		{
 			name:     "should reject a timeout above the ceiling",
 			args:     []string{"--timeout", "86401"},
 			code:     cli.ExitUsage,
-			contains: "jev: --timeout takes at most 86400 seconds, got 86401",
+			contains: "onesie: --timeout takes at most 86400 seconds, got 86401",
 		},
 		{
 			name:     "should reject a timeout that would overflow a duration",
 			args:     []string{"--timeout", "18446744074"},
 			code:     cli.ExitUsage,
-			contains: "jev: --timeout takes at most 86400 seconds, got 18446744074",
+			contains: "onesie: --timeout takes at most 86400 seconds, got 18446744074",
 		},
 		{
 			name:     "should reject a negative retry count",
 			args:     []string{"--retries=-1"},
 			code:     cli.ExitUsage,
-			contains: "jev: --retries takes a retry count of zero or more, got -1",
+			contains: "onesie: --retries takes a retry count of zero or more, got -1",
 		},
 		{
 			name:     "should reject a negative retry after cap",
 			args:     []string{"--max-retry-after=-5"},
 			code:     cli.ExitUsage,
-			contains: "jev: --max-retry-after must be a positive number of seconds, got -5",
+			contains: "onesie: --max-retry-after must be a positive number of seconds, got -5",
 		},
 		{
 			name:     "should reject a retry after cap that would overflow a duration",
 			args:     []string{"--max-retry-after", "18446744074"},
 			code:     cli.ExitUsage,
-			contains: "jev: --max-retry-after takes at most 86400 seconds, got 18446744074",
+			contains: "onesie: --max-retry-after takes at most 86400 seconds, got 18446744074",
 		},
 		{
 			name:     "should reject a job count of zero",
 			args:     []string{"-j", "0"},
 			code:     cli.ExitUsage,
-			contains: "jev: -j takes a positive number of records in flight, got 0",
+			contains: "onesie: -j takes a positive number of records in flight, got 0",
 		},
 		{
 			name:     "should print the warnings when validation fails",

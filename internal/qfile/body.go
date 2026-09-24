@@ -6,7 +6,7 @@ import (
 
 	"github.com/goccy/go-yaml"
 
-	"github.com/frodi-karlsson/jev-cli/internal/plan"
+	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
 func loadBody(top yaml.MapSlice) (*File, error) {
@@ -16,14 +16,14 @@ func loadBody(top yaml.MapSlice) (*File, error) {
 		// Section 17.5. A body is the wire format, and the API has no assertion, so a key here
 		// would promise a gate the request cannot carry.
 		return nil, errors.New(
-			"jev: a request body carries no 'assert'. Pass --assert on the command line")
+			"onesie: a request body carries no 'assert'. Pass --assert on the command line")
 	}
 
 	if value, found := lookup(top, "model"); found {
 		name, ok := value.(string)
 		if !ok {
 			return nil, fmt.Errorf(
-				"jev: 'model' in a request body must be a string, got %s", describe(value))
+				"onesie: 'model' in a request body must be a string, got %s", describe(value))
 		}
 
 		file.Model = name
@@ -49,7 +49,7 @@ func loadBody(top yaml.MapSlice) (*File, error) {
 
 	questions, ok := mapping(raw)
 	if !ok {
-		return nil, fmt.Errorf("jev: 'questions' in a request body must be a mapping")
+		return nil, fmt.Errorf("onesie: 'questions' in a request body must be a mapping")
 	}
 
 	for _, item := range questions {
@@ -71,19 +71,19 @@ func buildBodyQuestion(id string, value any) (plan.Question, error) {
 
 	fields, ok := mapping(value)
 	if !ok {
-		return question, fmt.Errorf("jev: question '%s' in a request body must be a mapping", id)
+		return question, fmt.Errorf("onesie: question '%s' in a request body must be a mapping", id)
 	}
 
 	kind, found := lookup(fields, "type")
 	if !found {
-		return question, fmt.Errorf("jev: question '%s' in a request body has no 'type'", id)
+		return question, fmt.Errorf("onesie: question '%s' in a request body has no 'type'", id)
 	}
 
 	if instructions, found := lookup(fields, "instructions"); found {
 		wired, err := wireValue(instructions)
 		if err != nil {
 			return question, fmt.Errorf(
-				"jev: 'instructions' in question '%s' cannot be sent: %w", id, err)
+				"onesie: 'instructions' in question '%s' cannot be sent: %w", id, err)
 		}
 
 		question.Instructions = wired
@@ -100,7 +100,7 @@ func buildBodyQuestion(id string, value any) (plan.Question, error) {
 		return buildBodyScore(question, criteria)
 	default:
 		return question, fmt.Errorf(
-			"jev: question '%s' in a request body has an unknown type '%v'", id, kind)
+			"onesie: question '%s' in a request body has an unknown type '%v'", id, kind)
 	}
 }
 
@@ -115,7 +115,7 @@ func buildBodyNoul(question plan.Question, criteria any, present bool) (plan.Que
 	items, ok := mapping(criteria)
 	if !ok {
 		return question, fmt.Errorf(
-			"jev: question '%s' is a noul and needs a criteria mapping", question.ID)
+			"onesie: question '%s' is a noul and needs a criteria mapping", question.ID)
 	}
 
 	if err := checkNoulCriteriaKeys(question.ID, items); err != nil {
@@ -151,7 +151,7 @@ func checkNoulCriteriaKeys(id string, items yaml.MapSlice) error {
 		// A noul rubric is the two keys and nothing else. Dropping the rest in silence would
 		// leave the user believing they reached the API.
 		return fmt.Errorf(
-			"jev: question '%s' in a request body has an unknown criteria key '%s'", id, name)
+			"onesie: question '%s' in a request body has an unknown criteria key '%s'", id, name)
 	}
 
 	return nil
@@ -161,7 +161,7 @@ func buildBodyChoice(question plan.Question, criteria any) (plan.Question, error
 	items, ok := mapping(criteria)
 	if !ok {
 		return question, fmt.Errorf(
-			"jev: question '%s' is a choice and needs a criteria mapping", question.ID)
+			"onesie: question '%s' is a choice and needs a criteria mapping", question.ID)
 	}
 
 	question.Shape = plan.Pick
@@ -172,7 +172,7 @@ func buildBodyChoice(question plan.Question, criteria any) (plan.Question, error
 		desc, err := wireValue(item.Value)
 		if err != nil {
 			return question, fmt.Errorf(
-				"jev: criteria '%s' in question '%s' cannot be sent: %w", name, question.ID, err)
+				"onesie: criteria '%s' in question '%s' cannot be sent: %w", name, question.ID, err)
 		}
 
 		question.Options = append(question.Options, plan.Option{
@@ -188,7 +188,7 @@ func buildBodyScore(question plan.Question, criteria any) (plan.Question, error)
 	entries, ok := criteria.([]any)
 	if !ok {
 		return question, fmt.Errorf(
-			"jev: question '%s' is a score and needs a criteria sequence", question.ID)
+			"onesie: question '%s' is a score and needs a criteria sequence", question.ID)
 	}
 
 	question.Shape = plan.Rate
@@ -197,7 +197,7 @@ func buildBodyScore(question plan.Question, criteria any) (plan.Question, error)
 		desc, err := wireValue(entry)
 		if err != nil {
 			return question, fmt.Errorf(
-				"jev: criteria %d in question '%s' cannot be sent: %w", index, question.ID, err)
+				"onesie: criteria %d in question '%s' cannot be sent: %w", index, question.ID, err)
 		}
 
 		// Labelled stays false and Label stays empty. A body's criteria is a bare array with no

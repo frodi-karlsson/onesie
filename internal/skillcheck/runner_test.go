@@ -11,19 +11,19 @@ import (
 func TestNewRunner(t *testing.T) {
 	t.Parallel()
 
-	t.Run("should default to jev on PATH when binary is empty", func(t *testing.T) {
+	t.Run("should default to onesie on PATH when binary is empty", func(t *testing.T) {
 		t.Parallel()
 
-		if got := NewRunner("").Binary; got != "jev" {
-			t.Errorf("NewRunner(\"\").Binary = %q, want jev", got)
+		if got := NewRunner("").Binary; got != "onesie" {
+			t.Errorf("NewRunner(\"\").Binary = %q, want onesie", got)
 		}
 	})
 
 	t.Run("should use the binary it is given", func(t *testing.T) {
 		t.Parallel()
 
-		if got := NewRunner("/usr/bin/jev").Binary; got != "/usr/bin/jev" {
-			t.Errorf("NewRunner(...).Binary = %q, want /usr/bin/jev", got)
+		if got := NewRunner("/usr/bin/onesie").Binary; got != "/usr/bin/onesie" {
+			t.Errorf("NewRunner(...).Binary = %q, want /usr/bin/onesie", got)
 		}
 	})
 }
@@ -63,13 +63,13 @@ func TestRunnerDryRun(t *testing.T) {
 
 		var gotArgs []string
 
-		runner := &Runner{Binary: "jev", exec: func(_ context.Context, _ string, args []string) (int, string, error) {
+		runner := &Runner{Binary: "onesie", exec: func(_ context.Context, _ string, args []string) (int, string, error) {
 			gotArgs = args
 
-			return 2, "jev: bad", nil
+			return 2, "onesie: bad", nil
 		}}
 
-		result, err := runner.DryRun(context.Background(), "jev 'is this safe' -q --state 'ls'")
+		result, err := runner.DryRun(context.Background(), "onesie 'is this safe' -q --state 'ls'")
 		if err != nil {
 			t.Fatalf("DryRun(...) error = %v", err)
 		}
@@ -79,7 +79,7 @@ func TestRunnerDryRun(t *testing.T) {
 			t.Errorf("args = %q, want %q", got, want)
 		}
 
-		if result.ExitCode != 2 || result.Stderr != "jev: bad" || result.Skipped != "" {
+		if result.ExitCode != 2 || result.Stderr != "onesie: bad" || result.Skipped != "" {
 			t.Errorf("DryRun(...) = %+v, want exit 2 with stderr and no skip", result)
 		}
 	})
@@ -87,9 +87,9 @@ func TestRunnerDryRun(t *testing.T) {
 	t.Run("should skip a command it cannot parse without running anything", func(t *testing.T) {
 		t.Parallel()
 
-		runner := &Runner{Binary: "jev", exec: neverCalled(t)}
+		runner := &Runner{Binary: "onesie", exec: neverCalled(t)}
 
-		result, err := runner.DryRun(context.Background(), "jev 'is this safe' | jq .")
+		result, err := runner.DryRun(context.Background(), "onesie 'is this safe' | jq .")
 		if err != nil {
 			t.Fatalf("DryRun(...) error = %v", err)
 		}

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/frodi-karlsson/jev-cli/internal/input"
+	"github.com/frodi-karlsson/onesie/internal/input"
 )
 
 func TestStream(t *testing.T) {
@@ -355,7 +355,7 @@ func TestStream(t *testing.T) {
 			}
 
 			// Named once. The wrap used to add a spelling of its own, so the user read
-			// jev: stdin: reading stdin: disk fell over.
+			// onesie: stdin: reading stdin: disk fell over.
 			if got := lineErr.Error(); got != "stdin: disk fell over" {
 				t.Errorf("message = %q, want %q", got, "stdin: disk fell over")
 			}

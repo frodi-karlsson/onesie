@@ -6,7 +6,7 @@ import (
 	"syscall"
 )
 
-// BrokenPipe reports whether a write failed because the consumer stopped reading. Every jev
+// BrokenPipe reports whether a write failed because the consumer stopped reading. Every onesie
 // writer treats that as a successful end rather than a failure, so it is exported for the ones
 // outside this package.
 func BrokenPipe(err error) bool {

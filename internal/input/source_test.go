@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/frodi-karlsson/jev-cli/internal/input"
+	"github.com/frodi-karlsson/onesie/internal/input"
 )
 
 func TestResolve(t *testing.T) {
@@ -138,7 +138,7 @@ func TestResolve(t *testing.T) {
 				Stdin: strings.NewReader("null"),
 			},
 			wantErr:     true,
-			wantMessage: "jev: state must be a string, object or array, got null",
+			wantMessage: "onesie: state must be a string, object or array, got null",
 		},
 		{
 			name: "should reject a boolean under json",
@@ -247,7 +247,7 @@ func TestParseMode(t *testing.T) {
 		{
 			name:    "should reject an unknown mode",
 			flag:    "yaml",
-			wantErr: "jev: -i takes text, json, jsonl, lines or request, got 'yaml'",
+			wantErr: "onesie: -i takes text, json, jsonl, lines or request, got 'yaml'",
 		},
 	}
 

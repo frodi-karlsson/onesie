@@ -11,14 +11,14 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/frodi-karlsson/jev-cli/internal/answer"
-	"github.com/frodi-karlsson/jev-cli/internal/argv"
-	"github.com/frodi-karlsson/jev-cli/internal/assert"
-	"github.com/frodi-karlsson/jev-cli/internal/engine"
-	"github.com/frodi-karlsson/jev-cli/internal/input"
-	"github.com/frodi-karlsson/jev-cli/internal/jev"
-	"github.com/frodi-karlsson/jev-cli/internal/output"
-	"github.com/frodi-karlsson/jev-cli/internal/plan"
+	"github.com/frodi-karlsson/onesie/internal/answer"
+	"github.com/frodi-karlsson/onesie/internal/argv"
+	"github.com/frodi-karlsson/onesie/internal/assert"
+	"github.com/frodi-karlsson/onesie/internal/engine"
+	"github.com/frodi-karlsson/onesie/internal/input"
+	"github.com/frodi-karlsson/onesie/internal/jev"
+	"github.com/frodi-karlsson/onesie/internal/output"
+	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
 func run(
@@ -123,13 +123,13 @@ func run(
 		}
 
 		if err := input.CheckState(resolved.State); err != nil {
-			return fmt.Errorf("jev: %w", err)
+			return fmt.Errorf("onesie: %w", err)
 		}
 	}
 
 	if requests(flags) && resolved.Source == input.SourceNone {
 		return errors.New(
-			"jev: no state given. Pipe one to stdin, or pass --state or --state-file")
+			"onesie: no state given. Pipe one to stdin, or pass --state or --state-file")
 	}
 
 	// After the state is resolved, so the body carries the state a real run would send.
@@ -142,7 +142,7 @@ func run(
 	// with every check running before any network call.
 	if merging(flags) && hasKey(resolved.State, mergeKey(flags)) {
 		return fmt.Errorf(
-			"jev: --merge would overwrite the input's '%s' key. Pass --merge-key",
+			"onesie: --merge would overwrite the input's '%s' key. Pass --merge-key",
 			mergeKey(flags))
 	}
 
@@ -224,7 +224,7 @@ func stream(
 		Source: source,
 		Evaluate: func(ctx context.Context, rec input.Record) (line, error) {
 			if rec.Err != nil {
-				// A line jev could not read is a record that never became a request, and it
+				// A line onesie could not read is a record that never became a request, and it
 				// carried no questions to the wire either.
 				stats.recordFailure(rec.Err, false, 0)
 
@@ -240,7 +240,7 @@ func stream(
 				//
 				// Built as a LineError so describe gives it kind input rather than the transport
 				// default, so --stop-on-error reaches the row that exits 2, and so the line number
-				// comes along without a jev prefix inside the JSON.
+				// comes along without a onesie prefix inside the JSON.
 				taken := &input.LineError{
 					Line: rec.Line,
 					Err: fmt.Errorf(
@@ -314,7 +314,7 @@ type line struct {
 	record output.Record
 	raw    string
 	// state is what was sent to the API, which --merge needs so a text line keeps its type and a
-	// JSON line keeps its digits. It is nil for a record jev could not read.
+	// JSON line keeps its digits. It is nil for a record onesie could not read.
 	state any
 }
 
@@ -391,7 +391,7 @@ func streamResult(result engine.Result, falseAsserts int) error {
 
 	if result.Aborted {
 		// Reported by returning it rather than by printing here. Execute already writes the error
-		// to stderr and adds the jev prefix only when it is missing, so printing here as well
+		// to stderr and adds the onesie prefix only when it is missing, so printing here as well
 		// would report the abort twice, and once with a doubled prefix.
 		return &abortError{cause: result.Cause}
 	}
@@ -575,7 +575,7 @@ func answered(
 	})
 	if err != nil {
 		// Wrapped here rather than at either caller, so the stderr line and the streaming record
-		// carry the same remedy. Every question on this path passed jev's own bounds check, so a
+		// carry the same remedy. Every question on this path passed onesie's own bounds check, so a
 		// count the server rejects says something about those bounds.
 		advised := advise(err, model, true)
 
@@ -596,7 +596,7 @@ func answered(
 			// than the transport default, and a single shot run exits 4.
 			missing := &jev.ResponseError{
 				Status:  http.StatusOK,
-				Message: fmt.Sprintf("jev: response carries no answer for '%s'", question.ID),
+				Message: fmt.Sprintf("onesie: response carries no answer for '%s'", question.ID),
 			}
 
 			return failureRecord(built, missing), result.Usage, missing
@@ -631,13 +631,13 @@ func describe(cause error) *output.Failure {
 	var bad *input.LineError
 	if errors.As(cause, &bad) {
 		// No request was sent, so there is no status. Calling it transport would blame the network
-		// for a line jev could not read.
+		// for a line onesie could not read.
 		return &output.Failure{Kind: "input", Message: cause.Error()}
 	}
 
 	var unusable *jev.ResponseError
 	if errors.As(cause, &unusable) {
-		// A 2xx whose body jev could not use is deterministic. Calling it http would name a status
+		// A 2xx whose body onesie could not use is deterministic. Calling it http would name a status
 		// the caller may retry, and calling it transport a connection blip that never happened.
 		status := unusable.Status
 

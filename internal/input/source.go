@@ -55,7 +55,7 @@ func ParseMode(name string) (Mode, error) {
 		return Request, nil
 	default:
 		return Text, fmt.Errorf(
-			"jev: -i takes text, json, jsonl, lines or request, got '%s'", name)
+			"onesie: -i takes text, json, jsonl, lines or request, got '%s'", name)
 	}
 }
 

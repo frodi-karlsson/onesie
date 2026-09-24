@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/frodi-karlsson/jev-cli/internal/plan"
+	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
 // Check validates an expression against the plan it will run over, so every path and every

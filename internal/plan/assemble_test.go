@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/frodi-karlsson/jev-cli/internal/argv"
-	"github.com/frodi-karlsson/jev-cli/internal/plan"
+	"github.com/frodi-karlsson/onesie/internal/argv"
+	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
 func TestAssemble(t *testing.T) {
@@ -700,7 +700,7 @@ func TestAssembleWithFile(t *testing.T) {
 				Events:   []argv.Event{{Name: "pick", Value: "x,y"}},
 				ReadFile: readFile,
 			},
-			wantErr: "jev: --pick cannot reshape a request body's question. " +
+			wantErr: "onesie: --pick cannot reshape a request body's question. " +
 				"A body carries its own type and criteria",
 		},
 		{
@@ -712,7 +712,7 @@ func TestAssembleWithFile(t *testing.T) {
 				Events:   []argv.Event{{Name: "desc", Value: "yes=nope"}},
 				ReadFile: readFile,
 			},
-			wantErr: "jev: --desc cannot reshape a request body's question",
+			wantErr: "onesie: --desc cannot reshape a request body's question",
 		},
 		{
 			name: "should bind a policy flag to a lone body question",

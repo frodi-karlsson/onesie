@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/frodi-karlsson/jev-cli/internal/skillgen"
+	"github.com/frodi-karlsson/onesie/internal/skillgen"
 )
 
 func TestGenerate(t *testing.T) {
@@ -17,24 +17,24 @@ func TestGenerate(t *testing.T) {
 		t.Parallel()
 
 		root := t.TempDir()
-		writeFixtureSkill(t, root, "jev-gate")
+		writeFixtureSkill(t, root, "onesie-gate")
 
 		if err := skillgen.Generate(root); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
 		for _, rel := range []string{
-			filepath.Join("skills", "jev-gate", "SKILL.md"),
-			filepath.Join(".agents", "skills", "jev-gate", "SKILL.md"),
-			filepath.Join(".cursor", "skills", "jev-gate", "SKILL.md"),
-			filepath.Join("skills", "jev-gate", "agents", "gemini.toml"),
-			filepath.Join(".agents", "skills", "jev-gate", "references", "a.md"),
-			filepath.Join(".cursor", "skills", "jev-gate", "references", "a.md"),
+			filepath.Join("skills", "onesie-gate", "SKILL.md"),
+			filepath.Join(".agents", "skills", "onesie-gate", "SKILL.md"),
+			filepath.Join(".cursor", "skills", "onesie-gate", "SKILL.md"),
+			filepath.Join("skills", "onesie-gate", "agents", "gemini.toml"),
+			filepath.Join(".agents", "skills", "onesie-gate", "references", "a.md"),
+			filepath.Join(".cursor", "skills", "onesie-gate", "references", "a.md"),
 		} {
 			requireFile(t, filepath.Join(root, rel))
 		}
 
-		gemini := readFile(t, filepath.Join(root, "skills", "jev-gate", "agents", "gemini.toml"))
+		gemini := readFile(t, filepath.Join(root, "skills", "onesie-gate", "agents", "gemini.toml"))
 		if !strings.Contains(gemini, "description = ") {
 			t.Errorf("gemini.toml = %q, want a description line", gemini)
 		}
@@ -44,22 +44,22 @@ func TestGenerate(t *testing.T) {
 		t.Parallel()
 
 		root := t.TempDir()
-		writeFixtureSkill(t, root, "jev-gate")
+		writeFixtureSkill(t, root, "onesie-gate")
 
 		if err := skillgen.Generate(root); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		source := readFile(t, filepath.Join(root, "skills", "jev-gate", "SKILL.md"))
-		agents := readFile(t, filepath.Join(root, ".agents", "skills", "jev-gate", "SKILL.md"))
-		cursor := readFile(t, filepath.Join(root, ".cursor", "skills", "jev-gate", "SKILL.md"))
+		source := readFile(t, filepath.Join(root, "skills", "onesie-gate", "SKILL.md"))
+		agents := readFile(t, filepath.Join(root, ".agents", "skills", "onesie-gate", "SKILL.md"))
+		cursor := readFile(t, filepath.Join(root, ".cursor", "skills", "onesie-gate", "SKILL.md"))
 
 		if agents != source {
-			t.Errorf(".agents/skills/jev-gate/SKILL.md is not byte identical to skills/jev-gate/SKILL.md")
+			t.Errorf(".agents/skills/onesie-gate/SKILL.md is not byte identical to skills/onesie-gate/SKILL.md")
 		}
 
 		if cursor != source {
-			t.Errorf(".cursor/skills/jev-gate/SKILL.md is not byte identical to skills/jev-gate/SKILL.md")
+			t.Errorf(".cursor/skills/onesie-gate/SKILL.md is not byte identical to skills/onesie-gate/SKILL.md")
 		}
 	})
 
@@ -67,18 +67,18 @@ func TestGenerate(t *testing.T) {
 		t.Parallel()
 
 		root := t.TempDir()
-		writeFixtureSkill(t, root, "jev-gate")
+		writeFixtureSkill(t, root, "onesie-gate")
 
 		if err := skillgen.Generate(root); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		source := readFile(t, filepath.Join(root, "skills", "jev-gate", "references", "a.md"))
-		agents := readFile(t, filepath.Join(root, ".agents", "skills", "jev-gate", "references", "a.md"))
-		cursor := readFile(t, filepath.Join(root, ".cursor", "skills", "jev-gate", "references", "a.md"))
+		source := readFile(t, filepath.Join(root, "skills", "onesie-gate", "references", "a.md"))
+		agents := readFile(t, filepath.Join(root, ".agents", "skills", "onesie-gate", "references", "a.md"))
+		cursor := readFile(t, filepath.Join(root, ".cursor", "skills", "onesie-gate", "references", "a.md"))
 
 		if agents != source || cursor != source {
-			t.Errorf("reference copy is not byte identical to skills/jev-gate/references/a.md")
+			t.Errorf("reference copy is not byte identical to skills/onesie-gate/references/a.md")
 		}
 	})
 
@@ -118,19 +118,19 @@ func TestGenerate(t *testing.T) {
 		t.Parallel()
 
 		root := t.TempDir()
-		writeFixtureSkill(t, root, "jev-gate")
+		writeFixtureSkill(t, root, "onesie-gate")
 
 		if err := skillgen.Generate(root); err != nil {
 			t.Fatalf("unexpected error on first run: %v", err)
 		}
 
 		paths := []string{
-			filepath.Join(root, "skills", "jev-gate", "SKILL.md"),
-			filepath.Join(root, ".agents", "skills", "jev-gate", "SKILL.md"),
-			filepath.Join(root, ".cursor", "skills", "jev-gate", "SKILL.md"),
-			filepath.Join(root, "skills", "jev-gate", "agents", "gemini.toml"),
-			filepath.Join(root, ".agents", "skills", "jev-gate", "references", "a.md"),
-			filepath.Join(root, ".cursor", "skills", "jev-gate", "references", "a.md"),
+			filepath.Join(root, "skills", "onesie-gate", "SKILL.md"),
+			filepath.Join(root, ".agents", "skills", "onesie-gate", "SKILL.md"),
+			filepath.Join(root, ".cursor", "skills", "onesie-gate", "SKILL.md"),
+			filepath.Join(root, "skills", "onesie-gate", "agents", "gemini.toml"),
+			filepath.Join(root, ".agents", "skills", "onesie-gate", "references", "a.md"),
+			filepath.Join(root, ".cursor", "skills", "onesie-gate", "references", "a.md"),
 		}
 
 		before := make(map[string][]byte, len(paths))
@@ -318,16 +318,16 @@ func TestGenerate(t *testing.T) {
 		t.Parallel()
 
 		root := t.TempDir()
-		writeFixtureSkill(t, root, "jev-gate")
+		writeFixtureSkill(t, root, "onesie-gate")
 
 		if err := skillgen.Generate(root); err != nil {
 			t.Fatalf("unexpected error on first run: %v", err)
 		}
 
-		path := filepath.Join(root, "skills", "jev-gate", "SKILL.md")
+		path := filepath.Join(root, "skills", "onesie-gate", "SKILL.md")
 		before := readFile(t, path)
 
-		mustWriteFile(t, filepath.Join(root, "skills", "jev-gate", "intro.md"), "This is the changed intro.")
+		mustWriteFile(t, filepath.Join(root, "skills", "onesie-gate", "intro.md"), "This is the changed intro.")
 
 		if err := skillgen.Generate(root); err != nil {
 			t.Fatalf("unexpected error on second run: %v", err)

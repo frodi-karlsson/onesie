@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/frodi-karlsson/jev-cli/internal/creds"
+	"github.com/frodi-karlsson/onesie/internal/creds"
 )
 
 func TestLoadThroughASymlink(t *testing.T) {
@@ -312,7 +312,7 @@ func TestSave(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			path := filepath.Join(t.TempDir(), "jev", "credentials.json")
+			path := filepath.Join(t.TempDir(), "onesie", "credentials.json")
 
 			warning, err := creds.NewStore().Save(path, tc.file)
 			if err != nil {
@@ -343,7 +343,7 @@ func TestSave(t *testing.T) {
 				t.Errorf("file mode = %o, want 600", info.Mode().Perm())
 			}
 
-			// The jev subdirectory is created by Save, so its mode is Save's to assert. The
+			// The onesie subdirectory is created by Save, so its mode is Save's to assert. The
 			// overwrite test below does not assert it, since MkdirAll leaves an existing
 			// directory's mode alone.
 			dir, err := os.Stat(filepath.Dir(path))
@@ -378,7 +378,7 @@ func TestSave(t *testing.T) {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 
-				path := filepath.Join(t.TempDir(), "jev", "credentials.json")
+				path := filepath.Join(t.TempDir(), "onesie", "credentials.json")
 				store := creds.NewStore()
 
 				if _, err := store.Save(path, tc.file); err != nil {
@@ -558,7 +558,7 @@ func TestSave(t *testing.T) {
 		t.Run("should write the file and warn rather than fail", func(t *testing.T) {
 			t.Parallel()
 
-			path := filepath.Join(t.TempDir(), "jev", "credentials.json")
+			path := filepath.Join(t.TempDir(), "onesie", "credentials.json")
 			chmod := func(string, os.FileMode) error {
 				return errors.New("this filesystem carries no modes")
 			}
@@ -599,7 +599,7 @@ func TestSave(t *testing.T) {
 		t.Run("should create it in the credential file's own directory", func(t *testing.T) {
 			t.Parallel()
 
-			path := filepath.Join(t.TempDir(), "jev", "credentials.json")
+			path := filepath.Join(t.TempDir(), "onesie", "credentials.json")
 
 			gotDir := ""
 			createTemp := func(dir, pattern string) (*os.File, error) {

@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/frodi-karlsson/jev-cli/internal/input"
-	"github.com/frodi-karlsson/jev-cli/internal/jev"
+	"github.com/frodi-karlsson/onesie/internal/input"
+	"github.com/frodi-karlsson/onesie/internal/jev"
 )
 
 func TestClassify(t *testing.T) {
@@ -37,7 +37,7 @@ func TestClassify(t *testing.T) {
 		},
 		{
 			name: "should report unavailable for a 200 body it could not use",
-			err:  &jev.ResponseError{Status: http.StatusOK, Message: "jev: wrong shape"},
+			err:  &jev.ResponseError{Status: http.StatusOK, Message: "onesie: wrong shape"},
 			want: ExitUnavailable,
 		},
 		{
@@ -133,7 +133,7 @@ func TestClassify(t *testing.T) {
 			want: ExitOK,
 		},
 		{
-			// The socket rather than stdout. A connection that broke under jev is a transport
+			// The socket rather than stdout. A connection that broke under onesie is a transport
 			// fault whatever errno the kernel chose for it.
 			name: "should still report transport for a connection that broke with EPIPE",
 			err:  &jev.ConnectionError{Err: syscall.EPIPE},

@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/frodi-karlsson/jev-cli/internal/cli"
+	"github.com/frodi-karlsson/onesie/internal/cli"
 )
 
 func TestFilterIntegration(t *testing.T) {
@@ -531,7 +531,7 @@ func TestStreamIntegration(t *testing.T) {
 			},
 		},
 		{
-			name: "should keep going after a record jev could not read",
+			name: "should keep going after a record onesie could not read",
 			args: []string{"does `body` convey urgency", "-i", "jsonl", "-j", "2"},
 			stdin: `{"id":1,"body":"EVERYTHING IS DOWN"}
 not json at all
@@ -745,7 +745,7 @@ func TestStatsIntegration(t *testing.T) {
 
 		// Token counts and a model name are the parts no stub can supply, since they come back
 		// from the request itself.
-		for _, want := range []string{"1 request", "1 question", " in / ", "model jev", "/attempt"} {
+		for _, want := range []string{"1 request", "1 question", " in / ", "model onesie", "/attempt"} {
 			if !strings.Contains(errOut, want) {
 				t.Errorf("stats line is missing %q: %s", want, errOut)
 			}
@@ -809,7 +809,7 @@ func TestRequestRoundTripIntegration(t *testing.T) {
 			t.Fatalf("-i request exit code = %d, stderr:\n%s", code, errOut)
 		}
 
-		// -i request forwards the API's own response rather than a jev record, so the question id
+		// -i request forwards the API's own response rather than a onesie record, so the question id
 		// is read back out of the wire shape.
 		var answers struct {
 			Answers map[string]json.RawMessage `json:"answers"`

@@ -23,10 +23,10 @@ func TestListModels(t *testing.T) {
 			name: "should print one line per model in the order the api returned them",
 			response: `{"models":[` +
 				`{"name":"jev-latest","description":"alias","release_date":"2026-08-01"},` +
-				`{"name":"jev-1.13.0","description":"current","release_date":"2026-08-01"}]}`,
+				`{"name":"onesie-1.13.0","description":"current","release_date":"2026-08-01"}]}`,
 			wantCode: ExitOK,
 			wantOut: "jev-latest  alias  2026-08-01\n" +
-				"jev-1.13.0  current  2026-08-01\n",
+				"onesie-1.13.0  current  2026-08-01\n",
 		},
 		{
 			name:     "should print nothing when the account has no models",
@@ -94,166 +94,166 @@ func TestNewRootCmdListModelsFlags(t *testing.T) {
 		{
 			name:    "should reject a positional question with --list-models",
 			args:    []string{"--list-models", "is this urgent"},
-			wantErr: "jev: --list-models asks no question. Drop the question argument",
+			wantErr: "onesie: --list-models asks no question. Drop the question argument",
 		},
 		{
 			name:    "should reject --ask with --list-models",
 			args:    []string{"--list-models", "--ask", "urgent=is this urgent"},
-			wantErr: "jev: --list-models asks no question. Drop --ask",
+			wantErr: "onesie: --list-models asks no question. Drop --ask",
 		},
 		{
 			name:    "should reject --pick with --list-models",
 			args:    []string{"--list-models", "--pick", "a,b"},
-			wantErr: "jev: --list-models asks no question. Drop --pick",
+			wantErr: "onesie: --list-models asks no question. Drop --pick",
 		},
 		{
 			name:    "should reject --fallback with --list-models",
 			args:    []string{"--list-models", "--fallback", "maybe"},
-			wantErr: "jev: --list-models asks no question. Drop --fallback",
+			wantErr: "onesie: --list-models asks no question. Drop --fallback",
 		},
 		{
 			name:    "should reject -f with --list-models before it is read",
 			args:    []string{"--list-models", "-f", "nowhere.yaml"},
-			wantErr: "jev: -f does not apply to --list-models, which asks no question",
+			wantErr: "onesie: -f does not apply to --list-models, which asks no question",
 		},
 		{
 			name:    "should reject --replace with --list-models",
 			args:    []string{"--list-models", "--replace"},
-			wantErr: "jev: --replace applies to -f, which --list-models does not accept",
+			wantErr: "onesie: --replace applies to -f, which --list-models does not accept",
 		},
 		{
 			name:    "should reject --state with --list-models",
 			args:    []string{"--list-models", "--state", "x"},
-			wantErr: "jev: --state does not apply to --list-models, which reads no state",
+			wantErr: "onesie: --state does not apply to --list-models, which reads no state",
 		},
 		{
 			name:    "should reject --state-file with --list-models",
 			args:    []string{"--list-models", "--state-file", "x"},
-			wantErr: "jev: --state-file does not apply to --list-models, which reads no state",
+			wantErr: "onesie: --state-file does not apply to --list-models, which reads no state",
 		},
 		{
 			// --input's default is text, so a rejection here can only come from Changed, not from
 			// the value differing from the default.
 			name:    "should reject --input given by its long name with --list-models",
 			args:    []string{"--list-models", "--input", "text"},
-			wantErr: "jev: -i does not apply to --list-models, which reads no input",
+			wantErr: "onesie: -i does not apply to --list-models, which reads no input",
 		},
 		{
 			// --jobs's default is 1, for the same reason as the --input case above.
 			name:    "should reject --jobs given by its long name with --list-models",
 			args:    []string{"--list-models", "--jobs", "1"},
-			wantErr: "jev: -j does not apply to --list-models, which makes one request",
+			wantErr: "onesie: -j does not apply to --list-models, which makes one request",
 		},
 		{
 			name:    "should reject --model given by its long name with --list-models",
 			args:    []string{"--list-models", "--model", "x"},
-			wantErr: "jev: -m names a model to ask, which --list-models does not do",
+			wantErr: "onesie: -m names a model to ask, which --list-models does not do",
 		},
 		{
 			name:    "should reject -i with --list-models",
 			args:    []string{"--list-models", "-i", "jsonl"},
-			wantErr: "jev: -i does not apply to --list-models, which reads no input",
+			wantErr: "onesie: -i does not apply to --list-models, which reads no input",
 		},
 		{
 			name:    "should reject -i request with --list-models by name",
 			args:    []string{"--list-models", "-i", "request"},
-			wantErr: "jev: -i does not apply to --list-models, which reads no input",
+			wantErr: "onesie: -i does not apply to --list-models, which reads no input",
 		},
 		{
 			name: "should blame --list-models rather than -i request for a shared offender",
 			args: []string{
 				"--list-models", "-i", "request", "--ask", "urgent=is this urgent",
 			},
-			wantErr: "jev: --list-models asks no question. Drop --ask",
+			wantErr: "onesie: --list-models asks no question. Drop --ask",
 		},
 		{
 			name:    "should reject -o with --list-models",
 			args:    []string{"--list-models", "-o", "json"},
-			wantErr: "jev: -o does not apply to --list-models, which writes a fixed listing",
+			wantErr: "onesie: -o does not apply to --list-models, which writes a fixed listing",
 		},
 		{
 			// Its own rule rather than the -o one, since run leaves Output empty for a bare -r.
 			name:    "should reject -r with --list-models",
 			args:    []string{"--list-models", "-r"},
-			wantErr: "jev: -r does not apply to --list-models, which writes a fixed listing",
+			wantErr: "onesie: -r does not apply to --list-models, which writes a fixed listing",
 		},
 		{
 			name:    "should reject -q with --list-models",
 			args:    []string{"--list-models", "-q"},
-			wantErr: "jev: -q suppresses output, which leaves --list-models nothing to write",
+			wantErr: "onesie: -q suppresses output, which leaves --list-models nothing to write",
 		},
 		{
 			name:    "should reject --assert with --list-models",
 			args:    []string{"--list-models", "--assert", "answer.value > 0.5"},
-			wantErr: "jev: --assert judges an answer, which --list-models does not produce",
+			wantErr: "onesie: --assert judges an answer, which --list-models does not produce",
 		},
 		{
 			name:    "should reject an unparseable --assert with --list-models",
 			args:    []string{"--list-models", "--assert", "nonsense syntax here !!"},
-			wantErr: "jev: --assert judges an answer, which --list-models does not produce",
+			wantErr: "onesie: --assert judges an answer, which --list-models does not produce",
 		},
 		{
 			name: "should reject --usage with --list-models",
 			args: []string{"--list-models", "--usage"},
-			wantErr: "jev: --usage reports the tokens a question cost, " +
+			wantErr: "onesie: --usage reports the tokens a question cost, " +
 				"which --list-models does not ask",
 		},
 		{
 			name: "should reject --merge with --list-models",
 			args: []string{"--list-models", "--merge"},
-			wantErr: "jev: --merge needs answers to fold in, " +
+			wantErr: "onesie: --merge needs answers to fold in, " +
 				"which --list-models does not produce",
 		},
 		{
 			name: "should name --merge-key when that is the merge flag given",
 			args: []string{"--list-models", "--merge-key", "out"},
-			wantErr: "jev: --merge-key needs answers to fold in, " +
+			wantErr: "onesie: --merge-key needs answers to fold in, " +
 				"which --list-models does not produce",
 		},
 		{
 			name:    "should reject -j with --list-models",
 			args:    []string{"--list-models", "-j", "4"},
-			wantErr: "jev: -j does not apply to --list-models, which makes one request",
+			wantErr: "onesie: -j does not apply to --list-models, which makes one request",
 		},
 		{
 			name:    "should reject -m with --list-models",
-			args:    []string{"--list-models", "-m", "jev-1.13.0"},
-			wantErr: "jev: -m names a model to ask, which --list-models does not do",
+			args:    []string{"--list-models", "-m", "onesie-1.13.0"},
+			wantErr: "onesie: -m names a model to ask, which --list-models does not do",
 		},
 		{
 			name: "should reject --unordered with --list-models",
 			args: []string{"--list-models", "--unordered"},
-			wantErr: "jev: --unordered applies to streaming input, " +
+			wantErr: "onesie: --unordered applies to streaming input, " +
 				"which --list-models does not read",
 		},
 		{
 			name: "should reject --stop-on-error with --list-models",
 			args: []string{"--list-models", "--stop-on-error"},
-			wantErr: "jev: --stop-on-error applies to streaming input, " +
+			wantErr: "onesie: --stop-on-error applies to streaming input, " +
 				"which --list-models does not read",
 		},
 		{
 			name: "should reject --stop-on-assert with --list-models",
 			args: []string{"--list-models", "--stop-on-assert"},
-			wantErr: "jev: --stop-on-assert applies to streaming input, " +
+			wantErr: "onesie: --stop-on-assert applies to streaming input, " +
 				"which --list-models does not read",
 		},
 		{
 			name: "should reject --skip-blank with --list-models",
 			args: []string{"--list-models", "--skip-blank"},
-			wantErr: "jev: --skip-blank applies to streaming input, " +
+			wantErr: "onesie: --skip-blank applies to streaming input, " +
 				"which --list-models does not read",
 		},
 		{
 			name: "should reject --print-request with --list-models",
 			args: []string{"--list-models", "--print-request"},
-			wantErr: "jev: --print-request and --list-models each write a different thing " +
+			wantErr: "onesie: --print-request and --list-models each write a different thing " +
 				"to stdout. Pass one",
 		},
 		{
 			name: "should reject --print-questions with --list-models",
 			args: []string{"--list-models", "--print-questions"},
-			wantErr: "jev: --print-questions and --list-models each write a different thing " +
+			wantErr: "onesie: --print-questions and --list-models each write a different thing " +
 				"to stdout. Pass one",
 		},
 	}
@@ -293,7 +293,7 @@ func TestNewRootCmdListModelsStats(t *testing.T) {
 		{
 			name: "should report one request, no questions and no tokens",
 			response: `{"models":[` +
-				`{"name":"jev-1.13.0","description":"current","release_date":"2026-08-01"}]}`,
+				`{"name":"onesie-1.13.0","description":"current","release_date":"2026-08-01"}]}`,
 			wantCode: ExitOK,
 			wantErr:  "1 request, 0 questions, 0 in / 0 out, 1 attempt, 10s/attempt,",
 		},

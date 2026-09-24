@@ -9,13 +9,13 @@ import (
 )
 
 const (
-	appName  = "jev"
+	appName  = "onesie"
 	fileName = "credentials.json"
 )
 
 // Path reports where the credential file lives, per the four rules in §16.2.
 func Path(env Env) (string, error) {
-	if dir := lookup(env, "JEV_CONFIG_DIR"); dir != "" {
+	if dir := lookup(env, "ONESIE_CONFIG_DIR"); dir != "" {
 		return filepath.Join(dir, fileName), nil
 	}
 
@@ -31,11 +31,11 @@ func Path(env Env) (string, error) {
 
 	home, err := env.Home()
 	if err != nil {
-		return "", fmt.Errorf("jev: finding the home directory for the credential file: %w", err)
+		return "", fmt.Errorf("onesie: finding the home directory for the credential file: %w", err)
 	}
 
 	if home == "" {
-		return "", errors.New("jev: cannot find a home directory for the credential file")
+		return "", errors.New("onesie: cannot find a home directory for the credential file")
 	}
 
 	return filepath.Join(home, ".config", appName, fileName), nil

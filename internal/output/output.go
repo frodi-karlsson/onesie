@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/frodi-karlsson/jev-cli/internal/answer"
-	"github.com/frodi-karlsson/jev-cli/internal/jev"
+	"github.com/frodi-karlsson/onesie/internal/answer"
+	"github.com/frodi-karlsson/onesie/internal/jev"
 )
 
 // Write encodes one record in the requested mode. The table mode is rendered at a default width,
@@ -44,7 +44,7 @@ func ParseMode(name string, tty, streaming, merge bool) (Mode, error) {
 		return JSON, nil
 	default:
 		return JSON, fmt.Errorf(
-			"jev: -o takes auto, json, values, table or raw, got '%s'", name)
+			"onesie: -o takes auto, json, values, table or raw, got '%s'", name)
 	}
 }
 

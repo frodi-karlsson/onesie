@@ -15,7 +15,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/frodi-karlsson/jev-cli/internal/jev"
+	"github.com/frodi-karlsson/onesie/internal/jev"
 )
 
 func TestPlural(t *testing.T) {
@@ -91,7 +91,7 @@ func TestCollectorConcurrent(t *testing.T) {
 						// A record that was rate limited once and then answered.
 						c.observe(jev.Attempt{Index: 0, Status: http.StatusTooManyRequests})
 						c.observe(jev.Attempt{Index: 1, Status: http.StatusOK})
-						c.record("jev-1.13.0", jev.Usage{InputTokens: 2, OutputTokens: 1}, 1)
+						c.record("onesie-1.13.0", jev.Usage{InputTokens: 2, OutputTokens: 1}, 1)
 
 						// A record the server refused outright, which is a failed attempt that
 						// caused no retry.
@@ -156,7 +156,7 @@ func TestCollectorRecordFailure(t *testing.T) {
 		},
 		{
 			name:  "should count nothing for a request the run cancelled",
-			cause: fmt.Errorf("jev: #1 POST /v1/one: %w", context.Canceled),
+			cause: fmt.Errorf("onesie: #1 POST /v1/one: %w", context.Canceled),
 		},
 	}
 
@@ -216,7 +216,7 @@ func TestTerminalStatus(t *testing.T) {
 		},
 		{
 			name: "should count an interrupt as statusless",
-			err:  fmt.Errorf("jev: #1: %w", context.Canceled), wantCounted: true,
+			err:  fmt.Errorf("onesie: #1: %w", context.Canceled), wantCounted: true,
 		},
 		{
 			// Its attempt came back 2xx and was counted as a success, so subtracting it here
@@ -250,7 +250,7 @@ func TestTerminalStatus(t *testing.T) {
 func TestNewRootCmdStats(t *testing.T) {
 	t.Parallel()
 
-	const answered = `{"model":"jev-1.13.0","answers":{"urgent":{"type":"noul","noul":0.9}},` +
+	const answered = `{"model":"onesie-1.13.0","answers":{"urgent":{"type":"noul","noul":0.9}},` +
 		`"usage":{"input_tokens":2841,"output_tokens":71}}`
 
 	tests := []struct {
@@ -270,7 +270,7 @@ func TestNewRootCmdStats(t *testing.T) {
 			handler:  func() http.HandlerFunc { return answerHandler(answered) },
 			wantCode: ExitOK,
 			wantErr: []string{
-				"1 request, 1 question, 2841 in / 71 out, model jev-1.13.0, " +
+				"1 request, 1 question, 2841 in / 71 out, model onesie-1.13.0, " +
 					"1 attempt, 10s/attempt,",
 			},
 			wantOutHas: []string{`"urgent"`},
@@ -397,7 +397,7 @@ func TestNewRootCmdStats(t *testing.T) {
 			},
 			wantCode: ExitOK,
 			wantErr: []string{
-				"8 requests, 8 questions, 22728 in / 568 out, model jev-1.13.0, 8 attempts",
+				"8 requests, 8 questions, 22728 in / 568 out, model onesie-1.13.0, 8 attempts",
 			},
 			wantOutHas: []string{`"urgent"`},
 		},
@@ -527,10 +527,10 @@ func TestNewRootCmdStatsRequestMode(t *testing.T) {
 		{
 			name:   "should take tokens from the response and questions from the request",
 			status: http.StatusOK,
-			response: `{"model":"jev-1.14.0","answers":{},` +
+			response: `{"model":"onesie-1.14.0","answers":{},` +
 				`"usage":{"input_tokens":12,"output_tokens":3}}`,
 			wantCode: ExitOK,
-			wantErr: "1 request, 2 questions, 12 in / 3 out, model jev-1.14.0, " +
+			wantErr: "1 request, 2 questions, 12 in / 3 out, model onesie-1.14.0, " +
 				"1 attempt, 10s/attempt,",
 		},
 		{
@@ -583,7 +583,7 @@ func TestNewRootCmdStatsWithoutARun(t *testing.T) {
 			name:   "should suppress the summary when the client could not be built",
 			args:   []string{"--ask", "urgent=is this urgent", "--stats"},
 			stdin:  "the server is down",
-			want:   "jev: no API key",
+			want:   "onesie: no API key",
 			absent: "0 requests",
 		},
 	}
@@ -633,7 +633,7 @@ func TestWithStats(t *testing.T) {
 			cmd.SetErr(brokenWriter{})
 
 			got := withStats(cmd, &runFlags{stats: true}, func(c *collector) error {
-				c.record("jev-1.13.0", jev.Usage{}, 1)
+				c.record("onesie-1.13.0", jev.Usage{}, 1)
 
 				return tc.run
 			})
@@ -664,20 +664,20 @@ func TestNewRootCmdPrintFlagRejections(t *testing.T) {
 		{
 			name: "should reject stats with print-request",
 			args: []string{"--ask", "urgent=is this urgent", "--print-request", "--stats"},
-			want: "jev: --stats has nothing to report with --print-request, " +
+			want: "onesie: --stats has nothing to report with --print-request, " +
 				"which makes no request",
 		},
 		{
 			name: "should reject stats with print-questions",
 			args: []string{"--ask", "urgent=is this urgent", "--print-questions", "--stats"},
-			want: "jev: --stats has nothing to report with --print-questions, " +
+			want: "onesie: --stats has nothing to report with --print-questions, " +
 				"which makes no request",
 		},
 		{
 			// The path that returns before a plan is built, so the rule has to sit above it.
 			name: "should reject stats with print-request under a request mode stream",
 			args: []string{"-i", "request", "--print-request", "--stats"},
-			want: "jev: --stats has nothing to report with --print-request, " +
+			want: "onesie: --stats has nothing to report with --print-request, " +
 				"which makes no request",
 		},
 		{
@@ -685,7 +685,7 @@ func TestNewRootCmdPrintFlagRejections(t *testing.T) {
 			args: []string{
 				"--ask", "urgent=is this urgent", "--print-request", "--print-questions",
 			},
-			want: "jev: --print-request and --print-questions each write a different thing " +
+			want: "onesie: --print-request and --print-questions each write a different thing " +
 				"to stdout. Pass one",
 		},
 		{
@@ -693,22 +693,22 @@ func TestNewRootCmdPrintFlagRejections(t *testing.T) {
 			args: []string{
 				"--ask", "urgent=is this urgent", "--print-questions", "-o", "json",
 			},
-			want: "jev: -o does not apply to --print-questions, which writes a question file",
+			want: "onesie: -o does not apply to --print-questions, which writes a question file",
 		},
 		{
 			name: "should reject an output mode with print-request",
 			args: []string{"--ask", "urgent=is this urgent", "--print-request", "-o", "json"},
-			want: "jev: -o does not apply to --print-request, which writes a request body",
+			want: "onesie: -o does not apply to --print-request, which writes a request body",
 		},
 		{
 			name: "should reject the raw shorthand with print-request",
 			args: []string{"--ask", "urgent=is this urgent", "--print-request", "-r"},
-			want: "jev: -r does not apply to --print-request, which writes a request body",
+			want: "onesie: -r does not apply to --print-request, which writes a request body",
 		},
 		{
 			name: "should reject quiet with print-questions",
 			args: []string{"--ask", "urgent=is this urgent", "--print-questions", "-q"},
-			want: "jev: -q suppresses output, which leaves --print-questions nothing to write",
+			want: "onesie: -q suppresses output, which leaves --print-questions nothing to write",
 		},
 	}
 

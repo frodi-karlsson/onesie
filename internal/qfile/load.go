@@ -11,7 +11,7 @@ import (
 	"github.com/goccy/go-yaml/ast"
 	"github.com/goccy/go-yaml/parser"
 
-	"github.com/frodi-karlsson/jev-cli/internal/plan"
+	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
 // Load reads a question file or a raw API request body. A top level questions key selects the
@@ -25,7 +25,7 @@ func Load(data []byte) (*File, error) {
 	top, ok := mapping(raw)
 	if !ok {
 		return nil, errors.New(
-			"jev: a question file is a mapping of question id to definition")
+			"onesie: a question file is a mapping of question id to definition")
 	}
 
 	if _, isBody := lookup(top, "questions"); isBody {
@@ -70,7 +70,7 @@ func DecodeOrdered(data []byte) (any, error) {
 	var raw any
 
 	if err := yaml.UnmarshalWithOptions(data, &raw, yaml.UseOrderedMap()); err != nil {
-		return nil, fmt.Errorf("jev: %w", err)
+		return nil, fmt.Errorf("onesie: %w", err)
 	}
 
 	return raw, nil
@@ -91,7 +91,7 @@ func checkSingleDocument(parsed *ast.File) error {
 
 	if documents > 1 {
 		return errors.New(
-			"jev: a question file is one document, found a second after a --- separator")
+			"onesie: a question file is one document, found a second after a --- separator")
 	}
 
 	return nil

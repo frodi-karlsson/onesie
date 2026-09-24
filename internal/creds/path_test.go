@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/frodi-karlsson/jev-cli/internal/creds"
+	"github.com/frodi-karlsson/onesie/internal/creds"
 )
 
 func TestPath(t *testing.T) {
@@ -29,21 +29,21 @@ func TestPath(t *testing.T) {
 		wantIs error
 	}{
 		{
-			name: "should prefer JEV_CONFIG_DIR",
+			name: "should prefer ONESIE_CONFIG_DIR",
 			env: map[string]string{
-				"JEV_CONFIG_DIR":  "/cfg",
-				"XDG_CONFIG_HOME": "/xdg",
+				"ONESIE_CONFIG_DIR": "/cfg",
+				"XDG_CONFIG_HOME":   "/xdg",
 			},
 			goos: "linux",
 			home: "/home/x",
 			want: []string{"/cfg", "credentials.json"},
 		},
 		{
-			// A container with no HOME makes os.UserHomeDir fail, and setting JEV_CONFIG_DIR is
+			// A container with no HOME makes os.UserHomeDir fail, and setting ONESIE_CONFIG_DIR is
 			// how a user copes with that. Resolving the home directory before the variables were
 			// consulted would break every variable rule at once on exactly those machines.
-			name:    "should not consult the home directory when JEV_CONFIG_DIR is set",
-			env:     map[string]string{"JEV_CONFIG_DIR": "/cfg"},
+			name:    "should not consult the home directory when ONESIE_CONFIG_DIR is set",
+			env:     map[string]string{"ONESIE_CONFIG_DIR": "/cfg"},
 			goos:    "linux",
 			homeErr: errNoHome,
 			want:    []string{"/cfg", "credentials.json"},
@@ -53,21 +53,21 @@ func TestPath(t *testing.T) {
 			env:     map[string]string{"XDG_CONFIG_HOME": "/xdg"},
 			goos:    "linux",
 			homeErr: errNoHome,
-			want:    []string{"/xdg", "jev", "credentials.json"},
+			want:    []string{"/xdg", "onesie", "credentials.json"},
 		},
 		{
 			name:    "should not consult the home directory when APPDATA is set on windows",
 			env:     map[string]string{"APPDATA": "/roaming"},
 			goos:    "windows",
 			homeErr: errNoHome,
-			want:    []string{"/roaming", "jev", "credentials.json"},
+			want:    []string{"/roaming", "onesie", "credentials.json"},
 		},
 		{
 			name: "should fall back to XDG_CONFIG_HOME",
 			env:  map[string]string{"XDG_CONFIG_HOME": "/xdg"},
 			goos: "linux",
 			home: "/home/x",
-			want: []string{"/xdg", "jev", "credentials.json"},
+			want: []string{"/xdg", "onesie", "credentials.json"},
 		},
 		{
 			name: "should prefer XDG_CONFIG_HOME over APPDATA on windows",
@@ -77,34 +77,34 @@ func TestPath(t *testing.T) {
 			},
 			goos: "windows",
 			home: `C:\Users\x`,
-			want: []string{"/xdg", "jev", "credentials.json"},
+			want: []string{"/xdg", "onesie", "credentials.json"},
 		},
 		{
 			name: "should use APPDATA on windows",
 			env:  map[string]string{"APPDATA": `C:\Users\x\AppData\Roaming`},
 			goos: "windows",
 			home: `C:\Users\x`,
-			want: []string{`C:\Users\x\AppData\Roaming`, "jev", "credentials.json"},
+			want: []string{`C:\Users\x\AppData\Roaming`, "onesie", "credentials.json"},
 		},
 		{
 			name: "should ignore APPDATA off windows",
 			env:  map[string]string{"APPDATA": "/roaming"},
 			goos: "linux",
 			home: "/home/x",
-			want: []string{"/home/x", ".config", "jev", "credentials.json"},
+			want: []string{"/home/x", ".config", "onesie", "credentials.json"},
 		},
 		{
 			name: "should fall back to the home directory",
 			goos: "linux",
 			home: "/home/x",
-			want: []string{"/home/x", ".config", "jev", "credentials.json"},
+			want: []string{"/home/x", ".config", "onesie", "credentials.json"},
 		},
 		{
 			name: "should ignore an empty variable",
-			env:  map[string]string{"JEV_CONFIG_DIR": "", "XDG_CONFIG_HOME": ""},
+			env:  map[string]string{"ONESIE_CONFIG_DIR": "", "XDG_CONFIG_HOME": ""},
 			goos: "linux",
 			home: "/home/x",
-			want: []string{"/home/x", ".config", "jev", "credentials.json"},
+			want: []string{"/home/x", ".config", "onesie", "credentials.json"},
 		},
 		{
 			name:    "should fail when the home lookup fails",
@@ -148,8 +148,8 @@ func TestPath(t *testing.T) {
 
 				// Every user facing error in this repo opens with the prefix, and a consumer
 				// filtering stderr should not have to know which package produced a line.
-				if !strings.HasPrefix(err.Error(), "jev: ") {
-					t.Errorf("Path error = %v, want it to start with the jev prefix", err)
+				if !strings.HasPrefix(err.Error(), "onesie: ") {
+					t.Errorf("Path error = %v, want it to start with the onesie prefix", err)
 				}
 
 				if tc.wantIs != nil && !errors.Is(err, tc.wantIs) {

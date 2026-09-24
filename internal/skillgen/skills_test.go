@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/frodi-karlsson/jev-cli/internal/skillgen"
+	"github.com/frodi-karlsson/onesie/internal/skillgen"
 )
 
 func TestSkills(t *testing.T) {

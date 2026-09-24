@@ -1,4 +1,4 @@
-// Command skilleval dry runs every jev command an agent wrote during the last claude plugin eval
+// Command skilleval dry runs every onesie command an agent wrote during the last claude plugin eval
 // run. Pass an aggregate-result.json to grade another run.
 package main
 
@@ -12,11 +12,11 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/frodi-karlsson/jev-cli/internal/skillcheck"
-	"github.com/frodi-karlsson/jev-cli/internal/skilleval"
+	"github.com/frodi-karlsson/onesie/internal/skillcheck"
+	"github.com/frodi-karlsson/onesie/internal/skilleval"
 )
 
-const quietAssertNote = "jev: the -q with --assert count is a separate tally, not part of the eval score. " +
+const quietAssertNote = "onesie: the -q with --assert count is a separate tally, not part of the eval score. " +
 	"It checks every extracted command, so a broken form the agent only quotes as a warning is counted too."
 
 func main() {
@@ -53,7 +53,7 @@ func (a *app) run(ctx context.Context, args []string, out io.Writer) error {
 		return err
 	}
 
-	_, err = fmt.Fprintf(out, "jev: dry ran the commands in %s\n%s\n", resultPath, quietAssertNote)
+	_, err = fmt.Fprintf(out, "onesie: dry ran the commands in %s\n%s\n", resultPath, quietAssertNote)
 	if err != nil {
 		return err
 	}
@@ -78,7 +78,7 @@ func (a *app) resultFile(args []string) (string, error) {
 	}
 
 	if len(runs) == 0 {
-		return "", errors.New("jev: no eval result under evals/results, run make skills-eval first")
+		return "", errors.New("onesie: no eval result under evals/results, run make skills-eval first")
 	}
 
 	// The directory names are ISO timestamps, so the last one in lexical order is the newest run.
@@ -93,7 +93,7 @@ func printCase(out io.Writer, c skilleval.CaseReport) error {
 	fmt.Fprintf(&b, "\n%s\n", c.Name)
 
 	for _, arm := range c.Arms {
-		fmt.Fprintf(&b, "  %-8s %d runs, %d jev commands, %d clean, %d failed, %d skipped, %d use -q with --assert",
+		fmt.Fprintf(&b, "  %-8s %d runs, %d onesie commands, %d clean, %d failed, %d skipped, %d use -q with --assert",
 			arm.Arm, arm.Runs, arm.Commands, arm.Clean, len(arm.Failed), len(arm.Skipped), len(arm.QuietWithAssert))
 
 		if arm.MissingTraces > 0 {

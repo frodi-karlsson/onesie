@@ -77,8 +77,8 @@ func TestParse(t *testing.T) {
 		},
 		{
 			name:  "should parse a bare model path",
-			input: `model == "jev-1.13.0"`,
-			want:  `(== model "jev-1.13.0")`,
+			input: `model == "onesie-1.13.0"`,
+			want:  `(== model "onesie-1.13.0")`,
 		},
 		{
 			name:  "should parse a boolean literal operand",

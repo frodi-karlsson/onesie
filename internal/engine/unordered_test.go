@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/frodi-karlsson/jev-cli/internal/engine"
-	"github.com/frodi-karlsson/jev-cli/internal/input"
+	"github.com/frodi-karlsson/onesie/internal/engine"
+	"github.com/frodi-karlsson/onesie/internal/input"
 )
 
 func TestRunUnordered(t *testing.T) {

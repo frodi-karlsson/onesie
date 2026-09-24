@@ -21,7 +21,7 @@ var nameShape = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
 func Load(path string) (Skill, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return Skill{}, fmt.Errorf("jev: %w", err)
+		return Skill{}, fmt.Errorf("onesie: %w", err)
 	}
 
 	var s Skill
@@ -32,11 +32,11 @@ func Load(path string) (Skill, error) {
 	decoder.DisallowUnknownFields()
 
 	if err := decoder.Decode(&s); err != nil {
-		return Skill{}, fmt.Errorf("jev: %s: %w", path, err)
+		return Skill{}, fmt.Errorf("onesie: %s: %w", path, err)
 	}
 
 	if decoder.More() {
-		return Skill{}, fmt.Errorf("jev: %s: trailing content after the skill object", path)
+		return Skill{}, fmt.Errorf("onesie: %s: trailing content after the skill object", path)
 	}
 
 	if err := Validate(path, s); err != nil {
@@ -280,5 +280,5 @@ func (v validator) noControlChars(context, s string) error {
 }
 
 func (v validator) errorf(format string, args ...any) error {
-	return fmt.Errorf("jev: %s: "+format, append([]any{v.path}, args...)...)
+	return fmt.Errorf("onesie: %s: "+format, append([]any{v.path}, args...)...)
 }

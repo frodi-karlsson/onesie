@@ -1,8 +1,8 @@
 package cli
 
 import (
-	"github.com/frodi-karlsson/jev-cli/internal/jev"
-	"github.com/frodi-karlsson/jev-cli/internal/plan"
+	"github.com/frodi-karlsson/onesie/internal/jev"
+	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
 func wireAll(questions []plan.Question) jev.Questions {

@@ -1,11 +1,11 @@
-# jev-cli
+# onesie
 
-`jev` is the command line interface for TypeSafe Jev.
+`onesie` is the command line interface for TypeSafe Jev.
 
 ## Install
 
 ```sh
-go install github.com/frodi-karlsson/jev-cli/cmd/jev@latest
+go install github.com/frodi-karlsson/onesie/cmd/onesie@latest
 ```
 
 Or build from a checkout:
@@ -14,22 +14,22 @@ Or build from a checkout:
 make build
 ```
 
-The binary lands in `bin/jev`.
+The binary lands in `bin/onesie`.
 
 ## Usage
 
-`jev` reads state on stdin and writes typed answers on stdout. The exit status is usable in a
+`onesie` reads state on stdin and writes typed answers on stdout. The exit status is usable in a
 conditional, so it drops into a shell script the way `grep` does.
 
 ```sh
 export TYPESAFE_API_KEY=...
 
 # a probability, printed bare
-echo 'EVERYTHING IS DOWN, CALL ME NOW' | jev 'does this convey urgency' -r
+echo 'EVERYTHING IS DOWN, CALL ME NOW' | onesie 'does this convey urgency' -r
 # 0.99
 
 # a choice between named options, with rubrics
-jev 'how safe is it to run this command' -r \
+onesie 'how safe is it to run this command' -r \
     --pick safe,verify,refuse \
     --desc safe='read only or trivially reversible' \
     --desc verify='writes, network calls or state changes' \
@@ -39,21 +39,21 @@ jev 'how safe is it to run this command' -r \
 
 # a rubric, scored and normalised
 echo 'this is the fourth time I have written' \
-  | jev 'how frustrated is the customer' --rate calm,annoyed,furious -o json
+  | onesie 'how frustrated is the customer' --rate calm,annoyed,furious -o json
 
 # several questions in one request
-echo "$ticket" | jev --ask urgent='does this convey urgency' \
+echo "$ticket" | onesie --ask urgent='does this convey urgency' \
                      --ask refund='is the customer asking for money back' \
                      -o values
 # {"urgent":0.99,"refund":0.98}
 
 # the exit code carries the answer, so this reads like grep
-if echo "$patch" | jev 'does this contain a credential' -q --threshold 0.9 ; then
+if echo "$patch" | onesie 'does this contain a credential' -q --threshold 0.9 ; then
   echo 'possible leak'
 fi
 
 # one record per line, four at a time, answers folded into each record
-jev 'does `body` convey urgency' -i jsonl -j 4 --merge < tickets.jsonl \
+onesie 'does `body` convey urgency' -i jsonl -j 4 --merge < tickets.jsonl \
   | jq -c 'select(.answers.answer.value > 0.8)'
 ```
 
@@ -70,20 +70,20 @@ the exit code. It reads the same field names `-o json` prints.
 
 ```sh
 # a gate over two questions at once. The record still prints
-jev --ask destructive='Does this command destroy data?' \
+onesie --ask destructive='Does this command destroy data?' \
     --ask creds='Does this command read or send credentials?' \
     --assert 'destructive.value < 0.5 and creds.value < 0.5' \
     --state "$cmd" && eval "$cmd"
 
 # quiet, for a shell condition
-jev -f review.yaml -q --assert 'severity.norm < 0.5 or severity.confidence < 0.6' < diff.patch \
+onesie -f review.yaml -q --assert 'severity.norm < 0.5 or severity.confidence < 0.6' < diff.patch \
   || echo 'needs review'
 
 # a probability rather than the winner
-jev 'Which team?' --pick billing,technical,human --assert 'answer.p.human < 0.25' < ticket.txt
+onesie 'Which team?' --pick billing,technical,human --assert 'answer.p.human < 0.25' < ticket.txt
 
 # per record in a stream, then show the failures
-jev -f triage.yaml -i jsonl -j 8 --assert 'urgent.value < 0.9' < tickets.jsonl \
+onesie -f triage.yaml -i jsonl -j 8 --assert 'urgent.value < 0.9' < tickets.jsonl \
   | jq -c 'select(.assert == false)'
 ```
 
@@ -95,8 +95,8 @@ file may carry a top level `assert:` key which is combined the same way and writ
 Every path and type is checked against the questions before any request, so a typo costs no tokens:
 
 ```sh
-jev --ask urgent='is this urgent' --assert 'urgnet.value < 0.5'
-# jev: --assert: unknown question 'urgnet'. Questions: urgent
+onesie --ask urgent='is this urgent' --assert 'urgnet.value < 0.5'
+# onesie: --assert: unknown question 'urgnet'. Questions: urgent
 ```
 
 ### Dry runs and freezing
@@ -108,17 +108,17 @@ any pipeline as a dry run switch.
 
 ```sh
 # see the request body a command would send
-echo "$ticket" | jev --ask urgent='does this convey urgency' --print-request
+echo "$ticket" | onesie --ask urgent='does this convey urgency' --print-request
 
 # freeze a command line into a question file, then reload it
-jev --ask urgent='does this convey urgency' \
+onesie --ask urgent='does this convey urgency' \
     --ask team='who owns this' --pick billing,platform \
     --print-questions > questions.yaml
-echo "$ticket" | jev -f questions.yaml -o values
+echo "$ticket" | onesie -f questions.yaml -o values
 
 # freeze a whole stream, then replay it later
-jev -i jsonl --ask urgent='does this convey urgency' --print-request < tickets.jsonl > frozen.jsonl
-jev -i request < frozen.jsonl > answers.jsonl
+onesie -i jsonl --ask urgent='does this convey urgency' --print-request < tickets.jsonl > frozen.jsonl
+onesie -i request < frozen.jsonl > answers.jsonl
 ```
 
 `-i request` reads complete API request bodies and writes raw response bodies, one per line. It does
@@ -130,11 +130,11 @@ and `--print-questions` warns when it drops one.
 
 ```sh
 # a summary on stderr, so stdout stays clean for the pipeline
-echo "$ticket" | jev --ask urgent='is this urgent' --stats -o json > answers.json
-# 1 request, 1 question, 312 in / 20 out, model jev-1.13.0, 1 attempt, 10s/attempt, 662ms
+echo "$ticket" | onesie --ask urgent='is this urgent' --stats -o json > answers.json
+# 1 request, 1 question, 312 in / 20 out, model onesie-1.13.0, 1 attempt, 10s/attempt, 662ms
 
 # what the account can ask
-jev --list-models
+onesie --list-models
 ```
 
 Retries are bounded by `--retries`, each attempt by `--timeout`, and a server's `Retry-After` is
@@ -143,23 +143,23 @@ you whether rate limiting or transport ate the time.
 
 ### Credentials
 
-A key can live in a file jev owns rather than in the environment of every shell that calls it.
+A key can live in a file onesie owns rather than in the environment of every shell that calls it.
 
 ```sh
 # read the key from a prompt, or from stdin in a script
-jev auth set
-pass show typesafe | jev auth set
+onesie auth set
+pass show typesafe | onesie auth set
 
 # which source is in use, without printing the key
-jev auth status
-# source: file /home/you/.config/jev/credentials.json
+onesie auth status
+# source: file /home/you/.config/onesie/credentials.json
 
 # check the key against the API, which costs no tokens
-jev auth test
-# source: file /home/you/.config/jev/credentials.json
+onesie auth test
+# source: file /home/you/.config/onesie/credentials.json
 # models: 2
 
-jev auth clear
+onesie auth clear
 ```
 
 The key is taken from `--api-key`, then `TYPESAFE_API_KEY`, then the file. A source found later is
@@ -167,12 +167,12 @@ never used when an earlier one is set, even if the earlier key is rejected, so a
 the key you chose for it. The file is one source taken whole: its optional `base_url` applies exactly
 when its key does.
 
-The file lives at `$JEV_CONFIG_DIR/credentials.json`, else `$XDG_CONFIG_HOME/jev/credentials.json`,
-else `%APPDATA%\jev\credentials.json` on Windows, else `~/.config/jev/credentials.json`. It is
-written atomically at mode `600` in a directory at mode `700`, and **jev refuses to read one any
+The file lives at `$ONESIE_CONFIG_DIR/credentials.json`, else `$XDG_CONFIG_HOME/onesie/credentials.json`,
+else `%APPDATA%\onesie\credentials.json` on Windows, else `~/.config/onesie/credentials.json`. It is
+written atomically at mode `600` in a directory at mode `700`, and **onesie refuses to read one any
 other user can reach**, exiting 3 with the path and the mode. A readable key is a leaked key.
 
-`jev auth set` reads only the first line of stdin, since `pass show` and its siblings print the
+`onesie auth set` reads only the first line of stdin, since `pass show` and its siblings print the
 secret first and metadata after it. No subcommand ever prints the key.
 
 ### Exit codes
@@ -188,7 +188,7 @@ secret first and metadata after it. No subcommand ever prints the key.
 | 6 | a stream finished with one or more failed records |
 | 130 | interrupted |
 
-A consumer that stops reading, as `head` does, is not an error. `jev … | head -1` exits 0 and prints
+A consumer that stops reading, as `head` does, is not an error. `onesie … | head -1` exits 0 and prints
 nothing to stderr, in every mode. A missing API key exits 2 rather than 3, since it is caught before
 any network call alongside every other check. Exit 3 is for a key that exists and was refused.
 
@@ -196,14 +196,14 @@ any network call alongside every other check. Exit 3 is for a key that exists an
 
 | Flag | Variable | Default |
 |------|----------|---------|
-| `--api-key` | `TYPESAFE_API_KEY` | required, or `jev auth set` |
+| `--api-key` | `TYPESAFE_API_KEY` | required, or `onesie auth set` |
 | `--base-url` | `TYPESAFE_BASE_URL` | `https://api.typesafe.ai` |
 | `-m, --model` | `TYPESAFE_DEFAULT_MODEL` | `jev-latest` |
 
-Prefer `jev auth set` or the environment variable over `--api-key`, since argv is visible in `ps`
+Prefer `onesie auth set` or the environment variable over `--api-key`, since argv is visible in `ps`
 and in shell history.
 
-Run `jev --help` for the full flag list and `jev -V` for the built in API limits.
+Run `onesie --help` for the full flag list and `onesie -V` for the built in API limits.
 
 ## Development
 
@@ -234,7 +234,7 @@ make test-integration
 ## Layout
 
 ```
-cmd/jev/          thin main: signal handling, exit codes, ldflags targets
+cmd/onesie/          thin main: signal handling, exit codes, ldflags targets
 internal/cli/     the cobra command tree, unexported and testable in process
 internal/argv/    records the group local flags in the order they arrive
 internal/plan/    folds a recorded command line into a validated invocation
@@ -245,7 +245,7 @@ internal/jev/     the API client, ported from the JavaScript SDK
 internal/answer/  normalizes an answer and applies the question's policy
 internal/output/  encodes a normalized record in each output mode
 internal/creds/   resolves, reads and writes the credential file
-internal/limits/  the API limits jev enforces locally
+internal/limits/  the API limits onesie enforces locally
 ```
 
 `internal/` keeps everything unexported until there is a reason to publish an
@@ -271,7 +271,7 @@ git tag v0.1.0 && git push origin v0.1.0
 ```
 
 The cask is currently inert. `homebrew_casks[0].skip_upload: true` in
-`.goreleaser.yml` means the cask is written to `dist/homebrew/Casks/jev.rb` and
+`.goreleaser.yml` means the cask is written to `dist/homebrew/Casks/onesie.rb` and
 never pushed. The `HOMEBREW_TAP_TOKEN` secret is already set, with write access
 to `frodi-karlsson/homebrew-tap`, because the workflow's own `GITHUB_TOKEN`
 cannot write to another repository. To go live, set `skip_upload: false`.

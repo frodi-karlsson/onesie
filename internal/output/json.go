@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"io"
 
-	"github.com/frodi-karlsson/jev-cli/internal/answer"
+	"github.com/frodi-karlsson/onesie/internal/answer"
 )
 
 // Answer is an alias so the encoders read cleanly without qualifying every use.

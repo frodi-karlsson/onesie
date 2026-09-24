@@ -4,13 +4,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/frodi-karlsson/jev-cli/internal/qfile"
+	"github.com/frodi-karlsson/onesie/internal/qfile"
 )
 
 func TestDecodeOrdered(t *testing.T) {
 	t.Parallel()
 
-	const separated = "jev: a question file is one document, " +
+	const separated = "onesie: a question file is one document, " +
 		"found a second after a --- separator"
 
 	tests := []struct {
@@ -61,7 +61,7 @@ func TestDecodeOrdered(t *testing.T) {
 			doc:     "a: q1\n---\nb: q2\n---\nc: q3\n",
 			wantErr: separated,
 		},
-		{name: "should reject malformed yaml", doc: "a:\n  - b\n c: broken\n", wantErr: "jev: "},
+		{name: "should reject malformed yaml", doc: "a:\n  - b\n c: broken\n", wantErr: "onesie: "},
 	}
 
 	for _, tc := range tests {

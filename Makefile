@@ -1,5 +1,5 @@
-BINARY  := jev
-PKG     := ./cmd/jev
+BINARY  := onesie
+PKG     := ./cmd/onesie
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 COMMIT  ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo none)
 DATE    ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
@@ -10,7 +10,7 @@ LDFLAGS := -s -w \
 
 .PHONY: help build run install test test-race cover bench lint lint-fix fmt tidy vuln check tools clean skills skills-check skills-eval
 
-build: ## Build the jev binary into bin/
+build: ## Build the onesie binary into bin/
 	@mkdir -p bin
 	go build -trimpath -ldflags '$(LDFLAGS)' -o bin/$(BINARY) $(PKG)
 
@@ -18,7 +18,7 @@ run: ## Build and run the binary, for example make run ARGS="version"
 	@$(MAKE) --no-print-directory build
 	@./bin/$(BINARY) $(ARGS)
 
-install: ## Install jev to $(GOPATH)/bin
+install: ## Install onesie to $(GOPATH)/bin
 	go install -trimpath -ldflags '$(LDFLAGS)' $(PKG)
 
 test: ## Run unit tests

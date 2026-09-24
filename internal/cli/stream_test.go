@@ -13,14 +13,14 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/frodi-karlsson/jev-cli/internal/cli"
-	"github.com/frodi-karlsson/jev-cli/internal/jev"
+	"github.com/frodi-karlsson/onesie/internal/cli"
+	"github.com/frodi-karlsson/onesie/internal/jev"
 )
 
 func TestStreaming(t *testing.T) {
 	t.Parallel()
 
-	const answered = `{"model":"jev-1.13.0","answers":{"answer":{"type":"noul","noul":0.9}}}`
+	const answered = `{"model":"onesie-1.13.0","answers":{"answer":{"type":"noul","noul":0.9}}}`
 
 	tests := []struct {
 		name      string
@@ -81,7 +81,7 @@ func TestStreaming(t *testing.T) {
 			name:  "should report an answer shape mismatch as a response failure",
 			args:  []string{"is this urgent", "-i", "lines"},
 			stdin: "first\n",
-			response: `{"model":"jev-1.13.0","answers":{"answer":{"type":"choice",` +
+			response: `{"model":"onesie-1.13.0","answers":{"answer":{"type":"choice",` +
 				`"choice":"a","confidence":0.5,"probabilities":{"a":1}}}}`,
 			wantCode:  cli.ExitRecords,
 			wantLines: 1,
@@ -91,7 +91,7 @@ func TestStreaming(t *testing.T) {
 			name:      "should report a missing answer as a response failure",
 			args:      []string{"is this urgent", "-i", "lines"},
 			stdin:     "first\n",
-			response:  `{"model":"jev-1.13.0","answers":{"other":{"type":"noul","noul":0.5}}}`,
+			response:  `{"model":"onesie-1.13.0","answers":{"other":{"type":"noul","noul":0.5}}}`,
 			wantCode:  cli.ExitRecords,
 			wantLines: 1,
 			contains:  []string{`"kind":"response"`, `"status":200`},
@@ -244,7 +244,7 @@ func TestMergeAutoOutput(t *testing.T) {
 
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			if _, err := w.Write([]byte(
-				`{"model":"jev-1.13.0","answers":{"answer":{"type":"noul","noul":0.9}}}`,
+				`{"model":"onesie-1.13.0","answers":{"answer":{"type":"noul","noul":0.9}}}`,
 			)); err != nil {
 				t.Errorf("writing stub response: %v", err)
 			}
@@ -333,7 +333,7 @@ func TestSingleRecordMerge(t *testing.T) {
 				calls.Add(1)
 
 				if _, err := w.Write([]byte(
-					`{"model":"jev-1.13.0","answers":{"answer":{"type":"noul","noul":0.9}}}`,
+					`{"model":"onesie-1.13.0","answers":{"answer":{"type":"noul","noul":0.9}}}`,
 				)); err != nil {
 					t.Errorf("writing stub response: %v", err)
 				}
@@ -378,7 +378,7 @@ func TestSingleRecordMerge(t *testing.T) {
 func TestStreamingWire(t *testing.T) {
 	t.Parallel()
 
-	const answered = `{"model":"jev-1.13.0","answers":{"answer":{"type":"noul","noul":0.9}}}`
+	const answered = `{"model":"onesie-1.13.0","answers":{"answer":{"type":"noul","noul":0.9}}}`
 
 	const record = `{"ticket_id":12345678901234567890,"zebra":1,"alpha":2}`
 

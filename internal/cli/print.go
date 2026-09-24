@@ -7,12 +7,12 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/frodi-karlsson/jev-cli/internal/engine"
-	"github.com/frodi-karlsson/jev-cli/internal/input"
-	"github.com/frodi-karlsson/jev-cli/internal/jev"
-	"github.com/frodi-karlsson/jev-cli/internal/output"
-	"github.com/frodi-karlsson/jev-cli/internal/plan"
-	"github.com/frodi-karlsson/jev-cli/internal/qfile"
+	"github.com/frodi-karlsson/onesie/internal/engine"
+	"github.com/frodi-karlsson/onesie/internal/input"
+	"github.com/frodi-karlsson/onesie/internal/jev"
+	"github.com/frodi-karlsson/onesie/internal/output"
+	"github.com/frodi-karlsson/onesie/internal/plan"
+	"github.com/frodi-karlsson/onesie/internal/qfile"
 )
 
 func printQuestions(

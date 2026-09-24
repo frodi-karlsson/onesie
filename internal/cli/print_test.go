@@ -16,8 +16,8 @@ import (
 	"syscall"
 	"testing"
 
-	"github.com/frodi-karlsson/jev-cli/internal/jev"
-	"github.com/frodi-karlsson/jev-cli/internal/qfile"
+	"github.com/frodi-karlsson/onesie/internal/jev"
+	"github.com/frodi-karlsson/onesie/internal/qfile"
 )
 
 func TestNewRootCmdPrintQuestions(t *testing.T) {
@@ -88,7 +88,7 @@ func TestNewRootCmdPrintQuestions(t *testing.T) {
 			},
 			wantCode: ExitUsage,
 			stderr: []string{
-				"jev: --state does not apply to --print-questions, which reads no state",
+				"onesie: --state does not apply to --print-questions, which reads no state",
 			},
 		},
 		{
@@ -99,7 +99,7 @@ func TestNewRootCmdPrintQuestions(t *testing.T) {
 			},
 			wantCode: ExitUsage,
 			stderr: []string{
-				"jev: --state-file does not apply to --print-questions, which reads no state",
+				"onesie: --state-file does not apply to --print-questions, which reads no state",
 			},
 		},
 		{
@@ -109,7 +109,7 @@ func TestNewRootCmdPrintQuestions(t *testing.T) {
 			},
 			wantCode: ExitUsage,
 			stderr: []string{
-				"jev: -i does not apply to --print-questions, which reads no input",
+				"onesie: -i does not apply to --print-questions, which reads no input",
 			},
 		},
 		{
@@ -119,7 +119,7 @@ func TestNewRootCmdPrintQuestions(t *testing.T) {
 			},
 			wantCode: ExitUsage,
 			stderr: []string{
-				"jev: --usage reports the tokens a question cost, " +
+				"onesie: --usage reports the tokens a question cost, " +
 					"which --print-questions does not ask",
 			},
 		},
@@ -130,17 +130,17 @@ func TestNewRootCmdPrintQuestions(t *testing.T) {
 			},
 			wantCode: ExitUsage,
 			stderr: []string{
-				"jev: -j does not apply to --print-questions, which makes no request",
+				"onesie: -j does not apply to --print-questions, which makes no request",
 			},
 		},
 		{
 			name: "should reject -m with --print-questions",
 			args: []string{
-				"--ask", "urgent=is this urgent", "-m", "jev-9", "--print-questions",
+				"--ask", "urgent=is this urgent", "-m", "onesie-9", "--print-questions",
 			},
 			wantCode: ExitUsage,
 			stderr: []string{
-				"jev: -m names a model to ask, which --print-questions does not do",
+				"onesie: -m names a model to ask, which --print-questions does not do",
 			},
 		},
 		{
@@ -153,7 +153,7 @@ func TestNewRootCmdPrintQuestions(t *testing.T) {
 			name:     "should report the missing key when the run does make a request",
 			args:     []string{"--ask", "urgent=is this urgent", "--state", "the server is down"},
 			wantCode: ExitUsage,
-			stderr:   []string{"jev: no API key"},
+			stderr:   []string{"onesie: no API key"},
 		},
 	}
 
@@ -202,7 +202,7 @@ func TestNewRootCmdPrintQuestions(t *testing.T) {
 	t.Run("should warn that a body's model and state are not carried", func(t *testing.T) {
 		t.Parallel()
 
-		const body = `{"state":{"zebra":1},"model":"jev-1.13.0","questions":` +
+		const body = `{"state":{"zebra":1},"model":"onesie-1.13.0","questions":` +
 			`{"urgent":{"type":"noul","instructions":"is this urgent"}}}`
 
 		path := filepath.Join(t.TempDir(), "body.json")
@@ -216,7 +216,7 @@ func TestNewRootCmdPrintQuestions(t *testing.T) {
 		}
 
 		for _, want := range []string{
-			"warning: --print-questions does not carry the body's model 'jev-1.13.0'. " +
+			"warning: --print-questions does not carry the body's model 'onesie-1.13.0'. " +
 				"Pass -m when you reload",
 			"warning: --print-questions does not carry the body's state. " +
 				"Pass --state when you reload",
@@ -399,7 +399,7 @@ func TestPrintRequest(t *testing.T) {
 			stdin:    "the server is down",
 			wantCode: ExitUsage,
 			stderr: []string{
-				"jev: --usage reports the tokens a question cost, " +
+				"onesie: --usage reports the tokens a question cost, " +
 					"which --print-request does not ask",
 			},
 		},
@@ -410,7 +410,7 @@ func TestPrintRequest(t *testing.T) {
 			args:     []string{"--ask", "urgent=is this urgent"},
 			stdin:    "the server is down",
 			wantCode: ExitUsage,
-			stderr:   []string{"jev: no API key"},
+			stderr:   []string{"onesie: no API key"},
 		},
 	}
 
@@ -482,7 +482,7 @@ func TestPrintRequest(t *testing.T) {
 	t.Run("should carry the state a request body brought with it", func(t *testing.T) {
 		t.Parallel()
 
-		const body = `{"state":{"zebra":1,"alpha":2},"model":"jev-1.13.0",` +
+		const body = `{"state":{"zebra":1,"alpha":2},"model":"onesie-1.13.0",` +
 			`"questions":{"urgent":{"type":"noul","instructions":"is this urgent"}}}`
 
 		path := filepath.Join(t.TempDir(), "body.json")
@@ -511,7 +511,7 @@ func TestPrintRequest(t *testing.T) {
 		}{
 			{
 				name:  "should print the trimmed model an untrimmed -m sends",
-				args:  []string{"--ask", "urgent=is this urgent", "-m", " jev-1.13.0 "},
+				args:  []string{"--ask", "urgent=is this urgent", "-m", " onesie-1.13.0 "},
 				stdin: "the server is down",
 			},
 			{
@@ -521,7 +521,7 @@ func TestPrintRequest(t *testing.T) {
 			},
 			{
 				name: "should print the trimmed model an untrimmed request body sends",
-				file: `{"state":"the server is down","model":" jev-1.13.0 ","questions":` +
+				file: `{"state":"the server is down","model":" onesie-1.13.0 ","questions":` +
 					`{"urgent":{"type":"noul","instructions":"is this urgent"}}}`,
 			},
 			{
@@ -570,7 +570,7 @@ func TestPrintRequest(t *testing.T) {
 	t.Run("should reject --merge with --print-request", func(t *testing.T) {
 		t.Parallel()
 
-		const message = "jev: --merge needs answers to fold in, " +
+		const message = "onesie: --merge needs answers to fold in, " +
 			"which --print-request does not produce"
 
 		tests := []struct {
@@ -596,7 +596,7 @@ func TestPrintRequest(t *testing.T) {
 				name: "should reject merge-key on a streamed body",
 				args: []string{
 					"--ask", "urgent=is this urgent", "-i", "jsonl", "--print-request",
-					"--merge-key", "jev",
+					"--merge-key", "onesie",
 				},
 				stdin: `{"answers":1}` + "\n",
 			},
@@ -653,7 +653,7 @@ func TestPrintRequest(t *testing.T) {
 					"is this urgent", "--print-request", "--state", "x",
 					"--assert", "answer.value > 0.99",
 				},
-				want: "jev: --assert judges an answer, which --print-request does not produce",
+				want: "onesie: --assert judges an answer, which --print-request does not produce",
 			},
 			{
 				name: "should reject an unparseable --assert with --print-request",
@@ -661,18 +661,18 @@ func TestPrintRequest(t *testing.T) {
 					"is this urgent", "--print-request", "--state", "x",
 					"--assert", "nonsense syntax here !!",
 				},
-				want: "jev: --assert judges an answer, which --print-request does not produce",
+				want: "onesie: --assert judges an answer, which --print-request does not produce",
 			},
 			{
 				name: "should name the file's key when the file carried the assertion",
 				args: []string{"-f", path, "--print-request", "--state", "x"},
-				want: "jev: 'assert' judges an answer, which --print-request does not produce",
+				want: "onesie: 'assert' judges an answer, which --print-request does not produce",
 			},
 			{
 				name:  "should reject --stop-on-assert with --print-request in a stream",
 				args:  []string{"is this urgent", "--print-request", "-i", "lines", "--stop-on-assert"},
 				stdin: "a\nb\n",
-				want: "jev: --stop-on-assert ends a stream on a false assertion, " +
+				want: "onesie: --stop-on-assert ends a stream on a false assertion, " +
 					"which --print-request does not produce",
 			},
 		}
@@ -917,14 +917,14 @@ func runClosed(t *testing.T, args []string, stdin, baseURL string) (string, int)
 
 	var errOut bytes.Buffer
 
-	// JEV_CONFIG_DIR points at an empty directory for the same reason runOfflineStdin does it: the
+	// ONESIE_CONFIG_DIR points at an empty directory for the same reason runOfflineStdin does it: the
 	// cases with no base URL build no client, and a credential file in the developer's home would
 	// have them build one.
 	opts := []RootOption{
 		WithStdin(strings.NewReader(stdin)),
 		WithStdinTTY(false),
 		WithStdoutTTY(false),
-		WithLookupEnv(lookupFrom(map[string]string{"JEV_CONFIG_DIR": t.TempDir()})),
+		WithLookupEnv(lookupFrom(map[string]string{"ONESIE_CONFIG_DIR": t.TempDir()})),
 	}
 
 	if baseURL != "" {
@@ -957,7 +957,7 @@ func TestWritten(t *testing.T) {
 		err     error
 		wantErr bool
 	}{
-		{name: "should pass a write failure of jev's own on", err: errors.New("no space"), wantErr: true},
+		{name: "should pass a write failure of onesie's own on", err: errors.New("no space"), wantErr: true},
 		{
 			name: "should swallow a consumer that stopped reading",
 			err:  &fs.PathError{Op: "write", Path: "/dev/stdout", Err: syscall.EPIPE},
@@ -996,7 +996,7 @@ func runOfflineStdin(t *testing.T, args []string, stdin string) (string, string,
 	// No client factory, so the real factory runs against a machine with no key. A case that exits
 	// ok here reached no network at all, which is the whole claim the two print flags make.
 	//
-	// JEV_CONFIG_DIR points at an empty directory rather than nothing, because section 16.1's third
+	// ONESIE_CONFIG_DIR points at an empty directory rather than nothing, because section 16.1's third
 	// source would otherwise resolve against the developer's own home and read a real key into
 	// these tests.
 	root := NewRootCmd(
@@ -1004,7 +1004,7 @@ func runOfflineStdin(t *testing.T, args []string, stdin string) (string, string,
 		WithStdin(strings.NewReader(stdin)),
 		WithStdinTTY(false),
 		WithStdoutTTY(false),
-		WithLookupEnv(lookupFrom(map[string]string{"JEV_CONFIG_DIR": t.TempDir()})),
+		WithLookupEnv(lookupFrom(map[string]string{"ONESIE_CONFIG_DIR": t.TempDir()})),
 	)
 
 	root.SetOut(&out)

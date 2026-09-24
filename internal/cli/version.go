@@ -6,7 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/frodi-karlsson/jev-cli/internal/limits"
+	"github.com/frodi-karlsson/onesie/internal/limits"
 )
 
 func newVersionCmd(info BuildInfo) *cobra.Command {

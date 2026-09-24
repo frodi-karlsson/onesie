@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/frodi-karlsson/jev-cli/internal/jev"
+	"github.com/frodi-karlsson/onesie/internal/jev"
 )
 
 const (
@@ -19,7 +19,7 @@ const (
 func liveClient(t *testing.T, opts ...jev.Option) *jev.Client {
 	t.Helper()
 
-	base := []jev.Option{jev.WithAPIKey(apiKey(t)), jev.WithUserAgent("jev-cli-integration")}
+	base := []jev.Option{jev.WithAPIKey(apiKey(t)), jev.WithUserAgent("onesie-integration")}
 
 	client, err := jev.New(append(base, opts...)...)
 	if err != nil {
@@ -295,7 +295,7 @@ func TestLiveErrors(t *testing.T) {
 
 		client, err := jev.New(
 			jev.WithAPIKey("sk-definitely-not-a-real-key"),
-			jev.WithUserAgent("jev-cli-integration"),
+			jev.WithUserAgent("onesie-integration"),
 		)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -327,7 +327,7 @@ func TestLiveErrors(t *testing.T) {
 
 		_, err := client.SystemOne(liveContext(t, 30*time.Second), jev.Request{
 			State:     "x",
-			Model:     "jev-does-not-exist",
+			Model:     "onesie-does-not-exist",
 			Questions: jev.Questions{{ID: "q", Question: jev.Noul{Instructions: "Is this a test?"}}},
 		})
 

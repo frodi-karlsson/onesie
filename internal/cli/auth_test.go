@@ -18,8 +18,8 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/frodi-karlsson/jev-cli/internal/creds"
-	"github.com/frodi-karlsson/jev-cli/internal/jev"
+	"github.com/frodi-karlsson/onesie/internal/creds"
+	"github.com/frodi-karlsson/onesie/internal/jev"
 )
 
 func TestAuthStatus(t *testing.T) {
@@ -210,21 +210,21 @@ func TestAuthSet(t *testing.T) {
 		{
 			name:       "should reject an empty stdin",
 			stdin:      "",
-			wantErr:    "jev: auth set: the key is empty",
+			wantErr:    "onesie: auth set: the key is empty",
 			wantNoFile: true,
 			wantCode:   ExitUsage,
 		},
 		{
 			name:       "should reject a whitespace only key",
 			stdin:      "   \n",
-			wantErr:    "jev: auth set: the key is empty",
+			wantErr:    "onesie: auth set: the key is empty",
 			wantNoFile: true,
 			wantCode:   ExitUsage,
 		},
 		{
 			name:  "should reject a metadata line after the secret",
 			stdin: "SECRET-STDIN\nlogin: someone\n",
-			wantErr: "jev: auth set: stdin carries more than one line. " +
+			wantErr: "onesie: auth set: stdin carries more than one line. " +
 				"The key is the first line",
 			wantNoFile: true,
 			wantCode:   ExitUsage,
@@ -344,14 +344,14 @@ func TestAuthSet(t *testing.T) {
 				return
 			}
 
-			if !strings.Contains(errOut, "jev: writing "+path) {
+			if !strings.Contains(errOut, "onesie: writing "+path) {
 				t.Errorf("stderr = %q, want it to name the path being written", errOut)
 			}
 
-			// Section 11 quotes the warning without the jev prefix, which the word warning already
+			// Section 11 quotes the warning without the onesie prefix, which the word warning already
 			// stands in for. Compared whole, so a second prefix in front of it fails here.
 			if tc.chmodFails {
-				want := "jev: writing " + path + "\n" +
+				want := "onesie: writing " + path + "\n" +
 					"warning: could not set mode 600 on " + path +
 					". The key is not protected by the filesystem\n"
 				if errOut != want {
@@ -388,14 +388,14 @@ func TestFirstLine(t *testing.T) {
 		{
 			name:    "should report the read failure for one line over the cap",
 			stdin:   strings.Repeat("A", overCap),
-			wantErr: "jev: reading the key from stdin: bufio.Scanner: token too long",
+			wantErr: "onesie: reading the key from stdin: bufio.Scanner: token too long",
 		},
 		{
 			// The tail past the cap is blank, so nothing here is a second line. Before the read
 			// failure was reported this case was rejected as one.
 			name:    "should report the read failure when blank lines follow the long one",
 			stdin:   strings.Repeat("A", overCap) + "\n\n   \n",
-			wantErr: "jev: reading the key from stdin: bufio.Scanner: token too long",
+			wantErr: "onesie: reading the key from stdin: bufio.Scanner: token too long",
 		},
 	}
 
@@ -434,7 +434,7 @@ func TestAuthTest(t *testing.T) {
 
 	const listing = `{"models":[` +
 		`{"name":"jev-latest","description":"alias","release_date":"2026-08-01"},` +
-		`{"name":"jev-1.13.0","description":"current","release_date":"2026-08-01"}]}`
+		`{"name":"onesie-1.13.0","description":"current","release_date":"2026-08-01"}]}`
 
 	tests := []struct {
 		name      string
@@ -452,7 +452,7 @@ func TestAuthTest(t *testing.T) {
 		{
 			// The message is jev.New's. auth test carries no copy of it, so the two cannot drift.
 			name:     "should exit 2 when no source holds a key",
-			wantErr:  "jev: no API key. Pass --api-key or set " + jev.EnvAPIKey,
+			wantErr:  "onesie: no API key. Pass --api-key or set " + jev.EnvAPIKey,
 			wantCode: ExitUsage,
 		},
 		{
@@ -659,65 +659,65 @@ func TestNewAuthCmd(t *testing.T) {
 		{
 			name:     "should reject an unknown subcommand",
 			args:     []string{"auth", "nonsense"},
-			wantErr:  `jev: unknown command "nonsense" for "jev auth"`,
+			wantErr:  `onesie: unknown command "nonsense" for "onesie auth"`,
 			wantCode: ExitUsage,
 		},
 		{
 			name: "should reject a question given to auth set",
 			args: []string{"auth", "set", "is this urgent"},
-			wantErr: "jev: auth set takes no question or state. " +
+			wantErr: "onesie: auth set takes no question or state. " +
 				"It reads the key from a prompt or stdin",
 			wantCode: ExitUsage,
 		},
 		{
 			name: "should reject a question given to auth status",
 			args: []string{"auth", "status", "is this urgent"},
-			wantErr: "jev: auth status takes no question or state. " +
+			wantErr: "onesie: auth status takes no question or state. " +
 				"It reports which source holds the key",
 			wantCode: ExitUsage,
 		},
 		{
 			name: "should reject a question given to auth test",
 			args: []string{"auth", "test", "is this urgent"},
-			wantErr: "jev: auth test takes no question or state. " +
+			wantErr: "onesie: auth test takes no question or state. " +
 				"It calls the models endpoint with the resolved key",
 			wantCode: ExitUsage,
 		},
 		{
 			name: "should reject a question given to auth clear",
 			args: []string{"auth", "clear", "is this urgent"},
-			wantErr: "jev: auth clear takes no question or state. " +
+			wantErr: "onesie: auth clear takes no question or state. " +
 				"It deletes the credential file",
 			wantCode: ExitUsage,
 		},
 		{
 			name:     "should reject a root question flag on a subcommand",
 			args:     []string{"auth", "set", "--pick", "a,b"},
-			wantErr:  "jev: unknown flag: --pick",
+			wantErr:  "onesie: unknown flag: --pick",
 			wantCode: ExitUsage,
 		},
 		{
 			name:     "should reject a root question flag placed before the subcommand",
 			args:     []string{"--pick", "a,b", "auth", "set"},
-			wantErr:  "jev: unknown flag: --pick",
+			wantErr:  "onesie: unknown flag: --pick",
 			wantCode: ExitUsage,
 		},
 		{
 			name:     "should reject an output flag on a subcommand",
 			args:     []string{"auth", "status", "-o", "json"},
-			wantErr:  "jev: unknown shorthand flag: 'o' in -o",
+			wantErr:  "onesie: unknown shorthand flag: 'o' in -o",
 			wantCode: ExitUsage,
 		},
 		{
 			name:     "should reject a state flag on a subcommand",
 			args:     []string{"auth", "clear", "--state", "x"},
-			wantErr:  "jev: unknown flag: --state",
+			wantErr:  "onesie: unknown flag: --state",
 			wantCode: ExitUsage,
 		},
 		{
 			name:     "should keep --base-url off the subcommands that store nothing",
 			args:     []string{"auth", "status", "--base-url", "https://proxy.example"},
-			wantErr:  "jev: unknown flag: --base-url",
+			wantErr:  "onesie: unknown flag: --base-url",
 			wantCode: ExitUsage,
 		},
 	}
@@ -880,13 +880,13 @@ func TestCredentialPath(t *testing.T) {
 		nested []string
 	}{
 		{
-			name:     "should resolve the credential file from JEV_CONFIG_DIR",
-			variable: "JEV_CONFIG_DIR",
+			name:     "should resolve the credential file from ONESIE_CONFIG_DIR",
+			variable: "ONESIE_CONFIG_DIR",
 		},
 		{
 			name:     "should resolve the credential file from XDG_CONFIG_HOME",
 			variable: "XDG_CONFIG_HOME",
-			nested:   []string{"jev"},
+			nested:   []string{"onesie"},
 		},
 	}
 
@@ -1047,7 +1047,7 @@ func TestNewRootCmdFileDrivenClient(t *testing.T) {
 			name:     "should report no key when the file is absent",
 			args:     []string{"is this urgent", "-r", "--base-url", "WANTED"},
 			wantCode: ExitUsage,
-			wantErr:  "jev: no API key",
+			wantErr:  "onesie: no API key",
 		},
 	}
 
@@ -1065,7 +1065,7 @@ func TestNewRootCmdFileDrivenClient(t *testing.T) {
 			urls := map[string]string{"WANTED": wanted.URL, "UNWANTED": unwanted.URL}
 
 			env := map[string]string{
-				"JEV_CONFIG_DIR": credentialDir(
+				"ONESIE_CONFIG_DIR": credentialDir(
 					t, credentialContent(t, tc.fileKey, urls[tc.fileBase]), tc.fileMode),
 			}
 
@@ -1149,7 +1149,7 @@ func TestNewRootCmdDryRunWithACredentialFile(t *testing.T) {
 			dir := credentialDir(t, `{"api_key":"SECRET-FILE"}`, 0o644)
 
 			out, errOut, code := runCredentialFile(t, tc.args, tc.stdin,
-				map[string]string{"JEV_CONFIG_DIR": dir})
+				map[string]string{"ONESIE_CONFIG_DIR": dir})
 
 			assertNoSecret(t, out, errOut)
 
@@ -1178,7 +1178,7 @@ func runAuth(t *testing.T, args []string, opts ...RootOption) (string, string, i
 		WithStdinTTY(false),
 		WithStdoutTTY(false),
 		WithClientFactory(func(context.Context, ...jev.Option) (*jev.Client, error) {
-			return nil, errors.New("jev: no client should be built on this path")
+			return nil, errors.New("onesie: no client should be built on this path")
 		}),
 	}, opts...)...)
 
@@ -1202,7 +1202,7 @@ func runCredentialFile(
 	var out, errOut bytes.Buffer
 
 	// Neither WithClientFactory nor WithCredentialPath, so the production resolver and the
-	// production factory both run. The injected lookup carrying JEV_CONFIG_DIR is the only thing
+	// production factory both run. The injected lookup carrying ONESIE_CONFIG_DIR is the only thing
 	// standing between the resolver and the developer's own credential file.
 	root := NewRootCmd(
 		BuildInfo{Version: "1.2.3"},
@@ -1237,7 +1237,7 @@ func recordingServer(t *testing.T, status int) (*httptest.Server, func() []strin
 
 		w.Header().Set("Content-Type", "application/json")
 
-		body := `{"model":"jev-1.13.0","answers":{"answer":{"type":"noul","noul":0.5}}}`
+		body := `{"model":"onesie-1.13.0","answers":{"answer":{"type":"noul","noul":0.5}}}`
 		if status != 0 {
 			w.WriteHeader(status)
 
@@ -1304,7 +1304,7 @@ func credentialFixture(t *testing.T, content string, mode os.FileMode) string {
 	return filepath.Join(credentialDir(t, content, mode), "credentials.json")
 }
 
-// credentialDir returns the directory JEV_CONFIG_DIR names, holding the file when there is content
+// credentialDir returns the directory ONESIE_CONFIG_DIR names, holding the file when there is content
 // for one, so a case can exercise the production path resolver rather than stand in for it.
 func credentialDir(t *testing.T, content string, mode os.FileMode) string {
 	t.Helper()

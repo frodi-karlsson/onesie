@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/frodi-karlsson/jev-cli/internal/limits"
+	"github.com/frodi-karlsson/onesie/internal/limits"
 )
 
 const (
@@ -280,7 +280,7 @@ type requestConfig struct {
 }
 
 // ValidateBaseURL rejects anything that is not an absolute http or https URL. It is exported so
-// jev auth set rejects a typo before storing it, rather than a second validator disagreeing.
+// onesie auth set rejects a typo before storing it, rather than a second validator disagreeing.
 func ValidateBaseURL(raw string) error {
 	parsed, err := url.Parse(raw)
 	if err != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {

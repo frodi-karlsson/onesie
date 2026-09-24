@@ -76,7 +76,7 @@ func Skills(root string) ([]Found, error) {
 			return nil, nil
 		}
 
-		return nil, fmt.Errorf("jev: %w", err)
+		return nil, fmt.Errorf("onesie: %w", err)
 	}
 
 	var found []Found
@@ -93,7 +93,7 @@ func Skills(root string) ([]Found, error) {
 				continue
 			}
 
-			return nil, fmt.Errorf("jev: %w", err)
+			return nil, fmt.Errorf("onesie: %w", err)
 		}
 
 		skill, err := Load(path)
@@ -164,7 +164,7 @@ func readFragment(skillDir, name string) (string, error) {
 
 	data, err := os.ReadFile(filepath.Join(skillDir, name))
 	if err != nil {
-		return "", fmt.Errorf("jev: %w", err)
+		return "", fmt.Errorf("onesie: %w", err)
 	}
 
 	return string(data), nil
@@ -176,7 +176,7 @@ func referenceCopies(root, skillDir, name string, references []string) ([]output
 	for _, ref := range references {
 		data, err := os.ReadFile(filepath.Join(skillDir, ref))
 		if err != nil {
-			return nil, fmt.Errorf("jev: %w", err)
+			return nil, fmt.Errorf("onesie: %w", err)
 		}
 
 		outputs = append(outputs, mirrorOutputs(root, name, ref, data)...)
@@ -202,15 +202,15 @@ func writeIfChanged(path string, content []byte) error {
 	case err == nil && bytes.Equal(existing, content):
 		return nil
 	case err != nil && !errors.Is(err, fs.ErrNotExist):
-		return fmt.Errorf("jev: %w", err)
+		return fmt.Errorf("onesie: %w", err)
 	}
 
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return fmt.Errorf("jev: %w", err)
+		return fmt.Errorf("onesie: %w", err)
 	}
 
 	if err := os.WriteFile(path, content, 0o644); err != nil {
-		return fmt.Errorf("jev: %w", err)
+		return fmt.Errorf("onesie: %w", err)
 	}
 
 	return nil
@@ -223,7 +223,7 @@ func pruneMirror(mirrorRoot string, keep []string) error {
 			return nil
 		}
 
-		return fmt.Errorf("jev: %w", err)
+		return fmt.Errorf("onesie: %w", err)
 	}
 
 	keepSet := make(map[string]bool, len(keep))
@@ -239,7 +239,7 @@ func pruneMirror(mirrorRoot string, keep []string) error {
 		// mirrorRoot is always .agents/skills or .cursor/skills, so this can never reach outside a
 		// mirror directory.
 		if err := os.RemoveAll(filepath.Join(mirrorRoot, entry.Name())); err != nil {
-			return fmt.Errorf("jev: %w", err)
+			return fmt.Errorf("onesie: %w", err)
 		}
 	}
 

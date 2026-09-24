@@ -4,9 +4,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/frodi-karlsson/jev-cli/internal/answer"
-	"github.com/frodi-karlsson/jev-cli/internal/jev"
-	"github.com/frodi-karlsson/jev-cli/internal/output"
+	"github.com/frodi-karlsson/onesie/internal/answer"
+	"github.com/frodi-karlsson/onesie/internal/jev"
+	"github.com/frodi-karlsson/onesie/internal/output"
 )
 
 func TestWidth(t *testing.T) {
@@ -84,30 +84,30 @@ func TestWriteTable(t *testing.T) {
 			name:    "should put the model in the header",
 			columns: 80,
 			rec: output.Record{
-				Model: "jev-1.13.0",
+				Model: "onesie-1.13.0",
 				Answers: []output.Named{
 					{ID: "urgent", Answer: &answer.Answer{Value: 0.92}},
 				},
 			},
-			contains: []string{"model jev-1.13.0", "urgent", "0.9200"},
+			contains: []string{"model onesie-1.13.0", "urgent", "0.9200"},
 		},
 		{
 			name:    "should print a false assertion beside the model in the header",
 			columns: 80,
 			rec: output.Record{
-				Model: "jev-1.13.0",
+				Model: "onesie-1.13.0",
 				Answers: []output.Named{
 					{ID: "urgent", Answer: &answer.Answer{Value: 0.92}},
 				},
 				AssertFailed: true,
 			},
-			contains: []string{"model jev-1.13.0\nassert false\n"},
+			contains: []string{"model onesie-1.13.0\nassert false\n"},
 		},
 		{
 			name:    "should print no assert line when the assertion held",
 			columns: 80,
 			rec: output.Record{
-				Model: "jev-1.13.0",
+				Model: "onesie-1.13.0",
 				Answers: []output.Named{
 					{ID: "urgent", Answer: &answer.Answer{Value: 0.92}},
 				},
@@ -130,7 +130,7 @@ func TestWriteTable(t *testing.T) {
 			name:    "should add usage to the header when present",
 			columns: 80,
 			rec: output.Record{
-				Model: "jev-1.13.0",
+				Model: "onesie-1.13.0",
 				Usage: &jev.Usage{InputTokens: 2841, OutputTokens: 71},
 				Answers: []output.Named{
 					{ID: "urgent", Answer: &answer.Answer{Value: 0.92}},
@@ -142,7 +142,7 @@ func TestWriteTable(t *testing.T) {
 			name:    "should draw a bar per option",
 			columns: 80,
 			rec: output.Record{
-				Model: "jev-1.13.0",
+				Model: "onesie-1.13.0",
 				Answers: []output.Named{
 					{ID: "team", Answer: &answer.Answer{
 						Value:      "technical",
@@ -271,7 +271,7 @@ func TestWriteTable(t *testing.T) {
 		{
 			name: "should print the decision beside the probability for a decided yes/no answer",
 			rec: output.Record{
-				Model: "jev-1.13.0",
+				Model: "onesie-1.13.0",
 				Answers: []output.Named{{ID: "urgent", Answer: &answer.Answer{
 					Value: 0.92, Decided: true, Decision: true,
 				}}},
@@ -282,7 +282,7 @@ func TestWriteTable(t *testing.T) {
 		{
 			name: "should print the bare probability for an undecided yes/no answer",
 			rec: output.Record{
-				Model:   "jev-1.13.0",
+				Model:   "onesie-1.13.0",
 				Answers: []output.Named{{ID: "urgent", Answer: &answer.Answer{Value: 0.92}}},
 			},
 			columns:  80,
@@ -291,7 +291,7 @@ func TestWriteTable(t *testing.T) {
 		{
 			name: "should leave a decided pick answer unchanged",
 			rec: output.Record{
-				Model: "jev-1.13.0",
+				Model: "onesie-1.13.0",
 				Answers: []output.Named{{ID: "team", Answer: &answer.Answer{
 					Value: "billing", Decided: true, Decision: "human",
 					P: &answer.Probabilities{

@@ -9,9 +9,9 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/frodi-karlsson/jev-cli/internal/answer"
-	"github.com/frodi-karlsson/jev-cli/internal/jev"
-	"github.com/frodi-karlsson/jev-cli/internal/plan"
+	"github.com/frodi-karlsson/onesie/internal/answer"
+	"github.com/frodi-karlsson/onesie/internal/jev"
+	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
 func TestNormalize(t *testing.T) {
@@ -273,7 +273,7 @@ func TestNormalize(t *testing.T) {
 				name:     "should reject a choice answer to a yes/no question",
 				question: plan.Question{ID: "urgent", Shape: plan.Noul},
 				raw:      &jev.ChoiceAnswer{Choice: "x", Confidence: 0.5},
-				wantErr:  "jev: question 'urgent' expects a noul answer, got choice",
+				wantErr:  "onesie: question 'urgent' expects a noul answer, got choice",
 			},
 			{
 				name: "should reject a noul answer to a pick question",
@@ -283,7 +283,7 @@ func TestNormalize(t *testing.T) {
 					Options: []plan.Option{{Name: "billing"}, {Name: "technical"}},
 				},
 				raw:     &jev.NoulAnswer{Noul: 0.4},
-				wantErr: "jev: question 'team' expects a choice answer, got noul",
+				wantErr: "onesie: question 'team' expects a choice answer, got noul",
 			},
 			{
 				name: "should reject a choice answer to a rate question",
@@ -293,7 +293,7 @@ func TestNormalize(t *testing.T) {
 					Levels: []plan.Level{{Label: "low"}, {Label: "high"}},
 				},
 				raw:     &jev.ChoiceAnswer{Choice: "low", Confidence: 0.5},
-				wantErr: "jev: question 'severity' expects a score answer, got choice",
+				wantErr: "onesie: question 'severity' expects a score answer, got choice",
 			},
 		}
 
@@ -311,7 +311,7 @@ func TestNormalize(t *testing.T) {
 				}
 
 				// A shape the question did not ask for is deterministic, so it is a 200 whose body
-				// jev could not use. Left untyped it took the transport kind and exit 5, which tells
+				// onesie could not use. Left untyped it took the transport kind and exit 5, which tells
 				// a pipeline to retry something that will never change.
 				var unusable *jev.ResponseError
 				if !errors.As(err, &unusable) {

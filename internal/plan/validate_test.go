@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/frodi-karlsson/jev-cli/internal/argv"
-	"github.com/frodi-karlsson/jev-cli/internal/plan"
+	"github.com/frodi-karlsson/onesie/internal/argv"
+	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
 func TestValidate(t *testing.T) {
@@ -27,13 +27,13 @@ func TestValidate(t *testing.T) {
 	}{
 		{
 			name:    "should reject an empty invocation",
-			wantErr: "jev: no question given. Pass a question, --ask, or -f",
+			wantErr: "onesie: no question given. Pass a question, --ask, or -f",
 		},
 		{
 			name:       "should reject a positional combined with ask",
 			positional: "is this urgent",
 			events:     []argv.Event{{Name: "ask", Value: "a=first"}},
-			wantErr:    "jev: a positional question cannot be combined with --ask or -f",
+			wantErr:    "onesie: a positional question cannot be combined with --ask or -f",
 		},
 		{
 			name:       "should reject a positional combined with a file question",
@@ -41,22 +41,22 @@ func TestValidate(t *testing.T) {
 			file: []plan.Question{
 				{ID: "urgent", Shape: plan.Noul, Instructions: "is this urgent", Origin: plan.OriginFile},
 			},
-			wantErr: "jev: a positional question cannot be combined with --ask or -f",
+			wantErr: "onesie: a positional question cannot be combined with --ask or -f",
 		},
 		{
 			name:    "should reject a reserved id",
 			events:  []argv.Event{{Name: "ask", Value: "usage=first"}},
-			wantErr: "jev: question id 'usage' is reserved",
+			wantErr: "onesie: question id 'usage' is reserved",
 		},
 		{
 			name:    "should reject the positional id used explicitly",
 			events:  []argv.Event{{Name: "ask", Value: "answer=first"}},
-			wantErr: "jev: question id 'answer' is reserved",
+			wantErr: "onesie: question id 'answer' is reserved",
 		},
 		{
 			name:    "should reject an id beginning with two underscores",
 			events:  []argv.Event{{Name: "ask", Value: "__private=first"}},
-			wantErr: "jev: question id '__private' is reserved",
+			wantErr: "onesie: question id '__private' is reserved",
 		},
 		{
 			name: "should reject a single option pick",
@@ -64,7 +64,7 @@ func TestValidate(t *testing.T) {
 				{Name: "ask", Value: "a=first"},
 				{Name: "pick", Value: "safe"},
 			},
-			wantErr: "jev: --pick needs at least two options in question 'a', got 1: safe",
+			wantErr: "onesie: --pick needs at least two options in question 'a', got 1: safe",
 		},
 		{
 			name: "should reject a single level rate",
@@ -72,7 +72,7 @@ func TestValidate(t *testing.T) {
 				{Name: "ask", Value: "a=first"},
 				{Name: "rate", Value: "calm"},
 			},
-			wantErr: "jev: --rate needs at least two levels in question 'a', got 1: calm",
+			wantErr: "onesie: --rate needs at least two levels in question 'a', got 1: calm",
 		},
 		{
 			name: "should reject a duplicate option",
@@ -80,7 +80,7 @@ func TestValidate(t *testing.T) {
 				{Name: "ask", Value: "team=first"},
 				{Name: "pick", Value: "billing,technical,billing"},
 			},
-			wantErr: "jev: --pick option 'billing' is listed twice in question 'team'",
+			wantErr: "onesie: --pick option 'billing' is listed twice in question 'team'",
 		},
 		{
 			name: "should reject a duplicate level",
@@ -88,7 +88,7 @@ func TestValidate(t *testing.T) {
 				{Name: "ask", Value: "severity=first"},
 				{Name: "rate", Value: "low,high,high"},
 			},
-			wantErr: "jev: --rate label 'high' is listed twice in question 'severity'",
+			wantErr: "onesie: --rate label 'high' is listed twice in question 'severity'",
 		},
 		{
 			name: "should reject pick and rate together",
@@ -97,7 +97,7 @@ func TestValidate(t *testing.T) {
 				{Name: "pick", Value: "x,y"},
 				{Name: "rate", Value: "p,q"},
 			},
-			wantErr: "jev: --pick and --rate are mutually exclusive",
+			wantErr: "onesie: --pick and --rate are mutually exclusive",
 		},
 		{
 			name: "should reject a partly described rubric",
@@ -106,7 +106,7 @@ func TestValidate(t *testing.T) {
 				{Name: "rate", Value: "minor,major,critical"},
 				{Name: "desc", Value: "minor=small"},
 			},
-			wantErr: "jev: --rate levels must all be described or all bare in question 'severity'. " +
+			wantErr: "onesie: --rate levels must all be described or all bare in question 'severity'. " +
 				"Described minor but not major, critical",
 		},
 		{
@@ -116,7 +116,7 @@ func TestValidate(t *testing.T) {
 				{Name: "pick", Value: "billing,technical"},
 				{Name: "desc", Value: "bilingl=typo"},
 			},
-			wantErr: "jev: --desc names an unknown key 'bilingl' in question 'team'. --pick has: billing, technical",
+			wantErr: "onesie: --desc names an unknown key 'bilingl' in question 'team'. --pick has: billing, technical",
 		},
 		{
 			name: "should reject a desc other than yes or no on a yes/no question",
@@ -124,7 +124,7 @@ func TestValidate(t *testing.T) {
 				{Name: "ask", Value: "urgent=first"},
 				{Name: "desc", Value: "maybe=unclear"},
 			},
-			wantErr: "jev: --desc on a yes/no question takes 'yes' or 'no', got 'maybe'",
+			wantErr: "onesie: --desc on a yes/no question takes 'yes' or 'no', got 'maybe'",
 		},
 		{
 			name: "should reject min-confidence on a yes/no question",
@@ -133,7 +133,7 @@ func TestValidate(t *testing.T) {
 				{Name: "min-confidence", Value: "0.7"},
 				{Name: "fallback", Value: "true"},
 			},
-			wantErr: "jev: --min-confidence needs a confidence value. 'urgent' is a yes/no question",
+			wantErr: "onesie: --min-confidence needs a confidence value. 'urgent' is a yes/no question",
 		},
 		{
 			name: "should reject threshold on a pick question",
@@ -142,7 +142,7 @@ func TestValidate(t *testing.T) {
 				{Name: "pick", Value: "x,y"},
 				{Name: "threshold", Value: "0.5"},
 			},
-			wantErr: "jev: --threshold cuts a yes/no probability. 'team' has options",
+			wantErr: "onesie: --threshold cuts a yes/no probability. 'team' has options",
 		},
 		{
 			name: "should reject threshold on a rate question",
@@ -151,7 +151,7 @@ func TestValidate(t *testing.T) {
 				{Name: "rate", Value: "low,high"},
 				{Name: "threshold", Value: "0.5"},
 			},
-			wantErr: "jev: --threshold cuts a yes/no probability. 'severity' has levels",
+			wantErr: "onesie: --threshold cuts a yes/no probability. 'severity' has levels",
 		},
 		{
 			name: "should reject min-confidence with no fallback",
@@ -160,7 +160,7 @@ func TestValidate(t *testing.T) {
 				{Name: "pick", Value: "x,y"},
 				{Name: "min-confidence", Value: "0.7"},
 			},
-			wantErr: "jev: --min-confidence needs --fallback, nothing to substitute for 'team'",
+			wantErr: "onesie: --min-confidence needs --fallback, nothing to substitute for 'team'",
 		},
 		{
 			name: "should reject a threshold outside zero to one",
@@ -168,7 +168,7 @@ func TestValidate(t *testing.T) {
 				{Name: "ask", Value: "urgent=first"},
 				{Name: "threshold", Value: "85"},
 			},
-			wantErr: "jev: --threshold must be between 0 and 1, got 85",
+			wantErr: "onesie: --threshold must be between 0 and 1, got 85",
 		},
 		{
 			name: "should reject a min-confidence outside zero to one",
@@ -178,7 +178,7 @@ func TestValidate(t *testing.T) {
 				{Name: "min-confidence", Value: "1.5"},
 				{Name: "fallback", Value: "human"},
 			},
-			wantErr: "jev: --min-confidence must be between 0 and 1, got 1.5",
+			wantErr: "onesie: --min-confidence must be between 0 and 1, got 1.5",
 		},
 		{
 			name: "should reject a non boolean fallback on a yes/no question",
@@ -186,7 +186,7 @@ func TestValidate(t *testing.T) {
 				{Name: "ask", Value: "urgent=first"},
 				{Name: "fallback", Value: "human"},
 			},
-			wantErr: "jev: --fallback on a yes/no question takes true, false, yes or no, got 'human'",
+			wantErr: "onesie: --fallback on a yes/no question takes true, false, yes or no, got 'human'",
 		},
 		{
 			name: "should accept yes as a boolean fallback",
@@ -204,7 +204,7 @@ func TestValidate(t *testing.T) {
 				{Name: "ask", Value: "b=two"},
 				{Name: "ask", Value: "c=three"},
 			},
-			wantErr: "jev: --pick given with no --ask to bind to and 3 questions asked",
+			wantErr: "onesie: --pick given with no --ask to bind to and 3 questions asked",
 		},
 		{
 			name: "should reject raw with more than one question",
@@ -213,7 +213,7 @@ func TestValidate(t *testing.T) {
 				{Name: "ask", Value: "b=two"},
 			},
 			cfg:     plan.Config{Raw: true},
-			wantErr: "jev: -r needs a single question. 'a', 'b' were asked",
+			wantErr: "onesie: -r needs a single question. 'a', 'b' were asked",
 		},
 		{
 			name: "should reject -o raw with more than one question",
@@ -222,7 +222,7 @@ func TestValidate(t *testing.T) {
 				{Name: "ask", Value: "b=two"},
 			},
 			cfg:     plan.Config{Output: "raw"},
-			wantErr: "jev: -o raw needs a single question. 'a', 'b' were asked",
+			wantErr: "onesie: -o raw needs a single question. 'a', 'b' were asked",
 		},
 		{
 			name:       "should accept -o raw with a single question",
@@ -235,7 +235,7 @@ func TestValidate(t *testing.T) {
 				{Name: "ask", Value: "a=one"},
 				{Name: "ask", Value: "a=two"},
 			},
-			wantErr: "jev: question id 'a' is given twice",
+			wantErr: "onesie: question id 'a' is given twice",
 		},
 		{
 			name: "should reject quiet on a pick with no policy",
@@ -244,7 +244,7 @@ func TestValidate(t *testing.T) {
 				{Name: "pick", Value: "x,y"},
 			},
 			cfg: plan.Config{Quiet: true},
-			wantErr: "jev: -q on 'team' needs --min-confidence and --fallback, or --assert. " +
+			wantErr: "onesie: -q on 'team' needs --min-confidence and --fallback, or --assert. " +
 				"Without one the exit code is always 0",
 		},
 		{
@@ -259,13 +259,13 @@ func TestValidate(t *testing.T) {
 			name:       "should reject raw combined with output",
 			positional: "is this urgent",
 			cfg:        plan.Config{Raw: true, Output: "json"},
-			wantErr:    "jev: -r and -o are mutually exclusive",
+			wantErr:    "onesie: -r and -o are mutually exclusive",
 		},
 		{
 			name:       "should reject both state flags together",
 			positional: "is this urgent",
 			cfg:        plan.Config{HasState: true, HasStateFile: true},
-			wantErr:    "jev: --state and --state-file are mutually exclusive",
+			wantErr:    "onesie: --state and --state-file are mutually exclusive",
 		},
 		{
 			name:       "should warn about a partly described option set",
@@ -306,7 +306,7 @@ func TestValidate(t *testing.T) {
 			name:   "should reject a policy flag aimed at a two question body",
 			file:   bodyQuestions(2),
 			events: []argv.Event{{Name: "threshold", Value: "0.8"}},
-			wantErr: "jev: policy flags apply to a request body only when it has one question. " +
+			wantErr: "onesie: policy flags apply to a request body only when it has one question. " +
 				"the question file has 2, freeze with --print-questions first",
 		},
 		{
@@ -336,13 +336,13 @@ func TestValidate(t *testing.T) {
 		{
 			name:    "should reject the reserved assert id",
 			events:  []argv.Event{{Name: "ask", Value: "assert=first"}},
-			wantErr: "jev: question id 'assert' is reserved",
+			wantErr: "onesie: question id 'assert' is reserved",
 		},
 		{
 			name:       "should reject replace with no file given",
 			positional: "is this urgent",
 			cfg:        plan.Config{Replace: true},
-			wantErr:    "jev: --replace applies to -f, which was not given",
+			wantErr:    "onesie: --replace applies to -f, which was not given",
 		},
 		{
 			name: "should accept replace alongside a file",
@@ -357,12 +357,12 @@ func TestValidate(t *testing.T) {
 				{Name: "ask", Value: "a=first"},
 				{Name: "pick", Value: ""},
 			},
-			wantExact: "jev: --pick needs at least two options in question 'a', got 1",
+			wantExact: "onesie: --pick needs at least two options in question 'a', got 1",
 		},
 		{
 			name:      "should report an unlabelled body's level count without a list",
 			file:      bodyLevels(1),
-			wantExact: "jev: 'criteria' needs at least two levels in question 'bq', got 1",
+			wantExact: "onesie: 'criteria' needs at least two levels in question 'bq', got 1",
 		},
 		{
 			name: "should name criteria when a body's choice has one option",
@@ -370,7 +370,7 @@ func TestValidate(t *testing.T) {
 				ID: "bq", Shape: plan.Pick, Instructions: "q", Origin: plan.OriginBody,
 				Options: []plan.Option{{Name: "only"}},
 			}},
-			wantExact: "jev: 'criteria' needs at least two options in question 'bq', got 1: only",
+			wantExact: "onesie: 'criteria' needs at least two options in question 'bq', got 1: only",
 		},
 		{
 			name: "should not hold an unlabelled body to the all described or all bare rule",
@@ -390,7 +390,7 @@ func TestValidate(t *testing.T) {
 		{
 			name:      "should name the pick key when a file question has one option",
 			file:      filePick("only"),
-			wantExact: "jev: 'pick' needs at least two options in question 'team', got 1: only",
+			wantExact: "onesie: 'pick' needs at least two options in question 'team', got 1: only",
 		},
 		{
 			name: "should keep the flag spelling when the question was opened with ask",
@@ -398,24 +398,24 @@ func TestValidate(t *testing.T) {
 				{Name: "ask", Value: "team=first"},
 				{Name: "pick", Value: "only"},
 			},
-			wantExact: "jev: --pick needs at least two options in question 'team', got 1: only",
+			wantExact: "onesie: --pick needs at least two options in question 'team', got 1: only",
 		},
 		{
 			name:       "should omit the question from a positional pick's option count",
 			positional: "is this urgent",
 			events:     []argv.Event{{Name: "pick", Value: "only"}},
-			wantExact:  "jev: --pick needs at least two options, got 1: only",
+			wantExact:  "onesie: --pick needs at least two options, got 1: only",
 		},
 		{
 			name:       "should omit the question from a positional rate's level count",
 			positional: "is this urgent",
 			events:     []argv.Event{{Name: "rate", Value: "calm"}},
-			wantExact:  "jev: --rate needs at least two levels, got 1: calm",
+			wantExact:  "onesie: --rate needs at least two levels, got 1: calm",
 		},
 		{
 			name:      "should name the question when a file's pick has too many options",
 			file:      filePick(generated("o", 256)...),
-			wantExact: "jev: 'pick' takes at most 255 options in question 'team', got 256",
+			wantExact: "onesie: 'pick' takes at most 255 options in question 'team', got 256",
 		},
 		{
 			name:       "should omit the question when a positional pick has too many options",
@@ -423,7 +423,7 @@ func TestValidate(t *testing.T) {
 			events: []argv.Event{
 				{Name: "pick", Value: strings.Join(generated("o", 256), ",")},
 			},
-			wantExact: "jev: --pick takes at most 255 options, got 256",
+			wantExact: "onesie: --pick takes at most 255 options, got 256",
 		},
 		{
 			name: "should name the question when a rate has too many levels",
@@ -431,7 +431,7 @@ func TestValidate(t *testing.T) {
 				{Name: "ask", Value: "severity=first"},
 				{Name: "rate", Value: strings.Join(generated("l", 11), ",")},
 			},
-			wantExact: "jev: --rate takes at most 10 levels in question 'severity', got 11",
+			wantExact: "onesie: --rate takes at most 10 levels in question 'severity', got 11",
 		},
 		{
 			name:       "should omit the question when a positional rate has too many levels",
@@ -439,7 +439,7 @@ func TestValidate(t *testing.T) {
 			events: []argv.Event{
 				{Name: "rate", Value: strings.Join(generated("l", 11), ",")},
 			},
-			wantExact: "jev: --rate takes at most 10 levels, got 11",
+			wantExact: "onesie: --rate takes at most 10 levels, got 11",
 		},
 		{
 			name:       "should omit the question from a positional mixed rubric",
@@ -448,19 +448,19 @@ func TestValidate(t *testing.T) {
 				{Name: "rate", Value: "minor,major"},
 				{Name: "desc", Value: "minor=small"},
 			},
-			wantExact: "jev: --rate levels must all be described or all bare. " +
+			wantExact: "onesie: --rate levels must all be described or all bare. " +
 				"Described minor but not major",
 		},
 		{
 			name:      "should name the pick key for a file's duplicate option",
 			file:      filePick("billing", "billing"),
-			wantExact: "jev: 'pick' option 'billing' is listed twice in question 'team'",
+			wantExact: "onesie: 'pick' option 'billing' is listed twice in question 'team'",
 		},
 		{
 			name:   "should name the pick key in a file question's desc vocabulary",
 			file:   filePick("billing", "technical"),
 			events: []argv.Event{{Name: "desc", Value: "bilingl=x"}},
-			wantExact: "jev: --desc names an unknown key 'bilingl' in question 'team'. " +
+			wantExact: "onesie: --desc names an unknown key 'bilingl' in question 'team'. " +
 				"'pick' has: billing, technical",
 		},
 		{
@@ -472,7 +472,7 @@ func TestValidate(t *testing.T) {
 					{Label: "minor"}, {Label: "major", Desc: "bad"},
 				},
 			}},
-			wantExact: "jev: 'rate' levels must all be described or all bare in question " +
+			wantExact: "onesie: 'rate' levels must all be described or all bare in question " +
 				"'severity'. Described major but not minor",
 		},
 		{
@@ -480,14 +480,14 @@ func TestValidate(t *testing.T) {
 			file: withPolicy(filePick("billing", "technical"), plan.Policy{
 				MinConfidence: pointerTo(0.7),
 			}),
-			wantExact: "jev: 'min_confidence' needs 'fallback', nothing to substitute for 'team'",
+			wantExact: "onesie: 'min_confidence' needs 'fallback', nothing to substitute for 'team'",
 		},
 		{
 			name: "should name the file's keys in the threshold remedy",
 			file: withPolicy(filePick("billing", "technical"), plan.Policy{
 				Threshold: pointerTo(0.8),
 			}),
-			wantExact: "jev: 'threshold' cuts a yes/no probability. 'team' has options, " +
+			wantExact: "onesie: 'threshold' cuts a yes/no probability. 'team' has options, " +
 				"use 'min_confidence' with 'fallback'",
 		},
 		{
@@ -496,7 +496,7 @@ func TestValidate(t *testing.T) {
 				ID: "urgent", Shape: plan.Noul, Instructions: "q", Origin: plan.OriginFile,
 				Policy: plan.Policy{MinConfidence: pointerTo(0.7)},
 			}},
-			wantExact: "jev: 'min_confidence' needs a confidence value. 'urgent' is a yes/no " +
+			wantExact: "onesie: 'min_confidence' needs a confidence value. 'urgent' is a yes/no " +
 				"question, use 'threshold', or add 'pick' or 'rate'",
 		},
 		{
@@ -505,7 +505,7 @@ func TestValidate(t *testing.T) {
 				ID: "urgent", Shape: plan.Noul, Instructions: "q", Origin: plan.OriginFile,
 				Policy: plan.Policy{Threshold: pointerTo(85.0)},
 			}},
-			wantExact: "jev: 'threshold' must be between 0 and 1, got 85",
+			wantExact: "onesie: 'threshold' must be between 0 and 1, got 85",
 		},
 		{
 			name: "should name the fallback key when a file's yes/no value is not a boolean",
@@ -513,14 +513,14 @@ func TestValidate(t *testing.T) {
 				ID: "urgent", Shape: plan.Noul, Instructions: "q", Origin: plan.OriginFile,
 				Policy: plan.Policy{Fallback: &plan.Fallback{Text: "human"}},
 			}},
-			wantExact: "jev: 'fallback' on a yes/no question takes true, false, yes or no, " +
+			wantExact: "onesie: 'fallback' on a yes/no question takes true, false, yes or no, " +
 				"got 'human'",
 		},
 		{
 			name: "should name the file's keys in the quiet policy remedy",
 			file: filePick("billing", "technical"),
 			cfg:  plan.Config{Quiet: true},
-			wantExact: "jev: -q on 'team' needs 'min_confidence' and 'fallback', or --assert. " +
+			wantExact: "onesie: -q on 'team' needs 'min_confidence' and 'fallback', or --assert. " +
 				"Without one the exit code is always 0",
 		},
 		{
@@ -652,7 +652,7 @@ func TestValidate(t *testing.T) {
 				{Name: "pick", Value: "billing"},
 			},
 			cfg:         plan.Config{Jobs: 8, JobsSet: true, InputName: "text"},
-			wantErr:     "jev: --pick needs at least two options, got 1: billing",
+			wantErr:     "onesie: --pick needs at least two options, got 1: billing",
 			wantWarning: "-j 8 ignored. -i text reads one record",
 		},
 		{
@@ -676,19 +676,19 @@ func TestValidate(t *testing.T) {
 			name:       "should reject a timeout of zero",
 			positional: "is this urgent",
 			cfg:        plan.Config{Timeout: 0, TimeoutSet: true, InputName: "text"},
-			wantErr:    "jev: --timeout takes a positive number of seconds, got 0",
+			wantErr:    "onesie: --timeout takes a positive number of seconds, got 0",
 		},
 		{
 			name:       "should reject a negative retry count",
 			positional: "is this urgent",
 			cfg:        plan.Config{Retries: -1, RetriesSet: true, InputName: "text"},
-			wantErr:    "jev: --retries takes a retry count of zero or more, got -1",
+			wantErr:    "onesie: --retries takes a retry count of zero or more, got -1",
 		},
 		{
 			name:       "should reject a retry count above the ceiling",
 			positional: "is this urgent",
 			cfg:        plan.Config{Retries: 100001, RetriesSet: true, InputName: "text"},
-			wantErr:    "jev: --retries takes at most 100, got 100001",
+			wantErr:    "onesie: --retries takes at most 100, got 100001",
 		},
 		{
 			name:       "should accept a retry count at the ceiling",
@@ -699,25 +699,25 @@ func TestValidate(t *testing.T) {
 			name:       "should reject a max retry after of zero",
 			positional: "is this urgent",
 			cfg:        plan.Config{MaxRetryAfter: 0, MaxRetryAfterSet: true, InputName: "text"},
-			wantErr:    "jev: --max-retry-after must be a positive number of seconds, got 0",
+			wantErr:    "onesie: --max-retry-after must be a positive number of seconds, got 0",
 		},
 		{
 			name:       "should reject a negative max retry after",
 			positional: "is this urgent",
 			cfg:        plan.Config{MaxRetryAfter: -5, MaxRetryAfterSet: true, InputName: "text"},
-			wantErr:    "jev: --max-retry-after must be a positive number of seconds, got -5",
+			wantErr:    "onesie: --max-retry-after must be a positive number of seconds, got -5",
 		},
 		{
 			name:       "should reject a timeout above the ceiling",
 			positional: "is this urgent",
 			cfg:        plan.Config{Timeout: 86401, TimeoutSet: true, InputName: "text"},
-			wantErr:    "jev: --timeout takes at most 86400 seconds, got 86401",
+			wantErr:    "onesie: --timeout takes at most 86400 seconds, got 86401",
 		},
 		{
 			name:       "should reject a timeout that would wrap a duration to a fraction",
 			positional: "is this urgent",
 			cfg:        plan.Config{Timeout: 18446744074, TimeoutSet: true, InputName: "text"},
-			wantErr:    "jev: --timeout takes at most 86400 seconds, got 18446744074",
+			wantErr:    "onesie: --timeout takes at most 86400 seconds, got 18446744074",
 		},
 		{
 			name:       "should reject a max retry after above the ceiling",
@@ -725,7 +725,7 @@ func TestValidate(t *testing.T) {
 			cfg: plan.Config{
 				MaxRetryAfter: 86401, MaxRetryAfterSet: true, InputName: "text",
 			},
-			wantErr: "jev: --max-retry-after takes at most 86400 seconds, got 86401",
+			wantErr: "onesie: --max-retry-after takes at most 86400 seconds, got 86401",
 		},
 		{
 			name:       "should reject a max retry after that would wrap a duration to a fraction",
@@ -733,7 +733,7 @@ func TestValidate(t *testing.T) {
 			cfg: plan.Config{
 				MaxRetryAfter: 18446744074, MaxRetryAfterSet: true, InputName: "text",
 			},
-			wantErr: "jev: --max-retry-after takes at most 86400 seconds, got 18446744074",
+			wantErr: "onesie: --max-retry-after takes at most 86400 seconds, got 18446744074",
 		},
 		{
 			name:       "should accept a timeout at the ceiling",
@@ -908,100 +908,100 @@ func TestCheckFlags(t *testing.T) {
 		{
 			name: "should reject a positional question with -i request",
 			cfg:  request(func(c *plan.Config) { c.HasPositional = true }),
-			wantErr: "jev: -i request carries its own questions. " +
+			wantErr: "onesie: -i request carries its own questions. " +
 				"Drop the question argument",
 		},
 		{
 			name:    "should reject --ask with -i request",
 			cfg:     request(func(c *plan.Config) { c.HasAsk = true }),
-			wantErr: "jev: -i request carries its own questions. Drop --ask",
+			wantErr: "onesie: -i request carries its own questions. Drop --ask",
 		},
 		{
 			name: "should reject -f with -i request",
 			cfg:  request(func(c *plan.Config) { c.FileName = "q.yaml" }),
-			wantErr: "jev: -f does not apply to -i request, " +
+			wantErr: "onesie: -f does not apply to -i request, " +
 				"which carries its own questions",
 		},
 		{
 			name:    "should reject --replace with -i request",
 			cfg:     request(func(c *plan.Config) { c.Replace = true }),
-			wantErr: "jev: --replace applies to -f, which -i request does not accept",
+			wantErr: "onesie: --replace applies to -f, which -i request does not accept",
 		},
 		{
 			name:    "should reject --pick with -i request",
 			cfg:     request(func(c *plan.Config) { c.GroupFlags = []string{"pick"} }),
-			wantErr: "jev: -i request carries its own questions. Drop --pick",
+			wantErr: "onesie: -i request carries its own questions. Drop --pick",
 		},
 		{
 			name:    "should reject --rate with -i request",
 			cfg:     request(func(c *plan.Config) { c.GroupFlags = []string{"rate"} }),
-			wantErr: "jev: -i request carries its own questions. Drop --rate",
+			wantErr: "onesie: -i request carries its own questions. Drop --rate",
 		},
 		{
 			name:    "should reject --desc with -i request",
 			cfg:     request(func(c *plan.Config) { c.GroupFlags = []string{"desc"} }),
-			wantErr: "jev: -i request carries its own questions. Drop --desc",
+			wantErr: "onesie: -i request carries its own questions. Drop --desc",
 		},
 		{
 			name:    "should reject --sep with -i request",
 			cfg:     request(func(c *plan.Config) { c.GroupFlags = []string{"sep"} }),
-			wantErr: "jev: -i request carries its own questions. Drop --sep",
+			wantErr: "onesie: -i request carries its own questions. Drop --sep",
 		},
 		{
 			name: "should reject --threshold with -i request",
 			cfg:  request(func(c *plan.Config) { c.GroupFlags = []string{"threshold"} }),
-			wantErr: "jev: --threshold does not apply to -i request, " +
+			wantErr: "onesie: --threshold does not apply to -i request, " +
 				"which carries no policy",
 		},
 		{
 			name: "should reject --min-confidence with -i request",
 			cfg:  request(func(c *plan.Config) { c.GroupFlags = []string{"min-confidence"} }),
-			wantErr: "jev: --min-confidence does not apply to -i request, " +
+			wantErr: "onesie: --min-confidence does not apply to -i request, " +
 				"which carries no policy",
 		},
 		{
 			name: "should reject --fallback with -i request",
 			cfg:  request(func(c *plan.Config) { c.GroupFlags = []string{"fallback"} }),
-			wantErr: "jev: --fallback does not apply to -i request, " +
+			wantErr: "onesie: --fallback does not apply to -i request, " +
 				"which carries no policy",
 		},
 		{
 			name: "should reject --state with -i request",
 			cfg:  request(func(c *plan.Config) { c.HasState = true }),
-			wantErr: "jev: --state does not apply to -i request, " +
+			wantErr: "onesie: --state does not apply to -i request, " +
 				"whose bodies carry their own state",
 		},
 		{
 			name: "should reject --state-file with -i request",
 			cfg:  request(func(c *plan.Config) { c.HasStateFile = true }),
-			wantErr: "jev: --state-file does not apply to -i request, " +
+			wantErr: "onesie: --state-file does not apply to -i request, " +
 				"whose bodies carry their own state",
 		},
 		{
 			name:    "should reject -o with -i request",
 			cfg:     request(func(c *plan.Config) { c.Output = "json" }),
-			wantErr: "jev: -o does not apply to -i request, which forwards raw responses",
+			wantErr: "onesie: -o does not apply to -i request, which forwards raw responses",
 		},
 		{
 			name:    "should reject -r with -i request",
 			cfg:     request(func(c *plan.Config) { c.Raw = true }),
-			wantErr: "jev: -r does not apply to -i request, which forwards raw responses",
+			wantErr: "onesie: -r does not apply to -i request, which forwards raw responses",
 		},
 		{
 			name:    "should reject -q with -i request",
 			cfg:     request(func(c *plan.Config) { c.Quiet = true }),
-			wantErr: "jev: -q needs a policy to report, which -i request has none of",
+			wantErr: "onesie: -q needs a policy to report, which -i request has none of",
 		},
 		{
 			name: "should reject --usage with -i request",
 			cfg:  request(func(c *plan.Config) { c.Usage = true }),
-			wantErr: "jev: --usage does not apply to -i request, " +
+			wantErr: "onesie: --usage does not apply to -i request, " +
 				"whose response bodies already carry usage",
 		},
 		{
 			name:    "should reject --merge with -i request",
 			cfg:     request(func(c *plan.Config) { c.Merge = true }),
-			wantErr: "jev: --merge does not apply to -i request, which forwards raw responses",
+			wantErr: "onesie: --merge does not apply to -i request, which forwards raw responses",
 		},
 		{
 			name: "should name --merge-key when that is the flag given",
@@ -1009,19 +1009,19 @@ func TestCheckFlags(t *testing.T) {
 				c.Merge = true
 				c.MergeName = "--merge-key"
 			}),
-			wantErr: "jev: --merge-key does not apply to -i request, " +
+			wantErr: "onesie: --merge-key does not apply to -i request, " +
 				"which forwards raw responses",
 		},
 		{
 			name: "should reject -m with -i request",
 			cfg:  request(func(c *plan.Config) { c.HasModel = true }),
-			wantErr: "jev: -m does not apply to -i request, " +
+			wantErr: "onesie: -m does not apply to -i request, " +
 				"whose bodies carry their own model",
 		},
 		{
 			name: "should reject --print-questions with -i request",
 			cfg:  request(func(c *plan.Config) { c.PrintQuestions = true }),
-			wantErr: "jev: --print-questions needs questions of its own, " +
+			wantErr: "onesie: --print-questions needs questions of its own, " +
 				"which -i request does not build",
 		},
 		{
@@ -1040,48 +1040,48 @@ func TestCheckFlags(t *testing.T) {
 				c.Jobs = 0
 				c.JobsSet = true
 			}),
-			wantErr: "jev: -j takes a positive number of records in flight, got 0",
+			wantErr: "onesie: -j takes a positive number of records in flight, got 0",
 		},
 		{
 			name:    "should reject -r with -o outside request mode",
 			cfg:     plan.Config{Raw: true, Output: "json", InputName: "text"},
-			wantErr: "jev: -r and -o are mutually exclusive",
+			wantErr: "onesie: -r and -o are mutually exclusive",
 		},
 		{
 			name: "should reject both print flags at once",
 			cfg: plan.Config{
 				PrintRequest: true, PrintQuestions: true, InputName: "text",
 			},
-			wantErr: "jev: --print-request and --print-questions each write a different " +
+			wantErr: "onesie: --print-request and --print-questions each write a different " +
 				"thing to stdout. Pass one",
 		},
 		{
 			name:    "should reject -o with --print-questions",
 			cfg:     plan.Config{PrintQuestions: true, Output: "json", InputName: "text"},
-			wantErr: "jev: -o does not apply to --print-questions, which writes a question file",
+			wantErr: "onesie: -o does not apply to --print-questions, which writes a question file",
 		},
 		{
 			name:    "should reject -r with --print-request",
 			cfg:     plan.Config{PrintRequest: true, Raw: true, InputName: "text"},
-			wantErr: "jev: -r does not apply to --print-request, which writes a request body",
+			wantErr: "onesie: -r does not apply to --print-request, which writes a request body",
 		},
 		{
 			name: "should name --merge-key when that is the spelling given",
 			cfg: plan.Config{
 				PrintRequest: true, Merge: true, MergeName: "--merge-key", InputName: "text",
 			},
-			wantErr: "jev: --merge-key needs answers to fold in, " +
+			wantErr: "onesie: --merge-key needs answers to fold in, " +
 				"which --print-request does not produce",
 		},
 		{
 			name:    "should reject -q with --print-request",
 			cfg:     plan.Config{PrintRequest: true, Quiet: true, InputName: "text"},
-			wantErr: "jev: -q suppresses output, which leaves --print-request nothing to write",
+			wantErr: "onesie: -q suppresses output, which leaves --print-request nothing to write",
 		},
 		{
 			name: "should reject --stats with --print-questions",
 			cfg:  plan.Config{PrintQuestions: true, Stats: true, InputName: "text"},
-			wantErr: "jev: --stats has nothing to report with --print-questions, " +
+			wantErr: "onesie: --stats has nothing to report with --print-questions, " +
 				"which makes no request",
 		},
 		{
@@ -1090,7 +1090,7 @@ func TestCheckFlags(t *testing.T) {
 				c.PrintRequest = true
 				c.Stats = true
 			}),
-			wantErr: "jev: --stats has nothing to report with --print-request, " +
+			wantErr: "onesie: --stats has nothing to report with --print-request, " +
 				"which makes no request",
 		},
 		{
@@ -1105,7 +1105,7 @@ func TestCheckFlags(t *testing.T) {
 				c.PrintRequest = true
 				c.Output = "json"
 			}),
-			wantErr: "jev: -o does not apply to --print-request, which writes a request body",
+			wantErr: "onesie: -o does not apply to --print-request, which writes a request body",
 		},
 		{
 			// Same, and there is no response body to carry a usage object either.
@@ -1114,7 +1114,7 @@ func TestCheckFlags(t *testing.T) {
 				c.PrintRequest = true
 				c.Usage = true
 			}),
-			wantErr: "jev: --usage reports the tokens a question cost, " +
+			wantErr: "onesie: --usage reports the tokens a question cost, " +
 				"which --print-request does not ask",
 		},
 		{
@@ -1123,12 +1123,12 @@ func TestCheckFlags(t *testing.T) {
 				c.PrintRequest = true
 				c.HasAsk = true
 			}),
-			wantErr: "jev: -i request carries its own questions. Drop --ask",
+			wantErr: "onesie: -i request carries its own questions. Drop --ask",
 		},
 		{
 			name: "should reject --assert with -i request",
 			cfg:  request(func(c *plan.Config) { c.HasAssert = true }),
-			wantErr: "jev: --assert does not apply to -i request, " +
+			wantErr: "onesie: --assert does not apply to -i request, " +
 				"which forwards raw responses",
 		},
 		{
@@ -1136,14 +1136,14 @@ func TestCheckFlags(t *testing.T) {
 			cfg: plan.Config{
 				ListModels: true, HasAssert: true, InputName: "text",
 			},
-			wantErr: "jev: --assert judges an answer, which --list-models does not produce",
+			wantErr: "onesie: --assert judges an answer, which --list-models does not produce",
 		},
 		{
 			name: "should reject --assert with --print-request",
 			cfg: plan.Config{
 				PrintRequest: true, HasAssert: true, InputName: "text",
 			},
-			wantErr: "jev: --assert judges an answer, which --print-request does not produce",
+			wantErr: "onesie: --assert judges an answer, which --print-request does not produce",
 		},
 		{
 			name: "should name the file's key when only the file carried the assertion",
@@ -1151,7 +1151,7 @@ func TestCheckFlags(t *testing.T) {
 				PrintRequest: true, HasAssert: true, AssertName: "'assert'",
 				FileName: "q.yaml", InputName: "text",
 			},
-			wantErr: "jev: 'assert' judges an answer, which --print-request does not produce",
+			wantErr: "onesie: 'assert' judges an answer, which --print-request does not produce",
 		},
 		{
 			name: "should accept --assert with --print-questions",
@@ -1164,7 +1164,7 @@ func TestCheckFlags(t *testing.T) {
 			cfg: plan.Config{
 				PrintRequest: true, StopOnAssert: true, Streaming: true, InputName: "lines",
 			},
-			wantErr: "jev: --stop-on-assert ends a stream on a false assertion, " +
+			wantErr: "onesie: --stop-on-assert ends a stream on a false assertion, " +
 				"which --print-request does not produce",
 		},
 		{

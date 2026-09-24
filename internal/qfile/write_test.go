@@ -5,8 +5,8 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/frodi-karlsson/jev-cli/internal/plan"
-	"github.com/frodi-karlsson/jev-cli/internal/qfile"
+	"github.com/frodi-karlsson/onesie/internal/plan"
+	"github.com/frodi-karlsson/onesie/internal/qfile"
 )
 
 func TestWrite(t *testing.T) {
@@ -156,7 +156,7 @@ func TestWrite(t *testing.T) {
 			questions: []plan.Question{
 				{ID: "answer", Shape: plan.Noul, Instructions: "q"},
 			},
-			wantErr: "jev: --print-questions needs a named question. Use --ask NAME=QUESTION",
+			wantErr: "onesie: --print-questions needs a named question. Use --ask NAME=QUESTION",
 		},
 		{
 			name: "should reject a rubric on a pick question",
@@ -167,7 +167,7 @@ func TestWrite(t *testing.T) {
 					Criteria: &plan.YesNoCriteria{Yes: "y", No: "n"},
 				},
 			},
-			wantErr: "jev: question 'team' has both 'yes_means' and 'pick'. " +
+			wantErr: "onesie: question 'team' has both 'yes_means' and 'pick'. " +
 				"A question is one or the other",
 		},
 		{
@@ -179,7 +179,7 @@ func TestWrite(t *testing.T) {
 					Criteria: &plan.YesNoCriteria{Yes: "y", No: "n"},
 				},
 			},
-			wantErr: "jev: question 'mood' has both 'yes_means' and 'rate'. " +
+			wantErr: "onesie: question 'mood' has both 'yes_means' and 'rate'. " +
 				"A question is one or the other",
 		},
 	}

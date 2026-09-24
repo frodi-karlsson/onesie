@@ -3,8 +3,8 @@ package assert
 import (
 	"slices"
 
-	"github.com/frodi-karlsson/jev-cli/internal/answer"
-	"github.com/frodi-karlsson/jev-cli/internal/output"
+	"github.com/frodi-karlsson/onesie/internal/answer"
+	"github.com/frodi-karlsson/onesie/internal/output"
 )
 
 // Eval reports whether the expression holds for a record. It returns no error, because Check has

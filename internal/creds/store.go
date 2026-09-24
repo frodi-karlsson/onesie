@@ -99,7 +99,7 @@ func (s Store) Load(path string) (file File, found bool, err error) {
 			}
 		}
 
-		return File{}, false, fmt.Errorf("jev: reading %s: %w", path, err)
+		return File{}, false, fmt.Errorf("onesie: reading %s: %w", path, err)
 	}
 
 	// Joined into the named return rather than discarded. An empty branch would trip staticcheck
@@ -110,14 +110,14 @@ func (s Store) Load(path string) (file File, found bool, err error) {
 
 	info, err := handle.Stat()
 	if err != nil {
-		return File{}, false, fmt.Errorf("jev: reading %s: %w", path, err)
+		return File{}, false, fmt.Errorf("onesie: reading %s: %w", path, err)
 	}
 
 	// Ahead of the mode check, since a directory or a device node is not a credential file at a bad
 	// mode. Checking the mode first would call a directory a credential file, drop the type bit from
 	// the message, and tell the reader to chmod 600 something no chmod will fix.
 	if !info.Mode().IsRegular() {
-		return File{}, false, fmt.Errorf("jev: credential file %s is not a regular file", path)
+		return File{}, false, fmt.Errorf("onesie: credential file %s is not a regular file", path)
 	}
 
 	if modeErr := s.checkMode(path, info.Mode()); modeErr != nil {
@@ -129,12 +129,12 @@ func (s Store) Load(path string) (file File, found bool, err error) {
 	// hand back half a credential as if it were whole.
 	data, err := io.ReadAll(io.LimitReader(handle, maxCredentialBytes+1))
 	if err != nil {
-		return File{}, false, fmt.Errorf("jev: reading %s: %w", path, err)
+		return File{}, false, fmt.Errorf("onesie: reading %s: %w", path, err)
 	}
 
 	if len(data) > maxCredentialBytes {
 		return File{}, false, fmt.Errorf(
-			"jev: credential file %s is larger than %d bytes", path, maxCredentialBytes)
+			"onesie: credential file %s is larger than %d bytes", path, maxCredentialBytes)
 	}
 
 	if decodeErr := json.Unmarshal(data, &file); decodeErr != nil || file.APIKey == "" {
@@ -142,7 +142,7 @@ func (s Store) Load(path string) (file File, found bool, err error) {
 		// found would make auth status report a source for a file holding nothing, and would send
 		// an empty key to the client.
 		return File{}, false, fmt.Errorf(
-			"jev: credential file %s is not a JSON object with an 'api_key' string", path)
+			"onesie: credential file %s is not a JSON object with an 'api_key' string", path)
 	}
 
 	return file, true, nil
@@ -158,7 +158,7 @@ func (s Store) Load(path string) (file File, found bool, err error) {
 func (s Store) Save(path string, file File) (*ModeWarning, error) {
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return nil, fmt.Errorf("jev: creating %s: %w", dir, err)
+		return nil, fmt.Errorf("onesie: creating %s: %w", dir, err)
 	}
 
 	// Unreachable while File is plain strings, since json.Marshal cannot fail on those. A future
@@ -166,7 +166,7 @@ func (s Store) Save(path string, file File) (*ModeWarning, error) {
 	// offending value verbatim, so such a field must keep the key out of this %w.
 	data, err := json.Marshal(file)
 	if err != nil {
-		return nil, fmt.Errorf("jev: encoding the credential file: %w", err)
+		return nil, fmt.Errorf("onesie: encoding the credential file: %w", err)
 	}
 
 	// Created in the same directory as the target, because a rename across filesystems is not
@@ -175,7 +175,7 @@ func (s Store) Save(path string, file File) (*ModeWarning, error) {
 	// redirecting the key. Never write to path itself.
 	temp, err := s.createTemp(dir, ".credentials-*")
 	if err != nil {
-		return nil, fmt.Errorf("jev: creating a temporary file in %s: %w", dir, err)
+		return nil, fmt.Errorf("onesie: creating a temporary file in %s: %w", dir, err)
 	}
 
 	// Named now so every later failure can remove it. A temporary file holding a key must not
@@ -195,7 +195,7 @@ func (s Store) Save(path string, file File) (*ModeWarning, error) {
 	}
 
 	if renameErr := os.Rename(name, path); renameErr != nil {
-		return nil, errors.Join(fmt.Errorf("jev: renaming %s to %s: %w", name, path, renameErr),
+		return nil, errors.Join(fmt.Errorf("onesie: renaming %s to %s: %w", name, path, renameErr),
 			os.Remove(name))
 	}
 
@@ -207,7 +207,7 @@ func (s Store) Save(path string, file File) (*ModeWarning, error) {
 
 func (s Store) writeAndClose(file *os.File, data []byte) error {
 	if _, err := file.Write(data); err != nil {
-		return errors.Join(fmt.Errorf("jev: writing %s: %w", file.Name(), err), file.Close())
+		return errors.Join(fmt.Errorf("onesie: writing %s: %w", file.Name(), err), file.Close())
 	}
 
 	// Ahead of the close and of the rename, so a power loss cannot leave a renamed file whose
@@ -215,11 +215,11 @@ func (s Store) writeAndClose(file *os.File, data []byte) error {
 	// a filesystem that delays data behind metadata, which reads as a corrupt file rather than an
 	// absent one.
 	if err := s.sync(file); err != nil {
-		return errors.Join(fmt.Errorf("jev: flushing %s: %w", file.Name(), err), file.Close())
+		return errors.Join(fmt.Errorf("onesie: flushing %s: %w", file.Name(), err), file.Close())
 	}
 
 	if err := file.Close(); err != nil {
-		return fmt.Errorf("jev: closing %s: %w", file.Name(), err)
+		return fmt.Errorf("onesie: closing %s: %w", file.Name(), err)
 	}
 
 	return nil
@@ -271,13 +271,13 @@ func (s Store) Clear(path string) error {
 	// Only a directory is refused, so Clear is deliberately laxer than Load. A symlink, a FIFO, a
 	// socket or a device node at the credential path is removed rather than reported, since auth
 	// clear is asked to leave nothing there and the alternative is a user who cannot clear a path
-	// jev itself will not read.
+	// onesie itself will not read.
 	if info, statErr := os.Lstat(path); statErr == nil && info.IsDir() {
-		return fmt.Errorf("jev: credential file %s is not a regular file", path)
+		return fmt.Errorf("onesie: credential file %s is not a regular file", path)
 	}
 
 	if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
-		return fmt.Errorf("jev: removing %s: %w", path, err)
+		return fmt.Errorf("onesie: removing %s: %w", path, err)
 	}
 
 	return nil
@@ -316,6 +316,6 @@ type ReadableError struct {
 // Error names the path and the mode, never the contents.
 func (e *ReadableError) Error() string {
 	return fmt.Sprintf(
-		"jev: credential file %s is accessible by others, mode %o. Run chmod 600 on it or jev auth set to rewrite it",
+		"onesie: credential file %s is accessible by others, mode %o. Run chmod 600 on it or onesie auth set to rewrite it",
 		e.Path, e.Mode)
 }

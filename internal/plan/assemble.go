@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/frodi-karlsson/jev-cli/internal/argv"
+	"github.com/frodi-karlsson/onesie/internal/argv"
 )
 
 // PositionalID is the reserved id a bare QUESTION argument is keyed under.
@@ -41,7 +41,7 @@ func Assemble(src Source) (*Plan, error) {
 			for _, event := range orphans {
 				if !policyFlag(event.Name) {
 					return nil, fmt.Errorf(
-						"jev: --%s cannot reshape a request body's question. "+
+						"onesie: --%s cannot reshape a request body's question. "+
 							"A body carries its own type and criteria", event.Name)
 				}
 			}
@@ -114,7 +114,7 @@ func build(g group, readFile func(string) ([]byte, error)) (Question, error) {
 	if g.asked {
 		id, text, ok := strings.Cut(g.ask, "=")
 		if !ok || id == "" {
-			return question, fmt.Errorf("jev: --ask takes NAME=QUESTION, got '%s'", g.ask)
+			return question, fmt.Errorf("onesie: --ask takes NAME=QUESTION, got '%s'", g.ask)
 		}
 
 		resolved, err := resolve(text, readFile)
@@ -150,7 +150,7 @@ func merge(built *Plan, fromFile map[string]int, question Question, replace bool
 		}
 
 		return fmt.Errorf(
-			"jev: '%s' is defined in %s and by --ask. Pass --replace to override",
+			"onesie: '%s' is defined in %s and by --ask. Pass --replace to override",
 			question.ID, name)
 	}
 
@@ -198,7 +198,7 @@ func applyEvents(question *Question, events []argv.Event, readFile func(string) 
 		case "desc":
 			key, text, ok := strings.Cut(event.Value, "=")
 			if !ok {
-				return fmt.Errorf("jev: --desc takes KEY=TEXT, got '%s'", event.Value)
+				return fmt.Errorf("onesie: --desc takes KEY=TEXT, got '%s'", event.Value)
 			}
 
 			resolved, err := resolve(text, readFile)
@@ -240,14 +240,14 @@ func applyPolicy(question *Question, event argv.Event) error {
 	case "threshold":
 		value, err := strconv.ParseFloat(event.Value, 64)
 		if err != nil {
-			return fmt.Errorf("jev: --threshold takes a number, got '%s'", event.Value)
+			return fmt.Errorf("onesie: --threshold takes a number, got '%s'", event.Value)
 		}
 
 		question.Policy.Threshold = &value
 	case "min-confidence":
 		value, err := strconv.ParseFloat(event.Value, 64)
 		if err != nil {
-			return fmt.Errorf("jev: --min-confidence takes a number, got '%s'", event.Value)
+			return fmt.Errorf("onesie: --min-confidence takes a number, got '%s'", event.Value)
 		}
 
 		question.Policy.MinConfidence = &value
@@ -323,7 +323,7 @@ func resolve(text string, readFile func(string) ([]byte, error)) (string, error)
 
 	body, err := readFile(text[1:])
 	if err != nil {
-		return "", fmt.Errorf("jev: reading %s: %w", text[1:], err)
+		return "", fmt.Errorf("onesie: reading %s: %w", text[1:], err)
 	}
 
 	// One trailing newline goes, so an editor's trailing newline does not become part of the text.

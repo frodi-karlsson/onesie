@@ -98,19 +98,19 @@ func describe(status int, body any) string {
 	if detail := extractMessage(body); detail != "" {
 		// Truncated here rather than inside extraction, so a hostile body arriving as a bare string
 		// cannot reach a log line at full length.
-		return fmt.Sprintf("jev: %d %s", status, truncate(detail))
+		return fmt.Sprintf("onesie: %d %s", status, truncate(detail))
 	}
 
 	if body == nil {
-		return fmt.Sprintf("jev: %d status code, no body", status)
+		return fmt.Sprintf("onesie: %d status code, no body", status)
 	}
 
 	encoded, err := json.Marshal(body)
 	if err != nil {
-		return fmt.Sprintf("jev: %d status code, unreadable body", status)
+		return fmt.Sprintf("onesie: %d status code, unreadable body", status)
 	}
 
-	return fmt.Sprintf("jev: %d %s", status, truncate(string(encoded)))
+	return fmt.Sprintf("onesie: %d %s", status, truncate(string(encoded)))
 }
 
 func truncate(raw string) string {
@@ -224,7 +224,7 @@ func decodeBody(body []byte) any {
 	return parsed
 }
 
-// RetryAfterError reports a server requested delay jev refused to wait out, because spending the
+// RetryAfterError reports a server requested delay onesie refused to wait out, because spending the
 // remaining retries on a known answer is worse than failing now.
 type RetryAfterError struct {
 	APIError
@@ -236,7 +236,7 @@ type RetryAfterError struct {
 // Error names the delay the server asked for and the cap that rejected it.
 func (e *RetryAfterError) Error() string {
 	return fmt.Sprintf(
-		"jev: status %d, the server asked to retry after %s, above the %s cap",
+		"onesie: status %d, the server asked to retry after %s, above the %s cap",
 		e.Status, e.RetryAfter, e.Cap,
 	)
 }
@@ -254,10 +254,10 @@ type ConnectionError struct {
 // Error describes the transport failure.
 func (e *ConnectionError) Error() string {
 	if e.Err == nil {
-		return "jev: connection error"
+		return "onesie: connection error"
 	}
 
-	return "jev: connection error: " + e.Err.Error()
+	return "onesie: connection error: " + e.Err.Error()
 }
 
 // Unwrap returns the underlying transport error.
@@ -283,7 +283,7 @@ type TimeoutError struct {
 
 // Error reports the deadline that fired.
 func (e *TimeoutError) Error() string {
-	return fmt.Sprintf("jev: request timed out after %s", e.Timeout)
+	return fmt.Sprintf("onesie: request timed out after %s", e.Timeout)
 }
 
 // Unwrap returns the embedded ConnectionError, so errors.As reaches it.
@@ -314,7 +314,7 @@ func (e *ResponseError) Error() string {
 		return e.Message
 	}
 
-	return fmt.Sprintf("jev: %d response could not be used: %v", e.Status, e.Err)
+	return fmt.Sprintf("onesie: %d response could not be used: %v", e.Status, e.Err)
 }
 
 // Unwrap returns the underlying decoding error.
@@ -336,7 +336,7 @@ type ValidationError struct {
 
 // Error describes why the request was rejected.
 func (e *ValidationError) Error() string {
-	return "jev: " + e.Message
+	return "onesie: " + e.Message
 }
 
 // Is matches ErrValidation.
@@ -355,8 +355,8 @@ type AnswerError struct {
 // Error describes whether the answer was absent or of the wrong type.
 func (e *AnswerError) Error() string {
 	if e.Missing {
-		return fmt.Sprintf("jev: no answer named %q", e.Name)
+		return fmt.Sprintf("onesie: no answer named %q", e.Name)
 	}
 
-	return fmt.Sprintf("jev: answer %q is a %s, not a %s", e.Name, e.Got, e.Want)
+	return fmt.Sprintf("onesie: answer %q is a %s, not a %s", e.Name, e.Got, e.Want)
 }

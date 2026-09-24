@@ -9,8 +9,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/frodi-karlsson/jev-cli/internal/creds"
-	"github.com/frodi-karlsson/jev-cli/internal/jev"
+	"github.com/frodi-karlsson/onesie/internal/creds"
+	"github.com/frodi-karlsson/onesie/internal/jev"
 )
 
 const (
@@ -26,10 +26,10 @@ const (
 func newAuthCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "auth",
-		Short: "Store, inspect and remove the API key jev falls back to",
+		Short: "Store, inspect and remove the API key onesie falls back to",
 		Args:  cobra.NoArgs,
 		// Set, so cobra validates the arguments before deciding the command is not runnable. A
-		// parent with no RunE answers jev auth nonsense with its own help and exit 0, which is the
+		// parent with no RunE answers onesie auth nonsense with its own help and exit 0, which is the
 		// silence this guard exists to prevent. Measured against cobra 1.10.2.
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return cmd.Help()
@@ -76,7 +76,7 @@ func authSet(cmd *cobra.Command, settings rootSettings, baseURL string, hasBaseU
 	}
 
 	if key == "" {
-		return errors.New("jev: auth set: the key is empty")
+		return errors.New("onesie: auth set: the key is empty")
 	}
 
 	path, err := settings.credPath()
@@ -84,9 +84,9 @@ func authSet(cmd *cobra.Command, settings rootSettings, baseURL string, hasBaseU
 		return err
 	}
 
-	// stderr rather than stdout. It is a notice and not output, and pass show x | jev auth set > log
+	// stderr rather than stdout. It is a notice and not output, and pass show x | onesie auth set > log
 	// must not put a filesystem path in a log the user expected to stay empty.
-	if _, printErr := fmt.Fprintln(cmd.ErrOrStderr(), "jev: writing "+path); printErr != nil {
+	if _, printErr := fmt.Fprintln(cmd.ErrOrStderr(), "onesie: writing "+path); printErr != nil {
 		return printErr
 	}
 
@@ -101,7 +101,7 @@ func authSet(cmd *cobra.Command, settings rootSettings, baseURL string, hasBaseU
 	}
 
 	if warning != nil {
-		// No jev prefix. The word warning classifies the line already, and the streaming warnings
+		// No onesie prefix. The word warning classifies the line already, and the streaming warnings
 		// in run.go and print.go are printed the same way.
 		_, printErr := fmt.Fprintln(cmd.ErrOrStderr(), warning.Error())
 
@@ -116,7 +116,7 @@ func readKey(cmd *cobra.Command, settings rootSettings) (string, error) {
 		return firstLine(settings.stdin)
 	}
 
-	// The prompt goes to stderr so jev auth set inside a pipeline does not corrupt what stdout
+	// The prompt goes to stderr so onesie auth set inside a pipeline does not corrupt what stdout
 	// carries.
 	if _, printErr := fmt.Fprint(cmd.ErrOrStderr(), "API key: "); printErr != nil {
 		return "", printErr
@@ -147,7 +147,7 @@ func firstLine(r io.Reader) (string, error) {
 	} else if err := scanner.Err(); err != nil {
 		// Without this a key over the scanner's 64KiB cap leaves the first Scan empty and the loop
 		// below hands back the remainder, which reads as a second line and is rejected as one.
-		return "", fmt.Errorf("jev: reading the key from stdin: %w", err)
+		return "", fmt.Errorf("onesie: reading the key from stdin: %w", err)
 	}
 
 	// pass show and its siblings print the secret first and metadata after it, so a second non
@@ -156,12 +156,12 @@ func firstLine(r io.Reader) (string, error) {
 	for scanner.Scan() {
 		if strings.TrimSpace(scanner.Text()) != "" {
 			return "", errors.New(
-				"jev: auth set: stdin carries more than one line. The key is the first line")
+				"onesie: auth set: stdin carries more than one line. The key is the first line")
 		}
 	}
 
 	if err := scanner.Err(); err != nil {
-		return "", fmt.Errorf("jev: reading the key from stdin: %w", err)
+		return "", fmt.Errorf("onesie: reading the key from stdin: %w", err)
 	}
 
 	return key, nil
@@ -329,6 +329,6 @@ func authNoArgs(name, clause string) cobra.PositionalArgs {
 			return nil
 		}
 
-		return errors.New("jev: auth " + name + " takes no question or state. " + clause)
+		return errors.New("onesie: auth " + name + " takes no question or state. " + clause)
 	}
 }

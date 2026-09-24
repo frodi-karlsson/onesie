@@ -1,4 +1,4 @@
-module github.com/frodi-karlsson/jev-cli
+module github.com/frodi-karlsson/onesie
 
 go 1.27.1
 

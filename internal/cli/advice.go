@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/frodi-karlsson/jev-cli/internal/jev"
+	"github.com/frodi-karlsson/onesie/internal/jev"
 )
 
 func advise(err error, model string, validated bool) error {
@@ -18,12 +18,12 @@ func advise(err error, model string, validated bool) error {
 	if unknownModel(api, model) {
 		return &advisedError{
 			cause:   err,
-			message: fmt.Sprintf("jev: model '%s' not found. Try --list-models", model),
+			message: fmt.Sprintf("onesie: model '%s' not found. Try --list-models", model),
 		}
 	}
 
-	// Only where jev ran its own bounds check. A body replayed through -i request is sent
-	// unchecked by design, so a note about jev's limits being stale would blame a check that never
+	// Only where onesie ran its own bounds check. A body replayed through -i request is sent
+	// unchecked by design, so a note about onesie's limits being stale would blame a check that never
 	// ran and send the caller after a binary that is fine.
 	if validated && countRejected(api) {
 		return &advisedError{cause: err, message: staleLimits(err.Error())}
@@ -46,7 +46,7 @@ func (e *advisedError) Unwrap() error {
 }
 
 func unknownModel(api *jev.APIError, model string) bool {
-	// The id comes from what jev sent rather than from a substring of the server's prose, whose
+	// The id comes from what onesie sent rather than from a substring of the server's prose, whose
 	// wording the server owns. A call carrying no model has nothing to name, so it keeps the
 	// server's text.
 	if model == "" || api.Status != http.StatusBadRequest {
@@ -87,7 +87,7 @@ func countedSubject(message string) bool {
 }
 
 func staleLimits(message string) string {
-	const note = "jev's own check passed, so its built in limits may be stale. Run jev -V"
+	const note = "onesie's own check passed, so its built in limits may be stale. Run onesie -V"
 
 	// The server ends its own sentence, and a second full stop right before the note reads as a
 	// typo rather than as a boundary.

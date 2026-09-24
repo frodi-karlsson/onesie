@@ -12,7 +12,7 @@ import (
 // expression combined.
 const maxDepth = 256
 
-// Parse reads one §17.2 expression. Its errors carry the column they were found at and no jev
+// Parse reads one §17.2 expression. Its errors carry the column they were found at and no onesie
 // prefix, which the caller owns.
 func Parse(source string) (*Expr, error) {
 	tokens, err := lex(source)

@@ -1,4 +1,4 @@
-// Package skillcheck runs every rule's bad and good example in a skill through a jev dry run, per
+// Package skillcheck runs every rule's bad and good example in a skill through a onesie dry run, per
 // spec section 6.1. A good passes unless it carries good_fails, and a bad fails unless it carries
 // bad_passes. An example carrying good_unverifiable or bad_unverifiable is skipped with that reason
 // rather than run.
@@ -9,11 +9,11 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/frodi-karlsson/jev-cli/internal/skillgen"
+	"github.com/frodi-karlsson/onesie/internal/skillgen"
 )
 
 // Check runs every rule's bad and good example under root through runner. An example that cannot
-// be parsed as a jev invocation is skipped rather than counted as a failure, since a jq filter or
+// be parsed as a onesie invocation is skipped rather than counted as a failure, since a jq filter or
 // a rule about model behaviour carries no command a dry run can replay. Every skip is reported
 // with why, so a skill drifting to unverifiable examples is visible rather than merely countable.
 func Check(ctx context.Context, root string, runner *Runner) (Report, error) {
@@ -86,7 +86,7 @@ func checkRule(
 
 	result, err := runner.DryRun(ctx, command)
 	if err != nil {
-		return fmt.Errorf("jev: skill '%s' rule '%s' %s example: %w", skill, ruleID, kind, err)
+		return fmt.Errorf("onesie: skill '%s' rule '%s' %s example: %w", skill, ruleID, kind, err)
 	}
 
 	if result.Skipped != "" {
@@ -121,7 +121,7 @@ func outcomeMessage(skill, ruleID, kind string, wantPass bool, exitCode int, arg
 		clause = "bad example was supposed to fail the dry run but exited 0"
 	}
 
-	message := fmt.Sprintf("jev: skill '%s' rule '%s': %s\n  ran: jev %s",
+	message := fmt.Sprintf("onesie: skill '%s' rule '%s': %s\n  ran: onesie %s",
 		skill, ruleID, clause, strings.Join(args, " "))
 
 	if stderr = strings.TrimSpace(stderr); stderr != "" {

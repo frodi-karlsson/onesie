@@ -65,4 +65,4 @@ formatters:
   settings:
     goimports:
       local-prefixes:
-        - github.com/frodi-karlsson/jev-cli
+        - github.com/frodi-karlsson/onesie

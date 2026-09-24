@@ -234,7 +234,7 @@ func emit[R, T any](cfg Config[R, T], got outcome[T], result *Result) bool {
 		return false
 	}
 
-	// Anything else is jev's own failure, such as a record that could not be merged into its input
+	// Anything else is onesie's own failure, such as a record that could not be merged into its input
 	// line. Ending the run silently with exit 0 would hide it.
 	result.Fatal = err
 

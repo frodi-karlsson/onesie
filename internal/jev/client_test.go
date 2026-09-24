@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/frodi-karlsson/jev-cli/internal/jev"
+	"github.com/frodi-karlsson/onesie/internal/jev"
 )
 
 // mockClock records every wait instead of performing it, so retry tests finish instantly. It is
@@ -144,7 +144,7 @@ func TestNew(t *testing.T) {
 		client, err := jev.New(
 			jev.WithEnv(mockEnv(map[string]string{
 				jev.EnvAPIKey:       "sk-from-env",
-				jev.EnvDefaultModel: "jev-from-env",
+				jev.EnvDefaultModel: "onesie-from-env",
 			})),
 			jev.WithAPIKey("sk-explicit"),
 			jev.WithBaseURL(server.URL),
@@ -234,7 +234,7 @@ func TestSystemOne(t *testing.T) {
 			w.Header().Set("X-TypeSafe-Request-Id", "req_abc")
 			w.Header().Set("X-RateLimit-Remaining", "42")
 			_, _ = io.WriteString(w, `{
-				"model":"jev-1.13.0",
+				"model":"onesie-1.13.0",
 				"answers":{"q":{"type":"noul","noul":0.95}},
 				"usage":{"input_tokens":10,"output_tokens":2}
 			}`)
@@ -430,7 +430,7 @@ func TestSystemOne(t *testing.T) {
 
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Content-Type", "text/plain")
-			_, _ = io.WriteString(w, `{"model":"jev-1.13.0","answers":{"q":{"type":"noul","noul":0.5}},"usage":{}}`)
+			_, _ = io.WriteString(w, `{"model":"onesie-1.13.0","answers":{"q":{"type":"noul","noul":0.5}},"usage":{}}`)
 		}))
 		defer server.Close()
 
@@ -441,7 +441,7 @@ func TestSystemOne(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		if result.Model != "jev-1.13.0" {
+		if result.Model != "onesie-1.13.0" {
 			t.Errorf("model got %q", result.Model)
 		}
 	})
@@ -1095,7 +1095,7 @@ func TestWithAttemptObserver(t *testing.T) {
 
 				body := `{"error":{"message":"nope"}}`
 				if status == http.StatusOK {
-					body = `{"model":"jev-1.0.0","answers":{"q":{"type":"noul","noul":0.5}},` +
+					body = `{"model":"onesie-1.0.0","answers":{"q":{"type":"noul","noul":0.5}},` +
 						`"usage":{"input_tokens":1,"output_tokens":1}}`
 				}
 
@@ -1186,7 +1186,7 @@ func TestWithAttemptObserverOnAnUnreadableBody(t *testing.T) {
 			mu.Lock()
 			defer mu.Unlock()
 
-			// A round trip the server answered is an attempt, whatever jev could do with the body.
+			// A round trip the server answered is an attempt, whatever onesie could do with the body.
 			// An observer that never saw it would under count, and a --stats run would carry a
 			// terminal failure with no attempt behind it.
 			if observed != tc.want {
@@ -1219,7 +1219,7 @@ func TestClientSystemOneRaw(t *testing.T) {
 		{
 			name:     "should return the response body unchanged",
 			status:   http.StatusOK,
-			response: `{"model":"jev-1.0.0","answers":{"q":{"type":"noul","noul":0.25}}}`,
+			response: `{"model":"onesie-1.0.0","answers":{"q":{"type":"noul","noul":0.25}}}`,
 		},
 		{
 			name:     "should return an api error for a non 2xx",
@@ -1230,19 +1230,19 @@ func TestClientSystemOneRaw(t *testing.T) {
 		{
 			name:     "should forward a body without HTML escaping it",
 			status:   http.StatusOK,
-			response: `{"model":"jev-1.0.0","answers":{}}`,
+			response: `{"model":"onesie-1.0.0","answers":{}}`,
 			send:     json.RawMessage(`{"state":"a < b & c > d"}`),
 		},
 		{
 			name:     "should forward the line separators json.Marshal would escape",
 			status:   http.StatusOK,
-			response: `{"model":"jev-1.0.0","answers":{}}`,
+			response: `{"model":"onesie-1.0.0","answers":{}}`,
 			send:     json.RawMessage("{\"state\":\"a\u2028b\u2029c\"}"),
 		},
 		{
 			name:     "should compact a pretty printed body without reordering it",
 			status:   http.StatusOK,
-			response: `{"model":"jev-1.0.0","answers":{}}`,
+			response: `{"model":"onesie-1.0.0","answers":{}}`,
 			send:     json.RawMessage("{\n  \"state\": \"hi\",\n  \"model\": \"jev-latest\"\n}"),
 			wantSent: `{"state":"hi","model":"jev-latest"}`,
 		},
@@ -1327,25 +1327,25 @@ func TestMarshalBody(t *testing.T) {
 			name: "should encode state model and questions in that order",
 			req: jev.Request{
 				State: "the server is down",
-				Model: "jev-1.13.0",
+				Model: "onesie-1.13.0",
 				Questions: jev.Questions{
 					{ID: "urgent", Question: jev.Noul{Instructions: "q"}},
 				},
 			},
-			want: `{"state":"the server is down","model":"jev-1.13.0","questions":` +
+			want: `{"state":"the server is down","model":"onesie-1.13.0","questions":` +
 				`{"urgent":{"type":"noul","instructions":"q"}}}`,
 		},
 		{
 			name: "should keep a raw state's key order and its digits",
 			req: jev.Request{
 				State: json.RawMessage(`{"ticket_id":12345678901234567890,"zebra":1}`),
-				Model: "jev-1.13.0",
+				Model: "onesie-1.13.0",
 				Questions: jev.Questions{
 					{ID: "a", Question: jev.Noul{Instructions: "q"}},
 				},
 			},
 			want: `{"state":{"ticket_id":12345678901234567890,"zebra":1},` +
-				`"model":"jev-1.13.0","questions":` +
+				`"model":"onesie-1.13.0","questions":` +
 				`{"a":{"type":"noul","instructions":"q"}}}`,
 		},
 		{
@@ -1392,12 +1392,12 @@ func TestMarshalQuestionsBody(t *testing.T) {
 			name: "should omit the state entirely",
 			req: jev.Request{
 				State: "ignored",
-				Model: "jev-1.13.0",
+				Model: "onesie-1.13.0",
 				Questions: jev.Questions{
 					{ID: "urgent", Question: jev.Noul{Instructions: "q"}},
 				},
 			},
-			want: `{"model":"jev-1.13.0","questions":` +
+			want: `{"model":"onesie-1.13.0","questions":` +
 				`{"urgent":{"type":"noul","instructions":"q"}}}`,
 		},
 		{
@@ -1435,7 +1435,7 @@ func TestMarshalQuestionsBody(t *testing.T) {
 
 		req := jev.Request{
 			State: "s",
-			Model: "jev-1.13.0",
+			Model: "onesie-1.13.0",
 			Questions: jev.Questions{
 				{ID: "urgent", Question: jev.Noul{Instructions: "q"}},
 			},
@@ -1476,14 +1476,14 @@ func TestResolveModel(t *testing.T) {
 	}{
 		{
 			name:  "should prefer an explicit model",
-			model: "jev-1.9.9",
-			env:   map[string]string{jev.EnvDefaultModel: "jev-1.2.0"},
-			want:  "jev-1.9.9",
+			model: "onesie-1.9.9",
+			env:   map[string]string{jev.EnvDefaultModel: "onesie-1.2.0"},
+			want:  "onesie-1.9.9",
 		},
 		{
 			name: "should fall back to the environment",
-			env:  map[string]string{jev.EnvDefaultModel: "jev-1.2.0"},
-			want: "jev-1.2.0",
+			env:  map[string]string{jev.EnvDefaultModel: "onesie-1.2.0"},
+			want: "onesie-1.2.0",
 		},
 		{
 			name: "should fall back to the built in default",
@@ -1491,8 +1491,8 @@ func TestResolveModel(t *testing.T) {
 		},
 		{
 			name:  "should trim an explicit model",
-			model: " jev-1.13.0 ",
-			want:  "jev-1.13.0",
+			model: " onesie-1.13.0 ",
+			want:  "onesie-1.13.0",
 		},
 		{
 			name:  "should treat a whitespace only model as absent",
@@ -1507,8 +1507,8 @@ func TestResolveModel(t *testing.T) {
 		{
 			name:  "should fall back to the environment for a whitespace only model",
 			model: "   ",
-			env:   map[string]string{jev.EnvDefaultModel: "jev-1.2.0"},
-			want:  "jev-1.2.0",
+			env:   map[string]string{jev.EnvDefaultModel: "onesie-1.2.0"},
+			want:  "onesie-1.2.0",
 		},
 	}
 

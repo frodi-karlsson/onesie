@@ -6,11 +6,11 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/frodi-karlsson/jev-cli/internal/answer"
-	"github.com/frodi-karlsson/jev-cli/internal/argv"
-	"github.com/frodi-karlsson/jev-cli/internal/jev"
-	"github.com/frodi-karlsson/jev-cli/internal/output"
-	"github.com/frodi-karlsson/jev-cli/internal/plan"
+	"github.com/frodi-karlsson/onesie/internal/answer"
+	"github.com/frodi-karlsson/onesie/internal/argv"
+	"github.com/frodi-karlsson/onesie/internal/jev"
+	"github.com/frodi-karlsson/onesie/internal/output"
+	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
 func TestCheck(t *testing.T) {
@@ -84,7 +84,7 @@ func TestCheck(t *testing.T) {
 		},
 		{
 			name:  "should accept model",
-			input: `model == "jev-1.13.0"`,
+			input: `model == "onesie-1.13.0"`,
 		},
 		{
 			name:  "should accept a bracketed head naming a dotted question id",
@@ -576,7 +576,7 @@ func TestCheckedPaths(t *testing.T) {
 		}
 
 		for _, rec := range records {
-			source := `model == "jev-1.13.0"`
+			source := `model == "onesie-1.13.0"`
 			if !Eval(mustParse(t, source), rec.record) {
 				t.Errorf("Eval(%q) over %s = false, want true", source, rec.name)
 			}
@@ -594,7 +594,7 @@ func TestCheckedPaths(t *testing.T) {
 	})
 }
 
-// TestCheckedPathsOnAssembledPlan is the same promise over a plan every other check in jev accepts.
+// TestCheckedPathsOnAssembledPlan is the same promise over a plan every other check in onesie accepts.
 // TestCheckedPaths builds its fixture by hand and includes a question §11 rejects, so on its own it
 // leaves the promise unproved for the plans the pipeline actually produces.
 func TestCheckedPathsOnAssembledPlan(t *testing.T) {
@@ -814,7 +814,7 @@ func mustParse(t *testing.T, source string) *Expr {
 func fullRecord(t *testing.T, built *plan.Plan, confidence float64) output.Record {
 	t.Helper()
 
-	rec := output.Record{Model: "jev-1.13.0"}
+	rec := output.Record{Model: "onesie-1.13.0"}
 
 	for _, q := range built.Questions {
 		normalized, err := answer.Normalize(q, rawAnswer(q, confidence))

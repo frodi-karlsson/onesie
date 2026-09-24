@@ -16,7 +16,7 @@ func Resolve(req Query) (Resolved, error) {
 	case req.HasStateFile:
 		body, err := req.ReadFile(req.StateFile)
 		if err != nil {
-			return Resolved{}, fmt.Errorf("jev: reading %s: %w", req.StateFile, err)
+			return Resolved{}, fmt.Errorf("onesie: reading %s: %w", req.StateFile, err)
 		}
 
 		label := fmt.Sprintf("--state-file '%s'", req.StateFile)
@@ -67,7 +67,7 @@ func fromStdin(req Query) (Resolved, error) {
 
 	data, err := io.ReadAll(req.Stdin)
 	if err != nil {
-		return Resolved{}, fmt.Errorf("jev: reading stdin: %w", err)
+		return Resolved{}, fmt.Errorf("onesie: reading stdin: %w", err)
 	}
 
 	// Zero bytes is not an empty state. Under cron or CI stdin may be an empty pipe, and sending
@@ -81,7 +81,7 @@ func fromStdin(req Query) (Resolved, error) {
 
 func fromText(source Source, label, text string, mode Mode, stripNewline bool) (Resolved, error) {
 	if !utf8.ValidString(text) {
-		return Resolved{}, fmt.Errorf("jev: %s is not valid UTF-8", label)
+		return Resolved{}, fmt.Errorf("onesie: %s is not valid UTF-8", label)
 	}
 
 	if mode == Text {
@@ -94,11 +94,11 @@ func fromText(source Source, label, text string, mode Mode, stripNewline bool) (
 
 	var value any
 	if err := json.Unmarshal([]byte(text), &value); err != nil {
-		return Resolved{}, fmt.Errorf("jev: %s is not valid JSON: %w", label, err)
+		return Resolved{}, fmt.Errorf("onesie: %s is not valid JSON: %w", label, err)
 	}
 
 	if err := CheckState(value); err != nil {
-		return Resolved{}, fmt.Errorf("jev: %w", err)
+		return Resolved{}, fmt.Errorf("onesie: %w", err)
 	}
 
 	return Resolved{
@@ -107,7 +107,7 @@ func fromText(source Source, label, text string, mode Mode, stripNewline bool) (
 }
 
 // CheckState rejects a state the API would refuse, so a caller holding a state that never passed
-// through Resolve can still check it. Its message carries no jev prefix, so a caller adds one.
+// through Resolve can still check it. Its message carries no onesie prefix, so a caller adds one.
 func CheckState(value any) error {
 	// The API refuses these, so rejecting them locally saves a request that would come back a 422.
 	switch value.(type) {

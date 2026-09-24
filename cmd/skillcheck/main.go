@@ -1,5 +1,5 @@
 // Command skillcheck dry runs every rule's bad and good example under skills/, per
-// docs/jev-skills-spec.md section 6.1.
+// docs/onesie-skills-spec.md section 6.1.
 package main
 
 import (
@@ -7,13 +7,13 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/frodi-karlsson/jev-cli/internal/skillcheck"
+	"github.com/frodi-karlsson/onesie/internal/skillcheck"
 )
 
 func main() {
 	root, err := os.Getwd()
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "jev:", err)
+		fmt.Fprintln(os.Stderr, "onesie:", err)
 		os.Exit(1)
 	}
 
@@ -23,11 +23,11 @@ func main() {
 		os.Exit(1)
 	}
 
-	fmt.Printf("jev: checked %d examples across %d skills, skipped %d\n",
+	fmt.Printf("onesie: checked %d examples across %d skills, skipped %d\n",
 		report.Checked, report.Skills, len(report.Skipped))
 
 	for _, skip := range report.Skipped {
-		fmt.Printf("jev: skill '%s' rule '%s' %s example skipped: %s\n  %s\n",
+		fmt.Printf("onesie: skill '%s' rule '%s' %s example skipped: %s\n  %s\n",
 			skip.Skill, skip.RuleID, skip.Kind, skip.Reason, skip.Command)
 	}
 

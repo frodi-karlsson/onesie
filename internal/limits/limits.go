@@ -1,4 +1,4 @@
-// Package limits holds every API limit jev enforces locally and every constant it defaults to, so
+// Package limits holds every API limit onesie enforces locally and every constant it defaults to, so
 // a binary built against stale numbers is diagnosable through --version.
 package limits
 
@@ -8,11 +8,11 @@ import (
 )
 
 const (
-	// MinChoiceOptions is jev's own floor. A one option choice has nothing to decide.
+	// MinChoiceOptions is onesie's own floor. A one option choice has nothing to decide.
 	MinChoiceOptions = 2
 	// MaxChoiceOptions is the API's ceiling on options per choice question.
 	MaxChoiceOptions = 255
-	// MinScoreLevels is jev's own floor. A one level score has nothing to rank.
+	// MinScoreLevels is onesie's own floor. A one level score has nothing to rank.
 	MinScoreLevels = 2
 	// MaxScoreLevels is the API's ceiling on levels per score question.
 	MaxScoreLevels = 10
@@ -21,7 +21,7 @@ const (
 	DefaultAttemptTimeout = 10 * time.Second
 	// DefaultRetries is how many times a retryable failure is retried.
 	DefaultRetries = 2
-	// DefaultMaxRetryAfter is the longest server requested delay jev will wait out.
+	// DefaultMaxRetryAfter is the longest server requested delay onesie will wait out.
 	DefaultMaxRetryAfter = 60 * time.Second
 	// MaxRetries is the ceiling on --retries. Each retry waits out the backoff, capped at 5 s, so a
 	// large count is a run that never ends rather than a policy. A hundred is already far past any

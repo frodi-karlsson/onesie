@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/frodi-karlsson/jev-cli/internal/limits"
+	"github.com/frodi-karlsson/onesie/internal/limits"
 )
 
 const (

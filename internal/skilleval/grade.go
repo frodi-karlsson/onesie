@@ -1,6 +1,6 @@
-// Package skilleval dry runs every jev command an agent wrote during a claude plugin eval run.
+// Package skilleval dry runs every onesie command an agent wrote during a claude plugin eval run.
 // The eval has no grader that can run code, so this reads the traces the eval kept and reports
-// per case and per arm how many commands jev itself accepts.
+// per case and per arm how many commands onesie itself accepts.
 package skilleval
 
 import (
@@ -17,8 +17,8 @@ import (
 
 	"github.com/spf13/pflag"
 
-	"github.com/frodi-karlsson/jev-cli/internal/cli"
-	"github.com/frodi-karlsson/jev-cli/internal/skillcheck"
+	"github.com/frodi-karlsson/onesie/internal/cli"
+	"github.com/frodi-karlsson/onesie/internal/skillcheck"
 )
 
 var (
@@ -30,7 +30,7 @@ var (
 )
 
 // NewGrader returns a Grader that dry runs every command through runner, reads result and trace
-// files from disk and parses argv with the flags of the jev built from this tree.
+// files from disk and parses argv with the flags of the onesie built from this tree.
 func NewGrader(runner DryRunner) *Grader {
 	return &Grader{
 		runner:   runner,
@@ -44,30 +44,30 @@ type DryRunner interface {
 	DryRun(ctx context.Context, command string) (skillcheck.DryRunResult, error)
 }
 
-// FlagLookup finds a jev flag by its long name or its one letter shorthand.
+// FlagLookup finds a onesie flag by its long name or its one letter shorthand.
 type FlagLookup interface {
 	Lookup(name string) *pflag.Flag
 	ShorthandLookup(name string) *pflag.Flag
 }
 
-// Grader dry runs the jev commands found in the traces an eval result points at.
+// Grader dry runs the onesie commands found in the traces an eval result points at.
 type Grader struct {
 	runner   DryRunner
 	readFile func(name string) ([]byte, error)
 	flags    FlagLookup
 }
 
-// Grade reads the aggregate-result.json at resultPath and dry runs every jev command in every
+// Grade reads the aggregate-result.json at resultPath and dry runs every onesie command in every
 // run's trace, arm by arm. A run whose trace is gone is counted, not failed.
 func (g *Grader) Grade(ctx context.Context, resultPath string) (Report, error) {
 	data, err := g.readFile(resultPath)
 	if err != nil {
-		return Report{}, fmt.Errorf("jev: reading the eval result: %w", err)
+		return Report{}, fmt.Errorf("onesie: reading the eval result: %w", err)
 	}
 
 	var result aggregateResult
 	if err := json.Unmarshal(data, &result); err != nil {
-		return Report{}, fmt.Errorf("jev: parsing %s: %w", resultPath, err)
+		return Report{}, fmt.Errorf("onesie: parsing %s: %w", resultPath, err)
 	}
 
 	var report Report
@@ -78,7 +78,7 @@ func (g *Grader) Grade(ctx context.Context, resultPath string) (Report, error) {
 		for _, arm := range armOrder(c.Arms) {
 			armReport, err := g.gradeArm(ctx, arm, c.Arms[arm])
 			if err != nil {
-				return Report{}, fmt.Errorf("jev: case '%s': %w", c.Name, err)
+				return Report{}, fmt.Errorf("onesie: case '%s': %w", c.Name, err)
 			}
 
 			caseReport.Arms = append(caseReport.Arms, armReport)
@@ -182,7 +182,7 @@ func (g *Grader) gradeArm(ctx context.Context, arm string, runs []runEntry) (Arm
 		}
 
 		for _, script := range scripts {
-			for _, command := range jevCommands(script) {
+			for _, command := range onesieCommands(script) {
 				if err := g.dryRun(ctx, i+1, command, &report); err != nil {
 					return ArmReport{}, err
 				}

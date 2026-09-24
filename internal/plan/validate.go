@@ -6,14 +6,14 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/frodi-karlsson/jev-cli/internal/limits"
+	"github.com/frodi-karlsson/onesie/internal/limits"
 )
 
 // Validate checks a plan and returns the non fatal warnings plus the first fatal error, so a
 // caller can print the warnings whether or not validation succeeded.
 func Validate(p *Plan, cfg Config) ([]string, error) {
 	if len(p.Questions) == 0 {
-		return nil, errors.New("jev: no question given. Pass a question, --ask, or -f")
+		return nil, errors.New("onesie: no question given. Pass a question, --ask, or -f")
 	}
 
 	var warnings []string
@@ -81,15 +81,15 @@ func CheckFlags(cfg Config) (string, error) {
 	}
 
 	if cfg.Raw && cfg.Output != "" {
-		return "", errors.New("jev: -r and -o are mutually exclusive")
+		return "", errors.New("onesie: -r and -o are mutually exclusive")
 	}
 
 	if cfg.HasState && cfg.HasStateFile {
-		return "", errors.New("jev: --state and --state-file are mutually exclusive")
+		return "", errors.New("onesie: --state and --state-file are mutually exclusive")
 	}
 
 	if cfg.Replace && cfg.FileName == "" {
-		return "", errors.New("jev: --replace applies to -f, which was not given")
+		return "", errors.New("onesie: --replace applies to -f, which was not given")
 	}
 
 	return checkStreaming(cfg)
@@ -198,13 +198,13 @@ func checkListModels(cfg Config) error {
 	}
 
 	if cfg.HasPositional {
-		return errors.New("jev: --list-models asks no question. Drop the question argument")
+		return errors.New("onesie: --list-models asks no question. Drop the question argument")
 	}
 
 	// Every group flag at once, since a listing has no use for any of them and the only part of
 	// the message that varies is the name the user typed.
 	if len(cfg.GroupFlags) > 0 {
-		return fmt.Errorf("jev: --list-models asks no question. Drop --%s", cfg.GroupFlags[0])
+		return fmt.Errorf("onesie: --list-models asks no question. Drop --%s", cfg.GroupFlags[0])
 	}
 
 	// In the order section 13 lists the flags, for the same reason checkRequestMode is.
@@ -212,35 +212,35 @@ func checkListModels(cfg Config) error {
 		given   bool
 		message string
 	}{
-		{cfg.FileName != "", "jev: -f does not apply to --list-models, which asks no question"},
-		{cfg.Replace, "jev: --replace applies to -f, which --list-models does not accept"},
-		{cfg.HasState, "jev: --state does not apply to --list-models, which reads no state"},
-		{cfg.HasStateFile, "jev: --state-file does not apply to --list-models, " +
+		{cfg.FileName != "", "onesie: -f does not apply to --list-models, which asks no question"},
+		{cfg.Replace, "onesie: --replace applies to -f, which --list-models does not accept"},
+		{cfg.HasState, "onesie: --state does not apply to --list-models, which reads no state"},
+		{cfg.HasStateFile, "onesie: --state-file does not apply to --list-models, " +
 			"which reads no state"},
-		{cfg.HasInput, "jev: -i does not apply to --list-models, which reads no input"},
-		{cfg.Output != "", "jev: -o does not apply to --list-models, " +
+		{cfg.HasInput, "onesie: -i does not apply to --list-models, which reads no input"},
+		{cfg.Output != "", "onesie: -o does not apply to --list-models, " +
 			"which writes a fixed listing"},
-		{cfg.Raw, "jev: -r does not apply to --list-models, which writes a fixed listing"},
-		{cfg.Quiet, "jev: -q suppresses output, which leaves --list-models nothing to write"},
-		{cfg.HasAssert, "jev: --assert judges an answer, " +
+		{cfg.Raw, "onesie: -r does not apply to --list-models, which writes a fixed listing"},
+		{cfg.Quiet, "onesie: -q suppresses output, which leaves --list-models nothing to write"},
+		{cfg.HasAssert, "onesie: --assert judges an answer, " +
 			"which --list-models does not produce"},
-		{cfg.Usage, "jev: --usage reports the tokens a question cost, " +
+		{cfg.Usage, "onesie: --usage reports the tokens a question cost, " +
 			"which --list-models does not ask"},
-		{cfg.Merge, "jev: " + mergeFlag(cfg) + " needs answers to fold in, " +
+		{cfg.Merge, "onesie: " + mergeFlag(cfg) + " needs answers to fold in, " +
 			"which --list-models does not produce"},
-		{cfg.JobsSet, "jev: -j does not apply to --list-models, which makes one request"},
-		{cfg.HasModel, "jev: -m names a model to ask, which --list-models does not do"},
-		{cfg.Unordered, "jev: --unordered applies to streaming input, " +
+		{cfg.JobsSet, "onesie: -j does not apply to --list-models, which makes one request"},
+		{cfg.HasModel, "onesie: -m names a model to ask, which --list-models does not do"},
+		{cfg.Unordered, "onesie: --unordered applies to streaming input, " +
 			"which --list-models does not read"},
-		{cfg.StopOnError, "jev: --stop-on-error applies to streaming input, " +
+		{cfg.StopOnError, "onesie: --stop-on-error applies to streaming input, " +
 			"which --list-models does not read"},
-		{cfg.StopOnAssert, "jev: --stop-on-assert applies to streaming input, " +
+		{cfg.StopOnAssert, "onesie: --stop-on-assert applies to streaming input, " +
 			"which --list-models does not read"},
-		{cfg.SkipBlank, "jev: --skip-blank applies to streaming input, " +
+		{cfg.SkipBlank, "onesie: --skip-blank applies to streaming input, " +
 			"which --list-models does not read"},
-		{cfg.PrintRequest, "jev: --print-request and --list-models each write a different " +
+		{cfg.PrintRequest, "onesie: --print-request and --list-models each write a different " +
 			"thing to stdout. Pass one"},
-		{cfg.PrintQuestions, "jev: --print-questions and --list-models each write a different " +
+		{cfg.PrintQuestions, "onesie: --print-questions and --list-models each write a different " +
 			"thing to stdout. Pass one"},
 	} {
 		if rule.given {
@@ -262,40 +262,40 @@ func checkRequestMode(cfg Config) error {
 		given   bool
 		message string
 	}{
-		{cfg.HasPositional, "jev: -i request carries its own questions. " +
+		{cfg.HasPositional, "onesie: -i request carries its own questions. " +
 			"Drop the question argument"},
-		{cfg.HasAsk, "jev: -i request carries its own questions. Drop --ask"},
-		{cfg.FileName != "", "jev: -f does not apply to -i request, " +
+		{cfg.HasAsk, "onesie: -i request carries its own questions. Drop --ask"},
+		{cfg.FileName != "", "onesie: -f does not apply to -i request, " +
 			"which carries its own questions"},
-		{cfg.Replace, "jev: --replace applies to -f, which -i request does not accept"},
-		{given(cfg, "pick"), "jev: -i request carries its own questions. Drop --pick"},
-		{given(cfg, "rate"), "jev: -i request carries its own questions. Drop --rate"},
-		{given(cfg, "desc"), "jev: -i request carries its own questions. Drop --desc"},
-		{given(cfg, "sep"), "jev: -i request carries its own questions. Drop --sep"},
-		{given(cfg, "threshold"), "jev: --threshold does not apply to -i request, " +
+		{cfg.Replace, "onesie: --replace applies to -f, which -i request does not accept"},
+		{given(cfg, "pick"), "onesie: -i request carries its own questions. Drop --pick"},
+		{given(cfg, "rate"), "onesie: -i request carries its own questions. Drop --rate"},
+		{given(cfg, "desc"), "onesie: -i request carries its own questions. Drop --desc"},
+		{given(cfg, "sep"), "onesie: -i request carries its own questions. Drop --sep"},
+		{given(cfg, "threshold"), "onesie: --threshold does not apply to -i request, " +
 			"which carries no policy"},
-		{given(cfg, "min-confidence"), "jev: --min-confidence does not apply to -i request, " +
+		{given(cfg, "min-confidence"), "onesie: --min-confidence does not apply to -i request, " +
 			"which carries no policy"},
-		{given(cfg, "fallback"), "jev: --fallback does not apply to -i request, " +
+		{given(cfg, "fallback"), "onesie: --fallback does not apply to -i request, " +
 			"which carries no policy"},
-		{cfg.HasState, "jev: --state does not apply to -i request, " +
+		{cfg.HasState, "onesie: --state does not apply to -i request, " +
 			"whose bodies carry their own state"},
-		{cfg.HasStateFile, "jev: --state-file does not apply to -i request, " +
+		{cfg.HasStateFile, "onesie: --state-file does not apply to -i request, " +
 			"whose bodies carry their own state"},
-		{cfg.Output != "", "jev: -o does not apply to -i request, which forwards raw responses"},
-		{cfg.Raw, "jev: -r does not apply to -i request, which forwards raw responses"},
-		{cfg.Quiet, "jev: -q needs a policy to report, which -i request has none of"},
-		{cfg.HasAssert, "jev: --assert does not apply to -i request, " +
+		{cfg.Output != "", "onesie: -o does not apply to -i request, which forwards raw responses"},
+		{cfg.Raw, "onesie: -r does not apply to -i request, which forwards raw responses"},
+		{cfg.Quiet, "onesie: -q needs a policy to report, which -i request has none of"},
+		{cfg.HasAssert, "onesie: --assert does not apply to -i request, " +
 			"which forwards raw responses"},
-		{cfg.Usage, "jev: --usage does not apply to -i request, " +
+		{cfg.Usage, "onesie: --usage does not apply to -i request, " +
 			"whose response bodies already carry usage"},
-		{cfg.Merge, "jev: " + mergeFlag(cfg) +
+		{cfg.Merge, "onesie: " + mergeFlag(cfg) +
 			" does not apply to -i request, which forwards raw responses"},
-		{cfg.HasModel, "jev: -m does not apply to -i request, " +
+		{cfg.HasModel, "onesie: -m does not apply to -i request, " +
 			"whose bodies carry their own model"},
-		{cfg.StopOnAssert, "jev: --stop-on-assert does not apply to -i request, " +
+		{cfg.StopOnAssert, "onesie: --stop-on-assert does not apply to -i request, " +
 			"whose bodies carry no assertion"},
-		{cfg.PrintQuestions, "jev: --print-questions needs questions of its own, " +
+		{cfg.PrintQuestions, "onesie: --print-questions needs questions of its own, " +
 			"which -i request does not build"},
 	} {
 		if rule.given {
@@ -308,7 +308,7 @@ func checkRequestMode(cfg Config) error {
 
 func checkPrintFlags(cfg Config) error {
 	if cfg.PrintRequest && cfg.PrintQuestions {
-		return errors.New("jev: --print-request and --print-questions each write a " +
+		return errors.New("onesie: --print-request and --print-questions each write a " +
 			"different thing to stdout. Pass one")
 	}
 
@@ -326,47 +326,47 @@ func checkPrintFlags(cfg Config) error {
 	}{
 		{
 			cfg.PrintQuestions && cfg.HasState,
-			"jev: --state does not apply to --print-questions, which reads no state",
+			"onesie: --state does not apply to --print-questions, which reads no state",
 		},
 		{
 			cfg.PrintQuestions && cfg.HasStateFile,
-			"jev: --state-file does not apply to --print-questions, which reads no state",
+			"onesie: --state-file does not apply to --print-questions, which reads no state",
 		},
 		{
 			cfg.PrintQuestions && cfg.HasInput,
-			"jev: -i does not apply to --print-questions, which reads no input",
+			"onesie: -i does not apply to --print-questions, which reads no input",
 		},
 		{cfg.Output != "", fmt.Sprintf(
-			"jev: -o does not apply to %s, which writes %s", name, writes)},
-		{cfg.Raw, fmt.Sprintf("jev: -r does not apply to %s, which writes %s", name, writes)},
+			"onesie: -o does not apply to %s, which writes %s", name, writes)},
+		{cfg.Raw, fmt.Sprintf("onesie: -r does not apply to %s, which writes %s", name, writes)},
 		{cfg.Quiet, fmt.Sprintf(
-			"jev: -q suppresses output, which leaves %s nothing to write", name)},
+			"onesie: -q suppresses output, which leaves %s nothing to write", name)},
 		// Guarded to --print-request, since --print-questions writes the assertion into the file
 		// it prints and so is the one dry run that carries it. §17.5.
 		{cfg.PrintRequest && cfg.HasAssert, fmt.Sprintf(
-			"jev: %s judges an answer, which --print-request does not produce",
+			"onesie: %s judges an answer, which --print-request does not produce",
 			assertFlag(cfg))},
 		{cfg.Usage, fmt.Sprintf(
-			"jev: --usage reports the tokens a question cost, which %s does not ask", name)},
+			"onesie: --usage reports the tokens a question cost, which %s does not ask", name)},
 		{cfg.Merge, fmt.Sprintf(
-			"jev: %s needs answers to fold in, which %s does not produce", mergeFlag(cfg), name)},
+			"onesie: %s needs answers to fold in, which %s does not produce", mergeFlag(cfg), name)},
 		{
 			cfg.PrintQuestions && cfg.JobsSet,
-			"jev: -j does not apply to --print-questions, which makes no request",
+			"onesie: -j does not apply to --print-questions, which makes no request",
 		},
 		{
 			cfg.PrintQuestions && cfg.HasModel,
-			"jev: -m names a model to ask, which --print-questions does not do",
+			"onesie: -m names a model to ask, which --print-questions does not do",
 		},
 		// --stop-on-error and --unordered are absent because streamRequests honours both. Only the
 		// assertion is a judgment a dry run never makes, so only its stop condition is rejected.
 		{
 			cfg.PrintRequest && cfg.StopOnAssert,
-			"jev: --stop-on-assert ends a stream on a false assertion, " +
+			"onesie: --stop-on-assert ends a stream on a false assertion, " +
 				"which --print-request does not produce",
 		},
 		{cfg.Stats, fmt.Sprintf(
-			"jev: --stats has nothing to report with %s, which makes no request", name)},
+			"onesie: --stats has nothing to report with %s, which makes no request", name)},
 	} {
 		if rule.given {
 			return errors.New(rule.message)
@@ -417,19 +417,19 @@ func mergeFlag(cfg Config) string {
 func checkStreaming(cfg Config) (string, error) {
 	// Checked for every mode, since section 7 defines --merge for the non streaming ones too.
 	if cfg.Merge && !mergeable(cfg) {
-		return "", fmt.Errorf("jev: %s needs -o json or -o values", mergeFlag(cfg))
+		return "", fmt.Errorf("onesie: %s needs -o json or -o values", mergeFlag(cfg))
 	}
 
 	// Also for every mode. The rule is rejected rather than clamped, and a typo in a shared alias
 	// is exactly as wrong outside a stream as inside one. Gated on JobsSet because Jobs is an int
 	// and its zero value cannot be told from the flag being absent.
 	if cfg.JobsSet && cfg.Jobs < 1 {
-		return "", fmt.Errorf("jev: -j takes a positive number of records in flight, got %d",
+		return "", fmt.Errorf("onesie: -j takes a positive number of records in flight, got %d",
 			cfg.Jobs)
 	}
 
 	if cfg.TimeoutSet && cfg.Timeout < 1 {
-		return "", fmt.Errorf("jev: --timeout takes a positive number of seconds, got %d",
+		return "", fmt.Errorf("onesie: --timeout takes a positive number of seconds, got %d",
 			cfg.Timeout)
 	}
 
@@ -438,12 +438,12 @@ func checkStreaming(cfg Config) (string, error) {
 	}
 
 	if cfg.RetriesSet && cfg.Retries < 0 {
-		return "", fmt.Errorf("jev: --retries takes a retry count of zero or more, got %d",
+		return "", fmt.Errorf("onesie: --retries takes a retry count of zero or more, got %d",
 			cfg.Retries)
 	}
 
 	if cfg.RetriesSet && cfg.Retries > limits.MaxRetries {
-		return "", fmt.Errorf("jev: --retries takes at most %d, got %d",
+		return "", fmt.Errorf("onesie: --retries takes at most %d, got %d",
 			limits.MaxRetries, cfg.Retries)
 	}
 
@@ -452,7 +452,7 @@ func checkStreaming(cfg Config) (string, error) {
 	// neither, so it is rejected rather than given a meaning here.
 	if cfg.MaxRetryAfterSet && cfg.MaxRetryAfter < 1 {
 		return "", fmt.Errorf(
-			"jev: --max-retry-after must be a positive number of seconds, got %d",
+			"onesie: --max-retry-after must be a positive number of seconds, got %d",
 			cfg.MaxRetryAfter)
 	}
 
@@ -469,23 +469,23 @@ func checkStreaming(cfg Config) (string, error) {
 	// --state-file mistake sends them to the wrong flag, and naming jsonl for a lines run sends
 	// them to the wrong mode.
 	if cfg.HasState {
-		return "", fmt.Errorf("jev: --state cannot be combined with -i %s", cfg.InputName)
+		return "", fmt.Errorf("onesie: --state cannot be combined with -i %s", cfg.InputName)
 	}
 
 	if cfg.HasStateFile {
-		return "", fmt.Errorf("jev: --state-file cannot be combined with -i %s", cfg.InputName)
+		return "", fmt.Errorf("onesie: --state-file cannot be combined with -i %s", cfg.InputName)
 	}
 
 	if cfg.Quiet {
 		return "", fmt.Errorf(
-			"jev: -q reads one record. Drop -i %s or use -o values and filter the stream",
+			"onesie: -q reads one record. Drop -i %s or use -o values and filter the stream",
 			cfg.InputName)
 	}
 
 	// Section 8 asks for one JSON line per input line. A table is several lines with a repeated
 	// header, and section 7 gave raw its streaming semantics explicitly where table has none.
 	if cfg.Output == "table" {
-		return "", fmt.Errorf("jev: -o table reads one record. Drop -i %s or use -o json",
+		return "", fmt.Errorf("onesie: -o table reads one record. Drop -i %s or use -o json",
 			cfg.InputName)
 	}
 
@@ -499,7 +499,7 @@ func tooManySeconds(flag string, seconds int, set bool) error {
 
 	// Seconds become a time.Duration downstream, and past a point that multiplication wraps. A
 	// wrap to a positive value would hand a user who asked for centuries a fraction of a second.
-	return fmt.Errorf("jev: %s takes at most %d seconds, got %d", flag, limits.MaxSeconds, seconds)
+	return fmt.Errorf("onesie: %s takes at most %d seconds, got %d", flag, limits.MaxSeconds, seconds)
 }
 
 func mergeable(cfg Config) bool {
@@ -529,7 +529,7 @@ func checkSingleRecord(cfg Config) (string, error) {
 	} {
 		if flag.set {
 			return "", fmt.Errorf(
-				"jev: %s applies to streaming input. -i %s reads one record",
+				"onesie: %s applies to streaming input. -i %s reads one record",
 				flag.name, cfg.InputName)
 		}
 	}
@@ -594,7 +594,7 @@ func bodyPolicyError(name string, questions int) error {
 	}
 
 	return fmt.Errorf(
-		"jev: policy flags apply to a request body only when it has one question. "+
+		"onesie: policy flags apply to a request body only when it has one question. "+
 			"%s has %d, freeze with --print-questions first", name, questions)
 }
 
@@ -604,7 +604,7 @@ func checkOrphans(p *Plan) error {
 	}
 
 	return fmt.Errorf(
-		"jev: --%s given with no --ask to bind to and %d questions asked",
+		"onesie: --%s given with no --ask to bind to and %d questions asked",
 		p.Orphans[0].Name, len(p.Questions),
 	)
 }
@@ -624,7 +624,7 @@ func checkSources(p *Plan) error {
 
 	if named > 0 && positional > 0 {
 		return errors.New(
-			"jev: a positional question cannot be combined with --ask or -f")
+			"onesie: a positional question cannot be combined with --ask or -f")
 	}
 
 	return nil
@@ -639,7 +639,7 @@ func checkDuplicateIDs(p *Plan) error {
 	// The request body is keyed by id, so a repeated one would collapse into a single question
 	// while the output still carries the key twice.
 	if dupe, found := firstDuplicate(ids); found {
-		return fmt.Errorf("jev: question id '%s' is given twice", dupe)
+		return fmt.Errorf("onesie: question id '%s' is given twice", dupe)
 	}
 
 	return nil
@@ -649,12 +649,12 @@ func checkQuestion(q *Question) (string, error) {
 	// The positional question is keyed answer by design, so the reserved list only applies to an
 	// id the user chose.
 	if q.Origin.Chosen() && (reserved(q.ID) || q.ID == PositionalID) {
-		return "", fmt.Errorf("jev: question id '%s' is reserved", q.ID)
+		return "", fmt.Errorf("onesie: question id '%s' is reserved", q.ID)
 	}
 
 	if len(q.Options) > 0 && len(q.Levels) > 0 {
 		return "", errors.New(
-			"jev: --pick and --rate are mutually exclusive. A question is one or the other")
+			"onesie: --pick and --rate are mutually exclusive. A question is one or the other")
 	}
 
 	switch q.Shape {
@@ -684,7 +684,7 @@ func checkPick(q *Question) (string, error) {
 
 	if dupe, found := firstDuplicate(names); found {
 		return "", fmt.Errorf(
-			"jev: %s option '%s' is listed twice in question '%s'", pick, dupe, q.ID)
+			"onesie: %s option '%s' is listed twice in question '%s'", pick, dupe, q.ID)
 	}
 
 	if err := checkUnknownDesc(q, names, pick); err != nil {
@@ -739,22 +739,22 @@ func tooFew(q *Question, name, noun string, count int, names []string) error {
 	// a body's unlabelled levels. Naming it would print the separator and nothing else.
 	listed := strings.Join(names, ", ")
 	if listed == "" {
-		return fmt.Errorf("jev: %s needs at least two %s%s, got %d",
+		return fmt.Errorf("onesie: %s needs at least two %s%s, got %d",
 			name, noun, questionClause(q), count)
 	}
 
-	return fmt.Errorf("jev: %s needs at least two %s%s, got %d: %s",
+	return fmt.Errorf("onesie: %s needs at least two %s%s, got %d: %s",
 		name, noun, questionClause(q), count, listed)
 }
 
 func tooMany(q *Question, name, noun string, limit, count int) error {
-	return fmt.Errorf("jev: %s takes at most %d %s%s, got %d",
+	return fmt.Errorf("onesie: %s takes at most %d %s%s, got %d",
 		name, limit, noun, questionClause(q), count)
 }
 
 func checkRubric(q *Question, rate string, labels []string) error {
 	if dupe, found := firstDuplicate(labels); found {
-		return fmt.Errorf("jev: %s label '%s' is listed twice in question '%s'", rate, dupe, q.ID)
+		return fmt.Errorf("onesie: %s label '%s' is listed twice in question '%s'", rate, dupe, q.ID)
 	}
 
 	if err := checkUnknownDesc(q, labels, rate); err != nil {
@@ -766,7 +766,7 @@ func checkRubric(q *Question, rate string, labels []string) error {
 	have := described(q)
 	if len(have) != 0 && len(have) != len(labels) {
 		return fmt.Errorf(
-			"jev: %s levels must all be described or all bare%s. Described %s but not %s",
+			"onesie: %s levels must all be described or all bare%s. Described %s but not %s",
 			rate, questionClause(q), strings.Join(have, ", "),
 			strings.Join(missing(labels, have), ", "),
 		)
@@ -789,7 +789,7 @@ func checkNoul(q *Question) error {
 	for _, key := range q.DescOrder {
 		if key != "yes" && key != "no" {
 			return fmt.Errorf(
-				"jev: --desc on a yes/no question takes 'yes' or 'no', got '%s'", key)
+				"onesie: --desc on a yes/no question takes 'yes' or 'no', got '%s'", key)
 		}
 	}
 
@@ -810,12 +810,12 @@ func checkPolicy(q *Question, yesNo bool) error {
 			}
 
 			return fmt.Errorf(
-				"jev: %s cuts a yes/no probability. '%s' has %s, use %s with %s",
+				"onesie: %s cuts a yes/no probability. '%s' has %s, use %s with %s",
 				threshold, q.ID, noun, confidence, fallback)
 		}
 
 		if *policy.Threshold < 0 || *policy.Threshold > 1 {
-			return fmt.Errorf("jev: %s must be between 0 and 1, got %s",
+			return fmt.Errorf("onesie: %s must be between 0 and 1, got %s",
 				threshold, strconv.FormatFloat(*policy.Threshold, 'g', -1, 64))
 		}
 	}
@@ -823,27 +823,27 @@ func checkPolicy(q *Question, yesNo bool) error {
 	if policy.MinConfidence != nil {
 		if yesNo {
 			return fmt.Errorf(
-				"jev: %s needs a confidence value. '%s' is a yes/no question, "+
+				"onesie: %s needs a confidence value. '%s' is a yes/no question, "+
 					"use %s, or add %s or %s",
 				confidence, q.ID, threshold,
 				Spelling(q.Origin, "--pick"), Spelling(q.Origin, "--rate"))
 		}
 
 		if *policy.MinConfidence < 0 || *policy.MinConfidence > 1 {
-			return fmt.Errorf("jev: %s must be between 0 and 1, got %s",
+			return fmt.Errorf("onesie: %s must be between 0 and 1, got %s",
 				confidence, strconv.FormatFloat(*policy.MinConfidence, 'g', -1, 64))
 		}
 
 		if policy.Fallback == nil {
 			return fmt.Errorf(
-				"jev: %s needs %s, nothing to substitute for '%s'", confidence, fallback, q.ID)
+				"onesie: %s needs %s, nothing to substitute for '%s'", confidence, fallback, q.ID)
 		}
 	}
 
 	if yesNo && policy.Fallback != nil {
 		if _, ok := ParseFallback(policy.Fallback.Text); !ok {
 			return fmt.Errorf(
-				"jev: %s on a yes/no question takes true, false, yes or no, got '%s'",
+				"onesie: %s on a yes/no question takes true, false, yes or no, got '%s'",
 				fallback, policy.Fallback.Text)
 		}
 	}
@@ -859,7 +859,7 @@ func checkUnknownDesc(q *Question, vocabulary []string, shape string) error {
 
 		// The key itself always comes from --desc, since a file has no way to name one. Only the
 		// vocabulary it missed is spelled the way the question was written.
-		return fmt.Errorf("jev: --desc names an unknown key '%s' in question '%s'. %s has: %s",
+		return fmt.Errorf("onesie: --desc names an unknown key '%s' in question '%s'. %s has: %s",
 			key, q.ID, shape, strings.Join(vocabulary, ", "))
 	}
 
@@ -890,14 +890,14 @@ func checkSingle(p *Plan, cfg Config) error {
 	}
 
 	if len(p.Questions) != 1 {
-		return fmt.Errorf("jev: %s needs a single question. %s were asked",
+		return fmt.Errorf("onesie: %s needs a single question. %s were asked",
 			flag, strings.Join(names, ", "))
 	}
 
 	only := p.Questions[0]
 	if cfg.Quiet && only.Shape != Noul && only.Policy.MinConfidence == nil && !cfg.HasAssert {
 		return fmt.Errorf(
-			"jev: -q on '%s' needs %s and %s, or --assert. Without one the exit code is always 0",
+			"onesie: -q on '%s' needs %s and %s, or --assert. Without one the exit code is always 0",
 			only.ID, Spelling(only.Origin, "--min-confidence"), Spelling(only.Origin, "--fallback"))
 	}
 

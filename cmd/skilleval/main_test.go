@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/frodi-karlsson/jev-cli/internal/skilleval"
+	"github.com/frodi-karlsson/onesie/internal/skilleval"
 )
 
 func TestAppResultFile(t *testing.T) {
@@ -66,7 +66,7 @@ func TestAppRun(t *testing.T) {
 		Name: "gate",
 		Arms: []skilleval.ArmReport{{
 			Arm: "with", Runs: 1, Commands: 1, Clean: 1,
-			QuietWithAssert: []skilleval.Finding{{Run: 1, Command: "jev 'a' -q --assert 'a.value'"}},
+			QuietWithAssert: []skilleval.Finding{{Run: 1, Command: "onesie 'a' -q --assert 'a.value'"}},
 		}},
 	}}}
 
@@ -77,7 +77,7 @@ func TestAppRun(t *testing.T) {
 		{name: "should say the -q with --assert tally is separate from the eval score", want: "not part of the eval score"},
 		{name: "should say a form quoted as a warning is counted too", want: "quotes as a warning is counted too"},
 		{name: "should report the tally beside the dry run result", want: "1 clean, 0 failed, 0 skipped, 1 use -q with --assert"},
-		{name: "should list the command that combines them", want: "-q with --assert, run 1: jev 'a' -q --assert 'a.value'"},
+		{name: "should list the command that combines them", want: "-q with --assert, run 1: onesie 'a' -q --assert 'a.value'"},
 	}
 
 	a := &app{

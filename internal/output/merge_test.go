@@ -5,15 +5,15 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/frodi-karlsson/jev-cli/internal/answer"
-	"github.com/frodi-karlsson/jev-cli/internal/output"
+	"github.com/frodi-karlsson/onesie/internal/answer"
+	"github.com/frodi-karlsson/onesie/internal/output"
 )
 
 func TestWriteMerged(t *testing.T) {
 	t.Parallel()
 
 	simple := output.Record{
-		Model: "jev-1.13.0",
+		Model: "onesie-1.13.0",
 		Answers: []output.Named{
 			{ID: "urgent", Answer: &answer.Answer{Value: 0.92}},
 		},
@@ -36,7 +36,7 @@ func TestWriteMerged(t *testing.T) {
 			state: map[string]any{"id": float64(7), "body": "hello"},
 			key:   "answers",
 			rec:   simple,
-			want: `{"id":7,"body":"hello","answers":{"model":"jev-1.13.0",` +
+			want: `{"id":7,"body":"hello","answers":{"model":"onesie-1.13.0",` +
 				`"urgent":{"value":0.92}}}`,
 		},
 		{
@@ -46,7 +46,7 @@ func TestWriteMerged(t *testing.T) {
 			state: map[string]any{"zebra": float64(1), "apple": float64(2)},
 			key:   "answers",
 			rec:   simple,
-			want: `{"zebra":1,"apple":2,"answers":{"model":"jev-1.13.0",` +
+			want: `{"zebra":1,"apple":2,"answers":{"model":"onesie-1.13.0",` +
 				`"urgent":{"value":0.92}}}`,
 		},
 		{
@@ -56,7 +56,7 @@ func TestWriteMerged(t *testing.T) {
 			state: map[string]any{"zebra": float64(1), "apple": float64(2)},
 			key:   "answers",
 			rec:   simple,
-			want: `{"zebra":1,"apple":2,"answers":{"model":"jev-1.13.0",` +
+			want: `{"zebra":1,"apple":2,"answers":{"model":"onesie-1.13.0",` +
 				`"urgent":{"value":0.92}}}`,
 		},
 		{
@@ -66,7 +66,7 @@ func TestWriteMerged(t *testing.T) {
 			state: map[string]any{},
 			key:   "answers",
 			rec:   simple,
-			want:  `{"answers":{"model":"jev-1.13.0","urgent":{"value":0.92}}}`,
+			want:  `{"answers":{"model":"onesie-1.13.0","urgent":{"value":0.92}}}`,
 		},
 		{
 			name:  "should wrap an array under state",
@@ -75,7 +75,7 @@ func TestWriteMerged(t *testing.T) {
 			state: []any{"a", "b"},
 			key:   "answers",
 			rec:   simple,
-			want: `{"state":["a","b"],"answers":{"model":"jev-1.13.0",` +
+			want: `{"state":["a","b"],"answers":{"model":"onesie-1.13.0",` +
 				`"urgent":{"value":0.92}}}`,
 		},
 		{
@@ -85,7 +85,7 @@ func TestWriteMerged(t *testing.T) {
 			state: "a ticket body",
 			key:   "answers",
 			rec:   simple,
-			want: `{"state":"a ticket body","answers":{"model":"jev-1.13.0",` +
+			want: `{"state":"a ticket body","answers":{"model":"onesie-1.13.0",` +
 				`"urgent":{"value":0.92}}}`,
 		},
 		{
@@ -98,7 +98,7 @@ func TestWriteMerged(t *testing.T) {
 			state: "42",
 			key:   "answers",
 			rec:   simple,
-			want:  `{"state":"42","answers":{"model":"jev-1.13.0","urgent":{"value":0.92}}}`,
+			want:  `{"state":"42","answers":{"model":"onesie-1.13.0","urgent":{"value":0.92}}}`,
 		},
 		{
 			name: "should wrap a line that looks like an object but does not parse",
@@ -128,9 +128,9 @@ func TestWriteMerged(t *testing.T) {
 			mode:  output.JSON,
 			raw:   `{"answers":"mine"}`,
 			state: map[string]any{"answers": "mine"},
-			key:   "jev",
+			key:   "onesie",
 			rec:   simple,
-			want:  `{"answers":"mine","jev":{"model":"jev-1.13.0","urgent":{"value":0.92}}}`,
+			want:  `{"answers":"mine","onesie":{"model":"onesie-1.13.0","urgent":{"value":0.92}}}`,
 		},
 		{
 			name: "should wrap an object looking text line under state",
@@ -141,7 +141,7 @@ func TestWriteMerged(t *testing.T) {
 			state: `{"a":1}`,
 			key:   "answers",
 			rec:   simple,
-			want: `{"state":"{\"a\":1}","answers":{"model":"jev-1.13.0",` +
+			want: `{"state":"{\"a\":1}","answers":{"model":"onesie-1.13.0",` +
 				`"urgent":{"value":0.92}}}`,
 		},
 		{
@@ -151,7 +151,7 @@ func TestWriteMerged(t *testing.T) {
 			state: json.RawMessage(`{"zebra":1,"alpha":2}`),
 			key:   "answers",
 			rec:   simple,
-			want: `{"zebra":1,"alpha":2,"answers":{"model":"jev-1.13.0",` +
+			want: `{"zebra":1,"alpha":2,"answers":{"model":"onesie-1.13.0",` +
 				`"urgent":{"value":0.92}}}`,
 		},
 		{
@@ -163,7 +163,7 @@ func TestWriteMerged(t *testing.T) {
 			state: json.RawMessage(`[12345678901234567890]`),
 			key:   "answers",
 			rec:   simple,
-			want: `{"state":[12345678901234567890],"answers":{"model":"jev-1.13.0",` +
+			want: `{"state":[12345678901234567890],"answers":{"model":"onesie-1.13.0",` +
 				`"urgent":{"value":0.92}}}`,
 		},
 		{

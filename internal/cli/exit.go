@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/frodi-karlsson/jev-cli/internal/creds"
-	"github.com/frodi-karlsson/jev-cli/internal/engine"
-	"github.com/frodi-karlsson/jev-cli/internal/input"
-	"github.com/frodi-karlsson/jev-cli/internal/jev"
+	"github.com/frodi-karlsson/onesie/internal/creds"
+	"github.com/frodi-karlsson/onesie/internal/engine"
+	"github.com/frodi-karlsson/onesie/internal/input"
+	"github.com/frodi-karlsson/onesie/internal/jev"
 )
 
 // Exit codes. A driver script branches on these, so they are part of the interface.
@@ -70,7 +70,7 @@ func Classify(err error) int {
 		return ExitUnavailable
 	}
 
-	// A 2xx body jev cannot use is a server fault, not a usage error, and retrying it is
+	// A 2xx body onesie cannot use is a server fault, not a usage error, and retrying it is
 	// reasonable, which is what exit 4 means.
 	var unusable *jev.ResponseError
 	if errors.As(err, &unusable) {
@@ -98,7 +98,7 @@ func Classify(err error) int {
 	}
 
 	// After the transport checks, so a socket write that failed with EPIPE is still reported as
-	// the transport failure it is. What reaches here is jev's own stdout, and section 12 has no
+	// the transport failure it is. What reaches here is onesie's own stdout, and section 12 has no
 	// code meaning the consumer stopped reading.
 	if engine.BrokenPipe(err) {
 		return ExitOK
@@ -118,7 +118,7 @@ func worthReporting(err error) bool {
 	}
 
 	if engine.BrokenPipe(err) {
-		// The consumer closed the pipe jev was writing to, and a line about it would go to a
+		// The consumer closed the pipe onesie was writing to, and a line about it would go to a
 		// stderr the same consumer is often reading.
 		return false
 	}
