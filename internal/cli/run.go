@@ -59,7 +59,7 @@ func run(
 
 		// Each body names its own model, and onesie sends it as written, so the fingerprint holds
 		// no model for the default to fill.
-		if bindErr := bindOut(out, settings, flags, nil, ""); bindErr != nil {
+		if bindErr := bindOut(out, settings, flags, nil, fingerprintInputs{}); bindErr != nil {
 			return bindErr
 		}
 
@@ -105,17 +105,20 @@ func run(
 		return err
 	}
 
-	// After the plan is built, since the fingerprint covers its questions, and before any mode
-	// writes, since a refused resume must leave the file as it was.
-	if bindErr := bindOut(out, settings, flags, built.Questions, model); bindErr != nil {
-		return bindErr
-	}
-
 	// Both modes are parsed before the request, so a mistyped flag costs nothing.
 	outputMode, err := output.ParseMode(
 		outputName(flags), settings.stdoutTTY, inputMode.Streaming(), merging(flags))
 	if err != nil {
 		return err
+	}
+
+	// After the plan is built, since the fingerprint covers its questions, and before any mode
+	// writes, since a refused resume must leave the file as it was.
+	bindErr := bindOut(out, settings, flags, built.Questions, fingerprintInputs{
+		model: model, output: outputMode.String(), assert: gate.Source(), abstainIf: abstain.Source(),
+	})
+	if bindErr != nil {
+		return bindErr
 	}
 
 	if inputMode.Streaming() {
@@ -198,7 +201,7 @@ func bindOut(
 	settings rootSettings,
 	flags *runFlags,
 	questions []plan.Question,
-	model string,
+	inputs fingerprintInputs,
 ) error {
 	if out == nil {
 		return nil
@@ -209,7 +212,15 @@ func bindOut(
 		return err
 	}
 
-	fingerprint, err := fingerprintOf(questions, provider.Name, model, flags.mapSource, flags.idSource)
+	inputs.provider = provider.Name
+	inputs.mapSource = flags.mapSource
+	inputs.idSource = flags.idSource
+
+	if merging(flags) {
+		inputs.mergeKey = mergeKey(flags)
+	}
+
+	fingerprint, err := fingerprintOf(questions, inputs)
 	if err != nil {
 		return err
 	}

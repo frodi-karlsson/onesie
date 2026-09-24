@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/frodi-karlsson/onesie/internal/jev"
+	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
 func TestDelimited(t *testing.T) {
@@ -126,7 +127,9 @@ func TestDelimited(t *testing.T) {
 			t.Fatalf("writing the existing file: %v", err)
 		}
 
-		fingerprint := fingerprintFor(t, "is this urgent", "typesafe", jev.DefaultModel, "", "") + "\n"
+		fingerprint := fingerprintWith(t, plan.Source{Positional: "is this urgent"}, fingerprintInputs{
+			provider: "typesafe", model: jev.DefaultModel, output: "csv", mergeKey: "answers",
+		}) + "\n"
 		if err := os.WriteFile(path+".onesie", []byte(fingerprint), 0o600); err != nil {
 			t.Fatalf("writing the existing fingerprint: %v", err)
 		}

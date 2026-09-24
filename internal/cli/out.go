@@ -21,7 +21,7 @@ import (
 
 const (
 	fingerprintSuffix  = ".onesie"
-	fingerprintVersion = 1
+	fingerprintVersion = 2
 	compactSuffix      = ".onesie.part"
 	forwardGap         = 64 << 10
 	maxLinks           = 40
@@ -503,7 +503,7 @@ func (o *outFile) checkFingerprint(fingerprint string) (matched bool, err error)
 				"Drop --resume to start over", sidecar, o.path)
 	case stored != fingerprint:
 		return false, fmt.Errorf(
-			"onesie: the questions, provider, model, --map or --id changed since %s was written. "+
+			"onesie: the questions, flags or gate changed since %s was written. "+
 				"Drop --resume to start over", o.path)
 	}
 
@@ -688,14 +688,30 @@ func (o *outFile) writeFingerprint() error {
 	return nil
 }
 
-func fingerprintOf(questions []plan.Question, provider, model, mapSource, idSource string) (string, error) {
+func fingerprintOf(questions []plan.Question, inputs fingerprintInputs) (string, error) {
 	encoded, err := json.Marshal(struct {
 		Questions json.Marshaler `json:"questions"`
+		Policies  []policyPrint  `json:"policies"`
 		Provider  string         `json:"provider"`
 		Model     string         `json:"model"`
 		Map       string         `json:"map"`
 		ID        string         `json:"id"`
-	}{Questions: wireAll(questions), Provider: provider, Model: model, Map: mapSource, ID: idSource})
+		Output    string         `json:"output"`
+		MergeKey  string         `json:"merge_key"`
+		Assert    string         `json:"assert"`
+		AbstainIf string         `json:"abstain_if"`
+	}{
+		Questions: wireAll(questions),
+		Policies:  policiesOf(questions),
+		Provider:  inputs.provider,
+		Model:     inputs.model,
+		Map:       inputs.mapSource,
+		ID:        inputs.idSource,
+		Output:    inputs.output,
+		MergeKey:  inputs.mergeKey,
+		Assert:    inputs.assert,
+		AbstainIf: inputs.abstainIf,
+	})
 	if err != nil {
 		return "", fmt.Errorf("onesie: fingerprinting the run: %w", err)
 	}
@@ -703,6 +719,44 @@ func fingerprintOf(questions []plan.Question, provider, model, mapSource, idSour
 	sum := sha256.Sum256(encoded)
 
 	return fmt.Sprintf("v%d:%s", fingerprintVersion, hex.EncodeToString(sum[:])), nil
+}
+
+type fingerprintInputs struct {
+	provider  string
+	model     string
+	mapSource string
+	idSource  string
+	output    string
+	mergeKey  string
+	assert    string
+	abstainIf string
+}
+
+func policiesOf(questions []plan.Question) []policyPrint {
+	policies := make([]policyPrint, 0, len(questions))
+
+	for _, question := range questions {
+		policy := policyPrint{
+			ID:            question.ID,
+			Threshold:     question.Policy.Threshold,
+			MinConfidence: question.Policy.MinConfidence,
+		}
+
+		if question.Policy.Fallback != nil {
+			policy.Fallback = &question.Policy.Fallback.Text
+		}
+
+		policies = append(policies, policy)
+	}
+
+	return policies
+}
+
+type policyPrint struct {
+	ID            string   `json:"id"`
+	Threshold     *float64 `json:"threshold"`
+	MinConfidence *float64 `json:"min_confidence"`
+	Fallback      *string  `json:"fallback"`
 }
 
 func completeRows(settings rootSettings, path string, quoted bool) (rows int, length int64, err error) {

@@ -19,15 +19,26 @@ import (
 	"time"
 
 	"github.com/frodi-karlsson/onesie/internal/jev"
+	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
 func TestResumeLedger(t *testing.T) {
 	t.Parallel()
 
-	byID := fingerprintFor(t, "is this urgent", "typesafe", jev.DefaultModel, "", ".id")
-	byPosition := fingerprintFor(t, "is this urgent", "typesafe", jev.DefaultModel, "", "")
-	byItself := fingerprintFor(t, "is this urgent", "typesafe", jev.DefaultModel, "", ".")
-	byStateKey := fingerprintFor(t, "is this urgent", "typesafe", jev.DefaultModel, "", ".state")
+	printed := func(idSource, output, mergeKey string) string {
+		return fingerprintWith(t, plan.Source{Positional: "is this urgent"}, fingerprintInputs{
+			provider: "typesafe", model: jev.DefaultModel, idSource: idSource, output: output,
+			mergeKey: mergeKey,
+		})
+	}
+
+	byID := printed(".id", "values", "")
+	byPosition := printed("", "values", "")
+	byItself := printed(".", "values", "answers")
+	byStateKey := printed(".state", "values", "answers")
+	byIDInTSV := printed(".id", "tsv", "")
+	byIDInCSV := printed(".id", "csv", "")
+	byIDMergedInCSV := printed(".id", "csv", "answers")
 
 	values := []string{"-i", "jsonl", "-o", "values", "--id", ".id", "--resume"}
 	csvCR := "id,answer,error\n,,\"line 1: --id: \"\"a\\rb\"\" holds a carriage return, which -o csv cannot read back\"\n" +
@@ -297,7 +308,7 @@ func TestResumeLedger(t *testing.T) {
 		{
 			name:     "should resume tsv output with the header written once",
 			existing: fileOf("id\tanswer\terror\n1\t0.5\t\n"),
-			sidecar:  byID,
+			sidecar:  byIDInTSV,
 			stdin:    idRecords(1, 3),
 			runs: []resumeRun{{
 				args:     []string{"-i", "jsonl", "-o", "tsv", "--id", ".id", "--resume"},
@@ -332,7 +343,7 @@ func TestResumeLedger(t *testing.T) {
 		{
 			name:     "should resume csv output with the header written once",
 			existing: fileOf("id,answer,error\n1,0.5,\n"),
-			sidecar:  byID,
+			sidecar:  byIDInCSV,
 			stdin:    idRecords(1, 3),
 			runs: []resumeRun{{
 				args:     []string{"-i", "jsonl", "-o", "csv", "--id", ".id", "--resume"},
@@ -355,7 +366,7 @@ func TestResumeLedger(t *testing.T) {
 		{
 			name:     "should resume merged csv output by running --id on each row",
 			existing: fileOf("id,body,answer,error\n1,\"a\nb\",0.5,\n"),
-			sidecar:  byID,
+			sidecar:  byIDMergedInCSV,
 			stdin:    "id,body\n1,\"a\nb\"\n2,c\n3,d\n",
 			runs: []resumeRun{{
 				args:     []string{"-i", "csv", "-o", "csv", "--merge", "--id", ".id", "--resume"},

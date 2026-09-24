@@ -15,6 +15,7 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/frodi-karlsson/onesie/internal/argv"
 	"github.com/frodi-karlsson/onesie/internal/jev"
 	"github.com/frodi-karlsson/onesie/internal/output"
 	"github.com/frodi-karlsson/onesie/internal/plan"
@@ -28,8 +29,23 @@ func TestOpenOut(t *testing.T) {
 	const bodies = "{\"id\":1,\"body\":\"a\"}\n{\"id\":2,\"body\":\"b\"}\n" +
 		"{\"id\":3,\"body\":\"c\"}\n{\"id\":4,\"body\":\"d\"}\n"
 
-	matching := fingerprintFor(t, "is this urgent", "typesafe", jev.DefaultModel, "", "")
-	changed := "the questions, provider, model, --map or --id changed since"
+	valuesFor := func(question, provider, model, mapSource, idSource string) string {
+		return fingerprintWith(t, plan.Source{Positional: question}, fingerprintInputs{
+			provider: provider, model: model, mapSource: mapSource, idSource: idSource, output: "values",
+		})
+	}
+
+	matching := valuesFor("is this urgent", "typesafe", jev.DefaultModel, "", "")
+	picking := fingerprintWith(t, plan.Source{
+		Positional: "which team",
+		Events: []argv.Event{
+			{Name: "pick", Value: "billing,technical"}, {Name: "fallback", Value: "human"},
+		},
+	}, fingerprintInputs{provider: "typesafe", model: jev.DefaultModel, output: "values"})
+	merged := fingerprintWith(t, plan.Source{Positional: "is this urgent"}, fingerprintInputs{
+		provider: "typesafe", model: jev.DefaultModel, output: "values", mergeKey: "answers",
+	})
+	changed := "the questions, flags or gate changed since"
 	malformed := "does not hold a fingerprint onesie wrote"
 
 	tests := []struct {
@@ -147,41 +163,41 @@ func TestOpenOut(t *testing.T) {
 			},
 			stdin:       bodies,
 			wantFile:    idLines(1, 4),
-			wantSidecar: fingerprintFor(t, "is this urgent", "typesafe", "m1", ".body", ".id"),
+			wantSidecar: valuesFor("is this urgent", "typesafe", "m1", ".body", ".id"),
 			wantCalls:   4,
 		},
 		{
 			name:     "should resume when the fingerprint matches every setting",
 			existing: idLines(1, 2),
-			sidecar:  fingerprintFor(t, "is this urgent", "typesafe", "m1", ".body", ".id"),
+			sidecar:  valuesFor("is this urgent", "typesafe", "m1", ".body", ".id"),
 			args: []string{
 				"is this urgent", "-i", "jsonl", "-m", "m1", "--map", ".body", "--id", ".id", "--resume",
 			},
 			stdin:       bodies,
 			wantFile:    idLines(1, 4),
-			wantSidecar: fingerprintFor(t, "is this urgent", "typesafe", "m1", ".body", ".id"),
+			wantSidecar: valuesFor("is this urgent", "typesafe", "m1", ".body", ".id"),
 			wantCalls:   2,
 		},
 		{
 			name:        "should refuse to resume when the questions changed",
 			existing:    "keep me\n",
-			sidecar:     fingerprintFor(t, "is this critical", "typesafe", jev.DefaultModel, "", ""),
+			sidecar:     valuesFor("is this critical", "typesafe", jev.DefaultModel, "", ""),
 			args:        []string{"is this urgent", "-i", "jsonl", "--resume"},
 			stdin:       input,
 			wantCode:    ExitUsage,
 			wantFile:    "keep me\n",
-			wantSidecar: fingerprintFor(t, "is this critical", "typesafe", jev.DefaultModel, "", ""),
+			wantSidecar: valuesFor("is this critical", "typesafe", jev.DefaultModel, "", ""),
 			wantErr:     changed,
 		},
 		{
 			name:        "should refuse to resume when the model changed",
 			existing:    "keep me\n",
-			sidecar:     fingerprintFor(t, "is this urgent", "typesafe", "a", "", ""),
+			sidecar:     valuesFor("is this urgent", "typesafe", "a", "", ""),
 			args:        []string{"is this urgent", "-i", "jsonl", "-m", "b", "--resume"},
 			stdin:       input,
 			wantCode:    ExitUsage,
 			wantFile:    "keep me\n",
-			wantSidecar: fingerprintFor(t, "is this urgent", "typesafe", "a", "", ""),
+			wantSidecar: valuesFor("is this urgent", "typesafe", "a", "", ""),
 			wantErr:     changed,
 		},
 		{
@@ -200,6 +216,118 @@ func TestOpenOut(t *testing.T) {
 			existing:    "keep me\n",
 			sidecar:     matching,
 			args:        []string{"is this urgent", "-i", "jsonl", "--id", ".id", "--resume"},
+			stdin:       input,
+			wantCode:    ExitUsage,
+			wantFile:    "keep me\n",
+			wantSidecar: matching,
+			wantErr:     changed,
+		},
+		{
+			name:        "should refuse to resume when the output mode changed",
+			existing:    "keep me\n",
+			sidecar:     matching,
+			args:        []string{"is this urgent", "-o", "json", "-i", "jsonl", "--resume"},
+			stdin:       input,
+			wantCode:    ExitUsage,
+			wantFile:    "keep me\n",
+			wantSidecar: matching,
+			wantErr:     changed,
+		},
+		{
+			name:        "should refuse to resume when --merge changed",
+			existing:    "keep me\n",
+			sidecar:     matching,
+			args:        []string{"is this urgent", "--merge", "-i", "jsonl", "--resume"},
+			stdin:       input,
+			wantCode:    ExitUsage,
+			wantFile:    "keep me\n",
+			wantSidecar: matching,
+			wantErr:     changed,
+		},
+		{
+			name:        "should refuse to resume when --merge-key changed",
+			existing:    "keep me\n",
+			sidecar:     matching,
+			args:        []string{"is this urgent", "--merge-key", "verdict", "-i", "jsonl", "--resume"},
+			stdin:       input,
+			wantCode:    ExitUsage,
+			wantFile:    "keep me\n",
+			wantSidecar: matching,
+			wantErr:     changed,
+		},
+		{
+			name:        "should refuse to resume when --threshold changed",
+			existing:    "keep me\n",
+			sidecar:     matching,
+			args:        []string{"is this urgent", "--threshold", "0.7", "-i", "jsonl", "--resume"},
+			stdin:       input,
+			wantCode:    ExitUsage,
+			wantFile:    "keep me\n",
+			wantSidecar: matching,
+			wantErr:     changed,
+		},
+		{
+			name:     "should refuse to resume when --min-confidence changed",
+			existing: "keep me\n",
+			sidecar:  picking,
+			args: []string{
+				"which team", "--pick", "billing,technical", "--fallback", "human", "--min-confidence", "0.7",
+				"-i", "jsonl", "--resume",
+			},
+			stdin:       input,
+			wantCode:    ExitUsage,
+			wantFile:    "keep me\n",
+			wantSidecar: picking,
+			wantErr:     changed,
+		},
+		{
+			name:        "should resume when -o auto resolves to the json mode a stream wrote",
+			existing:    "old one\nold two\n",
+			sidecar:     fingerprintFor(t, "is this urgent", "typesafe", jev.DefaultModel, "", ""),
+			wantSidecar: fingerprintFor(t, "is this urgent", "typesafe", jev.DefaultModel, "", ""),
+			args:        []string{"is this urgent", "-o", "auto", "-i", "jsonl", "--resume"},
+			stdin:       input,
+			wantFile:    "old one\nold two\n" + strings.Repeat("{\"model\":\"m\",\"answer\":{\"value\":0.5}}\n", 2),
+			wantCalls:   2,
+		},
+		{
+			name:        "should resume when --merge-key answers names the key --merge wrote",
+			existing:    "old one\nold two\n",
+			sidecar:     merged,
+			wantSidecar: merged,
+			args:        []string{"is this urgent", "--merge-key", "answers", "-i", "jsonl", "--resume"},
+			stdin:       input,
+			wantFile: "old one\nold two\n" +
+				"{\"id\":3,\"answers\":{\"answer\":0.5}}\n{\"id\":4,\"answers\":{\"answer\":0.5}}\n",
+			wantCalls: 2,
+		},
+		{
+			name:        "should refuse to resume when --fallback changed",
+			existing:    "keep me\n",
+			sidecar:     matching,
+			args:        []string{"is this urgent", "--fallback", "no", "-i", "jsonl", "--resume"},
+			stdin:       input,
+			wantCode:    ExitUsage,
+			wantFile:    "keep me\n",
+			wantSidecar: matching,
+			wantErr:     changed,
+		},
+		{
+			name:        "should refuse to resume when --assert changed",
+			existing:    "keep me\n",
+			sidecar:     matching,
+			args:        []string{"is this urgent", "--assert", "answer.value > 0.9", "-i", "jsonl", "--resume"},
+			stdin:       input,
+			wantCode:    ExitUsage,
+			wantFile:    "keep me\n",
+			wantSidecar: matching,
+			wantErr:     changed,
+		},
+		{
+			name:        "should refuse to resume when --abstain-if changed",
+			existing:    "keep me\n",
+			sidecar:     matching,
+			args:        []string{"is this urgent", "--assert", "answer.value > 0.9", "--abstain-if", "answer.value > 0.4", "-i", "jsonl", "--resume"},
 			stdin:       input,
 			wantCode:    ExitUsage,
 			wantFile:    "keep me\n",
@@ -323,14 +451,25 @@ func TestOpenOut(t *testing.T) {
 			wantErr:     "an older onesie wrote",
 		},
 		{
-			name:        "should say a newer onesie wrote a fingerprint of a later version",
+			name:        "should say an older onesie wrote a fingerprint that leaves out the flags and the gate",
 			existing:    "keep me\n",
-			sidecar:     "v2:" + strings.Repeat("0", 64),
+			sidecar:     "v1:1ac939d902a081db7010b65849b69fc0a88cfa4373d81bd466316aae7dd6caef",
 			args:        []string{"is this urgent", "-i", "jsonl", "--resume"},
 			stdin:       input,
 			wantCode:    ExitUsage,
 			wantFile:    "keep me\n",
-			wantSidecar: "v2:" + strings.Repeat("0", 64),
+			wantSidecar: "v1:1ac939d902a081db7010b65849b69fc0a88cfa4373d81bd466316aae7dd6caef",
+			wantErr:     "an older onesie wrote",
+		},
+		{
+			name:        "should say a newer onesie wrote a fingerprint of a later version",
+			existing:    "keep me\n",
+			sidecar:     "v3:" + strings.Repeat("0", 64),
+			args:        []string{"is this urgent", "-i", "jsonl", "--resume"},
+			stdin:       input,
+			wantCode:    ExitUsage,
+			wantFile:    "keep me\n",
+			wantSidecar: "v3:" + strings.Repeat("0", 64),
 			wantErr:     "a newer onesie wrote",
 		},
 		{
@@ -894,22 +1033,32 @@ func TestFingerprintOf(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name     string
-		question string
-		provider string
-		model    string
-		mapSrc   string
-		idSrc    string
-		want     string
+		name   string
+		source plan.Source
+		inputs fingerprintInputs
+		want   string
 	}{
 		{
-			name:     "should keep the fingerprint format a sidecar on disk was written in",
-			question: "is this urgent",
-			provider: "typesafe",
-			model:    "jev-latest",
-			mapSrc:   ".body",
-			idSrc:    ".id",
-			want:     "v1:1ac939d902a081db7010b65849b69fc0a88cfa4373d81bd466316aae7dd6caef",
+			name: "should keep the fingerprint format a sidecar on disk was written in",
+			source: plan.Source{
+				Positional: "which team",
+				Events: []argv.Event{
+					{Name: "pick", Value: "billing,technical"},
+					{Name: "min-confidence", Value: "0.7"},
+					{Name: "fallback", Value: "human"},
+				},
+			},
+			inputs: fingerprintInputs{
+				provider:  "typesafe",
+				model:     "jev-latest",
+				mapSource: ".body",
+				idSource:  ".id",
+				output:    "csv",
+				mergeKey:  "answers",
+				assert:    "answer.p.billing > 0.5",
+				abstainIf: "answer.p.billing > 0.2",
+			},
+			want: "v2:8fc9c70b55b936fde1f29df4bfd6da32528138d36b0fb05f14aa8d52ba09d69c",
 		},
 	}
 
@@ -917,7 +1066,7 @@ func TestFingerprintOf(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := fingerprintFor(t, tc.question, tc.provider, tc.model, tc.mapSrc, tc.idSrc)
+			got := fingerprintWith(t, tc.source, tc.inputs)
 			if got != tc.want {
 				t.Errorf("fingerprint = %q, want %q", got, tc.want)
 			}
@@ -974,14 +1123,22 @@ func lockDir(t *testing.T, dir string) {
 func fingerprintFor(t *testing.T, question, provider, model, mapSource, idSource string) string {
 	t.Helper()
 
-	built, err := plan.Assemble(plan.Source{Positional: question})
+	return fingerprintWith(t, plan.Source{Positional: question}, fingerprintInputs{
+		provider: provider, model: model, mapSource: mapSource, idSource: idSource, output: "json",
+	})
+}
+
+func fingerprintWith(t *testing.T, source plan.Source, inputs fingerprintInputs) string {
+	t.Helper()
+
+	built, err := plan.Assemble(source)
 	if err != nil {
-		t.Fatalf("assembling %q: %v", question, err)
+		t.Fatalf("assembling %q: %v", source.Positional, err)
 	}
 
-	fingerprint, err := fingerprintOf(built.Questions, provider, model, mapSource, idSource)
+	fingerprint, err := fingerprintOf(built.Questions, inputs)
 	if err != nil {
-		t.Fatalf("fingerprinting %q: %v", question, err)
+		t.Fatalf("fingerprinting %q: %v", source.Positional, err)
 	}
 
 	return fingerprint

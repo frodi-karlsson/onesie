@@ -78,6 +78,26 @@ const (
 	TSV
 )
 
+// String names the mode as -o spells it.
+func (m Mode) String() string {
+	switch m {
+	case JSON:
+		return "json"
+	case Values:
+		return "values"
+	case Table:
+		return "table"
+	case Raw:
+		return "raw"
+	case CSV:
+		return "csv"
+	case TSV:
+		return "tsv"
+	default:
+		return fmt.Sprintf("Mode(%d)", int(m))
+	}
+}
+
 // Record is one input's worth of output, with the answers in question order.
 type Record struct {
 	// ID names the record under --id, as a string or a json.Number. Nil leaves the id out.

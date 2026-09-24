@@ -336,6 +336,34 @@ func TestParseMode(t *testing.T) {
 	}
 }
 
+func TestMode_String(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		mode output.Mode
+		want string
+	}{
+		{name: "should name json as -o spells it", mode: output.JSON, want: "json"},
+		{name: "should name values as -o spells it", mode: output.Values, want: "values"},
+		{name: "should name table as -o spells it", mode: output.Table, want: "table"},
+		{name: "should name raw as -o spells it", mode: output.Raw, want: "raw"},
+		{name: "should name csv as -o spells it", mode: output.CSV, want: "csv"},
+		{name: "should name tsv as -o spells it", mode: output.TSV, want: "tsv"},
+		{name: "should name a mode outside the set by its number", mode: output.Mode(99), want: "Mode(99)"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := tc.mode.String(); got != tc.want {
+				t.Errorf("String() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestEncodeFailure(t *testing.T) {
 	t.Parallel()
 
