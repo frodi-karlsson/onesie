@@ -1,0 +1,7 @@
+go test fuzz v1
+string("")
+byte('\x00')
+byte('\x00')
+string(".yml")
+string("")
+bool(false)

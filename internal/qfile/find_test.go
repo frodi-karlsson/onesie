@@ -304,6 +304,20 @@ func TestFind(t *testing.T) {
 		}
 	})
 
+	t.Run("should refuse to look up a value that is a path", func(t *testing.T) {
+		t.Parallel()
+
+		env := fakeEnv([]string{"/repo/.onesie/questions/two.parts.yaml", "/repo/.onesie/questions/.yaml"},
+			workDir, configDir, nil)
+
+		for _, value := range []string{"two.parts", ""} {
+			got, err := qfile.Find(value, env)
+			if err == nil || !strings.Contains(err.Error(), "is not a question file name") {
+				t.Errorf("Find(%q) = %s, %v, want an error saying it is not a name", value, got, err)
+			}
+		}
+	})
+
 	t.Run("should report a directory that cannot be read", func(t *testing.T) {
 		t.Parallel()
 
