@@ -63,7 +63,6 @@ func newCalibrateCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 			"Map only the text a person would read, since a --map that selects the label flatters " +
 			"the question.",
 		Args:          cobra.MaximumNArgs(1),
-		Hidden:        true,
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -193,7 +192,7 @@ func runCalibrate(
 		return calibrateRequests(cmd, settings, flags, inputMode, inv, labels)
 	}
 
-	return errors.New("onesie: calibrate cannot ask yet")
+	return calibrateRun(cmd, settings, flags, calib, inputMode, inv, labels)
 }
 
 func checkCalibrate(

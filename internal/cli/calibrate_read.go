@@ -111,6 +111,7 @@ func readLabelled(
 			continue
 		}
 
+		labelled.index = len(set.records)
 		set.records = append(set.records, labelled)
 	}
 }
@@ -245,6 +246,7 @@ type labelledSet struct {
 }
 
 type labelledRecord struct {
+	index  int
 	line   int
 	id     any
 	sent   json.RawMessage

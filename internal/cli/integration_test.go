@@ -757,6 +757,61 @@ func TestStatsIntegration(t *testing.T) {
 	})
 }
 
+func TestCalibrateIntegration(t *testing.T) {
+	const labelled = `{"id":"T-1","urgent":true,"body":"the site is down and customers cannot pay, fix it now"}
+{"id":"T-2","urgent":false,"body":"please update my newsletter preferences when you have time"}
+{"id":"T-3","urgent":true,"body":"production database is corrupting orders right now, all hands"}
+{"id":"T-4","urgent":false,"body":"no rush, just sharing a blog post I liked"}
+{"id":"T-5","urgent":true,"body":"a security breach is leaking customer passwords this minute"}
+{"id":"T-6","urgent":false,"body":"whenever you get a chance, could you rename the wiki page"}
+`
+
+	args := []string{
+		"calibrate", "--ask", "urgent=is this urgent", "-i", "jsonl", "--map", ".body",
+		"--label", "urgent=.urgent", "--id", ".id", "-j", "3", "-o", "json",
+	}
+
+	for _, tc := range []struct {
+		name, env string
+		provider  []string
+	}{
+		{name: "should separate obvious yes from obvious no records", env: "TYPESAFE_API_KEY"},
+		{
+			name: "should separate obvious yes from obvious no records through --provider openrouter",
+			env:  "OPENROUTER_API_KEY", provider: []string{"--provider", "openrouter"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if strings.TrimSpace(os.Getenv(tc.env)) == "" {
+				t.Skip(tc.env + " is not set, skipping this case")
+			}
+
+			out, errOut, code := runLive(t, append(slices.Clone(tc.provider), args...), labelled)
+			if code != cli.ExitOK {
+				t.Fatalf("exit code = %d, stderr:\n%s", code, errOut)
+			}
+
+			if !strings.Contains(errOut, "asking 6 of 6 records, 1 question each") {
+				t.Errorf("stderr = %q, want the cost line", errOut)
+			}
+
+			var report struct {
+				Questions []struct {
+					AUC *float64 `json:"auc"`
+				} `json:"questions"`
+			}
+
+			if err := json.Unmarshal([]byte(out), &report); err != nil {
+				t.Fatalf("the report is not json: %v\n%s", err, out)
+			}
+
+			if len(report.Questions) != 1 || report.Questions[0].AUC == nil || *report.Questions[0].AUC < 0.8 {
+				t.Errorf("report = %s, want an AUC of at least 0.8", out)
+			}
+		})
+	}
+}
+
 func decodeRecord(t *testing.T, out string) map[string]json.RawMessage {
 	t.Helper()
 
