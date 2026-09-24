@@ -747,7 +747,36 @@ func TestResumeLedger(t *testing.T) {
 					args:       []string{"-i", "jsonl", "-o", "raw", "--resume", "--assert", "answer.value > 0.9"},
 					wantCode:   ExitUsage,
 					wantFile:   "0.5\n",
-					wantStderr: "raw lines do not keep the gate's outcome. Use -o values or -o json",
+					wantStderr: "which raw lines do not. Use -o values or -o json",
+				},
+			},
+		},
+		{
+			name:  "should refuse a resume by position into raw output with no gate before any request",
+			stdin: idRecords(1, 3),
+			runs: []resumeRun{
+				{
+					args:       []string{"-i", "jsonl", "-o", "raw", "--retries", "0"},
+					input:      idRecords(1, 2),
+					failFrom:   2,
+					failStatus: http.StatusBadRequest,
+					wantCode:   ExitRecords,
+					wantFile:   "0.5\n\n",
+					wantSent:   []string{`{"id":1}`, `{"id":2}`},
+				},
+				{
+					args:     []string{"-i", "jsonl", "-o", "raw", "--resume"},
+					wantCode: ExitUsage,
+					wantFile: "0.5\n\n",
+					wantStderr: "onesie: --resume needs output that keeps each record's outcome, " +
+						"which raw lines do not. Use -o values or -o json",
+				},
+				{
+					args:     []string{"-i", "jsonl", "-r", "--resume"},
+					wantCode: ExitUsage,
+					wantFile: "0.5\n\n",
+					wantStderr: "onesie: --resume needs output that keeps each record's outcome, " +
+						"which raw lines do not. Use -o values or -o json",
 				},
 			},
 		},
