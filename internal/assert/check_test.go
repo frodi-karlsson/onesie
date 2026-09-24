@@ -277,6 +277,54 @@ func TestCheck(t *testing.T) {
 			wantErr: "'team' has no field 'velue'",
 		},
 		{
+			name:  "should accept a call over value, confidence, norm and a probability",
+			input: `max(urgent.value, team.confidence, severity.norm, team.p.billing) < 0.5`,
+		},
+		{
+			name:  "should accept a nested call on either side and in a list",
+			input: `avg(urgent.value, 0.2) <= sum(min(severity.norm, 1), team.p["technical"]) and urgent.value in [max(urgent.value, 0.1)]`,
+		},
+		{
+			name:    "should reject an unknown function and list the functions",
+			input:   `mx(urgent.value) < 0.5`,
+			wantErr: "unknown function 'mx'. Functions: avg, max, min, sum",
+		},
+		{
+			name:      "should reject a call with no arguments",
+			input:     `max() < 0.5`,
+			wantParse: "parse error at column 5, 'max' needs at least one number",
+		},
+		{
+			name:    "should reject a string argument",
+			input:   `max(team.value, urgent.value) < 0.5`,
+			wantErr: "'max' takes numbers, got 'team.value', a string",
+		},
+		{
+			name:    "should reject a string literal argument",
+			input:   `sum(urgent.value, "x") < 0.5`,
+			wantErr: `'sum' takes numbers, got "x", a string`,
+		},
+		{
+			name:    "should reject a string argument inside a nested call",
+			input:   `max(min(urgent.value, gated.decision)) < 0.5`,
+			wantErr: "'min' takes numbers, got 'gated.decision', a boolean",
+		},
+		{
+			name:    "should report an unknown question inside a call",
+			input:   `max(sevrity.value) < 0.5`,
+			wantErr: "unknown question 'sevrity'. Questions: " + questions,
+		},
+		{
+			name:    "should reject a call compared with a string",
+			input:   `max(urgent.value, severity.norm) == "high"`,
+			wantErr: `cannot compare 'max(urgent.value, severity.norm)', a number, with "high", a string`,
+		},
+		{
+			name:    "should reject a call compared with a boolean",
+			input:   `gated.decision == avg(urgent.value)`,
+			wantErr: `cannot compare 'gated.decision', a boolean, with 'avg(urgent.value)', a number`,
+		},
+		{
 			name:      "should leave and over a non boolean to the parser",
 			input:     `urgent.value and team.value == "billing"`,
 			wantParse: "parse error at column 14, expected a comparison",

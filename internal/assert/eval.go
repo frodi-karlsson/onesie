@@ -77,10 +77,33 @@ func (e *evaluator) value(n node) any {
 		return typed.value
 	case *boolNode:
 		return typed.value
+	case *callNode:
+		return e.call(typed)
 	}
 
-	// §17.2 puts only a path or a literal in an operand position, and all four are above.
+	// §17.2 puts only a path, a call or a literal in an operand position, and all five are above.
 	return nil
+}
+
+func (e *evaluator) call(n *callNode) any {
+	apply, ok := fold(n.name)
+	if !ok || len(n.args) == 0 {
+		return nil
+	}
+
+	numbers := make([]float64, 0, len(n.args))
+	for _, arg := range n.args {
+		number, isNumber := e.value(arg).(float64)
+		if !isNumber {
+			// A missing answer stays missing through a call, as it does through a bare path,
+			// rather than counting as a zero.
+			return nil
+		}
+
+		numbers = append(numbers, number)
+	}
+
+	return apply(numbers)
 }
 
 func (e *evaluator) resolve(n *pathNode) any {
@@ -164,4 +187,55 @@ func numberOf(value any) float64 {
 	}
 
 	return number
+}
+
+func fold(name string) (func([]float64) float64, bool) {
+	known := functions()
+
+	at := slices.IndexFunc(known, func(f function) bool {
+		return f.name == name
+	})
+	if at < 0 {
+		return nil, false
+	}
+
+	return known[at].apply, true
+}
+
+func functionNames() []string {
+	known := functions()
+
+	names := make([]string, 0, len(known))
+	for _, f := range known {
+		names = append(names, f.name)
+	}
+
+	return names
+}
+
+func functions() []function {
+	return []function{
+		{name: "avg", apply: mean},
+		{name: "max", apply: slices.Max[[]float64]},
+		{name: "min", apply: slices.Min[[]float64]},
+		{name: "sum", apply: total},
+	}
+}
+
+type function struct {
+	name  string
+	apply func([]float64) float64
+}
+
+func mean(numbers []float64) float64 {
+	return total(numbers) / float64(len(numbers))
+}
+
+func total(numbers []float64) float64 {
+	var sum float64
+	for _, number := range numbers {
+		sum += number
+	}
+
+	return sum
 }

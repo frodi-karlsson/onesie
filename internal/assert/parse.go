@@ -249,6 +249,10 @@ func (p *parser) nestedList() bool {
 func (p *parser) parseOperand() (node, error) {
 	switch tok := p.peek(); tok.kind {
 	case kindIdent, kindLBracket:
+		if p.callAhead() {
+			return p.parseCall()
+		}
+
 		return p.parsePath()
 	case kindNumber:
 		p.next()
@@ -265,6 +269,51 @@ func (p *parser) parseOperand() (node, error) {
 	default:
 		return nil, parseError(tok.col, "expected a value")
 	}
+}
+
+func (p *parser) callAhead() bool {
+	name, open := p.tokens[p.at], p.tokens[p.at+1]
+
+	return name.kind == kindIdent && open.kind == kindLParen &&
+		open.col == name.col+len([]rune(name.text))
+}
+
+func (p *parser) parseCall() (node, error) {
+	name := p.next()
+	p.next()
+
+	// A call nests like a group does, so it spends the same budget parseUnary guards.
+	p.depth++
+	defer func() { p.depth-- }()
+
+	if p.depth > maxDepth {
+		return nil, parseError(p.peek().col, "the expression nests too deeply")
+	}
+
+	if p.peek().kind == kindRParen {
+		return nil, parseError(p.peek().col, fmt.Sprintf("'%s' needs at least one number", name.text))
+	}
+
+	var args []node
+	for {
+		arg, err := p.parseOperand()
+		if err != nil {
+			return nil, err
+		}
+
+		args = append(args, arg)
+		if p.peek().kind != kindComma {
+			break
+		}
+		p.next()
+	}
+
+	if p.peek().kind != kindRParen {
+		return nil, parseError(p.peek().col, "expected a closing parenthesis")
+	}
+	p.next()
+
+	return &callNode{name: name.text, args: args, column: name.col}, nil
 }
 
 func (p *parser) parsePath() (node, error) {

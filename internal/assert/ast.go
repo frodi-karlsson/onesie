@@ -96,6 +96,25 @@ func (n *pathNode) render() string {
 	return out.String()
 }
 
+type callNode struct {
+	name   string
+	args   []node
+	column int
+}
+
+func (n *callNode) pos() int {
+	return n.column
+}
+
+func (n *callNode) render() string {
+	parts := []string{n.name}
+	for _, arg := range n.args {
+		parts = append(parts, arg.render())
+	}
+
+	return sexpr(parts...)
+}
+
 type numberNode struct {
 	value  float64
 	column int

@@ -27,6 +27,9 @@ func FuzzParse(f *testing.F) {
 		``,
 		`1e309 > urgent.value`,
 		`urgent.value < -0.5`,
+		`max(urgent.value, severity.norm) < 0.5`,
+		`avg(min(urgent.value, 0.2), team.p["billing"]) >= sum(severity.confidence)`,
+		`team.confidence in [max(urgent.value, 1), min(`,
 	} {
 		f.Add(seed)
 	}

@@ -99,10 +99,41 @@ func (c *checker) typeOf(n node) (valueType, bool) {
 		return typeString, true
 	case *boolNode:
 		return typeBoolean, true
+	case *callNode:
+		return c.callType(typed)
 	}
 
-	// §17.2 puts only a path, a string, a boolean or a number in an operand position, and the
-	// first three are above.
+	// §17.2 puts only a path, a string, a boolean, a call or a number in an operand position, and
+	// the first four are above.
+	return typeNumber, true
+}
+
+func (c *checker) callType(n *callNode) (valueType, bool) {
+	if _, ok := fold(n.name); !ok {
+		c.fail("unknown function '%s'. Functions: %s", n.name, strings.Join(functionNames(), ", "))
+
+		return typeNumber, false
+	}
+
+	if len(n.args) == 0 {
+		c.fail("'%s' needs at least one number", n.name)
+
+		return typeNumber, false
+	}
+
+	for _, arg := range n.args {
+		got, ok := c.typeOf(arg)
+		if !ok {
+			return typeNumber, false
+		}
+
+		if got != typeNumber {
+			c.fail("'%s' takes numbers, got %s", n.name, describe(arg, got))
+
+			return typeNumber, false
+		}
+	}
+
 	return typeNumber, true
 }
 
@@ -313,11 +344,26 @@ func prefix(n *pathNode, used int) string {
 }
 
 func describe(n node, t valueType) string {
-	if _, ok := n.(*pathNode); ok {
-		return fmt.Sprintf("'%s', a %s", n.render(), t)
+	switch n.(type) {
+	case *pathNode, *callNode:
+		return fmt.Sprintf("'%s', a %s", written(n), t)
+	default:
+		return fmt.Sprintf("%s, a %s", n.render(), t)
+	}
+}
+
+func written(n node) string {
+	call, ok := n.(*callNode)
+	if !ok {
+		return n.render()
 	}
 
-	return fmt.Sprintf("%s, a %s", n.render(), t)
+	args := make([]string, 0, len(call.args))
+	for _, arg := range call.args {
+		args = append(args, written(arg))
+	}
+
+	return call.name + "(" + strings.Join(args, ", ") + ")"
 }
 
 func ordered(op kind) bool {

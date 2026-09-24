@@ -13,6 +13,8 @@ func TestParse(t *testing.T) {
 	unclosed := `team.p["needs review" > 0.2`
 	tooDeep := strings.Repeat("(", maxDepth) + `a.value < 1` + strings.Repeat(")", maxDepth)
 	deepEnough := strings.Repeat("(", maxDepth-1) + `a.value < 1` + strings.Repeat(")", maxDepth-1)
+	callTooDeep := strings.Repeat("max(", maxDepth) + `a.value` + strings.Repeat(")", maxDepth) + ` < 1`
+	callDeepEnough := strings.Repeat("max(", maxDepth-1) + `a.value` + strings.Repeat(")", maxDepth-1) + ` < 1`
 
 	tests := []struct {
 		name    string
@@ -89,6 +91,121 @@ func TestParse(t *testing.T) {
 			name:  "should parse every comparison operator",
 			input: `a.value != 1 and b.value <= 1 and c.value >= 1`,
 			want:  `(and (and (!= a.value 1) (<= b.value 1)) (>= c.value 1))`,
+		},
+		{
+			name:  "should parse min with one argument",
+			input: `min(a.value) < 0.5`,
+			want:  `(< (min a.value) 0.5)`,
+		},
+		{
+			name:  "should parse min with two arguments",
+			input: `min(a.value, b.value) < 0.5`,
+			want:  `(< (min a.value b.value) 0.5)`,
+		},
+		{
+			name:  "should parse min with three arguments",
+			input: `min(a.value, b.confidence, 0.2) < 0.5`,
+			want:  `(< (min a.value b.confidence 0.2) 0.5)`,
+		},
+		{
+			name:  "should parse max with one argument",
+			input: `max(a.value) < 0.5`,
+			want:  `(< (max a.value) 0.5)`,
+		},
+		{
+			name:  "should parse max with two arguments",
+			input: `max(a.value, b.value) < 0.5`,
+			want:  `(< (max a.value b.value) 0.5)`,
+		},
+		{
+			name:  "should parse max with three arguments",
+			input: `max(a.value, b.confidence, 0.2) < 0.5`,
+			want:  `(< (max a.value b.confidence 0.2) 0.5)`,
+		},
+		{
+			name:  "should parse sum with one argument",
+			input: `sum(a.value) < 0.5`,
+			want:  `(< (sum a.value) 0.5)`,
+		},
+		{
+			name:  "should parse sum with two arguments",
+			input: `sum(a.value, b.value) < 0.5`,
+			want:  `(< (sum a.value b.value) 0.5)`,
+		},
+		{
+			name:  "should parse sum with three arguments",
+			input: `sum(a.value, b.confidence, 0.2) < 0.5`,
+			want:  `(< (sum a.value b.confidence 0.2) 0.5)`,
+		},
+		{
+			name:  "should parse avg with one argument",
+			input: `avg(a.value) < 0.5`,
+			want:  `(< (avg a.value) 0.5)`,
+		},
+		{
+			name:  "should parse avg with two arguments",
+			input: `avg(a.value, b.value) < 0.5`,
+			want:  `(< (avg a.value b.value) 0.5)`,
+		},
+		{
+			name:  "should parse avg with three arguments",
+			input: `avg(a.value, b.confidence, 0.2) < 0.5`,
+			want:  `(< (avg a.value b.confidence 0.2) 0.5)`,
+		},
+		{
+			name:  "should parse a nested call",
+			input: `max(min(a.value, b.value), c.value) < 0.5`,
+			want:  `(< (max (min a.value b.value) c.value) 0.5)`,
+		},
+		{
+			name:  "should parse a call on the right of a comparison",
+			input: `a.value >= avg(b.norm, c.p["needs review"])`,
+			want:  `(>= a.value (avg b.norm c.p["needs review"]))`,
+		},
+		{
+			name:  "should parse a call in an in list",
+			input: `a.value in [max(b.value, c.value), 1]`,
+			want:  `(in a.value [(max b.value c.value) 1])`,
+		},
+		{
+			name:  "should read a question named like a function as a path",
+			input: `max.value < 0.5`,
+			want:  `(< max.value 0.5)`,
+		},
+		{
+			name:    "should read a function name followed by a space as a path",
+			input:   `max (a.value) < 0.5`,
+			wantErr: "parse error at column 5, expected a comparison",
+		},
+		{
+			name:  "should accept any name followed by a parenthesis and leave it to the checker",
+			input: `mx(a.value) < 0.5`,
+			want:  `(< (mx a.value) 0.5)`,
+		},
+		{
+			name:  "should parse a call nesting just inside the bound",
+			input: callDeepEnough,
+			want:  `(< ` + strings.Repeat("(max ", maxDepth-1) + `a.value` + strings.Repeat(")", maxDepth-1) + ` 1)`,
+		},
+		{
+			name:    "should reject an empty argument list",
+			input:   `max() < 0.5`,
+			wantErr: "parse error at column 5, 'max' needs at least one number",
+		},
+		{
+			name:    "should reject a call missing its closing parenthesis",
+			input:   `max(a.value, b.value < 0.5`,
+			wantErr: "parse error at column 22, expected a closing parenthesis",
+		},
+		{
+			name:    "should reject a trailing comma in a call",
+			input:   `max(a.value,) < 0.5`,
+			wantErr: "parse error at column 13, expected a value",
+		},
+		{
+			name:    "should reject a call that nests too deeply",
+			input:   callTooDeep,
+			wantErr: fmt.Sprintf("parse error at column %d, the expression nests too deeply", 4*maxDepth+1),
 		},
 		{
 			name:    "should report an unclosed bracket with its column",
@@ -220,6 +337,11 @@ func TestParse(t *testing.T) {
 				name:  "should point in at its keyword and every list member at itself",
 				input: `team.value in ["billing", true]`,
 				want:  []int{12, 1, 16, 27},
+			},
+			{
+				name:  "should point a call at its name and every argument at itself",
+				input: `max(a.value, 0.2) < 1`,
+				want:  []int{19, 1, 5, 14, 21},
 			},
 		}
 
@@ -362,6 +484,10 @@ func positions(n node) []int {
 
 		for _, member := range typed.list {
 			out = append(out, positions(member)...)
+		}
+	case *callNode:
+		for _, arg := range typed.args {
+			out = append(out, positions(arg)...)
 		}
 	}
 

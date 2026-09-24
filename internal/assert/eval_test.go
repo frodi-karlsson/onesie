@@ -62,6 +62,18 @@ func TestEval(t *testing.T) {
 		{name: "should test absence", input: `team.value in ["sales"]`, want: false},
 		{name: "should test membership of numbers", input: `urgent.value in [0.1, 0.9]`, want: true},
 		{name: "should test membership of booleans", input: `gated.decision in [true]`, want: true},
+		{name: "should take the smallest of one number", input: `min(urgent.value) == 0.9`, want: true},
+		{name: "should take the smallest of several", input: `min(urgent.value, severity.norm, 0.7) == 0.5`, want: true},
+		{name: "should take the largest of one number", input: `max(severity.norm) == 0.5`, want: true},
+		{name: "should take the largest of several", input: `max(severity.norm, urgent.value, 0.1) == 0.9`, want: true},
+		{name: "should sum one number", input: `sum(severity.norm) == 0.5`, want: true},
+		{name: "should sum several", input: `sum(severity.norm, 1, 0.25) == 1.75`, want: true},
+		{name: "should average one number", input: `avg(urgent.value) == 0.9`, want: true},
+		{name: "should average several", input: `avg(severity.norm, 1, 0) == 0.5`, want: true},
+		{name: "should average within float tolerance", input: `avg(0.2, 0.4) > 0.2999999 and avg(0.2, 0.4) < 0.3000001`, want: true},
+		{name: "should evaluate a nested call", input: `max(min(urgent.value, severity.norm), 0.1) == 0.5`, want: true},
+		{name: "should evaluate a call on the right", input: `severity.norm < max(urgent.value, 0.1)`, want: true},
+		{name: "should evaluate a call in a list", input: `severity.norm in [min(urgent.value, 0.5)]`, want: true},
 		{name: "should join two assertions", input: `urgent.value > 0.5`, second: `team.value == "billing"`, want: true},
 		{name: "should fail a joined assertion on its second half", input: `urgent.value > 0.5`, second: `team.value == "x"`, want: false},
 		{
@@ -208,6 +220,7 @@ func TestEval(t *testing.T) {
 		for _, source := range []string{
 			`urgent.value > 0.5`, `urgent.value == 0`, `team.value == "billing"`,
 			`team.p.billing > 0.5`, `team.confidence > 0`, `model == "onesie-1.13.0"`,
+			`max(urgent.value, 0.5) == 0.5`, `sum(urgent.value) == 0`,
 		} {
 			if Eval(mustParse(t, source), empty) {
 				t.Errorf("Eval(%q) over an empty record = true, want false", source)
