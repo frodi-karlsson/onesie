@@ -45,16 +45,7 @@ func TestResumeLedger(t *testing.T) {
 		"\"a\nb\",0.5,\n"
 	dupError := `{"error":{"kind":"input","status":null,"message":"line 2: --id: '1' is also the id of line 1"}}`
 
-	tests := []struct {
-		name      string
-		existing  *string
-		sidecar   string
-		stdin     string
-		stalePart bool
-		held      bool
-		link      bool
-		runs      []resumeRun
-	}{
+	tests := []resumeCase{
 		{
 			name:     "should skip the answered ids with no request and ask the rest",
 			existing: fileOf(idLines(1, 2)),
@@ -626,49 +617,25 @@ func TestResumeLedger(t *testing.T) {
 			}},
 		},
 		{
-			name:  "should exit 1 on a resume by position whose skipped records failed their assertion",
-			stdin: idRecords(1, 2),
-			runs: []resumeRun{
-				{
-					args:     []string{"-i", "jsonl", "-o", "values", "--resume", "--assert", "answer.value > 0.9"},
-					wantCode: ExitRejected,
-					wantFile: strings.Repeat("{\"assert\":false,\"answer\":0.5}\n", 2),
-					wantSent: []string{`{"id":1}`, `{"id":2}`},
-				},
-				{
-					args: []string{
-						"-i", "jsonl", "-o", "values", "--resume", "--assert", "answer.value > 0.9", "--stats",
-					},
-					wantCode:   ExitRejected,
-					wantFile:   strings.Repeat("{\"assert\":false,\"answer\":0.5}\n", 2),
-					wantStderr: "0 requests, 2 skipped, 2 false assertions, ",
-				},
-			},
+			name:     "should still refuse --unordered with a resume by position",
+			existing: fileOf("old one\n"),
+			sidecar:  byPosition,
+			stdin:    idRecords(1, 4),
+			runs: []resumeRun{{
+				args:     []string{"-i", "jsonl", "-o", "values", "--resume", "--unordered"},
+				wantCode: ExitUsage,
+				wantFile: "old one\n",
+			}},
 		},
-		{
-			name:  "should exit 7 on a resume by position whose skipped records abstained",
-			stdin: idRecords(1, 2),
-			runs: []resumeRun{
-				{
-					args: []string{
-						"-i", "jsonl", "-o", "values", "--resume",
-						"--assert", "answer.value > 0.9", "--abstain-if", "answer.value > 0.4",
-					},
-					wantCode: ExitAbstain,
-					wantFile: strings.Repeat("{\"abstain\":true,\"answer\":0.5}\n", 2),
-					wantSent: []string{`{"id":1}`, `{"id":2}`},
-				},
-				{
-					args: []string{
-						"-i", "jsonl", "-o", "values", "--resume",
-						"--assert", "answer.value > 0.9", "--abstain-if", "answer.value > 0.4", "--stats",
-					},
-					wantCode:   ExitAbstain,
-					wantFile:   strings.Repeat("{\"abstain\":true,\"answer\":0.5}\n", 2),
-					wantStderr: "0 requests, 2 skipped, 2 abstains, ",
-				},
-			},
-		},
+	}
+
+	runResumeCases(t, tests)
+}
+
+func TestResumedVerdicts(t *testing.T) {
+	t.Parallel()
+
+	runResumeCases(t, []resumeCase{
 		{
 			name:  "should exit 1 on a resume by position whose skipped merged records failed their assertion",
 			stdin: idRecords(1, 2),
@@ -728,6 +695,57 @@ func TestResumeLedger(t *testing.T) {
 				},
 			},
 		},
+	})
+}
+
+func TestResumed(t *testing.T) {
+	t.Parallel()
+
+	runResumeCases(t, []resumeCase{
+		{
+			name:  "should exit 1 on a resume by position whose skipped records failed their assertion",
+			stdin: idRecords(1, 2),
+			runs: []resumeRun{
+				{
+					args:     []string{"-i", "jsonl", "-o", "values", "--resume", "--assert", "answer.value > 0.9"},
+					wantCode: ExitRejected,
+					wantFile: strings.Repeat("{\"assert\":false,\"answer\":0.5}\n", 2),
+					wantSent: []string{`{"id":1}`, `{"id":2}`},
+				},
+				{
+					args: []string{
+						"-i", "jsonl", "-o", "values", "--resume", "--assert", "answer.value > 0.9", "--stats",
+					},
+					wantCode:   ExitRejected,
+					wantFile:   strings.Repeat("{\"assert\":false,\"answer\":0.5}\n", 2),
+					wantStderr: "0 requests, 2 skipped, 2 false assertions, ",
+				},
+			},
+		},
+		{
+			name:  "should exit 7 on a resume by position whose skipped records abstained",
+			stdin: idRecords(1, 2),
+			runs: []resumeRun{
+				{
+					args: []string{
+						"-i", "jsonl", "-o", "values", "--resume",
+						"--assert", "answer.value > 0.9", "--abstain-if", "answer.value > 0.4",
+					},
+					wantCode: ExitAbstain,
+					wantFile: strings.Repeat("{\"abstain\":true,\"answer\":0.5}\n", 2),
+					wantSent: []string{`{"id":1}`, `{"id":2}`},
+				},
+				{
+					args: []string{
+						"-i", "jsonl", "-o", "values", "--resume",
+						"--assert", "answer.value > 0.9", "--abstain-if", "answer.value > 0.4", "--stats",
+					},
+					wantCode:   ExitAbstain,
+					wantFile:   strings.Repeat("{\"abstain\":true,\"answer\":0.5}\n", 2),
+					wantStderr: "0 requests, 2 skipped, 2 abstains, ",
+				},
+			},
+		},
 		{
 			name:  "should count only the skipped records of a resume by position, asking the rest",
 			stdin: idRecords(1, 3),
@@ -750,18 +768,22 @@ func TestResumeLedger(t *testing.T) {
 				},
 			},
 		},
-		{
-			name:     "should still refuse --unordered with a resume by position",
-			existing: fileOf("old one\n"),
-			sidecar:  byPosition,
-			stdin:    idRecords(1, 4),
-			runs: []resumeRun{{
-				args:     []string{"-i", "jsonl", "-o", "values", "--resume", "--unordered"},
-				wantCode: ExitUsage,
-				wantFile: "old one\n",
-			}},
-		},
-	}
+	})
+}
+
+type resumeCase struct {
+	name      string
+	existing  *string
+	sidecar   string
+	stdin     string
+	stalePart bool
+	held      bool
+	link      bool
+	runs      []resumeRun
+}
+
+func runResumeCases(t *testing.T, tests []resumeCase) {
+	t.Helper()
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
