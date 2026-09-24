@@ -16,6 +16,7 @@ func TestWrite(t *testing.T) {
 		name      string
 		questions []plan.Question
 		assertion string
+		abstainIf string
 		want      string
 		wantErr   string
 	}{
@@ -152,6 +153,16 @@ func TestWrite(t *testing.T) {
 			want: "urgent:\n  ask: is this urgent\n",
 		},
 		{
+			name: "should write abstain_if right after the assert",
+			questions: []plan.Question{
+				{ID: "urgent", Shape: plan.Noul, Instructions: "is this urgent"},
+			},
+			assertion: `urgent.value < 0.2`,
+			abstainIf: `urgent.value < 0.8`,
+			want: "assert: urgent.value < 0.2\nabstain_if: urgent.value < 0.8\n" +
+				"urgent:\n  ask: is this urgent\n",
+		},
+		{
 			name: "should reject the reserved positional id",
 			questions: []plan.Question{
 				{ID: "answer", Shape: plan.Noul, Instructions: "q"},
@@ -188,7 +199,7 @@ func TestWrite(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := qfile.Write(tc.questions, tc.assertion)
+			got, err := qfile.Write(tc.questions, tc.assertion, tc.abstainIf)
 			if tc.wantErr != "" {
 				if err == nil || err.Error() != tc.wantErr {
 					t.Fatalf("Write error = %v, want %s", err, tc.wantErr)
@@ -214,6 +225,7 @@ func TestWrite(t *testing.T) {
 			name      string
 			questions []plan.Question
 			assertion string
+			abstainIf string
 		}{
 			{
 				name: "should reload a labelled rate to the same plan",
@@ -418,6 +430,14 @@ func TestWrite(t *testing.T) {
 				assertion: `"yes" == "yes" and urgent.value > 0.5`,
 			},
 			{
+				name: "should reload an assertion and an abstain expression",
+				questions: []plan.Question{
+					{ID: "urgent", Shape: plan.Noul, Instructions: "is this urgent"},
+				},
+				assertion: `urgent.value < 0.2`,
+				abstainIf: `urgent.value < 0.8 and "a" == "a"`,
+			},
+			{
 				name: "should reload all three policy keys on one question",
 				questions: []plan.Question{
 					{
@@ -436,7 +456,7 @@ func TestWrite(t *testing.T) {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 
-				written, err := qfile.Write(tc.questions, tc.assertion)
+				written, err := qfile.Write(tc.questions, tc.assertion, tc.abstainIf)
 				if err != nil {
 					t.Fatalf("Write: %v", err)
 				}
@@ -451,6 +471,11 @@ func TestWrite(t *testing.T) {
 						tc.assertion, reloaded.Assert, written)
 				}
 
+				if reloaded.AbstainIf != tc.abstainIf {
+					t.Errorf("round trip changed the abstain expression\nwant %q\ngot  %q\nfile was\n%s",
+						tc.abstainIf, reloaded.AbstainIf, written)
+				}
+
 				want := fileShaped(tc.questions)
 				got := fileShaped(reloaded.Questions)
 
@@ -459,7 +484,7 @@ func TestWrite(t *testing.T) {
 						want, got, written)
 				}
 
-				rewritten, err := qfile.Write(reloaded.Questions, reloaded.Assert)
+				rewritten, err := qfile.Write(reloaded.Questions, reloaded.Assert, reloaded.AbstainIf)
 				if err != nil {
 					t.Fatalf("Write after Load: %v", err)
 				}

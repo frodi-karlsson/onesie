@@ -570,6 +570,7 @@ func TestReadAssert(t *testing.T) {
 		name          string
 		doc           string
 		wantAssert    string
+		wantAbstainIf string
 		wantQuestions []string
 		wantErr       string
 	}{
@@ -600,6 +601,29 @@ func TestReadAssert(t *testing.T) {
 			doc:     "assert:\nurgent: q\n",
 			wantErr: "onesie: 'assert' must be a string, got null",
 		},
+		{
+			name:          "should read a top level abstain_if beside the assert",
+			doc:           "assert: 'urgent.value < 0.2'\nabstain_if: 'urgent.value < 0.8'\nurgent: q\n",
+			wantAssert:    "urgent.value < 0.2",
+			wantAbstainIf: "urgent.value < 0.8",
+			wantQuestions: []string{"urgent"},
+		},
+		{
+			name:          "should read an abstain_if written below the questions",
+			doc:           "urgent: q\nabstain_if: 'urgent.value < 0.8'\n",
+			wantAbstainIf: "urgent.value < 0.8",
+			wantQuestions: []string{"urgent"},
+		},
+		{
+			name:    "should reject a mapping abstain_if",
+			doc:     "abstain_if:\n  value: 1\nurgent: q\n",
+			wantErr: "onesie: 'abstain_if' must be a string, got a mapping",
+		},
+		{
+			name:    "should reject an empty abstain_if as null",
+			doc:     "abstain_if:\nurgent: q\n",
+			wantErr: "onesie: 'abstain_if' must be a string, got null",
+		},
 	}
 
 	for _, tc := range tests {
@@ -626,6 +650,10 @@ func TestReadAssert(t *testing.T) {
 
 			if got.Assert != tc.wantAssert {
 				t.Errorf("assert = %q, want %q", got.Assert, tc.wantAssert)
+			}
+
+			if got.AbstainIf != tc.wantAbstainIf {
+				t.Errorf("abstain_if = %q, want %q", got.AbstainIf, tc.wantAbstainIf)
 			}
 
 			ids := make([]string, 0, len(got.Questions))

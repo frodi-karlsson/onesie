@@ -15,15 +15,19 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
-// Write renders questions and an assertion as a onesie question file, preserving order, labels and
-// policy, so the result reloads through Load to the same plan. An empty assertion writes no key.
-func Write(questions []plan.Question, assertion string) ([]byte, error) {
-	doc := make(yaml.MapSlice, 0, len(questions)+1)
+// Write renders questions, an assertion and an abstain expression as a onesie question file, so the
+// result reloads through Load to the same plan. An empty expression writes no key.
+func Write(questions []plan.Question, assertion, abstainIf string) ([]byte, error) {
+	doc := make(yaml.MapSlice, 0, len(questions)+2)
 
+	// Above the questions, because the gate reads all of them and every other top level key in the
+	// file names one.
 	if assertion != "" {
-		// Above the questions, because the gate reads all of them and every other top level key
-		// in the file names one.
 		doc = append(doc, yaml.MapItem{Key: "assert", Value: assertion})
+	}
+
+	if abstainIf != "" {
+		doc = append(doc, yaml.MapItem{Key: "abstain_if", Value: abstainIf})
 	}
 
 	for _, question := range questions {

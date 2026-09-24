@@ -1,7 +1,6 @@
 package qfile
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/goccy/go-yaml"
@@ -12,11 +11,17 @@ import (
 func loadBody(top yaml.MapSlice) (*File, error) {
 	file := &File{IsBody: true}
 
-	if _, found := lookup(top, "assert"); found {
-		// Section 17.5. A body is the wire format, and the API has no assertion, so a key here
-		// would promise a gate the request cannot carry.
-		return nil, errors.New(
-			"onesie: a request body carries no 'assert'. Pass --assert on the command line")
+	// Section 17.5. A body is the wire format, and the API has no assertion, so a key here would
+	// promise a gate the request cannot carry.
+	for _, gate := range []struct{ key, flag string }{
+		{key: "assert", flag: "--assert"},
+		{key: "abstain_if", flag: "--abstain-if"},
+	} {
+		if _, found := lookup(top, gate.key); found {
+			return nil, fmt.Errorf(
+				"onesie: a request body carries no '%s'. Pass %s on the command line",
+				gate.key, gate.flag)
+		}
 	}
 
 	if value, found := lookup(top, "model"); found {

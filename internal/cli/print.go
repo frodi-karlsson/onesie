@@ -25,7 +25,7 @@ func printQuestions(
 		return err
 	}
 
-	file, err := qfile.Write(questions, assertion)
+	file, err := qfile.Write(questions, assertion, "")
 	if err != nil {
 		return err
 	}

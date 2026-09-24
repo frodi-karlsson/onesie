@@ -237,6 +237,11 @@ func TestLoadBody(t *testing.T) {
 			wantErr: "onesie: a request body carries no 'assert'. Pass --assert on the command line",
 		},
 		{
+			name:    "should reject a top level abstain_if in a request body",
+			doc:     `{"abstain_if":"a.value > 0.5","questions":{"a":{"type":"noul"}}}`,
+			wantErr: "onesie: a request body carries no 'abstain_if'. Pass --abstain-if on the command line",
+		},
+		{
 			name:    "should name the kind of a structured model",
 			doc:     `{"model":{"name":"onesie"},"questions":{"a":{"type":"noul"}}}`,
 			wantErr: "'model' in a request body must be a string, got a mapping",

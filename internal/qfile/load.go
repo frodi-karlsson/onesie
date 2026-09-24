@@ -42,6 +42,9 @@ type File struct {
 	// Assert is the file's top level assertion, empty when the file carries none. A request body
 	// carries none at all.
 	Assert string
+	// AbstainIf is the file's top level abstain expression, empty when the file carries none. A
+	// request body carries none at all.
+	AbstainIf string
 
 	// IsBody is true when the file was a raw API request body rather than a question file.
 	IsBody bool

@@ -15,15 +15,19 @@ func loadQuestions(top yaml.MapSlice) (*File, error) {
 	for _, item := range top {
 		id := fmt.Sprintf("%v", item.Key)
 
-		// 'assert' is a reserved question id, section 11, so a top level key spelled that way is
-		// the file's gate over every answer rather than a question of its own.
-		if id == "assert" {
-			expression, err := readAssert(item.Value)
+		// 'assert' and 'abstain_if' are reserved question ids, section 11, so a top level key
+		// spelled either way is the file's gate over every answer rather than a question of its own.
+		if id == "assert" || id == "abstain_if" {
+			expression, err := readAssert(id, item.Value)
 			if err != nil {
 				return nil, err
 			}
 
-			file.Assert = expression
+			if id == "assert" {
+				file.Assert = expression
+			} else {
+				file.AbstainIf = expression
+			}
 
 			continue
 		}
@@ -39,10 +43,10 @@ func loadQuestions(top yaml.MapSlice) (*File, error) {
 	return file, nil
 }
 
-func readAssert(value any) (string, error) {
+func readAssert(key string, value any) (string, error) {
 	expression, ok := value.(string)
 	if !ok {
-		return "", fmt.Errorf("onesie: 'assert' must be a string, got %s", describe(value))
+		return "", fmt.Errorf("onesie: '%s' must be a string, got %s", key, describe(value))
 	}
 
 	return expression, nil
