@@ -26,7 +26,7 @@ func Path(env Env) (string, error) {
 // Dir reports onesie's config dir, which holds the credential file and the saved question files.
 func Dir(env Env) (string, error) {
 	if dir := lookup(env, "ONESIE_CONFIG_DIR"); dir != "" {
-		return dir, nil
+		return filepath.Clean(dir), nil
 	}
 
 	if dir := lookup(env, "XDG_CONFIG_HOME"); dir != "" {

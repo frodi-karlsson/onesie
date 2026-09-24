@@ -193,6 +193,13 @@ func TestDir(t *testing.T) {
 			want: []string{"/cfg"},
 		},
 		{
+			name: "should clean ONESIE_CONFIG_DIR as the other sources are",
+			env:  map[string]string{"ONESIE_CONFIG_DIR": "/cfg/sub/../"},
+			goos: "linux",
+			home: "/home/x",
+			want: []string{"/cfg"},
+		},
+		{
 			name: "should fall back to XDG_CONFIG_HOME",
 			env:  map[string]string{"XDG_CONFIG_HOME": "/xdg"},
 			goos: "linux",
