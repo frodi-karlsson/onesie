@@ -940,7 +940,8 @@ type Config struct {
 	HasStateFile bool
 	// HasMap records that --map was given, which chooses the state from each record.
 	HasMap bool
-	// HasID records that --id was given, which names each record of a stream.
+	// HasID records that --id was given, which names each record of a stream. Its expression runs
+	// one record at a time as the input is read, so it should be cheap, such as a field lookup.
 	HasID   bool
 	Replace bool
 

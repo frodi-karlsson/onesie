@@ -76,6 +76,12 @@ func TestNewRootCmd(t *testing.T) {
 			contains: []string{"version   1.2.3", "commit    abc1234", "min-score-levels 2"},
 		},
 		{
+			name:     "should warn that --id runs one record at a time",
+			args:     []string{"--help"},
+			wantCode: cli.ExitOK,
+			contains: []string{"runs one record at a time", "such as a field lookup"},
+		},
+		{
 			name:     "should prefix a cobra parse error",
 			args:     []string{"--nope"},
 			wantCode: cli.ExitUsage,

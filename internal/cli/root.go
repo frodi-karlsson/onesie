@@ -152,7 +152,8 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 			"Object keys come out sorted, and -V lists the depth and size caps on the result")
 	root.Flags().StringVar(&flags.idSource, flagID, "",
 		"streaming only, jq expression run on each record, whose string or number result names it "+
-			"on every output line")
+			"on every output line. It runs one record at a time as the input is read, so keep it cheap, "+
+			"such as a field lookup, and -V lists the cap on its length")
 	root.Flags().StringVarP(&flags.model, flagModel, "m", "", "model override")
 	root.PersistentFlags().StringVar(&flags.provider, "provider", "",
 		"typesafe or openrouter. Defaults to ONESIE_PROVIDER, then typesafe")
