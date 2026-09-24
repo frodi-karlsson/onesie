@@ -53,7 +53,7 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 		resolve:       filepath.EvalSymlinks,
 		readlink:      os.Readlink,
 		goos:          runtime.GOOS,
-		lock:          newLocker().lockAnswers,
+		lock:          newLocker(runtime.GOOS).lockAnswers,
 		lookupEnv:     os.LookupEnv,
 		homeDir:       os.UserHomeDir,
 		now:           time.Now,

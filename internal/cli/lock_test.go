@@ -14,8 +14,12 @@ func TestLocker_LockAnswers(t *testing.T) {
 
 	tests := []struct {
 		name       string
+		goos       string
 		existing   bool
 		readOnly   bool
+		lockFile   bool
+		refuseLock bool
+		wantErr    error
 		wantLocked bool
 	}{
 		{
@@ -31,6 +35,21 @@ func TestLocker_LockAnswers(t *testing.T) {
 		{
 			name:     "should lock nothing when the directory refuses the lock file and there is no answers file",
 			readOnly: true,
+		},
+		{
+			name:       "should report locked on windows when a lock file there refuses to open",
+			goos:       "windows",
+			existing:   true,
+			lockFile:   true,
+			refuseLock: true,
+			wantErr:    errLocked,
+		},
+		{
+			name:       "should not lock the answers file on windows when the directory refuses the lock file",
+			goos:       "windows",
+			existing:   true,
+			refuseLock: true,
+			wantErr:    fs.ErrPermission,
 		},
 	}
 
@@ -51,16 +70,54 @@ func TestLocker_LockAnswers(t *testing.T) {
 				}
 			}
 
+			if tc.lockFile {
+				if err := os.WriteFile(path+lockSuffix, nil, 0o600); err != nil {
+					t.Fatalf("writing the lock file: %v", err)
+				}
+			}
+
 			if tc.readOnly {
 				lockDir(t, dir)
 			}
 
-			release, err := newLocker().lockAnswers(path)
+			goos := tc.goos
+			if goos == "" {
+				goos = runtime.GOOS
+			}
+
+			var openedAnswers bool
+
+			l := newLocker(goos)
+			l.openFile = func(name string, flag int, perm os.FileMode) (*os.File, error) {
+				if name == path {
+					openedAnswers = true
+				}
+
+				if tc.refuseLock && name == path+lockSuffix {
+					return nil, &fs.PathError{Op: "open", Path: name, Err: fs.ErrPermission}
+				}
+
+				return os.OpenFile(name, flag, perm)
+			}
+
+			release, err := l.lockAnswers(path)
+			if tc.wantErr != nil {
+				if !errors.Is(err, tc.wantErr) {
+					t.Fatalf("lock error = %v, want %v", err, tc.wantErr)
+				}
+
+				if openedAnswers {
+					t.Errorf("opened the answers file to lock it, want it left alone")
+				}
+
+				return
+			}
+
 			if err != nil {
 				t.Fatalf("first lock: %v", err)
 			}
 
-			_, secondErr := newLocker().lockAnswers(path)
+			_, secondErr := l.lockAnswers(path)
 			if errors.Is(secondErr, errLocked) != tc.wantLocked {
 				t.Fatalf("second lock error = %v, want locked %v", secondErr, tc.wantLocked)
 			}
@@ -69,7 +126,7 @@ func TestLocker_LockAnswers(t *testing.T) {
 				t.Fatalf("release: %v", releaseErr)
 			}
 
-			again, err := newLocker().lockAnswers(path)
+			again, err := l.lockAnswers(path)
 			if err != nil {
 				t.Fatalf("lock after the release: %v", err)
 			}
@@ -149,7 +206,7 @@ func TestLocker_LockAt(t *testing.T) {
 
 			var opens, stats int
 
-			l := newLocker()
+			l := newLocker(runtime.GOOS)
 			l.openFile = func(name string, flag int, perm os.FileMode) (*os.File, error) {
 				opens++
 

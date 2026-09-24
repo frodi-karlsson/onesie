@@ -11,8 +11,8 @@ import (
 )
 
 func lockHandle(file *os.File) error {
-	// A byte far past the end, since a Windows lock is mandatory and would otherwise refuse this
-	// run's own writes when the answers file itself is the one locked.
+	// A byte far past the end, since a Windows lock is mandatory and refuses a read or a write of any
+	// byte it covers.
 	err := windows.LockFileEx(windows.Handle(file.Fd()),
 		windows.LOCKFILE_EXCLUSIVE_LOCK|windows.LOCKFILE_FAIL_IMMEDIATELY, 0, 1, 0, farByte())
 	if errors.Is(err, windows.ERROR_LOCK_VIOLATION) {
