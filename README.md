@@ -132,6 +132,20 @@ onesie -f triage.yaml -o values < ticket.txt
 # {"assert":false,"urgent":0.97,"team":"billing"}, and exit 1, since this ticket is urgent
 ```
 
+## Why no MCP server
+
+Several Jev CLIs ship one. onesie ships skills instead, because an MCP server would add nothing an
+agent needs:
+
+- **Validation.** onesie checks every question, flag and assertion before any request, and an agent
+  gets the same messages and exit codes a person does. A server would wrap the same checks.
+- **Documentation.** `onesie --help`, `-V` and the error messages are the reference, and they cannot
+  drift from the binary. A tool schema would be a second copy to keep in step.
+- **Discoverability.** The skills tell an agent when onesie fits and which recipes are silently
+  wrong, in prose checked against the binary in CI. A tool list says what exists, not when to use it.
+
+An agent that can run a shell already has everything onesie offers.
+
 ## Reference
 
 ### Gating
