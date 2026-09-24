@@ -189,12 +189,12 @@ func TestScoreYesNo(t *testing.T) {
 		checkCutRows(t, "Values", got.Values, want)
 	})
 
-	t.Run("should order misses by the widest gap with ties in input order", func(t *testing.T) {
+	t.Run("should keep only the cases past the middle as misses, widest gap first", func(t *testing.T) {
 		t.Parallel()
 
 		got := calibrate.ScoreYesNo(fixed, 0, nil)
 
-		want := []string{"c6", "c3", "c2", "c4", "c7", "c1", "c5", "c8"}
+		want := []string{"c6", "c3"}
 		if names := yesNoNames(got.Misses); !slices.Equal(names, want) {
 			t.Errorf("misses = %v, want %v", names, want)
 		}
@@ -214,23 +214,31 @@ func TestScoreYesNo(t *testing.T) {
 		t.Parallel()
 
 		cases := yesNoCases(
+			"yes", 0.32,
+			"no", 0.68,
+			"no", 0.82,
+			"yes", 0.18,
 			"yes", 0.9,
-			"no", 0.1,
-			"yes", 0.7,
-			"no", 0.3,
-			"no", 0.2,
-			"yes", 0.8,
-			"yes", 0.6,
-			"no", 0.4,
-			"no", 0.35,
-			"yes", 0.65,
+			"no", 0.5,
+			"yes", 0.5,
+			"yes", 0.07,
+			"no", 0.93,
 		)
 
 		got := calibrate.ScoreYesNo(cases, 0, nil)
 
-		want := []string{"c7", "c8", "c9", "c10", "c3", "c4", "c5", "c6", "c1", "c2"}
+		want := []string{"c8", "c9", "c3", "c4", "c1", "c2"}
 		if names := yesNoNames(got.Misses); !slices.Equal(names, want) {
 			t.Errorf("misses = %v, want %v", names, want)
+		}
+	})
+
+	t.Run("should give an empty miss list rather than nil when every case is on its side", func(t *testing.T) {
+		t.Parallel()
+
+		got := calibrate.ScoreYesNo(yesNoCases("yes", 0.5, "no", 0.5, "yes", 0.9), 0, nil)
+		if got.Misses == nil || len(got.Misses) != 0 {
+			t.Errorf("misses = %v, want an empty list", got.Misses)
 		}
 	})
 

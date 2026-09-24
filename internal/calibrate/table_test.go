@@ -30,33 +30,31 @@ func TestWriteTable(t *testing.T) {
 				"worst misses",
 				"  T-3  labelled yes  answered 0.30",
 				"  T-5  labelled no   answered 0.60",
-				"  T-2  labelled yes  answered 0.80",
-				"  T-6  labelled no   answered 0.20",
-				"  T-1  labelled yes  answered 0.90",
 			},
 		},
 		{
-			name: "should say AUC needs both labels, print an undefined share as 0/0 with a dash and align counts of any width",
+			name: "should say AUC needs both labels, print an undefined share as 0/0 with a dash, align counts of any width and list five misses",
 			questions: []calibrate.QuestionReport{yesNoReport("urgent", calibrate.ScoreYesNo(
 				namedYesNo(
+					"yes", 0.2, "yes", 0.2, "yes", 0.2, "yes", 0.2, "yes", 0.2, "yes", 0.2, "yes", 0.2,
 					"yes", 0.9, "yes", 0.9, "yes", 0.9, "yes", 0.9, "yes", 0.9,
-					"yes", 0.9, "yes", 0.9, "yes", 0.9, "yes", 0.9, "yes", 0.9, "yes", 0.3,
+					"yes", 0.9, "yes", 0.9, "yes", 0.9, "yes", 0.9, "yes", 0.9,
 				), 0, []float64{0.5, 0.95},
 			))},
 			want: []string{
-				"urgent, yes/no: labelled 11, 11 yes, 0 no, 0 failed. AUC needs both yes and no labels",
+				"urgent, yes/no: labelled 17, 17 yes, 0 no, 0 failed. AUC needs both yes and no labels",
 				"flagged means urgent.value >= cut",
 				"",
 				"  cut   flagged  catches           false alarms  right when flagged",
-				"  0.50       10  10/11 91% 62-98%  0/0 -         10/10 100% 72-100%",
-				"  0.95        0   0/11  0%  0-26%  0/0 -          0/0     -",
+				"  0.50       10  10/17 59% 36-78%  0/0 -         10/10 100% 72-100%",
+				"  0.95        0   0/17  0%  0-18%  0/0 -          0/0     -",
 				"",
 				"worst misses",
-				"  T-11  labelled yes  answered 0.30",
-				"  T-1   labelled yes  answered 0.90",
-				"  T-2   labelled yes  answered 0.90",
-				"  T-3   labelled yes  answered 0.90",
-				"  T-4   labelled yes  answered 0.90",
+				"  T-1  labelled yes  answered 0.20",
+				"  T-2  labelled yes  answered 0.20",
+				"  T-3  labelled yes  answered 0.20",
+				"  T-4  labelled yes  answered 0.20",
+				"  T-5  labelled yes  answered 0.20",
 			},
 		},
 		{
@@ -74,9 +72,6 @@ func TestWriteTable(t *testing.T) {
 				"worst misses",
 				"  T-3  labelled yes  answered 0.30",
 				"  T-5  labelled no   answered 0.60",
-				"  T-2  labelled yes  answered 0.80",
-				"  T-6  labelled no   answered 0.20",
-				"  T-1  labelled yes  answered 0.90",
 			},
 		},
 		{
@@ -155,6 +150,19 @@ func TestWriteTable(t *testing.T) {
 			},
 		},
 		{
+			name: "should leave the misses out when no case is past the middle",
+			questions: []calibrate.QuestionReport{yesNoReport("urgent", calibrate.ScoreYesNo(
+				namedYesNo("yes", 0.9, "no", 0.5), 0, []float64{0.5},
+			))},
+			want: []string{
+				"urgent, yes/no: labelled 2, 1 yes, 1 no, 0 failed. AUC 1.00",
+				"flagged means urgent.value >= cut",
+				"",
+				"  cut   flagged  catches           false alarms      right when flagged",
+				"  0.50        2  1/1 100% 21-100%  1/1 100% 21-100%  1/2 50% 9-91%",
+			},
+		},
+		{
 			name: "should print each question in plan order with a blank line between them",
 			questions: []calibrate.QuestionReport{
 				failedReport("first"),
@@ -178,19 +186,19 @@ func TestWriteTable(t *testing.T) {
 		{
 			name: "should name a miss by its line without --id",
 			questions: []calibrate.QuestionReport{yesNoReport("urgent", calibrate.ScoreYesNo(
-				[]calibrate.YesNoCase{{Line: 12, Yes: true, Value: 0.1}, {Line: 3, Yes: false, Value: 0.2}},
+				[]calibrate.YesNoCase{{Line: 12, Yes: true, Value: 0.1}, {Line: 3, Yes: false, Value: 0.8}},
 				0, []float64{0.5},
 			))},
 			want: []string{
 				"urgent, yes/no: labelled 2, 1 yes, 1 no, 0 failed. AUC 0.00",
 				"flagged means urgent.value >= cut",
 				"",
-				"  cut   flagged  catches       false alarms  right when flagged",
-				"  0.50        0  0/1 0% 0-79%  0/1 0% 0-79%  0/0 -",
+				"  cut   flagged  catches       false alarms      right when flagged",
+				"  0.50        1  0/1 0% 0-79%  1/1 100% 21-100%  0/1 0% 0-79%",
 				"",
 				"worst misses",
 				"  line 12  labelled yes  answered 0.10",
-				"  line 3   labelled no   answered 0.20",
+				"  line 3   labelled no   answered 0.80",
 			},
 		},
 	}

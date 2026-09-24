@@ -100,8 +100,24 @@ func TestWriteJSON(t *testing.T) {
 			t.Errorf("values = %v, want %v", cuts, want)
 		}
 
-		if len(q.Misses) != 6 || q.Misses[0].ID != "T-3" || q.Misses[0].Label != "yes" || q.Misses[0].Value != 0.3 {
-			t.Errorf("misses = %+v, want all six with T-3 first", q.Misses)
+		if len(q.Misses) != 2 || q.Misses[0].ID != "T-3" || q.Misses[0].Label != "yes" || q.Misses[0].Value != 0.3 {
+			t.Errorf("misses = %+v, want T-3 and T-5", q.Misses)
+		}
+	})
+
+	t.Run("should list every yes/no miss rather than five", func(t *testing.T) {
+		t.Parallel()
+
+		report := calibrate.Report{Questions: []calibrate.QuestionReport{yesNoReport("urgent", calibrate.ScoreYesNo(
+			namedYesNo("yes", 0.2, "yes", 0.2, "yes", 0.2, "yes", 0.2, "no", 0.8, "no", 0.8, "no", 0.8, "yes", 0.9),
+			0, []float64{0.5},
+		))}}
+
+		var q struct{ Misses []struct{ ID string } }
+		decode(t, questionsOf(t, writeJSON(t, report))[0], &q)
+
+		if len(q.Misses) != 7 {
+			t.Errorf("misses = %+v, want all seven", q.Misses)
 		}
 	})
 
@@ -265,7 +281,7 @@ func TestWriteJSON(t *testing.T) {
 		report := calibrate.Report{Questions: []calibrate.QuestionReport{
 			yesNoReport("urgent", calibrate.ScoreYesNo([]calibrate.YesNoCase{
 				{Name: "7", ID: 7.0, Line: 2, Yes: true, Value: 0.1},
-				{Line: 12, Yes: false, Value: 0.2},
+				{Line: 12, Yes: false, Value: 0.8},
 			}, 0, []float64{0.5})),
 			pickReport("team", calibrate.ScorePick([]calibrate.ChoiceCase{
 				{Line: 4, Label: "a", Picked: "b", Confidence: 0.9},

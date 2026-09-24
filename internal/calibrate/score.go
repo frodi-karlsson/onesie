@@ -6,7 +6,10 @@ import (
 	"slices"
 )
 
-const gapPrecision = 1e9
+const (
+	gapPrecision = 1e9
+	missGap      = 0.5
+)
 
 // ScoreYesNo scores yes/no answers, whose values lie in [0,1], against their labels. A record is
 // flagged at a cut when its value is at or above the cut, and failed counts failed requests.
@@ -31,7 +34,7 @@ func ScoreYesNo(cases []YesNoCase, failed int, cuts []float64) YesNoScore {
 		Failed:   failed,
 		Cuts:     make([]CutRow, 0, len(cuts)),
 		Values:   []CutRow{},
-		Misses:   make([]YesNoCase, len(cases)),
+		Misses:   []YesNoCase{},
 	}
 	score.AUC, score.HasAUC = AUC(cases)
 
@@ -43,7 +46,12 @@ func ScoreYesNo(cases []YesNoCase, failed int, cuts []float64) YesNoScore {
 		score.Values = append(score.Values, cutRow(value, yes, no))
 	}
 
-	copy(score.Misses, cases)
+	for _, c := range cases {
+		if gap(c) > missGap {
+			score.Misses = append(score.Misses, c)
+		}
+	}
+
 	slices.SortStableFunc(score.Misses, func(a, b YesNoCase) int {
 		return cmp.Compare(gap(b), gap(a))
 	})
@@ -52,7 +60,7 @@ func ScoreYesNo(cases []YesNoCase, failed int, cuts []float64) YesNoScore {
 }
 
 // YesNoScore is how well a yes/no question's answers agree with its labels. Values holds a row at
-// every distinct value answered, and Misses holds every case, widest gap first.
+// every distinct value answered, and Misses every case past the middle, widest gap first.
 type YesNoScore struct {
 	Labelled, Yes, No, Failed int
 	AUC                       float64
