@@ -34,6 +34,9 @@ In Claude Code, the plugin can come first and walk you through the rest:
   measured about 9 times cheaper and 13 times faster than thirteen separate calls.
 - **A typed gate language.** `--assert` takes `and`, `or`, `not`, `in` and `min`, `max`, `sum`,
   `avg` over paths like `team.p.human`, checked before any request, so a typo costs no tokens.
+- **Cuts chosen from data.** `onesie calibrate` asks a question about records you already labelled
+  and prints what each cut catches and what it lets through, so a gate's cut is measured, not
+  guessed.
 - **Three way gates.** `--abstain-if` turns a no into an unsure with its own exit code, for the
   middle ground a person should decide.
 - **Choose what the model reads.** `--map` runs jq on each record, so the model sees `.body`, not the
@@ -100,6 +103,23 @@ case $status in
 esac
 ```
 
+**Pick a gate's cut from labelled tickets.** Calibrate first, then gate on the row you can live
+with. A row flags a record when its value is at least the cut, so the cut goes into the gate as
+written.
+
+```sh
+onesie calibrate --ask urgent='is this urgent' -i jsonl --map '.body' \
+    --label urgent='.is_urgent' --id '.id' --out answers.jsonl --resume < labelled.jsonl
+# urgent, yes/no: labelled 8, 4 yes, 4 no, 0 failed. AUC 1.00
+# flagged means urgent.value >= cut
+#
+#   cut   flagged  catches           false alarms    right when flagged
+#   0.10        5  4/4 100% 51-100%  1/4 25%  5-70%  4/5  80% 38-96%
+#   ...
+#   0.90        4  4/4 100% 51-100%  0/4  0%  0-49%  4/4 100% 51-100%
+onesie --ask urgent='is this urgent' --assert 'urgent.value >= 0.9' -q --state "$ticket" && page_on_call
+```
+
 **Triage a spreadsheet.** The same rows come back with a column per question.
 
 ```sh
@@ -163,6 +183,23 @@ onesie --ask urgent='is this urgent' --assert 'urgnet.value < 0.5'
   `>=` or `<=`. There are no arithmetic operators, so weighting answers is a job for `jq`.
 - A question file carries the same expressions as `assert` and `abstain_if`.
 
+### Calibrating
+
+`onesie calibrate --help` is the full reference.
+
+- `calibrate` is a subcommand name, so `onesie calibrate` runs it. To ask it as a question, write
+  `onesie -- calibrate`.
+- `--map` is required. Map only the text a person would read, since a `--map` that selects the
+  label flatters the question.
+- A pick or rate label matches an option or level by its text. A csv or tsv cell is text, so `4.0`
+  does not match `--rate 1,2,3,4,5`, while a jsonl `4.0` is a number and does.
+- `--resume` needs `--id`. A resumed `-o json` report differs from the fresh run's only in `asked`
+  and `stored`.
+- The answers file is `-o json` lines. A plain stream run with `-o json`, the same questions,
+  model, `--map` and `--id` can resume it. A run with a gate, `--merge` or another output mode is
+  refused as changed.
+- `onesie -V` lists `max-calibrate-records`, the most records one run reads.
+
 ### Streams
 
 - A record that fails still prints a line with an `error` key, and the run exits 6.
@@ -221,7 +258,7 @@ onesie auth test                                   # checks the key, costs no to
 - `jev-latest` works on both providers, but pinned ids differ: `jev-1.13.0` on TypeSafe,
   `typesafe/jev-1.13` on OpenRouter. On OpenRouter, `--usage` also reports the cost. A 200 whose
   answers onesie cannot use still spent its tokens, so under `--usage` its json error record
-  carries them too. `-o values`, `-o raw`, `-r`, `-o csv` and `-o tsv` have no place for
+  carries them too, and `--stats` counts them. `-o values`, `-o raw`, `-r`, `-o csv` and `-o tsv` have no place for
   `--usage`, and `-q` writes nothing, so they all refuse it with exit 2.
 
 ### Exit codes
@@ -238,7 +275,8 @@ onesie auth test                                   # checks the key, costs no to
 | 7 | the gate could not decide: the assertion failed and `--abstain-if` held |
 | 130 | interrupted |
 
-A consumer that stops reading, as `head` does, is not an error.
+calibrate uses 0, 2, 3, 6 and 130, and no exit code judges its result. A consumer that stops
+reading, as `head` does, is not an error.
 
 ### More
 
