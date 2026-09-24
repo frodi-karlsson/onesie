@@ -136,8 +136,8 @@ onesie -f triage.yaml -o values < ticket.txt
 
 ### Gating
 
-`--assert` is one boolean over the record, and it sets the exit code. It reads the field names `-o
-json` prints, and every path is checked before any request:
+`--assert` is one boolean over the record, and it sets the exit code. It reads the field names
+`-o json` prints, and every path is checked before any request:
 
 ```sh
 onesie --ask urgent='is this urgent' --assert 'urgnet.value < 0.5'
