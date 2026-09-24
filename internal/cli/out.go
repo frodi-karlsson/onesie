@@ -73,7 +73,8 @@ func (o *outFile) Write(p []byte) (int, error) {
 func (o *outFile) finish(runErr error) error {
 	// A run that failed before writing anything leaves the file as it was, so an interrupt or an
 	// outage never costs the answers a resume needs.
-	if o.file == nil && runErr != nil {
+	succeeded := runErr == nil
+	if o.file == nil && !succeeded {
 		return nil
 	}
 

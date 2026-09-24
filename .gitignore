@@ -22,3 +22,4 @@
 
 # claude plugin eval output, rewritten on every run
 /evals/results/
+/.claude/worktrees/
