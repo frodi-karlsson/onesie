@@ -762,6 +762,7 @@ func TestCopyLines(t *testing.T) {
 		lines     []span
 		want      string
 		wantReads int
+		wantErr   bool
 	}{
 		{
 			name:      "should read spans that run forward in a few large reads",
@@ -782,6 +783,12 @@ func TestCopyLines(t *testing.T) {
 			want:      source[:forward[2].end],
 			wantReads: 10,
 		},
+		{
+			name:      "should fail when a span read on its own runs past a short source",
+			lines:     []span{backward[0], {start: backward[1].start, end: backward[0].end + 1}},
+			wantReads: 4,
+			wantErr:   true,
+		},
 	}
 
 	for _, tc := range tests {
@@ -791,8 +798,14 @@ func TestCopyLines(t *testing.T) {
 			reader := &countingReaderAt{source: strings.NewReader(source)}
 
 			var out bytes.Buffer
-			if err := copyLines(&out, reader, int64(len(source)), tc.header, tc.lines); err != nil {
-				t.Fatalf("copyLines: %v", err)
+
+			err := copyLines(&out, reader, int64(len(source)), tc.header, tc.lines)
+			if (err != nil) != tc.wantErr {
+				t.Fatalf("copyLines error = %v, want an error %v", err, tc.wantErr)
+			}
+
+			if tc.wantErr {
+				return
 			}
 
 			if out.String() != tc.want {

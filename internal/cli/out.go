@@ -389,7 +389,7 @@ func (r *forwardReader) copy(w io.Writer, from, to int64) error {
 	if r.buffered == nil && from != r.at {
 		r.at = to
 
-		_, err := io.Copy(w, io.NewSectionReader(r.source, from, to-from))
+		_, err := io.CopyN(w, io.NewSectionReader(r.source, from, to-from), to-from)
 
 		return err
 	}
