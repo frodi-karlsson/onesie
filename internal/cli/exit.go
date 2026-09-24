@@ -10,6 +10,7 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/engine"
 	"github.com/frodi-karlsson/onesie/internal/input"
 	"github.com/frodi-karlsson/onesie/internal/jev"
+	"github.com/frodi-karlsson/onesie/internal/output"
 )
 
 // Exit codes. A driver script branches on these, so they are part of the interface.
@@ -47,6 +48,11 @@ func Classify(err error) int {
 	var records *recordsError
 	if errors.As(err, &records) {
 		return ExitRecords
+	}
+
+	var stored *storedFailure
+	if errors.As(err, &stored) {
+		return stored.code()
 	}
 
 	var rejected *rejectedError
@@ -173,6 +179,43 @@ type silentError struct {
 
 func (e *silentError) Error() string {
 	return fmt.Sprintf("exit %d with nothing left to report", e.code)
+}
+
+type storedFailure struct {
+	failure output.Failure
+}
+
+func (e *storedFailure) Error() string {
+	return e.failure.Message
+}
+
+func (e *storedFailure) code() int {
+	// The code the run that wrote the line exited with, rebuilt the way Classify reached it.
+	switch e.failure.Kind {
+	case "input":
+		return ExitUsage
+	case "response":
+		return ExitUnavailable
+	case "transport":
+		return ExitTransport
+	case "http":
+		return storedStatus(e.failure.Status)
+	default:
+		return ExitRecords
+	}
+}
+
+func storedStatus(status *int) int {
+	if status == nil {
+		return ExitRecords
+	}
+
+	switch *status {
+	case http.StatusUnauthorized, http.StatusPaymentRequired, http.StatusForbidden:
+		return ExitAuth
+	default:
+		return classifyStatus(*status)
+	}
 }
 
 func classifyStatus(status int) int {

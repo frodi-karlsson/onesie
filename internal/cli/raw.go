@@ -41,6 +41,8 @@ func streamRaw(
 		source: input.NewStream(settings.stdin, input.Request, flags.skipBlank),
 		left:   flags.resumeSkip,
 		stored: stored,
+		// --stop-on-assert is refused under -i request, whose bodies carry no assertion.
+		haltOnError: flags.stopOnError,
 	}
 	out := cmd.OutOrStdout()
 
@@ -100,6 +102,11 @@ func streamRaw(
 
 	// A stored failure a resume skipped fails the run as it failed the one that wrote it.
 	result.Failed += skips.failed
+
+	// Ahead of every other outcome, as the abort a fresh run would have ended on.
+	if stopped := source.stoppedAt(); stopped != nil {
+		return stopped
+	}
 
 	if err != nil {
 		return &sourceError{cause: err, failed: result.Failed}

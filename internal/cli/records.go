@@ -31,25 +31,30 @@ func records(
 	ctx, stop := context.WithCancel(ctx)
 
 	return &naming{
-		ctx:    ctx,
-		stop:   stop,
-		source: &resumed{source: stream, left: flags.resumeSkip, stored: stored, halt: flags.stopOnAssert},
-		namer:  namer,
-		halt:   flags.stopOnAssert,
-		book:   book,
-		mode:   outputMode,
-		seen:   map[[sha256.Size]byte]int{},
+		ctx:  ctx,
+		stop: stop,
+		source: &resumed{
+			source: stream, left: flags.resumeSkip, stored: stored,
+			haltOnAssert: flags.stopOnAssert, haltOnError: flags.stopOnError,
+		},
+		namer: namer,
+		halt:  flags.stopOnAssert,
+		book:  book,
+		mode:  outputMode,
+		seen:  map[[sha256.Size]byte]int{},
 	}
 }
 
 type resumed struct {
-	mu     sync.Mutex
-	source engine.Source[input.Record]
-	left   int
-	stored []verdict
-	skips  tally
-	halt   bool
-	halted bool
+	mu           sync.Mutex
+	source       engine.Source[input.Record]
+	left         int
+	stored       []verdict
+	skips        tally
+	haltOnAssert bool
+	haltOnError  bool
+	halted       bool
+	stoppedBy    *output.Failure
 }
 
 func (r *resumed) Next() (input.Record, bool, error) {
@@ -60,9 +65,15 @@ func (r *resumed) Next() (input.Record, bool, error) {
 			return rec, ok, err
 		}
 
-		// A fresh run under --stop-on-assert would have stopped at this record, so nothing after
-		// it is read.
-		r.halted = r.count().rejected && r.halt
+		// A fresh run under --stop-on-assert or --stop-on-error would have stopped at this record,
+		// so nothing after it is read.
+		judged := r.count()
+		stopsOnError := judged.failure != nil && r.haltOnError
+		r.halted = (judged.rejected && r.haltOnAssert) || stopsOnError
+
+		if stopsOnError {
+			r.stop(judged.failure)
+		}
 	}
 
 	if r.halted {
@@ -84,6 +95,24 @@ func (r *resumed) count() verdict {
 	r.skips.count(judged)
 
 	return judged
+}
+
+func (r *resumed) stop(failure *output.Failure) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.stoppedBy = failure
+}
+
+func (r *resumed) stoppedAt() error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if r.stoppedBy == nil {
+		return nil
+	}
+
+	return &storedFailure{failure: *r.stoppedBy}
 }
 
 func (r *resumed) skipped() tally {
@@ -148,6 +177,10 @@ func (n *naming) skipped() tally {
 	}
 
 	return n.source.skipped()
+}
+
+func (n *naming) stoppedAt() error {
+	return n.source.stoppedAt()
 }
 
 func (n *naming) named(rec input.Record) namedRecord {

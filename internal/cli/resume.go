@@ -14,6 +14,7 @@ import (
 	"maps"
 	"os"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -127,7 +128,7 @@ func (f answersFormat) kept(judged verdict) verdict {
 	// only a gated run keeps an input column from taking that name. The error key and column are
 	// reserved in every run, so a failure still stands.
 	if !f.gated {
-		return verdict{failed: judged.failed}
+		return verdict{failure: judged.failure}
 	}
 
 	return judged
@@ -187,9 +188,7 @@ func rowOf(columns, cells []string) map[string]any {
 
 func (f answersFormat) lineVerdict(text []byte) verdict {
 	if f.forwarded {
-		_, failed := ownFailure(text)
-
-		return verdict{failed: failed}
+		return verdict{failure: ownFailure(text)}
 	}
 
 	_, object, ok := decodeLine(text)
@@ -209,7 +208,7 @@ func (f answersFormat) lineVerdict(text []byte) verdict {
 	return verdictOf(folded)
 }
 
-func ownFailure(text []byte) (*output.Failure, bool) {
+func ownFailure(text []byte) *output.Failure {
 	var line struct {
 		Error *output.Failure `json:"error"`
 	}
@@ -218,12 +217,16 @@ func ownFailure(text []byte) (*output.Failure, bool) {
 	decoder.DisallowUnknownFields()
 
 	if err := decoder.Decode(&line); err != nil || line.Error == nil {
-		return nil, false
+		return nil
 	}
 
 	// A response body is written as the server sent it, and may carry an error key of its own. Only
 	// a line matching onesie's encoding byte for byte is onesie's error line.
-	return line.Error, bytes.Equal(bytes.TrimSuffix(text, []byte("\n")), output.EncodeFailure(line.Error))
+	if !bytes.Equal(bytes.TrimSuffix(text, []byte("\n")), output.EncodeFailure(line.Error)) {
+		return nil
+	}
+
+	return line.Error
 }
 
 func (f answersFormat) lineAnswer(ctx context.Context, text []byte) (string, verdict, bool) {
@@ -281,15 +284,44 @@ func decodeLine(text []byte) (any, map[string]any, bool) {
 }
 
 func verdictOf(answers map[string]any) verdict {
-	_, failed := answers["error"]
+	judged := verdict{rejected: answers["assert"] == false, abstained: answers["abstain"] == true}
 
-	return verdict{rejected: answers["assert"] == false, abstained: answers["abstain"] == true, failed: failed}
+	if stored, failed := answers["error"]; failed {
+		judged.failure = failureOf(stored)
+	}
+
+	return judged
 }
 
 type verdict struct {
 	rejected  bool
 	abstained bool
-	failed    bool
+	failure   *output.Failure
+}
+
+func failureOf(stored any) *output.Failure {
+	failure := &output.Failure{}
+
+	fields, isObject := stored.(map[string]any)
+	if !isObject {
+		return failure
+	}
+
+	if kind, isText := fields["kind"].(string); isText {
+		failure.Kind = kind
+	}
+
+	if message, isText := fields["message"].(string); isText {
+		failure.Message = message
+	}
+
+	if number, isNumber := fields["status"].(json.Number); isNumber {
+		if status, err := strconv.Atoi(number.String()); err == nil {
+			failure.Status = &status
+		}
+	}
+
+	return failure
 }
 
 func wrappedState(line map[string]any, mergeKey string) (any, bool) {
@@ -319,13 +351,14 @@ func (f answersFormat) rowAnswer(ctx context.Context, row map[string]any) (strin
 }
 
 func rowVerdict(row map[string]any) verdict {
-	failure, isText := row["error"].(string)
+	judged := verdict{rejected: row["assert"] == "false", abstained: row["assert"] == "abstain"}
 
-	return verdict{
-		rejected:  row["assert"] == "false",
-		abstained: row["assert"] == "abstain",
-		failed:    isText && failure != "",
+	// A row keeps only the message, so its kind and status are unknown.
+	if message, isText := row["error"].(string); isText && message != "" {
+		judged.failure = &output.Failure{Message: message}
 	}
+
+	return judged
 }
 
 func (f answersFormat) named(ctx context.Context, value any) (string, bool) {
@@ -467,7 +500,7 @@ func (t *tally) count(judged verdict) {
 	// Counted as if judged this run, so a resumed gate exits on every answer in the file and not
 	// only on the ones it asked for. A stored failure counts the same way, since a resume by
 	// position skips it rather than asking again.
-	if judged.failed {
+	if judged.failure != nil {
 		t.failed++
 	}
 

@@ -447,6 +447,11 @@ func stream(
 	// A stored failure a resume skipped fails the run as it failed the one that wrote it.
 	result.Failed += skips.failed
 
+	// Ahead of every other outcome, as the abort a fresh run would have ended on.
+	if stopped := source.stoppedAt(); stopped != nil {
+		return stopped
+	}
+
 	if err != nil {
 		// The source stopping the run is the worse outcome and takes the exit code, since a
 		// truncated stream is not something a caller can tell from a complete one. The records

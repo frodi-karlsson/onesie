@@ -722,6 +722,33 @@ func TestResumeLedger(t *testing.T) {
 			}},
 		},
 		{
+			name:  "should ask a stored error line again under --id and --stop-on-error and stop as a fresh run does",
+			stdin: idRecords(1, 3),
+			runs: []resumeRun{
+				{
+					args:       append([]string{"--retries", "0"}, values...),
+					input:      idRecords(1, 2),
+					failFrom:   2,
+					failStatus: http.StatusBadRequest,
+					wantCode:   ExitRecords,
+					wantFile: "{\"id\":1,\"answer\":0.5}\n" +
+						`{"id":2,"error":{"kind":"http","status":400,"message":"onesie: 400 bad key"}}` + "\n",
+					wantSent: []string{`{"id":1}`, `{"id":2}`},
+				},
+				{
+					args:       append([]string{"--retries", "0", "--stop-on-error"}, values...),
+					failFrom:   1,
+					failStatus: http.StatusBadRequest,
+					wantCode:   ExitUsage,
+					wantFile: "{\"id\":1,\"answer\":0.5}\n" +
+						`{"id":2,"error":{"kind":"http","status":400,"message":"onesie: 400 bad key"}}` + "\n" +
+						`{"id":2,"error":{"kind":"http","status":400,"message":"onesie: 400 bad key"}}` + "\n",
+					wantSent:   []string{`{"id":2}`},
+					wantStderr: "onesie: 400 bad key",
+				},
+			},
+		},
+		{
 			name:     "should still resume by position without --id",
 			existing: fileOf("old one\nold two\n"),
 			sidecar:  byPosition,
@@ -1082,6 +1109,118 @@ func TestResumed(t *testing.T) {
 	})
 
 	runResumeCases(t, []resumeCase{
+		{
+			name:  "should stop at a skipped error line under --stop-on-error with the code a fresh run gave",
+			stdin: idRecords(1, 3),
+			runs: []resumeRun{
+				{
+					args:       []string{"-i", "jsonl", "-o", "values", "--retries", "0", "--stop-on-error"},
+					failFrom:   2,
+					failStatus: http.StatusBadRequest,
+					wantCode:   ExitUsage,
+					wantFile:   "{\"answer\":0.5}\n" + failedBody,
+					wantSent:   []string{`{"id":1}`, `{"id":2}`},
+					wantStderr: "onesie: 400 bad key",
+				},
+				{
+					args:       []string{"-i", "jsonl", "-o", "values", "--resume", "--retries", "0", "--stop-on-error"},
+					wantCode:   ExitUsage,
+					wantFile:   "{\"answer\":0.5}\n" + failedBody,
+					wantStderr: "onesie: 400 bad key",
+				},
+			},
+		},
+		{
+			name:  "should stop at a skipped 503 line under --stop-on-error with exit 4",
+			stdin: idRecords(1, 3),
+			runs: []resumeRun{
+				{
+					args:       []string{"-i", "jsonl", "-o", "json", "--retries", "0"},
+					input:      idRecords(1, 2),
+					failFrom:   2,
+					failStatus: http.StatusServiceUnavailable,
+					wantCode:   ExitRecords,
+					wantFile: "{\"model\":\"m\",\"answer\":{\"value\":0.5}}\n" +
+						`{"error":{"kind":"http","status":503,"message":"onesie: 503 bad key"}}` + "\n",
+					wantSent: []string{`{"id":1}`, `{"id":2}`},
+				},
+				{
+					args:     []string{"-i", "jsonl", "-o", "json", "--resume", "--retries", "0", "--stop-on-error"},
+					wantCode: ExitUnavailable,
+					wantFile: "{\"model\":\"m\",\"answer\":{\"value\":0.5}}\n" +
+						`{"error":{"kind":"http","status":503,"message":"onesie: 503 bad key"}}` + "\n",
+				},
+			},
+		},
+		{
+			name:  "should stop at a skipped error under the merge key under --stop-on-error",
+			stdin: idRecords(1, 3),
+			runs: []resumeRun{
+				{
+					args: []string{
+						"-i", "jsonl", "-o", "values", "--retries", "0", "--merge", "--merge-key", "verdict",
+					},
+					input:      idRecords(1, 2),
+					failFrom:   2,
+					failStatus: http.StatusBadRequest,
+					wantCode:   ExitRecords,
+					wantFile: "{\"id\":1,\"verdict\":{\"answer\":0.5}}\n" +
+						`{"id":2,"verdict":{"error":{"kind":"http","status":400,"message":"onesie: 400 bad key"}}}` + "\n",
+					wantSent: []string{`{"id":1}`, `{"id":2}`},
+				},
+				{
+					args: []string{
+						"-i", "jsonl", "-o", "values", "--resume", "--retries", "0", "--merge", "--merge-key", "verdict",
+						"--stop-on-error",
+					},
+					wantCode: ExitUsage,
+					wantFile: "{\"id\":1,\"verdict\":{\"answer\":0.5}}\n" +
+						`{"id":2,"verdict":{"error":{"kind":"http","status":400,"message":"onesie: 400 bad key"}}}` + "\n",
+				},
+			},
+		},
+		{
+			name:  "should stop at a skipped error line under --stop-on-error under -i request",
+			stdin: requestRecords(1, 3),
+			runs: []resumeRun{
+				{
+					args:       []string{"-i", "request", "--retries", "0"},
+					bare:       true,
+					input:      requestRecords(1, 2),
+					failFrom:   2,
+					failStatus: http.StatusBadRequest,
+					wantCode:   ExitRecords,
+					wantFile:   answeredBody + failedBody,
+					wantSent:   []string{`{"id":1}`, `{"id":2}`},
+				},
+				{
+					args:       []string{"-i", "request", "--resume", "--retries", "0", "--stop-on-error"},
+					bare:       true,
+					wantCode:   ExitUsage,
+					wantFile:   answeredBody + failedBody,
+					wantStderr: "onesie: 400 bad key",
+				},
+			},
+		},
+		{
+			name:  "should refuse a csv resume by position under --stop-on-error before any request",
+			stdin: idRecords(1, 2),
+			runs: []resumeRun{
+				{
+					args:     []string{"-i", "jsonl", "-o", "csv"},
+					input:    idRecords(1, 1),
+					wantFile: "answer,error\n0.5,\n",
+					wantSent: []string{`{"id":1}`},
+				},
+				{
+					args:     []string{"-i", "jsonl", "-o", "csv", "--resume", "--stop-on-error"},
+					wantCode: ExitUsage,
+					wantFile: "answer,error\n0.5,\n",
+					wantStderr: "onesie: --resume without --id cannot stop at a stored failure with the code it " +
+						"exited with, since a csv row keeps only its message. Pass --id, or use -o values or -o json",
+				},
+			},
+		},
 		{
 			name:  "should count a skipped error line as failed on a resume by position under -i request",
 			stdin: requestRecords(1, 2),

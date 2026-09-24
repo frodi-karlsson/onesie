@@ -12,6 +12,7 @@ import (
 
 	"github.com/frodi-karlsson/onesie/internal/input"
 	"github.com/frodi-karlsson/onesie/internal/jev"
+	"github.com/frodi-karlsson/onesie/internal/output"
 )
 
 func TestClassify(t *testing.T) {
@@ -21,12 +22,52 @@ func TestClassify(t *testing.T) {
 		return &jev.APIError{Status: status}
 	}
 
+	stored := func(kind string, status *int) error {
+		return &storedFailure{failure: output.Failure{Kind: kind, Status: status, Message: "onesie: stored"}}
+	}
+
+	statusOf := func(status int) *int {
+		return &status
+	}
+
 	tests := []struct {
 		name string
 		err  error
 		want int
 	}{
 		{name: "should report success for no error", err: nil, want: ExitOK},
+		{
+			name: "should report usage for a stored input failure a resume stopped at",
+			err:  stored("input", nil), want: ExitUsage,
+		},
+		{
+			name: "should report unavailable for a stored unusable response",
+			err:  stored("response", statusOf(http.StatusOK)), want: ExitUnavailable,
+		},
+		{
+			name: "should report transport for a stored transport failure",
+			err:  stored("transport", nil), want: ExitTransport,
+		},
+		{
+			name: "should report auth for a stored payment required status",
+			err:  stored("http", statusOf(http.StatusPaymentRequired)), want: ExitAuth,
+		},
+		{
+			name: "should report unavailable for a stored rate limit",
+			err:  stored("http", statusOf(http.StatusTooManyRequests)), want: ExitUnavailable,
+		},
+		{
+			name: "should report transport for a stored request timeout status",
+			err:  stored("http", statusOf(http.StatusRequestTimeout)), want: ExitTransport,
+		},
+		{
+			name: "should report usage for a stored bad request",
+			err:  stored("http", statusOf(http.StatusBadRequest)), want: ExitUsage,
+		},
+		{
+			name: "should report failed records for a stored failure of no known kind",
+			err:  stored("", nil), want: ExitRecords,
+		},
 		{
 			name: "should report auth for an unauthorized status",
 			err:  apiError(http.StatusUnauthorized), want: ExitAuth,
