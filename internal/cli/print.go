@@ -121,9 +121,7 @@ func streamRequests(
 				return errorLine(bad), bad
 			}
 
-			return jev.MarshalBody(jev.Request{
-				State: sent, Model: model, Questions: questions,
-			})
+			return requestLine(rec.Line, jev.Request{State: sent, Model: model, Questions: questions})
 		},
 		Write: func(body []byte) error {
 			_, writeErr := fmt.Fprintln(out, string(body))
@@ -141,6 +139,17 @@ func streamRequests(
 
 	// A dry run asks no question, so no record can have carried an assertion.
 	return streamResult(result, 0, 0)
+}
+
+func requestLine(number int, req jev.Request) ([]byte, error) {
+	body, err := jev.MarshalBody(req)
+	if err != nil {
+		bad := &input.LineError{Line: number, Err: fmt.Errorf("encoding the request: %w", err)}
+
+		return errorLine(bad), bad
+	}
+
+	return body, nil
 }
 
 func errorLine(cause error) []byte {
