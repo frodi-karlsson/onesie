@@ -135,7 +135,23 @@ func (f answersFormat) lineAnswer(ctx context.Context, text []byte) (string, boo
 		return "", false
 	}
 
+	// A record that is not an object merges into a wrapper around it. An object whose only key is
+	// state merges into the same shape, so the whole line is still tried when the state names nothing.
+	if state, wrapped := wrappedState(object, f.mergeKey); wrapped {
+		if id, ok := f.named(ctx, state); ok {
+			return id, true
+		}
+	}
+
 	return f.named(ctx, value)
+}
+
+func wrappedState(line map[string]any, mergeKey string) (any, bool) {
+	state, hasState := line["state"]
+	_, hasAnswers := line[mergeKey]
+	_, stateIsObject := state.(map[string]any)
+
+	return state, len(line) == 2 && hasState && hasAnswers && !stateIsObject
 }
 
 func (f answersFormat) rowAnswer(ctx context.Context, columns, cells []string) (string, bool) {

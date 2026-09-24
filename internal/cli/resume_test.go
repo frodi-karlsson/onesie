@@ -26,6 +26,8 @@ func TestResumeLedger(t *testing.T) {
 
 	byID := fingerprintFor(t, "is this urgent", "typesafe", jev.DefaultModel, "", ".id")
 	byPosition := fingerprintFor(t, "is this urgent", "typesafe", jev.DefaultModel, "", "")
+	byItself := fingerprintFor(t, "is this urgent", "typesafe", jev.DefaultModel, "", ".")
+	byStateKey := fingerprintFor(t, "is this urgent", "typesafe", jev.DefaultModel, "", ".state")
 
 	values := []string{"-i", "jsonl", "-o", "values", "--id", ".id", "--resume"}
 	dupError := `{"error":{"kind":"input","status":null,"message":"line 2: --id: '1' is also the id of line 1"}}`
@@ -237,6 +239,42 @@ func TestResumeLedger(t *testing.T) {
 						"{\"id\":2,\"answers\":{\"answer\":0.5}}\n",
 				},
 			},
+		},
+		{
+			name:     "should resume merged -i lines output by running --id on the wrapper's state",
+			existing: fileOf("{\"state\":\"a\",\"answers\":{\"answer\":0.5}}\n"),
+			sidecar:  byItself,
+			stdin:    "a\nb\n",
+			runs: []resumeRun{{
+				args: []string{"-i", "lines", "-o", "values", "--merge", "--id", ".", "--resume"},
+				wantFile: "{\"state\":\"a\",\"answers\":{\"answer\":0.5}}\n" +
+					"{\"state\":\"b\",\"answers\":{\"answer\":0.5}}\n",
+				wantSent: []string{`"b"`},
+			}},
+		},
+		{
+			name:     "should resume merged jsonl strings by running --id on the wrapper's state",
+			existing: fileOf("{\"state\":\"a\",\"answers\":{\"answer\":0.5}}\n"),
+			sidecar:  byItself,
+			stdin:    "\"a\"\n\"b\"\n",
+			runs: []resumeRun{{
+				args: []string{"-i", "jsonl", "-o", "values", "--merge", "--id", ".", "--resume"},
+				wantFile: "{\"state\":\"a\",\"answers\":{\"answer\":0.5}}\n" +
+					"{\"state\":\"b\",\"answers\":{\"answer\":0.5}}\n",
+				wantSent: []string{`"b"`},
+			}},
+		},
+		{
+			name:     "should resume a merged object whose only key is state by running --id on the whole line",
+			existing: fileOf("{\"state\":5,\"answers\":{\"answer\":0.5}}\n"),
+			sidecar:  byStateKey,
+			stdin:    "{\"state\":5}\n{\"state\":6}\n",
+			runs: []resumeRun{{
+				args: []string{"-i", "jsonl", "-o", "values", "--merge", "--id", ".state", "--resume"},
+				wantFile: "{\"state\":5,\"answers\":{\"answer\":0.5}}\n" +
+					"{\"state\":6,\"answers\":{\"answer\":0.5}}\n",
+				wantSent: []string{`{"state":6}`},
+			}},
 		},
 		{
 			name:     "should still resume by position without --id",
