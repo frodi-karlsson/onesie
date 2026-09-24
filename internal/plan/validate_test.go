@@ -994,6 +994,14 @@ func TestCheckFlags(t *testing.T) {
 			},
 		},
 		{
+			name: "should reject --resume with --print-request",
+			cfg: plan.Config{
+				Streaming: true, InputName: "jsonl", Resume: true, Out: "a.jsonl", HasID: true,
+				PrintRequest: true, Jobs: 1,
+			},
+			wantErr: "onesie: --print-request writes request bodies, not answers, so --resume has nothing to pick up. Drop --resume",
+		},
+		{
 			name:    "should reject --resume with --list-models",
 			cfg:     plan.Config{ListModels: true, InputName: "text", Resume: true, Out: "m.txt"},
 			wantErr: "onesie: --resume applies to streaming input, which --list-models does not read",

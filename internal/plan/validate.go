@@ -128,6 +128,9 @@ func checkResume(cfg Config) error {
 		return errors.New("onesie: --resume applies to streaming input, which --list-models does not read")
 	case cfg.PrintQuestions:
 		return errors.New("onesie: --resume applies to streaming input, which --print-questions does not read")
+	case cfg.PrintRequest:
+		return errors.New("onesie: --print-request writes request bodies, not answers, " +
+			"so --resume has nothing to pick up. Drop --resume")
 	case !cfg.Streaming:
 		return fmt.Errorf("onesie: --resume applies to streaming input. -i %s reads one record", cfg.InputName)
 	case cfg.Unordered && !cfg.HasID:
