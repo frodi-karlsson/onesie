@@ -56,7 +56,7 @@ func dryRunArgs(tokens []string) (args []string, reason string, err error) {
 	raw := tokens[1:]
 
 	mode := "--print-request"
-	if hasFlag(raw, "assert") {
+	if hasFlag(raw, "assert") || hasFlag(raw, "abstain-if") {
 		mode = "--print-questions"
 	}
 

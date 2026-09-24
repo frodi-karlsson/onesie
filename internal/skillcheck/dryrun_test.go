@@ -112,6 +112,11 @@ func TestDryRunArgs(t *testing.T) {
 			},
 		},
 		{
+			name:   "should pick --print-questions when the assertion comes from a file beside --abstain-if",
+			tokens: []string{"onesie", "-f", "q.yaml", "--abstain-if", "a > 0"},
+			want:   []string{"--print-questions", "-f", "q.yaml", "--abstain-if", "a > 0"},
+		},
+		{
 			name:   "should pick --print-request otherwise",
 			tokens: []string{"onesie", "--ask", "a=x"},
 			want:   []string{"--print-request", "--ask", "a=x"},
