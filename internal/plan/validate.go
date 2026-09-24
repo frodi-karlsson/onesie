@@ -915,8 +915,10 @@ type Config struct {
 	// when that is where the gate came from. It defaults to --assert when empty.
 	AssertName string
 	// HasAbstainIf records that an abstain expression was given, by the flag or by a question
-	// file's key. AbstainIfName spells it the way AssertName spells the assertion.
-	HasAbstainIf  bool
+	// file's key.
+	HasAbstainIf bool
+	// AbstainIfName is the abstain expression as the user spelled it, the way AssertName spells the
+	// assertion. It defaults to --abstain-if when empty.
 	AbstainIfName string
 
 	Output       string

@@ -72,6 +72,7 @@ func run(
 
 	built := inv.plan
 	gate := inv.gate
+	abstain := inv.abstain
 	loaded := inv.loaded
 
 	// Before the output mode, because a question file is not an output mode and -o has no meaning
@@ -80,7 +81,7 @@ func run(
 	if flags.printQuestions {
 		return printQuestions(
 			cmd.OutOrStdout(), cmd.ErrOrStderr(), built.Questions, gate.Source(),
-			inv.abstain.Source(), loaded)
+			abstain.Source(), loaded)
 	}
 
 	// Both modes are parsed before the request, so a mistyped flag costs nothing.

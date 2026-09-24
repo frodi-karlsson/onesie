@@ -28,7 +28,9 @@ func loadQuestions(top yaml.MapSlice) (*File, error) {
 			var question plan.Question
 
 			question, err = buildQuestion(id, item.Value)
-			file.Questions = append(file.Questions, question)
+			if err == nil {
+				file.Questions = append(file.Questions, question)
+			}
 		}
 
 		if err != nil {

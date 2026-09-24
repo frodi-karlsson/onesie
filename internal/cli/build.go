@@ -134,14 +134,14 @@ func build(
 		return nil, warnings, err
 	}
 
-	// After validation, since the checker reads a plan the run has accepted, and before any mode
-	// dispatches, since §17.3 checks an assertion against the plan and §11 runs every check before
-	// any network call.
 	var fileAssert, fileAbstain string
 	if loaded != nil {
 		fileAssert, fileAbstain = loaded.Assert, loaded.AbstainIf
 	}
 
+	// After validation, since the checker reads a plan the run has accepted, and before any mode
+	// dispatches, since §17.3 checks an assertion against the plan and §11 runs every check before
+	// any network call.
 	gate, err := gateOf("--assert", fileAssert, flags.assert, built)
 	if err != nil {
 		return nil, warnings, err
@@ -159,8 +159,9 @@ func gateOf(flag, fileSource string, sources []string, built *plan.Plan) (*asser
 	exprs := make([]*assert.Expr, 0, len(sources)+1)
 
 	// The file leads and the command line follows. The file's expression is the more general one,
-	// and argv puts the flag after the -f that named the file. §17.5 combines the two by and, and
-	// and is commutative, so the order is a matter of which one an error names first.
+	// and argv puts the flag after the -f that named the file. §17.5 combines a file's key and its
+	// flag by and, for the abstain expression as for the assertion, and and is commutative, so the
+	// order is a matter of which one an error names first.
 	if fileSource != "" {
 		// Spelled the way the file spells it, which is the rule plan holds every other message to
 		// that names where a setting came from.
