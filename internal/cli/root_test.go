@@ -26,6 +26,12 @@ func TestNewRootCmd(t *testing.T) {
 	const answered = `{"model":"onesie-1.13.0","answers":{"answer":{"type":"noul","noul":0.92}},` +
 		`"usage":{"input_tokens":10,"output_tokens":2}}`
 
+	const costed = `{"model":"typesafe/jev-1.13-20260917","answers":{"answer":{"type":"noul","noul":0.92}},` +
+		`"usage":{"input_tokens":10,"output_tokens":2,"cost":0.000012},"id":"gen-dec-1","provider":"TypeSafe"}`
+
+	const free = `{"model":"typesafe/jev-1.13-20260917","answers":{"answer":{"type":"noul","noul":0.92}},` +
+		`"usage":{"input_tokens":10,"output_tokens":2,"cost":0}}`
+
 	const twoAnswers = `{"model":"onesie-1.13.0","answers":` +
 		`{"a":{"type":"noul","noul":0.92},"extra":{"type":"noul","noul":0.92}},` +
 		`"usage":{"input_tokens":10,"output_tokens":2}}`
@@ -101,6 +107,22 @@ func TestNewRootCmd(t *testing.T) {
 			response: answered,
 			wantCode: cli.ExitOK,
 			contains: []string{`"usage":{"input_tokens":10,"output_tokens":2}`},
+		},
+		{
+			name:     "should add the cost to usage when the response carries one",
+			args:     []string{"is this urgent", "-o", "json", "--usage"},
+			stdin:    "the server is down",
+			response: costed,
+			wantCode: cli.ExitOK,
+			contains: []string{`"usage":{"input_tokens":10,"output_tokens":2,"cost":0.000012}`},
+		},
+		{
+			name:     "should keep a zero cost in usage",
+			args:     []string{"is this urgent", "-o", "json", "--usage"},
+			stdin:    "the server is down",
+			response: free,
+			wantCode: cli.ExitOK,
+			contains: []string{`"usage":{"input_tokens":10,"output_tokens":2,"cost":0}`},
 		},
 		{
 			name:     "should print the bare value with -r",

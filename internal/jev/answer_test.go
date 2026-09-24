@@ -69,6 +69,30 @@ func TestResultUnmarshalJSON(t *testing.T) {
 		}
 	})
 
+	t.Run("should decode the usage cost when present", func(t *testing.T) {
+		t.Parallel()
+
+		var result jev.Result
+
+		body := `{"model":"m","answers":{},"usage":{"input_tokens":1,"output_tokens":2,"cost":0.5}}`
+		if err := json.Unmarshal([]byte(body), &result); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if result.Usage.Cost == nil || *result.Usage.Cost != 0.5 {
+			t.Errorf("cost got %v, want 0.5", result.Usage.Cost)
+		}
+	})
+
+	t.Run("should leave the cost nil when absent", func(t *testing.T) {
+		t.Parallel()
+
+		result := loadSample(t)
+		if result.Usage.Cost != nil {
+			t.Errorf("cost got %v, want nil", *result.Usage.Cost)
+		}
+	})
+
 	t.Run("should reject an unknown answer type", func(t *testing.T) {
 		t.Parallel()
 

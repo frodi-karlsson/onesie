@@ -100,10 +100,11 @@ func (r *Result) answer(name string) (Answer, error) {
 	return found, nil
 }
 
-// Usage is the token count the API billed for a request.
+// Usage is the token count the API billed for a request, and the cost in USD when the provider reports one.
 type Usage struct {
-	InputTokens  int `json:"input_tokens"`
-	OutputTokens int `json:"output_tokens"`
+	InputTokens  int      `json:"input_tokens"`
+	OutputTokens int      `json:"output_tokens"`
+	Cost         *float64 `json:"cost,omitempty"`
 }
 
 // Answer is one of NoulAnswer, ChoiceAnswer or ScoreAnswer.
