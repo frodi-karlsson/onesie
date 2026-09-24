@@ -44,7 +44,7 @@ func TestAuthStatus(t *testing.T) {
 		},
 		{
 			name:     "should report the file",
-			file:     `{"api_key":"SECRET-FILE"}`,
+			file:     `{"providers":{"typesafe":{"api_key":"SECRET-FILE"}}}`,
 			wantPath: true,
 			wantCode: ExitOK,
 		},
@@ -55,7 +55,7 @@ func TestAuthStatus(t *testing.T) {
 		},
 		{
 			name:     "should refuse a file others can reach and exit 3",
-			file:     `{"api_key":"SECRET-FILE"}`,
+			file:     `{"providers":{"typesafe":{"api_key":"SECRET-FILE"}}}`,
 			fileMode: 0o644,
 			unixOnly: true,
 			wantErr:  "is accessible by others, mode 644",
@@ -64,7 +64,7 @@ func TestAuthStatus(t *testing.T) {
 		{
 			name:     "should ignore a file others can reach when the environment has a key",
 			env:      map[string]string{jev.EnvAPIKey: "SECRET-ENV"},
-			file:     `{"api_key":"SECRET-FILE"}`,
+			file:     `{"providers":{"typesafe":{"api_key":"SECRET-FILE"}}}`,
 			fileMode: 0o644,
 			unixOnly: true,
 			wantOut:  "source: env\n",
@@ -73,7 +73,7 @@ func TestAuthStatus(t *testing.T) {
 		{
 			name:     "should prefer the environment over the file",
 			env:      map[string]string{jev.EnvAPIKey: "SECRET-ENV"},
-			file:     `{"api_key":"SECRET-FILE"}`,
+			file:     `{"providers":{"typesafe":{"api_key":"SECRET-FILE"}}}`,
 			wantOut:  "source: env\n",
 			wantCode: ExitOK,
 		},
@@ -134,7 +134,7 @@ func TestAuthClear(t *testing.T) {
 	}{
 		{
 			name: "should delete the credential file",
-			file: `{"api_key":"SECRET-FILE"}`,
+			file: `{"providers":{"typesafe":{"api_key":"SECRET-FILE"}}}`,
 		},
 		{
 			name: "should exit zero when there is no credential file",
@@ -262,14 +262,14 @@ func TestAuthSet(t *testing.T) {
 		{
 			name:     "should overwrite an existing file",
 			stdin:    "SECRET-STDIN\n",
-			existing: `{"api_key":"SECRET-OLD","base_url":"https://old.example"}`,
+			existing: `{"providers":{"typesafe":{"api_key":"SECRET-OLD","base_url":"https://old.example"}}}`,
 			wantKey:  "SECRET-STDIN",
 			wantCode: ExitOK,
 		},
 		{
 			name:         "should overwrite an existing file others can reach",
 			stdin:        "SECRET-STDIN\n",
-			existing:     `{"api_key":"SECRET-OLD"}`,
+			existing:     `{"providers":{"typesafe":{"api_key":"SECRET-OLD"}}}`,
 			existingMode: 0o644,
 			unixOnly:     true,
 			wantKey:      "SECRET-STDIN",
@@ -464,7 +464,7 @@ func TestAuthTest(t *testing.T) {
 		},
 		{
 			name:     "should reach the base url stored beside the key",
-			file:     `{"api_key":"SECRET-FILE"}`,
+			file:     `{"providers":{"typesafe":{"api_key":"SECRET-FILE"}}}`,
 			fileBase: true,
 			response: listing,
 			wantPath: true,
@@ -517,7 +517,7 @@ func TestAuthTest(t *testing.T) {
 
 			file := tc.file
 			if tc.fileBase {
-				file = `{"api_key":"SECRET-FILE","base_url":"` + base + `"}`
+				file = `{"providers":{"typesafe":{"api_key":"SECRET-FILE","base_url":"` + base + `"}}}`
 			}
 
 			path := credentialFixture(t, file, 0)
@@ -769,27 +769,27 @@ func TestResolveKey(t *testing.T) {
 			name:     "should prefer the flag over the environment and the file",
 			apiKey:   "SECRET-FLAG",
 			env:      map[string]string{jev.EnvAPIKey: "SECRET-ENV"},
-			file:     `{"api_key":"SECRET-FILE"}`,
+			file:     `{"providers":{"typesafe":{"api_key":"SECRET-FILE"}}}`,
 			wantName: sourceFlag,
 			wantKey:  "SECRET-FLAG",
 		},
 		{
 			name:     "should prefer the environment over the file",
 			env:      map[string]string{jev.EnvAPIKey: "SECRET-ENV"},
-			file:     `{"api_key":"SECRET-FILE"}`,
+			file:     `{"providers":{"typesafe":{"api_key":"SECRET-FILE"}}}`,
 			wantName: sourceEnv,
 			wantKey:  "SECRET-ENV",
 		},
 		{
 			name:     "should ignore a blank environment variable",
 			env:      map[string]string{jev.EnvAPIKey: "   "},
-			file:     `{"api_key":"SECRET-FILE"}`,
+			file:     `{"providers":{"typesafe":{"api_key":"SECRET-FILE"}}}`,
 			wantName: sourceFile,
 			wantKey:  "SECRET-FILE",
 		},
 		{
 			name:     "should carry the base url stored beside the key",
-			file:     `{"api_key":"SECRET-FILE","base_url":"https://proxy.example"}`,
+			file:     `{"providers":{"typesafe":{"api_key":"SECRET-FILE","base_url":"https://proxy.example"}}}`,
 			wantName: sourceFile,
 			wantKey:  "SECRET-FILE",
 			wantBase: "https://proxy.example",
@@ -902,7 +902,7 @@ func TestCredentialPath(t *testing.T) {
 			}
 
 			path := filepath.Join(holding, "credentials.json")
-			if err := os.WriteFile(path, []byte(`{"api_key":"SECRET-FILE"}`), 0o600); err != nil {
+			if err := os.WriteFile(path, []byte(`{"providers":{"typesafe":{"api_key":"SECRET-FILE"}}}`), 0o600); err != nil {
 				t.Fatalf("writing the credential fixture: %v", err)
 			}
 
@@ -1146,7 +1146,7 @@ func TestNewRootCmdDryRunWithACredentialFile(t *testing.T) {
 
 			// Mode 0644 is the assertion. Section 16.1 opens the file only when the run needs a
 			// key, so a dry run that opened this one would exit 3 instead of writing its body.
-			dir := credentialDir(t, `{"api_key":"SECRET-FILE"}`, 0o644)
+			dir := credentialDir(t, `{"providers":{"typesafe":{"api_key":"SECRET-FILE"}}}`, 0o644)
 
 			out, errOut, code := runCredentialFile(t, tc.args, tc.stdin,
 				map[string]string{"ONESIE_CONFIG_DIR": dir})
@@ -1266,7 +1266,7 @@ func credentialContent(t *testing.T, key, baseURL string) string {
 		return ""
 	}
 
-	encoded, err := json.Marshal(creds.File{APIKey: key, BaseURL: baseURL})
+	encoded, err := json.Marshal(creds.File{Providers: map[string]creds.Entry{"typesafe": {APIKey: key, BaseURL: baseURL}}})
 	if err != nil {
 		t.Fatalf("encoding the credential fixture: %v", err)
 	}
@@ -1375,12 +1375,14 @@ func assertStored(t *testing.T, path, key, base string) {
 		t.Fatalf("the written credential file is not JSON: %v", decodeErr)
 	}
 
-	if stored.APIKey != key {
+	entry := stored.Providers["typesafe"]
+
+	if entry.APIKey != key {
 		t.Error("the stored key is not the one that was piped in")
 	}
 
-	if stored.BaseURL != base {
-		t.Errorf("stored base url = %q, want %q", stored.BaseURL, base)
+	if entry.BaseURL != base {
+		t.Errorf("stored base url = %q, want %q", entry.BaseURL, base)
 	}
 
 	// base_url is omitted rather than written empty, so a file written without the flag carries no

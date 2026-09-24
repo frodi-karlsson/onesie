@@ -90,10 +90,12 @@ func authSet(cmd *cobra.Command, settings rootSettings, baseURL string, hasBaseU
 		return printErr
 	}
 
-	file := creds.File{APIKey: key}
+	entry := creds.Entry{APIKey: key}
 	if hasBaseURL {
-		file.BaseURL = baseURL
+		entry.BaseURL = baseURL
 	}
+
+	file := creds.File{Providers: map[string]creds.Entry{"typesafe": entry}}
 
 	warning, err := settings.credStore.Save(path, file)
 	if err != nil {
@@ -299,11 +301,12 @@ func resolveKey(settings rootSettings, flags *runFlags) (keySource, error) {
 		return keySource{}, err
 	}
 
-	if !found {
+	entry, ok := file.Providers["typesafe"]
+	if !found || !ok {
 		return keySource{name: sourceNone}, nil
 	}
 
-	return keySource{name: sourceFile, path: path, key: file.APIKey, baseURL: file.BaseURL}, nil
+	return keySource{name: sourceFile, path: path, key: entry.APIKey, baseURL: entry.BaseURL}, nil
 }
 
 type keySource struct {

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"strings"
 	"testing"
@@ -46,7 +47,7 @@ func TestLoadThroughASymlink(t *testing.T) {
 			target := filepath.Join(dir, "target.json")
 			link := filepath.Join(dir, "credentials.json")
 
-			if err := os.WriteFile(target, []byte(`{"api_key":"k"}`), 0o600); err != nil {
+			if err := os.WriteFile(target, []byte(`{"providers":{"typesafe":{"api_key":"k"}}}`), 0o600); err != nil {
 				t.Fatalf("writing the target: %v", err)
 			}
 
@@ -92,15 +93,15 @@ func TestLoad(t *testing.T) {
 	}{
 		{
 			name:     "should read a key and a base url",
-			contents: `{"api_key":"k","base_url":"https://proxy.example"}`,
+			contents: `{"providers":{"typesafe":{"api_key":"k","base_url":"https://proxy.example"}}}`,
 			mode:     0o600,
-			want:     creds.File{APIKey: "k", BaseURL: "https://proxy.example"},
+			want:     creds.File{Providers: map[string]creds.Entry{"typesafe": {APIKey: "k", BaseURL: "https://proxy.example"}}},
 		},
 		{
 			name:     "should read a key with no base url",
-			contents: `{"api_key":"k"}`,
+			contents: `{"providers":{"typesafe":{"api_key":"k"}}}`,
 			mode:     0o600,
-			want:     creds.File{APIKey: "k"},
+			want:     creds.File{Providers: map[string]creds.Entry{"typesafe": {APIKey: "k"}}},
 		},
 		{
 			name:   "should report an absent file as absent rather than an error",
@@ -108,21 +109,21 @@ func TestLoad(t *testing.T) {
 		},
 		{
 			name:     "should refuse a file readable by the group",
-			contents: `{"api_key":"k"}`,
+			contents: `{"providers":{"typesafe":{"api_key":"k"}}}`,
 			mode:     0o640,
 			unixOnly: true,
 			wantErr:  "is accessible by others, mode 640",
 		},
 		{
 			name:     "should refuse a file readable by the world",
-			contents: `{"api_key":"k"}`,
+			contents: `{"providers":{"typesafe":{"api_key":"k"}}}`,
 			mode:     0o604,
 			unixOnly: true,
 			wantErr:  "is accessible by others, mode 604",
 		},
 		{
 			name:     "should refuse a file the group can write but not read",
-			contents: `{"api_key":"k"}`,
+			contents: `{"providers":{"typesafe":{"api_key":"k"}}}`,
 			mode:     0o620,
 			unixOnly: true,
 			wantErr:  "is accessible by others, mode 620",
@@ -136,14 +137,14 @@ func TestLoad(t *testing.T) {
 		},
 		{
 			name:     "should refuse a file its owner cannot read",
-			contents: `{"api_key":"k"}`,
+			contents: `{"providers":{"typesafe":{"api_key":"k"}}}`,
 			mode:     0o060,
 			unixOnly: true,
 			wantErr:  "is accessible by others, mode 60",
 		},
 		{
 			name:     "should refuse a file only the world can read",
-			contents: `{"api_key":"k"}`,
+			contents: `{"providers":{"typesafe":{"api_key":"k"}}}`,
 			mode:     0o006,
 			unixOnly: true,
 			wantErr:  "is accessible by others, mode 6",
@@ -163,25 +164,52 @@ func TestLoad(t *testing.T) {
 		},
 		{
 			name:     "should read a file at exactly the read cap",
-			contents: `{"api_key":"` + strings.Repeat("k", (1<<20)-14) + `"}`,
+			contents: `{"providers":{"typesafe":{"api_key":"` + strings.Repeat("k", (1<<20)-41) + `"}}}`,
 			mode:     0o600,
-			want:     creds.File{APIKey: strings.Repeat("k", (1<<20)-14)},
+			want:     creds.File{Providers: map[string]creds.Entry{"typesafe": {APIKey: strings.Repeat("k", (1<<20)-41)}}},
 		},
 		{
 			name:     "should refuse a file larger than the read cap",
-			contents: `{"api_key":"` + strings.Repeat("k", 1<<20) + `"}`,
+			contents: `{"providers":{"typesafe":{"api_key":"` + strings.Repeat("k", 1<<20) + `"}}}`,
 			mode:     0o600,
 			wantErr:  "is larger than 1048576 bytes",
 		},
 		{
-			name:     "should refuse a file with no api_key",
+			name:     "should read two providers",
+			contents: `{"providers":{"openrouter":{"api_key":"o"},"typesafe":{"api_key":"k"}}}`,
+			mode:     0o600,
+			want: creds.File{Providers: map[string]creds.Entry{
+				"openrouter": {APIKey: "o"},
+				"typesafe":   {APIKey: "k"},
+			}},
+		},
+		{
+			name:     "should refuse a file with no providers",
 			contents: `{}`,
 			mode:     0o600,
 			wantErr:  "is not a JSON object",
 		},
 		{
-			name:     "should refuse a file whose api_key is empty",
-			contents: `{"api_key":""}`,
+			name:     "should refuse a file with an empty providers map",
+			contents: `{"providers":{}}`,
+			mode:     0o600,
+			wantErr:  "is not a JSON object",
+		},
+		{
+			name:     "should refuse the flat shape",
+			contents: `{"api_key":"k"}`,
+			mode:     0o600,
+			wantErr:  "is not a JSON object",
+		},
+		{
+			name:     "should refuse a file where one of two entries has an empty api_key",
+			contents: `{"providers":{"openrouter":{"api_key":""},"typesafe":{"api_key":"k"}}}`,
+			mode:     0o600,
+			wantErr:  "is not a JSON object",
+		},
+		{
+			name:     "should refuse an entry whose api_key is empty",
+			contents: `{"providers":{"typesafe":{"api_key":""}}}`,
 			mode:     0o600,
 			wantErr:  "is not a JSON object",
 		},
@@ -193,19 +221,19 @@ func TestLoad(t *testing.T) {
 		},
 		{
 			name:     "should refuse a file whose key is not a string",
-			contents: `{"api_key":42}`,
+			contents: `{"providers":{"typesafe":{"api_key":42}}}`,
 			mode:     0o600,
 			wantErr:  "is not a JSON object",
 		},
 		{
 			name:     "should refuse a file whose base_url is not a string",
-			contents: `{"api_key":"k","base_url":42}`,
+			contents: `{"providers":{"typesafe":{"api_key":"k","base_url":42}}}`,
 			mode:     0o600,
 			wantErr:  "is not a JSON object",
 		},
 		{
 			name:     "should refuse a group readable file on a unix filesystem",
-			contents: `{"api_key":"k"}`,
+			contents: `{"providers":{"typesafe":{"api_key":"k"}}}`,
 			goos:     "linux",
 			mode:     0o640,
 			unixOnly: true,
@@ -213,10 +241,10 @@ func TestLoad(t *testing.T) {
 		},
 		{
 			name:     "should accept a group readable file on windows, where the mode carries no meaning",
-			contents: `{"api_key":"k"}`,
+			contents: `{"providers":{"typesafe":{"api_key":"k"}}}`,
 			goos:     "windows",
 			mode:     0o640,
-			want:     creds.File{APIKey: "k"},
+			want:     creds.File{Providers: map[string]creds.Entry{"typesafe": {APIKey: "k"}}},
 		},
 	}
 
@@ -266,7 +294,7 @@ func TestLoad(t *testing.T) {
 					t.Errorf("found = true, want false alongside an error")
 				}
 
-				if got != (creds.File{}) {
+				if got.Providers != nil {
 					t.Errorf("Load returned %+v alongside an error, want the zero File", got)
 				}
 
@@ -281,7 +309,7 @@ func TestLoad(t *testing.T) {
 				t.Fatalf("found = %v, want %v", found, !tc.absent)
 			}
 
-			if got != tc.want {
+			if !reflect.DeepEqual(got, tc.want) {
 				t.Errorf("Load = %+v, want %+v", got, tc.want)
 			}
 		})
@@ -298,13 +326,21 @@ func TestSave(t *testing.T) {
 	}{
 		{
 			name: "should write a key alone",
-			file: creds.File{APIKey: "k"},
-			want: `{"api_key":"k"}`,
+			file: creds.File{Providers: map[string]creds.Entry{"typesafe": {APIKey: "k"}}},
+			want: `{"providers":{"typesafe":{"api_key":"k"}}}`,
 		},
 		{
 			name: "should write a key and a base url",
-			file: creds.File{APIKey: "k", BaseURL: "https://proxy.example"},
-			want: `{"api_key":"k","base_url":"https://proxy.example"}`,
+			file: creds.File{Providers: map[string]creds.Entry{"typesafe": {APIKey: "k", BaseURL: "https://proxy.example"}}},
+			want: `{"providers":{"typesafe":{"api_key":"k","base_url":"https://proxy.example"}}}`,
+		},
+		{
+			name: "should write two providers in a stable order",
+			file: creds.File{Providers: map[string]creds.Entry{
+				"typesafe":   {APIKey: "k"},
+				"openrouter": {APIKey: "o"},
+			}},
+			want: `{"providers":{"openrouter":{"api_key":"o"},"typesafe":{"api_key":"k"}}}`,
 		},
 	}
 
@@ -366,11 +402,18 @@ func TestSave(t *testing.T) {
 		}{
 			{
 				name: "should read back a key with no base url",
-				file: creds.File{APIKey: "k"},
+				file: creds.File{Providers: map[string]creds.Entry{"typesafe": {APIKey: "k"}}},
 			},
 			{
 				name: "should read back a key and a base url",
-				file: creds.File{APIKey: "k", BaseURL: "https://proxy.example"},
+				file: creds.File{Providers: map[string]creds.Entry{"typesafe": {APIKey: "k", BaseURL: "https://proxy.example"}}},
+			},
+			{
+				name: "should read back two providers",
+				file: creds.File{Providers: map[string]creds.Entry{
+					"typesafe":   {APIKey: "k", BaseURL: "https://proxy.example"},
+					"openrouter": {APIKey: "o"},
+				}},
 			},
 		}
 
@@ -394,8 +437,9 @@ func TestSave(t *testing.T) {
 					t.Fatal("Load reported the file it just wrote as absent")
 				}
 
-				if got != tc.file {
-					t.Errorf("round trip changed the file, base url = %q, want %q", got.BaseURL, tc.file.BaseURL)
+				if !reflect.DeepEqual(got, tc.file) {
+					t.Errorf("round trip changed the file, base url = %q, want %q",
+						got.Providers["typesafe"].BaseURL, tc.file.Providers["typesafe"].BaseURL)
 				}
 			})
 		}
@@ -409,7 +453,7 @@ func TestSave(t *testing.T) {
 
 			path := filepath.Join(t.TempDir(), "credentials.json")
 
-			if err := os.WriteFile(path, []byte(`{"api_key":"old"}`), 0o644); err != nil {
+			if err := os.WriteFile(path, []byte(`{"providers":{"typesafe":{"api_key":"old"}}}`), 0o644); err != nil {
 				t.Fatalf("writing the fixture: %v", err)
 			}
 			// WriteFile respects umask, so the leaked mode is set explicitly afterwards.
@@ -417,7 +461,7 @@ func TestSave(t *testing.T) {
 				t.Fatalf("setting the fixture mode: %v", err)
 			}
 
-			warning, err := creds.NewStore().Save(path, creds.File{APIKey: "new"})
+			warning, err := creds.NewStore().Save(path, creds.File{Providers: map[string]creds.Entry{"typesafe": {APIKey: "new"}}})
 			if err != nil {
 				t.Fatalf("Save: %v", err)
 			}
@@ -431,7 +475,7 @@ func TestSave(t *testing.T) {
 				t.Fatalf("reading back: %v", err)
 			}
 
-			if strings.TrimSpace(string(data)) != `{"api_key":"new"}` {
+			if strings.TrimSpace(string(data)) != `{"providers":{"typesafe":{"api_key":"new"}}}` {
 				t.Error("Save left the old contents in place")
 			}
 
@@ -474,7 +518,7 @@ func TestSave(t *testing.T) {
 					}
 				}
 
-				_, err := creds.NewStore().Save(path, creds.File{APIKey: "k"})
+				_, err := creds.NewStore().Save(path, creds.File{Providers: map[string]creds.Entry{"typesafe": {APIKey: "k"}}})
 
 				if tc.blockRename && err == nil {
 					t.Fatal("Save succeeded onto a directory, want a failure")
@@ -527,7 +571,7 @@ func TestSave(t *testing.T) {
 				t.Fatalf("linking: %v", err)
 			}
 
-			if _, err := creds.NewStore().Save(path, creds.File{APIKey: "k"}); err != nil {
+			if _, err := creds.NewStore().Save(path, creds.File{Providers: map[string]creds.Entry{"typesafe": {APIKey: "k"}}}); err != nil {
 				t.Fatalf("Save: %v", err)
 			}
 
@@ -563,7 +607,7 @@ func TestSave(t *testing.T) {
 				return errors.New("this filesystem carries no modes")
 			}
 
-			warning, err := creds.NewStore(creds.WithChmod(chmod)).Save(path, creds.File{APIKey: "k"})
+			warning, err := creds.NewStore(creds.WithChmod(chmod)).Save(path, creds.File{Providers: map[string]creds.Entry{"typesafe": {APIKey: "k"}}})
 			if err != nil {
 				t.Fatalf("Save returned the mode failure as an error, want a written file: %v", err)
 			}
@@ -585,7 +629,7 @@ func TestSave(t *testing.T) {
 				t.Fatalf("reading back: %v", err)
 			}
 
-			if strings.TrimSpace(string(data)) != `{"api_key":"k"}` {
+			if strings.TrimSpace(string(data)) != `{"providers":{"typesafe":{"api_key":"k"}}}` {
 				t.Error("Save warned without writing the file")
 			}
 		})
@@ -609,7 +653,7 @@ func TestSave(t *testing.T) {
 			}
 
 			store := creds.NewStore(creds.WithCreateTemp(createTemp))
-			if _, err := store.Save(path, creds.File{APIKey: "k"}); err != nil {
+			if _, err := store.Save(path, creds.File{Providers: map[string]creds.Entry{"typesafe": {APIKey: "k"}}}); err != nil {
 				t.Fatalf("Save: %v", err)
 			}
 
@@ -678,7 +722,7 @@ func TestSave(t *testing.T) {
 
 				store := creds.NewStore(opts...)
 
-				_, err := store.Save(path, creds.File{APIKey: "k"})
+				_, err := store.Save(path, creds.File{Providers: map[string]creds.Entry{"typesafe": {APIKey: "k"}}})
 				if err == nil {
 					t.Fatal("Save succeeded on a handle it could not write, want a failure")
 				}
@@ -758,7 +802,7 @@ func TestClear(t *testing.T) {
 			}
 
 			if !tc.absent && !tc.dir && !tc.symlink {
-				if err := os.WriteFile(path, []byte(`{"api_key":"k"}`), 0o600); err != nil {
+				if err := os.WriteFile(path, []byte(`{"providers":{"typesafe":{"api_key":"k"}}}`), 0o600); err != nil {
 					t.Fatalf("writing the fixture: %v", err)
 				}
 			}

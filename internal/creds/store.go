@@ -137,12 +137,13 @@ func (s Store) Load(path string) (file File, found bool, err error) {
 			"onesie: credential file %s is larger than %d bytes", path, maxCredentialBytes)
 	}
 
-	if decodeErr := json.Unmarshal(data, &file); decodeErr != nil || file.APIKey == "" {
+	if decodeErr := json.Unmarshal(data, &file); decodeErr != nil || !file.complete() {
 		// An empty or absent api_key is the same failure as a malformed file. Returning it as
 		// found would make auth status report a source for a file holding nothing, and would send
 		// an empty key to the client.
 		return File{}, false, fmt.Errorf(
-			"onesie: credential file %s is not a JSON object with an 'api_key' string", path)
+			"onesie: credential file %s is not a JSON object with a 'providers' map of 'api_key' strings",
+			path)
 	}
 
 	return file, true, nil
@@ -283,10 +284,29 @@ func (s Store) Clear(path string) error {
 	return nil
 }
 
-// File is the contents of a credential file. BaseURL is empty when the file carries none.
+// File is the contents of a credential file, one entry per provider name.
 type File struct {
+	Providers map[string]Entry `json:"providers"`
+}
+
+// Entry is one provider's key. BaseURL is empty when the entry carries none.
+type Entry struct {
 	APIKey  string `json:"api_key"`
 	BaseURL string `json:"base_url,omitempty"`
+}
+
+func (f File) complete() bool {
+	if len(f.Providers) == 0 {
+		return false
+	}
+
+	for _, entry := range f.Providers {
+		if entry.APIKey == "" {
+			return false
+		}
+	}
+
+	return true
 }
 
 func (s Store) checkMode(path string, mode os.FileMode) error {
