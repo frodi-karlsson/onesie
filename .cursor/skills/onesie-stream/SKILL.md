@@ -6,12 +6,13 @@ compatibility: Requires the onesie binary on PATH.
 license: MIT
 ---
 
-onesie streams over many records with `-i jsonl`, `-i lines` or `-i request`, one record per line
-in and one answer per line out.
+onesie streams over many records with `-i jsonl`, `-i lines`, `-i csv`, `-i tsv` or `-i request`,
+one record per line or row in and one answer per line out.
 
-A failed record does not stop the run. It prints an error record in its place and the run keeps
-going, so a consumer has to check which kind of line it is looking at before it reads an answer
-out of it. See the onesie skill's failures reference for the exit code table.
+A failed record usually does not stop the run. It prints an error record in its place and the run
+keeps going, so a consumer has to check which kind of line it is looking at before it reads an
+answer out of it. An auth failure and `--stop-on-error` do stop it, and the next rules list what
+else cuts the output short. See the onesie skill's failures reference for the exit code table.
 
 ```sh
 onesie --ask urgent='is this urgent' -i jsonl -j 8 < tickets.jsonl | jq -c 'select(.error == null)'
@@ -19,9 +20,9 @@ onesie --ask urgent='is this urgent' -i jsonl -j 8 < tickets.jsonl | jq -c 'sele
 
 ## Rules
 
-### Read .error before you read any answer.
+### Read the error before you read any answer.
 
-A failed record still prints a line, carrying an error key rather than answers. A missing field reads as null in `jq`, and null sorts below every number, so a threshold check with `<` silently admits a failed record as if it had passed.
+A failed record still prints a line, carrying an error rather than answers. A missing field reads as null in `jq`, and null sorts below every number, so a threshold check with `<` silently admits a failed record as if it had passed. The error sits at `.error`, but under `--merge` it sits at `.answers.error`, or under the `--merge-key` name, since the input's own fields stay at the top. In `-o csv` and `-o tsv` it is the `error` column, empty on a row that answered.
 
 **Bad:**
 
@@ -37,7 +38,7 @@ onesie --ask urgent='is this urgent' -i jsonl < in.jsonl | jq -c 'select(.error 
 
 ### Match output line N to input line N, unless the exit code says the run stopped early.
 
-Output keeps input order under any `-j`, so line N answers record N. A failed record still gets its line. Only an auth failure, exit 3, or `--stop-on-assert`, exit 1, cuts the output short, leaving a prefix of the input. `--unordered` drops the ordering for throughput.
+Output keeps input order under any `-j`, so line N answers record N. A failed record still gets its line, and so does a blank line in jsonl or lines unless `--skip-blank` drops it. A blank line in csv or tsv is skipped with no output line. Some stops leave only a prefix of the input: an auth failure, exit 3, `--stop-on-error` with the failing record's code, `--stop-on-assert`, exit 1, an interrupt, exit 130, a csv row over the length limit or an input column that clashes with an output column, exit 2, and a consumer that closes the pipe, such as `head`, which exits 0. A csv or tsv header that is not valid exits 2 before any line. `--unordered` drops the ordering for throughput.
 
 ### Under --merge read answers from .answers, and rename it with --merge-key if the record has one.
 
@@ -45,7 +46,7 @@ Answers sit at the top level keyed by question id. `--merge` folds them under an
 
 ### Freeze a run with --print-request and replay it with -i request.
 
-`--print-request` over a stream writes one body per input line, and `-i request` reads those bodies back. It does no validation, no normalization and no policy, so a bad body is sent as is and comes back as an error record, not an exit 2. Under `-i request`, `--print-request` prints its input unchanged, so adding it to a pipeline turns the whole run into a dry run: `onesie --ask urgent='is this urgent' -i jsonl --print-request < in.jsonl > bodies.jsonl && onesie -i request < bodies.jsonl`.
+`--print-request` over a stream writes one body per input line, and `-i request` reads those bodies back. It checks that each line is one JSON object and still applies the flag rules, but nothing inside the body: no question checks, no normalization and no policy. So a bad body is sent as is and comes back as an error record, not an exit 2, and a good one comes back as the raw response body, not the usual record. Under `-i request`, `--print-request` prints its input unchanged, so adding it to a pipeline turns the whole run into a dry run: `onesie --ask urgent='is this urgent' -i jsonl --print-request < in.jsonl > bodies.jsonl && onesie -i request < bodies.jsonl`.
 
 **Good:**
 
@@ -55,11 +56,11 @@ onesie --ask urgent='is this urgent' -i jsonl --print-request
 
 ### Read csv or tsv with -i and write it back with -o csv --merge.
 
-`-i csv` and `-i tsv` read a header row and send each row as an object keyed by it, so a question can name a column such as `body`. `-o csv` and `-o tsv` write one header row, the input columns under `--merge`, one column per question holding its `-o values` answer, an `assert` column when there is an assertion, and an `error` column. A quoted field may hold commas and newlines. `--merge` into `-o csv` needs csv or tsv input, since jsonl has no fixed columns.
+`-i csv` and `-i tsv` read a header row and send each row as an object keyed by it, so a question can name a column such as `body`. A byte order mark before the header is dropped, and a blank or repeated column name exits 2. A csv field may be quoted to hold commas and newlines. TSV has no quoting: a quote is ordinary text and every non blank line is a row. `-o csv` and `-o tsv` write one header row: the input columns under `--merge`, an `id` column under `--id`, one column per question holding its `-o values` answer, an `assert` column holding `true`, `false` or `abstain` when there is an assertion, empty on a failed row, and an `error` column. In `-o tsv` a tab or line break inside a cell becomes a space. Under `--merge`, an input column named like a question id or one of those columns exits 2 at the first row. `--merge` into `-o csv` or `-o tsv` needs csv or tsv input, since jsonl has no fixed columns, and both refuse `--merge-key` and `--usage`.
 
 ### Choose the state with --map and name each record with --id.
 
-`--map EXPR` runs a jq expression on each record and sends its result as the state, so `--map '.body'` keeps a customer name or an internal id away from the model, and `--map '{subject, body}'` or `--map '.subject + "\n\n" + .body'` builds a smaller one. It works on every input but `-i request`, a csv or tsv row is the object keyed by its header, and `--merge` still folds the answers into the whole record. An object the expression builds reaches the model with its keys sorted, and `onesie -V` lists the depth and size caps on the result. A syntax error exits 2 before any request. A record where the expression fails, yields nothing, yields `null` or yields more than one value gets an error line, and the stream carries on. `--id EXPR` takes streaming input only and must yield one string or one number. It runs one record at a time as the input is read, so keep it cheap, such as a field lookup. Ids match by their text, so `7`, `7.0` and the string `"7"` are one id in jsonl, while in csv and tsv every cell is text and `7` and `7.0` stay two. A missing id, one of another type, one longer than the cap `onesie -V` lists, or a repeat of an earlier record's id is an error line. Every other output line carries its id, an `"id"` key in json and values and an `id` first column in csv and tsv. Under `--merge` the record already holds its fields, so nothing is added. `id` is a reserved question id.
+`--map EXPR` runs a jq expression on each record and sends its result as the state, so `--map '.body'` keeps a customer name or an internal id away from the model, and `--map '{subject, body}'` or `--map '.subject + "\n\n" + .body'` builds a smaller one. It works on every input but `-i request`, a csv or tsv row is the object keyed by its header, and `--merge` still folds the answers into the whole record. An object the expression builds reaches the model with its keys sorted, and `onesie -V` lists the depth and size caps on the result. A syntax error exits 2 before any request. A record where the expression fails, yields nothing, yields more than one value, or yields `null`, a number or a boolean gets an error line, and the stream carries on, since a state is a string, an object or an array. `--id EXPR` takes streaming input only and must yield one string or one number. It runs one record at a time as the input is read, so keep it cheap, such as a field lookup. Ids match by their text, so `7`, `7.0` and the string `"7"` are one id in jsonl, while in csv and tsv every cell is text and `7` and `7.0` stay two. The empty string is an id like any other. A missing id, one of another type, one longer than the cap `onesie -V` lists, or a repeat of an earlier record's id is an error line, and so is an id `-o tsv` or `-o csv` could not write back, such as a tab in tsv. Every other output line carries its id, an `"id"` key in json and values and an `id` first column in csv and tsv. Under `--merge` the record already holds its fields, so nothing is added. The question ids `id`, `answer`, `answers`, `error`, `model`, `usage`, `state`, `questions`, `assert`, `abstain`, `abstain_if` and any id starting with `__` are reserved.
 
 **Bad:**
 
@@ -75,4 +76,4 @@ onesie 'is this urgent' -i jsonl --map '.body' --id '.id'
 
 ### Write a long stream with --out and rerun it with --resume and --id after a failure.
 
-`--out FILE` writes the answers to a file instead of stdout, with a fingerprint of the questions, provider, model, `--map` and `--id` in `FILE.onesie` beside it. `--resume` exits 2 when any of those changed, or when a non empty file has no fingerprint, and says to drop `--resume` to start over. With `--id` a resume skips every record whose id the file already answers, with no request, and asks the rest, including a record whose last line was an error. Each answer is appended as it arrives, so an interrupted run loses nothing. Once the run completes, onesie rewrites the file in input order with the newest line per id, and keeps the answered ids the input no longer holds after the rest, so a cut short input never deletes an answer. `--prune` drops those instead. Until then the file can hold a record twice and out of order, and the next `--resume` finishes it. Only the id is compared, so a record whose content changed but whose id stayed the same keeps its old answer. `--stats` counts the skipped records, `--unordered` is allowed since the rewrite restores the order, and raw output is refused since it leaves the id out. Every `--out` run holds an OS lock beside the file for the whole run, so a second run into the same file is refused until the first ends. Without `--id`, `--resume` counts the complete lines instead, drops a line cut off mid write, skips that many input records, never retries a failed one and refuses `--unordered`. A full resume by id: `onesie 'is this urgent' -i jsonl -j 8 --map '.body' --id '.id' --out answers.jsonl --resume < tickets.jsonl`.
+`--out FILE` writes the answers to a file instead of stdout, with a fingerprint in `FILE.onesie` beside it. The fingerprint covers the questions, the provider, the model, `--map`, `--id`, the input and output modes, the merge key, the policy flags, `--assert` and `--abstain-if`, so `-j`, `--timeout` and `--retries` can change between runs. `--resume` exits 2 when any of those changed, saying `the questions, flags or gate changed`, or when a non empty file has no fingerprint or one from another onesie version, and says to drop `--resume` to start over. With `--id` a resume skips every record whose id the file already answers, with no request, and asks the rest, including a record whose last line was an error. Each answer is appended as it arrives, so an interrupted run loses nothing. Only a run with both `--resume` and `--id` rewrites the file once it completes, in input order with the newest line per id, and keeps the answered ids the input no longer holds after the rest, so a cut short input never deletes an answer. `--prune` drops those instead. `--resume` on a missing or empty file starts fresh, so pass it on the first run too. Until the rewrite the file can hold a record twice and out of order. Only the id is compared, so a record whose content changed but whose id stayed the same keeps its old answer. A skipped record keeps its stored assertion outcome, so it still counts toward exit 1 or 7 and toward `--stats`, and under `--stop-on-assert` a skipped false assertion stops the run with nothing after it asked. `--unordered` is allowed since the rewrite restores the order. Raw output is refused under `--id`, since it leaves the id out, and under a gate, since it leaves the outcome out. Every `--out` run holds an OS lock on `FILE.onesie.lock` for the whole run, so a second run into the same file exits 2 until the first ends. Without `--id`, `--resume` counts the complete lines instead, drops a line cut off mid write, skips that many input records, never retries a failed one and refuses `--unordered`. A full resume by id: `onesie 'is this urgent' -i jsonl -j 8 --map '.body' --id '.id' --out answers.jsonl --resume < tickets.jsonl`.
