@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"unicode"
 
 	"github.com/goccy/go-yaml"
 	"github.com/goccy/go-yaml/ast"
@@ -210,23 +211,29 @@ type quoter struct{}
 func (q quoter) Visit(node ast.Node) ast.Visitor {
 	switch typed := node.(type) {
 	case *ast.MappingValueNode:
-		if key, ok := requote(typed.Key).(ast.MapKeyNode); ok {
+		if key, ok := requote(typed.Key, true).(ast.MapKeyNode); ok {
 			typed.Key = key
 		}
 
-		typed.Value = requote(typed.Value)
+		typed.Value = requote(typed.Value, false)
 	case *ast.SequenceNode:
 		for i, item := range typed.Values {
-			typed.Values[i] = requote(item)
+			typed.Values[i] = requote(item, false)
 		}
 	}
 
 	return q
 }
 
-func requote(node ast.Node) ast.Node {
+func requote(node ast.Node, isKey bool) ast.Node {
+	if float, isFloat := node.(*ast.FloatNode); isFloat {
+		pointMantissa(float.Token)
+
+		return node
+	}
+
 	text, ok := scalarText(node)
-	if !ok || !strings.ContainsAny(text, "\t\r") {
+	if !ok || !strings.ContainsFunc(text, needsEscape) && survivesUnquoted(text, isKey) {
 		// Every other scalar is left to goccy, because section 10 means the file to be read and
 		// edited and forcing every multi line description onto one quoted line loses the block
 		// scalar that makes it readable.
@@ -235,6 +242,7 @@ func requote(node ast.Node) ast.Node {
 
 	// goccy emits a tab as a plain scalar and a carriage return as a block scalar whose breaks are
 	// carriage returns, and its own parser drops the first and rewrites the second as a line feed.
+	// Any other control character it emits raw, which YAML only allows escaped.
 	// JSON string escaping is a strict subset of YAML's double quoted escaping, so encoding/json is
 	// a correct emitter for the one form that survives.
 	encoded, err := json.Marshal(text)
@@ -243,6 +251,54 @@ func requote(node ast.Node) ast.Node {
 	}
 
 	return ast.String(token.New(string(encoded), string(encoded), node.GetToken().Position))
+}
+
+func pointMantissa(tok *token.Token) {
+	// goccy writes 8e13 as 8e+13, which its parser reads back as a string, since a YAML float with
+	// an exponent needs a point in its mantissa.
+	mantissa, exponent, found := strings.Cut(tok.Value, "e")
+	if !found || strings.Contains(mantissa, ".") {
+		return
+	}
+
+	tok.Value = mantissa + ".0e" + exponent
+	tok.Origin = tok.Value
+}
+
+func needsEscape(r rune) bool {
+	return r != '\n' && unicode.IsControl(r)
+}
+
+func survivesUnquoted(text string, isKey bool) bool {
+	// goccy leaves some scalars unquoted that its parser then reads as syntax, such as one starting
+	// with a question mark and a space, or a key of three dots at the start of a line. Its block
+	// scalars lose a lone line feed and the spaces that end the last line. So a scalar keeps goccy's
+	// form only when it reads back unchanged where it stands.
+	if isKey {
+		read, ok := printedAndRead(yaml.MapSlice{{Key: text, Value: "v"}})
+
+		return ok && read.Key == text
+	}
+
+	read, ok := printedAndRead(yaml.MapSlice{{Key: "k", Value: text}})
+
+	return ok && read.Value == text
+}
+
+func printedAndRead(doc yaml.MapSlice) (yaml.MapItem, bool) {
+	node, err := yaml.ValueToNode(doc)
+	if err != nil {
+		return yaml.MapItem{}, false
+	}
+
+	var out printer.Printer
+
+	var back yaml.MapSlice
+	if err := yaml.UnmarshalWithOptions(out.PrintNode(node), &back, yaml.UseOrderedMap()); err != nil || len(back) != 1 {
+		return yaml.MapItem{}, false
+	}
+
+	return back[0], true
 }
 
 func scalarText(node ast.Node) (string, bool) {

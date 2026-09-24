@@ -375,6 +375,57 @@ func TestWrite(t *testing.T) {
 				},
 			},
 			{
+				name: "should reload a nul and other control characters in an instruction",
+				questions: []plan.Question{
+					{ID: "urgent", Shape: plan.Noul, Instructions: "-\x00 \x1b[31m \x7f \u0085 \u009f"},
+				},
+			},
+			{
+				name: "should reload an instruction that is one line feed",
+				questions: []plan.Question{
+					{ID: "urgent", Shape: plan.Noul, Instructions: "\n"},
+				},
+			},
+			{
+				name: "should reload spaces at the end of the last line of a multi line instruction",
+				questions: []plan.Question{
+					{ID: "urgent", Shape: plan.Noul, Instructions: "first\nsecond    \n"},
+				},
+			},
+			{
+				name: "should reload an instruction that starts like a mapping key",
+				questions: []plan.Question{
+					{ID: "urgent", Shape: plan.Noul, Instructions: "? 0"},
+				},
+			},
+			{
+				name: "should reload a question id that reads as a document end",
+				questions: []plan.Question{
+					{ID: "...", Shape: plan.Noul, Instructions: "is this urgent"},
+				},
+			},
+			{
+				name: "should reload a whole number instruction written with an exponent",
+				questions: []plan.Question{
+					{ID: "urgent", Shape: plan.Noul, Instructions: 8e13},
+				},
+			},
+			{
+				name: "should reload a threshold small enough to be written with an exponent",
+				questions: []plan.Question{
+					{ID: "urgent", Shape: plan.Noul, Instructions: "is this urgent", Policy: plan.Policy{Threshold: ptr(1e-7)}},
+				},
+			},
+			{
+				name: "should reload control characters in a key",
+				questions: []plan.Question{
+					{
+						ID: "a\x00b", Shape: plan.Pick, Instructions: "who owns this",
+						Options: []plan.Option{{Name: "bill\x01ing", Desc: "x"}},
+					},
+				},
+			},
+			{
 				name: "should reload a tab in a description",
 				questions: []plan.Question{
 					{
