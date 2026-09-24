@@ -87,6 +87,9 @@ type Record struct {
 	// AssertFailed is §17.4's reserved assert key. It is written as false and only when an
 	// assertion did not hold, so a record without the key passed.
 	AssertFailed bool
+	// Abstained means the assertion did not hold and the abstain expression did. It is written as
+	// an abstain key set to true, and a record carries at most one of the two keys.
+	Abstained bool
 }
 
 // Named pairs a question id with its normalized answer. Answer is nil when the request failed and

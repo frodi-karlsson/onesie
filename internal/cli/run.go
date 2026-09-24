@@ -93,7 +93,7 @@ func run(
 
 	if inputMode.Streaming() {
 		return withStats(cmd, settings.now, flags, func(stats *collector) error {
-			return stream(cmd, settings, built, inputMode, outputMode, flags, gate, stats)
+			return stream(cmd, settings, built, inputMode, outputMode, flags, gate, abstain, stats)
 		})
 	}
 
@@ -152,7 +152,7 @@ func run(
 	}
 
 	return withStats(cmd, settings.now, flags, func(stats *collector) error {
-		return ask(cmd, settings, built, resolved, outputMode, flags, gate, stats)
+		return ask(cmd, settings, built, resolved, outputMode, flags, gate, abstain, stats)
 	})
 }
 
@@ -208,6 +208,7 @@ func stream(
 	outputMode output.Mode,
 	flags *runFlags,
 	gate *assert.Expr,
+	abstain *assert.Expr,
 	stats *collector,
 ) error {
 	if flags.printRequest {
@@ -277,10 +278,11 @@ func stream(
 				return rowLine(record, rec), evalErr
 			}
 
-			// §17.6 asks the gate per record. A false assertion is not an engine failure: the
-			// record succeeded and the answer is complete, so it is carried on the line rather
-			// than returned as an error the engine would count against result.Failed.
-			record.AssertFailed = asserted(gate, record, stats)
+			// §17.6 asks the gate per record. A false assertion or an abstain is not an engine
+			// failure: the record succeeded and the answer is complete, so the outcome is carried
+			// on the line rather than returned as an error the engine would count against
+			// result.Failed.
+			record = judge(gate, abstain, record, stats)
 
 			return rowLine(record, rec), nil
 		},
@@ -312,7 +314,7 @@ func stream(
 		return &sourceError{cause: err, failed: result.Failed}
 	}
 
-	return streamResult(result, stats.falseAssertions())
+	return streamResult(result, stats.falseAssertions(), stats.abstentions())
 }
 
 func plural(count int, noun string) string {
@@ -397,7 +399,7 @@ func mergeName(flags *runFlags) string {
 	return ""
 }
 
-func streamResult(result engine.Result, falseAsserts int) error {
+func streamResult(result engine.Result, falseAsserts, abstains int) error {
 	if result.Broken {
 		// The consumer stopped reading, which is its right. Nothing is reported and the run
 		// succeeded.
@@ -421,6 +423,11 @@ func streamResult(result engine.Result, falseAsserts int) error {
 		return &rejectedError{}
 	}
 
+	// Last, since a gate that could not decide says less than one that answered no.
+	if abstains > 0 {
+		return &abstainError{}
+	}
+
 	return nil
 }
 
@@ -432,6 +439,7 @@ func ask(
 	outputMode output.Mode,
 	flags *runFlags,
 	gate *assert.Expr,
+	abstain *assert.Expr,
 	stats *collector,
 ) error {
 	client, err := settings.newClient(cmd.Context(), observing(stats)...)
@@ -465,7 +473,7 @@ func ask(
 	// Only a record that arrived is evaluated, per §17.4's third row. A failed request would read
 	// as all zeros, so a gate such as answer.value < 0.5 would hold for a request that never
 	// happened.
-	record.AssertFailed = asserted(gate, record, stats)
+	record = judge(gate, abstain, record, stats)
 
 	if flags.quiet {
 		// Beside an assertion -q only silences the output. Stacking its own gate on top made a
@@ -492,17 +500,31 @@ func assertResult(record output.Record) error {
 		return &rejectedError{}
 	}
 
+	if record.Abstained {
+		return &abstainError{}
+	}
+
 	return nil
 }
 
-func asserted(gate *assert.Expr, record output.Record, stats *collector) bool {
+func judge(gate, abstain *assert.Expr, record output.Record, stats *collector) output.Record {
 	if assert.Eval(gate, record) {
-		return false
+		return record
 	}
 
+	// Eval holds for a nil expression, which is right for a missing gate and wrong here, where a
+	// missing abstain expression leaves every false assertion a no.
+	if abstain != nil && assert.Eval(abstain, record) {
+		record.Abstained = true
+		stats.abstained()
+
+		return record
+	}
+
+	record.AssertFailed = true
 	stats.assertFailed()
 
-	return true
+	return record
 }
 
 func writeFailure(

@@ -112,7 +112,20 @@ func TestWriteTable(t *testing.T) {
 					{ID: "urgent", Answer: &answer.Answer{Value: 0.92}},
 				},
 			},
-			absent: []string{"assert"},
+			absent: []string{"assert", "abstain"},
+		},
+		{
+			name:    "should print an abstain line beside the model when the record abstained",
+			columns: 80,
+			rec: output.Record{
+				Model: "onesie-1.13.0",
+				Answers: []output.Named{
+					{ID: "urgent", Answer: &answer.Answer{Value: 0.92}},
+				},
+				Abstained: true,
+			},
+			contains: []string{"model onesie-1.13.0\nabstain\n"},
+			absent:   []string{"assert"},
 		},
 		{
 			name:    "should print a false assertion with no model in the header",

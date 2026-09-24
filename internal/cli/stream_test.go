@@ -331,6 +331,51 @@ func TestStream(t *testing.T) {
 				wantFalse: 1,
 			},
 			{
+				name: "should exit seven when an abstain is the worst the stream holds",
+				args: []string{
+					"is this urgent", "-i", "lines", "--assert", gate,
+					"--abstain-if", "answer.value < 0.95", "--stats",
+				},
+				stdin:     "cold\nhot\ncold\n",
+				wantCode:  cli.ExitAbstain,
+				wantLines: 3,
+				contains:  []string{`{"abstain":true,"model":"onesie-1.13.0","answer":{"value":0.9}}`},
+				wantErr:   "3 requests, 1 abstain, 3 questions",
+			},
+			{
+				name: "should exit six when a failed record sits beside an abstain",
+				args: []string{
+					"is this urgent", "-i", "lines", "--assert", gate,
+					"--abstain-if", "answer.value < 0.95",
+				},
+				stdin:     "hot\nboom\n",
+				wantCode:  cli.ExitRecords,
+				wantLines: 2,
+				contains:  []string{`"abstain":true`, `"kind":"http"`},
+			},
+			{
+				name: "should not stop on an abstain under stop on assert",
+				args: []string{
+					"is this urgent", "-i", "lines", "--assert", gate,
+					"--abstain-if", "answer.value < 0.95", "--stop-on-assert",
+				},
+				stdin:     "cold\nhot\ncold\n",
+				wantCode:  cli.ExitAbstain,
+				wantLines: 3,
+				contains:  []string{`"abstain":true`},
+			},
+			{
+				name: "should write abstain in the csv assert column",
+				args: []string{
+					"is this urgent", "-i", "lines", "-o", "csv", "--assert", gate,
+					"--abstain-if", "answer.value < 0.95",
+				},
+				stdin:     "cold\nhot\n",
+				wantCode:  cli.ExitAbstain,
+				wantLines: 3,
+				contains:  []string{"answer,assert,error\n0.1,true,\n0.9,abstain,\n"},
+			},
+			{
 				name: "should read the whole stream under stop on assert when nothing is false",
 				args: []string{
 					"is this urgent", "-i", "lines", "--assert", gate, "--stop-on-assert",

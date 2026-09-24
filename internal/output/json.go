@@ -43,6 +43,7 @@ func jsonBytes(rec Record) ([]byte, error) {
 	buf = append(buf, '{')
 	buf = appendFailure(buf, rec.Failure)
 	buf = appendAssert(buf, rec.AssertFailed)
+	buf = appendAbstain(buf, rec.Abstained)
 
 	if rec.Model != "" {
 		buf = appendKey(buf, "model")
@@ -90,6 +91,7 @@ func valuesBytes(rec Record) ([]byte, error) {
 	buf = append(buf, '{')
 	buf = appendFailure(buf, rec.Failure)
 	buf = appendAssert(buf, rec.AssertFailed)
+	buf = appendAbstain(buf, rec.Abstained)
 
 	for _, named := range rec.Answers {
 		if named.Answer == nil {
@@ -140,6 +142,16 @@ func appendAssert(buf []byte, failed bool) []byte {
 	buf = appendKey(buf, "assert")
 
 	return append(buf, "false"...)
+}
+
+func appendAbstain(buf []byte, abstained bool) []byte {
+	if !abstained {
+		return buf
+	}
+
+	buf = appendKey(buf, "abstain")
+
+	return append(buf, "true"...)
 }
 
 func appendKey(buf []byte, name string) []byte {

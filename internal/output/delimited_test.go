@@ -25,6 +25,9 @@ func TestNewDelimited(t *testing.T) {
 	gated := answered
 	gated.AssertFailed = true
 
+	abstained := answered
+	abstained.Abstained = true
+
 	tests := []struct {
 		name    string
 		mode    output.Mode
@@ -61,6 +64,23 @@ func TestNewDelimited(t *testing.T) {
 				"0.92\tbilling\ttrue\t\n" +
 				"0.92\tbilling\tfalse\t\n" +
 				"\t\t\tonesie: 400 bad, request\n",
+		},
+		{
+			name:    "should write abstain in the csv assert column when the record abstained",
+			mode:    output.CSV,
+			opts:    output.DelimitedOptions{IDs: []string{"urgent", "team"}, Assert: true, Header: true},
+			records: []output.Record{answered, gated, abstained},
+			want: "urgent,team,assert,error\n" +
+				"0.92,billing,true,\n" +
+				"0.92,billing,false,\n" +
+				"0.92,billing,abstain,\n",
+		},
+		{
+			name:    "should write abstain in the tsv assert column when the record abstained",
+			mode:    output.TSV,
+			opts:    output.DelimitedOptions{IDs: []string{"urgent", "team"}, Assert: true, Header: true},
+			records: []output.Record{abstained},
+			want:    "urgent\tteam\tassert\terror\n0.92\tbilling\tabstain\t\n",
 		},
 		{
 			name: "should write tsv without quoting and flatten tabs and newlines",

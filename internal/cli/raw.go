@@ -88,7 +88,7 @@ func streamRaw(
 	}
 
 	// §17.5 has a request body carry no assertion, so no record can have failed one.
-	return streamResult(result, 0)
+	return streamResult(result, 0, 0)
 }
 
 func oneLine(body []byte) []byte {

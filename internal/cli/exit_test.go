@@ -121,6 +121,7 @@ func TestClassify(t *testing.T) {
 			err:  &recordsError{}, want: ExitRecords,
 		},
 		{name: "should classify a rejected policy as exit one", err: &rejectedError{}, want: ExitRejected},
+		{name: "should classify an abstain as exit seven", err: &abstainError{}, want: ExitAbstain},
 		{
 			name: "should report usage for an input error",
 			err:  &input.LineError{Line: 3, Err: errors.New("line is not one complete JSON value")},
@@ -179,6 +180,7 @@ func TestWorthReporting(t *testing.T) {
 		{name: "should report an ordinary failure", err: errors.New("boom"), want: true},
 		{name: "should stay quiet for an interrupt", err: context.Canceled},
 		{name: "should stay quiet for a policy rejection", err: &rejectedError{}},
+		{name: "should stay quiet for an abstain", err: &abstainError{}},
 		{name: "should stay quiet for a stream that failed records", err: &recordsError{}},
 		{
 			name: "should stay quiet when the consumer stopped reading",

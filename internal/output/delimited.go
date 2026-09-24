@@ -36,7 +36,8 @@ type Delimited struct {
 type DelimitedOptions struct {
 	// IDs are the question ids, one column each, in question order.
 	IDs []string
-	// Assert adds an assert column, true or false per row, when the run carries an assertion.
+	// Assert adds an assert column, true, false or abstain per row, when the run carries an
+	// assertion.
 	Assert bool
 	// Header writes the header row before the first row. A resume into a file that has one leaves
 	// it out.
@@ -138,6 +139,10 @@ func assertCell(rec Record) string {
 	// A failed record was never judged, so it claims neither outcome.
 	if rec.Failure != nil {
 		return ""
+	}
+
+	if rec.Abstained {
+		return "abstain"
 	}
 
 	return strconv.FormatBool(!rec.AssertFailed)

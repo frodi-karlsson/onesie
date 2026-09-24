@@ -28,6 +28,8 @@ const (
 	ExitTransport = 5
 	// ExitRecords means a stream finished with one or more failed records.
 	ExitRecords = 6
+	// ExitAbstain means the assertion did not hold and --abstain-if did, so the gate could not decide.
+	ExitAbstain = 7
 	// ExitInterrupt means the run was interrupted by a signal.
 	ExitInterrupt = 130
 )
@@ -49,6 +51,11 @@ func Classify(err error) int {
 	var rejected *rejectedError
 	if errors.As(err, &rejected) {
 		return ExitRejected
+	}
+
+	var abstained *abstainError
+	if errors.As(err, &abstained) {
+		return ExitAbstain
 	}
 
 	var bad *input.LineError
@@ -137,6 +144,12 @@ func worthReporting(err error) bool {
 		return false
 	}
 
+	var abstained *abstainError
+	if errors.As(err, &abstained) {
+		// Carried by the exit code alone, like a rejection.
+		return false
+	}
+
 	var silent *silentError
 	if errors.As(err, &silent) {
 		// The command already wrote the whole result to stdout, so a stderr line would repeat it.
@@ -211,4 +224,10 @@ type rejectedError struct{}
 
 func (*rejectedError) Error() string {
 	return "policy did not accept the answer"
+}
+
+type abstainError struct{}
+
+func (*abstainError) Error() string {
+	return "the gate could not decide"
 }

@@ -264,6 +264,83 @@ func TestAsk(t *testing.T) {
 		}
 	})
 
+	t.Run("should judge a single record three ways", func(t *testing.T) {
+		t.Parallel()
+
+		const (
+			holds = "answer.value > 0.5"
+			fails = "answer.value > 0.95"
+		)
+
+		tests := []struct {
+			name      string
+			gate      string
+			abstain   string
+			wantCode  int
+			wantOut   string
+			wantStats string
+		}{
+			{
+				name:      "should exit zero on a yes whatever the abstain expression says",
+				gate:      holds,
+				abstain:   holds,
+				wantCode:  cli.ExitOK,
+				wantOut:   "{\"answer\":0.9}\n",
+				wantStats: "1 request, 1 question",
+			},
+			{
+				name:      "should exit seven on an unsure",
+				gate:      fails,
+				abstain:   holds,
+				wantCode:  cli.ExitAbstain,
+				wantOut:   "{\"abstain\":true,\"answer\":0.9}\n",
+				wantStats: "1 request, 1 abstain, 1 question",
+			},
+			{
+				name:      "should exit one on a no",
+				gate:      fails,
+				abstain:   fails,
+				wantCode:  cli.ExitRejected,
+				wantOut:   "{\"assert\":false,\"answer\":0.9}\n",
+				wantStats: "1 request, 1 false assertion, 1 question",
+			},
+		}
+
+		for _, tc := range tests {
+			for _, quiet := range []bool{false, true} {
+				name := tc.name
+				if quiet {
+					name += " under -q"
+				}
+
+				t.Run(name, func(t *testing.T) {
+					t.Parallel()
+
+					args := []string{
+						"is this urgent", "-o", "values", "--stats",
+						"--assert", tc.gate, "--abstain-if", tc.abstain,
+					}
+
+					want := tc.wantOut
+					if quiet {
+						args = append(args, "-q")
+						want = ""
+					}
+
+					out, errOut, _ := runAsserted(t, args, 0, urgent, tc.wantCode)
+
+					if out != want {
+						t.Errorf("stdout = %q, want %q", out, want)
+					}
+
+					if !strings.HasPrefix(errOut, tc.wantStats+",") {
+						t.Errorf("stderr = %q, want it to open with %q", errOut, tc.wantStats)
+					}
+				})
+			}
+		}
+	})
+
 	t.Run("should write nothing when the run is cancelled", func(t *testing.T) {
 		t.Parallel()
 

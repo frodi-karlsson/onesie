@@ -40,6 +40,16 @@ func TestStatsString(t *testing.T) {
 				"10s/attempt, 30s",
 		},
 		{
+			name: "should count abstains beside false assertions",
+			stats: cli.Stats{
+				Requests: 3, Records: 3, FalseAsserts: 1, Abstains: 1, Questions: 3,
+				Models: []string{"onesie-1.13.0"}, Attempts: 3,
+				AttemptTimeout: 10 * time.Second, Elapsed: time.Second,
+			},
+			want: "3 requests, 1 false assertion, 1 abstain, 3 questions, 0 in / 0 out, " +
+				"model onesie-1.13.0, 3 attempts, 10s/attempt, 1s",
+		},
+		{
 			name: "should name a statusless retry transport",
 			stats: cli.Stats{
 				Requests: 1, Records: 1, Questions: 1,

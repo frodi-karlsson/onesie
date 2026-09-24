@@ -55,6 +55,12 @@ func TestWrite(t *testing.T) {
 		AssertFailed: true,
 	}
 
+	abstained := output.Record{
+		Model:     "onesie-1.13.0",
+		Answers:   simple.Answers,
+		Abstained: true,
+	}
+
 	tests := []struct {
 		name string
 		mode output.Mode
@@ -149,6 +155,24 @@ func TestWrite(t *testing.T) {
 			mode: output.JSON,
 			rec:  simple,
 			want: `{"model":"onesie-1.13.0","urgent":{"value":0.92}}`,
+		},
+		{
+			name: "should write the abstain key in json output when the record abstained",
+			mode: output.JSON,
+			rec:  abstained,
+			want: `{"abstain":true,"model":"onesie-1.13.0","urgent":{"value":0.92}}`,
+		},
+		{
+			name: "should write the abstain key in values output too",
+			mode: output.Values,
+			rec:  abstained,
+			want: `{"abstain":true,"urgent":0.92}`,
+		},
+		{
+			name: "should print the bare scalar for an abstain in raw output",
+			mode: output.Raw,
+			rec:  abstained,
+			want: "0.92",
 		},
 		{
 			name: "should print nothing for a false assertion in raw output",

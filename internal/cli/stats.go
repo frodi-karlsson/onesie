@@ -61,6 +61,7 @@ type collector struct {
 	requests       int
 	failed         int
 	falseAsserts   int
+	abstains       int
 	questions      int
 	inputTokens    int
 	outputTokens   int
@@ -181,6 +182,20 @@ func (c *collector) falseAssertions() int {
 	return c.falseAsserts
 }
 
+func (c *collector) abstained() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.abstains++
+}
+
+func (c *collector) abstentions() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	return c.abstains
+}
+
 func (c *collector) snapshot(attemptTimeout, elapsed time.Duration) Stats {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -199,7 +214,7 @@ func (c *collector) snapshot(attemptTimeout, elapsed time.Duration) Stats {
 
 	return Stats{
 		Records: c.records, Requests: c.requests, Failed: c.failed,
-		FalseAsserts: c.falseAsserts, Questions: c.questions,
+		FalseAsserts: c.falseAsserts, Abstains: c.abstains, Questions: c.questions,
 		InputTokens: c.inputTokens, OutputTokens: c.outputTokens,
 		Models: slices.Sorted(maps.Keys(c.models)), Attempts: c.attempts, Retries: retries,
 		AttemptTimeout: attemptTimeout, Elapsed: elapsed,
@@ -215,7 +230,9 @@ type Stats struct {
 	Failed   int
 	// FalseAsserts counts the records whose assertion did not hold. §17.6 counts them apart from
 	// Failed, since a false assertion judges a complete record.
-	FalseAsserts   int
+	FalseAsserts int
+	// Abstains counts the records whose assertion did not hold and whose abstain expression did.
+	Abstains       int
 	Questions      int
 	InputTokens    int
 	OutputTokens   int
@@ -228,7 +245,7 @@ type Stats struct {
 
 // String renders the summary as the single line --stats writes to stderr.
 func (s Stats) String() string {
-	parts := make([]string, 0, 9)
+	parts := make([]string, 0, 10)
 
 	// A non streaming run has one record and one request and says so once. A stream reports both
 	// only when they differ, which is exactly when a record never became a request.
@@ -246,6 +263,10 @@ func (s Stats) String() string {
 
 	if s.FalseAsserts > 0 {
 		parts = append(parts, plural(s.FalseAsserts, "false assertion"))
+	}
+
+	if s.Abstains > 0 {
+		parts = append(parts, plural(s.Abstains, "abstain"))
 	}
 
 	if split {

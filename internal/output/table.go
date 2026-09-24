@@ -79,13 +79,18 @@ func writeHeader(w io.Writer, rec Record) error {
 		}
 	}
 
-	if !rec.AssertFailed {
+	switch {
+	case rec.AssertFailed:
+		_, err := fmt.Fprintln(w, "assert false")
+
+		return err
+	case rec.Abstained:
+		_, err := fmt.Fprintln(w, "abstain")
+
+		return err
+	default:
 		return nil
 	}
-
-	_, err := fmt.Fprintln(w, "assert false")
-
-	return err
 }
 
 func writeBlock(w io.Writer, named Named, bars int) error {
