@@ -26,13 +26,39 @@ const maxCauses = 5
 func calibrateRun(
 	cmd *cobra.Command, settings rootSettings, flags *runFlags, calib calibrateFlags, inputMode input.Mode,
 	inv *invocation, labels []questionLabel,
-) error {
-	built := inv.plan
-
-	model, err := resolveModel(settings, flags, built.Model)
+) (err error) {
+	model, err := resolveModel(settings, flags, inv.plan.Model)
 	if err != nil {
 		return err
 	}
+
+	cuts, err := cutsOf(cmd, calib)
+	if err != nil {
+		return err
+	}
+
+	out, err := openOut(settings, flags)
+	if err != nil {
+		return err
+	}
+
+	defer func() {
+		err = errors.Join(err, out.release())
+	}()
+
+	runErr := calibrateAnswers(cmd, settings, flags, calib.report, inputMode, inv, labels, model, cuts, out)
+	if out == nil {
+		return runErr
+	}
+
+	return errors.Join(runErr, out.finish(runErr))
+}
+
+func calibrateAnswers(
+	cmd *cobra.Command, settings rootSettings, flags *runFlags, format string, inputMode input.Mode,
+	inv *invocation, labels []questionLabel, model string, cuts []float64, out *outFile,
+) error {
+	built := inv.plan
 
 	set, err := readLabelled(cmd.Context(), settings, inputMode, flags, inv.mapper, inv.namer, labels)
 	if err != nil {
@@ -43,25 +69,43 @@ func calibrateRun(
 		return errors.New("onesie: no record carries a label, so there is nothing to calibrate")
 	}
 
-	cuts, err := cutsOf(cmd, calib)
+	// The labels and the cuts stay out, since neither changes an answer, and a later stream run
+	// with -o json and the same questions reads the file as its own.
+	bindErr := bindOut(out, settings, flags, built.Questions, fingerprintInputs{
+		model: model, output: output.JSON.String(), input: inputMode.String(),
+	})
+	if bindErr != nil {
+		return bindErr
+	}
+
+	resumed, err := resumeLabelled(cmd.Context(), out, flags, inv.namer, built, set)
 	if err != nil {
 		return err
 	}
 
-	if costErr := writeCost(cmd.ErrOrStderr(), set, len(built.Questions)); costErr != nil {
+	if costErr := writeCost(cmd.ErrOrStderr(), set, resumed, flags.out, len(built.Questions)); costErr != nil {
 		return costErr
 	}
 
 	return withStats(cmd, settings.now, flags, func(stats *collector) error {
-		answered, result, askErr := askLabelled(cmd, settings, flags, built, model, set, stats)
+		if resumed.book != nil {
+			stats.skip(resumed.book.skipped())
+		}
+
+		answered, result, askErr := askLabelled(cmd, settings, flags, built, model, resumed, out, stats)
 		if askErr != nil {
 			return askErr
 		}
 
 		report := reportOf(built, set, answered, cuts)
 		report.Asked = result.Records
+		report.Stored = resumed.stored
 
-		if writeErr := writeReport(cmd.OutOrStdout(), calib.report, report); writeErr != nil {
+		if flags.usage {
+			report.Usage = usageOf(answered)
+		}
+
+		if writeErr := writeReport(cmd.OutOrStdout(), format, report); writeErr != nil {
 			return written(writeErr)
 		}
 
@@ -90,12 +134,16 @@ func cutsOf(cmd *cobra.Command, calib calibrateFlags) ([]float64, error) {
 	return cuts, nil
 }
 
-func writeCost(w io.Writer, set labelledSet, questions int) error {
+func writeCost(w io.Writer, set labelledSet, resumed resumedSet, answers string, questions int) error {
 	line := fmt.Sprintf("asking %d of %s, %s each",
-		len(set.records), plural(len(set.records), "record"), plural(questions, "question"))
+		len(resumed.pending), plural(len(set.records), "record"), plural(questions, "question"))
 
 	if set.unlabelled > 0 {
 		line += fmt.Sprintf(", %d unlabelled skipped", set.unlabelled)
+	}
+
+	if answers != "" {
+		line += fmt.Sprintf(", %d answered in %s", resumed.stored, answers)
 	}
 
 	_, err := fmt.Fprintln(w, line)
@@ -105,7 +153,7 @@ func writeCost(w io.Writer, set labelledSet, questions int) error {
 
 func askLabelled(
 	cmd *cobra.Command, settings rootSettings, flags *runFlags, built *plan.Plan, model string,
-	set labelledSet, stats *collector,
+	resumed resumedSet, out *outFile, stats *collector,
 ) ([]output.Record, engine.Result, error) {
 	client, err := settings.newClient(cmd.Context(), observing(stats)...)
 	if err != nil {
@@ -113,10 +161,11 @@ func askLabelled(
 	}
 
 	questions := wireAll(built.Questions)
-	answered := make([]output.Record, len(set.records))
+	answered := slices.Clone(resumed.answered)
+	book := resumed.book
 
 	result, err := engine.Run(cmd.Context(), engine.Config[labelledRecord, askedLine]{
-		Source: &labelledSource{records: set.records},
+		Source: &labelledSource{records: resumed.pending},
 		Evaluate: func(ctx context.Context, rec labelledRecord) (askedLine, error) {
 			record, evalErr := evaluate(ctx, client, built, model, questions, rec.sent, flags.usage, stats)
 			if evalErr == nil {
@@ -126,12 +175,25 @@ func askLabelled(
 				}
 			}
 
-			return askedLine{index: rec.index, record: record}, evalErr
+			record.ID = rec.id
+
+			return askedLine{index: rec.index, slot: rec.slot, record: record}, evalErr
 		},
 		Write: func(l askedLine) error {
 			answered[l.index] = l.record
 
-			return nil
+			if out == nil {
+				return nil
+			}
+
+			start := out.offset()
+			writeErr := output.Write(out, output.JSON, l.record)
+
+			if book != nil {
+				book.wrote(l.slot, span{start: start, end: out.offset()})
+			}
+
+			return writeErr
 		},
 		Jobs:  flags.jobs,
 		Abort: aborting,
@@ -148,6 +210,12 @@ func askLabelled(
 	// An interrupt landing as the last answer arrives still ends the run with no report.
 	if ctxErr := cmd.Context().Err(); ctxErr != nil {
 		return nil, result, ctxErr
+	}
+
+	// Only a run that asked every record rewrites the file. An interrupted one leaves the appended
+	// lines as they are, for the next resume to finish.
+	if book != nil && book.complete() {
+		out.compactInto(book.takeOrder(flags.prune), output.JSON)
 	}
 
 	return answered, result, nil
@@ -179,6 +247,7 @@ type labelledSource struct {
 
 type askedLine struct {
 	index  int
+	slot   int
 	record output.Record
 }
 
@@ -371,4 +440,28 @@ func writeReport(w io.Writer, format string, report calibrate.Report) error {
 	}
 
 	return calibrate.WriteTable(w, report)
+}
+
+func usageOf(answered []output.Record) *jev.Usage {
+	total := &jev.Usage{}
+
+	for _, record := range answered {
+		if record.Failure != nil || record.Usage == nil {
+			continue
+		}
+
+		total.InputTokens += record.Usage.InputTokens
+		total.OutputTokens += record.Usage.OutputTokens
+
+		if record.Usage.Cost != nil {
+			cost := *record.Usage.Cost
+			if total.Cost != nil {
+				cost += *total.Cost
+			}
+
+			total.Cost = &cost
+		}
+	}
+
+	return total
 }

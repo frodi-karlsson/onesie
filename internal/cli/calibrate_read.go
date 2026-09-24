@@ -247,6 +247,7 @@ type labelledSet struct {
 
 type labelledRecord struct {
 	index  int
+	slot   int
 	line   int
 	id     any
 	sent   json.RawMessage

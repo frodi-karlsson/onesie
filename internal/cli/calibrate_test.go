@@ -1556,7 +1556,12 @@ func (s *calibrateStub) serve(w http.ResponseWriter, r *http.Request) {
 		answers[id] = stubAnswer(s.t, question.Type, fields[id], s.raw)
 	}
 
-	encoded, err := json.Marshal(map[string]any{"model": "onesie-1.13.0", "answers": answers})
+	response := map[string]any{"model": "onesie-1.13.0", "answers": answers}
+	if s.usage {
+		response["usage"] = map[string]any{"input_tokens": 10, "output_tokens": 2, "cost": 0.25}
+	}
+
+	encoded, err := json.Marshal(response)
 	if err != nil {
 		s.t.Errorf("stub could not encode its answer: %v", err)
 	}
@@ -1632,6 +1637,7 @@ type calibrateStub struct {
 	onRequest func()
 	onBlock   func()
 	raw       bool
+	usage     bool
 
 	mu       sync.Mutex
 	requests int
