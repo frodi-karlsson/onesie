@@ -26,6 +26,7 @@ func TestOpenOut(t *testing.T) {
 		wantCode  int
 		wantFile  string
 		wantCalls int32
+		unreached bool
 	}{
 		{
 			name:      "should write the answers to the file and nothing to stdout",
@@ -81,6 +82,15 @@ func TestOpenOut(t *testing.T) {
 			wantFile: "keep me\n",
 		},
 		{
+			name:      "should leave the file untouched when the run fails before any answer",
+			existing:  "keep me\n",
+			args:      []string{"is this urgent", "-q"},
+			stdin:     "the site is down",
+			wantCode:  ExitTransport,
+			wantFile:  "keep me\n",
+			unreached: true,
+		},
+		{
 			name:     "should leave the file untouched on a rejected fresh run",
 			existing: "keep me\n",
 			args:     []string{"is this urgent", "-i", "jsonl", "--unordered", "--resume"},
@@ -123,7 +133,7 @@ func TestOpenOut(t *testing.T) {
 				WithStdoutTTY(false),
 				WithKeychain(noKeychain()),
 				WithLookupEnv(lookupFrom(nil)),
-				WithClientFactory(stubFactory(srv.URL)),
+				WithClientFactory(stubFactory(baseFor(srv.URL, tc.unreached))),
 			)
 
 			root.SetOut(&out)
@@ -152,4 +162,12 @@ func TestOpenOut(t *testing.T) {
 			}
 		})
 	}
+}
+
+func baseFor(url string, unreached bool) string {
+	if unreached {
+		return "http://127.0.0.1:1"
+	}
+
+	return url
 }

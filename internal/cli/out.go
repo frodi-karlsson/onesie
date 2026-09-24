@@ -71,8 +71,9 @@ func (o *outFile) Write(p []byte) (int, error) {
 }
 
 func (o *outFile) finish(runErr error) error {
-	// A usage error means nothing ran, so an untouched file keeps the answers it already had.
-	if o.file == nil && Classify(runErr) == ExitUsage {
+	// A run that failed before writing anything leaves the file as it was, so an interrupt or an
+	// outage never costs the answers a resume needs.
+	if o.file == nil && runErr != nil {
 		return nil
 	}
 
