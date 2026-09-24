@@ -38,10 +38,9 @@ func WriteMerged(w io.Writer, mode Mode, rec Record, raw string, state any, key 
 }
 
 func merge(raw string, state any, key string, name, answers []byte) (string, error) {
-	// The shape follows what was actually sent, not what the line looks like. Under -i lines a
-	// line reading {"a":1} was sent as a string, so it wraps rather than folding, and a merged
-	// record never claims a shape the API did not receive. An empty raw is a record with no line
-	// to fold into, which wraps whatever its state is.
+	// The shape follows what was sent, not what the line looks like. Under -i lines a line reading
+	// {"a":1} was sent as a string, so it wraps rather than folds. An empty raw has no line to fold
+	// into and always wraps.
 	if raw != "" && sentObject(state) {
 		return splice(raw, key, name, answers)
 	}

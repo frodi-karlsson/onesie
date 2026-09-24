@@ -74,9 +74,8 @@ func (s *Stream) Next() (Record, bool, error) {
 			return s.fail("", errors.New("line is longer than the limit")), true, nil
 		}
 
-		// Trimmed rather than compared to the empty string, since a line of spaces is a formatting
-		// accident in exactly the same way and sending it would pay for a request the model cannot
-		// answer.
+		// Trimmed, since a line of spaces is the same formatting accident and would pay for a
+		// request the model cannot answer.
 		if strings.TrimSpace(text) == "" {
 			if s.skipBlank {
 				continue

@@ -71,11 +71,9 @@ func storedCredentials(settings rootSettings, flags *runFlags) ([]jev.Option, er
 		return nil, err
 	}
 
-	// Section 16.1's third step is the only one that builds options here, since jev.New applies
-	// --api-key and then TYPESAFE_API_KEY itself. The guard changes no behaviour today, because
-	// resolveKey has already returned for both earlier sources and neither of them carries a
-	// stored base URL, but the rule belongs where the file's options are built rather than left to
-	// be inferred from what a keySource happens to hold.
+	// Only the file and the keychain build options here, since jev.New applies --api-key and
+	// TYPESAFE_API_KEY itself. The guard changes nothing today, but the rule belongs where the
+	// file's options are built.
 	if source.name != sourceFile && source.name != sourceKeychain {
 		return nil, nil
 	}

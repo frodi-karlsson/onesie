@@ -127,10 +127,9 @@ func build(
 		return nil, warnings, err
 	}
 
-	// After validation, since the checker reads a plan the run has already accepted, and before
-	// every mode run dispatches afterward, because §17.3 has an assertion checked against the
-	// plan rather than against an answer and §11 opens with every check running before any
-	// network call.
+	// After validation, since the checker reads a plan the run has accepted, and before any mode
+	// dispatches, since §17.3 checks an assertion against the plan and §11 runs every check before
+	// any network call.
 	gate, err := gateOf(fileAssertion(loaded), flags.assert, built)
 	if err != nil {
 		return nil, warnings, err

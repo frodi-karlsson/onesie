@@ -173,8 +173,7 @@ func TestStreaming(t *testing.T) {
 				cli.WithKeychain(offKeychain{}),
 				cli.WithClientFactory(func(_ context.Context, opts ...jev.Option) (*jev.Client, error) {
 					// No retries. The 500 cases would otherwise spend the client's backoff twice
-					// per record for no coverage, and --retries is not a flag until a later
-					// milestone.
+					// per record for no coverage.
 					policy := jev.DefaultRetryPolicy()
 					policy.MaxRetries = 0
 

@@ -401,9 +401,8 @@ func TestRenderGemini(t *testing.T) {
 
 		promptLine := findLine(t, string(got), "prompt = ")
 
-		// go.mod carries no TOML parser and the task forbids adding one, but the TOML basic string
-		// escapes used here, backslash, quote, newline, tab and carriage return, are the same
-		// escapes JSON strings use, so decoding the quoted literal as JSON proves it round trips.
+		// go.mod carries no TOML parser, but the TOML basic string escapes used here are the ones
+		// JSON strings use, so decoding the literal as JSON proves it round trips.
 		var decoded string
 		if err := json.Unmarshal([]byte(promptLine), &decoded); err != nil {
 			t.Fatalf("prompt literal %q does not decode as a quoted string: %v", promptLine, err)

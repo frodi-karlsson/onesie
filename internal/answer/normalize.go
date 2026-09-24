@@ -44,8 +44,8 @@ func Normalize(q plan.Question, raw jev.Answer) (*Answer, error) {
 
 func unusable(format string, args ...any) error {
 	// A shape the question did not ask for is deterministic, so it is a 200 whose body onesie could
-	// not use rather than a transport failure. Typing it is what gives it kind response in a
-	// stream and exit 4 in a single shot run.
+	// not use rather than a transport failure. That gives it kind response in a stream and exit 4
+	// in a single shot run.
 	return &jev.ResponseError{Status: http.StatusOK, Message: fmt.Sprintf(format, args...)}
 }
 
@@ -150,9 +150,8 @@ func normalizeChoice(q plan.Question, raw *jev.ChoiceAnswer) *Answer {
 	keys := make([]string, 0, len(q.Options))
 	values := make(map[string]float64, len(q.Options)+len(raw.Probabilities))
 
-	// An option the API left out of its distribution carries no mass, so it is a zero rather than
-	// a missing key. The printed record already reads it that way through Keys, and a reader of
-	// the map has to agree with it.
+	// An option the API left out of its distribution carries no mass, so it reads as zero, the same
+	// way the printed record reads it through Keys.
 	for _, option := range q.Options {
 		keys = append(keys, option.Name)
 		values[option.Name] = 0

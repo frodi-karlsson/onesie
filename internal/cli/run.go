@@ -33,10 +33,9 @@ func run(
 		return err
 	}
 
-	// Both branches sit ahead of the plan, because neither has a question to assemble one from and
-	// failing for want of a question the user was right not to give would send them to the wrong
-	// flag. --list-models comes first, so it names itself rather than the mode it was combined
-	// with.
+	// Both branches sit ahead of the plan, since neither has a question and failing for want of one
+	// would send the user to the wrong flag. --list-models comes first, so it names itself rather
+	// than the mode it was combined with.
 	if flags.listModels {
 		if checkErr := checkFlags(cmd, cfg); checkErr != nil {
 			return checkErr
@@ -245,13 +244,12 @@ func stream(
 			if merge && table == nil && hasKey(rec.State, mergeKey(flags)) {
 				stats.recordFailure(nil, false, 0)
 
-				// Detected here rather than inside Write, because the engine accounts a failure
-				// from the evaluator's error and a rewrite inside Write would be counted as a
-				// success. One such input is that record's problem, not the batch's.
+				// Detected here rather than inside Write, since the engine counts a failure from
+				// the evaluator's error and a rewrite inside Write would count as a success.
 				//
-				// Built as a LineError so describe gives it kind input rather than the transport
-				// default, so --stop-on-error reaches the row that exits 2, and so the line number
-				// comes along without a onesie prefix inside the JSON.
+				// A LineError gets kind input rather than the transport default from describe, so
+				// --stop-on-error reaches the row, and the line number comes along without a onesie
+				// prefix inside the JSON.
 				taken := &input.LineError{
 					Line: rec.Line,
 					Err: fmt.Errorf(
@@ -271,11 +269,9 @@ func stream(
 			record, evalErr := evaluate(
 				ctx, client, built, model, questions, rec.Wire, flags.usage, stats)
 			if evalErr != nil {
-				// Returned before the gate is asked, which is §17.4's third row. A failed record
-				// reaches the evaluator as an answer whose every value reads as zero, so a gate
-				// such as answer.value < 0.5 would hold for a request that never happened. The
-				// single shot path is safe because its error return precedes the evaluation, and
-				// this path writes the record rather than returning it, so the check is explicit.
+				// Returned before the gate is asked, per §17.4's third row. A failed record reads
+				// as all zeros, so a gate such as answer.value < 0.5 would hold for a request that
+				// never happened.
 				return rowLine(record, rec), evalErr
 			}
 
@@ -443,9 +439,8 @@ func streamResult(result engine.Result, falseAsserts int) error {
 	}
 
 	if result.Aborted {
-		// Reported by returning it rather than by printing here. Execute already writes the error
-		// to stderr and adds the onesie prefix only when it is missing, so printing here as well
-		// would report the abort twice, and once with a doubled prefix.
+		// Returned rather than printed. Execute already reports it, adding the onesie prefix, so
+		// printing here would report the abort twice.
 		return &abortError{cause: result.Cause}
 	}
 
@@ -488,10 +483,9 @@ func ask(
 	record, err := evaluate(
 		cmd.Context(), client, built, model, questions, resolved.Wire, flags.usage, stats)
 	if err != nil {
-		// The exit code still comes from the error. This only adds the fallback word the caller
-		// asked for, so a shell guard reads a decision rather than an empty string. An interrupt
-		// is skipped: the caller ended the run themselves, and a transport record written into the
-		// pipe they were closing reports a network fault that never happened.
+		// The exit code still comes from the error. This adds the fallback word the caller asked
+		// for, so a shell guard reads a decision. An interrupt is skipped, since a transport record
+		// written into the pipe the caller was closing reports a fault that never happened.
 		if !errors.Is(err, context.Canceled) {
 			if writeErr := writeFailure(
 				cmd, settings, outputMode, flags, resolved, record, gate != nil); writeErr != nil {
@@ -502,9 +496,9 @@ func ask(
 		return err
 	}
 
-	// Only a record that arrived is evaluated, which is §17.4's third row. A failed request
-	// returns above, and it would reach the evaluator as an answer whose every value reads as
-	// zero, so a gate such as answer.value < 0.5 would hold for a request that never happened.
+	// Only a record that arrived is evaluated, per §17.4's third row. A failed request would read
+	// as all zeros, so a gate such as answer.value < 0.5 would hold for a request that never
+	// happened.
 	record.AssertFailed = asserted(gate, record, stats)
 
 	if flags.quiet {
@@ -658,10 +652,9 @@ func answered(
 	for _, question := range built.Questions {
 		raw, ok := result.Answers[question.ID]
 		if !ok {
-			// A failure record rather than an empty one. In a stream an empty record writes a bare
-			// {} with no error key, which a consumer reads as a successful answer to nothing.
-			// Typed rather than bare, so section 8 gives it kind response with status 200 rather
-			// than the transport default, and a single shot run exits 4.
+			// A failure record rather than an empty one, since a bare {} in a stream reads as a
+			// successful answer to nothing. Typed, so section 8 gives it kind response with status
+			// 200 and a single shot run exits 4.
 			missing := &jev.ResponseError{
 				Status:  http.StatusOK,
 				Message: fmt.Sprintf("onesie: response carries no answer for '%s'", question.ID),

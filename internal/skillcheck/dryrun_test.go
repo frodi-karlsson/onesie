@@ -142,12 +142,8 @@ func TestDryRunArgs(t *testing.T) {
 			wantReason: "is not a onesie invocation",
 		},
 		{
-			// Before the mode flag moved to the front, this was the one case provenDryRun caught:
-			// a bare --assert immediately followed by the checker's own appended flag was
-			// indistinguishable from --assert taking that flag as its value. With the mode flag
-			// now leading, nothing is ever appended after --assert, so this no longer trips the
-			// invariant. It parses, and --assert is simply left with no value of its own, which
-			// pflag itself will refuse to run rather than silently swallowing anything.
+			// With the mode flag leading, nothing is appended after --assert, so a bare --assert
+			// parses and is left with no value, which pflag refuses to run.
 			name:   "should no longer need to skip a bare --assert, now that nothing follows it",
 			tokens: []string{"onesie", "--ask", "a=x", "--assert"},
 			want:   []string{"--print-questions", "--ask", "a=x", "--assert"},

@@ -186,9 +186,8 @@ func TestNewRootCmdPrintQuestions(t *testing.T) {
 				}
 			}
 
-			// A case that names nothing on a stream expects that stream to stay empty. The whole
-			// point of the documented redirection is that the file lands on stdout and nothing
-			// else does.
+			// A case that names nothing on a stream expects that stream to stay empty. The
+			// documented redirection promises the file lands on stdout and nothing else does.
 			if len(tc.stdout) == 0 && out != "" {
 				t.Errorf("stdout should be empty, got:\n%s", out)
 			}
@@ -1110,12 +1109,11 @@ func runOfflineStdin(t *testing.T, args []string, stdin string) (string, string,
 
 	var out, errOut bytes.Buffer
 
-	// No client factory, so the real factory runs against a machine with no key. A case that exits
-	// ok here reached no network at all, which is the whole claim the two print flags make.
+	// No client factory, so the real factory runs on a machine with no key, and a case that exits
+	// ok reached no network.
 	//
-	// ONESIE_CONFIG_DIR points at an empty directory rather than nothing, because section 16.1's third
-	// source would otherwise resolve against the developer's own home and read a real key into
-	// these tests.
+	// ONESIE_CONFIG_DIR points at an empty directory, because section 16.1's third source would
+	// otherwise read the developer's own key into these tests.
 	root := NewRootCmd(
 		BuildInfo{Version: "1.2.3"},
 		WithKeychain(noKeychain()),

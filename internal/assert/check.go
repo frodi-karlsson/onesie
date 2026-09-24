@@ -17,9 +17,9 @@ func Check(expr *Expr, built *plan.Plan) error {
 		return nil
 	}
 
-	// The walk reaches nodes in the order they were written, so the error it keeps is the leftmost
-	// one. Keeping the lowest column instead would reorder a combined expression, whose columns are
-	// relative to the source each part was parsed from rather than to the whole.
+	// The walk visits nodes in source order, so the error it keeps is the leftmost. Keeping the
+	// lowest column would misorder a combined expression, whose columns are relative to each part's
+	// own source.
 	c := &checker{built: built}
 	c.walk(expr.root)
 
@@ -183,7 +183,6 @@ func (c *checker) fieldType(q plan.Question, n *pathNode) (valueType, int, bool)
 		return c.unavailable(q, f)
 	}
 
-	// p is the only field that takes a key, and the key has to be one this question carries.
 	if f.takesKey {
 		return c.probability(q, n, f)
 	}
@@ -234,9 +233,8 @@ func (c *checker) probability(q plan.Question, n *pathNode, f field) (valueType,
 }
 
 func decisionNeeds(q plan.Question) string {
-	// answer.Apply needs something to put in the decision's place, so a pick or rate question that
-	// already carries the confidence is short the fallback rather than either of the two flags
-	// §17.8 names.
+	// answer.Apply needs something to put in the decision's place, so a pick or rate question
+	// carrying min confidence is short the fallback rather than either flag §17.8 names.
 	if q.Shape != plan.Noul && q.Policy.MinConfidence != nil {
 		return plan.Spelling(q.Origin, "--fallback")
 	}

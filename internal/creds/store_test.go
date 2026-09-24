@@ -788,9 +788,9 @@ func TestSave(t *testing.T) {
 		}{
 			{
 				// A real file closed before Save reaches it, so the write fails the same way
-				// everywhere. A read only handle is not portable here, since Go grants windows an
-				// O_RDONLY handle write access whenever O_CREATE is also set. The file stays on
-				// disk for Save to remove.
+				// everywhere. A read only handle is not portable, since Go grants windows write
+				// access to an O_RDONLY handle opened with O_CREATE. The file stays on disk for
+				// Save to remove.
 				name: "should fail and remove the temporary file when the write fails",
 				handle: func(_ *testing.T, dir string) (*os.File, error) {
 					file, err := os.OpenFile(filepath.Join(dir, ".credentials-stub"),

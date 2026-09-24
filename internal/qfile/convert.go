@@ -85,10 +85,9 @@ func MarshalOrdered(value any) ([]byte, error) {
 }
 
 func wireValue(value any) (any, error) {
-	// Only a mapping or a sequence is wrapped. Order is a property of those two and of nothing
-	// else, so a scalar stays the Go value it already was. That keeps a file's plain string
-	// description the same type as the one --desc produces, which is what lets the two authoring
-	// paths compare equal.
+	// Only a mapping or a sequence is wrapped, since order is a property of those alone. A scalar
+	// stays the Go value it was, so a file's plain string description has the same type --desc
+	// produces.
 	switch value.(type) {
 	case yaml.MapSlice, []any:
 		encoded, err := MarshalOrdered(value)

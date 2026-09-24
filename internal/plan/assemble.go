@@ -312,7 +312,6 @@ func attach(question *Question, descriptions map[string]any) {
 }
 
 func resolve(text string, readFile func(string) ([]byte, error)) (string, error) {
-	// @@ escapes a literal leading at sign.
 	if strings.HasPrefix(text, "@@") {
 		return text[1:], nil
 	}

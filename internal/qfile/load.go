@@ -77,10 +77,10 @@ func DecodeOrdered(data []byte) (any, error) {
 }
 
 func checkSingleDocument(parsed *ast.File) error {
-	// A single Unmarshal keeps only the first document and drops the rest in silence, so the
-	// documents are counted before anything is decoded. Only the parser can tell a separator apart
-	// from a --- inside a quoted string or a block scalar, which is why this is not a byte scan.
-	// An empty document is not counted, so a leading or a trailing separator still loads.
+	// A single Unmarshal keeps only the first document and drops the rest in silence, so documents
+	// are counted first. Only the parser can tell a separator from a --- inside a quoted string or
+	// a block scalar. An empty document is not counted, so a leading or trailing separator still
+	// loads.
 	documents := 0
 
 	for _, document := range parsed.Docs {

@@ -105,11 +105,9 @@ func writeOptions(question plan.Question) (yaml.MapSlice, error) {
 }
 
 func writeLevels(question plan.Question) ([]any, error) {
-	// A sequence of single key mappings for both forms. Section 4 takes the mapping form's order
-	// from the parser and names the sequence forms preferred, and a rubric whose order is the
-	// answer's meaning should not depend on a parser detail. A body's levels have no names, so the
-	// index becomes the label, which is what section 10 requires and what makes the indices used
-	// as p keys in section 6.3 explicit.
+	// A sequence of single key mappings for both forms, so a rubric's order never depends on a
+	// parser detail, as section 4 prefers. A body's levels have no names, so the index becomes the
+	// label, as section 10 requires.
 	levels := make([]any, 0, len(question.Levels))
 
 	for i, level := range question.Levels {

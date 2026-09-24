@@ -134,15 +134,13 @@ func WithGOOS(goos string) StoreOption {
 // the error before found, since a failing Close on an otherwise good read returns a populated File
 // beside a non nil error, and a key from a read that reported failure must not be used.
 func (s Store) Load(path string) (file File, found bool, err error) {
-	// A named pipe at this path blocks the open until something writes to it. Known, and out of
-	// scope: the fix needs syscall.O_NONBLOCK behind a unix build tag, and planting the pipe needs
-	// write access to a 0700 directory, which buys an attacker worse than a hang.
+	// A named pipe at this path blocks the open until something writes to it. Known and out of
+	// scope: the fix needs O_NONBLOCK behind a unix build tag, and planting the pipe needs write
+	// access to a 0700 directory.
 	//
-	// Opened before the mode is checked, and read from the same handle, so the file cannot be
-	// replaced between the check and the read. A stat by path and a later read by path are two
-	// different files on a filesystem someone else can write to, which is the case this check
-	// exists for. No test catches a regression here, since the swap needs a second process between
-	// the two calls. The reasoning above is the only guard.
+	// Opened before the mode is checked and read from the same handle, so the file cannot be
+	// swapped between the check and the read. No test catches a regression here, since the swap
+	// needs a second process between the two calls.
 	handle, err := s.open(path)
 	if errors.Is(err, os.ErrNotExist) {
 		return File{}, false, nil
@@ -178,8 +176,7 @@ func (s Store) Load(path string) (file File, found bool, err error) {
 	}
 
 	// Ahead of the mode check, since a directory or a device node is not a credential file at a bad
-	// mode. Checking the mode first would call a directory a credential file, drop the type bit from
-	// the message, and tell the reader to chmod 600 something no chmod will fix.
+	// mode, and no chmod 600 would fix it.
 	if !info.Mode().IsRegular() {
 		return File{}, false, fmt.Errorf("onesie: credential file %s is not a regular file", path)
 	}
@@ -234,10 +231,9 @@ func (s Store) Save(path string, file File) (*ModeWarning, error) {
 		return nil, fmt.Errorf("onesie: encoding the credential file: %w", err)
 	}
 
-	// Created in the same directory as the target, because a rename across filesystems is not
-	// atomic and os.TempDir may be on another one. os.CreateTemp also opens with O_CREATE and
-	// O_EXCL at 0600, which is what keeps a planted symlink in the config directory from
-	// redirecting the key. Never write to path itself.
+	// Created beside the target, because a rename across filesystems is not atomic and os.TempDir
+	// may be on another one. os.CreateTemp opens with O_CREATE and O_EXCL at 0600, which keeps a
+	// planted symlink from redirecting the key.
 	temp, err := s.createTemp(dir, ".credentials-*")
 	if err != nil {
 		return nil, fmt.Errorf("onesie: creating a temporary file in %s: %w", dir, err)
@@ -275,10 +271,9 @@ func (s Store) writeAndClose(file *os.File, data []byte) error {
 		return errors.Join(fmt.Errorf("onesie: writing %s: %w", file.Name(), err), file.Close())
 	}
 
-	// Ahead of the close and of the rename, so a power loss cannot leave a renamed file whose
-	// contents never reached the disk. Without it the credential file can come back zero length on
-	// a filesystem that delays data behind metadata, which reads as a corrupt file rather than an
-	// absent one.
+	// Ahead of the close and the rename, so a power loss cannot leave a renamed file whose contents
+	// never reached the disk. That file would come back zero length and read as corrupt rather than
+	// absent.
 	if err := s.sync(file); err != nil {
 		return errors.Join(fmt.Errorf("onesie: flushing %s: %w", file.Name(), err), file.Close())
 	}
@@ -302,12 +297,10 @@ func (s Store) syncDir(dir string) {
 		return
 	}
 
-	// Returned by neither this function nor Save. The file is written and renamed by the time this
-	// runs, so the save has succeeded, and a filesystem that refuses to sync a directory handle,
-	// as some network and FUSE mounts do, would otherwise turn a completed save into a failure the
-	// user cannot act on. The asymmetry with the file sync is deliberate: skipping that one leaves
-	// a present but zero length credential file, which reads as corruption, while skipping this
-	// one leaves the previous consistent state.
+	// Not returned. The save has already succeeded, and a filesystem that refuses to sync a
+	// directory, as some network and FUSE mounts do, would turn it into a failure the user cannot
+	// act on. Unlike a skipped file sync, a skipped directory sync leaves the previous consistent
+	// state.
 	if err := errors.Join(handle.Sync(), handle.Close()); err != nil {
 		return
 	}
@@ -330,13 +323,10 @@ func (e *ModeWarning) Error() string {
 // exit 0 either way.
 func (s Store) Clear(path string) error {
 	// os.Remove calls rmdir on a directory, so without this Clear would delete a directory it was
-	// never asked to touch. os.Lstat rather than os.Stat, since a symlink at this path is the link
-	// to remove and not the thing it points at.
+	// never asked to touch. os.Lstat, since a symlink here is the link to remove.
 	//
-	// Only a directory is refused, so Clear is deliberately laxer than Load. A symlink, a FIFO, a
-	// socket or a device node at the credential path is removed rather than reported, since auth
-	// clear is asked to leave nothing there and the alternative is a user who cannot clear a path
-	// onesie itself will not read.
+	// Only a directory is refused, so Clear is deliberately laxer than Load. auth clear is asked to
+	// leave nothing at the path, even something onesie itself will not read.
 	if info, statErr := s.lstat(path); statErr == nil && info.IsDir() {
 		return fmt.Errorf("onesie: credential file %s is not a regular file", path)
 	}

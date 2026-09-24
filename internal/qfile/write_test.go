@@ -476,10 +476,8 @@ func fileShaped(questions []plan.Question) []plan.Question {
 	out := make([]plan.Question, 0, len(questions))
 
 	for _, question := range questions {
-		// Origin is where the question was authored, which a file cannot carry and the loader
-		// always reports as OriginFile. DescOrder and UnknownDesc record how --desc was written,
-		// which only the command line path produces. All three are plan internals rather than
-		// content, so they are cleared on both sides rather than compared.
+		// Origin, DescOrder and UnknownDesc record how a question was authored, which a file cannot
+		// carry, so they are cleared on both sides rather than compared.
 		question.Origin = plan.OriginPositional
 		question.DescOrder = nil
 		question.UnknownDesc = nil

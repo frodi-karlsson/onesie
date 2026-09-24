@@ -24,11 +24,9 @@ func runUnordered[R, T any](ctx context.Context, cfg Config[R, T]) (Result, erro
 			for item := range jobs {
 				line, err := cfg.Evaluate(ctx, item.record)
 
-				// Both guards are needed and they solve different problems. The check makes the
-				// abort deterministic, since the completion channel is buffered and a select
-				// alone would deliver at random. The select prevents a goroutine leak: one fast
-				// worker can fill the channel on its own while the drain is busy, and a worker
-				// already blocked on a full channel when the cancel lands would never return.
+				// Both guards are needed. The check makes the abort deterministic, since a select
+				// alone on a buffered channel delivers at random. The select prevents a leak when a
+				// worker is already blocked on a full channel as the cancel lands.
 				if ctx.Err() != nil {
 					return
 				}
@@ -126,9 +124,8 @@ func drain[R, T any](
 				result.Aborted = true
 				result.Cause = got.err
 
-				// Unordered mode has no prefix flush, and that is the design rather than an
-				// omission. It has already given up the ordering guarantee the flush exists to
-				// preserve, so on an abort there is no meaningful prefix left to complete.
+				// No prefix flush, by design. Unordered mode has already given up the ordering the
+				// flush preserves.
 				cancel()
 
 				return result

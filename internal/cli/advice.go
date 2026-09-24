@@ -30,8 +30,7 @@ func advise(err error, model string, validated bool) error {
 	}
 
 	// Only where onesie ran its own bounds check. A body replayed through -i request is sent
-	// unchecked by design, so a note about onesie's limits being stale would blame a check that never
-	// ran and send the caller after a binary that is fine.
+	// unchecked, so a note about stale limits would blame a check that never ran.
 	if validated && countRejected(api) {
 		return &advisedError{cause: err, message: staleLimits(err.Error())}
 	}
@@ -71,10 +70,10 @@ func countRejected(api *jev.APIError) bool {
 		return false
 	}
 
-	// A heuristic, since the server owns the wording. The one count rejection seen live reads
-	// "Too many score levels. Must have at most 10 levels.", so the match pairs a word about a
-	// bound with the thing counted rather than pinning that sentence. Everything else keeps the
-	// server's text, "Invalid request." included, and a phrasing this misses costs only the note.
+	// A heuristic, since the server owns the wording. The one count rejection seen live reads "Too
+	// many score levels. Must have at most 10 levels.", so the match pairs a word about a bound
+	// with the thing counted rather than pinning that sentence. A phrasing this misses costs only
+	// the note.
 	message := strings.ToLower(api.Error())
 
 	return boundWord(message) && countedSubject(message)

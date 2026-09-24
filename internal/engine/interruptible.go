@@ -6,10 +6,9 @@ func interruptible[R any](ctx context.Context, source Source[R]) func() (R, bool
 	want := make(chan struct{})
 	got := make(chan pulled[R])
 
-	// The source is read on its own goroutine so the dispatcher can give up on a read with no
-	// deadline, such as stdin from a terminal or a FIFO nothing is writing to. A read already under
-	// way cannot be interrupted, so this goroutine outlives Run until that read returns, and then
-	// exits without reading again. That leak is the price of an interrupt ending the run at all.
+	// Read on its own goroutine so the dispatcher can give up on a read with no deadline, such as a
+	// terminal or a FIFO. A read under way cannot be interrupted, so this goroutine outlives Run
+	// until that read returns. The leak is the price of an interrupt ending the run at all.
 	go func() {
 		for {
 			// Reading only when asked keeps the read ahead to the one record the dispatcher held

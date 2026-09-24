@@ -71,10 +71,8 @@ func TestRunUnordered(t *testing.T) {
 	t.Run("should let a later record overtake a slow one", func(t *testing.T) {
 		t.Parallel()
 
-		// Record zero is slow. Ordered mode would hold everything behind it, so seeing anything
-		// before it is the only assertion here that distinguishes the two modes. Without it every
-		// other case would pass against the ordered engine and an --unordered that quietly behaved
-		// as ordered would ship unnoticed.
+		// Record zero is slow, so seeing anything before it is the only assertion that tells the
+		// two modes apart. Without it an --unordered that behaved as ordered would pass every case.
 		var (
 			mu      sync.Mutex
 			written []string
@@ -216,11 +214,9 @@ func TestRunUnordered(t *testing.T) {
 					return strconv.Itoa(rec.Index), nil
 				},
 				Write: func(string) error {
-					// The pause is what makes this a real guard rather than a coincidence. Drain
-					// stops at the very first write, and without the pause it usually returns
-					// before the workers have filled the completion channel, so a worker blocked
-					// on a full channel is never reached and a missing select goes unnoticed. The
-					// pause lets every worker fill the buffer and block first.
+					// The pause makes this a real guard. Drain stops at the first write and without
+					// the pause usually returns before the workers fill the completion channel, so
+					// a missing select would go unnoticed.
 					time.Sleep(50 * time.Millisecond)
 
 					return syscall.EPIPE

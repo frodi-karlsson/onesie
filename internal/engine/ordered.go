@@ -24,11 +24,9 @@ func runOrdered[R, T any](ctx context.Context, cfg Config[R, T]) (Result, error)
 			for item := range jobs {
 				line, err := cfg.Evaluate(ctx, item.record)
 
-				// The send below is on a channel of capacity one and is therefore always ready.
-				// A select against ctx.Done would pick between them at random, so a cancelled
-				// worker would still deliver its outcome about half the time and the flush would
-				// write a spurious cancellation record. Checking first is what makes the abort
-				// deterministic.
+				// The send below is on a channel of capacity one and is always ready. A select
+				// against ctx.Done would pick at random and deliver a cancelled outcome about half
+				// the time, so checking first makes the abort deterministic.
 				if ctx.Err() != nil {
 					return
 				}
@@ -167,11 +165,10 @@ func consume[R, T any](
 				result.Aborted = true
 				result.Cause = got.err
 
-				// Cancelling before the flush is what keeps an authentication failure from being
-				// reported once per line. A worker that finished before the cancel has already
-				// sent and the flush writes it. A worker still running returns without sending,
-				// and the flush stops at the first of those, so how many records follow the
-				// aborting one is not fixed.
+				// Cancelling before the flush keeps an authentication failure from being reported
+				// once per line. The flush writes the workers that finished before the cancel and
+				// stops at the first still running, so how many records follow the aborting one is
+				// not fixed.
 				cancel()
 				flush(cfg, queue, &result)
 
@@ -190,11 +187,9 @@ func consume[R, T any](
 		case <-ctx.Done():
 			interrupted(ctx, &result)
 
-			// The channel being held is the head of the prefix. Both select cases are ready when
-			// a signal lands just as this record completes, and Go picks between them at random,
-			// so dropping the head here would let flush write the record behind it and produce
-			// exactly the hole the flush exists to prevent. If the head is not ready, nothing
-			// behind it may be written either.
+			// The held channel is the head of the prefix. Both cases are ready when a signal lands
+			// as this record completes, and Go picks at random, so dropping the head here would let
+			// flush write the record behind it and leave a hole.
 			select {
 			case got := <-out:
 				if emit(cfg, got, &result) {
@@ -227,9 +222,8 @@ func flush[R, T any](cfg Config[R, T], queue <-chan chan outcome[T], result *Res
 					return
 				}
 			default:
-				// Stopping at the first record still in flight is what writes the longest
-				// completed prefix and keeps the output a prefix of the input rather than a
-				// prefix with a hole in it.
+				// Stopping at the first record still in flight writes the longest completed prefix
+				// without a hole.
 				return
 			}
 		default:

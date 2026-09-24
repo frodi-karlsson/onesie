@@ -23,10 +23,9 @@ func main() {
 }
 
 func run() int {
-	// A write to a closed pipe on fd 1 raises SIGPIPE, whose default disposition kills the process
-	// with status 141 before any Go code runs. Section 8 asks for exit 0 and a graceful shutdown,
-	// which the engine already implements through the EPIPE path, so the signal is ignored to make
-	// that path reachable on every platform rather than only where the runtime returns EPIPE.
+	// A write to a closed stdout raises SIGPIPE, which kills the process with status 141 before any
+	// Go code runs. Section 8 asks for exit 0, which the engine gives through the EPIPE path, so
+	// the signal is ignored to reach that path on every platform.
 	signal.Ignore(syscall.SIGPIPE)
 
 	ctx, stop := interruptible(context.Background())

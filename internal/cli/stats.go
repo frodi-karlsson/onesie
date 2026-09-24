@@ -157,11 +157,9 @@ func withStats(
 		return err
 	}
 
-	// Stderr, because stdout carries the answers. A summary on stdout would corrupt every
-	// pipeline the flag exists to measure.
+	// Stderr, because stdout carries the answers.
 	//
-	// The run's own error wins, since a summary that failed to print is the smaller loss and
-	// reporting it would replace the exit code the caller is waiting on.
+	// The run's own error wins, since a summary that failed to print is the smaller loss.
 	if _, printErr := fmt.Fprintln(cmd.ErrOrStderr(), summary); printErr != nil && err == nil {
 		return printErr
 	}

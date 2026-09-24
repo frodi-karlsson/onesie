@@ -183,9 +183,8 @@ func TestEval(t *testing.T) {
 	t.Run("should read what an incomplete answer does not carry as no value", func(t *testing.T) {
 		t.Parallel()
 
-		// Nothing in the pipeline builds a record this thin, since Normalize fills every field its
-		// shape has. It is here so a caller that assembles one itself gets an answer and not a
-		// crash.
+		// Normalize fills every field a shape has, so nothing in the pipeline builds a record this
+		// thin. It is here so a caller that assembles one gets an answer and not a crash.
 		partial := output.Record{Answers: []output.Named{
 			{ID: "team", Answer: &answer.Answer{Value: "billing"}},
 			{ID: "severity", Answer: &answer.Answer{}},

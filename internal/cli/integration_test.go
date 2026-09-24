@@ -447,10 +447,9 @@ func TestStreamIntegration(t *testing.T) {
 					t.Fatalf("lines = %d, want 6:\n%s", len(lines), out)
 				}
 
-				// The merge keeps the input's own fields, so the ids prove the output is in input
-				// order even though four workers were running against real, variable latency.
-				// This is the assertion no stub can make, because a stub answers instantly and
-				// uniformly and would come back in order by accident.
+				// The merge keeps the input's fields, so the ids prove input order across four
+				// workers with real latency. A stub answers instantly and would come back in order
+				// by accident.
 				for i, line := range lines {
 					var record struct {
 						ID      int `json:"id"`

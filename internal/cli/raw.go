@@ -45,9 +45,8 @@ func streamRaw(
 			}
 
 			// Section 10 makes --print-request the identity here: bodies pass through unchanged,
-			// exit 0, no network. That is what lets it be dropped into any pipeline as a dry run
-			// switch without the pipeline changing shape. The same predicate decides this and the
-			// client above, so the two cannot disagree and leave a nil client to dereference.
+			// with exit 0 and no network. The same predicate decides this and the client above, so
+			// the two cannot disagree and leave a nil client.
 			if !requests(flags) {
 				return []byte(rec.Raw), nil
 			}
