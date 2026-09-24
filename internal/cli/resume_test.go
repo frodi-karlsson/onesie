@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -213,6 +214,59 @@ func TestResumeLedger(t *testing.T) {
 				wantCode:   ExitUsage,
 				wantFile:   idLines(1, 1),
 				wantStderr: "changed since",
+			}},
+		},
+		{
+			name:     "should leave the appended answers uncompacted when the run is cancelled and finish on the next resume",
+			existing: fileOf(idLines(4, 4)),
+			sidecar:  byID,
+			stdin:    idRecords(1, 5),
+			runs: []resumeRun{
+				{
+					args:     values,
+					cancelAt: 3,
+					wantCode: ExitInterrupt,
+					wantFile: idLines(4, 4) + idLines(1, 2),
+					wantSent: []string{`{"id":1}`, `{"id":2}`, `{"id":3}`},
+				},
+				{
+					args:     values,
+					wantFile: idLines(1, 5),
+					wantSent: []string{`{"id":3}`, `{"id":5}`},
+				},
+			},
+		},
+		{
+			name:     "should leave the appended answers uncompacted when --stop-on-error ends the run and finish on the next resume",
+			existing: fileOf(idLines(4, 4)),
+			sidecar:  byID,
+			stdin:    idRecords(1, 5),
+			runs: []resumeRun{
+				{
+					args:       append([]string{"--stop-on-error", "--retries", "0"}, values...),
+					failFrom:   3,
+					failStatus: http.StatusBadRequest,
+					wantCode:   ExitUsage,
+					wantFile: idLines(4, 4) + idLines(1, 2) +
+						`{"id":3,"error":{"kind":"http","status":400,"message":"onesie: 400 bad key"}}` + "\n",
+					wantSent: []string{`{"id":1}`, `{"id":2}`, `{"id":3}`},
+				},
+				{
+					args:     values,
+					wantFile: idLines(1, 5),
+					wantSent: []string{`{"id":3}`, `{"id":5}`},
+				},
+			},
+		},
+		{
+			name:     "should resume tsv output with the header written once",
+			existing: fileOf("id\tanswer\terror\n1\t0.5\t\n"),
+			sidecar:  byID,
+			stdin:    idRecords(1, 3),
+			runs: []resumeRun{{
+				args:     []string{"-i", "jsonl", "-o", "tsv", "--id", ".id", "--resume"},
+				wantFile: "id\tanswer\terror\n1\t0.5\t\n2\t0.5\t\n3\t0.5\t\n",
+				wantSent: []string{`{"id":2}`, `{"id":3}`},
 			}},
 		},
 		{
@@ -458,6 +512,8 @@ type resumeRun struct {
 	args       []string
 	input      string
 	failFrom   int32
+	failStatus int
+	cancelAt   int32
 	slow       bool
 	wantCode   int
 	wantFile   string
@@ -469,7 +525,14 @@ type resumeRun struct {
 func runResume(t *testing.T, label, path, stdin string, run resumeRun) {
 	t.Helper()
 
-	srv, sent := countingServer(t, run.failFrom, run.slow)
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+
+	srv, sent := countingServer(t, run, func(call int32) {
+		if call == run.cancelAt {
+			cancel()
+		}
+	})
 
 	if run.input != "" {
 		stdin = run.input
@@ -491,7 +554,7 @@ func runResume(t *testing.T, label, path, stdin string, run resumeRun) {
 	root.SetErr(&errOut)
 	root.SetArgs(append([]string{"is this urgent", "--out", path}, run.args...))
 
-	if code := Execute(t.Context(), root); code != run.wantCode {
+	if code := Execute(ctx, root); code != run.wantCode {
 		t.Fatalf("%s: exit code = %d, want %d\nstderr:\n%s", label, code, run.wantCode, errOut.String())
 	}
 
@@ -518,7 +581,7 @@ func runResume(t *testing.T, label, path, stdin string, run resumeRun) {
 	}
 }
 
-func countingServer(t *testing.T, failFrom int32, slow bool) (*httptest.Server, func() []string) {
+func countingServer(t *testing.T, run resumeRun, onCall func(call int32)) (*httptest.Server, func() []string) {
 	t.Helper()
 
 	var (
@@ -529,6 +592,7 @@ func countingServer(t *testing.T, failFrom int32, slow bool) (*httptest.Server, 
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		call := calls.Add(1)
+		onCall(call)
 
 		var body struct {
 			State json.RawMessage `json:"state"`
@@ -542,7 +606,7 @@ func countingServer(t *testing.T, failFrom int32, slow bool) (*httptest.Server, 
 		sent = append(sent, string(body.State))
 		mu.Unlock()
 
-		if slow {
+		if run.slow {
 			var state struct {
 				ID int `json:"id"`
 			}
@@ -555,8 +619,13 @@ func countingServer(t *testing.T, failFrom int32, slow bool) (*httptest.Server, 
 
 		w.Header().Set("Content-Type", "application/json")
 
-		if failFrom > 0 && call >= failFrom {
-			w.WriteHeader(http.StatusUnauthorized)
+		if run.failFrom > 0 && call >= run.failFrom {
+			status := run.failStatus
+			if status == 0 {
+				status = http.StatusUnauthorized
+			}
+
+			w.WriteHeader(status)
 
 			if _, err := io.WriteString(w, `{"error":{"message":"bad key"}}`); err != nil {
 				t.Errorf("writing the stub response: %v", err)
