@@ -4,7 +4,9 @@ package jev_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -22,6 +24,21 @@ func liveClient(t *testing.T, opts ...jev.Option) *jev.Client {
 	base := []jev.Option{jev.WithAPIKey(apiKey(t)), jev.WithUserAgent("onesie-integration")}
 
 	client, err := jev.New(append(base, opts...)...)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	return client
+}
+
+func liveOpenRouterClient(t *testing.T) *jev.Client {
+	t.Helper()
+
+	client, err := jev.New(
+		jev.WithProvider(jev.OpenRouter()),
+		jev.WithAPIKey(openRouterKey(t)),
+		jev.WithUserAgent("onesie-integration"),
+	)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -257,6 +274,53 @@ func TestLiveSystemOne(t *testing.T) {
 			t.Errorf("noul got %v, want a value from 0 to 1", answer.Noul)
 		}
 	})
+
+	t.Run("should answer all three question types in request order under openrouter", func(t *testing.T) {
+		t.Parallel()
+
+		client := liveOpenRouterClient(t)
+
+		result, err := client.SystemOne(liveContext(t, time.Minute), jev.Request{
+			State: urgentState,
+			Questions: jev.Questions{
+				{ID: "z_urgent", Question: jev.Noul{Instructions: "Does this message convey urgency?"}},
+				{
+					ID: "a_team",
+					Question: jev.Choice{
+						Instructions: "Which team should handle this?",
+						Criteria: jev.Criteria{
+							{Name: "billing", Desc: "Payments, invoicing, payouts, refunds"},
+							{Name: "technical", Desc: "Bugs, outages, integrations"},
+						},
+					},
+				},
+				{
+					ID: "m_frustration",
+					Question: jev.Score{
+						Instructions: "How frustrated is the customer?",
+						Criteria:     jev.Levels("Calm", "Frustrated", "Very angry"),
+					},
+				},
+			},
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		for _, id := range []string{"z_urgent", "a_team", "m_frustration"} {
+			if _, ok := result.Answers[id]; !ok {
+				t.Errorf("no answer for %s", id)
+			}
+		}
+
+		if result.RequestID == "" {
+			t.Error("the request id is empty, want it from x-generation-id")
+		}
+
+		if result.Usage.Cost == nil {
+			t.Error("the usage carries no cost")
+		}
+	})
 }
 
 func TestLiveListModels(t *testing.T) {
@@ -268,6 +332,25 @@ func TestLiveListModels(t *testing.T) {
 		client := liveClient(t)
 
 		models, err := client.ListModels(liveContext(t, 30*time.Second))
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if len(models) == 0 {
+			t.Fatalf("no models came back")
+		}
+
+		for _, model := range models {
+			if model.Name == "" {
+				t.Errorf("a model came back with no name: %+v", model)
+			}
+		}
+	})
+
+	t.Run("should list at least one named model under openrouter", func(t *testing.T) {
+		t.Parallel()
+
+		models, err := liveOpenRouterClient(t).ListModels(liveContext(t, 30*time.Second))
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -342,6 +425,47 @@ func TestLiveErrors(t *testing.T) {
 
 		if api.Error() == "" {
 			t.Errorf("the error carried no message")
+		}
+	})
+
+	t.Run("should return ErrAuthentication for a bad key under openrouter", func(t *testing.T) {
+		t.Parallel()
+
+		_ = openRouterKey(t)
+
+		client, err := jev.New(
+			jev.WithProvider(jev.OpenRouter()),
+			jev.WithAPIKey("sk-or-v1-definitely-not-a-real-key"),
+			jev.WithUserAgent("onesie-integration"),
+		)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		_, err = client.SystemOne(liveContext(t, 30*time.Second), jev.Request{
+			State:     "x",
+			Questions: jev.Questions{{ID: "q", Question: jev.Noul{Instructions: "Is this a test?"}}},
+		})
+
+		if !errors.Is(err, jev.ErrAuthentication) {
+			t.Fatalf("error got %v, want ErrAuthentication", err)
+		}
+	})
+
+	t.Run("should report an openrouter validation error on one line with its path", func(t *testing.T) {
+		t.Parallel()
+
+		body := json.RawMessage(`{"state":"x","model":"jev-latest","questions":` +
+			`{"q":{"type":"noul","instructions":"urgent","criteria":{"true":"x","false":null}}}}`)
+
+		_, err := liveOpenRouterClient(t).SystemOneRaw(liveContext(t, 30*time.Second), body)
+		if !errors.Is(err, jev.ErrBadRequest) {
+			t.Fatalf("error got %v, want ErrBadRequest", err)
+		}
+
+		message := err.Error()
+		if strings.Contains(message, "\n") || !strings.Contains(message, "questions.q.criteria.false") {
+			t.Errorf("error = %q, want one line naming questions.q.criteria.false", message)
 		}
 	})
 }

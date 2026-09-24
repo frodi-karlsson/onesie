@@ -193,6 +193,30 @@ func TestFilterIntegration(t *testing.T) {
 			tc.check(t, out.String())
 		})
 	}
+
+	t.Run("should answer through --provider openrouter", func(t *testing.T) {
+		if strings.TrimSpace(os.Getenv("OPENROUTER_API_KEY")) == "" {
+			t.Skip("OPENROUTER_API_KEY is not set, skipping the OpenRouter case")
+		}
+
+		out, errOut, code := runLive(t,
+			[]string{"--provider", "openrouter", "does this convey urgency", "-o", "json"},
+			"EVERYTHING IS DOWN, CUSTOMERS CANNOT CHECK OUT, CALL ME NOW")
+		if code != cli.ExitOK {
+			t.Fatalf("exit code = %d, stderr:\n%s", code, errOut)
+		}
+
+		record := decodeRecord(t, out)
+
+		var model string
+		if err := json.Unmarshal(record["model"], &model); err != nil {
+			t.Fatalf("decoding the model: %v", err)
+		}
+
+		if !strings.HasPrefix(model, "typesafe/") {
+			t.Errorf("model = %q, want an OpenRouter id starting with typesafe/", model)
+		}
+	})
 }
 
 func TestFileIntegration(t *testing.T) {

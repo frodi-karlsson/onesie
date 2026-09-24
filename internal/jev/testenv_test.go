@@ -27,6 +27,22 @@ func apiKey(t *testing.T) string {
 	return ""
 }
 
+func openRouterKey(t *testing.T) string {
+	t.Helper()
+
+	if key := strings.TrimSpace(os.Getenv("OPENROUTER_API_KEY")); key != "" {
+		return key
+	}
+
+	if key := fromDotEnv(t, "OPENROUTER_API_KEY"); key != "" {
+		return key
+	}
+
+	t.Skip("no OPENROUTER_API_KEY in the environment or .env, skipping the OpenRouter live cases")
+
+	return ""
+}
+
 // fromDotEnv reads one value out of the repo's gitignored .env. It is deliberately minimal:
 // KEY=VALUE per line, no quoting, no interpolation, no export keyword.
 func fromDotEnv(t *testing.T, name string) string {
