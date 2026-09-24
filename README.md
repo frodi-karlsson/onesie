@@ -132,7 +132,7 @@ both expressions. A question file carries the same expression as `abstain_if`.
 
 `min`, `max`, `sum` and `avg` take one or more numbers and nest, so `max(d.value, c.value) < 0.2`
 says every risk is low in one term. `==` rarely matches the result of `sum` or `avg`, since sums of
-fractions are inexact, so compare them with `>=` or `<=`. There are no operators, so weighting
+fractions are inexact, so compare them with `>=` or `<=`. There are no arithmetic operators, so weighting
 answers or reading a whole probability map is a job for `jq` on the record.
 
 ### Dry runs and replay

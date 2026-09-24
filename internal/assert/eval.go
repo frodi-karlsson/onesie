@@ -54,8 +54,8 @@ func (e *evaluator) comparison(n *comparisonNode) bool {
 		leftNumber, leftKnown := left.(float64)
 		rightNumber, rightKnown := right.(float64)
 
-		// A missing answer has no order, so the comparison is false and a gate over it fails safe
-		// rather than reading the gap as a zero.
+		// A missing answer has no order, so the comparison is false rather than reading the gap as
+		// a zero. Check makes this unreachable on a record that answered.
 		return leftKnown && rightKnown && compare(n.op, leftNumber, rightNumber)
 	}
 
@@ -100,8 +100,7 @@ func (e *evaluator) call(n *callNode) any {
 	for _, arg := range n.args {
 		number, isNumber := e.value(arg).(float64)
 		if !isNumber {
-			// A missing answer leaves the whole call missing rather than folding in as a zero, so
-			// every ordered comparison over the call is false.
+			// A missing answer leaves the whole call missing rather than folding in as a zero.
 			return nil
 		}
 
