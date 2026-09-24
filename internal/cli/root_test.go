@@ -127,6 +127,14 @@ func TestNewRootCmd(t *testing.T) {
 			contains: []string{"onesie: --usage does not apply to -o values, which writes only the answers. Use -o json"},
 		},
 		{
+			name:     "should reject --merge-key with --merge and -o csv before any request",
+			args:     []string{"is this urgent", "-i", "csv", "-o", "csv", "--merge", "--merge-key", "k"},
+			stdin:    "id,body\n1,the server is down\n",
+			status:   http.StatusInternalServerError,
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: --merge-key does not apply to -o csv, which puts the answers in columns"},
+		},
+		{
 			name:     "should reject --usage with -r before any request",
 			args:     []string{"is this urgent", "-r", "--usage"},
 			stdin:    "the server is down",

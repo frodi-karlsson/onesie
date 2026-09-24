@@ -542,7 +542,7 @@ func checkDelimited(cfg Config) error {
 	}
 
 	switch {
-	case cfg.Merge && cfg.MergeName == "--merge-key":
+	case cfg.HasMergeKey:
 		return fmt.Errorf("onesie: --merge-key does not apply to -o %s, which puts the answers in columns", cfg.Output)
 	case cfg.Merge && cfg.InputName != "csv" && cfg.InputName != "tsv":
 		return fmt.Errorf(
@@ -1046,7 +1046,9 @@ type Config struct {
 	// MergeName is the merge flag as the user spelled it, so a message names --merge-key when that
 	// is what was given. It defaults to --merge when empty.
 	MergeName string
-	Jobs      int
+	// HasMergeKey is --merge-key, which -o csv and tsv refuse even when --merge is also given.
+	HasMergeKey bool
+	Jobs        int
 	// JobsSet distinguishes -j 0 from -j absent, which an int cannot do on its own.
 	JobsSet bool
 

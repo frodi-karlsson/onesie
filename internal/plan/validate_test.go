@@ -931,8 +931,18 @@ func TestCheckFlags(t *testing.T) {
 		},
 		{
 			name:    "should reject --merge-key with -o csv",
-			cfg:     plan.Config{Streaming: true, InputName: "csv", Output: "csv", Merge: true, MergeName: "--merge-key", Jobs: 1},
+			cfg:     plan.Config{Streaming: true, InputName: "csv", Output: "csv", Merge: true, MergeName: "--merge-key", HasMergeKey: true, Jobs: 1},
 			wantErr: "onesie: --merge-key does not apply to -o csv, which puts the answers in columns",
+		},
+		{
+			name:    "should reject --merge-key with --merge and -o csv, which --merge would otherwise hide",
+			cfg:     plan.Config{Streaming: true, InputName: "csv", Output: "csv", Merge: true, MergeName: "--merge", HasMergeKey: true, Jobs: 1},
+			wantErr: "onesie: --merge-key does not apply to -o csv, which puts the answers in columns",
+		},
+		{
+			name:    "should reject --merge-key with --merge and -o tsv",
+			cfg:     plan.Config{Streaming: true, InputName: "tsv", Output: "tsv", Merge: true, MergeName: "--merge", HasMergeKey: true, Jobs: 1},
+			wantErr: "onesie: --merge-key does not apply to -o tsv, which puts the answers in columns",
 		},
 		{
 			name:    "should reject --usage with -o tsv",

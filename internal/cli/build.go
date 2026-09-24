@@ -56,6 +56,7 @@ func configOf(
 		SkipBlank:      flags.skipBlank,
 		Merge:          merging(flags),
 		MergeName:      mergeName(flags),
+		HasMergeKey:    flags.mergeKey != "",
 		Jobs:           flags.jobs,
 		JobsSet:        cmd.Flags().Changed(flagJobs),
 
