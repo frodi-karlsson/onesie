@@ -126,8 +126,12 @@ func checkResume(cfg Config) error {
 		return errors.New("onesie: --resume applies to streaming input, which --print-questions does not read")
 	case !cfg.Streaming:
 		return fmt.Errorf("onesie: --resume applies to streaming input. -i %s reads one record", cfg.InputName)
-	case cfg.Unordered:
-		return errors.New("onesie: --resume relies on input order, which --unordered gives up")
+	case cfg.Unordered && !cfg.HasID:
+		return errors.New("onesie: --resume relies on input order, which --unordered gives up. " +
+			"Pass --id to resume by id")
+	case cfg.HasID && (cfg.Raw || cfg.Output == "raw"):
+		return errors.New("onesie: --resume with --id reads the id back from each line, " +
+			"which raw output leaves out. Use -o json, values, csv or tsv")
 	default:
 		return nil
 	}

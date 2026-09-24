@@ -17,6 +17,7 @@ func records(
 	inputMode input.Mode,
 	flags *runFlags,
 	namer *jq.Expr,
+	book *ledger,
 ) *naming {
 	stream := input.NewStream(settings.stdin, inputMode, flags.skipBlank)
 
@@ -29,6 +30,7 @@ func records(
 		stop:   stop,
 		source: engine.Skip[input.Record](stream, flags.resumeSkip),
 		namer:  namer,
+		book:   book,
 		seen:   map[[sha256.Size]byte]int{},
 	}
 }
@@ -37,6 +39,7 @@ type namedRecord struct {
 	input.Record
 	id    any
 	idErr error
+	slot  int
 }
 
 type naming struct {
@@ -44,19 +47,41 @@ type naming struct {
 	stop   context.CancelFunc
 	source engine.Source[input.Record]
 	namer  *jq.Expr
+	book   *ledger
 	seen   map[[sha256.Size]byte]int
 }
 
 func (n *naming) Next() (namedRecord, bool, error) {
-	rec, ok, err := n.source.Next()
-	if err != nil || !ok || n.namer == nil || rec.Err != nil {
-		return namedRecord{Record: rec}, ok, err
+	for {
+		rec, ok, err := n.source.Next()
+		if err != nil || !ok {
+			if err == nil && n.book != nil {
+				n.book.end()
+			}
+
+			return namedRecord{Record: rec}, ok, err
+		}
+
+		named := n.named(rec)
+
+		// Skipped here, as the record is read, so an answered record is never evaluated or sent.
+		if n.book != nil && n.book.admit(&named) {
+			continue
+		}
+
+		return named, true, nil
+	}
+}
+
+func (n *naming) named(rec input.Record) namedRecord {
+	if n.namer == nil || rec.Err != nil {
+		return namedRecord{Record: rec}
 	}
 
 	// Named as the records are read rather than as they are evaluated, so which of two records
 	// sharing an id counts as the repeat follows input order and not whichever request finished
 	// first.
-	return n.name(rec), true, nil
+	return n.name(rec)
 }
 
 func (n *naming) name(rec input.Record) namedRecord {

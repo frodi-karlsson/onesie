@@ -14,12 +14,14 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/frodi-karlsson/onesie/internal/output"
 	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
 const (
 	fingerprintSuffix  = ".onesie"
 	fingerprintVersion = 1
+	compactSuffix      = ".onesie.part"
 )
 
 func openOut(settings rootSettings, flags *runFlags) (*outFile, error) {
@@ -44,13 +46,15 @@ func openOut(settings rootSettings, flags *runFlags) (*outFile, error) {
 			return nil, err
 		}
 
-		out.resume = true
-		out.keep = length
+		out.resumeAt(length)
 
 		// The first row is the header, which is written once and answers no record.
 		if rows > 0 {
-			flags.resumeSkip = rows - 1
 			flags.resumeHeader = true
+		}
+
+		if rows > 0 && !byID(flags) {
+			flags.resumeSkip = rows - 1
 		}
 
 		return out, nil
@@ -61,11 +65,18 @@ func openOut(settings rootSettings, flags *runFlags) (*outFile, error) {
 		return nil, err
 	}
 
-	out.resume = true
-	out.keep = length
-	flags.resumeSkip = lines
+	out.resumeAt(length)
+
+	if !byID(flags) {
+		flags.resumeSkip = lines
+	}
 
 	return out, nil
+}
+
+func byID(flags *runFlags) bool {
+	// Under --id the records the file answers are skipped by id as they are read, not by position.
+	return flags.idSource != ""
 }
 
 type outFile struct {
@@ -80,6 +91,32 @@ type outFile struct {
 
 	fingerprint string
 	file        *os.File
+	size        int64
+	rewrite     *rewrite
+}
+
+type rewrite struct {
+	lines     []span
+	delimited bool
+	quoted    bool
+}
+
+func (o *outFile) resumeAt(length int64) {
+	o.resume = true
+	o.keep = length
+	o.size = length
+}
+
+func (o *outFile) offset() int64 {
+	return o.size
+}
+
+func (o *outFile) compactInto(lines []span, mode output.Mode) {
+	o.rewrite = &rewrite{
+		lines:     lines,
+		delimited: mode == output.CSV || mode == output.TSV,
+		quoted:    mode == output.CSV,
+	}
 }
 
 func (o *outFile) Write(p []byte) (int, error) {
@@ -91,14 +128,17 @@ func (o *outFile) Write(p []byte) (int, error) {
 		}
 	}
 
-	return o.file.Write(p)
+	n, err := o.file.Write(p)
+	o.size += int64(n)
+
+	return n, err
 }
 
 func (o *outFile) finish(runErr error) error {
 	// A run that failed before writing anything leaves the file as it was, so an interrupt or an
 	// outage never costs the answers a resume needs.
 	succeeded := runErr == nil
-	if o.file == nil && !succeeded {
+	if o.file == nil && !succeeded && o.rewrite == nil {
 		return nil
 	}
 
@@ -115,7 +155,87 @@ func (o *outFile) finish(runErr error) error {
 		return fmt.Errorf("onesie: closing %s: %w", o.path, err)
 	}
 
-	return nil
+	if o.rewrite == nil {
+		return nil
+	}
+
+	return o.compact()
+}
+
+func (o *outFile) compact() error {
+	// Written beside the file and renamed over it, so an interrupt or a full disk during the rewrite
+	// leaves every appended answer where it was.
+	temporary := o.path + compactSuffix
+
+	err := o.writeCompacted(temporary)
+	if err == nil {
+		err = o.rename(temporary, o.path)
+	}
+
+	if err == nil {
+		return nil
+	}
+
+	removeErr := o.remove(temporary)
+	if errors.Is(removeErr, os.ErrNotExist) {
+		removeErr = nil
+	}
+
+	return errors.Join(fmt.Errorf("onesie: compacting %s: %w", o.path, err), removeErr)
+}
+
+func (o *outFile) writeCompacted(temporary string) (err error) {
+	source, err := o.open(o.path, os.O_RDONLY, 0)
+	if err != nil {
+		return err
+	}
+
+	defer func() {
+		err = errors.Join(err, source.Close())
+	}()
+
+	var header int64
+	if o.rewrite.delimited {
+		header, err = headerLength(io.NewSectionReader(source, 0, o.size), o.rewrite.quoted)
+		if err != nil {
+			return err
+		}
+	}
+
+	target, err := o.open(temporary, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
+	if err != nil {
+		return err
+	}
+
+	err = copyLines(target, source, header, o.rewrite.lines)
+	if err == nil {
+		err = target.Sync()
+	}
+
+	return errors.Join(err, target.Close())
+}
+
+func copyLines(w io.Writer, source io.ReaderAt, header int64, lines []span) error {
+	buffered := bufio.NewWriter(w)
+
+	if _, err := io.Copy(buffered, io.NewSectionReader(source, 0, header)); err != nil {
+		return err
+	}
+
+	for _, at := range lines {
+		// The first row a fresh csv run wrote carries the header with it, and the header is
+		// written once, above.
+		from := max(at.start, header)
+		if from >= at.end {
+			continue
+		}
+
+		if _, err := io.Copy(buffered, io.NewSectionReader(source, from, at.end-from)); err != nil {
+			return err
+		}
+	}
+
+	return buffered.Flush()
 }
 
 func (o *outFile) bind(fingerprint string) error {

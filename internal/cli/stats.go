@@ -58,6 +58,7 @@ type collector struct {
 	mu sync.Mutex
 
 	records        int
+	skipped        int
 	requests       int
 	failed         int
 	falseAsserts   int
@@ -168,6 +169,13 @@ func (c *collector) recordFailure(cause error, reached bool, questions int) {
 	}
 }
 
+func (c *collector) skip(count int) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.skipped += count
+}
+
 func (c *collector) assertFailed() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -213,7 +221,7 @@ func (c *collector) snapshot(attemptTimeout, elapsed time.Duration) Stats {
 	}
 
 	return Stats{
-		Records: c.records, Requests: c.requests, Failed: c.failed,
+		Records: c.records, Skipped: c.skipped, Requests: c.requests, Failed: c.failed,
 		FalseAsserts: c.falseAsserts, Abstains: c.abstainCount, Questions: c.questions,
 		InputTokens: c.inputTokens, OutputTokens: c.outputTokens,
 		Models: slices.Sorted(maps.Keys(c.models)), Attempts: c.attempts, Retries: retries,
@@ -223,9 +231,11 @@ func (c *collector) snapshot(attemptTimeout, elapsed time.Duration) Stats {
 
 // Stats is a finished summary, ready to render. It is a snapshot, so it needs no locking.
 type Stats struct {
-	// Records is every input record. Requests is the subset that reached the client, which is
-	// smaller whenever a line failed to parse.
-	Records  int
+	// Records is every input record a resume did not skip. Requests is the subset that reached the
+	// client, which is smaller whenever a line failed to parse.
+	Records int
+	// Skipped counts the records a resume by id left alone, since the file already answered them.
+	Skipped  int
 	Requests int
 	Failed   int
 	// FalseAsserts counts the records whose assertion did not hold. §17.6 counts them apart from
@@ -255,6 +265,10 @@ func (s Stats) String() string {
 		parts = append(parts, plural(s.Records, "record"))
 	} else {
 		parts = append(parts, plural(s.Requests, "request"))
+	}
+
+	if s.Skipped > 0 {
+		parts = append(parts, fmt.Sprintf("%d skipped", s.Skipped))
 	}
 
 	if s.Failed > 0 {

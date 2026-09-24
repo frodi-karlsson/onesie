@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sync/atomic"
 
 	"github.com/spf13/cobra"
 
@@ -120,7 +121,8 @@ func run(
 	if inputMode.Streaming() {
 		return withStats(cmd, settings.now, flags, func(stats *collector) error {
 			return stream(
-				cmd, settings, built, mapper, namer, inputMode, outputMode, flags, gate, abstain, stats)
+				cmd, settings, built, mapper, namer, inputMode, outputMode, flags, gate, abstain, stats,
+				out)
 		})
 	}
 
@@ -271,6 +273,7 @@ func stream(
 	gate *assert.Expr,
 	abstain *assert.Expr,
 	stats *collector,
+	answers *outFile,
 ) error {
 	if flags.printRequest {
 		return streamRequests(cmd, settings, built, mapper, namer, inputMode, flags)
@@ -288,110 +291,137 @@ func stream(
 		return err
 	}
 
-	source := records(cmd.Context(), settings, inputMode, flags, namer)
+	book, err := resumeLedger(cmd.Context(), answers, flags, namer, outputMode)
+	if err != nil {
+		return err
+	}
+
+	source := records(cmd.Context(), settings, inputMode, flags, namer, book)
 	out := cmd.OutOrStdout()
 	merge := merging(flags)
 	table := delimited(out, outputMode, built, gate != nil, namer != nil && !merge, flags)
 
+	evaluateOne := func(ctx context.Context, rec namedRecord) (line, error) {
+		if rec.Err != nil {
+			// A line onesie could not read is a record that never became a request, and it
+			// carried no questions to the wire either.
+			stats.recordFailure(rec.Err, false, 0)
+
+			return line{record: failureRecord(built, rec.Err), raw: rec.Raw, header: rec.Header}, rec.Err
+		}
+
+		if interrupted(ctx) {
+			return line{}, ctx.Err()
+		}
+
+		if rec.idErr != nil {
+			bad := &input.LineError{Line: rec.Line, Err: rec.idErr}
+			stats.recordFailure(bad, false, 0)
+
+			return rowLine(failureRecord(built, bad), rec), bad
+		}
+
+		// -o csv puts the answers in columns, so there is no merge key to overwrite.
+		if merge && table == nil && hasKey(rec.State, mergeKey(flags)) {
+			stats.recordFailure(nil, false, 0)
+
+			// Detected here rather than inside Write, since the engine counts a failure from
+			// the evaluator's error and a rewrite inside Write would count as a success.
+			//
+			// A LineError gets kind input rather than the transport default from describe, so
+			// --stop-on-error reaches the row, and the line number comes along without a onesie
+			// prefix inside the JSON.
+			taken := &input.LineError{
+				Line: rec.Line,
+				Err: fmt.Errorf(
+					"--merge would overwrite the input's '%s' key, pass --merge-key",
+					mergeKey(flags)),
+			}
+
+			return line{
+				record: failureRecord(built, taken),
+				// raw is deliberately left empty, which is what sends merge down the wrapper
+				// path rather than the splice. The object goes under state as raw JSON rather
+				// than a Go map, so its key order survives.
+				state: json.RawMessage(compact(rec.Raw)),
+			}, taken
+		}
+
+		sent, mapErr := mapped(ctx, mapper, rec.State, rec.Wire)
+		if interrupted(ctx) {
+			return line{}, ctx.Err()
+		}
+
+		if mapErr != nil {
+			bad := &input.LineError{Line: rec.Line, Err: mapErr}
+			stats.recordFailure(bad, false, 0)
+
+			return rowLine(failureRecord(built, bad), rec), bad
+		}
+
+		record, evalErr := evaluate(
+			ctx, client, built, model, questions, sent, flags.usage, stats)
+		if evalErr != nil {
+			// Returned before the gate is asked, per §17.4's third row. A failed record reads
+			// as all zeros, so a gate such as answer.value < 0.5 would hold for a request that
+			// never happened.
+			return rowLine(record, rec), evalErr
+		}
+
+		// §17.6 asks the gate per record. A false assertion or an abstain is not an engine
+		// failure: the record succeeded and the answer is complete, so the outcome is carried
+		// on the line rather than returned as an error the engine would count against
+		// result.Failed.
+		record = judge(gate, abstain, record, stats)
+
+		return rowLine(record, rec), nil
+	}
+
+	write := func(l line) error {
+		if table != nil {
+			if !merge {
+				return table.Write(l.record, nil, nil)
+			}
+
+			return table.Write(l.record, l.header, l.fields)
+		}
+
+		if !merge {
+			return output.Write(out, outputMode, l.record)
+		}
+
+		return output.WriteMerged(out, outputMode, l.record, l.raw, l.state, mergeKey(flags))
+	}
+
+	var stopped atomic.Bool
+
 	result, err := engine.Run(cmd.Context(), engine.Config[namedRecord, line]{
 		Source: source,
 		Evaluate: func(ctx context.Context, rec namedRecord) (line, error) {
-			if rec.Err != nil {
-				// A line onesie could not read is a record that never became a request, and it
-				// carried no questions to the wire either.
-				stats.recordFailure(rec.Err, false, 0)
+			l, evalErr := evaluateOne(ctx, rec)
+			l.slot = rec.slot
 
-				return line{record: failureRecord(built, rec.Err), raw: rec.Raw, header: rec.Header}, rec.Err
-			}
-
-			if interrupted(ctx) {
-				return line{}, ctx.Err()
-			}
-
-			if rec.idErr != nil {
-				bad := &input.LineError{Line: rec.Line, Err: rec.idErr}
-				stats.recordFailure(bad, false, 0)
-
-				return rowLine(failureRecord(built, bad), rec), bad
-			}
-
-			// -o csv puts the answers in columns, so there is no merge key to overwrite.
-			if merge && table == nil && hasKey(rec.State, mergeKey(flags)) {
-				stats.recordFailure(nil, false, 0)
-
-				// Detected here rather than inside Write, since the engine counts a failure from
-				// the evaluator's error and a rewrite inside Write would count as a success.
-				//
-				// A LineError gets kind input rather than the transport default from describe, so
-				// --stop-on-error reaches the row, and the line number comes along without a onesie
-				// prefix inside the JSON.
-				taken := &input.LineError{
-					Line: rec.Line,
-					Err: fmt.Errorf(
-						"--merge would overwrite the input's '%s' key, pass --merge-key",
-						mergeKey(flags)),
-				}
-
-				return line{
-					record: failureRecord(built, taken),
-					// raw is deliberately left empty, which is what sends merge down the wrapper
-					// path rather than the splice. The object goes under state as raw JSON rather
-					// than a Go map, so its key order survives.
-					state: json.RawMessage(compact(rec.Raw)),
-				}, taken
-			}
-
-			sent, mapErr := mapped(ctx, mapper, rec.State, rec.Wire)
-			if interrupted(ctx) {
-				return line{}, ctx.Err()
-			}
-
-			if mapErr != nil {
-				bad := &input.LineError{Line: rec.Line, Err: mapErr}
-				stats.recordFailure(bad, false, 0)
-
-				return rowLine(failureRecord(built, bad), rec), bad
-			}
-
-			record, evalErr := evaluate(
-				ctx, client, built, model, questions, sent, flags.usage, stats)
-			if evalErr != nil {
-				// Returned before the gate is asked, per §17.4's third row. A failed record reads
-				// as all zeros, so a gate such as answer.value < 0.5 would hold for a request that
-				// never happened.
-				return rowLine(record, rec), evalErr
-			}
-
-			// §17.6 asks the gate per record. A false assertion or an abstain is not an engine
-			// failure: the record succeeded and the answer is complete, so the outcome is carried
-			// on the line rather than returned as an error the engine would count against
-			// result.Failed.
-			record = judge(gate, abstain, record, stats)
-
-			return rowLine(record, rec), nil
+			return l, evalErr
 		},
 		Write: func(l line) error {
-			if table != nil {
-				if !merge {
-					return table.Write(l.record, nil, nil)
-				}
-
-				return table.Write(l.record, l.header, l.fields)
+			if book == nil {
+				return write(l)
 			}
 
-			if !merge {
-				return output.Write(out, outputMode, l.record)
-			}
+			start := answers.offset()
+			writeErr := write(l)
+			book.wrote(l.slot, span{start: start, end: answers.offset()})
 
-			return output.WriteMerged(out, outputMode, l.record, l.raw, l.state, mergeKey(flags))
+			return writeErr
 		},
 		Jobs:        flags.jobs,
 		Unordered:   flags.unordered,
 		StopOnError: flags.stopOnError,
 		Abort:       aborting,
-		Stop:        stopping(flags),
+		Stop:        watched(stopping(flags), &stopped),
 	})
 	source.stop()
+	stats.skip(book.skips())
 
 	if err != nil {
 		// The source stopping the run is the worse outcome and takes the exit code, since a
@@ -400,7 +430,29 @@ func stream(
 		return &sourceError{cause: err, failed: result.Failed}
 	}
 
+	// Only a run that read and wrote every record rewrites the file. Anything short of that leaves
+	// the appended lines as they are, for the next resume to finish.
+	if book != nil && !result.Aborted && !result.Broken && !stopped.Load() && book.complete() {
+		answers.compactInto(book.order(), outputMode)
+	}
+
 	return streamResult(result, stats.falseAssertions(), stats.abstains())
+}
+
+func watched(stop func(line) bool, stopped *atomic.Bool) func(line) bool {
+	if stop == nil {
+		return nil
+	}
+
+	return func(l line) bool {
+		if !stop(l) {
+			return false
+		}
+
+		stopped.Store(true)
+
+		return true
+	}
 }
 
 func mapped(ctx context.Context, mapper *jq.Expr, state, wire any) (any, error) {
@@ -518,6 +570,7 @@ type line struct {
 	state  any // The record as read, before --map, so --merge keeps a text line's type and a JSON line's digits.
 	header []string
 	fields map[string]any
+	slot   int
 }
 
 func mergeName(flags *runFlags) string {

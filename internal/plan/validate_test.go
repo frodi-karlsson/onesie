@@ -957,7 +957,24 @@ func TestCheckFlags(t *testing.T) {
 		{
 			name:    "should reject --resume with --unordered",
 			cfg:     plan.Config{Streaming: true, InputName: "jsonl", Resume: true, Out: "a.jsonl", Unordered: true},
-			wantErr: "onesie: --resume relies on input order, which --unordered gives up",
+			wantErr: "onesie: --resume relies on input order, which --unordered gives up. Pass --id to resume by id",
+		},
+		{
+			name: "should accept --resume with --unordered when --id names the records",
+			cfg: plan.Config{
+				Streaming: true, InputName: "jsonl", Resume: true, Out: "a.jsonl", Unordered: true,
+				HasID: true, Jobs: 1,
+			},
+		},
+		{
+			name:    "should reject --resume with --id and -r, which writes no id",
+			cfg:     plan.Config{Streaming: true, InputName: "jsonl", Resume: true, Out: "a.txt", HasID: true, Raw: true},
+			wantErr: "onesie: --resume with --id reads the id back from each line, which raw output leaves out. Use -o json, values, csv or tsv",
+		},
+		{
+			name:    "should reject --resume with --id and -o raw, which writes no id",
+			cfg:     plan.Config{Streaming: true, InputName: "jsonl", Resume: true, Out: "a.txt", HasID: true, Output: "raw"},
+			wantErr: "onesie: --resume with --id reads the id back from each line, which raw output leaves out. Use -o json, values, csv or tsv",
 		},
 		{
 			name:    "should reject --resume with --list-models",

@@ -40,6 +40,16 @@ func TestStatsString(t *testing.T) {
 				"10s/attempt, 30s",
 		},
 		{
+			name: "should report the records a resume skipped",
+			stats: cli.Stats{
+				Requests: 2, Records: 2, Skipped: 18, Questions: 2,
+				Models: []string{"onesie-1.13.0"}, Attempts: 2,
+				AttemptTimeout: 10 * time.Second, Elapsed: time.Second,
+			},
+			want: "2 requests, 18 skipped, 2 questions, 0 in / 0 out, " +
+				"model onesie-1.13.0, 2 attempts, 10s/attempt, 1s",
+		},
+		{
 			name: "should count abstains beside false assertions",
 			stats: cli.Stats{
 				Requests: 3, Records: 3, FalseAsserts: 1, Abstains: 1, Questions: 3,

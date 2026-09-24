@@ -190,7 +190,8 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 		"streaming only, drop blank lines with no output line")
 	root.Flags().StringVar(&flags.out, "out", "", "write the answers to this file rather than stdout")
 	root.Flags().BoolVar(&flags.resume, "resume", false,
-		"streaming only, with --out, carry on after the last complete line in the file")
+		"streaming only, with --out, carry on after the last complete line in the file. "+
+			"Under --id it skips the ids the file answers, then rewrites the file in input order")
 	root.Flags().BoolVar(&flags.merge, "merge", false, "fold the answers into the input record")
 	root.Flags().StringVar(&flags.mergeKey, "merge-key", "",
 		"where the answers land in the merged record, implies --merge")
