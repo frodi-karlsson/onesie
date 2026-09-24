@@ -114,6 +114,10 @@ onesie 'does this explain why the change is needed' --assert 'answer.value > 0.6
     -o markdown --state "$PR_BODY" | gh pr comment "$PR" --body-file -
 ```
 
+A GitHub Actions step with `shell: bash` runs with pipefail, so a failing gate still fails the step,
+after the comment is posted. The default shell has no pipefail, so name `shell: bash` or run
+`set -o pipefail` first.
+
 A stream becomes one table with a row per record and a summary alert. A comment holds at most 65536
 characters, so send a large stream to the job summary, or write it as csv.
 
@@ -261,7 +265,8 @@ accepts as a label.
   or `-o json`.
 - `-o markdown`, or `-o md`, is for people. A table cannot be read back into answers, so it refuses
   `--resume`, `--merge`, `-r` and `-q` with exit 2, while `--out` alone writes the table to a file.
-  An interrupt keeps the rows that finished and drops the summary.
+  A run that ends early, by an interrupt, an abort or a stop flag, keeps the rows that finished, and
+  its summary reads `stopped after` the records it counted.
 
 ### Keys and providers
 
