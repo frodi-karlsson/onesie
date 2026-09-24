@@ -28,7 +28,8 @@ const (
 	ExitTransport = 5
 	// ExitRecords means a stream finished with one or more failed records.
 	ExitRecords = 6
-	// ExitAbstain means the assertion did not hold and --abstain-if did, so the gate could not decide.
+	// ExitAbstain means the assertion did not hold and the abstain expression did, from --abstain-if
+	// or a file's abstain_if, so the gate could not decide.
 	ExitAbstain = 7
 	// ExitInterrupt means the run was interrupted by a signal.
 	ExitInterrupt = 130

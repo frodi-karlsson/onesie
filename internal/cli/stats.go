@@ -61,7 +61,7 @@ type collector struct {
 	requests       int
 	failed         int
 	falseAsserts   int
-	abstains       int
+	abstainCount   int
 	questions      int
 	inputTokens    int
 	outputTokens   int
@@ -186,14 +186,14 @@ func (c *collector) abstained() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	c.abstains++
+	c.abstainCount++
 }
 
-func (c *collector) abstentions() int {
+func (c *collector) abstains() int {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	return c.abstains
+	return c.abstainCount
 }
 
 func (c *collector) snapshot(attemptTimeout, elapsed time.Duration) Stats {
@@ -214,7 +214,7 @@ func (c *collector) snapshot(attemptTimeout, elapsed time.Duration) Stats {
 
 	return Stats{
 		Records: c.records, Requests: c.requests, Failed: c.failed,
-		FalseAsserts: c.falseAsserts, Abstains: c.abstains, Questions: c.questions,
+		FalseAsserts: c.falseAsserts, Abstains: c.abstainCount, Questions: c.questions,
 		InputTokens: c.inputTokens, OutputTokens: c.outputTokens,
 		Models: slices.Sorted(maps.Keys(c.models)), Attempts: c.attempts, Retries: retries,
 		AttemptTimeout: attemptTimeout, Elapsed: elapsed,

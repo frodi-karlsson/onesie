@@ -103,6 +103,15 @@ func TestDryRunArgs(t *testing.T) {
 			want:   []string{"--print-questions", "--ask", "a=x", "--assert", "a > 0"},
 		},
 		{
+			name: "should keep an --abstain-if value that looks like a flag",
+			tokens: []string{
+				"onesie", "--ask", "a=x", "--assert", "a > 0", "--abstain-if", "--merge",
+			},
+			want: []string{
+				"--print-questions", "--ask", "a=x", "--assert", "a > 0", "--abstain-if", "--merge",
+			},
+		},
+		{
 			name:   "should pick --print-request otherwise",
 			tokens: []string{"onesie", "--ask", "a=x"},
 			want:   []string{"--print-request", "--ask", "a=x"},

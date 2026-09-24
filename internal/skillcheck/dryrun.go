@@ -39,10 +39,14 @@ var printFlags = []flagSpec{
 	{long: "print-questions"},
 }
 
-var assertFlag = flagSpec{long: "assert", value: true} // Never stripped, only catalogued for its value.
+var gateFlags = []flagSpec{
+	// Never stripped, only catalogued for their values.
+	{long: "assert", value: true},
+	{long: "abstain-if", value: true},
+}
 
 var catalog = append(append(append(append([]flagSpec{}, printFlags...), alwaysStripped...),
-	questionsOnlyStripped...), assertFlag) // A kept flag's value must never be read as a flag.
+	questionsOnlyStripped...), gateFlags...) // A kept flag's value must never be read as a flag.
 
 func dryRunArgs(tokens []string) (args []string, reason string, err error) {
 	if len(tokens) == 0 || tokens[0] != "onesie" {

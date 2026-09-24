@@ -314,7 +314,7 @@ func stream(
 		return &sourceError{cause: err, failed: result.Failed}
 	}
 
-	return streamResult(result, stats.falseAssertions(), stats.abstentions())
+	return streamResult(result, stats.falseAssertions(), stats.abstains())
 }
 
 func plural(count int, noun string) string {

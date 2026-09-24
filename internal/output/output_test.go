@@ -175,7 +175,7 @@ func TestWrite(t *testing.T) {
 			want: "0.92",
 		},
 		{
-			name: "should print nothing for a false assertion in raw output",
+			name: "should print only the value for a false assertion in raw output",
 			mode: output.Raw,
 			rec:  asserted,
 			want: "0.92",
