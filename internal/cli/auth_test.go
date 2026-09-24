@@ -215,6 +215,48 @@ func TestAuthStatus(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("should report a key read from the keychain", func(t *testing.T) {
+		t.Parallel()
+
+		path := credentialFixture(t, `{"providers":{"typesafe":{"store":"keychain"}}}`, 0)
+
+		out, errOut, code := runAuth(t, []string{"auth", "status"},
+			WithCredentialPath(fixedPath(path)),
+			WithLookupEnv(lookupFrom(nil)),
+			WithKeychain(workingKeychain(map[string]string{"typesafe": "SECRET-KC"})))
+
+		assertNoSecret(t, out, errOut)
+
+		if code != ExitOK {
+			t.Errorf("exit code = %d, want %d\nstderr:\n%s", code, ExitOK, errOut)
+		}
+
+		if want := "provider: typesafe\nsource: keychain\n"; out != want {
+			t.Errorf("stdout = %q, want %q", out, want)
+		}
+	})
+
+	t.Run("should exit 3 when the file points at a keychain item that is gone", func(t *testing.T) {
+		t.Parallel()
+
+		path := credentialFixture(t, `{"providers":{"typesafe":{"store":"keychain"}}}`, 0)
+
+		out, errOut, code := runAuth(t, []string{"auth", "status"},
+			WithCredentialPath(fixedPath(path)),
+			WithLookupEnv(lookupFrom(nil)),
+			WithKeychain(workingKeychain(nil)))
+
+		assertNoSecret(t, out, errOut)
+
+		if code != ExitAuth {
+			t.Errorf("exit code = %d, want %d", code, ExitAuth)
+		}
+
+		if !strings.Contains(errOut, "the keychain holds no key for this provider") {
+			t.Errorf("stderr = %q, want it to say the keychain has no key", errOut)
+		}
+	})
 }
 
 func TestAuthClear(t *testing.T) {
@@ -318,6 +360,32 @@ func TestAuthClear(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("should remove the keychain item along with the entry", func(t *testing.T) {
+		t.Parallel()
+
+		path := credentialFixture(t, `{"providers":{"typesafe":{"store":"keychain"}}}`, 0)
+		keychain := workingKeychain(map[string]string{"typesafe": "SECRET-KC"})
+
+		out, errOut, code := runAuth(t, []string{"auth", "clear"},
+			WithCredentialPath(fixedPath(path)),
+			WithLookupEnv(lookupFrom(nil)),
+			WithKeychain(keychain))
+
+		assertNoSecret(t, out, errOut)
+
+		if code != ExitOK {
+			t.Errorf("exit code = %d, want %d\nstderr:\n%s", code, ExitOK, errOut)
+		}
+
+		if keychain.holds("typesafe") {
+			t.Error("the keychain still holds the key")
+		}
+
+		if _, err := os.Lstat(path); !errors.Is(err, os.ErrNotExist) {
+			t.Errorf("the credential file is still there, stat error = %v", err)
+		}
+	})
 }
 
 func TestAuthSet(t *testing.T) {
@@ -440,6 +508,7 @@ func TestAuthSet(t *testing.T) {
 			// directory refuses a chmod. Only this case reaches the warning branch, so the whole
 			// of stderr is compared below rather than searched.
 			name:       "should warn when the mode cannot be set and still store the key",
+			args:       []string{"--file"},
 			stdin:      "SECRET-STDIN\n",
 			chmodFails: true,
 			wantKey:    "SECRET-STDIN",
@@ -577,6 +646,105 @@ func TestAuthSet(t *testing.T) {
 			}
 		})
 	}
+
+	keychains := []struct {
+		name         string
+		args         []string
+		existing     string
+		keychain     map[string]string
+		wantFile     string
+		wantKeychain bool
+		wantErr      string
+	}{
+		{
+			name:         "should store the key in the keychain and point the file at it",
+			args:         []string{"auth", "set"},
+			wantFile:     `{"providers":{"typesafe":{"store":"keychain"}}}`,
+			wantKeychain: true,
+			wantErr:      "onesie: stored the typesafe key in the OS keychain",
+		},
+		{
+			name:         "should keep a base url beside a keychain entry",
+			args:         []string{"auth", "set", "--base-url", "https://proxy.example"},
+			wantFile:     `{"providers":{"typesafe":{"store":"keychain","base_url":"https://proxy.example"}}}`,
+			wantKeychain: true,
+		},
+		{
+			name:     "should store the key in the file under --file",
+			args:     []string{"auth", "set", "--file"},
+			wantFile: `{"providers":{"typesafe":{"api_key":"SECRET-NEW"}}}`,
+		},
+		{
+			name:     "should remove the keychain copy when a key moves to the file",
+			args:     []string{"auth", "set", "--file"},
+			existing: `{"providers":{"typesafe":{"store":"keychain"}}}`,
+			keychain: map[string]string{"typesafe": "SECRET-OLD"},
+			wantFile: `{"providers":{"typesafe":{"api_key":"SECRET-NEW"}}}`,
+		},
+	}
+
+	for _, tc := range keychains {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			path := credentialFixture(t, tc.existing, 0)
+			keychain := workingKeychain(tc.keychain)
+
+			out, errOut, code := runAuth(t, tc.args,
+				WithStdin(strings.NewReader("SECRET-NEW\n")),
+				WithCredentialPath(fixedPath(path)),
+				WithLookupEnv(lookupFrom(nil)),
+				WithKeychain(keychain))
+
+			assertNoSecret(t, out, errOut)
+
+			if code != ExitOK {
+				t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, ExitOK, errOut)
+			}
+
+			data, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatalf("reading the credential file: %v", err)
+			}
+
+			if strings.TrimSpace(string(data)) != tc.wantFile {
+				t.Error("the credential file does not hold the expected entries")
+			}
+
+			if keychain.holds("typesafe") != tc.wantKeychain {
+				t.Errorf("keychain holds the key = %v, want %v", keychain.holds("typesafe"), tc.wantKeychain)
+			}
+
+			if tc.wantErr != "" && !strings.Contains(errOut, tc.wantErr) {
+				t.Errorf("stderr = %q, want it to contain %q", errOut, tc.wantErr)
+			}
+		})
+	}
+
+	t.Run("should fall back to the file and say so when there is no keychain", func(t *testing.T) {
+		t.Parallel()
+
+		path := credentialFixture(t, "", 0)
+
+		out, errOut, code := runAuth(t, []string{"auth", "set"},
+			WithStdin(strings.NewReader("SECRET-NEW\n")),
+			WithCredentialPath(fixedPath(path)),
+			WithLookupEnv(lookupFrom(nil)))
+
+		assertNoSecret(t, out, errOut)
+
+		if code != ExitOK {
+			t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, ExitOK, errOut)
+		}
+
+		want := "warning: could not store the key in the OS keychain: no keychain in tests. The key is in " +
+			path + " instead"
+		if !strings.Contains(errOut, want) {
+			t.Errorf("stderr = %q, want it to contain %q", errOut, want)
+		}
+
+		assertStored(t, path, "SECRET-NEW", "")
+	})
 }
 
 func TestFirstLine(t *testing.T) {
@@ -1370,6 +1538,37 @@ func TestNewRootCmdFileDrivenClient(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("should send the keychain key to the base url stored beside it", func(t *testing.T) {
+		t.Parallel()
+
+		srv, auths := recordingServer(t, 0)
+		path := credentialFixture(t, `{"providers":{"typesafe":{"store":"keychain","base_url":"`+srv.URL+`"}}}`, 0)
+
+		var out, errOut bytes.Buffer
+
+		root := NewRootCmd(
+			BuildInfo{Version: "1.2.3"},
+			WithStdin(strings.NewReader("the server is down")),
+			WithStdinTTY(false),
+			WithStdoutTTY(false),
+			WithLookupEnv(lookupFrom(nil)),
+			WithCredentialPath(fixedPath(path)),
+			WithKeychain(workingKeychain(map[string]string{"typesafe": "SECRET-KC"})),
+		)
+
+		root.SetOut(&out)
+		root.SetErr(&errOut)
+		root.SetArgs([]string{"is this urgent", "-r"})
+
+		if code := Execute(t.Context(), root); code != ExitOK {
+			t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, ExitOK, errOut.String())
+		}
+
+		if got := auths(); len(got) != 1 || got[0] != "Bearer SECRET-KC" {
+			t.Error("the stored base url did not receive exactly one request carrying the keychain key")
+		}
+	})
 }
 
 func TestNewRootCmdDryRunWithACredentialFile(t *testing.T) {
@@ -1440,6 +1639,8 @@ func runAuth(t *testing.T, args []string, opts ...RootOption) (string, string, i
 		WithClientFactory(func(context.Context, ...jev.Option) (*jev.Client, error) {
 			return nil, errors.New("onesie: no client should be built on this path")
 		}),
+		// Never the real keychain. A test that wants one working passes its own.
+		WithKeychain(noKeychain()),
 	}, opts...)...)
 
 	root.SetOut(&out)
@@ -1470,6 +1671,7 @@ func runCredentialFile(
 		WithStdinTTY(false),
 		WithStdoutTTY(false),
 		WithLookupEnv(lookupFrom(env)),
+		WithKeychain(noKeychain()),
 	)
 
 	root.SetOut(&out)
@@ -1676,4 +1878,73 @@ func assertMissing(t *testing.T, path string, existed bool) {
 	if !errors.Is(err, os.ErrNotExist) {
 		t.Errorf("a failed run left a credential file behind, stat error = %v", err)
 	}
+}
+
+type fakeKeychain struct {
+	mu          sync.Mutex
+	items       map[string]string
+	unavailable bool
+}
+
+func noKeychain() *fakeKeychain {
+	return &fakeKeychain{items: map[string]string{}, unavailable: true}
+}
+
+func workingKeychain(items map[string]string) *fakeKeychain {
+	if items == nil {
+		items = map[string]string{}
+	}
+
+	return &fakeKeychain{items: items}
+}
+
+func (k *fakeKeychain) Get(provider string) (string, error) {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+
+	if k.unavailable {
+		return "", &creds.KeychainError{Op: "read the key", Err: errors.New("no keychain in tests")}
+	}
+
+	key, ok := k.items[provider]
+	if !ok {
+		return "", &creds.KeychainError{Op: "read the key", Err: creds.ErrKeychainMissing}
+	}
+
+	return key, nil
+}
+
+func (k *fakeKeychain) Set(provider, key string) error {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+
+	if k.unavailable {
+		return &creds.KeychainError{Op: "store the key", Err: errors.New("no keychain in tests")}
+	}
+
+	k.items[provider] = key
+
+	return nil
+}
+
+func (k *fakeKeychain) Delete(provider string) error {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+
+	if k.unavailable {
+		return &creds.KeychainError{Op: "remove the key", Err: errors.New("no keychain in tests")}
+	}
+
+	delete(k.items, provider)
+
+	return nil
+}
+
+func (k *fakeKeychain) holds(provider string) bool {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+
+	_, ok := k.items[provider]
+
+	return ok
 }

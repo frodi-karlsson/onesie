@@ -17,10 +17,11 @@ const (
 	// sourceFlag cannot be reached from auth status. Section 16.3 keeps --api-key root local, so
 	// cobra rejects it on a subcommand in either position. It is here for the ordinary run path,
 	// where the flag is reachable and outranks both later sources.
-	sourceFlag = "flag"
-	sourceEnv  = "env"
-	sourceFile = "file"
-	sourceNone = "none"
+	sourceFlag     = "flag"
+	sourceEnv      = "env"
+	sourceFile     = "file"
+	sourceKeychain = "keychain"
+	sourceNone     = "none"
 
 	envProvider = "ONESIE_PROVIDER"
 )
@@ -48,22 +49,34 @@ func newAuthCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 
 func newAuthSetCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 	baseURL := ""
+	toFile := false
 
 	cmd := &cobra.Command{
 		Use:   "set",
 		Short: "Read a key from a prompt or stdin and store it",
 		Args:  authNoArgs("set", "It reads the key from a prompt or stdin"),
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return authSet(cmd, settings, flags, baseURL, cmd.Flags().Changed(flagBaseURL))
+			return authSet(cmd, settings, flags, setOptions{
+				baseURL: baseURL, hasBaseURL: cmd.Flags().Changed(flagBaseURL), toFile: toFile,
+			})
 		},
 	}
 
 	cmd.Flags().StringVar(&baseURL, flagBaseURL, "", "api root stored beside the key")
+	cmd.Flags().BoolVar(&toFile, "file", false, "store the key in the credential file, not the OS keychain")
 
 	return cmd
 }
 
-func authSet(cmd *cobra.Command, settings rootSettings, flags *runFlags, baseURL string, hasBaseURL bool) error {
+type setOptions struct {
+	baseURL    string
+	hasBaseURL bool
+	toFile     bool
+}
+
+func authSet(cmd *cobra.Command, settings rootSettings, flags *runFlags, opts setOptions) error {
+	baseURL, hasBaseURL := opts.baseURL, opts.hasBaseURL
+
 	provider, err := resolveProvider(settings, flags)
 	if err != nil {
 		return err
@@ -97,14 +110,29 @@ func authSet(cmd *cobra.Command, settings rootSettings, flags *runFlags, baseURL
 		return printErr
 	}
 
-	entry := creds.Entry{APIKey: key}
+	file, found, loadErr := settings.credStore.Load(path)
+	if loadErr != nil || !found {
+		file = creds.File{Providers: map[string]creds.Entry{}}
+	}
+
+	previous := file.Providers[provider.Name]
+
+	entry, err := storeKey(cmd, settings, provider, key, path, opts.toFile)
+	if err != nil {
+		return err
+	}
+
 	if hasBaseURL {
 		entry.BaseURL = baseURL
 	}
 
-	file, found, loadErr := settings.credStore.Load(path)
-	if loadErr != nil || !found {
-		file = creds.File{Providers: map[string]creds.Entry{}}
+	// A key moving from the keychain to the file would otherwise leave a stale copy behind.
+	if previous.Store == creds.StoreKeychain && entry.Store != creds.StoreKeychain {
+		if deleteErr := settings.keychain.Delete(provider.Name); deleteErr != nil {
+			if _, printErr := fmt.Fprintln(cmd.ErrOrStderr(), "warning: "+deleteErr.Error()); printErr != nil {
+				return printErr
+			}
+		}
 	}
 
 	file.Providers[provider.Name] = entry
@@ -131,6 +159,30 @@ func authSet(cmd *cobra.Command, settings rootSettings, flags *runFlags, baseURL
 	}
 
 	return nil
+}
+
+func storeKey(
+	cmd *cobra.Command,
+	settings rootSettings,
+	provider jev.Provider,
+	key, path string,
+	toFile bool,
+) (creds.Entry, error) {
+	if toFile {
+		return creds.Entry{APIKey: key}, nil
+	}
+
+	err := settings.keychain.Set(provider.Name, key)
+	if err == nil {
+		_, printErr := fmt.Fprintln(cmd.ErrOrStderr(), "onesie: stored the "+provider.Name+" key in the OS keychain")
+
+		return creds.Entry{Store: creds.StoreKeychain}, printErr
+	}
+
+	_, printErr := fmt.Fprintln(cmd.ErrOrStderr(), "warning: "+strings.TrimPrefix(err.Error(), "onesie: ")+
+		". The key is in "+path+" instead")
+
+	return creds.Entry{APIKey: key}, printErr
 }
 
 func readKey(cmd *cobra.Command, settings rootSettings) (string, error) {
@@ -310,8 +362,15 @@ func authClear(settings rootSettings, flags *runFlags) error {
 		return settings.credStore.Clear(path)
 	}
 
-	if _, ok := file.Providers[provider.Name]; !found || !ok {
+	entry, ok := file.Providers[provider.Name]
+	if !found || !ok {
 		return nil
+	}
+
+	if entry.Store == creds.StoreKeychain {
+		if deleteErr := settings.keychain.Delete(provider.Name); deleteErr != nil {
+			return deleteErr
+		}
 	}
 
 	delete(file.Providers, provider.Name)
@@ -361,6 +420,17 @@ func resolveKey(settings rootSettings, flags *runFlags) (keySource, error) {
 	entry, ok := file.Providers[provider.Name]
 	if !found || !ok {
 		return keySource{name: sourceNone, provider: provider}, nil
+	}
+
+	if entry.Store == creds.StoreKeychain {
+		key, keychainErr := settings.keychain.Get(provider.Name)
+		if keychainErr != nil {
+			return keySource{}, keychainErr
+		}
+
+		return keySource{
+			name: sourceKeychain, provider: provider, path: path, key: key, baseURL: entry.BaseURL,
+		}, nil
 	}
 
 	return keySource{

@@ -76,7 +76,7 @@ func storedCredentials(settings rootSettings, flags *runFlags) ([]jev.Option, er
 	// resolveKey has already returned for both earlier sources and neither of them carries a
 	// stored base URL, but the rule belongs where the file's options are built rather than left to
 	// be inferred from what a keySource happens to hold.
-	if source.name != sourceFile {
+	if source.name != sourceFile && source.name != sourceKeychain {
 		return nil, nil
 	}
 

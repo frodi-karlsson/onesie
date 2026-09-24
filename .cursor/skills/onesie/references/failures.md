@@ -27,13 +27,16 @@ resolves for that provider in this order, first match wins:
    Neither provider falls back to the other's key.
 3. The provider's entry in the credential file, at `$ONESIE_CONFIG_DIR`, then
    `$XDG_CONFIG_HOME/onesie`, then, on Windows, `%APPDATA%\onesie`, and otherwise
-   `~/.config/onesie`.
+   `~/.config/onesie`. The entry holds the key, or says the key is in the OS keychain, which
+   `auth status` reports as `source: keychain`.
 
 `--base-url` outranks a base URL stored in the credential file. Under typesafe,
 `TYPESAFE_BASE_URL` does too.
 
-`onesie auth set` reads a key from a prompt or from stdin and stores it under the provider.
-`onesie auth clear` removes the provider's entry. `auth status` prints the provider, then exits 3
+`onesie auth set` reads a key from a prompt or from stdin and stores it under the provider, in
+the OS keychain when there is one and in the file otherwise. `--file` forces the file.
+`onesie auth clear` removes the provider's entry and its keychain item. An entry pointing at a
+keychain item that is gone, or a keychain that fails, exits 3. Run `onesie auth set` again. `auth status` prints the provider, then exits 3
 and reports `source: none` when nothing resolves, and exits 0 naming the source otherwise.
 
 A 402 also exits 3. OpenRouter sends it when the account is out of credits.

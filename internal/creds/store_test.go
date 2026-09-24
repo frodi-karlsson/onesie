@@ -184,6 +184,26 @@ func TestLoad(t *testing.T) {
 			}},
 		},
 		{
+			name:     "should read an entry whose key is in the keychain",
+			contents: `{"providers":{"typesafe":{"store":"keychain","base_url":"https://proxy.example"}}}`,
+			mode:     0o600,
+			want: creds.File{Providers: map[string]creds.Entry{
+				"typesafe": {Store: creds.StoreKeychain, BaseURL: "https://proxy.example"},
+			}},
+		},
+		{
+			name:     "should refuse an entry with both a key and a keychain store",
+			contents: `{"providers":{"typesafe":{"api_key":"k","store":"keychain"}}}`,
+			mode:     0o600,
+			wantErr:  "is not a JSON object",
+		},
+		{
+			name:     "should refuse an entry with an unknown store",
+			contents: `{"providers":{"typesafe":{"store":"vault"}}}`,
+			mode:     0o600,
+			wantErr:  "is not a JSON object",
+		},
+		{
 			name:     "should refuse a file with no providers",
 			contents: `{}`,
 			mode:     0o600,

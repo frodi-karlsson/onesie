@@ -44,6 +44,7 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 		readFile:   os.ReadFile,
 		lookupEnv:  os.LookupEnv,
 		credStore:  creds.NewStore(),
+		keychain:   creds.NewKeychain(),
 		readSecret: readHiddenSecret,
 	}
 
@@ -255,6 +256,20 @@ func WithCredentialStore(store creds.Store) RootOption {
 	}
 }
 
+// WithKeychain replaces the OS keychain the auth subcommands store keys in.
+func WithKeychain(keychain Keychain) RootOption {
+	return func(s *rootSettings) {
+		s.keychain = keychain
+	}
+}
+
+// Keychain is where auth set stores a key when the OS has one, one item per provider.
+type Keychain interface {
+	Get(provider string) (string, error)
+	Set(provider, key string) error
+	Delete(provider string) error
+}
+
 // WithSecretReader replaces the hidden prompt, which needs a real terminal a test does not have.
 func WithSecretReader(read func() (string, error)) RootOption {
 	return func(s *rootSettings) {
@@ -278,6 +293,7 @@ type rootSettings struct {
 	lookupEnv  func(string) (string, bool)
 	credPath   func() (string, error)
 	credStore  creds.Store
+	keychain   Keychain
 	readSecret func() (string, error)
 }
 

@@ -5,6 +5,7 @@ package cli_test
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"slices"
@@ -13,6 +14,7 @@ import (
 	"testing"
 
 	"github.com/frodi-karlsson/onesie/internal/cli"
+	"github.com/frodi-karlsson/onesie/internal/creds"
 )
 
 func TestFilterIntegration(t *testing.T) {
@@ -933,6 +935,7 @@ func runStored(t *testing.T, path string, args []string, stdin string) (string, 
 		// The live key is in the environment of whoever runs this suite, and it would otherwise
 		// outrank the file and make the stored key untested.
 		cli.WithLookupEnv(func(string) (string, bool) { return "", false }),
+		cli.WithKeychain(offKeychain{}),
 	)
 
 	root.SetOut(&out)
@@ -944,4 +947,18 @@ func runStored(t *testing.T, path string, args []string, stdin string) (string, 
 	code := cli.Execute(t.Context(), root)
 
 	return out.String(), errOut.String(), code
+}
+
+type offKeychain struct{}
+
+func (offKeychain) Get(string) (string, error) {
+	return "", &creds.KeychainError{Op: "read the key", Err: errors.New("the live suite never uses the keychain")}
+}
+
+func (offKeychain) Set(string, string) error {
+	return &creds.KeychainError{Op: "store the key", Err: errors.New("the live suite never uses the keychain")}
+}
+
+func (offKeychain) Delete(string) error {
+	return nil
 }

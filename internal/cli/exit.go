@@ -89,6 +89,11 @@ func Classify(err error) int {
 		return ExitAuth
 	}
 
+	var keychain *creds.KeychainError
+	if errors.As(err, &keychain) {
+		return ExitAuth
+	}
+
 	var api *jev.APIError
 	if errors.As(err, &api) {
 		return classifyStatus(api.Status)

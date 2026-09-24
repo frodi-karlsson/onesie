@@ -11,7 +11,12 @@ import (
 	"runtime"
 )
 
-const maxCredentialBytes = 1 << 20
+const (
+	maxCredentialBytes = 1 << 20
+
+	// StoreKeychain marks an entry whose key lives in the OS keychain rather than in the file.
+	StoreKeychain = "keychain"
+)
 
 // NewStore builds a Store over the real filesystem. A test overrides only what it must.
 func NewStore(opts ...StoreOption) Store {
@@ -142,7 +147,7 @@ func (s Store) Load(path string) (file File, found bool, err error) {
 		// found would make auth status report a source for a file holding nothing, and would send
 		// an empty key to the client.
 		return File{}, false, fmt.Errorf(
-			"onesie: credential file %s is not a JSON object with a 'providers' map of 'api_key' strings",
+			"onesie: credential file %s is not a JSON object with a 'providers' map of 'api_key' strings or keychain entries",
 			path)
 	}
 
@@ -289,9 +294,11 @@ type File struct {
 	Providers map[string]Entry `json:"providers"`
 }
 
-// Entry is one provider's key. BaseURL is empty when the entry carries none.
+// Entry is one provider's key, or a pointer to it in the keychain when Store is StoreKeychain.
+// BaseURL is empty when the entry carries none.
 type Entry struct {
-	APIKey  string `json:"api_key"`
+	APIKey  string `json:"api_key,omitempty"`
+	Store   string `json:"store,omitempty"`
 	BaseURL string `json:"base_url,omitempty"`
 }
 
@@ -301,7 +308,10 @@ func (f File) complete() bool {
 	}
 
 	for _, entry := range f.Providers {
-		if entry.APIKey == "" {
+		inFile := entry.APIKey != "" && entry.Store == ""
+		inKeychain := entry.APIKey == "" && entry.Store == StoreKeychain
+
+		if !inFile && !inKeychain {
 			return false
 		}
 	}

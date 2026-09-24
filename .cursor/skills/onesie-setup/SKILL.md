@@ -57,7 +57,7 @@ Confirm the install with `onesie -V`, which prints the version and the built in 
 | typesafe | `onesie auth set` | `TYPESAFE_API_KEY` |
 | openrouter | `onesie --provider openrouter auth set` | `OPENROUTER_API_KEY` |
 
-The key goes to a credential file at mode 600, one entry per provider. An env var outranks the file, which suits CI.
+The key goes to the OS keychain when there is one, and otherwise to a credential file at mode 600, one entry per provider. `auth set --file` forces the file. An env var outranks both, which suits CI.
 
 ## Installing the plugin
 
