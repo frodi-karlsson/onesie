@@ -148,6 +148,14 @@ func (c *collector) record(model string, usage jev.Usage, questions int) {
 	}
 }
 
+func (c *collector) spend(usage jev.Usage) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.inputTokens += usage.InputTokens
+	c.outputTokens += usage.OutputTokens
+}
+
 func (c *collector) recordFailure(cause error, reached bool, questions int) {
 	// A stop or an interrupt cancels whatever was in flight, and those requests come back
 	// context.Canceled. Nothing about them failed, so counting them reports failed records for a

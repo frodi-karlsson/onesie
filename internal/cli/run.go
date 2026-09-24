@@ -849,6 +849,7 @@ func evaluate(
 		// a failed record still carries them into the count section 10 asks for.
 		stats.recordFailure(err, true, len(questions))
 		stats.terminalAttempt(err)
+		stats.spend(usage)
 
 		return record, err
 	}
@@ -880,11 +881,15 @@ func answered(
 		failed := failureRecord(built, advised)
 
 		var unusable *jev.ResponseError
-		if withUsage && errors.As(err, &unusable) && unusable.Usage != nil {
+		if !errors.As(err, &unusable) || unusable.Usage == nil {
+			return failed, jev.Usage{}, advised
+		}
+
+		if withUsage {
 			failed = spent(failed, unusable.Usage)
 		}
 
-		return failed, jev.Usage{}, advised
+		return failed, *unusable.Usage, advised
 	}
 
 	record := output.Record{Model: result.Model}

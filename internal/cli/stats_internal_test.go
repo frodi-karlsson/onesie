@@ -455,6 +455,28 @@ func TestWithStats(t *testing.T) {
 				},
 			},
 			{
+				name:  "should count the tokens of a 200 whose answer does not match its question",
+				args:  []string{"--ask", "urgent=is this urgent", "-i", "lines", "-o", "json", "--stats"},
+				stdin: "the server is down\n",
+				handler: func() http.HandlerFunc {
+					return answerHandler(`{"model":"onesie-1.13.0","usage":{"input_tokens":7,"output_tokens":3},` +
+						`"answers":{"urgent":{"type":"choice","choice":"a","confidence":0.5,"probabilities":{"a":1}}}}`)
+				},
+				wantCode: ExitRecords,
+				wantErr:  []string{"1 request, 1 failed, 1 question, 7 in / 3 out"},
+			},
+			{
+				name:  "should count the tokens of a 200 that carries no answer for a question",
+				args:  []string{"--ask", "urgent=is this urgent", "-i", "lines", "-o", "json", "--stats"},
+				stdin: "the server is down\n",
+				handler: func() http.HandlerFunc {
+					return answerHandler(`{"model":"onesie-1.13.0","usage":{"input_tokens":7,"output_tokens":3},` +
+						`"answers":{}}`)
+				},
+				wantCode: ExitRecords,
+				wantErr:  []string{"1 request, 1 failed, 1 question, 7 in / 3 out"},
+			},
+			{
 				// A stream that carried nothing still ran, so 0 records is the measurement rather
 				// than a summary of a run that never started.
 				name: "should report an empty stream as zero records",
