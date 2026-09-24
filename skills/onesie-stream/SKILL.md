@@ -52,3 +52,7 @@ Answers sit at the top level keyed by question id. `--merge` folds them under an
 ```sh
 onesie --ask urgent='is this urgent' -i jsonl --print-request
 ```
+
+### Write a long stream with --out and rerun it with --resume after a failure.
+
+`--out FILE` writes the answers to a file instead of stdout. `--resume` counts the complete lines already in that file, drops a line cut off mid write, skips that many input records and appends the rest, so a run killed at record 900 of 1000 costs 100 requests to finish, not 1000. Records that failed the first time keep their `.error` line and are not retried. Rerun those separately with `jq -c 'select(.error)'`. `--resume` needs input order, so it refuses `--unordered`.

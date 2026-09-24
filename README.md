@@ -76,6 +76,14 @@ A record that fails in a stream still prints a line carrying an `error` key, the
 the exit code is 6. `--stop-on-error` ends the run at the first failure instead, and `--unordered`
 trades input order for throughput.
 
+A long run can be picked up where it stopped. With `--out` onesie writes the answers to a file, and
+`--resume` counts the complete lines already in it, drops a line the earlier run was cut off in, and
+carries on from the next record.
+
+```sh
+onesie 'does `body` convey urgency' -i jsonl -j 8 --merge --out answers.jsonl --resume < tickets.jsonl
+```
+
 ### Gating
 
 `--assert` is one boolean over the whole record, and its result is the exit code. It reads the same

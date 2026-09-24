@@ -45,6 +45,8 @@ func configOf(
 		HasInput:       cmd.Flags().Changed(flagInput),
 		Unordered:      flags.unordered,
 		StopOnError:    flags.stopOnError,
+		Out:            flags.out,
+		Resume:         flags.resume,
 		StopOnAssert:   flags.stopOnAssert,
 		SkipBlank:      flags.skipBlank,
 		Merge:          merging(flags),

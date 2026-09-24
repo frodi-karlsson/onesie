@@ -103,7 +103,7 @@ func streamRequests(
 	out := cmd.OutOrStdout()
 
 	result, err := engine.Run(cmd.Context(), engine.Config[input.Record, []byte]{
-		Source: input.NewStream(settings.stdin, inputMode, flags.skipBlank),
+		Source: engine.Skip[input.Record](input.NewStream(settings.stdin, inputMode, flags.skipBlank), flags.resumeSkip),
 		Evaluate: func(_ context.Context, rec input.Record) ([]byte, error) {
 			if rec.Err != nil {
 				// A value alongside the error, because the engine writes every outcome. Returning

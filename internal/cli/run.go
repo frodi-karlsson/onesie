@@ -224,7 +224,8 @@ func stream(
 	if err != nil {
 		return err
 	}
-	source := input.NewStream(settings.stdin, inputMode, flags.skipBlank)
+
+	source := engine.Skip[input.Record](input.NewStream(settings.stdin, inputMode, flags.skipBlank), flags.resumeSkip)
 	out := cmd.OutOrStdout()
 	merge := merging(flags)
 
@@ -701,19 +702,22 @@ func outputName(flags *runFlags) string {
 }
 
 type runFlags struct {
-	provider  string
-	output    string
-	raw       bool
-	quiet     bool
-	usage     bool
-	input     string
-	state     string
-	stateFile string
-	model     string
-	apiKey    string
-	baseURL   string
-	file      string
-	replace   bool
+	provider   string
+	out        string
+	resume     bool
+	resumeSkip int
+	output     string
+	raw        bool
+	quiet      bool
+	usage      bool
+	input      string
+	state      string
+	stateFile  string
+	model      string
+	apiKey     string
+	baseURL    string
+	file       string
+	replace    bool
 
 	assert []string
 

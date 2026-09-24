@@ -4,6 +4,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -42,6 +43,7 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 		stdinTTY:   isTerminal(os.Stdin),
 		stdoutTTY:  isTerminal(os.Stdout),
 		readFile:   os.ReadFile,
+		openFile:   os.OpenFile,
 		lookupEnv:  os.LookupEnv,
 		credStore:  creds.NewStore(),
 		keychain:   creds.NewKeychain(),
@@ -98,7 +100,20 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 				return err
 			}
 
-			return run(cmd, settings, recorder.Events(), positional, flags)
+			out, err := openOut(settings, flags)
+			if err != nil {
+				return err
+			}
+
+			if out == nil {
+				return run(cmd, settings, recorder.Events(), positional, flags)
+			}
+
+			cmd.SetOut(out)
+
+			runErr := run(cmd, settings, recorder.Events(), positional, flags)
+
+			return errors.Join(runErr, out.finish(runErr))
 		},
 	}
 
@@ -156,6 +171,9 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 		"streaming only, end the run at the first false assertion")
 	root.Flags().BoolVar(&flags.skipBlank, "skip-blank", false,
 		"streaming only, drop blank lines with no output line")
+	root.Flags().StringVar(&flags.out, "out", "", "write the answers to this file rather than stdout")
+	root.Flags().BoolVar(&flags.resume, "resume", false,
+		"streaming only, with --out, carry on after the last complete line in the file")
 	root.Flags().BoolVar(&flags.merge, "merge", false, "fold the answers into the input record")
 	root.Flags().StringVar(&flags.mergeKey, "merge-key", "",
 		"where the answers land in the merged record, implies --merge")
@@ -290,6 +308,7 @@ type rootSettings struct {
 	stdinTTY   bool
 	stdoutTTY  bool
 	readFile   func(string) ([]byte, error)
+	openFile   func(name string, flag int, perm os.FileMode) (*os.File, error)
 	lookupEnv  func(string) (string, bool)
 	credPath   func() (string, error)
 	credStore  creds.Store

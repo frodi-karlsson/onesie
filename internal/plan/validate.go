@@ -72,6 +72,10 @@ func CheckFlags(cfg Config) (string, error) {
 		return "", err
 	}
 
+	if err := checkResume(cfg); err != nil {
+		return "", err
+	}
+
 	// Both ahead of the output and streaming rules, so a dry run is rejected before anything it
 	// would have written reaches stdout.
 	for _, check := range flagChecks(cfg) {
@@ -93,6 +97,27 @@ func CheckFlags(cfg Config) (string, error) {
 	}
 
 	return checkStreaming(cfg)
+}
+
+func checkResume(cfg Config) error {
+	if !cfg.Resume {
+		return nil
+	}
+
+	switch {
+	case cfg.Out == "":
+		return errors.New("onesie: --resume needs --out, the file it picks up from")
+	case cfg.ListModels:
+		return errors.New("onesie: --resume applies to streaming input, which --list-models does not read")
+	case cfg.PrintQuestions:
+		return errors.New("onesie: --resume applies to streaming input, which --print-questions does not read")
+	case !cfg.Streaming:
+		return fmt.Errorf("onesie: --resume applies to streaming input. -i %s reads one record", cfg.InputName)
+	case cfg.Unordered:
+		return errors.New("onesie: --resume relies on input order, which --unordered gives up")
+	default:
+		return nil
+	}
 }
 
 // Config carries the invocation settings validation needs beyond the questions themselves.
@@ -155,6 +180,10 @@ type Config struct {
 	HasInput    bool
 	Unordered   bool
 	StopOnError bool
+	// Out is the --out file the answers are written to, empty for stdout.
+	Out string
+	// Resume is --resume, which picks a stream up where an earlier run into Out stopped.
+	Resume bool
 	// StopOnAssert is --stop-on-assert, which ends a stream at the first record whose assertion
 	// was false. §17.6.
 	StopOnAssert bool

@@ -906,6 +906,31 @@ func TestCheckFlags(t *testing.T) {
 		wantErr string
 	}{
 		{
+			name:    "should reject --resume without --out",
+			cfg:     plan.Config{Streaming: true, InputName: "jsonl", Resume: true},
+			wantErr: "onesie: --resume needs --out, the file it picks up from",
+		},
+		{
+			name:    "should reject --resume on a single record",
+			cfg:     plan.Config{InputName: "text", Resume: true, Out: "answers.txt"},
+			wantErr: "onesie: --resume applies to streaming input. -i text reads one record",
+		},
+		{
+			name:    "should reject --resume with --unordered",
+			cfg:     plan.Config{Streaming: true, InputName: "jsonl", Resume: true, Out: "a.jsonl", Unordered: true},
+			wantErr: "onesie: --resume relies on input order, which --unordered gives up",
+		},
+		{
+			name:    "should reject --resume with --list-models",
+			cfg:     plan.Config{ListModels: true, InputName: "text", Resume: true, Out: "m.txt"},
+			wantErr: "onesie: --resume applies to streaming input, which --list-models does not read",
+		},
+		{
+			name:    "should reject --resume with --print-questions",
+			cfg:     plan.Config{PrintQuestions: true, InputName: "text", Resume: true, Out: "q.yaml"},
+			wantErr: "onesie: --resume applies to streaming input, which --print-questions does not read",
+		},
+		{
 			name: "should reject a positional question with -i request",
 			cfg:  request(func(c *plan.Config) { c.HasPositional = true }),
 			wantErr: "onesie: -i request carries its own questions. " +

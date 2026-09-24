@@ -34,7 +34,7 @@ func streamRaw(
 	out := cmd.OutOrStdout()
 
 	result, err := engine.Run(cmd.Context(), engine.Config[input.Record, []byte]{
-		Source: input.NewStream(settings.stdin, input.Request, flags.skipBlank),
+		Source: engine.Skip[input.Record](input.NewStream(settings.stdin, input.Request, flags.skipBlank), flags.resumeSkip),
 		Evaluate: func(ctx context.Context, rec input.Record) ([]byte, error) {
 			if rec.Err != nil {
 				// A value alongside the error, because the engine writes every outcome. Returning

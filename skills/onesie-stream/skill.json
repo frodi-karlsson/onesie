@@ -27,6 +27,11 @@
       "short": "Freeze a run with --print-request and replay it with -i request.",
       "why": "`--print-request` over a stream writes one body per input line, and `-i request` reads those bodies back. It does no validation, no normalization and no policy, so a bad body is sent as is and comes back as an error record, not an exit 2. Under `-i request`, `--print-request` prints its input unchanged, so adding it to a pipeline turns the whole run into a dry run: `onesie --ask urgent='is this urgent' -i jsonl --print-request < in.jsonl > bodies.jsonl && onesie -i request < bodies.jsonl`.",
       "good": "onesie --ask urgent='is this urgent' -i jsonl --print-request"
+    },
+    {
+      "id": "resume-a-long-run",
+      "short": "Write a long stream with --out and rerun it with --resume after a failure.",
+      "why": "`--out FILE` writes the answers to a file instead of stdout. `--resume` counts the complete lines already in that file, drops a line cut off mid write, skips that many input records and appends the rest, so a run killed at record 900 of 1000 costs 100 requests to finish, not 1000. Records that failed the first time keep their `.error` line and are not retried. Rerun those separately with `jq -c 'select(.error)'`. `--resume` needs input order, so it refuses `--unordered`."
     }
   ]
 }
