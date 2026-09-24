@@ -336,6 +336,8 @@ func (o *outFile) writeCompacted(temporary string) (err error) {
 		return err
 	}
 
+	// The mode is kept but the owner is not, so a file another user owned is left owned by the user
+	// who resumed it.
 	err = keepMode(target, info.Mode().Perm())
 	if err == nil {
 		err = copyLines(target, source, o.size, header, o.rewrite.lines)
@@ -377,9 +379,7 @@ func (o *outFile) syncDir(dir string) {
 	// Not returned. The rename has already succeeded, and a filesystem that refuses to sync a
 	// directory, as some network and FUSE mounts do, would turn it into a failure the user cannot
 	// act on.
-	if err := errors.Join(handle.Sync(), handle.Close()); err != nil {
-		return
-	}
+	_ = errors.Join(handle.Sync(), handle.Close()) //nolint:errcheck // a refused directory flush is not a failure, as above
 }
 
 func copyLines(w io.Writer, source io.ReaderAt, size, header int64, lines []span) error {

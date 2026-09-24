@@ -39,7 +39,5 @@ func farByte() *windows.Overlapped {
 }
 
 func removeUnlessOpen(path string) {
-	if err := os.Remove(path); err != nil {
-		return
-	}
+	_ = os.Remove(path) //nolint:errcheck // a refused removal leaves the file to a run that opened it
 }
