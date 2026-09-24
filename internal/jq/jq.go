@@ -2,6 +2,7 @@
 package jq
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"unicode/utf8"
@@ -44,17 +45,17 @@ type Expr struct {
 	code *gojq.Code
 }
 
-// One runs the expression on value and demands exactly one result. A failure wraps ErrNoValue,
-// ErrManyValues or ErrRun.
-func (e *Expr) One(value any) (any, error) {
-	results := e.code.Run(value)
+// One runs the expression on value until ctx ends and demands exactly one result. A failure wraps
+// ErrNoValue, ErrManyValues or ErrRun, and an ended ctx returns its own error.
+func (e *Expr) One(ctx context.Context, value any) (any, error) {
+	results := e.code.RunWithContext(ctx, value)
 
 	first, ok := results.Next()
 	if !ok {
 		return nil, ErrNoValue
 	}
 
-	if err := runError(first); err != nil {
+	if err := runError(ctx, first); err != nil {
 		return nil, err
 	}
 
@@ -63,7 +64,7 @@ func (e *Expr) One(value any) (any, error) {
 		return first, nil
 	}
 
-	if err := runError(second); err != nil {
+	if err := runError(ctx, second); err != nil {
 		return nil, err
 	}
 
@@ -173,10 +174,14 @@ func tooLarge(limit int) error {
 	return fmt.Errorf("%w of %d bytes", ErrTooLarge, limit)
 }
 
-func runError(result any) error {
+func runError(ctx context.Context, result any) error {
 	err, failed := result.(error)
 	if !failed {
 		return nil
+	}
+
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return ctxErr
 	}
 
 	return fmt.Errorf("%w: %w", ErrRun, err)

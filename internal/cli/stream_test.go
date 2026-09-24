@@ -822,6 +822,101 @@ func TestStream(t *testing.T) {
 			})
 		}
 	})
+
+	t.Run("should exit 130 when an interrupt lands inside --map", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name  string
+			args  []string
+			stdin string
+		}{
+			{
+				name:  "should exit 130 on one json record",
+				args:  []string{"is this urgent", "-i", "json", "--map", "until(false; .)"},
+				stdin: `{"body":"the site is down"}`,
+			},
+			{
+				name:  "should exit 130 on one json record under --print-request",
+				args:  []string{"is this urgent", "-i", "json", "--map", "until(false; .)", "--print-request"},
+				stdin: `{"body":"the site is down"}`,
+			},
+			{
+				name:  "should exit 130 on a jsonl stream",
+				args:  []string{"is this urgent", "-i", "jsonl", "--map", "until(false; .)"},
+				stdin: "{\"body\":\"first\"}\n{\"body\":\"second\"}\n",
+			},
+			{
+				name:  "should exit 130 on a jsonl stream under --print-request",
+				args:  []string{"is this urgent", "-i", "jsonl", "--map", "until(false; .)", "--print-request"},
+				stdin: "{\"body\":\"first\"}\n{\"body\":\"second\"}\n",
+			},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				var requests atomic.Int32
+
+				srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+					requests.Add(1)
+				}))
+				defer srv.Close()
+
+				var out, errOut lockedBuffer
+
+				root := cli.NewRootCmd(
+					cli.BuildInfo{Version: "1.2.3"},
+					cli.WithKeychain(offKeychain{}),
+					cli.WithClientFactory(func(_ context.Context, opts ...jev.Option) (*jev.Client, error) {
+						return jev.New(append([]jev.Option{
+							jev.WithAPIKey("k"), jev.WithBaseURL(srv.URL),
+						}, opts...)...)
+					}),
+					cli.WithStdin(strings.NewReader(tc.stdin)),
+					cli.WithStdinTTY(false),
+					cli.WithStdoutTTY(false),
+					cli.WithLookupEnv(func(string) (string, bool) { return "", false }),
+				)
+
+				root.SetOut(&out)
+				root.SetErr(&errOut)
+				root.SetArgs(tc.args)
+
+				ctx, interrupt := context.WithCancel(t.Context())
+				defer interrupt()
+
+				exited := make(chan int, 1)
+
+				go func() { exited <- cli.Execute(ctx, root) }()
+
+				time.AfterFunc(50*time.Millisecond, interrupt)
+
+				select {
+				case code := <-exited:
+					if code != cli.ExitInterrupt {
+						t.Errorf("exit code = %d, want %d\nstderr:\n%s",
+							code, cli.ExitInterrupt, errOut.String())
+					}
+				case <-time.After(5 * time.Second):
+					t.Fatal("--map ignored the interrupt")
+				}
+
+				if errOut.String() != "" {
+					t.Errorf("stderr = %q, want nothing", errOut.String())
+				}
+
+				if out.String() != "" {
+					t.Errorf("stdout = %q, want nothing", out.String())
+				}
+
+				if got := requests.Load(); got != 0 {
+					t.Errorf("requests = %d, want 0", got)
+				}
+			})
+		}
+	})
 }
 
 func TestWriteMerged(t *testing.T) {
@@ -1009,4 +1104,23 @@ func (r *watchedReader) Read([]byte) (int, error) {
 	r.read.Store(true)
 
 	return 0, io.EOF
+}
+
+type lockedBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (b *lockedBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	return b.buf.Write(p)
+}
+
+func (b *lockedBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	return b.buf.String()
 }

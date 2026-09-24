@@ -138,7 +138,7 @@ func run(
 
 	sent := resolved.Wire
 	if resolved.Source != input.SourceNone {
-		sent, err = mapped(mapper, resolved.State, resolved.Wire)
+		sent, err = mapped(cmd.Context(), mapper, resolved.State, resolved.Wire)
 		if err != nil {
 			return fmt.Errorf("onesie: %w", err)
 		}
@@ -281,7 +281,11 @@ func stream(
 				}, taken
 			}
 
-			sent, mapErr := mapped(mapper, rec.State, rec.Wire)
+			sent, mapErr := mapped(ctx, mapper, rec.State, rec.Wire)
+			if interrupted(ctx) {
+				return line{}, ctx.Err()
+			}
+
 			if mapErr != nil {
 				bad := &input.LineError{Line: rec.Line, Err: mapErr}
 				stats.recordFailure(bad, false, 0)
@@ -337,12 +341,16 @@ func stream(
 	return streamResult(result, stats.falseAssertions(), stats.abstains())
 }
 
-func mapped(mapper *jq.Expr, state, wire any) (any, error) {
+func mapped(ctx context.Context, mapper *jq.Expr, state, wire any) (any, error) {
 	if mapper == nil {
 		return wire, nil
 	}
 
-	value, err := mapper.One(jqValue(state, wire))
+	value, err := mapper.One(ctx, jqValue(state, wire))
+	if interrupted(ctx) {
+		return nil, ctx.Err()
+	}
+
 	if err != nil {
 		return nil, fmt.Errorf("--map %w", err)
 	}
@@ -357,6 +365,10 @@ func mapped(mapper *jq.Expr, state, wire any) (any, error) {
 	}
 
 	return json.RawMessage(encoded), nil
+}
+
+func interrupted(ctx context.Context) bool {
+	return ctx.Err() != nil
 }
 
 func jqValue(state, wire any) any {

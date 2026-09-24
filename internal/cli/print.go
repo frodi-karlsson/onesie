@@ -107,14 +107,18 @@ func streamRequests(
 
 	result, err := engine.Run(cmd.Context(), engine.Config[input.Record, []byte]{
 		Source: engine.Skip[input.Record](input.NewStream(settings.stdin, inputMode, flags.skipBlank), flags.resumeSkip),
-		Evaluate: func(_ context.Context, rec input.Record) ([]byte, error) {
+		Evaluate: func(ctx context.Context, rec input.Record) ([]byte, error) {
 			if rec.Err != nil {
 				// A value alongside the error, because the engine writes every outcome. Returning
 				// nil here would print a blank line rather than the record.
 				return errorLine(rec.Err), rec.Err
 			}
 
-			sent, mapErr := mapped(mapper, rec.State, rec.Wire)
+			sent, mapErr := mapped(ctx, mapper, rec.State, rec.Wire)
+			if interrupted(ctx) {
+				return nil, ctx.Err()
+			}
+
 			if mapErr != nil {
 				bad := &input.LineError{Line: rec.Line, Err: mapErr}
 

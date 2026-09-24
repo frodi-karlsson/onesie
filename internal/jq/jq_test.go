@@ -1,11 +1,13 @@
 package jq
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestCompile(t *testing.T) {
@@ -89,7 +91,7 @@ func TestExpr_One(t *testing.T) {
 				t.Fatalf("Compile(%q): %v", tc.source, err)
 			}
 
-			got, err := expr.One(tc.value)
+			got, err := expr.One(t.Context(), tc.value)
 
 			if tc.wantErr != nil {
 				if !errors.Is(err, tc.wantErr) {
@@ -108,6 +110,56 @@ func TestExpr_One(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("should stop an expression that never ends once the context is cancelled", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name  string
+			after time.Duration
+		}{
+			{name: "should stop when the context is already cancelled"},
+			{name: "should stop when the context is cancelled as it runs", after: 20 * time.Millisecond},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				expr, err := Compile("until(false; .)")
+				if err != nil {
+					t.Fatalf("Compile(): %v", err)
+				}
+
+				ctx, cancel := context.WithCancel(t.Context())
+				if tc.after == 0 {
+					cancel()
+				} else {
+					time.AfterFunc(tc.after, cancel)
+				}
+
+				returned := make(chan error, 1)
+
+				go func() {
+					_, runErr := expr.One(ctx, "x")
+					returned <- runErr
+				}()
+
+				select {
+				case runErr := <-returned:
+					if !errors.Is(runErr, context.Canceled) {
+						t.Errorf("One() error = %v, want %v", runErr, context.Canceled)
+					}
+
+					if errors.Is(runErr, ErrRun) {
+						t.Errorf("One() error = %v, want an interrupt rather than a failed run", runErr)
+					}
+				case <-time.After(5 * time.Second):
+					t.Fatal("One() ignored the cancelled context")
+				}
+			})
+		}
+	})
 }
 
 func TestMarshal(t *testing.T) {
