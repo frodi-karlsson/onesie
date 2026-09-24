@@ -5,7 +5,7 @@
 | 0 | The question was answered |
 | 1 | `-q` ran and the policy did not accept the answer |
 | 2 | A usage or validation error, including a server 422 |
-| 3 | Authentication or permission failed |
+| 3 | Authentication, permission or payment failed |
 | 4 | The server did not answer after retries |
 | 5 | A transport error or a timeout |
 | 6 | A stream finished with one or more failed records |
@@ -19,19 +19,24 @@ means a stream finished and only the lines carrying `.error` failed, the rest an
 Run `onesie auth status` to see which source holds the key, then `onesie auth test` to check it
 against the server.
 
-A key resolves in this order, first match wins:
+The provider comes first: `--provider`, then `ONESIE_PROVIDER`, then `typesafe`. A key then
+resolves for that provider in this order, first match wins:
 
 1. `--api-key`. `auth status` and `auth test` reject it as unknown, since it is a root only flag.
-2. `TYPESAFE_API_KEY` in the environment.
-3. The credential file, at `$ONESIE_CONFIG_DIR`, then `$XDG_CONFIG_HOME/onesie`, then, on Windows,
-   `%APPDATA%\onesie`, and otherwise `~/.config/onesie`.
+2. The provider's variable: `TYPESAFE_API_KEY` for typesafe, `OPENROUTER_API_KEY` for openrouter.
+   Neither provider falls back to the other's key.
+3. The provider's entry in the credential file, at `$ONESIE_CONFIG_DIR`, then
+   `$XDG_CONFIG_HOME/onesie`, then, on Windows, `%APPDATA%\onesie`, and otherwise
+   `~/.config/onesie`.
 
-`--base-url` and `TYPESAFE_BASE_URL` outrank a base URL stored in the credential file the same
-way.
+`--base-url` outranks a base URL stored in the credential file. Under typesafe,
+`TYPESAFE_BASE_URL` does too.
 
-`onesie auth set` reads a key from a prompt or from stdin and writes it to the credential file.
-`onesie auth clear` deletes it. `auth status` exits 3 and reports `source: none` when nothing
-resolves, and exits 0 naming the source otherwise.
+`onesie auth set` reads a key from a prompt or from stdin and stores it under the provider.
+`onesie auth clear` removes the provider's entry. `auth status` prints the provider, then exits 3
+and reports `source: none` when nothing resolves, and exits 0 naming the source otherwise.
+
+A 402 also exits 3. OpenRouter sends it when the account is out of credits.
 
 ## On exit 2
 

@@ -150,19 +150,22 @@ A key can live in a file onesie owns rather than in the environment of every she
 onesie auth set
 pass show typesafe | onesie auth set
 
-# which source is in use, without printing the key
+# which provider and source are in use, without printing the key
 onesie auth status
+# provider: typesafe
 # source: file /home/you/.config/onesie/credentials.json
 
 # check the key against the API, which costs no tokens
 onesie auth test
+# provider: typesafe
 # source: file /home/you/.config/onesie/credentials.json
 # models: 2
 
 onesie auth clear
 ```
 
-The key is taken from `--api-key`, then `TYPESAFE_API_KEY`, then the file. A source found later is
+The key is taken from `--api-key`, then the provider's variable, then the provider's entry in the
+file. A source found later is
 never used when an earlier one is set, even if the earlier key is rejected, so a run always sends
 the key you chose for it. The file is one source taken whole: its optional `base_url` applies exactly
 when its key does.
@@ -175,6 +178,39 @@ other user can reach**, exiting 3 with the path and the mode. A readable key is 
 `onesie auth set` reads only the first line of stdin, since `pass show` and its siblings print the
 secret first and metadata after it. No subcommand ever prints the key.
 
+### Providers
+
+onesie sends the same requests to TypeSafe directly or through OpenRouter, which serves the same
+model over the same API.
+
+| Source | Precedence |
+|--------|------------|
+| `--provider typesafe` or `--provider openrouter` | highest |
+| `ONESIE_PROVIDER` | next |
+| default | `typesafe` |
+
+The provider is never guessed from which key happens to be set, so a run is never billed by a host
+you did not pick.
+
+| Provider | Key variable | Base URL |
+|----------|--------------|----------|
+| `typesafe` | `TYPESAFE_API_KEY` | `https://api.typesafe.ai`, or `TYPESAFE_BASE_URL` |
+| `openrouter` | `OPENROUTER_API_KEY` | `https://openrouter.ai/api` |
+
+Each provider keeps its own entry in the credential file, and no provider falls back to the other's
+key.
+
+```sh
+pass show openrouter | onesie --provider openrouter auth set
+onesie --provider openrouter auth status
+# provider: openrouter
+# source: file /home/you/.config/onesie/credentials.json
+```
+
+`jev-latest` works on both. A pinned model id does not carry over: TypeSafe pins `jev-1.13.0`, and
+OpenRouter pins `typesafe/jev-1.13`. OpenRouter's context is 32,000 tokens, and `--usage` also
+reports the cost it charged, in USD.
+
 ### Exit codes
 
 | Code | Meaning |
@@ -182,7 +218,7 @@ secret first and metadata after it. No subcommand ever prints the key.
 | 0 | answered |
 | 1 | a false `--assert`, or under `-q` the policy did not accept the answer |
 | 2 | usage or validation error |
-| 3 | authentication or permission |
+| 3 | authentication, permission or payment |
 | 4 | the server did not answer after retries |
 | 5 | transport error or timeout |
 | 6 | a stream finished with one or more failed records |
@@ -196,9 +232,10 @@ any network call alongside every other check. Exit 3 is for a key that exists an
 
 | Flag | Variable | Default |
 |------|----------|---------|
-| `--api-key` | `TYPESAFE_API_KEY` | required, or `onesie auth set` |
-| `--base-url` | `TYPESAFE_BASE_URL` | `https://api.typesafe.ai` |
-| `-m, --model` | `TYPESAFE_DEFAULT_MODEL` | `jev-latest` |
+| `--provider` | `ONESIE_PROVIDER` | `typesafe` |
+| `--api-key` | `TYPESAFE_API_KEY` or `OPENROUTER_API_KEY` | required, or `onesie auth set` |
+| `--base-url` | `TYPESAFE_BASE_URL`, typesafe only | the provider's |
+| `-m, --model` | `TYPESAFE_DEFAULT_MODEL`, typesafe only | `jev-latest` |
 
 Prefer `onesie auth set` or the environment variable over `--api-key`, since argv is visible in `ps`
 and in shell history.

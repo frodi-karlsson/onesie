@@ -135,6 +135,16 @@ onesie 'is this ticket urgent' --state 'the server is down'
 onesie --ask urgent='is this urgent' --ask team='which team owns this' --pick billing,shipping,support --state 'my package never arrived' --print-request
 ```
 
+### Pick the provider with --provider or ONESIE_PROVIDER, and pin models per provider.
+
+typesafe is the default and reads `TYPESAFE_API_KEY`. openrouter reads `OPENROUTER_API_KEY`, and never falls back to the TypeSafe key. `jev-latest` works on both, but a pinned model id does not carry over: TypeSafe pins `jev-1.13.0`, OpenRouter pins `typesafe/jev-1.13`. `onesie auth status` names the provider and where its key came from.
+
+**Good:**
+
+```sh
+onesie --provider openrouter 'is this urgent' --state 'the server is down' --print-request
+```
+
 ## References
 
 - [failures.md](references/failures.md)
