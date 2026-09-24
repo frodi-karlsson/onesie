@@ -461,6 +461,11 @@ func checkStreaming(cfg Config) (string, error) {
 			cfg.Jobs)
 	}
 
+	if cfg.JobsSet && cfg.Jobs > limits.MaxJobs {
+		return "", fmt.Errorf("onesie: -j takes at most %d records in flight, got %d",
+			limits.MaxJobs, cfg.Jobs)
+	}
+
 	if cfg.TimeoutSet && cfg.Timeout < 1 {
 		return "", fmt.Errorf("onesie: --timeout takes a positive number of seconds, got %d",
 			cfg.Timeout)

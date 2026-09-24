@@ -196,3 +196,29 @@ func TestWorthReporting(t *testing.T) {
 		})
 	}
 }
+
+func TestAborting(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		status int
+		want   bool
+	}{
+		{name: "should abort on a refused key", status: http.StatusUnauthorized, want: true},
+		{name: "should abort on a forbidden key", status: http.StatusForbidden, want: true},
+		{name: "should abort when the account is out of credits", status: http.StatusPaymentRequired, want: true},
+		{name: "should carry on after a bad request", status: http.StatusBadRequest},
+		{name: "should carry on after a server error", status: http.StatusInternalServerError},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := aborting(&jev.APIError{Status: tc.status}); got != tc.want {
+				t.Errorf("aborting(%d) = %v, want %v", tc.status, got, tc.want)
+			}
+		})
+	}
+}

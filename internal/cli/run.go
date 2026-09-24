@@ -395,7 +395,8 @@ func compact(raw string) []byte {
 func aborting(err error) bool {
 	// Every later record would fail the same way, and a bad key should be reported once rather
 	// than once per line.
-	return errors.Is(err, jev.ErrAuthentication) || errors.Is(err, jev.ErrPermissionDenied)
+	return errors.Is(err, jev.ErrAuthentication) || errors.Is(err, jev.ErrPermissionDenied) ||
+		errors.Is(err, jev.ErrPaymentRequired)
 }
 
 func stopping(flags *runFlags) func(line) bool {

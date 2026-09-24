@@ -925,6 +925,11 @@ func TestCheckFlags(t *testing.T) {
 			wantErr: "onesie: --usage does not apply to -o tsv, which has no column for it",
 		},
 		{
+			name:    "should reject -j above the cap",
+			cfg:     plan.Config{Streaming: true, InputName: "jsonl", Jobs: 2000000, JobsSet: true},
+			wantErr: "onesie: -j takes at most 256 records in flight, got 2000000",
+		},
+		{
 			name:    "should reject --resume without --out",
 			cfg:     plan.Config{Streaming: true, InputName: "jsonl", Resume: true},
 			wantErr: "onesie: --resume needs --out, the file it picks up from",

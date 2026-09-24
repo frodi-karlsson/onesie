@@ -27,6 +27,9 @@ const (
 	// large count is a run that never ends rather than a policy. A hundred is already far past any
 	// useful policy and bounds the wait at minutes rather than days.
 	MaxRetries = 100
+	// MaxJobs is the ceiling on -j. Every job is a goroutine and a pooled connection started up
+	// front, and far past this the API rate limits the run long before it goes any faster.
+	MaxJobs = 256
 	// MaxSeconds is the ceiling on a flag given in whole seconds. A day is beyond any sensible
 	// attempt timeout or server requested delay, and it leaves the conversion to a Duration far
 	// from the overflow that would turn a huge number into a fraction of a second.
@@ -43,6 +46,7 @@ func Report() []Entry {
 		{Name: "attempt-timeout", Value: DefaultAttemptTimeout.String()},
 		{Name: "retries", Value: strconv.Itoa(DefaultRetries)},
 		{Name: "max-retries", Value: strconv.Itoa(MaxRetries)},
+		{Name: "max-jobs", Value: strconv.Itoa(MaxJobs)},
 		{Name: "max-retry-after", Value: DefaultMaxRetryAfter.String()},
 		{Name: "max-seconds", Value: strconv.Itoa(MaxSeconds)},
 	}
