@@ -65,10 +65,10 @@ func resumeLabelled(
 
 		rec := &set.records[entry.record]
 		named := namedRecord{id: rec.id}
-		_, answered := book.admit(&named)
+		_, known := book.admit(&named)
 		rec.slot = named.slot
 
-		if answered {
+		if known {
 			resumed.stored++
 		} else {
 			resumed.pending = append(resumed.pending, *rec)

@@ -156,6 +156,14 @@ func (c *collector) spend(usage jev.Usage) {
 	c.outputTokens += usage.OutputTokens
 }
 
+func (c *collector) unusable() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	// The request already counted as a success when it arrived, and its answer turned out unusable.
+	c.failed++
+}
+
 func (c *collector) recordFailure(cause error, reached bool, questions int) {
 	// A stop or an interrupt cancels whatever was in flight, and those requests come back
 	// context.Canceled. Nothing about them failed, so counting them reports failed records for a

@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net/http"
 	"sync/atomic"
 
 	"github.com/spf13/cobra"
@@ -897,21 +896,10 @@ func answered(
 		record.Usage = &result.Usage
 	}
 
+	// SystemOne already refused a response missing any of these questions, since every caller asks
+	// built.Questions.
 	for _, question := range built.Questions {
-		raw, ok := result.Answers[question.ID]
-		if !ok {
-			// A failure record rather than an empty one, since a bare {} in a stream reads as a
-			// successful answer to nothing. Typed, so section 8 gives it kind response with status
-			// 200 and a single shot run exits 4.
-			missing := &jev.ResponseError{
-				Status:  http.StatusOK,
-				Message: fmt.Sprintf("onesie: response carries no answer for '%s'", question.ID),
-			}
-
-			return spent(failureRecord(built, missing), record.Usage), result.Usage, missing
-		}
-
-		normalized, normErr := answer.Normalize(question, raw)
+		normalized, normErr := answer.Normalize(question, result.Answers[question.ID])
 		if normErr != nil {
 			return spent(failureRecord(built, normErr), record.Usage), result.Usage, normErr
 		}

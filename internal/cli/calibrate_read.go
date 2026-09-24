@@ -177,13 +177,13 @@ func (r *labelReader) read(ctx context.Context, rec input.Record) (labelledRecor
 		return labelledRecord{}, false, &input.LineError{Line: rec.Line, Err: err}
 	}
 
-	raw, isRaw := sent.(json.RawMessage)
-	if !isRaw {
-		return labelledRecord{}, false, errors.New("onesie: calibrate needs --map")
+	// Cloned, so the record holds its own bytes and not the slack of the buffer they were encoded in.
+	// calibrate refuses to run without --map, and a mapped state is always encoded.
+	if raw, isRaw := sent.(json.RawMessage); isRaw {
+		sent = json.RawMessage(bytes.Clone(raw))
 	}
 
-	// Cloned, so the record holds its own bytes and not the slack of the buffer they were encoded in.
-	labelled.sent = bytes.Clone(raw)
+	labelled.sent = sent
 
 	return labelled, found, nil
 }
@@ -258,7 +258,7 @@ type labelledRecord struct {
 	slot   int
 	line   int
 	id     any
-	sent   json.RawMessage
+	sent   any
 	labels []*calibrate.Label
 }
 

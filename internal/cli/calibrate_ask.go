@@ -92,17 +92,17 @@ func calibrateAnswers(
 			stats.skip(resumed.book.skipped())
 		}
 
-		answered, result, askErr := askLabelled(cmd, settings, flags, built, model, resumed, out, stats)
+		outcomes, result, askErr := askLabelled(cmd, settings, flags, built, model, resumed, out, stats)
 		if askErr != nil {
 			return askErr
 		}
 
-		report := reportOf(built, set, answered, cuts)
+		report := reportOf(built, set, outcomes, cuts)
 		report.Asked = result.Records
 		report.Stored = resumed.stored
 
 		if flags.usage {
-			report.Usage = usageOf(answered)
+			report.Usage = usageOf(outcomes)
 		}
 
 		if writeErr := writeReport(cmd.OutOrStdout(), format, report); writeErr != nil {
@@ -113,7 +113,7 @@ func calibrateAnswers(
 			return nil
 		}
 
-		if causeErr := writeCauses(cmd.ErrOrStderr(), set, answered); causeErr != nil {
+		if causeErr := writeCauses(cmd.ErrOrStderr(), set, outcomes); causeErr != nil {
 			return causeErr
 		}
 
@@ -161,7 +161,7 @@ func askLabelled(
 	}
 
 	questions := wireAll(built.Questions)
-	answered := slices.Clone(resumed.answered)
+	outcomes := slices.Clone(resumed.answered)
 	book := resumed.book
 
 	result, err := engine.Run(cmd.Context(), engine.Config[labelledRecord, askedLine]{
@@ -171,9 +171,7 @@ func askLabelled(
 			if evalErr == nil {
 				if _, evalErr = casesOf(built, rec, record); evalErr != nil {
 					// The tokens were spent, so the failed line carries them into the usage total.
-					spent := record.Usage
-					record = failureRecord(built, evalErr)
-					record.Usage = spent
+					record = spent(failureRecord(built, evalErr), record.Usage)
 
 					stats.unusable()
 				}
@@ -184,7 +182,7 @@ func askLabelled(
 			return askedLine{index: rec.index, slot: rec.slot, record: record}, evalErr
 		},
 		Write: func(l askedLine) error {
-			answered[l.index] = l.record
+			outcomes[l.index] = l.record
 
 			if out == nil {
 				return nil
@@ -222,15 +220,7 @@ func askLabelled(
 		out.compactInto(book.takeOrder(flags.prune), output.JSON)
 	}
 
-	return answered, result, nil
-}
-
-func (c *collector) unusable() {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	// The request already counted as a success when it arrived, and its answer turned out unusable.
-	c.failed++
+	return outcomes, result, nil
 }
 
 func (s *labelledSource) Next() (labelledRecord, bool, error) {
@@ -255,7 +245,7 @@ type askedLine struct {
 	record output.Record
 }
 
-func reportOf(built *plan.Plan, set labelledSet, answered []output.Record, cuts []float64) calibrate.Report {
+func reportOf(built *plan.Plan, set labelledSet, outcomes []output.Record, cuts []float64) calibrate.Report {
 	report := calibrate.Report{
 		Records:    set.total,
 		Labelled:   len(set.records),
@@ -268,7 +258,7 @@ func reportOf(built *plan.Plan, set labelledSet, answered []output.Record, cuts 
 	models := map[string]struct{}{}
 
 	for i, rec := range set.records {
-		cases, err := casesOf(built, rec, answered[i])
+		cases, err := casesOf(built, rec, outcomes[i])
 		if err != nil {
 			report.Failed++
 
@@ -281,7 +271,7 @@ func reportOf(built *plan.Plan, set labelledSet, answered []output.Record, cuts 
 			continue
 		}
 
-		models[answered[i].Model] = struct{}{}
+		models[outcomes[i].Model] = struct{}{}
 
 		for q, c := range cases {
 			switch {
@@ -398,11 +388,11 @@ type recordCase struct {
 	choice calibrate.ChoiceCase
 }
 
-func writeCauses(w io.Writer, set labelledSet, answered []output.Record) error {
+func writeCauses(w io.Writer, set labelledSet, outcomes []output.Record) error {
 	listed, more := 0, 0
 
 	for i, rec := range set.records {
-		failure := answered[i].Failure
+		failure := outcomes[i].Failure
 		if failure == nil {
 			continue
 		}
@@ -425,17 +415,9 @@ func writeCauses(w io.Writer, set labelledSet, answered []output.Record) error {
 		return nil
 	}
 
-	_, err := fmt.Fprintf(w, "onesie: and %d more failed %s\n", more, noun(more, "record"))
+	_, err := fmt.Fprintf(w, "onesie: and %s\n", plural(more, "more failed record"))
 
 	return err
-}
-
-func noun(count int, word string) string {
-	if count == 1 {
-		return word
-	}
-
-	return word + "s"
 }
 
 func writeReport(w io.Writer, format string, report calibrate.Report) error {
@@ -446,10 +428,10 @@ func writeReport(w io.Writer, format string, report calibrate.Report) error {
 	return calibrate.WriteTable(w, report)
 }
 
-func usageOf(answered []output.Record) *calibrate.Usage {
+func usageOf(outcomes []output.Record) *calibrate.Usage {
 	total := &calibrate.Usage{}
 
-	for _, record := range answered {
+	for _, record := range outcomes {
 		if record.Usage == nil {
 			continue
 		}
