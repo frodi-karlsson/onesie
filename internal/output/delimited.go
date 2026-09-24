@@ -8,6 +8,7 @@ import (
 	"io"
 	"slices"
 	"strconv"
+	"strings"
 )
 
 // ErrColumnTaken reports an input column whose name a question id or a reserved column already
@@ -16,12 +17,11 @@ var ErrColumnTaken = errors.New("an input column has the name of an output colum
 
 // NewDelimited builds a writer for the csv and tsv modes.
 func NewDelimited(w io.Writer, mode Mode, opts DelimitedOptions) *Delimited {
-	rows := csv.NewWriter(w)
 	if mode == TSV {
-		rows.Comma = '\t'
+		return &Delimited{tabs: w, opts: opts}
 	}
 
-	return &Delimited{rows: rows, opts: opts}
+	return &Delimited{rows: csv.NewWriter(w), opts: opts}
 }
 
 // DelimitedOptions fixes the columns a Delimited writes.
@@ -38,6 +38,7 @@ type DelimitedOptions struct {
 // Delimited writes records as rows under one header row. It is stateful, so one run uses one.
 type Delimited struct {
 	rows    *csv.Writer
+	tabs    io.Writer
 	opts    DelimitedOptions
 	started bool
 }
@@ -70,7 +71,17 @@ func (d *Delimited) Write(rec Record, header []string, fields map[string]any) er
 		failure = rec.Failure.Message
 	}
 
-	if err := d.rows.Write(append(row, failure)); err != nil {
+	return d.writeRow(append(row, failure))
+}
+
+func (d *Delimited) writeRow(cells []string) error {
+	if d.tabs != nil {
+		_, err := io.WriteString(d.tabs, strings.Join(tabless(cells), "\t")+"\n")
+
+		return err
+	}
+
+	if err := d.rows.Write(cells); err != nil {
 		return err
 	}
 
@@ -100,7 +111,17 @@ func (d *Delimited) start(header []string) error {
 		return nil
 	}
 
-	return d.rows.Write(append(slices.Clone(header), columns...))
+	return d.writeRow(append(slices.Clone(header), columns...))
+}
+
+func tabless(cells []string) []string {
+	// TSV has no quoting, so a tab or line break inside a cell would split it.
+	clean := make([]string, len(cells))
+	for i, value := range cells {
+		clean[i] = strings.NewReplacer("\t", " ", "\r\n", " ", "\n", " ", "\r", " ").Replace(value)
+	}
+
+	return clean
 }
 
 func answerCell(rec Record, id string) string {

@@ -12,6 +12,8 @@ import (
 	"unicode/utf8"
 )
 
+var errRowTooLong = errors.New("a row is longer than the limit")
+
 // NewStream reads one record per line. skipBlank drops blank lines entirely rather than reporting
 // them, which breaks the one line per line alignment and is therefore opt in.
 func NewStream(r io.Reader, mode Mode, skipBlank bool) *Stream {
@@ -21,15 +23,13 @@ func NewStream(r io.Reader, mode Mode, skipBlank bool) *Stream {
 		skipBlank: skipBlank,
 	}
 
-	if mode.Delimited() {
-		stream.rows = csv.NewReader(stream.reader)
+	if mode == CSV {
+		// Bounds what one row may pull from stdin, since an unterminated quote would otherwise read
+		// the rest of the input into a single field.
+		stream.budget = &rowBudget{reader: stream.reader}
+		stream.rows = csv.NewReader(stream.budget)
 		// Checked per row instead, so a short row fails that one record rather than the run.
 		stream.rows.FieldsPerRecord = -1
-
-		if mode == TSV {
-			stream.rows.Comma = '\t'
-			stream.rows.LazyQuotes = true
-		}
 	}
 
 	return stream
@@ -43,13 +43,14 @@ type Stream struct {
 	index     int
 	line      int
 	rows      *csv.Reader
+	budget    *rowBudget
 	header    []string
 }
 
 // Next returns the next record. The second result is false at end of input. A record carrying a
 // non nil Err is an input error, which is reported and counted but does not stop the run.
 func (s *Stream) Next() (Record, bool, error) {
-	if s.rows != nil {
+	if s.mode.Delimited() {
 		return s.nextRow()
 	}
 
@@ -146,23 +147,19 @@ func (s *Stream) nextRow() (Record, bool, error) {
 		s.header = header
 	}
 
-	fields, err := s.rows.Read()
+	fields, err := s.nextFields()
 	if errors.Is(err, io.EOF) {
 		return Record{}, false, nil
 	}
 
-	var parseErr *csv.ParseError
-	if errors.As(err, &parseErr) {
-		s.line = parseErr.StartLine
-
-		return s.fail("", fmt.Errorf("row is not valid %s: %w", s.modeName(), parseErr.Err)), true, nil
+	var bad *rowError
+	if errors.As(err, &bad) {
+		return s.fail("", bad.err), true, nil
 	}
 
 	if err != nil {
-		return Record{}, false, &LineError{Err: err}
+		return Record{}, false, err
 	}
-
-	s.line, _ = s.rows.FieldPos(0)
 
 	if len(fields) != len(s.header) {
 		return s.fail("", fmt.Errorf("row has %d fields, the header has %d", len(fields), len(s.header))), true, nil
@@ -172,13 +169,18 @@ func (s *Stream) nextRow() (Record, bool, error) {
 }
 
 func (s *Stream) readHeader() ([]string, error) {
-	header, err := s.rows.Read()
+	header, err := s.nextFields()
 	if errors.Is(err, io.EOF) {
 		return nil, nil
 	}
 
+	var bad *rowError
+	if errors.As(err, &bad) {
+		return nil, &LineError{Line: s.line, Err: fmt.Errorf("the header is not valid %s: %w", s.modeName(), bad.err)}
+	}
+
 	if err != nil {
-		return nil, &LineError{Line: 1, Err: fmt.Errorf("the header is not valid %s: %w", s.modeName(), err)}
+		return nil, err
 	}
 
 	header[0] = strings.TrimPrefix(header[0], "\ufeff")
@@ -186,17 +188,79 @@ func (s *Stream) readHeader() ([]string, error) {
 
 	for _, name := range header {
 		if strings.TrimSpace(name) == "" {
-			return nil, &LineError{Line: 1, Err: errors.New("the header has a blank column name")}
+			return nil, &LineError{Line: s.line, Err: errors.New("the header has a blank column name")}
 		}
 
 		if seen[name] {
-			return nil, &LineError{Line: 1, Err: fmt.Errorf("the header names '%s' twice", name)}
+			return nil, &LineError{Line: s.line, Err: fmt.Errorf("the header names '%s' twice", name)}
 		}
 
 		seen[name] = true
 	}
 
 	return header, nil
+}
+
+func (s *Stream) nextFields() ([]string, error) {
+	if s.mode == TSV {
+		return s.nextTabbed()
+	}
+
+	s.budget.left = maxLineBytes
+
+	fields, err := s.rows.Read()
+	if errors.Is(err, io.EOF) {
+		return nil, io.EOF
+	}
+
+	var parseErr *csv.ParseError
+	if errors.As(err, &parseErr) {
+		s.line = parseErr.StartLine
+
+		if errors.Is(parseErr.Err, errRowTooLong) {
+			return nil, &LineError{Line: s.line, Err: errRowTooLong}
+		}
+
+		return nil, &rowError{err: fmt.Errorf("row is not valid csv: %w", parseErr.Err)}
+	}
+
+	if errors.Is(err, errRowTooLong) {
+		return nil, &LineError{Line: s.line + 1, Err: errRowTooLong}
+	}
+
+	if err != nil {
+		return nil, &LineError{Err: err}
+	}
+
+	s.line, _ = s.rows.FieldPos(0)
+
+	return fields, nil
+}
+
+func (s *Stream) nextTabbed() ([]string, error) {
+	for {
+		text, tooLong, err := s.read()
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				return nil, io.EOF
+			}
+
+			return nil, &LineError{Err: err}
+		}
+
+		s.line++
+
+		if tooLong {
+			return nil, &rowError{err: errRowTooLong}
+		}
+
+		text = strings.TrimSuffix(text, "\r")
+		if text == "" {
+			continue
+		}
+
+		return strings.Split(text, "\t"), nil
+	}
 }
 
 func (s *Stream) row(fields []string) Record {
@@ -352,4 +416,32 @@ func (s *Stream) fail(line string, err error) Record {
 	s.index++
 
 	return record
+}
+
+type rowError struct {
+	err error
+}
+
+func (e *rowError) Error() string {
+	return e.err.Error()
+}
+
+type rowBudget struct {
+	reader io.Reader
+	left   int
+}
+
+func (b *rowBudget) Read(p []byte) (int, error) {
+	if b.left <= 0 {
+		return 0, errRowTooLong
+	}
+
+	if len(p) > b.left {
+		p = p[:b.left]
+	}
+
+	n, err := b.reader.Read(p)
+	b.left -= n
+
+	return n, err
 }

@@ -21,7 +21,7 @@ func openOut(settings rootSettings, flags *runFlags) (*outFile, error) {
 	}
 
 	if flags.output == "csv" || flags.output == "tsv" {
-		rows, length, err := completeRows(settings, flags.out, flags.output == "tsv")
+		rows, length, err := completeRows(settings, flags.out, flags.output == "csv")
 		if err != nil {
 			return nil, err
 		}
@@ -161,7 +161,12 @@ func completeLines(settings rootSettings, path string) (lines int, length int64,
 	}
 }
 
-func completeRows(settings rootSettings, path string, tabs bool) (rows int, length int64, err error) {
+func completeRows(settings rootSettings, path string, quoted bool) (rows int, length int64, err error) {
+	// TSV has no quoting, so a row is a line.
+	if !quoted {
+		return completeLines(settings, path)
+	}
+
 	file, err := settings.openFile(path, os.O_RDONLY, 0)
 	if errors.Is(err, os.ErrNotExist) {
 		return 0, 0, nil
@@ -177,11 +182,6 @@ func completeRows(settings rootSettings, path string, tabs bool) (rows int, leng
 
 	reader := csv.NewReader(bufio.NewReader(file))
 	reader.FieldsPerRecord = -1
-
-	if tabs {
-		reader.Comma = '\t'
-		reader.LazyQuotes = true
-	}
 
 	// A quoted field can hold a newline, so rows are counted as csv rather than as lines. A row
 	// only counts once its closing newline is on disk, which is what tells a finished row from one

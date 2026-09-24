@@ -68,6 +68,15 @@ func TestStream(t *testing.T) {
 			},
 		},
 		{
+			name: "should keep a leading quote as text under tsv",
+			mode: input.TSV,
+			in:   "id\tbody\n1\t\"quoted\" tail\n2\tnext\r\n",
+			want: []want{
+				{state: map[string]any{"id": "1", "body": `"quoted" tail`}, raw: `{"id":"1","body":"\"quoted\" tail"}`},
+				{state: map[string]any{"id": "2", "body": "next"}, raw: `{"id":"2","body":"next"}`},
+			},
+		},
+		{
 			name: "should drop a byte order mark before the header",
 			mode: input.CSV,
 			in:   "\ufeffid,body\n1,x\n",
@@ -507,6 +516,21 @@ func TestStream(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("should stop at a csv row longer than the limit rather than read it all", func(t *testing.T) {
+		t.Parallel()
+
+		body := "id,body\n1,\"" + strings.Repeat("x", 9<<20)
+
+		stream := input.NewStream(strings.NewReader(body), input.CSV, false)
+
+		_, _, err := stream.Next()
+
+		var lineErr *input.LineError
+		if !errors.As(err, &lineErr) || !strings.Contains(err.Error(), "longer than the limit") {
+			t.Errorf("error = %v, want a row too long error", err)
+		}
+	})
 }
 
 type failingReader struct{}

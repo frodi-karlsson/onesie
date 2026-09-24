@@ -63,6 +63,16 @@ func TestNewDelimited(t *testing.T) {
 				"\t\t\tonesie: 400 bad, request\n",
 		},
 		{
+			name: "should write tsv without quoting and flatten tabs and newlines",
+			mode: output.TSV,
+			opts: output.DelimitedOptions{IDs: []string{"urgent", "team"}, Header: true},
+			records: []output.Record{{
+				Failure: &output.Failure{Kind: "http", Message: "line one\n\"two\"\tthree"},
+				Answers: []output.Named{{ID: "urgent"}, {ID: "team"}},
+			}},
+			want: "urgent\tteam\terror\n\t\tline one \"two\" three\n",
+		},
+		{
 			name:    "should leave the header out when resuming a file that has one",
 			mode:    output.CSV,
 			opts:    output.DelimitedOptions{IDs: []string{"urgent", "team"}},
