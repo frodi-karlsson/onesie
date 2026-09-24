@@ -173,9 +173,14 @@ func TestParse(t *testing.T) {
 			want:  `(< max.value 0.5)`,
 		},
 		{
-			name:    "should read a function name followed by a space as a path",
+			name:    "should reject a space between a function name and its parenthesis",
 			input:   `max (a.value) < 0.5`,
-			wantErr: "parse error at column 5, expected a comparison",
+			wantErr: "parse error at column 5, a call's parenthesis follows its name directly",
+		},
+		{
+			name:    "should reject a spaced call inside another call",
+			input:   `max(a.value, min (b.value)) < 0.5`,
+			wantErr: "parse error at column 18, a call's parenthesis follows its name directly",
 		},
 		{
 			name:  "should accept any name followed by a parenthesis and leave it to the checker",

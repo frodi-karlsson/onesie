@@ -221,6 +221,8 @@ func TestEval(t *testing.T) {
 			`urgent.value > 0.5`, `urgent.value == 0`, `team.value == "billing"`,
 			`team.p.billing > 0.5`, `team.confidence > 0`, `model == "onesie-1.13.0"`,
 			`max(urgent.value, 0.5) == 0.5`, `sum(urgent.value) == 0`,
+			`urgent.value < 0.5`, `urgent.value >= 0`, `0.5 > urgent.value`,
+			`max(urgent.value, 0.9) < 0.5`, `min(urgent.value) <= 1`, `0 <= avg(urgent.value, 1)`,
 		} {
 			if Eval(mustParse(t, source), empty) {
 				t.Errorf("Eval(%q) over an empty record = true, want false", source)

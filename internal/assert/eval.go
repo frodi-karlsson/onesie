@@ -51,7 +51,12 @@ func (e *evaluator) comparison(n *comparisonNode) bool {
 	right := e.value(n.right)
 
 	if ordered(n.op) {
-		return compare(n.op, numberOf(left), numberOf(right))
+		leftNumber, leftKnown := left.(float64)
+		rightNumber, rightKnown := right.(float64)
+
+		// A missing answer has no order, so the comparison is false and a gate over it fails safe
+		// rather than reading the gap as a zero.
+		return leftKnown && rightKnown && compare(n.op, leftNumber, rightNumber)
 	}
 
 	// Every resolved value is a float64, a string, a bool or nil, so comparing the two interfaces
@@ -95,8 +100,8 @@ func (e *evaluator) call(n *callNode) any {
 	for _, arg := range n.args {
 		number, isNumber := e.value(arg).(float64)
 		if !isNumber {
-			// A missing answer stays missing through a call, as it does through a bare path,
-			// rather than counting as a zero.
+			// A missing answer leaves the whole call missing rather than folding in as a zero, so
+			// every ordered comparison over the call is false.
 			return nil
 		}
 
@@ -178,64 +183,4 @@ func compare(op kind, left, right float64) bool {
 	default:
 		return left >= right
 	}
-}
-
-func numberOf(value any) float64 {
-	number, ok := value.(float64)
-	if !ok {
-		return 0
-	}
-
-	return number
-}
-
-func fold(name string) (func([]float64) float64, bool) {
-	known := functions()
-
-	at := slices.IndexFunc(known, func(f function) bool {
-		return f.name == name
-	})
-	if at < 0 {
-		return nil, false
-	}
-
-	return known[at].apply, true
-}
-
-func functionNames() []string {
-	known := functions()
-
-	names := make([]string, 0, len(known))
-	for _, f := range known {
-		names = append(names, f.name)
-	}
-
-	return names
-}
-
-func functions() []function {
-	return []function{
-		{name: "avg", apply: mean},
-		{name: "max", apply: slices.Max[[]float64]},
-		{name: "min", apply: slices.Min[[]float64]},
-		{name: "sum", apply: total},
-	}
-}
-
-type function struct {
-	name  string
-	apply func([]float64) float64
-}
-
-func mean(numbers []float64) float64 {
-	return total(numbers) / float64(len(numbers))
-}
-
-func total(numbers []float64) float64 {
-	var sum float64
-	for _, number := range numbers {
-		sum += number
-	}
-
-	return sum
 }

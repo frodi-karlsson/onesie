@@ -3,6 +3,7 @@ package assert
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 )
 
@@ -248,11 +249,16 @@ func (p *parser) nestedList() bool {
 
 func (p *parser) parseOperand() (node, error) {
 	switch tok := p.peek(); tok.kind {
-	case kindIdent, kindLBracket:
+	case kindIdent:
 		if p.callAhead() {
 			return p.parseCall()
 		}
+		if p.spacedCall() {
+			return nil, parseError(p.tokens[p.at+1].col, "a call's parenthesis follows its name directly")
+		}
 
+		return p.parsePath()
+	case kindLBracket:
 		return p.parsePath()
 	case kindNumber:
 		p.next()
@@ -274,8 +280,13 @@ func (p *parser) parseOperand() (node, error) {
 func (p *parser) callAhead() bool {
 	name, open := p.tokens[p.at], p.tokens[p.at+1]
 
-	return name.kind == kindIdent && open.kind == kindLParen &&
-		open.col == name.col+len([]rune(name.text))
+	return open.kind == kindLParen && open.col == name.col+len([]rune(name.text))
+}
+
+func (p *parser) spacedCall() bool {
+	name, open := p.tokens[p.at], p.tokens[p.at+1]
+
+	return open.kind == kindLParen && slices.Contains(functionNames(), name.text)
 }
 
 func (p *parser) parseCall() (node, error) {

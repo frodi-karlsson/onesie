@@ -305,7 +305,7 @@ func TestCheck(t *testing.T) {
 			wantErr: `'sum' takes numbers, got "x", a string`,
 		},
 		{
-			name:    "should reject a string argument inside a nested call",
+			name:    "should reject a boolean argument inside a nested call",
 			input:   `max(min(urgent.value, gated.decision)) < 0.5`,
 			wantErr: "'min' takes numbers, got 'gated.decision', a boolean",
 		},
