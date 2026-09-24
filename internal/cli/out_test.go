@@ -543,6 +543,70 @@ func TestResolveTarget(t *testing.T) {
 	}
 }
 
+func TestOutFile_Lock(t *testing.T) {
+	t.Parallel()
+
+	refused := errors.New("operation not supported")
+
+	tests := []struct {
+		name       string
+		resume     bool
+		lockErr    error
+		wantErr    string
+		wantLocked bool
+	}{
+		{
+			name:       "should hold the lock on a fresh run",
+			wantLocked: true,
+		},
+		{
+			name:    "should refuse a fresh run while a resume holds the file",
+			lockErr: errLocked,
+			wantErr: "is being resumed by another onesie run",
+		},
+		{
+			name:    "should write a fresh run unguarded when no lock can be taken beside the file",
+			lockErr: refused,
+		},
+		{
+			name:    "should refuse a resume when no lock can be taken beside the file",
+			resume:  true,
+			lockErr: refused,
+			wantErr: "operation not supported",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var took string
+
+			out := &outFile{path: "link.jsonl", target: "answers.jsonl"}
+
+			err := out.lock(func(answers string) (func() error, error) {
+				took = answers
+				if tc.lockErr != nil {
+					return nil, tc.lockErr
+				}
+
+				return func() error { return nil }, nil
+			}, tc.resume)
+			if !strings.Contains(fmt.Sprint(err), tc.wantErr) || (tc.wantErr == "") != (err == nil) {
+				t.Fatalf("error = %v, want %q", err, tc.wantErr)
+			}
+
+			if took != "answers.jsonl" {
+				t.Errorf("locked %q, want the resolved target", took)
+			}
+
+			if (out.unlock != nil) != tc.wantLocked {
+				t.Errorf("holding the lock = %v, want %v", out.unlock != nil, tc.wantLocked)
+			}
+		})
+	}
+}
+
 func TestOutFile_Write(t *testing.T) {
 	t.Parallel()
 

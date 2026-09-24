@@ -95,8 +95,8 @@ with exit 2 when any of those changed. With `--id` it skips the records the file
 asks the rest, including the ones that failed, and appends each answer as it arrives. Once the run
 completes it rewrites the file in input order, keeping answered ids the input no longer has after
 the rest unless `--prune` is given. Only the id is compared, so a record whose content changed but
-whose id did not keeps its old answer. A resume holds a lock beside the file, so two cannot run into
-the same file at once. Without `--id`, `--resume` counts the complete lines already in the file and
+whose id did not keeps its old answer. Every `--out` run holds a lock beside the file, so two cannot
+run into the same file at once. Without `--id`, `--resume` counts the complete lines already in the file and
 carries on from the next record.
 
 ```sh

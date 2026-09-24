@@ -204,6 +204,19 @@ func TestResumeLedger(t *testing.T) {
 			}},
 		},
 		{
+			name:     "should refuse a fresh run while a resume holds the file",
+			existing: fileOf(idLines(1, 1)),
+			sidecar:  byID,
+			stdin:    idRecords(1, 2),
+			held:     true,
+			runs: []resumeRun{{
+				args:       []string{"-i", "jsonl", "-o", "values", "--id", ".id"},
+				wantCode:   ExitUsage,
+				wantFile:   idLines(1, 1),
+				wantStderr: "is being resumed by another onesie run. Wait for it to finish",
+			}},
+		},
+		{
 			name:     "should refuse a resume through a link while another run holds its target",
 			existing: fileOf(idLines(1, 1)),
 			sidecar:  byID,

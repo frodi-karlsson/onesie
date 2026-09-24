@@ -51,14 +51,14 @@ func openOut(settings rootSettings, flags *runFlags) (*outFile, error) {
 
 	out.target = target
 
-	if !flags.resume {
-		return out, nil
+	// Held for the whole run, since a second run appending to the file, truncating it or renaming
+	// its own compaction over it would lose answers this one wrote.
+	if err := out.lock(settings.lock, flags.resume); err != nil {
+		return nil, err
 	}
 
-	// Held for the whole resume, since a second run appending to the file or renaming its own
-	// compaction over it would lose answers this one wrote.
-	if err := out.lock(settings.lock); err != nil {
-		return nil, err
+	if !flags.resume {
+		return out, nil
 	}
 
 	if err := resumeOut(out, settings, flags); err != nil {
@@ -176,15 +176,21 @@ type rewrite struct {
 	quoted    bool
 }
 
-func (o *outFile) lock(take func(answers string) (func() error, error)) error {
+func (o *outFile) lock(take func(answers string) (func() error, error), resume bool) error {
 	unlock, err := take(o.target)
 	if errors.Is(err, errLocked) {
 		return fmt.Errorf("onesie: %s is being resumed by another onesie run. Wait for it to finish, "+
 			"then resume again", o.path)
 	}
 
+	// A fresh run locks only to stay clear of a resume, which could not have locked the file either.
+	// So a path nothing can be locked beside, such as /dev/stdout, is still written as before.
+	if err != nil && !resume {
+		return nil
+	}
+
 	if err != nil {
-		return fmt.Errorf("onesie: locking %s to resume: %w", o.path, err)
+		return fmt.Errorf("onesie: locking %s: %w", o.path, err)
 	}
 
 	o.unlock = unlock
