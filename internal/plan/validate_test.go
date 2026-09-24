@@ -573,13 +573,13 @@ func TestValidate(t *testing.T) {
 			name:       "should reject merge with raw output",
 			positional: "is this urgent",
 			cfg:        plan.Config{Streaming: true, Merge: true, Output: "raw", InputName: "lines"},
-			wantErr:    "--merge needs -o json or -o values",
+			wantErr:    "--merge needs -o json, values, csv or tsv",
 		},
 		{
 			name:       "should reject merge with table output outside a stream too",
 			positional: "is this urgent",
 			cfg:        plan.Config{Merge: true, Output: "table", InputName: "text"},
-			wantErr:    "--merge needs -o json or -o values",
+			wantErr:    "--merge needs -o json, values, csv or tsv",
 		},
 		{
 			name:       "should name --merge-key when that is the flag given",
@@ -590,13 +590,13 @@ func TestValidate(t *testing.T) {
 				Output:    "table",
 				InputName: "text",
 			},
-			wantErr: "--merge-key needs -o json or -o values",
+			wantErr: "--merge-key needs -o json, values, csv or tsv",
 		},
 		{
 			name:       "should reject merge with the -r spelling of raw",
 			positional: "is this urgent",
 			cfg:        plan.Config{Merge: true, Raw: true, InputName: "text"},
-			wantErr:    "--merge needs -o json or -o values",
+			wantErr:    "--merge needs -o json, values, csv or tsv",
 		},
 		{
 			name:       "should accept merge with values output",
@@ -905,6 +905,25 @@ func TestCheckFlags(t *testing.T) {
 		cfg     plan.Config
 		wantErr string
 	}{
+		{
+			name:    "should reject -o csv with --merge over jsonl",
+			cfg:     plan.Config{Streaming: true, InputName: "jsonl", Output: "csv", Merge: true, Jobs: 1},
+			wantErr: "onesie: -o csv with --merge needs -i csv or -i tsv, since other input has no fixed columns",
+		},
+		{
+			name: "should accept -o tsv with --merge over csv",
+			cfg:  plan.Config{Streaming: true, InputName: "csv", Output: "tsv", Merge: true, Jobs: 1},
+		},
+		{
+			name:    "should reject --merge-key with -o csv",
+			cfg:     plan.Config{Streaming: true, InputName: "csv", Output: "csv", Merge: true, MergeName: "--merge-key", Jobs: 1},
+			wantErr: "onesie: --merge-key does not apply to -o csv, which puts the answers in columns",
+		},
+		{
+			name:    "should reject --usage with -o tsv",
+			cfg:     plan.Config{Streaming: true, InputName: "csv", Output: "tsv", Usage: true, Jobs: 1},
+			wantErr: "onesie: --usage does not apply to -o tsv, which has no column for it",
+		},
 		{
 			name:    "should reject --resume without --out",
 			cfg:     plan.Config{Streaming: true, InputName: "jsonl", Resume: true},

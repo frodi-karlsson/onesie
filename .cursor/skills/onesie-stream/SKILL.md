@@ -53,6 +53,10 @@ Answers sit at the top level keyed by question id. `--merge` folds them under an
 onesie --ask urgent='is this urgent' -i jsonl --print-request
 ```
 
+### Read csv or tsv with -i and write it back with -o csv --merge.
+
+`-i csv` and `-i tsv` read a header row and send each row as an object keyed by it, so a question can name a column such as `body`. `-o csv` and `-o tsv` write one header row, the input columns under `--merge`, one column per question holding its `-o values` answer, an `assert` column when there is an assertion, and an `error` column. A quoted field may hold commas and newlines. `--merge` into `-o csv` needs csv or tsv input, since jsonl has no fixed columns.
+
 ### Write a long stream with --out and rerun it with --resume after a failure.
 
 `--out FILE` writes the answers to a file instead of stdout. `--resume` counts the complete lines already in that file, drops a line cut off mid write, skips that many input records and appends the rest, so a run killed at record 900 of 1000 costs 100 requests to finish, not 1000. Records that failed the first time keep their `.error` line and are not retried. Rerun those separately with `jq -c 'select(.error)'`. `--resume` needs input order, so it refuses `--unordered`.

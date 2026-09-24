@@ -228,6 +228,7 @@ func stream(
 	source := engine.Skip[input.Record](input.NewStream(settings.stdin, inputMode, flags.skipBlank), flags.resumeSkip)
 	out := cmd.OutOrStdout()
 	merge := merging(flags)
+	table := delimited(out, outputMode, built, gate != nil, flags)
 
 	result, err := engine.Run(cmd.Context(), engine.Config[input.Record, line]{
 		Source: source,
@@ -237,10 +238,11 @@ func stream(
 				// carried no questions to the wire either.
 				stats.recordFailure(rec.Err, false, 0)
 
-				return line{record: failureRecord(built, rec.Err), raw: rec.Raw}, rec.Err
+				return line{record: failureRecord(built, rec.Err), raw: rec.Raw, header: rec.Header}, rec.Err
 			}
 
-			if merge && hasKey(rec.State, mergeKey(flags)) {
+			// -o csv puts the answers in columns, so there is no merge key to overwrite.
+			if merge && table == nil && hasKey(rec.State, mergeKey(flags)) {
 				stats.recordFailure(nil, false, 0)
 
 				// Detected here rather than inside Write, because the engine accounts a failure
@@ -274,7 +276,7 @@ func stream(
 				// such as answer.value < 0.5 would hold for a request that never happened. The
 				// single shot path is safe because its error return precedes the evaluation, and
 				// this path writes the record rather than returning it, so the check is explicit.
-				return line{record: record, raw: rec.Raw, state: rec.Wire}, evalErr
+				return rowLine(record, rec), evalErr
 			}
 
 			// §17.6 asks the gate per record. A false assertion is not an engine failure: the
@@ -282,9 +284,17 @@ func stream(
 			// than returned as an error the engine would count against result.Failed.
 			record.AssertFailed = asserted(gate, record, stats)
 
-			return line{record: record, raw: rec.Raw, state: rec.Wire}, nil
+			return rowLine(record, rec), nil
 		},
 		Write: func(l line) error {
+			if table != nil {
+				if !merge {
+					return table.Write(l.record, nil, nil)
+				}
+
+				return table.Write(l.record, l.header, l.fields)
+			}
+
 			if !merge {
 				return output.Write(out, outputMode, l.record)
 			}
@@ -325,6 +335,39 @@ type line struct {
 	// state is what was sent to the API, which --merge needs so a text line keeps its type and a
 	// JSON line keeps its digits. It is nil for a record onesie could not read.
 	state any
+	// header and fields are the csv or tsv row the record answers, for a merge into -o csv.
+	header []string
+	fields map[string]any
+}
+
+func rowLine(record output.Record, rec input.Record) line {
+	var fields map[string]any
+	if object, ok := rec.State.(map[string]any); ok {
+		fields = object
+	}
+
+	return line{record: record, raw: rec.Raw, state: rec.Wire, header: rec.Header, fields: fields}
+}
+
+func delimited(
+	out io.Writer,
+	mode output.Mode,
+	built *plan.Plan,
+	withAssert bool,
+	flags *runFlags,
+) *output.Delimited {
+	if mode != output.CSV && mode != output.TSV {
+		return nil
+	}
+
+	ids := make([]string, 0, len(built.Questions))
+	for _, question := range built.Questions {
+		ids = append(ids, question.ID)
+	}
+
+	return output.NewDelimited(out, mode, output.DelimitedOptions{
+		IDs: ids, Assert: withAssert, Header: !flags.resumeHeader,
+	})
 }
 
 func hasKey(state any, key string) bool {
@@ -450,7 +493,7 @@ func ask(
 		// pipe they were closing reports a network fault that never happened.
 		if !errors.Is(err, context.Canceled) {
 			if writeErr := writeFailure(
-				cmd, settings, outputMode, flags, resolved, record); writeErr != nil {
+				cmd, settings, outputMode, flags, resolved, record, gate != nil); writeErr != nil {
 				return writeErr
 			}
 		}
@@ -474,7 +517,7 @@ func ask(
 	}
 
 	// The record prints whatever the assertion said, §17.4, and the exit code follows it.
-	if writeErr := writeRecord(cmd, settings, outputMode, flags, resolved, record); writeErr != nil {
+	if writeErr := writeRecord(cmd, settings, outputMode, flags, resolved, record, gate != nil); writeErr != nil {
 		return writeErr
 	}
 
@@ -508,13 +551,14 @@ func writeFailure(
 	flags *runFlags,
 	resolved input.Resolved,
 	record output.Record,
+	withAssert bool,
 ) error {
 	// -q suppresses output entirely, so the exit code carries the whole result.
 	if flags.quiet {
 		return nil
 	}
 
-	return writeRecord(cmd, settings, mode, flags, resolved, record)
+	return writeRecord(cmd, settings, mode, flags, resolved, record, withAssert)
 }
 
 func writeRecord(
@@ -524,7 +568,17 @@ func writeRecord(
 	flags *runFlags,
 	resolved input.Resolved,
 	record output.Record,
+	withAssert bool,
 ) error {
+	if mode == output.CSV || mode == output.TSV {
+		built := &plan.Plan{}
+		for _, named := range record.Answers {
+			built.Questions = append(built.Questions, plan.Question{ID: named.ID})
+		}
+
+		return delimited(cmd.OutOrStdout(), mode, built, withAssert, flags).Write(record, nil, nil)
+	}
+
 	if merging(flags) {
 		return writeMerged(cmd.OutOrStdout(), mode, record, resolved, flags)
 	}
@@ -702,22 +756,23 @@ func outputName(flags *runFlags) string {
 }
 
 type runFlags struct {
-	provider   string
-	out        string
-	resume     bool
-	resumeSkip int
-	output     string
-	raw        bool
-	quiet      bool
-	usage      bool
-	input      string
-	state      string
-	stateFile  string
-	model      string
-	apiKey     string
-	baseURL    string
-	file       string
-	replace    bool
+	provider     string
+	out          string
+	resume       bool
+	resumeSkip   int
+	resumeHeader bool
+	output       string
+	raw          bool
+	quiet        bool
+	usage        bool
+	input        string
+	state        string
+	stateFile    string
+	model        string
+	apiKey       string
+	baseURL      string
+	file         string
+	replace      bool
 
 	assert []string
 

@@ -244,10 +244,12 @@ func TestParseMode(t *testing.T) {
 		{name: "should parse jsonl", flag: "jsonl", wantMode: input.JSONL},
 		{name: "should parse lines", flag: "lines", wantMode: input.Lines},
 		{name: "should parse request", flag: "request", wantMode: input.Request},
+		{name: "should parse csv", flag: "csv", wantMode: input.CSV},
+		{name: "should parse tsv", flag: "tsv", wantMode: input.TSV},
 		{
 			name:    "should reject an unknown mode",
 			flag:    "yaml",
-			wantErr: "onesie: -i takes text, json, jsonl, lines or request, got 'yaml'",
+			wantErr: "onesie: -i takes text, json, jsonl, lines, csv, tsv or request, got 'yaml'",
 		},
 	}
 
@@ -293,6 +295,8 @@ func TestModeStreaming(t *testing.T) {
 		{name: "should stream under jsonl", mode: input.JSONL, want: true},
 		{name: "should stream under lines", mode: input.Lines, want: true},
 		{name: "should stream under request", mode: input.Request, want: true},
+		{name: "should stream under csv", mode: input.CSV, want: true},
+		{name: "should stream under tsv", mode: input.TSV, want: true},
 	}
 
 	for _, tc := range tests {

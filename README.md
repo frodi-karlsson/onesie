@@ -38,9 +38,9 @@ In Claude Code, the plugin can come first and walk you through the rest:
 - **Freeze and replay.** `--print-questions` turns a command line into a question file,
   `--print-request` turns a run into its exact request bodies, and `-i request` replays them
   unchanged.
-- **Streams with a contract.** JSONL and line input with `-j` requests in flight, one output line
-  per input line in input order, memory bounded by `-j`, and `--merge` to fold the answers into each
-  record.
+- **Streams with a contract.** JSONL, line, CSV and TSV input with `-j` requests in flight, one
+  output record per input record in input order, memory bounded by `-j`, and `--merge` to fold the
+  answers into each record.
 - **Exit codes that tell a no from an outage.** Eight of them, separating a policy no, a bad key, a
   server that never answered and a stream where only some records failed.
 - **Two providers.** TypeSafe directly, or the same model through OpenRouter.
@@ -70,6 +70,9 @@ echo "$ticket" | onesie --ask urgent='does this convey urgency' \
 # one record per line, four at a time, answers folded into each record
 onesie 'does `body` convey urgency' -i jsonl -j 4 --merge < tickets.jsonl \
   | jq -c 'select(.answers.answer.value > 0.8)'
+
+# a spreadsheet in, the same spreadsheet out with a column per question
+onesie --ask urgent='does `body` convey urgency' -i csv -o csv --merge < tickets.csv > triaged.csv
 ```
 
 A record that fails in a stream still prints a line carrying an `error` key, the run carries on, and

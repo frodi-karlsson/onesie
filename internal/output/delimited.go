@@ -1,0 +1,143 @@
+package output
+
+import (
+	"encoding/csv"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"slices"
+	"strconv"
+)
+
+// ErrColumnTaken reports an input column whose name a question id or a reserved column already
+// uses, so a row would carry two values under one heading.
+var ErrColumnTaken = errors.New("an input column has the name of an output column")
+
+// NewDelimited builds a writer for the csv and tsv modes.
+func NewDelimited(w io.Writer, mode Mode, opts DelimitedOptions) *Delimited {
+	rows := csv.NewWriter(w)
+	if mode == TSV {
+		rows.Comma = '\t'
+	}
+
+	return &Delimited{rows: rows, opts: opts}
+}
+
+// DelimitedOptions fixes the columns a Delimited writes.
+type DelimitedOptions struct {
+	// IDs are the question ids, one column each, in question order.
+	IDs []string
+	// Assert adds an assert column, true or false per row, when the run carries an assertion.
+	Assert bool
+	// Header writes the header row before the first row. A resume into a file that has one leaves
+	// it out.
+	Header bool
+}
+
+// Delimited writes records as rows under one header row. It is stateful, so one run uses one.
+type Delimited struct {
+	rows    *csv.Writer
+	opts    DelimitedOptions
+	started bool
+}
+
+// Write writes one record. header and fields are the input row it answers under a merge, and nil
+// otherwise. The header is fixed by the first call.
+func (d *Delimited) Write(rec Record, header []string, fields map[string]any) error {
+	if !d.started {
+		if err := d.start(header); err != nil {
+			return err
+		}
+	}
+
+	row := make([]string, 0, len(header)+len(d.opts.IDs)+2)
+
+	for _, name := range header {
+		row = append(row, cell(fields[name]))
+	}
+
+	for _, id := range d.opts.IDs {
+		row = append(row, answerCell(rec, id))
+	}
+
+	if d.opts.Assert {
+		row = append(row, assertCell(rec))
+	}
+
+	failure := ""
+	if rec.Failure != nil {
+		failure = rec.Failure.Message
+	}
+
+	if err := d.rows.Write(append(row, failure)); err != nil {
+		return err
+	}
+
+	// Per row rather than at the end, so a stream can be read while it runs.
+	d.rows.Flush()
+
+	return d.rows.Error()
+}
+
+func (d *Delimited) start(header []string) error {
+	d.started = true
+
+	columns := slices.Clone(d.opts.IDs)
+	if d.opts.Assert {
+		columns = append(columns, "assert")
+	}
+
+	columns = append(columns, "error")
+
+	for _, name := range header {
+		if slices.Contains(columns, name) {
+			return fmt.Errorf("%w: '%s'", ErrColumnTaken, name)
+		}
+	}
+
+	if !d.opts.Header {
+		return nil
+	}
+
+	return d.rows.Write(append(slices.Clone(header), columns...))
+}
+
+func answerCell(rec Record, id string) string {
+	for _, named := range rec.Answers {
+		if named.ID == id && named.Answer != nil {
+			return cell(scalar(named.Answer))
+		}
+	}
+
+	return ""
+}
+
+func assertCell(rec Record) string {
+	// A failed record was never judged, so it claims neither outcome.
+	if rec.Failure != nil {
+		return ""
+	}
+
+	return strconv.FormatBool(!rec.AssertFailed)
+}
+
+func cell(value any) string {
+	switch typed := value.(type) {
+	case nil:
+		return ""
+	case string:
+		return typed
+	case float64:
+		return strconv.FormatFloat(typed, 'f', -1, 64)
+	case bool:
+		return strconv.FormatBool(typed)
+	default:
+		encoded, err := json.Marshal(typed)
+		if err != nil {
+			return ""
+		}
+
+		return string(encoded)
+	}
+}

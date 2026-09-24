@@ -218,6 +218,8 @@ func TestParseMode(t *testing.T) {
 			flag: "auto", tty: true, merge: true, want: output.JSON,
 		},
 		{name: "should accept an explicit mode", flag: "values", want: output.Values},
+		{name: "should accept csv", flag: "csv", want: output.CSV},
+		{name: "should accept tsv", flag: "tsv", want: output.TSV},
 		{name: "should reject an unknown mode", flag: "yaml", wantErr: true},
 	}
 

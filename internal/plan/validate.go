@@ -446,7 +446,11 @@ func mergeFlag(cfg Config) string {
 func checkStreaming(cfg Config) (string, error) {
 	// Checked for every mode, since section 7 defines --merge for the non streaming ones too.
 	if cfg.Merge && !mergeable(cfg) {
-		return "", fmt.Errorf("onesie: %s needs -o json or -o values", mergeFlag(cfg))
+		return "", fmt.Errorf("onesie: %s needs -o json, values, csv or tsv", mergeFlag(cfg))
+	}
+
+	if err := checkDelimited(cfg); err != nil {
+		return "", err
 	}
 
 	// Also for every mode. The rule is rejected rather than clamped, and a typo in a shared alias
@@ -539,10 +543,28 @@ func mergeable(cfg Config) bool {
 	// auto resolves to json under a merge, so an explicit auto is as mergeable as an absent flag.
 	// The other -o rejections deliberately fire on auto, since a mode they ignore does nothing there.
 	switch cfg.Output {
-	case "", "auto", "json", "values":
+	case "", "auto", "json", "values", "csv", "tsv":
 		return true
 	default:
 		return false
+	}
+}
+
+func checkDelimited(cfg Config) error {
+	if cfg.Output != "csv" && cfg.Output != "tsv" {
+		return nil
+	}
+
+	switch {
+	case cfg.Merge && cfg.MergeName == "--merge-key":
+		return fmt.Errorf("onesie: --merge-key does not apply to -o %s, which puts the answers in columns", cfg.Output)
+	case cfg.Merge && cfg.InputName != "csv" && cfg.InputName != "tsv":
+		return fmt.Errorf(
+			"onesie: -o %s with --merge needs -i csv or -i tsv, since other input has no fixed columns", cfg.Output)
+	case cfg.Usage:
+		return fmt.Errorf("onesie: --usage does not apply to -o %s, which has no column for it", cfg.Output)
+	default:
+		return nil
 	}
 }
 

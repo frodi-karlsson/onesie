@@ -3,6 +3,7 @@ package input_test
 import (
 	"encoding/json"
 	"errors"
+	"slices"
 	"strings"
 	"testing"
 
@@ -48,6 +49,44 @@ func TestStream(t *testing.T) {
 			mode: input.Lines,
 			in:   "first\nsecond",
 			want: []want{{state: "first", raw: "first"}, {state: "second", raw: "second"}},
+		},
+		{
+			name: "should turn each csv row into an object keyed by the header",
+			mode: input.CSV,
+			in:   "id,body\n1,the site is down\n2,\"a, quoted\nvalue\"\n",
+			want: []want{
+				{state: map[string]any{"id": "1", "body": "the site is down"}, raw: `{"id":"1","body":"the site is down"}`},
+				{state: map[string]any{"id": "2", "body": "a, quoted\nvalue"}, raw: `{"id":"2","body":"a, quoted\nvalue"}`},
+			},
+		},
+		{
+			name: "should split tsv on tabs and keep quotes as text",
+			mode: input.TSV,
+			in:   "id\tbody\n1\tsays \"hi\" twice\n",
+			want: []want{
+				{state: map[string]any{"id": "1", "body": `says "hi" twice`}, raw: `{"id":"1","body":"says \"hi\" twice"}`},
+			},
+		},
+		{
+			name: "should drop a byte order mark before the header",
+			mode: input.CSV,
+			in:   "\ufeffid,body\n1,x\n",
+			want: []want{{state: map[string]any{"id": "1", "body": "x"}, raw: `{"id":"1","body":"x"}`}},
+		},
+		{
+			name: "should fail a row with the wrong number of fields and carry on",
+			mode: input.CSV,
+			in:   "id,body\n1\n2,ok\n",
+			want: []want{
+				{wantErr: true},
+				{state: map[string]any{"id": "2", "body": "ok"}, raw: `{"id":"2","body":"ok"}`},
+			},
+		},
+		{
+			name: "should yield nothing for a header with no rows",
+			mode: input.CSV,
+			in:   "id,body\n",
+			want: nil,
 		},
 		{
 			name: "should parse each line as json under jsonl",
@@ -415,6 +454,59 @@ func TestStream(t *testing.T) {
 			})
 		}
 	})
+	t.Run("should keep the header order on the wire", func(t *testing.T) {
+		t.Parallel()
+
+		stream := input.NewStream(strings.NewReader("zebra,alpha\nz,a\n"), input.CSV, false)
+
+		record, ok, err := stream.Next()
+		if err != nil || !ok {
+			t.Fatalf("Next = %v, %v", ok, err)
+		}
+
+		wire, isRaw := record.Wire.(json.RawMessage)
+		if !isRaw || string(wire) != `{"zebra":"z","alpha":"a"}` {
+			t.Errorf("wire = %v, want the header order", record.Wire)
+		}
+
+		if !slices.Equal(record.Header, []string{"zebra", "alpha"}) {
+			t.Errorf("header = %v, want zebra, alpha", record.Header)
+		}
+	})
+
+	t.Run("should report the line a failing row starts on", func(t *testing.T) {
+		t.Parallel()
+
+		stream := input.NewStream(strings.NewReader("id,body\n1,\"two\nlines\"\n3\n"), input.CSV, false)
+
+		for range 2 {
+			record, _, err := stream.Next()
+			if err != nil {
+				t.Fatalf("Next: %v", err)
+			}
+
+			if record.Err == nil {
+				continue
+			}
+
+			if record.Err.Line != 4 {
+				t.Errorf("line = %d, want 4", record.Err.Line)
+			}
+		}
+	})
+
+	for _, header := range []string{"id,,body\n", "id,id\n"} {
+		t.Run("should refuse a header with a blank or repeated name: "+strings.TrimSpace(header), func(t *testing.T) {
+			t.Parallel()
+
+			_, _, err := input.NewStream(strings.NewReader(header+"1,2,3\n"), input.CSV, false).Next()
+
+			var lineErr *input.LineError
+			if !errors.As(err, &lineErr) || lineErr.Line != 1 {
+				t.Errorf("error = %v, want a line 1 error", err)
+			}
+		})
+	}
 }
 
 type failingReader struct{}

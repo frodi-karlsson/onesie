@@ -20,6 +20,13 @@ func Write(w io.Writer, mode Mode, rec Record) error {
 		return writeRaw(w, rec)
 	case Table:
 		return WriteTable(w, rec, fallbackWidth)
+	case CSV, TSV:
+		ids := make([]string, 0, len(rec.Answers))
+		for _, named := range rec.Answers {
+			ids = append(ids, named.ID)
+		}
+
+		return NewDelimited(w, mode, DelimitedOptions{IDs: ids, Header: true}).Write(rec, nil, nil)
 	default:
 		return writeJSON(w, rec)
 	}
@@ -36,6 +43,10 @@ func ParseMode(name string, tty, streaming, merge bool) (Mode, error) {
 		return Table, nil
 	case "raw":
 		return Raw, nil
+	case "csv":
+		return CSV, nil
+	case "tsv":
+		return TSV, nil
 	case "", "auto":
 		if tty && !streaming && !merge {
 			return Table, nil
@@ -44,7 +55,7 @@ func ParseMode(name string, tty, streaming, merge bool) (Mode, error) {
 		return JSON, nil
 	default:
 		return JSON, fmt.Errorf(
-			"onesie: -o takes auto, json, values, table or raw, got '%s'", name)
+			"onesie: -o takes auto, json, values, table, raw, csv or tsv, got '%s'", name)
 	}
 }
 
@@ -60,6 +71,10 @@ const (
 	Table
 	// Raw is the bare scalar, single question only.
 	Raw
+	// CSV is one comma separated row per record, under a header row.
+	CSV
+	// TSV is CSV with tabs.
+	TSV
 )
 
 // Record is one input's worth of output, with the answers in question order.

@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bufio"
+	"encoding/csv"
 	"errors"
 	"fmt"
 	"io"
@@ -16,6 +17,24 @@ func openOut(settings rootSettings, flags *runFlags) (*outFile, error) {
 	out := &outFile{path: flags.out, open: settings.openFile}
 
 	if !flags.resume {
+		return out, nil
+	}
+
+	if flags.output == "csv" || flags.output == "tsv" {
+		rows, length, err := completeRows(settings, flags.out, flags.output == "tsv")
+		if err != nil {
+			return nil, err
+		}
+
+		out.resume = true
+		out.keep = length
+
+		// The first row is the header, which is written once and answers no record.
+		if rows > 0 {
+			flags.resumeSkip = rows - 1
+			flags.resumeHeader = true
+		}
+
 		return out, nil
 	}
 
@@ -139,5 +158,47 @@ func completeLines(settings rootSettings, path string) (lines int, length int64,
 		}
 
 		return 0, 0, fmt.Errorf("onesie: reading %s to resume: %w", path, readErr)
+	}
+}
+
+func completeRows(settings rootSettings, path string, tabs bool) (rows int, length int64, err error) {
+	file, err := settings.openFile(path, os.O_RDONLY, 0)
+	if errors.Is(err, os.ErrNotExist) {
+		return 0, 0, nil
+	}
+
+	if err != nil {
+		return 0, 0, fmt.Errorf("onesie: reading %s to resume: %w", path, err)
+	}
+
+	defer func() {
+		err = errors.Join(err, file.Close())
+	}()
+
+	reader := csv.NewReader(bufio.NewReader(file))
+	reader.FieldsPerRecord = -1
+
+	if tabs {
+		reader.Comma = '\t'
+		reader.LazyQuotes = true
+	}
+
+	// A quoted field can hold a newline, so rows are counted as csv rather than as lines. A row
+	// only counts once its closing newline is on disk, which is what tells a finished row from one
+	// cut off at a field boundary.
+	for {
+		if _, readErr := reader.Read(); readErr != nil {
+			return rows, length, nil
+		}
+
+		offset := reader.InputOffset()
+
+		last := make([]byte, 1)
+		if _, readErr := file.ReadAt(last, offset-1); readErr != nil || last[0] != '\n' {
+			return rows, length, nil
+		}
+
+		rows++
+		length = offset
 	}
 }

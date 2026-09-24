@@ -2,6 +2,8 @@ package input
 
 import (
 	"bufio"
+	"bytes"
+	"encoding/csv"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,11 +15,24 @@ import (
 // NewStream reads one record per line. skipBlank drops blank lines entirely rather than reporting
 // them, which breaks the one line per line alignment and is therefore opt in.
 func NewStream(r io.Reader, mode Mode, skipBlank bool) *Stream {
-	return &Stream{
+	stream := &Stream{
 		reader:    bufio.NewReaderSize(r, 64*1024),
 		mode:      mode,
 		skipBlank: skipBlank,
 	}
+
+	if mode.Delimited() {
+		stream.rows = csv.NewReader(stream.reader)
+		// Checked per row instead, so a short row fails that one record rather than the run.
+		stream.rows.FieldsPerRecord = -1
+
+		if mode == TSV {
+			stream.rows.Comma = '\t'
+			stream.rows.LazyQuotes = true
+		}
+	}
+
+	return stream
 }
 
 // Stream yields one record per input line, in input order.
@@ -27,11 +42,17 @@ type Stream struct {
 	skipBlank bool
 	index     int
 	line      int
+	rows      *csv.Reader
+	header    []string
 }
 
 // Next returns the next record. The second result is false at end of input. A record carrying a
 // non nil Err is an input error, which is reported and counted but does not stop the run.
 func (s *Stream) Next() (Record, bool, error) {
+	if s.rows != nil {
+		return s.nextRow()
+	}
+
 	for {
 		text, tooLong, err := s.read()
 		if err != nil {
@@ -81,8 +102,11 @@ type Record struct {
 	// a large integer keeps its digits and an object keeps its key order, and the parsed value for
 	// a text mode. State stays parsed, for the checks that need a Go value.
 	Wire any
-	// Raw is the line exactly as read, which --merge folds the answers into.
+	// Raw is the line exactly as read, which --merge folds the answers into. For a csv or tsv row
+	// it is the row as a JSON object, which is what was sent.
 	Raw string
+	// Header is the csv or tsv header the row was read under, nil for every other mode.
+	Header []string
 	// Err marks an input error. No request is made for such a record.
 	Err *LineError
 }
@@ -110,6 +134,122 @@ func (e *LineError) Error() string {
 // Unwrap exposes the cause, so errors.Is reaches it.
 func (e *LineError) Unwrap() error {
 	return e.Err
+}
+
+func (s *Stream) nextRow() (Record, bool, error) {
+	if s.header == nil {
+		header, err := s.readHeader()
+		if err != nil || header == nil {
+			return Record{}, false, err
+		}
+
+		s.header = header
+	}
+
+	fields, err := s.rows.Read()
+	if errors.Is(err, io.EOF) {
+		return Record{}, false, nil
+	}
+
+	var parseErr *csv.ParseError
+	if errors.As(err, &parseErr) {
+		s.line = parseErr.StartLine
+
+		return s.fail("", fmt.Errorf("row is not valid %s: %w", s.modeName(), parseErr.Err)), true, nil
+	}
+
+	if err != nil {
+		return Record{}, false, &LineError{Err: err}
+	}
+
+	s.line, _ = s.rows.FieldPos(0)
+
+	if len(fields) != len(s.header) {
+		return s.fail("", fmt.Errorf("row has %d fields, the header has %d", len(fields), len(s.header))), true, nil
+	}
+
+	return s.row(fields), true, nil
+}
+
+func (s *Stream) readHeader() ([]string, error) {
+	header, err := s.rows.Read()
+	if errors.Is(err, io.EOF) {
+		return nil, nil
+	}
+
+	if err != nil {
+		return nil, &LineError{Line: 1, Err: fmt.Errorf("the header is not valid %s: %w", s.modeName(), err)}
+	}
+
+	header[0] = strings.TrimPrefix(header[0], "\ufeff")
+	seen := make(map[string]bool, len(header))
+
+	for _, name := range header {
+		if strings.TrimSpace(name) == "" {
+			return nil, &LineError{Line: 1, Err: errors.New("the header has a blank column name")}
+		}
+
+		if seen[name] {
+			return nil, &LineError{Line: 1, Err: fmt.Errorf("the header names '%s' twice", name)}
+		}
+
+		seen[name] = true
+	}
+
+	return header, nil
+}
+
+func (s *Stream) row(fields []string) Record {
+	state := make(map[string]any, len(fields))
+
+	var wire bytes.Buffer
+
+	wire.WriteByte('{')
+
+	for i, field := range fields {
+		if !utf8.ValidString(field) {
+			return s.fail("", errors.New("row is not valid UTF-8"))
+		}
+
+		state[s.header[i]] = field
+
+		if i > 0 {
+			wire.WriteByte(',')
+		}
+
+		name, err := json.Marshal(s.header[i])
+		if err != nil {
+			return s.fail("", err)
+		}
+
+		value, err := json.Marshal(field)
+		if err != nil {
+			return s.fail("", err)
+		}
+
+		wire.Write(name)
+		wire.WriteByte(':')
+		wire.Write(value)
+	}
+
+	wire.WriteByte('}')
+
+	if wire.Len() > maxLineBytes {
+		return s.fail("", errors.New("row is longer than the limit"))
+	}
+
+	record := s.ok(wire.String(), state, json.RawMessage(wire.Bytes()))
+	record.Header = s.header
+
+	return record
+}
+
+func (s *Stream) modeName() string {
+	if s.mode == TSV {
+		return "tsv"
+	}
+
+	return "csv"
 }
 
 func (s *Stream) read() (string, bool, error) {
@@ -203,10 +343,11 @@ func (s *Stream) ok(line string, state, wire any) Record {
 
 func (s *Stream) fail(line string, err error) Record {
 	record := Record{
-		Index: s.index,
-		Line:  s.line,
-		Raw:   line,
-		Err:   &LineError{Line: s.line, Err: err},
+		Index:  s.index,
+		Line:   s.line,
+		Raw:    line,
+		Header: s.header,
+		Err:    &LineError{Line: s.line, Err: err},
 	}
 	s.index++
 

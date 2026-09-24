@@ -126,7 +126,7 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 		root.Flags().Var(recorder.Flag(name), name, help)
 	}
 
-	root.Flags().StringVarP(&flags.output, "output", "o", "", "auto, json, values, table or raw")
+	root.Flags().StringVarP(&flags.output, "output", "o", "", "auto, json, values, table, raw, csv or tsv")
 	root.Flags().BoolVarP(&flags.raw, "raw", "r", false, "print the bare scalar")
 	root.Flags().BoolVarP(&flags.quiet, "quiet", "q", false,
 		"suppress output, the exit code carries the answer")
@@ -136,7 +136,7 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 	root.Flags().StringArrayVar(&flags.assert, "assert", nil,
 		"boolean expression over the record, repeatable, combined with and")
 	root.Flags().StringVarP(&flags.input, flagInput, "i", "text",
-		"text, json, jsonl, lines or request")
+		"text, json, jsonl, lines, csv, tsv or request")
 	root.Flags().StringVar(&flags.state, flagState, "", "state to evaluate, or - to read stdin")
 	root.Flags().StringVar(&flags.stateFile, flagStateFile, "", "read the state from this file")
 	root.Flags().StringVarP(&flags.model, flagModel, "m", "", "model override")

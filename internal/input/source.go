@@ -53,15 +53,24 @@ func ParseMode(name string) (Mode, error) {
 		return Lines, nil
 	case "request":
 		return Request, nil
+	case "csv":
+		return CSV, nil
+	case "tsv":
+		return TSV, nil
 	default:
 		return Text, fmt.Errorf(
-			"onesie: -i takes text, json, jsonl, lines or request, got '%s'", name)
+			"onesie: -i takes text, json, jsonl, lines, csv, tsv or request, got '%s'", name)
 	}
 }
 
 // Streaming reports whether the mode reads one record per line.
 func (m Mode) Streaming() bool {
-	return m == JSONL || m == Lines || m == Request
+	return m == JSONL || m == Lines || m == Request || m.Delimited()
+}
+
+// Delimited reports whether the mode reads rows under a header, as csv and tsv do.
+func (m Mode) Delimited() bool {
+	return m == CSV || m == TSV
 }
 
 // Mode is the input mode.
@@ -78,4 +87,8 @@ const (
 	Lines
 	// Request reads one complete API request body per line and forwards it unchanged.
 	Request
+	// CSV reads a header row, then one comma separated row per record, sent as an object.
+	CSV
+	// TSV is CSV with tabs, and a quote is ordinary text.
+	TSV
 )
