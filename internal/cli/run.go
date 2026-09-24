@@ -64,7 +64,7 @@ func run(
 		}
 
 		return withStats(cmd, settings.now, flags, func(stats *collector) error {
-			return streamRaw(cmd, settings, flags, stats)
+			return streamRaw(cmd, settings, flags, stats, out)
 		})
 	}
 
@@ -308,7 +308,9 @@ func stream(
 		return err
 	}
 
-	stored, err := resumedVerdicts(cmd.Context(), answers, flags, namer, outputMode, gate != nil)
+	stored, err := resumedVerdicts(cmd.Context(), answers, namer, answersFormat{
+		mode: outputMode, merge: merging(flags), mergeKey: mergeKey(flags), gated: gate != nil,
+	})
 	if err != nil {
 		return err
 	}

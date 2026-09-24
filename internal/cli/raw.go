@@ -18,6 +18,7 @@ func streamRaw(
 	settings rootSettings,
 	flags *runFlags,
 	stats *collector,
+	answers *outFile,
 ) error {
 	var client *jev.Client
 
@@ -31,10 +32,20 @@ func streamRaw(
 		client = built
 	}
 
+	stored, readErr := resumedVerdicts(cmd.Context(), answers, nil, answersFormat{forwarded: true})
+	if readErr != nil {
+		return readErr
+	}
+
+	source := &resumed{
+		source: input.NewStream(settings.stdin, input.Request, flags.skipBlank),
+		left:   flags.resumeSkip,
+		stored: stored,
+	}
 	out := cmd.OutOrStdout()
 
 	result, err := engine.Run(cmd.Context(), engine.Config[input.Record, []byte]{
-		Source: engine.Skip[input.Record](input.NewStream(settings.stdin, input.Request, flags.skipBlank), flags.resumeSkip),
+		Source: source,
 		Evaluate: func(ctx context.Context, rec input.Record) ([]byte, error) {
 			if rec.Err != nil {
 				// A value alongside the error, because the engine writes every outcome. Returning
@@ -83,6 +94,13 @@ func streamRaw(
 		StopOnError: flags.stopOnError,
 		Abort:       aborting,
 	})
+
+	skips := source.skipped()
+	stats.skip(skips)
+
+	// A stored failure a resume skipped fails the run as it failed the one that wrote it.
+	result.Failed += skips.failed
+
 	if err != nil {
 		return &sourceError{cause: err, failed: result.Failed}
 	}

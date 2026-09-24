@@ -1064,6 +1064,13 @@ func TestResumedVerdicts(t *testing.T) {
 func TestResumed(t *testing.T) {
 	t.Parallel()
 
+	answeredBody := `{"model":"m","answers":{"answer":{"type":"noul","noul":0.5}},"usage":{}}` + "\n"
+	failedBody := `{"error":{"kind":"http","status":400,"message":"onesie: 400 bad key"}}` + "\n"
+	forwarded, err := fingerprintOf(nil, fingerprintInputs{provider: "typesafe", input: "request"})
+	if err != nil {
+		t.Fatalf("fingerprinting -i request: %v", err)
+	}
+
 	byPositionAbstaining := fingerprintWith(t, plan.Source{Positional: "is this urgent"}, fingerprintInputs{
 		provider: "typesafe", model: jev.DefaultModel, output: "values", input: "jsonl",
 		assert: "answer.value > 0.9", abstainIf: "answer.value > 0.4",
@@ -1075,6 +1082,41 @@ func TestResumed(t *testing.T) {
 	})
 
 	runResumeCases(t, []resumeCase{
+		{
+			name:  "should count a skipped error line as failed on a resume by position under -i request",
+			stdin: requestRecords(1, 2),
+			runs: []resumeRun{
+				{
+					args:       []string{"-i", "request", "--retries", "0"},
+					bare:       true,
+					failFrom:   2,
+					failStatus: http.StatusBadRequest,
+					wantCode:   ExitRecords,
+					wantFile:   answeredBody + failedBody,
+					wantSent:   []string{`{"id":1}`, `{"id":2}`},
+				},
+				{
+					args:       []string{"-i", "request", "--resume", "--retries", "0", "--stats"},
+					bare:       true,
+					wantCode:   ExitRecords,
+					wantFile:   answeredBody + failedBody,
+					wantStderr: "2 skipped, 1 failed, ",
+				},
+			},
+		},
+		{
+			name:     "should not count a stored response body with an error key of its own as failed under -i request",
+			existing: fileOf(`{"error":{"code":502,"message":"upstream"}}` + "\n"),
+			sidecar:  forwarded,
+			stdin:    requestRecords(1, 2),
+			runs: []resumeRun{{
+				args:       []string{"-i", "request", "--resume", "--stats"},
+				bare:       true,
+				wantFile:   `{"error":{"code":502,"message":"upstream"}}` + "\n" + answeredBody,
+				wantSent:   []string{`{"id":2}`},
+				wantStderr: "1 skipped, ",
+			}},
+		},
 		{
 			name:     "should exit 1 over a skipped abstain when a record asked this run failed its assertion",
 			existing: fileOf("{\"abstain\":true,\"answer\":0.5}\n"),
@@ -1258,6 +1300,7 @@ func runResumeCases(t *testing.T, tests []resumeCase) {
 
 type resumeRun struct {
 	args       []string
+	bare       bool
 	input      string
 	failFrom   int32
 	failStatus int
@@ -1300,7 +1343,12 @@ func runResume(t *testing.T, label, path, stdin string, run resumeRun) {
 
 	root.SetOut(&out)
 	root.SetErr(&errOut)
-	root.SetArgs(append([]string{"is this urgent", "--out", path}, run.args...))
+	question := []string{"is this urgent"}
+	if run.bare {
+		question = nil
+	}
+
+	root.SetArgs(append(append(question, "--out", path), run.args...))
 
 	if code := Execute(ctx, root); code != run.wantCode {
 		t.Fatalf("%s: exit code = %d, want %d\nstderr:\n%s", label, code, run.wantCode, errOut.String())
@@ -1401,6 +1449,15 @@ func idRecords(from, to int) string {
 	var lines strings.Builder
 	for id := from; id <= to; id++ {
 		fmt.Fprintf(&lines, "{\"id\":%d}\n", id)
+	}
+
+	return lines.String()
+}
+
+func requestRecords(from, to int) string {
+	var lines strings.Builder
+	for id := from; id <= to; id++ {
+		fmt.Fprintf(&lines, "{\"questions\":{\"answer\":{\"type\":\"noul\",\"question\":\"is this urgent\"}},\"state\":{\"id\":%d}}\n", id)
 	}
 
 	return lines.String()

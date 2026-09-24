@@ -51,18 +51,14 @@ func resumeLedger(
 func resumedVerdicts(
 	ctx context.Context,
 	answers *outFile,
-	flags *runFlags,
 	namer *jq.Expr,
-	mode output.Mode,
-	gated bool,
+	format answersFormat,
 ) ([]verdict, error) {
 	if answers == nil || !answers.resume || namer != nil {
 		return nil, nil
 	}
 
 	var judged []verdict
-
-	format := answersFormat{mode: mode, merge: merging(flags), mergeKey: mergeKey(flags), gated: gated}
 
 	err := readAnswers(ctx, answers, func(r io.Reader) error {
 		return format.eachVerdict(r, func(stored verdict) {
@@ -100,11 +96,12 @@ func readAnswers(ctx context.Context, answers *outFile, read func(r io.Reader) e
 }
 
 type answersFormat struct {
-	mode     output.Mode
-	merge    bool
-	mergeKey string
-	namer    *jq.Expr
-	gated    bool
+	mode      output.Mode
+	merge     bool
+	mergeKey  string
+	namer     *jq.Expr
+	gated     bool
+	forwarded bool
 }
 
 func (f answersFormat) eachAnswer(
@@ -189,6 +186,12 @@ func rowOf(columns, cells []string) map[string]any {
 }
 
 func (f answersFormat) lineVerdict(text []byte) verdict {
+	if f.forwarded {
+		_, failed := ownFailure(text)
+
+		return verdict{failed: failed}
+	}
+
 	_, object, ok := decodeLine(text)
 	if !ok {
 		return verdict{}
@@ -204,6 +207,23 @@ func (f answersFormat) lineVerdict(text []byte) verdict {
 	}
 
 	return verdictOf(folded)
+}
+
+func ownFailure(text []byte) (*output.Failure, bool) {
+	var line struct {
+		Error *output.Failure `json:"error"`
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(text))
+	decoder.DisallowUnknownFields()
+
+	if err := decoder.Decode(&line); err != nil || line.Error == nil {
+		return nil, false
+	}
+
+	// A response body is written as the server sent it, and may carry an error key of its own. Only
+	// a line matching onesie's encoding byte for byte is onesie's error line.
+	return line.Error, bytes.Equal(bytes.TrimSuffix(text, []byte("\n")), output.EncodeFailure(line.Error))
 }
 
 func (f answersFormat) lineAnswer(ctx context.Context, text []byte) (string, verdict, bool) {
