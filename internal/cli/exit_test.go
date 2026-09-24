@@ -61,6 +61,22 @@ func TestClassify(t *testing.T) {
 			err:  stored("http", statusOf(http.StatusRequestTimeout)), want: ExitTransport,
 		},
 		{
+			name: "should report auth for a stored unauthorized status",
+			err:  stored("http", statusOf(http.StatusUnauthorized)), want: ExitAuth,
+		},
+		{
+			name: "should report auth for a stored forbidden status",
+			err:  stored("http", statusOf(http.StatusForbidden)), want: ExitAuth,
+		},
+		{
+			name: "should report usage for a stored not found status",
+			err:  stored("http", statusOf(http.StatusNotFound)), want: ExitUsage,
+		},
+		{
+			name: "should report unavailable for a stored server error",
+			err:  stored("http", statusOf(http.StatusBadGateway)), want: ExitUnavailable,
+		},
+		{
 			name: "should report usage for a stored bad request",
 			err:  stored("http", statusOf(http.StatusBadRequest)), want: ExitUsage,
 		},

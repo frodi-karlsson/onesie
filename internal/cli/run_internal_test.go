@@ -1,11 +1,16 @@
 package cli
 
 import (
+	"context"
+	"errors"
+	"net/http"
 	"testing"
 
 	"github.com/frodi-karlsson/onesie/internal/answer"
 	"github.com/frodi-karlsson/onesie/internal/assert"
 	"github.com/frodi-karlsson/onesie/internal/engine"
+	"github.com/frodi-karlsson/onesie/internal/input"
+	"github.com/frodi-karlsson/onesie/internal/jev"
 	"github.com/frodi-karlsson/onesie/internal/output"
 )
 
@@ -129,6 +134,60 @@ func TestStreamResult(t *testing.T) {
 
 			if got := Classify(err); got != tc.want {
 				t.Errorf("exit = %d, want %d, from %v", got, tc.want, err)
+			}
+		})
+	}
+}
+
+func TestDescribe(t *testing.T) {
+	t.Parallel()
+
+	apiError := func(status int) error {
+		return &jev.APIError{Status: status}
+	}
+
+	tests := []struct {
+		name  string
+		cause error
+	}{
+		{name: "should agree with a fresh run on a line onesie could not read", cause: &input.LineError{
+			Line: 1, Err: errors.New("not valid JSON"),
+		}},
+		{name: "should agree with a fresh run on an unusable response", cause: &jev.ResponseError{
+			Status: http.StatusOK,
+		}},
+		{name: "should agree with a fresh run on a bad request", cause: apiError(http.StatusBadRequest)},
+		{name: "should agree with a fresh run on an unauthorized status", cause: apiError(http.StatusUnauthorized)},
+		{name: "should agree with a fresh run on a payment required status", cause: &advisedError{
+			cause: apiError(http.StatusPaymentRequired), message: "onesie: 402. Add credits",
+		}},
+		{name: "should agree with a fresh run on a forbidden status", cause: apiError(http.StatusForbidden)},
+		{name: "should agree with a fresh run on a not found status", cause: apiError(http.StatusNotFound)},
+		{name: "should agree with a fresh run on a request timeout status", cause: apiError(http.StatusRequestTimeout)},
+		{name: "should agree with a fresh run on a rate limit", cause: apiError(http.StatusTooManyRequests)},
+		{name: "should agree with a fresh run on a server error", cause: apiError(http.StatusBadGateway)},
+		{name: "should agree with a fresh run on a retry after above the cap", cause: &jev.RetryAfterError{
+			APIError: jev.APIError{Status: http.StatusServiceUnavailable},
+		}},
+		{name: "should agree with a fresh run on a connection error", cause: &jev.ConnectionError{
+			Err: errors.New("connection refused"),
+		}},
+		{name: "should agree with a fresh run on a request timeout", cause: &jev.TimeoutError{}},
+		{name: "should agree with a fresh run on a deadline", cause: context.DeadlineExceeded},
+		{name: "should agree with a fresh run on a request onesie refused to send", cause: &jev.ValidationError{
+			Message: "question too long",
+		}},
+		{name: "should agree with a fresh run on an unrecognised plain error", cause: errors.New("boom")},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			stored := &storedFailure{failure: *describe(tc.cause)}
+
+			if got, want := stored.code(), Classify(tc.cause); got != want {
+				t.Errorf("stored %+v exits %d, want %d as a fresh run does", stored.failure, got, want)
 			}
 		})
 	}

@@ -927,13 +927,6 @@ func failureRecord(built *plan.Plan, cause error) output.Record {
 }
 
 func describe(cause error) *output.Failure {
-	var bad *input.LineError
-	if errors.As(cause, &bad) {
-		// No request was sent, so there is no status. Calling it transport would blame the network
-		// for a line onesie could not read.
-		return &output.Failure{Kind: "input", Message: cause.Error()}
-	}
-
 	var unusable *jev.ResponseError
 	if errors.As(cause, &unusable) {
 		// A 2xx whose body onesie could not use is deterministic. Calling it http would name a status
@@ -950,7 +943,14 @@ func describe(cause error) *output.Failure {
 		return &output.Failure{Kind: "http", Status: &status, Message: cause.Error()}
 	}
 
-	return &output.Failure{Kind: "transport", Message: cause.Error()}
+	if errors.Is(cause, jev.ErrConnection) || errors.Is(cause, context.DeadlineExceeded) {
+		return &output.Failure{Kind: "transport", Message: cause.Error()}
+	}
+
+	// No status arrived and the network did not fail, so the record never became a request, as with
+	// a line onesie could not read. Calling it transport would blame the network, and exit 5 where a
+	// fresh run exits 2.
+	return &output.Failure{Kind: "input", Message: cause.Error()}
 }
 
 func quietResult(question plan.Question, a *answer.Answer) error {
