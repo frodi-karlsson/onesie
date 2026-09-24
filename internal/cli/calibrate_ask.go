@@ -170,7 +170,11 @@ func askLabelled(
 			record, evalErr := evaluate(ctx, client, built, model, questions, rec.sent, flags.usage, stats)
 			if evalErr == nil {
 				if _, evalErr = casesOf(built, rec, record); evalErr != nil {
+					// The tokens were spent, so the failed line carries them into the usage total.
+					spent := record.Usage
 					record = failureRecord(built, evalErr)
+					record.Usage = spent
+
 					stats.unusable()
 				}
 			}
@@ -442,14 +446,15 @@ func writeReport(w io.Writer, format string, report calibrate.Report) error {
 	return calibrate.WriteTable(w, report)
 }
 
-func usageOf(answered []output.Record) *jev.Usage {
-	total := &jev.Usage{}
+func usageOf(answered []output.Record) *calibrate.Usage {
+	total := &calibrate.Usage{}
 
 	for _, record := range answered {
-		if record.Failure != nil || record.Usage == nil {
+		if record.Usage == nil {
 			continue
 		}
 
+		total.Answers++
 		total.InputTokens += record.Usage.InputTokens
 		total.OutputTokens += record.Usage.OutputTokens
 

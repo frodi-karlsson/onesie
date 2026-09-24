@@ -56,15 +56,22 @@ func resumeLabelled(
 	resumed.book = book
 	resumed.pending = nil
 
-	for i := range set.records {
-		named := namedRecord{id: set.records[i].id}
+	for _, entry := range set.inputs {
+		if entry.record < 0 {
+			book.keep(entry.id)
+
+			continue
+		}
+
+		rec := &set.records[entry.record]
+		named := namedRecord{id: rec.id}
 		_, answered := book.admit(&named)
-		set.records[i].slot = named.slot
+		rec.slot = named.slot
 
 		if answered {
 			resumed.stored++
 		} else {
-			resumed.pending = append(resumed.pending, set.records[i])
+			resumed.pending = append(resumed.pending, *rec)
 		}
 	}
 
@@ -97,6 +104,24 @@ func (l *ledger) storedAt(id any) (span, bool) {
 	stored, found := l.answered[keyOf(idText(id))]
 
 	return stored.at, found
+}
+
+func (l *ledger) keep(id any) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	if id == nil {
+		return
+	}
+
+	key := keyOf(idText(id))
+
+	// Kept in its place and nothing more. The record is not asked, so it is neither pending nor
+	// skipped.
+	if stored, found := l.answered[key]; found {
+		delete(l.answered, key)
+		l.lines = append(l.lines, stored.at)
+	}
 }
 
 func (l *ledger) forget(id any) {

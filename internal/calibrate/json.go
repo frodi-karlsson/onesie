@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/frodi-karlsson/onesie/internal/jev"
 	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
@@ -43,15 +42,15 @@ func WriteJSON(w io.Writer, r Report) error {
 }
 
 type jsonReport struct {
-	Models     []string   `json:"models"`
-	Records    int        `json:"records"`
-	Labelled   int        `json:"labelled"`
-	Unlabelled int        `json:"unlabelled"`
-	Asked      int        `json:"asked"`
-	Stored     int        `json:"stored"`
-	Failed     int        `json:"failed"`
-	Usage      *jev.Usage `json:"usage,omitempty"`
-	Questions  []any      `json:"questions"`
+	Models     []string `json:"models"`
+	Records    int      `json:"records"`
+	Labelled   int      `json:"labelled"`
+	Unlabelled int      `json:"unlabelled"`
+	Asked      int      `json:"asked"`
+	Stored     int      `json:"stored"`
+	Failed     int      `json:"failed"`
+	Usage      *Usage   `json:"usage,omitempty"`
+	Questions  []any    `json:"questions"`
 }
 
 func jsonQuestion(q QuestionReport) (any, error) {

@@ -10,8 +10,16 @@ import (
 type Report struct {
 	Models                                               []string
 	Records, Labelled, Unlabelled, Asked, Stored, Failed int
-	Usage                                                *jev.Usage
+	Usage                                                *Usage
 	Questions                                            []QuestionReport
+}
+
+// Usage is the token count summed over the answers that carry one. Answers says how many that is,
+// since a stored answer written without --usage carries none.
+type Usage struct {
+	jev.Usage
+
+	Answers int `json:"answers"`
 }
 
 // QuestionReport is one question's score. Only the score for its Shape is set.

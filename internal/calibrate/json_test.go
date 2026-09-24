@@ -275,18 +275,18 @@ func TestWriteJSON(t *testing.T) {
 
 		cost := 0.25
 		with := full
-		with.Usage = &jev.Usage{InputTokens: 10, OutputTokens: 4, Cost: &cost}
+		with.Usage = &calibrate.Usage{Usage: jev.Usage{InputTokens: 10, OutputTokens: 4, Cost: &cost}, Answers: 3}
 
 		want := []string{"models", "records", "labelled", "unlabelled", "asked", "stored", "failed", "usage", "questions"}
 		if got := keysOf(t, writeJSON(t, with)); !slices.Equal(got, want) {
 			t.Errorf("keys = %v, want %v", got, want)
 		}
 
-		var decoded struct{ Usage jev.Usage }
+		var decoded map[string]json.RawMessage
 		decode(t, writeJSON(t, with), &decoded)
 
-		if decoded.Usage.InputTokens != 10 || decoded.Usage.OutputTokens != 4 || decoded.Usage.Cost == nil || *decoded.Usage.Cost != 0.25 {
-			t.Errorf("usage = %+v", decoded.Usage)
+		if want := `{"input_tokens":10,"output_tokens":4,"cost":0.25,"answers":3}`; string(decoded["usage"]) != want {
+			t.Errorf("usage = %s, want %s", decoded["usage"], want)
 		}
 	})
 

@@ -107,11 +107,13 @@ func readLabelled(
 
 		if !found {
 			set.unlabelled++
+			set.inputs = append(set.inputs, inputEntry{id: labelled.id, record: -1})
 
 			continue
 		}
 
 		labelled.index = len(set.records)
+		set.inputs = append(set.inputs, inputEntry{id: labelled.id, record: labelled.index})
 		set.records = append(set.records, labelled)
 	}
 }
@@ -241,8 +243,14 @@ type labelReader struct {
 
 type labelledSet struct {
 	records    []labelledRecord
+	inputs     []inputEntry
 	unlabelled int
 	total      int
+}
+
+type inputEntry struct {
+	id     any
+	record int
 }
 
 type labelledRecord struct {
