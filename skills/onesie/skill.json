@@ -65,8 +65,8 @@
     },
     {
       "id": "freeze-into-a-question-file",
-      "short": "Keep a question set you reuse in a file written by --print-questions, and load it with -f.",
-      "why": "`--print-questions > q.yaml` writes the questions, their descriptions, their policy flags and any assertion as YAML, and `onesie -f q.yaml` reads it back. Each top level key is a question id holding `ask` and optionally `pick` or `rate`, `yes_means` and `no_means`, `threshold`, `min_confidence` and `fallback`. A top level `assert` or `abstain_if` is the file's gate. An unknown key exits 2 rather than being ignored. An `--ask` beside `-f` adds a question, and reusing an id from the file needs `--replace`. `-f` also takes a request body, a file with a `questions` key such as `--print-request` writes."
+      "short": "Keep a question set you reuse in a file written by --print-questions, and load it with -f by path or by name.",
+      "why": "`--print-questions > q.yaml` writes the questions, their descriptions, their policy flags and any assertion as YAML, and `onesie -f q.yaml` reads it back. Each top level key is a question id holding `ask` and optionally `pick` or `rate`, `yes_means` and `no_means`, `threshold`, `min_confidence` and `fallback`. A top level `assert` or `abstain_if` is the file's gate. An unknown key exits 2 rather than being ignored. An `--ask` beside `-f` adds a question, and reusing an id from the file needs `--replace`. `-f` also takes a request body, a file with a `questions` key such as `--print-request` writes. Save a set the repository shares as `.onesie/questions/NAME.yaml`, or one for every project under `questions` in the config dir `auth set` uses, and `-f NAME` finds it. A value with no slash and no dot that is not a file in the working directory is a name, looked up in the nearest `.onesie/questions` at or above the working directory, then in the config dir, as `NAME.yaml`, `NAME.yml` or `NAME.json`. A name found nowhere, or with two files in one directory, exits 2 and names the directories. `onesie questions` lists every name with the file it resolves to."
     },
     {
       "id": "count-the-cost",

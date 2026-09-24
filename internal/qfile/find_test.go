@@ -4,6 +4,7 @@ import (
 	"errors"
 	"io/fs"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"testing/fstest"
@@ -258,4 +259,105 @@ func fsPath(dir string) string {
 	}
 
 	return trimmed
+}
+
+func TestList(t *testing.T) {
+	t.Parallel()
+
+	repoDir := filepath.Join(string(filepath.Separator)+"repo", ".onesie", "questions")
+	configDir := filepath.Join(string(filepath.Separator)+"home", ".config", "onesie")
+	configQuestions := filepath.Join(configDir, "questions")
+	workDir := filepath.Join(string(filepath.Separator)+"repo", "sub")
+
+	errNoHome := errors.New("onesie: cannot find a home directory for the config dir")
+
+	tests := []struct {
+		name      string
+		files     []string
+		configErr error
+		want      []qfile.Found
+		wantIs    error
+	}{
+		{
+			name: "should list nothing when no set exists",
+		},
+		{
+			name: "should list the repository set before the config dir's, each sorted by name",
+			files: []string{
+				"/repo/.onesie/questions/triage.yaml",
+				"/repo/.onesie/questions/billing.json",
+				"/home/.config/onesie/questions/support.yml",
+				"/home/.config/onesie/questions/alpha.yaml",
+			},
+			want: []qfile.Found{
+				{Name: "billing", Paths: []string{filepath.Join(repoDir, "billing.json")}, InRepo: true},
+				{Name: "triage", Paths: []string{filepath.Join(repoDir, "triage.yaml")}, InRepo: true},
+				{Name: "alpha", Paths: []string{filepath.Join(configQuestions, "alpha.yaml")}},
+				{Name: "support", Paths: []string{filepath.Join(configQuestions, "support.yml")}},
+			},
+		},
+		{
+			name: "should list a shadowed name only from the repository",
+			files: []string{
+				"/repo/.onesie/questions/triage.yaml",
+				"/home/.config/onesie/questions/triage.json",
+			},
+			want: []qfile.Found{
+				{Name: "triage", Paths: []string{filepath.Join(repoDir, "triage.yaml")}, InRepo: true},
+			},
+		},
+		{
+			name: "should list both files of a clash in extension order",
+			files: []string{
+				"/repo/.onesie/questions/triage.json",
+				"/repo/.onesie/questions/triage.yaml",
+			},
+			want: []qfile.Found{
+				{Name: "triage", InRepo: true, Paths: []string{
+					filepath.Join(repoDir, "triage.yaml"), filepath.Join(repoDir, "triage.json"),
+				}},
+			},
+		},
+		{
+			name: "should skip what -f would not find",
+			files: []string{
+				"/repo/.onesie/questions/notes.txt",
+				"/repo/.onesie/questions/two.parts.yaml",
+				"/repo/.onesie/questions/.yaml",
+				"/repo/.onesie/questions/nested.yaml/inner.yaml",
+			},
+		},
+		{
+			name:      "should report a config dir that cannot be resolved",
+			files:     []string{"/repo/.onesie/questions/triage.yaml"},
+			configErr: errNoHome,
+			wantIs:    errNoHome,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := qfile.List(fakeEnv(tc.files, workDir, configDir, tc.configErr))
+
+			if tc.wantIs != nil {
+				if !errors.Is(err, tc.wantIs) {
+					t.Fatalf("List error = %v, want it to wrap %v", err, tc.wantIs)
+				}
+
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("List: %v", err)
+			}
+
+			if !slices.EqualFunc(got, tc.want, func(a, b qfile.Found) bool {
+				return a.Name == b.Name && slices.Equal(a.Paths, b.Paths) && a.InRepo == b.InRepo
+			}) {
+				t.Errorf("List = %v, want %v", got, tc.want)
+			}
+		})
+	}
 }

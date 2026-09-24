@@ -145,11 +145,12 @@ onesie -i request < frozen.jsonl > answers.jsonl
 ```
 
 **Keep a question set in a file.** A command line freezes into one, and the file reloads as is.
+Saved in a `.onesie/questions` directory, it loads by name from anywhere in the repository.
 
 ```sh
 onesie --ask urgent='does this convey urgency' --ask team='who owns this' --pick billing,platform \
-    --assert 'urgent.value < 0.9' --print-questions > triage.yaml
-onesie -f triage.yaml -o values < ticket.txt
+    --assert 'urgent.value < 0.9' --print-questions > .onesie/questions/triage.yaml
+onesie -f triage -o values < ticket.txt
 # {"assert":false,"urgent":0.97,"team":"billing"}, and exit 1, since this ticket is urgent
 ```
 
@@ -287,6 +288,8 @@ reading, as `head` does, is not an error.
 - `--stats` writes a one line summary to stderr: requests, tokens, model, retries and time.
 - `--list-models` shows what the account can ask, and `-m` picks one.
 - `--base-url` points onesie at any server that speaks the System One API.
+- `-f NAME` loads `NAME.yaml`, `NAME.yml` or `NAME.json` from the nearest `.onesie/questions`, then
+  from `questions` in the config dir, and `onesie questions` lists every name it finds.
 - `--retries`, `--timeout` and `--max-retry-after` bound how long a call can take.
 - `onesie --help` lists every flag, and `onesie -V` prints the built in limits.
 

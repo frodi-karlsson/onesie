@@ -225,6 +225,7 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 	root.AddCommand(newVersionCmd(info))
 	root.AddCommand(newAuthCmd(settings, flags))
 	root.AddCommand(newCalibrateCmd(settings, flags))
+	root.AddCommand(newQuestionsCmd(settings))
 
 	// Cobra hands every subcommand the nearest parent's flag error function, so one hook covers the
 	// subcommands cobra adds itself, such as completion.

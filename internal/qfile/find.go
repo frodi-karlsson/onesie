@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/fs"
 	"path/filepath"
+	"slices"
 	"strings"
 )
 
@@ -42,6 +43,43 @@ func Find(name string, env FindEnv) (string, error) {
 	}
 
 	return "", notFound(name, env.WorkDir, repo, config)
+}
+
+// List reports every name Find would resolve, the repository set first and each set sorted by name.
+// A name the repository set holds is left out of the config dir's, since Find never reaches it there.
+func List(env FindEnv) ([]Found, error) {
+	repo, repoEntries, err := repoSet(env)
+	if err != nil {
+		return nil, err
+	}
+
+	config, configEntries, err := configSet(env, repo)
+	if err != nil {
+		return nil, err
+	}
+
+	listed := found(repo, repoEntries, true)
+	shadowed := map[string]bool{}
+
+	for _, name := range listed {
+		shadowed[name.Name] = true
+	}
+
+	for _, name := range found(config, configEntries, false) {
+		if !shadowed[name.Name] {
+			listed = append(listed, name)
+		}
+	}
+
+	return listed, nil
+}
+
+// Found is one name List reports. More than one path is a clash, which Find refuses.
+type Found struct {
+	Name  string
+	Paths []string
+	// InRepo is true for a name from the .onesie/questions walk, false for one from the config dir.
+	InRepo bool
 }
 
 // FindEnv is everything Find reads from outside the process, so a test needs no real filesystem.
@@ -107,6 +145,28 @@ func readSet(env FindEnv, dir string) ([]fs.DirEntry, bool, error) {
 	}
 
 	return entries, true, nil
+}
+
+func found(dir string, entries []fs.DirEntry, inRepo bool) []Found {
+	var names []string
+
+	for _, entry := range entries {
+		for _, ext := range extensions {
+			name, isSet := strings.CutSuffix(entry.Name(), ext)
+			if isSet && IsName(name) && !entry.IsDir() && !slices.Contains(names, name) {
+				names = append(names, name)
+			}
+		}
+	}
+
+	slices.Sort(names)
+
+	listed := make([]Found, 0, len(names))
+	for _, name := range names {
+		listed = append(listed, Found{Name: name, Paths: matches(name, dir, entries), InRepo: inRepo})
+	}
+
+	return listed
 }
 
 func matchOne(name, dir string, entries []fs.DirEntry) (string, error) {
