@@ -241,10 +241,11 @@ type Stats struct {
 	Skipped  int
 	Requests int
 	Failed   int
-	// FalseAsserts counts the records whose assertion did not hold. §17.6 counts them apart from
-	// Failed, since a false assertion judges a complete record.
+	// FalseAsserts counts the records whose assertion did not hold, a resume's skipped ones
+	// included. §17.6 counts them apart from Failed, since a false assertion judges a complete record.
 	FalseAsserts int
-	// Abstains counts the records whose assertion did not hold and whose abstain expression did.
+	// Abstains counts the records whose assertion did not hold and whose abstain expression did, a
+	// resume's skipped ones included.
 	Abstains       int
 	Questions      int
 	InputTokens    int
