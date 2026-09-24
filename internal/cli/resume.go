@@ -123,17 +123,6 @@ func (f answersFormat) eachAnswer(
 		})
 }
 
-func (f answersFormat) kept(judged verdict) verdict {
-	// A run with no gate wrote no verdict, so an assert it reads is an input field. Under a merge
-	// only a gated run keeps an input column from taking that name. The error key and column are
-	// reserved in every run, so a failure still stands.
-	if !f.gated {
-		return verdict{failure: judged.failure}
-	}
-
-	return judged
-}
-
 func (f answersFormat) eachVerdict(r io.Reader, note func(judged verdict)) error {
 	// Every stored line is noted, a failed one included, since a resume by position skips one
 	// record per line.
@@ -144,6 +133,17 @@ func (f answersFormat) eachVerdict(r io.Reader, note func(judged verdict)) error
 		func(_ span, row map[string]any) {
 			note(f.kept(rowVerdict(row)))
 		})
+}
+
+func (f answersFormat) kept(judged verdict) verdict {
+	// A run with no gate wrote no verdict, so an assert it reads is an input field. Under a merge
+	// only a gated run keeps an input column from taking that name. The error key and column are
+	// reserved in every run, so a failure still stands.
+	if !f.gated {
+		return verdict{failure: judged.failure}
+	}
+
+	return judged
 }
 
 func (f answersFormat) eachStored(
