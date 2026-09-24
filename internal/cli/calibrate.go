@@ -228,7 +228,9 @@ func checkCalibrate(
 		}
 	}
 
-	if cfg.Resume && !cfg.HasID {
+	// A dry run is left to plan, whose message drops --resume rather than asking for an --id it
+	// would then refuse as well.
+	if cfg.Resume && !cfg.HasID && !cfg.PrintRequest {
 		return errors.New(
 			"onesie: calibrate resumes by id, since which records are asked follows the labels. Pass --id")
 	}

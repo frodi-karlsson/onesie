@@ -2,12 +2,16 @@ package cli
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/frodi-karlsson/onesie/internal/limits"
 )
@@ -376,6 +380,12 @@ func TestNewCalibrateCmd(t *testing.T) {
 			contains: []string{"--print-request writes request bodies, not answers, so --resume has nothing"},
 		},
 		{
+			name:     "should refuse --resume under --print-request without --id",
+			args:     with("--print-request", "--out", filepath.Join(dir, "resume.jsonl"), "--resume"),
+			wantCode: ExitUsage,
+			contains: []string{"so --resume has nothing to pick up. Drop --resume"},
+		},
+		{
 			name:     "should refuse --stats under --print-request",
 			args:     with("--print-request", "--stats"),
 			wantCode: ExitUsage,
@@ -636,14 +646,16 @@ func TestReadLabelled(t *testing.T) {
 		{
 			name:     "should refuse more records than the cap",
 			args:     jsonl(),
-			stdin:    strings.Repeat("{\"body\":\"a\"}\n", limits.MaxCalibrateRecords+1),
+			stdin:    strings.Repeat("{\"body\":\"a\",\"u\":true}\n", limits.MaxCalibrateRecords+1),
 			wantCode: ExitUsage,
 			contains: []string{"onesie: calibrate reads at most 100000 records, and -V lists the cap"},
 		},
 		{
-			name:  "should read as many records as the cap",
-			args:  jsonl(),
-			stdin: strings.Repeat("{\"body\":\"a\"}\n", limits.MaxCalibrateRecords),
+			name:       "should read as many records as the cap",
+			args:       jsonl(),
+			stdin:      strings.Repeat("{\"body\":\"a\",\"u\":true}\n", limits.MaxCalibrateRecords),
+			wantStates: slices.Repeat([]string{`"a"`}, limits.MaxCalibrateRecords),
+			wantAsked:  []string{"urgent"},
 		},
 		{
 			name: "should print nothing for empty input",
@@ -703,4 +715,137 @@ func TestReadLabelled(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestCalibrateRequests(t *testing.T) {
+	t.Parallel()
+
+	args := []string{
+		"calibrate", "--print-request", "--ask", "urgent=is this urgent", "-i", "jsonl", "--map", ".body",
+		"--label", "urgent=.u",
+	}
+
+	const records = "{\"body\":\"a\",\"u\":true}\n{\"body\":\"b\",\"u\":false}\n"
+
+	tests := []struct {
+		name      string
+		stdin     func(cancel context.CancelFunc) io.Reader
+		stdout    func(cancel context.CancelFunc, out *bytes.Buffer) io.Writer
+		wantLines int
+	}{
+		{
+			name: "should exit 130 when cancelled as the input ends",
+			stdin: func(cancel context.CancelFunc) io.Reader {
+				return &cancelAtEnd{data: strings.NewReader(records), cancel: cancel}
+			},
+		},
+		{
+			name: "should exit 130 when cancelled while stdin is blocked",
+			stdin: func(cancel context.CancelFunc) io.Reader {
+				return &blockingReader{data: strings.NewReader(records), cancel: cancel, release: t.Context().Done()}
+			},
+		},
+		{
+			name: "should stop printing when cancelled between bodies",
+			stdin: func(context.CancelFunc) io.Reader {
+				return strings.NewReader(records)
+			},
+			stdout: func(cancel context.CancelFunc, out *bytes.Buffer) io.Writer {
+				return &cancelOnWrite{out: out, cancel: cancel}
+			},
+			wantLines: 1,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+
+			var out, errOut bytes.Buffer
+
+			root := NewRootCmd(
+				BuildInfo{Version: "1.2.3"},
+				WithKeychain(noKeychain()),
+				WithStdin(tc.stdin(cancel)),
+				WithStdinTTY(false),
+				WithStdoutTTY(false),
+				WithLookupEnv(lookupFrom(map[string]string{"ONESIE_CONFIG_DIR": t.TempDir()})),
+			)
+
+			if tc.stdout != nil {
+				root.SetOut(tc.stdout(cancel, &out))
+			} else {
+				root.SetOut(&out)
+			}
+
+			root.SetErr(&errOut)
+			root.SetArgs(args)
+
+			done := make(chan int, 1)
+			go func() { done <- Execute(ctx, root) }()
+
+			var code int
+			select {
+			case code = <-done:
+			case <-time.After(10 * time.Second):
+				t.Fatal("the command did not end after the interrupt")
+			}
+
+			if code != ExitInterrupt {
+				t.Errorf("exit code = %d, want %d\nstdout:\n%s\nstderr:\n%s", code, ExitInterrupt, out.String(),
+					errOut.String())
+			}
+
+			if got := strings.Count(out.String(), "\n"); got != tc.wantLines {
+				t.Errorf("printed %d bodies, want %d\nstdout:\n%s", got, tc.wantLines, out.String())
+			}
+		})
+	}
+}
+
+type cancelAtEnd struct {
+	data   io.Reader
+	cancel context.CancelFunc
+}
+
+func (c *cancelAtEnd) Read(p []byte) (int, error) {
+	n, err := c.data.Read(p)
+	if err == io.EOF {
+		c.cancel()
+	}
+
+	return n, err
+}
+
+type blockingReader struct {
+	data    io.Reader
+	cancel  context.CancelFunc
+	release <-chan struct{}
+	once    sync.Once
+}
+
+func (b *blockingReader) Read(p []byte) (int, error) {
+	n, err := b.data.Read(p)
+	if err != io.EOF {
+		return n, err
+	}
+
+	b.once.Do(b.cancel)
+	<-b.release
+
+	return 0, io.EOF
+}
+
+type cancelOnWrite struct {
+	out    *bytes.Buffer
+	cancel context.CancelFunc
+}
+
+func (c *cancelOnWrite) Write(p []byte) (int, error) {
+	c.cancel()
+
+	return c.out.Write(p)
 }
