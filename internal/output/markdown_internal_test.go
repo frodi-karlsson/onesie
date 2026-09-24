@@ -34,6 +34,7 @@ func TestCodeSpan(t *testing.T) {
 		{name: "should turn an escape code into a space", text: "\x1b[31mred", want: "` [31mred`"},
 		{name: "should pad text that starts and ends with a space", text: " a ", want: "`  a  `"},
 		{name: "should not pad text that is only spaces", text: "  ", want: "`  `"},
+		{name: "should pad text whose spaces enclose only a non breaking space", text: " \u00a0 ", want: "`  \u00a0  `"},
 		{name: "should not pad text with a space at one end", text: " a", want: "` a`"},
 		{name: "should mark empty text so the cell is not blank", text: "", want: "_empty_"},
 		{name: "should mark empty text inside a table too", text: "", inTable: true, want: "_empty_"},

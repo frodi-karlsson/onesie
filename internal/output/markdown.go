@@ -470,8 +470,9 @@ func htmlCode(text string) string {
 }
 
 func spaceBound(text string) bool {
-	// CommonMark strips one space from each end of a span that has both, unless it is all spaces.
-	return strings.HasPrefix(text, " ") && strings.HasSuffix(text, " ") && strings.TrimSpace(text) != ""
+	// CommonMark strips one space from each end of a span that has both, unless it is all spaces,
+	// and it counts only U+0020 as a space, so a non breaking space between two is stripped too.
+	return strings.HasPrefix(text, " ") && strings.HasSuffix(text, " ") && strings.Trim(text, " ") != ""
 }
 
 func longestBacktickRun(text string) int {
