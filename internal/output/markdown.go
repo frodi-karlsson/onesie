@@ -218,3 +218,212 @@ func longestBacktickRun(text string) int {
 
 	return longest
 }
+
+// NewMarkdownTable builds the markdown writer for a stream.
+func NewMarkdownTable(w io.Writer, opts MarkdownTableOptions) *MarkdownTable {
+	return &MarkdownTable{w: w, opts: opts}
+}
+
+// MarkdownTable writes a stream as one markdown table, a row per record under a header written
+// with the first, then a summary alert and a footer. It is stateful, so one run uses one.
+type MarkdownTable struct {
+	w       io.Writer
+	opts    MarkdownTableOptions
+	started bool
+	tally   tally
+	models  []string
+	usage   *jev.Usage
+}
+
+// MarkdownTableOptions fixes the columns a MarkdownTable writes.
+type MarkdownTableOptions struct {
+	// IDs are the question ids, one column each, in question order.
+	IDs []string
+	// ID adds an id column ahead of the answers, for a run that names its records with --id.
+	ID bool
+	// Gate adds a gate column, passed, failed or unsure per row, when the run carries an assertion.
+	Gate bool
+}
+
+// Write writes one record as a row, after the header when it is the first.
+func (m *MarkdownTable) Write(rec Record) error {
+	var out strings.Builder
+
+	if !m.started {
+		m.started = true
+
+		out.WriteString(m.head())
+	}
+
+	m.count(rec)
+
+	var cells []string
+	if m.opts.ID {
+		cells = append(cells, codeSpan(cell(rec.ID), true))
+	}
+
+	for _, id := range m.opts.IDs {
+		cells = append(cells, streamAnswer(rec, id))
+	}
+
+	if m.opts.Gate {
+		cells = append(cells, gateText(rec))
+	}
+
+	failure := ""
+	if rec.Failure != nil {
+		failure = codeSpan(rec.Failure.Message, true)
+	}
+
+	out.WriteString(tableRow(append(cells, failure)...))
+
+	_, err := io.WriteString(m.w, out.String())
+
+	return err
+}
+
+// Finish writes the summary alert and the footer. complete is false for a run that was
+// interrupted, which gets the footer and no summary. A stream with no records writes nothing.
+func (m *MarkdownTable) Finish(complete bool) error {
+	if !m.started {
+		return nil
+	}
+
+	var out strings.Builder
+
+	if complete {
+		out.WriteString("\n" + m.tally.alert())
+	}
+
+	if footer := footerOf(m.models, m.usage); footer != "" {
+		out.WriteString("\n" + footer)
+	}
+
+	_, err := io.WriteString(m.w, out.String())
+
+	return err
+}
+
+func (m *MarkdownTable) head() string {
+	var columns []string
+	if m.opts.ID {
+		columns = append(columns, "id")
+	}
+
+	for _, id := range m.opts.IDs {
+		columns = append(columns, codeSpan(id, true))
+	}
+
+	if m.opts.Gate {
+		columns = append(columns, "gate")
+	}
+
+	return tableHead(append(columns, "error")...)
+}
+
+func (m *MarkdownTable) count(rec Record) {
+	m.tally.add(rec, m.opts.Gate)
+
+	if rec.Model != "" && !slices.Contains(m.models, rec.Model) {
+		m.models = append(m.models, rec.Model)
+	}
+
+	if rec.Usage == nil {
+		return
+	}
+
+	if m.usage == nil {
+		m.usage = &jev.Usage{}
+	}
+
+	m.usage.InputTokens += rec.Usage.InputTokens
+	m.usage.OutputTokens += rec.Usage.OutputTokens
+
+	if rec.Usage.Cost != nil {
+		cost := *rec.Usage.Cost
+		if m.usage.Cost != nil {
+			cost += *m.usage.Cost
+		}
+
+		m.usage.Cost = &cost
+	}
+}
+
+func streamAnswer(rec Record, id string) string {
+	for _, named := range rec.Answers {
+		if named.ID == id && named.Answer != nil {
+			return answerText(named.Answer)
+		}
+	}
+
+	return ""
+}
+
+func gateText(rec Record) string {
+	switch {
+	case rec.Failure != nil:
+		return ""
+	case rec.AssertFailed:
+		return "failed"
+	case rec.Abstained:
+		return "unsure"
+	default:
+		return "passed"
+	}
+}
+
+type tally struct {
+	records, passed, failed, unsure, answered, unanswered int
+}
+
+func (t *tally) add(rec Record, gated bool) {
+	t.records++
+
+	switch {
+	case rec.Failure != nil:
+		t.unanswered++
+	case !gated:
+		t.answered++
+	case rec.AssertFailed:
+		t.failed++
+	case rec.Abstained:
+		t.unsure++
+	default:
+		t.passed++
+	}
+}
+
+func (t *tally) alert() string {
+	kind := "TIP"
+
+	switch {
+	case t.failed > 0 || t.unanswered > 0:
+		kind = "CAUTION"
+	case t.unsure > 0:
+		kind = "WARNING"
+	}
+
+	var parts []string
+
+	for _, part := range []struct {
+		count int
+		label string
+	}{
+		{t.passed, "passed"},
+		{t.failed, "failed"},
+		{t.unsure, "unsure"},
+		{t.answered, "answered"},
+		{t.unanswered, "with no answer"},
+	} {
+		if part.count > 0 {
+			parts = append(parts, fmt.Sprintf("%d %s", part.count, part.label))
+		}
+	}
+
+	records := "records"
+	if t.records == 1 {
+		records = "record"
+	}
+
+	return alert(kind, fmt.Sprintf("%d %s: %s.", t.records, records, strings.Join(parts, ", ")))
+}

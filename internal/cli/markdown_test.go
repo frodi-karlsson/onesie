@@ -136,3 +136,94 @@ func refusingServer(t *testing.T) *httptest.Server {
 
 	return srv
 }
+
+func TestMarkdown(t *testing.T) {
+	t.Parallel()
+
+	const tickets = `{"id":"T-1","body":"site down"}` + "\n" + "not json\n" + `{"id":"@T-2","body":"slow"}` + "\n"
+
+	tests := []struct {
+		name     string
+		args     []string
+		stdin    string
+		wantCode int
+		want     string
+	}{
+		{
+			name:     "should write one table with a gate column, the summary and the model",
+			args:     []string{"is this urgent", "-i", "jsonl", "--id", ".id", "-o", "markdown", "--assert", "answer.value > 0.4"},
+			stdin:    tickets,
+			wantCode: ExitRecords,
+			want: "| id | `answer` | gate | error |\n" +
+				"|---|---|---|---|\n" +
+				"| `T-1` | 0.5 | passed | |\n" +
+				"| | | | `line 2: line is not one complete JSON value: invalid character 'o' in literal null (expecting 'u')` |\n" +
+				"| `@T-2` | 0.5 | passed | |\n" +
+				"\n" +
+				"> [!CAUTION]\n" +
+				"> 3 records: 2 passed, 1 with no answer.\n" +
+				"\n" +
+				"_m_\n",
+		},
+		{
+			name:  "should leave out the id and gate columns and sum the usage",
+			args:  []string{"--ask", "urgent=is this urgent", "-i", "lines", "-o", "md", "--usage"},
+			stdin: "site down\nslow\n",
+			want: "| `urgent` | error |\n" +
+				"|---|---|\n" +
+				"| 0.5 | |\n" +
+				"| 0.5 | |\n" +
+				"\n" +
+				"> [!TIP]\n" +
+				"> 2 records: 2 answered.\n" +
+				"\n" +
+				"_m, 0 in, 0 out tokens_\n",
+		},
+		{
+			name:     "should warn when the worst record is an unsure",
+			args:     []string{"is this urgent", "-i", "lines", "-o", "markdown", "--assert", "answer.value > 0.9", "--abstain-if", "answer.value > 0.4"},
+			stdin:    "site down\n",
+			wantCode: ExitAbstain,
+			want: "| `answer` | gate | error |\n" +
+				"|---|---|---|\n" +
+				"| 0.5 | unsure | |\n" +
+				"\n" +
+				"> [!WARNING]\n" +
+				"> 1 record: 1 unsure.\n" +
+				"\n" +
+				"_m_\n",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			srv := answeringServer(t, nil)
+
+			var out, errOut bytes.Buffer
+
+			root := NewRootCmd(
+				BuildInfo{Version: "1.2.3"},
+				WithStdin(strings.NewReader(tc.stdin)),
+				WithStdinTTY(false),
+				WithStdoutTTY(false),
+				WithKeychain(noKeychain()),
+				WithLookupEnv(lookupFrom(nil)),
+				WithClientFactory(stubFactory(srv.URL)),
+			)
+
+			root.SetOut(&out)
+			root.SetErr(&errOut)
+			root.SetArgs(tc.args)
+
+			if code := Execute(t.Context(), root); code != tc.wantCode {
+				t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, tc.wantCode, errOut.String())
+			}
+
+			if out.String() != tc.want {
+				t.Errorf("stdout =\n%s\nwant\n%s", out.String(), tc.want)
+			}
+		})
+	}
+}

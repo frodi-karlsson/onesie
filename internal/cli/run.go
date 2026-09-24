@@ -318,6 +318,7 @@ func stream(
 	out := cmd.OutOrStdout()
 	merge := merging(flags)
 	table := delimited(out, outputMode, built, gate != nil, namer != nil && !merge, flags)
+	md := markdown(out, outputMode, built, gate != nil, namer != nil)
 
 	evaluateOne := func(ctx context.Context, rec namedRecord) (line, error) {
 		if rec.Err != nil {
@@ -396,6 +397,10 @@ func stream(
 	}
 
 	write := func(l line) error {
+		if md != nil {
+			return md.Write(l.record)
+		}
+
 		if table != nil {
 			if !merge {
 				return table.Write(l.record, nil, nil)
@@ -439,6 +444,15 @@ func stream(
 		Stop:        watched(stopping(flags), &stopped),
 	})
 	source.stop()
+
+	if md != nil && !result.Broken {
+		// An interrupt keeps what finished and drops the summary, whose counts would cover only
+		// part of the input.
+		finishErr := md.Finish(err == nil && !interrupted(cmd.Context()))
+		if finishErr != nil && err == nil && !result.Aborted {
+			return finishErr
+		}
+	}
 
 	skips := source.skipped()
 	stats.skip(skips)
@@ -796,6 +810,25 @@ func writeRecord(
 
 func markdownOptions(gate, abstain *assert.Expr) output.MarkdownOptions {
 	return output.MarkdownOptions{Assert: gate.Source(), Abstain: abstain.Source()}
+}
+
+func markdown(
+	out io.Writer,
+	mode output.Mode,
+	built *plan.Plan,
+	withGate bool,
+	withID bool,
+) *output.MarkdownTable {
+	if mode != output.Markdown {
+		return nil
+	}
+
+	ids := make([]string, 0, len(built.Questions))
+	for _, question := range built.Questions {
+		ids = append(ids, question.ID)
+	}
+
+	return output.NewMarkdownTable(out, output.MarkdownTableOptions{IDs: ids, ID: withID, Gate: withGate})
 }
 
 func delimited(

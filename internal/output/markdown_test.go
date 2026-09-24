@@ -2,6 +2,7 @@ package output_test
 
 import (
 	"bytes"
+	"encoding/json"
 	"testing"
 
 	"github.com/frodi-karlsson/onesie/internal/answer"
@@ -207,6 +208,207 @@ func TestWriteMarkdown(t *testing.T) {
 			var buf bytes.Buffer
 			if err := output.WriteMarkdown(&buf, tc.rec, tc.opts); err != nil {
 				t.Fatalf("WriteMarkdown() error = %v", err)
+			}
+
+			if buf.String() != tc.want {
+				t.Errorf("wrote\n%s\nwant\n%s", buf.String(), tc.want)
+			}
+		})
+	}
+}
+
+func TestNewMarkdownTable(t *testing.T) {
+	t.Parallel()
+
+	confidence := 0.92
+	cost := 0.001
+	status := 500
+
+	answered := func(id any, urgent float64, team string) output.Record {
+		return output.Record{ID: id, Model: "jev-1.13.0", Answers: []output.Named{
+			{ID: "urgent", Answer: &answer.Answer{Value: urgent}},
+			{ID: "team", Answer: &answer.Answer{Value: team, Confidence: &confidence}},
+		}}
+	}
+
+	rejected := answered("T-1", 0.97, "billing")
+	rejected.AssertFailed = true
+
+	unsure := answered("T-4", 0.5, "sales")
+	unsure.Abstained = true
+
+	failed := output.Record{
+		ID:      "T-3",
+		Failure: &output.Failure{Kind: "http", Status: &status, Message: "http 500: upstream failed"},
+		Answers: []output.Named{{ID: "urgent"}, {ID: "team"}},
+	}
+
+	fellBack := output.Record{
+		ID:      "T-5",
+		Failure: &output.Failure{Kind: "transport", Message: "connection reset"},
+		Answers: []output.Named{
+			{ID: "urgent", Answer: &answer.Answer{Decision: false, Decided: true, Fallback: "error"}},
+			{ID: "team"},
+		},
+	}
+
+	spent := func(rec output.Record, model string, in, out int) output.Record {
+		rec.Model = model
+		rec.Usage = &jev.Usage{InputTokens: in, OutputTokens: out, Cost: &cost}
+
+		return rec
+	}
+
+	both := []string{"urgent", "team"}
+
+	tests := []struct {
+		name     string
+		opts     output.MarkdownTableOptions
+		records  []output.Record
+		complete bool
+		want     string
+	}{
+		{
+			name:     "should write one header, a row per record, the summary and the model",
+			opts:     output.MarkdownTableOptions{IDs: both, ID: true, Gate: true},
+			records:  []output.Record{rejected, answered("T-2", 0.08, "shipping"), failed},
+			complete: true,
+			want: "| id | `urgent` | `team` | gate | error |\n" +
+				"|---|---|---|---|---|\n" +
+				"| `T-1` | 0.97 | `billing` | failed | |\n" +
+				"| `T-2` | 0.08 | `shipping` | passed | |\n" +
+				"| `T-3` | | | | `http 500: upstream failed` |\n" +
+				"\n" +
+				"> [!CAUTION]\n" +
+				"> 3 records: 1 passed, 1 failed, 1 with no answer.\n" +
+				"\n" +
+				"_jev-1.13.0_\n",
+		},
+		{
+			name:     "should leave out the id and gate columns and tip when every record answered",
+			opts:     output.MarkdownTableOptions{IDs: both},
+			records:  []output.Record{answered(nil, 0.1, "billing"), answered(nil, 0.2, "sales")},
+			complete: true,
+			want: "| `urgent` | `team` | error |\n" +
+				"|---|---|---|\n" +
+				"| 0.1 | `billing` | |\n" +
+				"| 0.2 | `sales` | |\n" +
+				"\n" +
+				"> [!TIP]\n" +
+				"> 2 records: 2 answered.\n" +
+				"\n" +
+				"_jev-1.13.0_\n",
+		},
+		{
+			name:     "should tip when every record passed",
+			opts:     output.MarkdownTableOptions{IDs: both, Gate: true},
+			records:  []output.Record{answered(nil, 0.1, "billing")},
+			complete: true,
+			want: "| `urgent` | `team` | gate | error |\n" +
+				"|---|---|---|---|\n" +
+				"| 0.1 | `billing` | passed | |\n" +
+				"\n" +
+				"> [!TIP]\n" +
+				"> 1 record: 1 passed.\n" +
+				"\n" +
+				"_jev-1.13.0_\n",
+		},
+		{
+			name:     "should warn when the worst record is an unsure",
+			opts:     output.MarkdownTableOptions{IDs: both, ID: true, Gate: true},
+			records:  []output.Record{answered("T-2", 0.08, "shipping"), unsure},
+			complete: true,
+			want: "| id | `urgent` | `team` | gate | error |\n" +
+				"|---|---|---|---|---|\n" +
+				"| `T-2` | 0.08 | `shipping` | passed | |\n" +
+				"| `T-4` | 0.5 | `sales` | unsure | |\n" +
+				"\n" +
+				"> [!WARNING]\n" +
+				"> 2 records: 1 passed, 1 unsure.\n" +
+				"\n" +
+				"_jev-1.13.0_\n",
+		},
+		{
+			name:     "should caution when a record has no answer and show its fallback",
+			opts:     output.MarkdownTableOptions{IDs: both, ID: true},
+			records:  []output.Record{fellBack},
+			complete: true,
+			want: "| id | `urgent` | `team` | error |\n" +
+				"|---|---|---|---|\n" +
+				"| `T-5` | fallback no | | `connection reset` |\n" +
+				"\n" +
+				"> [!CAUTION]\n" +
+				"> 1 record: 1 with no answer.\n",
+		},
+		{
+			name: "should list every model that answered and sum the usage",
+			opts: output.MarkdownTableOptions{IDs: both},
+			records: []output.Record{
+				spent(answered(nil, 0.1, "billing"), "jev-1.13.0", 10, 2),
+				spent(answered(nil, 0.2, "sales"), "jev-1.14.0", 20, 3),
+				spent(answered(nil, 0.3, "sales"), "jev-1.13.0", 30, 4),
+			},
+			complete: true,
+			want: "| `urgent` | `team` | error |\n" +
+				"|---|---|---|\n" +
+				"| 0.1 | `billing` | |\n" +
+				"| 0.2 | `sales` | |\n" +
+				"| 0.3 | `sales` | |\n" +
+				"\n" +
+				"> [!TIP]\n" +
+				"> 3 records: 3 answered.\n" +
+				"\n" +
+				"_jev-1.13.0, jev-1.14.0, 60 in, 9 out tokens, $0.003_\n",
+		},
+		{
+			name:    "should print what finished and no summary after an interrupt",
+			opts:    output.MarkdownTableOptions{IDs: both, ID: true, Gate: true},
+			records: []output.Record{rejected},
+			want: "| id | `urgent` | `team` | gate | error |\n" +
+				"|---|---|---|---|---|\n" +
+				"| `T-1` | 0.97 | `billing` | failed | |\n" +
+				"\n" +
+				"_jev-1.13.0_\n",
+		},
+		{
+			name:     "should write nothing for a stream with no records",
+			opts:     output.MarkdownTableOptions{IDs: both},
+			complete: true,
+			want:     "",
+		},
+		{
+			name: "should fence ids and messages that would ping, link or break the table",
+			opts: output.MarkdownTableOptions{IDs: []string{"a|b"}, ID: true},
+			records: []output.Record{
+				{ID: "@someone #12", Failure: &output.Failure{Kind: "input", Message: "line 2: <b>bad</b>\n`x` | y"}},
+				{ID: json.Number("12"), Answers: []output.Named{{ID: "a|b", Answer: &answer.Answer{Value: 0.5}}}},
+			},
+			complete: true,
+			want: "| id | `a\\|b` | error |\n" +
+				"|---|---|---|\n" +
+				"| `@someone #12` | | ``line 2: <b>bad</b> `x` \\| y`` |\n" +
+				"| `12` | 0.5 | |\n" +
+				"\n" +
+				"> [!CAUTION]\n" +
+				"> 2 records: 1 answered, 1 with no answer.\n",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var buf bytes.Buffer
+
+			table := output.NewMarkdownTable(&buf, tc.opts)
+			for _, rec := range tc.records {
+				if err := table.Write(rec); err != nil {
+					t.Fatalf("Write() error = %v", err)
+				}
+			}
+
+			if err := table.Finish(tc.complete); err != nil {
+				t.Fatalf("Finish() error = %v", err)
 			}
 
 			if buf.String() != tc.want {
