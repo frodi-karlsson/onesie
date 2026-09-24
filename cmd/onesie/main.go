@@ -29,10 +29,20 @@ func run() int {
 	// that path reachable on every platform rather than only where the runtime returns EPIPE.
 	signal.Ignore(syscall.SIGPIPE)
 
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	ctx, stop := interruptible(context.Background())
 	defer stop()
 
 	root := cli.NewRootCmd(cli.BuildInfo{Version: version, Commit: commit, Date: date})
 
 	return cli.Execute(ctx, root)
+}
+
+func interruptible(parent context.Context) (context.Context, context.CancelFunc) {
+	ctx, stop := signal.NotifyContext(parent, os.Interrupt, syscall.SIGTERM)
+
+	// Only the first signal is caught. Releasing the handler once the run is cancelled gives a
+	// second one its default disposition, so a shutdown that hangs still dies on the next one.
+	context.AfterFunc(ctx, stop)
+
+	return ctx, stop
 }

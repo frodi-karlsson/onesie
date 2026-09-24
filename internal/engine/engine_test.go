@@ -390,6 +390,208 @@ func TestRun(t *testing.T) {
 				}
 			})
 	})
+
+	t.Run("should end an interrupted stream", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name          string
+			sourceResumes bool
+		}{
+			{name: "should report an interrupt that lands while the source is waiting", sourceResumes: true},
+			{name: "should return while the source is still blocked", sourceResumes: false},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				result, written, err := interruptStream(t, false, tc.sourceResumes)
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+
+				if !result.Aborted || !errors.Is(result.Cause, context.Canceled) {
+					t.Errorf("aborted = %v, cause = %v, want an interrupted run", result.Aborted, result.Cause)
+				}
+
+				if !slices.Equal(written, []string{"0", "1"}) {
+					t.Errorf("written = %v, want the two records read before the interrupt", written)
+				}
+			})
+		}
+	})
+
+	t.Run("should read no further ahead than the job count", func(t *testing.T) {
+		t.Parallel()
+
+		const jobs = 3
+
+		if reads := readAhead(t, jobs, false); reads > jobs+1 {
+			t.Errorf("read %d records with %d jobs busy, want at most %d", reads, jobs, jobs+1)
+		}
+	})
+}
+
+func interruptStream(t *testing.T, unordered, sourceResumes bool) (engine.Result, []string, error) {
+	t.Helper()
+
+	release := make(chan struct{})
+
+	var once sync.Once
+
+	unblock := func() { once.Do(func() { close(release) }) }
+	t.Cleanup(unblock)
+
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+
+	lines := make(chan string, 8)
+	finished := make(chan runOutcome, 1)
+
+	go func() {
+		result, err := engine.Run(ctx, engine.Config[input.Record, string]{
+			Source: &stalling{records: 2, release: release},
+			Evaluate: func(_ context.Context, rec input.Record) (string, error) {
+				return strconv.Itoa(rec.Index), nil
+			},
+			Write: func(line string) error {
+				lines <- line
+
+				return nil
+			},
+			Jobs:      4,
+			Unordered: unordered,
+		})
+		finished <- runOutcome{result: result, err: err}
+	}()
+
+	var written []string
+
+	for len(written) < 2 {
+		select {
+		case line := <-lines:
+			written = append(written, line)
+		case <-time.After(5 * time.Second):
+			t.Fatalf("only %v written before the interrupt", written)
+		}
+	}
+
+	cancel()
+
+	if sourceResumes {
+		unblock()
+	}
+
+	select {
+	case got := <-finished:
+		close(lines)
+
+		for line := range lines {
+			written = append(written, line)
+		}
+
+		return got.result, written, got.err
+	case <-time.After(5 * time.Second):
+		t.Fatal("Run did not return after the interrupt, it is still waiting on the source")
+
+		return engine.Result{}, nil, nil
+	}
+}
+
+type runOutcome struct {
+	result engine.Result
+	err    error
+}
+
+type stalling struct {
+	records int
+	next    int
+	release chan struct{}
+}
+
+func (s *stalling) Next() (input.Record, bool, error) {
+	if s.next < s.records {
+		s.next++
+
+		return input.Record{Index: s.next - 1, Line: s.next}, true, nil
+	}
+
+	if s.next == s.records {
+		<-s.release
+		s.next++
+
+		return input.Record{Index: s.records, Line: s.records + 1}, true, nil
+	}
+
+	return input.Record{}, false, nil
+}
+
+func readAhead(t *testing.T, jobs int, unordered bool) int64 {
+	t.Helper()
+
+	var (
+		reads   atomic.Int64
+		started sync.WaitGroup
+	)
+
+	busy := make(chan struct{})
+	started.Add(jobs)
+
+	finished := make(chan error, 1)
+
+	go func() {
+		_, err := engine.Run(t.Context(), engine.Config[input.Record, string]{
+			Source: &countingReads{total: 100, reads: &reads},
+			Evaluate: func(_ context.Context, rec input.Record) (string, error) {
+				if rec.Index < jobs {
+					started.Done()
+					<-busy
+				}
+
+				return strconv.Itoa(rec.Index), nil
+			},
+			Write:     func(string) error { return nil },
+			Jobs:      jobs,
+			Unordered: unordered,
+		})
+		finished <- err
+	}()
+
+	started.Wait()
+
+	// Nothing signals that the dispatcher has stopped reading, so the pause gives an engine that
+	// reads too far ahead the time to show it. A correct engine passes however long it waits.
+	time.Sleep(50 * time.Millisecond)
+
+	got := reads.Load()
+
+	close(busy)
+
+	if err := <-finished; err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	return got
+}
+
+type countingReads struct {
+	total int
+	next  int
+	reads *atomic.Int64
+}
+
+func (c *countingReads) Next() (input.Record, bool, error) {
+	if c.next >= c.total {
+		return input.Record{}, false, nil
+	}
+
+	c.reads.Add(1)
+
+	record := input.Record{Index: c.next, Line: c.next + 1}
+	c.next++
+
+	return record, true, nil
 }
 
 type sliceSource[R any] struct {

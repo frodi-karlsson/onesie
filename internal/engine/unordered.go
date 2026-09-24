@@ -42,11 +42,13 @@ func runUnordered[R, T any](ctx context.Context, cfg Config[R, T]) (Result, erro
 		}()
 	}
 
+	next := interruptible(ctx, cfg.Source)
+
 	go func() {
 		defer close(jobs)
 
 		for {
-			rec, ok, err := cfg.Source.Next()
+			rec, ok, err := next()
 			if err != nil {
 				failed <- err
 
@@ -105,6 +107,12 @@ func drain[R, T any](
 		select {
 		case got, ok := <-done:
 			if !ok {
+				// The workers finish and close the channel on an interrupt as well as at the end
+				// of the input, and only the context tells the two apart.
+				if ctx.Err() != nil {
+					interrupted(ctx, &result)
+				}
+
 				return result
 			}
 
@@ -132,8 +140,7 @@ func drain[R, T any](
 				return result
 			}
 		case <-ctx.Done():
-			result.Aborted = true
-			result.Cause = ctx.Err()
+			interrupted(ctx, &result)
 
 			return result
 		}

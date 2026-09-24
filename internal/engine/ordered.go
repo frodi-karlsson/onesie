@@ -38,7 +38,7 @@ func runOrdered[R, T any](ctx context.Context, cfg Config[R, T]) (Result, error)
 		}()
 	}
 
-	go dispatch(ctx, cfg, jobs, queue, failed)
+	go dispatch(ctx, interruptible(ctx, cfg.Source), jobs, queue, failed)
 
 	// The writer runs here rather than in a goroutine, since it owns the output and this call owns
 	// the result.
@@ -72,7 +72,7 @@ func fifoCap(jobs int) int {
 
 func dispatch[R, T any](
 	ctx context.Context,
-	cfg Config[R, T],
+	next func() (R, bool, error),
 	jobs chan<- job[R, T],
 	queue chan<- chan outcome[T],
 	failed chan<- error,
@@ -81,7 +81,7 @@ func dispatch[R, T any](
 	defer close(queue)
 
 	for {
-		rec, ok, err := cfg.Source.Next()
+		rec, ok, err := next()
 		if err != nil {
 			failed <- err
 
@@ -129,7 +129,29 @@ func consume[R, T any](
 ) Result {
 	var result Result
 
-	for out := range queue {
+	for {
+		var out chan outcome[T]
+
+		select {
+		case head, ok := <-queue:
+			if !ok {
+				// A closed queue is ambiguous. The dispatcher closes it at the end of the input and
+				// also when the run is interrupted, and only the context tells the two apart.
+				if ctx.Err() != nil {
+					interrupted(ctx, &result)
+				}
+
+				return result
+			}
+
+			out = head
+		case <-ctx.Done():
+			interrupted(ctx, &result)
+			flush(cfg, queue, &result)
+
+			return result
+		}
+
 		select {
 		case got := <-out:
 			if !emit(cfg, got, &result) {
@@ -166,8 +188,7 @@ func consume[R, T any](
 				return result
 			}
 		case <-ctx.Done():
-			result.Aborted = true
-			result.Cause = ctx.Err()
+			interrupted(ctx, &result)
 
 			// The channel being held is the head of the prefix. Both select cases are ready when
 			// a signal lands just as this record completes, and Go picks between them at random,
@@ -185,8 +206,11 @@ func consume[R, T any](
 			return result
 		}
 	}
+}
 
-	return result
+func interrupted(ctx context.Context, result *Result) {
+	result.Aborted = true
+	result.Cause = ctx.Err()
 }
 
 func flush[R, T any](cfg Config[R, T], queue <-chan chan outcome[T], result *Result) {

@@ -12,6 +12,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/frodi-karlsson/onesie/internal/cli"
 	"github.com/frodi-karlsson/onesie/internal/jev"
@@ -570,4 +571,125 @@ func (r *breakingReader) Read(p []byte) (int, error) {
 	r.lines = r.lines[n:]
 
 	return n, nil
+}
+
+func TestNewRootCmdInterruptedStream(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		args          []string
+		sourceResumes bool
+	}{
+		{
+			name:          "should exit 130 when input arrives after the interrupt",
+			args:          []string{"is this urgent", "-i", "lines"},
+			sourceResumes: true,
+		},
+		{
+			name: "should exit 130 promptly while stdin is idle",
+			args: []string{"is this urgent", "-i", "lines"},
+		},
+		{
+			name:          "should exit 130 unordered when input arrives after the interrupt",
+			args:          []string{"is this urgent", "-i", "lines", "--unordered"},
+			sourceResumes: true,
+		},
+		{
+			name: "should exit 130 promptly unordered while stdin is idle",
+			args: []string{"is this urgent", "-i", "lines", "--unordered"},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				if _, err := w.Write([]byte(
+					`{"model":"onesie-1.13.0","answers":{"answer":{"type":"noul","noul":0.9}}}`,
+				)); err != nil {
+					t.Errorf("writing stub response: %v", err)
+				}
+			}))
+			defer srv.Close()
+
+			stdin, feed := io.Pipe()
+			t.Cleanup(func() { feed.Close() })
+
+			out := &lineCounter{lines: make(chan struct{}, 8)}
+
+			var errOut bytes.Buffer
+
+			root := cli.NewRootCmd(
+				cli.BuildInfo{Version: "1.2.3"},
+				cli.WithKeychain(offKeychain{}),
+				cli.WithClientFactory(func(_ context.Context, opts ...jev.Option) (*jev.Client, error) {
+					return jev.New(append([]jev.Option{
+						jev.WithAPIKey("k"), jev.WithBaseURL(srv.URL),
+					}, opts...)...)
+				}),
+				cli.WithStdin(stdin),
+				cli.WithStdinTTY(false),
+				cli.WithStdoutTTY(false),
+				cli.WithLookupEnv(func(string) (string, bool) { return "", false }),
+			)
+
+			root.SetOut(out)
+			root.SetErr(&errOut)
+			root.SetArgs(tc.args)
+
+			ctx, interrupt := context.WithCancel(t.Context())
+			defer interrupt()
+
+			exited := make(chan int, 1)
+
+			go func() { exited <- cli.Execute(ctx, root) }()
+
+			if _, err := io.WriteString(feed, "one\ntwo\n"); err != nil {
+				t.Fatalf("feeding stdin: %v", err)
+			}
+
+			for range 2 {
+				select {
+				case <-out.lines:
+				case <-time.After(5 * time.Second):
+					t.Fatal("the records fed before the interrupt were never written")
+				}
+			}
+
+			interrupt()
+
+			if tc.sourceResumes {
+				go io.WriteString(feed, "three\n")
+			}
+
+			select {
+			case code := <-exited:
+				if code != cli.ExitInterrupt {
+					t.Errorf("exit code = %d, want %d\nstderr:\n%s",
+						code, cli.ExitInterrupt, errOut.String())
+				}
+			case <-time.After(5 * time.Second):
+				t.Fatal("the stream ignored the interrupt while waiting on stdin")
+			}
+		})
+	}
+}
+
+type lineCounter struct {
+	mu    sync.Mutex
+	buf   bytes.Buffer
+	lines chan struct{}
+}
+
+func (c *lineCounter) Write(p []byte) (int, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	for range bytes.Count(p, []byte("\n")) {
+		c.lines <- struct{}{}
+	}
+
+	return c.buf.Write(p)
 }

@@ -3,6 +3,7 @@ package engine_test
 import (
 	"context"
 	"errors"
+	"slices"
 	"sort"
 	"strconv"
 	"sync"
@@ -241,6 +242,49 @@ func TestRunUnordered(t *testing.T) {
 
 		if !result.Broken {
 			t.Error("a closed pipe must set Broken")
+		}
+	})
+
+	t.Run("should end an interrupted stream", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name          string
+			sourceResumes bool
+		}{
+			{name: "should report an interrupt that lands while the source is waiting", sourceResumes: true},
+			{name: "should return while the source is still blocked", sourceResumes: false},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				result, written, err := interruptStream(t, true, tc.sourceResumes)
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+
+				if !result.Aborted || !errors.Is(result.Cause, context.Canceled) {
+					t.Errorf("aborted = %v, cause = %v, want an interrupted run", result.Aborted, result.Cause)
+				}
+
+				sort.Strings(written)
+
+				if !slices.Equal(written, []string{"0", "1"}) {
+					t.Errorf("written = %v, want the two records read before the interrupt", written)
+				}
+			})
+		}
+	})
+
+	t.Run("should read no further ahead than the job count", func(t *testing.T) {
+		t.Parallel()
+
+		const jobs = 3
+
+		if reads := readAhead(t, jobs, true); reads > jobs+1 {
+			t.Errorf("read %d records with %d jobs busy, want at most %d", reads, jobs, jobs+1)
 		}
 	})
 }
