@@ -111,7 +111,7 @@ onesie 'is this ticket stale' -i json --state '{"age_days":45}'
 
 ### Send the field the question is about, not the whole record.
 
-Accuracy drops as unrelated fields pile up in the state, and drops further when the answer means following a reference from one field to another. Pass only the field the question is about.
+Accuracy drops as unrelated fields pile up in the state, and drops further when the answer means following a reference from one field to another. Pass only the field the question is about. Over a stream, `--map '.ticket.text'` picks that field out of every record, and the onesie-stream skill covers it.
 
 **Bad:**
 

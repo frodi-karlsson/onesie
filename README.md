@@ -73,18 +73,34 @@ onesie 'does `body` convey urgency' -i jsonl -j 4 --merge < tickets.jsonl \
 
 # a spreadsheet in, the same spreadsheet out with a column per question
 onesie --ask urgent='does `body` convey urgency' -i csv -o csv --merge < tickets.csv > triaged.csv
+
+# send only the body, and name each answer by the ticket id
+onesie 'is this urgent' -i jsonl --map '.body' --id '.id' -o values < tickets.jsonl
+# {"id":"T-1","answer":0.97}
 ```
+
+`--map` is a jq expression whose result is the state, so `.body`, `{subject, body}` or
+`.messages[-1].text` keeps the rest of the record away from the model. An object it builds is sent
+with its keys sorted, and `onesie -V` lists the caps on its result. `--id` is a jq expression whose
+string or number result names the record on every output line. It runs one record at a time, so keep
+it cheap. Ids match by their text, so `7`, `7.0` and `"7"` are one id in jsonl.
 
 A record that fails in a stream still prints a line carrying an `error` key, the run carries on, and
 the exit code is 6. `--stop-on-error` ends the run at the first failure instead, and `--unordered`
 trades input order for throughput.
 
 A long run can be picked up where it stopped. With `--out` onesie writes the answers to a file, and
-`--resume` counts the complete lines already in it, drops a line the earlier run was cut off in, and
+a fingerprint of the questions, provider, model, `--map` and `--id` beside it. `--resume` refuses
+with exit 2 when any of those changed. With `--id` it skips the records the file already answers,
+asks the rest, including the ones that failed, and appends each answer as it arrives. Once the run
+completes it rewrites the file in input order, keeping answered ids the input no longer has after
+the rest unless `--prune` is given. Only the id is compared, so a record whose content changed but
+whose id did not keeps its old answer. A resume holds a lock beside the file, so two cannot run into
+the same file at once. Without `--id`, `--resume` counts the complete lines already in the file and
 carries on from the next record.
 
 ```sh
-onesie 'does `body` convey urgency' -i jsonl -j 8 --merge --out answers.jsonl --resume < tickets.jsonl
+onesie 'is this urgent' -i jsonl -j 8 --map '.body' --id '.id' --out answers.jsonl --resume < tickets.jsonl
 ```
 
 ### Gating

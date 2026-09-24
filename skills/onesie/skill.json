@@ -52,7 +52,7 @@
     {
       "id": "keep-the-state-tight",
       "short": "Send the field the question is about, not the whole record.",
-      "why": "Accuracy drops as unrelated fields pile up in the state, and drops further when the answer means following a reference from one field to another. Pass only the field the question is about.",
+      "why": "Accuracy drops as unrelated fields pile up in the state, and drops further when the answer means following a reference from one field to another. Pass only the field the question is about. Over a stream, `--map '.ticket.text'` picks that field out of every record, and the onesie-stream skill covers it.",
       "bad": "onesie 'is this ticket urgent' -i json --state '{\"id\":482,\"customer\":\"Jordan Miles\",\"address\":\"219 Birch Ln\",\"ticket\":{\"text\":\"the server is down\"}}'",
       "bad_passes": true,
       "good": "onesie 'is this ticket urgent' --state 'the server is down'"
