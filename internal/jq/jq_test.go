@@ -7,6 +7,7 @@ import (
 	"math"
 	"math/big"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -209,6 +210,9 @@ func TestExpr_One(t *testing.T) {
 func TestID(t *testing.T) {
 	t.Parallel()
 
+	manyOnes := strings.Repeat("1", 1023) + "e-1024"
+	pastHalfway := "9007199254740993" + strings.Repeat("0", 984) + "1e-985"
+
 	tests := []struct {
 		name    string
 		value   any
@@ -233,6 +237,12 @@ func TestID(t *testing.T) {
 		{name: "should write an integer as long as the limit", value: json.Number("1e1023"), want: json.Number("1" + strings.Repeat("0", 1023))},
 		{name: "should drop the trailing zeros of a fraction", value: json.Number("0.50"), want: json.Number("0.5")},
 		{name: "should read a fraction whose leading zeros an exponent moves", value: json.Number("0.0012e3"), want: json.Number("1.2")},
+		{name: "should read a fraction with more significant digits than ParseFloat keeps", value: json.Number(manyOnes), want: ratID(t, manyOnes)},
+		{name: "should read a fraction whose rounding hangs on a digit past the 800th", value: json.Number(pastHalfway), want: ratID(t, pastHalfway)},
+		{name: "should write a zero with an exponent past an int32 as zero", value: json.Number("0e99999999999"), want: json.Number("0")},
+		{name: "should write a negative zero with a negative exponent past an int32 as zero", value: json.Number("-0.000e-99999999999"), want: json.Number("0")},
+		{name: "should reject an exponent with two signs as not an id", value: json.Number("1e+-5"), wantIs: ErrNotID, wantErr: "id must be a string or a finite number, got 1e+-5"},
+		{name: "should reject an exponent with two minus signs as not an id", value: json.Number("1e--5"), wantIs: ErrNotID, wantErr: "id must be a string or a finite number, got 1e--5"},
 		{name: "should reject an integer that writes out longer than the limit", value: json.Number("1e1024"), wantIs: ErrIDOutOfRange, wantErr: "id is out of range, got 1e1024, which writes out to more than 1024 bytes"},
 		{name: "should count the sign of a negative integer against the limit", value: json.Number("-1e1023"), wantIs: ErrIDOutOfRange, wantErr: "id is out of range, got -1e1023, which writes out to more than 1024 bytes"},
 		{name: "should reject a million digit integer without writing it out", value: json.Number("1e1000000"), wantIs: ErrIDOutOfRange, wantErr: "id is out of range, got 1e1000000, which writes out to more than 1024 bytes"},
@@ -281,6 +291,19 @@ func TestID(t *testing.T) {
 			}
 		})
 	}
+}
+
+func ratID(t *testing.T, text string) json.Number {
+	t.Helper()
+
+	exact, ok := new(big.Rat).SetString(text)
+	if !ok {
+		t.Fatalf("big.Rat cannot read %q", text)
+	}
+
+	nearest, _ := exact.Float64()
+
+	return json.Number(strconv.FormatFloat(nearest, 'f', -1, 64))
 }
 
 func TestMarshal(t *testing.T) {

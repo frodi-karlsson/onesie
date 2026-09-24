@@ -172,7 +172,7 @@ func numberID(number json.Number) (any, error) {
 		return json.Number(literal.integerText()), nil
 	}
 
-	approx, err := strconv.ParseFloat(text, 64)
+	approx, err := strconv.ParseFloat(literal.normalized(), 64)
 	if err != nil || approx == 0 {
 		return nil, outOfRange(text)
 	}
@@ -196,25 +196,30 @@ func parseDecimal(text string) (decimal, bool) {
 	var exponent int64
 
 	if hasExponent {
-		digits := strings.TrimPrefix(strings.TrimPrefix(exponentText, "+"), "-")
+		digits := exponentText
+		if strings.HasPrefix(digits, "+") || strings.HasPrefix(digits, "-") {
+			digits = digits[1:]
+		}
+
 		if digits == "" || !allDigits(digits) {
 			return decimal{}, false
 		}
 
 		parsed, err := strconv.ParseInt(exponentText, 10, 32)
-		if err != nil {
-			literal.exponentOverflows = true
-
-			return literal, true
-		}
-
 		exponent = parsed
+		literal.exponentOverflows = err != nil
 	}
 
 	significant := whole + fraction
 	trimmed := strings.TrimLeft(significant, "0")
-	literal.point = int64(len(whole)-(len(significant)-len(trimmed))) + exponent
 	literal.digits = strings.TrimRight(trimmed, "0")
+
+	if literal.digits == "" {
+		literal.exponentOverflows = false
+		exponent = 0
+	}
+
+	literal.point = int64(len(whole)-(len(significant)-len(trimmed))) + exponent
 
 	return literal, true
 }
@@ -253,6 +258,18 @@ func (d decimal) integerText() string {
 	}
 
 	return sign + d.digits + strings.Repeat("0", int(d.point)-len(d.digits))
+}
+
+func (d decimal) normalized() string {
+	// ParseFloat keeps 800 digits on its slow path and counts the point from the digits it kept,
+	// so a literal with more digits ahead of its point or exponent comes back at the wrong
+	// magnitude. A point placed ahead of every digit is counted before any are dropped.
+	sign := ""
+	if d.negative {
+		sign = "-"
+	}
+
+	return sign + "0." + d.digits + "e" + strconv.FormatInt(d.point, 10)
 }
 
 func allDigits(text string) bool {
