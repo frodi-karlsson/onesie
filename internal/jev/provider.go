@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"strings"
+	"time"
 )
 
 // ProviderNamed returns the provider a --provider value or ONESIE_PROVIDER names.
@@ -42,7 +43,7 @@ func OpenRouter() Provider {
 		EnvAPIKey:       "OPENROUTER_API_KEY",
 		requestIDHeader: "X-Generation-Id",
 		modelsPath:      "/v1/models?output_modalities=decisions",
-		decodeModels:    decodeTypeSafeModels,
+		decodeModels:    decodeOpenRouterModels,
 	}
 }
 
@@ -80,4 +81,33 @@ func decodeTypeSafeModels(body []byte) ([]ModelCard, error) {
 	}
 
 	return wire.Models, nil
+}
+
+func decodeOpenRouterModels(body []byte) ([]ModelCard, error) {
+	var wire struct {
+		Data []struct {
+			ID          string `json:"id"`
+			Description string `json:"description"`
+			Created     int64  `json:"created"`
+		} `json:"data"`
+	}
+
+	if err := json.Unmarshal(body, &wire); err != nil {
+		return nil, err
+	}
+
+	if wire.Data == nil {
+		return nil, errors.New("expected a models list")
+	}
+
+	cards := make([]ModelCard, 0, len(wire.Data))
+	for _, model := range wire.Data {
+		cards = append(cards, ModelCard{
+			Name:        model.ID,
+			Description: model.Description,
+			ReleaseDate: time.Unix(model.Created, 0).UTC().Format(time.DateOnly),
+		})
+	}
+
+	return cards, nil
 }
