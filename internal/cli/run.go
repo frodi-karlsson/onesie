@@ -433,7 +433,7 @@ func stream(
 	// Only a run that read and wrote every record rewrites the file. Anything short of that leaves
 	// the appended lines as they are, for the next resume to finish.
 	if book != nil && !result.Aborted && !result.Broken && !stopped.Load() && book.complete() {
-		answers.compactInto(book.order(), outputMode)
+		answers.compactInto(book.order(flags.prune), outputMode)
 	}
 
 	return streamResult(result, stats.falseAssertions(), stats.abstains())
@@ -962,6 +962,7 @@ type runFlags struct {
 	provider     string
 	out          string
 	resume       bool
+	prune        bool
 	resumeSkip   int
 	resumeHeader bool
 	output       string

@@ -60,25 +60,66 @@ func TestResumeLedger(t *testing.T) {
 			}},
 		},
 		{
-			name: "should keep the newest answer for an id and drop an id no longer in the input",
+			name: "should keep the newest answer for an id and keep an id no longer in the input after the input's records",
+			existing: fileOf("{\"id\":2,\"answer\":0.1}\n{\"id\":8,\"answer\":0.5}\n{\"id\":1,\"answer\":0.5}\n" +
+				"{\"id\":9,\"answer\":0.5}\n{\"id\":2,\"answer\":0.9}\n"),
+			sidecar: byID,
+			stdin:   idRecords(1, 3),
+			runs: []resumeRun{{
+				args: values,
+				wantFile: "{\"id\":1,\"answer\":0.5}\n{\"id\":2,\"answer\":0.9}\n{\"id\":3,\"answer\":0.5}\n" +
+					"{\"id\":8,\"answer\":0.5}\n{\"id\":9,\"answer\":0.5}\n",
+				wantSent: []string{`{"id":3}`},
+			}},
+		},
+		{
+			name: "should drop an id no longer in the input under --prune",
 			existing: fileOf("{\"id\":2,\"answer\":0.1}\n{\"id\":1,\"answer\":0.5}\n{\"id\":9,\"answer\":0.5}\n" +
 				"{\"id\":2,\"answer\":0.9}\n"),
 			sidecar: byID,
 			stdin:   idRecords(1, 3),
 			runs: []resumeRun{{
-				args:     values,
+				args:     append([]string{"--prune"}, values...),
 				wantFile: "{\"id\":1,\"answer\":0.5}\n{\"id\":2,\"answer\":0.9}\n{\"id\":3,\"answer\":0.5}\n",
 				wantSent: []string{`{"id":3}`},
 			}},
 		},
 		{
-			name:     "should rewrite the file when every record is already answered",
-			existing: fileOf(idLines(1, 3)),
+			name:     "should keep every answer when the input is cut short",
+			existing: fileOf(idLines(1, 5)),
 			sidecar:  byID,
 			stdin:    idRecords(1, 2),
 			runs: []resumeRun{{
 				args:     values,
+				wantFile: idLines(1, 5),
+			}},
+		},
+		{
+			name:     "should keep every answer in file order when the input is empty",
+			existing: fileOf(idLines(3, 3) + "{\"id\":4,\"error\":{\"kind\":\"http\",\"status\":500,\"message\":\"boom\"}}\n" + idLines(1, 2)),
+			sidecar:  byID,
+			runs: []resumeRun{{
+				args:     values,
+				wantFile: idLines(3, 3) + idLines(1, 2),
+			}},
+		},
+		{
+			name:     "should keep only the input's records when a cut short input runs under --prune",
+			existing: fileOf(idLines(1, 5)),
+			sidecar:  byID,
+			stdin:    idRecords(1, 2),
+			runs: []resumeRun{{
+				args:     append([]string{"--prune"}, values...),
 				wantFile: idLines(1, 2),
+			}},
+		},
+		{
+			name:     "should empty the file when the input is empty under --prune",
+			existing: fileOf(idLines(1, 3)),
+			sidecar:  byID,
+			runs: []resumeRun{{
+				args:     append([]string{"--prune"}, values...),
+				wantFile: "",
 			}},
 		},
 		{

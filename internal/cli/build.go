@@ -51,6 +51,7 @@ func configOf(
 		StopOnError:    flags.stopOnError,
 		Out:            flags.out,
 		Resume:         flags.resume,
+		Prune:          flags.prune,
 		StopOnAssert:   flags.stopOnAssert,
 		SkipBlank:      flags.skipBlank,
 		Merge:          merging(flags),

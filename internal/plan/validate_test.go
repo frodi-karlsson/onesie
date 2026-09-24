@@ -977,6 +977,23 @@ func TestCheckFlags(t *testing.T) {
 			wantErr: "onesie: --resume with --id reads the id back from each line, which raw output leaves out. Use -o json, values, csv or tsv",
 		},
 		{
+			name:    "should reject --prune without --resume",
+			cfg:     plan.Config{Streaming: true, InputName: "jsonl", Out: "a.jsonl", HasID: true, Prune: true, Jobs: 1},
+			wantErr: "onesie: --prune applies to --resume, which was not given",
+		},
+		{
+			name:    "should reject --prune without --id",
+			cfg:     plan.Config{Streaming: true, InputName: "jsonl", Resume: true, Out: "a.jsonl", Prune: true, Jobs: 1},
+			wantErr: "onesie: --prune drops the answered ids the input no longer has, so it needs --id",
+		},
+		{
+			name: "should accept --prune with --resume and --id",
+			cfg: plan.Config{
+				Streaming: true, InputName: "jsonl", Resume: true, Out: "a.jsonl", HasID: true, Prune: true,
+				Jobs: 1,
+			},
+		},
+		{
 			name:    "should reject --resume with --list-models",
 			cfg:     plan.Config{ListModels: true, InputName: "text", Resume: true, Out: "m.txt"},
 			wantErr: "onesie: --resume applies to streaming input, which --list-models does not read",

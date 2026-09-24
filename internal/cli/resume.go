@@ -3,6 +3,7 @@ package cli
 import (
 	"bufio"
 	"bytes"
+	"cmp"
 	"context"
 	"crypto/sha256"
 	"encoding/csv"
@@ -10,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"slices"
 	"strings"
@@ -200,7 +202,9 @@ func (l *ledger) admit(rec *namedRecord) (answered bool) {
 	rec.slot = len(l.lines)
 
 	if rec.id != nil {
-		if at, found := l.answered[sha256.Sum256([]byte(idText(rec.id)))]; found {
+		key := sha256.Sum256([]byte(idText(rec.id)))
+		if at, found := l.answered[key]; found {
+			delete(l.answered, key)
 			l.lines = append(l.lines, at)
 			l.skipped++
 
@@ -236,11 +240,20 @@ func (l *ledger) complete() bool {
 	return l.ended && l.pending == 0
 }
 
-func (l *ledger) order() []span {
+func (l *ledger) order(prune bool) []span {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	return slices.Clone(l.lines)
+	lines := slices.Clone(l.lines)
+	if prune {
+		return lines
+	}
+
+	unasked := slices.SortedFunc(maps.Values(l.answered), func(a, b span) int {
+		return cmp.Compare(a.start, b.start)
+	})
+
+	return append(lines, unasked...)
 }
 
 func (l *ledger) skips() int {

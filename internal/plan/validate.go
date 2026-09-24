@@ -76,6 +76,10 @@ func CheckFlags(cfg Config) (string, error) {
 		return "", err
 	}
 
+	if err := checkPrune(cfg); err != nil {
+		return "", err
+	}
+
 	// Both ahead of the output and streaming rules, so a dry run is rejected before anything it
 	// would have written reaches stdout.
 	for _, check := range flagChecks(cfg) {
@@ -132,6 +136,19 @@ func checkResume(cfg Config) error {
 	case cfg.HasID && (cfg.Raw || cfg.Output == "raw"):
 		return errors.New("onesie: --resume with --id reads the id back from each line, " +
 			"which raw output leaves out. Use -o json, values, csv or tsv")
+	default:
+		return nil
+	}
+}
+
+func checkPrune(cfg Config) error {
+	switch {
+	case !cfg.Prune:
+		return nil
+	case !cfg.Resume:
+		return errors.New("onesie: --prune applies to --resume, which was not given")
+	case !cfg.HasID:
+		return errors.New("onesie: --prune drops the answered ids the input no longer has, so it needs --id")
 	default:
 		return nil
 	}
@@ -993,6 +1010,8 @@ type Config struct {
 	Out string
 	// Resume is --resume, which picks a stream up where an earlier run into Out stopped.
 	Resume bool
+	// Prune is --prune, which drops the answered ids a resume by id no longer finds in the input.
+	Prune bool
 	// StopOnAssert is --stop-on-assert, which ends a stream at the first record whose assertion
 	// was false. §17.6.
 	StopOnAssert bool
