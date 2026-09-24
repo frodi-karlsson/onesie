@@ -1872,7 +1872,7 @@ func TestCalibrateRun(t *testing.T) {
 		}
 	})
 
-	t.Run("should say how many answers the usage covers when stored lines carry none and an answer is unusable", func(t *testing.T) {
+	t.Run("should say how many records the usage covers when stored lines carry none and an answer is unusable", func(t *testing.T) {
 		t.Parallel()
 
 		answers := filepath.Join(t.TempDir(), "answers.jsonl")
@@ -1898,7 +1898,7 @@ func TestCalibrateRun(t *testing.T) {
 			t.Errorf("the resume made %d requests, want 3", stub.count())
 		}
 
-		if !strings.Contains(out, `"usage":{"input_tokens":30,"output_tokens":6,"cost":0.75,"answers":3}`) {
+		if !strings.Contains(out, `"usage":{"input_tokens":30,"output_tokens":6,"cost":0.75,"records":3}`) {
 			t.Errorf("stdout = %s, want the three answers asked counted, both unusable ones included", out)
 		}
 	})
@@ -1924,7 +1924,7 @@ func TestCalibrateRun(t *testing.T) {
 			}
 		}
 
-		if !strings.Contains(first, `"usage":{"input_tokens":50,"output_tokens":10,"cost":1.25,"answers":5}`) {
+		if !strings.Contains(first, `"usage":{"input_tokens":50,"output_tokens":10,"cost":1.25,"records":5}`) {
 			t.Errorf("stdout = %s, want the usage of five records summed", first)
 		}
 
@@ -1937,7 +1937,7 @@ func TestCalibrateRun(t *testing.T) {
 			t.Fatalf("resume exit code = %d, stderr:\n%s", code, errOut)
 		}
 
-		if again.count() != 1 || !strings.Contains(second, `"usage":{"input_tokens":60,"output_tokens":12,"cost":1.5,"answers":6}`) {
+		if again.count() != 1 || !strings.Contains(second, `"usage":{"input_tokens":60,"output_tokens":12,"cost":1.5,"records":6}`) {
 			t.Errorf("stdout = %s after %d requests, want one request and six records summed", second, again.count())
 		}
 

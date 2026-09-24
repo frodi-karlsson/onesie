@@ -454,7 +454,7 @@ func usageOf(answered []output.Record) *calibrate.Usage {
 			continue
 		}
 
-		total.Answers++
+		total.Records++
 		total.InputTokens += record.Usage.InputTokens
 		total.OutputTokens += record.Usage.OutputTokens
 

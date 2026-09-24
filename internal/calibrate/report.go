@@ -14,12 +14,12 @@ type Report struct {
 	Questions                                            []QuestionReport
 }
 
-// Usage is the token count summed over the answers that carry one. Answers says how many that is,
-// since a stored answer written without --usage carries none.
+// Usage is the token count summed over the records that carry one, failed ones included. Records
+// says how many that is, since a stored line written without --usage carries none.
 type Usage struct {
 	jev.Usage
 
-	Answers int `json:"answers"`
+	Records int `json:"records"`
 }
 
 // QuestionReport is one question's score. Only the score for its Shape is set.
