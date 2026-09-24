@@ -179,7 +179,8 @@ onesie --ask urgent='is this urgent' --assert 'urgnet.value < 0.5'
   `--prune` drops them. A changed fingerprint refuses with exit 2. A record whose content changed
   but whose id did not keeps its old answer. Without `--id`, it carries on by line count. Either
   way, a skipped record keeps its stored `--assert` outcome, so it counts toward the exit code and
-  `--stats` as if it were judged again. Raw output keeps no outcome, so `--resume` refuses it
+  `--stats` as if it were judged again. Under `--stop-on-assert`, a skipped false assertion ends the
+  run where a fresh run would stop. Raw output keeps no outcome, so `--resume` refuses it
   under `--assert` with exit 2. Use `-o values` or `-o json`.
 
 ### Keys and providers

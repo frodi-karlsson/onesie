@@ -33,8 +33,9 @@ func records(
 	return &naming{
 		ctx:    ctx,
 		stop:   stop,
-		source: &resumed{source: stream, left: flags.resumeSkip, stored: stored},
+		source: &resumed{source: stream, left: flags.resumeSkip, stored: stored, halt: flags.stopOnAssert},
 		namer:  namer,
+		halt:   flags.stopOnAssert,
 		book:   book,
 		mode:   outputMode,
 		seen:   map[[sha256.Size]byte]int{},
@@ -47,23 +48,31 @@ type resumed struct {
 	left   int
 	stored []verdict
 	skips  tally
+	halt   bool
+	halted bool
 }
 
 func (r *resumed) Next() (input.Record, bool, error) {
-	for r.left > 0 {
+	for r.left > 0 && !r.halted {
 		r.left--
 
 		if rec, ok, err := r.source.Next(); err != nil || !ok {
 			return rec, ok, err
 		}
 
-		r.count()
+		// A fresh run under --stop-on-assert would have stopped at this record, so nothing after
+		// it is read.
+		r.halted = r.count().rejected && r.halt
+	}
+
+	if r.halted {
+		return input.Record{}, false, nil
 	}
 
 	return r.source.Next()
 }
 
-func (r *resumed) count() {
+func (r *resumed) count() verdict {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -73,6 +82,8 @@ func (r *resumed) count() {
 	}
 
 	r.skips.count(judged)
+
+	return judged
 }
 
 func (r *resumed) skipped() tally {
@@ -97,10 +108,12 @@ type naming struct {
 	book   *ledger
 	mode   output.Mode
 	seen   map[[sha256.Size]byte]int
+	halt   bool
+	halted bool
 }
 
 func (n *naming) Next() (namedRecord, bool, error) {
-	for {
+	for !n.halted {
 		rec, ok, err := n.source.Next()
 		if err != nil || !ok {
 			if err == nil && n.book != nil {
@@ -112,13 +125,21 @@ func (n *naming) Next() (namedRecord, bool, error) {
 
 		named := n.named(rec)
 
-		// Skipped here, as the record is read, so an answered record is never evaluated or sent.
-		if n.book != nil && n.book.admit(&named) {
-			continue
+		if n.book == nil {
+			return named, true, nil
 		}
 
-		return named, true, nil
+		// Skipped here, as the record is read, so an answered record is never evaluated or sent.
+		judged, answered := n.book.admit(&named)
+		if !answered {
+			return named, true, nil
+		}
+
+		// The ledger is left unended, so a stopped run is not compacted, as a fresh one is not.
+		n.halted = judged.rejected && n.halt
 	}
+
+	return namedRecord{}, false, nil
 }
 
 func (n *naming) skipped() tally {

@@ -353,7 +353,7 @@ func keyOf(id string) ledgerKey {
 	return ledgerKey(sum[:16])
 }
 
-func (l *ledger) admit(rec *namedRecord) (answered bool) {
+func (l *ledger) admit(rec *namedRecord) (verdict, bool) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
@@ -366,14 +366,14 @@ func (l *ledger) admit(rec *namedRecord) (answered bool) {
 			l.lines = append(l.lines, stored.at)
 			l.skips.count(stored.judged)
 
-			return true
+			return stored.judged, true
 		}
 	}
 
 	l.lines = append(l.lines, span{})
 	l.pending++
 
-	return false
+	return verdict{}, false
 }
 
 func (l *ledger) wrote(slot int, at span) {

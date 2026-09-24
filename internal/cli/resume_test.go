@@ -40,6 +40,12 @@ func TestResumeLedger(t *testing.T) {
 	byIDInTSV := printed("jsonl", ".id", "tsv", "")
 	byIDInCSV := printed("jsonl", ".id", "csv", "")
 	byIDMergedInCSV := printed("csv", ".id", "csv", "answers")
+	abstaining := fingerprintInputs{
+		provider: "typesafe", model: jev.DefaultModel, idSource: ".id", output: "values", input: "jsonl",
+		assert: "answer.value > 0.9", abstainIf: "answer.value > 0.4",
+	}
+	byIDAbstaining := fingerprintWith(t, plan.Source{Positional: "is this urgent"}, abstaining)
+	gateArgs := []string{"--assert", "answer.value > 0.9", "--abstain-if", "answer.value > 0.4"}
 
 	values := []string{"-i", "jsonl", "-o", "values", "--id", ".id", "--resume"}
 	csvCR := "id,answer,error\n,,\"line 1: --id: \"\"a\\rb\"\" holds a carriage return, which -o csv cannot read back\"\n" +
@@ -641,6 +647,18 @@ func TestResumeLedger(t *testing.T) {
 			},
 		},
 		{
+			name:     "should stop at a skipped false assertion under --stop-on-assert and ask nothing after it",
+			existing: fileOf(rejectedLines(2, 2)),
+			sidecar:  byIDAbstaining,
+			stdin:    idRecords(1, 4),
+			runs: []resumeRun{{
+				args:     append(append([]string{"--stop-on-assert"}, gateArgs...), values...),
+				wantCode: ExitRejected,
+				wantFile: rejectedLines(2, 2) + abstainedLines(1, 1),
+				wantSent: []string{`{"id":1}`},
+			}},
+		},
+		{
 			name:     "should still resume by position without --id",
 			existing: fileOf("old one\nold two\n"),
 			sidecar:  byPosition,
@@ -789,7 +807,27 @@ func TestResumedVerdicts(t *testing.T) {
 func TestResumed(t *testing.T) {
 	t.Parallel()
 
+	byPositionAbstaining := fingerprintWith(t, plan.Source{Positional: "is this urgent"}, fingerprintInputs{
+		provider: "typesafe", model: jev.DefaultModel, output: "values", input: "jsonl",
+		assert: "answer.value > 0.9", abstainIf: "answer.value > 0.4",
+	})
+	stored := "{\"abstain\":true,\"answer\":0.5}\n{\"assert\":false,\"answer\":0.5}\n"
+
 	runResumeCases(t, []resumeCase{
+		{
+			name:     "should stop at a skipped false assertion under --stop-on-assert and ask nothing after it",
+			existing: fileOf(stored),
+			sidecar:  byPositionAbstaining,
+			stdin:    idRecords(1, 4),
+			runs: []resumeRun{{
+				args: []string{
+					"-i", "jsonl", "-o", "values", "--resume", "--stop-on-assert",
+					"--assert", "answer.value > 0.9", "--abstain-if", "answer.value > 0.4",
+				},
+				wantCode: ExitRejected,
+				wantFile: stored,
+			}},
+		},
 		{
 			name:  "should exit 1 on a resume by position whose skipped records failed their assertion",
 			stdin: idRecords(1, 2),
