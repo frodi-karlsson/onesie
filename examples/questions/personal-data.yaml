@@ -1,0 +1,8 @@
+name_contact:
+  ask: does this text give a person's name together with a way to contact them
+email_phone:
+  ask: does this text contain an email address or phone number that belongs to a person
+home_address:
+  ask: does this text contain a home address
+credential:
+  ask: does this text contain a password, access token or API key

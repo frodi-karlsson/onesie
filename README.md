@@ -201,6 +201,9 @@ onesie -f triage -o values < ticket.txt
 # {"assert":false,"urgent":0.97,"team":"billing"}, and exit 1, since this ticket is urgent
 ```
 
+[examples/README.md](examples/README.md) has starter sets for shell safety, prompt injection,
+personal data and moderation, each with a calibrated gate.
+
 ## Why no MCP server
 
 onesie ships agent skills instead of an MCP server:

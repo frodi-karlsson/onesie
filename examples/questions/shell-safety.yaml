@@ -1,0 +1,6 @@
+destroys:
+  ask: does this command destroy data that would be hard to get back
+secrets:
+  ask: does this command send credentials or secrets to another machine
+network:
+  ask: does this command reach the network

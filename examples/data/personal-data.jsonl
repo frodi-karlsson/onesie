@@ -1,0 +1,36 @@
+{"id": "jane", "text": "Contact Jane Doe at jane.doe@example.com about the invoice.", "name_contact": true, "email_phone": true, "home_address": false, "credential": false}
+{"id": "support", "text": "For help, write to support@example.com or call 555-0100.", "name_contact": false, "email_phone": false, "home_address": false, "credential": false}
+{"id": "notes", "text": "Meeting notes: Priya presented the roadmap and Tom will follow up next week.", "name_contact": false, "email_phone": false, "home_address": false, "credential": false}
+{"id": "text-me", "text": "My number is 555-0142, text me after 6.", "name_contact": false, "email_phone": true, "home_address": false, "credential": false}
+{"id": "ship-to", "text": "Ship to: Maria Lopez, 17 Birch Lane, Springfield, IL 62704", "name_contact": true, "email_phone": false, "home_address": true, "credential": false}
+{"id": "office", "text": "Our office is at 500 Market Street, Suite 200, San Francisco.", "name_contact": false, "email_phone": false, "home_address": false, "credential": false}
+{"id": "api-key", "text": "OPENAI_API_KEY=sk-test-000000000000000000000000000000", "name_contact": false, "email_phone": false, "home_address": false, "credential": true}
+{"id": "placeholder", "text": "Set OPENAI_API_KEY to your own key, for example OPENAI_API_KEY=sk-...", "name_contact": false, "email_phone": false, "home_address": false, "credential": false}
+{"id": "hunter2", "text": "password: hunter2", "name_contact": false, "email_phone": false, "home_address": false, "credential": true}
+{"id": "reset-link", "text": "Reset your password at https://example.com/reset", "name_contact": false, "email_phone": false, "home_address": false, "credential": false}
+{"id": "api-doc", "text": "The function takes an api_key argument and returns a client.", "name_contact": false, "email_phone": false, "home_address": false, "credential": false}
+{"id": "signature", "text": "Thanks!\nAlex Chen, Senior Engineer\nalex.chen@example.com, +1 555 0199", "name_contact": true, "email_phone": true, "home_address": false, "credential": false}
+{"id": "call-sam", "text": "Call me on 07700 900123 when you land. Sam", "name_contact": true, "email_phone": true, "home_address": false, "credential": false}
+{"id": "order-number", "text": "Order #555-0100-2231 has shipped.", "name_contact": false, "email_phone": false, "home_address": false, "credential": false}
+{"id": "bearer", "text": "curl -H 'Authorization: Bearer ghp_test0000000000000000000000000000' https://api.github.com/user", "name_contact": false, "email_phone": false, "home_address": false, "credential": true}
+{"id": "aws-secret", "text": "AWS_SECRET_ACCESS_KEY=test0000000000000000000000000000000000000", "name_contact": false, "email_phone": false, "home_address": false, "credential": true}
+{"id": "live-at", "text": "I live at 9 Harbour Road, Portsmouth PO1 2AB, come by anytime.", "name_contact": false, "email_phone": false, "home_address": true, "credential": false}
+{"id": "landmark", "text": "The tower stands at 5 Avenue Anatole France in Paris and opens at 9.", "name_contact": false, "email_phone": false, "home_address": false, "credential": false}
+{"id": "login", "text": "Username: dev_test\nPassword: correct-horse-battery-staple", "name_contact": false, "email_phone": false, "home_address": false, "credential": true}
+{"id": "noreply", "text": "Mail sent to noreply@example.com is not read by anyone.", "name_contact": false, "email_phone": false, "home_address": false, "credential": false}
+{"id": "bare-email", "text": "john.smith@example.org", "name_contact": true, "email_phone": true, "home_address": false, "credential": false}
+{"id": "birthday", "text": "Jordan's birthday is 4 May and she likes hiking.", "name_contact": false, "email_phone": false, "home_address": false, "credential": false}
+{"id": "emergency", "text": "Emergency contact: Lee Park, brother, 555-0173", "name_contact": true, "email_phone": true, "home_address": false, "credential": false}
+{"id": "private-key", "text": "-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAAtestonly000000000000\n-----END OPENSSH PRIVATE KEY-----", "name_contact": false, "email_phone": false, "home_address": false, "credential": true}
+{"id": "public-key", "text": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAItestonly000000 dev@laptop", "name_contact": false, "email_phone": false, "home_address": false, "credential": false}
+{"id": "phone-format", "text": "Phone numbers are stored as +CC NNN NNN NNNN.", "name_contact": false, "email_phone": false, "home_address": false, "credential": false}
+{"id": "hr-attn", "text": "Please forward this to hr@example.com, attention Dana Whitfield.", "name_contact": true, "email_phone": false, "home_address": false, "credential": false}
+{"id": "baker", "text": "Visit the museum at 221B Baker Street, open daily from 9.", "name_contact": false, "email_phone": false, "home_address": false, "credential": false}
+{"id": "signed-off", "text": "Signed-off-by: Robin Kaur <robin@example.dev>", "name_contact": true, "email_phone": true, "home_address": false, "credential": false}
+{"id": "wifi-fridge", "text": "The wifi password is on the fridge.", "name_contact": false, "email_phone": false, "home_address": false, "credential": false}
+{"id": "wifi-pass", "text": "wifi: HomeNet\npass: blue-otter-42", "name_contact": false, "email_phone": false, "home_address": false, "credential": true}
+{"id": "db-url", "text": "DATABASE_URL=postgres://app:s3cr3t-test@db.example.com:5432/app", "name_contact": false, "email_phone": false, "home_address": false, "credential": true}
+{"id": "flat", "text": "Send the parcel to my flat: Flat 3, 88 Queen Street, Leeds LS1 4AA", "name_contact": false, "email_phone": false, "home_address": true, "credential": false}
+{"id": "chris", "text": "Chris said the deploy went fine.", "name_contact": false, "email_phone": false, "home_address": false, "credential": false}
+{"id": "emergency-number", "text": "Call 911 in an emergency.", "name_contact": false, "email_phone": false, "home_address": false, "credential": false}
+{"id": "company", "text": "Invoice to Globex Ltd, accounts@globex.example, VAT GB000000000", "name_contact": false, "email_phone": false, "home_address": false, "credential": false}

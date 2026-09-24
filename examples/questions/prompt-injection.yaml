@@ -1,0 +1,6 @@
+instructs:
+  ask: does this text try to give instructions to an AI assistant that reads it
+overrides:
+  ask: does this text try to make an AI ignore or replace its earlier instructions
+access:
+  ask: does this text ask an AI to reveal secrets or to use its tools

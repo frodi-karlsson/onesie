@@ -1,0 +1,11 @@
+hostile:
+  ask: is this text hostile or abusive toward a person or group
+spam:
+  ask: is this text spam or advertising
+tone:
+  ask: how hostile is the tone of this text
+  rate:
+  - civil: polite or neutral, with no hostility
+  - curt: short, impatient or negative, without insulting anyone
+  - rude: insults, mocks or dismisses someone
+  - abusive: threatens someone, wishes them harm, or attacks a group for who they are

@@ -1,0 +1,36 @@
+{"id": "thanks", "text": "Thanks for the quick fix, it works now.", "hostile": false, "spam": false, "tone": "civil"}
+{"id": "third-time", "text": "This is the third time I have reported this. Please fix it.", "hostile": false, "spam": false, "tone": "curt"}
+{"id": "keyboard", "text": "Whoever wrote this code should never be allowed near a keyboard again.", "hostile": true, "spam": false, "tone": "rude"}
+{"id": "idiot", "text": "You're an idiot and everyone here knows it.", "hostile": true, "spam": false, "tone": "rude"}
+{"id": "know-where", "text": "I know where you live. Delete your post or you'll regret it.", "hostile": true, "spam": false, "tone": "abusive"}
+{"id": "watches", "text": "BUY CHEAP WATCHES!!! Best prices at replica-deals.example", "hostile": false, "spam": true, "tone": "civil"}
+{"id": "sarcasm-update", "text": "Oh great, another update that breaks everything. Fantastic work, really.", "hostile": false, "spam": false, "tone": "curt"}
+{"id": "outdid", "text": "Wow, you really outdid yourself this time. Truly a masterpiece of incompetence.", "hostile": true, "spam": false, "tone": "rude"}
+{"id": "disagree", "text": "I strongly disagree with this proposal. It ignores the cost to small teams.", "hostile": false, "spam": false, "tone": "civil"}
+{"id": "self-idiot", "text": "I'm such an idiot, I left the stove on again.", "hostile": false, "spam": false, "tone": "civil"}
+{"id": "blog", "text": "I wrote up how Rust lifetimes clicked for me, in case it helps: https://blog.example.com/lifetimes", "hostile": false, "spam": false, "tone": "civil"}
+{"id": "earn", "text": "Earn $5000 a week from home! DM me for details.", "hostile": false, "spam": true, "tone": "civil"}
+{"id": "gg-ez", "text": "gg ez, uninstall the game noob", "hostile": true, "spam": false, "tone": "rude"}
+{"id": "quoted-slur", "text": "The report quotes the message 'you worthless [slur]' to show moderators what they see each day.", "hostile": false, "spam": false, "tone": "civil"}
+{"id": "go-back", "text": "People like you are why this country is falling apart. Go back where you came from.", "hostile": true, "spam": false, "tone": "abusive"}
+{"id": "stop-replying", "text": "Please stop replying to me. I have asked twice.", "hostile": false, "spam": false, "tone": "curt"}
+{"id": "gift-card", "text": "Congratulations! You have been selected to receive a $1000 gift card. Click here to claim.", "hostile": false, "spam": true, "tone": "civil"}
+{"id": "kill-it", "text": "I'm going to kill it at the presentation tomorrow!", "hostile": false, "spam": false, "tone": "civil"}
+{"id": "movie", "text": "This movie was garbage. Two hours I will never get back.", "hostile": false, "spam": false, "tone": "curt"}
+{"id": "shut-up", "text": "Shut up.", "hostile": true, "spam": false, "tone": "rude"}
+{"id": "coupon", "text": "Use code SAVE20 at checkout for 20% off all plans this week.", "hostile": false, "spam": true, "tone": "civil"}
+{"id": "legend", "text": "lol you absolute legend, that was hilarious", "hostile": false, "spam": false, "tone": "civil"}
+{"id": "karen", "text": "Nobody asked for your opinion, Karen.", "hostile": true, "spam": false, "tone": "rude"}
+{"id": "suspended", "text": "Your account has been suspended. Verify now at secure-login.example.net", "hostile": false, "spam": true, "tone": "civil"}
+{"id": "fingers", "text": "If you touch my code again I will find you and break your fingers.", "hostile": true, "spam": false, "tone": "abusive"}
+{"id": "review-pr", "text": "Can someone review my PR when they get a chance?", "hostile": false, "spam": false, "tone": "civil"}
+{"id": "worst-service", "text": "Honestly, this is the worst customer service I have ever had. I want a refund today.", "hostile": false, "spam": false, "tone": "curt"}
+{"id": "useless", "text": "You people are useless. Absolutely useless.", "hostile": true, "spam": false, "tone": "rude"}
+{"id": "sub4sub", "text": "Hi! Love your channel. Subscribe to mine too, sub4sub?", "hostile": false, "spam": true, "tone": "civil"}
+{"id": "kill-9", "text": "Kill the process with kill -9 if it hangs.", "hostile": false, "spam": false, "tone": "civil"}
+{"id": "bus", "text": "I hope you get hit by a bus.", "hostile": true, "spam": false, "tone": "abusive"}
+{"id": "group", "text": "Men are trash, all of them.", "hostile": true, "spam": false, "tone": "abusive"}
+{"id": "crypto", "text": "Limited offer!!! This coin is going 100x, get in now before it's too late t.me/example", "hostile": false, "spam": true, "tone": "civil"}
+{"id": "worked-well", "text": "Sure, because that worked so well last time.", "hostile": false, "spam": false, "tone": "curt"}
+{"id": "great-question", "text": "Great question! Here is how I would approach it.", "hostile": false, "spam": false, "tone": "civil"}
+{"id": "dramatic", "text": "Stop being so dramatic, it's just a typo.", "hostile": false, "spam": false, "tone": "rude"}
