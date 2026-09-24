@@ -177,9 +177,10 @@ onesie --ask urgent='is this urgent' --assert 'urgnet.value < 0.5'
 - `--resume` with `--id` skips answered records and asks the rest, failed ones included. A finished
   run rewrites the file in input order and keeps answered ids the input no longer has, unless
   `--prune` drops them. A changed fingerprint refuses with exit 2. A record whose content changed
-  but whose id did not keeps its old answer. Without `--id`, it carries on by line count. Either
-  way, a skipped record keeps its stored `--assert` outcome, so it counts toward the exit code and
-  `--stats` as if it were judged again. Under `--stop-on-assert`, a skipped false assertion ends the
+  but whose id did not keeps its old answer. Without `--id`, it carries on by line count and never
+  retries a failed record, so a skipped error line still counts as failed toward exit 6 and
+  `--stats`. Either way, a skipped record keeps its stored `--assert` outcome, so it counts toward
+  the exit code and `--stats` as if it were judged again. Under `--stop-on-assert`, a skipped false assertion ends the
   run where a fresh run would stop. Raw output keeps no outcome, so `--resume` refuses it
   under `--assert` with exit 2. Use `-o values` or `-o json`.
 

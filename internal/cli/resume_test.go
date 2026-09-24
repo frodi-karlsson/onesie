@@ -891,6 +891,122 @@ func TestResumedVerdicts(t *testing.T) {
 			},
 		},
 		{
+			name:  "should exit 6 on a resume by position whose skipped lines hold a false assertion and an error",
+			stdin: idRecords(1, 2),
+			runs: []resumeRun{
+				{
+					args:       []string{"-i", "jsonl", "-o", "values", "--resume", "--retries", "0", "--assert", "answer.value > 0.9"},
+					failFrom:   2,
+					failStatus: http.StatusBadRequest,
+					wantCode:   ExitRecords,
+					wantFile: "{\"assert\":false,\"answer\":0.5}\n" +
+						`{"error":{"kind":"http","status":400,"message":"onesie: 400 bad key"}}` + "\n",
+					wantSent: []string{`{"id":1}`, `{"id":2}`},
+				},
+				{
+					args: []string{
+						"-i", "jsonl", "-o", "values", "--resume", "--retries", "0", "--assert", "answer.value > 0.9", "--stats",
+					},
+					wantCode: ExitRecords,
+					wantFile: "{\"assert\":false,\"answer\":0.5}\n" +
+						`{"error":{"kind":"http","status":400,"message":"onesie: 400 bad key"}}` + "\n",
+					wantStderr: "2 skipped, 1 failed, 1 false assertion, ",
+				},
+			},
+		},
+		{
+			name:  "should exit 6 on a resume by position with no gate whose skipped lines hold an error",
+			stdin: idRecords(1, 2),
+			runs: []resumeRun{
+				{
+					args:       []string{"-i", "jsonl", "-o", "values", "--resume", "--retries", "0"},
+					failFrom:   2,
+					failStatus: http.StatusBadRequest,
+					wantCode:   ExitRecords,
+					wantFile: "{\"answer\":0.5}\n" +
+						`{"error":{"kind":"http","status":400,"message":"onesie: 400 bad key"}}` + "\n",
+					wantSent: []string{`{"id":1}`, `{"id":2}`},
+				},
+				{
+					args:     []string{"-i", "jsonl", "-o", "values", "--resume", "--retries", "0", "--stats"},
+					wantCode: ExitRecords,
+					wantFile: "{\"answer\":0.5}\n" +
+						`{"error":{"kind":"http","status":400,"message":"onesie: 400 bad key"}}` + "\n",
+					wantStderr: "2 skipped, 1 failed, ",
+				},
+			},
+		},
+		{
+			name:  "should exit 6 on a merged resume by position whose skipped lines hold an error under the merge key",
+			stdin: idRecords(1, 2),
+			runs: []resumeRun{
+				{
+					args: []string{
+						"-i", "jsonl", "-o", "values", "--resume", "--retries", "0", "--merge", "--merge-key", "verdict",
+						"--assert", "answer.value > 0.9",
+					},
+					failFrom:   2,
+					failStatus: http.StatusBadRequest,
+					wantCode:   ExitRecords,
+					wantFile: "{\"id\":1,\"verdict\":{\"assert\":false,\"answer\":0.5}}\n" +
+						`{"id":2,"verdict":{"error":{"kind":"http","status":400,"message":"onesie: 400 bad key"}}}` + "\n",
+					wantSent: []string{`{"id":1}`, `{"id":2}`},
+				},
+				{
+					args: []string{
+						"-i", "jsonl", "-o", "values", "--resume", "--retries", "0", "--merge", "--merge-key", "verdict",
+						"--assert", "answer.value > 0.9", "--stats",
+					},
+					wantCode: ExitRecords,
+					wantFile: "{\"id\":1,\"verdict\":{\"assert\":false,\"answer\":0.5}}\n" +
+						`{"id":2,"verdict":{"error":{"kind":"http","status":400,"message":"onesie: 400 bad key"}}}` + "\n",
+					wantStderr: "2 skipped, 1 failed, 1 false assertion, ",
+				},
+			},
+		},
+		{
+			name:  "should exit 6 on a csv resume by position whose skipped rows hold an error",
+			stdin: idRecords(1, 2),
+			runs: []resumeRun{
+				{
+					args:       []string{"-i", "jsonl", "-o", "csv", "--resume", "--retries", "0", "--assert", "answer.value > 0.9"},
+					failFrom:   2,
+					failStatus: http.StatusBadRequest,
+					wantCode:   ExitRecords,
+					wantFile:   "answer,assert,error\n0.5,false,\n,,onesie: 400 bad key\n",
+					wantSent:   []string{`{"id":1}`, `{"id":2}`},
+				},
+				{
+					args: []string{
+						"-i", "jsonl", "-o", "csv", "--resume", "--retries", "0", "--assert", "answer.value > 0.9", "--stats",
+					},
+					wantCode:   ExitRecords,
+					wantFile:   "answer,assert,error\n0.5,false,\n,,onesie: 400 bad key\n",
+					wantStderr: "2 skipped, 1 failed, 1 false assertion, ",
+				},
+			},
+		},
+		{
+			name:  "should exit 6 on a merged tsv resume by position with no gate whose skipped rows hold an error",
+			stdin: "id\tbody\n1\ta\n2\tb\n",
+			runs: []resumeRun{
+				{
+					args:       []string{"-i", "tsv", "-o", "tsv", "--merge", "--resume", "--retries", "0"},
+					failFrom:   2,
+					failStatus: http.StatusBadRequest,
+					wantCode:   ExitRecords,
+					wantFile:   "id\tbody\tanswer\terror\n1\ta\t0.5\t\n2\tb\t\tonesie: 400 bad key\n",
+					wantSent:   []string{`{"id":"1","body":"a"}`, `{"id":"2","body":"b"}`},
+				},
+				{
+					args:       []string{"-i", "tsv", "-o", "tsv", "--merge", "--resume", "--retries", "0", "--stats"},
+					wantCode:   ExitRecords,
+					wantFile:   "id\tbody\tanswer\terror\n1\ta\t0.5\t\n2\tb\t\tonesie: 400 bad key\n",
+					wantStderr: "2 skipped, 1 failed, ",
+				},
+			},
+		},
+		{
 			name:  "should exit 7 on a csv resume by position whose skipped rows abstained",
 			stdin: idRecords(1, 2),
 			runs: []resumeRun{

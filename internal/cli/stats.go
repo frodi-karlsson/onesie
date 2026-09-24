@@ -175,6 +175,7 @@ func (c *collector) skip(skips tally) {
 	defer c.mu.Unlock()
 
 	c.skipped += skips.records
+	c.failed += skips.failed
 	c.falseAsserts += skips.rejected
 	c.abstainCount += skips.abstained
 }

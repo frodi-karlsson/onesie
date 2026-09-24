@@ -438,7 +438,12 @@ func stream(
 		Stop:        watched(stopping(flags), &stopped),
 	})
 	source.stop()
-	stats.skip(source.skipped())
+
+	skips := source.skipped()
+	stats.skip(skips)
+
+	// A stored failure a resume skipped fails the run as it failed the one that wrote it.
+	result.Failed += skips.failed
 
 	if err != nil {
 		// The source stopping the run is the worse outcome and takes the exit code, since a

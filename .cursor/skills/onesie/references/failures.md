@@ -14,6 +14,8 @@
 
 Only exit 1 means the policy said no. Exits 2 through 5 mean no answer arrived at all. Exit 6
 means a stream finished and only the lines carrying an error failed, the rest answered normally.
+A resume without `--id` skips a stored error line instead of asking again, and still exits 6
+over it.
 Exit 7 is an answer too, neither a yes nor a no, so route it to whoever decides the middle
 ground. A stream keeps the most severe code: 6 beats 1, and 1 beats 7.
 

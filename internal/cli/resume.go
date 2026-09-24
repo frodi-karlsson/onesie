@@ -56,15 +56,13 @@ func resumedVerdicts(
 	mode output.Mode,
 	gated bool,
 ) ([]verdict, error) {
-	// Without a gate the file holds no verdict. Under a merge its assert column would be an input
-	// column, which only a gated run keeps from taking that name.
-	if answers == nil || !answers.resume || namer != nil || !gated {
+	if answers == nil || !answers.resume || namer != nil {
 		return nil, nil
 	}
 
 	var judged []verdict
 
-	format := answersFormat{mode: mode, merge: merging(flags), mergeKey: mergeKey(flags)}
+	format := answersFormat{mode: mode, merge: merging(flags), mergeKey: mergeKey(flags), gated: gated}
 
 	err := readAnswers(ctx, answers, func(r io.Reader) error {
 		return format.eachVerdict(r, func(stored verdict) {
@@ -128,9 +126,11 @@ func (f answersFormat) eachAnswer(
 }
 
 func (f answersFormat) kept(judged verdict) verdict {
-	// A run with no gate wrote no verdict, so whatever reads as one is an input field.
+	// A run with no gate wrote no verdict, so an assert it reads is an input field. Under a merge
+	// only a gated run keeps an input column from taking that name. The error key and column are
+	// reserved in every run, so a failure still stands.
 	if !f.gated {
-		return verdict{}
+		return verdict{failed: judged.failed}
 	}
 
 	return judged
@@ -141,10 +141,10 @@ func (f answersFormat) eachVerdict(r io.Reader, note func(judged verdict)) error
 	// record per line.
 	return f.eachStored(r,
 		func(_ span, text []byte) {
-			note(f.lineVerdict(text))
+			note(f.kept(f.lineVerdict(text)))
 		},
 		func(_ span, row map[string]any) {
-			note(rowVerdict(row))
+			note(f.kept(rowVerdict(row)))
 		})
 }
 
@@ -261,12 +261,15 @@ func decodeLine(text []byte) (any, map[string]any, bool) {
 }
 
 func verdictOf(answers map[string]any) verdict {
-	return verdict{rejected: answers["assert"] == false, abstained: answers["abstain"] == true}
+	_, failed := answers["error"]
+
+	return verdict{rejected: answers["assert"] == false, abstained: answers["abstain"] == true, failed: failed}
 }
 
 type verdict struct {
 	rejected  bool
 	abstained bool
+	failed    bool
 }
 
 func wrappedState(line map[string]any, mergeKey string) (any, bool) {
@@ -296,9 +299,13 @@ func (f answersFormat) rowAnswer(ctx context.Context, row map[string]any) (strin
 }
 
 func rowVerdict(row map[string]any) verdict {
-	// Read only for a gated run, whose input columns cannot take the assert column's name, so under
-	// --merge it is still the gate's.
-	return verdict{rejected: row["assert"] == "false", abstained: row["assert"] == "abstain"}
+	failure, isText := row["error"].(string)
+
+	return verdict{
+		rejected:  row["assert"] == "false",
+		abstained: row["assert"] == "abstain",
+		failed:    isText && failure != "",
+	}
 }
 
 func (f answersFormat) named(ctx context.Context, value any) (string, bool) {
@@ -429,6 +436,7 @@ func (l *ledger) skipped() tally {
 
 type tally struct {
 	records   int
+	failed    int
 	rejected  int
 	abstained int
 }
@@ -437,7 +445,12 @@ func (t *tally) count(judged verdict) {
 	t.records++
 
 	// Counted as if judged this run, so a resumed gate exits on every answer in the file and not
-	// only on the ones it asked for.
+	// only on the ones it asked for. A stored failure counts the same way, since a resume by
+	// position skips it rather than asking again.
+	if judged.failed {
+		t.failed++
+	}
+
 	if judged.rejected {
 		t.rejected++
 	}
