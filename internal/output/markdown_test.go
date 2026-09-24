@@ -39,7 +39,7 @@ func TestWriteMarkdown(t *testing.T) {
 				"| `urgent` | 0.97 | |\n" +
 				"| `team` | `billing` | 92% |\n" +
 				"\n" +
-				"_jev-1.13.0_\n",
+				"_`jev-1.13.0`_\n",
 		},
 		{
 			name: "should add the token counts and the cost under usage",
@@ -52,7 +52,7 @@ func TestWriteMarkdown(t *testing.T) {
 				"|---|---|---|\n" +
 				"| `urgent` | 0.97 | |\n" +
 				"\n" +
-				"_jev-1.13.0, 212 in, 3 out tokens, $0.00042_\n",
+				"_`jev-1.13.0`, 212 in, 3 out tokens, $0.00042_\n",
 		},
 		{
 			name: "should leave the cost out when the provider reports none",
@@ -65,7 +65,7 @@ func TestWriteMarkdown(t *testing.T) {
 				"|---|---|---|\n" +
 				"| `urgent` | 0.97 | |\n" +
 				"\n" +
-				"_jev-1.13.0, 212 in, 3 out tokens_\n",
+				"_`jev-1.13.0`, 212 in, 3 out tokens_\n",
 		},
 		{
 			name: "should open with a caution when the assertion failed",
@@ -79,7 +79,7 @@ func TestWriteMarkdown(t *testing.T) {
 				"| `urgent` | 0.97 | |\n" +
 				"| `team` | `billing` | 92% |\n" +
 				"\n" +
-				"_jev-1.13.0_\n",
+				"_`jev-1.13.0`_\n",
 		},
 		{
 			name: "should open with a tip when the assertion held",
@@ -92,7 +92,7 @@ func TestWriteMarkdown(t *testing.T) {
 				"|---|---|---|\n" +
 				"| `urgent` | 0.97 | |\n" +
 				"\n" +
-				"_jev-1.13.0_\n",
+				"_`jev-1.13.0`_\n",
 		},
 		{
 			name: "should open with a warning that a person should decide when the record abstained",
@@ -106,7 +106,7 @@ func TestWriteMarkdown(t *testing.T) {
 				"|---|---|---|\n" +
 				"| `urgent` | 0.97 | |\n" +
 				"\n" +
-				"_jev-1.13.0_\n",
+				"_`jev-1.13.0`_\n",
 		},
 		{
 			name: "should put the decision ahead of the probability when a policy decided it",
@@ -119,7 +119,7 @@ func TestWriteMarkdown(t *testing.T) {
 				"| `urgent` | yes, 0.97 | |\n" +
 				"| `spam` | no, 0.12 | |\n" +
 				"\n" +
-				"_jev-1.13.0_\n",
+				"_`jev-1.13.0`_\n",
 		},
 		{
 			name: "should round a probability to four places",
@@ -130,10 +130,10 @@ func TestWriteMarkdown(t *testing.T) {
 				"|---|---|---|\n" +
 				"| `urgent` | 0.1235 | |\n" +
 				"\n" +
-				"_jev-1.13.0_\n",
+				"_`jev-1.13.0`_\n",
 		},
 		{
-			name: "should read a low confidence fallback as the fallback",
+			name: "should read a low confidence fallback as the fallback and leave its confidence blank",
 			rec: output.Record{Model: "jev-1.13.0", Answers: []output.Named{
 				{ID: "team", Answer: &answer.Answer{
 					Value: "billing", Confidence: &low, Decision: "human", Decided: true,
@@ -142,9 +142,9 @@ func TestWriteMarkdown(t *testing.T) {
 			}},
 			want: "| question | answer | confidence |\n" +
 				"|---|---|---|\n" +
-				"| `team` | fallback `human` | 41% |\n" +
+				"| `team` | fallback `human` | |\n" +
 				"\n" +
-				"_jev-1.13.0_\n",
+				"_`jev-1.13.0`_\n",
 		},
 		{
 			name: "should show a rate answer as its level with the legend beside an index",
@@ -159,19 +159,62 @@ func TestWriteMarkdown(t *testing.T) {
 				"| `mood` | `1 Frustrated` | 92% |\n" +
 				"| `severity` | `high` | 92% |\n" +
 				"\n" +
-				"_jev-1.13.0_\n",
+				"_`jev-1.13.0`_\n",
 		},
 		{
-			name: "should write a failed record as a caution with no table",
+			name: "should write a failed record as a caution with no table when nothing fell back",
 			rec: output.Record{
 				Failure: &output.Failure{Kind: "http", Status: &status, Message: "http 500: upstream failed"},
-				Answers: []output.Named{
-					{ID: "urgent", Answer: &answer.Answer{Decision: false, Decided: true, Fallback: "error"}},
-				},
+				Answers: []output.Named{{ID: "urgent"}},
 			},
 			opts: gate,
 			want: "> [!CAUTION]\n" +
 				"> **No answer:** `http 500: upstream failed`\n",
+		},
+		{
+			name: "should keep the table under the caution when a failed record fell back",
+			rec: output.Record{
+				Failure: &output.Failure{Kind: "http", Status: &status, Message: "http 500: upstream failed"},
+				Answers: []output.Named{
+					{ID: "urgent", Answer: &answer.Answer{Decision: false, Decided: true, Fallback: "error"}},
+					{ID: "team"},
+				},
+			},
+			opts: gate,
+			want: "> [!CAUTION]\n" +
+				"> **No answer:** `http 500: upstream failed`\n" +
+				"\n" +
+				"| question | answer | confidence |\n" +
+				"|---|---|---|\n" +
+				"| `urgent` | fallback no | |\n",
+		},
+		{
+			name: "should show a probability too small or too large to round as a bound",
+			rec: output.Record{Model: "jev-1.13.0", Answers: []output.Named{
+				{ID: "low", Answer: &answer.Answer{Value: 0.00001}},
+				{ID: "high", Answer: &answer.Answer{Value: 0.99999}},
+				{ID: "none", Answer: &answer.Answer{Value: 0.0}},
+				{ID: "all", Answer: &answer.Answer{Value: 1.0, Decision: true, Decided: true}},
+			}},
+			want: "| question | answer | confidence |\n" +
+				"|---|---|---|\n" +
+				"| `low` | <0.0001 | |\n" +
+				"| `high` | >0.9999 | |\n" +
+				"| `none` | 0 | |\n" +
+				"| `all` | yes, 1 | |\n" +
+				"\n" +
+				"_`jev-1.13.0`_\n",
+		},
+		{
+			name: "should fence the model so it renders as text",
+			rec: output.Record{Model: "*bold* @someone", Answers: []output.Named{
+				{ID: "urgent", Answer: &answer.Answer{Value: 0.5}},
+			}},
+			want: "| question | answer | confidence |\n" +
+				"|---|---|---|\n" +
+				"| `urgent` | 0.5 | |\n" +
+				"\n" +
+				"_`*bold* @someone`_\n",
 		},
 		{
 			name: "should keep the usage of a failed record that still cost tokens",
@@ -195,9 +238,9 @@ func TestWriteMarkdown(t *testing.T) {
 				"\n" +
 				"| question | answer | confidence |\n" +
 				"|---|---|---|\n" +
-				"| `@team\\|#12` | ``<b>`x`</b>`` | 92% |\n" +
+				"| <code>&#64;team&#124;&#35;12</code> | ``<b>`x`</b>`` | 92% |\n" +
 				"\n" +
-				"_jev-1.13.0_\n",
+				"_`jev-1.13.0`_\n",
 		},
 	}
 
@@ -282,7 +325,7 @@ func TestNewMarkdownTable(t *testing.T) {
 				"> [!CAUTION]\n" +
 				"> 3 records: 1 passed, 1 failed, 1 with no answer.\n" +
 				"\n" +
-				"_jev-1.13.0_\n",
+				"_`jev-1.13.0`_\n",
 		},
 		{
 			name:     "should leave out the id and gate columns and tip when every record answered",
@@ -297,7 +340,7 @@ func TestNewMarkdownTable(t *testing.T) {
 				"> [!TIP]\n" +
 				"> 2 records: 2 answered.\n" +
 				"\n" +
-				"_jev-1.13.0_\n",
+				"_`jev-1.13.0`_\n",
 		},
 		{
 			name:     "should tip when every record passed",
@@ -311,7 +354,7 @@ func TestNewMarkdownTable(t *testing.T) {
 				"> [!TIP]\n" +
 				"> 1 record: 1 passed.\n" +
 				"\n" +
-				"_jev-1.13.0_\n",
+				"_`jev-1.13.0`_\n",
 		},
 		{
 			name:     "should warn when the worst record is an unsure",
@@ -326,7 +369,7 @@ func TestNewMarkdownTable(t *testing.T) {
 				"> [!WARNING]\n" +
 				"> 2 records: 1 passed, 1 unsure.\n" +
 				"\n" +
-				"_jev-1.13.0_\n",
+				"_`jev-1.13.0`_\n",
 		},
 		{
 			name:     "should caution when a record has no answer and show its fallback",
@@ -358,39 +401,54 @@ func TestNewMarkdownTable(t *testing.T) {
 				"> [!TIP]\n" +
 				"> 3 records: 3 answered.\n" +
 				"\n" +
-				"_jev-1.13.0, jev-1.14.0, 60 in, 9 out tokens, $0.003_\n",
+				"_`jev-1.13.0`, `jev-1.14.0`, 60 in, 9 out tokens, $0.003_\n",
 		},
 		{
-			name:    "should print what finished and no summary after an interrupt",
+			name:    "should say the run stopped early when it did not read every record",
 			opts:    output.MarkdownTableOptions{IDs: both, ID: true, Gate: true},
-			records: []output.Record{rejected},
+			records: []output.Record{answered("T-2", 0.08, "shipping"), rejected},
 			want: "| id | `urgent` | `team` | gate | error |\n" +
 				"|---|---|---|---|---|\n" +
+				"| `T-2` | 0.08 | `shipping` | passed | |\n" +
 				"| `T-1` | 0.97 | `billing` | failed | |\n" +
 				"\n" +
-				"_jev-1.13.0_\n",
+				"> [!CAUTION]\n" +
+				"> stopped after 2 records: 1 passed, 1 failed.\n" +
+				"\n" +
+				"_`jev-1.13.0`_\n",
 		},
 		{
-			name:     "should write nothing for a stream with no records",
+			name: "should say the run stopped before any record",
+			opts: output.MarkdownTableOptions{IDs: both},
+			want: "> [!TIP]\n" +
+				"> stopped after 0 records.\n",
+		},
+		{
+			name:     "should write a summary for a stream with no records",
 			opts:     output.MarkdownTableOptions{IDs: both},
 			complete: true,
-			want:     "",
+			want: "> [!TIP]\n" +
+				"> 0 records.\n",
 		},
 		{
 			name: "should fence ids and messages that would ping, link or break the table",
 			opts: output.MarkdownTableOptions{IDs: []string{"a|b"}, ID: true},
 			records: []output.Record{
-				{ID: "@someone #12", Failure: &output.Failure{Kind: "input", Message: "line 2: <b>bad</b>\n`x` | y"}},
+				{ID: "@someone #12", Failure: &output.Failure{Kind: "input", Message: "line 2: <b>bad</b>\n`x` \\| y"}},
 				{ID: json.Number("12"), Answers: []output.Named{{ID: "a|b", Answer: &answer.Answer{Value: 0.5}}}},
+				{ID: "", Answers: []output.Named{{ID: "a|b", Answer: &answer.Answer{Value: 0.5}}}},
+				{Failure: &output.Failure{Kind: "input", Message: "line 4: not json"}},
 			},
 			complete: true,
-			want: "| id | `a\\|b` | error |\n" +
+			want: "| id | <code>a&#124;b</code> | error |\n" +
 				"|---|---|---|\n" +
-				"| `@someone #12` | | ``line 2: <b>bad</b> `x` \\| y`` |\n" +
+				"| `@someone #12` | | <code>line 2&#58; &#60;b&#62;bad&#60;&#47;b&#62; &#96;x&#96; &#92;&#124; y</code> |\n" +
 				"| `12` | 0.5 | |\n" +
+				"| _empty_ | 0.5 | |\n" +
+				"| | | `line 4: not json` |\n" +
 				"\n" +
 				"> [!CAUTION]\n" +
-				"> 2 records: 1 answered, 1 with no answer.\n",
+				"> 4 records: 2 answered, 2 with no answer.\n",
 		},
 	}
 

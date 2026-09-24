@@ -9,6 +9,8 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"runtime/pprof"
 	"strings"
 	"sync"
@@ -1322,6 +1324,232 @@ func TestStream(t *testing.T) {
 				}
 			})
 		}
+	})
+
+	t.Run("should write -o markdown as one table under a summary", func(t *testing.T) {
+		t.Parallel()
+
+		const answeredHalf = `{"model":"m","answers":{"answer":{"type":"noul","noul":0.5},` +
+			`"urgent":{"type":"noul","noul":0.5}},"usage":{}}`
+
+		const tickets = `{"id":"T-1","body":"site down"}` + "\n" + "not json\n" + `{"id":"@T-2","body":"slow"}` + "\n"
+
+		out := filepath.Join(t.TempDir(), "answers.md")
+
+		tests := []struct {
+			name     string
+			args     []string
+			stdin    string
+			status   int
+			wantCode int
+			want     string
+			contains []string
+			wantFile string
+		}{
+			{
+				name: "should write one table with a gate column, the summary and the model",
+				args: []string{
+					"is this urgent", "-i", "jsonl", "--id", ".id", "-o", "markdown", "--assert", "answer.value > 0.4",
+				},
+				stdin:    tickets,
+				wantCode: cli.ExitRecords,
+				want: "| id | `answer` | gate | error |\n" +
+					"|---|---|---|---|\n" +
+					"| `T-1` | 0.5 | passed | |\n" +
+					"| | | | `line 2: line is not one complete JSON value: invalid character 'o' in literal null (expecting 'u')` |\n" +
+					"| `@T-2` | 0.5 | passed | |\n" +
+					"\n" +
+					"> [!CAUTION]\n" +
+					"> 3 records: 2 passed, 1 with no answer.\n" +
+					"\n" +
+					"_`m`_\n",
+			},
+			{
+				name:  "should leave out the id and gate columns and sum the usage",
+				args:  []string{"--ask", "urgent=is this urgent", "-i", "lines", "-o", "md", "--usage"},
+				stdin: "site down\nslow\n",
+				want: "| `urgent` | error |\n" +
+					"|---|---|\n" +
+					"| 0.5 | |\n" +
+					"| 0.5 | |\n" +
+					"\n" +
+					"> [!TIP]\n" +
+					"> 2 records: 2 answered.\n" +
+					"\n" +
+					"_`m`, 0 in, 0 out tokens_\n",
+			},
+			{
+				name: "should warn when the worst record is an unsure",
+				args: []string{
+					"is this urgent", "-i", "lines", "-o", "markdown", "--assert", "answer.value > 0.9",
+					"--abstain-if", "answer.value > 0.4",
+				},
+				stdin:    "site down\n",
+				wantCode: cli.ExitAbstain,
+				want: "| `answer` | gate | error |\n" +
+					"|---|---|---|\n" +
+					"| 0.5 | unsure | |\n" +
+					"\n" +
+					"> [!WARNING]\n" +
+					"> 1 record: 1 unsure.\n" +
+					"\n" +
+					"_`m`_\n",
+			},
+			{
+				name: "should say the run stopped early under --stop-on-assert",
+				args: []string{
+					"is this urgent", "-i", "lines", "-o", "markdown", "--assert", "answer.value > 0.9",
+					"--stop-on-assert",
+				},
+				stdin:    "site down\nslow\nfine\n",
+				wantCode: cli.ExitRejected,
+				want: "| `answer` | gate | error |\n" +
+					"|---|---|---|\n" +
+					"| 0.5 | failed | |\n" +
+					"\n" +
+					"> [!CAUTION]\n" +
+					"> stopped after 1 record: 1 failed.\n" +
+					"\n" +
+					"_`m`_\n",
+			},
+			{
+				name:     "should say the run stopped early when a refused key aborts it",
+				args:     []string{"is this urgent", "-i", "lines", "-o", "markdown", "-j", "1"},
+				stdin:    "site down\nslow\nfine\n",
+				status:   http.StatusUnauthorized,
+				wantCode: cli.ExitAuth,
+				contains: []string{"| `answer` | error |\n", "> [!CAUTION]\n> stopped after 1 record: 1 with no answer.\n"},
+			},
+			{
+				name:  "should write the summary for a stream with no records",
+				args:  []string{"is this urgent", "-i", "lines", "-o", "markdown"},
+				stdin: "",
+				want:  "> [!TIP]\n> 0 records.\n",
+			},
+			{
+				name:     "should write the table into --out when not resuming",
+				args:     []string{"is this urgent", "-i", "lines", "-o", "markdown", "--out", out},
+				stdin:    "site down\n",
+				wantFile: "| `answer` | error |\n|---|---|\n| 0.5 | |\n\n> [!TIP]\n> 1 record: 1 answered.\n\n_`m`_\n",
+			},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					if tc.status != 0 {
+						w.WriteHeader(tc.status)
+
+						if _, err := w.Write([]byte(`{"error":{"message":"bad key"}}`)); err != nil {
+							t.Errorf("writing stub response: %v", err)
+						}
+
+						return
+					}
+
+					if _, err := w.Write([]byte(answeredHalf)); err != nil {
+						t.Errorf("writing stub response: %v", err)
+					}
+				}))
+				defer srv.Close()
+
+				var stdout, errOut bytes.Buffer
+
+				root := cli.NewRootCmd(
+					cli.BuildInfo{Version: "1.2.3"},
+					cli.WithKeychain(offKeychain{}),
+					cli.WithClientFactory(func(_ context.Context, opts ...jev.Option) (*jev.Client, error) {
+						return jev.New(append([]jev.Option{
+							jev.WithAPIKey("k"), jev.WithBaseURL(srv.URL),
+						}, opts...)...)
+					}),
+					cli.WithStdin(strings.NewReader(tc.stdin)),
+					cli.WithStdinTTY(false),
+					cli.WithStdoutTTY(false),
+					cli.WithLookupEnv(func(string) (string, bool) { return "", false }),
+				)
+
+				root.SetOut(&stdout)
+				root.SetErr(&errOut)
+				root.SetArgs(tc.args)
+
+				if code := cli.Execute(t.Context(), root); code != tc.wantCode {
+					t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, tc.wantCode, errOut.String())
+				}
+
+				if tc.wantFile != "" {
+					written, err := os.ReadFile(out)
+					if err != nil {
+						t.Fatalf("reading --out: %v", err)
+					}
+
+					if string(written) != tc.wantFile {
+						t.Errorf("--out =\n%s\nwant\n%s", written, tc.wantFile)
+					}
+
+					return
+				}
+
+				for _, want := range tc.contains {
+					if !strings.Contains(stdout.String(), want) {
+						t.Errorf("stdout missing %q\ngot:\n%s", want, stdout.String())
+					}
+				}
+
+				if tc.contains == nil && stdout.String() != tc.want {
+					t.Errorf("stdout =\n%s\nwant\n%s", stdout.String(), tc.want)
+				}
+			})
+		}
+
+		t.Run("should keep the records' exit code when the pipe closes before the summary", func(t *testing.T) {
+			t.Parallel()
+
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				if _, err := w.Write([]byte(answeredHalf)); err != nil {
+					t.Errorf("writing stub response: %v", err)
+				}
+			}))
+			defer srv.Close()
+
+			var writes atomic.Int32
+
+			// The header and first row are one write and the second row another, so the third is
+			// the summary.
+			closing := writerFunc(func(p []byte) (int, error) {
+				if writes.Add(1) >= 3 {
+					return 0, io.ErrClosedPipe
+				}
+
+				return len(p), nil
+			})
+
+			var errOut bytes.Buffer
+
+			root := cli.NewRootCmd(
+				cli.BuildInfo{Version: "1.2.3"},
+				cli.WithKeychain(offKeychain{}),
+				cli.WithClientFactory(func(_ context.Context, opts ...jev.Option) (*jev.Client, error) {
+					return jev.New(append([]jev.Option{
+						jev.WithAPIKey("k"), jev.WithBaseURL(srv.URL),
+					}, opts...)...)
+				}),
+				cli.WithStdin(strings.NewReader("\"good\"\nnot json\n")),
+				cli.WithStdinTTY(false),
+				cli.WithStdoutTTY(false),
+				cli.WithLookupEnv(func(string) (string, bool) { return "", false }),
+			)
+
+			root.SetOut(closing)
+			root.SetErr(&errOut)
+			root.SetArgs([]string{"is this urgent", "-i", "jsonl", "-o", "markdown"})
+
+			if code := cli.Execute(t.Context(), root); code != cli.ExitRecords {
+				t.Errorf("exit code = %d, want %d\nstderr:\n%s", code, cli.ExitRecords, errOut.String())
+			}
+		})
 	})
 }
 

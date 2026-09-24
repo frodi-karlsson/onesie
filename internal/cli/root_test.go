@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -44,6 +45,8 @@ func TestNewRootCmd(t *testing.T) {
 		`"probabilities":{"billing":0.91,"technical":0.09}}},` +
 		`"usage":{"input_tokens":10,"output_tokens":2}}`
 
+	markdownOut := filepath.Join(t.TempDir(), "answers.md")
+
 	tests := []struct {
 		name     string
 		args     []string
@@ -56,6 +59,35 @@ func TestNewRootCmd(t *testing.T) {
 		absent   []string
 		sends    []string
 	}{
+		{
+			name:     "should refuse -q under -o markdown",
+			args:     []string{"is this urgent", "-o", "markdown", "-q"},
+			stdin:    "site down",
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: -q suppresses output, which leaves -o markdown nothing to write"},
+		},
+		{
+			name:     "should refuse --merge under -o md",
+			args:     []string{"is this urgent", "-i", "jsonl", "-o", "md", "--merge"},
+			stdin:    "{}\n",
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: --merge needs -o json, values, csv or tsv"},
+		},
+		{
+			name:     "should refuse -r beside -o markdown",
+			args:     []string{"is this urgent", "-o", "markdown", "-r"},
+			stdin:    "site down",
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: -r and -o are mutually exclusive"},
+		},
+		{
+			name:     "should refuse --resume under -o markdown",
+			args:     []string{"is this urgent", "-i", "jsonl", "-o", "markdown", "--out", markdownOut, "--resume"},
+			stdin:    "{}\n",
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: --resume reads each record's outcome back from --out, " +
+				"which a markdown table does not keep. Use -o json, values, csv or tsv"},
+		},
 		{
 			name:     "should print help when given no arguments",
 			args:     []string{},

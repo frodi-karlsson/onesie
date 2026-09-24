@@ -446,10 +446,11 @@ func stream(
 	source.stop()
 
 	if md != nil && !result.Broken {
-		// An interrupt keeps what finished and drops the summary, whose counts would cover only
-		// part of the input.
-		finishErr := md.Finish(err == nil && !interrupted(cmd.Context()))
-		if finishErr != nil && err == nil && !result.Aborted {
+		whole := err == nil && !result.Aborted && !stopped.Load() && !interrupted(cmd.Context())
+
+		// A consumer that stopped reading before the summary leaves the records' exit code to stand.
+		finishErr := md.Finish(whole)
+		if finishErr != nil && !engine.BrokenPipe(finishErr) && err == nil && !result.Aborted {
 			return finishErr
 		}
 	}
