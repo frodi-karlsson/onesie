@@ -29,6 +29,7 @@ func run(
 	events []argv.Event,
 	positional string,
 	flags *runFlags,
+	out *outFile,
 ) error {
 	cfg, inputMode, err := configOf(cmd, events, positional, flags)
 	if err != nil {
@@ -43,6 +44,10 @@ func run(
 			return checkErr
 		}
 
+		if bindErr := bindOut(out, nil, flags.model, flags); bindErr != nil {
+			return bindErr
+		}
+
 		return withStats(cmd, settings.now, flags, func(stats *collector) error {
 			return listModels(cmd, settings, stats)
 		})
@@ -51,6 +56,10 @@ func run(
 	if inputMode == input.Request {
 		if checkErr := checkFlags(cmd, cfg); checkErr != nil {
 			return checkErr
+		}
+
+		if bindErr := bindOut(out, nil, flags.model, flags); bindErr != nil {
+			return bindErr
 		}
 
 		return withStats(cmd, settings.now, flags, func(stats *collector) error {
@@ -78,6 +87,12 @@ func run(
 	mapper := inv.mapper
 	namer := inv.namer
 	loaded := inv.loaded
+
+	// After the plan is built, since the fingerprint covers its questions, and before any mode
+	// writes, since a refused resume must leave the file as it was.
+	if bindErr := bindOut(out, built.Questions, built.Model, flags); bindErr != nil {
+		return bindErr
+	}
 
 	// Before the output mode, because a question file is not an output mode and -o has no meaning
 	// for it. After validation, because a dry run that accepted a plan the real run would reject
@@ -167,6 +182,19 @@ func run(
 	return withStats(cmd, settings.now, flags, func(stats *collector) error {
 		return ask(cmd, settings, built, resolved, sent, outputMode, flags, gate, abstain, stats)
 	})
+}
+
+func bindOut(out *outFile, questions []plan.Question, model string, flags *runFlags) error {
+	if out == nil {
+		return nil
+	}
+
+	fingerprint, err := fingerprintOf(questions, model, flags.mapSource, flags.idSource)
+	if err != nil {
+		return err
+	}
+
+	return out.bind(fingerprint)
 }
 
 func checkFlags(cmd *cobra.Command, cfg plan.Config) error {

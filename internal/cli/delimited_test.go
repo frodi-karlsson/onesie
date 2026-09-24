@@ -124,6 +124,11 @@ func TestDelimited(t *testing.T) {
 			t.Fatalf("writing the existing file: %v", err)
 		}
 
+		fingerprint := fingerprintFor(t, "is this urgent", "", "", "") + "\n"
+		if err := os.WriteFile(path+".onesie", []byte(fingerprint), 0o600); err != nil {
+			t.Fatalf("writing the existing fingerprint: %v", err)
+		}
+
 		var out, errOut bytes.Buffer
 
 		root := NewRootCmd(
