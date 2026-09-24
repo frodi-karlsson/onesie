@@ -305,6 +305,50 @@ func TestWire(t *testing.T) {
 			}
 		})
 	}
+
+	criteria := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{
+			name: "should send an empty no when only yes is described",
+			args: []string{"--desc", "yes=bulk or bot sent"},
+			want: `"criteria":{"true":"bulk or bot sent","false":""}`,
+		},
+		{
+			name: "should send an empty yes when only no is described",
+			args: []string{"--desc", "no=written by a person"},
+			want: `"criteria":{"true":"","false":"written by a person"}`,
+		},
+		{
+			name: "should send both descriptions unchanged when both are given",
+			args: []string{"--desc", "yes=bulk or bot sent", "--desc", "no=written by a person"},
+			want: `"criteria":{"true":"bulk or bot sent","false":"written by a person"}`,
+		},
+		{
+			name: "should send no criteria when neither is described",
+			want: `"questions":{"spam":{"type":"noul","instructions":"is this spam"}}`,
+		},
+	}
+
+	for _, tc := range criteria {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			args := append([]string{"--ask", "spam=is this spam"}, tc.args...)
+			args = append(args, "--state", "hello", "--print-request")
+
+			printed, errOut, code := runOffline(t, args)
+			if code != ExitOK {
+				t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, ExitOK, errOut)
+			}
+
+			if !strings.Contains(printed, tc.want) {
+				t.Errorf("request body = %s, want it to contain %s", printed, tc.want)
+			}
+		})
+	}
 }
 
 func wireBody(t *testing.T, data []byte) string {

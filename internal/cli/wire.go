@@ -47,7 +47,15 @@ func wire(q plan.Question) jev.Question {
 
 		return jev.Noul{
 			Instructions: q.Instructions,
-			Criteria:     &jev.NoulCriteria{True: q.Criteria.Yes, False: q.Criteria.No},
+			Criteria:     &jev.NoulCriteria{True: orEmpty(q.Criteria.Yes), False: orEmpty(q.Criteria.No)},
 		}
 	}
+}
+
+func orEmpty(desc any) any {
+	if desc == nil {
+		return ""
+	}
+
+	return desc
 }
