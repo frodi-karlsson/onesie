@@ -10,6 +10,8 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+
+	"github.com/frodi-karlsson/onesie/internal/jev"
 )
 
 func TestDelimited(t *testing.T) {
@@ -124,7 +126,7 @@ func TestDelimited(t *testing.T) {
 			t.Fatalf("writing the existing file: %v", err)
 		}
 
-		fingerprint := fingerprintFor(t, "is this urgent", "", "", "") + "\n"
+		fingerprint := fingerprintFor(t, "is this urgent", "typesafe", jev.DefaultModel, "", "") + "\n"
 		if err := os.WriteFile(path+".onesie", []byte(fingerprint), 0o600); err != nil {
 			t.Fatalf("writing the existing fingerprint: %v", err)
 		}

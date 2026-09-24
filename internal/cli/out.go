@@ -11,18 +11,28 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strconv"
+	"strings"
 
 	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
-const fingerprintSuffix = ".onesie"
+const (
+	fingerprintSuffix  = ".onesie"
+	fingerprintVersion = 1
+)
 
 func openOut(settings rootSettings, flags *runFlags) (*outFile, error) {
 	if flags.out == "" {
 		return nil, nil
 	}
 
-	out := &outFile{path: flags.out, open: settings.openFile}
+	out := &outFile{
+		path:   flags.out,
+		open:   settings.openFile,
+		rename: settings.rename,
+		remove: settings.remove,
+	}
 
 	if !flags.resume {
 		return out, nil
@@ -59,10 +69,15 @@ func openOut(settings rootSettings, flags *runFlags) (*outFile, error) {
 }
 
 type outFile struct {
-	path        string
-	open        func(name string, flag int, perm os.FileMode) (*os.File, error)
-	resume      bool
-	keep        int64
+	path    string
+	open    func(name string, flag int, perm os.FileMode) (*os.File, error)
+	rename  func(oldpath, newpath string) error
+	remove  func(name string) error
+	resume  bool
+	keep    int64
+	bound   bool
+	matched bool
+
 	fingerprint string
 	file        *os.File
 }
@@ -93,7 +108,10 @@ func (o *outFile) finish(runErr error) error {
 		}
 	}
 
-	if err := o.file.Close(); err != nil {
+	file := o.file
+	o.file = nil
+
+	if err := file.Close(); err != nil {
 		return fmt.Errorf("onesie: closing %s: %w", o.path, err)
 	}
 
@@ -102,40 +120,104 @@ func (o *outFile) finish(runErr error) error {
 
 func (o *outFile) bind(fingerprint string) error {
 	if o.resume {
-		if err := o.checkFingerprint(fingerprint); err != nil {
+		matched, err := o.checkFingerprint(fingerprint)
+		if err != nil {
 			return err
 		}
+
+		o.matched = matched
 	}
 
 	o.fingerprint = fingerprint
+	o.bound = true
 
 	return nil
 }
 
-func (o *outFile) checkFingerprint(fingerprint string) error {
+func (o *outFile) bindWithoutFingerprint() {
+	if o == nil || o.resume {
+		return
+	}
+
+	o.bound = true
+}
+
+func (o *outFile) checkFingerprint(fingerprint string) (matched bool, err error) {
 	written, err := o.holdsAnswers()
 	if err != nil || !written {
-		return err
+		return false, err
 	}
 
 	stored, found, err := o.readFingerprint()
 	if err != nil {
-		return err
+		return false, err
 	}
 
+	sidecar := o.path + fingerprintSuffix
+
 	if !found {
-		return fmt.Errorf(
+		return false, fmt.Errorf(
 			"onesie: %s has no fingerprint beside it, so onesie cannot tell which run wrote it. "+
 				"Drop --resume to start over", o.path)
 	}
 
-	if stored != fingerprint {
-		return fmt.Errorf(
-			"onesie: the questions, model, --map or --id changed since %s was written. "+
+	version, ok := fingerprintVersionOf(stored)
+
+	switch {
+	case !ok:
+		return false, fmt.Errorf(
+			"onesie: %s does not hold a fingerprint onesie wrote, so onesie cannot tell which run "+
+				"wrote %s. Drop --resume to start over", sidecar, o.path)
+	case version < fingerprintVersion:
+		return false, fmt.Errorf(
+			"onesie: an older onesie wrote %s, so this one cannot tell which run wrote %s. "+
+				"Drop --resume to start over", sidecar, o.path)
+	case version > fingerprintVersion:
+		return false, fmt.Errorf(
+			"onesie: a newer onesie wrote %s, so this one cannot tell which run wrote %s. "+
+				"Drop --resume to start over", sidecar, o.path)
+	case stored != fingerprint:
+		return false, fmt.Errorf(
+			"onesie: the questions, provider, model, --map or --id changed since %s was written. "+
 				"Drop --resume to start over", o.path)
 	}
 
-	return nil
+	return true, nil
+}
+
+func fingerprintVersionOf(stored string) (version int, ok bool) {
+	tag, sum, found := strings.Cut(stored, ":")
+	digits, tagged := strings.CutPrefix(tag, "v")
+
+	if !found || !tagged || digits == "" || !allDigits(digits) {
+		return 0, false
+	}
+
+	version, err := strconv.Atoi(digits)
+	if err != nil {
+		return 0, false
+	}
+
+	if version != fingerprintVersion {
+		return version, true
+	}
+
+	decoded, err := hex.DecodeString(sum)
+	if err != nil || len(decoded) != sha256.Size {
+		return 0, false
+	}
+
+	return version, true
+}
+
+func allDigits(text string) bool {
+	for _, r := range text {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+
+	return true
 }
 
 func (o *outFile) holdsAnswers() (written bool, err error) {
@@ -185,6 +267,10 @@ func (o *outFile) readFingerprint() (stored string, found bool, err error) {
 }
 
 func (o *outFile) create() error {
+	if o.resume && !o.bound {
+		return fmt.Errorf("onesie: resuming %s, which was never checked against its fingerprint", o.path)
+	}
+
 	if err := o.openAnswers(); err != nil {
 		return err
 	}
@@ -192,7 +278,10 @@ func (o *outFile) create() error {
 	// After the answers file is opened, so a run cut off between the two never leaves an earlier
 	// run's answers beside a fingerprint that vouches for this one.
 	if err := o.writeFingerprint(); err != nil {
-		return errors.Join(err, o.file.Close())
+		file := o.file
+		o.file = nil
+
+		return errors.Join(err, file.Close())
 	}
 
 	return nil
@@ -230,39 +319,61 @@ func (o *outFile) openAnswers() error {
 }
 
 func (o *outFile) writeFingerprint() error {
+	path := o.path + fingerprintSuffix
+
 	if o.fingerprint == "" {
+		if err := o.remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("onesie: removing %s: %w", path, err)
+		}
+
 		return nil
 	}
 
-	path := o.path + fingerprintSuffix
+	if o.matched {
+		return nil
+	}
 
-	file, err := o.open(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
+	// Written beside the target and renamed over it, so a crash or a full disk leaves either the
+	// old fingerprint or the new one, never an empty file that reads as a changed run.
+	temporary := path + ".tmp"
+
+	file, err := o.open(temporary, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
 	if err != nil {
-		return fmt.Errorf("onesie: opening %s: %w", path, err)
+		return fmt.Errorf("onesie: opening %s: %w", temporary, err)
 	}
 
 	_, err = io.WriteString(file, o.fingerprint+"\n")
-	if err != nil {
-		err = fmt.Errorf("onesie: writing %s: %w", path, err)
+	if err == nil {
+		err = file.Sync()
 	}
 
-	return errors.Join(err, file.Close())
+	err = errors.Join(err, file.Close())
+	if err == nil {
+		err = o.rename(temporary, path)
+	}
+
+	if err != nil {
+		return errors.Join(fmt.Errorf("onesie: writing %s: %w", path, err), o.remove(temporary))
+	}
+
+	return nil
 }
 
-func fingerprintOf(questions []plan.Question, model, mapSource, idSource string) (string, error) {
+func fingerprintOf(questions []plan.Question, provider, model, mapSource, idSource string) (string, error) {
 	encoded, err := json.Marshal(struct {
 		Questions json.Marshaler `json:"questions"`
+		Provider  string         `json:"provider"`
 		Model     string         `json:"model"`
 		Map       string         `json:"map"`
 		ID        string         `json:"id"`
-	}{Questions: wireAll(questions), Model: model, Map: mapSource, ID: idSource})
+	}{Questions: wireAll(questions), Provider: provider, Model: model, Map: mapSource, ID: idSource})
 	if err != nil {
 		return "", fmt.Errorf("onesie: fingerprinting the run: %w", err)
 	}
 
 	sum := sha256.Sum256(encoded)
 
-	return hex.EncodeToString(sum[:]), nil
+	return fmt.Sprintf("v%d:%s", fingerprintVersion, hex.EncodeToString(sum[:])), nil
 }
 
 func completeRows(settings rootSettings, path string, quoted bool) (rows int, length int64, err error) {

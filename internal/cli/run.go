@@ -44,9 +44,7 @@ func run(
 			return checkErr
 		}
 
-		if bindErr := bindOut(out, nil, flags.model, flags); bindErr != nil {
-			return bindErr
-		}
+		out.bindWithoutFingerprint()
 
 		return withStats(cmd, settings.now, flags, func(stats *collector) error {
 			return listModels(cmd, settings, stats)
@@ -58,7 +56,9 @@ func run(
 			return checkErr
 		}
 
-		if bindErr := bindOut(out, nil, flags.model, flags); bindErr != nil {
+		// Each body names its own model, and onesie sends it as written, so the fingerprint holds
+		// no model for the default to fill.
+		if bindErr := bindOut(out, settings, flags, nil, ""); bindErr != nil {
 			return bindErr
 		}
 
@@ -88,19 +88,26 @@ func run(
 	namer := inv.namer
 	loaded := inv.loaded
 
-	// After the plan is built, since the fingerprint covers its questions, and before any mode
-	// writes, since a refused resume must leave the file as it was.
-	if bindErr := bindOut(out, built.Questions, built.Model, flags); bindErr != nil {
-		return bindErr
-	}
-
 	// Before the output mode, because a question file is not an output mode and -o has no meaning
 	// for it. After validation, because a dry run that accepted a plan the real run would reject
 	// would be worse than useless.
 	if flags.printQuestions {
+		out.bindWithoutFingerprint()
+
 		return printQuestions(
 			cmd.OutOrStdout(), cmd.ErrOrStderr(), built.Questions, gate.Source(),
 			abstain.Source(), loaded)
+	}
+
+	model, err := resolveModel(settings, flags, built.Model)
+	if err != nil {
+		return err
+	}
+
+	// After the plan is built, since the fingerprint covers its questions, and before any mode
+	// writes, since a refused resume must leave the file as it was.
+	if bindErr := bindOut(out, settings, flags, built.Questions, model); bindErr != nil {
+		return bindErr
 	}
 
 	// Both modes are parsed before the request, so a mistyped flag costs nothing.
@@ -184,12 +191,23 @@ func run(
 	})
 }
 
-func bindOut(out *outFile, questions []plan.Question, model string, flags *runFlags) error {
+func bindOut(
+	out *outFile,
+	settings rootSettings,
+	flags *runFlags,
+	questions []plan.Question,
+	model string,
+) error {
 	if out == nil {
 		return nil
 	}
 
-	fingerprint, err := fingerprintOf(questions, model, flags.mapSource, flags.idSource)
+	provider, err := resolveProvider(settings, flags)
+	if err != nil {
+		return err
+	}
+
+	fingerprint, err := fingerprintOf(questions, provider.Name, model, flags.mapSource, flags.idSource)
 	if err != nil {
 		return err
 	}

@@ -47,6 +47,8 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 		stdoutTTY:     isTerminal(os.Stdout),
 		readFile:      os.ReadFile,
 		openFile:      os.OpenFile,
+		rename:        os.Rename,
+		remove:        os.Remove,
 		lookupEnv:     os.LookupEnv,
 		homeDir:       os.UserHomeDir,
 		now:           time.Now,
@@ -339,6 +341,8 @@ type rootSettings struct {
 	stdoutTTY     bool
 	readFile      func(string) ([]byte, error)
 	openFile      func(name string, flag int, perm os.FileMode) (*os.File, error)
+	rename        func(oldpath, newpath string) error
+	remove        func(name string) error
 	lookupEnv     func(string) (string, bool)
 	homeDir       func() (string, error)
 	now           func() time.Time
