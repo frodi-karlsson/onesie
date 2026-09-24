@@ -1,4 +1,4 @@
-//go:build !(darwin || linux || freebsd || netbsd || openbsd || dragonfly || windows)
+//go:build !(darwin || linux || freebsd || netbsd || openbsd || dragonfly || windows || aix || solaris)
 
 package cli
 
@@ -7,18 +7,13 @@ import (
 	"os"
 )
 
+var errNoLock = errors.New("onesie has no file lock on this platform, so it cannot keep another run " +
+	"out of the file. Drop --resume to start over")
+
 func lockHandle(_ *os.File) error {
-	return nil
+	return errNoLock
 }
 
 func unlockHandle(file *os.File, path string, owned bool) error {
-	var removeErr error
-	if owned {
-		removeErr = os.Remove(path)
-		if errors.Is(removeErr, os.ErrNotExist) {
-			removeErr = nil
-		}
-	}
-
-	return errors.Join(removeErr, file.Close())
+	return errors.Join(removeOwned(path, owned), file.Close())
 }

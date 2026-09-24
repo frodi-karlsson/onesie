@@ -51,6 +51,13 @@ func TestLocker_LockAnswers(t *testing.T) {
 			refuseLock: true,
 			wantErr:    fs.ErrPermission,
 		},
+		{
+			name:       "should not lock the answers file under fcntl when the directory refuses the lock file",
+			goos:       "illumos",
+			existing:   true,
+			refuseLock: true,
+			wantErr:    fs.ErrPermission,
+		},
 	}
 
 	for _, tc := range tests {

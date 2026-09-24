@@ -29,7 +29,8 @@ func (l *locker) lockAnswers(answers string) (release func() error, err error) {
 	// every later resume.
 	lockFile := answers + lockSuffix
 
-	release, err = l.lockAt(lockFile, os.O_RDONLY|os.O_CREATE, true)
+	// Open for writing, since an fcntl write lock refuses a file opened only for reading.
+	release, err = l.lockAt(lockFile, os.O_RDWR|os.O_CREATE, true)
 	if !errors.Is(err, fs.ErrPermission) {
 		return release, err
 	}
@@ -49,9 +50,15 @@ func (l *locker) lockAnswers(answers string) (release func() error, err error) {
 }
 
 func (l *locker) locksAnswersFile() bool {
-	// Windows keeps a file it has open from being renamed over, so locking the answers file would
-	// refuse the compaction.
-	return l.goos != "windows"
+	// Only where the lock is a flock. Windows keeps a file it has open from being renamed over, so
+	// locking the answers file would refuse the compaction. An fcntl lock is let go of when the run
+	// closes any handle on the file, and a run opens and closes the answers file as it reads it.
+	switch l.goos {
+	case "darwin", "ios", "linux", "android", "freebsd", "netbsd", "openbsd", "dragonfly":
+		return true
+	default:
+		return false
+	}
 }
 
 func (l *locker) refusedLockFile(lockFile string, err error) error {
