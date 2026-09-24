@@ -8,7 +8,7 @@ LDFLAGS := -s -w \
 	-X main.commit=$(COMMIT) \
 	-X main.date=$(DATE)
 
-.PHONY: help build run install test test-race cover bench lint lint-fix fmt tidy vuln check tools clean skills skills-check skills-eval
+.PHONY: help build run install test test-race cover bench lint lint-fix fmt tidy vuln check tools clean skills skills-check skills-eval fuzz
 
 build: ## Build the onesie binary into bin/
 	@mkdir -p bin
@@ -29,6 +29,9 @@ test-race: ## Run unit tests with the race detector
 
 test-integration: ## Run tests against the live API. Needs TYPESAFE_API_KEY, and OPENROUTER_API_KEY for the OpenRouter cases, or a .env
 	go test -tags integration -race -count=1 -timeout 5m ./internal/jev/ ./internal/cli/ -run 'TestLive|TestFilterIntegration|TestFileIntegration|TestStreamIntegration' -v
+
+fuzz: ## Fuzz the --assert parser, FUZZTIME=1m by default
+	go test ./internal/assert/ -run '^$$' -fuzz FuzzParse -fuzztime $(or $(FUZZTIME),1m) -fuzzminimizetime 0
 
 cover: ## Run tests with coverage and open the HTML report
 	@mkdir -p bin
