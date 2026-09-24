@@ -55,12 +55,6 @@ func Generate(root string) error {
 	return nil
 }
 
-// Found is a skill together with the directory it was read from.
-type Found struct {
-	Dir   string
-	Skill Skill
-}
-
 // Skills reads and validates every skills/*/skill.json under root, in directory order.
 func Skills(root string) ([]Found, error) {
 	skillsRoot := filepath.Join(root, skillsDir)
@@ -102,9 +96,10 @@ func Skills(root string) ([]Found, error) {
 	return found, nil
 }
 
-type output struct {
-	path    string
-	content []byte
+// Found is a skill together with the directory it was read from.
+type Found struct {
+	Dir   string
+	Skill Skill
 }
 
 func skillOutputs(root, name string, skill Skill) ([]output, error) {
@@ -188,6 +183,11 @@ func mirrorOutputs(root, name, rel string, content []byte) []output {
 	}
 
 	return outputs
+}
+
+type output struct {
+	path    string
+	content []byte
 }
 
 func writeIfChanged(path string, content []byte) error {

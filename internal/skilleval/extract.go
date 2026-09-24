@@ -189,6 +189,49 @@ func quotedPlaceholder(insideDoubleQuotes bool) string {
 	return "'" + placeholder + "'"
 }
 
+func dropFileDescriptor(s string) string {
+	if n := len(s); n > 0 && s[n-1] >= '0' && s[n-1] <= '9' && (n == 1 || s[n-2] == ' ') {
+		return s[:n-1]
+	}
+
+	return s
+}
+
+func skipRedirection(runes []rune, start int) int {
+	i := start
+	for i+1 < len(runes) && (runes[i+1] == '>' || runes[i+1] == '<') {
+		i++
+	}
+
+	if i+1 < len(runes) && runes[i+1] == '&' {
+		i++
+		for i+1 < len(runes) && (unicode.IsDigit(runes[i+1]) || runes[i+1] == '-') {
+			i++
+		}
+
+		return i
+	}
+
+	for i+1 < len(runes) && unicode.IsSpace(runes[i+1]) {
+		i++
+	}
+
+	for i+1 < len(runes) && !unicode.IsSpace(runes[i+1]) {
+		i++
+
+		switch runes[i] {
+		case '\'':
+			i = skipTo(runes, i+1, '\'')
+		case '"':
+			i = skipDoubleQuote(runes, i+1)
+		case '$':
+			i = skipExpansion(runes, i)
+		}
+	}
+
+	return i
+}
+
 func skipExpansion(runes []rune, start int) int {
 	if start+1 >= len(runes) {
 		return start
@@ -264,47 +307,4 @@ func skipDoubleQuote(runes []rune, start int) int {
 	}
 
 	return len(runes) - 1
-}
-
-func dropFileDescriptor(s string) string {
-	if n := len(s); n > 0 && s[n-1] >= '0' && s[n-1] <= '9' && (n == 1 || s[n-2] == ' ') {
-		return s[:n-1]
-	}
-
-	return s
-}
-
-func skipRedirection(runes []rune, start int) int {
-	i := start
-	for i+1 < len(runes) && (runes[i+1] == '>' || runes[i+1] == '<') {
-		i++
-	}
-
-	if i+1 < len(runes) && runes[i+1] == '&' {
-		i++
-		for i+1 < len(runes) && (unicode.IsDigit(runes[i+1]) || runes[i+1] == '-') {
-			i++
-		}
-
-		return i
-	}
-
-	for i+1 < len(runes) && unicode.IsSpace(runes[i+1]) {
-		i++
-	}
-
-	for i+1 < len(runes) && !unicode.IsSpace(runes[i+1]) {
-		i++
-
-		switch runes[i] {
-		case '\'':
-			i = skipTo(runes, i+1, '\'')
-		case '"':
-			i = skipDoubleQuote(runes, i+1)
-		case '$':
-			i = skipExpansion(runes, i)
-		}
-	}
-
-	return i
 }

@@ -30,6 +30,30 @@ func plain(value any) any {
 	}
 }
 
+func wireValue(value any) (any, error) {
+	// Only a mapping or a sequence is wrapped, since order is a property of those alone. A scalar
+	// stays the Go value it was, so a file's plain string description has the same type --desc
+	// produces.
+	switch value.(type) {
+	case yaml.MapSlice, []any:
+		encoded, err := MarshalOrdered(value)
+		if err != nil {
+			return nil, err
+		}
+
+		return json.RawMessage(encoded), nil
+	default:
+		// A scalar is checked rather than returned on trust, so a value encoding/json refuses,
+		// .nan and .inf among them, is reported here against the key that carries it rather than
+		// as a bare marshal failure once the request is built.
+		if _, err := json.Marshal(value); err != nil {
+			return nil, err
+		}
+
+		return value, nil
+	}
+}
+
 // MarshalOrdered encodes a decoded tree as JSON, keeping every mapping in its written order. Use it
 // for the wire, where a body is replayed as given, and plain for a Go consumer.
 func MarshalOrdered(value any) ([]byte, error) {
@@ -80,29 +104,5 @@ func MarshalOrdered(value any) ([]byte, error) {
 		return append(buf, ']'), nil
 	default:
 		return json.Marshal(value)
-	}
-}
-
-func wireValue(value any) (any, error) {
-	// Only a mapping or a sequence is wrapped, since order is a property of those alone. A scalar
-	// stays the Go value it was, so a file's plain string description has the same type --desc
-	// produces.
-	switch value.(type) {
-	case yaml.MapSlice, []any:
-		encoded, err := MarshalOrdered(value)
-		if err != nil {
-			return nil, err
-		}
-
-		return json.RawMessage(encoded), nil
-	default:
-		// A scalar is checked rather than returned on trust, so a value encoding/json refuses,
-		// .nan and .inf among them, is reported here against the key that carries it rather than
-		// as a bare marshal failure once the request is built.
-		if _, err := json.Marshal(value); err != nil {
-			return nil, err
-		}
-
-		return value, nil
 	}
 }

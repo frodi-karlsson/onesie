@@ -38,22 +38,16 @@ func NewGrader(runner DryRunner) *Grader {
 	}
 }
 
-// DryRunner dry runs one command line without a shell.
-type DryRunner interface {
-	DryRun(ctx context.Context, command string) (skillcheck.DryRunResult, error)
-}
-
-// FlagLookup finds a onesie flag by its long name or its one letter shorthand.
-type FlagLookup interface {
-	Lookup(name string) *pflag.Flag
-	ShorthandLookup(name string) *pflag.Flag
-}
-
 // Grader dry runs the onesie commands found in the traces an eval result points at.
 type Grader struct {
 	runner   DryRunner
 	readFile func(name string) ([]byte, error)
 	flags    FlagLookup
+}
+
+// DryRunner dry runs one command line without a shell.
+type DryRunner interface {
+	DryRun(ctx context.Context, command string) (skillcheck.DryRunResult, error)
 }
 
 // Grade reads the aggregate-result.json at resultPath and dry runs every onesie command in every
@@ -100,34 +94,11 @@ type CaseReport struct {
 	Arms []ArmReport
 }
 
-// ArmReport tallies every run of one case in one arm.
-type ArmReport struct {
-	Arm           string
-	Runs          int
-	MissingTraces int
-	Commands      int
-	Clean         int
-	Failed        []Finding
-	Skipped       []Finding
-}
-
-// Finding is one command that failed its dry run or could not be run, and why. Command has any
-// --api-key value redacted.
-type Finding struct {
-	Run     int
-	Command string
-	Detail  string
-}
-
 type aggregateResult struct {
 	Cases []struct {
 		Name string                `json:"name"`
 		Arms map[string][]runEntry `json:"arms"`
 	} `json:"cases"`
-}
-
-type runEntry struct {
-	TracePath string `json:"tracePath"`
 }
 
 func armOrder(arms map[string][]runEntry) []string {
@@ -190,6 +161,10 @@ func (g *Grader) gradeArm(ctx context.Context, arm string, runs []runEntry) (Arm
 	return report, nil
 }
 
+type runEntry struct {
+	TracePath string `json:"tracePath"`
+}
+
 func (g *Grader) dryRun(ctx context.Context, run int, command string, report *ArmReport) error {
 	report.Commands++
 
@@ -221,6 +196,25 @@ func (g *Grader) dryRun(ctx context.Context, run int, command string, report *Ar
 	return nil
 }
 
+// ArmReport tallies every run of one case in one arm.
+type ArmReport struct {
+	Arm           string
+	Runs          int
+	MissingTraces int
+	Commands      int
+	Clean         int
+	Failed        []Finding
+	Skipped       []Finding
+}
+
+// Finding is one command that failed its dry run or could not be run, and why. Command has any
+// --api-key value redacted.
+type Finding struct {
+	Run     int
+	Command string
+	Detail  string
+}
+
 func redactAPIKey(command string) string {
 	return apiKeyValue.ReplaceAllString(command, "${1}REDACTED")
 }
@@ -232,11 +226,6 @@ func (g *Grader) parse(command string) parsedArgs {
 	}
 
 	return parseArgs(tokens[1:], g.flags)
-}
-
-type parsedArgs struct {
-	flags      []string
-	subcommand string
 }
 
 func parseArgs(args []string, flags FlagLookup) parsedArgs {
@@ -276,10 +265,6 @@ func parseArgs(args []string, flags FlagLookup) parsedArgs {
 	return parsed
 }
 
-func takesValue(flag *pflag.Flag) bool {
-	return flag != nil && flag.NoOptDefVal == ""
-}
-
 func shorthandTakesNextArg(cluster string, flags FlagLookup, parsed *parsedArgs) bool {
 	for i := range len(cluster) {
 		flag := flags.ShorthandLookup(cluster[i : i+1])
@@ -297,8 +282,19 @@ func shorthandTakesNextArg(cluster string, flags FlagLookup, parsed *parsedArgs)
 	return false
 }
 
-func (p parsedArgs) has(long string) bool {
-	return slices.Contains(p.flags, long)
+// FlagLookup finds a onesie flag by its long name or its one letter shorthand.
+type FlagLookup interface {
+	Lookup(name string) *pflag.Flag
+	ShorthandLookup(name string) *pflag.Flag
+}
+
+type parsedArgs struct {
+	flags      []string
+	subcommand string
+}
+
+func takesValue(flag *pflag.Flag) bool {
+	return flag != nil && flag.NoOptDefVal == ""
 }
 
 func (p parsedArgs) skipReason() string {
@@ -313,4 +309,8 @@ func (p parsedArgs) skipReason() string {
 	}
 
 	return ""
+}
+
+func (p parsedArgs) has(long string) bool {
+	return slices.Contains(p.flags, long)
 }

@@ -65,12 +65,6 @@ func newAuthSetCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 	return cmd
 }
 
-type setOptions struct {
-	baseURL    string
-	hasBaseURL bool
-	toFile     bool
-}
-
 func authSet(cmd *cobra.Command, settings rootSettings, flags *runFlags, opts setOptions) error {
 	baseURL, hasBaseURL := opts.baseURL, opts.hasBaseURL
 
@@ -172,6 +166,12 @@ func authSet(cmd *cobra.Command, settings rootSettings, flags *runFlags, opts se
 	return nil
 }
 
+type setOptions struct {
+	baseURL    string
+	hasBaseURL bool
+	toFile     bool
+}
+
 func storeKey(
 	cmd *cobra.Command,
 	settings rootSettings,
@@ -200,18 +200,6 @@ func storeKey(
 		". The key is in "+path+" instead")
 
 	return creds.Entry{APIKey: key}, printErr
-}
-
-func previousAccount(entry creds.Entry, provider jev.Provider) string {
-	if entry.Store != creds.StoreKeychain {
-		return ""
-	}
-
-	if entry.Account == "" {
-		return provider.Name
-	}
-
-	return entry.Account
 }
 
 func readKey(cmd *cobra.Command, settings rootSettings) (string, error) {
@@ -496,6 +484,18 @@ func locateKey(settings rootSettings, flags *runFlags) (keySource, error) {
 	return keySource{
 		name: sourceFile, provider: provider, path: path, key: entry.APIKey, baseURL: entry.BaseURL,
 	}, nil
+}
+
+func previousAccount(entry creds.Entry, provider jev.Provider) string {
+	if entry.Store != creds.StoreKeychain {
+		return ""
+	}
+
+	if entry.Account == "" {
+		return provider.Name
+	}
+
+	return entry.Account
 }
 
 func resolveProvider(settings rootSettings, flags *runFlags) (jev.Provider, error) {

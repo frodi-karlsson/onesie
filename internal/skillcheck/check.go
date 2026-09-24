@@ -45,29 +45,6 @@ func Check(ctx context.Context, root string, runner *Runner) (Report, error) {
 	return report, nil
 }
 
-// Report tallies one run of Check across every skill.
-type Report struct {
-	Skills   int
-	Checked  int
-	Skipped  []Skip
-	Failures []string
-}
-
-// Passed reports whether every checked example behaved as its rule declared.
-func (r Report) Passed() bool {
-	return len(r.Failures) == 0
-}
-
-// Skip records one example Check declined to run, and why, so a skill drifting to examples the
-// checker cannot verify is visible rather than only countable.
-type Skip struct {
-	Skill   string
-	RuleID  string
-	Kind    string
-	Command string
-	Reason  string
-}
-
 func checkRule(
 	ctx context.Context, runner *Runner, skill, ruleID, kind, command string, wantPass bool,
 	unverifiable string, report *Report,
@@ -101,6 +78,29 @@ func checkRule(
 	}
 
 	return nil
+}
+
+// Report tallies one run of Check across every skill.
+type Report struct {
+	Skills   int
+	Checked  int
+	Skipped  []Skip
+	Failures []string
+}
+
+// Passed reports whether every checked example behaved as its rule declared.
+func (r Report) Passed() bool {
+	return len(r.Failures) == 0
+}
+
+// Skip records one example Check declined to run, and why, so a skill drifting to examples the
+// checker cannot verify is visible rather than only countable.
+type Skip struct {
+	Skill   string
+	RuleID  string
+	Kind    string
+	Command string
+	Reason  string
 }
 
 func outcomeMessage(skill, ruleID, kind string, wantPass bool, exitCode int, args []string, stderr string) string {

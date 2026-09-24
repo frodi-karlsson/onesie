@@ -325,14 +325,6 @@ func plural(count int, noun string) string {
 	return fmt.Sprintf("%d %ss", count, noun)
 }
 
-type line struct {
-	record output.Record
-	raw    string
-	state  any // What was sent, so --merge keeps a text line's type and a JSON line's digits.
-	header []string
-	fields map[string]any
-}
-
 func rowLine(record output.Record, rec input.Record) line {
 	var fields map[string]any
 	if object, ok := rec.State.(map[string]any); ok {
@@ -340,27 +332,6 @@ func rowLine(record output.Record, rec input.Record) line {
 	}
 
 	return line{record: record, raw: rec.Raw, state: rec.Wire, header: rec.Header, fields: fields}
-}
-
-func delimited(
-	out io.Writer,
-	mode output.Mode,
-	built *plan.Plan,
-	withAssert bool,
-	flags *runFlags,
-) *output.Delimited {
-	if mode != output.CSV && mode != output.TSV {
-		return nil
-	}
-
-	ids := make([]string, 0, len(built.Questions))
-	for _, question := range built.Questions {
-		ids = append(ids, question.ID)
-	}
-
-	return output.NewDelimited(out, mode, output.DelimitedOptions{
-		IDs: ids, Assert: withAssert, Header: !flags.resumeHeader,
-	})
 }
 
 func hasKey(state any, key string) bool {
@@ -404,8 +375,12 @@ func stopping(flags *runFlags) func(line) bool {
 	}
 }
 
-func merging(flags *runFlags) bool {
-	return flags.merge || flags.mergeKey != ""
+type line struct {
+	record output.Record
+	raw    string
+	state  any // What was sent, so --merge keeps a text line's type and a JSON line's digits.
+	header []string
+	fields map[string]any
 }
 
 func mergeName(flags *runFlags) string {
@@ -418,14 +393,6 @@ func mergeName(flags *runFlags) string {
 	}
 
 	return ""
-}
-
-func mergeKey(flags *runFlags) string {
-	if flags.mergeKey != "" {
-		return flags.mergeKey
-	}
-
-	return "answers"
 }
 
 func streamResult(result engine.Result, falseAsserts int) error {
@@ -583,6 +550,31 @@ func writeRecord(
 	return output.Write(cmd.OutOrStdout(), mode, record)
 }
 
+func delimited(
+	out io.Writer,
+	mode output.Mode,
+	built *plan.Plan,
+	withAssert bool,
+	flags *runFlags,
+) *output.Delimited {
+	if mode != output.CSV && mode != output.TSV {
+		return nil
+	}
+
+	ids := make([]string, 0, len(built.Questions))
+	for _, question := range built.Questions {
+		ids = append(ids, question.ID)
+	}
+
+	return output.NewDelimited(out, mode, output.DelimitedOptions{
+		IDs: ids, Assert: withAssert, Header: !flags.resumeHeader,
+	})
+}
+
+func merging(flags *runFlags) bool {
+	return flags.merge || flags.mergeKey != ""
+}
+
 func writeMerged(
 	w io.Writer,
 	mode output.Mode,
@@ -591,6 +583,14 @@ func writeMerged(
 	flags *runFlags,
 ) error {
 	return output.WriteMerged(w, mode, record, resolved.Raw, resolved.Wire, mergeKey(flags))
+}
+
+func mergeKey(flags *runFlags) string {
+	if flags.mergeKey != "" {
+		return flags.mergeKey
+	}
+
+	return "answers"
 }
 
 func evaluate(

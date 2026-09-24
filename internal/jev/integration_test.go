@@ -18,43 +18,6 @@ const (
 	calmState   = "Thanks, that fixed it! Great service."
 )
 
-func liveClient(t *testing.T, opts ...jev.Option) *jev.Client {
-	t.Helper()
-
-	base := []jev.Option{jev.WithAPIKey(apiKey(t)), jev.WithUserAgent("onesie-integration")}
-
-	client, err := jev.New(append(base, opts...)...)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	return client
-}
-
-func liveOpenRouterClient(t *testing.T) *jev.Client {
-	t.Helper()
-
-	client, err := jev.New(
-		jev.WithProvider(jev.OpenRouter()),
-		jev.WithAPIKey(openRouterKey(t)),
-		jev.WithUserAgent("onesie-integration"),
-	)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	return client
-}
-
-func liveContext(t *testing.T, d time.Duration) context.Context {
-	t.Helper()
-
-	ctx, cancel := context.WithTimeout(t.Context(), d)
-	t.Cleanup(cancel)
-
-	return ctx
-}
-
 func TestLiveSystemOne(t *testing.T) {
 	t.Parallel()
 
@@ -468,4 +431,41 @@ func TestLiveErrors(t *testing.T) {
 			t.Errorf("error = %q, want one line naming questions.q.criteria.false", message)
 		}
 	})
+}
+
+func liveClient(t *testing.T, opts ...jev.Option) *jev.Client {
+	t.Helper()
+
+	base := []jev.Option{jev.WithAPIKey(apiKey(t)), jev.WithUserAgent("onesie-integration")}
+
+	client, err := jev.New(append(base, opts...)...)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	return client
+}
+
+func liveOpenRouterClient(t *testing.T) *jev.Client {
+	t.Helper()
+
+	client, err := jev.New(
+		jev.WithProvider(jev.OpenRouter()),
+		jev.WithAPIKey(openRouterKey(t)),
+		jev.WithUserAgent("onesie-integration"),
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	return client
+}
+
+func liveContext(t *testing.T, d time.Duration) context.Context {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(t.Context(), d)
+	t.Cleanup(cancel)
+
+	return ctx
 }

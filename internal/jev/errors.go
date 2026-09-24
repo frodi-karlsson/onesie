@@ -58,47 +58,6 @@ func newAPIError(status int, header http.Header, requestIDHeader string, body []
 	}
 }
 
-// APIError is a non 2xx response from the API. Match it with errors.Is against a status sentinel,
-// or recover it with errors.As to read the status, body and request ID.
-type APIError struct {
-	Status     int
-	RequestID  string
-	Header     http.Header
-	Body       any
-	RetryAfter time.Duration
-
-	message string
-}
-
-// Error returns the status and the message extracted from the response body.
-func (e *APIError) Error() string {
-	return e.message
-}
-
-// Is reports whether this status matches one of the package status sentinels.
-func (e *APIError) Is(target error) bool {
-	switch target {
-	case ErrBadRequest:
-		return e.Status == http.StatusBadRequest
-	case ErrAuthentication:
-		return e.Status == http.StatusUnauthorized
-	case ErrPaymentRequired:
-		return e.Status == http.StatusPaymentRequired
-	case ErrPermissionDenied:
-		return e.Status == http.StatusForbidden
-	case ErrNotFound:
-		return e.Status == http.StatusNotFound
-	case ErrUnprocessableEntity:
-		return e.Status == http.StatusUnprocessableEntity
-	case ErrRateLimit:
-		return e.Status == http.StatusTooManyRequests
-	case ErrServer:
-		return e.Status >= 500 && e.Status <= 599
-	default:
-		return false
-	}
-}
-
 func describe(status int, body any) string {
 	if detail := extractMessage(body); detail != "" {
 		// Truncated here rather than inside extraction, so a hostile body arriving as a bare string
@@ -276,6 +235,47 @@ type RetryAfterError struct {
 	Cap        time.Duration
 }
 
+// APIError is a non 2xx response from the API. Match it with errors.Is against a status sentinel,
+// or recover it with errors.As to read the status, body and request ID.
+type APIError struct {
+	Status     int
+	RequestID  string
+	Header     http.Header
+	Body       any
+	RetryAfter time.Duration
+
+	message string
+}
+
+// Error returns the status and the message extracted from the response body.
+func (e *APIError) Error() string {
+	return e.message
+}
+
+// Is reports whether this status matches one of the package status sentinels.
+func (e *APIError) Is(target error) bool {
+	switch target {
+	case ErrBadRequest:
+		return e.Status == http.StatusBadRequest
+	case ErrAuthentication:
+		return e.Status == http.StatusUnauthorized
+	case ErrPaymentRequired:
+		return e.Status == http.StatusPaymentRequired
+	case ErrPermissionDenied:
+		return e.Status == http.StatusForbidden
+	case ErrNotFound:
+		return e.Status == http.StatusNotFound
+	case ErrUnprocessableEntity:
+		return e.Status == http.StatusUnprocessableEntity
+	case ErrRateLimit:
+		return e.Status == http.StatusTooManyRequests
+	case ErrServer:
+		return e.Status >= 500 && e.Status <= 599
+	default:
+		return false
+	}
+}
+
 // Error names the delay the server asked for and the cap that rejected it.
 func (e *RetryAfterError) Error() string {
 	return fmt.Sprintf(
@@ -287,6 +287,14 @@ func (e *RetryAfterError) Error() string {
 // Unwrap returns the embedded APIError, so errors.As and errors.Is reach it.
 func (e *RetryAfterError) Unwrap() error {
 	return &e.APIError
+}
+
+// TimeoutError is a ConnectionError whose cause was the attempt deadline. It unwraps to
+// context.DeadlineExceeded, so errors.Is against a caller's own deadline matches it too.
+type TimeoutError struct {
+	ConnectionError
+
+	Timeout time.Duration
 }
 
 // ConnectionError is a transport failure, including a body that stopped arriving.
@@ -311,14 +319,6 @@ func (e *ConnectionError) Unwrap() error {
 // Is matches ErrConnection.
 func (e *ConnectionError) Is(target error) bool {
 	return target == ErrConnection
-}
-
-// TimeoutError is a ConnectionError whose cause was the attempt deadline. It unwraps to
-// context.DeadlineExceeded, so errors.Is against a caller's own deadline matches it too.
-type TimeoutError struct {
-	ConnectionError
-
-	Timeout time.Duration
 }
 
 // Error reports the deadline that fired.

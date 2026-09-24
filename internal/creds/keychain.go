@@ -46,22 +46,6 @@ func NewKeychain(opts ...KeychainOption) *Keychain {
 	return chain
 }
 
-// Keychain stores keys in the OS keychain under the onesie service, one item per account.
-type Keychain struct {
-	backend Backend
-	timeout time.Duration
-}
-
-// Backend is the keyring a Keychain talks to. The OS keyring in production.
-type Backend interface {
-	Set(service, user, password string) error
-	Get(service, user string) (string, error)
-	Delete(service, user string) error
-}
-
-// KeychainOption customises a Keychain.
-type KeychainOption func(*Keychain)
-
 // WithBackend replaces the OS keyring, so a test needs no real keychain.
 func WithBackend(backend Backend) KeychainOption {
 	return func(k *Keychain) {
@@ -74,6 +58,22 @@ func WithTimeout(timeout time.Duration) KeychainOption {
 	return func(k *Keychain) {
 		k.timeout = timeout
 	}
+}
+
+// KeychainOption customises a Keychain.
+type KeychainOption func(*Keychain)
+
+// Keychain stores keys in the OS keychain under the onesie service, one item per account.
+type Keychain struct {
+	backend Backend
+	timeout time.Duration
+}
+
+// Backend is the keyring a Keychain talks to. The OS keyring in production.
+type Backend interface {
+	Set(service, user, password string) error
+	Get(service, user string) (string, error)
+	Delete(service, user string) error
 }
 
 // Get reads the account's key. An empty item reads as missing, since an empty key is no key.

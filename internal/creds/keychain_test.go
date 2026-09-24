@@ -134,15 +134,15 @@ func TestKeychainAccount(t *testing.T) {
 	})
 }
 
+func newFakeBackend() *fakeBackend {
+	return &fakeBackend{items: map[string]string{}}
+}
+
 type fakeBackend struct {
 	mu    sync.Mutex
 	items map[string]string
 	fail  error
 	hang  chan struct{}
-}
-
-func newFakeBackend() *fakeBackend {
-	return &fakeBackend{items: map[string]string{}}
 }
 
 func (b *fakeBackend) Set(service, user, password string) error {

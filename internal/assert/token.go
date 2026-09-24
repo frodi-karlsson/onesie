@@ -93,10 +93,6 @@ func badString(raw string) error {
 	}
 }
 
-func startsIdent(runes []rune, i int) bool {
-	return unicode.IsLetter(runes[i]) || runes[i] == '_'
-}
-
 func lexIdent(runes []rune, i int) (token, int) {
 	start := i
 	for ; i < len(runes) && (startsIdent(runes, i) || unicode.IsDigit(runes[i])); i++ {
@@ -154,6 +150,10 @@ func lexNumber(runes []rune, i int) (token, int, error) {
 	}
 
 	return token{kind: kindNumber, text: text, number: value, col: start + 1}, i, nil
+}
+
+func startsIdent(runes []rune, i int) bool {
+	return unicode.IsLetter(runes[i]) || runes[i] == '_'
 }
 
 func lexOperator(runes []rune, i int) (token, int, error) {

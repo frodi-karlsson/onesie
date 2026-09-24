@@ -348,66 +348,6 @@ func TestAssertIsGlobal(t *testing.T) {
 	}
 }
 
-func runAsserted(
-	t *testing.T,
-	args []string,
-	status int,
-	response string,
-	wantCode int,
-	extra ...cli.RootOption,
-) (string, string, int64) {
-	t.Helper()
-
-	var requests atomic.Int64
-
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		requests.Add(1)
-
-		if status != 0 {
-			w.WriteHeader(status)
-		}
-
-		if _, err := w.Write([]byte(response)); err != nil {
-			t.Errorf("writing stub response: %v", err)
-		}
-	}))
-	defer srv.Close()
-
-	var out, errOut bytes.Buffer
-
-	options := []cli.RootOption{
-		cli.WithClientFactory(func(_ context.Context, opts ...jev.Option) (*jev.Client, error) {
-			// No retries. A 500 case would otherwise spend the client's backoff for no coverage.
-			policy := jev.DefaultRetryPolicy()
-			policy.MaxRetries = 0
-
-			return jev.New(append([]jev.Option{
-				jev.WithAPIKey("k"),
-				jev.WithBaseURL(srv.URL),
-				jev.WithRetry(policy),
-			}, opts...)...)
-		}),
-		cli.WithStdin(strings.NewReader("a ticket")),
-		cli.WithStdinTTY(false),
-		cli.WithStdoutTTY(false),
-		cli.WithLookupEnv(func(string) (string, bool) { return "", false }),
-		cli.WithKeychain(offKeychain{}),
-	}
-
-	root := cli.NewRootCmd(cli.BuildInfo{Version: "1.2.3"}, append(options, extra...)...)
-
-	root.SetOut(&out)
-	root.SetErr(&errOut)
-	root.SetArgs(args)
-
-	if code := cli.Execute(t.Context(), root); code != wantCode {
-		t.Errorf("exit code = %d, want %d\nstdout:\n%s\nstderr:\n%s",
-			code, wantCode, out.String(), errOut.String())
-	}
-
-	return out.String(), errOut.String(), requests.Load()
-}
-
 func TestAssertFromFile(t *testing.T) {
 	t.Parallel()
 
@@ -594,6 +534,66 @@ func TestAssertPrintQuestions(t *testing.T) {
 			}
 		})
 	}
+}
+
+func runAsserted(
+	t *testing.T,
+	args []string,
+	status int,
+	response string,
+	wantCode int,
+	extra ...cli.RootOption,
+) (string, string, int64) {
+	t.Helper()
+
+	var requests atomic.Int64
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		requests.Add(1)
+
+		if status != 0 {
+			w.WriteHeader(status)
+		}
+
+		if _, err := w.Write([]byte(response)); err != nil {
+			t.Errorf("writing stub response: %v", err)
+		}
+	}))
+	defer srv.Close()
+
+	var out, errOut bytes.Buffer
+
+	options := []cli.RootOption{
+		cli.WithClientFactory(func(_ context.Context, opts ...jev.Option) (*jev.Client, error) {
+			// No retries. A 500 case would otherwise spend the client's backoff for no coverage.
+			policy := jev.DefaultRetryPolicy()
+			policy.MaxRetries = 0
+
+			return jev.New(append([]jev.Option{
+				jev.WithAPIKey("k"),
+				jev.WithBaseURL(srv.URL),
+				jev.WithRetry(policy),
+			}, opts...)...)
+		}),
+		cli.WithStdin(strings.NewReader("a ticket")),
+		cli.WithStdinTTY(false),
+		cli.WithStdoutTTY(false),
+		cli.WithLookupEnv(func(string) (string, bool) { return "", false }),
+		cli.WithKeychain(offKeychain{}),
+	}
+
+	root := cli.NewRootCmd(cli.BuildInfo{Version: "1.2.3"}, append(options, extra...)...)
+
+	root.SetOut(&out)
+	root.SetErr(&errOut)
+	root.SetArgs(args)
+
+	if code := cli.Execute(t.Context(), root); code != wantCode {
+		t.Errorf("exit code = %d, want %d\nstdout:\n%s\nstderr:\n%s",
+			code, wantCode, out.String(), errOut.String())
+	}
+
+	return out.String(), errOut.String(), requests.Load()
 }
 
 func TestAssertStreaming(t *testing.T) {

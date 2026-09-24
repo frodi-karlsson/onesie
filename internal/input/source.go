@@ -61,6 +61,9 @@ func ParseMode(name string) (Mode, error) {
 	}
 }
 
+// Mode is the input mode.
+type Mode int
+
 // Streaming reports whether the mode reads one record per line.
 func (m Mode) Streaming() bool {
 	return m == JSONL || m == Lines || m == Request || m.Delimited()
@@ -70,9 +73,6 @@ func (m Mode) Streaming() bool {
 func (m Mode) Delimited() bool {
 	return m == CSV || m == TSV
 }
-
-// Mode is the input mode.
-type Mode int
 
 const (
 	// Text sends all of stdin as one JSON string.

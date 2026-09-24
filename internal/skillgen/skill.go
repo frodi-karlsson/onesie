@@ -46,32 +46,6 @@ func Load(path string) (Skill, error) {
 	return s, nil
 }
 
-// Skill is the decoded shape of a skill.json file, per spec section 2.1.
-type Skill struct {
-	Name          string            `json:"name"`
-	Description   string            `json:"description"`
-	Compatibility string            `json:"compatibility,omitempty"`
-	License       string            `json:"license,omitempty"`
-	Metadata      map[string]string `json:"metadata,omitempty"`
-	Intro         string            `json:"intro,omitempty"`
-	Rules         []Rule            `json:"rules,omitempty"`
-	Sections      []string          `json:"sections,omitempty"`
-	References    []string          `json:"references,omitempty"`
-}
-
-// Rule is one entry in a skill's rules list.
-type Rule struct {
-	ID               string `json:"id"`
-	Short            string `json:"short"`
-	Why              string `json:"why"`
-	Bad              string `json:"bad,omitempty"`
-	Good             string `json:"good,omitempty"`
-	GoodFails        bool   `json:"good_fails,omitempty"`
-	BadPasses        bool   `json:"bad_passes,omitempty"`
-	BadUnverifiable  string `json:"bad_unverifiable,omitempty"`
-	GoodUnverifiable string `json:"good_unverifiable,omitempty"`
-}
-
 // Validate enforces the skill.json field rules from spec section 2.1. path is the skill.json file
 // itself, and fragment paths are checked for existence against its directory.
 func Validate(path string, s Skill) error {
@@ -106,6 +80,19 @@ func Validate(path string, s Skill) error {
 	}
 
 	return nil
+}
+
+// Skill is the decoded shape of a skill.json file, per spec section 2.1.
+type Skill struct {
+	Name          string            `json:"name"`
+	Description   string            `json:"description"`
+	Compatibility string            `json:"compatibility,omitempty"`
+	License       string            `json:"license,omitempty"`
+	Metadata      map[string]string `json:"metadata,omitempty"`
+	Intro         string            `json:"intro,omitempty"`
+	Rules         []Rule            `json:"rules,omitempty"`
+	Sections      []string          `json:"sections,omitempty"`
+	References    []string          `json:"references,omitempty"`
 }
 
 type validator struct {
@@ -206,6 +193,19 @@ func (v validator) rules(rules []Rule) error {
 	}
 
 	return nil
+}
+
+// Rule is one entry in a skill's rules list.
+type Rule struct {
+	ID               string `json:"id"`
+	Short            string `json:"short"`
+	Why              string `json:"why"`
+	Bad              string `json:"bad,omitempty"`
+	Good             string `json:"good,omitempty"`
+	GoodFails        bool   `json:"good_fails,omitempty"`
+	BadPasses        bool   `json:"bad_passes,omitempty"`
+	BadUnverifiable  string `json:"bad_unverifiable,omitempty"`
+	GoodUnverifiable string `json:"good_unverifiable,omitempty"`
 }
 
 func ruleLabel(i int, id string) string {

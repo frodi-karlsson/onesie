@@ -453,16 +453,6 @@ func TestNewRootCmdStats(t *testing.T) {
 	}
 }
 
-func answerHandler(body string) http.HandlerFunc {
-	return func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-
-		if _, err := io.WriteString(w, body); err != nil {
-			panic(err)
-		}
-	}
-}
-
 func scripted(first, second int, body string) http.HandlerFunc {
 	var seen atomic.Int32
 
@@ -523,6 +513,16 @@ func hangUpThen(body string) http.HandlerFunc {
 		}
 
 		answerHandler(body)(w, r)
+	}
+}
+
+func answerHandler(body string) http.HandlerFunc {
+	return func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		if _, err := io.WriteString(w, body); err != nil {
+			panic(err)
+		}
 	}
 }
 

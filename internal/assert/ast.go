@@ -6,11 +6,6 @@ import (
 	"unicode"
 )
 
-type node interface {
-	pos() int
-	render() string
-}
-
 type binaryNode struct {
 	op          kind
 	left, right node
@@ -56,6 +51,11 @@ type inNode struct {
 	operand node
 	list    []node
 	column  int
+}
+
+type node interface {
+	pos() int
+	render() string
 }
 
 func (n *inNode) pos() int {

@@ -16,122 +16,6 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/jev"
 )
 
-// Stats is a finished summary, ready to render. It is a snapshot, so it needs no locking.
-type Stats struct {
-	// Records is every input record. Requests is the subset that reached the client, which is
-	// smaller whenever a line failed to parse.
-	Records  int
-	Requests int
-	Failed   int
-	// FalseAsserts counts the records whose assertion did not hold. §17.6 counts them apart from
-	// Failed, since a false assertion judges a complete record.
-	FalseAsserts   int
-	Questions      int
-	InputTokens    int
-	OutputTokens   int
-	Models         []string
-	Attempts       int
-	Retries        map[int]int
-	AttemptTimeout time.Duration
-	Elapsed        time.Duration
-}
-
-// String renders the summary as the single line --stats writes to stderr.
-func (s Stats) String() string {
-	parts := make([]string, 0, 9)
-
-	// A non streaming run has one record and one request and says so once. A stream reports both
-	// only when they differ, which is exactly when a record never became a request.
-	split := s.Records > s.Requests
-
-	if split {
-		parts = append(parts, plural(s.Records, "record"))
-	} else {
-		parts = append(parts, plural(s.Requests, "request"))
-	}
-
-	if s.Failed > 0 {
-		parts = append(parts, fmt.Sprintf("%d failed", s.Failed))
-	}
-
-	if s.FalseAsserts > 0 {
-		parts = append(parts, plural(s.FalseAsserts, "false assertion"))
-	}
-
-	if split {
-		parts = append(parts, plural(s.Requests, "request"))
-	}
-
-	parts = append(parts,
-		plural(s.Questions, "question"),
-		fmt.Sprintf("%d in / %d out", s.InputTokens, s.OutputTokens))
-
-	if model := s.modelClause(); model != "" {
-		parts = append(parts, model)
-	}
-
-	return strings.Join(append(parts,
-		s.attemptClause(),
-		s.AttemptTimeout.String()+"/attempt",
-		roundElapsed(s.Elapsed)), ", ")
-}
-
-func roundElapsed(d time.Duration) string {
-	// A Duration prints every digit it holds, which puts nanoseconds in a summary section 10
-	// writes as 11.4s. Rounded to the resolution a reader can act on.
-	if d < time.Second {
-		return d.Round(time.Millisecond).String()
-	}
-
-	return d.Round(100 * time.Millisecond).String()
-}
-
-func (s Stats) modelClause() string {
-	switch len(s.Models) {
-	case 0:
-		return ""
-	case 1:
-		return "model " + s.Models[0]
-	default:
-		return "models " + strings.Join(s.Models, ", ")
-	}
-}
-
-func (s Stats) attemptClause() string {
-	// Summed from the breakdown rather than derived as Attempts minus Requests. A record that
-	// failed to parse never reached the client, so it raises the record count without raising the
-	// attempt count, and the subtraction would under report every retry that run made.
-	retries := 0
-	for _, count := range s.Retries {
-		retries += count
-	}
-
-	if retries == 0 {
-		return plural(s.Attempts, "attempt")
-	}
-
-	return fmt.Sprintf("%s (%s: %s)",
-		plural(s.Attempts, "attempt"), plural(retries, "retry"), s.retryBreakdown())
-}
-
-func (s Stats) retryBreakdown() string {
-	codes := slices.Sorted(maps.Keys(s.Retries))
-	parts := make([]string, 0, len(codes))
-
-	for _, code := range codes {
-		// A connection error or a timeout has no status. Section 10 wants this breakdown to
-		// separate rate limiting from transport, and a literal 0 answers neither question.
-		label := strconv.Itoa(code)
-		if code == 0 {
-			label = "transport"
-		}
-
-		parts = append(parts, fmt.Sprintf("%s×%d", label, s.Retries[code]))
-	}
-
-	return strings.Join(parts, ", ")
-}
-
 func withStats(
 	cmd *cobra.Command,
 	now func() time.Time,
@@ -166,6 +50,10 @@ func withStats(
 	return err
 }
 
+func observing(c *collector) []jev.Option {
+	return []jev.Option{jev.WithAttemptObserver(c.observe)}
+}
+
 type collector struct {
 	mu sync.Mutex
 
@@ -180,10 +68,6 @@ type collector struct {
 	attempts       int
 	failedAttempts map[int]int // Non 2xx attempts by status. Less terminal, it is the retry breakdown.
 	terminal       map[int]int
-}
-
-func observing(c *collector) []jev.Option {
-	return []jev.Option{jev.WithAttemptObserver(c.observe)}
 }
 
 func (c *collector) observe(a jev.Attempt) {
@@ -320,4 +204,120 @@ func (c *collector) snapshot(attemptTimeout, elapsed time.Duration) Stats {
 		Models: slices.Sorted(maps.Keys(c.models)), Attempts: c.attempts, Retries: retries,
 		AttemptTimeout: attemptTimeout, Elapsed: elapsed,
 	}
+}
+
+// Stats is a finished summary, ready to render. It is a snapshot, so it needs no locking.
+type Stats struct {
+	// Records is every input record. Requests is the subset that reached the client, which is
+	// smaller whenever a line failed to parse.
+	Records  int
+	Requests int
+	Failed   int
+	// FalseAsserts counts the records whose assertion did not hold. §17.6 counts them apart from
+	// Failed, since a false assertion judges a complete record.
+	FalseAsserts   int
+	Questions      int
+	InputTokens    int
+	OutputTokens   int
+	Models         []string
+	Attempts       int
+	Retries        map[int]int
+	AttemptTimeout time.Duration
+	Elapsed        time.Duration
+}
+
+// String renders the summary as the single line --stats writes to stderr.
+func (s Stats) String() string {
+	parts := make([]string, 0, 9)
+
+	// A non streaming run has one record and one request and says so once. A stream reports both
+	// only when they differ, which is exactly when a record never became a request.
+	split := s.Records > s.Requests
+
+	if split {
+		parts = append(parts, plural(s.Records, "record"))
+	} else {
+		parts = append(parts, plural(s.Requests, "request"))
+	}
+
+	if s.Failed > 0 {
+		parts = append(parts, fmt.Sprintf("%d failed", s.Failed))
+	}
+
+	if s.FalseAsserts > 0 {
+		parts = append(parts, plural(s.FalseAsserts, "false assertion"))
+	}
+
+	if split {
+		parts = append(parts, plural(s.Requests, "request"))
+	}
+
+	parts = append(parts,
+		plural(s.Questions, "question"),
+		fmt.Sprintf("%d in / %d out", s.InputTokens, s.OutputTokens))
+
+	if model := s.modelClause(); model != "" {
+		parts = append(parts, model)
+	}
+
+	return strings.Join(append(parts,
+		s.attemptClause(),
+		s.AttemptTimeout.String()+"/attempt",
+		roundElapsed(s.Elapsed)), ", ")
+}
+
+func roundElapsed(d time.Duration) string {
+	// A Duration prints every digit it holds, which puts nanoseconds in a summary section 10
+	// writes as 11.4s. Rounded to the resolution a reader can act on.
+	if d < time.Second {
+		return d.Round(time.Millisecond).String()
+	}
+
+	return d.Round(100 * time.Millisecond).String()
+}
+
+func (s Stats) modelClause() string {
+	switch len(s.Models) {
+	case 0:
+		return ""
+	case 1:
+		return "model " + s.Models[0]
+	default:
+		return "models " + strings.Join(s.Models, ", ")
+	}
+}
+
+func (s Stats) attemptClause() string {
+	// Summed from the breakdown rather than derived as Attempts minus Requests. A record that
+	// failed to parse never reached the client, so it raises the record count without raising the
+	// attempt count, and the subtraction would under report every retry that run made.
+	retries := 0
+	for _, count := range s.Retries {
+		retries += count
+	}
+
+	if retries == 0 {
+		return plural(s.Attempts, "attempt")
+	}
+
+	return fmt.Sprintf("%s (%s: %s)",
+		plural(s.Attempts, "attempt"), plural(retries, "retry"), s.retryBreakdown())
+}
+
+func (s Stats) retryBreakdown() string {
+	codes := slices.Sorted(maps.Keys(s.Retries))
+	parts := make([]string, 0, len(codes))
+
+	for _, code := range codes {
+		// A connection error or a timeout has no status. Section 10 wants this breakdown to
+		// separate rate limiting from transport, and a literal 0 answers neither question.
+		label := strconv.Itoa(code)
+		if code == 0 {
+			label = "transport"
+		}
+
+		parts = append(parts, fmt.Sprintf("%s×%d", label, s.Retries[code]))
+	}
+
+	return strings.Join(parts, ", ")
 }

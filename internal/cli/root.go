@@ -212,10 +212,6 @@ func Execute(ctx context.Context, root *cobra.Command) int {
 	return Classify(err)
 }
 
-// RootOption customises the command tree. It exists so tests inject a client, stdin and the
-// terminal answers.
-type RootOption func(*rootSettings)
-
 // WithClientFactory replaces how commands build their API client, so a test can point one at a
 // stub. The options passed in are ones the run needs, so a replacement has to pass them on.
 func WithClientFactory(
@@ -307,19 +303,16 @@ func WithKeychain(keychain Keychain) RootOption {
 	}
 }
 
-// Keychain is where auth set stores a key when the OS has one, one item per account.
-type Keychain interface {
-	Get(account string) (string, error)
-	Set(account, key string) error
-	Delete(account string) error
-}
-
 // WithSecretReader replaces the hidden prompt, which needs a real terminal a test does not have.
 func WithSecretReader(read func() (string, error)) RootOption {
 	return func(s *rootSettings) {
 		s.readSecret = read
 	}
 }
+
+// RootOption customises the command tree. It exists so tests inject a client, stdin and the
+// terminal answers.
+type RootOption func(*rootSettings)
 
 // BuildInfo carries the build metadata stamped into the binary at link time.
 type BuildInfo struct {
@@ -343,6 +336,13 @@ type rootSettings struct {
 	credStore     creds.Store
 	keychain      Keychain
 	readSecret    func() (string, error)
+}
+
+// Keychain is where auth set stores a key when the OS has one, one item per account.
+type Keychain interface {
+	Get(account string) (string, error)
+	Set(account, key string) error
+	Delete(account string) error
 }
 
 var groupFlagHelp = map[string]string{

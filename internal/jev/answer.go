@@ -107,14 +107,6 @@ type Usage struct {
 	Cost         *float64 `json:"cost,omitempty"`
 }
 
-// Answer is one of NoulAnswer, ChoiceAnswer or ScoreAnswer.
-type Answer interface {
-	json.Marshaler
-
-	// Kind reports the wire type, one of noul, choice or score.
-	Kind() string
-}
-
 func decodeAnswer(raw json.RawMessage) (Answer, error) {
 	var probe struct {
 		Type string `json:"type"`
@@ -142,6 +134,14 @@ func decodeAnswer(raw json.RawMessage) (Answer, error) {
 	}
 
 	return decoded, nil
+}
+
+// Answer is one of NoulAnswer, ChoiceAnswer or ScoreAnswer.
+type Answer interface {
+	json.Marshaler
+
+	// Kind reports the wire type, one of noul, choice or score.
+	Kind() string
 }
 
 // NoulAnswer carries no confidence. Its single value describes a two outcome distribution fully.

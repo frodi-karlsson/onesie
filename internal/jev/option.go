@@ -28,9 +28,6 @@ const (
 	EnvDefaultModel = "TYPESAFE_DEFAULT_MODEL"
 )
 
-// Option configures a Client at construction.
-type Option func(*Client) error
-
 // WithAPIKey sets the API key, taking precedence over the environment.
 func WithAPIKey(key string) Option {
 	return func(c *Client) error {
@@ -226,8 +223,8 @@ func WithAttemptObserver(fn func(Attempt)) Option {
 	}
 }
 
-// RequestOption overrides client settings for one call.
-type RequestOption func(*requestConfig) error
+// Option configures a Client at construction.
+type Option func(*Client) error
 
 // WithRequestAttemptTimeout overrides the per attempt timeout for one call.
 func WithRequestAttemptTimeout(d time.Duration) RequestOption {
@@ -278,6 +275,9 @@ func WithRequestHeader(name, value string) RequestOption {
 		return nil
 	}
 }
+
+// RequestOption overrides client settings for one call.
+type RequestOption func(*requestConfig) error
 
 type requestConfig struct {
 	attemptTimeout time.Duration

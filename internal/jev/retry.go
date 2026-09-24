@@ -29,39 +29,6 @@ func DefaultRetryPolicy() RetryPolicy {
 	}
 }
 
-// RetryPolicy controls which failures are retried and how long the client waits between attempts.
-// A RetryStatus predicate must be safe for concurrent use.
-type RetryPolicy struct {
-	MaxRetries        int
-	BackoffInitial    time.Duration
-	BackoffMax        time.Duration
-	BackoffJitter     float64
-	RetryStatus       func(int) bool
-	RespectRetryAfter bool
-	MaxRetryAfter     time.Duration
-	RetryConnection   bool
-	RetryTimeout      bool
-}
-
-func (p RetryPolicy) validate() error {
-	switch {
-	case p.MaxRetries < 0:
-		return &ValidationError{Message: "retry MaxRetries must not be negative"}
-	case p.BackoffInitial < 0:
-		return &ValidationError{Message: "retry BackoffInitial must not be negative"}
-	case p.BackoffMax < 0:
-		return &ValidationError{Message: "retry BackoffMax must not be negative"}
-	case p.BackoffJitter < 0 || p.BackoffJitter > 1:
-		return &ValidationError{Message: "retry BackoffJitter must be between 0 and 1"}
-	case p.MaxRetryAfter < 0:
-		return &ValidationError{Message: "retry MaxRetryAfter must not be negative"}
-	case p.RetryStatus == nil:
-		return &ValidationError{Message: "retry RetryStatus must not be nil"}
-	default:
-		return nil
-	}
-}
-
 // DefaultRetryStatus retries 408, 429 and every 5xx, which covers the 529 the API uses for overload.
 func DefaultRetryStatus(status int) bool {
 	return status == http.StatusRequestTimeout ||
@@ -124,6 +91,39 @@ func jitter(delay time.Duration, policy RetryPolicy, random func() float64) time
 	// random returns a value at or above zero. The upper bound does the work at the other edge,
 	// since random staying below one keeps a fully jittered delay off zero.
 	return time.Duration(math.Round(float64(delay) * (1 - random()*policy.BackoffJitter)))
+}
+
+// RetryPolicy controls which failures are retried and how long the client waits between attempts.
+// A RetryStatus predicate must be safe for concurrent use.
+type RetryPolicy struct {
+	MaxRetries        int
+	BackoffInitial    time.Duration
+	BackoffMax        time.Duration
+	BackoffJitter     float64
+	RetryStatus       func(int) bool
+	RespectRetryAfter bool
+	MaxRetryAfter     time.Duration
+	RetryConnection   bool
+	RetryTimeout      bool
+}
+
+func (p RetryPolicy) validate() error {
+	switch {
+	case p.MaxRetries < 0:
+		return &ValidationError{Message: "retry MaxRetries must not be negative"}
+	case p.BackoffInitial < 0:
+		return &ValidationError{Message: "retry BackoffInitial must not be negative"}
+	case p.BackoffMax < 0:
+		return &ValidationError{Message: "retry BackoffMax must not be negative"}
+	case p.BackoffJitter < 0 || p.BackoffJitter > 1:
+		return &ValidationError{Message: "retry BackoffJitter must be between 0 and 1"}
+	case p.MaxRetryAfter < 0:
+		return &ValidationError{Message: "retry MaxRetryAfter must not be negative"}
+	case p.RetryStatus == nil:
+		return &ValidationError{Message: "retry RetryStatus must not be nil"}
+	default:
+		return nil
+	}
 }
 
 func parseRetryAfter(header http.Header, now time.Time) (time.Duration, bool) {

@@ -120,91 +120,6 @@ func checkResume(cfg Config) error {
 	}
 }
 
-// Config carries the invocation settings validation needs beyond the questions themselves.
-type Config struct {
-	Raw   bool
-	Quiet bool
-
-	// HasAssert records that an assertion was given, by the flag or by a question file's key. It is
-	// the second way a pick or rate question satisfies the -q rule, per §17.5.
-	HasAssert bool
-	// AssertName is the assertion as the user spelled it, so a message names a file's 'assert' key
-	// when that is where the gate came from. It defaults to --assert when empty.
-	AssertName string
-
-	Output       string
-	HasState     bool
-	HasStateFile bool
-	Replace      bool
-
-	// FileName is the -f argument, empty when the flag was not given. It names the file in the
-	// body policy message and marks whether -f was used at all.
-	FileName string
-
-	// HasAsk and HasPositional record which question source the user typed, which -i request
-	// rejects one message apiece. A plan cannot answer this, since -i request never builds one.
-	HasAsk        bool
-	HasPositional bool
-
-	// GroupFlags names every group local flag the user typed, in argv order. A Config field per
-	// flag would say nothing a name cannot, and these only ever need to be rejected.
-	GroupFlags []string
-
-	// HasModel records that -m was given, which an empty Model string cannot do on its own.
-	HasModel       bool
-	Usage          bool
-	PrintQuestions bool
-	PrintRequest   bool
-
-	// Stats is --stats, which summarises a run that made requests.
-	Stats bool
-
-	// Streaming is true for an input mode that reads one record per line.
-	Streaming bool
-
-	// RequestMode is true for -i request, which carries its own questions and forwards raw
-	// responses. Streaming is true for it too, so the two are not interchangeable.
-	RequestMode bool
-
-	// ListModels is --list-models, which asks no question, reads nothing and makes one request of
-	// its own. Every flag around a question run is rejected for it.
-	ListModels bool
-
-	// InputName is the -i value as the user spelled it, so a message names the mode they gave.
-	InputName string
-	// HasInput records that -i was given, which InputName cannot do since it names the default
-	// mode when the flag was absent.
-	HasInput    bool
-	Unordered   bool
-	StopOnError bool
-	// Out is the --out file the answers are written to, empty for stdout.
-	Out string
-	// Resume is --resume, which picks a stream up where an earlier run into Out stopped.
-	Resume bool
-	// StopOnAssert is --stop-on-assert, which ends a stream at the first record whose assertion
-	// was false. §17.6.
-	StopOnAssert bool
-	SkipBlank    bool
-	Merge        bool
-	// MergeName is the merge flag as the user spelled it, so a message names --merge-key when that
-	// is what was given. It defaults to --merge when empty.
-	MergeName string
-	Jobs      int
-	// JobsSet distinguishes -j 0 from -j absent, which an int cannot do on its own.
-	JobsSet bool
-
-	// Timeout is --timeout in seconds. TimeoutSet distinguishes an explicit 0 from the flag being
-	// absent, the same problem JobsSet solves.
-	Timeout    int
-	TimeoutSet bool
-
-	Retries    int
-	RetriesSet bool
-
-	MaxRetryAfter    int
-	MaxRetryAfterSet bool
-}
-
 func flagChecks(cfg Config) []func(Config) error {
 	// A dry run forwards nothing, writes no response body and makes no request, which is what
 	// every output facing reason in the request mode table claims. Its own message is the true one
@@ -432,14 +347,6 @@ func assertFlag(cfg Config) string {
 	return cfg.AssertName
 }
 
-func mergeFlag(cfg Config) string {
-	if cfg.MergeName == "" {
-		return "--merge"
-	}
-
-	return cfg.MergeName
-}
-
 func checkStreaming(cfg Config) (string, error) {
 	// Checked for every mode, since section 7 defines --merge for the non streaming ones too.
 	if cfg.Merge && !mergeable(cfg) {
@@ -525,6 +432,14 @@ func checkStreaming(cfg Config) (string, error) {
 	}
 
 	return "", nil
+}
+
+func mergeFlag(cfg Config) string {
+	if cfg.MergeName == "" {
+		return "--merge"
+	}
+
+	return cfg.MergeName
 }
 
 func tooManySeconds(flag string, seconds int, set bool) error {
@@ -958,6 +873,91 @@ func checkSingle(p *Plan, cfg Config) error {
 	}
 
 	return nil
+}
+
+// Config carries the invocation settings validation needs beyond the questions themselves.
+type Config struct {
+	Raw   bool
+	Quiet bool
+
+	// HasAssert records that an assertion was given, by the flag or by a question file's key. It is
+	// the second way a pick or rate question satisfies the -q rule, per §17.5.
+	HasAssert bool
+	// AssertName is the assertion as the user spelled it, so a message names a file's 'assert' key
+	// when that is where the gate came from. It defaults to --assert when empty.
+	AssertName string
+
+	Output       string
+	HasState     bool
+	HasStateFile bool
+	Replace      bool
+
+	// FileName is the -f argument, empty when the flag was not given. It names the file in the
+	// body policy message and marks whether -f was used at all.
+	FileName string
+
+	// HasAsk and HasPositional record which question source the user typed, which -i request
+	// rejects one message apiece. A plan cannot answer this, since -i request never builds one.
+	HasAsk        bool
+	HasPositional bool
+
+	// GroupFlags names every group local flag the user typed, in argv order. A Config field per
+	// flag would say nothing a name cannot, and these only ever need to be rejected.
+	GroupFlags []string
+
+	// HasModel records that -m was given, which an empty Model string cannot do on its own.
+	HasModel       bool
+	Usage          bool
+	PrintQuestions bool
+	PrintRequest   bool
+
+	// Stats is --stats, which summarises a run that made requests.
+	Stats bool
+
+	// Streaming is true for an input mode that reads one record per line.
+	Streaming bool
+
+	// RequestMode is true for -i request, which carries its own questions and forwards raw
+	// responses. Streaming is true for it too, so the two are not interchangeable.
+	RequestMode bool
+
+	// ListModels is --list-models, which asks no question, reads nothing and makes one request of
+	// its own. Every flag around a question run is rejected for it.
+	ListModels bool
+
+	// InputName is the -i value as the user spelled it, so a message names the mode they gave.
+	InputName string
+	// HasInput records that -i was given, which InputName cannot do since it names the default
+	// mode when the flag was absent.
+	HasInput    bool
+	Unordered   bool
+	StopOnError bool
+	// Out is the --out file the answers are written to, empty for stdout.
+	Out string
+	// Resume is --resume, which picks a stream up where an earlier run into Out stopped.
+	Resume bool
+	// StopOnAssert is --stop-on-assert, which ends a stream at the first record whose assertion
+	// was false. §17.6.
+	StopOnAssert bool
+	SkipBlank    bool
+	Merge        bool
+	// MergeName is the merge flag as the user spelled it, so a message names --merge-key when that
+	// is what was given. It defaults to --merge when empty.
+	MergeName string
+	Jobs      int
+	// JobsSet distinguishes -j 0 from -j absent, which an int cannot do on its own.
+	JobsSet bool
+
+	// Timeout is --timeout in seconds. TimeoutSet distinguishes an explicit 0 from the flag being
+	// absent, the same problem JobsSet solves.
+	Timeout    int
+	TimeoutSet bool
+
+	Retries    int
+	RetriesSet bool
+
+	MaxRetryAfter    int
+	MaxRetryAfterSet bool
 }
 
 // ShapeName spells a question's shape flag the way its origin wrote it, so a message points at the

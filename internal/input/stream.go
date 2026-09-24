@@ -89,51 +89,6 @@ func (s *Stream) Next() (Record, bool, error) {
 	}
 }
 
-// Record is one input line, ready to evaluate.
-type Record struct {
-	// Index is the record's position in the input, counting from zero.
-	Index int
-	// Line is the input line number, counting from one. It differs from Index as soon as
-	// --skip-blank drops a line, and it is the number a message must quote.
-	Line int
-	// State is the parsed value, which the pre flight checks read. It is nil when Err is set.
-	State any
-	// Wire is what reaches the API. It is the raw bytes for a JSON mode, keeping large integers and
-	// key order, and the parsed value for a text mode.
-	Wire any
-	// Raw is the line exactly as read, which --merge folds the answers into. For a csv or tsv row
-	// it is the row as a JSON object, which is what was sent.
-	Raw string
-	// Header is the csv or tsv header the row was read under, nil for every other mode.
-	Header []string
-	// Err marks an input error. No request is made for such a record.
-	Err *LineError
-}
-
-// LineError is a line onesie could not read. It is reported per record and counted, and under
-// --stop-on-error it exits 2 rather than taking a transport code.
-type LineError struct {
-	Line int
-	Err  error
-}
-
-// Error names the line, so the message locates the record. It carries no onesie prefix, since the
-// stderr writer adds one and inside a JSON error record it is noise.
-func (e *LineError) Error() string {
-	// Line zero is stdin itself failing rather than a bad line, and quoting a line number nothing
-	// has would send the reader looking for it.
-	if e.Line == 0 {
-		return fmt.Sprintf("stdin: %v", e.Err)
-	}
-
-	return fmt.Sprintf("line %d: %v", e.Line, e.Err)
-}
-
-// Unwrap exposes the cause, so errors.Is reaches it.
-func (e *LineError) Unwrap() error {
-	return e.Err
-}
-
 func (s *Stream) nextRow() (Record, bool, error) {
 	if s.header == nil {
 		header, err := s.readHeader()
@@ -413,6 +368,51 @@ func (s *Stream) fail(line string, err error) Record {
 	s.index++
 
 	return record
+}
+
+// Record is one input line, ready to evaluate.
+type Record struct {
+	// Index is the record's position in the input, counting from zero.
+	Index int
+	// Line is the input line number, counting from one. It differs from Index as soon as
+	// --skip-blank drops a line, and it is the number a message must quote.
+	Line int
+	// State is the parsed value, which the pre flight checks read. It is nil when Err is set.
+	State any
+	// Wire is what reaches the API. It is the raw bytes for a JSON mode, keeping large integers and
+	// key order, and the parsed value for a text mode.
+	Wire any
+	// Raw is the line exactly as read, which --merge folds the answers into. For a csv or tsv row
+	// it is the row as a JSON object, which is what was sent.
+	Raw string
+	// Header is the csv or tsv header the row was read under, nil for every other mode.
+	Header []string
+	// Err marks an input error. No request is made for such a record.
+	Err *LineError
+}
+
+// LineError is a line onesie could not read. It is reported per record and counted, and under
+// --stop-on-error it exits 2 rather than taking a transport code.
+type LineError struct {
+	Line int
+	Err  error
+}
+
+// Error names the line, so the message locates the record. It carries no onesie prefix, since the
+// stderr writer adds one and inside a JSON error record it is noise.
+func (e *LineError) Error() string {
+	// Line zero is stdin itself failing rather than a bad line, and quoting a line number nothing
+	// has would send the reader looking for it.
+	if e.Line == 0 {
+		return fmt.Sprintf("stdin: %v", e.Err)
+	}
+
+	return fmt.Sprintf("line %d: %v", e.Line, e.Err)
+}
+
+// Unwrap exposes the cause, so errors.Is reaches it.
+func (e *LineError) Unwrap() error {
+	return e.Err
 }
 
 type rowError struct {

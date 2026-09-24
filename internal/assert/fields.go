@@ -69,17 +69,6 @@ var fields = []field{
 	},
 }
 
-type field struct {
-	name      string
-	takesKey  bool
-	available func(q plan.Question) bool
-	typeOf    func(q plan.Question) valueType
-	read      func(a *answer.Answer, key string) any
-	reason    unavailableReason
-}
-
-type unavailableReason int
-
 const (
 	reasonShape unavailableReason = iota
 	reasonDecision
@@ -107,6 +96,17 @@ func lookup(name string) (field, bool) {
 
 	return field{}, false
 }
+
+type field struct {
+	name      string
+	takesKey  bool
+	available func(q plan.Question) bool
+	typeOf    func(q plan.Question) valueType
+	read      func(a *answer.Answer, key string) any
+	reason    unavailableReason
+}
+
+type unavailableReason int
 
 func notNoul(q plan.Question) bool { return q.Shape != plan.Noul }
 

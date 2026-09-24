@@ -624,17 +624,6 @@ not json at all
 	}
 }
 
-func decodeRecord(t *testing.T, out string) map[string]json.RawMessage {
-	t.Helper()
-
-	record := map[string]json.RawMessage{}
-	if err := json.Unmarshal([]byte(strings.TrimSpace(out)), &record); err != nil {
-		t.Fatalf("decoding %q: %v", out, err)
-	}
-
-	return record
-}
-
 func keysOf(values map[string]float64) []string {
 	keys := make([]string, 0, len(values))
 	for key := range values {
@@ -642,26 +631,6 @@ func keysOf(values map[string]float64) []string {
 	}
 
 	return keys
-}
-
-func nonEmptyLines(out string) []string {
-	lines := make([]string, 0, 8)
-
-	for _, line := range strings.Split(out, "\n") {
-		if strings.TrimSpace(line) != "" {
-			lines = append(lines, line)
-		}
-	}
-
-	return lines
-}
-
-func requireAPIKey(t *testing.T) {
-	t.Helper()
-
-	if _, ok := os.LookupEnv("TYPESAFE_API_KEY"); !ok {
-		t.Skip("TYPESAFE_API_KEY is not set, skipping the live suite")
-	}
 }
 
 func TestAssertIntegration(t *testing.T) {
@@ -788,6 +757,17 @@ func TestStatsIntegration(t *testing.T) {
 	})
 }
 
+func decodeRecord(t *testing.T, out string) map[string]json.RawMessage {
+	t.Helper()
+
+	record := map[string]json.RawMessage{}
+	if err := json.Unmarshal([]byte(strings.TrimSpace(out)), &record); err != nil {
+		t.Fatalf("decoding %q: %v", out, err)
+	}
+
+	return record
+}
+
 func TestListModelsIntegration(t *testing.T) {
 	requireAPIKey(t)
 
@@ -896,6 +876,26 @@ func TestAuthTestIntegration(t *testing.T) {
 			t.Errorf("auth clear left the file behind, stat error = %v", err)
 		}
 	})
+}
+
+func nonEmptyLines(out string) []string {
+	lines := make([]string, 0, 8)
+
+	for _, line := range strings.Split(out, "\n") {
+		if strings.TrimSpace(line) != "" {
+			lines = append(lines, line)
+		}
+	}
+
+	return lines
+}
+
+func requireAPIKey(t *testing.T) {
+	t.Helper()
+
+	if _, ok := os.LookupEnv("TYPESAFE_API_KEY"); !ok {
+		t.Skip("TYPESAFE_API_KEY is not set, skipping the live suite")
+	}
 }
 
 func runLive(t *testing.T, args []string, stdin string) (string, string, int) {

@@ -40,25 +40,6 @@ func NewStore(opts ...StoreOption) Store {
 	return store
 }
 
-// Store reads and writes credential files. Build one with NewStore, since the zero value has no
-// filesystem to call. Its zero value also assumes a unix filesystem.
-type Store struct {
-	open       func(string) (*os.File, error)
-	stat       func(string) (fs.FileInfo, error)
-	lstat      func(string) (fs.FileInfo, error)
-	mkdirAll   func(string, os.FileMode) error
-	rename     func(oldpath, newpath string) error
-	remove     func(string) error
-	chmod      func(string, os.FileMode) error
-	createTemp func(dir, pattern string) (*os.File, error)
-	sync       func(*os.File) error
-	goos       string
-}
-
-// StoreOption customises a Store. It exists so a test can fail a filesystem call without finding a
-// filesystem that fails it.
-type StoreOption func(*Store)
-
 // WithOpen replaces how a Store opens the credential file and its directory.
 func WithOpen(open func(string) (*os.File, error)) StoreOption {
 	return func(s *Store) {
@@ -127,6 +108,25 @@ func WithGOOS(goos string) StoreOption {
 	return func(s *Store) {
 		s.goos = goos
 	}
+}
+
+// StoreOption customises a Store. It exists so a test can fail a filesystem call without finding a
+// filesystem that fails it.
+type StoreOption func(*Store)
+
+// Store reads and writes credential files. Build one with NewStore, since the zero value has no
+// filesystem to call. Its zero value also assumes a unix filesystem.
+type Store struct {
+	open       func(string) (*os.File, error)
+	stat       func(string) (fs.FileInfo, error)
+	lstat      func(string) (fs.FileInfo, error)
+	mkdirAll   func(string, os.FileMode) error
+	rename     func(oldpath, newpath string) error
+	remove     func(string) error
+	chmod      func(string, os.FileMode) error
+	createTemp func(dir, pattern string) (*os.File, error)
+	sync       func(*os.File) error
+	goos       string
 }
 
 // Load reads the credential file, refusing one another user can reach, and found is false when it

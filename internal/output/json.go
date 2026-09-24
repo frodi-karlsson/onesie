@@ -7,9 +7,6 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/answer"
 )
 
-// Answer is an alias so the encoders read cleanly without qualifying every use.
-type Answer = answer.Answer
-
 func writeJSON(w io.Writer, rec Record) error {
 	buf, err := jsonBytes(rec)
 	if err != nil {
@@ -171,3 +168,6 @@ func scalar(a *Answer) any {
 
 	return a.Value
 }
+
+// Answer is an alias so the encoders read cleanly without qualifying every use.
+type Answer = answer.Answer

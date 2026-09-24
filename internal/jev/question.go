@@ -17,26 +17,6 @@ func Levels(levels ...string) []any {
 	return widened
 }
 
-// Questions is an ordered list written to the wire as a JSON object in slice order. A shared value
-// must not be appended to, since two appends can write the same backing array.
-type Questions []NamedQuestion
-
-// NamedQuestion pairs a question with the id it answers under.
-type NamedQuestion struct {
-	ID       string
-	Question Question
-}
-
-// MarshalJSON writes the questions as a JSON object, keeping slice order.
-func (q Questions) MarshalJSON() ([]byte, error) {
-	pairs := make([]pair, 0, len(q))
-	for _, named := range q {
-		pairs = append(pairs, pair{key: named.ID, value: named.Question})
-	}
-
-	return marshalObject(pairs)
-}
-
 // ValidateQuestions rejects a request the API would reject, before it is sent.
 func ValidateQuestions(questions Questions) error {
 	if len(questions) == 0 {
@@ -69,6 +49,26 @@ func ValidateQuestions(questions Questions) error {
 	}
 
 	return nil
+}
+
+// Questions is an ordered list written to the wire as a JSON object in slice order. A shared value
+// must not be appended to, since two appends can write the same backing array.
+type Questions []NamedQuestion
+
+// NamedQuestion pairs a question with the id it answers under.
+type NamedQuestion struct {
+	ID       string
+	Question Question
+}
+
+// MarshalJSON writes the questions as a JSON object, keeping slice order.
+func (q Questions) MarshalJSON() ([]byte, error) {
+	pairs := make([]pair, 0, len(q))
+	for _, named := range q {
+		pairs = append(pairs, pair{key: named.ID, value: named.Question})
+	}
+
+	return marshalObject(pairs)
 }
 
 func isNil(question Question) bool {
@@ -189,11 +189,6 @@ func (q Score) validate(name string) error {
 	}
 }
 
-type pair struct {
-	key   string
-	value any
-}
-
 func marshalObject(pairs []pair) ([]byte, error) {
 	var buf bytes.Buffer
 
@@ -225,4 +220,9 @@ func marshalObject(pairs []pair) ([]byte, error) {
 	buf.WriteByte('}')
 
 	return buf.Bytes(), nil
+}
+
+type pair struct {
+	key   string
+	value any
 }

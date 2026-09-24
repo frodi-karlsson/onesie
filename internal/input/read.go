@@ -34,31 +34,6 @@ func Resolve(req Query) (Resolved, error) {
 	}
 }
 
-// Query is everything Resolve needs. Stdin, the tty answer and the file reader are injected so a
-// test controls all three without a real terminal or a fixture on disk.
-type Query struct {
-	Mode         Mode
-	Stdin        io.Reader
-	StdinTTY     bool
-	State        string
-	HasState     bool
-	StateFile    string
-	HasStateFile bool
-	ReadFile     func(string) ([]byte, error)
-}
-
-// Resolved is the outcome. State is nil when Source is SourceNone, and Raw is the text the state
-// was read from, which --merge splices its answers into.
-type Resolved struct {
-	Source Source
-	State  any
-	Raw    string
-
-	// Wire is what reaches the API. It is the raw bytes for a JSON mode, keeping large integers and
-	// key order, and the parsed value for a text mode.
-	Wire any
-}
-
 func fromStdin(req Query) (Resolved, error) {
 	if req.Stdin == nil {
 		return Resolved{Source: SourceNone}, nil
@@ -76,6 +51,19 @@ func fromStdin(req Query) (Resolved, error) {
 	}
 
 	return fromText(SourceStdin, "stdin", string(data), req.Mode, true)
+}
+
+// Query is everything Resolve needs. Stdin, the tty answer and the file reader are injected so a
+// test controls all three without a real terminal or a fixture on disk.
+type Query struct {
+	Mode         Mode
+	Stdin        io.Reader
+	StdinTTY     bool
+	State        string
+	HasState     bool
+	StateFile    string
+	HasStateFile bool
+	ReadFile     func(string) ([]byte, error)
 }
 
 func fromText(source Source, label, text string, mode Mode, stripNewline bool) (Resolved, error) {
@@ -103,6 +91,18 @@ func fromText(source Source, label, text string, mode Mode, stripNewline bool) (
 	return Resolved{
 		Source: source, State: value, Raw: text, Wire: json.RawMessage(text),
 	}, nil
+}
+
+// Resolved is the outcome. State is nil when Source is SourceNone, and Raw is the text the state
+// was read from, which --merge splices its answers into.
+type Resolved struct {
+	Source Source
+	State  any
+	Raw    string
+
+	// Wire is what reaches the API. It is the raw bytes for a JSON mode, keeping large integers and
+	// key order, and the parsed value for a text mode.
+	Wire any
 }
 
 // CheckState rejects a state the API would refuse, so a caller holding a state that never passed

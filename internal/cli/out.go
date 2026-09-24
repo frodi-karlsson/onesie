@@ -122,47 +122,6 @@ func (o *outFile) create() error {
 	return nil
 }
 
-func completeLines(settings rootSettings, path string) (lines int, length int64, err error) {
-	file, err := settings.openFile(path, os.O_RDONLY, 0)
-	if errors.Is(err, os.ErrNotExist) {
-		return 0, 0, nil
-	}
-
-	if err != nil {
-		return 0, 0, fmt.Errorf("onesie: reading %s to resume: %w", path, err)
-	}
-
-	defer func() {
-		err = errors.Join(err, file.Close())
-	}()
-
-	reader := bufio.NewReader(file)
-
-	var read int64
-
-	for {
-		chunk, readErr := reader.ReadSlice('\n')
-		read += int64(len(chunk))
-
-		if readErr == nil {
-			lines++
-			length = read
-
-			continue
-		}
-
-		if errors.Is(readErr, bufio.ErrBufferFull) {
-			continue
-		}
-
-		if errors.Is(readErr, io.EOF) {
-			return lines, length, nil
-		}
-
-		return 0, 0, fmt.Errorf("onesie: reading %s to resume: %w", path, readErr)
-	}
-}
-
 func completeRows(settings rootSettings, path string, quoted bool) (rows int, length int64, err error) {
 	// TSV has no quoting, so a row is a line.
 	if !quoted {
@@ -202,5 +161,46 @@ func completeRows(settings rootSettings, path string, quoted bool) (rows int, le
 
 		rows++
 		length = offset
+	}
+}
+
+func completeLines(settings rootSettings, path string) (lines int, length int64, err error) {
+	file, err := settings.openFile(path, os.O_RDONLY, 0)
+	if errors.Is(err, os.ErrNotExist) {
+		return 0, 0, nil
+	}
+
+	if err != nil {
+		return 0, 0, fmt.Errorf("onesie: reading %s to resume: %w", path, err)
+	}
+
+	defer func() {
+		err = errors.Join(err, file.Close())
+	}()
+
+	reader := bufio.NewReader(file)
+
+	var read int64
+
+	for {
+		chunk, readErr := reader.ReadSlice('\n')
+		read += int64(len(chunk))
+
+		if readErr == nil {
+			lines++
+			length = read
+
+			continue
+		}
+
+		if errors.Is(readErr, bufio.ErrBufferFull) {
+			continue
+		}
+
+		if errors.Is(readErr, io.EOF) {
+			return lines, length, nil
+		}
+
+		return 0, 0, fmt.Errorf("onesie: reading %s to resume: %w", path, readErr)
 	}
 }

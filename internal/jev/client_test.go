@@ -17,65 +17,6 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/jev"
 )
 
-type mockClock struct {
-	mu    sync.Mutex // The concurrency test drives one client from many goroutines.
-	now   time.Time
-	slept []time.Duration
-}
-
-func (c *mockClock) Now() time.Time {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	return c.now
-}
-
-func (c *mockClock) Sleep(ctx context.Context, d time.Duration) error {
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	c.slept = append(c.slept, d)
-	c.now = c.now.Add(d)
-
-	return nil
-}
-
-func (c *mockClock) Slept() []time.Duration {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	return append([]time.Duration(nil), c.slept...)
-}
-
-func newTestClient(t *testing.T, url string, opts ...jev.Option) (*jev.Client, *mockClock) {
-	t.Helper()
-
-	clock := &mockClock{now: time.Date(2026, 9, 20, 12, 0, 0, 0, time.UTC)}
-
-	base := []jev.Option{
-		jev.WithEnv(func(string) (string, bool) { return "", false }),
-		jev.WithAPIKey("sk-test"),
-		jev.WithBaseURL(url),
-		jev.WithClock(clock),
-		jev.WithRandom(func() float64 { return 0 }),
-	}
-
-	client, err := jev.New(append(base, opts...)...)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	return client, clock
-}
-
-func oneNoul() jev.Questions {
-	return jev.Questions{{ID: "q", Question: jev.Noul{Instructions: "Urgent?"}}}
-}
-
 const shortAnswer = `{"model":"m","answers":{"q":{"type":"noul","noul":0.1}},"usage":{}}`
 
 func TestNew(t *testing.T) {
@@ -1485,6 +1426,61 @@ func TestClientSystemOneRaw(t *testing.T) {
 	}
 }
 
+func newTestClient(t *testing.T, url string, opts ...jev.Option) (*jev.Client, *mockClock) {
+	t.Helper()
+
+	clock := &mockClock{now: time.Date(2026, 9, 20, 12, 0, 0, 0, time.UTC)}
+
+	base := []jev.Option{
+		jev.WithEnv(func(string) (string, bool) { return "", false }),
+		jev.WithAPIKey("sk-test"),
+		jev.WithBaseURL(url),
+		jev.WithClock(clock),
+		jev.WithRandom(func() float64 { return 0 }),
+	}
+
+	client, err := jev.New(append(base, opts...)...)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	return client, clock
+}
+
+type mockClock struct {
+	mu    sync.Mutex // The concurrency test drives one client from many goroutines.
+	now   time.Time
+	slept []time.Duration
+}
+
+func (c *mockClock) Now() time.Time {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	return c.now
+}
+
+func (c *mockClock) Sleep(ctx context.Context, d time.Duration) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.slept = append(c.slept, d)
+	c.now = c.now.Add(d)
+
+	return nil
+}
+
+func (c *mockClock) Slept() []time.Duration {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	return append([]time.Duration(nil), c.slept...)
+}
+
 func TestMarshalBody(t *testing.T) {
 	t.Parallel()
 
@@ -1760,6 +1756,10 @@ func TestProviderResolveModel(t *testing.T) {
 			}
 		})
 	}
+}
+
+func oneNoul() jev.Questions {
+	return jev.Questions{{ID: "q", Question: jev.Noul{Instructions: "Urgent?"}}}
 }
 
 func lookupFrom(env map[string]string) func(string) (string, bool) {

@@ -29,17 +29,6 @@ const sampleResult = `{
   "usage": {"input_tokens": 296, "output_tokens": 20}
 }`
 
-func loadSample(t *testing.T) *jev.Result {
-	t.Helper()
-
-	var result jev.Result
-	if err := json.Unmarshal([]byte(sampleResult), &result); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	return &result
-}
-
 func TestResultUnmarshalJSON(t *testing.T) {
 	t.Parallel()
 
@@ -219,4 +208,15 @@ func TestResultAccessors(t *testing.T) {
 			t.Errorf("\n got: %s\nwant: %s", err.Error(), want)
 		}
 	})
+}
+
+func loadSample(t *testing.T) *jev.Result {
+	t.Helper()
+
+	var result jev.Result
+	if err := json.Unmarshal([]byte(sampleResult), &result); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	return &result
 }

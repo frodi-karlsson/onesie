@@ -9,26 +9,9 @@ func New() *Recorder {
 	return &Recorder{}
 }
 
-// Recorder collects flag occurrences in argv order. pflag calls Set left to right, which is the
-// only reason the ordering survives parsing at all.
-type Recorder struct {
-	events []Event
-}
-
 // Flag returns a pflag value that appends to the log under this name.
 func (r *Recorder) Flag(name string) pflag.Value {
 	return &recorded{recorder: r, name: name}
-}
-
-// Events returns the log in argv order. The caller must not modify it.
-func (r *Recorder) Events() []Event {
-	return r.events
-}
-
-// Event is one flag occurrence, with the text exactly as the user wrote it.
-type Event struct {
-	Name  string
-	Value string
 }
 
 type recorded struct {
@@ -36,10 +19,27 @@ type recorded struct {
 	name     string
 }
 
+// Recorder collects flag occurrences in argv order. pflag calls Set left to right, which is the
+// only reason the ordering survives parsing at all.
+type Recorder struct {
+	events []Event
+}
+
+// Events returns the log in argv order. The caller must not modify it.
+func (r *Recorder) Events() []Event {
+	return r.events
+}
+
 func (v *recorded) Set(value string) error {
 	v.recorder.events = append(v.recorder.events, Event{Name: v.name, Value: value})
 
 	return nil
+}
+
+// Event is one flag occurrence, with the text exactly as the user wrote it.
+type Event struct {
+	Name  string
+	Value string
 }
 
 func (v *recorded) String() string {

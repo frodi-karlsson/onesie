@@ -44,23 +44,6 @@ var assertFlag = flagSpec{long: "assert", value: true} // Never stripped, only c
 var catalog = append(append(append(append([]flagSpec{}, printFlags...), alwaysStripped...),
 	questionsOnlyStripped...), assertFlag) // A kept flag's value must never be read as a flag.
 
-type flagSpec struct {
-	long  string
-	short string
-	value bool
-}
-
-type occurrence struct {
-	index  int
-	spec   flagSpec
-	joined bool
-}
-
-type flagMatch struct {
-	spec   flagSpec
-	joined bool
-}
-
 func dryRunArgs(tokens []string) (args []string, reason string, err error) {
 	if len(tokens) == 0 || tokens[0] != "onesie" {
 		return nil, "is not a onesie invocation", nil
@@ -186,6 +169,12 @@ func flagOccurrences(args []string, specs []flagSpec) []occurrence {
 	return occs
 }
 
+type occurrence struct {
+	index  int
+	spec   flagSpec
+	joined bool
+}
+
 func specIn(spec flagSpec, specs []flagSpec) bool {
 	for _, s := range specs {
 		if s.long == spec.long {
@@ -255,6 +244,11 @@ func matchShortCluster(token string, specs []flagSpec) ([]flagMatch, bool) {
 	return matches, true
 }
 
+type flagMatch struct {
+	spec   flagSpec
+	joined bool
+}
+
 func shortSpec(b byte, specs []flagSpec) (flagSpec, bool) {
 	for _, candidate := range specs {
 		if candidate.short != "" && candidate.short[0] == b {
@@ -263,4 +257,10 @@ func shortSpec(b byte, specs []flagSpec) (flagSpec, bool) {
 	}
 
 	return flagSpec{}, false
+}
+
+type flagSpec struct {
+	long  string
+	short string
+	value bool
 }

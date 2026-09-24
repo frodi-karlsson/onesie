@@ -2050,12 +2050,6 @@ func assertMissing(t *testing.T, path string, existed bool) {
 	}
 }
 
-type fakeKeychain struct {
-	mu          sync.Mutex
-	items       map[string]string
-	unavailable bool
-}
-
 func noKeychain() *fakeKeychain {
 	return &fakeKeychain{items: map[string]string{}, unavailable: true}
 }
@@ -2066,6 +2060,12 @@ func workingKeychain(items map[string]string) *fakeKeychain {
 	}
 
 	return &fakeKeychain{items: items}
+}
+
+type fakeKeychain struct {
+	mu          sync.Mutex
+	items       map[string]string
+	unavailable bool
 }
 
 func (k *fakeKeychain) Get(provider string) (string, error) {

@@ -41,6 +41,12 @@ func Path(env Env) (string, error) {
 	return filepath.Join(home, ".config", appName, fileName), nil
 }
 
+func lookup(env Env, name string) string {
+	value, _ := env.Lookup(name)
+
+	return value
+}
+
 // Env is everything Path needs from outside the process, so a test needs no real home directory and
 // no environment mutation.
 type Env struct {
@@ -50,10 +56,4 @@ type Env struct {
 	GOOS string
 	// Home returns the user's home directory. os.UserHomeDir in production.
 	Home func() (string, error)
-}
-
-func lookup(env Env, name string) string {
-	value, _ := env.Lookup(name)
-
-	return value
 }

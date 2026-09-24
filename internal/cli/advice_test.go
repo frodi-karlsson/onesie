@@ -245,21 +245,6 @@ func TestNewRootCmdRejectedCount(t *testing.T) {
 	}
 }
 
-type adviceCase struct {
-	name     string
-	args     []string
-	stdin    string
-	env      map[string]string
-	files    map[string]string
-	status   int
-	response string
-
-	wantCode int
-	wantSent string
-	wantErr  string
-	wantOut  []string
-}
-
 func checkAdvice(t *testing.T, tc adviceCase) {
 	t.Helper()
 
@@ -362,4 +347,19 @@ func runAdvised(t *testing.T, tc adviceCase) ([]string, string, string, int) {
 	defer mu.Unlock()
 
 	return sent, out.String(), errOut.String(), code
+}
+
+type adviceCase struct {
+	name     string
+	args     []string
+	stdin    string
+	env      map[string]string
+	files    map[string]string
+	status   int
+	response string
+
+	wantCode int
+	wantSent string
+	wantErr  string
+	wantOut  []string
 }

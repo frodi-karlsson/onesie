@@ -104,13 +104,6 @@ const (
 	retryCountHeader = "X-TypeSafe-Retry-Count"
 )
 
-// Request is one evaluation. All questions see the same state and are answered independently.
-type Request struct {
-	State     any
-	Questions Questions
-	Model     string
-}
-
 // SystemOne answers named questions about a state. Every question is evaluated in parallel and in
 // isolation, so batching is cheaper than one call per question.
 func (c *Client) SystemOne(ctx context.Context, req Request, opts ...RequestOption) (*Result, error) {
@@ -172,6 +165,13 @@ func MarshalQuestionsBody(req Request) ([]byte, error) {
 	}{Model: req.Model, Questions: req.Questions})
 }
 
+// Request is one evaluation. All questions see the same state and are answered independently.
+type Request struct {
+	State     any
+	Questions Questions
+	Model     string
+}
+
 // SystemOneRaw sends a prepared request body through the SystemOne retry loop and returns the
 // response body unchanged, with no validation or normalization.
 func (c *Client) SystemOneRaw(
@@ -209,14 +209,6 @@ type ModelCard struct {
 	Name        string `json:"name"`
 	Description string `json:"description"`
 	ReleaseDate string `json:"release_date"`
-}
-
-// Attempt describes one HTTP round trip. An observer sees every attempt, retries included.
-type Attempt struct {
-	Index    int
-	Status   int
-	Err      error
-	Duration time.Duration
 }
 
 func (c *Client) do(
@@ -408,6 +400,14 @@ func (c *Client) attempt(
 	return &rawResponse{status: resp.StatusCode, header: resp.Header, body: data}, nil
 }
 
+// Attempt describes one HTTP round trip. An observer sees every attempt, retries included.
+type Attempt struct {
+	Index    int
+	Status   int
+	Err      error
+	Duration time.Duration
+}
+
 func (c *Client) setHeaders(req *http.Request, cfg requestConfig, attempt int, hasBody bool) {
 	// Caller headers first, so the ones set below cannot be clobbered.
 	for name, values := range cfg.header {
@@ -460,12 +460,6 @@ func (c *Client) backOff(
 	return nil
 }
 
-type rawResponse struct {
-	status int
-	header http.Header
-	body   []byte
-}
-
 func decodeInto(res *rawResponse, url string, out any) error {
 	if out == nil {
 		return nil
@@ -488,6 +482,12 @@ func decodeInto(res *rawResponse, url string, out any) error {
 	}
 
 	return nil
+}
+
+type rawResponse struct {
+	status int
+	header http.Header
+	body   []byte
 }
 
 func classify(ctx, actx context.Context, err error, timeout time.Duration) error {

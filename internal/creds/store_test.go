@@ -421,15 +421,6 @@ func TestLoad(t *testing.T) {
 	})
 }
 
-type modeInfo os.FileMode
-
-func (m modeInfo) Name() string       { return "credentials.json" }
-func (m modeInfo) Size() int64        { return 0 }
-func (m modeInfo) Mode() os.FileMode  { return os.FileMode(m) }
-func (m modeInfo) ModTime() time.Time { return time.Time{} }
-func (m modeInfo) IsDir() bool        { return os.FileMode(m).IsDir() }
-func (m modeInfo) Sys() any           { return nil }
-
 func TestSave(t *testing.T) {
 	t.Parallel()
 
@@ -1156,3 +1147,12 @@ func TestClear(t *testing.T) {
 		}
 	})
 }
+
+type modeInfo os.FileMode
+
+func (m modeInfo) Name() string       { return "credentials.json" }
+func (m modeInfo) Size() int64        { return 0 }
+func (m modeInfo) Mode() os.FileMode  { return os.FileMode(m) }
+func (m modeInfo) ModTime() time.Time { return time.Time{} }
+func (m modeInfo) IsDir() bool        { return os.FileMode(m).IsDir() }
+func (m modeInfo) Sys() any           { return nil }

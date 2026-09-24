@@ -24,6 +24,14 @@ func NewDelimited(w io.Writer, mode Mode, opts DelimitedOptions) *Delimited {
 	return &Delimited{rows: csv.NewWriter(w), opts: opts}
 }
 
+// Delimited writes records as rows under one header row. It is stateful, so one run uses one.
+type Delimited struct {
+	rows    *csv.Writer
+	tabs    io.Writer
+	opts    DelimitedOptions
+	started bool
+}
+
 // DelimitedOptions fixes the columns a Delimited writes.
 type DelimitedOptions struct {
 	// IDs are the question ids, one column each, in question order.
@@ -33,14 +41,6 @@ type DelimitedOptions struct {
 	// Header writes the header row before the first row. A resume into a file that has one leaves
 	// it out.
 	Header bool
-}
-
-// Delimited writes records as rows under one header row. It is stateful, so one run uses one.
-type Delimited struct {
-	rows    *csv.Writer
-	tabs    io.Writer
-	opts    DelimitedOptions
-	started bool
 }
 
 // Write writes one record. header and fields are the input row it answers under a merge, and nil
@@ -74,23 +74,6 @@ func (d *Delimited) Write(rec Record, header []string, fields map[string]any) er
 	return d.writeRow(append(row, failure))
 }
 
-func (d *Delimited) writeRow(cells []string) error {
-	if d.tabs != nil {
-		_, err := io.WriteString(d.tabs, strings.Join(tabless(cells), "\t")+"\n")
-
-		return err
-	}
-
-	if err := d.rows.Write(cells); err != nil {
-		return err
-	}
-
-	// Per row rather than at the end, so a stream can be read while it runs.
-	d.rows.Flush()
-
-	return d.rows.Error()
-}
-
 func (d *Delimited) start(header []string) error {
 	d.started = true
 
@@ -112,6 +95,23 @@ func (d *Delimited) start(header []string) error {
 	}
 
 	return d.writeRow(append(slices.Clone(header), columns...))
+}
+
+func (d *Delimited) writeRow(cells []string) error {
+	if d.tabs != nil {
+		_, err := io.WriteString(d.tabs, strings.Join(tabless(cells), "\t")+"\n")
+
+		return err
+	}
+
+	if err := d.rows.Write(cells); err != nil {
+		return err
+	}
+
+	// Per row rather than at the end, so a stream can be read while it runs.
+	d.rows.Flush()
+
+	return d.rows.Error()
 }
 
 func tabless(cells []string) []string {

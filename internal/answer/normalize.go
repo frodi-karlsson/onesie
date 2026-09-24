@@ -60,23 +60,6 @@ func wireKind(shape plan.Shape) string {
 	}
 }
 
-// Answer is the normalized shape for one question. Absent fields are omitted, which is what makes
-// a yes/no answer a bare value rather than a mostly empty object.
-type Answer struct {
-	Value      any               `json:"value,omitempty"`
-	Score      *float64          `json:"score,omitempty"`
-	Norm       *float64          `json:"norm,omitempty"`
-	Confidence *float64          `json:"confidence,omitempty"`
-	P          *Probabilities    `json:"p,omitempty"`
-	Legend     map[string]string `json:"legend,omitempty"`
-	Fallback   string            `json:"fallback,omitempty"`
-
-	// Decision is the answer after policy. Decided distinguishes an absent decision from a false
-	// one, which omitempty alone cannot do.
-	Decision any  `json:"-"`
-	Decided  bool `json:"-"`
-}
-
 // MarshalJSON emits decision only when policy set one, so a false decision survives.
 func (a Answer) MarshalJSON() ([]byte, error) {
 	type plain Answer
@@ -106,44 +89,6 @@ func (a Answer) MarshalJSON() ([]byte, error) {
 	trimmed = append(trimmed, decision...)
 
 	return append(trimmed, '}'), nil
-}
-
-// Probabilities marshals in a fixed key order. A plain map would not, because encoding/json sorts
-// map keys and the output must follow the order the question defined.
-type Probabilities struct {
-	Keys   []string
-	Values map[string]float64
-}
-
-// MarshalJSON writes the entries in Keys order.
-func (p Probabilities) MarshalJSON() ([]byte, error) {
-	var buf []byte
-
-	buf = append(buf, '{')
-
-	for i, key := range p.Keys {
-		if i > 0 {
-			buf = append(buf, ',')
-		}
-
-		name, err := json.Marshal(key)
-		if err != nil {
-			return nil, err
-		}
-
-		// strconv writes NaN and infinities bare, which is not valid JSON. This tool's contract is
-		// one parseable line per record, so failing loudly beats breaking every consumer.
-		value := p.Values[key]
-		if math.IsNaN(value) || math.IsInf(value, 0) {
-			return nil, fmt.Errorf("onesie: probability for '%s' is not a finite number", key)
-		}
-
-		buf = append(buf, name...)
-		buf = append(buf, ':')
-		buf = strconv.AppendFloat(buf, value, 'g', -1, 64)
-	}
-
-	return append(buf, '}'), nil
 }
 
 func normalizeChoice(q plan.Question, raw *jev.ChoiceAnswer) *Answer {
@@ -213,6 +158,23 @@ func normalizeScore(q plan.Question, raw *jev.ScoreAnswer) *Answer {
 	return out
 }
 
+// Answer is the normalized shape for one question. Absent fields are omitted, which is what makes
+// a yes/no answer a bare value rather than a mostly empty object.
+type Answer struct {
+	Value      any               `json:"value,omitempty"`
+	Score      *float64          `json:"score,omitempty"`
+	Norm       *float64          `json:"norm,omitempty"`
+	Confidence *float64          `json:"confidence,omitempty"`
+	P          *Probabilities    `json:"p,omitempty"`
+	Legend     map[string]string `json:"legend,omitempty"`
+	Fallback   string            `json:"fallback,omitempty"`
+
+	// Decision is the answer after policy. Decided distinguishes an absent decision from a false
+	// one, which omitempty alone cannot do.
+	Decision any  `json:"-"`
+	Decided  bool `json:"-"`
+}
+
 func byIndex(q plan.Question, probabilities map[string]float64) *Probabilities {
 	values := make(map[string]float64, len(q.Levels)+len(probabilities))
 	for i := range q.Levels {
@@ -222,6 +184,44 @@ func byIndex(q plan.Question, probabilities map[string]float64) *Probabilities {
 	maps.Copy(values, probabilities)
 
 	return &Probabilities{Keys: sortedIndexes(values), Values: values}
+}
+
+// Probabilities marshals in a fixed key order. A plain map would not, because encoding/json sorts
+// map keys and the output must follow the order the question defined.
+type Probabilities struct {
+	Keys   []string
+	Values map[string]float64
+}
+
+// MarshalJSON writes the entries in Keys order.
+func (p Probabilities) MarshalJSON() ([]byte, error) {
+	var buf []byte
+
+	buf = append(buf, '{')
+
+	for i, key := range p.Keys {
+		if i > 0 {
+			buf = append(buf, ',')
+		}
+
+		name, err := json.Marshal(key)
+		if err != nil {
+			return nil, err
+		}
+
+		// strconv writes NaN and infinities bare, which is not valid JSON. This tool's contract is
+		// one parseable line per record, so failing loudly beats breaking every consumer.
+		value := p.Values[key]
+		if math.IsNaN(value) || math.IsInf(value, 0) {
+			return nil, fmt.Errorf("onesie: probability for '%s' is not a finite number", key)
+		}
+
+		buf = append(buf, name...)
+		buf = append(buf, ':')
+		buf = strconv.AppendFloat(buf, value, 'g', -1, 64)
+	}
+
+	return append(buf, '}'), nil
 }
 
 func sortedIndexes(probabilities map[string]float64) []string {
