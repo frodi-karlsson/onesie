@@ -35,7 +35,7 @@ func records(
 		stop: stop,
 		source: &resumed{
 			source: stream, left: flags.resumeSkip, stored: stored,
-			haltOnAssert: flags.stopOnAssert, haltOnError: flags.stopOnError,
+			haltOnAssert: flags.stopOnAssert, haltOnError: flags.stopOnError, table: tableName(outputMode, flags),
 		},
 		namer: namer,
 		halt:  flags.stopOnAssert,
@@ -54,7 +54,17 @@ type resumed struct {
 	haltOnAssert bool
 	haltOnError  bool
 	halted       bool
+	table        string
 	stoppedBy    *output.Failure
+	stoppedAtRec int
+}
+
+func tableName(mode output.Mode, flags *runFlags) string {
+	if mode != output.CSV && mode != output.TSV {
+		return ""
+	}
+
+	return flags.output
 }
 
 func (r *resumed) Next() (input.Record, bool, error) {
@@ -102,6 +112,7 @@ func (r *resumed) stop(failure *output.Failure) {
 	defer r.mu.Unlock()
 
 	r.stoppedBy = failure
+	r.stoppedAtRec = r.skips.records
 }
 
 func (r *resumed) stoppedAt() error {
@@ -112,7 +123,13 @@ func (r *resumed) stoppedAt() error {
 		return nil
 	}
 
-	return &storedFailure{failure: *r.stoppedBy}
+	if r.table != "" {
+		return fmt.Errorf("onesie: the stored failure for record %d is followed by more rows, so a run "+
+			"without --stop-on-error wrote it, and a %s row keeps only its message, not the code to stop "+
+			"with. Pass --id or drop --stop-on-error to carry on", r.stoppedAtRec, r.table)
+	}
+
+	return &storedFailure{failure: *r.stoppedBy, record: r.stoppedAtRec}
 }
 
 func (r *resumed) skipped() tally {

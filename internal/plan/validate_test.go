@@ -1042,12 +1042,10 @@ func TestCheckFlags(t *testing.T) {
 			wantErr: "onesie: --resume needs output that keeps each record's outcome, which raw lines do not. Use -o values or -o json",
 		},
 		{
-			name: "should reject a tsv resume by position under --stop-on-error, since a row keeps no failure kind",
+			name: "should accept a tsv resume by position under --stop-on-error, since the file is read at runtime",
 			cfg: plan.Config{
 				Streaming: true, InputName: "jsonl", Resume: true, Out: "a.tsv", Output: "tsv", StopOnError: true, Jobs: 1,
 			},
-			wantErr: "onesie: --resume without --id cannot stop at a stored failure with the code it exited with, " +
-				"since a tsv row keeps only its message. Pass --id, or use -o values or -o json",
 		},
 		{
 			name: "should accept a csv resume by id under --stop-on-error",

@@ -54,20 +54,35 @@ func resumedVerdicts(
 	answers *outFile,
 	namer *jq.Expr,
 	format answersFormat,
+	flags *runFlags,
 ) ([]verdict, error) {
 	if answers == nil || !answers.resume || namer != nil {
 		return nil, nil
 	}
 
-	var judged []verdict
+	var (
+		judged []verdict
+		last   span
+	)
 
 	err := readAnswers(ctx, answers, func(r io.Reader) error {
-		return format.eachVerdict(r, func(stored verdict) {
+		return format.eachVerdict(r, func(at span, stored verdict) {
 			judged = append(judged, stored)
+			last = at
 		})
 	})
 	if err != nil {
 		return nil, err
+	}
+
+	// A run stopped by --stop-on-error writes nothing after the record it stopped at, so a stored
+	// failure on the last line is where it stopped, and that record is asked again. The line is
+	// trimmed with the partial one, under the lock, on the first write.
+	if flags.stopOnError && len(judged) > 0 && judged[len(judged)-1].failure != nil {
+		answers.resumeAt(last.start)
+		flags.resumeSkip--
+
+		return judged[:len(judged)-1], nil
 	}
 
 	return judged, nil
@@ -123,15 +138,15 @@ func (f answersFormat) eachAnswer(
 		})
 }
 
-func (f answersFormat) eachVerdict(r io.Reader, note func(judged verdict)) error {
+func (f answersFormat) eachVerdict(r io.Reader, note func(at span, judged verdict)) error {
 	// Every stored line is noted, a failed one included, since a resume by position skips one
 	// record per line.
 	return f.eachStored(r,
-		func(_ span, text []byte) {
-			note(f.kept(f.lineVerdict(text)))
+		func(at span, text []byte) {
+			note(at, f.kept(f.lineVerdict(text)))
 		},
-		func(_ span, row map[string]any) {
-			note(f.kept(rowVerdict(row)))
+		func(at span, row map[string]any) {
+			note(at, f.kept(rowVerdict(row)))
 		})
 }
 

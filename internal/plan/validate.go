@@ -139,10 +139,6 @@ func checkResume(cfg Config) error {
 	case cfg.Raw || cfg.Output == "raw":
 		return errors.New("onesie: --resume needs output that keeps each record's outcome, " +
 			"which raw lines do not. Use -o values or -o json")
-	case cfg.StopOnError && !cfg.HasID && (cfg.Output == "csv" || cfg.Output == "tsv"):
-		return fmt.Errorf("onesie: --resume without --id cannot stop at a stored failure with the code "+
-			"it exited with, since a %s row keeps only its message. Pass --id, or use -o values or -o json",
-			cfg.Output)
 	default:
 		return nil
 	}

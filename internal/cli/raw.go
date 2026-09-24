@@ -32,7 +32,7 @@ func streamRaw(
 		client = built
 	}
 
-	stored, readErr := resumedVerdicts(cmd.Context(), answers, nil, answersFormat{forwarded: true})
+	stored, readErr := resumedVerdicts(cmd.Context(), answers, nil, answersFormat{forwarded: true}, flags)
 	if readErr != nil {
 		return readErr
 	}

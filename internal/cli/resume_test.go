@@ -1093,6 +1093,7 @@ func TestResumed(t *testing.T) {
 
 	answeredBody := `{"model":"m","answers":{"answer":{"type":"noul","noul":0.5}},"usage":{}}` + "\n"
 	failedBody := `{"error":{"kind":"http","status":400,"message":"onesie: 400 bad key"}}` + "\n"
+	unavailableBody := `{"error":{"kind":"http","status":503,"message":"onesie: 503 bad key"}}` + "\n"
 	forwarded, err := fingerprintOf(nil, fingerprintInputs{provider: "typesafe", input: "request"})
 	if err != nil {
 		t.Fatalf("fingerprinting -i request: %v", err)
@@ -1110,28 +1111,53 @@ func TestResumed(t *testing.T) {
 
 	runResumeCases(t, []resumeCase{
 		{
-			name:  "should stop at a skipped error line under --stop-on-error with the code a fresh run gave",
-			stdin: idRecords(1, 3),
+			name:  "should ask a trailing stored error line again under --stop-on-error and carry on",
+			stdin: idRecords(1, 4),
 			runs: []resumeRun{
 				{
 					args:       []string{"-i", "jsonl", "-o", "values", "--retries", "0", "--stop-on-error"},
 					failFrom:   2,
-					failStatus: http.StatusBadRequest,
-					wantCode:   ExitUsage,
-					wantFile:   "{\"answer\":0.5}\n" + failedBody,
+					failOnce:   true,
+					failStatus: http.StatusServiceUnavailable,
+					wantCode:   ExitUnavailable,
+					wantFile:   "{\"answer\":0.5}\n" + unavailableBody,
 					wantSent:   []string{`{"id":1}`, `{"id":2}`},
-					wantStderr: "onesie: 400 bad key",
 				},
 				{
-					args:       []string{"-i", "jsonl", "-o", "values", "--resume", "--retries", "0", "--stop-on-error"},
-					wantCode:   ExitUsage,
-					wantFile:   "{\"answer\":0.5}\n" + failedBody,
-					wantStderr: "onesie: 400 bad key",
+					args: []string{
+						"-i", "jsonl", "-o", "values", "--resume", "--retries", "0", "--stop-on-error", "--stats",
+					},
+					wantFile:   strings.Repeat("{\"answer\":0.5}\n", 4),
+					wantSent:   []string{`{"id":2}`, `{"id":3}`, `{"id":4}`},
+					wantStderr: "3 requests, 1 skipped, ",
 				},
 			},
 		},
 		{
-			name:  "should stop at a skipped 503 line under --stop-on-error with exit 4",
+			name:  "should write the error line once again when the record asked again fails again under --stop-on-error",
+			stdin: idRecords(1, 4),
+			runs: []resumeRun{
+				{
+					args:       []string{"-i", "jsonl", "-o", "values", "--retries", "0", "--stop-on-error"},
+					failFrom:   2,
+					failStatus: http.StatusServiceUnavailable,
+					wantCode:   ExitUnavailable,
+					wantFile:   "{\"answer\":0.5}\n" + unavailableBody,
+					wantSent:   []string{`{"id":1}`, `{"id":2}`},
+				},
+				{
+					args:       []string{"-i", "jsonl", "-o", "values", "--resume", "--retries", "0", "--stop-on-error"},
+					failFrom:   1,
+					failStatus: http.StatusServiceUnavailable,
+					wantCode:   ExitUnavailable,
+					wantFile:   "{\"answer\":0.5}\n" + unavailableBody,
+					wantSent:   []string{`{"id":2}`},
+					wantStderr: "onesie: 503 bad key",
+				},
+			},
+		},
+		{
+			name:  "should ask a trailing stored json error line again under --stop-on-error",
 			stdin: idRecords(1, 3),
 			runs: []resumeRun{
 				{
@@ -1140,20 +1166,60 @@ func TestResumed(t *testing.T) {
 					failFrom:   2,
 					failStatus: http.StatusServiceUnavailable,
 					wantCode:   ExitRecords,
-					wantFile: "{\"model\":\"m\",\"answer\":{\"value\":0.5}}\n" +
-						`{"error":{"kind":"http","status":503,"message":"onesie: 503 bad key"}}` + "\n",
-					wantSent: []string{`{"id":1}`, `{"id":2}`},
+					wantFile:   "{\"model\":\"m\",\"answer\":{\"value\":0.5}}\n" + unavailableBody,
+					wantSent:   []string{`{"id":1}`, `{"id":2}`},
 				},
 				{
 					args:     []string{"-i", "jsonl", "-o", "json", "--resume", "--retries", "0", "--stop-on-error"},
-					wantCode: ExitUnavailable,
-					wantFile: "{\"model\":\"m\",\"answer\":{\"value\":0.5}}\n" +
-						`{"error":{"kind":"http","status":503,"message":"onesie: 503 bad key"}}` + "\n",
+					wantFile: strings.Repeat("{\"model\":\"m\",\"answer\":{\"value\":0.5}}\n", 3),
+					wantSent: []string{`{"id":2}`, `{"id":3}`},
 				},
 			},
 		},
 		{
-			name:  "should stop at a skipped error under the merge key under --stop-on-error",
+			name:  "should stop at a stored error line followed by more lines under --stop-on-error with the code a fresh run gave",
+			stdin: idRecords(1, 3),
+			runs: []resumeRun{
+				{
+					args:       []string{"-i", "jsonl", "-o", "values", "--retries", "0"},
+					failFrom:   2,
+					failOnce:   true,
+					failStatus: http.StatusServiceUnavailable,
+					wantCode:   ExitRecords,
+					wantFile:   "{\"answer\":0.5}\n" + unavailableBody + "{\"answer\":0.5}\n",
+					wantSent:   []string{`{"id":1}`, `{"id":2}`, `{"id":3}`},
+				},
+				{
+					args:     []string{"-i", "jsonl", "-o", "values", "--resume", "--retries", "0", "--stop-on-error"},
+					wantCode: ExitUnavailable,
+					wantFile: "{\"answer\":0.5}\n" + unavailableBody + "{\"answer\":0.5}\n",
+					wantStderr: "onesie: 503 bad key. The stored failure for record 2 is followed by more lines, " +
+						"so a run without --stop-on-error wrote it. Pass --id or drop --stop-on-error to carry on",
+				},
+			},
+		},
+		{
+			name:  "should stop at the first of two trailing stored error lines under --stop-on-error",
+			stdin: idRecords(1, 3),
+			runs: []resumeRun{
+				{
+					args:       []string{"-i", "jsonl", "-o", "values", "--retries", "0"},
+					failFrom:   2,
+					failStatus: http.StatusBadRequest,
+					wantCode:   ExitRecords,
+					wantFile:   "{\"answer\":0.5}\n" + failedBody + failedBody,
+					wantSent:   []string{`{"id":1}`, `{"id":2}`, `{"id":3}`},
+				},
+				{
+					args:       []string{"-i", "jsonl", "-o", "values", "--resume", "--retries", "0", "--stop-on-error"},
+					wantCode:   ExitUsage,
+					wantFile:   "{\"answer\":0.5}\n" + failedBody + failedBody,
+					wantStderr: "The stored failure for record 2 is followed by more lines",
+				},
+			},
+		},
+		{
+			name:  "should ask a trailing stored error under the merge key again under --stop-on-error",
 			stdin: idRecords(1, 3),
 			runs: []resumeRun{
 				{
@@ -1173,14 +1239,14 @@ func TestResumed(t *testing.T) {
 						"-i", "jsonl", "-o", "values", "--resume", "--retries", "0", "--merge", "--merge-key", "verdict",
 						"--stop-on-error",
 					},
-					wantCode: ExitUsage,
-					wantFile: "{\"id\":1,\"verdict\":{\"answer\":0.5}}\n" +
-						`{"id":2,"verdict":{"error":{"kind":"http","status":400,"message":"onesie: 400 bad key"}}}` + "\n",
+					wantFile: "{\"id\":1,\"verdict\":{\"answer\":0.5}}\n{\"id\":2,\"verdict\":{\"answer\":0.5}}\n" +
+						"{\"id\":3,\"verdict\":{\"answer\":0.5}}\n",
+					wantSent: []string{`{"id":2}`, `{"id":3}`},
 				},
 			},
 		},
 		{
-			name:  "should stop at a skipped error line under --stop-on-error under -i request",
+			name:  "should ask a trailing stored error line again under --stop-on-error under -i request",
 			stdin: requestRecords(1, 3),
 			runs: []resumeRun{
 				{
@@ -1194,16 +1260,77 @@ func TestResumed(t *testing.T) {
 					wantSent:   []string{`{"id":1}`, `{"id":2}`},
 				},
 				{
-					args:       []string{"-i", "request", "--resume", "--retries", "0", "--stop-on-error"},
-					bare:       true,
-					wantCode:   ExitUsage,
-					wantFile:   answeredBody + failedBody,
-					wantStderr: "onesie: 400 bad key",
+					args:     []string{"-i", "request", "--resume", "--retries", "0", "--stop-on-error"},
+					bare:     true,
+					wantFile: strings.Repeat(answeredBody, 3),
+					wantSent: []string{`{"id":2}`, `{"id":3}`},
 				},
 			},
 		},
 		{
-			name:  "should refuse a csv resume by position under --stop-on-error before any request",
+			name:  "should stop at a stored error line followed by more lines under --stop-on-error under -i request",
+			stdin: requestRecords(1, 3),
+			runs: []resumeRun{
+				{
+					args:       []string{"-i", "request", "--retries", "0"},
+					bare:       true,
+					failFrom:   2,
+					failOnce:   true,
+					failStatus: http.StatusBadRequest,
+					wantCode:   ExitRecords,
+					wantFile:   answeredBody + failedBody + answeredBody,
+					wantSent:   []string{`{"id":1}`, `{"id":2}`, `{"id":3}`},
+				},
+				{
+					args:     []string{"-i", "request", "--resume", "--retries", "0", "--stop-on-error"},
+					bare:     true,
+					wantCode: ExitUsage,
+					wantFile: answeredBody + failedBody + answeredBody,
+					wantStderr: "onesie: 400 bad key. The stored failure for record 2 is followed by more lines, " +
+						"so a run without --stop-on-error wrote it. Pass --id or drop --stop-on-error to carry on",
+				},
+			},
+		},
+		{
+			name:  "should ask a trailing stored csv error row again under --stop-on-error",
+			stdin: idRecords(1, 3),
+			runs: []resumeRun{
+				{
+					args:       []string{"-i", "jsonl", "-o", "csv", "--retries", "0", "--stop-on-error"},
+					failFrom:   2,
+					failStatus: http.StatusServiceUnavailable,
+					wantCode:   ExitUnavailable,
+					wantFile:   "answer,error\n0.5,\n,onesie: 503 bad key\n",
+					wantSent:   []string{`{"id":1}`, `{"id":2}`},
+				},
+				{
+					args:     []string{"-i", "jsonl", "-o", "csv", "--resume", "--retries", "0", "--stop-on-error"},
+					wantFile: "answer,error\n0.5,\n0.5,\n0.5,\n",
+					wantSent: []string{`{"id":2}`, `{"id":3}`},
+				},
+			},
+		},
+		{
+			name:  "should keep the header when the only stored tsv row is an error asked again under --stop-on-error",
+			stdin: idRecords(1, 2),
+			runs: []resumeRun{
+				{
+					args:       []string{"-i", "jsonl", "-o", "tsv", "--retries", "0", "--stop-on-error"},
+					failFrom:   1,
+					failStatus: http.StatusServiceUnavailable,
+					wantCode:   ExitUnavailable,
+					wantFile:   "answer\terror\n\tonesie: 503 bad key\n",
+					wantSent:   []string{`{"id":1}`},
+				},
+				{
+					args:     []string{"-i", "jsonl", "-o", "tsv", "--resume", "--retries", "0", "--stop-on-error"},
+					wantFile: "answer\terror\n0.5\t\n0.5\t\n",
+					wantSent: []string{`{"id":1}`, `{"id":2}`},
+				},
+			},
+		},
+		{
+			name:  "should resume a csv file holding no error row under --stop-on-error",
 			stdin: idRecords(1, 2),
 			runs: []resumeRun{
 				{
@@ -1214,10 +1341,31 @@ func TestResumed(t *testing.T) {
 				},
 				{
 					args:     []string{"-i", "jsonl", "-o", "csv", "--resume", "--stop-on-error"},
+					wantFile: "answer,error\n0.5,\n0.5,\n",
+					wantSent: []string{`{"id":2}`},
+				},
+			},
+		},
+		{
+			name:  "should refuse a stored csv error row followed by more rows under --stop-on-error",
+			stdin: idRecords(1, 3),
+			runs: []resumeRun{
+				{
+					args:       []string{"-i", "jsonl", "-o", "csv", "--retries", "0"},
+					failFrom:   2,
+					failOnce:   true,
+					failStatus: http.StatusServiceUnavailable,
+					wantCode:   ExitRecords,
+					wantFile:   "answer,error\n0.5,\n,onesie: 503 bad key\n0.5,\n",
+					wantSent:   []string{`{"id":1}`, `{"id":2}`, `{"id":3}`},
+				},
+				{
+					args:     []string{"-i", "jsonl", "-o", "csv", "--resume", "--retries", "0", "--stop-on-error"},
 					wantCode: ExitUsage,
-					wantFile: "answer,error\n0.5,\n",
-					wantStderr: "onesie: --resume without --id cannot stop at a stored failure with the code it " +
-						"exited with, since a csv row keeps only its message. Pass --id, or use -o values or -o json",
+					wantFile: "answer,error\n0.5,\n,onesie: 503 bad key\n0.5,\n",
+					wantStderr: "onesie: the stored failure for record 2 is followed by more rows, so a run without " +
+						"--stop-on-error wrote it, and a csv row keeps only its message, not the code to stop with. " +
+						"Pass --id or drop --stop-on-error to carry on",
 				},
 			},
 		},
@@ -1442,6 +1590,7 @@ type resumeRun struct {
 	bare       bool
 	input      string
 	failFrom   int32
+	failOnce   bool
 	failStatus int
 	cancelAt   int32
 	slow       bool
@@ -1554,7 +1703,7 @@ func countingServer(t *testing.T, run resumeRun, onCall func(call int32)) (*http
 
 		w.Header().Set("Content-Type", "application/json")
 
-		if run.failFrom > 0 && call >= run.failFrom {
+		if run.failFrom > 0 && call >= run.failFrom && (!run.failOnce || call == run.failFrom) {
 			status := run.failStatus
 			if status == 0 {
 				status = http.StatusUnauthorized

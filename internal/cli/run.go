@@ -310,7 +310,7 @@ func stream(
 
 	stored, err := resumedVerdicts(cmd.Context(), answers, namer, answersFormat{
 		mode: outputMode, merge: merging(flags), mergeKey: mergeKey(flags), gated: gate != nil,
-	})
+	}, flags)
 	if err != nil {
 		return err
 	}

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/frodi-karlsson/onesie/internal/creds"
 	"github.com/frodi-karlsson/onesie/internal/engine"
@@ -183,10 +184,13 @@ func (e *silentError) Error() string {
 
 type storedFailure struct {
 	failure output.Failure
+	record  int
 }
 
 func (e *storedFailure) Error() string {
-	return e.failure.Message
+	return fmt.Sprintf("%s. The stored failure for record %d is followed by more lines, so a run without "+
+		"--stop-on-error wrote it. Pass --id or drop --stop-on-error to carry on",
+		strings.TrimSuffix(e.failure.Message, "."), e.record)
 }
 
 func (e *storedFailure) code() int {
