@@ -171,7 +171,7 @@ func extractMessage(body any) string {
 }
 
 func unwrapMessage(text string) string {
-	// OpenRouter forwards a TypeSafe error as the text HTTP 400: followed by TypeSafe's own body.
+	// OpenRouter forwards a TypeSafe error as the text HTTP 400: followed by TypeSafe's body.
 	if rest, ok := strings.CutPrefix(text, "HTTP "); ok && len(rest) > 5 && rest[3] == ':' {
 		forwarded := []byte(strings.TrimSpace(rest[4:]))
 		if json.Valid(forwarded) {
@@ -181,7 +181,7 @@ func unwrapMessage(text string) string {
 		}
 	}
 
-	// OpenRouter's own validation puts its issue list in the message as a JSON string.
+	// OpenRouter's validation puts its issue list in the message as a JSON string.
 	var issues []struct {
 		Path    any    `json:"path"`
 		Message string `json:"message"`
