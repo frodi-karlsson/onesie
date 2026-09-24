@@ -149,8 +149,11 @@ func AUC(cases []YesNoCase) (float64, bool) {
 }
 
 // YesNoCase is one answered record of a yes/no question, with its label and the value answered.
+// ID is nil when the run has no --id, and Line is the record's input line.
 type YesNoCase struct {
 	Name  string
+	ID    any
+	Line  int
 	Yes   bool
 	Value float64
 }
@@ -356,8 +359,10 @@ func agreed(cases []ChoiceCase, cut float64) int {
 }
 
 // ChoiceCase is one answered record of a pick or rate question, with its label, the name picked
-// and the confidence given.
+// and the confidence given. ID and Line identify the record as they do for a YesNoCase.
 type ChoiceCase struct {
 	Name, Label, Picked string
+	ID                  any
+	Line                int
 	Confidence          float64
 }

@@ -200,6 +200,16 @@ func TestScoreYesNo(t *testing.T) {
 		}
 	})
 
+	t.Run("should keep each case's id and line in its miss", func(t *testing.T) {
+		t.Parallel()
+
+		got := calibrate.ScoreYesNo(fixed, 0, nil)
+
+		if first := got.Misses[0]; first.ID != "c6" || first.Line != 6 {
+			t.Errorf("first miss id %v line %d, want c6 line 6", first.ID, first.Line)
+		}
+	})
+
 	t.Run("should keep complementary decimal gaps in input order", func(t *testing.T) {
 		t.Parallel()
 
@@ -344,6 +354,16 @@ func TestScorePick(t *testing.T) {
 		}
 	})
 
+	t.Run("should keep each case's id and line in its miss", func(t *testing.T) {
+		t.Parallel()
+
+		got := calibrate.ScorePick(fixed, names, 0, nil)
+
+		if first := got.Misses[0]; first.ID != "c7" || first.Line != 7 {
+			t.Errorf("first miss id %v line %d, want c7 line 7", first.ID, first.Line)
+		}
+	})
+
 	t.Run("should keep wrong picks of equal confidence in input order", func(t *testing.T) {
 		t.Parallel()
 
@@ -469,7 +489,10 @@ func yesNoCases(pairs ...any) []calibrate.YesNoCase {
 	for i := 0; i < len(pairs); i += 2 {
 		label, _ := pairs[i].(string)
 		value, _ := pairs[i+1].(float64)
-		cases = append(cases, calibrate.YesNoCase{Name: caseName(len(cases)), Yes: label == "yes", Value: value})
+		name := caseName(len(cases))
+		cases = append(cases, calibrate.YesNoCase{
+			Name: name, ID: name, Line: len(cases) + 1, Yes: label == "yes", Value: value,
+		})
 	}
 
 	return cases
@@ -481,8 +504,9 @@ func choiceCases(triples ...any) []calibrate.ChoiceCase {
 		label, _ := triples[i].(string)
 		picked, _ := triples[i+1].(string)
 		confidence, _ := triples[i+2].(float64)
+		name := caseName(len(cases))
 		cases = append(cases, calibrate.ChoiceCase{
-			Name: caseName(len(cases)), Label: label, Picked: picked, Confidence: confidence,
+			Name: name, ID: name, Line: len(cases) + 1, Label: label, Picked: picked, Confidence: confidence,
 		})
 	}
 
