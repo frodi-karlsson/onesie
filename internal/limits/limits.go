@@ -39,6 +39,9 @@ const (
 	// MaxMapDepth is the deepest a --map result may nest. encoding/json refuses past 10000 levels,
 	// and the request body wraps the state in one object more.
 	MaxMapDepth = 10000 - 1
+	// MaxIDBytes is the longest an --id may write out to. Every id is held for the run to find
+	// repeats, and printed on every output line.
+	MaxIDBytes = 1024
 )
 
 // Report lists every constant in this package, for the --version dump.
@@ -56,6 +59,7 @@ func Report() []Entry {
 		{Name: "max-seconds", Value: strconv.Itoa(MaxSeconds)},
 		{Name: "max-line-bytes", Value: strconv.Itoa(MaxLineBytes)},
 		{Name: "max-map-depth", Value: strconv.Itoa(MaxMapDepth)},
+		{Name: "max-id-bytes", Value: strconv.Itoa(MaxIDBytes)},
 	}
 }
 

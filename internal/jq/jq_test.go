@@ -5,10 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"math"
+	"math/big"
 	"reflect"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/frodi-karlsson/onesie/internal/limits"
 )
 
 func TestCompile(t *testing.T) {
@@ -210,28 +213,48 @@ func TestID(t *testing.T) {
 		name    string
 		value   any
 		want    any
+		wantIs  error
 		wantErr string
 	}{
 		{name: "should keep a string", value: "T-7", want: "T-7"},
 		{name: "should keep an empty string", value: "", want: ""},
+		{name: "should keep a string as long as the limit", value: strings.Repeat("a", limits.MaxIDBytes), want: strings.Repeat("a", limits.MaxIDBytes)},
+		{name: "should reject a string longer than the limit", value: strings.Repeat("a", limits.MaxIDBytes+1), wantIs: ErrIDTooLong, wantErr: "id is longer than 1024 bytes"},
 		{name: "should write an integer as its digits", value: json.Number("7"), want: json.Number("7")},
 		{name: "should write 7.0 as 7", value: json.Number("7.0"), want: json.Number("7")},
 		{name: "should write an exponent that lands on an integer as its digits", value: json.Number("7e2"), want: json.Number("700")},
+		{name: "should read an upper case exponent", value: json.Number("1.5E3"), want: json.Number("1500")},
+		{name: "should write a fraction that a negative exponent lands on an integer as its digits", value: json.Number("7000e-3"), want: json.Number("7")},
 		{name: "should write negative zero as zero", value: json.Number("-0.0"), want: json.Number("0")},
+		{name: "should keep the sign of a negative integer", value: json.Number("-12e1"), want: json.Number("-120")},
 		{name: "should keep the digits of a large integer", value: json.Number("12345678901234567890"), want: json.Number("12345678901234567890")},
 		{name: "should keep the digits of a large integer written with a fraction", value: json.Number("12345678901234567890.0"), want: json.Number("12345678901234567890")},
+		{name: "should write an integer past 1e21 as its digits", value: json.Number("1e21"), want: json.Number("1000000000000000000000")},
+		{name: "should write an integer as long as the limit", value: json.Number("1e1023"), want: json.Number("1" + strings.Repeat("0", 1023))},
 		{name: "should drop the trailing zeros of a fraction", value: json.Number("0.50"), want: json.Number("0.5")},
+		{name: "should read a fraction whose leading zeros an exponent moves", value: json.Number("0.0012e3"), want: json.Number("1.2")},
+		{name: "should reject an integer that writes out longer than the limit", value: json.Number("1e1024"), wantIs: ErrIDOutOfRange, wantErr: "id is out of range, got 1e1024, which writes out to more than 1024 bytes"},
+		{name: "should count the sign of a negative integer against the limit", value: json.Number("-1e1023"), wantIs: ErrIDOutOfRange, wantErr: "id is out of range, got -1e1023, which writes out to more than 1024 bytes"},
+		{name: "should reject a million digit integer without writing it out", value: json.Number("1e1000000"), wantIs: ErrIDOutOfRange, wantErr: "id is out of range, got 1e1000000, which writes out to more than 1024 bytes"},
+		{name: "should reject an exponent past what big.Rat takes as out of range", value: json.Number("1e10000000"), wantIs: ErrIDOutOfRange, wantErr: "id is out of range, got 1e10000000, which writes out to more than 1024 bytes"},
+		{name: "should reject an exponent past an int32 as out of range", value: json.Number("1e99999999999"), wantIs: ErrIDOutOfRange, wantErr: "id is out of range, got 1e99999999999"},
+		{name: "should reject a fraction too large for a float64", value: json.Number(strings.Repeat("9", 400) + ".5"), wantIs: ErrIDOutOfRange, wantErr: "id is out of range"},
+		{name: "should reject a fraction that underflows a float64", value: json.Number("1.5e-400"), wantIs: ErrIDOutOfRange, wantErr: "id is out of range, got 1.5e-400"},
+		{name: "should leave out a number too long to show", value: json.Number(strings.Repeat("9", 2000)), wantIs: ErrIDOutOfRange, wantErr: "id is out of range, it writes out to more than 1024 bytes"},
 		{name: "should write a computed integer as its digits", value: 7, want: json.Number("7")},
 		{name: "should write a computed float that lands on an integer as its digits", value: 7.0, want: json.Number("7")},
+		{name: "should write a computed float past 1e21 as the digits its literal takes", value: 1e21, want: json.Number("1000000000000000000000")},
+		{name: "should write a computed huge integer as its digits", value: 1.5e300, want: json.Number("15" + strings.Repeat("0", 299))},
+		{name: "should write a computed big integer as its digits", value: new(big.Int).Exp(big.NewInt(10), big.NewInt(30), nil), want: json.Number("1" + strings.Repeat("0", 30))},
+		{name: "should reject a computed big integer longer than the limit", value: new(big.Int).Exp(big.NewInt(10), big.NewInt(1024), nil), wantIs: ErrIDOutOfRange, wantErr: "id is out of range, it writes out to more than 1024 bytes"},
 		{name: "should write a computed fraction in its shortest form", value: 0.25, want: json.Number("0.25")},
 		{name: "should write a tiny fraction with an exponent", value: 1.5e-7, want: json.Number("1.5e-7")},
-		{name: "should reject null", value: nil, wantErr: "id must be a string or a finite number, got null"},
-		{name: "should reject a boolean", value: true, wantErr: "id must be a string or a finite number, got boolean"},
-		{name: "should reject an array", value: []any{"a"}, wantErr: "id must be a string or a finite number, got array"},
-		{name: "should reject an object", value: map[string]any{"a": "b"}, wantErr: "id must be a string or a finite number, got object"},
-		{name: "should reject infinity", value: math.Inf(1), wantErr: "id must be a string or a finite number, got +Inf"},
-		{name: "should reject a number that is not a number", value: math.NaN(), wantErr: "id must be a string or a finite number, got NaN"},
-		{name: "should write a huge number with an exponent", value: 1.5e300, want: json.Number("1.5e+300")},
+		{name: "should reject null", value: nil, wantIs: ErrNotID, wantErr: "id must be a string or a finite number, got null"},
+		{name: "should reject a boolean", value: true, wantIs: ErrNotID, wantErr: "id must be a string or a finite number, got boolean"},
+		{name: "should reject an array", value: []any{"a"}, wantIs: ErrNotID, wantErr: "id must be a string or a finite number, got array"},
+		{name: "should reject an object", value: map[string]any{"a": "b"}, wantIs: ErrNotID, wantErr: "id must be a string or a finite number, got object"},
+		{name: "should reject infinity", value: math.Inf(1), wantIs: ErrNotID, wantErr: "id must be a string or a finite number, got +Inf"},
+		{name: "should reject a number that is not a number", value: math.NaN(), wantIs: ErrNotID, wantErr: "id must be a string or a finite number, got NaN"},
 		{name: "should write a computed negative zero as zero", value: math.Copysign(0, -1), want: json.Number("0")},
 	}
 
@@ -242,7 +265,7 @@ func TestID(t *testing.T) {
 			got, err := ID(tc.value)
 
 			if tc.wantErr != "" {
-				if !errors.Is(err, ErrNotID) || err.Error() != tc.wantErr {
+				if !errors.Is(err, tc.wantIs) || err.Error() != tc.wantErr {
 					t.Fatalf("ID() error = %v, want %q", err, tc.wantErr)
 				}
 
