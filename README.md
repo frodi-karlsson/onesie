@@ -114,10 +114,11 @@ onesie calibrate --ask urgent='is this urgent' -i jsonl --map '.body' \
 # flagged means urgent.value >= cut
 #
 #   cut   flagged  catches           false alarms    right when flagged
+#   ...
 #   0.10        5  4/4 100% 51-100%  1/4 25%  5-70%  4/5  80% 38-96%
 #   ...
 #   0.90        4  4/4 100% 51-100%  0/4  0%  0-49%  4/4 100% 51-100%
-onesie --ask urgent='is this urgent' --assert 'urgent.value >= 0.9' -q --state "$ticket" && page_on_call
+onesie --ask urgent='is this urgent' --assert 'urgent.value >= 0.9' -q --state "$body" && page_on_call
 ```
 
 **Triage a spreadsheet.** The same rows come back with a column per question.
@@ -185,7 +186,8 @@ onesie --ask urgent='is this urgent' --assert 'urgnet.value < 0.5'
 
 ### Calibrating
 
-`onesie calibrate --help` is the full reference.
+`onesie calibrate --help` is the full reference, and its Labels paragraph lists what each shape
+accepts as a label.
 
 - `calibrate` is a subcommand name, so `onesie calibrate` runs it. To ask it as a question, write
   `onesie -- calibrate`.
@@ -195,9 +197,11 @@ onesie --ask urgent='is this urgent' --assert 'urgnet.value < 0.5'
   does not match `--rate 1,2,3,4,5`, while a jsonl `4.0` is a number and does.
 - `--resume` needs `--id`. A resumed `-o json` report differs from the fresh run's only in `asked`
   and `stored`.
-- The answers file is `-o json` lines. A plain stream run with `-o json`, the same questions,
-  model, `--map` and `--id` can resume it. A run with a gate, `--merge` or another output mode is
-  refused as changed.
+- The answers file is `-o json` lines. A plain stream run can resume it, given the same questions,
+  model, `-i`, `--map` and `--id`, with `-o json` and no gate or merge. Any other run is refused as
+  changed.
+- Under `--usage` the `-o json` report sums the tokens in `usage`, whose `records` counts the
+  records it covers, failed ones that spent tokens included.
 - `onesie -V` lists `max-calibrate-records`, the most records one run reads.
 
 ### Streams
@@ -258,8 +262,8 @@ onesie auth test                                   # checks the key, costs no to
 - `jev-latest` works on both providers, but pinned ids differ: `jev-1.13.0` on TypeSafe,
   `typesafe/jev-1.13` on OpenRouter. On OpenRouter, `--usage` also reports the cost. A 200 whose
   answers onesie cannot use still spent its tokens, so under `--usage` its json error record
-  carries them too, and `--stats` counts them. `-o values`, `-o raw`, `-r`, `-o csv` and `-o tsv` have no place for
-  `--usage`, and `-q` writes nothing, so they all refuse it with exit 2.
+  carries them too, and `--stats` counts them. `-o values`, `-o raw`, `-r`, `-o csv` and `-o tsv`
+  have no place for `--usage`, and `-q` writes nothing, so they all refuse it with exit 2.
 
 ### Exit codes
 
