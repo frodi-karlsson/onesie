@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -30,14 +31,20 @@ func openOut(settings rootSettings, flags *runFlags) (*outFile, error) {
 	}
 
 	out := &outFile{
-		path:   flags.out,
-		open:   settings.openFile,
-		rename: settings.rename,
-		remove: settings.remove,
+		path:    flags.out,
+		open:    settings.openFile,
+		rename:  settings.rename,
+		remove:  settings.remove,
+		resolve: settings.resolve,
+		goos:    settings.goos,
 	}
 
 	if !flags.resume {
 		return out, nil
+	}
+
+	if err := out.removeStalePart(); err != nil {
+		return nil, err
 	}
 
 	if flags.output == "csv" || flags.output == "tsv" {
@@ -84,6 +91,8 @@ type outFile struct {
 	open    func(name string, flag int, perm os.FileMode) (*os.File, error)
 	rename  func(oldpath, newpath string) error
 	remove  func(name string) error
+	resolve func(path string) (string, error)
+	goos    string
 	resume  bool
 	keep    int64
 	bound   bool
@@ -105,6 +114,33 @@ func (o *outFile) resumeAt(length int64) {
 	o.resume = true
 	o.keep = length
 	o.size = length
+}
+
+func (o *outFile) removeStalePart() error {
+	target, err := o.target()
+	if err != nil {
+		return err
+	}
+
+	part := target + compactSuffix
+	if err := o.remove(part); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("onesie: removing %s, which an interrupted run left behind: %w", part, err)
+	}
+
+	return nil
+}
+
+func (o *outFile) target() (string, error) {
+	target, err := o.resolve(o.path)
+	if errors.Is(err, os.ErrNotExist) {
+		return o.path, nil
+	}
+
+	if err != nil {
+		return "", fmt.Errorf("onesie: resolving %s: %w", o.path, err)
+	}
+
+	return target, nil
 }
 
 func (o *outFile) offset() int64 {
@@ -164,15 +200,23 @@ func (o *outFile) finish(runErr error) error {
 
 func (o *outFile) compact() error {
 	// Written beside the file and renamed over it, so an interrupt or a full disk during the rewrite
-	// leaves every appended answer where it was.
-	temporary := o.path + compactSuffix
+	// leaves every appended answer where it was. Beside the link's target rather than the link, so a
+	// symlink at the path stays one.
+	target, err := o.target()
+	if err != nil {
+		return err
+	}
 
-	err := o.writeCompacted(temporary)
+	temporary := target + compactSuffix
+
+	err = o.writeCompacted(temporary)
 	if err == nil {
-		err = o.rename(temporary, o.path)
+		err = o.rename(temporary, target)
 	}
 
 	if err == nil {
+		o.syncDir(filepath.Dir(target))
+
 		return nil
 	}
 
@@ -194,6 +238,11 @@ func (o *outFile) writeCompacted(temporary string) (err error) {
 		err = errors.Join(err, source.Close())
 	}()
 
+	info, err := source.Stat()
+	if err != nil {
+		return err
+	}
+
 	var header int64
 	if o.rewrite.delimited {
 		header, err = headerLength(io.NewSectionReader(source, 0, o.size), o.rewrite.quoted)
@@ -202,17 +251,55 @@ func (o *outFile) writeCompacted(temporary string) (err error) {
 		}
 	}
 
-	target, err := o.open(temporary, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
+	target, err := o.open(temporary, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, info.Mode().Perm())
 	if err != nil {
 		return err
 	}
 
-	err = copyLines(target, source, header, o.rewrite.lines)
+	err = keepMode(target, info.Mode().Perm())
+	if err == nil {
+		err = copyLines(target, source, header, o.rewrite.lines)
+	}
+
 	if err == nil {
 		err = target.Sync()
 	}
 
 	return errors.Join(err, target.Close())
+}
+
+func keepMode(file *os.File, want os.FileMode) error {
+	info, err := file.Stat()
+	if err != nil {
+		return err
+	}
+
+	// Only when the umask narrowed it, so a filesystem with fixed modes that refuses a chmod still
+	// compacts.
+	if info.Mode().Perm() == want {
+		return nil
+	}
+
+	return file.Chmod(want)
+}
+
+func (o *outFile) syncDir(dir string) {
+	// Windows has no durable directory flush. FlushFileBuffers refuses a directory handle.
+	if o.goos == "windows" {
+		return
+	}
+
+	handle, err := o.open(dir, os.O_RDONLY, 0)
+	if err != nil {
+		return
+	}
+
+	// Not returned. The rename has already succeeded, and a filesystem that refuses to sync a
+	// directory, as some network and FUSE mounts do, would turn it into a failure the user cannot
+	// act on.
+	if err := errors.Join(handle.Sync(), handle.Close()); err != nil {
+		return
+	}
 }
 
 func copyLines(w io.Writer, source io.ReaderAt, header int64, lines []span) error {
@@ -409,6 +496,10 @@ func (o *outFile) create() error {
 
 func (o *outFile) openAnswers() error {
 	if !o.resume {
+		if err := o.removeStalePart(); err != nil {
+			return err
+		}
+
 		file, err := o.open(o.path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
 		if err != nil {
 			return fmt.Errorf("onesie: opening %s: %w", o.path, err)

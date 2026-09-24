@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"sync"
@@ -35,11 +36,12 @@ func TestResumeLedger(t *testing.T) {
 	dupError := `{"error":{"kind":"input","status":null,"message":"line 2: --id: '1' is also the id of line 1"}}`
 
 	tests := []struct {
-		name     string
-		existing *string
-		sidecar  string
-		stdin    string
-		runs     []resumeRun
+		name      string
+		existing  *string
+		sidecar   string
+		stdin     string
+		stalePart bool
+		runs      []resumeRun
 	}{
 		{
 			name:     "should skip the answered ids with no request and ask the rest",
@@ -161,6 +163,31 @@ func TestResumeLedger(t *testing.T) {
 					wantSent: []string{`{"id":3}`, `{"id":5}`},
 				},
 			},
+		},
+		{
+			name:      "should remove a compaction file an interrupted run left behind",
+			existing:  fileOf(idLines(4, 4)),
+			sidecar:   byID,
+			stdin:     idRecords(1, 5),
+			stalePart: true,
+			runs: []resumeRun{{
+				args:     values,
+				failFrom: 3,
+				wantCode: ExitAuth,
+				wantFile: idLines(4, 4) + idLines(1, 2) +
+					`{"id":3,"error":{"kind":"http","status":401,"message":"onesie: 401 bad key"}}` + "\n",
+				wantSent: []string{`{"id":1}`, `{"id":2}`, `{"id":3}`},
+			}},
+		},
+		{
+			name:      "should remove a compaction file an interrupted run left behind when a fresh run writes the file",
+			stdin:     idRecords(1, 1),
+			stalePart: true,
+			runs: []resumeRun{{
+				args:     []string{"-i", "jsonl", "-o", "values"},
+				wantFile: "{\"answer\":0.5}\n",
+				wantSent: []string{`{"id":1}`},
+			}},
 		},
 		{
 			name:    "should compact an unordered run into input order",
@@ -363,12 +390,22 @@ func TestResumeLedger(t *testing.T) {
 
 			writeSidecar(t, path+".onesie", tc.sidecar, false, false)
 
+			if tc.stalePart {
+				if err := os.WriteFile(path+compactSuffix, []byte("stale\n"), 0o600); err != nil {
+					t.Fatalf("writing the stale compaction file: %v", err)
+				}
+			}
+
 			for i, run := range tc.runs {
 				runResume(t, fmt.Sprintf("run %d", i+1), path, tc.stdin, run)
 			}
 
 			if _, err := os.Stat(path + compactSuffix); !os.IsNotExist(err) {
 				t.Errorf("temporary compaction file left behind: %v", err)
+			}
+
+			if tc.existing != nil && runtime.GOOS != "windows" {
+				assertMode(t, path, 0o600)
 			}
 		})
 	}
@@ -505,18 +542,24 @@ func TestOutFile_Finish(t *testing.T) {
 
 	const appended = "{\"id\":2,\"answer\":0.5}\n{\"id\":1,\"answer\":0.5}\n"
 
+	const compacted = "{\"id\":1,\"answer\":0.5}\n{\"id\":2,\"answer\":0.5}\n"
+
 	failed := errors.New("disk full")
 
 	tests := []struct {
-		name     string
-		rename   func(string, string) error
-		open     func(string, int, os.FileMode) (*os.File, error)
-		wantErr  string
-		wantFile string
+		name        string
+		rename      func(string, string) error
+		open        func(string, int, os.FileMode) (*os.File, error)
+		link        bool
+		goos        string
+		wantErr     string
+		wantFile    string
+		wantDirSync bool
 	}{
 		{
-			name:     "should rewrite the file in input order through a rename",
-			wantFile: "{\"id\":1,\"answer\":0.5}\n{\"id\":2,\"answer\":0.5}\n",
+			name:        "should rewrite the file in input order through a rename",
+			wantFile:    compacted,
+			wantDirSync: true,
 		},
 		{
 			name: "should leave the uncompacted file when the rename fails",
@@ -542,13 +585,41 @@ func TestOutFile_Finish(t *testing.T) {
 			wantErr:  "disk full",
 			wantFile: appended,
 		},
+		{
+			name:        "should write through a symlink at the path and leave the link in place",
+			link:        true,
+			wantFile:    compacted,
+			wantDirSync: true,
+		},
+		{
+			name:     "should not flush the directory on windows, which cannot",
+			goos:     "windows",
+			wantFile: compacted,
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			path := filepath.Join(t.TempDir(), "answers.jsonl")
+			if tc.link && runtime.GOOS == "windows" {
+				t.Skip("creating a symlink on windows needs a privilege the test may not have")
+			}
+
+			dir := t.TempDir()
+			path := filepath.Join(dir, "answers.jsonl")
+			target := path
+
+			if tc.link {
+				target = filepath.Join(dir, "target.jsonl")
+				if err := os.Symlink(target, path); err != nil {
+					t.Fatalf("linking: %v", err)
+				}
+			}
+
+			if err := os.WriteFile(target, nil, 0o600); err != nil {
+				t.Fatalf("writing the existing file: %v", err)
+			}
 
 			rename := tc.rename
 			if rename == nil {
@@ -560,7 +631,33 @@ func TestOutFile_Finish(t *testing.T) {
 				open = os.OpenFile
 			}
 
-			out := &outFile{path: path, open: open, rename: rename, remove: os.Remove}
+			goos := tc.goos
+			if goos == "" {
+				goos = "linux"
+			}
+
+			resolvedDir, resolveErr := filepath.EvalSymlinks(dir)
+			if resolveErr != nil {
+				t.Fatalf("resolving the directory: %v", resolveErr)
+			}
+
+			var dirSynced atomic.Bool
+
+			out := &outFile{
+				path: path,
+				open: func(name string, flag int, perm os.FileMode) (*os.File, error) {
+					if name == resolvedDir {
+						dirSynced.Store(true)
+					}
+
+					return open(name, flag, perm)
+				},
+				rename:  rename,
+				remove:  os.Remove,
+				resolve: filepath.EvalSymlinks,
+				goos:    goos,
+				resume:  true,
+			}
 			if err := out.bind("v1:" + strings.Repeat("a", 64)); err != nil {
 				t.Fatalf("bind: %v", err)
 			}
@@ -577,10 +674,24 @@ func TestOutFile_Finish(t *testing.T) {
 				t.Fatalf("error = %v, want %q", err, tc.wantErr)
 			}
 
-			assertFileHolds(t, path, tc.wantFile)
+			assertFileHolds(t, target, tc.wantFile)
 
-			if _, statErr := os.Stat(path + compactSuffix); !os.IsNotExist(statErr) {
-				t.Errorf("temporary compaction file left behind: %v", statErr)
+			if runtime.GOOS != "windows" {
+				assertMode(t, target, 0o600)
+			}
+
+			if info, statErr := os.Lstat(path); statErr != nil || (info.Mode()&os.ModeSymlink != 0) != tc.link {
+				t.Errorf("path = %v, %v, want a symlink %v", info, statErr, tc.link)
+			}
+
+			for _, beside := range []string{path, target} {
+				if _, statErr := os.Stat(beside + compactSuffix); !os.IsNotExist(statErr) {
+					t.Errorf("temporary compaction file left behind: %v", statErr)
+				}
+			}
+
+			if dirSynced.Load() != tc.wantDirSync {
+				t.Errorf("directory flushed = %v, want %v", dirSynced.Load(), tc.wantDirSync)
 			}
 		})
 	}
@@ -597,4 +708,17 @@ func idRecords(from, to int) string {
 
 func fileOf(s string) *string {
 	return &s
+}
+
+func assertMode(t *testing.T, path string, want os.FileMode) {
+	t.Helper()
+
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("reading the mode of %s: %v", filepath.Base(path), err)
+	}
+
+	if got := info.Mode().Perm(); got != want {
+		t.Errorf("%s mode = %o, want %o", filepath.Base(path), got, want)
+	}
 }

@@ -511,9 +511,10 @@ func TestOutFile_Write(t *testing.T) {
 			var renames []string
 
 			out := &outFile{
-				path:   path,
-				open:   os.OpenFile,
-				remove: os.Remove,
+				path:    path,
+				open:    os.OpenFile,
+				remove:  os.Remove,
+				resolve: filepath.EvalSymlinks,
 				rename: func(from, to string) error {
 					renames = append(renames, filepath.Base(from)+" "+filepath.Base(to))
 

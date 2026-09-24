@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
@@ -49,6 +50,8 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 		openFile:      os.OpenFile,
 		rename:        os.Rename,
 		remove:        os.Remove,
+		resolve:       filepath.EvalSymlinks,
+		goos:          runtime.GOOS,
 		lookupEnv:     os.LookupEnv,
 		homeDir:       os.UserHomeDir,
 		now:           time.Now,
@@ -346,6 +349,8 @@ type rootSettings struct {
 	openFile      func(name string, flag int, perm os.FileMode) (*os.File, error)
 	rename        func(oldpath, newpath string) error
 	remove        func(name string) error
+	resolve       func(path string) (string, error)
+	goos          string
 	lookupEnv     func(string) (string, bool)
 	homeDir       func() (string, error)
 	now           func() time.Time
