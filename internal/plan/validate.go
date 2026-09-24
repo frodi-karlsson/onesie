@@ -96,6 +96,10 @@ func CheckFlags(cfg Config) (string, error) {
 		return "", errors.New("onesie: -r and -o are mutually exclusive")
 	}
 
+	if cfg.Quiet && markdown(cfg) {
+		return "", fmt.Errorf("onesie: -q suppresses output, which leaves -o %s nothing to write", cfg.Output)
+	}
+
 	if cfg.HasState && cfg.HasStateFile {
 		return "", errors.New("onesie: --state and --state-file are mutually exclusive")
 	}
@@ -139,9 +143,16 @@ func checkResume(cfg Config) error {
 	case cfg.Raw || cfg.Output == "raw":
 		return errors.New("onesie: --resume needs output that keeps each record's outcome, " +
 			"which raw lines do not. Use -o values or -o json")
+	case markdown(cfg):
+		return errors.New("onesie: --resume reads each record's outcome back from --out, " +
+			"which a markdown table does not keep. Use -o json, values, csv or tsv")
 	default:
 		return nil
 	}
+}
+
+func markdown(cfg Config) bool {
+	return cfg.Output == "markdown" || cfg.Output == "md"
 }
 
 func checkPrune(cfg Config) error {

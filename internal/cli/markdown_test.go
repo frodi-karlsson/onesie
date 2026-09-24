@@ -5,6 +5,8 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -226,4 +228,108 @@ func TestMarkdown(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("should refuse the flags whose output a markdown table cannot carry", func(t *testing.T) {
+		t.Parallel()
+
+		out := filepath.Join(t.TempDir(), "answers.md")
+
+		tests := []struct {
+			name    string
+			args    []string
+			wantErr string
+		}{
+			{
+				name:    "should refuse -q",
+				args:    []string{"is this urgent", "-o", "markdown", "-q"},
+				wantErr: "onesie: -q suppresses output, which leaves -o markdown nothing to write",
+			},
+			{
+				name:    "should refuse --merge",
+				args:    []string{"is this urgent", "-i", "jsonl", "-o", "md", "--merge"},
+				wantErr: "onesie: --merge needs -o json, values, csv or tsv",
+			},
+			{
+				name:    "should refuse -r",
+				args:    []string{"is this urgent", "-o", "markdown", "-r"},
+				wantErr: "onesie: -r and -o are mutually exclusive",
+			},
+			{
+				name: "should refuse --resume",
+				args: []string{"is this urgent", "-i", "jsonl", "-o", "markdown", "--out", out, "--resume"},
+				wantErr: "onesie: --resume reads each record's outcome back from --out, " +
+					"which a markdown table does not keep. Use -o json, values, csv or tsv",
+			},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				var stdout, errOut bytes.Buffer
+
+				root := NewRootCmd(
+					BuildInfo{Version: "1.2.3"},
+					WithStdin(strings.NewReader("{}\n")),
+					WithStdinTTY(false),
+					WithStdoutTTY(false),
+					WithKeychain(noKeychain()),
+					WithLookupEnv(lookupFrom(nil)),
+					WithClientFactory(stubFactory(answeringServer(t, nil).URL)),
+				)
+
+				root.SetOut(&stdout)
+				root.SetErr(&errOut)
+				root.SetArgs(tc.args)
+
+				if code := Execute(t.Context(), root); code != ExitUsage {
+					t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, ExitUsage, errOut.String())
+				}
+
+				if !strings.Contains(errOut.String(), tc.wantErr) {
+					t.Errorf("stderr = %q, want it to contain %q", errOut.String(), tc.wantErr)
+				}
+
+				if stdout.String() != "" {
+					t.Errorf("stdout = %q, want nothing", stdout.String())
+				}
+			})
+		}
+	})
+
+	t.Run("should write the table into --out when not resuming", func(t *testing.T) {
+		t.Parallel()
+
+		path := filepath.Join(t.TempDir(), "answers.md")
+
+		var stdout, errOut bytes.Buffer
+
+		root := NewRootCmd(
+			BuildInfo{Version: "1.2.3"},
+			WithStdin(strings.NewReader("site down\n")),
+			WithStdinTTY(false),
+			WithStdoutTTY(false),
+			WithKeychain(noKeychain()),
+			WithLookupEnv(lookupFrom(nil)),
+			WithClientFactory(stubFactory(answeringServer(t, nil).URL)),
+		)
+
+		root.SetOut(&stdout)
+		root.SetErr(&errOut)
+		root.SetArgs([]string{"is this urgent", "-i", "lines", "-o", "markdown", "--out", path})
+
+		if code := Execute(t.Context(), root); code != ExitOK {
+			t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, ExitOK, errOut.String())
+		}
+
+		written, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("reading --out: %v", err)
+		}
+
+		want := "| `answer` | error |\n|---|---|\n| 0.5 | |\n\n> [!TIP]\n> 1 record: 1 answered.\n\n_m_\n"
+		if string(written) != want {
+			t.Errorf("--out =\n%s\nwant\n%s", written, want)
+		}
+	})
 }

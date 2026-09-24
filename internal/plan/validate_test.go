@@ -989,6 +989,50 @@ func TestCheckFlags(t *testing.T) {
 			wantErr: "onesie: --resume applies to streaming input. -i text reads one record",
 		},
 		{
+			name:    "should reject --merge with -o markdown",
+			cfg:     plan.Config{Streaming: true, InputName: "jsonl", Output: "markdown", Merge: true, Jobs: 1},
+			wantErr: "onesie: --merge needs -o json, values, csv or tsv",
+		},
+		{
+			name: "should reject --merge-key with -o md",
+			cfg: plan.Config{
+				Streaming: true, InputName: "jsonl", Output: "md", Merge: true, MergeName: "--merge-key",
+				HasMergeKey: true, Jobs: 1,
+			},
+			wantErr: "onesie: --merge-key needs -o json, values, csv or tsv",
+		},
+		{
+			name:    "should reject -r with -o markdown",
+			cfg:     plan.Config{InputName: "text", Raw: true, Output: "markdown", Jobs: 1},
+			wantErr: "onesie: -r and -o are mutually exclusive",
+		},
+		{
+			name:    "should reject -q with -o markdown on one record",
+			cfg:     plan.Config{InputName: "text", Output: "markdown", Quiet: true, Jobs: 1},
+			wantErr: "onesie: -q suppresses output, which leaves -o markdown nothing to write",
+		},
+		{
+			name:    "should reject -q with -o md on a stream, naming the spelling given",
+			cfg:     plan.Config{Streaming: true, InputName: "jsonl", Output: "md", Quiet: true, Jobs: 1},
+			wantErr: "onesie: -q suppresses output, which leaves -o md nothing to write",
+		},
+		{
+			name: "should reject --resume with -o markdown",
+			cfg: plan.Config{
+				Streaming: true, InputName: "jsonl", Output: "markdown", Resume: true, Out: "a.md", Jobs: 1,
+			},
+			wantErr: "onesie: --resume reads each record's outcome back from --out, " +
+				"which a markdown table does not keep. Use -o json, values, csv or tsv",
+		},
+		{
+			name: "should accept --out without --resume under -o markdown",
+			cfg:  plan.Config{Streaming: true, InputName: "jsonl", Output: "markdown", Out: "a.md", Jobs: 1},
+		},
+		{
+			name: "should accept --usage with -o markdown",
+			cfg:  plan.Config{InputName: "text", Output: "markdown", Usage: true, Jobs: 1},
+		},
+		{
 			name:    "should reject --resume with --unordered",
 			cfg:     plan.Config{Streaming: true, InputName: "jsonl", Resume: true, Out: "a.jsonl", Unordered: true},
 			wantErr: "onesie: --resume relies on input order, which --unordered gives up. Pass --id to resume by id",
