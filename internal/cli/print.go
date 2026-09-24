@@ -94,7 +94,7 @@ func streamRequests(
 	flags *runFlags,
 ) error {
 	questions := wireAll(built.Questions)
-	model := jev.ResolveModel(built.Model, settings.lookupEnv)
+	model := jev.TypeSafe().ResolveModel(built.Model, settings.lookupEnv)
 	out := cmd.OutOrStdout()
 
 	result, err := engine.Run(cmd.Context(), engine.Config[input.Record, []byte]{

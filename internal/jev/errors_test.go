@@ -74,7 +74,7 @@ func TestNewAPIError(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			err := newAPIError(tc.status, http.Header{}, []byte(tc.body), time.Now())
+			err := newAPIError(tc.status, http.Header{}, "X-TypeSafe-Request-Id", []byte(tc.body), time.Now())
 
 			if !errors.Is(err, tc.sentinel) {
 				t.Errorf("errors.Is did not match the expected sentinel")
@@ -104,7 +104,7 @@ func TestAPIErrorFields(t *testing.T) {
 
 		header := http.Header{"X-Typesafe-Request-Id": {"req_123"}}
 
-		if got := newAPIError(500, header, nil, time.Now()).RequestID; got != "req_123" {
+		if got := newAPIError(500, header, "X-TypeSafe-Request-Id", nil, time.Now()).RequestID; got != "req_123" {
 			t.Errorf("request id got %q, want %q", got, "req_123")
 		}
 	})
@@ -114,7 +114,7 @@ func TestAPIErrorFields(t *testing.T) {
 
 		header := http.Header{"Retry-After": {"3"}}
 
-		if got := newAPIError(429, header, nil, time.Now()).RetryAfter; got != 3*time.Second {
+		if got := newAPIError(429, header, "X-TypeSafe-Request-Id", nil, time.Now()).RetryAfter; got != 3*time.Second {
 			t.Errorf("retry after got %v, want %v", got, 3*time.Second)
 		}
 	})
@@ -122,7 +122,7 @@ func TestAPIErrorFields(t *testing.T) {
 	t.Run("should leave retry after zero when the header is absent", func(t *testing.T) {
 		t.Parallel()
 
-		if got := newAPIError(429, http.Header{}, nil, time.Now()).RetryAfter; got != 0 {
+		if got := newAPIError(429, http.Header{}, "X-TypeSafe-Request-Id", nil, time.Now()).RetryAfter; got != 0 {
 			t.Errorf("retry after got %v, want 0", got)
 		}
 	})
@@ -132,7 +132,7 @@ func TestAPIErrorFields(t *testing.T) {
 
 		body := []byte(fmt.Sprintf("%400s", "x"))
 
-		got := newAPIError(500, http.Header{}, body, time.Now()).Error()
+		got := newAPIError(500, http.Header{}, "X-TypeSafe-Request-Id", body, time.Now()).Error()
 
 		if len(got) > maxBodyInError+30 {
 			t.Errorf("message was not truncated, length %d", len(got))
@@ -144,7 +144,7 @@ func TestAPIErrorFields(t *testing.T) {
 
 		body := []byte(fmt.Sprintf(`{"error":"%400s"}`, "x"))
 
-		got := newAPIError(500, http.Header{}, body, time.Now()).Error()
+		got := newAPIError(500, http.Header{}, "X-TypeSafe-Request-Id", body, time.Now()).Error()
 
 		if len(got) > maxBodyInError+30 {
 			t.Errorf("extracted message was not truncated, length %d", len(got))

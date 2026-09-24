@@ -33,6 +33,7 @@ func New(opts ...Option) (*Client, error) {
 		clock:            systemClock{},
 		random:           rand.Float64,
 		observe:          func(Attempt) {},
+		provider:         TypeSafe(),
 	}
 
 	for _, opt := range opts {
@@ -41,15 +42,16 @@ func New(opts ...Option) (*Client, error) {
 		}
 	}
 
-	c.apiKey = orEnv(c.apiKey, c.lookupEnv, EnvAPIKey)
-	c.baseURL = strings.TrimRight(orDefault(orEnv(c.baseURL, c.lookupEnv, EnvBaseURL), DefaultBaseURL), "/")
-	c.defaultModel = ResolveModel(c.defaultModel, c.lookupEnv)
+	c.apiKey = orEnv(c.apiKey, c.lookupEnv, c.provider.EnvAPIKey)
+	c.baseURL = strings.TrimRight(
+		orDefault(orEnv(c.baseURL, c.lookupEnv, c.provider.EnvBaseURL), c.provider.BaseURL), "/")
+	c.defaultModel = c.provider.ResolveModel(c.defaultModel, c.lookupEnv)
 
 	// Computed once here rather than behind a package level singleton, which AGENTS.md bans.
 	c.runtime = fmt.Sprintf("go/%s %s/%s", runtime.Version(), runtime.GOOS, runtime.GOARCH)
 
 	if c.apiKey == "" {
-		return nil, &ValidationError{Message: "no API key. Pass --api-key or set " + EnvAPIKey}
+		return nil, &ValidationError{Message: "no API key. Pass --api-key or set " + c.provider.EnvAPIKey}
 	}
 
 	if err := ValidateBaseURL(c.baseURL); err != nil {
@@ -85,6 +87,7 @@ type Client struct {
 	random           func() float64
 	requests         atomic.Uint64
 	observe          func(Attempt)
+	provider         Provider
 }
 
 // RetryPolicy returns a copy, so a caller can modify one field and pass it to WithRequestRetry.
@@ -99,7 +102,6 @@ func (c *Client) AttemptTimeout() time.Duration {
 
 const (
 	systemOnePath = "/v1/systemone"
-	modelsPath    = "/v1/models"
 
 	retryCountHeader = "X-TypeSafe-Retry-Count"
 )
@@ -135,7 +137,7 @@ func (c *Client) SystemOne(ctx context.Context, req Request, opts ...RequestOpti
 		return nil, err
 	}
 
-	result.RequestID = res.header.Get(requestIDHeader)
+	result.RequestID = res.header.Get(c.provider.requestIDHeader)
 	result.Header = res.header
 
 	// The dropped TypeScript generics guaranteed this at compile time. Checking it here recovers
@@ -191,24 +193,19 @@ func (c *Client) SystemOneRaw(
 
 // ListModels reports the model names this account may send.
 func (c *Client) ListModels(ctx context.Context, opts ...RequestOption) ([]ModelCard, error) {
-	var wire struct {
-		Models []ModelCard `json:"models"`
-	}
+	var raw json.RawMessage
 
-	res, err := c.do(ctx, http.MethodGet, modelsPath, nil, &wire, opts...)
+	res, err := c.do(ctx, http.MethodGet, c.provider.modelsPath, nil, &raw, opts...)
 	if err != nil {
 		return nil, err
 	}
 
-	if wire.Models == nil {
-		return nil, &ResponseError{
-			Status: res.status,
-			Body:   res.body,
-			Err:    errors.New("expected a models list"),
-		}
+	models, err := c.provider.decodeModels(res.body)
+	if err != nil {
+		return nil, &ResponseError{Status: res.status, Body: res.body, Err: err}
 	}
 
-	return wire.Models, nil
+	return models, nil
 }
 
 // ModelCard describes one model or alias.
@@ -303,7 +300,7 @@ func (c *Client) do(
 			return res, decodeInto(res, out)
 		}
 
-		apiErr := newAPIError(res.status, res.header, res.body, c.clock.Now())
+		apiErr := newAPIError(res.status, res.header, c.provider.requestIDHeader, res.body, c.clock.Now())
 
 		if retriesLeft <= 0 || !cfg.retry.RetryStatus(res.status) {
 			return nil, apiErr
@@ -403,7 +400,7 @@ func (c *Client) attempt(
 		"tag", tag,
 		"status", resp.StatusCode,
 		"elapsed", c.clock.Now().Sub(started),
-		"request_id", resp.Header.Get(requestIDHeader),
+		"request_id", resp.Header.Get(c.provider.requestIDHeader),
 	)
 
 	c.observe(Attempt{

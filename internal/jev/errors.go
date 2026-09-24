@@ -10,8 +10,7 @@ import (
 )
 
 const (
-	requestIDHeader = "X-TypeSafe-Request-Id"
-	maxBodyInError  = 200
+	maxBodyInError = 200
 )
 
 // Sentinels for errors.Is. An APIError reports itself as the one matching its status.
@@ -40,7 +39,7 @@ var (
 	ErrValidation = errors.New("invalid request")
 )
 
-func newAPIError(status int, header http.Header, body []byte, now time.Time) *APIError {
+func newAPIError(status int, header http.Header, requestIDHeader string, body []byte, now time.Time) *APIError {
 	parsed := decodeBody(body)
 
 	retryAfter, _ := parseRetryAfter(header, now)

@@ -28,12 +28,6 @@ const (
 	EnvDefaultModel = "TYPESAFE_DEFAULT_MODEL"
 )
 
-// ResolveModel reports the model a request will carry. It exists so a caller that prints a request
-// without building a client fills the model the way a client would.
-func ResolveModel(model string, lookupEnv func(string) (string, bool)) string {
-	return orDefault(orEnv(model, lookupEnv, EnvDefaultModel), DefaultModel)
-}
-
 // Option configures a Client at construction.
 type Option func(*Client) error
 
@@ -41,6 +35,19 @@ type Option func(*Client) error
 func WithAPIKey(key string) Option {
 	return func(c *Client) error {
 		c.apiKey = key
+
+		return nil
+	}
+}
+
+// WithProvider sets the host the client talks to. The default is TypeSafe.
+func WithProvider(p Provider) Option {
+	return func(c *Client) error {
+		if p.decodeModels == nil {
+			return &ValidationError{Message: "provider must come from TypeSafe, OpenRouter or ProviderNamed"}
+		}
+
+		c.provider = p
 
 		return nil
 	}
@@ -293,6 +300,10 @@ func ValidateBaseURL(raw string) error {
 func orEnv(value string, lookup func(string) (string, bool), name string) string {
 	if strings.TrimSpace(value) != "" {
 		return strings.TrimSpace(value)
+	}
+
+	if name == "" {
+		return ""
 	}
 
 	found, ok := lookup(name)

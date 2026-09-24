@@ -208,10 +208,139 @@ func TestNew(t *testing.T) {
 			t.Fatalf("expected an error, got none")
 		}
 	})
+
+	t.Run("should read OPENROUTER_API_KEY and ignore TYPESAFE_API_KEY under openrouter", func(t *testing.T) {
+		t.Parallel()
+
+		transport := &recordingTransport{body: shortAnswer}
+
+		client, err := jev.New(
+			jev.WithEnv(mockEnv(map[string]string{
+				jev.EnvAPIKey:        "sk-typesafe",
+				"OPENROUTER_API_KEY": "sk-or-test",
+			})),
+			jev.WithProvider(jev.OpenRouter()),
+			jev.WithHTTPClient(&http.Client{Transport: transport}),
+		)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if _, err := client.SystemOne(t.Context(), jev.Request{State: "x", Questions: oneNoul()}); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if got := transport.last().Header.Get("Authorization"); got != "Bearer sk-or-test" {
+			t.Errorf("Authorization = %q, want the OpenRouter key", got)
+		}
+	})
+
+	t.Run("should ignore the TypeSafe base url and model env vars under openrouter", func(t *testing.T) {
+		t.Parallel()
+
+		transport := &recordingTransport{body: shortAnswer}
+
+		client, err := jev.New(
+			jev.WithEnv(mockEnv(map[string]string{
+				jev.EnvBaseURL:      "https://typesafe.example",
+				jev.EnvDefaultModel: "onesie-1.2.0",
+			})),
+			jev.WithAPIKey("sk-or-test"),
+			jev.WithProvider(jev.OpenRouter()),
+			jev.WithHTTPClient(&http.Client{Transport: transport}),
+		)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if _, err := client.SystemOne(t.Context(), jev.Request{State: "x", Questions: oneNoul()}); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		req := transport.last()
+		if got := req.URL.String(); got != "https://openrouter.ai/api/v1/systemone" {
+			t.Errorf("url = %s, want the OpenRouter default", got)
+		}
+
+		if !strings.Contains(transport.lastBody(), `"model":"`+jev.DefaultModel+`"`) {
+			t.Errorf("body = %s, want the default model", transport.lastBody())
+		}
+	})
+
+	t.Run("should name OPENROUTER_API_KEY in the no key error under openrouter", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := jev.New(jev.WithEnv(mockEnv(map[string]string{jev.EnvAPIKey: "sk-typesafe"})),
+			jev.WithProvider(jev.OpenRouter()))
+		if err == nil {
+			t.Fatalf("expected an error, got none")
+		}
+
+		if !strings.Contains(err.Error(), "OPENROUTER_API_KEY") {
+			t.Errorf("error = %q, want it to name OPENROUTER_API_KEY", err.Error())
+		}
+	})
+
+	t.Run("should reject a zero provider", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := jev.New(jev.WithEnv(mockEnv(nil)), jev.WithAPIKey("sk"), jev.WithProvider(jev.Provider{}))
+		if !errors.Is(err, jev.ErrValidation) {
+			t.Errorf("error got %v, want ErrValidation", err)
+		}
+	})
 }
 
 func TestSystemOne(t *testing.T) {
 	t.Parallel()
+
+	t.Run("should fill the request id from x-generation-id under openrouter", func(t *testing.T) {
+		t.Parallel()
+
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.Header().Set("X-Generation-Id", "gen-dec-1")
+			w.Header().Set("X-TypeSafe-Request-Id", "req_wrong")
+			_, _ = io.WriteString(w, shortAnswer)
+		}))
+		defer server.Close()
+
+		client, _ := newTestClient(t, server.URL, jev.WithProvider(jev.OpenRouter()))
+
+		result, err := client.SystemOne(t.Context(), jev.Request{State: "x", Questions: oneNoul()})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if result.RequestID != "gen-dec-1" {
+			t.Errorf("request id got %q, want gen-dec-1", result.RequestID)
+		}
+	})
+
+	t.Run("should fill an api error request id from x-generation-id under openrouter", func(t *testing.T) {
+		t.Parallel()
+
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.Header().Set("X-Generation-Id", "gen-dec-2")
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = io.WriteString(w, `{"error":{"message":"bad","code":400}}`)
+		}))
+		defer server.Close()
+
+		client, _ := newTestClient(t, server.URL, jev.WithProvider(jev.OpenRouter()))
+
+		_, err := client.SystemOne(t.Context(), jev.Request{State: "x", Questions: oneNoul()})
+
+		var apiErr *jev.APIError
+		if !errors.As(err, &apiErr) {
+			t.Fatalf("error got %v, want an APIError", err)
+		}
+
+		if apiErr.RequestID != "gen-dec-2" {
+			t.Errorf("request id got %q, want gen-dec-2", apiErr.RequestID)
+		}
+	})
 
 	t.Run("should send the state questions and model then decode the answers", func(t *testing.T) {
 		t.Parallel()
@@ -1465,7 +1594,7 @@ func TestMarshalQuestionsBody(t *testing.T) {
 	})
 }
 
-func TestResolveModel(t *testing.T) {
+func TestProviderResolveModel(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -1516,11 +1645,20 @@ func TestResolveModel(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			if got := jev.ResolveModel(tc.model, lookupFrom(tc.env)); got != tc.want {
+			if got := jev.TypeSafe().ResolveModel(tc.model, lookupFrom(tc.env)); got != tc.want {
 				t.Errorf("ResolveModel = %s, want %s", got, tc.want)
 			}
 		})
 	}
+
+	t.Run("should ignore TYPESAFE_DEFAULT_MODEL under openrouter", func(t *testing.T) {
+		t.Parallel()
+
+		env := lookupFrom(map[string]string{jev.EnvDefaultModel: "onesie-1.2.0"})
+		if got := jev.OpenRouter().ResolveModel("", env); got != jev.DefaultModel {
+			t.Errorf("ResolveModel = %s, want %s", got, jev.DefaultModel)
+		}
+	})
 
 	// A client resolving the model its own way is the drift this guards against, so every case is
 	// asserted twice: once against ResolveModel and once against the body a client really sends.
@@ -1589,4 +1727,50 @@ func lookupFrom(env map[string]string) func(string) (string, bool) {
 
 		return value, ok
 	}
+}
+
+type recordingTransport struct {
+	body string
+
+	mu       sync.Mutex
+	requests []*http.Request
+	bodies   []string
+}
+
+func (rt *recordingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	body := ""
+	if req.Body != nil {
+		raw, err := io.ReadAll(req.Body)
+		if err != nil {
+			return nil, err
+		}
+
+		body = string(raw)
+	}
+
+	rt.mu.Lock()
+	rt.requests = append(rt.requests, req)
+	rt.bodies = append(rt.bodies, body)
+	rt.mu.Unlock()
+
+	return &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": {"application/json"}},
+		Body:       io.NopCloser(strings.NewReader(rt.body)),
+		Request:    req,
+	}, nil
+}
+
+func (rt *recordingTransport) last() *http.Request {
+	rt.mu.Lock()
+	defer rt.mu.Unlock()
+
+	return rt.requests[len(rt.requests)-1]
+}
+
+func (rt *recordingTransport) lastBody() string {
+	rt.mu.Lock()
+	defer rt.mu.Unlock()
+
+	return rt.bodies[len(rt.bodies)-1]
 }
