@@ -168,7 +168,9 @@ onesie --ask urgent='is this urgent' --assert 'urgnet.value < 0.5'
 - A record that fails still prints a line with an `error` key, and the run exits 6.
   `--stop-on-error` ends at the first failure, and `--unordered` trades input order for throughput.
 - `--map` is a jq expression whose result is the state. An object it builds has its keys sorted, and
-  `onesie -V` lists the caps on its result.
+  `onesie -V` lists the caps on its result. An empty or all whitespace state is refused before
+  any request, whether it came from `--state`, `--state-file`, stdin or `--map`. In a stream it is
+  an error line, like a blank line, and for one record it exits 2.
 - `--id` names each record on every output line. It runs one record at a time, so keep it a cheap
   lookup. Ids match by their text, so `7`, `7.0` and `"7"` are one id in jsonl.
 - `--out` writes to a file with a fingerprint beside it, and a lock so two runs cannot share it. The

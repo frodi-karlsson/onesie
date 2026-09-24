@@ -157,6 +157,19 @@ func TestStream(t *testing.T) {
 			},
 		},
 		{
+			name:      "should fail a record that maps to an empty string and carry on",
+			args:      []string{"is this urgent", "-i", "jsonl", "--map", ".body"},
+			stdin:     "{\"body\":\"\"}\n{\"body\":\"  \"}\n{\"body\":\"third\"}\n",
+			response:  answered,
+			wantCode:  cli.ExitRecords,
+			wantLines: 3,
+			contains: []string{
+				`line 1: --map: empty string, an empty state is a request the model cannot answer`,
+				`line 2: --map: empty string, an empty state is a request the model cannot answer`,
+				`"answer":{"value":0.9}`,
+			},
+		},
+		{
 			name:      "should fail a record whose expression fails as it runs and carry on",
 			args:      []string{"is this urgent", "-i", "jsonl", "--map", ".body.text"},
 			stdin:     "{\"body\":\"first\"}\n{\"body\":{\"text\":\"second\"}}\n",

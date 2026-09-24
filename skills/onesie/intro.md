@@ -1,6 +1,7 @@
 onesie asks the TypeSafe Jev model one typed question about a piece of text from the command line.
-State goes in on stdin, `--state TEXT` or `--state-file PATH`, and `--state -` reads stdin. A typed
-answer comes out on stdout, and the exit status is usable in a conditional.
+State goes in on stdin, `--state TEXT` or `--state-file PATH`, and `--state -` reads stdin. An
+empty or all whitespace state exits 2 before any request. A typed answer comes out on stdout, and
+the exit status is usable in a conditional.
 
 There are three question shapes, and the shape decides what you get back:
 

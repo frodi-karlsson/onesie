@@ -83,8 +83,7 @@ func (s *Stream) Next() (Record, bool, error) {
 				continue
 			}
 
-			return s.fail(text, errors.New(
-				"blank line, an empty state is a request the model cannot answer")), true, nil
+			return s.fail(text, fmt.Errorf("blank line, %w", ErrEmptyState)), true, nil
 		}
 
 		return s.record(text), true, nil

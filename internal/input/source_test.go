@@ -176,6 +176,49 @@ func TestResolve(t *testing.T) {
 			wantState:  "just a string",
 		},
 		{
+			name: "should reject an empty --state under text",
+			req: input.Query{
+				Mode:     input.Text,
+				State:    "",
+				HasState: true,
+			},
+			wantErr:     true,
+			wantMessage: "onesie: --state is blank, an empty state is a request the model cannot answer",
+		},
+		{
+			name: "should reject a --state of spaces under text",
+			req: input.Query{
+				Mode:     input.Text,
+				State:    "  ",
+				HasState: true,
+			},
+			wantErr:     true,
+			wantMessage: "onesie: --state is blank, an empty state is a request the model cannot answer",
+		},
+		{
+			name: "should reject an empty state file under text",
+			req: input.Query{
+				Mode:         input.Text,
+				StateFile:    "empty.txt",
+				HasStateFile: true,
+				ReadFile: func(string) ([]byte, error) {
+					return nil, nil
+				},
+			},
+			wantErr: true,
+			wantMessage: "onesie: --state-file 'empty.txt' is blank, " +
+				"an empty state is a request the model cannot answer",
+		},
+		{
+			name: "should reject a stdin holding only a newline under text",
+			req: input.Query{
+				Mode:  input.Text,
+				Stdin: strings.NewReader("\n"),
+			},
+			wantErr:     true,
+			wantMessage: "onesie: stdin is blank, an empty state is a request the model cannot answer",
+		},
+		{
 			name: "should reject invalid utf8 under text",
 			req: input.Query{
 				Mode:  input.Text,

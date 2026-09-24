@@ -9,6 +9,9 @@ import (
 	"unicode/utf8"
 )
 
+// ErrEmptyState reports a state that is empty or only whitespace, which the model cannot answer.
+var ErrEmptyState = errors.New("an empty state is a request the model cannot answer")
+
 // Resolve decides where the state comes from and reads it. It performs no network call and reads
 // stdin at most once.
 func Resolve(req Query) (Resolved, error) {
@@ -74,6 +77,10 @@ func fromText(source Source, label, text string, mode Mode, stripNewline bool) (
 	if mode == Text {
 		if stripNewline {
 			text = strings.TrimSuffix(strings.TrimSuffix(text, "\r\n"), "\n")
+		}
+
+		if strings.TrimSpace(text) == "" {
+			return Resolved{}, fmt.Errorf("onesie: %s is blank, %w", label, ErrEmptyState)
 		}
 
 		return Resolved{Source: source, State: text, Raw: text, Wire: text}, nil

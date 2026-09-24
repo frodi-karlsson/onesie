@@ -143,6 +143,21 @@ func TestNewRootCmd(t *testing.T) {
 			contains: []string{"onesie: --usage does not apply to -o raw, which writes only the answers. Use -o json"},
 		},
 		{
+			name:     "should exit two before any request when one record maps to an empty string",
+			args:     []string{"is this urgent", "-i", "json", "--map", ".body"},
+			stdin:    `{"body":""}`,
+			status:   http.StatusInternalServerError,
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: --map: empty string, an empty state is a request the model cannot answer"},
+		},
+		{
+			name:     "should exit two before any request on an empty --state",
+			args:     []string{"is this urgent", "--state", ""},
+			status:   http.StatusInternalServerError,
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: --state is blank, an empty state is a request the model cannot answer"},
+		},
+		{
 			name:     "should add the cost to usage when the response carries one",
 			args:     []string{"is this urgent", "-o", "json", "--usage"},
 			stdin:    "the server is down",

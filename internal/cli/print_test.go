@@ -481,6 +481,13 @@ func TestPrintRequest(t *testing.T) {
 			stderr:   []string{"onesie: --map: state must be a string, object or array, got null"},
 		},
 		{
+			name:     "should exit two when one record maps to an empty string",
+			args:     []string{"--ask", "urgent=is this urgent", "-i", "json", "--map", ".body", "--print-request"},
+			stdin:    `{"body":""}`,
+			wantCode: ExitUsage,
+			stderr:   []string{"onesie: --map: empty string, an empty state is a request the model cannot answer"},
+		},
+		{
 			name:     "should exit two when one record's expression fails as it runs",
 			args:     []string{"--ask", "urgent=is this urgent", "-i", "json", "--map", ".body.text", "--print-request"},
 			stdin:    `{"body":"the site is down"}`,
