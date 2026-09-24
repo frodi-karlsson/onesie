@@ -8,6 +8,8 @@ import (
 	"unicode/utf8"
 
 	"github.com/itchyny/gojq"
+
+	"github.com/frodi-karlsson/onesie/internal/limits"
 )
 
 var (
@@ -17,13 +19,11 @@ var (
 	ErrManyValues = errors.New("yields more than one value")
 	// ErrRun means the expression failed while it ran, and wraps the reason gojq gave.
 	ErrRun = errors.New("fails")
-	// ErrTooDeep means a value nests deeper than encoding/json accepts.
-	ErrTooDeep = fmt.Errorf("result nests deeper than %d levels", maxDepth)
+	// ErrTooDeep means a value nests deeper than limits.MaxMapDepth.
+	ErrTooDeep = fmt.Errorf("result nests deeper than %d levels", limits.MaxMapDepth)
 	// ErrTooLarge means a value encodes to more bytes than the limit Marshal was given.
 	ErrTooLarge = errors.New("result encodes to more than the limit")
 )
-
-const maxDepth = 10000
 
 // Compile parses and compiles a jq expression. A syntax error names the column it was found at.
 func Compile(source string) (*Expr, error) {
@@ -72,7 +72,7 @@ func (e *Expr) One(ctx context.Context, value any) (any, error) {
 }
 
 // Marshal encodes value as compact JSON with its object keys sorted, where jq keeps insertion order.
-// It fails with ErrTooDeep past the nesting encoding/json allows, and with ErrTooLarge past limit bytes.
+// It fails with ErrTooDeep past limits.MaxMapDepth, and with ErrTooLarge past limit bytes.
 func Marshal(value any, limit int) ([]byte, error) {
 	if err := checkBounds(value, limit); err != nil {
 		return nil, err
@@ -118,7 +118,7 @@ func checkBounds(value any, limit int) error {
 			continue
 		}
 
-		if len(pending) > maxDepth {
+		if len(pending) > limits.MaxMapDepth {
 			return ErrTooDeep
 		}
 

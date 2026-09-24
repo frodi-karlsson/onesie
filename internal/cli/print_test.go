@@ -488,14 +488,24 @@ func TestPrintRequest(t *testing.T) {
 			stderr:   []string{"onesie: --map fails: "},
 		},
 		{
-			name: "should exit two when one record's result nests too deep",
+			name: "should print a body whose result nests as deep as the cap allows",
 			args: []string{
 				"--ask", "urgent=is this urgent", "-i", "json", "--print-request",
-				"--map", `reduce range(10001) as $i ("x"; [.])`,
+				"--map", `reduce range(9999) as $i ("x"; [.])`,
+			},
+			stdin:    `{"body":"the site is down"}`,
+			wantCode: ExitOK,
+			stdout:   []string{`{"state":` + strings.Repeat("[", 9999) + `"x"` + strings.Repeat("]", 9999) + `,"model":"jev-latest"`},
+		},
+		{
+			name: "should exit two when one record's result nests one level past the cap",
+			args: []string{
+				"--ask", "urgent=is this urgent", "-i", "json", "--print-request",
+				"--map", `reduce range(10000) as $i ("x"; [.])`,
 			},
 			stdin:    `{"body":"the site is down"}`,
 			wantCode: ExitUsage,
-			stderr:   []string{"onesie: --map: result nests deeper than 10000 levels"},
+			stderr:   []string{"onesie: --map: result nests deeper than 9999 levels"},
 		},
 		{
 			name:     "should exit two on a --map syntax error",
@@ -1167,14 +1177,14 @@ func TestStreamRequests(t *testing.T) {
 			name: "should write an error line for a record that nests too deep",
 			args: []string{
 				"--ask", "urgent=is this urgent", "-i", "jsonl", "--print-request",
-				"--map", `if .deep then reduce range(10001) as $i ("x"; [.]) else .body end`,
+				"--map", `if .deep then reduce range(10000) as $i ("x"; [.]) else .body end`,
 			},
 			stdin:     "{\"deep\":true}\n{\"body\":\"second\"}\n",
 			wantCode:  ExitRecords,
 			wantLines: 2,
 			stdout: []string{
 				`{"error":{"kind":"input"`,
-				`"message":"line 1: --map: result nests deeper than 10000 levels"`,
+				`"message":"line 1: --map: result nests deeper than 9999 levels"`,
 				`"state":"second"`,
 			},
 		},

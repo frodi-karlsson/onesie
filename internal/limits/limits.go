@@ -32,6 +32,10 @@ const (
 	// MaxSeconds is the ceiling on a flag given in whole seconds. A day is past any sensible
 	// timeout and far from the Duration overflow that shrinks a huge number.
 	MaxSeconds = 86400
+
+	// MaxMapDepth is the deepest a --map result may nest. encoding/json refuses past 10000 levels,
+	// and the request body wraps the state in one object more.
+	MaxMapDepth = 10000 - 1
 )
 
 // Report lists every constant in this package, for the --version dump.
@@ -47,6 +51,7 @@ func Report() []Entry {
 		{Name: "max-jobs", Value: strconv.Itoa(MaxJobs)},
 		{Name: "max-retry-after", Value: DefaultMaxRetryAfter.String()},
 		{Name: "max-seconds", Value: strconv.Itoa(MaxSeconds)},
+		{Name: "max-map-depth", Value: strconv.Itoa(MaxMapDepth)},
 	}
 }
 

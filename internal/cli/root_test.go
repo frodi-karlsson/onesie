@@ -64,7 +64,10 @@ func TestNewRootCmd(t *testing.T) {
 			name:     "should print the limits for the version flag",
 			args:     []string{"-V"},
 			wantCode: cli.ExitOK,
-			contains: []string{"onesie 1.2.3", "max-choice-options 255", "max-retry-after 1m0s"},
+			contains: []string{
+				"onesie 1.2.3", "max-choice-options 255", "max-retry-after 1m0s",
+				"max-map-depth 9999",
+			},
 		},
 		{
 			name:     "should print full provenance for the version subcommand",

@@ -167,14 +167,14 @@ func TestStream(t *testing.T) {
 			name: "should fail a record whose --map result nests too deep and carry on",
 			args: []string{
 				"is this urgent", "-i", "jsonl",
-				"--map", `if .deep then reduce range(10001) as $i ("x"; [.]) else .body end`,
+				"--map", `if .deep then reduce range(10000) as $i ("x"; [.]) else .body end`,
 			},
 			stdin:     "{\"deep\":true}\n{\"body\":\"second\"}\n",
 			response:  answered,
 			wantCode:  cli.ExitRecords,
 			wantLines: 2,
 			contains: []string{
-				`"kind":"input"`, `line 1: --map: result nests deeper than 10000 levels`,
+				`"kind":"input"`, `line 1: --map: result nests deeper than 9999 levels`,
 				`"answer":{"value":0.9}`,
 			},
 		},
