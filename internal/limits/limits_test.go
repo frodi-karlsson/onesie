@@ -25,6 +25,7 @@ func TestReport(t *testing.T) {
 		{name: "should report the longest line read", want: "max-line-bytes 8388608"},
 		{name: "should report the deepest a --map result may nest", want: "max-map-depth 9999"},
 		{name: "should report the longest an --id may write out to", want: "max-id-bytes 1024"},
+		{name: "should report the most records calibrate reads", want: "max-calibrate-records 100000"},
 	}
 
 	for _, tc := range tests {

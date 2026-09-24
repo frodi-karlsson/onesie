@@ -2,11 +2,14 @@ package cli
 
 import (
 	"bytes"
+	"encoding/json"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/frodi-karlsson/onesie/internal/limits"
 )
 
 func TestNewCalibrateCmd(t *testing.T) {
@@ -367,6 +370,30 @@ func TestNewCalibrateCmd(t *testing.T) {
 			contains: []string{"--out", "--print-request"},
 		},
 		{
+			name:     "should refuse --resume under --print-request",
+			args:     with("--print-request", "--id", ".id", "--out", filepath.Join(dir, "resume.jsonl"), "--resume"),
+			wantCode: ExitUsage,
+			contains: []string{"--print-request writes request bodies, not answers, so --resume has nothing"},
+		},
+		{
+			name:     "should refuse --stats under --print-request",
+			args:     with("--print-request", "--stats"),
+			wantCode: ExitUsage,
+			contains: []string{"--stats has nothing to report with --print-request"},
+		},
+		{
+			name:     "should refuse --usage under --print-request",
+			args:     with("--print-request", "--usage"),
+			wantCode: ExitUsage,
+			contains: []string{"--usage reports the tokens a question cost, which --print-request does not ask"},
+		},
+		{
+			name:     "should refuse -o under --print-request",
+			args:     with("--print-request", "-o", "json"),
+			wantCode: ExitUsage,
+			contains: []string{"onesie: -o does not apply to --print-request, which writes a request body"},
+		},
+		{
 			name:     "should refuse a flag calibrate does not register",
 			args:     with("--state", "x"),
 			wantCode: ExitUsage,
@@ -452,4 +479,228 @@ func (u unreadable) Read([]byte) (int, error) {
 	u.t.Error("stdin was read, want the label checked first")
 
 	return 0, io.EOF
+}
+
+func TestReadLabelled(t *testing.T) {
+	t.Parallel()
+
+	dry := func(extra ...string) []string {
+		return append([]string{"calibrate", "--print-request", "--ask", "urgent=is this urgent"}, extra...)
+	}
+
+	jsonl := func(extra ...string) []string {
+		return dry(append([]string{"-i", "jsonl", "--map", ".body", "--label", "urgent=.u"}, extra...)...)
+	}
+
+	both := jsonl("--ask", "team=which team", "--pick", "billing,shipping", "--label", "team=.team")
+
+	tests := []struct {
+		name       string
+		args       []string
+		stdin      string
+		wantCode   int
+		wantStates []string
+		wantAsked  []string
+		contains   []string
+	}{
+		{
+			name:       "should print one body per labelled jsonl record",
+			args:       jsonl(),
+			stdin:      "{\"body\":\"a\",\"u\":true}\n{\"body\":\"b\",\"u\":\"no\"}\n",
+			wantStates: []string{`"a"`, `"b"`},
+			wantAsked:  []string{"urgent"},
+		},
+		{
+			name: "should print one body per labelled csv row",
+			args: dry("-i", "csv", "--map", ".body", "--label", "urgent=.u"),
+			stdin: "body,u\n" +
+				"a,yes\n" +
+				"b,0\n",
+			wantStates: []string{`"a"`, `"b"`},
+			wantAsked:  []string{"urgent"},
+		},
+		{
+			name:       "should print one body per labelled tsv row",
+			args:       dry("-i", "tsv", "--map", ".body", "--label", "urgent=.u"),
+			stdin:      "body\tu\na\ttrue\nb\tFALSE\n",
+			wantStates: []string{`"a"`, `"b"`},
+			wantAsked:  []string{"urgent"},
+		},
+		{
+			name:       "should skip a record no question labels",
+			args:       jsonl(),
+			stdin:      "{\"body\":\"a\",\"u\":true}\n{\"body\":\"b\"}\n{\"body\":\"c\",\"u\":0}\n",
+			wantStates: []string{`"a"`, `"c"`},
+			wantAsked:  []string{"urgent"},
+		},
+		{
+			name:       "should ask every question of a record one question labels",
+			args:       both,
+			stdin:      "{\"body\":\"a\",\"u\":true}\n{\"body\":\"b\",\"team\":\"billing\"}\n{\"body\":\"c\"}\n",
+			wantStates: []string{`"a"`, `"b"`},
+			wantAsked:  []string{"urgent", "team"},
+		},
+		{
+			name:       "should leave a record unlabelled by null and by an empty string",
+			args:       jsonl(),
+			stdin:      "{\"body\":\"a\",\"u\":null}\n{\"body\":\"b\",\"u\":\"\"}\n{\"body\":\"c\",\"u\":1}\n",
+			wantStates: []string{`"c"`},
+			wantAsked:  []string{"urgent"},
+		},
+		{
+			name:       "should leave a record unlabelled by a label with no result",
+			args:       dry("-i", "jsonl", "--map", ".body", "--label", `urgent=.u | select(. != "skip")`),
+			stdin:      "{\"body\":\"a\",\"u\":\"skip\"}\n{\"body\":\"b\",\"u\":\"yes\"}\n",
+			wantStates: []string{`"b"`},
+			wantAsked:  []string{"urgent"},
+		},
+		{
+			name:     "should name a record by its id when a label is bad",
+			args:     jsonl("--id", ".id"),
+			stdin:    "{\"id\":\"T-1\",\"body\":\"a\",\"u\":true}\n{\"id\":\"T-7\",\"body\":\"b\",\"u\":\"maybe\"}\n",
+			wantCode: ExitUsage,
+			contains: []string{
+				`onesie: --label urgent: record T-7: "maybe" is not a yes/no label. Use true, false, yes, no, 1 or 0`,
+			},
+		},
+		{
+			name:     "should name a record by its line when a label is bad and there is no --id",
+			args:     jsonl(),
+			stdin:    "{\"body\":\"a\",\"u\":true}\n{\"body\":\"b\",\"u\":\"maybe\"}\n",
+			wantCode: ExitUsage,
+			contains: []string{`onesie: --label urgent: line 2: "maybe" is not a yes/no label`},
+		},
+		{
+			name:     "should quote a pick label that differs from the option in case",
+			args:     both,
+			stdin:    "{\"body\":\"a\",\"team\":\"Billing\"}\n",
+			wantCode: ExitUsage,
+			contains: []string{`onesie: --label team: line 1: "Billing" is not a pick label. Use billing or shipping`},
+		},
+		{
+			name:     "should refuse a label that yields two values",
+			args:     dry("-i", "jsonl", "--map", ".body", "--label", "urgent=.u, .u"),
+			stdin:    "{\"body\":\"a\",\"u\":true}\n",
+			wantCode: ExitUsage,
+			contains: []string{"onesie: --label urgent: line 1: yields more than one value"},
+		},
+		{
+			name:     "should refuse a label that fails at run time",
+			args:     dry("-i", "jsonl", "--map", ".body", "--label", `urgent=error("boom")`),
+			stdin:    "{\"body\":\"a\",\"u\":true}\n",
+			wantCode: ExitUsage,
+			contains: []string{"onesie: --label urgent: line 1:", "boom"},
+		},
+		{
+			name:     "should refuse an unparseable line before printing any body",
+			args:     jsonl(),
+			stdin:    "{\"body\":\"a\",\"u\":true}\n{nope\n",
+			wantCode: ExitUsage,
+			contains: []string{"line 2"},
+		},
+		{
+			name:     "should refuse a blank line before printing any body",
+			args:     jsonl(),
+			stdin:    "{\"body\":\"a\",\"u\":true}\n\n{\"body\":\"b\",\"u\":true}\n",
+			wantCode: ExitUsage,
+			contains: []string{"line 2", "blank line"},
+		},
+		{
+			name:       "should drop a blank line under --skip-blank",
+			args:       jsonl("--skip-blank"),
+			stdin:      "{\"body\":\"a\",\"u\":true}\n\n{\"body\":\"b\",\"u\":true}\n",
+			wantStates: []string{`"a"`, `"b"`},
+			wantAsked:  []string{"urgent"},
+		},
+		{
+			name:     "should refuse a failed --map before printing any body",
+			args:     dry("-i", "jsonl", "--map", ".body | ascii_downcase", "--label", "urgent=.u"),
+			stdin:    "{\"body\":\"a\",\"u\":true}\n{\"body\":{\"x\":1}}\n",
+			wantCode: ExitUsage,
+			contains: []string{"line 2: --map"},
+		},
+		{
+			name:     "should refuse a failed --id before printing any body",
+			args:     jsonl("--id", ".id"),
+			stdin:    "{\"id\":\"T-1\",\"body\":\"a\",\"u\":true}\n{\"id\":{},\"body\":\"b\"}\n",
+			wantCode: ExitUsage,
+			contains: []string{"line 2: --id"},
+		},
+		{
+			name:     "should refuse a repeated id before printing any body",
+			args:     jsonl("--id", ".id"),
+			stdin:    "{\"id\":\"T-1\",\"body\":\"a\",\"u\":true}\n{\"id\":\"T-1\",\"body\":\"b\"}\n",
+			wantCode: ExitUsage,
+			contains: []string{"line 2: --id: 'T-1' is also the id of line 1"},
+		},
+		{
+			name:     "should refuse more records than the cap",
+			args:     jsonl(),
+			stdin:    strings.Repeat("{\"body\":\"a\"}\n", limits.MaxCalibrateRecords+1),
+			wantCode: ExitUsage,
+			contains: []string{"onesie: calibrate reads at most 100000 records, and -V lists the cap"},
+		},
+		{
+			name:  "should read as many records as the cap",
+			args:  jsonl(),
+			stdin: strings.Repeat("{\"body\":\"a\"}\n", limits.MaxCalibrateRecords),
+		},
+		{
+			name: "should print nothing for empty input",
+			args: jsonl(),
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			out, errOut, code := runOfflineStdin(t, tc.args, tc.stdin)
+
+			if code != tc.wantCode {
+				t.Fatalf("exit code = %d, want %d\nstdout:\n%s\nstderr:\n%s", code, tc.wantCode, out, errOut)
+			}
+
+			for _, want := range tc.contains {
+				if !strings.Contains(errOut, want) {
+					t.Errorf("stderr missing %q\nstderr:\n%s", want, errOut)
+				}
+			}
+
+			var lines []string
+			if out != "" {
+				lines = strings.Split(strings.TrimSuffix(out, "\n"), "\n")
+			}
+
+			if len(lines) != len(tc.wantStates) {
+				t.Fatalf("printed %d bodies, want %d\nstdout:\n%s\nstderr:\n%s",
+					len(lines), len(tc.wantStates), out, errOut)
+			}
+
+			for i, text := range lines {
+				var body struct {
+					State     json.RawMessage            `json:"state"`
+					Questions map[string]json.RawMessage `json:"questions"`
+				}
+
+				if err := json.Unmarshal([]byte(text), &body); err != nil {
+					t.Fatalf("body %d is not json: %v\n%s", i, err, text)
+				}
+
+				if string(body.State) != tc.wantStates[i] {
+					t.Errorf("body %d state = %s, want %s", i, body.State, tc.wantStates[i])
+				}
+
+				if len(body.Questions) != len(tc.wantAsked) {
+					t.Errorf("body %d asks %d questions, want %v", i, len(body.Questions), tc.wantAsked)
+				}
+
+				for _, id := range tc.wantAsked {
+					if _, found := body.Questions[id]; !found {
+						t.Errorf("body %d does not ask %q\n%s", i, id, text)
+					}
+				}
+			}
+		})
+	}
 }

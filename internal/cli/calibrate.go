@@ -184,8 +184,13 @@ func runCalibrate(
 		return err
 	}
 
-	if _, labelErr := labelsOf(inv.plan, calib.labels); labelErr != nil {
-		return labelErr
+	labels, err := labelsOf(inv.plan, calib.labels)
+	if err != nil {
+		return err
+	}
+
+	if flags.printRequest {
+		return calibrateRequests(cmd, settings, flags, inputMode, inv, labels)
 	}
 
 	return errors.New("onesie: calibrate cannot ask yet")
@@ -213,6 +218,10 @@ func checkCalibrate(
 		return fmt.Errorf("onesie: calibrate -o takes table, json or auto, got %s", calib.report)
 	}
 
+	if cfg.PrintRequest && cmd.Flags().Changed("output") {
+		return errors.New("onesie: -o does not apply to --print-request, which writes a request body")
+	}
+
 	if cmd.Flags().Changed(flagCuts) {
 		if _, err := calibrate.ParseCuts(calib.cuts); err != nil {
 			return fmt.Errorf("onesie: --cuts %w", err)
@@ -224,7 +233,8 @@ func checkCalibrate(
 			"onesie: calibrate resumes by id, since which records are asked follows the labels. Pass --id")
 	}
 
-	if cfg.PrintRequest && cfg.Out != "" {
+	// A resume is left to plan, whose message names --resume as the flag with nothing to do.
+	if cfg.PrintRequest && cfg.Out != "" && !cfg.Resume {
 		return errors.New("onesie: --print-request writes request bodies to stdout, " +
 			"so --out has no answers to hold. Drop --out")
 	}
@@ -358,10 +368,26 @@ func labelsOf(built *plan.Plan, specs []string) ([]questionLabel, error) {
 				"requests and report nothing. Pass --label %s=EXPR", ids[index], ids[index])
 		}
 
-		labels = append(labels, questionLabel{question: index, expr: expr})
+		question := built.Questions[index]
+		labels = append(labels, questionLabel{
+			id: question.ID, shape: question.Shape, names: namesOf(question), expr: expr,
+		})
 	}
 
 	return labels, nil
+}
+
+func namesOf(question plan.Question) []string {
+	names := make([]string, 0, len(question.Options)+len(question.Levels))
+	for _, option := range question.Options {
+		names = append(names, option.Name)
+	}
+
+	for _, level := range question.Levels {
+		names = append(names, level.Label)
+	}
+
+	return names
 }
 
 type calibrateFlags struct {
@@ -371,6 +397,8 @@ type calibrateFlags struct {
 }
 
 type questionLabel struct {
-	question int
-	expr     *jq.Expr
+	id    string
+	shape plan.Shape
+	names []string
+	expr  *jq.Expr
 }

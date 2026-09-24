@@ -42,6 +42,9 @@ const (
 	// MaxIDBytes is the longest an --id may write out to. Every id is held for the run to find
 	// repeats, and printed on every output line.
 	MaxIDBytes = 1024
+	// MaxCalibrateRecords is the most records calibrate reads. It holds the whole labelled set in
+	// memory before asking, so the input has to end somewhere.
+	MaxCalibrateRecords = 100000
 )
 
 // Report lists every constant in this package, for the --version dump.
@@ -60,6 +63,7 @@ func Report() []Entry {
 		{Name: "max-line-bytes", Value: strconv.Itoa(MaxLineBytes)},
 		{Name: "max-map-depth", Value: strconv.Itoa(MaxMapDepth)},
 		{Name: "max-id-bytes", Value: strconv.Itoa(MaxIDBytes)},
+		{Name: "max-calibrate-records", Value: strconv.Itoa(MaxCalibrateRecords)},
 	}
 }
 
