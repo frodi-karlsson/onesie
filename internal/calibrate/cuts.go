@@ -44,7 +44,7 @@ func ParseCuts(text string) ([]float64, error) {
 		}
 
 		if math.IsNaN(cut) || cut < 0 || cut > 1 {
-			return nil, fmt.Errorf("takes numbers between 0 and 1, got %s", item)
+			return nil, fmt.Errorf("takes numbers between 0 and 1, got '%s'", item)
 		}
 
 		cuts = append(cuts, cut)

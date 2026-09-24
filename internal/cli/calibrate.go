@@ -13,9 +13,14 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/jq"
 	"github.com/frodi-karlsson/onesie/internal/limits"
 	"github.com/frodi-karlsson/onesie/internal/plan"
+	"github.com/frodi-karlsson/onesie/internal/qfile"
 )
 
-const flagCuts = "cuts"
+const (
+	flagCuts    = "cuts"
+	quietReason = "calibrate prints a report, and its exit code judges nothing"
+	rawReason   = "calibrate prints its report as a table or as json"
+)
 
 var refusedFlags = []struct {
 	name, short, reason string
@@ -25,8 +30,12 @@ var refusedFlags = []struct {
 	{name: "abstain-if", reason: refusedReasons["abstain-if"]},
 	{name: "merge", reason: "calibrate prints a report, not the records", boolean: true},
 	{name: "merge-key", reason: "calibrate prints a report, not the records"},
-	{name: "quiet", short: "q", reason: "calibrate prints a report, and its exit code judges nothing", boolean: true},
-	{name: "raw", short: "r", reason: "calibrate prints its report as a table or as json", boolean: true},
+	// Each short spelling is a flag of its own, since pflag does not say which spelling set a flag,
+	// and a refusal names the one the user typed.
+	{name: "quiet", reason: quietReason, boolean: true},
+	{name: "q", short: "q", reason: quietReason, boolean: true},
+	{name: "raw", reason: rawReason, boolean: true},
+	{name: "r", short: "r", reason: rawReason, boolean: true},
 	{name: "stop-on-error", reason: "calibrate scores every record it can", boolean: true},
 	{name: "stop-on-assert", reason: "calibrate judges no assertion", boolean: true},
 	{name: "unordered", reason: "calibrate prints its report once every record is answered", boolean: true},
@@ -105,7 +114,9 @@ func newCalibrateCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 func bindSharedFlags(cmd *cobra.Command, flags *runFlags) {
 	// Every default is the root's, since pflag writes a default into its field when the flag is
 	// registered, and this runs after the root registered the same field.
-	cmd.Flags().StringVarP(&flags.input, flagInput, "i", "text", "jsonl, csv or tsv")
+	cmd.Flags().StringVarP(&flags.input, flagInput, "i", "text", "required, jsonl, csv or tsv")
+	// The root's text default stays in the field, and help leaves it out, since calibrate refuses it.
+	cmd.Flags().Lookup(flagInput).DefValue = ""
 	cmd.Flags().StringVar(&flags.mapSource, flagMap, "",
 		"jq expression run on each record, whose result is the state sent. Map only the text a person "+
 			"would read")
@@ -146,13 +157,19 @@ func runCalibrate(
 	cmd *cobra.Command, settings rootSettings, flags *runFlags, calib calibrateFlags,
 	events []argv.Event, positional string,
 ) error {
-	cfg, _, err := configOf(cmd, events, positional, flags)
+	cfg, inputMode, err := configOf(cmd, events, positional, flags)
 	if err != nil {
 		return err
 	}
 
-	if checkErr := checkCalibrate(cmd, cfg, calib, events); checkErr != nil {
+	if checkErr := checkCalibrate(cmd, cfg, inputMode, calib, events); checkErr != nil {
 		return checkErr
+	}
+
+	// Ahead of build, whose plan rules would otherwise answer a file's gate or policy key with a
+	// message about another key it needs, when calibrate refuses the key itself.
+	if refuseErr := refuseFile(settings, flags.file); refuseErr != nil {
+		return refuseErr
 	}
 
 	inv, warnings, err := build(settings, cfg, events, positional, flags)
@@ -167,10 +184,6 @@ func runCalibrate(
 		return err
 	}
 
-	if refuseErr := refuseLoaded(inv); refuseErr != nil {
-		return refuseErr
-	}
-
 	if _, labelErr := labelsOf(inv.plan, calib.labels); labelErr != nil {
 		return labelErr
 	}
@@ -178,12 +191,14 @@ func runCalibrate(
 	return errors.New("onesie: calibrate cannot ask yet")
 }
 
-func checkCalibrate(cmd *cobra.Command, cfg plan.Config, calib calibrateFlags, events []argv.Event) error {
+func checkCalibrate(
+	cmd *cobra.Command, cfg plan.Config, inputMode input.Mode, calib calibrateFlags, events []argv.Event,
+) error {
 	if err := checkRefused(cmd, events); err != nil {
 		return err
 	}
 
-	if err := checkCalibrateInput(cfg); err != nil {
+	if err := checkCalibrateInput(cfg, inputMode); err != nil {
 		return err
 	}
 
@@ -250,17 +265,12 @@ func refusal(reason, spelled string) error {
 	return fmt.Errorf("onesie: %s, so %s does not apply. Drop it", reason, spelled)
 }
 
-func checkCalibrateInput(cfg plan.Config) error {
+func checkCalibrateInput(cfg plan.Config, inputMode input.Mode) error {
 	if !cfg.HasInput {
 		return errors.New("onesie: calibrate needs -i jsonl, csv or tsv, since only a record has fields to label")
 	}
 
-	mode, err := input.ParseMode(cfg.InputName)
-	if err != nil {
-		return err
-	}
-
-	switch mode {
+	switch inputMode {
 	case input.JSONL, input.CSV, input.TSV:
 		return nil
 	default:
@@ -269,16 +279,30 @@ func checkCalibrateInput(cfg plan.Config) error {
 	}
 }
 
-func refuseLoaded(inv *invocation) error {
-	if inv.gate != nil {
+func refuseFile(settings rootSettings, name string) error {
+	if name == "" {
+		return nil
+	}
+
+	data, err := settings.readFile(name)
+	if err != nil {
+		return fmt.Errorf("onesie: reading %s: %w", name, err)
+	}
+
+	loaded, err := qfile.Load(data)
+	if err != nil {
+		return err
+	}
+
+	if loaded.Assert != "" {
 		return refusal(refusedReasons["assert"], plan.Spelling(plan.OriginFile, "--assert"))
 	}
 
-	if inv.abstain != nil {
+	if loaded.AbstainIf != "" {
 		return refusal(refusedReasons["abstain-if"], plan.Spelling(plan.OriginFile, "--abstain-if"))
 	}
 
-	for _, question := range inv.plan.Questions {
+	for _, question := range loaded.Questions {
 		for _, set := range []struct {
 			given bool
 			name  string

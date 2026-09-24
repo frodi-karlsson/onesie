@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-func TestCalibrate(t *testing.T) {
+func TestNewCalibrateCmd(t *testing.T) {
 	t.Parallel()
 
 	const notYet = "onesie: calibrate cannot ask yet"
@@ -20,6 +20,12 @@ func TestCalibrate(t *testing.T) {
 		"assert: urgent.value > 0.5\nurgent:\n  ask: is this urgent\n")
 	thresholdFile := writeCalibrateFile(t, dir, "threshold.yaml",
 		"urgent:\n  ask: is this urgent\n  threshold: 0.8\n")
+	confidenceFile := writeCalibrateFile(t, dir, "confidence.yaml",
+		"team:\n  ask: which team\n  pick: [billing, shipping]\n  min_confidence: 0.8\n")
+	fallbackFile := writeCalibrateFile(t, dir, "fallback.yaml",
+		"urgent:\n  ask: is this urgent\n  fallback: no\n")
+	abstainFile := writeCalibrateFile(t, dir, "abstain.yaml",
+		"abstain_if: urgent.value > 0.5\nurgent:\n  ask: is this urgent\n")
 	bodyFile := writeCalibrateFile(t, dir, "body.json",
 		`{"questions":{"mood":{"type":"score","instructions":"how cross is the writer",`+
 			`"criteria":["calm","annoyed","furious"]}}}`)
@@ -156,6 +162,18 @@ func TestCalibrate(t *testing.T) {
 			contains: []string{"so -q does not apply. Drop it"},
 		},
 		{
+			name:     "should refuse --quiet by the spelling given",
+			args:     with("--quiet"),
+			wantCode: ExitUsage,
+			contains: []string{"so --quiet does not apply. Drop it"},
+		},
+		{
+			name:     "should refuse --raw by the spelling given",
+			args:     with("--raw"),
+			wantCode: ExitUsage,
+			contains: []string{"so --raw does not apply. Drop it"},
+		},
+		{
 			name:     "should refuse -r",
 			args:     with("-r"),
 			wantCode: ExitUsage,
@@ -221,7 +239,7 @@ func TestCalibrate(t *testing.T) {
 			name:     "should refuse a cut above 1",
 			args:     with("--cuts", "0.5,1.2"),
 			wantCode: ExitUsage,
-			contains: []string{"onesie: --cuts", "1.2"},
+			contains: []string{"onesie: --cuts", "'1.2'"},
 		},
 		{
 			name:     "should refuse a cut that is not a number",
@@ -284,6 +302,30 @@ func TestCalibrate(t *testing.T) {
 			contains: []string{"so 'threshold' does not apply. Drop it"},
 		},
 		{
+			name: "should refuse a min_confidence in a question file",
+			args: []string{
+				"calibrate", "-f", confidenceFile, "-i", "jsonl", "--map", ".body", "--label", "team=.team",
+			},
+			wantCode: ExitUsage,
+			contains: []string{"so 'min_confidence' does not apply. Drop it"},
+		},
+		{
+			name: "should refuse a fallback in a question file",
+			args: []string{
+				"calibrate", "-f", fallbackFile, "-i", "jsonl", "--map", ".body", "--label", "urgent=.u",
+			},
+			wantCode: ExitUsage,
+			contains: []string{"so 'fallback' does not apply. Drop it"},
+		},
+		{
+			name: "should refuse an abstain_if key in a question file",
+			args: []string{
+				"calibrate", "-f", abstainFile, "-i", "jsonl", "--map", ".body", "--label", "urgent=.u",
+			},
+			wantCode: ExitUsage,
+			contains: []string{"so 'abstain_if' does not apply. Drop it"},
+		},
+		{
 			name: "should refuse a request body with an unlabelled rate question",
 			args: []string{
 				"calibrate", "-f", bodyFile, "-i", "jsonl", "--map", ".body", "--label", "mood=.mood",
@@ -305,6 +347,18 @@ func TestCalibrate(t *testing.T) {
 			args:     with("--usage", "-o", "json"),
 			wantCode: ExitUsage,
 			contains: []string{notYet},
+		},
+		{
+			name:     "should accept --usage with --out",
+			args:     with("--usage", "--out", filepath.Join(dir, "usage.jsonl")),
+			wantCode: ExitUsage,
+			contains: []string{notYet},
+		},
+		{
+			name:     "should say in its help that -i is required and hide the default",
+			args:     []string{"calibrate", "--help"},
+			wantCode: ExitOK,
+			contains: []string{"required, jsonl, csv or tsv"},
 		},
 		{
 			name:     "should refuse --out under --print-request",
@@ -335,6 +389,10 @@ func TestCalibrate(t *testing.T) {
 				if !strings.Contains(combined, want) {
 					t.Errorf("output missing %q\nstdout:\n%s\nstderr:\n%s", want, out, errOut)
 				}
+			}
+
+			if strings.Contains(combined, `default "text"`) {
+				t.Errorf("output advertises the text default\n%s", combined)
 			}
 
 			if tc.wantCode != ExitOK && out != "" {
