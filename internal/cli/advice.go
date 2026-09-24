@@ -15,6 +15,13 @@ func advise(err error, model string, validated bool) error {
 		return err
 	}
 
+	if api.Status == http.StatusPaymentRequired {
+		return &advisedError{
+			cause:   err,
+			message: err.Error() + ". Add credits to the account this key belongs to",
+		}
+	}
+
 	if unknownModel(api, model) {
 		return &advisedError{
 			cause:   err,
@@ -53,7 +60,8 @@ func unknownModel(api *jev.APIError, model string) bool {
 		return false
 	}
 
-	return strings.Contains(api.Error(), "Unknown model")
+	// TypeSafe says Unknown model, and OpenRouter says the model does not exist.
+	return strings.Contains(api.Error(), "Unknown model") || strings.Contains(api.Error(), "does not exist")
 }
 
 func countRejected(api *jev.APIError) bool {

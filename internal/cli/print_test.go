@@ -743,6 +743,77 @@ func TestPrintRequest(t *testing.T) {
 			})
 		}
 	})
+
+	providers := []struct {
+		name     string
+		args     []string
+		env      map[string]string
+		wantCode int
+		want     string
+	}{
+		{
+			name:     "should fail an unknown provider with exit 2 before printing",
+			args:     []string{"--provider", "nope", "--ask", "urgent=is this urgent", "--print-request"},
+			wantCode: ExitUsage,
+		},
+		{
+			name:     "should fail an unknown ONESIE_PROVIDER with exit 2 before printing",
+			args:     []string{"--ask", "urgent=is this urgent", "--print-request"},
+			env:      map[string]string{"ONESIE_PROVIDER": "nope"},
+			wantCode: ExitUsage,
+		},
+		{
+			name:     "should ignore TYPESAFE_DEFAULT_MODEL under openrouter",
+			args:     []string{"--provider", "openrouter", "--ask", "urgent=is this urgent", "--print-request"},
+			env:      map[string]string{jev.EnvDefaultModel: "onesie-1.2.0"},
+			wantCode: ExitOK,
+			want:     `"model":"jev-latest"`,
+		},
+		{
+			name:     "should keep TYPESAFE_DEFAULT_MODEL under typesafe",
+			args:     []string{"--ask", "urgent=is this urgent", "--print-request"},
+			env:      map[string]string{jev.EnvDefaultModel: "onesie-1.2.0"},
+			wantCode: ExitOK,
+			want:     `"model":"onesie-1.2.0"`,
+		},
+	}
+
+	for _, tc := range providers {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			env := map[string]string{"ONESIE_CONFIG_DIR": t.TempDir()}
+			for name, value := range tc.env {
+				env[name] = value
+			}
+
+			var out, errOut bytes.Buffer
+
+			root := NewRootCmd(
+				BuildInfo{Version: "1.2.3"},
+				WithStdin(strings.NewReader("the server is down")),
+				WithStdinTTY(false),
+				WithStdoutTTY(false),
+				WithLookupEnv(lookupFrom(env)),
+			)
+
+			root.SetOut(&out)
+			root.SetErr(&errOut)
+			root.SetArgs(tc.args)
+
+			if code := Execute(t.Context(), root); code != tc.wantCode {
+				t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, tc.wantCode, errOut.String())
+			}
+
+			if tc.wantCode != ExitOK && out.Len() != 0 {
+				t.Errorf("stdout = %q, want nothing", out.String())
+			}
+
+			if !strings.Contains(out.String(), tc.want) {
+				t.Errorf("stdout = %q, want it to contain %s", out.String(), tc.want)
+			}
+		})
+	}
 }
 
 // runRecorded runs the given arguments against a stub that answers one noul, and returns the

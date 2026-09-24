@@ -39,7 +39,7 @@ func TestAuthStatus(t *testing.T) {
 		{
 			name:     "should report the environment",
 			env:      map[string]string{jev.EnvAPIKey: "SECRET-ENV"},
-			wantOut:  "source: env\n",
+			wantOut:  "provider: typesafe\nsource: env TYPESAFE_API_KEY\n",
 			wantCode: ExitOK,
 		},
 		{
@@ -50,7 +50,7 @@ func TestAuthStatus(t *testing.T) {
 		},
 		{
 			name:     "should report none and exit 3",
-			wantOut:  "source: none\n",
+			wantOut:  "provider: typesafe\nsource: none\n",
 			wantCode: ExitAuth,
 		},
 		{
@@ -67,14 +67,14 @@ func TestAuthStatus(t *testing.T) {
 			file:     `{"providers":{"typesafe":{"api_key":"SECRET-FILE"}}}`,
 			fileMode: 0o644,
 			unixOnly: true,
-			wantOut:  "source: env\n",
+			wantOut:  "provider: typesafe\nsource: env TYPESAFE_API_KEY\n",
 			wantCode: ExitOK,
 		},
 		{
 			name:     "should prefer the environment over the file",
 			env:      map[string]string{jev.EnvAPIKey: "SECRET-ENV"},
 			file:     `{"providers":{"typesafe":{"api_key":"SECRET-FILE"}}}`,
-			wantOut:  "source: env\n",
+			wantOut:  "provider: typesafe\nsource: env TYPESAFE_API_KEY\n",
 			wantCode: ExitOK,
 		},
 	}
@@ -103,7 +103,7 @@ func TestAuthStatus(t *testing.T) {
 
 			want := tc.wantOut
 			if tc.wantPath {
-				want = "source: file " + path + "\n"
+				want = "provider: typesafe\nsource: file " + path + "\n"
 			}
 
 			if out != want {
@@ -120,6 +120,98 @@ func TestAuthStatus(t *testing.T) {
 
 			if !strings.Contains(errOut, tc.wantErr) {
 				t.Errorf("stderr = %q, want it to contain %q", errOut, tc.wantErr)
+			}
+		})
+	}
+
+	providers := []struct {
+		name     string
+		args     []string
+		env      map[string]string
+		file     string
+		wantOut  string
+		wantPath bool
+		wantCode int
+	}{
+		{
+			name:     "should report the OpenRouter env var under ONESIE_PROVIDER",
+			args:     []string{"auth", "status"},
+			env:      map[string]string{"ONESIE_PROVIDER": "openrouter", "OPENROUTER_API_KEY": "SECRET-OR"},
+			wantOut:  "provider: openrouter\nsource: env OPENROUTER_API_KEY\n",
+			wantCode: ExitOK,
+		},
+		{
+			name:     "should accept --provider before the subcommand",
+			args:     []string{"--provider", "openrouter", "auth", "status"},
+			env:      map[string]string{"OPENROUTER_API_KEY": "SECRET-OR"},
+			wantOut:  "provider: openrouter\nsource: env OPENROUTER_API_KEY\n",
+			wantCode: ExitOK,
+		},
+		{
+			name:     "should accept --provider after the subcommand",
+			args:     []string{"auth", "status", "--provider", "openrouter"},
+			env:      map[string]string{"OPENROUTER_API_KEY": "SECRET-OR"},
+			wantOut:  "provider: openrouter\nsource: env OPENROUTER_API_KEY\n",
+			wantCode: ExitOK,
+		},
+		{
+			name:     "should let --provider beat ONESIE_PROVIDER",
+			args:     []string{"--provider", "typesafe", "auth", "status"},
+			env:      map[string]string{"ONESIE_PROVIDER": "openrouter", jev.EnvAPIKey: "SECRET-TS"},
+			wantOut:  "provider: typesafe\nsource: env TYPESAFE_API_KEY\n",
+			wantCode: ExitOK,
+		},
+		{
+			name:     "should never fall back to the TypeSafe key under openrouter",
+			args:     []string{"--provider", "openrouter", "auth", "status"},
+			env:      map[string]string{jev.EnvAPIKey: "SECRET-TS"},
+			file:     `{"providers":{"typesafe":{"api_key":"SECRET-FILE"}}}`,
+			wantOut:  "provider: openrouter\nsource: none\n",
+			wantCode: ExitAuth,
+		},
+		{
+			name:     "should read the openrouter entry from the file",
+			args:     []string{"--provider", "openrouter", "auth", "status"},
+			file:     `{"providers":{"openrouter":{"api_key":"SECRET-OR"},"typesafe":{"api_key":"SECRET-FILE"}}}`,
+			wantPath: true,
+			wantCode: ExitOK,
+		},
+		{
+			name:     "should fail an unknown provider from the flag with exit 2",
+			args:     []string{"--provider", "nope", "auth", "status"},
+			wantCode: ExitUsage,
+		},
+		{
+			name:     "should fail an unknown provider from ONESIE_PROVIDER with exit 2",
+			args:     []string{"auth", "status"},
+			env:      map[string]string{"ONESIE_PROVIDER": "nope"},
+			wantCode: ExitUsage,
+		},
+	}
+
+	for _, tc := range providers {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			path := credentialFixture(t, tc.file, 0)
+
+			out, errOut, code := runAuth(t, tc.args,
+				WithCredentialPath(fixedPath(path)),
+				WithLookupEnv(lookupFrom(tc.env)))
+
+			assertNoSecret(t, out, errOut)
+
+			if code != tc.wantCode {
+				t.Errorf("exit code = %d, want %d\nstderr:\n%s", code, tc.wantCode, errOut)
+			}
+
+			want := tc.wantOut
+			if tc.wantPath {
+				want = "provider: openrouter\nsource: file " + path + "\n"
+			}
+
+			if out != want {
+				t.Errorf("stdout = %q, want %q", out, want)
 			}
 		})
 	}
@@ -163,6 +255,66 @@ func TestAuthClear(t *testing.T) {
 
 			if _, err := os.Lstat(path); !errors.Is(err, os.ErrNotExist) {
 				t.Errorf("the credential file is still there, stat error = %v", err)
+			}
+		})
+	}
+
+	entries := []struct {
+		name     string
+		args     []string
+		file     string
+		wantFile string
+	}{
+		{
+			name:     "should remove only the chosen provider's entry",
+			args:     []string{"--provider", "openrouter", "auth", "clear"},
+			file:     `{"providers":{"openrouter":{"api_key":"SECRET-OR"},"typesafe":{"api_key":"SECRET-FILE"}}}`,
+			wantFile: `{"providers":{"typesafe":{"api_key":"SECRET-FILE"}}}`,
+		},
+		{
+			name:     "should leave the file alone when the provider has no entry",
+			args:     []string{"--provider", "openrouter", "auth", "clear"},
+			file:     `{"providers":{"typesafe":{"api_key":"SECRET-FILE"}}}`,
+			wantFile: `{"providers":{"typesafe":{"api_key":"SECRET-FILE"}}}`,
+		},
+		{
+			name: "should delete the file once the last entry is removed",
+			args: []string{"--provider", "openrouter", "auth", "clear"},
+			file: `{"providers":{"openrouter":{"api_key":"SECRET-OR"}}}`,
+		},
+	}
+
+	for _, tc := range entries {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			path := credentialFixture(t, tc.file, 0)
+
+			out, errOut, code := runAuth(t, tc.args,
+				WithCredentialPath(fixedPath(path)),
+				WithLookupEnv(lookupFrom(nil)))
+
+			assertNoSecret(t, out, errOut)
+
+			if code != ExitOK {
+				t.Errorf("exit code = %d, want %d\nstderr:\n%s", code, ExitOK, errOut)
+			}
+
+			data, err := os.ReadFile(path)
+			if tc.wantFile == "" {
+				if !errors.Is(err, os.ErrNotExist) {
+					t.Errorf("the credential file is still there, read error = %v", err)
+				}
+
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("reading the credential file: %v", err)
+			}
+
+			if strings.TrimSpace(string(data)) != tc.wantFile {
+				t.Error("the credential file does not hold the expected entries")
 			}
 		})
 	}
@@ -366,6 +518,65 @@ func TestAuthSet(t *testing.T) {
 			assertStored(t, path, tc.wantKey, tc.wantBase)
 		})
 	}
+
+	providers := []struct {
+		name     string
+		args     []string
+		existing string
+		wantFile string
+		wantErr  string
+	}{
+		{
+			name:     "should add the chosen provider's entry and keep the others",
+			args:     []string{"--provider", "openrouter", "auth", "set"},
+			existing: `{"providers":{"typesafe":{"api_key":"SECRET-FILE"}}}`,
+			wantFile: `{"providers":{"openrouter":{"api_key":"SECRET-OR"},"typesafe":{"api_key":"SECRET-FILE"}}}`,
+		},
+		{
+			name:     "should store a base url in the chosen provider's entry",
+			args:     []string{"--provider", "openrouter", "auth", "set", "--base-url", "https://proxy.example"},
+			wantFile: `{"providers":{"openrouter":{"api_key":"SECRET-OR","base_url":"https://proxy.example"}}}`,
+		},
+		{
+			name:     "should replace a file it cannot read and say so",
+			args:     []string{"--provider", "openrouter", "auth", "set"},
+			existing: `not json`,
+			wantFile: `{"providers":{"openrouter":{"api_key":"SECRET-OR"}}}`,
+			wantErr:  "which could not be read. Any other provider's key in it was dropped",
+		},
+	}
+
+	for _, tc := range providers {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			path := credentialFixture(t, tc.existing, 0)
+
+			out, errOut, code := runAuth(t, tc.args,
+				WithStdin(strings.NewReader("SECRET-OR\n")),
+				WithCredentialPath(fixedPath(path)),
+				WithLookupEnv(lookupFrom(nil)))
+
+			assertNoSecret(t, out, errOut)
+
+			if code != ExitOK {
+				t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, ExitOK, errOut)
+			}
+
+			data, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatalf("reading the credential file: %v", err)
+			}
+
+			if strings.TrimSpace(string(data)) != tc.wantFile {
+				t.Error("the credential file does not hold the expected entries")
+			}
+
+			if tc.wantErr != "" && !strings.Contains(errOut, tc.wantErr) {
+				t.Errorf("stderr = %q, want it to contain %q", errOut, tc.wantErr)
+			}
+		})
+	}
 }
 
 func TestFirstLine(t *testing.T) {
@@ -459,7 +670,7 @@ func TestAuthTest(t *testing.T) {
 			name:     "should print the source and the model count",
 			env:      map[string]string{jev.EnvAPIKey: "SECRET-ENV"},
 			response: listing,
-			wantOut:  "source: env\nmodels: 2\n",
+			wantOut:  "provider: typesafe\nsource: env TYPESAFE_API_KEY\nmodels: 2\n",
 			wantCode: ExitOK,
 		},
 		{
@@ -483,6 +694,14 @@ func TestAuthTest(t *testing.T) {
 			status:   http.StatusForbidden,
 			response: `{"error":{"message":"forbidden"}}`,
 			wantCode: ExitAuth,
+		},
+		{
+			name:     "should exit 3 and suggest credits on a 402",
+			env:      map[string]string{"ONESIE_PROVIDER": "openrouter", "OPENROUTER_API_KEY": "SECRET-OR"},
+			status:   http.StatusPaymentRequired,
+			response: `{"error":{"message":"Insufficient credits","code":402}}`,
+			wantCode: ExitAuth,
+			wantErr:  "onesie: 402 Insufficient credits. Add credits to the account this key belongs to",
 		},
 		{
 			name:      "should exit 5 when the server cannot be reached",
@@ -535,7 +754,7 @@ func TestAuthTest(t *testing.T) {
 
 			want := tc.wantOut
 			if tc.wantPath {
-				want = "source: file " + path + "\nmodels: 2\n"
+				want = "provider: typesafe\nsource: file " + path + "\nmodels: 2\n"
 			}
 
 			if out != want {
@@ -615,7 +834,7 @@ func TestStoredOptions(t *testing.T) {
 			}
 
 			settings := rootSettings{lookupEnv: lookupFrom(env)}
-			source := keySource{name: sourceFile, key: "SECRET-FILE", baseURL: stored}
+			source := keySource{name: sourceFile, provider: jev.TypeSafe(), key: "SECRET-FILE", baseURL: stored}
 
 			// The two options defaultClientFactory installs from the flags, so the unit under test
 			// sees the same precedence a real run would build.
@@ -638,6 +857,19 @@ func TestStoredOptions(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("should ignore TYPESAFE_BASE_URL under openrouter and keep the stored base url", func(t *testing.T) {
+		t.Parallel()
+
+		settings := rootSettings{lookupEnv: lookupFrom(map[string]string{jev.EnvBaseURL: "https://typesafe.example"})}
+		source := keySource{
+			name: sourceFile, provider: jev.OpenRouter(), key: "SECRET-FILE", baseURL: "https://proxy.example",
+		}
+
+		if got := len(storedOptions(settings, &runFlags{}, source)); got != 2 {
+			t.Errorf("storedOptions returned %d options, want the key and the stored base url", got)
+		}
+	})
 }
 
 func TestNewAuthCmd(t *testing.T) {
@@ -687,7 +919,7 @@ func TestNewAuthCmd(t *testing.T) {
 			name: "should reject a question given to auth clear",
 			args: []string{"auth", "clear", "is this urgent"},
 			wantErr: "onesie: auth clear takes no question or state. " +
-				"It deletes the credential file",
+				"It removes the provider's key from the credential file",
 			wantCode: ExitUsage,
 		},
 		{
@@ -855,6 +1087,16 @@ func TestKeySourceString(t *testing.T) {
 			source: keySource{name: sourceNone},
 			want:   "source: none",
 		},
+		{
+			name:   "should name the typesafe env var",
+			source: keySource{name: sourceEnv, provider: jev.TypeSafe(), key: "SECRET-ENV"},
+			want:   "source: env TYPESAFE_API_KEY",
+		},
+		{
+			name:   "should name the openrouter env var",
+			source: keySource{name: sourceEnv, provider: jev.OpenRouter(), key: "SECRET-ENV"},
+			want:   "source: env OPENROUTER_API_KEY",
+		},
 	}
 
 	for _, tc := range tests {
@@ -918,7 +1160,7 @@ func TestCredentialPath(t *testing.T) {
 				t.Errorf("exit code = %d, want %d\nstderr:\n%s", code, ExitOK, errOut)
 			}
 
-			if want := "source: file " + path + "\n"; out != want {
+			if want := "provider: typesafe\nsource: file " + path + "\n"; out != want {
 				t.Errorf("stdout = %q, want %q", out, want)
 			}
 		})
@@ -988,6 +1230,24 @@ func TestNewRootCmdFileDrivenClient(t *testing.T) {
 			args:     []string{"is this urgent", "-r"},
 			wantCode: ExitAuth,
 			wantErr:  "is accessible by others, mode 644",
+		},
+		{
+			name: "should send the OpenRouter key under ONESIE_PROVIDER",
+			env: map[string]string{
+				"ONESIE_PROVIDER": "openrouter", "OPENROUTER_API_KEY": "SECRET-OR", jev.EnvAPIKey: "SECRET-ENV",
+			},
+			args:     []string{"is this urgent", "-r", "--base-url", "WANTED"},
+			wantCode: ExitOK,
+			wantAuth: "Bearer SECRET-OR",
+			wanted:   1,
+		},
+		{
+			name:     "should not send the TypeSafe file key under openrouter",
+			fileKey:  "SECRET-FILE",
+			fileBase: "UNWANTED",
+			args:     []string{"is this urgent", "-r", "--provider", "openrouter", "--base-url", "WANTED"},
+			wantCode: ExitUsage,
+			wantErr:  "OPENROUTER_API_KEY",
 		},
 		{
 			name:     "should let --api-key outrank the file",

@@ -11,7 +11,13 @@ import (
 
 func defaultClientFactory(info BuildInfo, flags *runFlags, settings rootSettings) clientFactory {
 	return func(_ context.Context, extra ...jev.Option) (*jev.Client, error) {
+		provider, err := resolveProvider(settings, flags)
+		if err != nil {
+			return nil, err
+		}
+
 		opts := []jev.Option{
+			jev.WithProvider(provider),
 			jev.WithUserAgent("onesie/" + info.Version),
 			jev.WithEnv(settings.lookupEnv),
 		}
@@ -103,3 +109,12 @@ func pooled(jobs int) http.RoundTripper {
 }
 
 type clientFactory func(ctx context.Context, opts ...jev.Option) (*jev.Client, error)
+
+func resolveModel(settings rootSettings, flags *runFlags, model string) (string, error) {
+	provider, err := resolveProvider(settings, flags)
+	if err != nil {
+		return "", err
+	}
+
+	return provider.ResolveModel(model, settings.lookupEnv), nil
+}

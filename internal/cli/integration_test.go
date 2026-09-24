@@ -849,7 +849,7 @@ func TestAuthTestIntegration(t *testing.T) {
 			t.Errorf("auth test output = %q, want it to name %s", out, want)
 		}
 
-		count, err := strconv.Atoi(strings.TrimPrefix(nonEmptyLines(out)[1], "models: "))
+		count, err := strconv.Atoi(strings.TrimPrefix(nonEmptyLines(out)[2], "models: "))
 		if err != nil {
 			t.Fatalf("parsing the model count from %q: %v", out, err)
 		}

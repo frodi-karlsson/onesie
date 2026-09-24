@@ -68,7 +68,7 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 	root := &cobra.Command{
 		Use:   "onesie [question]",
 		Short: "Ask Jev typed questions about state on stdin",
-		Long: "onesie is a Unix filter over the TypeSafe System One API.\n\n" +
+		Long: "onesie is a Unix filter over the System One API, served by TypeSafe or OpenRouter.\n\n" +
 			"State arrives on stdin, typed answers leave on stdout, and the exit status is " +
 			"usable in a conditional.\n\n" +
 			"A question that begins with a dash needs -- before it, with any flags placed " +
@@ -90,6 +90,11 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 			// to run, since -i request carries its own.
 			if cmd.Flags().NFlag() == 0 && len(args) == 0 {
 				return cmd.Help()
+			}
+
+			// Ahead of run, since a dry run builds no client and would otherwise never look at it.
+			if _, err := resolveProvider(settings, flags); err != nil {
+				return err
 			}
 
 			return run(cmd, settings, recorder.Events(), positional, flags)
@@ -119,8 +124,10 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 	root.Flags().StringVar(&flags.state, flagState, "", "state to evaluate, or - to read stdin")
 	root.Flags().StringVar(&flags.stateFile, flagStateFile, "", "read the state from this file")
 	root.Flags().StringVarP(&flags.model, flagModel, "m", "", "model override")
+	root.PersistentFlags().StringVar(&flags.provider, "provider", "",
+		"typesafe or openrouter. Defaults to ONESIE_PROVIDER, then typesafe")
 	root.Flags().StringVar(&flags.apiKey, "api-key", "",
-		"api key. Prefer TYPESAFE_API_KEY or onesie auth set, since argv is visible in ps")
+		"api key. Prefer TYPESAFE_API_KEY, OPENROUTER_API_KEY or onesie auth set, since argv is visible in ps")
 	root.Flags().StringVar(&flags.baseURL, flagBaseURL, "", "api root override")
 	root.Flags().StringVarP(&flags.file, "file", "f", "", "question file or request body")
 	root.Flags().BoolVar(&flags.replace, "replace", false, "--ask overrides an id from -f")

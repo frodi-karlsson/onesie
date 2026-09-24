@@ -134,8 +134,12 @@ func run(
 
 	// After the state is resolved, so the body carries the state a real run would send.
 	if flags.printRequest {
-		return printRequest(cmd.OutOrStdout(), built.Questions, resolved,
-			jev.TypeSafe().ResolveModel(built.Model, settings.lookupEnv))
+		model, err := resolveModel(settings, flags, built.Model)
+		if err != nil {
+			return err
+		}
+
+		return printRequest(cmd.OutOrStdout(), built.Questions, resolved, model)
 	}
 
 	// Checked here rather than at write time, so a taken key costs no request. Section 11 opens
@@ -215,7 +219,11 @@ func stream(
 	}
 
 	questions := wireAll(built.Questions)
-	model := jev.TypeSafe().ResolveModel(built.Model, settings.lookupEnv)
+
+	model, err := resolveModel(settings, flags, built.Model)
+	if err != nil {
+		return err
+	}
 	source := input.NewStream(settings.stdin, inputMode, flags.skipBlank)
 	out := cmd.OutOrStdout()
 	merge := merging(flags)
@@ -426,7 +434,11 @@ func ask(
 	}
 
 	questions := wireAll(built.Questions)
-	model := jev.TypeSafe().ResolveModel(built.Model, settings.lookupEnv)
+
+	model, err := resolveModel(settings, flags, built.Model)
+	if err != nil {
+		return err
+	}
 
 	record, err := evaluate(
 		cmd.Context(), client, built, model, questions, resolved.Wire, flags.usage, stats)
@@ -689,6 +701,7 @@ func outputName(flags *runFlags) string {
 }
 
 type runFlags struct {
+	provider  string
 	output    string
 	raw       bool
 	quiet     bool

@@ -21,6 +21,8 @@ const (
 	sourceEnv  = "env"
 	sourceFile = "file"
 	sourceNone = "none"
+
+	envProvider = "ONESIE_PROVIDER"
 )
 
 func newAuthCmd(settings rootSettings, flags *runFlags) *cobra.Command {
@@ -36,15 +38,15 @@ func newAuthCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 		},
 	}
 
-	cmd.AddCommand(newAuthSetCmd(settings))
+	cmd.AddCommand(newAuthSetCmd(settings, flags))
 	cmd.AddCommand(newAuthStatusCmd(settings, flags))
 	cmd.AddCommand(newAuthTestCmd(settings, flags))
-	cmd.AddCommand(newAuthClearCmd(settings))
+	cmd.AddCommand(newAuthClearCmd(settings, flags))
 
 	return cmd
 }
 
-func newAuthSetCmd(settings rootSettings) *cobra.Command {
+func newAuthSetCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 	baseURL := ""
 
 	cmd := &cobra.Command{
@@ -52,7 +54,7 @@ func newAuthSetCmd(settings rootSettings) *cobra.Command {
 		Short: "Read a key from a prompt or stdin and store it",
 		Args:  authNoArgs("set", "It reads the key from a prompt or stdin"),
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return authSet(cmd, settings, baseURL, cmd.Flags().Changed(flagBaseURL))
+			return authSet(cmd, settings, flags, baseURL, cmd.Flags().Changed(flagBaseURL))
 		},
 	}
 
@@ -61,12 +63,17 @@ func newAuthSetCmd(settings rootSettings) *cobra.Command {
 	return cmd
 }
 
-func authSet(cmd *cobra.Command, settings rootSettings, baseURL string, hasBaseURL bool) error {
+func authSet(cmd *cobra.Command, settings rootSettings, flags *runFlags, baseURL string, hasBaseURL bool) error {
+	provider, err := resolveProvider(settings, flags)
+	if err != nil {
+		return err
+	}
+
 	// Ahead of the read, so a typo costs the user nothing and leaves no file behind. jev.New owns
 	// the same check, and a second one here would be a second message to keep in step.
 	if hasBaseURL {
-		if err := jev.ValidateBaseURL(baseURL); err != nil {
-			return err
+		if invalid := jev.ValidateBaseURL(baseURL); invalid != nil {
+			return invalid
 		}
 	}
 
@@ -95,11 +102,24 @@ func authSet(cmd *cobra.Command, settings rootSettings, baseURL string, hasBaseU
 		entry.BaseURL = baseURL
 	}
 
-	file := creds.File{Providers: map[string]creds.Entry{"typesafe": entry}}
+	file, found, loadErr := settings.credStore.Load(path)
+	if loadErr != nil || !found {
+		file = creds.File{Providers: map[string]creds.Entry{}}
+	}
+
+	file.Providers[provider.Name] = entry
 
 	warning, err := settings.credStore.Save(path, file)
 	if err != nil {
 		return err
+	}
+
+	if loadErr != nil {
+		_, printErr := fmt.Fprintln(cmd.ErrOrStderr(), "warning: replaced "+path+
+			", which could not be read. Any other provider's key in it was dropped")
+		if printErr != nil {
+			return printErr
+		}
 	}
 
 	if warning != nil {
@@ -188,7 +208,8 @@ func authStatus(cmd *cobra.Command, settings rootSettings, flags *runFlags) erro
 		return err
 	}
 
-	if _, printErr := fmt.Fprintln(cmd.OutOrStdout(), source); printErr != nil {
+	if _, printErr := fmt.Fprintf(cmd.OutOrStdout(), "provider: %s\n%s\n",
+		source.provider.Name, source); printErr != nil {
 		return printErr
 	}
 
@@ -227,11 +248,11 @@ func authTest(cmd *cobra.Command, settings rootSettings, flags *runFlags) error 
 	// The same request --list-models makes, which costs no tokens.
 	models, err := client.ListModels(cmd.Context())
 	if err != nil {
-		return err
+		return advise(err, "", false)
 	}
 
 	out := cmd.OutOrStdout()
-	if _, printErr := fmt.Fprintln(out, source); printErr != nil {
+	if _, printErr := fmt.Fprintf(out, "provider: %s\n%s\n", source.provider.Name, source); printErr != nil {
 		return printErr
 	}
 
@@ -253,40 +274,76 @@ func storedOptions(settings rootSettings, flags *runFlags, source keySource) []j
 		return opts
 	}
 
-	if value, ok := settings.lookupEnv(jev.EnvBaseURL); ok && strings.TrimSpace(value) != "" {
-		return opts
+	if name := source.provider.EnvBaseURL; name != "" {
+		if value, ok := settings.lookupEnv(name); ok && strings.TrimSpace(value) != "" {
+			return opts
+		}
 	}
 
 	return append(opts, jev.WithBaseURL(source.baseURL))
 }
 
-func newAuthClearCmd(settings rootSettings) *cobra.Command {
+func newAuthClearCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 	return &cobra.Command{
 		Use:   "clear",
-		Short: "Delete the credential file",
-		Args:  authNoArgs("clear", "It deletes the credential file"),
+		Short: "Remove the provider's key from the credential file",
+		Args:  authNoArgs("clear", "It removes the provider's key from the credential file"),
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return authClear(settings)
+			return authClear(settings, flags)
 		},
 	}
 }
 
-func authClear(settings rootSettings) error {
+func authClear(settings rootSettings, flags *runFlags) error {
+	provider, err := resolveProvider(settings, flags)
+	if err != nil {
+		return err
+	}
+
 	path, err := settings.credPath()
 	if err != nil {
 		return err
 	}
 
-	return settings.credStore.Clear(path)
+	file, found, err := settings.credStore.Load(path)
+	if err != nil {
+		return settings.credStore.Clear(path)
+	}
+
+	if _, ok := file.Providers[provider.Name]; !found || !ok {
+		return nil
+	}
+
+	delete(file.Providers, provider.Name)
+
+	if len(file.Providers) == 0 {
+		return settings.credStore.Clear(path)
+	}
+
+	warning, err := settings.credStore.Save(path, file)
+	if err != nil {
+		return err
+	}
+
+	if warning != nil {
+		return warning
+	}
+
+	return nil
 }
 
 func resolveKey(settings rootSettings, flags *runFlags) (keySource, error) {
-	if key := strings.TrimSpace(flags.apiKey); key != "" {
-		return keySource{name: sourceFlag, key: key}, nil
+	provider, err := resolveProvider(settings, flags)
+	if err != nil {
+		return keySource{}, err
 	}
 
-	if value, ok := settings.lookupEnv(jev.EnvAPIKey); ok && strings.TrimSpace(value) != "" {
-		return keySource{name: sourceEnv, key: strings.TrimSpace(value)}, nil
+	if key := strings.TrimSpace(flags.apiKey); key != "" {
+		return keySource{name: sourceFlag, provider: provider, key: key}, nil
+	}
+
+	if value, ok := settings.lookupEnv(provider.EnvAPIKey); ok && strings.TrimSpace(value) != "" {
+		return keySource{name: sourceEnv, provider: provider, key: strings.TrimSpace(value)}, nil
 	}
 
 	path, err := settings.credPath()
@@ -301,17 +358,30 @@ func resolveKey(settings rootSettings, flags *runFlags) (keySource, error) {
 		return keySource{}, err
 	}
 
-	entry, ok := file.Providers["typesafe"]
+	entry, ok := file.Providers[provider.Name]
 	if !found || !ok {
-		return keySource{name: sourceNone}, nil
+		return keySource{name: sourceNone, provider: provider}, nil
 	}
 
-	return keySource{name: sourceFile, path: path, key: entry.APIKey, baseURL: entry.BaseURL}, nil
+	return keySource{
+		name: sourceFile, provider: provider, path: path, key: entry.APIKey, baseURL: entry.BaseURL,
+	}, nil
+}
+
+func resolveProvider(settings rootSettings, flags *runFlags) (jev.Provider, error) {
+	if name := strings.TrimSpace(flags.provider); name != "" {
+		return jev.ProviderNamed(name)
+	}
+
+	value, _ := settings.lookupEnv(envProvider)
+
+	return jev.ProviderNamed(value)
 }
 
 type keySource struct {
-	name string
-	path string
+	name     string
+	provider jev.Provider
+	path     string
 	// key is never printed. String is what every caller formats, so a stray %v of a keySource
 	// reports the source rather than the value it carries.
 	key     string
@@ -319,8 +389,11 @@ type keySource struct {
 }
 
 func (s keySource) String() string {
-	if s.name == sourceFile {
+	switch s.name {
+	case sourceFile:
 		return "source: " + sourceFile + " " + s.path
+	case sourceEnv:
+		return "source: " + sourceEnv + " " + s.provider.EnvAPIKey
 	}
 
 	return "source: " + s.name
