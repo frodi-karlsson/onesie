@@ -20,6 +20,8 @@ func Write(w io.Writer, mode Mode, rec Record) error {
 		return writeRaw(w, rec)
 	case Table:
 		return WriteTable(w, rec, fallbackWidth)
+	case Markdown:
+		return WriteMarkdown(w, rec, MarkdownOptions{})
 	case CSV, TSV:
 		ids := make([]string, 0, len(rec.Answers))
 		for _, named := range rec.Answers {
@@ -48,6 +50,8 @@ func ParseMode(name string, tty, streaming, merge bool) (Mode, error) {
 		return CSV, nil
 	case "tsv":
 		return TSV, nil
+	case "markdown", "md":
+		return Markdown, nil
 	case "", "auto":
 		if tty && !streaming && !merge {
 			return Table, nil
@@ -56,7 +60,7 @@ func ParseMode(name string, tty, streaming, merge bool) (Mode, error) {
 		return JSON, nil
 	default:
 		return JSON, fmt.Errorf(
-			"onesie: -o takes auto, json, values, table, raw, csv or tsv, got '%s'", name)
+			"onesie: -o takes auto, json, values, table, raw, csv, tsv or markdown, got '%s'", name)
 	}
 }
 
@@ -76,6 +80,8 @@ const (
 	CSV
 	// TSV is CSV with tabs.
 	TSV
+	// Markdown is a GitHub flavoured table for a PR comment or a job summary.
+	Markdown
 )
 
 // String names the mode as -o spells it.
@@ -93,6 +99,8 @@ func (m Mode) String() string {
 		return "csv"
 	case TSV:
 		return "tsv"
+	case Markdown:
+		return "markdown"
 	default:
 		return fmt.Sprintf("Mode(%d)", int(m))
 	}

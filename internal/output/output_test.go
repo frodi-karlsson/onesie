@@ -308,6 +308,12 @@ func TestParseMode(t *testing.T) {
 		{name: "should accept an explicit mode", flag: "values", want: output.Values},
 		{name: "should accept csv", flag: "csv", want: output.CSV},
 		{name: "should accept tsv", flag: "tsv", want: output.TSV},
+		{name: "should accept markdown", flag: "markdown", want: output.Markdown},
+		{name: "should accept md as the short form of markdown", flag: "md", want: output.Markdown},
+		{
+			name: "should never pick markdown for auto on a terminal",
+			flag: "auto", tty: true, want: output.Table,
+		},
 		{name: "should reject an unknown mode", flag: "yaml", wantErr: true},
 	}
 
@@ -350,6 +356,7 @@ func TestMode_String(t *testing.T) {
 		{name: "should name raw as -o spells it", mode: output.Raw, want: "raw"},
 		{name: "should name csv as -o spells it", mode: output.CSV, want: "csv"},
 		{name: "should name tsv as -o spells it", mode: output.TSV, want: "tsv"},
+		{name: "should name markdown as -o spells it", mode: output.Markdown, want: "markdown"},
 		{name: "should name a mode outside the set by its number", mode: output.Mode(99), want: "Mode(99)"},
 	}
 

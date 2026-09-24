@@ -155,7 +155,7 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 		root.Flags().Var(recorder.Flag(name), name, help)
 	}
 
-	root.Flags().StringVarP(&flags.output, "output", "o", "", "auto, json, values, table, raw, csv or tsv")
+	root.Flags().StringVarP(&flags.output, "output", "o", "", "auto, json, values, table, raw, csv, tsv or markdown")
 	root.Flags().BoolVarP(&flags.raw, "raw", "r", false, "print the bare scalar")
 	root.Flags().BoolVarP(&flags.quiet, "quiet", "q", false,
 		"suppress output, the exit code carries the answer")

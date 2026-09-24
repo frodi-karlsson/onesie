@@ -676,7 +676,7 @@ func ask(
 		// written into the pipe the caller was closing reports a fault that never happened.
 		if !errors.Is(err, context.Canceled) {
 			if writeErr := writeFailure(
-				cmd, settings, outputMode, flags, resolved, record, gate != nil); writeErr != nil {
+				cmd, settings, outputMode, flags, resolved, record, gate, abstain); writeErr != nil {
 				return writeErr
 			}
 		}
@@ -700,7 +700,7 @@ func ask(
 	}
 
 	// The record prints whatever the assertion said, §17.4, and the exit code follows it.
-	if writeErr := writeRecord(cmd, settings, outputMode, flags, resolved, record, gate != nil); writeErr != nil {
+	if writeErr := writeRecord(cmd, settings, outputMode, flags, resolved, record, gate, abstain); writeErr != nil {
 		return writeErr
 	}
 
@@ -748,14 +748,15 @@ func writeFailure(
 	flags *runFlags,
 	resolved input.Resolved,
 	record output.Record,
-	withAssert bool,
+	gate *assert.Expr,
+	abstain *assert.Expr,
 ) error {
 	// -q suppresses output entirely, so the exit code carries the whole result.
 	if flags.quiet {
 		return nil
 	}
 
-	return writeRecord(cmd, settings, mode, flags, resolved, record, withAssert)
+	return writeRecord(cmd, settings, mode, flags, resolved, record, gate, abstain)
 }
 
 func writeRecord(
@@ -765,15 +766,20 @@ func writeRecord(
 	flags *runFlags,
 	resolved input.Resolved,
 	record output.Record,
-	withAssert bool,
+	gate *assert.Expr,
+	abstain *assert.Expr,
 ) error {
+	if mode == output.Markdown {
+		return output.WriteMarkdown(cmd.OutOrStdout(), record, markdownOptions(gate, abstain))
+	}
+
 	if mode == output.CSV || mode == output.TSV {
 		built := &plan.Plan{}
 		for _, named := range record.Answers {
 			built.Questions = append(built.Questions, plan.Question{ID: named.ID})
 		}
 
-		return delimited(cmd.OutOrStdout(), mode, built, withAssert, false, flags).Write(record, nil, nil)
+		return delimited(cmd.OutOrStdout(), mode, built, gate != nil, false, flags).Write(record, nil, nil)
 	}
 
 	if merging(flags) {
@@ -786,6 +792,10 @@ func writeRecord(
 	}
 
 	return output.Write(cmd.OutOrStdout(), mode, record)
+}
+
+func markdownOptions(gate, abstain *assert.Expr) output.MarkdownOptions {
+	return output.MarkdownOptions{Assert: gate.Source(), Abstain: abstain.Source()}
 }
 
 func delimited(
