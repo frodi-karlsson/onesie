@@ -105,7 +105,7 @@ func streamRequests(
 	}
 
 	out := cmd.OutOrStdout()
-	source := records(cmd.Context(), settings, inputMode, flags, namer, nil)
+	source := records(cmd.Context(), settings, inputMode, flags, namer, nil, output.JSON)
 
 	result, err := engine.Run(cmd.Context(), engine.Config[namedRecord, []byte]{
 		Source: source,

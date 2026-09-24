@@ -296,7 +296,7 @@ func stream(
 		return err
 	}
 
-	source := records(cmd.Context(), settings, inputMode, flags, namer, book)
+	source := records(cmd.Context(), settings, inputMode, flags, namer, book, outputMode)
 	out := cmd.OutOrStdout()
 	merge := merging(flags)
 	table := delimited(out, outputMode, built, gate != nil, namer != nil && !merge, flags)

@@ -5,10 +5,12 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/frodi-karlsson/onesie/internal/engine"
 	"github.com/frodi-karlsson/onesie/internal/input"
 	"github.com/frodi-karlsson/onesie/internal/jq"
+	"github.com/frodi-karlsson/onesie/internal/output"
 )
 
 func records(
@@ -18,6 +20,7 @@ func records(
 	flags *runFlags,
 	namer *jq.Expr,
 	book *ledger,
+	outputMode output.Mode,
 ) *naming {
 	stream := input.NewStream(settings.stdin, inputMode, flags.skipBlank)
 
@@ -31,6 +34,7 @@ func records(
 		source: engine.Skip[input.Record](stream, flags.resumeSkip),
 		namer:  namer,
 		book:   book,
+		mode:   outputMode,
 		seen:   map[[sha256.Size]byte]int{},
 	}
 }
@@ -48,6 +52,7 @@ type naming struct {
 	source engine.Source[input.Record]
 	namer  *jq.Expr
 	book   *ledger
+	mode   output.Mode
 	seen   map[[sha256.Size]byte]int
 }
 
@@ -92,6 +97,10 @@ func (n *naming) name(rec input.Record) namedRecord {
 
 	text := idText(id)
 
+	if unwritable := unwritableID(n.mode, text); unwritable != nil {
+		return namedRecord{Record: rec, idErr: unwritable}
+	}
+
 	key := sha256.Sum256([]byte(text))
 	if first, taken := n.seen[key]; taken {
 		return namedRecord{
@@ -103,6 +112,17 @@ func (n *naming) name(rec input.Record) namedRecord {
 	n.seen[key] = rec.Line
 
 	return namedRecord{Record: rec, id: id}
+}
+
+func unwritableID(mode output.Mode, text string) error {
+	switch {
+	case mode == output.TSV && strings.ContainsAny(text, "\t\r\n"):
+		return fmt.Errorf("--id: %q holds a tab, carriage return or newline, which -o tsv cannot write", text)
+	case mode == output.CSV && strings.ContainsRune(text, '\r'):
+		return fmt.Errorf("--id: %q holds a carriage return, which -o csv cannot read back", text)
+	default:
+		return nil
+	}
 }
 
 func idOf(ctx context.Context, namer *jq.Expr, rec input.Record) (any, error) {

@@ -30,6 +30,8 @@ func TestResumeLedger(t *testing.T) {
 	byStateKey := fingerprintFor(t, "is this urgent", "typesafe", jev.DefaultModel, "", ".state")
 
 	values := []string{"-i", "jsonl", "-o", "values", "--id", ".id", "--resume"}
+	csvCR := "id,answer,error\n,,\"line 1: --id: \"\"a\\rb\"\" holds a carriage return, which -o csv cannot read back\"\n" +
+		"\"a\nb\",0.5,\n"
 	dupError := `{"error":{"kind":"input","status":null,"message":"line 2: --id: '1' is also the id of line 1"}}`
 
 	tests := []struct {
@@ -277,6 +279,54 @@ func TestResumeLedger(t *testing.T) {
 			}},
 		},
 		{
+			name:    "should refuse a tsv id holding a tab, so it never reads back as another record's id",
+			sidecar: byID,
+			runs: []resumeRun{
+				{
+					args:     []string{"-i", "jsonl", "-o", "tsv", "--id", ".id", "--resume"},
+					input:    "{\"id\":\"a\\tb\"}\n",
+					wantCode: ExitRecords,
+					wantFile: "id\tanswer\terror\n\t\tline 1: --id: \"a\\tb\" holds a tab, carriage return or newline, which -o tsv cannot write\n",
+				},
+				{
+					args:     []string{"-i", "jsonl", "-o", "tsv", "--id", ".id", "--resume"},
+					input:    "{\"id\":\"a\\tb\"}\n{\"id\":\"a b\"}\n",
+					wantCode: ExitRecords,
+					wantFile: "id\tanswer\terror\n\t\tline 1: --id: \"a\\tb\" holds a tab, carriage return or newline, which -o tsv cannot write\n" + "a b\t0.5\t\n",
+					wantSent: []string{`{"id":"a b"}`},
+				},
+			},
+		},
+		{
+			name:    "should refuse a tsv id holding a carriage return or a newline",
+			sidecar: byID,
+			stdin:   "{\"id\":\"a\\rb\"}\n{\"id\":\"a\\nb\"}\n",
+			runs: []resumeRun{{
+				args:     []string{"-i", "jsonl", "-o", "tsv", "--id", ".id", "--resume"},
+				wantCode: ExitRecords,
+				wantFile: "id\tanswer\terror\n\t\tline 1: --id: \"a\\rb\" holds a tab, carriage return or newline, which -o tsv cannot write\n" +
+					"\t\tline 2: --id: \"a\\nb\" holds a tab, carriage return or newline, which -o tsv cannot write\n",
+			}},
+		},
+		{
+			name:    "should refuse a csv id holding a carriage return, which csv reads back without it",
+			sidecar: byID,
+			stdin:   "{\"id\":\"a\\rb\"}\n{\"id\":\"a\\nb\"}\n",
+			runs: []resumeRun{
+				{
+					args:     []string{"-i", "jsonl", "-o", "csv", "--id", ".id", "--resume"},
+					wantCode: ExitRecords,
+					wantFile: csvCR,
+					wantSent: []string{`{"id":"a\nb"}`},
+				},
+				{
+					args:     []string{"-i", "jsonl", "-o", "csv", "--id", ".id", "--resume"},
+					wantCode: ExitRecords,
+					wantFile: csvCR,
+				},
+			},
+		},
+		{
 			name:     "should still resume by position without --id",
 			existing: fileOf("old one\nold two\n"),
 			sidecar:  byPosition,
@@ -326,6 +376,7 @@ func TestResumeLedger(t *testing.T) {
 
 type resumeRun struct {
 	args      []string
+	input     string
 	failFrom  int32
 	slow      bool
 	wantCode  int
@@ -339,6 +390,10 @@ func runResume(t *testing.T, label, path, stdin string, run resumeRun) {
 	t.Helper()
 
 	srv, sent := countingServer(t, run.failFrom, run.slow)
+
+	if run.input != "" {
+		stdin = run.input
+	}
 
 	var out, errOut bytes.Buffer
 
