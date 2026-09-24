@@ -697,6 +697,7 @@ func fingerprintOf(questions []plan.Question, inputs fingerprintInputs) (string,
 		Map       string         `json:"map"`
 		ID        string         `json:"id"`
 		Output    string         `json:"output"`
+		Input     string         `json:"input"`
 		MergeKey  string         `json:"merge_key"`
 		Assert    string         `json:"assert"`
 		AbstainIf string         `json:"abstain_if"`
@@ -708,6 +709,7 @@ func fingerprintOf(questions []plan.Question, inputs fingerprintInputs) (string,
 		Map:       inputs.mapSource,
 		ID:        inputs.idSource,
 		Output:    inputs.output,
+		Input:     inputs.input,
 		MergeKey:  inputs.mergeKey,
 		Assert:    inputs.assert,
 		AbstainIf: inputs.abstainIf,
@@ -727,6 +729,7 @@ type fingerprintInputs struct {
 	mapSource string
 	idSource  string
 	output    string
+	input     string
 	mergeKey  string
 	assert    string
 	abstainIf string

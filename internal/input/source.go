@@ -72,6 +72,28 @@ func (m Mode) Delimited() bool {
 	return m == CSV || m == TSV
 }
 
+// String names the mode as -i spells it.
+func (m Mode) String() string {
+	switch m {
+	case Text:
+		return "text"
+	case JSON:
+		return "json"
+	case JSONL:
+		return "jsonl"
+	case Lines:
+		return "lines"
+	case Request:
+		return "request"
+	case CSV:
+		return "csv"
+	case TSV:
+		return "tsv"
+	default:
+		return fmt.Sprintf("Mode(%d)", int(m))
+	}
+}
+
 const (
 	// Text sends all of stdin as one JSON string.
 	Text Mode = iota

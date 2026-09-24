@@ -32,6 +32,7 @@ func TestOpenOut(t *testing.T) {
 	valuesFor := func(question, provider, model, mapSource, idSource string) string {
 		return fingerprintWith(t, plan.Source{Positional: question}, fingerprintInputs{
 			provider: provider, model: model, mapSource: mapSource, idSource: idSource, output: "values",
+			input: "jsonl",
 		})
 	}
 
@@ -41,9 +42,13 @@ func TestOpenOut(t *testing.T) {
 		Events: []argv.Event{
 			{Name: "pick", Value: "billing,technical"}, {Name: "fallback", Value: "human"},
 		},
-	}, fingerprintInputs{provider: "typesafe", model: jev.DefaultModel, output: "values"})
+	}, fingerprintInputs{provider: "typesafe", model: jev.DefaultModel, output: "values", input: "jsonl"})
 	merged := fingerprintWith(t, plan.Source{Positional: "is this urgent"}, fingerprintInputs{
-		provider: "typesafe", model: jev.DefaultModel, output: "values", mergeKey: "answers",
+		provider: "typesafe", model: jev.DefaultModel, output: "values", input: "jsonl",
+		mergeKey: "answers",
+	})
+	fromLines := fingerprintWith(t, plan.Source{Positional: "is this urgent"}, fingerprintInputs{
+		provider: "typesafe", model: jev.DefaultModel, output: "values", input: "lines",
 	})
 	changed := "the questions, flags or gate changed since"
 	malformed := "does not hold a fingerprint onesie wrote"
@@ -231,6 +236,17 @@ func TestOpenOut(t *testing.T) {
 			wantCode:    ExitUsage,
 			wantFile:    "keep me\n",
 			wantSidecar: matching,
+			wantErr:     changed,
+		},
+		{
+			name:        "should refuse to resume when the input mode changed",
+			existing:    "keep me\n",
+			sidecar:     fromLines,
+			args:        []string{"is this urgent", "-o", "values", "-i", "jsonl", "--resume"},
+			stdin:       input,
+			wantCode:    ExitUsage,
+			wantFile:    "keep me\n",
+			wantSidecar: fromLines,
 			wantErr:     changed,
 		},
 		{
@@ -1054,11 +1070,12 @@ func TestFingerprintOf(t *testing.T) {
 				mapSource: ".body",
 				idSource:  ".id",
 				output:    "csv",
+				input:     "jsonl",
 				mergeKey:  "answers",
 				assert:    "answer.p.billing > 0.5",
 				abstainIf: "answer.p.billing > 0.2",
 			},
-			want: "v2:8fc9c70b55b936fde1f29df4bfd6da32528138d36b0fb05f14aa8d52ba09d69c",
+			want: "v2:6fc264bc94b1e04cdc7da8841f7ce348e0447168a23721534d12856f754c015a",
 		},
 	}
 
@@ -1125,6 +1142,7 @@ func fingerprintFor(t *testing.T, question, provider, model, mapSource, idSource
 
 	return fingerprintWith(t, plan.Source{Positional: question}, fingerprintInputs{
 		provider: provider, model: model, mapSource: mapSource, idSource: idSource, output: "json",
+		input: "jsonl",
 	})
 }
 

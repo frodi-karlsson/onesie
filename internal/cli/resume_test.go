@@ -25,20 +25,21 @@ import (
 func TestResumeLedger(t *testing.T) {
 	t.Parallel()
 
-	printed := func(idSource, output, mergeKey string) string {
+	printed := func(input, idSource, output, mergeKey string) string {
 		return fingerprintWith(t, plan.Source{Positional: "is this urgent"}, fingerprintInputs{
 			provider: "typesafe", model: jev.DefaultModel, idSource: idSource, output: output,
-			mergeKey: mergeKey,
+			input: input, mergeKey: mergeKey,
 		})
 	}
 
-	byID := printed(".id", "values", "")
-	byPosition := printed("", "values", "")
-	byItself := printed(".", "values", "answers")
-	byStateKey := printed(".state", "values", "answers")
-	byIDInTSV := printed(".id", "tsv", "")
-	byIDInCSV := printed(".id", "csv", "")
-	byIDMergedInCSV := printed(".id", "csv", "answers")
+	byID := printed("jsonl", ".id", "values", "")
+	byPosition := printed("jsonl", "", "values", "")
+	byItself := printed("jsonl", ".", "values", "answers")
+	byItselfInLines := printed("lines", ".", "values", "answers")
+	byStateKey := printed("jsonl", ".state", "values", "answers")
+	byIDInTSV := printed("jsonl", ".id", "tsv", "")
+	byIDInCSV := printed("jsonl", ".id", "csv", "")
+	byIDMergedInCSV := printed("csv", ".id", "csv", "answers")
 
 	values := []string{"-i", "jsonl", "-o", "values", "--id", ".id", "--resume"}
 	csvCR := "id,answer,error\n,,\"line 1: --id: \"\"a\\rb\"\" holds a carriage return, which -o csv cannot read back\"\n" +
@@ -390,7 +391,7 @@ func TestResumeLedger(t *testing.T) {
 		{
 			name:     "should resume merged -i lines output by running --id on the wrapper's state",
 			existing: fileOf("{\"state\":\"a\",\"answers\":{\"answer\":0.5}}\n"),
-			sidecar:  byItself,
+			sidecar:  byItselfInLines,
 			stdin:    "a\nb\n",
 			runs: []resumeRun{{
 				args: []string{"-i", "lines", "-o", "values", "--merge", "--id", ".", "--resume"},

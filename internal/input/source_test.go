@@ -341,6 +341,35 @@ func TestParseMode(t *testing.T) {
 	}
 }
 
+func TestMode_String(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		mode input.Mode
+		want string
+	}{
+		{name: "should name text as -i spells it", mode: input.Text, want: "text"},
+		{name: "should name json as -i spells it", mode: input.JSON, want: "json"},
+		{name: "should name jsonl as -i spells it", mode: input.JSONL, want: "jsonl"},
+		{name: "should name lines as -i spells it", mode: input.Lines, want: "lines"},
+		{name: "should name request as -i spells it", mode: input.Request, want: "request"},
+		{name: "should name csv as -i spells it", mode: input.CSV, want: "csv"},
+		{name: "should name tsv as -i spells it", mode: input.TSV, want: "tsv"},
+		{name: "should name a mode outside the set by its number", mode: input.Mode(99), want: "Mode(99)"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := tc.mode.String(); got != tc.want {
+				t.Errorf("String() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestModeStreaming(t *testing.T) {
 	t.Parallel()
 

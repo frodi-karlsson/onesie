@@ -172,8 +172,8 @@ onesie --ask urgent='is this urgent' --assert 'urgnet.value < 0.5'
 - `--id` names each record on every output line. It runs one record at a time, so keep it a cheap
   lookup. Ids match by their text, so `7`, `7.0` and `"7"` are one id in jsonl.
 - `--out` writes to a file with a fingerprint beside it, and a lock so two runs cannot share it. The
-  fingerprint covers the questions and their policy flags, the provider, the model, the output mode,
-  `--map`, `--id`, `--merge-key`, `--assert` and `--abstain-if`.
+  fingerprint covers the questions and their policy flags, the provider, the model, the input and
+  output modes, `--map`, `--id`, `--merge-key`, `--assert` and `--abstain-if`.
 - `--resume` with `--id` skips answered records and asks the rest, failed ones included. A finished
   run rewrites the file in input order and keeps answered ids the input no longer has, unless
   `--prune` drops them. A changed fingerprint refuses with exit 2. A record whose content changed
