@@ -563,7 +563,7 @@ func TestReadPolicy(t *testing.T) {
 	}
 }
 
-func TestReadAssert(t *testing.T) {
+func TestReadGate(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {

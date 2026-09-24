@@ -163,6 +163,14 @@ func TestWrite(t *testing.T) {
 				"urgent:\n  ask: is this urgent\n",
 		},
 		{
+			name: "should write abstain_if alone when given without an assertion",
+			questions: []plan.Question{
+				{ID: "urgent", Shape: plan.Noul, Instructions: "is this urgent"},
+			},
+			abstainIf: `urgent.value < 0.8`,
+			want:      "abstain_if: urgent.value < 0.8\nurgent:\n  ask: is this urgent\n",
+		},
+		{
 			name: "should reject the reserved positional id",
 			questions: []plan.Question{
 				{ID: "answer", Shape: plan.Noul, Instructions: "q"},

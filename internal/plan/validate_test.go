@@ -339,6 +339,16 @@ func TestValidate(t *testing.T) {
 			wantErr: "onesie: question id 'assert' is reserved",
 		},
 		{
+			name:    "should reject the reserved abstain_if id",
+			events:  []argv.Event{{Name: "ask", Value: "abstain_if=first"}},
+			wantErr: "onesie: question id 'abstain_if' is reserved",
+		},
+		{
+			name:    "should reject the reserved abstain id",
+			events:  []argv.Event{{Name: "ask", Value: "abstain=first"}},
+			wantErr: "onesie: question id 'abstain' is reserved",
+		},
+		{
 			name:       "should reject replace with no file given",
 			positional: "is this urgent",
 			cfg:        plan.Config{Replace: true},

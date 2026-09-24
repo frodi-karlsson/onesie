@@ -1074,7 +1074,7 @@ func reserved(id string) bool {
 	}
 
 	switch id {
-	case "answers", "assert", "error", "model", "usage", "questions", "state":
+	case "abstain", "abstain_if", "answers", "assert", "error", "model", "usage", "questions", "state":
 		return true
 	default:
 		return false
