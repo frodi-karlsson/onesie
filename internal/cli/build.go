@@ -9,6 +9,7 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/argv"
 	"github.com/frodi-karlsson/onesie/internal/assert"
 	"github.com/frodi-karlsson/onesie/internal/input"
+	"github.com/frodi-karlsson/onesie/internal/jq"
 	"github.com/frodi-karlsson/onesie/internal/plan"
 	"github.com/frodi-karlsson/onesie/internal/qfile"
 )
@@ -29,6 +30,7 @@ func configOf(
 		Output:         flags.output,
 		HasState:       cmd.Flags().Changed(flagState),
 		HasStateFile:   cmd.Flags().Changed(flagStateFile),
+		HasMap:         cmd.Flags().Changed(flagMap),
 		Replace:        flags.replace,
 		FileName:       flags.file,
 		HasAsk:         asked(events),
@@ -152,7 +154,14 @@ func build(
 		return nil, warnings, err
 	}
 
-	return &invocation{plan: built, gate: gate, abstain: abstain, loaded: loaded}, warnings, nil
+	mapper, err := mapperOf(cfg, flags.mapSource)
+	if err != nil {
+		return nil, warnings, err
+	}
+
+	return &invocation{
+		plan: built, gate: gate, abstain: abstain, mapper: mapper, loaded: loaded,
+	}, warnings, nil
 }
 
 func gateOf(flag, fileSource string, sources []string, built *plan.Plan) (*assert.Expr, error) {
@@ -201,9 +210,23 @@ func gateExpr(source, named string, built *plan.Plan) (*assert.Expr, error) {
 	return expr, nil
 }
 
+func mapperOf(cfg plan.Config, source string) (*jq.Expr, error) {
+	if !cfg.HasMap {
+		return nil, nil
+	}
+
+	expr, err := jq.Compile(source)
+	if err != nil {
+		return nil, fmt.Errorf("onesie: --map: %w", err)
+	}
+
+	return expr, nil
+}
+
 type invocation struct {
 	plan    *plan.Plan
 	gate    *assert.Expr
 	abstain *assert.Expr
+	mapper  *jq.Expr
 	loaded  *qfile.File
 }

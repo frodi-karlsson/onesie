@@ -1037,6 +1037,25 @@ func TestCheckFlags(t *testing.T) {
 				"whose bodies carry their own state",
 		},
 		{
+			name:    "should reject --map with -i request",
+			cfg:     request(func(c *plan.Config) { c.HasMap = true }),
+			wantErr: "onesie: --map does not apply to -i request, whose bodies carry their own state",
+		},
+		{
+			name:    "should reject --map with --list-models",
+			cfg:     plan.Config{ListModels: true, HasMap: true, InputName: "text"},
+			wantErr: "onesie: --map does not apply to --list-models, which reads no state",
+		},
+		{
+			name:    "should reject --map with --print-questions",
+			cfg:     plan.Config{PrintQuestions: true, HasMap: true, InputName: "text"},
+			wantErr: "onesie: --map does not apply to --print-questions, which reads no state",
+		},
+		{
+			name: "should accept --map with --print-request",
+			cfg:  plan.Config{PrintRequest: true, HasMap: true, Streaming: true, InputName: "jsonl", Jobs: 1},
+		},
+		{
 			name:    "should reject -o with -i request",
 			cfg:     request(func(c *plan.Config) { c.Output = "json" }),
 			wantErr: "onesie: -o does not apply to -i request, which forwards raw responses",

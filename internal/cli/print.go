@@ -10,6 +10,7 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/engine"
 	"github.com/frodi-karlsson/onesie/internal/input"
 	"github.com/frodi-karlsson/onesie/internal/jev"
+	"github.com/frodi-karlsson/onesie/internal/jq"
 	"github.com/frodi-karlsson/onesie/internal/output"
 	"github.com/frodi-karlsson/onesie/internal/plan"
 	"github.com/frodi-karlsson/onesie/internal/qfile"
@@ -65,14 +66,15 @@ func warnUncarried(w io.Writer, loaded *qfile.File) error {
 func printRequest(
 	w io.Writer,
 	questions []plan.Question,
-	resolved input.Resolved,
+	source input.Source,
+	state any,
 	model string,
 ) error {
 	req := jev.Request{Model: model, Questions: wireAll(questions)}
 
 	encode := jev.MarshalQuestionsBody
-	if resolved.Source != input.SourceNone {
-		req.State = resolved.Wire
+	if source != input.SourceNone {
+		req.State = state
 		encode = jev.MarshalBody
 	}
 
@@ -90,6 +92,7 @@ func streamRequests(
 	cmd *cobra.Command,
 	settings rootSettings,
 	built *plan.Plan,
+	mapper *jq.Expr,
 	inputMode input.Mode,
 	flags *runFlags,
 ) error {
@@ -111,8 +114,15 @@ func streamRequests(
 				return errorLine(rec.Err), rec.Err
 			}
 
+			sent, mapErr := mapped(mapper, rec.State, rec.Wire)
+			if mapErr != nil {
+				bad := &input.LineError{Line: rec.Line, Err: mapErr}
+
+				return errorLine(bad), bad
+			}
+
 			return jev.MarshalBody(jev.Request{
-				State: rec.Wire, Model: model, Questions: questions,
+				State: sent, Model: model, Questions: questions,
 			})
 		},
 		Write: func(body []byte) error {

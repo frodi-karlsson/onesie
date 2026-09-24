@@ -1,0 +1,154 @@
+package jq
+
+import (
+	"encoding/json"
+	"errors"
+	"reflect"
+	"strings"
+	"testing"
+)
+
+func TestCompile(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		source  string
+		wantErr string
+	}{
+		{name: "should compile a path", source: ".ticket.body"},
+		{name: "should name the column of an unexpected token", source: ".body | }", wantErr: "at column 9"},
+		{name: "should name the column past the end of an unfinished expression", source: "{subject, body", wantErr: "unexpected EOF at column 15"},
+		{name: "should count the column in characters", source: `"é" | }`, wantErr: "at column 7"},
+		{name: "should reject an undefined function", source: ".body | nope", wantErr: "function not defined: nope/0"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			expr, err := Compile(tc.source)
+
+			if tc.wantErr == "" {
+				if err != nil || expr == nil {
+					t.Fatalf("Compile(%q) = %v, %v, want an expression", tc.source, expr, err)
+				}
+
+				return
+			}
+
+			if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+				t.Fatalf("Compile(%q) error = %v, want one containing %q", tc.source, err, tc.wantErr)
+			}
+		})
+	}
+}
+
+func TestExpr_One(t *testing.T) {
+	t.Parallel()
+
+	ticket := decode(t, `{"id":12345678901234567890,"subject":"down","body":"the site is down",`+
+		`"customer":"c1","ticket":{"body":"nested"},"messages":[{"text":"first"},{"text":"last"}]}`)
+
+	tests := []struct {
+		name    string
+		source  string
+		value   any
+		want    any
+		wantErr error
+	}{
+		{name: "should pick a field", source: ".body", value: ticket, want: "the site is down"},
+		{name: "should pick a nested field", source: ".ticket.body", value: ticket, want: "nested"},
+		{
+			name:   "should build an object from fields",
+			source: "{subject, body}",
+			value:  ticket,
+			want:   map[string]any{"subject": "down", "body": "the site is down"},
+		},
+		{
+			name:   "should join fields into one string",
+			source: `.subject + "\n\n" + .body`,
+			value:  ticket,
+			want:   "down\n\nthe site is down",
+		},
+		{name: "should index from the end of an array", source: ".messages[-1].text", value: ticket, want: "last"},
+		{name: "should keep the digits of a large number", source: ".id", value: ticket, want: json.Number("12345678901234567890")},
+		{name: "should yield null for a missing field", source: ".nope", value: ticket, want: nil},
+		{name: "should report an expression that yields nothing", source: "empty", value: ticket, wantErr: ErrNoValue},
+		{name: "should report an expression that yields two values", source: ".subject, .body", value: ticket, wantErr: ErrManyValues},
+		{name: "should report an expression that fails as it runs", source: ".body.text", value: ticket, wantErr: ErrRun},
+		{name: "should report a failure after the first value", source: `.body, error("boom")`, value: ticket, wantErr: ErrRun},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			expr, err := Compile(tc.source)
+			if err != nil {
+				t.Fatalf("Compile(%q): %v", tc.source, err)
+			}
+
+			got, err := expr.One(tc.value)
+
+			if tc.wantErr != nil {
+				if !errors.Is(err, tc.wantErr) {
+					t.Fatalf("One() error = %v, want %v", err, tc.wantErr)
+				}
+
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("One(): %v", err)
+			}
+
+			if !reflect.DeepEqual(got, tc.want) {
+				t.Errorf("One() = %#v, want %#v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestMarshal(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		value any
+		want  string
+	}{
+		{name: "should write a string", value: "a <b>", want: `"a <b>"`},
+		{name: "should keep the digits of a large number", value: json.Number("12345678901234567890"), want: "12345678901234567890"},
+		{name: "should sort object keys", value: map[string]any{"zebra": 1, "alpha": 2}, want: `{"alpha":2,"zebra":1}`},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := Marshal(tc.value)
+			if err != nil {
+				t.Fatalf("Marshal(): %v", err)
+			}
+
+			if string(got) != tc.want {
+				t.Errorf("Marshal() = %s, want %s", got, tc.want)
+			}
+		})
+	}
+}
+
+func decode(t *testing.T, text string) any {
+	t.Helper()
+
+	decoder := json.NewDecoder(strings.NewReader(text))
+	decoder.UseNumber()
+
+	var value any
+	if err := decoder.Decode(&value); err != nil {
+		t.Fatalf("decoding %s: %v", text, err)
+	}
+
+	return value
+}

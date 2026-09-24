@@ -436,7 +436,7 @@ func TestStream(t *testing.T) {
 		}
 	})
 
-	t.Run("should send a large integer unchanged", func(t *testing.T) {
+	t.Run("should send the state the request body spells", func(t *testing.T) {
 		t.Parallel()
 
 		const answered = `{"model":"onesie-1.13.0","answers":{"answer":{"type":"noul","noul":0.9}}}`
@@ -494,6 +494,28 @@ func TestStream(t *testing.T) {
 				wantWire: record,
 				wantOut: `{"ticket_id":12345678901234567890,"zebra":1,"alpha":2,` +
 					`"answers":{"answer":0.9}}`,
+			},
+			{
+				name:     "should send the mapped state and merge into the whole jsonl record",
+				args:     []string{"x", "-i", "jsonl", "--map", ".body", "--merge", "-o", "values"},
+				stdin:    `{"id":7,"body":"the site is down"}` + "\n",
+				wantWire: `"the site is down"`,
+				wantOut:  `{"id":7,"body":"the site is down","answers":{"answer":0.9}}`,
+			},
+			{
+				name:     "should send the mapped state and merge into the whole json record",
+				args:     []string{"x", "-i", "json", "--map", "{ticket_id}", "--merge", "-o", "values"},
+				stdin:    record,
+				wantWire: `{"ticket_id":12345678901234567890}`,
+				wantOut: `{"ticket_id":12345678901234567890,"zebra":1,"alpha":2,` +
+					`"answers":{"answer":0.9}}`,
+			},
+			{
+				name:     "should send the mapped column and merge into the whole csv row",
+				args:     []string{"x", "-i", "csv", "--map", ".body", "--merge", "-o", "values"},
+				stdin:    "id,body\n7,the site is down\n",
+				wantWire: `"the site is down"`,
+				wantOut:  `{"id":"7","body":"the site is down","answers":{"answer":0.9}}`,
 			},
 		}
 
@@ -558,6 +580,59 @@ func TestStream(t *testing.T) {
 					t.Errorf("output = %s\nwant    %s", got, tc.wantOut)
 				}
 			})
+		}
+	})
+
+	t.Run("should exit two on a --map syntax error before reading input", func(t *testing.T) {
+		t.Parallel()
+
+		var requests atomic.Int32
+
+		srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+			requests.Add(1)
+		}))
+		defer srv.Close()
+
+		stdin := &watchedReader{}
+
+		var out, errOut bytes.Buffer
+
+		root := cli.NewRootCmd(
+			cli.BuildInfo{Version: "1.2.3"},
+			cli.WithKeychain(offKeychain{}),
+			cli.WithClientFactory(func(_ context.Context, opts ...jev.Option) (*jev.Client, error) {
+				return jev.New(append([]jev.Option{
+					jev.WithAPIKey("k"), jev.WithBaseURL(srv.URL),
+				}, opts...)...)
+			}),
+			cli.WithStdin(stdin),
+			cli.WithStdinTTY(false),
+			cli.WithStdoutTTY(false),
+			cli.WithLookupEnv(func(string) (string, bool) { return "", false }),
+		)
+
+		root.SetOut(&out)
+		root.SetErr(&errOut)
+		root.SetArgs([]string{"is this urgent", "-i", "jsonl", "--map", ".body |"})
+
+		if code := cli.Execute(t.Context(), root); code != cli.ExitUsage {
+			t.Errorf("exit code = %d, want %d", code, cli.ExitUsage)
+		}
+
+		if want := "onesie: --map: unexpected EOF at column 8\n"; errOut.String() != want {
+			t.Errorf("stderr = %q, want %q", errOut.String(), want)
+		}
+
+		if stdin.read.Load() {
+			t.Error("stdin was read")
+		}
+
+		if got := requests.Load(); got != 0 {
+			t.Errorf("requests = %d, want 0", got)
+		}
+
+		if out.String() != "" {
+			t.Errorf("stdout = %q, want nothing", out.String())
 		}
 	})
 
@@ -895,4 +970,14 @@ func (c *lineCounter) Write(p []byte) (int, error) {
 	}
 
 	return c.buf.Write(p)
+}
+
+type watchedReader struct {
+	read atomic.Bool
+}
+
+func (r *watchedReader) Read([]byte) (int, error) {
+	r.read.Store(true)
+
+	return 0, io.EOF
 }

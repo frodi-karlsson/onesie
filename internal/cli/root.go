@@ -33,6 +33,7 @@ const (
 	flagRetries       = "retries"
 	flagMaxRetryAfter = "max-retry-after"
 	flagBaseURL       = "base-url"
+	flagMap           = "map"
 )
 
 // NewRootCmd builds a fresh command tree that reads and writes no global state.
@@ -145,6 +146,8 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 		"text, json, jsonl, lines, csv, tsv or request")
 	root.Flags().StringVar(&flags.state, flagState, "", "state to evaluate, or - to read stdin")
 	root.Flags().StringVar(&flags.stateFile, flagStateFile, "", "read the state from this file")
+	root.Flags().StringVar(&flags.mapSource, flagMap, "",
+		"jq expression run on each record, whose result is the state sent")
 	root.Flags().StringVarP(&flags.model, flagModel, "m", "", "model override")
 	root.PersistentFlags().StringVar(&flags.provider, "provider", "",
 		"typesafe or openrouter. Defaults to ONESIE_PROVIDER, then typesafe")

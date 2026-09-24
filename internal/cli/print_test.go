@@ -458,6 +458,42 @@ func TestPrintRequest(t *testing.T) {
 			},
 		},
 		{
+			name:     "should send only the mapped field of one json record",
+			args:     []string{"--ask", "urgent=is this urgent", "-i", "json", "--map", ".body", "--print-request"},
+			stdin:    `{"customer":"c1","body":"the site is down"}`,
+			wantCode: ExitOK,
+			stdout:   []string{`{"state":"the site is down","model":"jev-latest"`},
+			absent:   []string{"customer"},
+		},
+		{
+			name:     "should map a text state with the identity expression",
+			args:     []string{"--ask", "urgent=is this urgent", "--map", ".", "--print-request"},
+			stdin:    "the server is down",
+			wantCode: ExitOK,
+			stdout:   []string{`{"state":"the server is down","model":"jev-latest"`},
+		},
+		{
+			name:     "should exit two when one record maps to null",
+			args:     []string{"--ask", "urgent=is this urgent", "-i", "json", "--map", ".body", "--print-request"},
+			stdin:    `{"customer":"c1"}`,
+			wantCode: ExitUsage,
+			stderr:   []string{"onesie: --map: state must be a string, object or array, got null"},
+		},
+		{
+			name:     "should exit two when one record's expression fails as it runs",
+			args:     []string{"--ask", "urgent=is this urgent", "-i", "json", "--map", ".body.text", "--print-request"},
+			stdin:    `{"body":"the site is down"}`,
+			wantCode: ExitUsage,
+			stderr:   []string{"onesie: --map fails: "},
+		},
+		{
+			name:     "should exit two on a --map syntax error",
+			args:     []string{"--ask", "urgent=is this urgent", "-i", "jsonl", "--map", "{subject, body", "--print-request"},
+			stdin:    "{\"body\":\"a\"}\n",
+			wantCode: ExitUsage,
+			stderr:   []string{"onesie: --map: unexpected EOF at column 15"},
+		},
+		{
 			// The control for every case above. The same command without the flag needs a key it
 			// does not have, so an exit of zero there is the dry run and not an empty run.
 			name:     "should report the missing key when the run does make a request",
@@ -896,6 +932,7 @@ func TestStreamRequests(t *testing.T) {
 		wantCode  int
 		wantLines int
 		stdout    []string
+		absent    []string
 	}{
 		{
 			name:      "should print one body per input line",
@@ -928,6 +965,72 @@ func TestStreamRequests(t *testing.T) {
 			wantCode:  ExitOK,
 			wantLines: 0,
 		},
+		{
+			name:      "should send only the mapped body of each jsonl record",
+			args:      []string{"--ask", "urgent=is this urgent", "-i", "jsonl", "--map", ".body", "--print-request"},
+			stdin:     "{\"customer\":\"c1\",\"body\":\"first\"}\n{\"customer\":\"c2\",\"body\":\"second\"}\n",
+			wantCode:  ExitOK,
+			wantLines: 2,
+			stdout:    []string{`"state":"first"`, `"state":"second"`},
+			absent:    []string{"customer"},
+		},
+		{
+			name:      "should send the mapped column of each csv row",
+			args:      []string{"--ask", "urgent=is this urgent", "-i", "csv", "--map", ".body", "--print-request"},
+			stdin:     "customer,body\nc1,first\nc2,second\n",
+			wantCode:  ExitOK,
+			wantLines: 2,
+			stdout:    []string{`"state":"first"`, `"state":"second"`},
+			absent:    []string{"customer"},
+		},
+		{
+			name: "should send each shape a --map expression builds",
+			args: []string{
+				"--ask", "urgent=is this urgent", "-i", "jsonl", "--print-request",
+				"--map", `{subject, body, id: .ticket.id, last: .messages[-1].text}`,
+			},
+			stdin: `{"customer":"c1","subject":"down","body":"the site is down",` +
+				`"ticket":{"id":12345678901234567890},"messages":[{"text":"hi"},{"text":"bye"}]}` + "\n",
+			wantCode:  ExitOK,
+			wantLines: 1,
+			stdout: []string{
+				`"state":{"body":"the site is down","id":12345678901234567890,"last":"bye","subject":"down"}`,
+			},
+			absent: []string{"customer"},
+		},
+		{
+			name:      "should join fields into one string state",
+			args:      []string{"--ask", "urgent=is this urgent", "-i", "jsonl", "--map", `.subject + "\n\n" + .body`, "--print-request"},
+			stdin:     "{\"subject\":\"down\",\"body\":\"the site is down\"}\n",
+			wantCode:  ExitOK,
+			wantLines: 1,
+			stdout:    []string{`"state":"down\n\nthe site is down"`},
+		},
+		{
+			name:      "should write an error line for a record that maps to nothing usable and carry on",
+			args:      []string{"--ask", "urgent=is this urgent", "-i", "jsonl", "--map", ".body", "--print-request"},
+			stdin:     "{\"body\":\"first\"}\n{\"customer\":\"c2\"}\n{\"body\":null}\n{\"body\":\"fourth\"}\n",
+			wantCode:  ExitRecords,
+			wantLines: 4,
+			stdout: []string{
+				`"state":"first"`,
+				`"message":"line 2: --map: state must be a string, object or array, got null"`,
+				`"message":"line 3: --map: state must be a string, object or array, got null"`,
+				`"state":"fourth"`,
+			},
+		},
+		{
+			name:      "should write an error line for a record whose expression yields nothing",
+			args:      []string{"--ask", "urgent=is this urgent", "-i", "jsonl", "--map", ".items[]", "--print-request"},
+			stdin:     "{\"items\":[]}\n{\"items\":[\"a\",\"b\"]}\n{\"items\":[\"c\"]}\n",
+			wantCode:  ExitRecords,
+			wantLines: 3,
+			stdout: []string{
+				`"message":"line 1: --map yields no value"`,
+				`"message":"line 2: --map yields more than one value"`,
+				`"state":"c"`,
+			},
+		},
 	}
 
 	for _, tc := range tests {
@@ -957,6 +1060,12 @@ func TestStreamRequests(t *testing.T) {
 			for _, want := range tc.stdout {
 				if !strings.Contains(out, want) {
 					t.Errorf("stdout missing %q\ngot:\n%s", want, out)
+				}
+			}
+
+			for _, unwanted := range tc.absent {
+				if strings.Contains(out, unwanted) {
+					t.Errorf("stdout should not contain %q\ngot:\n%s", unwanted, out)
 				}
 			}
 

@@ -17,6 +17,7 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/engine"
 	"github.com/frodi-karlsson/onesie/internal/input"
 	"github.com/frodi-karlsson/onesie/internal/jev"
+	"github.com/frodi-karlsson/onesie/internal/jq"
 	"github.com/frodi-karlsson/onesie/internal/output"
 	"github.com/frodi-karlsson/onesie/internal/plan"
 )
@@ -73,6 +74,7 @@ func run(
 	built := inv.plan
 	gate := inv.gate
 	abstain := inv.abstain
+	mapper := inv.mapper
 	loaded := inv.loaded
 
 	// Before the output mode, because a question file is not an output mode and -o has no meaning
@@ -93,7 +95,8 @@ func run(
 
 	if inputMode.Streaming() {
 		return withStats(cmd, settings.now, flags, func(stats *collector) error {
-			return stream(cmd, settings, built, inputMode, outputMode, flags, gate, abstain, stats)
+			return stream(
+				cmd, settings, built, mapper, inputMode, outputMode, flags, gate, abstain, stats)
 		})
 	}
 
@@ -123,14 +126,22 @@ func run(
 			Wire: loaded.StateWire,
 		}
 
-		if err := input.CheckState(resolved.State); err != nil {
-			return fmt.Errorf("onesie: %w", err)
+		if checkErr := input.CheckState(resolved.State); checkErr != nil {
+			return fmt.Errorf("onesie: %w", checkErr)
 		}
 	}
 
 	if requests(flags) && resolved.Source == input.SourceNone {
 		return errors.New(
 			"onesie: no state given. Pipe one to stdin, or pass --state or --state-file")
+	}
+
+	sent := resolved.Wire
+	if resolved.Source != input.SourceNone {
+		sent, err = mapped(mapper, resolved.State, resolved.Wire)
+		if err != nil {
+			return fmt.Errorf("onesie: %w", err)
+		}
 	}
 
 	// After the state is resolved, so the body carries the state a real run would send.
@@ -140,7 +151,7 @@ func run(
 			return err
 		}
 
-		return printRequest(cmd.OutOrStdout(), built.Questions, resolved, model)
+		return printRequest(cmd.OutOrStdout(), built.Questions, resolved.Source, sent, model)
 	}
 
 	// Checked here rather than at write time, so a taken key costs no request. Section 11 opens
@@ -152,7 +163,7 @@ func run(
 	}
 
 	return withStats(cmd, settings.now, flags, func(stats *collector) error {
-		return ask(cmd, settings, built, resolved, outputMode, flags, gate, abstain, stats)
+		return ask(cmd, settings, built, resolved, sent, outputMode, flags, gate, abstain, stats)
 	})
 }
 
@@ -204,6 +215,7 @@ func stream(
 	cmd *cobra.Command,
 	settings rootSettings,
 	built *plan.Plan,
+	mapper *jq.Expr,
 	inputMode input.Mode,
 	outputMode output.Mode,
 	flags *runFlags,
@@ -212,7 +224,7 @@ func stream(
 	stats *collector,
 ) error {
 	if flags.printRequest {
-		return streamRequests(cmd, settings, built, inputMode, flags)
+		return streamRequests(cmd, settings, built, mapper, inputMode, flags)
 	}
 
 	client, err := settings.newClient(cmd.Context(), observing(stats)...)
@@ -269,8 +281,16 @@ func stream(
 				}, taken
 			}
 
+			sent, mapErr := mapped(mapper, rec.State, rec.Wire)
+			if mapErr != nil {
+				bad := &input.LineError{Line: rec.Line, Err: mapErr}
+				stats.recordFailure(bad, false, 0)
+
+				return rowLine(failureRecord(built, bad), rec), bad
+			}
+
 			record, evalErr := evaluate(
-				ctx, client, built, model, questions, rec.Wire, flags.usage, stats)
+				ctx, client, built, model, questions, sent, flags.usage, stats)
 			if evalErr != nil {
 				// Returned before the gate is asked, per §17.4's third row. A failed record reads
 				// as all zeros, so a gate such as answer.value < 0.5 would hold for a request that
@@ -315,6 +335,47 @@ func stream(
 	}
 
 	return streamResult(result, stats.falseAssertions(), stats.abstains())
+}
+
+func mapped(mapper *jq.Expr, state, wire any) (any, error) {
+	if mapper == nil {
+		return wire, nil
+	}
+
+	value, err := mapper.One(jqValue(state, wire))
+	if err != nil {
+		return nil, fmt.Errorf("--map %w", err)
+	}
+
+	if checkErr := input.CheckState(value); checkErr != nil {
+		return nil, fmt.Errorf("--map: %w", checkErr)
+	}
+
+	encoded, err := jq.Marshal(value)
+	if err != nil {
+		return nil, fmt.Errorf("--map: %w", err)
+	}
+
+	return json.RawMessage(encoded), nil
+}
+
+func jqValue(state, wire any) any {
+	raw, isJSON := wire.(json.RawMessage)
+	if !isJSON {
+		return state
+	}
+
+	// Decoded again with numbers kept as written, since the parsed state holds float64 and a
+	// large id would lose digits on its way through the expression.
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.UseNumber()
+
+	var value any
+	if err := decoder.Decode(&value); err != nil {
+		return state
+	}
+
+	return value
 }
 
 func plural(count int, noun string) string {
@@ -436,6 +497,7 @@ func ask(
 	settings rootSettings,
 	built *plan.Plan,
 	resolved input.Resolved,
+	sent any,
 	outputMode output.Mode,
 	flags *runFlags,
 	gate *assert.Expr,
@@ -455,7 +517,7 @@ func ask(
 	}
 
 	record, err := evaluate(
-		cmd.Context(), client, built, model, questions, resolved.Wire, flags.usage, stats)
+		cmd.Context(), client, built, model, questions, sent, flags.usage, stats)
 	if err != nil {
 		// The exit code still comes from the error. This adds the fallback word the caller asked
 		// for, so a shell guard reads a decision. An interrupt is skipped, since a transport record
@@ -807,4 +869,5 @@ type runFlags struct {
 	skipBlank     bool
 	merge         bool
 	mergeKey      string
+	mapSource     string
 }

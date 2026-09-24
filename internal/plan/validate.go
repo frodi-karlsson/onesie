@@ -172,6 +172,7 @@ func checkListModels(cfg Config) error {
 		{cfg.HasStateFile, "onesie: --state-file does not apply to --list-models, " +
 			"which reads no state"},
 		{cfg.HasInput, "onesie: -i does not apply to --list-models, which reads no input"},
+		{cfg.HasMap, "onesie: --map does not apply to --list-models, which reads no state"},
 		{cfg.Output != "", "onesie: -o does not apply to --list-models, " +
 			"which writes a fixed listing"},
 		{cfg.Raw, "onesie: -r does not apply to --list-models, which writes a fixed listing"},
@@ -238,6 +239,8 @@ func checkRequestMode(cfg Config) error {
 			"whose bodies carry their own state"},
 		{cfg.HasStateFile, "onesie: --state-file does not apply to -i request, " +
 			"whose bodies carry their own state"},
+		{cfg.HasMap, "onesie: --map does not apply to -i request, " +
+			"whose bodies carry their own state"},
 		{cfg.Output != "", "onesie: -o does not apply to -i request, which forwards raw responses"},
 		{cfg.Raw, "onesie: -r does not apply to -i request, which forwards raw responses"},
 		{cfg.Quiet, "onesie: -q needs a policy to report, which -i request has none of"},
@@ -293,6 +296,10 @@ func checkPrintFlags(cfg Config) error {
 		{
 			cfg.PrintQuestions && cfg.HasInput,
 			"onesie: -i does not apply to --print-questions, which reads no input",
+		},
+		{
+			cfg.PrintQuestions && cfg.HasMap,
+			"onesie: --map does not apply to --print-questions, which reads no state",
 		},
 		{cfg.Output != "", fmt.Sprintf(
 			"onesie: -o does not apply to %s, which writes %s", name, writes)},
@@ -924,7 +931,9 @@ type Config struct {
 	Output       string
 	HasState     bool
 	HasStateFile bool
-	Replace      bool
+	// HasMap records that --map was given, which chooses the state from each record.
+	HasMap  bool
+	Replace bool
 
 	// FileName is the -f argument, empty when the flag was not given. It names the file in the
 	// body policy message and marks whether -f was used at all.
