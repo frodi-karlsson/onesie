@@ -47,7 +47,8 @@ func ParseCuts(text string) ([]float64, error) {
 			return nil, fmt.Errorf("takes numbers between 0 and 1, got '%s'", item)
 		}
 
-		cuts = append(cuts, cut)
+		// Abs turns a negative zero, which passes the range check, into the zero a report prints.
+		cuts = append(cuts, math.Abs(cut))
 	}
 
 	slices.Sort(cuts)

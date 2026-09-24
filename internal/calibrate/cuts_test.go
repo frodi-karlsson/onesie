@@ -1,6 +1,7 @@
 package calibrate_test
 
 import (
+	"math"
 	"slices"
 	"strings"
 	"testing"
@@ -43,6 +44,7 @@ func TestParseCuts(t *testing.T) {
 		{name: "should keep the given values", text: "0.9,0.95,0.97,0.99", want: []float64{0.9, 0.95, 0.97, 0.99}},
 		{name: "should sort and deduplicate the values", text: "0.9,0.5,0.9,0", want: []float64{0, 0.5, 0.9}},
 		{name: "should accept both ends of the range", text: "0,1", want: []float64{0, 1}},
+		{name: "should read negative zero as zero", text: "-0,0.5", want: []float64{0, 0.5}},
 		{name: "should refuse a value above 1", text: "0.5,1.2", wantErr: "'1.2'"},
 		{name: "should refuse a value below 0", text: "-0.1", wantErr: "'-0.1'"},
 		{name: "should refuse NaN", text: "NaN", wantErr: "'NaN'"},
@@ -69,7 +71,8 @@ func TestParseCuts(t *testing.T) {
 				t.Fatalf("ParseCuts(%q) error = %v", tc.text, err)
 			}
 
-			if !slices.Equal(got, tc.want) {
+			// Equal counts -0 as 0, and a report prints it as -0.
+			if !slices.Equal(got, tc.want) || slices.ContainsFunc(got, math.Signbit) {
 				t.Errorf("ParseCuts(%q) = %v, want %v", tc.text, got, tc.want)
 			}
 		})
