@@ -173,3 +173,81 @@ func TestPath(t *testing.T) {
 		})
 	}
 }
+
+func TestDir(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		env     map[string]string
+		goos    string
+		home    string
+		want    []string
+		wantErr string
+	}{
+		{
+			name: "should prefer ONESIE_CONFIG_DIR",
+			env:  map[string]string{"ONESIE_CONFIG_DIR": "/cfg", "XDG_CONFIG_HOME": "/xdg"},
+			goos: "linux",
+			home: "/home/x",
+			want: []string{"/cfg"},
+		},
+		{
+			name: "should fall back to XDG_CONFIG_HOME",
+			env:  map[string]string{"XDG_CONFIG_HOME": "/xdg"},
+			goos: "linux",
+			home: "/home/x",
+			want: []string{"/xdg", "onesie"},
+		},
+		{
+			name: "should use APPDATA on windows",
+			env:  map[string]string{"APPDATA": "/roaming"},
+			goos: "windows",
+			home: "/home/x",
+			want: []string{"/roaming", "onesie"},
+		},
+		{
+			name: "should fall back to the home directory",
+			goos: "linux",
+			home: "/home/x",
+			want: []string{"/home/x", ".config", "onesie"},
+		},
+		{
+			name:    "should name the config dir when no home directory is found",
+			goos:    "linux",
+			wantErr: "onesie: cannot find a home directory for the config dir",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := creds.Dir(creds.Env{
+				Lookup: func(name string) (string, bool) {
+					value, ok := tc.env[name]
+
+					return value, ok
+				},
+				GOOS: tc.goos,
+				Home: func() (string, error) { return tc.home, nil },
+			})
+
+			if tc.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+					t.Fatalf("Dir = %s, %v, want an error containing %s", got, err, tc.wantErr)
+				}
+
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("Dir: %v", err)
+			}
+
+			if want := filepath.Join(tc.want...); got != want {
+				t.Errorf("Dir = %s, want %s", got, want)
+			}
+		})
+	}
+}

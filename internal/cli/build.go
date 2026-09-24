@@ -83,11 +83,15 @@ func build(
 
 	var loaded *qfile.File
 
+	fileName := flags.file
+
 	if flags.file != "" {
-		data, readErr := settings.readFile(flags.file)
+		data, path, readErr := readQuestionFile(settings, flags.file)
 		if readErr != nil {
-			return nil, nil, fmt.Errorf("onesie: reading %s: %w", flags.file, readErr)
+			return nil, nil, readErr
 		}
+
+		fileName = path
 
 		var loadErr error
 
@@ -115,7 +119,7 @@ func build(
 	source := plan.Source{
 		Events:     events,
 		Positional: positional,
-		FileName:   flags.file,
+		FileName:   fileName,
 		Replace:    flags.replace,
 		ReadFile:   settings.readFile,
 	}

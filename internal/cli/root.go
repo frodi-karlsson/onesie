@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -50,6 +51,8 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 		stdinTTY:      isTerminal(os.Stdin),
 		stdoutTTY:     isTerminal(os.Stdout),
 		readFile:      os.ReadFile,
+		readDir:       os.ReadDir,
+		getwd:         os.Getwd,
 		openFile:      os.OpenFile,
 		rename:        os.Rename,
 		remove:        os.Remove,
@@ -70,10 +73,14 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 		opt(&settings)
 	}
 
-	// Installed after the options, since it reads the environment lookup and home directory a test
-	// may have replaced, and before the factory, which resolves the credential file through it.
+	// Installed after the options, since they read the environment lookup and home directory a test
+	// may have replaced, and before the factory, which resolves the credential file through them.
 	if settings.credPath == nil {
 		settings.credPath = credentialPath(settings.lookupEnv, settings.homeDir)
+	}
+
+	if settings.configDir == nil {
+		settings.configDir = configDir(settings.lookupEnv, settings.homeDir)
 	}
 
 	// The factory reads flags, which are parsed after this returns, so it closes over the pointer.
@@ -175,7 +182,8 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 	root.Flags().StringVar(&flags.apiKey, "api-key", "",
 		"api key. Prefer TYPESAFE_API_KEY, OPENROUTER_API_KEY or onesie auth set, since argv is visible in ps")
 	root.Flags().StringVar(&flags.baseURL, flagBaseURL, "", "api root override")
-	root.Flags().StringVarP(&flags.file, "file", "f", "", "question file or request body")
+	root.Flags().StringVarP(&flags.file, "file", "f", "",
+		"question file or request body, or the name of one saved in .onesie/questions or the config dir")
 	root.Flags().BoolVar(&flags.replace, "replace", false, "--ask overrides an id from -f")
 	root.Flags().BoolVar(&flags.printQuestions, "print-questions", false,
 		"write a question file to stdout and exit")
@@ -328,10 +336,24 @@ func WithStdoutTTY(tty bool) RootOption {
 	}
 }
 
-// WithReadFile replaces how @FILE references and --state-file are resolved.
+// WithReadFile replaces how @FILE references, -f and --state-file are resolved.
 func WithReadFile(read func(string) ([]byte, error)) RootOption {
 	return func(s *rootSettings) {
 		s.readFile = read
+	}
+}
+
+// WithReadDir replaces how the directories an -f name is looked up in are listed.
+func WithReadDir(read func(string) ([]fs.DirEntry, error)) RootOption {
+	return func(s *rootSettings) {
+		s.readDir = read
+	}
+}
+
+// WithWorkingDir replaces how the working directory an -f name is looked up from is found.
+func WithWorkingDir(getwd func() (string, error)) RootOption {
+	return func(s *rootSettings) {
+		s.getwd = getwd
 	}
 }
 
@@ -411,6 +433,9 @@ type rootSettings struct {
 	stdinTTY      bool
 	stdoutTTY     bool
 	readFile      func(string) ([]byte, error)
+	readDir       func(string) ([]fs.DirEntry, error)
+	getwd         func() (string, error)
+	configDir     func() (string, error)
 	openFile      func(name string, flag int, perm os.FileMode) (*os.File, error)
 	rename        func(oldpath, newpath string) error
 	remove        func(name string) error
@@ -475,11 +500,24 @@ func credentialPath(
 	homeDir func() (string, error),
 ) func() (string, error) {
 	return func() (string, error) {
-		return creds.Path(creds.Env{
-			Lookup: lookupEnv,
-			GOOS:   runtime.GOOS,
-			Home:   homeDir,
-		})
+		return creds.Path(configEnv(lookupEnv, homeDir))
+	}
+}
+
+func configDir(
+	lookupEnv func(string) (string, bool),
+	homeDir func() (string, error),
+) func() (string, error) {
+	return func() (string, error) {
+		return creds.Dir(configEnv(lookupEnv, homeDir))
+	}
+}
+
+func configEnv(lookupEnv func(string) (string, bool), homeDir func() (string, error)) creds.Env {
+	return creds.Env{
+		Lookup: lookupEnv,
+		GOOS:   runtime.GOOS,
+		Home:   homeDir,
 	}
 }
 

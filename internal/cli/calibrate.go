@@ -145,7 +145,8 @@ func bindSharedFlags(cmd *cobra.Command, flags *runFlags) {
 	cmd.Flags().StringVar(&flags.apiKey, "api-key", "",
 		"api key. Prefer TYPESAFE_API_KEY, OPENROUTER_API_KEY or onesie auth set, since argv is visible in ps")
 	cmd.Flags().StringVar(&flags.baseURL, flagBaseURL, "", "api root override")
-	cmd.Flags().StringVarP(&flags.file, "file", "f", "", "question file or request body")
+	cmd.Flags().StringVarP(&flags.file, "file", "f", "",
+		"question file or request body, or the name of one saved in .onesie/questions or the config dir")
 	cmd.Flags().BoolVar(&flags.replace, "replace", false, "--ask overrides an id from -f")
 	cmd.Flags().IntVarP(&flags.jobs, flagJobs, "j", 1, "records in flight at once")
 	cmd.Flags().IntVar(&flags.timeout, flagTimeout, int(limits.DefaultAttemptTimeout.Seconds()),
@@ -316,9 +317,9 @@ func refuseFile(settings rootSettings, name string) error {
 		return nil
 	}
 
-	data, err := settings.readFile(name)
+	data, _, err := readQuestionFile(settings, name)
 	if err != nil {
-		return fmt.Errorf("onesie: reading %s: %w", name, err)
+		return err
 	}
 
 	loaded, err := qfile.Load(data)
