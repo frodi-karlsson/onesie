@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
 	"unicode/utf8"
 
 	"github.com/itchyny/gojq"
@@ -27,38 +26,18 @@ var (
 const maxDepth = 10000
 
 // Compile parses and compiles a jq expression. A syntax error names the column it was found at.
-// The time functions read the system clock unless WithClock replaces it.
-func Compile(source string, opts ...Option) (*Expr, error) {
-	cfg := config{now: time.Now}
-	for _, opt := range opts {
-		opt(&cfg)
-	}
-
+func Compile(source string) (*Expr, error) {
 	query, err := gojq.Parse(source)
 	if err != nil {
 		return nil, parseError(source, err)
 	}
 
-	code, err := gojq.Compile(query, clockOptions(cfg.now)...)
+	code, err := gojq.Compile(query)
 	if err != nil {
 		return nil, err
 	}
 
 	return &Expr{code: code}, nil
-}
-
-// Option configures Compile.
-type Option func(*config)
-
-// WithClock replaces the clock that now reads and whose zone localtime and strflocaltime use.
-func WithClock(now func() time.Time) Option {
-	return func(c *config) {
-		c.now = now
-	}
-}
-
-type config struct {
-	now func() time.Time
 }
 
 // Expr is a compiled jq expression. It is safe to run from many goroutines at once.

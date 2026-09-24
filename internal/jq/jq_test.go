@@ -24,7 +24,6 @@ func TestCompile(t *testing.T) {
 		{name: "should count the column in characters", source: `"é" | }`, wantErr: "at column 7"},
 		{name: "should reject an undefined function", source: ".body | nope", wantErr: "function not defined: nope/0"},
 		{name: "should refuse to import a module", source: `import "lib" as lib; .`, wantErr: `cannot load module: "lib"`},
-		{name: "should refuse to import a data file", source: `import "data" as $data; .`, wantErr: `cannot load module: "data"`},
 		{name: "should refuse to include a module", source: `include "lib"; .`, wantErr: `cannot load module: "lib"`},
 	}
 
@@ -47,6 +46,20 @@ func TestCompile(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("should refuse to import a data file without reading it", func(t *testing.T) {
+		t.Parallel()
+
+		expr, err := Compile(`import "/etc/passwd" as $passwd; $passwd`)
+		if expr != nil {
+			t.Fatalf("Compile() = %v, want no expression", expr)
+		}
+
+		const want = `cannot load module: "/etc/passwd"`
+		if err == nil || err.Error() != want {
+			t.Fatalf("Compile() error = %v, want exactly %q", err, want)
+		}
+	})
 }
 
 func TestExpr_One(t *testing.T) {
@@ -54,12 +67,6 @@ func TestExpr_One(t *testing.T) {
 
 	ticket := decode(t, `{"id":12345678901234567890,"subject":"down","body":"the site is down",`+
 		`"customer":"c1","ticket":{"body":"nested"},"messages":[{"text":"first"},{"text":"last"}]}`)
-
-	stamped := decode(t, `{"ts":1790244000}`)
-
-	clock := func() time.Time {
-		return time.Date(2026, 9, 24, 10, 0, 0, 5e8, time.UTC).In(time.FixedZone("CEST", 2*60*60))
-	}
 
 	tests := []struct {
 		name    string
@@ -89,33 +96,14 @@ func TestExpr_One(t *testing.T) {
 		{name: "should report an expression that yields two values", source: ".subject, .body", value: ticket, wantErr: ErrManyValues},
 		{name: "should report an expression that fails as it runs", source: ".body.text", value: ticket, wantErr: ErrRun},
 		{name: "should report a failure after the first value", source: `.body, error("boom")`, value: ticket, wantErr: ErrRun},
-		{name: "should read now from the injected clock", source: "now", value: ticket, want: 1790244000.5},
-		{name: "should format now in UTC", source: "now | todate", value: ticket, want: "2026-09-24T10:00:00Z"},
-		{
-			name:   "should break now into the local time of the injected clock",
-			source: "now | localtime",
-			value:  ticket,
-			want:   []any{2026, 8, 24, 12, 0, 0.5, 4, 266},
-		},
-		{name: "should format now in the zone of the injected clock", source: `now | strflocaltime("%H:%M %Z")`, value: ticket, want: "12:00 CEST"},
-		{
-			name:   "should format a broken down time in the zone of the injected clock",
-			source: `[2026, 8, 24, 12, 0, 0, 4, 266] | strflocaltime("%H:%M %z")`,
-			value:  ticket,
-			want:   "12:00 +0200",
-		},
-		{name: "should read a record's timestamp in the zone of the injected clock", source: ".ts | localtime | .[3]", value: stamped, want: 12},
-		{name: "should break a record's timestamp into UTC whatever the clock's zone", source: ".ts | gmtime | .[3]", value: stamped, want: 10},
-		{name: "should let an expression define its own now", source: "def now: 1; now", value: ticket, want: 1},
-		{name: "should report localtime on a string", source: `"x" | localtime`, value: ticket, wantErr: ErrRun},
-		{name: "should report strflocaltime without a format string", source: "now | strflocaltime(1)", value: ticket, wantErr: ErrRun},
+		{name: "should refuse to read a module's metadata", source: `"lib" | modulemeta`, value: ticket, wantErr: ErrRun},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			expr, err := Compile(tc.source, WithClock(clock))
+			expr, err := Compile(tc.source)
 			if err != nil {
 				t.Fatalf("Compile(%q): %v", tc.source, err)
 			}
@@ -139,6 +127,29 @@ func TestExpr_One(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("should read now from the real clock", func(t *testing.T) {
+		t.Parallel()
+
+		expr, err := Compile("now")
+		if err != nil {
+			t.Fatalf("Compile(): %v", err)
+		}
+
+		before := float64(time.Now().UnixMicro()) / 1e6
+
+		got, err := expr.One(t.Context(), nil)
+		if err != nil {
+			t.Fatalf("One(): %v", err)
+		}
+
+		after := float64(time.Now().UnixMicro()) / 1e6
+
+		seconds, ok := got.(float64)
+		if !ok || seconds < before-1e-3 || seconds > after+1e-3 {
+			t.Errorf("One() = %v, want a time between %f and %f", got, before, after)
+		}
+	})
 
 	t.Run("should stop an expression that never ends once the context is cancelled", func(t *testing.T) {
 		t.Parallel()

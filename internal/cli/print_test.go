@@ -16,7 +16,6 @@ import (
 	"sync"
 	"syscall"
 	"testing"
-	"time"
 
 	"github.com/frodi-karlsson/onesie/internal/jev"
 	"github.com/frodi-karlsson/onesie/internal/qfile"
@@ -578,40 +577,6 @@ func TestPrintRequest(t *testing.T) {
 
 		if reloaded != printed {
 			t.Errorf("the body did not survive -f\nprinted  %s\nreloaded %s", printed, reloaded)
-		}
-	})
-
-	t.Run("should run --map time functions on the injected clock", func(t *testing.T) {
-		t.Parallel()
-
-		var out, errOut bytes.Buffer
-
-		root := NewRootCmd(
-			BuildInfo{Version: "1.2.3"},
-			WithKeychain(noKeychain()),
-			WithStdin(strings.NewReader(`{"body":"the site is down"}`)),
-			WithStdinTTY(false),
-			WithStdoutTTY(false),
-			WithLookupEnv(lookupFrom(map[string]string{"ONESIE_CONFIG_DIR": t.TempDir()})),
-			WithNow(func() time.Time {
-				return time.Date(2026, 9, 24, 10, 0, 0, 0, time.UTC).In(time.FixedZone("CEST", 2*60*60))
-			}),
-		)
-
-		root.SetOut(&out)
-		root.SetErr(&errOut)
-		root.SetArgs([]string{
-			"--ask", "urgent=is this urgent", "-i", "json", "--print-request",
-			"--map", `{body, at: (now | todate), local: (now | strflocaltime("%H:%M %Z"))}`,
-		})
-
-		if code := Execute(t.Context(), root); code != ExitOK {
-			t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, ExitOK, errOut.String())
-		}
-
-		const want = `"state":{"at":"2026-09-24T10:00:00Z","body":"the site is down","local":"12:00 CEST"}`
-		if !strings.Contains(out.String(), want) {
-			t.Errorf("stdout = %s, want it to contain %s", out.String(), want)
 		}
 	})
 
