@@ -51,7 +51,11 @@ func newAuthSetCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "set",
 		Short: "Read a key from a prompt or stdin and store it",
-		Args:  authNoArgs("set", "It reads the key from a prompt or stdin"),
+		Long: "Read a key from a hidden prompt on a terminal, or from stdin otherwise, and store it.\n\n" +
+			"Stdin must hold the key alone. pass show and its siblings print metadata after the " +
+			"secret, so pipe them through head -n 1.",
+		Example: "  pass show openrouter | head -n 1 | onesie --provider openrouter auth set",
+		Args:    authNoArgs("set", "It reads the key from a prompt or stdin"),
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return authSet(cmd, settings, flags, setOptions{
 				baseURL: baseURL, hasBaseURL: cmd.Flags().Changed(flagBaseURL), toFile: toFile,
@@ -247,7 +251,8 @@ func firstLine(r io.Reader) (string, error) {
 	for scanner.Scan() {
 		if strings.TrimSpace(scanner.Text()) != "" {
 			return "", errors.New(
-				"onesie: auth set: stdin carries more than one line. The key is the first line")
+				"onesie: auth set: stdin carries more than one line, and it must hold the key alone. " +
+					"Pipe a password manager entry through head -n 1")
 		}
 	}
 

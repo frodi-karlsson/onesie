@@ -539,8 +539,8 @@ func TestAuthSet(t *testing.T) {
 		{
 			name:  "should reject a metadata line after the secret",
 			stdin: "SECRET-STDIN\nlogin: someone\n",
-			wantErr: "onesie: auth set: stdin carries more than one line. " +
-				"The key is the first line",
+			wantErr: "onesie: auth set: stdin carries more than one line, and it must hold the key " +
+				"alone. Pipe a password manager entry through head -n 1",
 			wantNoFile: true,
 			wantCode:   ExitUsage,
 		},
@@ -1221,6 +1221,12 @@ func TestNewAuthCmd(t *testing.T) {
 			name:     "should print the subcommands when given no subcommand",
 			args:     []string{"auth"},
 			wantOut:  "Available Commands:",
+			wantCode: ExitOK,
+		},
+		{
+			name:     "should say in the auth set help to pipe a password manager entry through head -n 1",
+			args:     []string{"auth", "set", "--help"},
+			wantOut:  "pass show openrouter | head -n 1 | onesie --provider openrouter auth set",
 			wantCode: ExitOK,
 		},
 		{

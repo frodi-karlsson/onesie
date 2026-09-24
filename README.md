@@ -184,8 +184,8 @@ onesie --ask urgent='is this urgent' --assert 'urgnet.value < 0.5'
 ### Keys and providers
 
 ```sh
-onesie auth set                                    # prompts, or reads the first line of stdin
-pass show openrouter | onesie --provider openrouter auth set
+onesie auth set                                    # prompts, or reads the key alone from stdin
+pass show openrouter | head -n 1 | onesie --provider openrouter auth set
 onesie auth status                                 # which provider and source, never the key
 onesie auth test                                   # checks the key, costs no tokens
 ```
