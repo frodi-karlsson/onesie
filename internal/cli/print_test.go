@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"syscall"
@@ -635,6 +636,84 @@ func TestPrintRequest(t *testing.T) {
 		}
 	})
 
+	t.Run("should map the state of every single record source", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+
+		stateFile := filepath.Join(dir, "state.json")
+		if err := os.WriteFile(stateFile, []byte(`{"customer":"c1","body":"from the file"}`), 0o600); err != nil {
+			t.Fatalf("writing the state file: %v", err)
+		}
+
+		bodyFile := filepath.Join(dir, "body.json")
+		if err := os.WriteFile(bodyFile, []byte(`{"state":{"customer":"c1","body":"from the body"},`+
+			`"questions":{"urgent":{"type":"noul","instructions":"is this urgent"}}}`), 0o600); err != nil {
+			t.Fatalf("writing the body: %v", err)
+		}
+
+		tests := []struct {
+			name  string
+			args  []string
+			stdin string
+			want  string
+		}{
+			{
+				name: "should map a --state object",
+				args: []string{
+					"--ask", "urgent=is this urgent", "-i", "json",
+					"--state", `{"customer":"c1","body":"from the flag"}`, "--map", ".body",
+				},
+				want: `"state":"from the flag"`,
+			},
+			{
+				name: "should map a --state text",
+				args: []string{"--ask", "urgent=is this urgent", "--state", "the site is down", "--map", "ascii_upcase"},
+				want: `"state":"THE SITE IS DOWN"`,
+			},
+			{
+				name: "should map a --state-file object",
+				args: []string{"--ask", "urgent=is this urgent", "-i", "json", "--state-file", stateFile, "--map", ".body"},
+				want: `"state":"from the file"`,
+			},
+			{
+				name: "should map the state a request body brought with it",
+				args: []string{"-f", bodyFile, "--map", ".body"},
+				want: `"state":"from the body"`,
+			},
+			{
+				name:  "should map a json record on stdin",
+				args:  []string{"--ask", "urgent=is this urgent", "-i", "json", "--map", "{body}"},
+				stdin: `{"customer":"c1","body":"from stdin"}`,
+				want:  `"state":{"body":"from stdin"}`,
+			},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				printed, errOut, code := runOfflineStdin(t, append(slices.Clone(tc.args), "--print-request"), tc.stdin)
+				if code != ExitOK {
+					t.Fatalf("printing exit code = %d, want %d\nstderr:\n%s", code, ExitOK, errOut)
+				}
+
+				if !strings.Contains(printed, tc.want) || strings.Contains(printed, "customer") {
+					t.Errorf("printed %s, want it to contain %s and no customer", printed, tc.want)
+				}
+
+				sent, errOut, code := runRecorded(t, tc.args, tc.stdin)
+				if code != ExitOK {
+					t.Fatalf("sending exit code = %d, want %d\nstderr:\n%s", code, ExitOK, errOut)
+				}
+
+				if want := strings.TrimSuffix(printed, "\n"); sent != want {
+					t.Errorf("sent body    %s\nprinted body %s", sent, want)
+				}
+			})
+		}
+	})
+
 	t.Run("should print a body matching what the equivalent request would send", func(t *testing.T) {
 		t.Parallel()
 
@@ -1074,6 +1153,35 @@ func TestStreamRequests(t *testing.T) {
 				`"message":"line 1: --map yields no value"`,
 				`"message":"line 2: --map yields more than one value"`,
 				`"state":"c"`,
+			},
+		},
+		{
+			name:      "should map each line of -i lines",
+			args:      []string{"--ask", "urgent=is this urgent", "-i", "lines", "--map", "ascii_upcase", "--print-request"},
+			stdin:     "first\nsecond\n",
+			wantCode:  ExitOK,
+			wantLines: 2,
+			stdout:    []string{`"state":"FIRST"`, `"state":"SECOND"`},
+		},
+		{
+			name:      "should send the mapped column of each tsv row",
+			args:      []string{"--ask", "urgent=is this urgent", "-i", "tsv", "--map", ".body", "--print-request"},
+			stdin:     "customer\tbody\nc1\tfirst\nc2\tsecond\n",
+			wantCode:  ExitOK,
+			wantLines: 2,
+			stdout:    []string{`"state":"first"`, `"state":"second"`},
+			absent:    []string{"customer"},
+		},
+		{
+			name:      "should write an error line for a record that maps to a number or a boolean",
+			args:      []string{"--ask", "urgent=is this urgent", "-i", "jsonl", "--map", ".v", "--print-request"},
+			stdin:     "{\"v\":1}\n{\"v\":true}\n{\"v\":\"third\"}\n",
+			wantCode:  ExitRecords,
+			wantLines: 3,
+			stdout: []string{
+				`"message":"line 1: --map: state must be a string, object or array, got number"`,
+				`"message":"line 2: --map: state must be a string, object or array, got boolean"`,
+				`"state":"third"`,
 			},
 		},
 		{

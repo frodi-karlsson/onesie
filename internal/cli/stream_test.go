@@ -142,6 +142,28 @@ func TestStream(t *testing.T) {
 			wantLines: 2,
 		},
 		{
+			name:      "should fail a record that maps to nothing usable and carry on",
+			args:      []string{"is this urgent", "-i", "jsonl", "--map", ".body"},
+			stdin:     "{\"body\":\"first\"}\n{\"customer\":\"c2\"}\n{\"body\":1}\n{\"body\":\"fourth\"}\n",
+			response:  answered,
+			wantCode:  cli.ExitRecords,
+			wantLines: 4,
+			contains: []string{
+				`line 2: --map: state must be a string, object or array, got null`,
+				`line 3: --map: state must be a string, object or array, got number`,
+				`"answer":{"value":0.9}`,
+			},
+		},
+		{
+			name:      "should fail a record whose expression fails as it runs and carry on",
+			args:      []string{"is this urgent", "-i", "jsonl", "--map", ".body.text"},
+			stdin:     "{\"body\":\"first\"}\n{\"body\":{\"text\":\"second\"}}\n",
+			response:  answered,
+			wantCode:  cli.ExitRecords,
+			wantLines: 2,
+			contains:  []string{`"kind":"input"`, `line 1: --map fails: `, `"answer":{"value":0.9}`},
+		},
+		{
 			name: "should fail a record whose --map result nests too deep and carry on",
 			args: []string{
 				"is this urgent", "-i", "jsonl",
@@ -545,6 +567,20 @@ func TestStream(t *testing.T) {
 				stdin:    "id,body\n7,the site is down\n",
 				wantWire: `"the site is down"`,
 				wantOut:  `{"id":"7","body":"the site is down","answers":{"answer":0.9}}`,
+			},
+			{
+				name:     "should send the mapped column and merge into the whole tsv row",
+				args:     []string{"x", "-i", "tsv", "--map", ".body", "--merge", "-o", "values"},
+				stdin:    "id\tbody\n7\tthe site is down\n",
+				wantWire: `"the site is down"`,
+				wantOut:  `{"id":"7","body":"the site is down","answers":{"answer":0.9}}`,
+			},
+			{
+				name:     "should send the mapped line and merge into the line as read",
+				args:     []string{"x", "-i", "lines", "--map", "ascii_upcase", "--merge", "-o", "values"},
+				stdin:    "the site is down\n",
+				wantWire: `"THE SITE IS DOWN"`,
+				wantOut:  `{"state":"the site is down","answers":{"answer":0.9}}`,
 			},
 		}
 
