@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io/fs"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"testing/fstest"
@@ -21,6 +22,7 @@ func TestReadQuestionFile(t *testing.T) {
 		name     string
 		value    string
 		files    map[string]string
+		links    []string
 		readErr  error
 		wantData string
 		wantPath string
@@ -56,6 +58,21 @@ func TestReadQuestionFile(t *testing.T) {
 			files:    map[string]string{"/cfg/onesie/questions/triage.json": "config"},
 			wantData: "config",
 			wantPath: filepath.Join(configDir, "questions", "triage.json"),
+		},
+		{
+			name:     "should look a bare name up past a directory of that name in the working directory",
+			value:    "triage",
+			files:    map[string]string{"/repo/sub/triage/notes.txt": "", "/repo/.onesie/questions/triage.yaml": "repo"},
+			wantData: "repo",
+			wantPath: filepath.Join(repoDir, "triage.yaml"),
+		},
+		{
+			name:     "should fail on a dangling symlink of that name rather than look it up",
+			value:    "triage",
+			files:    map[string]string{"/repo/.onesie/questions/triage.yaml": "repo"},
+			links:    []string{"triage"},
+			wantErr:  []string{"onesie: reading triage:"},
+			noLookup: true,
 		},
 		{
 			name:     "should not look up a missing path",
@@ -104,7 +121,9 @@ func TestReadQuestionFile(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			settings := newFakeTree(tc.files, workDir, configDir).settings(rootSettings{})
+			tree := newFakeTree(tc.files, workDir, configDir)
+			tree.dangling = tc.links
+			settings := tree.settings(rootSettings{})
 
 			if tc.readErr != nil {
 				settings.readFile = func(string) ([]byte, error) { return nil, tc.readErr }
@@ -269,9 +288,12 @@ type fakeTree struct {
 	tree      fstest.MapFS
 	workDir   string
 	configDir string
+	// dangling are symlinks whose target is gone, named as the -f value spells them.
+	dangling []string
 }
 
 func (f fakeTree) settings(settings rootSettings) rootSettings {
+	settings = f.links(settings)
 	settings.getwd = func() (string, error) { return f.workDir, nil }
 	settings.configDir = func() (string, error) { return f.configDir, nil }
 	settings.readDir = func(dir string) ([]fs.DirEntry, error) {
@@ -284,13 +306,30 @@ func (f fakeTree) settings(settings rootSettings) rootSettings {
 	return settings
 }
 
+// options wires the tree through the public options where they exist, so the command tree resolves
+// the config dir from the environment as it does in production.
 func (f fakeTree) options() []RootOption {
 	return []RootOption{
+		func(s *rootSettings) { *s = f.links(*s) },
 		WithWorkingDir(func() (string, error) { return f.workDir, nil }),
 		WithReadDir(func(dir string) ([]fs.DirEntry, error) { return fs.ReadDir(f.tree, f.path(dir)) }),
 		WithReadFile(func(name string) ([]byte, error) { return fs.ReadFile(f.tree, f.path(name)) }),
 		WithLookupEnv(lookupFrom(map[string]string{"ONESIE_CONFIG_DIR": f.configDir})),
 	}
+}
+
+func (f fakeTree) links(settings rootSettings) rootSettings {
+	settings.stat = func(name string) (fs.FileInfo, error) { return fs.Stat(f.tree, f.path(name)) }
+	settings.readlink = func(name string) (string, error) {
+		if slices.Contains(f.dangling, name) {
+			return "gone", nil
+		}
+
+		return "", &fs.PathError{Op: "readlink", Path: name, Err: fs.ErrInvalid}
+	}
+	settings.resolve = func(path string) (string, error) { return path, nil }
+
+	return settings
 }
 
 func (f fakeTree) path(name string) string {

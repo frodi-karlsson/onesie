@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"syscall"
 	"testing"
 	"testing/fstest"
 
@@ -49,7 +50,7 @@ func TestFind(t *testing.T) {
 	configQuestions := filepath.Join(configDir, "questions")
 	workDir := filepath.Join(string(filepath.Separator)+"repo", "sub", "deeper")
 
-	errNoHome := errors.New("onesie: cannot find a home directory for the config dir")
+	errNoHome := errors.New("onesie: cannot find a home directory for the config dir, where the credential file lives")
 
 	tests := []struct {
 		name      string
@@ -173,10 +174,25 @@ func TestFind(t *testing.T) {
 			want:      filepath.Join(repoDir, "triage.yaml"),
 		},
 		{
-			name:      "should report a config dir that cannot be resolved",
+			name:      "should name the repository set and an unresolved config dir for a missing name",
+			files:     []string{"/repo/.onesie/questions/other.yaml"},
 			configErr: errNoHome,
-			wantErr:   []string{errNoHome.Error()},
-			wantIs:    errNoHome,
+			wantErr: []string{
+				"onesie: no file or question file named triage",
+				"in " + repoDir + ".",
+				"The config dir could not be resolved, so it was not searched: " +
+					"cannot find a home directory for the config dir",
+			},
+			wantIs: errNoHome,
+		},
+		{
+			name:      "should say nothing was searched when neither set exists",
+			configErr: errNoHome,
+			wantErr: []string{
+				"Found no .onesie/questions in " + workDir + " or any parent",
+				"The config dir could not be resolved",
+			},
+			wantIs: errNoHome,
 		},
 	}
 
@@ -214,6 +230,80 @@ func TestFind(t *testing.T) {
 		})
 	}
 
+	t.Run("should walk past a parent whose .onesie is a file", func(t *testing.T) {
+		t.Parallel()
+
+		env := fakeEnv([]string{"/repo/.onesie/questions/triage.yaml"}, workDir, configDir, nil)
+		listed := env.ReadDir
+		blocked := filepath.Join(string(filepath.Separator)+"repo", "sub", ".onesie", "questions")
+
+		env.ReadDir = func(dir string) ([]fs.DirEntry, error) {
+			if dir == blocked {
+				return nil, &fs.PathError{Op: "open", Path: dir, Err: syscall.ENOTDIR}
+			}
+
+			return listed(dir)
+		}
+
+		got, err := qfile.Find("triage", env)
+		if err != nil {
+			t.Fatalf("Find: %v", err)
+		}
+
+		if want := filepath.Join(repoDir, "triage.yaml"); got != want {
+			t.Errorf("Find = %s, want %s", got, want)
+		}
+	})
+
+	t.Run("should name a config dir that is the repository set once", func(t *testing.T) {
+		t.Parallel()
+
+		repoRoot := filepath.Join(string(filepath.Separator)+"repo", ".onesie")
+
+		tests := []struct {
+			name    string
+			config  string
+			resolve func(string) (string, error)
+		}{
+			{
+				name:   "should compare a relative config dir as absolute",
+				config: filepath.Join("..", ".onesie"),
+			},
+			{
+				name:   "should compare a symlinked config dir by its target",
+				config: filepath.Join(string(filepath.Separator) + "linked"),
+				resolve: func(path string) (string, error) {
+					linked := filepath.Join(string(filepath.Separator)+"linked", "questions")
+					if path == linked {
+						return repoDir, nil
+					}
+
+					return path, nil
+				},
+			},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				env := fakeEnv([]string{"/repo/.onesie/questions/other.yaml"}, workDir, tc.config, nil)
+				if tc.resolve != nil {
+					env.Resolve = tc.resolve
+				}
+
+				_, err := qfile.Find("triage", env)
+				if err == nil {
+					t.Fatal("Find found triage, want an error")
+				}
+
+				if count := strings.Count(err.Error(), repoRoot); count != 1 {
+					t.Errorf("Find error = %v, names the repository set %d times, want once", err, count)
+				}
+			})
+		}
+	})
+
 	t.Run("should report a directory that cannot be read", func(t *testing.T) {
 		t.Parallel()
 
@@ -249,6 +339,7 @@ func fakeEnv(files []string, workDir, configDir string, configErr error) qfile.F
 		ReadDir: func(dir string) ([]fs.DirEntry, error) {
 			return fs.ReadDir(tree, fsPath(dir))
 		},
+		Resolve: func(path string) (string, error) { return path, nil },
 	}
 }
 
@@ -269,14 +360,13 @@ func TestList(t *testing.T) {
 	configQuestions := filepath.Join(configDir, "questions")
 	workDir := filepath.Join(string(filepath.Separator)+"repo", "sub")
 
-	errNoHome := errors.New("onesie: cannot find a home directory for the config dir")
+	errNoHome := errors.New("onesie: cannot find a home directory for the config dir, where the credential file lives")
 
 	tests := []struct {
 		name      string
 		files     []string
 		configErr error
 		want      []qfile.Found
-		wantIs    error
 	}{
 		{
 			name: "should list nothing when no set exists",
@@ -328,10 +418,12 @@ func TestList(t *testing.T) {
 			},
 		},
 		{
-			name:      "should report a config dir that cannot be resolved",
+			name:      "should list the repository set when the config dir cannot be resolved",
 			files:     []string{"/repo/.onesie/questions/triage.yaml"},
 			configErr: errNoHome,
-			wantIs:    errNoHome,
+			want: []qfile.Found{
+				{Name: "triage", Paths: []string{filepath.Join(repoDir, "triage.yaml")}, InRepo: true},
+			},
 		},
 	}
 
@@ -340,15 +432,6 @@ func TestList(t *testing.T) {
 			t.Parallel()
 
 			got, err := qfile.List(fakeEnv(tc.files, workDir, configDir, tc.configErr))
-
-			if tc.wantIs != nil {
-				if !errors.Is(err, tc.wantIs) {
-					t.Fatalf("List error = %v, want it to wrap %v", err, tc.wantIs)
-				}
-
-				return
-			}
-
 			if err != nil {
 				t.Fatalf("List: %v", err)
 			}

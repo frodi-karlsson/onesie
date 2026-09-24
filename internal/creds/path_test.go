@@ -215,7 +215,7 @@ func TestDir(t *testing.T) {
 		{
 			name:    "should name the config dir when no home directory is found",
 			goos:    "linux",
-			wantErr: "onesie: cannot find a home directory for the config dir",
+			wantErr: "onesie: cannot find a home directory for the config dir, where the credential file lives",
 		},
 	}
 

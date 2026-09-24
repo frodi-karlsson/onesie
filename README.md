@@ -148,6 +148,7 @@ onesie -i request < frozen.jsonl > answers.jsonl
 Saved in a `.onesie/questions` directory, it loads by name from anywhere in the repository.
 
 ```sh
+mkdir -p .onesie/questions
 onesie --ask urgent='does this convey urgency' --ask team='who owns this' --pick billing,platform \
     --assert 'urgent.value < 0.9' --print-questions > .onesie/questions/triage.yaml
 onesie -f triage -o values < ticket.txt

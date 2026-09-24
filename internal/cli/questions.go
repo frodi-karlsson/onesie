@@ -24,7 +24,8 @@ func newQuestionsCmd(settings rootSettings) *cobra.Command {
 			"questions under the config dir auth set uses, and tries NAME.yaml, NAME.yml and NAME.json. " +
 			"A name in both places lists only the repository's, which is the one -f uses. A name with two " +
 			"files in one directory is listed once per file and marked as a clash, which -f refuses.",
-		Example: "  onesie --ask urgent='is this urgent' --print-questions > .onesie/questions/triage.yaml\n" +
+		Example: "  mkdir -p .onesie/questions\n" +
+			"  onesie --ask urgent='is this urgent' --print-questions > .onesie/questions/triage.yaml\n" +
 			"  onesie questions",
 		Args: func(_ *cobra.Command, args []string) error {
 			if len(args) == 0 {
@@ -56,7 +57,7 @@ func listQuestions(w io.Writer, settings rootSettings, format string) error {
 	}
 
 	listed, err := qfile.List(env)
-	if err != nil || len(listed) == 0 {
+	if err != nil {
 		return err
 	}
 
@@ -70,7 +71,7 @@ func listQuestions(w io.Writer, settings rootSettings, format string) error {
 }
 
 func savedRows(listed []qfile.Found) []savedRow {
-	var rows []savedRow
+	rows := []savedRow{}
 
 	for _, found := range listed {
 		for _, path := range found.Paths {

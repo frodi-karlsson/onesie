@@ -14,7 +14,7 @@ func readQuestionFile(settings rootSettings, value string) ([]byte, string, erro
 		return data, value, nil
 	}
 
-	if !errors.Is(err, fs.ErrNotExist) || !qfile.IsName(value) {
+	if !qfile.IsName(value) || !lookupPast(settings, value, err) {
 		return nil, "", fmt.Errorf("onesie: reading %s: %w", value, err)
 	}
 
@@ -36,11 +36,29 @@ func readQuestionFile(settings rootSettings, value string) ([]byte, string, erro
 	return data, path, nil
 }
 
+func lookupPast(settings rootSettings, value string, readErr error) bool {
+	if errors.Is(readErr, fs.ErrNotExist) {
+		// A symlink whose target is gone reads as not found, but the user named a real entry.
+		_, linkErr := settings.readlink(value)
+
+		return linkErr != nil
+	}
+
+	info, err := settings.stat(value)
+
+	return err == nil && info.IsDir()
+}
+
 func findEnv(settings rootSettings) (qfile.FindEnv, error) {
 	workDir, err := settings.getwd()
 	if err != nil {
 		return qfile.FindEnv{}, fmt.Errorf("onesie: finding the working directory to look up a question file: %w", err)
 	}
 
-	return qfile.FindEnv{WorkDir: workDir, ConfigDir: settings.configDir, ReadDir: settings.readDir}, nil
+	return qfile.FindEnv{
+		WorkDir:   workDir,
+		ConfigDir: settings.configDir,
+		ReadDir:   settings.readDir,
+		Resolve:   settings.resolve,
+	}, nil
 }

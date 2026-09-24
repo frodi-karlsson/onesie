@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"errors"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -34,6 +35,7 @@ func TestNewQuestionsCmd(t *testing.T) {
 		name     string
 		args     []string
 		files    map[string]string
+		noConfig bool
 		wantCode int
 		want     string
 		contains []string
@@ -83,9 +85,30 @@ func TestNewQuestionsCmd(t *testing.T) {
 			wantCode: ExitOK,
 		},
 		{
-			name:     "should print nothing in json when no name is saved",
+			name:     "should print an empty array in json when no name is saved",
 			args:     []string{"questions", "-o", "json"},
 			wantCode: ExitOK,
+			want:     "[]\n",
+		},
+		{
+			name:     "should list the repository set when the config dir cannot be resolved",
+			args:     []string{"questions"},
+			files:    sets,
+			noConfig: true,
+			wantCode: ExitOK,
+			want:     "triage  " + filepath.Join(upOne, "triage.yaml") + "\n",
+		},
+		{
+			name:     "should name what -f searched when the config dir cannot be resolved",
+			args:     []string{"-f", "support", "--state", "x", "--print-request"},
+			files:    sets,
+			noConfig: true,
+			wantCode: ExitUsage,
+			contains: []string{
+				"onesie: no file or question file named support",
+				"in " + repoDir + ".",
+				"The config dir could not be resolved, so it was not searched",
+			},
 		},
 		{
 			name:     "should refuse an unknown output",
@@ -126,6 +149,12 @@ func TestNewQuestionsCmd(t *testing.T) {
 				WithStdoutTTY(false),
 			}, newFakeTree(tc.files, workDir, configDir).options()...)
 			opts = append(opts, WithHomeDir(func() (string, error) { return home, nil }))
+
+			if tc.noConfig {
+				opts = append(opts,
+					WithLookupEnv(func(string) (string, bool) { return "", false }),
+					WithHomeDir(func() (string, error) { return "", errors.New("$HOME is not defined") }))
+			}
 
 			root := NewRootCmd(BuildInfo{Version: "1.2.3"}, opts...)
 			root.SetOut(&out)

@@ -52,6 +52,7 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 		stdoutTTY:     isTerminal(os.Stdout),
 		readFile:      os.ReadFile,
 		readDir:       os.ReadDir,
+		stat:          os.Stat,
 		getwd:         os.Getwd,
 		openFile:      os.OpenFile,
 		rename:        os.Rename,
@@ -435,6 +436,7 @@ type rootSettings struct {
 	stdoutTTY     bool
 	readFile      func(string) ([]byte, error)
 	readDir       func(string) ([]fs.DirEntry, error)
+	stat          func(string) (fs.FileInfo, error)
 	getwd         func() (string, error)
 	configDir     func() (string, error)
 	openFile      func(name string, flag int, perm os.FileMode) (*os.File, error)
