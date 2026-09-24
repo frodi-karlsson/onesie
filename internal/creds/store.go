@@ -348,6 +348,6 @@ type ReadableError struct {
 // Error names the path and the mode, never the contents.
 func (e *ReadableError) Error() string {
 	return fmt.Sprintf(
-		"onesie: credential file %s is accessible by others, mode %o. Run chmod 600 on it or onesie auth set to rewrite it",
+		"onesie: credential file %s is accessible by others, mode %o. Run chmod 600 on it",
 		e.Path, e.Mode)
 }

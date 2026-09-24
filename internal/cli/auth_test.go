@@ -410,6 +410,55 @@ func TestAuthClear(t *testing.T) {
 			t.Errorf("the credential file is still there, stat error = %v", err)
 		}
 	})
+
+	t.Run("should refuse to clear a file others can reach", func(t *testing.T) {
+		t.Parallel()
+
+		if runtime.GOOS == "windows" {
+			t.Skip("windows carries no unix permission bits, so the mode check does not apply")
+		}
+
+		const both = `{"providers":{"openrouter":{"api_key":"SECRET-OR"},"typesafe":{"api_key":"SECRET-TS"}}}`
+		path := credentialFixture(t, both, 0o644)
+
+		out, errOut, code := runAuth(t, []string{"--provider", "openrouter", "auth", "clear"},
+			WithCredentialPath(fixedPath(path)),
+			WithLookupEnv(lookupFrom(nil)))
+
+		assertNoSecret(t, out, errOut)
+
+		if code != ExitAuth {
+			t.Errorf("exit code = %d, want %d", code, ExitAuth)
+		}
+
+		if data, err := os.ReadFile(path); err != nil || string(data) != both {
+			t.Error("the credential file changed, want it untouched")
+		}
+	})
+
+	t.Run("should remove a file it cannot parse and say what may be left behind", func(t *testing.T) {
+		t.Parallel()
+
+		path := credentialFixture(t, `not json`, 0)
+
+		out, errOut, code := runAuth(t, []string{"auth", "clear"},
+			WithCredentialPath(fixedPath(path)),
+			WithLookupEnv(lookupFrom(nil)))
+
+		assertNoSecret(t, out, errOut)
+
+		if code != ExitOK {
+			t.Errorf("exit code = %d, want %d", code, ExitOK)
+		}
+
+		if !strings.Contains(errOut, "Any keychain item it pointed at is left behind") {
+			t.Errorf("stderr = %q, want the left behind warning", errOut)
+		}
+
+		if _, err := os.Lstat(path); !errors.Is(err, os.ErrNotExist) {
+			t.Errorf("the credential file is still there, stat error = %v", err)
+		}
+	})
 }
 
 func TestAuthSet(t *testing.T) {
@@ -418,20 +467,21 @@ func TestAuthSet(t *testing.T) {
 	errNoChmod := errors.New("the test chmod failed")
 
 	tests := []struct {
-		name         string
-		args         []string
-		stdin        string
-		tty          bool
-		secret       string
-		existing     string
-		existingMode os.FileMode
-		unixOnly     bool
-		chmodFails   bool
-		wantKey      string
-		wantBase     string
-		wantNoFile   bool
-		wantErr      string
-		wantCode     int
+		name          string
+		args          []string
+		stdin         string
+		tty           bool
+		secret        string
+		existing      string
+		existingMode  os.FileMode
+		unixOnly      bool
+		chmodFails    bool
+		wantKey       string
+		wantBase      string
+		wantNoFile    bool
+		wantUntouched bool
+		wantErr       string
+		wantCode      int
 	}{
 		{
 			name:     "should store a key read from stdin",
@@ -511,13 +561,14 @@ func TestAuthSet(t *testing.T) {
 			wantCode: ExitOK,
 		},
 		{
-			name:         "should overwrite an existing file others can reach",
-			stdin:        "SECRET-STDIN\n",
-			existing:     `{"providers":{"typesafe":{"api_key":"SECRET-OLD"}}}`,
-			existingMode: 0o644,
-			unixOnly:     true,
-			wantKey:      "SECRET-STDIN",
-			wantCode:     ExitOK,
+			name:          "should refuse to rebuild a file others can reach",
+			stdin:         "SECRET-STDIN\n",
+			existing:      `{"providers":{"typesafe":{"api_key":"SECRET-OLD"}}}`,
+			existingMode:  0o644,
+			unixOnly:      true,
+			wantErr:       "is accessible by others, mode 644. Run chmod 600 on it",
+			wantCode:      ExitAuth,
+			wantUntouched: true,
 		},
 		{
 			name:     "should read the key from the hidden prompt when stdin is a tty",
@@ -585,6 +636,18 @@ func TestAuthSet(t *testing.T) {
 
 			if tc.wantNoFile {
 				assertMissing(t, path, tc.existing != "")
+
+				return
+			}
+
+			if tc.wantUntouched {
+				if data, err := os.ReadFile(path); err != nil || string(data) != tc.existing {
+					t.Error("the credential file changed, want it untouched")
+				}
+
+				if strings.Contains(errOut, "onesie: writing") {
+					t.Errorf("stderr = %q, want no writing notice for a refused file", errOut)
+				}
 
 				return
 			}

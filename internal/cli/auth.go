@@ -104,13 +104,21 @@ func authSet(cmd *cobra.Command, settings rootSettings, flags *runFlags, opts se
 		return err
 	}
 
+	file, found, loadErr := settings.credStore.Load(path)
+
+	// Rebuilding a file others can reach would drop every other provider's entry, and chmod is the
+	// whole fix.
+	var exposed *creds.ReadableError
+	if errors.As(loadErr, &exposed) {
+		return loadErr
+	}
+
 	// stderr rather than stdout. It is a notice and not output, and pass show x | onesie auth set > log
 	// must not put a filesystem path in a log the user expected to stay empty.
 	if _, printErr := fmt.Fprintln(cmd.ErrOrStderr(), "onesie: writing "+path); printErr != nil {
 		return printErr
 	}
 
-	file, found, loadErr := settings.credStore.Load(path)
 	if loadErr != nil || !found {
 		file = creds.File{Providers: map[string]creds.Entry{}}
 	}
@@ -382,7 +390,18 @@ func authClear(cmd *cobra.Command, settings rootSettings, flags *runFlags) error
 	}
 
 	file, found, err := settings.credStore.Load(path)
+
+	var exposed *creds.ReadableError
+	if errors.As(err, &exposed) {
+		return err
+	}
+
 	if err != nil {
+		if _, printErr := fmt.Fprintln(cmd.ErrOrStderr(), "warning: removed "+path+
+			", which could not be read. Any keychain item it pointed at is left behind"); printErr != nil {
+			return printErr
+		}
+
 		return settings.credStore.Clear(path)
 	}
 
