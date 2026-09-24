@@ -23,6 +23,8 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/limits"
 )
 
+const annotationAsksNothing = "onesie-asks-nothing"
+
 // Changed reports false for a name pflag does not know, and reports no error, so a name that has
 // to survive a rename is spelled once. A flag nothing passes to Changed needs no constant.
 const (
@@ -138,6 +140,7 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 	// Cobra would claim the lowercase -v for --version, and the spec asks for -V. Registering it
 	// here takes the name before cobra reaches for a shorthand of its own.
 	root.Flags().BoolP("version", "V", false, "print the version and the built in limits")
+	asksNothing(root.Flags(), "version")
 	root.SetVersionTemplate("{{.Name}} {{.Version}}\n" + limitsBlock())
 
 	for name, help := range groupFlagHelp {
@@ -180,6 +183,7 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 		"write api shaped request bodies to stdout and exit")
 	root.Flags().BoolVar(&flags.listModels, "list-models", false,
 		"write the available models to stdout and exit")
+	asksNothing(root.Flags(), "list-models")
 	root.Flags().BoolVar(&flags.stats, "stats", false,
 		"write a one line summary of the run to stderr at exit")
 	root.Flags().IntVarP(&flags.jobs, flagJobs, "j", 1, "records in flight at once")
@@ -218,13 +222,27 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 	// subcommands cobra adds itself, such as completion.
 	root.SetFlagErrorFunc(subcommandHint(root))
 
+	// Cobra adds its help flag when the tree runs. Adding it now lets it be marked like the others.
+	root.InitDefaultHelpFlag()
+	asksNothing(root.Flags(), "help")
+
 	return root
 }
 
 func subcommandHint(root *cobra.Command) func(*cobra.Command, error) error {
 	return func(cmd *cobra.Command, err error) error {
 		var unknown *pflag.NotExistError
-		if cmd == root || !errors.As(err, &unknown) || !rootKnows(root, unknown) {
+		if cmd == root || !errors.As(err, &unknown) {
+			return err
+		}
+
+		// A flag that asks no question would refuse the question the hint tells the user to ask.
+		known := rootFlag(root, unknown)
+		if known == nil {
+			return err
+		}
+
+		if _, refuses := known.Annotations[annotationAsksNothing]; refuses {
 			return err
 		}
 
@@ -237,12 +255,21 @@ func subcommandHint(root *cobra.Command) func(*cobra.Command, error) error {
 	}
 }
 
-func rootKnows(root *cobra.Command, unknown *pflag.NotExistError) bool {
+func rootFlag(root *cobra.Command, unknown *pflag.NotExistError) *pflag.Flag {
 	if unknown.GetSpecifiedShortnames() != "" {
-		return root.Flags().ShorthandLookup(unknown.GetSpecifiedName()) != nil
+		return root.Flags().ShorthandLookup(unknown.GetSpecifiedName())
 	}
 
-	return root.Flags().Lookup(unknown.GetSpecifiedName()) != nil
+	return root.Flags().Lookup(unknown.GetSpecifiedName())
+}
+
+func asksNothing(set *pflag.FlagSet, name string) {
+	flag := set.Lookup(name)
+	if flag.Annotations == nil {
+		flag.Annotations = map[string][]string{}
+	}
+
+	flag.Annotations[annotationAsksNothing] = nil
 }
 
 // Execute runs a built command tree and returns the process exit code, so main never has to

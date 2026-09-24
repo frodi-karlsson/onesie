@@ -16,10 +16,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/spf13/pflag"
+
 	"github.com/frodi-karlsson/onesie/internal/cli"
 	"github.com/frodi-karlsson/onesie/internal/creds"
 	"github.com/frodi-karlsson/onesie/internal/jev"
-	"github.com/frodi-karlsson/onesie/internal/limits"
 )
 
 func TestNewRootCmd(t *testing.T) {
@@ -1081,21 +1082,29 @@ func TestNewRootCmd(t *testing.T) {
 
 		root := cli.NewRootCmd(cli.BuildInfo{Version: "1.2.3"})
 
-		for name, want := range map[string]string{
-			"input":           "text",
-			"jobs":            "1",
-			"timeout":         strconv.Itoa(int(limits.DefaultAttemptTimeout.Seconds())),
-			"retries":         strconv.Itoa(limits.DefaultRetries),
-			"max-retry-after": strconv.Itoa(int(limits.DefaultMaxRetryAfter.Seconds())),
-		} {
-			flag := root.Flags().Lookup(name)
-			if flag == nil {
-				t.Fatalf("the root has no --%s", name)
+		calibrate, _, err := root.Find([]string{"calibrate"})
+		if err != nil || calibrate == root {
+			t.Fatalf("finding calibrate: %v", err)
+		}
+
+		shared := 0
+
+		calibrate.LocalFlags().VisitAll(func(flag *pflag.Flag) {
+			rootFlag := root.Flags().Lookup(flag.Name)
+			if rootFlag == nil {
+				return
 			}
 
-			if got := flag.Value.String(); got != want {
-				t.Errorf("--%s = %q after the tree is built, want %q", name, got, want)
+			shared++
+
+			if got := rootFlag.Value.String(); got != rootFlag.DefValue {
+				t.Errorf("--%s = %q after the tree is built, want the root's default %q",
+					flag.Name, got, rootFlag.DefValue)
 			}
+		})
+
+		if shared == 0 {
+			t.Fatal("calibrate shares no flag with the root, want the stream flags")
 		}
 	})
 
@@ -1134,6 +1143,24 @@ func TestNewRootCmd(t *testing.T) {
 				name: "should hint for a shorthand the root knows",
 				args: []string{"version", "-o", "json"},
 				want: "'version' " + hint,
+			},
+			{
+				name:   "should not hint for -V, which takes no question",
+				args:   []string{"version", "-V"},
+				want:   "onesie: unknown shorthand flag: 'V' in -V",
+				absent: true,
+			},
+			{
+				name:   "should not hint for --version, which takes no question",
+				args:   []string{"calibrate", "--version"},
+				want:   "onesie: unknown flag: --version",
+				absent: true,
+			},
+			{
+				name:   "should not hint for --list-models, which takes no question",
+				args:   []string{"calibrate", "--list-models"},
+				want:   "onesie: unknown flag: --list-models",
+				absent: true,
 			},
 			{
 				name:   "should not hint for a flag the root does not know either",
