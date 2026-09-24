@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 
@@ -28,7 +29,7 @@ func records(
 		stop:   stop,
 		source: engine.Skip[input.Record](stream, flags.resumeSkip),
 		namer:  namer,
-		seen:   map[string]int{},
+		seen:   map[[sha256.Size]byte]int{},
 	}
 }
 
@@ -43,7 +44,7 @@ type naming struct {
 	stop   context.CancelFunc
 	source engine.Source[input.Record]
 	namer  *jq.Expr
-	seen   map[string]int
+	seen   map[[sha256.Size]byte]int
 }
 
 func (n *naming) Next() (namedRecord, bool, error) {
@@ -64,11 +65,13 @@ func (n *naming) name(rec input.Record) namedRecord {
 		return namedRecord{Record: rec, idErr: err}
 	}
 
-	key := idText(id)
+	text := idText(id)
+
+	key := sha256.Sum256([]byte(text))
 	if first, taken := n.seen[key]; taken {
 		return namedRecord{
 			Record: rec,
-			idErr:  fmt.Errorf("--id: '%s' is also the id of line %d", key, first),
+			idErr:  fmt.Errorf("--id: '%s' is also the id of line %d", text, first),
 		}
 	}
 
