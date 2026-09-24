@@ -28,7 +28,7 @@ test-race: ## Run unit tests with the race detector
 	go tool gotestsum --format testname -- -race -timeout 2m ./...
 
 test-integration: ## Run tests against the live API. Needs TYPESAFE_API_KEY, and OPENROUTER_API_KEY for the OpenRouter cases, or a .env
-	go test -tags integration -race -count=1 -timeout 5m ./internal/jev/ ./internal/cli/ -run 'TestLive|TestFilterIntegration|TestFileIntegration|TestStreamIntegration' -v
+	go test -tags integration -race -count=1 -timeout 5m ./internal/jev/ ./internal/cli/ -run 'TestLive|Integration' -v
 
 fuzz: ## Fuzz the --assert parser, FUZZTIME=1m by default
 	go test ./internal/assert/ -run '^$$' -fuzz FuzzParse -fuzztime $(or $(FUZZTIME),1m) -fuzzminimizetime 0
