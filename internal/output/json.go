@@ -41,6 +41,12 @@ func jsonBytes(rec Record) ([]byte, error) {
 	var buf []byte
 
 	buf = append(buf, '{')
+
+	buf, err := appendID(buf, rec.ID)
+	if err != nil {
+		return nil, err
+	}
+
 	buf = appendFailure(buf, rec.Failure)
 	buf = appendAssert(buf, rec.AssertFailed)
 	buf = appendAbstain(buf, rec.Abstained)
@@ -89,6 +95,12 @@ func valuesBytes(rec Record) ([]byte, error) {
 	var buf []byte
 
 	buf = append(buf, '{')
+
+	buf, err := appendID(buf, rec.ID)
+	if err != nil {
+		return nil, err
+	}
+
 	buf = appendFailure(buf, rec.Failure)
 	buf = appendAssert(buf, rec.AssertFailed)
 	buf = appendAbstain(buf, rec.Abstained)
@@ -115,6 +127,19 @@ func valuesBytes(rec Record) ([]byte, error) {
 // failure and no answers to carry it.
 func EncodeFailure(failure *Failure) []byte {
 	return append(appendFailure([]byte{'{'}, failure), '}')
+}
+
+func appendID(buf []byte, id any) ([]byte, error) {
+	if id == nil {
+		return buf, nil
+	}
+
+	encoded, err := json.Marshal(id)
+	if err != nil {
+		return nil, err
+	}
+
+	return append(appendKey(buf, "id"), encoded...), nil
 }
 
 func appendFailure(buf []byte, failure *Failure) []byte {

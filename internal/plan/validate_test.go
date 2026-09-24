@@ -349,6 +349,11 @@ func TestValidate(t *testing.T) {
 			wantErr: "onesie: question id 'abstain' is reserved",
 		},
 		{
+			name:    "should reject the reserved id id",
+			events:  []argv.Event{{Name: "ask", Value: "id=first"}},
+			wantErr: "onesie: question id 'id' is reserved",
+		},
+		{
 			name:       "should reject replace with no file given",
 			positional: "is this urgent",
 			cfg:        plan.Config{Replace: true},
@@ -1054,6 +1059,39 @@ func TestCheckFlags(t *testing.T) {
 		{
 			name: "should accept --map with --print-request",
 			cfg:  plan.Config{PrintRequest: true, HasMap: true, Streaming: true, InputName: "jsonl", Jobs: 1},
+		},
+		{
+			name:    "should reject --id with -i request",
+			cfg:     request(func(c *plan.Config) { c.HasID = true }),
+			wantErr: "onesie: --id does not apply to -i request, which forwards raw responses",
+		},
+		{
+			name:    "should reject --id with --list-models",
+			cfg:     plan.Config{ListModels: true, HasID: true, InputName: "text"},
+			wantErr: "onesie: --id does not apply to --list-models, which reads no input",
+		},
+		{
+			name:    "should reject --id with --print-questions",
+			cfg:     plan.Config{PrintQuestions: true, HasID: true, InputName: "text"},
+			wantErr: "onesie: --id does not apply to --print-questions, which reads no input",
+		},
+		{
+			name:    "should reject --id with -i text",
+			cfg:     plan.Config{HasID: true, InputName: "text"},
+			wantErr: "onesie: --id applies to streaming input. -i text reads one record",
+		},
+		{
+			name:    "should reject --id with -i json",
+			cfg:     plan.Config{HasID: true, InputName: "json"},
+			wantErr: "onesie: --id applies to streaming input. -i json reads one record",
+		},
+		{
+			name: "should accept --id with streaming input",
+			cfg:  plan.Config{HasID: true, Streaming: true, InputName: "jsonl", Jobs: 1},
+		},
+		{
+			name: "should accept --id with --print-request",
+			cfg:  plan.Config{PrintRequest: true, HasID: true, Streaming: true, InputName: "csv", Jobs: 1},
 		},
 		{
 			name:    "should reject -o with -i request",

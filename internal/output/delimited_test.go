@@ -2,6 +2,7 @@ package output_test
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"testing"
 
@@ -93,6 +94,22 @@ func TestNewDelimited(t *testing.T) {
 			want: "urgent\tteam\terror\n\t\tline one \"two\" three\n",
 		},
 		{
+			name:    "should put the id column first when the run names its records",
+			mode:    output.CSV,
+			opts:    output.DelimitedOptions{IDs: []string{"urgent", "team"}, ID: true, Assert: true, Header: true},
+			records: []output.Record{withID(answered, "T-1"), withID(failed, json.Number("12"))},
+			want: "id,urgent,team,assert,error\n" +
+				"T-1,0.92,billing,true,\n" +
+				"12,,,,\"onesie: 400 bad, request\"\n",
+		},
+		{
+			name:    "should leave the id cell empty for a record with no id",
+			mode:    output.TSV,
+			opts:    output.DelimitedOptions{IDs: []string{"urgent", "team"}, ID: true, Header: true},
+			records: []output.Record{failed},
+			want:    "id\turgent\tteam\terror\n\t\t\tonesie: 400 bad, request\n",
+		},
+		{
 			name:    "should leave the header out when resuming a file that has one",
 			mode:    output.CSV,
 			opts:    output.DelimitedOptions{IDs: []string{"urgent", "team"}},
@@ -126,6 +143,18 @@ func TestNewDelimited(t *testing.T) {
 		})
 	}
 
+	t.Run("should refuse an input column named like the id column", func(t *testing.T) {
+		t.Parallel()
+
+		writer := output.NewDelimited(&bytes.Buffer{}, output.CSV,
+			output.DelimitedOptions{IDs: []string{"urgent"}, ID: true, Header: true})
+
+		err := writer.Write(answered, []string{"id"}, map[string]any{"id": "x"})
+		if !errors.Is(err, output.ErrColumnTaken) {
+			t.Errorf("error = %v, want ErrColumnTaken", err)
+		}
+	})
+
 	t.Run("should refuse an input column named like a question", func(t *testing.T) {
 		t.Parallel()
 
@@ -137,4 +166,10 @@ func TestNewDelimited(t *testing.T) {
 			t.Errorf("error = %v, want ErrColumnTaken", err)
 		}
 	})
+}
+
+func withID(rec output.Record, id any) output.Record {
+	rec.ID = id
+
+	return rec
 }

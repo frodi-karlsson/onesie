@@ -93,6 +93,7 @@ func streamRequests(
 	settings rootSettings,
 	built *plan.Plan,
 	mapper *jq.Expr,
+	namer *jq.Expr,
 	inputMode input.Mode,
 	flags *runFlags,
 ) error {
@@ -105,13 +106,23 @@ func streamRequests(
 
 	out := cmd.OutOrStdout()
 
-	result, err := engine.Run(cmd.Context(), engine.Config[input.Record, []byte]{
-		Source: engine.Skip[input.Record](input.NewStream(settings.stdin, inputMode, flags.skipBlank), flags.resumeSkip),
-		Evaluate: func(ctx context.Context, rec input.Record) ([]byte, error) {
+	result, err := engine.Run(cmd.Context(), engine.Config[namedRecord, []byte]{
+		Source: records(cmd.Context(), settings, inputMode, flags, namer),
+		Evaluate: func(ctx context.Context, rec namedRecord) ([]byte, error) {
 			if rec.Err != nil {
 				// A value alongside the error, because the engine writes every outcome. Returning
 				// nil here would print a blank line rather than the record.
 				return errorLine(rec.Err), rec.Err
+			}
+
+			if interrupted(ctx) {
+				return nil, ctx.Err()
+			}
+
+			if rec.idErr != nil {
+				bad := &input.LineError{Line: rec.Line, Err: rec.idErr}
+
+				return errorLine(bad), bad
 			}
 
 			sent, mapErr := mapped(ctx, mapper, rec.State, rec.Wire)

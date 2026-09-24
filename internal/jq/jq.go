@@ -4,8 +4,13 @@ package jq
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
+	"math/big"
+	"strconv"
+	"strings"
 	"unicode/utf8"
 
 	"github.com/itchyny/gojq"
@@ -24,6 +29,8 @@ var (
 	ErrTooDeep = fmt.Errorf("result nests deeper than %d levels", limits.MaxMapDepth)
 	// ErrTooLarge means a value encodes to more bytes than the limit Marshal was given.
 	ErrTooLarge = errors.New("result encodes to more than the limit")
+	// ErrNotID means a value is neither a string nor a finite number, so it cannot name a record.
+	ErrNotID = errors.New("id must be a string or a finite number")
 )
 
 // Compile parses and compiles a jq expression. A syntax error names the column it was found at.
@@ -89,6 +96,77 @@ func Marshal(value any, limit int) ([]byte, error) {
 	}
 
 	return encoded, nil
+}
+
+// ID reduces a value to the string or json.Number that names a record. A number takes its shortest
+// form, so 7 and 7.0 name the same record.
+func ID(value any) (any, error) {
+	switch v := value.(type) {
+	case string:
+		return v, nil
+	case int:
+		return json.Number(strconv.Itoa(v)), nil
+	case *big.Int:
+		return json.Number(v.String()), nil
+	case float64:
+		return floatID(v)
+	case json.Number:
+		return numberID(v)
+	case nil:
+		return nil, fmt.Errorf("%w, got null", ErrNotID)
+	case bool:
+		return nil, fmt.Errorf("%w, got boolean", ErrNotID)
+	case []any:
+		return nil, fmt.Errorf("%w, got array", ErrNotID)
+	default:
+		return nil, fmt.Errorf("%w, got object", ErrNotID)
+	}
+}
+
+func numberID(number json.Number) (any, error) {
+	// Exact rather than through a float, so an integer id longer than a float64 holds keeps every
+	// digit whether or not it was written with a fraction.
+	exact, ok := new(big.Rat).SetString(number.String())
+	if !ok {
+		return nil, fmt.Errorf("%w, got %s", ErrNotID, number)
+	}
+
+	if exact.IsInt() {
+		return json.Number(exact.Num().String()), nil
+	}
+
+	approx, _ := exact.Float64()
+
+	return floatID(approx)
+}
+
+func floatID(f float64) (any, error) {
+	if math.IsInf(f, 0) || math.IsNaN(f) {
+		return nil, fmt.Errorf("%w, got %v", ErrNotID, f)
+	}
+
+	if f == 0 {
+		return json.Number("0"), nil
+	}
+
+	return json.Number(shortestFloat(f)), nil
+}
+
+func shortestFloat(f float64) string {
+	// The form jq itself writes a number in, which is where a caller will have seen it.
+	format := byte('f')
+	if magnitude := math.Abs(f); magnitude < 1e-6 || magnitude >= 1e21 {
+		format = 'e'
+	}
+
+	text := strconv.FormatFloat(f, format, -1, 64)
+
+	mantissa, exponent, found := strings.Cut(text, "e")
+	if !found {
+		return text
+	}
+
+	return mantissa + "e" + exponent[:1] + strings.TrimLeft(exponent[1:], "0")
 }
 
 func checkBounds(value any, limit int) error {

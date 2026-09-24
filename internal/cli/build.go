@@ -31,6 +31,7 @@ func configOf(
 		HasState:       cmd.Flags().Changed(flagState),
 		HasStateFile:   cmd.Flags().Changed(flagStateFile),
 		HasMap:         cmd.Flags().Changed(flagMap),
+		HasID:          cmd.Flags().Changed(flagID),
 		Replace:        flags.replace,
 		FileName:       flags.file,
 		HasAsk:         asked(events),
@@ -154,13 +155,18 @@ func build(
 		return nil, warnings, err
 	}
 
-	mapper, err := mapperOf(cfg, flags.mapSource)
+	mapper, err := exprOf(cfg.HasMap, "--map", flags.mapSource)
+	if err != nil {
+		return nil, warnings, err
+	}
+
+	namer, err := exprOf(cfg.HasID, "--id", flags.idSource)
 	if err != nil {
 		return nil, warnings, err
 	}
 
 	return &invocation{
-		plan: built, gate: gate, abstain: abstain, mapper: mapper, loaded: loaded,
+		plan: built, gate: gate, abstain: abstain, mapper: mapper, namer: namer, loaded: loaded,
 	}, warnings, nil
 }
 
@@ -210,14 +216,14 @@ func gateExpr(source, named string, built *plan.Plan) (*assert.Expr, error) {
 	return expr, nil
 }
 
-func mapperOf(cfg plan.Config, source string) (*jq.Expr, error) {
-	if !cfg.HasMap {
+func exprOf(given bool, flag, source string) (*jq.Expr, error) {
+	if !given {
 		return nil, nil
 	}
 
 	expr, err := jq.Compile(source)
 	if err != nil {
-		return nil, fmt.Errorf("onesie: --map: %w", err)
+		return nil, fmt.Errorf("onesie: %s: %w", flag, err)
 	}
 
 	return expr, nil
@@ -228,5 +234,6 @@ type invocation struct {
 	gate    *assert.Expr
 	abstain *assert.Expr
 	mapper  *jq.Expr
+	namer   *jq.Expr
 	loaded  *qfile.File
 }

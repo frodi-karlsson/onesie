@@ -650,56 +650,264 @@ func TestStream(t *testing.T) {
 		}
 	})
 
-	t.Run("should exit two on a --map syntax error before reading input", func(t *testing.T) {
+	t.Run("should name every record with --id", func(t *testing.T) {
 		t.Parallel()
 
-		var requests atomic.Int32
+		const duplicate = `{"error":{"kind":"input","status":null,` +
+			`"message":"line 2: --id: '7' is also the id of line 1"}}`
 
-		srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
-			requests.Add(1)
-		}))
-		defer srv.Close()
-
-		stdin := &watchedReader{}
-
-		var out, errOut bytes.Buffer
-
-		root := cli.NewRootCmd(
-			cli.BuildInfo{Version: "1.2.3"},
-			cli.WithKeychain(offKeychain{}),
-			cli.WithClientFactory(func(_ context.Context, opts ...jev.Option) (*jev.Client, error) {
-				return jev.New(append([]jev.Option{
-					jev.WithAPIKey("k"), jev.WithBaseURL(srv.URL),
-				}, opts...)...)
-			}),
-			cli.WithStdin(stdin),
-			cli.WithStdinTTY(false),
-			cli.WithStdoutTTY(false),
-			cli.WithLookupEnv(func(string) (string, bool) { return "", false }),
-		)
-
-		root.SetOut(&out)
-		root.SetErr(&errOut)
-		root.SetArgs([]string{"is this urgent", "-i", "jsonl", "--map", ".body |"})
-
-		if code := cli.Execute(t.Context(), root); code != cli.ExitUsage {
-			t.Errorf("exit code = %d, want %d", code, cli.ExitUsage)
+		tests := []struct {
+			name         string
+			args         []string
+			stdin        string
+			wantCode     int
+			wantOut      string
+			wantRequests int32
+		}{
+			{
+				name:         "should write a string id first in values output",
+				args:         []string{"x", "-i", "jsonl", "--id", ".id", "-o", "values"},
+				stdin:        "{\"id\":\"T-1\",\"body\":\"a\"}\n{\"id\":\"T-2\",\"body\":\"b\"}\n",
+				wantCode:     cli.ExitOK,
+				wantOut:      `{"id":"T-1","answer":0.9}` + "\n" + `{"id":"T-2","answer":0.9}`,
+				wantRequests: 2,
+			},
+			{
+				name:         "should write a number id first in json output",
+				args:         []string{"x", "-i", "jsonl", "--id", ".id"},
+				stdin:        "{\"id\":7}\n{\"id\":8}\n",
+				wantCode:     cli.ExitOK,
+				wantOut:      `{"id":7,"model":"onesie-1.13.0","answer":{"value":0.9}}` + "\n" + `{"id":8,"model":"onesie-1.13.0","answer":{"value":0.9}}`,
+				wantRequests: 2,
+			},
+			{
+				name:         "should write a number id in its shortest form",
+				args:         []string{"x", "-i", "jsonl", "--id", ".id", "-o", "values"},
+				stdin:        "{\"id\":7.0}\n{\"id\":12345678901234567890}\n",
+				wantCode:     cli.ExitOK,
+				wantOut:      `{"id":7,"answer":0.9}` + "\n" + `{"id":12345678901234567890,"answer":0.9}`,
+				wantRequests: 2,
+			},
+			{
+				name:         "should treat 7 and 7.0 as the same id and carry on",
+				args:         []string{"x", "-i", "jsonl", "--id", ".id", "-o", "values"},
+				stdin:        "{\"id\":7}\n{\"id\":7.0}\n{\"id\":8}\n",
+				wantCode:     cli.ExitRecords,
+				wantOut:      `{"id":7,"answer":0.9}` + "\n" + duplicate + "\n" + `{"id":8,"answer":0.9}`,
+				wantRequests: 2,
+			},
+			{
+				name:         "should treat a string and a number with the same text as the same id",
+				args:         []string{"x", "-i", "jsonl", "--id", ".id", "-o", "values"},
+				stdin:        "{\"id\":7}\n{\"id\":\"7\"}\n",
+				wantCode:     cli.ExitRecords,
+				wantOut:      `{"id":7,"answer":0.9}` + "\n" + duplicate,
+				wantRequests: 1,
+			},
+			{
+				name:     "should fail a record with a missing or non scalar id and carry on",
+				args:     []string{"x", "-i", "jsonl", "--id", ".id", "-o", "values"},
+				stdin:    "{\"body\":\"a\"}\n{\"id\":[1]}\n{\"id\":{\"n\":1}}\n{\"id\":true}\n{\"id\":\"T-5\"}\n",
+				wantCode: cli.ExitRecords,
+				wantOut: `{"error":{"kind":"input","status":null,"message":"line 1: --id: id must be a string or a finite number, got null"}}` + "\n" +
+					`{"error":{"kind":"input","status":null,"message":"line 2: --id: id must be a string or a finite number, got array"}}` + "\n" +
+					`{"error":{"kind":"input","status":null,"message":"line 3: --id: id must be a string or a finite number, got object"}}` + "\n" +
+					`{"error":{"kind":"input","status":null,"message":"line 4: --id: id must be a string or a finite number, got boolean"}}` + "\n" +
+					`{"id":"T-5","answer":0.9}`,
+				wantRequests: 1,
+			},
+			{
+				name:         "should fail a record whose --id expression fails and carry on",
+				args:         []string{"x", "-i", "jsonl", "--id", ".id.n", "-o", "values"},
+				stdin:        "{\"id\":\"T-1\"}\n{\"id\":{\"n\":2}}\n",
+				wantCode:     cli.ExitRecords,
+				wantOut:      `{"error":{"kind":"input","status":null,"message":"line 1: --id fails: expected an object but got: string (\"T-1\")"}}` + "\n" + `{"id":2,"answer":0.9}`,
+				wantRequests: 1,
+			},
+			{
+				name:     "should write the id ahead of the error key on a failed record",
+				args:     []string{"x", "-i", "jsonl", "--id", ".id", "--map", ".body", "-o", "values"},
+				stdin:    "{\"id\":\"T-1\"}\n",
+				wantCode: cli.ExitRecords,
+				wantOut: `{"id":"T-1","error":{"kind":"input","status":null,` +
+					`"message":"line 1: --map: state must be a string, object or array, got null"}}`,
+			},
+			{
+				name:         "should find a duplicate in input order whatever finishes first",
+				args:         []string{"x", "-i", "lines", "--id", ".", "-o", "values", "-j", "4"},
+				stdin:        "a\nb\na\nc\n",
+				wantCode:     cli.ExitRecords,
+				wantOut:      `{"id":"a","answer":0.9}` + "\n" + `{"id":"b","answer":0.9}` + "\n" + `{"error":{"kind":"input","status":null,"message":"line 3: --id: 'a' is also the id of line 1"}}` + "\n" + `{"id":"c","answer":0.9}`,
+				wantRequests: 3,
+			},
+			{
+				name:         "should write the id as the first csv column",
+				args:         []string{"x", "-i", "jsonl", "--id", ".id", "-o", "csv"},
+				stdin:        "{\"id\":\"T-1\"}\n{\"id\":\"T-1\"}\n",
+				wantCode:     cli.ExitRecords,
+				wantOut:      "id,answer,error\nT-1,0.9,\n,,line 2: --id: 'T-1' is also the id of line 1",
+				wantRequests: 1,
+			},
+			{
+				name:         "should write the id as the first tsv column over csv input",
+				args:         []string{"x", "-i", "csv", "--id", ".ticket", "-o", "tsv"},
+				stdin:        "ticket,body\n7,a\n8,b\n",
+				wantCode:     cli.ExitOK,
+				wantOut:      "id\tanswer\terror\n7\t0.9\t\n8\t0.9\t",
+				wantRequests: 2,
+			},
+			{
+				name:         "should add nothing to a merged jsonl record",
+				args:         []string{"x", "-i", "jsonl", "--id", ".id", "--merge", "-o", "values"},
+				stdin:        "{\"id\":7,\"body\":\"a\"}\n",
+				wantCode:     cli.ExitOK,
+				wantOut:      `{"id":7,"body":"a","answers":{"answer":0.9}}`,
+				wantRequests: 1,
+			},
+			{
+				name:         "should add no column to a merged csv row",
+				args:         []string{"x", "-i", "csv", "--id", ".id", "--merge", "-o", "csv"},
+				stdin:        "id,body\n7,a\n",
+				wantCode:     cli.ExitOK,
+				wantOut:      "id,body,answer,error\n7,a,0.9,",
+				wantRequests: 1,
+			},
+			{
+				name:     "should write an error line for a duplicate under --print-request",
+				args:     []string{"x", "-i", "jsonl", "--id", ".id", "--print-request", "-m", "m1"},
+				stdin:    "{\"id\":7}\n{\"id\":7}\n",
+				wantCode: cli.ExitRecords,
+				wantOut: `{"state":{"id":7},"model":"m1","questions":{"answer":{"type":"noul","instructions":"x"}}}` + "\n" +
+					duplicate,
+			},
 		}
 
-		if want := "onesie: --map: unexpected EOF at column 8\n"; errOut.String() != want {
-			t.Errorf("stderr = %q, want %q", errOut.String(), want)
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				var requests atomic.Int32
+
+				srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					requests.Add(1)
+
+					if _, err := w.Write([]byte(answered)); err != nil {
+						t.Errorf("writing stub response: %v", err)
+					}
+				}))
+				defer srv.Close()
+
+				var out, errOut bytes.Buffer
+
+				root := cli.NewRootCmd(
+					cli.BuildInfo{Version: "1.2.3"},
+					cli.WithKeychain(offKeychain{}),
+					cli.WithClientFactory(func(_ context.Context, opts ...jev.Option) (*jev.Client, error) {
+						return jev.New(append([]jev.Option{
+							jev.WithAPIKey("k"), jev.WithBaseURL(srv.URL),
+						}, opts...)...)
+					}),
+					cli.WithStdin(strings.NewReader(tc.stdin)),
+					cli.WithStdinTTY(false),
+					cli.WithStdoutTTY(false),
+					cli.WithLookupEnv(func(string) (string, bool) { return "", false }),
+				)
+
+				root.SetOut(&out)
+				root.SetErr(&errOut)
+				root.SetArgs(tc.args)
+
+				if code := cli.Execute(t.Context(), root); code != tc.wantCode {
+					t.Errorf("exit code = %d, want %d\nstderr:\n%s", code, tc.wantCode, errOut.String())
+				}
+
+				if got := strings.TrimSuffix(out.String(), "\n"); got != tc.wantOut {
+					t.Errorf("output =\n%s\nwant\n%s", got, tc.wantOut)
+				}
+
+				if got := requests.Load(); got != tc.wantRequests {
+					t.Errorf("requests = %d, want %d", got, tc.wantRequests)
+				}
+			})
+		}
+	})
+
+	t.Run("should exit two on a jq syntax error before reading input", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name    string
+			flag    string
+			source  string
+			wantErr string
+		}{
+			{
+				name:    "should exit two on a --map syntax error",
+				flag:    "--map",
+				source:  ".body |",
+				wantErr: "onesie: --map: unexpected EOF at column 8\n",
+			},
+			{
+				name:    "should exit two on an --id syntax error",
+				flag:    "--id",
+				source:  ".id |",
+				wantErr: "onesie: --id: unexpected EOF at column 6\n",
+			},
 		}
 
-		if stdin.read.Load() {
-			t.Error("stdin was read")
-		}
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
 
-		if got := requests.Load(); got != 0 {
-			t.Errorf("requests = %d, want 0", got)
-		}
+				var requests atomic.Int32
 
-		if out.String() != "" {
-			t.Errorf("stdout = %q, want nothing", out.String())
+				srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+					requests.Add(1)
+				}))
+				defer srv.Close()
+
+				stdin := &watchedReader{}
+
+				var out, errOut bytes.Buffer
+
+				root := cli.NewRootCmd(
+					cli.BuildInfo{Version: "1.2.3"},
+					cli.WithKeychain(offKeychain{}),
+					cli.WithClientFactory(func(_ context.Context, opts ...jev.Option) (*jev.Client, error) {
+						return jev.New(append([]jev.Option{
+							jev.WithAPIKey("k"), jev.WithBaseURL(srv.URL),
+						}, opts...)...)
+					}),
+					cli.WithStdin(stdin),
+					cli.WithStdinTTY(false),
+					cli.WithStdoutTTY(false),
+					cli.WithLookupEnv(func(string) (string, bool) { return "", false }),
+				)
+
+				root.SetOut(&out)
+				root.SetErr(&errOut)
+				root.SetArgs([]string{"is this urgent", "-i", "jsonl", tc.flag, tc.source})
+
+				if code := cli.Execute(t.Context(), root); code != cli.ExitUsage {
+					t.Errorf("exit code = %d, want %d", code, cli.ExitUsage)
+				}
+
+				if errOut.String() != tc.wantErr {
+					t.Errorf("stderr = %q, want %q", errOut.String(), tc.wantErr)
+				}
+
+				if stdin.read.Load() {
+					t.Error("stdin was read")
+				}
+
+				if got := requests.Load(); got != 0 {
+					t.Errorf("requests = %d, want 0", got)
+				}
+
+				if out.String() != "" {
+					t.Errorf("stdout = %q, want nothing", out.String())
+				}
+			})
 		}
 	})
 
@@ -861,7 +1069,7 @@ func TestStream(t *testing.T) {
 		}
 	})
 
-	t.Run("should exit 130 when an interrupt lands inside --map", func(t *testing.T) {
+	t.Run("should exit 130 when an interrupt lands inside --map or --id", func(t *testing.T) {
 		t.Parallel()
 
 		tests := []struct {
@@ -888,6 +1096,16 @@ func TestStream(t *testing.T) {
 				name:  "should exit 130 on a jsonl stream under --print-request",
 				args:  []string{"is this urgent", "-i", "jsonl", "--map", "until(false; .)", "--print-request"},
 				stdin: "{\"body\":\"first\"}\n{\"body\":\"second\"}\n",
+			},
+			{
+				name:  "should exit 130 when the interrupt lands inside --id",
+				args:  []string{"is this urgent", "-i", "jsonl", "--id", "until(false; .)"},
+				stdin: "{\"id\":\"first\"}\n{\"id\":\"second\"}\n",
+			},
+			{
+				name:  "should exit 130 when the interrupt lands inside --id under --print-request",
+				args:  []string{"is this urgent", "-i", "jsonl", "--id", "until(false; .)", "--print-request"},
+				stdin: "{\"id\":\"first\"}\n{\"id\":\"second\"}\n",
 			},
 		}
 
@@ -940,7 +1158,7 @@ func TestStream(t *testing.T) {
 							code, cli.ExitInterrupt, errOut.String())
 					}
 				case <-time.After(5 * time.Second):
-					t.Fatal("--map ignored the interrupt")
+					t.Fatal("the expression ignored the interrupt")
 				}
 
 				if errOut.String() != "" {

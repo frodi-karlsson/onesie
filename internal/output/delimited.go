@@ -36,6 +36,8 @@ type Delimited struct {
 type DelimitedOptions struct {
 	// IDs are the question ids, one column each, in question order.
 	IDs []string
+	// ID adds an id column ahead of the answers, for a run that names its records with --id.
+	ID bool
 	// Assert adds an assert column, true, false or abstain per row, when the run carries an
 	// assertion.
 	Assert bool
@@ -53,10 +55,14 @@ func (d *Delimited) Write(rec Record, header []string, fields map[string]any) er
 		}
 	}
 
-	row := make([]string, 0, len(header)+len(d.opts.IDs)+2)
+	row := make([]string, 0, len(header)+len(d.opts.IDs)+3)
 
 	for _, name := range header {
 		row = append(row, cell(fields[name]))
+	}
+
+	if d.opts.ID {
+		row = append(row, cell(rec.ID))
 	}
 
 	for _, id := range d.opts.IDs {
@@ -78,7 +84,12 @@ func (d *Delimited) Write(rec Record, header []string, fields map[string]any) er
 func (d *Delimited) start(header []string) error {
 	d.started = true
 
-	columns := slices.Clone(d.opts.IDs)
+	var columns []string
+	if d.opts.ID {
+		columns = append(columns, "id")
+	}
+
+	columns = append(columns, d.opts.IDs...)
 	if d.opts.Assert {
 		columns = append(columns, "assert")
 	}

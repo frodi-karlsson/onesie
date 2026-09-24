@@ -26,7 +26,8 @@ func Write(w io.Writer, mode Mode, rec Record) error {
 			ids = append(ids, named.ID)
 		}
 
-		return NewDelimited(w, mode, DelimitedOptions{IDs: ids, Header: true}).Write(rec, nil, nil)
+		return NewDelimited(w, mode, DelimitedOptions{IDs: ids, ID: rec.ID != nil, Header: true}).
+			Write(rec, nil, nil)
 	default:
 		return writeJSON(w, rec)
 	}
@@ -79,6 +80,8 @@ const (
 
 // Record is one input's worth of output, with the answers in question order.
 type Record struct {
+	// ID names the record under --id, as a string or a json.Number. Nil leaves the id out.
+	ID      any
 	Model   string
 	Usage   *jev.Usage
 	Answers []Named

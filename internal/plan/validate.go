@@ -173,6 +173,7 @@ func checkListModels(cfg Config) error {
 			"which reads no state"},
 		{cfg.HasInput, "onesie: -i does not apply to --list-models, which reads no input"},
 		{cfg.HasMap, "onesie: --map does not apply to --list-models, which reads no state"},
+		{cfg.HasID, "onesie: --id does not apply to --list-models, which reads no input"},
 		{cfg.Output != "", "onesie: -o does not apply to --list-models, " +
 			"which writes a fixed listing"},
 		{cfg.Raw, "onesie: -r does not apply to --list-models, which writes a fixed listing"},
@@ -241,6 +242,7 @@ func checkRequestMode(cfg Config) error {
 			"whose bodies carry their own state"},
 		{cfg.HasMap, "onesie: --map does not apply to -i request, " +
 			"whose bodies carry their own state"},
+		{cfg.HasID, "onesie: --id does not apply to -i request, which forwards raw responses"},
 		{cfg.Output != "", "onesie: -o does not apply to -i request, which forwards raw responses"},
 		{cfg.Raw, "onesie: -r does not apply to -i request, which forwards raw responses"},
 		{cfg.Quiet, "onesie: -q needs a policy to report, which -i request has none of"},
@@ -300,6 +302,10 @@ func checkPrintFlags(cfg Config) error {
 		{
 			cfg.PrintQuestions && cfg.HasMap,
 			"onesie: --map does not apply to --print-questions, which reads no state",
+		},
+		{
+			cfg.PrintQuestions && cfg.HasID,
+			"onesie: --id does not apply to --print-questions, which reads no input",
 		},
 		{cfg.Output != "", fmt.Sprintf(
 			"onesie: -o does not apply to %s, which writes %s", name, writes)},
@@ -529,6 +535,7 @@ func checkSingleRecord(cfg Config) (string, error) {
 		{"--stop-on-error", cfg.StopOnError},
 		{"--stop-on-assert", cfg.StopOnAssert},
 		{"--skip-blank", cfg.SkipBlank},
+		{"--id", cfg.HasID},
 	} {
 		if flag.set {
 			return "", fmt.Errorf(
@@ -932,7 +939,9 @@ type Config struct {
 	HasState     bool
 	HasStateFile bool
 	// HasMap records that --map was given, which chooses the state from each record.
-	HasMap  bool
+	HasMap bool
+	// HasID records that --id was given, which names each record of a stream.
+	HasID   bool
 	Replace bool
 
 	// FileName is the -f argument, empty when the flag was not given. It names the file in the
@@ -1119,7 +1128,7 @@ func reserved(id string) bool {
 	}
 
 	switch id {
-	case "abstain", "abstain_if", "answers", "assert", "error", "model", "usage", "questions", "state":
+	case "abstain", "abstain_if", "answers", "assert", "error", "id", "model", "usage", "questions", "state":
 		return true
 	default:
 		return false

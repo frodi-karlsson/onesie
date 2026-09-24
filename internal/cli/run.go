@@ -76,6 +76,7 @@ func run(
 	gate := inv.gate
 	abstain := inv.abstain
 	mapper := inv.mapper
+	namer := inv.namer
 	loaded := inv.loaded
 
 	// Before the output mode, because a question file is not an output mode and -o has no meaning
@@ -97,7 +98,7 @@ func run(
 	if inputMode.Streaming() {
 		return withStats(cmd, settings.now, flags, func(stats *collector) error {
 			return stream(
-				cmd, settings, built, mapper, inputMode, outputMode, flags, gate, abstain, stats)
+				cmd, settings, built, mapper, namer, inputMode, outputMode, flags, gate, abstain, stats)
 		})
 	}
 
@@ -217,6 +218,7 @@ func stream(
 	settings rootSettings,
 	built *plan.Plan,
 	mapper *jq.Expr,
+	namer *jq.Expr,
 	inputMode input.Mode,
 	outputMode output.Mode,
 	flags *runFlags,
@@ -225,7 +227,7 @@ func stream(
 	stats *collector,
 ) error {
 	if flags.printRequest {
-		return streamRequests(cmd, settings, built, mapper, inputMode, flags)
+		return streamRequests(cmd, settings, built, mapper, namer, inputMode, flags)
 	}
 
 	client, err := settings.newClient(cmd.Context(), observing(stats)...)
@@ -240,20 +242,31 @@ func stream(
 		return err
 	}
 
-	source := engine.Skip[input.Record](input.NewStream(settings.stdin, inputMode, flags.skipBlank), flags.resumeSkip)
+	source := records(cmd.Context(), settings, inputMode, flags, namer)
 	out := cmd.OutOrStdout()
 	merge := merging(flags)
-	table := delimited(out, outputMode, built, gate != nil, flags)
+	table := delimited(out, outputMode, built, gate != nil, namer != nil && !merge, flags)
 
-	result, err := engine.Run(cmd.Context(), engine.Config[input.Record, line]{
+	result, err := engine.Run(cmd.Context(), engine.Config[namedRecord, line]{
 		Source: source,
-		Evaluate: func(ctx context.Context, rec input.Record) (line, error) {
+		Evaluate: func(ctx context.Context, rec namedRecord) (line, error) {
 			if rec.Err != nil {
 				// A line onesie could not read is a record that never became a request, and it
 				// carried no questions to the wire either.
 				stats.recordFailure(rec.Err, false, 0)
 
 				return line{record: failureRecord(built, rec.Err), raw: rec.Raw, header: rec.Header}, rec.Err
+			}
+
+			if interrupted(ctx) {
+				return line{}, ctx.Err()
+			}
+
+			if rec.idErr != nil {
+				bad := &input.LineError{Line: rec.Line, Err: rec.idErr}
+				stats.recordFailure(bad, false, 0)
+
+				return rowLine(failureRecord(built, bad), rec), bad
 			}
 
 			// -o csv puts the answers in columns, so there is no merge key to overwrite.
@@ -399,11 +412,13 @@ func plural(count int, noun string) string {
 	return fmt.Sprintf("%d %ss", count, noun)
 }
 
-func rowLine(record output.Record, rec input.Record) line {
+func rowLine(record output.Record, rec namedRecord) line {
 	var fields map[string]any
 	if object, ok := rec.State.(map[string]any); ok {
 		fields = object
 	}
+
+	record.ID = rec.id
 
 	return line{record: record, raw: rec.Raw, state: rec.Wire, header: rec.Header, fields: fields}
 }
@@ -630,7 +645,7 @@ func writeRecord(
 			built.Questions = append(built.Questions, plan.Question{ID: named.ID})
 		}
 
-		return delimited(cmd.OutOrStdout(), mode, built, withAssert, flags).Write(record, nil, nil)
+		return delimited(cmd.OutOrStdout(), mode, built, withAssert, false, flags).Write(record, nil, nil)
 	}
 
 	if merging(flags) {
@@ -650,6 +665,7 @@ func delimited(
 	mode output.Mode,
 	built *plan.Plan,
 	withAssert bool,
+	withID bool,
 	flags *runFlags,
 ) *output.Delimited {
 	if mode != output.CSV && mode != output.TSV {
@@ -662,7 +678,7 @@ func delimited(
 	}
 
 	return output.NewDelimited(out, mode, output.DelimitedOptions{
-		IDs: ids, Assert: withAssert, Header: !flags.resumeHeader,
+		IDs: ids, ID: withID, Assert: withAssert, Header: !flags.resumeHeader,
 	})
 }
 
@@ -879,4 +895,5 @@ type runFlags struct {
 	merge         bool
 	mergeKey      string
 	mapSource     string
+	idSource      string
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"math"
 	"reflect"
 	"strings"
 	"testing"
@@ -200,6 +201,63 @@ func TestExpr_One(t *testing.T) {
 			})
 		}
 	})
+}
+
+func TestID(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		value   any
+		want    any
+		wantErr string
+	}{
+		{name: "should keep a string", value: "T-7", want: "T-7"},
+		{name: "should keep an empty string", value: "", want: ""},
+		{name: "should write an integer as its digits", value: json.Number("7"), want: json.Number("7")},
+		{name: "should write 7.0 as 7", value: json.Number("7.0"), want: json.Number("7")},
+		{name: "should write an exponent that lands on an integer as its digits", value: json.Number("7e2"), want: json.Number("700")},
+		{name: "should write negative zero as zero", value: json.Number("-0.0"), want: json.Number("0")},
+		{name: "should keep the digits of a large integer", value: json.Number("12345678901234567890"), want: json.Number("12345678901234567890")},
+		{name: "should keep the digits of a large integer written with a fraction", value: json.Number("12345678901234567890.0"), want: json.Number("12345678901234567890")},
+		{name: "should drop the trailing zeros of a fraction", value: json.Number("0.50"), want: json.Number("0.5")},
+		{name: "should write a computed integer as its digits", value: 7, want: json.Number("7")},
+		{name: "should write a computed float that lands on an integer as its digits", value: 7.0, want: json.Number("7")},
+		{name: "should write a computed fraction in its shortest form", value: 0.25, want: json.Number("0.25")},
+		{name: "should write a tiny fraction with an exponent", value: 1.5e-7, want: json.Number("1.5e-7")},
+		{name: "should reject null", value: nil, wantErr: "id must be a string or a finite number, got null"},
+		{name: "should reject a boolean", value: true, wantErr: "id must be a string or a finite number, got boolean"},
+		{name: "should reject an array", value: []any{"a"}, wantErr: "id must be a string or a finite number, got array"},
+		{name: "should reject an object", value: map[string]any{"a": "b"}, wantErr: "id must be a string or a finite number, got object"},
+		{name: "should reject infinity", value: math.Inf(1), wantErr: "id must be a string or a finite number, got +Inf"},
+		{name: "should reject a number that is not a number", value: math.NaN(), wantErr: "id must be a string or a finite number, got NaN"},
+		{name: "should write a huge number with an exponent", value: 1.5e300, want: json.Number("1.5e+300")},
+		{name: "should write a computed negative zero as zero", value: math.Copysign(0, -1), want: json.Number("0")},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := ID(tc.value)
+
+			if tc.wantErr != "" {
+				if !errors.Is(err, ErrNotID) || err.Error() != tc.wantErr {
+					t.Fatalf("ID() error = %v, want %q", err, tc.wantErr)
+				}
+
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("ID(): %v", err)
+			}
+
+			if !reflect.DeepEqual(got, tc.want) {
+				t.Errorf("ID() = %#v, want %#v", got, tc.want)
+			}
+		})
+	}
 }
 
 func TestMarshal(t *testing.T) {

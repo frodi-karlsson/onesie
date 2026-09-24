@@ -14,8 +14,10 @@ import (
 var ErrMergeKeyTaken = errors.New("the input already has the merge key")
 
 // WriteMerged folds a record's answers into the input line under key. raw is the line as read, and
-// state is what was sent, nil for a record onesie could not read.
+// state is what was sent, nil for a record onesie could not read. The id is left out.
 func WriteMerged(w io.Writer, mode Mode, rec Record, raw string, state any, key string) error {
+	rec.ID = nil
+
 	answers, err := encode(mode, rec)
 	if err != nil {
 		return err

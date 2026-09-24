@@ -40,6 +40,18 @@ func TestWriteMerged(t *testing.T) {
 				`"urgent":{"value":0.92}}}`,
 		},
 		{
+			name:  "should add no id, since the input carries its own",
+			mode:  output.Values,
+			raw:   `{"id":7,"body":"hello"}`,
+			state: map[string]any{"id": float64(7), "body": "hello"},
+			key:   "answers",
+			rec: output.Record{
+				ID:      json.Number("7"),
+				Answers: simple.Answers,
+			},
+			want: `{"id":7,"body":"hello","answers":{"urgent":0.92}}`,
+		},
+		{
 			name:  "should keep the input's key order",
 			mode:  output.JSON,
 			raw:   `{"zebra":1,"apple":2}`,

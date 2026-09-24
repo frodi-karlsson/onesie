@@ -1,6 +1,7 @@
 package output_test
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -61,12 +62,75 @@ func TestWrite(t *testing.T) {
 		Abstained: true,
 	}
 
+	named := simple
+	named.ID = "T-7"
+
+	numbered := failed
+	numbered.ID = json.Number("7")
+
 	tests := []struct {
 		name string
 		mode output.Mode
 		rec  output.Record
 		want string
 	}{
+		{
+			name: "should write a string id first in json output",
+			mode: output.JSON,
+			rec:  named,
+			want: `{"id":"T-7","model":"onesie-1.13.0","urgent":{"value":0.92}}`,
+		},
+		{
+			name: "should write a number id ahead of the error key in json output",
+			mode: output.JSON,
+			rec:  numbered,
+			want: `{"id":7,"error":{"kind":"http","status":429,` +
+				`"message":"rate limited after 2 retries"},` +
+				`"team":{"fallback":"error","decision":"refuse"}}`,
+		},
+		{
+			name: "should write the id first in values output",
+			mode: output.Values,
+			rec:  named,
+			want: `{"id":"T-7","urgent":0.92}`,
+		},
+		{
+			name: "should write a number id ahead of the error key in values output",
+			mode: output.Values,
+			rec:  numbered,
+			want: `{"id":7,"error":{"kind":"http","status":429,` +
+				`"message":"rate limited after 2 retries"},"team":"refuse"}`,
+		},
+		{
+			name: "should write the id as the first csv column",
+			mode: output.CSV,
+			rec:  named,
+			want: "id,urgent,error\nT-7,0.92,",
+		},
+		{
+			name: "should write a number id as the first tsv column",
+			mode: output.TSV,
+			rec:  numbered,
+			want: "id\tteam\terror\n7\trefuse\trate limited after 2 retries",
+		},
+		{
+			name: "should leave the id out of raw output",
+			mode: output.Raw,
+			rec:  named,
+			want: "0.92",
+		},
+		{
+			name: "should write no id key in json output when the record has none",
+			mode: output.JSON,
+			rec:  simple,
+			want: `{"model":"onesie-1.13.0","urgent":{"value":0.92}}`,
+		},
+		{
+			name: "should write no id column in csv output when the record has none",
+			mode: output.CSV,
+			rec:  simple,
+			want: "urgent,error\n0.92,",
+		},
 		{
 			name: "should include the model in json output",
 			mode: output.JSON,
