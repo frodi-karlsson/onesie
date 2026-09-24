@@ -147,7 +147,8 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 	root.Flags().StringVar(&flags.state, flagState, "", "state to evaluate, or - to read stdin")
 	root.Flags().StringVar(&flags.stateFile, flagStateFile, "", "read the state from this file")
 	root.Flags().StringVar(&flags.mapSource, flagMap, "",
-		"jq expression run on each record, whose result is the state sent")
+		"jq expression run on each record, whose result is the state sent. "+
+			"Object keys come out sorted, and -V lists the depth and size caps on the result")
 	root.Flags().StringVarP(&flags.model, flagModel, "m", "", "model override")
 	root.PersistentFlags().StringVar(&flags.provider, "provider", "",
 		"typesafe or openrouter. Defaults to ONESIE_PROVIDER, then typesafe")

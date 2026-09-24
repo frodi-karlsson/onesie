@@ -1,4 +1,8 @@
-// Package jq compiles and runs the jq expressions that --map and --id take, through gojq.
+// Package jq compiles and runs the jq expressions that --map and --id take, through gojq. The time
+// functions read the real clock, import and include are refused, and object keys come out sorted.
+// The depth and size caps apply once the expression has run, so a runaway expression can still spend
+// memory and time first. A builtin that recurses, such as tojson or sort, can still overflow on a
+// value the expression itself nested millions of levels deep, as real jq does.
 package jq
 
 import (
