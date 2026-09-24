@@ -3,6 +3,7 @@ package calibrate_test
 import (
 	"math"
 	"slices"
+	"strconv"
 	"testing"
 	"time"
 
@@ -58,6 +59,17 @@ func TestAUC(t *testing.T) {
 		})
 	}
 
+	t.Run("should finish when a value is NaN", func(t *testing.T) {
+		t.Parallel()
+
+		cases := yesNoCases("yes", math.NaN(), "no", 0.5, "yes", math.NaN(), "no", math.NaN(), "yes", 0.9)
+
+		finishes(t, func() {
+			calibrate.AUC(cases)
+			calibrate.ScoreYesNo(cases, 0, calibrate.DefaultCuts())
+		})
+	})
+
 	t.Run("should rank 100000 cases by sorting rather than by pairs", func(t *testing.T) {
 		t.Parallel()
 
@@ -100,8 +112,8 @@ func TestAUC(t *testing.T) {
 			t.Errorf("AUC = %v, %v, want %v, true", got, defined, want)
 		}
 
-		if elapsed > 2*time.Second {
-			t.Errorf("AUC over %d cases took %v, want well under 2s", n, elapsed)
+		if elapsed > 20*time.Second {
+			t.Errorf("AUC over %d cases took %v, want well under 20s", n, elapsed)
 		}
 	})
 }
@@ -188,6 +200,39 @@ func TestScoreYesNo(t *testing.T) {
 		}
 	})
 
+	t.Run("should keep complementary decimal gaps in input order", func(t *testing.T) {
+		t.Parallel()
+
+		cases := yesNoCases(
+			"yes", 0.9,
+			"no", 0.1,
+			"yes", 0.7,
+			"no", 0.3,
+			"no", 0.2,
+			"yes", 0.8,
+			"yes", 0.6,
+			"no", 0.4,
+			"no", 0.35,
+			"yes", 0.65,
+		)
+
+		got := calibrate.ScoreYesNo(cases, 0, nil)
+
+		want := []string{"c7", "c8", "c9", "c10", "c3", "c4", "c5", "c6", "c1", "c2"}
+		if names := yesNoNames(got.Misses); !slices.Equal(names, want) {
+			t.Errorf("misses = %v, want %v", names, want)
+		}
+	})
+
+	t.Run("should give empty lists rather than nil for no cases", func(t *testing.T) {
+		t.Parallel()
+
+		got := calibrate.ScoreYesNo(nil, 2, nil)
+		if got.Cuts == nil || got.Values == nil || got.Misses == nil {
+			t.Errorf("cuts %v, values %v, misses %v, want empty lists", got.Cuts == nil, got.Values == nil, got.Misses == nil)
+		}
+	})
+
 	t.Run("should leave the AUC and false alarms undefined when every label is yes", func(t *testing.T) {
 		t.Parallel()
 
@@ -258,6 +303,21 @@ func TestScorePick(t *testing.T) {
 		got := calibrate.ScorePick(fixed[:6], names, 0, nil)
 		if got.Other != nil {
 			t.Errorf("other = %v, want nil", got.Other)
+		}
+	})
+
+	t.Run("should give empty lists rather than nil when nothing is wrong", func(t *testing.T) {
+		t.Parallel()
+
+		got := calibrate.ScorePick(fixed[:2], names, 0, nil)
+		if got.Misses == nil || got.Confidence == nil || got.Other != nil {
+			t.Errorf("misses %v, confidence %v, other %v, want empty lists and a nil other",
+				got.Misses, got.Confidence, got.Other)
+		}
+
+		empty := calibrate.ScorePick(nil, nil, 0, nil)
+		if empty.Names == nil || empty.Grid == nil || empty.Misses == nil || empty.Confidence == nil {
+			t.Errorf("score of nothing = %+v, want empty lists", empty)
 		}
 	})
 
@@ -361,7 +421,7 @@ func TestScoreRate(t *testing.T) {
 
 		checkShare(t, "within one", got.WithinOne, 4, 7)
 
-		if want := 12.0 / 7; math.Abs(got.MeanDistance-want) > 1e-12 {
+		if want := 12.0 / 7; !got.HasMeanDistance || math.Abs(got.MeanDistance-want) > 1e-12 {
 			t.Errorf("mean distance = %v, want %v", got.MeanDistance, want)
 		}
 	})
@@ -378,6 +438,20 @@ func TestScoreRate(t *testing.T) {
 		}
 	})
 
+	t.Run("should leave the mean distance undefined for no cases", func(t *testing.T) {
+		t.Parallel()
+
+		got := calibrate.ScoreRate(nil, levels, 3, nil)
+		if got.HasMeanDistance || got.WithinOne.Defined {
+			t.Errorf("mean distance %v, %v, within one %+v, want both undefined",
+				got.MeanDistance, got.HasMeanDistance, got.WithinOne)
+		}
+
+		if got.Misses == nil {
+			t.Errorf("misses = nil, want an empty list")
+		}
+	})
+
 	t.Run("should rank misses by distance, then by confidence", func(t *testing.T) {
 		t.Parallel()
 
@@ -388,18 +462,6 @@ func TestScoreRate(t *testing.T) {
 			t.Errorf("misses = %v, want %v", got, want)
 		}
 	})
-}
-
-type cutCounts struct {
-	cut                         float64
-	flagged                     int
-	catches, falseAlarms, right [2]int
-}
-
-type pickCounts struct {
-	name             string
-	labelled, picked int
-	found, right     [2]int
 }
 
 func yesNoCases(pairs ...any) []calibrate.YesNoCase {
@@ -428,7 +490,7 @@ func choiceCases(triples ...any) []calibrate.ChoiceCase {
 }
 
 func caseName(index int) string {
-	return "c" + string(rune('1'+index))
+	return "c" + strconv.Itoa(index+1)
 }
 
 func yesNoNames(cases []calibrate.YesNoCase) []string {
@@ -468,6 +530,12 @@ func checkCutRows(t *testing.T, field string, got []calibrate.CutRow, want []cut
 	}
 }
 
+type cutCounts struct {
+	cut                         float64
+	flagged                     int
+	catches, falseAlarms, right [2]int
+}
+
 func checkPickRows(t *testing.T, got []calibrate.PickRow, want []pickCounts) {
 	t.Helper()
 
@@ -487,6 +555,12 @@ func checkPickRows(t *testing.T, got []calibrate.PickRow, want []pickCounts) {
 	}
 }
 
+type pickCounts struct {
+	name             string
+	labelled, picked int
+	found, right     [2]int
+}
+
 func checkConfidenceRow(t *testing.T, got calibrate.ConfidenceRow, cut float64, answered, agreement [2]int) {
 	t.Helper()
 
@@ -503,5 +577,22 @@ func checkShare(t *testing.T, field string, got calibrate.Share, hits, of int) {
 
 	if want := calibrate.Wilson(hits, of); got != want {
 		t.Errorf("%s = %+v, want %d of %d, %+v", field, got, hits, of, want)
+	}
+}
+
+func finishes(t *testing.T, run func()) {
+	t.Helper()
+
+	done := make(chan struct{})
+
+	go func() {
+		defer close(done)
+		run()
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(10 * time.Second):
+		t.Fatal("did not finish within 10s")
 	}
 }

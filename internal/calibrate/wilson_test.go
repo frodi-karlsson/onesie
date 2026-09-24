@@ -13,17 +13,17 @@ func TestWilson(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name     string
-		hits, of int
-		wantLow  float64
-		wantHigh float64
-		places   float64
+		name       string
+		hits, of   int
+		wantLow    float64
+		wantHigh   float64
+		closedForm bool
 	}{
-		{name: "should give 0 and 0.4899 for 0 of 4", hits: 0, of: 4, wantLow: 0, wantHigh: 0.4899, places: 1e-4},
-		{name: "should give 0.5101 and 1 for 4 of 4", hits: 4, of: 4, wantLow: 0.5101, wantHigh: 1, places: 1e-4},
-		{name: "should match the closed form for 45 of 47", hits: 45, of: 47, places: 1e-9},
-		{name: "should match the closed form for 16 of 165", hits: 16, of: 165, places: 1e-9},
-		{name: "should match the closed form for 1 of 1", hits: 1, of: 1, places: 1e-9},
+		{name: "should give 0 and 0.4899 for 0 of 4", hits: 0, of: 4, wantLow: 0, wantHigh: 0.4899},
+		{name: "should give 0.5101 and 1 for 4 of 4", hits: 4, of: 4, wantLow: 0.5101, wantHigh: 1},
+		{name: "should match the closed form for 45 of 47", hits: 45, of: 47, closedForm: true},
+		{name: "should match the closed form for 16 of 165", hits: 16, of: 165, closedForm: true},
+		{name: "should match the closed form for 1 of 1", hits: 1, of: 1, closedForm: true},
 	}
 
 	for _, tc := range tests {
@@ -32,9 +32,10 @@ func TestWilson(t *testing.T) {
 
 			got := calibrate.Wilson(tc.hits, tc.of)
 
-			wantLow, wantHigh := tc.wantLow, tc.wantHigh
-			if tc.places == 1e-9 {
+			wantLow, wantHigh, tolerance := tc.wantLow, tc.wantHigh, 1e-4
+			if tc.closedForm {
 				wantLow, wantHigh = closedForm(tc.hits, tc.of)
+				tolerance = 1e-9
 			}
 
 			if !got.Defined || got.Hits != tc.hits || got.Of != tc.of {
@@ -45,7 +46,7 @@ func TestWilson(t *testing.T) {
 				t.Errorf("Rate = %v, want %v", got.Rate, want)
 			}
 
-			if math.Abs(got.Low-wantLow) > tc.places || math.Abs(got.High-wantHigh) > tc.places {
+			if math.Abs(got.Low-wantLow) > tolerance || math.Abs(got.High-wantHigh) > tolerance {
 				t.Errorf("interval = %v to %v, want %v to %v", got.Low, got.High, wantLow, wantHigh)
 			}
 		})

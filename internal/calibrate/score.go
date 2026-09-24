@@ -6,10 +6,12 @@ import (
 	"slices"
 )
 
-// ScoreYesNo scores yes/no answers against their labels. A record is flagged at a cut when its
-// value is at or above the cut, and failed counts labelled records whose request failed.
+const gapPrecision = 1e9
+
+// ScoreYesNo scores yes/no answers, whose values lie in [0,1], against their labels. A record is
+// flagged at a cut when its value is at or above the cut, and failed counts failed requests.
 func ScoreYesNo(cases []YesNoCase, failed int, cuts []float64) YesNoScore {
-	var yes, no []float64
+	yes, no := []float64{}, []float64{}
 
 	for _, c := range cases {
 		if c.Yes {
@@ -22,7 +24,15 @@ func ScoreYesNo(cases []YesNoCase, failed int, cuts []float64) YesNoScore {
 	slices.Sort(yes)
 	slices.Sort(no)
 
-	score := YesNoScore{Labelled: len(cases), Yes: len(yes), No: len(no), Failed: failed}
+	score := YesNoScore{
+		Labelled: len(cases),
+		Yes:      len(yes),
+		No:       len(no),
+		Failed:   failed,
+		Cuts:     make([]CutRow, 0, len(cuts)),
+		Values:   []CutRow{},
+		Misses:   make([]YesNoCase, len(cases)),
+	}
 	score.AUC, score.HasAUC = AUC(cases)
 
 	for _, cut := range cuts {
@@ -33,7 +43,7 @@ func ScoreYesNo(cases []YesNoCase, failed int, cuts []float64) YesNoScore {
 		score.Values = append(score.Values, cutRow(value, yes, no))
 	}
 
-	score.Misses = slices.Clone(cases)
+	copy(score.Misses, cases)
 	slices.SortStableFunc(score.Misses, func(a, b YesNoCase) int {
 		return cmp.Compare(gap(b), gap(a))
 	})
@@ -51,21 +61,6 @@ type YesNoScore struct {
 	Misses                    []YesNoCase
 }
 
-// YesNoCase is one answered record of a yes/no question, with its label and the value answered.
-type YesNoCase struct {
-	Name  string
-	Yes   bool
-	Value float64
-}
-
-// CutRow is what a gate at Cut would do. Catches is over yes labels, FalseAlarms over no labels,
-// and RightWhenFlagged over the flagged records.
-type CutRow struct {
-	Cut                                    float64
-	Flagged                                int
-	Catches, FalseAlarms, RightWhenFlagged Share
-}
-
 func cutRow(cut float64, sortedYes, sortedNo []float64) CutRow {
 	caught := atOrAbove(sortedYes, cut)
 	alarmed := atOrAbove(sortedNo, cut)
@@ -78,6 +73,14 @@ func cutRow(cut float64, sortedYes, sortedNo []float64) CutRow {
 		FalseAlarms:      Wilson(alarmed, len(sortedNo)),
 		RightWhenFlagged: Wilson(caught, flagged),
 	}
+}
+
+// CutRow is what a gate at Cut would do. Catches is over yes labels, FalseAlarms over no labels,
+// and RightWhenFlagged over the flagged records.
+type CutRow struct {
+	Cut                                    float64
+	Flagged                                int
+	Catches, FalseAlarms, RightWhenFlagged Share
 }
 
 func atOrAbove(sorted []float64, cut float64) int {
@@ -94,15 +97,17 @@ func distinct(sortedYes, sortedNo []float64) []float64 {
 }
 
 func gap(c YesNoCase) float64 {
+	miss := c.Value
 	if c.Yes {
-		return 1 - c.Value
+		miss = 1 - c.Value
 	}
 
-	return c.Value
+	// Rounding makes a yes at 0.9 tie a no at 0.1, since 1 - 0.9 falls just short of 0.1.
+	return math.Round(miss*gapPrecision) / gapPrecision
 }
 
 // AUC is the chance that a random yes case has a higher value than a random no case, a tie counting
-// half. It is the Mann Whitney U over ranks, and is undefined unless both labels occur.
+// half. Values lie in [0,1], and it is undefined unless both labels occur.
 func AUC(cases []YesNoCase) (float64, bool) {
 	order := make([]int, len(cases))
 	for i := range order {
@@ -117,7 +122,7 @@ func AUC(cases []YesNoCase) (float64, bool) {
 	yesRanks := 0.0
 
 	for start := 0; start < len(order); {
-		end := start
+		end := start + 1
 		for end < len(order) && cases[order[end]].Value == cases[order[start]].Value {
 			end++
 		}
@@ -143,8 +148,15 @@ func AUC(cases []YesNoCase) (float64, bool) {
 	return (yesRanks - y*(y+1)/2) / (y * float64(noCount)), true
 }
 
-// ScoreRate scores rate answers against their labels as ScorePick does, over levels in order, and
-// adds agreement within one level and the mean distance in levels.
+// YesNoCase is one answered record of a yes/no question, with its label and the value answered.
+type YesNoCase struct {
+	Name  string
+	Yes   bool
+	Value float64
+}
+
+// ScoreRate scores rate answers as ScorePick does, over levels in order, and adds agreement within
+// one level and the mean distance in levels.
 func ScoreRate(cases []ChoiceCase, levels []string, failed int, cuts []float64) RateScore {
 	score := RateScore{PickScore: ScorePick(cases, levels, failed, cuts)}
 
@@ -164,6 +176,7 @@ func ScoreRate(cases []ChoiceCase, levels []string, failed int, cuts []float64) 
 	score.WithinOne = Wilson(within, len(cases))
 	if len(cases) > 0 {
 		score.MeanDistance = float64(total) / float64(len(cases))
+		score.HasMeanDistance = true
 	}
 
 	score.Misses = rateMisses(cases, distances)
@@ -172,11 +185,12 @@ func ScoreRate(cases []ChoiceCase, levels []string, failed int, cuts []float64) 
 }
 
 // RateScore is a PickScore over levels, plus agreement within one level and the mean distance in
-// levels. Its Misses rank by distance, then by confidence.
+// levels, undefined without cases. Its Misses rank by distance, then by confidence.
 type RateScore struct {
 	PickScore
-	WithinOne    Share
-	MeanDistance float64
+	WithinOne       Share
+	MeanDistance    float64
+	HasMeanDistance bool
 }
 
 func distance(c ChoiceCase, levels []string) (int, bool) {
@@ -216,10 +230,17 @@ func rateMisses(cases []ChoiceCase, distances []int) []ChoiceCase {
 	return misses
 }
 
-// ScorePick scores pick answers against their labels, over names in declared order. An answer
-// outside names counts as wrong and lands in Other.
+// ScorePick scores pick answers against labels that are declared names, with confidences in [0,1].
+// An answer outside names counts as wrong and lands in Other.
 func ScorePick(cases []ChoiceCase, names []string, failed int, cuts []float64) PickScore {
-	score := PickScore{Labelled: len(cases), Failed: failed, Grid: make([][]int, len(names))}
+	score := PickScore{
+		Labelled:   len(cases),
+		Failed:     failed,
+		Names:      make([]PickRow, 0, len(names)),
+		Grid:       make([][]int, len(names)),
+		Confidence: make([]ConfidenceRow, 0, len(cuts)),
+		Misses:     []ChoiceCase{},
+	}
 	for i := range score.Grid {
 		score.Grid[i] = make([]int, len(names))
 	}
@@ -293,26 +314,12 @@ type PickScore struct {
 	Misses           []ChoiceCase
 }
 
-// ChoiceCase is one answered record of a pick or rate question, with its label, the name picked
-// and the confidence given.
-type ChoiceCase struct {
-	Name, Label, Picked string
-	Confidence          float64
-}
-
 // PickRow is one option or level. Found is over the records labelled with it, and RightWhenPicked
 // over the records picked as it.
 type PickRow struct {
 	Name                   string
 	Labelled, Picked       int
 	Found, RightWhenPicked Share
-}
-
-// ConfidenceRow is what keeping only answers with confidence at or above Cut would do. Agreement
-// is measured over the answers kept.
-type ConfidenceRow struct {
-	Cut                 float64
-	Answered, Agreement Share
 }
 
 func confidenceRow(cases []ChoiceCase, cut float64) ConfidenceRow {
@@ -330,6 +337,13 @@ func confidenceRow(cases []ChoiceCase, cut float64) ConfidenceRow {
 	}
 }
 
+// ConfidenceRow is what keeping only answers with confidence at or above Cut would do. Agreement
+// is measured over the answers kept.
+type ConfidenceRow struct {
+	Cut                 float64
+	Answered, Agreement Share
+}
+
 func agreed(cases []ChoiceCase, cut float64) int {
 	count := 0
 	for _, c := range cases {
@@ -339,4 +353,11 @@ func agreed(cases []ChoiceCase, cut float64) int {
 	}
 
 	return count
+}
+
+// ChoiceCase is one answered record of a pick or rate question, with its label, the name picked
+// and the confidence given.
+type ChoiceCase struct {
+	Name, Label, Picked string
+	Confidence          float64
 }
