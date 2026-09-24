@@ -38,7 +38,7 @@ func resumeLedger(
 }
 
 func readLedger(ctx context.Context, answers *outFile, format answersFormat) (book *ledger, err error) {
-	book = &ledger{answered: map[ledgerKey]span{}}
+	book = &ledger{answered: map[ledgerKey]answeredLine{}}
 
 	file, err := answers.open(answers.path, os.O_RDONLY, 0)
 	if errors.Is(err, os.ErrNotExist) {
@@ -74,11 +74,15 @@ type answersFormat struct {
 	namer    *jq.Expr
 }
 
-func (f answersFormat) eachAnswer(ctx context.Context, r io.Reader, note func(id string, at span)) error {
+func (f answersFormat) eachAnswer(
+	ctx context.Context,
+	r io.Reader,
+	note func(id string, at span, judged verdict),
+) error {
 	if f.mode != output.CSV && f.mode != output.TSV {
 		return eachLine(r, func(at span, text []byte) bool {
-			if id, ok := f.lineAnswer(ctx, text); ok {
-				note(id, at)
+			if id, judged, ok := f.lineAnswer(ctx, text); ok {
+				note(id, at, judged)
 			}
 
 			return true
@@ -94,56 +98,69 @@ func (f answersFormat) eachAnswer(ctx context.Context, r io.Reader, note func(id
 			return true
 		}
 
-		if id, ok := f.rowAnswer(ctx, columns, cells); ok {
-			note(id, at)
+		if id, judged, ok := f.rowAnswer(ctx, columns, cells); ok {
+			note(id, at, judged)
 		}
 
 		return true
 	})
 }
 
-func (f answersFormat) lineAnswer(ctx context.Context, text []byte) (string, bool) {
+func (f answersFormat) lineAnswer(ctx context.Context, text []byte) (string, verdict, bool) {
 	decoder := json.NewDecoder(bytes.NewReader(text))
 	decoder.UseNumber()
 
 	var value any
 	if err := decoder.Decode(&value); err != nil {
-		return "", false
+		return "", verdict{}, false
 	}
 
 	object, isObject := value.(map[string]any)
 	if !isObject {
-		return "", false
+		return "", verdict{}, false
 	}
 
 	// Only an answered line is noted. A failed line answers nothing, and under --merge a
 	// duplicate's error line carries the same fields as the record it repeats.
 	if !f.merge {
 		if _, failed := object["error"]; failed {
-			return "", false
+			return "", verdict{}, false
 		}
 
-		return answerID(object["id"])
+		id, ok := answerID(object["id"])
+
+		return id, verdictOf(object), ok
 	}
 
 	folded, isObject := object[f.mergeKey].(map[string]any)
 	if !isObject {
-		return "", false
+		return "", verdict{}, false
 	}
 
 	if _, failed := folded["error"]; failed {
-		return "", false
+		return "", verdict{}, false
 	}
 
 	// A record that is not an object merges into a wrapper around it. An object whose only key is
 	// state merges into the same shape, so the whole line is still tried when the state names nothing.
 	if state, wrapped := wrappedState(object, f.mergeKey); wrapped {
 		if id, ok := f.named(ctx, state); ok {
-			return id, true
+			return id, verdictOf(folded), true
 		}
 	}
 
-	return f.named(ctx, value)
+	id, ok := f.named(ctx, value)
+
+	return id, verdictOf(folded), ok
+}
+
+func verdictOf(answers map[string]any) verdict {
+	return verdict{rejected: answers["assert"] == false, abstained: answers["abstain"] == true}
+}
+
+type verdict struct {
+	rejected  bool
+	abstained bool
 }
 
 func wrappedState(line map[string]any, mergeKey string) (any, bool) {
@@ -154,7 +171,7 @@ func wrappedState(line map[string]any, mergeKey string) (any, bool) {
 	return state, len(line) == 2 && hasState && hasAnswers && !stateIsObject
 }
 
-func (f answersFormat) rowAnswer(ctx context.Context, columns, cells []string) (string, bool) {
+func (f answersFormat) rowAnswer(ctx context.Context, columns, cells []string) (string, verdict, bool) {
 	row := make(map[string]any, len(columns))
 
 	for i, name := range columns {
@@ -164,14 +181,21 @@ func (f answersFormat) rowAnswer(ctx context.Context, columns, cells []string) (
 	}
 
 	if failure, ok := row["error"].(string); ok && failure != "" {
-		return "", false
+		return "", verdict{}, false
 	}
+
+	// An input column cannot take the assert column's name, so under --merge it is still the gate's.
+	judged := verdict{rejected: row["assert"] == "false", abstained: row["assert"] == "abstain"}
 
 	if !f.merge {
-		return answerID(row["id"])
+		id, ok := answerID(row["id"])
+
+		return id, judged, ok
 	}
 
-	return f.named(ctx, row)
+	id, ok := f.named(ctx, row)
+
+	return id, judged, ok
 }
 
 func (f answersFormat) named(ctx context.Context, value any) (string, bool) {
@@ -200,17 +224,24 @@ type span struct {
 }
 
 type ledger struct {
-	mu       sync.Mutex
-	answered map[ledgerKey]span
-	lines    []span
-	pending  int
-	skipped  int
-	ended    bool
+	mu        sync.Mutex
+	answered  map[ledgerKey]answeredLine
+	lines     []span
+	pending   int
+	skipped   int
+	rejected  int
+	abstained int
+	ended     bool
 }
 
-func (l *ledger) note(id string, at span) {
+type answeredLine struct {
+	at     span
+	judged verdict
+}
+
+func (l *ledger) note(id string, at span, judged verdict) {
 	// The newest line wins, since a resume appends after what the file held before.
-	l.answered[keyOf(id)] = at
+	l.answered[keyOf(id)] = answeredLine{at: at, judged: judged}
 }
 
 func keyOf(id string) ledgerKey {
@@ -229,10 +260,10 @@ func (l *ledger) admit(rec *namedRecord) (answered bool) {
 
 	if rec.id != nil {
 		key := keyOf(idText(rec.id))
-		if at, found := l.answered[key]; found {
+		if stored, found := l.answered[key]; found {
 			delete(l.answered, key)
-			l.lines = append(l.lines, at)
-			l.skipped++
+			l.lines = append(l.lines, stored.at)
+			l.skip(stored.judged)
 
 			return true
 		}
@@ -242,6 +273,20 @@ func (l *ledger) admit(rec *namedRecord) (answered bool) {
 	l.pending++
 
 	return false
+}
+
+func (l *ledger) skip(judged verdict) {
+	l.skipped++
+
+	// Counted as if judged this run, so a resumed gate exits on every answer in the file and not
+	// only on the ones it asked for.
+	if judged.rejected {
+		l.rejected++
+	}
+
+	if judged.abstained {
+		l.abstained++
+	}
 }
 
 func (l *ledger) wrote(slot int, at span) {
@@ -277,22 +322,26 @@ func (l *ledger) takeOrder(prune bool) []span {
 		return lines
 	}
 
-	unasked := slices.SortedFunc(maps.Values(l.answered), func(a, b span) int {
-		return cmp.Compare(a.start, b.start)
+	unasked := slices.SortedFunc(maps.Values(l.answered), func(a, b answeredLine) int {
+		return cmp.Compare(a.at.start, b.at.start)
 	})
 
-	return append(lines, unasked...)
+	for _, stored := range unasked {
+		lines = append(lines, stored.at)
+	}
+
+	return lines
 }
 
-func (l *ledger) skips() int {
+func (l *ledger) skips() (records, rejected, abstained int) {
 	if l == nil {
-		return 0
+		return 0, 0, 0
 	}
 
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	return l.skipped
+	return l.skipped, l.rejected, l.abstained
 }
 
 func eachLine(r io.Reader, visit func(at span, text []byte) bool) error {

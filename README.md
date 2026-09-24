@@ -177,7 +177,9 @@ onesie --ask urgent='is this urgent' --assert 'urgnet.value < 0.5'
 - `--resume` with `--id` skips answered records and asks the rest, failed ones included. A finished
   run rewrites the file in input order and keeps answered ids the input no longer has, unless
   `--prune` drops them. A changed fingerprint refuses with exit 2. A record whose content changed
-  but whose id did not keeps its old answer. Without `--id`, it carries on by line count.
+  but whose id did not keeps its old answer. A skipped record keeps its stored `--assert` outcome,
+  so it counts toward the exit code and `--stats` as if it were judged again. Without `--id`, it
+  carries on by line count.
 
 ### Keys and providers
 

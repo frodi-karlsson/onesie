@@ -481,6 +481,140 @@ func TestResumeLedger(t *testing.T) {
 			},
 		},
 		{
+			name:  "should exit 1 on a resume whose skipped records all failed their assertion",
+			stdin: idRecords(1, 2),
+			runs: []resumeRun{
+				{
+					args:     append([]string{"--assert", "answer.value > 0.9"}, values...),
+					wantCode: ExitRejected,
+					wantFile: rejectedLines(1, 2),
+					wantSent: []string{`{"id":1}`, `{"id":2}`},
+				},
+				{
+					args:       append([]string{"--assert", "answer.value > 0.9", "--stats"}, values...),
+					wantCode:   ExitRejected,
+					wantFile:   rejectedLines(1, 2),
+					wantStderr: "0 requests, 2 skipped, 2 false assertions, ",
+				},
+			},
+		},
+		{
+			name:  "should exit 7 on a resume whose skipped records abstained",
+			stdin: idRecords(1, 2),
+			runs: []resumeRun{
+				{
+					args:     append([]string{"--assert", "answer.value > 0.9", "--abstain-if", "answer.value > 0.4"}, values...),
+					wantCode: ExitAbstain,
+					wantFile: abstainedLines(1, 2),
+					wantSent: []string{`{"id":1}`, `{"id":2}`},
+				},
+				{
+					args: append([]string{
+						"--assert", "answer.value > 0.9", "--abstain-if", "answer.value > 0.4", "--stats",
+					}, values...),
+					wantCode:   ExitAbstain,
+					wantFile:   abstainedLines(1, 2),
+					wantStderr: "0 requests, 2 skipped, 2 abstains, ",
+				},
+			},
+		},
+		{
+			name:  "should exit 0 on a resume whose skipped records passed their assertion",
+			stdin: idRecords(1, 2),
+			runs: []resumeRun{
+				{
+					args:     append([]string{"--assert", "answer.value > 0.1"}, values...),
+					wantFile: idLines(1, 2),
+					wantSent: []string{`{"id":1}`, `{"id":2}`},
+				},
+				{
+					args:     append([]string{"--assert", "answer.value > 0.1"}, values...),
+					wantFile: idLines(1, 2),
+				},
+			},
+		},
+		{
+			name: "should exit 6 over a skipped false assertion when a record asked this run failed",
+			runs: []resumeRun{
+				{
+					args:     append([]string{"--assert", "answer.value > 0.9"}, values...),
+					input:    idRecords(1, 1),
+					wantCode: ExitRejected,
+					wantFile: rejectedLines(1, 1),
+					wantSent: []string{`{"id":1}`},
+				},
+				{
+					args:       append([]string{"--assert", "answer.value > 0.9", "--retries", "0"}, values...),
+					input:      idRecords(1, 2),
+					failFrom:   1,
+					failStatus: http.StatusBadRequest,
+					wantCode:   ExitRecords,
+					wantFile: rejectedLines(1, 1) +
+						`{"id":2,"error":{"kind":"http","status":400,"message":"onesie: 400 bad key"}}` + "\n",
+					wantSent: []string{`{"id":2}`},
+				},
+			},
+		},
+		{
+			name:  "should exit 1 on a resume whose skipped merged records failed their assertion",
+			stdin: idRecords(1, 2),
+			runs: []resumeRun{
+				{
+					args:     append([]string{"--assert", "answer.value > 0.9", "--merge"}, values...),
+					wantCode: ExitRejected,
+					wantFile: "{\"id\":1,\"answers\":{\"assert\":false,\"answer\":0.5}}\n" +
+						"{\"id\":2,\"answers\":{\"assert\":false,\"answer\":0.5}}\n",
+					wantSent: []string{`{"id":1}`, `{"id":2}`},
+				},
+				{
+					args:     append([]string{"--assert", "answer.value > 0.9", "--merge"}, values...),
+					wantCode: ExitRejected,
+					wantFile: "{\"id\":1,\"answers\":{\"assert\":false,\"answer\":0.5}}\n" +
+						"{\"id\":2,\"answers\":{\"assert\":false,\"answer\":0.5}}\n",
+				},
+			},
+		},
+		{
+			name:  "should exit 1 on a csv resume whose skipped rows failed their assertion",
+			stdin: idRecords(1, 2),
+			runs: []resumeRun{
+				{
+					args:     []string{"-i", "jsonl", "-o", "csv", "--id", ".id", "--resume", "--assert", "answer.value > 0.9"},
+					wantCode: ExitRejected,
+					wantFile: "id,answer,assert,error\n1,0.5,false,\n2,0.5,false,\n",
+					wantSent: []string{`{"id":1}`, `{"id":2}`},
+				},
+				{
+					args:     []string{"-i", "jsonl", "-o", "csv", "--id", ".id", "--resume", "--assert", "answer.value > 0.9"},
+					wantCode: ExitRejected,
+					wantFile: "id,answer,assert,error\n1,0.5,false,\n2,0.5,false,\n",
+				},
+			},
+		},
+		{
+			name:  "should exit 7 on a tsv resume whose skipped rows abstained",
+			stdin: idRecords(1, 2),
+			runs: []resumeRun{
+				{
+					args: []string{
+						"-i", "jsonl", "-o", "tsv", "--id", ".id", "--resume",
+						"--assert", "answer.value > 0.9", "--abstain-if", "answer.value > 0.4",
+					},
+					wantCode: ExitAbstain,
+					wantFile: "id\tanswer\tassert\terror\n1\t0.5\tabstain\t\n2\t0.5\tabstain\t\n",
+					wantSent: []string{`{"id":1}`, `{"id":2}`},
+				},
+				{
+					args: []string{
+						"-i", "jsonl", "-o", "tsv", "--id", ".id", "--resume",
+						"--assert", "answer.value > 0.9", "--abstain-if", "answer.value > 0.4",
+					},
+					wantCode: ExitAbstain,
+					wantFile: "id\tanswer\tassert\terror\n1\t0.5\tabstain\t\n2\t0.5\tabstain\t\n",
+				},
+			},
+		},
+		{
 			name:     "should still resume by position without --id",
 			existing: fileOf("old one\nold two\n"),
 			sidecar:  byPosition,
@@ -771,9 +905,9 @@ func TestLedger_TakeOrder(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			book := &ledger{answered: map[ledgerKey]span{}}
-			book.note("9", span{start: 0, end: 10})
-			book.note("1", span{start: 10, end: 20})
+			book := &ledger{answered: map[ledgerKey]answeredLine{}}
+			book.note("9", span{start: 0, end: 10}, verdict{})
+			book.note("1", span{start: 10, end: 20}, verdict{})
 
 			for _, id := range []string{"1", "2"} {
 				rec := &namedRecord{id: id}
@@ -901,4 +1035,22 @@ func reversedLines(text string) string {
 	slices.Reverse(lines)
 
 	return strings.Join(lines, "")
+}
+
+func rejectedLines(from, to int) string {
+	var lines strings.Builder
+	for id := from; id <= to; id++ {
+		fmt.Fprintf(&lines, "{\"id\":%d,\"assert\":false,\"answer\":0.5}\n", id)
+	}
+
+	return lines.String()
+}
+
+func abstainedLines(from, to int) string {
+	var lines strings.Builder
+	for id := from; id <= to; id++ {
+		fmt.Fprintf(&lines, "{\"id\":%d,\"abstain\":true,\"answer\":0.5}\n", id)
+	}
+
+	return lines.String()
 }

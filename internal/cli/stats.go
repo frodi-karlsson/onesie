@@ -35,8 +35,9 @@ func withStats(
 
 	// A run that failed before it read a record or made an attempt never started, and a line of
 	// zeros beside the error reads as a run that was made and came back empty. An empty stream is
-	// the other case: it succeeded, and 0 records is the measurement.
-	if err != nil && summary.Records == 0 && summary.Attempts == 0 {
+	// the other case: it succeeded, and 0 records is the measurement. A resume that skipped every
+	// record read them all, so its gate's exit code gets the line that explains it.
+	if err != nil && summary.Records == 0 && summary.Attempts == 0 && summary.Skipped == 0 {
 		return err
 	}
 
@@ -169,11 +170,13 @@ func (c *collector) recordFailure(cause error, reached bool, questions int) {
 	}
 }
 
-func (c *collector) skip(count int) {
+func (c *collector) skip(records, rejected, abstained int) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	c.skipped += count
+	c.skipped += records
+	c.falseAsserts += rejected
+	c.abstainCount += abstained
 }
 
 func (c *collector) assertFailed() {
