@@ -5,9 +5,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"runtime/pprof"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -924,10 +926,12 @@ func TestStream(t *testing.T) {
 				defer interrupt()
 
 				exited := make(chan int, 1)
+				labels := pprof.Labels("test", t.Name())
 
-				go func() { exited <- cli.Execute(ctx, root) }()
+				go pprof.Do(ctx, labels, func(ctx context.Context) { exited <- cli.Execute(ctx, root) })
 
-				time.AfterFunc(50*time.Millisecond, interrupt)
+				awaitRunningMap(t, labels)
+				interrupt()
 
 				select {
 				case code := <-exited:
@@ -1159,4 +1163,37 @@ func (b *lockedBuffer) String() string {
 	defer b.mu.Unlock()
 
 	return b.buf.String()
+}
+
+func awaitRunningMap(t *testing.T, labels pprof.LabelSet) {
+	t.Helper()
+
+	// A goroutine inherits the labels of the one that started it, so a stack carrying them and
+	// the gojq interpreter is this test's --map expression running, not another test's.
+	var want string
+
+	pprof.ForLabels(pprof.WithLabels(context.Background(), labels), func(key, value string) bool {
+		want = fmt.Sprintf("# labels: {%q:%q}", key, value)
+
+		return true
+	})
+
+	deadline := time.Now().Add(5 * time.Second)
+
+	for time.Now().Before(deadline) {
+		var profile strings.Builder
+		if err := pprof.Lookup("goroutine").WriteTo(&profile, 1); err != nil {
+			t.Fatalf("writing the goroutine profile: %v", err)
+		}
+
+		for _, stack := range strings.Split(profile.String(), "\n\n") {
+			if strings.Contains(stack, want) && strings.Contains(stack, "github.com/itchyny/gojq.(*env).Next") {
+				return
+			}
+		}
+
+		time.Sleep(time.Millisecond)
+	}
+
+	t.Fatal("the --map expression never started running")
 }
