@@ -4,10 +4,6 @@ package input
 
 import "fmt"
 
-// MaxLineBytes is the longest record onesie reads, and the most a --map result may encode to.
-// bufio's 64KiB is too small for a document, and no cap at all lets a line exhaust memory.
-const MaxLineBytes = 8 << 20
-
 // Source names where the state came from. It is resolved once, before any read.
 type Source int
 

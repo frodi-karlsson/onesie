@@ -18,6 +18,7 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/input"
 	"github.com/frodi-karlsson/onesie/internal/jev"
 	"github.com/frodi-karlsson/onesie/internal/jq"
+	"github.com/frodi-karlsson/onesie/internal/limits"
 	"github.com/frodi-karlsson/onesie/internal/output"
 	"github.com/frodi-karlsson/onesie/internal/plan"
 )
@@ -359,7 +360,7 @@ func mapped(ctx context.Context, mapper *jq.Expr, state, wire any) (any, error) 
 		return nil, fmt.Errorf("--map: %w", checkErr)
 	}
 
-	encoded, err := jq.Marshal(value, input.MaxLineBytes)
+	encoded, err := jq.Marshal(value, limits.MaxLineBytes)
 	if err != nil {
 		return nil, fmt.Errorf("--map: %w", err)
 	}

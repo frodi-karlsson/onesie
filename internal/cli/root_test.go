@@ -66,7 +66,7 @@ func TestNewRootCmd(t *testing.T) {
 			wantCode: cli.ExitOK,
 			contains: []string{
 				"onesie 1.2.3", "max-choice-options 255", "max-retry-after 1m0s",
-				"max-map-depth 9999",
+				"max-line-bytes 8388608", "max-map-depth 9999",
 			},
 		},
 		{

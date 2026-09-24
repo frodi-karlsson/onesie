@@ -33,6 +33,9 @@ const (
 	// timeout and far from the Duration overflow that shrinks a huge number.
 	MaxSeconds = 86400
 
+	// MaxLineBytes is the longest record onesie reads, and the most a --map result may encode to.
+	// bufio's 64KiB is too small for a document, and no cap at all lets a line exhaust memory.
+	MaxLineBytes = 8 << 20
 	// MaxMapDepth is the deepest a --map result may nest. encoding/json refuses past 10000 levels,
 	// and the request body wraps the state in one object more.
 	MaxMapDepth = 10000 - 1
@@ -51,6 +54,7 @@ func Report() []Entry {
 		{Name: "max-jobs", Value: strconv.Itoa(MaxJobs)},
 		{Name: "max-retry-after", Value: DefaultMaxRetryAfter.String()},
 		{Name: "max-seconds", Value: strconv.Itoa(MaxSeconds)},
+		{Name: "max-line-bytes", Value: strconv.Itoa(MaxLineBytes)},
 		{Name: "max-map-depth", Value: strconv.Itoa(MaxMapDepth)},
 	}
 }

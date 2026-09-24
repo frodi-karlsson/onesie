@@ -10,6 +10,8 @@ import (
 	"io"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/frodi-karlsson/onesie/internal/limits"
 )
 
 var errRowTooLong = errors.New("a row is longer than the limit")
@@ -158,7 +160,7 @@ func (s *Stream) nextFields() ([]string, error) {
 		return s.nextTabbed()
 	}
 
-	s.budget.left = MaxLineBytes
+	s.budget.left = limits.MaxLineBytes
 
 	fields, err := s.rows.Read()
 	if errors.Is(err, io.EOF) {
@@ -250,7 +252,7 @@ func (s *Stream) row(fields []string) Record {
 
 	wire.WriteByte('}')
 
-	if wire.Len() > MaxLineBytes {
+	if wire.Len() > limits.MaxLineBytes {
 		return s.fail("", errors.New("row is longer than the limit"))
 	}
 
@@ -284,7 +286,7 @@ func (s *Stream) read() (string, bool, error) {
 
 		// An oversized line is reported rather than buffered, so one such record can neither
 		// exhaust memory nor stop the batch.
-		if builder.Len()+len(chunk) > MaxLineBytes {
+		if builder.Len()+len(chunk) > limits.MaxLineBytes {
 			tooLong = true
 		}
 

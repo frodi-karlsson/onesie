@@ -22,6 +22,7 @@ func TestReport(t *testing.T) {
 		{name: "should report the retry count", want: "retries 2"},
 		{name: "should report the retry after cap", want: "max-retry-after 1m0s"},
 		{name: "should report the seconds ceiling", want: "max-seconds 86400"},
+		{name: "should report the longest line read", want: "max-line-bytes 8388608"},
 		{name: "should report the deepest a --map result may nest", want: "max-map-depth 9999"},
 	}
 
