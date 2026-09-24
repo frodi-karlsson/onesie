@@ -186,7 +186,7 @@ func TestDescribe(t *testing.T) {
 
 			stored := &storedFailure{failure: *describe(tc.cause)}
 
-			if got, want := stored.code(), Classify(tc.cause); got != want {
+			if got, want := stored.freshRunCode(), Classify(tc.cause); got != want {
 				t.Errorf("stored %+v exits %d, want %d as a fresh run does", stored.failure, got, want)
 			}
 		})

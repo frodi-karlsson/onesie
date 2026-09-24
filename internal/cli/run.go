@@ -447,9 +447,8 @@ func stream(
 	// A stored failure a resume skipped fails the run as it failed the one that wrote it.
 	result.Failed += skips.failed
 
-	// Ahead of every other outcome, as the abort a fresh run would have ended on.
-	if stopped := source.stoppedAt(); stopped != nil {
-		return stopped
+	if freshAbort := source.freshRunAbort(); freshAbort != nil {
+		return freshAbort
 	}
 
 	if err != nil {

@@ -53,7 +53,7 @@ func Classify(err error) int {
 
 	var stored *storedFailure
 	if errors.As(err, &stored) {
-		return stored.code()
+		return stored.freshRunCode()
 	}
 
 	var rejected *rejectedError
@@ -193,8 +193,7 @@ func (e *storedFailure) Error() string {
 		strings.TrimSuffix(e.failure.Message, "."), e.record)
 }
 
-func (e *storedFailure) code() int {
-	// The code the run that wrote the line exited with, rebuilt the way Classify reached it.
+func (e *storedFailure) freshRunCode() int {
 	switch e.failure.Kind {
 	case "input":
 		return ExitUsage
