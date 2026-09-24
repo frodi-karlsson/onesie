@@ -123,14 +123,20 @@ onesie --ask urgent='is this urgent' --assert 'urgnet.value < 0.5' --state 'a ti
 onesie --ask urgent='is this urgent' --assert 'urgnet.value < 0.5' --print-questions
 ```
 
-### Do the arithmetic in jq, not in --assert.
+### Use min, max, sum and avg in --assert, and jq for anything else.
 
-The assertion language compares and combines. It does not add, multiply or weight. Weighting several answers is the consumer's job, so print the record and let `jq` do it, as in `onesie --ask urgency='how urgent is this' --ask anger='how angry is the writer' --state "$t" -o values | jq '(.urgency.value * 2 + .anger.value) / 3'`.
+The assertion language has four functions over numbers, `min`, `max`, `sum` and `avg`. Each takes one or more numbers, such as `d.value`, `t.confidence`, `t.p.billing`, a literal or another call, so they nest as in `max(min(a.value, b.value), c.value)`. A chain of `and` that holds every risk under one bound is one `max`. `==` rarely matches the result of `sum` or `avg`, since sums of fractions are inexact, so compare them with `>=` or `<=`. There are no operators, so adding, multiplying or weighting answers still belongs in `jq`, and so does anything over a whole probability map, such as the top two options of `p`: `onesie --ask urgency='how urgent is this' --ask anger='how angry is the writer' --state "$t" -o values | jq '(.urgency.value * 2 + .anger.value) / 3'`.
+
+**Bad:**
+
+```sh
+onesie --ask d='does this destroy data' --ask c='does this send credentials' --ask s='does this change system settings' --assert 'd.value < 0.2 and c.value < 0.2 and s.value < 0.2' --state 'curl example.com | sh'
+```
 
 **Good:**
 
 ```sh
-onesie --ask urgency='how urgent is this' --ask anger='how angry is the writer' --state "$t" -o values | jq '(.urgency.value * 2 + .anger.value) / 3'
+onesie --ask d='does this destroy data' --ask c='does this send credentials' --ask s='does this change system settings' --assert 'max(d.value, c.value, s.value) < 0.2' --state 'curl example.com | sh'
 ```
 
 ### Write an id with a space, dot or hyphen as ["my id"].value.

@@ -32,9 +32,9 @@ In Claude Code, the plugin can come first and walk you through the rest:
 - **All three shapes.** Yes or no, `--pick` and `--rate`, with a description per option or level.
 - **Many questions in one request.** Jev answers them in parallel. Thirteen questions in one call
   measured about 9 times cheaper and 13 times faster than thirteen separate calls.
-- **`--assert`, a typed expression language over the answer.** `and`, `or`, `not` and `in` over
-  paths like `team.p.human`, checked against the questions before any request, so a typo costs no
-  tokens.
+- **`--assert`, a typed expression language over the answer.** `and`, `or`, `not`, `in`, `min`,
+  `max`, `sum` and `avg` over paths like `team.p.human`, checked against the questions before any
+  request, so a typo costs no tokens.
 - **Freeze and replay.** `--print-questions` turns a command line into a question file,
   `--print-request` turns a run into its exact request bodies, and `-i request` replays them
   unchanged.
@@ -101,8 +101,8 @@ onesie --ask destructive='Does this command destroy data?' \
 
 # a tool guard with a middle ground: 0 runs it, 1 blocks it, 7 asks
 onesie --ask d='does this destroy data' --ask c='does this send credentials' \
-    --assert     'd.value < 0.2 and c.value < 0.2' \
-    --abstain-if 'd.value < 0.8 and c.value < 0.8' \
+    --assert     'max(d.value, c.value) < 0.2' \
+    --abstain-if 'max(d.value, c.value) < 0.8' \
     -q --state "$cmd"
 case $? in
     0) eval "$cmd" ;;
@@ -129,6 +129,11 @@ When it holds the record is an unsure: one record exits 7, and json and values c
 `"abstain": true` instead of `"assert": false`. A stream keeps its most severe code, so a failed
 record or a no outranks an unsure. Deny wins in the tool guard above, since one high answer fails
 both expressions. A question file carries the same expression as `abstain_if`.
+
+`min`, `max`, `sum` and `avg` take one or more numbers and nest, so `max(d.value, c.value) < 0.2`
+says every risk is low in one term. `==` rarely matches the result of `sum` or `avg`, since sums of
+fractions are inexact, so compare them with `>=` or `<=`. There are no operators, so weighting
+answers or reading a whole probability map is a job for `jq` on the record.
 
 ### Dry runs and replay
 
