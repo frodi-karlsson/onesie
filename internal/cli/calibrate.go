@@ -61,7 +61,17 @@ func newCalibrateCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 			"--label jq expression takes from the record, and prints cut, agreement and confusion " +
 			"tables to pick a gate from. It never picks the cut.\n\n" +
 			"Map only the text a person would read, since a --map that selects the label flatters " +
-			"the question.",
+			"the question.\n\n" +
+			"A yes/no cut row flags a record when its value is at least the cut, so the cut goes into " +
+			"a gate as written. A record no question labels is not asked.\n\n" +
+			"--out keeps the answers as -o json lines, and --resume, which needs --id, asks only the " +
+			"records the file does not answer. Changing a label or --cuts reuses every stored answer. A plain " +
+			"-o json stream run with the same questions, --map and --id can resume the file too.\n\n" +
+			"Exit 0 means every record was answered, 2 a usage error or a bad label or record, 3 a " +
+			"refused key, 6 a report with some records failed, and 130 an interrupt, with no report " +
+			"after 3 or 130.",
+		Example: "  onesie calibrate --ask urgent='is this urgent' -i jsonl --map '.body' \\\n" +
+			"      --label urgent='.is_urgent' --id '.id' --out answers.jsonl --resume < labelled.jsonl",
 		Args:          cobra.MaximumNArgs(1),
 		SilenceUsage:  true,
 		SilenceErrors: true,
@@ -99,8 +109,8 @@ func newCalibrateCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 	}
 
 	cmd.Flags().StringArrayVar(&calib.labels, "label", nil,
-		"[ID=]EXPR, repeatable, a jq expression run on each record whose result is the right answer "+
-			"for question ID")
+		"[ID=]EXPR, one per question, a jq expression run on the record, not on the mapped state, "+
+			"whose result is the right answer for question ID. With one question ID= may be left out")
 	cmd.Flags().StringVar(&calib.cuts, flagCuts, "",
 		"comma separated cuts between 0 and 1. Defaults to 0.05 to 0.95 in steps of 0.05")
 	cmd.Flags().StringVarP(&calib.report, "output", "o", "", "the report, table, json or auto, which means table")
