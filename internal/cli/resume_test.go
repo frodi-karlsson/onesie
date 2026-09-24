@@ -475,7 +475,7 @@ func TestResumeLedger(t *testing.T) {
 			}
 
 			if tc.held {
-				release, err := lockAnswers(path)
+				release, err := newLocker().lockAnswers(path)
 				if err != nil {
 					t.Fatalf("holding the lock: %v", err)
 				}
@@ -676,7 +676,7 @@ func assertMode(t *testing.T, path string, want os.FileMode) {
 func assertUnlocked(t *testing.T, path string) {
 	t.Helper()
 
-	release, err := lockAnswers(path)
+	release, err := newLocker().lockAnswers(path)
 	if err != nil {
 		t.Fatalf("the run left %s locked: %v", filepath.Base(path), err)
 	}
