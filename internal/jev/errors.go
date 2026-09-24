@@ -346,6 +346,10 @@ type ResponseError struct {
 	// Message replaces the generic sentence when the caller has a better one. The CLI's answer
 	// checks do, since their wording is part of the published contract.
 	Message string
+
+	// Usage is what the response billed, when its body decoded that far, since the tokens were spent
+	// even though the answers could not be used. Nil otherwise.
+	Usage *Usage
 }
 
 // Error describes what could not be read.

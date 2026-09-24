@@ -100,6 +100,26 @@ func TestStream(t *testing.T) {
 			contains:  []string{`"kind":"response"`, `"status":200`},
 		},
 		{
+			name:  "should keep the usage of a mismatched answer on its error line under --usage",
+			args:  []string{"is this urgent", "-i", "lines", "--usage", "-o", "json"},
+			stdin: "first\n",
+			response: `{"model":"onesie-1.13.0","usage":{"input_tokens":7,"output_tokens":3},"answers":{"answer":` +
+				`{"type":"choice","choice":"a","confidence":0.5,"probabilities":{"a":1}}}}`,
+			wantCode:  cli.ExitRecords,
+			wantLines: 1,
+			contains:  []string{`"kind":"response"`, `"usage":{"input_tokens":7,"output_tokens":3}`},
+		},
+		{
+			name:  "should keep the usage of a missing answer on its error line under --usage",
+			args:  []string{"is this urgent", "-i", "lines", "--usage", "-o", "json"},
+			stdin: "first\n",
+			response: `{"model":"onesie-1.13.0","usage":{"input_tokens":7,"output_tokens":3},` +
+				`"answers":{"other":{"type":"noul","noul":0.5}}}`,
+			wantCode:  cli.ExitRecords,
+			wantLines: 1,
+			contains:  []string{`"kind":"response"`, `"usage":{"input_tokens":7,"output_tokens":3}`},
+		},
+		{
 			name:      "should abort the whole stream on an authentication failure",
 			args:      []string{"is this urgent", "-i", "lines", "-j", "1"},
 			stdin:     "a\nb\nc\nd\ne\n",

@@ -369,6 +369,15 @@ func TestNewRootCmd(t *testing.T) {
 			},
 		},
 		{
+			name:  "should keep the usage of an answer it cannot use on the error record under --usage",
+			args:  []string{"is this urgent", "--usage", "-o", "json"},
+			stdin: "body",
+			response: `{"model":"onesie-1.13.0","usage":{"input_tokens":7,"output_tokens":3},"answers":{"answer":` +
+				`{"type":"choice","choice":"a","confidence":0.5,"probabilities":{"a":1}}}}`,
+			wantCode: cli.ExitUnavailable,
+			contains: []string{`"kind":"response"`, `"usage":{"input_tokens":7,"output_tokens":3}`},
+		},
+		{
 			name:  "should answer questions from a file",
 			args:  []string{"-f", "q.yaml", "-o", "json"},
 			stdin: "the server is down",

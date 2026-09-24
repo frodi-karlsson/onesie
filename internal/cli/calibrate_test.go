@@ -1862,7 +1862,8 @@ func TestCalibrateRun(t *testing.T) {
 		stub.usage = true
 
 		more := urgentSet + `{"id":"T-7","u":true,"body":{"urgent":0.7}}` + "\n" +
-			`{"id":"T-8","u":true,"body":{"urgent":1.5}}` + "\n"
+			`{"id":"T-8","u":true,"body":{"urgent":1.5}}` + "\n" +
+			`{"id":"T-9","u":true,"body":{"missing":true}}` + "\n"
 
 		out, errOut, code := runCalibrateAgainst(t.Context(), t, calibrating(answers, "--resume", "--usage", "-o", "json"),
 			more, stub.url, false)
@@ -1870,12 +1871,12 @@ func TestCalibrateRun(t *testing.T) {
 			t.Fatalf("exit code = %d, want %d, stderr:\n%s", code, ExitRecords, errOut)
 		}
 
-		if stub.count() != 2 {
-			t.Errorf("the resume made %d requests, want 2", stub.count())
+		if stub.count() != 3 {
+			t.Errorf("the resume made %d requests, want 3", stub.count())
 		}
 
-		if !strings.Contains(out, `"usage":{"input_tokens":20,"output_tokens":4,"cost":0.5,"answers":2}`) {
-			t.Errorf("stdout = %s, want the two answers asked counted, the unusable one included", out)
+		if !strings.Contains(out, `"usage":{"input_tokens":30,"output_tokens":6,"cost":0.75,"answers":3}`) {
+			t.Errorf("stdout = %s, want the three answers asked counted, both unusable ones included", out)
 		}
 	})
 
@@ -2113,6 +2114,24 @@ func (s *calibrateStub) serve(w http.ResponseWriter, r *http.Request) {
 		code, _ := strconv.Atoi(string(status))
 		w.WriteHeader(code)
 		_, _ = w.Write([]byte(`{"error":{"message":"stub"}}`))
+
+		return
+	}
+
+	if _, found := fields["missing"]; found {
+		response := map[string]any{"model": "onesie-1.13.0", "answers": map[string]any{}}
+		if s.usage {
+			response["usage"] = map[string]any{"input_tokens": 10, "output_tokens": 2, "cost": 0.25}
+		}
+
+		encoded, encodeErr := json.Marshal(response)
+		if encodeErr == nil {
+			_, encodeErr = w.Write(encoded)
+		}
+
+		if encodeErr != nil {
+			s.t.Errorf("writing stub response: %v", encodeErr)
+		}
 
 		return
 	}

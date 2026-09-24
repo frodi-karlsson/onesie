@@ -877,8 +877,14 @@ func answered(
 		// carry the same remedy. Every question on this path passed onesie's own bounds check, so a
 		// count the server rejects says something about those bounds.
 		advised := advise(err, model, true)
+		failed := failureRecord(built, advised)
 
-		return failureRecord(built, advised), jev.Usage{}, advised
+		var unusable *jev.ResponseError
+		if withUsage && errors.As(err, &unusable) && unusable.Usage != nil {
+			failed = spent(failed, unusable.Usage)
+		}
+
+		return failed, jev.Usage{}, advised
 	}
 
 	record := output.Record{Model: result.Model}
@@ -897,12 +903,12 @@ func answered(
 				Message: fmt.Sprintf("onesie: response carries no answer for '%s'", question.ID),
 			}
 
-			return failureRecord(built, missing), result.Usage, missing
+			return spent(failureRecord(built, missing), record.Usage), result.Usage, missing
 		}
 
 		normalized, normErr := answer.Normalize(question, raw)
 		if normErr != nil {
-			return failureRecord(built, normErr), result.Usage, normErr
+			return spent(failureRecord(built, normErr), record.Usage), result.Usage, normErr
 		}
 
 		answer.Apply(question, normalized)
@@ -912,6 +918,13 @@ func answered(
 	}
 
 	return record, result.Usage, nil
+}
+
+func spent(failed output.Record, usage *jev.Usage) output.Record {
+	// A 200 onesie could not use still cost its tokens, so --usage reports them on the error line.
+	failed.Usage = usage
+
+	return failed
 }
 
 func failureRecord(built *plan.Plan, cause error) output.Record {

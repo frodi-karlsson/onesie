@@ -139,6 +139,7 @@ func (c *Client) SystemOne(ctx context.Context, req Request, opts ...RequestOpti
 				Status: res.status,
 				Body:   res.body,
 				Err:    fmt.Errorf("no answer for question %q", named.ID),
+				Usage:  &result.Usage,
 			}
 		}
 	}

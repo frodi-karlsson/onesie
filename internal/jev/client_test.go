@@ -498,6 +498,28 @@ func TestClientSystemOne(t *testing.T) {
 		}
 	})
 
+	t.Run("should carry the usage a response missing an answer billed", func(t *testing.T) {
+		t.Parallel()
+
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			_, _ = io.WriteString(w, `{"model":"m","answers":{},"usage":{"input_tokens":7,"output_tokens":3}}`)
+		}))
+		defer server.Close()
+
+		client, _ := newTestClient(t, server.URL)
+
+		_, err := client.SystemOne(t.Context(), jev.Request{State: "x", Questions: oneNoul()})
+
+		var unusable *jev.ResponseError
+		if !errors.As(err, &unusable) {
+			t.Fatalf("error got %v, want a ResponseError", err)
+		}
+
+		if unusable.Usage == nil || unusable.Usage.InputTokens != 7 || unusable.Usage.OutputTokens != 3 {
+			t.Errorf("usage = %+v, want 7 in and 3 out", unusable.Usage)
+		}
+	})
+
 	t.Run("should reject an empty body on a 200", func(t *testing.T) {
 		t.Parallel()
 

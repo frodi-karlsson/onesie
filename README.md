@@ -219,9 +219,10 @@ onesie auth test                                   # checks the key, costs no to
   a file anyone else can reach. On Linux the key reaches the Secret Service over the session bus
   unencrypted, readable only by your own user.
 - `jev-latest` works on both providers, but pinned ids differ: `jev-1.13.0` on TypeSafe,
-  `typesafe/jev-1.13` on OpenRouter. On OpenRouter, `--usage` also reports the cost. `-o values`,
-  `-o raw`, `-r`, `-o csv` and `-o tsv` have no place for `--usage`, and `-q` writes nothing, so
-  they all refuse it with exit 2.
+  `typesafe/jev-1.13` on OpenRouter. On OpenRouter, `--usage` also reports the cost. A 200 whose
+  answers onesie cannot use still spent its tokens, so under `--usage` its json error record
+  carries them too. `-o values`, `-o raw`, `-r`, `-o csv` and `-o tsv` have no place for
+  `--usage`, and `-q` writes nothing, so they all refuse it with exit 2.
 
 ### Exit codes
 
