@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 	"golang.org/x/term"
 
 	"github.com/frodi-karlsson/onesie/internal/argv"
@@ -211,8 +212,37 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 
 	root.AddCommand(newVersionCmd(info))
 	root.AddCommand(newAuthCmd(settings, flags))
+	root.AddCommand(newCalibrateCmd(settings, flags))
+
+	// Cobra hands every subcommand the nearest parent's flag error function, so one hook covers the
+	// subcommands cobra adds itself, such as completion.
+	root.SetFlagErrorFunc(subcommandHint(root))
 
 	return root
+}
+
+func subcommandHint(root *cobra.Command) func(*cobra.Command, error) error {
+	return func(cmd *cobra.Command, err error) error {
+		var unknown *pflag.NotExistError
+		if cmd == root || !errors.As(err, &unknown) || !rootKnows(root, unknown) {
+			return err
+		}
+
+		top := cmd
+		for top.HasParent() && top.Parent() != root {
+			top = top.Parent()
+		}
+
+		return fmt.Errorf("%w. '%s' is a subcommand. To ask it as a question, put it after --", err, top.Name())
+	}
+}
+
+func rootKnows(root *cobra.Command, unknown *pflag.NotExistError) bool {
+	if unknown.GetSpecifiedShortnames() != "" {
+		return root.Flags().ShorthandLookup(unknown.GetSpecifiedName()) != nil
+	}
+
+	return root.Flags().Lookup(unknown.GetSpecifiedName()) != nil
 }
 
 // Execute runs a built command tree and returns the process exit code, so main never has to

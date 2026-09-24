@@ -19,6 +19,7 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/cli"
 	"github.com/frodi-karlsson/onesie/internal/creds"
 	"github.com/frodi-karlsson/onesie/internal/jev"
+	"github.com/frodi-karlsson/onesie/internal/limits"
 )
 
 func TestNewRootCmd(t *testing.T) {
@@ -1070,6 +1071,105 @@ func TestNewRootCmd(t *testing.T) {
 				// error cases run without a reachable server at all.
 				if got := requests.Load(); got != tc.requests {
 					t.Errorf("requests = %d, want %d", got, tc.requests)
+				}
+			})
+		}
+	})
+
+	t.Run("should keep the root's defaults after the subcommands register theirs", func(t *testing.T) {
+		t.Parallel()
+
+		root := cli.NewRootCmd(cli.BuildInfo{Version: "1.2.3"})
+
+		for name, want := range map[string]string{
+			"input":           "text",
+			"jobs":            "1",
+			"timeout":         strconv.Itoa(int(limits.DefaultAttemptTimeout.Seconds())),
+			"retries":         strconv.Itoa(limits.DefaultRetries),
+			"max-retry-after": strconv.Itoa(int(limits.DefaultMaxRetryAfter.Seconds())),
+		} {
+			flag := root.Flags().Lookup(name)
+			if flag == nil {
+				t.Fatalf("the root has no --%s", name)
+			}
+
+			if got := flag.Value.String(); got != want {
+				t.Errorf("--%s = %q after the tree is built, want %q", name, got, want)
+			}
+		}
+	})
+
+	t.Run("should hint that a subcommand rejected a flag the root knows", func(t *testing.T) {
+		t.Parallel()
+
+		const hint = "is a subcommand. To ask it as a question, put it after --"
+
+		tests := []struct {
+			name   string
+			args   []string
+			want   string
+			absent bool
+		}{
+			{
+				name: "should hint for version",
+				args: []string{"--print-request", "version"},
+				want: "onesie: unknown flag: --print-request. 'version' " + hint,
+			},
+			{
+				name: "should hint for auth",
+				args: []string{"auth", "--print-request"},
+				want: "onesie: unknown flag: --print-request. 'auth' " + hint,
+			},
+			{
+				name: "should hint for completion",
+				args: []string{"completion", "--print-request"},
+				want: "onesie: unknown flag: --print-request. 'completion' " + hint,
+			},
+			{
+				name: "should hint for calibrate",
+				args: []string{"calibrate", "--state", "x"},
+				want: "onesie: unknown flag: --state. 'calibrate' " + hint,
+			},
+			{
+				name: "should hint for a shorthand the root knows",
+				args: []string{"version", "-o", "json"},
+				want: "'version' " + hint,
+			},
+			{
+				name:   "should not hint for a flag the root does not know either",
+				args:   []string{"version", "--bogus"},
+				want:   "onesie: unknown flag: --bogus",
+				absent: true,
+			},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				var out, errOut bytes.Buffer
+
+				root := cli.NewRootCmd(
+					cli.BuildInfo{Version: "1.2.3"},
+					cli.WithKeychain(offKeychain{}),
+					cli.WithStdin(strings.NewReader("")),
+					cli.WithLookupEnv(func(string) (string, bool) { return "", false }),
+				)
+
+				root.SetOut(&out)
+				root.SetErr(&errOut)
+				root.SetArgs(tc.args)
+
+				if code := cli.Execute(t.Context(), root); code != cli.ExitUsage {
+					t.Errorf("exit code = %d, want %d\nstderr:\n%s", code, cli.ExitUsage, errOut.String())
+				}
+
+				if !strings.Contains(errOut.String(), tc.want) {
+					t.Errorf("stderr = %q, want it to contain %q", errOut.String(), tc.want)
+				}
+
+				if tc.absent && strings.Contains(errOut.String(), hint) {
+					t.Errorf("stderr = %q, want no subcommand hint", errOut.String())
 				}
 			})
 		}
