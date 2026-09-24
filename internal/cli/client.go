@@ -99,6 +99,11 @@ func pooled(jobs int) http.RoundTripper {
 	transport := base.Clone()
 	transport.MaxIdleConnsPerHost = jobs
 
+	// The idle limit alone does not bound the pool. A request that finds no idle connection
+	// starts a dial, and when another job frees one first it takes that and the dial still
+	// completes, so the run opens a connection past -j that the idle limit then closes.
+	transport.MaxConnsPerHost = jobs
+
 	if transport.MaxIdleConns < jobs {
 		transport.MaxIdleConns = jobs
 	}

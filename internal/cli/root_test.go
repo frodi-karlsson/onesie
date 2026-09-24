@@ -1655,6 +1655,36 @@ func stubAnswering(t *testing.T, body string, observe func(*http.Request)) *http
 func TestPooled(t *testing.T) {
 	t.Parallel()
 
+	caps := []struct {
+		name string
+		jobs int
+		want int
+	}{
+		{name: "should cap connections per host at the job count", jobs: 8, want: 8},
+		{name: "should cap connections per host at one for a job count below one", jobs: 0, want: 1},
+	}
+
+	for _, tc := range caps {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			transport, ok := cli.Pooled(tc.jobs).(*http.Transport)
+			if !ok {
+				t.Fatalf("pooled transport = %T, want *http.Transport", cli.Pooled(tc.jobs))
+			}
+
+			// A request that queues a dial and is then handed a connection another job freed
+			// still finishes that dial, so only this cap keeps the pool at one connection per job.
+			if transport.MaxConnsPerHost != tc.want {
+				t.Errorf("MaxConnsPerHost = %d, want %d", transport.MaxConnsPerHost, tc.want)
+			}
+
+			if transport.MaxIdleConnsPerHost != tc.want {
+				t.Errorf("MaxIdleConnsPerHost = %d, want %d", transport.MaxIdleConnsPerHost, tc.want)
+			}
+		})
+	}
+
 	t.Run("should reuse connections across a job count above two", func(t *testing.T) {
 		t.Parallel()
 
