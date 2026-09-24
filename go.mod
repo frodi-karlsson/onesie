@@ -8,6 +8,7 @@ require (
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.9
 	github.com/zalando/go-keyring v0.2.8
+	golang.org/x/sys v0.48.0
 	golang.org/x/term v0.46.0
 )
 
@@ -25,7 +26,6 @@ require (
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	golang.org/x/mod v0.41.0 // indirect
 	golang.org/x/sync v0.23.0 // indirect
-	golang.org/x/sys v0.48.0 // indirect
 	golang.org/x/telemetry v0.0.0-20260908163034-4bcc4b2ee518 // indirect
 	golang.org/x/text v0.17.0 // indirect
 	golang.org/x/tools v0.50.0 // indirect

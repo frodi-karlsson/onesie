@@ -52,6 +52,7 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 		remove:        os.Remove,
 		resolve:       filepath.EvalSymlinks,
 		goos:          runtime.GOOS,
+		lock:          lockAnswers,
 		lookupEnv:     os.LookupEnv,
 		homeDir:       os.UserHomeDir,
 		now:           time.Now,
@@ -93,7 +94,7 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 		// reporting instead.
 		SilenceUsage:  true,
 		SilenceErrors: true,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, args []string) (err error) {
 			positional := ""
 			if len(args) == 1 {
 				positional = args[0]
@@ -107,14 +108,18 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 			}
 
 			// Ahead of run, since a dry run builds no client and would otherwise never look at it.
-			if _, err := resolveProvider(settings, flags); err != nil {
-				return err
+			if _, providerErr := resolveProvider(settings, flags); providerErr != nil {
+				return providerErr
 			}
 
 			out, err := openOut(settings, flags)
 			if err != nil {
 				return err
 			}
+
+			defer func() {
+				err = errors.Join(err, out.release())
+			}()
 
 			if out == nil {
 				return run(cmd, settings, recorder.Events(), positional, flags, nil)
@@ -351,6 +356,7 @@ type rootSettings struct {
 	remove        func(name string) error
 	resolve       func(path string) (string, error)
 	goos          string
+	lock          func(answers string) (release func() error, err error)
 	lookupEnv     func(string) (string, bool)
 	homeDir       func() (string, error)
 	now           func() time.Time

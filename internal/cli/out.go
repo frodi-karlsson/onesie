@@ -43,14 +43,28 @@ func openOut(settings rootSettings, flags *runFlags) (*outFile, error) {
 		return out, nil
 	}
 
-	if err := out.removeStalePart(); err != nil {
+	// Held for the whole resume, since a second run appending to the file or renaming its own
+	// compaction over it would lose answers this one wrote.
+	if err := out.lock(settings.lock); err != nil {
 		return nil, err
+	}
+
+	if err := resumeOut(out, settings, flags); err != nil {
+		return nil, errors.Join(err, out.release())
+	}
+
+	return out, nil
+}
+
+func resumeOut(out *outFile, settings rootSettings, flags *runFlags) error {
+	if err := out.removeStalePart(); err != nil {
+		return err
 	}
 
 	if flags.output == "csv" || flags.output == "tsv" {
 		rows, length, err := completeRows(settings, flags.out, flags.output == "csv")
 		if err != nil {
-			return nil, err
+			return err
 		}
 
 		out.resumeAt(length)
@@ -64,12 +78,12 @@ func openOut(settings rootSettings, flags *runFlags) (*outFile, error) {
 			flags.resumeSkip = rows - 1
 		}
 
-		return out, nil
+		return nil
 	}
 
 	lines, length, err := completeLines(settings, flags.out)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	out.resumeAt(length)
@@ -78,7 +92,7 @@ func openOut(settings rootSettings, flags *runFlags) (*outFile, error) {
 		flags.resumeSkip = lines
 	}
 
-	return out, nil
+	return nil
 }
 
 func byID(flags *runFlags) bool {
@@ -93,6 +107,7 @@ type outFile struct {
 	remove  func(name string) error
 	resolve func(path string) (string, error)
 	goos    string
+	unlock  func() error
 	resume  bool
 	keep    int64
 	bound   bool
@@ -108,6 +123,37 @@ type rewrite struct {
 	lines     []span
 	delimited bool
 	quoted    bool
+}
+
+func (o *outFile) lock(take func(answers string) (func() error, error)) error {
+	unlock, err := take(o.path)
+	if errors.Is(err, errLocked) {
+		return fmt.Errorf("onesie: %s is being resumed by another onesie run. Wait for it to finish, "+
+			"then resume again", o.path)
+	}
+
+	if err != nil {
+		return fmt.Errorf("onesie: locking %s to resume: %w", o.path, err)
+	}
+
+	o.unlock = unlock
+
+	return nil
+}
+
+func (o *outFile) release() error {
+	if o == nil || o.unlock == nil {
+		return nil
+	}
+
+	unlock := o.unlock
+	o.unlock = nil
+
+	if err := unlock(); err != nil {
+		return fmt.Errorf("onesie: unlocking %s: %w", o.path, err)
+	}
+
+	return nil
 }
 
 func (o *outFile) resumeAt(length int64) {

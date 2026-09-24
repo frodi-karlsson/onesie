@@ -41,6 +41,7 @@ func TestResumeLedger(t *testing.T) {
 		sidecar   string
 		stdin     string
 		stalePart bool
+		held      bool
 		runs      []resumeRun
 	}{
 		{
@@ -190,6 +191,31 @@ func TestResumeLedger(t *testing.T) {
 			}},
 		},
 		{
+			name:     "should refuse to resume while another run holds the file",
+			existing: fileOf(idLines(1, 1)),
+			sidecar:  byID,
+			stdin:    idRecords(1, 2),
+			held:     true,
+			runs: []resumeRun{{
+				args:       values,
+				wantCode:   ExitUsage,
+				wantFile:   idLines(1, 1),
+				wantStderr: "is being resumed by another onesie run. Wait for it to finish",
+			}},
+		},
+		{
+			name:     "should let go of the lock when a resume is refused",
+			existing: fileOf(idLines(1, 1)),
+			sidecar:  byPosition,
+			stdin:    idRecords(1, 2),
+			runs: []resumeRun{{
+				args:       values,
+				wantCode:   ExitUsage,
+				wantFile:   idLines(1, 1),
+				wantStderr: "changed since",
+			}},
+		},
+		{
 			name:    "should compact an unordered run into input order",
 			sidecar: byID,
 			stdin:   idRecords(1, 6),
@@ -207,10 +233,10 @@ func TestResumeLedger(t *testing.T) {
 			sidecar:  byID,
 			stdin:    idRecords(1, 3),
 			runs: []resumeRun{{
-				args:      append([]string{"--stats"}, values...),
-				wantFile:  idLines(1, 3),
-				wantSent:  []string{`{"id":3}`},
-				wantStats: "1 request, 2 skipped, ",
+				args:       append([]string{"--stats"}, values...),
+				wantFile:   idLines(1, 3),
+				wantSent:   []string{`{"id":3}`},
+				wantStderr: "1 request, 2 skipped, ",
 			}},
 		},
 		{
@@ -396,8 +422,25 @@ func TestResumeLedger(t *testing.T) {
 				}
 			}
 
+			if tc.held {
+				release, err := lockAnswers(path)
+				if err != nil {
+					t.Fatalf("holding the lock: %v", err)
+				}
+
+				t.Cleanup(func() {
+					if err := release(); err != nil {
+						t.Errorf("releasing the held lock: %v", err)
+					}
+				})
+			}
+
 			for i, run := range tc.runs {
 				runResume(t, fmt.Sprintf("run %d", i+1), path, tc.stdin, run)
+			}
+
+			if !tc.held {
+				assertUnlocked(t, path)
 			}
 
 			if _, err := os.Stat(path + compactSuffix); !os.IsNotExist(err) {
@@ -412,15 +455,15 @@ func TestResumeLedger(t *testing.T) {
 }
 
 type resumeRun struct {
-	args      []string
-	input     string
-	failFrom  int32
-	slow      bool
-	wantCode  int
-	wantFile  string
-	wantSent  []string
-	anyOrder  bool
-	wantStats string
+	args       []string
+	input      string
+	failFrom   int32
+	slow       bool
+	wantCode   int
+	wantFile   string
+	wantSent   []string
+	anyOrder   bool
+	wantStderr string
 }
 
 func runResume(t *testing.T, label, path, stdin string, run resumeRun) {
@@ -470,8 +513,8 @@ func runResume(t *testing.T, label, path, stdin string, run resumeRun) {
 		t.Errorf("%s: sent = %q, want %q", label, got, run.wantSent)
 	}
 
-	if !strings.Contains(errOut.String(), run.wantStats) {
-		t.Errorf("%s: stderr = %q, want it to contain %q", label, errOut.String(), run.wantStats)
+	if !strings.Contains(errOut.String(), run.wantStderr) {
+		t.Errorf("%s: stderr = %q, want it to contain %q", label, errOut.String(), run.wantStderr)
 	}
 }
 
@@ -720,5 +763,22 @@ func assertMode(t *testing.T, path string, want os.FileMode) {
 
 	if got := info.Mode().Perm(); got != want {
 		t.Errorf("%s mode = %o, want %o", filepath.Base(path), got, want)
+	}
+}
+
+func assertUnlocked(t *testing.T, path string) {
+	t.Helper()
+
+	release, err := lockAnswers(path)
+	if err != nil {
+		t.Fatalf("the run left %s locked: %v", filepath.Base(path), err)
+	}
+
+	if err := release(); err != nil {
+		t.Fatalf("releasing the lock: %v", err)
+	}
+
+	if _, err := os.Stat(path + lockSuffix); !os.IsNotExist(err) {
+		t.Errorf("lock file left behind: %v", err)
 	}
 }
