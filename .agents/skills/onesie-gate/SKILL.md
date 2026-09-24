@@ -51,7 +51,7 @@ onesie --ask danger='is this dangerous' --ask creds='does this send credentials'
 
 ### Treat every non zero exit as no, not just exit 1.
 
-Exit 1 means the policy said no. Exits 2 through 5 mean no answer arrived at all, from a usage error, a bad key, an exhausted retry or a transport failure. Exit 6 means a stream finished with at least one failed record, so a gate over a stream still has to fail closed on it. Exit 7 means `--abstain-if` turned a no into an unsure, which `&&` also blocks. Chaining with `&&` fails closed on all of them as a minimal gate, which is correct. Branching on exit 1 alone treats an outage and a typo as an answer. To tell them apart: `case $? in 0) go ;; 1) block ;; *) alert and block ;; esac`. In CI, tell them apart, so a red build says whether to fix the input or rerun. GitHub Actions runs bash with `-e`, so capture the exit first: `status=0; onesie ... || status=$?; case $status in 0) ;; 1) echo 'policy said no'; exit 1 ;; 7) echo 'onesie could not decide, needs a human'; exit 1 ;; *) echo "onesie gave no answer, exit $status"; exit 1 ;; esac`.
+Exit 1 means the policy said no. Exits 2 through 5 mean no answer arrived at all, from a usage error, a bad key, an exhausted retry or a transport failure. Exit 6 means a stream finished with at least one failed record, so a gate over a stream still has to fail closed on it. Exit 7 means `--abstain-if` turned a no into an unsure, which `&&` also blocks. Exit 130 means the run was interrupted, so no decision was made. Chaining with `&&` fails closed on all of them as a minimal gate, which is correct. Branching on exit 1 alone treats an outage and a typo as an answer. To tell them apart: `case $? in 0) go ;; 1) block ;; 130) stop ;; *) alert and block ;; esac`. In CI, tell them apart, so a red build says whether to fix the input or rerun. GitHub Actions runs bash with `-e`, so capture the exit first: `status=0; onesie ... || status=$?; case $status in 0) ;; 1) echo 'policy said no'; exit 1 ;; 7) echo 'onesie could not decide, needs a human'; exit 1 ;; *) echo "onesie gave no answer, exit $status"; exit 1 ;; esac`.
 
 **Bad:**
 
@@ -77,7 +77,7 @@ onesie --ask d='does this destroy data' --ask c='does this send credentials' --a
 
 ### -q on its own gates one question on one record. Add --assert for several questions, and use --assert alone for a stream.
 
-Without an assertion onesie rejects `-q` when more than one question was asked, naming them, since one exit code cannot carry several answers. Beside `--assert` it is allowed, because the assertion is the gate. `-q` is rejected under every streaming input mode either way, since a stream prints one record per input. A gate over a stream uses `--assert`, which prints every record and exits 1 when any assertion was false.
+Without an assertion, `-q` is the gate over one question, and onesie rejects it when more than one question was asked, naming them, since one exit code cannot carry several answers. On a yes or no question it exits 0 when the probability is at least `--threshold`, 0.5 by default, and 1 otherwise. On a pick or rate question it needs `--min-confidence` and `--fallback`, and exits 1 when the confidence falls below, 0 otherwise. A request that fails exits with its own code either way. Beside `--assert`, `-q` is allowed over any number of questions, because the assertion is the gate. `-q` is rejected under every streaming input mode, since a stream prints one record per input. A gate over a stream uses `--assert`, which prints every record and exits 1 when any assertion was false.
 
 **Bad:**
 
@@ -93,7 +93,7 @@ onesie --ask a='destroys data' --ask b='sends credentials' --assert 'a.value < 0
 
 ### Gate a pick or rate on --min-confidence and give --fallback a human routed value.
 
-`--min-confidence` needs `--fallback`. Below the threshold the decision becomes the fallback text instead of the model's pick, and `.fallback` reads `low_confidence`, so a consumer routes on that field rather than trusting a low confidence guess.
+`--min-confidence` needs `--fallback`. Below the threshold `.decision` becomes the fallback text instead of the model's pick, and `.fallback` reads `low_confidence`, so a consumer routes on that field rather than trusting a low confidence guess. Above it `.decision` is the pick and `.fallback` is absent, which an assertion reads as the empty string. When the request fails, the record still carries `.decision` set to the fallback, with `.fallback` reading `error` and an `.error` beside it, and the exit code is the failure's. Under `-q` the record is not printed: a low confidence answer exits 1 and a confident one exits 0. In an assertion, `team.fallback == ""` holds only for a confident answer that arrived.
 
 **Bad:**
 
@@ -109,7 +109,7 @@ onesie --ask team='which team owns this incident' --pick billing,shipping,suppor
 
 ### Check an assertion with --print-questions before you spend anything.
 
-`--print-questions` writes the assertion into the file it prints and checks every path and type against the questions, so a typo or a type error exits 2 naming the real question ids and makes no network call. The good example below keeps the typo on purpose, so it exits 2 naming the real id `urgent` rather than running for real. `--print-request` rejects `--assert`, so use `--print-questions`.
+`--print-questions` writes the assertion into the file it prints and checks every path and type against the questions, so a typo or a type error exits 2 naming the real question ids and makes no network call. The good example below keeps the typo on purpose, so it exits 2 naming the real id `urgent` rather than running for real. It checks paths, option names under `p` and types, but not the text of a string literal, so `team.value == "biling"` passes and is simply never true. `--print-questions` needs named questions and refuses a positional one. `answer` is reserved for the positional question, so give it another id with `--ask` and rename the paths to match. `--print-request` rejects `--assert`, so use `--print-questions`.
 
 **Bad:**
 
@@ -121,6 +121,16 @@ onesie --ask urgent='is this urgent' --assert 'urgnet.value < 0.5' --state 'a ti
 
 ```sh
 onesie --ask urgent='is this urgent' --assert 'urgnet.value < 0.5' --print-questions
+```
+
+### Read value, confidence, p, score, norm, decision and fallback, and compare with == != < <= > >= and in.
+
+A path is a question id, a dot and a field. `value` is on every shape, a number on a yes or no question and a string on a pick or rate. `confidence` and `p.NAME`, the probability of one option or level, exist on a pick or rate. `score` and `norm` exist on a rate. `decision` needs `--threshold` or `--min-confidence`, and is a boolean on a yes or no question, a string otherwise. `fallback` needs a policy flag and reads the empty string when nothing replaced the answer. A field the shape lacks exits 2. Compare with `==`, `!=`, `<`, `<=`, `>` and `>=`, test a string with `in ["a", "b"]`, and combine with `and`, `or`, `not` and parentheses. Strings take double quotes. A number needs a digit before the point, as in `0.5`, and may be negative. A bare path is not a test, so write `u.decision == true`. Several `--assert` flags join with `and`.
+
+**Good:**
+
+```sh
+onesie --ask team='which team owns this' --pick billing,shipping,support --min-confidence 0.7 --fallback human --assert 'team.fallback == "" and (team.value in ["billing", "support"] or team.p.shipping < 0.2)' --print-questions
 ```
 
 ### Use min, max, sum and avg in --assert, and jq for anything else.
@@ -159,7 +169,12 @@ onesie --ask 'needs review'='is review needed' --assert '["needs review"].value 
 
 | flag | legal on | needs |
 | --- | --- | --- |
-| `--threshold` | a yes or no question only | nothing else |
-| `--min-confidence` | a pick or rate question only | `--fallback` |
-| `--fallback` alone | any shape | does not gate on low confidence, it only substitutes when the request fails |
+| `--threshold` | a yes or no question only | nothing else. It sets `.decision` to whether the probability is at least the threshold |
+| `--min-confidence` | a pick or rate question only | `--fallback`. Below it `.decision` is the fallback text and `.fallback` is `low_confidence` |
+| `--fallback` | any shape | on a yes or no question it takes `true`, `false`, `yes` or `no`, and the decision stays a boolean. Alone it does not gate, it only fills `.decision` when the request fails |
+| `-q` | a yes or no question | nothing else. It exits 0 when the probability is at least `--threshold`, 0.5 by default |
 | `-q` | a pick or rate question | `--min-confidence` with `--fallback`, or an `--assert` |
+
+A request that fails after retries still prints the record under a fallback, with `.error` beside
+the answer, `.fallback` set to `error` and `.decision` set to the fallback. The exit code stays
+the failure's, 2 through 5, so a gate still fails closed.
