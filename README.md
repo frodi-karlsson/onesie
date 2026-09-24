@@ -32,90 +32,49 @@ In Claude Code, the plugin can come first and walk you through the rest:
 - **All three shapes.** Yes or no, `--pick` and `--rate`, with a description per option or level.
 - **Many questions in one request.** Jev answers them in parallel. Thirteen questions in one call
   measured about 9 times cheaper and 13 times faster than thirteen separate calls.
-- **`--assert`, a typed expression language over the answer.** `and`, `or`, `not`, `in`, `min`,
-  `max`, `sum` and `avg` over paths like `team.p.human`, checked against the questions before any
-  request, so a typo costs no tokens.
-- **Freeze and replay.** `--print-questions` turns a command line into a question file,
-  `--print-request` turns a run into its exact request bodies, and `-i request` replays them
-  unchanged.
-- **Streams with a contract.** JSONL, line, CSV and TSV input with `-j` requests in flight, one
-  output record per input record in input order, memory bounded by `-j`, and `--merge` to fold the
-  answers into each record.
-- **Exit codes that tell a no from an outage.** Eight of them, separating a policy no, a bad key, a
-  server that never answered and a stream where only some records failed.
-- **Two providers.** TypeSafe directly, or the same model through OpenRouter.
+- **A typed gate language.** `--assert` takes `and`, `or`, `not`, `in` and `min`, `max`, `sum`,
+  `avg` over paths like `team.p.human`, checked before any request, so a typo costs no tokens.
+- **Three way gates.** `--abstain-if` turns a no into an unsure with its own exit code, for the
+  middle ground a person should decide.
+- **Choose what the model reads.** `--map` runs jq on each record, so the model sees `.body`, not the
+  customer's name.
+- **Streams that resume.** JSONL, lines, CSV and TSV with `-j` in flight, one output record per input
+  record in input order. With `--id`, an interrupted run picks up where it stopped, and a changed
+  question refuses to mix old answers with new.
+- **Freeze and replay.** A command line becomes a question file, a run becomes its exact request
+  bodies, and either replays unchanged.
+- **Exit codes that tell a no from an outage.** Nine of them, separating a no, an unsure, a bad key,
+  a server that never answered and a stream where only some records failed.
+- **Two providers, keys in the keychain.** TypeSafe directly or through OpenRouter, with keys in the
+  OS keychain.
 - **Agent skills.** A plugin for Claude Code and Codex, with the same skills for Cursor and Gemini.
 
 ## Usage
 
+**Triage a support ticket.** Several questions cost about what one does.
+
 ```sh
-# a choice between named options, each with a rubric
-onesie 'how safe is it to run this command' -r \
-    --pick safe,verify,refuse \
-    --desc safe='read only or trivially reversible' \
-    --desc verify='writes, network calls or state changes' \
-    --desc refuse='destructive, irreversible or exfiltrates data' \
-    --state 'rm -rf ./build'
-# refuse
-
-# a level on a rubric, scored and normalised
-echo 'this is the fourth time I have written' \
-  | onesie 'how frustrated is the customer' --rate calm,annoyed,furious -o json
-
-# several questions in one request
-echo "$ticket" | onesie --ask urgent='does this convey urgency' \
-                     --ask refund='is the customer asking for money back' -o values
-# {"urgent":0.99,"refund":0.98}
-
-# one record per line, four at a time, answers folded into each record
-onesie 'does `body` convey urgency' -i jsonl -j 4 --merge < tickets.jsonl \
-  | jq -c 'select(.answers.answer.value > 0.8)'
-
-# a spreadsheet in, the same spreadsheet out with a column per question
-onesie --ask urgent='does `body` convey urgency' -i csv -o csv --merge < tickets.csv > triaged.csv
-
-# send only the body, and name each answer by the ticket id
-onesie 'is this urgent' -i jsonl --map '.body' --id '.id' -o values < tickets.jsonl
-# {"id":"T-1","answer":0.97}
+onesie --ask urgent='does this convey urgency' \
+       --ask refund='is the customer asking for money back' \
+       --ask team='who should handle this' --pick billing,shipping,technical \
+       -o values < ticket.txt
+# {"urgent":0.97,"refund":0.99,"team":"billing"}
 ```
 
-`--map` is a jq expression whose result is the state, so `.body`, `{subject, body}` or
-`.messages[-1].text` keeps the rest of the record away from the model. An object it builds is sent
-with its keys sorted, and `onesie -V` lists the caps on its result. `--id` is a jq expression whose
-string or number result names the record on every output line. It runs one record at a time, so keep
-it cheap. Ids match by their text, so `7`, `7.0` and `"7"` are one id in jsonl.
-
-A record that fails in a stream still prints a line carrying an `error` key, the run carries on, and
-the exit code is 6. `--stop-on-error` ends the run at the first failure instead, and `--unordered`
-trades input order for throughput.
-
-A long run can be picked up where it stopped. With `--out` onesie writes the answers to a file, and
-a fingerprint of the questions, provider, model, `--map` and `--id` beside it. `--resume` refuses
-with exit 2 when any of those changed. With `--id` it skips the records the file already answers,
-asks the rest, including the ones that failed, and appends each answer as it arrives. Once the run
-completes it rewrites the file in input order, keeping answered ids the input no longer has after
-the rest unless `--prune` is given. Only the id is compared, so a record whose content changed but
-whose id did not keeps its old answer. Every `--out` run holds a lock beside the file, so two cannot
-run into the same file at once. Without `--id`, `--resume` counts the complete lines already in the file and
-carries on from the next record.
+**Score on a rubric.** A description per level steers the answer.
 
 ```sh
-onesie 'is this urgent' -i jsonl -j 8 --map '.body' --id '.id' --out answers.jsonl --resume < tickets.jsonl
+onesie 'how frustrated is the customer' -o json \
+    --rate calm,annoyed,furious \
+    --desc calm='polite, no complaint' \
+    --desc annoyed='complains but stays civil' \
+    --desc furious='threatens to leave or escalate' < ticket.txt
+# {"model":"jev-1.13.0","answer":{"value":"annoyed","confidence":0.8,...}}
 ```
 
-### Gating
-
-`--assert` is one boolean over the whole record, and its result is the exit code. It reads the same
-field names `-o json` prints.
+**Guard an agent's shell commands.** Run it, block it, or ask a person.
 
 ```sh
-# run the command only if both answers are low
-onesie --ask destructive='Does this command destroy data?' \
-    --ask creds='Does this command read or send credentials?' \
-    --assert 'destructive.value < 0.5 and creds.value < 0.5' \
-    --state "$cmd" && eval "$cmd"
-
-# a tool guard with a middle ground: 0 runs it, 1 blocks it, 7 asks
 onesie --ask d='does this destroy data' --ask c='does this send credentials' \
     --assert     'max(d.value, c.value) < 0.2' \
     --abstain-if 'max(d.value, c.value) < 0.8' \
@@ -126,60 +85,95 @@ case $? in
     7) ask_the_user ;;
     *) echo 'no answer, blocked' ;;
 esac
-
-# a probability rather than the winner
-onesie 'Which team?' --pick billing,technical,human --assert 'answer.p.human < 0.25' < ticket.txt
-
-# every path is checked before any request, so a typo costs nothing
-onesie --ask urgent='is this urgent' --assert 'urgnet.value < 0.5'
-# onesie: --assert: unknown question 'urgnet'. Questions: urgent
 ```
 
-A false assertion exits 1 and still prints the record, with `"assert": false` added. Add `-q` to
-print nothing. Beside an assertion it only silences the output, and the assertion alone sets the
-exit code.
-Repeated `--assert` flags combine with `and`.
-
-`--abstain-if` needs an assertion and is only checked for a record that answered and failed it.
-When it holds the record is an unsure: one record exits 7, and json and values carry
-`"abstain": true` instead of `"assert": false`. A stream keeps its most severe code, so a failed
-record or a no outranks an unsure. Deny wins in the tool guard above, since one high answer fails
-both expressions. A question file carries the same expression as `abstain_if`.
-
-`min`, `max`, `sum` and `avg` take one or more numbers and nest, so `max(d.value, c.value) < 0.2`
-says every risk is low in one term. `==` rarely matches the result of `sum` or `avg`, since sums of
-fractions are inexact, so compare them with `>=` or `<=`. There are no arithmetic operators, so weighting
-answers or reading a whole probability map is a job for `jq` on the record.
-
-### Dry runs and replay
-
-`--print-request` and `--print-questions` exit without calling the API, so they need no key and cost
-nothing.
+**Fail a CI step on a pull request without a reason.** Tell a no from an outage in the log.
 
 ```sh
-# the request body a command would send
-echo "$ticket" | onesie --ask urgent='does this convey urgency' --print-request
+status=0
+onesie 'does this explain why the change is needed' --assert 'answer.value > 0.6' \
+    -q --state "$PR_BODY" || status=$?
+case $status in
+    0) ;;
+    1) echo 'the description does not say why'; exit 1 ;;
+    *) echo "onesie gave no answer, exit $status"; exit 1 ;;
+esac
+```
 
-# freeze a command line into a question file, then reuse it
-onesie --ask urgent='does this convey urgency' --ask team='who owns this' --pick billing,platform \
-    --print-questions > questions.yaml
-echo "$ticket" | onesie -f questions.yaml -o values
+**Triage a spreadsheet.** The same rows come back with a column per question.
 
-# freeze a whole stream, then replay it exactly
+```sh
+onesie --ask urgent='does `body` convey urgency' -i csv -o csv --merge < tickets.csv > triaged.csv
+```
+
+**Run a large batch you can resume.** Send only the body, name each answer by ticket, and pick up
+after an interrupt without paying twice.
+
+```sh
+onesie 'is this urgent' -i jsonl -j 8 --map '.body' --id '.id' \
+    --out answers.jsonl --resume < tickets.jsonl
+jq -c 'select(.answer.value > 0.8)' answers.jsonl
+```
+
+**Try it before spending anything.** A dry run needs no key, and a frozen stream replays exactly.
+
+```sh
+onesie --ask urgent='does this convey urgency' --state 'the site is down' --print-request
 onesie -i jsonl --ask urgent='does this convey urgency' --print-request < tickets.jsonl > frozen.jsonl
 onesie -i request < frozen.jsonl > answers.jsonl
 ```
 
-A question file carries questions, labels, policy and order, but not a model or a state.
-`--print-questions` warns when it drops one.
+**Keep a question set in a file.** A command line freezes into one, and the file reloads as is.
+
+```sh
+onesie --ask urgent='does this convey urgency' --ask team='who owns this' --pick billing,platform \
+    --assert 'urgent.value < 0.9' --print-questions > triage.yaml
+onesie -f triage.yaml -o values < ticket.txt
+# {"assert":false,"urgent":0.97,"team":"billing"}, and exit 1, since this ticket is urgent
+```
+
+## Reference
+
+### Gating
+
+`--assert` is one boolean over the record, and it sets the exit code. It reads the field names `-o
+json` prints, and every path is checked before any request:
+
+```sh
+onesie --ask urgent='is this urgent' --assert 'urgnet.value < 0.5'
+# onesie: --assert: unknown question 'urgnet'. Questions: urgent
+```
+
+- A false assertion exits 1 and still prints the record with `"assert": false`. `-q` prints nothing
+  and leaves the exit code to the assertion. Repeated flags combine with `and`.
+- `--abstain-if` is checked only when the assertion fails. When it holds, the record is an unsure:
+  exit 7, and `"abstain": true` in place of `"assert": false`.
+- `min`, `max`, `sum` and `avg` take numbers and nest. `==` rarely matches a `sum` or `avg`, so use
+  `>=` or `<=`. There are no arithmetic operators, so weighting answers is a job for `jq`.
+- A question file carries the same expressions as `assert` and `abstain_if`.
+
+### Streams
+
+- A record that fails still prints a line with an `error` key, and the run exits 6.
+  `--stop-on-error` ends at the first failure, and `--unordered` trades input order for throughput.
+- `--map` is a jq expression whose result is the state. An object it builds has its keys sorted, and
+  `onesie -V` lists the caps on its result.
+- `--id` names each record on every output line. It runs one record at a time, so keep it a cheap
+  lookup. Ids match by their text, so `7`, `7.0` and `"7"` are one id in jsonl.
+- `--out` writes to a file with a fingerprint of the questions, provider, model, `--map` and `--id`
+  beside it, and a lock so two runs cannot share it.
+- `--resume` with `--id` skips answered records and asks the rest, failed ones included. A finished
+  run rewrites the file in input order and keeps answered ids the input no longer has, unless
+  `--prune` drops them. A changed fingerprint refuses with exit 2. A record whose content changed
+  but whose id did not keeps its old answer. Without `--id`, it carries on by line count.
 
 ### Keys and providers
 
 ```sh
-onesie auth set                              # prompts, or reads the first line of stdin
+onesie auth set                                    # prompts, or reads the first line of stdin
 pass show openrouter | onesie --provider openrouter auth set
-onesie auth status                           # which provider and source, never the key
-onesie auth test                             # checks the key, costs no tokens
+onesie auth status                                 # which provider and source, never the key
+onesie auth test                                   # checks the key, costs no tokens
 ```
 
 | Provider | Key variable | Chosen with |
@@ -187,19 +181,14 @@ onesie auth test                             # checks the key, costs no tokens
 | `typesafe`, the default | `TYPESAFE_API_KEY` | nothing |
 | `openrouter` | `OPENROUTER_API_KEY` | `--provider openrouter` or `ONESIE_PROVIDER=openrouter` |
 
-A key comes from `--api-key`, then the provider's variable, then the provider's entry in the
-credential file, and no provider falls back to another's key.
-
-`auth set` stores the key in the OS keychain when there is one: the macOS Keychain, the Secret
-Service on Linux, or the Windows Credential Manager. The credential file then only records that
-the key is there. Without a keychain, or with `auth set --file`, the key goes in the file itself.
-On Linux the key reaches the Secret Service over the session bus unencrypted, readable only by
-your own user.
-The file lives under `$ONESIE_CONFIG_DIR`, `$XDG_CONFIG_HOME/onesie` or `~/.config/onesie`, is
-written at mode `600`, and onesie refuses to read it when anyone else can reach it.
-
-`jev-latest` works on both providers, but pinned model ids differ: TypeSafe uses `jev-1.13.0` and
-OpenRouter `typesafe/jev-1.13`. On OpenRouter, `--usage` also reports the cost in USD.
+- A key comes from `--api-key`, then the provider's variable, then the credential file. No provider
+  falls back to another's key.
+- `auth set` stores the key in the OS keychain when there is one, and otherwise in a file at mode
+  `600` under `$ONESIE_CONFIG_DIR`, `$XDG_CONFIG_HOME/onesie` or `~/.config/onesie`. onesie refuses
+  a file anyone else can reach. On Linux the key reaches the Secret Service over the session bus
+  unencrypted, readable only by your own user.
+- `jev-latest` works on both providers, but pinned ids differ: `jev-1.13.0` on TypeSafe,
+  `typesafe/jev-1.13` on OpenRouter. On OpenRouter, `--usage` also reports the cost.
 
 ### Exit codes
 
@@ -219,11 +208,11 @@ A consumer that stops reading, as `head` does, is not an error.
 
 ### More
 
-- `--stats` writes a one line summary to stderr: requests, tokens, model, retries by status and time.
+- `--stats` writes a one line summary to stderr: requests, tokens, model, retries and time.
 - `--list-models` shows what the account can ask, and `-m` picks one.
 - `--base-url` points onesie at any server that speaks the System One API.
 - `--retries`, `--timeout` and `--max-retry-after` bound how long a call can take.
-- `onesie --help` lists every flag, and `onesie -V` prints the built in API limits.
+- `onesie --help` lists every flag, and `onesie -V` prints the built in limits.
 
 ## Contributing
 
