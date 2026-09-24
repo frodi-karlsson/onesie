@@ -75,7 +75,7 @@ func resumeOut(out *outFile, settings rootSettings, flags *runFlags) error {
 			flags.resumeHeader = true
 		}
 
-		if rows > 0 && !byID(flags) {
+		if rows > 0 && !resumesByID(flags) {
 			flags.resumeSkip = rows - 1
 		}
 
@@ -89,15 +89,14 @@ func resumeOut(out *outFile, settings rootSettings, flags *runFlags) error {
 
 	out.resumeAt(length)
 
-	if !byID(flags) {
+	if !resumesByID(flags) {
 		flags.resumeSkip = lines
 	}
 
 	return nil
 }
 
-func byID(flags *runFlags) bool {
-	// Under --id the records the file answers are skipped by id as they are read, not by position.
+func resumesByID(flags *runFlags) bool {
 	return flags.idSource != ""
 }
 
