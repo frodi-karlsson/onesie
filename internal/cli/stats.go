@@ -170,13 +170,13 @@ func (c *collector) recordFailure(cause error, reached bool, questions int) {
 	}
 }
 
-func (c *collector) skip(records, rejected, abstained int) {
+func (c *collector) skip(skips tally) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	c.skipped += records
-	c.falseAsserts += rejected
-	c.abstainCount += abstained
+	c.skipped += skips.records
+	c.falseAsserts += skips.rejected
+	c.abstainCount += skips.abstained
 }
 
 func (c *collector) assertFailed() {
@@ -237,7 +237,7 @@ type Stats struct {
 	// Records is every input record a resume did not skip. Requests is the subset that reached the
 	// client, which is smaller whenever a line failed to parse.
 	Records int
-	// Skipped counts the records a resume by id left alone, since the file already answered them.
+	// Skipped counts the records a resume left alone, since the file already answered them.
 	Skipped  int
 	Requests int
 	Failed   int

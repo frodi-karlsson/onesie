@@ -32,21 +32,54 @@ func resumeLedger(
 		return nil, nil
 	}
 
-	return readLedger(ctx, answers, answersFormat{
-		mode: mode, merge: merging(flags), mergeKey: mergeKey(flags), namer: namer,
+	book := &ledger{answered: map[ledgerKey]answeredLine{}}
+	format := answersFormat{mode: mode, merge: merging(flags), mergeKey: mergeKey(flags), namer: namer}
+
+	err := readAnswers(ctx, answers, func(r io.Reader) error {
+		return format.eachAnswer(ctx, r, book.note)
 	})
+	if err != nil {
+		return nil, err
+	}
+
+	return book, nil
 }
 
-func readLedger(ctx context.Context, answers *outFile, format answersFormat) (book *ledger, err error) {
-	book = &ledger{answered: map[ledgerKey]answeredLine{}}
+func resumedVerdicts(
+	ctx context.Context,
+	answers *outFile,
+	flags *runFlags,
+	namer *jq.Expr,
+	mode output.Mode,
+) ([]verdict, error) {
+	if answers == nil || !answers.resume || namer != nil {
+		return nil, nil
+	}
 
+	var judged []verdict
+
+	format := answersFormat{mode: mode, merge: merging(flags), mergeKey: mergeKey(flags)}
+
+	err := readAnswers(ctx, answers, func(r io.Reader) error {
+		return format.eachVerdict(r, func(stored verdict) {
+			judged = append(judged, stored)
+		})
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return judged, nil
+}
+
+func readAnswers(ctx context.Context, answers *outFile, read func(r io.Reader) error) (err error) {
 	file, err := answers.open(answers.path, os.O_RDONLY, 0)
 	if errors.Is(err, os.ErrNotExist) {
-		return book, nil
+		return nil
 	}
 
 	if err != nil {
-		return nil, fmt.Errorf("onesie: reading %s to resume: %w", answers.path, err)
+		return fmt.Errorf("onesie: reading %s to resume: %w", answers.path, err)
 	}
 
 	defer func() {
@@ -55,16 +88,11 @@ func readLedger(ctx context.Context, answers *outFile, format answersFormat) (bo
 
 	// Only up to the last complete line, since the partial one after it is trimmed before anything
 	// is appended.
-	readErr := format.eachAnswer(ctx, io.LimitReader(file, answers.keep), book.note)
-	if readErr != nil {
-		return nil, fmt.Errorf("onesie: reading %s to resume: %w", answers.path, readErr)
+	if readErr := read(io.LimitReader(file, answers.keep)); readErr != nil {
+		return fmt.Errorf("onesie: reading %s to resume: %w", answers.path, readErr)
 	}
 
-	if ctx.Err() != nil {
-		return nil, ctx.Err()
-	}
-
-	return book, nil
+	return ctx.Err()
 }
 
 type answersFormat struct {
@@ -79,11 +107,39 @@ func (f answersFormat) eachAnswer(
 	r io.Reader,
 	note func(id string, at span, judged verdict),
 ) error {
-	if f.mode != output.CSV && f.mode != output.TSV {
-		return eachLine(r, func(at span, text []byte) bool {
+	return f.eachStored(r,
+		func(at span, text []byte) {
 			if id, judged, ok := f.lineAnswer(ctx, text); ok {
 				note(id, at, judged)
 			}
+		},
+		func(at span, row map[string]any) {
+			if id, judged, ok := f.rowAnswer(ctx, row); ok {
+				note(id, at, judged)
+			}
+		})
+}
+
+func (f answersFormat) eachVerdict(r io.Reader, note func(judged verdict)) error {
+	// Every stored line is noted, a failed one included, since a resume by position skips one
+	// record per line.
+	return f.eachStored(r,
+		func(_ span, text []byte) {
+			note(f.lineVerdict(text))
+		},
+		func(_ span, row map[string]any) {
+			note(rowVerdict(row))
+		})
+}
+
+func (f answersFormat) eachStored(
+	r io.Reader,
+	visitLine func(at span, text []byte),
+	visitRow func(at span, row map[string]any),
+) error {
+	if f.mode != output.CSV && f.mode != output.TSV {
+		return eachLine(r, func(at span, text []byte) bool {
+			visitLine(at, text)
 
 			return true
 		})
@@ -98,25 +154,45 @@ func (f answersFormat) eachAnswer(
 			return true
 		}
 
-		if id, judged, ok := f.rowAnswer(ctx, columns, cells); ok {
-			note(id, at, judged)
-		}
+		visitRow(at, rowOf(columns, cells))
 
 		return true
 	})
 }
 
-func (f answersFormat) lineAnswer(ctx context.Context, text []byte) (string, verdict, bool) {
-	decoder := json.NewDecoder(bytes.NewReader(text))
-	decoder.UseNumber()
+func rowOf(columns, cells []string) map[string]any {
+	row := make(map[string]any, len(columns))
 
-	var value any
-	if err := decoder.Decode(&value); err != nil {
-		return "", verdict{}, false
+	for i, name := range columns {
+		if i < len(cells) {
+			row[name] = cells[i]
+		}
 	}
 
-	object, isObject := value.(map[string]any)
+	return row
+}
+
+func (f answersFormat) lineVerdict(text []byte) verdict {
+	_, object, ok := decodeLine(text)
+	if !ok {
+		return verdict{}
+	}
+
+	if !f.merge {
+		return verdictOf(object)
+	}
+
+	folded, isObject := object[f.mergeKey].(map[string]any)
 	if !isObject {
+		return verdict{}
+	}
+
+	return verdictOf(folded)
+}
+
+func (f answersFormat) lineAnswer(ctx context.Context, text []byte) (string, verdict, bool) {
+	value, object, decoded := decodeLine(text)
+	if !decoded {
 		return "", verdict{}, false
 	}
 
@@ -154,6 +230,20 @@ func (f answersFormat) lineAnswer(ctx context.Context, text []byte) (string, ver
 	return id, verdictOf(folded), ok
 }
 
+func decodeLine(text []byte) (any, map[string]any, bool) {
+	decoder := json.NewDecoder(bytes.NewReader(text))
+	decoder.UseNumber()
+
+	var value any
+	if err := decoder.Decode(&value); err != nil {
+		return nil, nil, false
+	}
+
+	object, isObject := value.(map[string]any)
+
+	return value, object, isObject
+}
+
 func verdictOf(answers map[string]any) verdict {
 	return verdict{rejected: answers["assert"] == false, abstained: answers["abstain"] == true}
 }
@@ -171,21 +261,12 @@ func wrappedState(line map[string]any, mergeKey string) (any, bool) {
 	return state, len(line) == 2 && hasState && hasAnswers && !stateIsObject
 }
 
-func (f answersFormat) rowAnswer(ctx context.Context, columns, cells []string) (string, verdict, bool) {
-	row := make(map[string]any, len(columns))
-
-	for i, name := range columns {
-		if i < len(cells) {
-			row[name] = cells[i]
-		}
-	}
-
+func (f answersFormat) rowAnswer(ctx context.Context, row map[string]any) (string, verdict, bool) {
 	if failure, ok := row["error"].(string); ok && failure != "" {
 		return "", verdict{}, false
 	}
 
-	// An input column cannot take the assert column's name, so under --merge it is still the gate's.
-	judged := verdict{rejected: row["assert"] == "false", abstained: row["assert"] == "abstain"}
+	judged := rowVerdict(row)
 
 	if !f.merge {
 		id, ok := answerID(row["id"])
@@ -196,6 +277,11 @@ func (f answersFormat) rowAnswer(ctx context.Context, columns, cells []string) (
 	id, ok := f.named(ctx, row)
 
 	return id, judged, ok
+}
+
+func rowVerdict(row map[string]any) verdict {
+	// An input column cannot take the assert column's name, so under --merge it is still the gate's.
+	return verdict{rejected: row["assert"] == "false", abstained: row["assert"] == "abstain"}
 }
 
 func (f answersFormat) named(ctx context.Context, value any) (string, bool) {
@@ -224,14 +310,12 @@ type span struct {
 }
 
 type ledger struct {
-	mu        sync.Mutex
-	answered  map[ledgerKey]answeredLine
-	lines     []span
-	pending   int
-	skipped   int
-	rejected  int
-	abstained int
-	ended     bool
+	mu       sync.Mutex
+	answered map[ledgerKey]answeredLine
+	lines    []span
+	pending  int
+	skips    tally
+	ended    bool
 }
 
 type answeredLine struct {
@@ -263,7 +347,7 @@ func (l *ledger) admit(rec *namedRecord) (answered bool) {
 		if stored, found := l.answered[key]; found {
 			delete(l.answered, key)
 			l.lines = append(l.lines, stored.at)
-			l.skip(stored.judged)
+			l.skips.count(stored.judged)
 
 			return true
 		}
@@ -273,20 +357,6 @@ func (l *ledger) admit(rec *namedRecord) (answered bool) {
 	l.pending++
 
 	return false
-}
-
-func (l *ledger) skip(judged verdict) {
-	l.skipped++
-
-	// Counted as if judged this run, so a resumed gate exits on every answer in the file and not
-	// only on the ones it asked for.
-	if judged.rejected {
-		l.rejected++
-	}
-
-	if judged.abstained {
-		l.abstained++
-	}
 }
 
 func (l *ledger) wrote(slot int, at span) {
@@ -333,15 +403,31 @@ func (l *ledger) takeOrder(prune bool) []span {
 	return lines
 }
 
-func (l *ledger) skips() (records, rejected, abstained int) {
-	if l == nil {
-		return 0, 0, 0
-	}
-
+func (l *ledger) skipped() tally {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	return l.skipped, l.rejected, l.abstained
+	return l.skips
+}
+
+type tally struct {
+	records   int
+	rejected  int
+	abstained int
+}
+
+func (t *tally) count(judged verdict) {
+	t.records++
+
+	// Counted as if judged this run, so a resumed gate exits on every answer in the file and not
+	// only on the ones it asked for.
+	if judged.rejected {
+		t.rejected++
+	}
+
+	if judged.abstained {
+		t.abstained++
+	}
 }
 
 func eachLine(r io.Reader, visit func(at span, text []byte) bool) error {

@@ -307,7 +307,12 @@ func stream(
 		return err
 	}
 
-	source := records(cmd.Context(), settings, inputMode, flags, namer, book, outputMode)
+	stored, err := resumedVerdicts(cmd.Context(), answers, flags, namer, outputMode)
+	if err != nil {
+		return err
+	}
+
+	source := records(cmd.Context(), settings, inputMode, flags, namer, book, stored, outputMode)
 	out := cmd.OutOrStdout()
 	merge := merging(flags)
 	table := delimited(out, outputMode, built, gate != nil, namer != nil && !merge, flags)
@@ -432,7 +437,7 @@ func stream(
 		Stop:        watched(stopping(flags), &stopped),
 	})
 	source.stop()
-	stats.skip(book.skips())
+	stats.skip(source.skipped())
 
 	if err != nil {
 		// The source stopping the run is the worse outcome and takes the exit code, since a

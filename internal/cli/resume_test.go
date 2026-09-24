@@ -626,6 +626,131 @@ func TestResumeLedger(t *testing.T) {
 			}},
 		},
 		{
+			name:  "should exit 1 on a resume by position whose skipped records failed their assertion",
+			stdin: idRecords(1, 2),
+			runs: []resumeRun{
+				{
+					args:     []string{"-i", "jsonl", "-o", "values", "--resume", "--assert", "answer.value > 0.9"},
+					wantCode: ExitRejected,
+					wantFile: strings.Repeat("{\"assert\":false,\"answer\":0.5}\n", 2),
+					wantSent: []string{`{"id":1}`, `{"id":2}`},
+				},
+				{
+					args: []string{
+						"-i", "jsonl", "-o", "values", "--resume", "--assert", "answer.value > 0.9", "--stats",
+					},
+					wantCode:   ExitRejected,
+					wantFile:   strings.Repeat("{\"assert\":false,\"answer\":0.5}\n", 2),
+					wantStderr: "0 requests, 2 skipped, 2 false assertions, ",
+				},
+			},
+		},
+		{
+			name:  "should exit 7 on a resume by position whose skipped records abstained",
+			stdin: idRecords(1, 2),
+			runs: []resumeRun{
+				{
+					args: []string{
+						"-i", "jsonl", "-o", "values", "--resume",
+						"--assert", "answer.value > 0.9", "--abstain-if", "answer.value > 0.4",
+					},
+					wantCode: ExitAbstain,
+					wantFile: strings.Repeat("{\"abstain\":true,\"answer\":0.5}\n", 2),
+					wantSent: []string{`{"id":1}`, `{"id":2}`},
+				},
+				{
+					args: []string{
+						"-i", "jsonl", "-o", "values", "--resume",
+						"--assert", "answer.value > 0.9", "--abstain-if", "answer.value > 0.4", "--stats",
+					},
+					wantCode:   ExitAbstain,
+					wantFile:   strings.Repeat("{\"abstain\":true,\"answer\":0.5}\n", 2),
+					wantStderr: "0 requests, 2 skipped, 2 abstains, ",
+				},
+			},
+		},
+		{
+			name:  "should exit 1 on a resume by position whose skipped merged records failed their assertion",
+			stdin: idRecords(1, 2),
+			runs: []resumeRun{
+				{
+					args:     []string{"-i", "jsonl", "-o", "values", "--resume", "--merge", "--assert", "answer.value > 0.9"},
+					wantCode: ExitRejected,
+					wantFile: "{\"id\":1,\"answers\":{\"assert\":false,\"answer\":0.5}}\n" +
+						"{\"id\":2,\"answers\":{\"assert\":false,\"answer\":0.5}}\n",
+					wantSent: []string{`{"id":1}`, `{"id":2}`},
+				},
+				{
+					args:     []string{"-i", "jsonl", "-o", "values", "--resume", "--merge", "--assert", "answer.value > 0.9"},
+					wantCode: ExitRejected,
+					wantFile: "{\"id\":1,\"answers\":{\"assert\":false,\"answer\":0.5}}\n" +
+						"{\"id\":2,\"answers\":{\"assert\":false,\"answer\":0.5}}\n",
+				},
+			},
+		},
+		{
+			name:  "should exit 1 on a csv resume by position whose skipped rows failed their assertion",
+			stdin: idRecords(1, 2),
+			runs: []resumeRun{
+				{
+					args:     []string{"-i", "jsonl", "-o", "csv", "--resume", "--assert", "answer.value > 0.9"},
+					wantCode: ExitRejected,
+					wantFile: "answer,assert,error\n0.5,false,\n0.5,false,\n",
+					wantSent: []string{`{"id":1}`, `{"id":2}`},
+				},
+				{
+					args:     []string{"-i", "jsonl", "-o", "csv", "--resume", "--assert", "answer.value > 0.9"},
+					wantCode: ExitRejected,
+					wantFile: "answer,assert,error\n0.5,false,\n0.5,false,\n",
+				},
+			},
+		},
+		{
+			name:  "should exit 7 on a csv resume by position whose skipped rows abstained",
+			stdin: idRecords(1, 2),
+			runs: []resumeRun{
+				{
+					args: []string{
+						"-i", "jsonl", "-o", "csv", "--resume",
+						"--assert", "answer.value > 0.9", "--abstain-if", "answer.value > 0.4",
+					},
+					wantCode: ExitAbstain,
+					wantFile: "answer,assert,error\n0.5,abstain,\n0.5,abstain,\n",
+					wantSent: []string{`{"id":1}`, `{"id":2}`},
+				},
+				{
+					args: []string{
+						"-i", "jsonl", "-o", "csv", "--resume",
+						"--assert", "answer.value > 0.9", "--abstain-if", "answer.value > 0.4",
+					},
+					wantCode: ExitAbstain,
+					wantFile: "answer,assert,error\n0.5,abstain,\n0.5,abstain,\n",
+				},
+			},
+		},
+		{
+			name:  "should count only the skipped records of a resume by position, asking the rest",
+			stdin: idRecords(1, 3),
+			runs: []resumeRun{
+				{
+					args:     []string{"-i", "jsonl", "-o", "values", "--resume", "--assert", "answer.value > 0.9"},
+					input:    idRecords(1, 1),
+					wantCode: ExitRejected,
+					wantFile: "{\"assert\":false,\"answer\":0.5}\n",
+					wantSent: []string{`{"id":1}`},
+				},
+				{
+					args: []string{
+						"-i", "jsonl", "-o", "values", "--resume", "--assert", "answer.value > 0.9", "--stats",
+					},
+					wantCode:   ExitRejected,
+					wantFile:   strings.Repeat("{\"assert\":false,\"answer\":0.5}\n", 3),
+					wantSent:   []string{`{"id":2}`, `{"id":3}`},
+					wantStderr: "2 requests, 1 skipped, 3 false assertions, ",
+				},
+			},
+		},
+		{
 			name:     "should still refuse --unordered with a resume by position",
 			existing: fileOf("old one\n"),
 			sidecar:  byPosition,

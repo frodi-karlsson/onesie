@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/frodi-karlsson/onesie/internal/engine"
 	"github.com/frodi-karlsson/onesie/internal/input"
@@ -20,6 +21,7 @@ func records(
 	flags *runFlags,
 	namer *jq.Expr,
 	book *ledger,
+	stored []verdict,
 	outputMode output.Mode,
 ) *naming {
 	stream := input.NewStream(settings.stdin, inputMode, flags.skipBlank)
@@ -31,12 +33,53 @@ func records(
 	return &naming{
 		ctx:    ctx,
 		stop:   stop,
-		source: engine.Skip[input.Record](stream, flags.resumeSkip),
+		source: &resumed{source: stream, left: flags.resumeSkip, stored: stored},
 		namer:  namer,
 		book:   book,
 		mode:   outputMode,
 		seen:   map[[sha256.Size]byte]int{},
 	}
+}
+
+type resumed struct {
+	mu     sync.Mutex
+	source engine.Source[input.Record]
+	left   int
+	stored []verdict
+	skips  tally
+}
+
+func (r *resumed) Next() (input.Record, bool, error) {
+	for r.left > 0 {
+		r.left--
+
+		if rec, ok, err := r.source.Next(); err != nil || !ok {
+			return rec, ok, err
+		}
+
+		r.count()
+	}
+
+	return r.source.Next()
+}
+
+func (r *resumed) count() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	var judged verdict
+	if at := r.skips.records; at < len(r.stored) {
+		judged = r.stored[at]
+	}
+
+	r.skips.count(judged)
+}
+
+func (r *resumed) skipped() tally {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	return r.skips
 }
 
 type namedRecord struct {
@@ -49,7 +92,7 @@ type namedRecord struct {
 type naming struct {
 	ctx    context.Context
 	stop   context.CancelFunc
-	source engine.Source[input.Record]
+	source *resumed
 	namer  *jq.Expr
 	book   *ledger
 	mode   output.Mode
@@ -76,6 +119,14 @@ func (n *naming) Next() (namedRecord, bool, error) {
 
 		return named, true, nil
 	}
+}
+
+func (n *naming) skipped() tally {
+	if n.book != nil {
+		return n.book.skipped()
+	}
+
+	return n.source.skipped()
 }
 
 func (n *naming) named(rec input.Record) namedRecord {
