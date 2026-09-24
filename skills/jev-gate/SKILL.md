@@ -57,7 +57,7 @@ jev --ask danger='is this dangerous' --assert 'danger.value < 0.5' --state 'rm -
 
 ### Treat every non zero exit as no, not just exit 1.
 
-Exit 1 means the policy said no. Exits 2 through 5 mean no answer arrived at all, from a usage error, a bad key, an exhausted retry or a transport failure. Exit 6 means a stream finished with at least one failed record, so a gate over a stream still has to fail closed on it. Chaining with `&&` fails closed on all of them as a minimal gate, which is correct. Branching on exit 1 alone treats an outage and a typo as an answer. To tell them apart: `case $? in 0) go ;; 1) block ;; *) alert and block ;; esac`.
+Exit 1 means the policy said no. Exits 2 through 5 mean no answer arrived at all, from a usage error, a bad key, an exhausted retry or a transport failure. Exit 6 means a stream finished with at least one failed record, so a gate over a stream still has to fail closed on it. Chaining with `&&` fails closed on all of them as a minimal gate, which is correct. Branching on exit 1 alone treats an outage and a typo as an answer. To tell them apart: `case $? in 0) go ;; 1) block ;; *) alert and block ;; esac`. In CI, tell them apart, so a red build says whether to fix the input or rerun. GitHub Actions runs bash with `-e`, so capture the exit first: `status=0; jev ... || status=$?; case $status in 0) ;; 1) echo 'policy said no'; exit 1 ;; *) echo "jev gave no answer, exit $status"; exit 1 ;; esac`.
 
 **Bad:**
 
