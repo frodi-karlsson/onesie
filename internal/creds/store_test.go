@@ -2,12 +2,14 @@ package creds_test
 
 import (
 	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"reflect"
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/frodi-karlsson/onesie/internal/creds"
 )
@@ -334,7 +336,99 @@ func TestLoad(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("should report what the filesystem refuses", func(t *testing.T) {
+		t.Parallel()
+
+		denied := &fs.PathError{Op: "open", Path: "credentials.json", Err: fs.ErrPermission}
+		broken := errors.New("stub open failure")
+
+		tests := []struct {
+			name     string
+			openErr  error
+			stat     func(string) (fs.FileInfo, error)
+			wantMode os.FileMode
+			wantErr  error
+		}{
+			{
+				name:    "should wrap an open failure that is not a missing file",
+				openErr: broken,
+				wantErr: broken,
+			},
+			{
+				// A test running as root can open a file of any mode, so only a stubbed open
+				// reaches this branch everywhere.
+				name:     "should name the mode of a file its owner cannot open",
+				openErr:  denied,
+				stat:     func(string) (fs.FileInfo, error) { return modeInfo(0o644), nil },
+				wantMode: 0o644,
+			},
+			{
+				name:    "should report the open failure when the mode cannot be read either",
+				openErr: denied,
+				stat: func(string) (fs.FileInfo, error) {
+					return nil, errors.New("stub stat failure")
+				},
+				wantErr: fs.ErrPermission,
+			},
+			{
+				name:    "should report the open failure when the mode is private",
+				openErr: denied,
+				stat:    func(string) (fs.FileInfo, error) { return modeInfo(0o600), nil },
+				wantErr: fs.ErrPermission,
+			},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				opts := []creds.StoreOption{
+					creds.WithGOOS("linux"),
+					creds.WithOpen(func(string) (*os.File, error) { return nil, tc.openErr }),
+				}
+				if tc.stat != nil {
+					opts = append(opts, creds.WithStat(tc.stat))
+				}
+
+				_, found, err := creds.NewStore(opts...).Load("credentials.json")
+				if found {
+					t.Errorf("found = true, want false alongside an error")
+				}
+
+				if tc.wantMode != 0 {
+					var readable *creds.ReadableError
+					if !errors.As(err, &readable) {
+						t.Fatalf("Load error = %v, want a ReadableError", err)
+					}
+
+					if readable.Mode != tc.wantMode {
+						t.Errorf("mode = %o, want %o", readable.Mode, tc.wantMode)
+					}
+
+					return
+				}
+
+				if !errors.Is(err, tc.wantErr) {
+					t.Errorf("Load error = %v, want it to wrap %v", err, tc.wantErr)
+				}
+
+				if !strings.Contains(err.Error(), "reading credentials.json") {
+					t.Errorf("Load error = %v, want it to name the path", err)
+				}
+			})
+		}
+	})
 }
+
+type modeInfo os.FileMode
+
+func (m modeInfo) Name() string       { return "credentials.json" }
+func (m modeInfo) Size() int64        { return 0 }
+func (m modeInfo) Mode() os.FileMode  { return os.FileMode(m) }
+func (m modeInfo) ModTime() time.Time { return time.Time{} }
+func (m modeInfo) IsDir() bool        { return os.FileMode(m).IsDir() }
+func (m modeInfo) Sys() any           { return nil }
 
 func TestSave(t *testing.T) {
 	t.Parallel()
@@ -767,6 +861,147 @@ func TestSave(t *testing.T) {
 			})
 		}
 	})
+
+	t.Run("should report what the filesystem refuses", func(t *testing.T) {
+		t.Parallel()
+
+		mkdirFailure := errors.New("stub mkdir failure")
+		renameFailure := errors.New("stub rename failure")
+		removeFailure := errors.New("stub remove failure")
+
+		tests := []struct {
+			name      string
+			mkdirAll  func(string, os.FileMode) error
+			rename    func(string, string) error
+			remove    func(string) error
+			wantErr   []error
+			wantInErr string
+			wantFile  bool
+		}{
+			{
+				name:      "should fail before any file exists when the directory cannot be created",
+				mkdirAll:  func(string, os.FileMode) error { return mkdirFailure },
+				wantErr:   []error{mkdirFailure},
+				wantInErr: "creating",
+			},
+			{
+				name:      "should fail and remove the temporary file when the rename fails",
+				rename:    func(string, string) error { return renameFailure },
+				wantErr:   []error{renameFailure},
+				wantInErr: "renaming",
+			},
+			{
+				name:   "should report both failures when the temporary file cannot be removed",
+				rename: func(string, string) error { return renameFailure },
+				remove: func(string) error { return removeFailure },
+				// The stubbed remove leaves the temporary file behind, so the directory is not
+				// asserted empty here.
+				wantErr:   []error{renameFailure, removeFailure},
+				wantInErr: "renaming",
+				wantFile:  true,
+			},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				dir := filepath.Join(t.TempDir(), "onesie")
+				path := filepath.Join(dir, "credentials.json")
+
+				var opts []creds.StoreOption
+				if tc.mkdirAll != nil {
+					opts = append(opts, creds.WithMkdirAll(tc.mkdirAll))
+				}
+
+				if tc.rename != nil {
+					opts = append(opts, creds.WithRename(tc.rename))
+				}
+
+				if tc.remove != nil {
+					opts = append(opts, creds.WithRemove(tc.remove))
+				}
+
+				_, err := creds.NewStore(opts...).Save(path, creds.File{Providers: map[string]creds.Entry{"typesafe": {APIKey: "k"}}})
+
+				for _, want := range tc.wantErr {
+					if !errors.Is(err, want) {
+						t.Errorf("Save error = %v, want it to wrap %v", err, want)
+					}
+				}
+
+				if err == nil || !strings.Contains(err.Error(), tc.wantInErr) {
+					t.Errorf("Save error = %v, want it to contain %s", err, tc.wantInErr)
+				}
+
+				if tc.wantFile {
+					return
+				}
+
+				entries, readErr := os.ReadDir(dir)
+				if readErr != nil && !errors.Is(readErr, os.ErrNotExist) {
+					t.Fatalf("reading the directory: %v", readErr)
+				}
+
+				if len(entries) != 0 {
+					t.Errorf("directory holds %d entries, want none", len(entries))
+				}
+			})
+		}
+	})
+
+	t.Run("should flush the directory only where the platform can", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name      string
+			goos      string
+			wantOpens int
+		}{
+			{name: "should save when the directory cannot be opened for a flush", goos: "linux", wantOpens: 1},
+			{name: "should not open the directory on windows", goos: "windows"},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				dir := filepath.Join(t.TempDir(), "onesie")
+				path := filepath.Join(dir, "credentials.json")
+
+				var opens []string
+
+				open := func(name string) (*os.File, error) {
+					opens = append(opens, name)
+
+					return nil, errors.New("stub open failure")
+				}
+
+				store := creds.NewStore(creds.WithGOOS(tc.goos), creds.WithOpen(open))
+
+				if _, err := store.Save(path, creds.File{Providers: map[string]creds.Entry{"typesafe": {APIKey: "k"}}}); err != nil {
+					t.Fatalf("Save: %v", err)
+				}
+
+				if len(opens) != tc.wantOpens {
+					t.Fatalf("opened %v, want %d opens", opens, tc.wantOpens)
+				}
+
+				if tc.wantOpens > 0 && opens[0] != dir {
+					t.Errorf("opened %s, want the directory %s", opens[0], dir)
+				}
+
+				data, err := os.ReadFile(path)
+				if err != nil {
+					t.Fatalf("reading back: %v", err)
+				}
+
+				if strings.TrimSpace(string(data)) != `{"providers":{"typesafe":{"api_key":"k"}}}` {
+					t.Errorf("file = %s, want the saved key", data)
+				}
+			})
+		}
+	})
 }
 
 func TestClear(t *testing.T) {
@@ -856,4 +1091,68 @@ func TestClear(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("should report what the filesystem refuses", func(t *testing.T) {
+		t.Parallel()
+
+		removeFailure := errors.New("stub remove failure")
+
+		tests := []struct {
+			name        string
+			lstat       func(string) (fs.FileInfo, error)
+			removeErr   error
+			wantErr     error
+			wantRemoves int
+		}{
+			{
+				name:        "should wrap a remove failure",
+				removeErr:   removeFailure,
+				wantErr:     removeFailure,
+				wantRemoves: 1,
+			},
+			{
+				name:        "should treat a file that vanished before the remove as cleared",
+				removeErr:   os.ErrNotExist,
+				wantRemoves: 1,
+			},
+			{
+				name:  "should refuse a directory without removing it",
+				lstat: func(string) (fs.FileInfo, error) { return modeInfo(os.ModeDir | 0o700), nil },
+			},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				var removes int
+
+				opts := []creds.StoreOption{
+					creds.WithLstat(func(string) (fs.FileInfo, error) { return nil, os.ErrNotExist }),
+					creds.WithRemove(func(string) error {
+						removes++
+
+						return tc.removeErr
+					}),
+				}
+				if tc.lstat != nil {
+					opts = append(opts, creds.WithLstat(tc.lstat))
+				}
+
+				err := creds.NewStore(opts...).Clear("credentials.json")
+
+				if tc.lstat != nil {
+					if err == nil || !strings.Contains(err.Error(), "is not a regular file") {
+						t.Errorf("Clear error = %v, want a refusal", err)
+					}
+				} else if !errors.Is(err, tc.wantErr) {
+					t.Errorf("Clear error = %v, want %v", err, tc.wantErr)
+				}
+
+				if removes != tc.wantRemoves {
+					t.Errorf("removes = %d, want %d", removes, tc.wantRemoves)
+				}
+			})
+		}
+	})
 }

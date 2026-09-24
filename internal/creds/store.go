@@ -20,7 +20,18 @@ const (
 
 // NewStore builds a Store over the real filesystem. A test overrides only what it must.
 func NewStore(opts ...StoreOption) Store {
-	store := Store{chmod: os.Chmod, createTemp: os.CreateTemp, sync: (*os.File).Sync, goos: runtime.GOOS}
+	store := Store{
+		open:       os.Open,
+		stat:       os.Stat,
+		lstat:      os.Lstat,
+		mkdirAll:   os.MkdirAll,
+		rename:     os.Rename,
+		remove:     os.Remove,
+		chmod:      os.Chmod,
+		createTemp: os.CreateTemp,
+		sync:       (*os.File).Sync,
+		goos:       runtime.GOOS,
+	}
 
 	for _, opt := range opts {
 		opt(&store)
@@ -30,17 +41,65 @@ func NewStore(opts ...StoreOption) Store {
 }
 
 // Store reads and writes credential files. Build one with NewStore, since the zero value has no
-// chmod to call. Its zero value also assumes a unix filesystem.
+// filesystem to call. Its zero value also assumes a unix filesystem.
 type Store struct {
+	open       func(string) (*os.File, error)
+	stat       func(string) (fs.FileInfo, error)
+	lstat      func(string) (fs.FileInfo, error)
+	mkdirAll   func(string, os.FileMode) error
+	rename     func(oldpath, newpath string) error
+	remove     func(string) error
 	chmod      func(string, os.FileMode) error
 	createTemp func(dir, pattern string) (*os.File, error)
 	sync       func(*os.File) error
 	goos       string
 }
 
-// StoreOption customises a Store. It exists so a test can fail a chmod without finding a
-// filesystem that cannot set modes.
+// StoreOption customises a Store. It exists so a test can fail a filesystem call without finding a
+// filesystem that fails it.
 type StoreOption func(*Store)
+
+// WithOpen replaces how a Store opens the credential file and its directory.
+func WithOpen(open func(string) (*os.File, error)) StoreOption {
+	return func(s *Store) {
+		s.open = open
+	}
+}
+
+// WithStat replaces how a Store reads the mode of a credential file it could not open.
+func WithStat(stat func(string) (fs.FileInfo, error)) StoreOption {
+	return func(s *Store) {
+		s.stat = stat
+	}
+}
+
+// WithLstat replaces how a Store inspects the credential path before removing it.
+func WithLstat(lstat func(string) (fs.FileInfo, error)) StoreOption {
+	return func(s *Store) {
+		s.lstat = lstat
+	}
+}
+
+// WithMkdirAll replaces how a Store creates the credential file's directory.
+func WithMkdirAll(mkdirAll func(string, os.FileMode) error) StoreOption {
+	return func(s *Store) {
+		s.mkdirAll = mkdirAll
+	}
+}
+
+// WithRename replaces how a Store moves the temporary file onto the credential path.
+func WithRename(rename func(oldpath, newpath string) error) StoreOption {
+	return func(s *Store) {
+		s.rename = rename
+	}
+}
+
+// WithRemove replaces how a Store deletes the credential file and a leftover temporary file.
+func WithRemove(remove func(string) error) StoreOption {
+	return func(s *Store) {
+		s.remove = remove
+	}
+}
 
 // WithChmod replaces how a Store sets a file's mode.
 func WithChmod(chmod func(string, os.FileMode) error) StoreOption {
@@ -84,7 +143,7 @@ func (s Store) Load(path string) (file File, found bool, err error) {
 	// different files on a filesystem someone else can write to, which is the case this check
 	// exists for. No test catches a regression here, since the swap needs a second process between
 	// the two calls. The reasoning above is the only guard.
-	handle, err := os.Open(path)
+	handle, err := s.open(path)
 	if errors.Is(err, os.ErrNotExist) {
 		return File{}, false, nil
 	}
@@ -97,7 +156,7 @@ func (s Store) Load(path string) (file File, found bool, err error) {
 			// os.Stat rather than os.Lstat. Open follows a symlink, so the refusal came from the
 			// target, and Lstat would name the link's own mode instead. Measured on a link to an
 			// 0o060 file: Lstat reports 755, Stat reports 60.
-			if info, statErr := os.Stat(path); statErr == nil {
+			if info, statErr := s.stat(path); statErr == nil {
 				if modeErr := s.checkMode(path, info.Mode()); modeErr != nil {
 					return File{}, false, modeErr
 				}
@@ -163,7 +222,7 @@ func (s Store) Load(path string) (file File, found bool, err error) {
 // owns the config location.
 func (s Store) Save(path string, file File) (*ModeWarning, error) {
 	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0o700); err != nil {
+	if err := s.mkdirAll(dir, 0o700); err != nil {
 		return nil, fmt.Errorf("onesie: creating %s: %w", dir, err)
 	}
 
@@ -189,7 +248,7 @@ func (s Store) Save(path string, file File) (*ModeWarning, error) {
 	name := temp.Name()
 
 	if writeErr := s.writeAndClose(temp, data); writeErr != nil {
-		return nil, errors.Join(writeErr, os.Remove(name))
+		return nil, errors.Join(writeErr, s.remove(name))
 	}
 
 	// os.CreateTemp already creates at 0600 before umask, so this only does work on a filesystem
@@ -200,9 +259,9 @@ func (s Store) Save(path string, file File) (*ModeWarning, error) {
 		warning = &ModeWarning{Path: path}
 	}
 
-	if renameErr := os.Rename(name, path); renameErr != nil {
+	if renameErr := s.rename(name, path); renameErr != nil {
 		return nil, errors.Join(fmt.Errorf("onesie: renaming %s to %s: %w", name, path, renameErr),
-			os.Remove(name))
+			s.remove(name))
 	}
 
 	// The rename only survives a power loss once the directory entry itself is on the disk.
@@ -238,7 +297,7 @@ func (s Store) syncDir(dir string) {
 		return
 	}
 
-	handle, err := os.Open(dir)
+	handle, err := s.open(dir)
 	if err != nil {
 		return
 	}
@@ -278,11 +337,11 @@ func (s Store) Clear(path string) error {
 	// socket or a device node at the credential path is removed rather than reported, since auth
 	// clear is asked to leave nothing there and the alternative is a user who cannot clear a path
 	// onesie itself will not read.
-	if info, statErr := os.Lstat(path); statErr == nil && info.IsDir() {
+	if info, statErr := s.lstat(path); statErr == nil && info.IsDir() {
 		return fmt.Errorf("onesie: credential file %s is not a regular file", path)
 	}
 
-	if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+	if err := s.remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("onesie: removing %s: %w", path, err)
 	}
 
