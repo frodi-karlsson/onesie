@@ -1,8 +1,5 @@
-// Package jq compiles and runs the jq expressions that --map and --id take, through gojq. The time
-// functions read the real clock, import and include are refused, and object keys come out sorted.
-// The depth and size caps apply once the expression has run, so a runaway expression can still spend
-// memory and time first. A builtin that recurses, such as tojson or sort, can still overflow on a
-// value the expression itself nested millions of levels deep, as real jq does.
+// Package jq compiles and runs the jq expressions that --map and --id take, through gojq. Time
+// functions read the real clock, and import and include are refused.
 package jq
 
 import (
@@ -49,8 +46,8 @@ type Expr struct {
 	code *gojq.Code
 }
 
-// One runs the expression on value until ctx ends and demands exactly one result. A failure wraps
-// ErrNoValue, ErrManyValues or ErrRun, and an ended ctx returns its own error.
+// One runs the expression on value until ctx ends and demands exactly one result. A recursive builtin
+// can still overflow on a value the expression nested millions deep, as in jq.
 func (e *Expr) One(ctx context.Context, value any) (any, error) {
 	results := e.code.RunWithContext(ctx, value)
 
@@ -75,8 +72,8 @@ func (e *Expr) One(ctx context.Context, value any) (any, error) {
 	return nil, ErrManyValues
 }
 
-// Marshal encodes value as compact JSON with its object keys sorted, where jq keeps insertion order.
-// It fails with ErrTooDeep past limits.MaxMapDepth, and with ErrTooLarge past limit bytes.
+// Marshal encodes value as compact JSON with its keys sorted, where jq keeps insertion order. Its
+// caps apply after the run, so a runaway expression spends memory and time before they refuse it.
 func Marshal(value any, limit int) ([]byte, error) {
 	if err := checkBounds(value, limit); err != nil {
 		return nil, err
