@@ -745,7 +745,7 @@ func TestStatsIntegration(t *testing.T) {
 
 		// Token counts and a model name are the parts no stub can supply, since they come back
 		// from the request itself.
-		for _, want := range []string{"1 request", "1 question", " in / ", "model onesie", "/attempt"} {
+		for _, want := range []string{"1 request", "1 question", " in / ", "model jev", "/attempt"} {
 			if !strings.Contains(errOut, want) {
 				t.Errorf("stats line is missing %q: %s", want, errOut)
 			}
