@@ -46,6 +46,8 @@ func TestResumeLedger(t *testing.T) {
 	}
 	byIDAbstaining := fingerprintWith(t, plan.Source{Positional: "is this urgent"}, abstaining)
 	gateArgs := []string{"--assert", "answer.value > 0.9", "--abstain-if", "answer.value > 0.4"}
+	abstaining.abstainIf = "answer.value > 0.6"
+	byIDRejecting := fingerprintWith(t, plan.Source{Positional: "is this urgent"}, abstaining)
 
 	values := []string{"-i", "jsonl", "-o", "values", "--id", ".id", "--resume"}
 	csvCR := "id,answer,error\n,,\"line 1: --id: \"\"a\\rb\"\" holds a carriage return, which -o csv cannot read back\"\n" +
@@ -659,6 +661,67 @@ func TestResumeLedger(t *testing.T) {
 			}},
 		},
 		{
+			name:  "should read a skipped record's verdict under a --merge-key other than answers",
+			stdin: idRecords(1, 2),
+			runs: []resumeRun{
+				{
+					args:     append([]string{"--assert", "answer.value > 0.9", "--merge-key", "verdict"}, values...),
+					input:    idRecords(1, 1),
+					wantCode: ExitRejected,
+					wantFile: "{\"id\":1,\"verdict\":{\"assert\":false,\"answer\":0.5}}\n",
+					wantSent: []string{`{"id":1}`},
+				},
+				{
+					args:     append([]string{"--assert", "answer.value > 0.9", "--merge-key", "verdict", "--stats"}, values...),
+					wantCode: ExitRejected,
+					wantFile: "{\"id\":1,\"verdict\":{\"assert\":false,\"answer\":0.5}}\n" +
+						"{\"id\":2,\"verdict\":{\"assert\":false,\"answer\":0.5}}\n",
+					wantSent:   []string{`{"id":2}`},
+					wantStderr: "1 skipped, 2 false assertions, ",
+				},
+			},
+		},
+		{
+			name:  "should exit 1 on a merged csv resume whose skipped rows failed their assertion",
+			stdin: "id,body\n1,a\n2,b\n",
+			runs: []resumeRun{
+				{
+					args: []string{
+						"-i", "csv", "-o", "csv", "--merge", "--id", ".id", "--resume", "--assert", "answer.value > 0.9",
+					},
+					input:    "id,body\n1,a\n",
+					wantCode: ExitRejected,
+					wantFile: "id,body,answer,assert,error\n1,a,0.5,false,\n",
+					wantSent: []string{`{"id":"1","body":"a"}`},
+				},
+				{
+					args: []string{
+						"-i", "csv", "-o", "csv", "--merge", "--id", ".id", "--resume", "--assert", "answer.value > 0.9",
+						"--stats",
+					},
+					wantCode:   ExitRejected,
+					wantFile:   "id,body,answer,assert,error\n1,a,0.5,false,\n2,b,0.5,false,\n",
+					wantSent:   []string{`{"id":"2","body":"b"}`},
+					wantStderr: "1 skipped, 2 false assertions, ",
+				},
+			},
+		},
+		{
+			name:     "should exit 1 over a skipped abstain when a record asked this run failed its assertion",
+			existing: fileOf(abstainedLines(1, 1)),
+			sidecar:  byIDRejecting,
+			stdin:    idRecords(1, 2),
+			runs: []resumeRun{{
+				args: append([]string{
+					"--assert", "answer.value > 0.9", "--abstain-if", "answer.value > 0.6", "--stats",
+				}, values...),
+				wantCode:   ExitRejected,
+				wantFile:   abstainedLines(1, 1) + rejectedLines(2, 2),
+				wantSent:   []string{`{"id":2}`},
+				wantStderr: "1 skipped, 1 false assertion, 1 abstain, ",
+			}},
+		},
+		{
 			name:     "should still resume by position without --id",
 			existing: fileOf("old one\nold two\n"),
 			sidecar:  byPosition,
@@ -708,6 +771,55 @@ func TestResumedVerdicts(t *testing.T) {
 	t.Parallel()
 
 	runResumeCases(t, []resumeCase{
+		{
+			name:  "should read a skipped line's verdict under a --merge-key other than answers",
+			stdin: idRecords(1, 2),
+			runs: []resumeRun{
+				{
+					args: []string{
+						"-i", "jsonl", "-o", "values", "--resume", "--merge-key", "verdict",
+						"--assert", "answer.value > 0.9",
+					},
+					input:    idRecords(1, 1),
+					wantCode: ExitRejected,
+					wantFile: "{\"id\":1,\"verdict\":{\"assert\":false,\"answer\":0.5}}\n",
+					wantSent: []string{`{"id":1}`},
+				},
+				{
+					args: []string{
+						"-i", "jsonl", "-o", "values", "--resume", "--merge-key", "verdict",
+						"--assert", "answer.value > 0.9", "--stats",
+					},
+					wantCode: ExitRejected,
+					wantFile: "{\"id\":1,\"verdict\":{\"assert\":false,\"answer\":0.5}}\n" +
+						"{\"id\":2,\"verdict\":{\"assert\":false,\"answer\":0.5}}\n",
+					wantSent:   []string{`{"id":2}`},
+					wantStderr: "1 skipped, 2 false assertions, ",
+				},
+			},
+		},
+		{
+			name:  "should exit 1 on a merged csv resume by position whose skipped rows failed their assertion",
+			stdin: "id,body\n1,a\n2,b\n",
+			runs: []resumeRun{
+				{
+					args:     []string{"-i", "csv", "-o", "csv", "--merge", "--resume", "--assert", "answer.value > 0.9"},
+					input:    "id,body\n1,a\n",
+					wantCode: ExitRejected,
+					wantFile: "id,body,answer,assert,error\n1,a,0.5,false,\n",
+					wantSent: []string{`{"id":"1","body":"a"}`},
+				},
+				{
+					args: []string{
+						"-i", "csv", "-o", "csv", "--merge", "--resume", "--assert", "answer.value > 0.9", "--stats",
+					},
+					wantCode:   ExitRejected,
+					wantFile:   "id,body,answer,assert,error\n1,a,0.5,false,\n2,b,0.5,false,\n",
+					wantSent:   []string{`{"id":"2","body":"b"}`},
+					wantStderr: "1 skipped, 2 false assertions, ",
+				},
+			},
+		},
 		{
 			name:  "should read an input column named assert as input, not an assertion, on a merged csv resume by position with no gate",
 			stdin: "id,assert\n1,false\n2,true\n",
@@ -812,8 +924,28 @@ func TestResumed(t *testing.T) {
 		assert: "answer.value > 0.9", abstainIf: "answer.value > 0.4",
 	})
 	stored := "{\"abstain\":true,\"answer\":0.5}\n{\"assert\":false,\"answer\":0.5}\n"
+	byPositionRejecting := fingerprintWith(t, plan.Source{Positional: "is this urgent"}, fingerprintInputs{
+		provider: "typesafe", model: jev.DefaultModel, output: "values", input: "jsonl",
+		assert: "answer.value > 0.9", abstainIf: "answer.value > 0.6",
+	})
 
 	runResumeCases(t, []resumeCase{
+		{
+			name:     "should exit 1 over a skipped abstain when a record asked this run failed its assertion",
+			existing: fileOf("{\"abstain\":true,\"answer\":0.5}\n"),
+			sidecar:  byPositionRejecting,
+			stdin:    idRecords(1, 2),
+			runs: []resumeRun{{
+				args: []string{
+					"-i", "jsonl", "-o", "values", "--resume", "--stats",
+					"--assert", "answer.value > 0.9", "--abstain-if", "answer.value > 0.6",
+				},
+				wantCode:   ExitRejected,
+				wantFile:   "{\"abstain\":true,\"answer\":0.5}\n{\"assert\":false,\"answer\":0.5}\n",
+				wantSent:   []string{`{"id":2}`},
+				wantStderr: "1 skipped, 1 false assertion, 1 abstain, ",
+			}},
+		},
 		{
 			name:     "should stop at a skipped false assertion under --stop-on-assert and ask nothing after it",
 			existing: fileOf(stored),

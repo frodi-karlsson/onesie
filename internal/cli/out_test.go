@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -50,6 +51,12 @@ func TestOpenOut(t *testing.T) {
 	fromLines := fingerprintWith(t, plan.Source{Positional: "is this urgent"}, fingerprintInputs{
 		provider: "typesafe", model: jev.DefaultModel, output: "values", input: "lines",
 	})
+	gated := func(assert, abstainIf string) string {
+		return fingerprintWith(t, plan.Source{Positional: "is this urgent"}, fingerprintInputs{
+			provider: "typesafe", model: jev.DefaultModel, output: "values", input: "jsonl",
+			assert: assert, abstainIf: abstainIf,
+		})
+	}
 	changed := "the questions, flags or gate changed since"
 	malformed := "does not hold a fingerprint onesie wrote"
 
@@ -68,6 +75,8 @@ func TestOpenOut(t *testing.T) {
 		unreached   bool
 		env         map[string]string
 		bare        bool
+		// questions, when set, is written to a question file passed with -f.
+		questions string
 
 		emptySidecar     bool
 		sidecarDir       bool
@@ -351,6 +360,41 @@ func TestOpenOut(t *testing.T) {
 			wantErr:     changed,
 		},
 		{
+			name:        "should resume when a question file's assert is the one the file was written under",
+			existing:    "old one\nold two\n",
+			sidecar:     gated("answer.value > 0.4", ""),
+			wantSidecar: gated("answer.value > 0.4", ""),
+			questions:   "assert: answer.value > 0.4\n",
+			args:        []string{"is this urgent", "-i", "jsonl", "--resume"},
+			stdin:       input,
+			wantFile:    "old one\nold two\n" + strings.Repeat("{\"answer\":0.5}\n", 2),
+			wantCalls:   2,
+		},
+		{
+			name:        "should refuse to resume when a question file's assert changed",
+			existing:    "keep me\n",
+			sidecar:     gated("answer.value > 0.4", ""),
+			wantSidecar: gated("answer.value > 0.4", ""),
+			questions:   "assert: answer.value > 0.9\n",
+			args:        []string{"is this urgent", "-i", "jsonl", "--resume"},
+			stdin:       input,
+			wantCode:    ExitUsage,
+			wantFile:    "keep me\n",
+			wantErr:     changed,
+		},
+		{
+			name:        "should refuse to resume when a question file's abstain_if changed",
+			existing:    "keep me\n",
+			sidecar:     gated("answer.value > 0.9", "answer.value > 0.4"),
+			wantSidecar: gated("answer.value > 0.9", "answer.value > 0.4"),
+			questions:   "assert: answer.value > 0.9\nabstain_if: answer.value > 0.3\n",
+			args:        []string{"is this urgent", "-i", "jsonl", "--resume"},
+			stdin:       input,
+			wantCode:    ExitUsage,
+			wantFile:    "keep me\n",
+			wantErr:     changed,
+		},
+		{
 			name:     "should refuse to resume a file with no fingerprint beside it",
 			existing: "keep me\n",
 			args:     []string{"is this urgent", "-i", "jsonl", "--resume"},
@@ -560,7 +604,17 @@ func TestOpenOut(t *testing.T) {
 				global = global[:2]
 			}
 
-			root.SetArgs(append(global, tc.args...))
+			args := tc.args
+			if tc.questions != "" {
+				questions := filepath.Join(t.TempDir(), "questions.yaml")
+				if err := os.WriteFile(questions, []byte(tc.questions), 0o600); err != nil {
+					t.Fatalf("writing the question file: %v", err)
+				}
+
+				args = append(slices.Clone(args), "-f", questions)
+			}
+
+			root.SetArgs(append(global, args...))
 
 			if code := Execute(t.Context(), root); code != tc.wantCode {
 				t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, tc.wantCode, errOut.String())
