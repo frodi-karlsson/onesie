@@ -139,6 +139,8 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 	// anywhere in argv, and StringArrayVar keeps the order it was given in.
 	root.Flags().StringArrayVar(&flags.assert, "assert", nil,
 		"boolean expression over the record, repeatable, combined with and")
+	root.Flags().StringArrayVar(&flags.abstainIf, "abstain-if", nil,
+		"boolean expression that turns a no into an unsure, repeatable, needs --assert")
 	root.Flags().StringVarP(&flags.input, flagInput, "i", "text",
 		"text, json, jsonl, lines, csv, tsv or request")
 	root.Flags().StringVar(&flags.state, flagState, "", "state to evaluate, or - to read stdin")

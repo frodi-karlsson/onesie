@@ -84,6 +84,10 @@ func CheckFlags(cfg Config) (string, error) {
 		}
 	}
 
+	if err := checkAbstainNeedsAssert(cfg); err != nil {
+		return "", err
+	}
+
 	if cfg.Raw && cfg.Output != "" {
 		return "", errors.New("onesie: -r and -o are mutually exclusive")
 	}
@@ -97,6 +101,15 @@ func CheckFlags(cfg Config) (string, error) {
 	}
 
 	return checkStreaming(cfg)
+}
+
+func checkAbstainNeedsAssert(cfg Config) error {
+	if !cfg.HasAbstainIf || cfg.HasAssert {
+		return nil
+	}
+
+	return fmt.Errorf("onesie: %s needs --assert, since without one every record is a yes",
+		abstainFlag(cfg))
 }
 
 func checkResume(cfg Config) error {
@@ -165,6 +178,8 @@ func checkListModels(cfg Config) error {
 		{cfg.Quiet, "onesie: -q suppresses output, which leaves --list-models nothing to write"},
 		{cfg.HasAssert, "onesie: --assert judges an answer, " +
 			"which --list-models does not produce"},
+		{cfg.HasAbstainIf, "onesie: --abstain-if judges an answer, " +
+			"which --list-models does not produce"},
 		{cfg.Usage, "onesie: --usage reports the tokens a question cost, " +
 			"which --list-models does not ask"},
 		{cfg.Merge, "onesie: " + mergeFlag(cfg) + " needs answers to fold in, " +
@@ -228,6 +243,8 @@ func checkRequestMode(cfg Config) error {
 		{cfg.Quiet, "onesie: -q needs a policy to report, which -i request has none of"},
 		{cfg.HasAssert, "onesie: --assert does not apply to -i request, " +
 			"which forwards raw responses"},
+		{cfg.HasAbstainIf, "onesie: --abstain-if does not apply to -i request, " +
+			"which forwards raw responses"},
 		{cfg.Usage, "onesie: --usage does not apply to -i request, " +
 			"whose response bodies already carry usage"},
 		{cfg.Merge, "onesie: " + mergeFlag(cfg) +
@@ -287,6 +304,9 @@ func checkPrintFlags(cfg Config) error {
 		{cfg.PrintRequest && cfg.HasAssert, fmt.Sprintf(
 			"onesie: %s judges an answer, which --print-request does not produce",
 			assertFlag(cfg))},
+		{cfg.PrintRequest && cfg.HasAbstainIf, fmt.Sprintf(
+			"onesie: %s judges an answer, which --print-request does not produce",
+			abstainFlag(cfg))},
 		{cfg.Usage, fmt.Sprintf(
 			"onesie: --usage reports the tokens a question cost, which %s does not ask", name)},
 		{cfg.Merge, fmt.Sprintf(
@@ -345,6 +365,14 @@ func assertFlag(cfg Config) string {
 	}
 
 	return cfg.AssertName
+}
+
+func abstainFlag(cfg Config) string {
+	if cfg.AbstainIfName == "" {
+		return "--abstain-if"
+	}
+
+	return cfg.AbstainIfName
 }
 
 func checkStreaming(cfg Config) (string, error) {
@@ -886,6 +914,10 @@ type Config struct {
 	// AssertName is the assertion as the user spelled it, so a message names a file's 'assert' key
 	// when that is where the gate came from. It defaults to --assert when empty.
 	AssertName string
+	// HasAbstainIf records that an abstain expression was given, by the flag or by a question
+	// file's key. AbstainIfName spells it the way AssertName spells the assertion.
+	HasAbstainIf  bool
+	AbstainIfName string
 
 	Output       string
 	HasState     bool
@@ -992,6 +1024,8 @@ func Spelling(origin Origin, flag string) string {
 		return "'fallback'"
 	case "--assert":
 		return "'assert'"
+	case "--abstain-if":
+		return "'abstain_if'"
 	default:
 		return flag
 	}

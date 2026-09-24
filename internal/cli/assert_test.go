@@ -450,6 +450,35 @@ func TestGateOf(t *testing.T) {
 			noRequest: true,
 		},
 		{
+			name:      "should report a bad path in --abstain-if before any request",
+			file:      "assert: urgent.value > 0.5\n" + question,
+			args:      []string{"--abstain-if", "sevrity.value > 0.5"},
+			wantCode:  cli.ExitUsage,
+			wantErr:   "onesie: --abstain-if: unknown question 'sevrity'. Questions: urgent",
+			noRequest: true,
+		},
+		{
+			name:      "should name the file's key when its abstain expression names an unknown question",
+			file:      "assert: urgent.value > 0.5\nabstain_if: sevrity.value > 0.5\n" + question,
+			wantCode:  cli.ExitUsage,
+			wantErr:   "onesie: 'abstain_if': unknown question 'sevrity'. Questions: urgent",
+			noRequest: true,
+		},
+		{
+			name:      "should name the file's key when its abstain expression cannot parse",
+			file:      "assert: urgent.value > 0.5\nabstain_if: urgent.value >\n" + question,
+			wantCode:  cli.ExitUsage,
+			wantErr:   "onesie: 'abstain_if': parse error at column 15",
+			noRequest: true,
+		},
+		{
+			name:      "should reject a file's abstain expression with no assertion anywhere",
+			file:      "abstain_if: urgent.value > 0.5\n" + question,
+			wantCode:  cli.ExitUsage,
+			wantErr:   "onesie: 'abstain_if' needs --assert, since without one every record is a yes",
+			noRequest: true,
+		},
+		{
 			name:     "should let the file's assertion answer the quiet rule on a pick",
 			file:     "assert: team.p.billing > 0.5\nteam:\n  ask: which team\n  pick: [billing, technical]\n",
 			args:     []string{"-q"},
@@ -525,6 +554,17 @@ func TestGateOf(t *testing.T) {
 				name:    "should write an assertion given only on the command line",
 				args:    []string{"--ask", "urgent=is this urgent", "--assert", "urgent.value > 0.5"},
 				wantOut: "assert: urgent.value > 0.5\nurgent:\n  ask: is this urgent\n",
+			},
+			{
+				name: "should combine a repeated --abstain-if and the file key with and",
+				file: "assert: urgent.value < 0.2\nabstain_if: urgent.value < 0.8\n" + question,
+				args: []string{
+					"-f", "q.yaml", "--abstain-if", "urgent.value > 0.1",
+					"--abstain-if", "urgent.value != 0.5",
+				},
+				wantOut: "assert: urgent.value < 0.2\n" +
+					"abstain_if: (urgent.value < 0.8) and (urgent.value > 0.1) and (urgent.value != 0.5)\n" +
+					"urgent:\n  ask: is this urgent\n",
 			},
 			{
 				name:    "should write no assert key when nothing asserted",

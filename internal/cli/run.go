@@ -79,7 +79,8 @@ func run(
 	// would be worse than useless.
 	if flags.printQuestions {
 		return printQuestions(
-			cmd.OutOrStdout(), cmd.ErrOrStderr(), built.Questions, gate.Source(), loaded)
+			cmd.OutOrStdout(), cmd.ErrOrStderr(), built.Questions, gate.Source(),
+			inv.abstain.Source(), loaded)
 	}
 
 	// Both modes are parsed before the request, so a mistyped flag costs nothing.
@@ -765,7 +766,8 @@ type runFlags struct {
 	file         string
 	replace      bool
 
-	assert []string
+	assert    []string
+	abstainIf []string
 
 	printQuestions bool
 	printRequest   bool

@@ -1227,6 +1227,58 @@ func TestCheckFlags(t *testing.T) {
 				"which --print-request does not produce",
 		},
 		{
+			name:    "should reject --abstain-if without an assertion",
+			cfg:     plan.Config{HasAbstainIf: true, InputName: "text"},
+			wantErr: "onesie: --abstain-if needs --assert, since without one every record is a yes",
+		},
+		{
+			name: "should name the file's key when only the file carried the abstain expression",
+			cfg: plan.Config{
+				HasAbstainIf: true, AbstainIfName: "'abstain_if'", FileName: "q.yaml", InputName: "text",
+			},
+			wantErr: "onesie: 'abstain_if' needs --assert, since without one every record is a yes",
+		},
+		{
+			name: "should accept --abstain-if when the only assertion comes from the file",
+			cfg: plan.Config{
+				HasAssert: true, AssertName: "'assert'", HasAbstainIf: true,
+				FileName: "q.yaml", InputName: "text",
+			},
+		},
+		{
+			name: "should reject --abstain-if with --list-models",
+			cfg: plan.Config{
+				ListModels: true, HasAbstainIf: true, InputName: "text",
+			},
+			wantErr: "onesie: --abstain-if judges an answer, which --list-models does not produce",
+		},
+		{
+			name: "should reject --abstain-if with -i request",
+			cfg:  request(func(c *plan.Config) { c.HasAbstainIf = true }),
+			wantErr: "onesie: --abstain-if does not apply to -i request, " +
+				"which forwards raw responses",
+		},
+		{
+			name: "should name --assert first when --print-request is given both gates",
+			cfg: plan.Config{
+				PrintRequest: true, HasAssert: true, HasAbstainIf: true, InputName: "text",
+			},
+			wantErr: "onesie: --assert judges an answer, which --print-request does not produce",
+		},
+		{
+			name: "should reject --abstain-if with --print-request",
+			cfg: plan.Config{
+				PrintRequest: true, HasAbstainIf: true, InputName: "text",
+			},
+			wantErr: "onesie: --abstain-if judges an answer, which --print-request does not produce",
+		},
+		{
+			name: "should accept --abstain-if with --print-questions",
+			cfg: plan.Config{
+				PrintQuestions: true, HasAssert: true, HasAbstainIf: true, InputName: "text",
+			},
+		},
+		{
 			name: "should accept --stop-on-error with --print-request",
 			cfg: plan.Config{
 				PrintRequest: true, StopOnError: true, Streaming: true, InputName: "lines",

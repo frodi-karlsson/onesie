@@ -54,6 +54,17 @@ func TestPrintQuestions(t *testing.T) {
 			stdout:   []string{"zebra:\n  ask: z\nmike:\n  ask: m\nalpha:\n  ask: a\n"},
 		},
 		{
+			name: "should write the abstain expression into the printed file",
+			args: []string{
+				"--ask", "urgent=is this urgent", "--assert", "urgent.value < 0.2",
+				"--abstain-if", "urgent.value < 0.8", "--print-questions",
+			},
+			wantCode: ExitOK,
+			stdout: []string{
+				"assert: urgent.value < 0.2\nabstain_if: urgent.value < 0.8\nurgent:\n",
+			},
+		},
+		{
 			name: "should write the policy keys the loader reads",
 			args: []string{
 				"--ask", "team=who owns this", "--pick", "billing,platform",
