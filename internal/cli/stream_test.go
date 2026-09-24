@@ -1199,6 +1199,97 @@ func TestStream(t *testing.T) {
 			})
 		}
 	})
+
+	t.Run("should stop a runaway --id once the stream ends early", func(t *testing.T) {
+		t.Parallel()
+
+		const runaway = `if .id == "b" then until(false; .) else .id end`
+
+		tests := []struct {
+			name     string
+			args     []string
+			status   int
+			breaks   bool
+			wantCode int
+		}{
+			{
+				name:     "should stop it when an authentication failure aborts the stream",
+				args:     []string{"x", "-i", "jsonl", "--id", runaway, "-j", "1"},
+				status:   http.StatusUnauthorized,
+				wantCode: cli.ExitAuth,
+			},
+			{
+				name:     "should stop it when the output pipe closes under --print-request",
+				args:     []string{"x", "-i", "jsonl", "--id", runaway, "--print-request", "-m", "m1"},
+				breaks:   true,
+				wantCode: cli.ExitOK,
+			},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				labels := pprof.Labels("test", t.Name())
+
+				srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					waitForExpr(t, labels, true)
+					w.WriteHeader(tc.status)
+
+					if _, err := w.Write([]byte(`{"error":{"message":"bad key"}}`)); err != nil {
+						t.Errorf("writing stub response: %v", err)
+					}
+				}))
+				defer srv.Close()
+
+				var errOut lockedBuffer
+
+				var out io.Writer = &lockedBuffer{}
+				if tc.breaks {
+					out = writerFunc(func([]byte) (int, error) {
+						waitForExpr(t, labels, true)
+
+						return 0, io.ErrClosedPipe
+					})
+				}
+
+				root := cli.NewRootCmd(
+					cli.BuildInfo{Version: "1.2.3"},
+					cli.WithKeychain(offKeychain{}),
+					cli.WithClientFactory(func(_ context.Context, opts ...jev.Option) (*jev.Client, error) {
+						return jev.New(append([]jev.Option{
+							jev.WithAPIKey("k"), jev.WithBaseURL(srv.URL),
+						}, opts...)...)
+					}),
+					cli.WithStdin(strings.NewReader("{\"id\":\"a\"}\n{\"id\":\"b\"}\n")),
+					cli.WithStdinTTY(false),
+					cli.WithStdoutTTY(false),
+					cli.WithLookupEnv(func(string) (string, bool) { return "", false }),
+				)
+
+				root.SetOut(out)
+				root.SetErr(&errOut)
+				root.SetArgs(tc.args)
+
+				exited := make(chan int, 1)
+
+				go pprof.Do(t.Context(), labels, func(ctx context.Context) { exited <- cli.Execute(ctx, root) })
+
+				select {
+				case code := <-exited:
+					if code != tc.wantCode {
+						t.Errorf("exit code = %d, want %d\nstderr:\n%s", code, tc.wantCode, errOut.String())
+					}
+				case <-time.After(5 * time.Second):
+					t.Fatal("the stream never ended")
+				}
+
+				if !waitForExpr(t, labels, false) {
+					t.Error("the --id expression kept running after the stream ended")
+				}
+			})
+		}
+	})
 }
 
 func TestWriteMerged(t *testing.T) {
@@ -1410,8 +1501,16 @@ func (b *lockedBuffer) String() string {
 func awaitRunningMap(t *testing.T, labels pprof.LabelSet) {
 	t.Helper()
 
+	if !waitForExpr(t, labels, true) {
+		t.Fatal("the --map expression never started running")
+	}
+}
+
+func waitForExpr(t *testing.T, labels pprof.LabelSet, running bool) bool {
+	t.Helper()
+
 	// A goroutine inherits the labels of the one that started it, so a stack carrying them and
-	// the gojq interpreter is this test's --map expression running, not another test's.
+	// the gojq interpreter is this test's expression running, not another test's.
 	var want string
 
 	pprof.ForLabels(pprof.WithLabels(context.Background(), labels), func(key, value string) bool {
@@ -1423,19 +1522,37 @@ func awaitRunningMap(t *testing.T, labels pprof.LabelSet) {
 	deadline := time.Now().Add(5 * time.Second)
 
 	for time.Now().Before(deadline) {
-		var profile strings.Builder
-		if err := pprof.Lookup("goroutine").WriteTo(&profile, 1); err != nil {
-			t.Fatalf("writing the goroutine profile: %v", err)
-		}
-
-		for _, stack := range strings.Split(profile.String(), "\n\n") {
-			if strings.Contains(stack, want) && strings.Contains(stack, "github.com/itchyny/gojq.(*env).Next") {
-				return
-			}
+		if exprRunning(t, want) == running {
+			return true
 		}
 
 		time.Sleep(time.Millisecond)
 	}
 
-	t.Fatal("the --map expression never started running")
+	return false
+}
+
+func exprRunning(t *testing.T, labelLine string) bool {
+	t.Helper()
+
+	var profile strings.Builder
+	if err := pprof.Lookup("goroutine").WriteTo(&profile, 1); err != nil {
+		t.Errorf("writing the goroutine profile: %v", err)
+
+		return false
+	}
+
+	for _, stack := range strings.Split(profile.String(), "\n\n") {
+		if strings.Contains(stack, labelLine) && strings.Contains(stack, "github.com/itchyny/gojq.(*env).Next") {
+			return true
+		}
+	}
+
+	return false
+}
+
+type writerFunc func([]byte) (int, error)
+
+func (f writerFunc) Write(p []byte) (int, error) {
+	return f(p)
 }

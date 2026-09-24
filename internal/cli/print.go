@@ -105,9 +105,10 @@ func streamRequests(
 	}
 
 	out := cmd.OutOrStdout()
+	source := records(cmd.Context(), settings, inputMode, flags, namer)
 
 	result, err := engine.Run(cmd.Context(), engine.Config[namedRecord, []byte]{
-		Source: records(cmd.Context(), settings, inputMode, flags, namer),
+		Source: source,
 		Evaluate: func(ctx context.Context, rec namedRecord) ([]byte, error) {
 			if rec.Err != nil {
 				// A value alongside the error, because the engine writes every outcome. Returning
@@ -148,6 +149,8 @@ func streamRequests(
 		StopOnError: flags.stopOnError,
 		Abort:       aborting,
 	})
+	source.stop()
+
 	if err != nil {
 		return &sourceError{cause: err, failed: result.Failed}
 	}

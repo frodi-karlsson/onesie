@@ -345,6 +345,8 @@ func stream(
 		Abort:       aborting,
 		Stop:        stopping(flags),
 	})
+	source.stop()
+
 	if err != nil {
 		// The source stopping the run is the worse outcome and takes the exit code, since a
 		// truncated stream is not something a caller can tell from a complete one. The records

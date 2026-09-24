@@ -16,11 +16,16 @@ func records(
 	inputMode input.Mode,
 	flags *runFlags,
 	namer *jq.Expr,
-) engine.Source[namedRecord] {
+) *naming {
 	stream := input.NewStream(settings.stdin, inputMode, flags.skipBlank)
+
+	// A context of its own, since the read ahead goroutine outlives an engine that stops early, and
+	// a runaway --id on it would otherwise keep running until the command's context ends.
+	ctx, stop := context.WithCancel(ctx)
 
 	return &naming{
 		ctx:    ctx,
+		stop:   stop,
 		source: engine.Skip[input.Record](stream, flags.resumeSkip),
 		namer:  namer,
 		seen:   map[string]int{},
@@ -35,6 +40,7 @@ type namedRecord struct {
 
 type naming struct {
 	ctx    context.Context
+	stop   context.CancelFunc
 	source engine.Source[input.Record]
 	namer  *jq.Expr
 	seen   map[string]int
