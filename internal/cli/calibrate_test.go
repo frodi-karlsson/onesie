@@ -43,6 +43,7 @@ func TestNewCalibrateCmd(t *testing.T) {
 		"urgent:\n  ask: is this urgent\n  fallback: no\n")
 	abstainFile := writeCalibrateFile(t, dir, "abstain.yaml",
 		"abstain_if: urgent.value > 0.5\nurgent:\n  ask: is this urgent\n")
+	replaceFile := writeCalibrateFile(t, dir, "replace.yaml", "urgent:\n  ask: is it urgent\n")
 	bodyFile := writeCalibrateFile(t, dir, "body.json",
 		`{"questions":{"mood":{"type":"score","instructions":"how cross is the writer",`+
 			`"criteria":["calm","annoyed","furious"]}}}`)
@@ -414,10 +415,32 @@ func TestNewCalibrateCmd(t *testing.T) {
 			contains: []string{"onesie: -o does not apply to --print-request, which writes a request body"},
 		},
 		{
-			name:     "should refuse a flag calibrate does not register",
+			name:     "should refuse --state, since each state comes from the input",
 			args:     with("--state", "x"),
 			wantCode: ExitUsage,
-			contains: []string{"unknown flag: --state"},
+			contains: []string{
+				"onesie: calibrate reads each state from its input through --map, so --state does not apply. Drop it",
+			},
+		},
+		{
+			name:     "should refuse --state-file, since each state comes from the input",
+			args:     with("--state-file", "x.txt"),
+			wantCode: ExitUsage,
+			contains: []string{
+				"onesie: calibrate reads each state from its input through --map, so --state-file does not apply. Drop it",
+			},
+		},
+		{
+			name:     "should let --ask replace a question from -f under --replace",
+			args:     with("-f", replaceFile, "--replace"),
+			wantCode: ExitUsage,
+			contains: []string{nothing},
+		},
+		{
+			name:     "should refuse a flag the root does not know either",
+			args:     with("--bogus"),
+			wantCode: ExitUsage,
+			contains: []string{"unknown flag: --bogus"},
 		},
 	}
 

@@ -1163,9 +1163,10 @@ func TestNewRootCmd(t *testing.T) {
 				want: "onesie: unknown flag: --print-request. 'completion' " + hint,
 			},
 			{
-				name: "should hint for calibrate",
-				args: []string{"calibrate", "--state", "x"},
-				want: "onesie: unknown flag: --state. 'calibrate' " + hint,
+				name:   "should refuse --state on calibrate with its own reason in place of the hint",
+				args:   []string{"calibrate", "--state", "x"},
+				want:   "onesie: calibrate reads each state from its input through --map, so --state does not apply",
+				absent: true,
 			},
 			{
 				name: "should hint for a shorthand the root knows",

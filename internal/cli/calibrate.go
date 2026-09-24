@@ -20,6 +20,7 @@ const (
 	flagCuts    = "cuts"
 	quietReason = "calibrate prints a report, and its exit code judges nothing"
 	rawReason   = "calibrate prints its report as a table or as json"
+	stateReason = "calibrate reads each state from its input through --map"
 )
 
 var refusedFlags = []struct {
@@ -40,6 +41,8 @@ var refusedFlags = []struct {
 	{name: "stop-on-assert", reason: "calibrate judges no assertion", boolean: true},
 	{name: "unordered", reason: "calibrate prints its report once every record is answered", boolean: true},
 	{name: "print-questions", reason: "a question file carries no labels", boolean: true},
+	{name: flagState, reason: stateReason},
+	{name: flagStateFile, reason: stateReason},
 }
 
 var refusedReasons = map[string]string{
@@ -136,6 +139,7 @@ func bindSharedFlags(cmd *cobra.Command, flags *runFlags) {
 		"api key. Prefer TYPESAFE_API_KEY, OPENROUTER_API_KEY or onesie auth set, since argv is visible in ps")
 	cmd.Flags().StringVar(&flags.baseURL, flagBaseURL, "", "api root override")
 	cmd.Flags().StringVarP(&flags.file, "file", "f", "", "question file or request body")
+	cmd.Flags().BoolVar(&flags.replace, "replace", false, "--ask overrides an id from -f")
 	cmd.Flags().IntVarP(&flags.jobs, flagJobs, "j", 1, "records in flight at once")
 	cmd.Flags().IntVar(&flags.timeout, flagTimeout, int(limits.DefaultAttemptTimeout.Seconds()),
 		"seconds per attempt")
