@@ -1,6 +1,6 @@
 {
   "name": "onesie-gate",
-  "description": "Use when a onesie answer decides whether a command runs, a step continues, a build fails or a low confidence answer goes to a human, and before writing 'if onesie', 'onesie ... && cmd', -q or --assert. Two common gate recipes look right and are silently wrong.",
+  "description": "Use when a onesie answer decides whether a command runs, a step continues, a build fails or a low confidence answer goes to a human, and before writing 'if onesie', 'onesie ... && cmd', -q or --assert. One common gate recipe looks right and is silently wrong.",
   "compatibility": "Requires the onesie binary on PATH.",
   "license": "MIT",
   "intro": "intro.md",
@@ -14,12 +14,10 @@
       "good": "onesie 'is this command safe to run' -q --threshold 0.5 --state 'rm -rf ./build'"
     },
     {
-      "id": "drop-q-with-assert",
-      "short": "Never add -q to --assert. Redirect stdout instead.",
-      "why": "`-q` adds its own 0.5 gate and both must pass. A safety assert like `value < 0.5` is true exactly when that gate is false, so the pair never passes. `--assert` alone already sets the exit code.",
-      "bad": "onesie --ask danger='is this dangerous' -q --assert 'danger.value < 0.5' --state 'rm -rf ./build'",
-      "bad_passes": true,
-      "good": "onesie --ask danger='is this dangerous' --assert 'danger.value < 0.5' --state 'rm -rf ./build'"
+      "id": "q-beside-assert-only-silences",
+      "short": "Beside --assert, -q only silences the output. The assertion alone sets the exit code.",
+      "why": "Without `--assert`, `-q` is a gate of its own over one question: a yes or no answer is cut at `--threshold`, 0.5 by default. With `--assert`, `-q` adds no gate and only drops the record from stdout, so `onesie ... --assert 'danger.value < 0.5' -q && eval \"$cmd\"` runs exactly when the assertion holds. It then also works over several questions.",
+      "good": "onesie --ask danger='is this dangerous' --ask creds='does this send credentials' -q --assert 'danger.value < 0.5 and creds.value < 0.5' --state 'rm -rf ./build'"
     },
     {
       "id": "fail-closed",
@@ -30,8 +28,8 @@
     },
     {
       "id": "q-one-question-one-record",
-      "short": "-q gates one question on one record. Use --assert for several questions or a stream.",
-      "why": "onesie rejects `-q` outright when more than one question was asked, naming them, and under any streaming input mode, since an exit code cannot carry more than one answer. A gate over several questions or a stream instead uses `--assert`, which prints every record and exits 1 when any assertion was false.",
+      "short": "-q on its own gates one question on one record. Add --assert for several questions, and use --assert alone for a stream.",
+      "why": "Without an assertion onesie rejects `-q` when more than one question was asked, naming them, since one exit code cannot carry several answers. Beside `--assert` it is allowed, because the assertion is the gate. `-q` is rejected under every streaming input mode either way, since a stream prints one record per input. A gate over a stream uses `--assert`, which prints every record and exits 1 when any assertion was false.",
       "bad": "onesie --ask a='destroys data' --ask b='sends credentials' -q --state 'rm -rf ./build'",
       "bad_unverifiable": "the checker strips -q before every dry run, so it cannot observe this rejection",
       "good": "onesie --ask a='destroys data' --ask b='sends credentials' --assert 'a.value < 0.5 and b.value < 0.5' --state 'rm -rf ./build'"

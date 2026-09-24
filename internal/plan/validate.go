@@ -927,7 +927,10 @@ func checkSingle(p *Plan, cfg Config) error {
 	// with -o, which is why the two are still distinguished above.
 	raw := cfg.Raw || cfg.Output == "raw"
 
-	if !raw && !cfg.Quiet {
+	// Beside an assertion -q only silences the output, since the assertion is the gate.
+	quietGate := cfg.Quiet && !cfg.HasAssert
+
+	if !raw && !quietGate {
 		return nil
 	}
 
@@ -939,7 +942,7 @@ func checkSingle(p *Plan, cfg Config) error {
 	flag := "-r"
 
 	switch {
-	case cfg.Quiet:
+	case quietGate:
 		flag = "-q"
 	case !cfg.Raw:
 		flag = "-o raw"
@@ -951,7 +954,7 @@ func checkSingle(p *Plan, cfg Config) error {
 	}
 
 	only := p.Questions[0]
-	if cfg.Quiet && only.Shape != Noul && only.Policy.MinConfidence == nil && !cfg.HasAssert {
+	if quietGate && only.Shape != Noul && only.Policy.MinConfidence == nil {
 		return fmt.Errorf(
 			"onesie: -q on '%s' needs %s and %s, or --assert. Without one the exit code is always 0",
 			only.ID, Spelling(only.Origin, "--min-confidence"), Spelling(only.Origin, "--fallback"))

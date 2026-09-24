@@ -16,9 +16,6 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/skilleval"
 )
 
-const quietAssertNote = "onesie: the -q with --assert count is a separate tally, not part of the eval score. " +
-	"It checks every extracted command, so a broken form the agent only quotes as a warning is counted too."
-
 func main() {
 	if err := newApp().run(context.Background(), os.Args[1:], os.Stdout); err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -53,7 +50,7 @@ func (a *app) run(ctx context.Context, args []string, out io.Writer) error {
 		return err
 	}
 
-	_, err = fmt.Fprintf(out, "onesie: dry ran the commands in %s\n%s\n", resultPath, quietAssertNote)
+	_, err = fmt.Fprintf(out, "onesie: dry ran the commands in %s\n", resultPath)
 	if err != nil {
 		return err
 	}
@@ -93,8 +90,8 @@ func printCase(out io.Writer, c skilleval.CaseReport) error {
 	fmt.Fprintf(&b, "\n%s\n", c.Name)
 
 	for _, arm := range c.Arms {
-		fmt.Fprintf(&b, "  %-8s %d runs, %d onesie commands, %d clean, %d failed, %d skipped, %d use -q with --assert",
-			arm.Arm, arm.Runs, arm.Commands, arm.Clean, len(arm.Failed), len(arm.Skipped), len(arm.QuietWithAssert))
+		fmt.Fprintf(&b, "  %-8s %d runs, %d onesie commands, %d clean, %d failed, %d skipped",
+			arm.Arm, arm.Runs, arm.Commands, arm.Clean, len(arm.Failed), len(arm.Skipped))
 
 		if arm.MissingTraces > 0 {
 			fmt.Fprintf(&b, ", %d traces missing, rerun with --keep-temp", arm.MissingTraces)
@@ -108,10 +105,6 @@ func printCase(out io.Writer, c skilleval.CaseReport) error {
 
 		for _, f := range arm.Skipped {
 			fmt.Fprintf(&b, "    skipped, run %d, %s: %s\n", f.Run, f.Detail, f.Command)
-		}
-
-		for _, f := range arm.QuietWithAssert {
-			fmt.Fprintf(&b, "    -q with --assert, run %d: %s\n", f.Run, f.Command)
 		}
 	}
 

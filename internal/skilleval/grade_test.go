@@ -127,7 +127,6 @@ func TestGraderGrade(t *testing.T) {
 		name        string
 		script      string
 		wantSkip    string
-		wantQuiet   bool
 		wantCommand string
 	}{
 		{
@@ -162,26 +161,6 @@ func TestGraderGrade(t *testing.T) {
 		{
 			name:   "should not read a value that spells a flag as the flag",
 			script: "onesie 'is this urgent' --state -f",
-		},
-		{
-			name:      "should flag -q with --assert",
-			script:    "onesie --ask d='is this destructive' -q --assert 'd.value < 0.5' --state x",
-			wantQuiet: true,
-		},
-		{
-			name:      "should flag -q inside a short flag cluster with --assert",
-			script:    "onesie --ask d='is it' -rq --assert=d.value",
-			wantQuiet: true,
-		},
-		{
-			name:      "should flag -q with --assert even when the command is skipped",
-			script:    "onesie -f q.json --quiet --assert 'a.value'",
-			wantSkip:  "reads a file through --file",
-			wantQuiet: true,
-		},
-		{
-			name:   "should not flag --assert whose value spells -q",
-			script: "onesie --ask a='is it' --assert -q",
 		},
 		{
 			name:        "should redact the --api-key value in a reported command",
@@ -233,10 +212,6 @@ func TestGraderGrade(t *testing.T) {
 				if len(ran) != 0 || len(arm.Skipped) != 1 || arm.Skipped[0].Detail != tc.wantSkip {
 					t.Fatalf("ran %q with %+v, want a skip saying %q", ran, arm, tc.wantSkip)
 				}
-			}
-
-			if got := len(arm.QuietWithAssert) == 1; got != tc.wantQuiet {
-				t.Errorf("QuietWithAssert = %+v, want flagged %v", arm.QuietWithAssert, tc.wantQuiet)
 			}
 
 			if tc.wantCommand != "" && arm.Skipped[0].Command != tc.wantCommand {

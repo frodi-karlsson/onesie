@@ -65,8 +65,8 @@ func TestAppRun(t *testing.T) {
 	report := skilleval.Report{Cases: []skilleval.CaseReport{{
 		Name: "gate",
 		Arms: []skilleval.ArmReport{{
-			Arm: "with", Runs: 1, Commands: 1, Clean: 1,
-			QuietWithAssert: []skilleval.Finding{{Run: 1, Command: "onesie 'a' -q --assert 'a.value'"}},
+			Arm: "with", Runs: 1, Commands: 2, Clean: 1,
+			Failed: []skilleval.Finding{{Run: 1, Command: "onesie --prompt x", Detail: "unknown flag: --prompt"}},
 		}},
 	}}}
 
@@ -74,10 +74,9 @@ func TestAppRun(t *testing.T) {
 		name string
 		want string
 	}{
-		{name: "should say the -q with --assert tally is separate from the eval score", want: "not part of the eval score"},
-		{name: "should say a form quoted as a warning is counted too", want: "quotes as a warning is counted too"},
-		{name: "should report the tally beside the dry run result", want: "1 clean, 0 failed, 0 skipped, 1 use -q with --assert"},
-		{name: "should list the command that combines them", want: "-q with --assert, run 1: onesie 'a' -q --assert 'a.value'"},
+		{name: "should name the result it dry ran", want: "onesie: dry ran the commands in r.json"},
+		{name: "should report the dry run tally", want: "2 onesie commands, 1 clean, 1 failed, 0 skipped"},
+		{name: "should list the command that failed", want: "failed, run 1: onesie --prompt x"},
 	}
 
 	a := &app{

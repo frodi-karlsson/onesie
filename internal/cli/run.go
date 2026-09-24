@@ -508,10 +508,10 @@ func ask(
 	record.AssertFailed = asserted(gate, record, stats)
 
 	if flags.quiet {
-		// Both the policy and the assertion are asked, so neither masks the other. §17.5.
-		if rejectErr := quietResult(
-			built.Questions[0], record.Answers[0].Answer); rejectErr != nil {
-			return rejectErr
+		// Beside an assertion -q only silences the output. Stacking its own gate on top made a
+		// safety assertion such as value < 0.5 impossible to pass.
+		if gate == nil {
+			return quietResult(built.Questions[0], record.Answers[0].Answer)
 		}
 
 		return assertResult(record)

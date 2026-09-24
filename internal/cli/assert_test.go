@@ -218,10 +218,10 @@ func TestAssertQuiet(t *testing.T) {
 			wantCode:  cli.ExitRejected,
 		},
 		{
-			name:      "should exit one when the policy rejects and the assertion holds",
+			name:      "should follow the assertion alone when the policy rejects and the assertion holds",
 			assertion: holds,
 			response:  unsure,
-			wantCode:  cli.ExitRejected,
+			wantCode:  cli.ExitOK,
 		},
 		{
 			name:      "should exit one when the policy rejects and the assertion is false",

@@ -101,17 +101,15 @@ type CaseReport struct {
 	Arms []ArmReport
 }
 
-// ArmReport tallies every run of one case in one arm. QuietWithAssert lists every command that
-// combines -q with --assert, whether or not it was dry run.
+// ArmReport tallies every run of one case in one arm.
 type ArmReport struct {
-	Arm             string
-	Runs            int
-	MissingTraces   int
-	Commands        int
-	Clean           int
-	Failed          []Finding
-	Skipped         []Finding
-	QuietWithAssert []Finding
+	Arm           string
+	Runs          int
+	MissingTraces int
+	Commands      int
+	Clean         int
+	Failed        []Finding
+	Skipped       []Finding
 }
 
 // Finding is one command that failed its dry run or could not be run, and why. Command has any
@@ -198,10 +196,6 @@ func (g *Grader) dryRun(ctx context.Context, run int, command string, report *Ar
 
 	shown := redactAPIKey(command)
 	args := g.parse(command)
-
-	if args.has("quiet") && args.has("assert") {
-		report.QuietWithAssert = append(report.QuietWithAssert, Finding{Run: run, Command: shown})
-	}
 
 	if reason := args.skipReason(); reason != "" {
 		report.Skipped = append(report.Skipped, Finding{Run: run, Command: shown, Detail: reason})

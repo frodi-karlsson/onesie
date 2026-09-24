@@ -107,8 +107,9 @@ onesie --ask urgent='is this urgent' --assert 'urgnet.value < 0.5'
 # onesie: --assert: unknown question 'urgnet'. Questions: urgent
 ```
 
-A false assertion exits 1 and still prints the record, with `"assert": false` added. To print
-nothing, redirect stdout. Do not add `-q`, which stacks its own 0.5 gate on top of the assertion.
+A false assertion exits 1 and still prints the record, with `"assert": false` added. Add `-q` to
+print nothing. Beside an assertion it only silences the output, and the assertion alone sets the
+exit code.
 Repeated `--assert` flags combine with `and`.
 
 ### Dry runs and replay
@@ -166,7 +167,7 @@ OpenRouter `typesafe/jev-1.13`. On OpenRouter, `--usage` also reports the cost i
 | Code | Meaning |
 |------|---------|
 | 0 | answered |
-| 1 | a false `--assert`, or under `-q` the policy did not accept the answer |
+| 1 | a false `--assert`, or under `-q` alone the policy did not accept the answer |
 | 2 | usage or validation error, including a missing key |
 | 3 | the key was refused, the account is out of credits, or the credential file is exposed |
 | 4 | the server did not answer after retries |
