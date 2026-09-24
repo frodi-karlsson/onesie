@@ -294,6 +294,28 @@ func TestNew(t *testing.T) {
 func TestSystemOne(t *testing.T) {
 	t.Parallel()
 
+	for _, body := range []string{"<!DOCTYPE html><html></html>", "upstream said ok"} {
+		t.Run("should name the base url when a 200 body is not JSON: "+body, func(t *testing.T) {
+			t.Parallel()
+
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				_, _ = io.WriteString(w, body)
+			}))
+			defer server.Close()
+
+			client, _ := newTestClient(t, server.URL)
+
+			_, err := client.SystemOne(t.Context(), jev.Request{State: "x", Questions: oneNoul()})
+			if !errors.Is(err, jev.ErrResponse) {
+				t.Fatalf("error got %v, want ErrResponse", err)
+			}
+
+			if !strings.Contains(err.Error(), "not JSON") || !strings.Contains(err.Error(), server.URL) {
+				t.Errorf("error = %q, want it to say not JSON and name %s", err.Error(), server.URL)
+			}
+		})
+	}
+
 	t.Run("should fill the request id from x-generation-id under openrouter", func(t *testing.T) {
 		t.Parallel()
 
@@ -1049,6 +1071,27 @@ func TestClientConcurrency(t *testing.T) {
 
 func TestListModels(t *testing.T) {
 	t.Parallel()
+
+	t.Run("should name the base url when the listing is not JSON", func(t *testing.T) {
+		t.Parallel()
+
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "text/html")
+			_, _ = io.WriteString(w, "<!DOCTYPE html><html></html>")
+		}))
+		defer server.Close()
+
+		client, _ := newTestClient(t, server.URL)
+
+		_, err := client.ListModels(t.Context())
+		if !errors.Is(err, jev.ErrResponse) {
+			t.Fatalf("error got %v, want ErrResponse", err)
+		}
+
+		if !strings.Contains(err.Error(), "not JSON") || !strings.Contains(err.Error(), server.URL) {
+			t.Errorf("error = %q, want it to say not JSON and name %s", err.Error(), server.URL)
+		}
+	})
 
 	t.Run("should unwrap the models list", func(t *testing.T) {
 		t.Parallel()

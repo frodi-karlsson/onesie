@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 )
@@ -62,6 +64,27 @@ func TestNewAPIError(t *testing.T) {
 			message:  "onesie: 429 slow down",
 		},
 		{
+			name:     "should map 402 to ErrPaymentRequired",
+			status:   402,
+			body:     `{"error":{"message":"Insufficient credits","code":402}}`,
+			sentinel: ErrPaymentRequired,
+			message:  "onesie: 402 Insufficient credits",
+		},
+		{
+			name:     "should keep a plain error message unchanged",
+			status:   400,
+			body:     `{"error":{"message":"HTTP is not JSON","code":400}}`,
+			sentinel: ErrBadRequest,
+			message:  "onesie: 400 HTTP is not JSON",
+		},
+		{
+			name:     "should keep the whole text when an HTTP prefix holds no JSON",
+			status:   400,
+			body:     `{"error":{"message":"HTTP 400: upstream said no","code":400}}`,
+			sentinel: ErrBadRequest,
+			message:  "onesie: 400 HTTP 400: upstream said no",
+		},
+		{
 			name:     "should map 529 to ErrServer",
 			status:   529,
 			body:     `overloaded`,
@@ -94,6 +117,54 @@ func TestNewAPIError(t *testing.T) {
 			}
 		})
 	}
+	fixtures := []struct {
+		name    string
+		file    string
+		message string
+	}{
+		{
+			name:    "should report the first OpenRouter validation issue with its path",
+			file:    "openrouter-validation.json",
+			message: "onesie: 400 questions.q.criteria.false: Invalid input",
+		},
+		{
+			name:    "should unwrap a TypeSafe detail forwarded by OpenRouter",
+			file:    "openrouter-detail.json",
+			message: "onesie: 400 Too many score levels. Must have at most 10 levels.",
+		},
+		{
+			name:    "should unwrap a TypeSafe error type forwarded by OpenRouter",
+			file:    "openrouter-tokens.json",
+			message: "onesie: 400 max_tokens_exceeded",
+		},
+	}
+
+	for _, tc := range fixtures {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			body, err := os.ReadFile(filepath.Join("testdata", tc.file))
+			if err != nil {
+				t.Fatalf("reading the fixture: %v", err)
+			}
+
+			got := newAPIError(400, http.Header{}, "X-Generation-Id", body, time.Now()).Error()
+			if got != tc.message {
+				t.Errorf("message\n got: %s\nwant: %s", got, tc.message)
+			}
+		})
+	}
+
+	t.Run("should only match ErrPaymentRequired for 402", func(t *testing.T) {
+		t.Parallel()
+
+		for _, status := range []int{400, 401, 403} {
+			err := newAPIError(status, http.Header{}, "X-Generation-Id", nil, time.Now())
+			if errors.Is(err, ErrPaymentRequired) {
+				t.Errorf("status %d matched ErrPaymentRequired", status)
+			}
+		}
+	})
 }
 
 func TestAPIErrorFields(t *testing.T) {

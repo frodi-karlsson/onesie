@@ -19,6 +19,9 @@ var (
 	ErrBadRequest = errors.New("bad request")
 	// ErrAuthentication matches an APIError with status 401.
 	ErrAuthentication = errors.New("authentication failed")
+	// ErrPaymentRequired matches an APIError with status 402, which OpenRouter sends when the account
+	// is out of credits.
+	ErrPaymentRequired = errors.New("payment required")
 	// ErrPermissionDenied matches an APIError with status 403.
 	ErrPermissionDenied = errors.New("permission denied")
 	// ErrNotFound matches an APIError with status 404.
@@ -78,6 +81,8 @@ func (e *APIError) Is(target error) bool {
 		return e.Status == http.StatusBadRequest
 	case ErrAuthentication:
 		return e.Status == http.StatusUnauthorized
+	case ErrPaymentRequired:
+		return e.Status == http.StatusPaymentRequired
 	case ErrPermissionDenied:
 		return e.Status == http.StatusForbidden
 	case ErrNotFound:
@@ -136,7 +141,7 @@ func extractMessage(body any) string {
 
 	if nested, ok := fields["error"].(map[string]any); ok {
 		if text, ok := nested["message"].(string); ok {
-			return text
+			return unwrapMessage(text)
 		}
 	}
 
@@ -152,6 +157,10 @@ func extractMessage(body any) string {
 		if text, ok := nested["message"].(string); ok {
 			return text
 		}
+
+		if text, ok := nested["error_type"].(string); ok {
+			return text
+		}
 	}
 
 	if list, ok := fields["detail"].([]any); ok {
@@ -159,6 +168,35 @@ func extractMessage(body any) string {
 	}
 
 	return ""
+}
+
+func unwrapMessage(text string) string {
+	// OpenRouter forwards a TypeSafe error as the text HTTP 400: followed by TypeSafe's own body.
+	if rest, ok := strings.CutPrefix(text, "HTTP "); ok && len(rest) > 5 && rest[3] == ':' {
+		forwarded := []byte(strings.TrimSpace(rest[4:]))
+		if json.Valid(forwarded) {
+			if inner := extractMessage(decodeBody(forwarded)); inner != "" {
+				return inner
+			}
+		}
+	}
+
+	// OpenRouter's own validation puts its issue list in the message as a JSON string.
+	var issues []struct {
+		Path    any    `json:"path"`
+		Message string `json:"message"`
+	}
+
+	if json.Unmarshal([]byte(text), &issues) != nil || len(issues) == 0 {
+		return text
+	}
+
+	path := validationPath(issues[0].Path)
+	if path == "" {
+		return issues[0].Message
+	}
+
+	return path + ": " + issues[0].Message
 }
 
 func describeValidation(entries []any) string {

@@ -1,0 +1,1 @@
+{"error": {"message": "HTTP 400: {\"detail\":\"Too many score levels. Must have at most 10 levels.\"}", "code": 400}}

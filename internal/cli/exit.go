@@ -20,7 +20,7 @@ const (
 	ExitRejected = 1
 	// ExitUsage means a usage or validation error, including a server 422.
 	ExitUsage = 2
-	// ExitAuth means authentication or permission failed.
+	// ExitAuth means authentication, permission or payment failed.
 	ExitAuth = 3
 	// ExitUnavailable means the server did not answer after retries.
 	ExitUnavailable = 4
@@ -77,7 +77,8 @@ func Classify(err error) int {
 		return ExitUnavailable
 	}
 
-	if errors.Is(err, jev.ErrAuthentication) || errors.Is(err, jev.ErrPermissionDenied) {
+	if errors.Is(err, jev.ErrAuthentication) || errors.Is(err, jev.ErrPermissionDenied) ||
+		errors.Is(err, jev.ErrPaymentRequired) {
 		return ExitAuth
 	}
 

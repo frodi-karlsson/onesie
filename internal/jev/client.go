@@ -297,7 +297,7 @@ func (c *Client) do(
 		}
 
 		if res.status >= 200 && res.status < 300 {
-			return res, decodeInto(res, out)
+			return res, decodeInto(res, url, out)
 		}
 
 		apiErr := newAPIError(res.status, res.header, c.provider.requestIDHeader, res.body, c.clock.Now())
@@ -470,13 +470,21 @@ type rawResponse struct {
 	body   []byte
 }
 
-func decodeInto(res *rawResponse, out any) error {
+func decodeInto(res *rawResponse, url string, out any) error {
 	if out == nil {
 		return nil
 	}
 
 	if len(res.body) == 0 {
 		return &ResponseError{Status: res.status, Err: errors.New("empty response body")}
+	}
+
+	if !json.Valid(res.body) {
+		return &ResponseError{
+			Status: res.status,
+			Body:   res.body,
+			Err:    fmt.Errorf("the response is not JSON, check the base URL %s", url),
+		}
 	}
 
 	if err := json.Unmarshal(res.body, out); err != nil {

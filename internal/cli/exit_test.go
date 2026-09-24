@@ -36,6 +36,10 @@ func TestClassify(t *testing.T) {
 			err:  apiError(http.StatusForbidden), want: ExitAuth,
 		},
 		{
+			name: "should report auth for a payment required status",
+			err:  apiError(http.StatusPaymentRequired), want: ExitAuth,
+		},
+		{
 			name: "should report unavailable for a 200 body it could not use",
 			err:  &jev.ResponseError{Status: http.StatusOK, Message: "onesie: wrong shape"},
 			want: ExitUnavailable,
