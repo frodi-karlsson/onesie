@@ -379,6 +379,19 @@ func TestNewCalibrateCmd(t *testing.T) {
 			contains: []string{"required, jsonl, csv or tsv"},
 		},
 		{
+			name:     "should say in its help what each shape accepts as a label, with a sample record",
+			args:     []string{"calibrate", "--help"},
+			wantCode: ExitOK,
+			contains: []string{
+				"Labels: a yes/no label is true, false, yes, no, 1 or 0 in any case",
+				"null, no result or an empty string leaves a record unlabelled",
+				`{"id":"T-1","body":"the site is down","is_urgent":true}`,
+				"T-1,the site is down,yes",
+				"3 a refused api key or an account out of credits",
+				"the same questions, model, -i, --map and --id, with -o json and no gate or merge",
+			},
+		},
+		{
 			name:     "should refuse --out under --print-request",
 			args:     with("--print-request", "--out", filepath.Join(dir, "bodies.jsonl")),
 			wantCode: ExitUsage,

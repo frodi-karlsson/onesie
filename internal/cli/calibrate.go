@@ -65,14 +65,21 @@ func newCalibrateCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 			"tables to pick a gate from. It never picks the cut.\n\n" +
 			"Map only the text a person would read, since a --map that selects the label flatters " +
 			"the question.\n\n" +
+			"Labels: a yes/no label is true, false, yes, no, 1 or 0 in any case. A pick or rate label " +
+			"is an option or level name exactly as declared, or a number whose text is one, so 4 " +
+			"matches --rate 1,2,3,4,5. null, no result or an empty string leaves a record unlabelled " +
+			"for that question, and a record no question labels is not asked. A jsonl record reads " +
+			"{\"id\":\"T-1\",\"body\":\"the site is down\",\"is_urgent\":true}, and a csv one " +
+			"has the header id,body,is_urgent and the row T-1,the site is down,yes.\n\n" +
 			"A yes/no cut row flags a record when its value is at least the cut, so the cut goes into " +
-			"a gate as written. A record no question labels is not asked.\n\n" +
+			"a gate as written.\n\n" +
 			"--out keeps the answers as -o json lines, and --resume, which needs --id, asks only the " +
-			"records the file does not answer. Changing a label or --cuts reuses every stored answer. A plain " +
-			"-o json stream run with the same questions, --map and --id can resume the file too.\n\n" +
+			"records the file does not answer. Changing a label or --cuts reuses every stored answer. " +
+			"A plain stream run can resume the file too, given the same questions, model, -i, --map " +
+			"and --id, with -o json and no gate or merge.\n\n" +
 			"Exit 0 means every record was answered, 2 a usage error or a bad label or record, 3 a " +
-			"refused key, 6 a report with some records failed, and 130 an interrupt, with no report " +
-			"after 3 or 130.",
+			"refused api key or an account out of credits, 6 a report with some records failed, and " +
+			"130 an interrupt, with no report after 3 or 130.",
 		Example: "  onesie calibrate --ask urgent='is this urgent' -i jsonl --map '.body' \\\n" +
 			"      --label urgent='.is_urgent' --id '.id' --out answers.jsonl --resume < labelled.jsonl",
 		Args:          cobra.MaximumNArgs(1),
