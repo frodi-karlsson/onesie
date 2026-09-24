@@ -6,16 +6,22 @@ import (
 	"fmt"
 	"io"
 	"maps"
+	"net/http"
 	"slices"
+	"strings"
 
 	"github.com/spf13/cobra"
 
+	"github.com/frodi-karlsson/onesie/internal/answer"
 	"github.com/frodi-karlsson/onesie/internal/calibrate"
 	"github.com/frodi-karlsson/onesie/internal/engine"
 	"github.com/frodi-karlsson/onesie/internal/input"
+	"github.com/frodi-karlsson/onesie/internal/jev"
 	"github.com/frodi-karlsson/onesie/internal/output"
 	"github.com/frodi-karlsson/onesie/internal/plan"
 )
+
+const maxCauses = 5
 
 func calibrateRun(
 	cmd *cobra.Command, settings rootSettings, flags *runFlags, calib calibrateFlags, inputMode input.Mode,
@@ -59,11 +65,15 @@ func calibrateRun(
 			return written(writeErr)
 		}
 
-		if report.Failed > 0 {
-			return &recordsError{}
+		if result.Failed == 0 {
+			return nil
 		}
 
-		return nil
+		if causeErr := writeCauses(cmd.ErrOrStderr(), set, answered); causeErr != nil {
+			return causeErr
+		}
+
+		return &recordsError{}
 	})
 }
 
@@ -109,6 +119,12 @@ func askLabelled(
 		Source: &labelledSource{records: set.records},
 		Evaluate: func(ctx context.Context, rec labelledRecord) (askedLine, error) {
 			record, evalErr := evaluate(ctx, client, built, model, questions, rec.sent, flags.usage, stats)
+			if evalErr == nil {
+				if _, evalErr = casesOf(built, rec, record); evalErr != nil {
+					record = failureRecord(built, evalErr)
+					stats.unusable()
+				}
+			}
 
 			return askedLine{index: rec.index, record: record}, evalErr
 		},
@@ -135,6 +151,14 @@ func askLabelled(
 	}
 
 	return answered, result, nil
+}
+
+func (c *collector) unusable() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	// The request already counted as a success when it arrived, and its answer turned out unusable.
+	c.failed++
 }
 
 func (s *labelledSource) Next() (labelledRecord, bool, error) {
@@ -171,8 +195,8 @@ func reportOf(built *plan.Plan, set labelledSet, answered []output.Record, cuts 
 	models := map[string]struct{}{}
 
 	for i, rec := range set.records {
-		cases, ok := casesOf(built, rec, answered[i])
-		if !ok {
+		cases, err := casesOf(built, rec, answered[i])
+		if err != nil {
 			report.Failed++
 
 			for q, label := range rec.labels {
@@ -220,9 +244,9 @@ func reportOf(built *plan.Plan, set labelledSet, answered []output.Record, cuts 
 	return report
 }
 
-func casesOf(built *plan.Plan, rec labelledRecord, record output.Record) ([]recordCase, bool) {
-	if record.Failure != nil || len(record.Answers) != len(built.Questions) {
-		return nil, false
+func casesOf(built *plan.Plan, rec labelledRecord, record output.Record) ([]recordCase, error) {
+	if record.Failure != nil {
+		return nil, errors.New(record.Failure.Message)
 	}
 
 	name := ""
@@ -233,38 +257,62 @@ func casesOf(built *plan.Plan, rec labelledRecord, record output.Record) ([]reco
 	cases := make([]recordCase, len(built.Questions))
 
 	for q, question := range built.Questions {
-		label, given := rec.labels[q], record.Answers[q].Answer
-		if label == nil {
+		if rec.labels[q] == nil {
 			continue
 		}
 
-		if given == nil {
-			return nil, false
+		given, err := answerTo(question, record)
+		if err != nil {
+			return nil, err
 		}
 
 		if question.Shape == plan.Noul {
 			value, isNumber := given.Value.(float64)
 			if !isNumber || !unitRange(value) {
-				return nil, false
+				return nil, unusableAnswer(question.ID, "answered %v, which lies outside [0,1]", given.Value)
 			}
 
-			cases[q].yesNo = calibrate.YesNoCase{Name: name, ID: rec.id, Line: rec.line, Yes: label.Yes, Value: value}
+			cases[q].yesNo = calibrate.YesNoCase{
+				Name: name, ID: rec.id, Line: rec.line, Yes: rec.labels[q].Yes, Value: value,
+			}
 
 			continue
 		}
 
 		picked, isName := given.Value.(string)
-		if !isName || given.Confidence == nil || !unitRange(*given.Confidence) {
-			return nil, false
+		if !isName {
+			return nil, unusableAnswer(question.ID, "picked %v, which is not a name", given.Value)
+		}
+
+		if given.Confidence == nil || !unitRange(*given.Confidence) {
+			return nil, unusableAnswer(question.ID, "answered with a confidence outside [0,1]")
 		}
 
 		cases[q].choice = calibrate.ChoiceCase{
-			Name: name, Label: label.Name, Picked: picked, ID: rec.id, Line: rec.line,
+			Name: name, Label: rec.labels[q].Name, Picked: picked, ID: rec.id, Line: rec.line,
 			Confidence: *given.Confidence,
 		}
 	}
 
-	return cases, true
+	return cases, nil
+}
+
+func answerTo(question plan.Question, record output.Record) (*answer.Answer, error) {
+	for _, named := range record.Answers {
+		if named.ID == question.ID && named.Answer != nil {
+			return named.Answer, nil
+		}
+	}
+
+	return nil, unusableAnswer(question.ID, "has no answer")
+}
+
+func unusableAnswer(id, format string, args ...any) error {
+	// A 200 whose body the scorers cannot use, the kind a stream reports as a response failure.
+	return &jev.ResponseError{
+		Status:  http.StatusOK,
+		Message: fmt.Sprintf("question '%s' ", id) + fmt.Sprintf(format, args...),
+	}
 }
 
 func unitRange(value float64) bool {
@@ -275,6 +323,46 @@ func unitRange(value float64) bool {
 type recordCase struct {
 	yesNo  calibrate.YesNoCase
 	choice calibrate.ChoiceCase
+}
+
+func writeCauses(w io.Writer, set labelledSet, answered []output.Record) error {
+	listed, more := 0, 0
+
+	for i, rec := range set.records {
+		failure := answered[i].Failure
+		if failure == nil {
+			continue
+		}
+
+		if listed == maxCauses {
+			more++
+
+			continue
+		}
+
+		listed++
+
+		cause := strings.TrimPrefix(failure.Message, "onesie: ")
+		if _, err := fmt.Fprintf(w, "onesie: %s: %s\n", rec.name(), cause); err != nil {
+			return err
+		}
+	}
+
+	if more == 0 {
+		return nil
+	}
+
+	_, err := fmt.Fprintf(w, "onesie: and %d more failed %s\n", more, noun(more, "record"))
+
+	return err
+}
+
+func noun(count int, word string) string {
+	if count == 1 {
+		return word
+	}
+
+	return word + "s"
 }
 
 func writeReport(w io.Writer, format string, report calibrate.Report) error {

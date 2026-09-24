@@ -1077,6 +1077,25 @@ func TestNewRootCmd(t *testing.T) {
 		}
 	})
 
+	t.Run("should list calibrate in its help", func(t *testing.T) {
+		t.Parallel()
+
+		var out bytes.Buffer
+
+		root := cli.NewRootCmd(cli.BuildInfo{Version: "1.2.3"})
+		root.SetOut(&out)
+		root.SetErr(&out)
+		root.SetArgs([]string{"--help"})
+
+		if code := cli.Execute(t.Context(), root); code != cli.ExitOK {
+			t.Fatalf("exit code = %d, output:\n%s", code, out.String())
+		}
+
+		if !strings.Contains(out.String(), "calibrate   Score questions against records whose answers are known") {
+			t.Errorf("help does not list calibrate\n%s", out.String())
+		}
+	})
+
 	t.Run("should keep the root's defaults after the subcommands register theirs", func(t *testing.T) {
 		t.Parallel()
 

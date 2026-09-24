@@ -448,19 +448,6 @@ func TestNewCalibrateCmd(t *testing.T) {
 		})
 	}
 
-	t.Run("should be listed in the root help", func(t *testing.T) {
-		t.Parallel()
-
-		out, errOut, code := runOfflineStdin(t, []string{"--help"}, "")
-		if code != ExitOK {
-			t.Fatalf("exit code = %d, stderr:\n%s", code, errOut)
-		}
-
-		if !strings.Contains(out, "calibrate   Score questions against records whose answers are known") {
-			t.Errorf("help does not list calibrate\n%s", out)
-		}
-	})
-
 	t.Run("should refuse a label with a syntax error before reading any input", func(t *testing.T) {
 		t.Parallel()
 
@@ -1219,6 +1206,84 @@ func TestCalibrateRun(t *testing.T) {
 		}
 	})
 
+	t.Run("should count an answer outside [0,1] as failed in --stats as the report does", func(t *testing.T) {
+		t.Parallel()
+
+		stdin := urgentSet + `{"id":"T-7","u":true,"body":{"urgent":1.5}}` + "\n" +
+			`{"id":"T-8","u":true,"body":{"status":500}}` + "\n"
+
+		out, errOut, code := runCalibrateAgainst(t.Context(), t, urgent("--stats"), stdin, newCalibrateStub(t).url, false)
+		if code != ExitRecords {
+			t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, ExitRecords, errOut)
+		}
+
+		if !strings.HasPrefix(out, "urgent, yes/no: labelled 6, 3 yes, 3 no, 2 failed.") {
+			t.Errorf("stdout =\n%s\nwant the report to count two failed records", out)
+		}
+
+		if !strings.Contains(errOut, "8 requests, 2 failed, ") {
+			t.Errorf("stderr =\n%s\nwant the stats line to count the same two failed records", errOut)
+		}
+	})
+
+	t.Run("should say why each record failed after the report and before the stats line", func(t *testing.T) {
+		t.Parallel()
+
+		stdin := urgentSet + `{"id":"T-7","u":true,"body":{"urgent":1.5}}` + "\n" +
+			`{"id":"T-8","u":true,"body":{"urgent":"yes"}}` + "\n"
+
+		stub := newCalibrateStub(t)
+		stub.raw = true
+
+		out, _, code := runCalibrateAgainst(t.Context(), t, urgent("--stats"), stdin, stub.url, true)
+		if code != ExitRecords {
+			t.Fatalf("exit code = %d, want %d\noutput:\n%s", code, ExitRecords, out)
+		}
+
+		report := strings.Index(out, "urgent, yes/no:")
+		first := strings.Index(out, "\nonesie: record T-7: question 'urgent' answered 1.5, which lies outside [0,1]\n")
+		second := strings.Index(out, "\nonesie: record T-8: ")
+		stats := strings.Index(out, "8 requests, 2 failed, ")
+
+		if report < 0 || first < report || second < first || stats < second {
+			t.Errorf("output =\n%s\nwant the report, then one line per failed record, then the stats line", out)
+		}
+	})
+
+	t.Run("should name a failed record by its line without --id and list at most five", func(t *testing.T) {
+		t.Parallel()
+
+		var stdin strings.Builder
+		for range 7 {
+			stdin.WriteString(`{"u":true,"body":{"status":500}}` + "\n")
+		}
+
+		args := []string{
+			"calibrate", "--ask", "urgent=is this urgent", "-i", "jsonl", "--map", ".body",
+			"--label", "urgent=.u",
+		}
+
+		_, errOut, code := runCalibrateAgainst(t.Context(), t, args, stdin.String(), newCalibrateStub(t).url, false)
+		if code != ExitRecords {
+			t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, ExitRecords, errOut)
+		}
+
+		lines := strings.Split(strings.TrimSuffix(errOut, "\n"), "\n")
+		if len(lines) != 7 {
+			t.Fatalf("stderr =\n%s\nwant the cost line, five failed records and the rest counted", errOut)
+		}
+
+		for i, line := range lines[1:6] {
+			if want := fmt.Sprintf("onesie: line %d: ", i+1); !strings.HasPrefix(line, want) || !strings.Contains(line, "500") {
+				t.Errorf("stderr line %d = %q, want it to start %q and give the status", i+2, line, want)
+			}
+		}
+
+		if lines[6] != "onesie: and 2 more failed records" {
+			t.Errorf("last stderr line = %q, want the rest counted", lines[6])
+		}
+	})
+
 	t.Run("should give the same report under -j 4 as under -j 1", func(t *testing.T) {
 		t.Parallel()
 
@@ -1488,7 +1553,7 @@ func (s *calibrateStub) serve(w http.ResponseWriter, r *http.Request) {
 	answers := map[string]any{}
 
 	for id, question := range body.Questions {
-		answers[id] = stubAnswer(s.t, question.Type, fields[id])
+		answers[id] = stubAnswer(s.t, question.Type, fields[id], s.raw)
 	}
 
 	encoded, err := json.Marshal(map[string]any{"model": "onesie-1.13.0", "answers": answers})
@@ -1511,8 +1576,12 @@ func (s *calibrateStub) counted(state string) int {
 	return s.requests
 }
 
-func stubAnswer(t *testing.T, kind string, raw json.RawMessage) map[string]any {
+func stubAnswer(t *testing.T, kind string, raw json.RawMessage, verbatim bool) map[string]any {
 	t.Helper()
+
+	if kind == "noul" && verbatim {
+		return map[string]any{"type": "noul", "noul": raw}
+	}
 
 	if kind == "noul" {
 		var value float64
@@ -1562,6 +1631,7 @@ type calibrateStub struct {
 	url       string
 	onRequest func()
 	onBlock   func()
+	raw       bool
 
 	mu       sync.Mutex
 	requests int
