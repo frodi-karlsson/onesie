@@ -170,8 +170,10 @@ onesie --ask urgent='is this urgent' --assert 'urgnet.value < 0.5'
 - `--map` is a jq expression whose result is the state. An object it builds has its keys sorted, and
   `onesie -V` lists the caps on its result. An empty or all whitespace string, an empty object and
   an empty array are refused as state before any request, whether they came from `--state`,
-  `--state-file`, stdin, a stream line or `--map`. In a stream each is an error line, like a blank
-  line, and for one record it exits 2.
+  `--state-file`, stdin, the `state` of a `-f` file, a stream line or `--map`. For one record it
+  exits 2. In a stream each is an error line and the run goes on. `--skip-blank` drops blank lines,
+  but a `{}`, `[]` or `""` line stays an error line. Under `-i request` a body is forwarded as it
+  is, so its state is not checked.
 - `--id` names each record on every output line. It runs one record at a time, so keep it a cheap
   lookup. Ids match by their text, so `7`, `7.0` and `"7"` are one id in jsonl.
 - `--out` writes to a file with a fingerprint beside it, and a lock so two runs cannot share it. The
@@ -180,15 +182,19 @@ onesie --ask urgent='is this urgent' --assert 'urgnet.value < 0.5'
 - `--resume` with `--id` skips answered records and asks the rest, failed ones included. A finished
   run rewrites the file in input order and keeps answered ids the input no longer has, unless
   `--prune` drops them. A changed fingerprint refuses with exit 2. A record whose content changed
-  but whose id did not keeps its old answer. Without `--id`, it carries on by line count and never
-  retries a failed record, so a skipped error line still counts as failed toward exit 6 and
-  `--stats`, under `-i request` too. Either way, a skipped record keeps its stored `--assert`
+  but whose id did not keeps its old answer. Without `--id`, it carries on by line count. It does
+  not ask a failed record again, apart from the `--stop-on-error` case below, so a skipped error
+  line still counts as failed toward exit 6 and `--stats`, under `-i request` too. Either way, a skipped record keeps its stored `--assert`
   outcome, so it counts toward the exit code and `--stats` as if it were judged again.
 - Under `--stop-on-assert`, a skipped false assertion ends the run where a fresh run would stop.
-  Under `--stop-on-error`, a resume by line count stops at a skipped error line with the code a
-  fresh run exited with, rebuilt from the line's kind and status. A csv or tsv row keeps only the
-  message, so that resume needs `--id` there. With `--id` the failed record is asked again, and
-  stops the run only if it fails again.
+  Under `--stop-on-error`, a resume by line count whose last line is an error line drops that line,
+  asks its record again and carries on. A run stopped by `--stop-on-error` leaves exactly that, so
+  a rerun makes progress once the cause is gone. An error line with more lines after it was written
+  without `--stop-on-error`, so the resume stops there before any request, with the code a fresh
+  run exited with, rebuilt from the line's kind and status. A csv or tsv row keeps only the
+  message, so there it exits 2. Either way, pass `--id` or drop `--stop-on-error` to carry on. The
+  same holds under `-i request`. With `--id` the failed record is asked again, and stops the run
+  only if it fails again.
 - Raw output keeps no outcome, so `--resume` refuses `-o raw` and `-r` with exit 2. Use `-o values`
   or `-o json`.
 

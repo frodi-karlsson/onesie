@@ -15,7 +15,7 @@
 Only exit 1 means the policy said no. Exits 2 through 5 mean no answer arrived at all. Exit 6
 means a stream finished and only the lines carrying an error failed, the rest answered normally.
 A resume without `--id` skips a stored error line instead of asking again, and still exits 6
-over it.
+over it. Under `--stop-on-error` a trailing error line is the exception, as below.
 Exit 7 is an answer too, neither a yes nor a no, so route it to whoever decides the middle
 ground. A stream keeps the most severe code: 6 beats 1, and 1 beats 7.
 
@@ -23,8 +23,12 @@ A stream that stops early takes the code of what stopped it. An auth failure sto
 `--stop-on-error` stops it with the failing record's own code, such as 4 or 5, not 6.
 `--stop-on-assert` stops it with 1, or with 6 when an earlier record failed.
 A resume under `--stop-on-assert` stops at a skipped false assertion the same way.
-A resume without `--id` under `--stop-on-error` stops at a skipped error line with the code the
-run that wrote it exited with. With `--id` the failed record is asked again instead.
+A resume without `--id` under `--stop-on-error` drops a trailing error line and asks its record
+again, since a run stopped by `--stop-on-error` writes nothing after it. So rerunning the same
+command makes progress once the cause is gone. An error line with more lines after it came from a
+run without `--stop-on-error`. The resume stops there with the code that run exited with, or exits
+2 for a csv or tsv row, which keeps only the message. Pass `--id` or drop `--stop-on-error` to
+carry on. With `--id` the failed record is asked again instead.
 
 ## On exit 3
 
@@ -63,12 +67,12 @@ Exit 3 also covers these:
 | `unknown flag`, `unknown command` or `accepts at most 1 arg` | a typo in a flag name, a flag cobra cannot see, such as `--api-key` after a subcommand or any flag after `--`, or an unquoted question |
 | a complaint about a flag you never typed | a question beginning with a dash was read as flags. Put the flags first, then `--`, then the question |
 | `no state given` | nothing arrived on stdin and neither `--state` nor `--state-file` was passed |
-| `an empty state is a request the model cannot answer` | `--state`, `--state-file`, stdin, a stream line or `--map` gave an empty or all whitespace string, an empty object or an empty array. In a stream it is an error line instead |
+| `an empty state is a request the model cannot answer` | `--state`, `--state-file`, stdin, the `state` of a `-f` file, a stream line or `--map` gave an empty or all whitespace string, an empty object or an empty array. In a stream it is an error line instead, and `--skip-blank` does not drop it. An `-i request` body is forwarded as it is and not checked |
 | `no API key` | nothing resolved for the provider, see the order above. A real run and `auth test` exit 2 here, `auth status` exits 3 |
 | `is being resumed by another onesie run` | another run holds the lock beside the `--out` file |
 | `Drop --resume to start over` | the `--out` file was written by a different run, or has no fingerprint |
 | `--resume needs output that keeps each record's outcome` | `-o raw` and `-r` keep no id, failure or gate outcome, so a resume refuses them. Use `-o values` or `-o json` |
-| `cannot stop at a stored failure` | a resume without `--id` under `--stop-on-error` into `-o csv` or `-o tsv`, whose rows keep only a failure's message. Pass `--id`, or use `-o values` or `-o json` |
+| `is followed by more rows` | a resume without `--id` under `--stop-on-error` reached a stored csv or tsv error row with more rows after it, and a row keeps only the message, not the code to stop with. Pass `--id` or drop `--stop-on-error` |
 | `the header` | the csv or tsv header is not valid, or has a blank or repeated column name |
 | `a row is longer than the limit`, with no error line | a csv row over `max-line-bytes` from `onesie -V`. It stops the run, since csv cannot find the next row after it. In tsv it is an error line instead |
 | `--usage does not apply to` | `-o values`, `-o raw` and `-r` write only the answers, so the message says to use `-o json`. `-o csv` and `-o tsv` have no column for it, and `-q` suppresses output |
