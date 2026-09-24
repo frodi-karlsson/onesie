@@ -63,8 +63,8 @@ vuln: ## Scan dependencies for known vulnerabilities
 skills: ## Generate the per client skill files from skills/
 	go run ./cmd/skillgen
 
-skills-check: ## Dry run every example in every skill
-	go run ./cmd/skillcheck
+skills-check: build ## Dry run every example in every skill, against the binary built from this tree
+	PATH="$(CURDIR)/bin:$$PATH" go run ./cmd/skillcheck
 
 skills-eval: ## Measure the skills against an agent, run by hand
 	@$(MAKE) --no-print-directory build

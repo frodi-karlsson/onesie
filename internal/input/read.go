@@ -86,7 +86,7 @@ func fromText(source Source, label, text string, mode Mode, stripNewline bool) (
 
 	if mode == Text {
 		if stripNewline {
-			text = strings.TrimSuffix(text, "\n")
+			text = strings.TrimSuffix(strings.TrimSuffix(text, "\r\n"), "\n")
 		}
 
 		return Resolved{Source: source, State: text, Raw: text, Wire: text}, nil

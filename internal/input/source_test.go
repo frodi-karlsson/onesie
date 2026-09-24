@@ -31,6 +31,15 @@ func TestResolve(t *testing.T) {
 			wantState:  "a ticket body",
 		},
 		{
+			name: "should strip one trailing windows line ending under text",
+			req: input.Query{
+				Mode:  input.Text,
+				Stdin: strings.NewReader("a ticket body\r\n"),
+			},
+			wantSource: input.SourceStdin,
+			wantState:  "a ticket body",
+		},
+		{
 			name: "should strip one trailing newline under text",
 			req: input.Query{
 				Mode:  input.Text,

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 const (
@@ -122,7 +123,12 @@ func truncate(raw string) string {
 		return raw
 	}
 
-	return raw[:maxBodyInError] + "..."
+	cut := maxBodyInError
+	for cut > 0 && !utf8.RuneStart(raw[cut]) {
+		cut--
+	}
+
+	return raw[:cut] + "..."
 }
 
 func extractMessage(body any) string {

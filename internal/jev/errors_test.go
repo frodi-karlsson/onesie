@@ -7,8 +7,10 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 )
 
 func TestNewAPIError(t *testing.T) {
@@ -325,4 +327,30 @@ func TestAnswerError(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestTruncate(t *testing.T) {
+	t.Parallel()
+
+	t.Run("should never cut a character in half", func(t *testing.T) {
+		t.Parallel()
+
+		got := truncate(strings.Repeat("a", maxBodyInError-1) + "é and more")
+
+		if !utf8.ValidString(got) {
+			t.Errorf("truncate returned invalid UTF-8: %q", got)
+		}
+
+		if !strings.HasSuffix(got, "...") {
+			t.Errorf("truncate = %q, want it to end in ...", got)
+		}
+	})
+
+	t.Run("should leave a short message as it is", func(t *testing.T) {
+		t.Parallel()
+
+		if got := truncate("short"); got != "short" {
+			t.Errorf("truncate = %q, want short", got)
+		}
+	})
 }
