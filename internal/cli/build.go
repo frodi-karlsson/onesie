@@ -3,6 +3,7 @@ package cli
 import (
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -154,7 +155,7 @@ func build(
 		return nil, warnings, err
 	}
 
-	mapper, err := mapperOf(cfg, flags.mapSource)
+	mapper, err := mapperOf(cfg, flags.mapSource, settings.now)
 	if err != nil {
 		return nil, warnings, err
 	}
@@ -210,12 +211,12 @@ func gateExpr(source, named string, built *plan.Plan) (*assert.Expr, error) {
 	return expr, nil
 }
 
-func mapperOf(cfg plan.Config, source string) (*jq.Expr, error) {
+func mapperOf(cfg plan.Config, source string, now func() time.Time) (*jq.Expr, error) {
 	if !cfg.HasMap {
 		return nil, nil
 	}
 
-	expr, err := jq.Compile(source)
+	expr, err := jq.Compile(source, jq.WithClock(now))
 	if err != nil {
 		return nil, fmt.Errorf("onesie: --map: %w", err)
 	}

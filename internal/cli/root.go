@@ -271,7 +271,8 @@ func WithHomeDir(home func() (string, error)) RootOption {
 	}
 }
 
-// WithNow replaces the clock the --stats line measures elapsed time with.
+// WithNow replaces the clock the --stats line measures elapsed time with, which the --map time
+// functions read as well.
 func WithNow(now func() time.Time) RootOption {
 	return func(s *rootSettings) {
 		s.now = now
