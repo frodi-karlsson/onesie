@@ -12,7 +12,7 @@ make test       # go test ./...
 make lint-fix   # golangci-lint --fix, then format
 make cover      # coverage report at bin/coverage.html
 make vuln       # govulncheck
-make fuzz       # fuzz the --assert parser, FUZZTIME=1m by default
+make fuzz       # fuzz every parser and escaper in turn, FUZZTIME=1m each by default
 ```
 
 `golangci-lint` v2.13.2 is expected on `PATH`:

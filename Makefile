@@ -30,8 +30,24 @@ test-race: ## Run unit tests with the race detector
 test-integration: ## Run tests against the live API. Needs TYPESAFE_API_KEY, and OPENROUTER_API_KEY for the OpenRouter cases, or a .env
 	go test -tags integration -race -count=1 -timeout 5m ./internal/jev/ ./internal/cli/ -run 'TestLive|Integration' -v
 
-fuzz: ## Fuzz the --assert parser, FUZZTIME=1m by default
-	go test ./internal/assert/ -run '^$$' -fuzz FuzzParse -fuzztime $(or $(FUZZTIME),1m) -fuzzminimizetime 0
+FUZZ_TARGETS := \
+	./internal/assert/:FuzzParse \
+	./internal/output/:FuzzCodeSpan \
+	./internal/output/:FuzzMarkdownTable \
+	./internal/calibrate/:FuzzSplitLabel \
+	./internal/calibrate/:FuzzParseLabel \
+	./internal/calibrate/:FuzzParseCuts \
+	./internal/qfile/:FuzzIsName \
+	./internal/qfile/:FuzzFind \
+	./internal/jq/:FuzzID \
+	./internal/cli/:FuzzPrintQuestions \
+	./internal/cli/:FuzzLineVerdict
+
+fuzz: ## Fuzz every parser and escaper in turn, FUZZTIME=1m each by default
+	@set -e; for target in $(FUZZ_TARGETS); do \
+		echo "--- $${target##*:} ---"; \
+		go test $${target%%:*} -run '^$$' -fuzz "^$${target##*:}$$" -fuzztime $(or $(FUZZTIME),1m) -fuzzminimizetime 0; \
+	done
 
 cover: ## Run tests with coverage and open the HTML report
 	@mkdir -p bin
