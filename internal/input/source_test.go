@@ -2,6 +2,7 @@ package input_test
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"strings"
 	"testing"
@@ -148,6 +149,47 @@ func TestResolve(t *testing.T) {
 			},
 			wantErr:     true,
 			wantMessage: "onesie: state must be a string, object or array, got null",
+		},
+		{
+			name: "should reject an empty json string on --state",
+			req: input.Query{
+				Mode:     input.JSON,
+				State:    `""`,
+				HasState: true,
+			},
+			wantErr:     true,
+			wantMessage: "onesie: empty string, an empty state is a request the model cannot answer",
+		},
+		{
+			name: "should reject a json string of spaces on stdin",
+			req: input.Query{
+				Mode:  input.JSON,
+				Stdin: strings.NewReader(`"  "` + "\n"),
+			},
+			wantErr:     true,
+			wantMessage: "onesie: empty string, an empty state is a request the model cannot answer",
+		},
+		{
+			name: "should reject an empty object under json",
+			req: input.Query{
+				Mode:  input.JSON,
+				Stdin: strings.NewReader("{}"),
+			},
+			wantErr:     true,
+			wantMessage: "onesie: empty object, an empty state is a request the model cannot answer",
+		},
+		{
+			name: "should reject an empty array in a state file under json",
+			req: input.Query{
+				Mode:         input.JSON,
+				StateFile:    "empty.json",
+				HasStateFile: true,
+				ReadFile: func(string) ([]byte, error) {
+					return []byte("[ ]\n"), nil
+				},
+			},
+			wantErr:     true,
+			wantMessage: "onesie: empty array, an empty state is a request the model cannot answer",
 		},
 		{
 			name: "should reject a boolean under json",
@@ -329,6 +371,68 @@ func equalJSON(t *testing.T, got, want any) bool {
 	}
 
 	return string(gotBytes) == string(wantBytes)
+}
+
+func TestCheckState(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		value   any
+		wantErr string
+	}{
+		{name: "should accept a string", value: "a ticket"},
+		{name: "should accept an object", value: map[string]any{"id": 1.0}},
+		{name: "should accept an array", value: []any{"a"}},
+		{
+			name:    "should reject an empty string",
+			value:   "",
+			wantErr: "empty string, an empty state is a request the model cannot answer",
+		},
+		{
+			name:    "should reject a string of whitespace",
+			value:   " \t\n",
+			wantErr: "empty string, an empty state is a request the model cannot answer",
+		},
+		{
+			name:    "should reject an empty object",
+			value:   map[string]any{},
+			wantErr: "empty object, an empty state is a request the model cannot answer",
+		},
+		{
+			name:    "should reject an empty array",
+			value:   []any{},
+			wantErr: "empty array, an empty state is a request the model cannot answer",
+		},
+		{
+			name:    "should reject null",
+			value:   nil,
+			wantErr: "state must be a string, object or array, got null",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := input.CheckState(tc.value)
+			if tc.wantErr == "" {
+				if err != nil {
+					t.Fatalf("CheckState(%v) = %v, want nil", tc.value, err)
+				}
+
+				return
+			}
+
+			if err == nil || err.Error() != tc.wantErr {
+				t.Fatalf("CheckState(%v) = %v, want %q", tc.value, err, tc.wantErr)
+			}
+
+			if strings.HasPrefix(tc.wantErr, "empty") && !errors.Is(err, input.ErrEmptyState) {
+				t.Errorf("CheckState(%v) = %v, want it to wrap ErrEmptyState", tc.value, err)
+			}
+		})
+	}
 }
 
 func TestParseMode(t *testing.T) {

@@ -51,6 +51,18 @@ func TestStream(t *testing.T) {
 			want: []want{{state: "first", raw: "first"}, {state: "second", raw: "second"}},
 		},
 		{
+			name: "should fail an empty or blank json string, an empty object and an empty array under jsonl",
+			mode: input.JSONL,
+			in:   "\"\"\n\"  \"\n{}\n[]\n{\"id\":1}\n",
+			want: []want{
+				{wantErr: true},
+				{wantErr: true},
+				{wantErr: true},
+				{wantErr: true},
+				{state: map[string]any{"id": 1.0}, raw: `{"id":1}`},
+			},
+		},
+		{
 			name: "should turn each csv row into an object keyed by the header",
 			mode: input.CSV,
 			in:   "id,body\n1,the site is down\n2,\"a, quoted\nvalue\"\n",

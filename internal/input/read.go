@@ -112,13 +112,17 @@ type Resolved struct {
 	Wire any
 }
 
-// CheckState rejects a state the API would refuse, so a caller holding a state that never passed
-// through Resolve can still check it. Its message carries no onesie prefix, so a caller adds one.
+// CheckState rejects a state the API would refuse or the model cannot answer, so a caller holding a
+// state that never passed through Resolve can still check it. Its message carries no onesie prefix.
 func CheckState(value any) error {
-	// The API refuses these, so rejecting them locally saves a request that would come back a 422.
-	switch value.(type) {
-	case string, map[string]any, []any:
-		return nil
+	// Rejected locally, since the API refuses the wrong types and the model cannot answer an empty one.
+	switch typed := value.(type) {
+	case string:
+		return emptyUnless(strings.TrimSpace(typed) != "", "string")
+	case map[string]any:
+		return emptyUnless(len(typed) > 0, "object")
+	case []any:
+		return emptyUnless(len(typed) > 0, "array")
 	case nil:
 		return errors.New("state must be a string, object or array, got null")
 	case bool:
@@ -126,4 +130,12 @@ func CheckState(value any) error {
 	default:
 		return errors.New("state must be a string, object or array, got number")
 	}
+}
+
+func emptyUnless(filled bool, noun string) error {
+	if filled {
+		return nil
+	}
+
+	return fmt.Errorf("empty %s, %w", noun, ErrEmptyState)
 }

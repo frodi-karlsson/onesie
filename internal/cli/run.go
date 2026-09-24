@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strings"
 	"sync/atomic"
 
 	"github.com/spf13/cobra"
@@ -490,10 +489,6 @@ func mapped(ctx context.Context, mapper *jq.Expr, state, wire any) (any, error) 
 
 	if checkErr := input.CheckState(value); checkErr != nil {
 		return nil, fmt.Errorf("--map: %w", checkErr)
-	}
-
-	if text, isText := value.(string); isText && strings.TrimSpace(text) == "" {
-		return nil, fmt.Errorf("--map: empty string, %w", input.ErrEmptyState)
 	}
 
 	encoded, err := jq.Marshal(value, limits.MaxLineBytes)
