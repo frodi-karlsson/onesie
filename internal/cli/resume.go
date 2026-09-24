@@ -38,7 +38,7 @@ func resumeLedger(
 }
 
 func readLedger(ctx context.Context, answers *outFile, format answersFormat) (book *ledger, err error) {
-	book = &ledger{answered: map[[sha256.Size]byte]span{}}
+	book = &ledger{answered: map[ledgerKey]span{}}
 
 	file, err := answers.open(answers.path, os.O_RDONLY, 0)
 	if errors.Is(err, os.ErrNotExist) {
@@ -192,6 +192,8 @@ func answerID(value any) (string, bool) {
 	return idText(id), true
 }
 
+type ledgerKey [16]byte
+
 type span struct {
 	start int64
 	end   int64
@@ -199,7 +201,7 @@ type span struct {
 
 type ledger struct {
 	mu       sync.Mutex
-	answered map[[sha256.Size]byte]span
+	answered map[ledgerKey]span
 	lines    []span
 	pending  int
 	skipped  int
@@ -208,7 +210,15 @@ type ledger struct {
 
 func (l *ledger) note(id string, at span) {
 	// The newest line wins, since a resume appends after what the file held before.
-	l.answered[sha256.Sum256([]byte(id))] = at
+	l.answered[keyOf(id)] = at
+}
+
+func keyOf(id string) ledgerKey {
+	// Half the digest, since the ledger holds one key per answered line and 128 bits still leave a
+	// collision out of reach.
+	sum := sha256.Sum256([]byte(id))
+
+	return ledgerKey(sum[:16])
 }
 
 func (l *ledger) admit(rec *namedRecord) (answered bool) {
@@ -218,7 +228,7 @@ func (l *ledger) admit(rec *namedRecord) (answered bool) {
 	rec.slot = len(l.lines)
 
 	if rec.id != nil {
-		key := sha256.Sum256([]byte(idText(rec.id)))
+		key := keyOf(idText(rec.id))
 		if at, found := l.answered[key]; found {
 			delete(l.answered, key)
 			l.lines = append(l.lines, at)
@@ -256,11 +266,13 @@ func (l *ledger) complete() bool {
 	return l.ended && l.pending == 0
 }
 
-func (l *ledger) order(prune bool) []span {
+func (l *ledger) takeOrder(prune bool) []span {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	lines := slices.Clone(l.lines)
+	lines := l.lines
+	l.lines = nil
+
 	if prune {
 		return lines
 	}

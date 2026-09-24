@@ -23,6 +23,7 @@ const (
 	fingerprintSuffix  = ".onesie"
 	fingerprintVersion = 1
 	compactSuffix      = ".onesie.part"
+	forwardGap         = 64 << 10
 )
 
 func openOut(settings rootSettings, flags *runFlags) (*outFile, error) {
@@ -304,7 +305,7 @@ func (o *outFile) writeCompacted(temporary string) (err error) {
 
 	err = keepMode(target, info.Mode().Perm())
 	if err == nil {
-		err = copyLines(target, source, header, o.rewrite.lines)
+		err = copyLines(target, source, o.size, header, o.rewrite.lines)
 	}
 
 	if err == nil {
@@ -348,10 +349,11 @@ func (o *outFile) syncDir(dir string) {
 	}
 }
 
-func copyLines(w io.Writer, source io.ReaderAt, header int64, lines []span) error {
+func copyLines(w io.Writer, source io.ReaderAt, size, header int64, lines []span) error {
 	buffered := bufio.NewWriter(w)
+	reader := &forwardReader{source: source, size: size}
 
-	if _, err := io.Copy(buffered, io.NewSectionReader(source, 0, header)); err != nil {
+	if err := reader.copy(buffered, 0, header); err != nil {
 		return err
 	}
 
@@ -363,12 +365,47 @@ func copyLines(w io.Writer, source io.ReaderAt, header int64, lines []span) erro
 			continue
 		}
 
-		if _, err := io.Copy(buffered, io.NewSectionReader(source, from, at.end-from)); err != nil {
+		if err := reader.copy(buffered, from, at.end); err != nil {
 			return err
 		}
 	}
 
 	return buffered.Flush()
+}
+
+type forwardReader struct {
+	source   io.ReaderAt
+	size     int64
+	at       int64
+	buffered *bufio.Reader
+}
+
+func (r *forwardReader) copy(w io.Writer, from, to int64) error {
+	if from < r.at || from-r.at > forwardGap {
+		r.buffered = nil
+	}
+
+	// A span that jumps back or far ahead is read on its own, since reading ahead of it would fetch
+	// bytes the next span is unlikely to want.
+	if r.buffered == nil && from != r.at {
+		r.at = to
+
+		_, err := io.Copy(w, io.NewSectionReader(r.source, from, to-from))
+
+		return err
+	}
+
+	if r.buffered == nil {
+		r.buffered = bufio.NewReaderSize(io.NewSectionReader(r.source, from, r.size-from), forwardGap)
+	} else if _, err := r.buffered.Discard(int(from - r.at)); err != nil {
+		return err
+	}
+
+	r.at = to
+
+	_, err := io.CopyN(w, r.buffered, to-from)
+
+	return err
 }
 
 func (o *outFile) bind(fingerprint string) error {

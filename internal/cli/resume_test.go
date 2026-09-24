@@ -782,3 +782,137 @@ func assertUnlocked(t *testing.T, path string) {
 		t.Errorf("lock file left behind: %v", err)
 	}
 }
+
+func TestLedger_TakeOrder(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		prune bool
+	}{
+		{name: "should hand over the order it built without copying it", prune: true},
+		{name: "should hand over the order with the unasked answers after it", prune: false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			book := &ledger{answered: map[ledgerKey]span{}}
+			book.note("9", span{start: 0, end: 10})
+			book.note("1", span{start: 10, end: 20})
+
+			for _, id := range []string{"1", "2"} {
+				rec := &namedRecord{id: id}
+				book.admit(rec)
+			}
+
+			first := &book.lines[0]
+
+			got := book.takeOrder(tc.prune)
+
+			want := []span{{start: 10, end: 20}, {}}
+			if !tc.prune {
+				want = append(want, span{start: 0, end: 10})
+			}
+
+			if !slices.Equal(got, want) {
+				t.Errorf("order = %v, want %v", got, want)
+			}
+
+			if tc.prune && &got[0] != first {
+				t.Errorf("order was copied, want the ledger's own slice handed over")
+			}
+
+			if book.lines != nil {
+				t.Errorf("ledger still holds %v, want it handed over", book.lines)
+			}
+		})
+	}
+}
+
+func TestCopyLines(t *testing.T) {
+	t.Parallel()
+
+	var file strings.Builder
+
+	var forward []span
+
+	for i := range 2000 {
+		start := int64(file.Len())
+		fmt.Fprintf(&file, "{\"id\":%d,\"answer\":0.5}\n", i)
+		forward = append(forward, span{start: start, end: int64(file.Len())})
+	}
+
+	backward := slices.Clone(forward)
+	slices.Reverse(backward)
+
+	source := file.String()
+
+	tests := []struct {
+		name      string
+		header    int64
+		lines     []span
+		want      string
+		wantReads int
+	}{
+		{
+			name:      "should read spans that run forward in a few large reads",
+			lines:     forward,
+			want:      source,
+			wantReads: 10,
+		},
+		{
+			name:      "should copy spans that run backward",
+			lines:     backward,
+			want:      reversedLines(source),
+			wantReads: 2 * len(backward),
+		},
+		{
+			name:      "should write the header once and skip it inside a span",
+			header:    forward[0].end,
+			lines:     []span{{start: 0, end: forward[1].end}, forward[2]},
+			want:      source[:forward[2].end],
+			wantReads: 10,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			reader := &countingReaderAt{source: strings.NewReader(source)}
+
+			var out bytes.Buffer
+			if err := copyLines(&out, reader, int64(len(source)), tc.header, tc.lines); err != nil {
+				t.Fatalf("copyLines: %v", err)
+			}
+
+			if out.String() != tc.want {
+				t.Errorf("copied %d bytes, want %d matching the source", out.Len(), len(tc.want))
+			}
+
+			if got := int(reader.reads.Load()); got > tc.wantReads {
+				t.Errorf("reads = %d, want at most %d", got, tc.wantReads)
+			}
+		})
+	}
+}
+
+type countingReaderAt struct {
+	source io.ReaderAt
+	reads  atomic.Int32
+}
+
+func (r *countingReaderAt) ReadAt(p []byte, off int64) (int, error) {
+	r.reads.Add(1)
+
+	return r.source.ReadAt(p, off)
+}
+
+func reversedLines(text string) string {
+	lines := strings.SplitAfter(text, "\n")
+	slices.Reverse(lines)
+
+	return strings.Join(lines, "")
+}
