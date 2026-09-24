@@ -20,12 +20,12 @@ var identifier = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_-]*$`)
 // SplitLabel splits a --label value into the question id it names and its jq source. A bare
 // expression belongs to the only question asked.
 func SplitLabel(spec string, ids []string) (id, source string, err error) {
+	if id, source, found := longestID(spec, ids); found {
+		return id, source, nil
+	}
+
 	prefix, rest, found := strings.Cut(spec, "=")
 	named := found && !strings.HasPrefix(rest, "=")
-
-	if named && slices.Contains(ids, prefix) {
-		return prefix, rest, nil
-	}
 
 	if named && identifier.MatchString(prefix) {
 		return "", "", fmt.Errorf("--label names an unknown question '%s'. Questions: %s",
@@ -38,6 +38,19 @@ func SplitLabel(spec string, ids []string) (id, source string, err error) {
 	}
 
 	return ids[0], spec, nil
+}
+
+func longestID(spec string, ids []string) (id, source string, found bool) {
+	for _, candidate := range ids {
+		rest, named := strings.CutPrefix(spec, candidate+"=")
+		if !named || strings.HasPrefix(rest, "=") || len(candidate) <= len(id) && found {
+			continue
+		}
+
+		id, source, found = candidate, rest, true
+	}
+
+	return id, source, found
 }
 
 // ParseLabel reads one label result for a question of the given shape, whose option or level names

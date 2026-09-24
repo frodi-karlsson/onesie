@@ -57,6 +57,27 @@ func TestSplitLabel(t *testing.T) {
 			wantSource: `.status=="open"`,
 		},
 		{
+			name:       "should name a question whose id holds an equals sign",
+			spec:       "x=y=.x",
+			ids:        []string{"x=y", "z"},
+			wantID:     "x=y",
+			wantSource: ".x",
+		},
+		{
+			name:       "should prefer the longest id the label starts with",
+			spec:       "x=y=.x",
+			ids:        []string{"x", "x=y"},
+			wantID:     "x=y",
+			wantSource: ".x",
+		},
+		{
+			name:       "should fall back to a shorter id when the longer one is followed by a comparison",
+			spec:       "x=y==.x",
+			ids:        []string{"x", "x=y"},
+			wantID:     "x",
+			wantSource: "y==.x",
+		},
+		{
 			name:    "should refuse a bare expression when two questions are asked",
 			spec:    ".x",
 			ids:     []string{"urgent", "team"},
