@@ -348,10 +348,6 @@ func mapped(ctx context.Context, mapper *jq.Expr, state, wire any) (any, error) 
 	}
 
 	value, err := mapper.One(ctx, jqValue(state, wire))
-	if interrupted(ctx) {
-		return nil, ctx.Err()
-	}
-
 	if err != nil {
 		return nil, fmt.Errorf("--map %w", err)
 	}
