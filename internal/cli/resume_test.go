@@ -606,6 +606,40 @@ func TestResumeLedger(t *testing.T) {
 			},
 		},
 		{
+			name:  "should read an input column named assert as input, not an assertion, on a merged csv resume by id with no gate",
+			stdin: "id,assert\n1,false\n2,true\n",
+			runs: []resumeRun{
+				{
+					args:     []string{"-i", "csv", "-o", "csv", "--merge", "--id", ".id", "--resume"},
+					input:    "id,assert\n1,false\n",
+					wantFile: "id,assert,answer,error\n1,false,0.5,\n",
+					wantSent: []string{`{"id":"1","assert":"false"}`},
+				},
+				{
+					args:     []string{"-i", "csv", "-o", "csv", "--merge", "--id", ".id", "--resume"},
+					wantFile: "id,assert,answer,error\n1,false,0.5,\n2,true,0.5,\n",
+					wantSent: []string{`{"id":"2","assert":"true"}`},
+				},
+			},
+		},
+		{
+			name:  "should read an input column named assert as input, not an abstain, on a merged csv resume by id with no gate",
+			stdin: "id,assert\n1,abstain\n2,true\n",
+			runs: []resumeRun{
+				{
+					args:     []string{"-i", "csv", "-o", "csv", "--merge", "--id", ".id", "--resume"},
+					input:    "id,assert\n1,abstain\n",
+					wantFile: "id,assert,answer,error\n1,abstain,0.5,\n",
+					wantSent: []string{`{"id":"1","assert":"abstain"}`},
+				},
+				{
+					args:     []string{"-i", "csv", "-o", "csv", "--merge", "--id", ".id", "--resume"},
+					wantFile: "id,assert,answer,error\n1,abstain,0.5,\n2,true,0.5,\n",
+					wantSent: []string{`{"id":"2","assert":"true"}`},
+				},
+			},
+		},
+		{
 			name:     "should still resume by position without --id",
 			existing: fileOf("old one\nold two\n"),
 			sidecar:  byPosition,
@@ -636,6 +670,40 @@ func TestResumedVerdicts(t *testing.T) {
 	t.Parallel()
 
 	runResumeCases(t, []resumeCase{
+		{
+			name:  "should read an input column named assert as input, not an assertion, on a merged csv resume by position with no gate",
+			stdin: "id,assert\n1,false\n2,true\n",
+			runs: []resumeRun{
+				{
+					args:     []string{"-i", "csv", "-o", "csv", "--merge", "--resume"},
+					input:    "id,assert\n1,false\n",
+					wantFile: "id,assert,answer,error\n1,false,0.5,\n",
+					wantSent: []string{`{"id":"1","assert":"false"}`},
+				},
+				{
+					args:     []string{"-i", "csv", "-o", "csv", "--merge", "--resume"},
+					wantFile: "id,assert,answer,error\n1,false,0.5,\n2,true,0.5,\n",
+					wantSent: []string{`{"id":"2","assert":"true"}`},
+				},
+			},
+		},
+		{
+			name:  "should read an input column named assert as input, not an abstain, on a merged csv resume by position with no gate",
+			stdin: "id,assert\n1,abstain\n2,true\n",
+			runs: []resumeRun{
+				{
+					args:     []string{"-i", "csv", "-o", "csv", "--merge", "--resume"},
+					input:    "id,assert\n1,abstain\n",
+					wantFile: "id,assert,answer,error\n1,abstain,0.5,\n",
+					wantSent: []string{`{"id":"1","assert":"abstain"}`},
+				},
+				{
+					args:     []string{"-i", "csv", "-o", "csv", "--merge", "--resume"},
+					wantFile: "id,assert,answer,error\n1,abstain,0.5,\n2,true,0.5,\n",
+					wantSent: []string{`{"id":"2","assert":"true"}`},
+				},
+			},
+		},
 		{
 			name:  "should exit 1 on a resume by position whose skipped merged records failed their assertion",
 			stdin: idRecords(1, 2),

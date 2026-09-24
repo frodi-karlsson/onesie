@@ -302,12 +302,12 @@ func stream(
 		return err
 	}
 
-	book, err := resumeLedger(cmd.Context(), answers, flags, namer, outputMode)
+	book, err := resumeLedger(cmd.Context(), answers, flags, namer, outputMode, gate != nil)
 	if err != nil {
 		return err
 	}
 
-	stored, err := resumedVerdicts(cmd.Context(), answers, flags, namer, outputMode)
+	stored, err := resumedVerdicts(cmd.Context(), answers, flags, namer, outputMode, gate != nil)
 	if err != nil {
 		return err
 	}

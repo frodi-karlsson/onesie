@@ -27,13 +27,16 @@ func resumeLedger(
 	flags *runFlags,
 	namer *jq.Expr,
 	mode output.Mode,
+	gated bool,
 ) (*ledger, error) {
 	if answers == nil || !answers.resume || namer == nil {
 		return nil, nil
 	}
 
 	book := &ledger{answered: map[ledgerKey]answeredLine{}}
-	format := answersFormat{mode: mode, merge: merging(flags), mergeKey: mergeKey(flags), namer: namer}
+	format := answersFormat{
+		mode: mode, merge: merging(flags), mergeKey: mergeKey(flags), namer: namer, gated: gated,
+	}
 
 	err := readAnswers(ctx, answers, func(r io.Reader) error {
 		return format.eachAnswer(ctx, r, book.note)
@@ -51,8 +54,11 @@ func resumedVerdicts(
 	flags *runFlags,
 	namer *jq.Expr,
 	mode output.Mode,
+	gated bool,
 ) ([]verdict, error) {
-	if answers == nil || !answers.resume || namer != nil {
+	// Without a gate the file holds no verdict. Under a merge its assert column would be an input
+	// column, which only a gated run keeps from taking that name.
+	if answers == nil || !answers.resume || namer != nil || !gated {
 		return nil, nil
 	}
 
@@ -100,6 +106,7 @@ type answersFormat struct {
 	merge    bool
 	mergeKey string
 	namer    *jq.Expr
+	gated    bool
 }
 
 func (f answersFormat) eachAnswer(
@@ -110,14 +117,23 @@ func (f answersFormat) eachAnswer(
 	return f.eachStored(r,
 		func(at span, text []byte) {
 			if id, judged, ok := f.lineAnswer(ctx, text); ok {
-				note(id, at, judged)
+				note(id, at, f.kept(judged))
 			}
 		},
 		func(at span, row map[string]any) {
 			if id, judged, ok := f.rowAnswer(ctx, row); ok {
-				note(id, at, judged)
+				note(id, at, f.kept(judged))
 			}
 		})
+}
+
+func (f answersFormat) kept(judged verdict) verdict {
+	// A run with no gate wrote no verdict, so whatever reads as one is an input field.
+	if !f.gated {
+		return verdict{}
+	}
+
+	return judged
 }
 
 func (f answersFormat) eachVerdict(r io.Reader, note func(judged verdict)) error {
@@ -280,7 +296,8 @@ func (f answersFormat) rowAnswer(ctx context.Context, row map[string]any) (strin
 }
 
 func rowVerdict(row map[string]any) verdict {
-	// An input column cannot take the assert column's name, so under --merge it is still the gate's.
+	// Read only for a gated run, whose input columns cannot take the assert column's name, so under
+	// --merge it is still the gate's.
 	return verdict{rejected: row["assert"] == "false", abstained: row["assert"] == "abstain"}
 }
 
