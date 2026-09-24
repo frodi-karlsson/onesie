@@ -287,7 +287,8 @@ func newAuthStatusCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 func authStatus(cmd *cobra.Command, settings rootSettings, flags *runFlags) error {
 	// No client is built. One would fail on a bad base URL, which says nothing about the question
 	// being asked.
-	source, err := resolveKey(settings, flags)
+	// Located rather than resolved, so status never prompts for a keychain secret it only names.
+	source, err := locateKey(settings, flags)
 	if err != nil {
 		return err
 	}
@@ -440,6 +441,22 @@ func authClear(cmd *cobra.Command, settings rootSettings, flags *runFlags) error
 }
 
 func resolveKey(settings rootSettings, flags *runFlags) (keySource, error) {
+	source, err := locateKey(settings, flags)
+	if err != nil || source.name != sourceKeychain {
+		return source, err
+	}
+
+	key, err := settings.keychain.Get(source.account)
+	if err != nil {
+		return keySource{}, err
+	}
+
+	source.key = key
+
+	return source, nil
+}
+
+func locateKey(settings rootSettings, flags *runFlags) (keySource, error) {
 	provider, err := resolveProvider(settings, flags)
 	if err != nil {
 		return keySource{}, err
@@ -471,13 +488,8 @@ func resolveKey(settings rootSettings, flags *runFlags) (keySource, error) {
 	}
 
 	if account := previousAccount(entry, provider); account != "" {
-		key, keychainErr := settings.keychain.Get(account)
-		if keychainErr != nil {
-			return keySource{}, keychainErr
-		}
-
 		return keySource{
-			name: sourceKeychain, provider: provider, path: path, key: key, baseURL: entry.BaseURL,
+			name: sourceKeychain, provider: provider, path: path, account: account, baseURL: entry.BaseURL,
 		}, nil
 	}
 
@@ -500,6 +512,7 @@ type keySource struct {
 	name     string
 	provider jev.Provider
 	path     string
+	account  string
 	// key is never printed. String is what every caller formats, so a stray %v of a keySource
 	// reports the source rather than the value it carries.
 	key     string

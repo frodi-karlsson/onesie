@@ -237,12 +237,33 @@ func TestAuthStatus(t *testing.T) {
 		}
 	})
 
-	t.Run("should exit 3 when the file points at a keychain item that is gone", func(t *testing.T) {
+	t.Run("should name the keychain without reading it", func(t *testing.T) {
 		t.Parallel()
 
 		path := credentialFixture(t, `{"providers":{"typesafe":{"store":"keychain"}}}`, 0)
 
 		out, errOut, code := runAuth(t, []string{"auth", "status"},
+			WithCredentialPath(fixedPath(path)),
+			WithLookupEnv(lookupFrom(nil)),
+			WithKeychain(timingOutKeychain{}))
+
+		assertNoSecret(t, out, errOut)
+
+		if code != ExitOK {
+			t.Errorf("exit code = %d, want %d\nstderr:\n%s", code, ExitOK, errOut)
+		}
+
+		if want := "provider: typesafe\nsource: keychain\n"; out != want {
+			t.Errorf("stdout = %q, want %q", out, want)
+		}
+	})
+
+	t.Run("should exit 3 from auth test when the keychain item is gone", func(t *testing.T) {
+		t.Parallel()
+
+		path := credentialFixture(t, `{"providers":{"typesafe":{"store":"keychain"}}}`, 0)
+
+		out, errOut, code := runAuth(t, []string{"auth", "test"},
 			WithCredentialPath(fixedPath(path)),
 			WithLookupEnv(lookupFrom(nil)),
 			WithKeychain(workingKeychain(nil)))
