@@ -30,18 +30,28 @@ make test-integration
 ## Layout
 
 ```
-cmd/onesie/       thin main: signal handling, exit codes, ldflags targets
-internal/cli/     the cobra command tree, unexported and testable in process
-internal/argv/    records the group local flags in the order they arrive
-internal/plan/    folds a recorded command line into a validated invocation
-internal/input/   resolves where the state comes from and reads it
-internal/qfile/   loads and writes a question file or a raw request body
-internal/engine/  runs one evaluation per record, bounded by -j and ordered by input
-internal/jev/     the API client, ported from the JavaScript SDK
-internal/answer/  normalizes an answer and applies the question's policy
-internal/output/  encodes a normalized record in each output mode
-internal/creds/   resolves, reads and writes the credential file
-internal/limits/  the API limits onesie enforces locally
+cmd/onesie/           thin main: signal handling, exit codes, ldflags targets
+cmd/skillgen/         generates the per client skill files from skills/
+cmd/skillcheck/       dry runs every example in every skill against the built binary
+cmd/skilleval/        dry runs every onesie command an agent wrote in a plugin eval run
+internal/cli/         the cobra command tree, unexported and testable in process
+internal/argv/        records the group local flags in the order they arrive
+internal/plan/        folds a recorded command line into a validated invocation
+internal/input/       resolves where the state comes from and reads it
+internal/interrupt/   stops waiting on a read that has no deadline when the run is interrupted
+internal/qfile/       loads and writes a question file or a raw request body
+internal/engine/      runs one evaluation per record, bounded by -j and ordered by input
+internal/jev/         the API client, ported from the JavaScript SDK
+internal/jq/          compiles and runs the jq expressions --map and --id take
+internal/answer/      normalizes an answer and applies the question's policy
+internal/assert/      parses and evaluates --assert and --abstain-if
+internal/calibrate/   reads the labels calibrate compares with, and scores the answers
+internal/output/      encodes a normalized record in each output mode
+internal/creds/       resolves, reads and writes the credential file and the keychain item
+internal/limits/      the API limits onesie enforces locally
+internal/skillgen/    decodes and validates skill.json and renders the skill files
+internal/skillcheck/  dry runs each skill rule's bad and good example
+internal/skilleval/   extracts and grades the commands of a plugin eval run
 ```
 
 `internal/` keeps everything unexported until there is a reason to publish an
@@ -68,9 +78,10 @@ git tag v0.1.0 && git push origin v0.1.0
 
 The cask is currently inert. `homebrew_casks[0].skip_upload: true` in
 `.goreleaser.yml` means the cask is written to `dist/homebrew/Casks/onesie.rb` and
-never pushed. The `HOMEBREW_TAP_TOKEN` secret is already set, with write access
-to `frodi-karlsson/homebrew-tap`, because the workflow's own `GITHUB_TOKEN`
-cannot write to another repository. To go live, set `skip_upload: false`.
+never pushed. The `HOMEBREW_TAP_TOKEN` repository secret is set, with write
+access to `frodi-karlsson/homebrew-tap`, because the workflow's own
+`GITHUB_TOKEN` cannot write to another repository. It stays unused until the cask
+goes live. To go live, set `skip_upload: false`.
 
 Dry run the whole pipeline without tagging:
 

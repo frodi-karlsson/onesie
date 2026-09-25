@@ -18,7 +18,12 @@ brew install frodi-karlsson/tap/onesie
 onesie auth set
 ```
 
-Or with Go, `go install github.com/frodi-karlsson/onesie/cmd/onesie@latest`.
+The Homebrew cask goes live with the first release. Until then, install with Go, then run
+`onesie auth set`:
+
+```sh
+go install github.com/frodi-karlsson/onesie/cmd/onesie@latest
+```
 
 In Claude Code, the plugin can come first and walk you through the rest:
 
@@ -38,7 +43,9 @@ In Claude Code, the plugin can come first and walk you through the rest:
 - **Unix pipes.** Reads stdin, writes answers to stdout and errors to stderr, so it works with
   `jq`, `grep` and `xargs`.
 - **Streams that resume.** Reads JSONL, CSV or TSV a record at a time, several in parallel, and
-  writes one answer per record in order. An interrupted run skips the records it already answered.
+  writes one answer per record in order. Rerun it with `--resume` after an interruption. With
+  `--id` it asks only the records the file holds no answer for, and without it carries on after the
+  last complete line.
 - **Output for programs and people.** JSON, CSV, a terminal table, or markdown for a PR comment.
 - **Free dry runs.** See the exact request before spending anything, with no key needed.
 - **Agent skills.** A plugin for Claude Code and Codex, and the same skills for Cursor and Gemini.
@@ -158,7 +165,7 @@ onesie --ask urgent='does `body` convey urgency' -i csv -o csv --merge < tickets
 ```
 
 **Run a large batch you can resume.** `--map` sends only the body, `--id` names each answer, and
-`--resume` skips what is already answered.
+`--resume` skips every id the file already answers and asks the rest, failed ones included.
 
 ```sh
 onesie 'is this urgent' -i jsonl -j 8 --map '.body' --id '.id' \
@@ -202,8 +209,9 @@ onesie -f triage -o values < ticket.txt
 ```
 
 [examples/README.md](examples/README.md) has starter sets for shell safety, prompt injection,
-personal data and moderation. Each file carries a calibrated gate, so `-f shell-safety`
-runs the whole gate.
+personal data and moderation. Each file carries a calibrated gate. Copy one into
+`.onesie/questions` and `-f shell-safety` runs the whole gate, or pass the path, as in
+`-f examples/questions/shell-safety.yaml`.
 
 ## Why no MCP server
 

@@ -75,6 +75,7 @@ jobs:
         env:
           # Publishes the release in this repo.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Unset until the cask goes live. The template only needs the key
-          # to exist, and skip_upload keeps it unused either way.
+          # The HOMEBREW_TAP_TOKEN repository secret is set, with write
+          # access to homebrew-tap, and stays unused until the cask goes
+          # live, since skip_upload keeps the cask from being pushed.
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}

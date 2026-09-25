@@ -57,9 +57,10 @@ homebrew_casks:
   - name: onesie
     binaries:
       - onesie
-    # INERT. The cask is built into dist/ but never pushed. To start
-    # publishing, flip this to false and add HOMEBREW_TAP_TOKEN to this
-    # repo's secrets.
+    # INERT. The cask is built into dist/ but never pushed. The
+    # HOMEBREW_TAP_TOKEN repository secret is set, with write access to
+    # homebrew-tap, and stays unused until the cask goes live. To go live,
+    # flip this to false.
     skip_upload: true
     repository:
       owner: frodi-karlsson

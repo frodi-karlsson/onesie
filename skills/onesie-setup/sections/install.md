@@ -9,7 +9,7 @@ go install github.com/frodi-karlsson/onesie/cmd/onesie@latest
 
 `go install` writes the binary to `$GOBIN`, or to `$(go env GOPATH)/bin` when that is unset, which is often not on PATH. If `command -v onesie` still finds nothing, have the user add that directory to PATH in their shell profile and open a new shell.
 
-The Homebrew formula, `brew install frodi-karlsson/tap/onesie`, works only once a release exists. Do not tell the user when that will be.
+The Homebrew cask, `brew install frodi-karlsson/tap/onesie`, works only once a release exists. Do not tell the user when that will be.
 
 Confirm the install with `onesie -V`, which prints the version and the built in limits.
 
