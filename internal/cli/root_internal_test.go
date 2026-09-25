@@ -6,6 +6,35 @@ import (
 	"testing"
 )
 
+func TestSchemaURLOf(t *testing.T) {
+	t.Parallel()
+
+	const base = "https://raw.githubusercontent.com/frodi-karlsson/onesie/"
+
+	tests := []struct {
+		name string
+		tag  string
+		want string
+	}{
+		{name: "should name the tag the binary was built from", tag: "v0.2.0", want: base + "v0.2.0/schema/questions.json"},
+		{name: "should name a prerelease tag", tag: "v0.2.0-rc.1", want: base + "v0.2.0-rc.1/schema/questions.json"},
+		{name: "should name main for a build with no tag", tag: "", want: base + "main/schema/questions.json"},
+		{name: "should name main for a dev build", tag: "dev", want: base + "main/schema/questions.json"},
+		{name: "should name main for a build past a tag", tag: "v0.1.0-3-gabc1234", want: base + "main/schema/questions.json"},
+		{name: "should name main for a tag with no v", tag: "0.2.0", want: base + "main/schema/questions.json"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := schemaURLOf(BuildInfo{Version: "1.2.3", Tag: tc.tag}); got != tc.want {
+				t.Errorf("schemaURLOf = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestWithTerminalWidth(t *testing.T) {
 	t.Parallel()
 

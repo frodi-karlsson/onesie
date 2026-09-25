@@ -26,8 +26,36 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/qfile"
 )
 
+func TestPrintSchema(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+	}{
+		{name: "should write exactly the question file schema"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var out bytes.Buffer
+			if err := printSchema(&out); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if !bytes.Equal(out.Bytes(), qfile.Schema()) {
+				t.Errorf("wrote\n%s\nwant the schema", out.String())
+			}
+		})
+	}
+}
+
 func TestPrintQuestions(t *testing.T) {
 	t.Parallel()
+
+	const header = "# yaml-language-server: $schema=" +
+		"https://raw.githubusercontent.com/frodi-karlsson/onesie/main/schema/questions.json\n"
 
 	const body = `{"questions":{"frustration":{"type":"score",` +
 		`"instructions":"how cross is the writer","criteria":["calm","annoyed","furious"]}}}`
@@ -49,7 +77,7 @@ func TestPrintQuestions(t *testing.T) {
 			name:     "should write a question file and exit without a request",
 			args:     []string{"--ask", "urgent=is this urgent", "--print-questions"},
 			wantCode: ExitOK,
-			stdout:   []string{"urgent:", "ask: is this urgent"},
+			stdout:   []string{header + "urgent:\n  ask: is this urgent\n"},
 		},
 		{
 			name: "should write the questions in the order they were asked",
@@ -57,7 +85,7 @@ func TestPrintQuestions(t *testing.T) {
 				"--ask", "zebra=z", "--ask", "mike=m", "--ask", "alpha=a", "--print-questions",
 			},
 			wantCode: ExitOK,
-			stdout:   []string{"zebra:\n  ask: z\nmike:\n  ask: m\nalpha:\n  ask: a\n"},
+			stdout:   []string{header + "zebra:\n  ask: z\nmike:\n  ask: m\nalpha:\n  ask: a\n"},
 		},
 		{
 			name: "should write the abstain expression into the printed file",
@@ -67,7 +95,7 @@ func TestPrintQuestions(t *testing.T) {
 			},
 			wantCode: ExitOK,
 			stdout: []string{
-				"assert: urgent.value < 0.2\nabstain_if: urgent.value < 0.8\nurgent:\n",
+				header + "assert: urgent.value < 0.2\nabstain_if: urgent.value < 0.8\nurgent:\n",
 			},
 		},
 		{
@@ -189,6 +217,10 @@ func TestPrintQuestions(t *testing.T) {
 				if !strings.Contains(out, want) {
 					t.Errorf("stdout missing %q\ngot:\n%s", want, out)
 				}
+			}
+
+			if tc.wantCode == ExitOK && !strings.HasPrefix(out, header) {
+				t.Errorf("stdout should start with the schema line %q\ngot:\n%s", header, out)
 			}
 
 			for _, unwanted := range tc.absent {

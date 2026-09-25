@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/frodi-karlsson/onesie/main/schema/questions.json
 assert: name_contact.value < 0.15 and email_phone.value < 0.4 and home_address.value < 0.45 and credential.value < 0.2
 abstain_if: name_contact.value < 0.5 and email_phone.value < 0.7 and home_address.value < 0.94 and credential.value < 0.38
 name_contact:

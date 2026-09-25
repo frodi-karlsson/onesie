@@ -102,7 +102,7 @@ func run(
 
 		return printQuestions(
 			cmd.OutOrStdout(), cmd.ErrOrStderr(), built.Questions, gate.Source(),
-			abstain.Source(), loaded)
+			abstain.Source(), loaded, settings.schemaURL)
 	}
 
 	model, err := resolveModel(settings, flags, built.Model)
@@ -1114,6 +1114,7 @@ type runFlags struct {
 
 	printQuestions bool
 	printRequest   bool
+	printSchema    bool
 	listModels     bool
 	stats          bool
 

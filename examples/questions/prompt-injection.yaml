@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/frodi-karlsson/onesie/main/schema/questions.json
 assert: instructs.value < 0.15 and overrides.value < 0.5 and access.value < 0.45
 abstain_if: overrides.value < 0.7 and access.value < 0.82
 instructs:

@@ -630,7 +630,9 @@ func TestOpenOut(t *testing.T) {
 			sidecar:  matching,
 			bare:     true,
 			args:     []string{"--ask", "urgent=is this urgent", "--print-questions"},
-			wantFile: "urgent:\n  ask: is this urgent\n",
+			wantFile: "# yaml-language-server: $schema=" +
+				"https://raw.githubusercontent.com/frodi-karlsson/onesie/main/schema/questions.json\n" +
+				"urgent:\n  ask: is this urgent\n",
 		},
 		{
 			name:      "should write no fingerprint beside a list of models",

@@ -3,12 +3,15 @@ PKG     := ./cmd/onesie
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 COMMIT  ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo none)
 DATE    ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
+# Not TAG, which make release TAG= passes down to every sub make.
+EXACT_TAG ?= $(shell git diff --quiet HEAD 2>/dev/null && git describe --tags --exact-match 2>/dev/null)
 LDFLAGS := -s -w \
 	-X main.version=$(VERSION) \
 	-X main.commit=$(COMMIT) \
-	-X main.date=$(DATE)
+	-X main.date=$(DATE) \
+	-X main.tag=$(EXACT_TAG)
 
-.PHONY: help build run install test test-race cover bench lint lint-fix fmt tidy vuln check tools clean skills skills-check skills-eval fuzz fuzz-check release examples-answers
+.PHONY: help build run install test test-race cover bench lint lint-fix fmt tidy vuln check tools clean skills skills-check skills-eval fuzz fuzz-check release examples-answers schema
 
 build: ## Build the onesie binary into bin/
 	@mkdir -p bin
@@ -91,6 +94,9 @@ tidy: ## Tidy and verify module dependencies
 
 vuln: ## Scan dependencies for known vulnerabilities
 	go tool govulncheck ./...
+
+schema: ## Regenerate schema/questions.json
+	go run ./cmd/onesie --print-schema > schema/questions.json
 
 examples-answers: ## Regenerate the starter answers files, run by hand with a key
 	go run ./cmd/examplesanswers

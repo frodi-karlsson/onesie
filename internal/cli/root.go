@@ -10,6 +10,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"time"
@@ -23,9 +24,12 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/jev"
 	"github.com/frodi-karlsson/onesie/internal/limits"
 	"github.com/frodi-karlsson/onesie/internal/output"
+	"github.com/frodi-karlsson/onesie/internal/release"
 )
 
 const annotationAsksNothing = "onesie-asks-nothing"
+
+var pastTag = regexp.MustCompile(`-[0-9]+-g[0-9a-f]+$`)
 
 // Changed reports false for a name pflag does not know, and reports no error, so a name that has
 // to survive a rename is spelled once. A flag nothing passes to Changed needs no constant.
@@ -80,6 +84,7 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 		credStore:     creds.NewStore(),
 		keychain:      creds.NewKeychain(),
 		readSecret:    readHiddenSecret,
+		schemaURL:     schemaURLOf(info),
 	}
 
 	for _, opt := range opts {
@@ -137,6 +142,16 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 			// to run, since -i request carries its own.
 			if cmd.Flags().NFlag() == 0 && len(args) == 0 {
 				return cmd.Help()
+			}
+
+			// Ahead of the provider, since the schema is the same for every provider and a bad
+			// ONESIE_PROVIDER should not stand between an editor and it.
+			if flags.printSchema {
+				if refused := refuseBesideSchema(cmd.Flags(), args); refused != nil {
+					return refused
+				}
+
+				return printSchema(cmd.OutOrStdout())
 			}
 
 			// Ahead of run, since a dry run builds no client and would otherwise never look at it.
@@ -210,6 +225,9 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 		"write a question file to stdout and exit")
 	root.Flags().BoolVar(&flags.printRequest, "print-request", false,
 		"write api shaped request bodies to stdout and exit")
+	root.Flags().BoolVar(&flags.printSchema, "print-schema", false,
+		"write the JSON Schema for a question file to stdout and exit")
+	asksNothing(root.Flags(), "print-schema")
 	root.Flags().BoolVar(&flags.listModels, "list-models", false,
 		"write the available models to stdout and exit")
 	asksNothing(root.Flags(), "list-models")
@@ -443,11 +461,24 @@ func WithSecretReader(read func() (string, error)) RootOption {
 // terminal answers.
 type RootOption func(*rootSettings)
 
-// BuildInfo carries the build metadata stamped into the binary at link time.
+// BuildInfo carries the build metadata stamped into the binary at link time. Tag is the release tag
+// the binary was built from exactly, empty for any other build.
 type BuildInfo struct {
 	Version string
 	Commit  string
 	Date    string
+	Tag     string
+}
+
+func schemaURLOf(info BuildInfo) string {
+	ref := "main"
+
+	// A git describe string such as v0.1.0-3-gabc1234 reads as a prerelease, and names no tag.
+	if _, err := release.ParseTag(info.Tag); err == nil && !pastTag.MatchString(info.Tag) {
+		ref = info.Tag
+	}
+
+	return "https://raw.githubusercontent.com/frodi-karlsson/onesie/" + ref + "/schema/questions.json"
 }
 
 type rootSettings struct {
@@ -476,6 +507,7 @@ type rootSettings struct {
 	keychain      Keychain
 	readSecret    func() (string, error)
 	wrapAnswerer  func(answerer) answerer
+	schemaURL     string
 }
 
 // Keychain is where auth set stores a key when the OS has one, one item per account.

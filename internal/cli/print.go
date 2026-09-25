@@ -2,10 +2,12 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 
 	"github.com/frodi-karlsson/onesie/internal/engine"
 	"github.com/frodi-karlsson/onesie/internal/input"
@@ -16,11 +18,38 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/qfile"
 )
 
+func printSchema(w io.Writer) error {
+	_, err := w.Write(qfile.Schema())
+
+	return written(err)
+}
+
+func refuseBesideSchema(set *pflag.FlagSet, args []string) error {
+	if len(args) > 0 {
+		return errors.New("onesie: --print-schema asks no question. Drop the question argument")
+	}
+
+	var other string
+
+	set.Visit(func(flag *pflag.Flag) {
+		if other == "" && flag.Name != "print-schema" {
+			other = flag.Name
+		}
+	})
+
+	if other != "" {
+		return fmt.Errorf("onesie: --print-schema takes no other flag. Drop --%s", other)
+	}
+
+	return nil
+}
+
 func printQuestions(
 	out, errOut io.Writer,
 	questions []plan.Question,
 	assertion, abstainIf string,
 	loaded *qfile.File,
+	schemaURL string,
 ) error {
 	if err := warnUncarried(errOut, loaded); err != nil {
 		return err
@@ -31,7 +60,11 @@ func printQuestions(
 		return err
 	}
 
-	_, err = out.Write(file)
+	// A comment, so the loader never reads it, and yaml-language-server checks the file against the
+	// schema it names.
+	header := "# yaml-language-server: $schema=" + schemaURL + "\n"
+
+	_, err = out.Write(append([]byte(header), file...))
 
 	return written(err)
 }

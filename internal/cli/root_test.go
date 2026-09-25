@@ -22,6 +22,7 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/cli"
 	"github.com/frodi-karlsson/onesie/internal/creds"
 	"github.com/frodi-karlsson/onesie/internal/jev"
+	"github.com/frodi-karlsson/onesie/internal/qfile"
 )
 
 func TestNewRootCmd(t *testing.T) {
@@ -1186,6 +1187,104 @@ func TestNewRootCmd(t *testing.T) {
 
 		if shared == 0 {
 			t.Fatal("calibrate shares no flag with the root, want the stream flags")
+		}
+	})
+
+	t.Run("should print the question file schema for --print-schema", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name     string
+			args     []string
+			env      map[string]string
+			wantCode int
+			stdout   string
+			stderr   string
+		}{
+			{
+				name:     "should print exactly the schema and exit 0",
+				args:     []string{"--print-schema"},
+				wantCode: cli.ExitOK,
+				stdout:   string(qfile.Schema()),
+			},
+			{
+				name:     "should print the schema under a provider name onesie does not know",
+				args:     []string{"--print-schema"},
+				env:      map[string]string{"ONESIE_PROVIDER": "bogus"},
+				wantCode: cli.ExitOK,
+				stdout:   string(qfile.Schema()),
+			},
+			{
+				name:     "should refuse a question beside it",
+				args:     []string{"--print-schema", "is this urgent"},
+				wantCode: cli.ExitUsage,
+				stderr:   "onesie: --print-schema asks no question. Drop the question argument\n",
+			},
+			{
+				name:     "should refuse another flag beside it",
+				args:     []string{"--print-schema", "-o", "json"},
+				wantCode: cli.ExitUsage,
+				stderr:   "onesie: --print-schema takes no other flag. Drop --output\n",
+			},
+			{
+				name:     "should refuse a group flag beside it",
+				args:     []string{"--ask", "urgent=is this urgent", "--print-schema"},
+				wantCode: cli.ExitUsage,
+				stderr:   "onesie: --print-schema takes no other flag. Drop --ask\n",
+			},
+			{
+				name:     "should refuse --print-questions beside it",
+				args:     []string{"--print-schema", "--print-questions"},
+				wantCode: cli.ExitUsage,
+				stderr:   "onesie: --print-schema takes no other flag. Drop --print-questions\n",
+			},
+			{
+				name:     "should refuse --mock beside it",
+				args:     []string{"--mock", "answers.json", "--print-schema"},
+				wantCode: cli.ExitUsage,
+				stderr:   "onesie: --print-schema takes no other flag. Drop --mock\n",
+			},
+			{
+				name:     "should not hint for --print-schema, which takes no question",
+				args:     []string{"version", "--print-schema"},
+				wantCode: cli.ExitUsage,
+				stderr:   "onesie: unknown flag: --print-schema\n",
+			},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				var out, errOut bytes.Buffer
+
+				root := cli.NewRootCmd(
+					cli.BuildInfo{Version: "1.2.3"},
+					cli.WithKeychain(offKeychain{}),
+					cli.WithStdin(strings.NewReader("")),
+					cli.WithLookupEnv(func(name string) (string, bool) {
+						value, found := tc.env[name]
+
+						return value, found
+					}),
+				)
+
+				root.SetOut(&out)
+				root.SetErr(&errOut)
+				root.SetArgs(tc.args)
+
+				if code := cli.Execute(t.Context(), root); code != tc.wantCode {
+					t.Errorf("exit code = %d, want %d\nstderr:\n%s", code, tc.wantCode, errOut.String())
+				}
+
+				if out.String() != tc.stdout {
+					t.Errorf("stdout = %q, want %q", out.String(), tc.stdout)
+				}
+
+				if errOut.String() != tc.stderr {
+					t.Errorf("stderr = %q, want %q", errOut.String(), tc.stderr)
+				}
+			})
 		}
 	})
 

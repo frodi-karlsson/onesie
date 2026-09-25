@@ -632,6 +632,9 @@ func TestGateOf(t *testing.T) {
 
 		const question = "urgent: is this urgent\n"
 
+		const header = "# yaml-language-server: $schema=" +
+			"https://raw.githubusercontent.com/frodi-karlsson/onesie/main/schema/questions.json\n"
+
 		tests := []struct {
 			name    string
 			file    string
@@ -642,19 +645,19 @@ func TestGateOf(t *testing.T) {
 				name:    "should write the file's assertion back unchanged",
 				file:    "assert: urgent.value > 0.5\n" + question,
 				args:    []string{"-f", "q.yaml"},
-				wantOut: "assert: urgent.value > 0.5\nurgent:\n  ask: is this urgent\n",
+				wantOut: header + "assert: urgent.value > 0.5\nurgent:\n  ask: is this urgent\n",
 			},
 			{
 				name: "should write the file's assertion ahead of the command line's",
 				file: "assert: urgent.value > 0.5\n" + question,
 				args: []string{"-f", "q.yaml", "--assert", "urgent.value < 0.95"},
-				wantOut: "assert: (urgent.value > 0.5) and (urgent.value < 0.95)\n" +
+				wantOut: header + "assert: (urgent.value > 0.5) and (urgent.value < 0.95)\n" +
 					"urgent:\n  ask: is this urgent\n",
 			},
 			{
 				name:    "should write an assertion given only on the command line",
 				args:    []string{"--ask", "urgent=is this urgent", "--assert", "urgent.value > 0.5"},
-				wantOut: "assert: urgent.value > 0.5\nurgent:\n  ask: is this urgent\n",
+				wantOut: header + "assert: urgent.value > 0.5\nurgent:\n  ask: is this urgent\n",
 			},
 			{
 				name: "should combine a repeated --abstain-if and the file key with and",
@@ -663,14 +666,14 @@ func TestGateOf(t *testing.T) {
 					"-f", "q.yaml", "--abstain-if", "urgent.value > 0.1",
 					"--abstain-if", "urgent.value != 0.5",
 				},
-				wantOut: "assert: urgent.value < 0.2\n" +
+				wantOut: header + "assert: urgent.value < 0.2\n" +
 					"abstain_if: (urgent.value < 0.8) and (urgent.value > 0.1) and (urgent.value != 0.5)\n" +
 					"urgent:\n  ask: is this urgent\n",
 			},
 			{
 				name:    "should write no assert key when nothing asserted",
 				args:    []string{"--ask", "urgent=is this urgent"},
-				wantOut: "urgent:\n  ask: is this urgent\n",
+				wantOut: header + "urgent:\n  ask: is this urgent\n",
 			},
 		}
 

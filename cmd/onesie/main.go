@@ -15,6 +15,7 @@ var (
 	version = "dev"
 	commit  = "none"
 	date    = "unknown"
+	tag     = ""
 )
 
 func main() {
@@ -31,7 +32,7 @@ func run() int {
 	ctx, stop := interruptible(context.Background())
 	defer stop()
 
-	root := cli.NewRootCmd(cli.BuildInfo{Version: version, Commit: commit, Date: date})
+	root := cli.NewRootCmd(cli.BuildInfo{Version: version, Commit: commit, Date: date, Tag: tag})
 
 	return cli.Execute(ctx, root)
 }
