@@ -34,6 +34,7 @@ cmd/onesie/           thin main: signal handling, exit codes, ldflags targets
 cmd/skillgen/         generates the per client skill files from skills/
 cmd/skillcheck/       dry runs every example in every skill against the built binary
 cmd/skilleval/        dry runs every onesie command an agent wrote in a plugin eval run
+cmd/releaseprep/      checks a release tag and bumps the plugin manifests, for scripts/release.sh
 internal/cli/         the cobra command tree, unexported and testable in process
 internal/argv/        records the group local flags in the order they arrive
 internal/plan/        folds a recorded command line into a validated invocation
@@ -52,6 +53,8 @@ internal/limits/      the API limits onesie enforces locally
 internal/skillgen/    decodes and validates skill.json and renders the skill files
 internal/skillcheck/  dry runs each skill rule's bad and good example
 internal/skilleval/   extracts and grades the commands of a plugin eval run
+internal/release/     orders release tags by semver and edits the plugin manifests in place
+scripts/release.sh    the steps behind make release
 ```
 
 `internal/` keeps everything unexported until there is a reason to publish an
@@ -68,24 +71,47 @@ See `AGENTS.md`. Follow it without being asked.
 
 ## Releasing
 
-Tag and push. The release workflow runs goreleaser, which cross compiles for
-linux, darwin and windows on amd64 and arm64, puts the bash, zsh and fish
-completions in every archive, and publishes the archives and `checksums.txt` to
-a GitHub release. The workflow then attests build provenance for the archives
-and `checksums.txt`, and generates the Homebrew formula.
-
-Before tagging, set the version in `.claude-plugin/plugin.json` and
-`.codex-plugin/plugin.json`, and the `ref` in `.claude-plugin/marketplace.json`
-and `.agents/plugins/marketplace.json` to the new tag, so the plugins install
-the skills of the release. The release job refuses a tag they do not name.
-Only you can create a `v` tag, since the `release tags` ruleset allows only the
-repository admin.
+Cut a release with one command. Dry run it first:
 
 ```sh
-git tag -s v0.1.0 -m v0.1.0 && git push origin v0.1.0
+make release TAG=v0.2.0 DRY_RUN=1
+make release TAG=v0.2.0
 ```
 
-Dry run the whole pipeline without tagging:
+`make release` runs `scripts/release.sh`, which refuses to start unless:
+
+- the tree is clean
+- the branch is `main`
+- HEAD equals `origin/main` after a fetch. Ahead would ship unreviewed commits, and behind would
+  make the push fail after the tag exists.
+- `TAG` is `v` plus a semantic version, such as `v0.2.0` or `v0.2.0-rc.1`, with no `+` build part
+- `TAG` is greater than the latest `v` tag, locally and on `origin`
+
+It then runs `make check` and `make skills-check` on the clean tree. For a release, it sets the
+version in `.claude-plugin/plugin.json` and `.codex-plugin/plugin.json`, and the `ref` in
+`.claude-plugin/marketplace.json` and `.agents/plugins/marketplace.json`, to the new tag, so the
+plugins install the skills of the release. It runs the release workflow's four manifest checks word
+for word through `go tool gojq`, so no jq install is needed, and makes a signed commit
+`chore: release v0.2.0`. A prerelease such as `v0.2.0-rc.1` skips the bump and the commit.
+
+Last, it makes a signed tag on HEAD and prints the push:
+
+```sh
+git push --atomic origin main v0.2.0
+```
+
+It pushes nothing. The atomic push lands the branch and the tag together or not at all. If any step
+fails, the script puts the manifests, HEAD and the tags back as they were. `DRY_RUN=1` runs every
+check and prints each change it would make, then stops without writing anything.
+
+On the tag, the release workflow runs goreleaser, which cross compiles for linux, darwin and
+windows on amd64 and arm64, puts the bash, zsh and fish completions in every archive, and publishes
+the archives and `checksums.txt` to a GitHub release. The workflow then attests build provenance
+for the archives and `checksums.txt`, and generates the Homebrew formula. The release job refuses a
+tag the plugin manifests do not name. Only you can push a `v` tag, since the `release tags` ruleset
+allows only the repository admin.
+
+Dry run the goreleaser pipeline without tagging:
 
 ```sh
 goreleaser release --snapshot --clean
