@@ -1459,3 +1459,59 @@ func TestSpecialFile(t *testing.T) {
 		})
 	}
 }
+
+func TestOutFile_CheckFingerprint(t *testing.T) {
+	t.Parallel()
+
+	current := "v2:" + strings.Repeat("ab", 32)
+
+	tests := []struct {
+		name     string
+		sidecar  *string
+		checking string
+		wantErr  string
+	}{
+		{name: "should refuse a file with no sidecar", checking: current, wantErr: "has no fingerprint beside it"},
+		{name: "should refuse a sidecar onesie did not write", sidecar: new("hello"), checking: current, wantErr: "does not hold a fingerprint onesie wrote"},
+		{name: "should refuse an older version", sidecar: new("v1:abc"), checking: current, wantErr: "an older onesie wrote"},
+		{name: "should refuse a newer version", sidecar: new("v3:abc"), checking: current, wantErr: "a newer onesie wrote"},
+		{name: "should refuse a changed fingerprint", sidecar: new(current), checking: "v2:" + strings.Repeat("cd", 32), wantErr: "changed since"},
+		{name: "should accept the same fingerprint", sidecar: new(current), checking: current},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			path := filepath.Join(t.TempDir(), "answers.jsonl")
+			if err := os.WriteFile(path, []byte("{\"id\":\"a\"}\n"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+
+			if tc.sidecar != nil {
+				if err := os.WriteFile(path+fingerprintSuffix, []byte(*tc.sidecar+"\n"), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			out := &outFile{path: path, target: path, open: os.OpenFile}
+
+			matched, err := out.checkFingerprint(tc.checking)
+			if tc.wantErr == "" {
+				if err != nil || !matched {
+					t.Fatalf("checkFingerprint = %v, %v, want a match", matched, err)
+				}
+
+				return
+			}
+
+			if err == nil || !strings.Contains(err.Error(), tc.wantErr) || !errors.Is(err, errStaleAnswers) {
+				t.Fatalf("checkFingerprint error = %v, want one containing %q that is errStaleAnswers", err, tc.wantErr)
+			}
+
+			if strings.Contains(err.Error(), errStaleAnswers.Error()) {
+				t.Errorf("error = %q, want today's wording without the sentinel's text", err)
+			}
+		})
+	}
+}

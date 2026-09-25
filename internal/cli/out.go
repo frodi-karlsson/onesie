@@ -28,7 +28,10 @@ const (
 	maxLinks           = 40
 )
 
-var errLinkLoop = errors.New("too many levels of symbolic links")
+var (
+	errLinkLoop     = errors.New("too many levels of symbolic links")
+	errStaleAnswers = errors.New("stale answers")
+)
 
 func openOut(settings rootSettings, flags *runFlags) (*outFile, resumePlan, error) {
 	if flags.out == "" {
@@ -207,6 +210,8 @@ type outFile struct {
 	keep    int64
 	bound   bool
 	matched bool
+	// Set by calibrate --offline, which reads the file and never writes it.
+	readOnly bool
 
 	fingerprint string
 	file        *os.File
@@ -504,6 +509,10 @@ func (o *outFile) bind(fingerprint string) error {
 	o.fingerprint = fingerprint
 	o.bound = true
 
+	if o.readOnly {
+		return nil
+	}
+
 	// Before any request, since a file found unwritable only at the first answer costs a request
 	// and, on a fresh run, the answers the file held.
 	return o.probe()
@@ -572,7 +581,7 @@ func (o *outFile) checkFingerprint(fingerprint string) (matched bool, err error)
 	sidecar := o.target + fingerprintSuffix
 
 	if !found {
-		return false, fmt.Errorf(
+		return false, staleAnswers(
 			"onesie: %s has no fingerprint beside it, so onesie cannot tell which run wrote it. "+
 				"Drop --resume to start over", o.path)
 	}
@@ -581,24 +590,41 @@ func (o *outFile) checkFingerprint(fingerprint string) (matched bool, err error)
 
 	switch {
 	case !ok:
-		return false, fmt.Errorf(
+		return false, staleAnswers(
 			"onesie: %s does not hold a fingerprint onesie wrote, so onesie cannot tell which run "+
 				"wrote %s. Drop --resume to start over", sidecar, o.path)
 	case version < fingerprintVersion:
-		return false, fmt.Errorf(
+		return false, staleAnswers(
 			"onesie: an older onesie wrote %s, so this one cannot tell which run wrote %s. "+
 				"Drop --resume to start over", sidecar, o.path)
 	case version > fingerprintVersion:
-		return false, fmt.Errorf(
+		return false, staleAnswers(
 			"onesie: a newer onesie wrote %s, so this one cannot tell which run wrote %s. "+
 				"Drop --resume to start over", sidecar, o.path)
 	case stored != fingerprint:
-		return false, fmt.Errorf(
+		return false, staleAnswers(
 			"onesie: the questions, flags or gate changed since %s was written. "+
 				"Drop --resume to start over", o.path)
 	}
 
 	return true, nil
+}
+
+func staleAnswers(format string, args ...any) error {
+	// Not %w, which would add the sentinel's own text to a message people already read.
+	return &staleAnswersError{message: fmt.Sprintf(format, args...)}
+}
+
+type staleAnswersError struct {
+	message string
+}
+
+func (e *staleAnswersError) Error() string {
+	return e.message
+}
+
+func (e *staleAnswersError) Is(target error) bool {
+	return target == errStaleAnswers
 }
 
 func fingerprintVersionOf(stored string) (version int, ok bool) {

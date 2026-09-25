@@ -1550,6 +1550,196 @@ func TestCalibrateRun(t *testing.T) {
 		}
 	})
 
+	answered := func(t *testing.T) (string, string) {
+		t.Helper()
+
+		answers := filepath.Join(t.TempDir(), "answers.jsonl")
+		report, _, code := runCalibrateAgainst(t.Context(), t, calibrating(answers, "--resume"), urgentSet,
+			newCalibrateStub(t).url, false)
+		if code != ExitOK {
+			t.Fatalf("writing the answers file exit code = %d", code)
+		}
+
+		return answers, report
+	}
+
+	untouched := func(t *testing.T, paths ...string) func() {
+		t.Helper()
+
+		type state struct {
+			data []byte
+			mod  time.Time
+		}
+
+		before := map[string]state{}
+		for _, path := range paths {
+			info, err := os.Stat(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			before[path] = state{data: []byte(readText(t, path)), mod: info.ModTime()}
+		}
+
+		return func() {
+			t.Helper()
+
+			for path, was := range before {
+				info, err := os.Stat(path)
+				if err != nil || !info.ModTime().Equal(was.mod) || readText(t, path) != string(was.data) {
+					t.Errorf("%s changed under --offline", path)
+				}
+			}
+		}
+	}
+
+	t.Run("should print the same report from the answers file alone under --offline", func(t *testing.T) {
+		t.Parallel()
+
+		answers, first := answered(t)
+		check := untouched(t, answers, answers+fingerprintSuffix)
+
+		// runMocked passes no key and fails the test if a client is built.
+		out, errOut, code := runMocked(t, t.Context(), calibrating(answers, "--resume", "--offline"), urgentSet, nil, nil)
+		if code != ExitOK || out != first {
+			t.Errorf("exit %d, want 0 and the first run's report\nstdout:\n%s\nstderr:\n%s", code, out, errOut)
+		}
+
+		check()
+	})
+
+	t.Run("should refuse a record the answers file does not answer under --offline", func(t *testing.T) {
+		t.Parallel()
+
+		answers, _ := answered(t)
+		lines := answerLines(t, answers)
+		writeAnswerLines(t, answers, slices.DeleteFunc(lines, func(line string) bool {
+			return strings.Contains(line, `"T-5"`) || strings.Contains(line, `"T-6"`)
+		}))
+		check := untouched(t, answers, answers+fingerprintSuffix)
+
+		out, errOut, code := runMocked(t, t.Context(), calibrating(answers, "--resume", "--offline"), urgentSet, nil, nil)
+		if code != ExitUsage || !strings.Contains(errOut, answers+" does not answer record T-5, and 1 more") || out != "" {
+			t.Errorf("exit %d, want 2 naming record T-5\nstdout:\n%s\nstderr:\n%s", code, out, errOut)
+		}
+
+		check()
+	})
+
+	t.Run("should refuse a stored error line under --offline, since calibrate asks it again", func(t *testing.T) {
+		t.Parallel()
+
+		answers, _ := answered(t)
+		lines := answerLines(t, answers)
+		for i, line := range lines {
+			if strings.Contains(line, `"T-3"`) {
+				lines[i] = `{"id":"T-3","error":{"kind":"http","status":500,"message":"boom"}}`
+			}
+		}
+
+		writeAnswerLines(t, answers, lines)
+
+		_, errOut, code := runMocked(t, t.Context(), calibrating(answers, "--resume", "--offline"), urgentSet, nil, nil)
+		if code != ExitUsage || !strings.Contains(errOut, "does not answer record T-3") {
+			t.Errorf("exit %d, want 2 naming record T-3\nstderr:\n%s", code, errOut)
+		}
+	})
+
+	for _, stale := range []struct {
+		name    string
+		sidecar *string
+		ask     string
+		wording string
+	}{
+		{name: "no sidecar", wording: "has no fingerprint beside it"},
+		{name: "a foreign sidecar", sidecar: new("hello"), wording: "does not hold a fingerprint onesie wrote"},
+		{name: "an older version", sidecar: new("v1:abc"), wording: "an older onesie wrote"},
+		{name: "a newer version", sidecar: new("v9:abc"), wording: "a newer onesie wrote"},
+		{name: "a changed question", ask: "urgent=is this urgent now", wording: "changed since"},
+	} {
+		t.Run("should advise regenerating a file with "+stale.name+" under --offline, and not without it", func(t *testing.T) {
+			t.Parallel()
+
+			answers, _ := answered(t)
+
+			switch {
+			case stale.sidecar != nil:
+				if err := os.WriteFile(answers+fingerprintSuffix, []byte(*stale.sidecar+"\n"), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			case stale.ask == "":
+				if err := os.Remove(answers + fingerprintSuffix); err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			args := calibrating(answers, "--resume")
+			if stale.ask != "" {
+				args[2] = stale.ask
+			}
+
+			_, errOut, code := runMocked(t, t.Context(), append(slices.Clone(args), "--offline"), urgentSet, nil, nil)
+			want := "onesie: " + answers + " was written by a different run, so --offline cannot read it. " +
+				"Regenerate it with make examples-answers, or rerun without --offline"
+			if code != ExitUsage || !strings.Contains(errOut, want) {
+				t.Errorf("exit %d, want 2 with the regenerate advice\nstderr:\n%s", code, errOut)
+			}
+
+			_, errOut, code = runMocked(t, t.Context(), args, urgentSet, nil, nil)
+			if code != ExitUsage || !strings.Contains(errOut, stale.wording) || !strings.Contains(errOut, "Drop --resume to start over") {
+				t.Errorf("exit %d without --offline, want 2 with today's wording\nstderr:\n%s", code, errOut)
+			}
+		})
+	}
+
+	t.Run("should refuse a missing answers file under --offline and create nothing", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		answers := filepath.Join(dir, "answers.jsonl")
+
+		_, errOut, code := runMocked(t, t.Context(), calibrating(answers, "--resume", "--offline"), urgentSet, nil, nil)
+		want := "onesie: " + answers + " does not exist, so --offline has nothing to read. Generate it with make examples-answers"
+		if code != ExitUsage || !strings.Contains(errOut, want) {
+			t.Errorf("exit %d, want 2 naming the file\nstderr:\n%s", code, errOut)
+		}
+
+		if entries, err := os.ReadDir(dir); err != nil || len(entries) != 0 {
+			t.Errorf("the directory holds %v, want nothing", entries)
+		}
+	})
+
+	for _, refused := range []struct {
+		name, want string
+		args       []string
+	}{
+		{name: "without --out", want: "--offline reads every answer from --out", args: urgent("--offline")},
+		{name: "without --resume", want: "--offline needs --resume", args: urgent("--offline", "--out", "x.jsonl")},
+		{name: "with --mock", want: "--offline reads every answer from --out, and --mock", args: urgent("--offline", "--out", "x.jsonl", "--resume", "--mock", "m.json")},
+		{name: "with --print-request", want: "--offline reads answers, and --print-request", args: urgent("--offline", "--out", "x.jsonl", "--resume", "--print-request")},
+	} {
+		t.Run("should refuse --offline "+refused.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, errOut, code := runMocked(t, t.Context(), refused.args, urgentSet, nil, nil)
+			if code != ExitUsage || !strings.Contains(errOut, refused.want) {
+				t.Errorf("exit %d, want 2 with %q\nstderr:\n%s", code, refused.want, errOut)
+			}
+		})
+	}
+
+	t.Run("should exit 1 under --offline when a requirement does not hold", func(t *testing.T) {
+		t.Parallel()
+
+		answers, _ := answered(t)
+
+		_, errOut, code := runMocked(t, t.Context(),
+			calibrating(answers, "--resume", "--offline", "--require", "urgent.catches >= 0.9 at 0.5"), urgentSet, nil, nil)
+		if code != ExitRejected || !strings.Contains(errOut, "did not hold: 2/3") {
+			t.Errorf("exit %d, want 1\nstderr:\n%s", code, errOut)
+		}
+	})
+
 	t.Run("should ask nothing when a label is fixed, and show the change", func(t *testing.T) {
 		t.Parallel()
 

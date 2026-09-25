@@ -5,9 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"maps"
 	"net/http"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -40,6 +42,13 @@ func calibrateRun(
 
 	cuts := cutsFor(base, bound, len(inv.plan.Questions))
 
+	if calib.offline {
+		if _, statErr := settings.stat(flags.out); errors.Is(statErr, fs.ErrNotExist) {
+			return fmt.Errorf("onesie: %s does not exist, so --offline has nothing to read. "+
+				"Generate it with make examples-answers", flags.out)
+		}
+	}
+
 	out, _, err := openOut(settings, flags)
 	if err != nil {
 		return err
@@ -49,9 +58,13 @@ func calibrateRun(
 		err = errors.Join(err, out.release())
 	}()
 
+	if out != nil {
+		out.readOnly = calib.offline
+	}
+
 	runErr := calibrateAnswers(
-		cmd, settings, flags, calib.report, inputMode, inv, labels, model, cuts, bound, out, answers)
-	if out == nil {
+		cmd, settings, flags, calib, inputMode, inv, labels, model, cuts, bound, out, answers)
+	if out == nil || calib.offline {
 		return runErr
 	}
 
@@ -59,7 +72,7 @@ func calibrateRun(
 }
 
 func calibrateAnswers(
-	cmd *cobra.Command, settings rootSettings, flags *runFlags, format string, inputMode input.Mode,
+	cmd *cobra.Command, settings rootSettings, flags *runFlags, calib calibrateFlags, inputMode input.Mode,
 	inv *invocation, labels []questionLabel, model string, cuts [][]float64, bound []boundRequirement,
 	out *outFile, answers answererFactory,
 ) error {
@@ -79,6 +92,11 @@ func calibrateAnswers(
 	bindErr := bindOut(out, settings, flags, built.Questions, fingerprintInputs{
 		model: model, output: output.JSON.String(), input: inputMode.String(),
 	})
+	if calib.offline && errors.Is(bindErr, errStaleAnswers) {
+		return fmt.Errorf("onesie: %s was written by a different run, so --offline cannot read it. "+
+			"Regenerate it with make examples-answers, or rerun without --offline", flags.out)
+	}
+
 	if bindErr != nil {
 		return bindErr
 	}
@@ -86,6 +104,10 @@ func calibrateAnswers(
 	resumed, err := resumeLabelled(cmd.Context(), out, flags, inv.namer, built, set)
 	if err != nil {
 		return err
+	}
+
+	if calib.offline && len(resumed.pending) > 0 {
+		return unansweredOffline(flags.out, resumed.pending)
 	}
 
 	if costErr := writeCost(cmd.ErrOrStderr(), set, resumed, flags.out, len(built.Questions)); costErr != nil {
@@ -97,7 +119,7 @@ func calibrateAnswers(
 			stats.skip(resumed.book.skipped())
 		}
 
-		outcomes, result, askErr := askLabelled(cmd, flags, built, model, resumed, out, stats, answers)
+		outcomes, result, askErr := askLabelled(cmd, flags, built, model, resumed, out, stats, answers, calib.offline)
 		if askErr != nil {
 			return askErr
 		}
@@ -111,7 +133,7 @@ func calibrateAnswers(
 			report.Usage = usageOf(outcomes)
 		}
 
-		if writeErr := writeReport(cmd.OutOrStdout(), format, report); writeErr != nil {
+		if writeErr := writeReport(cmd.OutOrStdout(), calib.report, report); writeErr != nil {
 			return written(writeErr)
 		}
 
@@ -134,6 +156,16 @@ func calibrateAnswers(
 
 		return nil
 	})
+}
+
+func unansweredOffline(answers string, pending []labelledRecord) error {
+	more := ""
+	if len(pending) > 1 {
+		more = ", and " + strconv.Itoa(len(pending)-1) + " more"
+	}
+
+	return fmt.Errorf("onesie: %s does not answer %s%s, and --offline asks nothing. "+
+		"Rerun without --offline to ask them", answers, pending[0].name(), more)
 }
 
 func cutsOf(cmd *cobra.Command, calib calibrateFlags) ([]float64, error) {
@@ -168,7 +200,7 @@ func writeCost(w io.Writer, set labelledSet, resumed resumedSet, answers string,
 
 func askLabelled(
 	cmd *cobra.Command, flags *runFlags, built *plan.Plan, model string,
-	resumed resumedSet, out *outFile, stats *collector, answerers answererFactory,
+	resumed resumedSet, out *outFile, stats *collector, answerers answererFactory, offline bool,
 ) ([]output.Record, engine.Result, error) {
 	asker, err := answererWhenPending(cmd.Context(), resumed.pending, answerers, stats)
 	if err != nil {
@@ -245,7 +277,7 @@ func askLabelled(
 
 	// Only a run that asked every record rewrites the file. An interrupted one leaves the appended
 	// lines as they are, for the next resume to finish.
-	if book != nil && book.complete() {
+	if book != nil && book.complete() && !offline {
 		out.compactInto(book.takeOrder(flags.prune), output.JSON)
 	}
 

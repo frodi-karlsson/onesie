@@ -128,6 +128,8 @@ func newCalibrateCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 	cmd.Flags().StringArrayVar(&calib.requires, "require", nil,
 		"[lower|upper](ID.MEASURE) OP NUMBER [at CUT], a requirement the report must meet, or calibrate "+
 			"exits 1. Repeatable")
+	cmd.Flags().BoolVar(&calib.offline, "offline", false,
+		"with --out and --resume, read every answer from the file and ask nothing, needing no key")
 	cmd.Flags().StringVarP(&calib.report, "output", "o", "", "the report, table, json or auto, which means table")
 
 	bindSharedFlags(cmd, flags)
@@ -250,6 +252,10 @@ func checkCalibrate(
 		return nil, err
 	}
 
+	if err := checkOffline(cfg, calib); err != nil {
+		return nil, err
+	}
+
 	if !cfg.HasMap {
 		return nil, errors.New("onesie: calibrate needs --map. Without it the whole record, label included, " +
 			"would be the state, and the report would flatter the question")
@@ -291,6 +297,24 @@ func checkCalibrate(
 	}
 
 	return parseRequirements(calib.requires)
+}
+
+func checkOffline(cfg plan.Config, calib calibrateFlags) error {
+	switch {
+	case !calib.offline:
+		return nil
+	case cfg.Mock != "":
+		return fmt.Errorf("onesie: --offline reads every answer from --out, and %s answers from a file of "+
+			"its own. Drop one", cfg.Mock)
+	case cfg.PrintRequest:
+		return errors.New("onesie: --offline reads answers, and --print-request sends no request. Drop one")
+	case cfg.Out == "":
+		return errors.New("onesie: --offline reads every answer from --out. Pass --out FILE --resume")
+	case !cfg.Resume:
+		return errors.New("onesie: --offline needs --resume, since it reads the answers --out already holds")
+	}
+
+	return nil
 }
 
 func checkRefused(cmd *cobra.Command, events []argv.Event) error {
@@ -419,6 +443,7 @@ type calibrateFlags struct {
 	requires []string
 	cuts     string
 	report   string
+	offline  bool
 }
 
 type questionLabel struct {
