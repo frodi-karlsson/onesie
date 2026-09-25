@@ -349,6 +349,11 @@ func TestValidate(t *testing.T) {
 			wantErr: "onesie: question id 'abstain' is reserved",
 		},
 		{
+			name:    "should reject the reserved $schema id",
+			events:  []argv.Event{{Name: "ask", Value: "$schema=is it"}},
+			wantErr: "onesie: question id '$schema' is reserved",
+		},
+		{
 			name:    "should reject the reserved id id",
 			events:  []argv.Event{{Name: "ask", Value: "id=first"}},
 			wantErr: "onesie: question id 'id' is reserved",

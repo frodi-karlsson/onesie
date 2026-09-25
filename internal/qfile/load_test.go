@@ -1,12 +1,91 @@
 package qfile_test
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/frodi-karlsson/onesie/internal/limits"
 	"github.com/frodi-karlsson/onesie/internal/qfile"
 )
+
+func TestLoad(t *testing.T) {
+	t.Parallel()
+
+	const schemaURL = "https://raw.githubusercontent.com/frodi-karlsson/onesie/main/schema/questions.json"
+
+	tests := []struct {
+		name    string
+		doc     string
+		same    string
+		wantErr string
+	}{
+		{
+			name: "should ignore a $schema string in a yaml file",
+			doc:  "$schema: " + schemaURL + "\nurgent: is this urgent\nassert: 'urgent.value < 0.5'\n",
+			same: "urgent: is this urgent\nassert: 'urgent.value < 0.5'\n",
+		},
+		{
+			name: "should ignore a $schema string in a json file",
+			doc:  `{"$schema": "` + schemaURL + `", "team": {"ask": "which team", "pick": ["billing", "sales"]}}`,
+			same: `{"team": {"ask": "which team", "pick": ["billing", "sales"]}}`,
+		},
+		{
+			name: "should ignore a $schema string written below the questions",
+			doc:  "urgent: is this urgent\n$schema: ./questions.json\n",
+			same: "urgent: is this urgent\n",
+		},
+		{
+			name:    "should reject a $schema that is a number",
+			doc:     "$schema: 3\nurgent: is this urgent\n",
+			wantErr: "onesie: '$schema' must be a string, got '3'",
+		},
+		{
+			name:    "should reject a $schema that is a mapping",
+			doc:     `{"$schema": {"url": "x"}, "urgent": "is this urgent"}`,
+			wantErr: "onesie: '$schema' must be a string, got a mapping",
+		},
+		{
+			name: "should leave a request body as it is beside a $schema",
+			doc: `{"$schema": 3, "questions": {"urgent": {"type": "noul", ` +
+				`"instructions": "is this urgent"}}}`,
+			same: `{"questions": {"urgent": {"type": "noul", "instructions": "is this urgent"}}}`,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := qfile.Load([]byte(tc.doc))
+
+			if tc.wantErr != "" {
+				if err == nil {
+					t.Fatalf("expected an error, got %#v", got)
+				}
+
+				if err.Error() != tc.wantErr {
+					t.Errorf("error = %q, want %q", err.Error(), tc.wantErr)
+				}
+
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			want, err := qfile.Load([]byte(tc.same))
+			if err != nil {
+				t.Fatalf("loading the file without $schema: %v", err)
+			}
+
+			if !reflect.DeepEqual(got, want) {
+				t.Errorf("loaded %#v\nwant %#v", got, want)
+			}
+		})
+	}
+}
 
 func TestDecodeOrdered(t *testing.T) {
 	t.Parallel()

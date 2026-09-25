@@ -18,13 +18,15 @@ func loadQuestions(top yaml.MapSlice) (*File, error) {
 
 		var err error
 
-		// 'assert' and 'abstain_if' are reserved question ids, so a top level key spelled either
-		// way is the file's gate over every answer rather than a question of its own.
+		// 'assert', 'abstain_if' and '$schema' are reserved question ids, so a top level key spelled
+		// any of those ways is the file's gate or its editor's schema rather than a question.
 		switch id {
 		case "assert":
 			file.Assert, err = readGate(id, item.Value)
 		case "abstain_if":
 			file.AbstainIf, err = readGate(id, item.Value)
+		case "$schema":
+			_, err = readGate(id, item.Value)
 		default:
 			var question plan.Question
 

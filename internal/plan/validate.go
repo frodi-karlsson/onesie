@@ -1228,7 +1228,8 @@ func reserved(id string) bool {
 	}
 
 	switch id {
-	case "abstain", "abstain_if", "answers", "assert", "error", "id", "model", "usage", "questions", "state":
+	case "$schema", "abstain", "abstain_if", "answers", "assert", "error", "id", "model", "usage",
+		"questions", "state":
 		return true
 	default:
 		return false
