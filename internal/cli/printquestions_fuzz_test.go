@@ -272,6 +272,7 @@ func runPrintQuestions(t *testing.T, name string, data []byte, flags ...string) 
 	root := NewRootCmd(
 		BuildInfo{Version: "1.2.3"},
 		WithKeychain(noKeychain()),
+		WithStdin(strings.NewReader("")),
 		WithStdinTTY(false),
 		WithStdoutTTY(false),
 		WithReadFile(func(path string) ([]byte, error) {

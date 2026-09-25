@@ -1145,7 +1145,8 @@ func TestNewRootCmd(t *testing.T) {
 
 		var out bytes.Buffer
 
-		root := cli.NewRootCmd(cli.BuildInfo{Version: "1.2.3"})
+		root := cli.NewRootCmd(cli.BuildInfo{Version: "1.2.3"},
+			cli.WithStdin(strings.NewReader("")), cli.WithStdinTTY(false))
 		root.SetOut(&out)
 		root.SetErr(&out)
 		root.SetArgs([]string{"--help"})
@@ -1162,7 +1163,8 @@ func TestNewRootCmd(t *testing.T) {
 	t.Run("should keep the root's defaults after the subcommands register theirs", func(t *testing.T) {
 		t.Parallel()
 
-		root := cli.NewRootCmd(cli.BuildInfo{Version: "1.2.3"})
+		root := cli.NewRootCmd(cli.BuildInfo{Version: "1.2.3"},
+			cli.WithStdin(strings.NewReader("")), cli.WithStdinTTY(false))
 
 		calibrate, _, err := root.Find([]string{"calibrate"})
 		if err != nil || calibrate == root {
@@ -1457,6 +1459,7 @@ func TestDefaultClientFactory(t *testing.T) {
 				root := cli.NewRootCmd(
 					cli.BuildInfo{Version: "1.2.3"},
 					cli.WithKeychain(offKeychain{}),
+					cli.WithStdin(strings.NewReader("")),
 					cli.WithStdinTTY(false),
 					cli.WithStdoutTTY(false),
 					cli.WithLookupEnv(apiKeyEnv("test")),
