@@ -1317,6 +1317,16 @@ func TestNewRootCmd(t *testing.T) {
 				want: "onesie: unknown flag: --print-request. 'completion' " + hint,
 			},
 			{
+				name: "should hint for cache",
+				args: []string{"cache", "--state", "x"},
+				want: "onesie: unknown flag: --state. 'cache' " + hint,
+			},
+			{
+				name: "should hint for cache clear",
+				args: []string{"cache", "clear", "--state", "x"},
+				want: "onesie: unknown flag: --state. 'cache' " + hint,
+			},
+			{
 				name:   "should refuse --state on calibrate with its own reason in place of the hint",
 				args:   []string{"calibrate", "--state", "x"},
 				want:   "onesie: calibrate reads each state from its input through --map, so --state does not apply",
@@ -1483,6 +1493,9 @@ func TestNewRootCmd(t *testing.T) {
 			}
 
 			want := []string{"--cache", "ONESIE_CACHE=1"}
+			if args[0] == "--help" {
+				want = append(want, "  cache ")
+			}
 			if args[0] == "-V" {
 				want = []string{"max-cache-bytes 104857600", "cache-ttl 24h0m0s"}
 			}
