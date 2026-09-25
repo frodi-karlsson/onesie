@@ -222,7 +222,7 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 		"question file or request body, or the name of one saved in .onesie/questions or the config dir")
 	root.Flags().BoolVar(&flags.replace, "replace", false, "--ask overrides an id from -f")
 	root.Flags().BoolVar(&flags.printQuestions, "print-questions", false,
-		"write a question file to stdout and exit")
+		"write a question file to stdout and exit, its first line naming the schema --print-schema prints")
 	root.Flags().BoolVar(&flags.printRequest, "print-request", false,
 		"write api shaped request bodies to stdout and exit")
 	root.Flags().BoolVar(&flags.printSchema, "print-schema", false,

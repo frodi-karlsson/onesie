@@ -259,5 +259,12 @@ A consumer that stops reading, as `head` does, is not an error.
 - `-f NAME` loads `NAME.yaml`, `NAME.yml` or `NAME.json` from the nearest `.onesie/questions`, then
   from `questions` in the config dir, and `onesie questions` lists every name it finds. A question
   file is refused with exit 2 when it uses a YAML alias or is larger than `max-question-file-bytes`.
+- `--print-schema` prints the JSON Schema for a question file. `schema/questions.json` in the
+  repository is the same file, and `make schema` regenerates it. The first line `--print-questions`
+  writes is `# yaml-language-server: $schema=URL`, which an editor running the YAML language server
+  reads, such as VS Code with the Red Hat YAML extension, to check each key and value as you type.
+  The URL names the release tag the binary was built from, and `main` for any other build. A JSON
+  question file names the schema in a top level `"$schema"` key, which onesie accepts and ignores,
+  so `$schema` is a reserved question id. The schema accepts any request body as it is.
 - `--retries`, `--timeout` and `--max-retry-after` bound how long a call can take.
 - `onesie --help` lists every flag, and `onesie -V` prints the built in limits.

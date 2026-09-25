@@ -251,7 +251,9 @@ ONESIE_MOCK=outage.json sh gate.sh 'ls'         # no answer, blocked
 ```
 
 **Keep a question set in a file.** `--print-questions` writes the questions to a file, and
-`-f NAME` loads it from any directory in the repository.
+`-f NAME` loads it from any directory in the repository. Its first line names the schema
+`onesie --print-schema` prints, so an editor with the YAML language server checks the file as you
+edit it.
 
 ```sh
 mkdir -p .onesie/questions
