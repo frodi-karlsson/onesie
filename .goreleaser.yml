@@ -48,36 +48,7 @@ changelog:
       - '^chore:'
 
 release:
-  # Not a draft: a cask pushed to homebrew-tap points at this release's
+  # Not a draft: the formula pushed to homebrew-tap points at this release's
   # assets, which stay unreachable while the release is unpublished.
   draft: false
   prerelease: auto
-
-homebrew_casks:
-  - name: onesie
-    binaries:
-      - onesie
-    # INERT. The cask is built into dist/ but never pushed. The
-    # HOMEBREW_TAP_TOKEN repository secret is set, with write access to
-    # homebrew-tap, and stays unused until the cask goes live. To go live,
-    # flip this to false.
-    skip_upload: true
-    repository:
-      owner: frodi-karlsson
-      name: homebrew-tap
-      # Pushing to another repo needs more than the workflow's GITHUB_TOKEN.
-      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
-    commit_author:
-      name: goreleaserbot
-      email: goreleaser@carlosbecker.com
-    homepage: "https://github.com/frodi-karlsson/onesie"
-    description: "Command line interface for TypeSafe Jev"
-    license: "MIT"
-    hooks:
-      post:
-        # The binary is unsigned, so macOS quarantines it on download and
-        # Gatekeeper refuses to run it. Strip the attribute on install.
-        install: |
-          if system_command("/usr/bin/xattr", args: ["-h"]).exit_status == 0
-            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/onesie"]
-          end

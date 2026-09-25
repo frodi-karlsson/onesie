@@ -49,10 +49,15 @@ jobs:
     needs: check
     runs-on: ubuntu-latest
     permissions:
-      # Creating the GitHub release for this repo. Pushing the cask to
-      # homebrew-tap would be a cross repo write, so it uses
-      # HOMEBREW_TAP_TOKEN.
+      # Creating the GitHub release for this repo. Pushing the formula to
+      # homebrew-tap is a cross repo write, so it uses HOMEBREW_TAP_TOKEN.
       contents: write
+    env:
+      # INERT. The formula is generated on every release but never pushed.
+      # The HOMEBREW_TAP_TOKEN repository secret is set, with write access
+      # to homebrew-tap, and stays unused until the formula goes live. To go
+      # live, flip this to 'true'.
+      HOMEBREW_TAP_PUBLISH: 'false'
 
     steps:
       - name: Checkout repository
@@ -75,7 +80,39 @@ jobs:
         env:
           # Publishes the release in this repo.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # The HOMEBREW_TAP_TOKEN repository secret is set, with write
-          # access to homebrew-tap, and stays unused until the cask goes
-          # live, since skip_upload keeps the cask from being pushed.
-          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+
+      # goreleaser's brews is deprecated and its casks get quarantined, which
+      # Gatekeeper refuses for an unsigned binary. So the formula comes from
+      # this repo's own generator, fed the checksums goreleaser published.
+      - name: Generate Homebrew formula
+        run: |
+          go run ./cmd/formulagen -version "${GITHUB_REF_NAME}" \
+            -checksums dist/checksums.txt -out dist/homebrew/Formula/onesie.rb
+          cat dist/homebrew/Formula/onesie.rb
+
+      # A prerelease tag never reaches the tap.
+      - name: Check out homebrew-tap
+        if: env.HOMEBREW_TAP_PUBLISH == 'true' && !contains(github.ref_name, '-')
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: frodi-karlsson/homebrew-tap
+          # Pushing to another repo needs more than the workflow's GITHUB_TOKEN.
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: homebrew-tap
+
+      - name: Push Homebrew formula
+        if: env.HOMEBREW_TAP_PUBLISH == 'true' && !contains(github.ref_name, '-')
+        working-directory: homebrew-tap
+        run: |
+          set -euo pipefail
+          mkdir -p Formula
+          cp ../dist/homebrew/Formula/onesie.rb Formula/onesie.rb
+          git add Formula/onesie.rb
+          if git diff --cached --quiet; then
+            echo "Formula/onesie.rb is already current"
+            exit 0
+          fi
+          git -c user.name='github-actions[bot]' \
+            -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+            commit -m "onesie ${GITHUB_REF_NAME}"
+          git push
