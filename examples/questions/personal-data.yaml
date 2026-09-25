@@ -1,5 +1,5 @@
-assert: name_contact.value < 0.15 and email_phone.value < 0.2 and home_address.value < 0.3 and credential.value < 0.3
-abstain_if: name_contact.value < 0.3 and email_phone.value < 0.7 and home_address.value < 0.95 and credential.value < 0.35
+assert: name_contact.value < 0.15 and email_phone.value < 0.4 and home_address.value < 0.45 and credential.value < 0.2
+abstain_if: name_contact.value < 0.5 and email_phone.value < 0.7 and credential.value < 0.38
 name_contact:
   ask: does this text give a person's name together with a way to contact them
 email_phone:

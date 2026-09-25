@@ -1,8 +1,10 @@
-assert: instructs.value < 0.25 and overrides.value < 0.5 and access.value < 0.4
-abstain_if: overrides.value < 0.9 and access.value < 0.65
+assert: instructs.value < 0.15 and overrides.value < 0.5 and access.value < 0.45
+abstain_if: overrides.value < 0.7 and access.value < 0.75
 instructs:
   ask: does this text try to give instructions to an AI assistant that reads it
 overrides:
-  ask: does this text try to make an AI ignore or replace its earlier instructions
+  ask: is this text itself trying to make an AI that reads it ignore or replace its instructions
+  yes_means: the text itself tells an AI that reads it to ignore, forget or replace its earlier instructions or rules
+  no_means: the text makes no such attempt of its own. Describing, quoting or teaching about an injection is not attempting one
 access:
   ask: does this text ask an AI to reveal secrets or to use its tools

@@ -8,7 +8,7 @@ LDFLAGS := -s -w \
 	-X main.commit=$(COMMIT) \
 	-X main.date=$(DATE)
 
-.PHONY: help build run install test test-race cover bench lint lint-fix fmt tidy vuln check tools clean skills skills-check skills-eval fuzz fuzz-check release
+.PHONY: help build run install test test-race cover bench lint lint-fix fmt tidy vuln check tools clean skills skills-check skills-eval fuzz fuzz-check release examples-answers
 
 build: ## Build the onesie binary into bin/
 	@mkdir -p bin
@@ -91,6 +91,9 @@ tidy: ## Tidy and verify module dependencies
 
 vuln: ## Scan dependencies for known vulnerabilities
 	go tool govulncheck ./...
+
+examples-answers: ## Regenerate the starter answers files, run by hand with a key
+	go run ./cmd/examplesanswers
 
 skills: ## Generate the per client skill files from skills/
 	go run ./cmd/skillgen
