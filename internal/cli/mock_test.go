@@ -920,7 +920,7 @@ func (d delayedAnswerer) answer(ctx context.Context, key recordKey, req jev.Requ
 	return d.inner.answer(ctx, key, req)
 }
 
-func (d delayedAnswerer) salt(key recordKey) string {
+func (d delayedAnswerer) salt(key recordKey) (string, bool) {
 	return d.inner.salt(key)
 }
 

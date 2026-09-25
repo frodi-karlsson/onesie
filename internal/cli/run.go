@@ -413,7 +413,15 @@ func stream(
 
 		key := recordKey{position: rec.Index + 1, line: rec.Line, id: rec.id}
 
-		record, call, evalErr := askOnce(ctx, shared, stats, sent, model, questions, asker.salt(key),
+		// A record the mock file does not answer shares with nothing, so its error names its own line.
+		group := shared
+
+		salt, shares := asker.salt(key)
+		if !shares {
+			group = nil
+		}
+
+		record, call, evalErr := askOnce(ctx, group, stats, sent, model, questions, salt,
 			func() (output.Record, error) {
 				return evaluate(ctx, asker, key, built, model, questions, sent, flags.usage, stats)
 			})

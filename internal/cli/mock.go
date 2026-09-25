@@ -81,15 +81,15 @@ func (a mockAnswerer) answer(ctx context.Context, key recordKey, _ jev.Request) 
 	return result, err
 }
 
-func (a mockAnswerer) salt(key recordKey) string {
-	// A record the file does not answer gets no salt, so it never shares a key with an identical
-	// record the file does answer, whose salt names its entry.
+func (a mockAnswerer) salt(key recordKey) (string, bool) {
+	// A record the file does not answer is never shared, so its error names its own input line and
+	// no identical record takes an answer the file gave another.
 	entry, found := a.answers.Lookup(key.position, key.id)
 	if !found {
-		return ""
+		return "", false
 	}
 
-	return entry.Key()
+	return entry.Key(), true
 }
 
 func mockAttempt(err error) jev.Attempt {

@@ -397,6 +397,20 @@ func TestStream(t *testing.T) {
 			})
 		}
 	})
+
+	t.Run("should name the first uncovered input line under --mock and -j 8 every time", func(t *testing.T) {
+		t.Parallel()
+
+		covered := writeMock(t, `{"answer":0.1}`+"\n"+`{"answer":0.1}`+"\n")
+		args := []string{"is it urgent", "-o", "values", "-i", "lines", "-j", "8", "--mock", covered}
+
+		for range 20 {
+			_, errOut, code := runMocked(t, t.Context(), args, strings.Repeat("a\n", 16), nil, nil)
+			if code != ExitUsage || !strings.Contains(errOut, "so input line 3 has no answer") {
+				t.Fatalf("exit code = %d, want %d naming input line 3\n%s", code, ExitUsage, errOut)
+			}
+		}
+	})
 }
 
 func newCountingStub(t *testing.T, hold func()) *countingStub {

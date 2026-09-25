@@ -260,8 +260,8 @@ func (a resultAnswerer) answer(context.Context, recordKey, jev.Request) (*jev.Re
 	return a.result(), nil
 }
 
-func (resultAnswerer) salt(recordKey) string {
-	return ""
+func (resultAnswerer) salt(recordKey) (string, bool) {
+	return "", true
 }
 
 type resultAnswerer struct {

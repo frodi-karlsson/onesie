@@ -8,7 +8,7 @@ import (
 
 type answerer interface {
 	answer(ctx context.Context, key recordKey, req jev.Request) (*jev.Result, error)
-	salt(key recordKey) string
+	salt(key recordKey) (string, bool)
 }
 
 type recordKey struct {
@@ -34,8 +34,8 @@ func (a liveAnswerer) answer(ctx context.Context, _ recordKey, req jev.Request) 
 	return a.client.SystemOne(ctx, req)
 }
 
-func (liveAnswerer) salt(recordKey) string {
-	return ""
+func (liveAnswerer) salt(recordKey) (string, bool) {
+	return "", true
 }
 
 type liveAnswerer struct {
