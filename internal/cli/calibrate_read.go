@@ -147,7 +147,7 @@ func (r *labelReader) read(ctx context.Context, rec input.Record) (labelledRecor
 		return labelledRecord{}, false, rec.Err
 	}
 
-	labelled := labelledRecord{line: rec.Line}
+	labelled := labelledRecord{position: rec.Index + 1, line: rec.Line}
 
 	if r.namer != nil {
 		id, err := r.uniqueID(ctx, rec)
@@ -254,12 +254,13 @@ type inputEntry struct {
 }
 
 type labelledRecord struct {
-	index  int
-	slot   int
-	line   int
-	id     any
-	sent   any
-	labels []*calibrate.Label
+	index    int
+	slot     int
+	position int
+	line     int
+	id       any
+	sent     any
+	labels   []*calibrate.Label
 }
 
 func (r labelledRecord) name() string {

@@ -127,7 +127,7 @@ func run(
 		return withStats(cmd, settings.now, flags, func(stats *collector) error {
 			return stream(
 				cmd, settings, built, mapper, namer, inputMode, outputMode, flags, gate, abstain, stats,
-				out, resume)
+				out, resume, liveAnswers(settings))
 		})
 	}
 
@@ -193,7 +193,8 @@ func run(
 	}
 
 	return withStats(cmd, settings.now, flags, func(stats *collector) error {
-		return ask(cmd, settings, built, resolved, sent, outputMode, flags, gate, abstain, stats)
+		return ask(
+			cmd, settings, built, resolved, sent, outputMode, flags, gate, abstain, stats, liveAnswers(settings))
 	})
 }
 
@@ -289,12 +290,13 @@ func stream(
 	stats *collector,
 	answers *outFile,
 	resume resumePlan,
+	answerers answererFactory,
 ) error {
 	if flags.printRequest {
 		return streamRequests(cmd, settings, built, mapper, namer, inputMode, flags, resume)
 	}
 
-	client, err := settings.newClient(cmd.Context(), observing(stats)...)
+	asker, err := answerers(cmd.Context(), stats)
 	if err != nil {
 		return err
 	}
@@ -382,8 +384,10 @@ func stream(
 			return rowLine(failureRecord(built, bad), rec), bad
 		}
 
+		key := recordKey{position: rec.Index + 1, line: rec.Line, id: rec.id}
+
 		record, evalErr := evaluate(
-			ctx, client, built, model, questions, sent, flags.usage, stats)
+			ctx, asker, key, built, model, questions, sent, flags.usage, stats)
 		if evalErr != nil {
 			// Returned before the gate is asked. A failed record reads as all zeros, so a gate such
 			// as answer.value < 0.5 would hold for a request that never happened.
@@ -671,8 +675,9 @@ func ask(
 	gate *assert.Expr,
 	abstain *assert.Expr,
 	stats *collector,
+	answerers answererFactory,
 ) error {
-	client, err := settings.newClient(cmd.Context(), observing(stats)...)
+	asker, err := answerers(cmd.Context(), stats)
 	if err != nil {
 		return err
 	}
@@ -685,7 +690,7 @@ func ask(
 	}
 
 	record, err := evaluate(
-		cmd.Context(), client, built, model, questions, sent, flags.usage, stats)
+		cmd.Context(), asker, recordKey{position: 1, line: 1}, built, model, questions, sent, flags.usage, stats)
 	if err != nil {
 		// The exit code still comes from the error. This adds the fallback word the caller asked
 		// for, so a shell guard reads a decision. An interrupt is skipped, since a transport record
@@ -878,7 +883,8 @@ func mergeKey(flags *runFlags) string {
 
 func evaluate(
 	ctx context.Context,
-	client *jev.Client,
+	asker answerer,
+	key recordKey,
 	built *plan.Plan,
 	model string,
 	questions jev.Questions,
@@ -886,7 +892,7 @@ func evaluate(
 	withUsage bool,
 	stats *collector,
 ) (output.Record, error) {
-	record, usage, err := answered(ctx, client, built, model, questions, state, withUsage)
+	record, usage, err := answered(ctx, asker, key, built, model, questions, state, withUsage)
 	if err != nil {
 		// The request was made whatever went wrong afterwards, and the questions went with it, so a
 		// failed record still carries them into the count --stats reports.
@@ -904,14 +910,15 @@ func evaluate(
 
 func answered(
 	ctx context.Context,
-	client *jev.Client,
+	asker answerer,
+	key recordKey,
 	built *plan.Plan,
 	model string,
 	questions jev.Questions,
 	state any,
 	withUsage bool,
 ) (output.Record, jev.Usage, error) {
-	result, err := client.SystemOne(ctx, jev.Request{
+	result, err := asker.answer(ctx, key, jev.Request{
 		State:     state,
 		Model:     built.Model,
 		Questions: questions,

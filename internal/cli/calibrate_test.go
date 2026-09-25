@@ -21,6 +21,7 @@ import (
 
 	"github.com/frodi-karlsson/onesie/internal/answer"
 	"github.com/frodi-karlsson/onesie/internal/calibrate"
+	"github.com/frodi-karlsson/onesie/internal/input"
 	"github.com/frodi-karlsson/onesie/internal/limits"
 	"github.com/frodi-karlsson/onesie/internal/output"
 	"github.com/frodi-karlsson/onesie/internal/plan"
@@ -782,6 +783,40 @@ func TestReadLabelled(t *testing.T) {
 			}
 		})
 	}
+	t.Run("should give each labelled record its position among the input records", func(t *testing.T) {
+		t.Parallel()
+
+		mapper, err := exprOf(true, "--map", ".body")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		label, err := exprOf(true, "--label u", ".u")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		settings := rootSettings{
+			stdin: strings.NewReader("{\"body\":\"a\",\"u\":true}\n{\"body\":\"b\"}\n\n{\"body\":\"c\",\"u\":1}\n"),
+		}
+		flags := &runFlags{skipBlank: true}
+		labels := []questionLabel{{id: "u", shape: plan.Noul, expr: label}}
+
+		set, err := readLabelled(t.Context(), settings, input.JSONL, flags, mapper, nil, labels)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		got := make([][2]int, 0, len(set.records))
+		for _, rec := range set.records {
+			got = append(got, [2]int{rec.position, rec.line})
+		}
+
+		want := [][2]int{{1, 1}, {3, 4}}
+		if !slices.Equal(got, want) {
+			t.Errorf("position and line = %v, want %v", got, want)
+		}
+	})
 }
 
 func TestCalibrateRequests(t *testing.T) {

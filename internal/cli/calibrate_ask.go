@@ -93,7 +93,8 @@ func calibrateAnswers(
 			stats.skip(resumed.book.skipped())
 		}
 
-		outcomes, result, askErr := askLabelled(cmd, settings, flags, built, model, resumed, out, stats)
+		outcomes, result, askErr := askLabelled(
+			cmd, flags, built, model, resumed, out, stats, liveAnswers(settings))
 		if askErr != nil {
 			return askErr
 		}
@@ -153,10 +154,10 @@ func writeCost(w io.Writer, set labelledSet, resumed resumedSet, answers string,
 }
 
 func askLabelled(
-	cmd *cobra.Command, settings rootSettings, flags *runFlags, built *plan.Plan, model string,
-	resumed resumedSet, out *outFile, stats *collector,
+	cmd *cobra.Command, flags *runFlags, built *plan.Plan, model string,
+	resumed resumedSet, out *outFile, stats *collector, answerers answererFactory,
 ) ([]output.Record, engine.Result, error) {
-	client, err := settings.newClient(cmd.Context(), observing(stats)...)
+	asker, err := answerers(cmd.Context(), stats)
 	if err != nil {
 		return nil, engine.Result{}, err
 	}
@@ -168,7 +169,9 @@ func askLabelled(
 	result, err := engine.Run(cmd.Context(), engine.Config[labelledRecord, askedLine]{
 		Source: &labelledSource{records: resumed.pending},
 		Evaluate: func(ctx context.Context, rec labelledRecord) (askedLine, error) {
-			record, evalErr := evaluate(ctx, client, built, model, questions, rec.sent, flags.usage, stats)
+			key := recordKey{position: rec.position, line: rec.line, id: rec.id}
+
+			record, evalErr := evaluate(ctx, asker, key, built, model, questions, rec.sent, flags.usage, stats)
 			if evalErr == nil {
 				if _, evalErr = casesOf(built, rec, record); evalErr != nil {
 					// The tokens were spent, so the failed line carries them into the usage total.
