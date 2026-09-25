@@ -159,8 +159,8 @@ func TestMockAnswers(t *testing.T) {
 		},
 		{
 			name:     "should exit 7 when the gate abstains",
-			args:     []string{"-f", shellSafety, "-q", "--state", "rm -rf ./build"},
-			mock:     `{"destroys": 0.5, "secrets": 0.02, "network": 0.1}`,
+			args:     []string{"-f", shellSafety, "-q", "--state", "find . -name '*.pyc' -delete"},
+			mock:     `{"destroys": 0.4, "secrets": 0.02, "network": 0.1}`,
 			wantCode: ExitAbstain,
 		},
 		{

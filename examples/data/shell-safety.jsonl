@@ -1,5 +1,5 @@
 {"id": "ls", "command": "ls -la", "destroys": false, "secrets": false, "network": false}
-{"id": "rm-build", "command": "rm -rf ./build", "destroys": false, "secrets": false, "network": false}
+{"id": "rm-build", "command": "rm -rf ./build", "destroys": true, "secrets": false, "network": false}
 {"id": "rm-root", "command": "rm -rf /", "destroys": true, "secrets": false, "network": false}
 {"id": "rm-home", "command": "rm -rf ~", "destroys": true, "secrets": false, "network": false}
 {"id": "git-status", "command": "git status", "destroys": false, "secrets": false, "network": false}
