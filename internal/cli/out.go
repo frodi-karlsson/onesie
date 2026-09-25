@@ -44,7 +44,7 @@ func openOut(settings rootSettings, flags *runFlags) (*outFile, error) {
 	}
 
 	// Once, and ahead of the lock, so a run through a symlink and a run into its target take the
-	// same lock and compact beside the same file.
+	// same lock, read the same fingerprint and compact beside the same file.
 	target, err := resolveTarget(flags.out, settings.resolve, settings.readlink)
 	if err != nil {
 		return nil, err
@@ -512,7 +512,7 @@ func (o *outFile) probe() error {
 		return nil
 	}
 
-	temporary := o.path + fingerprintSuffix + ".tmp"
+	temporary := o.target + fingerprintSuffix + ".tmp"
 
 	file, err := o.open(temporary, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
 	if err != nil {
@@ -559,7 +559,7 @@ func (o *outFile) checkFingerprint(fingerprint string) (matched bool, err error)
 		return false, err
 	}
 
-	sidecar := o.path + fingerprintSuffix
+	sidecar := o.target + fingerprintSuffix
 
 	if !found {
 		return false, fmt.Errorf(
@@ -649,7 +649,7 @@ func (o *outFile) holdsAnswers() (written bool, err error) {
 }
 
 func (o *outFile) readFingerprint() (stored string, found bool, err error) {
-	path := o.path + fingerprintSuffix
+	path := o.target + fingerprintSuffix
 
 	file, err := o.open(path, os.O_RDONLY, 0)
 	if errors.Is(err, os.ErrNotExist) {
@@ -734,7 +734,7 @@ func (o *outFile) writeFingerprint() error {
 		return nil
 	}
 
-	path := o.path + fingerprintSuffix
+	path := o.target + fingerprintSuffix
 
 	if o.fingerprint == "" {
 		if err := o.remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {

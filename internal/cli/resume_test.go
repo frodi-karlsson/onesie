@@ -242,6 +242,18 @@ func TestResumeLedger(t *testing.T) {
 			}},
 		},
 		{
+			name:     "should resume through a link from the fingerprint beside its target",
+			existing: fileOf(idLines(1, 1)),
+			sidecar:  byID,
+			stdin:    idRecords(1, 2),
+			link:     true,
+			runs: []resumeRun{{
+				args:     values,
+				wantFile: idLines(1, 2),
+				wantSent: []string{`{"id":2}`},
+			}},
+		},
+		{
 			name:  "should compact through a link whose target does not exist yet and leave the link in place",
 			stdin: idRecords(1, 2),
 			link:  true,
@@ -1541,7 +1553,7 @@ func runResumeCases(t *testing.T, tests []resumeCase) {
 				}
 			}
 
-			writeSidecar(t, through+".onesie", tc.sidecar, false, false)
+			writeSidecar(t, path+".onesie", tc.sidecar, false, false)
 
 			if tc.stalePart {
 				if err := os.WriteFile(path+compactSuffix, []byte("stale\n"), 0o600); err != nil {
@@ -1568,6 +1580,10 @@ func runResumeCases(t *testing.T, tests []resumeCase) {
 
 			if info, err := os.Lstat(through); err != nil || (info.Mode()&os.ModeSymlink != 0) != tc.link {
 				t.Errorf("%s = %v, %v, want a symlink %v", filepath.Base(through), info, err, tc.link)
+			}
+
+			if _, err := os.Lstat(through + ".onesie"); tc.link && !os.IsNotExist(err) {
+				t.Errorf("a fingerprint was written beside the link rather than its target: %v", err)
 			}
 
 			if !tc.held {
