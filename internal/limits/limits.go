@@ -51,6 +51,12 @@ const (
 	// MaxDedupRequests is the most distinct requests a stream holds to deduplicate against. Past it,
 	// a held request still shares its answer and a new one is asked without being held.
 	MaxDedupRequests = 100000
+	// MaxCacheBytes is about the most the response cache holds on disk. Parallel runs each keep
+	// their own count, so the cache can pass it briefly.
+	MaxCacheBytes = 100 << 20
+	// DefaultCacheTTL is how long a cached answer for a model alias lives. A pinned model's answer
+	// lives until it is evicted.
+	DefaultCacheTTL = 24 * time.Hour
 )
 
 // Report lists every constant in this package, for the --version dump.
@@ -72,6 +78,8 @@ func Report() []Entry {
 		{Name: "max-calibrate-records", Value: strconv.Itoa(MaxCalibrateRecords)},
 		{Name: "max-question-file-bytes", Value: strconv.Itoa(MaxQuestionFileBytes)},
 		{Name: "max-dedup-requests", Value: strconv.Itoa(MaxDedupRequests)},
+		{Name: "max-cache-bytes", Value: strconv.Itoa(MaxCacheBytes)},
+		{Name: "cache-ttl", Value: DefaultCacheTTL.String()},
 	}
 }
 

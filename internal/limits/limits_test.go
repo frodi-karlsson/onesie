@@ -28,6 +28,8 @@ func TestReport(t *testing.T) {
 		{name: "should report the most records calibrate reads", want: "max-calibrate-records 100000"},
 		{name: "should report the largest question file -f reads", want: "max-question-file-bytes 8388608"},
 		{name: "should report the most distinct requests a stream deduplicates", want: "max-dedup-requests 100000"},
+		{name: "should report the size the response cache is held to", want: "max-cache-bytes 104857600"},
+		{name: "should report how long an alias entry lives in the cache", want: "cache-ttl 24h0m0s"},
 	}
 
 	for _, tc := range tests {

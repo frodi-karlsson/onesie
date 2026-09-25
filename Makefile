@@ -48,7 +48,8 @@ FUZZ_TARGETS := \
 	./internal/cli/:FuzzPrintQuestionsJSON \
 	./internal/cli/:FuzzLineVerdict \
 	./internal/release/:FuzzParseTag \
-	./internal/mock/:FuzzLoad
+	./internal/mock/:FuzzLoad \
+	./internal/cache/:FuzzDecodeEntry
 
 fuzz-check: ## Check that FUZZ_TARGETS lists every fuzz target in the tree and nothing else
 	@found=$$(grep -rEo --include='*_test.go' --exclude-dir=.git --exclude-dir=docs '^func Fuzz[A-Za-z0-9_]+' . | \
