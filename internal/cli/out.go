@@ -34,16 +34,21 @@ var (
 )
 
 func openOut(settings rootSettings, flags *runFlags) (*outFile, resumePlan, error) {
+	return openOutFile(settings, flags, false)
+}
+
+func openOutFile(settings rootSettings, flags *runFlags, readOnly bool) (*outFile, resumePlan, error) {
 	if flags.out == "" {
 		return nil, resumePlan{}, nil
 	}
 
 	out := &outFile{
-		path:   flags.out,
-		open:   settings.openFile,
-		rename: settings.rename,
-		remove: settings.remove,
-		goos:   settings.goos,
+		path:     flags.out,
+		open:     settings.openFile,
+		rename:   settings.rename,
+		remove:   settings.remove,
+		goos:     settings.goos,
+		readOnly: readOnly,
 	}
 
 	// Once, and ahead of the lock, so a run through a symlink and a run into its target take the
@@ -198,19 +203,18 @@ func linkAt(path string, readlink func(name string) (string, error)) (string, bo
 }
 
 type outFile struct {
-	path    string
-	target  string
-	open    func(name string, flag int, perm os.FileMode) (*os.File, error)
-	rename  func(oldpath, newpath string) error
-	remove  func(name string) error
-	goos    string
-	unlock  func() error
-	special bool
-	resume  bool
-	keep    int64
-	bound   bool
-	matched bool
-	// Set by calibrate --offline, which reads the file and never writes it.
+	path     string
+	target   string
+	open     func(name string, flag int, perm os.FileMode) (*os.File, error)
+	rename   func(oldpath, newpath string) error
+	remove   func(name string) error
+	goos     string
+	unlock   func() error
+	special  bool
+	resume   bool
+	keep     int64
+	bound    bool
+	matched  bool
 	readOnly bool
 
 	fingerprint string
@@ -269,7 +273,7 @@ func (o *outFile) resumeAt(length int64) {
 }
 
 func (o *outFile) removeStalePart() error {
-	if o.special {
+	if o.special || o.readOnly {
 		return nil
 	}
 
@@ -581,7 +585,7 @@ func (o *outFile) checkFingerprint(fingerprint string) (matched bool, err error)
 	sidecar := o.target + fingerprintSuffix
 
 	if !found {
-		return false, staleAnswers(
+		return false, staleAnswers("it has no fingerprint beside it",
 			"onesie: %s has no fingerprint beside it, so onesie cannot tell which run wrote it. "+
 				"Drop --resume to start over", o.path)
 	}
@@ -590,19 +594,19 @@ func (o *outFile) checkFingerprint(fingerprint string) (matched bool, err error)
 
 	switch {
 	case !ok:
-		return false, staleAnswers(
+		return false, staleAnswers("onesie did not write its fingerprint",
 			"onesie: %s does not hold a fingerprint onesie wrote, so onesie cannot tell which run "+
 				"wrote %s. Drop --resume to start over", sidecar, o.path)
 	case version < fingerprintVersion:
-		return false, staleAnswers(
+		return false, staleAnswers("an older onesie wrote its fingerprint",
 			"onesie: an older onesie wrote %s, so this one cannot tell which run wrote %s. "+
 				"Drop --resume to start over", sidecar, o.path)
 	case version > fingerprintVersion:
-		return false, staleAnswers(
+		return false, staleAnswers("a newer onesie wrote its fingerprint",
 			"onesie: a newer onesie wrote %s, so this one cannot tell which run wrote %s. "+
 				"Drop --resume to start over", sidecar, o.path)
 	case stored != fingerprint:
-		return false, staleAnswers(
+		return false, staleAnswers("the questions, model or flags changed since it was written",
 			"onesie: the questions, flags or gate changed since %s was written. "+
 				"Drop --resume to start over", o.path)
 	}
@@ -610,13 +614,13 @@ func (o *outFile) checkFingerprint(fingerprint string) (matched bool, err error)
 	return true, nil
 }
 
-func staleAnswers(format string, args ...any) error {
+func staleAnswers(cause, format string, args ...any) error {
 	// Not %w, which would add the sentinel's own text to a message people already read.
-	return &staleAnswersError{message: fmt.Sprintf(format, args...)}
+	return &staleAnswersError{message: fmt.Sprintf(format, args...), cause: cause}
 }
 
 type staleAnswersError struct {
-	message string
+	message, cause string
 }
 
 func (e *staleAnswersError) Error() string {

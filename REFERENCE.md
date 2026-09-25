@@ -151,13 +151,15 @@ onesie calibrate -f examples/questions/shell-safety.yaml -i jsonl --map .command
 - A record the file does not answer exits 2, naming it. So does a stored error line, which a run
   without `--offline` would ask again.
 - A missing answers file exits 2, naming it, and nothing is created.
-- A file whose fingerprint does not match this run, because the questions, model, provider, `-i`,
-  `--map` or `--id` changed, exits 2 with the advice to regenerate it. The model and provider are
-  part of the match, so pin both with `-m` and `--provider`.
-- `--offline` is refused beside `--mock` and `--print-request`.
-- The starter sets in `examples/` commit their answers files, and `make check` runs each set
-  offline with the requirements `examples/README.md` lists. `make examples-answers` regenerates
-  them with a key.
+- A file whose fingerprint does not match this run exits 2, naming the cause, such as changed
+  questions, model or flags, or a fingerprint a newer onesie wrote. To regenerate the file, run
+  again without `--offline` and `--resume`. The model and provider are part of the match, so pin
+  both with `-m` and `--provider`.
+- A stale `.onesie.part` file an interrupted rewrite left beside the answers file stays where it
+  is, since `--offline` changes nothing on disk.
+- `--offline` is refused beside `--mock`, `--print-request` and `--prune`.
+- The starter sets in `examples/` commit their answers files, and a test checks each set offline
+  with the requirements `examples/README.md` lists.
 
 ## Streams
 
@@ -244,8 +246,8 @@ onesie auth test                                   # checks the key, costs no to
 | 7 | the gate could not decide: the assertion failed and `--abstain-if` held |
 | 130 | interrupted |
 
-calibrate uses 0, 2, 3, 6 and 130, and 1 only under `--require`, when a requirement did not hold. A consumer that stops
-reading, as `head` does, is not an error.
+calibrate uses 0, 2, 3, 6 and 130, and 1 only under `--require`, when a requirement did not hold.
+A consumer that stops reading, as `head` does, is not an error.
 
 ## More
 

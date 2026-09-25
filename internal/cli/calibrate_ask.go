@@ -9,7 +9,6 @@ import (
 	"maps"
 	"net/http"
 	"slices"
-	"strconv"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -45,11 +44,11 @@ func calibrateRun(
 	if calib.offline {
 		if _, statErr := settings.stat(flags.out); errors.Is(statErr, fs.ErrNotExist) {
 			return fmt.Errorf("onesie: %s does not exist, so --offline has nothing to read. "+
-				"Generate it with make examples-answers", flags.out)
+				"Rerun without --offline to create it", flags.out)
 		}
 	}
 
-	out, _, err := openOut(settings, flags)
+	out, _, err := openOutFile(settings, flags, calib.offline)
 	if err != nil {
 		return err
 	}
@@ -57,10 +56,6 @@ func calibrateRun(
 	defer func() {
 		err = errors.Join(err, out.release())
 	}()
-
-	if out != nil {
-		out.readOnly = calib.offline
-	}
 
 	runErr := calibrateAnswers(
 		cmd, settings, flags, calib, inputMode, inv, labels, model, cuts, bound, out, answers)
@@ -92,9 +87,9 @@ func calibrateAnswers(
 	bindErr := bindOut(out, settings, flags, built.Questions, fingerprintInputs{
 		model: model, output: output.JSON.String(), input: inputMode.String(),
 	})
-	if calib.offline && errors.Is(bindErr, errStaleAnswers) {
-		return fmt.Errorf("onesie: %s was written by a different run, so --offline cannot read it. "+
-			"Regenerate it with make examples-answers, or rerun without --offline", flags.out)
+	if stale := (*staleAnswersError)(nil); calib.offline && errors.As(bindErr, &stale) {
+		return fmt.Errorf("onesie: %s does not match this run, since %s, so --offline cannot read it. "+
+			"Rerun without --offline and --resume to regenerate it", flags.out, stale.cause)
 	}
 
 	if bindErr != nil {
@@ -159,13 +154,13 @@ func calibrateAnswers(
 }
 
 func unansweredOffline(answers string, pending []labelledRecord) error {
-	more := ""
-	if len(pending) > 1 {
-		more = ", and " + strconv.Itoa(len(pending)-1) + " more"
+	if len(pending) == 1 {
+		return fmt.Errorf("onesie: %s does not answer %s, so --offline cannot report it. "+
+			"Rerun without --offline to ask it", answers, pending[0].name())
 	}
 
-	return fmt.Errorf("onesie: %s does not answer %s%s, and --offline asks nothing. "+
-		"Rerun without --offline to ask them", answers, pending[0].name(), more)
+	return fmt.Errorf("onesie: %s does not answer %s or %d more, so --offline cannot report them. "+
+		"Rerun without --offline to ask them", answers, pending[0].name(), len(pending)-1)
 }
 
 func cutsOf(cmd *cobra.Command, calib calibrateFlags) ([]float64, error) {

@@ -10,22 +10,24 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"strings"
 
 	"github.com/frodi-karlsson/onesie/examples"
 	"github.com/frodi-karlsson/onesie/internal/cli"
 )
 
 const (
-	dir     = "examples"
 	keyName = "TYPESAFE_API_KEY"
 	jobs    = "4"
+	// The part of calibrate --offline's refusal of a file whose fingerprint differs.
+	staleMarker = "so --offline cannot read it"
 )
 
 var errNoKeychain = errors.New("examplesanswers never reads the keychain")
 
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
-	code, err := run(ctx, os.LookupEnv, os.Stdout, os.Stderr)
+	code, err := run(ctx, options{lookup: os.LookupEnv, dir: "examples", stdout: os.Stdout, stderr: os.Stderr})
 
 	stop()
 
@@ -38,19 +40,25 @@ func main() {
 	os.Exit(code)
 }
 
-func run(
-	ctx context.Context, lookup func(string) (string, bool), stdout, stderr io.Writer,
-) (code int, err error) {
-	if value, _ := lookup("ONESIE_MOCK"); value != "" {
+type options struct {
+	lookup         func(string) (string, bool)
+	dir            string
+	stdout, stderr io.Writer
+	// Added to every command built, which lets a test answer from a stub API.
+	root []cli.RootOption
+}
+
+func run(ctx context.Context, opts options) (code int, err error) {
+	if value, _ := opts.lookup("ONESIE_MOCK"); value != "" {
 		return cli.ExitUsage, errors.New("ONESIE_MOCK is set, and the committed answers must come from the API. Unset it")
 	}
 
-	key, _ := lookup(keyName)
+	key, _ := opts.lookup(keyName)
 	if key == "" {
 		return cli.ExitUsage, errors.New("needs " + keyName + ", since it asks the live API")
 	}
 
-	sets, err := examples.Sets(dir)
+	sets, err := examples.Sets(opts.dir)
 	if err != nil {
 		return cli.ExitUsage, err
 	}
@@ -68,11 +76,11 @@ func run(
 	env := map[string]string{keyName: key, "ONESIE_CONFIG_DIR": scratch}
 
 	for _, set := range sets {
-		if _, err := fmt.Fprintf(stdout, "--- %s ---\n", set.Name); err != nil {
+		if _, err := fmt.Fprintf(opts.stdout, "--- %s ---\n", set.Name); err != nil {
 			return cli.ExitUsage, err
 		}
 
-		code, err := answer(ctx, set, env, scratch, stdout, stderr)
+		code, err := answer(ctx, set, opts, env, scratch)
 		if err != nil {
 			return code, err
 		}
@@ -85,33 +93,51 @@ func run(
 	return cli.ExitOK, nil
 }
 
-func answer(
-	ctx context.Context, set examples.Set, env map[string]string, home string, stdout, stderr io.Writer,
-) (int, error) {
-	records, err := os.ReadFile(set.Data(dir))
+func answer(ctx context.Context, set examples.Set, opts options, env map[string]string, home string) (int, error) {
+	records, err := os.ReadFile(set.Data(opts.dir))
 	if err != nil {
 		return cli.ExitUsage, err
 	}
 
+	args := append(set.CalibrateArgs(opts.dir), "-j", jobs, "--out", set.Answers(opts.dir))
+
+	// An offline dry run asks nothing and says whether the file still matches the questions. A
+	// file that does not is started afresh, and any other is resumed.
+	var probe bytes.Buffer
+	calibrate(ctx, opts.root, env, home, records, append(args, "--resume", "--offline"), io.Discard, &probe)
+
+	if !strings.Contains(probe.String(), staleMarker) {
+		args = append(args, "--resume")
+	}
+
+	return calibrate(ctx, opts.root, env, home, records, args, opts.stdout, opts.stderr), nil
+}
+
+func calibrate(
+	ctx context.Context, extra []cli.RootOption, env map[string]string, home string, records []byte, args []string,
+	stdout, stderr io.Writer,
+) int {
 	root := cli.NewRootCmd(
 		cli.BuildInfo{Version: "examplesanswers"},
-		cli.WithKeychain(noKeychain{}),
-		cli.WithLookupEnv(func(name string) (string, bool) {
-			value, found := env[name]
+		append([]cli.RootOption{
+			cli.WithKeychain(noKeychain{}),
+			cli.WithLookupEnv(func(name string) (string, bool) {
+				value, found := env[name]
 
-			return value, found
-		}),
-		cli.WithHomeDir(func() (string, error) { return home, nil }),
-		cli.WithStdin(bytes.NewReader(records)),
-		cli.WithStdinTTY(false),
-		cli.WithStdoutTTY(false),
+				return value, found
+			}),
+			cli.WithHomeDir(func() (string, error) { return home, nil }),
+			cli.WithStdin(bytes.NewReader(records)),
+			cli.WithStdinTTY(false),
+			cli.WithStdoutTTY(false),
+		}, extra...)...,
 	)
 
 	root.SetOut(stdout)
 	root.SetErr(stderr)
-	root.SetArgs(append(set.CalibrateArgs(dir), "-j", jobs, "--out", set.Answers(dir), "--resume"))
+	root.SetArgs(args)
 
-	return cli.Execute(ctx, root), nil
+	return cli.Execute(ctx, root)
 }
 
 type noKeychain struct{}

@@ -88,7 +88,7 @@ func newCalibrateCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 			"report still prints, and each requirement that did not hold is named on stderr.\n\n" +
 			"--offline, with --out and --resume, reads every answer from the file and asks nothing, so it " +
 			"needs no key and never rewrites the file. A record the file does not answer, a missing file " +
-			"or a file another run wrote exits 2.\n\n" +
+			"or a file whose fingerprint differs exits 2.\n\n" +
 			"Exit 0 means every record was answered and every --require held, 1 a --require that did " +
 			"not hold, 2 a usage error or a bad label or record, 3 a refused api key or an account out " +
 			"of credits, 6 a report with some records failed, which wins over 1, and 130 an interrupt, " +
@@ -325,6 +325,8 @@ func checkOffline(cfg plan.Config, calib calibrateFlags) error {
 		return errors.New("onesie: --offline reads every answer from --out. Pass --out FILE --resume")
 	case !cfg.Resume:
 		return errors.New("onesie: --offline needs --resume, since it reads the answers --out already holds")
+	case cfg.Prune:
+		return errors.New("onesie: --offline never rewrites --out, so --prune has nothing to drop. Drop one")
 	}
 
 	return nil

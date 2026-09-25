@@ -1619,7 +1619,8 @@ func TestCalibrateRun(t *testing.T) {
 		check := untouched(t, answers, answers+fingerprintSuffix)
 
 		out, errOut, code := runMocked(t, t.Context(), calibrating(answers, "--resume", "--offline"), urgentSet, nil, nil)
-		if code != ExitUsage || !strings.Contains(errOut, answers+" does not answer record T-5, and 1 more") || out != "" {
+		if code != ExitUsage || !strings.Contains(errOut, answers+" does not answer record T-5 or 1 more, so --offline "+
+			"cannot report them. Rerun without --offline to ask them") || out != "" {
 			t.Errorf("exit %d, want 2 naming record T-5\nstdout:\n%s\nstderr:\n%s", code, out, errOut)
 		}
 
@@ -1650,12 +1651,19 @@ func TestCalibrateRun(t *testing.T) {
 		sidecar *string
 		ask     string
 		wording string
+		cause   string
 	}{
-		{name: "no sidecar", wording: "has no fingerprint beside it"},
-		{name: "a foreign sidecar", sidecar: new("hello"), wording: "does not hold a fingerprint onesie wrote"},
-		{name: "an older version", sidecar: new("v1:abc"), wording: "an older onesie wrote"},
-		{name: "a newer version", sidecar: new("v9:abc"), wording: "a newer onesie wrote"},
-		{name: "a changed question", ask: "urgent=is this urgent now", wording: "changed since"},
+		{name: "no sidecar", wording: "has no fingerprint beside it", cause: "it has no fingerprint beside it"},
+		{
+			name: "a foreign sidecar", sidecar: new("hello"), wording: "does not hold a fingerprint onesie wrote",
+			cause: "onesie did not write its fingerprint",
+		},
+		{name: "an older version", sidecar: new("v1:abc"), wording: "an older onesie wrote", cause: "an older onesie wrote its fingerprint"},
+		{name: "a newer version", sidecar: new("v9:abc"), wording: "a newer onesie wrote", cause: "a newer onesie wrote its fingerprint"},
+		{
+			name: "a changed question", ask: "urgent=is this urgent now", wording: "changed since",
+			cause: "the questions, model or flags changed since it was written",
+		},
 	} {
 		t.Run("should advise regenerating a file with "+stale.name+" under --offline, and not without it", func(t *testing.T) {
 			t.Parallel()
@@ -1679,8 +1687,8 @@ func TestCalibrateRun(t *testing.T) {
 			}
 
 			_, errOut, code := runMocked(t, t.Context(), append(slices.Clone(args), "--offline"), urgentSet, nil, nil)
-			want := "onesie: " + answers + " was written by a different run, so --offline cannot read it. " +
-				"Regenerate it with make examples-answers, or rerun without --offline"
+			want := "onesie: " + answers + " does not match this run, since " + stale.cause +
+				", so --offline cannot read it. Rerun without --offline and --resume to regenerate it"
 			if code != ExitUsage || !strings.Contains(errOut, want) {
 				t.Errorf("exit %d, want 2 with the regenerate advice\nstderr:\n%s", code, errOut)
 			}
@@ -1699,7 +1707,8 @@ func TestCalibrateRun(t *testing.T) {
 		answers := filepath.Join(dir, "answers.jsonl")
 
 		_, errOut, code := runMocked(t, t.Context(), calibrating(answers, "--resume", "--offline"), urgentSet, nil, nil)
-		want := "onesie: " + answers + " does not exist, so --offline has nothing to read. Generate it with make examples-answers"
+		want := "onesie: " + answers + " does not exist, so --offline has nothing to read. " +
+			"Rerun without --offline to create it"
 		if code != ExitUsage || !strings.Contains(errOut, want) {
 			t.Errorf("exit %d, want 2 naming the file\nstderr:\n%s", code, errOut)
 		}
@@ -1717,6 +1726,7 @@ func TestCalibrateRun(t *testing.T) {
 		{name: "without --resume", want: "--offline needs --resume", args: urgent("--offline", "--out", "x.jsonl")},
 		{name: "with --mock", want: "--offline reads every answer from --out, and --mock", args: urgent("--offline", "--out", "x.jsonl", "--resume", "--mock", "m.json")},
 		{name: "with --print-request", want: "--offline reads answers, and --print-request", args: urgent("--offline", "--out", "x.jsonl", "--resume", "--print-request")},
+		{name: "with --prune", want: "--offline never rewrites --out, so --prune has nothing to drop", args: urgent("--offline", "--out", "x.jsonl", "--resume", "--prune")},
 	} {
 		t.Run("should refuse --offline "+refused.name, func(t *testing.T) {
 			t.Parallel()
@@ -1727,6 +1737,25 @@ func TestCalibrateRun(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("should leave a part file an interrupted compaction left alone under --offline", func(t *testing.T) {
+		t.Parallel()
+
+		answers, _ := answered(t)
+		part := answers + ".onesie.part"
+		if err := os.WriteFile(part, []byte("partial\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+
+		_, errOut, code := runMocked(t, t.Context(), calibrating(answers, "--resume", "--offline"), urgentSet, nil, nil)
+		if code != ExitOK {
+			t.Fatalf("exit %d\nstderr:\n%s", code, errOut)
+		}
+
+		if got := readText(t, part); got != "partial\n" {
+			t.Errorf("part file = %q, want it left as it was", got)
+		}
+	})
 
 	t.Run("should exit 1 under --offline when a requirement does not hold", func(t *testing.T) {
 		t.Parallel()

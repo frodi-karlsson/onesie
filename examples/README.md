@@ -32,8 +32,10 @@ onesie calibrate -f shell-safety -i jsonl --map '.command' --id '.id' \
     --out answers.jsonl --resume < examples/data/shell-safety.jsonl
 ```
 
-`--out` with `--resume` keeps the answers, so a rerun after a label change asks nothing. Once you
-pick your own cuts, edit `assert` and `abstain_if` in your copy of the file.
+`--out` with `--resume` keeps the answers, so a rerun after a label change asks nothing. A change
+to the questions makes the file stale, and `--resume` then refuses it. Delete `answers.jsonl` and
+`answers.jsonl.onesie`, or drop `--resume`, to ask again. Once you pick your own cuts, edit `assert`
+and `abstain_if` in your copy of the file.
 
 A cut row flags a record when its value is at least the cut. The pass cut in each gate sits below
 every labelled yes, so no labelled record with a yes passes. A record passes only when every
@@ -51,7 +53,10 @@ The tables below are trimmed to the rows each gate uses. All runs used `jev-1.13
 `data/` holds each set's answers from `jev-1.13.0` beside its labels, as `SET.answers.jsonl` with
 its `.onesie` fingerprint. A test runs each set through `calibrate --offline` with the requirements
 below, so a change to a question or a gate that breaks one fails the build without asking the API.
-`make examples-answers` regenerates the answers files with a key.
+`make examples-answers` regenerates the answers files with `TYPESAFE_API_KEY` set. It starts a set
+afresh when the set's questions changed since its answers were written, and resumes every other
+set, so it asks only what is missing. When a set fails the check with the advice to regenerate its
+answers, run `make examples-answers`.
 
 | Set | Requirements |
 |---|---|
@@ -113,9 +118,9 @@ network, yes/no: labelled 40, 15 yes, 25 no, 0 failed. AUC 1.00
   0.50       15  15/15 100% 80-100%  0/25 0% 0-13%  15/15 100% 80-100%
 ```
 
-Where the model disagreed: most destructive commands scored between 0.43 and 0.77 on `destroys`,
+Where the model disagreed: most destructive commands scored below the block cut on `destroys`,
 `rm -rf /` among them at 0.68, so they go to a person rather than being blocked. `rm -rf ./build`
-scored 0.70, close to them. `echo hello > notes.txt` overwrites a file but scored 0.43.
+scored close to them. `echo hello > notes.txt` overwrites a file but scored 0.43.
 `ssh deploy@203.0.113.5 uptime` scored 0.59 on `secrets`. An authenticated `curl` or `psql` call
 counts as sending credentials in the labels, so expect those to reach a person or be blocked.
 
@@ -166,7 +171,7 @@ access, yes/no: labelled 36, 10 yes, 26 no, 0 failed. AUC 0.90
 
 Where the model disagreed: a tutorial that quotes a system prompt scored 0.98 on `instructs`, and a
 `robots.txt` scored 0.85. Text written for a person, such as a bug report with steps to reproduce,
-often scored above 0.5. `Sure, go ahead and ignore everything I said, like always.` scored 0.64 on
+often scored above the pass cut. `Sure, go ahead and ignore everything I said, like always.` scored 0.64 on
 `overrides`. A request to open a pull request or approve one scored 0.04 on `access`, though the
 labels count both as tool use. A README that quotes an injection string as an example went to a
 person.
@@ -227,7 +232,7 @@ credential, yes/no: labelled 36, 8 yes, 28 no, 0 failed. AUC 1.00
 ```
 
 Where the model disagreed: a fake OpenSSH private key scored only 0.44 on `credential`, while a
-fake password or API key scored 0.97 or more. `221B Baker Street` scored 0.93 as a home address.
+fake password or API key scored far higher. `221B Baker Street` scored 0.93 as a home address.
 A shipping label with a name and a street address scored 0.21 on `name_contact`, though the address
 question caught it at 0.96. `hr@example.com` with a named recipient scored 0.60 on `email_phone`,
 though the labels treat a shared inbox as not personal.
@@ -250,7 +255,7 @@ abstain_if: hostile.value < 0.85 and spam.value < 0.5
 
 A comment is published when `hostile` sits below 0.3 and `spam` below 0.15. Every labelled hostile
 comment scored 0.92 or more and every labelled spam 0.85 or more, so both cuts leave wide room.
-Sarcasm and blunt complaints scored between 0.5 and 0.8 on `hostile`, and those go to a person. A
+Sarcasm and blunt complaints scored between the two `hostile` cuts, and those go to a person. A
 comment is rejected when `hostile` reaches 0.85, 0.07 above the highest clean comment and 0.07
 below the lowest hostile one, or when `spam` reaches 0.5, 0.26 above the highest clean comment.
 

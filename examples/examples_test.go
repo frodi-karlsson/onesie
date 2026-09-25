@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"errors"
 	"io"
 	"maps"
 	"os"
@@ -17,6 +18,8 @@ import (
 	"github.com/frodi-karlsson/onesie/examples"
 	"github.com/frodi-karlsson/onesie/internal/cli"
 )
+
+var errKeychain = errors.New("the starter set tests never use the keychain")
 
 func TestStarterSets(t *testing.T) {
 	t.Parallel()
@@ -32,6 +35,8 @@ func TestStarterSets(t *testing.T) {
 		{name: "should refuse a gate typed beside the file under --print-request", check: refuseTypedGate},
 		{name: "should meet its requirements offline", check: meetsRequirements},
 		{name: "should name the model its answers came from", check: namesModel},
+		{name: "should show the tables a fresh offline run prints", check: showsTables},
+		{name: "should quote only numbers its answers give", check: quotesNumbers},
 	}
 
 	sets, err := examples.Sets(".")
@@ -106,7 +111,19 @@ func dryRunCalibrate(t *testing.T, set examples.Set) {
 }
 
 func meetsRequirements(t *testing.T, set examples.Set) {
-	requirements := requirementsOf(t, set.Name)
+	var args []string
+	for _, requirement := range requirementsOf(t, set.Name) {
+		args = append(args, "--require", requirement)
+	}
+
+	stdout, stderr, code := offline(t, set, args...)
+	if code != cli.ExitOK {
+		t.Fatalf("exit %d, want 0\nstderr:\n%s\nstdout:\n%s", code, stderr, stdout)
+	}
+}
+
+func offline(t *testing.T, set examples.Set, extra ...string) (string, string, int) {
+	t.Helper()
 
 	// A copy keeps the lock file and any rewrite out of the tree, and lets the sets run in parallel.
 	answers := filepath.Join(t.TempDir(), filepath.Base(set.Answers(".")))
@@ -117,14 +134,8 @@ func meetsRequirements(t *testing.T, set examples.Set) {
 	}
 
 	args := append(set.CalibrateArgs("."), "--out", answers, "--resume", "--offline")
-	for _, requirement := range requirements {
-		args = append(args, "--require", requirement)
-	}
 
-	stdout, stderr, code := run(t, strings.NewReader(readFile(t, set.Data("."))), args...)
-	if code != cli.ExitOK {
-		t.Fatalf("exit %d, want 0\nstderr:\n%s\nstdout:\n%s", code, stderr, stdout)
-	}
+	return run(t, strings.NewReader(readFile(t, set.Data("."))), append(args, extra...)...)
 }
 
 func requirementsOf(t *testing.T, name string) []string {
@@ -279,8 +290,12 @@ func run(t *testing.T, stdin io.Reader, args ...string) (string, string, int) {
 
 	var stdout, stderr bytes.Buffer
 
+	home := t.TempDir()
+
 	root := cli.NewRootCmd(
 		cli.BuildInfo{Version: "test"},
+		cli.WithKeychain(failingKeychain{t: t}),
+		cli.WithHomeDir(func() (string, error) { return home, nil }),
 		cli.WithStdin(stdin),
 		cli.WithStdinTTY(false),
 		cli.WithStdoutTTY(false),
@@ -294,4 +309,26 @@ func run(t *testing.T, stdin io.Reader, args ...string) (string, string, int) {
 	code := cli.Execute(t.Context(), root)
 
 	return stdout.String(), stderr.String(), code
+}
+
+type failingKeychain struct {
+	t *testing.T
+}
+
+func (k failingKeychain) Get(string) (string, error) {
+	k.t.Error("a starter set test read the keychain")
+
+	return "", errKeychain
+}
+
+func (k failingKeychain) Set(string, string) error {
+	k.t.Error("a starter set test wrote the keychain")
+
+	return errKeychain
+}
+
+func (k failingKeychain) Delete(string) error {
+	k.t.Error("a starter set test deleted from the keychain")
+
+	return errKeychain
 }
