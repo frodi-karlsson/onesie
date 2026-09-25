@@ -96,6 +96,69 @@ accepts as a label.
   records it covers, failed ones that spent tokens included.
 - `onesie -V` lists `max-calibrate-records`, the most records one run reads.
 
+### Requirements
+
+`--require` turns the report into a check. The report still prints, and the run exits 1 when a
+requirement does not hold.
+
+```sh
+onesie calibrate -f examples/questions/prompt-injection.yaml -i jsonl --map .text --id .id \
+    --label instructs=.instructs --label overrides=.overrides --label access=.access \
+    --require 'instructs.catches >= 0.95' --require 'upper(overrides.false_alarms) <= 0.25 at 0.9' \
+    < examples/data/prompt-injection.jsonl
+```
+
+- A requirement reads `[lower|upper](ID.MEASURE) OP NUMBER [at CUT]`. `MEASURE` is `catches`,
+  `false_alarms`, `right_when_flagged` or `auc` for a yes/no question, `agreement` for pick and
+  rate, and `within_one` for rate. `OP` is `>=`, `>`, `<=` or `<`. `NUMBER` and `CUT` are fractions
+  between 0 and 1, so `95` exits 2 with `write 0.95, not 95`.
+- `lower(...)` and `upper(...)` compare an end of the 95 percent interval instead of the value.
+  `lower` takes only `>=` or `>`, and `upper` only `<=` or `<`. On a small sample they fail rather
+  than pass, since 16 of 16 has a lower bound of 81 percent. `auc` has no interval.
+- A yes/no measure other than `auc` is read at one cut. `at CUT` names it, and `at abstain` takes
+  it from the `-f` file's `abstain_if`. Without `at`, the file's `assert` gives it, when it compares
+  the question as `ID.value < X` or `ID.value >= X`. A gate that compares the question with `>` or
+  `<=`, through a function such as `max()`, through `in`, or at two different cuts gives none, and
+  the requirement then needs `at`. A missing cut exits 2 before any request, naming the question.
+- `catches` is always the share of labelled yes records with `value >= cut`. A cut outside
+  `--cuts` adds its row to that question's table only.
+- A measure over no records, such as false alarms with no labelled no, does not hold, and says why.
+- Requirements live only on the command line. A question file carries none, so a copy of a starter
+  set calibrated on other data inherits no guarantee measured on ours.
+- Each requirement that did not hold is named on stderr with its value, interval and cut. A failed
+  record still exits 6, which wins over 1.
+- The `-o json` report gains a `require` array, one entry per requirement:
+  `{"expr":"...","held":false,"value":0.65,"interval":[0.43,0.82],"cut":0.25}`. `auc` has
+  `"interval":null`, a pick or rate measure `"cut":null`, and a measure over no records
+  `"value":null` with a `reason`.
+- `--print-request` checks each requirement and its cut, then prints the requests as usual.
+
+### Offline
+
+`--offline`, with `--out` and `--resume`, answers every record from the answers file and asks
+nothing. It needs no key, spends nothing and never rewrites the file, so a committed answers file
+checks a gate in CI.
+
+```sh
+onesie calibrate -f examples/questions/shell-safety.yaml -i jsonl --map .command --id .id \
+    -m jev-1.13.0 --provider typesafe \
+    --label destroys=.destroys --label secrets=.secrets --label network=.network \
+    --out examples/data/shell-safety.answers.jsonl --resume --offline \
+    --require 'destroys.catches >= 1' --require 'destroys.false_alarms <= 0 at abstain' \
+    < examples/data/shell-safety.jsonl
+```
+
+- A record the file does not answer exits 2, naming it. So does a stored error line, which a run
+  without `--offline` would ask again.
+- A missing answers file exits 2, naming it, and nothing is created.
+- A file whose fingerprint does not match this run, because the questions, model, provider, `-i`,
+  `--map` or `--id` changed, exits 2 with the advice to regenerate it. The model and provider are
+  part of the match, so pin both with `-m` and `--provider`.
+- `--offline` is refused beside `--mock` and `--print-request`.
+- The starter sets in `examples/` commit their answers files, and `make check` runs each set
+  offline with the requirements `examples/README.md` lists. `make examples-answers` regenerates
+  them with a key.
+
 ## Streams
 
 - A record that fails still prints a line with an `error` key, and the run exits 6.
@@ -181,7 +244,7 @@ onesie auth test                                   # checks the key, costs no to
 | 7 | the gate could not decide: the assertion failed and `--abstain-if` held |
 | 130 | interrupted |
 
-calibrate uses 0, 2, 3, 6 and 130, and no exit code judges its result. A consumer that stops
+calibrate uses 0, 2, 3, 6 and 130, and 1 only under `--require`, when a requirement did not hold. A consumer that stops
 reading, as `head` does, is not an error.
 
 ## More

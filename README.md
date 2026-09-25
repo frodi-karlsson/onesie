@@ -204,6 +204,24 @@ onesie calibrate --ask urgent='is this urgent' -i jsonl --map '.body' \
 onesie 'is this urgent' --assert 'answer.value >= 0.9' -q --state "$body" && page_on_call
 ```
 
+**Fail CI when a calibrated gate drifts.** Keep the answers file beside the labels, and a CI step
+checks the gate against it with `--offline`, which needs no key and costs nothing. Exit 1 means a
+requirement no longer holds, and exit 2 that the file no longer matches the questions, so
+regenerate it.
+
+```sh
+# once, and again whenever the questions change
+onesie calibrate -f triage -i jsonl --map '.body' --label urgent='.is_urgent' --id '.id' \
+    -m jev-1.13.0 --provider typesafe --out answers.jsonl --resume < labelled.jsonl
+git add answers.jsonl answers.jsonl.onesie
+
+# in CI
+onesie calibrate -f triage -i jsonl --map '.body' --label urgent='.is_urgent' --id '.id' \
+    -m jev-1.13.0 --provider typesafe --out answers.jsonl --resume --offline \
+    --require 'urgent.catches >= 0.95' --require 'urgent.false_alarms <= 0.1 at abstain' \
+    < labelled.jsonl
+```
+
 **Try it before spending anything.** `--print-request` prints the request without sending it and
 needs no key. `-i request` later sends those requests unchanged.
 

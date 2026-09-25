@@ -78,12 +78,25 @@ func newCalibrateCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 			"records the file does not answer. Changing a label or --cuts reuses every stored answer. " +
 			"A plain stream run can resume the file too, given the same questions, model, -i, --map " +
 			"and --id, with -o json and no gate or merge.\n\n" +
+			"--require turns the report into a check. Each one reads [lower|upper](ID.MEASURE) OP NUMBER " +
+			"[at CUT], where MEASURE is catches, false_alarms, right_when_flagged or auc for yes/no, " +
+			"agreement for pick and rate, and within_one for rate. OP is >=, >, <= or <, and NUMBER is a " +
+			"fraction between 0 and 1. lower and upper compare an end of the 95 percent interval instead " +
+			"of the value, so 16 of 16 fails lower(x.catches) >= 0.9. A yes/no measure other than auc is " +
+			"read at one cut: at CUT names it, at abstain takes it from the -f file's abstain_if, and " +
+			"otherwise the file's assert gives it when it compares ID.value < X or ID.value >= X. The " +
+			"report still prints, and each requirement that did not hold is named on stderr.\n\n" +
+			"--offline, with --out and --resume, reads every answer from the file and asks nothing, so it " +
+			"needs no key and never rewrites the file. A record the file does not answer, a missing file " +
+			"or a file another run wrote exits 2.\n\n" +
 			"Exit 0 means every record was answered and every --require held, 1 a --require that did " +
 			"not hold, 2 a usage error or a bad label or record, 3 a refused api key or an account out " +
 			"of credits, 6 a report with some records failed, which wins over 1, and 130 an interrupt, " +
 			"with no report after 3 or 130.",
 		Example: "  onesie calibrate --ask urgent='is this urgent' -i jsonl --map '.body' \\\n" +
-			"      --label urgent='.is_urgent' --id '.id' --out answers.jsonl --resume < labelled.jsonl",
+			"      --label urgent='.is_urgent' --id '.id' --out answers.jsonl --resume < labelled.jsonl\n" +
+			"  onesie calibrate -f triage -i jsonl --map '.body' --label urgent='.is_urgent' --id '.id' \\\n" +
+			"      --out answers.jsonl --resume --offline --require 'urgent.catches >= 0.95' < labelled.jsonl",
 		Args:          cobra.MaximumNArgs(1),
 		SilenceUsage:  true,
 		SilenceErrors: true,
