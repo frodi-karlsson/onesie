@@ -139,6 +139,16 @@ onesie --ask urgent='is this urgent' --assert 'urgnet.value < 0.5' --state 'a ti
 onesie --ask urgent='is this urgent' --assert 'urgnet.value < 0.5' --print-questions
 ```
 
+### Test every branch of a gate script with --mock before it spends anything.
+
+`--mock FILE` answers from a file instead of the API, so a run needs no key, opens no network and costs nothing, while the gate, the exit codes and every output mode run as they do for real. The file is one JSON object keyed by question id, used for every record, such as `{"destroys": 0.93, "secrets": 0.02, "network": 0.1}`, or the `-o json` lines a real run writes to `--out`, matched by `--id` or by record order, so a real run's answers replay. A yes or no answer is a probability, and a pick or rate answer is a name or an object with `value` and `confidence`. An entry answers every question. `{"error": 401}` fails a record as a refused key does, `{"error": 503}` as a server error and `{"error": "timeout"}` as a timeout, so one record exits 3, 4 or 5. In a stream a failed record is an error line and the run exits 6, apart from a 401, 402 or 403, which ends it with exit 3. To test a script without editing it, export `ONESIE_MOCK=answers.json`, which every onesie call in the script reads. A record the file does not answer exits 2, naming it.
+
+**Good:**
+
+```sh
+onesie -f examples/questions/shell-safety.yaml -q --mock answers.json --state 'rm -rf /'
+```
+
 ### Read value, confidence, p, score, norm, decision and fallback, and compare with == != < <= > >= and in.
 
 A path is a question id, a dot and a field. `value` is on every shape, a number on a yes or no question and a string on a pick or rate. `confidence` and `p.NAME`, the probability of one option or level, exist on a pick or rate. `score` and `norm` exist on a rate. `decision` needs `--threshold` or `--min-confidence`, and is a boolean on a yes or no question, a string otherwise. `fallback` needs a policy flag and reads the empty string when nothing replaced the answer. A field the shape lacks exits 2. Compare with `==`, `!=`, `<`, `<=`, `>` and `>=`, test a string with `in ["a", "b"]`, and combine with `and`, `or`, `not` and parentheses. Strings take double quotes. A number needs a digit before the point, as in `0.5`, and may be negative. A bare path is not a test, so write `u.decision == true`. Several `--assert` flags join with `and`.

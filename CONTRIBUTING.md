@@ -27,6 +27,9 @@ The live suite reads the API key from a gitignored `.env`, populated from 1Passw
 make test-integration
 ```
 
+The live suite and `make skills-check` both hide `ONESIE_MOCK` from the onesie they run, so an
+exported mock file never turns a live run into a mock one or fails a dry run.
+
 ## Layout
 
 ```

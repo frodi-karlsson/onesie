@@ -62,6 +62,8 @@ In Claude Code, the plugin can come first and walk you through the rest:
   last complete line.
 - **Output for programs and people.** JSON, CSV, a terminal table, or markdown for a PR comment.
 - **Free dry runs.** See the exact request before spending anything, with no key needed.
+- **Mock answers.** `--mock` or `ONESIE_MOCK` answers from a file, so a gate script's branches can
+  be tested with no key and no network.
 - **Agent skills.** A plugin for Claude Code and Codex, and the same skills for Cursor and Gemini.
 
 ## Usage
@@ -211,6 +213,25 @@ onesie -i jsonl 'is this urgent' --print-request < tickets.jsonl > frozen.jsonl
 onesie -i request < frozen.jsonl > answers.jsonl
 ```
 
+**Test a gate script without spending anything.** `ONESIE_MOCK` makes every onesie call in the
+script answer from a file, so each branch can be tested with no key and the script unchanged.
+
+```sh
+cat > gate.sh <<'EOF'
+onesie -f examples/questions/shell-safety.yaml -q --state "$1"
+case $? in
+    0) echo run ;;
+    1) echo blocked ;;
+    7) echo ask a person ;;
+    *) echo 'no answer, blocked' ;;
+esac
+EOF
+echo '{"destroys": 0.93, "secrets": 0.02, "network": 0.1}' > danger.json
+echo '{"error": 503}' > outage.json
+ONESIE_MOCK=danger.json sh gate.sh 'rm -rf /'   # blocked
+ONESIE_MOCK=outage.json sh gate.sh 'ls'         # no answer, blocked
+```
+
 **Keep a question set in a file.** `--print-questions` writes the questions to a file, and
 `-f NAME` loads it from any directory in the repository.
 
@@ -240,8 +261,8 @@ onesie ships agent skills instead of an MCP server:
 
 ## Reference
 
-[REFERENCE.md](REFERENCE.md) covers gating, calibrating, streams and resume, keys and providers,
-exit codes and the rest of the flags.
+[REFERENCE.md](REFERENCE.md) covers gating, testing a gate, calibrating, streams and resume, keys
+and providers, exit codes and the rest of the flags.
 
 ## Contributing
 

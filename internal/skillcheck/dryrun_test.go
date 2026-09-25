@@ -20,6 +20,11 @@ func TestDryRunArgs(t *testing.T) {
 			want:   []string{"--print-request", "--ask", "a=x"},
 		},
 		{
+			name:   "should strip --mock and its file, since --print-request refuses it",
+			tokens: []string{"onesie", "-f", "shell-safety", "-q", "--mock", "answers.json", "--state", "rm -rf /"},
+			want:   []string{"--print-request", "-f", "shell-safety", "--state", "rm -rf /"},
+		},
+		{
 			name: "should strip --merge-key too, since it implies --merge",
 			tokens: []string{
 				"onesie", "--ask", "a=x", "--merge-key", "answers",

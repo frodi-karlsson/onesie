@@ -25,6 +25,54 @@ onesie --ask urgent='is this urgent' --assert 'urgnet.value < 0.5'
   checks a file's gate and then ignores it, so a gated file can be dry run. `--assert` or
   `--abstain-if` typed beside `--print-request` exits 2.
 
+## Testing a gate
+
+`--mock FILE`, or `ONESIE_MOCK=FILE` in the environment, answers from a file instead of the API. The
+gate, the exit codes, every output mode, `--out` and `--resume` run as they do for real.
+
+```sh
+onesie -f examples/questions/shell-safety.yaml -q --mock answers.json --state 'rm -rf /'
+ONESIE_MOCK=answers.json ./gate.sh
+```
+
+- The file takes one of two shapes. One JSON object keyed by question id answers every record, as
+  in `{"destroys": 0.93, "secrets": 0.02, "network": 0.1}`, and may span several lines. A positional
+  question has the id `answer`. Otherwise each line is one entry in the shape `-o json` writes, so the
+  `--out` file of a real run replays. Lines match records by `id` under `--id`, and by position
+  otherwise, so line 3 answers the third record whatever input line it came from. Blank lines are
+  refused, apart from those at the end.
+- A yes or no answer is a probability, or an object whose `value` is one. A pick or rate answer is a
+  name, or an object with `value` and an optional `confidence`, which defaults to 1. A number whose
+  text is a name is that name, so `4` rates `--rate 1,2,3,4,5`. A rate question from a request body
+  takes its level index.
+- The other keys `-o json` writes are accepted. A line's `model`, `usage`, `assert` and `abstain`
+  are ignored, since the gate runs again. Inside an answer, `decision`, `fallback` and `legend` are
+  ignored. A rate's `score` and `norm` are replayed, and so is a pick or rate's `p`, whose keys must
+  be exactly the options or levels, whose values lie between 0 and 1, and whose most likely entry is
+  the value. So a replay prints what the real run printed, and a gate that reads `p` decides the
+  same way.
+- An entry answers every question the run asks. The file is checked against the questions before
+  any record, and an unknown question id, a missing answer, a value of the wrong shape or a name
+  that is not an option exits 2, naming the line.
+- `{"error": N}` with a status from 400 to 599 fails the record as that status does,
+  `{"error": "timeout"}` as a timeout after `--timeout`, and `{"error": "connection"}` as a transport
+  failure. An error object as `-o json` writes it replays by its `kind`. For one record, a 401, 402
+  or 403 exits 3, a 5xx exits 4 and a timeout exits 5. In a stream a failed record is an error line
+  and the run exits 6, apart from a 401, 402 or 403, which ends it with exit 3.
+- A record the file does not answer exits 2 when the run reaches it, naming its input line and the
+  missing entry. A replayed `kind: input` line answers nothing, so it counts as missing too. Output
+  stops at that record, so it holds only the lines before it in input order, or under `--unordered`
+  the lines that arrived before it. Under `--out --resume` the file holds the same lines, so a rerun
+  with a full file asks that record and the ones after it.
+- A mock run reads no key, opens no network, and ignores `--provider`, `ONESIE_PROVIDER`,
+  `--base-url` and `-m`. It prints `model mock` wherever a model is shown, and `--usage` reports
+  zero tokens.
+- The `--out` fingerprint names the provider and model `mock`, so a real run refuses to resume a
+  mock run's file and the other way round. The mock file's content is not part of it.
+- `calibrate --mock` works, so a calibration can be tested too. `--mock` and `ONESIE_MOCK` are
+  refused beside `--print-request`, `-i request`, `--list-models` and every `auth` subcommand. The
+  flag wins over the variable, and an empty `ONESIE_MOCK` is ignored.
+
 ## Calibrating
 
 `onesie calibrate --help` is the full reference, and its Labels paragraph lists what each shape

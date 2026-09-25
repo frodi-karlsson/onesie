@@ -116,6 +116,8 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 			"usable in a conditional.\n\n" +
 			"The API key comes from the provider's variable, TYPESAFE_API_KEY or OPENROUTER_API_KEY, " +
 			"then from the credential file onesie auth set writes.\n\n" +
+			"--mock FILE, or ONESIE_MOCK=FILE, answers from a file instead of the API, with no key and no " +
+			"network, so a gate script can be tested for free.\n\n" +
 			"A question that begins with a dash needs -- before it, with any flags placed " +
 			"first, as in onesie -o json -- '-is this urgent'.",
 		Version: info.Version,

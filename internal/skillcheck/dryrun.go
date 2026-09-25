@@ -18,6 +18,8 @@ var alwaysStripped = []flagSpec{
 	// checkPrintFlags rejects it under --print-request, and checkSingleRecord under
 	// --print-questions once -i is stripped and the run becomes single record.
 	{long: "stop-on-assert"},
+	// checkPrintFlags refuses a mock beside --print-request, and a dry run answers nothing anyway.
+	{long: "mock", value: true},
 }
 
 var questionsOnlyStripped = []flagSpec{
