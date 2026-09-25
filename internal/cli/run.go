@@ -31,6 +31,7 @@ func run(
 	positional string,
 	flags *runFlags,
 	out *outFile,
+	resume resumePlan,
 ) error {
 	cfg, inputMode, err := configOf(cmd, events, positional, flags)
 	if err != nil {
@@ -64,7 +65,7 @@ func run(
 		}
 
 		return withStats(cmd, settings.now, flags, func(stats *collector) error {
-			return streamRaw(cmd, settings, flags, stats, out)
+			return streamRaw(cmd, settings, flags, stats, out, resume)
 		})
 	}
 
@@ -126,7 +127,7 @@ func run(
 		return withStats(cmd, settings.now, flags, func(stats *collector) error {
 			return stream(
 				cmd, settings, built, mapper, namer, inputMode, outputMode, flags, gate, abstain, stats,
-				out)
+				out, resume)
 		})
 	}
 
@@ -287,9 +288,10 @@ func stream(
 	abstain *assert.Expr,
 	stats *collector,
 	answers *outFile,
+	resume resumePlan,
 ) error {
 	if flags.printRequest {
-		return streamRequests(cmd, settings, built, mapper, namer, inputMode, flags)
+		return streamRequests(cmd, settings, built, mapper, namer, inputMode, flags, resume)
 	}
 
 	client, err := settings.newClient(cmd.Context(), observing(stats)...)
@@ -309,17 +311,17 @@ func stream(
 		return err
 	}
 
-	stored, err := resumedVerdicts(cmd.Context(), answers, namer, answersFormat{
+	resume, err = resumedVerdicts(cmd.Context(), answers, namer, answersFormat{
 		mode: outputMode, merge: merging(flags), mergeKey: mergeKey(flags), gated: gate != nil,
-	}, flags)
+	}, flags, resume)
 	if err != nil {
 		return err
 	}
 
-	source := records(cmd.Context(), settings, inputMode, flags, namer, book, stored, outputMode)
+	source := records(cmd.Context(), settings, inputMode, flags, namer, book, resume, outputMode)
 	out := cmd.OutOrStdout()
 	merge := merging(flags)
-	table := delimited(out, outputMode, built, gate != nil, namer != nil && !merge, flags)
+	table := delimited(out, outputMode, built, gate != nil, namer != nil && !merge, resume.header)
 	md := markdown(out, outputMode, built, gate != nil, namer != nil)
 
 	evaluateOne := func(ctx context.Context, rec namedRecord) (line, error) {
@@ -792,7 +794,7 @@ func writeRecord(
 			built.Questions = append(built.Questions, plan.Question{ID: named.ID})
 		}
 
-		return delimited(cmd.OutOrStdout(), mode, built, gate != nil, false, flags).Write(record, nil, nil)
+		return delimited(cmd.OutOrStdout(), mode, built, gate != nil, false, false).Write(record, nil, nil)
 	}
 
 	if merging(flags) {
@@ -836,7 +838,7 @@ func delimited(
 	built *plan.Plan,
 	withAssert bool,
 	withID bool,
-	flags *runFlags,
+	headerWritten bool,
 ) *output.Delimited {
 	if mode != output.CSV && mode != output.TSV {
 		return nil
@@ -848,7 +850,7 @@ func delimited(
 	}
 
 	return output.NewDelimited(out, mode, output.DelimitedOptions{
-		IDs: ids, ID: withID, Assert: withAssert, Header: !flags.resumeHeader,
+		IDs: ids, ID: withID, Assert: withAssert, Header: !headerWritten,
 	})
 }
 
@@ -1039,24 +1041,22 @@ func outputName(flags *runFlags) string {
 }
 
 type runFlags struct {
-	provider     string
-	out          string
-	resume       bool
-	prune        bool
-	resumeSkip   int
-	resumeHeader bool
-	output       string
-	raw          bool
-	quiet        bool
-	usage        bool
-	input        string
-	state        string
-	stateFile    string
-	model        string
-	apiKey       string
-	baseURL      string
-	file         string
-	replace      bool
+	provider  string
+	out       string
+	resume    bool
+	prune     bool
+	output    string
+	raw       bool
+	quiet     bool
+	usage     bool
+	input     string
+	state     string
+	stateFile string
+	model     string
+	apiKey    string
+	baseURL   string
+	file      string
+	replace   bool
 
 	assert    []string
 	abstainIf []string

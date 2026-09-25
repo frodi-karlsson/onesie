@@ -20,7 +20,7 @@ func records(
 	flags *runFlags,
 	namer *jq.Expr,
 	book *ledger,
-	stored []verdict,
+	resume resumePlan,
 	outputMode output.Mode,
 ) *naming {
 	stream := input.NewStream(settings.stdin, inputMode, flags.skipBlank)
@@ -33,7 +33,7 @@ func records(
 		ctx:  ctx,
 		stop: stop,
 		source: &resumed{
-			source: stream, left: flags.resumeSkip, stored: stored,
+			source: stream, left: resume.skip, stored: resume.stored,
 			haltOnAssert: flags.stopOnAssert, haltOnError: flags.stopOnError, table: tableName(outputMode, flags),
 		},
 		namer: namer,

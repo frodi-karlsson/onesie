@@ -19,6 +19,7 @@ func streamRaw(
 	flags *runFlags,
 	stats *collector,
 	answers *outFile,
+	resume resumePlan,
 ) error {
 	var client *jev.Client
 
@@ -32,15 +33,15 @@ func streamRaw(
 		client = built
 	}
 
-	stored, readErr := resumedVerdicts(cmd.Context(), answers, nil, answersFormat{forwarded: true}, flags)
+	resume, readErr := resumedVerdicts(cmd.Context(), answers, nil, answersFormat{forwarded: true}, flags, resume)
 	if readErr != nil {
 		return readErr
 	}
 
 	source := &resumed{
 		source: input.NewStream(settings.stdin, input.Request, flags.skipBlank),
-		left:   flags.resumeSkip,
-		stored: stored,
+		left:   resume.skip,
+		stored: resume.stored,
 		// --stop-on-assert is refused under -i request, whose bodies carry no assertion.
 		haltOnError: flags.stopOnError,
 	}

@@ -38,7 +38,7 @@ func calibrateRun(
 		return err
 	}
 
-	out, err := openOut(settings, flags)
+	out, _, err := openOut(settings, flags)
 	if err != nil {
 		return err
 	}

@@ -55,9 +55,10 @@ func resumedVerdicts(
 	namer *jq.Expr,
 	format answersFormat,
 	flags *runFlags,
-) ([]verdict, error) {
+	resume resumePlan,
+) (resumePlan, error) {
 	if answers == nil || !answers.resume || namer != nil {
-		return nil, nil
+		return resume, nil
 	}
 
 	var (
@@ -72,7 +73,7 @@ func resumedVerdicts(
 		})
 	})
 	if err != nil {
-		return nil, err
+		return resumePlan{}, err
 	}
 
 	// A run stopped by --stop-on-error writes nothing after the record it stopped at, so a stored
@@ -80,12 +81,15 @@ func resumedVerdicts(
 	// trimmed with the partial one, under the lock, on the first write.
 	if flags.stopOnError && len(judged) > 0 && judged[len(judged)-1].failure != nil {
 		answers.resumeAt(last.start)
-		flags.resumeSkip--
+		resume.skip--
+		resume.stored = judged[:len(judged)-1]
 
-		return judged[:len(judged)-1], nil
+		return resume, nil
 	}
 
-	return judged, nil
+	resume.stored = judged
+
+	return resume, nil
 }
 
 func readAnswers(ctx context.Context, answers *outFile, read func(r io.Reader) error) (err error) {

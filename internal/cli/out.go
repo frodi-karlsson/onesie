@@ -30,9 +30,9 @@ const (
 
 var errLinkLoop = errors.New("too many levels of symbolic links")
 
-func openOut(settings rootSettings, flags *runFlags) (*outFile, error) {
+func openOut(settings rootSettings, flags *runFlags) (*outFile, resumePlan, error) {
 	if flags.out == "" {
-		return nil, nil
+		return nil, resumePlan{}, nil
 	}
 
 	out := &outFile{
@@ -47,14 +47,14 @@ func openOut(settings rootSettings, flags *runFlags) (*outFile, error) {
 	// same lock, read the same fingerprint and compact beside the same file.
 	target, err := resolveTarget(flags.out, settings.resolve, settings.readlink)
 	if err != nil {
-		return nil, err
+		return nil, resumePlan{}, err
 	}
 
 	out.target = target
 
 	special, err := specialFile(target, settings.goos, settings.stat)
 	if err != nil {
-		return nil, err
+		return nil, resumePlan{}, err
 	}
 
 	out.special = special
@@ -62,66 +62,76 @@ func openOut(settings rootSettings, flags *runFlags) (*outFile, error) {
 	// A device or a pipe has no answers another run could lose, so it takes no lock.
 	if special {
 		if flags.resume {
-			return nil, fmt.Errorf("onesie: --resume needs --out to name a regular file, and %s is not one", flags.out)
+			return nil, resumePlan{}, fmt.Errorf(
+				"onesie: --resume needs --out to name a regular file, and %s is not one", flags.out)
 		}
 
-		return out, nil
+		return out, resumePlan{}, nil
 	}
 
 	// Held for the whole run, since a second run appending to the file, truncating it or renaming
 	// its own compaction over it would lose answers this one wrote.
 	if err := out.lock(settings.lock, flags.resume); err != nil {
-		return nil, err
+		return nil, resumePlan{}, err
 	}
 
 	if !flags.resume {
-		return out, nil
+		return out, resumePlan{}, nil
 	}
 
-	if err := resumeOut(out, settings, flags); err != nil {
-		return nil, errors.Join(err, out.release())
+	resume, resumeErr := resumeOut(out, settings, flags)
+	if resumeErr != nil {
+		return nil, resumePlan{}, errors.Join(resumeErr, out.release())
 	}
 
-	return out, nil
+	return out, resume, nil
 }
 
-func resumeOut(out *outFile, settings rootSettings, flags *runFlags) error {
+func resumeOut(out *outFile, settings rootSettings, flags *runFlags) (resumePlan, error) {
 	if err := out.removeStalePart(); err != nil {
-		return err
+		return resumePlan{}, err
 	}
+
+	var resume resumePlan
 
 	if flags.output == "csv" || flags.output == "tsv" {
 		rows, length, err := completeRows(settings, flags.out, flags.output == "csv")
 		if err != nil {
-			return err
+			return resumePlan{}, err
 		}
 
 		out.resumeAt(length)
 
 		// The first row is the header, which is written once and answers no record.
 		if rows > 0 {
-			flags.resumeHeader = true
+			resume.header = true
 		}
 
 		if rows > 0 && !resumesByID(flags) {
-			flags.resumeSkip = rows - 1
+			resume.skip = rows - 1
 		}
 
-		return nil
+		return resume, nil
 	}
 
 	lines, length, err := completeLines(settings, flags.out)
 	if err != nil {
-		return err
+		return resumePlan{}, err
 	}
 
 	out.resumeAt(length)
 
 	if !resumesByID(flags) {
-		flags.resumeSkip = lines
+		resume.skip = lines
 	}
 
-	return nil
+	return resume, nil
+}
+
+type resumePlan struct {
+	skip   int
+	header bool
+	stored []verdict
 }
 
 func resumesByID(flags *runFlags) bool {

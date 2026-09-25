@@ -140,7 +140,7 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 				return providerErr
 			}
 
-			out, err := openOut(settings, flags)
+			out, resume, err := openOut(settings, flags)
 			if err != nil {
 				return err
 			}
@@ -150,12 +150,12 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 			}()
 
 			if out == nil {
-				return run(cmd, settings, recorder.Events(), positional, flags, nil)
+				return run(cmd, settings, recorder.Events(), positional, flags, nil, resume)
 			}
 
 			cmd.SetOut(out)
 
-			runErr := run(cmd, settings, recorder.Events(), positional, flags, out)
+			runErr := run(cmd, settings, recorder.Events(), positional, flags, out, resume)
 
 			return errors.Join(runErr, out.finish(runErr))
 		},

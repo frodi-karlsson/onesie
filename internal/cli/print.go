@@ -96,6 +96,7 @@ func streamRequests(
 	namer *jq.Expr,
 	inputMode input.Mode,
 	flags *runFlags,
+	resume resumePlan,
 ) error {
 	questions := wireAll(built.Questions)
 
@@ -105,7 +106,7 @@ func streamRequests(
 	}
 
 	out := cmd.OutOrStdout()
-	source := records(cmd.Context(), settings, inputMode, flags, namer, nil, nil, output.JSON)
+	source := records(cmd.Context(), settings, inputMode, flags, namer, nil, resume, output.JSON)
 
 	result, err := engine.Run(cmd.Context(), engine.Config[namedRecord, []byte]{
 		Source: source,
