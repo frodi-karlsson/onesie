@@ -64,12 +64,14 @@ func (d *dedup) share(
 	}
 
 	if len(d.calls) >= d.limit {
-		if !d.full {
-			d.full = true
+		announce := !d.full
+		d.full = true
+		d.mu.Unlock()
+
+		// Outside the lock, so a slow stderr holds up no other record.
+		if announce {
 			d.notice()
 		}
-
-		d.mu.Unlock()
 
 		record, err := ask()
 

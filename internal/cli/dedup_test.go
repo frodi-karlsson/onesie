@@ -5,9 +5,11 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"errors"
+	"math"
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/frodi-karlsson/onesie/internal/jev"
 	"github.com/frodi-karlsson/onesie/internal/output"
@@ -15,7 +17,7 @@ import (
 
 const dedupWorkers = 32
 
-func TestDedup(t *testing.T) {
+func TestDedup_Share(t *testing.T) {
 	t.Parallel()
 
 	answered := output.Record{Model: "m"}
@@ -228,6 +230,38 @@ func TestDedup(t *testing.T) {
 		checkShared(t, results, answered, nil, dedupWorkers)
 	})
 
+	t.Run("should run the notice with the group unlocked", func(t *testing.T) {
+		t.Parallel()
+
+		var shared *dedup
+
+		var noticed atomic.Bool
+
+		shared = newDedup(1, func() {
+			noticed.Store(true)
+
+			if !shared.mu.TryLock() {
+				t.Error("the notice ran while the group was locked")
+
+				return
+			}
+
+			shared.mu.Unlock()
+		})
+
+		for _, name := range []string{"held", "new"} {
+			if _, _, _, err := shared.share(t.Context(), keyOf(name), func() (output.Record, error) {
+				return answered, nil
+			}); err != nil {
+				t.Fatalf("share: %v", err)
+			}
+		}
+
+		if !noticed.Load() {
+			t.Error("the notice never ran")
+		}
+	})
+
 	t.Run("should always ask through a nil group", func(t *testing.T) {
 		t.Parallel()
 
@@ -254,6 +288,126 @@ func TestDedup(t *testing.T) {
 
 		checkShared(t, results, answered, nil, 0)
 	})
+}
+
+func TestAskOnce(t *testing.T) {
+	t.Parallel()
+
+	questions := jev.Questions{{ID: "urgent", Question: jev.Noul{Instructions: "is this urgent"}}}
+	answered := output.Record{Model: "m"}
+
+	tests := []struct {
+		name        string
+		group       bool
+		sents       []any
+		salts       []string
+		wantAsked   int32
+		wantDedups  int
+		wantRecords int
+		wantCalls   bool
+	}{
+		{
+			name: "should ask a repeated request once and count the duplicate", group: true,
+			sents: []any{"x", "x"}, salts: []string{"", ""}, wantAsked: 1, wantDedups: 1, wantRecords: 1, wantCalls: true,
+		},
+		{
+			name: "should ask each salt apart", group: true,
+			sents: []any{"x", "x"}, salts: []string{"a", "b"}, wantAsked: 2, wantCalls: true,
+		},
+		{
+			name:  "should ask every record through no group",
+			sents: []any{"x", "x"}, salts: []string{"", ""}, wantAsked: 2,
+		},
+		{
+			name: "should ask a state that cannot be encoded alone", group: true,
+			sents: []any{math.Inf(1), math.Inf(1)}, salts: []string{"", ""}, wantAsked: 2,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var shared *dedup
+			if tc.group {
+				shared = newDedup(10, func() {})
+			}
+
+			var (
+				stats collector
+				asked atomic.Int32
+			)
+
+			for i, sent := range tc.sents {
+				record, call, err := askOnce(t.Context(), shared, &stats, sent, "m", questions, tc.salts[i],
+					func() (output.Record, error) {
+						asked.Add(1)
+
+						return answered, nil
+					})
+				if err != nil || record.Model != "m" {
+					t.Errorf("record %d = %+v, %v, want the answer", i, record, err)
+				}
+
+				if (call != nil) != tc.wantCalls {
+					t.Errorf("record %d carried call %v, want one %t", i, call, tc.wantCalls)
+				}
+			}
+
+			got := stats.snapshot(time.Second, time.Second)
+
+			if asked.Load() != tc.wantAsked || got.Dedups != tc.wantDedups || got.Records != tc.wantRecords {
+				t.Errorf("asked, dedups, records = %d, %d, %d, want %d, %d, %d",
+					asked.Load(), got.Dedups, got.Records, tc.wantAsked, tc.wantDedups, tc.wantRecords)
+			}
+		})
+	}
+}
+
+func TestBillOnce(t *testing.T) {
+	t.Parallel()
+
+	spent := func() *jev.Usage { return &jev.Usage{InputTokens: 5, OutputTokens: 2} }
+
+	tests := []struct {
+		name      string
+		call      *sharedCall
+		usage     *jev.Usage
+		want      *jev.Usage
+		wantBills bool
+	}{
+		{name: "should leave a line of no group as it is", usage: spent(), want: spent()},
+		{
+			name: "should keep the tokens on the first line of a group and mark it billed",
+			call: &sharedCall{}, usage: spent(), want: spent(), wantBills: true,
+		},
+		{
+			name: "should give a later line of a group zero tokens",
+			call: &sharedCall{billed: true}, usage: spent(), want: &jev.Usage{}, wantBills: true,
+		},
+		{
+			name: "should leave a later error line that carried no usage with none",
+			call: &sharedCall{billed: true}, wantBills: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			l := line{record: output.Record{Usage: tc.usage}, call: tc.call}
+
+			billOnce(&l)
+
+			if (l.record.Usage == nil) != (tc.want == nil) || (tc.want != nil && *l.record.Usage != *tc.want) {
+				t.Errorf("usage = %v, want %v", l.record.Usage, tc.want)
+			}
+
+			if tc.call != nil && tc.call.billed != tc.wantBills {
+				t.Errorf("billed = %t, want %t", tc.call.billed, tc.wantBills)
+			}
+		})
+	}
 }
 
 func TestRequestKey(t *testing.T) {
