@@ -2,14 +2,27 @@ package cli
 
 import (
 	"context"
+	"fmt"
+	"io"
+	"net"
 	"net/http"
+	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/frodi-karlsson/onesie/internal/jev"
+	"github.com/frodi-karlsson/onesie/internal/output"
 )
 
-func defaultClientFactory(info BuildInfo, flags *runFlags, settings rootSettings) clientFactory {
+func defaultClientFactory(
+	info BuildInfo,
+	flags *runFlags,
+	settings rootSettings,
+	stderr func() io.Writer,
+) clientFactory {
+	var warned sync.Once
+
 	return func(_ context.Context, extra ...jev.Option) (*jev.Client, error) {
 		provider, err := resolveProvider(settings, flags)
 		if err != nil {
@@ -61,8 +74,42 @@ func defaultClientFactory(info BuildInfo, flags *runFlags, settings rootSettings
 		// what the flags asked for.
 		opts = append(opts, extra...)
 
-		return jev.New(opts...)
+		client, err := jev.New(opts...)
+		if err != nil {
+			return nil, err
+		}
+
+		var printErr error
+
+		if plainRemote(client.BaseURL()) {
+			warned.Do(func() {
+				_, printErr = fmt.Fprintln(stderr(), "warning: "+output.Printable(client.BaseURL())+
+					" is plain http, so the API key crosses the network unencrypted")
+			})
+		}
+
+		if printErr != nil {
+			return nil, printErr
+		}
+
+		return client, nil
 	}
+}
+
+func plainRemote(baseURL string) bool {
+	parsed, err := url.Parse(baseURL)
+	if err != nil || parsed.Scheme != "http" {
+		return false
+	}
+
+	host := parsed.Hostname()
+	if host == "localhost" || strings.HasSuffix(host, ".localhost") {
+		return false
+	}
+
+	ip := net.ParseIP(host)
+
+	return ip == nil || !ip.IsLoopback()
 }
 
 func storedCredentials(settings rootSettings, flags *runFlags) ([]jev.Option, error) {

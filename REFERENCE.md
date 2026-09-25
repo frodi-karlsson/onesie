@@ -135,7 +135,9 @@ reading, as `head` does, is not an error.
 
 - `--stats` writes a one line summary to stderr: requests, tokens, model, retries and time.
 - `--list-models` shows what the account can ask, and `-m` picks one.
-- `--base-url` points onesie at any server that speaks the System One API.
+- `--base-url` points onesie at any server that speaks the System One API. A plain http URL to a
+  host other than localhost prints a warning, and a redirect is refused rather than followed with
+  the key.
 - `-f NAME` loads `NAME.yaml`, `NAME.yml` or `NAME.json` from the nearest `.onesie/questions`, then
   from `questions` in the config dir, and `onesie questions` lists every name it finds. A question
   file is refused with exit 2 when it uses a YAML alias or is larger than `max-question-file-bytes`.

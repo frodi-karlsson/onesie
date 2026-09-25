@@ -87,13 +87,17 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 
 	// The factory reads flags, which are parsed after this returns, so it closes over the pointer.
 	// Installing it only when absent keeps an injected factory winning.
+	var root *cobra.Command
+
 	if settings.newClient == nil {
-		settings.newClient = defaultClientFactory(info, flags, settings)
+		settings.newClient = defaultClientFactory(info, flags, settings, func() io.Writer {
+			return root.ErrOrStderr()
+		})
 	}
 
 	recorder := argv.New()
 
-	root := &cobra.Command{
+	root = &cobra.Command{
 		Use:   "onesie [question]",
 		Short: "Ask Jev typed questions about state on stdin",
 		Long: "onesie is a Unix filter over the System One API, served by TypeSafe or OpenRouter.\n\n" +

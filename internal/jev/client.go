@@ -42,6 +42,8 @@ func New(opts ...Option) (*Client, error) {
 		}
 	}
 
+	c.httpClient = withoutRedirects(c.httpClient)
+
 	c.apiKey = orEnv(c.apiKey, c.lookupEnv, c.provider.EnvAPIKey)
 	c.baseURL = strings.TrimRight(
 		orDefault(orEnv(c.baseURL, c.lookupEnv, c.provider.EnvBaseURL), c.provider.BaseURL), "/")
@@ -65,6 +67,17 @@ func New(opts ...Option) (*Client, error) {
 	return c, nil
 }
 
+func withoutRedirects(hc *http.Client) *http.Client {
+	// A copy, so a client the caller passed in is left as it was. Go keeps the Authorization header
+	// on a redirect to the same domain or a subdomain, which need not be the API.
+	refusing := *hc
+	refusing.CheckRedirect = func(*http.Request, []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
+
+	return &refusing
+}
+
 // Client talks to the TypeSafe System One API and is safe for concurrent use. Build one with New,
 // passing only a Clock, random source or RetryStatus that is safe for concurrent use too.
 type Client struct {
@@ -86,6 +99,12 @@ type Client struct {
 	requests         atomic.Uint64
 	observe          func(Attempt)
 	provider         Provider
+}
+
+// BaseURL is the address the client sends every request to, after the environment and the
+// default are applied.
+func (c *Client) BaseURL() string {
+	return c.baseURL
 }
 
 // RetryPolicy returns a copy, so a caller can modify one field and pass it to WithRequestRetry.

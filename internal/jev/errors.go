@@ -54,11 +54,16 @@ func newAPIError(status int, header http.Header, requestIDHeader string, body []
 		Header:     header,
 		Body:       parsed,
 		RetryAfter: retryAfter,
-		message:    describe(status, parsed),
+		message:    describe(status, header, parsed),
 	}
 }
 
-func describe(status int, body any) string {
+func describe(status int, header http.Header, body any) string {
+	if location := header.Get("Location"); status >= 300 && status < 400 && location != "" {
+		return fmt.Sprintf("onesie: %d redirect to %s, which onesie does not follow, since the request "+
+			"carries the API key. Point the base URL at where the API is", status, truncate(location))
+	}
+
 	if detail := extractMessage(body); detail != "" {
 		// Truncated here rather than inside extraction, so a hostile body arriving as a bare string
 		// cannot reach a log line at full length.

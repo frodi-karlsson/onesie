@@ -1313,6 +1313,57 @@ func TestDefaultClientFactory(t *testing.T) {
 		})
 	})
 
+	t.Run("should warn once when the key would cross the network over plain http", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name    string
+			baseURL string
+			warns   bool
+		}{
+			{name: "should warn for a remote host", baseURL: "http://onesie.invalid", warns: true},
+			{name: "should not warn for https", baseURL: "https://onesie.invalid"},
+			{name: "should not warn for localhost", baseURL: "http://localhost:1"},
+			{name: "should not warn for a loopback address", baseURL: "http://127.0.0.1:1"},
+			{name: "should not warn for the ipv6 loopback", baseURL: "http://[::1]:1"},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				var out, errOut bytes.Buffer
+
+				root := cli.NewRootCmd(
+					cli.BuildInfo{Version: "1.2.3"},
+					cli.WithKeychain(offKeychain{}),
+					cli.WithStdinTTY(false),
+					cli.WithStdoutTTY(false),
+					cli.WithLookupEnv(func(string) (string, bool) { return "", false }),
+				)
+
+				root.SetOut(&out)
+				root.SetErr(&errOut)
+				root.SetArgs([]string{
+					"--list-models", "--api-key", "secret", "--base-url", tc.baseURL, "--retries", "0",
+					"--timeout", "1",
+				})
+
+				cli.Execute(t.Context(), root)
+
+				want := "warning: " + tc.baseURL + " is plain http, so the API key crosses the network " +
+					"unencrypted\n"
+				if got := strings.Count(errOut.String(), want); got != map[bool]int{true: 1, false: 0}[tc.warns] {
+					t.Errorf("stderr = %q, want the warning %v", errOut.String(), tc.warns)
+				}
+
+				if !tc.warns && strings.Contains(errOut.String(), "warning") {
+					t.Errorf("stderr = %q, want no warning", errOut.String())
+				}
+			})
+		}
+	})
+
 	t.Run("should build a client from the environment", func(t *testing.T) {
 		t.Parallel()
 

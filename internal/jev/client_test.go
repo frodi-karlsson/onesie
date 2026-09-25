@@ -1178,6 +1178,49 @@ func TestClientListModels(t *testing.T) {
 		}
 	})
 
+	t.Run("should refuse to follow a redirect, which would carry the key", func(t *testing.T) {
+		t.Parallel()
+
+		for _, name := range []string{"default", "injected"} {
+			var followed atomic.Int32
+
+			target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				followed.Add(1)
+				_, _ = io.WriteString(w, `{"models":[]}`)
+			}))
+			defer target.Close()
+
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				http.Redirect(w, r, target.URL+r.URL.Path, http.StatusFound)
+			}))
+			defer server.Close()
+
+			var opts []jev.Option
+			if name == "injected" {
+				opts = append(opts, jev.WithHTTPClient(&http.Client{}))
+			}
+
+			client, _ := newTestClient(t, server.URL, opts...)
+
+			_, err := client.ListModels(t.Context())
+
+			var api *jev.APIError
+			if !errors.As(err, &api) || api.Status != http.StatusFound {
+				t.Fatalf("%s client: error = %v, want an APIError with status 302", name, err)
+			}
+
+			want := "onesie: 302 redirect to " + target.URL + "/v1/models, which onesie does not follow, " +
+				"since the request carries the API key. Point the base URL at where the API is"
+			if err.Error() != want {
+				t.Errorf("%s client: error = %q, want %q", name, err.Error(), want)
+			}
+
+			if followed.Load() != 0 {
+				t.Errorf("%s client: the redirect was followed", name)
+			}
+		}
+	})
+
 	t.Run("should reject an unexpected response shape", func(t *testing.T) {
 		t.Parallel()
 
