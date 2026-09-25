@@ -207,7 +207,7 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 		"retries after a failed attempt")
 	root.Flags().IntVar(&flags.maxRetryAfter, flagMaxRetryAfter,
 		int(limits.DefaultMaxRetryAfter.Seconds()),
-		"honour a server Retry-After up to this many seconds")
+		"most seconds to wait out a server Retry-After")
 	root.Flags().BoolVar(&flags.unordered, "unordered", false,
 		"streaming only, emit records as they complete")
 	root.Flags().BoolVar(&flags.stopOnError, "stop-on-error", false,

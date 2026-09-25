@@ -310,7 +310,7 @@ func (s *Stream) record(line string) Record {
 
 	var value any
 	if err := json.Unmarshal([]byte(line), &value); err != nil {
-		return s.fail(line, fmt.Errorf("line is not one complete JSON value: %w", err))
+		return s.fail(line, unreadableJSON(err))
 	}
 
 	if err := s.check(value); err != nil {
@@ -318,6 +318,19 @@ func (s *Stream) record(line string) Record {
 	}
 
 	return s.ok(line, value, json.RawMessage(line))
+}
+
+func unreadableJSON(err error) error {
+	// encoding/json reports a number past float64 as a type mismatch on a Go struct field, which
+	// names nothing the line holds.
+	var mismatch *json.UnmarshalTypeError
+	if errors.As(err, &mismatch) {
+		if number, isNumber := strings.CutPrefix(mismatch.Value, "number "); isNumber {
+			return fmt.Errorf("line holds the number %s, which is too large to read", number)
+		}
+	}
+
+	return fmt.Errorf("line is not one complete JSON value: %w", err)
 }
 
 func (s *Stream) check(value any) error {

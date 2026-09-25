@@ -156,7 +156,7 @@ func bindSharedFlags(cmd *cobra.Command, flags *runFlags) {
 		"retries after a failed attempt")
 	cmd.Flags().IntVar(&flags.maxRetryAfter, flagMaxRetryAfter,
 		int(limits.DefaultMaxRetryAfter.Seconds()),
-		"honour a server Retry-After up to this many seconds")
+		"most seconds to wait out a server Retry-After")
 	cmd.Flags().StringVar(&flags.out, "out", "", "write the answers to this file as -o json lines")
 	cmd.Flags().BoolVar(&flags.resume, "resume", false,
 		"with --out and --id, skip the ids the file already answers")

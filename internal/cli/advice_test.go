@@ -34,7 +34,7 @@ func TestAdvise(t *testing.T) {
 				wantSent: `"model":"onesie-1.12"`,
 				wantErr:  "onesie: model 'onesie-1.12' not found. Try --list-models\n",
 				wantOut: []string{`"error":{"kind":"http","status":400,` +
-					`"message":"onesie: model 'onesie-1.12' not found. Try --list-models"}`},
+					`"message":"model 'onesie-1.12' not found. Try --list-models"}`},
 			},
 			{
 				name:     "should name the model the environment supplied",
@@ -68,7 +68,7 @@ func TestAdvise(t *testing.T) {
 				wantSent: `"model":"onesie-1.12"`,
 				wantErr:  "",
 				wantOut: []string{`{"error":{"kind":"http","status":400,` +
-					`"message":"onesie: model 'onesie-1.12' not found. Try --list-models"}}`},
+					`"message":"model 'onesie-1.12' not found. Try --list-models"}}`},
 			},
 			{
 				name:     "should carry the remedy into a streaming error record",
@@ -80,7 +80,7 @@ func TestAdvise(t *testing.T) {
 				wantSent: `"model":"onesie-1.12"`,
 				wantErr:  "",
 				wantOut: []string{`"error":{"kind":"http","status":400,` +
-					`"message":"onesie: model 'onesie-1.12' not found. Try --list-models"}`},
+					`"message":"model 'onesie-1.12' not found. Try --list-models"}`},
 			},
 			{
 				name:     "should leave a 400 about anything else unchanged",
@@ -166,7 +166,7 @@ func TestAdvise(t *testing.T) {
 				wantCode: ExitRecords,
 				wantErr:  "",
 				wantOut: []string{`{"error":{"kind":"http","status":400,` +
-					`"message":"` + rejected + `"}}`},
+					`"message":"` + strings.TrimPrefix(rejected, "onesie: ") + `"}}`},
 			},
 			{
 				name: "should carry the note into a streaming error record",
@@ -178,7 +178,7 @@ func TestAdvise(t *testing.T) {
 				response: tooManyLevels,
 				wantCode: ExitRecords,
 				wantOut: []string{`"error":{"kind":"http","status":400,` +
-					`"message":"` + rejected + note + `"}`},
+					`"message":"` + strings.TrimPrefix(rejected, "onesie: ") + note + `"}`},
 			},
 			{
 				name:     "should leave a 400 reading Invalid request untouched",

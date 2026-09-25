@@ -213,8 +213,8 @@ type rewrite struct {
 func (o *outFile) lock(take func(answers string) (func() error, error), resume bool) error {
 	unlock, err := take(o.target)
 	if errors.Is(err, errLocked) {
-		return fmt.Errorf("onesie: %s is being resumed by another onesie run. Wait for it to finish, "+
-			"then resume again", o.path)
+		return fmt.Errorf("onesie: %s is in use by another onesie run. Wait for it to finish, "+
+			"then run again", o.path)
 	}
 
 	// A fresh run locks only to stay clear of a resume, which could not have locked the file either.

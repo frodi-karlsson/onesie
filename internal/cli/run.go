@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 	"sync/atomic"
 
 	"github.com/spf13/cobra"
@@ -986,30 +987,34 @@ func failureRecord(built *plan.Plan, cause error) output.Record {
 }
 
 func describe(cause error) *output.Failure {
+	// The prefix names the program on stderr. On an output line it would say nothing, and a line
+	// error carries none.
+	message := strings.TrimPrefix(cause.Error(), "onesie: ")
+
 	var unusable *jev.ResponseError
 	if errors.As(cause, &unusable) {
 		// A 2xx whose body onesie could not use is deterministic. Calling it http would name a status
 		// the caller may retry, and calling it transport a connection blip that never happened.
 		status := unusable.Status
 
-		return &output.Failure{Kind: "response", Status: &status, Message: cause.Error()}
+		return &output.Failure{Kind: "response", Status: &status, Message: message}
 	}
 
 	var api *jev.APIError
 	if errors.As(cause, &api) {
 		status := api.Status
 
-		return &output.Failure{Kind: "http", Status: &status, Message: cause.Error()}
+		return &output.Failure{Kind: "http", Status: &status, Message: message}
 	}
 
 	if errors.Is(cause, jev.ErrConnection) || errors.Is(cause, context.DeadlineExceeded) {
-		return &output.Failure{Kind: "transport", Message: cause.Error()}
+		return &output.Failure{Kind: "transport", Message: message}
 	}
 
 	// No status arrived and the network did not fail, so the record never became a request, as with
 	// a line onesie could not read. Calling it transport would blame the network, and exit 5 where a
 	// fresh run exits 2.
-	return &output.Failure{Kind: "input", Message: cause.Error()}
+	return &output.Failure{Kind: "input", Message: message}
 }
 
 func quietResult(question plan.Question, a *answer.Answer) error {

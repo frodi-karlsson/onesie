@@ -222,6 +222,42 @@ func TestStream(t *testing.T) {
 		})
 	}
 
+	t.Run("should name a json number too large to read in plain words", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name string
+			in   string
+			want string
+		}{
+			{
+				name: "should name the number under a key",
+				in:   `{"id":1e400}`,
+				want: "line 1: line holds the number 1e400, which is too large to read",
+			},
+			{
+				name: "should name the number in an array",
+				in:   `[1e400]`,
+				want: "line 1: line holds the number 1e400, which is too large to read",
+			},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				record, ok, err := input.NewStream(strings.NewReader(tc.in+"\n"), input.JSONL, false).Next()
+				if err != nil || !ok {
+					t.Fatalf("Next = %v, %v, want one record", ok, err)
+				}
+
+				if record.Err == nil || record.Err.Error() != tc.want {
+					t.Errorf("error = %v, want %q", record.Err, tc.want)
+				}
+			})
+		}
+	})
+
 	t.Run("should reject a request body that is not a json object", func(t *testing.T) {
 		t.Parallel()
 

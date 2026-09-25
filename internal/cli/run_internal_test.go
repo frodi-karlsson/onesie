@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/frodi-karlsson/onesie/internal/answer"
@@ -188,6 +189,11 @@ func TestDescribe(t *testing.T) {
 
 			if got, want := stored.freshRunCode(), Classify(tc.cause); got != want {
 				t.Errorf("stored %+v exits %d, want %d as a fresh run does", stored.failure, got, want)
+			}
+
+			// A line error carries no prefix, so no other kind does either.
+			if strings.HasPrefix(stored.failure.Message, "onesie: ") {
+				t.Errorf("message = %q, want no onesie prefix, as a line error has none", stored.failure.Message)
 			}
 		})
 	}

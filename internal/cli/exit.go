@@ -18,7 +18,7 @@ import (
 const (
 	// ExitOK means the question was answered.
 	ExitOK = 0
-	// ExitRejected means -q ran and the policy did not accept the answer.
+	// ExitRejected means an assertion was false, or -q ran and the policy did not accept the answer.
 	ExitRejected = 1
 	// ExitUsage means a usage or validation error, including a server 422.
 	ExitUsage = 2

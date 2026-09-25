@@ -69,7 +69,7 @@ Exit 3 also covers these:
 | `no state given` | nothing arrived on stdin and neither `--state` nor `--state-file` was passed |
 | `an empty state is a request the model cannot answer` | `--state`, `--state-file`, stdin, the `state` of a `-f` file, a stream line or `--map` gave an empty or all whitespace string, an empty object or an empty array. In a stream it is an error line instead, and `--skip-blank` does not drop it. An `-i request` body is forwarded as it is and not checked |
 | `no API key` | nothing resolved for the provider, see the order above. A real run and `auth test` exit 2 here, `auth status` exits 3 |
-| `is being resumed by another onesie run` | another run holds the lock beside the `--out` file |
+| `is in use by another onesie run` | another run holds the lock beside the `--out` file |
 | `Drop --resume to start over` | the `--out` file was written by a different run, or has no fingerprint |
 | `--resume needs output that keeps each record's outcome` | `-o raw` and `-r` keep no id, failure or gate outcome, so a resume refuses them. Use `-o values` or `-o json` |
 | `is followed by more rows` | a resume without `--id` under `--stop-on-error` reached a stored csv or tsv error row with more rows after it, and a row keeps only the message, not the code to stop with. Pass `--id` or drop `--stop-on-error` |

@@ -166,7 +166,7 @@ func TestResumeLedger(t *testing.T) {
 					failFrom: 3,
 					wantCode: ExitAuth,
 					wantFile: idLines(4, 4) + idLines(1, 2) +
-						`{"id":3,"error":{"kind":"http","status":401,"message":"onesie: 401 bad key"}}` + "\n",
+						`{"id":3,"error":{"kind":"http","status":401,"message":"401 bad key"}}` + "\n",
 					wantSent: []string{`{"id":1}`, `{"id":2}`, `{"id":3}`},
 				},
 				{
@@ -187,7 +187,7 @@ func TestResumeLedger(t *testing.T) {
 				failFrom: 3,
 				wantCode: ExitAuth,
 				wantFile: idLines(4, 4) + idLines(1, 2) +
-					`{"id":3,"error":{"kind":"http","status":401,"message":"onesie: 401 bad key"}}` + "\n",
+					`{"id":3,"error":{"kind":"http","status":401,"message":"401 bad key"}}` + "\n",
 				wantSent: []string{`{"id":1}`, `{"id":2}`, `{"id":3}`},
 			}},
 		},
@@ -211,7 +211,7 @@ func TestResumeLedger(t *testing.T) {
 				args:       values,
 				wantCode:   ExitUsage,
 				wantFile:   idLines(1, 1),
-				wantStderr: "is being resumed by another onesie run. Wait for it to finish",
+				wantStderr: "is in use by another onesie run. Wait for it to finish, then run again",
 			}},
 		},
 		{
@@ -224,7 +224,7 @@ func TestResumeLedger(t *testing.T) {
 				args:       []string{"-i", "jsonl", "-o", "values", "--id", ".id"},
 				wantCode:   ExitUsage,
 				wantFile:   idLines(1, 1),
-				wantStderr: "is being resumed by another onesie run. Wait for it to finish",
+				wantStderr: "is in use by another onesie run. Wait for it to finish, then run again",
 			}},
 		},
 		{
@@ -238,7 +238,7 @@ func TestResumeLedger(t *testing.T) {
 				args:       values,
 				wantCode:   ExitUsage,
 				wantFile:   idLines(1, 1),
-				wantStderr: "is being resumed by another onesie run. Wait for it to finish",
+				wantStderr: "is in use by another onesie run. Wait for it to finish, then run again",
 			}},
 		},
 		{
@@ -307,7 +307,7 @@ func TestResumeLedger(t *testing.T) {
 					failStatus: http.StatusBadRequest,
 					wantCode:   ExitUsage,
 					wantFile: idLines(4, 4) + idLines(1, 2) +
-						`{"id":3,"error":{"kind":"http","status":400,"message":"onesie: 400 bad key"}}` + "\n",
+						`{"id":3,"error":{"kind":"http","status":400,"message":"400 bad key"}}` + "\n",
 					wantSent: []string{`{"id":1}`, `{"id":2}`, `{"id":3}`},
 				},
 				{
@@ -562,7 +562,7 @@ func TestResumeLedger(t *testing.T) {
 					failStatus: http.StatusBadRequest,
 					wantCode:   ExitRecords,
 					wantFile: rejectedLines(1, 1) +
-						`{"id":2,"error":{"kind":"http","status":400,"message":"onesie: 400 bad key"}}` + "\n",
+						`{"id":2,"error":{"kind":"http","status":400,"message":"400 bad key"}}` + "\n",
 					wantSent: []string{`{"id":2}`},
 				},
 			},
@@ -744,7 +744,7 @@ func TestResumeLedger(t *testing.T) {
 					failStatus: http.StatusBadRequest,
 					wantCode:   ExitRecords,
 					wantFile: "{\"id\":1,\"answer\":0.5}\n" +
-						`{"id":2,"error":{"kind":"http","status":400,"message":"onesie: 400 bad key"}}` + "\n",
+						`{"id":2,"error":{"kind":"http","status":400,"message":"400 bad key"}}` + "\n",
 					wantSent: []string{`{"id":1}`, `{"id":2}`},
 				},
 				{
@@ -753,8 +753,8 @@ func TestResumeLedger(t *testing.T) {
 					failStatus: http.StatusBadRequest,
 					wantCode:   ExitUsage,
 					wantFile: "{\"id\":1,\"answer\":0.5}\n" +
-						`{"id":2,"error":{"kind":"http","status":400,"message":"onesie: 400 bad key"}}` + "\n" +
-						`{"id":2,"error":{"kind":"http","status":400,"message":"onesie: 400 bad key"}}` + "\n",
+						`{"id":2,"error":{"kind":"http","status":400,"message":"400 bad key"}}` + "\n" +
+						`{"id":2,"error":{"kind":"http","status":400,"message":"400 bad key"}}` + "\n",
 					wantSent:   []string{`{"id":2}`},
 					wantStderr: "onesie: 400 bad key",
 				},
@@ -968,7 +968,7 @@ func TestResumedVerdicts(t *testing.T) {
 					failStatus: http.StatusBadRequest,
 					wantCode:   ExitRecords,
 					wantFile: "{\"assert\":false,\"answer\":0.5}\n" +
-						`{"error":{"kind":"http","status":400,"message":"onesie: 400 bad key"}}` + "\n",
+						`{"error":{"kind":"http","status":400,"message":"400 bad key"}}` + "\n",
 					wantSent: []string{`{"id":1}`, `{"id":2}`},
 				},
 				{
@@ -977,7 +977,7 @@ func TestResumedVerdicts(t *testing.T) {
 					},
 					wantCode: ExitRecords,
 					wantFile: "{\"assert\":false,\"answer\":0.5}\n" +
-						`{"error":{"kind":"http","status":400,"message":"onesie: 400 bad key"}}` + "\n",
+						`{"error":{"kind":"http","status":400,"message":"400 bad key"}}` + "\n",
 					wantStderr: "2 skipped, 1 failed, 1 false assertion, ",
 				},
 			},
@@ -992,14 +992,14 @@ func TestResumedVerdicts(t *testing.T) {
 					failStatus: http.StatusBadRequest,
 					wantCode:   ExitRecords,
 					wantFile: "{\"answer\":0.5}\n" +
-						`{"error":{"kind":"http","status":400,"message":"onesie: 400 bad key"}}` + "\n",
+						`{"error":{"kind":"http","status":400,"message":"400 bad key"}}` + "\n",
 					wantSent: []string{`{"id":1}`, `{"id":2}`},
 				},
 				{
 					args:     []string{"-i", "jsonl", "-o", "values", "--resume", "--retries", "0", "--stats"},
 					wantCode: ExitRecords,
 					wantFile: "{\"answer\":0.5}\n" +
-						`{"error":{"kind":"http","status":400,"message":"onesie: 400 bad key"}}` + "\n",
+						`{"error":{"kind":"http","status":400,"message":"400 bad key"}}` + "\n",
 					wantStderr: "2 skipped, 1 failed, ",
 				},
 			},
@@ -1017,7 +1017,7 @@ func TestResumedVerdicts(t *testing.T) {
 					failStatus: http.StatusBadRequest,
 					wantCode:   ExitRecords,
 					wantFile: "{\"id\":1,\"verdict\":{\"assert\":false,\"answer\":0.5}}\n" +
-						`{"id":2,"verdict":{"error":{"kind":"http","status":400,"message":"onesie: 400 bad key"}}}` + "\n",
+						`{"id":2,"verdict":{"error":{"kind":"http","status":400,"message":"400 bad key"}}}` + "\n",
 					wantSent: []string{`{"id":1}`, `{"id":2}`},
 				},
 				{
@@ -1027,7 +1027,7 @@ func TestResumedVerdicts(t *testing.T) {
 					},
 					wantCode: ExitRecords,
 					wantFile: "{\"id\":1,\"verdict\":{\"assert\":false,\"answer\":0.5}}\n" +
-						`{"id":2,"verdict":{"error":{"kind":"http","status":400,"message":"onesie: 400 bad key"}}}` + "\n",
+						`{"id":2,"verdict":{"error":{"kind":"http","status":400,"message":"400 bad key"}}}` + "\n",
 					wantStderr: "2 skipped, 1 failed, 1 false assertion, ",
 				},
 			},
@@ -1041,7 +1041,7 @@ func TestResumedVerdicts(t *testing.T) {
 					failFrom:   2,
 					failStatus: http.StatusBadRequest,
 					wantCode:   ExitRecords,
-					wantFile:   "answer,assert,error\n0.5,false,\n,,onesie: 400 bad key\n",
+					wantFile:   "answer,assert,error\n0.5,false,\n,,400 bad key\n",
 					wantSent:   []string{`{"id":1}`, `{"id":2}`},
 				},
 				{
@@ -1049,7 +1049,7 @@ func TestResumedVerdicts(t *testing.T) {
 						"-i", "jsonl", "-o", "csv", "--resume", "--retries", "0", "--assert", "answer.value > 0.9", "--stats",
 					},
 					wantCode:   ExitRecords,
-					wantFile:   "answer,assert,error\n0.5,false,\n,,onesie: 400 bad key\n",
+					wantFile:   "answer,assert,error\n0.5,false,\n,,400 bad key\n",
 					wantStderr: "2 skipped, 1 failed, 1 false assertion, ",
 				},
 			},
@@ -1063,13 +1063,13 @@ func TestResumedVerdicts(t *testing.T) {
 					failFrom:   2,
 					failStatus: http.StatusBadRequest,
 					wantCode:   ExitRecords,
-					wantFile:   "id\tbody\tanswer\terror\n1\ta\t0.5\t\n2\tb\t\tonesie: 400 bad key\n",
+					wantFile:   "id\tbody\tanswer\terror\n1\ta\t0.5\t\n2\tb\t\t400 bad key\n",
 					wantSent:   []string{`{"id":"1","body":"a"}`, `{"id":"2","body":"b"}`},
 				},
 				{
 					args:       []string{"-i", "tsv", "-o", "tsv", "--merge", "--resume", "--retries", "0", "--stats"},
 					wantCode:   ExitRecords,
-					wantFile:   "id\tbody\tanswer\terror\n1\ta\t0.5\t\n2\tb\t\tonesie: 400 bad key\n",
+					wantFile:   "id\tbody\tanswer\terror\n1\ta\t0.5\t\n2\tb\t\t400 bad key\n",
 					wantStderr: "2 skipped, 1 failed, ",
 				},
 			},
@@ -1104,8 +1104,8 @@ func TestResumed(t *testing.T) {
 	t.Parallel()
 
 	answeredBody := `{"model":"m","answers":{"answer":{"type":"noul","noul":0.5}},"usage":{}}` + "\n"
-	failedBody := `{"error":{"kind":"http","status":400,"message":"onesie: 400 bad key"}}` + "\n"
-	unavailableBody := `{"error":{"kind":"http","status":503,"message":"onesie: 503 bad key"}}` + "\n"
+	failedBody := `{"error":{"kind":"http","status":400,"message":"400 bad key"}}` + "\n"
+	unavailableBody := `{"error":{"kind":"http","status":503,"message":"503 bad key"}}` + "\n"
 	forwarded, err := fingerprintOf(nil, fingerprintInputs{provider: "typesafe", input: "request"})
 	if err != nil {
 		t.Fatalf("fingerprinting -i request: %v", err)
@@ -1243,7 +1243,7 @@ func TestResumed(t *testing.T) {
 					failStatus: http.StatusBadRequest,
 					wantCode:   ExitRecords,
 					wantFile: "{\"id\":1,\"verdict\":{\"answer\":0.5}}\n" +
-						`{"id":2,"verdict":{"error":{"kind":"http","status":400,"message":"onesie: 400 bad key"}}}` + "\n",
+						`{"id":2,"verdict":{"error":{"kind":"http","status":400,"message":"400 bad key"}}}` + "\n",
 					wantSent: []string{`{"id":1}`, `{"id":2}`},
 				},
 				{
@@ -1312,7 +1312,7 @@ func TestResumed(t *testing.T) {
 					failFrom:   2,
 					failStatus: http.StatusServiceUnavailable,
 					wantCode:   ExitUnavailable,
-					wantFile:   "answer,error\n0.5,\n,onesie: 503 bad key\n",
+					wantFile:   "answer,error\n0.5,\n,503 bad key\n",
 					wantSent:   []string{`{"id":1}`, `{"id":2}`},
 				},
 				{
@@ -1331,7 +1331,7 @@ func TestResumed(t *testing.T) {
 					failFrom:   1,
 					failStatus: http.StatusServiceUnavailable,
 					wantCode:   ExitUnavailable,
-					wantFile:   "answer\terror\n\tonesie: 503 bad key\n",
+					wantFile:   "answer\terror\n\t503 bad key\n",
 					wantSent:   []string{`{"id":1}`},
 				},
 				{
@@ -1368,13 +1368,13 @@ func TestResumed(t *testing.T) {
 					failOnce:   true,
 					failStatus: http.StatusServiceUnavailable,
 					wantCode:   ExitRecords,
-					wantFile:   "answer,error\n0.5,\n,onesie: 503 bad key\n0.5,\n",
+					wantFile:   "answer,error\n0.5,\n,503 bad key\n0.5,\n",
 					wantSent:   []string{`{"id":1}`, `{"id":2}`, `{"id":3}`},
 				},
 				{
 					args:     []string{"-i", "jsonl", "-o", "csv", "--resume", "--retries", "0", "--stop-on-error"},
 					wantCode: ExitUsage,
-					wantFile: "answer,error\n0.5,\n,onesie: 503 bad key\n0.5,\n",
+					wantFile: "answer,error\n0.5,\n,503 bad key\n0.5,\n",
 					wantStderr: "onesie: the stored failure for record 2 is followed by more rows, so a run without " +
 						"--stop-on-error wrote it, and a csv row keeps only its message, not the code to stop with. " +
 						"Pass --id or drop --stop-on-error to carry on",

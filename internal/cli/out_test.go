@@ -946,7 +946,7 @@ func TestOutFile_Lock(t *testing.T) {
 		{
 			name:    "should refuse a fresh run while a resume holds the file",
 			lockErr: errLocked,
-			wantErr: "is being resumed by another onesie run",
+			wantErr: "is in use by another onesie run",
 		},
 		{
 			name:    "should write a fresh run unguarded when no lock can be taken beside the file",

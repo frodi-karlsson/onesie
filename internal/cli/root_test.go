@@ -116,6 +116,15 @@ func TestNewRootCmd(t *testing.T) {
 			contains: []string{"runs one record at a time", "such as a field lookup"},
 		},
 		{
+			name:     "should word --max-retry-after the way its sibling flags are worded",
+			args:     []string{"--help"},
+			wantCode: cli.ExitOK,
+			contains: []string{
+				"seconds per attempt", "retries after a failed attempt",
+				"most seconds to wait out a server Retry-After",
+			},
+		},
+		{
 			name:     "should prefix a cobra parse error",
 			args:     []string{"--nope"},
 			wantCode: cli.ExitUsage,
