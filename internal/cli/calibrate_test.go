@@ -1533,6 +1533,23 @@ func TestCalibrateRun(t *testing.T) {
 		}
 	})
 
+	t.Run("should build no client and need no key when every record is already answered", func(t *testing.T) {
+		t.Parallel()
+
+		answers := filepath.Join(t.TempDir(), "answers.jsonl")
+		first, _, code := runCalibrateAgainst(t.Context(), t, calibrating(answers, "--resume"), urgentSet,
+			newCalibrateStub(t).url, false)
+		if code != ExitOK {
+			t.Fatalf("first run exit code = %d", code)
+		}
+
+		// runMocked passes no key and fails the test if a client is built.
+		second, errOut, code := runMocked(t, t.Context(), calibrating(answers, "--resume"), urgentSet, nil, nil)
+		if code != ExitOK || second != first {
+			t.Errorf("exit %d, want 0 and the first run's report\nstdout:\n%s\nstderr:\n%s", code, second, errOut)
+		}
+	})
+
 	t.Run("should ask nothing when a label is fixed, and show the change", func(t *testing.T) {
 		t.Parallel()
 

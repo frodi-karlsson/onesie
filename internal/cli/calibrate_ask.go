@@ -170,9 +170,15 @@ func askLabelled(
 	cmd *cobra.Command, flags *runFlags, built *plan.Plan, model string,
 	resumed resumedSet, out *outFile, stats *collector, answerers answererFactory,
 ) ([]output.Record, engine.Result, error) {
-	asker, err := answerers(cmd.Context(), stats)
-	if err != nil {
-		return nil, engine.Result{}, err
+	// A run the file answers in full asks nothing, so it needs no client and no key.
+	var asker answerer
+	if len(resumed.pending) > 0 {
+		var err error
+
+		asker, err = answerers(cmd.Context(), stats)
+		if err != nil {
+			return nil, engine.Result{}, err
+		}
 	}
 
 	questions := wireAll(built.Questions)
