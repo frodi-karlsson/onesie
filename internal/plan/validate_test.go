@@ -557,9 +557,9 @@ func TestValidate(t *testing.T) {
 			wantErr:    "--stop-on-assert applies to streaming input. -i text reads one record",
 		},
 		{
-			name:       "should accept stop on assert in a stream",
+			name:       "should accept stop on assert in a gated stream",
 			positional: "is this urgent",
-			cfg:        plan.Config{StopOnAssert: true, Streaming: true, InputName: "jsonl"},
+			cfg:        plan.Config{StopOnAssert: true, HasAssert: true, Streaming: true, InputName: "jsonl"},
 		},
 		{
 			name:       "should reject skip blank outside a stream",
@@ -1485,6 +1485,18 @@ func TestCheckFlags(t *testing.T) {
 			cfg: plan.Config{
 				HasAssert: true, AssertName: "'assert'", HasAbstainIf: true,
 				FileName: "q.yaml", InputName: "text",
+			},
+		},
+		{
+			name:    "should reject --stop-on-assert without an assertion",
+			cfg:     plan.Config{StopOnAssert: true, Streaming: true, InputName: "jsonl"},
+			wantErr: "onesie: --stop-on-assert needs --assert, since without one no assertion is false",
+		},
+		{
+			name: "should accept --stop-on-assert when the only assertion comes from the file",
+			cfg: plan.Config{
+				StopOnAssert: true, Streaming: true, HasAssert: true, AssertName: "'assert'",
+				FileName: "q.yaml", InputName: "jsonl",
 			},
 		},
 		{

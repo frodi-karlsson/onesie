@@ -108,7 +108,17 @@ func CheckFlags(cfg Config) (string, error) {
 		return "", errors.New("onesie: --replace applies to -f, which was not given")
 	}
 
-	return checkStreaming(cfg)
+	hint, err := checkStreaming(cfg)
+	if err != nil {
+		return hint, err
+	}
+
+	// After the streaming rules, so --stop-on-assert on one record is told it needs a stream first.
+	if cfg.StopOnAssert && !cfg.HasAssert {
+		return hint, errors.New("onesie: --stop-on-assert needs --assert, since without one no assertion is false")
+	}
+
+	return hint, nil
 }
 
 func checkAbstainNeedsAssert(cfg Config) error {

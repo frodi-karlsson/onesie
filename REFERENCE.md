@@ -17,6 +17,8 @@ onesie --ask urgent='is this urgent' --assert 'urgnet.value < 0.5'
   and leaves the exit code to the assertion. Repeated flags combine with `and`.
 - `--abstain-if` is checked only when the assertion fails. When it holds, the record is an unsure:
   exit 7, and `"abstain": true` in place of `"assert": false`.
+- `--abstain-if` and `--stop-on-assert` both need an assertion, from `--assert` or from the
+  question file, and each exits 2 without one.
 - `min`, `max`, `sum` and `avg` take numbers and nest. `==` rarely matches a `sum` or `avg`, so use
   `>=` or `<=`. There are no arithmetic operators, so weighting answers is a job for `jq`.
 - A question file carries the same expressions as `assert` and `abstain_if`. `--print-request`
