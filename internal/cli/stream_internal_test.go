@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -408,6 +409,45 @@ func TestStream(t *testing.T) {
 			_, errOut, code := runMocked(t, t.Context(), args, strings.Repeat("a\n", 16), nil, nil)
 			if code != ExitUsage || !strings.Contains(errOut, "so input line 3 has no answer") {
 				t.Fatalf("exit code = %d, want %d naming input line 3\n%s", code, ExitUsage, errOut)
+			}
+		}
+	})
+
+	t.Run("should write only the failing line under --stop-on-error and -j 4 every time", func(t *testing.T) {
+		t.Parallel()
+
+		stub := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			body, err := io.ReadAll(r.Body)
+			if err != nil {
+				t.Errorf("reading the request: %v", err)
+			}
+
+			if bytes.Contains(body, []byte(`"state":"fail"`)) {
+				w.WriteHeader(http.StatusInternalServerError)
+
+				if _, err := w.Write([]byte(`{"error":{"message":"boom"}}`)); err != nil {
+					t.Errorf("writing stub response: %v", err)
+				}
+
+				return
+			}
+
+			if _, err := w.Write([]byte(dedupAnswer)); err != nil {
+				t.Errorf("writing stub response: %v", err)
+			}
+		}))
+		t.Cleanup(stub.Close)
+
+		args := []string{"is this urgent", "-i", "lines", "-o", "json", "-j", "4", "--stop-on-error", "--retries", "0"}
+
+		for range 30 {
+			out, errOut, code := runStub(t, t.Context(), args, "fail\nfail\nx\n", stub.URL)
+			if code != ExitUnavailable {
+				t.Fatalf("exit code = %d, want %d\n%s", code, ExitUnavailable, errOut)
+			}
+
+			if strings.Count(out, "\n") != 1 || !strings.Contains(out, `"status":500`) {
+				t.Fatalf("stdout = %q, want only the first record's error line", out)
 			}
 		}
 	})

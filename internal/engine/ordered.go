@@ -165,22 +165,24 @@ func consume[R, T any](
 				result.Aborted = true
 				result.Cause = got.err
 
-				// Cancelling before the flush keeps an authentication failure from being reported
-				// once per line. The flush writes the workers that finished before the cancel and
-				// stops at the first still running, so how many records follow the aborting one is
-				// not fixed.
 				cancel()
-				flush(cfg, queue, &result)
+
+				// A stop flag ends the output at the record that stopped it, so a resume by line
+				// count carries on from there. Only an abort of the whole run, such as a refused key,
+				// writes the workers that finished before the cancel, stopping at the first still
+				// running, so how many records follow it is not fixed.
+				if abortsRun(cfg, got.err) {
+					flush(cfg, queue, &result)
+				}
 
 				return result
 			}
 
 			if stops(cfg, got.line) {
 				// No Cause and no Aborted, because the record that ended the run succeeded. The
-				// caller reads the outcome off the lines it was handed, and the flush leaves the
-				// same completed prefix an abort does.
+				// caller reads the outcome off the lines it was handed, and nothing after this line
+				// is written, as under a stop on error.
 				cancel()
-				flush(cfg, queue, &result)
 
 				return result
 			}
@@ -264,11 +266,11 @@ func aborts[R, T any](cfg Config[R, T], err error) bool {
 		return false
 	}
 
-	if cfg.Abort != nil && cfg.Abort(err) {
-		return true
-	}
+	return abortsRun(cfg, err) || cfg.StopOnError
+}
 
-	return cfg.StopOnError
+func abortsRun[R, T any](cfg Config[R, T], err error) bool {
+	return cfg.Abort != nil && cfg.Abort(err)
 }
 
 func stops[R, T any](cfg Config[R, T], line T) bool {

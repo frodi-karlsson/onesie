@@ -317,6 +317,87 @@ func TestRun(t *testing.T) {
 		})
 	})
 
+	t.Run("should write nothing after the record that stops an ordered run", func(t *testing.T) {
+		t.Parallel()
+
+		stopping := errors.New("boom")
+
+		tests := []struct {
+			name        string
+			stopOnError bool
+			stop        func(string) bool
+			wantFailed  int
+			wantAborted bool
+		}{
+			{name: "should drop the finished records after a failure under stop on error", stopOnError: true, wantFailed: 1, wantAborted: true},
+			{name: "should drop the finished records after a line that stops the run", stop: func(line string) bool { return line == "3" }},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				var (
+					mu       sync.Mutex
+					written  []string
+					finished atomic.Int32
+				)
+
+				result, err := engine.Run(t.Context(), engine.Config[input.Record, string]{
+					Source: &counting{total: 20},
+					Evaluate: func(_ context.Context, rec input.Record) (string, error) {
+						if rec.Index != 3 {
+							if rec.Index > 3 {
+								finished.Add(1)
+							}
+
+							return strconv.Itoa(rec.Index), nil
+						}
+
+						// The stopping record ends only once the four behind it have finished, so they
+						// are waiting to be written when it arrives.
+						deadline := time.Now().Add(5 * time.Second)
+						for finished.Load() < 4 && time.Now().Before(deadline) {
+							time.Sleep(time.Millisecond)
+						}
+
+						if tc.stopOnError {
+							return "3", stopping
+						}
+
+						return "3", nil
+					},
+					Write: func(line string) error {
+						mu.Lock()
+						defer mu.Unlock()
+
+						written = append(written, line)
+
+						return nil
+					},
+					Jobs:        8,
+					StopOnError: tc.stopOnError,
+					Stop:        tc.stop,
+				})
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+
+				mu.Lock()
+				defer mu.Unlock()
+
+				if !slices.Equal(written, []string{"0", "1", "2", "3"}) {
+					t.Errorf("written = %v, want the records up to the one that stopped the run", written)
+				}
+
+				if result.Failed != tc.wantFailed || result.Aborted != tc.wantAborted {
+					t.Errorf("failed = %d, aborted = %v, want %d, %v",
+						result.Failed, result.Aborted, tc.wantFailed, tc.wantAborted)
+				}
+			})
+		}
+	})
+
 	t.Run("should stop the run on an abort worthy failure", func(t *testing.T) {
 		t.Parallel()
 
