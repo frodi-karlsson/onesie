@@ -62,6 +62,8 @@ func TestDecodeOrdered(t *testing.T) {
 			wantErr: separated,
 		},
 		{name: "should reject malformed yaml", doc: "a:\n  - b\n c: broken\n", wantErr: "onesie: "},
+		{name: "should reject a key json repeats", doc: `{"a": "x", "a": "y"}`, wantErr: `mapping key "a" already defined`},
+		{name: "should reject a key yaml repeats", doc: "a: x\na: y\n", wantErr: `mapping key "a" already defined`},
 	}
 
 	for _, tc := range tests {

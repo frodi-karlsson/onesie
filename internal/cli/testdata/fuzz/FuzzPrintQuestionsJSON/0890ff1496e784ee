@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("{\"questions\":{\"0e00}0\":{\"type\":\"noul\",\"instructions\":{\"0\":1e17}}},\"00000\":\"\"}")

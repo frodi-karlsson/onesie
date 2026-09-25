@@ -277,6 +277,31 @@ func TestLoadBody(t *testing.T) {
 	t.Run("should carry a structured body instruction through", func(t *testing.T) {
 		t.Parallel()
 
+		t.Run("should carry the numbers of a structured body instruction through as written", func(t *testing.T) {
+			t.Parallel()
+
+			const doc = `{"questions":{"u":{"type":"noul","instructions":` +
+				`{"n":8e13,"big":123456789012345678901234567890,"f":1.50}}},"state":{"n":8e13}}`
+
+			f, err := qfile.Load([]byte(doc))
+			if err != nil {
+				t.Fatalf("loading: %v", err)
+			}
+
+			encoded, err := json.Marshal(f.Questions[0].Instructions)
+			if err != nil {
+				t.Fatalf("marshalling: %v", err)
+			}
+
+			if want := `{"n":8e13,"big":123456789012345678901234567890,"f":1.50}`; string(encoded) != want {
+				t.Errorf("instructions got  %s\nwant %s", encoded, want)
+			}
+
+			if want := `{"n":8e13}`; string(f.StateWire) != want {
+				t.Errorf("state got  %s\nwant %s", f.StateWire, want)
+			}
+		})
+
 		t.Run("should carry a structured body instruction through as an object", func(t *testing.T) {
 			t.Parallel()
 

@@ -171,6 +171,21 @@ func TestWrite(t *testing.T) {
 			want:      "abstain_if: urgent.value < 0.8\nurgent:\n  ask: is this urgent\n",
 		},
 		{
+			name: "should write a json number as the number it is",
+			questions: []plan.Question{
+				{ID: "q", Shape: plan.Noul, Instructions: json.RawMessage(`{"n":8e13,"i":-7,"f":0.25}`)},
+			},
+			want: "q:\n  ask:\n    \"n\": 80000000000000\n    i: -7\n    f: 0.25\n",
+		},
+		{
+			name: "should refuse a json number a question file cannot hold exactly",
+			questions: []plan.Question{
+				{ID: "q", Shape: plan.Noul, Instructions: json.Number("123456789012345678901234567890")},
+			},
+			wantErr: "onesie: 'ask' in question 'q' cannot be written: 123456789012345678901234567890 " +
+				"has more digits than a question file keeps",
+		},
+		{
 			name: "should reject the reserved positional id",
 			questions: []plan.Question{
 				{ID: "answer", Shape: plan.Noul, Instructions: "q"},
@@ -405,9 +420,9 @@ func TestWrite(t *testing.T) {
 				},
 			},
 			{
-				name: "should reload a whole number instruction written with an exponent",
+				name: "should reload a whole number instruction too large to write without an exponent",
 				questions: []plan.Question{
-					{ID: "urgent", Shape: plan.Noul, Instructions: 8e13},
+					{ID: "urgent", Shape: plan.Noul, Instructions: 1e300},
 				},
 			},
 			{

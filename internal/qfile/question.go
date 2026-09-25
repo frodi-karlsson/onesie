@@ -1,6 +1,7 @@
 package qfile
 
 import (
+	"encoding/json"
 	"fmt"
 	"strconv"
 
@@ -342,19 +343,23 @@ func readPolicy(question *plan.Question, fields yaml.MapSlice) error {
 }
 
 func readNumber(id, key string, value any) (float64, error) {
-	// goccy yields a bare integer as uint64, a negative one as int64 and anything with a decimal
-	// point or a sign on the exponent as float64.
+	// goccy yields a bare integer as uint64, a negative one as int64 and anything else as float64.
+	// A JSON file yields the json.Number it wrote.
 	switch typed := value.(type) {
+	case json.Number:
+		if number, err := typed.Float64(); err == nil {
+			return number, nil
+		}
 	case float64:
 		return typed, nil
 	case int64:
 		return float64(typed), nil
 	case uint64:
 		return float64(typed), nil
-	default:
-		return 0, fmt.Errorf(
-			"onesie: '%s' in question '%s' must be a number, got %s", key, id, describe(value))
 	}
+
+	return 0, fmt.Errorf(
+		"onesie: '%s' in question '%s' must be a number, got %s", key, id, describe(value))
 }
 
 func readFallback(id string, value any) (string, error) {

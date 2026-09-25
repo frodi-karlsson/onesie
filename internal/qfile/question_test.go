@@ -430,6 +430,39 @@ func TestReadPolicy(t *testing.T) {
 			},
 		},
 		{
+			name: "should read a threshold written with an exponent and no point",
+			doc:  "urgent:\n  ask: q\n  threshold: 1e-7\n",
+			check: func(t *testing.T, q plan.Question) {
+				t.Helper()
+
+				if q.Policy.Threshold == nil || *q.Policy.Threshold != 1e-7 {
+					t.Errorf("threshold = %v, want 1e-7", q.Policy.Threshold)
+				}
+			},
+		},
+		{
+			name: "should read a threshold in a json question file",
+			doc:  `{"urgent":{"ask":"q","threshold":1e-7}}`,
+			check: func(t *testing.T, q plan.Question) {
+				t.Helper()
+
+				if q.Policy.Threshold == nil || *q.Policy.Threshold != 1e-7 {
+					t.Errorf("threshold = %v, want 1e-7", q.Policy.Threshold)
+				}
+			},
+		},
+		{
+			name: "should keep a quoted exponent a string",
+			doc:  "urgent:\n  ask: '1e-7'\n",
+			check: func(t *testing.T, q plan.Question) {
+				t.Helper()
+
+				if q.Instructions != "1e-7" {
+					t.Errorf("instructions = %#v, want the string 1e-7", q.Instructions)
+				}
+			},
+		},
+		{
 			name: "should read min_confidence and fallback on a pick question",
 			doc: "team:\n  ask: q\n  pick: [a, b]\n" +
 				"  min_confidence: 0.7\n  fallback: human\n",

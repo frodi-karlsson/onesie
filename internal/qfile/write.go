@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
+	"math/big"
 	"strconv"
 	"strings"
 	"unicode"
@@ -184,13 +186,85 @@ func writePolicy(policy plan.Policy) yaml.MapSlice {
 func yamlValue(value any) (any, error) {
 	raw, ok := value.(json.RawMessage)
 	if !ok {
-		return value, nil
+		return yamlNumbers(value)
 	}
 
 	// Back through the ordered decoder, so a structured description written to a file comes out as
 	// a mapping in its original order rather than as the byte sequence goccy renders a
 	// json.RawMessage as.
-	return DecodeOrdered(raw)
+	decoded, err := DecodeOrdered(raw)
+	if err != nil {
+		return nil, err
+	}
+
+	return yamlNumbers(decoded)
+}
+
+func yamlNumbers(value any) (any, error) {
+	switch typed := value.(type) {
+	case yaml.MapSlice:
+		out := make(yaml.MapSlice, 0, len(typed))
+
+		for _, item := range typed {
+			converted, err := yamlNumbers(item.Value)
+			if err != nil {
+				return nil, err
+			}
+
+			out = append(out, yaml.MapItem{Key: item.Key, Value: converted})
+		}
+
+		return out, nil
+	case []any:
+		out := make([]any, 0, len(typed))
+
+		for _, item := range typed {
+			converted, err := yamlNumbers(item)
+			if err != nil {
+				return nil, err
+			}
+
+			out = append(out, converted)
+		}
+
+		return out, nil
+	case json.Number:
+		return yamlNumber(typed)
+	case float64:
+		return wholeNumber(typed), nil
+	default:
+		return value, nil
+	}
+}
+
+func wholeNumber(float float64) any {
+	// goccy writes a whole float with an exponent, as 8e+13, and reads it back as an integer, so a
+	// whole float is written as the integer it is and the file prints the same way twice.
+	if float == math.Trunc(float) && float >= math.MinInt64 && float < math.MaxInt64 {
+		return int64(float)
+	}
+
+	return float
+}
+
+func yamlNumber(number json.Number) (any, error) {
+	// goccy writes a json.Number past int64 as a quoted string, so each becomes the Go number it
+	// names. One that no int64 or float64 holds exactly is refused rather than rounded.
+	if integer, err := number.Int64(); err == nil {
+		return integer, nil
+	}
+
+	float, err := number.Float64()
+	if err == nil {
+		exact, _ := new(big.Rat).SetString(number.String())
+		shortest, _ := new(big.Rat).SetString(strconv.FormatFloat(float, 'g', -1, 64))
+
+		if exact != nil && shortest != nil && exact.Cmp(shortest) == 0 {
+			return wholeNumber(float), nil
+		}
+	}
+
+	return nil, fmt.Errorf("%s has more digits than a question file keeps", number)
 }
 
 func marshal(doc yaml.MapSlice) ([]byte, error) {
@@ -254,8 +328,8 @@ func requote(node ast.Node, isKey bool) ast.Node {
 }
 
 func pointMantissa(tok *token.Token) {
-	// goccy writes 8e13 as 8e+13, which its parser reads back as a string, since a YAML float with
-	// an exponent needs a point in its mantissa.
+	// goccy writes 8e13 as 8e+13, and goccy's own parser reads an exponent with no point in its
+	// mantissa as a string, so the point keeps the file readable by an older onesie.
 	mantissa, exponent, found := strings.Cut(tok.Value, "e")
 	if !found || strings.Contains(mantissa, ".") {
 		return
@@ -270,10 +344,10 @@ func needsEscape(r rune) bool {
 }
 
 func survivesUnquoted(text string, isKey bool) bool {
-	// goccy leaves some scalars unquoted that its parser then reads as syntax, such as one starting
-	// with a question mark and a space, or a key of three dots at the start of a line. Its block
-	// scalars lose a lone line feed and the spaces that end the last line. So a scalar keeps goccy's
-	// form only when it reads back unchanged where it stands.
+	// goccy leaves some scalars unquoted that the loader then reads as syntax or as a number, such
+	// as one starting with a question mark and a space, a key of three dots or a string like 1e-7.
+	// Its block scalars lose a lone line feed and the spaces that end the last line. So a scalar
+	// keeps goccy's form only when it reads back unchanged where it stands.
 	if isKey {
 		read, ok := printedAndRead(yaml.MapSlice{{Key: text, Value: "v"}})
 
@@ -293,8 +367,10 @@ func printedAndRead(doc yaml.MapSlice) (yaml.MapItem, bool) {
 
 	var out printer.Printer
 
-	var back yaml.MapSlice
-	if err := yaml.UnmarshalWithOptions(out.PrintNode(node), &back, yaml.UseOrderedMap()); err != nil || len(back) != 1 {
+	read, err := DecodeOrdered(out.PrintNode(node))
+	back, isMapping := read.(yaml.MapSlice)
+
+	if err != nil || !isMapping || len(back) != 1 {
 		return yaml.MapItem{}, false
 	}
 
