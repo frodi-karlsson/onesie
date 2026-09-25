@@ -202,9 +202,8 @@ func TestCollectorDeduplicated(t *testing.T) {
 			wantRecords: 1, wantDedups: 1, wantFailed: 1,
 		},
 		{
-			name:        "should not count a duplicate the run cancelled as failed",
-			cause:       fmt.Errorf("onesie: #1: %w", context.Canceled),
-			wantRecords: 1, wantDedups: 1,
+			name:  "should count nothing for a duplicate the run cancelled",
+			cause: fmt.Errorf("onesie: #1: %w", context.Canceled),
 		},
 	}
 

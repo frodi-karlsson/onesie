@@ -188,13 +188,19 @@ func (c *collector) recordFailure(cause error, reached bool, questions int) {
 }
 
 func (c *collector) deduplicated(cause error) {
+	// A duplicate the run cancelled was never answered, as with the request it waited on, which
+	// recordFailure leaves uncounted for the same reason.
+	if errors.Is(cause, context.Canceled) {
+		return
+	}
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	c.records++
 	c.dedups++
 
-	if cause != nil && !errors.Is(cause, context.Canceled) {
+	if cause != nil {
 		c.failed++
 	}
 }
