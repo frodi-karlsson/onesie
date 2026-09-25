@@ -26,7 +26,7 @@ func main() {
 func newApp() *app {
 	return &app{
 		glob:   filepath.Glob,
-		grader: skilleval.NewGrader(skillcheck.NewRunner("")),
+		grader: skilleval.NewGrader(skillcheck.NewRunner("", os.Environ())),
 	}
 }
 

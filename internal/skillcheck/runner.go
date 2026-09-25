@@ -6,18 +6,36 @@ import (
 	"errors"
 	"fmt"
 	"os/exec"
+	"strings"
 	"time"
 )
 
 const runTimeout = 10 * time.Second
 
-// NewRunner returns a Runner that runs binary, defaulting to onesie on PATH when binary is empty.
-func NewRunner(binary string) *Runner {
+// NewRunner returns a Runner that runs binary in environ, defaulting to onesie on PATH when binary
+// is empty. ONESIE_MOCK is removed, since a dry run beside it would be refused.
+func NewRunner(binary string, environ []string) *Runner {
 	if binary == "" {
 		binary = "onesie"
 	}
 
-	return &Runner{Binary: binary, exec: runProcess}
+	env := withoutMock(environ)
+
+	return &Runner{Binary: binary, exec: func(ctx context.Context, binary string, args []string) (int, string, error) {
+		return runProcess(ctx, binary, args, env)
+	}}
+}
+
+func withoutMock(environ []string) []string {
+	kept := make([]string, 0, len(environ))
+
+	for _, entry := range environ {
+		if !strings.HasPrefix(entry, "ONESIE_MOCK=") {
+			kept = append(kept, entry)
+		}
+	}
+
+	return kept
 }
 
 // Runner runs one onesie invocation and reports its exit code and its stderr.
@@ -72,8 +90,9 @@ func (r *Runner) run(ctx context.Context, args []string) (int, string, error) {
 	return r.exec(ctx, r.Binary, args)
 }
 
-func runProcess(ctx context.Context, binary string, args []string) (int, string, error) {
+func runProcess(ctx context.Context, binary string, args, env []string) (int, string, error) {
 	cmd := exec.CommandContext(ctx, binary, args...)
+	cmd.Env = env
 	// A state value of a bare - reads stdin, and an empty reader fails that fast instead of
 	// hanging a check on a terminal that will never type anything.
 	cmd.Stdin = bytes.NewReader(nil)

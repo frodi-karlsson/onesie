@@ -181,6 +181,7 @@ func TestFilterIntegration(t *testing.T) {
 				cli.WithStdin(strings.NewReader(tc.stdin)),
 				cli.WithStdinTTY(false),
 				cli.WithStdoutTTY(false),
+				cli.WithLookupEnv(liveLookup(os.LookupEnv)),
 			)
 
 			root.SetOut(&out)
@@ -403,6 +404,7 @@ func TestFileIntegration(t *testing.T) {
 				cli.WithStdin(strings.NewReader(tc.stdin)),
 				cli.WithStdinTTY(false),
 				cli.WithStdoutTTY(false),
+				cli.WithLookupEnv(liveLookup(os.LookupEnv)),
 			)
 
 			root.SetOut(&out)
@@ -605,6 +607,7 @@ not json at all
 				cli.WithStdin(strings.NewReader(tc.stdin)),
 				cli.WithStdinTTY(false),
 				cli.WithStdoutTTY(false),
+				cli.WithLookupEnv(liveLookup(os.LookupEnv)),
 			)
 
 			root.SetOut(&out)
@@ -964,6 +967,8 @@ func runLive(t *testing.T, args []string, stdin string) (string, string, int) {
 		cli.WithStdin(strings.NewReader(stdin)),
 		cli.WithStdinTTY(false),
 		cli.WithStdoutTTY(false),
+		// A developer's exported ONESIE_MOCK would otherwise turn the live suite into a mock run.
+		cli.WithLookupEnv(liveLookup(os.LookupEnv)),
 	)
 
 	root.SetOut(&out)

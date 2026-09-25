@@ -16,7 +16,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	report, err := skillcheck.Check(context.Background(), root, skillcheck.NewRunner(""))
+	report, err := skillcheck.Check(context.Background(), root, skillcheck.NewRunner("", os.Environ()))
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
