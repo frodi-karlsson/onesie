@@ -137,6 +137,7 @@ reading, as `head` does, is not an error.
 - `--list-models` shows what the account can ask, and `-m` picks one.
 - `--base-url` points onesie at any server that speaks the System One API.
 - `-f NAME` loads `NAME.yaml`, `NAME.yml` or `NAME.json` from the nearest `.onesie/questions`, then
-  from `questions` in the config dir, and `onesie questions` lists every name it finds.
+  from `questions` in the config dir, and `onesie questions` lists every name it finds. A question
+  file is refused with exit 2 when it uses a YAML alias or is larger than `max-question-file-bytes`.
 - `--retries`, `--timeout` and `--max-retry-after` bound how long a call can take.
 - `onesie --help` lists every flag, and `onesie -V` prints the built in limits.

@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/frodi-karlsson/onesie/internal/limits"
 	"github.com/frodi-karlsson/onesie/internal/qfile"
 )
 
@@ -64,6 +65,29 @@ func TestDecodeOrdered(t *testing.T) {
 		{name: "should reject malformed yaml", doc: "a:\n  - b\n c: broken\n", wantErr: "onesie: "},
 		{name: "should reject a key json repeats", doc: `{"a": "x", "a": "y"}`, wantErr: `mapping key "a" already defined`},
 		{name: "should reject a key yaml repeats", doc: "a: x\na: y\n", wantErr: `mapping key "a" already defined`},
+		{
+			name: "should reject an alias before it expands",
+			doc: "a: &a [x, x, x, x, x, x, x, x, x, x]\n" +
+				"b: &b [*a, *a, *a, *a, *a, *a, *a, *a, *a, *a]\n" +
+				"c: &c [*b, *b, *b, *b, *b, *b, *b, *b, *b, *b]\n" +
+				"d: &d [*c, *c, *c, *c, *c, *c, *c, *c, *c, *c]\n" +
+				"e: &e [*d, *d, *d, *d, *d, *d, *d, *d, *d, *d]\n" +
+				"f: &f [*e, *e, *e, *e, *e, *e, *e, *e, *e, *e]\n" +
+				"g: [*f, *f, *f, *f, *f, *f, *f, *f, *f, *f]\n",
+			wantErr: "onesie: a question file cannot use a YAML alias, since onesie does not expand one. " +
+				"Write the value out in full",
+		},
+		{
+			name:    "should reject a merge key, which is an alias too",
+			doc:     "base: &base {ask: is this urgent}\nurgent:\n  <<: *base\n",
+			wantErr: "cannot use a YAML alias",
+		},
+		{name: "should accept an anchor nothing refers to", doc: "a: &a q1\n"},
+		{
+			name:    "should reject a file over the size cap",
+			doc:     "a: \"" + strings.Repeat("x", limits.MaxQuestionFileBytes) + "\"\n",
+			wantErr: "onesie: a question file is at most 8388608 bytes",
+		},
 	}
 
 	for _, tc := range tests {

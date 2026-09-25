@@ -45,6 +45,9 @@ const (
 	// MaxCalibrateRecords is the most records calibrate reads. It holds the whole labelled set in
 	// memory before asking, so the input has to end somewhere.
 	MaxCalibrateRecords = 100000
+	// MaxQuestionFileBytes is the largest question file or request body -f reads. A body carries a
+	// state, which a stream line may hold up to MaxLineBytes of.
+	MaxQuestionFileBytes = 8 << 20
 )
 
 // Report lists every constant in this package, for the --version dump.
@@ -64,6 +67,7 @@ func Report() []Entry {
 		{Name: "max-map-depth", Value: strconv.Itoa(MaxMapDepth)},
 		{Name: "max-id-bytes", Value: strconv.Itoa(MaxIDBytes)},
 		{Name: "max-calibrate-records", Value: strconv.Itoa(MaxCalibrateRecords)},
+		{Name: "max-question-file-bytes", Value: strconv.Itoa(MaxQuestionFileBytes)},
 	}
 }
 

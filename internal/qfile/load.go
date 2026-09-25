@@ -15,6 +15,7 @@ import (
 	"github.com/goccy/go-yaml/parser"
 	"github.com/goccy/go-yaml/token"
 
+	"github.com/frodi-karlsson/onesie/internal/limits"
 	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
@@ -66,6 +67,11 @@ type File struct {
 // DecodeOrdered parses YAML or JSON keeping every mapping as an ordered yaml.MapSlice and a JSON
 // number as its json.Number, so the loader reads order and numbers as the file wrote them.
 func DecodeOrdered(data []byte) (any, error) {
+	if len(data) > limits.MaxQuestionFileBytes {
+		return nil, fmt.Errorf("onesie: a question file is at most %d bytes, and this one is %d",
+			limits.MaxQuestionFileBytes, len(data))
+	}
+
 	// JSON through encoding/json, since goccy reads a number like 8e13 or one past uint64 as a
 	// string, and a request body is meant to reach the API as it was written.
 	if json.Valid(data) {
@@ -92,6 +98,16 @@ func DecodeOrdered(data []byte) (any, error) {
 	for _, document := range parsed.Docs {
 		if document.Body == nil {
 			continue
+		}
+
+		// goccy expands an alias as it decodes, so a few hundred bytes of nested aliases would
+		// decode to gigabytes.
+		refusal := &aliases{}
+		ast.Walk(refusal, document.Body)
+
+		if refusal.found {
+			return nil, errors.New("onesie: a question file cannot use a YAML alias, since onesie does " +
+				"not expand one. Write the value out in full")
 		}
 
 		ast.Walk(exponents{}, document.Body)
@@ -168,6 +184,20 @@ func decodeJSONValue(decoder *json.Decoder) (any, error) {
 }
 
 var plainFloat = regexp.MustCompile(`^[-+]?(\.[0-9]+|[0-9]+(\.[0-9]*)?)[eE][-+]?[0-9]+$`)
+
+type aliases struct {
+	found bool
+}
+
+func (a *aliases) Visit(node ast.Node) ast.Visitor {
+	if _, isAlias := node.(*ast.AliasNode); isAlias {
+		a.found = true
+
+		return nil
+	}
+
+	return a
+}
 
 type exponents struct{}
 
