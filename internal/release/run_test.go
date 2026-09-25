@@ -11,6 +11,8 @@ import (
 )
 
 func TestRun(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name       string
 		args       []string
@@ -68,16 +70,16 @@ func TestRun(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			dir := t.TempDir()
 			if tc.inTree {
 				writeManifests(t, dir, "0.1.0")
 			}
 
-			t.Chdir(dir)
-
 			var stdout, stderr bytes.Buffer
 
-			code := release.Run(tc.args, strings.NewReader(tc.stdin), &stdout, &stderr)
+			code := release.Run(tc.args, dir, release.OSFiles{}, strings.NewReader(tc.stdin), &stdout, &stderr)
 
 			if code != tc.wantCode {
 				t.Errorf("exit = %d, want %d, stderr: %s", code, tc.wantCode, stderr.String())

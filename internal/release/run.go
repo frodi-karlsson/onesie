@@ -12,8 +12,9 @@ const usage = `usage: releaseprep check-tag TAG        reads the existing tag na
        releaseprep prerelease TAG       exits 0 for a prerelease and 1 for a release
 `
 
-// Run is the releaseprep command. It returns 0 on success, 1 on a refusal and 2 on a usage error.
-func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
+// Run is the releaseprep command, with bump editing the manifests under root through fsys.
+// It returns 0 on success, 1 on a refusal and 2 on a usage error.
+func Run(args []string, root string, fsys Files, stdin io.Reader, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
 		return usageError(stderr, "no subcommand")
 	}
@@ -49,7 +50,7 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	case "check-tag":
 		return checkTag(tag, stdin, stderr)
 	case "bump":
-		return bump(tag, *dryRun, stdout, stderr)
+		return bump(root, fsys, tag, *dryRun, stdout, stderr)
 	}
 
 	if tag.Prerelease() {
@@ -82,8 +83,8 @@ func checkTag(tag Tag, stdin io.Reader, stderr io.Writer) int {
 	return 0
 }
 
-func bump(tag Tag, dryRun bool, stdout, stderr io.Writer) int {
-	changes, err := Bump(".", tag, dryRun, nil)
+func bump(root string, fsys Files, tag Tag, dryRun bool, stdout, stderr io.Writer) int {
+	changes, err := Bump(root, tag, dryRun, fsys)
 	for _, change := range changes {
 		if say(stdout, 0, "%s\n", change.Describe(dryRun)) != 0 {
 			return 1

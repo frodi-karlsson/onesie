@@ -16,13 +16,24 @@ fi
 
 tag=$1
 read -r -a prep <<<"${RELEASEPREP:-go run ./cmd/releaseprep}"
-read -r -a make <<<"${MAKE:-make}"
+make=${MAKE:-make}
 
 case ${DRY_RUN:-} in
 '' | 0) dry_run=0 ;;
 1) dry_run=1 ;;
 *)
-	echo "release: DRY_RUN is 1 or unset, not $DRY_RUN" >&2
+	echo "release: DRY_RUN is 1 for a dry run, or 0 or empty for a release, not $DRY_RUN" >&2
+	exit 2
+	;;
+esac
+
+# Make passes its single letter flags as the first word of MAKEFLAGS, unless
+# that word is a variable or a long option.
+make_flags=${MAKEFLAGS:-}
+case ${make_flags%% *} in
+-* | *=*) ;;
+*[ntqi]*)
+	echo "release: make was run with -n, -t, -q or -i, which would skip the checks or ignore their failures. Preview with DRY_RUN=1 instead" >&2
 	exit 2
 	;;
 esac
@@ -119,7 +130,9 @@ if [ "$branch" != main ]; then
 	fail "release runs on main, and this is ${branch:-a detached HEAD}"
 fi
 
-git fetch --quiet origin
+# No tags, so nothing the fetch brings in is mistaken for the run's own.
+# ls-remote reads the remote's tags below.
+git fetch --quiet --no-tags origin
 upstream=$(git rev-parse origin/main)
 if [ "$before" != "$upstream" ]; then
 	ahead=$(git rev-list --count origin/main..HEAD)
@@ -138,8 +151,11 @@ fi
 	git ls-remote --tags origin 'refs/tags/v*'
 } | "${prep[@]}" check-tag "$tag"
 
-"${make[@]}" check
-"${make[@]}" skills-check
+MAKEFLAGS= MFLAGS= "$make" check
+MAKEFLAGS= MFLAGS= "$make" skills-check
+if [ "$(git rev-parse HEAD)" != "$before" ]; then
+	fail "make check or make skills-check moved HEAD"
+fi
 if [ -n "$(git status --porcelain)" ]; then
 	fail "make check or make skills-check changed the tree"
 fi
@@ -149,17 +165,34 @@ if "${prep[@]}" prerelease "$tag" 2>/dev/null; then
 	prerelease=1
 fi
 
+release_commit=$before
+
 if [ "$prerelease" -eq 1 ]; then
 	echo "$tag is a prerelease, so the manifests stay as they are"
-elif [ "$dry_run" -eq 1 ]; then
-	"${prep[@]}" bump -dry-run "$tag"
-	declare -f check_manifests | sed -n -e 's/;$//' -e 's/^ *\(test .*\)$/would run: \1/p'
-	echo "would commit chore: release $tag"
 else
-	"${prep[@]}" bump "$tag"
-	check_manifests
-	git add -- "${manifests[@]}"
-	git commit -S --quiet -m "chore: release $tag"
+	planned=$("${prep[@]}" bump -dry-run "$tag")
+	if ! printf '%s\n' "$planned" | grep -q '^would set '; then
+		fail "the manifests already name $tag, so there is no release commit to make. Pick the next version"
+	fi
+
+	if [ "$dry_run" -eq 1 ]; then
+		printf '%s\n' "$planned"
+		declare -f check_manifests | sed -n -e 's/;$//' -e 's/^ *\(test .*\)$/\1/p' |
+			while IFS= read -r check; do
+				case $check in
+				*'#v}"') expected=${tag#v} ;;
+				*) expected=$tag ;;
+				esac
+				echo "would run: $check, which expects $expected"
+			done
+		echo "would commit chore: release $tag"
+	else
+		"${prep[@]}" bump "$tag"
+		check_manifests
+		git add -- "${manifests[@]}"
+		git commit -S --quiet -m "chore: release $tag"
+		release_commit=$(git rev-parse HEAD)
+	fi
 fi
 
 push="git push --atomic origin main $tag"
@@ -170,7 +203,7 @@ if [ "$dry_run" -eq 1 ]; then
 	exit 0
 fi
 
-git tag -s "$tag" -m "$tag"
+git tag -s "$tag" -m "$tag" "$release_commit"
 echo "tagged $tag. Push the branch and the tag together with:"
 echo "$push"
 finished=1

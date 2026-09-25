@@ -111,9 +111,13 @@ check: ## Run the fuzz target check, lint and tests
 	@echo "--- Tests ---"
 	@$(MAKE) --no-print-directory test-race
 
+# Named through RELEASE_MAKE so make -n only prints the release line. Make
+# runs a recipe line that names $(MAKE) directly even under -n.
+RELEASE_MAKE = $(MAKE)
+
 release: ## Cut a release, for example make release TAG=v0.2.0, with DRY_RUN=1 to only check
 	@test -n "$(TAG)" || { echo "make release needs TAG, for example TAG=v0.2.0"; exit 2; }
-	MAKE='$(MAKE)' DRY_RUN='$(DRY_RUN)' bash scripts/release.sh '$(TAG)'
+	MAKE='$(RELEASE_MAKE)' DRY_RUN='$(DRY_RUN)' bash scripts/release.sh '$(TAG)'
 
 tools: ## Install the pinned developer tools into bin/
 	GOBIN=$(CURDIR)/bin go install tool

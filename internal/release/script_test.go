@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -32,6 +33,31 @@ func TestReleaseScript(t *testing.T) {
 		}
 	})
 
+	t.Run("should skip the checks for the same tags the release workflow skips them for", func(t *testing.T) {
+		t.Parallel()
+
+		// The script takes its tag as tag=$1 and skips the checks when releaseprep calls the
+		// tag a prerelease. These are the workflow lines that rule mirrors.
+		const (
+			wantIf  = `if: ${{ !contains(github.ref_name, '-') }}`
+			wantTag = `tag="${GITHUB_REF_NAME}"`
+		)
+
+		step := checkStep(t, filepath.Join("..", "..", ".github", "workflows", "release.yml"))
+
+		for _, want := range []string{wantIf, wantTag} {
+			if !slices.Contains(step, want) {
+				t.Errorf("the manifest check step lacks %q:\n%s", want, strings.Join(step, "\n"))
+			}
+		}
+
+		for _, tag := range []string{"v0.2.0", "v0.2.0-rc.1", "v1.0.0-beta-2", "v10.20.30"} {
+			if got, want := mustParse(t, tag).Prerelease(), strings.Contains(tag, "-"); got != want {
+				t.Errorf("%s: Prerelease = %v, and the workflow's contains rule says %v", tag, got, want)
+			}
+		}
+	})
+
 	tests := []struct {
 		name       string
 		tag        string
@@ -44,6 +70,9 @@ func TestReleaseScript(t *testing.T) {
 		wantMake   string
 		wantTags   []string
 		wantDirty  string
+		notStderr  string
+		env        []string
+		version    string
 		released   bool
 		check      func(t *testing.T, w *world)
 	}{
@@ -206,10 +235,10 @@ func TestReleaseScript(t *testing.T) {
 				"would set .codex-plugin/plugin.json version from 0.1.0 to 0.2.0",
 				"would set .claude-plugin/marketplace.json ref from v0.1.0 to v0.2.0",
 				"would set .agents/plugins/marketplace.json ref from v0.1.0 to v0.2.0",
-				`would run: test "$(jq -r .version .claude-plugin/plugin.json)" = "${tag#v}"`,
-				`would run: test "$(jq -r .version .codex-plugin/plugin.json)" = "${tag#v}"`,
-				`would run: test "$(jq -r '.plugins[0].source.ref' .claude-plugin/marketplace.json)" = "$tag"`,
-				`would run: test "$(jq -r '.plugins[0].source.ref' .agents/plugins/marketplace.json)" = "$tag"`,
+				`would run: test "$(jq -r .version .claude-plugin/plugin.json)" = "${tag#v}", which expects 0.2.0`,
+				`would run: test "$(jq -r .version .codex-plugin/plugin.json)" = "${tag#v}", which expects 0.2.0`,
+				`would run: test "$(jq -r '.plugins[0].source.ref' .claude-plugin/marketplace.json)" = "$tag", which expects v0.2.0`,
+				`would run: test "$(jq -r '.plugins[0].source.ref' .agents/plugins/marketplace.json)" = "$tag", which expects v0.2.0`,
 				"would commit chore: release v0.2.0",
 				"would tag v0.2.0",
 			},
@@ -233,6 +262,97 @@ func TestReleaseScript(t *testing.T) {
 			wantMake:   "check\nskills-check\n",
 		},
 		{
+			name:       "should leave local tags alone when a colleague's tag on the remote is the latest",
+			tag:        "v0.2.0",
+			setup:      func(t *testing.T, w *world) { w.git(t, w.remote, "tag", "v0.2.0", "main") },
+			wantCode:   1,
+			wantStderr: "latest tag is v0.2.0",
+			notStderr:  "put the tree, HEAD and tags back",
+		},
+		{
+			name:     "should release past a colleague's lower tag on the remote without fetching it",
+			tag:      "v0.2.0",
+			setup:    func(t *testing.T, w *world) { w.git(t, w.remote, "tag", "v0.1.5", "main") },
+			wantLast: pushLine,
+			wantMake: "check\nskills-check\n",
+			wantTags: []string{"v0.1.0", "v0.2.0"},
+			released: true,
+		},
+		{
+			name:       "should refuse to run under make -n",
+			tag:        "v0.2.0",
+			env:        []string{"MAKEFLAGS=n -- TAG=v0.2.0"},
+			wantCode:   2,
+			wantStderr: "Preview with DRY_RUN=1",
+		},
+		{
+			name:       "should refuse to run under make -i",
+			tag:        "v0.2.0",
+			env:        []string{"MAKEFLAGS=ki"},
+			wantCode:   2,
+			wantStderr: "Preview with DRY_RUN=1",
+		},
+		{
+			name:     "should run the inner makes with MAKEFLAGS cleared, and read a leading variable as no flag",
+			tag:      "v0.2.0",
+			env:      []string{"MAKEFLAGS=BREAK=nqti", "MFLAGS=-n"},
+			wantLast: pushLine,
+			wantMake: "check\nskills-check\n",
+			wantTags: []string{"v0.1.0", "v0.2.0"},
+			released: true,
+		},
+		{
+			name: "should run a make whose path holds a space",
+			tag:  "v0.2.0",
+			setup: func(t *testing.T, w *world) {
+				system, err := exec.LookPath("make")
+				if err != nil {
+					t.Fatal(err)
+				}
+
+				spaced := filepath.Join(w.dir, "my tools", "make")
+				if err := os.MkdirAll(filepath.Dir(spaced), 0o755); err != nil {
+					t.Fatal(err)
+				}
+
+				if err := os.Symlink(system, spaced); err != nil {
+					t.Fatal(err)
+				}
+
+				w.env = append(w.env, "MAKE="+spaced)
+			},
+			wantLast: pushLine,
+			wantMake: "check\nskills-check\n",
+			wantTags: []string{"v0.1.0", "v0.2.0"},
+			released: true,
+		},
+		{
+			name:       "should refuse when the manifests already name the tag",
+			tag:        "v0.2.0",
+			version:    "0.2.0",
+			wantCode:   1,
+			wantStderr: "release: the manifests already name v0.2.0",
+			wantMake:   "check\nskills-check\n",
+			notStderr:  "put the tree, HEAD and tags back",
+		},
+		{
+			name:       "should refuse under DRY_RUN when the manifests already name the tag",
+			tag:        "v0.2.0",
+			version:    "0.2.0",
+			dryRun:     true,
+			wantCode:   1,
+			wantStderr: "release: the manifests already name v0.2.0",
+			wantMake:   "check\nskills-check\n",
+		},
+		{
+			name:       "should refuse and put HEAD back when a make moves it",
+			tag:        "v0.2.0",
+			setup:      func(t *testing.T, w *world) { w.control(t, "move-head") },
+			wantCode:   1,
+			wantStderr: "moved HEAD",
+			wantMake:   "check\nskills-check\n",
+		},
+		{
 			name: "should leave an existing tag alone when it refuses",
 			tag:  "v0.2.0",
 			setup: func(t *testing.T, w *world) {
@@ -253,14 +373,19 @@ func TestReleaseScript(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			w := newWorld(t)
+			version := tc.version
+			if version == "" {
+				version = "0.1.0"
+			}
+
+			w := newWorld(t, version)
 			if tc.setup != nil {
 				tc.setup(t, w)
 			}
 
 			remoteBefore := w.git(t, w.remote, "for-each-ref", "--format=%(refname) %(objectname)")
 
-			code, stdout, stderr := w.release(t, tc.tag, tc.dryRun)
+			code, stdout, stderr := w.release(t, tc.tag, tc.dryRun, tc.env...)
 
 			if code != tc.wantCode {
 				t.Errorf("exit = %d, want %d\nstdout:\n%s\nstderr:\n%s", code, tc.wantCode, stdout, stderr)
@@ -268,6 +393,10 @@ func TestReleaseScript(t *testing.T) {
 
 			if !strings.Contains(stderr, tc.wantStderr) {
 				t.Errorf("stderr = %q, want it to contain %q", stderr, tc.wantStderr)
+			}
+
+			if tc.notStderr != "" && strings.Contains(stderr, tc.notStderr) {
+				t.Errorf("stderr = %q, want it without %q", stderr, tc.notStderr)
 			}
 
 			for _, line := range tc.wantStdout {
@@ -306,7 +435,6 @@ func TestReleaseScript(t *testing.T) {
 				t.Errorf("HEAD moved from %s to %s", w.before, w.head(t))
 			}
 
-			version := "0.1.0"
 			if tc.released {
 				version = "0.2.0"
 			}
@@ -330,6 +458,88 @@ func TestReleaseScript(t *testing.T) {
 	}
 }
 
+func TestReleaseTarget(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		args       []string
+		wantCode   int
+		wantStdout string
+		wantScript string
+	}{
+		{
+			name:       "should only print the script line under make -n",
+			args:       []string{"-n", "release", "TAG=v0.2.0"},
+			wantStdout: "bash scripts/release.sh 'v0.2.0'",
+		},
+		{
+			name:       "should only print the script line under make -n with DRY_RUN",
+			args:       []string{"-n", "release", "TAG=v0.2.0", "DRY_RUN=1"},
+			wantStdout: "bash scripts/release.sh 'v0.2.0'",
+		},
+		{
+			name:       "should run the script with the tag, DRY_RUN and the make that ran it",
+			args:       []string{"release", "TAG=v0.2.0", "DRY_RUN=1"},
+			wantScript: "tag=v0.2.0 dry_run=1 make=set\n",
+		},
+		{
+			name:       "should refuse without a TAG and not run the script",
+			args:       []string{"release"},
+			wantCode:   2,
+			wantStdout: "make release needs TAG",
+		},
+	}
+
+	makefile, err := filepath.Abs(filepath.Join("..", "..", "Makefile"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			dir := t.TempDir()
+			log := filepath.Join(dir, "script.log")
+			writeFile(t, filepath.Join(dir, "scripts", "release.sh"), `echo "tag=$1 dry_run=$DRY_RUN make=${MAKE:+set}" >> '`+log+`'
+`, 0o755)
+
+			cmd := exec.Command("make", append([]string{"--no-print-directory", "-f", makefile}, tc.args...)...)
+			cmd.Dir = dir
+			cmd.Env = []string{"PATH=" + os.Getenv("PATH"), "HOME=" + dir, "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL=" + filepath.Join(dir, "gitconfig")}
+
+			out, err := cmd.CombinedOutput()
+
+			var exitErr *exec.ExitError
+
+			code := 0
+			if errors.As(err, &exitErr) {
+				code = exitErr.ExitCode()
+			} else if err != nil {
+				t.Fatal(err)
+			}
+
+			if code != tc.wantCode {
+				t.Errorf("exit = %d, want %d\n%s", code, tc.wantCode, out)
+			}
+
+			if !strings.Contains(string(out), tc.wantStdout) {
+				t.Errorf("output = %q, want it to contain %q", out, tc.wantStdout)
+			}
+
+			script, err := os.ReadFile(log)
+			if err != nil && !errors.Is(err, os.ErrNotExist) {
+				t.Fatal(err)
+			}
+
+			if string(script) != tc.wantScript {
+				t.Errorf("the script ran as %q, want %q", script, tc.wantScript)
+			}
+		})
+	}
+}
+
 type world struct {
 	dir    string
 	clone  string
@@ -338,7 +548,7 @@ type world struct {
 	env    []string
 }
 
-func newWorld(t *testing.T) *world {
+func newWorld(t *testing.T, version string) *world {
 	t.Helper()
 
 	dir := t.TempDir()
@@ -420,7 +630,7 @@ ONESIE_RELEASE_CHILD=gojq exec '`+testBin+`' "$@"
 	seed := filepath.Join(dir, "seed")
 	w.git(t, dir, "init", "--quiet", seed)
 
-	for name, content := range manifests("0.1.0") {
+	for name, content := range manifests(version) {
 		writeFile(t, filepath.Join(seed, filepath.FromSlash(name)), content, 0o644)
 	}
 
@@ -435,7 +645,7 @@ ONESIE_RELEASE_CHILD=gojq exec '`+testBin+`' "$@"
 	return w
 }
 
-func (w *world) release(t *testing.T, tag string, dryRun bool) (int, string, string) {
+func (w *world) release(t *testing.T, tag string, dryRun bool, env ...string) (int, string, string) {
 	t.Helper()
 
 	script, err := filepath.Abs(filepath.Join("..", "..", "scripts", "release.sh"))
@@ -450,6 +660,8 @@ func (w *world) release(t *testing.T, tag string, dryRun bool) (int, string, str
 	if dryRun {
 		cmd.Env = append(cmd.Env, "DRY_RUN=1")
 	}
+
+	cmd.Env = append(cmd.Env, env...)
 
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
@@ -546,6 +758,8 @@ func stubMakefile(dir string) string {
 	return "check:\n" +
 		"\t@echo check >> '" + dir + "/make.log'\n" +
 		"\t@test ! -e '" + dir + "/fail-check'\n" +
+		"\t@test -z '$(BREAK)'\n" +
+		"\t@if [ -e '" + dir + "/move-head' ]; then git commit --quiet --allow-empty -m moved; fi\n" +
 		"\n" +
 		"skills-check:\n" +
 		"\t@echo skills-check >> '" + dir + "/make.log'\n" +
@@ -569,6 +783,38 @@ func jqChecks(t *testing.T, path string) []string {
 	}
 
 	return checks
+}
+
+func checkStep(t *testing.T, path string) []string {
+	t.Helper()
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	lines := strings.Split(string(data), "\n")
+	for i, line := range lines {
+		if !strings.Contains(line, `test "$(jq -r`) {
+			continue
+		}
+
+		start := i
+		for start > 0 && !strings.HasPrefix(strings.TrimSpace(lines[start]), "- name:") {
+			start--
+		}
+
+		var step []string
+		for _, l := range lines[start:i] {
+			step = append(step, strings.TrimSpace(l))
+		}
+
+		return step
+	}
+
+	t.Fatalf("%s holds no jq check", path)
+
+	return nil
 }
 
 func writeFile(t *testing.T, path, content string, mode os.FileMode) {

@@ -12,7 +12,7 @@ import (
 func TestMain(m *testing.M) {
 	switch os.Getenv("ONESIE_RELEASE_CHILD") {
 	case "releaseprep":
-		os.Exit(release.Run(os.Args[1:], os.Stdin, os.Stdout, os.Stderr))
+		os.Exit(release.Run(os.Args[1:], ".", release.OSFiles{}, os.Stdin, os.Stdout, os.Stderr))
 	case "gojq":
 		os.Exit(cli.Run())
 	}

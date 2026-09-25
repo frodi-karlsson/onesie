@@ -28,7 +28,7 @@ func Bump(root string, tag Tag, dryRun bool, fsys Files) ([]Change, error) {
 	}
 
 	if fsys == nil {
-		fsys = osFiles{}
+		fsys = OSFiles{}
 	}
 
 	edits := make([]edit, 0, len(manifestKeys))
@@ -57,7 +57,7 @@ func Bump(root string, tag Tag, dryRun bool, fsys Files) ([]Change, error) {
 	changes := make([]Change, 0, len(edits))
 
 	for _, e := range edits {
-		if !dryRun {
+		if !dryRun && e.change.From != e.change.To {
 			if err := fsys.WriteFile(e.name, e.data); err != nil {
 				return changes, err
 			}
@@ -74,8 +74,16 @@ type Change struct {
 	File, Key, From, To string
 }
 
-// Describe words c as a line of output, as what Bump would set when dryRun is true.
+// Describe words c as a line of output, as what Bump would do when dryRun is true.
 func (c Change) Describe(dryRun bool) string {
+	if c.From == c.To {
+		if dryRun {
+			return fmt.Sprintf("would leave %s %s at %s", c.File, c.Key, c.To)
+		}
+
+		return fmt.Sprintf("left %s %s at %s", c.File, c.Key, c.To)
+	}
+
 	text := fmt.Sprintf("set %s %s from %s to %s", c.File, c.Key, c.From, c.To)
 	if dryRun {
 		return "would " + text
@@ -115,13 +123,16 @@ func replaceOnce(data []byte, file, key, value string) ([]byte, Change, error) {
 	return next, Change{File: file, Key: key, From: from, To: value}, nil
 }
 
-type osFiles struct{}
+// OSFiles is the Files that reads and writes the real filesystem.
+type OSFiles struct{}
 
-func (osFiles) ReadFile(name string) ([]byte, error) {
+// ReadFile reads the named file.
+func (OSFiles) ReadFile(name string) ([]byte, error) {
 	return os.ReadFile(name)
 }
 
-func (osFiles) WriteFile(name string, data []byte) error {
+// WriteFile replaces the named file's content and keeps its mode.
+func (OSFiles) WriteFile(name string, data []byte) error {
 	info, err := os.Stat(name)
 	if err != nil {
 		return err

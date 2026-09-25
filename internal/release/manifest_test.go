@@ -14,12 +14,14 @@ func TestBump(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name    string
-		tag     string
-		dryRun  bool
-		edit    func(files map[string]string)
-		want    []string
-		wantErr string
+		name     string
+		tag      string
+		dryRun   bool
+		from     string
+		edit     func(files map[string]string)
+		want     []string
+		wantErr  string
+		wantKept bool
 	}{
 		{
 			name: "should set the version in both plugins and the ref in both marketplaces",
@@ -40,6 +42,31 @@ func TestBump(t *testing.T) {
 				"would set .codex-plugin/plugin.json version from 0.1.0 to 0.2.0",
 				"would set .claude-plugin/marketplace.json ref from v0.1.0 to v0.2.0",
 				"would set .agents/plugins/marketplace.json ref from v0.1.0 to v0.2.0",
+			},
+		},
+		{
+			name:     "should say it would leave a manifest that already names the tag",
+			tag:      "v0.2.0",
+			dryRun:   true,
+			from:     "0.2.0",
+			wantKept: true,
+			want: []string{
+				"would leave .claude-plugin/plugin.json version at 0.2.0",
+				"would leave .codex-plugin/plugin.json version at 0.2.0",
+				"would leave .claude-plugin/marketplace.json ref at v0.2.0",
+				"would leave .agents/plugins/marketplace.json ref at v0.2.0",
+			},
+		},
+		{
+			name:     "should not rewrite a manifest that already names the tag",
+			tag:      "v0.2.0",
+			from:     "0.2.0",
+			wantKept: true,
+			want: []string{
+				"left .claude-plugin/plugin.json version at 0.2.0",
+				"left .codex-plugin/plugin.json version at 0.2.0",
+				"left .claude-plugin/marketplace.json ref at v0.2.0",
+				"left .agents/plugins/marketplace.json ref at v0.2.0",
 			},
 		},
 		{
@@ -69,7 +96,12 @@ func TestBump(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			files := manifests("0.1.0")
+			from := tc.from
+			if from == "" {
+				from = "0.1.0"
+			}
+
+			files := manifests(from)
 			if tc.edit != nil {
 				tc.edit(files)
 			}
@@ -103,9 +135,9 @@ func TestBump(t *testing.T) {
 				t.Errorf("changes:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(tc.want, "\n"))
 			}
 
-			if tc.dryRun {
+			if tc.dryRun || tc.wantKept {
 				if len(fake.written) != 0 {
-					t.Errorf("a dry run wrote %v", fake.written)
+					t.Errorf("Bump wrote %v, want nothing written", fake.written)
 				}
 
 				return
