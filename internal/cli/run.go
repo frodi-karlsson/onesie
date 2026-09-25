@@ -340,6 +340,19 @@ func stream(
 	table := delimited(out, outputMode, built, gate != nil, namer != nil && !merge, resume.header)
 	md := markdown(out, outputMode, built, gate != nil, namer != nil)
 
+	var (
+		shared    *dedup
+		noticeErr error
+	)
+
+	if !flags.noDedup {
+		shared = newDedup(settings.dedupLimit, func() {
+			_, noticeErr = fmt.Fprintf(cmd.ErrOrStderr(),
+				"onesie: %d distinct requests held, so later records are deduplicated only against those\n",
+				settings.dedupLimit)
+		})
+	}
+
 	evaluateOne := func(ctx context.Context, rec namedRecord) (line, error) {
 		if rec.Err != nil {
 			// A line onesie could not read is a record that never became a request, and it
@@ -400,13 +413,16 @@ func stream(
 
 		key := recordKey{position: rec.Index + 1, line: rec.Line, id: rec.id}
 
-		record, evalErr := evaluate(
-			ctx, asker, key, built, model, questions, sent, flags.usage, stats)
+		record, call, evalErr := askOnce(ctx, shared, stats, sent, model, questions, asker.salt(key),
+			func() (output.Record, error) {
+				return evaluate(ctx, asker, key, built, model, questions, sent, flags.usage, stats)
+			})
 		if evalErr != nil {
 			// Returned before the gate is asked. A failed record reads as all zeros, so a gate such
 			// as answer.value < 0.5 would hold for a request that never happened.
 			failed := rowLine(record, rec)
 			failed.uncovered = uncovered(evalErr)
+			failed.call = call
 
 			return failed, evalErr
 		}
@@ -416,7 +432,10 @@ func stream(
 		// error the engine would count against result.Failed.
 		record = judge(gate, abstain, record, stats)
 
-		return rowLine(record, rec), nil
+		answeredLine := rowLine(record, rec)
+		answeredLine.call = call
+
+		return answeredLine, nil
 	}
 
 	write := func(l line) error {
@@ -458,6 +477,10 @@ func stream(
 				stoppedAtUncovered = true
 
 				return nil
+			}
+
+			if flags.usage {
+				billOnce(&l)
 			}
 
 			if book == nil {
@@ -511,7 +534,13 @@ func stream(
 		answers.compactInto(book.takeOrder(flags.prune), outputMode)
 	}
 
-	return streamResult(result, stats.falseAssertions(), stats.abstains())
+	// The records' own outcome wins, since a note that failed to print is the smaller loss.
+	outcome := streamResult(result, stats.falseAssertions(), stats.abstains())
+	if outcome == nil && noticeErr != nil {
+		return noticeErr
+	}
+
+	return outcome
 }
 
 func watched(stop func(line) bool, stopped *atomic.Bool) func(line) bool {
@@ -527,6 +556,24 @@ func watched(stop func(line) bool, stopped *atomic.Bool) func(line) bool {
 		stopped.Store(true)
 
 		return true
+	}
+}
+
+func billOnce(l *line) {
+	if l.call == nil {
+		return
+	}
+
+	if !l.call.billed {
+		l.call.billed = true
+
+		return
+	}
+
+	// A group made one request, so only its first written line reports the tokens, and a sum over
+	// the output stays true. An error line that carried no usage keeps carrying none.
+	if l.record.Usage != nil {
+		l.record.Usage = &jev.Usage{}
 	}
 }
 
@@ -647,6 +694,7 @@ type line struct {
 	fields    map[string]any
 	slot      int
 	uncovered bool
+	call      *sharedCall
 }
 
 func mergeName(flags *runFlags) string {
@@ -1126,6 +1174,7 @@ type runFlags struct {
 	stopOnError   bool
 	stopOnAssert  bool
 	skipBlank     bool
+	noDedup       bool
 	merge         bool
 	mergeKey      string
 	mapSource     string

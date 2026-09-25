@@ -8,6 +8,7 @@ import (
 
 type answerer interface {
 	answer(ctx context.Context, key recordKey, req jev.Request) (*jev.Result, error)
+	salt(key recordKey) string
 }
 
 type recordKey struct {
@@ -31,6 +32,10 @@ func liveAnswers(settings rootSettings) answererFactory {
 
 func (a liveAnswerer) answer(ctx context.Context, _ recordKey, req jev.Request) (*jev.Result, error) {
 	return a.client.SystemOne(ctx, req)
+}
+
+func (liveAnswerer) salt(recordKey) string {
+	return ""
 }
 
 type liveAnswerer struct {

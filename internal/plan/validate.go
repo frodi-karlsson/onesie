@@ -633,6 +633,7 @@ func checkSingleRecord(cfg Config) (string, error) {
 		{"--stop-on-error", cfg.StopOnError},
 		{"--stop-on-assert", cfg.StopOnAssert},
 		{"--skip-blank", cfg.SkipBlank},
+		{"--no-dedup", cfg.NoDedup},
 		{"--id", cfg.HasID},
 	} {
 		if flag.set {
@@ -1091,6 +1092,8 @@ type Config struct {
 	HasInput    bool
 	Unordered   bool
 	StopOnError bool
+	// NoDedup is --no-dedup, which asks every record of a stream even when its request repeats.
+	NoDedup bool
 	// Out is the --out file the answers are written to, empty for stdout.
 	Out string
 	// Resume is --resume, which picks a stream up where an earlier run into Out stopped.

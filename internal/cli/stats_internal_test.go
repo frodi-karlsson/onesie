@@ -538,7 +538,7 @@ func TestWithStats(t *testing.T) {
 				name: "should total every record when they run concurrently",
 				args: []string{
 					"--ask", "urgent=is this urgent", "-i", "jsonl", "-o", "json",
-					"-j", "4", "--stats",
+					"-j", "4", "--stats", "--no-dedup",
 				},
 				stdin: strings.Repeat("{\"id\":1}\n", 8),
 				handler: func() http.HandlerFunc {
@@ -547,6 +547,22 @@ func TestWithStats(t *testing.T) {
 				wantCode: ExitOK,
 				wantErr: []string{
 					"8 requests, 8 questions, 22728 in / 568 out, model onesie-1.13.0, 8 attempts",
+				},
+				wantOutHas: []string{`"urgent"`},
+			},
+			{
+				name: "should total every record that shares a request when they run concurrently",
+				args: []string{
+					"--ask", "urgent=is this urgent", "-i", "jsonl", "-o", "json",
+					"-j", "4", "--stats",
+				},
+				stdin: strings.Repeat("{\"id\":1}\n", 8),
+				handler: func() http.HandlerFunc {
+					return answerHandler(answered)
+				},
+				wantCode: ExitOK,
+				wantErr: []string{
+					"8 records, 7 deduplicated, 1 request, 1 question, 2841 in / 71 out, model onesie-1.13.0, 1 attempt,",
 				},
 				wantOutHas: []string{`"urgent"`},
 			},

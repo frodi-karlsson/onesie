@@ -360,13 +360,24 @@ func TestStream(t *testing.T) {
 			{
 				name: "should count no failed record when an assertion is false",
 				args: []string{
-					"is this urgent", "-i", "lines", "--assert", gate, "--stats",
+					"is this urgent", "-i", "lines", "--assert", gate, "--stats", "--no-dedup",
 				},
 				stdin:     "cold\nhot\ncold\n",
 				wantCode:  cli.ExitRejected,
 				wantLines: 3,
 				wantFalse: 1,
 				wantErr:   "3 requests, 1 false assertion, 3 questions",
+			},
+			{
+				name: "should count a false assertion on every record that shares a request",
+				args: []string{
+					"is this urgent", "-i", "lines", "--assert", gate, "--stats",
+				},
+				stdin:     "hot\ncold\nhot\n",
+				wantCode:  cli.ExitRejected,
+				wantLines: 3,
+				wantFalse: 2,
+				wantErr:   "3 records, 1 deduplicated, 2 false assertions, 2 requests, 2 questions",
 			},
 			{
 				name:      "should exit six when a failed record precedes a false assertion",
@@ -422,13 +433,25 @@ func TestStream(t *testing.T) {
 				name: "should exit seven when an abstain is the worst the stream holds",
 				args: []string{
 					"is this urgent", "-i", "lines", "--assert", gate,
-					"--abstain-if", "answer.value < 0.95", "--stats",
+					"--abstain-if", "answer.value < 0.95", "--stats", "--no-dedup",
 				},
 				stdin:     "cold\nhot\ncold\n",
 				wantCode:  cli.ExitAbstain,
 				wantLines: 3,
 				contains:  []string{`{"abstain":true,"model":"onesie-1.13.0","answer":{"value":0.9}}`},
 				wantErr:   "3 requests, 1 abstain, 3 questions",
+			},
+			{
+				name: "should count an abstain on every record that shares a request",
+				args: []string{
+					"is this urgent", "-i", "lines", "--assert", gate,
+					"--abstain-if", "answer.value < 0.95", "--stats",
+				},
+				stdin:     "hot\ncold\nhot\n",
+				wantCode:  cli.ExitAbstain,
+				wantLines: 3,
+				contains:  []string{`{"abstain":true,"model":"onesie-1.13.0","answer":{"value":0.9}}`},
+				wantErr:   "3 records, 1 deduplicated, 2 abstains, 2 requests, 2 questions",
 			},
 			{
 				name: "should exit six when a failed record sits beside an abstain",

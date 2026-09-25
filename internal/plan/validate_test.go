@@ -600,6 +600,17 @@ func TestValidate(t *testing.T) {
 			wantErr:    "--skip-blank applies to streaming input",
 		},
 		{
+			name:       "should reject no dedup outside a stream",
+			positional: "is this urgent",
+			cfg:        plan.Config{NoDedup: true, InputName: "text"},
+			wantErr:    "--no-dedup applies to streaming input. -i text reads one record",
+		},
+		{
+			name:       "should accept no dedup in a stream",
+			positional: "is this urgent",
+			cfg:        plan.Config{NoDedup: true, Streaming: true, InputName: "lines"},
+		},
+		{
 			name:       "should accept unordered in a stream",
 			positional: "is this urgent",
 			cfg:        plan.Config{Unordered: true, Streaming: true, InputName: "lines"},

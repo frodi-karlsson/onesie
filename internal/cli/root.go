@@ -85,6 +85,7 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 		keychain:      creds.NewKeychain(),
 		readSecret:    readHiddenSecret,
 		schemaURL:     schemaURLOf(info),
+		dedupLimit:    limits.MaxDedupRequests,
 	}
 
 	for _, opt := range opts {
@@ -249,6 +250,8 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 		"streaming only, end the run at the first false assertion")
 	root.Flags().BoolVar(&flags.skipBlank, "skip-blank", false,
 		"streaming only, drop blank lines with no output line")
+	root.Flags().BoolVar(&flags.noDedup, "no-dedup", false,
+		"streaming only, ask every record even when its request repeats an earlier one")
 	root.Flags().StringVar(&flags.out, "out", "", "write the answers to this file rather than stdout")
 	root.Flags().BoolVar(&flags.resume, "resume", false,
 		"streaming only, with --out, carry on after the last complete line in the file. "+
@@ -508,6 +511,7 @@ type rootSettings struct {
 	readSecret    func() (string, error)
 	wrapAnswerer  func(answerer) answerer
 	schemaURL     string
+	dedupLimit    int
 }
 
 // Keychain is where auth set stores a key when the OS has one, one item per account.

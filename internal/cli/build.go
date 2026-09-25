@@ -49,6 +49,7 @@ func configOf(
 		HasInput:       cmd.Flags().Changed(flagInput),
 		Unordered:      flags.unordered,
 		StopOnError:    flags.stopOnError,
+		NoDedup:        flags.noDedup,
 		Out:            flags.out,
 		Resume:         flags.resume,
 		Prune:          flags.prune,

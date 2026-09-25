@@ -920,6 +920,10 @@ func (d delayedAnswerer) answer(ctx context.Context, key recordKey, req jev.Requ
 	return d.inner.answer(ctx, key, req)
 }
 
+func (d delayedAnswerer) salt(key recordKey) string {
+	return d.inner.salt(key)
+}
+
 type delayedAnswerer struct {
 	inner    answerer
 	position int
