@@ -1824,9 +1824,9 @@ func TestPooled(t *testing.T) {
 			t.Fatalf("exit code = %d, output:\n%s", code, out.String())
 		}
 
-		// The default transport pools two idle connections per host, which had three quarters of
-		// the records paying for a fresh handshake. A run that pools per job opens one connection
-		// per worker and reuses it.
+		// The default transport pools two idle connections per host, which leaves most records at
+		// this -j paying for a fresh handshake. A run that pools per job opens one connection per
+		// worker and reuses it.
 		if got := opened.Load(); got > jobs {
 			t.Errorf("new connections = %d for %d records at -j %d, want at most %d",
 				got, records, jobs, jobs)

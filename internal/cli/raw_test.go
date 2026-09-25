@@ -729,7 +729,7 @@ func TestCheckFlags(t *testing.T) {
 						code, ExitOK, out, errOut)
 				}
 
-				// Once, not twice. CheckFlags has two callers now, and a run that reached both would
+				// Once, not twice. CheckFlags has two callers, and a run that reached both would
 				// report the same warning to the same stream twice.
 				if got := strings.Count(errOut, tc.want); got != 1 {
 					t.Errorf("warning printed %d times, want 1\nstderr:\n%s", got, errOut)

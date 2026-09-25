@@ -180,7 +180,7 @@ func (c *collector) recordFailure(cause error, reached bool, questions int) {
 	c.questions += questions
 
 	// An input error never reached the client, so it is a record and not a request. Counting it
-	// as both is what made the retry total wrong when it was derived by subtraction.
+	// as a request would report one that was never sent.
 	if reached {
 		c.requests++
 	}

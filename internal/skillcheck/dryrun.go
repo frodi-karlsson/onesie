@@ -115,7 +115,7 @@ func stripFlags(args []string, strip []flagSpec) []string {
 
 func insertFlag(args []string, flag string) []string {
 	// Nothing precedes index 0, so no flag, catalogued or not, can consume it as a value. At the
-	// end, or ahead of a literal --, it stayed in reach of whatever came before.
+	// end, or ahead of a literal --, it would stay in reach of whatever comes before it.
 	return append([]string{flag}, args...)
 }
 

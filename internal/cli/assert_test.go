@@ -854,7 +854,7 @@ func runStoppedStream(t *testing.T) string {
 
 	// The second record blocks until its own request context is cancelled, and the first answers
 	// only once the second is in flight. So the stop always has a request to cancel, which is the
-	// record that used to be counted as a failure.
+	// record a stop must not count as a failure.
 	inFlight := make(chan struct{})
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

@@ -450,7 +450,7 @@ func TestStream(t *testing.T) {
 				t.Errorf("line = %d, want 0", lineErr.Line)
 			}
 
-			// Named once. The wrap used to add a spelling of its own, so the user read
+			// Named once. A wrap that added a spelling of its own would have the user read
 			// onesie: stdin: reading stdin: disk fell over.
 			if got := lineErr.Error(); got != "stdin: disk fell over" {
 				t.Errorf("message = %q, want %q", got, "stdin: disk fell over")

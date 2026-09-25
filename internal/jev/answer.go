@@ -175,7 +175,7 @@ func (*ChoiceAnswer) Kind() string {
 }
 
 // Probability reports one option's probability. The second result is false when the option was not
-// part of the answer, a mistake the dropped TypeScript generics used to catch at compile time.
+// part of the answer, which the compiler cannot rule out.
 func (a *ChoiceAnswer) Probability(option string) (float64, bool) {
 	value, ok := a.Probabilities[option]
 

@@ -1024,8 +1024,8 @@ func TestFirstLine(t *testing.T) {
 			wantErr: "onesie: reading the key from stdin: bufio.Scanner: token too long",
 		},
 		{
-			// The tail past the cap is blank, so nothing here is a second line. Before the read
-			// failure was reported this case was rejected as one.
+			// The tail past the cap is blank, so nothing here is a second line, and the read
+			// failure is the only thing to report.
 			name:    "should report the read failure when blank lines follow the long one",
 			stdin:   strings.Repeat("A", overCap) + "\n\n   \n",
 			wantErr: "onesie: reading the key from stdin: bufio.Scanner: token too long",

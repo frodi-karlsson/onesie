@@ -158,7 +158,7 @@ func TestDryRunArgs(t *testing.T) {
 		{
 			// With the mode flag leading, nothing is appended after --assert, so a bare --assert
 			// parses and is left with no value, which pflag refuses to run.
-			name:   "should no longer need to skip a bare --assert, now that nothing follows it",
+			name:   "should dry run a bare --assert, since nothing is appended after it",
 			tokens: []string{"onesie", "--ask", "a=x", "--assert"},
 			want:   []string{"--print-questions", "--ask", "a=x", "--assert"},
 		},

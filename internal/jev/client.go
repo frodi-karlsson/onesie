@@ -150,8 +150,8 @@ func (c *Client) SystemOne(ctx context.Context, req Request, opts ...RequestOpti
 	result.RequestID = res.header.Get(c.provider.requestIDHeader)
 	result.Header = res.header
 
-	// The dropped TypeScript generics guaranteed this at compile time. Checking it here recovers
-	// most of what they gave.
+	// Answers is a plain map, so no type ties it to the questions asked. Each question is checked
+	// for an answer here.
 	for _, named := range req.Questions {
 		if _, ok := result.Answers[named.ID]; !ok {
 			return nil, &ResponseError{

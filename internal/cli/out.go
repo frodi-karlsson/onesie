@@ -228,7 +228,7 @@ func (o *outFile) lock(take func(answers string) (func() error, error), resume b
 	}
 
 	// A fresh run locks only to stay clear of a resume, which could not have locked the file either.
-	// So a path nothing can be locked beside is still written as before.
+	// So a path nothing can be locked beside is still written, without a lock.
 	if err != nil && !resume {
 		return nil
 	}
