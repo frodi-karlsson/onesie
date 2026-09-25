@@ -202,7 +202,8 @@ onesie -f triage -o values < ticket.txt
 ```
 
 [examples/README.md](examples/README.md) has starter sets for shell safety, prompt injection,
-personal data and moderation, each with a calibrated gate.
+personal data and moderation. Each file carries a calibrated gate, so `-f shell-safety`
+runs the whole gate.
 
 ## Why no MCP server
 

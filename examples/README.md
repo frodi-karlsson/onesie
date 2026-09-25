@@ -14,13 +14,13 @@ Copy a file into `.onesie/questions/` and load it by name with `-f`:
 ```sh
 mkdir -p .onesie/questions
 cp examples/questions/shell-safety.yaml .onesie/questions/
-onesie -f shell-safety -o values --state 'rm -rf ./build'
+onesie -f shell-safety -q --state 'rm -rf ./build'
 ```
 
-The files hold only questions. The gate goes on the command line, since `calibrate` and
-`--print-request` refuse a file that carries one. Every gate below exits 0 to pass, 1 to block and
-7 to hand the record to a person. Any other exit code means there was no answer, so treat it as a
-block.
+Each file carries its own gate as `assert` and `abstain_if`, so `-f NAME` alone runs the whole
+gate. Every gate exits 0 to pass, 1 to block and 7 to hand the record to a person. Any other exit
+code means there was no answer, so treat it as a block. `calibrate` and `--print-request` ignore
+the gate in a file, so the same file can be calibrated and dry run as it stands.
 
 ## Calibrate on your own data
 
@@ -32,7 +32,8 @@ onesie calibrate -f shell-safety -i jsonl --map '.command' --id '.id' \
     --out answers.jsonl --resume < examples/data/shell-safety.jsonl
 ```
 
-`--out` with `--resume` keeps the answers, so a rerun after a label change asks nothing.
+`--out` with `--resume` keeps the answers, so a rerun after a label change asks nothing. Once you
+pick your own cuts, edit `assert` and `abstain_if` in your copy of the file.
 
 A cut row flags a record when its value is at least the cut. The pass cut in each gate is a row
 that catches every labelled yes, where the table has one. A record passes only when every question
@@ -48,16 +49,20 @@ For an agent that runs shell commands. It asks whether a command destroys data, 
 or reaches the network.
 
 ```sh
-onesie -f shell-safety \
-    --assert     'destroys.value < 0.3 and secrets.value < 0.45 and network.value < 0.35' \
-    --abstain-if 'destroys.value < 0.85 and secrets.value < 0.6' \
-    -q --state "$cmd"
+onesie -f shell-safety -q --state "$cmd"
 case $? in
     0) eval "$cmd" ;;
     1) echo blocked ;;
     7) ask_the_user ;;
     *) echo 'no answer, blocked' ;;
 esac
+```
+
+The file carries this gate:
+
+```yaml
+assert: destroys.value < 0.3 and secrets.value < 0.45 and network.value < 0.35
+abstain_if: destroys.value < 0.85 and secrets.value < 0.6
 ```
 
 A command runs only when all three answers sit below a row that caught every labelled yes: 0.30 for
@@ -97,10 +102,14 @@ For screening web pages, emails or issue text before an agent reads them. It ask
 gives an AI instructions, tries to override earlier instructions, or asks for secrets or tool use.
 
 ```sh
-onesie -f prompt-injection \
-    --assert     'instructs.value < 0.25 and overrides.value < 0.5 and access.value < 0.4' \
-    --abstain-if 'overrides.value < 0.9 and access.value < 0.65' \
-    -q --state-file page.txt
+onesie -f prompt-injection -q --state-file page.txt
+```
+
+The file carries this gate:
+
+```yaml
+assert: instructs.value < 0.25 and overrides.value < 0.5 and access.value < 0.4
+abstain_if: overrides.value < 0.9 and access.value < 0.65
 ```
 
 Text passes only when `instructs` sits below 0.25, the highest row that caught every labelled
@@ -145,10 +154,14 @@ holds a person's name with a way to contact them, a personal email address or ph
 address, or a credential.
 
 ```sh
-onesie -f personal-data \
-    --assert     'name_contact.value < 0.15 and email_phone.value < 0.2 and home_address.value < 0.3 and credential.value < 0.3' \
-    --abstain-if 'name_contact.value < 0.3 and email_phone.value < 0.7 and home_address.value < 0.95 and credential.value < 0.35' \
-    -q --state-file message.txt
+onesie -f personal-data -q --state-file message.txt
+```
+
+The file carries this gate:
+
+```yaml
+assert: name_contact.value < 0.15 and email_phone.value < 0.2 and home_address.value < 0.3 and credential.value < 0.3
+abstain_if: name_contact.value < 0.3 and email_phone.value < 0.7 and home_address.value < 0.95 and credential.value < 0.35
 ```
 
 Each pass cut sits below the lowest score of any labelled yes for its question. Each block cut is
@@ -195,10 +208,14 @@ For a comment queue or a support inbox. It asks whether the text is hostile or a
 it is spam or advertising, and it rates the tone on four levels.
 
 ```sh
-onesie -f moderation \
-    --assert     'hostile.value < 0.2 and spam.value < 0.1' \
-    --abstain-if 'hostile.value < 0.8 and spam.value < 0.5' \
-    -q --state "$comment"
+onesie -f moderation -q --state "$comment"
+```
+
+The file carries this gate:
+
+```yaml
+assert: hostile.value < 0.2 and spam.value < 0.1
+abstain_if: hostile.value < 0.8 and spam.value < 0.5
 ```
 
 A comment is published when `hostile` sits below 0.2 and `spam` below 0.1. Every labelled hostile
