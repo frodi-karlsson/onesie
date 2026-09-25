@@ -37,7 +37,6 @@ go install github.com/frodi-karlsson/onesie/cmd/onesie@latest
 
 macOS blocks a onesie binary downloaded through a browser, so install it with one of these three.
 
-Homebrew and the install script need a published release. Until the first one, use `go install`.
 Then store a key with `onesie auth set`.
 
 In Claude Code, the plugin can come first and walk you through the rest:
