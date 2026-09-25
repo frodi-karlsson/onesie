@@ -26,6 +26,8 @@ builds:
 archives:
   - formats: [tar.gz]
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    # NOTICE is not among the files an archive takes by default.
+    files: [LICENSE, NOTICE, README.md]
     format_overrides:
       - goos: windows
         formats: [zip]
