@@ -925,19 +925,11 @@ func TestClientSystemOne(t *testing.T) {
 
 			var calls atomic.Int32
 
-			release := make(chan struct{})
+			// Counting in the transport, not a server handler, so a slow runner cannot let an
+			// attempt time out before its request is counted.
+			stalling := &http.Client{Transport: stallingTransport{calls: &calls}}
 
-			server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
-				calls.Add(1)
-				<-release
-			}))
-
-			defer func() {
-				close(release)
-				server.Close()
-			}()
-
-			client, _ := newTestClient(t, server.URL)
+			client, _ := newTestClient(t, "https://api.example.com", jev.WithHTTPClient(stalling))
 
 			_, err := client.SystemOne(
 				t.Context(),
@@ -1879,4 +1871,15 @@ func (rt *recordingTransport) lastBody() string {
 	defer rt.mu.Unlock()
 
 	return rt.bodies[len(rt.bodies)-1]
+}
+
+type stallingTransport struct {
+	calls *atomic.Int32
+}
+
+func (s stallingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	s.calls.Add(1)
+	<-req.Context().Done()
+
+	return nil, req.Context().Err()
 }
