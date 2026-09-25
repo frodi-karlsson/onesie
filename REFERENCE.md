@@ -264,9 +264,10 @@ again.
   - `~/.cache/onesie` on Linux and every other system
 - Its files are mode `600` in directories of mode `700`. `--cache` refuses a cache directory others
   can reach with exit 2, before any request, as it refuses such a credential file. Windows carries no
-  such modes, so the check is skipped there. A new cache directory gets a `CACHEDIR.TAG` file, so
-  backup tools skip it, and so does an existing one that is empty or holds only what onesie writes. onesie counts, evicts and clears only its own entries and temporary files,
-  and leaves anything else in the directory alone. Writes are atomic, so parallel runs can share one
+  such modes, so the check is skipped there. onesie writes a `CACHEDIR.TAG` file, so backup tools
+  skip the cache, into a new cache directory and into an existing one that is empty or holds only
+  what onesie writes. onesie counts, evicts and clears only its own entries and temporary files, and
+  leaves anything else in the directory alone. Writes are atomic, so parallel runs can share one
   cache.
 - The cache holds about `max-cache-bytes`, 100 MB, which `onesie -V` lists beside `cache-ttl`. Past
   that it evicts the least recently used answers first, and a hit counts as a use.
