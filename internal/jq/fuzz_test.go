@@ -13,8 +13,6 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/limits"
 )
 
-// ratExponentBound keeps the reference big.Rat small enough to build on every input. A number with a
-// larger exponent is still checked for idempotence, only not against the reference.
 const ratExponentBound = 4000
 
 func FuzzID(f *testing.F) {
@@ -52,6 +50,7 @@ func FuzzID(f *testing.F) {
 			}
 		}
 
+		// big.Rat builds every digit an exponent asks for, so a larger one is only checked above.
 		if exponentOf(text) <= ratExponentBound {
 			checkAgainstRat(t, text, got, err)
 		}

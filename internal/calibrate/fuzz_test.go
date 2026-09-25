@@ -40,6 +40,10 @@ func FuzzSplitLabel(f *testing.F) {
 				t.Fatalf("SplitLabel(%q, %q) = %q, %q beside the error %v", spec, ids, id, source, err)
 			}
 
+			if slices.ContainsFunc(ids, func(candidate string) bool { return names(spec, candidate) }) {
+				t.Fatalf("SplitLabel(%q, %q) refused a label a question id names: %v", spec, ids, err)
+			}
+
 			return
 		}
 
@@ -47,25 +51,27 @@ func FuzzSplitLabel(f *testing.F) {
 			t.Fatalf("SplitLabel(%q, %q) gave the id %q, which is not a question", spec, ids, id)
 		}
 
-		longest, found := "", false
-		for _, candidate := range ids {
-			rest, named := strings.CutPrefix(spec, candidate+"=")
-			if named && !strings.HasPrefix(rest, "=") && (!found || len(candidate) > len(longest)) {
-				longest, found = candidate, true
+		if names(spec, id) && source == spec[len(id)+1:] {
+			for _, candidate := range ids {
+				if len(candidate) > len(id) && names(spec, candidate) {
+					t.Fatalf("SplitLabel(%q, %q) = %q, but the longer id %q also names the label", spec, ids, id, candidate)
+				}
 			}
+
+			return
 		}
 
-		switch {
-		case found:
-			if id != longest || spec != id+"="+source {
-				t.Fatalf("SplitLabel(%q, %q) = %q, %q, want the longest named id %q and the text after it",
-					spec, ids, id, source, longest)
-			}
-		case len(ids) != 1 || source != spec:
-			t.Fatalf("SplitLabel(%q, %q) = %q, %q, want the whole text for the one question",
+		if len(ids) != 1 || source != spec || slices.ContainsFunc(ids, func(candidate string) bool { return names(spec, candidate) }) {
+			t.Fatalf("SplitLabel(%q, %q) = %q, %q, want the whole text for the one question and no id naming it",
 				spec, ids, id, source)
 		}
 	})
+}
+
+func names(spec, id string) bool {
+	rest, named := strings.CutPrefix(spec, id+"=")
+
+	return named && !strings.HasPrefix(rest, "=")
 }
 
 func FuzzParseLabel(f *testing.F) {
@@ -116,6 +122,10 @@ func FuzzParseLabel(f *testing.F) {
 				t.Fatalf("ParseLabel(%v, %q, %#v) labelled a record beside the error %v", shape, names, value, err)
 			}
 
+			if _, known := yesSpelling(value); shape == plan.Noul && known {
+				t.Fatalf("ParseLabel(%v, %#v) refused a known yes/no spelling: %v", shape, value, err)
+			}
+
 			return
 		}
 
@@ -128,8 +138,9 @@ func FuzzParseLabel(f *testing.F) {
 		}
 
 		if shape == plan.Noul {
-			if label.Name != "" {
-				t.Fatalf("ParseLabel(%v, %#v) = %+v, a yes/no label carries no name", shape, value, label)
+			want, known := yesSpelling(value)
+			if !known || label.Yes != want || label.Name != "" {
+				t.Fatalf("ParseLabel(%v, %#v) = %+v, want yes %v for a known spelling %v", shape, value, label, want, known)
 			}
 
 			return
@@ -183,6 +194,44 @@ func FuzzParseCuts(f *testing.F) {
 	})
 }
 
+func yesSpelling(value any) (yes, known bool) {
+	switch typed := value.(type) {
+	case bool:
+		return typed, true
+	case string:
+		switch strings.ToLower(typed) {
+		case "true", "yes", "1":
+			return true, true
+		case "false", "no", "0":
+			return false, true
+		}
+
+		return false, false
+	}
+
+	var number *big.Rat
+
+	switch typed := value.(type) {
+	case float64:
+		number = new(big.Rat).SetFloat64(typed)
+	case json.Number:
+		number, _ = new(big.Rat).SetString(typed.String())
+	case *big.Int:
+		number = new(big.Rat).SetInt(typed)
+	}
+
+	switch {
+	case number == nil:
+		return false, false
+	case number.Cmp(big.NewRat(1, 1)) == 0:
+		return true, true
+	case number.Sign() == 0:
+		return false, true
+	default:
+		return false, false
+	}
+}
+
 func distinct(items []string) []string {
 	var kept []string
 
@@ -203,7 +252,11 @@ func labelValue(kind uint8, text string) (any, bool) {
 		number, err := strconv.ParseFloat(text, 64)
 		return number, err == nil
 	case 2:
-		return json.Number(text), json.Valid([]byte(text)) && strings.Trim(text, "-0123456789.eE+") == ""
+		// A short exponent, so the reference big.Rat stays small.
+		_, exponent, _ := strings.Cut(strings.ToLower(text), "e")
+
+		return json.Number(text), json.Valid([]byte(text)) && strings.Trim(text, "-0123456789.eE+") == "" &&
+			len(strings.TrimLeft(exponent, "+-0")) <= 3
 	case 3:
 		number, ok := new(big.Int).SetString(text, 10)
 		return number, ok

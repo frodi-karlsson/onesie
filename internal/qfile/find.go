@@ -18,9 +18,8 @@ func IsName(value string) bool {
 	return value != "" && !strings.ContainsAny(value, `/\.`)
 }
 
-// Find resolves a bare name to the question file it names. It searches the nearest
-// .onesie/questions directory at or above the working directory, then the config dir's questions.
-// A value IsName takes as a path is refused, since joining it onto a set could leave the set.
+// Find resolves a bare name, and refuses a path, to the question file it names in the nearest
+// .onesie/questions at or above the working directory, then in the config dir's questions.
 func Find(name string, env FindEnv) (string, error) {
 	if !IsName(name) {
 		return "", fmt.Errorf("onesie: %q is not a question file name to look up", name)

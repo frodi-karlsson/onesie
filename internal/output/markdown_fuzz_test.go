@@ -14,7 +14,10 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/answer"
 )
 
-var afterSpan = regexp.MustCompile(`^(, [0-9.<>]+)?$`)
+var (
+	afterSpan    = regexp.MustCompile(`^(, [0-9.<>]+)?$`)
+	entityDigits = regexp.MustCompile(`^[0-9]{1,7}$`)
+)
 
 func FuzzCodeSpan(f *testing.F) {
 	for _, seed := range []string{
@@ -141,7 +144,8 @@ func checkRow(t *testing.T, line string, columns int) []string {
 	}
 
 	for i, cell := range cells {
-		cells[i] = strings.TrimSpace(cell)
+		// GFM trims only spaces and tabs around a cell, so any other white space stays in it.
+		cells[i] = strings.Trim(cell, " \t")
 		if !strings.HasPrefix(cells[i], "`") && !strings.HasPrefix(cells[i], "<code>") {
 			continue
 		}
@@ -174,8 +178,6 @@ func spanText(text string) string {
 	return b.String()
 }
 
-// readSpan reads the code span or html code element that opens rendered, by the CommonMark 0.31
-// code span rules and the GFM table rules, and returns its text and what follows it.
 func readSpan(rendered string, inTable bool) (text, rest string, err error) {
 	if strings.ContainsAny(rendered, "\n\r") {
 		return "", "", errors.New("holds a line ending")
@@ -213,9 +215,14 @@ func readHTMLCode(rendered string) (string, string, error) {
 			entity, after, ended := strings.Cut(inner[1:], ";")
 			digits, numeric := strings.CutPrefix(entity, "#")
 
+			// CommonMark reads 1 to 7 decimal digits and nothing else, and 0 as U+FFFD.
 			code, err := strconv.Atoi(digits)
-			if !ended || !numeric || err != nil {
+			if !ended || !numeric || err != nil || !entityDigits.MatchString(digits) {
 				return "", "", errors.New("has an ampersand that starts no numeric entity")
+			}
+
+			if code == 0 || !utf8.ValidRune(rune(code)) {
+				code = unicode.ReplacementChar
 			}
 
 			b.WriteRune(rune(code))
