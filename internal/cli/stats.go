@@ -61,6 +61,7 @@ type collector struct {
 	records        int
 	skipped        int
 	dedups         int
+	cached         int
 	requests       int
 	failed         int
 	falseAsserts   int
@@ -139,6 +140,23 @@ func (c *collector) record(model string, usage jev.Usage, questions int) {
 	c.questions += questions
 	c.inputTokens += usage.InputTokens
 	c.outputTokens += usage.OutputTokens
+
+	if model != "" {
+		if c.models == nil {
+			c.models = make(map[string]struct{})
+		}
+
+		c.models[model] = struct{}{}
+	}
+}
+
+func (c *collector) cachedRecord(model string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	// A hit sends nothing, so it is a record and not a request, and it asked no question.
+	c.records++
+	c.cached++
 
 	if model != "" {
 		if c.models == nil {
@@ -260,7 +278,8 @@ func (c *collector) snapshot(attemptTimeout, elapsed time.Duration) Stats {
 	}
 
 	return Stats{
-		Records: c.records, Skipped: c.skipped, Dedups: c.dedups, Requests: c.requests, Failed: c.failed,
+		Records: c.records, Skipped: c.skipped, Dedups: c.dedups, Cached: c.cached, Requests: c.requests,
+		Failed:       c.failed,
 		FalseAsserts: c.falseAsserts, Abstains: c.abstainCount, Questions: c.questions,
 		InputTokens: c.inputTokens, OutputTokens: c.outputTokens,
 		Models: slices.Sorted(maps.Keys(c.models)), Attempts: c.attempts, Retries: retries,
@@ -277,7 +296,9 @@ type Stats struct {
 	Skipped int
 	// Dedups counts the records answered by a copy of an identical request's answer, so they are
 	// records and not requests.
-	Dedups   int
+	Dedups int
+	// Cached counts the records answered from the response cache, which sent no request.
+	Cached   int
 	Requests int
 	Failed   int
 	// FalseAsserts counts the records whose assertion did not hold, a resume's skipped ones
@@ -317,6 +338,10 @@ func (s Stats) String() string {
 
 	if s.Dedups > 0 {
 		parts = append(parts, fmt.Sprintf("%d deduplicated", s.Dedups))
+	}
+
+	if s.Cached > 0 {
+		parts = append(parts, fmt.Sprintf("%d cached", s.Cached))
 	}
 
 	if s.Failed > 0 {

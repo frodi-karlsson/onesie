@@ -7,8 +7,13 @@ import (
 )
 
 type answerer interface {
-	answer(ctx context.Context, key recordKey, req jev.Request) (*jev.Result, error)
+	answer(ctx context.Context, key recordKey, req jev.Request) (reply, error)
 	salt(key recordKey) (string, bool)
+}
+
+type reply struct {
+	result *jev.Result
+	cached bool
 }
 
 type recordKey struct {
@@ -30,8 +35,10 @@ func liveAnswers(settings rootSettings) answererFactory {
 	}
 }
 
-func (a liveAnswerer) answer(ctx context.Context, _ recordKey, req jev.Request) (*jev.Result, error) {
-	return a.client.SystemOne(ctx, req)
+func (a liveAnswerer) answer(ctx context.Context, _ recordKey, req jev.Request) (reply, error) {
+	result, err := a.client.SystemOne(ctx, req)
+
+	return reply{result: result}, err
 }
 
 func (liveAnswerer) salt(recordKey) (string, bool) {

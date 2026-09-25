@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -135,6 +136,30 @@ func TestCollectorSnapshot(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestCollectorCachedRecord(t *testing.T) {
+	t.Parallel()
+
+	t.Run("should count a cached answer as a record and not a request, question or attempt", func(t *testing.T) {
+		t.Parallel()
+
+		var c collector
+
+		c.cachedRecord("onesie-1.13.0")
+		c.cachedRecord("onesie-1.14.0")
+		c.record("onesie-1.13.0", jev.Usage{InputTokens: 3, OutputTokens: 1}, 2)
+
+		got := c.snapshot(time.Second, time.Second)
+
+		if got.Records != 3 || got.Cached != 2 || got.Requests != 1 || got.Questions != 2 || got.Attempts != 0 {
+			t.Errorf("snapshot = %+v, want 3 records, 2 cached, 1 request, 2 questions, 0 attempts", got)
+		}
+
+		if want := []string{"onesie-1.13.0", "onesie-1.14.0"}; !slices.Equal(got.Models, want) {
+			t.Errorf("Models = %v, want %v", got.Models, want)
+		}
+	})
 }
 
 func TestCollectorRecordFailure(t *testing.T) {

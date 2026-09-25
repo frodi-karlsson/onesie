@@ -99,7 +99,7 @@ func answer(ctx context.Context, set examples.Set, opts options, env map[string]
 		return cli.ExitUsage, err
 	}
 
-	args := append(set.CalibrateArgs(opts.dir), "-j", jobs, "--out", set.Answers(opts.dir))
+	args := calibrateArgs(set, opts.dir)
 
 	// An offline dry run asks nothing and says whether the file still matches the questions. A
 	// file that does not is started afresh, and any other is resumed.
@@ -110,6 +110,11 @@ func answer(ctx context.Context, set examples.Set, opts options, env map[string]
 	}
 
 	return cli.Execute(ctx, command(opts.root, env, home, records, args, opts.stdout, opts.stderr)), nil
+}
+
+func calibrateArgs(set examples.Set, dir string) []string {
+	// The committed answers must come from the API, never from a cache a developer turned on.
+	return append(set.CalibrateArgs(dir), "-j", jobs, "--out", set.Answers(dir), "--cache=false")
 }
 
 func command(

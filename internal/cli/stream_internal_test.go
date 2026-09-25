@@ -4,10 +4,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"runtime/pprof"
 	"strings"
@@ -289,6 +291,152 @@ func TestStream(t *testing.T) {
 				}
 			})
 		}
+	})
+
+	t.Run("should answer a repeated stream from the cache", func(t *testing.T) {
+		t.Parallel()
+
+		cached := func(t *testing.T, env map[string]string, args []string, stdin, url string) (string, string, int) {
+			t.Helper()
+
+			return runStub(t, t.Context(), args, stdin, url, WithLookupEnv(lookupFrom(env)))
+		}
+
+		t.Run("should make four requests for four distinct records run twice under -j 4", func(t *testing.T) {
+			t.Parallel()
+
+			stub := newAnswerStub(t)
+			env := cacheEnv(t)
+			stdin := jsonl("a", "b", "c", "d")
+
+			for range 2 {
+				if _, errOut, code := cached(t, env, with("--cache", "-j", "4"), stdin, stub.url); code != ExitOK {
+					t.Fatalf("exit %d\n%s", code, errOut)
+				}
+			}
+
+			if got := stub.requests.Load(); got != 4 {
+				t.Errorf("%d requests, want 4", got)
+			}
+		})
+
+		t.Run("should count a group whose first record hits as one cached and the rest deduplicated", func(t *testing.T) {
+			t.Parallel()
+
+			stub := newAnswerStub(t)
+			env := cacheEnv(t)
+
+			cached(t, env, with("--cache"), jsonl("x"), stub.url)
+
+			_, errOut, code := cached(t, env, with("--cache", "--stats"), jsonl("x", "x"), stub.url)
+			if code != ExitOK || !strings.Contains(errOut, "2 records, 1 deduplicated, 1 cached, 0 requests") {
+				t.Errorf("exit %d, stderr %q, want 1 cached and 1 deduplicated", code, errOut)
+			}
+		})
+
+		exits := []struct {
+			name   string
+			extra  []string
+			status int32
+			want   int
+			asked  int32
+		}{
+			{name: "should exit 0 on both runs", want: ExitOK, asked: 1},
+			{name: "should exit 1 for a false assertion on both runs", extra: []string{"--assert", "answer.value < 0.5"}, want: ExitRejected, asked: 1},
+			{
+				name: "should exit 7 for an abstain on both runs", want: ExitAbstain, asked: 1,
+				extra: []string{"--assert", "answer.value < 0.5", "--abstain-if", "answer.value > 0.5"},
+			},
+			{name: "should exit 6 for a failed record on both runs and ask it again", status: 503, extra: []string{"--retries", "0"}, want: ExitRecords, asked: 2},
+		}
+
+		for _, tc := range exits {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				stub := newAnswerStub(t)
+				stub.status.Store(tc.status)
+				env := cacheEnv(t)
+				args := with(append([]string{"--cache"}, tc.extra...)...)
+
+				first, _, firstCode := cached(t, env, args, jsonl("x"), stub.url)
+				second, errOut, code := cached(t, env, args, jsonl("x"), stub.url)
+
+				if firstCode != tc.want || code != tc.want || second != first {
+					t.Errorf("exit %d then %d, want %d, stdout %q then %q\n%s", firstCode, code, tc.want, first, second, errOut)
+				}
+
+				if got := stub.requests.Load(); got != tc.asked {
+					t.Errorf("%d requests, want %d", got, tc.asked)
+				}
+			})
+		}
+
+		t.Run("should write zero usage for a cached line in --out", func(t *testing.T) {
+			t.Parallel()
+
+			stub := newAnswerStub(t)
+			env := cacheEnv(t)
+			answers := filepath.Join(t.TempDir(), "answers.jsonl")
+
+			cached(t, env, with("--cache"), jsonl("x"), stub.url)
+
+			if _, errOut, code := cached(t, env, with("--cache", "--usage", "--out", answers), jsonl("x"), stub.url); code != ExitOK {
+				t.Fatalf("exit %d\n%s", code, errOut)
+			}
+
+			written, err := os.ReadFile(answers)
+			if err != nil || !strings.Contains(string(written), `"usage":{"input_tokens":0,"output_tokens":0}`) {
+				t.Errorf("--out = %s, %v, want zero usage", written, err)
+			}
+		})
+
+		for _, order := range []struct {
+			name         string
+			first, later []string
+		}{
+			{name: "should resume a file written with --cache without it", first: []string{"--cache"}},
+			{name: "should resume a file written without --cache with it", later: []string{"--cache"}},
+		} {
+			t.Run(order.name, func(t *testing.T) {
+				t.Parallel()
+
+				stub := newAnswerStub(t)
+				env := cacheEnv(t)
+				answers := filepath.Join(t.TempDir(), "answers.jsonl")
+
+				if _, errOut, code := cached(t, env, with(append(order.first, "--out", answers)...), jsonl("a", "b"), stub.url); code != ExitOK {
+					t.Fatalf("first run exit %d\n%s", code, errOut)
+				}
+
+				args := with(append(order.later, "--out", answers, "--resume")...)
+				if _, errOut, code := cached(t, env, args, jsonl("a", "b", "c"), stub.url); code != ExitOK {
+					t.Fatalf("resumed run exit %d\n%s", code, errOut)
+				}
+
+				if got := stub.requests.Load(); got != 3 {
+					t.Errorf("%d requests, want 3", got)
+				}
+			})
+		}
+
+		t.Run("should leave the cache dir absent for a run --resume finds fully answered", func(t *testing.T) {
+			t.Parallel()
+
+			stub := newAnswerStub(t)
+			env := cacheEnv(t)
+			answers := filepath.Join(t.TempDir(), "answers.jsonl")
+
+			cached(t, env, with("--out", answers), jsonl("a", "b"), stub.url)
+
+			if _, errOut, code := cached(t, env, with("--cache", "--out", answers, "--resume"), jsonl("a", "b"), stub.url); code != ExitOK {
+				t.Fatalf("exit %d\n%s", code, errOut)
+			}
+
+			if _, err := os.Stat(env["ONESIE_CACHE_DIR"]); !errors.Is(err, os.ErrNotExist) {
+				t.Errorf("the cache dir exists: %v", err)
+			}
+		})
 	})
 
 	t.Run("should report the deduplicated records under --stats", func(t *testing.T) {

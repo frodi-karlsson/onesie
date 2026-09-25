@@ -186,6 +186,7 @@ func bindSharedFlags(cmd *cobra.Command, flags *runFlags) {
 		"add the api usage object to the answers file and the json report")
 	cmd.Flags().BoolVar(&flags.printRequest, "print-request", false,
 		"write api shaped request bodies to stdout and exit")
+	cmd.Flags().BoolVar(&flags.cache, flagCache, false, cacheHelp)
 }
 
 func hide(cmd *cobra.Command, name string) {
@@ -201,7 +202,7 @@ func runCalibrate(
 		return err
 	}
 
-	mockPath, mockSpelled := mockSource(settings, flags)
+	_, mockSpelled := mockSource(settings, flags)
 	cfg.Mock = mockSpelled
 
 	reqs, err := checkCalibrate(cmd, cfg, inputMode, calib, events)
@@ -241,15 +242,15 @@ func runCalibrate(
 		return calibrateRequests(cmd, settings, flags, inputMode, inv, labels)
 	}
 
-	answers := liveAnswers(settings)
-	if mockPath != "" {
-		answers, err = mockAnswers(settings, flags, mockPath, mockSpelled, inv.plan)
-		if err != nil {
-			return err
-		}
+	model, err := resolveModel(settings, flags, inv.plan.Model)
+	if err != nil {
+		return err
 	}
 
-	answers = wrapped(settings, answers)
+	answers, err := answersFor(cmd, settings, flags, inv.plan, model)
+	if err != nil {
+		return err
+	}
 
 	return calibrateRun(cmd, settings, flags, calib, inputMode, inv, labels, bound, answers)
 }

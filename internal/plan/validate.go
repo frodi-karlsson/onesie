@@ -254,6 +254,7 @@ func checkListModels(cfg Config) error {
 			"thing to stdout. Pass one"},
 		{cfg.Mock != "", fmt.Sprintf("onesie: --list-models asks no question, so %s has nothing to answer. %s",
 			cfg.Mock, mockAdvice(cfg, "--list-models"))},
+		{cfg.Cache, "onesie: --list-models asks no question, so --cache has nothing to store. Drop one"},
 	} {
 		if rule.given {
 			return errors.New(rule.message)
@@ -316,6 +317,7 @@ func checkRequestMode(cfg Config) error {
 			"which -i request does not build"},
 		{cfg.Mock != "", fmt.Sprintf("onesie: -i request sends each body as written, so %s has nothing "+
 			"to answer. %s", cfg.Mock, mockAdvice(cfg, "-i request"))},
+		{cfg.Cache, "onesie: -i request sends each body as written, so --cache has nothing to store. Drop one"},
 	} {
 		if rule.given {
 			return errors.New(rule.message)
@@ -1094,6 +1096,9 @@ type Config struct {
 	StopOnError bool
 	// NoDedup is --no-dedup, which asks every record of a stream even when its request repeats.
 	NoDedup bool
+	// Cache is --cache given as true. ONESIE_CACHE stays out, since it sits in the environment of
+	// every run and a run the cache cannot serve ignores it.
+	Cache bool
 	// Out is the --out file the answers are written to, empty for stdout.
 	Out string
 	// Resume is --resume, which picks a stream up where an earlier run into Out stopped.

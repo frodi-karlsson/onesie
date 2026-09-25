@@ -1384,6 +1384,116 @@ func TestNewRootCmd(t *testing.T) {
 			})
 		}
 	})
+
+	t.Run("should refuse --cache where nothing goes through the cache", func(t *testing.T) {
+		t.Parallel()
+
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			body := answered
+			if strings.HasSuffix(r.URL.Path, "/models") {
+				body = `{"models":[{"id":"jev-1.13.0"}]}`
+			}
+
+			_, _ = w.Write([]byte(body))
+		}))
+		t.Cleanup(srv.Close)
+
+		const request = `{"state":"x","questions":{"answer":{"type":"noul","question":"is it"}}}` + "\n"
+
+		tests := []struct {
+			name     string
+			args     []string
+			env      map[string]string
+			wantCode int
+			want     string
+		}{
+			{
+				name: "should refuse --cache beside -i request", args: []string{"--cache", "-i", "request"},
+				wantCode: cli.ExitUsage, want: "onesie: -i request sends each body as written, so --cache has nothing to store. Drop one",
+			},
+			{
+				name: "should refuse --cache beside --list-models", args: []string{"--cache", "--list-models"},
+				wantCode: cli.ExitUsage, want: "onesie: --list-models asks no question, so --cache has nothing to store. Drop one",
+			},
+			{name: "should run -i request under --cache=false", args: []string{"--cache=false", "-i", "request"}},
+			{name: "should run --list-models under --cache=false", args: []string{"--cache=false", "--list-models"}},
+			{name: "should ignore ONESIE_CACHE=1 beside -i request", args: []string{"-i", "request"}, env: map[string]string{"ONESIE_CACHE": "1"}},
+			{name: "should ignore ONESIE_CACHE=1 beside --list-models", args: []string{"--list-models"}, env: map[string]string{"ONESIE_CACHE": "1"}},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				home := t.TempDir()
+				env := map[string]string{
+					jev.EnvAPIKey:       "k",
+					"ONESIE_CONFIG_DIR": filepath.Join(home, "config"),
+					"ONESIE_CACHE_DIR":  filepath.Join(home, "cache"),
+				}
+
+				for name, value := range tc.env {
+					env[name] = value
+				}
+
+				var out, errOut bytes.Buffer
+
+				root := cli.NewRootCmd(
+					cli.BuildInfo{Version: "1.2.3"},
+					cli.WithKeychain(offKeychain{}),
+					cli.WithStdin(strings.NewReader(request)),
+					cli.WithStdinTTY(false),
+					cli.WithStdoutTTY(false),
+					cli.WithLookupEnv(func(name string) (string, bool) {
+						value, ok := env[name]
+
+						return value, ok
+					}),
+				)
+
+				root.SetOut(&out)
+				root.SetErr(&errOut)
+				root.SetArgs(append(tc.args, "--base-url", srv.URL))
+
+				if code := cli.Execute(t.Context(), root); code != tc.wantCode {
+					t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, tc.wantCode, errOut.String())
+				}
+
+				if tc.want != "" && !strings.Contains(errOut.String(), tc.want) {
+					t.Errorf("stderr = %q, want %q", errOut.String(), tc.want)
+				}
+			})
+		}
+	})
+
+	t.Run("should list --cache in help and the cache limits under -V", func(t *testing.T) {
+		t.Parallel()
+
+		for _, args := range [][]string{{"--help"}, {"calibrate", "--help"}, {"-V"}} {
+			var out bytes.Buffer
+
+			root := cli.NewRootCmd(cli.BuildInfo{Version: "1.2.3"}, cli.WithKeychain(offKeychain{}),
+				cli.WithLookupEnv(func(string) (string, bool) { return "", false }))
+			root.SetOut(&out)
+			root.SetErr(&out)
+			root.SetArgs(args)
+
+			if code := cli.Execute(t.Context(), root); code != cli.ExitOK {
+				t.Fatalf("%v exit code = %d\n%s", args, code, out.String())
+			}
+
+			want := []string{"--cache", "ONESIE_CACHE=1"}
+			if args[0] == "-V" {
+				want = []string{"max-cache-bytes 104857600", "cache-ttl 24h0m0s"}
+			}
+
+			for _, needle := range want {
+				if !strings.Contains(out.String(), needle) {
+					t.Errorf("%v output lacks %q\n%s", args, needle, out.String())
+				}
+			}
+		}
+	})
 }
 
 func TestDefaultClientFactory(t *testing.T) {

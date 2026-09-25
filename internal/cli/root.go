@@ -234,6 +234,7 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 	asksNothing(root.Flags(), "list-models")
 	root.Flags().BoolVar(&flags.stats, "stats", false,
 		"write a one line summary of the run to stderr at exit")
+	root.Flags().BoolVar(&flags.cache, flagCache, false, cacheHelp)
 	root.Flags().IntVarP(&flags.jobs, flagJobs, "j", 1, "records in flight at once")
 	root.Flags().IntVar(&flags.timeout, flagTimeout, int(limits.DefaultAttemptTimeout.Seconds()),
 		"seconds per attempt")

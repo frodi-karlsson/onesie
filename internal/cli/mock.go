@@ -65,20 +65,20 @@ func wrapped(settings rootSettings, answers answererFactory) answererFactory {
 	}
 }
 
-func (a mockAnswerer) answer(ctx context.Context, key recordKey, _ jev.Request) (*jev.Result, error) {
+func (a mockAnswerer) answer(ctx context.Context, key recordKey, _ jev.Request) (reply, error) {
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return reply{}, err
 	}
 
 	entry, found := a.answers.Lookup(key.position, key.id)
 	if !found {
-		return nil, &uncoveredError{message: a.answers.Missing(key.position, key.id, key.line)}
+		return reply{}, &uncoveredError{message: a.answers.Missing(key.position, key.id, key.line)}
 	}
 
 	result, err := entry.Result()
 	a.stats.observe(mockAttempt(err))
 
-	return result, err
+	return reply{result: result}, err
 }
 
 func (a mockAnswerer) salt(key recordKey) (string, bool) {

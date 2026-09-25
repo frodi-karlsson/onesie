@@ -50,6 +50,25 @@ func TestStatsString(t *testing.T) {
 				"model onesie-1.13.0, 9 attempts, 10s/attempt, 1s",
 		},
 		{
+			name: "should count the records the cache answered after the deduplicated ones",
+			stats: cli.Stats{
+				Records: 12, Dedups: 3, Cached: 4, Requests: 5, Questions: 5,
+				Models: []string{"onesie-1.13.0"}, Attempts: 5,
+				AttemptTimeout: 10 * time.Second, Elapsed: time.Second,
+			},
+			want: "12 records, 3 deduplicated, 4 cached, 5 requests, 5 questions, 0 in / 0 out, " +
+				"model onesie-1.13.0, 5 attempts, 10s/attempt, 1s",
+		},
+		{
+			name: "should render a one record run the cache answered",
+			stats: cli.Stats{
+				Records: 1, Cached: 1, Models: []string{"onesie-1.13.0"},
+				AttemptTimeout: 10 * time.Second, Elapsed: time.Second,
+			},
+			want: "1 record, 1 cached, 0 requests, 0 questions, 0 in / 0 out, " +
+				"model onesie-1.13.0, 0 attempts, 10s/attempt, 1s",
+		},
+		{
 			name: "should report the records a resume skipped",
 			stats: cli.Stats{
 				Requests: 2, Records: 2, Skipped: 18, Questions: 2,

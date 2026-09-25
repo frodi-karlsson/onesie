@@ -206,7 +206,7 @@ func askLabelled(
 	outcomes := slices.Clone(resumed.answered)
 	book := resumed.book
 
-	var stoppedAtUncovered bool
+	var stoppedAtHalt bool
 
 	result, err := engine.Run(cmd.Context(), engine.Config[labelledRecord, askedLine]{
 		Source: &labelledSource{records: resumed.pending},
@@ -226,14 +226,14 @@ func askLabelled(
 			record.ID = rec.id
 
 			return askedLine{
-				index: rec.index, slot: rec.slot, record: record, uncovered: uncovered(evalErr),
+				index: rec.index, slot: rec.slot, record: record, halted: halting(evalErr),
 			}, evalErr
 		},
 		Write: func(l askedLine) error {
 			// Nothing from the first record a mock file does not answer on reaches the file or the
 			// ledger, so the file holds only the records before it and a resume asks the rest.
-			if stoppedAtUncovered || l.uncovered {
-				stoppedAtUncovered = true
+			if stoppedAtHalt || l.halted {
+				stoppedAtHalt = true
 
 				return nil
 			}
@@ -306,10 +306,10 @@ type labelledSource struct {
 }
 
 type askedLine struct {
-	index     int
-	slot      int
-	record    output.Record
-	uncovered bool
+	index  int
+	slot   int
+	record output.Record
+	halted bool
 }
 
 func reportOf(built *plan.Plan, set labelledSet, outcomes []output.Record, cuts [][]float64) calibrate.Report {

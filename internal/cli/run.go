@@ -39,7 +39,7 @@ func run(
 		return err
 	}
 
-	mockPath, mockSpelled := mockSource(settings, flags)
+	_, mockSpelled := mockSource(settings, flags)
 	cfg.Mock = mockSpelled
 
 	// Both branches sit ahead of the plan, since neither has a question and failing for want of one
@@ -111,15 +111,10 @@ func run(
 	}
 
 	// Loaded before any mode writes, so a file that does not match the questions leaves no line.
-	answers := liveAnswers(settings)
-	if mockPath != "" {
-		answers, err = mockAnswers(settings, flags, mockPath, mockSpelled, built)
-		if err != nil {
-			return err
-		}
+	answers, err := answersFor(cmd, settings, flags, built, model)
+	if err != nil {
+		return err
 	}
-
-	answers = wrapped(settings, answers)
 
 	// Both modes are parsed before the request, so a mistyped flag costs nothing.
 	outputMode, err := output.ParseMode(
@@ -429,7 +424,7 @@ func stream(
 			// Returned before the gate is asked. A failed record reads as all zeros, so a gate such
 			// as answer.value < 0.5 would hold for a request that never happened.
 			failed := rowLine(record, rec)
-			failed.uncovered = uncovered(evalErr)
+			failed.halted = halting(evalErr)
 			failed.call = call
 
 			return failed, evalErr
@@ -468,9 +463,9 @@ func stream(
 
 	var stopped atomic.Bool
 
-	// Set by the first record a mock file does not answer. Every line after it is dropped too, so the
-	// output holds only the records before it and a resume asks the rest.
-	var stoppedAtUncovered bool
+	// Set by the first record that halts the run, such as one a mock file does not answer. Every line
+	// after it is dropped too, so the output holds only the records before it and a resume asks the rest.
+	var stoppedAtHalt bool
 
 	result, err := engine.Run(cmd.Context(), engine.Config[namedRecord, line]{
 		Source: source,
@@ -481,8 +476,8 @@ func stream(
 			return l, evalErr
 		},
 		Write: func(l line) error {
-			if stoppedAtUncovered || l.uncovered {
-				stoppedAtUncovered = true
+			if stoppedAtHalt || l.halted {
+				stoppedAtHalt = true
 
 				return nil
 			}
@@ -679,7 +674,7 @@ func aborting(err error) bool {
 	// Every later record would fail the same way, and a bad key should be reported once rather
 	// than once per line.
 	return errors.Is(err, jev.ErrAuthentication) || errors.Is(err, jev.ErrPermissionDenied) ||
-		errors.Is(err, jev.ErrPaymentRequired) || uncovered(err)
+		errors.Is(err, jev.ErrPaymentRequired) || halting(err)
 }
 
 func stopping(flags *runFlags) func(line) bool {
@@ -695,14 +690,14 @@ func stopping(flags *runFlags) func(line) bool {
 }
 
 type line struct {
-	record    output.Record
-	raw       string
-	state     any // The record as read, before --map, so --merge keeps a text line's type and a JSON line's digits.
-	header    []string
-	fields    map[string]any
-	slot      int
-	uncovered bool
-	call      *sharedCall
+	record output.Record
+	raw    string
+	state  any // The record as read, before --map, so --merge keeps a text line's type and a JSON line's digits.
+	header []string
+	fields map[string]any
+	slot   int
+	halted bool
+	call   *sharedCall
 }
 
 func mergeName(flags *runFlags) string {
@@ -775,7 +770,7 @@ func ask(
 
 	record, err := evaluate(
 		cmd.Context(), asker, recordKey{position: 1, line: 1}, built, model, questions, sent, flags.usage, stats)
-	if uncovered(err) {
+	if halting(err) {
 		return err
 	}
 
@@ -980,8 +975,8 @@ func evaluate(
 	withUsage bool,
 	stats *collector,
 ) (output.Record, error) {
-	record, usage, err := answered(ctx, asker, key, built, model, questions, state, withUsage)
-	if uncovered(err) {
+	record, usage, cached, err := answered(ctx, asker, key, built, model, questions, state, withUsage)
+	if halting(err) {
 		// No request stood behind it, so it is a record and not a request, and no attempt ended.
 		stats.recordFailure(err, false, 0)
 
@@ -998,6 +993,12 @@ func evaluate(
 		return record, err
 	}
 
+	if cached {
+		stats.cachedRecord(record.Model)
+
+		return record, nil
+	}
+
 	stats.record(record.Model, usage, len(questions))
 
 	return record, nil
@@ -1012,12 +1013,16 @@ func answered(
 	questions jev.Questions,
 	state any,
 	withUsage bool,
-) (output.Record, jev.Usage, error) {
-	result, err := asker.answer(ctx, key, jev.Request{
+) (output.Record, jev.Usage, bool, error) {
+	got, err := asker.answer(ctx, key, jev.Request{
 		State:     state,
 		Model:     built.Model,
 		Questions: questions,
 	})
+	if halting(err) {
+		return failureRecord(built, err), jev.Usage{}, false, err
+	}
+
 	if err != nil {
 		// Wrapped here rather than at either caller, so the stderr line and the streaming record
 		// carry the same remedy. Every question on this path passed onesie's own bounds check, so a
@@ -1032,16 +1037,17 @@ func answered(
 
 		var unusable *jev.ResponseError
 		if !errors.As(err, &unusable) || unusable.Usage == nil {
-			return failed, jev.Usage{}, advised
+			return failed, jev.Usage{}, false, advised
 		}
 
 		if withUsage {
 			failed = spent(failed, unusable.Usage)
 		}
 
-		return failed, *unusable.Usage, advised
+		return failed, *unusable.Usage, false, advised
 	}
 
+	result := got.result
 	record := output.Record{Model: result.Model}
 	if withUsage {
 		// A copy, since a pointer into the result would keep the whole response alive for as long
@@ -1055,7 +1061,7 @@ func answered(
 	for _, question := range built.Questions {
 		normalized, normErr := answer.Normalize(question, result.Answers[question.ID])
 		if normErr != nil {
-			return spent(failureRecord(built, normErr), record.Usage), result.Usage, normErr
+			return spent(failureRecord(built, normErr), record.Usage), result.Usage, got.cached, normErr
 		}
 
 		answer.Apply(question, normalized)
@@ -1064,7 +1070,7 @@ func answered(
 			output.Named{ID: question.ID, Answer: normalized})
 	}
 
-	return record, result.Usage, nil
+	return record, result.Usage, got.cached, nil
 }
 
 func spent(failed output.Record, usage *jev.Usage) output.Record {
@@ -1176,6 +1182,7 @@ type runFlags struct {
 	printSchema    bool
 	listModels     bool
 	stats          bool
+	cache          bool
 
 	jobs          int
 	timeout       int

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"math"
 	"net/http"
 	"net/http/httptest"
@@ -2309,6 +2310,50 @@ func TestCalibrateRun(t *testing.T) {
 			t.Errorf("exit code %d, stdout = %s, want no usage without --usage", code, plain)
 		}
 	})
+
+	t.Run("should answer a repeated calibrate --cache from the cache and print the same report", func(t *testing.T) {
+		t.Parallel()
+
+		stub := newCalibrateStub(t)
+		env := cacheEnv(t)
+
+		first, errOut, code := calibrateWithEnv(t, env, urgent("--cache"), urgentSet, stub.url)
+		if code != ExitOK {
+			t.Fatalf("first run exit %d\n%s", code, errOut)
+		}
+
+		second, errOut, code := calibrateWithEnv(t, env, urgent("--cache"), urgentSet, stub.url)
+		if code != ExitOK || second != first {
+			t.Fatalf("second run exit %d, stdout %q, want %q\n%s", code, second, first, errOut)
+		}
+
+		if stub.count() != 6 {
+			t.Errorf("%d requests, want 6, all from the first run", stub.count())
+		}
+	})
+
+	t.Run("should leave the cache dir absent under calibrate --offline and ONESIE_CACHE=1", func(t *testing.T) {
+		t.Parallel()
+
+		stub := newCalibrateStub(t)
+		env := cacheEnv(t)
+		answers := filepath.Join(t.TempDir(), "answers.jsonl")
+
+		if _, errOut, code := calibrateWithEnv(t, env, urgent("--out", answers), urgentSet, stub.url); code != ExitOK {
+			t.Fatalf("first run exit %d\n%s", code, errOut)
+		}
+
+		env[envCache] = "1"
+
+		_, errOut, code := calibrateWithEnv(t, env, urgent("--out", answers, "--resume", "--offline"), urgentSet, stub.url)
+		if code != ExitOK {
+			t.Fatalf("offline run exit %d\n%s", code, errOut)
+		}
+
+		if _, err := os.Stat(env["ONESIE_CACHE_DIR"]); !errors.Is(err, os.ErrNotExist) {
+			t.Errorf("the cache dir exists: %v", err)
+		}
+	})
 }
 
 func TestReportOf(t *testing.T) {
@@ -3017,4 +3062,28 @@ func TestCutsFor(t *testing.T) {
 			}
 		})
 	}
+}
+
+func calibrateWithEnv(t *testing.T, env map[string]string, args []string, stdin, baseURL string) (string, string, int) {
+	t.Helper()
+
+	var out, errOut bytes.Buffer
+
+	root := NewRootCmd(
+		BuildInfo{Version: "1.2.3"},
+		WithKeychain(noKeychain()),
+		WithClientFactory(stubFactory(baseURL)),
+		WithStdin(strings.NewReader(stdin)),
+		WithStdinTTY(false),
+		WithStdoutTTY(false),
+		WithLookupEnv(lookupFrom(maps.Clone(env))),
+	)
+
+	root.SetOut(&out)
+	root.SetErr(&errOut)
+	root.SetArgs(args)
+
+	code := Execute(t.Context(), root)
+
+	return out.String(), errOut.String(), code
 }

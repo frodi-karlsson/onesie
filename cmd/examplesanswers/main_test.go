@@ -14,6 +14,7 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/frodi-karlsson/onesie/examples"
 	"github.com/frodi-karlsson/onesie/internal/cli"
 	"github.com/frodi-karlsson/onesie/internal/jev"
 )
@@ -108,6 +109,23 @@ func TestRun(t *testing.T) {
 		answers, err := os.ReadFile(filepath.Join(dir, "data", "alpha.answers.jsonl"))
 		if err != nil || strings.Count(string(answers), "\n") != 2 {
 			t.Errorf("alpha answers = %q, %v, want 2 lines", answers, err)
+		}
+	})
+}
+
+func TestCalibrateArgs(t *testing.T) {
+	t.Parallel()
+
+	t.Run("should turn the cache off, so every answer comes from the API", func(t *testing.T) {
+		t.Parallel()
+
+		sets, err := examples.Sets(starterDir(t))
+		if err != nil || len(sets) == 0 {
+			t.Fatalf("Sets = %v, %v", sets, err)
+		}
+
+		if args := calibrateArgs(sets[0], "examples"); !slices.Contains(args, "--cache=false") {
+			t.Errorf("calibrateArgs = %v, want --cache=false", args)
 		}
 	})
 }

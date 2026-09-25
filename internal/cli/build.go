@@ -50,6 +50,7 @@ func configOf(
 		Unordered:      flags.unordered,
 		StopOnError:    flags.stopOnError,
 		NoDedup:        flags.noDedup,
+		Cache:          flags.cache && cmd.Flags().Changed(flagCache),
 		Out:            flags.out,
 		Resume:         flags.resume,
 		Prune:          flags.prune,

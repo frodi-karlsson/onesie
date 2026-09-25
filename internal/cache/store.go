@@ -150,6 +150,11 @@ type Store struct {
 	total   int64
 }
 
+// Dir is the directory the store keeps its entries in.
+func (s *Store) Dir() string {
+	return s.dir
+}
+
 // Get returns the value stored under key, or a miss when there is none, it expired, or it cannot be
 // read as an entry. A hit counts as a use for eviction.
 func (s *Store) Get(key Key, provider, model string) ([]byte, bool, error) {

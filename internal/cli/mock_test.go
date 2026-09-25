@@ -908,12 +908,12 @@ func delaying(position int, delay time.Duration) RootOption {
 	}
 }
 
-func (d delayedAnswerer) answer(ctx context.Context, key recordKey, req jev.Request) (*jev.Result, error) {
+func (d delayedAnswerer) answer(ctx context.Context, key recordKey, req jev.Request) (reply, error) {
 	if key.position == d.position {
 		select {
 		case <-time.After(d.delay):
 		case <-ctx.Done():
-			return nil, ctx.Err()
+			return reply{}, ctx.Err()
 		}
 	}
 
