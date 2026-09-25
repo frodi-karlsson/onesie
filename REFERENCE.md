@@ -197,19 +197,21 @@ onesie calibrate -f examples/questions/shell-safety.yaml -i jsonl --map .command
   same holds under `-i request`. With `--id` the failed record is asked again, and stops the run
   only if it fails again.
 - Records whose request is identical are asked once in a run. Identical means the same state after
-  `--map`, the same questions and the same model, and under `--mock` the same entry of the file. A
-  JSON line's whitespace does not matter, but its key order does. A record the mock file does not
-  answer never shares with one it does. A record whose identical request is still in flight waits
-  for it, holding its `-j` slot. Every record still gets its own line, with its own `id` and its own
-  input under `--merge`, in input order or as answers arrive under `--unordered`. `--stats` counts
-  the saved requests, as in `12 records, 3 deduplicated, 9 requests`. Under `--usage` only the first
-  line written for a request carries its tokens, and its other lines carry
-  `{"input_tokens":0,"output_tokens":0}`, so a sum over the output stays true. A failed request
-  fails every record that shares it, and is not asked again within the run. `--resume` judges each
-  line on its own, so a later run asks those records again. A run holds up to `max-dedup-requests`
-  distinct requests, which `onesie -V` lists. Past that it says so once on stderr, still shares the
-  requests it holds and asks every new one. Only a stream deduplicates: calibrate, `-i request` and
-  `--print-request` ask or print every record. `--no-dedup` asks every record.
+  `--map`, the same questions and the same model, and under `--mock` the same answer from the file.
+  A JSON line's whitespace does not matter, but its key order does. A record the mock file does not
+  answer is never shared. A record whose identical request is still in flight waits for it, holding
+  its `-j` slot. Every record still gets its own line, with its own `id` and its own input under
+  `--merge`, in input order or as answers arrive under `--unordered`. `--stats` counts the saved
+  requests, as in `12 records, 3 deduplicated, 9 requests`. Under `--usage` only the first line
+  written for a request carries its tokens, and its other lines carry
+  `{"input_tokens":0,"output_tokens":0}`, so a sum over the output stays true. An error line that
+  carried no usage still carries none. A failed request fails every record that shares it, and is
+  not asked again within the run. With `--id`, `--resume` judges each line on its own, so a later
+  run asks those records again. Without `--id` it carries on by line count, which asks no failed
+  record again. A run holds up to `max-dedup-requests` distinct requests, which `onesie -V` lists.
+  Past that it says so once on stderr, still shares the requests it holds and asks every new one.
+  Only a stream deduplicates: calibrate, `-i request` and `--print-request` ask or print every
+  record. `--no-dedup` asks every record.
 - Raw output keeps no outcome, so `--resume` refuses `-o raw` and `-r` with exit 2. Use `-o values`
   or `-o json`.
 - onesie writes csv cells exactly as they are, the ones `--merge` carries over included. A cell
