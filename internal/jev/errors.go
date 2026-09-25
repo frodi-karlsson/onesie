@@ -43,6 +43,12 @@ var (
 	ErrValidation = errors.New("invalid request")
 )
 
+// NewAPIError builds an APIError from a status and a message alone, for a failure that no response
+// carried, such as one a mock answers file names.
+func NewAPIError(status int, message string) *APIError {
+	return &APIError{Status: status, Header: http.Header{}, message: message}
+}
+
 func newAPIError(status int, header http.Header, requestIDHeader string, body []byte, now time.Time) *APIError {
 	parsed := decodeBody(body)
 
