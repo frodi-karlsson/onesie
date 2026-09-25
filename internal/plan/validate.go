@@ -3,6 +3,7 @@ package plan
 import (
 	"errors"
 	"fmt"
+	"math"
 	"slices"
 	"strconv"
 	"strings"
@@ -921,7 +922,7 @@ func checkPolicy(q *Question, yesNo bool) error {
 				threshold, q.ID, noun, confidence, fallback)
 		}
 
-		if *policy.Threshold < 0 || *policy.Threshold > 1 {
+		if outsideUnit(*policy.Threshold) {
 			return fmt.Errorf("onesie: %s must be between 0 and 1, got %s",
 				threshold, strconv.FormatFloat(*policy.Threshold, 'g', -1, 64))
 		}
@@ -936,7 +937,7 @@ func checkPolicy(q *Question, yesNo bool) error {
 				Spelling(q.Origin, "--pick"), Spelling(q.Origin, "--rate"))
 		}
 
-		if *policy.MinConfidence < 0 || *policy.MinConfidence > 1 {
+		if outsideUnit(*policy.MinConfidence) {
 			return fmt.Errorf("onesie: %s must be between 0 and 1, got %s",
 				confidence, strconv.FormatFloat(*policy.MinConfidence, 'g', -1, 64))
 		}
@@ -956,6 +957,10 @@ func checkPolicy(q *Question, yesNo bool) error {
 	}
 
 	return nil
+}
+
+func outsideUnit(value float64) bool {
+	return math.IsNaN(value) || value < 0 || value > 1
 }
 
 func checkUnknownDesc(q *Question, vocabulary []string, shape string) error {

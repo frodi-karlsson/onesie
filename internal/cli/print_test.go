@@ -397,6 +397,7 @@ func validationDocs() []schemaFixture {
 		"severity:\n  ask: q\n  rate:\n    - low\n    - high:\n",
 		"urgent:\n  ask: q\n  threshold: 0.5\n",
 		"urgent:\n  ask: q\n  threshold: 5\n",
+		"urgent:\n  ask: q\n  threshold: .nan\n",
 		"team:\n  ask: q\n  pick: [a, b]\n  threshold: 0.5\n",
 		"urgent:\n  ask: q\n  min_confidence: 0.5\n  fallback: yes\n",
 		"team:\n  ask: q\n  pick: [a, b]\n  min_confidence: 0.5\n",

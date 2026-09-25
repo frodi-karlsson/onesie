@@ -1,6 +1,7 @@
 package plan_test
 
 import (
+	"math"
 	"strconv"
 	"strings"
 	"testing"
@@ -518,6 +519,32 @@ func TestValidate(t *testing.T) {
 			}},
 			wantExact: "onesie: 'min_confidence' needs a confidence value. 'urgent' is a yes/no " +
 				"question, use 'threshold', or add 'pick' or 'rate'",
+		},
+		{
+			name: "should reject a threshold of nan",
+			events: []argv.Event{
+				{Name: "ask", Value: "urgent=first"},
+				{Name: "threshold", Value: "nan"},
+			},
+			wantExact: "onesie: --threshold must be between 0 and 1, got NaN",
+		},
+		{
+			name: "should reject a min confidence of nan",
+			events: []argv.Event{
+				{Name: "ask", Value: "team=first"},
+				{Name: "pick", Value: "x,y"},
+				{Name: "min-confidence", Value: "NaN"},
+				{Name: "fallback", Value: "x"},
+			},
+			wantExact: "onesie: --min-confidence must be between 0 and 1, got NaN",
+		},
+		{
+			name: "should reject a file's threshold of nan",
+			file: []plan.Question{{
+				ID: "urgent", Shape: plan.Noul, Instructions: "q", Origin: plan.OriginFile,
+				Policy: plan.Policy{Threshold: pointerTo(math.NaN())},
+			}},
+			wantExact: "onesie: 'threshold' must be between 0 and 1, got NaN",
 		},
 		{
 			name: "should name the threshold key when a file's value is out of range",
