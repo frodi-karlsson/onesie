@@ -2469,7 +2469,7 @@ const (
 	requireQuestions = "u:\n  ask: is it urgent\nt:\n  ask: which team\n  pick: [ops, dev]\n"
 )
 
-func TestMeasureRequirements(t *testing.T) {
+func TestCalibrateAnswers(t *testing.T) {
 	t.Parallel()
 
 	gated := writeCalibrateFile(t, t.TempDir(), "gated.yaml",
@@ -2492,6 +2492,7 @@ func TestMeasureRequirements(t *testing.T) {
 		stderr     []string
 		noStderr   []string
 		wantReport []requireJSON
+		wantCuts   [][]float64
 	}{
 		{
 			name:     "should print the report and exit 0 when every requirement holds",
@@ -2518,7 +2519,7 @@ func TestMeasureRequirements(t *testing.T) {
 			name:     "should add a cut the requirement names to that question only",
 			args:     base(mockFile, "-o", "json", "--require", "u.catches >= 0.5 at 0.33"),
 			wantCode: ExitOK,
-			stdout:   []string{`"cuts":[{"cut":0.33,`, `"cut":0.5,"answered"`},
+			wantCuts: [][]float64{{0.33, 0.5}, {0.5}},
 			wantReport: []requireJSON{
 				{Expr: "u.catches >= 0.5 at 0.33", Held: true, Value: ptr(0.75), Interval: true, Cut: ptr(0.33)},
 			},
@@ -2585,7 +2586,12 @@ func TestMeasureRequirements(t *testing.T) {
 			}
 
 			var report struct {
-				Require []map[string]any `json:"require"`
+				Require   []map[string]any `json:"require"`
+				Questions []struct {
+					Cuts []struct {
+						Cut float64 `json:"cut"`
+					} `json:"cuts"`
+				} `json:"questions"`
 			}
 
 			if err := json.Unmarshal([]byte(out), &report); err != nil {
@@ -2597,6 +2603,17 @@ func TestMeasureRequirements(t *testing.T) {
 			}
 
 			checkRequireJSON(t, report.Require, tc.wantReport)
+
+			for q, want := range tc.wantCuts {
+				got := make([]float64, 0, len(report.Questions[q].Cuts))
+				for _, row := range report.Questions[q].Cuts {
+					got = append(got, row.Cut)
+				}
+
+				if !slices.Equal(got, want) {
+					t.Errorf("question %d cuts = %v, want %v", q, got, want)
+				}
+			}
 		})
 	}
 }
@@ -2664,8 +2681,12 @@ func TestResolveRequirements(t *testing.T) {
 		name    string
 		file    string
 		require string
+		extra   []string
 		wantErr string
 	}{
+		{name: "should refuse a gate cut outside 0 to 1", file: file("wide.yaml", "assert: u.value < 1.5\n"), require: "u.catches >= 0.5", wantErr: "compares u.value with 1.5, and a cut lies between 0 and 1"},
+		{name: "should refuse a bad requirement under --print-request", file: file("print.yaml", ""), require: "u.catches >= 95", extra: []string{"--print-request"}, wantErr: "write 0.95, not 95"},
+		{name: "should refuse a requirement with no cut under --print-request", file: file("print2.yaml", "assert: u.value > 0.5\n"), require: "u.catches >= 0.5", extra: []string{"--print-request"}, wantErr: "with >"},
 		{name: "should refuse a gate that reads the value through max", file: file("max.yaml", "assert: max(u.value, u.value) < 0.5\n"), require: "u.catches >= 0.5", wantErr: "max()"},
 		{name: "should refuse a gate that compares with greater", file: file("gt.yaml", "assert: u.value > 0.5\n"), require: "u.catches >= 0.5", wantErr: "with >"},
 		{name: "should refuse a gate that tests with in", file: file("in.yaml", `assert: t.value in ["ops"] and u.value in [0.5]`+"\n"), require: "u.catches >= 0.5", wantErr: "with in"},
@@ -2689,6 +2710,8 @@ func TestResolveRequirements(t *testing.T) {
 				args = append(args, "--ask", "u=is it urgent", "--label", "u=.u")
 			}
 
+			args = append(args, tc.extra...)
+
 			// No --mock, and runMocked fails the test if a client is built, so any request would show.
 			out, errOut, code := runMocked(t, t.Context(), args, requireStdin, nil, nil)
 			if code != ExitUsage || !strings.Contains(errOut, tc.wantErr) || !strings.Contains(errOut, "'"+tc.require+"'") {
@@ -2698,6 +2721,55 @@ func TestResolveRequirements(t *testing.T) {
 
 			if out != "" {
 				t.Errorf("stdout = %q, want nothing", out)
+			}
+		})
+	}
+}
+
+func TestCutsFor(t *testing.T) {
+	t.Parallel()
+
+	bound := func(texts ...string) []boundRequirement {
+		reqs, err := parseRequirements(texts)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		out := make([]boundRequirement, 0, len(reqs))
+		for _, req := range reqs {
+			out = append(out, boundRequirement{Requirement: req, question: 0, cut: req.At.Value, hasCut: true})
+		}
+
+		return out
+	}
+
+	tests := []struct {
+		name  string
+		base  []float64
+		bound []boundRequirement
+		want  [][]float64
+	}{
+		{
+			name:  "should hold a cut once when 0.50, 0.5 and --cuts 0.5 meet",
+			base:  []float64{0.5},
+			bound: bound("u.catches >= 0.5 at 0.50", "u.false_alarms <= 0.5 at 0.5"),
+			want:  [][]float64{{0.5}, {0.5}},
+		},
+		{
+			name:  "should add a new cut in order to its own question only",
+			base:  []float64{0.25, 0.75},
+			bound: bound("u.catches >= 0.5 at 0.5", "u.catches >= 0.5 at 0.5"),
+			want:  [][]float64{{0.25, 0.5, 0.75}, {0.25, 0.75}},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := cutsFor(tc.base, tc.bound, 2)
+			if !slices.EqualFunc(got, tc.want, slices.Equal[[]float64]) {
+				t.Errorf("cutsFor = %v, want %v", got, tc.want)
 			}
 		})
 	}

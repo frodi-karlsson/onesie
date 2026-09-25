@@ -32,7 +32,8 @@ type QuestionReport struct {
 	Rate  *RateScore
 }
 
-func shapeName(shape plan.Shape) string {
+// ShapeName is a shape as a report names it, yes/no for a plain question.
+func ShapeName(shape plan.Shape) string {
 	if shape == plan.Noul {
 		return "yes/no"
 	}

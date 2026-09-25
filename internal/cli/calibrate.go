@@ -217,7 +217,7 @@ func runCalibrate(
 		return err
 	}
 
-	bound, err := resolveRequirements(inv.plan, inv.ignored, reqs)
+	bound, err := resolveRequirements(inv.plan, inv.fileGate, reqs)
 	if err != nil {
 		return err
 	}

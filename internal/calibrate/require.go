@@ -11,11 +11,17 @@ import (
 
 const (
 	percentScale  = 100
-	lowerBound    = "lower("
-	upperBound    = "upper("
 	abstainCut    = "abstain"
 	atWord        = "at"
 	forbiddenInID = "()<>="
+)
+
+var (
+	measureNames = []string{"catches", "false_alarms", "right_when_flagged", "auc", "agreement", "within_one"}
+	bounds       = []struct {
+		word  string
+		bound Bound
+	}{{"lower", Lower}, {"upper", Upper}}
 )
 
 // ParseRequirement reads one --require text, [lower|upper](ID.MEASURE) OP NUMBER [at CUT]. Its
@@ -88,17 +94,27 @@ const (
 )
 
 func splitTarget(source string, req *Requirement) (target, rest string, err error) {
-	for prefix, bound := range map[string]Bound{lowerBound: Lower, upperBound: Upper} {
-		inner, found := strings.CutPrefix(source, prefix)
-		if !found {
+	for _, b := range bounds {
+		after, named := strings.CutPrefix(source, b.word)
+		if !named {
 			continue
 		}
 
-		req.Bound = bound
+		inner, opened := strings.CutPrefix(after, "(")
+		if !opened {
+			if strings.HasPrefix(strings.TrimLeftFunc(after, unicode.IsSpace), "(") {
+				return "", "", fmt.Errorf("writes %s with a space before (. lower and upper take no space before (",
+					b.word)
+			}
+
+			break
+		}
+
+		req.Bound = b.bound
 
 		target, rest, closed := strings.Cut(inner, ")")
 		if !closed {
-			return "", "", fmt.Errorf("has %s with no closing )", prefix)
+			return "", "", fmt.Errorf("has %s( with no closing )", b.word)
 		}
 
 		return strings.TrimSpace(target), rest, nil
@@ -206,13 +222,13 @@ func fraction(text string) (float64, error) {
 		return 0, fmt.Errorf("takes a number between 0 and 1, got '%s'", text)
 	}
 
-	if value >= 2 && value <= percentScale && value == math.Trunc(value) {
+	if value > 1 && value <= percentScale {
 		return 0, fmt.Errorf("takes a fraction between 0 and 1, so write %s, not %s",
 			strconv.FormatFloat(value/percentScale, 'f', -1, 64), text)
 	}
 
 	if value > 1 {
-		return 0, fmt.Errorf("takes a number between 0 and 1, got %s", text)
+		return 0, fmt.Errorf("takes a number between 0 and 1, got '%s'", text)
 	}
 
 	// Abs turns a negative zero, which passes the range check, into the zero a report prints.
@@ -336,7 +352,7 @@ func defined(share Share, reason string) (Share, string) {
 }
 
 func (r Requirement) notApplicable(q QuestionReport) string {
-	return fmt.Sprintf("'%s' is a %s question, so %s does not apply", q.ID, shapeName(q.Shape), r.Measure)
+	return fmt.Sprintf("'%s' is a %s question, so %s does not apply", q.ID, ShapeName(q.Shape), r.Measure)
 }
 
 func (r Result) compared() float64 {
@@ -391,8 +407,6 @@ const (
 	Agreement
 	WithinOne
 )
-
-var measureNames = []string{"catches", "false_alarms", "right_when_flagged", "auc", "agreement", "within_one"}
 
 func measureNamed(name string) (Measure, bool) {
 	for i, known := range measureNames {

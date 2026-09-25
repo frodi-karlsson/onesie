@@ -51,7 +51,7 @@ func writeQuestion(b *strings.Builder, q QuestionReport) error {
 	case q.Shape == plan.Rate && q.Rate != nil:
 		writeChoice(b, q.ID, q.Shape, "level", q.Rate.PickScore, rateLines(*q.Rate))
 	default:
-		return fmt.Errorf("calibrate: question '%s' has no %s score to report", q.ID, shapeName(q.Shape))
+		return fmt.Errorf("calibrate: question '%s' has no %s score to report", q.ID, ShapeName(q.Shape))
 	}
 
 	return nil
@@ -59,7 +59,7 @@ func writeQuestion(b *strings.Builder, q QuestionReport) error {
 
 func writeYesNo(b *strings.Builder, id string, s YesNoScore) {
 	fmt.Fprintf(b, "%s, %s: labelled %d, %d yes, %d no, %d failed. %s\n",
-		printable(id), shapeName(plan.Noul), s.Labelled, s.Yes, s.No, s.Failed, aucText(s))
+		printable(id), ShapeName(plan.Noul), s.Labelled, s.Yes, s.No, s.Failed, aucText(s))
 
 	if s.Labelled == 0 {
 		return
@@ -129,7 +129,7 @@ func rateLines(s RateScore) []string {
 
 func writeChoice(b *strings.Builder, id string, shape plan.Shape, noun string, s PickScore, extra []string) {
 	fmt.Fprintf(b, "%s, %s: labelled %d, %d failed. agreement %s\n",
-		printable(id), shapeName(shape), s.Labelled, s.Failed, inlineShare(s.Agreement))
+		printable(id), ShapeName(shape), s.Labelled, s.Failed, inlineShare(s.Agreement))
 
 	if s.Labelled == 0 {
 		return

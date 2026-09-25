@@ -94,7 +94,7 @@ func jsonQuestion(q QuestionReport) (any, error) {
 		s := q.Pick
 
 		return jsonPick{
-			ID: q.ID, Shape: shapeName(q.Shape), Labelled: s.Labelled, Failed: s.Failed, Agreement: s.Agreement,
+			ID: q.ID, Shape: ShapeName(q.Shape), Labelled: s.Labelled, Failed: s.Failed, Agreement: s.Agreement,
 			Options: pickRowsJSON(s.Names), Cuts: confidenceJSON(s.Confidence), Grid: s.Grid, Other: s.Other,
 			Misses: choiceMissesJSON(s.Misses),
 		}, nil
@@ -102,13 +102,13 @@ func jsonQuestion(q QuestionReport) (any, error) {
 		s := q.Rate
 
 		return jsonRate{
-			ID: q.ID, Shape: shapeName(q.Shape), Labelled: s.Labelled, Failed: s.Failed, Agreement: s.Agreement,
+			ID: q.ID, Shape: ShapeName(q.Shape), Labelled: s.Labelled, Failed: s.Failed, Agreement: s.Agreement,
 			WithinOne: s.WithinOne, MeanDistance: definedOrNull(s.MeanDistance, s.HasMeanDistance),
 			Levels: pickRowsJSON(s.Names), Cuts: confidenceJSON(s.Confidence), Grid: s.Grid, Other: s.Other,
 			Misses: choiceMissesJSON(s.Misses),
 		}, nil
 	default:
-		return nil, fmt.Errorf("calibrate: question '%s' has no %s score to report", q.ID, shapeName(q.Shape))
+		return nil, fmt.Errorf("calibrate: question '%s' has no %s score to report", q.ID, ShapeName(q.Shape))
 	}
 }
 
@@ -119,7 +119,7 @@ func yesNoJSON(id string, s YesNoScore) jsonYesNo {
 	}
 
 	return jsonYesNo{
-		ID: id, Shape: shapeName(plan.Noul), Labelled: s.Labelled, Yes: s.Yes, No: s.No, Failed: s.Failed,
+		ID: id, Shape: ShapeName(plan.Noul), Labelled: s.Labelled, Yes: s.Yes, No: s.No, Failed: s.Failed,
 		AUC: definedOrNull(s.AUC, s.HasAUC), Cuts: cutRowsJSON(s.Cuts), Values: cutRowsJSON(s.Values), Misses: misses,
 	}
 }

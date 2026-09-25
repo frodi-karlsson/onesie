@@ -86,7 +86,7 @@ func TestParseRequirement(t *testing.T) {
 		},
 		{name: "should refuse equality", text: "urgent.catches == 0.9", wantErr: "takes >=, >, <= or <"},
 		{name: "should refuse a negative number", text: "urgent.catches >= -0.1", wantErr: "between 0 and 1"},
-		{name: "should refuse a cut above 1", text: "urgent.catches >= 0.9 at 1.5", wantErr: "between 0 and 1, got 1.5"},
+		{name: "should refuse a cut above 1", text: "urgent.catches >= 0.9 at 1.5", wantErr: "write 0.015, not 1.5"},
 		{name: "should refuse at with no cut", text: "urgent.catches >= 0.9 at", wantErr: "at needs a cut"},
 		{name: "should refuse an empty text", text: "  ", wantErr: "is empty"},
 		{name: "should refuse text after the cut", text: "urgent.catches >= 0.9 at 0.5 please", wantErr: "'please'"},
@@ -94,6 +94,8 @@ func TestParseRequirement(t *testing.T) {
 		{name: "should refuse a missing measure", text: "urgent >= 0.9", wantErr: "ID.MEASURE"},
 		{name: "should refuse an id with a space", text: "my q.catches >= 0.9", wantErr: "'my q'"},
 		{name: "should refuse NaN", text: "urgent.catches >= NaN", wantErr: "between 0 and 1"},
+		{name: "should refuse a space before the bound's parenthesis", text: "lower (urgent.catches) >= 0.9", wantErr: "no space before ("},
+		{name: "should quote a number above 100", text: "urgent.catches >= 150", wantErr: "between 0 and 1, got '150'"},
 		{name: "should refuse an unclosed bound", text: "lower(urgent.catches >= 0.9", wantErr: "closing )"},
 	}
 
@@ -122,7 +124,7 @@ func TestParseRequirement(t *testing.T) {
 	}
 }
 
-func TestCheckRequirement(t *testing.T) {
+func TestRequirement_Check(t *testing.T) {
 	t.Parallel()
 
 	// At cut 0.5: 3 of 4 yes flagged, 1 of 4 no flagged, 3 of 4 flagged right.

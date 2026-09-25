@@ -82,8 +82,8 @@ func build(
 	}
 
 	var (
-		loaded  *qfile.File
-		ignored fileGate
+		loaded   *qfile.File
+		setAside fileGate
 	)
 
 	fileName := flags.file
@@ -104,7 +104,7 @@ func build(
 		}
 
 		if ignoreFileJudgment {
-			ignored = fileGate{assert: loaded.Assert, abstainIf: loaded.AbstainIf}
+			setAside = fileGate{assert: loaded.Assert, abstainIf: loaded.AbstainIf}
 			withoutJudgment(loaded)
 		}
 
@@ -181,7 +181,7 @@ func build(
 
 	return &invocation{
 		plan: built, gate: gate, abstain: abstain, mapper: mapper, namer: namer, loaded: loaded,
-		ignored: ignored,
+		fileGate: setAside,
 	}, warnings, nil
 }
 
@@ -253,13 +253,13 @@ func exprOf(given bool, flag, source string) (*jq.Expr, error) {
 }
 
 type invocation struct {
-	plan    *plan.Plan
-	gate    *assert.Expr
-	abstain *assert.Expr
-	mapper  *jq.Expr
-	namer   *jq.Expr
-	loaded  *qfile.File
-	ignored fileGate
+	plan     *plan.Plan
+	gate     *assert.Expr
+	abstain  *assert.Expr
+	mapper   *jq.Expr
+	namer    *jq.Expr
+	loaded   *qfile.File
+	fileGate fileGate
 }
 
 type fileGate struct {

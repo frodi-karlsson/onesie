@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/frodi-karlsson/onesie/internal/assert"
@@ -64,7 +65,7 @@ func resolveRequirement(built *plan.Plan, gate fileGate, req calibrate.Requireme
 	question := built.Questions[index]
 	if needs := shapeNeeded(req.Measure, question.Shape); needs != "" {
 		return boundRequirement{}, fmt.Sprintf("reads %s, which needs %s, and '%s' is a %s question",
-			req.Measure, needs, question.ID, shapeText(question.Shape))
+			req.Measure, needs, question.ID, calibrate.ShapeName(question.Shape))
 	}
 
 	resolved := boundRequirement{Requirement: req, question: index}
@@ -93,14 +94,6 @@ func shapeNeeded(measure calibrate.Measure, shape plan.Shape) string {
 	}
 
 	return ""
-}
-
-func shapeText(shape plan.Shape) string {
-	if shape == plan.Noul {
-		return "yes/no"
-	}
-
-	return shape.String()
 }
 
 func cutOfRequirement(gate fileGate, req calibrate.Requirement) (float64, string) {
@@ -137,6 +130,9 @@ func cutFromGate(name, source, id string) (float64, string) {
 		return 0, fmt.Sprintf("needs at CUT, since the file's %s never names '%s'", name, id)
 	case !cut.Readable:
 		return 0, fmt.Sprintf("needs at CUT, since the file's %s gives no cut for '%s': %s", name, id, cut.Why)
+	case cut.Value < 0 || cut.Value > 1:
+		return 0, fmt.Sprintf("needs at CUT, since the file's %s compares %s.value with %s, and a cut lies "+
+			"between 0 and 1", name, id, strconv.FormatFloat(cut.Value, 'f', -1, 64))
 	}
 
 	return cut.Value, ""
