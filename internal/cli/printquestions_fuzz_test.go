@@ -264,7 +264,7 @@ func printedQuestions(t *testing.T, data []byte) ([]byte, bool) {
 	return []byte(out), code == ExitOK
 }
 
-func runPrintQuestions(t *testing.T, name string, data []byte) (string, string, int) {
+func runPrintQuestions(t *testing.T, name string, data []byte, flags ...string) (string, string, int) {
 	t.Helper()
 
 	var out, errOut bytes.Buffer
@@ -286,7 +286,7 @@ func runPrintQuestions(t *testing.T, name string, data []byte) (string, string, 
 
 	root.SetOut(&out)
 	root.SetErr(&errOut)
-	root.SetArgs([]string{"-f", name, "--print-questions"})
+	root.SetArgs(append([]string{"-f", name, "--print-questions"}, flags...))
 
 	code := Execute(t.Context(), root)
 
@@ -308,12 +308,12 @@ func asAuthored(questions []plan.Question) []plan.Question {
 	return kept
 }
 
-func unitTestDocs(f testing.TB, dir string) []string {
-	f.Helper()
+func unitTestDocs(tb testing.TB, dir string) []string {
+	tb.Helper()
 
 	files, err := filepath.Glob(filepath.Join(dir, "*_test.go"))
 	if err != nil {
-		f.Fatalf("listing the unit tests: %v", err)
+		tb.Fatalf("listing the unit tests: %v", err)
 	}
 
 	var docs []string
@@ -321,7 +321,7 @@ func unitTestDocs(f testing.TB, dir string) []string {
 	for _, file := range files {
 		parsed, parseErr := parser.ParseFile(token.NewFileSet(), file, nil, 0)
 		if parseErr != nil {
-			f.Fatalf("parsing %s: %v", file, parseErr)
+			tb.Fatalf("parsing %s: %v", file, parseErr)
 		}
 
 		ast.Inspect(parsed, func(node ast.Node) bool {

@@ -40,19 +40,75 @@ func TestSchema(t *testing.T) {
 			},
 		},
 		{
-			name: "should take the pick option counts from the limits",
+			name: "should take the pick option ceiling from the limits",
 			check: func(t *testing.T, schema map[string]any) {
 				t.Helper()
 
-				checkBounds(t, definition(t, schema, "pick"), limits.MinChoiceOptions, limits.MaxChoiceOptions)
+				checkCeiling(t, definition(t, schema, "pick"), limits.MaxChoiceOptions)
 			},
 		},
 		{
-			name: "should take the rate level counts from the limits",
+			name: "should take the rate level ceiling from the limits",
 			check: func(t *testing.T, schema map[string]any) {
 				t.Helper()
 
-				checkBounds(t, definition(t, schema, "rate"), limits.MinScoreLevels, limits.MaxScoreLevels)
+				checkCeiling(t, definition(t, schema, "rate"), limits.MaxScoreLevels)
+			},
+		},
+		{
+			name: "should give every not an error message an editor shows",
+			check: func(t *testing.T, schema map[string]any) {
+				t.Helper()
+
+				walk(schema, func(node map[string]any) {
+					if _, negated := node["not"]; negated && node["errorMessage"] == nil {
+						t.Errorf("a not carries no errorMessage: %v", node)
+					}
+				})
+			},
+		},
+		{
+			name: "should give every pattern an error message an editor shows",
+			check: func(t *testing.T, schema map[string]any) {
+				t.Helper()
+
+				walk(schema, func(node map[string]any) {
+					if _, patterned := node["pattern"]; patterned && node["patternErrorMessage"] == nil {
+						t.Errorf("a pattern carries no patternErrorMessage: %v", node)
+					}
+				})
+			},
+		},
+		{
+			name: "should put no description beside a $ref",
+			check: func(t *testing.T, schema map[string]any) {
+				t.Helper()
+
+				walk(schema, func(node map[string]any) {
+					_, ref := node["$ref"]
+					if _, described := node["description"]; ref && described {
+						t.Errorf("a $ref carries a description, which an editor drops: %v", node)
+					}
+				})
+			},
+		},
+		{
+			name: "should suggest the yes/no fallbacks",
+			check: func(t *testing.T, schema map[string]any) {
+				t.Helper()
+
+				want := `[true,false,"yes","no"]`
+				found := false
+
+				walk(schema, func(node map[string]any) {
+					if examples, err := json.Marshal(node["examples"]); err == nil && string(examples) == want {
+						found = true
+					}
+				})
+
+				if !found {
+					t.Errorf("no node suggests %s", want)
+				}
 			},
 		},
 		{
@@ -99,7 +155,7 @@ func definition(t *testing.T, schema map[string]any, name string) map[string]any
 	return found
 }
 
-func checkBounds(t *testing.T, shape map[string]any, least, most int) {
+func checkCeiling(t *testing.T, shape map[string]any, most int) {
 	t.Helper()
 
 	forms, _ := shape["oneOf"].([]any)
@@ -110,14 +166,34 @@ func checkBounds(t *testing.T, shape map[string]any, least, most int) {
 	for _, form := range forms {
 		fields, _ := form.(map[string]any)
 
+		// A flag adds options and levels to a file's question, so a file may hold fewer than the
+		// floor and still run.
 		lower, upper := "minItems", "maxItems"
 		if fields["type"] == "object" {
 			lower, upper = "minProperties", "maxProperties"
 		}
 
-		if fields[lower] != float64(least) || fields[upper] != float64(most) {
-			t.Errorf("%s %v and %s %v, want %d and %d in %v",
-				lower, fields[lower], upper, fields[upper], least, most, fields)
+		if fields[upper] != float64(most) {
+			t.Errorf("%s %v, want %d in %v", upper, fields[upper], most, fields)
+		}
+
+		if _, floored := fields[lower]; floored {
+			t.Errorf("%s %v, want no floor in %v", lower, fields[lower], fields)
+		}
+	}
+}
+
+func walk(value any, visit func(map[string]any)) {
+	switch typed := value.(type) {
+	case map[string]any:
+		visit(typed)
+
+		for _, child := range typed {
+			walk(child, visit)
+		}
+	case []any:
+		for _, child := range typed {
+			walk(child, visit)
 		}
 	}
 }

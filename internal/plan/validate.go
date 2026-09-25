@@ -10,6 +10,11 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/limits"
 )
 
+var reservedIDs = []string{
+	"$schema", "abstain", "abstain_if", "answers", "assert", "error", "id", "model", "usage",
+	"questions", "state",
+}
+
 // Validate checks a plan and returns the non fatal warnings plus the first fatal error, so a
 // caller can print the warnings whether or not validation succeeded.
 func Validate(p *Plan, cfg Config) ([]string, error) {
@@ -1228,14 +1233,11 @@ func reserved(id string) bool {
 		return true
 	}
 
-	return slices.Contains(ReservedIDs(), id)
+	return slices.Contains(reservedIDs, id)
 }
 
 // ReservedIDs lists the ids no question may take, apart from the positional id and any id that
 // starts with two underscores.
 func ReservedIDs() []string {
-	return []string{
-		"$schema", "abstain", "abstain_if", "answers", "assert", "error", "id", "model", "usage",
-		"questions", "state",
-	}
+	return slices.Clone(reservedIDs)
 }
