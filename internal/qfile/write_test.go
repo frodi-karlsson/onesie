@@ -186,6 +186,30 @@ func TestWrite(t *testing.T) {
 				"has more digits than a question file keeps",
 		},
 		{
+			name: "should leave html characters unescaped in a quoted scalar",
+			questions: []plan.Question{
+				{ID: "q", Shape: plan.Noul, Instructions: "<b>\t&"},
+			},
+			want: "q:\n  ask: \"<b>\\t&\"\n",
+		},
+		{
+			name: "should escape delete and the C1 controls, which a YAML reader refuses raw",
+			questions: []plan.Question{
+				{ID: "q", Shape: plan.Noul, Instructions: "a\x7fb\u0085c\u009f"},
+			},
+			want: "q:\n  ask: \"a\\u007fb\\u0085c\\u009f\"\n",
+		},
+		{
+			name: "should keep a block scalar whose last line ends in spaces where it survives",
+			questions: []plan.Question{
+				{
+					ID: "team", Shape: plan.Pick, Instructions: "who owns this",
+					Options: []plan.Option{{Name: "billing", Desc: "first\nsecond    \n"}},
+				},
+			},
+			want: "team:\n  ask: who owns this\n  pick:\n    billing: |\n      first\n      second    \n",
+		},
+		{
 			name: "should reject the reserved positional id",
 			questions: []plan.Question{
 				{ID: "answer", Shape: plan.Noul, Instructions: "q"},

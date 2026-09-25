@@ -1,6 +1,7 @@
 package qfile
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -285,21 +286,58 @@ type quoter struct{}
 func (q quoter) Visit(node ast.Node) ast.Visitor {
 	switch typed := node.(type) {
 	case *ast.MappingValueNode:
-		if key, ok := requote(typed.Key, true).(ast.MapKeyNode); ok {
+		// Probed at the column the key is written at, since goccy's block scalars keep or lose the
+		// spaces that end their last line depending on how deep they are indented.
+		depth := depthAt(typed.Key.GetToken())
+
+		asKey := probe{
+			depth: depth, leaf: func(text string) any { return yaml.MapSlice{{Key: text, Value: "v"}} },
+			read: func(leaf yaml.MapItem) any { return leaf.Key },
+		}
+		if key, ok := requote(typed.Key, asKey).(ast.MapKeyNode); ok {
 			typed.Key = key
 		}
 
-		typed.Value = requote(typed.Value, false)
+		typed.Value = requote(typed.Value, probe{
+			depth: depth, leaf: func(text string) any { return text },
+			read: func(leaf yaml.MapItem) any { return leaf.Value },
+		})
 	case *ast.SequenceNode:
+		// goccy writes a sequence's dash at the column of the key that holds it.
+		asItem := probe{
+			depth: depthAt(typed.Start), leaf: func(text string) any { return []any{text} },
+			read: func(leaf yaml.MapItem) any {
+				if items, ok := leaf.Value.([]any); ok && len(items) == 1 {
+					return items[0]
+				}
+
+				return nil
+			},
+		}
+
 		for i, item := range typed.Values {
-			typed.Values[i] = requote(item, false)
+			typed.Values[i] = requote(item, asItem)
 		}
 	}
 
 	return q
 }
 
-func requote(node ast.Node, isKey bool) ast.Node {
+type probe struct {
+	depth int
+	leaf  func(text string) any
+	read  func(leaf yaml.MapItem) any
+}
+
+func depthAt(tok *token.Token) int {
+	if tok == nil || tok.Position == nil {
+		return 0
+	}
+
+	return max(tok.Position.Column-1, 0) / 2
+}
+
+func requote(node ast.Node, at probe) ast.Node {
 	if float, isFloat := node.(*ast.FloatNode); isFloat {
 		pointMantissa(float.Token)
 
@@ -307,24 +345,49 @@ func requote(node ast.Node, isKey bool) ast.Node {
 	}
 
 	text, ok := scalarText(node)
-	if !ok || !strings.ContainsFunc(text, needsEscape) && survivesUnquoted(text, isKey) {
+	if !ok || !strings.ContainsFunc(text, needsEscape) && survivesUnquoted(text, at) {
 		// Every other scalar is left to goccy, because section 10 means the file to be read and
 		// edited and forcing every multi line description onto one quoted line loses the block
 		// scalar that makes it readable.
 		return node
 	}
 
-	// goccy emits a tab as a plain scalar and a carriage return as a block scalar whose breaks are
-	// carriage returns, and its own parser drops the first and rewrites the second as a line feed.
-	// Any other control character it emits raw, which YAML only allows escaped.
-	// JSON string escaping is a strict subset of YAML's double quoted escaping, so encoding/json is
-	// a correct emitter for the one form that survives.
-	encoded, err := json.Marshal(text)
+	quoted, err := doubleQuoted(text)
 	if err != nil {
 		return node
 	}
 
-	return ast.String(token.New(string(encoded), string(encoded), node.GetToken().Position))
+	return ast.String(token.New(quoted, quoted, node.GetToken().Position))
+}
+
+func doubleQuoted(text string) (string, error) {
+	// goccy emits a tab as a plain scalar and a carriage return as a block scalar whose breaks are
+	// carriage returns, and its own parser drops the first and rewrites the second as a line feed.
+	// Any other control character it emits raw, which YAML only allows escaped. JSON string
+	// escaping is a subset of YAML's double quoted escaping, so encoding/json is a correct emitter,
+	// once it leaves html alone and escapes the delete and C1 controls it writes raw.
+	var buf bytes.Buffer
+
+	encoder := json.NewEncoder(&buf)
+	encoder.SetEscapeHTML(false)
+
+	if err := encoder.Encode(text); err != nil {
+		return "", err
+	}
+
+	var quoted strings.Builder
+
+	for _, r := range strings.TrimSuffix(buf.String(), "\n") {
+		if r >= 0x7f && r <= 0x9f {
+			fmt.Fprintf(&quoted, `\u%04x`, r)
+
+			continue
+		}
+
+		quoted.WriteRune(r)
+	}
+
+	return quoted.String(), nil
 }
 
 func pointMantissa(tok *token.Token) {
@@ -343,38 +406,44 @@ func needsEscape(r rune) bool {
 	return r != '\n' && unicode.IsControl(r)
 }
 
-func survivesUnquoted(text string, isKey bool) bool {
+func survivesUnquoted(text string, at probe) bool {
 	// goccy leaves some scalars unquoted that the loader then reads as syntax or as a number, such
 	// as one starting with a question mark and a space, a key of three dots or a string like 1e-7.
-	// Its block scalars lose a lone line feed and the spaces that end the last line. So a scalar
-	// keeps goccy's form only when it reads back unchanged where it stands.
-	if isKey {
-		read, ok := printedAndRead(yaml.MapSlice{{Key: text, Value: "v"}})
-
-		return ok && read.Key == text
+	// Its block scalars lose a lone line feed and, at some depths, the spaces that end the last
+	// line. So a scalar keeps goccy's form only when it reads back unchanged where it stands.
+	var doc any = yaml.MapSlice{{Key: "k", Value: at.leaf(text)}}
+	if leaf, isMapping := at.leaf(text).(yaml.MapSlice); isMapping {
+		doc = leaf
 	}
 
-	read, ok := printedAndRead(yaml.MapSlice{{Key: "k", Value: text}})
+	for range at.depth {
+		doc = yaml.MapSlice{{Key: "k", Value: doc}}
+	}
 
-	return ok && read.Value == text
-}
-
-func printedAndRead(doc yaml.MapSlice) (yaml.MapItem, bool) {
 	node, err := yaml.ValueToNode(doc)
 	if err != nil {
-		return yaml.MapItem{}, false
+		return false
 	}
 
 	var out printer.Printer
 
 	read, err := DecodeOrdered(out.PrintNode(node))
-	back, isMapping := read.(yaml.MapSlice)
-
-	if err != nil || !isMapping || len(back) != 1 {
-		return yaml.MapItem{}, false
+	if err != nil {
+		return false
 	}
 
-	return back[0], true
+	for range at.depth {
+		items, isMapping := read.(yaml.MapSlice)
+		if !isMapping || len(items) != 1 {
+			return false
+		}
+
+		read = items[0].Value
+	}
+
+	items, isMapping := read.(yaml.MapSlice)
+
+	return isMapping && len(items) == 1 && at.read(items[0]) == text
 }
 
 func scalarText(node ast.Node) (string, bool) {
