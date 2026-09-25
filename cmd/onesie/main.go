@@ -5,6 +5,8 @@ import (
 	"context"
 	"os"
 	"os/signal"
+	"regexp"
+	"runtime/debug"
 	"syscall"
 
 	"github.com/frodi-karlsson/onesie/internal/cli"
@@ -17,6 +19,8 @@ var (
 	date    = "unknown"
 	tag     = ""
 )
+
+var pseudoVersion = regexp.MustCompile(`[-.][0-9]{14}-[0-9a-f]{12}(\+[0-9A-Za-z.]+)?$`)
 
 func main() {
 	// os.Exit skips deferred calls, so run owns the cleanup and the exit code.
@@ -32,9 +36,34 @@ func run() int {
 	ctx, stop := interruptible(context.Background())
 	defer stop()
 
-	root := cli.NewRootCmd(cli.BuildInfo{Version: version, Commit: commit, Date: date, Tag: tag})
+	root := cli.NewRootCmd(cli.BuildInfo{
+		Version: version, Commit: commit, Date: date, Tag: releaseTag(tag, moduleVersion()),
+	})
 
 	return cli.Execute(ctx, root)
+}
+
+func moduleVersion() string {
+	info, ok := debug.ReadBuildInfo()
+	if !ok {
+		return ""
+	}
+
+	return info.Main.Version
+}
+
+func releaseTag(stamped, module string) string {
+	if stamped != "" {
+		return stamped
+	}
+
+	// go install at a version stamps no tag but records the module version, which names the tag
+	// unless the build came from a checkout or a commit between tags.
+	if module == "(devel)" || pseudoVersion.MatchString(module) {
+		return ""
+	}
+
+	return module
 }
 
 func interruptible(parent context.Context) (context.Context, context.CancelFunc) {
