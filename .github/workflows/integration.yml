@@ -26,7 +26,7 @@ jobs:
 
       - name: Run the live suite
         env:
-          # Absent on a fork or before the secret is added. The suite skips rather than failing.
+          # Absent on a fork, where the suite skips rather than failing.
           TYPESAFE_API_KEY: ${{ secrets.TYPESAFE_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         run: make test-integration
