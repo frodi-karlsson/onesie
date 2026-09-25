@@ -218,11 +218,13 @@ func runCalibrate(
 
 	answers := liveAnswers(settings)
 	if mockPath != "" {
-		answers, err = mockAnswers(settings, mockPath, mockSpelled, inv.plan, cfg.HasID)
+		answers, err = mockAnswers(settings, flags, mockPath, mockSpelled, inv.plan)
 		if err != nil {
 			return err
 		}
 	}
+
+	answers = wrapped(settings, answers)
 
 	return calibrateRun(cmd, settings, flags, calib, inputMode, inv, labels, answers)
 }

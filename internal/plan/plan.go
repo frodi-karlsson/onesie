@@ -3,6 +3,14 @@ package plan
 
 import "github.com/frodi-karlsson/onesie/internal/argv"
 
+// The two spellings of a mock answers file, which a refusal names.
+const (
+	// MockFlag is the flag that names a mock answers file.
+	MockFlag = "--mock"
+	// MockVariable is the environment variable that names one.
+	MockVariable = "ONESIE_MOCK"
+)
+
 // Plan is a validated invocation. Questions are in the order they were defined, which is the order
 // the normalized output requires.
 type Plan struct {

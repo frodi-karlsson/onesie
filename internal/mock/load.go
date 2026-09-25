@@ -9,68 +9,71 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"time"
 
 	"github.com/frodi-karlsson/onesie/internal/jq"
 	"github.com/frodi-karlsson/onesie/internal/limits"
 	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
-const prefix = "onesie: --mock"
+// Flag is the spelling a message uses when Options names none.
+const Flag = "--mock"
 
 var errTooLong = errors.New("line too long")
 
 // Load reads a mock file and checks every entry against the questions. Lines are matched by id
-// when byID is set and by record position otherwise.
-func Load(r io.Reader, questions []plan.Question, byID bool) (*Answers, error) {
-	lines, err := readLines(r)
+// when Options.ByID is set and by record position otherwise.
+func Load(r io.Reader, questions []plan.Question, opts Options) (*Answers, error) {
+	if opts.Spelled == "" {
+		opts.Spelled = Flag
+	}
+
+	parse := parser{questions: questions, opts: opts, prefix: "onesie: " + opts.Spelled}
+
+	lines, err := parse.readLines(r)
 	if err != nil {
 		return nil, err
 	}
 
 	if len(lines) == 0 {
-		return nil, errors.New(prefix + ": the file is empty")
+		return nil, errors.New(parse.prefix + ": the file is empty")
 	}
 
-	if whole, isObject := oneObject(lines); isObject {
-		entry, answers, entryErr := parseEntry(whole, questions, prefix)
-		if entryErr != nil {
-			return nil, entryErr
-		}
-
-		if !answers {
-			entry = nil
-		}
-
-		return &Answers{every: entry, shared: true}, nil
+	whole, isObject, err := parse.oneObject(lines)
+	if err != nil {
+		return nil, err
 	}
 
-	return loadLines(lines, questions, byID)
+	if isObject {
+		entry, err := parse.entry(whole, parse.prefix)
+		if err != nil {
+			return nil, err
+		}
+
+		return &Answers{spelled: opts.Spelled, shared: true, every: slot{entry: entry}}, nil
+	}
+
+	return parse.lines(lines)
 }
 
-func readLines(r io.Reader) ([][]byte, error) {
+func (p parser) readLines(r io.Reader) ([][]byte, error) {
 	reader := bufio.NewReader(r)
 
 	var lines [][]byte
-
-	blank := true
 
 	for number := 1; ; number++ {
 		line, err := readLine(reader)
 		if errors.Is(err, errTooLong) {
 			return nil, fmt.Errorf("%s line %d is longer than %d bytes, the max-line-bytes cap -V lists",
-				prefix, number, limits.MaxLineBytes)
+				p.prefix, number, limits.MaxLineBytes)
 		}
 
 		if err != nil && !errors.Is(err, io.EOF) {
-			return nil, fmt.Errorf("%s: %w", prefix, err)
+			return nil, fmt.Errorf("%s: %w", p.prefix, err)
 		}
 
 		if errors.Is(err, io.EOF) && line == nil {
 			break
-		}
-
-		if len(bytes.TrimSpace(line)) > 0 {
-			blank = false
 		}
 
 		lines = append(lines, line)
@@ -80,8 +83,9 @@ func readLines(r io.Reader) ([][]byte, error) {
 		}
 	}
 
-	if blank {
-		return nil, nil
+	// Blank lines at the end are the trailing newlines an editor leaves, and answer no record.
+	for len(lines) > 0 && len(bytes.TrimSpace(lines[len(lines)-1])) == 0 {
+		lines = lines[:len(lines)-1]
 	}
 
 	return lines, nil
@@ -115,21 +119,30 @@ func readLine(reader *bufio.Reader) ([]byte, error) {
 	}
 }
 
-func oneObject(lines [][]byte) (map[string]any, bool) {
-	whole := bytes.Join(lines, []byte("\n"))
+func (p parser) oneObject(lines [][]byte) (map[string]any, bool, error) {
+	fields, isObject := wholeObject(lines)
+	if !isObject {
+		return nil, false, nil
+	}
 
-	fields, err := decodeObject(whole)
-	if err != nil {
-		return nil, false
+	if _, named := fields["id"]; !named {
+		return fields, true, nil
 	}
 
 	// A lone line that names its record is an answers line, so a one line --out file under --id
 	// still matches by id.
-	if _, named := fields["id"]; named {
-		return nil, false
+	if len(lines) == 1 {
+		return nil, false, nil
 	}
 
-	return fields, true
+	return nil, false, fmt.Errorf("%s: the file is one object over several lines that carries an id. "+
+		"Write each answers line on a line of its own, or drop the id to answer every record", p.prefix)
+}
+
+func wholeObject(lines [][]byte) (map[string]any, bool) {
+	fields, err := decodeObject(bytes.Join(lines, []byte("\n")))
+
+	return fields, err == nil
 }
 
 func decodeObject(raw []byte) (map[string]any, error) {
@@ -153,13 +166,12 @@ func decodeObject(raw []byte) (map[string]any, error) {
 	return fields, nil
 }
 
-func loadLines(lines [][]byte, questions []plan.Question, byID bool) (*Answers, error) {
-	answers := &Answers{byID: byID, ids: map[string]*Entry{}}
-	firstLine := map[string]int{}
+func (p parser) lines(lines [][]byte) (*Answers, error) {
+	answers := &Answers{spelled: p.opts.Spelled, byID: p.opts.ByID, ids: map[string]slot{}}
 
 	for i, raw := range lines {
 		number := i + 1
-		where := fmt.Sprintf("%s line %d", prefix, number)
+		where := fmt.Sprintf("%s line %d", p.prefix, number)
 
 		if len(bytes.TrimSpace(raw)) == 0 {
 			return nil, fmt.Errorf("%s is blank", where)
@@ -170,18 +182,14 @@ func loadLines(lines [][]byte, questions []plan.Question, byID bool) (*Answers, 
 			return nil, fmt.Errorf("%s is not a JSON object", where)
 		}
 
-		entry, answered, err := parseEntry(fields, questions, where)
+		entry, err := p.entry(fields, where)
 		if err != nil {
 			return nil, err
 		}
 
-		if !answered {
-			entry = nil
-		}
+		answers.lines = append(answers.lines, slot{entry: entry, line: number})
 
-		answers.lines = append(answers.lines, entry)
-
-		if !byID {
+		if !p.opts.ByID {
 			continue
 		}
 
@@ -190,43 +198,90 @@ func loadLines(lines [][]byte, questions []plan.Question, byID bool) (*Answers, 
 			return nil, fmt.Errorf("%s has no id, and --id matches the file by id", where)
 		}
 
-		if first, taken := firstLine[text]; taken {
-			return nil, fmt.Errorf("%s: id '%s' is also the id of line %d", where, text, first)
+		if first, taken := answers.ids[text]; taken {
+			return nil, fmt.Errorf("%s: id '%s' is also the id of line %d", where, text, first.line)
 		}
 
-		firstLine[text] = number
-		answers.ids[text] = entry
+		answers.ids[text] = slot{entry: entry, line: number}
 	}
 
 	return answers, nil
 }
 
+type parser struct {
+	questions []plan.Question
+	opts      Options
+	prefix    string
+}
+
 // Lookup returns the entry for the record at a position counted from one, or for an id when the
 // file is matched by id. The second result is false for a record the file does not answer.
 func (a *Answers) Lookup(position int, id any) (Entry, bool) {
-	var found *Entry
-
-	switch {
-	case a.shared:
-		found = a.every
-	case a.byID:
-		found = a.ids[jq.IDText(id)]
-	case position >= 1 && position <= len(a.lines):
-		found = a.lines[position-1]
-	}
-
-	if found == nil {
+	found, _ := a.find(position, id)
+	if found.entry == nil {
 		return Entry{}, false
 	}
 
-	return *found, true
+	return *found.entry, true
+}
+
+// Missing says why the file answers no record at a position or id, naming the record by its input
+// line.
+func (a *Answers) Missing(position int, id any, line int) string {
+	found, exists := a.find(position, id)
+	prefix := "onesie: " + a.spelled
+
+	switch {
+	case exists && a.shared:
+		return fmt.Sprintf("%s replays a line onesie could not read, so input line %d has no answer. "+
+			"Give it answers", prefix, line)
+	case exists:
+		return fmt.Sprintf("%s line %d replays a line onesie could not read, so input line %d has no answer. "+
+			"Give it answers", prefix, found.line, line)
+	case a.byID:
+		return fmt.Sprintf("%s has no line with id '%s', so input line %d has no answer. Add one",
+			prefix, jq.IDText(id), line)
+	default:
+		return fmt.Sprintf("%s has no line %d, so input line %d has no answer. Add one", prefix, position, line)
+	}
+}
+
+func (a *Answers) find(position int, id any) (slot, bool) {
+	switch {
+	case a.shared:
+		return a.every, true
+	case a.byID:
+		found, exists := a.ids[jq.IDText(id)]
+
+		return found, exists
+	case position >= 1 && position <= len(a.lines):
+		return a.lines[position-1], true
+	default:
+		return slot{}, false
+	}
 }
 
 // Answers is a checked mock file, ready to answer records by position or by id.
 type Answers struct {
-	shared bool
-	every  *Entry
-	byID   bool
-	lines  []*Entry
-	ids    map[string]*Entry
+	spelled string
+	shared  bool
+	every   slot
+	byID    bool
+	lines   []slot
+	ids     map[string]slot
+}
+
+type slot struct {
+	entry *Entry // Nil for a replayed line onesie could not read, which answers nothing.
+	line  int
+}
+
+// Options says how a mock file is matched and named.
+type Options struct {
+	// ByID matches lines by their id rather than by record position.
+	ByID bool
+	// Spelled names where the file came from in every message, --mock unless set.
+	Spelled string
+	// Timeout is the attempt timeout a timeout entry reports.
+	Timeout time.Duration
 }

@@ -20,6 +20,7 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/jev"
 	"github.com/frodi-karlsson/onesie/internal/jq"
 	"github.com/frodi-karlsson/onesie/internal/limits"
+	"github.com/frodi-karlsson/onesie/internal/mock"
 	"github.com/frodi-karlsson/onesie/internal/output"
 	"github.com/frodi-karlsson/onesie/internal/plan"
 )
@@ -112,11 +113,13 @@ func run(
 	// Loaded before any mode writes, so a file that does not match the questions leaves no line.
 	answers := liveAnswers(settings)
 	if mockPath != "" {
-		answers, err = mockAnswers(settings, mockPath, mockSpelled, built, cfg.HasID)
+		answers, err = mockAnswers(settings, flags, mockPath, mockSpelled, built)
 		if err != nil {
 			return err
 		}
 	}
+
+	answers = wrapped(settings, answers)
 
 	// Both modes are parsed before the request, so a mistyped flag costs nothing.
 	outputMode, err := output.ParseMode(
@@ -963,7 +966,12 @@ func answered(
 		// Wrapped here rather than at either caller, so the stderr line and the streaming record
 		// carry the same remedy. Every question on this path passed onesie's own bounds check, so a
 		// count the server rejects says something about those bounds.
-		advised := advise(err, model, true)
+		// A mocked failure came from no key and no account, so advice about either would mislead.
+		advised := err
+		if model != mock.Model {
+			advised = advise(err, model, true)
+		}
+
 		failed := failureRecord(built, advised)
 
 		var unusable *jev.ResponseError

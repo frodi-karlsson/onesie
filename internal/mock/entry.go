@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/frodi-karlsson/onesie/internal/jev"
 	"github.com/frodi-karlsson/onesie/internal/plan"
@@ -26,35 +27,35 @@ var (
 	echoedKeys = []string{"p", "legend", "decision", "fallback", "score", "norm"}
 )
 
-func parseEntry(fields map[string]any, questions []plan.Question, where string) (*Entry, bool, error) {
-	ids := make([]string, 0, len(questions))
-	for _, question := range questions {
+func (p parser) entry(fields map[string]any, where string) (*Entry, error) {
+	ids := make([]string, 0, len(p.questions))
+	for _, question := range p.questions {
 		ids = append(ids, question.ID)
 	}
 
 	for _, key := range sortedKeys(fields) {
 		if !slices.Contains(lineKeys, key) && !slices.Contains(ids, key) {
-			return nil, false, fmt.Errorf("%s: '%s' is not a question. Questions: %s",
+			return nil, fmt.Errorf("%s: '%s' is not a question. Questions: %s",
 				where, key, strings.Join(ids, ", "))
 		}
 	}
 
 	if failure, failed := fields["error"]; failed {
-		return parseFailure(failure, where)
+		return p.failure(failure, where)
 	}
 
-	answers := make(map[string]jev.Answer, len(questions))
+	answers := make(map[string]jev.Answer, len(p.questions))
 
-	for _, question := range questions {
+	for _, question := range p.questions {
 		given, found := fields[question.ID]
 		if !found {
-			return nil, false, fmt.Errorf("%s: question '%s' has no answer, and an entry answers every question",
+			return nil, fmt.Errorf("%s: question '%s' has no answer, and an entry answers every question",
 				where, question.ID)
 		}
 
 		built, err := parseAnswer(question, given)
 		if err != nil {
-			return nil, false, fmt.Errorf("%s: question '%s' %w", where, question.ID, err)
+			return nil, fmt.Errorf("%s: question '%s' %w", where, question.ID, err)
 		}
 
 		answers[question.ID] = built
@@ -63,12 +64,12 @@ func parseEntry(fields map[string]any, questions []plan.Question, where string) 
 	// encoding/json sorts map keys, so two entries with the same answers encode the same way.
 	encoded, err := json.Marshal(answers)
 	if err != nil {
-		return nil, false, fmt.Errorf("%s: %w", where, err)
+		return nil, fmt.Errorf("%s: %w", where, err)
 	}
 
 	result := &jev.Result{Model: Model, Answers: answers}
 
-	return &Entry{result: result, key: "answers " + string(encoded)}, true, nil
+	return &Entry{result: result, key: "answers " + string(encoded)}, nil
 }
 
 func sortedKeys(fields map[string]any) []string {
@@ -82,7 +83,7 @@ func sortedKeys(fields map[string]any) []string {
 	return keys
 }
 
-func parseFailure(failure any, where string) (*Entry, bool, error) {
+func (p parser) failure(failure any, where string) (*Entry, error) {
 	refused := fmt.Errorf("%s: error %s is not one onesie can replay. Use a status from 400 to 599, "+
 		"timeout or connection", where, shown(failure))
 
@@ -90,51 +91,51 @@ func parseFailure(failure any, where string) (*Entry, bool, error) {
 	case json.Number:
 		status, isStatus := errorStatus(typed)
 		if !isStatus {
-			return nil, false, refused
+			return nil, refused
 		}
 
-		return statusEntry(status), true, nil
+		return statusEntry(status), nil
 	case string:
 		switch typed {
 		case "timeout":
-			return timeoutEntry(), true, nil
+			return timeoutEntry(p.opts.Timeout), nil
 		case "connection":
-			return connectionEntry(), true, nil
+			return connectionEntry(), nil
 		}
 	case map[string]any:
 		return writtenFailure(typed, refused)
 	}
 
-	return nil, false, refused
+	return nil, refused
 }
 
-func writtenFailure(failure map[string]any, refused error) (*Entry, bool, error) {
+func writtenFailure(failure map[string]any, refused error) (*Entry, error) {
 	switch failure["kind"] {
 	case "http":
 		number, isNumber := failure["status"].(json.Number)
 		if !isNumber {
-			return nil, false, refused
+			return nil, refused
 		}
 
 		status, isStatus := errorStatus(number)
 		if !isStatus {
-			return nil, false, refused
+			return nil, refused
 		}
 
-		return statusEntry(status), true, nil
+		return statusEntry(status), nil
 	case "transport":
-		return connectionEntry(), true, nil
+		return connectionEntry(), nil
 	case "response":
 		return &Entry{
 			err: &jev.ResponseError{Status: http.StatusOK, Message: "onesie: mock response onesie could not use"},
 			key: "error response",
-		}, true, nil
+		}, nil
 	case "input":
 		// A line onesie could not read never became a request, so it has no answer to replay.
-		return nil, false, nil
+		return nil, nil
 	}
 
-	return nil, false, refused
+	return nil, refused
 }
 
 func errorStatus(number json.Number) (int, bool) {
@@ -153,9 +154,11 @@ func statusEntry(status int) *Entry {
 	}
 }
 
-func timeoutEntry() *Entry {
+func timeoutEntry(timeout time.Duration) *Entry {
 	return &Entry{
-		err: &jev.TimeoutError{ConnectionError: jev.ConnectionError{Err: errors.New("mock timeout")}},
+		err: &jev.TimeoutError{
+			ConnectionError: jev.ConnectionError{Err: errors.New("mock timeout")}, Timeout: timeout,
+		},
 		key: "error timeout",
 	}
 }
@@ -207,6 +210,7 @@ func partsOf(question plan.Question, given any) (answerParts, error) {
 	parts.value = value
 	parts.score = object["score"]
 	parts.norm = object["norm"]
+	parts.p = object["p"]
 
 	if given, found := object["confidence"]; found {
 		confidence, isUnit := unitNumber(given)
@@ -248,13 +252,20 @@ func pickAnswer(question plan.Question, parts answerParts) (jev.Answer, error) {
 		return nil, fmt.Errorf("picked '%s', which is not an option. Options: %s", name, strings.Join(names, ", "))
 	}
 
-	// The value comes from Choice, so the rest of the mass only needs to add up.
-	probabilities := make(map[string]float64, len(names))
-	for _, other := range names {
-		probabilities[other] = (1 - parts.confidence) / float64(max(len(names)-1, 1))
+	probabilities, err := replayed(parts.p, names, name, false)
+	if err != nil {
+		return nil, err
 	}
 
-	probabilities[name] = parts.confidence
+	if probabilities == nil {
+		// The value comes from Choice, so the rest of the mass only needs to add up.
+		probabilities = make(map[string]float64, len(names))
+		for _, other := range names {
+			probabilities[other] = (1 - parts.confidence) / float64(max(len(names)-1, 1))
+		}
+
+		probabilities[name] = parts.confidence
+	}
 
 	return &jev.ChoiceAnswer{Choice: name, Confidence: parts.confidence, Probabilities: probabilities}, nil
 }
@@ -298,21 +309,73 @@ func rateAnswer(question plan.Question, parts answerParts) (jev.Answer, error) {
 		}
 	}
 
-	// All the mass on the chosen level, so the modal level the value is read from is always that one.
+	given, err := replayed(parts.p, names, name, true)
+	if err != nil {
+		return nil, err
+	}
+
 	probabilities := make(map[string]float64, len(names))
 	legend := make(map[string]string, len(names))
 
 	for i, level := range question.Levels {
 		key := strconv.Itoa(i)
-		probabilities[key] = 0
+		probabilities[key] = given[names[i]]
 		legend[key] = legendOf(question, level)
 	}
 
-	probabilities[strconv.Itoa(index)] = 1
+	// With no p to replay, all the mass is on the chosen level, so the modal level the value is read
+	// from is that one.
+	if given == nil {
+		probabilities[strconv.Itoa(index)] = 1
+	}
 
 	return &jev.ScoreAnswer{
 		Score: score, Confidence: parts.confidence, Legend: legend, Probabilities: probabilities,
 	}, nil
+}
+
+func replayed(given any, names []string, value string, firstWins bool) (map[string]float64, error) {
+	if given == nil {
+		return nil, nil
+	}
+
+	object, isObject := given.(map[string]any)
+	if !isObject {
+		return nil, fmt.Errorf("has p %s, which is not an object of probabilities", shown(given))
+	}
+
+	for _, key := range sortedKeys(object) {
+		if !slices.Contains(names, key) {
+			return nil, fmt.Errorf("has p with the key '%s', which is not one of %s", key, strings.Join(names, ", "))
+		}
+	}
+
+	probabilities := make(map[string]float64, len(names))
+
+	for _, name := range names {
+		raw, found := object[name]
+		if !found {
+			return nil, fmt.Errorf("has p with no entry for '%s'", name)
+		}
+
+		probability, isUnit := unitNumber(raw)
+		if !isUnit {
+			return nil, fmt.Errorf("has p for '%s' of %s, which lies outside [0,1]", name, shown(raw))
+		}
+
+		probabilities[name] = probability
+	}
+
+	for i, name := range names {
+		// onesie reads a rate's value from its modal level, and the first of equal levels wins, so a
+		// tie ahead of the value would print another level. A pick's value is the pick itself.
+		ahead := firstWins && i < slices.Index(names, value)
+		if probabilities[name] > probabilities[value] || (ahead && probabilities[name] == probabilities[value]) {
+			return nil, fmt.Errorf("has p that makes '%s' likelier than its value '%s'", name, value)
+		}
+	}
+
+	return probabilities, nil
 }
 
 func levelNames(question plan.Question) []string {
@@ -390,6 +453,7 @@ type answerParts struct {
 	confidence float64
 	score      any
 	norm       any
+	p          any
 }
 
 // Result returns the response the API would have sent, or the error the request would have failed

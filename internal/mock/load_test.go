@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/frodi-karlsson/onesie/internal/answer"
 	"github.com/frodi-karlsson/onesie/internal/jev"
@@ -23,6 +24,8 @@ func TestLoad(t *testing.T) {
 		file      string
 		questions []plan.Question
 		byID      bool
+		spelled   string
+		timeout   time.Duration
 		lookups   []lookup
 		wantErr   string
 	}{
@@ -146,6 +149,32 @@ func TestLoad(t *testing.T) {
 			lookups: []lookup{{position: 4, sentinel: jev.ErrServer, status: 503}},
 		},
 		{
+			name: "should allow blank lines at the end of a lines file",
+			file: `{"u":0.1,"t":"billing","r":"calm"}` + "\n" + `{"u":0.2,"t":"billing","r":"calm"}` + "\n\n \n",
+			lookups: []lookup{
+				{position: 2, want: map[string]any{"u": 0.2}},
+				{position: 3, missing: true},
+			},
+		},
+		{
+			name:    "should time out after the run's own timeout",
+			file:    `{"error":"timeout"}`,
+			timeout: 7 * time.Second,
+			lookups: []lookup{{position: 1, sentinel: jev.ErrTimeout, message: "onesie: request timed out after 7s"}},
+		},
+		{
+			name:    "should name the variable the file came from",
+			file:    `{"u":1.2,"t":"billing","r":"curt"}`,
+			spelled: "ONESIE_MOCK",
+			wantErr: "onesie: ONESIE_MOCK: question 'u' answered 1.2, which lies outside [0,1]",
+		},
+		{
+			name: "should refuse one object over several lines that carries an id",
+			file: "{\n  \"id\": \"T-1\",\n  " + full + "\n}\n",
+			wantErr: "onesie: --mock: the file is one object over several lines that carries an id. " +
+				"Write each answers line on a line of its own, or drop the id to answer every record",
+		},
+		{
 			name:    "should refuse an unknown question id",
 			file:    "{" + full + "}\n" + `{` + full + `,"x":0.2}`,
 			wantErr: "onesie: --mock line 2: 'x' is not a question. Questions: u, t, r",
@@ -253,7 +282,7 @@ func TestLoad(t *testing.T) {
 				asked = questions
 			}
 
-			answers, err := Load(strings.NewReader(tc.file), asked, tc.byID)
+			answers, err := Load(strings.NewReader(tc.file), asked, Options{ByID: tc.byID, Spelled: tc.spelled, Timeout: tc.timeout})
 			if tc.wantErr != "" {
 				if err == nil || err.Error() != tc.wantErr {
 					t.Fatalf("error\n got: %v\nwant: %s", err, tc.wantErr)
@@ -300,6 +329,10 @@ func checkLookup(t *testing.T, answers *Answers, questions []plan.Question, look
 			t.Errorf("position %d error %v, want status %d", look.position, err, look.status)
 		}
 
+		if look.message != "" && err.Error() != look.message {
+			t.Errorf("position %d error %q, want %q", look.position, err.Error(), look.message)
+		}
+
 		return
 	}
 
@@ -336,6 +369,7 @@ type lookup struct {
 	missing    bool
 	sentinel   error
 	status     int
+	message    string
 }
 
 func threeQuestions() []plan.Question {
@@ -353,4 +387,76 @@ func rateQuestion(id string, labels ...string) plan.Question {
 	}
 
 	return question
+}
+
+func TestAnswersMissing(t *testing.T) {
+	t.Parallel()
+
+	full := `"u":0.9,"t":"billing","r":"curt"`
+	unread := `{"error":{"kind":"input","status":null,"message":"x"}}`
+
+	tests := []struct {
+		name     string
+		file     string
+		byID     bool
+		position int
+		id       any
+		line     int
+		want     string
+	}{
+		{
+			name:     "should name the missing mock line and the input line",
+			file:     "{" + full + "}\n{" + full + "}\n",
+			position: 3,
+			line:     5,
+			want:     "onesie: --mock has no line 3, so input line 5 has no answer. Add one",
+		},
+		{
+			name:     "should name a mock line that answers nothing and the input line",
+			file:     "{" + full + "}\n" + unread + "\n",
+			position: 2,
+			line:     2,
+			want: "onesie: --mock line 2 replays a line onesie could not read, so input line 2 " +
+				"has no answer. Give it answers",
+		},
+		{
+			name: "should name a missing id and the input line",
+			file: `{"id":"a",` + full + "}\n",
+			byID: true,
+			id:   "b",
+			line: 4,
+			want: "onesie: --mock has no line with id 'b', so input line 4 has no answer. Add one",
+		},
+		{
+			name: "should name the mock line of an id that answers nothing",
+			file: `{"id":"a",` + full + "}\n" + `{"id":"b","error":{"kind":"input","status":null,"message":"x"}}` + "\n",
+			byID: true,
+			id:   "b",
+			line: 4,
+			want: "onesie: --mock line 2 replays a line onesie could not read, so input line 4 " +
+				"has no answer. Give it answers",
+		},
+		{
+			name: "should name an object that answers nothing",
+			file: unread,
+			line: 1,
+			want: "onesie: --mock replays a line onesie could not read, so input line 1 has no answer. " +
+				"Give it answers",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			answers, err := Load(strings.NewReader(tc.file), threeQuestions(), Options{ByID: tc.byID})
+			if err != nil {
+				t.Fatalf("Load: %v", err)
+			}
+
+			if got := answers.Missing(tc.position, tc.id, tc.line); got != tc.want {
+				t.Errorf("message\n got: %s\nwant: %s", got, tc.want)
+			}
+		})
+	}
 }

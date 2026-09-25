@@ -157,37 +157,43 @@ func TestNewAPIError(t *testing.T) {
 		})
 	}
 
-	t.Run("should build an error from a status and a message alone", func(t *testing.T) {
-		t.Parallel()
+	for _, tc := range []struct {
+		name     string
+		status   int
+		sentinel error
+		not      error
+	}{
+		{
+			name: "should build a 401 from a status and a message alone", status: 401,
+			sentinel: ErrAuthentication, not: ErrServer,
+		},
+		{
+			name: "should build a 503 from a status and a message alone", status: 503,
+			sentinel: ErrServer, not: ErrAuthentication,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-		cases := []struct {
-			status   int
-			sentinel error
-		}{
-			{status: 401, sentinel: ErrAuthentication},
-			{status: 503, sentinel: ErrServer},
-		}
+			err := NewAPIError(tc.status, "onesie: mock status")
 
-		for _, c := range cases {
-			err := NewAPIError(c.status, "onesie: mock status")
-
-			if err.Status != c.status {
-				t.Errorf("status got %d, want %d", err.Status, c.status)
+			if err.Status != tc.status {
+				t.Errorf("status got %d, want %d", err.Status, tc.status)
 			}
 
 			if err.Error() != "onesie: mock status" {
 				t.Errorf("message got %q", err.Error())
 			}
 
-			if !errors.Is(err, c.sentinel) {
-				t.Errorf("status %d did not match its sentinel", c.status)
+			if !errors.Is(err, tc.sentinel) {
+				t.Errorf("status %d did not match its sentinel", tc.status)
 			}
-		}
 
-		if errors.Is(NewAPIError(401, "x"), ErrServer) {
-			t.Errorf("a 401 matched ErrServer")
-		}
-	})
+			if errors.Is(err, tc.not) {
+				t.Errorf("status %d matched %v", tc.status, tc.not)
+			}
+		})
+	}
 
 	t.Run("should only match ErrPaymentRequired for 402", func(t *testing.T) {
 		t.Parallel()

@@ -14,6 +14,9 @@ func TestEntryResult(t *testing.T) {
 	t.Parallel()
 
 	five := rateQuestion("r", "1", "2", "3", "4", "5")
+	three := plan.Question{
+		ID: "t", Shape: plan.Pick, Options: []plan.Option{{Name: "billing"}, {Name: "platform"}, {Name: "sales"}},
+	}
 
 	tests := []struct {
 		name       string
@@ -64,6 +67,78 @@ func TestEntryResult(t *testing.T) {
 			norm:       0.65,
 		},
 		{
+			name:       "should replay the probabilities of a pick",
+			file:       `{"t":{"value":"platform","confidence":0.6,"p":{"billing":0.3,"platform":0.6,"sales":0.1}}}`,
+			question:   three,
+			value:      "platform",
+			confidence: 0.6,
+			p:          map[string]float64{"billing": 0.3, "platform": 0.6, "sales": 0.1},
+		},
+		{
+			name:       "should replay the probabilities of a rate",
+			file:       `{"r":{"value":"curt","p":{"calm":0.1,"curt":0.5,"rude":0.4}}}`,
+			question:   rateQuestion("r", "calm", "curt", "rude"),
+			value:      "curt",
+			confidence: 1,
+			score:      1,
+			norm:       0.5,
+			p:          map[string]float64{"calm": 0.1, "curt": 0.5, "rude": 0.4},
+		},
+		{
+			name:       "should replay the probabilities of a rate from a request body by index",
+			file:       `{"b":{"value":"2","p":{"0":0.1,"1":0.2,"2":0.7}}}`,
+			question:   plan.Question{ID: "b", Shape: plan.Rate, Levels: []plan.Level{{}, {}, {}}},
+			value:      "2",
+			confidence: 1,
+			score:      2,
+			norm:       1,
+			p:          map[string]float64{"0": 0.1, "1": 0.2, "2": 0.7},
+		},
+		{
+			name:     "should refuse p that leaves an option out",
+			file:     `{"t":{"value":"platform","p":{"billing":0.3,"platform":0.7}}}`,
+			question: three,
+			wantErr:  "onesie: --mock: question 't' has p with no entry for 'sales'",
+		},
+		{
+			name:     "should refuse p with a key that is not an option",
+			file:     `{"t":{"value":"platform","p":{"billing":0.1,"platform":0.7,"sales":0.1,"hr":0.1}}}`,
+			question: three,
+			wantErr:  "onesie: --mock: question 't' has p with the key 'hr', which is not one of billing, platform, sales",
+		},
+		{
+			name:     "should refuse p with a value outside 0 to 1",
+			file:     `{"t":{"value":"platform","p":{"billing":-0.1,"platform":0.7,"sales":0.1}}}`,
+			question: three,
+			wantErr:  "onesie: --mock: question 't' has p for 'billing' of -0.1, which lies outside [0,1]",
+		},
+		{
+			name:     "should refuse p that is not an object",
+			file:     `{"t":{"value":"platform","p":[1]}}`,
+			question: three,
+			wantErr:  "onesie: --mock: question 't' has p [1], which is not an object of probabilities",
+		},
+		{
+			name:     "should refuse a pick whose p makes another option likelier",
+			file:     `{"t":{"value":"platform","p":{"billing":0.5,"platform":0.4,"sales":0.1}}}`,
+			question: three,
+			wantErr:  "onesie: --mock: question 't' has p that makes 'billing' likelier than its value 'platform'",
+		},
+		{
+			name:       "should accept a pick that ties with another option",
+			file:       `{"t":{"value":"platform","p":{"billing":0.45,"platform":0.45,"sales":0.1}}}`,
+			question:   three,
+			value:      "platform",
+			confidence: 1,
+			p:          map[string]float64{"billing": 0.45, "platform": 0.45, "sales": 0.1},
+		},
+		{
+			name:     "should refuse a rate whose modal level is not its value",
+			file:     `{"r":{"value":"curt","p":{"calm":0.4,"curt":0.4,"rude":0.2}}}`,
+			question: rateQuestion("r", "calm", "curt", "rude"),
+			wantErr:  "onesie: --mock: question 'r' has p that makes 'calm' likelier than its value 'curt'",
+		},
+		{
 			name:     "should refuse a norm the score does not give",
 			file:     `{"r":{"value":"4","score":2.6,"norm":0.5}}`,
 			question: five,
@@ -81,7 +156,7 @@ func TestEntryResult(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			answers, err := Load(strings.NewReader(tc.file), []plan.Question{tc.question}, false)
+			answers, err := Load(strings.NewReader(tc.file), []plan.Question{tc.question}, Options{})
 			if tc.wantErr != "" {
 				if err == nil || err.Error() != tc.wantErr {
 					t.Fatalf("error\n got: %v\nwant: %s", err, tc.wantErr)
@@ -135,7 +210,7 @@ func TestEntryResult(t *testing.T) {
 	t.Run("should name the model mock and bill nothing", func(t *testing.T) {
 		t.Parallel()
 
-		answers, err := Load(strings.NewReader(`{"u":0.3}`), []plan.Question{{ID: "u", Shape: plan.Noul}}, false)
+		answers, err := Load(strings.NewReader(`{"u":0.3}`), []plan.Question{{ID: "u", Shape: plan.Noul}}, Options{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -168,7 +243,7 @@ func TestEntryKey(t *testing.T) {
 		`{"id":"f","error":{"kind":"http","status":503,"message":"503 busy"}}` + "\n" +
 		`{"id":"g","error":401}` + "\n"
 
-	answers, err := Load(strings.NewReader(file), threeQuestions(), true)
+	answers, err := Load(strings.NewReader(file), threeQuestions(), Options{ByID: true})
 	if err != nil {
 		t.Fatal(err)
 	}

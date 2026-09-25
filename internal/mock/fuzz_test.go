@@ -15,7 +15,7 @@ func FuzzLoad(f *testing.F) {
 	f.Fuzz(func(t *testing.T, data []byte, byID bool) {
 		questions := threeQuestions()
 
-		answers, err := Load(bytes.NewReader(data), questions, byID)
+		answers, err := Load(bytes.NewReader(data), questions, Options{ByID: byID})
 		if err != nil {
 			return
 		}

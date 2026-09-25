@@ -473,6 +473,7 @@ type rootSettings struct {
 	credStore     creds.Store
 	keychain      Keychain
 	readSecret    func() (string, error)
+	wrapAnswerer  func(answerer) answerer
 }
 
 // Keychain is where auth set stores a key when the OS has one, one item per account.

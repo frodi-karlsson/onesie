@@ -406,7 +406,7 @@ func checkPrintFlags(cfg Config) error {
 }
 
 func mockAdvice(cfg Config, flag string) string {
-	if strings.HasPrefix(cfg.Mock, "-") {
+	if cfg.Mock == MockFlag {
 		return "Drop one"
 	}
 
@@ -1065,8 +1065,8 @@ type Config struct {
 	// responses. Streaming is true for it too, so the two are not interchangeable.
 	RequestMode bool
 
-	// Mock names where a mock answers file came from, --mock or ONESIE_MOCK, and is empty when the
-	// run asks the API.
+	// Mock names where a mock answers file came from, MockFlag or MockVariable, and is empty when
+	// the run asks the API.
 	Mock string
 
 	// ListModels is --list-models, which asks no question, reads nothing and makes one request of
