@@ -65,6 +65,8 @@ In Claude Code, the plugin can come first and walk you through the rest:
 - **Free dry runs.** See the exact request before spending anything, with no key needed.
 - **Mock answers.** `--mock` or `ONESIE_MOCK` answers from a file, so a gate script's branches can
   be tested with no key and no network.
+- **Response caching.** `--cache` or `ONESIE_CACHE=1` answers a repeated request from disk, so a
+  script run again and again pays once for each distinct question.
 - **Agent skills.** A plugin for Claude Code and Codex, and the same skills for Cursor and Gemini.
 
 ## Usage
@@ -250,6 +252,9 @@ echo '{"error": 503}' > outage.json
 ONESIE_MOCK=danger.json sh gate.sh 'rm -rf /'   # blocked
 ONESIE_MOCK=outage.json sh gate.sh 'ls'         # no answer, blocked
 ```
+
+A script run many times on the same inputs can set `ONESIE_CACHE=1` instead, so each distinct
+request is asked once and every later run answers it from disk.
 
 **Keep a question set in a file.** `--print-questions` writes the questions to a file, and
 `-f NAME` loads it from any directory in the repository. Its first line names the schema

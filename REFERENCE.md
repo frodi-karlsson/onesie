@@ -222,6 +222,77 @@ onesie calibrate -f examples/questions/shell-safety.yaml -i jsonl --map .command
   A run that ends early, by an interrupt, an abort or a stop flag, keeps the rows that finished, and
   its summary reads `stopped after` the records it counted.
 
+## Caching
+
+```sh
+onesie --cache -f shell-safety --state 'rm -rf /'
+ONESIE_CACHE=1 ./gate.sh   # every run in the script reads and fills the cache
+onesie cache               # 212 entries, 40 of them for an alias, 1.4 MB in /Users/me/Library/Caches/onesie
+onesie cache clear
+```
+
+`--cache`, or `ONESIE_CACHE=1`, stores each successful response on disk and answers a repeated
+request from it. Without either, nothing is stored and nothing is read. `ONESIE_CACHE` takes the
+values the flag takes, such as `1`, `true`, `0` and `false`, and anything else exits 2.
+`--cache=false` turns the cache off for one run under `ONESIE_CACHE=1`, so that run asks the API
+again.
+
+- The key is a sha256 of the exact request body, which holds the state, the questions and the model
+  name, together with the provider and the base URL. `--timeout`, `--retries`, `--assert`,
+  `--abstain-if`, the policy flags and the output flags are left out, since none of them change the
+  answer.
+- A hit prints what the live run printed, byte for byte, except that `--usage` reports
+  `{"input_tokens":0,"output_tokens":0}` and no cost. `--stats` counts a hit as a record and not a
+  request, as in `1 record, 1 cached, 0 requests`. Gates, exit codes, `--out` and `--resume` work as
+  they do without the cache.
+- Only a successful response is stored. An error, a timeout or a response onesie cannot use is asked
+  again next time.
+- On the `typesafe` provider, a model name that ends in a version, such as `jev-1.13.0`, is pinned,
+  and its answers live until they are evicted. Every other model is an alias, such as `jev-latest`,
+  and so is every model on any other provider, `typesafe/jev-1.13` on OpenRouter included. An
+  alias's answers expire after 24 hours, since the model behind it can move. `ONESIE_CACHE_TTL` sets
+  that lifetime as a duration, such as `90m` or `72h`, and `0` stops caching answers for an alias. A
+  negative or malformed value exits 2.
+- The cache lives in `$ONESIE_CACHE_DIR`, or else `$XDG_CACHE_HOME/onesie`, or else:
+  - `~/Library/Caches/onesie` on macOS
+  - `%LOCALAPPDATA%\onesie` on Windows, or `AppData\Local\onesie` under the home directory when
+    `LOCALAPPDATA` is unset
+  - `~/.cache/onesie` on Linux and every other system
+- Its files are mode `600` in directories of mode `700`. `--cache` refuses a cache directory others
+  can reach with exit 2, before any request, as it refuses such a credential file. Windows carries no
+  such modes, so the check is skipped there. A new cache directory gets a `CACHEDIR.TAG` file, so
+  backup tools skip it. onesie counts, evicts and clears only its own entries and temporary files,
+  and leaves anything else in the directory alone. Writes are atomic, so parallel runs can share one
+  cache.
+- The cache holds about `max-cache-bytes`, 100 MB, which `onesie -V` lists beside `cache-ttl`. Past
+  that it evicts the least recently used answers first, and a hit counts as a use.
+- `--mock` answers from its file and never reads or fills the cache. `--print-request` sends
+  nothing, `calibrate --offline` asks nothing, and a run that `--resume` finds fully answered asks
+  nothing, so none of them opens the cache. `-i request` and `--list-models` never go through it, so
+  `--cache` beside either exits 2, since asking the API there without a word would spend what
+  `--cache` was meant to save. `--cache=false` beside them is fine, and `ONESIE_CACHE=1` is ignored
+  there.
+- A cached run still needs a key, since onesie finds the API address the cache keys answers by
+  together with the key. A hit sends nothing. Under `--cache`, the no key message says so.
+- A cache error in a run, such as a full disk, turns the cache off for the rest of that run with one
+  warning on stderr, and the run carries on against the API.
+- Deduplication covers repeats within one run, the cache covers repeats across runs, and `--resume`
+  skips the ids an `--out` file already answers. A group of identical records asks the cache once,
+  so a group whose first record hits counts one cached record and the rest deduplicated. A cached
+  line in `--out` carries zero usage like any other hit. The fingerprint leaves `--cache` out, so a
+  file written with the cache resumes without it, and the other way round. `calibrate --cache`
+  works too.
+- `onesie cache` prints how many entries the cache holds, how many of them are for an alias, their
+  size and the directory, or `0 entries in DIR` when there is none. It creates nothing, and names a
+  directory others can reach on stderr. `onesie cache clear` removes every entry, keeps the directory
+  and its `CACHEDIR.TAG`, and prints how many it removed. It refuses a directory with no
+  `CACHEDIR.TAG` with exit 2, so a mistyped `ONESIE_CACHE_DIR` never empties a directory onesie did
+  not make. Both ignore `--mock` and `ONESIE_CACHE`. A one word question `cache` needs `--ask`, or
+  `--` before it.
+- Cached answers sit on disk until they expire, are evicted or are cleared. An entry holds the
+  answers and the model, never the state. Its name is a sha256 of the request, so anyone who can
+  read the directory and guess a request can confirm it was asked.
+
 ## Keys and providers
 
 ```sh
@@ -264,6 +335,18 @@ onesie auth test                                   # checks the key, costs no to
 
 calibrate uses 0, 2, 3, 6 and 130, and 1 only under `--require`, when a requirement did not hold.
 A consumer that stops reading, as `head` does, is not an error.
+
+## Environment
+
+| Variable | What it does |
+|----------|--------------|
+| `TYPESAFE_API_KEY`, `OPENROUTER_API_KEY` | the key for each provider, as in Keys and providers |
+| `ONESIE_PROVIDER` | the provider when `--provider` is not given |
+| `ONESIE_CONFIG_DIR` | where the credential file and the saved question files live |
+| `ONESIE_MOCK` | a file to answer from, as `--mock` |
+| `ONESIE_CACHE` | `1` turns the response cache on, as `--cache` |
+| `ONESIE_CACHE_DIR` | where the response cache lives |
+| `ONESIE_CACHE_TTL` | how long a cached answer for a model alias lives, `24h` unless set |
 
 ## More
 

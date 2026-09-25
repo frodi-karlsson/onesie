@@ -124,6 +124,8 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 			"then from the credential file onesie auth set writes.\n\n" +
 			"--mock FILE, or ONESIE_MOCK=FILE, answers from a file instead of the API, with no key and no " +
 			"network, so a gate script can be tested for free.\n\n" +
+			"--cache, or ONESIE_CACHE=1, stores each successful response on disk and answers a repeated " +
+			"request from it. onesie cache reports what it holds, and onesie cache clear empties it.\n\n" +
 			"A question that begins with a dash needs -- before it, with any flags placed " +
 			"first, as in onesie -o json -- '-is this urgent'.",
 		Version: info.Version,

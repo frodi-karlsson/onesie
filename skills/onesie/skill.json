@@ -75,6 +75,12 @@
       "good": "onesie 'is this urgent' --state 'the server is down' --stats --usage -o json"
     },
     {
+      "id": "cache-repeated-runs",
+      "short": "Turn on --cache for a script or loop that asks the same thing again.",
+      "why": "`--cache`, or `ONESIE_CACHE=1` in the environment of every run, stores each successful response on disk and answers a repeated request from it, with no request and zero tokens. The key is a sha256 of the exact request body, the state, the questions and the model name, plus the provider and the base URL, so a change to any of those asks again, while `--timeout`, `--retries`, `--assert` and the output flags do not. On the `typesafe` provider a model name ending in a version, such as `jev-1.13.0`, is pinned and its answers live until they are evicted. Every other model is an alias, such as `jev-latest`, and so is every model on OpenRouter, so its answers expire after 24 hours, or after `ONESIE_CACHE_TTL`. `--cache=false` turns it off for one run under `ONESIE_CACHE=1`, so that run asks the API again. Cached answers stay on disk until they expire, are evicted or `onesie cache clear` removes them.",
+      "good": "onesie --cache -f examples/questions/shell-safety.yaml --state 'rm -rf /'"
+    },
+    {
       "id": "iterate-for-free",
       "short": "Run it once with --print-request before running it for real.",
       "why": "`--print-request` and `--print-questions` make no network call and need no key. `--print-request` shows the exact body, the state and the model, but a body carries no policy, so a `--threshold` or `--fallback` does not show there. It checks and then ignores the gate in a `-f` file, so a gated file can be dry run, and it exits 2 on `--assert` or `--abstain-if` typed as a flag. `--print-questions` shows every question with the policy flags that bound to it and the assertion, and reads no state.",
