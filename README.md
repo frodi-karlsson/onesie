@@ -192,6 +192,18 @@ onesie 'is this urgent' -i jsonl -j 8 --map '.body' --id '.id' \
 jq -c 'select(.answer.value > 0.8)' answers.jsonl
 ```
 
+**Rank records by several questions.** One `--ask` per dimension scores every record, and `jq`
+weighs the answers and sorts by the sum. `.value` is the yes/no probability, and `.norm` is the
+rate's position between 0 and 1. The weighting lives in `jq`, since `--assert` has no arithmetic,
+and `select(has("error") | not)` drops the records that failed.
+
+```sh
+onesie --ask impact='does this help many users' \
+    --ask effort='how much work is this' --rate trivial,small,medium,large \
+    -i jsonl --map '.body' --id '.id' -o json < ideas.jsonl |
+    jq -s 'map(select(has("error") | not)) | map({id, score: (0.7 * .impact.value + 0.3 * (1 - .effort.norm))}) | sort_by(-.score)'
+```
+
 **Pick a threshold from labelled tickets.** Each row shows how many urgent tickets that threshold
 catches and how many it flags by mistake.
 

@@ -101,7 +101,7 @@ The gap between shapes is not a fixed offset. Asking whether a report is good me
 
 ### Compute the fact in code, then ask about the computed fact.
 
-onesie does no arithmetic, reads dates as text and miscounts. It answers the bad example below anyway, with no warning. Compute the age, the count or the comparison first, and pass the computed fact in the state.
+onesie does no arithmetic, reads dates as text and miscounts. It answers the bad example below anyway, with no warning. Compute the age, the count or the comparison first, and pass the computed fact in the state. To rank records by several answers, ask one question per dimension and weigh the answers in `jq`, as the README's weighted ranking recipe does, since `--assert` has no arithmetic either.
 
 **Bad:**
 

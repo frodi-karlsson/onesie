@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -20,6 +21,8 @@ import (
 
 	"github.com/frodi-karlsson/onesie/internal/cli"
 	"github.com/frodi-karlsson/onesie/internal/jev"
+	"github.com/frodi-karlsson/onesie/internal/jq"
+	"github.com/frodi-karlsson/onesie/internal/skillcheck"
 )
 
 func TestStream(t *testing.T) {
@@ -1574,6 +1577,70 @@ func TestStream(t *testing.T) {
 			}
 		})
 	})
+
+	t.Run("should rank records by the weighted sum the README recipe gives", func(t *testing.T) {
+		t.Parallel()
+
+		command, program := rankingRecipe(t)
+		dir := t.TempDir()
+		answers := filepath.Join(dir, "answers.jsonl")
+
+		mock := `{"id":"c","error":503}` + "\n" +
+			`{"id":"b","impact":0.4,"effort":"trivial"}` + "\n" +
+			`{"id":"a","impact":0.9,"effort":"small"}` + "\n"
+		if err := os.WriteFile(answers, []byte(mock), 0o600); err != nil {
+			t.Fatal(err)
+		}
+
+		var out, errOut bytes.Buffer
+
+		root := cli.NewRootCmd(
+			cli.BuildInfo{Version: "1.2.3"},
+			cli.WithStdin(strings.NewReader(`{"id":"c","body":"x"}`+"\n"+`{"id":"b","body":"y"}`+"\n"+`{"id":"a","body":"z"}`+"\n")),
+			cli.WithStdinTTY(false),
+			cli.WithStdoutTTY(false),
+			cli.WithLookupEnv(func(string) (string, bool) { return "", false }),
+		)
+
+		root.SetOut(&out)
+		root.SetErr(&errOut)
+		root.SetArgs(append(command[1:], "--mock", answers))
+
+		if code := cli.Execute(t.Context(), root); code != cli.ExitRecords {
+			t.Fatalf("exit code = %d, want %d for the failed record\nstderr:\n%s", code, cli.ExitRecords, errOut.String())
+		}
+
+		var slurped []any
+
+		for _, line := range strings.Split(strings.TrimSuffix(out.String(), "\n"), "\n") {
+			var record any
+			if err := json.Unmarshal([]byte(line), &record); err != nil {
+				t.Fatalf("output line %q: %v", line, err)
+			}
+
+			slurped = append(slurped, record)
+		}
+
+		expr, err := jq.Compile(program)
+		if err != nil {
+			t.Fatalf("the recipe's jq program does not compile: %v", err)
+		}
+
+		ranked, err := expr.One(t.Context(), slurped)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		encoded, err := json.Marshal(ranked)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// a scores 0.7*0.9 + 0.3*(1 - 1/3) = 0.83 and b scores 0.7*0.4 + 0.3*1 = 0.58.
+		if want := `[{"id":"a","score":0.83},{"id":"b","score":0.58}]`; !sameRanking(t, encoded, want) {
+			t.Errorf("ranked = %s, want %s", encoded, want)
+		}
+	})
 }
 
 func TestWriteMerged(t *testing.T) {
@@ -1839,4 +1906,63 @@ type writerFunc func([]byte) (int, error)
 
 func (f writerFunc) Write(p []byte) (int, error) {
 	return f(p)
+}
+
+func rankingRecipe(t *testing.T) ([]string, string) {
+	t.Helper()
+
+	readme, err := os.ReadFile(filepath.Join("..", "..", "README.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, after, found := strings.Cut(string(readme), "**Rank records by several questions.**")
+	if !found {
+		t.Fatal("README.md has no weighted ranking recipe")
+	}
+
+	_, block, _ := strings.Cut(after, "```sh\n")
+	block, _, _ = strings.Cut(block, "```")
+	joined := strings.ReplaceAll(block, "\\\n", " ")
+
+	onesiePart, jqPart, found := strings.Cut(joined, "|\n")
+	if !found {
+		t.Fatalf("the recipe does not pipe onesie into jq:\n%s", block)
+	}
+
+	onesiePart, _, _ = strings.Cut(onesiePart, " < ")
+
+	command, reason := skillcheck.Tokenize(strings.TrimSpace(onesiePart))
+	if reason != "" || len(command) == 0 || command[0] != "onesie" {
+		t.Fatalf("the recipe's onesie command does not tokenize: %s\n%s", reason, onesiePart)
+	}
+
+	jqCommand, reason := skillcheck.Tokenize(strings.TrimSpace(jqPart))
+	if reason != "" || len(jqCommand) != 3 || jqCommand[0] != "jq" || jqCommand[1] != "-s" {
+		t.Fatalf("the recipe's jq command is not jq -s PROGRAM: %s\n%s", reason, jqPart)
+	}
+
+	return command, jqCommand[2]
+}
+
+func sameRanking(t *testing.T, got []byte, want string) bool {
+	t.Helper()
+
+	var gotRanks, wantRanks []struct {
+		ID    string  `json:"id"`
+		Score float64 `json:"score"`
+	}
+
+	if json.Unmarshal(got, &gotRanks) != nil || json.Unmarshal([]byte(want), &wantRanks) != nil ||
+		len(gotRanks) != len(wantRanks) {
+		return false
+	}
+
+	for i := range wantRanks {
+		if gotRanks[i].ID != wantRanks[i].ID || math.Abs(gotRanks[i].Score-wantRanks[i].Score) > 1e-9 {
+			return false
+		}
+	}
+
+	return true
 }
