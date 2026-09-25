@@ -1,5 +1,4 @@
-// Command skillcheck dry runs every rule's bad and good example under skills/, per
-// docs/onesie-skills-spec.md section 6.1.
+// Command skillcheck dry runs every rule's bad and good example under skills/.
 package main
 
 import (

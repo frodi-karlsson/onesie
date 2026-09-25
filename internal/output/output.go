@@ -115,8 +115,8 @@ type Record struct {
 	Answers []Named
 	Failure *Failure
 
-	// AssertFailed is §17.4's reserved assert key. It is written as false and only when the record
-	// was judged a no, so a record with neither key passed.
+	// AssertFailed is the reserved assert key. It is written as false and only when the record was
+	// judged a no, so a record with neither key passed.
 	AssertFailed bool
 	// Abstained means the assertion did not hold and the abstain expression did. It is written as
 	// an abstain key set to true, and a record carries at most one of the two keys.

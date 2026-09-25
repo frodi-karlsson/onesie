@@ -46,8 +46,8 @@ func Load(path string) (Skill, error) {
 	return s, nil
 }
 
-// Validate enforces the skill.json field rules from spec section 2.1. path is the skill.json file
-// itself, and fragment paths are checked for existence against its directory.
+// Validate enforces the skill.json field rules. path is the skill.json file itself, and fragment
+// paths are checked for existence against its directory.
 func Validate(path string, s Skill) error {
 	v := validator{path: path, dir: filepath.Dir(path)}
 
@@ -82,7 +82,7 @@ func Validate(path string, s Skill) error {
 	return nil
 }
 
-// Skill is the decoded shape of a skill.json file, per spec section 2.1.
+// Skill is the decoded shape of a skill.json file.
 type Skill struct {
 	Name          string            `json:"name"`
 	Description   string            `json:"description"`

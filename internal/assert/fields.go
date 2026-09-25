@@ -63,8 +63,8 @@ var fields = []field{
 		available: policed,
 		reason:    reasonFallback,
 		typeOf:    constant(typeString),
-		// §17.3 reads an absent fallback as the empty string, which is what the field already
-		// holds when no policy replaced the answer.
+		// An absent fallback reads as the empty string, which is what the field already holds when
+		// no policy replaced the answer.
 		read: func(a *answer.Answer, _ string) any { return a.Fallback },
 	},
 }
@@ -118,7 +118,7 @@ func decided(q plan.Question) bool {
 	}
 
 	// answer.Apply has nothing to substitute without a fallback and leaves decision unset, so the
-	// path is only there when both flags are, which §11 already requires of the pair.
+	// path is only there when both flags are, which validation already requires of the pair.
 	return q.Policy.MinConfidence != nil && q.Policy.Fallback != nil
 }
 

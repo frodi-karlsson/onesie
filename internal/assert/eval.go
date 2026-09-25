@@ -8,7 +8,7 @@ import (
 )
 
 // Eval reports whether the expression holds for a record, and a nil expression always holds. It
-// returns no error, since Check has already proved the expression against the plan, per §17.3.
+// returns no error, since Check has already proved the expression against the plan.
 func Eval(expr *Expr, record output.Record) bool {
 	if expr == nil {
 		return true
@@ -86,7 +86,7 @@ func (e *evaluator) value(n node) any {
 		return e.call(typed)
 	}
 
-	// §17.2 puts only a path, a call or a literal in an operand position, and all five are above.
+	// Only a path, a call or a literal can sit in an operand position, and all five are above.
 	return nil
 }
 

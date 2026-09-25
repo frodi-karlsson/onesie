@@ -206,7 +206,7 @@ func checkListModels(cfg Config) error {
 		return fmt.Errorf("onesie: --list-models asks no question. Drop --%s", cfg.GroupFlags[0])
 	}
 
-	// In the order section 13 lists the flags, for the same reason checkRequestMode is.
+	// In a fixed order, for the same reason checkRequestMode is.
 	for _, rule := range []struct {
 		given   bool
 		message string
@@ -259,8 +259,8 @@ func checkRequestMode(cfg Config) error {
 		return nil
 	}
 
-	// In the order section 13 lists the flags, so a command line with several offenders reports a
-	// predictable one rather than whichever check happened to be written first.
+	// In a fixed order, so a command line with several offenders reports a predictable one rather
+	// than whichever check happened to be written first.
 	for _, rule := range []struct {
 		given   bool
 		message string
@@ -325,9 +325,9 @@ func checkPrintFlags(cfg Config) error {
 		return nil
 	}
 
-	// Section 8 rejects a flag that would quietly do nothing, and a dry run accepts none of these.
-	// In the order section 13 lists the flags, for the same reason checkListModels is. The rules
-	// gated on PrintQuestions are the ones --print-request genuinely consumes.
+	// A flag that would quietly do nothing is rejected, and a dry run accepts none of these. In a
+	// fixed order, for the same reason checkListModels is. The rules gated on PrintQuestions are
+	// the ones --print-request genuinely consumes.
 	for _, rule := range []struct {
 		given   bool
 		message string
@@ -357,9 +357,9 @@ func checkPrintFlags(cfg Config) error {
 		{cfg.Raw, fmt.Sprintf("onesie: -r does not apply to %s, which writes %s", name, writes)},
 		{cfg.Quiet, fmt.Sprintf(
 			"onesie: -q suppresses output, which leaves %s nothing to write", name)},
-		// Guarded to --print-request, since --print-questions writes the assertion into the file
-		// it prints and so is the one dry run that carries it. §17.5. A gate that only the file
-		// carries is ignored, so a gated file can be dry run as it stands.
+		// Guarded to --print-request, since --print-questions writes the assertion into the file it
+		// prints and so is the one dry run that carries it. A gate that only the file carries is
+		// ignored, so a gated file can be dry run as it stands.
 		{cfg.PrintRequest && cfg.HasAssert && !fromFile(cfg.AssertName, "--assert"), fmt.Sprintf(
 			"onesie: %s judges an answer, which --print-request does not produce",
 			assertFlag(cfg))},
@@ -439,7 +439,7 @@ func abstainFlag(cfg Config) string {
 }
 
 func checkStreaming(cfg Config) (string, error) {
-	// Checked for every mode, since section 7 defines --merge for the non streaming ones too.
+	// Checked for every mode, since --merge applies to the non streaming ones too.
 	if cfg.Merge && !mergeable(cfg) {
 		return "", fmt.Errorf("onesie: %s needs -o json, values, csv or tsv", mergeFlag(cfg))
 	}
@@ -484,9 +484,8 @@ func checkStreaming(cfg Config) (string, error) {
 			limits.MaxRetries, cfg.Retries)
 	}
 
-	// Positive, not zero or more, which is the message section 11 already publishes. Zero would
-	// have to mean either never honour the header or honour it without bound, and the spec picks
-	// neither, so it is rejected rather than given a meaning here.
+	// Zero would have to mean either never honour the header or honour it without bound, so it is
+	// rejected rather than given one of those meanings.
 	if cfg.MaxRetryAfterSet && cfg.MaxRetryAfter < 1 {
 		return "", fmt.Errorf(
 			"onesie: --max-retry-after must be a positive number of seconds, got %d",
@@ -519,8 +518,8 @@ func checkStreaming(cfg Config) (string, error) {
 			cfg.InputName)
 	}
 
-	// Section 8 asks for one JSON line per input line. A table is several lines with a repeated
-	// header, and section 7 gave raw its streaming semantics explicitly where table has none.
+	// A stream writes one line per input line. A table is several lines with a repeated header, and
+	// unlike raw it has no streaming form.
 	if cfg.Output == "table" {
 		return "", fmt.Errorf("onesie: -o table reads one record. Drop -i %s or use -o json",
 			cfg.InputName)
@@ -998,7 +997,7 @@ type Config struct {
 	Quiet bool
 
 	// HasAssert records that an assertion was given, by the flag or by a question file's key. It is
-	// the second way a pick or rate question satisfies the -q rule, per §17.5.
+	// the second way a pick or rate question satisfies the -q rule.
 	HasAssert bool
 	// AssertName is the assertion as the user spelled it, so a message names a file's 'assert' key
 	// when that is where the gate came from. It defaults to --assert when empty.
@@ -1066,8 +1065,8 @@ type Config struct {
 	Resume bool
 	// Prune is --prune, which drops the answered ids a resume by id no longer finds in the input.
 	Prune bool
-	// StopOnAssert is --stop-on-assert, which ends a stream at the first record whose assertion
-	// was false. §17.6.
+	// StopOnAssert is --stop-on-assert, which ends a stream at the first record whose assertion was
+	// false.
 	StopOnAssert bool
 	SkipBlank    bool
 	Merge        bool
@@ -1093,7 +1092,7 @@ type Config struct {
 }
 
 // ShapeName spells a question's shape flag the way its origin wrote it, so a message points at the
-// thing the reader typed. It is exported because §17 checks an assertion against the same plan.
+// thing the reader typed. It is exported because assert checks an assertion against the same plan.
 func ShapeName(q *Question, flag string) string {
 	// A body has neither flags nor file keys. Its options and levels are the entries of a single
 	// criteria key, which is the only thing a message can point the reader at.

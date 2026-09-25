@@ -85,6 +85,9 @@ accepts as a label.
   only if it fails again.
 - Raw output keeps no outcome, so `--resume` refuses `-o raw` and `-r` with exit 2. Use `-o values`
   or `-o json`.
+- onesie writes csv cells exactly as they are, the ones `--merge` carries over included. A cell
+  from untrusted input that starts with `=`, `+`, `-` or `@` can act as a formula when the file is
+  opened in a spreadsheet.
 - `-o markdown`, or `-o md`, is for people. A table cannot be read back into answers, so it refuses
   `--resume`, `--merge`, `-r` and `-q` with exit 2, while `--out` alone writes the table to a file.
   A run that ends early, by an interrupt, an abort or a stop flag, keeps the rows that finished, and

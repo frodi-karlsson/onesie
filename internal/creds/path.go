@@ -13,7 +13,7 @@ const (
 	fileName = "credentials.json"
 )
 
-// Path reports where the credential file lives, per the four rules in §16.2.
+// Path reports where the credential file lives.
 func Path(env Env) (string, error) {
 	dir, err := Dir(env)
 	if err != nil {

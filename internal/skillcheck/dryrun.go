@@ -122,7 +122,7 @@ func insertFlag(args []string, flag string) []string {
 func provenDryRun(args []string, strip []flagSpec) bool {
 	// A second line of defence that never fires today. It goes false only if stripFlags stops
 	// dropping a value with its flag, insertFlag stops leading with the mode flag, or a strip set
-	// names a spec the catalog lost.
+	// names a flag the catalog lost.
 	modeCount := 0
 
 	for _, occ := range flagOccurrences(args, catalog) {

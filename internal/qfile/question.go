@@ -18,8 +18,8 @@ func loadQuestions(top yaml.MapSlice) (*File, error) {
 
 		var err error
 
-		// 'assert' and 'abstain_if' are reserved question ids, section 11, so a top level key
-		// spelled either way is the file's gate over every answer rather than a question of its own.
+		// 'assert' and 'abstain_if' are reserved question ids, so a top level key spelled either
+		// way is the file's gate over every answer rather than a question of its own.
 		switch id {
 		case "assert":
 			file.Assert, err = readGate(id, item.Value)

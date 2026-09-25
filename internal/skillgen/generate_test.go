@@ -13,7 +13,7 @@ import (
 func TestGenerate(t *testing.T) {
 	t.Parallel()
 
-	t.Run("should write every output named in spec section 3", func(t *testing.T) {
+	t.Run("should write every client output", func(t *testing.T) {
 		t.Parallel()
 
 		root := t.TempDir()

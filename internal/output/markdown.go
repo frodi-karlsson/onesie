@@ -433,7 +433,7 @@ func codeSpan(text string, inTable bool) string {
 		return r
 	}, text)
 
-	// A spec following GFM renderer splits a cell at a pipe after a backslash even inside a code
+	// A GFM compliant renderer splits a cell at a pipe after a backslash even inside a code
 	// span, so a cell holding one leaves markdown for html, where no pipe survives as a pipe.
 	if inTable && strings.ContainsRune(text, '|') {
 		return htmlCode(text)

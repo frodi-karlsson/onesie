@@ -162,8 +162,8 @@ func TestNormalize(t *testing.T) {
 		})
 	}
 
-	// §17.3's promise at its source: the record carries a number under every key the question
-	// asked about, so a reader of the map answers the same as the printed record.
+	// The record carries a number under every key the question asked about, so a reader of the map
+	// answers the same as the printed record.
 	t.Run("should fill a key the answer left out with a zero", func(t *testing.T) {
 		t.Parallel()
 

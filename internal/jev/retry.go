@@ -163,7 +163,7 @@ func seconds(value float64) time.Duration {
 	const maxSeconds = float64(math.MaxInt64) / float64(time.Second)
 
 	// Clamped rather than relying on the conversion of a float that does not fit a Duration, which
-	// the language spec leaves implementation dependent.
+	// the Go specification leaves implementation dependent.
 	if value >= maxSeconds {
 		return time.Duration(math.MaxInt64)
 	}

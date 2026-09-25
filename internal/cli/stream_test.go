@@ -1584,7 +1584,7 @@ func TestWriteMerged(t *testing.T) {
 				cli.WithStdin(strings.NewReader(`{"id":7}`)),
 				cli.WithStdinTTY(false),
 				// A terminal in a non streaming mode would normally choose the table, which --merge
-				// forbids. Section 7 says json wins.
+				// forbids, so json wins.
 				cli.WithStdoutTTY(true),
 				cli.WithLookupEnv(func(string) (string, bool) { return "", false }),
 			)

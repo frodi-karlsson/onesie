@@ -1,5 +1,5 @@
-// Package skillcheck dry runs every rule's bad and good example in a skill, per spec section 6.1.
-// The good_fails, bad_passes and unverifiable markers invert or skip an example.
+// Package skillcheck dry runs every rule's bad and good example in a skill. The good_fails,
+// bad_passes and unverifiable markers invert or skip an example.
 package skillcheck
 
 import (

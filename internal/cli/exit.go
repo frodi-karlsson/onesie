@@ -98,8 +98,7 @@ func Classify(err error) int {
 		return ExitAuth
 	}
 
-	// A credential file anyone else can reach is an authentication failure rather than a usage
-	// one. Section 16.2 is explicit that this is a refusal and not a warning.
+	// A credential file anyone else can reach is an authentication failure rather than a usage one.
 	var readable *creds.ReadableError
 	if errors.As(err, &readable) {
 		return ExitAuth
@@ -119,9 +118,9 @@ func Classify(err error) int {
 		return ExitTransport
 	}
 
-	// After the transport checks, so a socket write that failed with EPIPE is still reported as
-	// the transport failure it is. What reaches here is onesie's own stdout, and section 12 has no
-	// code meaning the consumer stopped reading.
+	// After the transport checks, so a socket write that failed with EPIPE is still reported as the
+	// transport failure it is. What reaches here is onesie's own stdout, and no exit code means the
+	// consumer stopped reading.
 	if engine.BrokenPipe(err) {
 		return ExitOK
 	}
@@ -148,7 +147,7 @@ func worthReporting(err error) bool {
 	var rejected *rejectedError
 	if errors.As(err, &rejected) {
 		// A rejection is carried by the exit code alone. Under -q nothing is printed at all, and
-		// a false assertion has already printed the record §17.4 asks for.
+		// a false assertion has already printed the record.
 		return false
 	}
 

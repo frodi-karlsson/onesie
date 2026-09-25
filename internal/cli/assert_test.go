@@ -235,7 +235,7 @@ func TestAsk(t *testing.T) {
 				wantCode:  cli.ExitRejected,
 			},
 			{
-				name:      "should exit per section 12 when the request failed",
+				name:      "should exit unavailable when the request failed",
 				assertion: fails,
 				wantCode:  cli.ExitUnavailable,
 			},

@@ -1,5 +1,4 @@
-// Command skillgen generates the per client skill files from skills/, per
-// docs/onesie-skills-spec.md section 3.
+// Command skillgen generates the per client skill files from skills/.
 package main
 
 import (

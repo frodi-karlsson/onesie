@@ -103,8 +103,8 @@ func (c *checker) typeOf(n node) (valueType, bool) {
 		return c.callType(typed)
 	}
 
-	// §17.2 puts only a path, a string, a boolean, a call or a number in an operand position, and
-	// the first four are above.
+	// Only a path, a string, a boolean, a call or a number can sit in an operand position, and the
+	// first four are above.
 	return typeNumber, true
 }
 
@@ -264,7 +264,8 @@ func (c *checker) probability(q plan.Question, n *pathNode, f field) (valueType,
 
 func decisionNeeds(q plan.Question) string {
 	// answer.Apply needs something to put in the decision's place, so a pick or rate question
-	// carrying min confidence is short the fallback rather than either flag §17.8 names.
+	// carrying min confidence is short the fallback rather than either flag the other message
+	// names.
 	if q.Shape != plan.Noul && q.Policy.MinConfidence != nil {
 		return plan.Spelling(q.Origin, "--fallback")
 	}
@@ -307,7 +308,7 @@ func keysOf(q plan.Question) keyset {
 	}
 
 	// A body's levels carry no labels, so the record keys them by index and only the bracket form
-	// reaches them, as §17.3 says.
+	// reaches them.
 	indexes := make([]string, 0, len(q.Levels))
 	for i := range q.Levels {
 		indexes = append(indexes, strconv.Itoa(i))

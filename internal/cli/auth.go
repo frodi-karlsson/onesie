@@ -383,8 +383,8 @@ func storedOptions(settings rootSettings, flags *runFlags, source keySource) []j
 		return opts
 	}
 
-	// Section 16.2 keeps --base-url and TYPESAFE_BASE_URL ahead of the file's own base URL, so the
-	// stored one is only passed when neither of them has anything to say.
+	// --base-url and TYPESAFE_BASE_URL stay ahead of the file's own base URL, so the stored one is
+	// only passed when neither of them has anything to say.
 	if strings.TrimSpace(flags.baseURL) != "" {
 		return opts
 	}
@@ -492,7 +492,7 @@ func locateKey(settings rootSettings, flags *runFlags) (keySource, error) {
 		return keySource{}, err
 	}
 
-	// auth status never reaches this, since section 16.3 keeps --api-key root local and cobra
+	// auth status never reaches this, since --api-key is local to the root command and cobra
 	// rejects it on a subcommand. The ordinary run path does, where the flag outranks both later
 	// sources.
 	if key := strings.TrimSpace(flags.apiKey); key != "" {

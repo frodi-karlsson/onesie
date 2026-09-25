@@ -16,7 +16,7 @@ var mirrorDirs = []string{
 	filepath.Join(".cursor", "skills"),
 }
 
-// Generate validates every skills/*/skill.json under root and writes the spec section 3 outputs and
+// Generate validates every skills/*/skill.json under root and writes each client's outputs and
 // mirrors, touching only changed files. Nothing is written unless every skill validates.
 func Generate(root string) error {
 	found, err := Skills(root)

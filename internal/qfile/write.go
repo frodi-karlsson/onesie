@@ -114,8 +114,7 @@ func writeOptions(question plan.Question) (yaml.MapSlice, error) {
 
 func writeLevels(question plan.Question) ([]any, error) {
 	// A sequence of single key mappings for both forms, so a rubric's order never depends on a
-	// parser detail, as section 4 prefers. A body's levels have no names, so the index becomes the
-	// label, as section 10 requires.
+	// parser detail. A body's levels have no names, so the index becomes the label.
 	levels := make([]any, 0, len(question.Levels))
 
 	for i, level := range question.Levels {
@@ -345,9 +344,9 @@ func requote(node ast.Node, at probe) ast.Node {
 
 	text, ok := scalarText(node)
 	if !ok || !strings.ContainsFunc(text, needsEscape) && survivesUnquoted(text, at) {
-		// Every other scalar is left to goccy, because section 10 means the file to be read and
-		// edited and forcing every multi line description onto one quoted line loses the block
-		// scalar that makes it readable.
+		// Every other scalar is left to goccy, because the file is meant to be read and edited, and
+		// forcing every multi line description onto one quoted line loses the block scalar that
+		// makes it readable.
 		return node
 	}
 

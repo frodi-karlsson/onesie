@@ -29,8 +29,8 @@ func TestCheck(t *testing.T) {
 				ID: "decided", Shape: plan.Pick, Options: []plan.Option{{Name: "a"}, {Name: "b"}},
 				Policy: plan.Policy{MinConfidence: ptr(0.7), Fallback: &plan.Fallback{Text: "b"}},
 			},
-			// A pair §11 rejects on its own. answer.Apply has nothing to substitute without a
-			// fallback and leaves decision unset, so the message names the flag that is missing.
+			// A pair validation rejects on its own. answer.Apply has nothing to substitute without
+			// a fallback and leaves decision unset, so the message names the flag that is missing.
 			{
 				ID: "unsure", Shape: plan.Pick, Options: []plan.Option{{Name: "a"}, {Name: "b"}},
 				Policy: plan.Policy{MinConfidence: ptr(0.7)},
@@ -390,7 +390,7 @@ func TestCheck(t *testing.T) {
 		}
 	})
 
-	// Plan's rule, held for assertion messages. §17.8 publishes the flag spelling.
+	// Plan's rule, held for assertion messages.
 	t.Run("should spell the offending thing the way the question was written", func(t *testing.T) {
 		t.Parallel()
 
@@ -477,7 +477,7 @@ func TestCheck(t *testing.T) {
 	})
 
 	// Check types each path and Eval reads it, so the promise holds end to end.
-	t.Run("should accept every path §17.3 allows and reject the rest", func(t *testing.T) {
+	t.Run("should accept every path an assertion allows and reject the rest", func(t *testing.T) {
 		t.Parallel()
 
 		options := []plan.Option{{Name: "billing"}, {Name: "technical"}}
@@ -495,8 +495,9 @@ func TestCheck(t *testing.T) {
 				{ID: "routed", Shape: plan.Pick, Options: options, Policy: plan.Policy{
 					MinConfidence: ptr(0.7), Fallback: &plan.Fallback{Text: "human"},
 				}},
-				// A pair §11 rejects on its own. answer.Apply has nothing to substitute without a
-				// fallback and leaves decision unset, so Check cannot promise the path either.
+				// A pair validation rejects on its own. answer.Apply has nothing to substitute
+				// without a fallback and leaves decision unset, so Check cannot promise the path
+				// either.
 				{
 					ID: "unsure", Shape: plan.Pick, Options: options,
 					Policy: plan.Policy{MinConfidence: ptr(0.7)},
@@ -637,8 +638,8 @@ func TestCheck(t *testing.T) {
 		})
 	})
 
-	// The group above includes a question §11 rejects, so this holds the table over a plan the
-	// pipeline accepts.
+	// The group above includes a question validation rejects, so this holds the table over a plan
+	// the pipeline accepts.
 	t.Run("should hold the path table over an assembled plan", func(t *testing.T) {
 		t.Parallel()
 

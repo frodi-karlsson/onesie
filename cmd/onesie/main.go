@@ -24,8 +24,8 @@ func main() {
 
 func run() int {
 	// A write to a closed stdout raises SIGPIPE, which kills the process with status 141 before any
-	// Go code runs. Section 8 asks for exit 0, which the engine gives through the EPIPE path, so
-	// the signal is ignored to reach that path on every platform.
+	// Go code runs. A closed stdout should exit 0, which the engine gives through the EPIPE path,
+	// so the signal is ignored to reach that path on every platform.
 	signal.Ignore(syscall.SIGPIPE)
 
 	ctx, stop := interruptible(context.Background())

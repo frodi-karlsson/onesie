@@ -184,8 +184,7 @@ func run(
 		return printRequest(cmd.OutOrStdout(), built.Questions, resolved.Source, sent, model)
 	}
 
-	// Checked here rather than at write time, so a taken key costs no request. Section 11 opens
-	// with every check running before any network call.
+	// Checked here rather than at write time, so a taken key costs no request.
 	if merging(flags) && hasKey(resolved.State, mergeKey(flags)) {
 		return fmt.Errorf(
 			"onesie: --merge would overwrite the input's '%s' key. Pass --merge-key",
@@ -384,16 +383,14 @@ func stream(
 		record, evalErr := evaluate(
 			ctx, client, built, model, questions, sent, flags.usage, stats)
 		if evalErr != nil {
-			// Returned before the gate is asked, per §17.4's third row. A failed record reads
-			// as all zeros, so a gate such as answer.value < 0.5 would hold for a request that
-			// never happened.
+			// Returned before the gate is asked. A failed record reads as all zeros, so a gate such
+			// as answer.value < 0.5 would hold for a request that never happened.
 			return rowLine(record, rec), evalErr
 		}
 
-		// §17.6 asks the gate per record. A false assertion or an abstain is not an engine
-		// failure: the record succeeded and the answer is complete, so the outcome is carried
-		// on the line rather than returned as an error the engine would count against
-		// result.Failed.
+		// A false assertion or an abstain is not an engine failure: the record succeeded and the
+		// answer is complete, so the outcome is carried on the line rather than returned as an
+		// error the engine would count against result.Failed.
 		record = judge(gate, abstain, record, stats)
 
 		return rowLine(record, rec), nil
@@ -647,9 +644,8 @@ func streamResult(result engine.Result, falseAsserts, abstains int) error {
 		return &recordsError{}
 	}
 
-	// After the failed records and before the successful return, which is where §8 places a false
-	// assertion. A stream carrying both exits 6, since a record that never answered says more
-	// than a gate that answered no.
+	// After the failed records and before the successful return. A stream carrying both exits 6,
+	// since a record that never answered says more than a gate that answered no.
 	if falseAsserts > 0 {
 		return &rejectedError{}
 	}
@@ -702,9 +698,8 @@ func ask(
 		return err
 	}
 
-	// Only a record that arrived is evaluated, per §17.4's third row. A failed request would read
-	// as all zeros, so a gate such as answer.value < 0.5 would hold for a request that never
-	// happened.
+	// Only a record that arrived is evaluated. A failed request would read as all zeros, so a gate
+	// such as answer.value < 0.5 would hold for a request that never happened.
 	record = judge(gate, abstain, record, stats)
 
 	if flags.quiet {
@@ -717,7 +712,7 @@ func ask(
 		return assertResult(record)
 	}
 
-	// The record prints whatever the assertion said, §17.4, and the exit code follows it.
+	// The record prints whatever the assertion said, and the exit code follows it.
 	if writeErr := writeRecord(cmd, settings, outputMode, flags, resolved, record, gate, abstain); writeErr != nil {
 		return writeErr
 	}
@@ -727,8 +722,8 @@ func ask(
 
 func assertResult(record output.Record) error {
 	if record.AssertFailed {
-		// §17.4 calls a false assertion the same statement a policy rejection makes over one
-		// answer, so it takes the same error and the same exit code.
+		// A false assertion is the same statement a policy rejection makes over one answer, so it
+		// takes the same error and the same exit code.
 		return &rejectedError{}
 	}
 
@@ -891,8 +886,8 @@ func evaluate(
 ) (output.Record, error) {
 	record, usage, err := answered(ctx, client, built, model, questions, state, withUsage)
 	if err != nil {
-		// The request was made whatever went wrong afterwards, and the questions went with it, so
-		// a failed record still carries them into the count section 10 asks for.
+		// The request was made whatever went wrong afterwards, and the questions went with it, so a
+		// failed record still carries them into the count --stats reports.
 		stats.recordFailure(err, true, len(questions))
 		stats.terminalAttempt(err)
 		stats.spend(usage)

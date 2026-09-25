@@ -14,8 +14,8 @@ func TestEval(t *testing.T) {
 
 	built := evalPlan()
 
-	// Both sides of the min-confidence branch in answer.Apply on 'team'. §17.5 composes them, so
-	// decision names the fallback exactly when it fired and fallback says why.
+	// Both sides of the min-confidence branch in answer.Apply on 'team', where decision names the
+	// fallback exactly when it fired and fallback says why.
 	accepted := evalRecord(t, built, 0.8)
 	refused := evalRecord(t, built, 0.5)
 
@@ -169,7 +169,7 @@ func TestEval(t *testing.T) {
 		t.Parallel()
 
 		// The API is free to name only the winner, and Normalize fills the rest of the keys the
-		// question asked about. §17.2 rules out a tolerance so that the ordered and the equality
+		// question asked about. Comparisons take no tolerance, so that the ordered and the equality
 		// readings of one pair of numbers can never disagree, which is what this holds them to.
 		omitted := omittedRecord(t, built)
 

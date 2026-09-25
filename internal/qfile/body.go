@@ -11,8 +11,8 @@ import (
 func loadBody(top yaml.MapSlice) (*File, error) {
 	file := &File{IsBody: true}
 
-	// Section 17.5. A body is the wire format, and the API has no assertion, so a key here would
-	// promise a gate the request cannot carry.
+	// A body is the wire format, and the API has no assertion, so a key here would promise a gate
+	// the request cannot carry.
 	for _, gate := range []struct{ key, flag string }{
 		{key: "assert", flag: "--assert"},
 		{key: "abstain_if", flag: "--abstain-if"},

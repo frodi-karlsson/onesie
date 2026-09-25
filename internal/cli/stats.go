@@ -259,7 +259,8 @@ type Stats struct {
 	Requests int
 	Failed   int
 	// FalseAsserts counts the records whose assertion did not hold, a resume's skipped ones
-	// included. §17.6 counts them apart from Failed, since a false assertion judges a complete record.
+	// included. They are counted apart from Failed, since a false assertion judges a complete
+	// record.
 	FalseAsserts int
 	// Abstains counts the records whose assertion did not hold and whose abstain expression did, a
 	// resume's skipped ones included.
@@ -323,8 +324,8 @@ func (s Stats) String() string {
 }
 
 func roundElapsed(d time.Duration) string {
-	// A Duration prints every digit it holds, which puts nanoseconds in a summary section 10
-	// writes as 11.4s. Rounded to the resolution a reader can act on.
+	// A Duration prints every digit it holds, which puts nanoseconds in a summary that reads better
+	// as 11.4s. Rounded to the resolution a reader can act on.
 	if d < time.Second {
 		return d.Round(time.Millisecond).String()
 	}
@@ -365,8 +366,8 @@ func (s Stats) retryBreakdown() string {
 	parts := make([]string, 0, len(codes))
 
 	for _, code := range codes {
-		// A connection error or a timeout has no status. Section 10 wants this breakdown to
-		// separate rate limiting from transport, and a literal 0 answers neither question.
+		// A connection error or a timeout has no status. The breakdown separates rate limiting from
+		// transport, and a literal 0 answers neither question.
 		label := strconv.Itoa(code)
 		if code == 0 {
 			label = "transport"

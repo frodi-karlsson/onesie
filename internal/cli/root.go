@@ -161,7 +161,7 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 		},
 	}
 
-	// Cobra would claim the lowercase -v for --version, and the spec asks for -V. Registering it
+	// Cobra would claim the lowercase -v for --version, and onesie spells it -V. Registering it
 	// here takes the name before cobra reaches for a shorthand of its own.
 	root.Flags().BoolP("version", "V", false, "print the version and the built in limits")
 	asksNothing(root.Flags(), "version")
@@ -176,8 +176,8 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 	root.Flags().BoolVarP(&flags.quiet, "quiet", "q", false,
 		"suppress output, the exit code carries the answer")
 	root.Flags().BoolVar(&flags.usage, "usage", false, "add the api usage object to json output")
-	// Not a group flag. §17.5 makes it global, so it binds to no --ask group and may appear
-	// anywhere in argv, and StringArrayVar keeps the order it was given in.
+	// Not a group flag. It is global, so it binds to no --ask group and may appear anywhere in
+	// argv, and StringArrayVar keeps the order it was given in.
 	root.Flags().StringArrayVar(&flags.assert, "assert", nil,
 		"boolean expression over the record, repeatable, combined with and")
 	root.Flags().StringArrayVar(&flags.abstainIf, "abstain-if", nil,

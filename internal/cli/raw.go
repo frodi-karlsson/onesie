@@ -57,16 +57,16 @@ func streamRaw(
 				return errorLine(rec.Err), rec.Err
 			}
 
-			// Section 10 makes --print-request the identity here: bodies pass through unchanged,
-			// with exit 0 and no network. The same predicate decides this and the client above, so
-			// the two cannot disagree and leave a nil client.
+			// --print-request is the identity here: bodies pass through unchanged, with exit 0 and
+			// no network. The same predicate decides this and the client above, so the two cannot
+			// disagree and leave a nil client.
 			if !requests(flags) {
 				return []byte(rec.Raw), nil
 			}
 
-			// From the request rather than the response, per section 10. A failed record has no
-			// answers but did carry questions, and counting the response would report zero for
-			// exactly the records a user turned --stats on to understand.
+			// From the request rather than the response. A failed record has no answers but did
+			// carry questions, and counting the response would report zero for exactly the records
+			// a user turned --stats on to understand.
 			asked := rawQuestions([]byte(rec.Raw))
 
 			body, err := client.SystemOneRaw(ctx, json.RawMessage(rec.Raw))
@@ -111,14 +111,14 @@ func streamRaw(
 		return &sourceError{cause: err, failed: result.Failed}
 	}
 
-	// §17.5 has a request body carry no assertion, so no record can have failed one.
+	// A request body carries no assertion, so no record can have failed one.
 	return streamResult(result, 0, 0)
 }
 
 func oneLine(body []byte) []byte {
 	// A server that newline terminates or pretty prints its JSON would otherwise turn one record
-	// into several output lines, which is the one promise section 8 makes about this mode. Every
-	// other streaming path encodes its own record and never faces this.
+	// into several output lines, where this mode promises one line per record. Every other
+	// streaming path encodes its own record and never faces this.
 	var flat bytes.Buffer
 
 	if err := json.Compact(&flat, body); err == nil {

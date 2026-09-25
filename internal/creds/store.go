@@ -243,8 +243,8 @@ func (s Store) Save(path string, file File) (*ModeWarning, error) {
 	}
 
 	// os.CreateTemp already creates at 0600 before umask, so this only does work on a filesystem
-	// that ignored that, which is the same filesystem that will refuse here. Section 16.2 says such
-	// a filesystem gets a warning and a written file, not a failure.
+	// that ignored that, which is the same filesystem that will refuse here. Such a filesystem gets
+	// a warning and a written file, not a failure.
 	var warning *ModeWarning
 	if chmodErr := s.chmod(name, 0o600); chmodErr != nil {
 		warning = &ModeWarning{Path: path}
@@ -365,15 +365,14 @@ func (f File) complete() bool {
 
 func (s Store) checkMode(path string, mode os.FileMode) error {
 	// Windows does not carry unix permission bits, so the check would reject every file or accept
-	// every file depending on how the bits happen to be reported. Section 16.2 scopes the rule to
-	// platforms that support modes.
+	// every file depending on how the bits happen to be reported.
 	if s.goos == "windows" {
 		return nil
 	}
 
 	// 0o077 rather than 0o044. A group writable credential file is as bad as a readable one, since
-	// whoever can replace it can substitute a key whose traffic they see. Section 16.2 records the
-	// reasoning and the message says accessible rather than readable because of it.
+	// whoever can replace it can substitute a key whose traffic they see. The message says
+	// accessible rather than readable because of it.
 	if mode.Perm()&0o077 == 0 {
 		return nil
 	}

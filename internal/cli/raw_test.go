@@ -506,7 +506,7 @@ func TestStreamRaw(t *testing.T) {
 				}
 
 				// No client factory and no key, so a case that exits ok reached no network at all,
-				// which is the identity claim section 10 makes.
+				// which is what makes --print-request an identity here.
 				replayed, errOut, code := runOfflineStdin(
 					t, []string{"-i", "request", "--print-request"}, printed)
 				if code != ExitOK {

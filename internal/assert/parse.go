@@ -9,8 +9,8 @@ import (
 
 const maxDepth = 256 // Far past anything a person types and far short of what exhausts a stack.
 
-// Parse reads one §17.2 expression. Its errors carry the column they were found at and no onesie
-// prefix, which the caller owns.
+// Parse reads one assertion expression. Its errors carry the column they were found at and no
+// onesie prefix, which the caller owns.
 func Parse(source string) (*Expr, error) {
 	tokens, err := lex(source)
 	if err != nil {
@@ -133,7 +133,7 @@ func (p *parser) parseAnd() (node, error) {
 
 func (p *parser) parseUnary() (node, error) {
 	// Every path back into parseExpr runs through here, so counting this one entry bounds the
-	// descent. A stack overflow is a fatal error no recover reaches, and §17.5's assert key has no
+	// descent. A stack overflow is a fatal error no recover reaches, and a file's assert key has no
 	// size limit.
 	p.depth++
 	defer func() { p.depth-- }()
@@ -397,8 +397,8 @@ func (p *parser) next() token {
 }
 
 func (p *parser) unclosedBracket() error {
-	// §17.8 publishes this message with a column one past the input, because the bracket was never
-	// closed anywhere, not at the token that happened to follow it.
+	// The column is one past the input, because the bracket was never closed anywhere, not at the
+	// token that happened to follow it.
 	return parseError(p.tokens[len(p.tokens)-1].col, "expected a closing bracket before the end")
 }
 

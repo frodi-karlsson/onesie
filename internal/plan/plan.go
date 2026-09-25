@@ -54,7 +54,7 @@ const (
 	Rate
 )
 
-// String names the shape as the spec spells it.
+// String names the shape as the API's type field spells it.
 func (s Shape) String() string {
 	switch s {
 	case Pick:

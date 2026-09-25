@@ -677,7 +677,7 @@ func TestAuthSet(t *testing.T) {
 				t.Errorf("stderr = %q, want it to name the path being written", errOut)
 			}
 
-			// Section 11 quotes the warning without the onesie prefix, which the word warning already
+			// The warning is printed without the onesie prefix, which the word warning already
 			// stands in for. Compared whole, so a second prefix in front of it fails here.
 			if tc.chmodFails {
 				want := "onesie: writing " + path + "\n" +
@@ -1888,8 +1888,8 @@ func TestStoredCredentials(t *testing.T) {
 					t.Skip("windows carries no unix permission bits, so the mode check does not apply")
 				}
 
-				// Mode 0644 is the assertion. Section 16.1 opens the file only when the run needs a
-				// key, so a dry run that opened this one would exit 3 instead of writing its body.
+				// Mode 0644 is the assertion. The file is opened only when the run needs a key, so
+				// a dry run that opened this one would exit 3 instead of writing its body.
 				dir := credentialDir(t, `{"providers":{"typesafe":{"api_key":"SECRET-FILE"}}}`, 0o644)
 
 				out, errOut, code := runCredentialFile(t, tc.args, tc.stdin,

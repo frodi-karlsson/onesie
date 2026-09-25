@@ -50,8 +50,9 @@ func defaultClientFactory(
 			opts = append(opts, jev.WithBaseURL(baseURL))
 		}
 
-		// Section 16.1's third step. Every dry run returns before a client is built, so opening the
-		// file here is what makes it invisible to a run that needs no key.
+		// The credential file is the last source, after the flag and the environment. Every dry run
+		// returns before a client is built, so opening the file here is what makes it invisible to
+		// a run that needs no key.
 		stored, err := storedCredentials(settings, flags)
 		if err != nil {
 			return nil, err

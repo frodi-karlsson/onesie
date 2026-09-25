@@ -63,8 +63,8 @@ func fifoCap(jobs int) int {
 	}
 
 	// One less than the job count, because the writer is always holding one popped channel. That
-	// caps outstanding records at the job count, which is what makes the spec's bound of one fewer
-	// completed records buffered true.
+	// caps outstanding records at the job count, so at most one fewer completed records wait in the
+	// buffer.
 	return jobs - 1
 }
 

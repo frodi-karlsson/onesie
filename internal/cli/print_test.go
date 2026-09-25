@@ -1492,8 +1492,8 @@ func runOfflineStdin(t *testing.T, args []string, stdin string) (string, string,
 	// No client factory, so the real factory runs on a machine with no key, and a case that exits
 	// ok reached no network.
 	//
-	// ONESIE_CONFIG_DIR points at an empty directory, because section 16.1's third source would
-	// otherwise read the developer's own key into these tests.
+	// ONESIE_CONFIG_DIR points at an empty directory, because the credential file would otherwise
+	// read the developer's own key into these tests.
 	root := NewRootCmd(
 		BuildInfo{Version: "1.2.3"},
 		WithKeychain(noKeychain()),
