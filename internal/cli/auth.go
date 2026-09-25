@@ -12,6 +12,7 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/creds"
 	"github.com/frodi-karlsson/onesie/internal/interrupt"
 	"github.com/frodi-karlsson/onesie/internal/jev"
+	"github.com/frodi-karlsson/onesie/internal/mock"
 )
 
 const (
@@ -34,6 +35,9 @@ func newAuthCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return cmd.Help()
 		},
+		PersistentPreRunE: func(*cobra.Command, []string) error {
+			return refuseMock(settings, flags)
+		},
 	}
 
 	cmd.AddCommand(newAuthSetCmd(settings, flags))
@@ -42,6 +46,20 @@ func newAuthCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 	cmd.AddCommand(newAuthClearCmd(settings, flags))
 
 	return cmd
+}
+
+func refuseMock(settings rootSettings, flags *runFlags) error {
+	_, spelled := mockSource(settings, flags)
+	if spelled == "" {
+		return nil
+	}
+
+	advice := "Unset it"
+	if spelled == flagMock {
+		advice = "Drop it"
+	}
+
+	return fmt.Errorf("onesie: auth reads and writes a real key, so it does not run under %s. %s", spelled, advice)
 }
 
 func newAuthSetCmd(settings rootSettings, flags *runFlags) *cobra.Command {
@@ -537,6 +555,10 @@ func previousAccount(entry creds.Entry, provider jev.Provider) string {
 }
 
 func resolveProvider(settings rootSettings, flags *runFlags) (jev.Provider, error) {
+	if path, _ := mockSource(settings, flags); path != "" {
+		return jev.Provider{Name: mock.Model}, nil
+	}
+
 	if name := strings.TrimSpace(flags.provider); name != "" {
 		return jev.ProviderNamed(name)
 	}

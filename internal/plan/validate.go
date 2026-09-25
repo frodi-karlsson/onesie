@@ -245,6 +245,8 @@ func checkListModels(cfg Config) error {
 			"thing to stdout. Pass one"},
 		{cfg.PrintQuestions, "onesie: --print-questions and --list-models each write a different " +
 			"thing to stdout. Pass one"},
+		{cfg.Mock != "", fmt.Sprintf("onesie: --list-models asks no question, so %s has nothing to answer. %s",
+			cfg.Mock, mockAdvice(cfg, "--list-models"))},
 	} {
 		if rule.given {
 			return errors.New(rule.message)
@@ -305,6 +307,8 @@ func checkRequestMode(cfg Config) error {
 			"whose bodies carry no assertion"},
 		{cfg.PrintQuestions, "onesie: --print-questions needs questions of its own, " +
 			"which -i request does not build"},
+		{cfg.Mock != "", fmt.Sprintf("onesie: -i request sends each body as written, so %s has nothing "+
+			"to answer. %s", cfg.Mock, mockAdvice(cfg, "-i request"))},
 	} {
 		if rule.given {
 			return errors.New(rule.message)
@@ -315,6 +319,11 @@ func checkRequestMode(cfg Config) error {
 }
 
 func checkPrintFlags(cfg Config) error {
+	if cfg.PrintRequest && cfg.Mock != "" {
+		return fmt.Errorf("onesie: %s answers requests, and --print-request sends none. %s",
+			cfg.Mock, mockAdvice(cfg, "--print-request"))
+	}
+
 	if cfg.PrintRequest && cfg.PrintQuestions {
 		return errors.New("onesie: --print-request and --print-questions each write a " +
 			"different thing to stdout. Pass one")
@@ -394,6 +403,14 @@ func checkPrintFlags(cfg Config) error {
 	}
 
 	return nil
+}
+
+func mockAdvice(cfg Config, flag string) string {
+	if strings.HasPrefix(cfg.Mock, "-") {
+		return "Drop one"
+	}
+
+	return "Unset it or drop " + flag
 }
 
 func printFlag(cfg Config) (string, string) {
@@ -1047,6 +1064,10 @@ type Config struct {
 	// RequestMode is true for -i request, which carries its own questions and forwards raw
 	// responses. Streaming is true for it too, so the two are not interchangeable.
 	RequestMode bool
+
+	// Mock names where a mock answers file came from, --mock or ONESIE_MOCK, and is empty when the
+	// run asks the API.
+	Mock string
 
 	// ListModels is --list-models, which asks no question, reads nothing and makes one request of
 	// its own. Every flag around a question run is rejected for it.

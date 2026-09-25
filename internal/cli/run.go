@@ -38,6 +38,9 @@ func run(
 		return err
 	}
 
+	mockPath, mockSpelled := mockSource(settings, flags)
+	cfg.Mock = mockSpelled
+
 	// Both branches sit ahead of the plan, since neither has a question and failing for want of one
 	// would send the user to the wrong flag. --list-models comes first, so it names itself rather
 	// than the mode it was combined with.
@@ -106,6 +109,15 @@ func run(
 		return err
 	}
 
+	// Loaded before any mode writes, so a file that does not match the questions leaves no line.
+	answers := liveAnswers(settings)
+	if mockPath != "" {
+		answers, err = mockAnswers(settings, mockPath, mockSpelled, built, cfg.HasID)
+		if err != nil {
+			return err
+		}
+	}
+
 	// Both modes are parsed before the request, so a mistyped flag costs nothing.
 	outputMode, err := output.ParseMode(
 		outputName(flags), settings.stdoutTTY, inputMode.Streaming(), merging(flags))
@@ -127,7 +139,7 @@ func run(
 		return withStats(cmd, settings.now, flags, func(stats *collector) error {
 			return stream(
 				cmd, settings, built, mapper, namer, inputMode, outputMode, flags, gate, abstain, stats,
-				out, resume, liveAnswers(settings))
+				out, resume, answers)
 		})
 	}
 
@@ -193,8 +205,7 @@ func run(
 	}
 
 	return withStats(cmd, settings.now, flags, func(stats *collector) error {
-		return ask(
-			cmd, settings, built, resolved, sent, outputMode, flags, gate, abstain, stats, liveAnswers(settings))
+		return ask(cmd, settings, built, resolved, sent, outputMode, flags, gate, abstain, stats, answers)
 	})
 }
 
@@ -391,7 +402,10 @@ func stream(
 		if evalErr != nil {
 			// Returned before the gate is asked. A failed record reads as all zeros, so a gate such
 			// as answer.value < 0.5 would hold for a request that never happened.
-			return rowLine(record, rec), evalErr
+			failed := rowLine(record, rec)
+			failed.uncovered = uncovered(evalErr)
+
+			return failed, evalErr
 		}
 
 		// A false assertion or an abstain is not an engine failure: the record succeeded and the
@@ -424,6 +438,10 @@ func stream(
 
 	var stopped atomic.Bool
 
+	// Set by the first record a mock file does not answer. Every line after it is dropped too, so the
+	// output holds only the records before it and a resume asks the rest.
+	var stoppedAtUncovered bool
+
 	result, err := engine.Run(cmd.Context(), engine.Config[namedRecord, line]{
 		Source: source,
 		Evaluate: func(ctx context.Context, rec namedRecord) (line, error) {
@@ -433,6 +451,12 @@ func stream(
 			return l, evalErr
 		},
 		Write: func(l line) error {
+			if stoppedAtUncovered || l.uncovered {
+				stoppedAtUncovered = true
+
+				return nil
+			}
+
 			if book == nil {
 				return write(l)
 			}
@@ -597,7 +621,7 @@ func aborting(err error) bool {
 	// Every later record would fail the same way, and a bad key should be reported once rather
 	// than once per line.
 	return errors.Is(err, jev.ErrAuthentication) || errors.Is(err, jev.ErrPermissionDenied) ||
-		errors.Is(err, jev.ErrPaymentRequired)
+		errors.Is(err, jev.ErrPaymentRequired) || uncovered(err)
 }
 
 func stopping(flags *runFlags) func(line) bool {
@@ -613,12 +637,13 @@ func stopping(flags *runFlags) func(line) bool {
 }
 
 type line struct {
-	record output.Record
-	raw    string
-	state  any // The record as read, before --map, so --merge keeps a text line's type and a JSON line's digits.
-	header []string
-	fields map[string]any
-	slot   int
+	record    output.Record
+	raw       string
+	state     any // The record as read, before --map, so --merge keeps a text line's type and a JSON line's digits.
+	header    []string
+	fields    map[string]any
+	slot      int
+	uncovered bool
 }
 
 func mergeName(flags *runFlags) string {
@@ -691,6 +716,10 @@ func ask(
 
 	record, err := evaluate(
 		cmd.Context(), asker, recordKey{position: 1, line: 1}, built, model, questions, sent, flags.usage, stats)
+	if uncovered(err) {
+		return err
+	}
+
 	if err != nil {
 		// The exit code still comes from the error. This adds the fallback word the caller asked
 		// for, so a shell guard reads a decision. An interrupt is skipped, since a transport record
@@ -893,6 +922,13 @@ func evaluate(
 	stats *collector,
 ) (output.Record, error) {
 	record, usage, err := answered(ctx, asker, key, built, model, questions, state, withUsage)
+	if uncovered(err) {
+		// No request stood behind it, so it is a record and not a request, and no attempt ended.
+		stats.recordFailure(err, false, 0)
+
+		return record, err
+	}
+
 	if err != nil {
 		// The request was made whatever went wrong afterwards, and the questions went with it, so a
 		// failed record still carries them into the count --stats reports.
@@ -1049,6 +1085,7 @@ func outputName(flags *runFlags) string {
 
 type runFlags struct {
 	provider  string
+	mock      string
 	out       string
 	resume    bool
 	prune     bool

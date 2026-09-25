@@ -182,6 +182,9 @@ func runCalibrate(
 		return err
 	}
 
+	mockPath, mockSpelled := mockSource(settings, flags)
+	cfg.Mock = mockSpelled
+
 	if checkErr := checkCalibrate(cmd, cfg, inputMode, calib, events); checkErr != nil {
 		return checkErr
 	}
@@ -213,7 +216,15 @@ func runCalibrate(
 		return calibrateRequests(cmd, settings, flags, inputMode, inv, labels)
 	}
 
-	return calibrateRun(cmd, settings, flags, calib, inputMode, inv, labels)
+	answers := liveAnswers(settings)
+	if mockPath != "" {
+		answers, err = mockAnswers(settings, mockPath, mockSpelled, inv.plan, cfg.HasID)
+		if err != nil {
+			return err
+		}
+	}
+
+	return calibrateRun(cmd, settings, flags, calib, inputMode, inv, labels, answers)
 }
 
 func checkCalibrate(

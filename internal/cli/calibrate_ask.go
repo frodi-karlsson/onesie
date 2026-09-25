@@ -26,7 +26,7 @@ const maxCauses = 5
 
 func calibrateRun(
 	cmd *cobra.Command, settings rootSettings, flags *runFlags, calib calibrateFlags, inputMode input.Mode,
-	inv *invocation, labels []questionLabel,
+	inv *invocation, labels []questionLabel, answers answererFactory,
 ) (err error) {
 	model, err := resolveModel(settings, flags, inv.plan.Model)
 	if err != nil {
@@ -47,7 +47,8 @@ func calibrateRun(
 		err = errors.Join(err, out.release())
 	}()
 
-	runErr := calibrateAnswers(cmd, settings, flags, calib.report, inputMode, inv, labels, model, cuts, out)
+	runErr := calibrateAnswers(
+		cmd, settings, flags, calib.report, inputMode, inv, labels, model, cuts, out, answers)
 	if out == nil {
 		return runErr
 	}
@@ -58,6 +59,7 @@ func calibrateRun(
 func calibrateAnswers(
 	cmd *cobra.Command, settings rootSettings, flags *runFlags, format string, inputMode input.Mode,
 	inv *invocation, labels []questionLabel, model string, cuts []float64, out *outFile,
+	answers answererFactory,
 ) error {
 	built := inv.plan
 
@@ -93,8 +95,7 @@ func calibrateAnswers(
 			stats.skip(resumed.book.skipped())
 		}
 
-		outcomes, result, askErr := askLabelled(
-			cmd, flags, built, model, resumed, out, stats, liveAnswers(settings))
+		outcomes, result, askErr := askLabelled(cmd, flags, built, model, resumed, out, stats, answers)
 		if askErr != nil {
 			return askErr
 		}

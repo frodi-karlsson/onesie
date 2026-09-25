@@ -95,6 +95,18 @@ func TestNewRootCmd(t *testing.T) {
 			contains: []string{"Usage:", "onesie [question]"},
 		},
 		{
+			name:     "should list --mock in the root help",
+			args:     []string{"--help"},
+			wantCode: cli.ExitOK,
+			contains: []string{"--mock string", "ONESIE_MOCK"},
+		},
+		{
+			name:     "should list --mock in the calibrate help",
+			args:     []string{"calibrate", "--help"},
+			wantCode: cli.ExitOK,
+			contains: []string{"--mock string", "ONESIE_MOCK"},
+		},
+		{
 			name:     "should print the limits for the version flag",
 			args:     []string{"-V"},
 			wantCode: cli.ExitOK,

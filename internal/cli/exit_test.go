@@ -37,6 +37,10 @@ func TestClassify(t *testing.T) {
 	}{
 		{name: "should report success for no error", err: nil, want: ExitOK},
 		{
+			name: "should report usage for a record a mock file does not answer",
+			err:  &abortError{cause: &uncoveredError{spelled: "--mock", line: 3}}, want: ExitUsage,
+		},
+		{
 			name: "should report usage for a stored input failure a resume stopped at",
 			err:  stored("input", nil), want: ExitUsage,
 		},

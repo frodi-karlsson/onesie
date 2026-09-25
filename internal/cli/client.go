@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/frodi-karlsson/onesie/internal/jev"
+	"github.com/frodi-karlsson/onesie/internal/mock"
 	"github.com/frodi-karlsson/onesie/internal/output"
 )
 
@@ -156,6 +157,10 @@ func pooled(jobs int) http.RoundTripper {
 type clientFactory func(ctx context.Context, opts ...jev.Option) (*jev.Client, error)
 
 func resolveModel(settings rootSettings, flags *runFlags, model string) (string, error) {
+	if path, _ := mockSource(settings, flags); path != "" {
+		return mock.Model, nil
+	}
+
 	provider, err := resolveProvider(settings, flags)
 	if err != nil {
 		return "", err
