@@ -7,6 +7,8 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+
+	"github.com/frodi-karlsson/onesie/internal/jev"
 )
 
 func TestListModels(t *testing.T) {
@@ -194,7 +196,7 @@ func TestListModels(t *testing.T) {
 				defer srv.Close()
 
 				args := append([]string{
-					"--list-models", "--base-url", srv.URL, "--api-key", "test",
+					"--list-models", "--base-url", srv.URL,
 				}, tc.args...)
 
 				out, errOut, code := runRealFactory(t, args)
@@ -229,7 +231,7 @@ func TestListModels(t *testing.T) {
 			t.Cleanup(func() { close(blocked) })
 
 			out, errOut, code := runRealFactory(t, []string{
-				"--list-models", "--base-url", srv.URL, "--api-key", "test",
+				"--list-models", "--base-url", srv.URL,
 				"--timeout", "1", "--retries", "0",
 			})
 
@@ -258,7 +260,7 @@ func runRealFactory(t *testing.T, args []string) (string, string, int) {
 		WithStdin(strings.NewReader("")),
 		WithStdinTTY(false),
 		WithStdoutTTY(false),
-		WithLookupEnv(func(string) (string, bool) { return "", false }),
+		WithLookupEnv(lookupFrom(map[string]string{jev.EnvAPIKey: "test"})),
 	)
 
 	root.SetOut(&out)

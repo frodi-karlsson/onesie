@@ -39,20 +39,16 @@ func defaultClientFactory(
 			opts = append(opts, jev.WithHTTPClient(&http.Client{Transport: transport}))
 		}
 
-		// Trimmed, so a whitespace only flag is the same nothing here that it is to resolveKey
-		// and storedOptions. Passing it raw installs an option jev.New trims back to empty, which
-		// reads as a flag that was honoured.
-		if key := strings.TrimSpace(flags.apiKey); key != "" {
-			opts = append(opts, jev.WithAPIKey(key))
-		}
-
+		// Trimmed, so a whitespace only flag is the same nothing here that it is to storedOptions.
+		// Passing it raw installs an option jev.New trims back to empty, which reads as a flag that
+		// was honoured.
 		if baseURL := strings.TrimSpace(flags.baseURL); baseURL != "" {
 			opts = append(opts, jev.WithBaseURL(baseURL))
 		}
 
-		// The credential file is the last source, after the flag and the environment. Every dry run
-		// returns before a client is built, so opening the file here is what makes it invisible to
-		// a run that needs no key.
+		// The credential file is the last source, after the provider's environment variable. Every
+		// dry run returns before a client is built, so opening the file here is what makes it
+		// invisible to a run that needs no key.
 		stored, err := storedCredentials(settings, flags)
 		if err != nil {
 			return nil, err
@@ -119,8 +115,8 @@ func storedCredentials(settings rootSettings, flags *runFlags) ([]jev.Option, er
 		return nil, err
 	}
 
-	// Only the file and the keychain build options here, since jev.New applies --api-key and
-	// TYPESAFE_API_KEY itself. The guard changes nothing today, but the rule belongs where the
+	// Only the file and the keychain build options here, since jev.New reads the provider's
+	// variable itself. The guard changes nothing today, but the rule belongs where the
 	// file's options are built.
 	if source.name != sourceFile && source.name != sourceKeychain {
 		return nil, nil

@@ -13,6 +13,8 @@ import (
 func TestGraderGrade(t *testing.T) {
 	t.Parallel()
 
+	const apiKeyFailure = "passes --api-key, which onesie removed since argv is visible to other processes"
+
 	result := `{"cases":[{"name":"gate","arms":{
 		"without":[{"tracePath":"/t/without-1.jsonl"}],
 		"with":[{"tracePath":"/t/with-1.jsonl"},{"tracePath":"/t/gone.jsonl"}]}}]}`
@@ -127,6 +129,7 @@ func TestGraderGrade(t *testing.T) {
 		name        string
 		script      string
 		wantSkip    string
+		wantFail    string
 		wantCommand string
 	}{
 		{
@@ -163,10 +166,22 @@ func TestGraderGrade(t *testing.T) {
 			script: "onesie 'is this urgent' --state -f",
 		},
 		{
-			name:        "should redact the --api-key value in a reported command",
+			name:        "should flag --api-key on a subcommand and redact its value",
 			script:      "onesie --api-key sk-secret auth status",
-			wantSkip:    "runs the auth subcommand",
+			wantFail:    apiKeyFailure,
 			wantCommand: "onesie --api-key REDACTED auth status",
+		},
+		{
+			name:        "should flag --api-key on a question without dry running it",
+			script:      "onesie 'is this urgent' --api-key=sk-secret --state x",
+			wantFail:    apiKeyFailure,
+			wantCommand: "onesie 'is this urgent' --api-key=REDACTED --state x",
+		},
+		{
+			name:        "should read the --api-key value rather than take it for the question",
+			script:      "onesie --api-key version 'is this urgent'",
+			wantFail:    apiKeyFailure,
+			wantCommand: "onesie --api-key REDACTED 'is this urgent'",
 		},
 	}
 
@@ -204,18 +219,23 @@ func TestGraderGrade(t *testing.T) {
 
 			arm := report.Cases[0].Arms[0]
 
-			if tc.wantSkip == "" {
-				if len(ran) != 1 || arm.Clean != 1 {
-					t.Errorf("ran %q with %+v, want one clean dry run", ran, arm)
+			switch {
+			case tc.wantFail != "":
+				if len(ran) != 0 || len(arm.Failed) != 1 || arm.Failed[0].Detail != tc.wantFail {
+					t.Fatalf("ran %q with %+v, want a failure saying %q", ran, arm, tc.wantFail)
 				}
-			} else {
+
+				if arm.Failed[0].Command != tc.wantCommand {
+					t.Errorf("reported command = %q, want %q", arm.Failed[0].Command, tc.wantCommand)
+				}
+			case tc.wantSkip != "":
 				if len(ran) != 0 || len(arm.Skipped) != 1 || arm.Skipped[0].Detail != tc.wantSkip {
 					t.Fatalf("ran %q with %+v, want a skip saying %q", ran, arm, tc.wantSkip)
 				}
-			}
-
-			if tc.wantCommand != "" && arm.Skipped[0].Command != tc.wantCommand {
-				t.Errorf("reported command = %q, want %q", arm.Skipped[0].Command, tc.wantCommand)
+			default:
+				if len(ran) != 1 || arm.Clean != 1 {
+					t.Errorf("ran %q with %+v, want one clean dry run", ran, arm)
+				}
 			}
 		})
 	}

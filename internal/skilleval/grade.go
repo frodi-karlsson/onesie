@@ -20,6 +20,10 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/skillcheck"
 )
 
+// Named here rather than looked up, since onesie keeps --api-key only to refuse it and the grader
+// has to keep reading its value once the flag is gone.
+const removedAPIKey = "api-key"
+
 var (
 	subcommands = []string{"auth", "completion", "help", "version"}
 
@@ -171,6 +175,15 @@ func (g *Grader) dryRun(ctx context.Context, run int, command string, report *Ar
 	shown := redactAPIKey(command)
 	args := g.parse(command)
 
+	if args.has(removedAPIKey) {
+		report.Failed = append(report.Failed, Finding{
+			Run: run, Command: shown,
+			Detail: "passes --api-key, which onesie removed since argv is visible to other processes",
+		})
+
+		return nil
+	}
+
 	if reason := args.skipReason(); reason != "" {
 		report.Skipped = append(report.Skipped, Finding{Run: run, Command: shown, Detail: reason})
 
@@ -244,7 +257,7 @@ func parseArgs(args []string, flags FlagLookup) parsedArgs {
 			name, _, joined := strings.Cut(arg[2:], "=")
 			parsed.flags = append(parsed.flags, name)
 
-			if !joined && takesValue(flags.Lookup(name)) {
+			if !joined && (name == removedAPIKey || takesValue(flags.Lookup(name))) {
 				i++
 			}
 

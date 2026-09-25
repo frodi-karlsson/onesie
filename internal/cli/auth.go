@@ -15,7 +15,6 @@ import (
 )
 
 const (
-	sourceFlag     = "flag"
 	sourceEnv      = "env"
 	sourceFile     = "file"
 	sourceKeychain = "keychain"
@@ -492,13 +491,7 @@ func locateKey(settings rootSettings, flags *runFlags) (keySource, error) {
 		return keySource{}, err
 	}
 
-	// auth status never reaches this, since --api-key is local to the root command and cobra
-	// rejects it on a subcommand. The ordinary run path does, where the flag outranks both later
-	// sources.
-	if key := strings.TrimSpace(flags.apiKey); key != "" {
-		return keySource{name: sourceFlag, provider: provider, key: key}, nil
-	}
-
+	// The provider's variable outranks the credential file, which is read only when it is unset.
 	if value, ok := settings.lookupEnv(provider.EnvAPIKey); ok && strings.TrimSpace(value) != "" {
 		return keySource{name: sourceEnv, provider: provider, key: strings.TrimSpace(value)}, nil
 	}

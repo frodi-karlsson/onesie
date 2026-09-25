@@ -41,7 +41,11 @@ const (
 	flagBaseURL       = "base-url"
 	flagMap           = "map"
 	flagID            = "id"
+	flagAPIKey        = "api-key"
 )
+
+var errAPIKeyRemoved = errors.New("onesie: --api-key was removed, since argv is visible to other processes. Set " +
+	jev.TypeSafe().EnvAPIKey + " or " + jev.OpenRouter().EnvAPIKey + ", or run onesie auth set")
 
 var groupFlagHelp = map[string]string{
 	"ask":            "NAME=QUESTION, repeatable, opens a question group",
@@ -114,6 +118,8 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 		Long: "onesie is a Unix filter over the System One API, served by TypeSafe or OpenRouter.\n\n" +
 			"State arrives on stdin, typed answers leave on stdout, and the exit status is " +
 			"usable in a conditional.\n\n" +
+			"The API key comes from the provider's variable, TYPESAFE_API_KEY or OPENROUTER_API_KEY, " +
+			"then from the credential file onesie auth set writes.\n\n" +
 			"A question that begins with a dash needs -- before it, with any flags placed " +
 			"first, as in onesie -o json -- '-is this urgent'.",
 		Version: info.Version,
@@ -123,6 +129,10 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) (err error) {
+			if cmd.Flags().Changed(flagAPIKey) {
+				return errAPIKeyRemoved
+			}
+
 			positional := ""
 			if len(args) == 1 {
 				positional = args[0]
@@ -196,8 +206,7 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 	root.Flags().StringVarP(&flags.model, flagModel, "m", "", "model override")
 	root.PersistentFlags().StringVar(&flags.provider, "provider", "",
 		"typesafe or openrouter. Defaults to ONESIE_PROVIDER, then typesafe")
-	root.Flags().StringVar(&flags.apiKey, "api-key", "",
-		"api key. Prefer TYPESAFE_API_KEY, OPENROUTER_API_KEY or onesie auth set, since argv is visible in ps")
+	keepRemovedAPIKey(root.Flags())
 	root.Flags().StringVar(&flags.baseURL, flagBaseURL, "", "api root override")
 	root.Flags().StringVarP(&flags.file, "file", "f", "",
 		"question file or request body, or the name of one saved in .onesie/questions or the config dir")
@@ -262,6 +271,10 @@ func subcommandHint(root *cobra.Command) func(*cobra.Command, error) error {
 			return err
 		}
 
+		if unknown.GetSpecifiedShortnames() == "" && unknown.GetSpecifiedName() == flagAPIKey {
+			return errAPIKeyRemoved
+		}
+
 		// A flag that asks no question would refuse the question the hint tells the user to ask.
 		known := rootFlag(root, unknown)
 		if known == nil {
@@ -287,6 +300,12 @@ func rootFlag(root *cobra.Command, unknown *pflag.NotExistError) *pflag.Flag {
 	}
 
 	return root.Flags().Lookup(unknown.GetSpecifiedName())
+}
+
+func keepRemovedAPIKey(set *pflag.FlagSet) {
+	// Kept only to explain its removal, and can go in the release after 0.2.
+	set.String(flagAPIKey, "", "removed, since argv is visible to other processes")
+	set.Lookup(flagAPIKey).Hidden = true
 }
 
 func asksNothing(set *pflag.FlagSet, name string) {

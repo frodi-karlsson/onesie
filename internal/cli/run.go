@@ -1053,7 +1053,6 @@ type runFlags struct {
 	state     string
 	stateFile string
 	model     string
-	apiKey    string
 	baseURL   string
 	file      string
 	replace   bool

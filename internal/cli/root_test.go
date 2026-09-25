@@ -1090,7 +1090,7 @@ func TestNewRootCmd(t *testing.T) {
 				defer srv.Close()
 
 				args := append([]string{
-					"is this urgent", "--base-url", srv.URL, "--api-key", "test",
+					"is this urgent", "--base-url", srv.URL,
 				}, tc.args...)
 
 				var out bytes.Buffer
@@ -1103,7 +1103,7 @@ func TestNewRootCmd(t *testing.T) {
 					cli.WithStdin(strings.NewReader("a ticket")),
 					cli.WithStdinTTY(false),
 					cli.WithStdoutTTY(false),
-					cli.WithLookupEnv(func(string) (string, bool) { return "", false }),
+					cli.WithLookupEnv(apiKeyEnv("test")),
 				)
 
 				root.SetOut(&out)
@@ -1271,6 +1271,76 @@ func TestNewRootCmd(t *testing.T) {
 			})
 		}
 	})
+
+	t.Run("should refuse the removed --api-key before any request", func(t *testing.T) {
+		t.Parallel()
+
+		const removed = "onesie: --api-key was removed, since argv is visible to other processes. " +
+			"Set TYPESAFE_API_KEY or OPENROUTER_API_KEY, or run onesie auth set\n"
+
+		tests := []struct {
+			name string
+			args []string
+		}{
+			{name: "should refuse it on the root", args: []string{"is this urgent", "--api-key", "SECRET-FLAG"}},
+			{name: "should refuse the joined spelling on the root", args: []string{"--api-key=SECRET-FLAG", "is this urgent"}},
+			{name: "should refuse it with no other flag", args: []string{"--api-key", "SECRET-FLAG"}},
+			{
+				name: "should refuse it on calibrate",
+				args: []string{
+					"calibrate", "--ask", "urgent=is this urgent", "-i", "jsonl", "--map", ".body",
+					"--label", ".urgent", "--api-key", "SECRET-FLAG",
+				},
+			},
+			{name: "should refuse it on auth status", args: []string{"auth", "status", "--api-key", "SECRET-FLAG"}},
+			{name: "should refuse it on auth test", args: []string{"auth", "test", "--api-key=SECRET-FLAG"}},
+			{name: "should refuse it on version in place of the hint", args: []string{"version", "--api-key", "SECRET-FLAG"}},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				var out, errOut bytes.Buffer
+
+				var built atomic.Int64
+
+				root := cli.NewRootCmd(
+					cli.BuildInfo{Version: "1.2.3"},
+					cli.WithKeychain(offKeychain{}),
+					cli.WithStdin(strings.NewReader(`{"body":"the site is down","urgent":true}`)),
+					cli.WithStdinTTY(false),
+					cli.WithStdoutTTY(false),
+					cli.WithLookupEnv(apiKeyEnv("SECRET-ENV")),
+					cli.WithClientFactory(func(context.Context, ...jev.Option) (*jev.Client, error) {
+						built.Add(1)
+
+						return nil, errors.New("no client should be built")
+					}),
+				)
+
+				root.SetOut(&out)
+				root.SetErr(&errOut)
+				root.SetArgs(tc.args)
+
+				if code := cli.Execute(t.Context(), root); code != cli.ExitUsage {
+					t.Errorf("exit code = %d, want %d\nstderr:\n%s", code, cli.ExitUsage, errOut.String())
+				}
+
+				if errOut.String() != removed {
+					t.Errorf("stderr = %q, want %q", errOut.String(), removed)
+				}
+
+				if out.Len() != 0 {
+					t.Errorf("stdout = %q, want nothing", out.String())
+				}
+
+				if got := built.Load(); got != 0 {
+					t.Errorf("built %d clients, want none", got)
+				}
+			})
+		}
+	})
 }
 
 func TestDefaultClientFactory(t *testing.T) {
@@ -1279,7 +1349,7 @@ func TestDefaultClientFactory(t *testing.T) {
 	t.Run("should build a client from the flags", func(t *testing.T) {
 		t.Parallel()
 
-		t.Run("should build a client from --api-key and --base-url", func(t *testing.T) {
+		t.Run("should build a client from the environment key and --base-url", func(t *testing.T) {
 			t.Parallel()
 
 			var gotAuth string
@@ -1303,21 +1373,21 @@ func TestDefaultClientFactory(t *testing.T) {
 				cli.WithStdin(strings.NewReader("body")),
 				cli.WithStdinTTY(false),
 				cli.WithStdoutTTY(false),
-				cli.WithLookupEnv(func(string) (string, bool) { return "", false }),
+				cli.WithLookupEnv(apiKeyEnv("test")),
 			)
 
 			root.SetOut(&out)
 			root.SetErr(&out)
 			root.SetArgs([]string{
-				"is this urgent", "-r", "--api-key", "secret", "--base-url", srv.URL,
+				"is this urgent", "-r", "--base-url", srv.URL,
 			})
 
 			if code := cli.Execute(t.Context(), root); code != cli.ExitOK {
 				t.Fatalf("exit code = %d, output:\n%s", code, out.String())
 			}
 
-			if !strings.Contains(gotAuth, "secret") {
-				t.Errorf("Authorization header = %q, want it to carry the flag's key", gotAuth)
+			if !strings.Contains(gotAuth, "test") {
+				t.Errorf("Authorization header = %q, want it to carry the environment key", gotAuth)
 			}
 		})
 	})
@@ -1348,13 +1418,13 @@ func TestDefaultClientFactory(t *testing.T) {
 					cli.WithKeychain(offKeychain{}),
 					cli.WithStdinTTY(false),
 					cli.WithStdoutTTY(false),
-					cli.WithLookupEnv(func(string) (string, bool) { return "", false }),
+					cli.WithLookupEnv(apiKeyEnv("test")),
 				)
 
 				root.SetOut(&out)
 				root.SetErr(&errOut)
 				root.SetArgs([]string{
-					"--list-models", "--api-key", "secret", "--base-url", tc.baseURL, "--retries", "0",
+					"--list-models", "--base-url", tc.baseURL, "--retries", "0",
 					"--timeout", "1",
 				})
 
@@ -1473,7 +1543,7 @@ func TestDefaultClientFactory(t *testing.T) {
 				defer srv.Close()
 
 				args := append([]string{
-					"is this urgent", "--base-url", srv.URL, "--api-key", "test",
+					"is this urgent", "--base-url", srv.URL,
 				}, tc.args...)
 
 				var out bytes.Buffer
@@ -1486,7 +1556,7 @@ func TestDefaultClientFactory(t *testing.T) {
 					cli.WithStdin(strings.NewReader("the server is down")),
 					cli.WithStdinTTY(false),
 					cli.WithStdoutTTY(false),
-					cli.WithLookupEnv(func(string) (string, bool) { return "", false }),
+					cli.WithLookupEnv(apiKeyEnv("test")),
 				)
 
 				root.SetOut(&out)
@@ -1541,7 +1611,7 @@ func TestDefaultClientFactory(t *testing.T) {
 				defer srv.Close()
 
 				args := append([]string{
-					"is this urgent", "--base-url", srv.URL, "--api-key", "test",
+					"is this urgent", "--base-url", srv.URL,
 				}, tc.args...)
 
 				var out bytes.Buffer
@@ -1554,7 +1624,7 @@ func TestDefaultClientFactory(t *testing.T) {
 					cli.WithStdin(strings.NewReader("the server is down")),
 					cli.WithStdinTTY(false),
 					cli.WithStdoutTTY(false),
-					cli.WithLookupEnv(func(string) (string, bool) { return "", false }),
+					cli.WithLookupEnv(apiKeyEnv("test")),
 				)
 
 				root.SetOut(&out)
@@ -1599,13 +1669,13 @@ func TestDefaultClientFactory(t *testing.T) {
 				cli.WithStdin(strings.NewReader("the server is quiet")),
 				cli.WithStdinTTY(false),
 				cli.WithStdoutTTY(false),
-				cli.WithLookupEnv(func(string) (string, bool) { return "", false }),
+				cli.WithLookupEnv(apiKeyEnv("test")),
 			)
 
 			root.SetOut(&out)
 			root.SetErr(&errOut)
 			root.SetArgs([]string{
-				"is this urgent", "--base-url", srv.URL, "--api-key", "test",
+				"is this urgent", "--base-url", srv.URL,
 				"--timeout", "1", "--retries", "0",
 			})
 
@@ -1649,6 +1719,16 @@ func runWithEnv(t *testing.T, env map[string]string, args []string) (string, int
 	code := cli.Execute(t.Context(), root)
 
 	return out.String(), code
+}
+
+func apiKeyEnv(key string) func(string) (string, bool) {
+	return func(name string) (string, bool) {
+		if name == jev.EnvAPIKey {
+			return key, true
+		}
+
+		return "", false
+	}
 }
 
 func TestWireAll(t *testing.T) {

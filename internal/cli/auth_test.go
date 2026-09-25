@@ -1085,7 +1085,7 @@ func TestAuthTest(t *testing.T) {
 		{
 			// The message is jev.New's. auth test carries no copy of it, so the two cannot drift.
 			name:     "should exit 2 when no source holds a key",
-			wantErr:  "onesie: no API key. Pass --api-key or set " + jev.EnvAPIKey,
+			wantErr:  "onesie: no API key. Set " + jev.EnvAPIKey + " or run onesie auth set",
 			wantCode: ExitUsage,
 		},
 		{
@@ -1412,27 +1412,12 @@ func TestResolveKey(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		apiKey   string
 		env      map[string]string
 		file     string
 		wantName string
 		wantKey  string
 		wantBase string
 	}{
-		{
-			name:     "should report the flag when one is passed",
-			apiKey:   "SECRET-FLAG",
-			wantName: sourceFlag,
-			wantKey:  "SECRET-FLAG",
-		},
-		{
-			name:     "should prefer the flag over the environment and the file",
-			apiKey:   "SECRET-FLAG",
-			env:      map[string]string{jev.EnvAPIKey: "SECRET-ENV"},
-			file:     `{"providers":{"typesafe":{"api_key":"SECRET-FILE"}}}`,
-			wantName: sourceFlag,
-			wantKey:  "SECRET-FLAG",
-		},
 		{
 			name:     "should prefer the environment over the file",
 			env:      map[string]string{jev.EnvAPIKey: "SECRET-ENV"},
@@ -1472,7 +1457,7 @@ func TestResolveKey(t *testing.T) {
 				credStore: creds.NewStore(),
 			}
 
-			source, err := resolveKey(settings, &runFlags{apiKey: tc.apiKey})
+			source, err := resolveKey(settings, &runFlags{})
 			if err != nil {
 				t.Fatalf("resolveKey returned an error: %v", err)
 			}
@@ -1500,11 +1485,6 @@ func TestKeySourceString(t *testing.T) {
 		source keySource
 		want   string
 	}{
-		{
-			name:   "should name the flag",
-			source: keySource{name: sourceFlag, key: "SECRET-FLAG"},
-			want:   "source: flag",
-		},
 		{
 			name:   "should name the file and its path",
 			source: keySource{name: sourceFile, path: "/tmp/credentials.json", key: "SECRET-FILE"},
@@ -1702,29 +1682,6 @@ func TestStoredCredentials(t *testing.T) {
 			args:     []string{"is this urgent", "-r", "--provider", "openrouter", "--base-url", "WANTED"},
 			wantCode: ExitUsage,
 			wantErr:  "OPENROUTER_API_KEY",
-		},
-		{
-			name:     "should let --api-key outrank the file",
-			fileKey:  "SECRET-FILE",
-			fileBase: "UNWANTED",
-			args: []string{
-				"is this urgent", "-r", "--api-key", "SECRET-FLAG", "--base-url", "WANTED",
-			},
-			wantCode: ExitOK,
-			wantAuth: "Bearer SECRET-FLAG",
-			wanted:   1,
-		},
-		{
-			name:     "should let --api-key outrank the environment and the file",
-			fileKey:  "SECRET-FILE",
-			fileBase: "UNWANTED",
-			env:      map[string]string{jev.EnvAPIKey: "SECRET-ENV"},
-			args: []string{
-				"is this urgent", "-r", "--api-key", "SECRET-FLAG", "--base-url", "WANTED",
-			},
-			wantCode: ExitOK,
-			wantAuth: "Bearer SECRET-FLAG",
-			wanted:   1,
 		},
 		{
 			name:     "should let --base-url outrank the file's",

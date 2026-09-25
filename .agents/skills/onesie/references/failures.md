@@ -39,10 +39,9 @@ keychain item that is gone shows up in `auth test` or a real run, not in `auth s
 The provider comes first: `--provider`, then `ONESIE_PROVIDER`, then `typesafe`. A key then
 resolves for that provider in this order, first match wins:
 
-1. `--api-key`. `auth status` and `auth test` reject it as unknown, since it is a root only flag.
-2. The provider's variable: `TYPESAFE_API_KEY` for typesafe, `OPENROUTER_API_KEY` for openrouter.
+1. The provider's variable: `TYPESAFE_API_KEY` for typesafe, `OPENROUTER_API_KEY` for openrouter.
    Neither provider falls back to the other's key.
-3. The provider's entry in `credentials.json`, in `$ONESIE_CONFIG_DIR`, then
+2. The provider's entry in `credentials.json`, in `$ONESIE_CONFIG_DIR`, then
    `$XDG_CONFIG_HOME/onesie`, then, on Windows, `%APPDATA%\onesie`, and otherwise
    `~/.config/onesie`. The entry holds the key, or says the key is in the OS keychain, which
    `auth status` reports as `source: keychain`.
@@ -64,7 +63,8 @@ Exit 3 also covers these:
 
 | Message contains | What it means |
 | --- | --- |
-| `unknown flag`, `unknown command` or `accepts at most 1 arg` | a typo in a flag name, a flag cobra cannot see, such as `--api-key` after a subcommand or any flag after `--`, or an unquoted question |
+| `unknown flag`, `unknown command` or `accepts at most 1 arg` | a typo in a flag name, a flag cobra cannot see, such as `--print-request` after a subcommand or any flag after `--`, or an unquoted question |
+| `--api-key was removed` | onesie no longer takes the key on the command line, since argv is visible to other processes. Set the provider's variable or run `onesie auth set` |
 | a complaint about a flag you never typed | a question beginning with a dash was read as flags. Put the flags first, then `--`, then the question |
 | `no state given` | nothing arrived on stdin and neither `--state` nor `--state-file` was passed |
 | `an empty state is a request the model cannot answer` | `--state`, `--state-file`, stdin, the `state` of a `-f` file, a stream line or `--map` gave an empty or all whitespace string, an empty object or an empty array. In a stream it is an error line instead, and `--skip-blank` does not drop it. An `-i request` body is forwarded as it is and not checked |

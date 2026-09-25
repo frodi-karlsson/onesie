@@ -38,7 +38,7 @@ func TestNew(t *testing.T) {
 			t.Fatalf("expected an error, got none")
 		}
 
-		for _, want := range []string{"--api-key", jev.EnvAPIKey} {
+		for _, want := range []string{jev.EnvAPIKey, "onesie auth set"} {
 			if !strings.Contains(err.Error(), want) {
 				t.Errorf("error = %q, want it to name %q", err.Error(), want)
 			}

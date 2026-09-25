@@ -87,6 +87,10 @@ func newCalibrateCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if cmd.Flags().Changed(flagAPIKey) {
+				return errAPIKeyRemoved
+			}
+
 			positional := ""
 			if len(args) == 1 {
 				positional = args[0]
@@ -127,6 +131,7 @@ func newCalibrateCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 	cmd.Flags().StringVarP(&calib.report, "output", "o", "", "the report, table, json or auto, which means table")
 
 	bindSharedFlags(cmd, flags)
+	keepRemovedAPIKey(cmd.Flags())
 
 	return cmd
 }
@@ -143,8 +148,6 @@ func bindSharedFlags(cmd *cobra.Command, flags *runFlags) {
 	cmd.Flags().StringVar(&flags.idSource, flagID, "",
 		"jq expression run on each record, whose string or number result names it")
 	cmd.Flags().StringVarP(&flags.model, flagModel, "m", "", "model override")
-	cmd.Flags().StringVar(&flags.apiKey, "api-key", "",
-		"api key. Prefer TYPESAFE_API_KEY, OPENROUTER_API_KEY or onesie auth set, since argv is visible in ps")
 	cmd.Flags().StringVar(&flags.baseURL, flagBaseURL, "", "api root override")
 	cmd.Flags().StringVarP(&flags.file, "file", "f", "",
 		"question file or request body, or the name of one saved in .onesie/questions or the config dir")
