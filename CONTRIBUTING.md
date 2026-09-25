@@ -7,12 +7,12 @@ CI reads it through `go-version-file`, so there is one number to bump.
 
 ```sh
 make            # list every target
-make check      # lint plus race enabled tests. Run this before pushing
+make check      # fuzz target check, lint and race enabled tests. Run this before pushing
 make test       # go test ./...
 make lint-fix   # golangci-lint --fix, then format
 make cover      # coverage report at bin/coverage.html
 make vuln       # govulncheck
-make fuzz       # fuzz every parser and escaper in turn, FUZZTIME=1m each by default
+make fuzz       # fuzz every parser and escaper in turn, FUZZTIME=1m each, about 12 minutes in all by default
 ```
 
 `golangci-lint` v2.13.2 is expected on `PATH`:

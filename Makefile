@@ -8,7 +8,7 @@ LDFLAGS := -s -w \
 	-X main.commit=$(COMMIT) \
 	-X main.date=$(DATE)
 
-.PHONY: help build run install test test-race cover bench lint lint-fix fmt tidy vuln check tools clean skills skills-check skills-eval fuzz
+.PHONY: help build run install test test-race cover bench lint lint-fix fmt tidy vuln check tools clean skills skills-check skills-eval fuzz fuzz-check
 
 build: ## Build the onesie binary into bin/
 	@mkdir -p bin
@@ -41,7 +41,20 @@ FUZZ_TARGETS := \
 	./internal/qfile/:FuzzFind \
 	./internal/jq/:FuzzID \
 	./internal/cli/:FuzzPrintQuestions \
+	./internal/cli/:FuzzPrintQuestionsJSON \
 	./internal/cli/:FuzzLineVerdict
+
+fuzz-check: ## Check that FUZZ_TARGETS lists every fuzz target in the tree and nothing else
+	@found=$$(grep -rEo --include='*_test.go' --exclude-dir=.git --exclude-dir=docs '^func Fuzz[A-Za-z0-9_]+' . | \
+		sed -E 's|^(.*)/[^/]+_test\.go:func (Fuzz.*)$$|\1/:\2|'); \
+	status=0; \
+	for target in $$found; do \
+		case " $(FUZZ_TARGETS) " in *" $$target "*) ;; *) echo "missing from FUZZ_TARGETS: $$target"; status=1 ;; esac; \
+	done; \
+	for target in $(FUZZ_TARGETS); do \
+		case " $$(echo $$found) " in *" $$target "*) ;; *) echo "in FUZZ_TARGETS but not in the tree: $$target"; status=1 ;; esac; \
+	done; \
+	exit $$status
 
 fuzz: ## Fuzz every parser and escaper in turn, FUZZTIME=1m each by default
 	@set -e; for target in $(FUZZ_TARGETS); do \
@@ -87,7 +100,10 @@ skills-eval: ## Measure the skills against an agent, run by hand
 	claude plugin eval . --ablation with-without --keep-temp --no-publish --threshold 0 $(EVALARGS)
 	PATH="$(CURDIR)/bin:$$PATH" go run ./cmd/skilleval
 
-check: ## Run lint and tests
+check: ## Run the fuzz target check, lint and tests
+	@echo "--- Fuzz targets ---"
+	@$(MAKE) --no-print-directory fuzz-check
+	@echo ""
 	@echo "--- Lint ---"
 	@$(MAKE) --no-print-directory lint
 	@echo ""
