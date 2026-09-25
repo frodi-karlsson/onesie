@@ -19,7 +19,9 @@ onesie --ask urgent='is this urgent' --assert 'urgnet.value < 0.5'
   exit 7, and `"abstain": true` in place of `"assert": false`.
 - `min`, `max`, `sum` and `avg` take numbers and nest. `==` rarely matches a `sum` or `avg`, so use
   `>=` or `<=`. There are no arithmetic operators, so weighting answers is a job for `jq`.
-- A question file carries the same expressions as `assert` and `abstain_if`.
+- A question file carries the same expressions as `assert` and `abstain_if`. `--print-request`
+  checks a file's gate and then ignores it, so a gated file can be dry run. `--assert` or
+  `--abstain-if` typed beside `--print-request` exits 2.
 
 ## Calibrating
 
@@ -30,6 +32,9 @@ accepts as a label.
   `onesie -- calibrate`.
 - `--map` is required. Map only the text a person would read, since a `--map` that selects the
   label flatters the question.
+- A question file's `assert`, `abstain_if`, `threshold`, `min_confidence` and `fallback` are
+  ignored, since `calibrate` reports every cut. So a gated file calibrates as it stands. The same
+  settings typed as flags exit 2.
 - A pick or rate label matches an option or level by its text. A csv or tsv cell is text, so `4.0`
   does not match `--rate 1,2,3,4,5`, while a jsonl `4.0` is a number and does.
 - `--resume` needs `--id`. A resumed `-o json` report differs from the fresh run's only in `asked`

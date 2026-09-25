@@ -73,7 +73,7 @@ func configOf(
 
 func build(
 	settings rootSettings, cfg plan.Config, events []argv.Event, positional string,
-	flags *runFlags,
+	flags *runFlags, ignoreFileJudgment bool,
 ) (*invocation, []string, error) {
 	// Every mode except --list-models and -i request needs a question, and reporting that here
 	// rather than from Assemble keeps the message the same whichever source was missing.
@@ -98,6 +98,10 @@ func build(
 		loaded, loadErr = qfile.Load(data)
 		if loadErr != nil {
 			return nil, nil, loadErr
+		}
+
+		if ignoreFileJudgment {
+			withoutJudgment(loaded)
 		}
 
 		// The file's assertion is the same gate --assert is, §17.5, so it answers the -q rule the
@@ -174,6 +178,14 @@ func build(
 	return &invocation{
 		plan: built, gate: gate, abstain: abstain, mapper: mapper, namer: namer, loaded: loaded,
 	}, warnings, nil
+}
+
+func withoutJudgment(loaded *qfile.File) {
+	loaded.Assert, loaded.AbstainIf = "", ""
+
+	for i := range loaded.Questions {
+		loaded.Questions[i].Policy = plan.Policy{}
+	}
 }
 
 func gateOf(flag, fileSource string, sources []string, built *plan.Plan) (*assert.Expr, error) {

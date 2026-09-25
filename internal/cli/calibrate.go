@@ -72,7 +72,8 @@ func newCalibrateCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 			"{\"id\":\"T-1\",\"body\":\"the site is down\",\"is_urgent\":true}, and a csv one " +
 			"has the header id,body,is_urgent and the row T-1,the site is down,yes.\n\n" +
 			"A yes/no cut row flags a record when its value is at least the cut, so the cut goes into " +
-			"a gate as written.\n\n" +
+			"a gate as written. A question file's assert, abstain_if, threshold, min_confidence and " +
+			"fallback are ignored, since calibrate reports every cut. The same flags are refused.\n\n" +
 			"--out keeps the answers as -o json lines, and --resume, which needs --id, asks only the " +
 			"records the file does not answer. Changing a label or --cuts reuses every stored answer. " +
 			"A plain stream run can resume the file too, given the same questions, model, -i, --map " +
@@ -187,13 +188,13 @@ func runCalibrate(
 		return checkErr
 	}
 
-	// Ahead of build, whose plan rules would otherwise answer a file's gate or policy key with a
-	// message about another key it needs, when calibrate refuses the key itself.
-	if refuseErr := refuseFile(settings, flags.file); refuseErr != nil {
+	if refuseErr := refuseUnlabelledBody(settings, flags.file); refuseErr != nil {
 		return refuseErr
 	}
 
-	inv, warnings, err := build(settings, cfg, events, positional, flags)
+	// A file's gate and policy are ignored, since calibrate reports every cut and a gated file is
+	// the one a user calibrates.
+	inv, warnings, err := build(settings, cfg, events, positional, flags, true)
 
 	for _, warning := range warnings {
 		if _, printErr := fmt.Fprintln(cmd.ErrOrStderr(), warning); printErr != nil {
@@ -312,7 +313,7 @@ func checkCalibrateInput(cfg plan.Config, inputMode input.Mode) error {
 	}
 }
 
-func refuseFile(settings rootSettings, name string) error {
+func refuseUnlabelledBody(settings rootSettings, name string) error {
 	if name == "" {
 		return nil
 	}
@@ -327,28 +328,7 @@ func refuseFile(settings rootSettings, name string) error {
 		return err
 	}
 
-	if loaded.Assert != "" {
-		return refusal(refusedReasons["assert"], plan.Spelling(plan.OriginFile, "--assert"))
-	}
-
-	if loaded.AbstainIf != "" {
-		return refusal(refusedReasons["abstain-if"], plan.Spelling(plan.OriginFile, "--abstain-if"))
-	}
-
 	for _, question := range loaded.Questions {
-		for _, set := range []struct {
-			given bool
-			name  string
-		}{
-			{question.Policy.Threshold != nil, "threshold"},
-			{question.Policy.MinConfidence != nil, "min-confidence"},
-			{question.Policy.Fallback != nil, "fallback"},
-		} {
-			if set.given {
-				return refusal(refusedReasons[set.name], plan.Spelling(question.Origin, "--"+set.name))
-			}
-		}
-
 		if question.Shape == plan.Rate && !question.Labelled {
 			return fmt.Errorf("onesie: question '%s' from a request body has no level names to label with",
 				question.ID)

@@ -348,11 +348,12 @@ func checkPrintFlags(cfg Config) error {
 		{cfg.Quiet, fmt.Sprintf(
 			"onesie: -q suppresses output, which leaves %s nothing to write", name)},
 		// Guarded to --print-request, since --print-questions writes the assertion into the file
-		// it prints and so is the one dry run that carries it. §17.5.
-		{cfg.PrintRequest && cfg.HasAssert, fmt.Sprintf(
+		// it prints and so is the one dry run that carries it. §17.5. A gate that only the file
+		// carries is ignored, so a gated file can be dry run as it stands.
+		{cfg.PrintRequest && cfg.HasAssert && !fromFile(cfg.AssertName, "--assert"), fmt.Sprintf(
 			"onesie: %s judges an answer, which --print-request does not produce",
 			assertFlag(cfg))},
-		{cfg.PrintRequest && cfg.HasAbstainIf, fmt.Sprintf(
+		{cfg.PrintRequest && cfg.HasAbstainIf && !fromFile(cfg.AbstainIfName, "--abstain-if"), fmt.Sprintf(
 			"onesie: %s judges an answer, which --print-request does not produce",
 			abstainFlag(cfg))},
 		{cfg.Usage, fmt.Sprintf(
@@ -405,6 +406,10 @@ func given(cfg Config, name string) bool {
 	}
 
 	return false
+}
+
+func fromFile(name, flag string) bool {
+	return name == Spelling(OriginFile, flag)
 }
 
 func assertFlag(cfg Config) string {

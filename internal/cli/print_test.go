@@ -837,6 +837,13 @@ func TestPrintRequest(t *testing.T) {
 			t.Fatalf("writing the question file: %v", err)
 		}
 
+		badPath := filepath.Join(dir, "bad.yaml")
+
+		if err := os.WriteFile(badPath,
+			[]byte("assert: sevrity.value > 0.5\nurgent:\n  ask: is this urgent\n"), 0o600); err != nil {
+			t.Fatalf("writing the question file: %v", err)
+		}
+
 		tests := []struct {
 			name  string
 			args  []string
@@ -860,9 +867,21 @@ func TestPrintRequest(t *testing.T) {
 				want: "onesie: --assert judges an answer, which --print-request does not produce",
 			},
 			{
-				name: "should name the file's key when the file carried the assertion",
-				args: []string{"-f", path, "--print-request", "--state", "x"},
-				want: "onesie: 'assert' judges an answer, which --print-request does not produce",
+				name: "should reject --assert typed beside a file's assertion",
+				args: []string{"-f", path, "--print-request", "--state", "x", "--assert", "urgent.value > 0.9"},
+				want: "onesie: --assert judges an answer, which --print-request does not produce",
+			},
+			{
+				name: "should reject --abstain-if typed beside a file's assertion",
+				args: []string{
+					"-f", path, "--print-request", "--state", "x", "--abstain-if", "urgent.value > 0.9",
+				},
+				want: "onesie: --abstain-if judges an answer, which --print-request does not produce",
+			},
+			{
+				name: "should still check a file's assertion against the plan",
+				args: []string{"-f", badPath, "--print-request", "--state", "x"},
+				want: "onesie: 'assert': unknown question 'sevrity'. Questions: urgent",
 			},
 			{
 				name:  "should reject --stop-on-assert with --print-request in a stream",
@@ -893,6 +912,46 @@ func TestPrintRequest(t *testing.T) {
 					t.Errorf("stderr = %q, want it to contain %q", errOut, tc.want)
 				}
 			})
+		}
+	})
+
+	t.Run("should dry run a gated question file as if it carried no gate", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		gated := filepath.Join(dir, "gated.yaml")
+		plain := filepath.Join(dir, "plain.yaml")
+
+		for path, content := range map[string]string{
+			gated: "assert: urgent.value > 0.5\nabstain_if: urgent.value > 0.9\n" +
+				"urgent:\n  ask: is this urgent\n",
+			plain: "urgent:\n  ask: is this urgent\n",
+		} {
+			if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+				t.Fatalf("writing the question file: %v", err)
+			}
+		}
+
+		for _, tail := range [][]string{{"--state", "x"}, {"-i", "lines"}} {
+			stdin := ""
+			if slices.Contains(tail, "lines") {
+				stdin = "x\ny\n"
+			}
+
+			run := func(path string) string {
+				args := append([]string{"-f", path, "--print-request"}, tail...)
+
+				out, errOut, code := runOfflineStdin(t, args, stdin)
+				if code != ExitOK {
+					t.Fatalf("%v: exit code = %d, want %d\nstderr:\n%s", args, code, ExitOK, errOut)
+				}
+
+				return out
+			}
+
+			if got, want := run(gated), run(plain); got != want || got == "" {
+				t.Errorf("%v: gated stdout =\n%s\nwant the plain file's\n%s", tail, got, want)
+			}
 		}
 	})
 

@@ -220,13 +220,13 @@ func TestReadQuestionFile(t *testing.T) {
 				contains: []string{"is this urgent from the set"},
 			},
 			{
-				name: "should refuse a gate in a named set on calibrate",
-				args: calibrate,
+				name: "should ignore a gate in a named set on calibrate",
+				args: append(append([]string{}, calibrate...), "--print-request"),
 				files: map[string]string{
 					"/cfg/onesie/questions/triage.yaml": "assert: urgent.value > 0.5\nurgent:\n  ask: is this urgent\n",
 				},
-				wantCode: ExitUsage,
-				contains: []string{"so 'assert' does not apply"},
+				wantCode: ExitOK,
+				contains: []string{"is this urgent"},
 			},
 		}
 

@@ -37,6 +37,7 @@ func TestNewCalibrateCmd(t *testing.T) {
 		"assert: urgent.value > 0.5\nurgent:\n  ask: is this urgent\n")
 	thresholdFile := writeCalibrateFile(t, dir, "threshold.yaml",
 		"urgent:\n  ask: is this urgent\n  threshold: 0.8\n")
+	assertFlagFile := writeCalibrateFile(t, dir, "assert-flag.yaml", "urgent:\n  ask: is this urgent\n")
 	confidenceFile := writeCalibrateFile(t, dir, "confidence.yaml",
 		"team:\n  ask: which team\n  pick: [billing, shipping]\n  min_confidence: 0.8\n")
 	fallbackFile := writeCalibrateFile(t, dir, "fallback.yaml",
@@ -304,44 +305,62 @@ func TestNewCalibrateCmd(t *testing.T) {
 			contains: []string{nothing},
 		},
 		{
-			name: "should refuse an assert key in a question file",
+			name: "should ignore an assert key in a question file",
 			args: []string{
 				"calibrate", "-f", assertFile, "-i", "jsonl", "--map", ".body", "--label", "urgent=.u",
 			},
 			wantCode: ExitUsage,
-			contains: []string{"so 'assert' does not apply. Drop it"},
+			contains: []string{nothing},
 		},
 		{
-			name: "should refuse a threshold in a question file",
+			name: "should ignore a threshold in a question file",
 			args: []string{
 				"calibrate", "-f", thresholdFile, "-i", "jsonl", "--map", ".body", "--label", "urgent=.u",
 			},
 			wantCode: ExitUsage,
-			contains: []string{"so 'threshold' does not apply. Drop it"},
+			contains: []string{nothing},
 		},
 		{
-			name: "should refuse a min_confidence in a question file",
+			name: "should ignore a min_confidence in a question file",
 			args: []string{
 				"calibrate", "-f", confidenceFile, "-i", "jsonl", "--map", ".body", "--label", "team=.team",
 			},
 			wantCode: ExitUsage,
-			contains: []string{"so 'min_confidence' does not apply. Drop it"},
+			contains: []string{nothing},
 		},
 		{
-			name: "should refuse a fallback in a question file",
+			name: "should ignore a fallback in a question file",
 			args: []string{
 				"calibrate", "-f", fallbackFile, "-i", "jsonl", "--map", ".body", "--label", "urgent=.u",
 			},
 			wantCode: ExitUsage,
-			contains: []string{"so 'fallback' does not apply. Drop it"},
+			contains: []string{nothing},
 		},
 		{
-			name: "should refuse an abstain_if key in a question file",
+			name: "should ignore an abstain_if key in a question file",
 			args: []string{
 				"calibrate", "-f", abstainFile, "-i", "jsonl", "--map", ".body", "--label", "urgent=.u",
 			},
 			wantCode: ExitUsage,
-			contains: []string{"so 'abstain_if' does not apply. Drop it"},
+			contains: []string{nothing},
+		},
+		{
+			name: "should refuse --assert beside a question file",
+			args: []string{
+				"calibrate", "-f", assertFlagFile, "-i", "jsonl", "--map", ".body", "--label", "urgent=.u",
+				"--assert", "urgent.value > 0.5",
+			},
+			wantCode: ExitUsage,
+			contains: []string{"onesie: calibrate reports every cut and judges none, so --assert does not apply. Drop it"},
+		},
+		{
+			name: "should refuse --threshold beside a gated question file",
+			args: []string{
+				"calibrate", "-f", assertFile, "-i", "jsonl", "--map", ".body", "--label", "urgent=.u",
+				"--threshold", "0.5",
+			},
+			wantCode: ExitUsage,
+			contains: []string{"onesie: calibrate reports every cut, so --threshold does not apply. Drop it"},
 		},
 		{
 			name: "should refuse a request body with an unlabelled rate question",
@@ -389,6 +408,8 @@ func TestNewCalibrateCmd(t *testing.T) {
 				"T-1,the site is down,yes",
 				"3 a refused api key or an account out of credits",
 				"the same questions, model, -i, --map and --id, with -o json and no gate or merge",
+				"A question file's assert, abstain_if, threshold, min_confidence and fallback are ignored, " +
+					"since calibrate reports every cut. The same flags are refused.",
 			},
 		},
 		{
@@ -1799,6 +1820,38 @@ func TestCalibrateRun(t *testing.T) {
 			if string(after) != string(before) {
 				t.Errorf("%v: the answers file changed", args)
 			}
+		}
+	})
+
+	t.Run("should ignore a question file's gates and policy and resume the flag run's answers", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		answers := filepath.Join(dir, "answers.jsonl")
+		gated := writeCalibrateFile(t, dir, "gated.yaml",
+			"assert: urgent.value > 0.5\nabstain_if: urgent.value > 0.95\n"+
+				"urgent:\n  ask: is this urgent\n  threshold: 0.8\n  fallback: no\n")
+
+		args := []string{
+			"calibrate", "-f", gated, "-i", "jsonl", "--map", ".body",
+			"--label", "urgent=.u", "--id", ".id", "--cuts", "0.5,0.7", "--out", answers,
+		}
+
+		out, errOut, code := runCalibrateAgainst(t.Context(), t, args, urgentSet, newCalibrateStub(t).url, false)
+		if code != ExitOK {
+			t.Fatalf("exit code = %d, stderr:\n%s", code, errOut)
+		}
+
+		if out != urgentTable(0) {
+			t.Errorf("stdout =\n%s\nwant the flag run's report\n%s", out, urgentTable(0))
+		}
+
+		stub := newCalibrateStub(t)
+
+		_, errOut, code = runCalibrateAgainst(t.Context(), t, calibrating(answers, "--resume"), urgentSet, stub.url, false)
+		if code != ExitOK || stub.count() != 0 {
+			t.Errorf("flag resume exit code = %d with %d requests, want 0 and none, stderr:\n%s",
+				code, stub.count(), errOut)
 		}
 	})
 

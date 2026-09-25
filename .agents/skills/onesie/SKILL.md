@@ -157,7 +157,7 @@ onesie 'is this urgent' --state 'the server is down' --stats --usage -o json
 
 ### Run it once with --print-request before running it for real.
 
-`--print-request` and `--print-questions` make no network call and need no key. `--print-request` shows the exact body, the state and the model, but a body carries no policy, so a `--threshold` or `--fallback` does not show there. `--print-questions` shows every question with the policy flags that bound to it and the assertion, and reads no state.
+`--print-request` and `--print-questions` make no network call and need no key. `--print-request` shows the exact body, the state and the model, but a body carries no policy, so a `--threshold` or `--fallback` does not show there. It checks and then ignores the gate in a `-f` file, so a gated file can be dry run, and it exits 2 on `--assert` or `--abstain-if` typed as a flag. `--print-questions` shows every question with the policy flags that bound to it and the assertion, and reads no state.
 
 **Good:**
 

@@ -1426,12 +1426,33 @@ func TestCheckFlags(t *testing.T) {
 			wantErr: "onesie: --assert judges an answer, which --print-request does not produce",
 		},
 		{
-			name: "should name the file's key when only the file carried the assertion",
+			name: "should ignore a file's assertion with --print-request",
 			cfg: plan.Config{
 				PrintRequest: true, HasAssert: true, AssertName: "'assert'",
 				FileName: "q.yaml", InputName: "text",
 			},
-			wantErr: "onesie: 'assert' judges an answer, which --print-request does not produce",
+		},
+		{
+			name: "should ignore a file's two gates with --print-request",
+			cfg: plan.Config{
+				PrintRequest: true, HasAssert: true, AssertName: "'assert'",
+				HasAbstainIf: true, AbstainIfName: "'abstain_if'", FileName: "q.yaml", InputName: "text",
+			},
+		},
+		{
+			name: "should reject --assert typed beside a file's assertion with --print-request",
+			cfg: plan.Config{
+				PrintRequest: true, HasAssert: true, FileName: "q.yaml", InputName: "text",
+			},
+			wantErr: "onesie: --assert judges an answer, which --print-request does not produce",
+		},
+		{
+			name: "should reject --abstain-if typed beside a file's gates with --print-request",
+			cfg: plan.Config{
+				PrintRequest: true, HasAssert: true, AssertName: "'assert'", HasAbstainIf: true,
+				FileName: "q.yaml", InputName: "text",
+			},
+			wantErr: "onesie: --abstain-if judges an answer, which --print-request does not produce",
 		},
 		{
 			name: "should accept --assert with --print-questions",

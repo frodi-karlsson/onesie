@@ -67,7 +67,7 @@ func run(
 		})
 	}
 
-	inv, warnings, err := build(settings, cfg, events, positional, flags)
+	inv, warnings, err := build(settings, cfg, events, positional, flags, false)
 
 	// Warnings print whether or not validation succeeded, so a run that fails for one reason still
 	// reports the others.
