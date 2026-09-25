@@ -16,7 +16,6 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
-	"time"
 
 	"github.com/frodi-karlsson/onesie/internal/jev"
 	"github.com/frodi-karlsson/onesie/internal/plan"
@@ -334,7 +333,7 @@ func TestResumeLedger(t *testing.T) {
 			stdin:   idRecords(1, 6),
 			runs: []resumeRun{{
 				args:     append([]string{"--unordered", "-j", "6"}, values...),
-				slow:     true,
+				reversed: true,
 				wantFile: idLines(1, 6),
 				wantSent: []string{`{"id":1}`, `{"id":2}`, `{"id":3}`, `{"id":4}`, `{"id":5}`, `{"id":6}`},
 				anyOrder: true,
@@ -369,7 +368,7 @@ func TestResumeLedger(t *testing.T) {
 			stdin:   idRecords(1, 4),
 			runs: []resumeRun{{
 				args:     []string{"-i", "jsonl", "-o", "csv", "--id", ".id", "--resume", "--unordered", "-j", "4"},
-				slow:     true,
+				reversed: true,
 				wantFile: "id,answer,error\n1,0.5,\n2,0.5,\n3,0.5,\n4,0.5,\n",
 				wantSent: []string{`{"id":1}`, `{"id":2}`, `{"id":3}`, `{"id":4}`},
 				anyOrder: true,
@@ -1609,7 +1608,7 @@ type resumeRun struct {
 	failOnce   bool
 	failStatus int
 	cancelAt   int32
-	slow       bool
+	reversed   bool
 	wantCode   int
 	wantFile   string
 	wantSent   []string
@@ -1690,6 +1689,8 @@ func countingServer(t *testing.T, run resumeRun, onCall func(call int32)) (*http
 		sent  []string
 	)
 
+	order := newReverseOrder(len(run.wantSent))
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		call := calls.Add(1)
 		onCall(call)
@@ -1706,15 +1707,18 @@ func countingServer(t *testing.T, run resumeRun, onCall func(call int32)) (*http
 		sent = append(sent, string(body.State))
 		mu.Unlock()
 
-		if run.slow {
+		if run.reversed {
 			var state struct {
 				ID int `json:"id"`
 			}
 
-			if err := json.Unmarshal(body.State, &state); err == nil {
-				// Later records answer first, so the order the lines land in is not input order.
-				time.Sleep(time.Duration(10-state.ID) * 15 * time.Millisecond)
+			if err := json.Unmarshal(body.State, &state); err != nil {
+				t.Errorf("reading the record id: %v", err)
 			}
+
+			// Later records answer first, so the order the lines land in is not input order.
+			order.await(state.ID)
+			defer order.answered(state.ID, w)
 		}
 
 		w.Header().Set("Content-Type", "application/json")
@@ -1747,6 +1751,46 @@ func countingServer(t *testing.T, run resumeRun, onCall func(call int32)) (*http
 
 		return slices.Clone(sent)
 	}
+}
+
+func newReverseOrder(records int) *reverseOrder {
+	order := &reverseOrder{all: make(chan struct{}), done: map[int]chan struct{}{}, records: records}
+	for id := 1; id <= records; id++ {
+		order.done[id] = make(chan struct{})
+	}
+
+	return order
+}
+
+type reverseOrder struct {
+	mu      sync.Mutex
+	arrived int
+	records int
+	all     chan struct{}
+	done    map[int]chan struct{}
+}
+
+func (o *reverseOrder) await(id int) {
+	o.mu.Lock()
+	o.arrived++
+	if o.arrived == o.records {
+		close(o.all)
+	}
+	o.mu.Unlock()
+
+	<-o.all
+
+	if next, found := o.done[id+1]; found {
+		<-next
+	}
+}
+
+func (o *reverseOrder) answered(id int, w http.ResponseWriter) {
+	if flusher, ok := w.(http.Flusher); ok {
+		flusher.Flush()
+	}
+
+	close(o.done[id])
 }
 
 func idRecords(from, to int) string {

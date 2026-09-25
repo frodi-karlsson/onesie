@@ -17,27 +17,6 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/cli"
 )
 
-var calibratedGates = map[string][2]string{
-	"shell-safety": {
-		"destroys.value < 0.3 and secrets.value < 0.45 and network.value < 0.35",
-		"destroys.value < 0.85 and secrets.value < 0.6",
-	},
-	"prompt-injection": {
-		"instructs.value < 0.25 and overrides.value < 0.5 and access.value < 0.4",
-		"overrides.value < 0.9 and access.value < 0.65",
-	},
-	"personal-data": {
-		"name_contact.value < 0.15 and email_phone.value < 0.2 and home_address.value < 0.3 and " +
-			"credential.value < 0.3",
-		"name_contact.value < 0.3 and email_phone.value < 0.7 and home_address.value < 0.95 and " +
-			"credential.value < 0.35",
-	},
-	"moderation": {
-		"hostile.value < 0.2 and spam.value < 0.1",
-		"hostile.value < 0.8 and spam.value < 0.5",
-	},
-}
-
 func TestStarterSets(t *testing.T) {
 	t.Parallel()
 
@@ -48,7 +27,7 @@ func TestStarterSets(t *testing.T) {
 		{name: "should load the question file and dry run it", check: dryRunQuestions},
 		{name: "should print the question file back unchanged", check: reprintQuestions},
 		{name: "should read every labelled record under calibrate", check: dryRunCalibrate},
-		{name: "should carry the gate calibrated on the sample", check: carriesGate},
+		{name: "should carry the gate the README documents", check: carriesGate},
 		{name: "should refuse a gate typed beside the file under --print-request", check: refuseTypedGate},
 	}
 
@@ -149,29 +128,56 @@ func dryRunCalibrate(t *testing.T, set string) {
 }
 
 func carriesGate(t *testing.T, set string) {
-	want, found := calibratedGates[set]
-	if !found {
-		t.Fatalf("no calibrated gate listed for %s", set)
-	}
+	want := documentedGate(t, set)
 
-	var file struct {
-		Assert    string `yaml:"assert"`
-		AbstainIf string `yaml:"abstain_if"`
-	}
-
+	var file gate
 	if err := yaml.Unmarshal([]byte(readFile(t, questionPath(set))), &file); err != nil {
 		t.Fatalf("parsing %s: %v", questionPath(set), err)
 	}
 
-	if got := [2]string{file.Assert, file.AbstainIf}; got != want {
-		t.Errorf("assert and abstain_if = %q, want %q", got, want)
+	if file != want {
+		t.Errorf("assert and abstain_if = %+v, want %+v as README.md documents", file, want)
 	}
+}
+
+func documentedGate(t *testing.T, set string) gate {
+	t.Helper()
+
+	_, section, found := strings.Cut(readFile(t, "README.md"), "\n## "+set+"\n")
+	if !found {
+		t.Fatalf("README.md has no section for %s", set)
+	}
+
+	section, _, _ = strings.Cut(section, "\n## ")
+
+	_, block, found := strings.Cut(section, "```yaml\n")
+	if !found {
+		t.Fatalf("README.md shows no gate for %s", set)
+	}
+
+	block, _, _ = strings.Cut(block, "```")
+
+	var documented gate
+	if err := yaml.Unmarshal([]byte(block), &documented); err != nil {
+		t.Fatalf("parsing the gate README.md shows for %s: %v", set, err)
+	}
+
+	if documented.Assert == "" || documented.AbstainIf == "" {
+		t.Fatalf("the gate README.md shows for %s lacks assert or abstain_if: %+v", set, documented)
+	}
+
+	return documented
+}
+
+type gate struct {
+	Assert    string `yaml:"assert"`
+	AbstainIf string `yaml:"abstain_if"`
 }
 
 func refuseTypedGate(t *testing.T, set string) {
 	_, stderr, code := run(t, strings.NewReader(""),
 		"-f", questionPath(set), "--state", "a sample record", "--print-request",
-		"--assert", calibratedGates[set][0])
+		"--assert", documentedGate(t, set).Assert)
 	if code != cli.ExitUsage {
 		t.Fatalf("exit %d, want %d, stderr: %s", code, cli.ExitUsage, stderr)
 	}

@@ -134,21 +134,17 @@ func TestGenerate(t *testing.T) {
 		}
 
 		before := make(map[string][]byte, len(paths))
-		beforeMod := make(map[string]time.Time, len(paths))
+
+		// Set far in the past, so a rewrite shows as a new mtime however coarse the clock is.
+		stamped := time.Date(2001, time.January, 1, 0, 0, 0, 0, time.UTC)
 
 		for _, p := range paths {
-			info, err := os.Stat(p)
-			if err != nil {
-				t.Fatalf("stat %s: %v", p, err)
+			if err := os.Chtimes(p, stamped, stamped); err != nil {
+				t.Fatalf("stamping %s: %v", p, err)
 			}
 
-			beforeMod[p] = info.ModTime()
 			before[p] = []byte(readFile(t, p))
 		}
-
-		// A coarse mtime clock would hide a rewrite that happens to land in the same tick, so the
-		// second run is pushed into a later tick before it runs.
-		time.Sleep(20 * time.Millisecond)
 
 		if err := skillgen.Generate(root); err != nil {
 			t.Fatalf("unexpected error on second run: %v", err)
@@ -160,8 +156,8 @@ func TestGenerate(t *testing.T) {
 				t.Fatalf("stat %s after second run: %v", p, err)
 			}
 
-			if !info.ModTime().Equal(beforeMod[p]) {
-				t.Errorf("%s modtime changed on a no op run: was %v, now %v", p, beforeMod[p], info.ModTime())
+			if !info.ModTime().Equal(stamped) {
+				t.Errorf("%s modtime changed on a no op run: was %v, now %v", p, stamped, info.ModTime())
 			}
 
 			if got := readFile(t, p); got != string(before[p]) {
