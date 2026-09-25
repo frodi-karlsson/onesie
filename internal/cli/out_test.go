@@ -81,6 +81,7 @@ func TestOpenOut(t *testing.T) {
 		emptySidecar     bool
 		sidecarDir       bool
 		readOnlyDir      bool
+		readOnlyFile     bool
 		wantEmptySidecar bool
 	}{
 		{
@@ -511,6 +512,40 @@ func TestOpenOut(t *testing.T) {
 			wantCalls:   2,
 		},
 		{
+			name:         "should refuse a file it cannot write before any request",
+			existing:     "keep me\n",
+			readOnlyFile: true,
+			args:         []string{"is this urgent", "-i", "jsonl"},
+			stdin:        input,
+			wantCode:     ExitUsage,
+			wantFile:     "keep me\n",
+			wantErr:      "answers.jsonl",
+		},
+		{
+			name:         "should refuse to resume into a file it cannot write before any request",
+			existing:     "old one\n",
+			sidecar:      matching,
+			wantSidecar:  matching,
+			readOnlyFile: true,
+			args:         []string{"is this urgent", "-i", "jsonl", "--resume"},
+			stdin:        input,
+			wantCode:     ExitUsage,
+			wantFile:     "old one\n",
+			wantErr:      "answers.jsonl",
+		},
+		{
+			name:        "should refuse a fresh run beside a fingerprint it cannot replace before any request",
+			existing:    "keep me\n",
+			sidecar:     "keep this too",
+			wantSidecar: "keep this too",
+			readOnlyDir: true,
+			args:        []string{"is this urgent", "-i", "jsonl"},
+			stdin:       input,
+			wantCode:    ExitUsage,
+			wantFile:    "keep me\n",
+			wantErr:     "answers.jsonl.onesie",
+		},
+		{
 			name:       "should refuse to resume beside a fingerprint it cannot read",
 			existing:   "keep me\n",
 			sidecarDir: true,
@@ -635,6 +670,12 @@ func TestOpenOut(t *testing.T) {
 
 			writeSidecar(t, path+".onesie", tc.sidecar, tc.emptySidecar, tc.sidecarDir)
 
+			if tc.readOnlyFile {
+				if err := os.Chmod(path, 0o400); err != nil {
+					t.Fatalf("making the file read only: %v", err)
+				}
+			}
+
 			if tc.readOnlyDir {
 				lockDir(t, filepath.Dir(path))
 			}
@@ -706,6 +747,86 @@ func TestOpenOut(t *testing.T) {
 				t.Errorf("fingerprint file = %q, %v, want none", sidecar, err)
 			case tc.wantSidecar != "" && string(sidecar) != tc.wantSidecar+"\n":
 				t.Errorf("fingerprint file = %q, %v, want %q", sidecar, err, tc.wantSidecar+"\n")
+			}
+		})
+	}
+
+	specials := []struct {
+		name      string
+		path      func(t *testing.T) string
+		args      []string
+		wantCode  int
+		wantErr   string
+		wantCalls int32
+	}{
+		{
+			name:      "should write to a device with no fingerprint beside it",
+			path:      func(*testing.T) string { return "/dev/null" },
+			args:      []string{"is this urgent", "-i", "jsonl"},
+			wantCalls: 4,
+		},
+		{
+			name:     "should refuse to resume from a device before any request",
+			path:     func(*testing.T) string { return "/dev/null" },
+			args:     []string{"is this urgent", "-i", "jsonl", "--resume"},
+			wantCode: ExitUsage,
+			wantErr:  "onesie: --resume needs --out to name a regular file, and /dev/null is not one",
+		},
+		{
+			name:     "should refuse a directory before any request",
+			path:     func(t *testing.T) string { return t.TempDir() },
+			args:     []string{"is this urgent", "-i", "jsonl"},
+			wantCode: ExitUsage,
+			wantErr:  "is a directory",
+		},
+	}
+
+	for _, tc := range specials {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if runtime.GOOS == "windows" && strings.HasPrefix(tc.path(t), "/dev/") {
+				t.Skip("windows has no /dev")
+			}
+
+			var calls atomic.Int32
+
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				calls.Add(1)
+				w.Header().Set("Content-Type", "application/json")
+
+				if _, err := io.WriteString(w, `{"model":"m","answers":{"answer":{"type":"noul","noul":0.5}},"usage":{}}`); err != nil {
+					t.Errorf("writing the stub response: %v", err)
+				}
+			}))
+			defer srv.Close()
+
+			var out, errOut bytes.Buffer
+
+			root := NewRootCmd(
+				BuildInfo{Version: "1.2.3"},
+				WithStdin(strings.NewReader(input)),
+				WithStdinTTY(false),
+				WithStdoutTTY(false),
+				WithKeychain(noKeychain()),
+				WithLookupEnv(lookupFrom(nil)),
+				WithClientFactory(stubFactory(srv.URL)),
+			)
+
+			root.SetOut(&out)
+			root.SetErr(&errOut)
+			root.SetArgs(append([]string{"--out", tc.path(t), "-o", "values"}, tc.args...))
+
+			if code := Execute(t.Context(), root); code != tc.wantCode {
+				t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, tc.wantCode, errOut.String())
+			}
+
+			if got := calls.Load(); got != tc.wantCalls {
+				t.Errorf("requests = %d, want %d", got, tc.wantCalls)
+			}
+
+			if !strings.Contains(errOut.String(), tc.wantErr) {
+				t.Errorf("stderr = %q, want it to contain %q", errOut.String(), tc.wantErr)
 			}
 		})
 	}
@@ -1285,4 +1406,44 @@ func baseFor(url string, unreached bool) string {
 	}
 
 	return url
+}
+
+func TestSpecialFile(t *testing.T) {
+	t.Parallel()
+
+	regular := func(string) (fs.FileInfo, error) { return os.Stat(os.Args[0]) }
+	missing := func(string) (fs.FileInfo, error) { return nil, fs.ErrNotExist }
+	directory := func(string) (fs.FileInfo, error) { return os.Stat(os.TempDir()) }
+
+	tests := []struct {
+		name    string
+		target  string
+		goos    string
+		stat    func(string) (fs.FileInfo, error)
+		want    bool
+		wantErr bool
+	}{
+		{name: "should treat a regular file as regular", target: "answers.jsonl", goos: "linux", stat: regular},
+		{name: "should treat a file not written yet as regular", target: "answers.jsonl", goos: "linux", stat: missing},
+		{
+			name:   "should treat a descriptor under /dev as special when it stats as a regular file",
+			target: "/dev/fd/1", goos: "darwin", stat: regular, want: true,
+		},
+		{name: "should refuse a directory", target: "out", goos: "linux", stat: directory, wantErr: true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := specialFile(tc.target, tc.goos, tc.stat)
+			if (err != nil) != tc.wantErr {
+				t.Fatalf("error = %v, want an error %v", err, tc.wantErr)
+			}
+
+			if got != tc.want {
+				t.Errorf("special = %v, want %v", got, tc.want)
+			}
+		})
+	}
 }

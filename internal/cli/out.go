@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -50,6 +51,22 @@ func openOut(settings rootSettings, flags *runFlags) (*outFile, error) {
 	}
 
 	out.target = target
+
+	special, err := specialFile(target, settings.goos, settings.stat)
+	if err != nil {
+		return nil, err
+	}
+
+	out.special = special
+
+	// A device or a pipe has no answers another run could lose, so it takes no lock.
+	if special {
+		if flags.resume {
+			return nil, fmt.Errorf("onesie: --resume needs --out to name a regular file, and %s is not one", flags.out)
+		}
+
+		return out, nil
+	}
 
 	// Held for the whole run, since a second run appending to the file, truncating it or renaming
 	// its own compaction over it would lose answers this one wrote.
@@ -111,6 +128,22 @@ func resumesByID(flags *runFlags) bool {
 	return flags.idSource != ""
 }
 
+func specialFile(target, goos string, stat func(string) (fs.FileInfo, error)) (bool, error) {
+	// macOS resolves /dev/stdout to /dev/fd/1, which stats as the regular file stdout was redirected
+	// to, and nothing can be written beside it.
+	if goos != "windows" && strings.HasPrefix(target, "/dev/") {
+		return true, nil
+	}
+
+	// A path that cannot be stated is left to the write probe, which names the real failure.
+	info, statErr := stat(target)
+	if statErr == nil && info.IsDir() {
+		return false, fmt.Errorf("onesie: --out %s is a directory", target)
+	}
+
+	return statErr == nil && !info.Mode().IsRegular(), nil
+}
+
 func resolveTarget(
 	path string,
 	resolve func(path string) (string, error),
@@ -159,6 +192,7 @@ type outFile struct {
 	remove  func(name string) error
 	goos    string
 	unlock  func() error
+	special bool
 	resume  bool
 	keep    int64
 	bound   bool
@@ -184,7 +218,7 @@ func (o *outFile) lock(take func(answers string) (func() error, error), resume b
 	}
 
 	// A fresh run locks only to stay clear of a resume, which could not have locked the file either.
-	// So a path nothing can be locked beside, such as /dev/stdout, is still written as before.
+	// So a path nothing can be locked beside is still written as before.
 	if err != nil && !resume {
 		return nil
 	}
@@ -220,6 +254,10 @@ func (o *outFile) resumeAt(length int64) {
 }
 
 func (o *outFile) removeStalePart() error {
+	if o.special {
+		return nil
+	}
+
 	part := o.target + compactSuffix
 	if err := o.remove(part); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("onesie: removing %s, which an interrupted run left behind: %w", part, err)
@@ -456,7 +494,50 @@ func (o *outFile) bind(fingerprint string) error {
 	o.fingerprint = fingerprint
 	o.bound = true
 
-	return nil
+	// Before any request, since a file found unwritable only at the first answer costs a request
+	// and, on a fresh run, the answers the file held.
+	return o.probe()
+}
+
+func (o *outFile) probe() error {
+	if o.special {
+		return nil
+	}
+
+	if err := o.probeAnswers(); err != nil {
+		return fmt.Errorf("onesie: opening %s: %w", o.path, err)
+	}
+
+	if o.fingerprint == "" || o.matched {
+		return nil
+	}
+
+	temporary := o.path + fingerprintSuffix + ".tmp"
+
+	file, err := o.open(temporary, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
+	if err != nil {
+		return fmt.Errorf("onesie: opening %s: %w", temporary, err)
+	}
+
+	return errors.Join(file.Close(), o.remove(temporary))
+}
+
+func (o *outFile) probeAnswers() error {
+	file, err := o.open(o.target, os.O_WRONLY, 0)
+	if err == nil {
+		return file.Close()
+	}
+
+	if !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+
+	file, err = o.open(o.target, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+	if err != nil {
+		return err
+	}
+
+	return errors.Join(file.Close(), o.remove(o.target))
 }
 
 func (o *outFile) bindWithoutFingerprint() {
@@ -648,6 +729,11 @@ func (o *outFile) openAnswers() error {
 }
 
 func (o *outFile) writeFingerprint() error {
+	// Nothing can be written beside a device or a pipe, and nothing resumes from one.
+	if o.special {
+		return nil
+	}
+
 	path := o.path + fingerprintSuffix
 
 	if o.fingerprint == "" {
