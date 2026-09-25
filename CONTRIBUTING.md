@@ -74,8 +74,15 @@ completions in every archive, and publishes the archives and `checksums.txt` to
 a GitHub release. The workflow then attests build provenance for the archives
 and `checksums.txt`, and generates the Homebrew formula.
 
+Before tagging, set the version in `.claude-plugin/plugin.json` and
+`.codex-plugin/plugin.json`, and the `ref` in `.claude-plugin/marketplace.json`
+and `.agents/plugins/marketplace.json` to the new tag, so the plugins install
+the skills of the release. The release job refuses a tag they do not name.
+Only you can create a `v` tag, since the `release tags` ruleset allows only the
+repository admin.
+
 ```sh
-git tag v0.1.0 && git push origin v0.1.0
+git tag -s v0.1.0 -m v0.1.0 && git push origin v0.1.0
 ```
 
 Dry run the whole pipeline without tagging:
@@ -99,15 +106,14 @@ version from the snapshot's archive names:
 go run ./cmd/formulagen -version 0.0.1-next -out dist/homebrew/Formula/onesie.rb
 ```
 
-The push to `frodi-karlsson/homebrew-tap` is currently off.
-`HOMEBREW_TAP_PUBLISH: 'false'` on the release job in
-`.github/workflows/release.yml` keeps the tap checkout and push steps from
-running, so every release generates the formula and prints it to the log, and
-nothing is pushed. The `HOMEBREW_TAP_TOKEN` repository secret is set, with
-write access to `frodi-karlsson/homebrew-tap`, because the workflow's own
-`GITHUB_TOKEN` cannot write to another repository. To switch the push on, set
-`HOMEBREW_TAP_PUBLISH: 'true'` and merge that. A tag with a prerelease suffix,
-such as `v1.0.0-rc.1`, never reaches the tap.
+Every release prints the formula to the log and pushes it to the root of
+`frodi-karlsson/homebrew-tap` as `onesie.rb`. The tap keeps its formulae at the
+root, and a `Formula` directory would make Homebrew stop reading them. The push
+uses the `HOMEBREW_TAP_TOKEN` repository secret, since the workflow's own
+`GITHUB_TOKEN` cannot write to another repository. `HOMEBREW_TAP_PUBLISH:
+'false'` on the release job in `.github/workflows/release.yml` turns the push
+off. A tag with a prerelease suffix, such as `v1.0.0-rc.1`, never reaches the
+tap.
 
 ### Notarization
 

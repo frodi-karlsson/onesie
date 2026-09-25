@@ -57,17 +57,27 @@ jobs:
       id-token: write
       attestations: write
     env:
-      # INERT. The formula is generated on every release but never pushed.
-      # The HOMEBREW_TAP_TOKEN repository secret is set, with write access
-      # to homebrew-tap, and stays unused until the formula goes live. To go
-      # live, flip this to 'true'.
-      HOMEBREW_TAP_PUBLISH: 'false'
+      # 'false' keeps the generated formula out of homebrew-tap.
+      # HOMEBREW_TAP_TOKEN has write access to homebrew-tap.
+      HOMEBREW_TAP_PUBLISH: 'true'
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0 # GoReleaser needs full history for the changelog
+
+      # The plugins install the skills from the tag they name, so each release
+      # has to name itself before it is tagged.
+      - name: Check the plugin manifests name this tag
+        if: ${{ !contains(github.ref_name, '-') }}
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"
+          test "$(jq -r .version .claude-plugin/plugin.json)" = "${tag#v}"
+          test "$(jq -r .version .codex-plugin/plugin.json)" = "${tag#v}"
+          test "$(jq -r '.plugins[0].source.ref' .claude-plugin/marketplace.json)" = "$tag"
+          test "$(jq -r '.plugins[0].source.ref' .agents/plugins/marketplace.json)" = "$tag"
 
       - name: Set up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
@@ -127,11 +137,12 @@ jobs:
         working-directory: homebrew-tap
         run: |
           set -euo pipefail
-          mkdir -p Formula
-          cp ../dist/homebrew/Formula/onesie.rb Formula/onesie.rb
-          git add Formula/onesie.rb
+          # The tap keeps its formulae at the root. A Formula directory would
+          # make Homebrew stop reading the ones already there.
+          cp ../dist/homebrew/Formula/onesie.rb onesie.rb
+          git add onesie.rb
           if git diff --cached --quiet; then
-            echo "Formula/onesie.rb is already current"
+            echo "onesie.rb is already current"
             exit 0
           fi
           git -c user.name='github-actions[bot]' \

@@ -9,7 +9,11 @@
     {
       "name": "onesie",
       "description": "Teach an agent to write correct onesie invocations.",
-      "source": "./",
+      "source": {
+        "source": "github",
+        "repo": "frodi-karlsson/onesie",
+        "ref": "v0.1.0"
+      },
       "category": "development"
     }
   ]
