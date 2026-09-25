@@ -71,12 +71,15 @@ See `AGENTS.md`. Follow it without being asked.
 
 ## Releasing
 
-Cut a release with one command. Dry run it first:
+Cut a release with one command. Preview it with `DRY_RUN=1` first:
 
 ```sh
 make release TAG=v0.2.0 DRY_RUN=1
 make release TAG=v0.2.0
 ```
+
+Never preview with `make -n`. It only prints the command, so it checks nothing, and the script
+refuses to run under `-n`, `-t`, `-q` or `-i`.
 
 `make release` runs `scripts/release.sh`, which refuses to start unless:
 
@@ -87,22 +90,40 @@ make release TAG=v0.2.0
 - `TAG` is `v` plus a semantic version, such as `v0.2.0` or `v0.2.0-rc.1`, with no `+` build part
 - `TAG` is greater than the latest `v` tag, locally and on `origin`
 
-It then runs `make check` and `make skills-check` on the clean tree. For a release, it sets the
-version in `.claude-plugin/plugin.json` and `.codex-plugin/plugin.json`, and the `ref` in
-`.claude-plugin/marketplace.json` and `.agents/plugins/marketplace.json`, to the new tag, so the
-plugins install the skills of the release. It runs the release workflow's four manifest checks word
-for word through `go tool gojq`, so no jq install is needed, and makes a signed commit
-`chore: release v0.2.0`. A prerelease such as `v0.2.0-rc.1` skips the bump and the commit.
+It then runs `make check` and `make skills-check` on the clean tree, and stops if either one fails,
+changes the tree or moves HEAD. For a release, it sets the version in `.claude-plugin/plugin.json`
+and `.codex-plugin/plugin.json`, and the `ref` in `.claude-plugin/marketplace.json` and
+`.agents/plugins/marketplace.json`, to the new tag, so the plugins install the skills of the
+release. It stops if the manifests already name the tag. It runs the release workflow's four
+manifest checks word for word through `go tool gojq`, so no jq install is needed, and makes a
+signed commit `chore: release v0.2.0`. A prerelease such as `v0.2.0-rc.1` skips the bump and the
+commit.
 
-Last, it makes a signed tag on HEAD and prints the push:
+Last, it makes a signed tag on that commit and prints the push:
 
 ```sh
 git push --atomic origin main v0.2.0
 ```
 
 It pushes nothing. The atomic push lands the branch and the tag together or not at all. If any step
-fails, the script puts the manifests, HEAD and the tags back as they were. `DRY_RUN=1` runs every
-check and prints each change it would make, then stops without writing anything.
+fails, the script puts the manifests, HEAD and the tags back as they were.
+
+A dry run is not offline. It fetches from `origin`, reads the remote's tags with `git ls-remote`,
+and runs `make check` and `make skills-check`, which build and test the tree. It then prints each
+manifest change and each check with the value it expects, and stops without writing to the tree,
+HEAD or the tags.
+
+To back out a release you have not pushed, delete the tag and drop the release commit:
+
+```sh
+git tag -d v0.2.0 && git reset --keep HEAD~1
+```
+
+A prerelease has no release commit, so only delete its tag, for example `git tag -d v0.2.0-rc.1`.
+
+If the atomic push is rejected, neither the branch nor the tag reached `origin`. Usually `main`
+moved on `origin`, or the tag already exists there. Back out the local release as above, pull, and
+run `make release` again with the next version if the tag was taken.
 
 On the tag, the release workflow runs goreleaser, which cross compiles for linux, darwin and
 windows on amd64 and arm64, puts the bash, zsh and fish completions in every archive, and publishes
