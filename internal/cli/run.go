@@ -129,7 +129,7 @@ func run(
 		})
 	}
 
-	resolved, err := input.Resolve(input.Query{
+	resolved, err := input.Resolve(cmd.Context(), input.Query{
 		Mode:         inputMode,
 		Stdin:        settings.stdin,
 		StdinTTY:     settings.stdinTTY,

@@ -1,20 +1,23 @@
 package input
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/frodi-karlsson/onesie/internal/interrupt"
 )
 
 // ErrEmptyState reports a state that is empty or only whitespace, which the model cannot answer.
 var ErrEmptyState = errors.New("an empty state is a request the model cannot answer")
 
-// Resolve decides where the state comes from and reads it. It performs no network call and reads
-// stdin at most once.
-func Resolve(req Query) (Resolved, error) {
+// Resolve decides where the state comes from and reads it. It performs no network call, reads
+// stdin at most once and stops waiting on it when ctx ends.
+func Resolve(ctx context.Context, req Query) (Resolved, error) {
 	switch {
 	case req.HasStateFile:
 		body, err := req.ReadFile(req.StateFile)
@@ -31,18 +34,22 @@ func Resolve(req Query) (Resolved, error) {
 		// artefact.
 		return fromText(SourceState, "--state", req.State, req.Mode, false)
 	case req.HasState, !req.StdinTTY:
-		return fromStdin(req)
+		return fromStdin(ctx, req)
 	default:
 		return Resolved{Source: SourceNone}, nil
 	}
 }
 
-func fromStdin(req Query) (Resolved, error) {
+func fromStdin(ctx context.Context, req Query) (Resolved, error) {
 	if req.Stdin == nil {
 		return Resolved{Source: SourceNone}, nil
 	}
 
-	data, err := io.ReadAll(req.Stdin)
+	data, err := interrupt.Wait(ctx, func() ([]byte, error) { return io.ReadAll(req.Stdin) })
+	if ctx.Err() != nil {
+		return Resolved{}, ctx.Err()
+	}
+
 	if err != nil {
 		return Resolved{}, fmt.Errorf("onesie: reading stdin: %w", err)
 	}

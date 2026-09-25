@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/frodi-karlsson/onesie/internal/creds"
+	"github.com/frodi-karlsson/onesie/internal/interrupt"
 	"github.com/frodi-karlsson/onesie/internal/jev"
 )
 
@@ -208,7 +209,14 @@ func storeKey(
 
 func readKey(cmd *cobra.Command, settings rootSettings) (string, error) {
 	if !settings.stdinTTY {
-		return firstLine(settings.stdin)
+		ctx := cmd.Context()
+
+		key, err := interrupt.Wait(ctx, func() (string, error) { return firstLine(settings.stdin) })
+		if ctx.Err() != nil {
+			return "", ctx.Err()
+		}
+
+		return key, err
 	}
 
 	// The prompt goes to stderr so onesie auth set inside a pipeline does not corrupt what stdout

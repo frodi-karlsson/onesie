@@ -1,8 +1,10 @@
 package input_test
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"os"
 	"strings"
 	"testing"
@@ -274,7 +276,7 @@ func TestResolve(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := input.Resolve(tc.req)
+			got, err := input.Resolve(t.Context(), tc.req)
 
 			if tc.wantErr {
 				if err == nil {
@@ -306,6 +308,21 @@ func TestResolve(t *testing.T) {
 		})
 	}
 
+	t.Run("should stop waiting on stdin once the context ends", func(t *testing.T) {
+		t.Parallel()
+
+		held, write := io.Pipe()
+		t.Cleanup(func() { _ = write.Close() })
+
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+
+		_, err := input.Resolve(ctx, input.Query{Mode: input.Text, Stdin: held})
+		if !errors.Is(err, context.Canceled) {
+			t.Errorf("error = %v, want context.Canceled", err)
+		}
+	})
+
 	t.Run("should carry the wire form of the state", func(t *testing.T) {
 		t.Parallel()
 
@@ -335,7 +352,7 @@ func TestResolve(t *testing.T) {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 
-				got, err := input.Resolve(input.Query{
+				got, err := input.Resolve(t.Context(), input.Query{
 					Mode:     tc.mode,
 					State:    tc.text,
 					HasState: true,

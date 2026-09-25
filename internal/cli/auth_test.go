@@ -912,6 +912,29 @@ func TestAuthSet(t *testing.T) {
 			t.Errorf("a credential file was written, stat error = %v", err)
 		}
 	})
+
+	t.Run("should exit 130 on an interrupt while stdin has not ended", func(t *testing.T) {
+		t.Parallel()
+
+		path := credentialFixture(t, "", 0)
+		held, _ := io.Pipe()
+
+		code := interruptedRun(t, []string{"auth", "set", "--file"},
+			WithStdin(held),
+			WithStdinTTY(false),
+			WithStdoutTTY(false),
+			WithCredentialPath(fixedPath(path)),
+			WithLookupEnv(lookupFrom(nil)),
+			WithKeychain(noKeychain()))
+
+		if code != ExitInterrupt {
+			t.Errorf("exit code = %d, want %d", code, ExitInterrupt)
+		}
+
+		if _, err := os.Lstat(path); !errors.Is(err, os.ErrNotExist) {
+			t.Errorf("a credential file was written, stat error = %v", err)
+		}
+	})
 }
 
 func TestFirstLine(t *testing.T) {
