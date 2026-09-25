@@ -40,19 +40,19 @@ func TestSchema(t *testing.T) {
 			},
 		},
 		{
-			name: "should take the pick option ceiling from the limits",
+			name: "should take the pick option counts from the limits",
 			check: func(t *testing.T, schema map[string]any) {
 				t.Helper()
 
-				checkCeiling(t, definition(t, schema, "pick"), limits.MaxChoiceOptions)
+				checkBounds(t, definition(t, schema, "pick"), limits.MinChoiceOptions, limits.MaxChoiceOptions)
 			},
 		},
 		{
-			name: "should take the rate level ceiling from the limits",
+			name: "should take the rate level counts from the limits",
 			check: func(t *testing.T, schema map[string]any) {
 				t.Helper()
 
-				checkCeiling(t, definition(t, schema, "rate"), limits.MaxScoreLevels)
+				checkBounds(t, definition(t, schema, "rate"), limits.MinScoreLevels, limits.MaxScoreLevels)
 			},
 		},
 		{
@@ -155,7 +155,7 @@ func definition(t *testing.T, schema map[string]any, name string) map[string]any
 	return found
 }
 
-func checkCeiling(t *testing.T, shape map[string]any, most int) {
+func checkBounds(t *testing.T, shape map[string]any, least, most int) {
 	t.Helper()
 
 	forms, _ := shape["oneOf"].([]any)
@@ -166,19 +166,14 @@ func checkCeiling(t *testing.T, shape map[string]any, most int) {
 	for _, form := range forms {
 		fields, _ := form.(map[string]any)
 
-		// A flag adds options and levels to a file's question, so a file may hold fewer than the
-		// floor and still run.
 		lower, upper := "minItems", "maxItems"
 		if fields["type"] == "object" {
 			lower, upper = "minProperties", "maxProperties"
 		}
 
-		if fields[upper] != float64(most) {
-			t.Errorf("%s %v, want %d in %v", upper, fields[upper], most, fields)
-		}
-
-		if _, floored := fields[lower]; floored {
-			t.Errorf("%s %v, want no floor in %v", lower, fields[lower], fields)
+		if fields[lower] != float64(least) || fields[upper] != float64(most) {
+			t.Errorf("%s %v and %s %v, want %d and %d in %v",
+				lower, fields[lower], upper, fields[upper], least, most, fields)
 		}
 	}
 }

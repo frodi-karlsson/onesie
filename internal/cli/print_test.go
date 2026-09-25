@@ -342,6 +342,11 @@ func checkSchemaAgreement(t *testing.T, fixtures []schemaFixture) {
 			refused++
 		}
 
+		if fixture.typo != "" && (verdict == nil || loaderAccepts) {
+			t.Errorf("want both the schema and the loader to refuse %s, schema %v, loader exit %d\n%s",
+				fixture.typo, verdict, code, doc)
+		}
+
 		switch {
 		case verdict != nil && loaderAccepts:
 			t.Errorf("the schema refuses a fixture the loader accepts beside %v: %v\n%s", fixture.flags, verdict, doc)
@@ -360,6 +365,7 @@ func checkSchemaAgreement(t *testing.T, fixtures []schemaFixture) {
 type schemaFixture struct {
 	doc   string
 	flags []string
+	typo  string
 }
 
 func fixturesOf(docs []string) []schemaFixture {
@@ -387,7 +393,6 @@ func validationDocs() []schemaFixture {
 		"team:\n  ask: q\n  pick: " + many(255) + "\n",
 		"team:\n  ask: q\n  pick: " + many(256) + "\n",
 		"team:\n  ask: q\n  pick: [a, a]\n",
-		"team:\n  ask: q\n  pick:\n    a: x\n",
 		"severity:\n  ask: q\n  rate: " + many(10) + "\n",
 		"severity:\n  ask: q\n  rate: " + many(11) + "\n",
 		"severity:\n  ask: q\n  rate: [a, a]\n",
@@ -396,7 +401,6 @@ func validationDocs() []schemaFixture {
 		"severity:\n  ask: q\n  rate:\n    - low: calm\n    - high:\n",
 		"severity:\n  ask: q\n  rate:\n    - low\n    - high:\n",
 		"urgent:\n  ask: q\n  threshold: 0.5\n",
-		"urgent:\n  ask: q\n  threshold: 5\n",
 		"urgent:\n  ask: q\n  threshold: .nan\n",
 		"team:\n  ask: q\n  pick: [a, b]\n  threshold: 0.5\n",
 		"urgent:\n  ask: q\n  min_confidence: 0.5\n  fallback: yes\n",
@@ -426,15 +430,22 @@ func validationDocs() []schemaFixture {
 		{doc: "urgent: q\nabstain_if: 'urgent.value < 0.8'\n", flags: []string{"--assert", "urgent.value < 0.5"}},
 		{doc: "team:\n  ask: q\n  pick: [a, b]\n  min_confidence: 0.5\n", flags: []string{"--fallback", "a"}},
 		{doc: "urgent:\n  ask: q\n  fallback: maybe\n", flags: []string{"--fallback", "yes"}},
-		{doc: "urgent:\n  ask: q\n  threshold: 5\n", flags: []string{"--threshold", "0.5"}},
-		{doc: "urgent:\n  ask: q\n  threshold: -0.1\n", flags: []string{"--threshold", "0.1"}},
-		{doc: "team:\n  ask: q\n  pick: [a, b]\n  min_confidence: 1.5\n  fallback: a\n", flags: []string{"--min-confidence", "0.5"}},
 		{doc: "urgent:\n  ask: q\n  min_confidence: 0.5\n  fallback: yes\n", flags: []string{"--pick", "yes,no"}},
-		{doc: "team:\n  ask: q\n  pick: [a]\n", flags: []string{"--pick", "b"}},
-		{doc: "team:\n  ask: q\n  pick: []\n", flags: []string{"--pick", "a,b"}},
-		{doc: "severity:\n  ask: q\n  rate: [a]\n", flags: []string{"--rate", "b"}},
 		{doc: "severity:\n  ask: q\n  rate:\n    low: calm\n    high:\n", flags: []string{"--desc", "high=loud"}},
 		{doc: "severity:\n  ask: q\n  rate:\n    - low\n    - high: loud\n", flags: []string{"--desc", "low=calm"}},
+	}
+
+	// A file is checked as if it runs on its own, apart from a gate or a fallback, which a flag can
+	// supply. So a value only a flag rescues is a typo the schema refuses.
+	typos := []schemaFixture{
+		{typo: "a threshold above 1", doc: "urgent:\n  ask: q\n  threshold: 5\n"},
+		{typo: "a threshold below 0", doc: "urgent:\n  ask: q\n  threshold: -0.1\n"},
+		{typo: "a min_confidence above 1", doc: "team:\n  ask: q\n  pick: [a, b]\n  min_confidence: 1.5\n  fallback: a\n"},
+		{typo: "a pick with one option", doc: "team:\n  ask: q\n  pick: [a]\n"},
+		{typo: "a pick mapping with one option", doc: "team:\n  ask: q\n  pick:\n    a: x\n"},
+		{typo: "a pick with no options", doc: "team:\n  ask: q\n  pick: []\n"},
+		{typo: "a rate with one level", doc: "severity:\n  ask: q\n  rate: [a]\n"},
+		{typo: "a rate mapping with one level", doc: "severity:\n  ask: q\n  rate:\n    low: calm\n"},
 	}
 
 	// Each file that runs beside a flag is also checked alone, where the loader refuses it for a
@@ -443,7 +454,7 @@ func validationDocs() []schemaFixture {
 		alone = append(alone, schemaFixture{doc: fixture.doc})
 	}
 
-	return append(alone, beside...)
+	return append(append(alone, beside...), typos...)
 }
 
 func compiledSchema(t *testing.T) *jsonschema.Schema {
@@ -519,9 +530,8 @@ func loaderOnlyRule(stderr string) (string, bool) {
 		{name: "min_confidence with no fallback, which --fallback completes", pattern: regexp.MustCompile(`^onesie: 'min_confidence' needs 'fallback', `)},
 		{name: "min_confidence on a yes/no question, which --pick or --rate completes", pattern: regexp.MustCompile(`^onesie: 'min_confidence' needs a confidence value\. `)},
 		{name: "a yes/no fallback, which --fallback replaces", pattern: regexp.MustCompile(`^onesie: 'fallback' on a yes/no question takes true, false, yes or no, `)},
-		{name: "a policy value outside 0 to 1, which its flag replaces", pattern: regexp.MustCompile(`^onesie: '(threshold|min_confidence)' must be between 0 and 1, `)},
-		{name: "too few options or levels, which --pick or --rate adds to", pattern: regexp.MustCompile(`^onesie: '(pick|rate)' needs at least two (options|levels) in question `)},
 		{name: "a partly described rate, which --desc completes", pattern: regexp.MustCompile(`^onesie: 'rate' levels must all be described or all bare in question `)},
+		{name: "a NaN, which JSON cannot hold", pattern: regexp.MustCompile(`^onesie: '(threshold|min_confidence)' must be between 0 and 1, got NaN\n$`)},
 		{name: "a value that cannot be sent", pattern: regexp.MustCompile(`^onesie: .* cannot be sent: `)},
 	}
 

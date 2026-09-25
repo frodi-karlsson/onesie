@@ -279,8 +279,11 @@ A consumer that stops reading, as `head` does, is not an error.
   reads, such as VS Code with the Red Hat YAML extension, to check each key and value as you type.
   The URL names the release tag the binary was built from, and `main` for any other build. A JSON
   question file names the schema in a top level `"$schema"` key, which onesie accepts and ignores,
-  so `$schema` is a reserved question id. The schema accepts any request body as it is. It also
-  accepts a file that only runs beside a flag, such as a gate with no question or a `min_confidence`
-  with no `fallback`, and onesie refuses such a file at run time when the flag is missing.
+  so `$schema` is a reserved question id. The schema accepts any request body as it is.
+- The schema checks a question file as if it runs on its own, except that its gate and its fallbacks
+  may come from flags. So an editor flags a `threshold` outside 0 to 1 or a pick with one option,
+  and accepts a file that holds only a gate, an `abstain_if` with no `assert`, or a `min_confidence`
+  with no `fallback`. onesie refuses such a file at run time when the flag is missing. The schema
+  also leaves a `min_confidence` on a yes/no question and a partly described rate to onesie.
 - `--retries`, `--timeout` and `--max-retry-after` bound how long a call can take.
 - `onesie --help` lists every flag, and `onesie -V` prints the built in limits.
