@@ -514,7 +514,7 @@ func (o *outFile) probe() error {
 
 	temporary := o.target + fingerprintSuffix + ".tmp"
 
-	file, err := o.open(temporary, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
+	file, err := o.open(temporary, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
 	if err != nil {
 		return fmt.Errorf("onesie: opening %s: %w", temporary, err)
 	}
@@ -532,7 +532,7 @@ func (o *outFile) probeAnswers() error {
 		return err
 	}
 
-	file, err = o.open(o.target, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+	file, err = o.open(o.target, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
 	if err != nil {
 		return err
 	}
@@ -689,7 +689,7 @@ func (o *outFile) openAnswers() error {
 			return err
 		}
 
-		file, err := o.open(o.path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
+		file, err := o.open(o.path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
 		if err != nil {
 			return fmt.Errorf("onesie: opening %s: %w", o.path, err)
 		}
@@ -699,7 +699,7 @@ func (o *outFile) openAnswers() error {
 		return nil
 	}
 
-	file, err := o.open(o.path, os.O_WRONLY|os.O_CREATE, 0o644)
+	file, err := o.open(o.path, os.O_WRONLY|os.O_CREATE, 0o600)
 	if err != nil {
 		return fmt.Errorf("onesie: opening %s: %w", o.path, err)
 	}
@@ -742,7 +742,7 @@ func (o *outFile) writeFingerprint() error {
 	// old fingerprint or the new one, never an empty file that reads as a changed run.
 	temporary := path + ".tmp"
 
-	file, err := o.open(temporary, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
+	file, err := o.open(temporary, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
 	if err != nil {
 		return fmt.Errorf("onesie: opening %s: %w", temporary, err)
 	}

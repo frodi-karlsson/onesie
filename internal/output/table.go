@@ -9,6 +9,7 @@ import (
 
 const (
 	fallbackWidth = 80
+	maxWidth      = 1000
 	labelWidth    = 16
 	numberWidth   = 9 // Two leading spaces, the space before the number and a value such as 0.1234.
 	minBarWidth   = 8
@@ -19,12 +20,12 @@ const (
 func Width(lookupEnv func(string) (string, bool), terminalWidth func() (int, bool)) int {
 	if raw, ok := lookupEnv("COLUMNS"); ok {
 		if columns, err := strconv.Atoi(raw); err == nil && columns > 0 {
-			return columns
+			return min(columns, maxWidth)
 		}
 	}
 
 	if columns, ok := terminalWidth(); ok && columns > 0 {
-		return columns
+		return min(columns, maxWidth)
 	}
 
 	return fallbackWidth

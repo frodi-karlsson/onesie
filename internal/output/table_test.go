@@ -40,6 +40,8 @@ func TestWidth(t *testing.T) {
 			name:    "should fall back to eighty when the terminal query fails",
 			hasTerm: false, want: 80,
 		},
+		{name: "should cap a huge COLUMNS", columns: "100000000", want: 1000},
+		{name: "should cap a huge terminal", terminal: 5000, hasTerm: true, want: 1000},
 		{
 			name:     "should fall back to eighty when the terminal reports no width",
 			terminal: 0, hasTerm: true, want: 80,

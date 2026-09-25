@@ -78,15 +78,18 @@ func TestOpenOut(t *testing.T) {
 		// questions, when set, is written to a question file passed with -f.
 		questions string
 
-		emptySidecar     bool
-		sidecarDir       bool
-		readOnlyDir      bool
-		readOnlyFile     bool
+		emptySidecar bool
+		sidecarDir   bool
+		readOnlyDir  bool
+		readOnlyFile bool
+		// wantMode, when set, is the mode a file this run created must have.
+		wantMode         os.FileMode
 		wantEmptySidecar bool
 	}{
 		{
 			name:        "should write the answers to the file and nothing to stdout",
 			noFile:      true,
+			wantMode:    0o600,
 			wantSidecar: matching,
 			args:        []string{"is this urgent", "-i", "jsonl"},
 			stdin:       input,
@@ -734,6 +737,11 @@ func TestOpenOut(t *testing.T) {
 
 			if !strings.Contains(errOut.String(), tc.wantErr) {
 				t.Errorf("stderr = %q, want it to contain %q", errOut.String(), tc.wantErr)
+			}
+
+			if tc.wantMode != 0 && runtime.GOOS != "windows" {
+				assertMode(t, path, tc.wantMode)
+				assertMode(t, path+".onesie", tc.wantMode)
 			}
 
 			sidecar, err := os.ReadFile(path + ".onesie")
