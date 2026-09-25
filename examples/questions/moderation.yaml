@@ -1,7 +1,9 @@
 assert: hostile.value < 0.3 and spam.value < 0.15
 abstain_if: hostile.value < 0.85 and spam.value < 0.5
 hostile:
-  ask: is this text hostile or abusive toward a person or group
+  ask: is the writer, first hand, saying something aggressive meant to hurt another person or group
+  yes_means: the writer speaks for themselves and attacks, insults, threatens or demeans another person or group
+  no_means: the writer attacks no one. Quoting, reporting or discussing abuse is not that
 spam:
   ask: is this text spam or advertising
 tone:
