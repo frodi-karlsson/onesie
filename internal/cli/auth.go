@@ -121,8 +121,9 @@ func authSet(cmd *cobra.Command, settings rootSettings, flags *runFlags, opts se
 
 	previous := file.Providers[provider.Name]
 	account := creds.KeychainAccount(provider.Name, path)
+	replaced := replacedKey(settings, previous, provider, account)
 
-	entry, err := storeKey(cmd, settings, provider, key, path, account, opts.toFile)
+	entry, notice, err := storeKey(settings, provider, key, path, account, opts.toFile)
 	if err != nil {
 		return err
 	}
@@ -135,15 +136,20 @@ func authSet(cmd *cobra.Command, settings rootSettings, flags *runFlags, opts se
 
 	warning, err := settings.credStore.Save(path, file)
 	if err != nil {
-		// The file still points wherever it pointed before, so a new keychain item would be an orphan.
 		if entry.Store == creds.StoreKeychain {
-			return errors.Join(err, settings.keychain.Delete(account))
+			return errors.Join(err, replaced.undo(settings.keychain, account))
 		}
 
 		return err
 	}
 
-	// Only once the file no longer points at it, so a failed save never loses the old key.
+	if notice != "" {
+		if _, printErr := fmt.Fprintln(cmd.ErrOrStderr(), notice); printErr != nil {
+			return printErr
+		}
+	}
+
+	// After the save, since the file points at the old item until then.
 	if stale := previousAccount(previous, provider); stale != "" && stale != entry.Account {
 		if deleteErr := settings.keychain.Delete(stale); deleteErr != nil {
 			if _, printErr := fmt.Fprintln(cmd.ErrOrStderr(), "warning: "+deleteErr.Error()); printErr != nil {
@@ -178,33 +184,59 @@ type setOptions struct {
 }
 
 func storeKey(
-	cmd *cobra.Command,
 	settings rootSettings,
 	provider jev.Provider,
 	key, path, account string,
 	toFile bool,
-) (creds.Entry, error) {
+) (entry creds.Entry, notice string, err error) {
 	if toFile {
-		return creds.Entry{APIKey: key}, nil
+		return creds.Entry{APIKey: key}, "", nil
 	}
 
-	err := settings.keychain.Set(account, key)
+	err = settings.keychain.Set(account, key)
 	if err == nil {
-		_, printErr := fmt.Fprintln(cmd.ErrOrStderr(), "onesie: stored the "+provider.Name+" key in the OS keychain")
-
-		return creds.Entry{Store: creds.StoreKeychain, Account: account}, printErr
+		return creds.Entry{Store: creds.StoreKeychain, Account: account},
+			"onesie: stored the " + provider.Name + " key in the OS keychain", nil
 	}
 
 	// A keychain that timed out may still be waiting on a prompt that stores the key later, so a
 	// fallback here could leave the key in both places.
 	if errors.Is(err, creds.ErrKeychainTimeout) {
-		return creds.Entry{}, fmt.Errorf("%w. Answer the keychain prompt, or run onesie auth set --file", err)
+		return creds.Entry{}, "", fmt.Errorf("%w. Answer the keychain prompt, or run onesie auth set --file", err)
 	}
 
-	_, printErr := fmt.Fprintln(cmd.ErrOrStderr(), "warning: "+strings.TrimPrefix(err.Error(), "onesie: ")+
-		". The key is in "+path+" instead")
+	return creds.Entry{APIKey: key},
+		"warning: " + strings.TrimPrefix(err.Error(), "onesie: ") + ". The key is in " + path + " instead", nil
+}
 
-	return creds.Entry{APIKey: key}, printErr
+func replacedKey(settings rootSettings, previous creds.Entry, provider jev.Provider, account string) replaced {
+	if previousAccount(previous, provider) != account {
+		return replaced{}
+	}
+
+	key, err := settings.keychain.Get(account)
+
+	return replaced{sameAccount: true, key: key, found: err == nil}
+}
+
+type replaced struct {
+	sameAccount bool
+	key         string
+	found       bool
+}
+
+func (r replaced) undo(keychain Keychain, account string) error {
+	if !r.sameAccount {
+		// The file still points wherever it pointed before, so the new item would be an orphan.
+		return keychain.Delete(account)
+	}
+
+	// The file still points at this item, so it keeps a key either way.
+	if !r.found {
+		return nil
+	}
+
+	return keychain.Set(account, r.key)
 }
 
 func readKey(cmd *cobra.Command, settings rootSettings) (string, error) {

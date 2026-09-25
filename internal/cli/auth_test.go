@@ -887,6 +887,70 @@ func TestAuthSet(t *testing.T) {
 		}
 	})
 
+	t.Run("should keep the old keychain key when the file it replaces cannot be saved", func(t *testing.T) {
+		t.Parallel()
+
+		path := filepath.Join(t.TempDir(), "credentials.json")
+		account := creds.KeychainAccount("typesafe", path)
+		existing := `{"providers":{"typesafe":{"store":"keychain","account":"` + account + `"}}}`
+
+		if err := os.WriteFile(path, []byte(existing), 0o600); err != nil {
+			t.Fatalf("writing the credential fixture: %v", err)
+		}
+
+		keychain := workingKeychain(map[string]string{account: "SECRET-OLD"})
+		failing := creds.NewStore(creds.WithCreateTemp(func(string, string) (*os.File, error) {
+			return nil, errors.New("the disk is full")
+		}))
+
+		out, errOut, code := runAuth(t, []string{"auth", "set"},
+			WithStdin(strings.NewReader("SECRET-NEW\n")),
+			WithCredentialPath(fixedPath(path)),
+			WithCredentialStore(failing),
+			WithLookupEnv(lookupFrom(nil)),
+			WithKeychain(keychain))
+
+		assertNoSecret(t, out, errOut)
+
+		if code == ExitOK {
+			t.Fatalf("exit code = %d, want a failure", code)
+		}
+
+		if key, err := keychain.Get(account); err != nil || key != "SECRET-OLD" {
+			t.Errorf("the keychain item the file points at lost its key, read error = %v", err)
+		}
+
+		if strings.Contains(errOut, "stored the typesafe key") {
+			t.Errorf("stderr = %q, want no claim the key was stored", errOut)
+		}
+	})
+
+	t.Run("should not say where the key went when the file cannot be saved", func(t *testing.T) {
+		t.Parallel()
+
+		path := credentialFixture(t, "", 0)
+		failing := creds.NewStore(creds.WithCreateTemp(func(string, string) (*os.File, error) {
+			return nil, errors.New("the disk is full")
+		}))
+
+		for _, keychain := range []*fakeKeychain{workingKeychain(nil), noKeychain()} {
+			_, errOut, code := runAuth(t, []string{"auth", "set"},
+				WithStdin(strings.NewReader("SECRET-NEW\n")),
+				WithCredentialPath(fixedPath(path)),
+				WithCredentialStore(failing),
+				WithLookupEnv(lookupFrom(nil)),
+				WithKeychain(keychain))
+
+			if code == ExitOK {
+				t.Fatalf("exit code = %d, want a failure", code)
+			}
+
+			if strings.Contains(errOut, "stored the typesafe key") || strings.Contains(errOut, "instead") {
+				t.Errorf("stderr = %q, want no claim about where the key went", errOut)
+			}
+		}
+	})
+
 	t.Run("should fail rather than fall back when the keychain times out", func(t *testing.T) {
 		t.Parallel()
 
