@@ -58,13 +58,18 @@ jobs:
       - name: Check the skill examples
         run: make skills-check
 
-  # The check job already covers linux. This is the cross platform half
-  # only, since the release ships darwin and windows binaries too.
+  # The check job already covers linux on amd64. This covers every other
+  # platform the release ships a binary for.
   test:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest, windows-latest]
+        os: [macos-latest, windows-latest, macos-15-intel, ubuntu-24.04-arm, windows-11-arm]
+        include:
+          - race: -race
+          # The race detector does not support windows on arm64.
+          - os: windows-11-arm
+            race: ''
     runs-on: ${{ matrix.os }}
     permissions:
       contents: read
@@ -79,14 +84,34 @@ jobs:
           go-version-file: go.mod
 
       - name: Run tests
-        run: go tool gotestsum --format testname -- -race -timeout 2m ./...
+        run: go tool gotestsum --format testname -- ${{ matrix.race }} -timeout 2m ./...
+
+  # Every fuzz target for a short run, so a regression in a parser or an
+  # escaper shows up on the commit that caused it. make fuzz fails when a
+  # target is missing from its list.
+  fuzz:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+
+      - name: Fuzz
+        run: make fuzz-check && make fuzz FUZZTIME=10s
 
   # install.sh against a snapshot built from this tree, served through file://.
   install:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-latest, macos-latest, ubuntu-24.04-arm, macos-15-intel]
     runs-on: ${{ matrix.os }}
     permissions:
       contents: read
