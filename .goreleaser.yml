@@ -25,6 +25,28 @@ builds:
     goarch: [amd64, arm64]
     mod_timestamp: "{{ .CommitTimestamp }}"
 
+# OFF until the MACOS_SIGN_P12 secret exists. Then the darwin binaries are
+# signed and notarized before they are archived. The block follows
+# notarize.macos in the GoReleaser v2.18.2 docs, which signs through quill
+# and so runs on the ubuntu release runner.
+notarize:
+  macos:
+    - enabled: '{{ isEnvSet "MACOS_SIGN_P12" }}'
+      ids: [onesie]
+      sign:
+        # The base64 of the Developer ID Application .p12, and its password.
+        certificate: "{{ .Env.MACOS_SIGN_P12 }}"
+        password: "{{ .Env.MACOS_SIGN_PASSWORD }}"
+      notarize:
+        # The App Store Connect API key: its issuer UUID, its key ID and the
+        # base64 of its .p8 file.
+        issuer_id: "{{ .Env.MACOS_NOTARY_ISSUER_ID }}"
+        key_id: "{{ .Env.MACOS_NOTARY_KEY_ID }}"
+        key: "{{ .Env.MACOS_NOTARY_KEY }}"
+        wait: true
+        # The most GoReleaser allows, since Apple rejects longer lived tokens.
+        timeout: 20m
+
 archives:
   - formats: [tar.gz]
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"

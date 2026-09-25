@@ -84,6 +84,15 @@ jobs:
         env:
           # Publishes the release in this repo.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Signing and notarizing the darwin binaries. An unset secret
+          # arrives empty, and isEnvSet treats an empty variable as unset, so
+          # the notarize block in .goreleaser.yml stays off until
+          # MACOS_SIGN_P12 exists.
+          MACOS_SIGN_P12: ${{ secrets.MACOS_SIGN_P12 }}
+          MACOS_SIGN_PASSWORD: ${{ secrets.MACOS_SIGN_PASSWORD }}
+          MACOS_NOTARY_ISSUER_ID: ${{ secrets.MACOS_NOTARY_ISSUER_ID }}
+          MACOS_NOTARY_KEY_ID: ${{ secrets.MACOS_NOTARY_KEY_ID }}
+          MACOS_NOTARY_KEY: ${{ secrets.MACOS_NOTARY_KEY }}
 
       # gh attestation verify checks a downloaded archive against this.
       - name: Attest build provenance
