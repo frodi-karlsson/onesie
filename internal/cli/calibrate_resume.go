@@ -101,7 +101,7 @@ func (l *ledger) storedAt(id any) (span, bool) {
 		return span{}, false
 	}
 
-	stored, found := l.answered[keyOf(idText(id))]
+	stored, found := l.answered[keyOf(jq.IDText(id))]
 
 	return stored.at, found
 }
@@ -114,7 +114,7 @@ func (l *ledger) keep(id any) {
 		return
 	}
 
-	key := keyOf(idText(id))
+	key := keyOf(jq.IDText(id))
 
 	// Kept in its place and nothing more. The record is not asked, so it is neither pending nor
 	// skipped.
@@ -128,7 +128,7 @@ func (l *ledger) forget(id any) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	delete(l.answered, keyOf(idText(id)))
+	delete(l.answered, keyOf(jq.IDText(id)))
 }
 
 func storedAnswers(ctx context.Context, out *outFile, lines []storedLine, built *plan.Plan) (err error) {

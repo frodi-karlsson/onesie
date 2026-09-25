@@ -1543,6 +1543,22 @@ func TestKeySourceString(t *testing.T) {
 func TestCredentialPath(t *testing.T) {
 	t.Parallel()
 
+	t.Run("should resolve the credential file from APPDATA for the goos it is given", func(t *testing.T) {
+		t.Parallel()
+
+		env := lookupFrom(map[string]string{"APPDATA": "appdata"})
+		home := func() (string, error) { return "home", nil }
+
+		for goos, want := range map[string]string{
+			"windows": filepath.Join("appdata", "onesie", "credentials.json"),
+			"linux":   filepath.Join("home", ".config", "onesie", "credentials.json"),
+		} {
+			if got, err := credentialPath(env, home, goos)(); err != nil || got != want {
+				t.Errorf("%s: path = %q, %v, want %q", goos, got, err, want)
+			}
+		}
+	})
+
 	tests := []struct {
 		name     string
 		variable string

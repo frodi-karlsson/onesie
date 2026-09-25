@@ -17,6 +17,7 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/engine"
 	"github.com/frodi-karlsson/onesie/internal/input"
 	"github.com/frodi-karlsson/onesie/internal/jev"
+	"github.com/frodi-karlsson/onesie/internal/jq"
 	"github.com/frodi-karlsson/onesie/internal/output"
 	"github.com/frodi-karlsson/onesie/internal/plan"
 )
@@ -314,7 +315,7 @@ func casesOf(built *plan.Plan, rec labelledRecord, record output.Record) ([]reco
 
 	name := ""
 	if rec.id != nil {
-		name = idText(rec.id)
+		name = jq.IDText(rec.id)
 	}
 
 	cases := make([]recordCase, len(built.Questions))

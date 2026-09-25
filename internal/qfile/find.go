@@ -50,9 +50,8 @@ func Find(name string, env FindEnv) (string, error) {
 	return "", notFound(name, env.WorkDir, repo, config)
 }
 
-// List reports every name Find would resolve, the repository set first and each set sorted by name.
-// A name the repository set holds is left out of the config dir's, since Find never reaches it there.
-// A config dir that cannot be resolved is not searched, as in Find.
+// List reports every name Find would resolve, the repository set first and each sorted by name. A
+// name both sets hold is listed once, in the repository set, since Find never reaches the other.
 func List(env FindEnv) ([]Found, error) {
 	repo, repoEntries, err := repoSet(env)
 	if err != nil {

@@ -38,7 +38,7 @@ var calibratedGates = map[string][2]string{
 	},
 }
 
-func TestNewRootCmd(t *testing.T) {
+func TestStarterSets(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {

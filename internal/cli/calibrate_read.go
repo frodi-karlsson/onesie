@@ -194,7 +194,7 @@ func (r *labelReader) uniqueID(ctx context.Context, rec input.Record) (any, erro
 		return nil, err
 	}
 
-	text := idText(id)
+	text := jq.IDText(id)
 
 	if unwritable := unwritableID(output.JSON, text); unwritable != nil {
 		return nil, unwritable
@@ -267,5 +267,5 @@ func (r labelledRecord) name() string {
 		return fmt.Sprintf("line %d", r.line)
 	}
 
-	return "record " + idText(r.id)
+	return "record " + jq.IDText(r.id)
 }

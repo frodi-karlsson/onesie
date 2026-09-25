@@ -22,13 +22,13 @@ func lockHandle(file *os.File) error {
 	return err
 }
 
-func unlockHandle(file *os.File, path string, owned bool) error {
+func unlockHandle(file *os.File, path string, owned bool, remove func(string) error) error {
 	err := errors.Join(windows.UnlockFileEx(windows.Handle(file.Fd()), 0, 1, 0, farByte()), file.Close())
 
 	// After the close, since Windows refuses to remove a file with a handle open on it. That same
 	// refusal leaves the file in place for a run that opened it in the meantime.
 	if owned && err == nil {
-		removeUnlessOpen(path)
+		removeUnlessOpen(path, remove)
 	}
 
 	return err
@@ -38,9 +38,9 @@ func farByte() *windows.Overlapped {
 	return &windows.Overlapped{Offset: math.MaxUint32, OffsetHigh: math.MaxInt32}
 }
 
-func removeUnlessOpen(path string) {
+func removeUnlessOpen(path string, remove func(string) error) {
 	// A refused removal leaves the file to a run that still has it open.
-	if err := os.Remove(path); err != nil {
+	if err := remove(path); err != nil {
 		return
 	}
 }

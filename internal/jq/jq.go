@@ -134,6 +134,19 @@ func ID(value any) (any, error) {
 	}
 }
 
+// IDText writes an id ID returned as the text it matches by, and a missing id as nothing. A csv
+// cell holds a string and a number alike, so a resume tells ids apart by this text alone.
+func IDText(id any) string {
+	switch typed := id.(type) {
+	case json.Number:
+		return typed.String()
+	case string:
+		return typed
+	default:
+		return ""
+	}
+}
+
 func bigID(number *big.Int) (any, error) {
 	// Four bits a digit undercounts the digits, so a number past this has more than the limit and
 	// is refused before its digits are written out.

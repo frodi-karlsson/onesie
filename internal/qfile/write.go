@@ -19,9 +19,8 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
-// Write renders questions, an assertion and an abstain expression as a question file, preserving
-// order, labels and policy so it reloads through Load to the same plan. An empty expression writes
-// no key.
+// Write renders questions, an assertion and an abstain expression as a question file that reloads
+// through Load to the same plan. An empty expression writes no key.
 func Write(questions []plan.Question, assertion, abstainIf string) ([]byte, error) {
 	doc := make(yaml.MapSlice, 0, len(questions)+2)
 

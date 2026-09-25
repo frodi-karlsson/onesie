@@ -14,6 +14,6 @@ func lockHandle(_ *os.File) error {
 	return errNoLock
 }
 
-func unlockHandle(file *os.File, path string, owned bool) error {
-	return errors.Join(removeOwned(path, owned), file.Close())
+func unlockHandle(file *os.File, path string, owned bool, remove func(string) error) error {
+	return errors.Join(removeOwned(path, owned, remove), file.Close())
 }

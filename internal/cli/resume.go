@@ -391,7 +391,7 @@ func answerID(value any) (string, bool) {
 		return "", false
 	}
 
-	return idText(id), true
+	return jq.IDText(id), true
 }
 
 type ledgerKey [16]byte
@@ -435,7 +435,7 @@ func (l *ledger) admit(rec *namedRecord) (verdict, bool) {
 	rec.slot = len(l.lines)
 
 	if rec.id != nil {
-		key := keyOf(idText(rec.id))
+		key := keyOf(jq.IDText(rec.id))
 		if stored, found := l.answered[key]; found {
 			delete(l.answered, key)
 			l.lines = append(l.lines, stored.at)

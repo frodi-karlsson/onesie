@@ -595,7 +595,7 @@ func fingerprintVersionOf(stored string) (version int, ok bool) {
 	tag, sum, found := strings.Cut(stored, ":")
 	digits, tagged := strings.CutPrefix(tag, "v")
 
-	if !found || !tagged || digits == "" || !allDigits(digits) {
+	if !found || !tagged || digits == "" || strings.Trim(digits, "0123456789") != "" {
 		return 0, false
 	}
 
@@ -614,16 +614,6 @@ func fingerprintVersionOf(stored string) (version int, ok bool) {
 	}
 
 	return version, true
-}
-
-func allDigits(text string) bool {
-	for _, r := range text {
-		if r < '0' || r > '9' {
-			return false
-		}
-	}
-
-	return true
 }
 
 func (o *outFile) holdsAnswers() (written bool, err error) {

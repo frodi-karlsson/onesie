@@ -3,7 +3,6 @@ package cli
 import (
 	"context"
 	"crypto/sha256"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"sync"
@@ -217,7 +216,7 @@ func (n *naming) name(rec input.Record) namedRecord {
 		return namedRecord{Record: rec, idErr: err}
 	}
 
-	text := idText(id)
+	text := jq.IDText(id)
 
 	if unwritable := unwritableID(n.mode, text); unwritable != nil {
 		return namedRecord{Record: rec, idErr: unwritable}
@@ -259,17 +258,4 @@ func idOf(ctx context.Context, namer *jq.Expr, rec input.Record) (any, error) {
 	}
 
 	return id, nil
-}
-
-func idText(id any) string {
-	// By text rather than by type, since a csv file holds both as the same cell and a resume has
-	// to tell them apart by that cell alone.
-	switch typed := id.(type) {
-	case json.Number:
-		return typed.String()
-	case string:
-		return typed
-	default:
-		return ""
-	}
 }

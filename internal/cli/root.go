@@ -43,6 +43,17 @@ const (
 	flagID            = "id"
 )
 
+var groupFlagHelp = map[string]string{
+	"ask":            "NAME=QUESTION, repeatable, opens a question group",
+	"pick":           "comma separated options, making this a choice question",
+	"rate":           "comma separated levels in ascending order, making this a score question",
+	"desc":           "KEY=TEXT, describing one option, level, yes or no",
+	"sep":            "separator for --pick and --rate that follow it",
+	"threshold":      "yes/no only, cut the probability at this value",
+	"min-confidence": "pick or rate only, requires --fallback",
+	"fallback":       "value substituted on low confidence and on error",
+}
+
 // NewRootCmd builds a fresh command tree that reads and writes no global state.
 func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 	flags := &runFlags{}
@@ -78,11 +89,11 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 	// Installed after the options, since they read the environment lookup and home directory a test
 	// may have replaced, and before the factory, which resolves the credential file through them.
 	if settings.credPath == nil {
-		settings.credPath = credentialPath(settings.lookupEnv, settings.homeDir)
+		settings.credPath = credentialPath(settings.lookupEnv, settings.homeDir, settings.goos)
 	}
 
 	if settings.configDir == nil {
-		settings.configDir = configDir(settings.lookupEnv, settings.homeDir)
+		settings.configDir = configDir(settings.lookupEnv, settings.homeDir, settings.goos)
 	}
 
 	// The factory reads flags, which are parsed after this returns, so it closes over the pointer.
@@ -469,17 +480,6 @@ type Keychain interface {
 	Delete(account string) error
 }
 
-var groupFlagHelp = map[string]string{
-	"ask":            "NAME=QUESTION, repeatable, opens a question group",
-	"pick":           "comma separated options, making this a choice question",
-	"rate":           "comma separated levels in ascending order, making this a score question",
-	"desc":           "KEY=TEXT, describing one option, level, yes or no",
-	"sep":            "separator for --pick and --rate that follow it",
-	"threshold":      "yes/no only, cut the probability at this value",
-	"min-confidence": "pick or rate only, requires --fallback",
-	"fallback":       "value substituted on low confidence and on error",
-}
-
 func limitsBlock() string {
 	var out strings.Builder
 
@@ -507,25 +507,27 @@ func widthOf(f *os.File) func() (int, bool) {
 func credentialPath(
 	lookupEnv func(string) (string, bool),
 	homeDir func() (string, error),
+	goos string,
 ) func() (string, error) {
 	return func() (string, error) {
-		return creds.Path(configEnv(lookupEnv, homeDir))
+		return creds.Path(configEnv(lookupEnv, homeDir, goos))
 	}
 }
 
 func configDir(
 	lookupEnv func(string) (string, bool),
 	homeDir func() (string, error),
+	goos string,
 ) func() (string, error) {
 	return func() (string, error) {
-		return creds.Dir(configEnv(lookupEnv, homeDir))
+		return creds.Dir(configEnv(lookupEnv, homeDir, goos))
 	}
 }
 
-func configEnv(lookupEnv func(string) (string, bool), homeDir func() (string, error)) creds.Env {
+func configEnv(lookupEnv func(string) (string, bool), homeDir func() (string, error), goos string) creds.Env {
 	return creds.Env{
 		Lookup: lookupEnv,
-		GOOS:   runtime.GOOS,
+		GOOS:   goos,
 		Home:   homeDir,
 	}
 }

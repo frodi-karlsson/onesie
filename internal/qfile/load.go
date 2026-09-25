@@ -19,6 +19,8 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
+var plainFloat = regexp.MustCompile(`^[-+]?(\.[0-9]+|[0-9]+(\.[0-9]*)?)[eE][-+]?[0-9]+$`)
+
 // Load reads a question file or a raw API request body. A top level questions key selects the
 // body form.
 func Load(data []byte) (*File, error) {
@@ -182,8 +184,6 @@ func decodeJSONValue(decoder *json.Decoder) (any, error) {
 		return tok, nil
 	}
 }
-
-var plainFloat = regexp.MustCompile(`^[-+]?(\.[0-9]+|[0-9]+(\.[0-9]*)?)[eE][-+]?[0-9]+$`)
 
 type aliases struct {
 	found bool

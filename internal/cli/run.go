@@ -41,7 +41,7 @@ func run(
 	// would send the user to the wrong flag. --list-models comes first, so it names itself rather
 	// than the mode it was combined with.
 	if flags.listModels {
-		if checkErr := checkFlags(cmd, cfg); checkErr != nil {
+		if checkErr := checkFlags(cfg); checkErr != nil {
 			return checkErr
 		}
 
@@ -53,7 +53,7 @@ func run(
 	}
 
 	if inputMode == input.Request {
-		if checkErr := checkFlags(cmd, cfg); checkErr != nil {
+		if checkErr := checkFlags(cfg); checkErr != nil {
 			return checkErr
 		}
 
@@ -239,17 +239,9 @@ func delimitedInput(name string) bool {
 	return err == nil && mode.Delimited()
 }
 
-func checkFlags(cmd *cobra.Command, cfg plan.Config) error {
-	warning, err := plan.CheckFlags(cfg)
-
-	// No rule warns for either of the two paths that call this today, so the print is here for a
-	// warning a later rule may add. Validate prints the same warnings on the path that builds a
-	// plan, and no run reaches both, so nothing is reported twice.
-	if warning != "" {
-		if _, printErr := fmt.Fprintln(cmd.ErrOrStderr(), warning); printErr != nil {
-			return printErr
-		}
-	}
+func checkFlags(cfg plan.Config) error {
+	// The only warning is -j on one record, which --list-models refuses and -i request never is.
+	_, err := plan.CheckFlags(cfg)
 
 	return err
 }

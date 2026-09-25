@@ -10,6 +10,7 @@ import (
 	"unicode"
 
 	"github.com/frodi-karlsson/onesie/internal/jev"
+	"github.com/frodi-karlsson/onesie/internal/jq"
 )
 
 // WriteMarkdown writes one record as a GitHub flavoured markdown table under an alert for its
@@ -130,7 +131,7 @@ func (m *MarkdownTable) Write(rec Record) error {
 
 	var cells []string
 	if m.opts.ID {
-		cells = append(cells, idText(rec.ID))
+		cells = append(cells, idCell(rec.ID))
 	}
 
 	for _, id := range m.opts.IDs {
@@ -219,13 +220,13 @@ func (m *MarkdownTable) count(rec Record) {
 	}
 }
 
-func idText(id any) string {
+func idCell(id any) string {
 	// A record that failed before its id was read has none, which differs from an empty id.
 	if id == nil {
 		return ""
 	}
 
-	return codeSpan(cell(id), true)
+	return codeSpan(jq.IDText(id), true)
 }
 
 func streamAnswer(rec Record, id string) string {

@@ -18,6 +18,12 @@ import (
 	"time"
 )
 
+const (
+	systemOnePath = "/v1/systemone"
+
+	retryCountHeader = "X-TypeSafe-Retry-Count"
+)
+
 // New builds a client. Resolution order is an explicit option, then the environment, then a
 // default. Blank and whitespace only values are ignored at every level.
 func New(opts ...Option) (*Client, error) {
@@ -116,12 +122,6 @@ func (c *Client) RetryPolicy() RetryPolicy {
 func (c *Client) AttemptTimeout() time.Duration {
 	return c.attemptTimeout
 }
-
-const (
-	systemOnePath = "/v1/systemone"
-
-	retryCountHeader = "X-TypeSafe-Retry-Count"
-)
 
 // SystemOne answers named questions about a state. Every question is evaluated in parallel and in
 // isolation, so batching is cheaper than one call per question.

@@ -7,12 +7,12 @@ import (
 	"os"
 )
 
-func removeOwned(path string, owned bool) error {
+func removeOwned(path string, owned bool, remove func(string) error) error {
 	if !owned {
 		return nil
 	}
 
-	err := os.Remove(path)
+	err := remove(path)
 	if errors.Is(err, os.ErrNotExist) {
 		return nil
 	}

@@ -16,6 +16,13 @@ const (
 	keychainTimeout = 10 * time.Second
 )
 
+var (
+	// ErrKeychainMissing means the keychain holds no item for the provider.
+	ErrKeychainMissing = errors.New("the keychain holds no key for this provider. Run onesie auth set to store one")
+	// ErrKeychainTimeout means the keychain did not answer, usually because it is waiting on a prompt.
+	ErrKeychainTimeout = errors.New("the keychain did not answer in time")
+)
+
 // KeychainAccount names the keychain item for a provider's key in the credential file at path. The
 // path is part of the name, so two config dirs never share, overwrite or delete one item.
 func KeychainAccount(provider, path string) string {
@@ -28,16 +35,9 @@ func KeychainAccount(provider, path string) string {
 	return provider + "@" + hex.EncodeToString(sum[:6])
 }
 
-var (
-	// ErrKeychainMissing means the keychain holds no item for the provider.
-	ErrKeychainMissing = errors.New("the keychain holds no key for this provider. Run onesie auth set to store one")
-	// ErrKeychainTimeout means the keychain did not answer, usually because it is waiting on a prompt.
-	ErrKeychainTimeout = errors.New("the keychain did not answer in time")
-)
-
 // NewKeychain builds a Keychain over the OS keychain. A test overrides only what it must.
 func NewKeychain(opts ...KeychainOption) *Keychain {
-	chain := &Keychain{backend: osKeyring{}, timeout: keychainTimeout}
+	chain := &Keychain{backend: osKeyring{}, timeout: keychainTimeout, after: time.After}
 
 	for _, opt := range opts {
 		opt(chain)
@@ -60,6 +60,13 @@ func WithTimeout(timeout time.Duration) KeychainOption {
 	}
 }
 
+// WithAfter replaces the clock that ends a keychain call past its timeout.
+func WithAfter(after func(time.Duration) <-chan time.Time) KeychainOption {
+	return func(k *Keychain) {
+		k.after = after
+	}
+}
+
 // KeychainOption customises a Keychain.
 type KeychainOption func(*Keychain)
 
@@ -67,6 +74,7 @@ type KeychainOption func(*Keychain)
 type Keychain struct {
 	backend Backend
 	timeout time.Duration
+	after   func(time.Duration) <-chan time.Time
 }
 
 // Backend is the keyring a Keychain talks to. The OS keyring in production.
@@ -134,7 +142,7 @@ func (k *Keychain) bounded(op string, call func() error) error {
 		}
 
 		return nil
-	case <-time.After(k.timeout):
+	case <-k.after(k.timeout):
 		// The call is left running. It can only finish or be killed with the process, and a CLI
 		// exits right after reporting this.
 		return &KeychainError{Op: op, Err: fmt.Errorf("%w, after %s", ErrKeychainTimeout, k.timeout)}

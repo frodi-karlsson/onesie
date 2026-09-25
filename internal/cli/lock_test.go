@@ -147,6 +147,39 @@ func TestLocker_LockAnswers(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("should remove the lock file it created through the injected remove as it lets go", func(t *testing.T) {
+		t.Parallel()
+
+		if runtime.GOOS == "windows" {
+			t.Skip("windows ignores a refused removal, since another run may hold the file open")
+		}
+
+		path := filepath.Join(t.TempDir(), "answers.jsonl")
+		refused := errors.New("remove refused")
+
+		var removed []string
+
+		l := newLocker(runtime.GOOS)
+		l.remove = func(name string) error {
+			removed = append(removed, name)
+
+			return refused
+		}
+
+		release, err := l.lockAnswers(path)
+		if err != nil {
+			t.Fatalf("lock: %v", err)
+		}
+
+		if err := release(); !errors.Is(err, refused) {
+			t.Errorf("release error = %v, want the injected removal's error", err)
+		}
+
+		if len(removed) != 1 || removed[0] != path+lockSuffix {
+			t.Errorf("removed = %v, want only the lock file", removed)
+		}
+	})
 }
 
 func TestLocker_LockAt(t *testing.T) {

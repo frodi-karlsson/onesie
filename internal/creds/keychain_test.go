@@ -102,11 +102,24 @@ func TestKeychain(t *testing.T) {
 		backend.hang = make(chan struct{})
 		defer close(backend.hang)
 
-		chain := creds.NewKeychain(creds.WithBackend(backend), creds.WithTimeout(10*time.Millisecond))
+		var waited time.Duration
+
+		chain := creds.NewKeychain(creds.WithBackend(backend), creds.WithTimeout(10*time.Second),
+			creds.WithAfter(func(d time.Duration) <-chan time.Time {
+				waited = d
+				expired := make(chan time.Time, 1)
+				expired <- time.Time{}
+
+				return expired
+			}))
 
 		_, err := chain.Get("typesafe")
 		if !errors.Is(err, creds.ErrKeychainTimeout) {
 			t.Errorf("error = %v, want ErrKeychainTimeout", err)
+		}
+
+		if waited != 10*time.Second {
+			t.Errorf("waited = %v, want the timeout it was given", waited)
 		}
 	})
 }

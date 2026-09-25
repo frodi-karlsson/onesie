@@ -18,8 +18,8 @@ func lockHandle(file *os.File) error {
 	return err
 }
 
-func unlockHandle(file *os.File, path string, owned bool) error {
+func unlockHandle(file *os.File, path string, owned bool, remove func(string) error) error {
 	// Removed while the lock is still held, so no run can take a lock on the old file after this one
 	// lets go of it.
-	return errors.Join(removeOwned(path, owned), file.Close())
+	return errors.Join(removeOwned(path, owned, remove), file.Close())
 }

@@ -402,3 +402,27 @@ func decode(t *testing.T, text string) any {
 
 	return value
 }
+
+func TestIDText(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		id   any
+		want string
+	}{
+		{name: "should write a string id as it is", id: "7", want: "7"},
+		{name: "should write a number id as its digits", id: json.Number("7.5"), want: "7.5"},
+		{name: "should write nothing for a record with no id", id: nil, want: ""},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := IDText(tc.id); got != tc.want {
+				t.Errorf("IDText(%v) = %q, want %q", tc.id, got, tc.want)
+			}
+		})
+	}
+}

@@ -14,12 +14,13 @@ const (
 var errLocked = errors.New("held by another process")
 
 func newLocker(goos string) *locker {
-	return &locker{openFile: os.OpenFile, stat: os.Stat, goos: goos}
+	return &locker{openFile: os.OpenFile, stat: os.Stat, remove: os.Remove, goos: goos}
 }
 
 type locker struct {
 	openFile func(name string, flag int, perm os.FileMode) (*os.File, error)
 	stat     func(name string) (os.FileInfo, error)
+	remove   func(name string) error
 	goos     string
 }
 
@@ -94,7 +95,7 @@ func (l *locker) lockAt(path string, flag int, owned bool) (func() error, error)
 		}
 
 		if held {
-			return func() error { return unlockHandle(file, path, owned) }, nil
+			return func() error { return unlockHandle(file, path, owned, l.remove) }, nil
 		}
 
 		if closeErr := file.Close(); closeErr != nil {
