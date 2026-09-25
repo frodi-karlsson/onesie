@@ -45,7 +45,7 @@ func WriteTable(w io.Writer, rec Record, columns int) error {
 		}
 
 		if _, err := fmt.Fprintf(w, "error  %s  status %s  %s\n",
-			rec.Failure.Kind, status, rec.Failure.Message); err != nil {
+			Printable(rec.Failure.Kind), status, Printable(rec.Failure.Message)); err != nil {
 			return err
 		}
 	}
@@ -69,7 +69,7 @@ func WriteTable(w io.Writer, rec Record, columns int) error {
 
 func writeHeader(w io.Writer, rec Record) error {
 	if rec.Model != "" {
-		line := "model " + rec.Model
+		line := "model " + Printable(rec.Model)
 		if rec.Usage != nil {
 			line += fmt.Sprintf("  %d in / %d out", rec.Usage.InputTokens, rec.Usage.OutputTokens)
 		}
@@ -96,7 +96,7 @@ func writeHeader(w io.Writer, rec Record) error {
 func writeBlock(w io.Writer, named Named, bars int) error {
 	a := named.Answer
 
-	headline := fmt.Sprintf("%v", scalar(a))
+	headline := Printable(fmt.Sprintf("%v", scalar(a)))
 
 	// A bare probability reads better at a fixed four places than in Go's shortest form, and a
 	// question with a distribution puts its numbers in the rows below instead. The decision is
@@ -110,7 +110,7 @@ func writeBlock(w io.Writer, named Named, bars int) error {
 		}
 	}
 
-	if _, err := fmt.Fprintf(w, "\n%s  %s\n", named.ID, headline); err != nil {
+	if _, err := fmt.Fprintf(w, "\n%s  %s\n", Printable(named.ID), headline); err != nil {
 		return err
 	}
 
@@ -141,7 +141,7 @@ func writeBlock(w io.Writer, named Named, bars int) error {
 		value := a.P.Values[key]
 
 		if _, err := fmt.Fprintf(w, "  %-*s %s %.4f\n",
-			labelWidth, truncate(label), bar(value, bars), value); err != nil {
+			labelWidth, truncate(Printable(label)), bar(value, bars), value); err != nil {
 			return err
 		}
 	}

@@ -22,6 +22,7 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/creds"
 	"github.com/frodi-karlsson/onesie/internal/jev"
 	"github.com/frodi-karlsson/onesie/internal/limits"
+	"github.com/frodi-karlsson/onesie/internal/output"
 )
 
 const annotationAsksNothing = "onesie-asks-nothing"
@@ -291,7 +292,8 @@ func Execute(ctx context.Context, root *cobra.Command) int {
 	}
 
 	if worthReporting(err) {
-		message := err.Error()
+		// Stripped, since a message can quote the server or the input to a terminal.
+		message := output.Printable(err.Error())
 		// Cobra's own parse errors are the only ones that do not already carry the prefix, and a
 		// consumer filtering stderr should not have to know which layer produced a line.
 		if !strings.HasPrefix(message, "onesie: ") {

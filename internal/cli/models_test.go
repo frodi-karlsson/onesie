@@ -18,6 +18,8 @@ func TestListModels(t *testing.T) {
 		status   int
 		wantCode int
 		wantOut  string
+		// wantErr, when set, is a fragment stderr must hold.
+		wantErr string
 	}{
 		{
 			name: "should print one line per model in the order the api returned them",
@@ -27,6 +29,21 @@ func TestListModels(t *testing.T) {
 			wantCode: ExitOK,
 			wantOut: "jev-latest  alias  2026-08-01\n" +
 				"onesie-1.13.0  current  2026-08-01\n",
+		},
+		{
+			name: "should strip terminal controls from what the api returned",
+			response: `{"models":[` +
+				`{"name":"jev\u001b[2J-latest","description":"al\u009bias\r","release_date":"2026\u0007-08-01"}]}`,
+			wantCode: ExitOK,
+			wantOut:  "jev[2J-latest  alias  2026-08-01\n",
+		},
+		{
+			name:     "should strip terminal controls from an error message the api returned",
+			response: `{"error":{"message":"invalid \u001b]0;owned\u0007api key"}}`,
+			status:   401,
+			wantCode: ExitAuth,
+			wantOut:  "",
+			wantErr:  "invalid ]0;ownedapi key",
 		},
 		{
 			name:     "should print nothing when the account has no models",
@@ -64,6 +81,10 @@ func TestListModels(t *testing.T) {
 
 			if out != tc.wantOut {
 				t.Errorf("stdout = %q, want %q", out, tc.wantOut)
+			}
+
+			if !strings.Contains(errOut, tc.wantErr) || strings.ContainsAny(errOut, "\x1b\x07\r") {
+				t.Errorf("stderr = %q, want it to hold %q and no terminal control", errOut, tc.wantErr)
 			}
 
 			// The listing is the whole output, so a success case that wrote anything to stderr

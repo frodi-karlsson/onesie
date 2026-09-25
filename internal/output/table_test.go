@@ -92,6 +92,19 @@ func TestWriteTable(t *testing.T) {
 			contains: []string{"model onesie-1.13.0", "urgent", "0.9200"},
 		},
 		{
+			name:    "should strip terminal controls from the text it prints",
+			columns: 80,
+			rec: output.Record{
+				Model:   "m\x1b[2J1",
+				Failure: &output.Failure{Kind: "api", Message: "bad\u009b\x07 news\r"},
+				Answers: []output.Named{
+					{ID: "team", Answer: &answer.Answer{Value: "bil\x1bling"}},
+				},
+			},
+			contains: []string{"model m[2J1", "bad news", "team  billing"},
+			absent:   []string{"\x1b", "\x07", "\r", "\u009b"},
+		},
+		{
 			name:    "should print a false assertion beside the model in the header",
 			columns: 80,
 			rec: output.Record{

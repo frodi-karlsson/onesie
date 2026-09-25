@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/frodi-karlsson/onesie/internal/jev"
+	"github.com/frodi-karlsson/onesie/internal/output"
 )
 
 func listModels(cmd *cobra.Command, settings rootSettings, stats *collector) error {
@@ -38,7 +39,8 @@ func listModels(cmd *cobra.Command, settings rootSettings, stats *collector) err
 func writeModels(w io.Writer, models []jev.ModelCard) error {
 	for _, model := range models {
 		_, err := fmt.Fprintf(w, "%s  %s  %s\n",
-			model.Name, model.Description, model.ReleaseDate)
+			output.Printable(model.Name), output.Printable(model.Description),
+			output.Printable(model.ReleaseDate))
 		if err != nil {
 			return written(err)
 		}
