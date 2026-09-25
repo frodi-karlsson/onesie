@@ -20,16 +20,12 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/skillcheck"
 )
 
-// Named here rather than looked up, since onesie keeps --api-key only to refuse it and the grader
-// has to keep reading its value once the flag is gone.
-const removedAPIKey = "api-key"
-
 var (
 	subcommands = []string{"auth", "completion", "help", "version"}
 
 	fileFlags = []string{"file", "state-file"}
 
-	apiKeyValue = regexp.MustCompile(`(--api-key(?:=|\s+))('[^']*'|"(?:[^"\\]|\\.)*"|[^\s'"]+)`)
+	apiKey = regexp.MustCompile(`sk-[A-Za-z0-9_-]{8,}`)
 )
 
 // NewGrader returns a Grader that dry runs every command through runner, reads result and trace
@@ -172,17 +168,8 @@ type runEntry struct {
 func (g *Grader) dryRun(ctx context.Context, run int, command string, report *ArmReport) error {
 	report.Commands++
 
-	shown := redactAPIKey(command)
+	shown := redactAPIKeys(command)
 	args := g.parse(command)
-
-	if args.has(removedAPIKey) {
-		report.Failed = append(report.Failed, Finding{
-			Run: run, Command: shown,
-			Detail: "passes --api-key, which onesie removed since argv is visible to other processes",
-		})
-
-		return nil
-	}
 
 	if reason := args.skipReason(); reason != "" {
 		report.Skipped = append(report.Skipped, Finding{Run: run, Command: shown, Detail: reason})
@@ -200,7 +187,7 @@ func (g *Grader) dryRun(ctx context.Context, run int, command string, report *Ar
 		report.Skipped = append(report.Skipped, Finding{Run: run, Command: shown, Detail: result.Skipped})
 	case result.ExitCode != 0:
 		report.Failed = append(report.Failed, Finding{
-			Run: run, Command: shown, Detail: fmt.Sprintf("exit %d: %s", result.ExitCode, result.Stderr),
+			Run: run, Command: shown, Detail: fmt.Sprintf("exit %d: %s", result.ExitCode, redactAPIKeys(result.Stderr)),
 		})
 	default:
 		report.Clean++
@@ -220,16 +207,16 @@ type ArmReport struct {
 	Skipped       []Finding
 }
 
-// Finding is one command that failed its dry run or could not be run, and why. Command has any
-// --api-key value redacted.
+// Finding is one command that failed its dry run or could not be run, and why. Command and Detail
+// have any API key redacted.
 type Finding struct {
 	Run     int
 	Command string
 	Detail  string
 }
 
-func redactAPIKey(command string) string {
-	return apiKeyValue.ReplaceAllString(command, "${1}REDACTED")
+func redactAPIKeys(text string) string {
+	return apiKey.ReplaceAllString(text, "REDACTED")
 }
 
 func (g *Grader) parse(command string) parsedArgs {
@@ -257,7 +244,7 @@ func parseArgs(args []string, flags FlagLookup) parsedArgs {
 			name, _, joined := strings.Cut(arg[2:], "=")
 			parsed.flags = append(parsed.flags, name)
 
-			if !joined && (name == removedAPIKey || takesValue(flags.Lookup(name))) {
+			if !joined && takesValue(flags.Lookup(name)) {
 				i++
 			}
 

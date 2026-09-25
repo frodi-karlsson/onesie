@@ -13,8 +13,6 @@ import (
 func TestGraderGrade(t *testing.T) {
 	t.Parallel()
 
-	const apiKeyFailure = "passes --api-key, which onesie removed since argv is visible to other processes"
-
 	result := `{"cases":[{"name":"gate","arms":{
 		"without":[{"tracePath":"/t/without-1.jsonl"}],
 		"with":[{"tracePath":"/t/with-1.jsonl"},{"tracePath":"/t/gone.jsonl"}]}}]}`
@@ -88,6 +86,44 @@ func TestGraderGrade(t *testing.T) {
 		}
 	})
 
+	t.Run("should fail an unknown flag carrying a key in the dry run and redact the key", func(t *testing.T) {
+		t.Parallel()
+
+		const script = "onesie 'is this urgent' --token sk-secret1234 --state x"
+
+		var ran []string
+
+		runner := fakeRunner(func(command string) skillcheck.DryRunResult {
+			ran = append(ran, command)
+
+			return skillcheck.DryRunResult{ExitCode: 2, Stderr: "onesie: unknown flag: --token"}
+		})
+
+		grader := newTestGrader(runner, map[string]string{
+			"/r.json":  `{"cases":[{"name":"c","arms":{"with":[{"tracePath":"/t.jsonl"}]}}]}`,
+			"/t.jsonl": traceOf(`"` + script + `"`),
+		})
+
+		report, err := grader.Grade(context.Background(), "/r.json")
+		if err != nil {
+			t.Fatalf("Grade(...) error = %v", err)
+		}
+
+		arm := report.Cases[0].Arms[0]
+
+		if len(ran) != 1 || ran[0] != script {
+			t.Fatalf("ran %q, want one dry run of %q", ran, script)
+		}
+
+		if len(arm.Failed) != 1 || arm.Failed[0].Detail != "exit 2: onesie: unknown flag: --token" {
+			t.Fatalf("arm = %+v, want one unknown flag failure", arm)
+		}
+
+		if want := "onesie 'is this urgent' --token REDACTED --state x"; arm.Failed[0].Command != want {
+			t.Errorf("reported command = %q, want %q", arm.Failed[0].Command, want)
+		}
+	})
+
 	errorTests := []struct {
 		name    string
 		files   map[string]string
@@ -126,11 +162,9 @@ func TestGraderGrade(t *testing.T) {
 	}
 
 	commandTests := []struct {
-		name        string
-		script      string
-		wantSkip    string
-		wantFail    string
-		wantCommand string
+		name     string
+		script   string
+		wantSkip string
 	}{
 		{
 			name:   "should dry run a quoted question that starts with a subcommand name",
@@ -164,24 +198,6 @@ func TestGraderGrade(t *testing.T) {
 		{
 			name:   "should not read a value that spells a flag as the flag",
 			script: "onesie 'is this urgent' --state -f",
-		},
-		{
-			name:        "should flag --api-key on a subcommand and redact its value",
-			script:      "onesie --api-key sk-secret auth status",
-			wantFail:    apiKeyFailure,
-			wantCommand: "onesie --api-key REDACTED auth status",
-		},
-		{
-			name:        "should flag --api-key on a question without dry running it",
-			script:      "onesie 'is this urgent' --api-key=sk-secret --state x",
-			wantFail:    apiKeyFailure,
-			wantCommand: "onesie 'is this urgent' --api-key=REDACTED --state x",
-		},
-		{
-			name:        "should read the --api-key value rather than take it for the question",
-			script:      "onesie --api-key version 'is this urgent'",
-			wantFail:    apiKeyFailure,
-			wantCommand: "onesie --api-key REDACTED 'is this urgent'",
 		},
 	}
 
@@ -220,14 +236,6 @@ func TestGraderGrade(t *testing.T) {
 			arm := report.Cases[0].Arms[0]
 
 			switch {
-			case tc.wantFail != "":
-				if len(ran) != 0 || len(arm.Failed) != 1 || arm.Failed[0].Detail != tc.wantFail {
-					t.Fatalf("ran %q with %+v, want a failure saying %q", ran, arm, tc.wantFail)
-				}
-
-				if arm.Failed[0].Command != tc.wantCommand {
-					t.Errorf("reported command = %q, want %q", arm.Failed[0].Command, tc.wantCommand)
-				}
 			case tc.wantSkip != "":
 				if len(ran) != 0 || len(arm.Skipped) != 1 || arm.Skipped[0].Detail != tc.wantSkip {
 					t.Fatalf("ran %q with %+v, want a skip saying %q", ran, arm, tc.wantSkip)
@@ -241,7 +249,7 @@ func TestGraderGrade(t *testing.T) {
 	}
 }
 
-func TestRedactAPIKey(t *testing.T) {
+func TestRedactAPIKeys(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -249,12 +257,35 @@ func TestRedactAPIKey(t *testing.T) {
 		command string
 		want    string
 	}{
-		{name: "should redact a separate value", command: "onesie 'a' --api-key sk-1 -q", want: "onesie 'a' --api-key REDACTED -q"},
-		{name: "should redact a joined value", command: "onesie --api-key=sk-1 'a'", want: "onesie --api-key=REDACTED 'a'"},
 		{
-			name:    "should redact a quoted value with spaces",
-			command: `onesie --api-key "sk 1" 'a'`,
-			want:    "onesie --api-key REDACTED 'a'",
+			name:    "should redact a key after an unknown flag",
+			command: "onesie 'a' --token sk-abc12345XYZ -q",
+			want:    "onesie 'a' --token REDACTED -q",
+		},
+		{
+			name:    "should redact a key joined to a flag",
+			command: "onesie --token=sk-abc_1234-5678 'a'",
+			want:    "onesie --token=REDACTED 'a'",
+		},
+		{
+			name:    "should redact a key inside double quotes",
+			command: `onesie --state "use sk-or-v1-abcdef123456 here" 'a'`,
+			want:    `onesie --state "use REDACTED here" 'a'`,
+		},
+		{
+			name:    "should redact a key inside single quotes",
+			command: "TYPESAFE_API_KEY='sk-abcdefgh12' onesie 'a'",
+			want:    "TYPESAFE_API_KEY='REDACTED' onesie 'a'",
+		},
+		{
+			name:    "should redact every key in the command",
+			command: "onesie sk-aaaaaaaa1 && onesie sk-bbbbbbbb2",
+			want:    "onesie REDACTED && onesie REDACTED",
+		},
+		{
+			name:    "should leave a short sk- word alone",
+			command: "onesie 'is sk-1 a key'",
+			want:    "onesie 'is sk-1 a key'",
 		},
 		{name: "should leave a command without a key alone", command: "onesie 'a'", want: "onesie 'a'"},
 	}
@@ -263,8 +294,8 @@ func TestRedactAPIKey(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			if got := redactAPIKey(tc.command); got != tc.want {
-				t.Errorf("redactAPIKey(%q) = %q, want %q", tc.command, got, tc.want)
+			if got := redactAPIKeys(tc.command); got != tc.want {
+				t.Errorf("redactAPIKeys(%q) = %q, want %q", tc.command, got, tc.want)
 			}
 		})
 	}

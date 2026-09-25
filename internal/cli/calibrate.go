@@ -87,10 +87,6 @@ func newCalibrateCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if cmd.Flags().Changed(flagAPIKey) {
-				return errAPIKeyRemoved
-			}
-
 			positional := ""
 			if len(args) == 1 {
 				positional = args[0]
@@ -131,7 +127,6 @@ func newCalibrateCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 	cmd.Flags().StringVarP(&calib.report, "output", "o", "", "the report, table, json or auto, which means table")
 
 	bindSharedFlags(cmd, flags)
-	keepRemovedAPIKey(cmd.Flags())
 
 	return cmd
 }

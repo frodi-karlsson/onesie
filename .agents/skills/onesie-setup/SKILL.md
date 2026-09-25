@@ -51,7 +51,7 @@ Confirm the install with `onesie -V`, which prints the version and the built in 
 | typesafe | `onesie auth set` | `TYPESAFE_API_KEY` |
 | openrouter | `onesie --provider openrouter auth set` | `OPENROUTER_API_KEY` |
 
-An env var outranks a stored key, which suits CI. onesie has no `--api-key` flag. It was removed, since argv is visible to other processes, and onesie exits 2 when it is passed. `auth set` stores one entry per provider in `credentials.json`, in `$ONESIE_CONFIG_DIR`, then `$XDG_CONFIG_HOME/onesie`, then, on Windows, `%APPDATA%\onesie`, and otherwise `~/.config/onesie`. The file is written at mode 600, and a directory it creates at mode 700. When there is an OS keychain the key goes there, under the service `onesie`, and the file entry only points at it. `auth set --file` keeps the key in the file itself. `--base-url` on `auth set` stores an API root beside the key. `onesie auth clear` removes the provider's entry and its keychain item.
+An env var outranks a stored key, which suits CI. `auth set` stores one entry per provider in `credentials.json`, in `$ONESIE_CONFIG_DIR`, then `$XDG_CONFIG_HOME/onesie`, then, on Windows, `%APPDATA%\onesie`, and otherwise `~/.config/onesie`. The file is written at mode 600, and a directory it creates at mode 700. When there is an OS keychain the key goes there, under the service `onesie`, and the file entry only points at it. `auth set --file` keeps the key in the file itself. `--base-url` on `auth set` stores an API root beside the key. `onesie auth clear` removes the provider's entry and its keychain item.
 
 `auth set` writes only to stderr, never the key:
 

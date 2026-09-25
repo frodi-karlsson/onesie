@@ -115,9 +115,7 @@ func storedCredentials(settings rootSettings, flags *runFlags) ([]jev.Option, er
 		return nil, err
 	}
 
-	// Only the file and the keychain build options here, since jev.New reads the provider's
-	// variable itself. The guard changes nothing today, but the rule belongs where the
-	// file's options are built.
+	// jev.New reads the provider's variable itself, so only the file and the keychain need options.
 	if source.name != sourceFile && source.name != sourceKeychain {
 		return nil, nil
 	}

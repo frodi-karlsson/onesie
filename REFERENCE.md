@@ -109,8 +109,6 @@ onesie auth test                                   # checks the key, costs no to
 
 - A key comes from the provider's variable, then the credential file. No provider falls back to
   another's key.
-- The `--api-key` flag was removed, since argv is visible to other processes. onesie exits 2 when
-  it is passed. Set the provider's variable, or run `onesie auth set` to store the key.
 - `auth set` stores the key in the OS keychain when there is one, and otherwise in a file at mode
   `600` under `$ONESIE_CONFIG_DIR`, `$XDG_CONFIG_HOME/onesie` or `~/.config/onesie`. onesie refuses
   a file anyone else can reach. On Linux the key reaches the Secret Service over the session bus
