@@ -81,7 +81,10 @@ func build(
 		return nil, nil, errors.New("onesie: no question given. Pass a question, --ask, or -f")
 	}
 
-	var loaded *qfile.File
+	var (
+		loaded  *qfile.File
+		ignored fileGate
+	)
 
 	fileName := flags.file
 
@@ -101,6 +104,7 @@ func build(
 		}
 
 		if ignoreFileJudgment {
+			ignored = fileGate{assert: loaded.Assert, abstainIf: loaded.AbstainIf}
 			withoutJudgment(loaded)
 		}
 
@@ -177,6 +181,7 @@ func build(
 
 	return &invocation{
 		plan: built, gate: gate, abstain: abstain, mapper: mapper, namer: namer, loaded: loaded,
+		ignored: ignored,
 	}, warnings, nil
 }
 
@@ -254,4 +259,9 @@ type invocation struct {
 	mapper  *jq.Expr
 	namer   *jq.Expr
 	loaded  *qfile.File
+	ignored fileGate
+}
+
+type fileGate struct {
+	assert, abstainIf string
 }

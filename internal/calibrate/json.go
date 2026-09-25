@@ -21,6 +21,7 @@ func WriteJSON(w io.Writer, r Report) error {
 		Failed:     r.Failed,
 		Usage:      r.Usage,
 		Questions:  make([]any, 0, len(r.Questions)),
+		Require:    requireJSON(r.Require),
 	}
 	if doc.Models == nil {
 		doc.Models = []string{}
@@ -42,15 +43,47 @@ func WriteJSON(w io.Writer, r Report) error {
 }
 
 type jsonReport struct {
-	Models     []string `json:"models"`
-	Records    int      `json:"records"`
-	Labelled   int      `json:"labelled"`
-	Unlabelled int      `json:"unlabelled"`
-	Asked      int      `json:"asked"`
-	Stored     int      `json:"stored"`
-	Failed     int      `json:"failed"`
-	Usage      *Usage   `json:"usage,omitempty"`
-	Questions  []any    `json:"questions"`
+	Models     []string      `json:"models"`
+	Records    int           `json:"records"`
+	Labelled   int           `json:"labelled"`
+	Unlabelled int           `json:"unlabelled"`
+	Asked      int           `json:"asked"`
+	Stored     int           `json:"stored"`
+	Failed     int           `json:"failed"`
+	Usage      *Usage        `json:"usage,omitempty"`
+	Questions  []any         `json:"questions"`
+	Require    []jsonRequire `json:"require,omitempty"`
+}
+
+func requireJSON(results []Result) []jsonRequire {
+	if len(results) == 0 {
+		return nil
+	}
+
+	out := make([]jsonRequire, 0, len(results))
+
+	for _, r := range results {
+		entry := jsonRequire{
+			Expr: r.Source, Held: r.Held, Value: definedOrNull(r.Value, r.HasValue),
+			Cut: definedOrNull(r.Cut, r.HasCut), Reason: r.Reason,
+		}
+		if r.HasInterval {
+			entry.Interval = &[2]float64{r.Low, r.High}
+		}
+
+		out = append(out, entry)
+	}
+
+	return out
+}
+
+type jsonRequire struct {
+	Expr     string      `json:"expr"`
+	Held     bool        `json:"held"`
+	Value    *float64    `json:"value"`
+	Interval *[2]float64 `json:"interval"`
+	Cut      *float64    `json:"cut"`
+	Reason   string      `json:"reason,omitempty"`
 }
 
 func jsonQuestion(q QuestionReport) (any, error) {

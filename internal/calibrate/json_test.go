@@ -290,6 +290,39 @@ func TestWriteJSON(t *testing.T) {
 		}
 	})
 
+	t.Run("should add the require array after the questions only when given", func(t *testing.T) {
+		t.Parallel()
+
+		with := full
+		with.Require = []calibrate.Result{
+			{
+				Requirement: calibrate.Requirement{Source: "instructs.catches >= 0.95"},
+				Value:       0.65, Low: 0.43, High: 0.82, HasValue: true, HasInterval: true, HasCut: true, Cut: 0.25,
+			},
+			{Requirement: calibrate.Requirement{Source: "urgent.auc >= 0.9"}, Held: true, Value: 0.93, HasValue: true},
+			{Requirement: calibrate.Requirement{Source: "tone.agreement >= 0.8"}, Reason: "no record is labelled"},
+		}
+
+		want := []string{"models", "records", "labelled", "unlabelled", "asked", "stored", "failed", "questions", "require"}
+		if got := keysOf(t, writeJSON(t, with)); !slices.Equal(got, want) {
+			t.Errorf("keys = %v, want %v", got, want)
+		}
+
+		var decoded map[string]json.RawMessage
+		decode(t, writeJSON(t, with), &decoded)
+
+		wantRequire := `[{"expr":"instructs.catches >= 0.95","held":false,"value":0.65,"interval":[0.43,0.82],"cut":0.25},` +
+			`{"expr":"urgent.auc >= 0.9","held":true,"value":0.93,"interval":null,"cut":null},` +
+			`{"expr":"tone.agreement >= 0.8","held":false,"value":null,"interval":null,"cut":null,"reason":"no record is labelled"}]`
+		if string(decoded["require"]) != wantRequire {
+			t.Errorf("require = %s, want %s", decoded["require"], wantRequire)
+		}
+
+		if slices.Contains(keysOf(t, writeJSON(t, full)), "require") {
+			t.Error("a report without requirements holds a require key")
+		}
+	})
+
 	t.Run("should give an empty models list rather than null", func(t *testing.T) {
 		t.Parallel()
 

@@ -2102,7 +2102,7 @@ func TestReportOf(t *testing.T) {
 				total:   1,
 			}
 
-			report := reportOf(built, set, []output.Record{tc.record}, []float64{0.5})
+			report := reportOf(built, set, []output.Record{tc.record}, cutsFor([]float64{0.5}, nil, len(built.Questions)))
 
 			if report.Failed != tc.wantFailed {
 				t.Errorf("report failed = %d, want %d", report.Failed, tc.wantFailed)
@@ -2142,7 +2142,7 @@ func TestReportOf(t *testing.T) {
 			{line: 2, labels: []*calibrate.Label{no}},
 		}, total: 2}
 
-		misses := reportOf(noul, set, []output.Record{missed, missed}, []float64{0.5}).Questions[0].YesNo.Misses
+		misses := reportOf(noul, set, []output.Record{missed, missed}, cutsFor([]float64{0.5}, nil, len(noul.Questions))).Questions[0].YesNo.Misses
 
 		if len(misses) != 2 {
 			t.Fatalf("misses = %+v, want two", misses)
@@ -2428,4 +2428,260 @@ func lineIDs(t *testing.T, lines []string) []string {
 	}
 
 	return ids
+}
+
+const (
+	requireStdin = `{"id":"a","body":"x","u":true,"t":"ops"}
+{"id":"b","body":"x","u":true,"t":"ops"}
+{"id":"c","body":"x","u":true,"t":"dev"}
+{"id":"d","body":"x","u":true,"t":"dev"}
+{"id":"e","body":"x","u":false,"t":"ops"}
+{"id":"f","body":"x","u":false,"t":"ops"}
+{"id":"g","body":"x","u":false,"t":"dev"}
+{"id":"h","body":"x","u":false,"t":"dev"}
+`
+	requireMock = `{"id":"a","u":0.9,"t":"ops"}
+{"id":"b","u":0.8,"t":"ops"}
+{"id":"c","u":0.6,"t":"dev"}
+{"id":"d","u":0.2,"t":"ops"}
+{"id":"e","u":0.7,"t":"ops"}
+{"id":"f","u":0.3,"t":"ops"}
+{"id":"g","u":0.1,"t":"dev"}
+{"id":"h","u":0.05,"t":"dev"}
+`
+	requireQuestions = "u:\n  ask: is it urgent\nt:\n  ask: which team\n  pick: [ops, dev]\n"
+)
+
+func TestMeasureRequirements(t *testing.T) {
+	t.Parallel()
+
+	gated := writeCalibrateFile(t, t.TempDir(), "gated.yaml",
+		"assert: u.value < 0.5\nabstain_if: u.value < 0.8\n"+requireQuestions)
+	mockFile := writeMock(t, requireMock)
+	failingMock := writeMock(t, strings.Replace(requireMock, `{"id":"h","u":0.05,"t":"dev"}`, `{"id":"h","error":500}`, 1))
+
+	base := func(mock string, extra ...string) []string {
+		return append([]string{
+			"calibrate", "-f", gated, "-i", "jsonl", "--map", ".body", "--id", ".id",
+			"--label", "u=.u", "--label", "t=.t", "--cuts", "0.5", "--mock", mock,
+		}, extra...)
+	}
+
+	tests := []struct {
+		name       string
+		args       []string
+		wantCode   int
+		stdout     []string
+		stderr     []string
+		noStderr   []string
+		wantReport []requireJSON
+	}{
+		{
+			name:     "should print the report and exit 0 when every requirement holds",
+			args:     base(mockFile, "--require", "u.catches >= 0.75", "--require", "t.agreement >= 0.75"),
+			wantCode: ExitOK,
+			stdout:   []string{"u, yes/no: labelled 8", "t, pick: labelled 8"},
+			noStderr: []string{"did not hold"},
+		},
+		{
+			name:     "should name a failing requirement on stderr and exit 1",
+			args:     base(mockFile, "--require", "u.catches >= 0.9", "--require", "u.auc >= 0.5"),
+			wantCode: ExitRejected,
+			stdout:   []string{"u, yes/no: labelled 8"},
+			stderr:   []string{"onesie: 'u.catches >= 0.9' did not hold: 3/4 75% 30-95% at cut 0.50\n"},
+			noStderr: []string{"u.auc"},
+		},
+		{
+			name:     "should exit 6 when a record failed beside a failing requirement",
+			args:     base(failingMock, "--require", "u.catches >= 0.9"),
+			wantCode: ExitRecords,
+			stderr:   []string{"'u.catches >= 0.9' did not hold", "onesie: record h: "},
+		},
+		{
+			name:     "should add a cut the requirement names to that question only",
+			args:     base(mockFile, "-o", "json", "--require", "u.catches >= 0.5 at 0.33"),
+			wantCode: ExitOK,
+			stdout:   []string{`"cuts":[{"cut":0.33,`, `"cut":0.5,"answered"`},
+			wantReport: []requireJSON{
+				{Expr: "u.catches >= 0.5 at 0.33", Held: true, Value: ptr(0.75), Interval: true, Cut: ptr(0.33)},
+			},
+		},
+		{
+			name:     "should read the cut of at abstain from abstain_if",
+			args:     base(mockFile, "-o", "json", "--require", "u.catches >= 0.5 at abstain"),
+			wantCode: ExitOK,
+			wantReport: []requireJSON{
+				{Expr: "u.catches >= 0.5 at abstain", Held: true, Value: ptr(0.5), Interval: true, Cut: ptr(0.8)},
+			},
+		},
+		{
+			name:     "should read the cut from the file's assert without at",
+			args:     base(mockFile, "-o", "json", "--require", "lower(u.catches) >= 0.5"),
+			wantCode: ExitRejected,
+			wantReport: []requireJSON{
+				{Expr: "lower(u.catches) >= 0.5", Value: ptr(0.75), Interval: true, Cut: ptr(0.5)},
+			},
+		},
+		{
+			name: "should write null for what a measure lacks, and a reason for no records",
+			args: base(mockFile, "-o", "json", "--require", "u.auc >= 0.5", "--require", "t.agreement >= 0.5",
+				"--require", "u.right_when_flagged >= 0.5 at 0.95"),
+			wantCode: ExitRejected,
+			wantReport: []requireJSON{
+				{Expr: "u.auc >= 0.5", Held: true, Value: ptr(0.8125)},
+				{Expr: "t.agreement >= 0.5", Held: true, Value: ptr(0.875), Interval: true},
+				{Expr: "u.right_when_flagged >= 0.5 at 0.95", Cut: ptr(0.95), Reason: "no record is flagged"},
+			},
+		},
+		{
+			name:     "should leave the require key out and never exit 1 without --require",
+			args:     base(mockFile, "-o", "json"),
+			wantCode: ExitOK,
+		},
+		{
+			name:     "should check a requirement and print the bodies under --print-request",
+			args:     []string{"calibrate", "-f", gated, "-i", "jsonl", "--map", ".body", "--label", "u=.u", "--label", "t=.t", "--print-request", "--require", "u.catches >= 0.9"},
+			wantCode: ExitOK,
+			stdout:   []string{`"state":"x"`},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			out, errOut, code := runMocked(t, t.Context(), tc.args, requireStdin, nil, nil)
+			if code != tc.wantCode {
+				t.Fatalf("exit %d, want %d\nstdout:\n%s\nstderr:\n%s", code, tc.wantCode, out, errOut)
+			}
+
+			checkMocked(t, out, errOut, code, tc.wantCode, nil, tc.stdout, nil, tc.stderr)
+
+			for _, unwanted := range tc.noStderr {
+				if strings.Contains(errOut, unwanted) {
+					t.Errorf("stderr holds %q\n%s", unwanted, errOut)
+				}
+			}
+
+			if !slices.Contains(tc.args, "json") {
+				return
+			}
+
+			var report struct {
+				Require []map[string]any `json:"require"`
+			}
+
+			if err := json.Unmarshal([]byte(out), &report); err != nil {
+				t.Fatalf("decoding the report: %v\n%s", err, out)
+			}
+
+			if tc.wantReport == nil && strings.Contains(out, `"require"`) {
+				t.Errorf("report holds a require key\n%s", out)
+			}
+
+			checkRequireJSON(t, report.Require, tc.wantReport)
+		})
+	}
+}
+
+type requireJSON struct {
+	Expr     string
+	Held     bool
+	Value    *float64
+	Interval bool
+	Cut      *float64
+	Reason   string
+}
+
+func checkRequireJSON(t *testing.T, got []map[string]any, want []requireJSON) {
+	t.Helper()
+
+	if len(got) != len(want) {
+		t.Fatalf("require = %v, want %d entries", got, len(want))
+	}
+
+	for i, w := range want {
+		entry := got[i]
+		if entry["expr"] != w.Expr || entry["held"] != w.Held {
+			t.Errorf("require[%d] = %v, want expr %q and held %v", i, entry, w.Expr, w.Held)
+		}
+
+		for _, key := range []string{"value", "interval", "cut"} {
+			if _, found := entry[key]; !found {
+				t.Errorf("require[%d] = %v, has no %s key", i, entry, key)
+			}
+		}
+
+		if value, _ := entry["value"].(float64); (w.Value == nil) != (entry["value"] == nil) || w.Value != nil && value != *w.Value {
+			t.Errorf("require[%d] value = %v, want %v", i, entry["value"], w.Value)
+		}
+
+		interval, _ := entry["interval"].([]any)
+		if w.Interval != (len(interval) == 2) || !w.Interval && entry["interval"] != nil {
+			t.Errorf("require[%d] interval = %v, want present %v", i, entry["interval"], w.Interval)
+		}
+
+		if cut, _ := entry["cut"].(float64); (w.Cut == nil) != (entry["cut"] == nil) || w.Cut != nil && cut != *w.Cut {
+			t.Errorf("require[%d] cut = %v, want %v", i, entry["cut"], w.Cut)
+		}
+
+		if reason, _ := entry["reason"].(string); reason != w.Reason {
+			t.Errorf("require[%d] reason = %q, want %q", i, reason, w.Reason)
+		}
+	}
+}
+
+func ptr(value float64) *float64 {
+	return &value
+}
+
+func TestResolveRequirements(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	file := func(name, gate string) string {
+		return writeCalibrateFile(t, dir, name, gate+requireQuestions)
+	}
+
+	tests := []struct {
+		name    string
+		file    string
+		require string
+		wantErr string
+	}{
+		{name: "should refuse a gate that reads the value through max", file: file("max.yaml", "assert: max(u.value, u.value) < 0.5\n"), require: "u.catches >= 0.5", wantErr: "max()"},
+		{name: "should refuse a gate that compares with greater", file: file("gt.yaml", "assert: u.value > 0.5\n"), require: "u.catches >= 0.5", wantErr: "with >"},
+		{name: "should refuse a gate that tests with in", file: file("in.yaml", `assert: t.value in ["ops"] and u.value in [0.5]`+"\n"), require: "u.catches >= 0.5", wantErr: "with in"},
+		{name: "should refuse a cut with no file", require: "u.catches >= 0.5", wantErr: "no gate"},
+		{name: "should refuse at abstain with no abstain_if", file: file("assert.yaml", "assert: u.value < 0.5\n"), require: "u.catches >= 0.5 at abstain", wantErr: "abstain_if"},
+		{name: "should refuse an unknown id", file: file("plain.yaml", ""), require: "x.catches >= 0.5 at 0.5", wantErr: "unknown question 'x'"},
+		{name: "should refuse agreement on a yes/no question", file: file("plain2.yaml", ""), require: "u.agreement >= 0.5", wantErr: "'u' is a yes/no question"},
+		{name: "should refuse catches on a pick question", file: file("plain3.yaml", ""), require: "t.catches >= 0.5 at 0.5", wantErr: "'t' is a pick question"},
+		{name: "should refuse within_one on a pick question", file: file("plain4.yaml", ""), require: "t.within_one >= 0.5", wantErr: "'t' is a pick question"},
+		{name: "should refuse a requirement that does not parse", file: file("plain5.yaml", ""), require: "u.catches >= 95", wantErr: "write 0.95, not 95"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			args := []string{"calibrate", "-i", "jsonl", "--map", ".body", "--id", ".id", "--require", tc.require}
+			if tc.file != "" {
+				args = append(args, "-f", tc.file, "--label", "u=.u", "--label", "t=.t")
+			} else {
+				args = append(args, "--ask", "u=is it urgent", "--label", "u=.u")
+			}
+
+			// No --mock, and runMocked fails the test if a client is built, so any request would show.
+			out, errOut, code := runMocked(t, t.Context(), args, requireStdin, nil, nil)
+			if code != ExitUsage || !strings.Contains(errOut, tc.wantErr) || !strings.Contains(errOut, "'"+tc.require+"'") {
+				t.Errorf("exit %d, want %d with %q naming the requirement\nstdout:\n%s\nstderr:\n%s",
+					code, ExitUsage, tc.wantErr, out, errOut)
+			}
+
+			if out != "" {
+				t.Errorf("stdout = %q, want nothing", out)
+			}
+		})
+	}
 }

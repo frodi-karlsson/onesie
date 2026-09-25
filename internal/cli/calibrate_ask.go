@@ -26,17 +26,19 @@ const maxCauses = 5
 
 func calibrateRun(
 	cmd *cobra.Command, settings rootSettings, flags *runFlags, calib calibrateFlags, inputMode input.Mode,
-	inv *invocation, labels []questionLabel, answers answererFactory,
+	inv *invocation, labels []questionLabel, bound []boundRequirement, answers answererFactory,
 ) (err error) {
 	model, err := resolveModel(settings, flags, inv.plan.Model)
 	if err != nil {
 		return err
 	}
 
-	cuts, err := cutsOf(cmd, calib)
+	base, err := cutsOf(cmd, calib)
 	if err != nil {
 		return err
 	}
+
+	cuts := cutsFor(base, bound, len(inv.plan.Questions))
 
 	out, _, err := openOut(settings, flags)
 	if err != nil {
@@ -48,7 +50,7 @@ func calibrateRun(
 	}()
 
 	runErr := calibrateAnswers(
-		cmd, settings, flags, calib.report, inputMode, inv, labels, model, cuts, out, answers)
+		cmd, settings, flags, calib.report, inputMode, inv, labels, model, cuts, bound, out, answers)
 	if out == nil {
 		return runErr
 	}
@@ -58,8 +60,8 @@ func calibrateRun(
 
 func calibrateAnswers(
 	cmd *cobra.Command, settings rootSettings, flags *runFlags, format string, inputMode input.Mode,
-	inv *invocation, labels []questionLabel, model string, cuts []float64, out *outFile,
-	answers answererFactory,
+	inv *invocation, labels []questionLabel, model string, cuts [][]float64, bound []boundRequirement,
+	out *outFile, answers answererFactory,
 ) error {
 	built := inv.plan
 
@@ -103,6 +105,7 @@ func calibrateAnswers(
 		report := reportOf(built, set, outcomes, cuts)
 		report.Asked = result.Records
 		report.Stored = resumed.stored
+		report.Require = measureRequirements(report, bound)
 
 		if flags.usage {
 			report.Usage = usageOf(outcomes)
@@ -112,15 +115,24 @@ func calibrateAnswers(
 			return written(writeErr)
 		}
 
-		if result.Failed == 0 {
-			return nil
+		unmet, unmetErr := writeUnmet(cmd.ErrOrStderr(), report.Require)
+		if unmetErr != nil {
+			return unmetErr
 		}
 
-		if causeErr := writeCauses(cmd.ErrOrStderr(), set, outcomes); causeErr != nil {
-			return causeErr
+		if result.Failed > 0 {
+			if causeErr := writeCauses(cmd.ErrOrStderr(), set, outcomes); causeErr != nil {
+				return causeErr
+			}
+
+			return &recordsError{}
 		}
 
-		return &recordsError{}
+		if unmet {
+			return &rejectedError{}
+		}
+
+		return nil
 	})
 }
 
@@ -263,7 +275,7 @@ type askedLine struct {
 	uncovered bool
 }
 
-func reportOf(built *plan.Plan, set labelledSet, outcomes []output.Record, cuts []float64) calibrate.Report {
+func reportOf(built *plan.Plan, set labelledSet, outcomes []output.Record, cuts [][]float64) calibrate.Report {
 	report := calibrate.Report{
 		Records:    set.total,
 		Labelled:   len(set.records),
@@ -309,13 +321,13 @@ func reportOf(built *plan.Plan, set labelledSet, outcomes []output.Record, cuts 
 
 		switch question.Shape {
 		case plan.Noul:
-			score := calibrate.ScoreYesNo(yesNo[q], failed[q], cuts)
+			score := calibrate.ScoreYesNo(yesNo[q], failed[q], cuts[q])
 			scored.YesNo = &score
 		case plan.Pick:
-			score := calibrate.ScorePick(choices[q], namesOf(question), failed[q], cuts)
+			score := calibrate.ScorePick(choices[q], namesOf(question), failed[q], cuts[q])
 			scored.Pick = &score
 		case plan.Rate:
-			score := calibrate.ScoreRate(choices[q], namesOf(question), failed[q], cuts)
+			score := calibrate.ScoreRate(choices[q], namesOf(question), failed[q], cuts[q])
 			scored.Rate = &score
 		}
 

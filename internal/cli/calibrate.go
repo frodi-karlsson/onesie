@@ -78,9 +78,10 @@ func newCalibrateCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 			"records the file does not answer. Changing a label or --cuts reuses every stored answer. " +
 			"A plain stream run can resume the file too, given the same questions, model, -i, --map " +
 			"and --id, with -o json and no gate or merge.\n\n" +
-			"Exit 0 means every record was answered, 2 a usage error or a bad label or record, 3 a " +
-			"refused api key or an account out of credits, 6 a report with some records failed, and " +
-			"130 an interrupt, with no report after 3 or 130.",
+			"Exit 0 means every record was answered and every --require held, 1 a --require that did " +
+			"not hold, 2 a usage error or a bad label or record, 3 a refused api key or an account out " +
+			"of credits, 6 a report with some records failed, which wins over 1, and 130 an interrupt, " +
+			"with no report after 3 or 130.",
 		Example: "  onesie calibrate --ask urgent='is this urgent' -i jsonl --map '.body' \\\n" +
 			"      --label urgent='.is_urgent' --id '.id' --out answers.jsonl --resume < labelled.jsonl",
 		Args:          cobra.MaximumNArgs(1),
@@ -124,6 +125,9 @@ func newCalibrateCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 			"whose result is the right answer for question ID. With one question ID= may be left out")
 	cmd.Flags().StringVar(&calib.cuts, flagCuts, "",
 		"comma separated cuts between 0 and 1. Defaults to 0.05 to 0.95 in steps of 0.05")
+	cmd.Flags().StringArrayVar(&calib.requires, "require", nil,
+		"[lower|upper](ID.MEASURE) OP NUMBER [at CUT], a requirement the report must meet, or calibrate "+
+			"exits 1. Repeatable")
 	cmd.Flags().StringVarP(&calib.report, "output", "o", "", "the report, table, json or auto, which means table")
 
 	bindSharedFlags(cmd, flags)
@@ -185,8 +189,9 @@ func runCalibrate(
 	mockPath, mockSpelled := mockSource(settings, flags)
 	cfg.Mock = mockSpelled
 
-	if checkErr := checkCalibrate(cmd, cfg, inputMode, calib, events); checkErr != nil {
-		return checkErr
+	reqs, err := checkCalibrate(cmd, cfg, inputMode, calib, events)
+	if err != nil {
+		return err
 	}
 
 	if refuseErr := refuseUnlabelledBody(settings, flags.file); refuseErr != nil {
@@ -212,6 +217,11 @@ func runCalibrate(
 		return err
 	}
 
+	bound, err := resolveRequirements(inv.plan, inv.ignored, reqs)
+	if err != nil {
+		return err
+	}
+
 	if flags.printRequest {
 		return calibrateRequests(cmd, settings, flags, inputMode, inv, labels)
 	}
@@ -226,61 +236,61 @@ func runCalibrate(
 
 	answers = wrapped(settings, answers)
 
-	return calibrateRun(cmd, settings, flags, calib, inputMode, inv, labels, answers)
+	return calibrateRun(cmd, settings, flags, calib, inputMode, inv, labels, bound, answers)
 }
 
 func checkCalibrate(
 	cmd *cobra.Command, cfg plan.Config, inputMode input.Mode, calib calibrateFlags, events []argv.Event,
-) error {
+) ([]calibrate.Requirement, error) {
 	if err := checkRefused(cmd, events); err != nil {
-		return err
+		return nil, err
 	}
 
 	if err := checkCalibrateInput(cfg, inputMode); err != nil {
-		return err
+		return nil, err
 	}
 
 	if !cfg.HasMap {
-		return errors.New("onesie: calibrate needs --map. Without it the whole record, label included, " +
+		return nil, errors.New("onesie: calibrate needs --map. Without it the whole record, label included, " +
 			"would be the state, and the report would flatter the question")
 	}
 
 	switch calib.report {
 	case "", "auto", "table", "json":
 	default:
-		return fmt.Errorf("onesie: calibrate -o takes table, json or auto, got %s", calib.report)
+		return nil, fmt.Errorf("onesie: calibrate -o takes table, json or auto, got %s", calib.report)
 	}
 
 	if cfg.PrintRequest && cmd.Flags().Changed("output") {
-		return errors.New("onesie: -o does not apply to --print-request, which writes a request body")
+		return nil, errors.New("onesie: -o does not apply to --print-request, which writes a request body")
 	}
 
 	if cmd.Flags().Changed(flagCuts) {
 		if _, err := calibrate.ParseCuts(calib.cuts); err != nil {
-			return fmt.Errorf("onesie: --cuts %w", err)
+			return nil, fmt.Errorf("onesie: --cuts %w", err)
 		}
 	}
 
 	// A dry run is left to plan, whose message drops --resume rather than asking for an --id it
 	// would then refuse as well.
 	if cfg.Resume && !cfg.HasID && !cfg.PrintRequest {
-		return errors.New(
+		return nil, errors.New(
 			"onesie: calibrate resumes by id, since which records are asked follows the labels. Pass --id")
 	}
 
 	// A resume is left to plan, whose message names --resume as the flag with nothing to do.
 	if cfg.PrintRequest && cfg.Out != "" && !cfg.Resume {
-		return errors.New("onesie: --print-request writes request bodies to stdout, " +
+		return nil, errors.New("onesie: --print-request writes request bodies to stdout, " +
 			"so --out has no answers to hold. Drop --out")
 	}
 
 	// A dry run is left to plan, whose message names --print-request as the reason.
 	if cfg.Usage && !cfg.PrintRequest && cfg.Out == "" && calib.report != "json" {
-		return errors.New("onesie: --usage adds token counts to the answers file or the json report, " +
+		return nil, errors.New("onesie: --usage adds token counts to the answers file or the json report, " +
 			"and this run writes neither")
 	}
 
-	return nil
+	return parseRequirements(calib.requires)
 }
 
 func checkRefused(cmd *cobra.Command, events []argv.Event) error {
@@ -405,9 +415,10 @@ func namesOf(question plan.Question) []string {
 }
 
 type calibrateFlags struct {
-	labels []string
-	cuts   string
-	report string
+	labels   []string
+	requires []string
+	cuts     string
+	report   string
 }
 
 type questionLabel struct {

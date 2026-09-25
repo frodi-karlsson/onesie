@@ -6,12 +6,13 @@ import (
 )
 
 // Report is a whole calibration run, the counts across every record and a score per question in
-// plan order. Usage is nil unless the run was asked for token counts.
+// plan order. Usage is nil unless the run was asked for token counts, and Require unless --require.
 type Report struct {
 	Models                                               []string
 	Records, Labelled, Unlabelled, Asked, Stored, Failed int
 	Usage                                                *Usage
 	Questions                                            []QuestionReport
+	Require                                              []Result
 }
 
 // Usage is the token count summed over the records that carry one, failed ones included. Records
