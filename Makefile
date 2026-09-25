@@ -37,6 +37,7 @@ FUZZ_TARGETS := \
 	./internal/calibrate/:FuzzSplitLabel \
 	./internal/calibrate/:FuzzParseLabel \
 	./internal/calibrate/:FuzzParseCuts \
+	./internal/calibrate/:FuzzParseRequirement \
 	./internal/qfile/:FuzzIsName \
 	./internal/qfile/:FuzzFind \
 	./internal/jq/:FuzzID \

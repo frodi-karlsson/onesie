@@ -266,3 +266,41 @@ func labelValue(kind uint8, text string) (any, bool) {
 		return nil, true
 	}
 }
+
+func FuzzParseRequirement(f *testing.F) {
+	for _, seed := range []string{
+		"instructs.catches >= 0.95",
+		"lower(instructs.catches) > 0.8",
+		"upper(overrides.false_alarms) <= 0.25 at 0.9",
+		"tone.within_one>=0.9",
+		"urgent.auc >= 0.9",
+		"x.y.catches >= 0.5",
+		"urgent.catches >= 0.9 at abstain",
+		"urgent.catches >= 95",
+		"lower(urgent.auc) >= 0.8",
+		"urgent.catches >= 0.9 at",
+		"urgent.catches >= 1e-400 at -0",
+		"",
+	} {
+		f.Add(seed)
+	}
+
+	f.Fuzz(func(t *testing.T, text string) {
+		req, err := calibrate.ParseRequirement(text)
+		if err != nil {
+			return
+		}
+
+		if !(req.Threshold >= 0 && req.Threshold <= 1) || !(req.At.Value >= 0 && req.At.Value <= 1) {
+			t.Fatalf("ParseRequirement(%q) = %+v, whose numbers lie outside [0,1]", text, req)
+		}
+
+		if req.At.Kind != calibrate.AtNumber && req.At.Value != 0 {
+			t.Fatalf("ParseRequirement(%q) = %+v, which carries a cut value without a number", text, req)
+		}
+
+		if req.ID == "" {
+			t.Fatalf("ParseRequirement(%q) = %+v, which names no question", text, req)
+		}
+	})
+}
