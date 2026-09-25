@@ -48,6 +48,9 @@ const (
 	// MaxQuestionFileBytes is the largest question file or request body -f reads. A body carries a
 	// state, which a stream line may hold up to MaxLineBytes of.
 	MaxQuestionFileBytes = 8 << 20
+	// MaxDedupRequests is the most distinct requests a stream holds to deduplicate against. Past it,
+	// a held request still shares its answer and a new one is asked without being held.
+	MaxDedupRequests = 100000
 )
 
 // Report lists every constant in this package, for the --version dump.
@@ -68,6 +71,7 @@ func Report() []Entry {
 		{Name: "max-id-bytes", Value: strconv.Itoa(MaxIDBytes)},
 		{Name: "max-calibrate-records", Value: strconv.Itoa(MaxCalibrateRecords)},
 		{Name: "max-question-file-bytes", Value: strconv.Itoa(MaxQuestionFileBytes)},
+		{Name: "max-dedup-requests", Value: strconv.Itoa(MaxDedupRequests)},
 	}
 }
 

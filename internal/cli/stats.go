@@ -60,6 +60,7 @@ type collector struct {
 
 	records        int
 	skipped        int
+	dedups         int
 	requests       int
 	failed         int
 	falseAsserts   int
@@ -186,6 +187,18 @@ func (c *collector) recordFailure(cause error, reached bool, questions int) {
 	}
 }
 
+func (c *collector) deduplicated(cause error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.records++
+	c.dedups++
+
+	if cause != nil && !errors.Is(cause, context.Canceled) {
+		c.failed++
+	}
+}
+
 func (c *collector) skip(skips tally) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -241,7 +254,7 @@ func (c *collector) snapshot(attemptTimeout, elapsed time.Duration) Stats {
 	}
 
 	return Stats{
-		Records: c.records, Skipped: c.skipped, Requests: c.requests, Failed: c.failed,
+		Records: c.records, Skipped: c.skipped, Dedups: c.dedups, Requests: c.requests, Failed: c.failed,
 		FalseAsserts: c.falseAsserts, Abstains: c.abstainCount, Questions: c.questions,
 		InputTokens: c.inputTokens, OutputTokens: c.outputTokens,
 		Models: slices.Sorted(maps.Keys(c.models)), Attempts: c.attempts, Retries: retries,
@@ -255,7 +268,10 @@ type Stats struct {
 	// client, which is smaller whenever a line failed to parse.
 	Records int
 	// Skipped counts the records a resume left alone, since the file already answered them.
-	Skipped  int
+	Skipped int
+	// Dedups counts the records answered by a copy of an identical request's answer, so they are
+	// records and not requests.
+	Dedups   int
 	Requests int
 	Failed   int
 	// FalseAsserts counts the records whose assertion did not hold, a resume's skipped ones
@@ -291,6 +307,10 @@ func (s Stats) String() string {
 
 	if s.Skipped > 0 {
 		parts = append(parts, fmt.Sprintf("%d skipped", s.Skipped))
+	}
+
+	if s.Dedups > 0 {
+		parts = append(parts, fmt.Sprintf("%d deduplicated", s.Dedups))
 	}
 
 	if s.Failed > 0 {

@@ -185,6 +185,52 @@ func TestCollectorRecordFailure(t *testing.T) {
 	}
 }
 
+func TestCollectorDeduplicated(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		cause       error
+		wantRecords int
+		wantDedups  int
+		wantFailed  int
+	}{
+		{name: "should count an answered duplicate as a record and a dedup", wantRecords: 1, wantDedups: 1},
+		{
+			name:        "should count a duplicate of a failed request as failed too",
+			cause:       &jev.APIError{Status: http.StatusServiceUnavailable},
+			wantRecords: 1, wantDedups: 1, wantFailed: 1,
+		},
+		{
+			name:        "should not count a duplicate the run cancelled as failed",
+			cause:       fmt.Errorf("onesie: #1: %w", context.Canceled),
+			wantRecords: 1, wantDedups: 1,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var c collector
+
+			c.deduplicated(tc.cause)
+
+			got := c.snapshot(time.Second, time.Second)
+
+			if got.Records != tc.wantRecords || got.Dedups != tc.wantDedups || got.Failed != tc.wantFailed {
+				t.Errorf("records, dedups, failed = %d, %d, %d, want %d, %d, %d",
+					got.Records, got.Dedups, got.Failed, tc.wantRecords, tc.wantDedups, tc.wantFailed)
+			}
+
+			if got.Requests != 0 || got.Questions != 0 || got.Attempts != 0 {
+				t.Errorf("requests, questions, attempts = %d, %d, %d, want none",
+					got.Requests, got.Questions, got.Attempts)
+			}
+		})
+	}
+}
+
 func TestTerminalStatus(t *testing.T) {
 	t.Parallel()
 

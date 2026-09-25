@@ -40,6 +40,16 @@ func TestStatsString(t *testing.T) {
 				"10s/attempt, 30s",
 		},
 		{
+			name: "should count the records a stream deduplicated apart from its requests",
+			stats: cli.Stats{
+				Records: 12, Dedups: 3, Requests: 9, Questions: 9,
+				Models: []string{"onesie-1.13.0"}, Attempts: 9,
+				AttemptTimeout: 10 * time.Second, Elapsed: time.Second,
+			},
+			want: "12 records, 3 deduplicated, 9 requests, 9 questions, 0 in / 0 out, " +
+				"model onesie-1.13.0, 9 attempts, 10s/attempt, 1s",
+		},
+		{
 			name: "should report the records a resume skipped",
 			stats: cli.Stats{
 				Requests: 2, Records: 2, Skipped: 18, Questions: 2,
