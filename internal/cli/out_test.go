@@ -647,6 +647,10 @@ func TestOpenOut(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
+			if tc.readOnlyDir && tc.wantCode != ExitOK && runtime.GOOS == "windows" {
+				t.Skip("a read only directory on windows still lets a file be created in it")
+			}
+
 			var calls atomic.Int32
 
 			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
