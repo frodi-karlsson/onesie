@@ -5,6 +5,7 @@ go 1.27.1
 require (
 	github.com/goccy/go-yaml v1.19.2
 	github.com/itchyny/gojq v0.12.19
+	github.com/santhosh-tekuri/jsonschema/v6 v6.0.3
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.9
 	github.com/zalando/go-keyring v0.2.8

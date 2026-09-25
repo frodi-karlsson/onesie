@@ -3,6 +3,7 @@ package plan
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -1227,11 +1228,14 @@ func reserved(id string) bool {
 		return true
 	}
 
-	switch id {
-	case "$schema", "abstain", "abstain_if", "answers", "assert", "error", "id", "model", "usage",
-		"questions", "state":
-		return true
-	default:
-		return false
+	return slices.Contains(ReservedIDs(), id)
+}
+
+// ReservedIDs lists the ids no question may take, apart from the positional id and any id that
+// starts with two underscores.
+func ReservedIDs() []string {
+	return []string{
+		"$schema", "abstain", "abstain_if", "answers", "assert", "error", "id", "model", "usage",
+		"questions", "state",
 	}
 }

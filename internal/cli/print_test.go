@@ -11,11 +11,16 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
 	"testing"
+
+	"github.com/goccy/go-yaml"
+	"github.com/santhosh-tekuri/jsonschema/v6"
 
 	"github.com/frodi-karlsson/onesie/internal/jev"
 	"github.com/frodi-karlsson/onesie/internal/qfile"
@@ -242,6 +247,12 @@ func TestPrintQuestions(t *testing.T) {
 		}
 	})
 
+	t.Run("should agree with the schema on every question file fixture", func(t *testing.T) {
+		t.Parallel()
+
+		checkSchemaAgreement(t, append(unitTestDocs(t, filepath.Join("..", "qfile")), validationDocs()...))
+	})
+
 	t.Run("should warn about nothing for a question file", func(t *testing.T) {
 		t.Parallel()
 
@@ -259,6 +270,184 @@ func TestPrintQuestions(t *testing.T) {
 			t.Errorf("stderr should be empty, got:\n%s", errOut)
 		}
 	})
+}
+
+func checkSchemaAgreement(t *testing.T, docs []string) {
+	t.Helper()
+
+	schema := compiledSchema(t)
+	refused := 0
+
+	for _, doc := range docs {
+		_, errOut, code := runPrintQuestions(t, fixtureName(doc), []byte(doc))
+		loaderAccepts := code == ExitOK
+
+		instance, ok := schemaInstance(doc)
+		if !ok {
+			if loaderAccepts {
+				t.Errorf("the schema cannot read a fixture the loader accepts\n%s", doc)
+			} else if _, known := loaderOnlyRule(errOut); !known {
+				t.Errorf("the schema cannot read a fixture the loader refuses with no listed rule\n%s\nstderr:\n%s", doc, errOut)
+			}
+
+			continue
+		}
+
+		if instance == nil {
+			continue
+		}
+
+		verdict := schema.Validate(instance)
+		if verdict != nil {
+			refused++
+		}
+
+		switch {
+		case verdict != nil && loaderAccepts:
+			t.Errorf("the schema refuses a fixture the loader accepts: %v\n%s", verdict, doc)
+		case verdict == nil && !loaderAccepts:
+			if _, known := loaderOnlyRule(errOut); !known {
+				t.Errorf("the loader refuses a fixture the schema accepts, and no listed rule explains it\n%s\nstderr:\n%s", doc, errOut)
+			}
+		}
+	}
+
+	if refused == 0 {
+		t.Errorf("the schema refused none of %d fixtures, so it cannot be telling them apart", len(docs))
+	}
+}
+
+func validationDocs() []string {
+	many := func(count int) string {
+		var names []string
+		for i := range count {
+			names = append(names, "o"+strconv.Itoa(i))
+		}
+
+		return "[" + strings.Join(names, ", ") + "]"
+	}
+
+	return []string{
+		"team:\n  ask: q\n  pick: [a]\n",
+		"team:\n  ask: q\n  pick: " + many(255) + "\n",
+		"team:\n  ask: q\n  pick: " + many(256) + "\n",
+		"team:\n  ask: q\n  pick: [a, a]\n",
+		"team:\n  ask: q\n  pick:\n    a: x\n",
+		"severity:\n  ask: q\n  rate: [a]\n",
+		"severity:\n  ask: q\n  rate: " + many(10) + "\n",
+		"severity:\n  ask: q\n  rate: " + many(11) + "\n",
+		"severity:\n  ask: q\n  rate: [a, a]\n",
+		"severity:\n  ask: q\n  rate:\n    - a: x\n    - a: y\n",
+		"severity:\n  ask: q\n  rate:\n    low: calm\n    high:\n",
+		"severity:\n  ask: q\n  rate:\n    low:\n    high:\n",
+		"severity:\n  ask: q\n  rate:\n    - low: calm\n    - high:\n",
+		"severity:\n  ask: q\n  rate:\n    - low\n    - high:\n",
+		"severity:\n  ask: q\n  rate:\n    - low\n    - high: loud\n",
+		"urgent:\n  ask: q\n  threshold: 0.5\n",
+		"urgent:\n  ask: q\n  threshold: 5\n",
+		"urgent:\n  ask: q\n  threshold: -0.1\n",
+		"team:\n  ask: q\n  pick: [a, b]\n  threshold: 0.5\n",
+		"urgent:\n  ask: q\n  min_confidence: 0.5\n  fallback: yes\n",
+		"team:\n  ask: q\n  pick: [a, b]\n  min_confidence: 0.5\n",
+		"team:\n  ask: q\n  pick: [a, b]\n  min_confidence: 1.5\n  fallback: a\n",
+		"team:\n  ask: q\n  pick: [a, b]\n  min_confidence: 0.5\n  fallback: anyone\n",
+		"severity:\n  ask: q\n  rate: [low, high]\n  min_confidence: 0.5\n  fallback: true\n",
+		"urgent:\n  ask: q\n  fallback: maybe\n",
+		"urgent:\n  ask: q\n  fallback: YES\n",
+		"urgent:\n  ask: q\n  fallback: false\n",
+		"urgent:\n  ask: q\n  yes_means: loud\n",
+		"urgent:\n  ask: 7\n",
+		"urgent:\n  ask:\n",
+		"id: q\n",
+		"answer: q\n",
+		"__private: q\n",
+		"state: q\n",
+		"\"\": q\n",
+		"assert: 'urgent.value < 0.5'\n",
+		"{}",
+		"$schema: ./questions.json\n",
+		"urgent: q\nassert: 'urgent.value < 0.5'\nabstain_if: 'urgent.value < 0.8'\n",
+	}
+}
+
+func compiledSchema(t *testing.T) *jsonschema.Schema {
+	t.Helper()
+
+	document, err := jsonschema.UnmarshalJSON(bytes.NewReader(qfile.Schema()))
+	if err != nil {
+		t.Fatalf("decoding the schema: %v", err)
+	}
+
+	compiler := jsonschema.NewCompiler()
+	if addErr := compiler.AddResource("questions.json", document); addErr != nil {
+		t.Fatalf("adding the schema: %v", addErr)
+	}
+
+	schema, err := compiler.Compile("questions.json")
+	if err != nil {
+		t.Fatalf("compiling the schema: %v", err)
+	}
+
+	return schema
+}
+
+func fixtureName(doc string) string {
+	if json.Valid([]byte(doc)) {
+		return "fixture.json"
+	}
+
+	return "fixture.yaml"
+}
+
+func schemaInstance(doc string) (any, bool) {
+	decoded, err := qfile.DecodeOrdered([]byte(doc))
+	if err != nil {
+		return nil, false
+	}
+
+	if items, isMapping := decoded.(yaml.MapSlice); isMapping {
+		for _, item := range items {
+			if item.Key == "questions" {
+				return nil, true
+			}
+		}
+	}
+
+	encoded, err := qfile.MarshalOrdered(decoded)
+	if err != nil {
+		return nil, false
+	}
+
+	instance, err := jsonschema.UnmarshalJSON(bytes.NewReader(encoded))
+	if err != nil {
+		return nil, false
+	}
+
+	return instance, true
+}
+
+func loaderOnlyRule(stderr string) (string, bool) {
+	rules := []struct {
+		name    string
+		pattern *regexp.Regexp
+	}{
+		{name: "gate syntax", pattern: regexp.MustCompile(`^onesie: '(assert|abstain_if)': `)},
+		{name: "YAML syntax", pattern: regexp.MustCompile(`^onesie: \[\d+:\d+\] `)},
+		{name: "a YAML alias", pattern: regexp.MustCompile(`^onesie: a question file cannot use a YAML alias`)},
+		{name: "a second document", pattern: regexp.MustCompile(`^onesie: a question file is one document`)},
+		{name: "a repeated key", pattern: regexp.MustCompile(`^onesie: (\[\d+:\d+\] )?mapping key ".*" already defined`)},
+		{name: "the size cap", pattern: regexp.MustCompile(`^onesie: a question file is at most \d+ bytes`)},
+		{name: "a level named twice", pattern: regexp.MustCompile(`^onesie: 'rate' label '.*' is listed twice in question `)},
+		{name: "a value that cannot be sent", pattern: regexp.MustCompile(`^onesie: .* cannot be sent: `)},
+	}
+
+	for _, rule := range rules {
+		if rule.pattern.MatchString(stderr) {
+			return rule.name, true
+		}
+	}
+
+	return "", false
 }
 
 func TestWire(t *testing.T) {

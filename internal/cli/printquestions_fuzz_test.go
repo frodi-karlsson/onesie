@@ -259,6 +259,14 @@ func asSent(t *testing.T, questions []plan.Question) []any {
 func printedQuestions(t *testing.T, data []byte) ([]byte, bool) {
 	t.Helper()
 
+	out, _, code := runPrintQuestions(t, "questions.yaml", data)
+
+	return []byte(out), code == ExitOK
+}
+
+func runPrintQuestions(t *testing.T, name string, data []byte) (string, string, int) {
+	t.Helper()
+
 	var out, errOut bytes.Buffer
 
 	root := NewRootCmd(
@@ -267,7 +275,7 @@ func printedQuestions(t *testing.T, data []byte) ([]byte, bool) {
 		WithStdinTTY(false),
 		WithStdoutTTY(false),
 		WithReadFile(func(path string) ([]byte, error) {
-			if path == "questions.yaml" {
+			if path == name {
 				return data, nil
 			}
 
@@ -278,11 +286,11 @@ func printedQuestions(t *testing.T, data []byte) ([]byte, bool) {
 
 	root.SetOut(&out)
 	root.SetErr(&errOut)
-	root.SetArgs([]string{"-f", "questions.yaml", "--print-questions"})
+	root.SetArgs([]string{"-f", name, "--print-questions"})
 
 	code := Execute(t.Context(), root)
 
-	return out.Bytes(), code == ExitOK
+	return out.String(), errOut.String(), code
 }
 
 func asAuthored(questions []plan.Question) []plan.Question {
@@ -300,7 +308,7 @@ func asAuthored(questions []plan.Question) []plan.Question {
 	return kept
 }
 
-func unitTestDocs(f *testing.F, dir string) []string {
+func unitTestDocs(f testing.TB, dir string) []string {
 	f.Helper()
 
 	files, err := filepath.Glob(filepath.Join(dir, "*_test.go"))
