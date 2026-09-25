@@ -33,6 +33,20 @@ func TestWrite(t *testing.T) {
 			want: "urgent:\n  ask: does this convey urgency\n  threshold: 0.5\n",
 		},
 		{
+			name: "should write a whole float past two to the 53 as the integer it prints as",
+			questions: []plan.Question{
+				{ID: "q", Shape: plan.Noul, Instructions: 1000000000000100000.0},
+			},
+			want: "q:\n  ask: 1000000000000100000\n",
+		},
+		{
+			name: "should write a whole float past int64 as a float",
+			questions: []plan.Question{
+				{ID: "q", Shape: plan.Noul, Instructions: 1e19},
+			},
+			want: "q:\n  ask: 1.0e+19\n",
+		},
+		{
 			name: "should write questions in plan order",
 			questions: []plan.Question{
 				{ID: "zebra", Shape: plan.Noul, Instructions: "z"},

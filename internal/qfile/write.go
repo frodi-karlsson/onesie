@@ -238,9 +238,14 @@ func yamlNumbers(value any) (any, error) {
 
 func wholeNumber(float float64) any {
 	// goccy writes a whole float with an exponent, as 8e+13, and reads it back as an integer, so a
-	// whole float is written as the integer it is and the file prints the same way twice.
-	if float == math.Trunc(float) && float >= math.MinInt64 && float < math.MaxInt64 {
-		return int64(float)
+	// whole float is written as an integer and the file prints the same way twice. The integer is
+	// the float's shortest form, since past two to the 53 a conversion names a different number.
+	if float != math.Trunc(float) {
+		return float
+	}
+
+	if integer, err := strconv.ParseInt(strconv.FormatFloat(float, 'f', -1, 64), 10, 64); err == nil {
+		return integer
 	}
 
 	return float
