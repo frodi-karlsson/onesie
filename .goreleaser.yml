@@ -5,6 +5,8 @@ project_name: onesie
 before:
   hooks:
     - go mod tidy
+    # A hook runs without a shell, so the redirect needs sh -c.
+    - sh -c 'rm -rf completions && mkdir completions && for shell in bash zsh fish; do go run ./cmd/onesie completion "$shell" > "completions/onesie.$shell"; done'
 
 builds:
   - id: onesie
@@ -27,7 +29,7 @@ archives:
   - formats: [tar.gz]
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     # NOTICE is not among the files an archive takes by default.
-    files: [LICENSE, NOTICE, README.md]
+    files: [LICENSE, NOTICE, README.md, completions/*]
     format_overrides:
       - goos: windows
         formats: [zip]

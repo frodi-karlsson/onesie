@@ -32,6 +32,9 @@ class Onesie < Formula
 
   def install
     bin.install "onesie"
+    bash_completion.install "completions/onesie.bash" => "onesie"
+    zsh_completion.install "completions/onesie.zsh" => "_onesie"
+    fish_completion.install "completions/onesie.fish"
   end
 
   test do
