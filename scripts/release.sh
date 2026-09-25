@@ -151,8 +151,8 @@ fi
 	git ls-remote --tags origin 'refs/tags/v*'
 } | "${prep[@]}" check-tag "$tag"
 
-MAKEFLAGS= MFLAGS= "$make" check
-MAKEFLAGS= MFLAGS= "$make" skills-check
+MAKEFLAGS='' MFLAGS='' "$make" check
+MAKEFLAGS='' MFLAGS='' "$make" skills-check
 if [ "$(git rev-parse HEAD)" != "$before" ]; then
 	fail "make check or make skills-check moved HEAD"
 fi
