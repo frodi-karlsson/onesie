@@ -59,7 +59,8 @@ In Claude Code, the plugin can come first and walk you through the rest:
 - **Streams that resume.** Reads JSONL, CSV or TSV a record at a time, several in parallel, and
   writes one answer per record in order. Rerun it with `--resume` after an interruption. With
   `--id` it asks only the records the file holds no answer for, and without it carries on after the
-  last complete line.
+  last complete line. Records whose request is identical are asked once, and each still gets its
+  own line.
 - **Output for programs and people.** JSON, CSV, a terminal table, or markdown for a PR comment.
 - **Free dry runs.** See the exact request before spending anything, with no key needed.
 - **Mock answers.** `--mock` or `ONESIE_MOCK` answers from a file, so a gate script's branches can
