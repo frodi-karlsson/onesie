@@ -81,6 +81,49 @@ jobs:
       - name: Run tests
         run: go tool gotestsum --format testname -- -race -timeout 2m ./...
 
+  # install.sh against a snapshot built from this tree, served through file://.
+  install:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # GoReleaser reads the tags to pick the snapshot version
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+
+      # The ubuntu image ships shellcheck and the script is the same file on
+      # both, so one run covers it.
+      - name: Lint install.sh
+        if: runner.os == 'Linux'
+        run: shellcheck install.sh
+
+      - name: Build a snapshot
+        uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
+        with:
+          version: 'v2.18.2'
+          args: release --snapshot --clean --skip=publish
+
+      # No GH_TOKEN is set, so gh is logged out and install.sh skips the
+      # provenance check, which a snapshot has nothing to match.
+      - name: Install from the snapshot
+        env:
+          ONESIE_RELEASE_BASE_URL: file://${{ github.workspace }}/dist
+          ONESIE_INSTALL_DIR: ${{ runner.temp }}/onesie-bin
+        run: |
+          sh install.sh
+          "$ONESIE_INSTALL_DIR/onesie" version
+
   tidy:
     runs-on: ubuntu-latest
     permissions:
