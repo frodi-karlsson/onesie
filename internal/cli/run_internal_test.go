@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/frodi-karlsson/onesie/internal/answer"
 	"github.com/frodi-karlsson/onesie/internal/assert"
@@ -13,6 +15,7 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/input"
 	"github.com/frodi-karlsson/onesie/internal/jev"
 	"github.com/frodi-karlsson/onesie/internal/output"
+	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
 func TestJudge(t *testing.T) {
@@ -197,4 +200,70 @@ func TestDescribe(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestAnswered(t *testing.T) {
+	t.Parallel()
+
+	t.Run("should keep no reference to the response in a record under --usage", func(t *testing.T) {
+		t.Parallel()
+
+		built := &plan.Plan{Questions: []plan.Question{{ID: "answer", Shape: plan.Noul}}}
+		collected := make(chan struct{})
+
+		asker := resultAnswerer{result: func() *jev.Result {
+			result := &jev.Result{
+				Model:   "m",
+				Usage:   jev.Usage{InputTokens: 5, OutputTokens: 2},
+				Answers: map[string]jev.Answer{"answer": &jev.NoulAnswer{Noul: 0.9}},
+			}
+			runtime.AddCleanup(result, func(done chan struct{}) { close(done) }, collected)
+
+			return result
+		}}
+
+		record, _, err := answered(t.Context(), asker, recordKey{position: 1, line: 1}, built, "m",
+			wireAll(built.Questions), "x", true)
+		if err != nil {
+			t.Fatalf("answered: %v", err)
+		}
+
+		if record.Usage == nil || *record.Usage != (jev.Usage{InputTokens: 5, OutputTokens: 2}) {
+			t.Fatalf("usage = %v, want 5 in and 2 out", record.Usage)
+		}
+
+		if !released(collected) {
+			t.Error("the record held on to the response it was read from")
+		}
+
+		runtime.KeepAlive(record)
+	})
+}
+
+func released(collected <-chan struct{}) bool {
+	deadline := time.Now().Add(5 * time.Second)
+
+	for time.Now().Before(deadline) {
+		runtime.GC()
+
+		select {
+		case <-collected:
+			return true
+		case <-time.After(10 * time.Millisecond):
+		}
+	}
+
+	return false
+}
+
+func (a resultAnswerer) answer(context.Context, recordKey, jev.Request) (*jev.Result, error) {
+	return a.result(), nil
+}
+
+func (resultAnswerer) salt(recordKey) string {
+	return ""
+}
+
+type resultAnswerer struct {
+	result func() *jev.Result
 }

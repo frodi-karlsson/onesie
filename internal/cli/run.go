@@ -1036,7 +1036,10 @@ func answered(
 
 	record := output.Record{Model: result.Model}
 	if withUsage {
-		record.Usage = &result.Usage
+		// A copy, since a pointer into the result would keep the whole response alive for as long
+		// as the record is held, and a stream holds one per distinct request.
+		usage := result.Usage
+		record.Usage = &usage
 	}
 
 	// SystemOne already refused a response missing any of these questions, since every caller asks
