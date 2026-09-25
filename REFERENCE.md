@@ -61,7 +61,9 @@ accepts as a label.
   lookup. Ids match by their text, so `7`, `7.0` and `"7"` are one id in jsonl.
 - `--out` writes to a file with a fingerprint beside it, and a lock so two runs cannot share it. The
   fingerprint covers the questions and their policy flags, the provider, the model, the input and
-  output modes, `--map`, `--id`, `--merge-key`, `--assert` and `--abstain-if`.
+  output modes, `--map`, `--id`, `--merge-key`, `--assert` and `--abstain-if`. It covers
+  `--skip-blank` too when a resume counts lines, which is without `--id` on any input but csv and
+  tsv.
 - `--resume` with `--id` skips answered records and asks the rest, failed ones included. A finished
   run rewrites the file in input order and keeps answered ids the input no longer has, unless
   `--prune` drops them. A changed fingerprint refuses with exit 2. A record whose content changed

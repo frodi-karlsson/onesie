@@ -701,6 +701,7 @@ func fingerprintOf(questions []plan.Question, inputs fingerprintInputs) (string,
 		MergeKey  string         `json:"merge_key"`
 		Assert    string         `json:"assert"`
 		AbstainIf string         `json:"abstain_if"`
+		SkipBlank bool           `json:"skip_blank,omitempty"`
 	}{
 		Questions: wireAll(questions),
 		Policies:  policiesOf(questions),
@@ -713,6 +714,7 @@ func fingerprintOf(questions []plan.Question, inputs fingerprintInputs) (string,
 		MergeKey:  inputs.mergeKey,
 		Assert:    inputs.assert,
 		AbstainIf: inputs.abstainIf,
+		SkipBlank: inputs.skipBlank,
 	})
 	if err != nil {
 		return "", fmt.Errorf("onesie: fingerprinting the run: %w", err)
@@ -733,6 +735,7 @@ type fingerprintInputs struct {
 	mergeKey  string
 	assert    string
 	abstainIf string
+	skipBlank bool
 }
 
 func policiesOf(questions []plan.Question) []policyPrint {

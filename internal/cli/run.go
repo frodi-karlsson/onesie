@@ -220,12 +220,22 @@ func bindOut(
 		inputs.mergeKey = mergeKey(flags)
 	}
 
+	// A resume by position skips one record per stored line, and --skip-blank changes which record
+	// a line stands for everywhere but csv and tsv, which skip a blank line either way.
+	inputs.skipBlank = flags.skipBlank && !resumesByID(flags) && !delimitedInput(inputs.input)
+
 	fingerprint, err := fingerprintOf(questions, inputs)
 	if err != nil {
 		return err
 	}
 
 	return out.bind(fingerprint)
+}
+
+func delimitedInput(name string) bool {
+	mode, err := input.ParseMode(name)
+
+	return err == nil && mode.Delimited()
 }
 
 func checkFlags(cmd *cobra.Command, cfg plan.Config) error {
