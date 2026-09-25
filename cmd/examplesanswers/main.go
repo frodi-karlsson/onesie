@@ -10,7 +10,9 @@ import (
 	"io"
 	"os"
 	"os/signal"
-	"strings"
+	"slices"
+
+	"github.com/spf13/cobra"
 
 	"github.com/frodi-karlsson/onesie/examples"
 	"github.com/frodi-karlsson/onesie/internal/cli"
@@ -19,8 +21,6 @@ import (
 const (
 	keyName = "TYPESAFE_API_KEY"
 	jobs    = "4"
-	// The part of calibrate --offline's refusal of a file whose fingerprint differs.
-	staleMarker = "so --offline cannot read it"
 )
 
 var errNoKeychain = errors.New("examplesanswers never reads the keychain")
@@ -103,20 +103,19 @@ func answer(ctx context.Context, set examples.Set, opts options, env map[string]
 
 	// An offline dry run asks nothing and says whether the file still matches the questions. A
 	// file that does not is started afresh, and any other is resumed.
-	var probe bytes.Buffer
-	calibrate(ctx, opts.root, env, home, records, append(args, "--resume", "--offline"), io.Discard, &probe)
-
-	if !strings.Contains(probe.String(), staleMarker) {
+	probe := command(opts.root, env, home, records, append(slices.Clone(args), "--resume", "--offline"),
+		io.Discard, io.Discard)
+	if probeErr := probe.ExecuteContext(ctx); !errors.Is(probeErr, cli.ErrStaleAnswers) {
 		args = append(args, "--resume")
 	}
 
-	return calibrate(ctx, opts.root, env, home, records, args, opts.stdout, opts.stderr), nil
+	return cli.Execute(ctx, command(opts.root, env, home, records, args, opts.stdout, opts.stderr)), nil
 }
 
-func calibrate(
-	ctx context.Context, extra []cli.RootOption, env map[string]string, home string, records []byte, args []string,
+func command(
+	extra []cli.RootOption, env map[string]string, home string, records []byte, args []string,
 	stdout, stderr io.Writer,
-) int {
+) *cobra.Command {
 	root := cli.NewRootCmd(
 		cli.BuildInfo{Version: "examplesanswers"},
 		append([]cli.RootOption{
@@ -137,7 +136,7 @@ func calibrate(
 	root.SetErr(stderr)
 	root.SetArgs(args)
 
-	return cli.Execute(ctx, root)
+	return root
 }
 
 type noKeychain struct{}

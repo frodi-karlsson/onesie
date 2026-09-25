@@ -1700,6 +1700,31 @@ func TestCalibrateRun(t *testing.T) {
 		})
 	}
 
+	t.Run("should return an error matching ErrStaleAnswers for a stale file under --offline", func(t *testing.T) {
+		t.Parallel()
+
+		answers, _ := answered(t)
+		if err := os.Remove(answers + fingerprintSuffix); err != nil {
+			t.Fatal(err)
+		}
+
+		root := NewRootCmd(
+			BuildInfo{Version: "1.2.3"},
+			WithKeychain(noKeychain()),
+			WithStdin(strings.NewReader(urgentSet)),
+			WithStdinTTY(false),
+			WithStdoutTTY(false),
+			WithLookupEnv(lookupFrom(map[string]string{"ONESIE_CONFIG_DIR": t.TempDir()})),
+		)
+		root.SetOut(io.Discard)
+		root.SetErr(io.Discard)
+		root.SetArgs(calibrating(answers, "--resume", "--offline"))
+
+		if err := root.ExecuteContext(t.Context()); !errors.Is(err, ErrStaleAnswers) {
+			t.Errorf("error = %v, want one matching ErrStaleAnswers", err)
+		}
+	})
+
 	t.Run("should refuse a missing answers file under --offline and create nothing", func(t *testing.T) {
 		t.Parallel()
 

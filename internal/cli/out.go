@@ -29,8 +29,10 @@ const (
 )
 
 var (
-	errLinkLoop     = errors.New("too many levels of symbolic links")
-	errStaleAnswers = errors.New("stale answers")
+	errLinkLoop = errors.New("too many levels of symbolic links")
+	// ErrStaleAnswers matches the refusal of an --out file whose fingerprint does not match the run,
+	// so a caller of the root command can tell it apart without reading the message.
+	ErrStaleAnswers = errors.New("stale answers")
 )
 
 func openOut(settings rootSettings, flags *runFlags) (*outFile, resumePlan, error) {
@@ -628,7 +630,7 @@ func (e *staleAnswersError) Error() string {
 }
 
 func (e *staleAnswersError) Is(target error) bool {
-	return target == errStaleAnswers
+	return target == ErrStaleAnswers
 }
 
 func fingerprintVersionOf(stored string) (version int, ok bool) {

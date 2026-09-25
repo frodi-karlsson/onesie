@@ -88,8 +88,8 @@ func calibrateAnswers(
 		model: model, output: output.JSON.String(), input: inputMode.String(),
 	})
 	if stale := (*staleAnswersError)(nil); calib.offline && errors.As(bindErr, &stale) {
-		return fmt.Errorf("onesie: %s does not match this run, since %s, so --offline cannot read it. "+
-			"Rerun without --offline and --resume to regenerate it", flags.out, stale.cause)
+		return staleAnswers(stale.cause, "onesie: %s does not match this run, since %s, so --offline cannot "+
+			"read it. Rerun without --offline and --resume to regenerate it", flags.out, stale.cause)
 	}
 
 	if bindErr != nil {

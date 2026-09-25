@@ -1505,11 +1505,11 @@ func TestOutFile_CheckFingerprint(t *testing.T) {
 				return
 			}
 
-			if err == nil || !strings.Contains(err.Error(), tc.wantErr) || !errors.Is(err, errStaleAnswers) {
-				t.Fatalf("checkFingerprint error = %v, want one containing %q that is errStaleAnswers", err, tc.wantErr)
+			if err == nil || !strings.Contains(err.Error(), tc.wantErr) || !errors.Is(err, ErrStaleAnswers) {
+				t.Fatalf("checkFingerprint error = %v, want one containing %q that is ErrStaleAnswers", err, tc.wantErr)
 			}
 
-			if strings.Contains(err.Error(), errStaleAnswers.Error()) {
+			if strings.Contains(err.Error(), ErrStaleAnswers.Error()) {
 				t.Errorf("error = %q, want today's wording without the sentinel's text", err)
 			}
 		})
