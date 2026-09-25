@@ -2332,6 +2332,23 @@ func TestCalibrateRun(t *testing.T) {
 		}
 	})
 
+	t.Run("should exit 2 before any request for a cache dir others can read", func(t *testing.T) {
+		t.Parallel()
+
+		stub := newCalibrateStub(t)
+		env := cacheEnv(t)
+		mustMkdirMode(t, env["ONESIE_CACHE_DIR"], 0o755)
+
+		out, errOut, code := calibrateWithEnv(t, env, urgent("--cache", "-j", "4"), urgentSet, stub.url)
+		if code != ExitUsage || out != "" || !strings.Contains(errOut, "chmod 700") {
+			t.Errorf("exit %d, stdout %q, stderr %q, want exit 2 with the chmod advice and no report", code, out, errOut)
+		}
+
+		if stub.count() != 0 {
+			t.Errorf("%d requests, want none", stub.count())
+		}
+	})
+
 	t.Run("should leave the cache dir absent under calibrate --offline and ONESIE_CACHE=1", func(t *testing.T) {
 		t.Parallel()
 

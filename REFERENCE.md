@@ -251,8 +251,12 @@ again.
   and its answers live until they are evicted. Every other model is an alias, such as `jev-latest`,
   and so is every model on any other provider, `typesafe/jev-1.13` on OpenRouter included. An
   alias's answers expire after 24 hours, since the model behind it can move. `ONESIE_CACHE_TTL` sets
-  that lifetime as a duration, such as `90m` or `72h`, and `0` stops caching answers for an alias. A
-  negative or malformed value exits 2.
+  that lifetime as a duration, such as `90m` or `72h`, and `0` stops reading and storing answers for
+  an alias. A negative or malformed value exits 2. A run's lifetime decides what it reads, not what
+  it deletes: an expired answer is only a miss, which the next answer overwrites, and onesie deletes
+  an alias's answer only once it is older than 24 hours, or than the run's own lifetime when that is
+  longer. So a short lifetime in one run never deletes answers other runs still read. An answer
+  stored at a time later than the clock reads is a miss too.
 - The cache lives in `$ONESIE_CACHE_DIR`, or else `$XDG_CACHE_HOME/onesie`, or else:
   - `~/Library/Caches/onesie` on macOS
   - `%LOCALAPPDATA%\onesie` on Windows, or `AppData\Local\onesie` under the home directory when
@@ -261,7 +265,7 @@ again.
 - Its files are mode `600` in directories of mode `700`. `--cache` refuses a cache directory others
   can reach with exit 2, before any request, as it refuses such a credential file. Windows carries no
   such modes, so the check is skipped there. A new cache directory gets a `CACHEDIR.TAG` file, so
-  backup tools skip it. onesie counts, evicts and clears only its own entries and temporary files,
+  backup tools skip it, and so does an existing one that is empty or holds only what onesie writes. onesie counts, evicts and clears only its own entries and temporary files,
   and leaves anything else in the directory alone. Writes are atomic, so parallel runs can share one
   cache.
 - The cache holds about `max-cache-bytes`, 100 MB, which `onesie -V` lists beside `cache-ttl`. Past
@@ -274,8 +278,9 @@ again.
   there.
 - A cached run still needs a key, since onesie finds the API address the cache keys answers by
   together with the key. A hit sends nothing. Under `--cache`, the no key message says so.
-- A cache error in a run, such as a full disk, turns the cache off for the rest of that run with one
-  warning on stderr, and the run carries on against the API.
+- Any other cache error in a run, such as a full disk or a home directory onesie cannot write, turns
+  the cache off for the rest of that run with one warning on stderr, and the run carries on against
+  the API.
 - Deduplication covers repeats within one run, the cache covers repeats across runs, and `--resume`
   skips the ids an `--out` file already answers. A group of identical records asks the cache once,
   so a group whose first record hits counts one cached record and the rest deduplicated. A cached

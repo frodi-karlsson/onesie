@@ -420,6 +420,23 @@ func TestStream(t *testing.T) {
 			})
 		}
 
+		t.Run("should exit 2 before any request for a cache dir others can read", func(t *testing.T) {
+			t.Parallel()
+
+			stub := newAnswerStub(t)
+			env := cacheEnv(t)
+			mustMkdirMode(t, env["ONESIE_CACHE_DIR"], 0o755)
+
+			out, errOut, code := cached(t, env, with("--cache", "-j", "4"), jsonl("a", "b", "c"), stub.url)
+			if code != ExitUsage || out != "" || !strings.Contains(errOut, "chmod 700") {
+				t.Errorf("exit %d, stdout %q, stderr %q, want exit 2 with the chmod advice and no line", code, out, errOut)
+			}
+
+			if got := stub.requests.Load(); got != 0 {
+				t.Errorf("%d requests, want none", got)
+			}
+		})
+
 		t.Run("should leave the cache dir absent for a run --resume finds fully answered", func(t *testing.T) {
 			t.Parallel()
 

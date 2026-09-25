@@ -51,8 +51,8 @@ func Open(dir string, opts Options) (*Store, error) {
 			return nil, fmt.Errorf("onesie: creating the cache dir %s: %w", dir, err)
 		}
 
-		if err := fsys.WriteFile(filepath.Join(dir, tagName), []byte(tagContent), 0o600); err != nil {
-			return nil, fmt.Errorf("onesie: writing %s in the cache dir: %w", tagName, err)
+		if err := writeTag(fsys, dir); err != nil {
+			return nil, err
 		}
 	case statErr != nil:
 		return nil, fmt.Errorf("onesie: reading the cache dir %s: %w", dir, statErr)
@@ -60,9 +60,44 @@ func Open(dir string, opts Options) (*Store, error) {
 		return nil, fmt.Errorf("onesie: the cache dir %s is not a directory", dir)
 	case opts.GOOS != "windows" && info.Mode().Perm()&0o077 != 0:
 		return nil, &ModeError{Dir: dir, Mode: info.Mode().Perm()}
+	default:
+		if err := tagUntagged(fsys, dir); err != nil {
+			return nil, err
+		}
 	}
 
 	return &Store{dir: dir, opts: opts}, nil
+}
+
+func tagUntagged(fsys FS, dir string) error {
+	// A directory holding nothing but what onesie writes gets its tag, so clear can empty it later.
+	// One holding anything else may not be onesie's, and is left untagged.
+	if _, err := fsys.Stat(filepath.Join(dir, tagName)); !errors.Is(err, fs.ErrNotExist) {
+		return nil
+	}
+
+	names, err := fsys.ReadDir(dir)
+	if err != nil {
+		return fmt.Errorf("onesie: reading the cache dir %s: %w", dir, err)
+	}
+
+	for _, named := range names {
+		ours := (named.IsDir() && isFanout(named.Name())) ||
+			(named.Type().IsRegular() && strings.HasPrefix(named.Name(), tempPrefix))
+		if !ours {
+			return nil
+		}
+	}
+
+	return writeTag(fsys, dir)
+}
+
+func writeTag(fsys FS, dir string) error {
+	if err := fsys.WriteFile(filepath.Join(dir, tagName), []byte(tagContent), 0o600); err != nil {
+		return fmt.Errorf("onesie: writing %s in the cache dir %s: %w", tagName, dir, err)
+	}
+
+	return nil
 }
 
 func (o Options) withDefaults() Options {
@@ -180,24 +215,26 @@ func (s *Store) Get(key Key, provider, model string) ([]byte, bool, error) {
 	}
 
 	now := s.opts.Now()
+	age := now.Sub(stored.Stored)
 
-	if !pinned && now.Sub(stored.Stored) >= s.opts.AliasTTL {
-		if err := s.opts.FS.Remove(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
-			return nil, false, fmt.Errorf("removing the expired %s: %w", path, err)
-		}
-
+	// An expired entry is only a miss, and the Put after it overwrites it. Another run with a longer
+	// lifetime may still read it. A stored time in the future comes from a clock that cannot be
+	// trusted, so it is a miss too.
+	if age < 0 || (!pinned && age >= s.opts.AliasTTL) {
 		return nil, false, nil
 	}
 
-	if err := s.opts.FS.Chtimes(path, now, now); err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
-			return nil, false, nil
-		}
-
-		return nil, false, fmt.Errorf("marking %s as used: %w", path, err)
-	}
+	s.markUsed(path, now)
 
 	return stored.Value, true, nil
+}
+
+func (s *Store) markUsed(path string, now time.Time) {
+	// A failed mark only makes the entry look older to eviction, so the hit stands and the error goes
+	// nowhere.
+	if err := s.opts.FS.Chtimes(path, now, now); err != nil {
+		return
+	}
 }
 
 func readEntry(data []byte, model string) (entry, bool) {
@@ -352,11 +389,15 @@ func (s *Store) walk() (int64, error) {
 
 	now := s.opts.Now()
 
+	// A run's lifetime decides what it reads, not what it deletes, so a shorter one never removes an
+	// entry other runs still read. Under NoAliasTTL the run reads no alias entry and deletes none.
+	expiry := max(s.opts.AliasTTL, limits.DefaultCacheTTL)
+
 	var total int64
 
 	for _, f := range files {
 		stale := (f.kind == tempFile && now.Sub(f.mtime) > tempMaxAge) ||
-			(f.kind == aliasEntry && now.Sub(f.mtime) >= s.opts.AliasTTL)
+			(f.kind == aliasEntry && s.opts.AliasTTL > 0 && now.Sub(f.mtime) >= expiry)
 
 		if stale {
 			if err := s.opts.FS.Remove(f.path); err != nil && !errors.Is(err, fs.ErrNotExist) {

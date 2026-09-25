@@ -131,12 +131,21 @@ func openCache(settings rootSettings) (*cache.Store, error) {
 		return nil, err
 	}
 
+	// A cache others can read, or a lifetime onesie cannot read, is something the user asked for and
+	// has to fix, so either ends the run. Any other failure only turns the cache off.
 	ttl, err := aliasTTL(settings.lookupEnv)
 	if err != nil {
-		return nil, err
+		return nil, &cacheRefusedError{err: err}
 	}
 
-	return cache.Open(dir, cache.Options{Now: settings.now, GOOS: settings.goos, AliasTTL: ttl})
+	store, err := cache.Open(dir, cache.Options{Now: settings.now, GOOS: settings.goos, AliasTTL: ttl})
+
+	var readable *cache.ModeError
+	if errors.As(err, &readable) {
+		return nil, &cacheRefusedError{err: err}
+	}
+
+	return store, err
 }
 
 func aliasTTL(lookupEnv func(string) (string, bool)) (time.Duration, error) {
@@ -163,10 +172,14 @@ func (a *cachedAnswerer) answer(ctx context.Context, key recordKey, req jev.Requ
 	}
 
 	store, err := a.open()
+	if halting(err) {
+		return reply{}, err
+	}
+
 	if err != nil {
-		// Before any request, since a cache others can read, or a lifetime onesie cannot read, is
-		// something the user asked for and has to fix.
-		return reply{}, &cacheRefusedError{err: err}
+		a.fail(fmt.Errorf("the cache could not open, so onesie asks the API for the rest of this run: %w", err))
+
+		return a.next.answer(ctx, key, req)
 	}
 
 	id, err := requestKey(req.State, a.model, req.Questions, a.origin)
@@ -176,7 +189,7 @@ func (a *cachedAnswerer) answer(ctx context.Context, key recordKey, req jev.Requ
 
 	value, hit, err := store.Get(cache.Key(id), a.provider, a.model)
 	if err != nil {
-		a.fail(store, err)
+		a.fail(failed(store, err))
 
 		return a.next.answer(ctx, key, req)
 	}
@@ -193,7 +206,7 @@ func (a *cachedAnswerer) answer(ctx context.Context, key recordKey, req jev.Requ
 	}
 
 	if putErr := a.put(store, cache.Key(id), fresh.result); putErr != nil {
-		a.fail(store, putErr)
+		a.fail(failed(store, putErr))
 	}
 
 	return fresh, nil
@@ -239,9 +252,13 @@ func (a *cachedAnswerer) put(store *cache.Store, id cache.Key, result *jev.Resul
 	return store.Put(id, a.provider, a.model, value)
 }
 
-func (a *cachedAnswerer) fail(store *cache.Store, err error) {
+func failed(store *cache.Store, err error) error {
+	return fmt.Errorf("the cache at %s failed, so onesie asks the API for the rest of this run: %w", store.Dir(), err)
+}
+
+func (a *cachedAnswerer) fail(err error) {
 	a.off.Store(true)
-	a.warn(fmt.Errorf("the cache at %s failed, so onesie asks the API for the rest of this run: %w", store.Dir(), err))
+	a.warn(err)
 }
 
 func (a *cachedAnswerer) salt(key recordKey) (string, bool) {

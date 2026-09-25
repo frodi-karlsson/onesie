@@ -119,6 +119,33 @@ func TestOpenCache(t *testing.T) {
 		}
 	})
 
+	t.Run("should refuse only a readable directory and a bad lifetime, and pass every other error on", func(t *testing.T) {
+		t.Parallel()
+
+		var refused *cacheRefusedError
+
+		settings, dir := settingsAt(t, nil, "linux", time.Now)
+		mustMkdirMode(t, dir, 0o755)
+
+		if _, err := openCache(settings); !errors.As(err, &refused) {
+			t.Errorf("openCache on mode 755 = %v, want a refusal", err)
+		}
+
+		settings, _ = settingsAt(t, map[string]string{envCacheTTL: "soon"}, "linux", time.Now)
+		if _, err := openCache(settings); !errors.As(err, &refused) {
+			t.Errorf("openCache under a bad lifetime = %v, want a refusal", err)
+		}
+
+		settings, dir = settingsAt(t, nil, "linux", time.Now)
+		if err := os.WriteFile(dir, []byte("x"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+
+		if _, err := openCache(settings); err == nil || errors.As(err, &refused) {
+			t.Errorf("openCache on a file = %v, want an error that is not a refusal", err)
+		}
+	})
+
 	t.Run("should read ONESIE_CACHE_TTL for alias entries", func(t *testing.T) {
 		t.Parallel()
 
@@ -302,6 +329,46 @@ func TestCachedAnswerer(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("should warn once and ask the API when the cache cannot open", func(t *testing.T) {
+		t.Parallel()
+
+		stub := newAnswerStub(t)
+
+		var (
+			mu       sync.Mutex
+			warnings []string
+		)
+
+		factory, dir := build(t, stub, func(err error) {
+			mu.Lock()
+			defer mu.Unlock()
+
+			warnings = append(warnings, err.Error())
+		})
+
+		if err := os.WriteFile(dir, []byte("not a directory"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+
+		asker, err := factory(t.Context(), &collector{})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		for range 2 {
+			if got, answerErr := asker.answer(t.Context(), key, request); answerErr != nil || got.cached || got.result == nil {
+				t.Fatalf("answer = %+v, %v, want a live answer", got, answerErr)
+			}
+		}
+
+		mu.Lock()
+		defer mu.Unlock()
+
+		if len(warnings) != 1 || !strings.Contains(warnings[0], "for the rest of this run") || !strings.Contains(warnings[0], dir) {
+			t.Errorf("warnings = %q, want one naming the directory and the rest of this run", warnings)
+		}
+	})
 
 	t.Run("should not open the store until the first answer", func(t *testing.T) {
 		t.Parallel()
@@ -619,6 +686,33 @@ func TestAsk(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("should warn once and exit 0 under ONESIE_CACHE=1 with a home onesie cannot write", func(t *testing.T) {
+		t.Parallel()
+
+		stub := newAnswerStub(t)
+		env := cacheEnv(t)
+		delete(env, "ONESIE_CACHE_DIR")
+		env[envCache] = "1"
+
+		home := filepath.Join(t.TempDir(), "home")
+		mustMkdirMode(t, home, 0o500)
+		t.Cleanup(func() { _ = os.Chmod(home, 0o700) })
+		env["HOME"] = home
+
+		out, errOut, code := runCached(t, env, []string{"is it urgent", "-i", "lines", "--base-url", stub.url}, "one\ntwo\n")
+		if code != ExitOK || strings.Count(out, "\n") != 2 {
+			t.Fatalf("exit %d, stdout %q, want two answers\n%s", code, out, errOut)
+		}
+
+		if strings.Count(errOut, "warning: ") != 1 || !strings.Contains(errOut, "for the rest of this run") {
+			t.Errorf("stderr = %q, want one cache warning", errOut)
+		}
+
+		if got := stub.requests.Load(); got != 2 {
+			t.Errorf("%d requests, want 2", got)
+		}
+	})
 
 	t.Run("should exit 2 before any request for a cache dir others can read", func(t *testing.T) {
 		t.Parallel()

@@ -35,6 +35,43 @@ func TestOpen(t *testing.T) {
 		{name: "should accept any mode on windows", mode: 0o755, goos: "windows"},
 	}
 
+	tagged := []struct {
+		name    string
+		content []string
+		want    bool
+	}{
+		{name: "should tag an existing empty directory", want: true},
+		{name: "should tag a directory holding only fan out directories and temporary files", content: []string{"ab/", "cd/", ".onesie-tmp-1"}, want: true},
+		{name: "should not tag a directory holding a foreign file", content: []string{"ab/", "notes.txt"}},
+		{name: "should not tag a directory holding a foreign directory", content: []string{"zz/"}},
+	}
+
+	for _, tc := range tagged {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			dir := filepath.Join(t.TempDir(), "onesie")
+			mustMkdir(t, dir, 0o700)
+
+			for _, name := range tc.content {
+				if dirName, isDir := strings.CutSuffix(name, "/"); isDir {
+					mustMkdir(t, filepath.Join(dir, dirName), 0o700)
+				} else {
+					mustWrite(t, filepath.Join(dir, name), "x")
+				}
+			}
+
+			if _, err := cache.Open(dir, cache.Options{Now: fixed(t0)}); err != nil {
+				t.Fatal(err)
+			}
+
+			_, err := os.Stat(filepath.Join(dir, "CACHEDIR.TAG"))
+			if got := err == nil; got != tc.want {
+				t.Errorf("CACHEDIR.TAG written = %v, want %v", got, tc.want)
+			}
+		})
+	}
+
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -133,7 +170,7 @@ func TestGet(t *testing.T) {
 	}{
 		{name: "should hit a pinned entry a year after it was stored", model: "jev-1.13.0", age: 365 * 24 * time.Hour, hit: true},
 		{name: "should hit an alias entry at 23 hours", model: "jev-latest", age: 23 * time.Hour, hit: true},
-		{name: "should miss an alias entry at 25 hours and remove it", model: "jev-latest", age: 25 * time.Hour},
+		{name: "should miss an alias entry at 25 hours and leave it for the next Put", model: "jev-latest", age: 25 * time.Hour},
 		{name: "should hit an alias entry at 89 minutes under a 90 minute TTL", model: "jev-latest", ttl: 90 * time.Minute, age: 89 * time.Minute, hit: true},
 		{name: "should miss an alias entry at 91 minutes under a 90 minute TTL", model: "jev-latest", ttl: 90 * time.Minute, age: 91 * time.Minute},
 		{name: "should hit a pinned entry a year on under a 90 minute TTL", model: "jev-1.13.0", ttl: 90 * time.Minute, age: 365 * 24 * time.Hour, hit: true},
@@ -154,9 +191,8 @@ func TestGet(t *testing.T) {
 				t.Fatalf("Get = %v, %v, want hit %v", hit, err, tc.hit)
 			}
 
-			_, statErr := os.Stat(entryPath(dir, key(0xcd, 1), !cache.Pinned("typesafe", tc.model)))
-			if exists := statErr == nil; exists != tc.hit {
-				t.Errorf("entry file exists = %v after the Get, want %v", exists, tc.hit)
+			if _, statErr := os.Stat(entryPath(dir, key(0xcd, 1), !cache.Pinned("typesafe", tc.model))); statErr != nil {
+				t.Errorf("the Get removed the entry: %v", statErr)
 			}
 		})
 	}
@@ -179,6 +215,37 @@ func TestGet(t *testing.T) {
 
 		if _, hit, err := store.Get(key(0xab, 2), "typesafe", "jev-1.13.0"); !hit || err != nil {
 			t.Errorf("pinned Get = %v, %v, want a hit", hit, err)
+		}
+	})
+
+	for _, model := range []string{"jev-latest", "jev-1.13.0"} {
+		t.Run("should miss a "+model+" entry stored in the future", func(t *testing.T) {
+			t.Parallel()
+
+			clock := newClock(t0.Add(time.Hour))
+			store, _ := openAt(t, clock.now, cache.Options{})
+			mustPut(t, store, key(0xab, 1), "typesafe", model, []byte(`1`))
+			clock.set(t0)
+
+			if _, hit, err := store.Get(key(0xab, 1), "typesafe", model); hit || err != nil {
+				t.Errorf("Get = %v, %v, want a miss", hit, err)
+			}
+		})
+	}
+
+	t.Run("should still hit when marking the entry as used fails", func(t *testing.T) {
+		t.Parallel()
+
+		seed, dir := openAt(t, fixed(t0), cache.Options{})
+		mustPut(t, seed, key(0xab, 1), "typesafe", "jev-1.13.0", []byte(`"v"`))
+
+		store, err := cache.Open(dir, cache.Options{Now: fixed(t0), FS: failingFS{failOn: "Chtimes"}})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if got, hit, err := store.Get(key(0xab, 1), "typesafe", "jev-1.13.0"); !hit || err != nil || string(got) != `"v"` {
+			t.Errorf("Get = %q, %v, %v, want a hit", got, hit, err)
 		}
 	})
 
@@ -378,6 +445,39 @@ func TestPut(t *testing.T) {
 			}
 		}
 	})
+
+	walks := []struct {
+		name  string
+		ttl   time.Duration
+		age   time.Duration
+		keeps bool
+	}{
+		{name: "should keep every alias entry in the walk under NoAliasTTL", ttl: cache.NoAliasTTL, age: 1000 * time.Hour, keeps: true},
+		{name: "should expire alias entries against 24 hours, not a shorter TTL", ttl: 90 * time.Minute, age: 2 * time.Hour, keeps: true},
+		{name: "should still expire an alias entry past 24 hours under a shorter TTL", ttl: 90 * time.Minute, age: 25 * time.Hour},
+		{name: "should keep an alias entry a longer TTL still reads", ttl: 72 * time.Hour, age: 48 * time.Hour, keeps: true},
+	}
+
+	for _, tc := range walks {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			seed, dir := openAt(t, fixed(t0), cache.Options{})
+			mustPut(t, seed, key(0xab, 1), "typesafe", "jev-latest", []byte(`1`))
+
+			store, err := cache.Open(dir, cache.Options{Now: fixed(t0.Add(tc.age)), AliasTTL: tc.ttl})
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			mustPut(t, store, key(0xcd, 1), "typesafe", "jev-1.13.0", []byte(`2`))
+
+			_, statErr := os.Stat(entryPath(dir, key(0xab, 1), true))
+			if kept := statErr == nil; kept != tc.keeps {
+				t.Errorf("alias entry kept = %v, want %v", kept, tc.keeps)
+			}
+		})
+	}
 
 	t.Run("should leave foreign files alone and not count them", func(t *testing.T) {
 		t.Parallel()
@@ -726,7 +826,12 @@ func (failingFS) WriteFile(path string, data []byte, perm os.FileMode) error {
 	return os.WriteFile(path, data, perm)
 }
 
-func (failingFS) Chtimes(path string, atime, mtime time.Time) error {
+func (f failingFS) Chtimes(path string, atime, mtime time.Time) error {
+	// A temporary file's times are set before the rename, so only an entry's fail.
+	if f.failOn == "Chtimes" && !strings.Contains(filepath.Base(path), ".onesie-tmp-") {
+		return errInjected
+	}
+
 	return os.Chtimes(path, atime, mtime)
 }
 
