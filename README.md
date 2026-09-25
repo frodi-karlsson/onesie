@@ -13,17 +13,32 @@ echo 'EVERYTHING IS DOWN, CALL ME NOW' | onesie 'does this convey urgency' -r
 
 ## Install
 
+Homebrew, on macOS or Linux:
+
 ```sh
 brew install frodi-karlsson/tap/onesie
-onesie auth set
 ```
 
-The Homebrew cask goes live with the first release. Until then, install with Go, then run
-`onesie auth set`:
+The install script, which checks the download against the release's `checksums.txt`, and against
+its build provenance when `gh` is logged in:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/frodi-karlsson/onesie/main/install.sh | sh
+```
+
+It installs to `~/.local/bin`. Set `ONESIE_INSTALL_DIR` for another directory, and `ONESIE_VERSION`
+for a release other than the latest.
+
+With Go:
 
 ```sh
 go install github.com/frodi-karlsson/onesie/cmd/onesie@latest
 ```
+
+macOS blocks a onesie binary downloaded through a browser, so install it with one of these three.
+
+Homebrew and the install script need a published release. Until the first one, use `go install`.
+Then store a key with `onesie auth set`.
 
 In Claude Code, the plugin can come first and walk you through the rest:
 

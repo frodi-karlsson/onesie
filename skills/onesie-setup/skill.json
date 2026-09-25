@@ -1,7 +1,7 @@
 {
   "name": "onesie-setup",
   "description": "Use when onesie is not on PATH, when no API key resolves, when the session start hook reports either, or when the user asks how to install or set up onesie. Walks the user through installing it, choosing a provider and storing a key, without the key ever entering the conversation.",
-  "compatibility": "Needs a shell, and a Go toolchain to install onesie until the first release.",
+  "compatibility": "Needs a shell. Installing onesie needs a Go toolchain until the first release, and Homebrew or curl after it.",
   "license": "MIT",
   "intro": "intro.md",
   "rules": [

@@ -69,22 +69,69 @@ See `AGENTS.md`. Follow it without being asked.
 ## Releasing
 
 Tag and push. The release workflow runs goreleaser, which cross compiles for
-linux, darwin and windows on amd64 and arm64, publishes the archives and
-`checksums.txt` to a GitHub release, then builds a Homebrew cask.
+linux, darwin and windows on amd64 and arm64, puts the bash, zsh and fish
+completions in every archive, and publishes the archives and `checksums.txt` to
+a GitHub release. The workflow then attests build provenance for the archives
+and `checksums.txt`, and generates the Homebrew formula.
 
 ```sh
 git tag v0.1.0 && git push origin v0.1.0
 ```
-
-The cask is currently inert. `homebrew_casks[0].skip_upload: true` in
-`.goreleaser.yml` means the cask is written to `dist/homebrew/Casks/onesie.rb` and
-never pushed. The `HOMEBREW_TAP_TOKEN` repository secret is set, with write
-access to `frodi-karlsson/homebrew-tap`, because the workflow's own
-`GITHUB_TOKEN` cannot write to another repository. It stays unused until the cask
-goes live. To go live, set `skip_upload: false`.
 
 Dry run the whole pipeline without tagging:
 
 ```sh
 goreleaser release --snapshot --clean
 ```
+
+### The Homebrew formula
+
+onesie ships a formula, not a cask. Homebrew quarantines a cask on download, and
+Gatekeeper refuses to run an unsigned binary that carries the quarantine
+attribute. A formula is not quarantined.
+
+`cmd/formulagen` reads `dist/checksums.txt` and the version, and writes a
+formula that installs the prebuilt archive for darwin and linux on arm64 and
+amd64, along with its completions. To see the formula for a snapshot, pass the
+version from the snapshot's archive names:
+
+```sh
+go run ./cmd/formulagen -version 0.0.1-next -out dist/homebrew/Formula/onesie.rb
+```
+
+The push to `frodi-karlsson/homebrew-tap` is currently off.
+`HOMEBREW_TAP_PUBLISH: 'false'` on the release job in
+`.github/workflows/release.yml` keeps the tap checkout and push steps from
+running, so every release generates the formula and prints it to the log, and
+nothing is pushed. The `HOMEBREW_TAP_TOKEN` repository secret is set, with
+write access to `frodi-karlsson/homebrew-tap`, because the workflow's own
+`GITHUB_TOKEN` cannot write to another repository. To switch the push on, set
+`HOMEBREW_TAP_PUBLISH: 'true'` and merge that. A tag with a prerelease suffix,
+such as `v1.0.0-rc.1`, never reaches the tap.
+
+### Notarization
+
+The darwin binaries ship unsigned for now, as jq and ripgrep do. Homebrew, the
+install script and `go install` never set the quarantine attribute, so
+Gatekeeper lets the binary run. The `notarize.macos` block in `.goreleaser.yml`
+stays off until the `MACOS_SIGN_P12` secret exists. To switch it on:
+
+1. Create a Developer ID Application certificate in the Apple Developer
+   account. Import the `.cer` into Keychain Access, then export the certificate
+   with its private key as a `.p12` protected by a password.
+2. Create an App Store Connect API key under Users and Access, then
+   Integrations. Note its issuer ID and key ID, and download its `.p8` file.
+   Apple lets you download it only once.
+3. Add five repository secrets:
+   - `MACOS_SIGN_P12`: the output of `base64 -i Certificates.p12`
+   - `MACOS_SIGN_PASSWORD`: the password of the `.p12`
+   - `MACOS_NOTARY_ISSUER_ID`: the issuer ID
+   - `MACOS_NOTARY_KEY_ID`: the key ID
+   - `MACOS_NOTARY_KEY`: the output of `base64 -i AuthKey_KEYID.p8`
+4. Tag a release. goreleaser signs and notarizes the darwin binaries before it
+   archives them. A bare binary cannot carry a stapled ticket, so Gatekeeper
+   checks the notarization online the first time the binary runs.
+5. Verify on a Mac. Extract a darwin archive and run `codesign -dv onesie`. It
+   should print your `TeamIdentifier`, and not `Signature=adhoc`. Then run
+   `xcrun notarytool history --issuer ISSUER_ID --key-id KEY_ID --key AuthKey_KEYID.p8`
+   and check that the release's submissions show `Accepted`.

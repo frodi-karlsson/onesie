@@ -9,7 +9,12 @@ go install github.com/frodi-karlsson/onesie/cmd/onesie@latest
 
 `go install` writes the binary to `$GOBIN`, or to `$(go env GOPATH)/bin` when that is unset, which is often not on PATH. If `command -v onesie` still finds nothing, have the user add that directory to PATH in their shell profile and open a new shell.
 
-The Homebrew cask, `brew install frodi-karlsson/tap/onesie`, works only once a release exists. Do not tell the user when that will be.
+Once a release exists, two more ways work, and neither needs Go. Do not tell the user when that will be.
+
+- The Homebrew formula, `brew install frodi-karlsson/tap/onesie`. It is a formula, not a cask, so macOS does not quarantine the binary.
+- The install script, `curl -fsSL https://raw.githubusercontent.com/frodi-karlsson/onesie/main/install.sh | sh`. It checks the sha256 of the download, installs to `~/.local/bin` or to `$ONESIE_INSTALL_DIR`, and warns when that directory is not on PATH.
+
+Never suggest downloading the binary from the releases page in a browser. macOS blocks a binary downloaded that way.
 
 Confirm the install with `onesie -V`, which prints the version and the built in limits.
 
