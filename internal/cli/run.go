@@ -793,7 +793,7 @@ func ask(
 	record = judge(gate, abstain, record, stats)
 
 	if flags.quiet {
-		// Beside an assertion -q only silences the output. Stacking its own gate on top made a
+		// Beside an assertion -q only silences the output. A gate of its own on top would make a
 		// safety assertion such as value < 0.5 impossible to pass.
 		if gate == nil {
 			return quietResult(built.Questions[0], record.Answers[0].Answer)
