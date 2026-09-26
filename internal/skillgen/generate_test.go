@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/goccy/go-yaml"
+
 	"github.com/frodi-karlsson/onesie/internal/skillgen"
 )
 
@@ -63,7 +65,7 @@ func TestGenerate(t *testing.T) {
 		}
 	})
 
-	t.Run("should keep allowed-tools and argument-hint out of every SKILL.md, since no client is known to accept them", func(t *testing.T) {
+	t.Run("should write allowed-tools into every SKILL.md as a plain string, and argument-hint nowhere", func(t *testing.T) {
 		t.Parallel()
 
 		root := t.TempDir()
@@ -83,11 +85,36 @@ func TestGenerate(t *testing.T) {
 			filepath.Join("skills", "onesie-gate", "SKILL.md"),
 			filepath.Join(".agents", "skills", "onesie-gate", "SKILL.md"),
 			filepath.Join(".cursor", "skills", "onesie-gate", "SKILL.md"),
+		} {
+			got := readFile(t, filepath.Join(root, rel))
+
+			front, _, found := strings.Cut(strings.TrimPrefix(got, "---\n"), "\n---\n")
+			if !found {
+				t.Fatalf("%s = %q, want a frontmatter block", rel, got)
+			}
+
+			var fields map[string]any
+			if err := yaml.Unmarshal([]byte(front), &fields); err != nil {
+				t.Fatalf("%s frontmatter does not parse: %v", rel, err)
+			}
+
+			if tools, ok := fields["allowed-tools"].(string); !ok || tools != "Bash(onesie:*)" {
+				t.Errorf("%s allowed-tools = %#v, want the string Bash(onesie:*)", rel, fields["allowed-tools"])
+			}
+
+			if !strings.Contains(got, "\nallowed-tools: Bash(onesie:*)\n") {
+				t.Errorf("%s = %q, want the line allowed-tools: Bash(onesie:*)", rel, got)
+			}
+		}
+
+		for _, rel := range []string{
+			filepath.Join("skills", "onesie-gate", "SKILL.md"),
+			filepath.Join(".agents", "skills", "onesie-gate", "SKILL.md"),
+			filepath.Join(".cursor", "skills", "onesie-gate", "SKILL.md"),
 			filepath.Join("skills", "onesie-gate", "agents", "gemini.toml"),
 		} {
-			if got := readFile(t, filepath.Join(root, rel)); strings.Contains(got, "allowed") ||
-				strings.Contains(got, "argument") {
-				t.Errorf("%s = %q, want no allowed-tools or argument-hint", rel, got)
+			if got := readFile(t, filepath.Join(root, rel)); strings.Contains(got, "argument") {
+				t.Errorf("%s = %q, want no argument-hint", rel, got)
 			}
 		}
 	})

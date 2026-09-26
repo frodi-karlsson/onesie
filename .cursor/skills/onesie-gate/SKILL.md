@@ -4,6 +4,7 @@ name: onesie-gate
 description: Use when a onesie answer decides whether a command runs, a step continues, a build fails or a low confidence answer goes to a human, and before writing 'if onesie', 'onesie ... && cmd', -q or --assert. One common gate recipe looks right and is silently wrong. To pick the cut a gate uses, also load onesie-calibrate.
 compatibility: Requires the onesie binary on PATH.
 license: MIT
+allowed-tools: Bash(onesie:*)
 ---
 
 A gate is any point where a onesie answer decides whether a shell command runs, a script step

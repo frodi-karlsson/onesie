@@ -4,6 +4,7 @@ name: onesie-stream
 description: Use when onesie runs over more than one record, a JSONL file, a list of lines or saved request bodies, and before writing a shell loop that calls onesie once per record. Also when reading onesie output with jq, when the input is live such as tail -f, or when a batch run exits 6 or 3.
 compatibility: Requires the onesie binary on PATH.
 license: MIT
+allowed-tools: Bash(onesie:*)
 ---
 
 onesie streams over many records with `-i jsonl`, `-i lines`, `-i csv`, `-i tsv` or `-i request`,

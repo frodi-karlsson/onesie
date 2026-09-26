@@ -35,8 +35,8 @@ func RenderSkill(skill Skill, accepts Frontmatter, intro string, sections []stri
 	return joinBlocks(blocks)
 }
 
-// Frontmatter names the optional SKILL.md frontmatter fields a skill loader accepts, beyond the
-// Agent Skills fields every loader reads.
+// Frontmatter names the optional SKILL.md frontmatter fields a skill loader accepts, beyond name,
+// description, compatibility, license and metadata.
 type Frontmatter struct {
 	AllowedTools bool
 	ArgumentHint bool

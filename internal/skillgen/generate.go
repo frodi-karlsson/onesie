@@ -12,13 +12,15 @@ import (
 const skillsDir = "skills"
 
 var (
-	// The optional frontmatter each skill loader accepts, from the evidence in this repo. It shows
-	// none of them taking allowed-tools or argument-hint, so none is marked, and a field reaches a
-	// SKILL.md only once every loader that reads that file is.
-	claudeCode = Frontmatter{}
-	codex      = Frontmatter{}
-	cursor     = Frontmatter{}
-	geminiCLI  = Frontmatter{}
+	// The optional frontmatter each skill loader accepts. allowed-tools is a field of the Agent
+	// Skills spec, so every loader takes it, and RenderSkill writes it as a plain string, the only
+	// form Codex accepts. argument-hint is Claude Code only and not in the spec, so no loader of
+	// the shared SKILL.md is marked for it, and a field reaches a SKILL.md only once every loader
+	// that reads that file is.
+	claudeCode = Frontmatter{AllowedTools: true}
+	codex      = Frontmatter{AllowedTools: true}
+	cursor     = Frontmatter{AllowedTools: true}
+	geminiCLI  = Frontmatter{AllowedTools: true}
 
 	// skills/NAME/SKILL.md is read by Claude Code and Codex through the plugin manifests, and by
 	// Cursor and Gemini CLI as a portable skill.

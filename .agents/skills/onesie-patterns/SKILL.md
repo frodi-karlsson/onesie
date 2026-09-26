@@ -4,6 +4,7 @@ name: onesie-patterns
 description: "Use when one onesie question cannot answer the problem: more than 255 options or options that cluster, a shortlist to pick from among many candidates, a low confidence answer that should reach a person, or several independent questions about the same text. Composes --pick, --min-confidence, --fallback, --abstain-if and --ask. For the question shapes themselves, load the onesie skill."
 compatibility: Requires the onesie binary on PATH.
 license: MIT
+allowed-tools: Bash(onesie:*)
 ---
 
 Some problems need more than one onesie question. The patterns here chain questions so that each

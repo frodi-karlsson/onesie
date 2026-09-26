@@ -4,6 +4,7 @@ name: onesie
 description: Use when a script needs a onesie judgment on one piece of text, as a probability, one of several named options or a rubric level, and before prompting a general model and parsing its reply. Covers --ask, --pick, --rate, --desc, question files and free dry runs. For a file of many records, also load onesie-stream.
 compatibility: Requires the onesie binary on PATH. A key is needed for anything but --print-request and --print-questions.
 license: MIT
+allowed-tools: Bash(onesie:*)
 ---
 
 onesie asks the TypeSafe Jev model one typed question about a piece of text from the command line.

@@ -4,6 +4,7 @@ name: onesie-calibrate
 description: Use before choosing a --threshold or --assert cut, when the user has labelled records, or when CI must guard a gate. Covers onesie calibrate, reading its report, --require and --offline. The built in starter sets come calibrated already.
 compatibility: Requires the onesie binary on PATH. A key is needed for anything but --print-request and --offline.
 license: MIT
+allowed-tools: Bash(onesie:*)
 ---
 
 `onesie calibrate` asks a question about records whose right answer is already known, and prints

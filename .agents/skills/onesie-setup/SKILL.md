@@ -4,6 +4,7 @@ name: onesie-setup
 description: Use when onesie is not on PATH, when no API key resolves, when the session start hook reports either, or when the user asks how to install or set up onesie. Walks the user through installing it, choosing a provider and storing a key, without the key ever entering the conversation.
 compatibility: Needs a shell. Installing onesie needs Homebrew, curl or a Go toolchain.
 license: MIT
+allowed-tools: Bash(onesie:*)
 ---
 
 onesie is a command line tool that asks the TypeSafe Jev model typed questions about text. It needs the `onesie` binary on PATH and an API key, from TypeSafe, OpenRouter or Berget. This skill walks a user from nothing to a working first command.
