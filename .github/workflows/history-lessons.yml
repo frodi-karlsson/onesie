@@ -1,0 +1,136 @@
+name: History lessons
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# Asks onesie whether each changed comment or doc paragraph tells how things used to be rather
+# than how they are. It is advice for the author, so no ruleset requires this job.
+#
+# Third party code is pinned by digest rather than by tag, so a retagged
+# release cannot silently change what runs here. Trailing comments record the
+# human readable version each digest corresponds to.
+jobs:
+  history-lessons:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # the diff needs the merge base or the pushed range
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+
+      - name: Build onesie and proseblocks
+        run: |
+          go build -o "$RUNNER_TEMP/bin/onesie" ./cmd/onesie
+          go build -o "$RUNNER_TEMP/bin/proseblocks" ./cmd/proseblocks
+
+      # The run id makes every key new, so each run saves its cache, and the prefix restores the
+      # newest one, so answers carry across runs.
+      - name: Restore the response cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .onesie-cache
+          key: history-lessons-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: history-lessons-
+
+      - name: Ask about the changed prose
+        shell: bash
+        env:
+          TYPESAFE_API_KEY: ${{ secrets.TYPESAFE_API_KEY }}
+          ONESIE_CACHE_DIR: ${{ github.workspace }}/.onesie-cache
+          EVENT: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          summary() { printf '%s\n' "$@" >> "$GITHUB_STEP_SUMMARY"; }
+
+          # Absent on a fork, whose pull requests get no secrets.
+          if [ -z "$TYPESAFE_API_KEY" ]; then
+            summary "History lessons: skipped, no key."
+            exit 0
+          fi
+
+          if [ "$EVENT" = pull_request ]; then
+            base=$(git merge-base "origin/$BASE_REF" HEAD)
+          elif [ -n "$BEFORE" ] && [ "$BEFORE" != 0000000000000000000000000000000000000000 ] &&
+            git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            base=$BEFORE
+          else
+            base=HEAD~1
+          fi
+
+          changed="$RUNNER_TEMP/changed"
+          git diff -z --name-only "$base" HEAD -- '*.go' '*.md' > "$changed"
+          if [ ! -s "$changed" ]; then
+            summary "History lessons: no Go or Markdown file changed."
+            exit 0
+          fi
+
+          blocks="$RUNNER_TEMP/blocks.jsonl"
+          xargs -0 "$RUNNER_TEMP/bin/proseblocks" < "$changed" > "$blocks"
+          if [ ! -s "$blocks" ]; then
+            summary "History lessons: the changed files hold no prose blocks."
+            exit 0
+          fi
+
+          if [ -d "$ONESIE_CACHE_DIR" ]; then
+            chmod 700 "$ONESIE_CACHE_DIR"
+          fi
+
+          report="$RUNNER_TEMP/report.md"
+          status=0
+          "$RUNNER_TEMP/bin/onesie" -f history-lesson -m jev-1.13.0 --provider typesafe \
+            -i jsonl --map .text --id .id --cache -o markdown < "$blocks" > "$report" || status=$?
+
+          show_blocks() {
+            local verdict=$1 title=$2 ids
+            ids=$(sed -nE "s/^[|] \`([^\`]+)\` [|].*[|] $verdict [|].*/\1/p" "$report")
+            if [ -z "$ids" ]; then
+              return
+            fi
+
+            summary "" "**$title**" ""
+            while IFS= read -r id; do
+              jq -r --arg id "$id" 'select(.id == $id) | "- `\(.id)`: \(.text)"' "$blocks" >> "$GITHUB_STEP_SUMMARY"
+            done <<< "$ids"
+          }
+
+          summary "## History lessons" ""
+          tee -a "$GITHUB_STEP_SUMMARY" < "$report"
+
+          case $status in
+            0) ;;
+            1)
+              show_blocks failed "Flagged as history lessons"
+              show_blocks unsure "Unsure"
+              echo "::error::Some changed prose tells how things used to be. Describe the current state instead."
+              exit 1
+              ;;
+            7) show_blocks unsure "Unsure" ;;
+            *)
+              echo "::error::onesie exited $status, so the check has no answer. See the log above."
+              exit 1
+              ;;
+          esac
+
+      - name: Save the response cache
+        if: always() && hashFiles('.onesie-cache/**') != ''
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .onesie-cache
+          key: history-lessons-${{ github.run_id }}-${{ github.run_attempt }}
