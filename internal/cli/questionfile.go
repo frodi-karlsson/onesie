@@ -28,6 +28,12 @@ func readQuestionFile(settings rootSettings, value string) ([]byte, string, erro
 		return nil, "", err
 	}
 
+	if source.BuiltIn != "" {
+		data, _ = settings.readBuiltIn(source.BuiltIn)
+
+		return data, "built-in " + source.BuiltIn, nil
+	}
+
 	path := source.Path
 
 	data, err = settings.readFile(path)
@@ -57,10 +63,21 @@ func findEnv(settings rootSettings) (qfile.FindEnv, error) {
 		return qfile.FindEnv{}, fmt.Errorf("onesie: finding the working directory to look up a question file: %w", err)
 	}
 
-	return qfile.FindEnv{
+	env := qfile.FindEnv{
 		WorkDir:   workDir,
 		ConfigDir: settings.configDir,
 		ReadDir:   settings.readDir,
 		Resolve:   settings.resolve,
-	}, nil
+		BuiltIns:  settings.builtIns,
+	}
+
+	if settings.readBuiltIn != nil {
+		env.BuiltIn = func(name string) bool {
+			_, ok := settings.readBuiltIn(name)
+
+			return ok
+		}
+	}
+
+	return env, nil
 }

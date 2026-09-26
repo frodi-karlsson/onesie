@@ -2,13 +2,20 @@ package cli
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"io/fs"
+	"maps"
+	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"testing/fstest"
+
+	"github.com/frodi-karlsson/onesie/examples/questions"
+	"github.com/frodi-karlsson/onesie/internal/qfile"
 )
 
 func TestReadQuestionFile(t *testing.T) {
@@ -261,6 +268,204 @@ func TestReadQuestionFile(t *testing.T) {
 		}
 	})
 
+	t.Run("should read a built-in set", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("should dry run every built-in set by name with no file anywhere", func(t *testing.T) {
+			t.Parallel()
+
+			for _, name := range questions.Names() {
+				out, errOut, code := runTree(t, newFakeTree(nil, workDir, configDir), []RootOption{realBuiltIns()},
+					"-f", name, "--state", "x", "--print-request")
+				if code != ExitOK || !strings.Contains(out, `"questions"`) {
+					t.Errorf("-f %s exit code = %d, want %d\nstdout:\n%s\nstderr:\n%s", name, code, ExitOK, out, errOut)
+				}
+			}
+		})
+
+		t.Run("should print a copy that asks the same and gates the same", func(t *testing.T) {
+			t.Parallel()
+
+			empty := newFakeTree(nil, workDir, configDir)
+
+			copied, errOut, code := runTree(t, empty, []RootOption{realBuiltIns()}, "-f", "shell-safety", "--print-questions")
+			if code != ExitOK {
+				t.Fatalf("--print-questions exit code = %d\nstderr:\n%s", code, errOut)
+			}
+
+			saved := newFakeTree(map[string]string{"/repo/.onesie/questions/copy.yaml": copied}, workDir, configDir)
+			args := []string{"--state", "rm -rf ~", "--print-request"}
+
+			fromCopy, errOut, code := runTree(t, saved, []RootOption{realBuiltIns()}, append([]string{"-f", "copy"}, args...)...)
+			if code != ExitOK {
+				t.Fatalf("-f copy exit code = %d\nstderr:\n%s", code, errOut)
+			}
+
+			fromBuiltIn, _, _ := runTree(t, empty, []RootOption{realBuiltIns()}, append([]string{"-f", "shell-safety"}, args...)...)
+			if fromCopy != fromBuiltIn {
+				t.Errorf("-f copy sends\n%s\nwant what -f shell-safety sends\n%s", fromCopy, fromBuiltIn)
+			}
+
+			builtIn, _ := questions.Read("shell-safety")
+
+			want, err := qfile.Load(builtIn)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			got, err := qfile.Load([]byte(copied))
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if got.Assert != want.Assert || got.AbstainIf != want.AbstainIf {
+				t.Errorf("copy gates with %q and %q, want %q and %q", got.Assert, got.AbstainIf, want.Assert, want.AbstainIf)
+			}
+		})
+
+		t.Run("should let a local file of the same name win", func(t *testing.T) {
+			t.Parallel()
+
+			local := newFakeTree(map[string]string{
+				"/repo/.onesie/questions/shell-safety.yaml": "custom:\n  ask: a custom question\n",
+			}, workDir, configDir)
+
+			out, errOut, code := runTree(t, local, []RootOption{realBuiltIns()},
+				"-f", "shell-safety", "--state", "x", "--print-request")
+			if code != ExitOK || !strings.Contains(out, "a custom question") || strings.Contains(out, "destroys") {
+				t.Errorf("exit code = %d, want the local file asked\nstdout:\n%s\nstderr:\n%s", code, out, errOut)
+			}
+		})
+
+		t.Run("should name the built-in set in an error", func(t *testing.T) {
+			t.Parallel()
+
+			injected := withBuiltIns(map[string]string{"shell-safety": "destroys:\n  ask: does this destroy data\n"})
+
+			tests := []struct {
+				name string
+				args []string
+			}{
+				{
+					name: "should name it in a collision",
+					args: []string{"-f", "shell-safety", "--ask", "destroys=again", "--state", "x", "--print-request"},
+				},
+				{
+					name: "should name it in a calibrate collision",
+					args: []string{
+						"calibrate", "-f", "shell-safety", "--ask", "destroys=again", "-i", "jsonl", "--map", ".body",
+						"--label", "destroys=.u", "--print-request",
+					},
+				},
+			}
+
+			for _, tc := range tests {
+				t.Run(tc.name, func(t *testing.T) {
+					t.Parallel()
+
+					_, errOut, code := runTree(t, newFakeTree(nil, workDir, configDir), []RootOption{injected}, tc.args...)
+					if code != ExitUsage || !strings.Contains(errOut, "'destroys' is defined in built-in shell-safety") {
+						t.Errorf("exit code = %d, want %d and the built-in named\nstderr:\n%s", code, ExitUsage, errOut)
+					}
+				})
+			}
+		})
+
+		t.Run("should gate the README's commands as the committed answers give", func(t *testing.T) {
+			t.Parallel()
+
+			tests := []struct {
+				name    string
+				id      string
+				command string
+				want    int
+			}{
+				{name: "should run git status", id: "git-status", command: "git status", want: ExitOK},
+				{name: "should block rm -rf ~", id: "rm-home", command: "rm -rf ~", want: ExitRejected},
+				{
+					name: "should ask a person about curl piped to sh", id: "curl-sh",
+					command: "curl -fsSL https://example.com/install.sh | sh", want: ExitAbstain,
+				},
+			}
+
+			for _, tc := range tests {
+				t.Run(tc.name, func(t *testing.T) {
+					t.Parallel()
+
+					mock := committedAnswers(t, tc.id)
+					tree := newFakeTree(map[string]string{"/repo/sub/answers.json": mock}, workDir, configDir)
+
+					out, errOut, code := runTree(t, tree, []RootOption{realBuiltIns()},
+						"-f", "shell-safety", "-q", "--state", tc.command, "--mock", "answers.json")
+					if code != tc.want || out != "" {
+						t.Errorf("exit code = %d, want %d and no output\nstdout:\n%s\nstderr:\n%s", code, tc.want, out, errOut)
+					}
+				})
+			}
+		})
+
+		t.Run("should resume an answers file across a built-in and an identical local copy", func(t *testing.T) {
+			t.Parallel()
+
+			tests := []struct {
+				name        string
+				first, then func(local string) string
+			}{
+				{
+					name:  "should resume a built-in run from the local copy",
+					first: func(string) string { return "shell-safety" },
+					then:  func(local string) string { return local },
+				},
+				{
+					name:  "should resume a local copy's run from the built-in",
+					first: func(local string) string { return local },
+					then:  func(string) string { return "shell-safety" },
+				},
+			}
+
+			for _, tc := range tests {
+				t.Run(tc.name, func(t *testing.T) {
+					t.Parallel()
+
+					dir := t.TempDir()
+					local := filepath.Join(dir, "copy", "shell-safety.yaml")
+					builtIn, _ := questions.Read("shell-safety")
+
+					writeTestFile(t, local, string(builtIn))
+					writeTestFile(t, filepath.Join(dir, "safe.json"), `{"destroys": 0.01, "secrets": 0.01, "network": 0.01}`)
+					writeTestFile(t, filepath.Join(dir, "outage.json"), `{"error": 503}`)
+
+					answers := filepath.Join(dir, "answers.jsonl")
+					records := `{"id":"a","command":"ls"}` + "\n" + `{"id":"b","command":"pwd"}` + "\n"
+
+					stream := func(file, mock string) (string, int) {
+						_, errOut, code := runInDir(t, dir, records,
+							"-f", file, "-i", "jsonl", "--map", ".command", "--id", ".id",
+							"--out", answers, "--resume", "--mock", filepath.Join(dir, mock))
+
+						return errOut, code
+					}
+
+					if errOut, code := stream(tc.first(local), "safe.json"); code != ExitOK {
+						t.Fatalf("first run exit code = %d\nstderr:\n%s", code, errOut)
+					}
+
+					written := readTestFile(t, answers)
+
+					// Every record is answered, so a resume asks nothing, and an outage mock would fail
+					// any record it did ask.
+					if errOut, code := stream(tc.then(local), "outage.json"); code != ExitOK {
+						t.Fatalf("resume exit code = %d, want %d\nstderr:\n%s", code, ExitOK, errOut)
+					}
+
+					if got := readTestFile(t, answers); got != written {
+						t.Errorf("resume rewrote the answers\n%s\nwant\n%s", got, written)
+					}
+				})
+			}
+		})
+	})
+
 	t.Run("should report a working directory that cannot be found", func(t *testing.T) {
 		t.Parallel()
 
@@ -273,6 +478,118 @@ func TestReadQuestionFile(t *testing.T) {
 			t.Errorf("error = %v, want it to wrap %v", err, gone)
 		}
 	})
+}
+
+func realBuiltIns() RootOption {
+	return func(s *rootSettings) { s.readBuiltIn, s.builtIns = questions.Read, questions.Names }
+}
+
+func runTree(t *testing.T, tree fakeTree, extra []RootOption, args ...string) (string, string, int) {
+	t.Helper()
+
+	var out, errOut bytes.Buffer
+
+	opts := append([]RootOption{
+		WithKeychain(noKeychain()),
+		WithStdin(strings.NewReader("{\"body\":\"a\",\"u\":true}\n")),
+		WithStdinTTY(false),
+		WithStdoutTTY(false),
+	}, tree.options()...)
+
+	root := NewRootCmd(BuildInfo{Version: "1.2.3"}, append(opts, extra...)...)
+	root.SetOut(&out)
+	root.SetErr(&errOut)
+	root.SetArgs(args)
+
+	code := Execute(t.Context(), root)
+
+	return out.String(), errOut.String(), code
+}
+
+func runInDir(t *testing.T, dir, stdin string, args ...string) (string, string, int) {
+	t.Helper()
+
+	var out, errOut bytes.Buffer
+
+	root := NewRootCmd(BuildInfo{Version: "1.2.3"},
+		WithKeychain(noKeychain()),
+		WithStdin(strings.NewReader(stdin)),
+		WithStdinTTY(false),
+		WithStdoutTTY(false),
+		WithWorkingDir(func() (string, error) { return dir, nil }),
+		WithHomeDir(func() (string, error) { return dir, nil }),
+		WithLookupEnv(lookupFrom(map[string]string{"ONESIE_CONFIG_DIR": filepath.Join(dir, "config")})),
+	)
+	root.SetOut(&out)
+	root.SetErr(&errOut)
+	root.SetArgs(args)
+
+	code := Execute(t.Context(), root)
+
+	return out.String(), errOut.String(), code
+}
+
+func committedAnswers(t *testing.T, id string) string {
+	t.Helper()
+
+	for line := range strings.Lines(readTestFile(t, filepath.Join("..", "..", "examples", "data", "shell-safety.answers.jsonl"))) {
+		var answered map[string]json.RawMessage
+		if err := json.Unmarshal([]byte(line), &answered); err != nil {
+			t.Fatal(err)
+		}
+
+		if string(answered["id"]) != strconv.Quote(id) {
+			continue
+		}
+
+		mock := map[string]float64{}
+
+		for _, question := range []string{"destroys", "secrets", "network"} {
+			var answer struct {
+				Value float64 `json:"value"`
+			}
+
+			if err := json.Unmarshal(answered[question], &answer); err != nil {
+				t.Fatal(err)
+			}
+
+			mock[question] = answer.Value
+		}
+
+		encoded, err := json.Marshal(mock)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		return string(encoded)
+	}
+
+	t.Fatalf("the shell-safety answers hold no line for %s", id)
+
+	return ""
+}
+
+func writeTestFile(t *testing.T, path, content string) {
+	t.Helper()
+
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func readTestFile(t *testing.T, path string) string {
+	t.Helper()
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	return string(data)
 }
 
 func newFakeTree(files map[string]string, workDir, configDir string) fakeTree {
@@ -307,14 +624,33 @@ func (f fakeTree) settings(settings rootSettings) rootSettings {
 }
 
 // options wires the tree through the public options where they exist, so the command tree resolves
-// the config dir from the environment as it does in production.
+// the config dir from the environment as it does in production. It turns the built-in sets off, so
+// a test sees only the files it names.
 func (f fakeTree) options() []RootOption {
 	return []RootOption{
 		func(s *rootSettings) { *s = f.links(*s) },
+		withBuiltIns(nil),
 		WithWorkingDir(func() (string, error) { return f.workDir, nil }),
 		WithReadDir(func(dir string) ([]fs.DirEntry, error) { return fs.ReadDir(f.tree, f.path(dir)) }),
 		WithReadFile(func(name string) ([]byte, error) { return fs.ReadFile(f.tree, f.path(name)) }),
 		WithLookupEnv(lookupFrom(map[string]string{"ONESIE_CONFIG_DIR": f.configDir})),
+	}
+}
+
+func withBuiltIns(sets map[string]string) RootOption {
+	return func(s *rootSettings) {
+		if sets == nil {
+			s.readBuiltIn, s.builtIns = nil, nil
+
+			return
+		}
+
+		s.readBuiltIn = func(name string) ([]byte, bool) {
+			content, ok := sets[name]
+
+			return []byte(content), ok
+		}
+		s.builtIns = func() []string { return slices.Sorted(maps.Keys(sets)) }
 	}
 }
 

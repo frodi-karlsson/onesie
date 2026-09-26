@@ -36,6 +36,7 @@ func TestNewQuestionsCmd(t *testing.T) {
 		args     []string
 		files    map[string]string
 		noConfig bool
+		builtIns bool
 		wantCode int
 		want     string
 		contains []string
@@ -68,16 +69,48 @@ func TestNewQuestionsCmd(t *testing.T) {
 			args:     []string{"questions", "-o", "json"},
 			files:    sets,
 			wantCode: ExitOK,
-			want: `[{"name":"triage","path":` + quoted(filepath.Join(repoDir, "triage.yaml")) + `},` +
-				`{"name":"support","path":` + quoted(filepath.Join(configQuestions, "support.yaml")) + `}]` + "\n",
+			want: `[{"name":"triage","path":` + quoted(filepath.Join(repoDir, "triage.yaml")) + `,"builtin":false},` +
+				`{"name":"support","path":` + quoted(filepath.Join(configQuestions, "support.yaml")) + `,"builtin":false}]` + "\n",
 		},
 		{
 			name:     "should mark a clash in json",
 			args:     []string{"questions", "-o", "json"},
 			files:    clashed,
 			wantCode: ExitOK,
-			want: `[{"name":"triage","path":` + quoted(filepath.Join(repoDir, "triage.yaml")) + `,"clash":true},` +
-				`{"name":"triage","path":` + quoted(filepath.Join(repoDir, "triage.json")) + `,"clash":true}]` + "\n",
+			want: `[{"name":"triage","path":` + quoted(filepath.Join(repoDir, "triage.yaml")) + `,"clash":true,"builtin":false},` +
+				`{"name":"triage","path":` + quoted(filepath.Join(repoDir, "triage.json")) + `,"clash":true,"builtin":false}]` + "\n",
+		},
+		{
+			name:     "should list the built-in sets after the saved ones, leaving out a shadowed one",
+			args:     []string{"questions"},
+			files:    map[string]string{"/repo/.onesie/questions/shell-safety.yaml": "a: q\n"},
+			builtIns: true,
+			wantCode: ExitOK,
+			want: "shell-safety      " + filepath.Join(upOne, "shell-safety.yaml") + "\n" +
+				"moderation        built in\n" +
+				"personal-data     built in\n" +
+				"prompt-injection  built in\n",
+		},
+		{
+			name:     "should list the built-in sets in json with no path",
+			args:     []string{"questions", "-o", "json"},
+			files:    map[string]string{"/repo/.onesie/questions/shell-safety.yaml": "a: q\n"},
+			builtIns: true,
+			wantCode: ExitOK,
+			want: `[{"name":"shell-safety","path":` + quoted(filepath.Join(repoDir, "shell-safety.yaml")) + `,"builtin":false},` +
+				`{"name":"moderation","path":null,"builtin":true},` +
+				`{"name":"personal-data","path":null,"builtin":true},` +
+				`{"name":"prompt-injection","path":null,"builtin":true}]` + "\n",
+		},
+		{
+			name:     "should list every built-in set when nothing is saved",
+			args:     []string{"questions"},
+			builtIns: true,
+			wantCode: ExitOK,
+			want: "moderation        built in\n" +
+				"personal-data     built in\n" +
+				"prompt-injection  built in\n" +
+				"shell-safety      built in\n",
 		},
 		{
 			name:     "should print nothing when no name is saved",
@@ -149,6 +182,10 @@ func TestNewQuestionsCmd(t *testing.T) {
 				WithStdoutTTY(false),
 			}, newFakeTree(tc.files, workDir, configDir).options()...)
 			opts = append(opts, WithHomeDir(func() (string, error) { return home, nil }))
+
+			if tc.builtIns {
+				opts = append(opts, realBuiltIns())
+			}
 
 			if tc.noConfig {
 				opts = append(opts,

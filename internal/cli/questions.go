@@ -74,9 +74,13 @@ func savedRows(listed []qfile.Found) []savedRow {
 	rows := []savedRow{}
 
 	for _, found := range listed {
+		if found.BuiltIn {
+			rows = append(rows, savedRow{Name: found.Name, BuiltIn: true})
+		}
+
 		for _, path := range found.Paths {
 			rows = append(rows, savedRow{
-				Name: found.Name, Path: path, Clash: len(found.Paths) > 1, inRepo: found.InRepo,
+				Name: found.Name, Path: &path, Clash: len(found.Paths) > 1, inRepo: found.InRepo,
 			})
 		}
 	}
@@ -85,9 +89,11 @@ func savedRows(listed []qfile.Found) []savedRow {
 }
 
 type savedRow struct {
-	Name  string `json:"name"`
-	Path  string `json:"path"`
-	Clash bool   `json:"clash,omitempty"`
+	Name string `json:"name"`
+	// Path is nil for a built-in, which has no file.
+	Path    *string `json:"path"`
+	Clash   bool    `json:"clash,omitempty"`
+	BuiltIn bool    `json:"builtin"`
 
 	inRepo bool
 }
@@ -130,19 +136,25 @@ func shortPath(workDir string, homeDir func() (string, error)) func(savedRow) st
 	}
 
 	return func(row savedRow) string {
+		if row.Path == nil {
+			return "built in"
+		}
+
+		path := *row.Path
+
 		if row.inRepo {
-			if relative, relErr := filepath.Rel(workDir, row.Path); relErr == nil {
+			if relative, relErr := filepath.Rel(workDir, path); relErr == nil {
 				return relative
 			}
 		}
 
 		if home == "" {
-			return row.Path
+			return path
 		}
 
-		relative, relErr := filepath.Rel(home, row.Path)
+		relative, relErr := filepath.Rel(home, path)
 		if relErr != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
-			return row.Path
+			return path
 		}
 
 		return filepath.Join("~", relative)

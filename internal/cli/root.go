@@ -19,6 +19,7 @@ import (
 	"github.com/spf13/pflag"
 	"golang.org/x/term"
 
+	"github.com/frodi-karlsson/onesie/examples/questions"
 	"github.com/frodi-karlsson/onesie/internal/argv"
 	"github.com/frodi-karlsson/onesie/internal/creds"
 	"github.com/frodi-karlsson/onesie/internal/jev"
@@ -86,6 +87,8 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 		readSecret:    readHiddenSecret,
 		schemaURL:     schemaURLOf(info),
 		dedupLimit:    limits.MaxDedupRequests,
+		readBuiltIn:   questions.Read,
+		builtIns:      questions.Names,
 	}
 
 	for _, opt := range opts {
@@ -516,6 +519,8 @@ type rootSettings struct {
 	wrapAnswerer  func(answerer) answerer
 	schemaURL     string
 	dedupLimit    int
+	readBuiltIn   func(name string) ([]byte, bool)
+	builtIns      func() []string
 }
 
 // Keychain is where auth set stores a key when the OS has one, one item per account.
