@@ -127,11 +127,11 @@ jobs:
         with:
           go-version-file: go.mod
 
-      # The ubuntu image ships shellcheck and the script is the same file on
-      # both, so one run covers it.
-      - name: Lint install.sh
+      # The ubuntu image ships shellcheck and the scripts are the same files
+      # on both, so one run covers them.
+      - name: Lint the shell scripts
         if: runner.os == 'Linux'
-        run: shellcheck install.sh scripts/release.sh
+        run: shellcheck install.sh scripts/release.sh hooks/preflight.sh
 
       - name: Build a snapshot
         uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3

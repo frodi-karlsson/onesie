@@ -76,4 +76,4 @@ In Claude Code:
 /plugin install onesie@onesie
 ```
 
-The plugin adds the onesie skills and a session start line that reports whether onesie is on PATH and whether a key resolves. It never blocks a command.
+The plugin adds the onesie skills and a session start line that reports whether onesie is on PATH, whether a key resolves, whether `onesie --version` differs from the release the skills describe, and which question files `-f` finds. It never blocks a command.
