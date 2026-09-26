@@ -48,7 +48,7 @@ Answers sit at the top level keyed by question id. `--merge` folds them under an
 
 ### On live input, filter each line on its answer, since a stream's exit code arrives only at the end.
 
-A stream exits once its input ends, with 1 when any assertion was false, and `tail -f` never ends. So nothing chained after it with `&&` or `||` runs, and `-q` is refused on a stream with exit 2 anyway. Act on each line as it arrives instead: under `--assert` every record carries its gate result at `.assert`, true or false, and under `--merge` at `.answers.assert`. Pass `jq --unbuffered` so each match leaves jq at once rather than when a buffer fills. A failed record carries `.answers.error` under `--merge` and no `assert`, so a filter on `.answers.assert == false` skips it. Route it too when a missed alert matters, as in `select(.answers.assert == false or .answers.error != null)`.
+A stream exits once its input ends, with 1 when any assertion was false, and `tail -f` never ends. So nothing chained after it with `&&` or `||` runs, and `-q` is refused on a stream with exit 2 anyway. Act on each line as it arrives instead: under `--assert` every record carries its gate result at `.assert`, true or false, and under `--merge` at `.answers.assert`. Pass `jq --unbuffered` so each match leaves jq at once rather than when a buffer fills. A failed record carries `.answers.error` under `--merge` and no `assert`, so a filter on `.answers.assert == false` alone skips it. Route it too, as the good example does, since a record with no answer is not an all clear.
 
 **Bad:**
 
@@ -61,7 +61,7 @@ tail -f app.log | onesie 'does this line report a failure a person must act on' 
 ```sh
 tail -f app.log | onesie 'does this line report a failure a person must act on' \
     -i lines --merge -o json --assert 'answer.value < 0.8' \
-  | jq -c --unbuffered 'select(.answers.assert == false)'
+  | jq -c --unbuffered 'select(.answers.assert == false or .answers.error != null)'
 ```
 
 ### Freeze a run with --print-request and replay it with -i request.
