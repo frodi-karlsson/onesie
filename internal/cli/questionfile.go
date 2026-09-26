@@ -29,9 +29,12 @@ func readQuestionFile(settings rootSettings, value string) ([]byte, string, erro
 	}
 
 	if source.BuiltIn != "" {
-		data, _ = settings.readBuiltIn(source.BuiltIn)
+		builtIn, ok := settings.readBuiltIn(source.BuiltIn)
+		if !ok {
+			return nil, "", fmt.Errorf("onesie: the built-in set %s could not be read", source.BuiltIn)
+		}
 
-		return data, "built-in " + source.BuiltIn, nil
+		return builtIn, "built-in " + source.BuiltIn, nil
 	}
 
 	path := source.Path

@@ -22,6 +22,9 @@ var (
 	reportHeader = regexp.MustCompile(`^\S+, (yes/no|pick|rate):`)
 	shellVar     = regexp.MustCompile(`"\$\w+"`)
 	mockEcho     = regexp.MustCompile(`echo '(\{[^']*\})' > danger\.json`)
+	destroysGate = regexp.MustCompile(`\bdestroys\.value < ([0-9.]+)`)
+
+	destroysClaim = regexp.MustCompile(`For destroys, shell-safety blocks at ([0-9.]+) and passes below ([0-9.]+)\.`)
 )
 
 func TestReadme(t *testing.T) {
@@ -64,22 +67,30 @@ func TestReadme(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if !strings.Contains(gate.Assert, "destroys.value < 0.25") || !strings.Contains(gate.AbstainIf, "destroys.value < 0.5") {
-			t.Errorf("shell-safety gates with %q and %q, want destroys cut at 0.25 and 0.5", gate.Assert, gate.AbstainIf)
+		pass, block := destroysCut(gate.Assert), destroysCut(gate.AbstainIf)
+
+		section := strings.Join(strings.Fields(readmeSection(t, "Thresholds from evidence")), " ")
+
+		claim := destroysClaim.FindStringSubmatch(section)
+		if claim == nil {
+			t.Fatal("README.md states no destroys cuts for shell-safety")
 		}
 
-		claim := "For destroys, shell-safety blocks at 0.5 and passes below 0.25"
-		if section := strings.Join(strings.Fields(readmeSection(t, "Thresholds from evidence")), " "); !strings.Contains(section, claim) {
-			t.Errorf("README.md should say %q", claim)
+		if claim[1] != block || claim[2] != pass {
+			t.Errorf("README.md says blocks at %s and passes below %s, and the gate cuts destroys at %s in abstain_if and %s in assert",
+				claim[1], claim[2], block, pass)
 		}
 	})
 
-	t.Run("should pass the CI check the thresholds section shows", func(t *testing.T) {
+	t.Run("should pass the offline CI check REFERENCE.md shows", func(t *testing.T) {
 		t.Parallel()
 
-		blocks := codeBlocks(readmeSection(t, "Thresholds from evidence"))
+		_, offline, found := strings.Cut(readRepoFile(t, "REFERENCE.md"), "\n### Offline\n")
+		if !found {
+			t.Fatal("REFERENCE.md has no Offline section")
+		}
 
-		_, errOut, code := runCalibrateOnCommitted(t, readmeCommand(t, blocks[2].lines))
+		_, errOut, code := runCalibrateOnCommitted(t, readmeCommand(t, codeBlocks(offline)[0].lines))
 		if code != cli.ExitOK {
 			t.Errorf("exit code = %d, want %d\nstderr:\n%s", code, cli.ExitOK, errOut)
 		}
@@ -149,14 +160,43 @@ func TestReadme(t *testing.T) {
 		}
 	})
 
+	t.Run("should comment the gate result first in the pull request recipe", func(t *testing.T) {
+		t.Parallel()
+
+		mock := filepath.Join(t.TempDir(), "explained.json")
+		if err := os.WriteFile(mock, []byte(`{"answer": 0.9}`), 0o600); err != nil {
+			t.Fatal(err)
+		}
+
+		_, after, found := strings.Cut(readRepoFile(t, "README.md"), "**Comment on a pull request.**")
+		if !found {
+			t.Fatal("README.md has no pull request recipe")
+		}
+
+		command := commandsIn(codeBlocks(after)[0].lines)
+		if len(command) != 1 {
+			t.Fatalf("want one onesie command in the pull request recipe, got %d", len(command))
+		}
+
+		tokens, reason := skillcheck.Tokenize(shellVar.ReplaceAllString(command[0].text, "'x'"))
+		if reason != "" {
+			t.Fatalf("%s does not tokenize: %s", command[0].text, reason)
+		}
+
+		out, errOut, code := runReadme(t, "", append(tokens[1:], "--mock", mock)...)
+		if code != cli.ExitOK || !strings.HasPrefix(out, "> [!") {
+			t.Errorf("exit code = %d, want %d and a GitHub alert first\nstdout:\n%s\nstderr:\n%s", code, cli.ExitOK, out, errOut)
+		}
+	})
+
 	t.Run("should dry run every onesie command the README shows", func(t *testing.T) {
 		t.Parallel()
 
 		// Checked by the tests above against the committed answers, since --print-request would
 		// only check the flags.
 		checkedElsewhere := []string{"calibrate"}
-		// --print-request refuses a typed gate, and --print-questions a positional question.
-		gatedPositional := "does this explain why the change is needed"
+		// The README shortens the offline check to calibrate ... and REFERENCE.md holds it whole.
+		abbreviated := " ... "
 
 		commands := readmeCommands(t)
 		if len(commands) < 10 {
@@ -164,6 +204,10 @@ func TestReadme(t *testing.T) {
 		}
 
 		for _, command := range commands {
+			if strings.Contains(command.text, abbreviated) {
+				continue
+			}
+
 			tokens, reason := skillcheck.Tokenize(shellVar.ReplaceAllString(command.text, "'x'"))
 			if reason != "" {
 				t.Errorf("%s does not tokenize: %s", command.text, reason)
@@ -171,12 +215,15 @@ func TestReadme(t *testing.T) {
 				continue
 			}
 
-			if slices.Contains(checkedElsewhere, tokens[1]) || tokens[1] == gatedPositional {
+			if slices.Contains(checkedElsewhere, tokens[1]) {
 				continue
 			}
 
 			// A dry run writes no answers, so --resume has nothing to pick up and is refused.
 			tokens = slices.DeleteFunc(tokens, func(token string) bool { return token == "--resume" })
+			// --print-request refuses a typed gate, and --print-questions a positional question, so
+			// the pull request recipe dry runs without its gate. The test below runs it whole.
+			tokens = withoutFlag(tokens, "--assert")
 			tokens = intoTempDir(t, tokens)
 
 			args, reason, err := skillcheck.DryRunArgs(tokens)
@@ -197,6 +244,31 @@ func TestReadme(t *testing.T) {
 			}
 		}
 	})
+}
+
+func destroysCut(expression string) string {
+	found := destroysGate.FindStringSubmatch(expression)
+	if found == nil {
+		return ""
+	}
+
+	return found[1]
+}
+
+func withoutFlag(tokens []string, flag string) []string {
+	var kept []string
+
+	for i := 0; i < len(tokens); i++ {
+		if tokens[i] == flag {
+			i++
+
+			continue
+		}
+
+		kept = append(kept, tokens[i])
+	}
+
+	return kept
 }
 
 func intoTempDir(t *testing.T, tokens []string) []string {
@@ -385,7 +457,7 @@ func runCalibrateOnCommitted(t *testing.T, command []string) (string, string, in
 
 	args := slices.Clone(command[1:])
 	for i, arg := range args {
-		if arg == "answers.jsonl" {
+		if arg == "answers.jsonl" || arg == "examples/data/shell-safety.answers.jsonl" {
 			args[i] = answers
 		}
 	}

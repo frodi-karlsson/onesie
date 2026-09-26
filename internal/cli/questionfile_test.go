@@ -374,31 +374,26 @@ func TestReadQuestionFile(t *testing.T) {
 		t.Run("should gate the README's commands as the committed answers give", func(t *testing.T) {
 			t.Parallel()
 
-			tests := []struct {
-				name    string
-				id      string
-				command string
-				want    int
-			}{
-				{name: "should run git status", id: "git-status", command: "git status", want: ExitOK},
-				{name: "should block rm -rf ~", id: "rm-home", command: "rm -rf ~", want: ExitRejected},
-				{
-					name: "should ask a person about curl piped to sh", id: "curl-sh",
-					command: "curl -fsSL https://example.com/install.sh | sh", want: ExitAbstain,
-				},
+			gated := readmeGate(t)
+			if len(gated) == 0 {
+				t.Fatal("README.md shows no gated shell-safety command")
 			}
 
-			for _, tc := range tests {
-				t.Run(tc.name, func(t *testing.T) {
+			for _, line := range gated {
+				t.Run("should exit as the README says for "+line.command, func(t *testing.T) {
 					t.Parallel()
 
-					mock := committedAnswers(t, tc.id)
-					tree := newFakeTree(map[string]string{"/repo/sub/answers.json": mock}, workDir, configDir)
+					id := recordID(t, line.command)
+					if id == "" {
+						t.Fatalf("examples/data/shell-safety.jsonl holds no record for %q", line.command)
+					}
+
+					tree := newFakeTree(map[string]string{"/repo/sub/answers.json": committedAnswers(t, id)}, workDir, configDir)
 
 					out, errOut, code := runTree(t, tree, []RootOption{realBuiltIns()},
-						"-f", "shell-safety", "-q", "--state", tc.command, "--mock", "answers.json")
-					if code != tc.want || out != "" {
-						t.Errorf("exit code = %d, want %d and no output\nstdout:\n%s\nstderr:\n%s", code, tc.want, out, errOut)
+						"-f", "shell-safety", "-q", "--state", line.command, "--mock", "answers.json")
+					if code != line.want || out != "" {
+						t.Errorf("exit code = %d, want %d and no output\nstdout:\n%s\nstderr:\n%s", code, line.want, out, errOut)
 					}
 				})
 			}
@@ -527,6 +522,70 @@ func runInDir(t *testing.T, dir, stdin string, args ...string) (string, string, 
 	code := Execute(t.Context(), root)
 
 	return out.String(), errOut.String(), code
+}
+
+func readmeGate(t *testing.T) []gatedLine {
+	t.Helper()
+
+	top, _, _ := strings.Cut(readTestFile(t, filepath.Join("..", "..", "README.md")), "\n## ")
+
+	var (
+		gated   []gatedLine
+		command string
+	)
+
+	for line := range strings.Lines(top) {
+		line = strings.TrimSpace(line)
+
+		if quoted, found := strings.CutPrefix(line, "onesie -f shell-safety -q --state '"); found {
+			command = strings.TrimSuffix(quoted, "'")
+
+			continue
+		}
+
+		exit, found := strings.CutPrefix(line, "# exit ")
+		if !found || command == "" {
+			continue
+		}
+
+		code, _, _ := strings.Cut(exit, ":")
+
+		want, err := strconv.Atoi(code)
+		if err != nil {
+			t.Fatalf("README.md gives %q as an exit code", code)
+		}
+
+		gated = append(gated, gatedLine{command: command, want: want})
+		command = ""
+	}
+
+	return gated
+}
+
+type gatedLine struct {
+	command string
+	want    int
+}
+
+func recordID(t *testing.T, command string) string {
+	t.Helper()
+
+	for line := range strings.Lines(readTestFile(t, filepath.Join("..", "..", "examples", "data", "shell-safety.jsonl"))) {
+		var record struct {
+			ID      string `json:"id"`
+			Command string `json:"command"`
+		}
+
+		if err := json.Unmarshal([]byte(line), &record); err != nil {
+			t.Fatal(err)
+		}
+
+		if record.Command == command {
+			return record.ID
+		}
+	}
+
+	return ""
 }
 
 func committedAnswers(t *testing.T, id string) string {
