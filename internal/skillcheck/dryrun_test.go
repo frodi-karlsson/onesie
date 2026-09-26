@@ -25,6 +25,13 @@ func TestDryRunArgs(t *testing.T) {
 			want:   []string{"--print-request", "-f", "shell-safety", "--state", "rm -rf /"},
 		},
 		{
+			name: "should strip --out and its file, --resume, --offline and --prune, since a dry run keeps no answers",
+			tokens: []string{
+				"onesie", "calibrate", "--ask", "a=x", "--out", "answers.jsonl", "--resume", "--offline", "--prune",
+			},
+			want: []string{"--print-request", "calibrate", "--ask", "a=x"},
+		},
+		{
 			name: "should strip --merge-key too, since it implies --merge",
 			tokens: []string{
 				"onesie", "--ask", "a=x", "--merge-key", "answers",

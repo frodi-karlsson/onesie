@@ -20,6 +20,12 @@ var alwaysStripped = []flagSpec{
 	{long: "stop-on-assert"},
 	// checkPrintFlags refuses a mock beside --print-request, and a dry run answers nothing anyway.
 	{long: "mock", value: true},
+	// A dry run has no answers to write, resume or read back. calibrate refuses each of these
+	// beside --print-request, and a stream would write its bodies and a fingerprint to --out.
+	{long: "out", value: true},
+	{long: "resume"},
+	{long: "offline"},
+	{long: "prune"},
 }
 
 var questionsOnlyStripped = []flagSpec{
