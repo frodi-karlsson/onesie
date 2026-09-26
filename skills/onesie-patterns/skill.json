@@ -1,0 +1,40 @@
+{
+  "name": "onesie-patterns",
+  "description": "Use when one onesie question cannot answer the problem: more than 255 options or options that cluster, a shortlist to pick from among many candidates, a low confidence answer that should reach a person, or several independent questions about the same text. Composes --pick, --min-confidence, --fallback, --abstain-if and --ask. For the question shapes themselves, load the onesie skill.",
+  "compatibility": "Requires the onesie binary on PATH.",
+  "license": "MIT",
+  "allowed_tools": "Bash(onesie:*)",
+  "intro": "intro.md",
+  "rules": [
+    {
+      "id": "pick-the-group-first",
+      "short": "With over 255 options, or options that cluster, pick the group first, then pick within it.",
+      "why": "`--pick` takes at most 255 options, the `max-choice-options` that `onesie -V` lists, and more exits 2 before any request. When options cluster, `p` spreads across the neighbours in a cluster, so `confidence` can read low even when the group is plain. Ask for the group first, with `-r` so the answer is the bare name, then ask a second `--pick` with only that group's options, as in `onesie --ask queue='which shipping queue owns this' --pick tracking,returns,damage --state \"$t\"`. The first answer decides the second option set, so this is a second call that pays for itself.",
+      "bad": "onesie --ask queue='which queue owns this' --pick billing-refunds,billing-invoices,billing-tax,shipping-tracking,shipping-returns,shipping-damage,support-login,support-account --state 'my package never arrived'",
+      "bad_passes": true,
+      "good": "onesie --ask group='which team owns this' --pick billing,shipping,support -r --state 'my package never arrived'"
+    },
+    {
+      "id": "shortlist-then-pick",
+      "short": "To choose among many candidates, stream a yes or no over each one, then --pick among the survivors.",
+      "why": "A yes or no question over each candidate is one record per candidate, asked in parallel under `-j`, with no option limit. Keep the candidates whose `.answer.decision` is true and whose line has no `.error`, as in `jq -r 'select(.error == null and .answer.decision == true) | .id'`, since a failed record reads as null. Then ask one `--pick` whose options are the survivors, with what sets them apart in the state, so the pick weighs a few strong candidates rather than many weak ones. Pick the `--threshold` with the onesie-calibrate skill.",
+      "bad": "onesie --ask best='which candidate fits the role best' --pick ana,ben,chen,dara,eli,fay,gus,hana,ivan,jo --state 'the role needs five years of Go and on call experience'",
+      "bad_passes": true,
+      "good": "onesie 'does this candidate meet every hard requirement of the role' --threshold 0.7 -i jsonl --map '.summary' --id '.name' -j 8 -o json"
+    },
+    {
+      "id": "route-unsure-answers",
+      "short": "Route an unsure pick or rate to a person with --min-confidence and --fallback, and an unsure yes or no with --abstain-if.",
+      "why": "`--min-confidence` works on a pick or rate only, and needs `--fallback`. Below it `.decision` is the fallback text and `.fallback` reads `low_confidence`, so name the fallback after the queue a person reads, such as `human`, and `-r` then prints it in place of the pick. A yes or no answer has no confidence, since its one probability is the whole answer, so `--min-confidence` on it exits 2. Give it a band instead: `--assert` holds for the clear yes, and `--abstain-if` catches the middle, which exits 7 on one record and writes `\"abstain\":true` on its line in a stream, as in `--assert 'answer.value < 0.2' --abstain-if 'answer.value < 0.8'`. The onesie-gate skill covers the branches, and `onesie calibrate` prints the confidence table a `--min-confidence` comes from.",
+      "bad": "onesie 'is this refund request legitimate' --min-confidence 0.8 --fallback no --state 'I was charged twice for one order'",
+      "good": "onesie --ask team='which team owns this' --pick billing,shipping,support --min-confidence 0.8 --fallback human -r --state 'I was charged twice for one order'"
+    },
+    {
+      "id": "fan-out-in-one-call",
+      "short": "Ask every independent question as its own --ask in one call.",
+      "why": "Questions in one request are answered in parallel against the same state, so a question that does not depend on another's answer belongs in the same call, however many there are. Each keeps its own shape and policy flags, bound to the `--ask` before them, and one `--assert` can combine them. Split into a second call only when an answer decides what comes next, as in the group and the shortlist patterns above.",
+      "bad": "onesie 'is this urgent' --state \"$t\"; onesie --ask team='which team owns this' --pick billing,shipping,support --state \"$t\"",
+      "good": "onesie --ask urgent='is this urgent' --ask team='which team owns this' --pick billing,shipping,support --ask anger='how angry is the writer' --rate calm,annoyed,furious --state 'my package never arrived and nobody answers' -o json"
+    }
+  ]
+}

@@ -1,7 +1,7 @@
 {
   "name": "onesie",
   "version": "0.2.0",
-  "description": "Skills that teach Codex to drive the onesie CLI: single judgments, CI gates, calibrated cuts and streamed batches.",
+  "description": "Skills that teach Codex to drive the onesie CLI: single judgments, CI gates, calibrated cuts, questions chained into patterns and streamed batches.",
   "author": {
     "name": "Frodi Karlsson",
     "url": "https://github.com/frodi-karlsson"
@@ -20,7 +20,7 @@
   "interface": {
     "displayName": "onesie",
     "shortDescription": "Correct onesie invocations for judgments, gates, calibration and batches",
-    "longDescription": "Teach Codex to drive the onesie CLI: ask for a probability, a pick or a rating on one piece of text, gate a CI step on a judgment, calibrate the cut a gate uses against labelled records, and stream a file of records through onesie.",
+    "longDescription": "Teach Codex to drive the onesie CLI: ask for a probability, a pick or a rating on one piece of text, gate a CI step on a judgment, calibrate the cut a gate uses against labelled records, chain questions when one cannot answer, and stream a file of records through onesie.",
     "developerName": "Frodi Karlsson",
     "category": "Developer Tools",
     "capabilities": [],

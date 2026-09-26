@@ -1,7 +1,7 @@
 {
   "name": "onesie",
   "version": "0.2.0",
-  "description": "Skills that teach an agent to drive the onesie CLI: single judgments, CI gates, calibrated cuts and streamed batches.",
+  "description": "Skills that teach an agent to drive the onesie CLI: single judgments, CI gates, calibrated cuts, questions chained into patterns and streamed batches.",
   "author": {
     "name": "Frodi Karlsson",
     "url": "https://github.com/frodi-karlsson"
