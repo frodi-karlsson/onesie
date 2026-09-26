@@ -3,6 +3,8 @@
   "description": "Use when onesie runs over more than one record, a JSONL file, a list of lines or saved request bodies, and before writing a shell loop that calls onesie once per record. Also when reading onesie output with jq, or when a batch run exits 6 or 3.",
   "compatibility": "Requires the onesie binary on PATH.",
   "license": "MIT",
+  "allowed_tools": "Bash(onesie:*)",
+  "argument_hint": "[records file]",
   "intro": "intro.md",
   "rules": [
     {

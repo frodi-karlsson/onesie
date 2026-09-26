@@ -3,6 +3,8 @@
   "description": "Use when a onesie answer decides whether a command runs, a step continues, a build fails or a low confidence answer goes to a human, and before writing 'if onesie', 'onesie ... && cmd', -q or --assert, or picking the cut a gate uses. One common gate recipe looks right and is silently wrong.",
   "compatibility": "Requires the onesie binary on PATH.",
   "license": "MIT",
+  "allowed_tools": "Bash(onesie:*)",
+  "argument_hint": "[command or step to gate]",
   "intro": "intro.md",
   "rules": [
     {

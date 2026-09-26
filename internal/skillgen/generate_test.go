@@ -63,6 +63,35 @@ func TestGenerate(t *testing.T) {
 		}
 	})
 
+	t.Run("should keep allowed-tools and argument-hint out of every SKILL.md, since no client is known to accept them", func(t *testing.T) {
+		t.Parallel()
+
+		root := t.TempDir()
+		writeFixtureSkill(t, root, "onesie-gate")
+		mustWriteFile(t, filepath.Join(root, "skills", "onesie-gate", "skill.json"), `{
+			"name": "onesie-gate",
+			"description": "does a thing",
+			"allowed_tools": "Bash(onesie:*)",
+			"argument_hint": "[command]"
+		}`)
+
+		if err := skillgen.Generate(root); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		for _, rel := range []string{
+			filepath.Join("skills", "onesie-gate", "SKILL.md"),
+			filepath.Join(".agents", "skills", "onesie-gate", "SKILL.md"),
+			filepath.Join(".cursor", "skills", "onesie-gate", "SKILL.md"),
+			filepath.Join("skills", "onesie-gate", "agents", "gemini.toml"),
+		} {
+			if got := readFile(t, filepath.Join(root, rel)); strings.Contains(got, "allowed") ||
+				strings.Contains(got, "argument") {
+				t.Errorf("%s = %q, want no allowed-tools or argument-hint", rel, got)
+			}
+		}
+	})
+
 	t.Run("should copy references unchanged", func(t *testing.T) {
 		t.Parallel()
 

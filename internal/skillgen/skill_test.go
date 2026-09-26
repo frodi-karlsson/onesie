@@ -69,6 +69,32 @@ func TestValidate(t *testing.T) {
 			wantErr: "name is required",
 		},
 		{
+			name: "should accept allowed_tools and argument_hint",
+			skill: skillgen.Skill{
+				Name: "my-skill", Description: "does a thing", AllowedTools: "Bash(onesie:*)", ArgumentHint: "[file]",
+			},
+		},
+		{
+			name:    "should reject a blank allowed_tools",
+			skill:   skillgen.Skill{Name: "my-skill", Description: "does a thing", AllowedTools: "  "},
+			wantErr: "allowed_tools must not be blank, leave it out instead",
+		},
+		{
+			name:    "should reject an argument_hint over one line",
+			skill:   skillgen.Skill{Name: "my-skill", Description: "does a thing", ArgumentHint: "[a]\n[b]"},
+			wantErr: "argument_hint must be one line",
+		},
+		{
+			name:    "should reject an argument_hint over 1024 characters",
+			skill:   skillgen.Skill{Name: "my-skill", Description: "does a thing", ArgumentHint: strings.Repeat("a", 1025)},
+			wantErr: "argument_hint must be at most 1024 characters",
+		},
+		{
+			name:    "should reject a control character in allowed_tools",
+			skill:   skillgen.Skill{Name: "my-skill", Description: "does a thing", AllowedTools: "Bash\x01"},
+			wantErr: "allowed_tools has a control character",
+		},
+		{
 			name:    "should reject an empty description",
 			skill:   skillgen.Skill{Name: "my-skill"},
 			wantErr: "description is required",

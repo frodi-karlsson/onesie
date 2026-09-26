@@ -11,10 +11,24 @@ import (
 
 const skillsDir = "skills"
 
-var mirrorDirs = []string{
-	filepath.Join(".agents", "skills"),
-	filepath.Join(".cursor", "skills"),
-}
+var (
+	// The optional frontmatter each skill loader accepts, from the evidence in this repo. It shows
+	// none of them taking allowed-tools or argument-hint, so none is marked, and a field reaches a
+	// SKILL.md only once every loader that reads that file is.
+	claudeCode = Frontmatter{}
+	codex      = Frontmatter{}
+	cursor     = Frontmatter{}
+	geminiCLI  = Frontmatter{}
+
+	// skills/NAME/SKILL.md is read by Claude Code and Codex through the plugin manifests, and by
+	// Cursor and Gemini CLI as a portable skill.
+	sourceReaders = []Frontmatter{claudeCode, codex, cursor, geminiCLI}
+
+	mirrors = []mirror{
+		{dir: filepath.Join(".agents", "skills"), readers: []Frontmatter{codex}},
+		{dir: filepath.Join(".cursor", "skills"), readers: []Frontmatter{cursor}},
+	}
+)
 
 // Generate validates every skills/*/skill.json under root and writes each client's outputs and
 // mirrors, touching only changed files. Nothing is written unless every skill validates.
@@ -46,8 +60,8 @@ func Generate(root string) error {
 		}
 	}
 
-	for _, mirror := range mirrorDirs {
-		if err := pruneMirror(filepath.Join(root, mirror), names); err != nil {
+	for _, m := range mirrors {
+		if err := pruneMirror(filepath.Join(root, m.dir), names); err != nil {
 			return err
 		}
 	}
@@ -116,13 +130,21 @@ func skillOutputs(root, name string, skill Skill) ([]output, error) {
 	}
 
 	source := filepath.Join(skillsDir, name, "skill.json")
-	skillMD := RenderSkill(skill, intro, sections, source)
 
 	outputs := []output{
-		{path: filepath.Join(skillDir, "SKILL.md"), content: skillMD},
+		{
+			path:    filepath.Join(skillDir, "SKILL.md"),
+			content: RenderSkill(skill, acceptedByAll(sourceReaders), intro, sections, source),
+		},
 		{path: filepath.Join(skillDir, "agents", "gemini.toml"), content: RenderGemini(skill, source)},
 	}
-	outputs = append(outputs, mirrorOutputs(root, name, "SKILL.md", skillMD)...)
+
+	for _, m := range mirrors {
+		outputs = append(outputs, output{
+			path:    filepath.Join(root, m.dir, name, "SKILL.md"),
+			content: RenderSkill(skill, acceptedByAll(m.readers), intro, sections, source),
+		})
+	}
 
 	references, err := referenceCopies(root, skillDir, name, skill.References)
 	if err != nil {
@@ -130,6 +152,22 @@ func skillOutputs(root, name string, skill Skill) ([]output, error) {
 	}
 
 	return append(outputs, references...), nil
+}
+
+type mirror struct {
+	dir     string
+	readers []Frontmatter
+}
+
+func acceptedByAll(readers []Frontmatter) Frontmatter {
+	accepted := Frontmatter{AllowedTools: true, ArgumentHint: true}
+
+	for _, r := range readers {
+		accepted.AllowedTools = accepted.AllowedTools && r.AllowedTools
+		accepted.ArgumentHint = accepted.ArgumentHint && r.ArgumentHint
+	}
+
+	return accepted
 }
 
 func readFragments(skillDir string, names []string) ([]string, error) {
@@ -176,10 +214,10 @@ func referenceCopies(root, skillDir, name string, references []string) ([]output
 }
 
 func mirrorOutputs(root, name, rel string, content []byte) []output {
-	outputs := make([]output, 0, len(mirrorDirs))
+	outputs := make([]output, 0, len(mirrors))
 
-	for _, mirror := range mirrorDirs {
-		outputs = append(outputs, output{path: filepath.Join(root, mirror, name, rel), content: content})
+	for _, m := range mirrors {
+		outputs = append(outputs, output{path: filepath.Join(root, m.dir, name, rel), content: content})
 	}
 
 	return outputs

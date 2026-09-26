@@ -63,6 +63,14 @@ func Validate(path string, s Skill) error {
 		return err
 	}
 
+	if err := v.oneLine("allowed_tools", s.AllowedTools); err != nil {
+		return err
+	}
+
+	if err := v.oneLine("argument_hint", s.ArgumentHint); err != nil {
+		return err
+	}
+
 	if err := v.rules(s.Rules); err != nil {
 		return err
 	}
@@ -89,6 +97,8 @@ type Skill struct {
 	Compatibility string            `json:"compatibility,omitempty"`
 	License       string            `json:"license,omitempty"`
 	Metadata      map[string]string `json:"metadata,omitempty"`
+	AllowedTools  string            `json:"allowed_tools,omitempty"`
+	ArgumentHint  string            `json:"argument_hint,omitempty"`
 	Intro         string            `json:"intro,omitempty"`
 	Rules         []Rule            `json:"rules,omitempty"`
 	Sections      []string          `json:"sections,omitempty"`
@@ -149,6 +159,26 @@ func (v validator) metadata(metadata map[string]string) error {
 	}
 
 	return nil
+}
+
+func (v validator) oneLine(field, value string) error {
+	if value == "" {
+		return nil
+	}
+
+	if strings.TrimSpace(value) == "" {
+		return v.errorf("%s must not be blank, leave it out instead", field)
+	}
+
+	if strings.ContainsAny(value, "\n\r") {
+		return v.errorf("%s must be one line", field)
+	}
+
+	if utf8.RuneCountInString(value) > 1024 {
+		return v.errorf("%s must be at most 1024 characters", field)
+	}
+
+	return v.noControlChars(field, value)
 }
 
 func (v validator) rules(rules []Rule) error {
