@@ -21,9 +21,15 @@ func NewRunner(binary string, environ []string) *Runner {
 
 	env := withoutMock(environ)
 
-	return &Runner{Binary: binary, exec: func(ctx context.Context, binary string, args []string) (int, string, error) {
-		return runProcess(ctx, binary, args, env)
-	}}
+	return &Runner{
+		Binary: binary,
+		exec: func(ctx context.Context, binary string, args []string) (int, string, error) {
+			return runProcess(ctx, binary, args, env)
+		},
+		help: func(ctx context.Context, binary string, args []string) (string, error) {
+			return runHelp(ctx, binary, args, env)
+		},
+	}
 }
 
 func withoutMock(environ []string) []string {
@@ -44,6 +50,7 @@ type Runner struct {
 	Binary string
 
 	exec func(ctx context.Context, binary string, args []string) (exitCode int, stderr string, err error)
+	help func(ctx context.Context, binary string, args []string) (stdout string, err error)
 }
 
 // DryRun strips the flags a dry run rejects from command, adds the print flag and runs it without a
@@ -75,6 +82,15 @@ type DryRunResult struct {
 	Skipped  string
 	ExitCode int
 	Stderr   string
+}
+
+// Help returns the --help text of the onesie command that path names, such as calibrate or auth
+// set. An empty path is the root command.
+func (r *Runner) Help(ctx context.Context, path []string) (string, error) {
+	runCtx, cancel := context.WithTimeout(ctx, runTimeout)
+	defer cancel()
+
+	return r.help(runCtx, r.Binary, append(append([]string{}, path...), "--help"))
 }
 
 func prepare(command string) (args []string, reason string, err error) {
@@ -118,4 +134,21 @@ func runProcess(ctx context.Context, binary string, args, env []string) (int, st
 	}
 
 	return 0, stderr.String(), fmt.Errorf("onesie: running %s: %w", binary, err)
+}
+
+func runHelp(ctx context.Context, binary string, args, env []string) (string, error) {
+	cmd := exec.CommandContext(ctx, binary, args...)
+	cmd.Env = env
+	cmd.Stdin = bytes.NewReader(nil)
+
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		return "", fmt.Errorf("onesie: running %s %s: %w: %s",
+			binary, strings.Join(args, " "), err, strings.TrimSpace(stderr.String()))
+	}
+
+	return stdout.String(), nil
 }

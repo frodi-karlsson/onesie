@@ -130,3 +130,36 @@ func TestRunnerDryRun(t *testing.T) {
 		}
 	})
 }
+
+func TestRunnerHelp(t *testing.T) {
+	t.Parallel()
+
+	t.Run("should run the command path with --help and return its stdout", func(t *testing.T) {
+		t.Parallel()
+
+		var gotArgs []string
+
+		runner := &Runner{Binary: "onesie", help: func(_ context.Context, _ string, args []string) (string, error) {
+			gotArgs = args
+
+			return "Usage:", nil
+		}}
+
+		got, err := runner.Help(context.Background(), []string{"auth", "set"})
+		if err != nil || got != "Usage:" {
+			t.Fatalf("Help(...) = %q, %v, want Usage:", got, err)
+		}
+
+		if want := []string{"auth", "set", "--help"}; !slices.Equal(gotArgs, want) {
+			t.Errorf("args = %q, want %q", gotArgs, want)
+		}
+	})
+
+	t.Run("should report an error when the help exits non zero", func(t *testing.T) {
+		t.Parallel()
+
+		if _, err := runHelp(context.Background(), os.Args[0], []string{"-test.run=^$", "-no-such-flag"}, os.Environ()); err == nil {
+			t.Fatalf("runHelp(...) error = nil, want an error")
+		}
+	})
+}

@@ -52,7 +52,7 @@ never runs on a pull request.
 ```
 cmd/onesie/           thin main: signal handling, exit codes, ldflags targets
 cmd/skillgen/         generates the per client skill files from skills/
-cmd/skillcheck/       dry runs every example in every skill against the built binary
+cmd/skillcheck/       dry runs every example in every skill against the built binary, and checks the prose flags
 cmd/skilleval/        dry runs every onesie command an agent wrote in a plugin eval run
 cmd/releaseprep/      checks a release tag and bumps the plugin manifests, for scripts/release.sh
 cmd/proseblocks/      writes the Go and Markdown prose a diff adds as JSON lines, for the history lessons check
@@ -72,7 +72,7 @@ internal/output/      encodes a normalized record in each output mode
 internal/creds/       resolves, reads and writes the credential file and the keychain item
 internal/limits/      the API limits onesie enforces locally
 internal/skillgen/    decodes and validates skill.json and renders the skill files
-internal/skillcheck/  dry runs each skill rule's bad and good example
+internal/skillcheck/  dry runs each skill rule's bad and good example, and checks the flags the prose names against --help
 internal/skilleval/   extracts and grades the commands of a plugin eval run
 internal/release/     orders release tags by semver and edits the plugin manifests in place
 internal/proseblocks/ splits Go comments and Markdown into blocks of prose, one per comment group, paragraph or list item

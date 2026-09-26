@@ -1,4 +1,5 @@
-// Command skillcheck dry runs every rule's bad and good example under skills/.
+// Command skillcheck dry runs every rule's bad and good example under skills/, and checks the flags
+// and commands the prose names against onesie --help.
 package main
 
 import (
@@ -16,7 +17,15 @@ func main() {
 		os.Exit(1)
 	}
 
-	report, err := skillcheck.Check(context.Background(), root, skillcheck.NewRunner("", os.Environ()))
+	runner := skillcheck.NewRunner("", os.Environ())
+
+	report, err := skillcheck.Check(context.Background(), root, runner)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+
+	prose, err := skillcheck.CheckProse(context.Background(), root, runner)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
@@ -30,11 +39,14 @@ func main() {
 			skip.Skill, skip.RuleID, skip.Kind, skip.Reason, skip.Command)
 	}
 
-	if report.Passed() {
+	fmt.Printf("onesie: checked %d flag and command mentions in the prose\n", prose.Checked)
+
+	failures := append(report.Failures, prose.Failures...)
+	if len(failures) == 0 {
 		return
 	}
 
-	for _, failure := range report.Failures {
+	for _, failure := range failures {
 		fmt.Fprintln(os.Stderr, failure)
 	}
 
