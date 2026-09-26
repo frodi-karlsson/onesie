@@ -37,7 +37,8 @@ go install github.com/frodi-karlsson/onesie/cmd/onesie@latest
 
 macOS blocks a onesie binary downloaded through a browser, so install it with one of these three.
 
-Then store a key with `onesie auth set`.
+Then store a key with `onesie auth set`. TypeSafe is the default provider, and
+`--provider openrouter` or `--provider berget` asks through OpenRouter or Berget instead.
 
 In Claude Code, the plugin can come first and walk you through the rest:
 

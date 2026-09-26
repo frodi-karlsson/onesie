@@ -39,8 +39,8 @@ keychain item that is gone shows up in `auth test` or a real run, not in `auth s
 The provider comes first: `--provider`, then `ONESIE_PROVIDER`, then `typesafe`. A key then
 resolves for that provider in this order, first match wins:
 
-1. The provider's variable: `TYPESAFE_API_KEY` for typesafe, `OPENROUTER_API_KEY` for openrouter.
-   Neither provider falls back to the other's key.
+1. The provider's variable: `TYPESAFE_API_KEY` for typesafe, `OPENROUTER_API_KEY` for openrouter,
+   `BERGET_API_KEY` for berget. No provider falls back to another's key.
 2. The provider's entry in `credentials.json`, in `$ONESIE_CONFIG_DIR`, then
    `$XDG_CONFIG_HOME/onesie`, then, on Windows, `%APPDATA%\onesie`, and otherwise
    `~/.config/onesie`. The entry holds the key, or says the key is in the OS keychain, which
@@ -48,7 +48,8 @@ resolves for that provider in this order, first match wins:
 
 Exit 3 also covers these:
 
-- A 401, a 403 or a 402. OpenRouter sends 402 when the account is out of credits.
+- A 401, a 403 or a 402. OpenRouter sends 402 when the account is out of credits, and Berget when
+  the key has no subscription.
 - A credential file that others can reach. The message names the file and its mode. Run
   `chmod 600` on it.
 - A keychain that refuses, holds no item for the entry, or does not answer within 10 seconds,

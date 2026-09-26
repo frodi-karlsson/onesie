@@ -6,7 +6,7 @@ compatibility: Needs a shell. Installing onesie needs Homebrew, curl or a Go too
 license: MIT
 ---
 
-onesie is a command line tool that asks the TypeSafe Jev model typed questions about text. It needs the `onesie` binary on PATH and an API key, from TypeSafe or from OpenRouter. This skill walks a user from nothing to a working first command.
+onesie is a command line tool that asks the TypeSafe Jev model typed questions about text. It needs the `onesie` binary on PATH and an API key, from TypeSafe, OpenRouter or Berget. This skill walks a user from nothing to a working first command.
 
 There are two ways in. A user who installs onesie first can add the plugin afterwards. A user who installs the plugin first gets a session start line saying onesie is missing or has no key, and this skill takes it from there.
 
@@ -24,13 +24,13 @@ The steps, in order:
 
 Anything typed into the conversation is sent to the model and kept in the transcript. `onesie auth set` reads the key from a hidden prompt in a real terminal, or from stdin otherwise, and never prints it. So ask the user to run `onesie auth set` in their own terminal, or to pipe it from a password manager, as in `pass show typesafe | head -n 1 | onesie auth set`. `pass show` and its siblings print metadata after the secret, and `auth set` refuses stdin that holds more than one non blank line, so keep the `head -n 1`. A command that reads from a password manager is safe to run for them, since only the stderr lines naming the file and the keychain come back.
 
-### Ask which account the user has, TypeSafe or OpenRouter, before storing a key.
+### Ask which account the user has, TypeSafe, OpenRouter or Berget, before storing a key.
 
-typesafe is the default. For openrouter, store the key with `onesie --provider openrouter auth set`, and have the user add `export ONESIE_PROVIDER=openrouter` to their shell profile. Otherwise every command needs `--provider openrouter`, and without it onesie looks for a TypeSafe key and reports none.
+typesafe is the default. For openrouter, store the key with `onesie --provider openrouter auth set`, and have the user add `export ONESIE_PROVIDER=openrouter` to their shell profile. Otherwise every command needs `--provider openrouter`, and without it onesie looks for a TypeSafe key and reports none. berget works the same way, with `onesie --provider berget auth set` and `export ONESIE_PROVIDER=berget`.
 
 ### End the setup with onesie auth test, not auth status.
 
-`auth status` only reports where a key would come from, and never reads the keychain. `auth test` resolves the key and sends it to the provider's model listing, which costs no tokens, then prints `provider:`, `source:` and `models:` with a count. It exits 2 when no key resolves, 3 when the provider refuses the key or the keychain cannot give it up, and 4 or 5 when the provider cannot be reached. Only a clean `auth test` means the next real command will work.
+`auth status` only reports where a key would come from, and never reads the keychain. `auth test` resolves the key and sends it to the provider's model listing, which costs no tokens, then prints `provider:`, `source:` and `models:` with a count. Berget lists its models to any key, so on berget it also asks one tiny question, which spends a few tokens. It exits 2 when no key resolves, 3 when the provider refuses the key or the keychain cannot give it up, and 4 or 5 when the provider cannot be reached. Only a clean `auth test` means the next real command will work.
 
 ## Installing onesie
 
@@ -50,6 +50,7 @@ Confirm the install with `onesie -V`, which prints the version and the built in 
 | --- | --- | --- |
 | typesafe | `onesie auth set` | `TYPESAFE_API_KEY` |
 | openrouter | `onesie --provider openrouter auth set` | `OPENROUTER_API_KEY` |
+| berget | `onesie --provider berget auth set` | `BERGET_API_KEY` |
 
 An env var outranks a stored key, which suits CI. `auth set` stores one entry per provider in `credentials.json`, in `$ONESIE_CONFIG_DIR`, then `$XDG_CONFIG_HOME/onesie`, then, on Windows, `%APPDATA%\onesie`, and otherwise `~/.config/onesie`. The file is written at mode 600, and a directory it creates at mode 700. When there is an OS keychain the key goes there, under the service `onesie`, and the file entry only points at it. `auth set --file` keeps the key in the file itself. `--base-url` on `auth set` stores an API root beside the key. `onesie auth clear` removes the provider's entry and its keychain item.
 

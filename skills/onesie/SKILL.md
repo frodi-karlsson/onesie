@@ -157,7 +157,7 @@ onesie 'is this urgent' --state 'the server is down' --stats --usage -o json
 
 ### Turn on --cache for a script or loop that asks the same thing again.
 
-`--cache`, or `ONESIE_CACHE=1` in the environment of every run, stores each successful response on disk and answers a repeated request from it, with no request and zero tokens. The key is a sha256 of the exact request body, the state, the questions and the model name, plus the provider and the base URL, so a change to any of those asks again, while `--timeout`, `--retries`, `--assert` and the output flags do not. On the `typesafe` provider a model name ending in a version, such as `jev-1.13.0`, is pinned and its answers live until they are evicted. Every other model is an alias, such as `jev-latest`, and so is every model on OpenRouter, so its answers expire after 24 hours, or after `ONESIE_CACHE_TTL`. `--cache=false` turns it off for one run under `ONESIE_CACHE=1`, so that run asks the API again. Cached answers stay on disk until they expire, are evicted or `onesie cache clear` removes them.
+`--cache`, or `ONESIE_CACHE=1` in the environment of every run, stores each successful response on disk and answers a repeated request from it, with no request and zero tokens. The key is a sha256 of the exact request body, the state, the questions and the model name, plus the provider and the base URL, so a change to any of those asks again, while `--timeout`, `--retries`, `--assert` and the output flags do not. On the `typesafe` provider a model name ending in a version, such as `jev-1.13.0`, is pinned and its answers live until they are evicted. Every other model is an alias, such as `jev-latest`, and so is every model on OpenRouter or Berget, so its answers expire after 24 hours, or after `ONESIE_CACHE_TTL`. `--cache=false` turns it off for one run under `ONESIE_CACHE=1`, so that run asks the API again. Cached answers stay on disk until they expire, are evicted or `onesie cache clear` removes them.
 
 **Good:**
 
@@ -177,7 +177,7 @@ onesie --ask urgent='is this urgent' --ask team='which team owns this' --pick bi
 
 ### Pick the provider with --provider or ONESIE_PROVIDER, and pin models per provider.
 
-typesafe is the default and reads `TYPESAFE_API_KEY`, plus `TYPESAFE_BASE_URL` and `TYPESAFE_DEFAULT_MODEL` when they are set. openrouter reads `OPENROUTER_API_KEY` alone, and never falls back to the TypeSafe key or those two variables. `jev-latest` works on both, but a pinned model id does not carry over: TypeSafe pins `jev-1.13.0`, OpenRouter pins `typesafe/jev-1.13`. `onesie auth status` names the provider and where its key came from.
+typesafe is the default and reads `TYPESAFE_API_KEY`, plus `TYPESAFE_BASE_URL` and `TYPESAFE_DEFAULT_MODEL` when they are set. openrouter reads `OPENROUTER_API_KEY` alone, and never falls back to the TypeSafe key or those two variables. `jev-latest` works on both, but a pinned model id does not carry over: TypeSafe pins `jev-1.13.0`, OpenRouter pins `typesafe/jev-1.13`. berget reads `BERGET_API_KEY` alone and serves its own models, not `jev-latest`: its default is the `systemone` alias, and `--list-models` names the rest. `onesie auth status` names the provider and where its key came from.
 
 **Good:**
 

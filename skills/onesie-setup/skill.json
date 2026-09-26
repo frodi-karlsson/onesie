@@ -12,13 +12,13 @@
     },
     {
       "id": "choose-the-provider-first",
-      "short": "Ask which account the user has, TypeSafe or OpenRouter, before storing a key.",
-      "why": "typesafe is the default. For openrouter, store the key with `onesie --provider openrouter auth set`, and have the user add `export ONESIE_PROVIDER=openrouter` to their shell profile. Otherwise every command needs `--provider openrouter`, and without it onesie looks for a TypeSafe key and reports none."
+      "short": "Ask which account the user has, TypeSafe, OpenRouter or Berget, before storing a key.",
+      "why": "typesafe is the default. For openrouter, store the key with `onesie --provider openrouter auth set`, and have the user add `export ONESIE_PROVIDER=openrouter` to their shell profile. Otherwise every command needs `--provider openrouter`, and without it onesie looks for a TypeSafe key and reports none. berget works the same way, with `onesie --provider berget auth set` and `export ONESIE_PROVIDER=berget`."
     },
     {
       "id": "finish-with-auth-test",
       "short": "End the setup with onesie auth test, not auth status.",
-      "why": "`auth status` only reports where a key would come from, and never reads the keychain. `auth test` resolves the key and sends it to the provider's model listing, which costs no tokens, then prints `provider:`, `source:` and `models:` with a count. It exits 2 when no key resolves, 3 when the provider refuses the key or the keychain cannot give it up, and 4 or 5 when the provider cannot be reached. Only a clean `auth test` means the next real command will work."
+      "why": "`auth status` only reports where a key would come from, and never reads the keychain. `auth test` resolves the key and sends it to the provider's model listing, which costs no tokens, then prints `provider:`, `source:` and `models:` with a count. Berget lists its models to any key, so on berget it also asks one tiny question, which spends a few tokens. It exits 2 when no key resolves, 3 when the provider refuses the key or the keychain cannot give it up, and 4 or 5 when the provider cannot be reached. Only a clean `auth test` means the next real command will work."
     }
   ],
   "sections": [

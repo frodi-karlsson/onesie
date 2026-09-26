@@ -249,7 +249,8 @@ again.
   again next time.
 - On the `typesafe` provider, a model name that ends in a version, such as `jev-1.13.0`, is pinned,
   and its answers live until they are evicted. Every other model is an alias, such as `jev-latest`,
-  and so is every model on any other provider, `typesafe/jev-1.13` on OpenRouter included. An
+  and so is every model on any other provider, `typesafe/jev-1.13` on OpenRouter and
+  `Qwen/Qwen3.5-2B` on Berget included. An
   alias's answers expire after 24 hours, since the model behind it can move. `ONESIE_CACHE_TTL` sets
   that lifetime as a duration, such as `90m` or `72h`, and `0` stops reading and storing answers for
   an alias. A negative or malformed value exits 2. A run's lifetime decides what it reads, not what
@@ -305,13 +306,14 @@ again.
 onesie auth set                                    # prompts, or reads the key alone from stdin
 pass show openrouter | head -n 1 | onesie --provider openrouter auth set
 onesie auth status                                 # which provider and source, never the key
-onesie auth test                                   # checks the key, costs no tokens
+onesie auth test                                   # checks the key
 ```
 
 | Provider | Key variable | Chosen with |
 |----------|--------------|-------------|
 | `typesafe`, the default | `TYPESAFE_API_KEY` | nothing |
 | `openrouter` | `OPENROUTER_API_KEY` | `--provider openrouter` or `ONESIE_PROVIDER=openrouter` |
+| `berget` | `BERGET_API_KEY` | `--provider berget` or `ONESIE_PROVIDER=berget` |
 
 - A key comes from the provider's variable, then the credential file. No provider falls back to
   another's key.
@@ -319,8 +321,13 @@ onesie auth test                                   # checks the key, costs no to
   `600` under `$ONESIE_CONFIG_DIR`, `$XDG_CONFIG_HOME/onesie` or `~/.config/onesie`. onesie refuses
   a file anyone else can reach. On Linux the key reaches the Secret Service over the session bus
   unencrypted, readable only by your own user.
-- `jev-latest` works on both providers, but pinned ids differ: `jev-1.13.0` on TypeSafe,
-  `typesafe/jev-1.13` on OpenRouter. On OpenRouter, `--usage` also reports the cost. A 200 whose
+- `auth test` lists the provider's models, which costs no tokens. Berget lists its models to any
+  key, so on berget `auth test` also asks one tiny question with the default model, which spends a
+  few tokens.
+- `jev-latest` works on typesafe and openrouter, but pinned ids differ: `jev-1.13.0` on TypeSafe,
+  `typesafe/jev-1.13` on OpenRouter. Berget serves its own models and not `jev-latest`. Its default
+  is the `systemone` alias, and `--list-models` there lists only the System One models, each with its
+  aliases. On OpenRouter, `--usage` also reports the cost. A 200 whose
   answers onesie cannot use still spent its tokens, so under `--usage` its json error record
   carries them too, and `--stats` counts them. `-o values`, `-o raw`, `-r`, `-o csv` and `-o tsv`
   have no place for `--usage`, and `-q` writes nothing, so they all refuse it with exit 2.
@@ -346,7 +353,7 @@ A consumer that stops reading, as `head` does, is not an error.
 
 | Variable | What it does |
 |----------|--------------|
-| `TYPESAFE_API_KEY`, `OPENROUTER_API_KEY` | the key for each provider, as in Keys and providers |
+| `TYPESAFE_API_KEY`, `OPENROUTER_API_KEY`, `BERGET_API_KEY` | the key for each provider, as in Keys and providers |
 | `ONESIE_PROVIDER` | the provider when `--provider` is not given |
 | `ONESIE_CONFIG_DIR` | where the credential file and the saved question files live |
 | `ONESIE_MOCK` | a file to answer from, as `--mock` |
