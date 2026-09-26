@@ -337,3 +337,44 @@ func countModeFlags(args []string) int {
 
 	return count
 }
+
+func TestPairingProblem(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		tokens []string
+		want   string
+	}{
+		{name: "should pass a command with no answer file flags", tokens: []string{"onesie", "--ask", "a=x"}},
+		{
+			name:   "should pass --offline beside --out and --resume, and --prune beside --resume and --id",
+			tokens: []string{"onesie", "calibrate", "--id", ".id", "--out", "a.jsonl", "--resume", "--offline", "--prune"},
+		},
+		{name: "should fail --resume without --out", tokens: []string{"onesie", "--resume"}, want: "--resume needs --out"},
+		{
+			name:   "should fail --offline without --resume",
+			tokens: []string{"onesie", "--out", "a.jsonl", "--offline"},
+			want:   "--offline needs --out and --resume",
+		},
+		{
+			name:   "should fail --prune without --id",
+			tokens: []string{"onesie", "--out", "a.jsonl", "--resume", "--prune"},
+			want:   "--prune needs --resume and --id",
+		},
+		{
+			name:   "should not read a flag's value as --resume",
+			tokens: []string{"onesie", "--state", "--resume"},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := pairingProblem(tc.tokens); got != tc.want {
+				t.Errorf("pairingProblem(%q) = %q, want %q", tc.tokens, got, tc.want)
+			}
+		})
+	}
+}

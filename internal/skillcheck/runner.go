@@ -51,18 +51,28 @@ type Runner struct {
 
 	exec func(ctx context.Context, binary string, args []string) (exitCode int, stderr string, err error)
 	help func(ctx context.Context, binary string, args []string) (stdout string, err error)
+	book *helpBook
 }
 
 // DryRun strips the flags a dry run rejects from command, adds the print flag and runs it without a
 // shell. A command that is not a onesie invocation is not run, and Skipped says why.
 func (r *Runner) DryRun(ctx context.Context, command string) (DryRunResult, error) {
-	args, reason, err := prepare(command)
+	tokens, args, reason, err := prepare(command)
 	if err != nil {
 		return DryRunResult{}, err
 	}
 
 	if reason != "" {
 		return DryRunResult{Skipped: reason}, nil
+	}
+
+	problem, err := r.answerFileProblem(ctx, command, tokens)
+	if err != nil {
+		return DryRunResult{}, err
+	}
+
+	if problem != "" {
+		return DryRunResult{Args: args, ExitCode: 2, Stderr: "skillcheck: " + problem}, nil
 	}
 
 	runCtx, cancel := context.WithTimeout(ctx, runTimeout)
@@ -93,13 +103,38 @@ func (r *Runner) Help(ctx context.Context, path []string) (string, error) {
 	return r.help(runCtx, r.Binary, append(append([]string{}, path...), "--help"))
 }
 
-func prepare(command string) (args []string, reason string, err error) {
-	tokens, reason := Tokenize(command)
+func prepare(command string) (tokens, args []string, reason string, err error) {
+	tokens, reason = Tokenize(command)
 	if reason != "" {
-		return nil, reason, nil
+		return nil, nil, reason, nil
 	}
 
-	return DryRunArgs(tokens)
+	args, reason, err = DryRunArgs(tokens)
+
+	return tokens, args, reason, err
+}
+
+// answerFileProblem checks the flags the dry run strips from command before it can hide an error:
+// each must be in the --help of the command it follows, and each must come with the flags it needs.
+func (r *Runner) answerFileProblem(ctx context.Context, command string, tokens []string) (string, error) {
+	if !hasAnswerFileFlag(tokens) {
+		return "", nil
+	}
+
+	if problem := pairingProblem(tokens); problem != "" {
+		return problem, nil
+	}
+
+	if r.book == nil {
+		r.book = &helpBook{runner: r, pages: map[string]helpPage{}}
+	}
+
+	problems, err := r.book.checkCommand(ctx, shellWords(command))
+	if err != nil || len(problems) == 0 {
+		return "", err
+	}
+
+	return problems[0], nil
 }
 
 func (r *Runner) run(ctx context.Context, args []string) (int, string, error) {

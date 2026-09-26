@@ -20,8 +20,12 @@ var alwaysStripped = []flagSpec{
 	{long: "stop-on-assert"},
 	// checkPrintFlags refuses a mock beside --print-request, and a dry run answers nothing anyway.
 	{long: "mock", value: true},
+}
+
+var answerFileFlags = []flagSpec{
 	// A dry run has no answers to write, resume or read back. calibrate refuses each of these
-	// beside --print-request, and a stream would write its bodies and a fingerprint to --out.
+	// beside --print-request, and a stream would write its bodies and a fingerprint to --out, so
+	// they are stripped, and answerFileProblem checks what the strip would hide.
 	{long: "out", value: true},
 	{long: "resume"},
 	{long: "offline"},
@@ -47,14 +51,15 @@ var printFlags = []flagSpec{
 	{long: "print-questions"},
 }
 
-var gateFlags = []flagSpec{
+var keptFlags = []flagSpec{
 	// Never stripped, only catalogued for their values.
 	{long: "assert", value: true},
 	{long: "abstain-if", value: true},
+	{long: "id", value: true},
 }
 
-var catalog = append(append(append(append([]flagSpec{}, printFlags...), alwaysStripped...),
-	questionsOnlyStripped...), gateFlags...) // A kept flag's value must never be read as a flag.
+var catalog = append(append(append(append(append([]flagSpec{}, printFlags...), alwaysStripped...),
+	answerFileFlags...), questionsOnlyStripped...), keptFlags...) // A kept flag's value must never be read as a flag.
 
 // DryRunArgs turns a tokenized onesie command into the argv of its dry run. It strips the flags a
 // dry run rejects and adds --print-request, or --print-questions for a command with a typed gate.
@@ -70,7 +75,7 @@ func DryRunArgs(tokens []string) (args []string, reason string, err error) {
 		mode = "--print-questions"
 	}
 
-	strip := append(append([]flagSpec{}, printFlags...), alwaysStripped...)
+	strip := append(append(append([]flagSpec{}, printFlags...), alwaysStripped...), answerFileFlags...)
 	if mode == "--print-questions" {
 		strip = append(strip, questionsOnlyStripped...)
 	}
@@ -85,6 +90,33 @@ func DryRunArgs(tokens []string) (args []string, reason string, err error) {
 	}
 
 	return final, "", nil
+}
+
+// pairingProblem names the first pairing rule of --out, --resume, --offline and --prune that the
+// tokenized command breaks, which the dry run would hide by stripping them. It is empty when none is.
+func pairingProblem(tokens []string) string {
+	has := func(long string) bool { return hasFlag(tokens[1:], long) }
+
+	switch {
+	case has("resume") && !has("out"):
+		return "--resume needs --out"
+	case has("offline") && (!has("out") || !has("resume")):
+		return "--offline needs --out and --resume"
+	case has("prune") && (!has("resume") || !has("id")):
+		return "--prune needs --resume and --id"
+	default:
+		return ""
+	}
+}
+
+func hasAnswerFileFlag(tokens []string) bool {
+	for _, spec := range answerFileFlags {
+		if hasFlag(tokens[1:], spec.long) {
+			return true
+		}
+	}
+
+	return false
 }
 
 func hasFlag(args []string, long string) bool {

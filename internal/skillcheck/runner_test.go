@@ -115,6 +115,72 @@ func TestRunnerDryRun(t *testing.T) {
 		}
 	})
 
+	t.Run("should check the answer file flags it strips before running anything", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name       string
+			command    string
+			wantRun    bool
+			wantStderr string
+		}{
+			{
+				name:       "should fail --offline on the root, which pairs it with nothing",
+				command:    "onesie 'q' -i jsonl --offline",
+				wantStderr: "skillcheck: --offline needs --out and --resume",
+			},
+			{
+				name:       "should fail --offline on the root, whose help does not list it",
+				command:    "onesie 'q' -i jsonl --out a.jsonl --resume --offline",
+				wantStderr: "skillcheck: --offline is not a flag in onesie --help",
+			},
+			{
+				name:    "should run --offline under calibrate, whose help lists it",
+				command: "onesie calibrate --ask a=x -i jsonl --id .id --out a.jsonl --resume --offline",
+				wantRun: true,
+			},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				var ran bool
+
+				runner := &Runner{
+					Binary: "onesie",
+					exec: func(context.Context, string, []string) (int, string, error) {
+						ran = true
+
+						return 0, "", nil
+					},
+					help: func(_ context.Context, _ string, args []string) (string, error) {
+						if args[0] == "calibrate" {
+							return "Flags:\n      --ask string   q\n      --id string   id\n  -i, --input string   i\n" +
+								"      --offline   o\n      --out string   f\n      --resume   r\n", nil
+						}
+
+						return "Available Commands:\n  calibrate   c\n\nFlags:\n  -i, --input string   i\n" +
+							"      --out string   f\n      --resume   r\n", nil
+					},
+				}
+
+				result, err := runner.DryRun(context.Background(), tc.command)
+				if err != nil {
+					t.Fatalf("DryRun(...) error = %v", err)
+				}
+
+				if ran != tc.wantRun || result.Stderr != tc.wantStderr {
+					t.Errorf("ran = %v, stderr = %q, want %v and %q", ran, result.Stderr, tc.wantRun, tc.wantStderr)
+				}
+
+				if !tc.wantRun && result.ExitCode != 2 {
+					t.Errorf("ExitCode = %d, want 2", result.ExitCode)
+				}
+			})
+		}
+	})
+
 	t.Run("should skip a command it cannot parse without running anything", func(t *testing.T) {
 		t.Parallel()
 
