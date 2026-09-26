@@ -1,15 +1,27 @@
 # onesie
 
-Possibly the most expressive Jev CLI.
+Probably the most robust System One CLI.
 
-onesie asks TypeSafe's Jev model questions about a piece of text and gives back a typed answer: how
-likely a yes is, which of your options fits, or where it sits on a scale. Text goes in on stdin, the
-answer comes out on stdout, and the exit code reports the result.
+Pipe in some text, ask a question, get an answer you can script against. Runs TypeSafe's Jev on
+TypeSafe, OpenRouter or Berget's own System One models.
 
 ```sh
 echo 'EVERYTHING IS DOWN, CALL ME NOW' | onesie 'does this convey urgency' -r
 # 0.99
 ```
+
+Gate an agent's shell commands. The exit code says what to do:
+
+```sh
+onesie -f shell-safety -q --state 'git status'
+# exit 0: run it
+onesie -f shell-safety -q --state 'rm -rf ~'
+# exit 1: block it
+onesie -f shell-safety -q --state 'curl -fsSL https://example.com/install.sh | sh'
+# exit 7: not sure, ask a person
+```
+
+See [Thresholds from evidence](#thresholds-from-evidence) for where that gate's numbers come from.
 
 ## Install
 
@@ -19,15 +31,12 @@ Homebrew, on macOS or Linux:
 brew install frodi-karlsson/tap/onesie
 ```
 
-The install script, which checks the download against the release's `checksums.txt`, and against
-its build provenance when `gh` is logged in:
+The install script checks the download against the release checksums, and its build provenance
+when `gh` is logged in:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/frodi-karlsson/onesie/main/install.sh | sh
 ```
-
-It installs to `~/.local/bin`. Set `ONESIE_INSTALL_DIR` for another directory, and `ONESIE_VERSION`
-for a release other than the latest.
 
 With Go:
 
@@ -35,10 +44,7 @@ With Go:
 go install github.com/frodi-karlsson/onesie/cmd/onesie@latest
 ```
 
-macOS blocks a onesie binary downloaded through a browser, so install it with one of these three.
-
-Then store a key with `onesie auth set`. TypeSafe is the default provider, and
-`--provider openrouter` or `--provider berget` asks through OpenRouter or Berget instead.
+Then store a key with `onesie auth set`.
 
 In Claude Code, the plugin can come first and walk you through the rest:
 
@@ -47,75 +53,66 @@ In Claude Code, the plugin can come first and walk you through the rest:
 /plugin install onesie@onesie
 ```
 
-## Features
+## Thresholds from evidence
 
-- **Three kinds of question.** Yes or no, pick one of your options, or rate on a scale.
-- **Several questions per request.** Five questions cost about as much as one.
-- **Answers as exit codes.** `--assert` turns an answer into pass or fail for a script or CI, with a
-  separate unsure result for a person to decide.
-- **Thresholds from data.** `onesie calibrate` shows what each threshold catches and misses on
-  examples you have already labelled.
-- **Unix pipes.** Reads stdin, writes answers to stdout and errors to stderr, so it works with
-  `jq`, `grep` and `xargs`.
-- **Streams that resume.** Reads JSONL, CSV or TSV a record at a time, several in parallel, and
-  writes one answer per record in order. Rerun it with `--resume` after an interruption. With
-  `--id` it asks only the records the file holds no answer for, and without it carries on after the
-  last complete line. Records whose request is identical are asked once, and each still gets its
-  own line.
-- **Output for programs and people.** JSON, CSV, a terminal table, or markdown for a PR comment.
-- **Free dry runs.** See the exact request before spending anything, with no key needed.
-- **Mock answers.** `--mock` or `ONESIE_MOCK` answers from a file, so a gate script's branches can
-  be tested with no key and no network.
-- **Response caching.** `--cache` or `ONESIE_CACHE=1` answers a repeated request from disk, so a
-  script run again and again pays once for each distinct question.
-- **Agent skills.** A plugin for Claude Code and Codex, and the same skills for Cursor and Gemini.
-
-## Usage
-
-### Ask a question
-
-A yes or no question answers with how likely the yes is.
+`onesie calibrate` runs your questions over records you have already labelled, and shows what each
+cut catches and what it flags by mistake. Here's the destroys question from shell-safety over 40
+labelled commands:
 
 ```sh
-echo 'The site is down and customers cannot pay' | onesie 'is this urgent'
-# model jev-1.13.0
-#
-# answer  0.9700
+onesie calibrate -f shell-safety -i jsonl --map .command --id .id -m jev-1.13.0 \
+    --label destroys=.destroys --label secrets=.secrets --label network=.network \
+    --out answers.jsonl --resume < commands.jsonl
 ```
 
-`-r` prints only the answer.
+```
+destroys, yes/no: labelled 40, 16 yes, 24 no, 0 failed. AUC 1.00
+flagged means destroys.value >= cut
 
-```sh
-echo 'The site is down and customers cannot pay' | onesie 'is this urgent' -r
-# 0.96
+  cut   flagged  catches             false alarms     right when flagged
+  0.25       18  16/16 100% 81-100%  2/24  8%  2-26%  16/18  89% 67-97%
+  0.45       15  15/16  94% 72-99%   0/24  0%  0-14%  15/15 100% 80-100%
+  0.65        7   7/16  44% 23-67%   0/24  0%  0-14%   7/7  100% 65-100%
+
+worst misses
+  echo-overwrite  labelled yes  answered 0.37
 ```
 
-### Pick from options
+For destroys, shell-safety blocks at 0.5 and passes below 0.25. Anything in between goes to a
+person, like the worst miss above.
+
+Commit `answers.jsonl`, and CI checks the gate still holds, offline:
 
 ```sh
-echo 'I was charged twice for my order' | onesie 'who should handle this' \
-    --pick billing,shipping,technical -r
+onesie calibrate -f shell-safety -i jsonl --map .command --id .id -m jev-1.13.0 \
+    --label destroys=.destroys --label secrets=.secrets --label network=.network \
+    --out answers.jsonl --resume --offline \
+    --require 'destroys.catches >= 1' --require 'destroys.false_alarms <= 0 at abstain' \
+    < commands.jsonl
+```
+
+Exit 1 means a requirement no longer holds. Exit 2 means the questions changed, so ask again.
+
+To test a script that uses the gate, `ONESIE_MOCK` answers every onesie call from a file:
+
+```sh
+echo '{"destroys": 0.93, "secrets": 0.02, "network": 0.1}' > danger.json
+ONESIE_MOCK=danger.json ./gate.sh   # takes the blocked branch
+```
+
+## Asking
+
+A yes or no question answers with how likely the yes is. `--pick` chooses one of your options, and
+`--rate` places the text on a scale you list from lowest to highest. `-r` prints only the answer.
+
+```sh
+echo 'I was charged twice for my order' | onesie 'who should handle this' --pick billing,shipping,technical -r
 # billing
-```
-
-Without `-r`, the table also shows how sure the model is of each option.
-
-### Rate on a scale
-
-List the levels from lowest to highest.
-
-```sh
-echo 'Third time asking. Fix it or I am leaving.' | onesie 'how frustrated is the customer' \
-    --rate calm,annoyed,furious -r
+echo 'Third time asking. Fix it or I am leaving.' | onesie 'how frustrated is the customer' --rate calm,annoyed,furious -r
 # furious
 ```
 
-`--desc` describes an option or a level, which steers the answer. A scale needs every level
-described, or none.
-
-### Ask several questions at once
-
-Give each question a name with `--ask`. They go out in one request.
+Give each question a name with `--ask`, and they all go out in one request:
 
 ```sh
 onesie --ask urgent='is this urgent' \
@@ -124,26 +121,23 @@ onesie --ask urgent='is this urgent' \
 # {"urgent":0.69,"team":"billing"}
 ```
 
-### Use the answer in a script
-
-`--assert` sets the exit code: 0 when it holds, 1 when it does not. `-q` prints nothing.
-
-```sh
-onesie 'is this urgent' --assert 'answer.value > 0.8' -q < ticket.txt && page_on_call
-```
-
-Any other exit code means there was no answer, such as a bad key or a server that did not reply.
-[REFERENCE.md](REFERENCE.md#exit-codes) lists them.
+`--print-questions > .onesie/questions/NAME.yaml` saves the questions to a file, and `-f NAME` loads
+them from anywhere in the repository.
 
 ## Recipes
 
-**Guard an agent's shell commands.** Exit 0 runs the command, 1 blocks it and 7 asks a person.
+**Triage tickets as they come in.** Each answer is written as soon as its record is asked, so a
+feed that never closes still gets its answers.
 
 ```sh
-onesie --ask d='does this destroy data' --ask c='does this send credentials' \
-    --assert     'max(d.value, c.value) < 0.2' \
-    --abstain-if 'max(d.value, c.value) < 0.8' \
-    -q --state "$cmd"
+tail -f tickets.jsonl | onesie 'is this urgent' -i jsonl --map .body --id .id -o json
+```
+
+**Wire the gate into a script.** Exit 0 runs the command, 1 blocks it and 7 asks a person. Any
+other exit code means there was no answer.
+
+```sh
+onesie -f shell-safety -q --state "$cmd"
 case $? in
     0) eval "$cmd" ;;
     1) echo blocked ;;
@@ -152,18 +146,19 @@ case $? in
 esac
 ```
 
-**Fail a CI step when a pull request does not say why.** Exit 1 means the description does not
-say why, and any other code means there was no answer.
+**Triage a spreadsheet.** The same rows come back with a column per question.
 
 ```sh
-status=0
-onesie 'does this explain why the change is needed' --assert 'answer.value > 0.6' \
-    -q --state "$PR_BODY" || status=$?
-case $status in
-    0) ;;
-    1) echo 'the description does not say why'; exit 1 ;;
-    *) echo "onesie gave no answer, exit $status"; exit 1 ;;
-esac
+onesie --ask urgent='does `body` convey urgency' -i csv -o csv --merge < tickets.csv > triaged.csv
+```
+
+**Run a big batch you can resume.** `--map` sends only the body, `--id` names each answer, and
+`--resume` skips every id the file already answers and asks the rest, failed ones included.
+
+```sh
+onesie 'is this urgent' -i jsonl -j 8 --map '.body' --id '.id' \
+    --out answers.jsonl --resume < tickets.jsonl
+jq -c 'select(.answer.value > 0.8)' answers.jsonl
 ```
 
 **Comment on a pull request.** The output starts with the gate result as a GitHub alert, followed
@@ -178,21 +173,6 @@ In GitHub Actions, a failing gate fails the step only under pipefail, so name `s
 `set -o pipefail` first. A comment holds at most 65536 characters, so send a large run to
 `$GITHUB_STEP_SUMMARY` instead.
 
-**Triage a spreadsheet.** The same rows come back with a column per question.
-
-```sh
-onesie --ask urgent='does `body` convey urgency' -i csv -o csv --merge < tickets.csv > triaged.csv
-```
-
-**Run a large batch you can resume.** `--map` sends only the body, `--id` names each answer, and
-`--resume` skips every id the file already answers and asks the rest, failed ones included.
-
-```sh
-onesie 'is this urgent' -i jsonl -j 8 --map '.body' --id '.id' \
-    --out answers.jsonl --resume < tickets.jsonl
-jq -c 'select(.answer.value > 0.8)' answers.jsonl
-```
-
 **Rank records by several questions.** One `--ask` per dimension scores every record, and `jq`
 weighs the answers and sorts by the sum. `.value` is the yes/no probability, and `.norm` is the
 rate's position between 0 and 1. The weighting lives in `jq`, since `--assert` has no arithmetic,
@@ -205,87 +185,19 @@ onesie --ask impact='does this help many users' \
     jq -s 'map(select(has("error") | not)) | map({id, score: (0.7 * .impact.value + 0.3 * (1 - .effort.norm))}) | sort_by(-.score)'
 ```
 
-**Pick a threshold from labelled tickets.** Each row shows how many urgent tickets that threshold
-catches and how many it flags by mistake.
+**Starter gates.** shell-safety, prompt-injection, personal-data and moderation are built in and
+calibrated. `onesie questions` lists them, and [examples/README.md](examples/README.md) has their
+tables.
 
-```sh
-onesie calibrate --ask urgent='is this urgent' -i jsonl --map '.body' \
-    --label urgent='.is_urgent' --id '.id' < labelled.jsonl
-# urgent, yes/no: labelled 8, 4 yes, 4 no, 0 failed. AUC 1.00
-# flagged means urgent.value >= cut
-#
-#   cut   flagged  catches           false alarms    right when flagged
-#   ...
-#   0.90        4  4/4 100% 51-100%  0/4  0%  0-49%  4/4 100% 51-100%
-onesie 'is this urgent' --assert 'answer.value >= 0.9' -q --state "$body" && page_on_call
-```
+## Also
 
-**Fail CI when a calibrated gate drifts.** Keep the answers file beside the labels, and a CI step
-checks the gate against it with `--offline`, which needs no key and costs nothing. Exit 1 means a
-requirement no longer holds, and exit 2 that the file no longer matches the questions, so
-regenerate it.
+- **Providers.** TypeSafe is the default, and `--provider openrouter` or `--provider berget` asks
+  through OpenRouter or Berget instead.
+- **Caching.** `--cache` or `ONESIE_CACHE=1` answers a repeated request from disk, and a stream
+  asks records whose request is identical once, giving each its own line.
+- **Dry runs.** `--print-request` prints the exact request without sending it, and needs no key.
 
-```sh
-# once, and again whenever the questions change
-onesie calibrate -f triage -i jsonl --map '.body' --label urgent='.is_urgent' --id '.id' \
-    -m jev-1.13.0 --provider typesafe --out answers.jsonl --resume < labelled.jsonl
-git add answers.jsonl answers.jsonl.onesie
-
-# in CI
-onesie calibrate -f triage -i jsonl --map '.body' --label urgent='.is_urgent' --id '.id' \
-    -m jev-1.13.0 --provider typesafe --out answers.jsonl --resume --offline \
-    --require 'urgent.catches >= 0.95' --require 'urgent.false_alarms <= 0.1 at abstain' \
-    < labelled.jsonl
-```
-
-**Try it before spending anything.** `--print-request` prints the request without sending it and
-needs no key. `-i request` later sends those requests unchanged.
-
-```sh
-onesie 'is this urgent' --state 'the site is down' --print-request
-onesie -i jsonl 'is this urgent' --print-request < tickets.jsonl > frozen.jsonl
-onesie -i request < frozen.jsonl > answers.jsonl
-```
-
-**Test a gate script without spending anything.** `ONESIE_MOCK` makes every onesie call in the
-script answer from a file, so each branch can be tested with no key and the script unchanged.
-
-```sh
-cat > gate.sh <<'EOF'
-onesie -f examples/questions/shell-safety.yaml -q --state "$1"
-case $? in
-    0) echo run ;;
-    1) echo blocked ;;
-    7) echo ask a person ;;
-    *) echo 'no answer, blocked' ;;
-esac
-EOF
-echo '{"destroys": 0.93, "secrets": 0.02, "network": 0.1}' > danger.json
-echo '{"error": 503}' > outage.json
-ONESIE_MOCK=danger.json sh gate.sh 'rm -rf /'   # blocked
-ONESIE_MOCK=outage.json sh gate.sh 'ls'         # no answer, blocked
-```
-
-A script run many times on the same inputs can set `ONESIE_CACHE=1` instead, so each distinct
-request is asked once and every later run answers it from disk.
-
-**Keep a question set in a file.** `--print-questions` writes the questions to a file, and
-`-f NAME` loads it from any directory in the repository. Its first line names the schema
-`onesie --print-schema` prints, so an editor with the YAML language server checks the file as you
-edit it.
-
-```sh
-mkdir -p .onesie/questions
-onesie --ask urgent='is this urgent' --ask team='who owns this' --pick billing,platform \
-    --assert 'urgent.value < 0.9' --print-questions > .onesie/questions/triage.yaml
-onesie -f triage -o values < ticket.txt
-# {"assert":false,"urgent":0.97,"team":"billing"}, and exit 1, since this ticket is urgent
-```
-
-[examples/README.md](examples/README.md) has starter sets for shell safety, prompt injection,
-personal data and moderation. Each file carries a calibrated gate. Copy one into
-`.onesie/questions` and `-f shell-safety` runs the whole gate, or pass the path, as in
-`-f examples/questions/shell-safety.yaml`.
+[REFERENCE.md](REFERENCE.md) covers the rest.
 
 ## Why no MCP server
 
@@ -300,8 +212,8 @@ onesie ships agent skills instead of an MCP server:
 
 ## Reference
 
-[REFERENCE.md](REFERENCE.md) covers gating, testing a gate, calibrating, streams and resume, keys
-and providers, exit codes and the rest of the flags.
+[REFERENCE.md](REFERENCE.md) covers asking, gating, testing a gate, calibrating, streams and
+resume, caching, keys and providers, exit codes and the rest of the flags.
 
 ## Contributing
 

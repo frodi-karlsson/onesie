@@ -83,7 +83,7 @@ func prepare(command string) (args []string, reason string, err error) {
 		return nil, reason, nil
 	}
 
-	return dryRunArgs(tokens)
+	return DryRunArgs(tokens)
 }
 
 func (r *Runner) run(ctx context.Context, args []string) (int, string, error) {

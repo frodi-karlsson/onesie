@@ -173,13 +173,13 @@ func TestDryRunArgs(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, reason, err := dryRunArgs(tc.tokens)
+			got, reason, err := DryRunArgs(tc.tokens)
 			if err != nil {
-				t.Fatalf("dryRunArgs(%v) unexpected error: %v", tc.tokens, err)
+				t.Fatalf("DryRunArgs(%v) unexpected error: %v", tc.tokens, err)
 			}
 
 			if reason != tc.wantReason {
-				t.Fatalf("dryRunArgs(%v) reason = %q, want %q", tc.tokens, reason, tc.wantReason)
+				t.Fatalf("DryRunArgs(%v) reason = %q, want %q", tc.tokens, reason, tc.wantReason)
 			}
 
 			if tc.wantReason != "" {
@@ -187,7 +187,7 @@ func TestDryRunArgs(t *testing.T) {
 			}
 
 			if !reflect.DeepEqual(got, tc.want) {
-				t.Errorf("dryRunArgs(%v) = %#v, want %#v", tc.tokens, got, tc.want)
+				t.Errorf("DryRunArgs(%v) = %#v, want %#v", tc.tokens, got, tc.want)
 			}
 		})
 	}
@@ -216,9 +216,9 @@ func TestDryRunArgs(t *testing.T) {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 
-				got, reason, err := dryRunArgs(tc.tokens)
+				got, reason, err := DryRunArgs(tc.tokens)
 				if err != nil || reason != "" {
-					t.Fatalf("dryRunArgs(%v) reason = %q, err = %v, want a clean parse", tc.tokens, reason, err)
+					t.Fatalf("DryRunArgs(%v) reason = %q, err = %v, want a clean parse", tc.tokens, reason, err)
 				}
 
 				stateAt := -1
@@ -230,12 +230,12 @@ func TestDryRunArgs(t *testing.T) {
 				}
 
 				if stateAt == -1 || stateAt+1 >= len(got) || got[stateAt+1] != tc.wantValue {
-					t.Fatalf("dryRunArgs(%v) = %#v, want --state immediately followed by %q",
+					t.Fatalf("DryRunArgs(%v) = %#v, want --state immediately followed by %q",
 						tc.tokens, got, tc.wantValue)
 				}
 
 				if modeCount := countModeFlags(got); modeCount != 1 {
-					t.Errorf("dryRunArgs(%v) = %#v, want exactly one dry run flag, counted %d",
+					t.Errorf("DryRunArgs(%v) = %#v, want exactly one dry run flag, counted %d",
 						tc.tokens, got, modeCount)
 				}
 			})
@@ -252,22 +252,22 @@ func TestDryRunArgs(t *testing.T) {
 
 			tokens := []string{"onesie", "--ask", "a=x", "--fallback", "--merge"}
 
-			got, reason, err := dryRunArgs(tokens)
+			got, reason, err := DryRunArgs(tokens)
 			if err != nil || reason != "" {
-				t.Fatalf("dryRunArgs(%v) reason = %q, err = %v, want a clean parse", tokens, reason, err)
+				t.Fatalf("DryRunArgs(%v) reason = %q, err = %v, want a clean parse", tokens, reason, err)
 			}
 
 			want := []string{"--print-request", "--ask", "a=x", "--fallback"}
 			if !reflect.DeepEqual(got, want) {
-				t.Fatalf("dryRunArgs(%v) = %#v, want %#v", tokens, got, want)
+				t.Fatalf("DryRunArgs(%v) = %#v, want %#v", tokens, got, want)
 			}
 
 			if got[0] != "--print-request" {
-				t.Errorf("dryRunArgs(%v)[0] = %q, want the mode flag at the very front", tokens, got[0])
+				t.Errorf("DryRunArgs(%v)[0] = %q, want the mode flag at the very front", tokens, got[0])
 			}
 
 			if modeCount := countModeFlags(got); modeCount != 1 {
-				t.Errorf("dryRunArgs(%v) = %#v, want exactly one dry run flag, counted %d",
+				t.Errorf("DryRunArgs(%v) = %#v, want exactly one dry run flag, counted %d",
 					tokens, got, modeCount)
 			}
 		})
