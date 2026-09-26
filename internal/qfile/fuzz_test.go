@@ -78,13 +78,13 @@ func FuzzFind(f *testing.F) {
 
 		searched := []string{repoDir, configDir}
 
-		path, err := qfile.Find(name, env)
+		source, err := qfile.Find(name, env)
 		if err == nil {
 			if !qfile.IsName(name) {
-				t.Fatalf("Find(%q) = %s, a match for a value IsName takes as a path", name, path)
+				t.Fatalf("Find(%q) = %+v, a match for a value IsName takes as a path", name, source)
 			}
 
-			checkFound(t, name, path, searched, sets)
+			checkFound(t, name, source.Path, searched, sets)
 		}
 
 		listed, err := qfile.List(env)

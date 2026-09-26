@@ -19,39 +19,53 @@ func IsName(value string) bool {
 }
 
 // Find resolves a bare name, and refuses a path, to the question file it names in the nearest
-// .onesie/questions at or above the working directory, then in the config dir's questions.
-func Find(name string, env FindEnv) (string, error) {
+// .onesie/questions at or above the working directory, then in the config dir's questions, then
+// to a set built into onesie.
+func Find(name string, env FindEnv) (Source, error) {
 	if !IsName(name) {
-		return "", fmt.Errorf("onesie: %q is not a question file name to look up", name)
+		return Source{}, fmt.Errorf("onesie: %q is not a question file name to look up", name)
 	}
 
 	repo, entries, err := repoSet(env)
 	if err != nil {
-		return "", err
+		return Source{}, err
 	}
 
 	if repo != "" {
 		if path, matchErr := matchOne(name, repo, entries); path != "" || matchErr != nil {
-			return path, matchErr
+			return Source{Path: path}, matchErr
 		}
 	}
 
 	config, err := configSet(env, repo)
 	if err != nil {
-		return "", err
+		return Source{}, err
 	}
 
 	if config.dir != "" {
 		if path, matchErr := matchOne(name, config.dir, config.entries); path != "" || matchErr != nil {
-			return path, matchErr
+			return Source{Path: path}, matchErr
 		}
 	}
 
-	return "", notFound(name, env.WorkDir, repo, config)
+	if env.BuiltIn != nil && env.BuiltIn(name) {
+		return Source{BuiltIn: name}, nil
+	}
+
+	return Source{}, notFound(name, env, repo, config)
 }
 
-// List reports every name Find would resolve, the repository set first and each sorted by name. A
-// name both sets hold is listed once, in the repository set, since Find never reaches the other.
+// Source is where a name resolved to: a file, or a set built into onesie.
+type Source struct {
+	// Path is the file the name resolved to, empty for a built-in.
+	Path string
+	// BuiltIn is the name of the built-in set, empty for a file.
+	BuiltIn string
+}
+
+// List reports every name Find would resolve, the repository set first, then the config dir's,
+// then the built-in sets, each sorted by name. A name more than one place holds is listed once,
+// from the first, since Find never reaches the others.
 func List(env FindEnv) ([]Found, error) {
 	repo, repoEntries, err := repoSet(env)
 	if err != nil {
@@ -73,18 +87,28 @@ func List(env FindEnv) ([]Found, error) {
 	for _, name := range namesIn(config.dir, config.entries, false) {
 		if !shadowed[name.Name] {
 			listed = append(listed, name)
+			shadowed[name.Name] = true
+		}
+	}
+
+	for _, name := range builtInNames(env) {
+		if !shadowed[name] {
+			listed = append(listed, Found{Name: name, BuiltIn: true})
 		}
 	}
 
 	return listed, nil
 }
 
-// Found is one name List reports. More than one path is a clash, which Find refuses.
+// Found is one name List reports. More than one path is a clash, which Find refuses. A built-in
+// has no path.
 type Found struct {
 	Name  string
 	Paths []string
 	// InRepo is true for a name from the .onesie/questions walk, false for one from the config dir.
 	InRepo bool
+	// BuiltIn is true for a set built into onesie.
+	BuiltIn bool
 }
 
 // FindEnv is everything Find reads from outside the process, so a test needs no real filesystem.
@@ -98,6 +122,10 @@ type FindEnv struct {
 	// Resolve follows symlinks, so the config dir is compared with the repository set by what it
 	// points at. filepath.EvalSymlinks in production.
 	Resolve func(string) (string, error)
+	// BuiltIn reports whether onesie has a set built in under a name. Nil means none.
+	BuiltIn func(name string) bool
+	// BuiltIns lists the built-in sets. Nil means none.
+	BuiltIns func() []string
 }
 
 func repoSet(env FindEnv) (string, []fs.DirEntry, error) {
@@ -230,7 +258,7 @@ func matches(name, dir string, entries []fs.DirEntry) []string {
 	return paths
 }
 
-func notFound(name, workDir, repo string, config configDir) error {
+func notFound(name string, env FindEnv, repo string, config configDir) error {
 	var searched []string
 	if repo != "" {
 		searched = append(searched, repo)
@@ -251,7 +279,11 @@ func notFound(name, workDir, repo string, config configDir) error {
 	}
 
 	if repo == "" {
-		message += fmt.Sprintf(". Found no .onesie/questions in %s or any parent", workDir)
+		message += fmt.Sprintf(". Found no .onesie/questions in %s or any parent", env.WorkDir)
+	}
+
+	if builtIns := builtInNames(env); len(builtIns) > 0 {
+		message += ". Built in: " + strings.Join(builtIns, ", ")
 	}
 
 	if config.unresolved != nil {
@@ -273,6 +305,14 @@ func (e *unsearchedError) Error() string {
 
 func (e *unsearchedError) Unwrap() error {
 	return e.cause
+}
+
+func builtInNames(env FindEnv) []string {
+	if env.BuiltIns == nil {
+		return nil
+	}
+
+	return slices.Sorted(slices.Values(env.BuiltIns()))
 }
 
 func joinAnd(items []string) string {

@@ -23,10 +23,12 @@ func readQuestionFile(settings rootSettings, value string) ([]byte, string, erro
 		return nil, "", err
 	}
 
-	path, err := qfile.Find(value, env)
+	source, err := qfile.Find(value, env)
 	if err != nil {
 		return nil, "", err
 	}
+
+	path := source.Path
 
 	data, err = settings.readFile(path)
 	if err != nil {

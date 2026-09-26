@@ -53,13 +53,57 @@ func TestFind(t *testing.T) {
 	errNoHome := errors.New("onesie: cannot find a home directory for the config dir, where the credential file lives")
 
 	tests := []struct {
-		name      string
-		files     []string
-		configErr error
-		want      string
-		wantErr   []string
-		wantIs    error
+		name        string
+		files       []string
+		configErr   error
+		builtIns    []string
+		want        string
+		wantBuiltIn string
+		wantErr     []string
+		wantIs      error
 	}{
+		{
+			name:        "should fall back to a built-in when neither directory has the name",
+			files:       []string{"/repo/.onesie/questions/other.yaml"},
+			builtIns:    []string{"triage", "support"},
+			wantBuiltIn: "triage",
+		},
+		{
+			name:     "should let a repository file shadow a built-in",
+			files:    []string{"/repo/.onesie/questions/triage.yaml"},
+			builtIns: []string{"triage"},
+			want:     filepath.Join(repoDir, "triage.yaml"),
+		},
+		{
+			name:     "should let a config dir file shadow a built-in",
+			files:    []string{"/home/.config/onesie/questions/triage.yml"},
+			builtIns: []string{"triage"},
+			want:     filepath.Join(configQuestions, "triage.yml"),
+		},
+		{
+			name: "should refuse a clash in the repository even with a built-in of that name",
+			files: []string{
+				"/repo/.onesie/questions/triage.yaml",
+				"/repo/.onesie/questions/triage.json",
+			},
+			builtIns: []string{"triage"},
+			wantErr:  []string{"onesie: question file triage is both", "Remove one"},
+		},
+		{
+			name:     "should name the built-in sets when nothing has the name",
+			builtIns: []string{"support", "billing"},
+			wantErr: []string{
+				"onesie: no file or question file named triage",
+				configQuestions,
+				"or any parent. Built in: billing, support",
+			},
+		},
+		{
+			name:        "should fall back to a built-in when the config dir cannot be resolved",
+			configErr:   errNoHome,
+			builtIns:    []string{"triage"},
+			wantBuiltIn: "triage",
+		},
 		{
 			name:  "should find a yaml file in the repository",
 			files: []string{"/repo/.onesie/questions/triage.yaml"},
@@ -200,7 +244,10 @@ func TestFind(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := qfile.Find("triage", fakeEnv(tc.files, workDir, configDir, tc.configErr))
+			env := fakeEnv(tc.files, workDir, configDir, tc.configErr)
+			withBuiltIns(&env, tc.builtIns)
+
+			got, err := qfile.Find("triage", env)
 
 			if len(tc.wantErr) > 0 {
 				if err == nil {
@@ -224,8 +271,8 @@ func TestFind(t *testing.T) {
 				t.Fatalf("Find: %v", err)
 			}
 
-			if got != tc.want {
-				t.Errorf("Find = %s, want %s", got, tc.want)
+			if want := (qfile.Source{Path: tc.want, BuiltIn: tc.wantBuiltIn}); got != want {
+				t.Errorf("Find = %+v, want %+v", got, want)
 			}
 		})
 	}
@@ -250,8 +297,8 @@ func TestFind(t *testing.T) {
 			t.Fatalf("Find: %v", err)
 		}
 
-		if want := filepath.Join(repoDir, "triage.yaml"); got != want {
-			t.Errorf("Find = %s, want %s", got, want)
+		if want := filepath.Join(repoDir, "triage.yaml"); got.Path != want {
+			t.Errorf("Find = %+v, want %s", got, want)
 		}
 	})
 
@@ -313,7 +360,7 @@ func TestFind(t *testing.T) {
 		for _, value := range []string{"two.parts", ""} {
 			got, err := qfile.Find(value, env)
 			if err == nil || !strings.Contains(err.Error(), "is not a question file name") {
-				t.Errorf("Find(%q) = %s, %v, want an error saying it is not a name", value, got, err)
+				t.Errorf("Find(%q) = %+v, %v, want an error saying it is not a name", value, got, err)
 			}
 		}
 	})
@@ -357,6 +404,15 @@ func fakeEnv(files []string, workDir, configDir string, configErr error) qfile.F
 	}
 }
 
+func withBuiltIns(env *qfile.FindEnv, names []string) {
+	if names == nil {
+		return
+	}
+
+	env.BuiltIn = func(name string) bool { return slices.Contains(names, name) }
+	env.BuiltIns = func() []string { return names }
+}
+
 func fsPath(dir string) string {
 	trimmed := strings.TrimPrefix(filepath.ToSlash(filepath.Clean(dir)), "/")
 	if trimmed == "" {
@@ -380,10 +436,25 @@ func TestList(t *testing.T) {
 		name      string
 		files     []string
 		configErr error
+		builtIns  []string
 		want      []qfile.Found
 	}{
 		{
 			name: "should list nothing when no set exists",
+		},
+		{
+			name: "should list the built-ins after both directories, leaving out the shadowed ones",
+			files: []string{
+				"/repo/.onesie/questions/triage.yaml",
+				"/home/.config/onesie/questions/support.yml",
+			},
+			builtIns: []string{"triage", "support", "moderation", "billing"},
+			want: []qfile.Found{
+				{Name: "triage", Paths: []string{filepath.Join(repoDir, "triage.yaml")}, InRepo: true},
+				{Name: "support", Paths: []string{filepath.Join(configQuestions, "support.yml")}},
+				{Name: "billing", BuiltIn: true},
+				{Name: "moderation", BuiltIn: true},
+			},
 		},
 		{
 			name: "should list the repository set before the config dir's, each sorted by name",
@@ -445,13 +516,17 @@ func TestList(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := qfile.List(fakeEnv(tc.files, workDir, configDir, tc.configErr))
+			env := fakeEnv(tc.files, workDir, configDir, tc.configErr)
+			withBuiltIns(&env, tc.builtIns)
+
+			got, err := qfile.List(env)
 			if err != nil {
 				t.Fatalf("List: %v", err)
 			}
 
 			if !slices.EqualFunc(got, tc.want, func(a, b qfile.Found) bool {
-				return a.Name == b.Name && slices.Equal(a.Paths, b.Paths) && a.InRepo == b.InRepo
+				return a.Name == b.Name && slices.Equal(a.Paths, b.Paths) && a.InRepo == b.InRepo &&
+					a.BuiltIn == b.BuiltIn
 			}) {
 				t.Errorf("List = %v, want %v", got, tc.want)
 			}
