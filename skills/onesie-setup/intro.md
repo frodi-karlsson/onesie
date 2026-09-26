@@ -9,3 +9,5 @@ The steps, in order:
 3. Ask which provider the user has an account with.
 4. Have the user store the key, outside the conversation.
 5. Run `onesie auth test` and confirm it reports the provider and a model count.
+
+For a flag this skill does not cover, run `onesie --help` or `onesie calibrate --help`, and `onesie -V` for the version and the built in limits.

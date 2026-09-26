@@ -29,6 +29,8 @@ terminal parses the same way.
 
 On a non zero exit or a key error, read `references/failures.md`.
 
+For a flag this skill does not cover, run `onesie --help` or `onesie calibrate --help`, and `onesie -V` for the version and the built in limits.
+
 ## Rules
 
 ### Ask every question you might need in one call.

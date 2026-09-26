@@ -18,6 +18,8 @@ else cuts the output short. See the onesie skill's failures reference for the ex
 onesie --ask urgent='is this urgent' -i jsonl -j 8 < tickets.jsonl | jq -c 'select(.error == null)'
 ```
 
+For a flag this skill does not cover, run `onesie --help` or `onesie calibrate --help`, and `onesie -V` for the version and the built in limits.
+
 ## Rules
 
 ### Read the error before you read any answer.

@@ -21,6 +21,8 @@ onesie --ask safe='is this command safe to run' --assert 'safe.value > 0.7' --st
 
 See the onesie skill's failures reference for the exit code table and the auth flow.
 
+For a flag this skill does not cover, run `onesie --help` or `onesie calibrate --help`, and `onesie -V` for the version and the built in limits.
+
 ## Rules
 
 ### Phrase the question so that true means go, not stop.
