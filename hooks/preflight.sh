@@ -24,14 +24,6 @@ case "$source" in
     ;;
   ?*)
     printf 'onesie is on PATH and a key resolves, provider: %s, source: %s.\n' "$provider" "$source"
-
-    # The manifest sits in the plugin root, one directory above this script.
-    manifest="$(dirname -- "$0")/../.claude-plugin/plugin.json"
-    plugin=$(sed -n 's/^[[:space:]]*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$manifest" 2>/dev/null | head -n 1)
-    binary=$(onesie --version </dev/null 2>/dev/null | head -n 1 | sed -n 's/^onesie v\{0,1\}//p')
-    if [ -n "$plugin" ] && [ -n "$binary" ] && [ "$plugin" != "$binary" ]; then
-      printf 'onesie --version reports %s, while the skills describe the flags of release %s. Check a flag with onesie --help before relying on it.\n' "$binary" "$plugin"
-    fi
     ;;
   *)
     if [ -z "$status" ]; then
@@ -42,14 +34,38 @@ case "$source" in
     ;;
 esac
 
+# The manifest sits in the plugin root, one directory above this script. A build from source
+# reports dev or a git describe version such as v0.2.0-9-ga5a2ace, which is expected to differ, so
+# only a release version is compared.
+manifest="$(dirname -- "$0")/../.claude-plugin/plugin.json"
+plugin=$(sed -n 's/^[[:space:]]*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$manifest" 2>/dev/null | head -n 1)
+binary=$(onesie --version </dev/null 2>/dev/null | head -n 1 | sed -n 's/^onesie v\{0,1\}//p')
+case "$binary" in
+  dev | *-[0-9]*-g[0-9a-f]* | *-dirty) ;;
+  [0-9]*.[0-9]*.[0-9]*)
+    if [ -n "$plugin" ] && [ "$plugin" != "$binary" ]; then
+      printf 'onesie --version reports %s, while the skills describe the flags of release %s. Check a flag with onesie --help before relying on it.\n' "$binary" "$plugin"
+    fi
+    ;;
+esac
+
+# There is no portable timeout in POSIX sh, and none is needed: onesie questions only lists the
+# local question directories and the built in sets, with no network call.
 saved=$(onesie questions </dev/null 2>/dev/null | awk '
-  NF >= 2 {
+  {
+    gsub(/[[:cntrl:]]/, "")
+    if (NF < 2) next
     name = $1
-    sub(/^[^ \t]+[ \t]+/, "")
+    sub(/^[^ ]+ +/, "")
+    count++
+    if (count > 20) next
     where = ($0 == "built in") ? "built in" : "in " $0
     list = list (list == "" ? "" : ", ") name " " where
   }
-  END { print list }
+  END {
+    if (count > 20) list = list ", and " (count - 20) " more"
+    print list
+  }
 ')
 if [ -n "$saved" ]; then
   printf 'Question files -f NAME loads: %s. Reuse one before writing a new one.\n' "$saved"
