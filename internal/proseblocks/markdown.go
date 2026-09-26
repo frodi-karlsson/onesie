@@ -15,7 +15,7 @@ var (
 	blockquoteMark = regexp.MustCompile(`^(?:>\s?)+`)
 )
 
-func markdownBlocks(path string, src []byte) []Block {
+func markdownBlocks(path string, src []byte) []span {
 	p := &markdownParser{path: path}
 
 	for i, line := range strings.Split(strings.ReplaceAll(string(src), "\r\n", "\n"), "\n") {
@@ -29,9 +29,10 @@ func markdownBlocks(path string, src []byte) []Block {
 
 type markdownParser struct {
 	path   string
-	blocks []Block
+	blocks []span
 
 	start  int
+	last   int
 	text   []string
 	inItem bool
 	// listOpen is true from a list item until a paragraph outside the list, so an indented
@@ -74,6 +75,7 @@ func (p *markdownParser) line(n int, raw string) {
 		p.listOpen = true
 	case len(p.text) > 0:
 		p.text = append(p.text, trimmed)
+		p.last = n
 	case indent(raw) >= 4 && !p.listOpen:
 	default:
 		p.listOpen = p.listOpen && indent(raw) > 0
@@ -110,6 +112,7 @@ func (p *markdownParser) skipped(n int, raw string) bool {
 
 func (p *markdownParser) begin(n int, text string, item bool) {
 	p.start = n
+	p.last = n
 	p.text = []string{strings.TrimSpace(text)}
 	p.inItem = item
 }
@@ -117,7 +120,7 @@ func (p *markdownParser) begin(n int, text string, item bool) {
 func (p *markdownParser) flush() {
 	if len(p.text) > 0 {
 		text := inlineComment.ReplaceAllString(strings.Join(p.text, " "), "")
-		if block, ok := newBlock(p.path, p.start, text); ok {
+		if block, ok := newBlock(p.path, p.start, p.last, text); ok {
 			p.blocks = append(p.blocks, block)
 		}
 	}

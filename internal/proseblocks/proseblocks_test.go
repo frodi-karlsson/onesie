@@ -19,7 +19,7 @@ func TestExtract(t *testing.T) {
 	tests := []struct {
 		name    string
 		files   map[string]string
-		paths   []string
+		changes []proseblocks.Change
 		want    []proseblocks.Block
 		wantErr string
 	}{
@@ -28,7 +28,7 @@ func TestExtract(t *testing.T) {
 			files: map[string]string{"a.go": "package a\n\n" +
 				"// Run asks every question once\n// and prints the answers.\nfunc Run() {}\n\n" +
 				"/* The cache keeps answers\n   on disk between runs. */\nvar x = 1\n"},
-			paths: []string{"a.go"},
+			changes: whole("a.go"),
 			want: []proseblocks.Block{
 				{ID: "a.go:3", Text: "Run asks every question once and prints the answers."},
 				{ID: "a.go:7", Text: "The cache keeps answers on disk between runs."},
@@ -42,20 +42,20 @@ func TestExtract(t *testing.T) {
 				"var b = 1 //nolint:errcheck // the close error cannot happen here\n\n" +
 				"// Too short.\nvar c = 1\n\n" +
 				"// A retry waits a second before it asks again.\n//nolint:gocritic\nvar d = 1\n"},
-			paths: []string{"a.go"},
-			want:  []proseblocks.Block{{ID: "a.go:15", Text: "A retry waits a second before it asks again."}},
+			changes: whole("a.go"),
+			want:    []proseblocks.Block{{ID: "a.go:15", Text: "A retry waits a second before it asks again."}},
 		},
 		{
 			name: "should skip a license header but keep the package doc",
 			files: map[string]string{"a.go": "// Copyright 2026 The Authors. Use of this source code is governed by a license.\n\n" +
 				"// Package a answers every question in turn.\npackage a\n"},
-			paths: []string{"a.go"},
-			want:  []proseblocks.Block{{ID: "a.go:3", Text: "Package a answers every question in turn."}},
+			changes: whole("a.go"),
+			want:    []proseblocks.Block{{ID: "a.go:3", Text: "Package a answers every question in turn."}},
 		},
 		{
 			name:    "should fail on a Go file that does not parse",
 			files:   map[string]string{"a.go": "package a\n\nfunc {\n"},
-			paths:   []string{"a.go"},
+			changes: whole("a.go"),
 			wantErr: "a.go:3",
 		},
 		{
@@ -63,7 +63,7 @@ func TestExtract(t *testing.T) {
 			files: map[string]string{"a.md": "The cache answers a repeated\nrequest from disk.\n\n" +
 				"- A hit sends nothing to the API.\n- A miss asks the API\n  and stores the answer.\n" +
 				"1. Run the check before you push.\n"},
-			paths: []string{"a.md"},
+			changes: whole("a.md"),
 			want: []proseblocks.Block{
 				{ID: "a.md:1", Text: "The cache answers a repeated request from disk."},
 				{ID: "a.md:4", Text: "A hit sends nothing to the API."},
@@ -81,14 +81,14 @@ func TestExtract(t *testing.T) {
 				"<!-- a comment that spans\nmore than one line of the file -->\n\n" +
 				"A setext heading with several words\n===\n\n" +
 				"Retries twice by default. <!-- an inline note -->\n"},
-			paths: []string{"a.md"},
-			want:  []proseblocks.Block{{ID: "a.md:25", Text: "Retries twice by default."}},
+			changes: whole("a.md"),
+			want:    []proseblocks.Block{{ID: "a.md:25", Text: "Retries twice by default."}},
 		},
 		{
-			name:  "should skip front matter",
-			files: map[string]string{"a.md": "---\nname: a skill with a long description\n---\n\nThe skill runs a gate on every record.\n"},
-			paths: []string{"a.md"},
-			want:  []proseblocks.Block{{ID: "a.md:5", Text: "The skill runs a gate on every record."}},
+			name:    "should skip front matter",
+			files:   map[string]string{"a.md": "---\nname: a skill with a long description\n---\n\nThe skill runs a gate on every record.\n"},
+			changes: whole("a.md"),
+			want:    []proseblocks.Block{{ID: "a.md:5", Text: "The skill runs a gate on every record."}},
 		},
 		{
 			name: "should keep an indented paragraph under a list item and skip an indented code block",
@@ -96,7 +96,7 @@ func TestExtract(t *testing.T) {
 				"   Note its issuer ID and key ID now.\n\n" +
 				"Some prose between the two parts.\n\n" +
 				"    go run ./cmd/formulagen -version 1\n"},
-			paths: []string{"a.md"},
+			changes: whole("a.md"),
 			want: []proseblocks.Block{
 				{ID: "a.md:1", Text: "Create the key in the account."},
 				{ID: "a.md:3", Text: "Note its issuer ID and key ID now."},
@@ -110,16 +110,41 @@ func TestExtract(t *testing.T) {
 				"a.md":  "The first file has a paragraph.\n",
 				"c.txt": "A text file is not prose this reads.\n",
 			},
-			paths: []string{"b.md", "gone.go", "a.md", "c.txt", "b.md", "gone.md"},
+			changes: whole("b.md", "gone.go", "a.md", "c.txt", "gone.md"),
 			want: []proseblocks.Block{
 				{ID: "a.md:1", Text: "The first file has a paragraph."},
 				{ID: "b.md:1", Text: "The second file has a paragraph."},
 			},
 		},
 		{
+			name: "should keep only the blocks an added line overlaps, however little",
+			files: map[string]string{"a.md": "The first paragraph stays\nas it was.\n\n" +
+				"The second paragraph gains\na line at its end.\n\n" +
+				"The third paragraph stays\nas it was too.\n\n" +
+				"The fourth paragraph gains\na line at its start.\n"},
+			changes: []proseblocks.Change{{Path: "a.md", Added: []proseblocks.Lines{{First: 5, Last: 5}, {First: 10, Last: 10}}}},
+			want: []proseblocks.Block{
+				{ID: "a.md:4", Text: "The second paragraph gains a line at its end."},
+				{ID: "a.md:10", Text: "The fourth paragraph gains a line at its start."},
+			},
+		},
+		{
+			name: "should keep a Go comment group whose middle line was added",
+			files: map[string]string{"a.go": "package a\n\n// Run asks every question once,\n// in the order given,\n// and prints the answers.\nfunc Run() {}\n\n" +
+				"// Stop ends the run at the next record.\nfunc Stop() {}\n"},
+			changes: []proseblocks.Change{{Path: "a.go", Added: []proseblocks.Lines{{First: 4, Last: 4}}}},
+			want:    []proseblocks.Block{{ID: "a.go:3", Text: "Run asks every question once, in the order given, and prints the answers."}},
+		},
+		{
+			name:    "should keep nothing when the added lines fall between blocks",
+			files:   map[string]string{"a.md": "The first paragraph of the file.\n\n\n\nThe second paragraph of the file.\n"},
+			changes: []proseblocks.Change{{Path: "a.md", Added: []proseblocks.Lines{{First: 2, Last: 4}}}},
+			want:    nil,
+		},
+		{
 			name:    "should fail on a file it cannot read",
 			files:   map[string]string{},
-			paths:   []string{"locked.md"},
+			changes: whole("locked.md"),
 			wantErr: "permission denied",
 		},
 	}
@@ -128,7 +153,7 @@ func TestExtract(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := proseblocks.Extract(fakeFiles(tc.files), tc.paths)
+			got, err := proseblocks.Extract(fakeFiles(tc.files), tc.changes)
 
 			if tc.wantErr != "" {
 				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
@@ -179,6 +204,15 @@ func TestWrite(t *testing.T) {
 			}
 		})
 	}
+}
+
+func whole(paths ...string) []proseblocks.Change {
+	changes := make([]proseblocks.Change, 0, len(paths))
+	for _, path := range paths {
+		changes = append(changes, proseblocks.Change{Path: path, Added: []proseblocks.Lines{{First: 1, Last: 1000}}})
+	}
+
+	return changes
 }
 
 type fakeFiles map[string]string

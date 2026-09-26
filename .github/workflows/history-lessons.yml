@@ -9,8 +9,8 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-# Asks onesie whether each changed comment or doc paragraph tells how things used to be rather
-# than how they are. It is advice for the author, so no ruleset requires this job.
+# Asks onesie whether each comment or doc paragraph the change adds or edits describes an earlier
+# version of the code or docs. It is advice for the author, so no ruleset requires this job.
 #
 # Third party code is pinned by digest rather than by tag, so a retagged
 # release cannot silently change what runs here. Trailing comments record the
@@ -74,17 +74,10 @@ jobs:
             base=HEAD~1
           fi
 
-          changed="$RUNNER_TEMP/changed"
-          git diff -z --name-only "$base" HEAD -- '*.go' '*.md' > "$changed"
-          if [ ! -s "$changed" ]; then
-            summary "History lessons: no Go or Markdown file changed."
-            exit 0
-          fi
-
           blocks="$RUNNER_TEMP/blocks.jsonl"
-          xargs -0 "$RUNNER_TEMP/bin/proseblocks" < "$changed" > "$blocks"
+          git diff -U0 "$base" HEAD -- '*.go' '*.md' | "$RUNNER_TEMP/bin/proseblocks" > "$blocks"
           if [ ! -s "$blocks" ]; then
-            summary "History lessons: the changed files hold no prose blocks."
+            summary "History lessons: the change adds or edits no prose block."
             exit 0
           fi
 

@@ -1,4 +1,4 @@
-// Package proseblocks splits Go and Markdown files into the pieces of prose a reader sees: one block
+// Package proseblocks finds the pieces of prose a change touches in Go and Markdown files: one block
 // per comment group, paragraph or list item.
 package proseblocks
 
@@ -16,42 +16,25 @@ import (
 // A block with fewer words than this is a label or a fragment, and says nothing about history.
 const minWords = 4
 
-// Extract returns the prose blocks of every .go and .md path, sorted by path and then by line. It
-// skips a missing file and a path of any other kind.
-func Extract(files FileReader, paths []string) ([]Block, error) {
-	sorted := slices.Clone(paths)
-	slices.Sort(sorted)
-	sorted = slices.Compact(sorted)
+// Extract returns the prose blocks of every changed .go and .md file that hold an added line, sorted
+// by path and then by line. It skips a missing file and a path of any other kind.
+func Extract(files FileReader, changes []Change) ([]Block, error) {
+	sorted := slices.Clone(changes)
+	slices.SortStableFunc(sorted, func(a, b Change) int { return strings.Compare(a.Path, b.Path) })
 
 	var blocks []Block
 
-	for _, path := range sorted {
-		ext := strings.ToLower(filepath.Ext(path))
-		if ext != ".go" && ext != ".md" {
-			continue
-		}
-
-		src, err := files.ReadFile(path)
-		if errors.Is(err, fs.ErrNotExist) {
-			continue
-		}
-
+	for _, change := range sorted {
+		found, err := fileBlocks(files, change.Path)
 		if err != nil {
 			return nil, err
 		}
 
-		if ext == ".md" {
-			blocks = append(blocks, markdownBlocks(path, src)...)
-
-			continue
+		for _, block := range found {
+			if block.overlaps(change.Added) {
+				blocks = append(blocks, block.Block)
+			}
 		}
-
-		found, err := goBlocks(path, src)
-		if err != nil {
-			return nil, err
-		}
-
-		blocks = append(blocks, found...)
 	}
 
 	return blocks, nil
@@ -83,11 +66,45 @@ func Write(w io.Writer, blocks []Block) error {
 	return nil
 }
 
-func newBlock(path string, line int, text string) (Block, bool) {
-	text = strings.Join(strings.Fields(text), " ")
-	if len(strings.Fields(text)) < minWords {
-		return Block{}, false
+func fileBlocks(files FileReader, path string) ([]span, error) {
+	ext := strings.ToLower(filepath.Ext(path))
+	if ext != ".go" && ext != ".md" {
+		return nil, nil
 	}
 
-	return Block{ID: fmt.Sprintf("%s:%d", path, line), Text: text}, true
+	src, err := files.ReadFile(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, nil
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	if ext == ".md" {
+		return markdownBlocks(path, src), nil
+	}
+
+	return goBlocks(path, src)
+}
+
+type span struct {
+	Block
+
+	first, last int
+}
+
+func (s span) overlaps(added []Lines) bool {
+	return slices.ContainsFunc(added, func(lines Lines) bool {
+		return lines.First <= s.last && s.first <= lines.Last
+	})
+}
+
+func newBlock(path string, first, last int, text string) (span, bool) {
+	text = strings.Join(strings.Fields(text), " ")
+	if len(strings.Fields(text)) < minWords {
+		return span{}, false
+	}
+
+	return span{Block: Block{ID: fmt.Sprintf("%s:%d", path, first), Text: text}, first: first, last: last}, true
 }

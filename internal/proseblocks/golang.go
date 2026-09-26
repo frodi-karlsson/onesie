@@ -10,7 +10,7 @@ import (
 
 var licenseWords = regexp.MustCompile(`(?i)copyright|license`)
 
-func goBlocks(path string, src []byte) ([]Block, error) {
+func goBlocks(path string, src []byte) ([]span, error) {
 	fset := token.NewFileSet()
 
 	file, err := parser.ParseFile(fset, path, src, parser.ParseComments|parser.SkipObjectResolution)
@@ -18,7 +18,7 @@ func goBlocks(path string, src []byte) ([]Block, error) {
 		return nil, err
 	}
 
-	var blocks []Block
+	var blocks []span
 
 	for _, group := range file.Comments {
 		text := commentText(group)
@@ -26,7 +26,8 @@ func goBlocks(path string, src []byte) ([]Block, error) {
 			continue
 		}
 
-		if block, ok := newBlock(path, fset.Position(group.Pos()).Line, text); ok {
+		first, last := fset.Position(group.Pos()).Line, fset.Position(group.End()).Line
+		if block, ok := newBlock(path, first, last, text); ok {
 			blocks = append(blocks, block)
 		}
 	}
