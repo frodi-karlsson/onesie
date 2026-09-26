@@ -86,7 +86,7 @@ func showsTables(t *testing.T, set examples.Set) {
 			args = []string{"--cuts", strings.Join(cuts, ",")}
 		}
 
-		stdout, stderr, code := offline(t, set, args...)
+		stdout, stderr, code := offline(t, ".", set, args...)
 		if code != cli.ExitOK {
 			t.Fatalf("exit %d\nstderr:\n%s", code, stderr)
 		}

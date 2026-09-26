@@ -116,26 +116,26 @@ func meetsRequirements(t *testing.T, set examples.Set) {
 		args = append(args, "--require", requirement)
 	}
 
-	stdout, stderr, code := offline(t, set, args...)
+	stdout, stderr, code := offline(t, ".", set, args...)
 	if code != cli.ExitOK {
 		t.Fatalf("exit %d, want 0\nstderr:\n%s\nstdout:\n%s", code, stderr, stdout)
 	}
 }
 
-func offline(t *testing.T, set examples.Set, extra ...string) (string, string, int) {
+func offline(t *testing.T, dir string, set examples.Set, extra ...string) (string, string, int) {
 	t.Helper()
 
 	// A copy keeps the lock file and any rewrite out of the tree, and lets the sets run in parallel.
-	answers := filepath.Join(t.TempDir(), filepath.Base(set.Answers(".")))
+	answers := filepath.Join(t.TempDir(), filepath.Base(set.Answers(dir)))
 	for _, suffix := range []string{"", ".onesie"} {
-		if err := os.WriteFile(answers+suffix, []byte(readFile(t, set.Answers(".")+suffix)), 0o600); err != nil {
+		if err := os.WriteFile(answers+suffix, []byte(readFile(t, set.Answers(dir)+suffix)), 0o600); err != nil {
 			t.Fatal(err)
 		}
 	}
 
-	args := append(set.CalibrateArgs("."), "--out", answers, "--resume", "--offline")
+	args := append(set.CalibrateArgs(dir), "--out", answers, "--resume", "--offline")
 
-	return run(t, strings.NewReader(readFile(t, set.Data("."))), append(args, extra...)...)
+	return run(t, strings.NewReader(readFile(t, set.Data(dir))), append(args, extra...)...)
 }
 
 func requirementsOf(t *testing.T, name string) []string {
