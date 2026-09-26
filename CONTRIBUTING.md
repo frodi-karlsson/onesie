@@ -90,7 +90,7 @@ Run the same check locally on what your branch changed, with the key from `.env`
 
 ```sh
 make build
-git diff -U0 main -- '*.go' '*.md' | go run ./cmd/proseblocks |
+git diff -U0 --no-color --no-ext-diff --src-prefix=a/ --dst-prefix=b/ main -- '*.go' '*.md' | go run ./cmd/proseblocks |
   bash -c 'set -a; . ./.env; set +a; exec bin/onesie -f history-lesson -m jev-1.13.0 --provider typesafe \
     -i jsonl --map .text --id .id --cache -o markdown'
 ```

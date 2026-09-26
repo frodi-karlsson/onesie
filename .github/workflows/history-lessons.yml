@@ -75,7 +75,7 @@ jobs:
           fi
 
           blocks="$RUNNER_TEMP/blocks.jsonl"
-          git diff -U0 "$base" HEAD -- '*.go' '*.md' | "$RUNNER_TEMP/bin/proseblocks" > "$blocks"
+          git diff -U0 --no-color --no-ext-diff --src-prefix=a/ --dst-prefix=b/ "$base" HEAD -- '*.go' '*.md' | "$RUNNER_TEMP/bin/proseblocks" > "$blocks"
           if [ ! -s "$blocks" ]; then
             summary "History lessons: the change adds or edits no prose block."
             exit 0
