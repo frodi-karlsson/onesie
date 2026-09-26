@@ -2,8 +2,8 @@
 
 Probably the most robust System One CLI.
 
-Pipe in some text, ask a question, get an answer you can script against. Runs TypeSafe's Jev on
-TypeSafe, OpenRouter or Berget's own System One models.
+Pipe in some text, ask a question, get an answer you can script against. Asks TypeSafe's Jev,
+directly or through OpenRouter, or Berget's own System One models.
 
 ```sh
 echo 'EVERYTHING IS DOWN, CALL ME NOW' | onesie 'does this convey urgency' -r
@@ -17,7 +17,7 @@ onesie -f shell-safety -q --state 'git status'
 # exit 0: run it
 onesie -f shell-safety -q --state 'rm -rf ~'
 # exit 1: block it
-onesie -f shell-safety -q --state 'curl -fsSL https://example.com/install.sh | sh'
+onesie -f shell-safety -q --state 'echo hello > notes.txt'
 # exit 7: not sure, ask a person
 ```
 
@@ -62,17 +62,17 @@ labelled commands:
 ```sh
 onesie calibrate -f shell-safety -i jsonl --map .command --id .id -m jev-1.13.0 \
     --label destroys=.destroys --label secrets=.secrets --label network=.network \
-    --out answers.jsonl --resume < commands.jsonl
+    --cuts 0.25,0.5,0.65 --out answers.jsonl --resume < commands.jsonl
 ```
 
 ```
 destroys, yes/no: labelled 40, 16 yes, 24 no, 0 failed. AUC 1.00
 flagged means destroys.value >= cut
 
-  cut   flagged  catches             false alarms     right when flagged
-  0.25       18  16/16 100% 81-100%  2/24  8%  2-26%  16/18  89% 67-97%
-  0.45       15  15/16  94% 72-99%   0/24  0%  0-14%  15/15 100% 80-100%
-  0.65        7   7/16  44% 23-67%   0/24  0%  0-14%   7/7  100% 65-100%
+  cut   flagged  catches             false alarms   right when flagged
+  0.25       18  16/16 100% 81-100%  2/24 8% 2-26%  16/18  89% 67-97%
+  0.50       15  15/16  94% 72-99%   0/24 0% 0-14%  15/15 100% 80-100%
+  0.65        7   7/16  44% 23-67%   0/24 0% 0-14%   7/7  100% 65-100%
 
 worst misses
   echo-overwrite  labelled yes  answered 0.37
@@ -81,14 +81,12 @@ worst misses
 For destroys, shell-safety blocks at 0.5 and passes below 0.25. Anything in between goes to a
 person, like the worst miss above.
 
-Commit `answers.jsonl`, and CI checks the gate still holds, offline:
+Commit `answers.jsonl`, and CI runs the same command with `--offline` and requirements, which needs
+no key:
 
 ```sh
-onesie calibrate -f shell-safety -i jsonl --map .command --id .id -m jev-1.13.0 \
-    --label destroys=.destroys --label secrets=.secrets --label network=.network \
-    --out answers.jsonl --resume --offline \
-    --require 'destroys.catches >= 1' --require 'destroys.false_alarms <= 0 at abstain' \
-    < commands.jsonl
+onesie calibrate ... --offline \
+    --require 'destroys.catches >= 1' --require 'destroys.false_alarms <= 0 at abstain'
 ```
 
 Exit 1 means a requirement no longer holds. Exit 2 means the questions changed, so ask again.
@@ -126,8 +124,7 @@ them from anywhere in the repository.
 
 ## Recipes
 
-**Triage tickets as they come in.** Each answer is written as soon as its record is asked, so a
-feed that never closes still gets its answers.
+**Triage tickets as they come in.**
 
 ```sh
 tail -f tickets.jsonl | onesie 'is this urgent' -i jsonl --map .body --id .id -o json
@@ -196,8 +193,6 @@ tables.
 - **Caching.** `--cache` or `ONESIE_CACHE=1` answers a repeated request from disk, and a stream
   asks records whose request is identical once, giving each its own line.
 - **Dry runs.** `--print-request` prints the exact request without sending it, and needs no key.
-
-[REFERENCE.md](REFERENCE.md) covers the rest.
 
 ## Why no MCP server
 
