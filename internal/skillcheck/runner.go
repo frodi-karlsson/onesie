@@ -129,7 +129,12 @@ func (r *Runner) answerFileProblem(ctx context.Context, command string, tokens [
 		r.book = &helpBook{runner: r, pages: map[string]helpPage{}}
 	}
 
-	problems, err := r.book.checkCommand(ctx, shellWords(command))
+	commands := onesieCommands(command)
+	if len(commands) == 0 {
+		return "", nil
+	}
+
+	problems, _, err := r.book.checkCommand(ctx, commands[0])
 	if err != nil || len(problems) == 0 {
 		return "", err
 	}

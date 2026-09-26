@@ -12,11 +12,12 @@ import (
 )
 
 var (
-	bareFlag     = regexp.MustCompile(`(?:^|[^\w-])--([A-Za-z][\w-]*)`)
-	commandShape = regexp.MustCompile(`^[a-z][a-z-]*$`)
-	spanFlag     = regexp.MustCompile(`^--([A-Za-z][\w-]*)`)
-	helpFlag     = regexp.MustCompile(`^\s+(?:-(\w), )?--(\w[\w-]*)(?: (\S+))?(?:\s{2,}|$)`)
-	helpCommand  = regexp.MustCompile(`^\s+(\S+)\s{2,}`)
+	bareFlag      = regexp.MustCompile(`(?:^|[^\w-])--([A-Za-z][\w-]*)`)
+	commandShape  = regexp.MustCompile(`^[a-z][a-z-]*$`)
+	envAssignment = regexp.MustCompile(`^[A-Za-z_]\w*=`)
+	spanFlag      = regexp.MustCompile(`^--([A-Za-z][\w-]*)`)
+	helpFlag      = regexp.MustCompile(`^\s+(?:-(\w), )?--(\w[\w-]*)(?: (\S+))?(?:\s{2,}|$)`)
+	helpCommand   = regexp.MustCompile(`^\s+(\S+)\s{2,}`)
 )
 
 // CheckProse checks every flag and subcommand the skills name outside their examples against the
@@ -25,17 +26,19 @@ var (
 //
 // It counts three kinds of mention, so the flags of other tools are never read as onesie's:
 //
-//   - A code span, or a line of a fenced block, whose first word is onesie. Its flags are checked
-//     against the help of the command they follow, the root before any subcommand and, after
-//     `onesie calibrate` or `onesie auth set`, that subcommand's own. A bare word where a
-//     subcommand can stand must be one. The mention ends at a pipe, a chain, a redirection or a
-//     lone --, so `onesie ... | jq -c --unbuffered` checks nothing after the pipe.
+//   - A onesie command in a code span or on a line of a fenced block. It may follow a pipe, a chain
+//     or env assignments, as in `ONESIE_MOCK=x onesie ...`, or sit inside `$(...)`. Its flags are
+//     checked against the help of the command they follow, the root before any subcommand and,
+//     after `onesie calibrate` or `onesie auth set`, that subcommand's own. A bare word where a
+//     subcommand can stand must be one. The command ends at a pipe, a chain, a redirection, a
+//     closing parenthesis or a lone --, so `onesie ... | jq -c --unbuffered` checks nothing of jq.
 //   - A code span whose first word is a --flag, such as `--ask NAME=@FILE`. Only that flag counts.
 //   - A --flag in plain prose, outside any code.
 //
-// A code span that starts with anything else, such as `jq --unbuffered`, `git push --force` or
-// `curl -fsSL`, is ignored. The last two kinds name no command, so they pass when any onesie
-// command's help lists the flag. Short flags are not checked.
+// A code span with no onesie command in it, such as `jq --unbuffered`, `git push --force` or
+// `curl -fsSL`, is ignored. The last two kinds name no command, so they pass when the root help
+// lists the flag, or the help of a subcommand the same skill runs in its prose or its examples.
+// completion and a command that only asks for --help never count, and short flags are not checked.
 func CheckProse(ctx context.Context, root string, runner *Runner) (ProseReport, error) {
 	found, err := skillgen.Skills(root)
 	if err != nil {
@@ -52,9 +55,19 @@ func CheckProse(ctx context.Context, root string, runner *Runner) (ProseReport, 
 			return ProseReport{}, err
 		}
 
-		for _, text := range texts {
-			for _, m := range mentions(text.body) {
-				problems, err := book.check(ctx, m)
+		found := make([][]mention, len(texts))
+		for i, text := range texts {
+			found[i] = mentions(text.body)
+		}
+
+		flags, err := book.skillFlags(ctx, found, exampleCommands(f.Skill))
+		if err != nil {
+			return ProseReport{}, err
+		}
+
+		for i, text := range texts {
+			for _, m := range found[i] {
+				problems, err := book.check(ctx, m, flags)
 				if err != nil {
 					return ProseReport{}, err
 				}
@@ -112,6 +125,16 @@ func proseTexts(dir string, skill skillgen.Skill) ([]proseText, error) {
 	return texts, nil
 }
 
+func exampleCommands(skill skillgen.Skill) [][]word {
+	var commands [][]word
+
+	for _, rule := range skill.Rules {
+		commands = append(append(commands, onesieCommands(rule.Bad)...), onesieCommands(rule.Good)...)
+	}
+
+	return commands
+}
+
 type mention struct {
 	command []word
 	flag    string
@@ -147,8 +170,8 @@ func fenceMentions(lines []string) []mention {
 	var found []mention
 
 	for _, line := range strings.Split(strings.ReplaceAll(strings.Join(lines, "\n"), "\\\n", " "), "\n") {
-		if m, ok := spanMention(strings.TrimSpace(line)); ok && m.command != nil {
-			found = append(found, m)
+		for _, command := range onesieCommands(line) {
+			found = append(found, mention{command: command})
 		}
 	}
 
@@ -174,10 +197,7 @@ func inlineMentions(text string) []mention {
 			return found
 		}
 
-		if m, ok := spanMention(strings.TrimSpace(rest[:end])); ok {
-			found = append(found, m)
-		}
-
+		found = append(found, spanMentions(strings.TrimSpace(rest[:end]))...)
 		text = rest[end+fence:]
 	}
 
@@ -194,20 +214,34 @@ func proseFlags(text string) []mention {
 	return found
 }
 
-func spanMention(span string) (mention, bool) {
-	words := shellWords(span)
-	if len(words) == 0 {
-		return mention{}, false
+func spanMentions(span string) []mention {
+	if match := spanFlag.FindStringSubmatch(span); match != nil {
+		return []mention{{flag: match[1]}}
 	}
 
-	switch first := words[0]; {
-	case first.raw == "onesie":
-		return mention{command: words}, true
-	case spanFlag.MatchString(first.raw):
-		return mention{flag: spanFlag.FindStringSubmatch(first.raw)[1]}, true
-	default:
-		return mention{}, false
+	var found []mention
+
+	for _, command := range onesieCommands(span) {
+		found = append(found, mention{command: command})
 	}
+
+	return found
+}
+
+func onesieCommands(s string) [][]word {
+	var commands [][]word
+
+	for _, segment := range shellSegments(s) {
+		for len(segment) > 0 && envAssignment.MatchString(segment[0].raw) {
+			segment = segment[1:]
+		}
+
+		if len(segment) > 0 && segment[0].raw == "onesie" {
+			commands = append(commands, segment)
+		}
+	}
+
+	return commands
 }
 
 type word struct {
@@ -215,123 +249,215 @@ type word struct {
 	text string
 }
 
-func shellWords(s string) []word {
-	var (
-		words      []word
-		raw, text  strings.Builder
-		inWord     bool
-		quote      rune
-		afterSlash bool
-	)
+func shellSegments(s string) [][]word {
+	sc := &segmentScanner{}
 
-	flush := func() {
-		if inWord {
-			words = append(words, word{raw: raw.String(), text: text.String()})
-		}
+	runes := []rune(s)
 
-		raw.Reset()
-		text.Reset()
-
-		inWord = false
+	for i := 0; i < len(runes); i++ {
+		i = sc.step(runes, i)
 	}
 
-	for _, r := range s {
-		switch {
-		case afterSlash:
-			afterSlash = false
+	sc.endSegment()
 
-			raw.WriteRune(r)
-			text.WriteRune(r)
-		case quote != 0:
-			raw.WriteRune(r)
+	for len(sc.outer) > 0 {
+		sc.closeSubstitution()
+		sc.endSegment()
+	}
 
-			if r == quote {
-				quote = 0
-			} else {
-				text.WriteRune(r)
-			}
-		case r == '\\':
-			afterSlash, inWord = true, true
+	return sc.segments
+}
 
-			raw.WriteRune(r)
-		case r == '\'' || r == '"':
-			quote, inWord = r, true
+type segmentScanner struct {
+	segments   [][]word
+	words      []word
+	raw, text  strings.Builder
+	inWord     bool
+	afterSlash bool
+	skipNext   bool
+	quote      rune
+	outer      []scannerFrame
+}
 
-			raw.WriteRune(r)
-		case r == ' ' || r == '\t' || r == '\n':
-			flush()
-		case strings.ContainsRune("|&;<>", r):
-			// The rest belongs to another command or to the shell, and a word cut short by it,
-			// such as the 2 of 2>&1, is not part of the onesie command either.
-			inWord = false
+type scannerFrame struct {
+	words []word
+	quote rune
+}
 
-			flush()
+func (sc *segmentScanner) step(runes []rune, i int) int {
+	r := runes[i]
 
-			return words
-		default:
-			inWord = true
+	switch {
+	case sc.afterSlash:
+		sc.afterSlash = false
+		sc.add(r)
+	case r == '$' && i+1 < len(runes) && runes[i+1] == '(' && sc.quote != '\'':
+		sc.flush()
+		sc.outer = append(sc.outer, scannerFrame{words: sc.words, quote: sc.quote})
+		sc.words, sc.quote = nil, 0
 
-			raw.WriteRune(r)
-			text.WriteRune(r)
+		return i + 1
+	case sc.quote != 0:
+		sc.raw.WriteRune(r)
+
+		if r == sc.quote {
+			sc.quote = 0
+		} else {
+			sc.text.WriteRune(r)
+		}
+	case r == ')' && len(sc.outer) > 0:
+		sc.endSegment()
+		sc.closeSubstitution()
+	case r == '\\':
+		sc.afterSlash, sc.inWord = true, true
+		sc.raw.WriteRune(r)
+	case r == '\'' || r == '"':
+		sc.quote, sc.inWord = r, true
+		sc.raw.WriteRune(r)
+	case r == ' ' || r == '\t' || r == '\n':
+		sc.flush()
+	case r == '|' || r == '&' || r == ';':
+		sc.endSegment()
+	case r == '<' || r == '>':
+		if strings.Trim(sc.raw.String(), "0123456789") == "" {
+			// The 2 of 2>/dev/null names a file descriptor, not a word of the command.
+			sc.inWord = false
+		}
+
+		sc.flush()
+
+		for i+1 < len(runes) && (runes[i+1] == '&' || runes[i+1] == '>') {
+			i++
+		}
+
+		sc.skipNext = true
+	default:
+		sc.add(r)
+	}
+
+	return i
+}
+
+func (sc *segmentScanner) add(r rune) {
+	sc.raw.WriteRune(r)
+	sc.text.WriteRune(r)
+	sc.inWord = true
+}
+
+func (sc *segmentScanner) flush() {
+	if sc.inWord {
+		if sc.skipNext {
+			sc.skipNext = false
+		} else {
+			sc.words = append(sc.words, word{raw: sc.raw.String(), text: sc.text.String()})
 		}
 	}
 
-	flush()
+	sc.raw.Reset()
+	sc.text.Reset()
 
-	return words
+	sc.inWord = false
+}
+
+func (sc *segmentScanner) endSegment() {
+	sc.flush()
+	sc.skipNext = false
+
+	if len(sc.words) > 0 {
+		sc.segments = append(sc.segments, sc.words)
+	}
+
+	sc.words = nil
+}
+
+func (sc *segmentScanner) closeSubstitution() {
+	top := sc.outer[len(sc.outer)-1]
+	sc.outer = sc.outer[:len(sc.outer)-1]
+	sc.words, sc.quote = top.words, top.quote
+	sc.inWord = sc.quote != 0
 }
 
 type helpBook struct {
 	runner *Runner
 	pages  map[string]helpPage
-	every  map[string]bool
 }
 
-func (b *helpBook) check(ctx context.Context, m mention) ([]string, error) {
-	if m.command == nil {
-		return b.checkFlag(ctx, m.flag)
+func (b *helpBook) skillFlags(ctx context.Context, prose [][]mention, examples [][]word) (map[string]bool, error) {
+	commands := examples
+
+	for _, ms := range prose {
+		for _, m := range ms {
+			if m.command != nil {
+				commands = append(commands, m.command)
+			}
+		}
 	}
 
-	return b.checkCommand(ctx, m.command)
-}
+	flags := map[string]bool{}
 
-func (b *helpBook) checkFlag(ctx context.Context, name string) ([]string, error) {
-	if b.every == nil {
-		every := map[string]bool{}
-		if err := b.collect(ctx, nil, every); err != nil {
+	if err := b.addFlags(ctx, nil, flags); err != nil {
+		return nil, err
+	}
+
+	for _, command := range commands {
+		_, path, err := b.checkCommand(ctx, command)
+		if err != nil {
 			return nil, err
 		}
 
-		b.every = every
+		if len(path) > 0 && path[0] == "completion" || asksForHelp(command) {
+			continue
+		}
+
+		for n := 1; n <= len(path); n++ {
+			if err := b.addFlags(ctx, path[:n], flags); err != nil {
+				return nil, err
+			}
+		}
 	}
 
-	if b.every[name] {
-		return nil, nil
-	}
-
-	return []string{fmt.Sprintf("--%s is in the --help of no onesie command", name)}, nil
+	return flags, nil
 }
 
-func (b *helpBook) collect(ctx context.Context, path []string, every map[string]bool) error {
+func asksForHelp(command []word) bool {
+	for _, w := range command {
+		if w.raw == "--help" || w.raw == "-h" {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (b *helpBook) addFlags(ctx context.Context, path []string, flags map[string]bool) error {
 	page, err := b.page(ctx, path)
 	if err != nil {
 		return err
 	}
 
 	for name := range page.longTakesValue {
-		every[name] = true
-	}
-
-	for name := range page.commands {
-		if err := b.collect(ctx, append(append([]string{}, path...), name), every); err != nil {
-			return err
-		}
+		flags[name] = true
 	}
 
 	return nil
 }
 
-func (b *helpBook) checkCommand(ctx context.Context, words []word) ([]string, error) {
+func (b *helpBook) check(ctx context.Context, m mention, flags map[string]bool) ([]string, error) {
+	if m.command != nil {
+		problems, _, err := b.checkCommand(ctx, m.command)
+
+		return problems, err
+	}
+
+	if flags[m.flag] {
+		return nil, nil
+	}
+
+	return []string{fmt.Sprintf(
+		"--%s is not in onesie --help or the --help of a command this skill runs", m.flag)}, nil
+}
+
+func (b *helpBook) checkCommand(ctx context.Context, words []word) ([]string, []string, error) {
 	var (
 		path     []string
 		problems []string
@@ -339,7 +465,7 @@ func (b *helpBook) checkCommand(ctx context.Context, words []word) ([]string, er
 
 	page, err := b.page(ctx, nil)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	subcommandNext := true
@@ -349,7 +475,7 @@ func (b *helpBook) checkCommand(ctx context.Context, words []word) ([]string, er
 
 		switch {
 		case w.raw == "--":
-			return problems, nil
+			return problems, path, nil
 		case strings.HasPrefix(w.raw, "--"):
 			name, _, joined := strings.Cut(w.raw[2:], "=")
 
@@ -374,14 +500,14 @@ func (b *helpBook) checkCommand(ctx context.Context, words []word) ([]string, er
 			path = append(path, w.text)
 
 			if page, err = b.page(ctx, path); err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 		default:
 			subcommandNext = false
 		}
 	}
 
-	return problems, nil
+	return problems, path, nil
 }
 
 func commandName(path []string) string {
