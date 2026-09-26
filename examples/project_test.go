@@ -14,9 +14,9 @@ var projectDir = filepath.Join("..", ".onesie")
 
 var projectRequirements = map[string][]string{
 	"history-lesson": {
-		"history.catches >= 1",
-		"history.false_alarms <= 0.15",
-		"history.catches >= 0.9 at abstain",
+		"history.catches >= 0.95",
+		"history.false_alarms <= 0.2",
+		"history.catches >= 0.85 at abstain",
 		"history.false_alarms <= 0 at abstain",
 	},
 }

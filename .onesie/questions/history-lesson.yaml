@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/frodi-karlsson/onesie/main/schema/questions.json
-assert: history.value < 0.3
-abstain_if: history.value < 0.7
+assert: history.value < 0.4
+abstain_if: history.value < 0.6
 history:
-  ask: does this text tell the reader how the code or the docs used to be, or what changed, rather than how they are now
-  yes_means: the text points at the past or at a change over time, such as a flag that was removed or renamed, behavior that used to differ, code that moved, or what a version added. Words such as previously, used to, no longer, was removed and was renamed mark it
-  no_means: the text describes only the current state, what the code or the tool does today and why. An option that replaces a dependency in a test, steps ordered with before or after, and what would otherwise happen are the current state. So is a rule about changed input, a rerun, an older file or a newer onesie
+  ask: does this text describe an earlier version of the code or docs
+  yes_means: it tells how something used to be, or what changed between versions
+  no_means: it describes only how things are now
