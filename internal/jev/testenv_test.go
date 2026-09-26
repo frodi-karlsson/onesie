@@ -42,6 +42,22 @@ func openRouterKey(t *testing.T) string {
 	return ""
 }
 
+func bergetKey(t *testing.T) string {
+	t.Helper()
+
+	if key := strings.TrimSpace(os.Getenv("BERGET_API_KEY")); key != "" {
+		return key
+	}
+
+	if key := fromDotEnv(t, "BERGET_API_KEY"); key != "" {
+		return key
+	}
+
+	t.Skip("no BERGET_API_KEY in the environment or .env, skipping the Berget live cases")
+
+	return ""
+}
+
 func fromDotEnv(t *testing.T, name string) string {
 	t.Helper()
 
