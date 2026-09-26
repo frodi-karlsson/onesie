@@ -250,10 +250,9 @@ again.
 - On the `typesafe` provider, a model name that ends in a version, such as `jev-1.13.0`, is pinned,
   and its answers live until they are evicted. Every other model is an alias, such as `jev-latest`,
   and so is every model on any other provider, `typesafe/jev-1.13` on OpenRouter and
-  `Qwen/Qwen3.5-2B` on Berget included. An
-  alias's answers expire after 24 hours, since the model behind it can move. `ONESIE_CACHE_TTL` sets
-  that lifetime as a duration, such as `90m` or `72h`, and `0` stops reading and storing answers for
-  an alias. A negative or malformed value exits 2. A run's lifetime decides what it reads, not what
+  `Qwen/Qwen3.5-2B` on Berget included. An alias's answers expire after 24 hours, since the model
+  behind it can move. `ONESIE_CACHE_TTL` sets that lifetime as a duration, such as `90m` or `72h`,
+  and `0` stops reading and storing answers for an alias. A negative or malformed value exits 2. A run's lifetime decides what it reads, not what
   it deletes: an expired answer is only a miss, which the next answer overwrites, and onesie deletes
   an alias's answer only once it is older than 24 hours, or than the run's own lifetime when that is
   longer. So a short lifetime in one run never deletes answers other runs still read. An answer
@@ -327,9 +326,9 @@ onesie auth test                                   # checks the key
 - `jev-latest` works on typesafe and openrouter, but pinned ids differ: `jev-1.13.0` on TypeSafe,
   `typesafe/jev-1.13` on OpenRouter. Berget serves its own models and not `jev-latest`. Its default
   is the `systemone` alias, and `--list-models` there lists only the System One models, each with its
-  aliases. On OpenRouter, `--usage` also reports the cost. A 200 whose
-  answers onesie cannot use still spent its tokens, so under `--usage` its json error record
-  carries them too, and `--stats` counts them. `-o values`, `-o raw`, `-r`, `-o csv` and `-o tsv`
+  aliases. On OpenRouter, `--usage` also reports the cost. A 200 whose answers onesie cannot use
+  still spent its tokens, so under `--usage` its json error record carries them too, and `--stats`
+  counts them. `-o values`, `-o raw`, `-r`, `-o csv` and `-o tsv`
   have no place for `--usage`, and `-q` writes nothing, so they all refuse it with exit 2.
 
 ## Exit codes
