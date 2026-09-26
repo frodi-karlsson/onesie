@@ -177,6 +177,7 @@ func TestReadme(t *testing.T) {
 
 			// A dry run writes no answers, so --resume has nothing to pick up and is refused.
 			tokens = slices.DeleteFunc(tokens, func(token string) bool { return token == "--resume" })
+			tokens = intoTempDir(t, tokens)
 
 			args, reason, err := skillcheck.DryRunArgs(tokens)
 			if err != nil || reason != "" {
@@ -196,6 +197,20 @@ func TestReadme(t *testing.T) {
 			}
 		}
 	})
+}
+
+func intoTempDir(t *testing.T, tokens []string) []string {
+	t.Helper()
+
+	dir := t.TempDir()
+
+	for i, token := range tokens {
+		if i > 0 && tokens[i-1] == "--out" {
+			tokens[i] = filepath.Join(dir, token)
+		}
+	}
+
+	return tokens
 }
 
 func readmeSection(t *testing.T, title string) string {
