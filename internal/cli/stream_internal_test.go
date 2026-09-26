@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"runtime/pprof"
 	"strings"
 	"sync/atomic"
@@ -422,6 +423,10 @@ func TestStream(t *testing.T) {
 
 		t.Run("should exit 2 before any request for a cache dir others can read", func(t *testing.T) {
 			t.Parallel()
+
+			if runtime.GOOS == "windows" {
+				t.Skip("windows carries no unix permission bits, so the mode check does not apply")
+			}
 
 			stub := newAnswerStub(t)
 			env := cacheEnv(t)

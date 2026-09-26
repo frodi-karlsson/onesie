@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -62,6 +63,10 @@ func TestNewCacheCmd(t *testing.T) {
 
 	t.Run("should name a directory others can read on stderr and still exit 0", func(t *testing.T) {
 		t.Parallel()
+
+		if runtime.GOOS == "windows" {
+			t.Skip("windows carries no unix permission bits, so the mode check does not apply")
+		}
 
 		env := cacheEnv(t)
 		dir := env["ONESIE_CACHE_DIR"]

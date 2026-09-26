@@ -693,6 +693,10 @@ func TestAsk(t *testing.T) {
 	t.Run("should warn once and exit 0 under ONESIE_CACHE=1 with a home onesie cannot write", func(t *testing.T) {
 		t.Parallel()
 
+		if runtime.GOOS == "windows" {
+			t.Skip("a read only directory on windows still lets a file be created in it")
+		}
+
 		stub := newAnswerStub(t)
 		env := cacheEnv(t)
 		delete(env, "ONESIE_CACHE_DIR")
@@ -719,6 +723,10 @@ func TestAsk(t *testing.T) {
 
 	t.Run("should exit 2 before any request for a cache dir others can read", func(t *testing.T) {
 		t.Parallel()
+
+		if runtime.GOOS == "windows" {
+			t.Skip("windows carries no unix permission bits, so the mode check does not apply")
+		}
 
 		stub := newAnswerStub(t)
 		env := cacheEnv(t)

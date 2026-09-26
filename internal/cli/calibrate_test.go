@@ -13,6 +13,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -2334,6 +2335,10 @@ func TestCalibrateRun(t *testing.T) {
 
 	t.Run("should exit 2 before any request for a cache dir others can read", func(t *testing.T) {
 		t.Parallel()
+
+		if runtime.GOOS == "windows" {
+			t.Skip("windows carries no unix permission bits, so the mode check does not apply")
+		}
 
 		stub := newCalibrateStub(t)
 		env := cacheEnv(t)

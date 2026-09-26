@@ -7,8 +7,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 
@@ -76,6 +78,10 @@ func TestOpen(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
+			if runtime.GOOS == "windows" && tc.goos != "windows" && tc.mode != 0 {
+				t.Skip("windows carries no unix permission bits, so the mode check does not apply")
+			}
+
 			dir := filepath.Join(t.TempDir(), "nested", "onesie")
 			if tc.mode != 0 {
 				mustMkdir(t, dir, tc.mode)
@@ -106,7 +112,7 @@ func TestOpen(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			if got := info.Mode().Perm(); got != 0o700 {
+			if got := info.Mode().Perm(); got != 0o700 && runtime.GOOS != "windows" {
 				t.Errorf("created directory mode = %o, want 700", got)
 			}
 
@@ -264,6 +270,42 @@ func TestGet(t *testing.T) {
 		}},
 	}
 
+	reads := []struct {
+		name     string
+		goos     string
+		refusals int
+		hit      bool
+		wantErr  bool
+	}{
+		{name: "should retry a read windows refuses with a sharing violation and hit", goos: "windows", refusals: 3, hit: true},
+		{name: "should miss without an error when windows refuses the read past the retry budget", goos: "windows", refusals: -1},
+		{name: "should fail a refused read at once off windows", goos: "linux", refusals: 1, wantErr: true},
+	}
+
+	for _, tc := range reads {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			seed, dir := openAt(t, fixed(t0), cache.Options{})
+			mustPut(t, seed, key(0xab, 1), "typesafe", "jev-1.13.0", []byte(`"v"`))
+
+			sleeper := &sleeper{}
+			fsys := &heldFS{reads: tc.refusals, err: errSharingViolation}
+
+			store, err := cache.Open(dir, cache.Options{Now: fixed(t0), GOOS: tc.goos, FS: fsys, Sleep: sleeper.sleep, Random: half})
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			_, hit, err := store.Get(key(0xab, 1), "typesafe", "jev-1.13.0")
+			if hit != tc.hit || (err != nil) != tc.wantErr {
+				t.Errorf("Get = %v, %v, want hit %v and an error %v", hit, err, tc.hit, tc.wantErr)
+			}
+
+			assertBackoff(t, sleeper.waits)
+		})
+	}
+
 	for _, tc := range broken {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -296,9 +338,18 @@ func TestPut(t *testing.T) {
 				t.Fatalf("entry %s: %v", path, err)
 			}
 
+			if runtime.GOOS == "windows" {
+				continue
+			}
+
 			if got := info.Mode().Perm(); got != 0o600 {
 				t.Errorf("entry %s mode = %o, want 600", path, got)
 			}
+		}
+
+		// Windows carries no unix permission bits, so there only the names are checked.
+		if runtime.GOOS == "windows" {
+			return
 		}
 
 		if info, err := os.Stat(filepath.Join(dir, "ab")); err != nil || info.Mode().Perm() != 0o700 {
@@ -338,6 +389,68 @@ func TestPut(t *testing.T) {
 		path := entryPath(dir, key(0xab, 1), false)
 		mustMkdir(t, path, 0o700)
 		mustWrite(t, filepath.Join(path, "inside"), "x")
+
+		if err := store.Put(key(0xab, 1), "typesafe", "jev-1.13.0", []byte(`1`)); err == nil {
+			t.Fatal("Put succeeded over a directory, want the rename error")
+		}
+
+		assertNoTemp(t, dir)
+	})
+
+	held := []struct {
+		name     string
+		goos     string
+		refusals int
+		err      syscall.Errno
+		stored   bool
+		wantErr  bool
+		sleeps   bool
+	}{
+		{name: "should retry a rename windows refuses with access denied and store the entry", goos: "windows", refusals: 3, err: errAccessDenied, stored: true, sleeps: true},
+		{name: "should retry a rename windows refuses with a sharing violation and store the entry", goos: "windows", refusals: 3, err: errSharingViolation, stored: true, sleeps: true},
+		{name: "should retry a rename windows reports as file not found and store the entry", goos: "windows", refusals: 3, err: errFileNotFound, stored: true, sleeps: true},
+		{name: "should drop a write windows refuses past the retry budget without an error", goos: "windows", refusals: -1, err: errSharingViolation, sleeps: true},
+		{name: "should fail a refused rename at once off windows", goos: "linux", refusals: 1, err: errAccessDenied, wantErr: true},
+	}
+
+	for _, tc := range held {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			fsys := &heldFS{renames: tc.refusals, err: tc.err}
+			if !tc.stored && !tc.wantErr {
+				fsys.removes = 2
+			}
+
+			sleeper := &sleeper{}
+			store, dir := openAt(t, fixed(t0), cache.Options{GOOS: tc.goos, FS: fsys, Sleep: sleeper.sleep, Random: half})
+
+			err := store.Put(key(0xab, 1), "typesafe", "jev-1.13.0", []byte(`1`))
+			if gotErr := err != nil; gotErr != tc.wantErr {
+				t.Fatalf("Put error = %v, want an error %v", err, tc.wantErr)
+			}
+
+			_, statErr := os.Stat(entryPath(dir, key(0xab, 1), false))
+			if got := statErr == nil; got != tc.stored {
+				t.Errorf("entry stored = %v, want %v", got, tc.stored)
+			}
+
+			if got := len(sleeper.waits) > 0; got != tc.sleeps {
+				t.Errorf("slept %v, want sleeps %v", sleeper.waits, tc.sleeps)
+			}
+
+			assertBackoff(t, sleeper.waits)
+			assertNoTemp(t, dir)
+		})
+	}
+
+	t.Run("should fail at once when windows refuses a rename over a directory", func(t *testing.T) {
+		t.Parallel()
+
+		sleeper := &sleeper{}
+		fsys := &heldFS{renames: -1, err: errAccessDenied}
+		store, dir := openAt(t, fixed(t0), cache.Options{GOOS: "windows", FS: fsys, Sleep: sleeper.sleep, Random: half})
+		mustMkdir(t, entryPath(dir, key(0xab, 1), false), 0o700)
 
 		if err := store.Put(key(0xab, 1), "typesafe", "jev-1.13.0", []byte(`1`)); err == nil {
 			t.Fatal("Put succeeded over a directory, want the rename error")
@@ -719,6 +832,26 @@ func plantForeign(t *testing.T, dir string, size int) []string {
 	return paths
 }
 
+func assertBackoff(t *testing.T, waits []time.Duration) {
+	t.Helper()
+
+	// Each retried call starts again from 1ms and grows from there.
+	var run time.Duration
+
+	for i, wait := range waits {
+		switch {
+		case wait == time.Millisecond:
+			run = 0
+		case wait <= waits[i-1]:
+			t.Errorf("waits = %v, want each longer than the one before within a call", waits)
+		}
+
+		if run += wait; run > 500*time.Millisecond {
+			t.Errorf("waits = %v, want at most 500ms for one call", waits)
+		}
+	}
+}
+
 func assertNoTemp(t *testing.T, dir string) {
 	t.Helper()
 
@@ -873,3 +1006,78 @@ type failingFile struct {
 	*os.File
 	failOn string
 }
+
+func half() float64 {
+	return 0.5
+}
+
+func (s *sleeper) sleep(d time.Duration) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.waits = append(s.waits, d)
+}
+
+type sleeper struct {
+	mu    sync.Mutex
+	waits []time.Duration
+}
+
+func (f *heldFS) Rename(from, to string) error {
+	if f.refuse(&f.renames) {
+		return &os.LinkError{Op: "rename", Old: from, New: to, Err: f.err}
+	}
+
+	return os.Rename(from, to)
+}
+
+func (f *heldFS) ReadFile(path string) ([]byte, error) {
+	if f.refuse(&f.reads) {
+		return nil, &os.PathError{Op: "open", Path: path, Err: f.err}
+	}
+
+	return os.ReadFile(path)
+}
+
+func (f *heldFS) Remove(path string) error {
+	if f.refuse(&f.removes) {
+		return &os.PathError{Op: "remove", Path: path, Err: errAccessDenied}
+	}
+
+	return os.Remove(path)
+}
+
+func (f *heldFS) refuse(left *int) bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	switch {
+	case *left < 0:
+		return true
+	case *left > 0:
+		*left--
+
+		return true
+	default:
+		return false
+	}
+}
+
+// heldFS refuses the first renames, reads and removes with a windows error, as windows does while
+// another run holds the file. A negative count refuses every call.
+type heldFS struct {
+	failingFS
+
+	mu      sync.Mutex
+	renames int
+	reads   int
+	removes int
+	err     syscall.Errno
+}
+
+// The windows error codes heldFS returns, as syscall.Errno values so they build on every platform.
+const (
+	errFileNotFound     syscall.Errno = 2
+	errAccessDenied     syscall.Errno = 5
+	errSharingViolation syscall.Errno = 32
+)
