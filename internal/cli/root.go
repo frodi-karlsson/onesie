@@ -225,7 +225,8 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 		"answer from this file instead of the API, keyed by question id or as -o json lines. Also ONESIE_MOCK")
 	root.Flags().StringVar(&flags.baseURL, flagBaseURL, "", "api root override")
 	root.Flags().StringVarP(&flags.file, "file", "f", "",
-		"question file or request body, or the name of one saved in .onesie/questions or the config dir")
+		"question file or request body, or the name of one saved in .onesie/questions or the config dir, "+
+			"or of a built-in starter set")
 	root.Flags().BoolVar(&flags.replace, "replace", false, "--ask overrides an id from -f")
 	root.Flags().BoolVar(&flags.printQuestions, "print-questions", false,
 		"write a question file to stdout and exit, its first line naming the schema --print-schema prints")

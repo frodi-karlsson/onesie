@@ -164,7 +164,8 @@ func bindSharedFlags(cmd *cobra.Command, flags *runFlags) {
 	cmd.Flags().StringVarP(&flags.model, flagModel, "m", "", "model override")
 	cmd.Flags().StringVar(&flags.baseURL, flagBaseURL, "", "api root override")
 	cmd.Flags().StringVarP(&flags.file, "file", "f", "",
-		"question file or request body, or the name of one saved in .onesie/questions or the config dir")
+		"question file or request body, or the name of one saved in .onesie/questions or the config dir, "+
+			"or of a built-in starter set")
 	cmd.Flags().BoolVar(&flags.replace, "replace", false, "--ask overrides an id from -f")
 	cmd.Flags().IntVarP(&flags.jobs, flagJobs, "j", 1, "records in flight at once")
 	cmd.Flags().IntVar(&flags.timeout, flagTimeout, int(limits.DefaultAttemptTimeout.Seconds()),

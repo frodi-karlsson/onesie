@@ -3,6 +3,14 @@
 The details behind the [README](README.md). `onesie --help` lists every flag, and `onesie -V`
 prints the built in limits.
 
+## Asking
+
+- A yes or no question answers with how likely the yes is. `-r` prints only the answer. Without it,
+  the table for a pick or a rate also shows the model's confidence and the probability of each
+  option or level.
+- `--desc KEY=TEXT` describes one option, one level, or `yes` or `no`, which steers the answer. A
+  rate needs every level described, or none.
+
 ## Gating
 
 `--assert` is one boolean over the record, and it sets the exit code. It reads the field names
@@ -31,7 +39,7 @@ onesie --ask urgent='is this urgent' --assert 'urgnet.value < 0.5'
 gate, the exit codes, every output mode, `--out` and `--resume` run as they do for real.
 
 ```sh
-onesie -f examples/questions/shell-safety.yaml -q --mock answers.json --state 'rm -rf /'
+onesie -f shell-safety -q --mock answers.json --state 'rm -rf /'
 ONESIE_MOCK=answers.json ./gate.sh
 ```
 
@@ -102,7 +110,7 @@ accepts as a label.
 requirement does not hold.
 
 ```sh
-onesie calibrate -f examples/questions/prompt-injection.yaml -i jsonl --map .text --id .id \
+onesie calibrate -f prompt-injection -i jsonl --map .text --id .id \
     --label instructs=.instructs --label overrides=.overrides --label access=.access \
     --require 'instructs.catches >= 0.95' --require 'upper(overrides.false_alarms) <= 0.25 at 0.9' \
     < examples/data/prompt-injection.jsonl
@@ -140,7 +148,7 @@ nothing. It needs no key, spends nothing and never rewrites the file, so a commi
 checks a gate in CI.
 
 ```sh
-onesie calibrate -f examples/questions/shell-safety.yaml -i jsonl --map .command --id .id \
+onesie calibrate -f shell-safety -i jsonl --map .command --id .id \
     -m jev-1.13.0 --provider typesafe \
     --label destroys=.destroys --label secrets=.secrets --label network=.network \
     --out examples/data/shell-safety.answers.jsonl --resume --offline \
@@ -299,6 +307,15 @@ again.
   answers and the model, never the state. Its name is a sha256 of the request, so anyone who can
   read the directory and guess a request can confirm it was asked.
 
+## Install script
+
+The install script puts the binary in `~/.local/bin`. `ONESIE_INSTALL_DIR` names another directory,
+and `ONESIE_VERSION` a release other than the latest. It checks the download against the release's
+`checksums.txt`, and against its build provenance when `gh` is logged in.
+
+macOS blocks a onesie binary downloaded through a browser, so install it with Homebrew, the install
+script or `go install`.
+
 ## Keys and providers
 
 ```sh
@@ -367,9 +384,14 @@ A consumer that stops reading, as `head` does, is not an error.
 - `--base-url` points onesie at any server that speaks the System One API. A plain http URL to a
   host other than localhost prints a warning, and a redirect is refused rather than followed with
   the key.
-- `-f NAME` loads `NAME.yaml`, `NAME.yml` or `NAME.json` from the nearest `.onesie/questions`, then
-  from `questions` in the config dir, and `onesie questions` lists every name it finds. A question
-  file is refused with exit 2 when it uses a YAML alias or is larger than `max-question-file-bytes`.
+- `-f VALUE` reads VALUE as a file when one exists at that path. Otherwise a bare name loads
+  `NAME.yaml`, `NAME.yml` or `NAME.json` from the nearest `.onesie/questions`, then from `questions`
+  in the config dir, and last takes a starter set built into onesie: `moderation`, `personal-data`,
+  `prompt-injection` or `shell-safety`. A saved file wins over a built-in set of the same name, and
+  `onesie -f shell-safety --print-questions > .onesie/questions/shell-safety.yaml` saves a copy to
+  edit. `onesie questions` lists every name `-f` finds, with a built-in set shown as `built in`. A
+  question file is refused with exit 2 when it uses a YAML alias or is larger than
+  `max-question-file-bytes`.
 - `--print-schema` prints the JSON Schema for a question file. `schema/questions.json` in the
   repository is the same file, and `make schema` regenerates it. The first line `--print-questions`
   writes is `# yaml-language-server: $schema=URL`, which an editor running the YAML language server

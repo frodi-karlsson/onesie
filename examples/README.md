@@ -9,12 +9,18 @@ before you rely on a gate.
 
 ## Use a set
 
-Copy a file into `.onesie/questions/` and load it by name with `-f`:
+The sets are built into onesie, so `-f` loads one by name with no copy step:
+
+```sh
+onesie -f shell-safety -q --state 'rm -rf ./build'
+```
+
+To edit a set, save a copy into `.onesie/questions/`. A saved file wins over the built-in set of the
+same name:
 
 ```sh
 mkdir -p .onesie/questions
-cp examples/questions/shell-safety.yaml .onesie/questions/
-onesie -f shell-safety -q --state 'rm -rf ./build'
+onesie -f shell-safety --print-questions > .onesie/questions/shell-safety.yaml
 ```
 
 Each file carries its own gate as `assert` and `abstain_if`, so `-f NAME` alone runs the whole

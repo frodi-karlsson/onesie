@@ -162,7 +162,7 @@ onesie 'is this urgent' --state 'the server is down' --stats --usage -o json
 **Good:**
 
 ```sh
-onesie --cache -f examples/questions/shell-safety.yaml --state 'rm -rf /'
+onesie --cache -f shell-safety --state 'rm -rf /'
 ```
 
 ### Run it once with --print-request before running it for real.

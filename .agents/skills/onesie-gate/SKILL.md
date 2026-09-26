@@ -146,7 +146,7 @@ onesie --ask urgent='is this urgent' --assert 'urgnet.value < 0.5' --print-quest
 **Good:**
 
 ```sh
-onesie -f examples/questions/shell-safety.yaml -q --mock answers.json --state 'rm -rf /'
+onesie -f shell-safety -q --mock answers.json --state 'rm -rf /'
 ```
 
 ### Read value, confidence, p, score, norm, decision and fallback, and compare with == != < <= > >= and in.
