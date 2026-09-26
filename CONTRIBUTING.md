@@ -94,9 +94,18 @@ go run ./cmd/proseblocks $(git diff --name-only main -- '*.go' '*.md') |
     -i jsonl --map .text --id .id --cache -o markdown'
 ```
 
-To recalibrate, add labelled records to `.onesie/data/history-lesson.jsonl`. Each holds an `id`,
-the `text` and a `history` label, true for a history lesson. Then ask for the answers the answers
-file lacks:
+Two files hold labelled records. Each record holds an `id`, the `text` and a `history` label, true
+for a history lesson.
+
+- `.onesie/data/history-lesson-real.jsonl` holds only real blocks, each with a `source` that names
+  where it came from. The history lessons are prose that commits removed because it described the
+  past. The rest are blocks from the work tree that describe the present. Compare a new wording on
+  this set before you adopt it.
+- `.onesie/data/history-lesson.jsonl` is the calibration set. It holds written examples and a copy
+  of every record in the real set, and the gate is checked against it.
+
+To recalibrate, add labelled records to the calibration set, and real ones to both files. Then ask
+for the answers the answers file lacks:
 
 ```sh
 bash -c 'set -a; . ./.env; set +a; exec bin/onesie calibrate -f history-lesson -i jsonl --map .text --id .id \
