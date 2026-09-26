@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"math/rand/v2"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -121,6 +122,14 @@ func (o Options) withDefaults() Options {
 		o.FS = osFS{}
 	}
 
+	if o.Sleep == nil {
+		o.Sleep = time.Sleep
+	}
+
+	if o.Random == nil {
+		o.Random = rand.Float64
+	}
+
 	return o
 }
 
@@ -137,6 +146,11 @@ type Options struct {
 	AliasTTL time.Duration
 	// FS is the filesystem the store works through. The real one by default.
 	FS FS
+	// Sleep waits between retries of a file another run holds on windows. time.Sleep by default.
+	Sleep func(time.Duration)
+	// Random spreads those retries, and returns a value from 0 up to but excluding 1. rand.Float64 by
+	// default.
+	Random func() float64
 }
 
 // FS is every filesystem call the store makes, so a test can make one fail.
@@ -200,9 +214,17 @@ func (s *Store) Get(key Key, provider, model string) ([]byte, bool, error) {
 
 	path := s.entryPath(key, pinned)
 
-	data, err := s.opts.FS.ReadFile(path)
+	var data []byte
+
+	err := s.retry(func() error {
+		var readErr error
+		data, readErr = s.opts.FS.ReadFile(path)
+
+		return readErr
+	}, contended)
 	if err != nil {
-		if s.absent(path, err) {
+		// A file another run still holds once the retries run out is only a miss.
+		if s.absent(path, err) || s.stillHeld(err, contended) {
 			return nil, false, nil
 		}
 
@@ -279,8 +301,9 @@ func (s *Store) Put(key Key, provider, model string, value []byte) error {
 		replaced = info.Size()
 	}
 
-	if err := s.write(path, data, now); err != nil {
-		return err
+	stored, writeErr := s.write(path, data, now)
+	if writeErr != nil || !stored {
+		return writeErr
 	}
 
 	s.mu.Lock()
@@ -305,10 +328,10 @@ func (s *Store) Put(key Key, provider, model string, value []byte) error {
 	return nil
 }
 
-func (s *Store) write(path string, data []byte, now time.Time) error {
+func (s *Store) write(path string, data []byte, now time.Time) (bool, error) {
 	temp, err := s.opts.FS.CreateTemp(filepath.Dir(path), tempPrefix+"*")
 	if err != nil {
-		return fmt.Errorf("creating a temporary file beside %s: %w", path, err)
+		return false, fmt.Errorf("creating a temporary file beside %s: %w", path, err)
 	}
 
 	name := temp.Name()
@@ -319,18 +342,37 @@ func (s *Store) write(path string, data []byte, now time.Time) error {
 	}
 
 	if written == nil {
-		written = s.opts.FS.Rename(name, path)
+		written = s.retry(func() error { return s.opts.FS.Rename(name, path) }, contendedOrMissing)
 	}
 
-	if written != nil {
-		if err := s.opts.FS.Remove(name); err != nil && !errors.Is(err, fs.ErrNotExist) {
-			return errors.Join(fmt.Errorf("writing %s: %w", path, written), err)
-		}
-
-		return fmt.Errorf("writing %s: %w", path, written)
+	if written == nil {
+		return true, nil
 	}
 
-	return nil
+	lost := s.lostRename(path, written)
+
+	if err := s.remove(name); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return false, errors.Join(fmt.Errorf("writing %s: %w", path, written), err)
+	}
+
+	// Another writer of the same key held the entry through every retry, so its value stands and this
+	// one is dropped rather than turning the cache off.
+	if lost {
+		return false, nil
+	}
+
+	return false, fmt.Errorf("writing %s: %w", path, written)
+}
+
+func (s *Store) lostRename(path string, renameErr error) bool {
+	if !s.stillHeld(renameErr, contendedOrMissing) {
+		return false
+	}
+
+	// Windows refuses a rename over a directory with the same error, and that one never clears.
+	info, err := s.opts.FS.Stat(path)
+
+	return err != nil || !info.IsDir()
 }
 
 func writeAll(temp TempFile, data []byte) error {
@@ -371,7 +413,7 @@ func (s *Store) evict() error {
 			break
 		}
 
-		if err := s.opts.FS.Remove(f.path); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		if err := s.remove(f.path); err != nil && !errors.Is(err, fs.ErrNotExist) {
 			return fmt.Errorf("evicting %s: %w", f.path, err)
 		}
 
@@ -400,7 +442,7 @@ func (s *Store) walk() (int64, error) {
 			(f.kind == aliasEntry && s.opts.AliasTTL > 0 && now.Sub(f.mtime) >= expiry)
 
 		if stale {
-			if err := s.opts.FS.Remove(f.path); err != nil && !errors.Is(err, fs.ErrNotExist) {
+			if err := s.remove(f.path); err != nil && !errors.Is(err, fs.ErrNotExist) {
 				return 0, fmt.Errorf("removing %s: %w", f.path, err)
 			}
 
