@@ -1264,6 +1264,19 @@ func TestPrintRequest(t *testing.T) {
 			want:     `"model":"jev-latest"`,
 		},
 		{
+			name:     "should fill the Berget default model and ignore TYPESAFE_DEFAULT_MODEL under berget",
+			args:     []string{"--ask", "urgent=is this urgent", "--print-request"},
+			env:      map[string]string{"ONESIE_PROVIDER": "berget", jev.EnvDefaultModel: "onesie-1.2.0"},
+			wantCode: ExitOK,
+			want:     `"model":"systemone"`,
+		},
+		{
+			name:     "should keep -m under berget",
+			args:     []string{"--provider", "berget", "-m", "laya-latest", "--ask", "urgent=is this urgent", "--print-request"},
+			wantCode: ExitOK,
+			want:     `"model":"laya-latest"`,
+		},
+		{
 			name:     "should keep TYPESAFE_DEFAULT_MODEL under typesafe",
 			args:     []string{"--ask", "urgent=is this urgent", "--print-request"},
 			env:      map[string]string{jev.EnvDefaultModel: "onesie-1.2.0"},

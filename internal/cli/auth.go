@@ -356,7 +356,10 @@ func newAuthTestCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 	return &cobra.Command{
 		Use:   "test",
 		Short: "Call the models endpoint with the resolved key",
-		Args:  authNoArgs("test", "It calls the models endpoint with the resolved key"),
+		Long: "Call the models endpoint with the resolved key, which costs no tokens.\n\n" +
+			"Berget lists its models to any key, so on berget auth test also asks one small question " +
+			"with the default model, which spends a few tokens.",
+		Args: authNoArgs("test", "It calls the models endpoint with the resolved key"),
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return authTest(cmd, settings, flags)
 		},
@@ -377,8 +380,7 @@ func authTest(cmd *cobra.Command, settings rootSettings, flags *runFlags) error 
 		return err
 	}
 
-	// The same request --list-models makes, which costs no tokens.
-	models, err := client.ListModels(cmd.Context())
+	models, err := client.VerifyKey(cmd.Context())
 	if err != nil {
 		return advise(err, "", false)
 	}

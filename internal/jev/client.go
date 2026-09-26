@@ -123,6 +123,27 @@ func (c *Client) AttemptTimeout() time.Duration {
 	return c.attemptTimeout
 }
 
+// VerifyKey lists the models and checks that the server accepts the key. Where the models list
+// needs no key, it also asks one small question with the default model, which spends a few tokens.
+func (c *Client) VerifyKey(ctx context.Context, opts ...RequestOption) ([]ModelCard, error) {
+	models, err := c.ListModels(ctx, opts...)
+	if err != nil || !c.provider.modelsAnswerAnyKey {
+		return models, err
+	}
+
+	// Berget validates the body before it looks the key up, so only a request it would answer
+	// reaches the key check.
+	_, err = c.SystemOne(ctx, Request{
+		State:     "onesie auth test",
+		Questions: Questions{{ID: "key", Question: Noul{Instructions: "The state names a test"}}},
+	}, opts...)
+	if err != nil {
+		return nil, err
+	}
+
+	return models, nil
+}
+
 // SystemOne answers named questions about a state. Every question is evaluated in parallel and in
 // isolation, so batching is cheaper than one call per question.
 func (c *Client) SystemOne(ctx context.Context, req Request, opts ...RequestOption) (*Result, error) {

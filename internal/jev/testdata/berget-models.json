@@ -1,0 +1,130 @@
+{
+  "data": [
+    {
+      "aliases": [
+        "mistral",
+        "mistral/small",
+        "mistral-small",
+        "mistralai/Mistral-Small-3.1-24B-Instruct-2503"
+      ],
+      "capabilities": {
+        "classification": false,
+        "embeddings": false,
+        "formatted_output": true,
+        "function_calling": true,
+        "json_mode": true,
+        "streaming": true,
+        "vision": false
+      },
+      "created": 1759276800000,
+      "id": "mistralai/Mistral-Small-3.2-24B-Instruct-2506",
+      "license": "Apache 2.0",
+      "lifecycle_state": "stable",
+      "lifecycle_status": "active",
+      "model_path": "mistralai/Mistral-Small-3.2-24B-Instruct-2506",
+      "model_size": 24,
+      "model_type": "text",
+      "name": "Mistral-Small-3.2-24B-Instruct-2506",
+      "object": "model",
+      "owned_by": "mistralai",
+      "parent": null,
+      "permission": [],
+      "pricing": {
+        "currency": "EUR",
+        "input": 0.3,
+        "output": 0.3,
+        "unit": "€ / M Token"
+      },
+      "quantization": "BF16",
+      "release_date": "2025-10-01",
+      "root": "mistralai/Mistral-Small-3.2-24B-Instruct-2506",
+      "status": {
+        "latency": 20,
+        "up": true
+      }
+    },
+    {
+      "aliases": [
+        "systemone",
+        "systemone-qwen3.5-2b"
+      ],
+      "capabilities": {
+        "classification": false,
+        "embeddings": false,
+        "formatted_output": false,
+        "function_calling": false,
+        "json_mode": false,
+        "streaming": true,
+        "vision": false
+      },
+      "created": 1790121600000,
+      "id": "Qwen/Qwen3.5-2B",
+      "license": "Apache 2.0",
+      "lifecycle_state": "eval",
+      "lifecycle_status": "preview",
+      "model_path": "Qwen/Qwen3.5-2B",
+      "model_size": 2,
+      "model_type": "system-one",
+      "name": "Qwen3.5-2B",
+      "object": "model",
+      "owned_by": "Qwen",
+      "parent": null,
+      "permission": [],
+      "pricing": {
+        "currency": "EUR",
+        "input": 0.042,
+        "output": 0,
+        "unit": "€ / M Token"
+      },
+      "quantization": "BF16",
+      "release_date": "2026-09-23",
+      "root": "Qwen/Qwen3.5-2B",
+      "status": {
+        "latency": 40,
+        "up": true
+      }
+    },
+    {
+      "aliases": [
+        "systemone-laya",
+        "laya-latest"
+      ],
+      "capabilities": {
+        "classification": false,
+        "embeddings": false,
+        "formatted_output": false,
+        "function_calling": false,
+        "json_mode": false,
+        "streaming": true,
+        "vision": false
+      },
+      "created": 1790208000000,
+      "id": "convaiinnovations/laya",
+      "license": "Apache 2.0",
+      "lifecycle_state": "eval",
+      "lifecycle_status": "preview",
+      "model_path": "convaiinnovations/laya",
+      "model_size": 0,
+      "model_type": "system-one",
+      "name": "laya",
+      "object": "model",
+      "owned_by": "convaiinnovations",
+      "parent": null,
+      "permission": [],
+      "pricing": {
+        "currency": "EUR",
+        "input": 0.042,
+        "output": 0,
+        "unit": "€ / M Token"
+      },
+      "quantization": "FP16",
+      "release_date": "2026-09-24",
+      "root": "convaiinnovations/laya",
+      "status": {
+        "latency": 39,
+        "up": true
+      }
+    }
+  ],
+  "object": "list"
+}

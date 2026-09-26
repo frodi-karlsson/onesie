@@ -220,6 +220,57 @@ func TestNew(t *testing.T) {
 		}
 	})
 
+	t.Run("should read BERGET_API_KEY and ignore the TypeSafe env vars under berget", func(t *testing.T) {
+		t.Parallel()
+
+		transport := &recordingTransport{body: shortAnswer}
+
+		client, err := jev.New(
+			jev.WithEnv(mockEnv(map[string]string{
+				jev.EnvAPIKey:       "sk-typesafe",
+				jev.EnvBaseURL:      "https://typesafe.example",
+				jev.EnvDefaultModel: "onesie-1.2.0",
+				"BERGET_API_KEY":    "sk_ber_test",
+			})),
+			jev.WithProvider(jev.Berget()),
+			jev.WithHTTPClient(&http.Client{Transport: transport}),
+		)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if _, err := client.SystemOne(t.Context(), jev.Request{State: "x", Questions: oneNoul()}); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		req := transport.last()
+		if got := req.Header.Get("Authorization"); got != "Bearer sk_ber_test" {
+			t.Errorf("Authorization = %q, want the Berget key", got)
+		}
+
+		if got := req.URL.String(); got != "https://api.berget.ai/v1/systemone" {
+			t.Errorf("url = %s, want the Berget default", got)
+		}
+
+		if !strings.Contains(transport.lastBody(), `"model":"`+jev.BergetDefaultModel+`"`) {
+			t.Errorf("body = %s, want the Berget default model", transport.lastBody())
+		}
+	})
+
+	t.Run("should name BERGET_API_KEY in the no key error under berget", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := jev.New(jev.WithEnv(mockEnv(map[string]string{jev.EnvAPIKey: "sk-typesafe"})),
+			jev.WithProvider(jev.Berget()))
+		if err == nil {
+			t.Fatalf("expected an error, got none")
+		}
+
+		if !strings.Contains(err.Error(), "BERGET_API_KEY") {
+			t.Errorf("error = %q, want it to name BERGET_API_KEY", err.Error())
+		}
+	})
+
 	t.Run("should reject a zero provider", func(t *testing.T) {
 		t.Parallel()
 
@@ -300,6 +351,65 @@ func TestClientSystemOne(t *testing.T) {
 
 		if apiErr.RequestID != "gen-dec-2" {
 			t.Errorf("request id got %q, want gen-dec-2", apiErr.RequestID)
+		}
+	})
+
+	t.Run("should fill the request id from x-request-id under berget", func(t *testing.T) {
+		t.Parallel()
+
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.Header().Set("X-Request-Id", "c9ee9293")
+			w.Header().Set("X-TypeSafe-Request-Id", "req_wrong")
+			_, _ = io.WriteString(w, shortAnswer)
+		}))
+		defer server.Close()
+
+		client, _ := newTestClient(t, server.URL, jev.WithProvider(jev.Berget()))
+
+		result, err := client.SystemOne(t.Context(), jev.Request{State: "x", Questions: oneNoul()})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if result.RequestID != "c9ee9293" {
+			t.Errorf("request id got %q, want c9ee9293", result.RequestID)
+		}
+	})
+
+	t.Run("should retry a berget 503 after the Retry-After it sends", func(t *testing.T) {
+		t.Parallel()
+
+		var calls atomic.Int32
+
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+
+			if calls.Add(1) == 1 {
+				w.Header().Set("Retry-After", "3")
+				w.WriteHeader(http.StatusServiceUnavailable)
+				_, _ = io.WriteString(w, `{"error":{"message":"Temporarily unavailable",`+
+					`"type":"server_error","code":null}}`)
+
+				return
+			}
+
+			_, _ = io.WriteString(w, shortAnswer)
+		}))
+		defer server.Close()
+
+		client, clock := newTestClient(t, server.URL, jev.WithProvider(jev.Berget()))
+
+		if _, err := client.SystemOne(t.Context(), jev.Request{State: "x", Questions: oneNoul()}); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if calls.Load() != 2 {
+			t.Errorf("calls = %d, want 2", calls.Load())
+		}
+
+		if slept := clock.Slept(); len(slept) != 1 || slept[0] != 3*time.Second {
+			t.Errorf("slept = %v, want one wait of 3s", slept)
 		}
 	})
 
@@ -1231,6 +1341,120 @@ func TestClientListModels(t *testing.T) {
 	})
 }
 
+func TestClientVerifyKey(t *testing.T) {
+	t.Parallel()
+
+	const (
+		typesafeListing = `{"models":[{"name":"jev-latest","description":"alias","release_date":"2026-08-01"}]}`
+		bergetListing   = `{"object":"list","data":[{"id":"Qwen/Qwen3.5-2B","model_type":"system-one",` +
+			`"aliases":["systemone"],"release_date":"2026-09-23"}]}`
+		bergetAnswer = `{"model":"Qwen/Qwen3.5-2B","answers":{"key":{"type":"noul","noul":0.9}},` +
+			`"usage":{"input_tokens":22,"output_tokens":15}}`
+		bergetBadKey = `{"error":{"code":"WALLET_NOT_SETUP","message":"No subscription found for this API key.",` +
+			`"param":null,"type":"insufficient_quota"}}`
+	)
+
+	tests := []struct {
+		name       string
+		provider   jev.Provider
+		listing    string
+		answer     string
+		status     int
+		wantPaths  []string
+		wantModels int
+		wantErr    error
+	}{
+		{
+			name:       "should only list the models on typesafe, whose list needs the key",
+			provider:   jev.TypeSafe(),
+			listing:    typesafeListing,
+			wantPaths:  []string{"GET /v1/models"},
+			wantModels: 1,
+		},
+		{
+			name:       "should list the models and ask one question on berget, whose list needs no key",
+			provider:   jev.Berget(),
+			listing:    bergetListing,
+			answer:     bergetAnswer,
+			wantPaths:  []string{"GET /v1/models/", "POST /v1/systemone"},
+			wantModels: 1,
+		},
+		{
+			name:      "should report a key berget refuses on the question",
+			provider:  jev.Berget(),
+			listing:   bergetListing,
+			answer:    bergetBadKey,
+			status:    http.StatusPaymentRequired,
+			wantPaths: []string{"GET /v1/models/", "POST /v1/systemone"},
+			wantErr:   jev.ErrPaymentRequired,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var (
+				mu    sync.Mutex
+				paths []string
+				body  string
+			)
+
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				raw, _ := io.ReadAll(r.Body)
+
+				mu.Lock()
+				paths = append(paths, r.Method+" "+r.URL.Path)
+				if r.Method == http.MethodPost {
+					body = string(raw)
+				}
+				mu.Unlock()
+
+				w.Header().Set("Content-Type", "application/json")
+
+				if r.Method == http.MethodGet {
+					_, _ = io.WriteString(w, tc.listing)
+
+					return
+				}
+
+				if tc.status != 0 {
+					w.WriteHeader(tc.status)
+				}
+
+				_, _ = io.WriteString(w, tc.answer)
+			}))
+			defer server.Close()
+
+			client, _ := newTestClient(t, server.URL, jev.WithProvider(tc.provider))
+
+			models, err := client.VerifyKey(t.Context())
+			if tc.wantErr != nil {
+				if !errors.Is(err, tc.wantErr) {
+					t.Fatalf("error got %v, want %v", err, tc.wantErr)
+				}
+			} else if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if len(models) != tc.wantModels {
+				t.Errorf("models got %+v, want %d", models, tc.wantModels)
+			}
+
+			mu.Lock()
+			defer mu.Unlock()
+
+			if strings.Join(paths, ", ") != strings.Join(tc.wantPaths, ", ") {
+				t.Errorf("requests got %v, want %v", paths, tc.wantPaths)
+			}
+
+			if body != "" && !strings.Contains(body, `"model":"`+jev.BergetDefaultModel+`"`) {
+				t.Errorf("question body = %s, want the default model", body)
+			}
+		})
+	}
+}
+
 func TestWithAttemptObserver(t *testing.T) {
 	t.Parallel()
 
@@ -1744,6 +1968,19 @@ func TestProviderResolveModel(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("should default to systemone and ignore TYPESAFE_DEFAULT_MODEL under berget", func(t *testing.T) {
+		t.Parallel()
+
+		env := lookupFrom(map[string]string{jev.EnvDefaultModel: "onesie-1.2.0"})
+		if got := jev.Berget().ResolveModel("", env); got != "systemone" {
+			t.Errorf("ResolveModel = %s, want systemone", got)
+		}
+
+		if got := jev.Berget().ResolveModel("laya-latest", env); got != "laya-latest" {
+			t.Errorf("ResolveModel = %s, want laya-latest", got)
+		}
+	})
 
 	t.Run("should ignore TYPESAFE_DEFAULT_MODEL under openrouter", func(t *testing.T) {
 		t.Parallel()

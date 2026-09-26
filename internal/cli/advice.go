@@ -18,7 +18,7 @@ func advise(err error, model string, validated bool) error {
 	if api.Status == http.StatusPaymentRequired {
 		return &advisedError{
 			cause:   err,
-			message: err.Error() + ". Add credits to the account this key belongs to",
+			message: withNote(err.Error(), "Add credits to the account this key belongs to"),
 		}
 	}
 
@@ -55,12 +55,14 @@ func unknownModel(api *jev.APIError, model string) bool {
 	// The id comes from what onesie sent rather than from a substring of the server's prose, whose
 	// wording the server owns. A call carrying no model has nothing to name, so it keeps the
 	// server's text.
-	if model == "" || api.Status != http.StatusBadRequest {
+	if model == "" || (api.Status != http.StatusBadRequest && api.Status != http.StatusNotFound) {
 		return false
 	}
 
-	// TypeSafe says Unknown model, and OpenRouter says the model does not exist.
-	return strings.Contains(api.Error(), "Unknown model") || strings.Contains(api.Error(), "does not exist")
+	// TypeSafe says Unknown model, OpenRouter says the model does not exist, and Berget answers 404
+	// with Model not found.
+	return strings.Contains(api.Error(), "Unknown model") || strings.Contains(api.Error(), "does not exist") ||
+		strings.Contains(api.Error(), "Model not found")
 }
 
 func countRejected(api *jev.APIError) bool {
@@ -94,9 +96,11 @@ func countedSubject(message string) bool {
 }
 
 func staleLimits(message string) string {
-	const note = "onesie's own check passed, so its built in limits may be stale. Run onesie -V"
+	return withNote(message, "onesie's own check passed, so its built in limits may be stale. Run onesie -V")
+}
 
-	// The server ends its own sentence, and a second full stop right before the note reads as a
+func withNote(message, note string) string {
+	// The server may end its own sentence, and a second full stop right before the note reads as a
 	// typo rather than as a boundary.
 	if strings.HasSuffix(message, ".") {
 		return message + " " + note

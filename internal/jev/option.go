@@ -13,8 +13,11 @@ import (
 const (
 	// DefaultBaseURL is the API root used when none is configured.
 	DefaultBaseURL = "https://api.typesafe.ai"
-	// DefaultModel is the model used when a request omits one.
+	// DefaultModel is the model a TypeSafe or OpenRouter request carries when it names none.
 	DefaultModel = "jev-latest"
+	// BergetDefaultModel is the model a Berget request carries when it names none. It is Berget's
+	// alias for its default System One model.
+	BergetDefaultModel = "systemone"
 	// DefaultAttemptTimeout bounds one HTTP attempt, not the whole call.
 	DefaultAttemptTimeout = limits.DefaultAttemptTimeout
 	// DefaultMaxResponseBytes caps how much of a response body is read.
@@ -41,7 +44,7 @@ func WithAPIKey(key string) Option {
 func WithProvider(p Provider) Option {
 	return func(c *Client) error {
 		if p.decodeModels == nil {
-			return &ValidationError{Message: "provider must come from TypeSafe, OpenRouter or ProviderNamed"}
+			return &ValidationError{Message: "provider must come from TypeSafe, OpenRouter, Berget or ProviderNamed"}
 		}
 
 		c.provider = p

@@ -505,6 +505,7 @@ func TestAsk(t *testing.T) {
 		{name: "should miss when a question changes", second: []string{"--cache", "--ask", "u=is it on fire", "--state", "site down"}},
 		{name: "should miss when -m changes", change: []string{"-m", "jev-1.13.0"}},
 		{name: "should miss when --provider changes", change: []string{"--provider", "openrouter"}},
+		{name: "should miss when --provider changes to berget", change: []string{"--provider", "berget"}},
 		{name: "should miss when --base-url changes", other: true},
 		{name: "should hit when --timeout changes", change: []string{"--timeout", "5"}, hit: true},
 		{name: "should hit when --retries changes", change: []string{"--retries", "1"}, hit: true},
@@ -596,6 +597,8 @@ func TestAsk(t *testing.T) {
 		{name: "should ask jev-latest again 90 minutes later under ONESIE_CACHE_TTL=90m", after: 90 * time.Minute, env: map[string]string{envCacheTTL: "90m"}},
 		{name: "should hit a pinned jev-1.13.0 on typesafe a year later", extra: []string{"-m", "jev-1.13.0"}, after: 365 * 24 * time.Hour, hit: true},
 		{name: "should ask jev-1.13.0 on openrouter again 24 hours later", extra: []string{"-m", "jev-1.13.0", "--provider", "openrouter"}, after: 24 * time.Hour},
+		{name: "should hit the systemone alias on berget 23 hours later", extra: []string{"--provider", "berget"}, after: 23 * time.Hour, hit: true},
+		{name: "should ask Qwen/Qwen3.5-2B on berget again 24 hours later", extra: []string{"-m", "Qwen/Qwen3.5-2B", "--provider", "berget"}, after: 24 * time.Hour},
 	}
 
 	for _, tc := range lifetimes {
@@ -848,6 +851,7 @@ func cacheEnv(t *testing.T) map[string]string {
 		"ONESIE_CACHE_DIR":   filepath.Join(home, "cache"),
 		jev.EnvAPIKey:        "k",
 		"OPENROUTER_API_KEY": "k",
+		"BERGET_API_KEY":     "k",
 	}
 }
 

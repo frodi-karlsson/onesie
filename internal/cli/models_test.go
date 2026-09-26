@@ -213,6 +213,35 @@ func TestListModels(t *testing.T) {
 		}
 	})
 
+	t.Run("should list only the system-one models under berget", func(t *testing.T) {
+		t.Parallel()
+
+		var path atomic.Value
+
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			path.Store(r.URL.Path)
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"object":"list","data":[` +
+				`{"id":"mistral","model_type":"text","aliases":["mistral-small"],"release_date":"2025-10-01"},` +
+				`{"id":"Qwen/Qwen3.5-2B","model_type":"system-one","aliases":["systemone"],` +
+				`"release_date":"2026-09-23"}]}`))
+		}))
+		defer srv.Close()
+
+		out, errOut, code := runRealFactory(t, []string{"--provider", "berget", "--list-models", "--base-url", srv.URL})
+		if code != ExitOK {
+			t.Fatalf("exit code = %d, stderr:\n%s", code, errOut)
+		}
+
+		if want := "Qwen/Qwen3.5-2B  aliases systemone  2026-09-23\n"; out != want {
+			t.Errorf("stdout = %q, want %q", out, want)
+		}
+
+		if got := path.Load(); got != "/v1/models/" {
+			t.Errorf("path = %v, want /v1/models/", got)
+		}
+	})
+
 	t.Run("should honour --timeout", func(t *testing.T) {
 		t.Parallel()
 
@@ -260,7 +289,7 @@ func runRealFactory(t *testing.T, args []string) (string, string, int) {
 		WithStdin(strings.NewReader("")),
 		WithStdinTTY(false),
 		WithStdoutTTY(false),
-		WithLookupEnv(lookupFrom(map[string]string{jev.EnvAPIKey: "test"})),
+		WithLookupEnv(lookupFrom(map[string]string{jev.EnvAPIKey: "test", "BERGET_API_KEY": "test"})),
 	)
 
 	root.SetOut(&out)

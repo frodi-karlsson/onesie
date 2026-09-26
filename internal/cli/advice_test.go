@@ -83,6 +83,26 @@ func TestAdvise(t *testing.T) {
 					`"message":"model 'onesie-1.12' not found. Try --list-models"}`},
 			},
 			{
+				name:   "should name the model on the 404 Berget sends for an unknown model",
+				args:   []string{"is this urgent", "-m", "jev-latest"},
+				stdin:  "a ticket",
+				status: http.StatusNotFound,
+				response: `{"error":{"message":"Model not found: jev-latest","type":"invalid_request_error",` +
+					`"code":"model_not_found"}}`,
+				wantCode: ExitUsage,
+				wantSent: `"model":"jev-latest"`,
+				wantErr:  "onesie: model 'jev-latest' not found. Try --list-models\n",
+			},
+			{
+				name:     "should leave a 404 about anything else unchanged",
+				args:     []string{"is this urgent", "-m", "jev-latest"},
+				stdin:    "a ticket",
+				status:   http.StatusNotFound,
+				response: `{"error":{"message":"no such route","type":"invalid_request_error","code":null}}`,
+				wantCode: ExitUsage,
+				wantErr:  "onesie: 404 no such route\n",
+			},
+			{
 				name:     "should leave a 400 about anything else unchanged",
 				args:     []string{"is this urgent", "-m", "onesie-1.12"},
 				stdin:    "a ticket",

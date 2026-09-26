@@ -14,9 +14,11 @@ func ProviderNamed(name string) (Provider, error) {
 		return TypeSafe(), nil
 	case "openrouter":
 		return OpenRouter(), nil
+	case "berget":
+		return Berget(), nil
 	default:
 		return Provider{}, &ValidationError{
-			Message: "unknown provider " + name + ". Use typesafe or openrouter",
+			Message: "unknown provider " + name + ". Use typesafe, openrouter or berget",
 		}
 	}
 }
@@ -29,6 +31,7 @@ func TypeSafe() Provider {
 		EnvAPIKey:       EnvAPIKey,
 		EnvBaseURL:      EnvBaseURL,
 		EnvDefaultModel: EnvDefaultModel,
+		defaultModel:    DefaultModel,
 		requestIDHeader: "X-TypeSafe-Request-Id",
 		modelsPath:      "/v1/models",
 		decodeModels:    decodeTypeSafeModels,
@@ -41,14 +44,29 @@ func OpenRouter() Provider {
 		Name:            "openrouter",
 		BaseURL:         "https://openrouter.ai/api",
 		EnvAPIKey:       "OPENROUTER_API_KEY",
+		defaultModel:    DefaultModel,
 		requestIDHeader: "X-Generation-Id",
 		modelsPath:      "/v1/models?output_modalities=decisions",
 		decodeModels:    decodeOpenRouterModels,
 	}
 }
 
-// Provider is a host that serves the System One API. Build one with TypeSafe or OpenRouter. An
-// empty env var name means the provider reads nothing from the environment for that setting.
+// Berget serves the same wire protocol with its own models, which do not include jev-latest.
+func Berget() Provider {
+	return Provider{
+		Name:               "berget",
+		BaseURL:            "https://api.berget.ai",
+		EnvAPIKey:          "BERGET_API_KEY",
+		defaultModel:       BergetDefaultModel,
+		requestIDHeader:    "X-Request-Id",
+		modelsPath:         "/v1/models/",
+		decodeModels:       decodeBergetModels,
+		modelsAnswerAnyKey: true,
+	}
+}
+
+// Provider is a host that serves the System One API. Build one with TypeSafe, OpenRouter or Berget.
+// An empty env var name means the provider reads nothing from the environment for that setting.
 type Provider struct {
 	Name            string
 	BaseURL         string
@@ -56,15 +74,18 @@ type Provider struct {
 	EnvBaseURL      string
 	EnvDefaultModel string
 
+	defaultModel    string
 	requestIDHeader string
 	modelsPath      string
 	decodeModels    func([]byte) ([]ModelCard, error)
+
+	modelsAnswerAnyKey bool
 }
 
 // ResolveModel reports the model a request will carry under this provider. It exists so a caller
 // that prints a request without building a client fills the model the way a client would.
 func (p Provider) ResolveModel(model string, lookupEnv func(string) (string, bool)) string {
-	return orDefault(orEnv(model, lookupEnv, p.EnvDefaultModel), DefaultModel)
+	return orDefault(orEnv(model, lookupEnv, p.EnvDefaultModel), p.defaultModel)
 }
 
 func decodeTypeSafeModels(body []byte) ([]ModelCard, error) {
@@ -107,6 +128,44 @@ func decodeOpenRouterModels(body []byte) ([]ModelCard, error) {
 			Description: model.Description,
 			ReleaseDate: time.Unix(model.Created, 0).UTC().Format(time.DateOnly),
 		})
+	}
+
+	return cards, nil
+}
+
+func decodeBergetModels(body []byte) ([]ModelCard, error) {
+	var wire struct {
+		Data []struct {
+			ID          string   `json:"id"`
+			ModelType   string   `json:"model_type"`
+			Aliases     []string `json:"aliases"`
+			ReleaseDate string   `json:"release_date"`
+		} `json:"data"`
+	}
+
+	if err := json.Unmarshal(body, &wire); err != nil {
+		return nil, err
+	}
+
+	if wire.Data == nil {
+		return nil, errors.New("expected a models list")
+	}
+
+	// The list holds every model Berget serves, chat and speech included, and only the system-one
+	// ones answer the System One endpoint.
+	cards := []ModelCard{}
+
+	for _, model := range wire.Data {
+		if model.ModelType != "system-one" {
+			continue
+		}
+
+		card := ModelCard{Name: model.ID, ReleaseDate: model.ReleaseDate}
+		if len(model.Aliases) > 0 {
+			card.Description = "aliases " + strings.Join(model.Aliases, ", ")
+		}
+
+		cards = append(cards, card)
 	}
 
 	return cards, nil

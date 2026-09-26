@@ -31,6 +31,22 @@ func TestNewAPIError(t *testing.T) {
 			message:  "onesie: 400 bad question",
 		},
 		{
+			name:   "should read the nested message of a Berget 404",
+			status: 404,
+			body: `{"error":{"message":"Model not found: jev-latest","type":"invalid_request_error",` +
+				`"code":"model_not_found"}}`,
+			sentinel: ErrNotFound,
+			message:  "onesie: 404 Model not found: jev-latest",
+		},
+		{
+			name:   "should read the nested message of a Berget 401",
+			status: 401,
+			body: `{"error":{"code":"invalid_api_key","message":"Invalid API key format","param":null,` +
+				`"type":"authentication_error"},"trace_id":"6b5d","request_id":"f9c5"}`,
+			sentinel: ErrAuthentication,
+			message:  "onesie: 401 Invalid API key format",
+		},
+		{
 			name:     "should map 401 to ErrAuthentication",
 			status:   401,
 			body:     `{"message":"invalid key"}`,

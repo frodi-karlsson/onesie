@@ -16,6 +16,7 @@ case "$source" in
   none)
     case "$provider" in
       openrouter) variable=OPENROUTER_API_KEY ;;
+      berget) variable=BERGET_API_KEY ;;
       *) variable=TYPESAFE_API_KEY ;;
     esac
     printf 'onesie is on PATH, but no API key resolves for provider %s. Only --print-request and --print-questions work until the user runs onesie auth set or sets %s. The onesie-setup skill walks them through it.\n' "$provider" "$variable"

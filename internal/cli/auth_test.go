@@ -170,6 +170,21 @@ func TestAuthStatus(t *testing.T) {
 			wantCode: ExitAuth,
 		},
 		{
+			name:     "should report the Berget env var under --provider berget",
+			args:     []string{"--provider", "berget", "auth", "status"},
+			env:      map[string]string{"BERGET_API_KEY": "SECRET-BG"},
+			wantOut:  "provider: berget\nsource: env BERGET_API_KEY\n",
+			wantCode: ExitOK,
+		},
+		{
+			name:     "should never fall back to the TypeSafe key under berget",
+			args:     []string{"auth", "status"},
+			env:      map[string]string{"ONESIE_PROVIDER": "berget", jev.EnvAPIKey: "SECRET-TS"},
+			file:     `{"providers":{"typesafe":{"api_key":"SECRET-FILE"}}}`,
+			wantOut:  "provider: berget\nsource: none\n",
+			wantCode: ExitAuth,
+		},
+		{
 			name:     "should read the openrouter entry from the file",
 			args:     []string{"--provider", "openrouter", "auth", "status"},
 			file:     `{"providers":{"openrouter":{"api_key":"SECRET-OR"},"typesafe":{"api_key":"SECRET-FILE"}}}`,
@@ -715,6 +730,12 @@ func TestAuthSet(t *testing.T) {
 			wantFile: `{"providers":{"openrouter":{"api_key":"SECRET-OR","base_url":"https://proxy.example"}}}`,
 		},
 		{
+			name:     "should add a berget entry and keep the others",
+			args:     []string{"--provider", "berget", "auth", "set", "--file"},
+			existing: `{"providers":{"typesafe":{"api_key":"SECRET-FILE"}}}`,
+			wantFile: `{"providers":{"berget":{"api_key":"SECRET-OR"},"typesafe":{"api_key":"SECRET-FILE"}}}`,
+		},
+		{
 			name:     "should replace a file it cannot read and say so",
 			args:     []string{"--provider", "openrouter", "auth", "set"},
 			existing: `not json`,
@@ -1188,6 +1209,86 @@ func TestAuthTest(t *testing.T) {
 			}
 		})
 	}
+
+	berget := []struct {
+		name     string
+		status   int
+		answer   string
+		wantOut  string
+		wantErr  string
+		wantCode int
+	}{
+		{
+			name:     "should list the models and ask one question on berget, whose list needs no key",
+			answer:   `{"model":"Qwen/Qwen3.5-2B","answers":{"key":{"type":"noul","noul":0.9}},"usage":{}}`,
+			wantOut:  "provider: berget\nsource: env BERGET_API_KEY\nmodels: 1\n",
+			wantCode: ExitOK,
+		},
+		{
+			name:   "should exit 3 when berget has no subscription for the key",
+			status: http.StatusPaymentRequired,
+			answer: `{"error":{"code":"WALLET_NOT_SETUP","message":"No subscription found for this API key.",` +
+				`"param":null,"type":"insufficient_quota"}}`,
+			wantErr: "onesie: 402 No subscription found for this API key. " +
+				"Add credits to the account this key belongs to",
+			wantCode: ExitAuth,
+		},
+	}
+
+	for _, tc := range berget {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var requests atomic.Int32
+
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				requests.Add(1)
+				w.Header().Set("Content-Type", "application/json")
+
+				if r.Method == http.MethodGet {
+					_, _ = io.WriteString(w, `{"object":"list","data":[`+
+						`{"id":"Qwen/Qwen3.5-2B","model_type":"system-one","aliases":["systemone"]},`+
+						`{"id":"mistral","model_type":"text"}]}`)
+
+					return
+				}
+
+				if tc.status != 0 {
+					w.WriteHeader(tc.status)
+				}
+
+				_, _ = io.WriteString(w, tc.answer)
+			}))
+			defer srv.Close()
+
+			stub := stubFactory(srv.URL)
+
+			out, errOut, code := runAuth(t, []string{"--provider", "berget", "auth", "test"},
+				WithCredentialPath(fixedPath(credentialFixture(t, "", 0))),
+				WithLookupEnv(lookupFrom(map[string]string{"BERGET_API_KEY": "SECRET-BG"})),
+				WithClientFactory(func(ctx context.Context, extra ...jev.Option) (*jev.Client, error) {
+					return stub(ctx, append([]jev.Option{jev.WithProvider(jev.Berget())}, extra...)...)
+				}))
+
+			assertNoSecret(t, out, errOut)
+
+			if code != tc.wantCode {
+				t.Errorf("exit code = %d, want %d\nstderr:\n%s", code, tc.wantCode, errOut)
+			}
+
+			if out != tc.wantOut {
+				t.Errorf("stdout = %q, want %q", out, tc.wantOut)
+			}
+
+			if !strings.Contains(errOut, tc.wantErr) {
+				t.Errorf("stderr = %q, want it to contain %q", errOut, tc.wantErr)
+			}
+
+			if requests.Load() != 2 {
+				t.Errorf("requests = %d, want the listing and one question", requests.Load())
+			}
+		})
+	}
 }
 
 func TestStoredOptions(t *testing.T) {
@@ -1504,6 +1605,11 @@ func TestKeySourceString(t *testing.T) {
 			name:   "should name the openrouter env var",
 			source: keySource{name: sourceEnv, provider: jev.OpenRouter(), key: "SECRET-ENV"},
 			want:   "source: env OPENROUTER_API_KEY",
+		},
+		{
+			name:   "should name the berget env var",
+			source: keySource{name: sourceEnv, provider: jev.Berget(), key: "SECRET-ENV"},
+			want:   "source: env BERGET_API_KEY",
 		},
 	}
 

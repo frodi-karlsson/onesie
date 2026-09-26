@@ -482,6 +482,17 @@ func TestOpenOut(t *testing.T) {
 			wantErr:     changed,
 		},
 		{
+			name:        "should refuse to resume when the provider changed to berget",
+			existing:    "keep me\n",
+			sidecar:     matching,
+			args:        []string{"is this urgent", "-i", "jsonl", "--provider", "berget", "--resume"},
+			stdin:       input,
+			wantCode:    ExitUsage,
+			wantFile:    "keep me\n",
+			wantSidecar: matching,
+			wantErr:     changed,
+		},
+		{
 			name:        "should refuse to resume when the default model changed",
 			existing:    "keep me\n",
 			sidecar:     matching,
