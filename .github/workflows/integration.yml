@@ -29,4 +29,5 @@ jobs:
           # Absent on a fork, where the suite skips rather than failing.
           TYPESAFE_API_KEY: ${{ secrets.TYPESAFE_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          BERGET_API_KEY: ${{ secrets.BERGET_API_KEY }}
         run: make test-integration
