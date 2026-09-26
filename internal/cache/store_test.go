@@ -286,6 +286,10 @@ func TestGet(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
+			if runtime.GOOS == "windows" && tc.goos != "windows" {
+				t.Skip("windows carries no unix permission bits, so a store opened as another system refuses the directory")
+			}
+
 			seed, dir := openAt(t, fixed(t0), cache.Options{})
 			mustPut(t, seed, key(0xab, 1), "typesafe", "jev-1.13.0", []byte(`"v"`))
 
