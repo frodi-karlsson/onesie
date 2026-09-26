@@ -38,6 +38,7 @@ cmd/skillgen/         generates the per client skill files from skills/
 cmd/skillcheck/       dry runs every example in every skill against the built binary
 cmd/skilleval/        dry runs every onesie command an agent wrote in a plugin eval run
 cmd/releaseprep/      checks a release tag and bumps the plugin manifests, for scripts/release.sh
+cmd/proseblocks/      writes the prose of Go and Markdown files as JSON lines, for the history lessons check
 internal/cli/         the cobra command tree, unexported and testable in process
 internal/argv/        records the group local flags in the order they arrive
 internal/plan/        folds a recorded command line into a validated invocation
@@ -57,6 +58,7 @@ internal/skillgen/    decodes and validates skill.json and renders the skill fil
 internal/skillcheck/  dry runs each skill rule's bad and good example
 internal/skilleval/   extracts and grades the commands of a plugin eval run
 internal/release/     orders release tags by semver and edits the plugin manifests in place
+internal/proseblocks/ splits Go comments and Markdown into blocks of prose, one per comment group, paragraph or list item
 scripts/release.sh    the steps behind make release
 ```
 
@@ -67,6 +69,46 @@ something outside this module needs them.
 Timeouts in `internal/jev` are per attempt, not per call. With the default policy a call retries
 twice, so it can outlast the attempt timeout. Bound a whole call with a context deadline or
 `WithTotalTimeout`.
+
+## History lessons check
+
+The `History lessons` workflow asks onesie whether each comment and doc paragraph a change touches
+tells how things used to be, or what changed, rather than how they are now. It runs on every pull
+request and on every push to `main`. No ruleset requires it, so its red X is advice and blocks
+nothing.
+
+`cmd/proseblocks` turns the changed `.go` and `.md` files into one JSON line per comment group,
+paragraph or list item. It leaves out code, tables, headings, directives and blocks of fewer than
+four words. onesie then asks `.onesie/questions/history-lesson.yaml` about each block with the
+pinned model `jev-1.13.0`. A block that fails the file's `assert` fails the job, unless the file's
+`abstain_if` holds for it. Such a block is listed as unsure and does not fail the job. The job
+summary shows the table and the text of each flagged or unsure block. A pull request from a fork
+gets no key, so the job says it skipped and passes.
+
+Run the same check locally on what your branch changed, with the key from `.env`:
+
+```sh
+make build
+go run ./cmd/proseblocks $(git diff --name-only main -- '*.go' '*.md') |
+  bash -c 'set -a; . ./.env; set +a; exec bin/onesie -f history-lesson -m jev-1.13.0 --provider typesafe \
+    -i jsonl --map .text --id .id --cache -o markdown'
+```
+
+To recalibrate, add labelled records to `.onesie/data/history-lesson.jsonl`. Each holds an `id`,
+the `text` and a `history` label, true for a history lesson. Then ask for the answers the answers
+file lacks:
+
+```sh
+bash -c 'set -a; . ./.env; set +a; exec bin/onesie calibrate -f history-lesson -i jsonl --map .text --id .id \
+    -m jev-1.13.0 --provider typesafe --label history=.history \
+    --out .onesie/data/history-lesson.answers.jsonl --resume' < .onesie/data/history-lesson.jsonl
+```
+
+Pick the `assert` and `abstain_if` cuts from the table it prints, and commit the answers file with
+its `.onesie` fingerprint. A change to the question makes the answers file stale, so delete both
+files and run the command again. `TestProjectSets` in `examples/` checks the gate against the
+committed answers offline with the requirements it lists, so `make check` fails when the gate and
+the answers disagree.
 
 ## Conventions
 
