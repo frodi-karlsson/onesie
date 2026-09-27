@@ -1,4 +1,4 @@
-// Command onesie is the command line interface for TypeSafe Jev.
+// Command onesie asks System One models typed questions about text from the shell.
 package main
 
 import (

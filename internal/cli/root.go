@@ -121,7 +121,7 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 
 	root = &cobra.Command{
 		Use:   "onesie [question]",
-		Short: "Ask Jev typed questions about state on stdin",
+		Short: "Ask a System One model typed questions about state on stdin",
 		Long: "onesie is a Unix filter over the System One API, served by TypeSafe, OpenRouter or Berget.\n\n" +
 			"State arrives on stdin, typed answers leave on stdout, and the exit status is " +
 			"usable in a conditional.\n\n" +

@@ -60,7 +60,7 @@ func newCalibrateCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "calibrate [question]",
 		Short: "Score questions against records whose answers are known",
-		Long: "calibrate asks Jev about labelled records, compares each answer with the label a " +
+		Long: "calibrate asks the model about labelled records, compares each answer with the label a " +
 			"--label jq expression takes from the record, and prints cut, agreement and confusion " +
 			"tables to pick a gate from. It never picks the cut.\n\n" +
 			"Map only the text a person would read, since a --map that selects the label flatters " +

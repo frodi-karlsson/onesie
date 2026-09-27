@@ -1,7 +1,7 @@
 {
   "$schema": "https://www.schemastore.org/claude-code-marketplace.json",
   "name": "onesie",
-  "description": "Skills for the onesie CLI, the command line interface for TypeSafe Jev.",
+  "description": "Skills for the onesie CLI, which asks System One models typed questions about text from the shell.",
   "owner": {
     "name": "Frodi Karlsson"
   },
