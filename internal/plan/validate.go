@@ -793,6 +793,10 @@ func checkPick(q *Question) (string, error) {
 		return "", tooMany(q, pick, "options", limits.MaxChoiceOptions, len(q.Options))
 	}
 
+	if err := checkBlankNames(q, pick, "option", names); err != nil {
+		return "", err
+	}
+
 	if dupe, found := firstDuplicate(names); found {
 		return "", fmt.Errorf(
 			"onesie: %s option '%s' is listed twice in question '%s'", pick, dupe, q.ID)
@@ -845,6 +849,16 @@ func checkRate(q *Question) error {
 	return checkPolicy(q, false)
 }
 
+func checkBlankNames(q *Question, shape, noun string, names []string) error {
+	for i, name := range names {
+		if strings.TrimSpace(name) == "" {
+			return fmt.Errorf("onesie: %s %s %d%s is empty", shape, noun, i+1, questionClause(q))
+		}
+	}
+
+	return nil
+}
+
 func tooFew(q *Question, name, noun string, count int, names []string) error {
 	// A single unnamed entry is the empty list spelling, from --pick with an empty value or from
 	// a body's unlabelled levels. Naming it would print the separator and nothing else.
@@ -864,6 +878,10 @@ func tooMany(q *Question, name, noun string, limit, count int) error {
 }
 
 func checkRubric(q *Question, rate string, labels []string) error {
+	if err := checkBlankNames(q, rate, "level", labels); err != nil {
+		return err
+	}
+
 	if dupe, found := firstDuplicate(labels); found {
 		return fmt.Errorf("onesie: %s label '%s' is listed twice in question '%s'", rate, dupe, q.ID)
 	}

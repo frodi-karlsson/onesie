@@ -8,6 +8,9 @@ prints the built in limits.
 - A yes or no question answers with how likely the yes is. `-r` prints only the answer. Without it,
   the table for a pick or a rate also shows the model's confidence and the probability of each
   option or level.
+- `--pick` and `--rate` split their names on the comma, or on `--sep`, and trim the spaces around
+  each one, so `--pick 'yes, no'` names `yes` and `no`. An empty name exits 2. A question file's
+  names are kept as written, and an empty or all whitespace one exits 2 too.
 - `--desc KEY=TEXT` describes one option, one level, or `yes` or `no`, which steers the answer. A
   rate needs every level described, or none.
 

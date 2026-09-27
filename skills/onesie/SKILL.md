@@ -70,7 +70,7 @@ onesie --ask urgent='is this urgent' --threshold 0.5 --ask refund='do they want 
 
 ### Ask yes or no as a plain question, one of N with --pick, a degree with --rate.
 
-A bare question returns `value`, a probability from 0 to 1, and no confidence, because one number describes a two outcome distribution fully. `--pick` returns `value`, the winning name, with `confidence` and `p`, the probability of each option. `--rate` returns `value`, the most likely level, with `score`, where 0 is the lowest level, `norm`, the score scaled to run from 0 to 1, `confidence` and `p`. A policy flag adds `decision` and `fallback`, covered in the onesie-gate skill, and `-o values` then prints the decision in place of the value. Options split on the comma exactly, so `--pick 'a, b'` names the second option ` b` with its space. When a name holds a comma, set another separator first, as in `--sep '|' --pick 'yes, refund|no, keep'`.
+A bare question returns `value`, a probability from 0 to 1, and no confidence, because one number describes a two outcome distribution fully. `--pick` returns `value`, the winning name, with `confidence` and `p`, the probability of each option. `--rate` returns `value`, the most likely level, with `score`, where 0 is the lowest level, `norm`, the score scaled to run from 0 to 1, `confidence` and `p`. A policy flag adds `decision` and `fallback`, covered in the onesie-gate skill, and `-o values` then prints the decision in place of the value. Each option and level loses the spaces around it, so `--pick 'yes, no'` names `yes` and `no`, and an empty name exits 2. When a name holds a comma, set another separator first, as in `--sep '|' --pick 'yes, refund|no, keep'`.
 
 **Bad:**
 

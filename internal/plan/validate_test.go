@@ -84,6 +84,44 @@ func TestValidate(t *testing.T) {
 			wantErr: "onesie: --pick option 'billing' is listed twice in question 'team'",
 		},
 		{
+			name: "should reject an empty option",
+			events: []argv.Event{
+				{Name: "ask", Value: "team=first"},
+				{Name: "pick", Value: "billing,,technical"},
+			},
+			wantExact: "onesie: --pick option 2 in question 'team' is empty",
+		},
+		{
+			name: "should reject an option of only spaces",
+			events: []argv.Event{
+				{Name: "ask", Value: "team=first"},
+				{Name: "pick", Value: "billing, "},
+			},
+			wantExact: "onesie: --pick option 2 in question 'team' is empty",
+		},
+		{
+			name: "should reject an empty level",
+			events: []argv.Event{
+				{Name: "ask", Value: "severity=first"},
+				{Name: "rate", Value: "low,,high"},
+			},
+			wantExact: "onesie: --rate level 2 in question 'severity' is empty",
+		},
+		{
+			name:      "should reject a file's blank option",
+			file:      filePick("billing", "  "),
+			wantExact: "onesie: 'pick' option 2 in question 'team' is empty",
+		},
+		{
+			name: "should match a description against the trimmed option",
+			events: []argv.Event{
+				{Name: "ask", Value: "team=first"},
+				{Name: "pick", Value: "billing, technical"},
+				{Name: "desc", Value: "technical=it"},
+				{Name: "desc", Value: "billing =money"},
+			},
+		},
+		{
 			name: "should reject a duplicate level",
 			events: []argv.Event{
 				{Name: "ask", Value: "severity=first"},

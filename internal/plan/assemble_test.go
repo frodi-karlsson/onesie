@@ -114,6 +114,31 @@ func TestAssemble(t *testing.T) {
 			},
 		},
 		{
+			name: "should trim the spaces around each option and level",
+			events: []argv.Event{
+				{Name: "ask", Value: "a=first"},
+				{Name: "pick", Value: "yes, no ,\tmaybe"},
+				{Name: "ask", Value: "b=second"},
+				{Name: "sep", Value: "|"},
+				{Name: "rate", Value: " low | high "},
+			},
+			check: func(t *testing.T, p *plan.Plan) {
+				t.Helper()
+
+				for i, want := range []string{"yes", "no", "maybe"} {
+					if got := p.Questions[0].Options[i].Name; got != want {
+						t.Errorf("option %d = %q, want %q", i, got, want)
+					}
+				}
+
+				for i, want := range []string{"low", "high"} {
+					if got := p.Questions[1].Levels[i].Label; got != want {
+						t.Errorf("level %d = %q, want %q", i, got, want)
+					}
+				}
+			},
+		},
+		{
 			name: "should preserve rate level order across repeats",
 			events: []argv.Event{
 				{Name: "ask", Value: "a=first"},

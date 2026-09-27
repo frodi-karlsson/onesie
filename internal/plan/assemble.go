@@ -184,7 +184,7 @@ func applyEvents(question *Question, events []argv.Event, readFile func(string) 
 		case "pick":
 			question.Shape = Pick
 			for _, name := range strings.Split(event.Value, separator) {
-				question.Options = append(question.Options, Option{Name: name})
+				question.Options = append(question.Options, Option{Name: strings.TrimSpace(name)})
 			}
 		case "rate":
 			question.Shape = Rate
@@ -193,13 +193,15 @@ func applyEvents(question *Question, events []argv.Event, readFile func(string) 
 			// index with no labels, so keying off the shape would relabel it with empty strings.
 			question.Labelled = true
 			for _, label := range strings.Split(event.Value, separator) {
-				question.Levels = append(question.Levels, Level{Label: label})
+				question.Levels = append(question.Levels, Level{Label: strings.TrimSpace(label)})
 			}
 		case "desc":
 			key, text, ok := strings.Cut(event.Value, "=")
 			if !ok {
 				return fmt.Errorf("onesie: --desc takes KEY=TEXT, got '%s'", event.Value)
 			}
+
+			key = strings.TrimSpace(key)
 
 			resolved, err := resolve(text, readFile)
 			if err != nil {
