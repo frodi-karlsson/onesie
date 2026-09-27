@@ -131,7 +131,8 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 			"--cache, or ONESIE_CACHE=1, stores each successful response on disk and answers a repeated " +
 			"request from it. onesie cache reports what it holds, and onesie cache clear empties it.\n\n" +
 			"A question that begins with a dash needs -- before it, with any flags placed " +
-			"first, as in onesie -o json -- '-is this urgent'.",
+			"first, as in onesie -o json -- '-is this urgent'. So does a one word question close to " +
+			"a subcommand name, since onesie questoins exits 2 with did you mean questions.",
 		Version: info.Version,
 		Args:    cobra.MaximumNArgs(1),
 		// Cobra otherwise buries every returned error under the full help text. Execute owns the
@@ -149,6 +150,10 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 			// to run, since -i request carries its own.
 			if cmd.Flags().NFlag() == 0 && len(args) == 0 {
 				return cmd.Help()
+			}
+
+			if refused := refuseMisspelledSubcommand(cmd, args, recorder.Events()); refused != nil {
+				return refused
 			}
 
 			// Ahead of the provider, since the schema is the same for every provider and a bad

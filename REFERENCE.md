@@ -15,6 +15,10 @@ prints the built in limits.
   the committed rate answers it is about 1 when `p` sits on one level, never above the top
   probability, and lower as the rest spreads to other levels, most of all to far ones.
   `--min-confidence` cuts on it. A yes or no answer carries no confidence.
+- A question that is one bare word within one edit of a subcommand name of up to 5 letters, or two
+  edits of a longer one, exits 2 with `did you mean`, as `onesie questoins` does. A swap of two
+  neighbouring letters is one edit, and case is ignored. A word after `--` is asked, as in
+  `onesie -- questoins`, and so is a question of more than one word or one beside `--ask`.
 - `--desc KEY=TEXT` describes one option, one level, or `yes` or `no`, which steers the answer. A
   rate needs every level described, or none.
 

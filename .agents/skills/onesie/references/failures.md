@@ -65,6 +65,7 @@ Exit 3 also covers these:
 | Message contains | What it means |
 | --- | --- |
 | `unknown flag`, `unknown command` or `accepts at most 1 arg` | a typo in a flag name, a flag cobra cannot see, such as `--print-request` after a subcommand or any flag after `--`, or an unquoted question |
+| `is not a subcommand, did you mean` | a one word question sits within an edit or two of a subcommand name, such as `questoins`. Fix the typo, or put the word after `--` to ask it |
 | a complaint about a flag you never typed | a question beginning with a dash was read as flags. Put the flags first, then `--`, then the question |
 | `no state given` | nothing arrived on stdin and neither `--state` nor `--state-file` was passed |
 | `both give a state` | `--state` or `--state-file` was passed beside a `-f` request body that holds its own `state`. Drop one |
