@@ -11,12 +11,10 @@ prints the built in limits.
 - `--pick` and `--rate` split their names on the comma, or on `--sep`, and trim the spaces around
   each one, so `--pick 'yes, no'` names `yes` and `no`. An empty name exits 2. A question file's
   names are kept as written, and an empty or all whitespace one exits 2 too.
-- A pick or rate answer carries `confidence`, a number from 0 to 1 the API computes from how spread
-  out `p` is. It is 1 when all the probability sits on one option or level, and lower as the rest
-  spreads out. In the committed rate answers it is never above the chosen level's probability, and
-  it drops further, down to 0, when the rest of the probability sits on levels far from the chosen
-  one. `--min-confidence` cuts on it. A yes or no answer carries no confidence, since its one
-  probability already says how sure it is.
+- A pick or rate answer carries `confidence`, a number from 0 to 1 the API computes from `p`. In
+  the committed rate answers it is about 1 when `p` sits on one level, never above the top
+  probability, and lower as the rest spreads to other levels, most of all to far ones.
+  `--min-confidence` cuts on it. A yes or no answer carries no confidence.
 - `--desc KEY=TEXT` describes one option, one level, or `yes` or `no`, which steers the answer. A
   rate needs every level described, or none.
 
@@ -417,8 +415,8 @@ A consumer that stops reading, as `head` does, is not an error.
   source gave one. When nothing arrives there for 2 seconds, it prints
   `onesie: waiting for text on stdin. Pass --state, or close stdin.` to stderr once and keeps
   waiting. Under `--state -` it prints `onesie: waiting for text on stdin. Close stdin when the text
-  is complete.` instead. A stream never prints it, since a slow producer is normal there and `--state` does not
-  apply to a stream.
+  is complete.` instead. A stream never prints it, since a slow producer is normal there and
+  `--state` does not apply to a stream.
 - `-f` also takes a request body, as `--print-request` writes it. For one record, a body that holds
   a `state` sends that state, and onesie then never reads stdin, since it cannot tell a pipe that
   holds text from one that is still open without waiting on it. `--state` or `--state-file` beside

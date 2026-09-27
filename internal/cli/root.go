@@ -56,7 +56,7 @@ var groupFlagHelp = map[string]string{
 	"desc":           "KEY=TEXT, describing one option, level, yes or no",
 	"sep":            "separator for --pick and --rate that follow it",
 	"threshold":      "yes/no only, cut the probability at this value",
-	"min-confidence": "pick or rate only, requires --fallback. Confidence is 1 when p sits on one answer",
+	"min-confidence": "pick or rate only, requires --fallback. Confidence is about 1 when p sits on one answer",
 	"fallback":       "value substituted on low confidence and on error",
 }
 

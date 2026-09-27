@@ -1550,7 +1550,7 @@ func TestOutFile_CheckFingerprint(t *testing.T) {
 	}
 }
 
-func TestOutFile_Bind(t *testing.T) {
+func TestBindOut(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {

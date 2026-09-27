@@ -24,6 +24,7 @@ func TestPreview(t *testing.T) {
 			want: "abcde abcde abcde abcde abcde abcde abcd...",
 		},
 		{name: "should count characters rather than bytes", text: strings.Repeat("é", 41), want: strings.Repeat("é", 40) + "..."},
+		{name: "should drop a bidi override", text: "safe\u202etxt.exe", want: "safetxt.exe"},
 		{name: "should leave an empty text empty", text: "", want: ""},
 	}
 

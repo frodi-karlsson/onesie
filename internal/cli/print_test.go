@@ -947,15 +947,17 @@ func TestPrintRequest(t *testing.T) {
 			t.Fatalf("writing the body: %v", err)
 		}
 
-		const warning = "warning: ignoring the state in %s, since a stream sends each record as its state\n"
+		const warning = "warning: ignoring the state in %s, since %s sends each record as its state\n"
 
 		tests := []struct {
-			name string
-			args []string
+			name   string
+			sender string
+			args   []string
 		}{
-			{name: "should warn under -i jsonl", args: []string{"-f", path, "-i", "jsonl", "--print-request"}},
+			{name: "should warn under -i jsonl", sender: "a stream", args: []string{"-f", path, "-i", "jsonl", "--print-request"}},
 			{
-				name: "should warn under calibrate",
+				name:   "should warn under calibrate",
+				sender: "calibrate",
 				args: []string{
 					"calibrate", "-f", path, "-i", "jsonl", "--map", ".body", "--label", "urgent=.u",
 					"--print-request",
@@ -977,7 +979,7 @@ func TestPrintRequest(t *testing.T) {
 					t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, ExitOK, errOut)
 				}
 
-				if want := fmt.Sprintf(warning, path); errOut != want {
+				if want := fmt.Sprintf(warning, path, tc.sender); errOut != want {
 					t.Errorf("stderr = %q, want %q", errOut, want)
 				}
 

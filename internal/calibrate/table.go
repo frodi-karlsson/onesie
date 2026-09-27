@@ -248,7 +248,7 @@ func writeChoiceMisses(b *strings.Builder, all []ChoiceCase) {
 func missColumns(names, texts []string, rest ...column) []column {
 	columns := []column{{cells: names}}
 
-	// A report built without texts, such as one from a test, keeps its old shape.
+	// A run that mapped no text for its misses has nothing to show in the column.
 	if slices.ContainsFunc(texts, func(text string) bool { return text != "" }) {
 		columns = append(columns, column{cells: texts})
 	}

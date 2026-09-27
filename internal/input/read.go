@@ -78,9 +78,13 @@ func readStdin(ctx context.Context, req Query) ([]byte, error) {
 
 	watched := &arrivalReader{Reader: req.Stdin}
 	waitCtx, cancel := context.WithCancel(ctx)
-	hinted := make(chan error, 1)
+	hinted := make(chan struct{})
 
-	go func() { hinted <- hintUnlessArrived(waitCtx, watched, req.Hint, req.clock(), req.hintText()) }()
+	go func() {
+		defer close(hinted)
+
+		hintUnlessArrived(waitCtx, watched, req.Hint, req.clock(), req.hintText())
+	}()
 
 	data, err := interrupt.Wait(ctx, func() ([]byte, error) { return io.ReadAll(watched) })
 	cancel()
@@ -92,14 +96,14 @@ func readStdin(ctx context.Context, req Query) ([]byte, error) {
 	return data, err
 }
 
-func hintUnlessArrived(ctx context.Context, watched *arrivalReader, hint io.Writer, clock Clock, text string) error {
-	if silent := clock.Sleep(ctx, stdinHintDelay) == nil && !watched.arrived.Load(); !silent {
-		return nil
+func hintUnlessArrived(ctx context.Context, watched *arrivalReader, hint io.Writer, clock Clock, text string) {
+	if clock.Sleep(ctx, stdinHintDelay) != nil || watched.arrived.Load() {
+		return
 	}
 
-	_, err := fmt.Fprintln(hint, text)
-
-	return err
+	if _, err := fmt.Fprintln(hint, text); err != nil {
+		return
+	}
 }
 
 type arrivalReader struct {
