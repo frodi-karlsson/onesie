@@ -189,9 +189,10 @@ func TestDescribe(t *testing.T) {
 			t.Parallel()
 
 			stored := &storedFailure{failure: *describe(tc.cause)}
+			stopped := streamResult(engine.Result{Aborted: true, Cause: tc.cause}, 0, 0)
 
-			if got, want := stored.freshRunCode(), Classify(tc.cause); got != want {
-				t.Errorf("stored %+v exits %d, want %d as a fresh run does", stored.failure, got, want)
+			if got, want := stored.freshRunCode(), Classify(stopped); got != want {
+				t.Errorf("stored %+v exits %d, want %d as a fresh run under --stop-on-error does", stored.failure, got, want)
 			}
 
 			// A line error carries no prefix, so no other kind does either.

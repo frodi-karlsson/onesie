@@ -811,6 +811,10 @@ func streamResult(result engine.Result, falseAsserts, abstains int) error {
 	if result.Aborted {
 		// Returned rather than printed. Execute already reports it, adding the onesie prefix, so
 		// printing here would report the abort twice.
+		if stoppedAtInput(result.Cause) {
+			return &stoppedError{cause: result.Cause}
+		}
+
 		return &abortError{cause: result.Cause}
 	}
 
@@ -830,6 +834,12 @@ func streamResult(result engine.Result, falseAsserts, abstains int) error {
 	}
 
 	return nil
+}
+
+func stoppedAtInput(cause error) bool {
+	// --stop-on-error ended the run at a record that never became a request. The exit code table
+	// has no code of its own for that, so it exits 6 as the same record does without the flag.
+	return !aborting(cause) && !errors.Is(cause, context.Canceled) && describe(cause).Kind == "input"
 }
 
 func ask(

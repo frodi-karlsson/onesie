@@ -443,7 +443,7 @@ func TestStreamRaw(t *testing.T) {
 				stdin:     "not json\n{\"state\":\"a\"}\n{\"state\":\"b\"}\n",
 				wantSent:  0,
 				wantLines: 1,
-				wantCode:  ExitUsage,
+				wantCode:  ExitRecords,
 			},
 			{
 				name:      "should read every record without it",

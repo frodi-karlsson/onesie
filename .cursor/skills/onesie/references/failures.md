@@ -20,7 +20,9 @@ Exit 7 is an answer too, neither a yes nor a no, so route it to whoever decides 
 ground. A stream keeps the most severe code: 6 beats 1, and 1 beats 7.
 
 A stream that stops early takes the code of what stopped it. An auth failure stops it with 3.
-`--stop-on-error` stops it with the failing record's own code, such as 4 or 5, not 6.
+`--stop-on-error` stops it with the failing record's own code, such as 4 or 5, not 6. A record
+that never became a request, such as a line onesie could not read, has no code of its own, so it
+stops the run with 6.
 `--stop-on-assert` stops it with 1, or with 6 when an earlier record failed.
 A resume under `--stop-on-assert` stops at a skipped false assertion the same way.
 A resume without `--id` under `--stop-on-error` drops a trailing error line and asks its record

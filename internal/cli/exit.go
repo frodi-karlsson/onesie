@@ -105,6 +105,11 @@ func Classify(err error) int {
 		return ExitAbstain
 	}
 
+	var stopped *stoppedError
+	if errors.As(err, &stopped) {
+		return ExitRecords
+	}
+
 	var bad *input.LineError
 	if errors.As(err, &bad) {
 		return ExitUsage
@@ -207,9 +212,11 @@ func worthReporting(err error) bool {
 
 	var records *recordsError
 
+	var stopped *stoppedError
+
 	// The exit code already says a record failed, and the per record lines on stdout carry the
 	// detail.
-	return !errors.As(err, &records)
+	return !errors.As(err, &records) && !errors.As(err, &stopped)
 }
 
 type silentError struct {
@@ -234,7 +241,7 @@ func (e *storedFailure) Error() string {
 func (e *storedFailure) freshRunCode() int {
 	switch e.failure.Kind {
 	case "input":
-		return ExitUsage
+		return ExitRecords
 	case "response":
 		return ExitUnavailable
 	case "transport":
@@ -296,6 +303,18 @@ func (e *abortError) Error() string {
 }
 
 func (e *abortError) Unwrap() error {
+	return e.cause
+}
+
+type stoppedError struct {
+	cause error
+}
+
+func (e *stoppedError) Error() string {
+	return e.cause.Error()
+}
+
+func (e *stoppedError) Unwrap() error {
 	return e.cause
 }
 

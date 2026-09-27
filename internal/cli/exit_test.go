@@ -41,8 +41,17 @@ func TestClassify(t *testing.T) {
 			err:  &abortError{cause: &uncoveredError{message: "onesie: --mock has no line 3"}}, want: ExitUsage,
 		},
 		{
-			name: "should report usage for a stored input failure a resume stopped at",
-			err:  stored("input", nil), want: ExitUsage,
+			name: "should report records for a stored input failure a resume stopped at",
+			err:  stored("input", nil), want: ExitRecords,
+		},
+		{
+			name: "should report records for a record --stop-on-error stopped at",
+			err:  &stoppedError{cause: &input.LineError{Line: 2, Err: errors.New("not json")}}, want: ExitRecords,
+		},
+		{
+			name: "should report usage for a bad input header that ended the source",
+			err:  &sourceError{cause: &input.LineError{Line: 1, Err: errors.New("the header is not valid csv")}},
+			want: ExitUsage,
 		},
 		{
 			name: "should report unavailable for a stored unusable response",

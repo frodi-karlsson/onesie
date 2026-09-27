@@ -266,7 +266,7 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 	root.Flags().BoolVar(&flags.unordered, "unordered", false,
 		"streaming only, emit records as they complete")
 	root.Flags().BoolVar(&flags.stopOnError, "stop-on-error", false,
-		"streaming only, end the run at the first failure")
+		"streaming only, end the run at the first failure, with its exit code, or 6 for a line onesie could not read")
 	root.Flags().BoolVar(&flags.stopOnAssert, "stop-on-assert", false,
 		"streaming only, end the run at the first false assertion")
 	root.Flags().BoolVar(&flags.skipBlank, "skip-blank", false,
