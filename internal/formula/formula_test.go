@@ -3,6 +3,8 @@ package formula_test
 import (
 	"os"
 	"path/filepath"
+	"regexp"
+	"slices"
 	"strings"
 	"testing"
 
@@ -89,6 +91,25 @@ func TestRender(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("should give a description brew audit accepts", func(t *testing.T) {
+		t.Parallel()
+
+		got, err := formula.Render("1.2.3", strings.NewReader(checksums))
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		desc := regexp.MustCompile(`(?m)^  desc "([^"]*)"$`).FindStringSubmatch(string(got))
+		if desc == nil {
+			t.Fatalf("formula has no desc line:\n%s", got)
+		}
+
+		first := strings.ToLower(strings.Fields(desc[1])[0])
+		if len(desc[1]) >= 80 || slices.Contains([]string{"a", "an", "the", "onesie"}, first) {
+			t.Errorf("desc %q should be under 80 characters and start with neither an article nor the name", desc[1])
+		}
+	})
 }
 
 func readFile(t *testing.T, path string) string {
