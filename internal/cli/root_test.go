@@ -102,7 +102,7 @@ func TestNewRootCmd(t *testing.T) {
 			stdin:    "x",
 			wantCode: cli.ExitUsage,
 			contains: []string{
-				"onesie: questoins is not a subcommand, did you mean questions? " +
+				"onesie: questoins is not a subcommand. The closest is questions. " +
 					"To ask it as a question, put it after --, as in onesie -- questoins",
 			},
 		},
@@ -111,28 +111,28 @@ func TestNewRootCmd(t *testing.T) {
 			args:     []string{"Questions", "--print-request"},
 			stdin:    "x",
 			wantCode: cli.ExitUsage,
-			contains: []string{"did you mean questions?"},
+			contains: []string{"The closest is questions."},
 		},
 		{
 			name:     "should refuse a bare word one letter from a short subcommand",
 			args:     []string{"cahce"},
 			stdin:    "x",
 			wantCode: cli.ExitUsage,
-			contains: []string{"did you mean cache?"},
+			contains: []string{"The closest is cache."},
 		},
 		{
 			name:     "should refuse a bare word two edits from a long subcommand",
 			args:     []string{"calbirat"},
 			stdin:    "x",
 			wantCode: cli.ExitUsage,
-			contains: []string{"did you mean calibrate?"},
+			contains: []string{"The closest is calibrate."},
 		},
 		{
 			name:     "should refuse a near miss of the help subcommand",
 			args:     []string{"hlep"},
 			stdin:    "x",
 			wantCode: cli.ExitUsage,
-			contains: []string{"did you mean help?"},
+			contains: []string{"The closest is help."},
 		},
 		{
 			name:     "should ask a one word question that is no near miss",
@@ -163,7 +163,7 @@ func TestNewRootCmd(t *testing.T) {
 			stdin:    "x",
 			wantCode: cli.ExitUsage,
 			contains: []string{"a positional question cannot be combined with --ask or -f"},
-			absent:   []string{"did you mean"},
+			absent:   []string{"is not a subcommand"},
 		},
 		{
 			name:     "should ask a multi word question that starts with a near miss",

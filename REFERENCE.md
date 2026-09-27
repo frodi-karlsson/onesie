@@ -19,9 +19,11 @@ prints the built in limits.
 - A rate answer also carries `score` and `norm`. `score` is the level index averaged over `p`, with
   0 for the lowest level, so it can land between levels. `norm` is `score` over the top index, from
   0 to 1, so `2.02` on four levels is a `norm` of `0.67`.
-- A question that is one bare word within one edit of a subcommand name of up to 5 letters, or two
-  edits of a longer one, exits 2 with `did you mean`, as `onesie questoins` does. A swap of two
-  neighbouring letters is one edit, and case is ignored. A word after `--` is asked, as in
+- A question that is one bare word close to a subcommand name exits 2 and names the closest
+  subcommand, as `onesie questoins` does. For a name of up to 5 letters, such as `help`, close means
+  two neighbouring letters swapped, as in `hlep`. For 6 or 7 letters, such as `version`, it means one
+  edit, and for 8 or more, such as `calibrate`, two. A swap of two neighbouring letters is one edit,
+  and case is ignored. A word after `--` is asked, as in
   `onesie -- questoins`, and so is a question of more than one word or one beside `--ask`.
 - A question that starts with a dash needs `--` before it, with every flag placed first, as in
   `onesie -o json -- '-is this urgent'`. When such a question holds a space and was read as flags,

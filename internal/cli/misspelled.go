@@ -22,7 +22,7 @@ func refuseMisspelledSubcommand(cmd *cobra.Command, args []string, events []argv
 		return nil
 	}
 
-	return fmt.Errorf("onesie: %s is not a subcommand, did you mean %s? "+
+	return fmt.Errorf("onesie: %s is not a subcommand. The closest is %s. "+
 		"To ask it as a question, put it after --, as in onesie -- %s",
 		args[0], strings.Join(near, " or "), args[0])
 }
@@ -39,7 +39,7 @@ func nearSubcommands(cmd *cobra.Command, word string) []string {
 
 		for _, name := range append([]string{sub.Name()}, sub.Aliases...) {
 			name = strings.ToLower(name)
-			if editDistance(word, name) <= allowedEdits(name) {
+			if nearMiss(word, name) {
 				near = append(near, sub.Name())
 
 				break
@@ -50,14 +50,31 @@ func nearSubcommands(cmd *cobra.Command, word string) []string {
 	return near
 }
 
-func allowedEdits(name string) int {
-	// A four or five letter name sits one substitution from many real words, such as held from
-	// help or ache from cache, so it allows one edit where a longer name allows two.
-	if len(name) <= 5 {
-		return 1
+func nearMiss(word, name string) bool {
+	distance := editDistance(word, name)
+
+	// Real words crowd around a short name, such as heap and hell around help, and around version,
+	// such as person and vision two edits away. So the allowance grows with the name.
+	switch {
+	case distance == 0:
+		return true
+	case len(name) <= 5:
+		return distance == 1 && len(word) == len(name) && swapsTwoLetters(word, name)
+	case len(name) <= 7:
+		return distance <= 1
+	default:
+		return distance <= 2
+	}
+}
+
+func swapsTwoLetters(word, name string) bool {
+	for i := 0; i+1 < len(name); i++ {
+		if word[i] != name[i] {
+			return word[i] == name[i+1] && word[i+1] == name[i] && word[i+2:] == name[i+2:]
+		}
 	}
 
-	return 2
+	return false
 }
 
 func editDistance(a, b string) int {
