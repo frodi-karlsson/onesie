@@ -331,8 +331,9 @@ again.
   and so is every model on any other provider, `typesafe/jev-1.13` on OpenRouter and
   `Qwen/Qwen3.5-2B` on Berget included. An alias's answers expire after 24 hours, since the model
   behind it can move. `ONESIE_CACHE_TTL` sets that lifetime as a duration, such as `90m` or `72h`,
-  and `0` stops reading and storing answers for an alias. A negative or malformed value exits 2. A run's lifetime decides what it reads, not what
-  it deletes: an expired answer is only a miss, which the next answer overwrites, and onesie deletes
+  and `0` stops reading and storing answers for an alias. A negative or malformed value exits 2,
+  in a run, in `onesie cache` and in `onesie cache clear`. A run's lifetime decides what it reads,
+  not what it deletes: an expired answer is only a miss, which the next answer overwrites, and onesie deletes
   an alias's answer only once it is older than 24 hours, or than the run's own lifetime when that is
   longer. So a short lifetime in one run never deletes answers other runs still read. An answer
   stored at a time later than the clock reads is a miss too.

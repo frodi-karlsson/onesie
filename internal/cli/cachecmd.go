@@ -32,7 +32,7 @@ func newCacheCmd(settings rootSettings) *cobra.Command {
 				"To ask it as a question, put it after --", args[0])
 		},
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			dir, err := cacheDir(settings)
+			dir, err := checkedCacheDir(settings)
 			if err != nil {
 				return err
 			}
@@ -65,7 +65,7 @@ func newCacheCmd(settings rootSettings) *cobra.Command {
 			return errors.New("onesie: cache clear takes no argument")
 		},
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			dir, err := cacheDir(settings)
+			dir, err := checkedCacheDir(settings)
 			if err != nil {
 				return err
 			}
@@ -84,7 +84,12 @@ func newCacheCmd(settings rootSettings) *cobra.Command {
 	return cmd
 }
 
-func cacheDir(settings rootSettings) (string, error) {
+func checkedCacheDir(settings rootSettings) (string, error) {
+	// Checked as a run checks it, so a bad value never reads as if the default applied.
+	if _, err := aliasTTL(settings.lookupEnv); err != nil {
+		return "", err
+	}
+
 	return cache.Dir(configEnv(settings.lookupEnv, settings.homeDir, settings.goos))
 }
 

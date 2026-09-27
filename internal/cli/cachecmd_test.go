@@ -150,6 +150,22 @@ func TestNewCacheCmd(t *testing.T) {
 		}
 	})
 
+	for _, args := range [][]string{{"cache"}, {"cache", "clear"}} {
+		t.Run("should refuse a bad ONESIE_CACHE_TTL under "+strings.Join(args, " ")+" as a run does", func(t *testing.T) {
+			t.Parallel()
+
+			env := cacheEnv(t)
+			env[envCacheTTL] = "banana"
+
+			out, errOut, code := runCached(t, env, args, "")
+			want := "onesie: ONESIE_CACHE_TTL=banana is not a duration of zero or more, such as 90m or 72h\n"
+
+			if code != ExitUsage || out != "" || errOut != want {
+				t.Errorf("exit %d, stdout %q, stderr %q, want exit 2 and %q", code, out, errOut, want)
+			}
+		})
+	}
+
 	for _, args := range [][]string{{"cache", "extra"}, {"cache", "clear", "extra"}, {"cache", "bogus"}} {
 		t.Run("should refuse "+strings.Join(args, " ")+" with exit 2", func(t *testing.T) {
 			t.Parallel()
