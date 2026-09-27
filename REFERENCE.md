@@ -7,7 +7,8 @@ prints the built in limits.
 
 - A yes or no question answers with how likely the yes is. `-r` prints only the answer. Without it,
   the table for a pick or a rate also shows the model's confidence and the probability of each
-  option or level.
+  option or level. The table prints a yes or no probability to two places, as `-o json` does, and
+  keeps any further places the value carries.
 - `--pick` and `--rate` split their names on the comma, or on `--sep`, and trim the spaces around
   each one, so `--pick 'yes, no'` names `yes` and `no`. An empty name exits 2. A question file's
   names are kept as written, and an empty or all whitespace one exits 2 too.

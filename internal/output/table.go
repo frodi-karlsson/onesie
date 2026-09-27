@@ -99,11 +99,10 @@ func writeBlock(w io.Writer, named Named, bars int) error {
 
 	headline := Printable(fmt.Sprintf("%v", scalar(a)))
 
-	// A bare probability reads better at a fixed four places than in Go's shortest form, and a
-	// question with a distribution puts its numbers in the rows below instead. The decision is
+	// A question with a distribution puts its numbers in the rows below instead. The decision is
 	// what the exit code follows, and the probability beside it is how close the call was.
 	if probability, ok := a.Value.(float64); ok && a.P == nil {
-		formatted := strconv.FormatFloat(probability, 'f', 4, 64)
+		formatted := twoPlacesAtLeast(probability)
 
 		headline = formatted
 		if a.Decided {
@@ -148,6 +147,19 @@ func writeBlock(w io.Writer, named Named, bars int) error {
 	}
 
 	return nil
+}
+
+func twoPlacesAtLeast(probability float64) string {
+	// Two places, as the API sends a probability and -o json prints it. A value with more keeps
+	// them, since a rounded 0.795 would read as 0.80 beside a --threshold 0.8 that said no.
+	shortest := strconv.FormatFloat(probability, 'f', -1, 64)
+
+	_, decimals, _ := strings.Cut(shortest, ".")
+	if len(decimals) >= 2 {
+		return shortest
+	}
+
+	return strconv.FormatFloat(probability, 'f', 2, 64)
 }
 
 func bar(probability float64, width int) string {

@@ -71,7 +71,7 @@ func TestAsk(t *testing.T) {
 				args:     []string{"is this urgent", "-o", "table", "--assert", "answer.value > 0.95"},
 				response: urgent,
 				wantCode: cli.ExitRejected,
-				contains: []string{"model onesie-1.13.0\nassert false\n", "answer  0.9000"},
+				contains: []string{"model onesie-1.13.0\nassert false\n", "answer  0.90\n"},
 			},
 			{
 				name:     "should print the bare scalar and nothing else in raw mode",

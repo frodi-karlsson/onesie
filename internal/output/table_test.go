@@ -91,7 +91,8 @@ func TestWriteTable(t *testing.T) {
 					{ID: "urgent", Answer: &answer.Answer{Value: 0.92}},
 				},
 			},
-			contains: []string{"model onesie-1.13.0", "urgent", "0.9200"},
+			contains: []string{"model onesie-1.13.0", "urgent", "0.92"},
+			absent:   []string{"0.9200"},
 		},
 		{
 			name:    "should strip terminal controls from the text it prints",
@@ -305,7 +306,7 @@ func TestWriteTable(t *testing.T) {
 				}}},
 			},
 			columns:  80,
-			contains: []string{"\nurgent  true  0.9200"},
+			contains: []string{"\nurgent  true  0.92\n"},
 		},
 		{
 			name: "should print the bare probability for an undecided yes/no answer",
@@ -314,7 +315,25 @@ func TestWriteTable(t *testing.T) {
 				Answers: []output.Named{{ID: "urgent", Answer: &answer.Answer{Value: 0.92}}},
 			},
 			columns:  80,
-			contains: []string{"urgent  0.9200"},
+			contains: []string{"urgent  0.92\n"},
+		},
+		{
+			name: "should pad a yes/no probability to two decimals",
+			rec: output.Record{
+				Model:   "onesie-1.13.0",
+				Answers: []output.Named{{ID: "urgent", Answer: &answer.Answer{Value: 0.1}}},
+			},
+			columns:  80,
+			contains: []string{"urgent  0.10\n"},
+		},
+		{
+			name: "should keep every decimal a yes/no probability carries past two",
+			rec: output.Record{
+				Model:   "onesie-1.13.0",
+				Answers: []output.Named{{ID: "urgent", Answer: &answer.Answer{Value: 0.795}}},
+			},
+			columns:  80,
+			contains: []string{"urgent  0.795\n"},
 		},
 		{
 			name: "should leave a decided pick answer unchanged",
