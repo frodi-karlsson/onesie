@@ -135,12 +135,16 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 			"a subcommand name, since onesie questoins exits 2 with did you mean questions.\n\n" +
 			exitCodesSection(rootExitCodes),
 		Version: info.Version,
-		Args:    cobra.MaximumNArgs(1),
+		Args:    atMostOneQuestion,
 		// Cobra otherwise buries every returned error under the full help text. Execute owns the
 		// reporting instead.
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) (err error) {
+			defer func() {
+				err = withDashQuestionHint(err, cmd.Flags(), settings.args, args)
+			}()
+
 			positional := ""
 			if len(args) == 1 {
 				positional = args[0]
@@ -287,7 +291,14 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 
 	// Cobra hands every subcommand the nearest parent's flag error function, so one hook covers the
 	// subcommands cobra adds itself, such as completion.
-	root.SetFlagErrorFunc(subcommandHint(root))
+	hint := subcommandHint(root)
+	root.SetFlagErrorFunc(func(cmd *cobra.Command, err error) error {
+		return withDashQuestionHint(hint(cmd, err), cmd.Flags(), settings.args, nil)
+	})
+
+	if settings.args != nil {
+		root.SetArgs(settings.args)
+	}
 
 	// Cobra adds its help flag when the tree runs. Adding it now lets it be marked like the others.
 	root.InitDefaultHelpFlag()
@@ -401,6 +412,14 @@ func WithClientFactory(
 ) RootOption {
 	return func(s *rootSettings) {
 		s.newClient = newClient
+	}
+}
+
+// WithArgs sets the command line the tree parses, so an error can quote a word the parser read as
+// flags. Without it the tree parses os.Args and quotes nothing.
+func WithArgs(args []string) RootOption {
+	return func(s *rootSettings) {
+		s.args = args
 	}
 }
 
@@ -538,6 +557,7 @@ func schemaURLOf(info BuildInfo) string {
 }
 
 type rootSettings struct {
+	args          []string
 	newClient     clientFactory
 	stdin         io.Reader
 	stdinTTY      bool

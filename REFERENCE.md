@@ -19,6 +19,10 @@ prints the built in limits.
   edits of a longer one, exits 2 with `did you mean`, as `onesie questoins` does. A swap of two
   neighbouring letters is one edit, and case is ignored. A word after `--` is asked, as in
   `onesie -- questoins`, and so is a question of more than one word or one beside `--ask`.
+- A question that starts with a dash needs `--` before it, with every flag placed first, as in
+  `onesie -o json -- '-is this urgent'`. When such a question holds a space and was read as flags,
+  the error says `was read as flags`. A flag typed after `--` is part of the question, so the
+  error says `flags go before --`.
 - `--desc KEY=TEXT` describes one option, one level, or `yes` or `no`, which steers the answer. A
   rate needs every level described, or none.
 

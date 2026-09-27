@@ -94,10 +94,14 @@ func newCalibrateCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 			"      --label urgent='.is_urgent' --id '.id' --out answers.jsonl --resume < labelled.jsonl\n" +
 			"  onesie calibrate -f triage -i jsonl --map '.body' --label urgent='.is_urgent' --id '.id' \\\n" +
 			"      --out answers.jsonl --resume --offline --require 'urgent.catches >= 0.95' < labelled.jsonl",
-		Args:          cobra.MaximumNArgs(1),
+		Args:          atMostOneQuestion,
 		SilenceUsage:  true,
 		SilenceErrors: true,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, args []string) (err error) {
+			defer func() {
+				err = withDashQuestionHint(err, cmd.Flags(), settings.args, args)
+			}()
+
 			positional := ""
 			if len(args) == 1 {
 				positional = args[0]

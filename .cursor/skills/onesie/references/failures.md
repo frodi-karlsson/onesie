@@ -66,7 +66,8 @@ Exit 3 also covers these:
 | --- | --- |
 | `unknown flag`, `unknown command` or `accepts at most 1 arg` | a typo in a flag name, a flag cobra cannot see, such as `--print-request` after a subcommand or any flag after `--`, or an unquoted question |
 | `is not a subcommand, did you mean` | a one word question sits within an edit or two of a subcommand name, such as `questoins`. Fix the typo, or put the word after `--` to ask it |
-| a complaint about a flag you never typed | a question beginning with a dash was read as flags. Put the flags first, then `--`, then the question |
+| a complaint about a flag you never typed, or `was read as flags` | a question beginning with a dash was read as flags. Put the flags first, then `--`, then the question |
+| `flags go before --` | a flag was typed after `--`, where every word is the question. Move it before `--` |
 | `no state given` | nothing arrived on stdin and neither `--state` nor `--state-file` was passed |
 | `both give a state` | `--state` or `--state-file` was passed beside a `-f` request body that holds its own `state`. Drop one |
 | `an empty state is a request the model cannot answer` | `--state`, `--state-file`, stdin, the `state` of a `-f` file, a stream line or `--map` gave an empty or all whitespace string, an empty object or an empty array. In a stream it is an error line instead, and `--skip-blank` does not drop it. An `-i request` body is forwarded as it is and not checked |

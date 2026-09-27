@@ -38,7 +38,7 @@ func run() int {
 
 	root := cli.NewRootCmd(cli.BuildInfo{
 		Version: version, Commit: commit, Date: date, Tag: releaseTag(tag, moduleVersion()),
-	})
+	}, cli.WithArgs(os.Args[1:]))
 
 	return cli.Execute(ctx, root)
 }

@@ -180,6 +180,76 @@ func TestNewRootCmd(t *testing.T) {
 			contains: []string{`"instructions":"cached?"`},
 		},
 		{
+			name:     "should say a dash question read as flags needs -- before it",
+			args:     []string{"-rm is this bad"},
+			stdin:    "x",
+			wantCode: cli.ExitUsage,
+			contains: []string{
+				"onesie: no question given. Pass a question, --ask, or -f. '-rm is this bad' was read as flags. " +
+					"A question that starts with - needs -- before it, with the flags placed first, " +
+					"as in onesie -- '-rm is this bad'",
+			},
+		},
+		{
+			name:     "should say so when a dash question gave a flag a bad value",
+			args:     []string{"-is this urgent", "--print-request"},
+			stdin:    "x",
+			wantCode: cli.ExitUsage,
+			contains: []string{"-i takes", "'-is this urgent' was read as flags"},
+		},
+		{
+			name:     "should say so when a dash question fails to parse",
+			args:     []string{"--print-request", "-x is it bad"},
+			stdin:    "x",
+			wantCode: cli.ExitUsage,
+			contains: []string{"unknown shorthand flag", "'-x is it bad' was read as flags"},
+		},
+		{
+			name:     "should leave a dash value given to a flag alone",
+			args:     []string{"--state", "-rm is this bad"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"no question given"},
+			absent:   []string{"was read as flags"},
+		},
+		{
+			name:     "should leave a dash value given to a shorthand alone",
+			args:     []string{"-rm", "-x is it"},
+			stdin:    "x",
+			wantCode: cli.ExitUsage,
+			contains: []string{"no question given"},
+			absent:   []string{"was read as flags"},
+		},
+		{
+			name:     "should leave a dash word with no space alone",
+			args:     []string{"-urgent"},
+			stdin:    "x",
+			wantCode: cli.ExitUsage,
+			contains: []string{"unknown shorthand flag"},
+			absent:   []string{"was read as flags"},
+		},
+		{
+			name:     "should say flags go before -- when they follow it",
+			args:     []string{"--", "-rm is this bad", "--mock", "m.json", "--state", "x"},
+			wantCode: cli.ExitUsage,
+			contains: []string{
+				"onesie: accepts at most 1 arg(s), received 5. Everything after -- is the question, " +
+					"so flags go before --, as in onesie --mock m.json --state x -- '-rm is this bad'",
+			},
+		},
+		{
+			name:     "should say flags go before -- under calibrate",
+			args:     []string{"calibrate", "--", "-x y", "--map", ".a"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"so flags go before --"},
+		},
+		{
+			name:     "should not blame flags for plain words after --",
+			args:     []string{"--", "is", "urgent"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"accepts at most 1 arg(s), received 2"},
+			absent:   []string{"flags go before"},
+		},
+		{
 			name:     "should refuse an unknown help topic",
 			args:     []string{"help", "foo"},
 			wantCode: cli.ExitUsage,
@@ -1071,6 +1141,7 @@ func TestNewRootCmd(t *testing.T) {
 				cli.WithStdin(strings.NewReader(tc.stdin)),
 				cli.WithStdinTTY(false),
 				cli.WithStdoutTTY(false),
+				cli.WithArgs(tc.args),
 				cli.WithLookupEnv(func(string) (string, bool) { return "", false }),
 				cli.WithReadFile(func(name string) ([]byte, error) {
 					body, ok := tc.files[name]
@@ -1084,7 +1155,6 @@ func TestNewRootCmd(t *testing.T) {
 
 			root.SetOut(&out)
 			root.SetErr(&out)
-			root.SetArgs(tc.args)
 
 			code := cli.Execute(t.Context(), root)
 
