@@ -11,6 +11,12 @@ prints the built in limits.
 - `--pick` and `--rate` split their names on the comma, or on `--sep`, and trim the spaces around
   each one, so `--pick 'yes, no'` names `yes` and `no`. An empty name exits 2. A question file's
   names are kept as written, and an empty or all whitespace one exits 2 too.
+- A pick or rate answer carries `confidence`, a number from 0 to 1 the API computes from how spread
+  out `p` is. It is 1 when all the probability sits on one option or level, and lower as the rest
+  spreads out. In the committed rate answers it is never above the chosen level's probability, and
+  it drops further, down to 0, when the rest of the probability sits on levels far from the chosen
+  one. `--min-confidence` cuts on it. A yes or no answer carries no confidence, since its one
+  probability already says how sure it is.
 - `--desc KEY=TEXT` describes one option, one level, or `yes` or `no`, which steers the answer. A
   rate needs every level described, or none.
 
