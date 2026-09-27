@@ -112,6 +112,47 @@ func TestLoad(t *testing.T) {
 			},
 		},
 		{
+			name: "should read one line that carries a model as the lines shape",
+			file: `{"model":"mock",` + full + "}\n",
+			lookups: []lookup{
+				{position: 1, want: map[string]any{"u": 0.9}},
+				{position: 2, missing: true},
+			},
+		},
+		{
+			name: "should read one line that carries usage, assert or abstain as the lines shape",
+			file: `{"usage":{"input_tokens":1},"assert":false,"abstain":true,` + full + "}\n",
+			lookups: []lookup{
+				{position: 1, want: map[string]any{"u": 0.9}},
+				{position: 2, missing: true},
+			},
+		},
+		{
+			name: "should read one line that carries a line number as the lines shape",
+			file: `{"line":1,` + full + "}\n",
+			lookups: []lookup{
+				{position: 1, want: map[string]any{"u": 0.9}},
+				{position: 2, missing: true},
+			},
+		},
+		{
+			name: "should read one line that carries a written error as the lines shape",
+			file: `{"error":{"kind":"http","status":503,"message":"503 busy"}}` + "\n",
+			lookups: []lookup{
+				{position: 1, sentinel: jev.ErrServer, status: 503},
+				{position: 2, missing: true},
+			},
+		},
+		{
+			name:      "should read a key that is a question id as that question, not as a line key",
+			file:      `{"line":0.9}` + "\n",
+			questions: []plan.Question{{ID: "line", Shape: plan.Noul}},
+			lookups: []lookup{
+				{position: 1, want: map[string]any{"line": 0.9}},
+				{position: 3, want: map[string]any{"line": 0.9}},
+			},
+		},
+		{
 			name: "should load a gated answers line as onesie writes it",
 			file: `{"id":"T-1","assert":false,"model":"jev-1.13.0","usage":{"input_tokens":120,"output_tokens":9},` +
 				`"u":{"value":0.9,"decision":true},` +
@@ -209,8 +250,16 @@ func TestLoad(t *testing.T) {
 		{
 			name: "should refuse one object over several lines that carries an id",
 			file: "{\n  \"id\": \"T-1\",\n  " + full + "\n}\n",
-			wantErr: "onesie: --mock: the file is one object over several lines that carries an id. " +
-				"Write each answers line on a line of its own, or drop the id to answer every record",
+			wantErr: "onesie: --mock: the file is one object over several lines that carries 'id', " +
+				"which -o json writes on an answers line. Write each answers line on a line of its own, " +
+				"or drop 'id' to answer every record",
+		},
+		{
+			name: "should refuse one object over several lines that carries a model",
+			file: "{\n  \"model\": \"mock\",\n  " + full + "\n}\n",
+			wantErr: "onesie: --mock: the file is one object over several lines that carries 'model', " +
+				"which -o json writes on an answers line. Write each answers line on a line of its own, " +
+				"or drop 'model' to answer every record",
 		},
 		{
 			name:    "should refuse an unknown question id",
@@ -485,11 +534,12 @@ func TestAnswersMissing(t *testing.T) {
 				"has no answer. Give it answers",
 		},
 		{
-			name: "should name an object that answers nothing",
-			file: unread,
-			line: 1,
-			want: "onesie: --mock replays a line onesie could not read, so input line 1 has no answer. " +
-				"Give it answers",
+			name:     "should name a lone written error line that answers nothing",
+			file:     unread,
+			position: 1,
+			line:     1,
+			want: "onesie: --mock line 1 replays a line onesie could not read, so input line 1 " +
+				"has no answer. Give it answers",
 		},
 	}
 

@@ -235,7 +235,8 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 		"typesafe, openrouter or berget. Defaults to ONESIE_PROVIDER, then typesafe")
 	root.PersistentFlags().StringVar(&flags.mock, "mock", "",
 		"answer from this file instead of the API. Also ONESIE_MOCK. The file is an object keyed by question id, "+
-			`as {"answer":0.9,"team":"billing"}, or one line per record in the shape -o json writes`)
+			`as {"answer":0.9,"team":"billing"}, or one line per record in the shape -o json writes. `+
+			"A lone line that carries model or id is one record")
 	root.Flags().StringVar(&flags.baseURL, flagBaseURL, "", "api root override")
 	root.Flags().StringVarP(&flags.file, "file", "f", "",
 		"question file or request body, or the name of one saved in .onesie/questions or the config dir, "+

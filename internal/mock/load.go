@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
 	"time"
 
 	"github.com/frodi-karlsson/onesie/internal/jq"
@@ -125,18 +126,48 @@ func (p parser) oneObject(lines [][]byte) (map[string]any, bool, error) {
 		return nil, false, nil
 	}
 
-	if _, named := fields["id"]; !named {
+	key, replayed := p.lineLevelKey(fields)
+	if !replayed {
 		return fields, true, nil
 	}
 
-	// A lone line that names its record is an answers line, so a one line --out file under --id
-	// still matches by id.
+	// A lone line that carries what -o json writes is an answers line, so a one line --out file
+	// replays one record rather than answering every record.
 	if len(lines) == 1 {
 		return nil, false, nil
 	}
 
-	return nil, false, fmt.Errorf("%s: the file is one object over several lines that carries an id. "+
-		"Write each answers line on a line of its own, or drop the id to answer every record", p.prefix)
+	return nil, false, fmt.Errorf("%s: the file is one object over several lines that carries '%s', "+
+		"which -o json writes on an answers line. Write each answers line on a line of its own, "+
+		"or drop '%s' to answer every record", p.prefix, key, key)
+}
+
+func (p parser) lineLevelKey(fields map[string]any) (string, bool) {
+	for _, key := range sortedKeys(fields) {
+		if !slices.Contains(lineKeys, key) || p.isQuestion(key) {
+			continue
+		}
+
+		if key == "error" && !writtenError(fields[key]) {
+			continue
+		}
+
+		return key, true
+	}
+
+	return "", false
+}
+
+func (p parser) isQuestion(key string) bool {
+	return slices.ContainsFunc(p.questions, func(question plan.Question) bool {
+		return question.ID == key
+	})
+}
+
+func writtenError(failure any) bool {
+	_, isObject := failure.(map[string]any)
+
+	return isObject
 }
 
 func wholeObject(lines [][]byte) (map[string]any, bool) {
@@ -232,9 +263,6 @@ func (a *Answers) Missing(position int, id any, line int) string {
 	prefix := "onesie: " + a.spelled
 
 	switch {
-	case exists && a.shared:
-		return fmt.Sprintf("%s replays a line onesie could not read, so input line %d has no answer. "+
-			"Give it answers", prefix, line)
 	case exists:
 		return fmt.Sprintf("%s line %d replays a line onesie could not read, so input line %d has no answer. "+
 			"Give it answers", prefix, found.line, line)

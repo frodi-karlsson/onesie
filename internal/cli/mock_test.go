@@ -94,6 +94,15 @@ func TestMockAnswers(t *testing.T) {
 			wantCode: ExitOK,
 		},
 		{
+			name:     "should replay a one line -o json file for its record alone",
+			args:     []string{"is it urgent", "-o", "json", "-i", "jsonl"},
+			stdin:    "\"a\"\n\"b\"\n\"c\"\n",
+			mock:     `{"model":"mock","answer":{"value":0.9}}` + "\n",
+			wantOut:  fileOf(`{"model":"mock","answer":{"value":0.9}}` + "\n"),
+			stderr:   []string{"onesie: --mock has no line 2, so input line 2 has no answer"},
+			wantCode: ExitUsage,
+		},
+		{
 			name:     "should write every record of a stream as csv",
 			args:     with("-o", "csv", "-i", "lines"),
 			stdin:    "a\nb\n",
@@ -293,7 +302,7 @@ func TestMockAnswers(t *testing.T) {
 			args:     append(fallback, "-o", "json", "--state", "x"),
 			mock:     mockUnread,
 			wantOut:  fileOf(""),
-			stderr:   []string{"onesie: --mock replays a line onesie could not read, so input line 1 has no answer"},
+			stderr:   []string{"onesie: --mock line 1 replays a line onesie could not read, so input line 1 has no answer"},
 			wantCode: ExitUsage,
 		},
 		{

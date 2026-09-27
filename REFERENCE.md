@@ -70,6 +70,11 @@ ONESIE_MOCK=answers.json ./gate.sh
   `--out` file of a real run replays. Lines match records by `id` under `--id`, and by position
   otherwise, so line 3 answers the third record whatever input line it came from. Blank lines are
   refused, apart from those at the end.
+- A file of one line whose object carries a key `-o json` writes on a line, `id`, `line`, `model`,
+  `usage`, `assert`, `abstain` or an `error` object, is the line shape. So the `--out` file of a one
+  record run answers record 1 alone, and record 2 exits 2. An object over several lines that
+  carries one of those keys is refused. A key that is also a question id is read as that question,
+  which only `line` can be, since the others are reserved ids and `-i lines` reserves `line`.
 - A yes or no answer is a probability, or an object whose `value` is one. A pick or rate answer is a
   name, or an object with `value` and an optional `confidence`, which defaults to 1. A number whose
   text is a name is that name, so `4` rates `--rate 1,2,3,4,5`. A rate question from a request body
