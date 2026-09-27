@@ -92,14 +92,17 @@ func writeYesNo(b *strings.Builder, id string, s YesNoScore) {
 	}
 
 	names, labels, answers := make([]string, 0, len(misses)), make([]string, 0, len(misses)), make([]string, 0, len(misses))
+	texts := make([]string, 0, len(misses))
+
 	for _, c := range misses {
 		names = append(names, missName(c.Name, c.Line))
+		texts = append(texts, Preview(c.Text))
 		labels = append(labels, "labelled "+yesNoText(c.Yes))
 		answers = append(answers, "answered "+cutText(c.Value))
 	}
 
 	b.WriteString("\nworst misses\n")
-	writeColumns(b, column{cells: names}, column{cells: labels}, column{cells: answers})
+	writeColumns(b, missColumns(names, texts, column{cells: labels}, column{cells: answers})...)
 }
 
 func aucText(s YesNoScore) string {
@@ -227,15 +230,30 @@ func writeChoiceMisses(b *strings.Builder, all []ChoiceCase) {
 	names, labels := make([]string, 0, len(misses)), make([]string, 0, len(misses))
 	picked, confidence := make([]string, 0, len(misses)), make([]string, 0, len(misses))
 
+	texts := make([]string, 0, len(misses))
+
 	for _, c := range misses {
 		names = append(names, missName(c.Name, c.Line))
+		texts = append(texts, Preview(c.Text))
 		labels = append(labels, "labelled "+printable(c.Label))
 		picked = append(picked, "picked "+printable(c.Picked))
 		confidence = append(confidence, "confidence "+cutText(c.Confidence))
 	}
 
 	b.WriteString("\nworst misses\n")
-	writeColumns(b, column{cells: names}, column{cells: labels}, column{cells: picked}, column{cells: confidence})
+	writeColumns(b, missColumns(names, texts,
+		column{cells: labels}, column{cells: picked}, column{cells: confidence})...)
+}
+
+func missColumns(names, texts []string, rest ...column) []column {
+	columns := []column{{cells: names}}
+
+	// A report built without texts, such as one from a test, keeps its old shape.
+	if slices.ContainsFunc(texts, func(text string) bool { return text != "" }) {
+		columns = append(columns, column{cells: texts})
+	}
+
+	return append(columns, rest...)
 }
 
 func missName(name string, line int) string {

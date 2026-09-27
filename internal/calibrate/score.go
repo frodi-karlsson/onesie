@@ -164,6 +164,7 @@ type YesNoCase struct {
 	Line  int
 	Yes   bool
 	Value float64
+	Text  string
 }
 
 // ScoreRate scores rate answers as ScorePick does, over levels in order, and adds agreement within
@@ -373,4 +374,5 @@ type ChoiceCase struct {
 	ID                  any
 	Line                int
 	Confidence          float64
+	Text                string
 }

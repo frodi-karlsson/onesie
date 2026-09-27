@@ -270,6 +270,31 @@ func TestWriteJSON(t *testing.T) {
 		}
 	})
 
+	t.Run("should give each miss the start of its text", func(t *testing.T) {
+		t.Parallel()
+
+		report := calibrate.Report{Questions: []calibrate.QuestionReport{
+			yesNoReport("urgent", calibrate.ScoreYesNo([]calibrate.YesNoCase{
+				{Line: 2, Yes: true, Value: 0.1, Text: "the site is down"},
+			}, 0, []float64{0.5})),
+			pickReport("team", calibrate.ScorePick([]calibrate.ChoiceCase{
+				{Line: 4, Label: "a", Picked: "b", Confidence: 0.9, Text: "a refund please"},
+			}, []string{"a", "b"}, 0, []float64{0.5})),
+		}}
+		questions := questionsOf(t, writeJSON(t, report))
+
+		var yesNo, pick struct{ Misses []map[string]json.RawMessage }
+		decode(t, questions[0], &yesNo)
+		decode(t, questions[1], &pick)
+
+		for i, want := range []string{`"the site is down"`, `"a refund please"`} {
+			miss := slices.Concat(yesNo.Misses, pick.Misses)[i]
+			if string(miss["text"]) != want {
+				t.Errorf("miss %d text = %s, want %s", i, miss["text"], want)
+			}
+		}
+	})
+
 	t.Run("should add usage only when given", func(t *testing.T) {
 		t.Parallel()
 

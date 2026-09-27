@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -385,6 +386,7 @@ func casesOf(built *plan.Plan, rec labelledRecord, record output.Record) ([]reco
 	}
 
 	cases := make([]recordCase, len(built.Questions))
+	text := sentText(rec.sent)
 
 	for q, question := range built.Questions {
 		if rec.labels[q] == nil {
@@ -404,6 +406,7 @@ func casesOf(built *plan.Plan, rec labelledRecord, record output.Record) ([]reco
 
 			cases[q].yesNo = calibrate.YesNoCase{
 				Name: name, ID: rec.id, Line: rec.line, Yes: rec.labels[q].Yes, Value: value,
+				Text: text,
 			}
 
 			continue
@@ -420,11 +423,29 @@ func casesOf(built *plan.Plan, rec labelledRecord, record output.Record) ([]reco
 
 		cases[q].choice = calibrate.ChoiceCase{
 			Name: name, Label: rec.labels[q].Name, Picked: picked, ID: rec.id, Line: rec.line,
-			Confidence: *given.Confidence,
+			Confidence: *given.Confidence, Text: text,
 		}
 	}
 
 	return cases, nil
+}
+
+func sentText(sent any) string {
+	raw, isRaw := sent.(json.RawMessage)
+	if !isRaw {
+		if text, isText := sent.(string); isText {
+			return text
+		}
+
+		return ""
+	}
+
+	var text string
+	if json.Unmarshal(raw, &text) == nil {
+		return text
+	}
+
+	return string(raw)
 }
 
 func answerTo(question plan.Question, record output.Record) (*answer.Answer, error) {

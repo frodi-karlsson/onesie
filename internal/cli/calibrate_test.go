@@ -982,8 +982,8 @@ func TestCalibrateRun(t *testing.T) {
 			"  0.70        2  2/3 67% 21-94%  0/3  0% 0-56%  2/2 100% 34-100%",
 			"",
 			"worst misses",
-			"  T-3  labelled yes  answered 0.30",
-			"  T-5  labelled no   answered 0.60",
+			`  T-3  {"urgent":0.3}  labelled yes  answered 0.30`,
+			`  T-5  {"urgent":0.6}  labelled no   answered 0.60`,
 		}, "\n") + "\n"
 	}
 
@@ -1107,7 +1107,7 @@ func TestCalibrateRun(t *testing.T) {
 					t.Errorf("stdout = %s, want an urgent section then a pressing section", out)
 				}
 
-				if !strings.Contains(out, "  a  labelled yes  answered 0.40") {
+				if !strings.Contains(out, `  a  {"pressing":0.4,"urgent":0.9}  labelled yes  answered 0.40`) {
 					t.Errorf("stdout = %s, want the pressing miss listed", out)
 				}
 			},
@@ -1134,7 +1134,7 @@ func TestCalibrateRun(t *testing.T) {
 				for _, want := range []string{
 					"urgent, yes/no: labelled 1, 1 yes, 0 no, 0 failed.",
 					"team, pick: labelled 2, 0 failed. agreement 50%",
-					"  b  labelled shipping  picked billing  confidence 0.80",
+					`  b  {"team":["billing",0.8],"urgent":0.2}  labelled shipping  picked billing  confidence 0.80`,
 				} {
 					if !strings.Contains(out, want) {
 						t.Errorf("stdout missing %q\n%s", want, out)
@@ -1159,7 +1159,7 @@ func TestCalibrateRun(t *testing.T) {
 				for _, want := range []string{
 					"stars, rate: labelled 2, 0 failed. agreement 50%",
 					"mean distance 1.00 levels",
-					"  b  labelled high  picked low  confidence 0.60",
+					`  b  {"stars":[0,0.6]}  labelled high  picked low  confidence 0.60`,
 				} {
 					if !strings.Contains(out, want) {
 						t.Errorf("stdout missing %q\n%s", want, out)

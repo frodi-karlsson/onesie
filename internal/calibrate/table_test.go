@@ -364,6 +364,36 @@ func TestWriteTable(t *testing.T) {
 		})
 	}
 
+	t.Run("should show the start of each miss's text after its name", func(t *testing.T) {
+		t.Parallel()
+
+		var out strings.Builder
+
+		err := calibrate.WriteTable(&out, calibrate.Report{Questions: []calibrate.QuestionReport{
+			yesNoReport("urgent", calibrate.ScoreYesNo([]calibrate.YesNoCase{
+				{Name: "T-1", ID: "T-1", Yes: true, Value: 0.3, Text: "echo hello > notes.txt"},
+				{Name: "T-22", ID: "T-22", Yes: false, Value: 0.6, Text: "ls"},
+			}, 0, []float64{0.5})),
+			pickReport("team", calibrate.ScorePick([]calibrate.ChoiceCase{
+				{Name: "T-3", ID: "T-3", Label: "a", Picked: "b", Confidence: 0.9, Text: "refund"},
+			}, []string{"a", "b"}, 0, []float64{0.5})),
+		}})
+		if err != nil {
+			t.Fatalf("WriteTable: %v", err)
+		}
+
+		for _, want := range []string{
+			"worst misses\n" +
+				"  T-1   echo hello > notes.txt  labelled yes  answered 0.30\n" +
+				"  T-22  ls                      labelled no   answered 0.60\n",
+			"worst misses\n  T-3  refund  labelled a  picked b  confidence 0.90\n",
+		} {
+			if !strings.Contains(out.String(), want) {
+				t.Errorf("table =\n%s\nwant it to hold\n%s", out.String(), want)
+			}
+		}
+	})
+
 	t.Run("should refuse a question with no score for its shape", func(t *testing.T) {
 		t.Parallel()
 
