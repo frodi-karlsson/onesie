@@ -274,22 +274,10 @@ func bindOut(
 		return nil
 	}
 
-	provider, err := resolveProvider(settings, flags)
+	inputs, err := runInputs(settings, flags, inputs)
 	if err != nil {
 		return err
 	}
-
-	inputs.provider = provider.Name
-	inputs.mapSource = flags.mapSource
-	inputs.idSource = flags.idSource
-
-	if merging(flags) {
-		inputs.mergeKey = mergeKey(flags)
-	}
-
-	// A resume by position skips one record per stored line, and --skip-blank changes which record
-	// a line stands for everywhere but csv and tsv, which skip a blank line either way.
-	inputs.skipBlank = flags.skipBlank && !resumesByID(flags) && !delimitedInput(inputs.input)
 
 	fingerprint, err := fingerprintOf(questions, inputs)
 	if err != nil {
@@ -306,6 +294,38 @@ func bindOut(
 	}
 
 	return out.bind(fingerprint)
+}
+
+func outFingerprint(
+	settings rootSettings, flags *runFlags, questions []plan.Question, inputs fingerprintInputs,
+) (string, error) {
+	inputs, err := runInputs(settings, flags, inputs)
+	if err != nil {
+		return "", err
+	}
+
+	return fingerprintOf(questions, inputs)
+}
+
+func runInputs(settings rootSettings, flags *runFlags, inputs fingerprintInputs) (fingerprintInputs, error) {
+	provider, err := resolveProvider(settings, flags)
+	if err != nil {
+		return fingerprintInputs{}, err
+	}
+
+	inputs.provider = provider.Name
+	inputs.mapSource = flags.mapSource
+	inputs.idSource = flags.idSource
+
+	if merging(flags) {
+		inputs.mergeKey = mergeKey(flags)
+	}
+
+	// A resume by position skips one record per stored line, and --skip-blank changes which record
+	// a line stands for everywhere but csv and tsv, which skip a blank line either way.
+	inputs.skipBlank = flags.skipBlank && !resumesByID(flags) && !delimitedInput(inputs.input)
+
+	return inputs, nil
 }
 
 func delimitedInput(name string) bool {

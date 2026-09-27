@@ -21,7 +21,9 @@ onesie calibrate --ask urgent='is this urgent' -i jsonl --map '.body' \
 
 A yes or no label is true, false, yes, no, 1 or 0 in any case. A pick or rate label is an option or
 level name exactly as declared. A null, empty or missing label leaves the record out for that
-question. A question file's `assert`, `abstain_if`, `threshold`, `min_confidence` and `fallback`
+question. A question with no `--label` is skipped and named on stderr, so `-f` with one `--label`
+calibrates that question alone. A `--label` naming no question, or a `--require` on a skipped one,
+exits 2. A question file's `assert`, `abstain_if`, `threshold`, `min_confidence` and `fallback`
 are ignored, so a gated file calibrates as it stands, while the same flags typed on the command
 line exit 2.
 
@@ -51,7 +53,7 @@ onesie calibrate --ask urgent='is this urgent' -i jsonl --map '.body' --label ur
 
 ### Always pass --out answers.jsonl --resume --id, so a relabel or new --cuts asks nothing.
 
-`--out` keeps every answer as `-o json` lines, with a fingerprint in `answers.jsonl.onesie` beside it. `--resume` needs `--id`, and asks only the records the file does not answer, so fixing a label, adding labelled records or trying other `--cuts` asks nothing again for the records already answered. Pass `--resume` on the first run too, since a missing file starts fresh. A change to the questions, the model, the provider, `-i`, `--map` or `--id` makes the resume exit 2, so delete the file and its sidecar and ask again. A plain stream run can resume the same file, given the same questions, model, `-i`, `--map` and `--id`, with `-o json` and no gate or merge.
+`--out` keeps every answer as `-o json` lines, with a fingerprint in `answers.jsonl.onesie` beside it. `--resume` needs `--id`, and asks only the records the file does not answer, so fixing a label, adding labelled records or trying other `--cuts` asks nothing again for the records already answered. Pass `--resume` on the first run too, since a missing file starts fresh. A change to the questions, the model, the provider, `-i`, `--map` or `--id` makes the resume exit 2, so delete the file and its sidecar and ask again. The file covers the questions asked, so a run that skips unlabelled questions keeps only the labelled ones, while a resume into a file that answers every question still asks the skipped ones and keeps it whole, and `--offline` reads such a file with any set of labels. A plain stream run can resume the same file, given the same questions, model, `-i`, `--map` and `--id`, with `-o json` and no gate or merge.
 
 **Bad:**
 

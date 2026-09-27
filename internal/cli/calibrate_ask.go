@@ -28,9 +28,9 @@ const maxCauses = 5
 
 func calibrateRun(
 	cmd *cobra.Command, settings rootSettings, flags *runFlags, calib calibrateFlags, inputMode input.Mode,
-	inv *invocation, labels []questionLabel, bound []boundRequirement, answers answererFactory,
+	inv *invocation, scope calibrateScope, bound []boundRequirement,
 ) (err error) {
-	model, err := resolveModel(settings, flags, inv.plan.Model)
+	model, err := resolveModel(settings, flags, scope.scored.Model)
 	if err != nil {
 		return err
 	}
@@ -40,7 +40,7 @@ func calibrateRun(
 		return err
 	}
 
-	cuts := cutsFor(base, bound, len(inv.plan.Questions))
+	cuts := cutsFor(base, bound, len(scope.scored.Questions))
 
 	if calib.offline {
 		if _, statErr := settings.stat(flags.out); errors.Is(statErr, fs.ErrNotExist) {
@@ -58,8 +58,33 @@ func calibrateRun(
 		err = errors.Join(err, out.release())
 	}()
 
-	runErr := calibrateAnswers(
-		cmd, settings, flags, calib, inputMode, inv, labels, model, cuts, bound, out, answers)
+	// The labels and the cuts stay out, since neither changes an answer, and a later stream run
+	// with -o json and the same questions reads the file as its own.
+	inputs := fingerprintInputs{model: model, output: output.JSON.String(), input: inputMode.String()}
+
+	asked, err := askedPlan(settings, flags, out, scope, inputs)
+	if err != nil {
+		return err
+	}
+
+	keptWhole := ""
+	if len(asked.Questions) > len(scope.scored.Questions) && !calib.offline {
+		keptWhole = flags.out
+	}
+
+	if noteErr := writeSkipped(cmd.ErrOrStderr(), scope.skipped, keptWhole); noteErr != nil {
+		return noteErr
+	}
+
+	answers, err := answersFor(cmd, settings, flags, asked, model)
+	if err != nil {
+		return err
+	}
+
+	runErr := calibrateAnswers(cmd, settings, flags, calib, inputMode, inv, calibrateAsk{
+		scope: scope, asked: asked, model: model, inputs: inputs, cuts: cuts, bound: bound,
+		out: out, answers: answers,
+	})
 	if out == nil || calib.offline {
 		return runErr
 	}
@@ -67,14 +92,53 @@ func calibrateRun(
 	return errors.Join(runErr, out.finish(runErr))
 }
 
+func askedPlan(
+	settings rootSettings, flags *runFlags, out *outFile, scope calibrateScope, inputs fingerprintInputs,
+) (*plan.Plan, error) {
+	if out == nil || !out.resume || len(scope.skipped) == 0 {
+		return scope.scored, nil
+	}
+
+	written, err := out.holdsAnswers()
+	if err != nil || !written {
+		return scope.scored, err
+	}
+
+	stored, found, err := out.readFingerprint()
+	if err != nil || !found {
+		return scope.scored, err
+	}
+
+	whole, err := outFingerprint(settings, flags, scope.full.Questions, inputs)
+	if err != nil {
+		return nil, err
+	}
+
+	if stored == whole {
+		return scope.full, nil
+	}
+
+	return scope.scored, nil
+}
+
+type calibrateAsk struct {
+	scope   calibrateScope
+	asked   *plan.Plan
+	model   string
+	inputs  fingerprintInputs
+	cuts    [][]float64
+	bound   []boundRequirement
+	out     *outFile
+	answers answererFactory
+}
+
 func calibrateAnswers(
 	cmd *cobra.Command, settings rootSettings, flags *runFlags, calib calibrateFlags, inputMode input.Mode,
-	inv *invocation, labels []questionLabel, model string, cuts [][]float64, bound []boundRequirement,
-	out *outFile, answers answererFactory,
+	inv *invocation, run calibrateAsk,
 ) error {
-	built := inv.plan
+	scored, out := run.scope.scored, run.out
 
-	set, err := readLabelled(cmd.Context(), settings, inputMode, flags, inv.mapper, inv.namer, labels)
+	set, err := readLabelled(cmd.Context(), settings, inputMode, flags, inv.mapper, inv.namer, run.scope.labels)
 	if err != nil {
 		return err
 	}
@@ -83,11 +147,7 @@ func calibrateAnswers(
 		return errors.New("onesie: no record carries a label, so there is nothing to calibrate")
 	}
 
-	// The labels and the cuts stay out, since neither changes an answer, and a later stream run
-	// with -o json and the same questions reads the file as its own.
-	bindErr := bindOut(out, settings, flags, built.Questions, fingerprintInputs{
-		model: model, output: output.JSON.String(), input: inputMode.String(),
-	})
+	bindErr := bindOut(out, settings, flags, run.asked.Questions, run.inputs)
 	if stale := (*staleAnswersError)(nil); calib.offline && errors.As(bindErr, &stale) {
 		return staleAnswers(stale.cause, "onesie: %s does not match this run, since %s, so --offline cannot "+
 			"read it. Rerun without --offline and --resume to regenerate it", flags.out, stale.cause)
@@ -97,7 +157,7 @@ func calibrateAnswers(
 		return bindErr
 	}
 
-	resumed, err := resumeLabelled(cmd.Context(), out, flags, inv.namer, built, set)
+	resumed, err := resumeLabelled(cmd.Context(), out, flags, inv.namer, scored, set)
 	if err != nil {
 		return err
 	}
@@ -106,7 +166,12 @@ func calibrateAnswers(
 		return unansweredOffline(flags.out, resumed.pending)
 	}
 
-	if costErr := writeCost(cmd.ErrOrStderr(), set, resumed, flags.out, len(built.Questions)); costErr != nil {
+	perRecord := len(run.asked.Questions)
+	if calib.offline {
+		perRecord = len(scored.Questions)
+	}
+
+	if costErr := writeCost(cmd.ErrOrStderr(), set, resumed, flags.out, perRecord); costErr != nil {
 		return costErr
 	}
 
@@ -115,15 +180,15 @@ func calibrateAnswers(
 			stats.skip(resumed.book.skipped())
 		}
 
-		outcomes, result, askErr := askLabelled(cmd, flags, built, model, resumed, out, stats, answers, calib.offline)
+		outcomes, result, askErr := askLabelled(cmd, flags, run, resumed, stats, calib.offline)
 		if askErr != nil {
 			return askErr
 		}
 
-		report := reportOf(built, set, outcomes, cuts)
+		report := reportOf(scored, set, outcomes, run.cuts)
 		report.Asked = result.Records
 		report.Stored = resumed.stored
-		report.Require = measureRequirements(report, bound)
+		report.Require = measureRequirements(report, run.bound)
 
 		if flags.usage {
 			report.Usage = usageOf(outcomes)
@@ -195,15 +260,15 @@ func writeCost(w io.Writer, set labelledSet, resumed resumedSet, answers string,
 }
 
 func askLabelled(
-	cmd *cobra.Command, flags *runFlags, built *plan.Plan, model string,
-	resumed resumedSet, out *outFile, stats *collector, answerers answererFactory, offline bool,
+	cmd *cobra.Command, flags *runFlags, run calibrateAsk, resumed resumedSet, stats *collector, offline bool,
 ) ([]output.Record, engine.Result, error) {
-	asker, err := answererWhenPending(cmd.Context(), resumed.pending, answerers, stats)
+	asker, err := answererWhenPending(cmd.Context(), resumed.pending, run.answers, stats)
 	if err != nil {
 		return nil, engine.Result{}, err
 	}
 
-	questions := wireAll(built.Questions)
+	asked, scored, out := run.asked, run.scope.scored, run.out
+	questions := wireAll(asked.Questions)
 	outcomes := slices.Clone(resumed.answered)
 	book := resumed.book
 
@@ -214,11 +279,11 @@ func askLabelled(
 		Evaluate: func(ctx context.Context, rec labelledRecord) (askedLine, error) {
 			key := recordKey{position: rec.position, line: rec.line, id: rec.id}
 
-			record, evalErr := evaluate(ctx, asker, key, built, model, questions, rec.sent, flags.usage, stats)
+			record, evalErr := evaluate(ctx, asker, key, asked, run.model, questions, rec.sent, flags.usage, stats)
 			if evalErr == nil {
-				if _, evalErr = casesOf(built, rec, record); evalErr != nil {
+				if _, evalErr = casesOf(scored, rec, record); evalErr != nil {
 					// The tokens were spent, so the failed line carries them into the usage total.
-					record = spent(failureRecord(built, evalErr), record.Usage)
+					record = spent(failureRecord(asked, evalErr), record.Usage)
 
 					stats.unusable()
 				}

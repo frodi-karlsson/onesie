@@ -282,10 +282,20 @@ func TestNewCalibrateCmd(t *testing.T) {
 			contains: []string{nothing},
 		},
 		{
-			name:     "should refuse a question with no --label",
+			name:     "should skip a question with no --label when another has one",
 			args:     with("--ask", "team=which team", "--pick", "billing,shipping"),
 			wantCode: ExitUsage,
-			contains: []string{"question 'team' has no --label"},
+			contains: []string{"onesie: skipping 'team', which has no --label\n", nothing},
+		},
+		{
+			name: "should refuse a run where no question has a --label",
+			args: []string{
+				"calibrate", "--ask", "urgent=is this urgent", "--ask", "team=which team", "--pick", "billing,shipping",
+				"-i", "jsonl", "--map", ".body",
+			},
+			wantCode: ExitUsage,
+			contains: []string{"onesie: question 'urgent' has no --label, so asking it would cost requests and " +
+				"report nothing. Pass --label urgent=EXPR"},
 		},
 		{
 			name:     "should refuse a --label for an unknown question",
@@ -2559,6 +2569,10 @@ func (s *calibrateStub) serve(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	s.mu.Lock()
+	s.questions = append(s.questions, slices.Sorted(maps.Keys(body.Questions)))
+	s.mu.Unlock()
+
 	if s.counted(string(body.State)) == 1 && s.onRequest != nil {
 		s.onRequest()
 	}
@@ -2676,6 +2690,13 @@ func (s *calibrateStub) count() int {
 	return s.requests
 }
 
+func (s *calibrateStub) asked() [][]string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return slices.Clone(s.questions)
+}
+
 func (s *calibrateStub) sent() []string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -2691,9 +2712,10 @@ type calibrateStub struct {
 	raw       bool
 	usage     bool
 
-	mu       sync.Mutex
-	requests int
-	states   []string
+	mu        sync.Mutex
+	requests  int
+	states    []string
+	questions [][]string
 }
 
 func (b *syncBuffer) Write(p []byte) (int, error) {
@@ -3110,3 +3132,321 @@ func calibrateWithEnv(t *testing.T, env map[string]string, args []string, stdin,
 
 	return out.String(), errOut.String(), code
 }
+
+func TestScopeOf(t *testing.T) {
+	t.Parallel()
+
+	file := writeCalibrateFile(t, t.TempDir(), "three.yaml", threeQuestions)
+
+	run := func(extra ...string) []string {
+		return append([]string{
+			"calibrate", "-f", file, "-i", "jsonl", "--map", ".body", "--id", ".id", "--cuts", "0.5",
+		}, extra...)
+	}
+
+	all := []string{"--label", "urgent=.u", "--label", "team=.t", "--label", "tone=.r"}
+
+	tests := []struct {
+		name      string
+		args      []string
+		wantCode  int
+		wantAsked []string
+		stdout    []string
+		noStdout  []string
+		stderr    []string
+		noStderr  []string
+	}{
+		{
+			name:      "should ask and report only the labelled question when one of three has a --label",
+			args:      run("--label", "urgent=.u"),
+			wantCode:  ExitOK,
+			wantAsked: []string{"urgent"},
+			stdout:    []string{"urgent, yes/no: labelled 4"},
+			noStdout:  []string{"team,", "tone,"},
+			stderr: []string{
+				"onesie: skipping 'team' and 'tone', which have no --label\n",
+				"asking 4 of 4 records, 1 question each\n",
+			},
+		},
+		{
+			name:      "should name the one skipped question in the singular",
+			args:      run("--label", "urgent=.u", "--label", "tone=.r"),
+			wantCode:  ExitOK,
+			wantAsked: []string{"tone", "urgent"},
+			stdout:    []string{"urgent, yes/no", "tone, rate"},
+			noStdout:  []string{"team,"},
+			stderr:    []string{"onesie: skipping 'team', which has no --label\n"},
+		},
+		{
+			name:      "should ask every question and skip none when every question has a --label",
+			args:      run(all...),
+			wantCode:  ExitOK,
+			wantAsked: []string{"team", "tone", "urgent"},
+			stdout:    []string{"urgent, yes/no", "team, pick", "tone, rate"},
+			stderr:    []string{"asking 4 of 4 records, 3 questions each\n"},
+			noStderr:  []string{"skipping"},
+		},
+		{
+			name:     "should refuse a run where no question has a --label",
+			args:     run(),
+			wantCode: ExitUsage,
+			stderr: []string{"onesie: question 'urgent' has no --label, so asking it would cost requests and " +
+				"report nothing. Pass --label urgent=EXPR"},
+			noStderr: []string{"skipping"},
+		},
+		{
+			name:     "should refuse a mistyped --label rather than skip the question it meant",
+			args:     run("--label", "urgent=.u", "--label", "tnoe=.r"),
+			wantCode: ExitUsage,
+			stderr:   []string{"onesie: --label names an unknown question 'tnoe'. Questions: urgent, team, tone"},
+			noStderr: []string{"skipping"},
+		},
+		{
+			name:     "should refuse a --require that reads a skipped question",
+			args:     run("--label", "urgent=.u", "--require", "team.agreement >= 0.5"),
+			wantCode: ExitUsage,
+			stderr: []string{"onesie: --require 'team.agreement >= 0.5' reads 'team', which has no --label, " +
+				"so the report skips it. Pass --label team=EXPR"},
+		},
+		{
+			name:      "should read a --require cut from a gate that also names a skipped question",
+			args:      run("--label", "urgent=.u", "--require", "urgent.catches >= 0.5"),
+			wantCode:  ExitOK,
+			stdout:    []string{"urgent, yes/no"},
+			stderr:    []string{"onesie: skipping 'team' and 'tone', which have no --label\n"},
+			wantAsked: []string{"urgent"},
+		},
+		{
+			name:     "should print requests with only the labelled question under --print-request",
+			args:     run("--label", "urgent=.u", "--print-request"),
+			wantCode: ExitOK,
+			stdout:   []string{`"questions":{"urgent":{"type":"noul","instructions":"is this urgent"}}}`},
+			noStdout: []string{`"team":{`, `"tone":{`},
+			stderr:   []string{"onesie: skipping 'team' and 'tone', which have no --label\n"},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			stub := newCalibrateStub(t)
+
+			out, errOut, code := runCalibrateAgainst(t.Context(), t, tc.args, threeStdin, stub.url, false)
+			if code != tc.wantCode {
+				t.Fatalf("exit %d, want %d\nstdout:\n%s\nstderr:\n%s", code, tc.wantCode, out, errOut)
+			}
+
+			checkAsked(t, stub, tc.wantAsked, 4)
+
+			for _, want := range tc.stdout {
+				if !strings.Contains(out, want) {
+					t.Errorf("stdout missing %q\n%s", want, out)
+				}
+			}
+
+			for _, unwanted := range tc.noStdout {
+				if strings.Contains(out, unwanted) {
+					t.Errorf("stdout holds %q\n%s", unwanted, out)
+				}
+			}
+
+			for _, want := range tc.stderr {
+				if !strings.Contains(errOut, want) {
+					t.Errorf("stderr missing %q\n%s", want, errOut)
+				}
+			}
+
+			for _, unwanted := range tc.noStderr {
+				if strings.Contains(errOut, unwanted) {
+					t.Errorf("stderr holds %q\n%s", unwanted, errOut)
+				}
+			}
+		})
+	}
+}
+
+func TestAskedPlan(t *testing.T) {
+	t.Parallel()
+
+	file := writeCalibrateFile(t, t.TempDir(), "three.yaml", threeQuestions)
+
+	run := func(answers string, labels []string, extra ...string) []string {
+		args := []string{
+			"calibrate", "-f", file, "-i", "jsonl", "--map", ".body", "--id", ".id", "--cuts", "0.5",
+			"--out", answers, "--resume",
+		}
+
+		return append(append(args, labels...), extra...)
+	}
+
+	all := []string{"--label", "urgent=.u", "--label", "team=.t", "--label", "tone=.r"}
+	one := []string{"--label", "urgent=.u"}
+	firstThree := strings.Join(strings.SplitAfter(threeStdin, "\n")[:3], "")
+
+	tests := []struct {
+		name                   string
+		first                  []string
+		firstStdin             string
+		second                 []string
+		offline                bool
+		wantCode               int
+		wantAsked              []string
+		asks                   int
+		stderr                 []string
+		noStderr               []string
+		readableWithEveryLabel bool
+	}{
+		{
+			name:       "should keep asking every question of a new record when resuming a file written with every label",
+			first:      all,
+			firstStdin: firstThree,
+			second:     one,
+			wantCode:   ExitOK,
+			wantAsked:  []string{"team", "tone", "urgent"},
+			asks:       1,
+			stderr: []string{
+				"but asking them of each record",
+				"asking 1 of 4 records, 3 questions each, 3 answered in",
+			},
+			readableWithEveryLabel: true,
+		},
+		{
+			name:       "should read a file written with every label under --offline with one label",
+			first:      all,
+			firstStdin: threeStdin,
+			second:     one,
+			offline:    true,
+			wantCode:   ExitOK,
+			stderr: []string{
+				"onesie: skipping 'team' and 'tone', which have no --label\n",
+				"asking 0 of 4 records, 1 question each, 4 answered in",
+			},
+			noStderr:               []string{"but asking"},
+			readableWithEveryLabel: true,
+		},
+		{
+			name:       "should ask only the labelled question of a new record when resuming a file written with one label",
+			first:      one,
+			firstStdin: firstThree,
+			second:     one,
+			wantCode:   ExitOK,
+			wantAsked:  []string{"urgent"},
+			asks:       1,
+			stderr:     []string{"onesie: skipping 'team' and 'tone', which have no --label\n"},
+		},
+		{
+			name:       "should read a file written with one label under --offline with the same label",
+			first:      one,
+			firstStdin: threeStdin,
+			second:     one,
+			offline:    true,
+			wantCode:   ExitOK,
+			stderr:     []string{"asking 0 of 4 records, 1 question each, 4 answered in"},
+		},
+		{
+			name:       "should refuse a file written with one label under --offline with every label",
+			first:      one,
+			firstStdin: threeStdin,
+			second:     all,
+			offline:    true,
+			wantCode:   ExitUsage,
+			stderr:     []string{"does not match this run", "Rerun without --offline and --resume to regenerate it"},
+		},
+		{
+			name:       "should refuse to resume a file written with one label once every question has a --label",
+			first:      one,
+			firstStdin: firstThree,
+			second:     all,
+			wantCode:   ExitUsage,
+			stderr:     []string{"the questions, flags or gate changed since", "Drop --resume to start over"},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			answers := filepath.Join(t.TempDir(), "answers.jsonl")
+
+			_, errOut, code := runCalibrateAgainst(t.Context(), t, run(answers, tc.first), tc.firstStdin,
+				newCalibrateStub(t).url, false)
+			if code != ExitOK {
+				t.Fatalf("first run exit %d, stderr:\n%s", code, errOut)
+			}
+
+			var extra []string
+			if tc.offline {
+				extra = []string{"--offline"}
+			}
+
+			stub := newCalibrateStub(t)
+
+			out, errOut, code := runCalibrateAgainst(t.Context(), t, run(answers, tc.second, extra...), threeStdin,
+				stub.url, false)
+			if code != tc.wantCode {
+				t.Fatalf("exit %d, want %d\nstdout:\n%s\nstderr:\n%s", code, tc.wantCode, out, errOut)
+			}
+
+			checkAsked(t, stub, tc.wantAsked, tc.asks)
+
+			for _, want := range tc.stderr {
+				if !strings.Contains(errOut, want) {
+					t.Errorf("stderr missing %q\n%s", want, errOut)
+				}
+			}
+
+			for _, unwanted := range tc.noStderr {
+				if strings.Contains(errOut, unwanted) {
+					t.Errorf("stderr holds %q\n%s", unwanted, errOut)
+				}
+			}
+
+			if !tc.readableWithEveryLabel {
+				return
+			}
+
+			out, errOut, code = runCalibrateAgainst(t.Context(), t, run(answers, all, "--offline"), threeStdin,
+				newCalibrateStub(t).url, false)
+			if code != ExitOK || !strings.Contains(out, "team, pick: labelled 4") {
+				t.Errorf("reading the file with every label exit %d, want 0 and every question\nstdout:\n%s\nstderr:\n%s",
+					code, out, errOut)
+			}
+		})
+	}
+}
+
+func checkAsked(t *testing.T, stub *calibrateStub, want []string, requests int) {
+	t.Helper()
+
+	asked := stub.asked()
+	if want == nil {
+		if len(asked) != 0 {
+			t.Errorf("the run asked %v, want no request", asked)
+		}
+
+		return
+	}
+
+	if len(asked) != requests {
+		t.Errorf("the run made %d requests, want %d", len(asked), requests)
+	}
+
+	for i, got := range asked {
+		if !slices.Equal(got, want) {
+			t.Errorf("request %d asked %v, want %v", i+1, got, want)
+		}
+	}
+}
+
+const (
+	threeQuestions = "assert: urgent.value < 0.5\nabstain_if: team.confidence < 0.6 or tone.confidence < 0.6\n" +
+		"urgent:\n  ask: is this urgent\n" +
+		"team:\n  ask: which team\n  pick: [billing, shipping]\n" +
+		"tone:\n  ask: how cross is it\n  rate: [calm, curt, rude]\n"
+	threeStdin = `{"id":"a","u":true,"t":"billing","r":"calm","body":{"urgent":0.9,"team":["billing",0.8],"tone":[0,0.9]}}
+{"id":"b","u":false,"t":"shipping","r":"rude","body":{"urgent":0.2,"team":["billing",0.7],"tone":[2,0.8]}}
+{"id":"c","u":true,"t":"shipping","r":"curt","body":{"urgent":0.7,"team":["shipping",0.9],"tone":[1,0.6]}}
+{"id":"d","u":false,"t":"billing","r":"calm","body":{"urgent":0.1,"team":["billing",0.9],"tone":[0,0.9]}}
+`
+)

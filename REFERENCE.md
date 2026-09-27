@@ -111,6 +111,12 @@ accepts as a label.
   `onesie -- calibrate`.
 - `--map` is required. Map only the text a person would read, since a `--map` that selects the
   label flatters the question.
+- A question with no `--label` is skipped. It is left out of the requests and the report, and one
+  line on stderr names every skipped question, such as `onesie: skipping 'team' and 'tone', which
+  have no --label`. So `-f` calibrates one question of a file with one `--label`.
+- At least one question needs a `--label`, or the run exits 2. A `--label` naming a question the
+  run does not have exits 2 as well, so a mistyped name is never read as a skip. So does a
+  `--require` that reads a skipped question.
 - A question file's `assert`, `abstain_if`, `threshold`, `min_confidence` and `fallback` are
   ignored, since `calibrate` reports every cut. So a gated file calibrates as it stands. The same
   settings typed as flags exit 2.
@@ -124,6 +130,10 @@ accepts as a label.
 - The answers file is `-o json` lines. A plain stream run can resume it, given the same questions,
   model, `-i`, `--map` and `--id`, with `-o json` and no gate or merge. Any other run is refused as
   changed.
+- The answers file and its fingerprint cover the questions a run asks, so a run that skips
+  questions writes a file of the labelled ones, and a resume with other labels is refused as
+  changed. A resume into a file that answers every question keeps it whole instead: the skipped
+  questions are still asked of each record the file lacks, and the report leaves them out.
 - Under `--usage` the `-o json` report sums the tokens in `usage`, whose `records` counts the
   records it covers, failed ones that spent tokens included.
 - `onesie -V` lists `max-calibrate-records`, the most records one run reads.
@@ -188,6 +198,8 @@ onesie calibrate -f shell-safety -i jsonl --map .command --id .id \
 - A record the file does not answer exits 2, naming it. So does a stored error line, which a run
   without `--offline` would ask again.
 - A missing answers file exits 2, naming it, and nothing is created.
+- A file that answers every question reads under any set of labels, so one committed answers file
+  checks each question of a starter set on its own.
 - A file whose fingerprint does not match this run exits 2, naming the cause, such as changed
   questions, model or flags, or a fingerprint a newer onesie wrote. To regenerate the file, run
   again without `--offline` and `--resume`. The model and provider are part of the match, so pin

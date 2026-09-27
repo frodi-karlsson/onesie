@@ -3,7 +3,9 @@ package cli
 import (
 	"errors"
 	"fmt"
+	"io"
 	"slices"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -71,6 +73,10 @@ func newCalibrateCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 			"for that question, and a record no question labels is not asked. A jsonl record reads " +
 			"{\"id\":\"T-1\",\"body\":\"the site is down\",\"is_urgent\":true}, and a csv one " +
 			"has the header id,body,is_urgent and the row T-1,the site is down,yes.\n\n" +
+			"A question with no --label is skipped, left out of the requests and the report, and named " +
+			"on stderr. At least one question needs a --label, a --label naming no question exits 2, and " +
+			"so does a --require that reads a skipped question. A --resume into an --out file that " +
+			"answers every question still asks the skipped ones, so the file stays whole.\n\n" +
 			"A yes/no cut row flags a record when its value is at least the cut, so the cut goes into " +
 			"a gate as written. A question file's assert, abstain_if, threshold, min_confidence and " +
 			"fallback are ignored, since calibrate reports every cut. The same flags are refused.\n\n" +
@@ -138,8 +144,9 @@ func newCalibrateCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 	}
 
 	cmd.Flags().StringArrayVar(&calib.labels, "label", nil,
-		"[ID=]EXPR, one per question, a jq expression run on the record, not on the mapped state, "+
-			"whose result is the right answer for question ID. With one question ID= may be left out")
+		"[ID=]EXPR, a jq expression run on the record, not on the mapped state, whose result is the "+
+			"right answer for question ID. A question with none is skipped. With one question ID= may be "+
+			"left out")
 	cmd.Flags().StringVar(&calib.cuts, flagCuts, "",
 		"comma separated cuts between 0 and 1. Defaults to 0.05 to 0.95 in steps of 0.05")
 	cmd.Flags().StringArrayVar(&calib.requires, "require", nil,
@@ -237,31 +244,25 @@ func runCalibrate(
 		return warnErr
 	}
 
-	labels, err := labelsOf(inv.plan, calib.labels)
+	scope, err := scopeOf(inv.plan, calib.labels)
 	if err != nil {
 		return err
 	}
 
-	bound, err := resolveRequirements(inv.plan, inv.fileGate, reqs)
+	bound, err := resolveRequirements(scope, inv.fileGate, reqs)
 	if err != nil {
 		return err
 	}
 
 	if flags.printRequest {
-		return calibrateRequests(cmd, settings, flags, inputMode, inv, labels)
+		if noteErr := writeSkipped(cmd.ErrOrStderr(), scope.skipped, ""); noteErr != nil {
+			return noteErr
+		}
+
+		return calibrateRequests(cmd, settings, flags, inputMode, inv, scope)
 	}
 
-	model, err := resolveModel(settings, flags, inv.plan.Model)
-	if err != nil {
-		return err
-	}
-
-	answers, err := answersFor(cmd, settings, flags, inv.plan, model)
-	if err != nil {
-		return err
-	}
-
-	return calibrateRun(cmd, settings, flags, calib, inputMode, inv, labels, bound, answers)
+	return calibrateRun(cmd, settings, flags, calib, inputMode, inv, scope, bound)
 }
 
 func checkCalibrate(
@@ -408,7 +409,7 @@ func refuseUnlabelledBody(settings rootSettings, name string) error {
 	return nil
 }
 
-func labelsOf(built *plan.Plan, specs []string) ([]questionLabel, error) {
+func scopeOf(built *plan.Plan, specs []string) (calibrateScope, error) {
 	ids := make([]string, 0, len(built.Questions))
 	for _, question := range built.Questions {
 		ids = append(ids, question.ID)
@@ -419,35 +420,82 @@ func labelsOf(built *plan.Plan, specs []string) ([]questionLabel, error) {
 	for _, spec := range specs {
 		id, source, err := calibrate.SplitLabel(spec, ids)
 		if err != nil {
-			return nil, fmt.Errorf("onesie: %w", err)
+			return calibrateScope{}, fmt.Errorf("onesie: %w", err)
 		}
 
 		index := slices.Index(ids, id)
 		if exprs[index] != nil {
-			return nil, fmt.Errorf("onesie: --label is given twice for question '%s'", id)
+			return calibrateScope{}, fmt.Errorf("onesie: --label is given twice for question '%s'", id)
 		}
 
 		exprs[index], err = exprOf(true, "--label "+id, source)
 		if err != nil {
-			return nil, err
+			return calibrateScope{}, err
 		}
 	}
 
-	labels := make([]questionLabel, 0, len(ids))
+	scored := *built
+	scored.Questions = nil
+	scope := calibrateScope{full: built, scored: &scored}
 
 	for index, expr := range exprs {
+		question := built.Questions[index]
 		if expr == nil {
-			return nil, fmt.Errorf("onesie: question '%s' has no --label, so asking it would cost "+
-				"requests and report nothing. Pass --label %s=EXPR", ids[index], ids[index])
+			scope.skipped = append(scope.skipped, question.ID)
+
+			continue
 		}
 
-		question := built.Questions[index]
-		labels = append(labels, questionLabel{
+		scored.Questions = append(scored.Questions, question)
+		scope.labels = append(scope.labels, questionLabel{
 			id: question.ID, shape: question.Shape, names: namesOf(question), expr: expr,
 		})
 	}
 
-	return labels, nil
+	if len(scope.labels) == 0 {
+		return calibrateScope{}, fmt.Errorf("onesie: question '%s' has no --label, so asking it would cost "+
+			"requests and report nothing. Pass --label %s=EXPR", ids[0], ids[0])
+	}
+
+	return scope, nil
+}
+
+type calibrateScope struct {
+	full    *plan.Plan
+	scored  *plan.Plan
+	skipped []string
+	labels  []questionLabel
+}
+
+func writeSkipped(w io.Writer, skipped []string, keptWhole string) error {
+	if len(skipped) == 0 {
+		return nil
+	}
+
+	quoted := make([]string, len(skipped))
+	for i, id := range skipped {
+		quoted[i] = "'" + id + "'"
+	}
+
+	names := quoted[0]
+	if len(quoted) > 1 {
+		names = strings.Join(quoted[:len(quoted)-1], ", ") + " and " + quoted[len(quoted)-1]
+	}
+
+	has, pronoun, subject := "has", "it", "it has"
+	if len(skipped) > 1 {
+		has, pronoun, subject = "have", "them", "they have"
+	}
+
+	line := fmt.Sprintf("onesie: skipping %s, which %s no --label", names, has)
+	if keptWhole != "" {
+		line = fmt.Sprintf("onesie: skipping %s in the report, since %s no --label, but asking %s of each "+
+			"record %s lacks, so the file keeps answering every question", names, subject, pronoun, keptWhole)
+	}
+
+	_, err := fmt.Fprintln(w, line)
+
+	return err
 }
 
 func namesOf(question plan.Question) []string {

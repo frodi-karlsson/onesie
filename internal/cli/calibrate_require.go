@@ -27,11 +27,16 @@ func parseRequirements(texts []string) ([]calibrate.Requirement, error) {
 	return reqs, nil
 }
 
-func resolveRequirements(built *plan.Plan, gate fileGate, reqs []calibrate.Requirement) ([]boundRequirement, error) {
+func resolveRequirements(scope calibrateScope, gate fileGate, reqs []calibrate.Requirement) ([]boundRequirement, error) {
 	bound := make([]boundRequirement, 0, len(reqs))
 
 	for _, req := range reqs {
-		resolved, reason := resolveRequirement(built, gate, req)
+		if slices.Contains(scope.skipped, req.ID) {
+			return nil, fmt.Errorf("onesie: --require '%s' reads '%s', which has no --label, so the report "+
+				"skips it. Pass --label %s=EXPR", req.Source, req.ID, req.ID)
+		}
+
+		resolved, reason := resolveRequirement(scope.scored, gate, req)
 		if reason != "" {
 			return nil, fmt.Errorf("onesie: --require '%s' %s", req.Source, reason)
 		}

@@ -12,7 +12,9 @@ onesie calibrate --ask urgent='is this urgent' -i jsonl --map '.body' \
 
 A yes or no label is true, false, yes, no, 1 or 0 in any case. A pick or rate label is an option or
 level name exactly as declared. A null, empty or missing label leaves the record out for that
-question. A question file's `assert`, `abstain_if`, `threshold`, `min_confidence` and `fallback`
+question. A question with no `--label` is skipped and named on stderr, so `-f` with one `--label`
+calibrates that question alone. A `--label` naming no question, or a `--require` on a skipped one,
+exits 2. A question file's `assert`, `abstain_if`, `threshold`, `min_confidence` and `fallback`
 are ignored, so a gated file calibrates as it stands, while the same flags typed on the command
 line exit 2.
 

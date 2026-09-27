@@ -20,19 +20,19 @@ import (
 
 func calibrateRequests(
 	cmd *cobra.Command, settings rootSettings, flags *runFlags, inputMode input.Mode, inv *invocation,
-	labels []questionLabel,
+	scope calibrateScope,
 ) error {
-	model, err := resolveModel(settings, flags, inv.plan.Model)
+	model, err := resolveModel(settings, flags, scope.scored.Model)
 	if err != nil {
 		return err
 	}
 
-	set, err := readLabelled(cmd.Context(), settings, inputMode, flags, inv.mapper, inv.namer, labels)
+	set, err := readLabelled(cmd.Context(), settings, inputMode, flags, inv.mapper, inv.namer, scope.labels)
 	if err != nil {
 		return err
 	}
 
-	questions := wireAll(inv.plan.Questions)
+	questions := wireAll(scope.scored.Questions)
 
 	for _, rec := range set.records {
 		if ctxErr := cmd.Context().Err(); ctxErr != nil {
