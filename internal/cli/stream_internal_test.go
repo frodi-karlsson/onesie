@@ -542,11 +542,11 @@ func TestStream(t *testing.T) {
 		}{
 			{
 				name: "should give identical records their own different answers", jobs: "1",
-				mock: low + "\n" + high + "\n", wantOut: lowAt1 + "\n" + highAt2 + "\n", stderr: "2 requests",
+				mock: low + "\n" + high + "\n", wantOut: lowAt1 + "\n" + highAt2 + "\n", stderr: "2 records answered from the mock",
 			},
 			{
 				name: "should ask identical records with identical answers once", jobs: "1",
-				mock: low + "\n" + low + "\n", wantOut: lowAt1 + "\n" + lowAt2 + "\n", stderr: "2 records, 1 deduplicated, 1 request",
+				mock: low + "\n" + low + "\n", wantOut: lowAt1 + "\n" + lowAt2 + "\n", stderr: "2 records, 1 deduplicated, 1 answered from the mock",
 			},
 			{
 				name: "should never share a covered record's answer with an uncovered one", jobs: "1",

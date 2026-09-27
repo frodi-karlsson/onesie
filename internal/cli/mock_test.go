@@ -209,12 +209,14 @@ func TestMockAnswers(t *testing.T) {
 			wantCode: ExitOK,
 		},
 		{
-			name:     "should count one attempt per request and name the model mock under --stats",
+			name:     "should say the records were answered from the mock under --stats",
 			args:     with("-o", "values", "-i", "lines", "--stats"),
 			stdin:    "a\nb\n",
 			mock:     mockAll,
-			stderr:   []string{"2 requests", "0 in / 0 out", "mock", "2 attempts"},
+			stderr:   []string{"2 records answered from the mock, 6 questions, "},
 			wantCode: ExitOK,
+
+			stderrAbsent: []string{"request", "attempt", "in / "},
 		},
 		{
 			name:     "should exit 3 for one record the file refuses with 401",
@@ -294,7 +296,7 @@ func TestMockAnswers(t *testing.T) {
 			args:     with("-o", "values", "-i", "lines", "--stats"),
 			stdin:    "a\nb\n",
 			mock:     lines(mockAll, mockUnread),
-			stderr:   []string{"2 records, 1 failed, 1 request", "1 attempt"},
+			stderr:   []string{"2 records, 1 failed, 1 answered from the mock, 3 questions, "},
 			wantCode: ExitUsage,
 		},
 		{
@@ -695,7 +697,7 @@ func TestMockResume(t *testing.T) {
 			t.Fatalf("second run exit %d, want 0\n%s", code, errOut)
 		}
 
-		if !strings.Contains(errOut, "1 skipped") || !strings.Contains(errOut, "2 requests") {
+		if !strings.Contains(errOut, "1 skipped") || !strings.Contains(errOut, "2 records answered from the mock") {
 			t.Errorf("the second run did not ask exactly the last two records: %s", errOut)
 		}
 

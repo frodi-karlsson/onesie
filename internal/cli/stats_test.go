@@ -165,6 +165,31 @@ func TestStatsString(t *testing.T) {
 			want: "1 request, 1 failed, 1 question, 0 in / 0 out, " +
 				"1 attempt, 10s/attempt, 1s",
 		},
+		{
+			name: "should say the answers came from the mock and count no requests or attempts",
+			stats: cli.Stats{
+				Mocked: true, Requests: 2, Questions: 2, Models: []string{"mock"},
+				AttemptTimeout: 10 * time.Second, Elapsed: 0,
+			},
+			want: "2 records answered from the mock, 2 questions, 0s",
+		},
+		{
+			name: "should say one record came from the mock",
+			stats: cli.Stats{
+				Mocked: true, Requests: 1, Questions: 3, Models: []string{"mock"},
+				AttemptTimeout: 10 * time.Second, Elapsed: time.Second,
+			},
+			want: "1 record answered from the mock, 3 questions, 1s",
+		},
+		{
+			name: "should count a mock run's records apart when a line never reached the mock",
+			stats: cli.Stats{
+				Mocked: true, Records: 3, Requests: 2, Failed: 2, Skipped: 1, FalseAsserts: 1,
+				Questions: 2, Models: []string{"mock"}, AttemptTimeout: 10 * time.Second,
+				Elapsed: time.Second,
+			},
+			want: "3 records, 1 skipped, 2 failed, 1 false assertion, 2 answered from the mock, 2 questions, 1s",
+		},
 	}
 
 	for _, tc := range tests {

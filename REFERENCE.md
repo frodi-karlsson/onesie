@@ -100,7 +100,8 @@ ONESIE_MOCK=answers.json ./gate.sh
   with a full file asks that record and the ones after it.
 - A mock run reads no key, opens no network, and ignores `--provider`, `ONESIE_PROVIDER`,
   `--base-url` and `-m`. It prints `model mock` wherever a model is shown, and `--usage` reports
-  zero tokens.
+  zero tokens. `--stats` counts no requests, tokens or attempts, as in
+  `2 records answered from the mock, 2 questions, 0s`.
 - The `--out` fingerprint names the provider and model `mock`, so a real run refuses to resume a
   mock run's file and the other way round. The mock file's content is not part of it.
 - `calibrate --mock` works, so a calibration can be tested too. An entry may also answer the

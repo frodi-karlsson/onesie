@@ -52,6 +52,8 @@ func mockAnswers(
 	}
 
 	return func(_ context.Context, stats *collector) (answerer, error) {
+		stats.answerFromMock()
+
 		return mockAnswerer{answers: answers, stats: stats}, nil
 	}, nil
 }
