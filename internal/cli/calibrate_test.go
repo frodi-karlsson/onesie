@@ -683,7 +683,7 @@ func TestReadLabelled(t *testing.T) {
 			args:     jsonl(),
 			stdin:    "{\"body\":\"a\",\"u\":true}\n\n{\"body\":\"b\",\"u\":true}\n",
 			wantCode: ExitUsage,
-			contains: []string{"line 2", "blank line"},
+			contains: []string{"line 2", "blank line", "Pass --skip-blank to drop blank lines"},
 		},
 		{
 			name:       "should drop a blank line under --skip-blank",

@@ -807,6 +807,34 @@ func TestNewRootCmd(t *testing.T) {
 			contains: []string{"--threshold given with no --ask to bind to and 2 questions asked"},
 		},
 		{
+			name:     "should name the file keys for --min-confidence beside a file of several questions",
+			args:     []string{"-f", "two.yaml", "--min-confidence", "0.5", "--fallback", "x", "--print-request"},
+			files:    map[string]string{"two.yaml": "a:\n  ask: which\n  pick: [x, y]\nb:\n  ask: which too\n  pick: [x, y]\n"},
+			stdin:    "s",
+			wantCode: cli.ExitUsage,
+			contains: []string{
+				"onesie: --min-confidence given with no --ask to bind to and 2 questions asked. " +
+					"Set min_confidence and fallback on a question in the -f file instead",
+			},
+		},
+		{
+			name:     "should name the file key for --threshold beside a file of several questions",
+			args:     []string{"-f", "two.yaml", "--threshold", "0.5", "--print-request"},
+			files:    map[string]string{"two.yaml": "a: is it a\nb: is it b\n"},
+			stdin:    "s",
+			wantCode: cli.ExitUsage,
+			contains: []string{"Set threshold on a question in the -f file instead"},
+		},
+		{
+			name:     "should name no file key for a shape flag",
+			args:     []string{"-f", "two.yaml", "--pick", "x,y", "--print-request"},
+			files:    map[string]string{"two.yaml": "a: is it a\nb: is it b\n"},
+			stdin:    "s",
+			wantCode: cli.ExitUsage,
+			contains: []string{"--pick given with no --ask to bind to"},
+			absent:   []string{"in the -f file instead"},
+		},
+		{
 			name:     "should reject a question file holding a second document",
 			args:     []string{"-f", "md.yaml"},
 			files:    map[string]string{"md.yaml": "a: q1\n---\nb: q2\n"},

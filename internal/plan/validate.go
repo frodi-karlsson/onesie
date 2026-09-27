@@ -718,10 +718,29 @@ func checkOrphans(p *Plan) error {
 		return nil
 	}
 
-	return fmt.Errorf(
-		"onesie: --%s given with no --ask to bind to and %d questions asked",
-		p.Orphans[0].Name, len(p.Questions),
-	)
+	orphan := p.Orphans[0].Name
+	err := fmt.Errorf("onesie: --%s given with no --ask to bind to and %d questions asked",
+		orphan, len(p.Questions))
+
+	keys := fileKeysFor(orphan)
+	if keys == "" || !slices.ContainsFunc(p.Questions, func(q Question) bool { return q.Origin == OriginFile }) {
+		return err
+	}
+
+	return fmt.Errorf("%w. Set %s on a question in the -f file instead", err, keys)
+}
+
+func fileKeysFor(flag string) string {
+	switch flag {
+	case "threshold":
+		return "threshold"
+	case "min-confidence":
+		return "min_confidence and fallback"
+	case "fallback":
+		return "fallback"
+	default:
+		return ""
+	}
 }
 
 func checkSources(p *Plan) error {

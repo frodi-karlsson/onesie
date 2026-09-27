@@ -49,8 +49,8 @@ func (p parser) entry(fields map[string]any, where string) (*Entry, error) {
 	for _, question := range p.questions {
 		given, found := fields[question.ID]
 		if !found {
-			return nil, fmt.Errorf("%s: question '%s' has no answer, and an entry answers every question",
-				where, question.ID)
+			return nil, fmt.Errorf("%s: the entry has no answer for question '%s'. "+
+				"Every entry answers every question the run asks", where, question.ID)
 		}
 
 		built, err := parseAnswer(question, given)

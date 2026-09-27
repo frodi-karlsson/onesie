@@ -180,9 +180,10 @@ func TestLoad(t *testing.T) {
 			wantErr: "onesie: --mock line 2: 'x' is not a question. Questions: u, t, r",
 		},
 		{
-			name:    "should refuse an entry that leaves a question out",
-			file:    `{"u":0.9,"t":"billing"}`,
-			wantErr: "onesie: --mock: question 'r' has no answer, and an entry answers every question",
+			name: "should refuse an entry that leaves a question out",
+			file: `{"u":0.9,"t":"billing"}`,
+			wantErr: "onesie: --mock: the entry has no answer for question 'r'. " +
+				"Every entry answers every question the run asks",
 		},
 		{
 			name:    "should refuse a probability above 1",

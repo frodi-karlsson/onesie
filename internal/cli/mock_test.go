@@ -302,7 +302,7 @@ func TestMockAnswers(t *testing.T) {
 			name:     "should refuse a file that leaves a question out",
 			args:     with("--state", "x"),
 			mock:     `{"u":0.9,"t":"billing"}`,
-			stderr:   []string{"onesie: --mock: question 'r' has no answer"},
+			stderr:   []string{"onesie: --mock: the entry has no answer for question 'r'"},
 			wantCode: ExitUsage,
 		},
 		{

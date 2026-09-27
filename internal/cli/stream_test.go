@@ -161,6 +161,18 @@ func TestStream(t *testing.T) {
 			contains:  []string{`"id":1`, `--merge would overwrite`, `"id":3`},
 		},
 		{
+			name:      "should name --skip-blank in a blank line's error",
+			args:      []string{"is this urgent", "-i", "lines"},
+			stdin:     "first\n\nsecond\n",
+			response:  answered,
+			wantCode:  cli.ExitRecords,
+			wantLines: 3,
+			contains: []string{
+				"line 2: blank line, an empty state is a request the model cannot answer. " +
+					"Pass --skip-blank to drop blank lines",
+			},
+		},
+		{
 			name:      "should drop blank lines under skip blank",
 			args:      []string{"is this urgent", "-i", "lines", "--skip-blank"},
 			stdin:     "first\n\nsecond\n",
