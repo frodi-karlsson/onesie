@@ -488,14 +488,14 @@ func writeSkipped(w io.Writer, skipped []string, inReport bool, askedOf string) 
 		has, pronoun, subject = "have", "them", "they have"
 	}
 
-	line := fmt.Sprintf("onesie: skipping %s, which %s no --label", names, has)
+	line := fmt.Sprintf("skipping %s, which %s no --label", names, has)
 
 	switch {
 	case askedOf != "":
-		line = fmt.Sprintf("onesie: skipping %s in the report, since %s no --label, but asking %s of each "+
+		line = fmt.Sprintf("skipping %s in the report, since %s no --label, but asking %s of each "+
 			"record %s lacks, so the file keeps answering every question", names, subject, pronoun, askedOf)
 	case inReport:
-		line = fmt.Sprintf("onesie: skipping %s in the report, since %s no --label", names, subject)
+		line = fmt.Sprintf("skipping %s in the report, since %s no --label", names, subject)
 	}
 
 	_, err := fmt.Fprintln(w, line)

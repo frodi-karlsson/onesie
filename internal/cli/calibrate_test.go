@@ -288,7 +288,7 @@ func TestNewCalibrateCmd(t *testing.T) {
 			name:     "should skip a question with no --label when another has one",
 			args:     with("--ask", "team=which team", "--pick", "billing,shipping"),
 			wantCode: ExitUsage,
-			contains: []string{"onesie: skipping 'team', which has no --label\n", nothing},
+			contains: []string{"skipping 'team', which has no --label\n", nothing},
 		},
 		{
 			name: "should refuse a run where no question has a --label",
@@ -384,7 +384,7 @@ func TestNewCalibrateCmd(t *testing.T) {
 				"calibrate", "-f", mixedBodyFile, "-i", "jsonl", "--map", ".body", "--label", "urgent=.u",
 			},
 			wantCode: ExitUsage,
-			contains: []string{"onesie: skipping 'mood', which has no --label\n", nothing},
+			contains: []string{"skipping 'mood', which has no --label\n", nothing},
 		},
 		{
 			name: "should refuse a request body with an unlabelled rate question",
@@ -3175,7 +3175,7 @@ func TestScopeOf(t *testing.T) {
 			stdout:    []string{"urgent, yes/no: labelled 4"},
 			noStdout:  []string{"team,", "tone,"},
 			stderr: []string{
-				"onesie: skipping 'team' and 'tone', which have no --label\n",
+				"skipping 'team' and 'tone', which have no --label\n",
 				"asking 4 of 4 records, 1 question each\n",
 			},
 		},
@@ -3186,7 +3186,7 @@ func TestScopeOf(t *testing.T) {
 			wantAsked: []string{"tone", "urgent"},
 			stdout:    []string{"urgent, yes/no", "tone, rate"},
 			noStdout:  []string{"team,"},
-			stderr:    []string{"onesie: skipping 'team', which has no --label\n"},
+			stderr:    []string{"skipping 'team', which has no --label\n"},
 		},
 		{
 			name:      "should ask every question and skip none when every question has a --label",
@@ -3224,7 +3224,7 @@ func TestScopeOf(t *testing.T) {
 			args:      run("--label", "urgent=.u", "--require", "urgent.catches >= 0.5"),
 			wantCode:  ExitOK,
 			stdout:    []string{"urgent, yes/no"},
-			stderr:    []string{"onesie: skipping 'team' and 'tone', which have no --label\n"},
+			stderr:    []string{"skipping 'team' and 'tone', which have no --label\n"},
 			wantAsked: []string{"urgent"},
 		},
 		{
@@ -3233,7 +3233,7 @@ func TestScopeOf(t *testing.T) {
 			wantCode: ExitOK,
 			stdout:   []string{`"questions":{"urgent":{"type":"noul","instructions":"is this urgent"}}}`},
 			noStdout: []string{`"team":{`, `"tone":{`},
-			stderr:   []string{"onesie: skipping 'team' and 'tone', which have no --label\n"},
+			stderr:   []string{"skipping 'team' and 'tone', which have no --label\n"},
 		},
 	}
 
@@ -3330,7 +3330,7 @@ func TestAskedPlan(t *testing.T) {
 			offline:    true,
 			wantCode:   ExitOK,
 			stderr: []string{
-				"onesie: skipping 'team' and 'tone' in the report, since they have no --label\n",
+				"skipping 'team' and 'tone' in the report, since they have no --label\n",
 				"asking 0 of 4 records, 1 question each, 4 answered in",
 			},
 			noStderr:               []string{"but asking"},
@@ -3343,7 +3343,7 @@ func TestAskedPlan(t *testing.T) {
 			second:     one,
 			wantCode:   ExitOK,
 			stderr: []string{
-				"onesie: skipping 'team' and 'tone' in the report, since they have no --label\n",
+				"skipping 'team' and 'tone' in the report, since they have no --label\n",
 				"asking 0 of 4 records, 3 questions each, 4 answered in",
 			},
 			noStderr:               []string{"but asking"},
@@ -3357,7 +3357,7 @@ func TestAskedPlan(t *testing.T) {
 			wantCode:   ExitOK,
 			wantAsked:  []string{"urgent"},
 			asks:       1,
-			stderr:     []string{"onesie: skipping 'team' and 'tone', which have no --label\n"},
+			stderr:     []string{"skipping 'team' and 'tone', which have no --label\n"},
 		},
 		{
 			name:       "should read a file written with one label under --offline with the same label",
@@ -3454,36 +3454,36 @@ func TestWriteSkipped(t *testing.T) {
 		{
 			name:    "should name one skipped question in the singular",
 			skipped: []string{"team"},
-			want:    "onesie: skipping 'team', which has no --label\n",
+			want:    "skipping 'team', which has no --label\n",
 		},
 		{
 			name:    "should name two skipped questions in the plural",
 			skipped: []string{"team", "tone"},
-			want:    "onesie: skipping 'team' and 'tone', which have no --label\n",
+			want:    "skipping 'team' and 'tone', which have no --label\n",
 		},
 		{
 			name:    "should list three skipped questions with commas and a last and",
 			skipped: []string{"team", "tone", "topic"},
-			want:    "onesie: skipping 'team', 'tone' and 'topic', which have no --label\n",
+			want:    "skipping 'team', 'tone' and 'topic', which have no --label\n",
 		},
 		{
 			name:     "should say only that the report skips one question of a file kept whole",
 			skipped:  []string{"team"},
 			inReport: true,
-			want:     "onesie: skipping 'team' in the report, since it has no --label\n",
+			want:     "skipping 'team' in the report, since it has no --label\n",
 		},
 		{
 			name:     "should say only that the report skips two questions of a file kept whole",
 			skipped:  []string{"team", "tone"},
 			inReport: true,
-			want:     "onesie: skipping 'team' and 'tone' in the report, since they have no --label\n",
+			want:     "skipping 'team' and 'tone' in the report, since they have no --label\n",
 		},
 		{
 			name:     "should say one skipped question is still asked of the records the file lacks",
 			skipped:  []string{"team"},
 			inReport: true,
 			askedOf:  "answers.jsonl",
-			want: "onesie: skipping 'team' in the report, since it has no --label, but asking it of each " +
+			want: "skipping 'team' in the report, since it has no --label, but asking it of each " +
 				"record answers.jsonl lacks, so the file keeps answering every question\n",
 		},
 		{
@@ -3491,7 +3491,7 @@ func TestWriteSkipped(t *testing.T) {
 			skipped:  []string{"team", "tone"},
 			inReport: true,
 			askedOf:  "answers.jsonl",
-			want: "onesie: skipping 'team' and 'tone' in the report, since they have no --label, but asking " +
+			want: "skipping 'team' and 'tone' in the report, since they have no --label, but asking " +
 				"them of each record answers.jsonl lacks, so the file keeps answering every question\n",
 		},
 	}

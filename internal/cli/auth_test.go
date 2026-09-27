@@ -688,14 +688,14 @@ func TestAuthSet(t *testing.T) {
 				return
 			}
 
-			if !strings.Contains(errOut, "onesie: writing "+path) {
+			if !strings.Contains(errOut, "writing the credential file "+path) {
 				t.Errorf("stderr = %q, want it to name the path being written", errOut)
 			}
 
 			// The warning is printed without the onesie prefix, which the word warning already
 			// stands in for. Compared whole, so a second prefix in front of it fails here.
 			if tc.chmodFails {
-				want := "onesie: writing " + path + "\n" +
+				want := "writing the credential file " + path + "\n" +
 					"warning: could not set mode 600 on " + path +
 					". The key is not protected by the filesystem\n"
 				if errOut != want {
@@ -790,7 +790,7 @@ func TestAuthSet(t *testing.T) {
 			args:         []string{"auth", "set"},
 			wantFile:     `{"providers":{"typesafe":{"store":"keychain","account":"ACCOUNT"}}}`,
 			wantKeychain: true,
-			wantErr:      "onesie: stored the typesafe key in the OS keychain",
+			wantErr:      "stored the typesafe key in the OS keychain",
 		},
 		{
 			name:         "should keep a base url beside a keychain entry",

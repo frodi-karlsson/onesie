@@ -428,7 +428,7 @@ func stream(
 	if !flags.noDedup {
 		shared = newDedup(settings.dedupLimit, func() {
 			_, noticeErr = fmt.Fprintf(cmd.ErrOrStderr(),
-				"onesie: %d distinct requests held, so later records are deduplicated only against those\n",
+				"%d distinct requests held, so later records are deduplicated only against those\n",
 				settings.dedupLimit)
 		})
 	}

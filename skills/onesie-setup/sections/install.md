@@ -24,8 +24,8 @@ An env var outranks a stored key, which suits CI. `auth set` stores one entry pe
 
 | stderr line | meaning |
 | --- | --- |
-| `onesie: writing PATH` | the credential file it is about to write |
-| `onesie: stored the typesafe key in the OS keychain` | the key is in the keychain, the file points at it |
+| `writing the credential file PATH` | the credential file it is about to write |
+| `stored the typesafe key in the OS keychain` | the key is in the keychain, the file points at it |
 | `warning: ... The key is in PATH instead` | the keychain refused, so the key went into the file |
 | `the keychain did not answer in time` | a keychain prompt waited over 10 seconds, and the file was not written. Have the user answer the prompt and run `auth set` again, or pass `--file` |
 | `stdin carries more than one line` | the piped input held more than the key. Pipe it through `head -n 1` |

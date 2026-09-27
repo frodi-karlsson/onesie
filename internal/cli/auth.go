@@ -128,7 +128,7 @@ func authSet(cmd *cobra.Command, settings rootSettings, flags *runFlags, opts se
 
 	// stderr rather than stdout. It is a notice and not output, and pass show x | onesie auth set > log
 	// must not put a filesystem path in a log the user expected to stay empty.
-	if _, printErr := fmt.Fprintln(cmd.ErrOrStderr(), "onesie: writing "+path); printErr != nil {
+	if _, printErr := fmt.Fprintln(cmd.ErrOrStderr(), "writing the credential file "+path); printErr != nil {
 		return printErr
 	}
 
@@ -213,7 +213,7 @@ func storeKey(
 	err = settings.keychain.Set(account, key)
 	if err == nil {
 		return creds.Entry{Store: creds.StoreKeychain, Account: account},
-			"onesie: stored the " + provider.Name + " key in the OS keychain", nil
+			"stored the " + provider.Name + " key in the OS keychain", nil
 	}
 
 	// A keychain that timed out may still be waiting on a prompt that stores the key later, so a

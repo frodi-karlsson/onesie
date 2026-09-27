@@ -487,7 +487,7 @@ func TestStream(t *testing.T) {
 			t.Errorf("%d requests, want 4", got)
 		}
 
-		note := "onesie: 1 distinct requests held, so later records are deduplicated only against those\n"
+		note := "1 distinct requests held, so later records are deduplicated only against those\n"
 		if strings.Count(errOut, note) != 1 {
 			t.Errorf("stderr = %q, want the note once", errOut)
 		}

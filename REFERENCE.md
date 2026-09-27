@@ -123,7 +123,7 @@ accepts as a label.
 - `--map` is required. Map only the text a person would read, since a `--map` that selects the
   label flatters the question.
 - A question with no `--label` is skipped. It is left out of the requests and the report, and one
-  line on stderr names every skipped question, such as `onesie: skipping 'team' and 'tone', which
+  line on stderr names every skipped question, such as `skipping 'team' and 'tone', which
   have no --label`. So `-f` calibrates one question of a file with one `--label`.
 - At least one question needs a `--label`, or the run exits 2. A `--label` naming a question the
   run does not have exits 2 as well, so a mistyped name is never read as a skip. So does a
