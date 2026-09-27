@@ -14,6 +14,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -1993,6 +1994,89 @@ func TestDefaultClientFactory(t *testing.T) {
 
 				if !tc.warns && strings.Contains(errOut.String(), "warning") {
 					t.Errorf("stderr = %q, want no warning", errOut.String())
+				}
+			})
+		}
+	})
+
+	t.Run("should warn once when the base URL ends in /v1", func(t *testing.T) {
+		t.Parallel()
+
+		const answered = `{"model":"onesie-1.13.0","answers":{"answer":{"type":"noul","noul":0.5}}}`
+
+		tests := []struct {
+			name     string
+			flag     string
+			env      string
+			spelled  string
+			wantWarn bool
+		}{
+			{name: "should warn for --base-url ending in /v1", flag: "/v1", spelled: "--base-url", wantWarn: true},
+			{name: "should warn for --base-url ending in /v1/", flag: "/v1/", spelled: "--base-url", wantWarn: true},
+			{name: "should warn for TYPESAFE_BASE_URL ending in /v1", env: "/v1", spelled: jev.EnvBaseURL, wantWarn: true},
+			{name: "should not warn for a proxy prefix that is not /v1", flag: "/proxy"},
+			{name: "should not warn for a bare host", flag: "/"},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				var paths sync.Map
+
+				srv := stubAnswering(t, answered, func(r *http.Request) {
+					paths.Store(r.URL.Path, true)
+				})
+				defer srv.Close()
+
+				env := map[string]string{jev.EnvAPIKey: "test"}
+				args := []string{"is this urgent", "-i", "lines", "-o", "values", "--retries", "0"}
+
+				if tc.flag != "" {
+					args = append(args, "--base-url", srv.URL+tc.flag)
+				}
+
+				if tc.env != "" {
+					env[jev.EnvBaseURL] = srv.URL + tc.env
+				}
+
+				var out, errOut bytes.Buffer
+
+				root := cli.NewRootCmd(
+					cli.BuildInfo{Version: "1.2.3"},
+					cli.WithKeychain(offKeychain{}),
+					cli.WithStdin(strings.NewReader("one\ntwo\n")),
+					cli.WithStdinTTY(false),
+					cli.WithStdoutTTY(false),
+					cli.WithLookupEnv(func(name string) (string, bool) {
+						value, found := env[name]
+
+						return value, found
+					}),
+				)
+
+				root.SetOut(&out)
+				root.SetErr(&errOut)
+				root.SetArgs(args)
+
+				cli.Execute(t.Context(), root)
+
+				want := "warning: " + tc.spelled + " ends in /v1 and onesie adds the API path itself, " +
+					"so requests go to " + srv.URL + "/v1/v1/systemone\n"
+				if !tc.wantWarn {
+					if strings.Contains(errOut.String(), "ends in /v1") {
+						t.Errorf("stderr = %q, want no /v1 warning", errOut.String())
+					}
+
+					return
+				}
+
+				if got := strings.Count(errOut.String(), want); got != 1 {
+					t.Errorf("stderr = %q, want the warning %q once", errOut.String(), want)
+				}
+
+				if _, sent := paths.Load("/v1/v1/systemone"); !sent {
+					t.Errorf("the stub saw no request on /v1/v1/systemone, so the run was refused rather than warned")
 				}
 			})
 		}

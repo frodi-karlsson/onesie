@@ -462,7 +462,9 @@ table, and `onesie calibrate --help` lists the codes calibrate uses.
 - `--list-models` shows what the account can ask, and `-m` picks one.
 - `--base-url` points onesie at any server that speaks the System One API. A plain http URL to a
   host other than localhost prints a warning, and a redirect is refused rather than followed with
-  the key.
+  the key. onesie adds `/v1/systemone` itself, so a base URL whose path ends in `/v1`, from
+  `--base-url`, `TYPESAFE_BASE_URL` or the credential file, prints one warning naming the URL
+  requests go to. It is not refused, since a proxy may use that prefix.
 - `-f VALUE` reads VALUE as a file when one exists at that path. Otherwise a bare name loads
   `NAME.yaml`, `NAME.yml` or `NAME.json` from the nearest `.onesie/questions`, then from `questions`
   in the config dir, and last takes a starter set built into onesie: `moderation`, `personal-data`,

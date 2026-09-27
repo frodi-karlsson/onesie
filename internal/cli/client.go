@@ -22,7 +22,7 @@ func defaultClientFactory(
 	settings rootSettings,
 	stderr func() io.Writer,
 ) clientFactory {
-	var warned sync.Once
+	var warned, doubled sync.Once
 
 	return func(_ context.Context, extra ...jev.Option) (*jev.Client, error) {
 		provider, err := resolveProvider(settings, flags)
@@ -86,12 +86,40 @@ func defaultClientFactory(
 			})
 		}
 
+		if endsInVersion(client.BaseURL()) {
+			doubled.Do(func() {
+				_, printErr = fmt.Fprintln(stderr(), "warning: "+baseURLSource(settings, flags, provider)+
+					" ends in /v1 and onesie adds the API path itself, so requests go to "+
+					output.Printable(client.BaseURL()+jev.SystemOnePath))
+			})
+		}
+
 		if printErr != nil {
 			return nil, printErr
 		}
 
 		return client, nil
 	}
+}
+
+func endsInVersion(baseURL string) bool {
+	parsed, err := url.Parse(baseURL)
+
+	return err == nil && strings.HasSuffix(strings.TrimRight(parsed.Path, "/"), "/v1")
+}
+
+func baseURLSource(settings rootSettings, flags *runFlags, provider jev.Provider) string {
+	if strings.TrimSpace(flags.baseURL) != "" {
+		return "--base-url"
+	}
+
+	if name := provider.EnvBaseURL; name != "" {
+		if value, found := settings.lookupEnv(name); found && strings.TrimSpace(value) != "" {
+			return name
+		}
+	}
+
+	return "the base URL in the credential file"
 }
 
 func plainRemote(baseURL string) bool {

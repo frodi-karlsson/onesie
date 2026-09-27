@@ -19,7 +19,8 @@ import (
 )
 
 const (
-	systemOnePath = "/v1/systemone"
+	// SystemOnePath is the path onesie appends to the base URL for every question.
+	SystemOnePath = "/v1/systemone"
 
 	retryCountHeader = "X-TypeSafe-Retry-Count"
 )
@@ -163,7 +164,7 @@ func (c *Client) SystemOne(ctx context.Context, req Request, opts ...RequestOpti
 
 	result := &Result{}
 
-	res, err := c.do(ctx, http.MethodPost, systemOnePath, json.RawMessage(body), result, opts...)
+	res, err := c.do(ctx, http.MethodPost, SystemOnePath, json.RawMessage(body), result, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -220,7 +221,7 @@ func (c *Client) SystemOneRaw(
 	body json.RawMessage,
 	opts ...RequestOption,
 ) (json.RawMessage, error) {
-	res, err := c.do(ctx, http.MethodPost, systemOnePath, body, nil, opts...)
+	res, err := c.do(ctx, http.MethodPost, SystemOnePath, body, nil, opts...)
 	if err != nil {
 		return nil, err
 	}
