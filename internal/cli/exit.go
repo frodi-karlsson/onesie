@@ -28,7 +28,8 @@ const (
 	ExitUnavailable = 4
 	// ExitTransport means a transport error or a timeout.
 	ExitTransport = 5
-	// ExitRecords means a stream finished with one or more failed records.
+	// ExitRecords means a stream finished with one or more failed records, or --stop-on-error stopped
+	// it at a record that never became a request.
 	ExitRecords = 6
 	// ExitAbstain means the assertion did not hold and the abstain expression did, from --abstain-if
 	// or a file's abstain_if, so the gate could not decide.
@@ -44,7 +45,8 @@ var rootExitCodes = []exitCodeLine{
 	{ExitAuth, "the key was refused, the account is out of credits, or the credential file is exposed"},
 	{ExitUnavailable, "the server did not answer after retries"},
 	{ExitTransport, "transport error or timeout"},
-	{ExitRecords, "a stream finished with one or more failed records"},
+	{ExitRecords, "a stream finished with one or more failed records, or --stop-on-error stopped it at " +
+		"a record that never became a request"},
 	{ExitAbstain, "the gate could not decide: the assertion failed and --abstain-if held"},
 	{ExitInterrupt, "interrupted"},
 }

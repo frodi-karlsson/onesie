@@ -8,7 +8,7 @@
 | 3 | Authentication, permission or payment failed, or the credential store could not be used |
 | 4 | The server did not answer after retries: a 429, a 5xx, or a 2xx body onesie cannot use |
 | 5 | A transport error or a timeout, including a 408 |
-| 6 | A stream finished with one or more failed records |
+| 6 | A stream finished with one or more failed records, or `--stop-on-error` stopped it at a record that never became a request |
 | 7 | The gate could not decide: the assertion did not hold and `--abstain-if` did |
 | 130 | The run was interrupted by a signal |
 

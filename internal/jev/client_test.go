@@ -19,6 +19,55 @@ import (
 
 const shortAnswer = `{"model":"m","answers":{"q":{"type":"noul","noul":0.1}},"usage":{}}`
 
+func TestClientSystemOneURL(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		options []jev.Option
+		want    string
+	}{
+		{
+			name: "should add the API path to each provider's default base URL",
+			want: jev.DefaultBaseURL + "/v1/systemone",
+		},
+		{
+			name:    "should add the API path to a base URL whose path already ends in /v1",
+			options: []jev.Option{jev.WithBaseURL("https://proxy.example/v1/")},
+			want:    "https://proxy.example/v1/v1/systemone",
+		},
+		{
+			name:    "should add the API path to openrouter's base URL",
+			options: []jev.Option{jev.WithProvider(jev.OpenRouter())},
+			want:    "https://openrouter.ai/api/v1/systemone",
+		},
+		{
+			name:    "should add the API path to berget's base URL",
+			options: []jev.Option{jev.WithProvider(jev.Berget())},
+			want:    "https://api.berget.ai/v1/systemone",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			options := append([]jev.Option{
+				jev.WithAPIKey("k"), jev.WithEnv(func(string) (string, bool) { return "", false }),
+			}, tc.options...)
+
+			client, err := jev.New(options...)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if got := client.SystemOneURL(); got != tc.want {
+				t.Errorf("SystemOneURL() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestNew(t *testing.T) {
 	t.Parallel()
 

@@ -442,7 +442,7 @@ onesie auth test                                   # checks the key
 | 3 | the key was refused, the account is out of credits, or the credential file is exposed |
 | 4 | the server did not answer after retries |
 | 5 | transport error or timeout |
-| 6 | a stream finished with one or more failed records |
+| 6 | a stream finished with one or more failed records, or `--stop-on-error` stopped it at a record that never became a request |
 | 7 | the gate could not decide: the assertion failed and `--abstain-if` held |
 | 130 | interrupted |
 

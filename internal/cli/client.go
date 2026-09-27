@@ -90,7 +90,7 @@ func defaultClientFactory(
 			doubled.Do(func() {
 				_, printErr = fmt.Fprintln(stderr(), "warning: "+baseURLSource(settings, flags, provider)+
 					" ends in /v1 and onesie adds the API path itself, so requests go to "+
-					output.Printable(client.BaseURL()+jev.SystemOnePath))
+					output.Printable(client.SystemOneURL()))
 			})
 		}
 

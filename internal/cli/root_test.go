@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -2008,12 +2009,17 @@ func TestDefaultClientFactory(t *testing.T) {
 			name     string
 			flag     string
 			env      string
+			stored   string
 			spelled  string
 			wantWarn bool
 		}{
 			{name: "should warn for --base-url ending in /v1", flag: "/v1", spelled: "--base-url", wantWarn: true},
 			{name: "should warn for --base-url ending in /v1/", flag: "/v1/", spelled: "--base-url", wantWarn: true},
 			{name: "should warn for TYPESAFE_BASE_URL ending in /v1", env: "/v1", spelled: jev.EnvBaseURL, wantWarn: true},
+			{
+				name: "should name the credential file for a stored base URL ending in /v1", stored: "/v1",
+				spelled: "the base URL in the credential file", wantWarn: true,
+			},
 			{name: "should not warn for a proxy prefix that is not /v1", flag: "/proxy"},
 			{name: "should not warn for a bare host", flag: "/"},
 		}
@@ -2031,6 +2037,16 @@ func TestDefaultClientFactory(t *testing.T) {
 
 				env := map[string]string{jev.EnvAPIKey: "test"}
 				args := []string{"is this urgent", "-i", "lines", "-o", "values", "--retries", "0"}
+				credentials := filepath.Join(t.TempDir(), "credentials.json")
+
+				if tc.stored != "" {
+					delete(env, jev.EnvAPIKey)
+
+					stored := `{"providers":{"typesafe":{"api_key":"test","base_url":"` + srv.URL + tc.stored + `"}}}`
+					if err := os.WriteFile(credentials, []byte(stored), 0o600); err != nil {
+						t.Fatalf("writing the credential file: %v", err)
+					}
+				}
 
 				if tc.flag != "" {
 					args = append(args, "--base-url", srv.URL+tc.flag)
@@ -2046,6 +2062,7 @@ func TestDefaultClientFactory(t *testing.T) {
 					cli.BuildInfo{Version: "1.2.3"},
 					cli.WithKeychain(offKeychain{}),
 					cli.WithStdin(strings.NewReader("one\ntwo\n")),
+					cli.WithCredentialPath(func() (string, error) { return credentials, nil }),
 					cli.WithStdinTTY(false),
 					cli.WithStdoutTTY(false),
 					cli.WithLookupEnv(func(name string) (string, bool) {
