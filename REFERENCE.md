@@ -112,6 +112,9 @@ accepts as a label.
 - Under `--usage` the `-o json` report sums the tokens in `usage`, whose `records` counts the
   records it covers, failed ones that spent tokens included.
 - `onesie -V` lists `max-calibrate-records`, the most records one run reads.
+- The model is not deterministic, so an answer near a cut can land on either side of it from one run
+  to the next. `--abstain-if` sends that band to a person, and calibrate's worst misses show which
+  records sit in it.
 
 ### Requirements
 
