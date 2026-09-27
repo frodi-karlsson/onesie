@@ -128,6 +128,42 @@ func TestDelimited(t *testing.T) {
 		})
 	}
 
+	t.Run("should refuse a fallback column clash before any request", func(t *testing.T) {
+		t.Parallel()
+
+		var calls atomic.Int32
+
+		srv := answeringServer(t, &calls)
+
+		var out, errOut bytes.Buffer
+
+		root := NewRootCmd(
+			BuildInfo{Version: "1.2.3"},
+			WithStdin(strings.NewReader("the site is down")),
+			WithStdinTTY(false),
+			WithStdoutTTY(false),
+			WithKeychain(noKeychain()),
+			WithLookupEnv(lookupFrom(nil)),
+			WithClientFactory(stubFactory(srv.URL)),
+		)
+
+		root.SetOut(&out)
+		root.SetErr(&errOut)
+		root.SetArgs([]string{"--ask", "a=q", "--fallback", "no", "--ask", "a_fallback=q2", "-o", "csv"})
+
+		if code := Execute(t.Context(), root); code != ExitUsage {
+			t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, ExitUsage, errOut.String())
+		}
+
+		if n := calls.Load(); n != 0 {
+			t.Errorf("requests = %d, want none", n)
+		}
+
+		if !strings.Contains(errOut.String(), "has the name of the fallback column") {
+			t.Errorf("stderr = %q, want the clash named", errOut.String())
+		}
+	})
+
 	t.Run("should resume a csv file by rows, not lines, and keep one header", func(t *testing.T) {
 		t.Parallel()
 

@@ -9,6 +9,8 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+
+	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
 // ErrColumnTaken reports an input column whose name a question id or a reserved column already
@@ -100,12 +102,8 @@ func (d *Delimited) start(header []string) error {
 		columns = append(columns, id)
 
 		if slices.Contains(d.opts.Fallbacks, id) {
-			columns = append(columns, fallbackColumn(id))
+			columns = append(columns, plan.FallbackColumn(id))
 		}
-	}
-
-	if err := checkFallbackColumns(d.opts); err != nil {
-		return err
 	}
 
 	if d.opts.Assert {
@@ -172,20 +170,6 @@ func fallbackCell(rec Record, id string) string {
 	}
 
 	return ""
-}
-
-func fallbackColumn(id string) string {
-	return id + "_fallback"
-}
-
-func checkFallbackColumns(opts DelimitedOptions) error {
-	for _, owner := range opts.Fallbacks {
-		if taken := fallbackColumn(owner); slices.Contains(opts.IDs, taken) {
-			return fmt.Errorf("question '%s' has the name of the fallback column of '%s'", taken, owner)
-		}
-	}
-
-	return nil
 }
 
 func assertCell(rec Record) string {

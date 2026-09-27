@@ -52,6 +52,10 @@ func Validate(p *Plan, cfg Config) ([]string, error) {
 		return warnings, err
 	}
 
+	if err := checkFallbackColumns(p, cfg); err != nil {
+		return warnings, err
+	}
+
 	for i := range p.Questions {
 		hint, err := checkQuestion(&p.Questions[i])
 		if err != nil {
@@ -739,6 +743,35 @@ func checkSources(p *Plan) error {
 	}
 
 	return nil
+}
+
+func checkFallbackColumns(p *Plan, cfg Config) error {
+	if cfg.Output != "csv" && cfg.Output != "tsv" {
+		return nil
+	}
+
+	ids := make([]string, 0, len(p.Questions))
+	for _, question := range p.Questions {
+		ids = append(ids, question.ID)
+	}
+
+	for _, question := range p.Questions {
+		if question.Policy.Fallback == nil {
+			continue
+		}
+
+		if taken := FallbackColumn(question.ID); slices.Contains(ids, taken) {
+			return fmt.Errorf("onesie: question '%s' has the name of the fallback column -o %s writes for '%s'",
+				taken, cfg.Output, question.ID)
+		}
+	}
+
+	return nil
+}
+
+// FallbackColumn names the csv and tsv column that says whether a question's fallback was used.
+func FallbackColumn(id string) string {
+	return id + "_fallback"
 }
 
 func checkDuplicateIDs(p *Plan) error {

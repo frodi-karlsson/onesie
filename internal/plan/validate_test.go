@@ -84,6 +84,25 @@ func TestValidate(t *testing.T) {
 			wantErr: "onesie: --pick option 'billing' is listed twice in question 'team'",
 		},
 		{
+			name: "should reject a question named like another question's csv fallback column",
+			events: []argv.Event{
+				{Name: "ask", Value: "a=q"},
+				{Name: "fallback", Value: "no"},
+				{Name: "ask", Value: "a_fallback=q2"},
+			},
+			cfg:       plan.Config{Output: "csv", InputName: "text"},
+			wantExact: "onesie: question 'a_fallback' has the name of the fallback column -o csv writes for 'a'",
+		},
+		{
+			name: "should accept a question named like a fallback column outside csv and tsv",
+			events: []argv.Event{
+				{Name: "ask", Value: "a=q"},
+				{Name: "fallback", Value: "no"},
+				{Name: "ask", Value: "a_fallback=q2"},
+			},
+			cfg: plan.Config{Output: "json", InputName: "text"},
+		},
+		{
 			name: "should reject an empty option",
 			events: []argv.Event{
 				{Name: "ask", Value: "team=first"},

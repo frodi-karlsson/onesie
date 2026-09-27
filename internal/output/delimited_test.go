@@ -215,21 +215,6 @@ func TestNewDelimited(t *testing.T) {
 			t.Errorf("error = %v, want ErrColumnTaken", err)
 		}
 	})
-
-	t.Run("should refuse a question named like another question's fallback column", func(t *testing.T) {
-		t.Parallel()
-
-		writer := output.NewDelimited(&bytes.Buffer{}, output.CSV, output.DelimitedOptions{
-			IDs: []string{"urgent", "urgent_fallback"}, Fallbacks: []string{"urgent"}, Header: true,
-		})
-
-		err := writer.Write(answered, nil, nil)
-
-		const want = "question 'urgent_fallback' has the name of the fallback column of 'urgent'"
-		if err == nil || err.Error() != want {
-			t.Errorf("error = %v, want %s", err, want)
-		}
-	})
 }
 
 func withID(rec output.Record, id any) output.Record {
