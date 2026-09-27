@@ -392,6 +392,11 @@ A consumer that stops reading, as `head` does, is not an error.
   edit. `onesie questions` lists every name `-f` finds, with a built-in set shown as `built in`. A
   question file is refused with exit 2 when it uses a YAML alias or is larger than
   `max-question-file-bytes`.
+- `-f` also takes a request body, as `--print-request` writes it. A body that holds a `state` sends
+  that state, and onesie then never reads stdin, since it cannot tell a pipe that holds text from
+  one that is still open without waiting on it. `--state` or `--state-file` beside such a body
+  exits 2, naming both. `-i request` refuses both flags the same way, since each body there holds
+  its own state.
 - `--print-schema` prints the JSON Schema for a question file. `schema/questions.json` in the
   repository is the same file, and `make schema` regenerates it. The first line `--print-questions`
   writes is `# yaml-language-server: $schema=URL`, which an editor running the YAML language server

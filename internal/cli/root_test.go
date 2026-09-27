@@ -503,7 +503,7 @@ func TestNewRootCmd(t *testing.T) {
 			},
 		},
 		{
-			name:  "should let stdin override a body's state",
+			name:  "should keep a body's state and leave stdin unread",
 			args:  []string{"-f", "body.json", "-o", "json"},
 			stdin: "from stdin",
 			files: map[string]string{
@@ -513,6 +513,49 @@ func TestNewRootCmd(t *testing.T) {
 			response: `{"model":"onesie-1.13.0","answers":{"a":{"type":"noul","noul":0.3}}}`,
 			wantCode: cli.ExitOK,
 			contains: []string{`"a":{"value":0.3}`},
+			sends:    []string{`"state":"from the body"`},
+		},
+		{
+			name: "should refuse --state beside a body's state, naming both",
+			args: []string{"-f", "body.json", "--state", "from the flag"},
+			files: map[string]string{
+				"body.json": `{"state":"from the body","questions":` +
+					`{"a":{"type":"noul","instructions":"q"}}}`,
+			},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: --state and the state in body.json both give a state. Drop one"},
+		},
+		{
+			name: "should refuse --state - beside a body's state",
+			args: []string{"-f", "body.json", "--state", "-"},
+			files: map[string]string{
+				"body.json": `{"state":"from the body","questions":` +
+					`{"a":{"type":"noul","instructions":"q"}}}`,
+			},
+			stdin:    "from stdin",
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: --state and the state in body.json both give a state. Drop one"},
+		},
+		{
+			name: "should refuse --state-file beside a body's state, naming both",
+			args: []string{"-f", "body.json", "--state-file", "state.txt"},
+			files: map[string]string{
+				"body.json": `{"state":"from the body","questions":` +
+					`{"a":{"type":"noul","instructions":"q"}}}`,
+				"state.txt": "from the file",
+			},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: --state-file and the state in body.json both give a state. Drop one"},
+		},
+		{
+			name:  "should read stdin beside a body with no state",
+			args:  []string{"-f", "body.json", "-o", "json"},
+			stdin: "from stdin",
+			files: map[string]string{
+				"body.json": `{"questions":{"a":{"type":"noul","instructions":"q"}}}`,
+			},
+			response: `{"model":"onesie-1.13.0","answers":{"a":{"type":"noul","noul":0.3}}}`,
+			wantCode: cli.ExitOK,
 			sends:    []string{`"state":"from stdin"`},
 		},
 		{

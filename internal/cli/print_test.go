@@ -901,6 +901,41 @@ func TestPrintRequest(t *testing.T) {
 		}
 	})
 
+	t.Run("should never read stdin beside a body's state", func(t *testing.T) {
+		t.Parallel()
+
+		const body = `{"state":"from the body","model":"onesie-1.13.0",` +
+			`"questions":{"urgent":{"type":"noul","instructions":"is this urgent"}}}`
+
+		path := filepath.Join(t.TempDir(), "body.json")
+		if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+			t.Fatalf("writing the body: %v", err)
+		}
+
+		var out, errOut bytes.Buffer
+
+		root := NewRootCmd(
+			BuildInfo{Version: "1.2.3"},
+			WithKeychain(noKeychain()),
+			WithStdin(unreadable{t: t}),
+			WithStdinTTY(false),
+			WithStdoutTTY(false),
+			WithLookupEnv(lookupFrom(map[string]string{"ONESIE_CONFIG_DIR": t.TempDir()})),
+		)
+
+		root.SetOut(&out)
+		root.SetErr(&errOut)
+		root.SetArgs([]string{"-f", path, "--print-request"})
+
+		if code := Execute(t.Context(), root); code != ExitOK {
+			t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, ExitOK, errOut.String())
+		}
+
+		if out.String() != body+"\n" {
+			t.Errorf("printed %s, want %s", out.String(), body)
+		}
+	})
+
 	t.Run("should map the state of every single record source", func(t *testing.T) {
 		t.Parallel()
 

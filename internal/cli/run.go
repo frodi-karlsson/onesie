@@ -23,6 +23,7 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/mock"
 	"github.com/frodi-karlsson/onesie/internal/output"
 	"github.com/frodi-karlsson/onesie/internal/plan"
+	"github.com/frodi-karlsson/onesie/internal/qfile"
 )
 
 func run(
@@ -94,6 +95,10 @@ func run(
 	namer := inv.namer
 	loaded := inv.loaded
 
+	if bodyErr := checkBodyState(cfg, loaded); bodyErr != nil {
+		return bodyErr
+	}
+
 	// Before the output mode, because a question file is not an output mode and -o has no meaning
 	// for it. After validation, because a dry run that accepted a plan the real run would reject
 	// would be worse than useless.
@@ -141,35 +146,9 @@ func run(
 		})
 	}
 
-	resolved, err := input.Resolve(cmd.Context(), input.Query{
-		Mode:         inputMode,
-		Stdin:        settings.stdin,
-		StdinTTY:     settings.stdinTTY,
-		State:        flags.state,
-		HasState:     cfg.HasState,
-		StateFile:    flags.stateFile,
-		HasStateFile: cfg.HasStateFile,
-		ReadFile:     settings.readFile,
-	})
+	resolved, err := resolveState(cmd.Context(), settings, cfg, flags, inputMode, loaded)
 	if err != nil {
 		return err
-	}
-
-	// Resolve reporting no source is exactly the case where stdin, --state and --state-file all
-	// supplied nothing, which is when a body's own state gets its turn.
-	if resolved.Source == input.SourceNone && loaded != nil && loaded.HasState {
-		resolved = input.Resolved{
-			Source: input.SourceBody,
-			State:  loaded.State,
-			Raw:    string(loaded.StateWire),
-			// The ordered bytes the loader kept, rather than a re-marshalled Go map, so the body
-			// reaches the wire in the order it was written.
-			Wire: loaded.StateWire,
-		}
-
-		if checkErr := input.CheckState(resolved.State); checkErr != nil {
-			return fmt.Errorf("onesie: %w", checkErr)
-		}
 	}
 
 	if requests(flags) && resolved.Source == input.SourceNone {
@@ -204,6 +183,64 @@ func run(
 
 	return withStats(cmd, settings.now, flags, func(stats *collector) error {
 		return ask(cmd, settings, built, resolved, sent, outputMode, flags, gate, abstain, stats, answers)
+	})
+}
+
+func checkBodyState(cfg plan.Config, loaded *qfile.File) error {
+	if loaded == nil || !loaded.HasState {
+		return nil
+	}
+
+	var flag string
+
+	switch {
+	case cfg.HasState:
+		flag = "--" + flagState
+	case cfg.HasStateFile:
+		flag = "--" + flagStateFile
+	default:
+		return nil
+	}
+
+	return fmt.Errorf("onesie: %s and the state in %s both give a state. Drop one", flag, cfg.FileName)
+}
+
+func resolveState(
+	ctx context.Context,
+	settings rootSettings,
+	cfg plan.Config,
+	flags *runFlags,
+	mode input.Mode,
+	loaded *qfile.File,
+) (input.Resolved, error) {
+	// Stdin is never read beside a body's state. Whether a pipe holds text cannot be known without
+	// a read that may block, so the body alone decides.
+	if loaded != nil && loaded.HasState {
+		resolved := input.Resolved{
+			Source: input.SourceBody,
+			State:  loaded.State,
+			Raw:    string(loaded.StateWire),
+			// The ordered bytes the loader kept, rather than a re-marshalled Go map, so the body
+			// reaches the wire in the order it was written.
+			Wire: loaded.StateWire,
+		}
+
+		if err := input.CheckState(resolved.State); err != nil {
+			return input.Resolved{}, fmt.Errorf("onesie: %w", err)
+		}
+
+		return resolved, nil
+	}
+
+	return input.Resolve(ctx, input.Query{
+		Mode:         mode,
+		Stdin:        settings.stdin,
+		StdinTTY:     settings.stdinTTY,
+		State:        flags.state,
+		HasState:     cfg.HasState,
+		StateFile:    flags.stateFile,
+		HasStateFile: cfg.HasStateFile,
+		ReadFile:     settings.readFile,
 	})
 }
 
