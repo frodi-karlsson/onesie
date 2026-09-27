@@ -282,6 +282,15 @@ func TestNewRootCmd(t *testing.T) {
 			contains: []string{"--mock string", "ONESIE_MOCK"},
 		},
 		{
+			name:     "should show both mock file shapes in the --mock help",
+			args:     []string{"--help"},
+			wantCode: cli.ExitOK,
+			contains: []string{
+				`an object keyed by question id, as {"answer":0.9,"team":"billing"}, ` +
+					"or one line per record in the shape -o json writes",
+			},
+		},
+		{
 			name:     "should list --mock in the calibrate help",
 			args:     []string{"calibrate", "--help"},
 			wantCode: cli.ExitOK,
