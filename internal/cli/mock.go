@@ -31,15 +31,21 @@ func mockSource(settings rootSettings, flags *runFlags) (path, spelled string) {
 }
 
 func mockAnswers(
-	settings rootSettings, flags *runFlags, path, spelled string, built *plan.Plan,
+	settings rootSettings, flags *runFlags, path, spelled string, built *plan.Plan, known []plan.Question,
 ) (answererFactory, error) {
 	data, err := settings.readFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("onesie: %s: %w", spelled, err)
 	}
 
-	answers, err := mock.Load(bytes.NewReader(data), built.Questions, mock.Options{
+	asked := make([]string, 0, len(built.Questions))
+	for _, question := range built.Questions {
+		asked = append(asked, question.ID)
+	}
+
+	answers, err := mock.Load(bytes.NewReader(data), known, mock.Options{
 		ByID: flags.idSource != "", Spelled: spelled, Timeout: time.Duration(flags.timeout) * time.Second,
+		Asked: asked,
 	})
 	if err != nil {
 		return nil, err

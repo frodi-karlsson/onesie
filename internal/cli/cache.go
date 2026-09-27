@@ -26,10 +26,11 @@ const (
 )
 
 func answersFor(
-	cmd *cobra.Command, settings rootSettings, flags *runFlags, built *plan.Plan, model string,
+	cmd *cobra.Command, settings rootSettings, flags *runFlags, built *plan.Plan, known []plan.Question,
+	model string,
 ) (answererFactory, error) {
 	if path, spelled := mockSource(settings, flags); path != "" {
-		answers, err := mockAnswers(settings, flags, path, spelled, built)
+		answers, err := mockAnswers(settings, flags, path, spelled, built, known)
 		if err != nil {
 			return nil, err
 		}

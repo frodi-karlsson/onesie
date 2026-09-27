@@ -116,7 +116,7 @@ func run(
 	}
 
 	// Loaded before any mode writes, so a file that does not match the questions leaves no line.
-	answers, err := answersFor(cmd, settings, flags, built, model)
+	answers, err := answersFor(cmd, settings, flags, built, built.Questions, model)
 	if err != nil {
 		return err
 	}

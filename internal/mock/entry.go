@@ -47,6 +47,10 @@ func (p parser) entry(fields map[string]any, where string) (*Entry, error) {
 	answers := make(map[string]jev.Answer, len(p.questions))
 
 	for _, question := range p.questions {
+		if p.opts.Asked != nil && !slices.Contains(p.opts.Asked, question.ID) {
+			continue
+		}
+
 		given, found := fields[question.ID]
 		if !found {
 			return nil, fmt.Errorf("%s: the entry has no answer for question '%s'. "+

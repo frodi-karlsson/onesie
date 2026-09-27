@@ -41,6 +41,12 @@ func TestMockAnswers(t *testing.T) {
 		return strings.Join(entries, "\n") + "\n"
 	}
 	shellSafety := filepath.Join("..", "..", "examples", "questions", "shell-safety.yaml")
+	threeFile := writeCalibrateFile(t, t.TempDir(), "three.yaml", threeQuestions)
+	calibrating := func(labels ...string) []string {
+		return append([]string{
+			"calibrate", "-f", threeFile, "-i", "jsonl", "--map", ".body", "--id", ".id", "--cuts", "0.5",
+		}, labels...)
+	}
 	fallback := []string{
 		"--ask", "t=which team", "--pick", "billing,platform", "--min-confidence", "0.5", "--fallback", "billing",
 	}
@@ -350,6 +356,50 @@ func TestMockAnswers(t *testing.T) {
 			wantCode: ExitUsage,
 		},
 		{
+			name:     "should answer calibrate with one label from a mock that answers every question of the file",
+			args:     calibrating("--label", "urgent=.u"),
+			stdin:    threeStdin,
+			mock:     threeMock,
+			contains: []string{"urgent, yes/no: labelled 4, 2 yes, 2 no, 0 failed"},
+			absent:   []string{"team,", "tone,"},
+			stderr:   []string{"onesie: skipping 'team' and 'tone', which have no --label\n"},
+			wantCode: ExitOK,
+		},
+		{
+			name:     "should answer calibrate with two labels from a mock that answers every question of the file",
+			args:     calibrating("--label", "team=.t", "--label", "tone=.r"),
+			stdin:    threeStdin,
+			mock:     threeMock,
+			contains: []string{"team, pick: labelled 4", "tone, rate: labelled 4"},
+			absent:   []string{"urgent,"},
+			wantCode: ExitOK,
+		},
+		{
+			name:     "should answer calibrate with every label from a mock that answers every question of the file",
+			args:     calibrating("--label", "urgent=.u", "--label", "team=.t", "--label", "tone=.r"),
+			stdin:    threeStdin,
+			mock:     threeMock,
+			contains: []string{"urgent, yes/no", "team, pick", "tone, rate"},
+			wantCode: ExitOK,
+		},
+		{
+			name:     "should answer calibrate with one label from a mock that answers only that question",
+			args:     calibrating("--label", "urgent=.u"),
+			stdin:    threeStdin,
+			mock:     lines(`{"id":"a","urgent":0.9}`, `{"id":"b","urgent":0.2}`, `{"id":"c","urgent":0.7}`, `{"id":"d","urgent":0.1}`),
+			contains: []string{"urgent, yes/no: labelled 4"},
+			wantCode: ExitOK,
+		},
+		{
+			name:  "should refuse a calibrate mock that misses the asked question",
+			args:  calibrating("--label", "urgent=.u"),
+			stdin: threeStdin,
+			mock:  lines(`{"id":"a","team":"billing","tone":"calm"}`),
+			stderr: []string{"the entry has no answer for question 'urgent'. " +
+				"Every entry answers every question the run asks"},
+			wantCode: ExitUsage,
+		},
+		{
 			name:     "should allow --print-questions",
 			args:     with("--print-questions"),
 			mock:     mockAll,
@@ -377,6 +427,24 @@ func TestMockAnswers(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("should write only the asked answers to --out from a mock that answers every question", func(t *testing.T) {
+		t.Parallel()
+
+		answers := filepath.Join(t.TempDir(), "answers.jsonl")
+		args := append(calibrating("--label", "urgent=.u"), "--out", answers, "--mock", writeMock(t, threeMock))
+
+		out, errOut, code := runMocked(t, t.Context(), args, threeStdin, nil, nil)
+		if code != ExitOK {
+			t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, out, errOut)
+		}
+
+		for _, line := range answerLines(t, answers) {
+			if !strings.Contains(line, `"urgent":`) || strings.Contains(line, `"team"`) || strings.Contains(line, `"tone"`) {
+				t.Errorf("answers line %s, want the urgent answer alone", line)
+			}
+		}
+	})
 }
 
 func TestMockUncovered(t *testing.T) {

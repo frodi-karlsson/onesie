@@ -26,9 +26,39 @@ func TestLoad(t *testing.T) {
 		byID      bool
 		spelled   string
 		timeout   time.Duration
+		asked     []string
 		lookups   []lookup
 		wantErr   string
 	}{
+		{
+			name:  "should answer only the asked questions from an entry that answers every question",
+			file:  "{" + full + "}\n",
+			asked: []string{"u"},
+			lookups: []lookup{
+				{position: 1, want: map[string]any{"u": 0.9}, absent: []string{"t", "r"}},
+			},
+		},
+		{
+			name:  "should accept an entry that answers only the asked questions",
+			file:  `{"u":0.4}` + "\n",
+			asked: []string{"u"},
+			lookups: []lookup{
+				{position: 1, want: map[string]any{"u": 0.4}, absent: []string{"t", "r"}},
+			},
+		},
+		{
+			name:  "should refuse an entry missing an asked question",
+			file:  `{"t":"billing","r":"curt"}` + "\n",
+			asked: []string{"u"},
+			wantErr: "onesie: --mock: the entry has no answer for question 'u'. " +
+				"Every entry answers every question the run asks",
+		},
+		{
+			name:    "should still refuse a key that names no question",
+			file:    `{"u":0.4,"mood":"calm"}` + "\n",
+			asked:   []string{"u"},
+			wantErr: "onesie: --mock: 'mood' is not a question. Questions: u, t, r",
+		},
 		{
 			name: "should answer every position from one object",
 			file: "{" + full + "}\n",
@@ -291,7 +321,9 @@ func TestLoad(t *testing.T) {
 				asked = questions
 			}
 
-			answers, err := Load(strings.NewReader(tc.file), asked, Options{ByID: tc.byID, Spelled: tc.spelled, Timeout: tc.timeout})
+			answers, err := Load(strings.NewReader(tc.file), asked, Options{
+				ByID: tc.byID, Spelled: tc.spelled, Timeout: tc.timeout, Asked: tc.asked,
+			})
 			if tc.wantErr != "" {
 				if err == nil || err.Error() != tc.wantErr {
 					t.Fatalf("error\n got: %v\nwant: %s", err, tc.wantErr)
@@ -349,6 +381,12 @@ func checkLookup(t *testing.T, answers *Answers, questions []plan.Question, look
 		t.Fatalf("position %d Result: %v", look.position, err)
 	}
 
+	for _, id := range look.absent {
+		if _, held := result.Answers[id]; held {
+			t.Errorf("position %d answers question %s, which the run does not ask", look.position, id)
+		}
+	}
+
 	for _, question := range questions {
 		want, asked := look.want[question.ID]
 		if !asked {
@@ -379,6 +417,7 @@ type lookup struct {
 	sentinel   error
 	status     int
 	message    string
+	absent     []string
 }
 
 func threeQuestions() []plan.Question {

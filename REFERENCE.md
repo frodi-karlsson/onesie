@@ -98,9 +98,11 @@ ONESIE_MOCK=answers.json ./gate.sh
   zero tokens.
 - The `--out` fingerprint names the provider and model `mock`, so a real run refuses to resume a
   mock run's file and the other way round. The mock file's content is not part of it.
-- `calibrate --mock` works, so a calibration can be tested too. `--mock` and `ONESIE_MOCK` are
-  refused beside `--print-request`, `-i request`, `--list-models` and every `auth` subcommand. The
-  flag wins over the variable, and an empty `ONESIE_MOCK` is ignored.
+- `calibrate --mock` works, so a calibration can be tested too. An entry may also answer the
+  questions `calibrate` skips, so one mock file for a whole question file serves any set of labels.
+  `--mock` and `ONESIE_MOCK` are refused beside `--print-request`, `-i request`, `--list-models`
+  and every `auth` subcommand. The flag wins over the variable, and an empty `ONESIE_MOCK` is
+  ignored.
 
 ## Calibrating
 

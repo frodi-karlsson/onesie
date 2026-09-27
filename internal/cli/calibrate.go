@@ -222,10 +222,6 @@ func runCalibrate(
 		return err
 	}
 
-	if refuseErr := refuseUnlabelledBody(settings, flags.file); refuseErr != nil {
-		return refuseErr
-	}
-
 	// A file's gate and policy are ignored, since calibrate reports every cut and a gated file is
 	// the one a user calibrates.
 	inv, warnings, err := build(settings, cfg, events, positional, flags, true)
@@ -249,13 +245,17 @@ func runCalibrate(
 		return err
 	}
 
+	if refuseErr := refuseUnlabelledBody(settings, flags.file, scope.scored); refuseErr != nil {
+		return refuseErr
+	}
+
 	bound, err := resolveRequirements(scope, inv.fileGate, reqs)
 	if err != nil {
 		return err
 	}
 
 	if flags.printRequest {
-		if noteErr := writeSkipped(cmd.ErrOrStderr(), scope.skipped, ""); noteErr != nil {
+		if noteErr := writeSkipped(cmd.ErrOrStderr(), scope.skipped, false, ""); noteErr != nil {
 			return noteErr
 		}
 
@@ -384,7 +384,7 @@ func checkCalibrateInput(cfg plan.Config, inputMode input.Mode) error {
 	}
 }
 
-func refuseUnlabelledBody(settings rootSettings, name string) error {
+func refuseUnlabelledBody(settings rootSettings, name string, scored *plan.Plan) error {
 	if name == "" {
 		return nil
 	}
@@ -400,7 +400,8 @@ func refuseUnlabelledBody(settings rootSettings, name string) error {
 	}
 
 	for _, question := range loaded.Questions {
-		if question.Shape == plan.Rate && !question.Labelled {
+		labelled := slices.ContainsFunc(scored.Questions, func(q plan.Question) bool { return q.ID == question.ID })
+		if labelled && question.Shape == plan.Rate && !question.Labelled {
 			return fmt.Errorf("onesie: question '%s' from a request body has no level names to label with",
 				question.ID)
 		}
@@ -467,7 +468,7 @@ type calibrateScope struct {
 	labels  []questionLabel
 }
 
-func writeSkipped(w io.Writer, skipped []string, keptWhole string) error {
+func writeSkipped(w io.Writer, skipped []string, inReport bool, askedOf string) error {
 	if len(skipped) == 0 {
 		return nil
 	}
@@ -488,9 +489,13 @@ func writeSkipped(w io.Writer, skipped []string, keptWhole string) error {
 	}
 
 	line := fmt.Sprintf("onesie: skipping %s, which %s no --label", names, has)
-	if keptWhole != "" {
+
+	switch {
+	case askedOf != "":
 		line = fmt.Sprintf("onesie: skipping %s in the report, since %s no --label, but asking %s of each "+
-			"record %s lacks, so the file keeps answering every question", names, subject, pronoun, keptWhole)
+			"record %s lacks, so the file keeps answering every question", names, subject, pronoun, askedOf)
+	case inReport:
+		line = fmt.Sprintf("onesie: skipping %s in the report, since %s no --label", names, subject)
 	}
 
 	_, err := fmt.Fprintln(w, line)

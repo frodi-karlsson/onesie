@@ -67,16 +67,7 @@ func calibrateRun(
 		return err
 	}
 
-	keptWhole := ""
-	if len(asked.Questions) > len(scope.scored.Questions) && !calib.offline {
-		keptWhole = flags.out
-	}
-
-	if noteErr := writeSkipped(cmd.ErrOrStderr(), scope.skipped, keptWhole); noteErr != nil {
-		return noteErr
-	}
-
-	answers, err := answersFor(cmd, settings, flags, asked, model)
+	answers, err := answersFor(cmd, settings, flags, asked, scope.full.Questions, model)
 	if err != nil {
 		return err
 	}
@@ -138,6 +129,13 @@ func calibrateAnswers(
 ) error {
 	scored, out := run.scope.scored, run.out
 
+	keptWhole := len(run.asked.Questions) > len(scored.Questions)
+	if !keptWhole {
+		if noteErr := writeSkipped(cmd.ErrOrStderr(), run.scope.skipped, false, ""); noteErr != nil {
+			return noteErr
+		}
+	}
+
 	set, err := readLabelled(cmd.Context(), settings, inputMode, flags, inv.mapper, inv.namer, run.scope.labels)
 	if err != nil {
 		return err
@@ -164,6 +162,17 @@ func calibrateAnswers(
 
 	if calib.offline && len(resumed.pending) > 0 {
 		return unansweredOffline(flags.out, resumed.pending)
+	}
+
+	if keptWhole {
+		askedOf := ""
+		if len(resumed.pending) > 0 {
+			askedOf = flags.out
+		}
+
+		if noteErr := writeSkipped(cmd.ErrOrStderr(), run.scope.skipped, true, askedOf); noteErr != nil {
+			return noteErr
+		}
 	}
 
 	perRecord := len(run.asked.Questions)
