@@ -229,6 +229,10 @@ func runCalibrate(
 		return err
 	}
 
+	if warnErr := warnIgnoredBodyState(cmd.ErrOrStderr(), cfg, inv.loaded); warnErr != nil {
+		return warnErr
+	}
+
 	labels, err := labelsOf(inv.plan, calib.labels)
 	if err != nil {
 		return err

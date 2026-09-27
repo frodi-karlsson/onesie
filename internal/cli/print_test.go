@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"io/fs"
 	"net/http"
@@ -934,6 +935,56 @@ func TestPrintRequest(t *testing.T) {
 
 		if out.String() != body+"\n" {
 			t.Errorf("printed %s, want %s", out.String(), body)
+		}
+	})
+
+	t.Run("should warn once that a stream ignores a body's state", func(t *testing.T) {
+		t.Parallel()
+
+		path := filepath.Join(t.TempDir(), "body.json")
+		if err := os.WriteFile(path, []byte(`{"state":"from the body","questions":`+
+			`{"urgent":{"type":"noul","instructions":"is this urgent"}}}`), 0o600); err != nil {
+			t.Fatalf("writing the body: %v", err)
+		}
+
+		const warning = "warning: ignoring the state in %s, since a stream sends each record as its state\n"
+
+		tests := []struct {
+			name string
+			args []string
+		}{
+			{name: "should warn under -i jsonl", args: []string{"-f", path, "-i", "jsonl", "--print-request"}},
+			{
+				name: "should warn under calibrate",
+				args: []string{
+					"calibrate", "-f", path, "-i", "jsonl", "--map", ".body", "--label", "urgent=.u",
+					"--print-request",
+				},
+			},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				stdin := `{"u":true,"body":"line one"}` + "\n" + `{"u":false,"body":"line two"}` + "\n"
+				if tc.args[0] != "calibrate" {
+					stdin = `"line one"` + "\n" + `"line two"` + "\n"
+				}
+
+				printed, errOut, code := runOfflineStdin(t, tc.args, stdin)
+				if code != ExitOK {
+					t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, ExitOK, errOut)
+				}
+
+				if want := fmt.Sprintf(warning, path); errOut != want {
+					t.Errorf("stderr = %q, want %q", errOut, want)
+				}
+
+				if strings.Contains(printed, "from the body") || !strings.Contains(printed, `"state":"line two"`) {
+					t.Errorf("printed %s, want each record as its state", printed)
+				}
+			})
 		}
 	})
 

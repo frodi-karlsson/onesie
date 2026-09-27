@@ -139,6 +139,10 @@ func run(
 	}
 
 	if inputMode.Streaming() {
+		if warnErr := warnIgnoredBodyState(cmd.ErrOrStderr(), cfg, loaded); warnErr != nil {
+			return warnErr
+		}
+
 		return withStats(cmd, settings.now, flags, func(stats *collector) error {
 			return stream(
 				cmd, settings, built, mapper, namer, inputMode, outputMode, flags, gate, abstain, stats,
@@ -204,6 +208,17 @@ func checkBodyState(cfg plan.Config, loaded *qfile.File) error {
 	}
 
 	return fmt.Errorf("onesie: %s and the state in %s both give a state. Drop one", flag, cfg.FileName)
+}
+
+func warnIgnoredBodyState(w io.Writer, cfg plan.Config, loaded *qfile.File) error {
+	if loaded == nil || !loaded.HasState {
+		return nil
+	}
+
+	_, err := fmt.Fprintf(w,
+		"warning: ignoring the state in %s, since a stream sends each record as its state\n", cfg.FileName)
+
+	return err
 }
 
 func resolveState(

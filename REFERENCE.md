@@ -416,11 +416,13 @@ A consumer that stops reading, as `head` does, is not an error.
   `onesie: waiting for text on stdin. Pass --state, or close stdin.` to stderr once and keeps
   waiting. A stream never prints it, since a slow producer is normal there and `--state` does not
   apply to a stream.
-- `-f` also takes a request body, as `--print-request` writes it. A body that holds a `state` sends
-  that state, and onesie then never reads stdin, since it cannot tell a pipe that holds text from
-  one that is still open without waiting on it. `--state` or `--state-file` beside such a body
-  exits 2, naming both. `-i request` refuses both flags the same way, since each body there holds
-  its own state.
+- `-f` also takes a request body, as `--print-request` writes it. For one record, a body that holds
+  a `state` sends that state, and onesie then never reads stdin, since it cannot tell a pipe that
+  holds text from one that is still open without waiting on it. `--state` or `--state-file` beside
+  such a body exits 2, naming both. `-i request` refuses both flags the same way, since each body
+  there holds its own state. A stream and `calibrate` read their records from stdin as usual and
+  send each one as its state, so they use the body only for its questions, and say on stderr that
+  its state is ignored.
 - `--print-schema` prints the JSON Schema for a question file. `schema/questions.json` in the
   repository is the same file, and `make schema` regenerates it. The first line `--print-questions`
   writes is `# yaml-language-server: $schema=URL`, which an editor running the YAML language server
