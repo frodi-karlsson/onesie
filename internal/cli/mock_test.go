@@ -94,12 +94,14 @@ func TestMockAnswers(t *testing.T) {
 			wantCode: ExitOK,
 		},
 		{
-			name:     "should replay a one line -o json file for its record alone",
-			args:     []string{"is it urgent", "-o", "json", "-i", "jsonl"},
-			stdin:    "\"a\"\n\"b\"\n\"c\"\n",
-			mock:     `{"model":"mock","answer":{"value":0.9}}` + "\n",
-			wantOut:  fileOf(`{"model":"mock","answer":{"value":0.9}}` + "\n"),
-			stderr:   []string{"onesie: --mock has no line 2, so input line 2 has no answer"},
+			name:    "should replay a one line -o json file for its record alone",
+			args:    []string{"is it urgent", "-o", "json", "-i", "jsonl"},
+			stdin:   "\"a\"\n\"b\"\n\"c\"\n",
+			mock:    `{"model":"mock","answer":{"value":0.9}}` + "\n",
+			wantOut: fileOf(`{"model":"mock","answer":{"value":0.9}}` + "\n"),
+			stderr: []string{"onesie: --mock has no line 2, so input line 2 has no answer. The file was read as " +
+				"-o json lines, since its one line carries model. Add a line per record, or drop model to " +
+				"answer every record"},
 			wantCode: ExitUsage,
 		},
 		{
@@ -277,7 +279,7 @@ func TestMockAnswers(t *testing.T) {
 			name:     "should name the id of a record the file does not cover",
 			args:     with("-o", "values", "-i", "jsonl", "--id", ".id"),
 			stdin:    "{\"id\":\"a\"}\n{\"id\":\"b\"}\n",
-			mock:     lines(`{"id":"a",` + mockAll[1:]),
+			mock:     lines(`{"id":"a",`+mockAll[1:], `{"id":"c",`+mockAll[1:]),
 			wantOut:  fileOf(`{"id":"a",` + mockAll[1:] + "\n"),
 			stderr:   []string{"onesie: --mock has no line with id 'b', so input line 2 has no answer. Add one"},
 			wantCode: ExitUsage,

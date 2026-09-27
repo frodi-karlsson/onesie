@@ -1,6 +1,7 @@
 package plan_test
 
 import (
+	"encoding/json"
 	"math"
 	"strconv"
 	"strings"
@@ -77,6 +78,49 @@ func TestValidate(t *testing.T) {
 				{ID: "urgent", Shape: plan.Noul, Instructions: "", Origin: plan.OriginBody},
 			},
 			wantErr: "onesie: question 'urgent' has blank 'instructions', an empty question is one the model cannot answer",
+		},
+		{
+			name: "should reject null instructions in a request body",
+			file: []plan.Question{
+				{ID: "urgent", Shape: plan.Noul, Instructions: nil, Origin: plan.OriginBody},
+			},
+			wantErr: "onesie: question 'urgent' has null 'instructions', an empty question is one the model cannot answer",
+		},
+		{
+			name: "should reject a null ask in a question file",
+			file: []plan.Question{
+				{ID: "urgent", Shape: plan.Noul, Instructions: nil, Origin: plan.OriginFile},
+			},
+			wantErr: "onesie: question 'urgent' has a null 'ask', an empty question is one the model cannot answer",
+		},
+		{
+			name: "should reject number instructions in a request body",
+			file: []plan.Question{
+				{ID: "urgent", Shape: plan.Noul, Instructions: uint64(7), Origin: plan.OriginBody},
+			},
+			wantErr: "onesie: question 'urgent' has 'instructions' that are not text or a mapping, so the " +
+				"model has no question to answer",
+		},
+		{
+			name: "should reject boolean instructions in a request body",
+			file: []plan.Question{
+				{ID: "urgent", Shape: plan.Noul, Instructions: true, Origin: plan.OriginBody},
+			},
+			wantErr: "onesie: question 'urgent' has 'instructions' that are not text or a mapping, so the " +
+				"model has no question to answer",
+		},
+		{
+			name: "should reject empty structured instructions in a request body",
+			file: []plan.Question{
+				{ID: "urgent", Shape: plan.Noul, Instructions: json.RawMessage(`{}`), Origin: plan.OriginBody},
+			},
+			wantErr: "onesie: question 'urgent' has blank 'instructions', an empty question is one the model cannot answer",
+		},
+		{
+			name: "should accept structured instructions in a request body",
+			file: []plan.Question{
+				{ID: "urgent", Shape: plan.Noul, Instructions: json.RawMessage(`{"q":"same person"}`), Origin: plan.OriginBody},
+			},
 		},
 		{
 			name:    "should reject the positional id used explicitly",

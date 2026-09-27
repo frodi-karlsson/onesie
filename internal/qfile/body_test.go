@@ -191,6 +191,17 @@ func TestLoadBody(t *testing.T) {
 			},
 		},
 		{
+			name:    "should reject a body question with no instructions",
+			doc:     `{"questions":{"a":{"type":"noul"}}}`,
+			wantErr: "onesie: question 'a' in a request body has no 'instructions'",
+		},
+		{
+			name: "should say a body question uses instructions rather than ask",
+			doc:  `{"questions":{"a":{"type":"noul","ask":"is it urgent"}}}`,
+			wantErr: "onesie: question 'a' in a request body has 'ask', but a request body names its question " +
+				"'instructions'",
+		},
+		{
 			name:    "should reject an unknown key in a noul criteria",
 			doc:     `{"questions":{"a":{"type":"noul","criteria":{"true":"y","maybe":"m"}}}}`,
 			wantErr: "question 'a' in a request body has an unknown criteria key 'maybe'",
@@ -207,7 +218,7 @@ func TestLoadBody(t *testing.T) {
 		},
 		{
 			name: "should treat a null noul criteria as absent",
-			doc:  `{"questions":{"a":{"type":"noul","criteria":null}}}`,
+			doc:  `{"questions":{"a":{"type":"noul","instructions":"q","criteria":null}}}`,
 			check: func(t *testing.T, f *qfile.File) {
 				t.Helper()
 

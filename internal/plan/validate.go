@@ -1,6 +1,8 @@
 package plan
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -857,12 +859,23 @@ func checkQuestion(q *Question) (string, error) {
 }
 
 func checkBlankQuestion(q *Question) error {
-	text, isText := q.Instructions.(string)
-	if !isText || strings.TrimSpace(text) != "" {
-		return nil
-	}
-
 	const cannot = "an empty question is one the model cannot answer"
+
+	switch text := q.Instructions.(type) {
+	case string:
+		if strings.TrimSpace(text) != "" {
+			return nil
+		}
+	case json.RawMessage:
+		if trimmed := bytes.TrimSpace(text); !bytes.Equal(trimmed, []byte("{}")) && !bytes.Equal(trimmed, []byte("[]")) {
+			return nil
+		}
+	case nil:
+		return fmt.Errorf("onesie: question '%s' has %s, %s", q.ID, nullKey(q.Origin), cannot)
+	default:
+		return fmt.Errorf("onesie: question '%s' has %s, so the model has no question to answer",
+			q.ID, notText(q.Origin))
+	}
 
 	switch q.Origin {
 	case OriginPositional:
@@ -874,6 +887,22 @@ func checkBlankQuestion(q *Question) error {
 	default:
 		return fmt.Errorf("onesie: question '%s' has blank 'instructions', %s", q.ID, cannot)
 	}
+}
+
+func nullKey(origin Origin) string {
+	if origin == OriginBody {
+		return "null 'instructions'"
+	}
+
+	return "a null 'ask'"
+}
+
+func notText(origin Origin) string {
+	if origin == OriginBody {
+		return "'instructions' that are not text or a mapping"
+	}
+
+	return "an 'ask' that is not text or a mapping"
 }
 
 func checkPick(q *Question) (string, error) {

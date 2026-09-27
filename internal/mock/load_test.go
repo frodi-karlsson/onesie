@@ -517,8 +517,27 @@ func TestAnswersMissing(t *testing.T) {
 				"has no answer. Give it answers",
 		},
 		{
-			name: "should name a missing id and the input line",
+			name:     "should name the key that made a one line file a replay",
+			file:     `{"abstain":true,` + full + "}\n",
+			position: 2,
+			line:     2,
+			want: "onesie: --mock has no line 2, so input line 2 has no answer. The file was read as -o json " +
+				"lines, since its one line carries abstain. Add a line per record, or drop abstain to answer " +
+				"every record",
+		},
+		{
+			name: "should name the key that made a one line file a replay under byID",
 			file: `{"id":"a",` + full + "}\n",
+			byID: true,
+			id:   "b",
+			line: 3,
+			want: "onesie: --mock has no line with id 'b', so input line 3 has no answer. The file was read as " +
+				"-o json lines, since its one line carries id. Add a line per record, or drop id to answer " +
+				"every record",
+		},
+		{
+			name: "should name a missing id and the input line",
+			file: `{"id":"a",` + full + "}\n" + `{"id":"c",` + full + "}\n",
 			byID: true,
 			id:   "b",
 			line: 4,

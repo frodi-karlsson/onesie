@@ -74,7 +74,7 @@ func questionSchema() node {
 	return node{
 		Description: "A question, as its instructions alone or as a mapping of its fields.",
 		AnyOf: []any{
-			node{Type: "string"},
+			node{Type: "string", Pattern: `\S`, PatternErrorMessage: "A question needs text, not only spaces."},
 			node{Ref: "#/definitions/fields"},
 		},
 	}
@@ -89,7 +89,15 @@ func fieldsSchema() node {
 		Required:             []string{"ask"},
 		AdditionalProperties: false,
 		Properties: properties{
-			{name: "ask", schema: node{Description: "The instructions sent to the API."}},
+			{name: "ask", schema: node{
+				Description: "The instructions sent to the API, as text or a mapping or sequence of it.",
+				AnyOf: []any{
+					node{Type: "string", Pattern: `\S`, PatternErrorMessage: "A question needs text, not only spaces."},
+					node{Type: "object", MinProperties: new(1)},
+					node{Type: "array", MinItems: new(1)},
+				},
+				ErrorMessage: "A question needs text the model can answer, not a blank, a number or null.",
+			}},
 			{name: "yes_means", schema: node{Description: "What a yes means."}},
 			{name: "no_means", schema: node{Description: "What a no means."}},
 			{name: "true", schema: node{Description: "Another spelling of yes_means."}},

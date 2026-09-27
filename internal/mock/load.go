@@ -40,21 +40,28 @@ func Load(r io.Reader, questions []plan.Question, opts Options) (*Answers, error
 		return nil, errors.New(parse.prefix + ": the file is empty")
 	}
 
-	whole, isObject, err := parse.oneObject(lines)
+	whole, replayKey, err := parse.oneObject(lines)
 	if err != nil {
 		return nil, err
 	}
 
-	if isObject {
-		entry, err := parse.entry(whole, parse.prefix)
-		if err != nil {
-			return nil, err
+	if whole != nil {
+		entry, entryErr := parse.entry(whole, parse.prefix)
+		if entryErr != nil {
+			return nil, entryErr
 		}
 
 		return &Answers{spelled: opts.Spelled, shared: true, every: slot{entry: entry}}, nil
 	}
 
-	return parse.lines(lines)
+	answers, err := parse.lines(lines)
+	if err != nil {
+		return nil, err
+	}
+
+	answers.replayKey = replayKey
+
+	return answers, nil
 }
 
 func (p parser) readLines(r io.Reader) ([][]byte, error) {
@@ -120,24 +127,24 @@ func readLine(reader *bufio.Reader) ([]byte, error) {
 	}
 }
 
-func (p parser) oneObject(lines [][]byte) (map[string]any, bool, error) {
+func (p parser) oneObject(lines [][]byte) (map[string]any, string, error) {
 	fields, isObject := wholeObject(lines)
 	if !isObject {
-		return nil, false, nil
+		return nil, "", nil
 	}
 
 	key, replayed := p.lineLevelKey(fields)
 	if !replayed {
-		return fields, true, nil
+		return fields, "", nil
 	}
 
 	// A lone line that carries what -o json writes is an answers line, so a one line --out file
 	// replays one record rather than answering every record.
 	if len(lines) == 1 {
-		return nil, false, nil
+		return nil, key, nil
 	}
 
-	return nil, false, fmt.Errorf("%s: the file is one object over several lines that carries '%s', "+
+	return nil, "", fmt.Errorf("%s: the file is one object over several lines that carries '%s', "+
 		"which -o json writes on an answers line. Write each answers line on a line of its own, "+
 		"or drop '%s' to answer every record", p.prefix, key, key)
 }
@@ -267,11 +274,21 @@ func (a *Answers) Missing(position int, id any, line int) string {
 		return fmt.Sprintf("%s line %d replays a line onesie could not read, so input line %d has no answer. "+
 			"Give it answers", prefix, found.line, line)
 	case a.byID:
-		return fmt.Sprintf("%s has no line with id '%s', so input line %d has no answer. Add one",
-			prefix, jq.IDText(id), line)
+		return fmt.Sprintf("%s has no line with id '%s', so input line %d has no answer. %s",
+			prefix, jq.IDText(id), line, a.addLine())
 	default:
-		return fmt.Sprintf("%s has no line %d, so input line %d has no answer. Add one", prefix, position, line)
+		return fmt.Sprintf("%s has no line %d, so input line %d has no answer. %s",
+			prefix, position, line, a.addLine())
 	}
+}
+
+func (a *Answers) addLine() string {
+	if a.replayKey == "" {
+		return "Add one"
+	}
+
+	return fmt.Sprintf("The file was read as -o json lines, since its one line carries %s. "+
+		"Add a line per record, or drop %s to answer every record", a.replayKey, a.replayKey)
 }
 
 func (a *Answers) find(position int, id any) (slot, bool) {
@@ -297,6 +314,8 @@ type Answers struct {
 	byID    bool
 	lines   []slot
 	ids     map[string]slot
+
+	replayKey string
 }
 
 type slot struct {

@@ -57,7 +57,9 @@
       "description": "A question, as its instructions alone or as a mapping of its fields.",
       "anyOf": [
         {
-          "type": "string"
+          "type": "string",
+          "pattern": "\\S",
+          "patternErrorMessage": "A question needs text, not only spaces."
         },
         {
           "$ref": "#/definitions/fields"
@@ -71,7 +73,23 @@
       ],
       "properties": {
         "ask": {
-          "description": "The instructions sent to the API."
+          "description": "The instructions sent to the API, as text or a mapping or sequence of it.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "\\S",
+              "patternErrorMessage": "A question needs text, not only spaces."
+            },
+            {
+              "type": "object",
+              "minProperties": 1
+            },
+            {
+              "type": "array",
+              "minItems": 1
+            }
+          ],
+          "errorMessage": "A question needs text the model can answer, not a blank, a number or null."
         },
         "yes_means": {
           "description": "What a yes means."

@@ -96,17 +96,40 @@ func buildBodyQuestion(id string, value any) (plan.Question, error) {
 
 	criteria, hasCriteria := lookup(fields, "criteria")
 
+	var err error
+
 	switch fmt.Sprintf("%v", kind) {
 	case "noul":
-		return buildBodyNoul(question, criteria, hasCriteria)
+		question, err = buildBodyNoul(question, criteria, hasCriteria)
 	case "choice":
-		return buildBodyChoice(question, criteria)
+		question, err = buildBodyChoice(question, criteria)
 	case "score":
-		return buildBodyScore(question, criteria)
+		question, err = buildBodyScore(question, criteria)
 	default:
 		return question, fmt.Errorf(
 			"onesie: question '%s' in a request body has an unknown type '%v'", id, kind)
 	}
+
+	if err != nil {
+		return question, err
+	}
+
+	return question, checkBodyInstructions(id, fields)
+}
+
+func checkBodyInstructions(id string, fields yaml.MapSlice) error {
+	if _, found := lookup(fields, "instructions"); found {
+		return nil
+	}
+
+	// A question file names its question ask, so a body carrying one was written as the wrong
+	// format, and the ask would otherwise be dropped in silence.
+	if _, found := lookup(fields, "ask"); found {
+		return fmt.Errorf("onesie: question '%s' in a request body has 'ask', but a request body "+
+			"names its question 'instructions'", id)
+	}
+
+	return fmt.Errorf("onesie: question '%s' in a request body has no 'instructions'", id)
 }
 
 func buildBodyNoul(question plan.Question, criteria any, present bool) (plan.Question, error) {
