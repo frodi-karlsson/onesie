@@ -386,7 +386,8 @@ onesie auth test                                   # checks the key
 | 130 | interrupted |
 
 calibrate uses 0, 2, 3, 6 and 130, and 1 only under `--require`, when a requirement did not hold.
-A consumer that stops reading, as `head` does, is not an error.
+A consumer that stops reading, as `head` does, is not an error. `onesie --help` lists this
+table, and `onesie calibrate --help` lists the codes calibrate uses.
 
 ## Environment
 

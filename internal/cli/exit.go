@@ -37,6 +37,45 @@ const (
 	ExitInterrupt = 130
 )
 
+var rootExitCodes = []exitCodeLine{
+	{ExitOK, "answered"},
+	{ExitRejected, "a false --assert, or under -q alone the policy did not accept the answer"},
+	{ExitUsage, "usage or validation error, including a missing key"},
+	{ExitAuth, "the key was refused, the account is out of credits, or the credential file is exposed"},
+	{ExitUnavailable, "the server did not answer after retries"},
+	{ExitTransport, "transport error or timeout"},
+	{ExitRecords, "a stream finished with one or more failed records"},
+	{ExitAbstain, "the gate could not decide: the assertion failed and --abstain-if held"},
+	{ExitInterrupt, "interrupted"},
+}
+
+var calibrateExitCodes = []exitCodeLine{
+	{ExitOK, "every record was answered and every --require held"},
+	{ExitRejected, "a --require did not hold"},
+	{ExitUsage, "usage or validation error, including a bad label or record"},
+	{ExitAuth, "the key was refused, the account is out of credits, or the credential file is exposed. " +
+		"No report prints"},
+	{ExitRecords, "the report holds one or more failed records, which wins over 1"},
+	{ExitInterrupt, "interrupted. No report prints"},
+}
+
+func exitCodesSection(codes []exitCodeLine) string {
+	var out strings.Builder
+
+	out.WriteString("Exit codes:\n")
+
+	for _, line := range codes {
+		fmt.Fprintf(&out, "  %-5d%s\n", line.code, line.meaning)
+	}
+
+	return strings.TrimSuffix(out.String(), "\n")
+}
+
+type exitCodeLine struct {
+	code    int
+	meaning string
+}
+
 // Classify maps an error onto its exit code.
 func Classify(err error) int {
 	if err == nil {

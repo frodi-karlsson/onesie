@@ -89,10 +89,7 @@ func newCalibrateCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 			"--offline, with --out and --resume, reads every answer from the file and asks nothing, so it " +
 			"needs no key and never rewrites the file. A record the file does not answer, a missing file " +
 			"or a file whose fingerprint differs exits 2.\n\n" +
-			"Exit 0 means every record was answered and every --require held, 1 a --require that did " +
-			"not hold, 2 a usage error or a bad label or record, 3 a refused api key or an account out " +
-			"of credits, 6 a report with some records failed, which wins over 1, and 130 an interrupt, " +
-			"with no report after 3 or 130.",
+			exitCodesSection(calibrateExitCodes),
 		Example: "  onesie calibrate --ask urgent='is this urgent' -i jsonl --map '.body' \\\n" +
 			"      --label urgent='.is_urgent' --id '.id' --out answers.jsonl --resume < labelled.jsonl\n" +
 			"  onesie calibrate -f triage -i jsonl --map '.body' --label urgent='.is_urgent' --id '.id' \\\n" +

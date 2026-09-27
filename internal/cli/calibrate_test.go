@@ -409,7 +409,7 @@ func TestNewCalibrateCmd(t *testing.T) {
 				"null, no result or an empty string leaves a record unlabelled",
 				`{"id":"T-1","body":"the site is down","is_urgent":true}`,
 				"T-1,the site is down,yes",
-				"3 a refused api key or an account out of credits",
+				"3    the key was refused, the account is out of credits",
 				"the same questions, model, -i, --map and --id, with -o json and no gate or merge",
 				"A question file's assert, abstain_if, threshold, min_confidence and fallback are ignored, " +
 					"since calibrate reports every cut. The same flags are refused.",

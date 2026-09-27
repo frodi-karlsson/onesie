@@ -132,7 +132,8 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 			"request from it. onesie cache reports what it holds, and onesie cache clear empties it.\n\n" +
 			"A question that begins with a dash needs -- before it, with any flags placed " +
 			"first, as in onesie -o json -- '-is this urgent'. So does a one word question close to " +
-			"a subcommand name, since onesie questoins exits 2 with did you mean questions.",
+			"a subcommand name, since onesie questoins exits 2 with did you mean questions.\n\n" +
+			exitCodesSection(rootExitCodes),
 		Version: info.Version,
 		Args:    cobra.MaximumNArgs(1),
 		// Cobra otherwise buries every returned error under the full help text. Execute owns the

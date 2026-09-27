@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -1633,6 +1634,106 @@ func TestNewRootCmd(t *testing.T) {
 			}
 		}
 	})
+
+	t.Run("should list the exit codes REFERENCE lists in the help", func(t *testing.T) {
+		t.Parallel()
+
+		reference := readRepoFile(t, "REFERENCE.md")
+
+		tests := []struct {
+			name  string
+			args  []string
+			codes []string
+		}{
+			{
+				name: "should list every exit code REFERENCE lists in the root help", args: []string{"--help"},
+				codes: referenceExitCodes(t, reference),
+			},
+			{
+				name: "should list every exit code REFERENCE gives calibrate in the calibrate help",
+				args: []string{"calibrate", "--help"}, codes: referenceCalibrateCodes(t, reference),
+			},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				var out bytes.Buffer
+
+				root := cli.NewRootCmd(cli.BuildInfo{Version: "1.2.3"}, cli.WithKeychain(offKeychain{}),
+					cli.WithLookupEnv(func(string) (string, bool) { return "", false }))
+				root.SetOut(&out)
+				root.SetErr(&out)
+				root.SetArgs(tc.args)
+
+				if code := cli.Execute(t.Context(), root); code != cli.ExitOK {
+					t.Fatalf("exit code = %d\n%s", code, out.String())
+				}
+
+				listed := helpExitCodes(out.String())
+				if !slices.Equal(listed, tc.codes) {
+					t.Errorf("help lists exit codes %v, REFERENCE lists %v\n%s", listed, tc.codes, out.String())
+				}
+			})
+		}
+	})
+}
+
+func referenceExitCodes(t *testing.T, reference string) []string {
+	t.Helper()
+
+	var codes []string
+
+	for _, match := range regexp.MustCompile(`(?m)^\| ([0-9]+) \|`).FindAllStringSubmatch(reference, -1) {
+		codes = append(codes, match[1])
+	}
+
+	if len(codes) == 0 {
+		t.Fatal("REFERENCE.md lists no exit codes")
+	}
+
+	return codes
+}
+
+func referenceCalibrateCodes(t *testing.T, reference string) []string {
+	t.Helper()
+
+	sentence := regexp.MustCompile(`calibrate uses ([0-9, and]+), and 1 only under`).FindStringSubmatch(reference)
+	if sentence == nil {
+		t.Fatal("REFERENCE.md does not say which exit codes calibrate uses")
+	}
+
+	codes := regexp.MustCompile(`[0-9]+`).FindAllString(sentence[1], -1)
+	codes = append(codes, "1")
+	slices.SortFunc(codes, func(a, b string) int {
+		x, _ := strconv.Atoi(a)
+		y, _ := strconv.Atoi(b)
+
+		return x - y
+	})
+
+	return codes
+}
+
+func helpExitCodes(help string) []string {
+	_, section, found := strings.Cut(help, "Exit codes:\n")
+	if !found {
+		return nil
+	}
+
+	var codes []string
+
+	for _, line := range strings.Split(section, "\n") {
+		match := regexp.MustCompile(`^  ([0-9]+) {2,}\S`).FindStringSubmatch(line)
+		if match == nil {
+			break
+		}
+
+		codes = append(codes, match[1])
+	}
+
+	return codes
 }
 
 func TestDefaultClientFactory(t *testing.T) {
