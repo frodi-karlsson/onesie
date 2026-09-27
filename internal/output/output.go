@@ -109,7 +109,9 @@ func (m Mode) String() string {
 // Record is one input's worth of output, with the answers in question order.
 type Record struct {
 	// ID names the record under --id, as a string or a json.Number. Nil leaves the id out.
-	ID      any
+	ID any
+	// Line is the input line number under -i lines, counting from one. Zero leaves it out.
+	Line    int
 	Model   string
 	Usage   *jev.Usage
 	Answers []Named

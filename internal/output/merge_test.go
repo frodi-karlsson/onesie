@@ -40,6 +40,20 @@ func TestWriteMerged(t *testing.T) {
 				`"urgent":{"value":0.92}}}`,
 		},
 		{
+			name:  "should put the line number in the answers a text line wraps",
+			mode:  output.JSON,
+			raw:   "the site is down",
+			state: "the site is down",
+			key:   "answers",
+			rec: output.Record{
+				Line:    4,
+				Model:   simple.Model,
+				Answers: simple.Answers,
+			},
+			want: `{"state":"the site is down","answers":{"line":4,"model":"onesie-1.13.0",` +
+				`"urgent":{"value":0.92}}}`,
+		},
+		{
 			name:  "should add no id, since the input carries its own",
 			mode:  output.Values,
 			raw:   `{"id":7,"body":"hello"}`,

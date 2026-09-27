@@ -35,6 +35,10 @@ func TestResumeLedger(t *testing.T) {
 	byPosition := printed("jsonl", "", "values", "")
 	byItself := printed("jsonl", ".", "values", "answers")
 	byItselfInLines := printed("lines", ".", "values", "answers")
+	byPositionInLines := printed("lines", "", "values", "")
+	byPositionInLinesSkippingBlanks := fingerprintWith(t, plan.Source{Positional: "is this urgent"}, fingerprintInputs{
+		provider: "typesafe", model: jev.DefaultModel, output: "values", input: "lines", skipBlank: true,
+	})
 	byStateKey := printed("jsonl", ".state", "values", "answers")
 	byIDInTSV := printed("jsonl", ".id", "tsv", "")
 	byIDInCSV := printed("jsonl", ".id", "csv", "")
@@ -409,13 +413,25 @@ func TestResumeLedger(t *testing.T) {
 		},
 		{
 			name:     "should resume merged -i lines output by running --id on the wrapper's state",
+			existing: fileOf("{\"state\":\"a\",\"answers\":{\"line\":1,\"answer\":0.5}}\n"),
+			sidecar:  byItselfInLines,
+			stdin:    "a\nb\n",
+			runs: []resumeRun{{
+				args: []string{"-i", "lines", "-o", "values", "--merge", "--id", ".", "--resume"},
+				wantFile: "{\"state\":\"a\",\"answers\":{\"line\":1,\"answer\":0.5}}\n" +
+					"{\"state\":\"b\",\"answers\":{\"line\":2,\"answer\":0.5}}\n",
+				wantSent: []string{`"b"`},
+			}},
+		},
+		{
+			name:     "should resume a merged file an older onesie wrote without line numbers",
 			existing: fileOf("{\"state\":\"a\",\"answers\":{\"answer\":0.5}}\n"),
 			sidecar:  byItselfInLines,
 			stdin:    "a\nb\n",
 			runs: []resumeRun{{
 				args: []string{"-i", "lines", "-o", "values", "--merge", "--id", ".", "--resume"},
 				wantFile: "{\"state\":\"a\",\"answers\":{\"answer\":0.5}}\n" +
-					"{\"state\":\"b\",\"answers\":{\"answer\":0.5}}\n",
+					"{\"state\":\"b\",\"answers\":{\"line\":2,\"answer\":0.5}}\n",
 				wantSent: []string{`"b"`},
 			}},
 		},
@@ -758,6 +774,28 @@ func TestResumeLedger(t *testing.T) {
 					wantStderr: "onesie: 400 bad key",
 				},
 			},
+		},
+		{
+			name:     "should number the lines a resume by position asks by their input line",
+			existing: fileOf("{\"line\":1,\"answer\":0.5}\n"),
+			sidecar:  byPositionInLines,
+			stdin:    "a\nb\n",
+			runs: []resumeRun{{
+				args:     []string{"-i", "lines", "-o", "values", "--resume"},
+				wantFile: "{\"line\":1,\"answer\":0.5}\n{\"line\":2,\"answer\":0.5}\n",
+				wantSent: []string{`"b"`},
+			}},
+		},
+		{
+			name:     "should count the blank lines --skip-blank drops in a resume by position",
+			existing: fileOf("{\"line\":1,\"answer\":0.5}\n"),
+			sidecar:  byPositionInLinesSkippingBlanks,
+			stdin:    "a\n\n\nd\n",
+			runs: []resumeRun{{
+				args:     []string{"-i", "lines", "-o", "values", "--skip-blank", "--resume"},
+				wantFile: "{\"line\":1,\"answer\":0.5}\n{\"line\":4,\"answer\":0.5}\n",
+				wantSent: []string{`"d"`},
+			}},
 		},
 		{
 			name:     "should still resume by position without --id",

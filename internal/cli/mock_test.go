@@ -185,11 +185,12 @@ func TestMockAnswers(t *testing.T) {
 			wantCode: ExitAbstain,
 		},
 		{
-			name:     "should report zero usage on every line",
-			args:     with("-o", "json", "-i", "lines", "--usage"),
-			stdin:    "a\nb\n",
-			mock:     mockAll,
-			wantOut:  fileOf(lines(`{"model":"mock","usage":`+mockUsage+`,`+mockAllJSON+`}`, `{"model":"mock","usage":`+mockUsage+`,`+mockAllJSON+`}`)),
+			name:  "should report zero usage on every line",
+			args:  with("-o", "json", "-i", "lines", "--usage"),
+			stdin: "a\nb\n",
+			mock:  mockAll,
+			wantOut: fileOf(lines(`{"line":1,"model":"mock","usage":`+mockUsage+`,`+mockAllJSON+`}`,
+				`{"line":2,"model":"mock","usage":`+mockUsage+`,`+mockAllJSON+`}`)),
 			wantCode: ExitOK,
 		},
 		{
@@ -234,7 +235,7 @@ func TestMockAnswers(t *testing.T) {
 			args:     with("-o", "values", "-i", "lines"),
 			stdin:    "a\nb\nc\n",
 			mock:     lines(mockAll, `{"error":503}`, mockAll),
-			contains: []string{mockAll, `"error":{"kind":"http","status":503`},
+			contains: []string{`{"line":1,` + mockAll[1:], `{"line":2,"error":{"kind":"http","status":503`},
 			wantCode: ExitRecords,
 		},
 		{
@@ -250,7 +251,7 @@ func TestMockAnswers(t *testing.T) {
 			args:    with("-o", "values", "-i", "lines", "--skip-blank"),
 			stdin:   "a\n\nb\nc\n",
 			mock:    lines(mockAll, mockUnread),
-			wantOut: fileOf(mockAll + "\n"),
+			wantOut: fileOf(`{"line":1,` + mockAll[1:] + "\n"),
 			stderr: []string{"onesie: --mock line 2 replays a line onesie could not read, so input line 3 " +
 				"has no answer. Give it answers"},
 			wantCode: ExitUsage,
@@ -269,7 +270,7 @@ func TestMockAnswers(t *testing.T) {
 			args:     with("-o", "values", "-i", "lines", "-j", "4"),
 			stdin:    "a\nb\nc\nd\ne\nf\ng\nh\n",
 			mock:     lines(mockAll, mockAll, mockUnread, mockAll, mockAll, mockAll, mockAll, mockAll),
-			wantOut:  fileOf(lines(mockAll, mockAll)),
+			wantOut:  fileOf(lines(`{"line":1,`+mockAll[1:], `{"line":2,`+mockAll[1:])),
 			stderr:   []string{"line 3"},
 			wantCode: ExitUsage,
 		},
@@ -381,8 +382,8 @@ func TestMockAnswers(t *testing.T) {
 func TestMockUncovered(t *testing.T) {
 	t.Parallel()
 
-	eight := "a\nb\nc\nd\ne\nf\ng\nh\n"
-	values := []string{"is it urgent", "-o", "values", "-i", "lines", "-j", "4"}
+	eight := "\"a\"\n\"b\"\n\"c\"\n\"d\"\n\"e\"\n\"f\"\n\"g\"\n\"h\"\n"
+	values := []string{"is it urgent", "-o", "values", "-i", "jsonl", "-j", "4"}
 	yes := `{"answer":0.9}`
 	answers := strings.Join([]string{yes, yes, mockUnread, yes, yes, yes, yes, yes}, "\n") + "\n"
 

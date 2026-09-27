@@ -250,6 +250,22 @@ func TestNewRootCmd(t *testing.T) {
 			absent:   []string{"flags go before"},
 		},
 		{
+			name:     "should refuse a question id line under -i lines",
+			args:     []string{"--ask", "line=is this urgent", "-i", "lines"},
+			stdin:    "first\n",
+			wantCode: cli.ExitUsage,
+			contains: []string{
+				"onesie: question id 'line' is reserved under -i lines, which writes the input line number as line",
+			},
+		},
+		{
+			name:     "should accept a question id line under -i jsonl",
+			args:     []string{"--ask", "line=is this urgent", "-i", "jsonl", "--print-request"},
+			stdin:    "\"first\"\n",
+			wantCode: cli.ExitOK,
+			contains: []string{`"line":{"type":"noul"`},
+		},
+		{
 			name:     "should refuse an unknown help topic",
 			args:     []string{"help", "foo"},
 			wantCode: cli.ExitUsage,

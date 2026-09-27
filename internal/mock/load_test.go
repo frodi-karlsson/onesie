@@ -110,6 +110,14 @@ func TestLoad(t *testing.T) {
 			},
 		},
 		{
+			name: "should ignore the line number an -i lines run writes",
+			file: `{"line":1,"u":0.9,"t":"platform","r":"rude"}` + "\n" + `{"line":3,"u":0.2,"t":"platform","r":"rude"}` + "\n",
+			lookups: []lookup{
+				{position: 1, want: map[string]any{"u": 0.9}},
+				{position: 2, want: map[string]any{"u": 0.2}},
+			},
+		},
+		{
 			name:      "should take a rate answer as a number whose text is a level",
 			file:      `{"n":4}`,
 			questions: []plan.Question{rateQuestion("n", "1", "2", "3", "4", "5")},

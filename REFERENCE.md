@@ -71,9 +71,9 @@ ONESIE_MOCK=answers.json ./gate.sh
   name, or an object with `value` and an optional `confidence`, which defaults to 1. A number whose
   text is a name is that name, so `4` rates `--rate 1,2,3,4,5`. A rate question from a request body
   takes its level index.
-- The other keys `-o json` writes are accepted. A line's `model`, `usage`, `assert` and `abstain`
-  are ignored, since the gate runs again. Inside an answer, `decision`, `fallback` and `legend` are
-  ignored. A rate's `score` and `norm` are replayed, and so is a pick or rate's `p`, whose keys must
+- The other keys `-o json` writes are accepted. A line's `model`, `usage`, `line`, `assert` and
+  `abstain` are ignored, since the gate runs again. Inside an answer, `decision`, `fallback` and
+  `legend` are ignored. A rate's `score` and `norm` are replayed, and so is a pick or rate's `p`, whose keys must
   be exactly the options or levels, whose values lie between 0 and 1, and whose most likely entry is
   the value. So a replay prints what the real run printed, and a gate that reads `p` decides the
   same way.
@@ -209,6 +209,14 @@ onesie calibrate -f shell-safety -i jsonl --map .command --id .id \
   exits 2. In a stream each is an error line and the run goes on. `--skip-blank` drops blank lines,
   but a `{}`, `[]` or `""` line stays an error line. Under `-i request` a body is forwarded as it
   is, so its state is not checked.
+- Under `-i lines`, each `-o json` and `-o values` line carries `line`, the record's input line
+  number from 1. A blank line `--skip-blank` drops still counts, so the numbers match the file. Under
+  `--merge` it sits in the answers object, beside `model`. `-o csv`, `-o tsv`, `-o markdown` and raw
+  output leave it out, and `line` is a reserved question id under `-i lines`.
+- `line` leaves the `--out` fingerprint as it was, since a resume reads no line number. So a file an
+  older onesie wrote still resumes, and only the lines this run adds carry `line`. A resume with
+  `--id` keeps each stored line as written, so a skipped record keeps the line number it was answered
+  at, as it keeps its answer.
 - `--id` names each record on every output line. It runs one record at a time, so keep it a cheap
   lookup. Ids match by their text, so `7`, `7.0` and `"7"` are one id in jsonl.
 - `--out` writes to a file with a fingerprint beside it, and a lock so two runs cannot share it. The

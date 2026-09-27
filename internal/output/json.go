@@ -3,6 +3,7 @@ package output
 import (
 	"encoding/json"
 	"io"
+	"strconv"
 
 	"github.com/frodi-karlsson/onesie/internal/answer"
 )
@@ -47,6 +48,7 @@ func jsonBytes(rec Record) ([]byte, error) {
 		return nil, err
 	}
 
+	buf = appendLine(buf, rec.Line)
 	buf = appendFailure(buf, rec.Failure)
 	buf = appendAssert(buf, rec.AssertFailed)
 	buf = appendAbstain(buf, rec.Abstained)
@@ -101,6 +103,7 @@ func valuesBytes(rec Record) ([]byte, error) {
 		return nil, err
 	}
 
+	buf = appendLine(buf, rec.Line)
 	buf = appendFailure(buf, rec.Failure)
 	buf = appendAssert(buf, rec.AssertFailed)
 	buf = appendAbstain(buf, rec.Abstained)
@@ -140,6 +143,14 @@ func appendID(buf []byte, id any) ([]byte, error) {
 	}
 
 	return append(appendKey(buf, "id"), encoded...), nil
+}
+
+func appendLine(buf []byte, line int) []byte {
+	if line == 0 {
+		return buf
+	}
+
+	return strconv.AppendInt(appendKey(buf, "line"), int64(line), 10)
 }
 
 func appendFailure(buf []byte, failure *Failure) []byte {

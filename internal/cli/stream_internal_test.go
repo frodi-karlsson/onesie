@@ -530,6 +530,7 @@ func TestStream(t *testing.T) {
 
 		values := []string{"is it urgent", "-o", "values", "-i", "lines", "--stats"}
 		low, high := `{"answer":0.1}`, `{"answer":0.8}`
+		lowAt1, lowAt2, highAt2 := `{"line":1,"answer":0.1}`, `{"line":2,"answer":0.1}`, `{"line":2,"answer":0.8}`
 
 		tests := []struct {
 			name     string
@@ -541,19 +542,19 @@ func TestStream(t *testing.T) {
 		}{
 			{
 				name: "should give identical records their own different answers", jobs: "1",
-				mock: low + "\n" + high + "\n", wantOut: low + "\n" + high + "\n", stderr: "2 requests",
+				mock: low + "\n" + high + "\n", wantOut: lowAt1 + "\n" + highAt2 + "\n", stderr: "2 requests",
 			},
 			{
 				name: "should ask identical records with identical answers once", jobs: "1",
-				mock: low + "\n" + low + "\n", wantOut: low + "\n" + low + "\n", stderr: "2 records, 1 deduplicated, 1 request",
+				mock: low + "\n" + low + "\n", wantOut: lowAt1 + "\n" + lowAt2 + "\n", stderr: "2 records, 1 deduplicated, 1 request",
 			},
 			{
 				name: "should never share a covered record's answer with an uncovered one", jobs: "1",
-				mock: low + "\n" + mockUnread + "\n", wantCode: ExitUsage, wantOut: low + "\n", stderr: "input line 2",
+				mock: low + "\n" + mockUnread + "\n", wantCode: ExitUsage, wantOut: lowAt1 + "\n", stderr: "input line 2",
 			},
 			{
 				name: "should never share a covered record's answer with an uncovered one under -j 2", jobs: "2",
-				mock: low + "\n" + mockUnread + "\n", wantCode: ExitUsage, wantOut: low + "\n", stderr: "input line 2",
+				mock: low + "\n" + mockUnread + "\n", wantCode: ExitUsage, wantOut: lowAt1 + "\n", stderr: "input line 2",
 			},
 		}
 

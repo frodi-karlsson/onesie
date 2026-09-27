@@ -68,6 +68,15 @@ func TestWrite(t *testing.T) {
 	numbered := failed
 	numbered.ID = json.Number("7")
 
+	lined := simple
+	lined.Line = 3
+
+	namedLine := named
+	namedLine.Line = 3
+
+	failedLine := failed
+	failedLine.Line = 2
+
 	tests := []struct {
 		name string
 		mode output.Mode
@@ -87,6 +96,38 @@ func TestWrite(t *testing.T) {
 			want: `{"id":7,"error":{"kind":"http","status":429,` +
 				`"message":"rate limited after 2 retries"},` +
 				`"team":{"fallback":"error","decision":"refuse"}}`,
+		},
+		{
+			name: "should write the input line number in json output",
+			mode: output.JSON,
+			rec:  lined,
+			want: `{"line":3,"model":"onesie-1.13.0","urgent":{"value":0.92}}`,
+		},
+		{
+			name: "should write the line number after the id",
+			mode: output.JSON,
+			rec:  namedLine,
+			want: `{"id":"T-7","line":3,"model":"onesie-1.13.0","urgent":{"value":0.92}}`,
+		},
+		{
+			name: "should write the line number ahead of the error key",
+			mode: output.JSON,
+			rec:  failedLine,
+			want: `{"line":2,"error":{"kind":"http","status":429,` +
+				`"message":"rate limited after 2 retries"},` +
+				`"team":{"fallback":"error","decision":"refuse"}}`,
+		},
+		{
+			name: "should write the input line number in values output",
+			mode: output.Values,
+			rec:  lined,
+			want: `{"line":3,"urgent":0.92}`,
+		},
+		{
+			name: "should leave the line number out of csv output",
+			mode: output.CSV,
+			rec:  lined,
+			want: "urgent,error\n0.92,",
 		},
 		{
 			name: "should write the id first in values output",

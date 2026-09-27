@@ -538,6 +538,10 @@ func stream(
 			l, evalErr := evaluateOne(ctx, rec)
 			l.slot = rec.slot
 
+			if inputMode == input.Lines {
+				l.record.Line = rec.Line
+			}
+
 			return l, evalErr
 		},
 		Write: func(l line) error {

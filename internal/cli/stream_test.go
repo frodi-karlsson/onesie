@@ -50,6 +50,55 @@ func TestStream(t *testing.T) {
 			contains:  []string{`"answer":{"value":0.9}`},
 		},
 		{
+			name:      "should number each record by its input line under -i lines",
+			args:      []string{"is this urgent", "-i", "lines"},
+			stdin:     "first\n\nthird\n",
+			response:  answered,
+			wantCode:  cli.ExitRecords,
+			wantLines: 3,
+			contains: []string{
+				`{"line":1,"model":"onesie-1.13.0","answer":{"value":0.9}}`,
+				`{"line":2,"error":{"kind":"input"`,
+				`{"line":3,"model":"onesie-1.13.0","answer":{"value":0.9}}`,
+			},
+		},
+		{
+			name:      "should count the blank lines --skip-blank drops",
+			args:      []string{"is this urgent", "-i", "lines", "--skip-blank", "-o", "values"},
+			stdin:     "first\n\n\nfourth\n",
+			response:  answered,
+			wantCode:  cli.ExitOK,
+			wantLines: 2,
+			contains:  []string{`{"line":1,"answer":0.9}`, `{"line":4,"answer":0.9}`},
+		},
+		{
+			name:      "should put the line number after the id",
+			args:      []string{"is this urgent", "-i", "lines", "--id", `split(" ")[0]`},
+			stdin:     "T-1 first\nT-2 second\n",
+			response:  answered,
+			wantCode:  cli.ExitOK,
+			wantLines: 2,
+			contains:  []string{`{"id":"T-2","line":2,"model"`},
+		},
+		{
+			name:      "should put the line number in the merged answers",
+			args:      []string{"is this urgent", "-i", "lines", "--merge"},
+			stdin:     "first\n",
+			response:  answered,
+			wantCode:  cli.ExitOK,
+			wantLines: 1,
+			contains:  []string{`{"state":"first","answers":{"line":1,"model"`},
+		},
+		{
+			name:      "should write no line number under -i jsonl",
+			args:      []string{"is this urgent", "-i", "jsonl"},
+			stdin:     "\"first\"\n",
+			response:  answered,
+			wantCode:  cli.ExitOK,
+			wantLines: 1,
+			contains:  []string{`{"model":"onesie-1.13.0","answer":{"value":0.9}}`},
+		},
+		{
 			name:      "should write nothing for an empty stream",
 			args:      []string{"is this urgent", "-i", "lines"},
 			stdin:     "",
@@ -453,7 +502,7 @@ func TestStream(t *testing.T) {
 				stdin:     "cold\nhot\ncold\n",
 				wantCode:  cli.ExitAbstain,
 				wantLines: 3,
-				contains:  []string{`{"abstain":true,"model":"onesie-1.13.0","answer":{"value":0.9}}`},
+				contains:  []string{`{"line":2,"abstain":true,"model":"onesie-1.13.0","answer":{"value":0.9}}`},
 				wantErr:   "3 requests, 1 abstain, 3 questions",
 			},
 			{
@@ -465,7 +514,7 @@ func TestStream(t *testing.T) {
 				stdin:     "hot\ncold\nhot\n",
 				wantCode:  cli.ExitAbstain,
 				wantLines: 3,
-				contains:  []string{`{"abstain":true,"model":"onesie-1.13.0","answer":{"value":0.9}}`},
+				contains:  []string{`{"line":3,"abstain":true,"model":"onesie-1.13.0","answer":{"value":0.9}}`},
 				wantErr:   "3 records, 1 deduplicated, 2 abstains, 2 requests, 2 questions",
 			},
 			{
@@ -655,7 +704,7 @@ func TestStream(t *testing.T) {
 				args:     []string{"x", "-i", "lines", "--map", "ascii_upcase", "--merge", "-o", "values"},
 				stdin:    "the site is down\n",
 				wantWire: `"THE SITE IS DOWN"`,
-				wantOut:  `{"state":"the site is down","answers":{"answer":0.9}}`,
+				wantOut:  `{"state":"the site is down","answers":{"line":1,"answer":0.9}}`,
 			},
 		}
 
@@ -806,11 +855,13 @@ func TestStream(t *testing.T) {
 					`"message":"line 1: --map: state must be a string, object or array, got null"}}`,
 			},
 			{
-				name:         "should find a duplicate in input order whatever finishes first",
-				args:         []string{"x", "-i", "lines", "--id", ".", "-o", "values", "-j", "4"},
-				stdin:        "a\nb\na\nc\n",
-				wantCode:     cli.ExitRecords,
-				wantOut:      `{"id":"a","answer":0.9}` + "\n" + `{"id":"b","answer":0.9}` + "\n" + `{"error":{"kind":"input","status":null,"message":"line 3: --id: 'a' is also the id of line 1"}}` + "\n" + `{"id":"c","answer":0.9}`,
+				name:     "should find a duplicate in input order whatever finishes first",
+				args:     []string{"x", "-i", "lines", "--id", ".", "-o", "values", "-j", "4"},
+				stdin:    "a\nb\na\nc\n",
+				wantCode: cli.ExitRecords,
+				wantOut: `{"id":"a","line":1,"answer":0.9}` + "\n" + `{"id":"b","line":2,"answer":0.9}` + "\n" +
+					`{"line":3,"error":{"kind":"input","status":null,"message":"line 3: --id: 'a' is also the id of line 1"}}` +
+					"\n" + `{"id":"c","line":4,"answer":0.9}`,
 				wantRequests: 3,
 			},
 			{

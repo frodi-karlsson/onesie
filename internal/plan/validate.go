@@ -56,6 +56,10 @@ func Validate(p *Plan, cfg Config) ([]string, error) {
 		return warnings, err
 	}
 
+	if err := checkLineField(p, cfg); err != nil {
+		return warnings, err
+	}
+
 	for i := range p.Questions {
 		hint, err := checkQuestion(&p.Questions[i])
 		if err != nil {
@@ -787,6 +791,24 @@ func checkFallbackColumns(p *Plan, cfg Config) error {
 
 	return nil
 }
+
+func checkLineField(p *Plan, cfg Config) error {
+	if cfg.InputName != "lines" {
+		return nil
+	}
+
+	for _, question := range p.Questions {
+		if question.ID == LineField {
+			return fmt.Errorf("onesie: question id '%s' is reserved under -i lines, "+
+				"which writes the input line number as %s", LineField, LineField)
+		}
+	}
+
+	return nil
+}
+
+// LineField is the key each -i lines record carries its input line number under.
+const LineField = "line"
 
 // FallbackColumn names the csv and tsv column that says whether a question's fallback was used.
 func FallbackColumn(id string) string {
