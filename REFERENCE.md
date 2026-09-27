@@ -15,6 +15,9 @@ prints the built in limits.
   the committed rate answers it is about 1 when `p` sits on one level, never above the top
   probability, and lower as the rest spreads to other levels, most of all to far ones.
   `--min-confidence` cuts on it. A yes or no answer carries no confidence.
+- A rate answer also carries `score` and `norm`. `score` is the level index averaged over `p`, with
+  0 for the lowest level, so it can land between levels. `norm` is `score` over the top index, from
+  0 to 1, so `2.02` on four levels is a `norm` of `0.67`.
 - A question that is one bare word within one edit of a subcommand name of up to 5 letters, or two
   edits of a longer one, exits 2 with `did you mean`, as `onesie questoins` does. A swap of two
   neighbouring letters is one edit, and case is ignored. A word after `--` is asked, as in
@@ -110,6 +113,9 @@ accepts as a label.
   settings typed as flags exit 2.
 - A pick or rate label matches an option or level by its text. A csv or tsv cell is text, so `4.0`
   does not match `--rate 1,2,3,4,5`, while a jsonl `4.0` is a number and does.
+- A pick or rate table has a row per name. `found` is the share of the records labelled with that
+  name that were picked as it, and `right when picked` the share of the records picked as it that
+  carry it as their label. Each shows the count, the share and its 95 percent interval.
 - `--resume` needs `--id`. A resumed `-o json` report differs from the fresh run's only in `asked`
   and `stored`.
 - The answers file is `-o json` lines. A plain stream run can resume it, given the same questions,
@@ -262,7 +268,7 @@ onesie calibrate -f shell-safety -i jsonl --map .command --id .id \
 ```sh
 onesie --cache -f shell-safety --state 'rm -rf /'
 ONESIE_CACHE=1 ./gate.sh   # every run in the script reads and fills the cache
-onesie cache               # 212 entries, 40 of them for an alias, 1.4 MB in /Users/me/Library/Caches/onesie
+onesie cache               # 212 entries, 40 of them expiring since their model is an alias, 1.4 MB in DIR
 onesie cache clear
 ```
 
@@ -323,8 +329,8 @@ again.
   line in `--out` carries zero usage like any other hit. The fingerprint leaves `--cache` out, so a
   file written with the cache resumes without it, and the other way round. `calibrate --cache`
   works too.
-- `onesie cache` prints how many entries the cache holds, how many of them are for an alias, their
-  size and the directory, or `0 entries in DIR` when there is none. It creates nothing, and names a
+- `onesie cache` prints how many entries the cache holds, how many of them expire since their model
+  is an alias, their size and the directory, or `0 entries in DIR` when there is none. It creates nothing, and names a
   directory others can reach on stderr. `onesie cache clear` removes every entry, keeps the directory
   and its `CACHEDIR.TAG`, and prints how many it removed. It refuses a directory with no
   `CACHEDIR.TAG` with exit 2, so a mistyped `ONESIE_CACHE_DIR` never empties a directory onesie did

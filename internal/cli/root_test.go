@@ -282,6 +282,18 @@ func TestNewRootCmd(t *testing.T) {
 			contains: []string{"--mock string", "ONESIE_MOCK"},
 		},
 		{
+			name:     "should explain a rate's score and norm in the --rate help",
+			args:     []string{"--help"},
+			wantCode: cli.ExitOK,
+			contains: []string{"score is the level index averaged over p, from 0, and norm is score over the top index"},
+		},
+		{
+			name:     "should say which cache entries expire in the cache help",
+			args:     []string{"cache", "--help"},
+			wantCode: cli.ExitOK,
+			contains: []string{"how many of them expire since their model is an alias"},
+		},
+		{
 			name:     "should show both mock file shapes in the --mock help",
 			args:     []string{"--help"},
 			wantCode: cli.ExitOK,

@@ -74,6 +74,9 @@ func newCalibrateCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 			"A yes/no cut row flags a record when its value is at least the cut, so the cut goes into " +
 			"a gate as written. A question file's assert, abstain_if, threshold, min_confidence and " +
 			"fallback are ignored, since calibrate reports every cut. The same flags are refused.\n\n" +
+			"A pick or rate table has a row per name. found is the share of the records labelled with a " +
+			"name that were picked as it, and right when picked the share of the records picked as a name " +
+			"that carry it as their label.\n\n" +
 			"--out keeps the answers as -o json lines, and --resume, which needs --id, asks only the " +
 			"records the file does not answer. Changing a label or --cuts reuses every stored answer. " +
 			"A plain stream run can resume the file too, given the same questions, model, -i, --map " +

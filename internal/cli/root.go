@@ -50,9 +50,10 @@ const (
 )
 
 var groupFlagHelp = map[string]string{
-	"ask":            "NAME=QUESTION, repeatable, opens a question group",
-	"pick":           "comma separated options, making this a choice question",
-	"rate":           "comma separated levels in ascending order, making this a score question",
+	"ask":  "NAME=QUESTION, repeatable, opens a question group",
+	"pick": "comma separated options, making this a choice question",
+	"rate": "comma separated levels in ascending order, making this a score question. Its score is the " +
+		"level index averaged over p, from 0, and norm is score over the top index, from 0 to 1",
 	"desc":           "KEY=TEXT, describing one option, level, yes or no",
 	"sep":            "separator for --pick and --rate that follow it",
 	"threshold":      "yes/no only, cut the probability at this value",

@@ -53,7 +53,7 @@ func TestNewCacheCmd(t *testing.T) {
 		fill(t, env)
 
 		out, errOut, code := runCached(t, env, []string{"cache"}, "")
-		want := regexp.MustCompile(`^3 entries, 1 of them for an alias, [0-9.]+ (B|KB|MB) in ` +
+		want := regexp.MustCompile(`^3 entries, 1 of them expiring since their model is an alias, [0-9.]+ (B|KB|MB) in ` +
 			regexp.QuoteMeta(env["ONESIE_CACHE_DIR"]) + "\n$")
 
 		if code != ExitOK || !want.MatchString(out) {
