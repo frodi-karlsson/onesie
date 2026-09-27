@@ -225,7 +225,7 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 	root.Flags().StringVar(&flags.stateFile, flagStateFile, "", "read the state from this file")
 	root.Flags().StringVar(&flags.mapSource, flagMap, "",
 		"jq expression run on each record, whose result is the state sent. "+
-			"Object keys come out sorted, and -V lists the depth and size caps on the result")
+			"Object keys come out sorted. The result may nest max-map-depth levels deep and encode to max-line-bytes, as -V lists")
 	root.Flags().StringVar(&flags.idSource, flagID, "",
 		"streaming only, jq expression run on each record, whose string or number result names it "+
 			"on every output line. It runs one record at a time as the input is read, so keep it cheap, "+

@@ -233,8 +233,9 @@ onesie calibrate -f shell-safety -i jsonl --map .command --id .id \
 - Use `--map` to drop the fields that do not bear on the question, such as timestamps and ids, since
   they add noise to the answer. Two log lines that differed only by timestamp and order id have
   scored on opposite sides of a cut. `--map 'del(.ts, .order_id)'` sends the rest of a record.
-- `--map` is a jq expression whose result is the state. An object it builds has its keys sorted, and
-  `onesie -V` lists the caps on its result. An empty or all whitespace string, an empty object and
+- `--map` is a jq expression whose result is the state. An object it builds has its keys sorted.
+  The result may nest `max-map-depth` levels deep and encode to `max-line-bytes`, both of which
+  `onesie -V` lists. An empty or all whitespace string, an empty object and
   an empty array are refused as state before any request, whether they came from `--state`,
   `--state-file`, stdin, the `state` of a `-f` file, a stream line or `--map`. For one record it
   exits 2. In a stream each is an error line and the run goes on. `--skip-blank` drops blank lines,
