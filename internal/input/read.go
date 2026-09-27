@@ -84,10 +84,9 @@ func readStdin(ctx context.Context, req Query) ([]byte, error) {
 	data, err := interrupt.Wait(ctx, func() ([]byte, error) { return io.ReadAll(watched) })
 	cancel()
 
-	// Waiting for the hint keeps it from landing after the answer.
-	if hintErr := <-hinted; err == nil {
-		err = hintErr
-	}
+	// Waiting for the hint keeps it from landing after the answer. The hint is advisory, so a write
+	// that failed leaves a good read standing.
+	<-hinted
 
 	return data, err
 }

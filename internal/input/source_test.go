@@ -385,6 +385,26 @@ func TestResolve(t *testing.T) {
 		}
 	})
 
+	t.Run("should keep a good read when the hint cannot be written", func(t *testing.T) {
+		t.Parallel()
+
+		written := make(chan struct{})
+
+		got, err := input.Resolve(t.Context(), input.Query{
+			Mode:  input.Text,
+			Stdin: &gatedReader{data: strings.NewReader("late text"), gate: written},
+			Hint:  failingWriter{signal: written},
+			Clock: &fakeClock{fire: true},
+		})
+		if err != nil {
+			t.Fatalf("Resolve: %v, want the hint's write error dropped", err)
+		}
+
+		if got.State != "late text" {
+			t.Errorf("state = %#v, want %q", got.State, "late text")
+		}
+	})
+
 	t.Run("should carry the wire form of the state", func(t *testing.T) {
 		t.Parallel()
 
@@ -506,6 +526,16 @@ func (w *signalWriter) String() string {
 	defer w.mu.Unlock()
 
 	return w.text.String()
+}
+
+type failingWriter struct {
+	signal chan struct{}
+}
+
+func (w failingWriter) Write([]byte) (int, error) {
+	close(w.signal)
+
+	return 0, errors.New("stderr is closed")
 }
 
 type gatedReader struct {
