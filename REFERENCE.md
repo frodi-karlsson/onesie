@@ -199,6 +199,9 @@ onesie calibrate -f shell-safety -i jsonl --map .command --id .id \
 
 - A record that fails still prints a line with an `error` key, and the run exits 6.
   `--stop-on-error` ends at the first failure, and `--unordered` trades input order for throughput.
+- Use `--map` to drop the fields that do not bear on the question, such as timestamps and ids, since
+  they add noise to the answer. Two log lines that differed only by timestamp and order id have
+  scored on opposite sides of a cut. `--map 'del(.ts, .order_id)'` sends the rest of a record.
 - `--map` is a jq expression whose result is the state. An object it builds has its keys sorted, and
   `onesie -V` lists the caps on its result. An empty or all whitespace string, an empty object and
   an empty array are refused as state before any request, whether they came from `--state`,
