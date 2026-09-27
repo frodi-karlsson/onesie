@@ -146,7 +146,8 @@ func run(
 		})
 	}
 
-	resolved, err := resolveState(cmd.Context(), settings, cfg, flags, inputMode, loaded)
+	resolved, err := resolveState(
+		cmd.Context(), settings, cfg, flags, inputMode, loaded, cmd.ErrOrStderr())
 	if err != nil {
 		return err
 	}
@@ -212,6 +213,7 @@ func resolveState(
 	flags *runFlags,
 	mode input.Mode,
 	loaded *qfile.File,
+	hint io.Writer,
 ) (input.Resolved, error) {
 	// Stdin is never read beside a body's state. Whether a pipe holds text cannot be known without
 	// a read that may block, so the body alone decides.
@@ -241,6 +243,8 @@ func resolveState(
 		StateFile:    flags.stateFile,
 		HasStateFile: cfg.HasStateFile,
 		ReadFile:     settings.readFile,
+		Hint:         hint,
+		Clock:        settings.stdinClock,
 	})
 }
 

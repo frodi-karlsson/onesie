@@ -1,8 +1,10 @@
 onesie asks the TypeSafe Jev model one typed question about a piece of text from the command line.
 State goes in on stdin, `--state TEXT` or `--state-file PATH`, and `--state -` reads stdin. An
 empty or all whitespace string, an empty object or an empty array as state exits 2 before any
-request, from any of these or the `state` of a `-f` file. A typed answer comes out on stdout, and
-the exit status is usable in a conditional.
+request, from any of these or the `state` of a `-f` file. When stdin is not a terminal and nothing
+arrives on it for 2 seconds, one record prints `onesie: waiting for text on stdin. Pass --state, or
+close stdin.` to stderr once and keeps waiting. A typed answer comes out on stdout, and the exit
+status is usable in a conditional.
 
 There are three question shapes, and the shape decides what you get back:
 

@@ -22,6 +22,7 @@ import (
 	"github.com/frodi-karlsson/onesie/examples/questions"
 	"github.com/frodi-karlsson/onesie/internal/argv"
 	"github.com/frodi-karlsson/onesie/internal/creds"
+	"github.com/frodi-karlsson/onesie/internal/input"
 	"github.com/frodi-karlsson/onesie/internal/jev"
 	"github.com/frodi-karlsson/onesie/internal/limits"
 	"github.com/frodi-karlsson/onesie/internal/output"
@@ -424,6 +425,13 @@ func WithHomeDir(home func() (string, error)) RootOption {
 	}
 }
 
+// WithStdinClock replaces the clock that times the hint printed while stdin stays silent.
+func WithStdinClock(clock input.Clock) RootOption {
+	return func(s *rootSettings) {
+		s.stdinClock = clock
+	}
+}
+
 // WithNow replaces the clock the --stats line measures elapsed time with.
 func WithNow(now func() time.Time) RootOption {
 	return func(s *rootSettings) {
@@ -512,6 +520,7 @@ type rootSettings struct {
 	lookupEnv     func(string) (string, bool)
 	homeDir       func() (string, error)
 	now           func() time.Time
+	stdinClock    input.Clock
 	terminalWidth func() (int, bool)
 	credPath      func() (string, error)
 	credStore     creds.Store

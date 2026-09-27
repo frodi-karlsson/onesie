@@ -18,6 +18,7 @@ import (
 	"sync"
 	"syscall"
 	"testing"
+	"time"
 
 	"github.com/goccy/go-yaml"
 	"github.com/santhosh-tekuri/jsonschema/v6"
@@ -936,6 +937,42 @@ func TestPrintRequest(t *testing.T) {
 		}
 	})
 
+	t.Run("should hint on stderr while stdin stays silent", func(t *testing.T) {
+		t.Parallel()
+
+		written := make(chan struct{})
+		errOut := &signalledBuffer{signal: written}
+
+		var out bytes.Buffer
+
+		root := NewRootCmd(
+			BuildInfo{Version: "1.2.3"},
+			WithKeychain(noKeychain()),
+			WithStdin(&heldReader{data: strings.NewReader("late text"), until: written}),
+			WithStdinTTY(false),
+			WithStdoutTTY(false),
+			WithStdinClock(firingClock{}),
+			WithLookupEnv(lookupFrom(map[string]string{"ONESIE_CONFIG_DIR": t.TempDir()})),
+		)
+
+		root.SetOut(&out)
+		root.SetErr(errOut)
+		root.SetArgs([]string{"--ask", "urgent=is this urgent", "--print-request"})
+
+		if code := Execute(t.Context(), root); code != ExitOK {
+			t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, ExitOK, errOut.String())
+		}
+
+		const want = "onesie: waiting for text on stdin. Pass --state, or close stdin.\n"
+		if errOut.String() != want {
+			t.Errorf("stderr = %q, want %q", errOut.String(), want)
+		}
+
+		if !strings.Contains(out.String(), `"state":"late text"`) {
+			t.Errorf("printed %s, want the late state", out.String())
+		}
+	})
+
 	t.Run("should map the state of every single record source", func(t *testing.T) {
 		t.Parallel()
 
@@ -1807,6 +1844,51 @@ type closedConsumer struct{}
 
 func (closedConsumer) Write([]byte) (int, error) {
 	return 0, syscall.EPIPE
+}
+
+type firingClock struct{}
+
+func (firingClock) Sleep(context.Context, time.Duration) error {
+	return nil
+}
+
+type signalledBuffer struct {
+	signal chan struct{}
+
+	mu   sync.Mutex
+	text bytes.Buffer
+}
+
+func (b *signalledBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	if b.text.Len() == 0 {
+		close(b.signal)
+	}
+
+	return b.text.Write(p)
+}
+
+func (b *signalledBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	return b.text.String()
+}
+
+type heldReader struct {
+	data  io.Reader
+	until <-chan struct{}
+}
+
+func (r *heldReader) Read(p []byte) (int, error) {
+	select {
+	case <-r.until:
+	case <-time.After(5 * time.Second):
+	}
+
+	return r.data.Read(p)
 }
 
 func runOffline(t *testing.T, args []string) (string, string, int) {

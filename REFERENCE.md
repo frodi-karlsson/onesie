@@ -392,6 +392,11 @@ A consumer that stops reading, as `head` does, is not an error.
   edit. `onesie questions` lists every name `-f` finds, with a built-in set shown as `built in`. A
   question file is refused with exit 2 when it uses a YAML alias or is larger than
   `max-question-file-bytes`.
+- For one record, onesie reads the state from stdin when stdin is not a terminal and no other
+  source gave one. When nothing arrives there for 2 seconds, it prints
+  `onesie: waiting for text on stdin. Pass --state, or close stdin.` to stderr once and keeps
+  waiting. A stream never prints it, since a slow producer is normal there and `--state` does not
+  apply to a stream.
 - `-f` also takes a request body, as `--print-request` writes it. A body that holds a `state` sends
   that state, and onesie then never reads stdin, since it cannot tell a pipe that holds text from
   one that is still open without waiting on it. `--state` or `--state-file` beside such a body

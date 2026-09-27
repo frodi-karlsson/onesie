@@ -7,9 +7,16 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"sync/atomic"
+	"time"
 	"unicode/utf8"
 
 	"github.com/frodi-karlsson/onesie/internal/interrupt"
+)
+
+const (
+	stdinHintDelay = 2 * time.Second
+	stdinHint      = "onesie: waiting for text on stdin. Pass --state, or close stdin."
 )
 
 // ErrEmptyState reports a state that is empty or only whitespace, which the model cannot answer.
@@ -45,7 +52,7 @@ func fromStdin(ctx context.Context, req Query) (Resolved, error) {
 		return Resolved{Source: SourceNone}, nil
 	}
 
-	data, err := interrupt.Wait(ctx, func() ([]byte, error) { return io.ReadAll(req.Stdin) })
+	data, err := readStdin(ctx, req)
 	if ctx.Err() != nil {
 		return Resolved{}, ctx.Err()
 	}
@@ -63,6 +70,53 @@ func fromStdin(ctx context.Context, req Query) (Resolved, error) {
 	return fromText(SourceStdin, "stdin", string(data), req.Mode, true)
 }
 
+func readStdin(ctx context.Context, req Query) ([]byte, error) {
+	if req.StdinTTY || req.Hint == nil {
+		return interrupt.Wait(ctx, func() ([]byte, error) { return io.ReadAll(req.Stdin) })
+	}
+
+	watched := &arrivalReader{Reader: req.Stdin}
+	waitCtx, cancel := context.WithCancel(ctx)
+	hinted := make(chan error, 1)
+
+	go func() { hinted <- hintUnlessArrived(waitCtx, watched, req.Hint, req.clock()) }()
+
+	data, err := interrupt.Wait(ctx, func() ([]byte, error) { return io.ReadAll(watched) })
+	cancel()
+
+	// Waiting for the hint keeps it from landing after the answer.
+	if hintErr := <-hinted; err == nil {
+		err = hintErr
+	}
+
+	return data, err
+}
+
+func hintUnlessArrived(ctx context.Context, watched *arrivalReader, hint io.Writer, clock Clock) error {
+	if silent := clock.Sleep(ctx, stdinHintDelay) == nil && !watched.arrived.Load(); !silent {
+		return nil
+	}
+
+	_, err := fmt.Fprintln(hint, stdinHint)
+
+	return err
+}
+
+type arrivalReader struct {
+	io.Reader
+
+	arrived atomic.Bool
+}
+
+func (r *arrivalReader) Read(p []byte) (int, error) {
+	n, err := r.Reader.Read(p)
+	if n > 0 {
+		r.arrived.Store(true)
+	}
+
+	return n, err
+}
+
 // Query is everything Resolve needs. Stdin, the tty answer and the file reader are injected so a
 // test controls all three without a real terminal or a fixture on disk.
 type Query struct {
@@ -74,6 +128,37 @@ type Query struct {
 	StateFile    string
 	HasStateFile bool
 	ReadFile     func(string) ([]byte, error)
+
+	// Hint receives a note when stdin stays silent, and nil prints none.
+	Hint  io.Writer
+	Clock Clock
+}
+
+// Clock waits out the delay before the stdin hint. The system clock is used when it is nil.
+type Clock interface {
+	Sleep(ctx context.Context, d time.Duration) error
+}
+
+func (q Query) clock() Clock {
+	if q.Clock == nil {
+		return systemClock{}
+	}
+
+	return q.Clock
+}
+
+type systemClock struct{}
+
+func (systemClock) Sleep(ctx context.Context, d time.Duration) error {
+	timer := time.NewTimer(d)
+	defer timer.Stop()
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
 }
 
 func fromText(source Source, label, text string, mode Mode, stripNewline bool) (Resolved, error) {

@@ -7,7 +7,9 @@ import (
 	"io"
 	"os"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/frodi-karlsson/onesie/internal/input"
 )
@@ -323,6 +325,66 @@ func TestResolve(t *testing.T) {
 		}
 	})
 
+	t.Run("should hint on stdin only when nothing arrives in time", func(t *testing.T) {
+		t.Parallel()
+
+		const hint = "onesie: waiting for text on stdin. Pass --state, or close stdin.\n"
+
+		tests := []struct {
+			name      string
+			tty       bool
+			fire      bool
+			firstPart bool
+			wantHint  string
+			wantSleep bool
+		}{
+			{name: "should hint once when stdin stays silent", fire: true, wantHint: hint, wantSleep: true},
+			{name: "should not hint when the text arrives in time", wantSleep: true},
+			{name: "should not hint once the first bytes arrived in time", fire: true, firstPart: true, wantSleep: true},
+			{name: "should not hint while reading a terminal", tty: true, fire: true},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				written := make(chan struct{})
+				hinted := &signalWriter{signal: written}
+				clock := &fakeClock{fire: tc.fire}
+
+				var stdin io.Reader = strings.NewReader("late text")
+
+				switch {
+				case tc.firstPart:
+					clock.after = make(chan struct{})
+					stdin = &splitReader{parts: []string{"late ", "text"}, between: clock.after, fired: clock.fired()}
+				case tc.fire && !tc.tty:
+					stdin = &gatedReader{data: strings.NewReader("late text"), gate: written}
+				}
+
+				got, err := input.Resolve(t.Context(), input.Query{
+					Mode: input.Text, Stdin: stdin, StdinTTY: tc.tty, State: "-", HasState: tc.tty,
+					Hint: hinted, Clock: clock,
+				})
+				if err != nil {
+					t.Fatalf("Resolve: %v", err)
+				}
+
+				if got.State != "late text" {
+					t.Errorf("state = %#v, want %q", got.State, "late text")
+				}
+
+				if hinted.String() != tc.wantHint {
+					t.Errorf("hint = %q, want %q", hinted.String(), tc.wantHint)
+				}
+
+				if slept := clock.slept(); tc.wantSleep && slept != 2*time.Second || !tc.wantSleep && slept != 0 {
+					t.Errorf("slept %v, want the wait only off a terminal, of 2s", slept)
+				}
+			})
+		}
+	})
+
 	t.Run("should carry the wire form of the state", func(t *testing.T) {
 		t.Parallel()
 
@@ -372,6 +434,115 @@ func TestResolve(t *testing.T) {
 			})
 		}
 	})
+}
+
+type fakeClock struct {
+	fire  bool
+	after chan struct{}
+
+	mu       sync.Mutex
+	duration time.Duration
+	firedCh  chan struct{}
+}
+
+func (c *fakeClock) Sleep(ctx context.Context, d time.Duration) error {
+	c.mu.Lock()
+	c.duration = d
+	c.mu.Unlock()
+
+	if c.after != nil {
+		<-c.after
+	}
+
+	if !c.fire {
+		<-ctx.Done()
+
+		return ctx.Err()
+	}
+
+	close(c.fired())
+
+	return nil
+}
+
+func (c *fakeClock) fired() chan struct{} {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.firedCh == nil {
+		c.firedCh = make(chan struct{})
+	}
+
+	return c.firedCh
+}
+
+func (c *fakeClock) slept() time.Duration {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	return c.duration
+}
+
+type signalWriter struct {
+	signal chan struct{}
+
+	mu   sync.Mutex
+	text strings.Builder
+}
+
+func (w *signalWriter) Write(p []byte) (int, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	if w.text.Len() == 0 {
+		close(w.signal)
+	}
+
+	return w.text.Write(p)
+}
+
+func (w *signalWriter) String() string {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	return w.text.String()
+}
+
+type gatedReader struct {
+	data io.Reader
+	gate <-chan struct{}
+}
+
+func (r *gatedReader) Read(p []byte) (int, error) {
+	select {
+	case <-r.gate:
+	case <-time.After(5 * time.Second):
+	}
+
+	return r.data.Read(p)
+}
+
+type splitReader struct {
+	parts   []string
+	between chan struct{}
+	fired   <-chan struct{}
+	read    int
+}
+
+func (r *splitReader) Read(p []byte) (int, error) {
+	if r.read == len(r.parts) {
+		return 0, io.EOF
+	}
+
+	if r.read == 1 {
+		close(r.between)
+		<-r.fired
+	}
+
+	n := copy(p, r.parts[r.read])
+	r.read++
+
+	return n, nil
 }
 
 func equalJSON(t *testing.T, got, want any) bool {
