@@ -442,4 +442,5 @@ table, and `onesie calibrate --help` lists the codes calibrate uses.
   with no `fallback`. onesie refuses such a file at run time when the flag is missing. The schema
   also leaves a `min_confidence` on a yes/no question and a partly described rate to onesie.
 - `--retries`, `--timeout` and `--max-retry-after` bound how long a call can take.
-- `onesie --help` lists every flag, and `onesie -V` prints the built in limits.
+- `onesie --help` lists every flag, and `onesie -V` prints the built in limits. `onesie help
+  calibrate` prints a subcommand's help, and a topic that names no subcommand exits 2.

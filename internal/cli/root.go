@@ -283,6 +283,7 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 	root.AddCommand(newCalibrateCmd(settings, flags))
 	root.AddCommand(newQuestionsCmd(settings))
 	root.AddCommand(newCacheCmd(settings))
+	refuseUnknownHelpTopics(root)
 
 	// Cobra hands every subcommand the nearest parent's flag error function, so one hook covers the
 	// subcommands cobra adds itself, such as completion.
@@ -293,6 +294,36 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 	asksNothing(root.Flags(), "help")
 
 	return root
+}
+
+func refuseUnknownHelpTopics(root *cobra.Command) {
+	root.InitDefaultHelpCmd()
+
+	for _, sub := range root.Commands() {
+		if sub.Name() != "help" {
+			continue
+		}
+
+		// Cobra's own help command finds the root for any word the root accepts as a question, and
+		// prints the root help with exit 0.
+		sub.Run = nil
+		sub.RunE = func(help *cobra.Command, args []string) error {
+			topic, rest, err := root.Find(args)
+			if err != nil || len(rest) > 0 {
+				return fmt.Errorf("onesie: unknown help topic '%s'. Run onesie --help to see the subcommands",
+					strings.Join(args, " "))
+			}
+
+			if topic.Context() == nil {
+				topic.SetContext(help.Context())
+			}
+
+			topic.InitDefaultHelpFlag()
+			topic.InitDefaultVersionFlag()
+
+			return topic.Help()
+		}
+	}
 }
 
 func subcommandHint(root *cobra.Command) func(*cobra.Command, error) error {

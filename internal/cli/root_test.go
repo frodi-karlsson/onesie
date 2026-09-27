@@ -180,6 +180,32 @@ func TestNewRootCmd(t *testing.T) {
 			contains: []string{`"instructions":"cached?"`},
 		},
 		{
+			name:     "should refuse an unknown help topic",
+			args:     []string{"help", "foo"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: unknown help topic 'foo'. Run onesie --help to see the subcommands"},
+			absent:   []string{"Usage:"},
+		},
+		{
+			name:     "should refuse an unknown topic under a subcommand",
+			args:     []string{"help", "auth", "nope"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: unknown help topic 'auth nope'"},
+			absent:   []string{"Usage:"},
+		},
+		{
+			name:     "should print a subcommand's help for its help topic",
+			args:     []string{"help", "auth", "set"},
+			wantCode: cli.ExitOK,
+			contains: []string{"onesie auth set"},
+		},
+		{
+			name:     "should print the root help for help with no topic",
+			args:     []string{"help"},
+			wantCode: cli.ExitOK,
+			contains: []string{"Usage:", "onesie [question]"},
+		},
+		{
 			name:     "should list --mock in the root help",
 			args:     []string{"--help"},
 			wantCode: cli.ExitOK,
