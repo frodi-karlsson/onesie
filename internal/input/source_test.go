@@ -385,6 +385,27 @@ func TestResolve(t *testing.T) {
 		}
 	})
 
+	t.Run("should hint to close stdin when --state - asked for it", func(t *testing.T) {
+		t.Parallel()
+
+		written := make(chan struct{})
+		hinted := &signalWriter{signal: written}
+
+		_, err := input.Resolve(t.Context(), input.Query{
+			Mode: input.Text, State: "-", HasState: true,
+			Stdin: &gatedReader{data: strings.NewReader("late text"), gate: written},
+			Hint:  hinted, Clock: &fakeClock{fire: true},
+		})
+		if err != nil {
+			t.Fatalf("Resolve: %v", err)
+		}
+
+		const want = "onesie: waiting for text on stdin. Close stdin when the text is complete.\n"
+		if hinted.String() != want {
+			t.Errorf("hint = %q, want %q", hinted.String(), want)
+		}
+	})
+
 	t.Run("should keep a good read when the hint cannot be written", func(t *testing.T) {
 		t.Parallel()
 

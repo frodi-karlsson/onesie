@@ -12,7 +12,8 @@ State goes in on stdin, `--state TEXT` or `--state-file PATH`, and `--state -` r
 empty or all whitespace string, an empty object or an empty array as state exits 2 before any
 request, from any of these or the `state` of a `-f` file. When stdin is not a terminal and nothing
 arrives on it for 2 seconds, one record prints `onesie: waiting for text on stdin. Pass --state, or
-close stdin.` to stderr once and keeps waiting. A typed answer comes out on stdout, and the exit
+close stdin.` to stderr once and keeps waiting, or under `--state -` a hint to close stdin when the
+text is complete. A typed answer comes out on stdout, and the exit
 status is usable in a conditional.
 
 There are three question shapes, and the shape decides what you get back:

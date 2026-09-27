@@ -414,7 +414,8 @@ A consumer that stops reading, as `head` does, is not an error.
 - For one record, onesie reads the state from stdin when stdin is not a terminal and no other
   source gave one. When nothing arrives there for 2 seconds, it prints
   `onesie: waiting for text on stdin. Pass --state, or close stdin.` to stderr once and keeps
-  waiting. A stream never prints it, since a slow producer is normal there and `--state` does not
+  waiting. Under `--state -` it prints `onesie: waiting for text on stdin. Close stdin when the text
+  is complete.` instead. A stream never prints it, since a slow producer is normal there and `--state` does not
   apply to a stream.
 - `-f` also takes a request body, as `--print-request` writes it. For one record, a body that holds
   a `state` sends that state, and onesie then never reads stdin, since it cannot tell a pipe that

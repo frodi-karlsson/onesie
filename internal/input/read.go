@@ -17,6 +17,7 @@ import (
 const (
 	stdinHintDelay = 2 * time.Second
 	stdinHint      = "onesie: waiting for text on stdin. Pass --state, or close stdin."
+	stdinDashHint  = "onesie: waiting for text on stdin. Close stdin when the text is complete."
 )
 
 // ErrEmptyState reports a state that is empty or only whitespace, which the model cannot answer.
@@ -79,7 +80,7 @@ func readStdin(ctx context.Context, req Query) ([]byte, error) {
 	waitCtx, cancel := context.WithCancel(ctx)
 	hinted := make(chan error, 1)
 
-	go func() { hinted <- hintUnlessArrived(waitCtx, watched, req.Hint, req.clock()) }()
+	go func() { hinted <- hintUnlessArrived(waitCtx, watched, req.Hint, req.clock(), req.hintText()) }()
 
 	data, err := interrupt.Wait(ctx, func() ([]byte, error) { return io.ReadAll(watched) })
 	cancel()
@@ -91,12 +92,12 @@ func readStdin(ctx context.Context, req Query) ([]byte, error) {
 	return data, err
 }
 
-func hintUnlessArrived(ctx context.Context, watched *arrivalReader, hint io.Writer, clock Clock) error {
+func hintUnlessArrived(ctx context.Context, watched *arrivalReader, hint io.Writer, clock Clock, text string) error {
 	if silent := clock.Sleep(ctx, stdinHintDelay) == nil && !watched.arrived.Load(); !silent {
 		return nil
 	}
 
-	_, err := fmt.Fprintln(hint, stdinHint)
+	_, err := fmt.Fprintln(hint, text)
 
 	return err
 }
@@ -136,6 +137,15 @@ type Query struct {
 // Clock waits out the delay before the stdin hint. The system clock is used when it is nil.
 type Clock interface {
 	Sleep(ctx context.Context, d time.Duration) error
+}
+
+func (q Query) hintText() string {
+	// --state - already asked for stdin, so pointing at --state would send the user in a circle.
+	if q.HasState {
+		return stdinDashHint
+	}
+
+	return stdinHint
 }
 
 func (q Query) clock() Clock {
