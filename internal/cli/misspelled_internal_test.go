@@ -22,6 +22,9 @@ func TestNearSubcommands(t *testing.T) {
 		&cobra.Command{Use: "secret", Hidden: true},
 	)
 
+	// Cobra sorts the subcommands on the first call, which the parallel cases would race on.
+	root.Commands()
+
 	tests := []struct {
 		name string
 		word string
