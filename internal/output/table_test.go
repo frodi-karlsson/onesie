@@ -327,6 +327,24 @@ func TestWriteTable(t *testing.T) {
 			contains: []string{"urgent  0.10\n"},
 		},
 		{
+			name: "should print a zero probability to two places",
+			rec: output.Record{
+				Model:   "onesie-1.13.0",
+				Answers: []output.Named{{ID: "urgent", Answer: &answer.Answer{Value: 0.0}}},
+			},
+			columns:  80,
+			contains: []string{"urgent  0.00\n"},
+		},
+		{
+			name: "should print a certain probability to two places",
+			rec: output.Record{
+				Model:   "onesie-1.13.0",
+				Answers: []output.Named{{ID: "urgent", Answer: &answer.Answer{Value: 1.0}}},
+			},
+			columns:  80,
+			contains: []string{"urgent  1.00\n"},
+		},
+		{
 			name: "should keep every decimal a yes/no probability carries past two",
 			rec: output.Record{
 				Model:   "onesie-1.13.0",

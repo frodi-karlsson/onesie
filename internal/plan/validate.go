@@ -11,6 +11,9 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/limits"
 )
 
+// LineField is the key each -i lines record carries its input line number under.
+const LineField = "line"
+
 var reservedIDs = []string{
 	"$schema", "abstain", "abstain_if", "answers", "assert", "error", "id", "model", "usage",
 	"questions", "state",
@@ -806,9 +809,6 @@ func checkLineField(p *Plan, cfg Config) error {
 
 	return nil
 }
-
-// LineField is the key each -i lines record carries its input line number under.
-const LineField = "line"
 
 // FallbackColumn names the csv and tsv column that says whether a question's fallback was used.
 func FallbackColumn(id string) string {
