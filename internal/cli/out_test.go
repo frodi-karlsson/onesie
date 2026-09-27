@@ -1549,3 +1549,84 @@ func TestOutFile_CheckFingerprint(t *testing.T) {
 		})
 	}
 }
+
+func TestOutFile_Bind(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		legacy  bool
+		wantErr string
+	}{
+		{
+			name:    "should say an older onesie wrote the columns when only the fallback column is new",
+			legacy:  true,
+			wantErr: "was written by an older onesie, without the fallback columns",
+		},
+		{
+			name:    "should keep the changed flags message for any other difference",
+			wantErr: "the questions, flags or gate changed",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var calls atomic.Int32
+
+			srv := answeringServer(t, &calls)
+
+			path := filepath.Join(t.TempDir(), "answers.csv")
+			if err := os.WriteFile(path, []byte("urgent,error\n0.5,\n"), 0o600); err != nil {
+				t.Fatalf("writing the existing file: %v", err)
+			}
+
+			source := plan.Source{Events: []argv.Event{
+				{Name: "ask", Value: "urgent=is this urgent"}, {Name: "fallback", Value: "no"},
+			}}
+			if !tc.legacy {
+				source = plan.Source{Events: []argv.Event{{Name: "ask", Value: "urgent=is it urgent"}}}
+			}
+
+			fingerprint := fingerprintWith(t, source, fingerprintInputs{
+				provider: "typesafe", model: jev.DefaultModel, output: "csv", input: "lines",
+				withoutFallbackColumns: true,
+			}) + "\n"
+			if err := os.WriteFile(path+".onesie", []byte(fingerprint), 0o600); err != nil {
+				t.Fatalf("writing the existing fingerprint: %v", err)
+			}
+
+			var out, errOut bytes.Buffer
+
+			root := NewRootCmd(
+				BuildInfo{Version: "1.2.3"},
+				WithStdin(strings.NewReader("first\nsecond\n")),
+				WithStdinTTY(false),
+				WithStdoutTTY(false),
+				WithKeychain(noKeychain()),
+				WithLookupEnv(lookupFrom(nil)),
+				WithClientFactory(stubFactory(srv.URL)),
+			)
+
+			root.SetOut(&out)
+			root.SetErr(&errOut)
+			root.SetArgs([]string{
+				"--ask", "urgent=is this urgent", "--fallback", "no", "-i", "lines", "-o", "csv",
+				"--out", path, "--resume",
+			})
+
+			if code := Execute(t.Context(), root); code != ExitUsage {
+				t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, ExitUsage, errOut.String())
+			}
+
+			if !strings.Contains(errOut.String(), tc.wantErr) {
+				t.Errorf("stderr = %q, want it to contain %q", errOut.String(), tc.wantErr)
+			}
+
+			if calls.Load() != 0 {
+				t.Errorf("requests = %d, want none", calls.Load())
+			}
+		})
+	}
+}

@@ -240,7 +240,9 @@ onesie calibrate -f shell-safety -i jsonl --map .command --id .id \
   under a gate and an `error` column. A question with a fallback gets an `ID_fallback` column right
   after its own, as in `team,team_fallback`. It holds `low_confidence` or `error` when the fallback
   replaced the answer, the same reason `-o json` writes as `fallback`, and is empty otherwise. Under
-  `--merge` the input columns come first, and one named like an output column exits 2.
+  `--merge` the input columns come first, and one named like an output column exits 2. `--resume`
+  refuses a csv or tsv file an older onesie wrote without the fallback columns, and says to
+  regenerate it or write to a new `--out`.
 - onesie writes csv cells exactly as they are, the ones `--merge` carries over included. A cell
   from untrusted input that starts with `=`, `+`, `-` or `@` can act as a formula when the file is
   opened in a spreadsheet.

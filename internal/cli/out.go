@@ -219,10 +219,11 @@ type outFile struct {
 	matched  bool
 	readOnly bool
 
-	fingerprint string
-	file        *os.File
-	size        int64
-	rewrite     *rewrite
+	fingerprint  string
+	olderColumns string
+	file         *os.File
+	size         int64
+	rewrite      *rewrite
 }
 
 type rewrite struct {
@@ -607,6 +608,10 @@ func (o *outFile) checkFingerprint(fingerprint string) (matched bool, err error)
 		return false, staleAnswers("a newer onesie wrote its fingerprint",
 			"onesie: a newer onesie wrote %s, so this one cannot tell which run wrote %s. "+
 				"Drop --resume to start over", sidecar, o.path)
+	case o.olderColumns != "" && stored == o.olderColumns:
+		return false, staleAnswers("an older onesie wrote its columns",
+			"onesie: %s was written by an older onesie, without the fallback columns this run adds. "+
+				"Regenerate it without --resume, or write to a new --out", o.path)
 	case stored != fingerprint:
 		return false, staleAnswers("the questions, model or flags changed since it was written",
 			"onesie: the questions, flags or gate changed since %s was written. "+
@@ -837,7 +842,7 @@ func fingerprintOf(questions []plan.Question, inputs fingerprintInputs) (string,
 		AbstainIf: inputs.abstainIf,
 		SkipBlank: inputs.skipBlank,
 
-		FallbackColumns: delimitedOutput(inputs.output) && hasFallback(questions),
+		FallbackColumns: !inputs.withoutFallbackColumns && delimitedOutput(inputs.output) && hasFallback(questions),
 	})
 	if err != nil {
 		return "", fmt.Errorf("onesie: fingerprinting the run: %w", err)
@@ -867,6 +872,8 @@ type fingerprintInputs struct {
 	assert    string
 	abstainIf string
 	skipBlank bool
+
+	withoutFallbackColumns bool
 }
 
 func policiesOf(questions []plan.Question) []policyPrint {

@@ -296,6 +296,15 @@ func bindOut(
 		return err
 	}
 
+	if delimitedOutput(inputs.output) && hasFallback(questions) {
+		older := inputs
+		older.withoutFallbackColumns = true
+
+		if out.olderColumns, err = fingerprintOf(questions, older); err != nil {
+			return err
+		}
+	}
+
 	return out.bind(fingerprint)
 }
 
