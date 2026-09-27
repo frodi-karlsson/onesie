@@ -10,8 +10,9 @@ prints the built in limits.
   option or level. The table prints a yes or no probability to two places, as `-o json` does, and
   keeps any further places the value carries.
 - `--pick` and `--rate` split their names on the comma, or on `--sep`, and trim the spaces around
-  each one, so `--pick 'yes, no'` names `yes` and `no`. An empty name exits 2. A question file's
-  names are kept as written, and an empty or all whitespace one exits 2 too.
+  each one, so `--pick 'yes, no'` names `yes` and `no`. A repeated `--pick` or `--rate` adds its
+  names after the earlier ones. An empty name exits 2. A question file's names are kept as
+  written, and an empty or all whitespace one exits 2 too.
 - An empty or all whitespace question exits 2 before any request, the way an empty state does,
   whether it came from the positional argument, `--ask`, a question file's `ask` or the
   `instructions` of a `-f` request body. An `-i request` body is forwarded as it is and not checked.
