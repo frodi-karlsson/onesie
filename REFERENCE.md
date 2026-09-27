@@ -398,6 +398,8 @@ onesie auth test                                   # checks the key
   `600` under `$ONESIE_CONFIG_DIR`, `$XDG_CONFIG_HOME/onesie` or `~/.config/onesie`. onesie refuses
   a file anyone else can reach. On Linux the key reaches the Secret Service over the session bus
   unencrypted, readable only by your own user.
+- `auth status` exits 2 when no key resolves, after printing `source: none`, as a real run and
+  `auth test` do.
 - `auth test` lists the provider's models, which costs no tokens. Berget lists its models to any
   key, so on berget `auth test` also asks one tiny question with the default model, which spends a
   few tokens.

@@ -8,7 +8,8 @@ if ! command -v onesie >/dev/null 2>&1; then
   exit 0
 fi
 
-# onesie auth status exits 3 when no key resolves, which is an answer rather than a failure.
+# onesie auth status exits 2 when no key resolves, which is an answer rather than a failure, so the
+# source line decides and the exit code is ignored.
 status=$(onesie auth status </dev/null 2>&1)
 provider=$(printf '%s\n' "$status" | sed -n 's/^provider: //p')
 source=$(printf '%s\n' "$status" | sed -n 's/^source: //p')

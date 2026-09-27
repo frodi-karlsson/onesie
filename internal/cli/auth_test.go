@@ -49,9 +49,9 @@ func TestAuthStatus(t *testing.T) {
 			wantCode: ExitOK,
 		},
 		{
-			name:     "should report none and exit 3",
+			name:     "should report none and exit 2",
 			wantOut:  "provider: typesafe\nsource: none\n",
-			wantCode: ExitAuth,
+			wantCode: ExitUsage,
 		},
 		{
 			name:     "should refuse a file others can reach and exit 3",
@@ -167,7 +167,7 @@ func TestAuthStatus(t *testing.T) {
 			env:      map[string]string{jev.EnvAPIKey: "SECRET-TS"},
 			file:     `{"providers":{"typesafe":{"api_key":"SECRET-FILE"}}}`,
 			wantOut:  "provider: openrouter\nsource: none\n",
-			wantCode: ExitAuth,
+			wantCode: ExitUsage,
 		},
 		{
 			name:     "should report the Berget env var under --provider berget",
@@ -182,7 +182,7 @@ func TestAuthStatus(t *testing.T) {
 			env:      map[string]string{"ONESIE_PROVIDER": "berget", jev.EnvAPIKey: "SECRET-TS"},
 			file:     `{"providers":{"typesafe":{"api_key":"SECRET-FILE"}}}`,
 			wantOut:  "provider: berget\nsource: none\n",
-			wantCode: ExitAuth,
+			wantCode: ExitUsage,
 		},
 		{
 			name:     "should read the openrouter entry from the file",

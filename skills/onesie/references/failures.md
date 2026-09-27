@@ -55,7 +55,6 @@ Exit 3 also covers these:
 - A keychain that refuses, holds no item for the entry, or does not answer within 10 seconds,
   usually because a prompt is waiting. Answer the prompt, or run `onesie auth set` again, with
   `--file` to skip the keychain.
-- `auth status` when nothing resolves, which prints `source: none`.
 
 `--base-url` outranks a base URL stored in the credential file. Under typesafe,
 `TYPESAFE_BASE_URL` does too.
@@ -71,7 +70,7 @@ Exit 3 also covers these:
 | `no state given` | nothing arrived on stdin and neither `--state` nor `--state-file` was passed |
 | `both give a state` | `--state` or `--state-file` was passed beside a `-f` request body that holds its own `state`. Drop one |
 | `an empty state is a request the model cannot answer` | `--state`, `--state-file`, stdin, the `state` of a `-f` file, a stream line or `--map` gave an empty or all whitespace string, an empty object or an empty array. In a stream it is an error line instead, and `--skip-blank` does not drop it. An `-i request` body is forwarded as it is and not checked |
-| `no API key` | nothing resolved for the provider, see the order above. A real run and `auth test` exit 2 here, `auth status` exits 3 |
+| `no API key` | nothing resolved for the provider, see the order above. A real run and `auth test` exit 2 here. `auth status` exits 2 too, after printing `source: none` |
 | `is in use by another onesie run` | another run holds the lock beside the `--out` file |
 | `Drop --resume to start over` | the `--out` file was written by a different run, or has no fingerprint |
 | `--resume needs output that keeps each record's outcome` | `-o raw` and `-r` keep no id, failure or gate outcome, so a resume refuses them. Use `-o values` or `-o json` |

@@ -324,7 +324,9 @@ func newAuthStatusCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 	return &cobra.Command{
 		Use:   "status",
 		Short: "Report which source holds the API key",
-		Args:  authNoArgs("status", "It reports which source holds the key"),
+		Long: "Report the provider and which source holds its API key, never the key itself.\n\n" +
+			"When no key resolves it prints source: none and exits 2, as a real run does.",
+		Args: authNoArgs("status", "It reports which source holds the key"),
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return authStatus(cmd, settings, flags)
 		},
@@ -346,7 +348,7 @@ func authStatus(cmd *cobra.Command, settings rootSettings, flags *runFlags) erro
 	}
 
 	if source.name == sourceNone {
-		return &silentError{code: ExitAuth}
+		return &silentError{code: ExitUsage}
 	}
 
 	return nil
