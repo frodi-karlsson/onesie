@@ -95,7 +95,16 @@ func writeQuestion(question plan.Question) (yaml.MapSlice, error) {
 	return append(body, writePolicy(question.Policy)...), nil
 }
 
-func writeOptions(question plan.Question) (yaml.MapSlice, error) {
+func writeOptions(question plan.Question) (any, error) {
+	if !optionsDescribed(question.Options) {
+		names := make([]string, 0, len(question.Options))
+		for _, option := range question.Options {
+			names = append(names, option.Name)
+		}
+
+		return names, nil
+	}
+
 	options := make(yaml.MapSlice, 0, len(question.Options))
 
 	for _, option := range question.Options {
@@ -116,11 +125,18 @@ func writeLevels(question plan.Question) ([]any, error) {
 	// A sequence of single key mappings for both forms, so a rubric's order never depends on a
 	// parser detail. A body's levels have no names, so the index becomes the label.
 	levels := make([]any, 0, len(question.Levels))
+	described := levelsDescribed(question.Levels)
 
 	for i, level := range question.Levels {
 		label := level.Label
 		if !question.Labelled {
 			label = strconv.Itoa(i)
+		}
+
+		if !described {
+			levels = append(levels, label)
+
+			continue
 		}
 
 		desc, err := yamlValue(level.Desc)
@@ -134,6 +150,26 @@ func writeLevels(question plan.Question) ([]any, error) {
 	}
 
 	return levels, nil
+}
+
+func optionsDescribed(options []plan.Option) bool {
+	for _, option := range options {
+		if option.Desc != nil {
+			return true
+		}
+	}
+
+	return false
+}
+
+func levelsDescribed(levels []plan.Level) bool {
+	for _, level := range levels {
+		if level.Desc != nil {
+			return true
+		}
+	}
+
+	return false
 }
 
 func writeRubric(question plan.Question) (yaml.MapSlice, error) {

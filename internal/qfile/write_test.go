@@ -131,6 +131,36 @@ func TestWrite(t *testing.T) {
 			want: "team:\n  ask: who owns this\n  pick:\n    zebra: z\n    alpha: a\n",
 		},
 		{
+			name: "should write a pick with no descriptions as a list",
+			questions: []plan.Question{
+				{
+					ID: "team", Shape: plan.Pick, Instructions: "who owns this",
+					Options: []plan.Option{{Name: "billing"}, {Name: "no"}},
+				},
+			},
+			want: "team:\n  ask: who owns this\n  pick:\n  - billing\n  - \"no\"\n",
+		},
+		{
+			name: "should keep a partly described pick as a mapping",
+			questions: []plan.Question{
+				{
+					ID: "team", Shape: plan.Pick, Instructions: "who owns this",
+					Options: []plan.Option{{Name: "billing", Desc: "money"}, {Name: "support"}},
+				},
+			},
+			want: "team:\n  ask: who owns this\n  pick:\n    billing: money\n    support: null\n",
+		},
+		{
+			name: "should write a rate with no descriptions as a list",
+			questions: []plan.Question{
+				{
+					ID: "mood", Shape: plan.Rate, Labelled: true, Instructions: "how is it",
+					Levels: []plan.Level{{Label: "calm"}, {Label: "angry"}},
+				},
+			},
+			want: "mood:\n  ask: how is it\n  rate:\n  - calm\n  - angry\n",
+		},
+		{
 			name: "should quote a tab so the parser keeps it",
 			questions: []plan.Question{
 				{ID: "q", Shape: plan.Noul, Instructions: "col\tvalue"},
