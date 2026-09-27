@@ -50,6 +50,35 @@ func TestValidate(t *testing.T) {
 			wantErr: "onesie: question id 'usage' is reserved",
 		},
 		{
+			name:    "should reject an empty --ask question",
+			events:  []argv.Event{{Name: "ask", Value: "a="}},
+			wantErr: "onesie: --ask a= is blank, an empty question is one the model cannot answer",
+		},
+		{
+			name:    "should reject an all space --ask question",
+			events:  []argv.Event{{Name: "ask", Value: "a= \t "}},
+			wantErr: "onesie: --ask a= is blank, an empty question is one the model cannot answer",
+		},
+		{
+			name:       "should reject an all space positional question",
+			positional: "   ",
+			wantErr:    "onesie: the question is blank, an empty question is one the model cannot answer",
+		},
+		{
+			name: "should reject an empty question in a question file",
+			file: []plan.Question{
+				{ID: "urgent", Shape: plan.Noul, Instructions: " ", Origin: plan.OriginFile},
+			},
+			wantErr: "onesie: question 'urgent' has a blank 'ask', an empty question is one the model cannot answer",
+		},
+		{
+			name: "should reject empty instructions in a request body",
+			file: []plan.Question{
+				{ID: "urgent", Shape: plan.Noul, Instructions: "", Origin: plan.OriginBody},
+			},
+			wantErr: "onesie: question 'urgent' has blank 'instructions', an empty question is one the model cannot answer",
+		},
+		{
 			name:    "should reject the positional id used explicitly",
 			events:  []argv.Event{{Name: "ask", Value: "answer=first"}},
 			wantErr: "onesie: question id 'answer' is reserved",

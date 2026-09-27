@@ -72,6 +72,7 @@ Exit 3 also covers these:
 | `no state given` | nothing arrived on stdin and neither `--state` nor `--state-file` was passed |
 | `both give a state` | `--state` or `--state-file` was passed beside a `-f` request body that holds its own `state`. Drop one |
 | `an empty state is a request the model cannot answer` | `--state`, `--state-file`, stdin, the `state` of a `-f` file, a stream line or `--map` gave an empty or all whitespace string, an empty object or an empty array. In a stream it is an error line instead, and `--skip-blank` does not drop it. An `-i request` body is forwarded as it is and not checked |
+| `an empty question is one the model cannot answer` | the positional question, an `--ask`, a question file's `ask` or a `-f` body's `instructions` is empty or all whitespace |
 | `no API key` | nothing resolved for the provider, see the order above. A real run and `auth test` exit 2 here. `auth status` exits 2 too, after printing `source: none` |
 | `is in use by another onesie run` | another run holds the lock beside the `--out` file |
 | `Drop --resume to start over` | the `--out` file was written by a different run, or has no fingerprint |

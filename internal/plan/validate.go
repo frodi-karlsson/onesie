@@ -837,6 +837,10 @@ func checkQuestion(q *Question) (string, error) {
 		return "", fmt.Errorf("onesie: question id '%s' is reserved", q.ID)
 	}
 
+	if err := checkBlankQuestion(q); err != nil {
+		return "", err
+	}
+
 	if len(q.Options) > 0 && len(q.Levels) > 0 {
 		return "", errors.New(
 			"onesie: --pick and --rate are mutually exclusive. A question is one or the other")
@@ -849,6 +853,26 @@ func checkQuestion(q *Question) (string, error) {
 		return "", checkRate(q)
 	default:
 		return "", checkNoul(q)
+	}
+}
+
+func checkBlankQuestion(q *Question) error {
+	text, isText := q.Instructions.(string)
+	if !isText || strings.TrimSpace(text) != "" {
+		return nil
+	}
+
+	const cannot = "an empty question is one the model cannot answer"
+
+	switch q.Origin {
+	case OriginPositional:
+		return errors.New("onesie: the question is blank, " + cannot)
+	case OriginFlag:
+		return fmt.Errorf("onesie: --ask %s= is blank, %s", q.ID, cannot)
+	case OriginFile:
+		return fmt.Errorf("onesie: question '%s' has a blank 'ask', %s", q.ID, cannot)
+	default:
+		return fmt.Errorf("onesie: question '%s' has blank 'instructions', %s", q.ID, cannot)
 	}
 }
 

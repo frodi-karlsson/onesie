@@ -12,6 +12,9 @@ prints the built in limits.
 - `--pick` and `--rate` split their names on the comma, or on `--sep`, and trim the spaces around
   each one, so `--pick 'yes, no'` names `yes` and `no`. An empty name exits 2. A question file's
   names are kept as written, and an empty or all whitespace one exits 2 too.
+- An empty or all whitespace question exits 2 before any request, the way an empty state does,
+  whether it came from the positional argument, `--ask`, a question file's `ask` or the
+  `instructions` of a `-f` request body. An `-i request` body is forwarded as it is and not checked.
 - A pick or rate answer carries `confidence`, a number from 0 to 1 the API computes from `p`. In
   the committed rate answers it is about 1 when `p` sits on one level, never above the top
   probability, and lower as the rest spreads to other levels, most of all to far ones.
