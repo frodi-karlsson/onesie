@@ -54,6 +54,21 @@ func TestDelimited(t *testing.T) {
 			want:  "answer,error\n0.5,\n",
 		},
 		{
+			name:  "should add a fallback column for a question that has a fallback",
+			args:  []string{"--ask", "urgent=is this urgent", "--fallback", "no", "-o", "csv"},
+			stdin: "the site is down",
+			want:  "urgent,urgent_fallback,error\n0.5,,\n",
+		},
+		{
+			name: "should add the fallback column under a csv merge",
+			args: []string{
+				"--ask", "urgent=does `body` convey urgency", "--fallback", "no",
+				"-i", "csv", "-o", "csv", "--merge",
+			},
+			stdin: "id,body\n1,site down\n",
+			want:  "id,body,urgent,urgent_fallback,error\n1,site down,0.5,,\n",
+		},
+		{
 			name:  "should keep the columns of a row that fails",
 			args:  []string{"is this urgent", "-i", "csv", "-o", "csv", "--merge"},
 			stdin: "id,body\n1\n2,ok\n",

@@ -38,6 +38,9 @@ type DelimitedOptions struct {
 	IDs []string
 	// ID adds an id column ahead of the answers, for a run that names its records with --id.
 	ID bool
+	// Fallbacks are the ids of the questions that have a fallback. Each gets an ID_fallback column
+	// after its answer, holding why the fallback replaced it, or nothing when it did not.
+	Fallbacks []string
 	// Assert adds an assert column, true, false or abstain per row, when the run carries an
 	// assertion.
 	Assert bool
@@ -55,7 +58,7 @@ func (d *Delimited) Write(rec Record, header []string, fields map[string]any) er
 		}
 	}
 
-	row := make([]string, 0, len(header)+len(d.opts.IDs)+3)
+	row := make([]string, 0, len(header)+len(d.opts.IDs)+len(d.opts.Fallbacks)+3)
 
 	for _, name := range header {
 		row = append(row, cell(fields[name]))
@@ -67,6 +70,10 @@ func (d *Delimited) Write(rec Record, header []string, fields map[string]any) er
 
 	for _, id := range d.opts.IDs {
 		row = append(row, answerCell(rec, id))
+
+		if slices.Contains(d.opts.Fallbacks, id) {
+			row = append(row, fallbackCell(rec, id))
+		}
 	}
 
 	if d.opts.Assert {
@@ -89,7 +96,18 @@ func (d *Delimited) start(header []string) error {
 		columns = append(columns, "id")
 	}
 
-	columns = append(columns, d.opts.IDs...)
+	for _, id := range d.opts.IDs {
+		columns = append(columns, id)
+
+		if slices.Contains(d.opts.Fallbacks, id) {
+			columns = append(columns, fallbackColumn(id))
+		}
+	}
+
+	if err := checkFallbackColumns(d.opts); err != nil {
+		return err
+	}
+
 	if d.opts.Assert {
 		columns = append(columns, "assert")
 	}
@@ -144,6 +162,30 @@ func answerCell(rec Record, id string) string {
 	}
 
 	return ""
+}
+
+func fallbackCell(rec Record, id string) string {
+	for _, named := range rec.Answers {
+		if named.ID == id && named.Answer != nil {
+			return named.Answer.Fallback
+		}
+	}
+
+	return ""
+}
+
+func fallbackColumn(id string) string {
+	return id + "_fallback"
+}
+
+func checkFallbackColumns(opts DelimitedOptions) error {
+	for _, owner := range opts.Fallbacks {
+		if taken := fallbackColumn(owner); slices.Contains(opts.IDs, taken) {
+			return fmt.Errorf("question '%s' has the name of the fallback column of '%s'", taken, owner)
+		}
+	}
+
+	return nil
 }
 
 func assertCell(rec Record) string {

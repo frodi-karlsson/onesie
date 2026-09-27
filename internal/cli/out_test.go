@@ -1309,7 +1309,7 @@ func TestFingerprintOf(t *testing.T) {
 		want   string
 	}{
 		{
-			name: "should keep the fingerprint format a sidecar on disk was written in",
+			name: "should change a csv fingerprint once a fallback adds its column",
 			source: plan.Source{
 				Positional: "which team",
 				Events: []argv.Event{
@@ -1329,7 +1329,28 @@ func TestFingerprintOf(t *testing.T) {
 				assert:    "answer.p.billing > 0.5",
 				abstainIf: "answer.p.billing > 0.2",
 			},
-			want: "v2:6fc264bc94b1e04cdc7da8841f7ce348e0447168a23721534d12856f754c015a",
+			want: "v2:6503a1da7f53909577dcdf301457dd5133c7ab408d885c408b7d02af578ef5d8",
+		},
+		{
+			name: "should keep a json fingerprint for a question that has a fallback",
+			source: plan.Source{
+				Positional: "which team",
+				Events: []argv.Event{
+					{Name: "pick", Value: "billing,technical"},
+					{Name: "min-confidence", Value: "0.7"},
+					{Name: "fallback", Value: "human"},
+				},
+			},
+			inputs: fingerprintInputs{
+				provider: "typesafe", model: "jev-latest", output: "json", input: "jsonl", mergeKey: "answers",
+			},
+			want: "v2:92623101f8f774431ea1d792b28932b5a8e345d66688be20209169aa31dc94e4",
+		},
+		{
+			name:   "should keep a csv fingerprint with no fallback",
+			source: plan.Source{Positional: "is this urgent"},
+			inputs: fingerprintInputs{provider: "typesafe", model: "jev-latest", output: "csv", input: "csv"},
+			want:   "v2:b960f50ff4f87b31d39fe0889f79ab00daf3e178256a20470f092b0f356c2ae6",
 		},
 	}
 

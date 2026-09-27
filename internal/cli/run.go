@@ -821,7 +821,7 @@ func ask(
 		// written into the pipe the caller was closing reports a fault that never happened.
 		if !errors.Is(err, context.Canceled) {
 			if writeErr := writeFailure(
-				cmd, settings, outputMode, flags, resolved, record, gate, abstain); writeErr != nil {
+				cmd, settings, outputMode, flags, built, resolved, record, gate, abstain); writeErr != nil {
 				return writeErr
 			}
 		}
@@ -844,7 +844,7 @@ func ask(
 	}
 
 	// The record prints whatever the assertion said, and the exit code follows it.
-	if writeErr := writeRecord(cmd, settings, outputMode, flags, resolved, record, gate, abstain); writeErr != nil {
+	if writeErr := writeRecord(cmd, settings, outputMode, flags, built, resolved, record, gate, abstain); writeErr != nil {
 		return writeErr
 	}
 
@@ -890,6 +890,7 @@ func writeFailure(
 	settings rootSettings,
 	mode output.Mode,
 	flags *runFlags,
+	built *plan.Plan,
 	resolved input.Resolved,
 	record output.Record,
 	gate *assert.Expr,
@@ -900,7 +901,7 @@ func writeFailure(
 		return nil
 	}
 
-	return writeRecord(cmd, settings, mode, flags, resolved, record, gate, abstain)
+	return writeRecord(cmd, settings, mode, flags, built, resolved, record, gate, abstain)
 }
 
 func writeRecord(
@@ -908,6 +909,7 @@ func writeRecord(
 	settings rootSettings,
 	mode output.Mode,
 	flags *runFlags,
+	built *plan.Plan,
 	resolved input.Resolved,
 	record output.Record,
 	gate *assert.Expr,
@@ -918,11 +920,6 @@ func writeRecord(
 	}
 
 	if mode == output.CSV || mode == output.TSV {
-		built := &plan.Plan{}
-		for _, named := range record.Answers {
-			built.Questions = append(built.Questions, plan.Question{ID: named.ID})
-		}
-
 		return delimited(cmd.OutOrStdout(), mode, built, gate != nil, false, false).Write(record, nil, nil)
 	}
 
@@ -979,8 +976,21 @@ func delimited(
 	}
 
 	return output.NewDelimited(out, mode, output.DelimitedOptions{
-		IDs: ids, ID: withID, Assert: withAssert, Header: !headerWritten,
+		IDs: ids, Fallbacks: fallbackIDs(built.Questions), ID: withID, Assert: withAssert,
+		Header: !headerWritten,
 	})
+}
+
+func fallbackIDs(questions []plan.Question) []string {
+	var ids []string
+
+	for _, question := range questions {
+		if question.Policy.Fallback != nil {
+			ids = append(ids, question.ID)
+		}
+	}
+
+	return ids
 }
 
 func merging(flags *runFlags) bool {

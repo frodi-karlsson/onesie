@@ -23,6 +23,21 @@ func TestNewDelimited(t *testing.T) {
 		Answers: []output.Named{{ID: "urgent"}, {ID: "team"}},
 	}
 
+	fellBack := output.Record{Answers: []output.Named{
+		{ID: "urgent", Answer: &answer.Answer{Value: 0.92}},
+		{ID: "team", Answer: &answer.Answer{
+			Value: "billing", Decision: "support", Decided: true, Fallback: "low_confidence",
+		}},
+	}}
+
+	failedBack := output.Record{
+		Failure: &output.Failure{Kind: "http", Message: "onesie: 400 bad, request"},
+		Answers: []output.Named{
+			{ID: "urgent"},
+			{ID: "team", Answer: &answer.Answer{Decision: "support", Decided: true, Fallback: "error"}},
+		},
+	}
+
 	gated := answered
 	gated.AssertFailed = true
 
@@ -110,6 +125,29 @@ func TestNewDelimited(t *testing.T) {
 			want:    "id\turgent\tteam\terror\n\t\t\tonesie: 400 bad, request\n",
 		},
 		{
+			name: "should add a fallback column after each question that has a fallback",
+			mode: output.CSV,
+			opts: output.DelimitedOptions{
+				IDs: []string{"urgent", "team"}, Fallbacks: []string{"team"}, Header: true,
+			},
+			records: []output.Record{answered, fellBack, failedBack},
+			want: "urgent,team,team_fallback,error\n" +
+				"0.92,billing,,\n" +
+				"0.92,support,low_confidence,\n" +
+				",support,error,\"onesie: 400 bad, request\"\n",
+		},
+		{
+			name: "should add the fallback column after the input columns under a tsv merge",
+			mode: output.TSV,
+			opts: output.DelimitedOptions{
+				IDs: []string{"urgent", "team"}, Fallbacks: []string{"team"}, Header: true,
+			},
+			records: []output.Record{fellBack},
+			header:  []string{"body"},
+			fields:  []map[string]any{{"body": "site down"}},
+			want:    "body\turgent\tteam\tteam_fallback\terror\nsite down\t0.92\tsupport\tlow_confidence\t\n",
+		},
+		{
 			name:    "should leave the header out when resuming a file that has one",
 			mode:    output.CSV,
 			opts:    output.DelimitedOptions{IDs: []string{"urgent", "team"}},
@@ -164,6 +202,32 @@ func TestNewDelimited(t *testing.T) {
 		err := writer.Write(answered, []string{"urgent"}, map[string]any{"urgent": "x"})
 		if !errors.Is(err, output.ErrColumnTaken) {
 			t.Errorf("error = %v, want ErrColumnTaken", err)
+		}
+	})
+	t.Run("should refuse an input column named like a fallback column", func(t *testing.T) {
+		t.Parallel()
+
+		writer := output.NewDelimited(&bytes.Buffer{}, output.CSV,
+			output.DelimitedOptions{IDs: []string{"urgent"}, Fallbacks: []string{"urgent"}, Header: true})
+
+		err := writer.Write(answered, []string{"urgent_fallback"}, map[string]any{"urgent_fallback": "x"})
+		if !errors.Is(err, output.ErrColumnTaken) {
+			t.Errorf("error = %v, want ErrColumnTaken", err)
+		}
+	})
+
+	t.Run("should refuse a question named like another question's fallback column", func(t *testing.T) {
+		t.Parallel()
+
+		writer := output.NewDelimited(&bytes.Buffer{}, output.CSV, output.DelimitedOptions{
+			IDs: []string{"urgent", "urgent_fallback"}, Fallbacks: []string{"urgent"}, Header: true,
+		})
+
+		err := writer.Write(answered, nil, nil)
+
+		const want = "question 'urgent_fallback' has the name of the fallback column of 'urgent'"
+		if err == nil || err.Error() != want {
+			t.Errorf("error = %v, want %s", err, want)
 		}
 	})
 }

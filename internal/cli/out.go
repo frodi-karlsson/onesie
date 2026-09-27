@@ -820,6 +820,9 @@ func fingerprintOf(questions []plan.Question, inputs fingerprintInputs) (string,
 		Assert    string         `json:"assert"`
 		AbstainIf string         `json:"abstain_if"`
 		SkipBlank bool           `json:"skip_blank,omitempty"`
+		// A csv or tsv file written before the fallback columns existed has fewer columns, so a
+		// resume into it is refused rather than appending longer rows.
+		FallbackColumns bool `json:"fallback_columns,omitempty"`
 	}{
 		Questions: wireAll(questions),
 		Policies:  policiesOf(questions),
@@ -833,6 +836,8 @@ func fingerprintOf(questions []plan.Question, inputs fingerprintInputs) (string,
 		Assert:    inputs.assert,
 		AbstainIf: inputs.abstainIf,
 		SkipBlank: inputs.skipBlank,
+
+		FallbackColumns: delimitedOutput(inputs.output) && hasFallback(questions),
 	})
 	if err != nil {
 		return "", fmt.Errorf("onesie: fingerprinting the run: %w", err)
@@ -841,6 +846,14 @@ func fingerprintOf(questions []plan.Question, inputs fingerprintInputs) (string,
 	sum := sha256.Sum256(encoded)
 
 	return fmt.Sprintf("v%d:%s", fingerprintVersion, hex.EncodeToString(sum[:])), nil
+}
+
+func delimitedOutput(name string) bool {
+	return name == output.CSV.String() || name == output.TSV.String()
+}
+
+func hasFallback(questions []plan.Question) bool {
+	return len(fallbackIDs(questions)) > 0
 }
 
 type fingerprintInputs struct {

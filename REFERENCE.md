@@ -225,6 +225,11 @@ onesie calibrate -f shell-safety -i jsonl --map .command --id .id \
   record. `--no-dedup` asks every record.
 - Raw output keeps no outcome, so `--resume` refuses `-o raw` and `-r` with exit 2. Use `-o values`
   or `-o json`.
+- `-o csv` and `-o tsv` write one column per question, named by its id, then an `assert` column
+  under a gate and an `error` column. A question with a fallback gets an `ID_fallback` column right
+  after its own, as in `team,team_fallback`. It holds `low_confidence` or `error` when the fallback
+  replaced the answer, the same reason `-o json` writes as `fallback`, and is empty otherwise. Under
+  `--merge` the input columns come first, and one named like an output column exits 2.
 - onesie writes csv cells exactly as they are, the ones `--merge` carries over included. A cell
   from untrusted input that starts with `=`, `+`, `-` or `@` can act as a formula when the file is
   opened in a spreadsheet.
