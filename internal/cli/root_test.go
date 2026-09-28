@@ -2550,12 +2550,11 @@ func TestPooled(t *testing.T) {
 			t.Fatalf("exit code = %d, output:\n%s", code, out.String())
 		}
 
-		// The default transport pools two idle connections per host, which leaves most records at
-		// this -j paying for a fresh handshake. A run that pools per job opens one connection per
-		// worker and reuses it.
-		if got := opened.Load(); got > jobs {
+		// MaxConnsPerHost bounds simultaneous connections, not every connection opened during
+		// the run. A closed connection can be replaced, so allow one replacement per worker.
+		if got := opened.Load(); got > 2*jobs {
 			t.Errorf("new connections = %d for %d records at -j %d, want at most %d",
-				got, records, jobs, jobs)
+				got, records, jobs, 2*jobs)
 		}
 	})
 }
