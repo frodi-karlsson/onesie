@@ -127,10 +127,9 @@ jobs:
         with:
           go-version-file: go.mod
 
-      # The ubuntu image ships shellcheck and the scripts are the same files
-      # on both, so one run covers them.
+      # The ubuntu image ships shellcheck. One run covers the same scripts on every platform.
       - name: Lint the shell scripts
-        if: runner.os == 'Linux'
+        if: matrix.os == 'ubuntu-latest'
         run: shellcheck install.sh scripts/release.sh hooks/preflight.sh
 
       - name: Build a snapshot
