@@ -7,7 +7,7 @@ import (
 
 	"github.com/frodi-karlsson/onesie/internal/answer"
 	"github.com/frodi-karlsson/onesie/internal/plan"
-	"github.com/frodi-karlsson/onesie/jev"
+	"github.com/frodi-karlsson/onesie/onesie"
 )
 
 func TestEntryResult(t *testing.T) {
@@ -226,7 +226,7 @@ func TestEntryResult(t *testing.T) {
 			t.Errorf("model %q, want mock", result.Model)
 		}
 
-		if result.Usage != (jev.Usage{}) {
+		if result.Usage != (onesie.Usage{}) {
 			t.Errorf("usage %+v, want zero", result.Usage)
 		}
 	})

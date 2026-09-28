@@ -15,7 +15,7 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/output"
 	"github.com/frodi-karlsson/onesie/internal/plan"
 	"github.com/frodi-karlsson/onesie/internal/qfile"
-	"github.com/frodi-karlsson/onesie/jev"
+	"github.com/frodi-karlsson/onesie/onesie"
 )
 
 func printSchema(w io.Writer) error {
@@ -103,12 +103,12 @@ func printRequest(
 	state any,
 	model string,
 ) error {
-	req := jev.Request{Model: model, Questions: wireAll(questions)}
+	req := onesie.Request{Model: model, Questions: wireAll(questions)}
 
-	encode := jev.MarshalQuestionsBody
+	encode := onesie.MarshalQuestionsBody
 	if source != input.SourceNone {
 		req.State = state
-		encode = jev.MarshalBody
+		encode = onesie.MarshalBody
 	}
 
 	body, err := encode(req)
@@ -171,7 +171,7 @@ func streamRequests(
 				return errorLine(bad), bad
 			}
 
-			return requestLine(rec.Line, jev.Request{State: sent, Model: model, Questions: questions})
+			return requestLine(rec.Line, onesie.Request{State: sent, Model: model, Questions: questions})
 		},
 		Write: func(body []byte) error {
 			_, writeErr := fmt.Fprintln(out, string(body))
@@ -193,8 +193,8 @@ func streamRequests(
 	return streamResult(result, 0, 0)
 }
 
-func requestLine(number int, req jev.Request) ([]byte, error) {
-	body, err := jev.MarshalBody(req)
+func requestLine(number int, req onesie.Request) ([]byte, error) {
+	body, err := onesie.MarshalBody(req)
 	if err != nil {
 		bad := &input.LineError{Line: number, Err: fmt.Errorf("encoding the request: %w", err)}
 

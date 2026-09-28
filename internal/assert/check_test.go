@@ -10,7 +10,7 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/argv"
 	"github.com/frodi-karlsson/onesie/internal/output"
 	"github.com/frodi-karlsson/onesie/internal/plan"
-	"github.com/frodi-karlsson/onesie/jev"
+	"github.com/frodi-karlsson/onesie/onesie"
 )
 
 func TestCheck(t *testing.T) {
@@ -873,7 +873,7 @@ func fullRecord(t *testing.T, built *plan.Plan, confidence float64) output.Recor
 	return rec
 }
 
-func rawAnswer(q plan.Question, confidence float64) jev.Answer {
+func rawAnswer(q plan.Question, confidence float64) onesie.Answer {
 	switch q.Shape {
 	case plan.Pick:
 		probabilities := map[string]float64{}
@@ -881,7 +881,7 @@ func rawAnswer(q plan.Question, confidence float64) jev.Answer {
 			probabilities[option.Name] = float64(i+1) / float64(len(q.Options)*2)
 		}
 
-		return &jev.ChoiceAnswer{
+		return &onesie.ChoiceAnswer{
 			Choice:        q.Options[len(q.Options)-1].Name,
 			Confidence:    confidence,
 			Probabilities: probabilities,
@@ -892,14 +892,14 @@ func rawAnswer(q plan.Question, confidence float64) jev.Answer {
 			probabilities[strconv.Itoa(i)] = float64(i+1) / float64(len(q.Levels)*2)
 		}
 
-		return &jev.ScoreAnswer{
+		return &onesie.ScoreAnswer{
 			Score:         1,
 			Confidence:    confidence,
 			Legend:        map[string]string{"0": "low"},
 			Probabilities: probabilities,
 		}
 	default:
-		return &jev.NoulAnswer{Noul: 0.8}
+		return &onesie.NoulAnswer{Noul: 0.8}
 	}
 }
 

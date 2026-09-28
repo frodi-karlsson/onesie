@@ -7,7 +7,7 @@ import (
 
 	"github.com/frodi-karlsson/onesie/internal/answer"
 	"github.com/frodi-karlsson/onesie/internal/output"
-	"github.com/frodi-karlsson/onesie/jev"
+	"github.com/frodi-karlsson/onesie/onesie"
 )
 
 func TestWrite(t *testing.T) {
@@ -189,7 +189,7 @@ func TestWrite(t *testing.T) {
 			mode: output.JSON,
 			rec: output.Record{
 				Model:   "onesie-1.13.0",
-				Usage:   &jev.Usage{InputTokens: 2841, OutputTokens: 71},
+				Usage:   &onesie.Usage{InputTokens: 2841, OutputTokens: 71},
 				Answers: simple.Answers,
 			},
 			want: `{"model":"onesie-1.13.0","usage":{"input_tokens":2841,"output_tokens":71},` +

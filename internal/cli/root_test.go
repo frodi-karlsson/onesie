@@ -25,7 +25,7 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/cli"
 	"github.com/frodi-karlsson/onesie/internal/creds"
 	"github.com/frodi-karlsson/onesie/internal/qfile"
-	"github.com/frodi-karlsson/onesie/jev"
+	"github.com/frodi-karlsson/onesie/onesie"
 )
 
 func TestNewRootCmd(t *testing.T) {
@@ -1200,9 +1200,9 @@ func TestNewRootCmd(t *testing.T) {
 			root := cli.NewRootCmd(
 				cli.BuildInfo{Version: "1.2.3", Commit: "abc1234", Date: "2026-01-01"},
 				cli.WithKeychain(offKeychain{}),
-				cli.WithClientFactory(func(_ context.Context, opts ...jev.Option) (*jev.Client, error) {
-					return jev.New(append([]jev.Option{
-						jev.WithAPIKey("k"), jev.WithBaseURL(srv.URL),
+				cli.WithClientFactory(func(_ context.Context, opts ...onesie.Option) (*onesie.Client, error) {
+					return onesie.New(append([]onesie.Option{
+						onesie.WithAPIKey("k"), onesie.WithBaseURL(srv.URL),
 					}, opts...)...)
 				}),
 				cli.WithStdin(strings.NewReader(tc.stdin)),
@@ -1727,7 +1727,7 @@ func TestNewRootCmd(t *testing.T) {
 
 				home := t.TempDir()
 				env := map[string]string{
-					jev.EnvAPIKey:       "k",
+					onesie.EnvAPIKey:    "k",
 					"ONESIE_CONFIG_DIR": filepath.Join(home, "config"),
 					"ONESIE_CACHE_DIR":  filepath.Join(home, "cache"),
 				}
@@ -2015,7 +2015,7 @@ func TestDefaultClientFactory(t *testing.T) {
 		}{
 			{name: "should warn for --base-url ending in /v1", flag: "/v1", spelled: "--base-url", wantWarn: true},
 			{name: "should warn for --base-url ending in /v1/", flag: "/v1/", spelled: "--base-url", wantWarn: true},
-			{name: "should warn for TYPESAFE_BASE_URL ending in /v1", env: "/v1", spelled: jev.EnvBaseURL, wantWarn: true},
+			{name: "should warn for TYPESAFE_BASE_URL ending in /v1", env: "/v1", spelled: onesie.EnvBaseURL, wantWarn: true},
 			{
 				name: "should name the credential file for a stored base URL ending in /v1", stored: "/v1",
 				spelled: "the base URL in the credential file", wantWarn: true,
@@ -2035,12 +2035,12 @@ func TestDefaultClientFactory(t *testing.T) {
 				})
 				defer srv.Close()
 
-				env := map[string]string{jev.EnvAPIKey: "test"}
+				env := map[string]string{onesie.EnvAPIKey: "test"}
 				args := []string{"is this urgent", "-i", "lines", "-o", "values", "--retries", "0"}
 				credentials := filepath.Join(t.TempDir(), "credentials.json")
 
 				if tc.stored != "" {
-					delete(env, jev.EnvAPIKey)
+					delete(env, onesie.EnvAPIKey)
 
 					stored := `{"providers":{"typesafe":{"api_key":"test","base_url":"` + srv.URL + tc.stored + `"}}}`
 					if err := os.WriteFile(credentials, []byte(stored), 0o600); err != nil {
@@ -2053,7 +2053,7 @@ func TestDefaultClientFactory(t *testing.T) {
 				}
 
 				if tc.env != "" {
-					env[jev.EnvBaseURL] = srv.URL + tc.env
+					env[onesie.EnvBaseURL] = srv.URL + tc.env
 				}
 
 				var out, errOut bytes.Buffer
@@ -2115,8 +2115,8 @@ func TestDefaultClientFactory(t *testing.T) {
 			defer srv.Close()
 
 			env := map[string]string{
-				jev.EnvAPIKey:  "from-env",
-				jev.EnvBaseURL: srv.URL,
+				onesie.EnvAPIKey:  "from-env",
+				onesie.EnvBaseURL: srv.URL,
 			}
 
 			out, code := runWithEnv(t, env, []string{"is this urgent", "-r"})
@@ -2142,8 +2142,8 @@ func TestDefaultClientFactory(t *testing.T) {
 			defer fromEnv.Close()
 
 			env := map[string]string{
-				jev.EnvAPIKey:  "from-env",
-				jev.EnvBaseURL: fromEnv.URL,
+				onesie.EnvAPIKey:  "from-env",
+				onesie.EnvBaseURL: fromEnv.URL,
 			}
 
 			out, code := runWithEnv(t, env,
@@ -2379,7 +2379,7 @@ func runWithEnv(t *testing.T, env map[string]string, args []string) (string, int
 
 func apiKeyEnv(key string) func(string) (string, bool) {
 	return func(name string) (string, bool) {
-		if name == jev.EnvAPIKey {
+		if name == onesie.EnvAPIKey {
 			return key, true
 		}
 
@@ -2431,9 +2431,9 @@ func TestWireAll(t *testing.T) {
 			root := cli.NewRootCmd(
 				cli.BuildInfo{Version: "1.2.3", Commit: "abc1234", Date: "2026-01-01"},
 				cli.WithKeychain(offKeychain{}),
-				cli.WithClientFactory(func(_ context.Context, opts ...jev.Option) (*jev.Client, error) {
-					return jev.New(append([]jev.Option{
-						jev.WithAPIKey("k"), jev.WithBaseURL(srv.URL),
+				cli.WithClientFactory(func(_ context.Context, opts ...onesie.Option) (*onesie.Client, error) {
+					return onesie.New(append([]onesie.Option{
+						onesie.WithAPIKey("k"), onesie.WithBaseURL(srv.URL),
 					}, opts...)...)
 				}),
 				cli.WithStdin(strings.NewReader("the server is down")),
@@ -2532,9 +2532,9 @@ func TestPooled(t *testing.T) {
 			cli.WithStdoutTTY(false),
 			cli.WithLookupEnv(func(name string) (string, bool) {
 				switch name {
-				case jev.EnvAPIKey:
+				case onesie.EnvAPIKey:
 					return "k", true
-				case jev.EnvBaseURL:
+				case onesie.EnvBaseURL:
 					return srv.URL, true
 				default:
 					return "", false

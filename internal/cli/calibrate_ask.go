@@ -21,7 +21,7 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/jq"
 	"github.com/frodi-karlsson/onesie/internal/output"
 	"github.com/frodi-karlsson/onesie/internal/plan"
-	"github.com/frodi-karlsson/onesie/jev"
+	"github.com/frodi-karlsson/onesie/onesie"
 )
 
 const maxCauses = 5
@@ -534,7 +534,7 @@ func answerTo(question plan.Question, record output.Record) (*answer.Answer, err
 
 func unusableAnswer(id, format string, args ...any) error {
 	// A 200 whose body the scorers cannot use, the kind a stream reports as a response failure.
-	return &jev.ResponseError{
+	return &onesie.ResponseError{
 		Status:  http.StatusOK,
 		Message: fmt.Sprintf("question '%s' ", id) + fmt.Sprintf(format, args...),
 	}

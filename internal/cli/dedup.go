@@ -6,7 +6,7 @@ import (
 	"sync"
 
 	"github.com/frodi-karlsson/onesie/internal/output"
-	"github.com/frodi-karlsson/onesie/jev"
+	"github.com/frodi-karlsson/onesie/onesie"
 )
 
 func askOnce(
@@ -15,7 +15,7 @@ func askOnce(
 	stats *collector,
 	sent any,
 	model string,
-	questions jev.Questions,
+	questions onesie.Questions,
 	salt string,
 	ask func() (output.Record, error),
 ) (output.Record, *sharedCall, error) {
@@ -104,8 +104,8 @@ type sharedCall struct {
 	billed bool // Only the stream's single writer touches it, so it needs no lock.
 }
 
-func requestKey(sent any, model string, questions jev.Questions, salt string) ([sha256.Size]byte, error) {
-	body, err := jev.MarshalBody(jev.Request{State: sent, Model: model, Questions: questions})
+func requestKey(sent any, model string, questions onesie.Questions, salt string) ([sha256.Size]byte, error) {
+	body, err := onesie.MarshalBody(onesie.Request{State: sent, Model: model, Questions: questions})
 	if err != nil {
 		return [sha256.Size]byte{}, err
 	}

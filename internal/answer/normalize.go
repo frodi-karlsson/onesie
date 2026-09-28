@@ -11,14 +11,14 @@ import (
 	"sort"
 	"strconv"
 
-	"github.com/frodi-karlsson/onesie/jev"
+	"github.com/frodi-karlsson/onesie/onesie"
 
 	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
 // Normalize turns one API answer into the printed shape, keeping the API's own keys when the
 // question carries no labels.
-func Normalize(q plan.Question, raw jev.Answer) (*Answer, error) {
+func Normalize(q plan.Question, raw onesie.Answer) (*Answer, error) {
 	if raw == nil {
 		return nil, unusable("onesie: question '%s' has no answer", q.ID)
 	}
@@ -31,11 +31,11 @@ func Normalize(q plan.Question, raw jev.Answer) (*Answer, error) {
 	}
 
 	switch typed := raw.(type) {
-	case *jev.NoulAnswer:
+	case *onesie.NoulAnswer:
 		return &Answer{Value: typed.Noul}, nil
-	case *jev.ChoiceAnswer:
+	case *onesie.ChoiceAnswer:
 		return normalizeChoice(q, typed), nil
-	case *jev.ScoreAnswer:
+	case *onesie.ScoreAnswer:
 		return normalizeScore(q, typed), nil
 	default:
 		return nil, unusable("onesie: question '%s' returned an unknown answer type '%s'",
@@ -47,7 +47,7 @@ func unusable(format string, args ...any) error {
 	// A shape the question did not ask for is deterministic, so it is a 200 whose body onesie could
 	// not use rather than a transport failure. That gives it kind response in a stream and exit 4
 	// in a single shot run.
-	return &jev.ResponseError{Status: http.StatusOK, Message: fmt.Sprintf(format, args...)}
+	return &onesie.ResponseError{Status: http.StatusOK, Message: fmt.Sprintf(format, args...)}
 }
 
 func wireKind(shape plan.Shape) string {
@@ -92,7 +92,7 @@ func (a Answer) MarshalJSON() ([]byte, error) {
 	return append(trimmed, '}'), nil
 }
 
-func normalizeChoice(q plan.Question, raw *jev.ChoiceAnswer) *Answer {
+func normalizeChoice(q plan.Question, raw *onesie.ChoiceAnswer) *Answer {
 	keys := make([]string, 0, len(q.Options))
 	values := make(map[string]float64, len(q.Options)+len(raw.Probabilities))
 
@@ -114,7 +114,7 @@ func normalizeChoice(q plan.Question, raw *jev.ChoiceAnswer) *Answer {
 	}
 }
 
-func normalizeScore(q plan.Question, raw *jev.ScoreAnswer) *Answer {
+func normalizeScore(q plan.Question, raw *onesie.ScoreAnswer) *Answer {
 	indexes := sortedIndexes(raw.Probabilities)
 	winner := modal(indexes, raw.Probabilities)
 

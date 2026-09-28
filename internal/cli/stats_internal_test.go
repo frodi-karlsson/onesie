@@ -16,7 +16,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/frodi-karlsson/onesie/jev"
+	"github.com/frodi-karlsson/onesie/onesie"
 )
 
 func TestPlural(t *testing.T) {
@@ -90,15 +90,15 @@ func TestCollectorSnapshot(t *testing.T) {
 
 					for range tc.each {
 						// A record that was rate limited once and then answered.
-						c.observe(jev.Attempt{Index: 0, Status: http.StatusTooManyRequests})
-						c.observe(jev.Attempt{Index: 1, Status: http.StatusOK})
-						c.record("onesie-1.13.0", jev.Usage{InputTokens: 2, OutputTokens: 1}, 1)
+						c.observe(onesie.Attempt{Index: 0, Status: http.StatusTooManyRequests})
+						c.observe(onesie.Attempt{Index: 1, Status: http.StatusOK})
+						c.record("onesie-1.13.0", onesie.Usage{InputTokens: 2, OutputTokens: 1}, 1)
 
 						// A record the server refused outright, which is a failed attempt that
 						// caused no retry.
-						c.observe(jev.Attempt{Index: 0, Status: http.StatusBadRequest})
-						c.terminalAttempt(&jev.APIError{Status: http.StatusBadRequest})
-						c.recordFailure(&jev.APIError{Status: http.StatusBadRequest}, true, 1)
+						c.observe(onesie.Attempt{Index: 0, Status: http.StatusBadRequest})
+						c.terminalAttempt(&onesie.APIError{Status: http.StatusBadRequest})
+						c.recordFailure(&onesie.APIError{Status: http.StatusBadRequest}, true, 1)
 					}
 				}()
 			}
@@ -148,7 +148,7 @@ func TestCollectorCachedRecord(t *testing.T) {
 
 		c.cachedRecord("onesie-1.13.0")
 		c.cachedRecord("onesie-1.14.0")
-		c.record("onesie-1.13.0", jev.Usage{InputTokens: 3, OutputTokens: 1}, 2)
+		c.record("onesie-1.13.0", onesie.Usage{InputTokens: 3, OutputTokens: 1}, 2)
 
 		got := c.snapshot(time.Second, time.Second)
 
@@ -174,7 +174,7 @@ func TestCollectorRecordFailure(t *testing.T) {
 	}{
 		{
 			name:         "should count a record the server refused",
-			cause:        &jev.APIError{Status: http.StatusBadRequest},
+			cause:        &onesie.APIError{Status: http.StatusBadRequest},
 			wantRecords:  1,
 			wantRequests: 1,
 			wantFailed:   1,
@@ -223,7 +223,7 @@ func TestCollectorDeduplicated(t *testing.T) {
 		{name: "should count an answered duplicate as a record and a dedup", wantRecords: 1, wantDedups: 1},
 		{
 			name:        "should count a duplicate of a failed request as failed too",
-			cause:       &jev.APIError{Status: http.StatusServiceUnavailable},
+			cause:       &onesie.APIError{Status: http.StatusServiceUnavailable},
 			wantRecords: 1, wantDedups: 1, wantFailed: 1,
 		},
 		{
@@ -266,22 +266,22 @@ func TestTerminalStatus(t *testing.T) {
 	}{
 		{
 			name: "should take the status from an API error",
-			err:  &jev.APIError{Status: http.StatusBadRequest}, wantStatus: 400, wantCounted: true,
+			err:  &onesie.APIError{Status: http.StatusBadRequest}, wantStatus: 400, wantCounted: true,
 		},
 		{
 			name: "should reach the API error a retry after error embeds",
-			err: &jev.RetryAfterError{
-				APIError: jev.APIError{Status: http.StatusTooManyRequests},
+			err: &onesie.RetryAfterError{
+				APIError: onesie.APIError{Status: http.StatusTooManyRequests},
 			},
 			wantStatus: 429, wantCounted: true,
 		},
 		{
 			name: "should count a transport failure as statusless",
-			err:  &jev.ConnectionError{Err: errors.New("reset")}, wantCounted: true,
+			err:  &onesie.ConnectionError{Err: errors.New("reset")}, wantCounted: true,
 		},
 		{
 			name:        "should count a timeout as statusless",
-			err:         &jev.TimeoutError{ConnectionError: jev.ConnectionError{Err: errors.New("x")}},
+			err:         &onesie.TimeoutError{ConnectionError: onesie.ConnectionError{Err: errors.New("x")}},
 			wantCounted: true,
 		},
 		{
@@ -292,15 +292,15 @@ func TestTerminalStatus(t *testing.T) {
 			// Its attempt came back 2xx and was counted as a success, so subtracting it here
 			// would hide a real transport retry.
 			name: "should not count a 2xx body that could not be used",
-			err:  &jev.ResponseError{Status: http.StatusOK, Err: errors.New("bad json")},
+			err:  &onesie.ResponseError{Status: http.StatusOK, Err: errors.New("bad json")},
 		},
 		{
 			name: "should not count a request rejected before it was sent",
-			err:  &jev.ValidationError{Message: "no API key"},
+			err:  &onesie.ValidationError{Message: "no API key"},
 		},
 		{
 			name: "should not count an answer the response was missing",
-			err:  &jev.AnswerError{Name: "urgent", Missing: true},
+			err:  &onesie.AnswerError{Name: "urgent", Missing: true},
 		},
 	}
 
@@ -368,7 +368,7 @@ func TestWithStats(t *testing.T) {
 			now := ticking(time.Date(2026, 9, 24, 12, 0, 0, 0, time.UTC), tc.elapsed)
 
 			got := withStats(cmd, now, &runFlags{stats: true, timeout: 10}, func(c *collector) error {
-				c.record("onesie-1.13.0", jev.Usage{}, 1)
+				c.record("onesie-1.13.0", onesie.Usage{}, 1)
 
 				return tc.run
 			})

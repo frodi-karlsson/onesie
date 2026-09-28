@@ -3,16 +3,16 @@ package cli
 import (
 	"context"
 
-	"github.com/frodi-karlsson/onesie/jev"
+	"github.com/frodi-karlsson/onesie/onesie"
 )
 
 type answerer interface {
-	answer(ctx context.Context, key recordKey, req jev.Request) (reply, error)
+	answer(ctx context.Context, key recordKey, req onesie.Request) (reply, error)
 	salt(key recordKey) (string, bool)
 }
 
 type reply struct {
-	result *jev.Result
+	result *onesie.Result
 	cached bool
 }
 
@@ -35,7 +35,7 @@ func liveAnswers(settings rootSettings) answererFactory {
 	}
 }
 
-func (a liveAnswerer) answer(ctx context.Context, _ recordKey, req jev.Request) (reply, error) {
+func (a liveAnswerer) answer(ctx context.Context, _ recordKey, req onesie.Request) (reply, error) {
 	result, err := a.client.SystemOne(ctx, req)
 
 	return reply{result: result}, err
@@ -46,5 +46,5 @@ func (liveAnswerer) salt(recordKey) (string, bool) {
 }
 
 type liveAnswerer struct {
-	client *jev.Client
+	client *onesie.Client
 }

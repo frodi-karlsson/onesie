@@ -11,7 +11,7 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/engine"
 	"github.com/frodi-karlsson/onesie/internal/input"
 	"github.com/frodi-karlsson/onesie/internal/output"
-	"github.com/frodi-karlsson/onesie/jev"
+	"github.com/frodi-karlsson/onesie/onesie"
 )
 
 // Exit codes. A driver script branches on these, so they are part of the interface.
@@ -127,20 +127,20 @@ func Classify(err error) int {
 		return ExitTransport
 	}
 
-	var overCap *jev.RetryAfterError
+	var overCap *onesie.RetryAfterError
 	if errors.As(err, &overCap) {
 		return ExitUnavailable
 	}
 
 	// A 2xx body onesie cannot use is a server fault, not a usage error, and retrying it is
 	// reasonable, which is what exit 4 means.
-	var unusable *jev.ResponseError
+	var unusable *onesie.ResponseError
 	if errors.As(err, &unusable) {
 		return ExitUnavailable
 	}
 
-	if errors.Is(err, jev.ErrAuthentication) || errors.Is(err, jev.ErrPermissionDenied) ||
-		errors.Is(err, jev.ErrPaymentRequired) {
+	if errors.Is(err, onesie.ErrAuthentication) || errors.Is(err, onesie.ErrPermissionDenied) ||
+		errors.Is(err, onesie.ErrPaymentRequired) {
 		return ExitAuth
 	}
 
@@ -155,12 +155,12 @@ func Classify(err error) int {
 		return ExitAuth
 	}
 
-	var api *jev.APIError
+	var api *onesie.APIError
 	if errors.As(err, &api) {
 		return classifyStatus(api.Status)
 	}
 
-	if errors.Is(err, jev.ErrConnection) || errors.Is(err, jev.ErrTimeout) {
+	if errors.Is(err, onesie.ErrConnection) || errors.Is(err, onesie.ErrTimeout) {
 		return ExitTransport
 	}
 

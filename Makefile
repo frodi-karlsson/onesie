@@ -31,7 +31,7 @@ test-race: ## Run unit tests with the race detector
 	go tool gotestsum --format testname -- -race -timeout 2m ./...
 
 test-integration: ## Run tests against the live API. Needs TYPESAFE_API_KEY, OPENROUTER_API_KEY and BERGET_API_KEY for their cases, or a .env
-	go test -tags integration -race -count=1 -timeout 5m ./internal/jev/ ./internal/cli/ -run 'TestLive|Integration' -v
+	go test -tags integration -race -count=1 -timeout 5m ./onesie/ ./internal/cli/ -run 'TestLive|Integration' -v
 
 FUZZ_TARGETS := \
 	./internal/assert/:FuzzParse \

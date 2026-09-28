@@ -10,7 +10,7 @@ import (
 	"unicode"
 
 	"github.com/frodi-karlsson/onesie/internal/jq"
-	"github.com/frodi-karlsson/onesie/jev"
+	"github.com/frodi-karlsson/onesie/onesie"
 )
 
 // WriteMarkdown writes one record as a GitHub flavoured markdown table under an alert for its
@@ -104,7 +104,7 @@ type MarkdownTable struct {
 	started bool
 	tally   tally
 	models  []string
-	usage   *jev.Usage
+	usage   *onesie.Usage
 }
 
 // MarkdownTableOptions fixes the columns a MarkdownTable writes.
@@ -204,7 +204,7 @@ func (m *MarkdownTable) count(rec Record) {
 	}
 
 	if m.usage == nil {
-		m.usage = &jev.Usage{}
+		m.usage = &onesie.Usage{}
 	}
 
 	m.usage.InputTokens += rec.Usage.InputTokens
@@ -399,7 +399,7 @@ func confidenceText(a *Answer) string {
 	return strconv.Itoa(int(math.Round(*a.Confidence*100))) + "%"
 }
 
-func footerOf(models []string, usage *jev.Usage) string {
+func footerOf(models []string, usage *onesie.Usage) string {
 	parts := make([]string, 0, len(models)+2)
 	for _, model := range models {
 		parts = append(parts, codeSpan(model, false))

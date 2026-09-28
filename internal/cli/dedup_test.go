@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/frodi-karlsson/onesie/internal/output"
-	"github.com/frodi-karlsson/onesie/jev"
+	"github.com/frodi-karlsson/onesie/onesie"
 )
 
 const dedupWorkers = 32
@@ -21,7 +21,7 @@ func TestDedup_Share(t *testing.T) {
 	t.Parallel()
 
 	answered := output.Record{Model: "m"}
-	refused := &jev.APIError{Status: 503}
+	refused := &onesie.APIError{Status: 503}
 	keyOf := func(name string) [sha256.Size]byte { return sha256.Sum256([]byte(name)) }
 
 	t.Run("should run ask once for one key and hand every caller the record", func(t *testing.T) {
@@ -293,7 +293,7 @@ func TestDedup_Share(t *testing.T) {
 func TestAskOnce(t *testing.T) {
 	t.Parallel()
 
-	questions := jev.Questions{{ID: "urgent", Question: jev.Noul{Instructions: "is this urgent"}}}
+	questions := onesie.Questions{{ID: "urgent", Question: onesie.Noul{Instructions: "is this urgent"}}}
 	answered := output.Record{Model: "m"}
 
 	tests := []struct {
@@ -367,13 +367,13 @@ func TestAskOnce(t *testing.T) {
 func TestBillOnce(t *testing.T) {
 	t.Parallel()
 
-	spent := func() *jev.Usage { return &jev.Usage{InputTokens: 5, OutputTokens: 2} }
+	spent := func() *onesie.Usage { return &onesie.Usage{InputTokens: 5, OutputTokens: 2} }
 
 	tests := []struct {
 		name      string
 		call      *sharedCall
-		usage     *jev.Usage
-		want      *jev.Usage
+		usage     *onesie.Usage
+		want      *onesie.Usage
 		wantBills bool
 	}{
 		{name: "should leave a line of no group as it is", usage: spent(), want: spent()},
@@ -383,7 +383,7 @@ func TestBillOnce(t *testing.T) {
 		},
 		{
 			name: "should give a later line of a group zero tokens",
-			call: &sharedCall{billed: true}, usage: spent(), want: &jev.Usage{}, wantBills: true,
+			call: &sharedCall{billed: true}, usage: spent(), want: &onesie.Usage{}, wantBills: true,
 		},
 		{
 			name: "should leave a later error line that carried no usage with none",
@@ -413,8 +413,8 @@ func TestBillOnce(t *testing.T) {
 func TestRequestKey(t *testing.T) {
 	t.Parallel()
 
-	questions := jev.Questions{{ID: "urgent", Question: jev.Noul{Instructions: "is this urgent"}}}
-	other := jev.Questions{{ID: "urgent", Question: jev.Noul{Instructions: "is this rude"}}}
+	questions := onesie.Questions{{ID: "urgent", Question: onesie.Noul{Instructions: "is this urgent"}}}
+	other := onesie.Questions{{ID: "urgent", Question: onesie.Noul{Instructions: "is this rude"}}}
 	state := json.RawMessage(`{"a":1,"b":2}`)
 
 	base, err := requestKey(state, "m", questions, "")
@@ -426,7 +426,7 @@ func TestRequestKey(t *testing.T) {
 		name      string
 		sent      any
 		model     string
-		questions jev.Questions
+		questions onesie.Questions
 		salt      string
 		wantSame  bool
 	}{

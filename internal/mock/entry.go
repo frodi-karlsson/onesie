@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/frodi-karlsson/onesie/internal/plan"
-	"github.com/frodi-karlsson/onesie/jev"
+	"github.com/frodi-karlsson/onesie/onesie"
 )
 
 // Model is the model name a mocked answer carries.
@@ -44,7 +44,7 @@ func (p parser) entry(fields map[string]any, where string) (*Entry, error) {
 		return p.failure(failure, where)
 	}
 
-	answers := make(map[string]jev.Answer, len(p.questions))
+	answers := make(map[string]onesie.Answer, len(p.questions))
 
 	for _, question := range p.questions {
 		if p.opts.Asked != nil && !slices.Contains(p.opts.Asked, question.ID) {
@@ -71,7 +71,7 @@ func (p parser) entry(fields map[string]any, where string) (*Entry, error) {
 		return nil, fmt.Errorf("%s: %w", where, err)
 	}
 
-	result := &jev.Result{Model: Model, Answers: answers}
+	result := &onesie.Result{Model: Model, Answers: answers}
 
 	return &Entry{result: result, key: "answers " + string(encoded)}, nil
 }
@@ -131,7 +131,7 @@ func writtenFailure(failure map[string]any, refused error) (*Entry, error) {
 		return connectionEntry(), nil
 	case "response":
 		return &Entry{
-			err: &jev.ResponseError{Status: http.StatusOK, Message: "onesie: mock response onesie could not use"},
+			err: &onesie.ResponseError{Status: http.StatusOK, Message: "onesie: mock response onesie could not use"},
 			key: "error response",
 		}, nil
 	case "input":
@@ -153,15 +153,15 @@ func errorStatus(number json.Number) (int, bool) {
 
 func statusEntry(status int) *Entry {
 	return &Entry{
-		err: jev.NewAPIError(status, fmt.Sprintf("onesie: mock status %d", status)),
+		err: onesie.NewAPIError(status, fmt.Sprintf("onesie: mock status %d", status)),
 		key: fmt.Sprintf("error http %d", status),
 	}
 }
 
 func timeoutEntry(timeout time.Duration) *Entry {
 	return &Entry{
-		err: &jev.TimeoutError{
-			ConnectionError: jev.ConnectionError{Err: errors.New("mock timeout")}, Timeout: timeout,
+		err: &onesie.TimeoutError{
+			ConnectionError: onesie.ConnectionError{Err: errors.New("mock timeout")}, Timeout: timeout,
 		},
 		key: "error timeout",
 	}
@@ -169,12 +169,12 @@ func timeoutEntry(timeout time.Duration) *Entry {
 
 func connectionEntry() *Entry {
 	return &Entry{
-		err: &jev.ConnectionError{Err: errors.New("mock connection error")},
+		err: &onesie.ConnectionError{Err: errors.New("mock connection error")},
 		key: "error connection",
 	}
 }
 
-func parseAnswer(question plan.Question, given any) (jev.Answer, error) {
+func parseAnswer(question plan.Question, given any) (onesie.Answer, error) {
 	parts, err := partsOf(question, given)
 	if err != nil {
 		return nil, err
@@ -228,7 +228,7 @@ func partsOf(question plan.Question, given any) (answerParts, error) {
 	return parts, nil
 }
 
-func yesNoAnswer(given any) (jev.Answer, error) {
+func yesNoAnswer(given any) (onesie.Answer, error) {
 	if _, isNumber := given.(json.Number); !isNumber {
 		return nil, fmt.Errorf("answered %s, which is not a probability", shown(given))
 	}
@@ -238,10 +238,10 @@ func yesNoAnswer(given any) (jev.Answer, error) {
 		return nil, fmt.Errorf("answered %s, which lies outside [0,1]", shown(given))
 	}
 
-	return &jev.NoulAnswer{Noul: probability}, nil
+	return &onesie.NoulAnswer{Noul: probability}, nil
 }
 
-func pickAnswer(question plan.Question, parts answerParts) (jev.Answer, error) {
+func pickAnswer(question plan.Question, parts answerParts) (onesie.Answer, error) {
 	names := make([]string, 0, len(question.Options))
 	for _, option := range question.Options {
 		names = append(names, option.Name)
@@ -271,10 +271,10 @@ func pickAnswer(question plan.Question, parts answerParts) (jev.Answer, error) {
 		probabilities[name] = parts.confidence
 	}
 
-	return &jev.ChoiceAnswer{Choice: name, Confidence: parts.confidence, Probabilities: probabilities}, nil
+	return &onesie.ChoiceAnswer{Choice: name, Confidence: parts.confidence, Probabilities: probabilities}, nil
 }
 
-func rateAnswer(question plan.Question, parts answerParts) (jev.Answer, error) {
+func rateAnswer(question plan.Question, parts answerParts) (onesie.Answer, error) {
 	names := levelNames(question)
 
 	name, err := nameOf(parts.value, "a level")
@@ -333,7 +333,7 @@ func rateAnswer(question plan.Question, parts answerParts) (jev.Answer, error) {
 		probabilities[strconv.Itoa(index)] = 1
 	}
 
-	return &jev.ScoreAnswer{
+	return &onesie.ScoreAnswer{
 		Score: score, Confidence: parts.confidence, Legend: legend, Probabilities: probabilities,
 	}, nil
 }
@@ -462,7 +462,7 @@ type answerParts struct {
 
 // Result returns the response the API would have sent, or the error the request would have failed
 // with.
-func (e Entry) Result() (*jev.Result, error) {
+func (e Entry) Result() (*onesie.Result, error) {
 	if e.err != nil {
 		return nil, e.err
 	}
@@ -480,7 +480,7 @@ func (e Entry) Key() string {
 
 // Entry is one checked answer, either an answer to every question or a failure.
 type Entry struct {
-	result *jev.Result
+	result *onesie.Result
 	err    error
 	key    string
 }

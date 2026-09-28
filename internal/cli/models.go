@@ -7,7 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/frodi-karlsson/onesie/internal/output"
-	"github.com/frodi-karlsson/onesie/jev"
+	"github.com/frodi-karlsson/onesie/onesie"
 )
 
 func listModels(cmd *cobra.Command, settings rootSettings, stats *collector) error {
@@ -31,12 +31,12 @@ func listModels(cmd *cobra.Command, settings rootSettings, stats *collector) err
 
 	// No usage, no questions, and no model of its own. The ids in the listing are what the account
 	// may ask, not what answered anything, so naming one here would report a model that never ran.
-	stats.record("", jev.Usage{}, 0)
+	stats.record("", onesie.Usage{}, 0)
 
 	return writeModels(cmd.OutOrStdout(), models)
 }
 
-func writeModels(w io.Writer, models []jev.ModelCard) error {
+func writeModels(w io.Writer, models []onesie.ModelCard) error {
 	for _, model := range models {
 		_, err := fmt.Fprintf(w, "%s  %s  %s\n",
 			output.Printable(model.Name), output.Printable(model.Description),

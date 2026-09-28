@@ -10,7 +10,7 @@ import (
 
 	"github.com/frodi-karlsson/onesie/internal/engine"
 	"github.com/frodi-karlsson/onesie/internal/input"
-	"github.com/frodi-karlsson/onesie/jev"
+	"github.com/frodi-karlsson/onesie/onesie"
 )
 
 func streamRaw(
@@ -21,7 +21,7 @@ func streamRaw(
 	answers *outFile,
 	resume resumePlan,
 ) error {
-	var client *jev.Client
+	var client *onesie.Client
 
 	// Built only when the run makes a request, so -i request --print-request needs no key.
 	if requests(flags) {
@@ -130,16 +130,16 @@ func oneLine(body []byte) []byte {
 	return bytes.ReplaceAll(bytes.TrimRight(body, "\n"), []byte("\n"), []byte(" "))
 }
 
-func rawSummary(response []byte) (string, jev.Usage) {
+func rawSummary(response []byte) (string, onesie.Usage) {
 	var probe struct {
-		Model string    `json:"model"`
-		Usage jev.Usage `json:"usage"`
+		Model string       `json:"model"`
+		Usage onesie.Usage `json:"usage"`
 	}
 
 	// A body onesie cannot read still counts as a request. Only the model and the token numbers are
 	// lost, and reporting nothing for them beats failing a record the server answered.
 	if err := json.Unmarshal(response, &probe); err != nil {
-		return "", jev.Usage{}
+		return "", onesie.Usage{}
 	}
 
 	return probe.Model, probe.Usage

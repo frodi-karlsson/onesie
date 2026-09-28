@@ -15,7 +15,7 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/input"
 	"github.com/frodi-karlsson/onesie/internal/output"
 	"github.com/frodi-karlsson/onesie/internal/plan"
-	"github.com/frodi-karlsson/onesie/jev"
+	"github.com/frodi-karlsson/onesie/onesie"
 )
 
 func TestJudge(t *testing.T) {
@@ -147,7 +147,7 @@ func TestDescribe(t *testing.T) {
 	t.Parallel()
 
 	apiError := func(status int) error {
-		return &jev.APIError{Status: status}
+		return &onesie.APIError{Status: status}
 	}
 
 	tests := []struct {
@@ -157,7 +157,7 @@ func TestDescribe(t *testing.T) {
 		{name: "should agree with a fresh run on a line onesie could not read", cause: &input.LineError{
 			Line: 1, Err: errors.New("not valid JSON"),
 		}},
-		{name: "should agree with a fresh run on an unusable response", cause: &jev.ResponseError{
+		{name: "should agree with a fresh run on an unusable response", cause: &onesie.ResponseError{
 			Status: http.StatusOK,
 		}},
 		{name: "should agree with a fresh run on a bad request", cause: apiError(http.StatusBadRequest)},
@@ -170,15 +170,15 @@ func TestDescribe(t *testing.T) {
 		{name: "should agree with a fresh run on a request timeout status", cause: apiError(http.StatusRequestTimeout)},
 		{name: "should agree with a fresh run on a rate limit", cause: apiError(http.StatusTooManyRequests)},
 		{name: "should agree with a fresh run on a server error", cause: apiError(http.StatusBadGateway)},
-		{name: "should agree with a fresh run on a retry after above the cap", cause: &jev.RetryAfterError{
-			APIError: jev.APIError{Status: http.StatusServiceUnavailable},
+		{name: "should agree with a fresh run on a retry after above the cap", cause: &onesie.RetryAfterError{
+			APIError: onesie.APIError{Status: http.StatusServiceUnavailable},
 		}},
-		{name: "should agree with a fresh run on a connection error", cause: &jev.ConnectionError{
+		{name: "should agree with a fresh run on a connection error", cause: &onesie.ConnectionError{
 			Err: errors.New("connection refused"),
 		}},
-		{name: "should agree with a fresh run on a request timeout", cause: &jev.TimeoutError{}},
+		{name: "should agree with a fresh run on a request timeout", cause: &onesie.TimeoutError{}},
 		{name: "should agree with a fresh run on a deadline", cause: context.DeadlineExceeded},
-		{name: "should agree with a fresh run on a request onesie refused to send", cause: &jev.ValidationError{
+		{name: "should agree with a fresh run on a request onesie refused to send", cause: &onesie.ValidationError{
 			Message: "question too long",
 		}},
 		{name: "should agree with a fresh run on an unrecognised plain error", cause: errors.New("boom")},
@@ -212,11 +212,11 @@ func TestAnswered(t *testing.T) {
 		built := &plan.Plan{Questions: []plan.Question{{ID: "answer", Shape: plan.Noul}}}
 		collected := make(chan struct{})
 
-		asker := resultAnswerer{result: func() *jev.Result {
-			result := &jev.Result{
+		asker := resultAnswerer{result: func() *onesie.Result {
+			result := &onesie.Result{
 				Model:   "m",
-				Usage:   jev.Usage{InputTokens: 5, OutputTokens: 2},
-				Answers: map[string]jev.Answer{"answer": &jev.NoulAnswer{Noul: 0.9}},
+				Usage:   onesie.Usage{InputTokens: 5, OutputTokens: 2},
+				Answers: map[string]onesie.Answer{"answer": &onesie.NoulAnswer{Noul: 0.9}},
 			}
 			runtime.AddCleanup(result, func(done chan struct{}) { close(done) }, collected)
 
@@ -229,7 +229,7 @@ func TestAnswered(t *testing.T) {
 			t.Fatalf("answered: %v", err)
 		}
 
-		if record.Usage == nil || *record.Usage != (jev.Usage{InputTokens: 5, OutputTokens: 2}) {
+		if record.Usage == nil || *record.Usage != (onesie.Usage{InputTokens: 5, OutputTokens: 2}) {
 			t.Fatalf("usage = %v, want 5 in and 2 out", record.Usage)
 		}
 
@@ -257,7 +257,7 @@ func released(collected <-chan struct{}) bool {
 	return false
 }
 
-func (a resultAnswerer) answer(context.Context, recordKey, jev.Request) (reply, error) {
+func (a resultAnswerer) answer(context.Context, recordKey, onesie.Request) (reply, error) {
 	return reply{result: a.result()}, nil
 }
 
@@ -266,5 +266,5 @@ func (resultAnswerer) salt(recordKey) (string, bool) {
 }
 
 type resultAnswerer struct {
-	result func() *jev.Result
+	result func() *onesie.Result
 }

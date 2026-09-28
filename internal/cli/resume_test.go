@@ -18,7 +18,7 @@ import (
 	"testing"
 
 	"github.com/frodi-karlsson/onesie/internal/plan"
-	"github.com/frodi-karlsson/onesie/jev"
+	"github.com/frodi-karlsson/onesie/onesie"
 )
 
 func TestResumeLedger(t *testing.T) {
@@ -26,7 +26,7 @@ func TestResumeLedger(t *testing.T) {
 
 	printed := func(input, idSource, output, mergeKey string) string {
 		return fingerprintWith(t, plan.Source{Positional: "is this urgent"}, fingerprintInputs{
-			provider: "typesafe", model: jev.DefaultModel, idSource: idSource, output: output,
+			provider: "typesafe", model: onesie.DefaultModel, idSource: idSource, output: output,
 			input: input, mergeKey: mergeKey,
 		})
 	}
@@ -37,14 +37,14 @@ func TestResumeLedger(t *testing.T) {
 	byItselfInLines := printed("lines", ".", "values", "answers")
 	byPositionInLines := printed("lines", "", "values", "")
 	byPositionInLinesSkippingBlanks := fingerprintWith(t, plan.Source{Positional: "is this urgent"}, fingerprintInputs{
-		provider: "typesafe", model: jev.DefaultModel, output: "values", input: "lines", skipBlank: true,
+		provider: "typesafe", model: onesie.DefaultModel, output: "values", input: "lines", skipBlank: true,
 	})
 	byStateKey := printed("jsonl", ".state", "values", "answers")
 	byIDInTSV := printed("jsonl", ".id", "tsv", "")
 	byIDInCSV := printed("jsonl", ".id", "csv", "")
 	byIDMergedInCSV := printed("csv", ".id", "csv", "answers")
 	abstaining := fingerprintInputs{
-		provider: "typesafe", model: jev.DefaultModel, idSource: ".id", output: "values", input: "jsonl",
+		provider: "typesafe", model: onesie.DefaultModel, idSource: ".id", output: "values", input: "jsonl",
 		assert: "answer.value > 0.9", abstainIf: "answer.value > 0.4",
 	}
 	byIDAbstaining := fingerprintWith(t, plan.Source{Positional: "is this urgent"}, abstaining)
@@ -1149,12 +1149,12 @@ func TestResumed(t *testing.T) {
 	}
 
 	byPositionAbstaining := fingerprintWith(t, plan.Source{Positional: "is this urgent"}, fingerprintInputs{
-		provider: "typesafe", model: jev.DefaultModel, output: "values", input: "jsonl",
+		provider: "typesafe", model: onesie.DefaultModel, output: "values", input: "jsonl",
 		assert: "answer.value > 0.9", abstainIf: "answer.value > 0.4",
 	})
 	stored := "{\"abstain\":true,\"answer\":0.5}\n{\"assert\":false,\"answer\":0.5}\n"
 	byPositionRejecting := fingerprintWith(t, plan.Source{Positional: "is this urgent"}, fingerprintInputs{
-		provider: "typesafe", model: jev.DefaultModel, output: "values", input: "jsonl",
+		provider: "typesafe", model: onesie.DefaultModel, output: "values", input: "jsonl",
 		assert: "answer.value > 0.9", abstainIf: "answer.value > 0.6",
 	})
 

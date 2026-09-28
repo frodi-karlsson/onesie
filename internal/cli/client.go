@@ -13,7 +13,7 @@ import (
 
 	"github.com/frodi-karlsson/onesie/internal/mock"
 	"github.com/frodi-karlsson/onesie/internal/output"
-	"github.com/frodi-karlsson/onesie/jev"
+	"github.com/frodi-karlsson/onesie/onesie"
 )
 
 func defaultClientFactory(
@@ -24,27 +24,27 @@ func defaultClientFactory(
 ) clientFactory {
 	var warned, doubled sync.Once
 
-	return func(_ context.Context, extra ...jev.Option) (*jev.Client, error) {
+	return func(_ context.Context, extra ...onesie.Option) (*onesie.Client, error) {
 		provider, err := resolveProvider(settings, flags)
 		if err != nil {
 			return nil, err
 		}
 
-		opts := []jev.Option{
-			jev.WithProvider(provider),
-			jev.WithUserAgent("onesie/" + info.Version),
-			jev.WithEnv(settings.lookupEnv),
+		opts := []onesie.Option{
+			onesie.WithProvider(provider),
+			onesie.WithUserAgent("onesie/" + info.Version),
+			onesie.WithEnv(settings.lookupEnv),
 		}
 
 		if transport := pooled(flags.jobs); transport != nil {
-			opts = append(opts, jev.WithHTTPClient(&http.Client{Transport: transport}))
+			opts = append(opts, onesie.WithHTTPClient(&http.Client{Transport: transport}))
 		}
 
 		// Trimmed, so a whitespace only flag is the same nothing here that it is to storedOptions.
-		// Passing it raw installs an option jev.New trims back to empty, which reads as a flag that
+		// Passing it raw installs an option onesie.New trims back to empty, which reads as a flag that
 		// was honoured.
 		if baseURL := strings.TrimSpace(flags.baseURL); baseURL != "" {
-			opts = append(opts, jev.WithBaseURL(baseURL))
+			opts = append(opts, onesie.WithBaseURL(baseURL))
 		}
 
 		// The credential file is the last source, after the provider's environment variable. Every
@@ -57,22 +57,22 @@ func defaultClientFactory(
 
 		opts = append(opts, stored...)
 
-		opts = append(opts, jev.WithAttemptTimeout(
+		opts = append(opts, onesie.WithAttemptTimeout(
 			time.Duration(flags.timeout)*time.Second))
 
 		// Started from the default rather than a zero value, because a Go struct cannot tell an
 		// unset field from a zero one and the policy carries seven fields this run does not touch.
-		policy := jev.DefaultRetryPolicy()
+		policy := onesie.DefaultRetryPolicy()
 		policy.MaxRetries = flags.retries
 		policy.MaxRetryAfter = time.Duration(flags.maxRetryAfter) * time.Second
 
-		opts = append(opts, jev.WithRetry(policy))
+		opts = append(opts, onesie.WithRetry(policy))
 
 		// Last, so a caller that needs the attempt observer or any other per run option wins over
 		// what the flags asked for.
 		opts = append(opts, extra...)
 
-		client, err := jev.New(opts...)
+		client, err := onesie.New(opts...)
 		if err != nil {
 			return nil, err
 		}
@@ -108,7 +108,7 @@ func endsInVersion(baseURL string) bool {
 	return err == nil && strings.HasSuffix(strings.TrimRight(parsed.Path, "/"), "/v1")
 }
 
-func baseURLSource(settings rootSettings, flags *runFlags, provider jev.Provider) string {
+func baseURLSource(settings rootSettings, flags *runFlags, provider onesie.Provider) string {
 	if strings.TrimSpace(flags.baseURL) != "" {
 		return "--base-url"
 	}
@@ -138,13 +138,13 @@ func plainRemote(baseURL string) bool {
 	return ip == nil || !ip.IsLoopback()
 }
 
-func storedCredentials(settings rootSettings, flags *runFlags) ([]jev.Option, error) {
+func storedCredentials(settings rootSettings, flags *runFlags) ([]onesie.Option, error) {
 	source, err := resolveKey(settings, flags)
 	if err != nil {
 		return nil, err
 	}
 
-	// jev.New reads the provider's variable itself, so only the file and the keychain need options.
+	// onesie.New reads the provider's variable itself, so only the file and the keychain need options.
 	if source.name != sourceFile && source.name != sourceKeychain {
 		return nil, nil
 	}
@@ -182,7 +182,7 @@ func pooled(jobs int) http.RoundTripper {
 	return transport
 }
 
-type clientFactory func(ctx context.Context, opts ...jev.Option) (*jev.Client, error)
+type clientFactory func(ctx context.Context, opts ...onesie.Option) (*onesie.Client, error)
 
 func resolveModel(settings rootSettings, flags *runFlags, model string) (string, error) {
 	if path, _ := mockSource(settings, flags); path != "" {

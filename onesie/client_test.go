@@ -1,4 +1,4 @@
-package jev_test
+package onesie_test
 
 import (
 	"context"
@@ -14,21 +14,21 @@ import (
 	"testing"
 	"time"
 
-	"github.com/frodi-karlsson/onesie/jev"
+	"github.com/frodi-karlsson/onesie/onesie"
 )
 
 const shortAnswer = `{"model":"m","answers":{"q":{"type":"noul","noul":0.1}},"usage":{}}`
 
 func ExampleClient_SystemOne() {
-	client, err := jev.New(jev.WithAPIKey("key"))
+	client, err := onesie.New(onesie.WithAPIKey("key"))
 	if err != nil {
 		panic(err)
 	}
 
-	_, _ = client.SystemOne(context.Background(), jev.Request{
+	_, _ = client.SystemOne(context.Background(), onesie.Request{
 		State: "Please restore service today.",
-		Questions: jev.Questions{{
-			ID: "urgent", Question: jev.Noul{Instructions: "Is this urgent?"},
+		Questions: onesie.Questions{{
+			ID: "urgent", Question: onesie.Noul{Instructions: "Is this urgent?"},
 		}},
 	})
 }
@@ -38,26 +38,26 @@ func TestClientSystemOneURL(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		options []jev.Option
+		options []onesie.Option
 		want    string
 	}{
 		{
 			name: "should add the API path to each provider's default base URL",
-			want: jev.DefaultBaseURL + "/v1/systemone",
+			want: onesie.DefaultBaseURL + "/v1/systemone",
 		},
 		{
 			name:    "should add the API path to a base URL whose path already ends in /v1",
-			options: []jev.Option{jev.WithBaseURL("https://proxy.example/v1/")},
+			options: []onesie.Option{onesie.WithBaseURL("https://proxy.example/v1/")},
 			want:    "https://proxy.example/v1/v1/systemone",
 		},
 		{
 			name:    "should add the API path to openrouter's base URL",
-			options: []jev.Option{jev.WithProvider(jev.OpenRouter())},
+			options: []onesie.Option{onesie.WithProvider(onesie.OpenRouter())},
 			want:    "https://openrouter.ai/api/v1/systemone",
 		},
 		{
 			name:    "should add the API path to berget's base URL",
-			options: []jev.Option{jev.WithProvider(jev.Berget())},
+			options: []onesie.Option{onesie.WithProvider(onesie.Berget())},
 			want:    "https://api.berget.ai/v1/systemone",
 		},
 	}
@@ -66,11 +66,11 @@ func TestClientSystemOneURL(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			options := append([]jev.Option{
-				jev.WithAPIKey("k"), jev.WithEnv(func(string) (string, bool) { return "", false }),
+			options := append([]onesie.Option{
+				onesie.WithAPIKey("k"), onesie.WithEnv(func(string) (string, bool) { return "", false }),
 			}, tc.options...)
 
-			client, err := jev.New(options...)
+			client, err := onesie.New(options...)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -96,12 +96,12 @@ func TestNew(t *testing.T) {
 	t.Run("should fail without an api key", func(t *testing.T) {
 		t.Parallel()
 
-		_, err := jev.New(jev.WithEnv(mockEnv(nil)))
+		_, err := onesie.New(onesie.WithEnv(mockEnv(nil)))
 		if err == nil {
 			t.Fatalf("expected an error, got none")
 		}
 
-		for _, want := range []string{jev.EnvAPIKey, "no API key"} {
+		for _, want := range []string{onesie.EnvAPIKey, "no API key"} {
 			if !strings.Contains(err.Error(), want) {
 				t.Errorf("error = %q, want it to name %q", err.Error(), want)
 			}
@@ -111,12 +111,12 @@ func TestNew(t *testing.T) {
 	t.Run("should read the api key from the environment", func(t *testing.T) {
 		t.Parallel()
 
-		client, err := jev.New(jev.WithEnv(mockEnv(map[string]string{jev.EnvAPIKey: "sk-from-env"})))
+		client, err := onesie.New(onesie.WithEnv(mockEnv(map[string]string{onesie.EnvAPIKey: "sk-from-env"})))
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		if client.AttemptTimeout() != jev.DefaultAttemptTimeout {
+		if client.AttemptTimeout() != onesie.DefaultAttemptTimeout {
 			t.Errorf("attempt timeout got %v", client.AttemptTimeout())
 		}
 
@@ -143,20 +143,20 @@ func TestNew(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client, err := jev.New(
-			jev.WithEnv(mockEnv(map[string]string{
-				jev.EnvAPIKey:       "sk-from-env",
-				jev.EnvDefaultModel: "onesie-from-env",
+		client, err := onesie.New(
+			onesie.WithEnv(mockEnv(map[string]string{
+				onesie.EnvAPIKey:       "sk-from-env",
+				onesie.EnvDefaultModel: "onesie-from-env",
 			})),
-			jev.WithAPIKey("sk-explicit"),
-			jev.WithBaseURL(server.URL),
-			jev.WithDefaultModel("jev-explicit"),
+			onesie.WithAPIKey("sk-explicit"),
+			onesie.WithBaseURL(server.URL),
+			onesie.WithDefaultModel("jev-explicit"),
 		)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		if _, err := client.SystemOne(t.Context(), jev.Request{State: "x", Questions: oneNoul()}); err != nil {
+		if _, err := client.SystemOne(t.Context(), onesie.Request{State: "x", Questions: oneNoul()}); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
@@ -168,9 +168,9 @@ func TestNew(t *testing.T) {
 	t.Run("should ignore a blank environment value", func(t *testing.T) {
 		t.Parallel()
 
-		_, err := jev.New(jev.WithEnv(mockEnv(map[string]string{
-			jev.EnvAPIKey:  "   ",
-			jev.EnvBaseURL: "   ",
+		_, err := onesie.New(onesie.WithEnv(mockEnv(map[string]string{
+			onesie.EnvAPIKey:  "   ",
+			onesie.EnvBaseURL: "   ",
 		})))
 
 		if err == nil {
@@ -181,13 +181,13 @@ func TestNew(t *testing.T) {
 	t.Run("should reject an invalid base url", func(t *testing.T) {
 		t.Parallel()
 
-		_, err := jev.New(
-			jev.WithEnv(mockEnv(nil)),
-			jev.WithAPIKey("sk"),
-			jev.WithBaseURL("not a url"),
+		_, err := onesie.New(
+			onesie.WithEnv(mockEnv(nil)),
+			onesie.WithAPIKey("sk"),
+			onesie.WithBaseURL("not a url"),
 		)
 
-		if !errors.Is(err, jev.ErrValidation) {
+		if !errors.Is(err, onesie.ErrValidation) {
 			t.Errorf("error got %v, want ErrValidation", err)
 		}
 	})
@@ -195,10 +195,10 @@ func TestNew(t *testing.T) {
 	t.Run("should reject an invalid retry policy", func(t *testing.T) {
 		t.Parallel()
 
-		policy := jev.DefaultRetryPolicy()
+		policy := onesie.DefaultRetryPolicy()
 		policy.MaxRetries = -1
 
-		if _, err := jev.New(jev.WithEnv(mockEnv(nil)), jev.WithAPIKey("sk"), jev.WithRetry(policy)); err == nil {
+		if _, err := onesie.New(onesie.WithEnv(mockEnv(nil)), onesie.WithAPIKey("sk"), onesie.WithRetry(policy)); err == nil {
 			t.Fatalf("expected an error, got none")
 		}
 	})
@@ -206,7 +206,7 @@ func TestNew(t *testing.T) {
 	t.Run("should reject a non positive attempt timeout", func(t *testing.T) {
 		t.Parallel()
 
-		if _, err := jev.New(jev.WithEnv(mockEnv(nil)), jev.WithAPIKey("sk"), jev.WithAttemptTimeout(0)); err == nil {
+		if _, err := onesie.New(onesie.WithEnv(mockEnv(nil)), onesie.WithAPIKey("sk"), onesie.WithAttemptTimeout(0)); err == nil {
 			t.Fatalf("expected an error, got none")
 		}
 	})
@@ -216,19 +216,19 @@ func TestNew(t *testing.T) {
 
 		transport := &recordingTransport{body: shortAnswer}
 
-		client, err := jev.New(
-			jev.WithEnv(mockEnv(map[string]string{
-				jev.EnvAPIKey:        "sk-typesafe",
+		client, err := onesie.New(
+			onesie.WithEnv(mockEnv(map[string]string{
+				onesie.EnvAPIKey:     "sk-typesafe",
 				"OPENROUTER_API_KEY": "sk-or-test",
 			})),
-			jev.WithProvider(jev.OpenRouter()),
-			jev.WithHTTPClient(&http.Client{Transport: transport}),
+			onesie.WithProvider(onesie.OpenRouter()),
+			onesie.WithHTTPClient(&http.Client{Transport: transport}),
 		)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		if _, err := client.SystemOne(t.Context(), jev.Request{State: "x", Questions: oneNoul()}); err != nil {
+		if _, err := client.SystemOne(t.Context(), onesie.Request{State: "x", Questions: oneNoul()}); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
@@ -242,20 +242,20 @@ func TestNew(t *testing.T) {
 
 		transport := &recordingTransport{body: shortAnswer}
 
-		client, err := jev.New(
-			jev.WithEnv(mockEnv(map[string]string{
-				jev.EnvBaseURL:      "https://typesafe.example",
-				jev.EnvDefaultModel: "onesie-1.2.0",
+		client, err := onesie.New(
+			onesie.WithEnv(mockEnv(map[string]string{
+				onesie.EnvBaseURL:      "https://typesafe.example",
+				onesie.EnvDefaultModel: "onesie-1.2.0",
 			})),
-			jev.WithAPIKey("sk-or-test"),
-			jev.WithProvider(jev.OpenRouter()),
-			jev.WithHTTPClient(&http.Client{Transport: transport}),
+			onesie.WithAPIKey("sk-or-test"),
+			onesie.WithProvider(onesie.OpenRouter()),
+			onesie.WithHTTPClient(&http.Client{Transport: transport}),
 		)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		if _, err := client.SystemOne(t.Context(), jev.Request{State: "x", Questions: oneNoul()}); err != nil {
+		if _, err := client.SystemOne(t.Context(), onesie.Request{State: "x", Questions: oneNoul()}); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
@@ -264,7 +264,7 @@ func TestNew(t *testing.T) {
 			t.Errorf("url = %s, want the OpenRouter default", got)
 		}
 
-		if !strings.Contains(transport.lastBody(), `"model":"`+jev.DefaultModel+`"`) {
+		if !strings.Contains(transport.lastBody(), `"model":"`+onesie.DefaultModel+`"`) {
 			t.Errorf("body = %s, want the default model", transport.lastBody())
 		}
 	})
@@ -272,8 +272,8 @@ func TestNew(t *testing.T) {
 	t.Run("should name OPENROUTER_API_KEY in the no key error under openrouter", func(t *testing.T) {
 		t.Parallel()
 
-		_, err := jev.New(jev.WithEnv(mockEnv(map[string]string{jev.EnvAPIKey: "sk-typesafe"})),
-			jev.WithProvider(jev.OpenRouter()))
+		_, err := onesie.New(onesie.WithEnv(mockEnv(map[string]string{onesie.EnvAPIKey: "sk-typesafe"})),
+			onesie.WithProvider(onesie.OpenRouter()))
 		if err == nil {
 			t.Fatalf("expected an error, got none")
 		}
@@ -288,21 +288,21 @@ func TestNew(t *testing.T) {
 
 		transport := &recordingTransport{body: shortAnswer}
 
-		client, err := jev.New(
-			jev.WithEnv(mockEnv(map[string]string{
-				jev.EnvAPIKey:       "sk-typesafe",
-				jev.EnvBaseURL:      "https://typesafe.example",
-				jev.EnvDefaultModel: "onesie-1.2.0",
-				"BERGET_API_KEY":    "sk_ber_test",
+		client, err := onesie.New(
+			onesie.WithEnv(mockEnv(map[string]string{
+				onesie.EnvAPIKey:       "sk-typesafe",
+				onesie.EnvBaseURL:      "https://typesafe.example",
+				onesie.EnvDefaultModel: "onesie-1.2.0",
+				"BERGET_API_KEY":       "sk_ber_test",
 			})),
-			jev.WithProvider(jev.Berget()),
-			jev.WithHTTPClient(&http.Client{Transport: transport}),
+			onesie.WithProvider(onesie.Berget()),
+			onesie.WithHTTPClient(&http.Client{Transport: transport}),
 		)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		if _, err := client.SystemOne(t.Context(), jev.Request{State: "x", Questions: oneNoul()}); err != nil {
+		if _, err := client.SystemOne(t.Context(), onesie.Request{State: "x", Questions: oneNoul()}); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
@@ -315,7 +315,7 @@ func TestNew(t *testing.T) {
 			t.Errorf("url = %s, want the Berget default", got)
 		}
 
-		if !strings.Contains(transport.lastBody(), `"model":"`+jev.BergetDefaultModel+`"`) {
+		if !strings.Contains(transport.lastBody(), `"model":"`+onesie.BergetDefaultModel+`"`) {
 			t.Errorf("body = %s, want the Berget default model", transport.lastBody())
 		}
 	})
@@ -323,8 +323,8 @@ func TestNew(t *testing.T) {
 	t.Run("should name BERGET_API_KEY in the no key error under berget", func(t *testing.T) {
 		t.Parallel()
 
-		_, err := jev.New(jev.WithEnv(mockEnv(map[string]string{jev.EnvAPIKey: "sk-typesafe"})),
-			jev.WithProvider(jev.Berget()))
+		_, err := onesie.New(onesie.WithEnv(mockEnv(map[string]string{onesie.EnvAPIKey: "sk-typesafe"})),
+			onesie.WithProvider(onesie.Berget()))
 		if err == nil {
 			t.Fatalf("expected an error, got none")
 		}
@@ -337,8 +337,8 @@ func TestNew(t *testing.T) {
 	t.Run("should reject a zero provider", func(t *testing.T) {
 		t.Parallel()
 
-		_, err := jev.New(jev.WithEnv(mockEnv(nil)), jev.WithAPIKey("sk"), jev.WithProvider(jev.Provider{}))
-		if !errors.Is(err, jev.ErrValidation) {
+		_, err := onesie.New(onesie.WithEnv(mockEnv(nil)), onesie.WithAPIKey("sk"), onesie.WithProvider(onesie.Provider{}))
+		if !errors.Is(err, onesie.ErrValidation) {
 			t.Errorf("error got %v, want ErrValidation", err)
 		}
 	})
@@ -358,8 +358,8 @@ func TestClientSystemOne(t *testing.T) {
 
 			client, _ := newTestClient(t, server.URL)
 
-			_, err := client.SystemOne(t.Context(), jev.Request{State: "x", Questions: oneNoul()})
-			if !errors.Is(err, jev.ErrResponse) {
+			_, err := client.SystemOne(t.Context(), onesie.Request{State: "x", Questions: oneNoul()})
+			if !errors.Is(err, onesie.ErrResponse) {
 				t.Fatalf("error got %v, want ErrResponse", err)
 			}
 
@@ -380,9 +380,9 @@ func TestClientSystemOne(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client, _ := newTestClient(t, server.URL, jev.WithProvider(jev.OpenRouter()))
+		client, _ := newTestClient(t, server.URL, onesie.WithProvider(onesie.OpenRouter()))
 
-		result, err := client.SystemOne(t.Context(), jev.Request{State: "x", Questions: oneNoul()})
+		result, err := client.SystemOne(t.Context(), onesie.Request{State: "x", Questions: oneNoul()})
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -403,11 +403,11 @@ func TestClientSystemOne(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client, _ := newTestClient(t, server.URL, jev.WithProvider(jev.OpenRouter()))
+		client, _ := newTestClient(t, server.URL, onesie.WithProvider(onesie.OpenRouter()))
 
-		_, err := client.SystemOne(t.Context(), jev.Request{State: "x", Questions: oneNoul()})
+		_, err := client.SystemOne(t.Context(), onesie.Request{State: "x", Questions: oneNoul()})
 
-		var apiErr *jev.APIError
+		var apiErr *onesie.APIError
 		if !errors.As(err, &apiErr) {
 			t.Fatalf("error got %v, want an APIError", err)
 		}
@@ -428,9 +428,9 @@ func TestClientSystemOne(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client, _ := newTestClient(t, server.URL, jev.WithProvider(jev.Berget()))
+		client, _ := newTestClient(t, server.URL, onesie.WithProvider(onesie.Berget()))
 
-		result, err := client.SystemOne(t.Context(), jev.Request{State: "x", Questions: oneNoul()})
+		result, err := client.SystemOne(t.Context(), onesie.Request{State: "x", Questions: oneNoul()})
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -461,9 +461,9 @@ func TestClientSystemOne(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client, clock := newTestClient(t, server.URL, jev.WithProvider(jev.Berget()))
+		client, clock := newTestClient(t, server.URL, onesie.WithProvider(onesie.Berget()))
 
-		if _, err := client.SystemOne(t.Context(), jev.Request{State: "x", Questions: oneNoul()}); err != nil {
+		if _, err := client.SystemOne(t.Context(), onesie.Request{State: "x", Questions: oneNoul()}); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
@@ -506,7 +506,7 @@ func TestClientSystemOne(t *testing.T) {
 
 		client, _ := newTestClient(t, server.URL)
 
-		result, err := client.SystemOne(t.Context(), jev.Request{State: "charged twice", Questions: oneNoul()})
+		result, err := client.SystemOne(t.Context(), onesie.Request{State: "charged twice", Questions: oneNoul()})
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -573,7 +573,7 @@ func TestClientSystemOne(t *testing.T) {
 
 		client, _ := newTestClient(t, server.URL)
 
-		if _, err := client.SystemOne(t.Context(), jev.Request{State: "x"}); err == nil {
+		if _, err := client.SystemOne(t.Context(), onesie.Request{State: "x"}); err == nil {
 			t.Fatalf("expected an error, got none")
 		}
 
@@ -597,8 +597,8 @@ func TestClientSystemOne(t *testing.T) {
 
 		_, err := client.SystemOne(
 			t.Context(),
-			jev.Request{State: "x", Questions: oneNoul()},
-			jev.WithRequestHeader("Authorization", "Bearer stolen"),
+			onesie.Request{State: "x", Questions: oneNoul()},
+			onesie.WithRequestHeader("Authorization", "Bearer stolen"),
 		)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -620,9 +620,9 @@ func TestClientSystemOne(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client, _ := newTestClient(t, server.URL, jev.WithHeader("X-Trace", "abc"))
+		client, _ := newTestClient(t, server.URL, onesie.WithHeader("X-Trace", "abc"))
 
-		if _, err := client.SystemOne(t.Context(), jev.Request{State: "x", Questions: oneNoul()}); err != nil {
+		if _, err := client.SystemOne(t.Context(), onesie.Request{State: "x", Questions: oneNoul()}); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
@@ -646,8 +646,8 @@ func TestClientSystemOne(t *testing.T) {
 
 		_, err := client.SystemOne(
 			t.Context(),
-			jev.Request{State: "x", Questions: oneNoul()},
-			jev.WithRequestHeader("X-TypeSafe-Retry-Count", "99"),
+			onesie.Request{State: "x", Questions: oneNoul()},
+			onesie.WithRequestHeader("X-TypeSafe-Retry-Count", "99"),
 		)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -668,9 +668,9 @@ func TestClientSystemOne(t *testing.T) {
 
 		client, _ := newTestClient(t, server.URL)
 
-		_, err := client.SystemOne(t.Context(), jev.Request{State: "x", Questions: oneNoul()})
+		_, err := client.SystemOne(t.Context(), onesie.Request{State: "x", Questions: oneNoul()})
 
-		if !errors.Is(err, jev.ErrResponse) {
+		if !errors.Is(err, onesie.ErrResponse) {
 			t.Errorf("error got %v, want ErrResponse", err)
 		}
 	})
@@ -685,9 +685,9 @@ func TestClientSystemOne(t *testing.T) {
 
 		client, _ := newTestClient(t, server.URL)
 
-		_, err := client.SystemOne(t.Context(), jev.Request{State: "x", Questions: oneNoul()})
+		_, err := client.SystemOne(t.Context(), onesie.Request{State: "x", Questions: oneNoul()})
 
-		var unusable *jev.ResponseError
+		var unusable *onesie.ResponseError
 		if !errors.As(err, &unusable) {
 			t.Fatalf("error got %v, want a ResponseError", err)
 		}
@@ -707,9 +707,9 @@ func TestClientSystemOne(t *testing.T) {
 
 		client, _ := newTestClient(t, server.URL)
 
-		_, err := client.SystemOne(t.Context(), jev.Request{State: "x", Questions: oneNoul()})
+		_, err := client.SystemOne(t.Context(), onesie.Request{State: "x", Questions: oneNoul()})
 
-		if !errors.Is(err, jev.ErrResponse) {
+		if !errors.Is(err, onesie.ErrResponse) {
 			t.Errorf("error got %v, want ErrResponse", err)
 		}
 	})
@@ -725,7 +725,7 @@ func TestClientSystemOne(t *testing.T) {
 
 		client, _ := newTestClient(t, server.URL)
 
-		result, err := client.SystemOne(t.Context(), jev.Request{State: "x", Questions: oneNoul()})
+		result, err := client.SystemOne(t.Context(), onesie.Request{State: "x", Questions: oneNoul()})
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -745,14 +745,14 @@ func TestClientSystemOne(t *testing.T) {
 		}))
 		defer server.Close()
 
-		policy := jev.DefaultRetryPolicy()
+		policy := onesie.DefaultRetryPolicy()
 		policy.MaxRetries = 0
 
-		client, _ := newTestClient(t, server.URL, jev.WithMaxResponseBytes(256), jev.WithRetry(policy))
+		client, _ := newTestClient(t, server.URL, onesie.WithMaxResponseBytes(256), onesie.WithRetry(policy))
 
-		_, err := client.SystemOne(t.Context(), jev.Request{State: "x", Questions: oneNoul()})
+		_, err := client.SystemOne(t.Context(), onesie.Request{State: "x", Questions: oneNoul()})
 
-		if !errors.Is(err, jev.ErrConnection) {
+		if !errors.Is(err, onesie.ErrConnection) {
 			t.Errorf("error got %v, want ErrConnection", err)
 		}
 	})
@@ -786,7 +786,7 @@ func TestClientSystemOne(t *testing.T) {
 
 			client, clock := newTestClient(t, server.URL)
 
-			if _, err := client.SystemOne(t.Context(), jev.Request{State: "x", Questions: oneNoul()}); err != nil {
+			if _, err := client.SystemOne(t.Context(), onesie.Request{State: "x", Questions: oneNoul()}); err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
 
@@ -825,7 +825,7 @@ func TestClientSystemOne(t *testing.T) {
 
 			client, clock := newTestClient(t, server.URL)
 
-			if _, err := client.SystemOne(t.Context(), jev.Request{State: "x", Questions: oneNoul()}); err != nil {
+			if _, err := client.SystemOne(t.Context(), onesie.Request{State: "x", Questions: oneNoul()}); err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
 
@@ -853,7 +853,7 @@ func TestClientSystemOne(t *testing.T) {
 
 			client, clock := newTestClient(t, server.URL)
 
-			if _, err := client.SystemOne(t.Context(), jev.Request{State: "x", Questions: oneNoul()}); err != nil {
+			if _, err := client.SystemOne(t.Context(), onesie.Request{State: "x", Questions: oneNoul()}); err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
 
@@ -877,9 +877,9 @@ func TestClientSystemOne(t *testing.T) {
 
 			client, _ := newTestClient(t, server.URL)
 
-			_, err := client.SystemOne(t.Context(), jev.Request{State: "x", Questions: oneNoul()})
+			_, err := client.SystemOne(t.Context(), onesie.Request{State: "x", Questions: oneNoul()})
 
-			if !errors.Is(err, jev.ErrUnprocessableEntity) {
+			if !errors.Is(err, onesie.ErrUnprocessableEntity) {
 				t.Fatalf("error got %v, want ErrUnprocessableEntity", err)
 			}
 
@@ -901,9 +901,9 @@ func TestClientSystemOne(t *testing.T) {
 
 			client, clock := newTestClient(t, server.URL)
 
-			_, err := client.SystemOne(t.Context(), jev.Request{State: "x", Questions: oneNoul()})
+			_, err := client.SystemOne(t.Context(), onesie.Request{State: "x", Questions: oneNoul()})
 
-			if !errors.Is(err, jev.ErrServer) {
+			if !errors.Is(err, onesie.ErrServer) {
 				t.Fatalf("error got %v, want ErrServer", err)
 			}
 
@@ -954,7 +954,7 @@ func TestClientSystemOne(t *testing.T) {
 
 			client, clock := newTestClient(t, server.URL)
 
-			if _, err := client.SystemOne(t.Context(), jev.Request{State: "x", Questions: oneNoul()}); err != nil {
+			if _, err := client.SystemOne(t.Context(), onesie.Request{State: "x", Questions: oneNoul()}); err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
 
@@ -989,14 +989,14 @@ func TestClientSystemOne(t *testing.T) {
 			}))
 			defer server.Close()
 
-			policy := jev.DefaultRetryPolicy()
+			policy := onesie.DefaultRetryPolicy()
 			policy.RetryConnection = false
 
-			client, _ := newTestClient(t, server.URL, jev.WithRetry(policy))
+			client, _ := newTestClient(t, server.URL, onesie.WithRetry(policy))
 
-			_, err := client.SystemOne(t.Context(), jev.Request{State: "x", Questions: oneNoul()})
+			_, err := client.SystemOne(t.Context(), onesie.Request{State: "x", Questions: oneNoul()})
 
-			if !errors.Is(err, jev.ErrConnection) {
+			if !errors.Is(err, onesie.ErrConnection) {
 				t.Fatalf("error got %v, want ErrConnection", err)
 			}
 
@@ -1023,8 +1023,8 @@ func TestClientSystemOne(t *testing.T) {
 
 			_, err := client.SystemOne(
 				t.Context(),
-				jev.Request{State: "x", Questions: oneNoul()},
-				jev.WithRequestRetry(policy),
+				onesie.Request{State: "x", Questions: oneNoul()},
+				onesie.WithRequestRetry(policy),
 			)
 			if err == nil {
 				t.Fatalf("expected an error, got none")
@@ -1067,7 +1067,7 @@ func TestClientSystemOne(t *testing.T) {
 				cancel()
 			}()
 
-			_, err := client.SystemOne(ctx, jev.Request{State: "x", Questions: oneNoul()})
+			_, err := client.SystemOne(ctx, onesie.Request{State: "x", Questions: oneNoul()})
 
 			if !errors.Is(err, context.Canceled) {
 				t.Errorf("error got %v, want context.Canceled", err)
@@ -1077,22 +1077,22 @@ func TestClientSystemOne(t *testing.T) {
 		t.Run("should report a timeout as a connection error", func(t *testing.T) {
 			t.Parallel()
 
-			policy := jev.DefaultRetryPolicy()
+			policy := onesie.DefaultRetryPolicy()
 			policy.MaxRetries = 0
 
-			client, _ := newTestClient(t, blockingServer(t).URL, jev.WithRetry(policy))
+			client, _ := newTestClient(t, blockingServer(t).URL, onesie.WithRetry(policy))
 
 			_, err := client.SystemOne(
 				t.Context(),
-				jev.Request{State: "x", Questions: oneNoul()},
-				jev.WithRequestAttemptTimeout(30*time.Millisecond),
+				onesie.Request{State: "x", Questions: oneNoul()},
+				onesie.WithRequestAttemptTimeout(30*time.Millisecond),
 			)
 
-			if !errors.Is(err, jev.ErrTimeout) {
+			if !errors.Is(err, onesie.ErrTimeout) {
 				t.Fatalf("error got %v, want ErrTimeout", err)
 			}
 
-			if !errors.Is(err, jev.ErrConnection) {
+			if !errors.Is(err, onesie.ErrConnection) {
 				t.Errorf("a timeout should also match ErrConnection")
 			}
 		})
@@ -1106,15 +1106,15 @@ func TestClientSystemOne(t *testing.T) {
 			// attempt time out before its request is counted.
 			stalling := &http.Client{Transport: stallingTransport{calls: &calls}}
 
-			client, _ := newTestClient(t, "https://api.example.com", jev.WithHTTPClient(stalling))
+			client, _ := newTestClient(t, "https://api.example.com", onesie.WithHTTPClient(stalling))
 
 			_, err := client.SystemOne(
 				t.Context(),
-				jev.Request{State: "x", Questions: oneNoul()},
-				jev.WithRequestAttemptTimeout(30*time.Millisecond),
+				onesie.Request{State: "x", Questions: oneNoul()},
+				onesie.WithRequestAttemptTimeout(30*time.Millisecond),
 			)
 
-			if !errors.Is(err, jev.ErrTimeout) {
+			if !errors.Is(err, onesie.ErrTimeout) {
 				t.Fatalf("error got %v, want ErrTimeout", err)
 			}
 
@@ -1140,7 +1140,7 @@ func TestClientSystemOne(t *testing.T) {
 
 			client, _ := newTestClient(t, server.URL)
 
-			_, err := client.SystemOne(ctx, jev.Request{State: "x", Questions: oneNoul()})
+			_, err := client.SystemOne(ctx, onesie.Request{State: "x", Questions: oneNoul()})
 
 			if !errors.Is(err, context.Canceled) {
 				t.Errorf("error got %v, want context.Canceled", err)
@@ -1156,9 +1156,9 @@ func TestClientSystemOne(t *testing.T) {
 			}))
 			defer server.Close()
 
-			client, _ := newTestClient(t, server.URL, jev.WithTotalTimeout(30*time.Millisecond))
+			client, _ := newTestClient(t, server.URL, onesie.WithTotalTimeout(30*time.Millisecond))
 
-			_, err := client.SystemOne(t.Context(), jev.Request{State: "x", Questions: oneNoul()})
+			_, err := client.SystemOne(t.Context(), onesie.Request{State: "x", Questions: oneNoul()})
 
 			if !errors.Is(err, context.DeadlineExceeded) {
 				t.Errorf("error got %v, want context.DeadlineExceeded", err)
@@ -1188,7 +1188,7 @@ func TestClientSystemOne(t *testing.T) {
 				go func() {
 					defer wg.Done()
 
-					if _, err := client.SystemOne(t.Context(), jev.Request{State: "x", Questions: oneNoul()}); err != nil {
+					if _, err := client.SystemOne(t.Context(), onesie.Request{State: "x", Questions: oneNoul()}); err != nil {
 						t.Errorf("unexpected error: %v", err)
 					}
 				}()
@@ -1240,12 +1240,12 @@ func TestClientSystemOne(t *testing.T) {
 				}))
 				defer srv.Close()
 
-				policy := jev.DefaultRetryPolicy()
+				policy := onesie.DefaultRetryPolicy()
 				policy.MaxRetryAfter = tc.cap
 
-				client, _ := newTestClient(t, srv.URL, jev.WithRetry(policy))
+				client, _ := newTestClient(t, srv.URL, onesie.WithRetry(policy))
 
-				_, err := client.SystemOne(t.Context(), jev.Request{
+				_, err := client.SystemOne(t.Context(), onesie.Request{
 					State:     "hello",
 					Questions: oneNoul(),
 				})
@@ -1259,7 +1259,7 @@ func TestClientSystemOne(t *testing.T) {
 				}
 
 				if tc.wantCalls == 1 {
-					var tooLong *jev.RetryAfterError
+					var tooLong *onesie.RetryAfterError
 					if !errors.As(err, &tooLong) {
 						t.Fatalf("expected a *RetryAfterError, got %T: %v", err, err)
 					}
@@ -1268,7 +1268,7 @@ func TestClientSystemOne(t *testing.T) {
 						t.Errorf("RetryAfter = %s, want 2m0s", tooLong.RetryAfter)
 					}
 
-					if !errors.Is(err, jev.ErrRateLimit) {
+					if !errors.Is(err, onesie.ErrRateLimit) {
 						t.Error("expected errors.Is to reach ErrRateLimit through Unwrap")
 					}
 				}
@@ -1292,7 +1292,7 @@ func TestClientListModels(t *testing.T) {
 		client, _ := newTestClient(t, server.URL)
 
 		_, err := client.ListModels(t.Context())
-		if !errors.Is(err, jev.ErrResponse) {
+		if !errors.Is(err, onesie.ErrResponse) {
 			t.Fatalf("error got %v, want ErrResponse", err)
 		}
 
@@ -1364,16 +1364,16 @@ func TestClientListModels(t *testing.T) {
 			}))
 			defer server.Close()
 
-			var opts []jev.Option
+			var opts []onesie.Option
 			if name == "injected" {
-				opts = append(opts, jev.WithHTTPClient(&http.Client{}))
+				opts = append(opts, onesie.WithHTTPClient(&http.Client{}))
 			}
 
 			client, _ := newTestClient(t, server.URL, opts...)
 
 			_, err := client.ListModels(t.Context())
 
-			var api *jev.APIError
+			var api *onesie.APIError
 			if !errors.As(err, &api) || api.Status != http.StatusFound {
 				t.Fatalf("%s client: error = %v, want an APIError with status 302", name, err)
 			}
@@ -1402,7 +1402,7 @@ func TestClientListModels(t *testing.T) {
 
 		_, err := client.ListModels(t.Context())
 
-		if !errors.Is(err, jev.ErrResponse) {
+		if !errors.Is(err, onesie.ErrResponse) {
 			t.Errorf("error got %v, want ErrResponse", err)
 		}
 	})
@@ -1423,7 +1423,7 @@ func TestClientVerifyKey(t *testing.T) {
 
 	tests := []struct {
 		name       string
-		provider   jev.Provider
+		provider   onesie.Provider
 		listing    string
 		answer     string
 		status     int
@@ -1433,14 +1433,14 @@ func TestClientVerifyKey(t *testing.T) {
 	}{
 		{
 			name:       "should only list the models on typesafe, whose list needs the key",
-			provider:   jev.TypeSafe(),
+			provider:   onesie.TypeSafe(),
 			listing:    typesafeListing,
 			wantPaths:  []string{"GET /v1/models"},
 			wantModels: 1,
 		},
 		{
 			name:       "should list the models and ask one question on berget, whose list needs no key",
-			provider:   jev.Berget(),
+			provider:   onesie.Berget(),
 			listing:    bergetListing,
 			answer:     bergetAnswer,
 			wantPaths:  []string{"GET /v1/models/", "POST /v1/systemone"},
@@ -1448,12 +1448,12 @@ func TestClientVerifyKey(t *testing.T) {
 		},
 		{
 			name:      "should report a key berget refuses on the question",
-			provider:  jev.Berget(),
+			provider:  onesie.Berget(),
 			listing:   bergetListing,
 			answer:    bergetBadKey,
 			status:    http.StatusPaymentRequired,
 			wantPaths: []string{"GET /v1/models/", "POST /v1/systemone"},
-			wantErr:   jev.ErrPaymentRequired,
+			wantErr:   onesie.ErrPaymentRequired,
 		},
 	}
 
@@ -1493,7 +1493,7 @@ func TestClientVerifyKey(t *testing.T) {
 			}))
 			defer server.Close()
 
-			client, _ := newTestClient(t, server.URL, jev.WithProvider(tc.provider))
+			client, _ := newTestClient(t, server.URL, onesie.WithProvider(tc.provider))
 
 			models, err := client.VerifyKey(t.Context())
 			if tc.wantErr != nil {
@@ -1515,7 +1515,7 @@ func TestClientVerifyKey(t *testing.T) {
 				t.Errorf("requests got %v, want %v", paths, tc.wantPaths)
 			}
 
-			if body != "" && !strings.Contains(body, `"model":"`+jev.BergetDefaultModel+`"`) {
+			if body != "" && !strings.Contains(body, `"model":"`+onesie.BergetDefaultModel+`"`) {
 				t.Errorf("question body = %s, want the default model", body)
 			}
 		})
@@ -1569,14 +1569,14 @@ func TestWithAttemptObserver(t *testing.T) {
 				reports []int
 			)
 
-			client, _ := newTestClient(t, srv.URL, jev.WithAttemptObserver(func(a jev.Attempt) {
+			client, _ := newTestClient(t, srv.URL, onesie.WithAttemptObserver(func(a onesie.Attempt) {
 				mu.Lock()
 				defer mu.Unlock()
 
 				reports = append(reports, a.Status)
 			}))
 
-			if _, err := client.SystemOne(t.Context(), jev.Request{State: "x", Questions: oneNoul()}); err != nil {
+			if _, err := client.SystemOne(t.Context(), onesie.Request{State: "x", Questions: oneNoul()}); err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
 
@@ -1620,12 +1620,12 @@ func TestWithAttemptObserver(t *testing.T) {
 					observed int
 				)
 
-				client, err := jev.New(
-					jev.WithAPIKey("test"),
-					jev.WithBaseURL(srv.URL),
-					jev.WithMaxResponseBytes(8),
-					jev.WithRetry(noRetries()),
-					jev.WithAttemptObserver(func(jev.Attempt) {
+				client, err := onesie.New(
+					onesie.WithAPIKey("test"),
+					onesie.WithBaseURL(srv.URL),
+					onesie.WithMaxResponseBytes(8),
+					onesie.WithRetry(noRetries()),
+					onesie.WithAttemptObserver(func(onesie.Attempt) {
 						mu.Lock()
 						defer mu.Unlock()
 
@@ -1637,7 +1637,7 @@ func TestWithAttemptObserver(t *testing.T) {
 				}
 
 				if _, reqErr := client.SystemOne(
-					t.Context(), jev.Request{State: "x", Questions: oneNoul()}); reqErr == nil {
+					t.Context(), onesie.Request{State: "x", Questions: oneNoul()}); reqErr == nil {
 					t.Fatal("SystemOne succeeded, want an oversized body error")
 				}
 
@@ -1655,8 +1655,8 @@ func TestWithAttemptObserver(t *testing.T) {
 	})
 }
 
-func noRetries() jev.RetryPolicy {
-	policy := jev.DefaultRetryPolicy()
+func noRetries() onesie.RetryPolicy {
+	policy := onesie.DefaultRetryPolicy()
 	policy.MaxRetries = 0
 
 	return policy
@@ -1774,20 +1774,20 @@ func TestClientSystemOneRaw(t *testing.T) {
 	}
 }
 
-func newTestClient(t *testing.T, url string, opts ...jev.Option) (*jev.Client, *mockClock) {
+func newTestClient(t *testing.T, url string, opts ...onesie.Option) (*onesie.Client, *mockClock) {
 	t.Helper()
 
 	clock := &mockClock{now: time.Date(2026, 9, 20, 12, 0, 0, 0, time.UTC)}
 
-	base := []jev.Option{
-		jev.WithEnv(func(string) (string, bool) { return "", false }),
-		jev.WithAPIKey("sk-test"),
-		jev.WithBaseURL(url),
-		jev.WithClock(clock),
-		jev.WithRandom(func() float64 { return 0 }),
+	base := []onesie.Option{
+		onesie.WithEnv(func(string) (string, bool) { return "", false }),
+		onesie.WithAPIKey("sk-test"),
+		onesie.WithBaseURL(url),
+		onesie.WithClock(clock),
+		onesie.WithRandom(func() float64 { return 0 }),
 	}
 
-	client, err := jev.New(append(base, opts...)...)
+	client, err := onesie.New(append(base, opts...)...)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -1834,16 +1834,16 @@ func TestMarshalBody(t *testing.T) {
 
 	tests := []struct {
 		name string
-		req  jev.Request
+		req  onesie.Request
 		want string
 	}{
 		{
 			name: "should encode state model and questions in that order",
-			req: jev.Request{
+			req: onesie.Request{
 				State: "the server is down",
 				Model: "onesie-1.13.0",
-				Questions: jev.Questions{
-					{ID: "urgent", Question: jev.Noul{Instructions: "q"}},
+				Questions: onesie.Questions{
+					{ID: "urgent", Question: onesie.Noul{Instructions: "q"}},
 				},
 			},
 			want: `{"state":"the server is down","model":"onesie-1.13.0","questions":` +
@@ -1851,11 +1851,11 @@ func TestMarshalBody(t *testing.T) {
 		},
 		{
 			name: "should keep a raw state's key order and its digits",
-			req: jev.Request{
+			req: onesie.Request{
 				State: json.RawMessage(`{"ticket_id":12345678901234567890,"zebra":1}`),
 				Model: "onesie-1.13.0",
-				Questions: jev.Questions{
-					{ID: "a", Question: jev.Noul{Instructions: "q"}},
+				Questions: onesie.Questions{
+					{ID: "a", Question: onesie.Noul{Instructions: "q"}},
 				},
 			},
 			want: `{"state":{"ticket_id":12345678901234567890,"zebra":1},` +
@@ -1864,12 +1864,12 @@ func TestMarshalBody(t *testing.T) {
 		},
 		{
 			name: "should keep the questions in slice order",
-			req: jev.Request{
+			req: onesie.Request{
 				State: "s",
 				Model: "m",
-				Questions: jev.Questions{
-					{ID: "zebra", Question: jev.Noul{Instructions: "z"}},
-					{ID: "alpha", Question: jev.Noul{Instructions: "a"}},
+				Questions: onesie.Questions{
+					{ID: "zebra", Question: onesie.Noul{Instructions: "z"}},
+					{ID: "alpha", Question: onesie.Noul{Instructions: "a"}},
 				},
 			},
 			want: `{"state":"s","model":"m","questions":` +
@@ -1882,7 +1882,7 @@ func TestMarshalBody(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := jev.MarshalBody(tc.req)
+			got, err := onesie.MarshalBody(tc.req)
 			if err != nil {
 				t.Fatalf("MarshalBody: %v", err)
 			}
@@ -1899,16 +1899,16 @@ func TestMarshalQuestionsBody(t *testing.T) {
 
 	tests := []struct {
 		name string
-		req  jev.Request
+		req  onesie.Request
 		want string
 	}{
 		{
 			name: "should omit the state entirely",
-			req: jev.Request{
+			req: onesie.Request{
 				State: "ignored",
 				Model: "onesie-1.13.0",
-				Questions: jev.Questions{
-					{ID: "urgent", Question: jev.Noul{Instructions: "q"}},
+				Questions: onesie.Questions{
+					{ID: "urgent", Question: onesie.Noul{Instructions: "q"}},
 				},
 			},
 			want: `{"model":"onesie-1.13.0","questions":` +
@@ -1916,11 +1916,11 @@ func TestMarshalQuestionsBody(t *testing.T) {
 		},
 		{
 			name: "should keep the questions in slice order",
-			req: jev.Request{
+			req: onesie.Request{
 				Model: "m",
-				Questions: jev.Questions{
-					{ID: "zebra", Question: jev.Noul{Instructions: "z"}},
-					{ID: "alpha", Question: jev.Noul{Instructions: "a"}},
+				Questions: onesie.Questions{
+					{ID: "zebra", Question: onesie.Noul{Instructions: "z"}},
+					{ID: "alpha", Question: onesie.Noul{Instructions: "a"}},
 				},
 			},
 			want: `{"model":"m","questions":` +
@@ -1933,7 +1933,7 @@ func TestMarshalQuestionsBody(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := jev.MarshalQuestionsBody(tc.req)
+			got, err := onesie.MarshalQuestionsBody(tc.req)
 			if err != nil {
 				t.Fatalf("MarshalQuestionsBody: %v", err)
 			}
@@ -1947,15 +1947,15 @@ func TestMarshalQuestionsBody(t *testing.T) {
 	t.Run("should agree with MarshalBody on every field but the state", func(t *testing.T) {
 		t.Parallel()
 
-		req := jev.Request{
+		req := onesie.Request{
 			State: "s",
 			Model: "onesie-1.13.0",
-			Questions: jev.Questions{
-				{ID: "urgent", Question: jev.Noul{Instructions: "q"}},
+			Questions: onesie.Questions{
+				{ID: "urgent", Question: onesie.Noul{Instructions: "q"}},
 			},
 		}
 
-		full, err := jev.MarshalBody(req)
+		full, err := onesie.MarshalBody(req)
 		if err != nil {
 			t.Fatalf("MarshalBody: %v", err)
 		}
@@ -1968,7 +1968,7 @@ func TestMarshalQuestionsBody(t *testing.T) {
 
 		want := "{" + string(full)[len(prefix):]
 
-		got, err := jev.MarshalQuestionsBody(req)
+		got, err := onesie.MarshalQuestionsBody(req)
 		if err != nil {
 			t.Fatalf("MarshalQuestionsBody: %v", err)
 		}
@@ -1991,17 +1991,17 @@ func TestProviderResolveModel(t *testing.T) {
 		{
 			name:  "should prefer an explicit model",
 			model: "onesie-1.9.9",
-			env:   map[string]string{jev.EnvDefaultModel: "onesie-1.2.0"},
+			env:   map[string]string{onesie.EnvDefaultModel: "onesie-1.2.0"},
 			want:  "onesie-1.9.9",
 		},
 		{
 			name: "should fall back to the environment",
-			env:  map[string]string{jev.EnvDefaultModel: "onesie-1.2.0"},
+			env:  map[string]string{onesie.EnvDefaultModel: "onesie-1.2.0"},
 			want: "onesie-1.2.0",
 		},
 		{
 			name: "should fall back to the built in default",
-			want: jev.DefaultModel,
+			want: onesie.DefaultModel,
 		},
 		{
 			name:  "should trim an explicit model",
@@ -2011,17 +2011,17 @@ func TestProviderResolveModel(t *testing.T) {
 		{
 			name:  "should treat a whitespace only model as absent",
 			model: "   ",
-			want:  jev.DefaultModel,
+			want:  onesie.DefaultModel,
 		},
 		{
 			name:  "should treat a tab only model as absent",
 			model: "\t",
-			want:  jev.DefaultModel,
+			want:  onesie.DefaultModel,
 		},
 		{
 			name:  "should fall back to the environment for a whitespace only model",
 			model: "   ",
-			env:   map[string]string{jev.EnvDefaultModel: "onesie-1.2.0"},
+			env:   map[string]string{onesie.EnvDefaultModel: "onesie-1.2.0"},
 			want:  "onesie-1.2.0",
 		},
 	}
@@ -2030,7 +2030,7 @@ func TestProviderResolveModel(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			if got := jev.TypeSafe().ResolveModel(tc.model, lookupFrom(tc.env)); got != tc.want {
+			if got := onesie.TypeSafe().ResolveModel(tc.model, lookupFrom(tc.env)); got != tc.want {
 				t.Errorf("ResolveModel = %s, want %s", got, tc.want)
 			}
 		})
@@ -2039,12 +2039,12 @@ func TestProviderResolveModel(t *testing.T) {
 	t.Run("should default to systemone and ignore TYPESAFE_DEFAULT_MODEL under berget", func(t *testing.T) {
 		t.Parallel()
 
-		env := lookupFrom(map[string]string{jev.EnvDefaultModel: "onesie-1.2.0"})
-		if got := jev.Berget().ResolveModel("", env); got != "systemone" {
+		env := lookupFrom(map[string]string{onesie.EnvDefaultModel: "onesie-1.2.0"})
+		if got := onesie.Berget().ResolveModel("", env); got != "systemone" {
 			t.Errorf("ResolveModel = %s, want systemone", got)
 		}
 
-		if got := jev.Berget().ResolveModel("laya-latest", env); got != "laya-latest" {
+		if got := onesie.Berget().ResolveModel("laya-latest", env); got != "laya-latest" {
 			t.Errorf("ResolveModel = %s, want laya-latest", got)
 		}
 	})
@@ -2052,9 +2052,9 @@ func TestProviderResolveModel(t *testing.T) {
 	t.Run("should ignore TYPESAFE_DEFAULT_MODEL under openrouter", func(t *testing.T) {
 		t.Parallel()
 
-		env := lookupFrom(map[string]string{jev.EnvDefaultModel: "onesie-1.2.0"})
-		if got := jev.OpenRouter().ResolveModel("", env); got != jev.DefaultModel {
-			t.Errorf("ResolveModel = %s, want %s", got, jev.DefaultModel)
+		env := lookupFrom(map[string]string{onesie.EnvDefaultModel: "onesie-1.2.0"})
+		if got := onesie.OpenRouter().ResolveModel("", env); got != onesie.DefaultModel {
+			t.Errorf("ResolveModel = %s, want %s", got, onesie.DefaultModel)
 		}
 	})
 
@@ -2066,7 +2066,7 @@ func TestProviderResolveModel(t *testing.T) {
 
 			// The whole body rather than its model field, so a client that grew its own encoder
 			// instead of calling MarshalBody fails here too.
-			want, marshalErr := jev.MarshalBody(jev.Request{
+			want, marshalErr := onesie.MarshalBody(onesie.Request{
 				State: "s", Model: tc.want, Questions: oneNoul(),
 			})
 			if marshalErr != nil {
@@ -2097,13 +2097,13 @@ func TestProviderResolveModel(t *testing.T) {
 				}))
 			defer server.Close()
 
-			client, err := jev.New(jev.WithEnv(lookupFrom(tc.env)),
-				jev.WithAPIKey("sk-test"), jev.WithBaseURL(server.URL))
+			client, err := onesie.New(onesie.WithEnv(lookupFrom(tc.env)),
+				onesie.WithAPIKey("sk-test"), onesie.WithBaseURL(server.URL))
 			if err != nil {
 				t.Fatalf("New: %v", err)
 			}
 
-			if _, err := client.SystemOne(t.Context(), jev.Request{
+			if _, err := client.SystemOne(t.Context(), onesie.Request{
 				State: "s", Model: tc.model, Questions: oneNoul(),
 			}); err != nil {
 				t.Fatalf("SystemOne: %v", err)
@@ -2119,8 +2119,8 @@ func TestProviderResolveModel(t *testing.T) {
 	}
 }
 
-func oneNoul() jev.Questions {
-	return jev.Questions{{ID: "q", Question: jev.Noul{Instructions: "Urgent?"}}}
+func oneNoul() onesie.Questions {
+	return onesie.Questions{{ID: "q", Question: onesie.Noul{Instructions: "Urgent?"}}}
 }
 
 func lookupFrom(env map[string]string) func(string) (string, bool) {
