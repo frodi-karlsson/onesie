@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/frodi-karlsson/onesie/jev"
 	"github.com/frodi-karlsson/onesie/internal/plan"
+	"github.com/frodi-karlsson/onesie/jev"
 )
 
 // Model is the model name a mocked answer carries.

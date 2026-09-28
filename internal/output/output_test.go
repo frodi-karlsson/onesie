@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	"github.com/frodi-karlsson/onesie/internal/answer"
-	"github.com/frodi-karlsson/onesie/jev"
 	"github.com/frodi-karlsson/onesie/internal/output"
+	"github.com/frodi-karlsson/onesie/jev"
 )
 
 func TestWrite(t *testing.T) {
