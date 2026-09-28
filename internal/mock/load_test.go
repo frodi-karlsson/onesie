@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"github.com/frodi-karlsson/onesie/internal/answer"
-	"github.com/frodi-karlsson/onesie/internal/jev"
 	"github.com/frodi-karlsson/onesie/internal/limits"
 	"github.com/frodi-karlsson/onesie/internal/plan"
+	"github.com/frodi-karlsson/onesie/jev"
 )
 
 func TestLoad(t *testing.T) {

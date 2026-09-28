@@ -34,7 +34,7 @@ func New(opts ...Option) (*Client, error) {
 		attemptTimeout:   DefaultAttemptTimeout,
 		maxResponseBytes: DefaultMaxResponseBytes,
 		header:           http.Header{},
-		userAgent:        "onesie",
+		userAgent:        "onesie-lib",
 		lookupEnv:        os.LookupEnv,
 		clock:            systemClock{},
 		random:           rand.Float64,
@@ -59,7 +59,7 @@ func New(opts ...Option) (*Client, error) {
 	c.runtime = fmt.Sprintf("go/%s %s/%s", runtime.Version(), runtime.GOOS, runtime.GOARCH)
 
 	if c.apiKey == "" {
-		return nil, &ValidationError{Message: "no API key. Set " + c.provider.EnvAPIKey + " or run onesie auth set"}
+		return nil, &ValidationError{Message: "no API key. Set " + c.provider.EnvAPIKey}
 	}
 
 	if err := ValidateBaseURL(c.baseURL); err != nil {

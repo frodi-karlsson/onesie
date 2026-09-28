@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/frodi-karlsson/onesie/internal/jev"
 	"github.com/frodi-karlsson/onesie/internal/output"
+	"github.com/frodi-karlsson/onesie/jev"
 )
 
 const dedupWorkers = 32

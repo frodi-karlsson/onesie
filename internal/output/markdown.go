@@ -9,8 +9,8 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/frodi-karlsson/onesie/internal/jev"
 	"github.com/frodi-karlsson/onesie/internal/jq"
+	"github.com/frodi-karlsson/onesie/jev"
 )
 
 // WriteMarkdown writes one record as a GitHub flavoured markdown table under an alert for its

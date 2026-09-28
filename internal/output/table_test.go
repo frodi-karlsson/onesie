@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	"github.com/frodi-karlsson/onesie/internal/answer"
-	"github.com/frodi-karlsson/onesie/internal/jev"
 	"github.com/frodi-karlsson/onesie/internal/output"
+	"github.com/frodi-karlsson/onesie/jev"
 )
 
 func TestWidth(t *testing.T) {

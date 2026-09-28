@@ -14,10 +14,24 @@ import (
 	"testing"
 	"time"
 
-	"github.com/frodi-karlsson/onesie/internal/jev"
+	"github.com/frodi-karlsson/onesie/jev"
 )
 
 const shortAnswer = `{"model":"m","answers":{"q":{"type":"noul","noul":0.1}},"usage":{}}`
+
+func ExampleClient_SystemOne() {
+	client, err := jev.New(jev.WithAPIKey("key"))
+	if err != nil {
+		panic(err)
+	}
+
+	_, _ = client.SystemOne(context.Background(), jev.Request{
+		State: "Please restore service today.",
+		Questions: jev.Questions{{
+			ID: "urgent", Question: jev.Noul{Instructions: "Is this urgent?"},
+		}},
+	})
+}
 
 func TestClientSystemOneURL(t *testing.T) {
 	t.Parallel()
@@ -87,7 +101,7 @@ func TestNew(t *testing.T) {
 			t.Fatalf("expected an error, got none")
 		}
 
-		for _, want := range []string{jev.EnvAPIKey, "onesie auth set"} {
+		for _, want := range []string{jev.EnvAPIKey, "no API key"} {
 			if !strings.Contains(err.Error(), want) {
 				t.Errorf("error = %q, want it to name %q", err.Error(), want)
 			}
@@ -523,6 +537,10 @@ func TestClientSystemOne(t *testing.T) {
 			if headers.Get(header) == "" {
 				t.Errorf("%s was not set", header)
 			}
+		}
+
+		if got := headers.Get("User-Agent"); got != "onesie-lib" {
+			t.Errorf("User-Agent = %q, want onesie-lib", got)
 		}
 
 		if result.RequestID != "req_abc" {

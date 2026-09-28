@@ -3,7 +3,7 @@ package cli
 import (
 	"testing"
 
-	"github.com/frodi-karlsson/onesie/internal/jev"
+	"github.com/frodi-karlsson/onesie/jev"
 )
 
 func TestEndsInVersion(t *testing.T) {

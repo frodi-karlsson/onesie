@@ -16,7 +16,7 @@ import (
 
 	"github.com/frodi-karlsson/onesie/examples"
 	"github.com/frodi-karlsson/onesie/internal/cli"
-	"github.com/frodi-karlsson/onesie/internal/jev"
+	"github.com/frodi-karlsson/onesie/jev"
 )
 
 func TestRun(t *testing.T) {

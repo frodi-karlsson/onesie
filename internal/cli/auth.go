@@ -11,8 +11,8 @@ import (
 
 	"github.com/frodi-karlsson/onesie/internal/creds"
 	"github.com/frodi-karlsson/onesie/internal/interrupt"
-	"github.com/frodi-karlsson/onesie/internal/jev"
 	"github.com/frodi-karlsson/onesie/internal/mock"
+	"github.com/frodi-karlsson/onesie/jev"
 )
 
 const (
@@ -372,6 +372,10 @@ func authTest(cmd *cobra.Command, settings rootSettings, flags *runFlags) error 
 	source, err := resolveKey(settings, flags)
 	if err != nil {
 		return err
+	}
+
+	if source.name == sourceNone {
+		return fmt.Errorf("onesie: no API key. Set %s or run onesie auth set", source.provider.EnvAPIKey)
 	}
 
 	// defaultClientFactory resolves the file itself, so this repeats a read on the production

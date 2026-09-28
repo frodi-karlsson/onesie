@@ -17,8 +17,8 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/frodi-karlsson/onesie/internal/jev"
 	"github.com/frodi-karlsson/onesie/internal/plan"
+	"github.com/frodi-karlsson/onesie/jev"
 )
 
 func TestResumeLedger(t *testing.T) {
