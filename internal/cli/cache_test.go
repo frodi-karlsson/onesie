@@ -307,7 +307,12 @@ func TestCachedAnswerer(t *testing.T) {
 
 			stub := newAnswerStub(t)
 			tc.setup(stub)
-			factory, dir := build(t, stub, nil, tc.opts...)
+			baseTransport := &http.Transport{}
+			transport := &countingRoundTripper{base: baseTransport}
+			t.Cleanup(baseTransport.CloseIdleConnections)
+
+			opts := append(tc.opts, onesie.WithHTTPClient(&http.Client{Transport: transport}))
+			factory, dir := build(t, stub, nil, opts...)
 
 			asker, err := factory(t.Context(), &collector{})
 			if err != nil {
@@ -324,8 +329,8 @@ func TestCachedAnswerer(t *testing.T) {
 				t.Errorf("Summarize = %+v, want nothing stored", summary)
 			}
 
-			if got := stub.requests.Load(); got != 2 {
-				t.Errorf("%d requests, want 2, since nothing was stored", got)
+			if got := transport.requests.Load(); got != 2 {
+				t.Errorf("%d client requests, want 2, since nothing was stored", got)
 			}
 		})
 	}
@@ -455,6 +460,17 @@ func TestCachedAnswerer(t *testing.T) {
 			t.Errorf("warnings = %q, want one naming the directory and the rest of this run", warnings)
 		}
 	})
+}
+
+type countingRoundTripper struct {
+	base     http.RoundTripper
+	requests atomic.Int32
+}
+
+func (t *countingRoundTripper) RoundTrip(request *http.Request) (*http.Response, error) {
+	t.requests.Add(1)
+
+	return t.base.RoundTrip(request)
 }
 
 func TestAsk(t *testing.T) {
