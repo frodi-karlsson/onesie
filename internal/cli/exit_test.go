@@ -12,14 +12,14 @@ import (
 
 	"github.com/frodi-karlsson/onesie/internal/input"
 	"github.com/frodi-karlsson/onesie/internal/output"
-	"github.com/frodi-karlsson/onesie/jev"
+	"github.com/frodi-karlsson/onesie/onesie"
 )
 
 func TestClassify(t *testing.T) {
 	t.Parallel()
 
-	apiError := func(status int) *jev.APIError {
-		return &jev.APIError{Status: status}
+	apiError := func(status int) *onesie.APIError {
+		return &onesie.APIError{Status: status}
 	}
 
 	stored := func(kind string, status *int) error {
@@ -111,7 +111,7 @@ func TestClassify(t *testing.T) {
 		},
 		{
 			name: "should report unavailable for a 200 body it could not use",
-			err:  &jev.ResponseError{Status: http.StatusOK, Message: "onesie: wrong shape"},
+			err:  &onesie.ResponseError{Status: http.StatusOK, Message: "onesie: wrong shape"},
 			want: ExitUnavailable,
 		},
 		{
@@ -144,7 +144,7 @@ func TestClassify(t *testing.T) {
 		},
 		{
 			name: "should report unavailable for an over cap retry after",
-			err: &jev.RetryAfterError{
+			err: &onesie.RetryAfterError{
 				APIError:   *apiError(http.StatusTooManyRequests),
 				RetryAfter: 120 * time.Second,
 				Cap:        60 * time.Second,
@@ -153,19 +153,19 @@ func TestClassify(t *testing.T) {
 		},
 		{
 			name: "should report unavailable for an unusable 200 body",
-			err: &jev.ResponseError{
+			err: &onesie.ResponseError{
 				Status: http.StatusOK, Err: errors.New("invalid character 'n'"),
 			},
 			want: ExitUnavailable,
 		},
 		{
 			name: "should report transport for a connection failure",
-			err:  &jev.ConnectionError{Err: errors.New("refused")}, want: ExitTransport,
+			err:  &onesie.ConnectionError{Err: errors.New("refused")}, want: ExitTransport,
 		},
 		{
 			name: "should report transport for a timeout",
-			err: &jev.TimeoutError{
-				ConnectionError: jev.ConnectionError{Err: errors.New("deadline")},
+			err: &onesie.TimeoutError{
+				ConnectionError: onesie.ConnectionError{Err: errors.New("deadline")},
 				Timeout:         10 * time.Second,
 			},
 			want: ExitTransport,
@@ -180,7 +180,7 @@ func TestClassify(t *testing.T) {
 		},
 		{
 			name: "should report usage for a validation error",
-			err:  &jev.ValidationError{Message: "bad"}, want: ExitUsage,
+			err:  &onesie.ValidationError{Message: "bad"}, want: ExitUsage,
 		},
 		{
 			name: "should report usage for an unrecognised error",
@@ -211,7 +211,7 @@ func TestClassify(t *testing.T) {
 			// The socket rather than stdout. A connection that broke under onesie is a transport
 			// fault whatever errno the kernel chose for it.
 			name: "should still report transport for a connection that broke with EPIPE",
-			err:  &jev.ConnectionError{Err: syscall.EPIPE},
+			err:  &onesie.ConnectionError{Err: syscall.EPIPE},
 			want: ExitTransport,
 		},
 		{
@@ -288,7 +288,7 @@ func TestAborting(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			if got := aborting(&jev.APIError{Status: tc.status}); got != tc.want {
+			if got := aborting(&onesie.APIError{Status: tc.status}); got != tc.want {
 				t.Errorf("aborting(%d) = %v, want %v", tc.status, got, tc.want)
 			}
 		})

@@ -23,7 +23,7 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/output"
 	"github.com/frodi-karlsson/onesie/internal/plan"
 	"github.com/frodi-karlsson/onesie/internal/qfile"
-	"github.com/frodi-karlsson/onesie/jev"
+	"github.com/frodi-karlsson/onesie/onesie"
 )
 
 func run(
@@ -665,7 +665,7 @@ func billOnce(l *line) {
 	// A group made one request, so only its first written line reports the tokens, and a sum over
 	// the output stays true. An error line that carried no usage keeps carrying none.
 	if l.record.Usage != nil {
-		l.record.Usage = &jev.Usage{}
+		l.record.Usage = &onesie.Usage{}
 	}
 }
 
@@ -762,8 +762,8 @@ func compact(raw string) []byte {
 func aborting(err error) bool {
 	// Every later record would fail the same way, and a bad key should be reported once rather
 	// than once per line.
-	return errors.Is(err, jev.ErrAuthentication) || errors.Is(err, jev.ErrPermissionDenied) ||
-		errors.Is(err, jev.ErrPaymentRequired) || halting(err)
+	return errors.Is(err, onesie.ErrAuthentication) || errors.Is(err, onesie.ErrPermissionDenied) ||
+		errors.Is(err, onesie.ErrPaymentRequired) || halting(err)
 }
 
 func stopping(flags *runFlags) func(line) bool {
@@ -1079,7 +1079,7 @@ func evaluate(
 	key recordKey,
 	built *plan.Plan,
 	model string,
-	questions jev.Questions,
+	questions onesie.Questions,
 	state any,
 	withUsage bool,
 	stats *collector,
@@ -1119,17 +1119,17 @@ func answered(
 	key recordKey,
 	built *plan.Plan,
 	model string,
-	questions jev.Questions,
+	questions onesie.Questions,
 	state any,
 	withUsage bool,
-) (output.Record, jev.Usage, bool, error) {
-	got, err := asker.answer(ctx, key, jev.Request{
+) (output.Record, onesie.Usage, bool, error) {
+	got, err := asker.answer(ctx, key, onesie.Request{
 		State:     state,
 		Model:     built.Model,
 		Questions: questions,
 	})
 	if halting(err) {
-		return failureRecord(built, err), jev.Usage{}, false, err
+		return failureRecord(built, err), onesie.Usage{}, false, err
 	}
 
 	if err != nil {
@@ -1144,9 +1144,9 @@ func answered(
 
 		failed := failureRecord(built, advised)
 
-		var unusable *jev.ResponseError
+		var unusable *onesie.ResponseError
 		if !errors.As(err, &unusable) || unusable.Usage == nil {
-			return failed, jev.Usage{}, false, advised
+			return failed, onesie.Usage{}, false, advised
 		}
 
 		if withUsage {
@@ -1182,7 +1182,7 @@ func answered(
 	return record, result.Usage, got.cached, nil
 }
 
-func spent(failed output.Record, usage *jev.Usage) output.Record {
+func spent(failed output.Record, usage *onesie.Usage) output.Record {
 	// A 200 onesie could not use still cost its tokens, so --usage reports them on the error line.
 	failed.Usage = usage
 
@@ -1205,7 +1205,7 @@ func describe(cause error) *output.Failure {
 	// error carries none.
 	message := strings.TrimPrefix(cause.Error(), "onesie: ")
 
-	var unusable *jev.ResponseError
+	var unusable *onesie.ResponseError
 	if errors.As(cause, &unusable) {
 		// A 2xx whose body onesie could not use is deterministic. Calling it http would name a status
 		// the caller may retry, and calling it transport a connection blip that never happened.
@@ -1214,14 +1214,14 @@ func describe(cause error) *output.Failure {
 		return &output.Failure{Kind: "response", Status: &status, Message: message}
 	}
 
-	var api *jev.APIError
+	var api *onesie.APIError
 	if errors.As(cause, &api) {
 		status := api.Status
 
 		return &output.Failure{Kind: "http", Status: &status, Message: message}
 	}
 
-	if errors.Is(cause, jev.ErrConnection) || errors.Is(cause, context.DeadlineExceeded) {
+	if errors.Is(cause, onesie.ErrConnection) || errors.Is(cause, context.DeadlineExceeded) {
 		return &output.Failure{Kind: "transport", Message: message}
 	}
 

@@ -15,7 +15,7 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/jq"
 	"github.com/frodi-karlsson/onesie/internal/limits"
 	"github.com/frodi-karlsson/onesie/internal/output"
-	"github.com/frodi-karlsson/onesie/jev"
+	"github.com/frodi-karlsson/onesie/onesie"
 )
 
 func calibrateRequests(
@@ -39,7 +39,7 @@ func calibrateRequests(
 			return ctxErr
 		}
 
-		body, bodyErr := requestLine(rec.line, jev.Request{State: rec.sent, Model: model, Questions: questions})
+		body, bodyErr := requestLine(rec.line, onesie.Request{State: rec.sent, Model: model, Questions: questions})
 		if bodyErr != nil {
 			return bodyErr
 		}

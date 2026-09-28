@@ -15,7 +15,7 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/answer"
 	"github.com/frodi-karlsson/onesie/internal/cache"
 	"github.com/frodi-karlsson/onesie/internal/plan"
-	"github.com/frodi-karlsson/onesie/jev"
+	"github.com/frodi-karlsson/onesie/onesie"
 )
 
 const (
@@ -114,7 +114,7 @@ func cachedAnswers(
 }
 
 func noKeyForCache(settings rootSettings, flags *runFlags, err error) error {
-	if !errors.Is(err, jev.ErrValidation) {
+	if !errors.Is(err, onesie.ErrValidation) {
 		return err
 	}
 
@@ -167,7 +167,7 @@ func aliasTTL(lookupEnv func(string) (string, bool)) (time.Duration, error) {
 	return ttl, nil
 }
 
-func (a *cachedAnswerer) answer(ctx context.Context, key recordKey, req jev.Request) (reply, error) {
+func (a *cachedAnswerer) answer(ctx context.Context, key recordKey, req onesie.Request) (reply, error) {
 	if a.off.Load() {
 		return a.next.answer(ctx, key, req)
 	}
@@ -213,8 +213,8 @@ func (a *cachedAnswerer) answer(ctx context.Context, key recordKey, req jev.Requ
 	return fresh, nil
 }
 
-func decodeCached(value []byte, questions jev.Questions) (*jev.Result, bool) {
-	var result jev.Result
+func decodeCached(value []byte, questions onesie.Questions) (*onesie.Result, bool) {
+	var result onesie.Result
 	if err := json.Unmarshal(value, &result); err != nil {
 		return nil, false
 	}
@@ -226,12 +226,12 @@ func decodeCached(value []byte, questions jev.Questions) (*jev.Result, bool) {
 	}
 
 	// A hit cost nothing, and a sum over the output stays true.
-	result.Usage = jev.Usage{}
+	result.Usage = onesie.Usage{}
 
 	return &result, true
 }
 
-func (a *cachedAnswerer) usable(result *jev.Result) bool {
+func (a *cachedAnswerer) usable(result *onesie.Result) bool {
 	for _, question := range a.questions {
 		if _, err := answer.Normalize(question, result.Answers[question.ID]); err != nil {
 			return false
@@ -241,7 +241,7 @@ func (a *cachedAnswerer) usable(result *jev.Result) bool {
 	return true
 }
 
-func (a *cachedAnswerer) put(store *cache.Store, id cache.Key, result *jev.Result) error {
+func (a *cachedAnswerer) put(store *cache.Store, id cache.Key, result *onesie.Result) error {
 	stored := *result
 	stored.RequestID = ""
 

@@ -16,7 +16,7 @@ import (
 
 	"github.com/frodi-karlsson/onesie/examples"
 	"github.com/frodi-karlsson/onesie/internal/cli"
-	"github.com/frodi-karlsson/onesie/jev"
+	"github.com/frodi-karlsson/onesie/onesie"
 )
 
 func TestRun(t *testing.T) {
@@ -212,11 +212,11 @@ func newStub(t *testing.T) *stubAPI {
 	}))
 	t.Cleanup(server.Close)
 
-	stub.factory = func(_ context.Context, extra ...jev.Option) (*jev.Client, error) {
-		return jev.New(append([]jev.Option{
-			jev.WithAPIKey("stub"),
-			jev.WithBaseURL(server.URL),
-			jev.WithEnv(func(string) (string, bool) { return "", false }),
+	stub.factory = func(_ context.Context, extra ...onesie.Option) (*onesie.Client, error) {
+		return onesie.New(append([]onesie.Option{
+			onesie.WithAPIKey("stub"),
+			onesie.WithBaseURL(server.URL),
+			onesie.WithEnv(func(string) (string, bool) { return "", false }),
 		}, extra...)...)
 	}
 
@@ -225,7 +225,7 @@ func newStub(t *testing.T) *stubAPI {
 
 type stubAPI struct {
 	requests atomic.Int64
-	factory  func(context.Context, ...jev.Option) (*jev.Client, error)
+	factory  func(context.Context, ...onesie.Option) (*onesie.Client, error)
 }
 
 func envOf(values map[string]string) func(string) (string, bool) {

@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/frodi-karlsson/onesie/internal/answer"
-	"github.com/frodi-karlsson/onesie/jev"
+	"github.com/frodi-karlsson/onesie/onesie"
 
 	"github.com/frodi-karlsson/onesie/internal/plan"
 )
@@ -21,19 +21,19 @@ func TestNormalize(t *testing.T) {
 	tests := []struct {
 		name     string
 		question plan.Question
-		raw      jev.Answer
+		raw      onesie.Answer
 		want     string
 	}{
 		{
 			name:     "should report a yes/no answer as a bare value",
 			question: plan.Question{ID: "urgent", Shape: plan.Noul},
-			raw:      &jev.NoulAnswer{Noul: 0.92},
+			raw:      &onesie.NoulAnswer{Noul: 0.92},
 			want:     `{"value":0.92}`,
 		},
 		{
 			name:     "should keep a zero probability rather than omitting it",
 			question: plan.Question{ID: "urgent", Shape: plan.Noul},
-			raw:      &jev.NoulAnswer{Noul: 0},
+			raw:      &onesie.NoulAnswer{Noul: 0},
 			want:     `{"value":0}`,
 		},
 		{
@@ -45,7 +45,7 @@ func TestNormalize(t *testing.T) {
 					{Name: "billing"}, {Name: "technical"}, {Name: "sales"},
 				},
 			},
-			raw: &jev.ChoiceAnswer{
+			raw: &onesie.ChoiceAnswer{
 				Choice:     "technical",
 				Confidence: 0.81,
 				Probabilities: map[string]float64{
@@ -65,7 +65,7 @@ func TestNormalize(t *testing.T) {
 					{Label: "calm"}, {Label: "frustrated"}, {Label: "angry"},
 				},
 			},
-			raw: &jev.ScoreAnswer{
+			raw: &onesie.ScoreAnswer{
 				Score:         1.0,
 				Confidence:    0.92,
 				Legend:        map[string]string{"0": "Calm", "1": "Frustrated", "2": "Angry"},
@@ -82,7 +82,7 @@ func TestNormalize(t *testing.T) {
 				Labelled: true,
 				Levels:   []plan.Level{{Label: "low"}, {Label: "high"}},
 			},
-			raw: &jev.ScoreAnswer{
+			raw: &onesie.ScoreAnswer{
 				Score:         0.5,
 				Confidence:    0.5,
 				Probabilities: map[string]float64{"0": 0.5, "1": 0.5},
@@ -109,7 +109,7 @@ func TestNormalize(t *testing.T) {
 					{Label: "j"},
 				},
 			},
-			raw: &jev.ScoreAnswer{
+			raw: &onesie.ScoreAnswer{
 				Score:      9,
 				Confidence: 0.5,
 				Probabilities: map[string]float64{
@@ -131,7 +131,7 @@ func TestNormalize(t *testing.T) {
 					{Desc: "Calm"}, {Desc: "Frustrated"}, {Desc: "Very angry"},
 				},
 			},
-			raw: &jev.ScoreAnswer{
+			raw: &onesie.ScoreAnswer{
 				Score:         1.0,
 				Confidence:    0.92,
 				Legend:        map[string]string{"0": "Calm", "1": "Frustrated", "2": "Very angry"},
@@ -171,7 +171,7 @@ func TestNormalize(t *testing.T) {
 		tests := []struct {
 			name     string
 			question plan.Question
-			raw      jev.Answer
+			raw      onesie.Answer
 			want     map[string]float64
 			wantJSON string
 		}{
@@ -184,7 +184,7 @@ func TestNormalize(t *testing.T) {
 						{Name: "billing"}, {Name: "technical"}, {Name: "human"},
 					},
 				},
-				raw: &jev.ChoiceAnswer{
+				raw: &onesie.ChoiceAnswer{
 					Choice:        "billing",
 					Confidence:    0.9,
 					Probabilities: map[string]float64{"billing": 0.7, "technical": 0.3},
@@ -201,7 +201,7 @@ func TestNormalize(t *testing.T) {
 					Labelled: true,
 					Levels:   []plan.Level{{Label: "low"}, {Label: "high"}},
 				},
-				raw: &jev.ScoreAnswer{
+				raw: &onesie.ScoreAnswer{
 					Score:         1,
 					Confidence:    0.5,
 					Probabilities: map[string]float64{"1": 1},
@@ -216,7 +216,7 @@ func TestNormalize(t *testing.T) {
 					Shape:  plan.Rate,
 					Levels: []plan.Level{{Desc: "calm"}, {Desc: "cross"}, {Desc: "angry"}},
 				},
-				raw: &jev.ScoreAnswer{
+				raw: &onesie.ScoreAnswer{
 					Score:         1,
 					Confidence:    0.5,
 					Probabilities: map[string]float64{"1": 1},
@@ -262,7 +262,7 @@ func TestNormalize(t *testing.T) {
 		tests := []struct {
 			name     string
 			question plan.Question
-			raw      jev.Answer
+			raw      onesie.Answer
 			wantErr  string
 		}{
 			{
@@ -273,7 +273,7 @@ func TestNormalize(t *testing.T) {
 			{
 				name:     "should reject a choice answer to a yes/no question",
 				question: plan.Question{ID: "urgent", Shape: plan.Noul},
-				raw:      &jev.ChoiceAnswer{Choice: "x", Confidence: 0.5},
+				raw:      &onesie.ChoiceAnswer{Choice: "x", Confidence: 0.5},
 				wantErr:  "onesie: question 'urgent' expects a noul answer, got choice",
 			},
 			{
@@ -283,7 +283,7 @@ func TestNormalize(t *testing.T) {
 					Shape:   plan.Pick,
 					Options: []plan.Option{{Name: "billing"}, {Name: "technical"}},
 				},
-				raw:     &jev.NoulAnswer{Noul: 0.4},
+				raw:     &onesie.NoulAnswer{Noul: 0.4},
 				wantErr: "onesie: question 'team' expects a choice answer, got noul",
 			},
 			{
@@ -293,7 +293,7 @@ func TestNormalize(t *testing.T) {
 					Shape:  plan.Rate,
 					Levels: []plan.Level{{Label: "low"}, {Label: "high"}},
 				},
-				raw:     &jev.ChoiceAnswer{Choice: "low", Confidence: 0.5},
+				raw:     &onesie.ChoiceAnswer{Choice: "low", Confidence: 0.5},
 				wantErr: "onesie: question 'severity' expects a score answer, got choice",
 			},
 		}
@@ -314,9 +314,9 @@ func TestNormalize(t *testing.T) {
 				// A shape the question did not ask for is deterministic, so it is a 200 whose body
 				// onesie could not use. Left untyped it took the transport kind and exit 5, which tells
 				// a pipeline to retry something that will never change.
-				var unusable *jev.ResponseError
+				var unusable *onesie.ResponseError
 				if !errors.As(err, &unusable) {
-					t.Fatalf("error = %T, want *jev.ResponseError", err)
+					t.Fatalf("error = %T, want *onesie.ResponseError", err)
 				}
 
 				if unusable.Status != http.StatusOK {

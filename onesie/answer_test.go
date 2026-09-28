@@ -1,11 +1,11 @@
-package jev_test
+package onesie_test
 
 import (
 	"encoding/json"
 	"errors"
 	"testing"
 
-	"github.com/frodi-karlsson/onesie/jev"
+	"github.com/frodi-karlsson/onesie/onesie"
 )
 
 const sampleResult = `{
@@ -61,7 +61,7 @@ func TestResultUnmarshalJSON(t *testing.T) {
 	t.Run("should decode the usage cost when present", func(t *testing.T) {
 		t.Parallel()
 
-		var result jev.Result
+		var result onesie.Result
 
 		body := `{"model":"m","answers":{},"usage":{"input_tokens":1,"output_tokens":2,"cost":0.5}}`
 		if err := json.Unmarshal([]byte(body), &result); err != nil {
@@ -87,7 +87,7 @@ func TestResultUnmarshalJSON(t *testing.T) {
 
 		body := `{"model":"m","answers":{"x":{"type":"tarot"}},"usage":{}}`
 
-		var result jev.Result
+		var result onesie.Result
 		if err := json.Unmarshal([]byte(body), &result); err == nil {
 			t.Fatalf("expected an error, got none")
 		}
@@ -101,7 +101,7 @@ func TestResultUnmarshalJSON(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		var again jev.Result
+		var again onesie.Result
 		if decodeErr := json.Unmarshal(encoded, &again); decodeErr != nil {
 			t.Fatalf("re-decoding failed: %v", decodeErr)
 		}
@@ -138,7 +138,7 @@ func TestResultNoul(t *testing.T) {
 
 		_, err := loadSample(t).Noul("absent")
 
-		var answerErr *jev.AnswerError
+		var answerErr *onesie.AnswerError
 		if !errors.As(err, &answerErr) {
 			t.Fatalf("expected an *AnswerError, got %T", err)
 		}
@@ -218,10 +218,10 @@ func TestResultScore(t *testing.T) {
 	})
 }
 
-func loadSample(t *testing.T) *jev.Result {
+func loadSample(t *testing.T) *onesie.Result {
 	t.Helper()
 
-	var result jev.Result
+	var result onesie.Result
 	if err := json.Unmarshal([]byte(sampleResult), &result); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

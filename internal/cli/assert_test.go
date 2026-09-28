@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/frodi-karlsson/onesie/internal/cli"
-	"github.com/frodi-karlsson/onesie/jev"
+	"github.com/frodi-karlsson/onesie/onesie"
 )
 
 const (
@@ -374,9 +374,9 @@ func TestAsk(t *testing.T) {
 			root := cli.NewRootCmd(
 				cli.BuildInfo{Version: "1.2.3"},
 				cli.WithKeychain(offKeychain{}),
-				cli.WithClientFactory(func(_ context.Context, opts ...jev.Option) (*jev.Client, error) {
-					return jev.New(append([]jev.Option{
-						jev.WithAPIKey("k"), jev.WithBaseURL(srv.URL),
+				cli.WithClientFactory(func(_ context.Context, opts ...onesie.Option) (*onesie.Client, error) {
+					return onesie.New(append([]onesie.Option{
+						onesie.WithAPIKey("k"), onesie.WithBaseURL(srv.URL),
 					}, opts...)...)
 				}),
 				cli.WithStdin(strings.NewReader("a ticket")),
@@ -729,15 +729,15 @@ func runAsserted(
 	var out, errOut bytes.Buffer
 
 	options := []cli.RootOption{
-		cli.WithClientFactory(func(_ context.Context, opts ...jev.Option) (*jev.Client, error) {
+		cli.WithClientFactory(func(_ context.Context, opts ...onesie.Option) (*onesie.Client, error) {
 			// No retries. A 500 case would otherwise spend the client's backoff for no coverage.
-			policy := jev.DefaultRetryPolicy()
+			policy := onesie.DefaultRetryPolicy()
 			policy.MaxRetries = 0
 
-			return jev.New(append([]jev.Option{
-				jev.WithAPIKey("k"),
-				jev.WithBaseURL(srv.URL),
-				jev.WithRetry(policy),
+			return onesie.New(append([]onesie.Option{
+				onesie.WithAPIKey("k"),
+				onesie.WithBaseURL(srv.URL),
+				onesie.WithRetry(policy),
 			}, opts...)...)
 		}),
 		cli.WithStdin(strings.NewReader("a ticket")),
@@ -794,14 +794,14 @@ func runAssertedStream(t *testing.T, args []string, stdin string, wantCode int) 
 	root := cli.NewRootCmd(
 		cli.BuildInfo{Version: "1.2.3"},
 		cli.WithKeychain(offKeychain{}),
-		cli.WithClientFactory(func(_ context.Context, opts ...jev.Option) (*jev.Client, error) {
-			policy := jev.DefaultRetryPolicy()
+		cli.WithClientFactory(func(_ context.Context, opts ...onesie.Option) (*onesie.Client, error) {
+			policy := onesie.DefaultRetryPolicy()
 			policy.MaxRetries = 0
 
-			return jev.New(append([]jev.Option{
-				jev.WithAPIKey("k"),
-				jev.WithBaseURL(srv.URL),
-				jev.WithRetry(policy),
+			return onesie.New(append([]onesie.Option{
+				onesie.WithAPIKey("k"),
+				onesie.WithBaseURL(srv.URL),
+				onesie.WithRetry(policy),
 			}, opts...)...)
 		}),
 		cli.WithStdin(strings.NewReader(stdin)),
@@ -888,14 +888,14 @@ func runStoppedStream(t *testing.T) string {
 	root := cli.NewRootCmd(
 		cli.BuildInfo{Version: "1.2.3"},
 		cli.WithKeychain(offKeychain{}),
-		cli.WithClientFactory(func(_ context.Context, opts ...jev.Option) (*jev.Client, error) {
-			policy := jev.DefaultRetryPolicy()
+		cli.WithClientFactory(func(_ context.Context, opts ...onesie.Option) (*onesie.Client, error) {
+			policy := onesie.DefaultRetryPolicy()
 			policy.MaxRetries = 0
 
-			return jev.New(append([]jev.Option{
-				jev.WithAPIKey("k"),
-				jev.WithBaseURL(srv.URL),
-				jev.WithRetry(policy),
+			return onesie.New(append([]onesie.Option{
+				onesie.WithAPIKey("k"),
+				onesie.WithBaseURL(srv.URL),
+				onesie.WithRetry(policy),
 			}, opts...)...)
 		}),
 		cli.WithStdin(strings.NewReader("hot\nwait\n")),

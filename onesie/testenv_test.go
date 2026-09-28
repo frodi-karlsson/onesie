@@ -1,6 +1,6 @@
 //go:build integration
 
-package jev_test
+package onesie_test
 
 import (
 	"bufio"

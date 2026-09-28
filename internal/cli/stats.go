@@ -13,7 +13,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/frodi-karlsson/onesie/jev"
+	"github.com/frodi-karlsson/onesie/onesie"
 )
 
 func withStats(
@@ -51,8 +51,8 @@ func withStats(
 	return err
 }
 
-func observing(c *collector) []jev.Option {
-	return []jev.Option{jev.WithAttemptObserver(c.observe)}
+func observing(c *collector) []onesie.Option {
+	return []onesie.Option{onesie.WithAttemptObserver(c.observe)}
 }
 
 type collector struct {
@@ -76,7 +76,7 @@ type collector struct {
 	terminal       map[int]int
 }
 
-func (c *collector) observe(a jev.Attempt) {
+func (c *collector) observe(a onesie.Attempt) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -117,12 +117,12 @@ func (c *collector) terminalAttempt(err error) {
 }
 
 func terminalStatus(err error) (int, bool) {
-	var api *jev.APIError
+	var api *onesie.APIError
 	if errors.As(err, &api) {
 		return api.Status, true
 	}
 
-	var connection *jev.ConnectionError
+	var connection *onesie.ConnectionError
 	if errors.As(err, &connection) {
 		// A transport failure has no status, which is the key its attempt was counted under.
 		return 0, true
@@ -139,7 +139,7 @@ func terminalStatus(err error) (int, bool) {
 	return 0, false
 }
 
-func (c *collector) record(model string, usage jev.Usage, questions int) {
+func (c *collector) record(model string, usage onesie.Usage, questions int) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -175,7 +175,7 @@ func (c *collector) cachedRecord(model string) {
 	}
 }
 
-func (c *collector) spend(usage jev.Usage) {
+func (c *collector) spend(usage onesie.Usage) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 

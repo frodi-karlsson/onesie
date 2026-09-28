@@ -2,27 +2,27 @@ package cli
 
 import (
 	"github.com/frodi-karlsson/onesie/internal/plan"
-	"github.com/frodi-karlsson/onesie/jev"
+	"github.com/frodi-karlsson/onesie/onesie"
 )
 
-func wireAll(questions []plan.Question) jev.Questions {
-	wired := make(jev.Questions, 0, len(questions))
+func wireAll(questions []plan.Question) onesie.Questions {
+	wired := make(onesie.Questions, 0, len(questions))
 	for _, question := range questions {
-		wired = append(wired, jev.NamedQuestion{ID: question.ID, Question: wire(question)})
+		wired = append(wired, onesie.NamedQuestion{ID: question.ID, Question: wire(question)})
 	}
 
 	return wired
 }
 
-func wire(q plan.Question) jev.Question {
+func wire(q plan.Question) onesie.Question {
 	switch q.Shape {
 	case plan.Pick:
-		criteria := make(jev.Criteria, 0, len(q.Options))
+		criteria := make(onesie.Criteria, 0, len(q.Options))
 		for _, option := range q.Options {
-			criteria = append(criteria, jev.NamedCriterion{Name: option.Name, Desc: option.Desc})
+			criteria = append(criteria, onesie.NamedCriterion{Name: option.Name, Desc: option.Desc})
 		}
 
-		return jev.Choice{Instructions: q.Instructions, Criteria: criteria}
+		return onesie.Choice{Instructions: q.Instructions, Criteria: criteria}
 	case plan.Rate:
 		criteria := make([]any, 0, len(q.Levels))
 
@@ -39,15 +39,15 @@ func wire(q plan.Question) jev.Question {
 			criteria = append(criteria, level.Desc)
 		}
 
-		return jev.Score{Instructions: q.Instructions, Criteria: criteria}
+		return onesie.Score{Instructions: q.Instructions, Criteria: criteria}
 	default:
 		if q.Criteria == nil {
-			return jev.Noul{Instructions: q.Instructions}
+			return onesie.Noul{Instructions: q.Instructions}
 		}
 
-		return jev.Noul{
+		return onesie.Noul{
 			Instructions: q.Instructions,
-			Criteria:     &jev.NoulCriteria{True: orEmpty(q.Criteria.Yes), False: orEmpty(q.Criteria.No)},
+			Criteria:     &onesie.NoulCriteria{True: orEmpty(q.Criteria.Yes), False: orEmpty(q.Criteria.No)},
 		}
 	}
 }

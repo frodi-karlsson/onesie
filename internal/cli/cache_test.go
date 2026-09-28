@@ -25,7 +25,7 @@ import (
 
 	"github.com/frodi-karlsson/onesie/internal/cache"
 	"github.com/frodi-karlsson/onesie/internal/plan"
-	"github.com/frodi-karlsson/onesie/jev"
+	"github.com/frodi-karlsson/onesie/onesie"
 )
 
 const noKeyCacheSentence = "The cache needs the key too, to find the API address it keys answers by"
@@ -205,10 +205,10 @@ func TestCachedAnswerer(t *testing.T) {
 	t.Parallel()
 
 	questions := []plan.Question{{ID: "u", Shape: plan.Noul}}
-	request := jev.Request{State: json.RawMessage(`"site down"`), Questions: wireAll(questions)}
+	request := onesie.Request{State: json.RawMessage(`"site down"`), Questions: wireAll(questions)}
 	key := recordKey{position: 1, line: 1}
 
-	build := func(t *testing.T, stub *answerStub, warn func(error), extra ...jev.Option) (answererFactory, string) {
+	build := func(t *testing.T, stub *answerStub, warn func(error), extra ...onesie.Option) (answererFactory, string) {
 		t.Helper()
 
 		dir := filepath.Join(t.TempDir(), "cache")
@@ -218,7 +218,7 @@ func TestCachedAnswerer(t *testing.T) {
 			homeDir:   os.UserHomeDir,
 			goos:      runtime.GOOS,
 			now:       time.Now,
-			newClient: func(ctx context.Context, opts ...jev.Option) (*jev.Client, error) {
+			newClient: func(ctx context.Context, opts ...onesie.Option) (*onesie.Client, error) {
 				return base(ctx, append(opts, extra...)...)
 			},
 		}
@@ -227,7 +227,7 @@ func TestCachedAnswerer(t *testing.T) {
 			warn = func(err error) { t.Errorf("unexpected cache warning: %v", err) }
 		}
 
-		return cachedAnswers(settings, &runFlags{}, "typesafe", jev.DefaultModel, questions, warn), dir
+		return cachedAnswers(settings, &runFlags{}, "typesafe", onesie.DefaultModel, questions, warn), dir
 	}
 
 	t.Run("should ask on a miss, store the answer and answer the next call from it", func(t *testing.T) {
@@ -255,7 +255,7 @@ func TestCachedAnswerer(t *testing.T) {
 			t.Errorf("%d requests, want 1", got)
 		}
 
-		if second.result.Usage != (jev.Usage{}) || second.result.RequestID != "" {
+		if second.result.Usage != (onesie.Usage{}) || second.result.RequestID != "" {
 			t.Errorf("cached result usage %+v, request id %q, want zero", second.result.Usage, second.result.RequestID)
 		}
 
@@ -290,12 +290,12 @@ func TestCachedAnswerer(t *testing.T) {
 	failures := []struct {
 		name  string
 		setup func(stub *answerStub)
-		opts  []jev.Option
+		opts  []onesie.Option
 	}{
 		{name: "should not store a 503", setup: func(s *answerStub) { s.status.Store(http.StatusServiceUnavailable) }},
 		{
 			name: "should not store a timeout", setup: func(s *answerStub) { s.delay.Store(int64(time.Second)) },
-			opts: []jev.Option{jev.WithAttemptTimeout(50 * time.Millisecond)},
+			opts: []onesie.Option{onesie.WithAttemptTimeout(50 * time.Millisecond)},
 		},
 		{name: "should not store a 200 missing a question", setup: func(s *answerStub) { s.missing.Store(true) }},
 		{name: "should not store a 200 of the wrong answer type", setup: func(s *answerStub) { s.wrongType.Store(true) }},
@@ -307,7 +307,12 @@ func TestCachedAnswerer(t *testing.T) {
 
 			stub := newAnswerStub(t)
 			tc.setup(stub)
-			factory, dir := build(t, stub, nil, tc.opts...)
+			baseTransport := &http.Transport{}
+			transport := &countingRoundTripper{base: baseTransport}
+			t.Cleanup(baseTransport.CloseIdleConnections)
+
+			opts := append(tc.opts, onesie.WithHTTPClient(&http.Client{Transport: transport}))
+			factory, dir := build(t, stub, nil, opts...)
 
 			asker, err := factory(t.Context(), &collector{})
 			if err != nil {
@@ -324,8 +329,8 @@ func TestCachedAnswerer(t *testing.T) {
 				t.Errorf("Summarize = %+v, want nothing stored", summary)
 			}
 
-			if got := stub.requests.Load(); got != 2 {
-				t.Errorf("%d requests, want 2, since nothing was stored", got)
+			if got := transport.requests.Load(); got != 2 {
+				t.Errorf("%d client requests, want 2, since nothing was stored", got)
 			}
 		})
 	}
@@ -455,6 +460,17 @@ func TestCachedAnswerer(t *testing.T) {
 			t.Errorf("warnings = %q, want one naming the directory and the rest of this run", warnings)
 		}
 	})
+}
+
+type countingRoundTripper struct {
+	base     http.RoundTripper
+	requests atomic.Int32
+}
+
+func (t *countingRoundTripper) RoundTrip(request *http.Request) (*http.Response, error) {
+	t.requests.Add(1)
+
+	return t.base.RoundTrip(request)
 }
 
 func TestAsk(t *testing.T) {
@@ -637,7 +653,7 @@ func TestAsk(t *testing.T) {
 		args := append(slicesOf(base), "--base-url", stub.url)
 
 		runCached(t, env, args, "")
-		delete(env, jev.EnvAPIKey)
+		delete(env, onesie.EnvAPIKey)
 
 		_, errOut, code := runCached(t, env, args, "")
 		if code != ExitUsage || !strings.Contains(errOut, "onesie: no API key") || !strings.Contains(errOut, noKeyCacheSentence) {
@@ -857,7 +873,7 @@ func cacheEnv(t *testing.T) map[string]string {
 		"HOME":               home,
 		"ONESIE_CONFIG_DIR":  filepath.Join(home, "config"),
 		"ONESIE_CACHE_DIR":   filepath.Join(home, "cache"),
-		jev.EnvAPIKey:        "k",
+		onesie.EnvAPIKey:     "k",
 		"OPENROUTER_API_KEY": "k",
 		"BERGET_API_KEY":     "k",
 	}

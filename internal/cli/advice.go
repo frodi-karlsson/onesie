@@ -6,11 +6,11 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/frodi-karlsson/onesie/jev"
+	"github.com/frodi-karlsson/onesie/onesie"
 )
 
 func advise(err error, model string, validated bool) error {
-	var api *jev.APIError
+	var api *onesie.APIError
 	if !errors.As(err, &api) {
 		return err
 	}
@@ -51,7 +51,7 @@ func (e *advisedError) Unwrap() error {
 	return e.cause
 }
 
-func unknownModel(api *jev.APIError, model string) bool {
+func unknownModel(api *onesie.APIError, model string) bool {
 	// The id comes from what onesie sent rather than from a substring of the server's prose, whose
 	// wording the server owns. A call carrying no model has nothing to name, so it keeps the
 	// server's text.
@@ -65,7 +65,7 @@ func unknownModel(api *jev.APIError, model string) bool {
 		strings.Contains(api.Error(), "Model not found")
 }
 
-func countRejected(api *jev.APIError) bool {
+func countRejected(api *onesie.APIError) bool {
 	// Every content rejection seen live was a 400. A 422 is here because the API reference
 	// documents one, not because one was observed.
 	if api.Status != http.StatusBadRequest && api.Status != http.StatusUnprocessableEntity {

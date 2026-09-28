@@ -11,7 +11,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/frodi-karlsson/onesie/jev"
+	"github.com/frodi-karlsson/onesie/onesie"
 )
 
 func TestAdvise(t *testing.T) {
@@ -40,7 +40,7 @@ func TestAdvise(t *testing.T) {
 				name:     "should name the model the environment supplied",
 				args:     []string{"is this urgent"},
 				stdin:    "a ticket",
-				env:      map[string]string{jev.EnvDefaultModel: "onesie-9.9"},
+				env:      map[string]string{onesie.EnvDefaultModel: "onesie-9.9"},
 				status:   http.StatusBadRequest,
 				response: `{"detail":"Unknown model: onesie-9.9"}`,
 				wantCode: ExitUsage,
@@ -114,7 +114,7 @@ func TestAdvise(t *testing.T) {
 			{
 				name:     "should keep the server text for a listing, which sends no model",
 				args:     []string{"--list-models"},
-				env:      map[string]string{jev.EnvDefaultModel: "onesie-9.9"},
+				env:      map[string]string{onesie.EnvDefaultModel: "onesie-9.9"},
 				status:   http.StatusBadRequest,
 				response: `{"detail":"Unknown model: onesie-9.9"}`,
 				wantCode: ExitUsage,
@@ -340,11 +340,11 @@ func runAdvised(t *testing.T, tc adviceCase) ([]string, string, string, int) {
 	root := NewRootCmd(
 		BuildInfo{Version: "1.2.3"},
 		WithKeychain(noKeychain()),
-		WithClientFactory(func(_ context.Context, opts ...jev.Option) (*jev.Client, error) {
-			return jev.New(append([]jev.Option{
-				jev.WithAPIKey("k"),
-				jev.WithBaseURL(srv.URL),
-				jev.WithEnv(lookup),
+		WithClientFactory(func(_ context.Context, opts ...onesie.Option) (*onesie.Client, error) {
+			return onesie.New(append([]onesie.Option{
+				onesie.WithAPIKey("k"),
+				onesie.WithBaseURL(srv.URL),
+				onesie.WithEnv(lookup),
 			}, opts...)...)
 		}),
 		WithStdin(strings.NewReader(tc.stdin)),

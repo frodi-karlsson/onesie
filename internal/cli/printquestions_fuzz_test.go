@@ -15,7 +15,7 @@ import (
 
 	"github.com/frodi-karlsson/onesie/internal/plan"
 	"github.com/frodi-karlsson/onesie/internal/qfile"
-	"github.com/frodi-karlsson/onesie/jev"
+	"github.com/frodi-karlsson/onesie/onesie"
 )
 
 func FuzzPrintQuestions(f *testing.F) {
@@ -243,7 +243,7 @@ func encoded(t *testing.T, value any) []byte {
 func asSent(t *testing.T, questions []plan.Question) []any {
 	t.Helper()
 
-	sent, err := jev.MarshalQuestionsBody(jev.Request{Questions: wireAll(questions)})
+	sent, err := onesie.MarshalQuestionsBody(onesie.Request{Questions: wireAll(questions)})
 	if err != nil {
 		t.Fatalf("encoding the questions: %v", err)
 	}

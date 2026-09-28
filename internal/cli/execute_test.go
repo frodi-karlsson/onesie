@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/frodi-karlsson/onesie/jev"
+	"github.com/frodi-karlsson/onesie/onesie"
 )
 
 func TestExecute(t *testing.T) {
@@ -34,7 +34,7 @@ func TestExecute(t *testing.T) {
 				WithStdoutTTY(false),
 				WithLookupEnv(lookupFrom(map[string]string{"TYPESAFE_API_KEY": "k"})),
 				WithKeychain(noKeychain()),
-				WithClientFactory(func(context.Context, ...jev.Option) (*jev.Client, error) {
+				WithClientFactory(func(context.Context, ...onesie.Option) (*onesie.Client, error) {
 					return nil, errors.New("onesie: no client should be built before stdin ends")
 				}))
 

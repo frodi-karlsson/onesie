@@ -26,7 +26,7 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/limits"
 	"github.com/frodi-karlsson/onesie/internal/output"
 	"github.com/frodi-karlsson/onesie/internal/release"
-	"github.com/frodi-karlsson/onesie/jev"
+	"github.com/frodi-karlsson/onesie/onesie"
 )
 
 const annotationAsksNothing = "onesie-asks-nothing"
@@ -412,7 +412,7 @@ func Execute(ctx context.Context, root *cobra.Command) int {
 // WithClientFactory replaces how commands build their API client, so a test can point one at a
 // stub. The options passed in are ones the run needs, so a replacement has to pass them on.
 func WithClientFactory(
-	newClient func(ctx context.Context, opts ...jev.Option) (*jev.Client, error),
+	newClient func(ctx context.Context, opts ...onesie.Option) (*onesie.Client, error),
 ) RootOption {
 	return func(s *rootSettings) {
 		s.newClient = newClient

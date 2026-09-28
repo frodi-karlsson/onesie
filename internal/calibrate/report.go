@@ -1,7 +1,7 @@
 package calibrate
 
 import (
-	"github.com/frodi-karlsson/onesie/jev"
+	"github.com/frodi-karlsson/onesie/onesie"
 
 	"github.com/frodi-karlsson/onesie/internal/plan"
 )
@@ -19,7 +19,7 @@ type Report struct {
 // Usage is the token count summed over the records that carry one, failed ones included. Records
 // says how many that is, since a stored line written without --usage carries none.
 type Usage struct {
-	jev.Usage
+	onesie.Usage
 
 	Records int `json:"records"`
 }

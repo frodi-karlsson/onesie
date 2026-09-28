@@ -25,7 +25,7 @@ import (
 	"github.com/santhosh-tekuri/jsonschema/v6"
 
 	"github.com/frodi-karlsson/onesie/internal/qfile"
-	"github.com/frodi-karlsson/onesie/jev"
+	"github.com/frodi-karlsson/onesie/onesie"
 )
 
 func TestPrintSchema(t *testing.T) {
@@ -655,9 +655,9 @@ func wireBody(t *testing.T, data []byte) string {
 		t.Fatalf("Load: %v\nfile was\n%s", err, data)
 	}
 
-	questions := make(jev.Questions, 0, len(file.Questions))
+	questions := make(onesie.Questions, 0, len(file.Questions))
 	for _, question := range file.Questions {
-		questions = append(questions, jev.NamedQuestion{ID: question.ID, Question: wire(question)})
+		questions = append(questions, onesie.NamedQuestion{ID: question.ID, Question: wire(question)})
 	}
 
 	encoded, err := json.Marshal(questions)
@@ -1384,14 +1384,14 @@ func TestPrintRequest(t *testing.T) {
 		{
 			name:     "should ignore TYPESAFE_DEFAULT_MODEL under openrouter",
 			args:     []string{"--provider", "openrouter", "--ask", "urgent=is this urgent", "--print-request"},
-			env:      map[string]string{jev.EnvDefaultModel: "onesie-1.2.0"},
+			env:      map[string]string{onesie.EnvDefaultModel: "onesie-1.2.0"},
 			wantCode: ExitOK,
 			want:     `"model":"jev-latest"`,
 		},
 		{
 			name:     "should fill the Berget default model and ignore TYPESAFE_DEFAULT_MODEL under berget",
 			args:     []string{"--ask", "urgent=is this urgent", "--print-request"},
-			env:      map[string]string{"ONESIE_PROVIDER": "berget", jev.EnvDefaultModel: "onesie-1.2.0"},
+			env:      map[string]string{"ONESIE_PROVIDER": "berget", onesie.EnvDefaultModel: "onesie-1.2.0"},
 			wantCode: ExitOK,
 			want:     `"model":"systemone"`,
 		},
@@ -1404,7 +1404,7 @@ func TestPrintRequest(t *testing.T) {
 		{
 			name:     "should keep TYPESAFE_DEFAULT_MODEL under typesafe",
 			args:     []string{"--ask", "urgent=is this urgent", "--print-request"},
-			env:      map[string]string{jev.EnvDefaultModel: "onesie-1.2.0"},
+			env:      map[string]string{onesie.EnvDefaultModel: "onesie-1.2.0"},
 			wantCode: ExitOK,
 			want:     `"model":"onesie-1.2.0"`,
 		},
@@ -1481,13 +1481,13 @@ func runRecorded(t *testing.T, args []string, stdin string) (string, string, int
 	root := NewRootCmd(
 		BuildInfo{Version: "1.2.3"},
 		WithKeychain(noKeychain()),
-		WithClientFactory(func(_ context.Context, opts ...jev.Option) (*jev.Client, error) {
+		WithClientFactory(func(_ context.Context, opts ...onesie.Option) (*onesie.Client, error) {
 			// The client gets its own blank environment as well as the command, so the machine
 			// running the test cannot supply a default model to one side of the comparison.
-			return jev.New(append([]jev.Option{
-				jev.WithAPIKey("k"),
-				jev.WithBaseURL(srv.URL),
-				jev.WithEnv(func(string) (string, bool) { return "", false }),
+			return onesie.New(append([]onesie.Option{
+				onesie.WithAPIKey("k"),
+				onesie.WithBaseURL(srv.URL),
+				onesie.WithEnv(func(string) (string, bool) { return "", false }),
 			}, opts...)...)
 		}),
 		WithStdin(strings.NewReader(stdin)),
@@ -1746,7 +1746,7 @@ func TestRequestLine(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := requestLine(3, jev.Request{State: tc.state, Model: "m"})
+			got, err := requestLine(3, onesie.Request{State: tc.state, Model: "m"})
 
 			if (err != nil) != tc.wantErr {
 				t.Fatalf("requestLine() error = %v, want an error %t", err, tc.wantErr)
@@ -1873,11 +1873,11 @@ func runClosed(t *testing.T, args []string, stdin, baseURL string) (string, int)
 
 	if baseURL != "" {
 		opts = append(opts, WithClientFactory(
-			func(_ context.Context, extra ...jev.Option) (*jev.Client, error) {
-				return jev.New(append([]jev.Option{
-					jev.WithAPIKey("k"),
-					jev.WithBaseURL(baseURL),
-					jev.WithEnv(func(string) (string, bool) { return "", false }),
+			func(_ context.Context, extra ...onesie.Option) (*onesie.Client, error) {
+				return onesie.New(append([]onesie.Option{
+					onesie.WithAPIKey("k"),
+					onesie.WithBaseURL(baseURL),
+					onesie.WithEnv(func(string) (string, bool) { return "", false }),
 				}, extra...)...)
 			}))
 	}

@@ -6,7 +6,7 @@ import (
 
 	"github.com/frodi-karlsson/onesie/internal/answer"
 	"github.com/frodi-karlsson/onesie/internal/output"
-	"github.com/frodi-karlsson/onesie/jev"
+	"github.com/frodi-karlsson/onesie/onesie"
 )
 
 func TestWidth(t *testing.T) {
@@ -160,7 +160,7 @@ func TestWriteTable(t *testing.T) {
 			columns: 80,
 			rec: output.Record{
 				Model: "onesie-1.13.0",
-				Usage: &jev.Usage{InputTokens: 2841, OutputTokens: 71},
+				Usage: &onesie.Usage{InputTokens: 2841, OutputTokens: 71},
 				Answers: []output.Named{
 					{ID: "urgent", Answer: &answer.Answer{Value: 0.92}},
 				},

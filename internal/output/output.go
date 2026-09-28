@@ -7,7 +7,7 @@ import (
 	"io"
 
 	"github.com/frodi-karlsson/onesie/internal/answer"
-	"github.com/frodi-karlsson/onesie/jev"
+	"github.com/frodi-karlsson/onesie/onesie"
 )
 
 // Write encodes one record in the requested mode. The table mode is rendered at a default width,
@@ -113,7 +113,7 @@ type Record struct {
 	// Line is the input line number under -i lines, counting from one. Zero leaves it out.
 	Line    int
 	Model   string
-	Usage   *jev.Usage
+	Usage   *onesie.Usage
 	Answers []Named
 	Failure *Failure
 

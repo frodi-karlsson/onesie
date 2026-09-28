@@ -10,7 +10,7 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/answer"
 	"github.com/frodi-karlsson/onesie/internal/limits"
 	"github.com/frodi-karlsson/onesie/internal/plan"
-	"github.com/frodi-karlsson/onesie/jev"
+	"github.com/frodi-karlsson/onesie/onesie"
 )
 
 func TestLoad(t *testing.T) {
@@ -139,7 +139,7 @@ func TestLoad(t *testing.T) {
 			name: "should read one line that carries a written error as the lines shape",
 			file: `{"error":{"kind":"http","status":503,"message":"503 busy"}}` + "\n",
 			lookups: []lookup{
-				{position: 1, sentinel: jev.ErrServer, status: 503},
+				{position: 1, sentinel: onesie.ErrServer, status: 503},
 				{position: 2, missing: true},
 			},
 		},
@@ -212,20 +212,20 @@ func TestLoad(t *testing.T) {
 				`{"error":{"kind":"response","status":200,"message":"question 'u' has no answer"}}` + "\n" +
 				`{"error":{"kind":"input","status":null,"message":"line 8: not json"}}` + "\n",
 			lookups: []lookup{
-				{position: 1, sentinel: jev.ErrAuthentication, status: 401},
-				{position: 2, sentinel: jev.ErrServer, status: 503},
-				{position: 3, sentinel: jev.ErrTimeout},
-				{position: 4, sentinel: jev.ErrConnection},
-				{position: 5, sentinel: jev.ErrRateLimit, status: 429},
-				{position: 6, sentinel: jev.ErrConnection},
-				{position: 7, sentinel: jev.ErrResponse},
+				{position: 1, sentinel: onesie.ErrAuthentication, status: 401},
+				{position: 2, sentinel: onesie.ErrServer, status: 503},
+				{position: 3, sentinel: onesie.ErrTimeout},
+				{position: 4, sentinel: onesie.ErrConnection},
+				{position: 5, sentinel: onesie.ErrRateLimit, status: 429},
+				{position: 6, sentinel: onesie.ErrConnection},
+				{position: 7, sentinel: onesie.ErrResponse},
 				{position: 8, missing: true},
 			},
 		},
 		{
 			name:    "should read an error in the object shape for every record",
 			file:    `{"error":503}`,
-			lookups: []lookup{{position: 4, sentinel: jev.ErrServer, status: 503}},
+			lookups: []lookup{{position: 4, sentinel: onesie.ErrServer, status: 503}},
 		},
 		{
 			name: "should allow blank lines at the end of a lines file",
@@ -239,7 +239,7 @@ func TestLoad(t *testing.T) {
 			name:    "should time out after the run's own timeout",
 			file:    `{"error":"timeout"}`,
 			timeout: 7 * time.Second,
-			lookups: []lookup{{position: 1, sentinel: jev.ErrTimeout, message: "onesie: request timed out after 7s"}},
+			lookups: []lookup{{position: 1, sentinel: onesie.ErrTimeout, message: "onesie: request timed out after 7s"}},
 		},
 		{
 			name:    "should name the variable the file came from",
@@ -414,7 +414,7 @@ func checkLookup(t *testing.T, answers *Answers, questions []plan.Question, look
 			t.Errorf("position %d error %v, want %v", look.position, err, look.sentinel)
 		}
 
-		var api *jev.APIError
+		var api *onesie.APIError
 		if look.status != 0 && (!errors.As(err, &api) || api.Status != look.status) {
 			t.Errorf("position %d error %v, want status %d", look.position, err, look.status)
 		}

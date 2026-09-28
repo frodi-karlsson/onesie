@@ -50,6 +50,7 @@ never runs on a pull request.
 ## Layout
 
 ```
+onesie/               public System One client, used by the CLI
 cmd/onesie/           thin main: signal handling, exit codes, ldflags targets
 cmd/skillgen/         generates the per client skill files from skills/
 cmd/skillcheck/       dry runs every example in every skill against the built binary, and checks the prose flags
@@ -63,7 +64,6 @@ internal/input/       resolves where the state comes from and reads it
 internal/interrupt/   stops waiting on a read that has no deadline when the run is interrupted
 internal/qfile/       loads and writes a question file or a raw request body
 internal/engine/      runs one evaluation per record, bounded by -j and ordered by input
-internal/jev/         the API client, ported from the JavaScript SDK
 internal/jq/          compiles and runs the jq expressions --map and --id take
 internal/answer/      normalizes an answer and applies the question's policy
 internal/assert/      parses and evaluates --assert and --abstain-if
@@ -83,7 +83,7 @@ scripts/release.sh    the steps behind make release
 API. New packages go under `internal/` first and graduate out only when
 something outside this module needs them.
 
-Timeouts in `internal/jev` are per attempt, not per call. With the default policy a call retries
+Timeouts in `onesie` are per attempt, not per call. With the default policy a call retries
 twice, so it can outlast the attempt timeout. Bound a whole call with a context deadline or
 `WithTotalTimeout`.
 

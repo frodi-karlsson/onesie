@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/frodi-karlsson/onesie/jev"
+	"github.com/frodi-karlsson/onesie/onesie"
 )
 
 const (
@@ -20,11 +20,11 @@ const (
 	MaxScoreLevels = 10
 
 	// DefaultAttemptTimeout bounds one HTTP attempt, not the whole call.
-	DefaultAttemptTimeout = jev.DefaultAttemptTimeout
+	DefaultAttemptTimeout = onesie.DefaultAttemptTimeout
 	// DefaultRetries is how many times a retryable failure is retried.
-	DefaultRetries = jev.DefaultRetries
+	DefaultRetries = onesie.DefaultRetries
 	// DefaultMaxRetryAfter is the longest server requested delay onesie will wait out.
-	DefaultMaxRetryAfter = jev.DefaultMaxRetryAfter
+	DefaultMaxRetryAfter = onesie.DefaultMaxRetryAfter
 	// MaxRetries is the ceiling on --retries. Each retry waits out a backoff of up to 5 s, so a
 	// hundred bounds the wait at minutes rather than days.
 	MaxRetries = 100

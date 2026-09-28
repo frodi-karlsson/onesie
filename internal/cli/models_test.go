@@ -8,7 +8,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/frodi-karlsson/onesie/jev"
+	"github.com/frodi-karlsson/onesie/onesie"
 )
 
 func TestListModels(t *testing.T) {
@@ -289,7 +289,7 @@ func runRealFactory(t *testing.T, args []string) (string, string, int) {
 		WithStdin(strings.NewReader("")),
 		WithStdinTTY(false),
 		WithStdoutTTY(false),
-		WithLookupEnv(lookupFrom(map[string]string{jev.EnvAPIKey: "test", "BERGET_API_KEY": "test"})),
+		WithLookupEnv(lookupFrom(map[string]string{onesie.EnvAPIKey: "test", "BERGET_API_KEY": "test"})),
 	)
 
 	root.SetOut(&out)

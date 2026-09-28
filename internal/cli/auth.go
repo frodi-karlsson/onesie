@@ -12,7 +12,7 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/creds"
 	"github.com/frodi-karlsson/onesie/internal/interrupt"
 	"github.com/frodi-karlsson/onesie/internal/mock"
-	"github.com/frodi-karlsson/onesie/jev"
+	"github.com/frodi-karlsson/onesie/onesie"
 )
 
 const (
@@ -95,10 +95,10 @@ func authSet(cmd *cobra.Command, settings rootSettings, flags *runFlags, opts se
 		return err
 	}
 
-	// Ahead of the read, so a typo costs the user nothing and leaves no file behind. jev.New owns
+	// Ahead of the read, so a typo costs the user nothing and leaves no file behind. onesie.New owns
 	// the same check, and a second one here would be a second message to keep in step.
 	if hasBaseURL {
-		if invalid := jev.ValidateBaseURL(baseURL); invalid != nil {
+		if invalid := onesie.ValidateBaseURL(baseURL); invalid != nil {
 			return invalid
 		}
 	}
@@ -202,7 +202,7 @@ type setOptions struct {
 
 func storeKey(
 	settings rootSettings,
-	provider jev.Provider,
+	provider onesie.Provider,
 	key, path, account string,
 	toFile bool,
 ) (entry creds.Entry, notice string, err error) {
@@ -226,7 +226,7 @@ func storeKey(
 		"warning: " + strings.TrimPrefix(err.Error(), "onesie: ") + ". The key is in " + path + " instead", nil
 }
 
-func replacedKey(settings rootSettings, previous creds.Entry, provider jev.Provider, account string) replaced {
+func replacedKey(settings rootSettings, previous creds.Entry, provider onesie.Provider, account string) replaced {
 	if previousAccount(previous, provider) != account {
 		return replaced{}
 	}
@@ -401,8 +401,8 @@ func authTest(cmd *cobra.Command, settings rootSettings, flags *runFlags) error 
 	return printErr
 }
 
-func storedOptions(settings rootSettings, flags *runFlags, source keySource) []jev.Option {
-	opts := []jev.Option{jev.WithAPIKey(source.key)}
+func storedOptions(settings rootSettings, flags *runFlags, source keySource) []onesie.Option {
+	opts := []onesie.Option{onesie.WithAPIKey(source.key)}
 
 	if source.baseURL == "" {
 		return opts
@@ -420,7 +420,7 @@ func storedOptions(settings rootSettings, flags *runFlags, source keySource) []j
 		}
 	}
 
-	return append(opts, jev.WithBaseURL(source.baseURL))
+	return append(opts, onesie.WithBaseURL(source.baseURL))
 }
 
 func newAuthClearCmd(settings rootSettings, flags *runFlags) *cobra.Command {
@@ -550,7 +550,7 @@ func locateKey(settings rootSettings, flags *runFlags) (keySource, error) {
 	}, nil
 }
 
-func previousAccount(entry creds.Entry, provider jev.Provider) string {
+func previousAccount(entry creds.Entry, provider onesie.Provider) string {
 	if entry.Store != creds.StoreKeychain {
 		return ""
 	}
@@ -562,23 +562,23 @@ func previousAccount(entry creds.Entry, provider jev.Provider) string {
 	return entry.Account
 }
 
-func resolveProvider(settings rootSettings, flags *runFlags) (jev.Provider, error) {
+func resolveProvider(settings rootSettings, flags *runFlags) (onesie.Provider, error) {
 	if path, _ := mockSource(settings, flags); path != "" {
-		return jev.Provider{Name: mock.Model}, nil
+		return onesie.Provider{Name: mock.Model}, nil
 	}
 
 	if name := strings.TrimSpace(flags.provider); name != "" {
-		return jev.ProviderNamed(name)
+		return onesie.ProviderNamed(name)
 	}
 
 	value, _ := settings.lookupEnv(envProvider)
 
-	return jev.ProviderNamed(value)
+	return onesie.ProviderNamed(value)
 }
 
 type keySource struct {
 	name     string
-	provider jev.Provider
+	provider onesie.Provider
 	path     string
 	account  string
 	key      string // Never printed. Callers format String, so a stray %v shows the source.

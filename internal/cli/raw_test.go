@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/frodi-karlsson/onesie/jev"
+	"github.com/frodi-karlsson/onesie/onesie"
 )
 
 func TestStreamRaw(t *testing.T) {
@@ -1077,11 +1077,11 @@ func runAgainst(
 		BuildInfo{Version: "1.2.3"},
 		append([]RootOption{
 			WithKeychain(noKeychain()),
-			WithClientFactory(func(_ context.Context, opts ...jev.Option) (*jev.Client, error) {
-				return jev.New(append([]jev.Option{
-					jev.WithAPIKey("k"),
-					jev.WithBaseURL(baseURL),
-					jev.WithEnv(func(string) (string, bool) { return "", false }),
+			WithClientFactory(func(_ context.Context, opts ...onesie.Option) (*onesie.Client, error) {
+				return onesie.New(append([]onesie.Option{
+					onesie.WithAPIKey("k"),
+					onesie.WithBaseURL(baseURL),
+					onesie.WithEnv(func(string) (string, bool) { return "", false }),
 				}, opts...)...)
 			}),
 			WithStdin(strings.NewReader(stdin)),

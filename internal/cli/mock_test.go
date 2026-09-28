@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/frodi-karlsson/onesie/jev"
+	"github.com/frodi-karlsson/onesie/onesie"
 )
 
 const (
@@ -849,7 +849,7 @@ func runMocked(
 		WithStdinTTY(false),
 		WithStdoutTTY(false),
 		WithLookupEnv(lookupFrom(lookup)),
-		WithClientFactory(func(context.Context, ...jev.Option) (*jev.Client, error) {
+		WithClientFactory(func(context.Context, ...onesie.Option) (*onesie.Client, error) {
 			t.Error("a mock run built an API client")
 
 			return nil, os.ErrInvalid
@@ -990,7 +990,7 @@ func delaying(position int, delay time.Duration) RootOption {
 	}
 }
 
-func (d delayedAnswerer) answer(ctx context.Context, key recordKey, req jev.Request) (reply, error) {
+func (d delayedAnswerer) answer(ctx context.Context, key recordKey, req onesie.Request) (reply, error) {
 	if key.position == d.position {
 		select {
 		case <-time.After(d.delay):

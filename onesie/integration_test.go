@@ -1,6 +1,6 @@
 //go:build integration
 
-package jev_test
+package onesie_test
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/frodi-karlsson/onesie/jev"
+	"github.com/frodi-karlsson/onesie/onesie"
 )
 
 const (
@@ -28,18 +28,18 @@ func TestLiveSystemOne(t *testing.T) {
 
 		client := liveClient(t)
 
-		result, err := client.SystemOne(liveContext(t, time.Minute), jev.Request{
+		result, err := client.SystemOne(liveContext(t, time.Minute), onesie.Request{
 			State: urgentState,
-			Questions: jev.Questions{
+			Questions: onesie.Questions{
 				{
 					ID:       "is_urgent",
-					Question: jev.Noul{Instructions: "Does this message convey urgency?"},
+					Question: onesie.Noul{Instructions: "Does this message convey urgency?"},
 				},
 				{
 					ID: "department",
-					Question: jev.Choice{
+					Question: onesie.Choice{
 						Instructions: "Which team should handle this?",
-						Criteria: jev.Criteria{
+						Criteria: onesie.Criteria{
 							{Name: "billing", Desc: "Payments, invoicing, payouts, refunds"},
 							{Name: "technical", Desc: "Bugs, outages, integrations"},
 							{Name: "sales", Desc: "Pricing, upgrades, new accounts"},
@@ -48,9 +48,9 @@ func TestLiveSystemOne(t *testing.T) {
 				},
 				{
 					ID: "frustration",
-					Question: jev.Score{
+					Question: onesie.Score{
 						Instructions: "How frustrated is the customer?",
-						Criteria:     jev.Levels("Calm", "Frustrated", "Very angry"),
+						Criteria:     onesie.Levels("Calm", "Frustrated", "Very angry"),
 					},
 				},
 			},
@@ -59,7 +59,7 @@ func TestLiveSystemOne(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		if result.Model == jev.DefaultModel {
+		if result.Model == onesie.DefaultModel {
 			t.Errorf("model should resolve to a versioned id, got the alias %q", result.Model)
 		}
 
@@ -131,16 +131,16 @@ func TestLiveSystemOne(t *testing.T) {
 		client := liveClient(t)
 		ctx := liveContext(t, time.Minute)
 
-		question := jev.Questions{
-			{ID: "is_urgent", Question: jev.Noul{Instructions: "Does this message convey urgency?"}},
+		question := onesie.Questions{
+			{ID: "is_urgent", Question: onesie.Noul{Instructions: "Does this message convey urgency?"}},
 		}
 
-		hot, err := client.SystemOne(ctx, jev.Request{State: urgentState, Questions: question})
+		hot, err := client.SystemOne(ctx, onesie.Request{State: urgentState, Questions: question})
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		cold, err := client.SystemOne(ctx, jev.Request{State: calmState, Questions: question})
+		cold, err := client.SystemOne(ctx, onesie.Request{State: calmState, Questions: question})
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -169,7 +169,7 @@ func TestLiveSystemOne(t *testing.T) {
 
 		client := liveClient(t)
 
-		result, err := client.SystemOne(liveContext(t, time.Minute), jev.Request{
+		result, err := client.SystemOne(liveContext(t, time.Minute), onesie.Request{
 			State: map[string]any{
 				"ticket": map[string]any{
 					"messages": []any{
@@ -181,10 +181,10 @@ func TestLiveSystemOne(t *testing.T) {
 				},
 				"refund_policy": "Duplicate charges are eligible for a refund.",
 			},
-			Questions: jev.Questions{
+			Questions: onesie.Questions{
 				{
 					ID: "refund_requested",
-					Question: jev.Noul{
+					Question: onesie.Noul{
 						Instructions: "Does `ticket.messages[0].text` request a refund?",
 					},
 				},
@@ -209,14 +209,14 @@ func TestLiveSystemOne(t *testing.T) {
 
 		client := liveClient(t)
 
-		result, err := client.SystemOne(liveContext(t, time.Minute), jev.Request{
+		result, err := client.SystemOne(liveContext(t, time.Minute), onesie.Request{
 			State: urgentState,
-			Questions: jev.Questions{
+			Questions: onesie.Questions{
 				{
 					ID: "time_sensitive",
-					Question: jev.Noul{
+					Question: onesie.Noul{
 						Instructions: "Is this time sensitive?",
-						Criteria: &jev.NoulCriteria{
+						Criteria: &onesie.NoulCriteria{
 							True:  "The customer states or implies a deadline or ongoing loss",
 							False: "No time pressure is expressed",
 						},
@@ -243,15 +243,15 @@ func TestLiveSystemOne(t *testing.T) {
 
 		client := liveOpenRouterClient(t)
 
-		result, err := client.SystemOne(liveContext(t, time.Minute), jev.Request{
+		result, err := client.SystemOne(liveContext(t, time.Minute), onesie.Request{
 			State: urgentState,
-			Questions: jev.Questions{
-				{ID: "z_urgent", Question: jev.Noul{Instructions: "Does this message convey urgency?"}},
+			Questions: onesie.Questions{
+				{ID: "z_urgent", Question: onesie.Noul{Instructions: "Does this message convey urgency?"}},
 				{
 					ID: "a_team",
-					Question: jev.Choice{
+					Question: onesie.Choice{
 						Instructions: "Which team should handle this?",
-						Criteria: jev.Criteria{
+						Criteria: onesie.Criteria{
 							{Name: "billing", Desc: "Payments, invoicing, payouts, refunds"},
 							{Name: "technical", Desc: "Bugs, outages, integrations"},
 						},
@@ -259,9 +259,9 @@ func TestLiveSystemOne(t *testing.T) {
 				},
 				{
 					ID: "m_frustration",
-					Question: jev.Score{
+					Question: onesie.Score{
 						Instructions: "How frustrated is the customer?",
-						Criteria:     jev.Levels("Calm", "Frustrated", "Very angry"),
+						Criteria:     onesie.Levels("Calm", "Frustrated", "Very angry"),
 					},
 				},
 			},
@@ -288,15 +288,15 @@ func TestLiveSystemOne(t *testing.T) {
 	t.Run("should answer all three question types in request order under berget", func(t *testing.T) {
 		t.Parallel()
 
-		result, err := liveBergetClient(t).SystemOne(liveContext(t, time.Minute), jev.Request{
+		result, err := liveBergetClient(t).SystemOne(liveContext(t, time.Minute), onesie.Request{
 			State: urgentState,
-			Questions: jev.Questions{
-				{ID: "z_urgent", Question: jev.Noul{Instructions: "Does this message convey urgency?"}},
+			Questions: onesie.Questions{
+				{ID: "z_urgent", Question: onesie.Noul{Instructions: "Does this message convey urgency?"}},
 				{
 					ID: "a_team",
-					Question: jev.Choice{
+					Question: onesie.Choice{
 						Instructions: "Which team should handle this?",
-						Criteria: jev.Criteria{
+						Criteria: onesie.Criteria{
 							{Name: "billing", Desc: "Payments, invoicing, payouts, refunds"},
 							{Name: "technical", Desc: "Bugs, outages, integrations"},
 						},
@@ -304,9 +304,9 @@ func TestLiveSystemOne(t *testing.T) {
 				},
 				{
 					ID: "m_frustration",
-					Question: jev.Score{
+					Question: onesie.Score{
 						Instructions: "How frustrated is the customer?",
-						Criteria:     jev.Levels("Calm", "Frustrated", "Very angry"),
+						Criteria:     onesie.Levels("Calm", "Frustrated", "Very angry"),
 					},
 				},
 			},
@@ -393,13 +393,13 @@ func TestLiveListModels(t *testing.T) {
 				t.Errorf("a model came back with no name: %+v", model)
 			}
 
-			if strings.Contains(model.Description, jev.BergetDefaultModel) {
+			if strings.Contains(model.Description, onesie.BergetDefaultModel) {
 				found = true
 			}
 		}
 
 		if !found {
-			t.Errorf("no model lists the %s alias: %+v", jev.BergetDefaultModel, models)
+			t.Errorf("no model lists the %s alias: %+v", onesie.BergetDefaultModel, models)
 		}
 	})
 }
@@ -413,24 +413,24 @@ func TestLiveErrors(t *testing.T) {
 		// Call apiKey first so this subtest skips alongside the others when no key is configured.
 		_ = apiKey(t)
 
-		client, err := jev.New(
-			jev.WithAPIKey("sk-definitely-not-a-real-key"),
-			jev.WithUserAgent("onesie-integration"),
+		client, err := onesie.New(
+			onesie.WithAPIKey("sk-definitely-not-a-real-key"),
+			onesie.WithUserAgent("onesie-integration"),
 		)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		_, err = client.SystemOne(liveContext(t, 30*time.Second), jev.Request{
+		_, err = client.SystemOne(liveContext(t, 30*time.Second), onesie.Request{
 			State:     "x",
-			Questions: jev.Questions{{ID: "q", Question: jev.Noul{Instructions: "Is this a test?"}}},
+			Questions: onesie.Questions{{ID: "q", Question: onesie.Noul{Instructions: "Is this a test?"}}},
 		})
 
-		if !errors.Is(err, jev.ErrAuthentication) {
+		if !errors.Is(err, onesie.ErrAuthentication) {
 			t.Fatalf("error got %v, want ErrAuthentication", err)
 		}
 
-		var api *jev.APIError
+		var api *onesie.APIError
 		if !errors.As(err, &api) {
 			t.Fatalf("expected an *APIError, got %T", err)
 		}
@@ -445,13 +445,13 @@ func TestLiveErrors(t *testing.T) {
 
 		client := liveClient(t)
 
-		_, err := client.SystemOne(liveContext(t, 30*time.Second), jev.Request{
+		_, err := client.SystemOne(liveContext(t, 30*time.Second), onesie.Request{
 			State:     "x",
 			Model:     "onesie-does-not-exist",
-			Questions: jev.Questions{{ID: "q", Question: jev.Noul{Instructions: "Is this a test?"}}},
+			Questions: onesie.Questions{{ID: "q", Question: onesie.Noul{Instructions: "Is this a test?"}}},
 		})
 
-		var api *jev.APIError
+		var api *onesie.APIError
 		if !errors.As(err, &api) {
 			t.Fatalf("expected an *APIError, got %v", err)
 		}
@@ -470,21 +470,21 @@ func TestLiveErrors(t *testing.T) {
 
 		_ = openRouterKey(t)
 
-		client, err := jev.New(
-			jev.WithProvider(jev.OpenRouter()),
-			jev.WithAPIKey("sk-or-v1-definitely-not-a-real-key"),
-			jev.WithUserAgent("onesie-integration"),
+		client, err := onesie.New(
+			onesie.WithProvider(onesie.OpenRouter()),
+			onesie.WithAPIKey("sk-or-v1-definitely-not-a-real-key"),
+			onesie.WithUserAgent("onesie-integration"),
 		)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		_, err = client.SystemOne(liveContext(t, 30*time.Second), jev.Request{
+		_, err = client.SystemOne(liveContext(t, 30*time.Second), onesie.Request{
 			State:     "x",
-			Questions: jev.Questions{{ID: "q", Question: jev.Noul{Instructions: "Is this a test?"}}},
+			Questions: onesie.Questions{{ID: "q", Question: onesie.Noul{Instructions: "Is this a test?"}}},
 		})
 
-		if !errors.Is(err, jev.ErrAuthentication) {
+		if !errors.Is(err, onesie.ErrAuthentication) {
 			t.Fatalf("error got %v, want ErrAuthentication", err)
 		}
 	})
@@ -496,7 +496,7 @@ func TestLiveErrors(t *testing.T) {
 			`{"q":{"type":"noul","instructions":"urgent","criteria":{"true":"x","false":null}}}}`)
 
 		_, err := liveOpenRouterClient(t).SystemOneRaw(liveContext(t, 30*time.Second), body)
-		if !errors.Is(err, jev.ErrBadRequest) {
+		if !errors.Is(err, onesie.ErrBadRequest) {
 			t.Fatalf("error got %v, want ErrBadRequest", err)
 		}
 
@@ -511,21 +511,21 @@ func TestLiveErrors(t *testing.T) {
 
 		_ = bergetKey(t)
 
-		client, err := jev.New(
-			jev.WithProvider(jev.Berget()),
-			jev.WithAPIKey("sk_ber_definitely-not-a-real-key"),
-			jev.WithUserAgent("onesie-integration"),
+		client, err := onesie.New(
+			onesie.WithProvider(onesie.Berget()),
+			onesie.WithAPIKey("sk_ber_definitely-not-a-real-key"),
+			onesie.WithUserAgent("onesie-integration"),
 		)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		_, err = client.SystemOne(liveContext(t, 30*time.Second), jev.Request{
+		_, err = client.SystemOne(liveContext(t, 30*time.Second), onesie.Request{
 			State:     "x",
-			Questions: jev.Questions{{ID: "q", Question: jev.Noul{Instructions: "Is this a test?"}}},
+			Questions: onesie.Questions{{ID: "q", Question: onesie.Noul{Instructions: "Is this a test?"}}},
 		})
 
-		if !errors.Is(err, jev.ErrAuthentication) {
+		if !errors.Is(err, onesie.ErrAuthentication) {
 			t.Fatalf("error got %v, want ErrAuthentication", err)
 		}
 	})
@@ -533,24 +533,24 @@ func TestLiveErrors(t *testing.T) {
 	t.Run("should return ErrNotFound for jev-latest, which berget does not serve", func(t *testing.T) {
 		t.Parallel()
 
-		_, err := liveBergetClient(t).SystemOne(liveContext(t, 30*time.Second), jev.Request{
+		_, err := liveBergetClient(t).SystemOne(liveContext(t, 30*time.Second), onesie.Request{
 			State:     "x",
-			Model:     jev.DefaultModel,
-			Questions: jev.Questions{{ID: "q", Question: jev.Noul{Instructions: "Is this a test?"}}},
+			Model:     onesie.DefaultModel,
+			Questions: onesie.Questions{{ID: "q", Question: onesie.Noul{Instructions: "Is this a test?"}}},
 		})
 
-		if !errors.Is(err, jev.ErrNotFound) || !strings.Contains(err.Error(), "Model not found") {
+		if !errors.Is(err, onesie.ErrNotFound) || !strings.Contains(err.Error(), "Model not found") {
 			t.Fatalf("error got %v, want ErrNotFound saying Model not found", err)
 		}
 	})
 }
 
-func liveClient(t *testing.T, opts ...jev.Option) *jev.Client {
+func liveClient(t *testing.T, opts ...onesie.Option) *onesie.Client {
 	t.Helper()
 
-	base := []jev.Option{jev.WithAPIKey(apiKey(t)), jev.WithUserAgent("onesie-integration")}
+	base := []onesie.Option{onesie.WithAPIKey(apiKey(t)), onesie.WithUserAgent("onesie-integration")}
 
-	client, err := jev.New(append(base, opts...)...)
+	client, err := onesie.New(append(base, opts...)...)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -558,13 +558,13 @@ func liveClient(t *testing.T, opts ...jev.Option) *jev.Client {
 	return client
 }
 
-func liveOpenRouterClient(t *testing.T) *jev.Client {
+func liveOpenRouterClient(t *testing.T) *onesie.Client {
 	t.Helper()
 
-	client, err := jev.New(
-		jev.WithProvider(jev.OpenRouter()),
-		jev.WithAPIKey(openRouterKey(t)),
-		jev.WithUserAgent("onesie-integration"),
+	client, err := onesie.New(
+		onesie.WithProvider(onesie.OpenRouter()),
+		onesie.WithAPIKey(openRouterKey(t)),
+		onesie.WithUserAgent("onesie-integration"),
 	)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -573,13 +573,13 @@ func liveOpenRouterClient(t *testing.T) *jev.Client {
 	return client
 }
 
-func liveBergetClient(t *testing.T) *jev.Client {
+func liveBergetClient(t *testing.T) *onesie.Client {
 	t.Helper()
 
-	client, err := jev.New(
-		jev.WithProvider(jev.Berget()),
-		jev.WithAPIKey(bergetKey(t)),
-		jev.WithUserAgent("onesie-integration"),
+	client, err := onesie.New(
+		onesie.WithProvider(onesie.Berget()),
+		onesie.WithAPIKey(bergetKey(t)),
+		onesie.WithUserAgent("onesie-integration"),
 	)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)

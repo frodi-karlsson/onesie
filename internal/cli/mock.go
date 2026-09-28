@@ -10,7 +10,7 @@ import (
 
 	"github.com/frodi-karlsson/onesie/internal/mock"
 	"github.com/frodi-karlsson/onesie/internal/plan"
-	"github.com/frodi-karlsson/onesie/jev"
+	"github.com/frodi-karlsson/onesie/onesie"
 )
 
 const (
@@ -73,7 +73,7 @@ func wrapped(settings rootSettings, answers answererFactory) answererFactory {
 	}
 }
 
-func (a mockAnswerer) answer(ctx context.Context, key recordKey, _ jev.Request) (reply, error) {
+func (a mockAnswerer) answer(ctx context.Context, key recordKey, _ onesie.Request) (reply, error) {
 	if err := ctx.Err(); err != nil {
 		return reply{}, err
 	}
@@ -100,18 +100,18 @@ func (a mockAnswerer) salt(key recordKey) (string, bool) {
 	return entry.Key(), true
 }
 
-func mockAttempt(err error) jev.Attempt {
-	var api *jev.APIError
+func mockAttempt(err error) onesie.Attempt {
+	var api *onesie.APIError
 	if errors.As(err, &api) {
-		return jev.Attempt{Status: api.Status, Err: err}
+		return onesie.Attempt{Status: api.Status, Err: err}
 	}
 
-	var connection *jev.ConnectionError
+	var connection *onesie.ConnectionError
 	if errors.As(err, &connection) {
-		return jev.Attempt{Err: err}
+		return onesie.Attempt{Err: err}
 	}
 
-	return jev.Attempt{Status: http.StatusOK}
+	return onesie.Attempt{Status: http.StatusOK}
 }
 
 type mockAnswerer struct {

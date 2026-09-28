@@ -19,7 +19,7 @@ import (
 	"testing"
 
 	"github.com/frodi-karlsson/onesie/internal/creds"
-	"github.com/frodi-karlsson/onesie/jev"
+	"github.com/frodi-karlsson/onesie/onesie"
 )
 
 func TestAuthStatus(t *testing.T) {
@@ -38,7 +38,7 @@ func TestAuthStatus(t *testing.T) {
 	}{
 		{
 			name:     "should report the environment",
-			env:      map[string]string{jev.EnvAPIKey: "SECRET-ENV"},
+			env:      map[string]string{onesie.EnvAPIKey: "SECRET-ENV"},
 			wantOut:  "provider: typesafe\nsource: env TYPESAFE_API_KEY\n",
 			wantCode: ExitOK,
 		},
@@ -63,7 +63,7 @@ func TestAuthStatus(t *testing.T) {
 		},
 		{
 			name:     "should ignore a file others can reach when the environment has a key",
-			env:      map[string]string{jev.EnvAPIKey: "SECRET-ENV"},
+			env:      map[string]string{onesie.EnvAPIKey: "SECRET-ENV"},
 			file:     `{"providers":{"typesafe":{"api_key":"SECRET-FILE"}}}`,
 			fileMode: 0o644,
 			unixOnly: true,
@@ -72,7 +72,7 @@ func TestAuthStatus(t *testing.T) {
 		},
 		{
 			name:     "should prefer the environment over the file",
-			env:      map[string]string{jev.EnvAPIKey: "SECRET-ENV"},
+			env:      map[string]string{onesie.EnvAPIKey: "SECRET-ENV"},
 			file:     `{"providers":{"typesafe":{"api_key":"SECRET-FILE"}}}`,
 			wantOut:  "provider: typesafe\nsource: env TYPESAFE_API_KEY\n",
 			wantCode: ExitOK,
@@ -157,14 +157,14 @@ func TestAuthStatus(t *testing.T) {
 		{
 			name:     "should let --provider beat ONESIE_PROVIDER",
 			args:     []string{"--provider", "typesafe", "auth", "status"},
-			env:      map[string]string{"ONESIE_PROVIDER": "openrouter", jev.EnvAPIKey: "SECRET-TS"},
+			env:      map[string]string{"ONESIE_PROVIDER": "openrouter", onesie.EnvAPIKey: "SECRET-TS"},
 			wantOut:  "provider: typesafe\nsource: env TYPESAFE_API_KEY\n",
 			wantCode: ExitOK,
 		},
 		{
 			name:     "should never fall back to the TypeSafe key under openrouter",
 			args:     []string{"--provider", "openrouter", "auth", "status"},
-			env:      map[string]string{jev.EnvAPIKey: "SECRET-TS"},
+			env:      map[string]string{onesie.EnvAPIKey: "SECRET-TS"},
 			file:     `{"providers":{"typesafe":{"api_key":"SECRET-FILE"}}}`,
 			wantOut:  "provider: openrouter\nsource: none\n",
 			wantCode: ExitUsage,
@@ -179,7 +179,7 @@ func TestAuthStatus(t *testing.T) {
 		{
 			name:     "should never fall back to the TypeSafe key under berget",
 			args:     []string{"auth", "status"},
-			env:      map[string]string{"ONESIE_PROVIDER": "berget", jev.EnvAPIKey: "SECRET-TS"},
+			env:      map[string]string{"ONESIE_PROVIDER": "berget", onesie.EnvAPIKey: "SECRET-TS"},
 			file:     `{"providers":{"typesafe":{"api_key":"SECRET-FILE"}}}`,
 			wantOut:  "provider: berget\nsource: none\n",
 			wantCode: ExitUsage,
@@ -1106,12 +1106,12 @@ func TestAuthTest(t *testing.T) {
 		{
 			// The CLI owns the setup advice because it knows how keys are stored.
 			name:     "should exit 2 when no source holds a key",
-			wantErr:  "onesie: no API key. Set " + jev.EnvAPIKey + " or run onesie auth set",
+			wantErr:  "onesie: no API key. Set " + onesie.EnvAPIKey + " or run onesie auth set",
 			wantCode: ExitUsage,
 		},
 		{
 			name:     "should print the source and the model count",
-			env:      map[string]string{jev.EnvAPIKey: "SECRET-ENV"},
+			env:      map[string]string{onesie.EnvAPIKey: "SECRET-ENV"},
 			response: listing,
 			wantOut:  "provider: typesafe\nsource: env TYPESAFE_API_KEY\nmodels: 2\n",
 			wantCode: ExitOK,
@@ -1126,14 +1126,14 @@ func TestAuthTest(t *testing.T) {
 		},
 		{
 			name:     "should exit 3 on a rejected key",
-			env:      map[string]string{jev.EnvAPIKey: "SECRET-ENV"},
+			env:      map[string]string{onesie.EnvAPIKey: "SECRET-ENV"},
 			status:   http.StatusUnauthorized,
 			response: `{"error":{"message":"invalid api key"}}`,
 			wantCode: ExitAuth,
 		},
 		{
 			name:     "should exit 3 on a forbidden key",
-			env:      map[string]string{jev.EnvAPIKey: "SECRET-ENV"},
+			env:      map[string]string{onesie.EnvAPIKey: "SECRET-ENV"},
 			status:   http.StatusForbidden,
 			response: `{"error":{"message":"forbidden"}}`,
 			wantCode: ExitAuth,
@@ -1148,7 +1148,7 @@ func TestAuthTest(t *testing.T) {
 		},
 		{
 			name:      "should exit 5 when the server cannot be reached",
-			env:       map[string]string{jev.EnvAPIKey: "SECRET-ENV"},
+			env:       map[string]string{onesie.EnvAPIKey: "SECRET-ENV"},
 			unreached: true,
 			wantCode:  ExitTransport,
 		},
@@ -1266,8 +1266,8 @@ func TestAuthTest(t *testing.T) {
 			out, errOut, code := runAuth(t, []string{"--provider", "berget", "auth", "test"},
 				WithCredentialPath(fixedPath(credentialFixture(t, "", 0))),
 				WithLookupEnv(lookupFrom(map[string]string{"BERGET_API_KEY": "SECRET-BG"})),
-				WithClientFactory(func(ctx context.Context, extra ...jev.Option) (*jev.Client, error) {
-					return stub(ctx, append([]jev.Option{jev.WithProvider(jev.Berget())}, extra...)...)
+				WithClientFactory(func(ctx context.Context, extra ...onesie.Option) (*onesie.Client, error) {
+					return stub(ctx, append([]onesie.Option{onesie.WithProvider(onesie.Berget())}, extra...)...)
 				}))
 
 			assertNoSecret(t, out, errOut)
@@ -1348,7 +1348,7 @@ func TestStoredOptions(t *testing.T) {
 
 			env := map[string]string{}
 			if tc.env {
-				env[jev.EnvBaseURL] = wanted.URL
+				env[onesie.EnvBaseURL] = wanted.URL
 			}
 
 			flags := &runFlags{}
@@ -1357,16 +1357,16 @@ func TestStoredOptions(t *testing.T) {
 			}
 
 			settings := rootSettings{lookupEnv: lookupFrom(env)}
-			source := keySource{name: sourceFile, provider: jev.TypeSafe(), key: "SECRET-FILE", baseURL: stored}
+			source := keySource{name: sourceFile, provider: onesie.TypeSafe(), key: "SECRET-FILE", baseURL: stored}
 
 			// The two options defaultClientFactory installs from the flags, so the unit under test
 			// sees the same precedence a real run would build.
-			opts := []jev.Option{jev.WithAPIKey("stub"), jev.WithEnv(lookupFrom(env))}
+			opts := []onesie.Option{onesie.WithAPIKey("stub"), onesie.WithEnv(lookupFrom(env))}
 			if flags.baseURL != "" {
-				opts = append(opts, jev.WithBaseURL(flags.baseURL))
+				opts = append(opts, onesie.WithBaseURL(flags.baseURL))
 			}
 
-			client, err := jev.New(append(opts, storedOptions(settings, flags, source)...)...)
+			client, err := onesie.New(append(opts, storedOptions(settings, flags, source)...)...)
 			if err != nil {
 				t.Fatalf("building the client: %v", err)
 			}
@@ -1384,9 +1384,9 @@ func TestStoredOptions(t *testing.T) {
 	t.Run("should ignore TYPESAFE_BASE_URL under openrouter and keep the stored base url", func(t *testing.T) {
 		t.Parallel()
 
-		settings := rootSettings{lookupEnv: lookupFrom(map[string]string{jev.EnvBaseURL: "https://typesafe.example"})}
+		settings := rootSettings{lookupEnv: lookupFrom(map[string]string{onesie.EnvBaseURL: "https://typesafe.example"})}
 		source := keySource{
-			name: sourceFile, provider: jev.OpenRouter(), key: "SECRET-FILE", baseURL: "https://proxy.example",
+			name: sourceFile, provider: onesie.OpenRouter(), key: "SECRET-FILE", baseURL: "https://proxy.example",
 		}
 
 		if got := len(storedOptions(settings, &runFlags{}, source)); got != 2 {
@@ -1521,14 +1521,14 @@ func TestResolveKey(t *testing.T) {
 	}{
 		{
 			name:     "should prefer the environment over the file",
-			env:      map[string]string{jev.EnvAPIKey: "SECRET-ENV"},
+			env:      map[string]string{onesie.EnvAPIKey: "SECRET-ENV"},
 			file:     `{"providers":{"typesafe":{"api_key":"SECRET-FILE"}}}`,
 			wantName: sourceEnv,
 			wantKey:  "SECRET-ENV",
 		},
 		{
 			name:     "should ignore a blank environment variable",
-			env:      map[string]string{jev.EnvAPIKey: "   "},
+			env:      map[string]string{onesie.EnvAPIKey: "   "},
 			file:     `{"providers":{"typesafe":{"api_key":"SECRET-FILE"}}}`,
 			wantName: sourceFile,
 			wantKey:  "SECRET-FILE",
@@ -1598,17 +1598,17 @@ func TestKeySourceString(t *testing.T) {
 		},
 		{
 			name:   "should name the typesafe env var",
-			source: keySource{name: sourceEnv, provider: jev.TypeSafe(), key: "SECRET-ENV"},
+			source: keySource{name: sourceEnv, provider: onesie.TypeSafe(), key: "SECRET-ENV"},
 			want:   "source: env TYPESAFE_API_KEY",
 		},
 		{
 			name:   "should name the openrouter env var",
-			source: keySource{name: sourceEnv, provider: jev.OpenRouter(), key: "SECRET-ENV"},
+			source: keySource{name: sourceEnv, provider: onesie.OpenRouter(), key: "SECRET-ENV"},
 			want:   "source: env OPENROUTER_API_KEY",
 		},
 		{
 			name:   "should name the berget env var",
-			source: keySource{name: sourceEnv, provider: jev.Berget(), key: "SECRET-ENV"},
+			source: keySource{name: sourceEnv, provider: onesie.Berget(), key: "SECRET-ENV"},
 			want:   "source: env BERGET_API_KEY",
 		},
 	}
@@ -1744,7 +1744,7 @@ func TestStoredCredentials(t *testing.T) {
 			fileBase: "UNWANTED",
 			fileMode: 0o644,
 			unixOnly: true,
-			env:      map[string]string{jev.EnvAPIKey: "SECRET-ENV"},
+			env:      map[string]string{onesie.EnvAPIKey: "SECRET-ENV"},
 			args:     []string{"is this urgent", "-r", "--base-url", "WANTED"},
 			wantCode: ExitOK,
 			wantAuth: "Bearer SECRET-ENV",
@@ -1754,7 +1754,7 @@ func TestStoredCredentials(t *testing.T) {
 			name:     "should send the refused environment key rather than falling back to the file",
 			fileKey:  "SECRET-FILE",
 			fileBase: "UNWANTED",
-			env:      map[string]string{jev.EnvAPIKey: "SECRET-ENV"},
+			env:      map[string]string{onesie.EnvAPIKey: "SECRET-ENV"},
 			args:     []string{"is this urgent", "-r", "--base-url", "WANTED"},
 			status:   http.StatusUnauthorized,
 			wantCode: ExitAuth,
@@ -1774,7 +1774,7 @@ func TestStoredCredentials(t *testing.T) {
 		{
 			name: "should send the OpenRouter key under ONESIE_PROVIDER",
 			env: map[string]string{
-				"ONESIE_PROVIDER": "openrouter", "OPENROUTER_API_KEY": "SECRET-OR", jev.EnvAPIKey: "SECRET-ENV",
+				"ONESIE_PROVIDER": "openrouter", "OPENROUTER_API_KEY": "SECRET-OR", onesie.EnvAPIKey: "SECRET-ENV",
 			},
 			args:     []string{"is this urgent", "-r", "--base-url", "WANTED"},
 			wantCode: ExitOK,
@@ -1799,9 +1799,6 @@ func TestStoredCredentials(t *testing.T) {
 			wanted:   1,
 		},
 		{
-			// A whitespace only value is nothing to resolveKey and to storedOptions, so the file's
-			// base URL is what the request goes to. Passing the flag on raw would install an
-			// option jev.New trims back to empty, which reads as a flag that was honoured.
 			name:     "should ignore a whitespace only --base-url and keep the file's",
 			fileKey:  "SECRET-FILE",
 			fileBase: "WANTED",
@@ -1814,7 +1811,7 @@ func TestStoredCredentials(t *testing.T) {
 			name:     "should let TYPESAFE_BASE_URL outrank the file's",
 			fileKey:  "SECRET-FILE",
 			fileBase: "UNWANTED",
-			env:      map[string]string{jev.EnvBaseURL: "WANTED"},
+			env:      map[string]string{onesie.EnvBaseURL: "WANTED"},
 			args:     []string{"is this urgent", "-r"},
 			wantCode: ExitOK,
 			wantAuth: "Bearer SECRET-FILE",
@@ -1985,7 +1982,7 @@ func runAuth(t *testing.T, args []string, opts ...RootOption) (string, string, i
 		WithStdin(strings.NewReader("")),
 		WithStdinTTY(false),
 		WithStdoutTTY(false),
-		WithClientFactory(func(context.Context, ...jev.Option) (*jev.Client, error) {
+		WithClientFactory(func(context.Context, ...onesie.Option) (*onesie.Client, error) {
 			return nil, errors.New("onesie: no client should be built on this path")
 		}),
 		// Never the real keychain. A test that wants one working passes its own.
@@ -2091,18 +2088,18 @@ func substituted(value string, urls map[string]string) string {
 	return value
 }
 
-func stubFactory(base string) func(context.Context, ...jev.Option) (*jev.Client, error) {
-	return func(_ context.Context, extra ...jev.Option) (*jev.Client, error) {
-		policy := jev.DefaultRetryPolicy()
+func stubFactory(base string) func(context.Context, ...onesie.Option) (*onesie.Client, error) {
+	return func(_ context.Context, extra ...onesie.Option) (*onesie.Client, error) {
+		policy := onesie.DefaultRetryPolicy()
 		// A refused connection is retried by default, which would spend seconds proving a point
 		// the first attempt already made.
 		policy.MaxRetries = 0
 
-		return jev.New(append([]jev.Option{
-			jev.WithAPIKey("stub"),
-			jev.WithBaseURL(base),
-			jev.WithRetry(policy),
-			jev.WithEnv(func(string) (string, bool) { return "", false }),
+		return onesie.New(append([]onesie.Option{
+			onesie.WithAPIKey("stub"),
+			onesie.WithBaseURL(base),
+			onesie.WithRetry(policy),
+			onesie.WithEnv(func(string) (string, bool) { return "", false }),
 		}, extra...)...)
 	}
 }

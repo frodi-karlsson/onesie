@@ -7,7 +7,7 @@ import (
 
 	"github.com/frodi-karlsson/onesie/internal/answer"
 	"github.com/frodi-karlsson/onesie/internal/output"
-	"github.com/frodi-karlsson/onesie/jev"
+	"github.com/frodi-karlsson/onesie/onesie"
 )
 
 func TestWriteMarkdown(t *testing.T) {
@@ -45,7 +45,7 @@ func TestWriteMarkdown(t *testing.T) {
 			name: "should add the token counts and the cost under usage",
 			rec: output.Record{
 				Model:   "jev-1.13.0",
-				Usage:   &jev.Usage{InputTokens: 212, OutputTokens: 3, Cost: &cost},
+				Usage:   &onesie.Usage{InputTokens: 212, OutputTokens: 3, Cost: &cost},
 				Answers: answers[:1],
 			},
 			want: "| question | answer | confidence |\n" +
@@ -58,7 +58,7 @@ func TestWriteMarkdown(t *testing.T) {
 			name: "should leave the cost out when the provider reports none",
 			rec: output.Record{
 				Model:   "jev-1.13.0",
-				Usage:   &jev.Usage{InputTokens: 212, OutputTokens: 3},
+				Usage:   &onesie.Usage{InputTokens: 212, OutputTokens: 3},
 				Answers: answers[:1],
 			},
 			want: "| question | answer | confidence |\n" +
@@ -220,7 +220,7 @@ func TestWriteMarkdown(t *testing.T) {
 			name: "should keep the usage of a failed record that still cost tokens",
 			rec: output.Record{
 				Failure: &output.Failure{Kind: "response", Status: &status, Message: "unusable"},
-				Usage:   &jev.Usage{InputTokens: 10, OutputTokens: 2},
+				Usage:   &onesie.Usage{InputTokens: 10, OutputTokens: 2},
 			},
 			want: "> [!CAUTION]\n" +
 				"> **No answer:** `unusable`\n" +
@@ -297,7 +297,7 @@ func TestNewMarkdownTable(t *testing.T) {
 
 	spent := func(rec output.Record, model string, in, out int) output.Record {
 		rec.Model = model
-		rec.Usage = &jev.Usage{InputTokens: in, OutputTokens: out, Cost: &cost}
+		rec.Usage = &onesie.Usage{InputTokens: in, OutputTokens: out, Cost: &cost}
 
 		return rec
 	}

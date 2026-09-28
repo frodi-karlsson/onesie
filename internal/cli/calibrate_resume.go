@@ -13,7 +13,7 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/jq"
 	"github.com/frodi-karlsson/onesie/internal/output"
 	"github.com/frodi-karlsson/onesie/internal/plan"
-	"github.com/frodi-karlsson/onesie/jev"
+	"github.com/frodi-karlsson/onesie/onesie"
 )
 
 func resumeLabelled(
@@ -187,7 +187,7 @@ func storedRecord(built *plan.Plan, text []byte) output.Record {
 		record.Model = ""
 	}
 
-	var usage jev.Usage
+	var usage onesie.Usage
 	if json.Unmarshal(fields["usage"], &usage) == nil {
 		record.Usage = &usage
 	}

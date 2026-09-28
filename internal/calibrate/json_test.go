@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/frodi-karlsson/onesie/internal/calibrate"
-	"github.com/frodi-karlsson/onesie/jev"
+	"github.com/frodi-karlsson/onesie/onesie"
 )
 
 func TestWriteJSON(t *testing.T) {
@@ -300,7 +300,7 @@ func TestWriteJSON(t *testing.T) {
 
 		cost := 0.25
 		with := full
-		with.Usage = &calibrate.Usage{Usage: jev.Usage{InputTokens: 10, OutputTokens: 4, Cost: &cost}, Records: 3}
+		with.Usage = &calibrate.Usage{Usage: onesie.Usage{InputTokens: 10, OutputTokens: 4, Cost: &cost}, Records: 3}
 
 		want := []string{"models", "records", "labelled", "unlabelled", "asked", "stored", "failed", "usage", "questions"}
 		if got := keysOf(t, writeJSON(t, with)); !slices.Equal(got, want) {

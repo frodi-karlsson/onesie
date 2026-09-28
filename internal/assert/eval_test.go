@@ -6,7 +6,7 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/answer"
 	"github.com/frodi-karlsson/onesie/internal/output"
 	"github.com/frodi-karlsson/onesie/internal/plan"
-	"github.com/frodi-karlsson/onesie/jev"
+	"github.com/frodi-karlsson/onesie/onesie"
 )
 
 func TestEval(t *testing.T) {
@@ -286,31 +286,31 @@ func omittedRecord(t *testing.T, built *plan.Plan) output.Record {
 	return record
 }
 
-func evalOmitted(q plan.Question) jev.Answer {
+func evalOmitted(q plan.Question) onesie.Answer {
 	// Only the winner is named, which is what a model that says nothing about the other keys
 	// sends back.
 	switch q.Shape {
 	case plan.Pick:
-		return &jev.ChoiceAnswer{
+		return &onesie.ChoiceAnswer{
 			Choice:        "billing",
 			Confidence:    0.9,
 			Probabilities: map[string]float64{"billing": 1},
 		}
 	case plan.Rate:
-		return &jev.ScoreAnswer{
+		return &onesie.ScoreAnswer{
 			Score:         2,
 			Confidence:    0.9,
 			Probabilities: map[string]float64{"2": 1},
 		}
 	default:
-		return &jev.NoulAnswer{Noul: 0.9}
+		return &onesie.NoulAnswer{Noul: 0.9}
 	}
 }
 
-func evalRaw(q plan.Question, confidence float64) jev.Answer {
+func evalRaw(q plan.Question, confidence float64) onesie.Answer {
 	switch q.Shape {
 	case plan.Pick:
-		return &jev.ChoiceAnswer{
+		return &onesie.ChoiceAnswer{
 			Choice:        "billing",
 			Confidence:    confidence,
 			Probabilities: map[string]float64{"billing": 0.8, "technical": 0.2},
@@ -318,13 +318,13 @@ func evalRaw(q plan.Question, confidence float64) jev.Answer {
 	case plan.Rate:
 		// Held apart from the confidence the pick question varies, so only 'team' moves between
 		// the two records.
-		return &jev.ScoreAnswer{
+		return &onesie.ScoreAnswer{
 			Score:         1,
 			Confidence:    0.9,
 			Legend:        map[string]string{"0": "low", "1": "high", "2": "critical"},
 			Probabilities: map[string]float64{"0": 0.1, "1": 0.3, "2": 0.6},
 		}
 	default:
-		return &jev.NoulAnswer{Noul: 0.9}
+		return &onesie.NoulAnswer{Noul: 0.9}
 	}
 }

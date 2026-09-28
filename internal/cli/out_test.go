@@ -19,7 +19,7 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/argv"
 	"github.com/frodi-karlsson/onesie/internal/output"
 	"github.com/frodi-karlsson/onesie/internal/plan"
-	"github.com/frodi-karlsson/onesie/jev"
+	"github.com/frodi-karlsson/onesie/onesie"
 )
 
 func TestOpenOut(t *testing.T) {
@@ -37,23 +37,23 @@ func TestOpenOut(t *testing.T) {
 		})
 	}
 
-	matching := valuesFor("is this urgent", "typesafe", jev.DefaultModel, "", "")
+	matching := valuesFor("is this urgent", "typesafe", onesie.DefaultModel, "", "")
 	picking := fingerprintWith(t, plan.Source{
 		Positional: "which team",
 		Events: []argv.Event{
 			{Name: "pick", Value: "billing,technical"}, {Name: "fallback", Value: "human"},
 		},
-	}, fingerprintInputs{provider: "typesafe", model: jev.DefaultModel, output: "values", input: "jsonl"})
+	}, fingerprintInputs{provider: "typesafe", model: onesie.DefaultModel, output: "values", input: "jsonl"})
 	merged := fingerprintWith(t, plan.Source{Positional: "is this urgent"}, fingerprintInputs{
-		provider: "typesafe", model: jev.DefaultModel, output: "values", input: "jsonl",
+		provider: "typesafe", model: onesie.DefaultModel, output: "values", input: "jsonl",
 		mergeKey: "answers",
 	})
 	fromLines := fingerprintWith(t, plan.Source{Positional: "is this urgent"}, fingerprintInputs{
-		provider: "typesafe", model: jev.DefaultModel, output: "values", input: "lines",
+		provider: "typesafe", model: onesie.DefaultModel, output: "values", input: "lines",
 	})
 	gated := func(assert, abstainIf string) string {
 		return fingerprintWith(t, plan.Source{Positional: "is this urgent"}, fingerprintInputs{
-			provider: "typesafe", model: jev.DefaultModel, output: "values", input: "jsonl",
+			provider: "typesafe", model: onesie.DefaultModel, output: "values", input: "jsonl",
 			assert: assert, abstainIf: abstainIf,
 		})
 	}
@@ -199,12 +199,12 @@ func TestOpenOut(t *testing.T) {
 		{
 			name:        "should refuse to resume when the questions changed",
 			existing:    "keep me\n",
-			sidecar:     valuesFor("is this critical", "typesafe", jev.DefaultModel, "", ""),
+			sidecar:     valuesFor("is this critical", "typesafe", onesie.DefaultModel, "", ""),
 			args:        []string{"is this urgent", "-i", "jsonl", "--resume"},
 			stdin:       input,
 			wantCode:    ExitUsage,
 			wantFile:    "keep me\n",
-			wantSidecar: valuesFor("is this critical", "typesafe", jev.DefaultModel, "", ""),
+			wantSidecar: valuesFor("is this critical", "typesafe", onesie.DefaultModel, "", ""),
 			wantErr:     changed,
 		},
 		{
@@ -277,7 +277,7 @@ func TestOpenOut(t *testing.T) {
 			name:     "should refuse to resume by line count when --skip-blank was dropped",
 			existing: "{\"answer\":0.5}\n",
 			sidecar: fingerprintWith(t, plan.Source{Positional: "is this urgent"}, fingerprintInputs{
-				provider: "typesafe", model: jev.DefaultModel, output: "values", input: "lines",
+				provider: "typesafe", model: onesie.DefaultModel, output: "values", input: "lines",
 				skipBlank: true,
 			}),
 			args:     []string{"is this urgent", "-i", "lines", "--resume"},
@@ -285,7 +285,7 @@ func TestOpenOut(t *testing.T) {
 			wantCode: ExitUsage,
 			wantFile: "{\"answer\":0.5}\n",
 			wantSidecar: fingerprintWith(t, plan.Source{Positional: "is this urgent"}, fingerprintInputs{
-				provider: "typesafe", model: jev.DefaultModel, output: "values", input: "lines",
+				provider: "typesafe", model: onesie.DefaultModel, output: "values", input: "lines",
 				skipBlank: true,
 			}),
 			wantErr: changed,
@@ -294,26 +294,26 @@ func TestOpenOut(t *testing.T) {
 			name:     "should resume csv by row count when --skip-blank changed",
 			existing: "{\"answer\":0.5}\n",
 			sidecar: fingerprintWith(t, plan.Source{Positional: "is this urgent"}, fingerprintInputs{
-				provider: "typesafe", model: jev.DefaultModel, output: "values", input: "csv",
+				provider: "typesafe", model: onesie.DefaultModel, output: "values", input: "csv",
 			}),
 			args:     []string{"is this urgent", "-i", "csv", "--skip-blank", "--resume"},
 			stdin:    "body\na\n\nb\n",
 			wantFile: "{\"answer\":0.5}\n{\"answer\":0.5}\n",
 			wantSidecar: fingerprintWith(t, plan.Source{Positional: "is this urgent"}, fingerprintInputs{
-				provider: "typesafe", model: jev.DefaultModel, output: "values", input: "csv",
+				provider: "typesafe", model: onesie.DefaultModel, output: "values", input: "csv",
 			}),
 			wantCalls: 1,
 		},
 		{
 			name:     "should resume by id when --skip-blank changed",
 			existing: idLines(1, 2),
-			sidecar:  valuesFor("is this urgent", "typesafe", jev.DefaultModel, "", ".id"),
+			sidecar:  valuesFor("is this urgent", "typesafe", onesie.DefaultModel, "", ".id"),
 			args: []string{
 				"is this urgent", "-i", "jsonl", "--id", ".id", "--skip-blank", "--resume",
 			},
 			stdin:       "{\"id\":1}\n\n{\"id\":2}\n\n{\"id\":3}\n{\"id\":4}\n",
 			wantFile:    idLines(1, 4),
-			wantSidecar: valuesFor("is this urgent", "typesafe", jev.DefaultModel, "", ".id"),
+			wantSidecar: valuesFor("is this urgent", "typesafe", onesie.DefaultModel, "", ".id"),
 			wantCalls:   2,
 		},
 		{
@@ -366,8 +366,8 @@ func TestOpenOut(t *testing.T) {
 		{
 			name:        "should resume when -o auto resolves to the json mode a stream wrote",
 			existing:    "old one\nold two\n",
-			sidecar:     fingerprintFor(t, "is this urgent", "typesafe", jev.DefaultModel, "", ""),
-			wantSidecar: fingerprintFor(t, "is this urgent", "typesafe", jev.DefaultModel, "", ""),
+			sidecar:     fingerprintFor(t, "is this urgent", "typesafe", onesie.DefaultModel, "", ""),
+			wantSidecar: fingerprintFor(t, "is this urgent", "typesafe", onesie.DefaultModel, "", ""),
 			args:        []string{"is this urgent", "-o", "auto", "-i", "jsonl", "--resume"},
 			stdin:       input,
 			wantFile:    "old one\nold two\n" + strings.Repeat("{\"model\":\"m\",\"answer\":{\"value\":0.5}}\n", 2),
@@ -496,7 +496,7 @@ func TestOpenOut(t *testing.T) {
 			name:        "should refuse to resume when the default model changed",
 			existing:    "keep me\n",
 			sidecar:     matching,
-			env:         map[string]string{jev.EnvDefaultModel: "jev-next"},
+			env:         map[string]string{onesie.EnvDefaultModel: "jev-next"},
 			args:        []string{"is this urgent", "-i", "jsonl", "--resume"},
 			stdin:       input,
 			wantCode:    ExitUsage,
@@ -509,7 +509,7 @@ func TestOpenOut(t *testing.T) {
 			existing:    "old one\nold two\n",
 			sidecar:     matching,
 			wantSidecar: matching,
-			args:        []string{"is this urgent", "-i", "jsonl", "-m", jev.DefaultModel, "--resume"},
+			args:        []string{"is this urgent", "-i", "jsonl", "-m", onesie.DefaultModel, "--resume"},
 			stdin:       input,
 			wantFile:    "old one\nold two\n" + strings.Repeat("{\"answer\":0.5}\n", 2),
 			wantCalls:   2,
@@ -1590,7 +1590,7 @@ func TestBindOut(t *testing.T) {
 			}
 
 			fingerprint := fingerprintWith(t, source, fingerprintInputs{
-				provider: "typesafe", model: jev.DefaultModel, output: "csv", input: "lines",
+				provider: "typesafe", model: onesie.DefaultModel, output: "csv", input: "lines",
 				withoutFallbackColumns: true,
 			}) + "\n"
 			if err := os.WriteFile(path+".onesie", []byte(fingerprint), 0o600); err != nil {

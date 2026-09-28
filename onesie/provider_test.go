@@ -1,11 +1,11 @@
-package jev_test
+package onesie_test
 
 import (
 	"errors"
 	"strings"
 	"testing"
 
-	"github.com/frodi-karlsson/onesie/jev"
+	"github.com/frodi-karlsson/onesie/onesie"
 )
 
 func TestProviderNamed(t *testing.T) {
@@ -27,7 +27,7 @@ func TestProviderNamed(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			provider, err := jev.ProviderNamed(tc.input)
+			provider, err := onesie.ProviderNamed(tc.input)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -41,8 +41,8 @@ func TestProviderNamed(t *testing.T) {
 	t.Run("should reject an unknown name and list the valid ones", func(t *testing.T) {
 		t.Parallel()
 
-		_, err := jev.ProviderNamed("nope")
-		if !errors.Is(err, jev.ErrValidation) {
+		_, err := onesie.ProviderNamed("nope")
+		if !errors.Is(err, onesie.ErrValidation) {
 			t.Fatalf("error got %v, want ErrValidation", err)
 		}
 
