@@ -7,7 +7,7 @@ import (
 	"io"
 
 	"github.com/frodi-karlsson/onesie/internal/answer"
-	"github.com/frodi-karlsson/onesie/internal/jev"
+	"github.com/frodi-karlsson/onesie/jev"
 )
 
 // Write encodes one record in the requested mode. The table mode is rendered at a default width,

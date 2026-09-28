@@ -6,8 +6,6 @@ import (
 	"net/url"
 	"strings"
 	"time"
-
-	"github.com/frodi-karlsson/onesie/internal/limits"
 )
 
 const (
@@ -19,9 +17,13 @@ const (
 	// alias for its default System One model.
 	BergetDefaultModel = "systemone"
 	// DefaultAttemptTimeout bounds one HTTP attempt, not the whole call.
-	DefaultAttemptTimeout = limits.DefaultAttemptTimeout
+	DefaultAttemptTimeout = 10 * time.Second
 	// DefaultMaxResponseBytes caps how much of a response body is read.
 	DefaultMaxResponseBytes = 8 << 20
+	// DefaultMaxRetryAfter is the longest server requested retry delay the client waits out.
+	DefaultMaxRetryAfter = time.Minute
+	// DefaultRetries is the number of retries after the first attempt.
+	DefaultRetries = 2
 
 	// EnvAPIKey names the environment variable holding the API key.
 	EnvAPIKey = "TYPESAFE_API_KEY"
@@ -290,7 +292,7 @@ type requestConfig struct {
 }
 
 // ValidateBaseURL rejects anything that is not an absolute http or https URL. It is exported so
-// onesie auth set rejects a typo before storing it, rather than a second validator disagreeing.
+// The CLI credential command uses the same validation before storing the value.
 func ValidateBaseURL(raw string) error {
 	parsed, err := url.Parse(raw)
 	if err != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {

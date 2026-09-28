@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/frodi-karlsson/onesie/internal/jev"
+	"github.com/frodi-karlsson/onesie/jev"
 )
 
 const sampleResult = `{

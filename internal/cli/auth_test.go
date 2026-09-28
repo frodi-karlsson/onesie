@@ -19,7 +19,7 @@ import (
 	"testing"
 
 	"github.com/frodi-karlsson/onesie/internal/creds"
-	"github.com/frodi-karlsson/onesie/internal/jev"
+	"github.com/frodi-karlsson/onesie/jev"
 )
 
 func TestAuthStatus(t *testing.T) {
@@ -1104,7 +1104,7 @@ func TestAuthTest(t *testing.T) {
 		wantCode  int
 	}{
 		{
-			// The message is jev.New's. auth test carries no copy of it, so the two cannot drift.
+			// The CLI owns the setup advice because it knows how keys are stored.
 			name:     "should exit 2 when no source holds a key",
 			wantErr:  "onesie: no API key. Set " + jev.EnvAPIKey + " or run onesie auth set",
 			wantCode: ExitUsage,

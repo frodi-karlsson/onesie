@@ -3,7 +3,7 @@ package cli
 import (
 	"context"
 
-	"github.com/frodi-karlsson/onesie/internal/jev"
+	"github.com/frodi-karlsson/onesie/jev"
 )
 
 type answerer interface {

@@ -5,8 +5,6 @@ import (
 	"net/http"
 	"strconv"
 	"time"
-
-	"github.com/frodi-karlsson/onesie/internal/limits"
 )
 
 const (
@@ -17,13 +15,13 @@ const (
 // DefaultRetryPolicy returns the policy the API's own SDK uses. The numbers are theirs.
 func DefaultRetryPolicy() RetryPolicy {
 	return RetryPolicy{
-		MaxRetries:        limits.DefaultRetries,
+		MaxRetries:        DefaultRetries,
 		BackoffInitial:    500 * time.Millisecond,
 		BackoffMax:        5 * time.Second,
 		BackoffJitter:     0.25,
 		RetryStatus:       DefaultRetryStatus,
 		RespectRetryAfter: true,
-		MaxRetryAfter:     limits.DefaultMaxRetryAfter,
+		MaxRetryAfter:     DefaultMaxRetryAfter,
 		RetryConnection:   true,
 		RetryTimeout:      true,
 	}
