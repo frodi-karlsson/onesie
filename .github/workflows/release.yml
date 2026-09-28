@@ -113,9 +113,8 @@ jobs:
             dist/*.zip
             dist/checksums.txt
 
-      # goreleaser's brews is deprecated and its casks get quarantined, which
-      # Gatekeeper refuses for an unsigned binary. So the formula comes from
-      # this repo's own generator, fed the checksums goreleaser published.
+      # goreleaser's brews is deprecated, so the formula comes from this repo's
+      # own generator, fed the checksums goreleaser published.
       - name: Generate Homebrew formula
         run: |
           go run ./cmd/formulagen -version "${GITHUB_REF_NAME}" \

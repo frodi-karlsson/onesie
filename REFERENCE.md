@@ -395,8 +395,8 @@ The install script puts the binary in `~/.local/bin`. `ONESIE_INSTALL_DIR` names
 and `ONESIE_VERSION` a release other than the latest. It checks the download against the release's
 `checksums.txt`, and against its build provenance when `gh` is logged in.
 
-macOS blocks a onesie binary downloaded through a browser, so install it with Homebrew, the install
-script or `go install`.
+The darwin binaries are signed and notarized, so an archive downloaded from the releases page in a
+browser runs too.
 
 ## Keys and providers
 

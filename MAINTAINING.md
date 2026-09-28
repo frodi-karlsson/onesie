@@ -42,7 +42,7 @@ exported mock file never turns a live run into a mock one or fails a dry run.
 - `TYPESAFE_API_KEY`, `OPENROUTER_API_KEY` and `BERGET_API_KEY`: the weekly live suite in
   `.github/workflows/integration.yml`. The history lessons check uses `TYPESAFE_API_KEY`.
 - `HOMEBREW_TAP_TOKEN`: the release job's push to the tap, as in The Homebrew formula below.
-- The five `MACOS_*` secrets, once notarization is on, as in Notarization below.
+- The five `MACOS_*` secrets, for signing and notarization, as in Signing and notarization below.
 
 A pull request from a fork gets none of them, so its history lessons job skips. The live suite
 never runs on a pull request.
@@ -208,9 +208,8 @@ goreleaser release --snapshot --clean
 
 ### The Homebrew formula
 
-onesie ships a formula, not a cask. Homebrew quarantines a cask on download, and
-Gatekeeper refuses to run an unsigned binary that carries the quarantine
-attribute. A formula is not quarantined.
+onesie ships a formula, not a cask, from this repo's own generator, since
+goreleaser's `brews` is deprecated.
 
 `cmd/formulagen` reads `dist/checksums.txt` and the version, and writes a
 formula that installs the prebuilt archive for darwin and linux on arm64 and
@@ -230,29 +229,44 @@ uses the `HOMEBREW_TAP_TOKEN` repository secret, since the workflow's own
 off. A tag with a prerelease suffix, such as `v1.0.0-rc.1`, never reaches the
 tap.
 
-### Notarization
+### Signing and notarization
 
-The darwin binaries ship unsigned for now, as jq and ripgrep do. Homebrew, the
-install script and `go install` never set the quarantine attribute, so
-Gatekeeper lets the binary run. The `notarize.macos` block in `.goreleaser.yml`
-stays off until the `MACOS_SIGN_P12` secret exists. To switch it on:
+Every release signs the darwin binaries with the Developer ID Application
+certificate of team `G9YN6HZLJ9` before it archives them, and submits them to
+Apple for notarization. The release does not wait for Apple's answer. A bare
+binary cannot carry a stapled ticket, so Gatekeeper checks the notarization
+online the first time the binary runs. The `notarize.macos` block in
+`.goreleaser.yml` runs whenever the `MACOS_SIGN_P12` secret is set.
 
-1. Create a Developer ID Application certificate in the Apple Developer
-   account. Import the `.cer` into Keychain Access, then export the certificate
-   with its private key as a `.p12` protected by a password.
-2. Create an App Store Connect API key under Users and Access, then
-   Integrations. Note its issuer ID and key ID, and download its `.p8` file.
-   Apple lets you download it only once.
-3. Add five repository secrets:
-   - `MACOS_SIGN_P12`: the output of `base64 -i Certificates.p12`
-   - `MACOS_SIGN_PASSWORD`: the password of the `.p12`
-   - `MACOS_NOTARY_ISSUER_ID`: the issuer ID
-   - `MACOS_NOTARY_KEY_ID`: the key ID
-   - `MACOS_NOTARY_KEY`: the output of `base64 -i AuthKey_KEYID.p8`
-4. Tag a release. goreleaser signs and notarizes the darwin binaries before it
-   archives them. A bare binary cannot carry a stapled ticket, so Gatekeeper
-   checks the notarization online the first time the binary runs.
-5. Verify on a Mac. Extract a darwin archive and run `codesign -dv onesie`. It
-   should print your `TeamIdentifier`, and not `Signature=adhoc`. Then run
-   `xcrun notarytool history --issuer ISSUER_ID --key-id KEY_ID --key AuthKey_KEYID.p8`
-   and check that the release's submissions show `Accepted`.
+The five secrets:
+
+- `MACOS_SIGN_P12`: the base64 of the `.p12` that holds the certificate and its
+  private key
+- `MACOS_SIGN_PASSWORD`: the password of the `.p12`
+- `MACOS_NOTARY_ISSUER_ID`: the issuer ID of the App Store Connect API key
+- `MACOS_NOTARY_KEY_ID`: the key ID
+- `MACOS_NOTARY_KEY`: the base64 of the key's `.p8` file
+
+The Proton Pass item "onesie macOS signing and notarization" in the Personal
+vault holds all five values. The base64 fields go into the secrets as they are,
+and `base64 -d` turns one back into its file. The field names hold commas, which
+`pass-cli item view --field` cannot look up, so read them from
+`pass-cli item view --output json` instead.
+
+Check a release on a Mac. Extract a darwin archive and run
+`codesign -dv onesie`, which should print `TeamIdentifier=G9YN6HZLJ9`. Then run
+`xcrun notarytool history --issuer ISSUER_ID --key-id KEY_ID --key AuthKey_KEYID.p8`
+and check that the release's submissions show `Accepted`.
+
+The certificate expires on 17 September 2031. To replace it:
+
+1. Make a certificate signing request with Keychain Access, under Certificate
+   Assistant, and save it to disk.
+2. In the Apple Developer account, create a Developer ID Application
+   certificate on the G2 Sub-CA from that request.
+3. Import the `.cer` into the login keychain, where the request left its
+   private key. On macOS 26 the Keychain Access window lists no keychains, so
+   use `security import FILE.cer -k ~/Library/Keychains/login.keychain-db`.
+   `security find-identity -v -p codesigning` then lists the identity.
+4. Export that identity as a `.p12`, update `MACOS_SIGN_P12` and
+   `MACOS_SIGN_PASSWORD`, and update the Proton Pass item.
