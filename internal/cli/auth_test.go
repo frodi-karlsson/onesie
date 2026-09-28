@@ -1799,9 +1799,6 @@ func TestStoredCredentials(t *testing.T) {
 			wanted:   1,
 		},
 		{
-			// A whitespace only value is nothing to resolveKey and to storedOptions, so the file's
-			// base URL is what the request goes to. Passing the flag on raw would install an
-			// option onesie.New trims back to empty, which reads as a flag that was honoured.
 			name:     "should ignore a whitespace only --base-url and keep the file's",
 			fileKey:  "SECRET-FILE",
 			fileBase: "WANTED",

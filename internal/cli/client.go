@@ -40,9 +40,6 @@ func defaultClientFactory(
 			opts = append(opts, onesie.WithHTTPClient(&http.Client{Transport: transport}))
 		}
 
-		// Trimmed, so a whitespace only flag is the same nothing here that it is to storedOptions.
-		// Passing it raw installs an option onesie.New trims back to empty, which reads as a flag that
-		// was honoured.
 		if baseURL := strings.TrimSpace(flags.baseURL); baseURL != "" {
 			opts = append(opts, onesie.WithBaseURL(baseURL))
 		}

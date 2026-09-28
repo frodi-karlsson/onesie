@@ -17,7 +17,7 @@ var projectRequirements = map[string][]string{
 		"history.catches >= 0.95",
 		"history.false_alarms <= 0.2",
 		"history.catches >= 0.85 at abstain",
-		"history.false_alarms <= 0.02 at abstain",
+		"history.false_alarms <= 0 at abstain",
 	},
 }
 

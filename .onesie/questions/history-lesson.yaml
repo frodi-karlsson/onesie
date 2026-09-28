@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/frodi-karlsson/onesie/main/schema/questions.json
-assert: history.value < 0.2
-abstain_if: history.value < 0.5
+assert: history.value < 0.4
+abstain_if: history.value < 0.6
 history:
-  ask: does this text say the code or docs used to be different
-  yes_means: it states an earlier project state
-  no_means: it describes current behavior, including differences between inputs
+  ask: does this text describe an earlier version of the code or docs
+  yes_means: it tells how something used to be, or what changed between versions
+  no_means: it describes only how things are now
