@@ -1,7 +1,5 @@
 # onesie
 
-Probably the most robust System One CLI.
-
 Pipe in some text, ask a question, get an answer you can script against. Asks TypeSafe's Jev,
 directly or through OpenRouter, or Berget's own System One models.
 
