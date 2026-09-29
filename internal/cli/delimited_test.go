@@ -11,8 +11,8 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/plan"
-	"github.com/frodi-karlsson/onesie/onesie"
 )
 
 func TestDelimited(t *testing.T) {

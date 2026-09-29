@@ -13,7 +13,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/frodi-karlsson/onesie/onesie"
+	"github.com/frodi-karlsson/onesie-go"
 )
 
 func withStats(

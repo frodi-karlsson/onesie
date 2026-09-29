@@ -8,9 +8,9 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/mock"
 	"github.com/frodi-karlsson/onesie/internal/plan"
-	"github.com/frodi-karlsson/onesie/onesie"
 )
 
 const (

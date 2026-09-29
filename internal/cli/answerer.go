@@ -3,7 +3,7 @@ package cli
 import (
 	"context"
 
-	"github.com/frodi-karlsson/onesie/onesie"
+	"github.com/frodi-karlsson/onesie-go"
 )
 
 type answerer interface {

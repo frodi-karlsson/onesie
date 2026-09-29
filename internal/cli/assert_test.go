@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/cli"
-	"github.com/frodi-karlsson/onesie/onesie"
 )
 
 const (

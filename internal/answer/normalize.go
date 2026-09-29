@@ -11,7 +11,7 @@ import (
 	"sort"
 	"strconv"
 
-	"github.com/frodi-karlsson/onesie/onesie"
+	"github.com/frodi-karlsson/onesie-go"
 
 	"github.com/frodi-karlsson/onesie/internal/plan"
 )

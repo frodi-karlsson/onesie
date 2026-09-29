@@ -11,7 +11,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/frodi-karlsson/onesie/onesie"
+	"github.com/frodi-karlsson/onesie-go"
 )
 
 func TestAdvise(t *testing.T) {

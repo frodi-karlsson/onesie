@@ -7,11 +7,11 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/creds"
 	"github.com/frodi-karlsson/onesie/internal/engine"
 	"github.com/frodi-karlsson/onesie/internal/input"
 	"github.com/frodi-karlsson/onesie/internal/output"
-	"github.com/frodi-karlsson/onesie/onesie"
 )
 
 // Exit codes. A driver script branches on these, so they are part of the interface.

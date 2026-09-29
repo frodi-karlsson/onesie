@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/answer"
-	"github.com/frodi-karlsson/onesie/onesie"
 )
 
 // Write encodes one record in the requested mode. The table mode is rendered at a default width,

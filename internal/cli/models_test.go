@@ -8,7 +8,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/frodi-karlsson/onesie/onesie"
+	"github.com/frodi-karlsson/onesie-go"
 )
 
 func TestListModels(t *testing.T) {

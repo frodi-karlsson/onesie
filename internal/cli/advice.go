@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/frodi-karlsson/onesie/onesie"
+	"github.com/frodi-karlsson/onesie-go"
 )
 
 func advise(err error, model string, validated bool) error {

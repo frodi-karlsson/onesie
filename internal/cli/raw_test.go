@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/frodi-karlsson/onesie/onesie"
+	"github.com/frodi-karlsson/onesie-go"
 )
 
 func TestStreamRaw(t *testing.T) {
