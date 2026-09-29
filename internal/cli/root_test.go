@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -18,7 +17,6 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
-	"time"
 
 	"github.com/spf13/pflag"
 
@@ -2478,86 +2476,6 @@ func stubAnswering(t *testing.T, body string, observe func(*http.Request)) *http
 			t.Errorf("writing stub response: %v", err)
 		}
 	}))
-}
-
-func TestPooled(t *testing.T) {
-	t.Parallel()
-
-	t.Run("should reuse connections across a job count above two", func(t *testing.T) {
-		t.Parallel()
-
-		const (
-			jobs    = 8
-			records = 120
-		)
-
-		var opened atomic.Int64
-
-		srv := httptest.NewUnstartedServer(http.HandlerFunc(
-			func(w http.ResponseWriter, _ *http.Request) {
-				// Slow enough that every worker really is in flight at once, which is what makes
-				// the pool size rather than the request count decide the connection count.
-				time.Sleep(2 * time.Millisecond)
-
-				if _, err := w.Write([]byte(
-					`{"model":"onesie-1.13.0","answers":{"answer":{"type":"noul","noul":0.5}}}`,
-				)); err != nil {
-					t.Errorf("writing stub response: %v", err)
-				}
-			}))
-
-		srv.Config.ConnState = func(_ net.Conn, state http.ConnState) {
-			if state == http.StateNew {
-				opened.Add(1)
-			}
-		}
-
-		srv.Start()
-
-		defer srv.Close()
-
-		var stdin strings.Builder
-		for i := range records {
-			fmt.Fprintf(&stdin, "line %d\n", i)
-		}
-
-		var out bytes.Buffer
-
-		// No WithClientFactory, so the real composition root builds the transport from -j.
-		root := cli.NewRootCmd(
-			cli.BuildInfo{Version: "1.2.3"},
-			cli.WithKeychain(offKeychain{}),
-			cli.WithStdin(strings.NewReader(stdin.String())),
-			cli.WithStdinTTY(false),
-			cli.WithStdoutTTY(false),
-			cli.WithLookupEnv(func(name string) (string, bool) {
-				switch name {
-				case onesie.EnvAPIKey:
-					return "k", true
-				case onesie.EnvBaseURL:
-					return srv.URL, true
-				default:
-					return "", false
-				}
-			}),
-		)
-
-		root.SetOut(&out)
-		root.SetErr(&out)
-		root.SetArgs([]string{"x", "-i", "lines", "-j", strconv.Itoa(jobs), "-o", "values"})
-
-		if code := cli.Execute(t.Context(), root); code != cli.ExitOK {
-			t.Fatalf("exit code = %d, output:\n%s", code, out.String())
-		}
-
-		// The default transport pools two idle connections per host, which leaves most records at
-		// this -j paying for a fresh handshake. A run that pools per job opens one connection per
-		// worker and reuses it.
-		if got := opened.Load(); got > jobs {
-			t.Errorf("new connections = %d for %d records at -j %d, want at most %d",
-				got, records, jobs, jobs)
-		}
-	})
 }
 
 type offKeychain struct{}

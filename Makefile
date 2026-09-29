@@ -51,6 +51,9 @@ FUZZ_TARGETS := \
 	./internal/mock/:FuzzLoad \
 	./internal/cache/:FuzzDecodeEntry
 
+SHARD ?= 0
+SHARDS ?= 1
+
 fuzz-check: ## Check that FUZZ_TARGETS lists every fuzz target in the tree and nothing else
 	@found=$$(grep -rEo --include='*_test.go' --exclude-dir=.git --exclude-dir=docs '^func Fuzz[A-Za-z0-9_]+' . | \
 		sed -E 's|^(.*)/[^/]+_test\.go:func (Fuzz.*)$$|\1/:\2|'); \
@@ -63,10 +66,19 @@ fuzz-check: ## Check that FUZZ_TARGETS lists every fuzz target in the tree and n
 	done; \
 	exit $$status
 
-fuzz: ## Fuzz every parser and escaper in turn, FUZZTIME=1m each by default
-	@set -e; for target in $(FUZZ_TARGETS); do \
-		echo "--- $${target##*:} ---"; \
-		go test $${target%%:*} -run '^$$' -fuzz "^$${target##*:}$$" -fuzztime $(or $(FUZZTIME),1m) -fuzzminimizetime 0; \
+fuzz: ## Fuzz each target in turn, use SHARD and SHARDS to split the work
+	@set -e; shard='$(SHARD)'; shards='$(SHARDS)'; \
+		case "$$shard" in '' | *[!0-9]*) echo 'SHARD must be a nonnegative integer' >&2; exit 2 ;; esac; \
+		case "$$shards" in '' | *[!0-9]*) echo 'SHARDS must be a positive integer' >&2; exit 2 ;; esac; \
+		if [ "$$shards" -eq 0 ] || [ "$$shard" -ge "$$shards" ]; then \
+			echo 'SHARD must be less than SHARDS, and SHARDS must be positive' >&2; exit 2; \
+		fi; \
+		index=0; for target in $(FUZZ_TARGETS); do \
+			if [ $$((index % shards)) -eq "$$shard" ]; then \
+				echo "--- $${target##*:} ---"; \
+			go test $${target%%:*} -run '^$$' -fuzz "^$${target##*:}$$" -fuzztime $(or $(FUZZTIME),1m) -fuzzminimizetime 0; \
+			fi; \
+			index=$$((index + 1)); \
 	done
 
 cover: ## Run tests with coverage and open the HTML report
