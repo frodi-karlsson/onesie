@@ -14,7 +14,8 @@ make test       # go test ./...
 make lint-fix   # golangci-lint --fix, then format
 make cover      # coverage report at bin/coverage.html
 make vuln       # govulncheck
-make fuzz       # fuzz every parser and escaper in turn, FUZZTIME=1m each, about 12 minutes in all by default
+make fuzz       # fuzz every target in turn, FUZZTIME=1m each by default
+make fuzz SHARD=0 SHARDS=4 FUZZTIME=10s # fuzz one of four partitions
 ```
 
 `golangci-lint` is expected on `PATH`, at the version `GOLANGCI_VERSION` names in

@@ -90,6 +90,10 @@ jobs:
   # escaper shows up on the commit that caused it. make fuzz fails when a
   # target is missing from its list.
   fuzz:
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -104,7 +108,7 @@ jobs:
           go-version-file: go.mod
 
       - name: Fuzz
-        run: make fuzz-check && make fuzz FUZZTIME=10s
+        run: make fuzz-check && make fuzz SHARD=${{ matrix.shard }} SHARDS=4 FUZZTIME=10s
 
   snapshot:
     runs-on: ubuntu-latest
