@@ -27,9 +27,9 @@ brew install golangci-lint
 
 ## Live suite
 
-The live suite asks the real APIs. It reads `TYPESAFE_API_KEY`, `OPENROUTER_API_KEY` and
-`BERGET_API_KEY` from the environment or from a gitignored `.env`, and skips the cases of a
-provider whose key is absent:
+The live suite asks the real APIs. It reads `TYPESAFE_API_KEY` and `OPENROUTER_API_KEY`
+from the environment or from a gitignored `.env`, and skips the cases of a provider whose key
+is absent:
 
 ```sh
 make test-integration
@@ -40,7 +40,7 @@ exported mock file never turns a live run into a mock one or fails a dry run.
 
 ## Repository secrets
 
-- `TYPESAFE_API_KEY`, `OPENROUTER_API_KEY` and `BERGET_API_KEY`: the weekly live suite in
+- `TYPESAFE_API_KEY` and `OPENROUTER_API_KEY`: the weekly live suite in
   `.github/workflows/integration.yml`. The history lessons check uses `TYPESAFE_API_KEY`.
 - `HOMEBREW_TAP_TOKEN`: the release job's push to the tap, as in The Homebrew formula below.
 - The five `MACOS_*` secrets, for signing and notarization, as in Signing and notarization below.
