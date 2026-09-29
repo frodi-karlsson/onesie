@@ -12,6 +12,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/answer"
 	"github.com/frodi-karlsson/onesie/internal/argv"
 	"github.com/frodi-karlsson/onesie/internal/assert"
@@ -23,7 +24,6 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/output"
 	"github.com/frodi-karlsson/onesie/internal/plan"
 	"github.com/frodi-karlsson/onesie/internal/qfile"
-	"github.com/frodi-karlsson/onesie/onesie"
 )
 
 func run(

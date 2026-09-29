@@ -50,8 +50,9 @@ never runs on a pull request.
 
 ## Layout
 
+The public System One client is maintained in the `github.com/frodi-karlsson/onesie-go` module.
+
 ```
-onesie/               public System One client, used by the CLI
 cmd/onesie/           thin main: signal handling, exit codes, ldflags targets
 cmd/skillgen/         generates the per client skill files from skills/
 cmd/skillcheck/       dry runs every example in every skill against the built binary, and checks the prose flags

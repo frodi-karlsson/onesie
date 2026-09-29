@@ -24,8 +24,8 @@ import (
 	"github.com/goccy/go-yaml"
 	"github.com/santhosh-tekuri/jsonschema/v6"
 
+	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/qfile"
-	"github.com/frodi-karlsson/onesie/onesie"
 )
 
 func TestPrintSchema(t *testing.T) {

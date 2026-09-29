@@ -18,8 +18,8 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/creds"
-	"github.com/frodi-karlsson/onesie/onesie"
 )
 
 func TestAuthStatus(t *testing.T) {

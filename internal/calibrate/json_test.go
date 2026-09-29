@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/calibrate"
-	"github.com/frodi-karlsson/onesie/onesie"
 )
 
 func TestWriteJSON(t *testing.T) {

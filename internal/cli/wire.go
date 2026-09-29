@@ -1,8 +1,8 @@
 package cli
 
 import (
+	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/plan"
-	"github.com/frodi-karlsson/onesie/onesie"
 )
 
 func wireAll(questions []plan.Question) onesie.Questions {

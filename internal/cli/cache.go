@@ -12,10 +12,10 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/answer"
 	"github.com/frodi-karlsson/onesie/internal/cache"
 	"github.com/frodi-karlsson/onesie/internal/plan"
-	"github.com/frodi-karlsson/onesie/onesie"
 )
 
 const (

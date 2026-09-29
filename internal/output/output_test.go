@@ -5,9 +5,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/answer"
 	"github.com/frodi-karlsson/onesie/internal/output"
-	"github.com/frodi-karlsson/onesie/onesie"
 )
 
 func TestWrite(t *testing.T) {

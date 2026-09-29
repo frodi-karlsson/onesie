@@ -18,6 +18,8 @@
 # Local environment
 .env
 .env.local
+/go.work
+/go.work.sum
 
 # Local notes, not published with the repo
 /docs/

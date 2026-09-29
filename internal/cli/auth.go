@@ -9,10 +9,10 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/creds"
 	"github.com/frodi-karlsson/onesie/internal/interrupt"
 	"github.com/frodi-karlsson/onesie/internal/mock"
-	"github.com/frodi-karlsson/onesie/onesie"
 )
 
 const (

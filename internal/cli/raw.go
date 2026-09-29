@@ -8,9 +8,9 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/engine"
 	"github.com/frodi-karlsson/onesie/internal/input"
-	"github.com/frodi-karlsson/onesie/onesie"
 )
 
 func streamRaw(

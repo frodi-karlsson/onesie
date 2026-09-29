@@ -19,10 +19,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/cli"
 	"github.com/frodi-karlsson/onesie/internal/jq"
 	"github.com/frodi-karlsson/onesie/internal/skillcheck"
-	"github.com/frodi-karlsson/onesie/onesie"
 )
 
 func TestStream(t *testing.T) {

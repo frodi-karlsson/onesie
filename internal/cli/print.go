@@ -9,13 +9,13 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
+	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/engine"
 	"github.com/frodi-karlsson/onesie/internal/input"
 	"github.com/frodi-karlsson/onesie/internal/jq"
 	"github.com/frodi-karlsson/onesie/internal/output"
 	"github.com/frodi-karlsson/onesie/internal/plan"
 	"github.com/frodi-karlsson/onesie/internal/qfile"
-	"github.com/frodi-karlsson/onesie/onesie"
 )
 
 func printSchema(w io.Writer) error {
