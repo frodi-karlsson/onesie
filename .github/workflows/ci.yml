@@ -32,7 +32,7 @@ jobs:
 
       - name: Install golangci-lint
         env:
-          GOLANGCI_VERSION: v2.13.2
+          GOLANGCI_VERSION: v2.14.0
           # sha256 of install.sh at the tag above. It is verified before the
           # script runs. The script in turn verifies the release tarball
           # against golangci-lint's own published checksums.
