@@ -183,7 +183,7 @@ onesie --ask urgent='is this urgent' --ask team='which team owns this' --pick bi
 
 ### Pick the provider with --provider or ONESIE_PROVIDER, and pin models per provider.
 
-typesafe is the default and reads `TYPESAFE_API_KEY`, plus `TYPESAFE_BASE_URL` and `TYPESAFE_DEFAULT_MODEL` when they are set. openrouter reads `OPENROUTER_API_KEY` alone, and never falls back to the TypeSafe key or those two variables. `jev-latest` works on both, but a pinned model id does not carry over: TypeSafe pins `jev-1.13.0`, OpenRouter pins `typesafe/jev-1.13`. berget reads `BERGET_API_KEY` alone and serves its own models, not `jev-latest`: its default is the `systemone` alias, and `--list-models` names the rest. `onesie auth status` names the provider and where its key came from.
+typesafe is the default and reads `TYPESAFE_API_KEY`, plus `TYPESAFE_BASE_URL` and `TYPESAFE_DEFAULT_MODEL` when they are set. openrouter reads `OPENROUTER_API_KEY` alone, and never falls back to the TypeSafe key or those two variables. `jev-latest` works on both, but a pinned model id does not carry over: TypeSafe pins `jev-1.13.0`, OpenRouter pins `typesafe/jev-1.13`. berget reads `BERGET_API_KEY` alone and serves its own models, not `jev-latest`: its default is the `systemone` alias, and `--list-models` names the rest. levanto reads `LEVANTO_API_KEY` alone and serves its Sage models, not `jev-latest`: its default is the `sage-latest` alias. `onesie auth status` names the provider and where its key came from.
 
 **Good:**
 

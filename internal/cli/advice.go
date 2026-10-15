@@ -55,14 +55,15 @@ func unknownModel(api *onesie.APIError, model string) bool {
 	// The id comes from what onesie sent rather than from a substring of the server's prose, whose
 	// wording the server owns. A call carrying no model has nothing to name, so it keeps the
 	// server's text.
-	if model == "" || (api.Status != http.StatusBadRequest && api.Status != http.StatusNotFound) {
+	if model == "" || (api.Status != http.StatusBadRequest && api.Status != http.StatusNotFound &&
+		api.Status != http.StatusUnprocessableEntity) {
 		return false
 	}
 
-	// TypeSafe says Unknown model, OpenRouter says the model does not exist, and Berget answers 404
-	// with Model not found.
+	// TypeSafe says Unknown model, OpenRouter says the model does not exist, Berget answers 404 with
+	// Model not found, and Levanto answers 422 with unknown model.
 	return strings.Contains(api.Error(), "Unknown model") || strings.Contains(api.Error(), "does not exist") ||
-		strings.Contains(api.Error(), "Model not found")
+		strings.Contains(api.Error(), "Model not found") || strings.Contains(api.Error(), "unknown model")
 }
 
 func countRejected(api *onesie.APIError) bool {

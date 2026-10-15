@@ -94,6 +94,17 @@ func TestAdvise(t *testing.T) {
 				wantErr:  "onesie: model 'jev-latest' not found. Try --list-models\n",
 			},
 			{
+				name:   "should name the model on the 422 Levanto sends for an unknown model",
+				args:   []string{"is this urgent", "-m", "jev-latest"},
+				stdin:  "a ticket",
+				status: http.StatusUnprocessableEntity,
+				response: `{"detail":[{"loc":["body","model"],"msg":"unknown model 'jev-latest'; GET /v1/models ` +
+					`lists the accepted names (levanto-sage-v1.4, sage-latest)","type":"value_error"}]}`,
+				wantCode: ExitUsage,
+				wantSent: `"model":"jev-latest"`,
+				wantErr:  "onesie: model 'jev-latest' not found. Try --list-models\n",
+			},
+			{
 				name:     "should leave a 404 about anything else unchanged",
 				args:     []string{"is this urgent", "-m", "jev-latest"},
 				stdin:    "a ticket",

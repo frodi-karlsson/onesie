@@ -522,6 +522,7 @@ func TestAsk(t *testing.T) {
 		{name: "should miss when -m changes", change: []string{"-m", "jev-1.13.0"}},
 		{name: "should miss when --provider changes", change: []string{"--provider", "openrouter"}},
 		{name: "should miss when --provider changes to berget", change: []string{"--provider", "berget"}},
+		{name: "should miss when --provider changes to levanto", change: []string{"--provider", "levanto"}},
 		{name: "should miss when --base-url changes", other: true},
 		{name: "should hit when --timeout changes", change: []string{"--timeout", "5"}, hit: true},
 		{name: "should hit when --retries changes", change: []string{"--retries", "1"}, hit: true},
@@ -615,6 +616,8 @@ func TestAsk(t *testing.T) {
 		{name: "should ask jev-1.13.0 on openrouter again 24 hours later", extra: []string{"-m", "jev-1.13.0", "--provider", "openrouter"}, after: 24 * time.Hour},
 		{name: "should hit the systemone alias on berget 23 hours later", extra: []string{"--provider", "berget"}, after: 23 * time.Hour, hit: true},
 		{name: "should ask Qwen/Qwen3.5-2B on berget again 24 hours later", extra: []string{"-m", "Qwen/Qwen3.5-2B", "--provider", "berget"}, after: 24 * time.Hour},
+		{name: "should hit the sage-latest alias on levanto 23 hours later", extra: []string{"--provider", "levanto"}, after: 23 * time.Hour, hit: true},
+		{name: "should ask levanto-sage-v1.4 on levanto again 24 hours later", extra: []string{"-m", "levanto-sage-v1.4", "--provider", "levanto"}, after: 24 * time.Hour},
 	}
 
 	for _, tc := range lifetimes {
@@ -876,6 +879,7 @@ func cacheEnv(t *testing.T) map[string]string {
 		onesie.EnvAPIKey:     "k",
 		"OPENROUTER_API_KEY": "k",
 		"BERGET_API_KEY":     "k",
+		"LEVANTO_API_KEY":    "k",
 	}
 }
 

@@ -1,7 +1,7 @@
 # onesie
 
 Pipe in some text, ask a question, get an answer you can script against. Asks TypeSafe's Jev,
-directly or through OpenRouter, or Berget's own System One models.
+directly or through OpenRouter, Berget's own System One models, or Levanto's Sage.
 
 ```sh
 echo 'EVERYTHING IS DOWN, CALL ME NOW' | onesie 'does this convey urgency' -r
@@ -186,8 +186,8 @@ tables.
 
 ## Also
 
-- **Providers.** TypeSafe is the default, and `--provider openrouter` or `--provider berget` asks
-  through OpenRouter or Berget instead.
+- **Providers.** TypeSafe is the default, and `--provider openrouter`, `--provider berget` or
+  `--provider levanto` asks through OpenRouter, Berget or Levanto instead.
 - **Caching.** `--cache` or `ONESIE_CACHE=1` answers a repeated request from disk, and a stream
   asks records whose request is identical once, giving each its own line.
 - **Dry runs.** `--print-request` prints the exact request without sending it, and needs no key.

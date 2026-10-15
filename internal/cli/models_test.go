@@ -213,6 +213,36 @@ func TestListModels(t *testing.T) {
 		}
 	})
 
+	t.Run("should list the models under levanto", func(t *testing.T) {
+		t.Parallel()
+
+		var path atomic.Value
+
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			path.Store(r.URL.Path)
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"models":[{"name":"levanto-sage-v1.4",` +
+				`"description":"Levanto Sage decision model","release_date":"2026-10-04"},` +
+				`{"name":"sage-latest","description":"Alias of levanto-sage-v1.4.","release_date":"2026-10-04"}]}`))
+		}))
+		defer srv.Close()
+
+		out, errOut, code := runRealFactory(t, []string{"--provider", "levanto", "--list-models", "--base-url", srv.URL})
+		if code != ExitOK {
+			t.Fatalf("exit code = %d, stderr:\n%s", code, errOut)
+		}
+
+		want := "levanto-sage-v1.4  Levanto Sage decision model  2026-10-04\n" +
+			"sage-latest  Alias of levanto-sage-v1.4.  2026-10-04\n"
+		if out != want {
+			t.Errorf("stdout = %q, want %q", out, want)
+		}
+
+		if got := path.Load(); got != "/v1/models" {
+			t.Errorf("path = %v, want /v1/models", got)
+		}
+	})
+
 	t.Run("should list only the system-one models under berget", func(t *testing.T) {
 		t.Parallel()
 
@@ -289,7 +319,9 @@ func runRealFactory(t *testing.T, args []string) (string, string, int) {
 		WithStdin(strings.NewReader("")),
 		WithStdinTTY(false),
 		WithStdoutTTY(false),
-		WithLookupEnv(lookupFrom(map[string]string{onesie.EnvAPIKey: "test", "BERGET_API_KEY": "test"})),
+		WithLookupEnv(lookupFrom(map[string]string{
+			onesie.EnvAPIKey: "test", "BERGET_API_KEY": "test", "LEVANTO_API_KEY": "test",
+		})),
 	)
 
 	root.SetOut(&out)

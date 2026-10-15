@@ -339,7 +339,7 @@ again.
 - On the `typesafe` provider, a model name that ends in a version, such as `jev-1.13.0`, is pinned,
   and its answers live until they are evicted. Every other model is an alias, such as `jev-latest`,
   and so is every model on any other provider, `typesafe/jev-1.13` on OpenRouter and
-  `Qwen/Qwen3.5-2B` on Berget included. An alias's answers expire after 24 hours, since the model
+  `Qwen/Qwen3.5-2B` on Berget and `levanto-sage-v1.4` on Levanto included. An alias's answers expire after 24 hours, since the model
   behind it can move. `ONESIE_CACHE_TTL` sets that lifetime as a duration, such as `90m` or `72h`,
   and `0` stops reading and storing answers for an alias. A negative or malformed value exits 2,
   in a run, in `onesie cache` and in `onesie cache clear`. A run's lifetime decides what it reads,
@@ -412,6 +412,7 @@ onesie auth test                                   # checks the key
 | `typesafe`, the default | `TYPESAFE_API_KEY` | nothing |
 | `openrouter` | `OPENROUTER_API_KEY` | `--provider openrouter` or `ONESIE_PROVIDER=openrouter` |
 | `berget` | `BERGET_API_KEY` | `--provider berget` or `ONESIE_PROVIDER=berget` |
+| `levanto` | `LEVANTO_API_KEY` | `--provider levanto` or `ONESIE_PROVIDER=levanto` |
 
 - A key comes from the provider's variable, then the credential file. No provider falls back to
   another's key.
@@ -427,7 +428,8 @@ onesie auth test                                   # checks the key
 - `jev-latest` works on typesafe and openrouter, but pinned ids differ: `jev-1.13.0` on TypeSafe,
   `typesafe/jev-1.13` on OpenRouter. Berget serves its own models and not `jev-latest`. Its default
   is the `systemone` alias, and `--list-models` there lists only the System One models, each with its
-  aliases. On OpenRouter, `--usage` also reports the cost. A 200 whose answers onesie cannot use
+  aliases. Levanto also serves its own models and not `jev-latest`. Its default is the `sage-latest`
+  alias, and an unknown model there is a 422 rather than a 400. On OpenRouter, `--usage` also reports the cost. A 200 whose answers onesie cannot use
   still spent its tokens, so under `--usage` its json error record carries them too, and `--stats`
   counts them. `-o values`, `-o raw`, `-r`, `-o csv` and `-o tsv`
   have no place for `--usage`, and `-q` writes nothing, so they all refuse it with exit 2.
@@ -454,7 +456,7 @@ table, and `onesie calibrate --help` lists the codes calibrate uses.
 
 | Variable | What it does |
 |----------|--------------|
-| `TYPESAFE_API_KEY`, `OPENROUTER_API_KEY`, `BERGET_API_KEY` | the key for each provider, as in Keys and providers |
+| `TYPESAFE_API_KEY`, `OPENROUTER_API_KEY`, `BERGET_API_KEY`, `LEVANTO_API_KEY` | the key for each provider, as in Keys and providers |
 | `ONESIE_PROVIDER` | the provider when `--provider` is not given |
 | `ONESIE_CONFIG_DIR` | where the credential file and the saved question files live |
 | `ONESIE_MOCK` | a file to answer from, as `--mock` |

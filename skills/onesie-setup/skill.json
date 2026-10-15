@@ -13,8 +13,8 @@
     },
     {
       "id": "choose-the-provider-first",
-      "short": "Ask which account the user has, TypeSafe, OpenRouter or Berget, before storing a key.",
-      "why": "typesafe is the default. For openrouter, store the key with `onesie --provider openrouter auth set`, and have the user add `export ONESIE_PROVIDER=openrouter` to their shell profile. Otherwise every command needs `--provider openrouter`, and without it onesie looks for a TypeSafe key and reports none. berget works the same way, with `onesie --provider berget auth set` and `export ONESIE_PROVIDER=berget`."
+      "short": "Ask which account the user has, TypeSafe, OpenRouter, Berget or Levanto, before storing a key.",
+      "why": "typesafe is the default. For openrouter, store the key with `onesie --provider openrouter auth set`, and have the user add `export ONESIE_PROVIDER=openrouter` to their shell profile. Otherwise every command needs `--provider openrouter`, and without it onesie looks for a TypeSafe key and reports none. berget and levanto work the same way, with `onesie --provider berget auth set` and `export ONESIE_PROVIDER=berget`, or `onesie --provider levanto auth set` and `export ONESIE_PROVIDER=levanto`."
     },
     {
       "id": "finish-with-auth-test",

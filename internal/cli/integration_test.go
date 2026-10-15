@@ -219,6 +219,30 @@ func TestFilterIntegration(t *testing.T) {
 			t.Errorf("model = %q, want an OpenRouter id starting with typesafe/", model)
 		}
 	})
+
+	t.Run("should answer through --provider levanto", func(t *testing.T) {
+		if strings.TrimSpace(os.Getenv("LEVANTO_API_KEY")) == "" {
+			t.Skip("LEVANTO_API_KEY is not set, skipping the Levanto case")
+		}
+
+		out, errOut, code := runLive(t,
+			[]string{"--provider", "levanto", "does this convey urgency", "-o", "json"},
+			"EVERYTHING IS DOWN, CUSTOMERS CANNOT CHECK OUT, CALL ME NOW")
+		if code != cli.ExitOK {
+			t.Fatalf("exit code = %d, stderr:\n%s", code, errOut)
+		}
+
+		record := decodeRecord(t, out)
+
+		var model string
+		if err := json.Unmarshal(record["model"], &model); err != nil {
+			t.Fatalf("decoding the model: %v", err)
+		}
+
+		if !strings.HasPrefix(model, "levanto-sage-") {
+			t.Errorf("model = %q, want a Levanto id starting with levanto-sage-", model)
+		}
+	})
 }
 
 func TestFileIntegration(t *testing.T) {
@@ -782,6 +806,10 @@ func TestCalibrateIntegration(t *testing.T) {
 		{
 			name: "should separate obvious yes from obvious no records through --provider openrouter",
 			env:  "OPENROUTER_API_KEY", provider: []string{"--provider", "openrouter"},
+		},
+		{
+			name: "should separate obvious yes from obvious no records through --provider levanto",
+			env:  "LEVANTO_API_KEY", provider: []string{"--provider", "levanto"},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

@@ -177,6 +177,21 @@ func TestAuthStatus(t *testing.T) {
 			wantCode: ExitOK,
 		},
 		{
+			name:     "should report the Levanto env var under --provider levanto",
+			args:     []string{"--provider", "levanto", "auth", "status"},
+			env:      map[string]string{"LEVANTO_API_KEY": "SECRET-LV"},
+			wantOut:  "provider: levanto\nsource: env LEVANTO_API_KEY\n",
+			wantCode: ExitOK,
+		},
+		{
+			name:     "should never fall back to the TypeSafe key under levanto",
+			args:     []string{"auth", "status"},
+			env:      map[string]string{"ONESIE_PROVIDER": "levanto", onesie.EnvAPIKey: "SECRET-TS"},
+			file:     `{"providers":{"typesafe":{"api_key":"SECRET-FILE"}}}`,
+			wantOut:  "provider: levanto\nsource: none\n",
+			wantCode: ExitUsage,
+		},
+		{
 			name:     "should never fall back to the TypeSafe key under berget",
 			args:     []string{"auth", "status"},
 			env:      map[string]string{"ONESIE_PROVIDER": "berget", onesie.EnvAPIKey: "SECRET-TS"},
@@ -736,6 +751,12 @@ func TestAuthSet(t *testing.T) {
 			wantFile: `{"providers":{"berget":{"api_key":"SECRET-OR"},"typesafe":{"api_key":"SECRET-FILE"}}}`,
 		},
 		{
+			name:     "should add a levanto entry and keep the others",
+			args:     []string{"--provider", "levanto", "auth", "set", "--file"},
+			existing: `{"providers":{"typesafe":{"api_key":"SECRET-FILE"}}}`,
+			wantFile: `{"providers":{"levanto":{"api_key":"SECRET-OR"},"typesafe":{"api_key":"SECRET-FILE"}}}`,
+		},
+		{
 			name:     "should replace a file it cannot read and say so",
 			args:     []string{"--provider", "openrouter", "auth", "set"},
 			existing: `not json`,
@@ -1289,6 +1310,77 @@ func TestAuthTest(t *testing.T) {
 			}
 		})
 	}
+	levanto := []struct {
+		name     string
+		status   int
+		listing  string
+		wantOut  string
+		wantErr  string
+		wantCode int
+	}{
+		{
+			name: "should only list the models on levanto, whose list needs the key",
+			listing: `{"models":[{"name":"levanto-sage-v1.4","description":"Levanto Sage decision model",` +
+				`"release_date":"2026-10-04"},{"name":"sage-latest","description":"Alias of levanto-sage-v1.4.",` +
+				`"release_date":"2026-10-04"}]}`,
+			wantOut:  "provider: levanto\nsource: env LEVANTO_API_KEY\nmodels: 2\n",
+			wantCode: ExitOK,
+		},
+		{
+			name:     "should exit 3 when levanto refuses the key on the listing",
+			status:   http.StatusUnauthorized,
+			listing:  `{"detail":"API key required. Provide a valid Levanto API key."}`,
+			wantErr:  "onesie: 401 API key required. Provide a valid Levanto API key.",
+			wantCode: ExitAuth,
+		},
+	}
+
+	for _, tc := range levanto {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var requests atomic.Int32
+
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				requests.Add(1)
+				w.Header().Set("Content-Type", "application/json")
+
+				if tc.status != 0 {
+					w.WriteHeader(tc.status)
+				}
+
+				_, _ = io.WriteString(w, tc.listing)
+			}))
+			defer srv.Close()
+
+			stub := stubFactory(srv.URL)
+
+			out, errOut, code := runAuth(t, []string{"--provider", "levanto", "auth", "test"},
+				WithCredentialPath(fixedPath(credentialFixture(t, "", 0))),
+				WithLookupEnv(lookupFrom(map[string]string{"LEVANTO_API_KEY": "SECRET-LV"})),
+				WithClientFactory(func(ctx context.Context, extra ...onesie.Option) (*onesie.Client, error) {
+					return stub(ctx, append([]onesie.Option{onesie.WithProvider(onesie.Levanto())}, extra...)...)
+				}))
+
+			assertNoSecret(t, out, errOut)
+
+			if code != tc.wantCode {
+				t.Errorf("exit code = %d, want %d\nstderr:\n%s", code, tc.wantCode, errOut)
+			}
+
+			if out != tc.wantOut {
+				t.Errorf("stdout = %q, want %q", out, tc.wantOut)
+			}
+
+			if !strings.Contains(errOut, tc.wantErr) {
+				t.Errorf("stderr = %q, want it to contain %q", errOut, tc.wantErr)
+			}
+
+			if requests.Load() != 1 {
+				t.Errorf("requests = %d, want the listing alone", requests.Load())
+			}
+		})
+	}
 }
 
 func TestStoredOptions(t *testing.T) {
@@ -1605,6 +1697,11 @@ func TestKeySourceString(t *testing.T) {
 			name:   "should name the openrouter env var",
 			source: keySource{name: sourceEnv, provider: onesie.OpenRouter(), key: "SECRET-ENV"},
 			want:   "source: env OPENROUTER_API_KEY",
+		},
+		{
+			name:   "should name the levanto env var",
+			source: keySource{name: sourceEnv, provider: onesie.Levanto(), key: "SECRET-ENV"},
+			want:   "source: env LEVANTO_API_KEY",
 		},
 		{
 			name:   "should name the berget env var",

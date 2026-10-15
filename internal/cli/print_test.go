@@ -1396,6 +1396,19 @@ func TestPrintRequest(t *testing.T) {
 			want:     `"model":"systemone"`,
 		},
 		{
+			name:     "should fill the Levanto default model and ignore TYPESAFE_DEFAULT_MODEL under levanto",
+			args:     []string{"--ask", "urgent=is this urgent", "--print-request"},
+			env:      map[string]string{"ONESIE_PROVIDER": "levanto", onesie.EnvDefaultModel: "onesie-1.2.0"},
+			wantCode: ExitOK,
+			want:     `"model":"sage-latest"`,
+		},
+		{
+			name:     "should keep -m under levanto",
+			args:     []string{"--provider", "levanto", "-m", "levanto-sage-v1.4", "--ask", "urgent=is this urgent", "--print-request"},
+			wantCode: ExitOK,
+			want:     `"model":"levanto-sage-v1.4"`,
+		},
+		{
 			name:     "should keep -m under berget",
 			args:     []string{"--provider", "berget", "-m", "laya-latest", "--ask", "urgent=is this urgent", "--print-request"},
 			wantCode: ExitOK,

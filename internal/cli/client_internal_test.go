@@ -17,6 +17,7 @@ func TestEndsInVersion(t *testing.T) {
 		{name: "should not warn for the typesafe default", baseURL: onesie.TypeSafe().BaseURL},
 		{name: "should not warn for the openrouter default", baseURL: onesie.OpenRouter().BaseURL},
 		{name: "should not warn for the berget default", baseURL: onesie.Berget().BaseURL},
+		{name: "should not warn for the levanto default", baseURL: onesie.Levanto().BaseURL},
 		{name: "should not warn for a /v1 that is not the last segment", baseURL: "https://proxy.example/v1/proxy"},
 		{name: "should not warn for a segment that only ends in v1", baseURL: "https://proxy.example/apiv1"},
 		{name: "should warn for a path ending in /v1", baseURL: "https://proxy.example/v1", want: true},

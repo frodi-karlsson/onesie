@@ -30,6 +30,8 @@ func TestPinned(t *testing.T) {
 		{name: "should not pin the default alias on berget", provider: "berget", model: "systemone"},
 		{name: "should not pin a canonical id on berget", provider: "berget", model: "Qwen/Qwen3.5-2B"},
 		{name: "should not pin a versioned name on berget", provider: "berget", model: "jev-1.13.0"},
+		{name: "should not pin the default alias on levanto", provider: "levanto", model: "sage-latest"},
+		{name: "should not pin a versioned name on levanto", provider: "levanto", model: "levanto-sage-v1.4"},
 	}
 
 	for _, tc := range tests {
