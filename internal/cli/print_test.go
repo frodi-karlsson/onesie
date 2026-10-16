@@ -708,6 +708,12 @@ func TestPrintRequest(t *testing.T) {
 			stdout:   []string{`"assets":{"image-`},
 		},
 		{
+			name:     "should print a box question",
+			args:     []string{"--ask", "mug=x", "--box", "--image", "photo=" + square, "--print-request"},
+			wantCode: ExitOK,
+			stdout:   []string{`"mug":{"type":"box","instructions":"x"}`},
+		},
+		{
 			name:     "should omit state when none was given",
 			args:     []string{"--ask", "urgent=is this urgent", "--print-request"},
 			wantCode: ExitOK,

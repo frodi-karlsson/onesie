@@ -40,6 +40,8 @@ func wire(q plan.Question) onesie.Question {
 		}
 
 		return onesie.Score{Instructions: q.Instructions, Criteria: criteria}
+	case plan.Box:
+		return onesie.Box{Instructions: q.Instructions}
 	default:
 		if q.Criteria == nil {
 			return onesie.Noul{Instructions: q.Instructions}
