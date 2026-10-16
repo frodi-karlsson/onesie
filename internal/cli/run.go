@@ -1242,7 +1242,7 @@ func answered(
 		// A mocked failure came from no key and no account, so advice about either would mislead.
 		advised := err
 		if model != mock.Model {
-			advised = advise(err, model, true, hasBox(questions))
+			advised = advise(err, model, true)
 		}
 
 		failed := failureRecord(built, advised)

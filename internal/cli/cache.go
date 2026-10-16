@@ -102,7 +102,7 @@ func cachedAnswers(
 		}
 
 		return &cachedAnswerer{
-			next:      newLiveAnswerer(client, settings, flags),
+			next:      newLiveAnswerer(client, provider, settings, flags),
 			open:      sync.OnceValues(func() (*cache.Store, error) { return openCache(settings) }),
 			model:     model,
 			provider:  provider,

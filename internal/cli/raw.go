@@ -22,7 +22,10 @@ func streamRaw(
 	answers *outFile,
 	resume resumePlan,
 ) error {
-	var client *onesie.Client
+	var (
+		client   *onesie.Client
+		provider string
+	)
 
 	// Built only when the run makes a request, so -i request --print-request needs no key.
 	if requests(flags) {
@@ -30,6 +33,13 @@ func streamRaw(
 		if err != nil {
 			return err
 		}
+
+		resolved, err := resolveProvider(settings, flags)
+		if err != nil {
+			return err
+		}
+
+		provider = resolved.Name
 
 		client = built
 	}
@@ -88,9 +98,9 @@ func streamRaw(
 
 			body, err := client.SystemOneRaw(ctx, json.RawMessage(rec.Raw), opts...)
 			if err != nil {
-				// The body reached the wire unchanged, so the model it named is the one onesie sent,
+				// The body's model reached the wire unchanged, so the model it named is the one onesie sent,
 				// and nothing inside it was checked locally, so no local bound is implicated.
-				advised := advise(adviseLongContext(err, long), read.model, false, read.boxed)
+				advised := advise(adviseBox(adviseLongContext(err, long), provider, read.boxed), read.model, false)
 
 				stats.recordFailure(advised, true, asked)
 				stats.terminalAttempt(advised)

@@ -38,12 +38,19 @@ func liveAnswers(settings rootSettings, flags *runFlags) answererFactory {
 			return nil, err
 		}
 
-		return newLiveAnswerer(client, settings, flags), nil
+		provider, err := resolveProvider(settings, flags)
+		if err != nil {
+			return nil, err
+		}
+
+		return newLiveAnswerer(client, provider.Name, settings, flags), nil
 	}
 }
 
-func newLiveAnswerer(client *onesie.Client, settings rootSettings, flags *runFlags) liveAnswerer {
-	return liveAnswerer{client: client, timeoutSet: flags.timeoutSet, longContext: longContext(settings, flags)}
+func newLiveAnswerer(client *onesie.Client, provider string, settings rootSettings, flags *runFlags) liveAnswerer {
+	return liveAnswerer{
+		client: client, provider: provider, timeoutSet: flags.timeoutSet, longContext: longContext(settings, flags),
+	}
 }
 
 func longContext(settings rootSettings, flags *runFlags) bool {
@@ -59,7 +66,7 @@ func longContext(settings rootSettings, flags *runFlags) bool {
 func (a liveAnswerer) answer(ctx context.Context, _ recordKey, req onesie.Request) (reply, error) {
 	result, err := a.client.SystemOne(ctx, req, requestOptions(req, a.timeoutSet, a.longContext)...)
 
-	return reply{result: result}, adviseLongContext(err, a.longContext)
+	return reply{result: result}, adviseBox(adviseLongContext(err, a.longContext), a.provider, hasBox(req.Questions))
 }
 
 func requestOptions(req onesie.Request, timeoutSet, longContext bool) []onesie.RequestOption {
@@ -83,6 +90,7 @@ func (liveAnswerer) salt(recordKey) (string, bool) {
 
 type liveAnswerer struct {
 	client      *onesie.Client
+	provider    string
 	timeoutSet  bool
 	longContext bool
 }
