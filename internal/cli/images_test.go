@@ -14,6 +14,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -228,6 +229,10 @@ func TestRun(t *testing.T) {
 	openrouter := map[string]string{"ONESIE_PROVIDER": "openrouter"}
 	mockFile := writeImage(t, dir, "mock.json", []byte(`{"answer":0.9}`))
 	refused := "onesie: the levanto provider takes no images or box questions"
+	longBody := writeImage(t, dir, "long.json",
+		[]byte(`{"state":"s","questions":{"red":{"type":"noul","instructions":"q"}},"long_context":true}`))
+	shortBody := writeImage(t, dir, "short.json",
+		[]byte(`{"state":"s","questions":{"red":{"type":"noul","instructions":"q"}},"long_context":false}`))
 
 	tests := []struct {
 		name         string
@@ -389,6 +394,78 @@ func TestRun(t *testing.T) {
 			wantOut:  `{"answer":0.9}`,
 		},
 		{
+			name:     "should refuse a body whose long_context is not true or false",
+			args:     []string{"-f", writeImage(t, dir, "bad-long.json", []byte(`{"state":"s","questions":{"red":{"type":"noul","instructions":"q"}},"long_context":"yes"}`))},
+			wantCode: ExitUsage,
+			wantErr:  "onesie: 'long_context' in a request body must be true or false",
+		},
+		{
+			name:     "should warn that --print-questions drops a body's long context",
+			args:     []string{"-f", longBody, "--print-questions"},
+			wantCode: ExitOK,
+			wantErr:  "warning: --print-questions does not carry the body's long_context. Pass --long-context when you reload",
+		},
+		{
+			name:         "should send long context from a body with no flag, and not the key",
+			args:         []string{"-f", longBody, "-o", "json"},
+			wantCode:     ExitOK,
+			wantRequests: 1,
+			noBody:       []string{"long_context"},
+			wantHeader:   map[string]string{onesie.HeaderLongContext: "true"},
+		},
+		{
+			name:         "should send long context from the flag beside a body's false",
+			args:         []string{"-f", shortBody, "--long-context", "-o", "json"},
+			wantCode:     ExitOK,
+			wantRequests: 1,
+			wantHeader:   map[string]string{onesie.HeaderLongContext: "true"},
+		},
+		{
+			name:     "should print long_context for --long-context",
+			args:     []string{"--long-context", "--state", "s", "q", "--print-request"},
+			wantCode: ExitOK,
+			wantOut:  `"long_context":true`,
+		},
+		{
+			name:     "should print long_context for ONESIE_LONG_CONTEXT",
+			args:     []string{"--state", "s", "q", "--print-request"},
+			env:      map[string]string{"ONESIE_LONG_CONTEXT": "1"},
+			wantCode: ExitOK,
+			wantOut:  `"long_context":true`,
+		},
+		{
+			name:     "should print long_context from a body",
+			args:     []string{"-f", longBody, "--print-request"},
+			wantCode: ExitOK,
+			wantOut:  `"long_context":true`,
+		},
+		{
+			name:     "should print long_context for a stream",
+			args:     []string{"-i", "lines", "--long-context", "q", "--print-request"},
+			stdin:    "a\n",
+			wantCode: ExitOK,
+			wantOut:  `"long_context":true`,
+		},
+		{
+			name: "should print long_context for calibrate",
+			args: []string{
+				"calibrate", "--ask", "red=q", "-i", "jsonl", "--map", ".t", "--label", "red=.y",
+				"--id", ".id", "--long-context", "--print-request",
+			},
+			stdin:    `{"id":"a","t":"x","y":true}` + "\n",
+			wantCode: ExitOK,
+			wantOut:  `"long_context":true`,
+		},
+		{
+			name:         "should send a replayed body's long_context as the header",
+			args:         []string{"-i", "request"},
+			stdin:        `{"state":"s","model":"m","questions":{"answer":{"type":"noul","instructions":"q"}},"long_context":true}` + "\n",
+			wantCode:     ExitOK,
+			wantRequests: 1,
+			noBody:       []string{"long_context"},
+			wantHeader:   map[string]string{onesie.HeaderLongContext: "true"},
+		},
+		{
 			name:         "should report the image attempt timeout under --stats",
 			args:         []string{"--image", "photo=" + square, "q", "-o", "json", "--stats"},
 			wantCode:     ExitOK,
@@ -495,6 +572,53 @@ func TestRun(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("should refuse to resume once long context is added", func(t *testing.T) {
+		t.Parallel()
+
+		for _, mode := range []struct {
+			name  string
+			args  []string
+			stdin string
+		}{
+			{name: "should refuse a stream", args: []string{"-i", "lines", "q"}, stdin: "a\n"},
+			{
+				name:  "should refuse -i request",
+				args:  []string{"-i", "request"},
+				stdin: `{"state":"s","model":"m","questions":{"answer":{"type":"noul","instructions":"q"}}}` + "\n",
+			},
+			{
+				name: "should refuse calibrate",
+				args: []string{
+					"calibrate", "--ask", "red=q", "-i", "jsonl", "--map", ".t", "--label", "red=.y", "--id", ".id",
+				},
+				stdin: `{"id":"a","t":"x","y":true}` + "\n" + `{"id":"b","t":"z","y":false}` + "\n",
+			},
+		} {
+			t.Run(mode.name, func(t *testing.T) {
+				t.Parallel()
+
+				out := filepath.Join(t.TempDir(), "out.jsonl")
+				run := func(extra ...string) recordedRun {
+					return runImaged(t, append(append(slices.Clone(mode.args), "--out", out), extra...),
+						mode.stdin, noulAnswer("answer", "red"), nil)
+				}
+
+				if first := run(); first.code != ExitOK {
+					t.Fatalf("first run = %d\n%s", first.code, first.stderr)
+				}
+
+				if same := run("--resume"); same.code != ExitOK {
+					t.Fatalf("a resume with the same flags = %d\n%s", same.code, same.stderr)
+				}
+
+				added := run("--resume", "--long-context")
+				if added.code != ExitUsage || !strings.Contains(added.stderr, "changed") {
+					t.Errorf("a resume adding --long-context = %d\n%s, want 2 and changed", added.code, added.stderr)
+				}
+			})
+		}
+	})
 }
 
 func TestReadRawRequest(t *testing.T) {
@@ -519,6 +643,11 @@ func TestReadRawRequest(t *testing.T) {
 			name: "should need images for a box question",
 			body: `{"state":"s","questions":{"m":{"type":"box"}}}`,
 			want: rawRequest{questions: 1, needsImages: true, boxed: true},
+		},
+		{
+			name: "should read a body's long_context",
+			body: `{"model":"m","questions":{"q":{"type":"noul"}},"long_context":true}`,
+			want: rawRequest{model: "m", questions: 1, longContext: true},
 		},
 		{name: "should read nothing from a body it cannot parse", body: `not json`},
 		{
@@ -550,23 +679,21 @@ func TestRequestOptions(t *testing.T) {
 	withImage := onesie.Request{Assets: onesie.Assets{"r": {}}}
 
 	tests := []struct {
-		name        string
-		req         onesie.Request
-		timeoutSet  bool
-		longContext bool
-		want        int
+		name       string
+		req        onesie.Request
+		timeoutSet bool
+		want       int
 	}{
 		{name: "should raise the attempt timeout for a request with an image", req: withImage, want: 1},
 		{name: "should leave an explicit --timeout alone", req: withImage, timeoutSet: true},
 		{name: "should add nothing to a text request", req: onesie.Request{}},
-		{name: "should add the long context header", req: onesie.Request{}, longContext: true, want: 1},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			if got := requestOptions(tc.req, tc.timeoutSet, tc.longContext); len(got) != tc.want {
+			if got := requestOptions(tc.req, tc.timeoutSet); len(got) != tc.want {
 				t.Errorf("options = %d, want %d", len(got), tc.want)
 			}
 		})

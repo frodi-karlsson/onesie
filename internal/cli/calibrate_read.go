@@ -44,7 +44,9 @@ func calibrateRequests(
 			return &input.LineError{Line: rec.line, Err: imageErr}
 		}
 
-		req := onesie.Request{State: sent, Model: model, Questions: questions, Assets: assets}
+		req := onesie.Request{
+			State: sent, Model: model, Questions: questions, Assets: assets, LongContext: scope.scored.LongContext,
+		}
 		if validErr := onesie.ValidateRequest(req); validErr != nil {
 			return &input.LineError{Line: rec.line, Err: unprefixed(validErr)}
 		}

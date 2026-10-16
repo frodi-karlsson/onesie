@@ -813,19 +813,20 @@ func (o *outFile) writeFingerprint() error {
 
 func fingerprintOf(questions []plan.Question, inputs fingerprintInputs) (string, error) {
 	encoded, err := json.Marshal(struct {
-		Questions json.Marshaler `json:"questions"`
-		Policies  []policyPrint  `json:"policies"`
-		Provider  string         `json:"provider"`
-		Model     string         `json:"model"`
-		Map       string         `json:"map"`
-		ID        string         `json:"id"`
-		Output    string         `json:"output"`
-		Input     string         `json:"input"`
-		MergeKey  string         `json:"merge_key"`
-		Assert    string         `json:"assert"`
-		AbstainIf string         `json:"abstain_if"`
-		SkipBlank bool           `json:"skip_blank,omitempty"`
-		Images    []string       `json:"images,omitempty"`
+		Questions   json.Marshaler `json:"questions"`
+		Policies    []policyPrint  `json:"policies"`
+		Provider    string         `json:"provider"`
+		Model       string         `json:"model"`
+		Map         string         `json:"map"`
+		ID          string         `json:"id"`
+		Output      string         `json:"output"`
+		Input       string         `json:"input"`
+		MergeKey    string         `json:"merge_key"`
+		Assert      string         `json:"assert"`
+		AbstainIf   string         `json:"abstain_if"`
+		SkipBlank   bool           `json:"skip_blank,omitempty"`
+		Images      []string       `json:"images,omitempty"`
+		LongContext bool           `json:"long_context,omitempty"`
 		// A csv or tsv file written before the fallback columns existed has fewer columns, so a
 		// resume into it is refused rather than appending longer rows.
 		FallbackColumns bool `json:"fallback_columns,omitempty"`
@@ -843,6 +844,8 @@ func fingerprintOf(questions []plan.Question, inputs fingerprintInputs) (string,
 		AbstainIf: inputs.abstainIf,
 		SkipBlank: inputs.skipBlank,
 		Images:    inputs.images,
+
+		LongContext: inputs.longContext,
 
 		FallbackColumns: !inputs.withoutFallbackColumns && delimitedOutput(inputs.output) && hasFallback(questions),
 	})
@@ -875,6 +878,8 @@ type fingerprintInputs struct {
 	abstainIf string
 	skipBlank bool
 	images    []string
+
+	longContext bool
 
 	withoutFallbackColumns bool
 }

@@ -37,6 +37,15 @@ func loadBody(top yaml.MapSlice) (*File, error) {
 		file.Model = name
 	}
 
+	if value, found := lookup(top, "long_context"); found {
+		on, isBool := value.(bool)
+		if !isBool {
+			return nil, errors.New("onesie: 'long_context' in a request body must be true or false")
+		}
+
+		file.LongContext = on
+	}
+
 	if value, found := lookup(top, "state"); found {
 		// Present and null is not absent. Validation rejects a null state, and folding the two
 		// together would hide the mistake.

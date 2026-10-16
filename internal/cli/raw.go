@@ -93,14 +93,14 @@ func streamRaw(
 			}
 
 			if long {
-				opts = append(opts, onesie.WithRequestHeader(onesie.HeaderLongContext, "true"))
+				opts = append(opts, onesie.WithLongContext())
 			}
 
 			body, err := client.SystemOneRaw(ctx, json.RawMessage(rec.Raw), opts...)
 			if err != nil {
 				// The body's model reached the wire unchanged, so the model it named is the one onesie sent,
 				// and nothing inside it was checked locally, so no local bound is implicated.
-				advised := advise(adviseBox(adviseLongContext(err, long), provider, read.boxed), read.model, false)
+				advised := advise(adviseBox(adviseLongContext(err, long || read.longContext), provider, read.boxed), read.model, false)
 
 				stats.recordFailure(advised, true, asked)
 				stats.terminalAttempt(advised)
@@ -174,9 +174,10 @@ func rawSummary(response []byte) (string, onesie.Usage) {
 func readRawRequest(request []byte) rawRequest {
 	// Empty structs for the assets, so the base64 of every asset is scanned but never copied.
 	var probe struct {
-		Model     string                     `json:"model"`
-		Assets    map[string]struct{}        `json:"assets"`
-		Questions map[string]json.RawMessage `json:"questions"`
+		Model       string                     `json:"model"`
+		Assets      map[string]struct{}        `json:"assets"`
+		Questions   map[string]json.RawMessage `json:"questions"`
+		LongContext bool                       `json:"long_context"`
 	}
 
 	// A type error still fills every field it did not reach, so a body with one odd field keeps
@@ -186,7 +187,10 @@ func readRawRequest(request []byte) rawRequest {
 		return rawRequest{}
 	}
 
-	read := rawRequest{model: probe.Model, questions: len(probe.Questions), needsImages: len(probe.Assets) > 0}
+	read := rawRequest{
+		model: probe.Model, questions: len(probe.Questions), needsImages: len(probe.Assets) > 0,
+		longContext: probe.LongContext,
+	}
 
 	for _, raw := range probe.Questions {
 		var question struct {
@@ -207,4 +211,5 @@ type rawRequest struct {
 	questions   int
 	needsImages bool
 	boxed       bool
+	longContext bool
 }

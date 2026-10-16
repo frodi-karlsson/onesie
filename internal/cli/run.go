@@ -68,7 +68,9 @@ func run(
 
 		// Each body names its own model, and onesie sends it as written, so the fingerprint holds
 		// no model for the default to fill.
-		if bindErr := bindOut(out, settings, flags, nil, fingerprintInputs{input: inputMode.String()}); bindErr != nil {
+		if bindErr := bindOut(out, settings, flags, nil, fingerprintInputs{
+			input: inputMode.String(), longContext: longContext(settings, flags),
+		}); bindErr != nil {
 			return bindErr
 		}
 
@@ -135,7 +137,7 @@ func run(
 	// writes, since a refused resume must leave the file as it was.
 	bindErr := bindOut(out, settings, flags, built.Questions, fingerprintInputs{
 		model: model, output: outputMode.String(), input: inputMode.String(), assert: gate.Source(),
-		abstainIf: abstain.Source(), images: inv.images.fingerprint(),
+		abstainIf: abstain.Source(), images: inv.images.fingerprint(), longContext: built.LongContext,
 	})
 	if bindErr != nil {
 		return bindErr
@@ -200,7 +202,7 @@ func run(
 			return err
 		}
 
-		return printRequest(cmd.OutOrStdout(), built.Questions, resolved.Source, sent, assets, model)
+		return printRequest(cmd.OutOrStdout(), built.Questions, resolved.Source, sent, assets, built.LongContext, model)
 	}
 
 	// Checked here rather than at write time, so a taken key costs no request.
@@ -579,7 +581,9 @@ func stream(
 		}
 
 		record, call, evalErr := askOnce(ctx, group, stats,
-			onesie.Request{State: sent, Model: model, Questions: questions, Assets: assets}, salt,
+			onesie.Request{
+				State: sent, Model: model, Questions: questions, Assets: assets, LongContext: built.LongContext,
+			}, salt,
 			func() (output.Record, error) {
 				return evaluate(ctx, asker, key, built, model, questions, sent, assets, flags.usage, stats)
 			})
@@ -1220,7 +1224,9 @@ func answered(
 	assets onesie.Assets,
 	withUsage bool,
 ) (output.Record, onesie.Usage, bool, error) {
-	req := onesie.Request{State: state, Model: built.Model, Questions: questions, Assets: assets}
+	req := onesie.Request{
+		State: state, Model: built.Model, Questions: questions, Assets: assets, LongContext: built.LongContext,
+	}
 
 	// A mock answers without SystemOne, which validates every live request itself, so a mock run
 	// is checked here and refuses what the API would.

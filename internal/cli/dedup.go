@@ -105,7 +105,9 @@ type sharedCall struct {
 }
 
 func requestKey(req onesie.Request, salt string) ([sha256.Size]byte, error) {
-	body, err := onesie.MarshalBody(onesie.Request{State: req.State, Model: req.Model, Questions: req.Questions})
+	body, err := onesie.MarshalBody(onesie.Request{
+		State: req.State, Model: req.Model, Questions: req.Questions, LongContext: req.LongContext,
+	})
 	if err != nil {
 		return [sha256.Size]byte{}, err
 	}

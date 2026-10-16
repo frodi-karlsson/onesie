@@ -85,6 +85,14 @@ func warnUncarried(w io.Writer, loaded *qfile.File) error {
 		}
 	}
 
+	if loaded.LongContext {
+		if _, err := fmt.Fprintln(w,
+			"warning: --print-questions does not carry the body's long_context. "+
+				"Pass --long-context when you reload"); err != nil {
+			return err
+		}
+	}
+
 	if !loaded.HasState {
 		return nil
 	}
@@ -102,9 +110,10 @@ func printRequest(
 	source input.Source,
 	state any,
 	assets onesie.Assets,
+	longContext bool,
 	model string,
 ) error {
-	req := onesie.Request{Model: model, Questions: wireAll(questions)}
+	req := onesie.Request{Model: model, Questions: wireAll(questions), LongContext: longContext}
 
 	encode := onesie.MarshalQuestionsBody
 	if source != input.SourceNone {
@@ -187,7 +196,9 @@ func streamRequests(
 				return errorLine(bad), bad
 			}
 
-			req := onesie.Request{State: sent, Model: model, Questions: questions, Assets: assets}
+			req := onesie.Request{
+				State: sent, Model: model, Questions: questions, Assets: assets, LongContext: built.LongContext,
+			}
 			if validErr := onesie.ValidateRequest(req); validErr != nil {
 				bad := &input.LineError{Line: rec.Line, Err: unprefixed(validErr)}
 

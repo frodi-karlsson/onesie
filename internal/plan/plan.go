@@ -16,6 +16,9 @@ const (
 type Plan struct {
 	Questions []Question
 	Model     string
+	// LongContext raises the context limits. The flag, the variable and a request body's key each
+	// turn it on, and none turns it off.
+	LongContext bool
 
 	// Orphans are shape or policy flags that had no --ask to bind to. They are kept off Question
 	// so nothing iterating Questions has to know to skip a pseudo entry.

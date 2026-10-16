@@ -32,6 +32,22 @@ func TestLoadBody(t *testing.T) {
 		check   func(t *testing.T, f *qfile.File)
 	}{
 		{
+			name: "should read a body's long_context",
+			doc:  `{"questions":{"q":{"type":"noul","instructions":"x"}},"long_context":true}`,
+			check: func(t *testing.T, file *qfile.File) {
+				t.Helper()
+
+				if !file.LongContext {
+					t.Error("long context = false, want true")
+				}
+			},
+		},
+		{
+			name:    "should refuse a long_context that is not true or false",
+			doc:     `{"questions":{"q":{"type":"noul","instructions":"x"}},"long_context":"yes"}`,
+			wantErr: "onesie: 'long_context' in a request body must be true or false",
+		},
+		{
 			name: "should keep a body's assets",
 			doc: `{"state":{"photo":"img"},"questions":{"q":{"type":"noul","instructions":"x"}},` +
 				`"assets":{"img":{"type":"image","format":"png","data_base64":"AQ=="}}}`,
