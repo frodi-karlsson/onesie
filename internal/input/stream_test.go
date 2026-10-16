@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/frodi-karlsson/onesie/internal/input"
+	"github.com/frodi-karlsson/onesie/internal/limits"
 )
 
 func TestStream(t *testing.T) {
@@ -577,6 +578,38 @@ func TestStream(t *testing.T) {
 		var lineErr *input.LineError
 		if !errors.As(err, &lineErr) || !strings.Contains(err.Error(), "longer than the limit") {
 			t.Errorf("error = %v, want a row too long error", err)
+		}
+	})
+
+	t.Run("should read an -i request line past max-line-bytes up to max-request-line-bytes", func(t *testing.T) {
+		t.Parallel()
+
+		long := `{"state":"` + strings.Repeat("a", limits.MaxLineBytes) + `","questions":{}}`
+		stream := input.NewStream(strings.NewReader(long+"\n"), input.Request, false)
+
+		rec, ok, err := stream.Next()
+		if err != nil || !ok {
+			t.Fatalf("Next = %v, %v", ok, err)
+		}
+
+		if rec.Err != nil {
+			t.Fatalf("record error = %v, want the line read whole", rec.Err)
+		}
+	})
+
+	t.Run("should still cap a jsonl line at max-line-bytes", func(t *testing.T) {
+		t.Parallel()
+
+		long := `"` + strings.Repeat("a", limits.MaxLineBytes) + `"`
+		stream := input.NewStream(strings.NewReader(long+"\n"), input.JSONL, false)
+
+		rec, _, err := stream.Next()
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if rec.Err == nil {
+			t.Fatal("record error = nil, want the line refused as too long")
 		}
 	})
 }

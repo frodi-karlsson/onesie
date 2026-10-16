@@ -165,7 +165,7 @@ func TestDecodeOrdered(t *testing.T) {
 		{
 			name:    "should reject a file over the size cap",
 			doc:     "a: \"" + strings.Repeat("x", limits.MaxQuestionFileBytes) + "\"\n",
-			wantErr: "onesie: a question file is at most 8388608 bytes",
+			wantErr: "onesie: a question file is at most 33554432 bytes",
 		},
 	}
 

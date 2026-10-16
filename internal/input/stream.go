@@ -23,6 +23,7 @@ func NewStream(r io.Reader, mode Mode, skipBlank bool) *Stream {
 		reader:    bufio.NewReaderSize(r, 64*1024),
 		mode:      mode,
 		skipBlank: skipBlank,
+		lineCap:   lineCapOf(mode),
 	}
 
 	if mode == CSV {
@@ -37,11 +38,20 @@ func NewStream(r io.Reader, mode Mode, skipBlank bool) *Stream {
 	return stream
 }
 
+func lineCapOf(mode Mode) int {
+	if mode == Request {
+		return limits.MaxRequestLineBytes
+	}
+
+	return limits.MaxLineBytes
+}
+
 // Stream yields one record per input line, in input order.
 type Stream struct {
 	reader    *bufio.Reader
 	mode      Mode
 	skipBlank bool
+	lineCap   int
 	index     int
 	line      int
 	rows      *csv.Reader
@@ -285,7 +295,7 @@ func (s *Stream) read() (string, bool, error) {
 
 		// An oversized line is reported rather than buffered, so one such record can neither
 		// exhaust memory nor stop the batch.
-		if builder.Len()+len(chunk) > limits.MaxLineBytes {
+		if builder.Len()+len(chunk) > s.lineCap {
 			tooLong = true
 		}
 

@@ -47,9 +47,15 @@ const (
 	// MaxCalibrateRecords is the most records calibrate reads. It holds the whole labelled set in
 	// memory before asking, so the input has to end somewhere.
 	MaxCalibrateRecords = 100000
-	// MaxQuestionFileBytes is the largest question file or request body -f reads. A body carries a
-	// state, which a stream line may hold up to MaxLineBytes of.
-	MaxQuestionFileBytes = 8 << 20
+	// MaxQuestionFileBytes is the largest question file or request body -f reads. It is the API's
+	// body limit, since the cap applies before onesie knows which of the two a file is, and a body
+	// with images routinely passes 8 MiB.
+	MaxQuestionFileBytes = onesie.MaxBodyBytes
+	// MaxRequestLineBytes is the longest -i request line, the API's body limit, so a body
+	// --print-request wrote with images can be replayed.
+	MaxRequestLineBytes = onesie.MaxBodyBytes
+	// MaxImageBytes is the largest image file the API takes.
+	MaxImageBytes = onesie.MaxImageBytes
 	// MaxDedupRequests is the most distinct requests a stream holds to deduplicate against. Past it,
 	// a held request still shares its answer and a new one is asked without being held.
 	MaxDedupRequests = 100000
@@ -79,6 +85,11 @@ func Report() []Entry {
 		{Name: "max-id-bytes", Value: strconv.Itoa(MaxIDBytes)},
 		{Name: "max-calibrate-records", Value: strconv.Itoa(MaxCalibrateRecords)},
 		{Name: "max-question-file-bytes", Value: strconv.Itoa(MaxQuestionFileBytes)},
+		{Name: "max-request-line-bytes", Value: strconv.Itoa(MaxRequestLineBytes)},
+		{Name: "max-image-bytes", Value: strconv.Itoa(MaxImageBytes)},
+		{Name: "image-side", Value: strconv.Itoa(onesie.MinImageSide) + " to " + strconv.Itoa(onesie.MaxImageSide)},
+		{Name: "image-pixels", Value: strconv.Itoa(onesie.MinImagePixels) + " to " + strconv.Itoa(onesie.MaxImagePixels)},
+		{Name: "max-body-bytes", Value: strconv.Itoa(onesie.MaxBodyBytes)},
 		{Name: "max-dedup-requests", Value: strconv.Itoa(MaxDedupRequests)},
 		{Name: "max-cache-bytes", Value: strconv.Itoa(MaxCacheBytes)},
 		{Name: "cache-ttl", Value: DefaultCacheTTL.String()},
