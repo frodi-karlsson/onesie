@@ -77,8 +77,6 @@ func streamRaw(
 			if read.needsImages {
 				stats.imaged()
 
-				opts = append(opts, onesie.WithRequestHeader(onesie.HeaderImages, "true"))
-
 				if !flags.timeoutSet {
 					opts = append(opts, onesie.WithRequestAttemptTimeout(imageAttemptTimeout))
 				}

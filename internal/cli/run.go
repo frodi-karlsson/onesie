@@ -147,11 +147,19 @@ func run(
 			return warnErr
 		}
 
+		if refuseErr := checkProviderImages(settings, flags, built, inv.images); refuseErr != nil {
+			return refuseErr
+		}
+
 		return withStats(cmd, settings.now, flags, func(stats *collector) error {
 			return stream(
 				cmd, settings, built, mapper, namer, inv.images, inputMode, outputMode, flags, gate, abstain,
 				stats, out, resume, answers)
 		})
+	}
+
+	if refuseErr := checkProviderImages(settings, flags, built, inv.images); refuseErr != nil {
+		return refuseErr
 	}
 
 	resolved, err := resolveState(
