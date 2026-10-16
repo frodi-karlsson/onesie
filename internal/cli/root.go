@@ -38,6 +38,8 @@ var pastTag = regexp.MustCompile(`-[0-9]+-g[0-9a-f]+$`)
 const (
 	flagState         = "state"
 	flagStateFile     = "state-file"
+	flagImage         = "image"
+	flagImageField    = "image-field"
 	flagModel         = "model"
 	flagInput         = "input"
 	flagJobs          = "jobs"
@@ -224,6 +226,12 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 		"text, json, jsonl, lines, csv, tsv or request")
 	root.Flags().StringVar(&flags.state, flagState, "", "state to evaluate, or - to read stdin")
 	root.Flags().StringVar(&flags.stateFile, flagStateFile, "", "read the state from this file")
+	root.Flags().StringArrayVar(&flags.images, flagImage, nil,
+		"NAME=PATH, repeatable, puts a PNG or JPEG in the state under NAME, experimental on TypeSafe's side. "+
+			"stdin is never read beside it, so text joins it only from --state, --state-file or --state -")
+	root.Flags().StringArrayVar(&flags.imageFields, flagImageField, nil,
+		"streaming only, repeatable, a state key whose value is a path to a PNG or JPEG, read per record. "+
+			"Under -i lines the line is the path. Experimental on TypeSafe's side")
 	root.Flags().StringVar(&flags.mapSource, flagMap, "",
 		"jq expression run on each record, whose result is the state sent. "+
 			"Object keys come out sorted. The result may nest max-map-depth levels deep and encode to max-line-bytes, as -V lists")

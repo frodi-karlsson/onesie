@@ -1094,6 +1094,31 @@ func TestCheckFlags(t *testing.T) {
 		wantErr string
 	}{
 		{
+			name:    "should refuse --image with -i request",
+			cfg:     request(func(c *plan.Config) { c.HasImage = true }),
+			wantErr: "onesie: --image does not apply to -i request, whose bodies carry their own state",
+		},
+		{
+			name:    "should refuse --image-field with -i request",
+			cfg:     request(func(c *plan.Config) { c.ImageFields = []string{"photo"} }),
+			wantErr: "onesie: --image-field does not apply to -i request, whose bodies carry their own state",
+		},
+		{
+			name:    "should refuse --box with -i request",
+			cfg:     request(func(c *plan.Config) { c.GroupFlags = []string{"box"} }),
+			wantErr: "onesie: -i request carries its own questions. Drop --box",
+		},
+		{
+			name:    "should refuse --image-field on one record",
+			cfg:     plan.Config{InputName: "text", ImageFields: []string{"photo"}, Jobs: 1},
+			wantErr: "onesie: --image-field applies to streaming input. -i text reads one record",
+		},
+		{
+			name:    "should refuse a second --image-field under -i lines",
+			cfg:     plan.Config{Streaming: true, InputName: "lines", LinesInput: true, ImageFields: []string{"a", "b"}, Jobs: 1},
+			wantErr: "onesie: -i lines takes one --image-field, since a line holds one path",
+		},
+		{
 			name:    "should reject -o csv with --merge over jsonl",
 			cfg:     plan.Config{Streaming: true, InputName: "jsonl", Output: "csv", Merge: true, Jobs: 1},
 			wantErr: "onesie: -o csv with --merge needs -i csv or -i tsv, since other input has no fixed columns",

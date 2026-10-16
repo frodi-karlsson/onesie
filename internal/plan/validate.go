@@ -296,6 +296,7 @@ func checkRequestMode(cfg Config) error {
 		{cfg.Replace, "onesie: --replace applies to -f, which -i request does not accept"},
 		{given(cfg, "pick"), "onesie: -i request carries its own questions. Drop --pick"},
 		{given(cfg, "rate"), "onesie: -i request carries its own questions. Drop --rate"},
+		{given(cfg, "box"), "onesie: -i request carries its own questions. Drop --box"},
 		{given(cfg, "desc"), "onesie: -i request carries its own questions. Drop --desc"},
 		{given(cfg, "sep"), "onesie: -i request carries its own questions. Drop --sep"},
 		{given(cfg, "threshold"), "onesie: --threshold does not apply to -i request, " +
@@ -307,6 +308,10 @@ func checkRequestMode(cfg Config) error {
 		{cfg.HasState, "onesie: --state does not apply to -i request, " +
 			"whose bodies carry their own state"},
 		{cfg.HasStateFile, "onesie: --state-file does not apply to -i request, " +
+			"whose bodies carry their own state"},
+		{cfg.HasImage, "onesie: --image does not apply to -i request, " +
+			"whose bodies carry their own state"},
+		{len(cfg.ImageFields) > 0, "onesie: --image-field does not apply to -i request, " +
 			"whose bodies carry their own state"},
 		{cfg.HasMap, "onesie: --map does not apply to -i request, " +
 			"whose bodies carry their own state"},
@@ -551,6 +556,10 @@ func checkStreaming(cfg Config) (string, error) {
 		return "", fmt.Errorf("onesie: --state-file cannot be combined with -i %s", cfg.InputName)
 	}
 
+	if cfg.LinesInput && len(cfg.ImageFields) > 1 {
+		return "", errors.New("onesie: -i lines takes one --image-field, since a line holds one path")
+	}
+
 	if cfg.Quiet {
 		return "", fmt.Errorf(
 			"onesie: -q reads one record. Drop -i %s or use -o values and filter the stream",
@@ -650,6 +659,7 @@ func checkSingleRecord(cfg Config) (string, error) {
 		{"--skip-blank", cfg.SkipBlank},
 		{"--no-dedup", cfg.NoDedup},
 		{"--id", cfg.HasID},
+		{"--image-field", len(cfg.ImageFields) > 0},
 	} {
 		if flag.set {
 			return "", fmt.Errorf(
@@ -1188,6 +1198,12 @@ type Config struct {
 	Output       string
 	HasState     bool
 	HasStateFile bool
+	// HasImage records --image, which is a state source of its own.
+	HasImage bool
+	// ImageFields are the --image-field names, each a key whose value is an image path.
+	ImageFields []string
+	// LinesInput is -i lines, where a record is one line and so holds one image path.
+	LinesInput bool
 	// HasMap records that --map was given, which chooses the state from each record.
 	HasMap bool
 	// HasID records that --id was given, which names each record of a stream. Its expression runs

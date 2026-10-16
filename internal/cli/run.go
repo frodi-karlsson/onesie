@@ -1306,4 +1306,6 @@ type runFlags struct {
 	mergeKey      string
 	mapSource     string
 	idSource      string
+	images        []string
+	imageFields   []string
 }
