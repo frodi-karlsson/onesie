@@ -325,6 +325,47 @@ func TestNormalize(t *testing.T) {
 			})
 		}
 	})
+
+	t.Run("should flatten a box into its four edges and confidence", func(t *testing.T) {
+		t.Parallel()
+
+		got, err := answer.Normalize(plan.Question{ID: "mug", Shape: plan.Box}, &onesie.BoxAnswer{
+			Edges:      onesie.Edges{Top: 0.25, Bottom: 0.82, Left: 0.44, Right: 0.84},
+			Confidence: 0.92,
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		encoded, err := json.Marshal(got)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if want := `{"left":0.44,"top":0.25,"right":0.84,"bottom":0.82,"confidence":0.92}`; string(encoded) != want {
+			t.Errorf("json = %s, want %s", encoded, want)
+		}
+	})
+
+	for _, bad := range []struct {
+		name  string
+		edges onesie.Edges
+	}{
+		{name: "should refuse an edge above 1", edges: onesie.Edges{Top: 0, Bottom: 1.2, Left: 0, Right: 1}},
+		{name: "should refuse a left edge right of the right edge", edges: onesie.Edges{Top: 0, Bottom: 1, Left: 0.6, Right: 0.4}},
+		{name: "should refuse a top edge below the bottom edge", edges: onesie.Edges{Top: 0.9, Bottom: 0.1, Left: 0, Right: 1}},
+	} {
+		t.Run(bad.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := answer.Normalize(plan.Question{ID: "mug", Shape: plan.Box}, &onesie.BoxAnswer{Edges: bad.edges, Confidence: 0.5})
+
+			var unusable *onesie.ResponseError
+			if !errors.As(err, &unusable) {
+				t.Fatalf("error = %v, want a ResponseError", err)
+			}
+		})
+	}
 }
 
 func TestProbabilitiesMarshalJSON(t *testing.T) {

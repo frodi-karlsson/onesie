@@ -339,7 +339,7 @@ func TestAskOnce(t *testing.T) {
 			)
 
 			for i, sent := range tc.sents {
-				record, call, err := askOnce(t.Context(), shared, &stats, sent, "m", questions, tc.salts[i],
+				record, call, err := askOnce(t.Context(), shared, &stats, onesie.Request{State: sent, Model: "m", Questions: questions}, tc.salts[i],
 					func() (output.Record, error) {
 						asked.Add(1)
 
@@ -417,7 +417,7 @@ func TestRequestKey(t *testing.T) {
 	other := onesie.Questions{{ID: "urgent", Question: onesie.Noul{Instructions: "is this rude"}}}
 	state := json.RawMessage(`{"a":1,"b":2}`)
 
-	base, err := requestKey(state, "m", questions, "")
+	base, err := requestKey(onesie.Request{State: state, Model: "m", Questions: questions}, "")
 	if err != nil {
 		t.Fatalf("requestKey: %v", err)
 	}
@@ -444,7 +444,7 @@ func TestRequestKey(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, keyErr := requestKey(tc.sent, tc.model, tc.questions, tc.salt)
+			got, keyErr := requestKey(onesie.Request{State: tc.sent, Model: tc.model, Questions: tc.questions}, tc.salt)
 			if keyErr != nil {
 				t.Fatalf("requestKey: %v", keyErr)
 			}
@@ -454,6 +454,32 @@ func TestRequestKey(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("should change when an image changes behind the same reference", func(t *testing.T) {
+		t.Parallel()
+
+		key := func(data byte) [32]byte {
+			got, keyErr := requestKey(onesie.Request{
+				State: map[string]any{"photo": "ref"}, Model: "m", Questions: questions,
+				Assets: onesie.Assets{"ref": {Format: "png", Data: []byte{data}}},
+			}, "")
+			if keyErr != nil {
+				t.Fatalf("requestKey: %v", keyErr)
+			}
+
+			return got
+		}
+
+		first := key(1)
+
+		if first == key(2) {
+			t.Error("keys are equal, want an image's bytes in the key")
+		}
+
+		if first != key(1) {
+			t.Error("keys differ for one request")
+		}
+	})
 }
 
 func together(

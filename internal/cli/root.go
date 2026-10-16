@@ -38,6 +38,9 @@ var pastTag = regexp.MustCompile(`-[0-9]+-g[0-9a-f]+$`)
 const (
 	flagState         = "state"
 	flagStateFile     = "state-file"
+	flagImage         = "image"
+	flagImageField    = "image-field"
+	flagLongContext   = "long-context"
 	flagModel         = "model"
 	flagInput         = "input"
 	flagJobs          = "jobs"
@@ -60,6 +63,8 @@ var groupFlagHelp = map[string]string{
 	"threshold":      "yes/no only, cut the probability at this value",
 	"min-confidence": "pick or rate only, requires --fallback. Confidence is about 1 when p sits on one answer",
 	"fallback":       "value substituted on low confidence and on error",
+	"box": "making this a box question, answered with the left, top, right and bottom edges of what it " +
+		"finds in an image, each from 0 to 1. Takes no value. Experimental on TypeSafe's side",
 }
 
 // NewRootCmd builds a fresh command tree that reads and writes no global state.
@@ -209,6 +214,9 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 		root.Flags().Var(recorder.Flag(name), name, help)
 	}
 
+	// A recorded flag is a string, so without this --box would take the next argument as its value.
+	root.Flags().Lookup("box").NoOptDefVal = "true"
+
 	root.Flags().StringVarP(&flags.output, "output", "o", "", "auto, json, values, table, raw, csv, tsv or markdown")
 	root.Flags().BoolVarP(&flags.raw, "raw", "r", false, "print the bare scalar")
 	root.Flags().BoolVarP(&flags.quiet, "quiet", "q", false,
@@ -224,6 +232,12 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 		"text, json, jsonl, lines, csv, tsv or request")
 	root.Flags().StringVar(&flags.state, flagState, "", "state to evaluate, or - to read stdin")
 	root.Flags().StringVar(&flags.stateFile, flagStateFile, "", "read the state from this file")
+	root.Flags().StringArrayVar(&flags.images, flagImage, nil,
+		"NAME=PATH, repeatable, puts a PNG or JPEG in the state under NAME, experimental on TypeSafe's side. "+
+			"stdin is never read beside it, so text joins it only from --state, --state-file or --state -")
+	root.Flags().StringArrayVar(&flags.imageFields, flagImageField, nil,
+		"streaming only, repeatable, a state key whose value is a path to a PNG or JPEG, read per record. "+
+			"Under -i lines the line is the path. Experimental on TypeSafe's side")
 	root.Flags().StringVar(&flags.mapSource, flagMap, "",
 		"jq expression run on each record, whose result is the state sent. "+
 			"Object keys come out sorted. The result may nest max-map-depth levels deep and encode to max-line-bytes, as -V lists")
@@ -259,6 +273,9 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 	root.Flags().IntVarP(&flags.jobs, flagJobs, "j", 1, "records in flight at once")
 	root.Flags().IntVar(&flags.timeout, flagTimeout, int(limits.DefaultAttemptTimeout.Seconds()),
 		"seconds per attempt")
+	root.Flags().BoolVar(&flags.longContext, flagLongContext, false,
+		"raise the context limits to 262k tokens, slower and less accurate. Also ONESIE_LONG_CONTEXT=1. "+
+			"Experimental on TypeSafe's side")
 	root.Flags().IntVar(&flags.retries, flagRetries, limits.DefaultRetries,
 		"retries after a failed attempt")
 	root.Flags().IntVar(&flags.maxRetryAfter, flagMaxRetryAfter,

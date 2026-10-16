@@ -6,6 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/argv"
 	"github.com/frodi-karlsson/onesie/internal/assert"
 	"github.com/frodi-karlsson/onesie/internal/input"
@@ -30,6 +31,9 @@ func configOf(
 		Output:         flags.output,
 		HasState:       cmd.Flags().Changed(flagState),
 		HasStateFile:   cmd.Flags().Changed(flagStateFile),
+		HasImage:       len(flags.images) > 0,
+		ImageFields:    flags.imageFields,
+		LinesInput:     inputMode == input.Lines,
 		HasMap:         cmd.Flags().Changed(flagMap),
 		HasID:          cmd.Flags().Changed(flagID),
 		Replace:        flags.replace,
@@ -181,9 +185,19 @@ func build(
 		return nil, warnings, err
 	}
 
+	var bodyAssets onesie.Assets
+	if loaded != nil {
+		bodyAssets = loaded.Assets
+	}
+
+	images, err := newImaging(flags.images, flags.imageFields, cfg.LinesInput, settings.readFile, bodyAssets)
+	if err != nil {
+		return nil, warnings, err
+	}
+
 	return &invocation{
 		plan: built, gate: gate, abstain: abstain, mapper: mapper, namer: namer, loaded: loaded,
-		fileGate: setAside,
+		fileGate: setAside, images: images,
 	}, warnings, nil
 }
 
@@ -262,6 +276,7 @@ type invocation struct {
 	namer    *jq.Expr
 	loaded   *qfile.File
 	fileGate fileGate
+	images   *imaging
 }
 
 type fileGate struct {

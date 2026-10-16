@@ -200,6 +200,15 @@ func TestAdvise(t *testing.T) {
 					`"message":"` + strings.TrimPrefix(rejected, "onesie: ") + `"}}`},
 			},
 			{
+				name:     "should say the same for an image the server refuses",
+				args:     []string{"--image", "photo=square.png", "is there a red square in `photo`"},
+				files:    map[string]string{"square.png": string(squarePNG(t))},
+				status:   http.StatusBadRequest,
+				response: `{"detail":"image side must be at most 1568 pixels"}`,
+				wantCode: ExitUsage,
+				wantErr:  "onesie: 400 image side must be at most 1568 pixels." + note + "\n",
+			},
+			{
 				name: "should carry the note into a streaming error record",
 				args: []string{
 					"--ask", "severity=how bad is it", "--rate", "calm,annoyed,angry", "-i", "lines",
@@ -268,6 +277,77 @@ func TestAdvise(t *testing.T) {
 				response: tooManyLevels,
 				wantCode: ExitUsage,
 				wantErr:  rejected + "\n",
+			},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				checkAdvice(t, tc)
+			})
+		}
+	})
+
+	t.Run("should point at the flag or model a refusal needs", func(t *testing.T) {
+		t.Parallel()
+
+		const (
+			invalid  = `{"detail":"Invalid request."}`
+			tooLong  = `{"detail":"max_tokens_exceeded"}`
+			boxNote  = " A box question needs a model that serves it, such as -m jev-preview"
+			longNote = ". Pass --long-context to raise the context limit, which is slower and less accurate"
+		)
+
+		square := map[string]string{"square.png": string(squarePNG(t))}
+		boxed := []string{"--image", "photo=square.png", "--ask", "mug=the mug in `photo`", "--box"}
+		boxBody := `{"state":{"photo":"r"},"model":"jev-1.13.0","questions":{"mug":{"type":"box","instructions":"x"}},` +
+			`"assets":{"r":{"type":"image","format":"png","data_base64":"AQ=="}}}`
+
+		tests := []adviceCase{
+			{
+				name:     "should name jev-preview when a box question is refused as invalid",
+				args:     boxed,
+				files:    square,
+				status:   http.StatusBadRequest,
+				response: invalid,
+				wantCode: ExitUsage,
+				wantErr:  "onesie: 400 Invalid request." + boxNote + "\n",
+			},
+			{
+				name:     "should name jev-preview for a replayed box body too",
+				args:     []string{"-i", "request"},
+				stdin:    boxBody + "\n",
+				status:   http.StatusBadRequest,
+				response: invalid,
+				wantCode: ExitRecords,
+				wantOut:  []string{`"message":"400 Invalid request.` + boxNote + `"`},
+			},
+			{
+				name:     "should name --long-context when the state is over the context limit",
+				args:     []string{"is this urgent"},
+				stdin:    "a ticket",
+				status:   http.StatusBadRequest,
+				response: tooLong,
+				wantCode: ExitUsage,
+				wantErr:  "onesie: 400 max_tokens_exceeded" + longNote + "\n",
+			},
+			{
+				name:     "should leave the limit alone when --long-context is already on",
+				args:     []string{"is this urgent", "--long-context"},
+				stdin:    "a ticket",
+				status:   http.StatusBadRequest,
+				response: tooLong,
+				wantCode: ExitUsage,
+				wantErr:  "onesie: 400 max_tokens_exceeded\n",
+			},
+			{
+				name:     "should name --long-context for a replayed body too",
+				args:     []string{"-i", "request"},
+				stdin:    `{"state":"s","model":"m","questions":{"q":{"type":"noul","instructions":"q"}}}` + "\n",
+				status:   http.StatusBadRequest,
+				response: tooLong,
+				wantCode: ExitRecords,
+				wantOut:  []string{`"message":"400 max_tokens_exceeded` + longNote + `"`},
 			},
 		}
 

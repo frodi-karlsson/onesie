@@ -82,7 +82,7 @@ func questionSchema() node {
 
 func fieldsSchema() node {
 	rubric := []string{"yes_means", "no_means", "true", "false"}
-	shaped := node{AnyOf: []any{required("pick"), required("rate")}}
+	shaped := node{AnyOf: []any{required("pick"), required("rate"), required("box")}}
 
 	return node{
 		Type:                 "object",
@@ -105,6 +105,10 @@ func fieldsSchema() node {
 			{name: "pick", schema: described("The options, as a sequence of names or a mapping of name to description.", "#/definitions/pick")},
 			{name: "rate", schema: described("The levels from lowest to highest, as names, one key mappings of name "+
 				"to description, or a mapping of name to description.", "#/definitions/rate")},
+			{name: "box", schema: node{
+				Const:       true,
+				Description: "Makes this a box question, answered with the edges of what it finds in an image.",
+			}},
 			{name: "threshold", schema: described(
 				"The yes probability a yes/no answer must reach, between 0 and 1.", "#/definitions/probability")},
 			{name: "min_confidence", schema: described(
@@ -117,14 +121,18 @@ func fieldsSchema() node {
 		},
 		AllOf: []any{
 			node{
-				Not:          &node{Required: []string{"pick", "rate"}},
-				ErrorMessage: "A question has pick or rate, not both.",
+				Not: &node{AnyOf: []any{
+					node{Required: []string{"pick", "rate"}},
+					node{Required: []string{"pick", "box"}},
+					node{Required: []string{"rate", "box"}},
+				}},
+				ErrorMessage: "A question has one of pick, rate or box.",
 			},
 			node{
 				If: &shaped,
 				Then: &node{
 					Not:          &node{AnyOf: append(requiredEach(rubric...), required("threshold"))},
-					ErrorMessage: "A pick or rate question takes no yes_means, no_means, true, false or threshold.",
+					ErrorMessage: "A pick, rate or box question takes no yes_means, no_means, true, false or threshold.",
 				},
 				Else: &node{
 					Properties: properties{
@@ -133,6 +141,13 @@ func fieldsSchema() node {
 							Examples:    []any{true, false, "yes", "no"},
 						}},
 					},
+				},
+			},
+			node{
+				If: &node{Required: []string{"box"}},
+				Then: &node{
+					Not:          &node{AnyOf: []any{required("min_confidence"), required("fallback")}},
+					ErrorMessage: "A box question takes no min_confidence or fallback.",
 				},
 			},
 		},
@@ -206,6 +221,7 @@ type node struct {
 	Ref                  string     `json:"$ref,omitempty"`
 	Type                 any        `json:"type,omitempty"`
 	Enum                 []string   `json:"enum,omitempty"`
+	Const                any        `json:"const,omitempty"`
 	Pattern              string     `json:"pattern,omitempty"`
 	PatternErrorMessage  string     `json:"patternErrorMessage,omitempty"`
 	Examples             []any      `json:"examples,omitempty"`

@@ -95,12 +95,25 @@ func buildQuestion(id string, value any) (plan.Question, error) {
 	pickValue, hasPick := lookup(fields, "pick")
 	rateValue, hasRate := lookup(fields, "rate")
 
+	boxValue, hasBox := lookup(fields, "box")
+	if hasBox {
+		if on, isBool := boxValue.(bool); !isBool || !on {
+			return question, fmt.Errorf("onesie: 'box' in question '%s' takes true", id)
+		}
+	}
+
+	if hasBox && (hasPick || hasRate) {
+		return question, fmt.Errorf(
+			"onesie: question '%s' has more than one of 'pick', 'rate' and 'box'. "+
+				"A question is one of pick, rate or box", id)
+	}
+
 	if hasPick && hasRate {
 		return question, fmt.Errorf(
 			"onesie: question '%s' has both 'pick' and 'rate'. A question is one or the other", id)
 	}
 
-	if err := checkShapeAndRubric(id, shapeKey(hasPick, hasRate), yesKey, noKey); err != nil {
+	if err := checkShapeAndRubric(id, shapeKey(hasPick, hasRate, hasBox), yesKey, noKey); err != nil {
 		return question, err
 	}
 
@@ -123,6 +136,11 @@ func buildQuestion(id string, value any) (plan.Question, error) {
 		question.Shape = plan.Rate
 		question.Levels = levels
 		question.Labelled = true
+	}
+
+	if hasBox {
+		question.Shape = plan.Box
+		question.Boxed = true
 	}
 
 	if err := readPolicy(&question, fields); err != nil {
@@ -152,12 +170,14 @@ func readYesNo(id, yesKey, noKey string, yes, no any) (*plan.YesNoCriteria, erro
 	return &plan.YesNoCriteria{Yes: wireYes, No: wireNo}, nil
 }
 
-func shapeKey(hasPick, hasRate bool) string {
+func shapeKey(hasPick, hasRate, hasBox bool) string {
 	switch {
 	case hasPick:
 		return "pick"
 	case hasRate:
 		return "rate"
+	case hasBox:
+		return "box"
 	default:
 		return ""
 	}
@@ -381,7 +401,7 @@ func readFallback(id string, value any) (string, error) {
 func checkKeys(id string, fields yaml.MapSlice) error {
 	known := map[string]struct{}{
 		"ask": {}, "yes_means": {}, "no_means": {}, "true": {}, "false": {},
-		"pick": {}, "rate": {},
+		"pick": {}, "rate": {}, "box": {},
 		"threshold": {}, "min_confidence": {}, "fallback": {},
 	}
 

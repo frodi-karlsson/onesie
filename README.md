@@ -191,6 +191,8 @@ tables.
 - **Caching.** `--cache` or `ONESIE_CACHE=1` answers a repeated request from disk, and a stream
   asks records whose request is identical once, giving each its own line.
 - **Dry runs.** `--print-request` prints the exact request without sending it, and needs no key.
+- **Images.** `--image photo=door.jpg` puts a PNG or JPEG in the state, and `--box` asks where
+  something is in it. Both are experimental on TypeSafe's side.
 
 ## Why no MCP server
 

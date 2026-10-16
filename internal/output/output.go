@@ -24,11 +24,18 @@ func Write(w io.Writer, mode Mode, rec Record) error {
 		return WriteMarkdown(w, rec, MarkdownOptions{})
 	case CSV, TSV:
 		ids := make([]string, 0, len(rec.Answers))
+
+		var boxes []string
+
 		for _, named := range rec.Answers {
 			ids = append(ids, named.ID)
+
+			if named.Box {
+				boxes = append(boxes, named.ID)
+			}
 		}
 
-		return NewDelimited(w, mode, DelimitedOptions{IDs: ids, ID: rec.ID != nil, Header: true}).
+		return NewDelimited(w, mode, DelimitedOptions{IDs: ids, Boxes: boxes, ID: rec.ID != nil, Header: true}).
 			Write(rec, nil, nil)
 	default:
 		return writeJSON(w, rec)
@@ -130,6 +137,8 @@ type Record struct {
 type Named struct {
 	ID     string
 	Answer *answer.Answer
+	// Box marks a box question, which a failed answer cannot show and the csv columns need.
+	Box bool
 }
 
 // Failure is the reserved error key. Status is nil for a transport or input failure, where no HTTP

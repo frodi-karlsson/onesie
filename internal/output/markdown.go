@@ -345,6 +345,12 @@ func answerText(a *Answer) string {
 		return "fallback " + decisionText(a.Decision)
 	}
 
+	if edges, isBox := a.Box(); isBox {
+		return fmt.Sprintf("left %s, top %s, right %s, bottom %s",
+			probabilityText(edges.Left), probabilityText(edges.Top),
+			probabilityText(edges.Right), probabilityText(edges.Bottom))
+	}
+
 	if probability, ok := a.Value.(float64); ok {
 		if a.Decided {
 			return decisionText(a.Decision) + ", " + probabilityText(probability)

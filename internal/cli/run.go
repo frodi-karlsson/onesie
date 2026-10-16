@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
 	"strings"
 	"sync/atomic"
 
@@ -35,6 +36,8 @@ func run(
 	out *outFile,
 	resume resumePlan,
 ) error {
+	flags.timeoutSet = cmd.Flags().Changed(flagTimeout)
+
 	cfg, inputMode, err := configOf(cmd, events, positional, flags)
 	if err != nil {
 		return err
@@ -132,21 +135,22 @@ func run(
 	// writes, since a refused resume must leave the file as it was.
 	bindErr := bindOut(out, settings, flags, built.Questions, fingerprintInputs{
 		model: model, output: outputMode.String(), input: inputMode.String(), assert: gate.Source(),
-		abstainIf: abstain.Source(),
+		abstainIf: abstain.Source(), images: inv.images.fingerprint(),
 	})
 	if bindErr != nil {
 		return bindErr
 	}
 
 	if inputMode.Streaming() {
-		if warnErr := warnIgnoredBodyState(cmd.ErrOrStderr(), cfg, loaded, "a stream"); warnErr != nil {
+		if warnErr := warnIgnoredBodyState(
+			cmd.ErrOrStderr(), cfg, loaded, "a stream", inv.images, wireAll(built.Questions)); warnErr != nil {
 			return warnErr
 		}
 
 		return withStats(cmd, settings.now, flags, func(stats *collector) error {
 			return stream(
-				cmd, settings, built, mapper, namer, inputMode, outputMode, flags, gate, abstain, stats,
-				out, resume, answers)
+				cmd, settings, built, mapper, namer, inv.images, inputMode, outputMode, flags, gate, abstain,
+				stats, out, resume, answers)
 		})
 	}
 
@@ -156,7 +160,7 @@ func run(
 		return err
 	}
 
-	if requests(flags) && resolved.Source == input.SourceNone {
+	if requests(flags) && resolved.Source == input.SourceNone && len(flags.images) == 0 {
 		return errors.New(
 			"onesie: no state given. Pipe one to stdin, or pass --state or --state-file")
 	}
@@ -169,6 +173,18 @@ func run(
 		}
 	}
 
+	sent, assets, err := inv.images.attach(sentOrNil(resolved, sent))
+	if err != nil {
+		return fmt.Errorf("onesie: %w", err)
+	}
+
+	if len(flags.images) > 0 {
+		resolved, err = imagedState(sent)
+		if err != nil {
+			return err
+		}
+	}
+
 	// After the state is resolved, so the body carries the state a real run would send.
 	if flags.printRequest {
 		model, err := resolveModel(settings, flags, built.Model)
@@ -176,7 +192,7 @@ func run(
 			return err
 		}
 
-		return printRequest(cmd.OutOrStdout(), built.Questions, resolved.Source, sent, model)
+		return printRequest(cmd.OutOrStdout(), built.Questions, resolved.Source, sent, assets, model)
 	}
 
 	// Checked here rather than at write time, so a taken key costs no request.
@@ -187,8 +203,30 @@ func run(
 	}
 
 	return withStats(cmd, settings.now, flags, func(stats *collector) error {
-		return ask(cmd, settings, built, resolved, sent, outputMode, flags, gate, abstain, stats, answers)
+		return ask(cmd, settings, built, resolved, sent, assets, outputMode, flags, gate, abstain, stats, answers)
 	})
+}
+
+func sentOrNil(resolved input.Resolved, sent any) any {
+	if resolved.Source == input.SourceNone {
+		return nil
+	}
+
+	return sent
+}
+
+func imagedState(sent any) (input.Resolved, error) {
+	encoded, isRaw := sent.(json.RawMessage)
+	if !isRaw {
+		return input.Resolved{}, errors.New("onesie: the state beside --image is not encoded")
+	}
+
+	var state any
+	if err := json.Unmarshal(encoded, &state); err != nil {
+		return input.Resolved{}, fmt.Errorf("onesie: reading the state: %w", err)
+	}
+
+	return input.Resolved{Source: input.SourceImages, State: state, Raw: string(encoded), Wire: sent}, nil
 }
 
 func checkBodyState(cfg plan.Config, loaded *qfile.File) error {
@@ -203,6 +241,8 @@ func checkBodyState(cfg plan.Config, loaded *qfile.File) error {
 		flag = "--" + flagState
 	case cfg.HasStateFile:
 		flag = "--" + flagStateFile
+	case cfg.HasImage:
+		flag = "--image"
 	default:
 		return nil
 	}
@@ -210,13 +250,26 @@ func checkBodyState(cfg plan.Config, loaded *qfile.File) error {
 	return fmt.Errorf("onesie: %s and the state in %s both give a state. Drop one", flag, cfg.FileName)
 }
 
-func warnIgnoredBodyState(w io.Writer, cfg plan.Config, loaded *qfile.File, sender string) error {
+func warnIgnoredBodyState(
+	w io.Writer, cfg plan.Config, loaded *qfile.File, sender string, images *imaging, questions onesie.Questions,
+) error {
 	if loaded == nil || !loaded.HasState {
 		return nil
 	}
 
-	_, err := fmt.Fprintf(w,
-		"warning: ignoring the state in %s, since %s sends each record as its state\n", cfg.FileName, sender)
+	dropped, err := images.dropUnreferenced(questions)
+	if err != nil {
+		return err
+	}
+
+	note := ""
+	if dropped > 0 {
+		note = fmt.Sprintf(" and its %s", plural(dropped, "asset"))
+	}
+
+	_, err = fmt.Fprintf(w,
+		"warning: ignoring the state in %s%s, since %s sends each record as its state\n",
+		cfg.FileName, note, sender)
 
 	return err
 }
@@ -249,10 +302,14 @@ func resolveState(
 		return resolved, nil
 	}
 
+	// --image is a state source, so stdin is read only when --state - asks for it. Whether a pipe
+	// holds text cannot be known without a read that may block.
+	stdinTTY := settings.stdinTTY || len(flags.images) > 0
+
 	return input.Resolve(ctx, input.Query{
 		Mode:         mode,
 		Stdin:        settings.stdin,
-		StdinTTY:     settings.stdinTTY,
+		StdinTTY:     stdinTTY,
 		State:        flags.state,
 		HasState:     cfg.HasState,
 		StateFile:    flags.stateFile,
@@ -376,6 +433,7 @@ func stream(
 	built *plan.Plan,
 	mapper *jq.Expr,
 	namer *jq.Expr,
+	images *imaging,
 	inputMode input.Mode,
 	outputMode output.Mode,
 	flags *runFlags,
@@ -387,7 +445,7 @@ func stream(
 	answerers answererFactory,
 ) error {
 	if flags.printRequest {
-		return streamRequests(cmd, settings, built, mapper, namer, inputMode, flags, resume)
+		return streamRequests(cmd, settings, built, mapper, namer, images, inputMode, flags, resume)
 	}
 
 	asker, err := answerers(cmd.Context(), stats)
@@ -479,13 +537,24 @@ func stream(
 			}, taken
 		}
 
-		sent, mapErr := mapped(ctx, mapper, rec.State, rec.Wire)
+		state, wire := images.wrapLine(rec.State, rec.Wire)
+
+		sent, mapErr := mapped(ctx, mapper, state, wire)
 		if interrupted(ctx) {
 			return line{}, ctx.Err()
 		}
 
 		if mapErr != nil {
 			bad := &input.LineError{Line: rec.Line, Err: mapErr}
+			stats.recordFailure(bad, false, 0)
+
+			return rowLine(failureRecord(built, bad), rec), bad
+		}
+
+		// In the worker rather than the reader, so at most -j records hold image bytes at once.
+		sent, assets, imageErr := images.attach(sent)
+		if imageErr != nil {
+			bad := &input.LineError{Line: rec.Line, Err: imageErr}
 			stats.recordFailure(bad, false, 0)
 
 			return rowLine(failureRecord(built, bad), rec), bad
@@ -501,9 +570,10 @@ func stream(
 			group = nil
 		}
 
-		record, call, evalErr := askOnce(ctx, group, stats, sent, model, questions, salt,
+		record, call, evalErr := askOnce(ctx, group, stats,
+			onesie.Request{State: sent, Model: model, Questions: questions, Assets: assets}, salt,
 			func() (output.Record, error) {
-				return evaluate(ctx, asker, key, built, model, questions, sent, flags.usage, stats)
+				return evaluate(ctx, asker, key, built, model, questions, sent, assets, flags.usage, stats)
 			})
 		if evalErr != nil {
 			// Returned before the gate is asked. A failed record reads as all zeros, so a gate such
@@ -848,6 +918,7 @@ func ask(
 	built *plan.Plan,
 	resolved input.Resolved,
 	sent any,
+	assets onesie.Assets,
 	outputMode output.Mode,
 	flags *runFlags,
 	gate *assert.Expr,
@@ -868,7 +939,7 @@ func ask(
 	}
 
 	record, err := evaluate(
-		cmd.Context(), asker, recordKey{position: 1, line: 1}, built, model, questions, sent, flags.usage, stats)
+		cmd.Context(), asker, recordKey{position: 1, line: 1}, built, model, questions, sent, assets, flags.usage, stats)
 	if halting(err) {
 		return err
 	}
@@ -1034,9 +1105,21 @@ func delimited(
 	}
 
 	return output.NewDelimited(out, mode, output.DelimitedOptions{
-		IDs: ids, Fallbacks: fallbackIDs(built.Questions), ID: withID, Assert: withAssert,
-		Header: !headerWritten,
+		IDs: ids, Boxes: boxIDs(built.Questions), Fallbacks: fallbackIDs(built.Questions), ID: withID,
+		Assert: withAssert, Header: !headerWritten,
 	})
+}
+
+func boxIDs(questions []plan.Question) []string {
+	var ids []string
+
+	for _, question := range questions {
+		if question.Shape == plan.Box {
+			ids = append(ids, question.ID)
+		}
+	}
+
+	return ids
 }
 
 func fallbackIDs(questions []plan.Question) []string {
@@ -1081,10 +1164,15 @@ func evaluate(
 	model string,
 	questions onesie.Questions,
 	state any,
+	assets onesie.Assets,
 	withUsage bool,
 	stats *collector,
 ) (output.Record, error) {
-	record, usage, cached, err := answered(ctx, asker, key, built, model, questions, state, withUsage)
+	if len(assets) > 0 {
+		stats.imaged()
+	}
+
+	record, usage, cached, err := answered(ctx, asker, key, built, model, questions, state, assets, withUsage)
 	if halting(err) {
 		// No request stood behind it, so it is a record and not a request, and no attempt ended.
 		stats.recordFailure(err, false, 0)
@@ -1121,13 +1209,20 @@ func answered(
 	model string,
 	questions onesie.Questions,
 	state any,
+	assets onesie.Assets,
 	withUsage bool,
 ) (output.Record, onesie.Usage, bool, error) {
-	got, err := asker.answer(ctx, key, onesie.Request{
-		State:     state,
-		Model:     built.Model,
-		Questions: questions,
-	})
+	req := onesie.Request{State: state, Model: built.Model, Questions: questions, Assets: assets}
+
+	// A mock answers without SystemOne, which validates every live request itself, so a mock run
+	// is checked here and refuses what the API would.
+	if model == mock.Model {
+		if err := onesie.ValidateRequest(req); err != nil {
+			return failureRecord(built, err), onesie.Usage{}, false, err
+		}
+	}
+
+	got, err := asker.answer(ctx, key, req)
 	if halting(err) {
 		return failureRecord(built, err), onesie.Usage{}, false, err
 	}
@@ -1139,7 +1234,7 @@ func answered(
 		// A mocked failure came from no key and no account, so advice about either would mislead.
 		advised := err
 		if model != mock.Model {
-			advised = advise(err, model, true)
+			advised = advise(err, model, true, hasBox(questions))
 		}
 
 		failed := failureRecord(built, advised)
@@ -1176,10 +1271,18 @@ func answered(
 		answer.Apply(question, normalized)
 
 		record.Answers = append(record.Answers,
-			output.Named{ID: question.ID, Answer: normalized})
+			output.Named{ID: question.ID, Answer: normalized, Box: question.Shape == plan.Box})
 	}
 
 	return record, result.Usage, got.cached, nil
+}
+
+func hasBox(questions onesie.Questions) bool {
+	return slices.ContainsFunc(questions, func(named onesie.NamedQuestion) bool {
+		_, isBox := named.Question.(onesie.Box)
+
+		return isBox
+	})
 }
 
 func spent(failed output.Record, usage *onesie.Usage) output.Record {
@@ -1194,7 +1297,7 @@ func failureRecord(built *plan.Plan, cause error) output.Record {
 
 	for _, question := range built.Questions {
 		record.Answers = append(record.Answers,
-			output.Named{ID: question.ID, Answer: answer.Failed(question)})
+			output.Named{ID: question.ID, Answer: answer.Failed(question), Box: question.Shape == plan.Box})
 	}
 
 	return record
@@ -1306,4 +1409,8 @@ type runFlags struct {
 	mergeKey      string
 	mapSource     string
 	idSource      string
+	images        []string
+	imageFields   []string
+	timeoutSet    bool
+	longContext   bool
 }

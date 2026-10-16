@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -46,6 +47,7 @@ func streamRaw(
 		haltOnError: flags.stopOnError,
 	}
 	out := cmd.OutOrStdout()
+	long := longContext(settings, flags)
 
 	result, err := engine.Run(cmd.Context(), engine.Config[input.Record, []byte]{
 		Source: source,
@@ -68,13 +70,29 @@ func streamRaw(
 			// From the request rather than the response. A failed record has no answers but did
 			// carry questions, and counting the response would report zero for exactly the records
 			// a user turned --stats on to understand.
-			asked := rawQuestions([]byte(rec.Raw))
+			read := readRawRequest([]byte(rec.Raw))
+			asked := read.questions
 
-			body, err := client.SystemOneRaw(ctx, json.RawMessage(rec.Raw))
+			var opts []onesie.RequestOption
+			if read.needsImages {
+				stats.imaged()
+
+				opts = append(opts, onesie.WithRequestHeader(onesie.HeaderImages, "true"))
+
+				if !flags.timeoutSet {
+					opts = append(opts, onesie.WithRequestAttemptTimeout(imageAttemptTimeout))
+				}
+			}
+
+			if long {
+				opts = append(opts, onesie.WithRequestHeader(onesie.HeaderLongContext, "true"))
+			}
+
+			body, err := client.SystemOneRaw(ctx, json.RawMessage(rec.Raw), opts...)
 			if err != nil {
 				// The body reached the wire unchanged, so the model it named is the one onesie sent,
 				// and nothing inside it was checked locally, so no local bound is implicated.
-				advised := advise(err, rawModel([]byte(rec.Raw)), false)
+				advised := advise(adviseLongContext(err, long), read.model, false, read.boxed)
 
 				stats.recordFailure(advised, true, asked)
 				stats.terminalAttempt(advised)
@@ -145,26 +163,40 @@ func rawSummary(response []byte) (string, onesie.Usage) {
 	return probe.Model, probe.Usage
 }
 
-func rawModel(request []byte) string {
+func readRawRequest(request []byte) rawRequest {
+	// Empty structs for the assets, so the base64 of every asset is scanned but never copied.
 	var probe struct {
-		Model string `json:"model"`
-	}
-
-	if err := json.Unmarshal(request, &probe); err != nil {
-		return ""
-	}
-
-	return probe.Model
-}
-
-func rawQuestions(request []byte) int {
-	var probe struct {
+		Model     string                     `json:"model"`
+		Assets    map[string]struct{}        `json:"assets"`
 		Questions map[string]json.RawMessage `json:"questions"`
 	}
 
-	if err := json.Unmarshal(request, &probe); err != nil {
-		return 0
+	// A type error still fills every field it did not reach, so a body with one odd field keeps
+	// its model and question count, as the separate probes this replaces did.
+	var typeErr *json.UnmarshalTypeError
+	if err := json.Unmarshal(request, &probe); err != nil && !errors.As(err, &typeErr) {
+		return rawRequest{}
 	}
 
-	return len(probe.Questions)
+	read := rawRequest{model: probe.Model, questions: len(probe.Questions), needsImages: len(probe.Assets) > 0}
+
+	for _, raw := range probe.Questions {
+		var question struct {
+			Type string `json:"type"`
+		}
+
+		if json.Unmarshal(raw, &question) == nil && question.Type == "box" {
+			read.needsImages = true
+			read.boxed = true
+		}
+	}
+
+	return read
+}
+
+type rawRequest struct {
+	model       string
+	questions   int
+	needsImages bool
+	boxed       bool
 }

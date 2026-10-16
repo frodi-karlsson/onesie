@@ -504,6 +504,17 @@ func TestOpenOut(t *testing.T) {
 			wantErr:     changed,
 		},
 		{
+			name:        "should refuse to resume when --image-field was added",
+			existing:    "keep me\n",
+			sidecar:     matching,
+			args:        []string{"is this urgent", "-i", "jsonl", "--image-field", "photo", "--resume"},
+			stdin:       input,
+			wantCode:    ExitUsage,
+			wantFile:    "keep me\n",
+			wantSidecar: matching,
+			wantErr:     changed,
+		},
+		{
 			name:        "should refuse to resume when the default model changed",
 			existing:    "keep me\n",
 			sidecar:     matching,

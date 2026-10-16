@@ -210,6 +210,12 @@ func (c *checker) fieldType(q plan.Question, n *pathNode) (valueType, int, bool)
 	}
 
 	if !f.available(q) {
+		// A box takes no policy flag, so a message about one it lacks would send the reader to a
+		// flag that is refused.
+		if q.Shape == plan.Box {
+			return c.absent(q, f.name)
+		}
+
 		return c.unavailable(q, f)
 	}
 
@@ -335,6 +341,8 @@ func shapeWord(shape plan.Shape) string {
 		return "pick"
 	case plan.Rate:
 		return "rate"
+	case plan.Box:
+		return "box"
 	default:
 		return "yes/no"
 	}

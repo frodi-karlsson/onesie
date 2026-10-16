@@ -1,6 +1,7 @@
 package mock
 
 import (
+	"encoding/json"
 	"math"
 	"strings"
 	"testing"
@@ -281,4 +282,51 @@ func TestEntryKey(t *testing.T) {
 			keys[key(id)] = id
 		}
 	})
+}
+
+func TestBoxAnswer(t *testing.T) {
+	t.Parallel()
+
+	n := func(text string) json.Number { return json.Number(text) }
+	edges := func(left, top, right, bottom string) map[string]any {
+		return map[string]any{"left": n(left), "top": n(top), "right": n(right), "bottom": n(bottom)}
+	}
+
+	tests := []struct {
+		name           string
+		given          any
+		wantConfidence float64
+		wantErr        string
+	}{
+		{name: "should read a box answer", given: map[string]any{"left": n("0.44"), "top": n("0.25"), "right": n("0.84"), "bottom": n("0.82"), "confidence": n("0.92")}, wantConfidence: 0.92},
+		{name: "should default a box confidence to 1", given: edges("0.1", "0.1", "0.2", "0.2"), wantConfidence: 1},
+		{name: "should refuse a bare number for a box", given: n("0.5"), wantErr: "which is not a box"},
+		{name: "should refuse a box missing an edge", given: map[string]any{"left": n("0.1"), "top": n("0.1"), "right": n("0.2")}, wantErr: "has no 'bottom'"},
+		{name: "should refuse a box with value", given: map[string]any{"value": n("1"), "left": n("0.1"), "top": n("0.1"), "right": n("0.2"), "bottom": n("0.2")}, wantErr: "carries the key 'value'"},
+		{name: "should refuse a box whose left is right of its right", given: edges("0.5", "0.1", "0.2", "0.2"), wantErr: "left below right"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := boxAnswer(tc.given)
+			if tc.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+					t.Fatalf("error = %v, want %q", err, tc.wantErr)
+				}
+
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			box, ok := got.(*onesie.BoxAnswer)
+			if !ok || box.Confidence != tc.wantConfidence {
+				t.Errorf("answer = %+v, want a box with confidence %v", got, tc.wantConfidence)
+			}
+		})
+	}
 }

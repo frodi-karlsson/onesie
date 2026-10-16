@@ -119,6 +119,10 @@
             }
           ]
         },
+        "box": {
+          "description": "Makes this a box question, answered with the edges of what it finds in an image.",
+          "const": true
+        },
         "threshold": {
           "description": "The yes probability a yes/no answer must reach, between 0 and 1.",
           "allOf": [
@@ -147,12 +151,28 @@
       "allOf": [
         {
           "not": {
-            "required": [
-              "pick",
-              "rate"
+            "anyOf": [
+              {
+                "required": [
+                  "pick",
+                  "rate"
+                ]
+              },
+              {
+                "required": [
+                  "pick",
+                  "box"
+                ]
+              },
+              {
+                "required": [
+                  "rate",
+                  "box"
+                ]
+              }
             ]
           },
-          "errorMessage": "A question has pick or rate, not both."
+          "errorMessage": "A question has one of pick, rate or box."
         },
         {
           "if": {
@@ -165,6 +185,11 @@
               {
                 "required": [
                   "rate"
+                ]
+              },
+              {
+                "required": [
+                  "box"
                 ]
               }
             ]
@@ -199,7 +224,7 @@
                 }
               ]
             },
-            "errorMessage": "A pick or rate question takes no yes_means, no_means, true, false or threshold."
+            "errorMessage": "A pick, rate or box question takes no yes_means, no_means, true, false or threshold."
           },
           "else": {
             "properties": {
@@ -213,6 +238,30 @@
                 ]
               }
             }
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "box"
+            ]
+          },
+          "then": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "min_confidence"
+                  ]
+                },
+                {
+                  "required": [
+                    "fallback"
+                  ]
+                }
+              ]
+            },
+            "errorMessage": "A box question takes no min_confidence or fallback."
           }
         }
       ]

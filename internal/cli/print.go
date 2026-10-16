@@ -101,6 +101,7 @@ func printRequest(
 	questions []plan.Question,
 	source input.Source,
 	state any,
+	assets onesie.Assets,
 	model string,
 ) error {
 	req := onesie.Request{Model: model, Questions: wireAll(questions)}
@@ -108,7 +109,12 @@ func printRequest(
 	encode := onesie.MarshalQuestionsBody
 	if source != input.SourceNone {
 		req.State = state
+		req.Assets = assets
 		encode = onesie.MarshalBody
+
+		if validErr := onesie.ValidateRequest(req); validErr != nil {
+			return validErr
+		}
 	}
 
 	body, err := encode(req)
@@ -127,6 +133,7 @@ func streamRequests(
 	built *plan.Plan,
 	mapper *jq.Expr,
 	namer *jq.Expr,
+	images *imaging,
 	inputMode input.Mode,
 	flags *runFlags,
 	resume resumePlan,
@@ -160,7 +167,9 @@ func streamRequests(
 				return errorLine(bad), bad
 			}
 
-			sent, mapErr := mapped(ctx, mapper, rec.State, rec.Wire)
+			state, wire := images.wrapLine(rec.State, rec.Wire)
+
+			sent, mapErr := mapped(ctx, mapper, state, wire)
 			if interrupted(ctx) {
 				return nil, ctx.Err()
 			}
@@ -171,7 +180,21 @@ func streamRequests(
 				return errorLine(bad), bad
 			}
 
-			return requestLine(rec.Line, onesie.Request{State: sent, Model: model, Questions: questions})
+			sent, assets, imageErr := images.attach(sent)
+			if imageErr != nil {
+				bad := &input.LineError{Line: rec.Line, Err: imageErr}
+
+				return errorLine(bad), bad
+			}
+
+			req := onesie.Request{State: sent, Model: model, Questions: questions, Assets: assets}
+			if validErr := onesie.ValidateRequest(req); validErr != nil {
+				bad := &input.LineError{Line: rec.Line, Err: unprefixed(validErr)}
+
+				return errorLine(bad), bad
+			}
+
+			return requestLine(rec.Line, req)
 		},
 		Write: func(body []byte) error {
 			_, writeErr := fmt.Fprintln(out, string(body))

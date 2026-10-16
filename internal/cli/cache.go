@@ -44,7 +44,7 @@ func answersFor(
 	}
 
 	if !on {
-		return wrapped(settings, liveAnswers(settings)), nil
+		return wrapped(settings, liveAnswers(settings, flags)), nil
 	}
 
 	provider, err := resolveProvider(settings, flags)
@@ -102,7 +102,7 @@ func cachedAnswers(
 		}
 
 		return &cachedAnswerer{
-			next:      liveAnswerer{client: client},
+			next:      newLiveAnswerer(client, settings, flags),
 			open:      sync.OnceValues(func() (*cache.Store, error) { return openCache(settings) }),
 			model:     model,
 			provider:  provider,
@@ -183,7 +183,7 @@ func (a *cachedAnswerer) answer(ctx context.Context, key recordKey, req onesie.R
 		return a.next.answer(ctx, key, req)
 	}
 
-	id, err := requestKey(req.State, a.model, req.Questions, a.origin)
+	id, err := requestKey(onesie.Request{State: req.State, Model: a.model, Questions: req.Questions, Assets: req.Assets}, a.origin)
 	if err != nil {
 		return a.next.answer(ctx, key, req)
 	}

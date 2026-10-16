@@ -31,7 +31,12 @@ func withStats(
 		return err
 	}
 
-	summary := stats.snapshot(time.Duration(flags.timeout)*time.Second, now().Sub(started))
+	timeout := time.Duration(flags.timeout) * time.Second
+	if stats.sentImages() && !flags.timeoutSet {
+		timeout = imageAttemptTimeout
+	}
+
+	summary := stats.snapshot(timeout, now().Sub(started))
 
 	// A run that failed before it read a record or made an attempt never started, and a line of
 	// zeros beside the error reads as a run that was made and came back empty. An empty stream is
@@ -59,6 +64,7 @@ type collector struct {
 	mu sync.Mutex
 
 	mocked         bool
+	images         bool
 	records        int
 	skipped        int
 	dedups         int
@@ -229,6 +235,20 @@ func (c *collector) deduplicated(cause error) {
 	if cause != nil {
 		c.failed++
 	}
+}
+
+func (c *collector) imaged() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.images = true
+}
+
+func (c *collector) sentImages() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	return c.images
 }
 
 func (c *collector) skip(skips tally) {

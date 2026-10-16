@@ -296,6 +296,7 @@ func checkRequestMode(cfg Config) error {
 		{cfg.Replace, "onesie: --replace applies to -f, which -i request does not accept"},
 		{given(cfg, "pick"), "onesie: -i request carries its own questions. Drop --pick"},
 		{given(cfg, "rate"), "onesie: -i request carries its own questions. Drop --rate"},
+		{given(cfg, "box"), "onesie: -i request carries its own questions. Drop --box"},
 		{given(cfg, "desc"), "onesie: -i request carries its own questions. Drop --desc"},
 		{given(cfg, "sep"), "onesie: -i request carries its own questions. Drop --sep"},
 		{given(cfg, "threshold"), "onesie: --threshold does not apply to -i request, " +
@@ -307,6 +308,10 @@ func checkRequestMode(cfg Config) error {
 		{cfg.HasState, "onesie: --state does not apply to -i request, " +
 			"whose bodies carry their own state"},
 		{cfg.HasStateFile, "onesie: --state-file does not apply to -i request, " +
+			"whose bodies carry their own state"},
+		{cfg.HasImage, "onesie: --image does not apply to -i request, " +
+			"whose bodies carry their own state"},
+		{len(cfg.ImageFields) > 0, "onesie: --image-field does not apply to -i request, " +
 			"whose bodies carry their own state"},
 		{cfg.HasMap, "onesie: --map does not apply to -i request, " +
 			"whose bodies carry their own state"},
@@ -551,6 +556,10 @@ func checkStreaming(cfg Config) (string, error) {
 		return "", fmt.Errorf("onesie: --state-file cannot be combined with -i %s", cfg.InputName)
 	}
 
+	if cfg.LinesInput && len(cfg.ImageFields) > 1 {
+		return "", errors.New("onesie: -i lines takes one --image-field, since a line holds one path")
+	}
+
 	if cfg.Quiet {
 		return "", fmt.Errorf(
 			"onesie: -q reads one record. Drop -i %s or use -o values and filter the stream",
@@ -650,6 +659,7 @@ func checkSingleRecord(cfg Config) (string, error) {
 		{"--skip-blank", cfg.SkipBlank},
 		{"--no-dedup", cfg.NoDedup},
 		{"--id", cfg.HasID},
+		{"--image-field", len(cfg.ImageFields) > 0},
 	} {
 		if flag.set {
 			return "", fmt.Errorf(
@@ -784,6 +794,19 @@ func checkFallbackColumns(p *Plan, cfg Config) error {
 	}
 
 	for _, question := range p.Questions {
+		if question.Shape != Box {
+			continue
+		}
+
+		for _, column := range BoxColumns(question.ID) {
+			if slices.Contains(ids, column) {
+				return fmt.Errorf("onesie: question '%s' takes a column name box question '%s' writes. "+
+					"Rename one", column, question.ID)
+			}
+		}
+	}
+
+	for _, question := range p.Questions {
 		if question.Policy.Fallback == nil {
 			continue
 		}
@@ -817,6 +840,11 @@ func FallbackColumn(id string) string {
 	return id + "_fallback"
 }
 
+// BoxColumns are the four columns a box question writes under -o csv and tsv, in place of its own.
+func BoxColumns(id string) []string {
+	return []string{id + "_left", id + "_top", id + "_right", id + "_bottom"}
+}
+
 func checkDuplicateIDs(p *Plan) error {
 	ids := make([]string, 0, len(p.Questions))
 	for _, question := range p.Questions {
@@ -843,7 +871,12 @@ func checkQuestion(q *Question) (string, error) {
 		return "", err
 	}
 
-	if len(q.Options) > 0 && len(q.Levels) > 0 {
+	if shapes := countTrue(len(q.Options) > 0, len(q.Levels) > 0, q.Boxed); shapes > 1 {
+		if q.Boxed {
+			return "", errors.New(
+				"onesie: --box, --pick and --rate are mutually exclusive. A question is one of them")
+		}
+
 		return "", errors.New(
 			"onesie: --pick and --rate are mutually exclusive. A question is one or the other")
 	}
@@ -853,6 +886,8 @@ func checkQuestion(q *Question) (string, error) {
 		return checkPick(q)
 	case Rate:
 		return "", checkRate(q)
+	case Box:
+		return "", checkBox(q)
 	default:
 		return "", checkNoul(q)
 	}
@@ -1052,6 +1087,41 @@ func checkNoul(q *Question) error {
 	return checkPolicy(q, true)
 }
 
+func checkBox(q *Question) error {
+	if len(q.DescOrder) > 0 {
+		return fmt.Errorf(
+			"onesie: --desc does not apply to box question '%s', which has no options", q.ID)
+	}
+
+	for _, flag := range []struct {
+		name string
+		set  bool
+	}{
+		{"--threshold", q.Policy.Threshold != nil},
+		{"--min-confidence", q.Policy.MinConfidence != nil},
+		{"--fallback", q.Policy.Fallback != nil},
+	} {
+		if flag.set {
+			return fmt.Errorf("onesie: %s does not apply to box question '%s'. Gate a box with %s",
+				Spelling(q.Origin, flag.name), q.ID, Spelling(q.Origin, "--assert"))
+		}
+	}
+
+	return nil
+}
+
+func countTrue(conditions ...bool) int {
+	count := 0
+
+	for _, condition := range conditions {
+		if condition {
+			count++
+		}
+	}
+
+	return count
+}
+
 func checkPolicy(q *Question, yesNo bool) error {
 	policy := q.Policy
 	threshold := Spelling(q.Origin, "--threshold")
@@ -1158,6 +1228,12 @@ func checkSingle(p *Plan, cfg Config) error {
 	}
 
 	only := p.Questions[0]
+	if quietGate && only.Shape == Box {
+		return fmt.Errorf(
+			"onesie: -q on '%s' needs %s. A box has no policy that could fail it",
+			only.ID, Spelling(only.Origin, "--assert"))
+	}
+
 	if quietGate && only.Shape != Noul && only.Policy.MinConfidence == nil {
 		return fmt.Errorf(
 			"onesie: -q on '%s' needs %s and %s, or --assert. Without one the exit code is always 0",
@@ -1188,6 +1264,12 @@ type Config struct {
 	Output       string
 	HasState     bool
 	HasStateFile bool
+	// HasImage records --image, which is a state source of its own.
+	HasImage bool
+	// ImageFields are the --image-field names, each a key whose value is an image path.
+	ImageFields []string
+	// LinesInput is -i lines, where a record is one line and so holds one image path.
+	LinesInput bool
 	// HasMap records that --map was given, which chooses the state from each record.
 	HasMap bool
 	// HasID records that --id was given, which names each record of a stream. Its expression runs

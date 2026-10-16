@@ -8,6 +8,7 @@ import (
 	"maps"
 	"math"
 	"net/http"
+	"slices"
 	"sort"
 	"strconv"
 
@@ -37,6 +38,8 @@ func Normalize(q plan.Question, raw onesie.Answer) (*Answer, error) {
 		return normalizeChoice(q, typed), nil
 	case *onesie.ScoreAnswer:
 		return normalizeScore(q, typed), nil
+	case *onesie.BoxAnswer:
+		return normalizeBox(q, typed)
 	default:
 		return nil, unusable("onesie: question '%s' returned an unknown answer type '%s'",
 			q.ID, raw.Kind())
@@ -56,6 +59,8 @@ func wireKind(shape plan.Shape) string {
 		return "choice"
 	case plan.Rate:
 		return "score"
+	case plan.Box:
+		return "box"
 	default:
 		return "noul"
 	}
@@ -159,12 +164,64 @@ func normalizeScore(q plan.Question, raw *onesie.ScoreAnswer) *Answer {
 	return out
 }
 
+func normalizeBox(q plan.Question, raw *onesie.BoxAnswer) (*Answer, error) {
+	edges := raw.Edges
+	values := []float64{edges.Left, edges.Top, edges.Right, edges.Bottom, raw.Confidence}
+
+	if slices.ContainsFunc(values, func(v float64) bool { return math.IsNaN(v) || v < 0 || v > 1 }) {
+		return nil, unusable("onesie: box question '%s' has an edge or a confidence outside 0 to 1", q.ID)
+	}
+
+	if edges.Left >= edges.Right || edges.Top >= edges.Bottom {
+		return nil, unusable("onesie: box question '%s' has a left edge not left of its right edge, "+
+			"or a top edge not above its bottom edge", q.ID)
+	}
+
+	confidence := raw.Confidence
+
+	return &Answer{
+		Left: &edges.Left, Top: &edges.Top, Right: &edges.Right, Bottom: &edges.Bottom,
+		Confidence: &confidence,
+	}, nil
+}
+
+// Box reports the answer's edges when it answers a box question.
+func (a *Answer) Box() (Edges, bool) {
+	if a.Left == nil || a.Top == nil || a.Right == nil || a.Bottom == nil {
+		return Edges{}, false
+	}
+
+	return Edges{Left: *a.Left, Top: *a.Top, Right: *a.Right, Bottom: *a.Bottom}, true
+}
+
+// Edges is a box answer's four edges in the order every output mode writes them.
+type Edges struct {
+	Left   float64 `json:"left"`
+	Top    float64 `json:"top"`
+	Right  float64 `json:"right"`
+	Bottom float64 `json:"bottom"`
+}
+
+// String writes the edges for a person, as the table does.
+func (e Edges) String() string {
+	return fmt.Sprintf("left %s  top %s  right %s  bottom %s",
+		edgeText(e.Left), edgeText(e.Top), edgeText(e.Right), edgeText(e.Bottom))
+}
+
+func edgeText(value float64) string {
+	return strconv.FormatFloat(value, 'f', -1, 64)
+}
+
 // Answer is the normalized shape for one question. Absent fields are omitted, which is what makes
 // a yes/no answer a bare value rather than a mostly empty object.
 type Answer struct {
 	Value      any               `json:"value,omitempty"`
 	Score      *float64          `json:"score,omitempty"`
 	Norm       *float64          `json:"norm,omitempty"`
+	Left       *float64          `json:"left,omitempty"`
+	Top        *float64          `json:"top,omitempty"`
+	Right      *float64          `json:"right,omitempty"`
+	Bottom     *float64          `json:"bottom,omitempty"`
 	Confidence *float64          `json:"confidence,omitempty"`
 	P          *Probabilities    `json:"p,omitempty"`
 	Legend     map[string]string `json:"legend,omitempty"`

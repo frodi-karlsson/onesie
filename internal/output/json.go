@@ -214,6 +214,10 @@ func scalar(a *Answer) any {
 		return a.Decision
 	}
 
+	if edges, isBox := a.Box(); isBox {
+		return edges
+	}
+
 	return a.Value
 }
 

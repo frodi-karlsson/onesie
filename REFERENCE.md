@@ -38,6 +38,13 @@ prints the built in limits.
   error says `flags go before --`.
 - `--desc KEY=TEXT` describes one option, one level, or `yes` or `no`, which steers the answer. A
   rate needs every level described, or none.
+- `--box` makes a question a box, answered with `left`, `top`, `right` and `bottom`, each a fraction
+  of the image from its top left corner, and a `confidence`. It needs an image, as in Images below,
+  and a model that serves it, which is `jev-preview` until `jev-latest` moves. It takes no value and
+  no `--desc`, `--threshold`, `--min-confidence` or `--fallback`. `-r` prints the four edges in that
+  order, and `-o csv` writes them as four columns, `ID_left`, `ID_top`, `ID_right` and `ID_bottom`.
+  A box always returns a box, even when the target is not there, so pair it with a yes or no
+  question that asks whether it is.
 
 ## Gating
 
@@ -55,6 +62,8 @@ onesie --ask urgent='is this urgent' --assert 'urgnet.value < 0.5'
   exit 7, and `"abstain": true` in place of `"assert": false`.
 - `--abstain-if` and `--stop-on-assert` both need an assertion, from `--assert` or from the
   question file, and each exits 2 without one.
+- A box is gated on its edges or its confidence, as in `mug.confidence >= 0.6`, since it carries no
+  policy. `-q` on a box needs `--assert`.
 - `min`, `max`, `sum` and `avg` take numbers and nest. `==` rarely matches a `sum` or `avg`, so use
   `>=` or `<=`. There are no arithmetic operators, so weighting answers is a job for `jq`.
 - A question file carries the same expressions as `assert` and `abstain_if`. `--print-request`
@@ -258,8 +267,8 @@ onesie calibrate -f shell-safety -i jsonl --map .command --id .id \
   lookup. Ids match by their text, so `7`, `7.0` and `"7"` are one id in jsonl.
 - `--out` writes to a file with a fingerprint beside it, and a lock so two runs cannot share it. The
   fingerprint covers the questions and their policy flags, the provider, the model, the input and
-  output modes, `--map`, `--id`, `--merge-key`, `--assert` and `--abstain-if`. It covers
-  `--skip-blank` too when a resume counts lines, which is without `--id` on any input but csv and
+  output modes, `--map`, `--id`, `--merge-key`, `--assert`, `--abstain-if`, `--image`,
+  `--image-field` and a body's images. It covers `--skip-blank` too when a resume counts lines, which is without `--id` on any input but csv and
   tsv.
 - `--resume` with `--id` skips answered records and asks the rest, failed ones included. A finished
   run rewrites the file in input order and keeps answered ids the input no longer has, unless
@@ -311,6 +320,44 @@ onesie calibrate -f shell-safety -i jsonl --map .command --id .id \
   A run that ends early, by an interrupt, an abort or a stop flag, keeps the rows that finished, and
   its summary reads `stopped after` the records it counted.
 
+## Images
+
+```sh
+onesie --image photo=examples/images/square.png 'is there a red square in `photo`'
+onesie --image photo=examples/images/square.png --ask where='the red square in `photo`' --box -m jev-preview -r
+ls photos/*.jpg | onesie -i lines --image-field photo 'is there a dog in `photo`' -o values
+```
+
+- `--image NAME=PATH` puts a PNG or JPEG in the state under `NAME`, and a question names it in
+  backticks. It is repeatable.
+- stdin is never read beside `--image`, so text joins it only from `--state`, `--state-file` or
+  `--state -`. Text goes under the key `text`, a JSON object gains the image keys, and a key clash or
+  an array state exits 2.
+- `--image-field NAME` reads each record's `NAME` as a path, in a stream or in `calibrate`. Under
+  `-i lines` the line is the path, and only one `--image-field` is taken. A missing or unreadable
+  file is an input error line, and the run goes on and exits 6. `--image` in a stream adds the same
+  image to every record.
+- onesie checks the format, the file size and the sides of each image before any request, and
+  `onesie -V` lists the limits as `max-image-bytes`, `image-side`, `image-pixels` and
+  `max-body-bytes`. An `--image` refused there exits 2 and names the limit, and an `--image-field`
+  one is an input error line. The API ignores EXIF
+  rotation, so rotate a phone photo upright first.
+- Each image is sent under the name `image-` and part of a sha256 of its bytes, so the cache,
+  deduplication and `--resume` see the same file as the same record.
+- A request with an image waits up to 60 seconds per attempt, unless `--timeout` says otherwise. At
+  most `-j` records hold image bytes at once, about four times the body each while it is checked and
+  sent, so lower `-j` for large images.
+- `--map` runs before the images are attached, so it sees the text state and the paths, never the
+  references. With `--image` and no text there is nothing to map.
+- In a stream, `--merge` writes the input record as it was read, so an `--image-field` holds its
+  path. For one record whose state was built from images, it writes that state, references included.
+- `--print-request` writes each image as base64 under `assets`, and `-i request` reads lines up to
+  `max-request-line-bytes`, so a printed body replays. `-i request` sends the images header itself
+  for a body with assets or a box question.
+- `--image`, `--image-field` and `--box` are refused under `-i request`, whose bodies carry their own
+  state and questions.
+- Images and Box are experimental on TypeSafe's side, and less reliable than text.
+
 ## Caching
 
 ```sh
@@ -327,7 +374,7 @@ values the flag takes, such as `1`, `true`, `0` and `false`, and anything else e
 again.
 
 - The key is a sha256 of the exact request body, which holds the state, the questions and the model
-  name, together with the provider and the base URL. `--timeout`, `--retries`, `--assert`,
+  name, together with the provider, the base URL and the bytes of each image. `--timeout`, `--retries`, `--assert`,
   `--abstain-if`, the policy flags and the output flags are left out, since none of them change the
   answer.
 - A hit prints what the live run printed, byte for byte, except that `--usage` reports
@@ -463,6 +510,7 @@ table, and `onesie calibrate --help` lists the codes calibrate uses.
 | `ONESIE_CACHE` | `1` turns the response cache on, as `--cache` |
 | `ONESIE_CACHE_DIR` | where the response cache lives |
 | `ONESIE_CACHE_TTL` | how long a cached answer for a model alias lives, `24h` unless set |
+| `ONESIE_LONG_CONTEXT` | `1` or `true` raises the context limits, as `--long-context` |
 
 ## More
 
@@ -493,7 +541,8 @@ table, and `onesie calibrate --help` lists the codes calibrate uses.
   such a body exits 2, naming both. `-i request` refuses both flags the same way, since each body
   there holds its own state. A stream and `calibrate` read their records from stdin as usual and
   send each one as its state, so they use the body only for its questions, and say on stderr that
-  its state is ignored.
+  its state is ignored. A body's `assets` are sent with it. When its state is ignored, an asset only
+  that state named is dropped, and the warning counts it.
 - `--print-schema` prints the JSON Schema for a question file. `schema/questions.json` in the
   repository is the same file, and `make schema` regenerates it. The first line `--print-questions`
   writes is `# yaml-language-server: $schema=URL`, which an editor running the YAML language server
@@ -507,5 +556,7 @@ table, and `onesie calibrate --help` lists the codes calibrate uses.
   with no `fallback`. onesie refuses such a file at run time when the flag is missing. The schema
   also leaves a `min_confidence` on a yes/no question and a partly described rate to onesie.
 - `--retries`, `--timeout` and `--max-retry-after` bound how long a call can take.
+- `--long-context`, or `ONESIE_LONG_CONTEXT=1`, raises the context limits to 262k tokens, which is
+  slower and less accurate. It is experimental on TypeSafe's side.
 - `onesie --help` lists every flag, and `onesie -V` prints the built in limits. `onesie help
   calibrate` prints a subcommand's help, and a topic that names no subcommand exits 2.

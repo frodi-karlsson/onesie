@@ -85,6 +85,10 @@ Exit 3 also covers these:
 | `--merge-key does not apply to` | `-o csv` and `-o tsv` put the answers in columns, so they refuse `--merge-key` even beside `--merge` |
 | `has the name of an output column` | under `--merge`, an input column clashes with a question id or the `error` column, or with the `assert` column under a gate. An input `id` column never clashes |
 | `model '...' not found` | the provider does not serve that model id. Try `--list-models` |
+| `each side must be`, `an image must be PNG or JPEG` or `an image is at most` | onesie refused an `--image` file before any request, naming the limit `onesie -V` lists. Resize it to at most 1568 pixels a side, or convert it to PNG or a smaller JPEG. An `--image-field` file is an error line instead |
+| `needs an image in the request` | a `--box` question was asked with no `--image` or `--image-field` to look in |
+| `A box question needs a model that serves it` | the model refused a `--box` question. Pass `-m jev-preview` |
+| `max_tokens_exceeded` | the state and questions are over the model's context limit. Trim the state with `--map`, or pass `--long-context`, which is slower and less accurate |
 
 Every flag and question error is caught before any network call. Reach for `--print-request` or
 `--print-questions` first and a typo costs nothing.

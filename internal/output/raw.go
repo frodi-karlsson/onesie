@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+
+	"github.com/frodi-karlsson/onesie/internal/answer"
 )
 
 func writeRaw(w io.Writer, rec Record) error {
@@ -26,6 +28,10 @@ func writeRaw(w io.Writer, rec Record) error {
 		return err
 	case float64:
 		_, err := fmt.Fprintf(w, "%g\n", typed)
+
+		return err
+	case answer.Edges:
+		_, err := fmt.Fprintf(w, "%g %g %g %g\n", typed.Left, typed.Top, typed.Right, typed.Bottom)
 
 		return err
 	default:

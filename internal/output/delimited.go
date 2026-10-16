@@ -38,6 +38,8 @@ type Delimited struct {
 type DelimitedOptions struct {
 	// IDs are the question ids, one column each, in question order.
 	IDs []string
+	// Boxes are the ids of box questions, each written as four columns in place of its own.
+	Boxes []string
 	// ID adds an id column ahead of the answers, for a run that names its records with --id.
 	ID bool
 	// Fallbacks are the ids of the questions that have a fallback. Each gets an ID_fallback column
@@ -71,7 +73,11 @@ func (d *Delimited) Write(rec Record, header []string, fields map[string]any) er
 	}
 
 	for _, id := range d.opts.IDs {
-		row = append(row, answerCell(rec, id))
+		if slices.Contains(d.opts.Boxes, id) {
+			row = append(row, boxCells(rec, id)...)
+		} else {
+			row = append(row, answerCell(rec, id))
+		}
 
 		if slices.Contains(d.opts.Fallbacks, id) {
 			row = append(row, fallbackCell(rec, id))
@@ -99,7 +105,11 @@ func (d *Delimited) start(header []string) error {
 	}
 
 	for _, id := range d.opts.IDs {
-		columns = append(columns, id)
+		if slices.Contains(d.opts.Boxes, id) {
+			columns = append(columns, plan.BoxColumns(id)...)
+		} else {
+			columns = append(columns, id)
+		}
 
 		if slices.Contains(d.opts.Fallbacks, id) {
 			columns = append(columns, plan.FallbackColumn(id))
@@ -160,6 +170,20 @@ func answerCell(rec Record, id string) string {
 	}
 
 	return ""
+}
+
+func boxCells(rec Record, id string) []string {
+	for _, named := range rec.Answers {
+		if named.ID != id || named.Answer == nil {
+			continue
+		}
+
+		if edges, isBox := named.Answer.Box(); isBox {
+			return []string{cell(edges.Left), cell(edges.Top), cell(edges.Right), cell(edges.Bottom)}
+		}
+	}
+
+	return []string{"", "", "", ""}
 }
 
 func fallbackCell(rec Record, id string) string {

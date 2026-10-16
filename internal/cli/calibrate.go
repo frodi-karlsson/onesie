@@ -120,13 +120,23 @@ func newCalibrateCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 				return cmd.Help()
 			}
 
+			flags.timeoutSet = cmd.Flags().Changed(flagTimeout)
+
 			return runCalibrate(cmd, settings, flags, *calib, recorder.Events(), positional)
 		},
 	}
 
-	for _, name := range []string{"ask", "pick", "rate", "desc", "sep"} {
+	for _, name := range []string{"ask", "pick", "rate", "box", "desc", "sep"} {
 		cmd.Flags().Var(recorder.Flag(name), name, groupFlagHelp[name])
 	}
+
+	// A recorded flag is a string, so without this --box would take the next argument as its value.
+	cmd.Flags().Lookup("box").NoOptDefVal = "true"
+
+	cmd.Flags().StringArrayVar(&flags.images, flagImage, nil,
+		"NAME=PATH, repeatable, puts a PNG or JPEG in every record's state under NAME. Experimental on TypeSafe's side")
+	cmd.Flags().StringArrayVar(&flags.imageFields, flagImageField, nil,
+		"repeatable, a state key whose value is a path to a PNG or JPEG, read per record. Experimental on TypeSafe's side")
 
 	for _, name := range []string{"threshold", "min-confidence", "fallback"} {
 		cmd.Flags().Var(recorder.Flag(name), name, "refused, "+refusedReasons[name])
@@ -174,6 +184,9 @@ func bindSharedFlags(cmd *cobra.Command, flags *runFlags) {
 		"jq expression run on each record, whose string or number result names it")
 	cmd.Flags().StringVarP(&flags.model, flagModel, "m", "", "model override")
 	cmd.Flags().StringVar(&flags.baseURL, flagBaseURL, "", "api root override")
+	cmd.Flags().BoolVar(&flags.longContext, flagLongContext, false,
+		"raise the context limits to 262k tokens, slower and less accurate. Also ONESIE_LONG_CONTEXT=1. "+
+			"Experimental on TypeSafe's side")
 	cmd.Flags().StringVarP(&flags.file, "file", "f", "",
 		"question file or request body, or the name of one saved in .onesie/questions or the config dir, "+
 			"or of a built-in starter set")
@@ -236,7 +249,8 @@ func runCalibrate(
 		return err
 	}
 
-	if warnErr := warnIgnoredBodyState(cmd.ErrOrStderr(), cfg, inv.loaded, "calibrate"); warnErr != nil {
+	if warnErr := warnIgnoredBodyState(
+		cmd.ErrOrStderr(), cfg, inv.loaded, "calibrate", inv.images, wireAll(inv.plan.Questions)); warnErr != nil {
 		return warnErr
 	}
 
@@ -445,6 +459,11 @@ func scopeOf(built *plan.Plan, specs []string) (calibrateScope, error) {
 			scope.skipped = append(scope.skipped, question.ID)
 
 			continue
+		}
+
+		if question.Shape == plan.Box {
+			return calibrateScope{}, fmt.Errorf(
+				"onesie: question '%s' is a box, and a box cannot be calibrated. Drop its --label", question.ID)
 		}
 
 		scored.Questions = append(scored.Questions, question)
