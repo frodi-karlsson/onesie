@@ -187,7 +187,7 @@ func run(
 	}
 
 	return withStats(cmd, settings.now, flags, func(stats *collector) error {
-		return ask(cmd, settings, built, resolved, sent, outputMode, flags, gate, abstain, stats, answers)
+		return ask(cmd, settings, built, resolved, sent, nil, outputMode, flags, gate, abstain, stats, answers)
 	})
 }
 
@@ -501,9 +501,12 @@ func stream(
 			group = nil
 		}
 
-		record, call, evalErr := askOnce(ctx, group, stats, sent, model, questions, salt,
+		var assets onesie.Assets
+
+		record, call, evalErr := askOnce(ctx, group, stats,
+			onesie.Request{State: sent, Model: model, Questions: questions, Assets: assets}, salt,
 			func() (output.Record, error) {
-				return evaluate(ctx, asker, key, built, model, questions, sent, flags.usage, stats)
+				return evaluate(ctx, asker, key, built, model, questions, sent, assets, flags.usage, stats)
 			})
 		if evalErr != nil {
 			// Returned before the gate is asked. A failed record reads as all zeros, so a gate such
@@ -848,6 +851,7 @@ func ask(
 	built *plan.Plan,
 	resolved input.Resolved,
 	sent any,
+	assets onesie.Assets,
 	outputMode output.Mode,
 	flags *runFlags,
 	gate *assert.Expr,
@@ -868,7 +872,7 @@ func ask(
 	}
 
 	record, err := evaluate(
-		cmd.Context(), asker, recordKey{position: 1, line: 1}, built, model, questions, sent, flags.usage, stats)
+		cmd.Context(), asker, recordKey{position: 1, line: 1}, built, model, questions, sent, assets, flags.usage, stats)
 	if halting(err) {
 		return err
 	}
@@ -1081,10 +1085,11 @@ func evaluate(
 	model string,
 	questions onesie.Questions,
 	state any,
+	assets onesie.Assets,
 	withUsage bool,
 	stats *collector,
 ) (output.Record, error) {
-	record, usage, cached, err := answered(ctx, asker, key, built, model, questions, state, withUsage)
+	record, usage, cached, err := answered(ctx, asker, key, built, model, questions, state, assets, withUsage)
 	if halting(err) {
 		// No request stood behind it, so it is a record and not a request, and no attempt ended.
 		stats.recordFailure(err, false, 0)
@@ -1121,13 +1126,20 @@ func answered(
 	model string,
 	questions onesie.Questions,
 	state any,
+	assets onesie.Assets,
 	withUsage bool,
 ) (output.Record, onesie.Usage, bool, error) {
-	got, err := asker.answer(ctx, key, onesie.Request{
-		State:     state,
-		Model:     built.Model,
-		Questions: questions,
-	})
+	req := onesie.Request{State: state, Model: built.Model, Questions: questions, Assets: assets}
+
+	// A mock answers without SystemOne, which validates every live request itself, so a mock run
+	// is checked here and refuses what the API would.
+	if model == mock.Model {
+		if err := onesie.ValidateRequest(req); err != nil {
+			return failureRecord(built, err), onesie.Usage{}, false, err
+		}
+	}
+
+	got, err := asker.answer(ctx, key, req)
 	if halting(err) {
 		return failureRecord(built, err), onesie.Usage{}, false, err
 	}

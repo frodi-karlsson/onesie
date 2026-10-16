@@ -288,7 +288,7 @@ func askLabelled(
 		Evaluate: func(ctx context.Context, rec labelledRecord) (askedLine, error) {
 			key := recordKey{position: rec.position, line: rec.line, id: rec.id}
 
-			record, evalErr := evaluate(ctx, asker, key, asked, run.model, questions, rec.sent, flags.usage, stats)
+			record, evalErr := evaluate(ctx, asker, key, asked, run.model, questions, rec.sent, nil, flags.usage, stats)
 			if evalErr == nil {
 				if _, evalErr = casesOf(scored, rec, record); evalErr != nil {
 					// The tokens were spent, so the failed line carries them into the usage total.

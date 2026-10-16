@@ -224,7 +224,7 @@ func TestAnswered(t *testing.T) {
 		}}
 
 		record, _, _, err := answered(t.Context(), asker, recordKey{position: 1, line: 1}, built, "m",
-			wireAll(built.Questions), "x", true)
+			wireAll(built.Questions), "x", nil, true)
 		if err != nil {
 			t.Fatalf("answered: %v", err)
 		}

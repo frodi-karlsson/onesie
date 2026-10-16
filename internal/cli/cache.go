@@ -183,7 +183,7 @@ func (a *cachedAnswerer) answer(ctx context.Context, key recordKey, req onesie.R
 		return a.next.answer(ctx, key, req)
 	}
 
-	id, err := requestKey(req.State, a.model, req.Questions, a.origin)
+	id, err := requestKey(onesie.Request{State: req.State, Model: a.model, Questions: req.Questions, Assets: req.Assets}, a.origin)
 	if err != nil {
 		return a.next.answer(ctx, key, req)
 	}
