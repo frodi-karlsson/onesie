@@ -32,6 +32,23 @@ func TestLoadBody(t *testing.T) {
 		check   func(t *testing.T, f *qfile.File)
 	}{
 		{
+			name: "should keep a body's assets",
+			doc: `{"state":{"photo":"img"},"questions":{"q":{"type":"noul","instructions":"x"}},` +
+				`"assets":{"img":{"type":"image","format":"png","data_base64":"AQ=="}}}`,
+			check: func(t *testing.T, file *qfile.File) {
+				t.Helper()
+
+				if got := file.Assets["img"]; got.Format != "png" || len(got.Data) != 1 || got.Data[0] != 1 {
+					t.Errorf("assets = %+v, want img as one png byte", file.Assets)
+				}
+			},
+		},
+		{
+			name:    "should refuse an asset that is not base64",
+			doc:     `{"questions":{"q":{"type":"noul","instructions":"x"}},"assets":{"img":{"format":"png","data_base64":"%%"}}}`,
+			wantErr: "onesie: asset 'img' in a request body",
+		},
+		{
 			name: "should report itself as a body",
 			doc:  full,
 			check: func(t *testing.T, f *qfile.File) {

@@ -236,7 +236,8 @@ func runCalibrate(
 		return err
 	}
 
-	if warnErr := warnIgnoredBodyState(cmd.ErrOrStderr(), cfg, inv.loaded, "calibrate"); warnErr != nil {
+	if warnErr := warnIgnoredBodyState(
+		cmd.ErrOrStderr(), cfg, inv.loaded, "calibrate", inv.images, wireAll(inv.plan.Questions)); warnErr != nil {
 		return warnErr
 	}
 

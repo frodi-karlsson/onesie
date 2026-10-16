@@ -139,7 +139,8 @@ func run(
 	}
 
 	if inputMode.Streaming() {
-		if warnErr := warnIgnoredBodyState(cmd.ErrOrStderr(), cfg, loaded, "a stream"); warnErr != nil {
+		if warnErr := warnIgnoredBodyState(
+			cmd.ErrOrStderr(), cfg, loaded, "a stream", inv.images, wireAll(built.Questions)); warnErr != nil {
 			return warnErr
 		}
 
@@ -237,6 +238,8 @@ func checkBodyState(cfg plan.Config, loaded *qfile.File) error {
 		flag = "--" + flagState
 	case cfg.HasStateFile:
 		flag = "--" + flagStateFile
+	case cfg.HasImage:
+		flag = "--image"
 	default:
 		return nil
 	}
@@ -244,13 +247,26 @@ func checkBodyState(cfg plan.Config, loaded *qfile.File) error {
 	return fmt.Errorf("onesie: %s and the state in %s both give a state. Drop one", flag, cfg.FileName)
 }
 
-func warnIgnoredBodyState(w io.Writer, cfg plan.Config, loaded *qfile.File, sender string) error {
+func warnIgnoredBodyState(
+	w io.Writer, cfg plan.Config, loaded *qfile.File, sender string, images *imaging, questions onesie.Questions,
+) error {
 	if loaded == nil || !loaded.HasState {
 		return nil
 	}
 
-	_, err := fmt.Fprintf(w,
-		"warning: ignoring the state in %s, since %s sends each record as its state\n", cfg.FileName, sender)
+	dropped, err := images.dropUnreferenced(questions)
+	if err != nil {
+		return err
+	}
+
+	note := ""
+	if dropped > 0 {
+		note = fmt.Sprintf(" and its %s", plural(dropped, "asset"))
+	}
+
+	_, err = fmt.Fprintf(w,
+		"warning: ignoring the state in %s%s, since %s sends each record as its state\n",
+		cfg.FileName, note, sender)
 
 	return err
 }

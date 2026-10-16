@@ -19,8 +19,11 @@ const (
 	textKey        = "text"
 )
 
-func newImaging(specs, fields []string, lines bool, readFile func(string) ([]byte, error)) (*imaging, error) {
+func newImaging(
+	specs, fields []string, lines bool, readFile func(string) ([]byte, error), body onesie.Assets,
+) (*imaging, error) {
 	m := &imaging{fields: fields, lines: lines, readFile: readFile, fixed: map[string]string{}, assets: onesie.Assets{}}
+	maps.Copy(m.assets, body)
 
 	for _, spec := range specs {
 		name, path, ok := strings.Cut(spec, "=")
@@ -125,6 +128,25 @@ func (m *imaging) attach(state any) (any, onesie.Assets, error) {
 	}
 
 	return json.RawMessage(encoded), assets, nil
+}
+
+func (m *imaging) dropUnreferenced(questions onesie.Questions) (int, error) {
+	if m == nil {
+		return 0, nil
+	}
+
+	body := m.bodyAssets()
+
+	unreferenced, err := onesie.UnreferencedAssets(onesie.Request{Questions: questions, Assets: body})
+	if err != nil {
+		return 0, err
+	}
+
+	for _, ref := range unreferenced {
+		delete(m.assets, ref)
+	}
+
+	return len(unreferenced), nil
 }
 
 func (m *imaging) bodyAssets() onesie.Assets {

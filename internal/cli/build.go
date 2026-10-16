@@ -6,6 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/argv"
 	"github.com/frodi-karlsson/onesie/internal/assert"
 	"github.com/frodi-karlsson/onesie/internal/input"
@@ -184,7 +185,12 @@ func build(
 		return nil, warnings, err
 	}
 
-	images, err := newImaging(flags.images, flags.imageFields, cfg.LinesInput, settings.readFile)
+	var bodyAssets onesie.Assets
+	if loaded != nil {
+		bodyAssets = loaded.Assets
+	}
+
+	images, err := newImaging(flags.images, flags.imageFields, cfg.LinesInput, settings.readFile, bodyAssets)
 	if err != nil {
 		return nil, warnings, err
 	}

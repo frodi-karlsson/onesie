@@ -1,10 +1,13 @@
 package qfile
 
 import (
+	"encoding/base64"
+	"errors"
 	"fmt"
 
 	"github.com/goccy/go-yaml"
 
+	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
@@ -50,6 +53,15 @@ func loadBody(top yaml.MapSlice) (*File, error) {
 		file.StateWire = wire
 	}
 
+	if value, found := lookup(top, "assets"); found {
+		assets, err := readAssets(value)
+		if err != nil {
+			return nil, err
+		}
+
+		file.Assets = assets
+	}
+
 	raw, _ := lookup(top, "questions")
 
 	questions, ok := mapping(raw)
@@ -69,6 +81,45 @@ func loadBody(top yaml.MapSlice) (*File, error) {
 	}
 
 	return file, nil
+}
+
+func readAssets(value any) (onesie.Assets, error) {
+	entries, ok := mapping(value)
+	if !ok {
+		return nil, errors.New("onesie: 'assets' in a request body must be a mapping")
+	}
+
+	assets := make(onesie.Assets, len(entries))
+
+	for _, entry := range entries {
+		ref := fmt.Sprintf("%v", entry.Key)
+
+		fields, ok := mapping(entry.Value)
+		if !ok {
+			return nil, fmt.Errorf("onesie: asset '%s' in a request body must be a mapping", ref)
+		}
+
+		format, _ := lookup(fields, "format")
+
+		formatText, isFormat := format.(string)
+		if !isFormat {
+			return nil, fmt.Errorf("onesie: asset '%s' in a request body needs a format, png or jpg", ref)
+		}
+
+		encoded, _ := lookup(fields, "data_base64")
+
+		text, isText := encoded.(string)
+
+		data, err := base64.StdEncoding.DecodeString(text)
+		if !isText || err != nil {
+			return nil, fmt.Errorf(
+				"onesie: asset '%s' in a request body needs data_base64 as standard base64", ref)
+		}
+
+		assets[ref] = onesie.Image{Format: formatText, Data: data}
+	}
+
+	return assets, nil
 }
 
 func buildBodyQuestion(id string, value any) (plan.Question, error) {

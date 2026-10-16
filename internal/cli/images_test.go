@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"image"
@@ -112,7 +113,7 @@ func TestImagingAttach(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			m, err := newImaging(tc.images, tc.fields, false, os.ReadFile)
+			m, err := newImaging(tc.images, tc.fields, false, os.ReadFile, nil)
 			if err != nil {
 				if tc.wantErr == "" || !strings.Contains(err.Error(), tc.wantErr) {
 					t.Fatalf("newImaging error = %v, want %q", err, tc.wantErr)
@@ -173,7 +174,7 @@ func TestNewImaging(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			_, err := newImaging(tc.images, nil, false, os.ReadFile)
+			_, err := newImaging(tc.images, nil, false, os.ReadFile, nil)
 			if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
 				t.Fatalf("error = %v, want %q", err, tc.wantErr)
 			}
@@ -187,7 +188,7 @@ func TestImagingWrapLine(t *testing.T) {
 	t.Run("should wrap a line as the field's path under -i lines", func(t *testing.T) {
 		t.Parallel()
 
-		m, err := newImaging(nil, []string{"photo"}, true, os.ReadFile)
+		m, err := newImaging(nil, []string{"photo"}, true, os.ReadFile, nil)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -208,6 +209,11 @@ func TestRun(t *testing.T) {
 	square := writeImage(t, dir, "square.png", squarePNG(t))
 	gif := writeImage(t, dir, "x.gif", []byte("GIF89a"))
 	ref := refOf(t, squarePNG(t))
+	encoded := base64.StdEncoding.EncodeToString(emptyPNG(t))
+	asset := `"assets":{"body-img":{"type":"image","format":"png","data_base64":"` + encoded + `"}}`
+	question := `"questions":{"red":{"type":"noul","instructions":"is there a red square in ` + "`photo`" + `"}}`
+	withState := writeImage(t, dir, "with-state.json", []byte(`{"state":{"photo":"body-img"},`+question+`,`+asset+`}`))
+	stateless := writeImage(t, dir, "stateless.json", []byte(`{`+question+`,`+asset+`}`))
 
 	tests := []struct {
 		name         string
@@ -258,6 +264,35 @@ func TestRun(t *testing.T) {
 			args:     []string{"--image", "photo=" + gif, "q"},
 			wantCode: ExitUsage,
 			wantErr:  "onesie: --image photo: ",
+		},
+		{
+			name:         "should send a body's state and assets",
+			args:         []string{"-f", withState, "-o", "json"},
+			wantCode:     ExitOK,
+			wantRequests: 1,
+			wantBody:     []string{`"state":{"photo":"body-img"}`, `"assets":{"body-img":`},
+			wantHeader:   map[string]string{onesie.HeaderImages: "true"},
+		},
+		{
+			name:     "should refuse --image beside a body that holds a state",
+			args:     []string{"-f", withState, "--image", "photo=" + square},
+			wantCode: ExitUsage,
+			wantErr:  "onesie: --image and the state in",
+		},
+		{
+			name:         "should drop an asset only the ignored state referenced, and say so",
+			args:         []string{"-f", withState, "-i", "lines", "-o", "json"},
+			stdin:        "one record\n",
+			wantCode:     ExitOK,
+			wantRequests: 1,
+			noBody:       []string{`"assets"`},
+			wantErr:      "and its 1 asset",
+		},
+		{
+			name:     "should refuse a stateless body whose asset nothing references",
+			args:     []string{"-f", stateless, "--image", "photo=" + square, "-o", "json"},
+			wantCode: ExitUsage,
+			wantErr:  "asset 'body-img' is not referenced",
 		},
 	}
 

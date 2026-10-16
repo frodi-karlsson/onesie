@@ -15,6 +15,7 @@ import (
 	"github.com/goccy/go-yaml/parser"
 	"github.com/goccy/go-yaml/token"
 
+	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/limits"
 	"github.com/frodi-karlsson/onesie/internal/plan"
 )
@@ -64,6 +65,8 @@ type File struct {
 	// StateWire is the body's state as ordered JSON, which is what reaches the API. State is the
 	// parsed form, for the checks that need a Go value.
 	StateWire json.RawMessage
+	// Assets are the body's images, keyed by the references its state and questions use.
+	Assets onesie.Assets
 }
 
 // DecodeOrdered parses YAML or JSON keeping every mapping as an ordered yaml.MapSlice and a JSON
