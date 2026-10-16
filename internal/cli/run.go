@@ -68,7 +68,9 @@ func run(
 
 		// Each body names its own model, and onesie sends it as written, so the fingerprint holds
 		// no model for the default to fill.
-		if bindErr := bindOut(out, settings, flags, nil, fingerprintInputs{input: inputMode.String()}); bindErr != nil {
+		if bindErr := bindOut(out, settings, flags, nil, fingerprintInputs{
+			input: inputMode.String(), longContext: longContext(settings, flags),
+		}); bindErr != nil {
 			return bindErr
 		}
 
@@ -135,7 +137,7 @@ func run(
 	// writes, since a refused resume must leave the file as it was.
 	bindErr := bindOut(out, settings, flags, built.Questions, fingerprintInputs{
 		model: model, output: outputMode.String(), input: inputMode.String(), assert: gate.Source(),
-		abstainIf: abstain.Source(), images: inv.images.fingerprint(),
+		abstainIf: abstain.Source(), images: inv.images.fingerprint(), longContext: built.LongContext,
 	})
 	if bindErr != nil {
 		return bindErr

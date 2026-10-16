@@ -62,6 +62,7 @@ func calibrateRun(
 	// with -o json and the same questions reads the file as its own.
 	inputs := fingerprintInputs{
 		model: model, output: output.JSON.String(), input: inputMode.String(), images: inv.images.fingerprint(),
+		longContext: inv.plan.LongContext,
 	}
 
 	asked, err := askedPlan(settings, flags, out, scope, inputs)

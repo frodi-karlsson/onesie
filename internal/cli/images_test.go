@@ -14,6 +14,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -571,6 +572,53 @@ func TestRun(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("should refuse to resume once long context is added", func(t *testing.T) {
+		t.Parallel()
+
+		for _, mode := range []struct {
+			name  string
+			args  []string
+			stdin string
+		}{
+			{name: "should refuse a stream", args: []string{"-i", "lines", "q"}, stdin: "a\n"},
+			{
+				name:  "should refuse -i request",
+				args:  []string{"-i", "request"},
+				stdin: `{"state":"s","model":"m","questions":{"answer":{"type":"noul","instructions":"q"}}}` + "\n",
+			},
+			{
+				name: "should refuse calibrate",
+				args: []string{
+					"calibrate", "--ask", "red=q", "-i", "jsonl", "--map", ".t", "--label", "red=.y", "--id", ".id",
+				},
+				stdin: `{"id":"a","t":"x","y":true}` + "\n" + `{"id":"b","t":"z","y":false}` + "\n",
+			},
+		} {
+			t.Run(mode.name, func(t *testing.T) {
+				t.Parallel()
+
+				out := filepath.Join(t.TempDir(), "out.jsonl")
+				run := func(extra ...string) recordedRun {
+					return runImaged(t, append(append(slices.Clone(mode.args), "--out", out), extra...),
+						mode.stdin, noulAnswer("answer", "red"), nil)
+				}
+
+				if first := run(); first.code != ExitOK {
+					t.Fatalf("first run = %d\n%s", first.code, first.stderr)
+				}
+
+				if same := run("--resume"); same.code != ExitOK {
+					t.Fatalf("a resume with the same flags = %d\n%s", same.code, same.stderr)
+				}
+
+				added := run("--resume", "--long-context")
+				if added.code != ExitUsage || !strings.Contains(added.stderr, "changed") {
+					t.Errorf("a resume adding --long-context = %d\n%s, want 2 and changed", added.code, added.stderr)
+				}
+			})
+		}
+	})
 }
 
 func TestReadRawRequest(t *testing.T) {
