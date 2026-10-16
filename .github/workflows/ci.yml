@@ -83,8 +83,10 @@ jobs:
         with:
           go-version-file: go.mod
 
+      # go test waits a tenth of the timeout for a finished test binary's output, and a busy
+      # macos-15-intel runner needs more than the 12s a 2m timeout gives.
       - name: Run tests
-        run: go tool gotestsum --format testname -- ${{ matrix.race }} -timeout 2m ./...
+        run: go tool gotestsum --format testname -- ${{ matrix.race }} -timeout 5m ./...
 
   # Every fuzz target for a short run, so a regression in a parser or an
   # escaper shows up on the commit that caused it. make fuzz fails when a
