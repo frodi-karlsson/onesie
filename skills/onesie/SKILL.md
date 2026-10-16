@@ -137,6 +137,22 @@ onesie 'is this ticket urgent' -i json --state '{"id":482,"customer":"Jordan Mil
 onesie 'is this ticket urgent' --state 'the server is down'
 ```
 
+### Attach an image with --image NAME=PATH and name it in backticks, and pair a --box with a yes or no question.
+
+onesie never reads an image from stdin beside --image, so text joins it only from --state, --state-file or --state -. TypeSafe calls images and Box dreamer ready, an experimental stage, so expect them to be less reliable than text. A Box always returns a box, even when the target is not in the image, so ask a yes or no question about whether it is there in the same call and read the box only when it says yes. -r prints a box as left, top, right and bottom, each a fraction of the image from its top left corner.
+
+**Bad:**
+
+```sh
+cat photo.jpg | onesie 'is there a dog'
+```
+
+**Good:**
+
+```sh
+onesie --image photo=examples/images/square.png --ask there='is there a red square in `photo`' --ask where='the red square in `photo`' --box -m jev-preview --print-request
+```
+
 ### Say what an option, a level or a yes means with --desc.
 
 `--desc KEY=TEXT` binds to the nearest `--ask` like any group flag. The key is an option name for `--pick`, a level label for `--rate`, and `yes` or `no` for a yes or no question. A key the question does not have exits 2 and lists the ones it does. Describe every level of a `--rate` or none of them, since a partial rubric exits 2. A partly described `--pick` only warns. `--ask NAME=@FILE` and `--desc KEY=@FILE` read the text from a file.
