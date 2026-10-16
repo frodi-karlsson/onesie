@@ -319,6 +319,35 @@ func TestFilterIntegration(t *testing.T) {
 			t.Errorf("lines = %d, want two\n%s", len(lines), out)
 		}
 	})
+
+	t.Run("should see the red square through --provider openrouter", func(t *testing.T) {
+		if strings.TrimSpace(os.Getenv("OPENROUTER_API_KEY")) == "" {
+			t.Skip("OPENROUTER_API_KEY is not set, skipping the OpenRouter case")
+		}
+
+		out, errOut, code := runLive(t, []string{
+			"--provider", "openrouter", "-m", "typesafe/jev-1.14",
+			"--image", "square=" + liveImage(t, true), "--image", "empty=" + liveImage(t, false),
+			"--ask", "in_square=is there a red square in `square`",
+			"--ask", "in_empty=is there a red square in `empty`", "-o", "values",
+		}, "")
+		if code != cli.ExitOK {
+			t.Fatalf("exit code = %d, stderr:\n%s", code, errOut)
+		}
+
+		var values struct {
+			InSquare float64 `json:"in_square"`
+			InEmpty  float64 `json:"in_empty"`
+		}
+
+		if err := json.Unmarshal([]byte(out), &values); err != nil {
+			t.Fatalf("decoding %q: %v", out, err)
+		}
+
+		if values.InSquare < 0.8 || values.InEmpty > 0.2 {
+			t.Errorf("in_square = %.2f, in_empty = %.2f, want a clear yes and a clear no", values.InSquare, values.InEmpty)
+		}
+	})
 }
 
 func TestFileIntegration(t *testing.T) {
