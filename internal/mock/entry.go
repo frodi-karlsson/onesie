@@ -175,6 +175,10 @@ func connectionEntry() *Entry {
 }
 
 func parseAnswer(question plan.Question, given any) (onesie.Answer, error) {
+	if question.Shape == plan.Box {
+		return boxAnswer(given)
+	}
+
 	parts, err := partsOf(question, given)
 	if err != nil {
 		return nil, err
@@ -335,6 +339,58 @@ func rateAnswer(question plan.Question, parts answerParts) (onesie.Answer, error
 
 	return &onesie.ScoreAnswer{
 		Score: score, Confidence: parts.confidence, Legend: legend, Probabilities: probabilities,
+	}, nil
+}
+
+func boxAnswer(given any) (onesie.Answer, error) {
+	object, isObject := given.(map[string]any)
+	if !isObject {
+		return nil, fmt.Errorf("answered %s, which is not a box. A box answer is an object of "+
+			"left, top, right, bottom and an optional confidence", shown(given))
+	}
+
+	for _, key := range sortedKeys(object) {
+		if !slices.Contains([]string{"left", "top", "right", "bottom", "confidence"}, key) {
+			return nil, fmt.Errorf("carries the key '%s', which a mock box answer does not take", key)
+		}
+	}
+
+	edges := make(map[string]float64, 4)
+
+	for _, name := range []string{"left", "top", "right", "bottom"} {
+		value, found := object[name]
+		if !found {
+			return nil, fmt.Errorf("has no '%s'. A box answer has all four edges", name)
+		}
+
+		edge, isUnit := unitNumber(value)
+		if !isUnit {
+			return nil, fmt.Errorf("has %s %s, which lies outside [0,1]", name, shown(value))
+		}
+
+		edges[name] = edge
+	}
+
+	if edges["left"] >= edges["right"] || edges["top"] >= edges["bottom"] {
+		return nil, errors.New("has edges out of order. A box keeps left below right and top below bottom")
+	}
+
+	confidence := 1.0
+
+	if value, found := object["confidence"]; found {
+		parsed, isUnit := unitNumber(value)
+		if !isUnit {
+			return nil, fmt.Errorf("has confidence %s, which lies outside [0,1]", shown(value))
+		}
+
+		confidence = parsed
+	}
+
+	return &onesie.BoxAnswer{
+		Edges: onesie.Edges{
+			Left: edges["left"], Top: edges["top"], Right: edges["right"], Bottom: edges["bottom"],
+		},
+		Confidence: confidence,
 	}, nil
 }
 
