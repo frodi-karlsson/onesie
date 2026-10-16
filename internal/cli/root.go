@@ -62,6 +62,8 @@ var groupFlagHelp = map[string]string{
 	"threshold":      "yes/no only, cut the probability at this value",
 	"min-confidence": "pick or rate only, requires --fallback. Confidence is about 1 when p sits on one answer",
 	"fallback":       "value substituted on low confidence and on error",
+	"box": "making this a box question, answered with the left, top, right and bottom edges of what it " +
+		"finds in an image, each from 0 to 1. Takes no value. Experimental on TypeSafe's side",
 }
 
 // NewRootCmd builds a fresh command tree that reads and writes no global state.
@@ -210,6 +212,9 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 	for name, help := range groupFlagHelp {
 		root.Flags().Var(recorder.Flag(name), name, help)
 	}
+
+	// A recorded flag is a string, so without this --box would take the next argument as its value.
+	root.Flags().Lookup("box").NoOptDefVal = "true"
 
 	root.Flags().StringVarP(&flags.output, "output", "o", "", "auto, json, values, table, raw, csv, tsv or markdown")
 	root.Flags().BoolVarP(&flags.raw, "raw", "r", false, "print the bare scalar")

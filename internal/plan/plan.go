@@ -42,6 +42,10 @@ type Question struct {
 	// arrive unlabelled. It selects which normalization applies.
 	Labelled bool
 
+	// Boxed records --box or a file's box key. The shape is Box whenever it is set, and validation
+	// refuses it beside options or levels.
+	Boxed bool
+
 	// DescOrder is the order --desc keys appeared, so validation can report them as written.
 	DescOrder []string
 
@@ -60,6 +64,8 @@ const (
 	Pick
 	// Rate is a score against an ordered rubric.
 	Rate
+	// Box finds where something is in an image.
+	Box
 )
 
 // String names the shape as the API's type field spells it.
@@ -69,6 +75,8 @@ func (s Shape) String() string {
 		return "pick"
 	case Rate:
 		return "rate"
+	case Box:
+		return "box"
 	default:
 		return "noul"
 	}

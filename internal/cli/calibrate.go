@@ -126,9 +126,12 @@ func newCalibrateCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 		},
 	}
 
-	for _, name := range []string{"ask", "pick", "rate", "desc", "sep"} {
+	for _, name := range []string{"ask", "pick", "rate", "box", "desc", "sep"} {
 		cmd.Flags().Var(recorder.Flag(name), name, groupFlagHelp[name])
 	}
+
+	// A recorded flag is a string, so without this --box would take the next argument as its value.
+	cmd.Flags().Lookup("box").NoOptDefVal = "true"
 
 	cmd.Flags().StringArrayVar(&flags.images, flagImage, nil,
 		"NAME=PATH, repeatable, puts a PNG or JPEG in every record's state under NAME. Experimental on TypeSafe's side")

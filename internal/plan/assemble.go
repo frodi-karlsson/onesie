@@ -195,6 +195,12 @@ func applyEvents(question *Question, events []argv.Event, readFile func(string) 
 			for _, label := range strings.Split(event.Value, separator) {
 				question.Levels = append(question.Levels, Level{Label: strings.TrimSpace(label)})
 			}
+		case "box":
+			if event.Value != "true" {
+				return fmt.Errorf("onesie: --box takes no value, got '%s'", event.Value)
+			}
+
+			question.Boxed = true
 		case "desc":
 			key, text, ok := strings.Cut(event.Value, "=")
 			if !ok {
@@ -218,6 +224,10 @@ func applyEvents(question *Question, events []argv.Event, readFile func(string) 
 				return err
 			}
 		}
+	}
+
+	if question.Boxed {
+		question.Shape = Box
 	}
 
 	question.DescOrder = append(question.DescOrder, descOrder...)

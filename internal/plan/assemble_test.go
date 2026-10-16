@@ -33,6 +33,22 @@ func TestAssemble(t *testing.T) {
 		check      func(t *testing.T, p *plan.Plan)
 	}{
 		{
+			name:   "should make a box question from --box",
+			events: []argv.Event{{Name: "ask", Value: "mug=the mug in `photo`"}, {Name: "box", Value: "true"}},
+			check: func(t *testing.T, p *plan.Plan) {
+				t.Helper()
+
+				if p.Questions[0].Shape != plan.Box || !p.Questions[0].Boxed {
+					t.Errorf("question = %+v, want a box", p.Questions[0])
+				}
+			},
+		},
+		{
+			name:    "should refuse a value given to --box",
+			events:  []argv.Event{{Name: "ask", Value: "mug=the mug in `photo`"}, {Name: "box", Value: "false"}},
+			wantErr: true,
+		},
+		{
 			name:       "should key a positional question as answer",
 			positional: "is this urgent",
 			check: func(t *testing.T, p *plan.Plan) {
