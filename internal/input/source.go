@@ -18,6 +18,8 @@ const (
 	SourceStateFile
 	// SourceBody means a request body carried its own state.
 	SourceBody
+	// SourceImages means --image gave the state, with no text beside it.
+	SourceImages
 )
 
 // String names the source as an error message would spell it.
@@ -31,6 +33,8 @@ func (s Source) String() string {
 		return "--state-file"
 	case SourceBody:
 		return "a request body"
+	case SourceImages:
+		return "--image"
 	default:
 		return "nothing"
 	}

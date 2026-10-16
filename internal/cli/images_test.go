@@ -2,15 +2,22 @@ package cli
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"image"
 	"image/color"
 	"image/png"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
+
+	"github.com/frodi-karlsson/onesie-go"
 )
 
 func TestImagingAttach(t *testing.T) {
@@ -192,6 +199,190 @@ func TestImagingWrapLine(t *testing.T) {
 			t.Errorf("wrapLine = %v, %v, want %v", state, wire, want)
 		}
 	})
+}
+
+func TestRun(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	square := writeImage(t, dir, "square.png", squarePNG(t))
+	gif := writeImage(t, dir, "x.gif", []byte("GIF89a"))
+	ref := refOf(t, squarePNG(t))
+
+	tests := []struct {
+		name         string
+		args         []string
+		stdin        string
+		env          map[string]string
+		wantCode     int
+		wantRequests int
+		wantBody     []string
+		noBody       []string
+		wantHeader   map[string]string
+		wantErr      string
+		wantOut      string
+	}{
+		{
+			name:         "should send the image as the state and never read stdin",
+			args:         []string{"--image", "photo=" + square, "is there a red square in `photo`", "-o", "json"},
+			stdin:        "text that must not be read",
+			wantCode:     ExitOK,
+			wantRequests: 1,
+			wantBody:     []string{`"state":{"photo":"` + ref + `"}`, `"assets":{"` + ref + `":{"type":"image","format":"png"`},
+			noBody:       []string{"text that must not be read"},
+			wantHeader:   map[string]string{onesie.HeaderImages: "true"},
+		},
+		{
+			name:         "should put --state text beside the image",
+			args:         []string{"--image", "photo=" + square, "--state", "the door", "q", "-o", "json"},
+			wantCode:     ExitOK,
+			wantRequests: 1,
+			wantBody:     []string{`"state":{"photo":"` + ref + `","text":"the door"}`},
+		},
+		{
+			name:         "should merge the image state with its reference",
+			args:         []string{"--image", "photo=" + square, "q", "-o", "json", "--merge"},
+			wantCode:     ExitOK,
+			wantRequests: 1,
+			wantOut:      `"photo":"` + ref + `"`,
+		},
+		{
+			name:         "should merge the text beside the image",
+			args:         []string{"--image", "photo=" + square, "--state", "the door", "q", "-o", "json", "--merge"},
+			wantCode:     ExitOK,
+			wantRequests: 1,
+			wantOut:      `"text":"the door"`,
+		},
+		{
+			name:     "should refuse an image that is not png or jpeg before any request",
+			args:     []string{"--image", "photo=" + gif, "q"},
+			wantCode: ExitUsage,
+			wantErr:  "onesie: --image photo: ",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			run := runImaged(t, tc.args, tc.stdin, noulAnswer("answer", "red"), tc.env)
+
+			if run.code != tc.wantCode {
+				t.Fatalf("exit code = %d, want %d\nstderr:\n%s", run.code, tc.wantCode, run.stderr)
+			}
+
+			if len(run.bodies) != tc.wantRequests {
+				t.Fatalf("requests = %d, want %d", len(run.bodies), tc.wantRequests)
+			}
+
+			if tc.wantErr != "" && !strings.Contains(run.stderr, tc.wantErr) {
+				t.Errorf("stderr = %q, want it to contain %q", run.stderr, tc.wantErr)
+			}
+
+			if tc.wantOut != "" && !strings.Contains(run.stdout, tc.wantOut) {
+				t.Errorf("stdout = %q, want it to contain %q", run.stdout, tc.wantOut)
+			}
+
+			if len(run.bodies) == 0 {
+				return
+			}
+
+			for _, want := range tc.wantBody {
+				if !strings.Contains(run.bodies[0], want) {
+					t.Errorf("body = %.300s, want it to contain %s", run.bodies[0], want)
+				}
+			}
+
+			for _, unwanted := range tc.noBody {
+				if strings.Contains(run.bodies[0], unwanted) {
+					t.Errorf("body = %.300s, want it without %s", run.bodies[0], unwanted)
+				}
+			}
+
+			for name, want := range tc.wantHeader {
+				if got := run.headers[0].Get(name); got != want {
+					t.Errorf("%s = %q, want %q", name, got, want)
+				}
+			}
+		})
+	}
+}
+
+func runImaged(t *testing.T, args []string, stdin, answers string, env map[string]string) recordedRun {
+	t.Helper()
+
+	var (
+		mu  sync.Mutex
+		run recordedRun
+	)
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Errorf("reading the request body: %v", err)
+		}
+
+		mu.Lock()
+		run.bodies = append(run.bodies, string(body))
+		run.headers = append(run.headers, r.Header.Clone())
+		mu.Unlock()
+
+		w.Header().Set("Content-Type", "application/json")
+
+		if _, err := io.WriteString(w, answers); err != nil {
+			t.Errorf("writing the stub response: %v", err)
+		}
+	}))
+	defer srv.Close()
+
+	var out, errOut bytes.Buffer
+
+	root := NewRootCmd(
+		BuildInfo{Version: "1.2.3"},
+		WithKeychain(noKeychain()),
+		WithClientFactory(func(_ context.Context, opts ...onesie.Option) (*onesie.Client, error) {
+			return onesie.New(append([]onesie.Option{
+				onesie.WithAPIKey("k"),
+				onesie.WithBaseURL(srv.URL),
+				onesie.WithEnv(func(string) (string, bool) { return "", false }),
+			}, opts...)...)
+		}),
+		WithStdin(strings.NewReader(stdin)),
+		WithStdinTTY(false),
+		WithStdoutTTY(false),
+		WithLookupEnv(lookupFrom(env)),
+	)
+
+	root.SetOut(&out)
+	root.SetErr(&errOut)
+	root.SetArgs(args)
+
+	run.code = Execute(t.Context(), root)
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	run.stdout = out.String()
+	run.stderr = errOut.String()
+
+	return run
+}
+
+type recordedRun struct {
+	bodies  []string
+	headers []http.Header
+	stdout  string
+	stderr  string
+	code    int
+}
+
+func noulAnswer(ids ...string) string {
+	answers := make([]string, 0, len(ids))
+	for _, id := range ids {
+		answers = append(answers, `"`+id+`":{"type":"noul","noul":0.9}`)
+	}
+
+	return `{"model":"m","answers":{` + strings.Join(answers, ",") + `},"usage":{}}`
 }
 
 func refOf(t *testing.T, data []byte) string {

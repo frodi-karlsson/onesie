@@ -184,9 +184,14 @@ func build(
 		return nil, warnings, err
 	}
 
+	images, err := newImaging(flags.images, flags.imageFields, cfg.LinesInput, settings.readFile)
+	if err != nil {
+		return nil, warnings, err
+	}
+
 	return &invocation{
 		plan: built, gate: gate, abstain: abstain, mapper: mapper, namer: namer, loaded: loaded,
-		fileGate: setAside,
+		fileGate: setAside, images: images,
 	}, warnings, nil
 }
 
@@ -265,6 +270,7 @@ type invocation struct {
 	namer    *jq.Expr
 	loaded   *qfile.File
 	fileGate fileGate
+	images   *imaging
 }
 
 type fileGate struct {

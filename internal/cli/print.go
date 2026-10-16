@@ -101,6 +101,7 @@ func printRequest(
 	questions []plan.Question,
 	source input.Source,
 	state any,
+	assets onesie.Assets,
 	model string,
 ) error {
 	req := onesie.Request{Model: model, Questions: wireAll(questions)}
@@ -108,7 +109,12 @@ func printRequest(
 	encode := onesie.MarshalQuestionsBody
 	if source != input.SourceNone {
 		req.State = state
+		req.Assets = assets
 		encode = onesie.MarshalBody
+
+		if validErr := onesie.ValidateRequest(req); validErr != nil {
+			return validErr
+		}
 	}
 
 	body, err := encode(req)

@@ -156,7 +156,7 @@ func run(
 		return err
 	}
 
-	if requests(flags) && resolved.Source == input.SourceNone {
+	if requests(flags) && resolved.Source == input.SourceNone && len(flags.images) == 0 {
 		return errors.New(
 			"onesie: no state given. Pipe one to stdin, or pass --state or --state-file")
 	}
@@ -169,6 +169,18 @@ func run(
 		}
 	}
 
+	sent, assets, err := inv.images.attach(sentOrNil(resolved, sent))
+	if err != nil {
+		return fmt.Errorf("onesie: %w", err)
+	}
+
+	if len(flags.images) > 0 {
+		resolved, err = imagedState(sent)
+		if err != nil {
+			return err
+		}
+	}
+
 	// After the state is resolved, so the body carries the state a real run would send.
 	if flags.printRequest {
 		model, err := resolveModel(settings, flags, built.Model)
@@ -176,7 +188,7 @@ func run(
 			return err
 		}
 
-		return printRequest(cmd.OutOrStdout(), built.Questions, resolved.Source, sent, model)
+		return printRequest(cmd.OutOrStdout(), built.Questions, resolved.Source, sent, assets, model)
 	}
 
 	// Checked here rather than at write time, so a taken key costs no request.
@@ -187,8 +199,30 @@ func run(
 	}
 
 	return withStats(cmd, settings.now, flags, func(stats *collector) error {
-		return ask(cmd, settings, built, resolved, sent, nil, outputMode, flags, gate, abstain, stats, answers)
+		return ask(cmd, settings, built, resolved, sent, assets, outputMode, flags, gate, abstain, stats, answers)
 	})
+}
+
+func sentOrNil(resolved input.Resolved, sent any) any {
+	if resolved.Source == input.SourceNone {
+		return nil
+	}
+
+	return sent
+}
+
+func imagedState(sent any) (input.Resolved, error) {
+	encoded, isRaw := sent.(json.RawMessage)
+	if !isRaw {
+		return input.Resolved{}, errors.New("onesie: the state beside --image is not encoded")
+	}
+
+	var state any
+	if err := json.Unmarshal(encoded, &state); err != nil {
+		return input.Resolved{}, fmt.Errorf("onesie: reading the state: %w", err)
+	}
+
+	return input.Resolved{Source: input.SourceImages, State: state, Raw: string(encoded), Wire: sent}, nil
 }
 
 func checkBodyState(cfg plan.Config, loaded *qfile.File) error {
@@ -249,10 +283,14 @@ func resolveState(
 		return resolved, nil
 	}
 
+	// --image is a state source, so stdin is read only when --state - asks for it. Whether a pipe
+	// holds text cannot be known without a read that may block.
+	stdinTTY := settings.stdinTTY || len(flags.images) > 0
+
 	return input.Resolve(ctx, input.Query{
 		Mode:         mode,
 		Stdin:        settings.stdin,
-		StdinTTY:     settings.stdinTTY,
+		StdinTTY:     stdinTTY,
 		State:        flags.state,
 		HasState:     cfg.HasState,
 		StateFile:    flags.stateFile,

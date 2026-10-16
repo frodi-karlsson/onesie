@@ -671,6 +671,10 @@ func wireBody(t *testing.T, data []byte) string {
 func TestPrintRequest(t *testing.T) {
 	t.Parallel()
 
+	dir := t.TempDir()
+	square := writeImage(t, dir, "square.png", squarePNG(t))
+	ref := refOf(t, squarePNG(t))
+
 	tests := []struct {
 		name     string
 		args     []string
@@ -689,6 +693,12 @@ func TestPrintRequest(t *testing.T) {
 				`{"state":"the server is down","model":"jev-latest","questions":` +
 					`{"urgent":{"type":"noul","instructions":"is this urgent"}}}` + "\n",
 			},
+		},
+		{
+			name:     "should print the image asset beside the state",
+			args:     []string{"--image", "photo=" + square, "q", "--print-request"},
+			wantCode: ExitOK,
+			stdout:   []string{`"assets":{"` + ref + `":{"type":"image","format":"png","data_base64":"`},
 		},
 		{
 			name:     "should omit state when none was given",
