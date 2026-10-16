@@ -76,6 +76,12 @@ func TestPrintQuestions(t *testing.T) {
 		stderr   []string
 	}{
 		{
+			name:     "should write a box question with its box key",
+			args:     []string{"--ask", "mug=x", "--box", "--print-questions"},
+			wantCode: ExitOK,
+			stdout:   []string{"mug:\n  ask: x\n  box: true\n"},
+		},
+		{
 			name:     "should write a question file and exit without a request",
 			args:     []string{"--ask", "urgent=is this urgent", "--print-questions"},
 			wantCode: ExitOK,
@@ -410,6 +416,11 @@ func validationDocs() []schemaFixture {
 		"team:\n  ask: q\n  pick: [a, b]\n  min_confidence: 0.5\n  fallback: anyone\n",
 		"severity:\n  ask: q\n  rate: [low, high]\n  min_confidence: 0.5\n  fallback: true\n",
 		"urgent:\n  ask: q\n  fallback: maybe\n",
+		"mug:\n  ask: x\n  box: true\n",
+		"mug:\n  ask: x\n  box: true\n  pick: [a, b]\n",
+		"mug:\n  ask: x\n  box: true\n  threshold: 0.5\n",
+		"mug:\n  ask: x\n  box: true\n  min_confidence: 0.5\n  fallback: a\n",
+		"mug:\n  ask: x\n  box: false\n",
 		"urgent:\n  ask: q\n  fallback: YES\n",
 		"urgent:\n  ask: q\n  fallback: false\n",
 		"urgent:\n  ask: q\n  yes_means: loud\n",

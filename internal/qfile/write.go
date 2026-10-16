@@ -83,6 +83,8 @@ func writeQuestion(question plan.Question) (yaml.MapSlice, error) {
 		}
 
 		body = append(body, yaml.MapItem{Key: "rate", Value: levels})
+	case plan.Box:
+		body = append(body, yaml.MapItem{Key: "box", Value: true})
 	default:
 		rubric, rubricErr := writeRubric(question)
 		if rubricErr != nil {

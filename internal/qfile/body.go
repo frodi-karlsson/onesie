@@ -156,6 +156,14 @@ func buildBodyQuestion(id string, value any) (plan.Question, error) {
 		question, err = buildBodyChoice(question, criteria)
 	case "score":
 		question, err = buildBodyScore(question, criteria)
+	case "box":
+		if hasCriteria {
+			return question, fmt.Errorf(
+				"onesie: box question '%s' in a request body takes no criteria", id)
+		}
+
+		question.Shape = plan.Box
+		question.Boxed = true
 	default:
 		return question, fmt.Errorf(
 			"onesie: question '%s' in a request body has an unknown type '%v'", id, kind)

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/frodi-karlsson/onesie/internal/limits"
+	"github.com/frodi-karlsson/onesie/internal/plan"
 	"github.com/frodi-karlsson/onesie/internal/qfile"
 )
 
@@ -85,6 +86,46 @@ func TestLoad(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("should load and refuse box questions", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name    string
+			file    string
+			wantErr string
+		}{
+			{name: "should load a box question", file: "mug:\n  ask: the mug in photo\n  box: true\n"},
+			{name: "should load a box question from a request body", file: `{"questions":{"mug":{"type":"box","instructions":"x"}}}`},
+			{name: "should refuse box false", file: "mug:\n  ask: x\n  box: false\n", wantErr: "onesie: 'box' in question 'mug' takes true"},
+			{name: "should refuse a box with pick", file: "mug:\n  ask: x\n  box: true\n  pick: [a, b]\n", wantErr: "A question is one of pick, rate or box"},
+			{name: "should refuse a box with yes_means", file: "mug:\n  ask: x\n  box: true\n  yes_means: y\n", wantErr: "has both 'yes_means' and 'box'"},
+			{name: "should refuse a body box with criteria", file: `{"questions":{"mug":{"type":"box","instructions":"x","criteria":{}}}}`, wantErr: "onesie: box question 'mug' in a request body takes no criteria"},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				file, err := qfile.Load([]byte(tc.file))
+				if tc.wantErr != "" {
+					if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+						t.Fatalf("error = %v, want %q", err, tc.wantErr)
+					}
+
+					return
+				}
+
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+
+				if got := file.Questions[0]; got.Shape != plan.Box || !got.Boxed {
+					t.Errorf("question = %+v, want a box", got)
+				}
+			})
+		}
+	})
 }
 
 func TestDecodeOrdered(t *testing.T) {
