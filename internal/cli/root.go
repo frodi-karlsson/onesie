@@ -40,6 +40,7 @@ const (
 	flagStateFile     = "state-file"
 	flagImage         = "image"
 	flagImageField    = "image-field"
+	flagLongContext   = "long-context"
 	flagModel         = "model"
 	flagInput         = "input"
 	flagJobs          = "jobs"
@@ -272,6 +273,9 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 	root.Flags().IntVarP(&flags.jobs, flagJobs, "j", 1, "records in flight at once")
 	root.Flags().IntVar(&flags.timeout, flagTimeout, int(limits.DefaultAttemptTimeout.Seconds()),
 		"seconds per attempt")
+	root.Flags().BoolVar(&flags.longContext, flagLongContext, false,
+		"raise the context limits to 262k tokens, slower and less accurate. Also ONESIE_LONG_CONTEXT=1. "+
+			"Experimental on TypeSafe's side")
 	root.Flags().IntVar(&flags.retries, flagRetries, limits.DefaultRetries,
 		"retries after a failed attempt")
 	root.Flags().IntVar(&flags.maxRetryAfter, flagMaxRetryAfter,

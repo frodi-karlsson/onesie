@@ -294,6 +294,44 @@ func TestRun(t *testing.T) {
 			wantCode: ExitUsage,
 			wantErr:  "asset 'body-img' is not referenced",
 		},
+		{
+			name:         "should send the long context header for --long-context",
+			args:         []string{"--long-context", "--state", "s", "q", "-o", "json"},
+			wantCode:     ExitOK,
+			wantRequests: 1,
+			wantHeader:   map[string]string{onesie.HeaderLongContext: "true"},
+		},
+		{
+			name:         "should send the long context header for ONESIE_LONG_CONTEXT",
+			args:         []string{"--state", "s", "q", "-o", "json"},
+			env:          map[string]string{"ONESIE_LONG_CONTEXT": "1"},
+			wantCode:     ExitOK,
+			wantRequests: 1,
+			wantHeader:   map[string]string{onesie.HeaderLongContext: "true"},
+		},
+		{
+			name:         "should send no long context header without either",
+			args:         []string{"--state", "s", "q", "-o", "json"},
+			wantCode:     ExitOK,
+			wantRequests: 1,
+			wantHeader:   map[string]string{onesie.HeaderLongContext: ""},
+		},
+		{
+			name:         "should send the images header on a replayed body with assets",
+			args:         []string{"-i", "request"},
+			stdin:        `{"state":{"p":"r"},"model":"m","questions":{"answer":{"type":"noul","instructions":"q"}},"assets":{"r":{"type":"image","format":"png","data_base64":"AQ=="}}}` + "\n",
+			wantCode:     ExitOK,
+			wantRequests: 1,
+			wantHeader:   map[string]string{onesie.HeaderImages: "true"},
+		},
+		{
+			name:         "should send the long context header on a replayed body",
+			args:         []string{"--long-context", "-i", "request"},
+			stdin:        `{"state":"s","model":"m","questions":{"answer":{"type":"noul","instructions":"q"}}}` + "\n",
+			wantCode:     ExitOK,
+			wantRequests: 1,
+			wantHeader:   map[string]string{onesie.HeaderLongContext: "true"},
+		},
 	}
 
 	for _, tc := range tests {
