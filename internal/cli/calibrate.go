@@ -130,6 +130,11 @@ func newCalibrateCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 		cmd.Flags().Var(recorder.Flag(name), name, groupFlagHelp[name])
 	}
 
+	cmd.Flags().StringArrayVar(&flags.images, flagImage, nil,
+		"NAME=PATH, repeatable, puts a PNG or JPEG in every record's state under NAME. Experimental on TypeSafe's side")
+	cmd.Flags().StringArrayVar(&flags.imageFields, flagImageField, nil,
+		"repeatable, a state key whose value is a path to a PNG or JPEG, read per record. Experimental on TypeSafe's side")
+
 	for _, name := range []string{"threshold", "min-confidence", "fallback"} {
 		cmd.Flags().Var(recorder.Flag(name), name, "refused, "+refusedReasons[name])
 		hide(cmd, name)

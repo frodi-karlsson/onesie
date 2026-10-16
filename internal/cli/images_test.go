@@ -419,6 +419,40 @@ func TestRequestOptions(t *testing.T) {
 	}
 }
 
+func TestAskLabelled(t *testing.T) {
+	t.Parallel()
+
+	t.Run("should send each record's image when calibrating", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		square := writeImage(t, dir, "square.png", squarePNG(t))
+		empty := writeImage(t, dir, "empty.png", emptyPNG(t))
+
+		stdin := `{"id":"a","photo":"` + square + `","red":true}` + "\n" +
+			`{"id":"b","photo":"` + empty + `","red":false}` + "\n"
+
+		run := runImaged(t, []string{
+			"calibrate", "--ask", "red=is there a red square in `photo`", "-i", "jsonl",
+			"--map", "{photo}", "--image-field", "photo", "--label", "red=.red", "--id", ".id", "-o", "json",
+		}, stdin, noulAnswer("red"), nil)
+
+		if run.code != ExitOK {
+			t.Fatalf("exit code = %d, want 0\nstderr:\n%s", run.code, run.stderr)
+		}
+
+		if len(run.bodies) != 2 {
+			t.Fatalf("requests = %d, want two", len(run.bodies))
+		}
+
+		for i, body := range run.bodies {
+			if !strings.Contains(body, `"assets":{"image-`) {
+				t.Errorf("body %d = %.200s, want an image asset", i, body)
+			}
+		}
+	})
+}
+
 func runImaged(t *testing.T, args []string, stdin, answers string, env map[string]string) recordedRun {
 	t.Helper()
 

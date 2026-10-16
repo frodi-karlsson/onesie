@@ -39,7 +39,17 @@ func calibrateRequests(
 			return ctxErr
 		}
 
-		body, bodyErr := requestLine(rec.line, onesie.Request{State: rec.sent, Model: model, Questions: questions})
+		sent, assets, imageErr := inv.images.attach(rec.sent)
+		if imageErr != nil {
+			return &input.LineError{Line: rec.line, Err: imageErr}
+		}
+
+		req := onesie.Request{State: sent, Model: model, Questions: questions, Assets: assets}
+		if validErr := onesie.ValidateRequest(req); validErr != nil {
+			return &input.LineError{Line: rec.line, Err: unprefixed(validErr)}
+		}
+
+		body, bodyErr := requestLine(rec.line, req)
 		if bodyErr != nil {
 			return bodyErr
 		}

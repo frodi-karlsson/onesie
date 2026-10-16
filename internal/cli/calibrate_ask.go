@@ -76,7 +76,7 @@ func calibrateRun(
 
 	runErr := calibrateAnswers(cmd, settings, flags, calib, inputMode, inv, calibrateAsk{
 		scope: scope, asked: asked, model: model, inputs: inputs, cuts: cuts, bound: bound,
-		out: out, answers: answers,
+		out: out, answers: answers, images: inv.images,
 	})
 	if out == nil || calib.offline {
 		return runErr
@@ -123,6 +123,7 @@ type calibrateAsk struct {
 	bound   []boundRequirement
 	out     *outFile
 	answers answererFactory
+	images  *imaging
 }
 
 func calibrateAnswers(
@@ -290,7 +291,21 @@ func askLabelled(
 		Evaluate: func(ctx context.Context, rec labelledRecord) (askedLine, error) {
 			key := recordKey{position: rec.position, line: rec.line, id: rec.id}
 
-			record, evalErr := evaluate(ctx, asker, key, asked, run.model, questions, rec.sent, nil, flags.usage, stats)
+			// At ask time rather than read time, since calibrate reads every record ahead and would
+			// otherwise hold every image at once. rec.sent keeps the paths, which is what the worst
+			// misses print.
+			sent, assets, imageErr := run.images.attach(rec.sent)
+			if imageErr != nil {
+				bad := &input.LineError{Line: rec.line, Err: imageErr}
+				stats.recordFailure(bad, false, 0)
+
+				failed := failureRecord(asked, bad)
+				failed.ID = rec.id
+
+				return askedLine{index: rec.index, slot: rec.slot, record: failed}, bad
+			}
+
+			record, evalErr := evaluate(ctx, asker, key, asked, run.model, questions, sent, assets, flags.usage, stats)
 			if evalErr == nil {
 				if _, evalErr = casesOf(scored, rec, record); evalErr != nil {
 					// The tokens were spent, so the failed line carries them into the usage total.
