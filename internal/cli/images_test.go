@@ -228,6 +228,8 @@ func TestRun(t *testing.T) {
 	openrouter := map[string]string{"ONESIE_PROVIDER": "openrouter"}
 	mockFile := writeImage(t, dir, "mock.json", []byte(`{"answer":0.9}`))
 	refused := "onesie: the levanto provider takes no images or box questions"
+	longBody := writeImage(t, dir, "long.json",
+		[]byte(`{"state":"s","questions":{"red":{"type":"noul","instructions":"q"}},"long_context":true}`))
 
 	tests := []struct {
 		name         string
@@ -387,6 +389,18 @@ func TestRun(t *testing.T) {
 			env:      levanto,
 			wantCode: ExitOK,
 			wantOut:  `{"answer":0.9}`,
+		},
+		{
+			name:     "should refuse a body whose long_context is not true or false",
+			args:     []string{"-f", writeImage(t, dir, "bad-long.json", []byte(`{"state":"s","questions":{"red":{"type":"noul","instructions":"q"}},"long_context":"yes"}`))},
+			wantCode: ExitUsage,
+			wantErr:  "onesie: 'long_context' in a request body must be true or false",
+		},
+		{
+			name:     "should warn that --print-questions drops a body's long context",
+			args:     []string{"-f", longBody, "--print-questions"},
+			wantCode: ExitOK,
+			wantErr:  "warning: --print-questions does not carry the body's long_context. Pass --long-context when you reload",
 		},
 		{
 			name:         "should report the image attempt timeout under --stats",

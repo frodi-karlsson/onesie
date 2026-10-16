@@ -58,6 +58,8 @@ type File struct {
 	IsBody bool
 	// Model is the body's model, empty for a question file.
 	Model string
+	// LongContext is the body's long_context, false for a question file.
+	LongContext bool
 	// State is the body's state. HasState distinguishes an absent state from a null one.
 	State    any
 	HasState bool

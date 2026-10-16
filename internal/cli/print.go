@@ -85,6 +85,14 @@ func warnUncarried(w io.Writer, loaded *qfile.File) error {
 		}
 	}
 
+	if loaded.LongContext {
+		if _, err := fmt.Fprintln(w,
+			"warning: --print-questions does not carry the body's long_context. "+
+				"Pass --long-context when you reload"); err != nil {
+			return err
+		}
+	}
+
 	if !loaded.HasState {
 		return nil
 	}
