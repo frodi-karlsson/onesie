@@ -388,7 +388,7 @@ func authTest(cmd *cobra.Command, settings rootSettings, flags *runFlags) error 
 
 	models, err := client.VerifyKey(cmd.Context())
 	if err != nil {
-		return advise(err, "", false)
+		return advise(err, "", false, false)
 	}
 
 	out := cmd.OutOrStdout()

@@ -9,7 +9,7 @@ import (
 	"github.com/frodi-karlsson/onesie-go"
 )
 
-func advise(err error, model string, validated bool) error {
+func advise(err error, model string, validated, boxed bool) error {
 	var api *onesie.APIError
 	if !errors.As(err, &api) {
 		return err
@@ -35,7 +35,28 @@ func advise(err error, model string, validated bool) error {
 		return &advisedError{cause: err, message: staleLimits(err.Error())}
 	}
 
+	// A model that does not serve box questions answers one with a bare Invalid request, which
+	// names neither the question nor the model.
+	if boxed && api.Status == http.StatusBadRequest && strings.Contains(strings.ToLower(api.Error()), "invalid request") {
+		return &advisedError{
+			cause:   err,
+			message: withNote(err.Error(), "A box question needs a model that serves it, such as -m jev-preview"),
+		}
+	}
+
 	return err
+}
+
+func adviseLongContext(err error, on bool) error {
+	var api *onesie.APIError
+	if on || !errors.As(err, &api) || !strings.Contains(api.Error(), "max_tokens_exceeded") {
+		return err
+	}
+
+	return &advisedError{
+		cause:   err,
+		message: withNote(err.Error(), "Pass --long-context to raise the context limit, which is slower and less accurate"),
+	}
 }
 
 type advisedError struct {

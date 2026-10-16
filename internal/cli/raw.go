@@ -75,6 +75,8 @@ func streamRaw(
 
 			var opts []onesie.RequestOption
 			if read.needsImages {
+				stats.imaged()
+
 				opts = append(opts, onesie.WithRequestHeader(onesie.HeaderImages, "true"))
 
 				if !flags.timeoutSet {
@@ -90,7 +92,7 @@ func streamRaw(
 			if err != nil {
 				// The body reached the wire unchanged, so the model it named is the one onesie sent,
 				// and nothing inside it was checked locally, so no local bound is implicated.
-				advised := advise(err, read.model, false)
+				advised := advise(adviseLongContext(err, long), read.model, false, read.boxed)
 
 				stats.recordFailure(advised, true, asked)
 				stats.terminalAttempt(advised)
@@ -185,6 +187,7 @@ func readRawRequest(request []byte) rawRequest {
 
 		if json.Unmarshal(raw, &question) == nil && question.Type == "box" {
 			read.needsImages = true
+			read.boxed = true
 		}
 	}
 
@@ -195,4 +198,5 @@ type rawRequest struct {
 	model       string
 	questions   int
 	needsImages bool
+	boxed       bool
 }

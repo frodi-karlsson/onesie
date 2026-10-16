@@ -162,10 +162,16 @@ func TestNewImaging(t *testing.T) {
 		name    string
 		images  []string
 		wantErr string
+		notErr  string
 	}{
 		{name: "should refuse an --image without a name", images: []string{"=x.png"}, wantErr: "--image takes NAME=PATH"},
 		{name: "should refuse a name a backtick path cannot reach", images: []string{"a.b=x.png"}, wantErr: "--image a.b: a name holds no '.', '[', ']' or backtick"},
-		{name: "should refuse a missing file", images: []string{"a=" + filepath.Join(dir, "nope.png")}, wantErr: "--image a: reading"},
+		{
+			name:    "should refuse a missing file, naming it once",
+			images:  []string{"a=" + filepath.Join(dir, "nope.png")},
+			wantErr: "--image a: reading " + filepath.Join(dir, "nope.png") + ": ",
+			notErr:  "open ",
+		},
 		{name: "should refuse an image the api would refuse", images: []string{"a=" + small}, wantErr: "is 200 by 200 pixels"},
 		{name: "should refuse a name given twice", images: []string{"a=" + square, "a=" + square}, wantErr: "--image a is given twice"},
 	}
@@ -177,6 +183,10 @@ func TestNewImaging(t *testing.T) {
 			_, err := newImaging(tc.images, nil, false, os.ReadFile, nil)
 			if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
 				t.Fatalf("error = %v, want %q", err, tc.wantErr)
+			}
+
+			if tc.notErr != "" && strings.Contains(err.Error(), tc.notErr) {
+				t.Errorf("error = %v, want it without %q", err, tc.notErr)
 			}
 		})
 	}
@@ -295,6 +305,20 @@ func TestRun(t *testing.T) {
 			wantErr:  "asset 'body-img' is not referenced",
 		},
 		{
+			name:         "should report the image attempt timeout under --stats",
+			args:         []string{"--image", "photo=" + square, "q", "-o", "json", "--stats"},
+			wantCode:     ExitOK,
+			wantRequests: 1,
+			wantErr:      "1m0s/attempt",
+		},
+		{
+			name:         "should report an explicit --timeout under --stats beside an image",
+			args:         []string{"--image", "photo=" + square, "q", "-o", "json", "--stats", "--timeout", "30"},
+			wantCode:     ExitOK,
+			wantRequests: 1,
+			wantErr:      "30s/attempt",
+		},
+		{
 			name:         "should send the long context header for --long-context",
 			args:         []string{"--long-context", "--state", "s", "q", "-o", "json"},
 			wantCode:     ExitOK,
@@ -402,7 +426,7 @@ func TestReadRawRequest(t *testing.T) {
 		{
 			name: "should need images for a box question",
 			body: `{"state":"s","questions":{"m":{"type":"box"}}}`,
-			want: rawRequest{questions: 1, needsImages: true},
+			want: rawRequest{questions: 1, needsImages: true, boxed: true},
 		},
 		{name: "should read nothing from a body it cannot parse", body: `not json`},
 		{

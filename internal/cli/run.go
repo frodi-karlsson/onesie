@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
 	"strings"
 	"sync/atomic"
 
@@ -1167,6 +1168,10 @@ func evaluate(
 	withUsage bool,
 	stats *collector,
 ) (output.Record, error) {
+	if len(assets) > 0 {
+		stats.imaged()
+	}
+
 	record, usage, cached, err := answered(ctx, asker, key, built, model, questions, state, assets, withUsage)
 	if halting(err) {
 		// No request stood behind it, so it is a record and not a request, and no attempt ended.
@@ -1229,7 +1234,7 @@ func answered(
 		// A mocked failure came from no key and no account, so advice about either would mislead.
 		advised := err
 		if model != mock.Model {
-			advised = advise(err, model, true)
+			advised = advise(err, model, true, hasBox(questions))
 		}
 
 		failed := failureRecord(built, advised)
@@ -1270,6 +1275,14 @@ func answered(
 	}
 
 	return record, result.Usage, got.cached, nil
+}
+
+func hasBox(questions onesie.Questions) bool {
+	return slices.ContainsFunc(questions, func(named onesie.NamedQuestion) bool {
+		_, isBox := named.Question.(onesie.Box)
+
+		return isBox
+	})
 }
 
 func spent(failed output.Record, usage *onesie.Usage) output.Record {

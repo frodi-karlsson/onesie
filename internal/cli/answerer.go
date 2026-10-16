@@ -59,7 +59,7 @@ func longContext(settings rootSettings, flags *runFlags) bool {
 func (a liveAnswerer) answer(ctx context.Context, _ recordKey, req onesie.Request) (reply, error) {
 	result, err := a.client.SystemOne(ctx, req, requestOptions(req, a.timeoutSet, a.longContext)...)
 
-	return reply{result: result}, err
+	return reply{result: result}, adviseLongContext(err, a.longContext)
 }
 
 func requestOptions(req onesie.Request, timeoutSet, longContext bool) []onesie.RequestOption {

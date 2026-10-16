@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"maps"
 	"slices"
 	"strings"
@@ -190,6 +191,12 @@ func (m *imaging) bodyAssets() onesie.Assets {
 func (m *imaging) load(path string) (string, onesie.Image, error) {
 	data, err := m.readFile(path)
 	if err != nil {
+		// The path is named once here, so the copy a PathError carries is dropped.
+		var pathErr *fs.PathError
+		if errors.As(err, &pathErr) {
+			err = pathErr.Err
+		}
+
 		return "", onesie.Image{}, fmt.Errorf("reading %s: %w", path, err)
 	}
 
