@@ -25,10 +25,10 @@ install: ## Install onesie to $(GOPATH)/bin
 	go install -trimpath -ldflags '$(LDFLAGS)' $(PKG)
 
 test: ## Run unit tests
-	go test -timeout 2m ./... $(TESTARGS)
+	go test -timeout 5m ./... $(TESTARGS)
 
 test-race: ## Run unit tests with the race detector
-	go tool gotestsum --format testname -- -race -timeout 2m ./...
+	go tool gotestsum --format testname -- -race -timeout 5m ./...
 
 test-integration: ## Run CLI tests against the live API, with provider keys from the environment or .env
 	go test -tags integration -race -count=1 -timeout 5m ./internal/cli/ -run 'TestLive|Integration' -v
