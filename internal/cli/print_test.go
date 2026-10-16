@@ -714,7 +714,7 @@ func TestPrintRequest(t *testing.T) {
 		{
 			name:     "should print a stream record's image asset",
 			args:     []string{"-i", "jsonl", "--image-field", "photo", "q", "--print-request"},
-			stdin:    `{"photo":"` + square + `"}` + "\n",
+			stdin:    `{"photo":` + jsonText(t, square) + `}` + "\n",
 			wantCode: ExitOK,
 			stdout:   []string{`"assets":{"image-`},
 		},

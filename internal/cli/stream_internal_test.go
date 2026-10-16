@@ -641,7 +641,7 @@ func TestStream(t *testing.T) {
 			{
 				name:      "should read each record's field as an image",
 				args:      []string{"-i", "jsonl", "--image-field", "photo", "is there a red square in `photo`", "-o", "json"},
-				stdin:     `{"photo":"` + square + `"}` + "\n" + `{"photo":"` + empty + `"}` + "\n",
+				stdin:     `{"photo":` + jsonText(t, square) + `}` + "\n" + `{"photo":` + jsonText(t, empty) + `}` + "\n",
 				wantCode:  ExitOK,
 				wantLines: 2,
 			},
@@ -655,7 +655,7 @@ func TestStream(t *testing.T) {
 			{
 				name:      "should write an input error line for a missing file and go on",
 				args:      []string{"-i", "jsonl", "--image-field", "photo", "q", "-o", "json"},
-				stdin:     `{"photo":"` + filepath.Join(dir, "nope.png") + `"}` + "\n" + `{"photo":"` + square + `"}` + "\n",
+				stdin:     `{"photo":` + jsonText(t, filepath.Join(dir, "nope.png")) + `}` + "\n" + `{"photo":` + jsonText(t, square) + `}` + "\n",
 				wantCode:  ExitRecords,
 				wantLines: 2,
 				wantOut:   []string{`"error":{"kind":"input"`, `--image-field photo: reading`},

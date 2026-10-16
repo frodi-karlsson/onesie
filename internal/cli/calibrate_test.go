@@ -3281,7 +3281,7 @@ func TestScopeOf(t *testing.T) {
 
 		dir := t.TempDir()
 		square := writeImage(t, dir, "square.png", squarePNG(t))
-		stdin := `{"id":"a","photo":"` + square + `","red":true}` + "\n"
+		stdin := `{"id":"a","photo":` + jsonText(t, square) + `,"red":true}` + "\n"
 		base := []string{
 			"calibrate", "--ask", "red=is there a red square in `photo`",
 			"--ask", "mug=the red square in `photo`", "--box",

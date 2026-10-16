@@ -79,7 +79,7 @@ func TestImagingAttach(t *testing.T) {
 		{
 			name:      "should replace a field's path with its image",
 			fields:    []string{"photo"},
-			state:     json.RawMessage(`{"id":1,"photo":"` + empty + `"}`),
+			state:     json.RawMessage(`{"id":1,"photo":` + jsonText(t, empty) + `}`),
 			wantState: `{"id":1,"photo":"` + refOf(t, emptyPNG(t)) + `"}`,
 			wantRefs:  1,
 		},
@@ -98,7 +98,7 @@ func TestImagingAttach(t *testing.T) {
 		{
 			name:    "should refuse a field naming a file that is not an image",
 			fields:  []string{"photo"},
-			state:   json.RawMessage(`{"photo":"` + junk + `"}`),
+			state:   json.RawMessage(`{"photo":` + jsonText(t, junk) + `}`),
 			wantErr: "an image must be PNG or JPEG",
 		},
 		{
@@ -467,8 +467,8 @@ func TestAskLabelled(t *testing.T) {
 		square := writeImage(t, dir, "square.png", squarePNG(t))
 		empty := writeImage(t, dir, "empty.png", emptyPNG(t))
 
-		stdin := `{"id":"a","photo":"` + square + `","red":true}` + "\n" +
-			`{"id":"b","photo":"` + empty + `","red":false}` + "\n"
+		stdin := `{"id":"a","photo":` + jsonText(t, square) + `,"red":true}` + "\n" +
+			`{"id":"b","photo":` + jsonText(t, empty) + `,"red":false}` + "\n"
 
 		run := runImaged(t, []string{
 			"calibrate", "--ask", "red=is there a red square in `photo`", "-i", "jsonl",
@@ -566,6 +566,17 @@ func noulAnswer(ids ...string) string {
 	}
 
 	return `{"model":"m","answers":{` + strings.Join(answers, ",") + `},"usage":{}}`
+}
+
+func jsonText(t *testing.T, text string) string {
+	t.Helper()
+
+	encoded, err := json.Marshal(text)
+	if err != nil {
+		t.Fatalf("encoding %q: %v", text, err)
+	}
+
+	return string(encoded)
 }
 
 func refOf(t *testing.T, data []byte) string {
