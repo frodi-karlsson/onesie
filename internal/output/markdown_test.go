@@ -32,6 +32,15 @@ func TestWriteMarkdown(t *testing.T) {
 		want string
 	}{
 		{
+			name: "should write a box's edges and confidence",
+			rec:  output.Record{Model: "m", Answers: []output.Named{{ID: "mug", Box: true, Answer: boxAnswer()}}},
+			want: "| question | answer | confidence |\n" +
+				"|---|---|---|\n" +
+				"| `mug` | left 0.44, top 0.25, right 0.84, bottom 0.82 | 92% |\n" +
+				"\n" +
+				"_`m`_\n",
+		},
+		{
 			name: "should write a table and the model with no alert when there is no gate",
 			rec:  output.Record{Model: "jev-1.13.0", Answers: answers},
 			want: "| question | answer | confidence |\n" +

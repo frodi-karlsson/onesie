@@ -83,6 +83,12 @@ func TestWriteTable(t *testing.T) {
 		absent   []string
 	}{
 		{
+			name:     "should write a box's edges and confidence",
+			columns:  80,
+			rec:      output.Record{Model: "m", Answers: []output.Named{{ID: "mug", Box: true, Answer: boxAnswer()}}},
+			contains: []string{"mug  left 0.44  top 0.25  right 0.84  bottom 0.82", "confidence 0.92"},
+		},
+		{
 			name:    "should put the model in the header",
 			columns: 80,
 			rec: output.Record{

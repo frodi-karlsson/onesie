@@ -1104,9 +1104,21 @@ func delimited(
 	}
 
 	return output.NewDelimited(out, mode, output.DelimitedOptions{
-		IDs: ids, Fallbacks: fallbackIDs(built.Questions), ID: withID, Assert: withAssert,
-		Header: !headerWritten,
+		IDs: ids, Boxes: boxIDs(built.Questions), Fallbacks: fallbackIDs(built.Questions), ID: withID,
+		Assert: withAssert, Header: !headerWritten,
 	})
+}
+
+func boxIDs(questions []plan.Question) []string {
+	var ids []string
+
+	for _, question := range questions {
+		if question.Shape == plan.Box {
+			ids = append(ids, question.ID)
+		}
+	}
+
+	return ids
 }
 
 func fallbackIDs(questions []plan.Question) []string {
@@ -1254,7 +1266,7 @@ func answered(
 		answer.Apply(question, normalized)
 
 		record.Answers = append(record.Answers,
-			output.Named{ID: question.ID, Answer: normalized})
+			output.Named{ID: question.ID, Answer: normalized, Box: question.Shape == plan.Box})
 	}
 
 	return record, result.Usage, got.cached, nil
@@ -1272,7 +1284,7 @@ func failureRecord(built *plan.Plan, cause error) output.Record {
 
 	for _, question := range built.Questions {
 		record.Answers = append(record.Answers,
-			output.Named{ID: question.ID, Answer: answer.Failed(question)})
+			output.Named{ID: question.ID, Answer: answer.Failed(question), Box: question.Shape == plan.Box})
 	}
 
 	return record

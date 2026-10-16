@@ -77,12 +77,49 @@ func TestWrite(t *testing.T) {
 	failedLine := failed
 	failedLine.Line = 2
 
+	boxed := output.Record{Model: "m", Answers: []output.Named{{ID: "mug", Box: true, Answer: boxAnswer()}}}
+
+	failedBox := output.Record{
+		Failure: &output.Failure{Kind: "response", Message: "the error message"},
+		Answers: []output.Named{{ID: "mug", Box: true}},
+	}
+
 	tests := []struct {
 		name string
 		mode output.Mode
 		rec  output.Record
 		want string
 	}{
+		{
+			name: "should write a box as its edges and confidence in json output",
+			mode: output.JSON,
+			rec:  boxed,
+			want: `{"model":"m","mug":{"left":0.44,"top":0.25,"right":0.84,"bottom":0.82,"confidence":0.92}}`,
+		},
+		{
+			name: "should write a box as its edges in values output",
+			mode: output.Values,
+			rec:  boxed,
+			want: `{"mug":{"left":0.44,"top":0.25,"right":0.84,"bottom":0.82}}`,
+		},
+		{
+			name: "should write a box as four numbers in raw output",
+			mode: output.Raw,
+			rec:  boxed,
+			want: "0.44 0.25 0.84 0.82",
+		},
+		{
+			name: "should write a box as four columns in csv output",
+			mode: output.CSV,
+			rec:  boxed,
+			want: "mug_left,mug_top,mug_right,mug_bottom,error\n0.44,0.25,0.84,0.82,",
+		},
+		{
+			name: "should leave a failed box's four columns empty in csv output",
+			mode: output.CSV,
+			rec:  failedBox,
+			want: "mug_left,mug_top,mug_right,mug_bottom,error\n,,,,the error message",
+		},
 		{
 			name: "should write a string id first in json output",
 			mode: output.JSON,
@@ -448,4 +485,10 @@ func TestEncodeFailure(t *testing.T) {
 			}
 		})
 	}
+}
+
+func boxAnswer() *answer.Answer {
+	left, top, right, bottom, confidence := 0.44, 0.25, 0.84, 0.82, 0.92
+
+	return &answer.Answer{Left: &left, Top: &top, Right: &right, Bottom: &bottom, Confidence: &confidence}
 }
