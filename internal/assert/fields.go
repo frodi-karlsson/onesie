@@ -8,7 +8,7 @@ import (
 var fields = []field{
 	{
 		name:      "value",
-		available: func(plan.Question) bool { return true },
+		available: func(q plan.Question) bool { return q.Shape != plan.Box },
 		typeOf: func(q plan.Question) valueType {
 			if q.Shape == plan.Noul {
 				return typeNumber
@@ -39,7 +39,7 @@ var fields = []field{
 	{
 		name:      "p",
 		takesKey:  true,
-		available: notNoul,
+		available: chosen,
 		typeOf:    constant(typeNumber),
 		read:      func(a *answer.Answer, key string) any { return probability(a, key) },
 	},
@@ -66,6 +66,30 @@ var fields = []field{
 		// An absent fallback reads as the empty string, which is what the field already holds when
 		// no policy replaced the answer.
 		read: func(a *answer.Answer, _ string) any { return a.Fallback },
+	},
+	{
+		name:      "left",
+		available: boxed,
+		typeOf:    constant(typeNumber),
+		read:      func(a *answer.Answer, _ string) any { return unwrap(a.Left) },
+	},
+	{
+		name:      "top",
+		available: boxed,
+		typeOf:    constant(typeNumber),
+		read:      func(a *answer.Answer, _ string) any { return unwrap(a.Top) },
+	},
+	{
+		name:      "right",
+		available: boxed,
+		typeOf:    constant(typeNumber),
+		read:      func(a *answer.Answer, _ string) any { return unwrap(a.Right) },
+	},
+	{
+		name:      "bottom",
+		available: boxed,
+		typeOf:    constant(typeNumber),
+		read:      func(a *answer.Answer, _ string) any { return unwrap(a.Bottom) },
 	},
 }
 
@@ -111,6 +135,10 @@ type unavailableReason int
 func notNoul(q plan.Question) bool { return q.Shape != plan.Noul }
 
 func rated(q plan.Question) bool { return q.Shape == plan.Rate }
+
+func chosen(q plan.Question) bool { return q.Shape == plan.Pick || q.Shape == plan.Rate }
+
+func boxed(q plan.Question) bool { return q.Shape == plan.Box }
 
 func decided(q plan.Question) bool {
 	if q.Shape == plan.Noul {

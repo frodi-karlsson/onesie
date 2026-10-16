@@ -229,6 +229,34 @@ func TestEval(t *testing.T) {
 			}
 		}
 	})
+
+	t.Run("should read a box's edges", func(t *testing.T) {
+		t.Parallel()
+
+		boxed := &plan.Plan{Questions: []plan.Question{{ID: "mug", Shape: plan.Box, Boxed: true}}}
+
+		left, top, right, bottom, confidence := 0.44, 0.25, 0.84, 0.82, 0.92
+		box := &answer.Answer{Left: &left, Top: &top, Right: &right, Bottom: &bottom, Confidence: &confidence}
+		record := output.Record{Answers: []output.Named{{ID: "mug", Box: true, Answer: box}}}
+
+		for source, want := range map[string]bool{
+			"mug.left < 0.5 and mug.right > 0.8": true,
+			"mug.left > 0.5":                     false,
+		} {
+			expr, err := Parse(source)
+			if err != nil {
+				t.Fatalf("Parse(%q) error = %v, want no error", source, err)
+			}
+
+			if checked := Check(expr, boxed); checked != nil {
+				t.Fatalf("Check(%q) error = %v, want no error", source, checked)
+			}
+
+			if got := Eval(expr, record); got != want {
+				t.Errorf("Eval(%q) = %v, want %v", source, got, want)
+			}
+		}
+	})
 }
 
 func evalPlan() *plan.Plan {

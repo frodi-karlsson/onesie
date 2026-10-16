@@ -4,6 +4,7 @@ import (
 	"maps"
 	"slices"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/frodi-karlsson/onesie-go"
@@ -687,6 +688,50 @@ func TestCheck(t *testing.T) {
 				low: map[string]string{"confidence": "0.5"},
 			},
 		})
+	})
+
+	t.Run("should check box fields", func(t *testing.T) {
+		t.Parallel()
+
+		boxed := &plan.Plan{Questions: []plan.Question{
+			{ID: "mug", Shape: plan.Box, Boxed: true},
+			{ID: "there", Shape: plan.Noul},
+		}}
+
+		for _, tc := range []struct {
+			name    string
+			source  string
+			wantErr string
+		}{
+			{name: "should accept a box edge", source: "mug.left < 0.5"},
+			{name: "should accept a box confidence", source: "mug.confidence >= 0.6"},
+			{name: "should refuse value on a box", source: "mug.value > 0", wantErr: "'mug' is a box question and has no 'value'"},
+			{name: "should refuse decision on a box", source: `mug.decision == "x"`, wantErr: "'mug' is a box question and has no 'decision'"},
+			{name: "should refuse p on a box", source: "mug.p.a > 0", wantErr: "'mug' is a box question and has no 'p'"},
+			{name: "should refuse an edge on a yes or no", source: "there.left > 0", wantErr: "'there' is a yes/no question and has no 'left'"},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				expr, err := Parse(tc.source)
+				if err != nil {
+					t.Fatalf("Parse: %v", err)
+				}
+
+				got := Check(expr, boxed)
+				if tc.wantErr == "" {
+					if got != nil {
+						t.Fatalf("Check = %v, want no error", got)
+					}
+
+					return
+				}
+
+				if got == nil || !strings.Contains(got.Error(), tc.wantErr) {
+					t.Fatalf("Check = %v, want %q", got, tc.wantErr)
+				}
+			})
+		}
 	})
 }
 
