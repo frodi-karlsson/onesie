@@ -28,6 +28,39 @@ func TestValidate(t *testing.T) {
 		wantFallback *bool
 	}{
 		{
+			name:   "should accept a bare box",
+			events: []argv.Event{{Name: "ask", Value: "mug=the mug"}, {Name: "box", Value: "true"}},
+		},
+		{
+			name:    "should refuse --box beside --pick",
+			events:  []argv.Event{{Name: "ask", Value: "mug=x"}, {Name: "box", Value: "true"}, {Name: "pick", Value: "a,b"}},
+			wantErr: "onesie: --box, --pick and --rate are mutually exclusive. A question is one of them",
+		},
+		{
+			name:    "should refuse --desc on a box",
+			events:  []argv.Event{{Name: "ask", Value: "mug=x"}, {Name: "box", Value: "true"}, {Name: "desc", Value: "a=b"}},
+			wantErr: "onesie: --desc does not apply to box question 'mug', which has no options",
+		},
+		{
+			name:    "should refuse --min-confidence on a box",
+			events:  []argv.Event{{Name: "ask", Value: "mug=x"}, {Name: "box", Value: "true"}, {Name: "min-confidence", Value: "0.5"}},
+			wantErr: "onesie: --min-confidence does not apply to box question 'mug'. Gate a box with --assert",
+		},
+		{
+			name:    "should name only --assert for -q on a box",
+			events:  []argv.Event{{Name: "ask", Value: "mug=x"}, {Name: "box", Value: "true"}},
+			cfg:     plan.Config{Quiet: true, Jobs: 1},
+			wantErr: "onesie: -q on 'mug' needs --assert. A box has no policy that could fail it",
+		},
+		{
+			name: "should refuse a question named like a box column under -o csv",
+			events: []argv.Event{
+				{Name: "ask", Value: "mug=x"}, {Name: "box", Value: "true"}, {Name: "ask", Value: "mug_left=y"},
+			},
+			cfg:     plan.Config{Output: "csv", Jobs: 1},
+			wantErr: "onesie: question 'mug_left' takes a column name box question 'mug' writes. Rename one",
+		},
+		{
 			name:    "should reject an empty invocation",
 			wantErr: "onesie: no question given. Pass a question, --ask, or -f",
 		},
