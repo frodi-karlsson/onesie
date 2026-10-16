@@ -3275,6 +3275,40 @@ func TestScopeOf(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("should skip or refuse a box", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		square := writeImage(t, dir, "square.png", squarePNG(t))
+		stdin := `{"id":"a","photo":"` + square + `","red":true}` + "\n"
+		base := []string{
+			"calibrate", "--ask", "red=is there a red square in `photo`",
+			"--ask", "mug=the red square in `photo`", "--box",
+			"-i", "jsonl", "--map", "{photo}", "--image-field", "photo", "--id", ".id", "--label", "red=.red",
+		}
+
+		t.Run("should skip an unlabelled box", func(t *testing.T) {
+			t.Parallel()
+
+			run := runImaged(t, base, stdin, noulAnswer("red"), nil)
+
+			if run.code != ExitOK || !strings.Contains(run.stderr, "skipping 'mug'") {
+				t.Fatalf("exit code = %d, stderr = %q, want 0 and mug skipped", run.code, run.stderr)
+			}
+		})
+
+		t.Run("should refuse a label on a box", func(t *testing.T) {
+			t.Parallel()
+
+			run := runImaged(t, append(base, "--label", "mug=.red"), stdin, noulAnswer("red"), nil)
+
+			want := "onesie: question 'mug' is a box, and a box cannot be calibrated. Drop its --label"
+			if run.code != ExitUsage || !strings.Contains(run.stderr, want) {
+				t.Fatalf("exit code = %d, stderr = %q, want 2 and %q", run.code, run.stderr, want)
+			}
+		})
+	})
 }
 
 func TestAskedPlan(t *testing.T) {

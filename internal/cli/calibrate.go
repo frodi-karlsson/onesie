@@ -458,6 +458,11 @@ func scopeOf(built *plan.Plan, specs []string) (calibrateScope, error) {
 			continue
 		}
 
+		if question.Shape == plan.Box {
+			return calibrateScope{}, fmt.Errorf(
+				"onesie: question '%s' is a box, and a box cannot be calibrated. Drop its --label", question.ID)
+		}
+
 		scored.Questions = append(scored.Questions, question)
 		scope.labels = append(scope.labels, questionLabel{
 			id: question.ID, shape: question.Shape, names: namesOf(question), expr: expr,
