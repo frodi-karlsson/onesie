@@ -230,6 +230,8 @@ func TestRun(t *testing.T) {
 	refused := "onesie: the levanto provider takes no images or box questions"
 	longBody := writeImage(t, dir, "long.json",
 		[]byte(`{"state":"s","questions":{"red":{"type":"noul","instructions":"q"}},"long_context":true}`))
+	shortBody := writeImage(t, dir, "short.json",
+		[]byte(`{"state":"s","questions":{"red":{"type":"noul","instructions":"q"}},"long_context":false}`))
 
 	tests := []struct {
 		name         string
@@ -403,6 +405,66 @@ func TestRun(t *testing.T) {
 			wantErr:  "warning: --print-questions does not carry the body's long_context. Pass --long-context when you reload",
 		},
 		{
+			name:         "should send long context from a body with no flag, and not the key",
+			args:         []string{"-f", longBody, "-o", "json"},
+			wantCode:     ExitOK,
+			wantRequests: 1,
+			noBody:       []string{"long_context"},
+			wantHeader:   map[string]string{onesie.HeaderLongContext: "true"},
+		},
+		{
+			name:         "should send long context from the flag beside a body's false",
+			args:         []string{"-f", shortBody, "--long-context", "-o", "json"},
+			wantCode:     ExitOK,
+			wantRequests: 1,
+			wantHeader:   map[string]string{onesie.HeaderLongContext: "true"},
+		},
+		{
+			name:     "should print long_context for --long-context",
+			args:     []string{"--long-context", "--state", "s", "q", "--print-request"},
+			wantCode: ExitOK,
+			wantOut:  `"long_context":true`,
+		},
+		{
+			name:     "should print long_context for ONESIE_LONG_CONTEXT",
+			args:     []string{"--state", "s", "q", "--print-request"},
+			env:      map[string]string{"ONESIE_LONG_CONTEXT": "1"},
+			wantCode: ExitOK,
+			wantOut:  `"long_context":true`,
+		},
+		{
+			name:     "should print long_context from a body",
+			args:     []string{"-f", longBody, "--print-request"},
+			wantCode: ExitOK,
+			wantOut:  `"long_context":true`,
+		},
+		{
+			name:     "should print long_context for a stream",
+			args:     []string{"-i", "lines", "--long-context", "q", "--print-request"},
+			stdin:    "a\n",
+			wantCode: ExitOK,
+			wantOut:  `"long_context":true`,
+		},
+		{
+			name: "should print long_context for calibrate",
+			args: []string{
+				"calibrate", "--ask", "red=q", "-i", "jsonl", "--map", ".t", "--label", "red=.y",
+				"--id", ".id", "--long-context", "--print-request",
+			},
+			stdin:    `{"id":"a","t":"x","y":true}` + "\n",
+			wantCode: ExitOK,
+			wantOut:  `"long_context":true`,
+		},
+		{
+			name:         "should send a replayed body's long_context as the header",
+			args:         []string{"-i", "request"},
+			stdin:        `{"state":"s","model":"m","questions":{"answer":{"type":"noul","instructions":"q"}},"long_context":true}` + "\n",
+			wantCode:     ExitOK,
+			wantRequests: 1,
+			noBody:       []string{"long_context"},
+			wantHeader:   map[string]string{onesie.HeaderLongContext: "true"},
+		},
+		{
 			name:         "should report the image attempt timeout under --stats",
 			args:         []string{"--image", "photo=" + square, "q", "-o", "json", "--stats"},
 			wantCode:     ExitOK,
@@ -534,6 +596,11 @@ func TestReadRawRequest(t *testing.T) {
 			body: `{"state":"s","questions":{"m":{"type":"box"}}}`,
 			want: rawRequest{questions: 1, needsImages: true, boxed: true},
 		},
+		{
+			name: "should read a body's long_context",
+			body: `{"model":"m","questions":{"q":{"type":"noul"}},"long_context":true}`,
+			want: rawRequest{model: "m", questions: 1, longContext: true},
+		},
 		{name: "should read nothing from a body it cannot parse", body: `not json`},
 		{
 			name: "should keep the model and count past a question that is not an object",
@@ -564,23 +631,21 @@ func TestRequestOptions(t *testing.T) {
 	withImage := onesie.Request{Assets: onesie.Assets{"r": {}}}
 
 	tests := []struct {
-		name        string
-		req         onesie.Request
-		timeoutSet  bool
-		longContext bool
-		want        int
+		name       string
+		req        onesie.Request
+		timeoutSet bool
+		want       int
 	}{
 		{name: "should raise the attempt timeout for a request with an image", req: withImage, want: 1},
 		{name: "should leave an explicit --timeout alone", req: withImage, timeoutSet: true},
 		{name: "should add nothing to a text request", req: onesie.Request{}},
-		{name: "should add the long context header", req: onesie.Request{}, longContext: true, want: 1},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			if got := requestOptions(tc.req, tc.timeoutSet, tc.longContext); len(got) != tc.want {
+			if got := requestOptions(tc.req, tc.timeoutSet); len(got) != tc.want {
 				t.Errorf("options = %d, want %d", len(got), tc.want)
 			}
 		})

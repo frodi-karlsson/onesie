@@ -524,6 +524,7 @@ func TestAsk(t *testing.T) {
 		{name: "should miss when --provider changes to berget", change: []string{"--provider", "berget"}},
 		{name: "should miss when --provider changes to levanto", change: []string{"--provider", "levanto"}},
 		{name: "should miss when --base-url changes", other: true},
+		{name: "should miss when --long-context is added", change: []string{"--long-context"}},
 		{name: "should hit when --timeout changes", change: []string{"--timeout", "5"}, hit: true},
 		{name: "should hit when --retries changes", change: []string{"--retries", "1"}, hit: true},
 		{name: "should hit when --assert changes", change: []string{"--assert", "u.value > 0.5"}, hit: true},

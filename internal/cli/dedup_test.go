@@ -428,6 +428,7 @@ func TestRequestKey(t *testing.T) {
 		model     string
 		questions onesie.Questions
 		salt      string
+		long      bool
 		wantSame  bool
 	}{
 		{
@@ -438,13 +439,16 @@ func TestRequestKey(t *testing.T) {
 		{name: "should give another key to a different model", sent: state, model: "n", questions: questions},
 		{name: "should give another key to a different question", sent: state, model: "m", questions: other},
 		{name: "should give another key to a different salt", sent: state, model: "m", questions: questions, salt: "answers {}"},
+		{name: "should give another key to long context", sent: state, model: "m", questions: questions, long: true},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, keyErr := requestKey(onesie.Request{State: tc.sent, Model: tc.model, Questions: tc.questions}, tc.salt)
+			got, keyErr := requestKey(onesie.Request{
+				State: tc.sent, Model: tc.model, Questions: tc.questions, LongContext: tc.long,
+			}, tc.salt)
 			if keyErr != nil {
 				t.Fatalf("requestKey: %v", keyErr)
 			}

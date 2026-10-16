@@ -200,7 +200,7 @@ func run(
 			return err
 		}
 
-		return printRequest(cmd.OutOrStdout(), built.Questions, resolved.Source, sent, assets, model)
+		return printRequest(cmd.OutOrStdout(), built.Questions, resolved.Source, sent, assets, built.LongContext, model)
 	}
 
 	// Checked here rather than at write time, so a taken key costs no request.
@@ -579,7 +579,9 @@ func stream(
 		}
 
 		record, call, evalErr := askOnce(ctx, group, stats,
-			onesie.Request{State: sent, Model: model, Questions: questions, Assets: assets}, salt,
+			onesie.Request{
+				State: sent, Model: model, Questions: questions, Assets: assets, LongContext: built.LongContext,
+			}, salt,
 			func() (output.Record, error) {
 				return evaluate(ctx, asker, key, built, model, questions, sent, assets, flags.usage, stats)
 			})
@@ -1220,7 +1222,9 @@ func answered(
 	assets onesie.Assets,
 	withUsage bool,
 ) (output.Record, onesie.Usage, bool, error) {
-	req := onesie.Request{State: state, Model: built.Model, Questions: questions, Assets: assets}
+	req := onesie.Request{
+		State: state, Model: built.Model, Questions: questions, Assets: assets, LongContext: built.LongContext,
+	}
 
 	// A mock answers without SystemOne, which validates every live request itself, so a mock run
 	// is checked here and refuses what the API would.
