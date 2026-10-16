@@ -87,6 +87,7 @@ Exit 3 also covers these:
 | `model '...' not found` | the provider does not serve that model id. Try `--list-models` |
 | `each side must be`, `an image must be PNG or JPEG` or `an image is at most` | onesie refused an `--image` file before any request, naming the limit `onesie -V` lists. Resize it to at most 1568 pixels a side, or convert it to PNG or a smaller JPEG. An `--image-field` file is an error line instead |
 | `needs an image in the request` | a `--box` question was asked with no `--image` or `--image-field` to look in |
+| `long_context` and `must be true or false` | a request body's `long_context` is not a boolean |
 | `takes no images or box questions` | the provider, Levanto or Berget, reads neither. Ask with `--provider typesafe` or `--provider openrouter` |
 | `A box question needs a model that serves it` | the model refused a `--box` question on TypeSafe. Pass `-m jev-preview` |
 | `max_tokens_exceeded` | the state and questions are over the model's context limit. Trim the state with `--map`, or pass `--long-context`, which is slower and less accurate |

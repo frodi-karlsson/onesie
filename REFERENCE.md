@@ -269,8 +269,8 @@ onesie calibrate -f shell-safety -i jsonl --map .command --id .id \
 - `--out` writes to a file with a fingerprint beside it, and a lock so two runs cannot share it. The
   fingerprint covers the questions and their policy flags, the provider, the model, the input and
   output modes, `--map`, `--id`, `--merge-key`, `--assert`, `--abstain-if`, `--image`,
-  `--image-field` and a body's images. It covers `--skip-blank` too when a resume counts lines, which is without `--id` on any input but csv and
-  tsv.
+  `--image-field`, a body's images and long context. It covers `--skip-blank` too when a resume
+  counts lines, which is without `--id` on any input but csv and tsv.
 - `--resume` with `--id` skips answered records and asks the rest, failed ones included. A finished
   run rewrites the file in input order and keeps answered ids the input no longer has, unless
   `--prune` drops them. A changed fingerprint refuses with exit 2. A record whose content changed
@@ -353,9 +353,15 @@ ls photos/*.jpg | onesie -i lines --image-field photo 'is there a dog in `photo`
   references. With `--image` and no text there is nothing to map.
 - In a stream, `--merge` writes the input record as it was read, so an `--image-field` holds its
   path. For one record whose state was built from images, it writes that state, references included.
-- `--print-request` writes the provider neutral body, each image as base64 under `assets`, and
-  `-i request` reads lines up to `max-request-line-bytes`, so a printed body replays on any provider.
-  Each provider's client adapts it when it sends.
+- `--print-request` writes onesie's request format: the System One body plus the settings that
+  change the answer, each image as base64 under `assets`, which each provider's client adapts when
+  it sends. `-i request` reads lines up to `max-request-line-bytes`, so a printed body replays. A
+  printed body holding `long_context` is refused by TypeSafe if sent to it directly, rather than
+  through `-i request`.
+- A printed body names its model, the provider's default unless `-m` gave one, so it replays on a
+  provider that serves that model. To print for another provider, pass `-m`.
+- A malformed image body, such as one whose asset nothing references, is refused before any
+  request on every provider, with the same message.
 - Providers read images differently:
   - TypeSafe takes the `assets` map and the images header, both of which onesie sends.
   - OpenRouter takes each image as an inline part where its reference stands, which onesie
@@ -386,9 +392,9 @@ values the flag takes, such as `1`, `true`, `0` and `false`, and anything else e
 again.
 
 - The key is a sha256 of the request body as `--print-request` writes it, which holds the state, the
-  questions and the model name, together with the provider, the base URL and the bytes of each image.
-  `--timeout`, `--retries`, `--assert`, `--abstain-if`, the policy flags and the output flags are left
-  out, since none of them change the answer.
+  questions, the model name and long context, together with the provider, the base URL and the bytes
+  of each image. `--timeout`, `--retries`, `--assert`, `--abstain-if`, the policy flags and the
+  output flags are left out, since none of them change the answer.
 - A hit prints what the live run printed, byte for byte, except that `--usage` reports
   `{"input_tokens":0,"output_tokens":0}` and no cost. `--stats` counts a hit as a record and not a
   request, as in `1 record, 1 cached, 0 requests`. Gates, exit codes, `--out` and `--resume` work as
@@ -569,6 +575,8 @@ table, and `onesie calibrate --help` lists the codes calibrate uses.
   also leaves a `min_confidence` on a yes/no question and a partly described rate to onesie.
 - `--retries`, `--timeout` and `--max-retry-after` bound how long a call can take.
 - `--long-context`, or `ONESIE_LONG_CONTEXT=1`, raises the context limits to 262k tokens, which is
-  slower and less accurate. It is experimental on TypeSafe's side.
+  slower and less accurate. It is written into a printed body as `long_context`, so a replay keeps
+  it, and a `-f` body's `long_context: true` turns it on with no flag. A body's `false` does not
+  turn off the flag or the variable. It is experimental on TypeSafe's side.
 - `onesie --help` lists every flag, and `onesie -V` prints the built in limits. `onesie help
   calibrate` prints a subcommand's help, and a topic that names no subcommand exits 2.
