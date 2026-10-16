@@ -12,7 +12,7 @@
       "source": {
         "source": "github",
         "repo": "frodi-karlsson/onesie",
-        "ref": "v0.6.1"
+        "ref": "v0.7.0"
       },
       "category": "development"
     }
