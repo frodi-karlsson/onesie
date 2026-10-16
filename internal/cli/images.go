@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/frodi-karlsson/onesie-go"
+	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
 const (
@@ -212,6 +213,30 @@ func (m *imaging) load(path string) (string, onesie.Image, error) {
 	}
 
 	return imageRef(data), img, nil
+}
+
+func checkProviderImages(settings rootSettings, flags *runFlags, built *plan.Plan, images *imaging) error {
+	// A dry run sends nothing, and the body it prints is the provider neutral one.
+	if flags.printRequest || !sendsImages(built, images) {
+		return nil
+	}
+
+	provider, err := resolveProvider(settings, flags)
+	if err != nil {
+		return err
+	}
+
+	return provider.CheckImages()
+}
+
+func sendsImages(built *plan.Plan, images *imaging) bool {
+	if images != nil && (len(images.assets) > 0 || len(images.fields) > 0) {
+		return true
+	}
+
+	return slices.ContainsFunc(built.Questions, func(question plan.Question) bool {
+		return question.Shape == plan.Box
+	})
 }
 
 func imageRef(data []byte) string {

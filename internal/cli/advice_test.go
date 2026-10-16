@@ -314,6 +314,16 @@ func TestAdvise(t *testing.T) {
 				wantErr:  "onesie: 400 Invalid request." + boxNote + "\n",
 			},
 			{
+				name:     "should not name jev-preview on openrouter",
+				args:     boxed,
+				files:    square,
+				env:      map[string]string{"ONESIE_PROVIDER": "openrouter"},
+				status:   http.StatusBadRequest,
+				response: invalid,
+				wantCode: ExitUsage,
+				wantErr:  "onesie: 400 Invalid request.\n",
+			},
+			{
 				name:     "should name jev-preview for a replayed box body too",
 				args:     []string{"-i", "request"},
 				stdin:    boxBody + "\n",

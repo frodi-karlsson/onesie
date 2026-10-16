@@ -147,11 +147,19 @@ func run(
 			return warnErr
 		}
 
+		if refuseErr := checkProviderImages(settings, flags, built, inv.images); refuseErr != nil {
+			return refuseErr
+		}
+
 		return withStats(cmd, settings.now, flags, func(stats *collector) error {
 			return stream(
 				cmd, settings, built, mapper, namer, inv.images, inputMode, outputMode, flags, gate, abstain,
 				stats, out, resume, answers)
 		})
+	}
+
+	if refuseErr := checkProviderImages(settings, flags, built, inv.images); refuseErr != nil {
+		return refuseErr
 	}
 
 	resolved, err := resolveState(
@@ -1234,7 +1242,7 @@ func answered(
 		// A mocked failure came from no key and no account, so advice about either would mislead.
 		advised := err
 		if model != mock.Model {
-			advised = advise(err, model, true, hasBox(questions))
+			advised = advise(err, model, true)
 		}
 
 		failed := failureRecord(built, advised)

@@ -40,8 +40,9 @@ prints the built in limits.
   rate needs every level described, or none.
 - `--box` makes a question a box, answered with `left`, `top`, `right` and `bottom`, each a fraction
   of the image from its top left corner, and a `confidence`. It needs an image, as in Images below,
-  and a model that serves it, which is `jev-preview` until `jev-latest` moves. It takes no value and
-  no `--desc`, `--threshold`, `--min-confidence` or `--fallback`. `-r` prints the four edges in that
+  and a provider and model that serve it: `jev-preview` on TypeSafe until `jev-latest` moves, or
+  `typesafe/jev-1.14` on OpenRouter. Levanto and Berget refuse it. It takes no value and no
+  `--desc`, `--threshold`, `--min-confidence` or `--fallback`. `-r` prints the four edges in that
   order, and `-o csv` writes them as four columns, `ID_left`, `ID_top`, `ID_right` and `ID_bottom`.
   A box always returns a box, even when the target is not there, so pair it with a yes or no
   question that asks whether it is.
@@ -346,14 +347,25 @@ ls photos/*.jpg | onesie -i lines --image-field photo 'is there a dog in `photo`
   deduplication and `--resume` see the same file as the same record.
 - A request with an image waits up to 60 seconds per attempt, unless `--timeout` says otherwise. At
   most `-j` records hold image bytes at once, about four times the body each while it is checked and
-  sent, so lower `-j` for large images.
+  sent, and about six times on OpenRouter, which also holds the rewritten body. So lower `-j` for
+  large images.
 - `--map` runs before the images are attached, so it sees the text state and the paths, never the
   references. With `--image` and no text there is nothing to map.
 - In a stream, `--merge` writes the input record as it was read, so an `--image-field` holds its
   path. For one record whose state was built from images, it writes that state, references included.
-- `--print-request` writes each image as base64 under `assets`, and `-i request` reads lines up to
-  `max-request-line-bytes`, so a printed body replays. `-i request` sends the images header itself
-  for a body with assets or a box question.
+- `--print-request` writes the provider neutral body, each image as base64 under `assets`, and
+  `-i request` reads lines up to `max-request-line-bytes`, so a printed body replays on any provider.
+  Each provider's client adapts it when it sends.
+- Providers read images differently:
+  - TypeSafe takes the `assets` map and the images header, both of which onesie sends.
+  - OpenRouter takes each image as an inline part where its reference stands, which onesie
+    rewrites the body into. An image named in several places is sent once per place, and counts
+    toward the body size each time. Only Jev is measured there.
+  - Levanto and Berget take no images or Box questions, and a run that would send either exits 2
+    before any request. Under `-i request` such a body is an error line instead.
+  - `-i request` sends the images header only to TypeSafe, and rewrites a body into inline parts
+    for OpenRouter.
+  - A `--mock` run reads no provider, so it answers where the real run would be refused.
 - `--image`, `--image-field` and `--box` are refused under `-i request`, whose bodies carry their own
   state and questions.
 - Images and Box are experimental on TypeSafe's side, and less reliable than text.
@@ -373,10 +385,10 @@ values the flag takes, such as `1`, `true`, `0` and `false`, and anything else e
 `--cache=false` turns the cache off for one run under `ONESIE_CACHE=1`, so that run asks the API
 again.
 
-- The key is a sha256 of the exact request body, which holds the state, the questions and the model
-  name, together with the provider, the base URL and the bytes of each image. `--timeout`, `--retries`, `--assert`,
-  `--abstain-if`, the policy flags and the output flags are left out, since none of them change the
-  answer.
+- The key is a sha256 of the request body as `--print-request` writes it, which holds the state, the
+  questions and the model name, together with the provider, the base URL and the bytes of each image.
+  `--timeout`, `--retries`, `--assert`, `--abstain-if`, the policy flags and the output flags are left
+  out, since none of them change the answer.
 - A hit prints what the live run printed, byte for byte, except that `--usage` reports
   `{"input_tokens":0,"output_tokens":0}` and no cost. `--stats` counts a hit as a record and not a
   request, as in `1 record, 1 cached, 0 requests`. Gates, exit codes, `--out` and `--resume` work as

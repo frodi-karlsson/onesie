@@ -224,6 +224,10 @@ func TestRun(t *testing.T) {
 	question := `"questions":{"red":{"type":"noul","instructions":"is there a red square in ` + "`photo`" + `"}}`
 	withState := writeImage(t, dir, "with-state.json", []byte(`{"state":{"photo":"body-img"},`+question+`,`+asset+`}`))
 	stateless := writeImage(t, dir, "stateless.json", []byte(`{`+question+`,`+asset+`}`))
+	levanto := map[string]string{"ONESIE_PROVIDER": "levanto"}
+	openrouter := map[string]string{"ONESIE_PROVIDER": "openrouter"}
+	mockFile := writeImage(t, dir, "mock.json", []byte(`{"answer":0.9}`))
+	refused := "onesie: the levanto provider takes no images or box questions"
 
 	tests := []struct {
 		name         string
@@ -237,6 +241,8 @@ func TestRun(t *testing.T) {
 		wantHeader   map[string]string
 		wantErr      string
 		wantOut      string
+		emptyOut     bool
+		errOnce      bool
 	}{
 		{
 			name:         "should send the image as the state and never read stdin",
@@ -303,6 +309,84 @@ func TestRun(t *testing.T) {
 			args:     []string{"-f", stateless, "--image", "photo=" + square, "-o", "json"},
 			wantCode: ExitUsage,
 			wantErr:  "asset 'body-img' is not referenced",
+		},
+		{
+			name:         "should send openrouter inline parts and no images header",
+			args:         []string{"--image", "photo=" + square, "q", "-o", "json"},
+			env:          openrouter,
+			wantCode:     ExitOK,
+			wantRequests: 1,
+			wantBody:     []string{`"state":{"photo":{"type":"image_url","image_url":{"url":"data:image/png;base64,`},
+			noBody:       []string{`"assets"`},
+			wantHeader:   map[string]string{onesie.HeaderImages: ""},
+		},
+		{
+			name:         "should rewrite a replayed body for openrouter",
+			args:         []string{"-i", "request"},
+			env:          openrouter,
+			stdin:        `{"state":{"p":"r"},"model":"m","questions":{"answer":{"type":"noul","instructions":"q"}},"assets":{"r":{"type":"image","format":"png","data_base64":"AQ=="}}}` + "\n",
+			wantCode:     ExitOK,
+			wantRequests: 1,
+			wantBody:     []string{`"state":{"p":{"type":"image_url"`},
+			noBody:       []string{`"assets"`},
+			wantHeader:   map[string]string{onesie.HeaderImages: ""},
+		},
+		{
+			name:     "should write an error line for a replayed body with images on levanto",
+			args:     []string{"-i", "request"},
+			env:      levanto,
+			stdin:    `{"state":{"p":"r"},"model":"m","questions":{"answer":{"type":"noul","instructions":"q"}},"assets":{"r":{"type":"image","format":"png","data_base64":"AQ=="}}}` + "\n",
+			wantCode: ExitRecords,
+			wantOut:  "takes no images or box questions",
+		},
+		{
+			name:     "should refuse --image on levanto before any request",
+			args:     []string{"--image", "photo=" + square, "q"},
+			env:      levanto,
+			wantCode: ExitUsage,
+			wantErr:  refused,
+		},
+		{
+			name:     "should refuse --box on levanto before any request",
+			args:     []string{"--ask", "mug=the mug", "--box", "--state", "s"},
+			env:      levanto,
+			wantCode: ExitUsage,
+			wantErr:  refused,
+		},
+		{
+			name:     "should refuse a levanto stream once with no error lines",
+			args:     []string{"-i", "jsonl", "--image-field", "photo", "q", "-o", "json"},
+			env:      levanto,
+			stdin:    `{"photo":` + jsonText(t, square) + `}` + "\n" + `{"photo":` + jsonText(t, square) + `}` + "\n",
+			wantCode: ExitUsage,
+			wantErr:  refused,
+			emptyOut: true,
+			errOnce:  true,
+		},
+		{
+			name: "should refuse calibrate with images on levanto",
+			args: []string{
+				"calibrate", "--ask", "red=is there a red square in `photo`", "-i", "jsonl", "--map", "{photo}",
+				"--image-field", "photo", "--label", "red=.red", "--id", ".id",
+			},
+			env:      levanto,
+			stdin:    `{"id":"a","photo":` + jsonText(t, square) + `,"red":true}` + "\n",
+			wantCode: ExitUsage,
+			wantErr:  refused,
+		},
+		{
+			name:     "should print a levanto request with images, since a dry run sends nothing",
+			args:     []string{"--image", "photo=" + square, "q", "--print-request"},
+			env:      levanto,
+			wantCode: ExitOK,
+			wantOut:  `"assets":{"` + ref + `"`,
+		},
+		{
+			name:     "should answer a mock run with images under levanto, since a mock reads no provider",
+			args:     []string{"--image", "photo=" + square, "q", "--mock", mockFile, "-o", "values"},
+			env:      levanto,
+			wantCode: ExitOK,
+			wantOut:  `{"answer":0.9}`,
 		},
 		{
 			name:         "should report the image attempt timeout under --stats",
@@ -378,6 +462,14 @@ func TestRun(t *testing.T) {
 
 			if tc.wantOut != "" && !strings.Contains(run.stdout, tc.wantOut) {
 				t.Errorf("stdout = %q, want it to contain %q", run.stdout, tc.wantOut)
+			}
+
+			if tc.emptyOut && run.stdout != "" {
+				t.Errorf("stdout = %q, want it empty", run.stdout)
+			}
+
+			if tc.errOnce && strings.Count(run.stderr, tc.wantErr) != 1 {
+				t.Errorf("stderr = %q, want %q once", run.stderr, tc.wantErr)
 			}
 
 			if len(run.bodies) == 0 {
@@ -542,6 +634,11 @@ func runImaged(t *testing.T, args []string, stdin, answers string, env map[strin
 	}))
 	defer srv.Close()
 
+	provider, err := onesie.ProviderNamed(env["ONESIE_PROVIDER"])
+	if err != nil {
+		t.Fatalf("unknown provider: %v", err)
+	}
+
 	var out, errOut bytes.Buffer
 
 	root := NewRootCmd(
@@ -549,6 +646,7 @@ func runImaged(t *testing.T, args []string, stdin, answers string, env map[strin
 		WithKeychain(noKeychain()),
 		WithClientFactory(func(_ context.Context, opts ...onesie.Option) (*onesie.Client, error) {
 			return onesie.New(append([]onesie.Option{
+				onesie.WithProvider(provider),
 				onesie.WithAPIKey("k"),
 				onesie.WithBaseURL(srv.URL),
 				onesie.WithEnv(func(string) (string, bool) { return "", false }),
