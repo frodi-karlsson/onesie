@@ -5,6 +5,10 @@ package cli_test
 import (
 	"bytes"
 	"encoding/json"
+	"image"
+	"image/color"
+	"image/png"
+	"math"
 	"os"
 	"path/filepath"
 	"slices"
@@ -241,6 +245,78 @@ func TestFilterIntegration(t *testing.T) {
 
 		if !strings.HasPrefix(model, "levanto-sage-") {
 			t.Errorf("model = %q, want a Levanto id starting with levanto-sage-", model)
+		}
+	})
+
+	t.Run("should see the red square through --image", func(t *testing.T) {
+		out, errOut, code := runLive(t, []string{
+			"--image", "square=" + liveImage(t, true), "--image", "empty=" + liveImage(t, false),
+			"--ask", "in_square=is there a red square in `square`",
+			"--ask", "in_empty=is there a red square in `empty`", "-o", "json",
+		}, "")
+		if code != cli.ExitOK {
+			t.Fatalf("exit code = %d, stderr:\n%s", code, errOut)
+		}
+
+		record := decodeRecord(t, out)
+
+		for id, check := range map[string]func(float64) bool{
+			"in_square": func(value float64) bool { return value > 0.8 },
+			"in_empty":  func(value float64) bool { return value < 0.2 },
+		} {
+			var answer struct {
+				Value float64 `json:"value"`
+			}
+
+			if err := json.Unmarshal(record[id], &answer); err != nil {
+				t.Fatalf("decoding %s: %v", id, err)
+			}
+
+			if !check(answer.Value) {
+				t.Errorf("%s = %.4f, want a clear answer", id, answer.Value)
+			}
+		}
+	})
+
+	t.Run("should box the red square on jev-preview", func(t *testing.T) {
+		out, errOut, code := runLive(t, []string{
+			"--image", "photo=" + liveImage(t, true), "--ask", "sq=the red square in `photo`", "--box",
+			"-m", "jev-preview", "-r",
+		}, "")
+		if code != cli.ExitOK {
+			t.Fatalf("exit code = %d, stderr:\n%s", code, errOut)
+		}
+
+		fields := strings.Fields(out)
+		if len(fields) != 4 {
+			t.Fatalf("raw output = %q, want four edges", out)
+		}
+
+		// The square's edges are 0.25, 0.25, 0.5 and 0.5, in the order left, top, right, bottom.
+		const tolerance = 0.05
+
+		for i, want := range []float64{0.25, 0.25, 0.5, 0.5} {
+			got, err := strconv.ParseFloat(fields[i], 64)
+			if err != nil {
+				t.Fatalf("edge %d = %q: %v", i, fields[i], err)
+			}
+
+			if math.Abs(got-want) > tolerance {
+				t.Errorf("edge %d = %.3f, want %.2f within %.2f. Edges: %s", i, got, want, tolerance, out)
+			}
+		}
+	})
+
+	t.Run("should read images per line", func(t *testing.T) {
+		out, errOut, code := runLive(t, []string{
+			"-i", "lines", "--image-field", "photo", "is there a red square in `photo`", "-o", "values",
+		}, liveImage(t, true)+"\n"+liveImage(t, false)+"\n")
+		if code != cli.ExitOK {
+			t.Fatalf("exit code = %d, stderr:\n%s", code, errOut)
+		}
+
+		if lines := nonEmptyLines(out); len(lines) != 2 {
+			t.Errorf("lines = %d, want two\n%s", len(lines), out)
 		}
 	})
 }
@@ -962,6 +1038,33 @@ func TestAuthTestIntegration(t *testing.T) {
 			t.Errorf("auth clear left the file behind, stat error = %v", err)
 		}
 	})
+}
+
+func liveImage(t *testing.T, square bool) string {
+	t.Helper()
+
+	img := image.NewRGBA(image.Rect(0, 0, 640, 480))
+	for y := range 480 {
+		for x := range 640 {
+			img.Set(x, y, color.RGBA{R: 255, G: 255, B: 255, A: 255})
+
+			if square && image.Pt(x, y).In(image.Rect(160, 120, 320, 240)) {
+				img.Set(x, y, color.RGBA{R: 255, A: 255})
+			}
+		}
+	}
+
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, img); err != nil {
+		t.Fatalf("encoding the png: %v", err)
+	}
+
+	path := filepath.Join(t.TempDir(), "image.png")
+	if err := os.WriteFile(path, buf.Bytes(), 0o600); err != nil {
+		t.Fatalf("writing the png: %v", err)
+	}
+
+	return path
 }
 
 func nonEmptyLines(out string) []string {
