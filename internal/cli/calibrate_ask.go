@@ -60,7 +60,9 @@ func calibrateRun(
 
 	// The labels and the cuts stay out, since neither changes an answer, and a later stream run
 	// with -o json and the same questions reads the file as its own.
-	inputs := fingerprintInputs{model: model, output: output.JSON.String(), input: inputMode.String()}
+	inputs := fingerprintInputs{
+		model: model, output: output.JSON.String(), input: inputMode.String(), images: inv.images.fingerprint(),
+	}
 
 	asked, err := askedPlan(settings, flags, out, scope, inputs)
 	if err != nil {

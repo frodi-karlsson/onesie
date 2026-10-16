@@ -200,6 +200,15 @@ func TestAdvise(t *testing.T) {
 					`"message":"` + strings.TrimPrefix(rejected, "onesie: ") + `"}}`},
 			},
 			{
+				name:     "should say the same for an image the server refuses",
+				args:     []string{"--image", "photo=square.png", "is there a red square in `photo`"},
+				files:    map[string]string{"square.png": string(squarePNG(t))},
+				status:   http.StatusBadRequest,
+				response: `{"detail":"image side must be at most 1568 pixels"}`,
+				wantCode: ExitUsage,
+				wantErr:  "onesie: 400 image side must be at most 1568 pixels." + note + "\n",
+			},
+			{
 				name: "should carry the note into a streaming error record",
 				args: []string{
 					"--ask", "severity=how bad is it", "--rate", "calm,annoyed,angry", "-i", "lines",

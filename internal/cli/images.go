@@ -149,6 +149,29 @@ func (m *imaging) dropUnreferenced(questions onesie.Questions) (int, error) {
 	return len(unreferenced), nil
 }
 
+func (m *imaging) fingerprint() []string {
+	if m == nil {
+		return nil
+	}
+
+	var parts []string
+
+	for _, field := range m.fields {
+		parts = append(parts, "field "+field)
+	}
+
+	for _, name := range slices.Sorted(maps.Keys(m.fixed)) {
+		parts = append(parts, "image "+name+"="+m.fixed[name])
+	}
+
+	for _, ref := range slices.Sorted(maps.Keys(m.bodyAssets())) {
+		sum := sha256.Sum256(m.assets[ref].Data)
+		parts = append(parts, "asset "+ref+"="+hex.EncodeToString(sum[:]))
+	}
+
+	return parts
+}
+
 func (m *imaging) bodyAssets() onesie.Assets {
 	assets := onesie.Assets{}
 	if m == nil {

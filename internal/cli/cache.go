@@ -44,7 +44,7 @@ func answersFor(
 	}
 
 	if !on {
-		return wrapped(settings, liveAnswers(settings)), nil
+		return wrapped(settings, liveAnswers(settings, flags)), nil
 	}
 
 	provider, err := resolveProvider(settings, flags)
@@ -102,7 +102,7 @@ func cachedAnswers(
 		}
 
 		return &cachedAnswerer{
-			next:      liveAnswerer{client: client},
+			next:      newLiveAnswerer(client, settings, flags),
 			open:      sync.OnceValues(func() (*cache.Store, error) { return openCache(settings) }),
 			model:     model,
 			provider:  provider,

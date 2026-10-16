@@ -93,7 +93,13 @@ func boundWord(message string) bool {
 }
 
 func countedSubject(message string) bool {
-	return strings.Contains(message, "level") || strings.Contains(message, "option")
+	for _, subject := range []string{"level", "option", "image", "pixel"} {
+		if strings.Contains(message, subject) {
+			return true
+		}
+	}
+
+	return false
 }
 
 func staleLimits(message string) string {

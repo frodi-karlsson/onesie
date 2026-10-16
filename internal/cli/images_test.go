@@ -343,6 +343,82 @@ func TestRun(t *testing.T) {
 	}
 }
 
+func TestReadRawRequest(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		body string
+		want rawRequest
+	}{
+		{
+			name: "should read the model and count the questions",
+			body: `{"state":"s","model":"m","questions":{"a":{"type":"noul"},"b":{"type":"choice"}}}`,
+			want: rawRequest{model: "m", questions: 2},
+		},
+		{
+			name: "should need images for a body with assets",
+			body: `{"state":"s","questions":{"q":{"type":"noul"}},"assets":{"r":{"format":"png","data_base64":"AQ=="}}}`,
+			want: rawRequest{questions: 1, needsImages: true},
+		},
+		{
+			name: "should need images for a box question",
+			body: `{"state":"s","questions":{"m":{"type":"box"}}}`,
+			want: rawRequest{questions: 1, needsImages: true},
+		},
+		{name: "should read nothing from a body it cannot parse", body: `not json`},
+		{
+			name: "should keep the model and count past a question that is not an object",
+			body: `{"model":"m","questions":{"q":"text"}}`,
+			want: rawRequest{model: "m", questions: 1},
+		},
+		{
+			name: "should keep the model past assets that are not an object",
+			body: `{"model":"m","questions":{"q":{"type":"noul"}},"assets":"x"}`,
+			want: rawRequest{model: "m", questions: 1},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := readRawRequest([]byte(tc.body)); got != tc.want {
+				t.Errorf("readRawRequest = %+v, want %+v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestRequestOptions(t *testing.T) {
+	t.Parallel()
+
+	withImage := onesie.Request{Assets: onesie.Assets{"r": {}}}
+
+	tests := []struct {
+		name        string
+		req         onesie.Request
+		timeoutSet  bool
+		longContext bool
+		want        int
+	}{
+		{name: "should raise the attempt timeout for a request with an image", req: withImage, want: 1},
+		{name: "should leave an explicit --timeout alone", req: withImage, timeoutSet: true},
+		{name: "should add nothing to a text request", req: onesie.Request{}},
+		{name: "should add the long context header", req: onesie.Request{}, longContext: true, want: 1},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := requestOptions(tc.req, tc.timeoutSet, tc.longContext); len(got) != tc.want {
+				t.Errorf("options = %d, want %d", len(got), tc.want)
+			}
+		})
+	}
+}
+
 func runImaged(t *testing.T, args []string, stdin, answers string, env map[string]string) recordedRun {
 	t.Helper()
 

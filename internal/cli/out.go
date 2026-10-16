@@ -825,6 +825,7 @@ func fingerprintOf(questions []plan.Question, inputs fingerprintInputs) (string,
 		Assert    string         `json:"assert"`
 		AbstainIf string         `json:"abstain_if"`
 		SkipBlank bool           `json:"skip_blank,omitempty"`
+		Images    []string       `json:"images,omitempty"`
 		// A csv or tsv file written before the fallback columns existed has fewer columns, so a
 		// resume into it is refused rather than appending longer rows.
 		FallbackColumns bool `json:"fallback_columns,omitempty"`
@@ -841,6 +842,7 @@ func fingerprintOf(questions []plan.Question, inputs fingerprintInputs) (string,
 		Assert:    inputs.assert,
 		AbstainIf: inputs.abstainIf,
 		SkipBlank: inputs.skipBlank,
+		Images:    inputs.images,
 
 		FallbackColumns: !inputs.withoutFallbackColumns && delimitedOutput(inputs.output) && hasFallback(questions),
 	})
@@ -872,6 +874,7 @@ type fingerprintInputs struct {
 	assert    string
 	abstainIf string
 	skipBlank bool
+	images    []string
 
 	withoutFallbackColumns bool
 }

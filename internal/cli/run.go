@@ -35,6 +35,8 @@ func run(
 	out *outFile,
 	resume resumePlan,
 ) error {
+	flags.timeoutSet = cmd.Flags().Changed(flagTimeout)
+
 	cfg, inputMode, err := configOf(cmd, events, positional, flags)
 	if err != nil {
 		return err
@@ -132,7 +134,7 @@ func run(
 	// writes, since a refused resume must leave the file as it was.
 	bindErr := bindOut(out, settings, flags, built.Questions, fingerprintInputs{
 		model: model, output: outputMode.String(), input: inputMode.String(), assert: gate.Source(),
-		abstainIf: abstain.Source(),
+		abstainIf: abstain.Source(), images: inv.images.fingerprint(),
 	})
 	if bindErr != nil {
 		return bindErr
@@ -1384,4 +1386,6 @@ type runFlags struct {
 	idSource      string
 	images        []string
 	imageFields   []string
+	timeoutSet    bool
+	longContext   bool
 }
