@@ -385,10 +385,10 @@ values the flag takes, such as `1`, `true`, `0` and `false`, and anything else e
 `--cache=false` turns the cache off for one run under `ONESIE_CACHE=1`, so that run asks the API
 again.
 
-- The key is a sha256 of the request body as `--print-request` writes it, which holds the state, the questions and the model
-  name, together with the provider, the base URL and the bytes of each image. `--timeout`, `--retries`, `--assert`,
-  `--abstain-if`, the policy flags and the output flags are left out, since none of them change the
-  answer.
+- The key is a sha256 of the request body as `--print-request` writes it, which holds the state, the
+  questions and the model name, together with the provider, the base URL and the bytes of each image.
+  `--timeout`, `--retries`, `--assert`, `--abstain-if`, the policy flags and the output flags are left
+  out, since none of them change the answer.
 - A hit prints what the live run printed, byte for byte, except that `--usage` reports
   `{"input_tokens":0,"output_tokens":0}` and no cost. `--stats` counts a hit as a record and not a
   request, as in `1 record, 1 cached, 0 requests`. Gates, exit codes, `--out` and `--resume` work as
