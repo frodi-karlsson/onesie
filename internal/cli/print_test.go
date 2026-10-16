@@ -701,6 +701,13 @@ func TestPrintRequest(t *testing.T) {
 			stdout:   []string{`"assets":{"` + ref + `":{"type":"image","format":"png","data_base64":"`},
 		},
 		{
+			name:     "should print a stream record's image asset",
+			args:     []string{"-i", "jsonl", "--image-field", "photo", "q", "--print-request"},
+			stdin:    `{"photo":"` + square + `"}` + "\n",
+			wantCode: ExitOK,
+			stdout:   []string{`"assets":{"image-`},
+		},
+		{
 			name:     "should omit state when none was given",
 			args:     []string{"--ask", "urgent=is this urgent", "--print-request"},
 			wantCode: ExitOK,

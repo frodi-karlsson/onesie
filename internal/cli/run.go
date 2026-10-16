@@ -145,8 +145,8 @@ func run(
 
 		return withStats(cmd, settings.now, flags, func(stats *collector) error {
 			return stream(
-				cmd, settings, built, mapper, namer, inputMode, outputMode, flags, gate, abstain, stats,
-				out, resume, answers)
+				cmd, settings, built, mapper, namer, inv.images, inputMode, outputMode, flags, gate, abstain,
+				stats, out, resume, answers)
 		})
 	}
 
@@ -414,6 +414,7 @@ func stream(
 	built *plan.Plan,
 	mapper *jq.Expr,
 	namer *jq.Expr,
+	images *imaging,
 	inputMode input.Mode,
 	outputMode output.Mode,
 	flags *runFlags,
@@ -425,7 +426,7 @@ func stream(
 	answerers answererFactory,
 ) error {
 	if flags.printRequest {
-		return streamRequests(cmd, settings, built, mapper, namer, inputMode, flags, resume)
+		return streamRequests(cmd, settings, built, mapper, namer, images, inputMode, flags, resume)
 	}
 
 	asker, err := answerers(cmd.Context(), stats)
@@ -517,13 +518,24 @@ func stream(
 			}, taken
 		}
 
-		sent, mapErr := mapped(ctx, mapper, rec.State, rec.Wire)
+		state, wire := images.wrapLine(rec.State, rec.Wire)
+
+		sent, mapErr := mapped(ctx, mapper, state, wire)
 		if interrupted(ctx) {
 			return line{}, ctx.Err()
 		}
 
 		if mapErr != nil {
 			bad := &input.LineError{Line: rec.Line, Err: mapErr}
+			stats.recordFailure(bad, false, 0)
+
+			return rowLine(failureRecord(built, bad), rec), bad
+		}
+
+		// In the worker rather than the reader, so at most -j records hold image bytes at once.
+		sent, assets, imageErr := images.attach(sent)
+		if imageErr != nil {
+			bad := &input.LineError{Line: rec.Line, Err: imageErr}
 			stats.recordFailure(bad, false, 0)
 
 			return rowLine(failureRecord(built, bad), rec), bad
@@ -538,8 +550,6 @@ func stream(
 		if !shares {
 			group = nil
 		}
-
-		var assets onesie.Assets
 
 		record, call, evalErr := askOnce(ctx, group, stats,
 			onesie.Request{State: sent, Model: model, Questions: questions, Assets: assets}, salt,

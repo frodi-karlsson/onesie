@@ -622,6 +622,88 @@ func TestStream(t *testing.T) {
 			}
 		}
 	})
+
+	t.Run("should attach images per record", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		square := writeImage(t, dir, "square.png", squarePNG(t))
+		empty := writeImage(t, dir, "empty.png", emptyPNG(t))
+
+		tests := []struct {
+			name      string
+			args      []string
+			stdin     string
+			wantCode  int
+			wantLines int
+			wantOut   []string
+		}{
+			{
+				name:      "should read each record's field as an image",
+				args:      []string{"-i", "jsonl", "--image-field", "photo", "is there a red square in `photo`", "-o", "json"},
+				stdin:     `{"photo":"` + square + `"}` + "\n" + `{"photo":"` + empty + `"}` + "\n",
+				wantCode:  ExitOK,
+				wantLines: 2,
+			},
+			{
+				name:      "should take each line as the path under -i lines",
+				args:      []string{"-i", "lines", "--image-field", "photo", "q", "-o", "json"},
+				stdin:     square + "\n" + empty + "\n",
+				wantCode:  ExitOK,
+				wantLines: 2,
+			},
+			{
+				name:      "should write an input error line for a missing file and go on",
+				args:      []string{"-i", "jsonl", "--image-field", "photo", "q", "-o", "json"},
+				stdin:     `{"photo":"` + filepath.Join(dir, "nope.png") + `"}` + "\n" + `{"photo":"` + square + `"}` + "\n",
+				wantCode:  ExitRecords,
+				wantLines: 2,
+				wantOut:   []string{`"error":{"kind":"input"`, `--image-field photo: reading`},
+			},
+			{
+				name:      "should read the field from a csv row",
+				args:      []string{"-i", "csv", "--image-field", "photo", "q", "-o", "json"},
+				stdin:     "id,photo\n1," + square + "\n2," + empty + "\n",
+				wantCode:  ExitOK,
+				wantLines: 2,
+			},
+			{
+				name:      "should add a fixed --image to every record",
+				args:      []string{"-i", "lines", "--image", "known=" + square, "does `text` describe `known`", "-o", "json"},
+				stdin:     "a red square\nnothing at all\n",
+				wantCode:  ExitOK,
+				wantLines: 2,
+			},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				run := runImaged(t, tc.args, tc.stdin, noulAnswer("answer"), nil)
+
+				if run.code != tc.wantCode {
+					t.Fatalf("exit code = %d, want %d\nstderr:\n%s", run.code, tc.wantCode, run.stderr)
+				}
+
+				if lines := strings.Count(strings.TrimSpace(run.stdout), "\n") + 1; lines != tc.wantLines {
+					t.Errorf("lines = %d, want %d\nstdout:\n%s", lines, tc.wantLines, run.stdout)
+				}
+
+				for _, want := range tc.wantOut {
+					if !strings.Contains(run.stdout, want) {
+						t.Errorf("stdout = %q, want it to contain %q", run.stdout, want)
+					}
+				}
+
+				for i, body := range run.bodies {
+					if !strings.Contains(body, `"assets":{"image-`) {
+						t.Errorf("body %d = %.200s, want an image asset", i, body)
+					}
+				}
+			})
+		}
+	})
 }
 
 func newCountingStub(t *testing.T, hold func()) *countingStub {
