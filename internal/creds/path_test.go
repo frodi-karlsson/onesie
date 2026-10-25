@@ -3,6 +3,7 @@ package creds_test
 import (
 	"errors"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -257,4 +258,30 @@ func TestDir(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestProfilesPath(t *testing.T) {
+	t.Parallel()
+
+	t.Run("should put profiles.json in the config dir", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		env := creds.Env{
+			Lookup: func(name string) (string, bool) {
+				if name == "ONESIE_CONFIG_DIR" {
+					return dir, true
+				}
+
+				return "", false
+			},
+			GOOS: runtime.GOOS,
+			Home: func() (string, error) { return "", errors.New("no home") },
+		}
+
+		got, err := creds.ProfilesPath(env)
+		if err != nil || got != filepath.Join(dir, "profiles.json") {
+			t.Errorf("ProfilesPath = %q, %v, want %s", got, err, filepath.Join(dir, "profiles.json"))
+		}
+	})
 }

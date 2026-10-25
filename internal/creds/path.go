@@ -9,8 +9,9 @@ import (
 )
 
 const (
-	appName  = "onesie"
-	fileName = "credentials.json"
+	appName      = "onesie"
+	fileName     = "credentials.json"
+	profilesName = "profiles.json"
 )
 
 // Path reports where the credential file lives.
@@ -21,6 +22,16 @@ func Path(env Env) (string, error) {
 	}
 
 	return filepath.Join(dir, fileName), nil
+}
+
+// ProfilesPath reports where the profiles file lives.
+func ProfilesPath(env Env) (string, error) {
+	dir, err := Dir(env)
+	if err != nil {
+		return "", err
+	}
+
+	return filepath.Join(dir, profilesName), nil
 }
 
 // Dir reports onesie's config dir, which holds the credential file and the saved question files.
