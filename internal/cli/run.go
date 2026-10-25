@@ -1225,7 +1225,7 @@ func answered(
 	withUsage bool,
 ) (output.Record, onesie.Usage, bool, error) {
 	req := onesie.Request{
-		State: state, Model: built.Model, Questions: questions, Assets: assets, LongContext: built.LongContext,
+		State: state, Model: model, Questions: questions, Assets: assets, LongContext: built.LongContext,
 	}
 
 	// A mock answers without SystemOne, which validates every live request itself, so a mock run
@@ -1242,27 +1242,18 @@ func answered(
 	}
 
 	if err != nil {
-		// Wrapped here rather than at either caller, so the stderr line and the streaming record
-		// carry the same remedy. Every question on this path passed onesie's own bounds check, so a
-		// count the server rejects says something about those bounds.
-		// A mocked failure came from no key and no account, so advice about either would mislead.
-		advised := err
-		if model != mock.Model {
-			advised = advise(err, model, true)
-		}
-
-		failed := failureRecord(built, advised)
+		failed := failureRecord(built, err)
 
 		var unusable *onesie.ResponseError
 		if !errors.As(err, &unusable) || unusable.Usage == nil {
-			return failed, onesie.Usage{}, false, advised
+			return failed, onesie.Usage{}, false, err
 		}
 
 		if withUsage {
 			failed = spent(failed, unusable.Usage)
 		}
 
-		return failed, *unusable.Usage, false, advised
+		return failed, *unusable.Usage, false, err
 	}
 
 	result := got.result
