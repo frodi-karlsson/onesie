@@ -399,6 +399,22 @@ func TestMockAnswers(t *testing.T) {
 			wantCode: ExitUsage,
 		},
 		{
+			name:     "should refuse a misspelled ONESIE_PROVIDER before -i request",
+			args:     []string{"-i", "request"},
+			env:      map[string]string{"ONESIE_PROVIDER": "bogus"},
+			mock:     mockAll,
+			stderr:   []string{"onesie: unknown provider bogus"},
+			wantCode: ExitUsage,
+		},
+		{
+			name:     "should refuse a misspelled ONESIE_PROVIDER before --list-models",
+			args:     []string{"--list-models"},
+			env:      map[string]string{"ONESIE_PROVIDER": "bogus"},
+			mock:     mockAll,
+			stderr:   []string{"onesie: unknown provider bogus"},
+			wantCode: ExitUsage,
+		},
+		{
 			name:     "should refuse auth test under --mock",
 			args:     []string{"auth", "test"},
 			mock:     mockAll,
@@ -915,6 +931,24 @@ func TestMockAnswerer_Answer(t *testing.T) {
 		})
 		if err == nil || !strings.Contains(err.Error(), "takes no images") {
 			t.Fatalf("error = %v, want levanto's refusal", err)
+		}
+
+		if got := stats.snapshot(0, 0).Attempts; got != 0 {
+			t.Errorf("attempts = %d, want 0", got)
+		}
+	})
+
+	t.Run("should refuse a request ValidateRequest refuses before the provider sees it", func(t *testing.T) {
+		t.Parallel()
+
+		a, stats := asker(t, `{"answer":0.9}`, onesie.Cloudflare())
+
+		_, err := a.answer(t.Context(), recordKey{position: 1}, onesie.Request{
+			Model: "m", State: "s",
+			Questions: onesie.Questions{{ID: "answer", Question: onesie.Box{Instructions: "q"}}},
+		})
+		if err == nil || !strings.Contains(err.Error(), "needs an image") {
+			t.Fatalf("error = %v, want ValidateRequest's refusal", err)
 		}
 
 		if got := stats.snapshot(0, 0).Attempts; got != 0 {

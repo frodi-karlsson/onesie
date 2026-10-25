@@ -236,14 +236,15 @@ func TestRun(t *testing.T) {
 		[]byte(`{"state":"s","questions":{"red":{"type":"noul","instructions":"q"}},"long_context":true}`))
 	shortBody := writeImage(t, dir, "short.json",
 		[]byte(`{"state":"s","questions":{"red":{"type":"noul","instructions":"q"}},"long_context":false}`))
-	noise := writeImage(t, dir, "noise.png", noisePNG(t, 600))
+	const names = 25
+	noise := writeImage(t, dir, "noise.png", noisePNG(t, 600, names))
 	boxMock := writeImage(t, dir, "box-mock.json",
 		[]byte(`{"where":{"left":0.25,"top":0.25,"right":0.5,"bottom":0.5}}`))
-	// One image under 25 names is one asset, which passes the body limit, and openrouter places it at
+	// One image under many names is one asset, which passes the body limit, and openrouter places it at
 	// every name, which does not.
 	manyNames := func(extra ...string) []string {
 		var args []string
-		for i := range 25 {
+		for i := range names {
 			args = append(args, "--image", fmt.Sprintf("p%d=%s", i, noise))
 		}
 
@@ -1021,7 +1022,7 @@ func drawPNG(t *testing.T, width, height int, square image.Rectangle) []byte {
 	return buf.Bytes()
 }
 
-func noisePNG(t *testing.T, side int) []byte {
+func noisePNG(t *testing.T, side, names int) []byte {
 	t.Helper()
 
 	// Seeded, so the size is the same on every run. Noise does not compress, so the file stays
@@ -1038,9 +1039,12 @@ func noisePNG(t *testing.T, side int) []byte {
 		t.Fatalf("encoding the png: %v", err)
 	}
 
-	encoded := base64.StdEncoding.EncodedLen(buf.Len())
-	if encoded*25 <= onesie.MaxBodyBytes || buf.Len() >= onesie.MaxImageBytes {
-		t.Fatalf("the noise png is %d bytes, which no longer goes over the body limit at 25 names", buf.Len())
+	if encoded := base64.StdEncoding.EncodedLen(buf.Len()); encoded*names <= onesie.MaxBodyBytes {
+		t.Fatalf("the noise png is %d bytes, which no longer goes over the body limit at %d names", buf.Len(), names)
+	}
+
+	if buf.Len() >= onesie.MaxImageBytes {
+		t.Fatalf("the noise png is %d bytes, which is over the image limit", buf.Len())
 	}
 
 	return buf.Bytes()

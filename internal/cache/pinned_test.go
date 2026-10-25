@@ -22,7 +22,7 @@ func TestPinned(t *testing.T) {
 		{name: "should not pin a prerelease", provider: "typesafe", model: "jev-1.13.0-rc.1"},
 		{name: "should not pin a four part version", provider: "typesafe", model: "jev-1.2.3.4"},
 		{name: "should not pin a bare version", provider: "typesafe", model: "-1.2"},
-		{name: "should not pin the mock model", provider: "typesafe", model: "mock"},
+		{name: "should not pin a name with no version", provider: "typesafe", model: "some-model"},
 		{name: "should not pin an empty name", provider: "typesafe", model: ""},
 		{name: "should not pin a version on openrouter", provider: "openrouter", model: "typesafe/jev-1.13"},
 		{name: "should not pin an alias on openrouter", provider: "openrouter", model: "typesafe/jev-latest"},
