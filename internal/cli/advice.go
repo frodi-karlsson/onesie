@@ -88,9 +88,11 @@ func unknownModel(api *onesie.APIError, model string) bool {
 	}
 
 	// TypeSafe says Unknown model, OpenRouter says the model does not exist, Berget answers 404 with
-	// Model not found, and Levanto answers 422 with unknown model.
+	// Model not found, Levanto answers 422 with unknown model, and Workers AI answers 400 with No such
+	// model.
 	return strings.Contains(api.Error(), "Unknown model") || strings.Contains(api.Error(), "does not exist") ||
-		strings.Contains(api.Error(), "Model not found") || strings.Contains(api.Error(), "unknown model")
+		strings.Contains(api.Error(), "Model not found") || strings.Contains(api.Error(), "unknown model") ||
+		strings.Contains(api.Error(), "No such model")
 }
 
 func countRejected(api *onesie.APIError) bool {

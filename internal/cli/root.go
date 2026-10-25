@@ -128,11 +128,12 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 	root = &cobra.Command{
 		Use:   "onesie [question]",
 		Short: "Ask a System One model typed questions about state on stdin",
-		Long: "onesie is a Unix filter over the System One API, served by TypeSafe, OpenRouter, Berget or Levanto.\n\n" +
+		Long: "onesie is a Unix filter over the System One API, served by TypeSafe, OpenRouter, Berget, Levanto or Cloudflare.\n\n" +
 			"State arrives on stdin, typed answers leave on stdout, and the exit status is " +
 			"usable in a conditional.\n\n" +
 			"The API key comes from the provider's variable, TYPESAFE_API_KEY, OPENROUTER_API_KEY, " +
-			"BERGET_API_KEY or LEVANTO_API_KEY, then from the credential file onesie auth set writes.\n\n" +
+			"BERGET_API_KEY, LEVANTO_API_KEY or CLOUDFLARE_API_TOKEN, then from the credential file onesie auth set " +
+			"writes. Cloudflare also needs CLOUDFLARE_ACCOUNT_ID, or a base URL that holds the account.\n\n" +
 			"--mock FILE, or ONESIE_MOCK=FILE, answers from a file instead of the API, with no key and no " +
 			"network, so a gate script can be tested for free.\n\n" +
 			"--cache, or ONESIE_CACHE=1, stores each successful response on disk and answers a repeated " +
@@ -247,7 +248,7 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 			"such as a field lookup, and -V lists the cap on its length")
 	root.Flags().StringVarP(&flags.model, flagModel, "m", "", "model override")
 	root.PersistentFlags().StringVar(&flags.provider, "provider", "",
-		"typesafe, openrouter, berget or levanto. Defaults to ONESIE_PROVIDER, then typesafe")
+		"typesafe, openrouter, berget, levanto or cloudflare. Defaults to ONESIE_PROVIDER, then typesafe")
 	root.PersistentFlags().StringVar(&flags.mock, "mock", "",
 		"answer from this file instead of the API. Also ONESIE_MOCK. The file is an object keyed by question id, "+
 			`as {"answer":0.9,"team":"billing"}, or one line per record in the shape -o json writes. `+
