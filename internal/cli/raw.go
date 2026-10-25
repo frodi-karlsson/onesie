@@ -24,7 +24,7 @@ func streamRaw(
 ) error {
 	var (
 		client   *onesie.Client
-		provider string
+		provider onesie.Provider
 	)
 
 	// Built only when the run makes a request, so -i request --print-request needs no key.
@@ -39,9 +39,18 @@ func streamRaw(
 			return err
 		}
 
-		provider = resolved.Name
+		provider = resolved
 
 		client = built
+	}
+
+	long := longContext(settings, flags)
+
+	// Every body would be refused, so the run stops before it reads any.
+	if long && requests(flags) {
+		if refusal := provider.Refuse("", onesie.Needs{LongContext: true}); refusal != nil {
+			return refusal
+		}
 	}
 
 	resume, readErr := resumedVerdicts(cmd.Context(), answers, nil, answersFormat{forwarded: true}, flags, resume)
@@ -57,8 +66,6 @@ func streamRaw(
 		haltOnError: flags.stopOnError,
 	}
 	out := cmd.OutOrStdout()
-	long := longContext(settings, flags)
-
 	result, err := engine.Run(cmd.Context(), engine.Config[input.Record, []byte]{
 		Source: source,
 		Evaluate: func(ctx context.Context, rec input.Record) ([]byte, error) {
@@ -100,7 +107,8 @@ func streamRaw(
 			if err != nil {
 				// The body's model reached the wire unchanged, so the model it named is the one onesie sent,
 				// and nothing inside it was checked locally, so no local bound is implicated.
-				advised := advise(adviseBox(adviseLongContext(err, long || read.longContext), provider, read.boxed), read.model, false)
+				advised := advise(adviseBox(adviseLongContext(err,
+					longContextHelps(provider, read.model, long || read.longContext)), provider.Name, read.boxed), read.model, false)
 
 				stats.recordFailure(advised, true, asked)
 				stats.terminalAttempt(advised)

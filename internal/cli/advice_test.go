@@ -352,6 +352,16 @@ func TestAdvise(t *testing.T) {
 				wantErr:  "onesie: 400 max_tokens_exceeded" + longNote + "\n",
 			},
 			{
+				name:     "should leave max_tokens_exceeded alone on cloudflare, which takes no long context",
+				args:     []string{"is this urgent"},
+				stdin:    "a ticket",
+				env:      map[string]string{"ONESIE_PROVIDER": "cloudflare"},
+				status:   http.StatusBadRequest,
+				response: tooLong,
+				wantCode: ExitUsage,
+				wantErr:  "onesie: 400 max_tokens_exceeded\n",
+			},
+			{
 				name:     "should leave the limit alone when --long-context is already on",
 				args:     []string{"is this urgent", "--long-context"},
 				stdin:    "a ticket",

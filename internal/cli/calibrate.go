@@ -256,7 +256,7 @@ func runCalibrate(
 
 	// --offline asks nothing, so the provider never sees an image.
 	if !calib.offline {
-		if refuseErr := checkProviderImages(settings, flags, inv.plan, inv.images); refuseErr != nil {
+		if refuseErr := checkProviderNeeds(settings, flags, inv.plan, inv.images); refuseErr != nil {
 			return refuseErr
 		}
 	}

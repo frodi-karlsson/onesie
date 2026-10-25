@@ -149,7 +149,7 @@ func run(
 			return warnErr
 		}
 
-		if refuseErr := checkProviderImages(settings, flags, built, inv.images); refuseErr != nil {
+		if refuseErr := checkProviderNeeds(settings, flags, built, inv.images); refuseErr != nil {
 			return refuseErr
 		}
 
@@ -160,7 +160,7 @@ func run(
 		})
 	}
 
-	if refuseErr := checkProviderImages(settings, flags, built, inv.images); refuseErr != nil {
+	if refuseErr := checkProviderNeeds(settings, flags, built, inv.images); refuseErr != nil {
 		return refuseErr
 	}
 

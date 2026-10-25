@@ -226,6 +226,7 @@ func TestRun(t *testing.T) {
 	withState := writeImage(t, dir, "with-state.json", []byte(`{"state":{"photo":"body-img"},`+question+`,`+asset+`}`))
 	stateless := writeImage(t, dir, "stateless.json", []byte(`{`+question+`,`+asset+`}`))
 	levanto := map[string]string{"ONESIE_PROVIDER": "levanto"}
+	cloudflare := map[string]string{"ONESIE_PROVIDER": "cloudflare"}
 	openrouter := map[string]string{"ONESIE_PROVIDER": "openrouter"}
 	mockFile := writeImage(t, dir, "mock.json", []byte(`{"answer":0.9}`))
 	refused := "onesie: the levanto provider takes no images or box questions"
@@ -343,6 +344,53 @@ func TestRun(t *testing.T) {
 			stdin:    `{"state":{"p":"r"},"model":"m","questions":{"answer":{"type":"noul","instructions":"q"}},"assets":{"r":{"type":"image","format":"png","data_base64":"AQ=="}}}` + "\n",
 			wantCode: ExitRecords,
 			wantOut:  "takes no images or box questions",
+		},
+		{
+			name:     "should refuse --long-context on cloudflare before any request",
+			args:     []string{"--long-context", "--state", "s", "q"},
+			env:      cloudflare,
+			wantCode: ExitUsage,
+			wantErr:  "onesie: the cloudflare provider takes no long context. The typesafe provider does",
+		},
+		{
+			name:     "should refuse --box on cloudflare before any request",
+			args:     []string{"--image", "photo=" + square, "--ask", "mug=the mug in `photo`", "--box"},
+			env:      cloudflare,
+			wantCode: ExitUsage,
+			wantErr:  "onesie: the cloudflare provider takes no box questions",
+		},
+		{
+			name:     "should refuse a question file's long context on cloudflare before any request",
+			args:     []string{"-f", longBody},
+			env:      cloudflare,
+			wantCode: ExitUsage,
+			wantErr:  "takes no long context",
+		},
+		{
+			name:     "should refuse a cloudflare stream under --long-context once with no error lines",
+			args:     []string{"-i", "lines", "--long-context", "q", "-o", "json"},
+			env:      cloudflare,
+			stdin:    "a\nb\n",
+			wantCode: ExitUsage,
+			wantErr:  "takes no long context",
+			emptyOut: true,
+			errOnce:  true,
+		},
+		{
+			name:     "should refuse -i request --long-context on cloudflare before reading input",
+			args:     []string{"-i", "request", "--long-context"},
+			stdin:    `{"state":"s","questions":{"q":{"type":"noul","instructions":"q"}}}` + "\n",
+			env:      cloudflare,
+			wantCode: ExitUsage,
+			wantErr:  "takes no long context",
+		},
+		{
+			name:     "should print -i request bodies under --long-context on cloudflare",
+			args:     []string{"-i", "request", "--long-context", "--print-request"},
+			stdin:    `{"state":"s","questions":{"q":{"type":"noul","instructions":"q"}}}` + "\n",
+			env:      cloudflare,
+			wantCode: ExitOK,
+			wantOut:  `"state":"s"`,
 		},
 		{
 			name:     "should refuse --image on levanto before any request",
@@ -572,6 +620,46 @@ func TestRun(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("should send cloudflare requests through its routes", func(t *testing.T) {
+		t.Parallel()
+
+		wrapped := `{"result":` + noulAnswer("answer", "red") + `,"success":true}`
+
+		tests := []struct {
+			name     string
+			args     []string
+			wantBody []string
+		}{
+			{
+				name:     "should send jev the image as an asset",
+				args:     []string{"--image", "photo=" + square, "is there a red square in `photo`", "-o", "json"},
+				wantBody: []string{`{"model":"typesafe/jev","input":{`, `"assets":{"` + ref + `":`},
+			},
+			{
+				name:     "should send clef the image numbered",
+				args:     []string{"--image", "photo=" + square, "is there a red square in `photo`", "-m", "clef-flash", "-o", "json"},
+				wantBody: []string{`{"model":"@cf/cloudflare/clef-flash","input":{"state":{"photo":"image 1"}`, `"images":["data:image/png;base64,`},
+			},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				run := runImaged(t, tc.args, "", wrapped, cloudflare)
+				if run.code != ExitOK || len(run.bodies) != 1 {
+					t.Fatalf("exit code = %d, requests = %d, stderr:\n%s", run.code, len(run.bodies), run.stderr)
+				}
+
+				for _, want := range tc.wantBody {
+					if !strings.Contains(run.bodies[0], want) {
+						t.Errorf("body = %.300s, want it to contain %s", run.bodies[0], want)
+					}
+				}
+			})
+		}
+	})
 
 	t.Run("should refuse to resume once long context is added", func(t *testing.T) {
 		t.Parallel()

@@ -38,9 +38,9 @@ func advise(err error, model string, validated bool) error {
 	return err
 }
 
-func adviseLongContext(err error, on bool) error {
+func adviseLongContext(err error, helps bool) error {
 	var api *onesie.APIError
-	if on || !errors.As(err, &api) || !strings.Contains(api.Error(), "max_tokens_exceeded") {
+	if !helps || !errors.As(err, &api) || !strings.Contains(api.Error(), "max_tokens_exceeded") {
 		return err
 	}
 
@@ -48,6 +48,10 @@ func adviseLongContext(err error, on bool) error {
 		cause:   err,
 		message: withNote(err.Error(), "Pass --long-context to raise the context limit, which is slower and less accurate"),
 	}
+}
+
+func longContextHelps(provider onesie.Provider, model string, on bool) bool {
+	return !on && provider.Refuse(model, onesie.Needs{LongContext: true}) == nil
 }
 
 func adviseBox(err error, provider string, boxed bool) error {

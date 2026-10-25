@@ -215,9 +215,9 @@ func (m *imaging) load(path string) (string, onesie.Image, error) {
 	return imageRef(data), img, nil
 }
 
-func checkProviderImages(settings rootSettings, flags *runFlags, built *plan.Plan, images *imaging) error {
+func checkProviderNeeds(settings rootSettings, flags *runFlags, built *plan.Plan, images *imaging) error {
 	// A dry run sends nothing, and the body it prints is the provider neutral one.
-	if flags.printRequest || !sendsImages(built, images) {
+	if flags.printRequest {
 		return nil
 	}
 
@@ -226,14 +226,23 @@ func checkProviderImages(settings rootSettings, flags *runFlags, built *plan.Pla
 		return err
 	}
 
-	return provider.Refuse("", onesie.Needs{Images: true, Box: true})
-}
-
-func sendsImages(built *plan.Plan, images *imaging) bool {
-	if images != nil && (len(images.assets) > 0 || len(images.fields) > 0) {
-		return true
+	model, err := resolveModel(settings, flags, built.Model)
+	if err != nil {
+		return err
 	}
 
+	return provider.Refuse(model, onesie.Needs{
+		Images:      sendsAssets(images),
+		Box:         asksBox(built),
+		LongContext: built.LongContext,
+	})
+}
+
+func sendsAssets(images *imaging) bool {
+	return images != nil && (len(images.assets) > 0 || len(images.fields) > 0)
+}
+
+func asksBox(built *plan.Plan) bool {
 	return slices.ContainsFunc(built.Questions, func(question plan.Question) bool {
 		return question.Shape == plan.Box
 	})
