@@ -35,7 +35,7 @@ func TestNewRunner(t *testing.T) {
 	t.Run("should default to onesie on PATH when binary is empty", func(t *testing.T) {
 		t.Parallel()
 
-		if got := NewRunner("", nil).Binary; got != "onesie" {
+		if got := NewRunner("", nil, "").Binary; got != "onesie" {
 			t.Errorf("NewRunner(\"\").Binary = %q, want onesie", got)
 		}
 	})
@@ -43,7 +43,7 @@ func TestNewRunner(t *testing.T) {
 	t.Run("should use the binary it is given", func(t *testing.T) {
 		t.Parallel()
 
-		if got := NewRunner("/usr/bin/onesie", nil).Binary; got != "/usr/bin/onesie" {
+		if got := NewRunner("/usr/bin/onesie", nil, "").Binary; got != "/usr/bin/onesie" {
 			t.Errorf("NewRunner(...).Binary = %q, want /usr/bin/onesie", got)
 		}
 	})
@@ -58,14 +58,45 @@ func TestNewRunner(t *testing.T) {
 			}
 		}
 
-		code, stderr, err := NewRunner(os.Args[0], environ).run(context.Background(), []string{"-test.run=^$"})
+		code, stderr, err := NewRunner(os.Args[0], environ, "").run(context.Background(), []string{"-test.run=^$"})
 		if err != nil || code != 0 {
 			t.Errorf("the child exited %d, %v, so ONESIE_MOCK reached it\n%s", code, err, stderr)
 		}
 
-		if got := withoutMock(environ); slices.Contains(got, "ONESIE_MOCK=answers.json") ||
+		if got := isolated(environ, ""); slices.Contains(got, "ONESIE_MOCK=answers.json") ||
 			!slices.Contains(got, "ONESIE_MOCKED=x") {
-			t.Errorf("withoutMock kept the wrong entries: %v", got)
+			t.Errorf("isolated kept the wrong entries: %v", got)
+		}
+	})
+}
+
+func TestIsolated(t *testing.T) {
+	t.Parallel()
+
+	environ := []string{
+		"PATH=/bin", "ONESIE_MOCK=m.json", "ONESIE_PROFILE=work", "ONESIE_PROVIDER=openrouter",
+		"ONESIE_CONFIG_DIR=/home/me/.config/onesie", "ONESIE_CACHE=1", "TYPESAFE_API_KEY=k",
+	}
+
+	t.Run("should drop the mock, the profile and provider choices and the config dir, and set the one given", func(t *testing.T) {
+		t.Parallel()
+
+		got := isolated(environ, "/tmp/check")
+		want := []string{"PATH=/bin", "ONESIE_CACHE=1", "TYPESAFE_API_KEY=k", "ONESIE_CONFIG_DIR=/tmp/check"}
+
+		if !slices.Equal(got, want) {
+			t.Errorf("isolated = %v, want %v", got, want)
+		}
+	})
+
+	t.Run("should set no config dir when none is given", func(t *testing.T) {
+		t.Parallel()
+
+		got := isolated(environ, "")
+		want := []string{"PATH=/bin", "ONESIE_CACHE=1", "TYPESAFE_API_KEY=k"}
+
+		if !slices.Equal(got, want) {
+			t.Errorf("isolated = %v, want %v", got, want)
 		}
 	})
 }

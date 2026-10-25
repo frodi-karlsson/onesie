@@ -11,24 +11,44 @@ import (
 )
 
 func main() {
+	os.Exit(run())
+}
+
+func run() int {
 	root, err := os.Getwd()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "onesie:", err)
-		os.Exit(1)
+
+		return 1
 	}
 
-	runner := skillcheck.NewRunner("", os.Environ())
+	configDir, err := os.MkdirTemp("", "onesie-skillcheck-")
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "onesie:", err)
+
+		return 1
+	}
+
+	defer func() {
+		if removeErr := os.RemoveAll(configDir); removeErr != nil {
+			fmt.Fprintln(os.Stderr, "onesie:", removeErr)
+		}
+	}()
+
+	runner := skillcheck.NewRunner("", os.Environ(), configDir)
 
 	report, err := skillcheck.Check(context.Background(), root, runner)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+
+		return 1
 	}
 
 	prose, err := skillcheck.CheckProse(context.Background(), root, runner)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+
+		return 1
 	}
 
 	fmt.Printf("onesie: checked %d examples across %d skills, skipped %d\n",
@@ -43,12 +63,12 @@ func main() {
 
 	failures := append(report.Failures, prose.Failures...)
 	if len(failures) == 0 {
-		return
+		return 0
 	}
 
 	for _, failure := range failures {
 		fmt.Fprintln(os.Stderr, failure)
 	}
 
-	os.Exit(1)
+	return 1
 }
