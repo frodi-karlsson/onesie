@@ -13,6 +13,7 @@ import (
 
 const (
 	maxCredentialBytes = 1 << 20
+	credentialKind     = "credential file"
 
 	// StoreKeychain marks an entry whose key lives in the OS keychain rather than in the file.
 	StoreKeychain = "keychain"
@@ -130,70 +131,11 @@ type Store struct {
 }
 
 // Load reads the credential file, refusing one another user can reach, and found is false when it
-// does not exist. Check err first, since a failed Close returns a File beside the error.
+// does not exist.
 func (s Store) Load(path string) (file File, found bool, err error) {
-	// A named pipe at this path blocks the open until something writes to it. Known and out of
-	// scope: the fix needs O_NONBLOCK behind a unix build tag, and planting the pipe needs write
-	// access to a 0700 directory.
-	//
-	// Opened before the mode is checked and read from the same handle, so the file cannot be
-	// swapped between the check and the read. No test catches a regression here, since the swap
-	// needs a second process between the two calls.
-	handle, err := s.open(path)
-	if errors.Is(err, os.ErrNotExist) {
-		return File{}, false, nil
-	}
-
-	if err != nil {
-		// A file whose owner cannot read it fails the open before the mode is ever looked at, so
-		// the mode is named here too. Otherwise the same file refuses with a bare permission denied
-		// for an ordinary user and with the mode for root.
-		if errors.Is(err, fs.ErrPermission) {
-			// os.Stat rather than os.Lstat. Open follows a symlink, so the refusal came from the
-			// target, and Lstat would name the link's own mode instead. Measured on a link to an
-			// 0o060 file: Lstat reports 755, Stat reports 60.
-			if info, statErr := s.stat(path); statErr == nil {
-				if modeErr := s.checkMode(path, info.Mode()); modeErr != nil {
-					return File{}, false, modeErr
-				}
-			}
-		}
-
-		return File{}, false, fmt.Errorf("onesie: reading %s: %w", path, err)
-	}
-
-	// Joined into the named return rather than discarded. An empty branch would trip staticcheck
-	// and a blank assignment would trip errcheck.
-	defer func() {
-		err = errors.Join(err, handle.Close())
-	}()
-
-	info, err := handle.Stat()
-	if err != nil {
-		return File{}, false, fmt.Errorf("onesie: reading %s: %w", path, err)
-	}
-
-	// Ahead of the mode check, since a directory or a device node is not a credential file at a bad
-	// mode, and no chmod 600 would fix it.
-	if !info.Mode().IsRegular() {
-		return File{}, false, fmt.Errorf("onesie: credential file %s is not a regular file", path)
-	}
-
-	if modeErr := s.checkMode(path, info.Mode()); modeErr != nil {
-		return File{}, false, modeErr
-	}
-
-	// One byte past the cap, so a file at exactly the cap still loads and the first byte beyond it
-	// is refused. A plain limit would truncate instead, and a truncated file that still parsed would
-	// hand back half a credential as if it were whole.
-	data, err := io.ReadAll(io.LimitReader(handle, maxCredentialBytes+1))
-	if err != nil {
-		return File{}, false, fmt.Errorf("onesie: reading %s: %w", path, err)
-	}
-
-	if len(data) > maxCredentialBytes {
-		return File{}, false, fmt.Errorf(
-			"onesie: credential file %s is larger than %d bytes", path, maxCredentialBytes)
+	data, found, err := s.read(path, credentialKind)
+	if err != nil || !found {
+		return File{}, false, err
 	}
 
 	if decodeErr := json.Unmarshal(data, &file); decodeErr != nil || !file.complete() {
@@ -208,16 +150,77 @@ func (s Store) Load(path string) (file File, found bool, err error) {
 	return file, true, nil
 }
 
+func (s Store) read(path, kind string) (data []byte, found bool, err error) {
+	// A named pipe at this path blocks the open until something writes to it. Known and out of
+	// scope: the fix needs O_NONBLOCK behind a unix build tag, and planting the pipe needs write
+	// access to a 0700 directory.
+	//
+	// Opened before the mode is checked and read from the same handle, so the file cannot be
+	// swapped between the check and the read. No test catches a regression here, since the swap
+	// needs a second process between the two calls.
+	handle, err := s.open(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, false, nil
+	}
+
+	if err != nil {
+		// A file whose owner cannot read it fails the open before the mode is ever looked at, so
+		// the mode is named here too. Otherwise the same file refuses with a bare permission denied
+		// for an ordinary user and with the mode for root.
+		if errors.Is(err, fs.ErrPermission) {
+			// os.Stat rather than os.Lstat. Open follows a symlink, so the refusal came from the
+			// target, and Lstat would name the link's own mode instead. Measured on a link to an
+			// 0o060 file: Lstat reports 755, Stat reports 60.
+			if info, statErr := s.stat(path); statErr == nil {
+				if modeErr := s.checkMode(path, kind, info.Mode()); modeErr != nil {
+					return nil, false, modeErr
+				}
+			}
+		}
+
+		return nil, false, fmt.Errorf("onesie: reading %s: %w", path, err)
+	}
+
+	// Joined into the named return rather than discarded. An empty branch would trip staticcheck
+	// and a blank assignment would trip errcheck.
+	defer func() {
+		err = errors.Join(err, handle.Close())
+	}()
+
+	info, err := handle.Stat()
+	if err != nil {
+		return nil, false, fmt.Errorf("onesie: reading %s: %w", path, err)
+	}
+
+	// Ahead of the mode check, since a directory or a device node is not a credential file at a bad
+	// mode, and no chmod 600 would fix it.
+	if !info.Mode().IsRegular() {
+		return nil, false, fmt.Errorf("onesie: %s %s is not a regular file", kind, path)
+	}
+
+	if modeErr := s.checkMode(path, kind, info.Mode()); modeErr != nil {
+		return nil, false, modeErr
+	}
+
+	// One byte past the cap, so a file at exactly the cap still loads and the first byte beyond it
+	// is refused. A plain limit would truncate instead, and a truncated file that still parsed would
+	// hand back half a credential as if it were whole.
+	data, err = io.ReadAll(io.LimitReader(handle, maxCredentialBytes+1))
+	if err != nil {
+		return nil, false, fmt.Errorf("onesie: reading %s: %w", path, err)
+	}
+
+	if len(data) > maxCredentialBytes {
+		return nil, false, fmt.Errorf(
+			"onesie: %s %s is larger than %d bytes", kind, path, maxCredentialBytes)
+	}
+
+	return data, true, nil
+}
+
 // Save writes the credential file atomically through a renamed temporary file, replacing a symlink
 // at path. A non nil warning means the file was written but its mode could not be set.
 func (s Store) Save(path string, file File) (*ModeWarning, error) {
-	// A symlink at the directory is resolved, since creating it and the temporary file both walk
-	// that path. Whoever can replace the directory already owns the config location.
-	dir := filepath.Dir(path)
-	if err := s.mkdirAll(dir, 0o700); err != nil {
-		return nil, fmt.Errorf("onesie: creating %s: %w", dir, err)
-	}
-
 	// Unreachable while File is plain strings, since json.Marshal cannot fail on those. A future
 	// field of any other type makes it reachable, and json.UnsupportedValueError.Error embeds the
 	// offending value verbatim, so such a field must keep the key out of this %w.
@@ -226,10 +229,21 @@ func (s Store) Save(path string, file File) (*ModeWarning, error) {
 		return nil, fmt.Errorf("onesie: encoding the credential file: %w", err)
 	}
 
+	return s.write(path, data, ".credentials-*")
+}
+
+func (s Store) write(path string, data []byte, pattern string) (*ModeWarning, error) {
+	// A symlink at the directory is resolved, since creating it and the temporary file both walk
+	// that path. Whoever can replace the directory already owns the config location.
+	dir := filepath.Dir(path)
+	if err := s.mkdirAll(dir, 0o700); err != nil {
+		return nil, fmt.Errorf("onesie: creating %s: %w", dir, err)
+	}
+
 	// Created beside the target, because a rename across filesystems is not atomic and os.TempDir
 	// may be on another one. os.CreateTemp opens with O_CREATE and O_EXCL at 0600, which keeps a
 	// planted symlink from redirecting the key.
-	temp, err := s.createTemp(dir, ".credentials-*")
+	temp, err := s.createTemp(dir, pattern)
 	if err != nil {
 		return nil, fmt.Errorf("onesie: creating a temporary file in %s: %w", dir, err)
 	}
@@ -363,7 +377,7 @@ func (f File) complete() bool {
 	return true
 }
 
-func (s Store) checkMode(path string, mode os.FileMode) error {
+func (s Store) checkMode(path, kind string, mode os.FileMode) error {
 	// Windows does not carry unix permission bits, so the check would reject every file or accept
 	// every file depending on how the bits happen to be reported.
 	if s.goos == "windows" {
@@ -377,18 +391,19 @@ func (s Store) checkMode(path string, mode os.FileMode) error {
 		return nil
 	}
 
-	return &ReadableError{Path: path, Mode: mode.Perm()}
+	return &ReadableError{Path: path, Kind: kind, Mode: mode.Perm()}
 }
 
-// ReadableError means the credential file's mode lets someone other than its owner reach it.
+// ReadableError means a file's mode lets someone other than its owner reach it. Kind names the
+// file, as credential file.
 type ReadableError struct {
 	Path string
+	Kind string
 	Mode os.FileMode
 }
 
 // Error names the path and the mode, never the contents.
 func (e *ReadableError) Error() string {
 	return fmt.Sprintf(
-		"onesie: credential file %s is accessible by others, mode %o. Run chmod 600 on it",
-		e.Path, e.Mode)
+		"onesie: %s %s is accessible by others, mode %o. Run chmod 600 on it", e.Kind, e.Path, e.Mode)
 }

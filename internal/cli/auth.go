@@ -557,8 +557,6 @@ func locateKey(settings rootSettings, flags *runFlags) (keySource, error) {
 		return keySource{}, err
 	}
 
-	// Load returns a populated File beside a non nil error when only the close failed, so the error
-	// is checked before found.
 	file, found, err := settings.credStore.Load(path)
 	if err != nil {
 		return keySource{}, err
