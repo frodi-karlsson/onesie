@@ -15,9 +15,6 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
-// Model is the model name a mocked answer carries.
-const Model = "mock"
-
 const normTolerance = 1e-9
 
 var (
@@ -71,7 +68,7 @@ func (p parser) entry(fields map[string]any, where string) (*Entry, error) {
 		return nil, fmt.Errorf("%s: %w", where, err)
 	}
 
-	result := &onesie.Result{Model: Model, Answers: answers}
+	result := &onesie.Result{Answers: answers}
 
 	return &Entry{result: result, key: "answers " + string(encoded)}, nil
 }

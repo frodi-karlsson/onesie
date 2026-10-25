@@ -168,7 +168,7 @@ func TestStatsString(t *testing.T) {
 		{
 			name: "should say the answers came from the mock and count no requests or attempts",
 			stats: cli.Stats{
-				Mocked: true, Requests: 2, Questions: 2, Models: []string{"mock"},
+				Mocked: true, Requests: 2, Questions: 2, Models: []string{"jev-latest"},
 				AttemptTimeout: 10 * time.Second, Elapsed: 0,
 			},
 			want: "2 records answered from the mock, 2 questions, 0s",
@@ -176,7 +176,7 @@ func TestStatsString(t *testing.T) {
 		{
 			name: "should say one record came from the mock",
 			stats: cli.Stats{
-				Mocked: true, Requests: 1, Questions: 3, Models: []string{"mock"},
+				Mocked: true, Requests: 1, Questions: 3, Models: []string{"jev-latest"},
 				AttemptTimeout: 10 * time.Second, Elapsed: time.Second,
 			},
 			want: "1 record answered from the mock, 3 questions, 1s",
@@ -185,7 +185,7 @@ func TestStatsString(t *testing.T) {
 			name: "should count a mock run's records apart when a line never reached the mock",
 			stats: cli.Stats{
 				Mocked: true, Records: 3, Requests: 2, Failed: 2, Skipped: 1, FalseAsserts: 1,
-				Questions: 2, Models: []string{"mock"}, AttemptTimeout: 10 * time.Second,
+				Questions: 2, Models: []string{"jev-latest"}, AttemptTimeout: 10 * time.Second,
 				Elapsed: time.Second,
 			},
 			want: "3 records, 1 skipped, 2 failed, 1 false assertion, 2 answered from the mock, 2 questions, 1s",

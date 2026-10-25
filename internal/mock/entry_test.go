@@ -208,7 +208,7 @@ func TestEntryResult(t *testing.T) {
 		})
 	}
 
-	t.Run("should name the model mock and bill nothing", func(t *testing.T) {
+	t.Run("should name no model and bill nothing", func(t *testing.T) {
 		t.Parallel()
 
 		answers, err := Load(strings.NewReader(`{"u":0.3}`), []plan.Question{{ID: "u", Shape: plan.Noul}}, Options{})
@@ -223,8 +223,8 @@ func TestEntryResult(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if result.Model != "mock" {
-			t.Errorf("model %q, want mock", result.Model)
+		if result.Model != "" {
+			t.Errorf("model %q, want none, since the run fills it", result.Model)
 		}
 
 		if result.Usage != (onesie.Usage{}) {

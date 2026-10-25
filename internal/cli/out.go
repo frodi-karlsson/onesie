@@ -830,6 +830,8 @@ func fingerprintOf(questions []plan.Question, inputs fingerprintInputs) (string,
 		// A csv or tsv file written before the fallback columns existed has fewer columns, so a
 		// resume into it is refused rather than appending longer rows.
 		FallbackColumns bool `json:"fallback_columns,omitempty"`
+		// A mock run and a real run never resume each other's file.
+		Mock bool `json:"mock,omitempty"`
 	}{
 		Questions: wireAll(questions),
 		Policies:  policiesOf(questions),
@@ -848,6 +850,7 @@ func fingerprintOf(questions []plan.Question, inputs fingerprintInputs) (string,
 		LongContext: inputs.longContext,
 
 		FallbackColumns: !inputs.withoutFallbackColumns && delimitedOutput(inputs.output) && hasFallback(questions),
+		Mock:            inputs.mock,
 	})
 	if err != nil {
 		return "", fmt.Errorf("onesie: fingerprinting the run: %w", err)
@@ -880,6 +883,7 @@ type fingerprintInputs struct {
 	images    []string
 
 	longContext bool
+	mock        bool
 
 	withoutFallbackColumns bool
 }

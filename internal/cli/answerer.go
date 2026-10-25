@@ -64,8 +64,11 @@ func longContext(settings rootSettings, flags *runFlags) bool {
 func (a liveAnswerer) answer(ctx context.Context, _ recordKey, req onesie.Request) (reply, error) {
 	result, err := a.client.SystemOne(ctx, req, requestOptions(req, a.timeoutSet)...)
 
-	return reply{result: result}, adviseBox(
-		adviseLongContext(err, longContextHelps(a.provider, req.Model, req.LongContext)), a.provider.Name, hasBox(req.Questions))
+	// Every question on this path passed onesie's own bounds check, so a count the server rejects
+	// says something about those bounds.
+	return reply{result: result}, advise(adviseBox(
+		adviseLongContext(err, longContextHelps(a.provider, req.Model, req.LongContext)),
+		a.provider.Name, hasBox(req.Questions)), req.Model, true)
 }
 
 func requestOptions(req onesie.Request, timeoutSet bool) []onesie.RequestOption {

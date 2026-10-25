@@ -1386,6 +1386,19 @@ func TestFingerprintOf(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("should mark a mock run, apart from the same real run", func(t *testing.T) {
+		t.Parallel()
+
+		source := plan.Source{Positional: "is this urgent"}
+		live := fingerprintInputs{provider: "typesafe", model: "jev-latest", output: "csv", input: "csv"}
+		mocked := live
+		mocked.mock = true
+
+		if fingerprintWith(t, source, live) == fingerprintWith(t, source, mocked) {
+			t.Error("a mock run and a real run share a fingerprint")
+		}
+	})
 }
 
 func assertFileHolds(t *testing.T, path, want string) {

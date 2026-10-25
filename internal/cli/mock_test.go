@@ -15,6 +15,8 @@ import (
 	"time"
 
 	"github.com/frodi-karlsson/onesie-go"
+	"github.com/frodi-karlsson/onesie/internal/mock"
+	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
 const (
@@ -69,7 +71,7 @@ func TestMockAnswers(t *testing.T) {
 			name:     "should answer one record from the object shape as -o json",
 			args:     with("-o", "json", "--state", "x"),
 			mock:     mockAll,
-			wantOut:  fileOf(`{"model":"mock",` + mockAllJSON + "}\n"),
+			wantOut:  fileOf(`{"model":"jev-latest",` + mockAllJSON + "}\n"),
 			wantCode: ExitOK,
 		},
 		{
@@ -80,10 +82,10 @@ func TestMockAnswers(t *testing.T) {
 			wantCode: ExitOK,
 		},
 		{
-			name:     "should name the model mock in a table",
+			name:     "should name the resolved model in a table",
 			args:     with("-o", "table", "--state", "x"),
 			mock:     mockAll,
-			contains: []string{"mock", "billing", "curt"},
+			contains: []string{"jev-latest", "billing", "curt"},
 			wantCode: ExitOK,
 		},
 		{
@@ -98,7 +100,7 @@ func TestMockAnswers(t *testing.T) {
 			args:    []string{"is it urgent", "-o", "json", "-i", "jsonl"},
 			stdin:   "\"a\"\n\"b\"\n\"c\"\n",
 			mock:    `{"model":"mock","answer":{"value":0.9}}` + "\n",
-			wantOut: fileOf(`{"model":"mock","answer":{"value":0.9}}` + "\n"),
+			wantOut: fileOf(`{"model":"jev-latest","answer":{"value":0.9}}` + "\n"),
 			stderr: []string{"onesie: --mock has no line 2, so input line 2 has no answer. The file was read as " +
 				"-o json lines, since its one line carries model. Add a line per record, or drop model to " +
 				"answer every record"},
@@ -125,7 +127,7 @@ func TestMockAnswers(t *testing.T) {
 			args:     with("-o", "markdown", "-i", "lines"),
 			stdin:    "a\nb\n",
 			mock:     mockAll,
-			contains: []string{"| `u` | `t` | `r` | error |", "| 0.9 | `billing` | `curt` | |", "_`mock`_"},
+			contains: []string{"| `u` | `t` | `r` | error |", "| 0.9 | `billing` | `curt` | |", "_`jev-latest`_"},
 			wantCode: ExitOK,
 		},
 		{
@@ -190,7 +192,7 @@ func TestMockAnswers(t *testing.T) {
 			name:     "should judge --assert and write the record",
 			args:     with("-o", "json", "--assert", "u.value < 0.5", "--state", "x"),
 			mock:     mockAll,
-			wantOut:  fileOf(`{"assert":false,"model":"mock",` + mockAllJSON + "}\n"),
+			wantOut:  fileOf(`{"assert":false,"model":"jev-latest",` + mockAllJSON + "}\n"),
 			wantCode: ExitRejected,
 		},
 		{
@@ -206,8 +208,8 @@ func TestMockAnswers(t *testing.T) {
 			args:  with("-o", "json", "-i", "lines", "--usage"),
 			stdin: "a\nb\n",
 			mock:  mockAll,
-			wantOut: fileOf(lines(`{"line":1,"model":"mock","usage":`+mockUsage+`,`+mockAllJSON+`}`,
-				`{"line":2,"model":"mock","usage":`+mockUsage+`,`+mockAllJSON+`}`)),
+			wantOut: fileOf(lines(`{"line":1,"model":"jev-latest","usage":`+mockUsage+`,`+mockAllJSON+`}`,
+				`{"line":2,"model":"jev-latest","usage":`+mockUsage+`,`+mockAllJSON+`}`)),
 			wantCode: ExitOK,
 		},
 		{
@@ -326,16 +328,51 @@ func TestMockAnswers(t *testing.T) {
 			wantCode: ExitUsage,
 		},
 		{
-			name:     "should ignore --provider, --base-url and -m",
-			args:     with("-o", "json", "--state", "x", "--provider", "bogus", "--base-url", "http://example.com", "-m", "other"),
+			name:     "should ignore --base-url",
+			args:     with("-o", "json", "--state", "x", "--base-url", "http://example.com"),
 			mock:     mockAll,
-			wantOut:  fileOf(`{"model":"mock",` + mockAllJSON + "}\n"),
+			wantOut:  fileOf(`{"model":"jev-latest",` + mockAllJSON + "}\n"),
 			wantCode: ExitOK,
 		},
 		{
-			name:     "should ignore ONESIE_PROVIDER",
+			name:     "should show the model -m names",
+			args:     with("-o", "json", "--state", "x", "-m", "other"),
+			mock:     mockAll,
+			wantOut:  fileOf(`{"model":"other",` + mockAllJSON + "}\n"),
+			wantCode: ExitOK,
+		},
+		{
+			name:     "should show the default model of the provider",
+			args:     with("-o", "json", "--state", "x", "--provider", "cloudflare"),
+			mock:     mockAll,
+			wantOut:  fileOf(`{"model":"typesafe/jev",` + mockAllJSON + "}\n"),
+			wantCode: ExitOK,
+		},
+		{
+			name:     "should show a cloudflare model as -m names it",
+			args:     with("-o", "json", "--state", "x", "--provider", "cloudflare", "-m", "clef-flash"),
+			mock:     mockAll,
+			wantOut:  fileOf(`{"model":"clef-flash",` + mockAllJSON + "}\n"),
+			wantCode: ExitOK,
+		},
+		{
+			name:     "should refuse a misspelled --provider",
+			args:     with("--state", "x", "--provider", "bogus"),
+			mock:     mockAll,
+			stderr:   []string{"onesie: unknown provider bogus"},
+			wantCode: ExitUsage,
+		},
+		{
+			name:     "should refuse a misspelled ONESIE_PROVIDER",
 			args:     with("-o", "values", "--state", "x"),
 			env:      map[string]string{"ONESIE_PROVIDER": "bogus"},
+			mock:     mockAll,
+			stderr:   []string{"onesie: unknown provider bogus"},
+			wantCode: ExitUsage,
+		},
+		{
+			name:     "should answer under cloudflare with no account",
+			args:     with("-o", "values", "--state", "x", "--provider", "cloudflare"),
 			mock:     mockAll,
 			wantOut:  fileOf(mockAll + "\n"),
 			wantCode: ExitOK,
@@ -359,6 +396,22 @@ func TestMockAnswers(t *testing.T) {
 			args:     []string{"--list-models"},
 			mock:     mockAll,
 			stderr:   []string{"onesie: --list-models asks no question, so --mock has nothing to answer. Drop one"},
+			wantCode: ExitUsage,
+		},
+		{
+			name:     "should refuse a misspelled ONESIE_PROVIDER before -i request",
+			args:     []string{"-i", "request"},
+			env:      map[string]string{"ONESIE_PROVIDER": "bogus"},
+			mock:     mockAll,
+			stderr:   []string{"onesie: unknown provider bogus"},
+			wantCode: ExitUsage,
+		},
+		{
+			name:     "should refuse a misspelled ONESIE_PROVIDER before --list-models",
+			args:     []string{"--list-models"},
+			env:      map[string]string{"ONESIE_PROVIDER": "bogus"},
+			mock:     mockAll,
+			stderr:   []string{"onesie: unknown provider bogus"},
 			wantCode: ExitUsage,
 		},
 		{
@@ -458,6 +511,23 @@ func TestMockAnswers(t *testing.T) {
 			}
 		}
 	})
+
+	t.Run("should never touch the keychain", func(t *testing.T) {
+		t.Parallel()
+
+		chain := noKeychain()
+
+		_, errOut, code := runMocked(t, t.Context(),
+			[]string{"is it urgent", "-o", "values", "--state", "x", "--mock", writeMock(t, `{"answer":0.9}`)},
+			"", nil, nil, WithKeychain(chain))
+		if code != ExitOK {
+			t.Fatalf("exit %d\n%s", code, errOut)
+		}
+
+		if calls := chain.calls(); calls != 0 {
+			t.Errorf("keychain calls = %d, want none", calls)
+		}
+	})
 }
 
 func TestMockUncovered(t *testing.T) {
@@ -516,7 +586,7 @@ func TestMockUncovered(t *testing.T) {
 			t.Fatalf("first run exit %d\n%s", code, errOut)
 		}
 
-		want := `{"id":"a","model":"mock","u":{"value":0.9}}` + "\n" + `{"id":"b","model":"mock","u":{"value":0.9}}` + "\n"
+		want := `{"id":"a","model":"jev-latest","u":{"value":0.9}}` + "\n" + `{"id":"b","model":"jev-latest","u":{"value":0.9}}` + "\n"
 		if got := readText(t, out); got != want {
 			t.Errorf("file = %q, want %q", got, want)
 		}
@@ -674,9 +744,9 @@ func TestMockResume(t *testing.T) {
 	question := []string{"is it urgent", "-o", "json", "-i", "jsonl", "--id", ".id"}
 	input := "{\"id\":1}\n{\"id\":2}\n{\"id\":3}\n"
 	full := "{\"id\":1,\"answer\":0.1}\n{\"id\":2,\"answer\":0.2}\n{\"id\":3,\"answer\":0.3}\n"
-	wantFile := `{"id":1,"model":"mock","answer":{"value":0.1}}` + "\n" +
-		`{"id":2,"model":"mock","answer":{"value":0.2}}` + "\n" +
-		`{"id":3,"model":"mock","answer":{"value":0.3}}` + "\n"
+	wantFile := `{"id":1,"model":"jev-latest","answer":{"value":0.1}}` + "\n" +
+		`{"id":2,"model":"jev-latest","answer":{"value":0.2}}` + "\n" +
+		`{"id":3,"model":"jev-latest","answer":{"value":0.3}}` + "\n"
 
 	t.Run("should keep the lines before an uncovered record and ask the rest on resume", func(t *testing.T) {
 		t.Parallel()
@@ -690,7 +760,7 @@ func TestMockResume(t *testing.T) {
 			t.Fatalf("first run exit %d, want 2\n%s", code, errOut)
 		}
 
-		if got := readText(t, out); got != `{"id":1,"model":"mock","answer":{"value":0.1}}`+"\n" {
+		if got := readText(t, out); got != `{"id":1,"model":"jev-latest","answer":{"value":0.1}}`+"\n" {
 			t.Errorf("after the first run the file holds %q", got)
 		}
 
@@ -804,7 +874,7 @@ func TestCalibrateMock(t *testing.T) {
 			t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, out, errOut)
 		}
 
-		for _, want := range []string{`"models":["mock"]`, `"labelled":3`} {
+		for _, want := range []string{`"models":["jev-latest"]`, `"mocked":true`, `"labelled":3`} {
 			if !strings.Contains(out, want) {
 				t.Errorf("report missing %s\n%s", want, out)
 			}
@@ -822,6 +892,105 @@ func TestCalibrateMock(t *testing.T) {
 		_, errOut, code := runMocked(t, t.Context(), args, "{\"body\":\"x\",\"u\":true}\n", nil, nil)
 		if code != ExitUsage || !strings.Contains(errOut, "--mock answers requests, and --print-request sends none") {
 			t.Errorf("exit %d\n%s", code, errOut)
+		}
+	})
+}
+
+func TestMockAnswerer_Answer(t *testing.T) {
+	t.Parallel()
+
+	questions := onesie.Questions{{ID: "answer", Question: onesie.Noul{Instructions: "q"}}}
+	known := []plan.Question{{ID: "answer", Shape: plan.Noul}}
+
+	asker := func(t *testing.T, file string, provider onesie.Provider) (mockAnswerer, *collector) {
+		t.Helper()
+
+		answers, err := mock.Load(strings.NewReader(file), known, mock.Options{})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		stats := &collector{}
+
+		return mockAnswerer{answers: answers, stats: stats, provider: provider}, stats
+	}
+
+	t.Run("should count no attempt for a request the provider refuses", func(t *testing.T) {
+		t.Parallel()
+
+		img, err := onesie.NewImage(squarePNG(t))
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		a, stats := asker(t, `{"answer":0.9}`, onesie.Levanto())
+
+		_, err = a.answer(t.Context(), recordKey{position: 1}, onesie.Request{
+			Model: onesie.LevantoDefaultModel, State: map[string]any{"photo": "img"}, Questions: questions,
+			Assets: onesie.Assets{"img": img},
+		})
+		if err == nil || !strings.Contains(err.Error(), "takes no images") {
+			t.Fatalf("error = %v, want levanto's refusal", err)
+		}
+
+		if got := stats.snapshot(0, 0).Attempts; got != 0 {
+			t.Errorf("attempts = %d, want 0", got)
+		}
+	})
+
+	t.Run("should refuse a request ValidateRequest refuses before the provider sees it", func(t *testing.T) {
+		t.Parallel()
+
+		a, stats := asker(t, `{"answer":0.9}`, onesie.Cloudflare())
+
+		_, err := a.answer(t.Context(), recordKey{position: 1}, onesie.Request{
+			Model: "m", State: "s",
+			Questions: onesie.Questions{{ID: "answer", Question: onesie.Box{Instructions: "q"}}},
+		})
+		if err == nil || !strings.Contains(err.Error(), "needs an image") {
+			t.Fatalf("error = %v, want ValidateRequest's refusal", err)
+		}
+
+		if got := stats.snapshot(0, 0).Attempts; got != 0 {
+			t.Errorf("attempts = %d, want 0", got)
+		}
+	})
+
+	t.Run("should answer with the request's model", func(t *testing.T) {
+		t.Parallel()
+
+		a, stats := asker(t, `{"answer":0.9}`, onesie.TypeSafe())
+
+		got, err := a.answer(t.Context(), recordKey{position: 1}, onesie.Request{
+			Model: "other", State: "s", Questions: questions,
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if got.result.Model != "other" {
+			t.Errorf("model = %q, want other", got.result.Model)
+		}
+
+		if attempts := stats.snapshot(0, 0).Attempts; attempts != 1 {
+			t.Errorf("attempts = %d, want 1", attempts)
+		}
+	})
+
+	t.Run("should pass an error entry's error on", func(t *testing.T) {
+		t.Parallel()
+
+		a, _ := asker(t, `{"error":402}`, onesie.TypeSafe())
+
+		got, err := a.answer(t.Context(), recordKey{position: 1}, onesie.Request{
+			Model: "m", State: "s", Questions: questions,
+		})
+		if err == nil || !strings.Contains(err.Error(), "mock status 402") {
+			t.Fatalf("error = %v, want the mocked 402", err)
+		}
+
+		if got.result != nil {
+			t.Errorf("result = %+v, want none", got.result)
 		}
 	})
 }

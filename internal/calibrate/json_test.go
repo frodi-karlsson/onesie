@@ -61,6 +61,20 @@ func TestWriteJSON(t *testing.T) {
 		}
 	})
 
+	t.Run("should mark a mocked report beside its models", func(t *testing.T) {
+		t.Parallel()
+
+		mocked := full
+		mocked.Mocked = true
+
+		doc := writeJSON(t, mocked)
+
+		want := []string{"models", "mocked", "records", "labelled", "unlabelled", "asked", "stored", "failed", "questions"}
+		if got := keysOf(t, doc); !slices.Equal(got, want) {
+			t.Errorf("keys = %v, want %v", got, want)
+		}
+	})
+
 	t.Run("should give each shape its fields in order", func(t *testing.T) {
 		t.Parallel()
 
