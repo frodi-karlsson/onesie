@@ -10,6 +10,7 @@ import (
 // plan order. Usage is nil unless the run was asked for token counts, and Require unless --require.
 type Report struct {
 	Models                                               []string
+	Mocked                                               bool
 	Records, Labelled, Unlabelled, Asked, Stored, Failed int
 	Usage                                                *Usage
 	Questions                                            []QuestionReport

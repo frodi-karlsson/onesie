@@ -13,6 +13,7 @@ import (
 func WriteJSON(w io.Writer, r Report) error {
 	doc := jsonReport{
 		Models:     r.Models,
+		Mocked:     r.Mocked,
 		Records:    r.Records,
 		Labelled:   r.Labelled,
 		Unlabelled: r.Unlabelled,
@@ -44,6 +45,7 @@ func WriteJSON(w io.Writer, r Report) error {
 
 type jsonReport struct {
 	Models     []string      `json:"models"`
+	Mocked     bool          `json:"mocked,omitempty"`
 	Records    int           `json:"records"`
 	Labelled   int           `json:"labelled"`
 	Unlabelled int           `json:"unlabelled"`

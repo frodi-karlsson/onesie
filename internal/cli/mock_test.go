@@ -858,7 +858,7 @@ func TestCalibrateMock(t *testing.T) {
 			t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, out, errOut)
 		}
 
-		for _, want := range []string{`"models":["jev-latest"]`, `"labelled":3`} {
+		for _, want := range []string{`"models":["jev-latest"]`, `"mocked":true`, `"labelled":3`} {
 			if !strings.Contains(out, want) {
 				t.Errorf("report missing %s\n%s", want, out)
 			}

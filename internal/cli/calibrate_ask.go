@@ -201,6 +201,8 @@ func calibrateAnswers(
 		report := reportOf(scored, set, outcomes, run.cuts)
 		report.Asked = result.Records
 		report.Stored = resumed.stored
+		mockPath, _ := mockSource(settings, flags)
+		report.Mocked = mockPath != ""
 		report.Require = measureRequirements(report, run.bound)
 
 		if flags.usage {
