@@ -117,10 +117,10 @@ ONESIE_MOCK=answers.json ./gate.sh
   the lines that arrived before it. Under `--out --resume` the file holds the same lines, so a rerun
   with a full file asks that record and the ones after it.
 - A mock run resolves the provider and the model as a real run does, and refuses what the real run
-  would before it reads the file. So a misspelled `--provider`, a Box question on cloudflare or a
-  body openrouter cannot take fails as it would for real. It reads no key, opens no network, and
-  ignores `--base-url` and the cloudflare account. It prints the model the run resolved wherever a
-  model is shown, and `--usage` reports zero tokens. `--stats` counts no requests, tokens or
+  would before it answers from the file. So a misspelled `--provider`, a Box question on cloudflare
+  or a body openrouter cannot take fails as it would for real. It reads no key, opens no network,
+  and ignores `--base-url` and the cloudflare account. It prints the model the run resolved wherever
+  a model is shown, and `--usage` reports zero tokens. `--stats` counts no requests, tokens or
   attempts, as in `2 records answered from the mock, 2 questions, 0s`.
 - The `--out` fingerprint marks the run as a mock, so a real run refuses to resume a mock run's
   file and the other way round. The mock file's content is not part of it.
