@@ -367,11 +367,17 @@ ls photos/*.jpg | onesie -i lines --image-field photo 'is there a dog in `photo`
   - OpenRouter takes each image as an inline part where its reference stands, which onesie
     rewrites the body into. An image named in several places is sent once per place, and counts
     toward the body size each time. Only Jev is measured there.
+  - Cloudflare takes images and no Box questions. Its Jev reads the `assets` map as TypeSafe does.
+    Clef takes up to 4 images, which onesie sends in the order their names first appear, writing
+    each name in the text as `image 1`, `image 2` and so on, so a question names an image as it
+    does on TypeSafe.
   - Levanto and Berget take no images or Box questions, and a run that would send either exits 2
     before any request. Under `-i request` such a body is an error line instead.
-  - `-i request` sends the images header only to TypeSafe, and rewrites a body into inline parts
-    for OpenRouter.
+  - `-i request` sends the images header only to TypeSafe, rewrites a body into inline parts for
+    OpenRouter, and on Cloudflare sends Jev the assets as written and Clef numbered images.
   - A `--mock` run reads no provider, so it answers where the real run would be refused.
+- onesie's image limits, which `onesie -V` lists, are TypeSafe's. They also apply on Cloudflare,
+  where they are not measured for Clef.
 - `--image`, `--image-field` and `--box` are refused under `-i request`, whose bodies carry their own
   state and questions.
 - Images and Box are experimental on TypeSafe's side, and less reliable than text.
@@ -478,6 +484,7 @@ onesie auth test                                   # checks the key
 | `openrouter` | `OPENROUTER_API_KEY` | `--provider openrouter` or `ONESIE_PROVIDER=openrouter` |
 | `berget` | `BERGET_API_KEY` | `--provider berget` or `ONESIE_PROVIDER=berget` |
 | `levanto` | `LEVANTO_API_KEY` | `--provider levanto` or `ONESIE_PROVIDER=levanto` |
+| `cloudflare` | `CLOUDFLARE_API_TOKEN` | `--provider cloudflare` or `ONESIE_PROVIDER=cloudflare` |
 
 - A key comes from the provider's variable, then the credential file. No provider falls back to
   another's key.
@@ -487,6 +494,18 @@ onesie auth test                                   # checks the key
   unencrypted, readable only by your own user.
 - `auth status` exits 2 when no key resolves, after printing `source: none`, as a real run and
   `auth test` do.
+- Cloudflare also needs the account id, from `--base-url`, then `CLOUDFLARE_ACCOUNT_ID`, then a base
+  URL stored with `onesie --provider cloudflare auth set --base-url
+  https://api.cloudflare.com/client/v4/accounts/<account_id>/ai`. A stored base URL applies only
+  to a stored key. `auth status` prints where the account comes from, and exits 2 when none does.
+- The Cloudflare token needs `Account` > `Workers AI` > `Read`. Its default model, `typesafe/jev`,
+  is TypeSafe's Jev through AI Gateway, billed from AI Gateway credits, with a 32,000 token
+  context and no choice of version. `clef`, `clef-flash` and `clef-omni` are Cloudflare's own
+  models, run on the free daily Workers AI allowance, with contexts of 65,536, 24,576 and 65,536
+  tokens. `--list-models` lists them all.
+- Cloudflare takes no long context, so `--long-context` there exits 2 before any request.
+- A printed body is onesie's, not Cloudflare's envelope, so it replays through `-i request` with
+  `--provider cloudflare`, not by curl.
 - `auth test` lists the provider's models, which costs no tokens. Berget lists its models to any
   key, so on berget `auth test` also asks one tiny question with the default model, which spends a
   few tokens.
@@ -521,7 +540,8 @@ table, and `onesie calibrate --help` lists the codes calibrate uses.
 
 | Variable | What it does |
 |----------|--------------|
-| `TYPESAFE_API_KEY`, `OPENROUTER_API_KEY`, `BERGET_API_KEY`, `LEVANTO_API_KEY` | the key for each provider, as in Keys and providers |
+| `TYPESAFE_API_KEY`, `OPENROUTER_API_KEY`, `BERGET_API_KEY`, `LEVANTO_API_KEY`, `CLOUDFLARE_API_TOKEN` | the key for each provider, as in Keys and providers |
+| `CLOUDFLARE_ACCOUNT_ID` | the Cloudflare account, as in Keys and providers |
 | `ONESIE_PROVIDER` | the provider when `--provider` is not given |
 | `ONESIE_CONFIG_DIR` | where the credential file and the saved question files live |
 | `ONESIE_MOCK` | a file to answer from, as `--mock` |

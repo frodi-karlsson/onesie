@@ -42,7 +42,7 @@ The provider comes first: `--provider`, then `ONESIE_PROVIDER`, then `typesafe`.
 resolves for that provider in this order, first match wins:
 
 1. The provider's variable: `TYPESAFE_API_KEY` for typesafe, `OPENROUTER_API_KEY` for openrouter,
-   `BERGET_API_KEY` for berget, `LEVANTO_API_KEY` for levanto. No provider falls back to another's key.
+   `BERGET_API_KEY` for berget, `LEVANTO_API_KEY` for levanto, `CLOUDFLARE_API_TOKEN` for cloudflare. No provider falls back to another's key.
 2. The provider's entry in `credentials.json`, in `$ONESIE_CONFIG_DIR`, then
    `$XDG_CONFIG_HOME/onesie`, then, on Windows, `%APPDATA%\onesie`, and otherwise
    `~/.config/onesie`. The entry holds the key, or says the key is in the OS keychain, which
@@ -51,7 +51,8 @@ resolves for that provider in this order, first match wins:
 Exit 3 also covers these:
 
 - A 401, a 403 or a 402. OpenRouter sends 402 when the account is out of credits, Berget when
-  the key has no subscription, and Levanto when the period's included usage is used up.
+  the key has no subscription, and Levanto when the period's included usage is used up, and Cloudflare when AI Gateway has no
+  credits left for Jev.
 - A credential file that others can reach. The message names the file and its mode. Run
   `chmod 600` on it.
 - A keychain that refuses, holds no item for the entry, or does not answer within 10 seconds,
@@ -88,7 +89,11 @@ Exit 3 also covers these:
 | `each side must be`, `an image must be PNG or JPEG` or `an image is at most` | onesie refused an `--image` file before any request, naming the limit `onesie -V` lists. Resize it to at most 1568 pixels a side, or convert it to PNG or a smaller JPEG. An `--image-field` file is an error line instead |
 | `needs an image in the request` | a `--box` question was asked with no `--image` or `--image-field` to look in |
 | `long_context` and `must be true or false` | a request body's `long_context` is not a boolean |
-| `takes no images or box questions` | the provider, Levanto or Berget, reads neither. Ask with `--provider typesafe` or `--provider openrouter` |
+| `takes no images or box questions` | the provider, Levanto or Berget, reads neither. Ask with `--provider typesafe`, `--provider openrouter`, or for images alone `--provider cloudflare` |
+| `takes no box questions` or `takes no long context` | the provider's model reads images but not that. Ask with `--provider typesafe` |
+| `no cloudflare account id` | cloudflare has a token and no account. Set `CLOUDFLARE_ACCOUNT_ID`, or store a base URL holding it with `onesie --provider cloudflare auth set --base-url` |
+| `Insufficient balance` | Cloudflare's AI Gateway has no credits for Jev. Add credits, or ask Clef with `-m clef-flash`, which runs on the free allowance |
+| `No such model` | Workers AI does not serve that model id. Clef's are `clef`, `clef-flash` and `clef-omni`. Try `--list-models` |
 | `A box question needs a model that serves it` | the model refused a `--box` question on TypeSafe. Pass `-m jev-preview` |
 | `max_tokens_exceeded` | the state and questions are over the model's context limit. Trim the state with `--map`, or pass `--long-context`, which is slower and less accurate |
 
