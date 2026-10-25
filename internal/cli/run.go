@@ -21,7 +21,6 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/input"
 	"github.com/frodi-karlsson/onesie/internal/jq"
 	"github.com/frodi-karlsson/onesie/internal/limits"
-	"github.com/frodi-karlsson/onesie/internal/mock"
 	"github.com/frodi-karlsson/onesie/internal/output"
 	"github.com/frodi-karlsson/onesie/internal/plan"
 	"github.com/frodi-karlsson/onesie/internal/qfile"
@@ -1229,14 +1228,6 @@ func answered(
 ) (output.Record, onesie.Usage, bool, error) {
 	req := onesie.Request{
 		State: state, Model: model, Questions: questions, Assets: assets, LongContext: built.LongContext,
-	}
-
-	// A mock answers without SystemOne, which validates every live request itself, so a mock run
-	// is checked here and refuses what the API would.
-	if model == mock.Model {
-		if err := onesie.ValidateRequest(req); err != nil {
-			return failureRecord(built, err), onesie.Usage{}, false, err
-		}
 	}
 
 	got, err := asker.answer(ctx, key, req)

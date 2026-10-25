@@ -12,7 +12,6 @@ import (
 	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/creds"
 	"github.com/frodi-karlsson/onesie/internal/interrupt"
-	"github.com/frodi-karlsson/onesie/internal/mock"
 )
 
 const (
@@ -594,10 +593,6 @@ func previousAccount(entry creds.Entry, provider onesie.Provider) string {
 }
 
 func resolveProvider(settings rootSettings, flags *runFlags) (onesie.Provider, error) {
-	if path, _ := mockSource(settings, flags); path != "" {
-		return onesie.Provider{Name: mock.Model}, nil
-	}
-
 	if name := strings.TrimSpace(flags.provider); name != "" {
 		return onesie.ProviderNamed(name)
 	}

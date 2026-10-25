@@ -6,10 +6,12 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"image"
 	"image/color"
 	"image/png"
 	"io"
+	"math/rand/v2"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -234,6 +236,19 @@ func TestRun(t *testing.T) {
 		[]byte(`{"state":"s","questions":{"red":{"type":"noul","instructions":"q"}},"long_context":true}`))
 	shortBody := writeImage(t, dir, "short.json",
 		[]byte(`{"state":"s","questions":{"red":{"type":"noul","instructions":"q"}},"long_context":false}`))
+	noise := writeImage(t, dir, "noise.png", noisePNG(t, 600))
+	boxMock := writeImage(t, dir, "box-mock.json",
+		[]byte(`{"where":{"left":0.25,"top":0.25,"right":0.5,"bottom":0.5}}`))
+	// One image under 25 names is one asset, which passes the body limit, and openrouter places it at
+	// every name, which does not.
+	manyNames := func(extra ...string) []string {
+		var args []string
+		for i := range 25 {
+			args = append(args, "--image", fmt.Sprintf("p%d=%s", i, noise))
+		}
+
+		return append(append(args, "q"), extra...)
+	}
 
 	tests := []struct {
 		name         string
@@ -435,9 +450,33 @@ func TestRun(t *testing.T) {
 			wantOut:  `"assets":{"` + ref + `"`,
 		},
 		{
-			name:     "should answer a mock run with images under levanto, since a mock reads no provider",
+			name:     "should refuse a mock run with images under levanto, as the real run does",
 			args:     []string{"--image", "photo=" + square, "q", "--mock", mockFile, "-o", "values"},
 			env:      levanto,
+			wantCode: ExitUsage,
+			wantErr:  refused,
+		},
+		{
+			name: "should refuse a mock box question under cloudflare, as the real run does",
+			args: []string{
+				"--image", "photo=" + square, "--ask", "where=the red square in `photo`", "--box",
+				"--mock", boxMock,
+			},
+			env:      cloudflare,
+			wantCode: ExitUsage,
+			wantErr:  "onesie: the cloudflare provider takes no box questions",
+			emptyOut: true,
+		},
+		{
+			name:     "should fail a mock run whose images openrouter would inline past the body limit",
+			args:     manyNames("--mock", mockFile, "-o", "values"),
+			env:      openrouter,
+			wantCode: ExitUsage,
+			wantErr:  "name each image once",
+		},
+		{
+			name:     "should answer the same mock run under typesafe, which sends each image once",
+			args:     manyNames("--mock", mockFile, "-o", "values"),
 			wantCode: ExitOK,
 			wantOut:  `{"answer":0.9}`,
 		},
@@ -977,6 +1016,31 @@ func drawPNG(t *testing.T, width, height int, square image.Rectangle) []byte {
 	var buf bytes.Buffer
 	if err := png.Encode(&buf, img); err != nil {
 		t.Fatalf("encoding the png: %v", err)
+	}
+
+	return buf.Bytes()
+}
+
+func noisePNG(t *testing.T, side int) []byte {
+	t.Helper()
+
+	// Seeded, so the size is the same on every run. Noise does not compress, so the file stays
+	// near four bytes a pixel.
+	random := rand.New(rand.NewPCG(1, 2))
+
+	img := image.NewNRGBA(image.Rect(0, 0, side, side))
+	for i := range img.Pix {
+		img.Pix[i] = byte(random.UintN(256))
+	}
+
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, img); err != nil {
+		t.Fatalf("encoding the png: %v", err)
+	}
+
+	encoded := base64.StdEncoding.EncodedLen(buf.Len())
+	if encoded*25 <= onesie.MaxBodyBytes || buf.Len() >= onesie.MaxImageBytes {
+		t.Fatalf("the noise png is %d bytes, which no longer goes over the body limit at 25 names", buf.Len())
 	}
 
 	return buf.Bytes()

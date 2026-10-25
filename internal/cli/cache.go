@@ -30,7 +30,12 @@ func answersFor(
 	model string,
 ) (answererFactory, error) {
 	if path, spelled := mockSource(settings, flags); path != "" {
-		answers, err := mockAnswers(settings, flags, path, spelled, built, known)
+		provider, err := resolveProvider(settings, flags)
+		if err != nil {
+			return nil, err
+		}
+
+		answers, err := mockAnswers(settings, flags, provider, path, spelled, built, known)
 		if err != nil {
 			return nil, err
 		}

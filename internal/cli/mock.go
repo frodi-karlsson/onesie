@@ -31,7 +31,8 @@ func mockSource(settings rootSettings, flags *runFlags) (path, spelled string) {
 }
 
 func mockAnswers(
-	settings rootSettings, flags *runFlags, path, spelled string, built *plan.Plan, known []plan.Question,
+	settings rootSettings, flags *runFlags, provider onesie.Provider, path, spelled string, built *plan.Plan,
+	known []plan.Question,
 ) (answererFactory, error) {
 	data, err := settings.readFile(path)
 	if err != nil {
@@ -54,7 +55,7 @@ func mockAnswers(
 	return func(_ context.Context, stats *collector) (answerer, error) {
 		stats.answerFromMock()
 
-		return mockAnswerer{answers: answers, stats: stats}, nil
+		return mockAnswerer{answers: answers, stats: stats, provider: provider}, nil
 	}, nil
 }
 
@@ -73,8 +74,17 @@ func wrapped(settings rootSettings, answers answererFactory) answererFactory {
 	}
 }
 
-func (a mockAnswerer) answer(ctx context.Context, key recordKey, _ onesie.Request) (reply, error) {
+func (a mockAnswerer) answer(ctx context.Context, key recordKey, req onesie.Request) (reply, error) {
 	if err := ctx.Err(); err != nil {
+		return reply{}, err
+	}
+
+	// The checks a real run makes before it sends, so a mock refuses what the provider would.
+	if err := onesie.ValidateRequest(req); err != nil {
+		return reply{}, err
+	}
+
+	if _, err := a.provider.Encode(req); err != nil {
 		return reply{}, err
 	}
 
@@ -86,7 +96,13 @@ func (a mockAnswerer) answer(ctx context.Context, key recordKey, _ onesie.Reques
 	result, err := entry.Result()
 	a.stats.observe(mockAttempt(err))
 
-	return reply{result: result}, err
+	if err != nil {
+		return reply{}, err
+	}
+
+	result.Model = req.Model
+
+	return reply{result: result}, nil
 }
 
 func (a mockAnswerer) salt(key recordKey) (string, bool) {
@@ -115,8 +131,9 @@ func mockAttempt(err error) onesie.Attempt {
 }
 
 type mockAnswerer struct {
-	answers *mock.Answers
-	stats   *collector
+	answers  *mock.Answers
+	stats    *collector
+	provider onesie.Provider
 }
 
 func (e *uncoveredError) Error() string {

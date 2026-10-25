@@ -2380,11 +2380,14 @@ type fakeKeychain struct {
 	mu          sync.Mutex
 	items       map[string]string
 	unavailable bool
+	count       int
 }
 
 func (k *fakeKeychain) Get(provider string) (string, error) {
 	k.mu.Lock()
 	defer k.mu.Unlock()
+
+	k.count++
 
 	if k.unavailable {
 		return "", &creds.KeychainError{Op: "read the key from", Err: errors.New("no keychain in tests")}
@@ -2402,6 +2405,8 @@ func (k *fakeKeychain) Set(provider, key string) error {
 	k.mu.Lock()
 	defer k.mu.Unlock()
 
+	k.count++
+
 	if k.unavailable {
 		return &creds.KeychainError{Op: "store the key in", Err: errors.New("no keychain in tests")}
 	}
@@ -2415,6 +2420,8 @@ func (k *fakeKeychain) Delete(provider string) error {
 	k.mu.Lock()
 	defer k.mu.Unlock()
 
+	k.count++
+
 	if k.unavailable {
 		return &creds.KeychainError{Op: "remove the key from", Err: errors.New("no keychain in tests")}
 	}
@@ -2422,6 +2429,13 @@ func (k *fakeKeychain) Delete(provider string) error {
 	delete(k.items, provider)
 
 	return nil
+}
+
+func (k *fakeKeychain) calls() int {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+
+	return k.count
 }
 
 func (k *fakeKeychain) holds(provider string) bool {
