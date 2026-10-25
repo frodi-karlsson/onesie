@@ -1900,6 +1900,33 @@ func helpExitCodes(help string) []string {
 func TestDefaultClientFactory(t *testing.T) {
 	t.Parallel()
 
+	t.Run("should exit 2 naming CLOUDFLARE_ACCOUNT_ID when cloudflare has a token and no account", func(t *testing.T) {
+		t.Parallel()
+
+		var out bytes.Buffer
+
+		root := cli.NewRootCmd(
+			cli.BuildInfo{Version: "1.2.3"},
+			cli.WithKeychain(offKeychain{}),
+			cli.WithStdin(strings.NewReader("body")),
+			cli.WithStdinTTY(false),
+			cli.WithStdoutTTY(false),
+			cli.WithLookupEnv(func(name string) (string, bool) {
+				value, ok := map[string]string{"CLOUDFLARE_API_TOKEN": "t", "ONESIE_PROVIDER": "cloudflare"}[name]
+
+				return value, ok
+			}),
+		)
+
+		root.SetOut(&out)
+		root.SetErr(&out)
+		root.SetArgs([]string{"is this urgent"})
+
+		if code := cli.Execute(t.Context(), root); code != cli.ExitUsage || !strings.Contains(out.String(), "CLOUDFLARE_ACCOUNT_ID") {
+			t.Fatalf("exit code = %d, output:\n%s\nwant 2 naming CLOUDFLARE_ACCOUNT_ID", code, out.String())
+		}
+	})
+
 	t.Run("should build a client from the flags", func(t *testing.T) {
 		t.Parallel()
 

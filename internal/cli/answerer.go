@@ -43,11 +43,11 @@ func liveAnswers(settings rootSettings, flags *runFlags) answererFactory {
 			return nil, err
 		}
 
-		return newLiveAnswerer(client, provider.Name, flags), nil
+		return newLiveAnswerer(client, provider, flags), nil
 	}
 }
 
-func newLiveAnswerer(client *onesie.Client, provider string, flags *runFlags) liveAnswerer {
+func newLiveAnswerer(client *onesie.Client, provider onesie.Provider, flags *runFlags) liveAnswerer {
 	return liveAnswerer{client: client, provider: provider, timeoutSet: flags.timeoutSet}
 }
 
@@ -64,7 +64,8 @@ func longContext(settings rootSettings, flags *runFlags) bool {
 func (a liveAnswerer) answer(ctx context.Context, _ recordKey, req onesie.Request) (reply, error) {
 	result, err := a.client.SystemOne(ctx, req, requestOptions(req, a.timeoutSet)...)
 
-	return reply{result: result}, adviseBox(adviseLongContext(err, req.LongContext), a.provider, hasBox(req.Questions))
+	return reply{result: result}, adviseBox(
+		adviseLongContext(err, longContextHelps(a.provider, req.Model, req.LongContext)), a.provider.Name, hasBox(req.Questions))
 }
 
 func requestOptions(req onesie.Request, timeoutSet bool) []onesie.RequestOption {
@@ -84,6 +85,6 @@ func (liveAnswerer) salt(recordKey) (string, bool) {
 
 type liveAnswerer struct {
 	client     *onesie.Client
-	provider   string
+	provider   onesie.Provider
 	timeoutSet bool
 }

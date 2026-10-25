@@ -904,8 +904,8 @@ func TestCalibrateIntegration(t *testing.T) {
 	}
 
 	for _, tc := range []struct {
-		name, env string
-		provider  []string
+		name, env, also string
+		provider        []string
 	}{
 		{name: "should separate obvious yes from obvious no records", env: "TYPESAFE_API_KEY"},
 		{
@@ -916,10 +916,16 @@ func TestCalibrateIntegration(t *testing.T) {
 			name: "should separate obvious yes from obvious no records through --provider levanto",
 			env:  "LEVANTO_API_KEY", provider: []string{"--provider", "levanto"},
 		},
+		{
+			name: "should separate obvious yes from obvious no records through --provider cloudflare",
+			env:  "CLOUDFLARE_API_TOKEN", also: "CLOUDFLARE_ACCOUNT_ID", provider: []string{"--provider", "cloudflare"},
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			if strings.TrimSpace(os.Getenv(tc.env)) == "" {
-				t.Skip(tc.env + " is not set, skipping this case")
+			for _, name := range []string{tc.env, tc.also} {
+				if name != "" && strings.TrimSpace(os.Getenv(name)) == "" {
+					t.Skip(name + " is not set, skipping this case")
+				}
 			}
 
 			out, errOut, code := runLive(t, append(slices.Clone(tc.provider), args...), labelled)

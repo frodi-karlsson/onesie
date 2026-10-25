@@ -325,7 +325,8 @@ func newAuthStatusCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 		Use:   "status",
 		Short: "Report which source holds the API key",
 		Long: "Report the provider and which source holds its API key, never the key itself.\n\n" +
-			"When no key resolves it prints source: none and exits 2, as a real run does.",
+			"When no key resolves it prints source: none and exits 2, as a real run does. On cloudflare it also " +
+			"prints where the account comes from, and exits 2 when none does.",
 		Args: authNoArgs("status", "It reports which source holds the key"),
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return authStatus(cmd, settings, flags)
@@ -347,11 +348,35 @@ func authStatus(cmd *cobra.Command, settings rootSettings, flags *runFlags) erro
 		return printErr
 	}
 
-	if source.name == sourceNone {
+	account := accountSource(settings, source)
+	if account != "" {
+		if _, printErr := fmt.Fprintf(cmd.OutOrStdout(), "account: %s\n", account); printErr != nil {
+			return printErr
+		}
+	}
+
+	if source.name == sourceNone || account == sourceNone {
 		return &silentError{code: ExitUsage}
 	}
 
 	return nil
+}
+
+func accountSource(settings rootSettings, source keySource) string {
+	name := source.provider.EnvAccountID
+	if name == "" {
+		return ""
+	}
+
+	if value, ok := settings.lookupEnv(name); ok && strings.TrimSpace(value) != "" {
+		return name
+	}
+
+	if source.baseURL != "" {
+		return "the base URL in the credential file"
+	}
+
+	return sourceNone
 }
 
 func newAuthTestCmd(settings rootSettings, flags *runFlags) *cobra.Command {
@@ -408,13 +433,19 @@ func storedOptions(settings rootSettings, flags *runFlags, source keySource) []o
 		return opts
 	}
 
-	// --base-url and TYPESAFE_BASE_URL stay ahead of the file's own base URL, so the stored one is
-	// only passed when neither of them has anything to say.
+	// --base-url, the provider's base URL variable and its account variable stay ahead of the file's
+	// own base URL, so the stored one is only passed when none of them has anything to say.
 	if strings.TrimSpace(flags.baseURL) != "" {
 		return opts
 	}
 
 	if name := source.provider.EnvBaseURL; name != "" {
+		if value, ok := settings.lookupEnv(name); ok && strings.TrimSpace(value) != "" {
+			return opts
+		}
+	}
+
+	if name := source.provider.EnvAccountID; name != "" {
 		if value, ok := settings.lookupEnv(name); ok && strings.TrimSpace(value) != "" {
 			return opts
 		}

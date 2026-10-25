@@ -37,6 +37,16 @@ func TestAdvise(t *testing.T) {
 					`"message":"model 'onesie-1.12' not found. Try --list-models"}`},
 			},
 			{
+				name:     "should name a clef model workers ai does not serve",
+				args:     []string{"is this urgent", "-m", "clef-nope"},
+				stdin:    "a ticket",
+				status:   http.StatusBadRequest,
+				response: `{"errors":[{"message":"AiError: No such model: No such model @cf/cloudflare/clef-nope or task (x)","code":5007}],"success":false}`,
+				wantCode: ExitUsage,
+				wantSent: `"model":"clef-nope"`,
+				wantErr:  "onesie: model 'clef-nope' not found. Try --list-models\n",
+			},
+			{
 				name:     "should name the model the environment supplied",
 				args:     []string{"is this urgent"},
 				stdin:    "a ticket",
@@ -340,6 +350,16 @@ func TestAdvise(t *testing.T) {
 				response: tooLong,
 				wantCode: ExitUsage,
 				wantErr:  "onesie: 400 max_tokens_exceeded" + longNote + "\n",
+			},
+			{
+				name:     "should leave max_tokens_exceeded alone on cloudflare, which takes no long context",
+				args:     []string{"is this urgent"},
+				stdin:    "a ticket",
+				env:      map[string]string{"ONESIE_PROVIDER": "cloudflare"},
+				status:   http.StatusBadRequest,
+				response: tooLong,
+				wantCode: ExitUsage,
+				wantErr:  "onesie: 400 max_tokens_exceeded\n",
 			},
 			{
 				name:     "should leave the limit alone when --long-context is already on",

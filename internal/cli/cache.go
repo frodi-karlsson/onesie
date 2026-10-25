@@ -65,7 +65,7 @@ func answersFor(
 		}
 	}
 
-	return wrapped(settings, cachedAnswers(settings, flags, provider.Name, model, built.Questions, warn)), nil
+	return wrapped(settings, cachedAnswers(settings, flags, provider, model, built.Questions, warn)), nil
 }
 
 func caching(cmd *cobra.Command, settings rootSettings, flags *runFlags) (bool, error) {
@@ -93,7 +93,8 @@ func caching(cmd *cobra.Command, settings rootSettings, flags *runFlags) (bool, 
 }
 
 func cachedAnswers(
-	settings rootSettings, flags *runFlags, provider, model string, questions []plan.Question, warn func(error),
+	settings rootSettings, flags *runFlags, provider onesie.Provider, model string, questions []plan.Question,
+	warn func(error),
 ) answererFactory {
 	return func(ctx context.Context, stats *collector) (answerer, error) {
 		client, err := settings.newClient(ctx, observing(stats)...)
@@ -105,8 +106,8 @@ func cachedAnswers(
 			next:      newLiveAnswerer(client, provider, flags),
 			open:      sync.OnceValues(func() (*cache.Store, error) { return openCache(settings) }),
 			model:     model,
-			provider:  provider,
-			origin:    provider + "\x00" + client.BaseURL(),
+			provider:  provider.Name,
+			origin:    provider.Name + "\x00" + client.BaseURL(),
 			questions: questions,
 			warn:      warn,
 		}, nil

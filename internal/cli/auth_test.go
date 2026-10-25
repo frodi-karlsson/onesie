@@ -192,6 +192,28 @@ func TestAuthStatus(t *testing.T) {
 			wantCode: ExitUsage,
 		},
 		{
+			name:     "should name CLOUDFLARE_ACCOUNT_ID as the account",
+			args:     []string{"auth", "status"},
+			env:      map[string]string{"ONESIE_PROVIDER": "cloudflare", "CLOUDFLARE_API_TOKEN": "SECRET-CF", "CLOUDFLARE_ACCOUNT_ID": "0123456789abcdef0123456789abcdef"},
+			wantOut:  "provider: cloudflare\nsource: env CLOUDFLARE_API_TOKEN\naccount: CLOUDFLARE_ACCOUNT_ID\n",
+			wantCode: ExitOK,
+		},
+		{
+			name:     "should exit 2 when no account resolves on cloudflare",
+			args:     []string{"auth", "status"},
+			env:      map[string]string{"ONESIE_PROVIDER": "cloudflare", "CLOUDFLARE_API_TOKEN": "SECRET-CF"},
+			wantOut:  "provider: cloudflare\nsource: env CLOUDFLARE_API_TOKEN\naccount: none\n",
+			wantCode: ExitUsage,
+		},
+		{
+			name:     "should not take a stored base url for a key from the environment",
+			args:     []string{"auth", "status"},
+			env:      map[string]string{"ONESIE_PROVIDER": "cloudflare", "CLOUDFLARE_API_TOKEN": "SECRET-CF"},
+			file:     `{"providers":{"cloudflare":{"api_key":"SECRET-FILE","base_url":"https://api.cloudflare.com/client/v4/accounts/0123456789abcdef0123456789abcdef/ai"}}}`,
+			wantOut:  "provider: cloudflare\nsource: env CLOUDFLARE_API_TOKEN\naccount: none\n",
+			wantCode: ExitUsage,
+		},
+		{
 			name:     "should never fall back to the TypeSafe key under berget",
 			args:     []string{"auth", "status"},
 			env:      map[string]string{"ONESIE_PROVIDER": "berget", onesie.EnvAPIKey: "SECRET-TS"},
@@ -1479,6 +1501,32 @@ func TestStoredOptions(t *testing.T) {
 		settings := rootSettings{lookupEnv: lookupFrom(map[string]string{onesie.EnvBaseURL: "https://typesafe.example"})}
 		source := keySource{
 			name: sourceFile, provider: onesie.OpenRouter(), key: "SECRET-FILE", baseURL: "https://proxy.example",
+		}
+
+		if got := len(storedOptions(settings, &runFlags{}, source)); got != 2 {
+			t.Errorf("storedOptions returned %d options, want the key and the stored base url", got)
+		}
+	})
+
+	t.Run("should keep CLOUDFLARE_ACCOUNT_ID ahead of the stored base url", func(t *testing.T) {
+		t.Parallel()
+
+		settings := rootSettings{lookupEnv: lookupFrom(map[string]string{"CLOUDFLARE_ACCOUNT_ID": "0123456789abcdef0123456789abcdef"})}
+		source := keySource{
+			name: sourceFile, provider: onesie.Cloudflare(), key: "SECRET-FILE", baseURL: "https://proxy.example/ai",
+		}
+
+		if got := len(storedOptions(settings, &runFlags{}, source)); got != 1 {
+			t.Errorf("storedOptions returned %d options, want the key alone", got)
+		}
+	})
+
+	t.Run("should reach the stored base url on cloudflare when no account is set", func(t *testing.T) {
+		t.Parallel()
+
+		settings := rootSettings{lookupEnv: lookupFrom(nil)}
+		source := keySource{
+			name: sourceFile, provider: onesie.Cloudflare(), key: "SECRET-FILE", baseURL: "https://proxy.example/ai",
 		}
 
 		if got := len(storedOptions(settings, &runFlags{}, source)); got != 2 {

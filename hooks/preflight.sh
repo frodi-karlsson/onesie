@@ -13,6 +13,7 @@ fi
 status=$(onesie auth status </dev/null 2>&1)
 provider=$(printf '%s\n' "$status" | sed -n 's/^provider: //p')
 source=$(printf '%s\n' "$status" | sed -n 's/^source: //p')
+account=$(printf '%s\n' "$status" | sed -n 's/^account: //p')
 
 case "$source" in
   none)
@@ -20,12 +21,17 @@ case "$source" in
       openrouter) variable=OPENROUTER_API_KEY ;;
       berget) variable=BERGET_API_KEY ;;
       levanto) variable=LEVANTO_API_KEY ;;
+      cloudflare) variable=CLOUDFLARE_API_TOKEN ;;
       *) variable=TYPESAFE_API_KEY ;;
     esac
     printf 'onesie is on PATH, but no API key resolves for provider %s. Only --print-request and --print-questions work until the user runs onesie auth set or sets %s. The onesie-setup skill walks them through it.\n' "$provider" "$variable"
     ;;
   ?*)
-    printf 'onesie is on PATH and a key resolves, provider: %s, source: %s.\n' "$provider" "$source"
+    if [ "$account" = none ]; then
+      printf 'onesie is on PATH and a key resolves for provider %s, but no account does. Every request fails until the user sets CLOUDFLARE_ACCOUNT_ID or runs onesie auth set with --base-url. The onesie-setup skill walks them through it.\n' "$provider"
+    else
+      printf 'onesie is on PATH and a key resolves, provider: %s, source: %s.\n' "$provider" "$source"
+    fi
     ;;
   *)
     if [ -z "$status" ]; then
