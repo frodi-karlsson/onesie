@@ -1731,7 +1731,6 @@ func countingServer(t *testing.T, run resumeRun, onCall func(call int32)) (*http
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		call := calls.Add(1)
-		onCall(call)
 
 		var body struct {
 			State json.RawMessage `json:"state"`
@@ -1744,6 +1743,10 @@ func countingServer(t *testing.T, run resumeRun, onCall func(call int32)) (*http
 		mu.Lock()
 		sent = append(sent, string(body.State))
 		mu.Unlock()
+
+		// After the record, since the cancel lets the run end and the test read what was sent
+		// before this handler returns.
+		onCall(call)
 
 		if run.reversed {
 			var state struct {
