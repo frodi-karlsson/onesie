@@ -116,17 +116,19 @@ ONESIE_MOCK=answers.json ./gate.sh
   stops at that record, so it holds only the lines before it in input order, or under `--unordered`
   the lines that arrived before it. Under `--out --resume` the file holds the same lines, so a rerun
   with a full file asks that record and the ones after it.
-- A mock run reads no key, opens no network, and ignores `--provider`, `ONESIE_PROVIDER`,
-  `--base-url` and `-m`. It prints `model mock` wherever a model is shown, and `--usage` reports
-  zero tokens. `--stats` counts no requests, tokens or attempts, as in
-  `2 records answered from the mock, 2 questions, 0s`.
-- The `--out` fingerprint names the provider and model `mock`, so a real run refuses to resume a
-  mock run's file and the other way round. The mock file's content is not part of it.
-- `calibrate --mock` works, so a calibration can be tested too. An entry may also answer the
-  questions `calibrate` skips, so one mock file for a whole question file serves any set of labels.
-  `--mock` and `ONESIE_MOCK` are refused beside `--print-request`, `-i request`, `--list-models`
-  and every `auth` subcommand. The flag wins over the variable, and an empty `ONESIE_MOCK` is
-  ignored.
+- A mock run resolves the provider and the model as a real run does, and refuses what the real run
+  would before it reads the file. So a misspelled `--provider`, a Box question on cloudflare or a
+  body openrouter cannot take fails as it would for real. It reads no key, opens no network, and
+  ignores `--base-url` and the cloudflare account. It prints the model the run resolved wherever a
+  model is shown, and `--usage` reports zero tokens. `--stats` counts no requests, tokens or
+  attempts, as in `2 records answered from the mock, 2 questions, 0s`.
+- The `--out` fingerprint marks the run as a mock, so a real run refuses to resume a mock run's
+  file and the other way round. The mock file's content is not part of it.
+- `calibrate --mock` works, so a calibration can be tested too. Its `-o json` report carries
+  `"mocked":true`. An entry may also answer the questions `calibrate` skips, so one mock file for a
+  whole question file serves any set of labels. `--mock` and `ONESIE_MOCK` are refused beside
+  `--print-request`, `-i request`, `--list-models` and every `auth` subcommand. The flag wins over
+  the variable, and an empty `ONESIE_MOCK` is ignored.
 
 ## Calibrating
 
@@ -375,7 +377,6 @@ ls photos/*.jpg | onesie -i lines --image-field photo 'is there a dog in `photo`
     before any request. Under `-i request` such a body is an error line instead.
   - `-i request` sends the images header only to TypeSafe, rewrites a body into inline parts for
     OpenRouter, and on Cloudflare sends Jev the assets as written and Clef numbered images.
-  - A `--mock` run reads no provider, so it answers where the real run would be refused.
 - onesie's image limits, which `onesie -V` lists, are TypeSafe's. They also apply on Cloudflare,
   where they are not measured for Clef.
 - `--image`, `--image-field` and `--box` are refused under `-i request`, whose bodies carry their own
