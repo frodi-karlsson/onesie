@@ -226,7 +226,7 @@ func checkProviderImages(settings rootSettings, flags *runFlags, built *plan.Pla
 		return err
 	}
 
-	return provider.CheckImages()
+	return provider.Refuse("", onesie.Needs{Images: true, Box: true})
 }
 
 func sendsImages(built *plan.Plan, images *imaging) bool {
