@@ -116,6 +116,12 @@ func baseURLSource(settings rootSettings, flags *runFlags, provider onesie.Provi
 		}
 	}
 
+	if name := provider.EnvAccountID; name != "" {
+		if value, found := settings.lookupEnv(name); found && strings.TrimSpace(value) != "" {
+			return name
+		}
+	}
+
 	return "the base URL in the credential file"
 }
 
