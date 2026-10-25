@@ -392,6 +392,9 @@ func runInputs(settings rootSettings, flags *runFlags, inputs fingerprintInputs)
 	// a line stands for everywhere but csv and tsv, which skip a blank line either way.
 	inputs.skipBlank = flags.skipBlank && !resumesByID(flags) && !delimitedInput(inputs.input)
 
+	path, _ := mockSource(settings, flags)
+	inputs.mock = path != ""
+
 	return inputs, nil
 }
 
