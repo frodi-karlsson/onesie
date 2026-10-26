@@ -22,7 +22,7 @@ func calibrateRequests(
 	cmd *cobra.Command, settings rootSettings, flags *runFlags, inputMode input.Mode, inv *invocation,
 	scope calibrateScope,
 ) error {
-	model, err := resolveModel(settings, flags, scope.scored.Model)
+	model, err := resolveModel(settings, scope.scored.Model)
 	if err != nil {
 		return err
 	}

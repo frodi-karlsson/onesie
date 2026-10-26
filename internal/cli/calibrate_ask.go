@@ -30,7 +30,7 @@ func calibrateRun(
 	cmd *cobra.Command, settings rootSettings, flags *runFlags, calib calibrateFlags, inputMode input.Mode,
 	inv *invocation, scope calibrateScope, bound []boundRequirement,
 ) (err error) {
-	model, err := resolveModel(settings, flags, scope.scored.Model)
+	model, err := resolveModel(settings, scope.scored.Model)
 	if err != nil {
 		return err
 	}

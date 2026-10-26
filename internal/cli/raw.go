@@ -35,7 +35,7 @@ func streamRaw(
 			return err
 		}
 
-		chosen, err := runResolution(settings, flags)
+		chosen, err := runResolution(settings)
 		if err != nil {
 			return err
 		}

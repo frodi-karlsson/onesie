@@ -221,12 +221,12 @@ func checkProviderNeeds(settings rootSettings, flags *runFlags, built *plan.Plan
 		return nil
 	}
 
-	chosen, err := runResolution(settings, flags)
+	chosen, err := runResolution(settings)
 	if err != nil {
 		return err
 	}
 
-	model, err := resolveModel(settings, flags, built.Model)
+	model, err := resolveModel(settings, built.Model)
 	if err != nil {
 		return err
 	}

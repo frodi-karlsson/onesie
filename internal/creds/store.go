@@ -219,20 +219,6 @@ func (s Store) read(path, kind string) (data []byte, found bool, err error) {
 	return data, true, nil
 }
 
-// Save writes the credential file atomically through a renamed temporary file, replacing a symlink
-// at path. A non nil warning means the file was written but its mode could not be set.
-func (s Store) Save(path string, file File) (*ModeWarning, error) {
-	// Unreachable while File is plain strings, since json.Marshal cannot fail on those. A future
-	// field of any other type makes it reachable, and json.UnsupportedValueError.Error embeds the
-	// offending value verbatim, so such a field must keep the key out of this %w.
-	data, err := json.Marshal(file)
-	if err != nil {
-		return nil, fmt.Errorf("onesie: encoding the credential file: %w", err)
-	}
-
-	return s.write(path, data, ".credentials-*")
-}
-
 func (s Store) write(path string, data []byte, pattern string) (*ModeWarning, error) {
 	// A symlink at the directory is resolved, since creating it and the temporary file both walk
 	// that path. Whoever can replace the directory already owns the config location.
@@ -328,17 +314,11 @@ func (e *ModeWarning) Error() string {
 		"warning: could not set mode 600 on %s. The key is not protected by the filesystem", e.Path)
 }
 
-// Clear deletes the credential file at path. An absent file is not an error, so a removal that finds
-// nothing is done.
-func (s Store) Clear(path string) error {
-	return s.clear(path, credentialKind)
-}
-
 func (s Store) clear(path, kind string) error {
-	// os.Remove calls rmdir on a directory, so without this Clear would delete a directory it was
+	// os.Remove calls rmdir on a directory, so without this clear would delete a directory it was
 	// never asked to touch. os.Lstat, since a symlink here is the link to remove.
 	//
-	// Only a directory is refused, so Clear is deliberately laxer than Load. profile delete is asked
+	// Only a directory is refused, so clear is deliberately laxer than Load. profile delete is asked
 	// to leave nothing at the path, even something onesie itself will not read.
 	if info, statErr := s.lstat(path); statErr == nil && info.IsDir() {
 		return fmt.Errorf("onesie: %s %s is not a regular file", kind, path)

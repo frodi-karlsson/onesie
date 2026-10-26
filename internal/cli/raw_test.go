@@ -535,6 +535,70 @@ func TestStreamRaw(t *testing.T) {
 			})
 		}
 	})
+
+	t.Run("should check long context against the run's resolved model", func(t *testing.T) {
+		t.Parallel()
+
+		body := `{"state":"s","questions":{"q":{"type":"noul","instructions":"q"}}}` + "\n"
+
+		tests := []struct {
+			name     string
+			profiles string
+			env      map[string]string
+			wantCode int
+			wantErr  string
+			wantSent int
+		}{
+			{
+				name: "should refuse a cloudflare profile's model before any request",
+				profiles: `{"default":"cf","profiles":{"cf":{"provider":"cloudflare","api_key":"SECRET-CF",` +
+					`"base_url":"{url}","model":"clef-1"}}}`,
+				wantCode: ExitUsage,
+				wantErr:  "onesie: the cloudflare provider takes no long context",
+			},
+			{
+				name:     "should send under the default model variable on typesafe, which takes long context",
+				env:      map[string]string{onesie.EnvAPIKey: "SECRET-ENV", onesie.EnvBaseURL: "{url}", onesie.EnvDefaultModel: "jev-env"},
+				wantCode: ExitOK,
+				wantSent: 1,
+			},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				srv, auths := recordingServer(t, 0)
+				fill := strings.NewReplacer("{url}", srv.URL).Replace
+
+				env := map[string]string{}
+				for name, value := range tc.env {
+					env[name] = fill(value)
+				}
+
+				dir := t.TempDir()
+				if tc.profiles != "" {
+					dir = configWith(t, fill(tc.profiles))
+				}
+
+				out, errOut, code := runInConfig(t, dir, []string{"-i", "request", "--long-context"}, body, env)
+
+				assertNoSecret(t, out, errOut)
+
+				if code != tc.wantCode {
+					t.Errorf("exit code = %d, want %d\nstderr:\n%s", code, tc.wantCode, errOut)
+				}
+
+				if !strings.Contains(errOut, tc.wantErr) {
+					t.Errorf("stderr = %q, want it to contain %q", errOut, tc.wantErr)
+				}
+
+				if got := len(auths()); got != tc.wantSent {
+					t.Errorf("the server took %d requests, want %d", got, tc.wantSent)
+				}
+			})
+		}
+	})
 }
 
 func TestCheckFlags(t *testing.T) {

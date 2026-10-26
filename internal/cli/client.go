@@ -19,9 +19,9 @@ import (
 const refusedBaseURL = "the base URL must be a plain URL with no credentials, query or fragment. " +
 	"Put the API key in a profile or the provider's key variable instead"
 
-func defaultClientFactory(settings rootSettings, flags *runFlags, build resolvedClientFactory) clientFactory {
+func defaultClientFactory(settings rootSettings, build resolvedClientFactory) clientFactory {
 	return func(ctx context.Context, extra ...onesie.Option) (*onesie.Client, error) {
-		chosen, err := runResolution(settings, flags)
+		chosen, err := runResolution(settings)
 		if err != nil {
 			return nil, err
 		}
@@ -243,8 +243,8 @@ type clientFactory func(ctx context.Context, opts ...onesie.Option) (*onesie.Cli
 
 type resolvedClientFactory func(ctx context.Context, chosen resolution, opts ...onesie.Option) (*onesie.Client, error)
 
-func resolveModel(settings rootSettings, flags *runFlags, model string) (string, error) {
-	chosen, err := runResolution(settings, flags)
+func resolveModel(settings rootSettings, model string) (string, error) {
+	chosen, err := runResolution(settings)
 	if err != nil {
 		return "", err
 	}

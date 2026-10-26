@@ -2,6 +2,7 @@ package creds_test
 
 import (
 	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -469,5 +470,155 @@ func TestStoreClearProfilesIn(t *testing.T) {
 		}
 
 		gone(t, filepath.Join(dir, "profiles.json"))
+	})
+
+	removals := []struct {
+		name    string
+		absent  bool
+		dir     bool
+		symlink bool
+		wantErr string
+	}{
+		{name: "should remove an existing file"},
+		{name: "should report an absent file as success", absent: true},
+		{
+			// The link is what sits at the profiles path, so removing it is what ClearProfilesIn was
+			// asked to do. A stat by path here would follow it and refuse a link to a directory.
+			name:    "should remove a symlink at the profiles path",
+			symlink: true,
+		},
+		{
+			// os.Remove calls rmdir on a directory, so without a check ClearProfilesIn would delete one it
+			// was never asked to touch. Load refuses the same path for the same reason.
+			name:    "should refuse a directory at the profiles path",
+			dir:     true,
+			wantErr: "is not a regular file",
+		},
+	}
+
+	for _, tc := range removals {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if tc.symlink && runtime.GOOS == "windows" {
+				t.Skip("windows has no symlink without elevation")
+			}
+
+			dir := t.TempDir()
+			path := filepath.Join(dir, "profiles.json")
+
+			if tc.dir {
+				if err := os.Mkdir(path, 0o700); err != nil {
+					t.Fatalf("creating the fixture directory: %v", err)
+				}
+			}
+
+			target := ""
+
+			if tc.symlink {
+				target = t.TempDir()
+				if err := os.Symlink(target, path); err != nil {
+					t.Fatalf("linking: %v", err)
+				}
+			}
+
+			if !tc.absent && !tc.dir && !tc.symlink {
+				if err := os.WriteFile(path, []byte(`{"profiles":{}}`), 0o600); err != nil {
+					t.Fatalf("writing the fixture: %v", err)
+				}
+			}
+
+			_, clearErr := creds.NewStore().ClearProfilesIn(dir)
+
+			if tc.wantErr != "" {
+				if clearErr == nil || !strings.Contains(clearErr.Error(), tc.wantErr) {
+					t.Fatalf("ClearProfilesIn error = %v, want it to contain %s", clearErr, tc.wantErr)
+				}
+
+				if _, statErr := os.Lstat(path); statErr != nil {
+					t.Errorf("ClearProfilesIn removed the directory it refused, stat = %v", statErr)
+				}
+
+				return
+			}
+
+			if clearErr != nil {
+				t.Fatalf("ClearProfilesIn: %v", clearErr)
+			}
+
+			if _, statErr := os.Lstat(path); !errors.Is(statErr, os.ErrNotExist) {
+				t.Errorf("after ClearProfilesIn the path stats as %v, want it gone", statErr)
+			}
+
+			if tc.symlink {
+				if _, statErr := os.Stat(target); statErr != nil {
+					t.Errorf("ClearProfilesIn removed the link's target, stat = %v", statErr)
+				}
+			}
+		})
+	}
+
+	t.Run("should report what the filesystem refuses", func(t *testing.T) {
+		t.Parallel()
+
+		removeFailure := errors.New("stub remove failure")
+
+		tests := []struct {
+			name        string
+			lstat       func(string) (fs.FileInfo, error)
+			removeErr   error
+			wantErr     error
+			wantRemoves int
+		}{
+			{
+				name:        "should wrap a remove failure",
+				removeErr:   removeFailure,
+				wantErr:     removeFailure,
+				wantRemoves: 1,
+			},
+			{
+				name:        "should treat a file that vanished before the remove as cleared",
+				removeErr:   os.ErrNotExist,
+				wantRemoves: 1,
+			},
+			{
+				name:  "should refuse a directory without removing it",
+				lstat: func(string) (fs.FileInfo, error) { return modeInfo(os.ModeDir | 0o700), nil },
+			},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				var removes int
+
+				opts := []creds.StoreOption{
+					creds.WithLstat(func(string) (fs.FileInfo, error) { return nil, os.ErrNotExist }),
+					creds.WithRemove(func(string) error {
+						removes++
+
+						return tc.removeErr
+					}),
+				}
+				if tc.lstat != nil {
+					opts = append(opts, creds.WithLstat(tc.lstat))
+				}
+
+				_, err := creds.NewStore(opts...).ClearProfilesIn("onesie")
+
+				if tc.lstat != nil {
+					if err == nil || !strings.Contains(err.Error(), "is not a regular file") {
+						t.Errorf("ClearProfilesIn error = %v, want a refusal", err)
+					}
+				} else if !errors.Is(err, tc.wantErr) {
+					t.Errorf("ClearProfilesIn error = %v, want %v", err, tc.wantErr)
+				}
+
+				if removes != tc.wantRemoves {
+					t.Errorf("removes = %d, want %d", removes, tc.wantRemoves)
+				}
+			})
+		}
 	})
 }

@@ -254,6 +254,11 @@ func (r resolution) baseURLSource(baseURLFlag string, lookupEnv func(string) (st
 	return "the provider's base URL"
 }
 
+func (r resolution) GoString() string {
+	// The %#v verb prints every field, and key holds a file profile's key in plain text.
+	return r.String()
+}
+
 func (r resolution) String() string {
 	// Here so a stray %v prints where the key lives, never the key.
 	return "profile " + cmp.Or(r.profile, sourceNone) + ", provider " + r.provider.Name + ", key " + r.keyLine()

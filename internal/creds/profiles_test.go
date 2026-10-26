@@ -430,4 +430,452 @@ func TestStoreSaveProfiles(t *testing.T) {
 			t.Errorf("a file was written: %v", statErr)
 		}
 	})
+
+	t.Run("should overwrite an existing file", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("should replace the contents and restore mode 600", func(t *testing.T) {
+			t.Parallel()
+
+			path := filepath.Join(t.TempDir(), "profiles.json")
+
+			if err := os.WriteFile(path, []byte(`{"profiles":{"work":{"provider":"typesafe","api_key":"old"}}}`), 0o644); err != nil {
+				t.Fatalf("writing the fixture: %v", err)
+			}
+			// WriteFile respects umask, so the leaked mode is set explicitly afterwards.
+			if err := os.Chmod(path, 0o644); err != nil {
+				t.Fatalf("setting the fixture mode: %v", err)
+			}
+
+			warning, err := creds.NewStore().SaveProfiles(path, oneProfile("new"))
+			if err != nil {
+				t.Fatalf("SaveProfiles: %v", err)
+			}
+
+			if warning != nil {
+				t.Fatalf("SaveProfiles warned unexpectedly: %v", warning)
+			}
+
+			data, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatalf("reading back: %v", err)
+			}
+
+			if strings.TrimSpace(string(data)) != `{"profiles":{"work":{"provider":"typesafe","api_key":"new"}}}` {
+				t.Error("SaveProfiles left the old contents in place")
+			}
+
+			info, err := os.Stat(path)
+			if err != nil {
+				t.Fatalf("stat: %v", err)
+			}
+
+			if runtime.GOOS != "windows" && info.Mode().Perm() != 0o600 {
+				t.Errorf("file mode = %o, want 600", info.Mode().Perm())
+			}
+		})
+	})
+
+	t.Run("should leave no temporary file behind", func(t *testing.T) {
+		t.Parallel()
+
+		// A scratch file left behind has leaked the key into a second path, so the directory is
+		// asserted whole rather than only at the profiles path.
+		tests := []struct {
+			name        string
+			blockRename bool
+		}{
+			{name: "should leave the credential file as the only entry"},
+			{name: "should remove the temporary file when the rename fails", blockRename: true},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				dir := t.TempDir()
+				path := filepath.Join(dir, "profiles.json")
+
+				if tc.blockRename {
+					// A rename onto an existing directory fails, which is the cheapest way to reach
+					// SaveProfiles's cleanup path without stubbing the filesystem.
+					if err := os.Mkdir(path, 0o700); err != nil {
+						t.Fatalf("creating the blocking directory: %v", err)
+					}
+				}
+
+				_, err := creds.NewStore().SaveProfiles(path, oneProfile("k"))
+
+				if tc.blockRename && err == nil {
+					t.Fatal("SaveProfiles succeeded onto a directory, want a failure")
+				}
+
+				if !tc.blockRename && err != nil {
+					t.Fatalf("SaveProfiles: %v", err)
+				}
+
+				entries, err := os.ReadDir(dir)
+				if err != nil {
+					t.Fatalf("reading the directory: %v", err)
+				}
+
+				if len(entries) != 1 {
+					names := make([]string, 0, len(entries))
+					for _, entry := range entries {
+						names = append(names, entry.Name())
+					}
+
+					t.Fatalf("directory holds %v, want profiles.json alone", names)
+				}
+
+				if entries[0].Name() != "profiles.json" {
+					t.Errorf("directory holds %s, want profiles.json", entries[0].Name())
+				}
+			})
+		}
+	})
+
+	t.Run("should save through a symlink safely", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("should replace the link rather than write to its target", func(t *testing.T) {
+			t.Parallel()
+
+			if runtime.GOOS == "windows" {
+				t.Skip("windows has no symlink without elevation, so the redirection is not reachable")
+			}
+
+			dir := t.TempDir()
+			target := filepath.Join(t.TempDir(), "planted.json")
+			path := filepath.Join(dir, "profiles.json")
+
+			if err := os.WriteFile(target, []byte("untouched"), 0o600); err != nil {
+				t.Fatalf("writing the target: %v", err)
+			}
+
+			if err := os.Symlink(target, path); err != nil {
+				t.Fatalf("linking: %v", err)
+			}
+
+			if _, err := creds.NewStore().SaveProfiles(path, oneProfile("k")); err != nil {
+				t.Fatalf("SaveProfiles: %v", err)
+			}
+
+			data, err := os.ReadFile(target)
+			if err != nil {
+				t.Fatalf("reading the target: %v", err)
+			}
+
+			// Never printed, since the target holds the key when this assertion fails.
+			if string(data) != "untouched" {
+				t.Error("SaveProfiles wrote through the symlink, so the key landed outside the config directory")
+			}
+
+			info, err := os.Lstat(path)
+			if err != nil {
+				t.Fatalf("lstat: %v", err)
+			}
+
+			if !info.Mode().IsRegular() {
+				t.Errorf("profiles path is %v, want a regular file", info.Mode().Type())
+			}
+		})
+	})
+
+	t.Run("should warn rather than fail when chmod fails", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("should write the file and warn rather than fail", func(t *testing.T) {
+			t.Parallel()
+
+			path := filepath.Join(t.TempDir(), "onesie", "profiles.json")
+			chmod := func(string, os.FileMode) error {
+				return errors.New("this filesystem carries no modes")
+			}
+
+			warning, err := creds.NewStore(creds.WithChmod(chmod)).SaveProfiles(path, oneProfile("k"))
+			if err != nil {
+				t.Fatalf("SaveProfiles returned the mode failure as an error, want a written file: %v", err)
+			}
+
+			if warning == nil {
+				t.Fatal("SaveProfiles returned no warning, want one naming the path")
+			}
+
+			if warning.Path != path {
+				t.Errorf("warning path = %s, want %s", warning.Path, path)
+			}
+
+			if !strings.Contains(warning.Error(), path) {
+				t.Errorf("warning = %v, want it to name %s", warning, path)
+			}
+
+			data, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatalf("reading back: %v", err)
+			}
+
+			if strings.TrimSpace(string(data)) != `{"profiles":{"work":{"provider":"typesafe","api_key":"k"}}}` {
+				t.Error("SaveProfiles warned without writing the file")
+			}
+		})
+	})
+
+	t.Run("should create the temporary file beside the target", func(t *testing.T) {
+		t.Parallel()
+
+		// A rename out of os.TempDir crosses a mount and fails with EXDEV, and the key would sit in a
+		// world listable directory on the way. The directory passed here is the only guard on that.
+		t.Run("should create it in the profiles file's own directory", func(t *testing.T) {
+			t.Parallel()
+
+			path := filepath.Join(t.TempDir(), "onesie", "profiles.json")
+
+			gotDir := ""
+			createTemp := func(dir, pattern string) (*os.File, error) {
+				gotDir = dir
+
+				return os.CreateTemp(dir, pattern)
+			}
+
+			store := creds.NewStore(creds.WithCreateTemp(createTemp))
+			if _, err := store.SaveProfiles(path, oneProfile("k")); err != nil {
+				t.Fatalf("SaveProfiles: %v", err)
+			}
+
+			if gotDir != filepath.Dir(path) {
+				t.Errorf("temporary file created in %q, want %s", gotDir, filepath.Dir(path))
+			}
+		})
+	})
+
+	t.Run("should fail when the temporary file cannot be written", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name    string
+			handle  func(t *testing.T, dir string) (*os.File, error)
+			sync    func(*os.File) error
+			wantErr string
+		}{
+			{
+				// A real file closed before SaveProfiles reaches it, so the write fails the same way
+				// everywhere. A read only handle is not portable, since Go grants windows write
+				// access to an O_RDONLY handle opened with O_CREATE. The file stays on disk for
+				// SaveProfiles to remove.
+				name: "should fail and remove the temporary file when the write fails",
+				handle: func(_ *testing.T, dir string) (*os.File, error) {
+					file, err := os.OpenFile(filepath.Join(dir, ".profiles-stub"),
+						os.O_RDWR|os.O_CREATE|os.O_EXCL, 0o600)
+					if err != nil {
+						return nil, err
+					}
+
+					if closeErr := file.Close(); closeErr != nil {
+						return nil, closeErr
+					}
+
+					return file, nil
+				},
+				wantErr: "writing",
+			},
+			{
+				// The flush is stubbed to fail, since a handle whose flush fails is not portable.
+				name: "should fail when the temporary file cannot be flushed",
+				handle: func(_ *testing.T, dir string) (*os.File, error) {
+					return os.CreateTemp(dir, ".profiles-stub")
+				},
+				sync:    func(*os.File) error { return errors.New("stub flush failure") },
+				wantErr: "flushing",
+			},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				dir := t.TempDir()
+				path := filepath.Join(dir, "profiles.json")
+
+				createTemp := func(d, _ string) (*os.File, error) {
+					return tc.handle(t, d)
+				}
+
+				opts := []creds.StoreOption{creds.WithCreateTemp(createTemp)}
+				if tc.sync != nil {
+					opts = append(opts, creds.WithSync(tc.sync))
+				}
+
+				store := creds.NewStore(opts...)
+
+				_, err := store.SaveProfiles(path, oneProfile("k"))
+				if err == nil {
+					t.Fatal("SaveProfiles succeeded on a handle it could not write, want a failure")
+				}
+
+				if !strings.Contains(err.Error(), tc.wantErr) {
+					t.Errorf("SaveProfiles error = %v, want it to contain %s", err, tc.wantErr)
+				}
+
+				entries, err := os.ReadDir(dir)
+				if err != nil {
+					t.Fatalf("reading the directory: %v", err)
+				}
+
+				if len(entries) != 0 {
+					names := make([]string, 0, len(entries))
+					for _, entry := range entries {
+						names = append(names, entry.Name())
+					}
+
+					t.Fatalf("directory holds %v, want it empty", names)
+				}
+			})
+		}
+	})
+
+	t.Run("should report what the filesystem refuses", func(t *testing.T) {
+		t.Parallel()
+
+		mkdirFailure := errors.New("stub mkdir failure")
+		renameFailure := errors.New("stub rename failure")
+		removeFailure := errors.New("stub remove failure")
+
+		tests := []struct {
+			name      string
+			mkdirAll  func(string, os.FileMode) error
+			rename    func(string, string) error
+			remove    func(string) error
+			wantErr   []error
+			wantInErr string
+			wantFile  bool
+		}{
+			{
+				name:      "should fail before any file exists when the directory cannot be created",
+				mkdirAll:  func(string, os.FileMode) error { return mkdirFailure },
+				wantErr:   []error{mkdirFailure},
+				wantInErr: "creating",
+			},
+			{
+				name:      "should fail and remove the temporary file when the rename fails",
+				rename:    func(string, string) error { return renameFailure },
+				wantErr:   []error{renameFailure},
+				wantInErr: "renaming",
+			},
+			{
+				name:   "should report both failures when the temporary file cannot be removed",
+				rename: func(string, string) error { return renameFailure },
+				remove: func(string) error { return removeFailure },
+				// The stubbed remove leaves the temporary file behind, so the directory is not
+				// asserted empty here.
+				wantErr:   []error{renameFailure, removeFailure},
+				wantInErr: "renaming",
+				wantFile:  true,
+			},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				dir := filepath.Join(t.TempDir(), "onesie")
+				path := filepath.Join(dir, "profiles.json")
+
+				var opts []creds.StoreOption
+				if tc.mkdirAll != nil {
+					opts = append(opts, creds.WithMkdirAll(tc.mkdirAll))
+				}
+
+				if tc.rename != nil {
+					opts = append(opts, creds.WithRename(tc.rename))
+				}
+
+				if tc.remove != nil {
+					opts = append(opts, creds.WithRemove(tc.remove))
+				}
+
+				_, err := creds.NewStore(opts...).SaveProfiles(path, oneProfile("k"))
+
+				for _, want := range tc.wantErr {
+					if !errors.Is(err, want) {
+						t.Errorf("SaveProfiles error = %v, want it to wrap %v", err, want)
+					}
+				}
+
+				if err == nil || !strings.Contains(err.Error(), tc.wantInErr) {
+					t.Errorf("SaveProfiles error = %v, want it to contain %s", err, tc.wantInErr)
+				}
+
+				if tc.wantFile {
+					return
+				}
+
+				entries, readErr := os.ReadDir(dir)
+				if readErr != nil && !errors.Is(readErr, os.ErrNotExist) {
+					t.Fatalf("reading the directory: %v", readErr)
+				}
+
+				if len(entries) != 0 {
+					t.Errorf("directory holds %d entries, want none", len(entries))
+				}
+			})
+		}
+	})
+
+	t.Run("should flush the directory only where the platform can", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name      string
+			goos      string
+			wantOpens int
+		}{
+			{name: "should save when the directory cannot be opened for a flush", goos: "linux", wantOpens: 1},
+			{name: "should not open the directory on windows", goos: "windows"},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				dir := filepath.Join(t.TempDir(), "onesie")
+				path := filepath.Join(dir, "profiles.json")
+
+				var opens []string
+
+				open := func(name string) (*os.File, error) {
+					opens = append(opens, name)
+
+					return nil, errors.New("stub open failure")
+				}
+
+				store := creds.NewStore(creds.WithGOOS(tc.goos), creds.WithOpen(open))
+
+				if _, err := store.SaveProfiles(path, oneProfile("k")); err != nil {
+					t.Fatalf("SaveProfiles: %v", err)
+				}
+
+				if len(opens) != tc.wantOpens {
+					t.Fatalf("opened %v, want %d opens", opens, tc.wantOpens)
+				}
+
+				if tc.wantOpens > 0 && opens[0] != dir {
+					t.Errorf("opened %s, want the directory %s", opens[0], dir)
+				}
+
+				data, err := os.ReadFile(path)
+				if err != nil {
+					t.Fatalf("reading back: %v", err)
+				}
+
+				if strings.TrimSpace(string(data)) != `{"profiles":{"work":{"provider":"typesafe","api_key":"k"}}}` {
+					t.Errorf("file = %s, want the saved key", data)
+				}
+			})
+		}
+	})
+}
+
+func oneProfile(key string) creds.Profiles {
+	return creds.Profiles{Profiles: map[string]creds.Profile{"work": {Provider: "typesafe", APIKey: key}}}
 }

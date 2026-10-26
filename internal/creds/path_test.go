@@ -10,7 +10,7 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/creds"
 )
 
-func TestPath(t *testing.T) {
+func TestProfilesPath(t *testing.T) {
 	t.Parallel()
 
 	errNoHome := errors.New("the test home lookup failed")
@@ -37,7 +37,7 @@ func TestPath(t *testing.T) {
 			},
 			goos: "linux",
 			home: "/home/x",
-			want: []string{"/cfg", "credentials.json"},
+			want: []string{"/cfg", "profiles.json"},
 		},
 		{
 			// A container with no HOME makes os.UserHomeDir fail, and setting ONESIE_CONFIG_DIR is
@@ -47,28 +47,28 @@ func TestPath(t *testing.T) {
 			env:     map[string]string{"ONESIE_CONFIG_DIR": "/cfg"},
 			goos:    "linux",
 			homeErr: errNoHome,
-			want:    []string{"/cfg", "credentials.json"},
+			want:    []string{"/cfg", "profiles.json"},
 		},
 		{
 			name:    "should not consult the home directory when XDG_CONFIG_HOME is set",
 			env:     map[string]string{"XDG_CONFIG_HOME": "/xdg"},
 			goos:    "linux",
 			homeErr: errNoHome,
-			want:    []string{"/xdg", "onesie", "credentials.json"},
+			want:    []string{"/xdg", "onesie", "profiles.json"},
 		},
 		{
 			name:    "should not consult the home directory when APPDATA is set on windows",
 			env:     map[string]string{"APPDATA": "/roaming"},
 			goos:    "windows",
 			homeErr: errNoHome,
-			want:    []string{"/roaming", "onesie", "credentials.json"},
+			want:    []string{"/roaming", "onesie", "profiles.json"},
 		},
 		{
 			name: "should fall back to XDG_CONFIG_HOME",
 			env:  map[string]string{"XDG_CONFIG_HOME": "/xdg"},
 			goos: "linux",
 			home: "/home/x",
-			want: []string{"/xdg", "onesie", "credentials.json"},
+			want: []string{"/xdg", "onesie", "profiles.json"},
 		},
 		{
 			name: "should prefer XDG_CONFIG_HOME over APPDATA on windows",
@@ -78,34 +78,34 @@ func TestPath(t *testing.T) {
 			},
 			goos: "windows",
 			home: `C:\Users\x`,
-			want: []string{"/xdg", "onesie", "credentials.json"},
+			want: []string{"/xdg", "onesie", "profiles.json"},
 		},
 		{
 			name: "should use APPDATA on windows",
 			env:  map[string]string{"APPDATA": `C:\Users\x\AppData\Roaming`},
 			goos: "windows",
 			home: `C:\Users\x`,
-			want: []string{`C:\Users\x\AppData\Roaming`, "onesie", "credentials.json"},
+			want: []string{`C:\Users\x\AppData\Roaming`, "onesie", "profiles.json"},
 		},
 		{
 			name: "should ignore APPDATA off windows",
 			env:  map[string]string{"APPDATA": "/roaming"},
 			goos: "linux",
 			home: "/home/x",
-			want: []string{"/home/x", ".config", "onesie", "credentials.json"},
+			want: []string{"/home/x", ".config", "onesie", "profiles.json"},
 		},
 		{
 			name: "should fall back to the home directory",
 			goos: "linux",
 			home: "/home/x",
-			want: []string{"/home/x", ".config", "onesie", "credentials.json"},
+			want: []string{"/home/x", ".config", "onesie", "profiles.json"},
 		},
 		{
 			name: "should ignore an empty variable",
 			env:  map[string]string{"ONESIE_CONFIG_DIR": "", "XDG_CONFIG_HOME": ""},
 			goos: "linux",
 			home: "/home/x",
-			want: []string{"/home/x", ".config", "onesie", "credentials.json"},
+			want: []string{"/home/x", ".config", "onesie", "profiles.json"},
 		},
 		{
 			name:    "should fail when the home lookup fails",
@@ -132,7 +132,7 @@ func TestPath(t *testing.T) {
 				return value, ok
 			}
 
-			got, err := creds.Path(creds.Env{
+			got, err := creds.ProfilesPath(creds.Env{
 				Lookup: lookup,
 				GOOS:   tc.goos,
 				Home:   func() (string, error) { return tc.home, tc.homeErr },
@@ -140,39 +140,61 @@ func TestPath(t *testing.T) {
 
 			if tc.wantErr != "" {
 				if err == nil {
-					t.Fatalf("Path = %s, want an error containing %s", got, tc.wantErr)
+					t.Fatalf("ProfilesPath = %s, want an error containing %s", got, tc.wantErr)
 				}
 
 				if !strings.Contains(err.Error(), tc.wantErr) {
-					t.Fatalf("Path error = %v, want it to contain %s", err, tc.wantErr)
+					t.Fatalf("ProfilesPath error = %v, want it to contain %s", err, tc.wantErr)
 				}
 
 				// Every user facing error in this repo opens with the prefix, and a consumer
 				// filtering stderr should not have to know which package produced a line.
 				if !strings.HasPrefix(err.Error(), "onesie: ") {
-					t.Errorf("Path error = %v, want it to start with the onesie prefix", err)
+					t.Errorf("ProfilesPath error = %v, want it to start with the onesie prefix", err)
 				}
 
 				if tc.wantIs != nil && !errors.Is(err, tc.wantIs) {
-					t.Errorf("Path error = %v, want it to wrap %v", err, tc.wantIs)
+					t.Errorf("ProfilesPath error = %v, want it to wrap %v", err, tc.wantIs)
 				}
 
 				if got != "" {
-					t.Errorf("Path = %s, want an empty path beside the error", got)
+					t.Errorf("ProfilesPath = %s, want an empty path beside the error", got)
 				}
 
 				return
 			}
 
 			if err != nil {
-				t.Fatalf("Path: %v", err)
+				t.Fatalf("ProfilesPath: %v", err)
 			}
 
 			if want := filepath.Join(tc.want...); got != want {
-				t.Errorf("Path = %s, want %s", got, want)
+				t.Errorf("ProfilesPath = %s, want %s", got, want)
 			}
 		})
 	}
+
+	t.Run("should put profiles.json in the config dir", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		env := creds.Env{
+			Lookup: func(name string) (string, bool) {
+				if name == "ONESIE_CONFIG_DIR" {
+					return dir, true
+				}
+
+				return "", false
+			},
+			GOOS: runtime.GOOS,
+			Home: func() (string, error) { return "", errors.New("no home") },
+		}
+
+		got, err := creds.ProfilesPath(env)
+		if err != nil || got != filepath.Join(dir, "profiles.json") {
+			t.Errorf("ProfilesPath = %q, %v, want %s", got, err, filepath.Join(dir, "profiles.json"))
+		}
+	})
 }
 
 func TestDir(t *testing.T) {
@@ -258,30 +280,4 @@ func TestDir(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestProfilesPath(t *testing.T) {
-	t.Parallel()
-
-	t.Run("should put profiles.json in the config dir", func(t *testing.T) {
-		t.Parallel()
-
-		dir := t.TempDir()
-		env := creds.Env{
-			Lookup: func(name string) (string, bool) {
-				if name == "ONESIE_CONFIG_DIR" {
-					return dir, true
-				}
-
-				return "", false
-			},
-			GOOS: runtime.GOOS,
-			Home: func() (string, error) { return "", errors.New("no home") },
-		}
-
-		got, err := creds.ProfilesPath(env)
-		if err != nil || got != filepath.Join(dir, "profiles.json") {
-			t.Errorf("ProfilesPath = %q, %v, want %s", got, err, filepath.Join(dir, "profiles.json"))
-		}
-	})
 }

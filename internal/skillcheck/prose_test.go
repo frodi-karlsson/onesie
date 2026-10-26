@@ -18,7 +18,7 @@ Usage:
   onesie [command]
 
 Available Commands:
-  auth        Store the key
+  profile     Manage the profiles
   calibrate   Score questions
   completion  Generate the autocompletion script
 
@@ -53,23 +53,23 @@ Flags:
 Global Flags:
       --provider string   typesafe
 `
-	authHelp = `Usage:
-  onesie auth [command]
+	profileHelp = `Usage:
+  onesie profile [command]
 
 Available Commands:
-  set         Store a key
+  create      Store a profile
 
 Flags:
-  -h, --help   help for auth
+  -h, --help   help for profile
 
 Global Flags:
       --provider string   typesafe
 `
-	authSetHelp = `Usage:
-  onesie auth set [flags]
+	profileCreateHelp = `Usage:
+  onesie profile create [flags]
 
 Flags:
-      --file   store the key in the credential file
+      --file   store the key in the profiles file
 
 Global Flags:
       --provider string   typesafe
@@ -86,7 +86,7 @@ func TestCheckProse(t *testing.T) {
 	}{
 		{
 			name:  "should pass flags and commands every help lists",
-			intro: "Run `onesie --provider openrouter auth set --file`, then `onesie -f triage calibrate`.",
+			intro: "Run `onesie --provider openrouter profile create --file`, then `onesie -f triage calibrate`.",
 		},
 		{
 			name:  "should fail a flag the root help lacks in a onesie code span, naming the skill and the fragment",
@@ -100,8 +100,8 @@ func TestCheckProse(t *testing.T) {
 		},
 		{
 			name:  "should fail a subcommand the help lacks",
-			intro: "Run `onesie auth sett`.",
-			want:  []string{"onesie: skill 'demo' intro.md: sett is not a command in onesie auth --help"},
+			intro: "Run `onesie profile creat`.",
+			want:  []string{"onesie: skill 'demo' intro.md: creat is not a command in onesie profile --help"},
 		},
 		{
 			name:  "should pass a bare flag of a subcommand the skill runs, and fail one no such help lists",
@@ -237,10 +237,10 @@ func fakeHelp(_ context.Context, _ string, args []string) (string, error) {
 		return rootHelp, nil
 	case "calibrate --help":
 		return calibrateHelp, nil
-	case "auth --help":
-		return authHelp, nil
-	case "auth set --help":
-		return authSetHelp, nil
+	case "profile --help":
+		return profileHelp, nil
+	case "profile create --help":
+		return profileCreateHelp, nil
 	case "completion --help":
 		return "Flags:\n      --no-descriptions   disable completion descriptions\n", nil
 	default:
@@ -268,8 +268,8 @@ func TestMentions(t *testing.T) {
 		},
 		{
 			name: "should keep every word of a code span that starts with onesie",
-			text: "Run `onesie --provider openrouter auth set`.",
-			want: []string{"command onesie --provider openrouter auth set"},
+			text: "Run `onesie --provider openrouter profile create`.",
+			want: []string{"command onesie --provider openrouter profile create"},
 		},
 		{
 			name: "should ignore a code span that starts with another tool",
@@ -283,8 +283,8 @@ func TestMentions(t *testing.T) {
 		},
 		{
 			name: "should keep a quoted word whole and mark it quoted",
-			text: "Run `onesie --ask urgent='is --this urgent' 'auth'`.",
-			want: []string{"command onesie --ask urgent='is --this urgent' 'auth'"},
+			text: "Run `onesie --ask urgent='is --this urgent' 'profile'`.",
+			want: []string{"command onesie --ask urgent='is --this urgent' 'profile'"},
 		},
 		{
 			name: "should ignore a lone double dash",
@@ -365,7 +365,7 @@ func TestParseHelp(t *testing.T) {
 					"quiet": false, "state": true,
 				},
 				shortTakesValue: map[string]bool{"f": true, "o": true, "q": false},
-				commands:        map[string]bool{"auth": true, "calibrate": true, "completion": true},
+				commands:        map[string]bool{"profile": true, "calibrate": true, "completion": true},
 			},
 		},
 		{

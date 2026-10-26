@@ -3,6 +3,7 @@ package cli
 import (
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"testing"
 
@@ -190,6 +191,62 @@ func TestCheckChoice(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("should check the choice of a --print-questions run without the file", func(t *testing.T) {
+		t.Parallel()
+
+		printing := func(extra ...string) []string {
+			return append([]string{"--ask", "u=is it urgent", "--print-questions"}, extra...)
+		}
+
+		runs := []struct {
+			name     string
+			file     string
+			mode     os.FileMode
+			args     []string
+			wantCode int
+			wantOut  string
+			wantErr  string
+		}{
+			{
+				name: "should not read a profiles file open to others",
+				file: `{"default":"work","profiles":{"work":{"provider":"openrouter","api_key":"SECRET-WORK"}}}`,
+				mode: 0o644, args: printing(), wantOut: "u:",
+			},
+			{
+				name: "should refuse --profile beside --provider", args: printing("--profile", "x", "--provider", "typesafe"),
+				wantCode: ExitUsage, wantErr: "onesie: --profile and --provider both choose what the run uses",
+			},
+			{
+				name: "should not check that a profile exists", args: printing("--profile", "missing"), wantOut: "u:",
+			},
+			{
+				name: "should refuse an unknown provider", args: printing("--provider", "bogus"),
+				wantCode: ExitUsage, wantErr: "onesie: unknown provider bogus",
+			},
+		}
+
+		for _, tc := range runs {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				dir := t.TempDir()
+				writeConfig(t, dir, "profiles.json", tc.file, tc.mode)
+
+				out, errOut, code := runInConfig(t, dir, tc.args, "", nil)
+
+				assertNoSecret(t, out, errOut)
+
+				if code != tc.wantCode {
+					t.Errorf("exit code = %d, want %d\nstderr:\n%s", code, tc.wantCode, errOut)
+				}
+
+				if !strings.Contains(out, tc.wantOut) || !strings.Contains(errOut, tc.wantErr) {
+					t.Errorf("stdout = %q, stderr = %q, want %q and %q", out, errOut, tc.wantOut, tc.wantErr)
+				}
+			})
+		}
+	})
 }
 
 func TestChooseAndResolve(t *testing.T) {
@@ -808,6 +865,25 @@ func TestResolutionString(t *testing.T) {
 			if got := fmt.Sprintf(verb, run); strings.Contains(got, "SECRET-") {
 				t.Errorf("%s formats the key", verb)
 			}
+		}
+	})
+}
+
+func TestResolutionGoString(t *testing.T) {
+	t.Parallel()
+
+	t.Run("should leave the key out of %#v", func(t *testing.T) {
+		t.Parallel()
+
+		run := resolution{provider: onesie.TypeSafe(), profile: "work", keyFrom: sourceFile, key: "SECRET-FILE"}
+
+		got := fmt.Sprintf("%#v", run)
+		if strings.Contains(got, "SECRET-") {
+			t.Error("GoString formats the key")
+		}
+
+		if got != run.String() {
+			t.Errorf("%%#v = %q, want the String form %q", got, run.String())
 		}
 	})
 }

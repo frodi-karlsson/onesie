@@ -10,21 +10,11 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/creds"
 )
 
-func runResolution(settings rootSettings, flags *runFlags) (resolution, error) {
-	if settings.holder == nil {
-		return resolveRun(settings, flags, func() (creds.Opened, error) {
-			return openProfiles(settings, io.Discard)
-		})
-	}
-
+func runResolution(settings rootSettings) (resolution, error) {
 	return settings.holder.resolved()
 }
 
 func openedProfiles(settings rootSettings) (creds.Opened, error) {
-	if settings.holder == nil {
-		return openProfiles(settings, io.Discard)
-	}
-
 	return settings.holder.opened()
 }
 

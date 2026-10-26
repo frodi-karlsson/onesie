@@ -180,24 +180,6 @@ func TestResolveRun(t *testing.T) {
 			wantErr: []string{"is accessible by others, mode 644"},
 		},
 		{
-			name: "should not read the file for --print-questions", file: openrouterWork, mode: 0o644,
-			unixOnly: true, args: printing(), wantOut: "u:",
-		},
-		{
-			name: "should refuse --profile beside --provider on --print-questions",
-			args: printing("--profile", "x", "--provider", "typesafe"), wantCode: ExitUsage,
-			wantErr: []string{"onesie: --profile and --provider both choose what the run uses"},
-		},
-		{
-			name: "should not check that a profile exists on --print-questions",
-			args: printing("--profile", "missing"), wantOut: "u:",
-		},
-		{
-			name: "should refuse an unknown provider on --print-questions",
-			args: printing("--provider", "bogus"), wantCode: ExitUsage,
-			wantErr: []string{"onesie: unknown provider bogus"},
-		},
-		{
 			name: "should refuse an empty --profile", args: asking("--print-request", "--profile", ""),
 			wantCode: ExitUsage, wantErr: []string{"onesie: --profile is empty"},
 		},
@@ -234,6 +216,18 @@ func TestResolveRun(t *testing.T) {
 			name: "should point ONESIE_PROVIDER at ONESIE_PROFILE when it names a profile", file: openrouterWork,
 			env: map[string]string{"ONESIE_PROVIDER": "work"}, args: asking("--print-request"), wantCode: ExitUsage,
 			wantErr: []string{"work is a profile, so set ONESIE_PROFILE=work in place of ONESIE_PROVIDER"},
+		},
+		{
+			name: "should keep the unknown provider error when profiles.json cannot be read for the hint",
+			file: openrouterWork, mode: 0o644, unixOnly: true, args: asking("--print-request", "--provider", "work"),
+			wantCode: ExitUsage, wantErr: []string{"onesie: unknown provider work"},
+			notErr: []string{"is a profile", "is accessible by others"},
+		},
+		{
+			name: "should keep the missing key error when profiles.json cannot be read for the hint",
+			file: openrouterWork, mode: 0o644, unixOnly: true, args: asking("--provider", "openrouter", "-r"),
+			wantCode: ExitUsage, wantErr: []string{"no API key. Set OPENROUTER_API_KEY"},
+			notErr: []string{"--profile work", "is accessible by others"},
 		},
 		{
 			name: "should convert credentials.json on --print-request", old: oldTypesafe,

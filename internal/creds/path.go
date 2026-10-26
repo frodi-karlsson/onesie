@@ -1,5 +1,5 @@
-// Package creds resolves, reads and writes the credential and profiles files that hold an API key
-// when neither a flag nor the environment supplies one.
+// Package creds resolves, reads and writes the profiles file that holds each profile's API key, and
+// converts the credentials.json it replaces.
 package creds
 
 import (
@@ -13,16 +13,6 @@ const (
 	fileName     = "credentials.json"
 	profilesName = "profiles.json"
 )
-
-// Path reports where the credential file lives.
-func Path(env Env) (string, error) {
-	dir, err := Dir(env)
-	if err != nil {
-		return "", err
-	}
-
-	return filepath.Join(dir, fileName), nil
-}
 
 // ProfilesPath reports where the profiles file lives.
 func ProfilesPath(env Env) (string, error) {

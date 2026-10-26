@@ -38,7 +38,7 @@ func liveAnswers(settings rootSettings, flags *runFlags) answererFactory {
 			return nil, err
 		}
 
-		chosen, err := runResolution(settings, flags)
+		chosen, err := runResolution(settings)
 		if err != nil {
 			return nil, err
 		}

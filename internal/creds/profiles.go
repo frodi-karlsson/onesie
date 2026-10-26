@@ -83,8 +83,8 @@ func decodeProfiles(data []byte) (Profiles, error) {
 	return profiles, nil
 }
 
-// SaveProfiles validates the profiles and writes them atomically, as Save writes the credential
-// file. A non nil warning means the file was written but its mode could not be set.
+// SaveProfiles validates the profiles and writes them atomically through a renamed temporary file,
+// replacing a symlink at path. A non nil warning means the file was written but its mode could not be set.
 func (s Store) SaveProfiles(path string, profiles Profiles) (*ModeWarning, error) {
 	if err := profiles.Validate(); err != nil {
 		return nil, &InvalidProfilesError{Path: path, Kind: profilesKind, Reason: err.Error()}
@@ -94,7 +94,8 @@ func (s Store) SaveProfiles(path string, profiles Profiles) (*ModeWarning, error
 		profiles.Profiles = map[string]Profile{}
 	}
 
-	// As in Save, json.Marshal cannot fail on plain strings, and its error would embed the value.
+	// json.Marshal cannot fail on plain strings. A future field of another type would make it
+	// reachable, and its error embeds the offending value, so such a field must keep the key out.
 	data, err := json.Marshal(profiles)
 	if err != nil {
 		return nil, fmt.Errorf("onesie: encoding the profiles file: %w", err)

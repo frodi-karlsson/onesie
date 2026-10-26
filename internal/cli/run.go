@@ -114,7 +114,7 @@ func run(
 			abstain.Source(), loaded, settings.schemaURL)
 	}
 
-	model, err := resolveModel(settings, flags, built.Model)
+	model, err := resolveModel(settings, built.Model)
 	if err != nil {
 		return err
 	}
@@ -196,7 +196,7 @@ func run(
 
 	// After the state is resolved, so the body carries the state a real run would send.
 	if flags.printRequest {
-		model, err := resolveModel(settings, flags, built.Model)
+		model, err := resolveModel(settings, built.Model)
 		if err != nil {
 			return err
 		}
@@ -374,7 +374,7 @@ func outFingerprint(
 }
 
 func runInputs(settings rootSettings, flags *runFlags, inputs fingerprintInputs) (fingerprintInputs, error) {
-	chosen, err := runResolution(settings, flags)
+	chosen, err := runResolution(settings)
 	if err != nil {
 		return fingerprintInputs{}, err
 	}
@@ -467,7 +467,7 @@ func stream(
 
 	questions := wireAll(built.Questions)
 
-	model, err := resolveModel(settings, flags, built.Model)
+	model, err := resolveModel(settings, built.Model)
 	if err != nil {
 		return err
 	}
@@ -947,7 +947,7 @@ func ask(
 
 	questions := wireAll(built.Questions)
 
-	model, err := resolveModel(settings, flags, built.Model)
+	model, err := resolveModel(settings, built.Model)
 	if err != nil {
 		return err
 	}

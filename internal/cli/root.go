@@ -124,7 +124,7 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 	// Installed only when absent, so an injected factory wins, for profile test too.
 	if settings.newClient == nil {
 		settings.clientFor = clientBuilder(info, flags, settings)
-		settings.newClient = defaultClientFactory(settings, flags, settings.clientFor)
+		settings.newClient = defaultClientFactory(settings, settings.clientFor)
 	} else {
 		settings.clientFor = ignoringResolution(settings.newClient)
 	}
@@ -196,7 +196,7 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 				if refused := checkChoice(flags, settings.lookupEnv); refused != nil {
 					return refused
 				}
-			} else if _, resolveErr := runResolution(settings, flags); resolveErr != nil {
+			} else if _, resolveErr := runResolution(settings); resolveErr != nil {
 				return resolveErr
 			}
 

@@ -242,12 +242,12 @@ func TestRunnerHelp(t *testing.T) {
 			return "Usage:", nil
 		}}
 
-		got, err := runner.Help(context.Background(), []string{"auth", "set"})
+		got, err := runner.Help(context.Background(), []string{"profile", "create"})
 		if err != nil || got != "Usage:" {
 			t.Fatalf("Help(...) = %q, %v, want Usage:", got, err)
 		}
 
-		if want := []string{"auth", "set", "--help"}; !slices.Equal(gotArgs, want) {
+		if want := []string{"profile", "create", "--help"}; !slices.Equal(gotArgs, want) {
 			t.Errorf("args = %q, want %q", gotArgs, want)
 		}
 	})
