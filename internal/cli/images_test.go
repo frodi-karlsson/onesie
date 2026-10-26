@@ -277,6 +277,22 @@ func TestRun(t *testing.T) {
 			wantHeader:   map[string]string{onesie.HeaderImages: "true"},
 		},
 		{
+			name:     "should refuse -i json beside --image with no state flag, since stdin is never read",
+			args:     []string{"-i", "json", "--image", "photo=" + square, "q", "--print-request"},
+			stdin:    `{"a":1}`,
+			wantCode: ExitUsage,
+			wantErr:  "onesie: -i json reads stdin, which --image never reads. Pass --state - to read the state from stdin beside it\n",
+			emptyOut: true,
+		},
+		{
+			name:         "should read a json state from stdin beside the image under --state -",
+			args:         []string{"-i", "json", "--state", "-", "--image", "photo=" + square, "q", "-o", "json"},
+			stdin:        `{"a":1}`,
+			wantCode:     ExitOK,
+			wantRequests: 1,
+			wantBody:     []string{`"state":{"a":1,"photo":"` + ref + `"}`},
+		},
+		{
 			name:         "should put --state text beside the image",
 			args:         []string{"--image", "photo=" + square, "--state", "the door", "q", "-o", "json"},
 			wantCode:     ExitOK,

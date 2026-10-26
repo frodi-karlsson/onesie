@@ -668,6 +668,11 @@ func checkSingleRecord(cfg Config) (string, error) {
 		}
 	}
 
+	if cfg.HasInput && cfg.HasImage && !cfg.HasState && !cfg.HasStateFile {
+		return "", fmt.Errorf("onesie: -i %s reads stdin, which --image never reads. "+
+			"Pass --state - to read the state from stdin beside it", cfg.InputName)
+	}
+
 	if cfg.Jobs > 1 {
 		// A resource hint rather than a semantic one, and it may reasonably come from a shared
 		// alias, so it warns and proceeds rather than failing.

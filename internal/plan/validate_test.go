@@ -740,6 +740,17 @@ func TestValidate(t *testing.T) {
 			wantErr:    "--unordered applies to streaming input. -i text reads one record",
 		},
 		{
+			name:       "should reject -i beside --image with no state flag",
+			positional: "is this urgent",
+			cfg:        plan.Config{HasInput: true, HasImage: true, InputName: "json"},
+			wantErr:    "-i json reads stdin, which --image never reads. Pass --state - to read the state from stdin beside it",
+		},
+		{
+			name:       "should accept -i beside --image under --state",
+			positional: "is this urgent",
+			cfg:        plan.Config{HasInput: true, HasImage: true, HasState: true, InputName: "json"},
+		},
+		{
 			name:       "should reject stop on error outside a stream",
 			positional: "is this urgent",
 			cfg:        plan.Config{StopOnError: true, InputName: "json"},

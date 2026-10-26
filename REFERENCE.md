@@ -345,7 +345,8 @@ ls photos/*.jpg | onesie -i lines --image-field photo 'is there a dog in `photo`
   backticks. It is repeatable.
 - stdin is never read beside `--image`, so text joins it only from `--state`, `--state-file` or
   `--state -`. Text goes under the key `text`, a JSON object gains the image keys, and a key clash or
-  an array state exits 2.
+  an array state exits 2. An `-i` given beside `--image` with neither `--state` nor `--state-file`
+  exits 2, since there is no stdin for it to read, and names `--state -`.
 - `--image-field NAME` reads each record's `NAME` as a path, in a stream or in `calibrate`. Under
   `-i lines` the line is the path, and only one `--image-field` is taken. A missing or unreadable
   file is an input error line, and the run goes on and exits 6. `--image` in a stream adds the same
