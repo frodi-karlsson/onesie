@@ -72,7 +72,7 @@ Exit 3 also covers these:
 
 | Message contains | What it means |
 | --- | --- |
-| `unknown flag`, `unknown command` or `accepts at most 1 arg` | a typo in a flag name, a flag cobra cannot see, such as `--print-request` after a subcommand or any flag after `--`, or an unquoted question |
+| `unknown flag`, `has no subcommand`, `takes no argument` or `expected one question` | a typo in a flag name, a flag cobra cannot see, such as `--print-request` after a subcommand or any flag after `--`, or an unquoted question |
 | `is not a subcommand. The closest is` | a one word question is close to a subcommand name, such as `questoins`. Fix the typo, or put the word after `--` to ask it |
 | a complaint about a flag you never typed, or `was read as flags` | a question beginning with a dash was read as flags. Put the flags first, then `--`, then the question |
 | `flags go before --` | a flag was typed after `--`, where every word is the question. Move it before `--` |

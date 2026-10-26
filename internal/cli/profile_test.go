@@ -83,7 +83,7 @@ func TestNewProfileCmd(t *testing.T) {
 		{
 			name:     "should reject an unknown subcommand",
 			args:     []string{"profile", "nonsense"},
-			wantErr:  `onesie: unknown command "nonsense" for "onesie profile"`,
+			wantErr:  "onesie: profile has no subcommand 'nonsense'. Its subcommands: create, delete, list, show, test, update, use",
 			wantCode: ExitUsage,
 		},
 		{

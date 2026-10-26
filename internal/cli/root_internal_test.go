@@ -2,6 +2,8 @@ package cli
 
 import (
 	"bytes"
+	"fmt"
+	"io/fs"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
@@ -211,6 +213,44 @@ func TestIsTerminal(t *testing.T) {
 
 			if isTerminal(f) {
 				t.Errorf("isTerminal(%s) = true, want false", f.Name())
+			}
+		})
+	}
+}
+
+func TestPathNamedOnce(t *testing.T) {
+	t.Parallel()
+
+	missing := &fs.PathError{Op: "open", Path: "x.txt", Err: fs.ErrNotExist}
+
+	tests := []struct {
+		name string
+		err  error
+		want string
+	}{
+		{
+			name: "should drop the copy of a path the message already names",
+			err:  fmt.Errorf("onesie: reading x.txt: %w", missing),
+			want: "onesie: reading x.txt: file does not exist",
+		},
+		{
+			name: "should keep a path error the message names only once",
+			err:  fmt.Errorf("onesie: --mock: %w", missing),
+			want: "onesie: --mock: open x.txt: file does not exist",
+		},
+		{
+			name: "should keep a message with no path error",
+			err:  fmt.Errorf("onesie: reading x.txt: open x.txt: %s", "gone"),
+			want: "onesie: reading x.txt: open x.txt: gone",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := pathNamedOnce(tc.err.Error(), tc.err); got != tc.want {
+				t.Errorf("pathNamedOnce = %q, want %q", got, tc.want)
 			}
 		})
 	}

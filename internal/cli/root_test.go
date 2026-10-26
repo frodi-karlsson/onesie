@@ -48,6 +48,7 @@ func TestNewRootCmd(t *testing.T) {
 		`"usage":{"input_tokens":10,"output_tokens":2}}`
 
 	markdownOut := filepath.Join(t.TempDir(), "answers.md")
+	missingOut := filepath.Join(t.TempDir(), "missing", "answers.jsonl")
 
 	tests := []struct {
 		name     string
@@ -254,7 +255,7 @@ func TestNewRootCmd(t *testing.T) {
 			args:     []string{"--", "-rm is this bad", "--mock", "m.json", "--state", "x"},
 			wantCode: cli.ExitUsage,
 			contains: []string{
-				"onesie: accepts at most 1 arg(s), received 5. Everything after -- is the question, " +
+				"onesie: expected one question, got 5 arguments. Everything after -- is the question, " +
 					"so flags go before --, as in onesie --mock m.json --state x -- '-rm is this bad'",
 			},
 		},
@@ -268,8 +269,54 @@ func TestNewRootCmd(t *testing.T) {
 			name:     "should not blame flags for plain words after --",
 			args:     []string{"--", "is", "urgent"},
 			wantCode: cli.ExitUsage,
-			contains: []string{"accepts at most 1 arg(s), received 2"},
-			absent:   []string{"flags go before"},
+			contains: []string{"onesie: expected one question, got 2 arguments. " +
+				"Quote a question that holds spaces, as in onesie 'is this urgent'"},
+			absent: []string{"flags go before"},
+		},
+		{
+			name:     "should name calibrate when it is given two questions",
+			args:     []string{"calibrate", "is", "urgent"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: expected one question, got 2 arguments. " +
+				"Quote a question that holds spaces, as in onesie calibrate 'is this urgent'"},
+		},
+		{
+			name:     "should refuse an argument to version in a plain sentence",
+			args:     []string{"version", "extra"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: version takes no argument, got 'extra'\n"},
+		},
+		{
+			name:     "should say what a flag that takes a number got",
+			args:     []string{"-j", "abc", "q"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: -j takes a whole number, got 'abc'\n"},
+		},
+		{
+			name:     "should say what a flag that takes true or false got",
+			args:     []string{"--cache=maybe", "q"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: --cache takes true or false, got 'maybe'\n"},
+		},
+		{
+			name:     "should say a flag needs a value",
+			args:     []string{"q", "--state"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: --state needs a value\n"},
+		},
+		{
+			name:     "should say a shorthand flag needs a value",
+			args:     []string{"q", "-m"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: -m needs a value\n"},
+		},
+		{
+			name:     "should name an --out file it cannot open once",
+			args:     []string{"q", "-i", "jsonl", "--out", missingOut},
+			stdin:    `{"a":1}` + "\n",
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: opening " + missingOut + ": no such file or directory"},
+			absent:   []string{"open " + missingOut},
 		},
 		{
 			name:     "should refuse a question id line under -i lines",
@@ -323,7 +370,7 @@ func TestNewRootCmd(t *testing.T) {
 			name:     "should exit 2 for auth status, since auth is no longer a subcommand",
 			args:     []string{"auth", "status"},
 			wantCode: cli.ExitUsage,
-			contains: []string{"accepts at most 1 arg(s), received 2"},
+			contains: []string{"expected one question, got 2 arguments"},
 		},
 		{
 			name:     "should ask auth as an ordinary one word question",

@@ -341,8 +341,9 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 	// subcommands cobra adds itself, such as completion.
 	hint := subcommandHint(root)
 	root.SetFlagErrorFunc(func(cmd *cobra.Command, err error) error {
-		return withDashQuestionHint(hint(cmd, err), cmd.Flags(), settings.args, nil)
+		return withDashQuestionHint(hint(cmd, plainFlagError(err)), cmd.Flags(), settings.args, nil)
 	})
+	plainArgErrors(root)
 
 	if settings.args != nil {
 		root.SetArgs(settings.args)
@@ -362,6 +363,101 @@ func refuseEmptyBaseURL(cmd *cobra.Command, flags *runFlags) error {
 	}
 
 	return nil
+}
+
+func plainFlagError(err error) error {
+	var (
+		invalid  *pflag.InvalidValueError
+		required *pflag.ValueRequiredError
+	)
+
+	switch {
+	case errors.As(err, &invalid):
+		return &plainError{cause: err, message: fmt.Sprintf("onesie: %s takes %s, got '%s'",
+			flagSpelling(invalid.GetFlag()), valueKind(invalid.GetFlag()), invalid.GetValue())}
+	case errors.As(err, &required):
+		spelled := "--" + required.GetSpecifiedName()
+		if required.GetSpecifiedShortnames() != "" {
+			spelled = "-" + required.GetSpecifiedName()
+		}
+
+		return &plainError{cause: err, message: fmt.Sprintf("onesie: %s needs a value", spelled)}
+	default:
+		return err
+	}
+}
+
+func flagSpelling(flag *pflag.Flag) string {
+	// pflag keeps no spelling for a value it refused, so a flag with a shorthand is named by it.
+	if flag.Shorthand != "" {
+		return "-" + flag.Shorthand
+	}
+
+	return "--" + flag.Name
+}
+
+func valueKind(flag *pflag.Flag) string {
+	switch flag.Value.Type() {
+	case "int", "int64", "uint", "uint64":
+		return "a whole number"
+	case "float64":
+		return "a number"
+	case "bool":
+		return "true or false"
+	case "duration":
+		return "a duration, such as 30s"
+	default:
+		return "a value of type " + flag.Value.Type()
+	}
+}
+
+type plainError struct {
+	cause   error
+	message string
+}
+
+func (e *plainError) Error() string {
+	return e.message
+}
+
+func (e *plainError) Unwrap() error {
+	return e.cause
+}
+
+func plainArgErrors(cmd *cobra.Command) {
+	for _, sub := range cmd.Commands() {
+		plainArgErrors(sub)
+	}
+
+	check := cmd.Args
+	if check == nil {
+		return
+	}
+
+	// Cobra's own validators speak in their terms, such as unknown command "x" for "onesie version".
+	// onesie's own already carry the prefix and are kept as written.
+	cmd.Args = func(cmd *cobra.Command, args []string) error {
+		err := check(cmd, args)
+		if err == nil || strings.HasPrefix(err.Error(), "onesie: ") || len(args) == 0 {
+			return err
+		}
+
+		name := strings.TrimPrefix(cmd.CommandPath(), cmd.Root().Name()+" ")
+
+		var subcommands []string
+		for _, sub := range cmd.Commands() {
+			if sub.IsAvailableCommand() {
+				subcommands = append(subcommands, sub.Name())
+			}
+		}
+
+		if len(subcommands) > 0 {
+			return &plainError{cause: err, message: fmt.Sprintf("onesie: %s has no subcommand '%s'. Its subcommands: %s",
+				name, args[0], strings.Join(subcommands, ", "))}
+		}
+
+		return &plainError{cause: err, message: fmt.Sprintf("onesie: %s takes no argument, got '%s'", name, args[0])}
+	}
 }
 
 func refuseUnknownHelpTopics(root *cobra.Command) {
@@ -447,7 +543,7 @@ func Execute(ctx context.Context, root *cobra.Command) int {
 
 	if worthReporting(err) {
 		// Stripped, since a message can quote the server or the input to a terminal.
-		message := output.Printable(err.Error())
+		message := output.Printable(pathNamedOnce(err.Error(), err))
 		// Cobra's own parse errors are the only ones that do not already carry the prefix, and a
 		// consumer filtering stderr should not have to know which layer produced a line.
 		if !strings.HasPrefix(message, "onesie: ") {
@@ -460,6 +556,22 @@ func Execute(ctx context.Context, root *cobra.Command) int {
 	}
 
 	return Classify(err)
+}
+
+func pathNamedOnce(message string, err error) string {
+	var pathErr *fs.PathError
+	if !errors.As(err, &pathErr) {
+		return message
+	}
+
+	// A caller that names the path already, as in reading X, makes the copy the PathError carries,
+	// as in open X, say the same thing twice.
+	repeated := ": " + pathErr.Op + " " + pathErr.Path + ": "
+	if !strings.Contains(message, " "+pathErr.Path+repeated) {
+		return message
+	}
+
+	return strings.Replace(message, repeated, ": ", 1)
 }
 
 // WithClientFactory replaces how commands build their API client, so a test can point one at a

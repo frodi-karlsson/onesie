@@ -12,18 +12,19 @@ import (
 var shellSafe = regexp.MustCompile(`^[A-Za-z0-9_./=:,@%+-]+$`)
 
 func atMostOneQuestion(cmd *cobra.Command, args []string) error {
-	err := cobra.MaximumNArgs(1)(cmd, args)
-	if err == nil {
+	if len(args) <= 1 {
 		return nil
 	}
 
+	got := fmt.Sprintf("onesie: expected one question, got %d arguments", len(args))
+
 	dash := cmd.ArgsLenAtDash()
 	if dash < 0 || len(args)-dash < 2 || !anyFlagLike(args[dash+1:]) {
-		return err
+		return fmt.Errorf("%s. Quote a question that holds spaces, as in %s 'is this urgent'", got, cmd.CommandPath())
 	}
 
-	return fmt.Errorf("%w. Everything after -- is the question, so flags go before --, as in %s %s -- %s",
-		err, cmd.CommandPath(), shellJoin(args[dash+1:]), shellQuote(args[dash]))
+	return fmt.Errorf("%s. Everything after -- is the question, so flags go before --, as in %s %s -- %s",
+		got, cmd.CommandPath(), shellJoin(args[dash+1:]), shellQuote(args[dash]))
 }
 
 func anyFlagLike(args []string) bool {
