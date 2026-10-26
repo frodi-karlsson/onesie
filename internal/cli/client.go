@@ -17,7 +17,7 @@ import (
 )
 
 const refusedBaseURL = "the base URL must be a plain URL with no credentials, query or fragment. " +
-	"Put the API key in the profile instead"
+	"Put the API key in a profile or the provider's key variable instead"
 
 func defaultClientFactory(settings rootSettings, flags *runFlags, build resolvedClientFactory) clientFactory {
 	return func(ctx context.Context, extra ...onesie.Option) (*onesie.Client, error) {
