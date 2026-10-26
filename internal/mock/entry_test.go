@@ -2,7 +2,9 @@ package mock
 
 import (
 	"encoding/json"
+	"fmt"
 	"math"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -32,11 +34,19 @@ func TestEntryResult(t *testing.T) {
 	}{
 		{
 			name:       "should build a pick whose value is the name and whose confidence is as given",
-			file:       `{"t":{"value":"platform","confidence":0.4}}`,
+			file:       `{"t":{"value":"platform","confidence":0.6}}`,
 			question:   plan.Question{ID: "t", Shape: plan.Pick, Options: []plan.Option{{Name: "billing"}, {Name: "platform"}, {Name: "sales"}}},
 			value:      "platform",
-			confidence: 0.4,
-			p:          map[string]float64{"platform": 0.4, "billing": 0.3, "sales": 0.3},
+			confidence: 0.6,
+			p:          map[string]float64{"platform": 0.6, "billing": 0.2, "sales": 0.2},
+		},
+		{
+			name:       "should keep a low confidence pick at least twice as likely as any other option",
+			file:       `{"t":{"value":"platform","confidence":0.2}}`,
+			question:   three,
+			value:      "platform",
+			confidence: 0.2,
+			p:          map[string]float64{"platform": 0.5, "billing": 0.25, "sales": 0.25},
 		},
 		{
 			name:       "should build a rate whose value is the level and whose norm is its index over the top",
@@ -49,6 +59,16 @@ func TestEntryResult(t *testing.T) {
 			p:          map[string]float64{"1": 0, "2": 0, "3": 0, "4": 1, "5": 0},
 		},
 		{
+			name:       "should spread a rate's p by its confidence as a pick's",
+			file:       `{"r":{"value":"2","confidence":0.6}}`,
+			question:   five,
+			value:      "2",
+			confidence: 0.6,
+			score:      1,
+			norm:       0.25,
+			p:          map[string]float64{"1": 0.1, "2": 0.6, "3": 0.1, "4": 0.1, "5": 0.1},
+		},
+		{
 			name:       "should keep the chosen level at a low confidence",
 			file:       `{"r":{"value":"2","confidence":0.1}}`,
 			question:   five,
@@ -56,7 +76,7 @@ func TestEntryResult(t *testing.T) {
 			confidence: 0.1,
 			score:      1,
 			norm:       0.25,
-			p:          map[string]float64{"1": 0, "2": 1, "3": 0, "4": 0, "5": 0},
+			p:          map[string]float64{"1": 1.0 / 6, "2": 1.0 / 3, "3": 1.0 / 6, "4": 1.0 / 6, "5": 1.0 / 6},
 		},
 		{
 			name:       "should replay a score between levels as the real run printed it",
@@ -208,6 +228,33 @@ func TestEntryResult(t *testing.T) {
 		})
 	}
 
+	t.Run("should synthesize a p that loads back for every value and confidence", func(t *testing.T) {
+		t.Parallel()
+
+		for levels := 1; levels <= 6; levels++ {
+			names := make([]string, 0, levels)
+			for i := range levels {
+				names = append(names, "l"+strconv.Itoa(i))
+			}
+
+			questions := []plan.Question{rateQuestion("q", names...)}
+			options := make([]plan.Option, 0, levels)
+			for _, name := range names {
+				options = append(options, plan.Option{Name: name})
+			}
+
+			questions = append(questions, plan.Question{ID: "q", Shape: plan.Pick, Options: options})
+
+			for _, question := range questions {
+				for _, value := range names {
+					for step := 0; step <= 20; step++ {
+						assertRoundTrip(t, question, value, float64(step)/20)
+					}
+				}
+			}
+		}
+	})
+
 	t.Run("should name no model and bill nothing", func(t *testing.T) {
 		t.Parallel()
 
@@ -329,4 +376,48 @@ func TestBoxAnswer(t *testing.T) {
 			}
 		})
 	}
+}
+
+func assertRoundTrip(t *testing.T, question plan.Question, value string, confidence float64) {
+	t.Helper()
+
+	file := fmt.Sprintf(`{"q":{"value":%q,"confidence":%v}}`, value, confidence)
+
+	first := loadNormalized(t, question, file)
+	if *first.Confidence > first.P.Values[value] {
+		t.Errorf("%s: confidence %v is above the value's p %v", file, *first.Confidence, first.P.Values[value])
+	}
+
+	p, err := json.Marshal(first.P.Values)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	replay := fmt.Sprintf(`{"q":{"value":%q,"confidence":%v,"p":%s}}`, value, confidence, p)
+	if _, err := Load(strings.NewReader(replay), []plan.Question{question}, Options{}); err != nil {
+		t.Errorf("%s synthesized p that does not load back: %v", file, err)
+	}
+}
+
+func loadNormalized(t *testing.T, question plan.Question, file string) *answer.Answer {
+	t.Helper()
+
+	answers, err := Load(strings.NewReader(file), []plan.Question{question}, Options{})
+	if err != nil {
+		t.Fatalf("Load(%s): %v", file, err)
+	}
+
+	entry, _ := answers.Lookup(1, nil)
+
+	result, err := entry.Result()
+	if err != nil {
+		t.Fatalf("Result: %v", err)
+	}
+
+	normalized, err := answer.Normalize(question, result.Answers[question.ID])
+	if err != nil {
+		t.Fatalf("Normalize: %v", err)
+	}
+
+	return normalized
 }

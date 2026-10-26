@@ -263,13 +263,7 @@ func pickAnswer(question plan.Question, parts answerParts) (onesie.Answer, error
 	}
 
 	if probabilities == nil {
-		// The value comes from Choice, so the rest of the mass only needs to add up.
-		probabilities = make(map[string]float64, len(names))
-		for _, other := range names {
-			probabilities[other] = (1 - parts.confidence) / float64(max(len(names)-1, 1))
-		}
-
-		probabilities[name] = parts.confidence
+		probabilities = synthesized(names, name, parts.confidence)
 	}
 
 	return &onesie.ChoiceAnswer{Choice: name, Confidence: parts.confidence, Probabilities: probabilities}, nil
@@ -319,6 +313,10 @@ func rateAnswer(question plan.Question, parts answerParts) (onesie.Answer, error
 		return nil, err
 	}
 
+	if given == nil {
+		given = synthesized(names, name, parts.confidence)
+	}
+
 	probabilities := make(map[string]float64, len(names))
 	legend := make(map[string]string, len(names))
 
@@ -328,15 +326,25 @@ func rateAnswer(question plan.Question, parts answerParts) (onesie.Answer, error
 		legend[key] = legendOf(question, level)
 	}
 
-	// With no p to replay, all the mass is on the chosen level, so the modal level the value is read
-	// from is that one.
-	if given == nil {
-		probabilities[strconv.Itoa(index)] = 1
-	}
-
 	return &onesie.ScoreAnswer{
 		Score: score, Confidence: parts.confidence, Legend: legend, Probabilities: probabilities,
 	}, nil
+}
+
+func synthesized(names []string, value string, confidence float64) map[string]float64 {
+	// At least twice what each other name takes keeps the value the strict mode, which replayed
+	// demands of a written p, since a rate reads its value from the first of equal modes.
+	share := max(confidence, 2/float64(len(names)+1))
+	rest := (1 - share) / float64(max(len(names)-1, 1))
+
+	probabilities := make(map[string]float64, len(names))
+	for _, name := range names {
+		probabilities[name] = rest
+	}
+
+	probabilities[value] = share
+
+	return probabilities
 }
 
 func boxAnswer(given any) (onesie.Answer, error) {

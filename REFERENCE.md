@@ -101,7 +101,10 @@ ONESIE_MOCK=answers.json ./gate.sh
   read as that question, which only `line` can be, since the others are reserved ids and `-i lines`
   reserves `line`.
 - A yes or no answer is a probability, or an object whose `value` is one. A pick or rate answer is a
-  name, or an object with `value` and an optional `confidence`, which defaults to 1. A number whose
+  name, or an object with `value` and an optional `confidence`, which defaults to 1. With no `p`, the
+  value's probability is the confidence, or twice what each other option or level gets when that is
+  more, and the others share the rest evenly. So the value is always the most likely, and the `p`
+  printed replays. A rate's `score` is the value's level index unless the entry gives one. A number whose
   text is a name is that name, so `4` rates `--rate 1,2,3,4,5`. A rate question from a request body
   takes its level index.
 - The other keys `-o json` writes are accepted. A line's `model`, `usage`, `line`, `assert` and
