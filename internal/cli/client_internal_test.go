@@ -209,7 +209,7 @@ func TestClientBuilder(t *testing.T) {
 			wantCode: ExitUsage,
 			wantErr: []string{
 				"no cloudflare account id",
-				"or run onesie profile update cf --account-id ACCOUNT_ID",
+				"or run onesie profile update 'cf' --account-id ACCOUNT_ID",
 			},
 		},
 		{

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io"
 	"path/filepath"
-	"strings"
 	"sync"
 
 	"github.com/frodi-karlsson/onesie/internal/creds"
@@ -130,10 +129,10 @@ func conversionLines(opened creds.Opened, lookupEnv func(string) (string, bool))
 
 func namedProfiles(names []string) string {
 	if len(names) == 1 {
-		return "profile " + names[0]
+		return "profile " + quotedName(names[0])
 	}
 
-	return "profiles " + strings.Join(names[:len(names)-1], ", ") + " and " + names[len(names)-1]
+	return "profiles " + quotedNames(names[:len(names)-1], ", ") + " and " + quotedName(names[len(names)-1])
 }
 
 func defaultSentence(name string) string {
@@ -141,5 +140,5 @@ func defaultSentence(name string) string {
 		return "No profile is the default, so run onesie profile use NAME to choose one"
 	}
 
-	return name + " is the default"
+	return quotedName(name) + " is the default"
 }

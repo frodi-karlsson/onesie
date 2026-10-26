@@ -132,11 +132,11 @@ func providerIsProfileHint(err error, chosen choice, profiles creds.Profiles) er
 	}
 
 	if chosen.by == envProvider {
-		return fmt.Errorf("%w. %s is a profile, so set %s=%s in place of %s",
+		return fmt.Errorf("%w. '%s' is a profile, so set %s='%s' in place of %s",
 			err, chosen.provider, envProfile, chosen.provider, envProvider)
 	}
 
-	return fmt.Errorf("%w. %s is a profile, so pass --profile %s in place of --provider",
+	return fmt.Errorf("%w. '%s' is a profile, so pass --profile '%s' in place of --provider",
 		err, chosen.provider, chosen.provider)
 }
 
@@ -145,7 +145,20 @@ func knownProfiles(profiles creds.Profiles) string {
 		return "There are no profiles. Run onesie profile create NAME --provider PROVIDER to make one"
 	}
 
-	return "The profiles are " + strings.Join(slices.Sorted(maps.Keys(profiles.Profiles)), ", ")
+	return "The profiles are " + quotedNames(slices.Sorted(maps.Keys(profiles.Profiles)), ", ")
+}
+
+func quotedNames(names []string, sep string) string {
+	quoted := make([]string, 0, len(names))
+	for _, name := range names {
+		quoted = append(quoted, quotedName(name))
+	}
+
+	return strings.Join(quoted, sep)
+}
+
+func quotedName(name string) string {
+	return "'" + name + "'"
 }
 
 func providerRun(name, by string, lookupEnv func(string) (string, bool)) (resolution, error) {
@@ -292,11 +305,11 @@ func missingKeyHint(err error, bare resolution, profiles creds.Profiles) error {
 	}
 
 	if bare.by == envProvider {
-		return fmt.Errorf("%w, or unset %s and run onesie profile use %s, or run with --profile %s",
+		return fmt.Errorf("%w, or unset %s and run onesie profile use '%s', or run with --profile '%s'",
 			err, envProvider, name, name)
 	}
 
-	return fmt.Errorf("%w, or drop --provider and pass --profile %s", err, name)
+	return fmt.Errorf("%w, or drop --provider and pass --profile '%s'", err, name)
 }
 
 func firstProfileOf(provider string, profiles creds.Profiles) string {
@@ -322,7 +335,7 @@ func accountNote(
 		return err
 	}
 
-	return fmt.Errorf("%w, or run onesie profile update %s --account-id ACCOUNT_ID", err, chosen.profile)
+	return fmt.Errorf("%w, or run onesie profile update '%s' --account-id ACCOUNT_ID", err, chosen.profile)
 }
 
 func (r resolution) accountSource(lookupEnv func(string) (string, bool)) string {

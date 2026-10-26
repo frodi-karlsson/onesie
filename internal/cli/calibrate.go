@@ -120,6 +120,10 @@ func newCalibrateCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 				return cmd.Help()
 			}
 
+			if refused := refuseEmptyBaseURL(cmd, flags); refused != nil {
+				return refused
+			}
+
 			flags.timeoutSet = cmd.Flags().Changed(flagTimeout)
 
 			return runCalibrate(cmd, settings, flags, *calib, recorder.Events(), positional)

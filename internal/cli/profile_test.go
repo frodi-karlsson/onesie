@@ -57,6 +57,12 @@ func TestNewProfileCmd(t *testing.T) {
 			wantCode: ExitOK,
 		},
 		{
+			name:     "should say in the create help that a name is not none",
+			args:     []string{"profile", "create", "--help"},
+			wantOut:  "does not start with -, and is not none",
+			wantCode: ExitOK,
+		},
+		{
 			name:     "should say in the create help that a run on a plain http base url needs --allow-http",
 			args:     []string{"profile", "create", "--help"},
 			wantOut:  "Every run on the profile then needs --allow-http too",
@@ -230,7 +236,7 @@ func TestProfileCreate(t *testing.T) {
 			stdin: key16 + "\n",
 			wantErr: []string{
 				"stored the key in the OS keychain as work@{hash}",
-				"onesie: work is the default profile, since it is the first",
+				"onesie: 'work' is the default profile, since it is the first",
 			},
 			wantFile: `{"default":"work","profiles":{"work":{"provider":"openrouter","store":"keychain",` +
 				`"account":"work@{hash}","key_end":"5678"}}}`,
@@ -310,7 +316,7 @@ func TestProfileCreate(t *testing.T) {
 			args:        []string{"profile", "create", "home", "--provider", "typesafe", "--file"},
 			stdinUnread: true,
 			wantCode:    ExitUsage,
-			wantErr:     []string{"onesie: profile 'home' exists. Change it with onesie profile update home"},
+			wantErr:     []string{"onesie: profile 'home' exists. Change it with onesie profile update 'home'"},
 			wantFile:    existing,
 		},
 		{
@@ -342,8 +348,9 @@ func TestProfileCreate(t *testing.T) {
 			args:        []string{"profile", "create", "work", "--provider", "nope", "--file"},
 			stdinUnread: true,
 			wantCode:    ExitUsage,
-			wantErr:     []string{"names provider 'nope'"},
-			wantNoFile:  true,
+			wantErr: []string{"onesie: --provider names 'nope', which is not typesafe, openrouter, berget, " +
+				"levanto or cloudflare"},
+			wantNoFile: true,
 		},
 		{
 			name:        "should refuse a base url with no scheme before reading the key",
@@ -400,7 +407,7 @@ func TestProfileCreate(t *testing.T) {
 			args:        []string{"profile", "create", "work", "--provider", "openrouter", "--account-id", testAccountID},
 			stdinUnread: true,
 			wantCode:    ExitUsage,
-			wantErr:     []string{"has account_id, which only cloudflare takes"},
+			wantErr:     []string{"onesie: --account-id applies only to cloudflare, and this profile is on openrouter"},
 			wantNoFile:  true,
 		},
 		{
@@ -408,7 +415,7 @@ func TestProfileCreate(t *testing.T) {
 			args:        []string{"profile", "create", "cf", "--provider", "cloudflare", "--account-id", "abc"},
 			stdinUnread: true,
 			wantCode:    ExitUsage,
-			wantErr:     []string{"has an account_id that is not 32 hexadecimal characters"},
+			wantErr:     []string{"onesie: --account-id must be 32 hexadecimal characters"},
 			wantNoFile:  true,
 		},
 		{
@@ -419,7 +426,23 @@ func TestProfileCreate(t *testing.T) {
 			},
 			stdinUnread: true,
 			wantCode:    ExitUsage,
-			wantErr:     []string{"has both base_url and account_id"},
+			wantErr:     []string{"onesie: --base-url and --account-id both name the account. Pass one"},
+			wantNoFile:  true,
+		},
+		{
+			name:        "should refuse an empty --account-id",
+			args:        []string{"profile", "create", "cf", "--provider", "cloudflare", "--account-id", " "},
+			stdinUnread: true,
+			wantCode:    ExitUsage,
+			wantErr:     []string{"onesie: --account-id is empty. Name one, or leave the flag out"},
+			wantNoFile:  true,
+		},
+		{
+			name:        "should refuse an empty --base-url",
+			args:        []string{"profile", "create", "work", "--provider", "typesafe", "--base-url", ""},
+			stdinUnread: true,
+			wantCode:    ExitUsage,
+			wantErr:     []string{"onesie: --base-url is empty. Name one, or leave the flag out"},
 			wantNoFile:  true,
 		},
 		{
@@ -471,8 +494,8 @@ func TestProfileCreate(t *testing.T) {
 			old:   `{"providers":{"typesafe":{"api_key":"SECRET-OLD"}}}`,
 			args:  []string{"profile", "create", "work", "--provider", "openrouter", "--file"},
 			stdin: key16 + "\n",
-			wantErr: []string{"onesie: converted credentials.json into profiles.json, with profile typesafe. " +
-				"typesafe is the default"},
+			wantErr: []string{"onesie: converted credentials.json into profiles.json, with profile 'typesafe'. " +
+				"'typesafe' is the default"},
 			wantFile: `{"default":"typesafe","profiles":{"typesafe":{"provider":"typesafe","api_key":"SECRET-OLD"},` +
 				`"work":{"provider":"openrouter","api_key":"` + key16 + `"}}}`,
 			wantNoOld: true,
@@ -619,7 +642,12 @@ func TestProfileUpdate(t *testing.T) {
 			`"account":"typesafe"}}}`
 		takenItem = `{"default":"work","profiles":{"work":{"provider":"openrouter","api_key":"SECRET-WORK"},` +
 			`"home":{"provider":"openrouter","store":"keychain","account":"work@{hash}"}}}`
-		shared = `{"default":"work","profiles":{` +
+		cfx = `{"default":"cfx","profiles":{"cfx":{"provider":"cloudflare","api_key":"SECRET-CF",` +
+			`"account_id":"` + testAccountID + `"}}}`
+		cfBase = `{"default":"cfb","profiles":{"cfb":{"provider":"cloudflare","api_key":"SECRET-CF",` +
+			`"base_url":"https://proxy.example"}}}`
+		levanto = `{"default":"lv","profiles":{"lv":{"provider":"levanto","api_key":"SECRET-LV"}}}`
+		shared  = `{"default":"work","profiles":{` +
 			`"work":{"provider":"openrouter","store":"keychain","account":"shared"},` +
 			`"home":{"provider":"openrouter","store":"keychain","account":"shared"}}}`
 	)
@@ -661,11 +689,53 @@ func TestProfileUpdate(t *testing.T) {
 				`"account":"work@{hash}","key_end":"5678","model":"typesafe/jev","base_url":"http://proxy.example"}}}`,
 		},
 		{
+			name:     "should name --account-id when its value is not 32 hexadecimal characters",
+			file:     cfx,
+			args:     []string{"profile", "update", "cfx", "--account-id", "0123"},
+			wantCode: ExitUsage,
+			wantErr:  []string{"onesie: --account-id must be 32 hexadecimal characters"},
+			notErr:   []string{"profile 'cfx' has"},
+			wantFile: cfx,
+		},
+		{
+			name:     "should name --account-id on a provider other than cloudflare",
+			file:     levanto,
+			args:     []string{"profile", "update", "lv", "--account-id", testAccountID},
+			wantCode: ExitUsage,
+			wantErr:  []string{"onesie: --account-id applies only to cloudflare, and this profile is on levanto"},
+			wantFile: levanto,
+		},
+		{
+			name:     "should name --base-url on a profile that holds an account id",
+			file:     cfx,
+			args:     []string{"profile", "update", "cfx", "--base-url", "https://proxy.example"},
+			wantCode: ExitUsage,
+			wantErr: []string{"onesie: --base-url cannot join the profile's account_id, since each names the " +
+				"account. Clear it with --account-id \"\" in the same update"},
+			wantFile: cfx,
+		},
+		{
+			name:     "should name --account-id on a profile that holds a base url",
+			file:     cfBase,
+			args:     []string{"profile", "update", "cfb", "--account-id", testAccountID},
+			wantCode: ExitUsage,
+			wantErr: []string{"onesie: --account-id cannot join the profile's base_url, since each names the " +
+				"account. Clear it with --base-url \"\" in the same update"},
+			wantFile: cfBase,
+		},
+		{
+			name: "should swap a base url for an account id in one update",
+			file: cfBase,
+			args: []string{"profile", "update", "cfb", "--account-id", testAccountID, "--base-url", ""},
+			wantFile: `{"default":"cfb","profiles":{"cfb":{"provider":"cloudflare","api_key":"SECRET-CF",` +
+				`"account_id":"` + testAccountID + `"}}}`,
+		},
+		{
 			name:     "should exit 2 when nothing changes",
 			file:     work,
 			args:     []string{"profile", "update", "work"},
 			wantCode: ExitUsage,
-			wantErr:  []string{"onesie: profile update work changes nothing"},
+			wantErr:  []string{"onesie: profile update 'work' changes nothing"},
 			wantFile: work,
 		},
 		{
@@ -673,14 +743,14 @@ func TestProfileUpdate(t *testing.T) {
 			file:     work,
 			args:     []string{"profile", "update", "work", "--model", "typesafe/jev"},
 			wantCode: ExitUsage,
-			wantErr:  []string{"onesie: profile update work changes nothing"},
+			wantErr:  []string{"onesie: profile update 'work' changes nothing"},
 		},
 		{
 			name:     "should refuse a missing profile",
 			file:     work,
 			args:     []string{"profile", "update", "nope", "--model", "x"},
 			wantCode: ExitUsage,
-			wantErr:  []string{"onesie: there is no profile named 'nope'. The profiles are work"},
+			wantErr:  []string{"onesie: there is no profile named 'nope'. The profiles are 'work'"},
 		},
 		{
 			name:        "should refuse a missing profile before reading the key",
@@ -707,7 +777,7 @@ func TestProfileUpdate(t *testing.T) {
 			args:        []string{"profile", "update", "work", "--provider", "nope", "--key"},
 			stdinUnread: true,
 			wantCode:    ExitUsage,
-			wantErr:     []string{"names provider 'nope'"},
+			wantErr:     []string{"onesie: --provider names 'nope', which is not typesafe"},
 			wantFile:    work,
 			wantItems:   workItems,
 		},
@@ -971,7 +1041,7 @@ func TestProfileUpdate(t *testing.T) {
 			args:        []string{"profile", "update", "work", "--account-id", testAccountID, "--key"},
 			stdinUnread: true,
 			wantCode:    ExitUsage,
-			wantErr:     []string{"has account_id, which only cloudflare takes"},
+			wantErr:     []string{"onesie: --account-id applies only to cloudflare, and this profile is on openrouter"},
 			wantFile:    work,
 			wantItems:   workItems,
 		},
@@ -1009,7 +1079,7 @@ func TestProfileDelete(t *testing.T) {
 			file:      two,
 			items:     map[string]string{"work@{hash}": key16},
 			args:      []string{"profile", "delete", "work"},
-			wantErr:   []string{"onesie: work was the default, so no profile is the default now"},
+			wantErr:   []string{"onesie: 'work' was the default, so no profile is the default now"},
 			wantFile:  homeOnly,
 			wantItems: map[string]string{},
 		},
@@ -1096,7 +1166,7 @@ func TestProfileDelete(t *testing.T) {
 			file:     two,
 			args:     []string{"profile", "delete", "nope"},
 			wantCode: ExitUsage,
-			wantErr:  []string{"onesie: there is no profile named 'nope'. The profiles are home, work"},
+			wantErr:  []string{"onesie: there is no profile named 'nope'. The profiles are 'home', 'work'"},
 			wantFile: two,
 		},
 	}
@@ -1253,8 +1323,8 @@ func TestProfileList(t *testing.T) {
 			old:     `{"providers":{"typesafe":{"store":"keychain","account":"typesafe@abc"}}}`,
 			args:    []string{"profile", "list"},
 			wantOut: "  NAME      PROVIDER  KEY       MODEL\n* typesafe  typesafe  keychain\n",
-			wantErr: []string{"onesie: converted credentials.json into profiles.json, with profile typesafe. " +
-				"typesafe is the default"},
+			wantErr: []string{"onesie: converted credentials.json into profiles.json, with profile 'typesafe'. " +
+				"'typesafe' is the default"},
 			wantFile:        `{"default":"typesafe","profiles":{"typesafe":{"provider":"typesafe","store":"keychain","account":"typesafe@abc"}}}`,
 			wantNoOld:       true,
 			noKeychainCalls: true,
@@ -1408,7 +1478,7 @@ func TestProfileShow(t *testing.T) {
 			file:     shown,
 			args:     []string{"profile", "show", "nope"},
 			wantCode: ExitUsage,
-			wantErr:  []string{"onesie: there is no profile named 'nope'. The profiles are cf, cfa, personal, work"},
+			wantErr:  []string{"onesie: there is no profile named 'nope'. The profiles are 'cf', 'cfa', 'personal', 'work'"},
 		},
 	}
 
@@ -1580,7 +1650,7 @@ func TestProfileTest(t *testing.T) {
 			env:      map[string]string{"ONESIE_PROVIDER": "openrouter"},
 			wantCode: ExitUsage,
 			wantErr: "onesie: no API key. Set OPENROUTER_API_KEY, or unset ONESIE_PROVIDER and run " +
-				"onesie profile use work, or run with --profile work",
+				"onesie profile use 'work', or run with --profile 'work'",
 		},
 	}
 

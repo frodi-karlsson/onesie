@@ -181,6 +181,10 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 				return refused
 			}
 
+			if refused := refuseEmptyBaseURL(cmd, flags); refused != nil {
+				return refused
+			}
+
 			// Ahead of the provider, since the schema is the same for every provider and a bad
 			// ONESIE_PROVIDER should not stand between an editor and it.
 			if flags.printSchema {
@@ -349,6 +353,15 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 	asksNothing(root.Flags(), "help")
 
 	return root
+}
+
+func refuseEmptyBaseURL(cmd *cobra.Command, flags *runFlags) error {
+	// A flag given is a choice made, as an empty --profile is, so it is not read as unset.
+	if cmd.Flags().Changed(flagBaseURL) && strings.TrimSpace(flags.baseURL) == "" {
+		return fmt.Errorf("onesie: --%s is empty. Name one, or leave the flag out", flagBaseURL)
+	}
+
+	return nil
 }
 
 func refuseUnknownHelpTopics(root *cobra.Command) {

@@ -22,8 +22,8 @@ func TestOpenProfiles(t *testing.T) {
 	const both = `{"providers":{"levanto":{"api_key":"SECRET-LV"},` +
 		`"typesafe":{"store":"keychain","account":"typesafe@abc"}}}`
 
-	const converted = "onesie: converted credentials.json into profiles.json, with profiles levanto and typesafe. " +
-		"typesafe is the default"
+	const converted = "onesie: converted credentials.json into profiles.json, with profiles 'levanto' and 'typesafe'. " +
+		"'typesafe' is the default"
 
 	tests := []struct {
 		name string
@@ -43,7 +43,7 @@ func TestOpenProfiles(t *testing.T) {
 		{
 			name: "should say no profile is the default for a lone entry of another provider",
 			old:  `{"providers":{"levanto":{"api_key":"SECRET-LV"}}}`,
-			want: []string{"onesie: converted credentials.json into profiles.json, with profile levanto. " +
+			want: []string{"onesie: converted credentials.json into profiles.json, with profile 'levanto'. " +
 				"No profile is the default, so run onesie profile use NAME to choose one"},
 		},
 		{name: "should print nothing when profiles.json is there", old: both, file: `{"profiles":{}}`},
@@ -101,8 +101,8 @@ func TestOpenProfiles(t *testing.T) {
 			t.Error("the converted profiles were not kept for the run")
 		}
 
-		const inMemory = "onesie: converted credentials.json for this run, with profiles levanto and typesafe. " +
-			"typesafe is the default"
+		const inMemory = "onesie: converted credentials.json for this run, with profiles 'levanto' and 'typesafe'. " +
+			"'typesafe' is the default"
 
 		got := linesOf(out.String())
 		if len(got) != 2 || got[0] != inMemory || !strings.Contains(got[1], "is converted for this run only") {
@@ -197,7 +197,7 @@ func TestResolveRun(t *testing.T) {
 			old:  `{"providers":{"levanto":{"api_key":"SECRET-LV"}}}`, args: asking("-r"), wantCode: ExitUsage,
 			wantFile: true,
 			wantErr: []string{
-				"onesie: converted credentials.json into profiles.json, with profile levanto. No profile is the default",
+				"onesie: converted credentials.json into profiles.json, with profile 'levanto'. No profile is the default",
 				"onesie: no profile is the default and nothing chose one. " +
 					"Run onesie profile use NAME, or pass --profile NAME or --provider NAME",
 			},
@@ -205,17 +205,17 @@ func TestResolveRun(t *testing.T) {
 		{
 			name: "should name the profiles there are for a missing one", file: openrouterWork,
 			args: asking("--print-request", "--profile", "nope"), wantCode: ExitUsage,
-			wantErr: []string{"onesie: --profile names profile 'nope', which does not exist. The profiles are work"},
+			wantErr: []string{"onesie: --profile names profile 'nope', which does not exist. The profiles are 'work'"},
 		},
 		{
 			name: "should point --provider at --profile when it names a profile", file: openrouterWork,
 			args: asking("--print-request", "--provider", "work"), wantCode: ExitUsage,
-			wantErr: []string{"onesie: unknown provider work", "work is a profile, so pass --profile work in place of --provider"},
+			wantErr: []string{"onesie: unknown provider work", "'work' is a profile, so pass --profile 'work' in place of --provider"},
 		},
 		{
 			name: "should point ONESIE_PROVIDER at ONESIE_PROFILE when it names a profile", file: openrouterWork,
 			env: map[string]string{"ONESIE_PROVIDER": "work"}, args: asking("--print-request"), wantCode: ExitUsage,
-			wantErr: []string{"work is a profile, so set ONESIE_PROFILE=work in place of ONESIE_PROVIDER"},
+			wantErr: []string{"'work' is a profile, so set ONESIE_PROFILE='work' in place of ONESIE_PROVIDER"},
 		},
 		{
 			name: "should keep the unknown provider error when profiles.json cannot be read for the hint",
@@ -232,7 +232,7 @@ func TestResolveRun(t *testing.T) {
 		{
 			name: "should convert credentials.json on --print-request", old: oldTypesafe,
 			args: asking("--print-request"), wantOut: `"model":"jev-latest"`, wantFile: true,
-			wantErr: []string{"onesie: converted credentials.json into profiles.json, with profile typesafe"},
+			wantErr: []string{"onesie: converted credentials.json into profiles.json, with profile 'typesafe'"},
 		},
 		{
 			name: "should not convert credentials.json on --print-questions", old: oldTypesafe,
@@ -242,8 +242,8 @@ func TestResolveRun(t *testing.T) {
 			name: "should name the converted profile when --provider finds no key", old: oldKeychain,
 			args: asking("--provider", "openrouter", "-r"), wantCode: ExitUsage, wantFile: true,
 			wantErr: []string{
-				"onesie: converted credentials.json into profiles.json, with profile openrouter",
-				"no API key. Set OPENROUTER_API_KEY, or drop --provider and pass --profile openrouter",
+				"onesie: converted credentials.json into profiles.json, with profile 'openrouter'",
+				"no API key. Set OPENROUTER_API_KEY, or drop --provider and pass --profile 'openrouter'",
 			},
 		},
 		{
@@ -252,8 +252,8 @@ func TestResolveRun(t *testing.T) {
 			wantFile: true,
 			wantErr: []string{
 				"onesie: ONESIE_PROVIDER is set, so a run uses no profile",
-				"no API key. Set OPENROUTER_API_KEY, or unset ONESIE_PROVIDER and run onesie profile use openrouter, " +
-					"or run with --profile openrouter",
+				"no API key. Set OPENROUTER_API_KEY, or unset ONESIE_PROVIDER and run onesie profile use 'openrouter', " +
+					"or run with --profile 'openrouter'",
 			},
 		},
 	}

@@ -519,7 +519,9 @@ on the provider's key variable alone.
   the key in the file instead, with a warning. On Linux the key reaches the Secret Service over the
   session bus unencrypted, readable only by your own user.
 - `create` and `update` check the rules below, the base URL and the account id before they read the
-  key, so a typo costs nothing.
+  key, so a typo costs nothing. A bad value from a flag is named by its flag, as in
+  `--account-id must be 32 hexadecimal characters`. `create` refuses an empty `--base-url` or
+  `--account-id` with exit 2, while on `update` an empty value clears the member.
 - `show` never reads the keychain or prints a key. `key:` is `keychain` or `file`, with
   `, ends in XXXX` when the key has 16 characters or more, `env` and the key variable for a run
   without a profile, or `none`. A converted keychain key shows no ending until
@@ -548,8 +550,8 @@ on the provider's key variable alone.
 - The strongest choice wins, so a flag beats a variable, and a variable beats the default.
 - Two choices of the same strength exit 2, naming both. So `--profile` with `--provider` exits 2,
   and so do `ONESIE_PROFILE` and `ONESIE_PROVIDER` set together.
-- An empty or whitespace only variable counts as unset. An empty `--profile` or `--provider` exits 2,
-  since a flag given is a choice made.
+- An empty or whitespace only variable counts as unset. An empty `--profile`, `--provider` or
+  `--base-url` exits 2, since a flag given is a choice made.
 - `--provider` or `ONESIE_PROVIDER` runs without a profile.
 - With no choice and no profiles, a run uses no profile and the `typesafe` provider.
 - With no choice, and profiles but no default, a run exits 2 and names `onesie profile use NAME`,
@@ -652,7 +654,7 @@ the config dir converts it once:
   default, so a run with no choice exits 2, even with `TYPESAFE_API_KEY` set, and names
   `onesie profile use NAME`, `--profile NAME` and `--provider NAME`.
 - onesie writes `profiles.json`, removes `credentials.json` and says so on stderr, as in
-  `onesie: converted credentials.json into profiles.json, with profiles levanto and typesafe. typesafe is the default`.
+  `onesie: converted credentials.json into profiles.json, with profiles 'levanto' and 'typesafe'. 'typesafe' is the default`.
   Under `ONESIE_PROVIDER` a second line says the run uses no profile, and how to use a stored key.
 - A `credentials.json` whose mode is too open exits 3, and one whose entries cannot become profiles
   exits 2, naming the entry. Nothing converts either way.

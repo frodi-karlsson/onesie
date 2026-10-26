@@ -569,7 +569,7 @@ func TestMockAnswers(t *testing.T) {
 			map[string]string{"ONESIE_CONFIG_DIR": dir}, nil)
 
 		checkMocked(t, out, errOut, code, ExitUsage, nil, nil, nil,
-			[]string{"onesie: --profile names profile 'nope', which does not exist. The profiles are lv"})
+			[]string{"onesie: --profile names profile 'nope', which does not exist. The profiles are 'lv'"})
 	})
 }
 

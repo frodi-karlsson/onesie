@@ -91,6 +91,28 @@ func TestNewRootCmd(t *testing.T) {
 				"which a markdown table does not keep. Use -o json, values, csv or tsv"},
 		},
 		{
+			name:     "should refuse an empty --base-url",
+			args:     []string{"is this urgent", "--state", "site down", "--base-url", ""},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: --base-url is empty. Name one, or leave the flag out"},
+		},
+		{
+			name:     "should refuse a whitespace --base-url on a dry run",
+			args:     []string{"is this urgent", "--state", "site down", "--print-request", "--base-url", " "},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: --base-url is empty. Name one, or leave the flag out"},
+		},
+		{
+			name: "should refuse an empty --base-url on calibrate",
+			args: []string{
+				"calibrate", "--ask", "u=is this urgent", "-i", "jsonl", "--map", ".body", "--label", "u=.u",
+				"--base-url", "",
+			},
+			stdin:    `{"body":"x","u":true}` + "\n",
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: --base-url is empty. Name one, or leave the flag out"},
+		},
+		{
 			name:     "should print help when given no arguments",
 			args:     []string{},
 			wantCode: cli.ExitOK,

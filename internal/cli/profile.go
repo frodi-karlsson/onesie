@@ -89,7 +89,7 @@ func newProfileCreateCmd(settings rootSettings, flags *runFlags) *cobra.Command 
 			"Stdin must hold the key alone. pass show and its siblings print metadata after the secret, so " +
 			"pipe them through head -n 1.\n\n" +
 			"The key goes to the OS keychain, or to profiles.json with --file. A name is 1 to 64 lowercase " +
-			"letters, digits, - or _, and does not start with -. The first profile becomes the default.",
+			"letters, digits, - or _, does not start with -, and is not none. The first profile becomes the default.",
 		Example: "  pass show openrouter | head -n 1 | onesie profile create work --provider openrouter\n" +
 			"  onesie profile create cf --provider cloudflare --account-id 0123456789abcdef0123456789abcdef",
 		Args: profileNames("create", 1, 1),
@@ -123,13 +123,17 @@ func profileCreate(
 			"onesie: profile create needs --provider: typesafe, openrouter, berget, levanto or cloudflare")
 	}
 
+	if refused := refuseEmpty(fields, cmd.Flags().Changed); refused != nil {
+		return refused
+	}
+
 	path, opened, err := profilesToWrite(settings)
 	if err != nil {
 		return err
 	}
 
 	if _, taken := opened.Profiles.Profiles[name]; taken {
-		return fmt.Errorf("onesie: profile '%s' exists. Change it with onesie profile update %s, "+
+		return fmt.Errorf("onesie: profile '%s' exists. Change it with onesie profile update '%s', "+
 			"or delete it and create it again", name, name)
 	}
 
@@ -141,6 +145,10 @@ func profileCreate(
 	account := creds.KeychainAccount(name, path)
 
 	// Ahead of the read, so a typo costs the user nothing and leaves no file behind.
+	if refused := checkGiven(profile, cmd.Flags().Changed, true); refused != nil {
+		return refused
+	}
+
 	if refused := refusePlainBaseURL(flags, profile.BaseURL); refused != nil {
 		return refused
 	}
@@ -168,7 +176,7 @@ func profileCreate(
 	first := ""
 	if len(opened.Profiles.Profiles) == 0 {
 		profiles.Default = name
-		first = "onesie: " + name + " is the default profile, since it is the first"
+		first = "onesie: " + quotedName(name) + " is the default profile, since it is the first"
 	}
 
 	if saveErr := saveProfiles(cmd, settings, path, profiles); saveErr != nil {
@@ -235,10 +243,14 @@ func profileUpdate(
 	profile := updated(old, fields, changed)
 	if profile == old && !fields.key {
 		return fmt.Errorf(
-			"onesie: profile update %s changes nothing. Pass --model, --base-url, --account-id or --key", name)
+			"onesie: profile update '%s' changes nothing. Pass --model, --base-url, --account-id or --key", name)
 	}
 
 	// Ahead of the read, so a broken rule costs the user nothing.
+	if refused := checkGiven(profile, changed, changed(flagProvider)); refused != nil {
+		return refused
+	}
+
 	if changed(flagBaseURL) {
 		if refused := refusePlainBaseURL(flags, profile.BaseURL); refused != nil {
 			return refused
@@ -448,7 +460,7 @@ func profileDelete(cmd *cobra.Command, settings rootSettings, flags *runFlags, n
 	}
 
 	if opened.Profiles.Default == name && len(rest.Profiles) > 0 {
-		notices = append(notices, "onesie: "+name+" was the default, so no profile is the default now. "+
+		notices = append(notices, "onesie: "+quotedName(name)+" was the default, so no profile is the default now. "+
 			"Run onesie profile use NAME to choose one")
 	}
 
@@ -810,6 +822,48 @@ func profilesToWrite(settings rootSettings) (string, creds.Opened, error) {
 
 func noProfileNamed(name string, profiles creds.Profiles) error {
 	return fmt.Errorf("onesie: there is no profile named '%s'. %s", name, knownProfiles(profiles))
+}
+
+func refuseEmpty(fields profileFlags, changed func(string) bool) error {
+	for _, given := range []struct{ flag, value string }{
+		{flag: flagBaseURL, value: fields.baseURL},
+		{flag: flagAccountID, value: fields.accountID},
+	} {
+		if changed(given.flag) && strings.TrimSpace(given.value) == "" {
+			return fmt.Errorf("onesie: --%s is empty. Name one, or leave the flag out", given.flag)
+		}
+	}
+
+	return nil
+}
+
+func checkGiven(profile creds.Profile, changed func(string) bool, providerGiven bool) error {
+	provider, err := onesie.ProviderNamed(profile.Provider)
+	if providerGiven && (err != nil || provider.Name != profile.Provider) {
+		return fmt.Errorf("onesie: --%s names '%s', which is not typesafe, openrouter, berget, levanto or cloudflare",
+			flagProvider, profile.Provider)
+	}
+
+	accountGiven := changed(flagAccountID) && profile.AccountID != ""
+	baseURLGiven := changed(flagBaseURL) && profile.BaseURL != ""
+
+	switch {
+	case accountGiven && provider.EnvAccountID == "":
+		return fmt.Errorf("onesie: --%s applies only to cloudflare, and this profile is on %s",
+			flagAccountID, profile.Provider)
+	case accountGiven && !creds.ValidAccountID(profile.AccountID):
+		return fmt.Errorf("onesie: --%s must be 32 hexadecimal characters", flagAccountID)
+	case accountGiven && baseURLGiven:
+		return fmt.Errorf("onesie: --%s and --%s both name the account. Pass one", flagBaseURL, flagAccountID)
+	case accountGiven && profile.BaseURL != "":
+		return fmt.Errorf("onesie: --%s cannot join the profile's base_url, since each names the account. "+
+			`Clear it with --%s "" in the same update`, flagAccountID, flagBaseURL)
+	case baseURLGiven && profile.AccountID != "":
+		return fmt.Errorf("onesie: --%s cannot join the profile's account_id, since each names the account. "+
+			`Clear it with --%s "" in the same update`, flagBaseURL, flagAccountID)
+	}
+
+	return nil
 }
 
 func refusePlainBaseURL(flags *runFlags, baseURL string) error {

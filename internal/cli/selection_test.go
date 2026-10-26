@@ -323,7 +323,7 @@ func TestResolveChoice(t *testing.T) {
 		{
 			name: "should name the profiles there are for a missing one", profiles: withDefault,
 			chosen:  choice{profile: "nope", by: "ONESIE_PROFILE"},
-			wantErr: "onesie: ONESIE_PROFILE names profile 'nope', which does not exist. The profiles are cf, work",
+			wantErr: "onesie: ONESIE_PROFILE names profile 'nope', which does not exist. The profiles are 'cf', 'work'",
 		},
 		{
 			name: "should say there are no profiles for a missing one", profiles: empty,
@@ -365,13 +365,13 @@ func TestResolveChoice(t *testing.T) {
 			name: "should point --provider at --profile when it names a profile", profiles: withDefault,
 			chosen: choice{provider: "work", by: "--provider"},
 			wantErr: "onesie: unknown provider work. Use typesafe, openrouter, berget, levanto or cloudflare. " +
-				"work is a profile, so pass --profile work in place of --provider",
+				"'work' is a profile, so pass --profile 'work' in place of --provider",
 		},
 		{
 			name: "should point ONESIE_PROVIDER at ONESIE_PROFILE when it names a profile", profiles: withDefault,
 			chosen: choice{provider: "work", by: "ONESIE_PROVIDER"},
 			wantErr: "onesie: unknown provider work. Use typesafe, openrouter, berget, levanto or cloudflare. " +
-				"work is a profile, so set ONESIE_PROFILE=work in place of ONESIE_PROVIDER",
+				"'work' is a profile, so set ONESIE_PROFILE='work' in place of ONESIE_PROVIDER",
 		},
 	}
 
@@ -920,12 +920,12 @@ func TestMissingKeyHint(t *testing.T) {
 			name: "should name the first profile with the provider under ONESIE_PROVIDER",
 			err:  missing("OPENROUTER_API_KEY"), run: bareOf("openrouter", "ONESIE_PROVIDER", nil),
 			want: "onesie: no API key. Set OPENROUTER_API_KEY, or unset ONESIE_PROVIDER and run " +
-				"onesie profile use personal, or run with --profile personal",
+				"onesie profile use 'personal', or run with --profile 'personal'",
 		},
 		{
 			name: "should say to drop --provider under --provider",
 			err:  missing("TYPESAFE_API_KEY"), run: bareOf("typesafe", "--provider", nil),
-			want: "onesie: no API key. Set TYPESAFE_API_KEY, or drop --provider and pass --profile ts",
+			want: "onesie: no API key. Set TYPESAFE_API_KEY, or drop --provider and pass --profile 'ts'",
 		},
 		{
 			name: "should leave the error alone when no profile has the provider",
@@ -1005,7 +1005,7 @@ func TestAccountNote(t *testing.T) {
 		{
 			name: "should name profile update for a cloudflare profile with no account", run: cf,
 			want: "onesie: no cloudflare account id. Set CLOUDFLARE_ACCOUNT_ID, " +
-				"or run onesie profile update cf --account-id ACCOUNT_ID",
+				"or run onesie profile update 'cf' --account-id ACCOUNT_ID",
 		},
 		{
 			name: "should leave the error alone when CLOUDFLARE_ACCOUNT_ID is set", run: cf,

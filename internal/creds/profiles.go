@@ -235,7 +235,7 @@ func (p Profile) validate(subject string) error {
 		return fmt.Errorf("%s has account_id, which only cloudflare takes", subject)
 	}
 
-	if !accountIDPattern.MatchString(p.AccountID) {
+	if !ValidAccountID(p.AccountID) {
 		return fmt.Errorf("%s has an account_id that is not 32 hexadecimal characters", subject)
 	}
 
@@ -256,6 +256,11 @@ func ValidName(name string) error {
 	return fmt.Errorf(
 		"'%s' is not a profile name. A name is 1 to 64 lowercase letters, digits, - or _, does not start with -, and is not none",
 		name)
+}
+
+// ValidAccountID reports whether id is a Cloudflare account id, 32 hexadecimal characters.
+func ValidAccountID(id string) bool {
+	return accountIDPattern.MatchString(id)
 }
 
 // KeyEnd is the last four characters of a key of 16 characters or more, so two keys can be told
