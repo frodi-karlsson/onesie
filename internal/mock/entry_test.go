@@ -74,9 +74,9 @@ func TestEntryResult(t *testing.T) {
 			question:   five,
 			value:      "2",
 			confidence: 0.1,
-			score:      1.833,
+			score:      1.8332,
 			norm:       0.4583,
-			p:          map[string]float64{"1": 0.1666, "2": 0.3336, "3": 0.1666, "4": 0.1666, "5": 0.1666},
+			p:          map[string]float64{"1": 0.1667, "2": 0.3333, "3": 0.1667, "4": 0.1667, "5": 0.1666},
 		},
 		{
 			name:       "should replay a score between levels as the real run printed it",
@@ -384,8 +384,16 @@ func assertRoundTrip(t *testing.T, question plan.Question, value string, confide
 	file := fmt.Sprintf(`{"q":{"value":%q,"confidence":%v}}`, value, confidence)
 
 	first := loadNormalized(t, question, file)
-	if *first.Confidence > first.P.Values[value] {
-		t.Errorf("%s: confidence %v is above the value's p %v", file, *first.Confidence, first.P.Values[value])
+
+	levels := len(question.Options) + len(question.Levels)
+	if want := math.Round(max(confidence, 2/float64(levels+1))*1e4) / 1e4; first.P.Values[value] != want {
+		t.Errorf("%s: the value's p is %v, want %v", file, first.P.Values[value], want)
+	}
+
+	for key, share := range first.P.Values {
+		if key != value && share >= first.P.Values[value] {
+			t.Errorf("%s: p[%s] = %v, want it below the value's %v", file, key, share, first.P.Values[value])
+		}
 	}
 
 	sum := 0.0

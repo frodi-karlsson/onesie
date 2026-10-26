@@ -108,8 +108,8 @@ ONESIE_MOCK=answers.json ./gate.sh
 - A yes or no answer is a probability, or an object whose `value` is one. A pick or rate answer is a
   name, or an object with `value` and an optional `confidence`, which defaults to 1. With no `p`, the
   value's probability is the confidence, or twice what each other option or level gets when that is
-  more, and the others share the rest evenly, cut to four places, with the value taking what is
-  left. So the value is always the most likely, and the `p` printed replays. A rate's `score` is
+  more, rounded to four places. The others share the rest evenly in steps of 0.0001, the first of
+  them taking one step more where it does not divide evenly. So the value is always the most likely, and the `p` printed replays. A rate's `score` is
   the level index averaged over `p`, rounded to four places, unless the entry gives one. A number whose
   text is a name is that name, so `4` rates `--rate 1,2,3,4,5`. A rate question from a request body
   takes its level index.

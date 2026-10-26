@@ -349,19 +349,31 @@ func averaged(names []string, p map[string]float64, index int) float64 {
 
 func synthesized(names []string, value string, confidence float64) map[string]float64 {
 	// At least twice what each other name takes keeps the value the strict mode, which replayed
-	// demands of a written p, since a rate reads its value from the first of equal modes. The rest
-	// is cut down to four places, so the value that absorbs the remainder never falls below the
-	// confidence.
-	share := max(confidence, 2/float64(len(names)+1))
-	others := float64(max(len(names)-1, 1))
-	rest := math.Floor((1-share)/others*1e4+1e-9) / 1e4
+	// demands of a written p, since a rate reads its value from the first of equal modes. Counted
+	// in units of 0.0001, the value keeps its share exactly and the others split the rest, the
+	// first of them taking one unit more where it does not divide evenly.
+	const units = 10000
+
+	share := int(math.Round(max(confidence, 2/float64(len(names)+1)) * units))
+	others := max(len(names)-1, 1)
+	each, extra := (units-share)/others, (units-share)%others
 
 	probabilities := make(map[string]float64, len(names))
 	for _, name := range names {
-		probabilities[name] = rest
+		if name == value {
+			continue
+		}
+
+		got := each
+		if extra > 0 {
+			got++
+			extra--
+		}
+
+		probabilities[name] = float64(got) / units
 	}
 
-	probabilities[value] = answer.Rounded(1 - rest*float64(len(names)-1))
+	probabilities[value] = float64(share) / units
 
 	return probabilities
 }
