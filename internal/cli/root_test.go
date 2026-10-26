@@ -1865,6 +1865,69 @@ func TestNewRootCmd(t *testing.T) {
 		}
 	})
 
+	t.Run("should refuse an answer that carries only its type", func(t *testing.T) {
+		t.Parallel()
+
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+
+			if _, err := io.WriteString(w, `{"model":"jev-1.14.0","answers":{"answer":{"type":"noul"}},`+
+				`"usage":{"input_tokens":10,"output_tokens":2}}`); err != nil {
+				t.Errorf("writing the stub response: %v", err)
+			}
+		}))
+		t.Cleanup(srv.Close)
+
+		tests := []struct {
+			name string
+			args []string
+		}{
+			{name: "should exit 4 on a plain run", args: []string{"is this urgent", "--state", "x", "--retries", "0"}},
+			{
+				name: "should not pass a gate",
+				args: []string{"is this urgent", "--state", "x", "--retries", "0", "-q", "--assert", "answer.value < 0.5"},
+			},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				var out, errOut bytes.Buffer
+
+				root := cli.NewRootCmd(
+					cli.BuildInfo{Version: "1.2.3"},
+					cli.WithKeychain(offKeychain{}),
+					cli.WithStdin(strings.NewReader("")),
+					cli.WithStdinTTY(false),
+					cli.WithStdoutTTY(false),
+					cli.WithLookupEnv(func(name string) (string, bool) {
+						value, ok := map[string]string{
+							"ONESIE_CONFIG_DIR": t.TempDir(),
+							onesie.EnvAPIKey:    "SECRET-TEST",
+							onesie.EnvBaseURL:   srv.URL,
+						}[name]
+
+						return value, ok
+					}),
+				)
+
+				root.SetOut(&out)
+				root.SetErr(&errOut)
+				root.SetArgs(tc.args)
+
+				if code := cli.Execute(t.Context(), root); code != cli.ExitUnavailable {
+					t.Errorf("exit code = %d, want %d\nstdout:\n%s\nstderr:\n%s",
+						code, cli.ExitUnavailable, out.String(), errOut.String())
+				}
+
+				if !strings.Contains(errOut.String(), "response could not be used") {
+					t.Errorf("stderr = %q, want it to say the response could not be used", errOut.String())
+				}
+			})
+		}
+	})
+
 	t.Run("should list calibrate in its help", func(t *testing.T) {
 		t.Parallel()
 
