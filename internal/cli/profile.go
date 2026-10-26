@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"maps"
-	"net/url"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -369,13 +368,17 @@ func (k keptKey) undo(keychain Keychain, account string) string {
 			"could not be read to put back"
 	}
 
-	return undoneItem(keychain.Set(account, k.key), account)
+	if err := keychain.Set(account, k.key); err != nil {
+		return "warning: " + strings.TrimPrefix(err.Error(), "onesie: ") + ". The keychain item " + account +
+			" now holds the new key, and its old key could not be put back"
+	}
+
+	return ""
 }
 
 func failedSave(cmd *cobra.Command, saveErr error, notice string) error {
-	if notifyErr := notify(cmd, notice); notifyErr != nil {
-		return errors.Join(saveErr, notifyErr)
-	}
+	//nolint:errcheck // The save error carries the exit code, and a stderr that cannot take the notice must not replace it.
+	_ = notify(cmd, notice)
 
 	return saveErr
 }
@@ -611,6 +614,11 @@ func profileShow(cmd *cobra.Command, settings rootSettings, flags *runFlags, arg
 		return err
 	}
 
+	// A hand edited profiles.json skips create's checks, and credentials in its base URL would print whole.
+	if refused := refuseUnclearBaseURL(shown.baseURL); refused != nil {
+		return refused
+	}
+
 	account := shown.accountSource(settings.lookupEnv)
 
 	lines := []string{
@@ -619,7 +627,7 @@ func profileShow(cmd *cobra.Command, settings rootSettings, flags *runFlags, arg
 		"chosen by: " + shown.by,
 		"key: " + shown.keyLine(),
 		"model: " + cmp.Or(output.Printable(shown.model), providersOwn),
-		"base_url: " + cmp.Or(output.Printable(withoutUserinfo(shown.baseURL)), providersOwn),
+		"base_url: " + cmp.Or(output.Printable(shown.baseURL), providersOwn),
 	}
 
 	if account != "" {
@@ -635,17 +643,6 @@ func profileShow(cmd *cobra.Command, settings rootSettings, flags *runFlags, arg
 	}
 
 	return nil
-}
-
-func withoutUserinfo(baseURL string) string {
-	parsed, err := url.Parse(baseURL)
-	if err != nil || parsed.User == nil {
-		return baseURL
-	}
-
-	parsed.User = nil
-
-	return parsed.String()
 }
 
 func newProfileTestCmd(settings rootSettings, flags *runFlags) *cobra.Command {
@@ -797,7 +794,7 @@ func noProfileNamed(name string, profiles creds.Profiles) error {
 
 func checkProfile(profiles creds.Profiles, name string, profile creds.Profile) error {
 	if profile.BaseURL != "" {
-		if invalid := onesie.ValidateBaseURL(profile.BaseURL); invalid != nil {
+		if invalid := validBaseURL(profile.BaseURL); invalid != nil {
 			return invalid
 		}
 	}

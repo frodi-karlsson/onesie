@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -14,6 +15,9 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/creds"
 	"github.com/frodi-karlsson/onesie/internal/output"
 )
+
+const refusedBaseURL = "the base URL must be a plain URL with no credentials, query or fragment. " +
+	"Put the API key in the profile instead"
 
 func defaultClientFactory(settings rootSettings, flags *runFlags, build resolvedClientFactory) clientFactory {
 	return func(ctx context.Context, extra ...onesie.Option) (*onesie.Client, error) {
@@ -70,14 +74,21 @@ func clientBuilder(info BuildInfo, flags *runFlags, settings rootSettings) resol
 
 		client, err := onesie.New(opts...)
 		if err != nil {
-			return nil, err
+			return nil, withoutCredentials(err)
+		}
+
+		// After New, since only the client knows which of the flag, the variable, the profile and the
+		// credential file chose the base URL.
+		if refused := refuseUnclearBaseURL(client.BaseURL()); refused != nil {
+			return nil, refused
 		}
 
 		var printErr error
 
 		if plainRemote(client.BaseURL()) {
 			warned.Do(func() {
-				_, printErr = fmt.Fprintln(settings.holder.stderr(), "warning: "+output.Printable(client.BaseURL())+
+				_, printErr = fmt.Fprintln(settings.holder.stderr(), "warning: "+
+					output.Printable(client.BaseURL())+
 					" is plain http, so the API key crosses the network unencrypted")
 			})
 		}
@@ -96,6 +107,37 @@ func clientBuilder(info BuildInfo, flags *runFlags, settings rootSettings) resol
 
 		return client, nil
 	}
+}
+
+func validBaseURL(baseURL string) error {
+	if refused := refuseUnclearBaseURL(baseURL); refused != nil {
+		return refused
+	}
+
+	return onesie.ValidateBaseURL(baseURL)
+}
+
+func refuseUnclearBaseURL(baseURL string) error {
+	// Any literal @, ? or #, since a password holding a /, a ? or a # parses cleanly as a host with
+	// the rest of the password in the path, query or fragment. A provider takes its key from the
+	// profile, so a base URL has no use for credentials.
+	parsed, err := url.Parse(baseURL)
+	if err != nil || strings.ContainsAny(baseURL, "@?#") || parsed.User != nil {
+		return &onesie.ValidationError{Message: refusedBaseURL}
+	}
+
+	return nil
+}
+
+func withoutCredentials(err error) error {
+	// onesie-go's own check runs inside New, ahead of onesie's, and its message ends with the URL as
+	// given, credentials and all.
+	var invalid *onesie.ValidationError
+	if errors.As(err, &invalid) && strings.Contains(invalid.Message, "@") {
+		return &onesie.ValidationError{Question: invalid.Question, Message: refusedBaseURL}
+	}
+
+	return err
 }
 
 func ignoringResolution(newClient clientFactory) resolvedClientFactory {

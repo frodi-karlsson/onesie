@@ -73,7 +73,7 @@ func authSet(cmd *cobra.Command, settings rootSettings, flags *runFlags, opts se
 	// Ahead of the read, so a typo costs the user nothing and leaves no file behind. onesie.New owns
 	// the same check, and a second one here would be a second message to keep in step.
 	if hasBaseURL {
-		if invalid := onesie.ValidateBaseURL(baseURL); invalid != nil {
+		if invalid := validBaseURL(baseURL); invalid != nil {
 			return invalid
 		}
 	}

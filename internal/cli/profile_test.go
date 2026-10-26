@@ -25,11 +25,12 @@ const (
 	key15 = "SECRET-01234567"
 	key16 = "SECRET-012345678"
 
-	keychainNone        = "none"
-	keychainTimeout     = "timeout"
-	keychainStalled     = "stalled"
-	keychainUnreadable  = "unreadable"
-	keychainUndeletable = "undeletable"
+	keychainNone         = "none"
+	keychainTimeout      = "timeout"
+	keychainStalled      = "stalled"
+	keychainUnreadable   = "unreadable"
+	keychainUndeletable  = "undeletable"
+	keychainUnrestorable = "unrestorable"
 )
 
 func TestNewProfileCmd(t *testing.T) {
@@ -341,6 +342,21 @@ func TestProfileCreate(t *testing.T) {
 			wantNoFile:  true,
 		},
 		{
+			name:        "should refuse a base url with credentials on a scheme it does not take",
+			args:        []string{"profile", "create", "work", "--provider", "typesafe", "--base-url", "ftp://u:SECRET-pw@proxy.example"},
+			stdinUnread: true,
+			wantCode:    ExitUsage,
+			wantErr:     []string{"onesie: " + refusedBaseURL},
+			wantNoFile:  true,
+		},
+		{
+			name:  "should accept an escaped @ in the path of a base url",
+			args:  []string{"profile", "create", "work", "--provider", "typesafe", "--base-url", "https://proxy.example/a%40b", "--file"},
+			stdin: key16 + "\n",
+			wantFile: `{"default":"work","profiles":{"work":{"provider":"typesafe","api_key":"` + key16 +
+				`","base_url":"https://proxy.example/a%40b"}}}`,
+		},
+		{
 			name:        "should refuse an account id on a provider other than cloudflare",
 			args:        []string{"profile", "create", "work", "--provider", "openrouter", "--account-id", testAccountID},
 			stdinUnread: true,
@@ -485,6 +501,17 @@ func TestProfileCreate(t *testing.T) {
 		},
 	}
 
+	for _, unclear := range unclearBaseURLs() {
+		tests = append(tests, profileCase{
+			name:        "should refuse a base url " + unclear.name + " before reading the key",
+			args:        []string{"profile", "create", "work", "--provider", "typesafe", "--base-url", unclear.url},
+			stdinUnread: true,
+			wantCode:    ExitUsage,
+			wantErr:     []string{"onesie: " + refusedBaseURL},
+			wantNoFile:  true,
+		})
+	}
+
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -492,6 +519,28 @@ func TestProfileCreate(t *testing.T) {
 			runProfileCase(t, tc)
 		})
 	}
+
+	t.Run("should keep exit 2 for a failed save when stderr is a closed pipe", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+
+		root := NewRootCmd(BuildInfo{Version: "1.2.3"},
+			WithStdin(strings.NewReader(key16+"\n")),
+			WithStdinTTY(false),
+			WithStdoutTTY(false),
+			WithLookupEnv(lookupFrom(map[string]string{"ONESIE_CONFIG_DIR": dir})),
+			WithKeychain(undeletableKeychain{workingKeychain(nil)}),
+			WithCredentialStore(creds.NewStore(failingWrite...)))
+
+		root.SetOut(io.Discard)
+		root.SetErr(closedPipe{})
+		root.SetArgs([]string{"profile", "create", "work", "--provider", "typesafe"})
+
+		if code := Execute(t.Context(), root); code != ExitUsage {
+			t.Errorf("exit code = %d, want %d", code, ExitUsage)
+		}
+	})
 
 	t.Run("should exit 130 on an interrupt while stdin has not ended", func(t *testing.T) {
 		t.Parallel()
@@ -764,6 +813,23 @@ func TestProfileUpdate(t *testing.T) {
 			wantItems: map[string]string{"typesafe": key15, "typesafe@{hash}": newKey},
 		},
 		{
+			name:     "should say the item holds the new key when the old one cannot be put back",
+			file:     work,
+			items:    workItems,
+			keychain: keychainUnrestorable,
+			store:    failingWrite,
+			args:     []string{"profile", "update", "work", "--key"},
+			stdin:    newKey + "\n",
+			wantCode: ExitUsage,
+			wantErr: []string{
+				"the disk is full",
+				"The keychain item work@{hash} now holds the new key, and its old key could not be put back",
+			},
+			notErr:    []string{"left behind"},
+			wantFile:  work,
+			wantItems: map[string]string{"work@{hash}": newKey},
+		},
+		{
 			name:      "should delete the new item when the file cannot be written",
 			file:      converted,
 			items:     map[string]string{"typesafe": key15},
@@ -831,6 +897,17 @@ func TestProfileUpdate(t *testing.T) {
 			stdin: newKey + "\n",
 			wantFile: `{"default":"ts","profiles":{"ts":{"provider":"openrouter","api_key":"` + newKey +
 				`","base_url":"https://proxy.example","model":"jev-1.13.0"}}}`,
+		},
+		{
+			name:        "should refuse a base url that holds a fragment before reading the key",
+			file:        work,
+			items:       workItems,
+			args:        []string{"profile", "update", "work", "--base-url", "https://proxy.example/v1#SECRET-x", "--key"},
+			stdinUnread: true,
+			wantCode:    ExitUsage,
+			wantErr:     []string{"onesie: " + refusedBaseURL},
+			wantFile:    work,
+			wantItems:   workItems,
 		},
 		{
 			name:        "should refuse a result that breaks a rule before reading the key",
@@ -1264,13 +1341,12 @@ func TestProfileShow(t *testing.T) {
 			noKeychainCalls: true,
 		},
 		{
-			name: "should leave the userinfo out of base_url",
+			name: "should accept an escaped @ in the path of base_url",
 			file: `{"default":"ts","profiles":{"ts":{"provider":"typesafe","api_key":"SECRET-TS-0123456789",` +
-				`"base_url":"https://user:SECRET-TOKEN@proxy.example/v1"}}}`,
+				`"base_url":"https://proxy.example/a%40b"}}}`,
 			args: []string{"profile", "show"},
 			wantOut: "profile: ts\nprovider: typesafe\nchosen by: the default\nkey: file, ends in 6789\n" +
-				"model: the provider's\nbase_url: https://proxy.example/v1\n",
-			notErr: []string{"SECRET-TOKEN", "user"},
+				"model: the provider's\nbase_url: https://proxy.example/a%40b\n",
 		},
 		{
 			name:     "should refuse a missing profile",
@@ -1279,6 +1355,17 @@ func TestProfileShow(t *testing.T) {
 			wantCode: ExitUsage,
 			wantErr:  []string{"onesie: there is no profile named 'nope'. The profiles are cf, cfa, personal, work"},
 		},
+	}
+
+	for _, unclear := range unclearBaseURLs() {
+		tests = append(tests, profileCase{
+			name: "should refuse a base url " + unclear.name,
+			file: `{"default":"ts","profiles":{"ts":{"provider":"typesafe","api_key":"SECRET-TS-0123456789",` +
+				`"base_url":"` + unclear.url + `"}}}`,
+			args:     []string{"profile", "show"},
+			wantCode: ExitUsage,
+			wantErr:  []string{"onesie: " + refusedBaseURL},
+		})
 	}
 
 	for _, tc := range tests {
@@ -1415,6 +1502,14 @@ func TestProfileTest(t *testing.T) {
 			items:    map[string]string{"work@abc": ""},
 			wantCode: ExitAuth,
 			wantErr:  "the keychain holds no key",
+		},
+		{
+			name: "should leave the userinfo out of a base url the client refuses",
+			profiles: `{"default":"work","profiles":{"work":{"provider":"typesafe","api_key":"` + fileKey +
+				`","base_url":"ftp://u:SECRET-pw@proxy.example"}}}`,
+			args:     []string{"profile", "test"},
+			wantCode: ExitUsage,
+			wantErr:  "onesie: " + refusedBaseURL + "\n",
 		},
 		{
 			name:     "should exit 2 with no key and name profile create",
@@ -1637,6 +1732,8 @@ func runProfileCase(t *testing.T, tc profileCase) {
 		opts = append(opts, WithKeychain(unreadableKeychain{chain}))
 	case keychainUndeletable:
 		opts = append(opts, WithKeychain(undeletableKeychain{chain}))
+	case keychainUnrestorable:
+		opts = append(opts, WithKeychain(&unrestorableKeychain{fakeKeychain: chain}))
 	}
 
 	if tc.store != nil {
@@ -1849,4 +1946,46 @@ type undeletableKeychain struct {
 
 func (undeletableKeychain) Delete(string) error {
 	return &creds.KeychainError{Op: "remove the key from", Err: errors.New("the keychain is locked")}
+}
+
+type unrestorableKeychain struct {
+	*fakeKeychain
+
+	sets int
+}
+
+func (k *unrestorableKeychain) Set(account, key string) error {
+	k.sets++
+	if k.sets > 1 {
+		return &creds.KeychainError{Op: "store the key in", Err: errors.New("the keychain is locked")}
+	}
+
+	return k.fakeKeychain.Set(account, key)
+}
+
+type closedPipe struct{}
+
+func (closedPipe) Write([]byte) (int, error) {
+	return 0, io.ErrClosedPipe
+}
+
+func unclearBaseURLs() []unclearBaseURL {
+	return []unclearBaseURL{
+		{name: "whose password holds an unescaped slash", url: "https://user:SECRET-ab/cd@proxy.example/v1"},
+		{name: "whose password holds an invalid escape", url: "https://u:SECRET-p%zz@proxy.example"},
+		{name: "whose password starts with digits and a slash", url: "https://user:1/SECRET-a@proxy.example"},
+		{name: "whose password starts with a slash", url: "http://user:/SECRET-c@proxy.example"},
+		{name: "with an @ in its path", url: "https://proxy.example/a@b"},
+		{name: "with userinfo and no scheme", url: "u:SECRET-pw@proxy.example"},
+		{name: "whose first // is not after a scheme", url: "u:SECRET-a@proxy.example//v1"},
+		{name: "whose scheme has one slash", url: "https:/u:SECRET-b@h//v1"},
+		{name: "with a user and a password", url: "https://user:SECRET-TOKEN@proxy.example/v1"},
+		{name: "with a token as the user", url: "http://SECRET-TOKEN@proxy.example"},
+		{name: "with an escaped colon in the user", url: "https://u%3ASECRET-p@proxy.example"},
+	}
+}
+
+type unclearBaseURL struct {
+	name string
+	url  string
 }

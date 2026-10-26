@@ -618,6 +618,22 @@ func TestAuthSet(t *testing.T) {
 			wantCode:   ExitUsage,
 		},
 		{
+			name:       "should refuse a base url with credentials",
+			args:       []string{"--base-url", "ftp://u:SECRET-pw@proxy.example"},
+			stdin:      "SECRET-STDIN\n",
+			wantErr:    "onesie: " + refusedBaseURL,
+			wantNoFile: true,
+			wantCode:   ExitUsage,
+		},
+		{
+			name:       "should refuse a base url that holds a query",
+			args:       []string{"--base-url", "https://u:1?SECRET-x@proxy.example"},
+			stdin:      "SECRET-STDIN\n",
+			wantErr:    "onesie: " + refusedBaseURL,
+			wantNoFile: true,
+			wantCode:   ExitUsage,
+		},
+		{
 			name:       "should reject a base url with no host",
 			args:       []string{"--base-url", "https://"},
 			stdin:      "SECRET-STDIN\n",

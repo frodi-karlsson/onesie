@@ -1980,8 +1980,13 @@ func TestDefaultClientFactory(t *testing.T) {
 			name    string
 			baseURL string
 			warns   bool
+			refused bool
 		}{
 			{name: "should warn for a remote host", baseURL: "http://onesie.invalid", warns: true},
+			{
+				name:    "should refuse rather than warn for a base url with credentials",
+				baseURL: "http://user:SECRET-pw@onesie.invalid/v1", refused: true,
+			},
 			{name: "should not warn for https", baseURL: "https://onesie.invalid"},
 			{name: "should not warn for localhost", baseURL: "http://localhost:1"},
 			{name: "should not warn for a loopback address", baseURL: "http://127.0.0.1:1"},
@@ -2012,6 +2017,14 @@ func TestDefaultClientFactory(t *testing.T) {
 
 				cli.Execute(t.Context(), root)
 
+				if strings.Contains(errOut.String(), "SECRET-") {
+					t.Error("stderr carries the base URL's password")
+				}
+
+				if refusal := "must be a plain URL with no credentials"; tc.refused != strings.Contains(errOut.String(), refusal) {
+					t.Errorf("stderr = %q, want the refusal %v", errOut.String(), tc.refused)
+				}
+
 				want := "warning: " + tc.baseURL + " is plain http, so the API key crosses the network " +
 					"unencrypted\n"
 				if got := strings.Count(errOut.String(), want); got != map[bool]int{true: 1, false: 0}[tc.warns] {
@@ -2035,11 +2048,17 @@ func TestDefaultClientFactory(t *testing.T) {
 			flag     string
 			env      string
 			stored   string
+			userinfo string
 			spelled  string
 			wantWarn bool
+			refused  bool
 		}{
 			{name: "should warn for --base-url ending in /v1", flag: "/v1", spelled: "--base-url", wantWarn: true},
 			{name: "should warn for --base-url ending in /v1/", flag: "/v1/", spelled: "--base-url", wantWarn: true},
+			{
+				name: "should refuse rather than warn for a base url with credentials", flag: "/v1",
+				userinfo: "user:SECRET-pw@", refused: true,
+			},
 			{name: "should warn for TYPESAFE_BASE_URL ending in /v1", env: "/v1", spelled: onesie.EnvBaseURL, wantWarn: true},
 			{
 				name: "should name the credential file for a stored base URL ending in /v1", stored: "/v1",
@@ -2074,7 +2093,7 @@ func TestDefaultClientFactory(t *testing.T) {
 				}
 
 				if tc.flag != "" {
-					args = append(args, "--base-url", srv.URL+tc.flag)
+					args = append(args, "--base-url", strings.Replace(srv.URL, "//", "//"+tc.userinfo, 1)+tc.flag)
 				}
 
 				if tc.env != "" {
@@ -2102,6 +2121,14 @@ func TestDefaultClientFactory(t *testing.T) {
 				root.SetArgs(args)
 
 				cli.Execute(t.Context(), root)
+
+				if strings.Contains(errOut.String(), "SECRET-") {
+					t.Error("stderr carries the base URL's password")
+				}
+
+				if refusal := "must be a plain URL with no credentials"; tc.refused != strings.Contains(errOut.String(), refusal) {
+					t.Errorf("stderr = %q, want the refusal %v", errOut.String(), tc.refused)
+				}
 
 				want := "warning: " + tc.spelled + " ends in /v1 and onesie adds the API path itself, " +
 					"so requests go to " + srv.URL + "/v1/v1/systemone\n"
