@@ -139,7 +139,7 @@ onesie 'is this ticket urgent' --state 'the server is down'
 
 ### Attach an image with --image NAME=PATH and name it in backticks, and pair a --box with a yes or no question.
 
-onesie never reads an image from stdin beside --image, so text joins it only from --state, --state-file or --state -. TypeSafe calls images and Box dreamer ready, an experimental stage, so expect them to be less reliable than text. A Box always returns a box, even when the target is not in the image, so ask a yes or no question about whether it is there in the same call and read the box only when it says yes. -r prints a box as left, top, right and bottom, each a fraction of the image from its top left corner. TypeSafe and OpenRouter read images and Box. Levanto and Berget refuse both before any request.
+For one record, onesie reads stdin beside --image only through --state -, so text joins the image only from --state, --state-file or --state -. A stream, -i jsonl, lines, csv or tsv, still reads its records from stdin and adds the image to each. TypeSafe calls images and Box dreamer ready, an experimental stage, so expect them to be less reliable than text. A Box always returns a box, even when the target is not in the image, so ask a yes or no question about whether it is there in the same call and read the box only when it says yes. -r prints a box as left, top, right and bottom, each a fraction of the image from its top left corner. TypeSafe and OpenRouter read images and Box. Levanto and Berget refuse both before any request.
 
 **Bad:**
 

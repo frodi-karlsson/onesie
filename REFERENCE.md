@@ -354,14 +354,15 @@ ls photos/*.jpg | onesie -i lines --image-field photo 'is there a dog in `photo`
 
 - `--image NAME=PATH` puts a PNG or JPEG in the state under `NAME`, and a question names it in
   backticks. It is repeatable.
-- stdin is never read beside `--image`, so text joins it only from `--state`, `--state-file` or
-  `--state -`. Text goes under the key `text`, a JSON object gains the image keys, and a key clash or
-  an array state exits 2. An `-i` given beside `--image` with neither `--state` nor `--state-file`
-  exits 2, since there is no stdin for it to read, and names `--state -`.
+- For one record, stdin is read beside `--image` only through `--state -`, so text joins the image
+  only from `--state`, `--state-file` or `--state -`. Text goes under the key `text`, a JSON object
+  gains the image keys, and a key clash or an array state exits 2. `-i text` or `-i json` beside
+  `--image` with neither `--state` nor `--state-file` exits 2 and names `--state -`.
+- A stream, `-i jsonl`, `-i lines`, `-i csv` or `-i tsv`, reads its records from stdin as usual
+  beside `--image`, and adds the same image to every record.
 - `--image-field NAME` reads each record's `NAME` as a path, in a stream or in `calibrate`. Under
   `-i lines` the line is the path, and only one `--image-field` is taken. A missing or unreadable
-  file is an input error line, and the run goes on and exits 6. `--image` in a stream adds the same
-  image to every record.
+  file is an input error line, and the run goes on and exits 6.
 - onesie checks the format, the file size and the sides of each image before any request, and
   `onesie -V` lists the limits as `max-image-bytes`, `image-side`, `image-pixels` and
   `max-body-bytes`. An `--image` refused there exits 2 and names the limit, and an `--image-field`

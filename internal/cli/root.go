@@ -266,7 +266,8 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 	root.Flags().StringVar(&flags.stateFile, flagStateFile, "", "read the state from this file")
 	root.Flags().StringArrayVar(&flags.images, flagImage, nil,
 		"NAME=PATH, repeatable, puts a PNG or JPEG in the state under NAME, experimental on TypeSafe's side. "+
-			"stdin is never read beside it, so text joins it only from --state, --state-file or --state -")
+			"For one record stdin is read beside it only through --state -, so text joins it from --state, "+
+			"--state-file or --state -. A stream reads its records from stdin and adds the image to each")
 	root.Flags().StringArrayVar(&flags.imageFields, flagImageField, nil,
 		"streaming only, repeatable, a state key whose value is a path to a PNG or JPEG, read per record. "+
 			"Under -i lines the line is the path. Experimental on TypeSafe's side")

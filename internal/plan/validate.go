@@ -669,8 +669,8 @@ func checkSingleRecord(cfg Config) (string, error) {
 	}
 
 	if cfg.HasInput && cfg.HasImage && !cfg.HasState && !cfg.HasStateFile {
-		return "", fmt.Errorf("onesie: -i %s reads stdin, which --image never reads. "+
-			"Pass --state - to read the state from stdin beside it", cfg.InputName)
+		return "", fmt.Errorf("onesie: -i %s holds one record, which beside --image reads stdin only through "+
+			"--state -. Pass --state - to read the state from stdin", cfg.InputName)
 	}
 
 	if cfg.Jobs > 1 {

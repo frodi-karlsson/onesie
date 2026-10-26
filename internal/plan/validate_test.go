@@ -743,7 +743,7 @@ func TestValidate(t *testing.T) {
 			name:       "should reject -i beside --image with no state flag",
 			positional: "is this urgent",
 			cfg:        plan.Config{HasInput: true, HasImage: true, InputName: "json"},
-			wantErr:    "-i json reads stdin, which --image never reads. Pass --state - to read the state from stdin beside it",
+			wantErr:    "-i json holds one record, which beside --image reads stdin only through --state -. Pass --state - to read the state from stdin",
 		},
 		{
 			name:       "should accept -i beside --image under --state",

@@ -281,7 +281,7 @@ func TestRun(t *testing.T) {
 			args:     []string{"-i", "json", "--image", "photo=" + square, "q", "--print-request"},
 			stdin:    `{"a":1}`,
 			wantCode: ExitUsage,
-			wantErr:  "onesie: -i json reads stdin, which --image never reads. Pass --state - to read the state from stdin beside it\n",
+			wantErr:  "onesie: -i json holds one record, which beside --image reads stdin only through --state -. Pass --state - to read the state from stdin\n",
 			emptyOut: true,
 		},
 		{
