@@ -44,7 +44,7 @@ A run uses one profile, or none. The choice comes from, strongest first:
 2. `ONESIE_PROFILE` or `ONESIE_PROVIDER`.
 3. The default in `profiles.json`, which `onesie profile use NAME` sets.
 
-Two choices of the same strength exit 2. With no choice and no profiles, a run uses typesafe. A
+Two choices of the same strength exit 2, unless a stronger one is given. With no choice and no profiles, a run uses typesafe. A
 profile's key comes from the profile alone, in the OS keychain or in `profiles.json`, which lives
 in `$ONESIE_CONFIG_DIR`, then `$XDG_CONFIG_HOME/onesie`, then, on Windows, `%APPDATA%\onesie`, and
 otherwise `~/.config/onesie`. `--provider` or `ONESIE_PROVIDER` runs without a profile, and the key
@@ -98,6 +98,7 @@ Exit 3 also covers these:
 | `takes no images or box questions` | the provider, Levanto or Berget, reads neither. Ask with `--provider typesafe`, `--provider openrouter`, or for images alone `--provider cloudflare` |
 | `takes no box questions` or `takes no long context` | the provider's model reads images but not that. Ask with `--provider typesafe` |
 | `no cloudflare account id` | cloudflare has a token and no account. Set `CLOUDFLARE_ACCOUNT_ID`, or store one in the profile with `onesie profile update NAME --account-id ACCOUNT_ID` |
+| `must be a plain URL with no credentials` | the base URL from `--base-url`, `TYPESAFE_BASE_URL` or a profile's `base_url` holds credentials, `@`, `?` or `#`. Pass the API root alone, and keep the key in a profile or the provider's key variable |
 | `Insufficient balance` | Cloudflare's AI Gateway has no credits for Jev. Add credits, or ask Clef with `-m clef-flash`, which runs on the free allowance |
 | `No such model` | Workers AI does not serve that model id. Clef's are `clef`, `clef-flash` and `clef-omni`. Try `--list-models` |
 | `A box question needs a model that serves it` | the model refused a `--box` question on TypeSafe. Pass `-m jev-preview` |
