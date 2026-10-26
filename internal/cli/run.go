@@ -1372,6 +1372,7 @@ func outputName(flags *runFlags) string {
 }
 
 type runFlags struct {
+	version     bool
 	provider    string
 	providerSet bool
 	profile     string

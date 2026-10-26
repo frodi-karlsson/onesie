@@ -407,6 +407,27 @@ func TestNewRootCmd(t *testing.T) {
 			},
 		},
 		{
+			name:     "should refuse a word beside the version flag",
+			args:     []string{"-V", "extra"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: -V takes no question, got 'extra'"},
+			absent:   []string{"onesie 1.2.3"},
+		},
+		{
+			name:     "should show --box in the help as a switch that takes no value",
+			args:     []string{"--help"},
+			wantCode: cli.ExitOK,
+			contains: []string{"      --box      "},
+			absent:   []string{"--box string"},
+		},
+		{
+			name:     "should show --box in the calibrate help as a switch that takes no value",
+			args:     []string{"calibrate", "--help"},
+			wantCode: cli.ExitOK,
+			contains: []string{"      --box      "},
+			absent:   []string{"--box string"},
+		},
+		{
 			name:     "should list --mock in the calibrate help",
 			args:     []string{"calibrate", "--help"},
 			wantCode: cli.ExitOK,

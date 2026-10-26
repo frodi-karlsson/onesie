@@ -833,5 +833,6 @@ table, and `onesie calibrate --help` lists the codes calibrate uses.
   slower and less accurate. It is written into a printed body as `long_context`, so a replay keeps
   it, and a `-f` body's `long_context: true` turns it on with no flag. A body's `false` does not
   turn off the flag or the variable. It is experimental on TypeSafe's side.
-- `onesie --help` lists every flag, and `onesie -V` prints the built in limits. `onesie help
+- `onesie --help` lists every flag, and `onesie -V` prints the built in limits. `-V` takes no
+  question, so a word beside it exits 2. `onesie help
   calibrate` prints a subcommand's help, and a topic that names no subcommand exits 2.

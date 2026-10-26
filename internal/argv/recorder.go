@@ -14,9 +14,15 @@ func (r *Recorder) Flag(name string) pflag.Value {
 	return &recorded{recorder: r, name: name}
 }
 
+// Switch returns a pflag value like Flag's for a flag that takes no value, so the help shows none.
+func (r *Recorder) Switch(name string) pflag.Value {
+	return &recorded{recorder: r, name: name, switched: true}
+}
+
 type recorded struct {
 	recorder *Recorder
 	name     string
+	switched bool
 }
 
 // Recorder collects flag occurrences in argv order. pflag calls Set left to right, which is the
@@ -48,5 +54,10 @@ func (v *recorded) String() string {
 }
 
 func (v *recorded) Type() string {
+	// pflag prints a bool flag whose NoOptDefVal is true with no value at all.
+	if v.switched {
+		return "bool"
+	}
+
 	return "string"
 }

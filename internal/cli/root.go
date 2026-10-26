@@ -154,8 +154,7 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 			"first, as in onesie -o json -- '-is this urgent'. So does a one word question close to " +
 			"a subcommand name, since onesie questoins exits 2 and names questions as the closest.\n\n" +
 			exitCodesSection(rootExitCodes),
-		Version: info.Version,
-		Args:    atMostOneQuestion,
+		Args: atMostOneQuestion,
 		// Cobra otherwise buries every returned error under the full help text. Execute owns the
 		// reporting instead.
 		SilenceUsage:  true,
@@ -164,6 +163,11 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 			defer func() {
 				err = withKeyHint(withDashQuestionHint(err, cmd.Flags(), settings.args, args), settings)
 			}()
+
+			// Not cobra's own version flag, which prints before any argument is checked.
+			if flags.version {
+				return printVersion(cmd, info, args)
+			}
 
 			positional := ""
 			if len(args) == 1 {
@@ -228,12 +232,11 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 
 	// Cobra would claim the lowercase -v for --version, and onesie spells it -V. Registering it
 	// here takes the name before cobra reaches for a shorthand of its own.
-	root.Flags().BoolP("version", "V", false, "print the version and the built in limits")
+	root.Flags().BoolVarP(&flags.version, "version", "V", false, "print the version and the built in limits")
 	asksNothing(root.Flags(), "version")
-	root.SetVersionTemplate("{{.Name}} {{.Version}}\n" + limitsBlock())
 
 	for name, help := range groupFlagHelp {
-		root.Flags().Var(recorder.Flag(name), name, help)
+		root.Flags().Var(groupFlag(recorder, name), name, help)
 	}
 
 	// A recorded flag is a string, so without this --box would take the next argument as its value.
@@ -458,6 +461,24 @@ func plainArgErrors(cmd *cobra.Command) {
 
 		return &plainError{cause: err, message: fmt.Sprintf("onesie: %s takes no argument, got '%s'", name, args[0])}
 	}
+}
+
+func groupFlag(recorder *argv.Recorder, name string) pflag.Value {
+	if name == "box" {
+		return recorder.Switch(name)
+	}
+
+	return recorder.Flag(name)
+}
+
+func printVersion(cmd *cobra.Command, info BuildInfo, args []string) error {
+	if len(args) > 0 {
+		return fmt.Errorf("onesie: -V takes no question, got '%s'", args[0])
+	}
+
+	_, err := fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n%s", cmd.Name(), info.Version, limitsBlock())
+
+	return err
 }
 
 func refuseUnknownHelpTopics(root *cobra.Command) {
