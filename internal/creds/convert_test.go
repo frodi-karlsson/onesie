@@ -292,9 +292,11 @@ func TestStoreOpenProfiles(t *testing.T) {
 		_, err := creds.NewStore().OpenProfiles(dir)
 
 		var invalid *creds.InvalidProfilesError
+		want := "credentials.json cannot become profiles. Its entry 'nope' is not a provider. Use typesafe, " +
+			"openrouter, berget, levanto or cloudflare"
 		if !errors.As(err, &invalid) || !strings.Contains(err.Error(), "credential file") ||
-			!strings.Contains(err.Error(), "credentials.json") {
-			t.Fatalf("error = %v, want an InvalidProfilesError naming the credential file", err)
+			!strings.Contains(err.Error(), want) || strings.Contains(err.Error(), "profile 'nope'") {
+			t.Fatalf("error = %v, want an InvalidProfilesError naming the credential file and its entry", err)
 		}
 	})
 }

@@ -455,7 +455,7 @@ func TestProfileCreate(t *testing.T) {
 			args:     []string{"profile", "create", "work", "--provider", "typesafe", "--file"},
 			stdin:    key16 + "\n",
 			wantCode: ExitAuth,
-			wantErr:  []string{"is accessible by others, mode 644"},
+			wantErr:  []string{"is readable or writable by its group or others, mode 644"},
 		},
 		{
 			name: "should refuse a profiles file with an unknown member",
@@ -464,7 +464,7 @@ func TestProfileCreate(t *testing.T) {
 			args:     []string{"profile", "create", "work", "--provider", "typesafe", "--file"},
 			stdin:    key16 + "\n",
 			wantCode: ExitUsage,
-			wantErr:  []string{`json: unknown field "mod` + `le"`},
+			wantErr:  []string{"is invalid. Profile 'home' has an unknown member 'mod" + "le'"},
 		},
 		{
 			name:  "should convert credentials.json and keep its profiles beside the new one",
@@ -1234,7 +1234,7 @@ func TestProfileList(t *testing.T) {
 			unixOnly: true,
 			args:     []string{"profile", "list"},
 			wantCode: ExitAuth,
-			wantErr:  []string{"is accessible by others, mode 644"},
+			wantErr:  []string{"is readable or writable by its group or others, mode 644"},
 		},
 		{
 			name: "should print a model with non-ASCII characters whole",

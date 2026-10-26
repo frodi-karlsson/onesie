@@ -371,8 +371,7 @@ func (s Store) checkMode(path, kind string, mode os.FileMode) error {
 	}
 
 	// 0o077 rather than 0o044. A group writable profiles.json or credentials.json is as bad as a
-	// readable one, since whoever can replace it can substitute a key whose traffic they see. The
-	// message says accessible rather than readable because of it.
+	// readable one, since whoever can replace it can substitute a key whose traffic they see.
 	if mode.Perm()&0o077 == 0 {
 		return nil
 	}
@@ -391,5 +390,5 @@ type ReadableError struct {
 // Error names the path and the mode, never the contents.
 func (e *ReadableError) Error() string {
 	return fmt.Sprintf(
-		"onesie: %s %s is accessible by others, mode %o. Run chmod 600 on it", e.Kind, e.Path, e.Mode)
+		"onesie: %s %s is readable or writable by its group or others, mode %o. Run chmod 600 on it", e.Kind, e.Path, e.Mode)
 }

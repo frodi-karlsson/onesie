@@ -172,12 +172,12 @@ func TestResolveRun(t *testing.T) {
 		{
 			name: "should exit 3 on --print-request when profiles.json is open to others", file: openrouterWork,
 			mode: 0o644, unixOnly: true, args: asking("--print-request"), wantCode: ExitAuth,
-			wantErr: []string{"profiles file", "is accessible by others, mode 644"},
+			wantErr: []string{"profiles file", "is readable or writable by its group or others, mode 644"},
 		},
 		{
 			name: "should exit 3 under --mock when profiles.json is open to others", file: openrouterWork,
 			mode: 0o644, unixOnly: true, args: asking("--mock", mock), wantCode: ExitAuth,
-			wantErr: []string{"is accessible by others, mode 644"},
+			wantErr: []string{"is readable or writable by its group or others, mode 644"},
 		},
 		{
 			name: "should refuse an empty --profile", args: asking("--print-request", "--profile", ""),
@@ -221,13 +221,13 @@ func TestResolveRun(t *testing.T) {
 			name: "should keep the unknown provider error when profiles.json cannot be read for the hint",
 			file: openrouterWork, mode: 0o644, unixOnly: true, args: asking("--print-request", "--provider", "work"),
 			wantCode: ExitUsage, wantErr: []string{"onesie: unknown provider work"},
-			notErr: []string{"is a profile", "is accessible by others"},
+			notErr: []string{"is a profile", "is readable or writable by its group or others"},
 		},
 		{
 			name: "should keep the missing key error when profiles.json cannot be read for the hint",
 			file: openrouterWork, mode: 0o644, unixOnly: true, args: asking("--provider", "openrouter", "-r"),
 			wantCode: ExitUsage, wantErr: []string{"no API key. Set OPENROUTER_API_KEY"},
-			notErr: []string{"--profile work", "is accessible by others"},
+			notErr: []string{"--profile work", "is readable or writable by its group or others"},
 		},
 		{
 			name: "should convert credentials.json on --print-request", old: oldTypesafe,

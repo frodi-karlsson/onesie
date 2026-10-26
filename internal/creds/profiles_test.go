@@ -242,7 +242,28 @@ func TestStoreLoadProfiles(t *testing.T) {
 			name:     "should refuse an unknown member",
 			contents: `{"profiles":{"work":{"provider":"typesafe","api_key":"k","extra":"m"}}}`,
 			mode:     0o600,
-			wantErr:  `unknown field "extra"`,
+			wantErr:  "is invalid. Profile 'work' has an unknown member 'extra'",
+			invalid:  true,
+		},
+		{
+			name:     "should refuse an unknown member at the top level",
+			contents: `{"profiles":{},"extra":"m"}`,
+			mode:     0o600,
+			wantErr:  "is invalid. The file has an unknown member 'extra'",
+			invalid:  true,
+		},
+		{
+			name:     "should refuse a member of the wrong type, naming the profile and the member",
+			contents: `{"profiles":{"work":{"provider":3,"api_key":"k"}}}`,
+			mode:     0o600,
+			wantErr:  "is invalid. Profile 'work' has a provider that is a number, not a string",
+			invalid:  true,
+		},
+		{
+			name:     "should refuse a top level member of the wrong type",
+			contents: `{"profiles":[]}`,
+			mode:     0o600,
+			wantErr:  "is invalid. The file has a profiles that is an array, not an object",
 			invalid:  true,
 		},
 		{
@@ -277,7 +298,7 @@ func TestStoreLoadProfiles(t *testing.T) {
 			name:     "should refuse a file that breaks a rule, naming the file",
 			contents: `{"profiles":{"work":{"provider":"typesafe"}}}`,
 			mode:     0o600,
-			wantErr:  "profile 'work' needs its key in exactly one place",
+			wantErr:  "profiles.json is invalid. Profile 'work' needs its key in exactly one place",
 			invalid:  true,
 		},
 		{

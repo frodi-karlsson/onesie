@@ -7,8 +7,10 @@ import (
 	"fmt"
 	"io"
 	"maps"
+	"reflect"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/frodi-karlsson/onesie-go"
@@ -34,28 +36,35 @@ func (s Store) LoadProfiles(path string) (profiles Profiles, found bool, err err
 	}
 
 	profiles, err = decodeProfiles(data)
-	if err != nil {
+
+	var misfit *misfitError
+
+	switch {
+	case errors.As(err, &misfit):
+		return Profiles{}, false, invalidFile(path, profilesKind, "is invalid", misfit.Error())
+	case err != nil:
 		return Profiles{}, false, &InvalidProfilesError{
-			Path: path, Kind: profilesKind, Reason: "is not a JSON object of profiles" + decodeDetail(err),
+			Path: path, Kind: profilesKind, Reason: "is not a JSON object of profiles",
 		}
 	}
 
 	if ruleErr := profiles.Validate(); ruleErr != nil {
-		return Profiles{}, false, &InvalidProfilesError{Path: path, Kind: profilesKind, Reason: ruleErr.Error()}
+		return Profiles{}, false, invalidFile(path, profilesKind, "is invalid", ruleErr.Error())
 	}
 
 	return profiles, true, nil
 }
 
-func decodeDetail(err error) string {
-	// A syntax error can quote a character of the file, which may be part of a key. A type error
-	// names the field and not the value, so only it and an unknown member are passed on.
-	var typeErr *json.UnmarshalTypeError
-	if errors.As(err, &typeErr) || strings.HasPrefix(err.Error(), "json: unknown field") {
-		return ": " + err.Error()
+func invalidFile(path, kind, verdict, rule string) *InvalidProfilesError {
+	return &InvalidProfilesError{Path: path, Kind: kind, Reason: verdict + ". " + upperFirst(rule)}
+}
+
+func upperFirst(sentence string) string {
+	if sentence == "" {
+		return sentence
 	}
 
-	return ""
+	return strings.ToUpper(sentence[:1]) + sentence[1:]
 }
 
 func decodeProfiles(data []byte) (Profiles, error) {
@@ -63,31 +72,97 @@ func decodeProfiles(data []byte) (Profiles, error) {
 		return Profiles{}, errors.New("not a JSON object")
 	}
 
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	// A misspelled member is refused, not silently dropped.
-	decoder.DisallowUnknownFields()
+	var top struct {
+		Default  string                     `json:"default,omitempty"`
+		Profiles map[string]json.RawMessage `json:"profiles"`
+	}
 
-	var profiles Profiles
-	if err := decoder.Decode(&profiles); err != nil {
-		return Profiles{}, err
+	decoder := strictDecoder(data)
+	if err := decoder.Decode(&top); err != nil {
+		return Profiles{}, misfit(err, "the file")
 	}
 
 	if err := decoder.Decode(&json.RawMessage{}); !errors.Is(err, io.EOF) {
 		return Profiles{}, errors.New("more than one JSON value")
 	}
 
-	if profiles.Profiles == nil {
-		profiles.Profiles = map[string]Profile{}
+	profiles := Profiles{Default: top.Default, Profiles: make(map[string]Profile, len(top.Profiles))}
+
+	// One profile at a time, so a misfit names the profile it is in.
+	for _, name := range slices.Sorted(maps.Keys(top.Profiles)) {
+		var profile Profile
+		if err := strictDecoder(top.Profiles[name]).Decode(&profile); err != nil {
+			return Profiles{}, misfit(err, fmt.Sprintf("profile '%s'", name))
+		}
+
+		profiles.Profiles[name] = profile
 	}
 
 	return profiles, nil
+}
+
+func strictDecoder(data []byte) *json.Decoder {
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	// A misspelled member is refused, not silently dropped.
+	decoder.DisallowUnknownFields()
+
+	return decoder
+}
+
+func misfit(err error, holder string) error {
+	// A syntax error can quote a character of the file, which may be part of a key, so only an
+	// unknown member and a member of the wrong type, which name the member and not its value, are
+	// passed on.
+	var typeErr *json.UnmarshalTypeError
+	if errors.As(err, &typeErr) {
+		return &misfitError{fmt.Sprintf("%s has a %s that is %s, not %s",
+			holder, typeErr.Field, jsonKind(typeErr.Value), goKind(typeErr.Type))}
+	}
+
+	if field, found := strings.CutPrefix(err.Error(), "json: unknown field "); found {
+		if unquoted, unquoteErr := strconv.Unquote(field); unquoteErr == nil {
+			field = unquoted
+		}
+
+		return &misfitError{fmt.Sprintf("%s has an unknown member '%s'", holder, field)}
+	}
+
+	return err
+}
+
+type misfitError struct {
+	rule string
+}
+
+func (e *misfitError) Error() string {
+	return e.rule
+}
+
+func jsonKind(value string) string {
+	switch value {
+	case "array", "object":
+		return "an " + value
+	}
+
+	return "a " + value
+}
+
+func goKind(t reflect.Type) string {
+	switch t.Kind() {
+	case reflect.String:
+		return "a string"
+	case reflect.Map, reflect.Struct:
+		return "an object"
+	}
+
+	return "a " + t.String()
 }
 
 // SaveProfiles validates the profiles and writes them atomically through a renamed temporary file,
 // replacing a symlink at path. A non nil warning means the file was written but its mode could not be set.
 func (s Store) SaveProfiles(path string, profiles Profiles) (*ModeWarning, error) {
 	if err := profiles.Validate(); err != nil {
-		return nil, &InvalidProfilesError{Path: path, Kind: profilesKind, Reason: err.Error()}
+		return nil, invalidFile(path, profilesKind, "would be invalid", err.Error())
 	}
 
 	if profiles.Profiles == nil {
@@ -106,12 +181,16 @@ func (s Store) SaveProfiles(path string, profiles Profiles) (*ModeWarning, error
 
 // Validate reports the first rule the profiles break, checking profiles in name order.
 func (p Profiles) Validate() error {
+	return p.validateAs(func(name string) string { return fmt.Sprintf("profile '%s'", name) })
+}
+
+func (p Profiles) validateAs(subject func(name string) string) error {
 	for _, name := range slices.Sorted(maps.Keys(p.Profiles)) {
 		if err := ValidName(name); err != nil {
 			return err
 		}
 
-		if err := p.Profiles[name].validate(name); err != nil {
+		if err := p.Profiles[name].validate(subject(name)); err != nil {
 			return err
 		}
 	}
@@ -123,16 +202,16 @@ func (p Profiles) Validate() error {
 	return nil
 }
 
-func (p Profile) validate(name string) error {
+func (p Profile) validate(subject string) error {
 	if p.Provider == "" {
-		return fmt.Errorf("profile '%s' names no provider", name)
+		return fmt.Errorf("%s names no provider", subject)
 	}
 
 	provider, err := onesie.ProviderNamed(p.Provider)
 	if err != nil || provider.Name != p.Provider {
 		return fmt.Errorf(
-			"profile '%s' names provider '%s', which is not typesafe, openrouter, berget, levanto or cloudflare",
-			name, p.Provider)
+			"%s names provider '%s', which is not typesafe, openrouter, berget, levanto or cloudflare",
+			subject, p.Provider)
 	}
 
 	inFile := strings.TrimSpace(p.APIKey) != "" && p.Store == "" && p.Account == ""
@@ -140,12 +219,12 @@ func (p Profile) validate(name string) error {
 
 	if !inFile && !inKeychain {
 		return fmt.Errorf(
-			"profile '%s' needs its key in exactly one place, a non empty api_key or store keychain with an account",
-			name)
+			"%s needs its key in exactly one place, a non empty api_key or store keychain with an account",
+			subject)
 	}
 
 	if len(p.KeyEnd) > keyEndLength {
-		return fmt.Errorf("profile '%s' has a key_end longer than %d characters", name, keyEndLength)
+		return fmt.Errorf("%s has a key_end longer than %d characters", subject, keyEndLength)
 	}
 
 	if p.AccountID == "" {
@@ -153,15 +232,15 @@ func (p Profile) validate(name string) error {
 	}
 
 	if provider.EnvAccountID == "" {
-		return fmt.Errorf("profile '%s' has account_id, which only cloudflare takes", name)
+		return fmt.Errorf("%s has account_id, which only cloudflare takes", subject)
 	}
 
 	if !accountIDPattern.MatchString(p.AccountID) {
-		return fmt.Errorf("profile '%s' has an account_id that is not 32 hexadecimal characters", name)
+		return fmt.Errorf("%s has an account_id that is not 32 hexadecimal characters", subject)
 	}
 
 	if p.BaseURL != "" {
-		return fmt.Errorf("profile '%s' has both base_url and account_id. Keep one", name)
+		return fmt.Errorf("%s has both base_url and account_id. Keep one", subject)
 	}
 
 	return nil

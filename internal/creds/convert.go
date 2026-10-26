@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+
+	"github.com/frodi-karlsson/onesie-go"
 )
 
 const convertedDefault = "typesafe"
@@ -38,10 +40,8 @@ func (s Store) OpenProfiles(dir string) (Opened, error) {
 	}
 
 	converted := Convert(file)
-	if refusal := converted.Validate(); refusal != nil {
-		return Opened{}, &InvalidProfilesError{
-			Path: oldPath, Kind: credentialKind, Reason: "cannot become profiles: " + refusal.Error(),
-		}
+	if refusal := converted.validateEntries(); refusal != nil {
+		return Opened{}, invalidFile(oldPath, credentialKind, "cannot become profiles", refusal.Error())
 	}
 
 	opened := Opened{Profiles: converted, Converted: slices.Sorted(maps.Keys(converted.Profiles)), Found: true}
@@ -152,6 +152,18 @@ func Convert(file File) Profiles {
 	}
 
 	return profiles
+}
+
+func (p Profiles) validateEntries() error {
+	// An entry is named after its provider, so an unknown provider is an entry name, not a profile.
+	for _, name := range slices.Sorted(maps.Keys(p.Profiles)) {
+		if provider, err := onesie.ProviderNamed(name); err != nil || provider.Name != name {
+			return fmt.Errorf(
+				"its entry '%s' is not a provider. Use typesafe, openrouter, berget, levanto or cloudflare", name)
+		}
+	}
+
+	return p.validateAs(func(name string) string { return fmt.Sprintf("its entry '%s'", name) })
 }
 
 // Opened is what OpenProfiles found. Found is false with neither file, Converted names the profiles
