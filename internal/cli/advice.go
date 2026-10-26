@@ -3,6 +3,7 @@ package cli
 import (
 	"errors"
 	"fmt"
+	"mime"
 	"net/http"
 	"strings"
 	"unicode"
@@ -38,22 +39,46 @@ func advise(err error, model string, validated bool) error {
 
 	var advised *advisedError
 	if text, isText := api.Body.(string); isText && !errors.As(err, &advised) {
-		return &advisedError{cause: err, message: notJSON(api.Status, text)}
+		return &advisedError{cause: err, message: textBody(api, text)}
 	}
 
 	return err
 }
 
-func notJSON(status int, body string) string {
-	message := fmt.Sprintf("onesie: %d %s, with a response body that is not JSON", status, http.StatusText(status))
+func textBody(api *onesie.APIError, body string) string {
+	line := bodyLine(body)
+
+	// onesie-go decodes a JSON string body and a body that is not JSON alike, so only the content
+	// type tells a server's quoted message from a page a proxy sent.
+	if jsonContent(api.Header.Get("Content-Type")) && !strings.HasPrefix(line, "<") {
+		if line == "" {
+			line = http.StatusText(api.Status)
+		}
+
+		return fmt.Sprintf("onesie: %d %s", api.Status, line)
+	}
+
+	message := fmt.Sprintf("onesie: %d %s, with a response body that is not JSON", api.Status, http.StatusText(api.Status))
 
 	// An HTML page from a proxy or a web server says nothing a terminal line can show, while a one
 	// line text body may name the cause.
-	if line := bodyLine(body); line != "" && !strings.HasPrefix(line, "<") {
+	if line != "" && !strings.HasPrefix(line, "<") {
 		message += ": " + line
 	}
 
+	// Only a missing path or method points at the base URL. An outage, a rate limit or a refused key
+	// arrives from the right server too.
+	if api.Status != http.StatusNotFound && api.Status != http.StatusMethodNotAllowed {
+		return message
+	}
+
 	return withNote(message, "Check that the base URL points at the System One API")
+}
+
+func jsonContent(contentType string) bool {
+	media, _, err := mime.ParseMediaType(contentType)
+
+	return err == nil && (media == "application/json" || strings.HasSuffix(media, "+json"))
 }
 
 func bodyLine(body string) string {

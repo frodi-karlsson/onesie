@@ -308,42 +308,76 @@ func TestAdvise(t *testing.T) {
 
 		tests := []adviceCase{
 			{
-				name:     "should give the status and leave an html page out",
-				args:     []string{"is this urgent"},
-				stdin:    "a ticket",
-				status:   http.StatusMethodNotAllowed,
-				response: page,
-				wantCode: ExitUsage,
-				wantErr:  "onesie: 405 Method Not Allowed, with a response body that is not JSON" + check + "\n",
+				name:        "should give the status and leave an html page out",
+				args:        []string{"is this urgent"},
+				stdin:       "a ticket",
+				status:      http.StatusMethodNotAllowed,
+				response:    page,
+				contentType: "text/html",
+				wantCode:    ExitUsage,
+				wantErr:     "onesie: 405 Method Not Allowed, with a response body that is not JSON" + check + "\n",
 				wantOut: []string{`"message":"405 Method Not Allowed, with a response body that is not JSON` +
 					check + `"`},
 			},
 			{
-				name:     "should keep the first line of a plain text body",
-				args:     []string{"is this urgent"},
-				stdin:    "a ticket",
-				status:   http.StatusNotFound,
-				response: "no such route\nsecond line\n",
-				wantCode: ExitUsage,
-				wantErr:  "onesie: 404 Not Found, with a response body that is not JSON: no such route" + check + "\n",
+				name:        "should keep the first line of a plain text body",
+				args:        []string{"is this urgent"},
+				stdin:       "a ticket",
+				status:      http.StatusNotFound,
+				response:    "no such route\nsecond line\n",
+				contentType: "text/plain",
+				wantCode:    ExitUsage,
+				wantErr:     "onesie: 404 Not Found, with a response body that is not JSON: no such route" + check + "\n",
 			},
 			{
-				name:     "should summarise a replayed body's error line too",
-				args:     []string{"-i", "request"},
-				stdin:    `{"state":"s","model":"m","questions":{"q":{"type":"noul","instructions":"q"}}}` + "\n",
-				status:   http.StatusMethodNotAllowed,
-				response: page,
-				wantCode: ExitRecords,
+				name:        "should summarise a replayed body's error line too",
+				args:        []string{"-i", "request"},
+				stdin:       `{"state":"s","model":"m","questions":{"q":{"type":"noul","instructions":"q"}}}` + "\n",
+				status:      http.StatusMethodNotAllowed,
+				response:    page,
+				contentType: "text/html",
+				wantCode:    ExitRecords,
 				wantOut: []string{`"message":"405 Method Not Allowed, with a response body that is not JSON` +
 					check + `"`},
 			},
 			{
-				name:     "should summarise the body for --list-models",
-				args:     []string{"--list-models"},
-				status:   http.StatusMethodNotAllowed,
-				response: page,
-				wantCode: ExitUsage,
-				wantErr:  "onesie: 405 Method Not Allowed, with a response body that is not JSON" + check + "\n",
+				name:        "should summarise an outage page with no note about the base URL",
+				args:        []string{"is this urgent", "--retries", "0"},
+				stdin:       "a ticket",
+				status:      http.StatusServiceUnavailable,
+				response:    page,
+				contentType: "text/html",
+				wantCode:    ExitUnavailable,
+				wantErr:     "onesie: 503 Service Unavailable, with a response body that is not JSON\n",
+			},
+			{
+				name:        "should summarise a refused key's text body beside the key hint and no note about the base URL",
+				args:        []string{"is this urgent"},
+				stdin:       "a ticket",
+				status:      http.StatusUnauthorized,
+				response:    "bad key\n",
+				contentType: "text/plain",
+				wantCode:    ExitAuth,
+				wantErr: "onesie: 401 Unauthorized, with a response body that is not JSON: bad key. " +
+					"Check the key in TYPESAFE_API_KEY\n",
+			},
+			{
+				name:     "should show a JSON string body's first line and not call it not JSON",
+				args:     []string{"is this urgent", "--retries", "0"},
+				stdin:    "a ticket",
+				status:   http.StatusBadGateway,
+				response: `"Bad Gateway\nupstream"`,
+				wantCode: ExitUnavailable,
+				wantErr:  "onesie: 502 Bad Gateway\n",
+			},
+			{
+				name:        "should summarise the body for --list-models",
+				args:        []string{"--list-models"},
+				status:      http.StatusMethodNotAllowed,
+				response:    page,
+				contentType: "text/html",
+				wantCode:    ExitUsage,
+				wantErr:     "onesie: 405 Method Not Allowed, with a response body that is not JSON" + check + "\n",
 			},
 		}
 
@@ -498,7 +532,12 @@ func runAdvised(t *testing.T, tc adviceCase) ([]string, string, string, int) {
 		sent = append(sent, string(body))
 		mu.Unlock()
 
-		w.Header().Set("Content-Type", "application/json")
+		contentType := tc.contentType
+		if contentType == "" {
+			contentType = "application/json"
+		}
+
+		w.Header().Set("Content-Type", contentType)
 		w.WriteHeader(tc.status)
 
 		if _, err := io.WriteString(w, tc.response); err != nil {
@@ -552,13 +591,14 @@ func runAdvised(t *testing.T, tc adviceCase) ([]string, string, string, int) {
 }
 
 type adviceCase struct {
-	name     string
-	args     []string
-	stdin    string
-	env      map[string]string
-	files    map[string]string
-	status   int
-	response string
+	name        string
+	args        []string
+	stdin       string
+	env         map[string]string
+	files       map[string]string
+	status      int
+	response    string
+	contentType string
 
 	wantCode int
 	wantSent string

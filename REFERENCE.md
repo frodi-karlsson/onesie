@@ -797,9 +797,12 @@ table, and `onesie calibrate --help` lists the codes calibrate uses.
   `--base-url`, `TYPESAFE_BASE_URL` or a profile's `base_url`, prints one warning naming where it
   came from and the URL requests go to. It is not refused, since a proxy may use that prefix.
 - An error response whose body is not JSON, such as the HTML page a web server sends for a wrong
-  path, prints its status and says the body is not JSON, with a hint to check the base URL, as in
+  path, prints its status and says the body is not JSON, as in
   `onesie: 405 Method Not Allowed, with a response body that is not JSON. Check that the base URL points at the System One API`.
-  A page is left out, and only the first line of a plain text body is kept.
+  A page is left out, and only the first line of a plain text body is kept. Only a 404 or a 405
+  adds the hint to check the base URL, since an outage, a rate limit or a refused key comes from
+  the right server too. A body sent as JSON that holds only a string prints the first line of that
+  string after the status.
 - A base URL that holds a user or a password, or any `@`, `?` or `#`, or that does not parse, exits 2
   before any request, whether it comes from `--base-url`, `TYPESAFE_BASE_URL` or a profile, so a key
   never travels in a URL or reaches a message. `profile create` and `profile update` refuse one too,
