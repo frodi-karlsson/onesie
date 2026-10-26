@@ -46,7 +46,7 @@ func newProfileCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 			return cmd.Help()
 		},
 		PersistentPreRunE: func(*cobra.Command, []string) error {
-			return refuseMock(settings, flags, "profile reads and writes real configuration")
+			return refuseMock(settings, flags)
 		},
 	}
 
@@ -63,7 +63,7 @@ func newProfileCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 	return cmd
 }
 
-func refuseMock(settings rootSettings, flags *runFlags, refusal string) error {
+func refuseMock(settings rootSettings, flags *runFlags) error {
 	_, spelled := mockSource(settings, flags)
 	if spelled == "" {
 		return nil
@@ -74,7 +74,8 @@ func refuseMock(settings rootSettings, flags *runFlags, refusal string) error {
 		advice = "Drop it"
 	}
 
-	return fmt.Errorf("onesie: %s, so it does not run under %s. %s", refusal, spelled, advice)
+	return fmt.Errorf("onesie: profile reads and writes real configuration, so it does not run under %s. %s",
+		spelled, advice)
 }
 
 func newProfileCreateCmd(settings rootSettings, flags *runFlags) *cobra.Command {

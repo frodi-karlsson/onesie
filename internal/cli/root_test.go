@@ -143,11 +143,11 @@ func TestNewRootCmd(t *testing.T) {
 			sends:    []string{`"instructions":"urgent"`},
 		},
 		{
-			name:     "should ask a one word question two edits from a short subcommand",
-			args:     []string{"author", "--print-request"},
+			name:     "should ask a one word question two edits from a seven letter subcommand",
+			args:     []string{"profit", "--print-request"},
 			stdin:    "x",
 			wantCode: cli.ExitOK,
-			contains: []string{`"instructions":"author"`},
+			contains: []string{`"instructions":"profit"`},
 		},
 		{
 			name:     "should ask a near miss placed after --",
@@ -274,22 +274,41 @@ func TestNewRootCmd(t *testing.T) {
 		},
 		{
 			name:     "should refuse an unknown topic under a subcommand",
-			args:     []string{"help", "auth", "nope"},
+			args:     []string{"help", "profile", "nope"},
 			wantCode: cli.ExitUsage,
-			contains: []string{"onesie: unknown help topic 'auth nope'"},
+			contains: []string{"onesie: unknown help topic 'profile nope'"},
 			absent:   []string{"Usage:"},
 		},
 		{
 			name:     "should print a subcommand's help for its help topic",
-			args:     []string{"help", "auth", "set"},
+			args:     []string{"help", "profile", "create"},
 			wantCode: cli.ExitOK,
-			contains: []string{"onesie auth set"},
+			contains: []string{"onesie profile create"},
 		},
 		{
 			name:     "should print the root help for help with no topic",
 			args:     []string{"help"},
 			wantCode: cli.ExitOK,
 			contains: []string{"Usage:", "onesie [question]"},
+		},
+		{
+			name:     "should say in the root help that a run uses a profile",
+			args:     []string{"--help"},
+			wantCode: cli.ExitOK,
+			contains: []string{"onesie profile create", "--profile string"},
+		},
+		{
+			name:     "should exit 2 for auth status, since auth is no longer a subcommand",
+			args:     []string{"auth", "status"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"accepts at most 1 arg(s), received 2"},
+		},
+		{
+			name:     "should ask auth as an ordinary one word question",
+			args:     []string{"auth", "--print-request"},
+			stdin:    "x",
+			wantCode: cli.ExitOK,
+			contains: []string{`"instructions":"auth"`},
 		},
 		{
 			name:     "should list --mock in the root help",
@@ -1595,9 +1614,9 @@ func TestNewRootCmd(t *testing.T) {
 				want: "onesie: unknown flag: --print-request. 'version' " + hint,
 			},
 			{
-				name: "should hint for auth",
-				args: []string{"auth", "--print-request"},
-				want: "onesie: unknown flag: --print-request. 'auth' " + hint,
+				name: "should hint for profile",
+				args: []string{"profile", "--print-request"},
+				want: "onesie: unknown flag: --print-request. 'profile' " + hint,
 			},
 			{
 				name: "should hint for completion",
@@ -2061,8 +2080,8 @@ func TestDefaultClientFactory(t *testing.T) {
 			},
 			{name: "should warn for TYPESAFE_BASE_URL ending in /v1", env: "/v1", spelled: onesie.EnvBaseURL, wantWarn: true},
 			{
-				name: "should name the credential file for a stored base URL ending in /v1", stored: "/v1",
-				spelled: "the base URL in the credential file", wantWarn: true,
+				name: "should name the profile's base_url when it ends in /v1", stored: "/v1",
+				spelled: "the profile's base_url", wantWarn: true,
 			},
 			{name: "should not warn for a proxy prefix that is not /v1", flag: "/proxy"},
 			{name: "should not warn for a bare host", flag: "/"},
@@ -2079,16 +2098,17 @@ func TestDefaultClientFactory(t *testing.T) {
 				})
 				defer srv.Close()
 
-				env := map[string]string{onesie.EnvAPIKey: "test"}
+				config := t.TempDir()
+				env := map[string]string{onesie.EnvAPIKey: "test", "ONESIE_CONFIG_DIR": config}
 				args := []string{"is this urgent", "-i", "lines", "-o", "values", "--retries", "0"}
-				credentials := filepath.Join(t.TempDir(), "credentials.json")
 
 				if tc.stored != "" {
 					delete(env, onesie.EnvAPIKey)
 
-					stored := `{"providers":{"typesafe":{"api_key":"test","base_url":"` + srv.URL + tc.stored + `"}}}`
-					if err := os.WriteFile(credentials, []byte(stored), 0o600); err != nil {
-						t.Fatalf("writing the credential file: %v", err)
+					stored := `{"default":"proxy","profiles":{"proxy":{"provider":"typesafe","api_key":"test",` +
+						`"base_url":"` + srv.URL + tc.stored + `"}}}`
+					if err := os.WriteFile(filepath.Join(config, "profiles.json"), []byte(stored), 0o600); err != nil {
+						t.Fatalf("writing the profiles file: %v", err)
 					}
 				}
 
@@ -2106,7 +2126,6 @@ func TestDefaultClientFactory(t *testing.T) {
 					cli.BuildInfo{Version: "1.2.3"},
 					cli.WithKeychain(offKeychain{}),
 					cli.WithStdin(strings.NewReader("one\ntwo\n")),
-					cli.WithCredentialPath(func() (string, error) { return credentials, nil }),
 					cli.WithStdinTTY(false),
 					cli.WithStdoutTTY(false),
 					cli.WithLookupEnv(func(name string) (string, bool) {

@@ -7,13 +7,14 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/creds"
 )
 
 func runResolution(settings rootSettings, flags *runFlags) (resolution, error) {
 	if settings.holder == nil {
-		return resolveRun(settings, flags)
+		return resolveRun(settings, flags, func() (creds.Opened, error) {
+			return openProfiles(settings, io.Discard)
+		})
 	}
 
 	return settings.holder.resolved()
@@ -28,13 +29,15 @@ func openedProfiles(settings rootSettings) (creds.Opened, error) {
 }
 
 func newHolder(settings rootSettings, flags *runFlags, stderr func() io.Writer) *holder {
+	opened := sync.OnceValues(func() (creds.Opened, error) {
+		return openProfiles(settings, stderr())
+	})
+
 	return &holder{
 		stderr: stderr,
-		opened: sync.OnceValues(func() (creds.Opened, error) {
-			return openProfiles(settings, stderr())
-		}),
+		opened: opened,
 		resolved: sync.OnceValues(func() (resolution, error) {
-			return resolveRun(settings, flags)
+			return resolveRun(settings, flags, opened)
 		}),
 	}
 }
@@ -45,23 +48,36 @@ type holder struct {
 	resolved func() (resolution, error)
 }
 
-func resolveRun(settings rootSettings, flags *runFlags) (resolution, error) {
-	provider, err := resolveProvider(settings, flags)
+func resolveRun(
+	settings rootSettings, flags *runFlags, open func() (creds.Opened, error),
+) (resolution, error) {
+	chosen, err := choose(flags, settings.lookupEnv)
 	if err != nil {
 		return resolution{}, err
 	}
 
-	return resolution{provider: provider}, nil
-}
+	// A run that names its provider and succeeds never opens the file, so CI that names one stays
+	// apart from any file on the machine. Only a failure reads it, for the hint.
+	if chosen.provider != "" {
+		bare, bareErr := providerRun(chosen.provider, chosen.by, settings.lookupEnv)
+		if bareErr == nil {
+			return bare, nil
+		}
 
-func resolveProvider(settings rootSettings, flags *runFlags) (onesie.Provider, error) {
-	if name := strings.TrimSpace(flags.provider); name != "" {
-		return onesie.ProviderNamed(name)
+		opened, openErr := open()
+		if openErr != nil {
+			return resolution{}, bareErr
+		}
+
+		return resolution{}, providerIsProfileHint(bareErr, chosen, opened.Profiles)
 	}
 
-	value, _ := settings.lookupEnv(envProvider)
+	opened, err := open()
+	if err != nil {
+		return resolution{}, err
+	}
 
-	return onesie.ProviderNamed(value)
+	return resolveChoice(chosen, opened.Profiles, settings.lookupEnv)
 }
 
 func openProfiles(settings rootSettings, stderr io.Writer) (creds.Opened, error) {

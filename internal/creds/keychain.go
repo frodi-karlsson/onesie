@@ -17,8 +17,9 @@ const (
 )
 
 var (
-	// ErrKeychainMissing means the keychain holds no item for the provider.
-	ErrKeychainMissing = errors.New("the keychain holds no key for this provider. Run onesie auth set to store one")
+	// ErrKeychainMissing means the keychain holds no item for the profile.
+	ErrKeychainMissing = errors.New(
+		"the keychain holds no key for the profile. Run onesie profile update NAME --key to store one")
 	// ErrKeychainTimeout means the keychain did not answer, usually because it is waiting on a prompt.
 	ErrKeychainTimeout = errors.New("the keychain did not answer in time")
 )

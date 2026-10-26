@@ -23,8 +23,9 @@ func streamRaw(
 	resume resumePlan,
 ) error {
 	var (
-		client   *onesie.Client
-		provider onesie.Provider
+		client       *onesie.Client
+		provider     onesie.Provider
+		defaultModel string
 	)
 
 	// Built only when the run makes a request, so -i request --print-request needs no key.
@@ -40,6 +41,7 @@ func streamRaw(
 		}
 
 		provider = chosen.provider
+		defaultModel = chosen.modelFor("", settings.lookupEnv)
 
 		client = built
 	}
@@ -48,7 +50,7 @@ func streamRaw(
 
 	// Every body would be refused, so the run stops before it reads any.
 	if long && requests(flags) {
-		if refusal := provider.Refuse("", onesie.Needs{LongContext: true}); refusal != nil {
+		if refusal := provider.Refuse(defaultModel, onesie.Needs{LongContext: true}); refusal != nil {
 			return refusal
 		}
 	}

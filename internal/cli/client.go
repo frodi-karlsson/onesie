@@ -48,8 +48,8 @@ func clientBuilder(info BuildInfo, flags *runFlags, settings rootSettings) resol
 			opts = append(opts, onesie.WithBaseURL(baseURL))
 		}
 
-		// Every dry run returns before a client is built, so reading the key here is what keeps the
-		// file and the keychain away from a run that needs no key.
+		// Every dry run returns before a client is built, so reading the keychain here is what keeps
+		// it away from a run that needs no key.
 		keyed, err := keyOptions(settings, flags, chosen)
 		if err != nil {
 			return nil, err
@@ -74,11 +74,11 @@ func clientBuilder(info BuildInfo, flags *runFlags, settings rootSettings) resol
 
 		client, err := onesie.New(opts...)
 		if err != nil {
-			return nil, withoutCredentials(err)
+			return nil, explained(settings, flags, chosen, withoutCredentials(err))
 		}
 
-		// After New, since only the client knows which of the flag, the variable, the profile and the
-		// credential file chose the base URL.
+		// After New, since only the client knows which of the flag, the variable and the profile chose
+		// the base URL.
 		if refused := refuseUnclearBaseURL(client.BaseURL()); refused != nil {
 			return nil, refused
 		}
@@ -95,7 +95,8 @@ func clientBuilder(info BuildInfo, flags *runFlags, settings rootSettings) resol
 
 		if endsInVersion(client.BaseURL()) {
 			doubled.Do(func() {
-				_, printErr = fmt.Fprintln(settings.holder.stderr(), "warning: "+baseURLSource(settings, flags, chosen)+
+				_, printErr = fmt.Fprintln(settings.holder.stderr(), "warning: "+
+					chosen.baseURLSource(flags.baseURL, settings.lookupEnv)+
 					" ends in /v1 and onesie adds the API path itself, so requests go to "+
 					output.Printable(client.SystemOneURL()))
 			})
@@ -147,10 +148,6 @@ func ignoringResolution(newClient clientFactory) resolvedClientFactory {
 }
 
 func keyOptions(settings rootSettings, flags *runFlags, chosen resolution) ([]onesie.Option, error) {
-	if chosen.profile == "" {
-		return storedCredentials(settings, flags)
-	}
-
 	key := chosen.key
 
 	if chosen.keyFrom == sourceKeychain {
@@ -171,34 +168,29 @@ func keyOptions(settings rootSettings, flags *runFlags, chosen resolution) ([]on
 	return chosen.options(flags.baseURL, key, settings.lookupEnv), nil
 }
 
+func explained(settings rootSettings, flags *runFlags, chosen resolution, err error) error {
+	if chosen.profile != "" {
+		return accountNote(err, chosen, flags.baseURL, settings.lookupEnv)
+	}
+
+	if chosen.keyFrom != sourceNone {
+		return err
+	}
+
+	// Read only now, so a run that names its provider and has its key never opens the file. An
+	// error reading it leaves the hint out, since the missing key is the failure to report.
+	opened, openErr := openedProfiles(settings)
+	if openErr != nil {
+		return err
+	}
+
+	return missingKeyHint(err, chosen, opened.Profiles)
+}
+
 func endsInVersion(baseURL string) bool {
 	parsed, err := url.Parse(baseURL)
 
 	return err == nil && strings.HasSuffix(strings.TrimRight(parsed.Path, "/"), "/v1")
-}
-
-func baseURLSource(settings rootSettings, flags *runFlags, chosen resolution) string {
-	if chosen.profile != "" {
-		return chosen.baseURLSource(flags.baseURL, settings.lookupEnv)
-	}
-
-	if strings.TrimSpace(flags.baseURL) != "" {
-		return "--base-url"
-	}
-
-	if name := chosen.provider.EnvBaseURL; name != "" {
-		if value, found := settings.lookupEnv(name); found && strings.TrimSpace(value) != "" {
-			return name
-		}
-	}
-
-	if name := chosen.provider.EnvAccountID; name != "" {
-		if value, found := settings.lookupEnv(name); found && strings.TrimSpace(value) != "" {
-			return name
-		}
-	}
-
-	return "the base URL in the credential file"
 }
 
 func plainRemote(baseURL string) bool {
@@ -215,20 +207,6 @@ func plainRemote(baseURL string) bool {
 	ip := net.ParseIP(host)
 
 	return ip == nil || !ip.IsLoopback()
-}
-
-func storedCredentials(settings rootSettings, flags *runFlags) ([]onesie.Option, error) {
-	source, err := resolveKey(settings, flags)
-	if err != nil {
-		return nil, err
-	}
-
-	// onesie.New reads the provider's variable itself, so only the file and the keychain need options.
-	if source.name != sourceFile && source.name != sourceKeychain {
-		return nil, nil
-	}
-
-	return storedOptions(settings, flags, source), nil
 }
 
 func pooled(jobs int) http.RoundTripper {
@@ -271,5 +249,5 @@ func resolveModel(settings rootSettings, flags *runFlags, model string) (string,
 		return "", err
 	}
 
-	return chosen.provider.ResolveModel(model, settings.lookupEnv), nil
+	return chosen.modelFor(model, settings.lookupEnv), nil
 }

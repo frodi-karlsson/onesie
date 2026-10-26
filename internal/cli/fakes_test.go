@@ -168,15 +168,6 @@ func (k *fakeKeychain) calls() int {
 	return k.count
 }
 
-func (k *fakeKeychain) holds(account string) bool {
-	k.mu.Lock()
-	defer k.mu.Unlock()
-
-	_, ok := k.items[account]
-
-	return ok
-}
-
 type timingOutKeychain struct{}
 
 func (timingOutKeychain) Get(string) (string, error) {

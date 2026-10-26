@@ -1,10 +1,13 @@
 package cli
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 
@@ -104,6 +107,240 @@ func TestClientBuilder(t *testing.T) {
 			}
 		})
 	}
+
+	question := []string{"is this urgent", "-r", "--state", "the server is down"}
+	asking := func(extra ...string) []string {
+		return append(append([]string{}, question...), extra...)
+	}
+
+	const (
+		fileWork = `{"default":"work","profiles":{"work":{"provider":"typesafe","api_key":"SECRET-WORK",` +
+			`"base_url":"{url}"}}}`
+		pinnedWork = `{"default":"work","profiles":{"work":{"provider":"typesafe","api_key":"SECRET-WORK",` +
+			`"base_url":"{url}","model":"jev-1.13.0"}}}`
+	)
+
+	runs := []struct {
+		name      string
+		profiles  string
+		args      []string
+		stdin     string
+		env       map[string]string
+		items     map[string]string
+		wantCode  int
+		anyCode   bool
+		wantAuth  string
+		wantModel string
+		wantErr   []string
+	}{
+		{
+			name: "should send the profile's key and not the provider's variable", profiles: fileWork,
+			args: asking(), env: map[string]string{onesie.EnvAPIKey: "SECRET-ENV", onesie.EnvBaseURL: "{other}"},
+			wantAuth: "Bearer SECRET-WORK", wantModel: onesie.DefaultModel,
+		},
+		{
+			name: "should send the key the profile's keychain item holds",
+			profiles: `{"default":"work","profiles":{"work":{"provider":"typesafe","store":"keychain",` +
+				`"account":"work@abc","base_url":"{url}"}}}`,
+			args: asking(), items: map[string]string{"work@abc": "SECRET-KC"},
+			wantAuth: "Bearer SECRET-KC", wantModel: onesie.DefaultModel,
+		},
+		{
+			name: "should send the profile's model", profiles: pinnedWork, args: asking(),
+			wantAuth: "Bearer SECRET-WORK", wantModel: "jev-1.13.0",
+		},
+		{
+			name: "should let -m beat the profile's model", profiles: pinnedWork, args: asking("-m", "other"),
+			wantAuth: "Bearer SECRET-WORK", wantModel: "other",
+		},
+		{
+			name: "should let the profile's model beat TYPESAFE_DEFAULT_MODEL", profiles: pinnedWork, args: asking(),
+			env:      map[string]string{onesie.EnvDefaultModel: "env-model"},
+			wantAuth: "Bearer SECRET-WORK", wantModel: "jev-1.13.0",
+		},
+		{
+			name: "should take TYPESAFE_DEFAULT_MODEL when the profile names no model", profiles: fileWork,
+			args: asking(), env: map[string]string{onesie.EnvDefaultModel: "env-model"},
+			wantAuth: "Bearer SECRET-WORK", wantModel: "env-model",
+		},
+		{
+			name: "should route an -i request body that names no model by the profile's model",
+			profiles: `{"default":"cf","profiles":{"cf":{"provider":"cloudflare","api_key":"SECRET-CF",` +
+				`"base_url":"{url}","model":"typesafe/jev-1.13"}}}`,
+			args:     []string{"-i", "request"},
+			stdin:    `{"state":"x","questions":{"a":{"type":"noul"}}}` + "\n",
+			anyCode:  true,
+			wantAuth: "Bearer SECRET-CF", wantModel: "typesafe/jev-1.13",
+		},
+		{
+			name:     "should send the profile's model from calibrate",
+			profiles: pinnedWork,
+			args: []string{
+				"calibrate", "--ask", "urgent=is this urgent", "-i", "jsonl", "--map", ".body", "--label", "urgent=.u",
+			},
+			stdin:    `{"body":"the server is down","u":true}` + "\n",
+			anyCode:  true,
+			wantAuth: "Bearer SECRET-WORK", wantModel: "jev-1.13.0",
+		},
+		{
+			name: "should keep the profile's base_url ahead of TYPESAFE_BASE_URL", profiles: fileWork, args: asking(),
+			env:      map[string]string{onesie.EnvBaseURL: "{other}"},
+			wantAuth: "Bearer SECRET-WORK", wantModel: onesie.DefaultModel,
+		},
+		{
+			name: "should keep --base-url ahead of the profile's base_url",
+			profiles: `{"default":"work","profiles":{"work":{"provider":"typesafe","api_key":"SECRET-WORK",` +
+				`"base_url":"{other}"}}}`,
+			args:     asking("--base-url", "{url}"),
+			wantAuth: "Bearer SECRET-WORK", wantModel: onesie.DefaultModel,
+		},
+		{
+			name: "should name the profile's base_url when it ends in /v1",
+			profiles: `{"default":"work","profiles":{"work":{"provider":"typesafe","api_key":"SECRET-WORK",` +
+				`"base_url":"{url}/v1"}}}`,
+			args:     asking(),
+			wantErr:  []string{"warning: the profile's base_url ends in /v1 and onesie adds the API path itself"},
+			wantAuth: "Bearer SECRET-WORK", wantModel: onesie.DefaultModel,
+		},
+		{
+			name:     "should name profile update for a cloudflare profile with no account",
+			profiles: `{"default":"cf","profiles":{"cf":{"provider":"cloudflare","api_key":"SECRET-CF"}}}`,
+			args:     asking(),
+			wantCode: ExitUsage,
+			wantErr: []string{
+				"no cloudflare account id",
+				"or run onesie profile update cf --account-id ACCOUNT_ID",
+			},
+		},
+		{
+			name: "should exit 3 when the profile's keychain item is gone",
+			profiles: `{"default":"work","profiles":{"work":{"provider":"typesafe","store":"keychain",` +
+				`"account":"work@abc","base_url":"{url}"}}}`,
+			args:     asking(),
+			wantCode: ExitAuth,
+			wantErr:  []string{"the keychain holds no key for the profile"},
+		},
+	}
+
+	for _, tc := range runs {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			wanted, sent := modelServer(t)
+			unwanted, strays := modelServer(t)
+			fill := strings.NewReplacer("{url}", wanted.URL, "{other}", unwanted.URL).Replace
+
+			env := map[string]string{}
+			for name, value := range tc.env {
+				env[name] = fill(value)
+			}
+
+			args := make([]string, 0, len(tc.args))
+			for _, arg := range tc.args {
+				args = append(args, fill(arg))
+			}
+
+			out, errOut, code := runInConfig(t, configWith(t, fill(tc.profiles)), args, tc.stdin, env,
+				WithKeychain(workingKeychain(tc.items)))
+
+			assertNoSecret(t, out, errOut)
+
+			if !tc.anyCode && code != tc.wantCode {
+				t.Errorf("exit code = %d, want %d\nstderr:\n%s", code, tc.wantCode, errOut)
+			}
+
+			for _, want := range tc.wantErr {
+				if !strings.Contains(errOut, want) {
+					t.Errorf("stderr = %q, want it to contain %q", errOut, want)
+				}
+			}
+
+			got := sent()
+
+			// Compared, never printed, since the header carries the key.
+			switch {
+			case tc.wantAuth == "" && len(got) != 0:
+				t.Errorf("the run sent %d requests, want none", len(got))
+			case tc.wantAuth != "" && (len(got) != 1 || got[0].auth != tc.wantAuth || got[0].model != tc.wantModel):
+				t.Errorf("the run sent %d requests, want one with the expected key and model %q", len(got), tc.wantModel)
+			}
+
+			if len(strays()) != 0 {
+				t.Error("the outranked base url took a request")
+			}
+		})
+	}
+
+	t.Run("should send each openrouter profile its own key", func(t *testing.T) {
+		t.Parallel()
+
+		srv, sent := modelServer(t)
+		dir := configWith(t, `{"profiles":{`+
+			`"a":{"provider":"openrouter","api_key":"SECRET-A","base_url":"`+srv.URL+`"},`+
+			`"b":{"provider":"openrouter","api_key":"SECRET-B","base_url":"`+srv.URL+`"}}}`)
+
+		for _, profile := range []string{"a", "b"} {
+			out, errOut, code := runInConfig(t, dir, asking("--profile", profile), "", nil)
+
+			assertNoSecret(t, out, errOut)
+
+			if code != ExitOK {
+				t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, ExitOK, errOut)
+			}
+		}
+
+		if got := sent(); len(got) != 2 || got[0].auth != "Bearer SECRET-A" || got[1].auth != "Bearer SECRET-B" {
+			t.Error("the two openrouter profiles did not each send their own key")
+		}
+	})
+}
+
+func modelServer(t *testing.T) (*httptest.Server, func() []sentRequest) {
+	t.Helper()
+
+	var mu sync.Mutex
+
+	var sent []sentRequest
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Model     string                     `json:"model"`
+			Questions map[string]json.RawMessage `json:"questions"`
+		}
+
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Errorf("decoding the request body: %v", err)
+		}
+
+		mu.Lock()
+		sent = append(sent, sentRequest{auth: r.Header.Get("Authorization"), model: body.Model})
+		mu.Unlock()
+
+		answers := map[string]any{}
+		for id := range body.Questions {
+			answers[id] = map[string]any{"type": "noul", "noul": 0.5}
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+
+		if err := json.NewEncoder(w).Encode(map[string]any{"model": body.Model, "answers": answers}); err != nil {
+			t.Errorf("writing the stub response: %v", err)
+		}
+	}))
+
+	t.Cleanup(srv.Close)
+
+	return srv, func() []sentRequest {
+		mu.Lock()
+		defer mu.Unlock()
+
+		return slices.Clone(sent)
+	}
+}
+
+type sentRequest struct {
+	auth  string
+	model string
 }
 
 func TestEndsInVersion(t *testing.T) {

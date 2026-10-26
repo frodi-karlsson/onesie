@@ -124,8 +124,8 @@ func noKeyForCache(settings rootSettings, flags *runFlags, err error) error {
 		return err
 	}
 
-	source, locateErr := locateKey(settings, flags)
-	if locateErr != nil || source.name != sourceNone {
+	chosen, resolveErr := runResolution(settings, flags)
+	if resolveErr != nil || chosen.keyFrom != sourceNone {
 		return err
 	}
 

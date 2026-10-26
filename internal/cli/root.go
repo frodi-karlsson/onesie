@@ -105,10 +105,6 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 
 	// Installed after the options, since they read the environment lookup and home directory a test
 	// may have replaced, and before the holder and the factory, which resolve the files through them.
-	if settings.credPath == nil {
-		settings.credPath = credentialPath(settings.lookupEnv, settings.homeDir, settings.goos)
-	}
-
 	if settings.profilesPath == nil {
 		settings.profilesPath = profilesLocation(settings.lookupEnv, settings.homeDir, settings.goos)
 	}
@@ -141,9 +137,14 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 		Long: "onesie is a Unix filter over the System One API, served by TypeSafe, OpenRouter, Berget, Levanto or Cloudflare.\n\n" +
 			"State arrives on stdin, typed answers leave on stdout, and the exit status is " +
 			"usable in a conditional.\n\n" +
-			"The API key comes from the provider's variable, TYPESAFE_API_KEY, OPENROUTER_API_KEY, " +
-			"BERGET_API_KEY, LEVANTO_API_KEY or CLOUDFLARE_API_TOKEN, then from the credential file onesie auth set " +
-			"writes. Cloudflare also needs CLOUDFLARE_ACCOUNT_ID, or a base URL that holds the account.\n\n" +
+			"A run uses a profile from profiles.json in the config dir: the one --profile or ONESIE_PROFILE " +
+			"names, or the default one. A profile holds the provider, its key, in the OS keychain or the " +
+			"file, and optionally a model and a base URL or Cloudflare account. onesie profile create stores " +
+			"one, and onesie profile use makes it the default. --provider or ONESIE_PROVIDER runs without a " +
+			"profile, with the key from the provider's variable, TYPESAFE_API_KEY, OPENROUTER_API_KEY, " +
+			"BERGET_API_KEY, LEVANTO_API_KEY or CLOUDFLARE_API_TOKEN, and so does a run on typesafe when " +
+			"there are no profiles. Cloudflare also needs an account, from the profile, CLOUDFLARE_ACCOUNT_ID " +
+			"or a base URL that holds it.\n\n" +
 			"--mock FILE, or ONESIE_MOCK=FILE, answers from a file instead of the API, with no key and no " +
 			"network, so a gate script can be tested for free.\n\n" +
 			"--cache, or ONESIE_CACHE=1, stores each successful response on disk and answers a repeated " +
@@ -190,7 +191,12 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 			}
 
 			// Ahead of run, since a dry run builds no client and would otherwise never look at it.
-			if _, resolveErr := runResolution(settings, flags); resolveErr != nil {
+			// --print-questions prints no provider and no model, so it checks the choice without the file.
+			if flags.printQuestions {
+				if refused := checkChoice(flags, settings.lookupEnv); refused != nil {
+					return refused
+				}
+			} else if _, resolveErr := runResolution(settings, flags); resolveErr != nil {
 				return resolveErr
 			}
 
@@ -319,7 +325,6 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 		"where the answers land in the merged record, implies --merge")
 
 	root.AddCommand(newVersionCmd(info))
-	root.AddCommand(newAuthCmd(settings, flags))
 	root.AddCommand(newProfileCmd(settings, flags))
 	root.AddCommand(newCalibrateCmd(settings, flags))
 	root.AddCommand(newQuestionsCmd(settings))
@@ -510,8 +515,8 @@ func WithLookupEnv(lookup func(string) (string, bool)) RootOption {
 	}
 }
 
-// WithHomeDir replaces how the home directory is found, which the credential file falls back to
-// when no environment variable names its location.
+// WithHomeDir replaces how the home directory is found, which the config dir and profiles.json fall
+// back to when no environment variable names their location.
 func WithHomeDir(home func() (string, error)) RootOption {
 	return func(s *rootSettings) {
 		s.homeDir = home
@@ -540,14 +545,6 @@ func WithTerminalWidth(width func() (int, bool)) RootOption {
 	}
 }
 
-// WithCredentialPath replaces how the credential file's location is resolved, so a test needs no
-// real home directory.
-func WithCredentialPath(path func() (string, error)) RootOption {
-	return func(s *rootSettings) {
-		s.credPath = path
-	}
-}
-
 // WithProfilesPath replaces how the profiles file's location is resolved, so a test needs no real
 // home directory. Its directory also holds the credentials.json a first read converts.
 func WithProfilesPath(path func() (string, error)) RootOption {
@@ -556,14 +553,15 @@ func WithProfilesPath(path func() (string, error)) RootOption {
 	}
 }
 
-// WithCredentialStore replaces the store the auth subcommands read and write through.
+// WithCredentialStore replaces the store profiles.json and the credentials.json it converts are read
+// and written through.
 func WithCredentialStore(store creds.Store) RootOption {
 	return func(s *rootSettings) {
 		s.credStore = store
 	}
 }
 
-// WithKeychain replaces the OS keychain the auth subcommands store keys in.
+// WithKeychain replaces the OS keychain profiles keep their keys in.
 func WithKeychain(keychain Keychain) RootOption {
 	return func(s *rootSettings) {
 		s.keychain = keychain
@@ -626,7 +624,6 @@ type rootSettings struct {
 	now           func() time.Time
 	stdinClock    input.Clock
 	terminalWidth func() (int, bool)
-	credPath      func() (string, error)
 	profilesPath  func() (string, error)
 	credStore     creds.Store
 	keychain      Keychain
@@ -638,7 +635,8 @@ type rootSettings struct {
 	builtIns      func() []string
 }
 
-// Keychain is where auth set stores a key when the OS has one, one item per account.
+// Keychain is where profile create and profile update store a key when the OS has one, one item per
+// account.
 type Keychain interface {
 	Get(account string) (string, error)
 	Set(account, key string) error
@@ -666,16 +664,6 @@ func widthOf(f *os.File) func() (int, bool) {
 		}
 
 		return columns, true
-	}
-}
-
-func credentialPath(
-	lookupEnv func(string) (string, bool),
-	homeDir func() (string, error),
-	goos string,
-) func() (string, error) {
-	return func() (string, error) {
-		return creds.Path(configEnv(lookupEnv, homeDir, goos))
 	}
 }
 
