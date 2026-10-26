@@ -287,6 +287,12 @@ func TestNewRootCmd(t *testing.T) {
 			contains: []string{"onesie: version takes no argument, got 'extra'\n"},
 		},
 		{
+			name:     "should refuse an argument to a completion subcommand in a plain sentence",
+			args:     []string{"completion", "bash", "extra"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: completion bash takes no argument, got 'extra'\n"},
+		},
+		{
 			name:     "should say what a flag that takes a number got",
 			args:     []string{"-j", "abc", "q"},
 			wantCode: cli.ExitUsage,

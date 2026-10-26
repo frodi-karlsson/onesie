@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/spf13/cobra"
 )
 
 func TestSchemaURLOf(t *testing.T) {
@@ -251,6 +253,42 @@ func TestPathNamedOnce(t *testing.T) {
 
 			if got := pathNamedOnce(tc.err.Error(), tc.err); got != tc.want {
 				t.Errorf("pathNamedOnce = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestPlainArgErrors(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		check cobra.PositionalArgs
+		want  string
+	}{
+		{
+			name:  "should reword cobra.NoArgs as a plain sentence",
+			check: cobra.NoArgs,
+			want:  "onesie: leaf takes no argument, got 'a'",
+		},
+		{
+			name:  "should keep another validator's message as written",
+			check: cobra.ExactArgs(3),
+			want:  "accepts 3 arg(s), received 2",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			root := &cobra.Command{Use: "onesie"}
+			leaf := &cobra.Command{Use: "leaf", Args: tc.check, RunE: func(*cobra.Command, []string) error { return nil }}
+			root.AddCommand(leaf)
+			plainArgErrors(root)
+
+			if err := leaf.Args(leaf, []string{"a", "b"}); err == nil || err.Error() != tc.want {
+				t.Errorf("Args = %v, want %q", err, tc.want)
 			}
 		})
 	}

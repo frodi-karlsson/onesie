@@ -346,6 +346,8 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 	root.SetFlagErrorFunc(func(cmd *cobra.Command, err error) error {
 		return withDashQuestionHint(hint(cmd, plainFlagError(err, settings.args)), cmd.Flags(), settings.args, nil)
 	})
+	// Cobra would add completion only when the tree runs, after the walk below.
+	root.InitDefaultCompletionCmd()
 	plainArgErrors(root)
 
 	if settings.args != nil {
@@ -452,11 +454,16 @@ func plainArgErrors(cmd *cobra.Command) {
 		return
 	}
 
-	// Cobra's own validators speak in their terms, such as unknown command "x" for "onesie version".
-	// onesie's own already carry the prefix and are kept as written.
+	// cobra.NoArgs speaks in cobra's terms, as in unknown command "x" for "onesie version". Any other
+	// validator's message is kept as written, since the sentences below fit only a command that
+	// takes no argument.
 	cmd.Args = func(cmd *cobra.Command, args []string) error {
 		err := check(cmd, args)
-		if err == nil || strings.HasPrefix(err.Error(), "onesie: ") || len(args) == 0 {
+		if err == nil || len(args) == 0 {
+			return err
+		}
+
+		if noArgs := cobra.NoArgs(cmd, args); noArgs == nil || noArgs.Error() != err.Error() {
 			return err
 		}
 
