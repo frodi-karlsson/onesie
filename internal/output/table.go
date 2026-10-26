@@ -5,13 +5,15 @@ import (
 	"io"
 	"strconv"
 	"strings"
+
+	"github.com/frodi-karlsson/onesie/internal/answer"
 )
 
 const (
 	fallbackWidth = 80
 	maxWidth      = 1000
 	labelWidth    = 16
-	numberWidth   = 9 // Two leading spaces, the space before the number and a value such as 0.1234.
+	rowPadding    = 4 // Two leading spaces, the space after the label and the space before the number.
 	minBarWidth   = 8
 )
 
@@ -34,7 +36,7 @@ func Width(lookupEnv func(string) (string, bool), terminalWidth func() (int, boo
 // WriteTable renders the human readable form at an explicit width, so the caller owns any
 // environment lookup.
 func WriteTable(w io.Writer, rec Record, columns int) error {
-	bars := columns - labelWidth - numberWidth
+	bars := columns - labelWidth - rowPadding - widestProbability(rec)
 	if bars < minBarWidth {
 		bars = minBarWidth
 	}
@@ -66,6 +68,22 @@ func WriteTable(w io.Writer, rec Record, columns int) error {
 	}
 
 	return nil
+}
+
+func widestProbability(rec Record) int {
+	widest := 0
+
+	for _, named := range rec.Answers {
+		if named.Answer == nil || named.Answer.P == nil {
+			continue
+		}
+
+		for _, value := range named.Answer.P.Values {
+			widest = max(widest, len(answer.Number(value)))
+		}
+	}
+
+	return widest
 }
 
 func writeHeader(w io.Writer, rec Record) error {
@@ -102,7 +120,7 @@ func writeBlock(w io.Writer, named Named, bars int) error {
 	// A question with a distribution puts its numbers in the rows below instead. The decision is
 	// what the exit code follows, and the probability beside it is how close the call was.
 	if probability, ok := a.Value.(float64); ok && a.P == nil {
-		formatted := twoPlacesAtLeast(probability)
+		formatted := answer.Number(probability)
 
 		headline = formatted
 		if a.Decided {
@@ -115,13 +133,13 @@ func writeBlock(w io.Writer, named Named, bars int) error {
 	}
 
 	if a.Confidence != nil {
-		if _, err := fmt.Fprintf(w, "  confidence %.2f\n", *a.Confidence); err != nil {
+		if _, err := fmt.Fprintf(w, "  confidence %s\n", answer.Number(*a.Confidence)); err != nil {
 			return err
 		}
 	}
 
 	if a.Score != nil && a.Norm != nil {
-		if _, err := fmt.Fprintf(w, "  score %.4f  norm %.4f\n", *a.Score, *a.Norm); err != nil {
+		if _, err := fmt.Fprintf(w, "  score %s  norm %s\n", answer.Number(*a.Score), answer.Number(*a.Norm)); err != nil {
 			return err
 		}
 	}
@@ -140,26 +158,13 @@ func writeBlock(w io.Writer, named Named, bars int) error {
 
 		value := a.P.Values[key]
 
-		if _, err := fmt.Fprintf(w, "  %-*s %s %.4f\n",
-			labelWidth, truncate(Printable(label)), bar(value, bars), value); err != nil {
+		if _, err := fmt.Fprintf(w, "  %-*s %s %s\n",
+			labelWidth, truncate(Printable(label)), bar(value, bars), answer.Number(value)); err != nil {
 			return err
 		}
 	}
 
 	return nil
-}
-
-func twoPlacesAtLeast(probability float64) string {
-	// Two places, as the API sends a probability and -o json prints it. A value with more keeps
-	// them, since a rounded 0.795 would read as 0.80 beside a --threshold 0.8 that said no.
-	shortest := strconv.FormatFloat(probability, 'f', -1, 64)
-
-	_, decimals, _ := strings.Cut(shortest, ".")
-	if len(decimals) >= 2 {
-		return shortest
-	}
-
-	return strconv.FormatFloat(probability, 'f', 2, 64)
 }
 
 func bar(probability float64, width int) string {

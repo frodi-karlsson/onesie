@@ -209,7 +209,18 @@ func (e Edges) String() string {
 }
 
 func edgeText(value float64) string {
-	return strconv.FormatFloat(value, 'f', -1, 64)
+	return Number(value)
+}
+
+// Number writes a number of an answer as -o json does, in the shortest form that reads back as the
+// same number and never rounded, so every output mode shows the number a gate compares.
+func Number(value float64) string {
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		return strconv.FormatFloat(value, 'g', -1, 64)
+	}
+
+	return string(encoded)
 }
 
 // Answer is the normalized shape for one question. Absent fields are omitted, which is what makes
@@ -276,7 +287,7 @@ func (p Probabilities) MarshalJSON() ([]byte, error) {
 
 		buf = append(buf, name...)
 		buf = append(buf, ':')
-		buf = strconv.AppendFloat(buf, value, 'g', -1, 64)
+		buf = append(buf, Number(value)...)
 	}
 
 	return append(buf, '}'), nil

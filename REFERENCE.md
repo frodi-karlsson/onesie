@@ -7,8 +7,12 @@ prints the built in limits.
 
 - A yes or no question answers with how likely the yes is. `-r` prints only the answer. Without it,
   the table for a pick or a rate also shows the model's confidence and the probability of each
-  option or level. The table prints a yes or no probability to two places, as `-o json` does, and
-  keeps any further places the value carries.
+  option or level.
+- Every output format writes each number of an answer as `-o json` does: the number the provider
+  sent, in the shortest form that reads back as that number, and never rounded. So the table,
+  markdown, csv and json show `0.7` alike, and a printed number is the one a gate compares. How many
+  places a number carries is the provider's and the model's, so TypeSafe's Jev sends two places
+  where another model may send more.
 - `--pick` and `--rate` split their names on the comma, or on `--sep`, and trim the spaces around
   each one, so `--pick 'yes, no'` names `yes` and `no`. A repeated `--pick` or `--rate` adds its
   names after the earlier ones. An empty name exits 2. A question file's names are kept as

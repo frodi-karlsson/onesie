@@ -10,6 +10,7 @@ import (
 	"unicode"
 
 	"github.com/frodi-karlsson/onesie-go"
+	"github.com/frodi-karlsson/onesie/internal/answer"
 	"github.com/frodi-karlsson/onesie/internal/jq"
 )
 
@@ -383,17 +384,7 @@ func decisionText(decision any) string {
 }
 
 func probabilityText(probability float64) string {
-	rounded := math.Round(probability*10000) / 10000
-
-	// Rounding would print a near certainty as a certainty, which a reader takes at its word.
-	switch {
-	case rounded == 0 && probability > 0:
-		return "<0.0001"
-	case rounded == 1 && probability < 1:
-		return ">0.9999"
-	default:
-		return strconv.FormatFloat(rounded, 'f', -1, 64)
-	}
+	return answer.Number(probability)
 }
 
 func confidenceText(a *Answer) string {
@@ -402,7 +393,7 @@ func confidenceText(a *Answer) string {
 		return ""
 	}
 
-	return strconv.Itoa(int(math.Round(*a.Confidence*100))) + "%"
+	return answer.Number(*a.Confidence)
 }
 
 func footerOf(models []string, usage *onesie.Usage) string {

@@ -55,20 +55,20 @@ func TestWithTerminalWidth(t *testing.T) {
 	}{
 		{
 			name: "should size the bars to the terminal", columns: 60, known: true,
-			wantBars: 35,
+			wantBars: 39,
 		},
 		{
 			name: "should size the bars to a wider terminal", columns: 100, known: true,
-			wantBars: 75,
+			wantBars: 79,
 		},
 		{
 			name:     "should fall back to eighty columns when the terminal reports no width",
-			wantBars: 55,
+			wantBars: 59,
 		},
 		{
 			name: "should prefer COLUMNS over the terminal", columns: 100, known: true,
 			env:      map[string]string{"COLUMNS": "50"},
-			wantBars: 25,
+			wantBars: 29,
 		},
 	}
 
