@@ -495,12 +495,16 @@ func groupFlag(recorder *argv.Recorder, name string) pflag.Value {
 
 func printVersion(cmd *cobra.Command, info BuildInfo, args []string) error {
 	if len(args) > 0 {
-		return fmt.Errorf("onesie: -V takes no question, got '%s'", args[0])
+		return versionRefusal(args)
 	}
 
 	_, err := fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n%s", cmd.Name(), info.Version, limitsBlock())
 
 	return err
+}
+
+func versionRefusal(args []string) error {
+	return fmt.Errorf("onesie: -V takes no question, got '%s'", strings.Join(args, " "))
 }
 
 func refuseUnknownHelpTopics(root *cobra.Command) {

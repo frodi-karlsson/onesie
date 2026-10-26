@@ -12,6 +12,11 @@ import (
 var shellSafe = regexp.MustCompile(`^[A-Za-z0-9_./=:,@%+-]+$`)
 
 func atMostOneQuestion(cmd *cobra.Command, args []string) error {
+	// -V answers before any question is read, so its own message names what it refuses.
+	if version := cmd.Flags().Lookup("version"); version != nil && version.Changed && len(args) > 0 {
+		return versionRefusal(args)
+	}
+
 	if len(args) <= 1 {
 		return nil
 	}

@@ -426,6 +426,13 @@ func TestNewRootCmd(t *testing.T) {
 			absent:   []string{"onesie 1.2.3"},
 		},
 		{
+			name:     "should refuse two words beside the version flag with the version flag's message",
+			args:     []string{"-V", "a", "b"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: -V takes no question, got 'a b'\n"},
+			absent:   []string{"expected one question"},
+		},
+		{
 			name:     "should show --box in the help as a switch that takes no value",
 			args:     []string{"--help"},
 			wantCode: cli.ExitOK,
