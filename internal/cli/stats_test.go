@@ -20,7 +20,7 @@ func TestStatsString(t *testing.T) {
 		{
 			name: "should render a single request",
 			stats: cli.Stats{
-				Requests: 1, Questions: 3, InputTokens: 2841, OutputTokens: 71,
+				Records: 1, Requests: 1, Questions: 3, InputTokens: 2841, OutputTokens: 71,
 				Models: []string{"onesie-1.13.0"}, Attempts: 3,
 				Retries: map[int]int{429: 2}, AttemptTimeout: 10 * time.Second,
 				Elapsed: 11400 * time.Millisecond,
@@ -31,15 +31,30 @@ func TestStatsString(t *testing.T) {
 		{
 			name: "should render a stream with failures and two models",
 			stats: cli.Stats{
-				Requests: 40, Failed: 2, Questions: 80,
+				Records: 40, Requests: 40, Failed: 2, Questions: 80,
 				InputTokens: 10000, OutputTokens: 400,
 				Models: []string{"onesie-1.13.0", "onesie-1.14.0"}, Attempts: 41,
 				Retries: map[int]int{429: 1}, AttemptTimeout: 10 * time.Second,
 				Elapsed: 30 * time.Second,
 			},
-			want: "40 requests, 2 failed, 80 questions asked, 10000 in / 400 out tokens, " +
+			want: "40 records, 2 failed, 40 requests, 80 questions asked, 10000 in / 400 out tokens, " +
 				"models onesie-1.13.0, onesie-1.14.0, 41 attempts (1 retry: 429×1), " +
 				"10s/attempt, 30s",
+		},
+		{
+			name: "should lead a stream with its records when each became a request",
+			stats: cli.Stats{
+				Records: 4, Requests: 4, Questions: 4,
+				Models: []string{"onesie-1.13.0"}, Attempts: 4,
+				AttemptTimeout: 10 * time.Second, Elapsed: time.Second,
+			},
+			want: "4 records, 4 requests, 4 questions asked, 0 in / 0 out tokens, " +
+				"model onesie-1.13.0, 4 attempts, 10s/attempt, 1s",
+		},
+		{
+			name:  "should lead an empty stream with its records",
+			stats: cli.Stats{AttemptTimeout: 10 * time.Second, Elapsed: time.Second},
+			want:  "0 records, 0 requests, 0 questions asked, 0 in / 0 out tokens, 0 attempts, 1s",
 		},
 		{
 			name: "should count the records a stream deduplicated apart from its requests",
@@ -64,7 +79,7 @@ func TestStatsString(t *testing.T) {
 		{
 			name: "should render the cost the provider reported after the tokens",
 			stats: cli.Stats{
-				Requests: 1, Questions: 1, InputTokens: 10, OutputTokens: 2, Cost: &cost,
+				Records: 1, Requests: 1, Questions: 1, InputTokens: 10, OutputTokens: 2, Cost: &cost,
 				Models: []string{"typesafe/jev"}, Attempts: 1,
 				AttemptTimeout: 10 * time.Second, Elapsed: time.Second,
 			},
@@ -97,7 +112,7 @@ func TestStatsString(t *testing.T) {
 				Models: []string{"onesie-1.13.0"}, Attempts: 3,
 				AttemptTimeout: 10 * time.Second, Elapsed: time.Second,
 			},
-			want: "3 requests, 1 false assertion, 1 abstain, 3 questions asked, 0 in / 0 out tokens, " +
+			want: "3 records, 1 false assertion, 1 abstain, 3 requests, 3 questions asked, 0 in / 0 out tokens, " +
 				"model onesie-1.13.0, 3 attempts, 10s/attempt, 1s",
 		},
 		{
@@ -125,7 +140,7 @@ func TestStatsString(t *testing.T) {
 		{
 			name: "should round a sub second elapsed to milliseconds",
 			stats: cli.Stats{
-				Requests: 1, Questions: 1, Attempts: 1,
+				Records: 1, Requests: 1, Questions: 1, Attempts: 1,
 				AttemptTimeout: 10 * time.Second, Elapsed: 3040959 * time.Nanosecond,
 			},
 			want: "1 request, 1 question asked, 0 in / 0 out tokens, 1 attempt, 10s/attempt, 3ms",
@@ -133,7 +148,7 @@ func TestStatsString(t *testing.T) {
 		{
 			name: "should round elapsed to a tenth of a second above one second",
 			stats: cli.Stats{
-				Requests: 1, Questions: 1, Attempts: 1,
+				Records: 1, Requests: 1, Questions: 1, Attempts: 1,
 				AttemptTimeout: 10 * time.Second, Elapsed: 11432123456 * time.Nanosecond,
 			},
 			want: "1 request, 1 question asked, 0 in / 0 out tokens, 1 attempt, 10s/attempt, 11.4s",
@@ -141,7 +156,7 @@ func TestStatsString(t *testing.T) {
 		{
 			name: "should omit the retry clause when nothing was retried",
 			stats: cli.Stats{
-				Requests: 1, Questions: 1, Models: []string{"onesie-1.13.0"},
+				Records: 1, Requests: 1, Questions: 1, Models: []string{"onesie-1.13.0"},
 				Attempts: 1, AttemptTimeout: 10 * time.Second, Elapsed: time.Second,
 			},
 			want: "1 request, 1 question asked, 0 in / 0 out tokens, model onesie-1.13.0, " +
@@ -150,28 +165,28 @@ func TestStatsString(t *testing.T) {
 		{
 			name: "should render a false assertion count beside the failed count",
 			stats: cli.Stats{
-				Requests: 40, Failed: 2, FalseAsserts: 1, Questions: 80,
+				Records: 40, Requests: 40, Failed: 2, FalseAsserts: 1, Questions: 80,
 				InputTokens: 10000, OutputTokens: 400,
 				Models: []string{"onesie-1.13.0"}, Attempts: 40,
 				AttemptTimeout: 10 * time.Second, Elapsed: 30 * time.Second,
 			},
-			want: "40 requests, 2 failed, 1 false assertion, 80 questions asked, " +
+			want: "40 records, 2 failed, 1 false assertion, 40 requests, 80 questions asked, " +
 				"10000 in / 400 out tokens, model onesie-1.13.0, 40 attempts, 10s/attempt, 30s",
 		},
 		{
 			name: "should omit the false assertion clause when every assertion held",
 			stats: cli.Stats{
-				Requests: 40, Questions: 80, InputTokens: 10000, OutputTokens: 400,
+				Records: 40, Requests: 40, Questions: 80, InputTokens: 10000, OutputTokens: 400,
 				Models: []string{"onesie-1.13.0"}, Attempts: 40,
 				AttemptTimeout: 10 * time.Second, Elapsed: 30 * time.Second,
 			},
-			want: "40 requests, 80 questions asked, 10000 in / 400 out tokens, model onesie-1.13.0, " +
+			want: "40 records, 40 requests, 80 questions asked, 10000 in / 400 out tokens, model onesie-1.13.0, " +
 				"40 attempts, 10s/attempt, 30s",
 		},
 		{
 			name: "should omit the model clause when no model was seen",
 			stats: cli.Stats{
-				Requests: 1, Failed: 1, Questions: 1, Attempts: 1,
+				Records: 1, Requests: 1, Failed: 1, Questions: 1, Attempts: 1,
 				AttemptTimeout: 10 * time.Second, Elapsed: time.Second,
 			},
 			want: "1 request, 1 failed, 1 question asked, 0 in / 0 out tokens, " +

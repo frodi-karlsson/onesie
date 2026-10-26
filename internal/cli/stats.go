@@ -372,12 +372,12 @@ type Stats struct {
 func (s Stats) String() string {
 	parts := make([]string, 0, 10)
 
-	// A non streaming run has one record and one request and says so once. A stream reports both
-	// only when they differ, which is exactly when a record never became a request. The records
-	// lead with every one the run read, those a resume skipped included, so each count after them
-	// reads as a part of that whole.
+	// A run of one record that became one request says so once. Any other run leads with the
+	// records, every one it read, those a resume skipped included, so each count after them reads as
+	// a part of that whole. A mock run says how many the mock answered in the same clause when that
+	// is all of them.
 	total := s.Records + s.Skipped
-	split := total > s.Requests
+	split := total > s.Requests || (!s.Mocked && total != 1)
 
 	switch {
 	case split:

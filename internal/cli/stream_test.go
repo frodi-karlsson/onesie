@@ -468,7 +468,7 @@ func TestStream(t *testing.T) {
 				wantCode:  cli.ExitRejected,
 				wantLines: 3,
 				wantFalse: 1,
-				wantErr:   "3 requests, 1 false assertion, 3 questions",
+				wantErr:   "3 records, 1 false assertion, 3 requests, 3 questions",
 			},
 			{
 				name: "should count a false assertion on every record that shares a request",
@@ -541,7 +541,7 @@ func TestStream(t *testing.T) {
 				wantCode:  cli.ExitAbstain,
 				wantLines: 3,
 				contains:  []string{`{"line":2,"abstain":true,"model":"onesie-1.13.0","answer":{"value":0.9}}`},
-				wantErr:   "3 requests, 1 abstain, 3 questions",
+				wantErr:   "3 records, 1 abstain, 3 requests, 3 questions",
 			},
 			{
 				name: "should count an abstain on every record that shares a request",
