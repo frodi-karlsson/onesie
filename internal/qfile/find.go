@@ -115,7 +115,7 @@ type Found struct {
 type FindEnv struct {
 	// WorkDir is the absolute directory the walk up starts from.
 	WorkDir string
-	// ConfigDir resolves onesie's config dir, the one auth set writes to.
+	// ConfigDir resolves onesie's config dir, the one that holds profiles.json.
 	ConfigDir func() (string, error)
 	// ReadDir lists a directory. os.ReadDir in production.
 	ReadDir func(string) ([]fs.DirEntry, error)

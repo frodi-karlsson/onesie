@@ -42,7 +42,7 @@ var rootExitCodes = []exitCodeLine{
 	{ExitOK, "answered"},
 	{ExitRejected, "a false --assert, or under -q alone the policy did not accept the answer"},
 	{ExitUsage, "usage or validation error, including a missing key"},
-	{ExitAuth, "the key was refused, the account is out of credits, or the credential file is exposed"},
+	{ExitAuth, "the key was refused, the account is out of credits, or profiles.json is exposed"},
 	{ExitUnavailable, "the server did not answer after retries"},
 	{ExitTransport, "transport error or timeout"},
 	{ExitRecords, "a stream finished with one or more failed records, or --stop-on-error stopped it at " +
@@ -55,7 +55,7 @@ var calibrateExitCodes = []exitCodeLine{
 	{ExitOK, "every record was answered and every --require held"},
 	{ExitRejected, "a --require did not hold"},
 	{ExitUsage, "usage or validation error, including a bad label or record"},
-	{ExitAuth, "the key was refused, the account is out of credits, or the credential file is exposed. " +
+	{ExitAuth, "the key was refused, the account is out of credits, or profiles.json is exposed. " +
 		"No report prints"},
 	{ExitRecords, "the report holds one or more failed records, which wins over 1"},
 	{ExitInterrupt, "interrupted. No report prints"},
@@ -144,7 +144,7 @@ func Classify(err error) int {
 		return ExitAuth
 	}
 
-	// A credential file anyone else can reach is an authentication failure rather than a usage one.
+	// A key file anyone else can reach is an authentication failure rather than a usage one.
 	var readable *creds.ReadableError
 	if errors.As(err, &readable) {
 		return ExitAuth

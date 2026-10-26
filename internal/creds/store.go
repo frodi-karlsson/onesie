@@ -142,8 +142,7 @@ func (s Store) Load(path string) (file File, found bool, err error) {
 
 	if decodeErr := json.Unmarshal(data, &file); decodeErr != nil || !file.complete() {
 		// An empty or absent api_key is the same failure as a malformed file. Returning it as
-		// found would make auth status report a source for a file holding nothing, and would send
-		// an empty key to the client.
+		// found would convert a file holding nothing into a profile with no key.
 		return File{}, false, fmt.Errorf(
 			"onesie: credential file %s is not a JSON object with a 'providers' map of 'api_key' strings or keychain entries",
 			path)
@@ -329,8 +328,8 @@ func (e *ModeWarning) Error() string {
 		"warning: could not set mode 600 on %s. The key is not protected by the filesystem", e.Path)
 }
 
-// Clear deletes the credential file. An absent file is not an error, since auth clear is defined to
-// exit 0 either way.
+// Clear deletes the credential file at path. An absent file is not an error, so a removal that finds
+// nothing is done.
 func (s Store) Clear(path string) error {
 	return s.clear(path, credentialKind)
 }
@@ -339,8 +338,8 @@ func (s Store) clear(path, kind string) error {
 	// os.Remove calls rmdir on a directory, so without this Clear would delete a directory it was
 	// never asked to touch. os.Lstat, since a symlink here is the link to remove.
 	//
-	// Only a directory is refused, so Clear is deliberately laxer than Load. auth clear is asked to
-	// leave nothing at the path, even something onesie itself will not read.
+	// Only a directory is refused, so Clear is deliberately laxer than Load. profile delete is asked
+	// to leave nothing at the path, even something onesie itself will not read.
 	if info, statErr := s.lstat(path); statErr == nil && info.IsDir() {
 		return fmt.Errorf("onesie: %s %s is not a regular file", kind, path)
 	}

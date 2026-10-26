@@ -54,12 +54,12 @@ func Dir(env Env) (string, error) {
 	home, err := env.Home()
 	if err != nil {
 		return "", fmt.Errorf(
-			"onesie: finding the home directory for the config dir, where the credential file lives: %w", err)
+			"onesie: finding the home directory for the config dir, where the profiles file lives: %w", err)
 	}
 
 	if home == "" {
 		return "", errors.New(
-			"onesie: cannot find a home directory for the config dir, where the credential file lives")
+			"onesie: cannot find a home directory for the config dir, where the profiles file lives")
 	}
 
 	return filepath.Join(home, ".config", appName), nil

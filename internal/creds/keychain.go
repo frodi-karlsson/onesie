@@ -23,16 +23,16 @@ var (
 	ErrKeychainTimeout = errors.New("the keychain did not answer in time")
 )
 
-// KeychainAccount names the keychain item for a provider's key in the credential file at path. The
+// KeychainAccount names the keychain item for a profile's key in the profiles file at path. The
 // path is part of the name, so two config dirs never share, overwrite or delete one item.
-func KeychainAccount(provider, path string) string {
+func KeychainAccount(name, path string) string {
 	if absolute, err := filepath.Abs(path); err == nil {
 		path = absolute
 	}
 
 	sum := sha256.Sum256([]byte(path))
 
-	return provider + "@" + hex.EncodeToString(sum[:6])
+	return name + "@" + hex.EncodeToString(sum[:6])
 }
 
 // NewKeychain builds a Keychain over the OS keychain. A test overrides only what it must.
