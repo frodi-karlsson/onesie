@@ -8,11 +8,12 @@ prints the built in limits.
 - A yes or no question answers with how likely the yes is. `-r` prints only the answer. Without it,
   the table for a pick or a rate also shows the model's confidence and the probability of each
   option or level.
-- Every output format writes each number of an answer as `-o json` does: the number the provider
-  sent, in the shortest form that reads back as that number, and never rounded. So the table,
-  markdown, csv and json show `0.7` alike, and a printed number is the one a gate compares. How many
-  places a number carries is the provider's and the model's, so TypeSafe's Jev sends two places
-  where another model may send more.
+- Every output format writes each number of an answer as `-o json` does, in the shortest form that
+  reads back as that number. A number the provider sent prints as sent, never rounded, so how many
+  places it carries is the provider's and the model's: TypeSafe's Jev sends two where another model
+  may send more. A number onesie computes itself, such as `norm` or a mock's `p` and `score`, is
+  rounded to four places when it is computed. So the table, markdown, csv and json show `0.7`
+  alike, and a printed number is the one a gate compares.
 - `--pick` and `--rate` split their names on the comma, or on `--sep`, and trim the spaces around
   each one, so `--pick 'yes, no'` names `yes` and `no`. A repeated `--pick` or `--rate` adds its
   names after the earlier ones. An empty name exits 2. A question file's names are kept as
@@ -107,8 +108,9 @@ ONESIE_MOCK=answers.json ./gate.sh
 - A yes or no answer is a probability, or an object whose `value` is one. A pick or rate answer is a
   name, or an object with `value` and an optional `confidence`, which defaults to 1. With no `p`, the
   value's probability is the confidence, or twice what each other option or level gets when that is
-  more, and the others share the rest evenly. So the value is always the most likely, and the `p`
-  printed replays. A rate's `score` is the value's level index unless the entry gives one. A number whose
+  more, and the others share the rest evenly, cut to four places, with the value taking what is
+  left. So the value is always the most likely, and the `p` printed replays. A rate's `score` is
+  the level index averaged over `p`, rounded to four places, unless the entry gives one. A number whose
   text is a name is that name, so `4` rates `--rate 1,2,3,4,5`. A rate question from a request body
   takes its level index.
 - The other keys `-o json` writes are accepted. A line's `model`, `usage`, `line`, `assert` and

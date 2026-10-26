@@ -133,7 +133,7 @@ func normalizeScore(q plan.Question, raw *onesie.ScoreAnswer) *Answer {
 
 	norm := 0.0
 	if levels > 1 {
-		norm = score / float64(levels-1)
+		norm = Rounded(score / float64(levels-1))
 	}
 
 	out := &Answer{
@@ -210,6 +210,12 @@ func (e Edges) String() string {
 
 func edgeText(value float64) string {
 	return Number(value)
+}
+
+// Rounded rounds a number onesie computes itself to four places, so a gate, -o json and the table
+// all see the same value rather than float noise.
+func Rounded(value float64) float64 {
+	return math.Round(value*1e4) / 1e4
 }
 
 // Number writes a number of an answer as -o json does, in the shortest form that reads back as the

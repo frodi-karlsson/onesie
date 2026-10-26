@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/frodi-karlsson/onesie-go"
+	"github.com/frodi-karlsson/onesie/internal/answer"
 	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
@@ -282,8 +283,17 @@ func rateAnswer(question plan.Question, parts answerParts) (onesie.Answer, error
 		return nil, fmt.Errorf("rated '%s', which is not a level. Levels: %s", name, strings.Join(names, ", "))
 	}
 
+	given, err := replayed(parts.p, names, name, true)
+	if err != nil {
+		return nil, err
+	}
+
+	if given == nil {
+		given = synthesized(names, name, parts.confidence)
+	}
+
 	top := float64(len(names) - 1)
-	score := float64(index)
+	score := averaged(names, given, index)
 
 	if parts.score != nil {
 		replayed, isNumber := finiteNumber(parts.score)
@@ -308,15 +318,6 @@ func rateAnswer(question plan.Question, parts answerParts) (onesie.Answer, error
 		}
 	}
 
-	given, err := replayed(parts.p, names, name, true)
-	if err != nil {
-		return nil, err
-	}
-
-	if given == nil {
-		given = synthesized(names, name, parts.confidence)
-	}
-
 	probabilities := make(map[string]float64, len(names))
 	legend := make(map[string]string, len(names))
 
@@ -331,18 +332,36 @@ func rateAnswer(question plan.Question, parts answerParts) (onesie.Answer, error
 	}, nil
 }
 
+func averaged(names []string, p map[string]float64, index int) float64 {
+	weighted, total := 0.0, 0.0
+	for i, name := range names {
+		weighted += float64(i) * p[name]
+		total += p[name]
+	}
+
+	// A written p need not add up to 1, so the average is taken over what it holds.
+	if total == 0 {
+		return float64(index)
+	}
+
+	return answer.Rounded(weighted / total)
+}
+
 func synthesized(names []string, value string, confidence float64) map[string]float64 {
 	// At least twice what each other name takes keeps the value the strict mode, which replayed
-	// demands of a written p, since a rate reads its value from the first of equal modes.
+	// demands of a written p, since a rate reads its value from the first of equal modes. The rest
+	// is cut down to four places, so the value that absorbs the remainder never falls below the
+	// confidence.
 	share := max(confidence, 2/float64(len(names)+1))
-	rest := (1 - share) / float64(max(len(names)-1, 1))
+	others := float64(max(len(names)-1, 1))
+	rest := math.Floor((1-share)/others*1e4+1e-9) / 1e4
 
 	probabilities := make(map[string]float64, len(names))
 	for _, name := range names {
 		probabilities[name] = rest
 	}
 
-	probabilities[value] = share
+	probabilities[value] = answer.Rounded(1 - rest*float64(len(names)-1))
 
 	return probabilities
 }

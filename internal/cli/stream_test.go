@@ -1737,8 +1737,9 @@ func TestStream(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		// a scores 0.7*0.9 + 0.3*(1 - 1/3) = 0.83 and b scores 0.7*0.4 + 0.3*1 = 0.58.
-		if want := `[{"id":"a","score":0.83},{"id":"b","score":0.58}]`; !sameRanking(t, encoded, want) {
+		// a scores 0.7*0.9 + 0.3*(1 - 0.3333) = 0.83001, with norm rounded to four places, and b
+		// scores 0.7*0.4 + 0.3*1 = 0.58.
+		if want := `[{"id":"a","score":0.83001},{"id":"b","score":0.58}]`; !sameRanking(t, encoded, want) {
 			t.Errorf("ranked = %s, want %s", encoded, want)
 		}
 	})

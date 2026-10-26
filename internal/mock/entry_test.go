@@ -59,13 +59,13 @@ func TestEntryResult(t *testing.T) {
 			p:          map[string]float64{"1": 0, "2": 0, "3": 0, "4": 1, "5": 0},
 		},
 		{
-			name:       "should spread a rate's p by its confidence as a pick's",
+			name:       "should spread a rate's p by its confidence as a pick's, and average its score over p",
 			file:       `{"r":{"value":"2","confidence":0.6}}`,
 			question:   five,
 			value:      "2",
 			confidence: 0.6,
-			score:      1,
-			norm:       0.25,
+			score:      1.5,
+			norm:       0.375,
 			p:          map[string]float64{"1": 0.1, "2": 0.6, "3": 0.1, "4": 0.1, "5": 0.1},
 		},
 		{
@@ -74,9 +74,9 @@ func TestEntryResult(t *testing.T) {
 			question:   five,
 			value:      "2",
 			confidence: 0.1,
-			score:      1,
-			norm:       0.25,
-			p:          map[string]float64{"1": 1.0 / 6, "2": 1.0 / 3, "3": 1.0 / 6, "4": 1.0 / 6, "5": 1.0 / 6},
+			score:      1.833,
+			norm:       0.4583,
+			p:          map[string]float64{"1": 0.1666, "2": 0.3336, "3": 0.1666, "4": 0.1666, "5": 0.1666},
 		},
 		{
 			name:       "should replay a score between levels as the real run printed it",
@@ -96,13 +96,13 @@ func TestEntryResult(t *testing.T) {
 			p:          map[string]float64{"billing": 0.3, "platform": 0.6, "sales": 0.1},
 		},
 		{
-			name:       "should replay the probabilities of a rate",
+			name:       "should replay the probabilities of a rate and average its score over them",
 			file:       `{"r":{"value":"curt","p":{"calm":0.1,"curt":0.5,"rude":0.4}}}`,
 			question:   rateQuestion("r", "calm", "curt", "rude"),
 			value:      "curt",
 			confidence: 1,
-			score:      1,
-			norm:       0.5,
+			score:      1.3,
+			norm:       0.65,
 			p:          map[string]float64{"calm": 0.1, "curt": 0.5, "rude": 0.4},
 		},
 		{
@@ -111,8 +111,8 @@ func TestEntryResult(t *testing.T) {
 			question:   plan.Question{ID: "b", Shape: plan.Rate, Levels: []plan.Level{{}, {}, {}}},
 			value:      "2",
 			confidence: 1,
-			score:      2,
-			norm:       1,
+			score:      1.6,
+			norm:       0.8,
 			p:          map[string]float64{"0": 0.1, "1": 0.2, "2": 0.7},
 		},
 		{
@@ -386,6 +386,19 @@ func assertRoundTrip(t *testing.T, question plan.Question, value string, confide
 	first := loadNormalized(t, question, file)
 	if *first.Confidence > first.P.Values[value] {
 		t.Errorf("%s: confidence %v is above the value's p %v", file, *first.Confidence, first.P.Values[value])
+	}
+
+	sum := 0.0
+	for key, share := range first.P.Values {
+		sum += share
+
+		if share != math.Round(share*1e4)/1e4 {
+			t.Errorf("%s: p[%s] = %v, want it rounded to four places", file, key, share)
+		}
+	}
+
+	if math.Abs(sum-1) > 1e-9 {
+		t.Errorf("%s: p sums to %v, want 1", file, sum)
 	}
 
 	p, err := json.Marshal(first.P.Values)
