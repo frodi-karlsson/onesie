@@ -48,7 +48,3 @@ func resolveProvider(settings rootSettings, flags *runFlags) (onesie.Provider, e
 
 	return onesie.ProviderNamed(value)
 }
-
-type resolution struct {
-	provider onesie.Provider
-}

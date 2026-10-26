@@ -14,15 +14,6 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/interrupt"
 )
 
-const (
-	sourceEnv      = "env"
-	sourceFile     = "file"
-	sourceKeychain = "keychain"
-	sourceNone     = "none"
-
-	envProvider = "ONESIE_PROVIDER"
-)
-
 func newAuthCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "auth",

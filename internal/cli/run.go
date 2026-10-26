@@ -1368,22 +1368,25 @@ func outputName(flags *runFlags) string {
 }
 
 type runFlags struct {
-	provider  string
-	mock      string
-	out       string
-	resume    bool
-	prune     bool
-	output    string
-	raw       bool
-	quiet     bool
-	usage     bool
-	input     string
-	state     string
-	stateFile string
-	model     string
-	baseURL   string
-	file      string
-	replace   bool
+	provider    string
+	providerSet bool
+	profile     string
+	profileSet  bool
+	mock        string
+	out         string
+	resume      bool
+	prune       bool
+	output      string
+	raw         bool
+	quiet       bool
+	usage       bool
+	input       string
+	state       string
+	stateFile   string
+	model       string
+	baseURL     string
+	file        string
+	replace     bool
 
 	assert    []string
 	abstainIf []string
