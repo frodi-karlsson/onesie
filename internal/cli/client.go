@@ -3,7 +3,6 @@ package cli
 import (
 	"context"
 	"fmt"
-	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -15,19 +14,16 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/output"
 )
 
-func defaultClientFactory(
-	info BuildInfo,
-	flags *runFlags,
-	settings rootSettings,
-	stderr func() io.Writer,
-) clientFactory {
+func defaultClientFactory(info BuildInfo, flags *runFlags, settings rootSettings) clientFactory {
 	var warned, doubled sync.Once
 
 	return func(_ context.Context, extra ...onesie.Option) (*onesie.Client, error) {
-		provider, err := resolveProvider(settings, flags)
+		chosen, err := runResolution(settings, flags)
 		if err != nil {
 			return nil, err
 		}
+
+		provider := chosen.provider
 
 		opts := []onesie.Option{
 			onesie.WithProvider(provider),
@@ -77,14 +73,14 @@ func defaultClientFactory(
 
 		if plainRemote(client.BaseURL()) {
 			warned.Do(func() {
-				_, printErr = fmt.Fprintln(stderr(), "warning: "+output.Printable(client.BaseURL())+
+				_, printErr = fmt.Fprintln(settings.holder.stderr(), "warning: "+output.Printable(client.BaseURL())+
 					" is plain http, so the API key crosses the network unencrypted")
 			})
 		}
 
 		if endsInVersion(client.BaseURL()) {
 			doubled.Do(func() {
-				_, printErr = fmt.Fprintln(stderr(), "warning: "+baseURLSource(settings, flags, provider)+
+				_, printErr = fmt.Fprintln(settings.holder.stderr(), "warning: "+baseURLSource(settings, flags, provider)+
 					" ends in /v1 and onesie adds the API path itself, so requests go to "+
 					output.Printable(client.SystemOneURL()))
 			})
@@ -187,10 +183,10 @@ func pooled(jobs int) http.RoundTripper {
 type clientFactory func(ctx context.Context, opts ...onesie.Option) (*onesie.Client, error)
 
 func resolveModel(settings rootSettings, flags *runFlags, model string) (string, error) {
-	provider, err := resolveProvider(settings, flags)
+	chosen, err := runResolution(settings, flags)
 	if err != nil {
 		return "", err
 	}
 
-	return provider.ResolveModel(model, settings.lookupEnv), nil
+	return chosen.provider.ResolveModel(model, settings.lookupEnv), nil
 }

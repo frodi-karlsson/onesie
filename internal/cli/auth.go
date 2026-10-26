@@ -89,10 +89,12 @@ func newAuthSetCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 func authSet(cmd *cobra.Command, settings rootSettings, flags *runFlags, opts setOptions) error {
 	baseURL, hasBaseURL := opts.baseURL, opts.hasBaseURL
 
-	provider, err := resolveProvider(settings, flags)
+	chosen, err := runResolution(settings, flags)
 	if err != nil {
 		return err
 	}
+
+	provider := chosen.provider
 
 	// Ahead of the read, so a typo costs the user nothing and leaves no file behind. onesie.New owns
 	// the same check, and a second one here would be a second message to keep in step.
@@ -465,10 +467,12 @@ func newAuthClearCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 }
 
 func authClear(cmd *cobra.Command, settings rootSettings, flags *runFlags) error {
-	provider, err := resolveProvider(settings, flags)
+	chosen, err := runResolution(settings, flags)
 	if err != nil {
 		return err
 	}
+
+	provider := chosen.provider
 
 	path, err := settings.credPath()
 	if err != nil {
@@ -542,10 +546,12 @@ func resolveKey(settings rootSettings, flags *runFlags) (keySource, error) {
 }
 
 func locateKey(settings rootSettings, flags *runFlags) (keySource, error) {
-	provider, err := resolveProvider(settings, flags)
+	chosen, err := runResolution(settings, flags)
 	if err != nil {
 		return keySource{}, err
 	}
+
+	provider := chosen.provider
 
 	// The provider's variable outranks the credential file, which is read only when it is unset.
 	if value, ok := settings.lookupEnv(provider.EnvAPIKey); ok && strings.TrimSpace(value) != "" {
@@ -588,16 +594,6 @@ func previousAccount(entry creds.Entry, provider onesie.Provider) string {
 	}
 
 	return entry.Account
-}
-
-func resolveProvider(settings rootSettings, flags *runFlags) (onesie.Provider, error) {
-	if name := strings.TrimSpace(flags.provider); name != "" {
-		return onesie.ProviderNamed(name)
-	}
-
-	value, _ := settings.lookupEnv(envProvider)
-
-	return onesie.ProviderNamed(value)
 }
 
 type keySource struct {

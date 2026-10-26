@@ -113,14 +113,17 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 		settings.configDir = configDir(settings.lookupEnv, settings.homeDir, settings.goos)
 	}
 
-	// The factory reads flags, which are parsed after this returns, so it closes over the pointer.
-	// Installing it only when absent keeps an injected factory winning.
+	// The holder and the factory read flags, which are parsed after this returns, so both close over
+	// the pointer. The holder comes first, since the factory reads through it.
 	var root *cobra.Command
 
+	settings.holder = newHolder(settings, flags, func() io.Writer {
+		return root.ErrOrStderr()
+	})
+
+	// Installing it only when absent keeps an injected factory winning.
 	if settings.newClient == nil {
-		settings.newClient = defaultClientFactory(info, flags, settings, func() io.Writer {
-			return root.ErrOrStderr()
-		})
+		settings.newClient = defaultClientFactory(info, flags, settings)
 	}
 
 	recorder := argv.New()
@@ -180,8 +183,8 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 			}
 
 			// Ahead of run, since a dry run builds no client and would otherwise never look at it.
-			if _, providerErr := resolveProvider(settings, flags); providerErr != nil {
-				return providerErr
+			if _, resolveErr := runResolution(settings, flags); resolveErr != nil {
+				return resolveErr
 			}
 
 			out, resume, err := openOut(settings, flags)
@@ -580,6 +583,7 @@ func schemaURLOf(info BuildInfo) string {
 
 type rootSettings struct {
 	args          []string
+	holder        *holder
 	newClient     clientFactory
 	stdin         io.Reader
 	stdinTTY      bool

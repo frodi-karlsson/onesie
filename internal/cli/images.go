@@ -221,7 +221,7 @@ func checkProviderNeeds(settings rootSettings, flags *runFlags, built *plan.Plan
 		return nil
 	}
 
-	provider, err := resolveProvider(settings, flags)
+	chosen, err := runResolution(settings, flags)
 	if err != nil {
 		return err
 	}
@@ -231,7 +231,7 @@ func checkProviderNeeds(settings rootSettings, flags *runFlags, built *plan.Plan
 		return err
 	}
 
-	return provider.Refuse(model, onesie.Needs{
+	return chosen.provider.Refuse(model, onesie.Needs{
 		Images:      sendsAssets(images),
 		Box:         asksBox(built),
 		LongContext: built.LongContext,

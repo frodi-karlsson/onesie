@@ -34,12 +34,12 @@ func streamRaw(
 			return err
 		}
 
-		resolved, err := resolveProvider(settings, flags)
+		chosen, err := runResolution(settings, flags)
 		if err != nil {
 			return err
 		}
 
-		provider = resolved
+		provider = chosen.provider
 
 		client = built
 	}

@@ -374,12 +374,12 @@ func outFingerprint(
 }
 
 func runInputs(settings rootSettings, flags *runFlags, inputs fingerprintInputs) (fingerprintInputs, error) {
-	provider, err := resolveProvider(settings, flags)
+	chosen, err := runResolution(settings, flags)
 	if err != nil {
 		return fingerprintInputs{}, err
 	}
 
-	inputs.provider = provider.Name
+	inputs.provider = chosen.provider.Name
 	inputs.mapSource = flags.mapSource
 	inputs.idSource = flags.idSource
 
