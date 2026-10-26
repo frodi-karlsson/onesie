@@ -580,8 +580,12 @@ on the provider's key variable alone.
 - The strongest choice wins, so a flag beats a variable, and a variable beats the default.
 - Two choices of the same strength exit 2, naming both. So `--profile` with `--provider` exits 2,
   and so do `ONESIE_PROFILE` and `ONESIE_PROVIDER` set together.
-- An empty or whitespace only variable counts as unset. An empty `--profile`, `--provider` or
-  `--base-url` exits 2, since a flag given is a choice made.
+- An empty or whitespace only variable counts as unset. An empty or whitespace only flag value
+  exits 2 instead, since a flag given is a choice made. That holds for `--profile`, `--provider`,
+  `--base-url`, `-m`, `--mock`, `-f`, `-i`, `-o`, `--out`, `--state-file`, `--map`, `--id`,
+  `--merge-key`, `--image-field` and calibrate's `--label`, so `--mock "$UNSET"` never reaches the
+  API. An empty `--sep` exits 2 too. `profile update` is the exception, where an empty value clears
+  a member.
 - `--provider` or `ONESIE_PROVIDER` runs without a profile.
 - With no choice and no profiles, a run uses no profile and the `typesafe` provider.
 - With no choice, and profiles but no default, a run exits 2 and names `onesie profile use NAME`,

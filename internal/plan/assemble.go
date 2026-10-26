@@ -180,6 +180,10 @@ func applyEvents(question *Question, events []argv.Event, readFile func(string) 
 	for _, event := range events {
 		switch event.Name {
 		case "sep":
+			if event.Value == "" {
+				return fmt.Errorf("onesie: --%s is empty. Name one, or leave the flag out", event.Name)
+			}
+
 			separator = event.Value
 		case "pick":
 			question.Shape = Pick

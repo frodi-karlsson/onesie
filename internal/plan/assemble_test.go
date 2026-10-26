@@ -188,6 +188,15 @@ func TestAssemble(t *testing.T) {
 			},
 		},
 		{
+			name: "should refuse an empty sep, which would split the options into single characters",
+			events: []argv.Event{
+				{Name: "ask", Value: "a=first"},
+				{Name: "sep", Value: ""},
+				{Name: "pick", Value: "a,b"},
+			},
+			wantErr: true,
+		},
+		{
 			name: "should not apply sep to a pick that preceded it",
 			events: []argv.Event{
 				{Name: "ask", Value: "a=first"},

@@ -452,6 +452,14 @@ func TestProfileCreate(t *testing.T) {
 			wantNoFile:  true,
 		},
 		{
+			name:        "should refuse an empty --model",
+			args:        []string{"profile", "create", "work", "--provider", "typesafe", "--model", ""},
+			stdinUnread: true,
+			wantCode:    ExitUsage,
+			wantErr:     []string{"onesie: --model is empty. Name one, or leave the flag out"},
+			wantNoFile:  true,
+		},
+		{
 			name:       "should refuse an empty key",
 			args:       []string{"profile", "create", "work", "--provider", "typesafe"},
 			stdin:      "   \n",

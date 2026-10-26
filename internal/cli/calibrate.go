@@ -120,7 +120,8 @@ func newCalibrateCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 				return cmd.Help()
 			}
 
-			if refused := refuseEmptyBaseURL(cmd, flags); refused != nil {
+			if refused := refuseEmptyValues(cmd, settings.args, flagBaseURL, flagModel, "output", flagInput, "mock",
+				"out", "file", flagMap, flagID, "label", flagImageField); refused != nil {
 				return refused
 			}
 

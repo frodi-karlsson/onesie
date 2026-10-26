@@ -186,7 +186,8 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 				return refused
 			}
 
-			if refused := refuseEmptyBaseURL(cmd, flags); refused != nil {
+			if refused := refuseEmptyValues(cmd, settings.args, flagBaseURL, flagModel, "output", flagInput, "mock",
+				"out", "file", flagStateFile, flagMap, flagID, "merge-key", flagImageField); refused != nil {
 				return refused
 			}
 
@@ -362,13 +363,33 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 	return root
 }
 
-func refuseEmptyBaseURL(cmd *cobra.Command, flags *runFlags) error {
-	// A flag given is a choice made, as an empty --profile is, so it is not read as unset.
-	if cmd.Flags().Changed(flagBaseURL) && strings.TrimSpace(flags.baseURL) == "" {
-		return fmt.Errorf("onesie: --%s is empty. Name one, or leave the flag out", flagBaseURL)
+func refuseEmptyValues(cmd *cobra.Command, args []string, names ...string) error {
+	// A flag given is a choice made, as an empty --profile is, so it is not read as unset. An unset
+	// variable in a script would otherwise drop a --mock and send a paid request.
+	for _, name := range names {
+		flag := cmd.Flags().Lookup(name)
+		if flag == nil || !flag.Changed {
+			continue
+		}
+
+		if slices.ContainsFunc(flagValues(flag), isBlank) {
+			return fmt.Errorf("onesie: %s is empty. Name one, or leave the flag out", flagSpelling(flag, args))
+		}
 	}
 
 	return nil
+}
+
+func flagValues(flag *pflag.Flag) []string {
+	if list, ok := flag.Value.(pflag.SliceValue); ok {
+		return list.GetSlice()
+	}
+
+	return []string{flag.Value.String()}
+}
+
+func isBlank(value string) bool {
+	return strings.TrimSpace(value) == ""
 }
 
 func plainFlagError(err error, args []string) error {

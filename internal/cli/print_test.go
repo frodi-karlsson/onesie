@@ -1153,11 +1153,6 @@ func TestPrintRequest(t *testing.T) {
 				stdin: "the server is down",
 			},
 			{
-				name:  "should print the resolved model a whitespace only -m sends",
-				args:  []string{"--ask", "urgent=is this urgent", "-m", "   "},
-				stdin: "the server is down",
-			},
-			{
 				name: "should print the trimmed model an untrimmed request body sends",
 				file: `{"state":"the server is down","model":" onesie-1.13.0 ","questions":` +
 					`{"urgent":{"type":"noul","instructions":"is this urgent"}}}`,

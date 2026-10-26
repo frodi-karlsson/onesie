@@ -893,6 +893,7 @@ func noProfileNamed(name string, profiles creds.Profiles) error {
 
 func refuseEmpty(fields profileFlags, changed func(string) bool) error {
 	for _, given := range []struct{ flag, value string }{
+		{flag: flagModel, value: fields.model},
 		{flag: flagBaseURL, value: fields.baseURL},
 		{flag: flagAccountID, value: fields.accountID},
 	} {
