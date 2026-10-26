@@ -25,7 +25,8 @@ const (
 	keyPlaceholder = "placeholder"
 	noProfile      = "none"
 	notActive      = "not active"
-	providersOwn   = "the provider's"
+	providersOwn   = "the provider's default"
+	fromProfile    = "profile"
 )
 
 func newProfileCmd(settings rootSettings, flags *runFlags) *cobra.Command {
@@ -621,8 +622,10 @@ func newProfileShowCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 		Short: "Report a profile, or what a run would use, never the key",
 		Long: "With a name, report that profile. Without one, report what a run would use now, profile or " +
 			"not, as --profile, --provider and their variables choose. It prints profile, provider, chosen " +
-			"by, key, model and base_url lines, and an account line on cloudflare. It never reads the " +
-			"keychain or prints a key.\n\n" +
+			"by, key, model and base_url lines, and an account line on cloudflare. The model and base_url " +
+			"lines give the value a run would use and where it comes from: profile, an env variable such as " +
+			"TYPESAFE_DEFAULT_MODEL, account_id, or the provider's default. It never reads the keychain or " +
+			"prints a key.\n\n" +
 			"It exits 2 when key or account is none, as a real run does.",
 		Args: profileNames("show", 0, 1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -642,6 +645,18 @@ func profileShow(cmd *cobra.Command, settings rootSettings, flags *runFlags, arg
 		return refused
 	}
 
+	baseURL, found := effectiveBaseURL(shown, settings.lookupEnv)
+
+	// Again for what the variables chose, since TYPESAFE_BASE_URL skips create's checks too.
+	if refused := refuseUnclearBaseURL(baseURL); found && refused != nil {
+		return refused
+	}
+
+	baseURLLine := sourceNone
+	if found {
+		baseURLLine = output.Printable(baseURL) + ", " + baseURLOrigin(shown, settings.lookupEnv)
+	}
+
 	account := shown.accountSource(settings.lookupEnv)
 
 	lines := []string{
@@ -649,8 +664,9 @@ func profileShow(cmd *cobra.Command, settings rootSettings, flags *runFlags, arg
 		"provider: " + shown.provider.Name,
 		"chosen by: " + shown.by,
 		"key: " + shown.keyLine(),
-		"model: " + cmp.Or(output.Printable(shown.model), providersOwn),
-		"base_url: " + cmp.Or(output.Printable(shown.baseURL), providersOwn),
+		"model: " + output.Printable(shown.modelFor("", settings.lookupEnv)) + ", " +
+			modelOrigin(shown, settings.lookupEnv),
+		"base_url: " + baseURLLine,
 	}
 
 	if account != "" {
@@ -666,6 +682,51 @@ func profileShow(cmd *cobra.Command, settings rootSettings, flags *runFlags, arg
 	}
 
 	return nil
+}
+
+func effectiveBaseURL(shown resolution, lookupEnv func(string) (string, bool)) (string, bool) {
+	// Built the way a run builds its client, with a stand in for the key show never reads, so the
+	// order the URL is chosen in is the run's own.
+	opts := []onesie.Option{
+		onesie.WithProvider(shown.provider), onesie.WithEnv(shown.env(lookupEnv)), onesie.WithAPIKey(keyPlaceholder),
+	}
+
+	if shown.baseURL != "" {
+		opts = append(opts, onesie.WithBaseURL(shown.baseURL))
+	}
+
+	client, err := onesie.New(opts...)
+	if err != nil {
+		return "", false
+	}
+
+	return client.BaseURL(), true
+}
+
+func baseURLOrigin(shown resolution, lookupEnv func(string) (string, bool)) string {
+	switch {
+	case shown.baseURL != "":
+		return fromProfile
+	case shown.provider.EnvBaseURL != "" && setVariable(lookupEnv, shown.provider.EnvBaseURL) != "":
+		return sourceEnv + " " + shown.provider.EnvBaseURL
+	case shown.accountID != "":
+		return "account_id"
+	case shown.provider.EnvAccountID != "" && setVariable(lookupEnv, shown.provider.EnvAccountID) != "":
+		return sourceEnv + " " + shown.provider.EnvAccountID
+	}
+
+	return providersOwn
+}
+
+func modelOrigin(shown resolution, lookupEnv func(string) (string, bool)) string {
+	switch {
+	case strings.TrimSpace(shown.model) != "":
+		return fromProfile
+	case shown.provider.EnvDefaultModel != "" && setVariable(lookupEnv, shown.provider.EnvDefaultModel) != "":
+		return sourceEnv + " " + shown.provider.EnvDefaultModel
+	}
+
+	return providersOwn
 }
 
 func newProfileTestCmd(settings rootSettings, flags *runFlags) *cobra.Command {

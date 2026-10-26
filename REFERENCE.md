@@ -527,9 +527,12 @@ on the provider's key variable alone.
   without a profile, or `none`. A converted keychain key shows no ending until
   `onesie profile update NAME --key`. `chosen by:` is `--profile`, `ONESIE_PROFILE`, `the default`,
   `--provider`, `ONESIE_PROVIDER` or `nothing`, and `not active` for a named profile a run would not
-  use. `model:` and `base_url:` read `the provider's` when the profile sets none, and `account:`
-  names `account_id`, `base_url`, `CLOUDFLARE_ACCOUNT_ID` or `none`. `show` exits 2 when `key` or
-  `account` is `none`, as a real run would.
+  use. `model:` and `base_url:` give the value a run would use, in the order a run picks it, then
+  where it comes from: `profile`, `env TYPESAFE_DEFAULT_MODEL`, `env TYPESAFE_BASE_URL`,
+  `account_id`, `env CLOUDFLARE_ACCOUNT_ID` or `the provider's default`, as in
+  `model: jev-latest, the provider's default`. `base_url:` is `none` on cloudflare with no account.
+  `account:` names `account_id`, `base_url`, `CLOUDFLARE_ACCOUNT_ID` or `none`. `show` exits 2 when
+  `key` or `account` is `none`, as a real run would.
 - A key the server refuses with 401 or 403 exits 3, on a run or on `test`. On a profile the message
   names `onesie profile update NAME --key`, and without one it names the provider's key variable. A
   run with no key and no profile for its provider names

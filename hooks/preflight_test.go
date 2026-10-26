@@ -22,7 +22,7 @@ const (
 	removedLink = "onesie: removed the link /home/u/.config/onesie/credentials.json, but " +
 		"/home/u/secrets/credentials.json still holds the key"
 	goodReport = "profile: work\nprovider: openrouter\nchosen by: the default\nkey: file, ends in cdef\n" +
-		"model: the provider's\nbase_url: the provider's\n"
+		"model: jev-latest, the provider's default\nbase_url: https://openrouter.ai/api, the provider's default\n"
 	goodVerdict = "onesie is on PATH and a key resolves, profile: work, provider: openrouter, key: file.\n"
 )
 
@@ -43,19 +43,19 @@ func TestPreflight(t *testing.T) {
 		{
 			name: "should report the profile, the provider and where the key lives, without its ending",
 			show: "profile: work\nprovider: openrouter\nchosen by: the default\nkey: keychain, ends in 3f9a\n" +
-				"model: typesafe/jev\nbase_url: the provider's\n",
+				"model: typesafe/jev, profile\nbase_url: https://openrouter.ai/api, the provider's default\n",
 			want: "onesie is on PATH and a key resolves, profile: work, provider: openrouter, key: keychain.\n",
 		},
 		{
 			name: "should report a key from the environment for a run without a profile",
 			show: "profile: none\nprovider: typesafe\nchosen by: nothing\nkey: env TYPESAFE_API_KEY\n" +
-				"model: the provider's\nbase_url: the provider's\n",
+				"model: jev-latest, the provider's default\nbase_url: https://api.typesafe.ai, the provider's default\n",
 			want: "onesie is on PATH and a key resolves, profile: none, provider: typesafe, key: env TYPESAFE_API_KEY.\n",
 		},
 		{
 			name: "should name profile create and the key variable when no key resolves",
 			show: "profile: none\nprovider: openrouter\nchosen by: ONESIE_PROVIDER\nkey: none\n" +
-				"model: the provider's\nbase_url: the provider's\n",
+				"model: jev-latest, the provider's default\nbase_url: https://openrouter.ai/api, the provider's default\n",
 			code: 2,
 			want: "onesie is on PATH, but no API key resolves for provider openrouter. Only --print-request and " +
 				"--print-questions work until the user runs onesie profile create NAME --provider openrouter or " +
@@ -64,7 +64,7 @@ func TestPreflight(t *testing.T) {
 		{
 			name: "should name the key variable of berget when no key resolves",
 			show: "profile: none\nprovider: berget\nchosen by: nothing\nkey: none\n" +
-				"model: the provider's\nbase_url: the provider's\n",
+				"model: systemone, the provider's default\nbase_url: https://api.berget.ai, the provider's default\n",
 			code: 2,
 			want: "onesie is on PATH, but no API key resolves for provider berget. Only --print-request and " +
 				"--print-questions work until the user runs onesie profile create NAME --provider berget or " +
@@ -73,7 +73,7 @@ func TestPreflight(t *testing.T) {
 		{
 			name: "should name the key variable of levanto when no key resolves",
 			show: "profile: none\nprovider: levanto\nchosen by: nothing\nkey: none\n" +
-				"model: the provider's\nbase_url: the provider's\n",
+				"model: sage-latest, the provider's default\nbase_url: https://sage.levanto.ai, the provider's default\n",
 			code: 2,
 			want: "onesie is on PATH, but no API key resolves for provider levanto. Only --print-request and " +
 				"--print-questions work until the user runs onesie profile create NAME --provider levanto or " +
@@ -82,7 +82,7 @@ func TestPreflight(t *testing.T) {
 		{
 			name: "should name the key variable of cloudflare when no key resolves",
 			show: "profile: none\nprovider: cloudflare\nchosen by: nothing\nkey: none\n" +
-				"model: the provider's\nbase_url: the provider's\n",
+				"model: typesafe/jev, the provider's default\nbase_url: none\n",
 			code: 2,
 			want: "onesie is on PATH, but no API key resolves for provider cloudflare. Only --print-request and " +
 				"--print-questions work until the user runs onesie profile create NAME --provider cloudflare or " +
@@ -91,7 +91,7 @@ func TestPreflight(t *testing.T) {
 		{
 			name: "should name TYPESAFE_API_KEY through the default arm when no key resolves on typesafe",
 			show: "profile: none\nprovider: typesafe\nchosen by: nothing\nkey: none\n" +
-				"model: the provider's\nbase_url: the provider's\n",
+				"model: jev-latest, the provider's default\nbase_url: https://api.typesafe.ai, the provider's default\n",
 			code: 2,
 			want: "onesie is on PATH, but no API key resolves for provider typesafe. Only --print-request and " +
 				"--print-questions work until the user runs onesie profile create NAME --provider typesafe or " +
@@ -100,7 +100,7 @@ func TestPreflight(t *testing.T) {
 		{
 			name: "should name profile update when a profile has no account",
 			show: "profile: cf\nprovider: cloudflare\nchosen by: ONESIE_PROFILE\nkey: file, ends in cdef\n" +
-				"model: the provider's\nbase_url: the provider's\naccount: none\n",
+				"model: typesafe/jev, the provider's default\nbase_url: none\naccount: none\n",
 			code: 2,
 			want: "onesie is on PATH and a key resolves for profile cf, but no account does. Every request fails " +
 				"until the user runs onesie profile update cf --account-id ACCOUNT_ID or sets " +
@@ -109,7 +109,7 @@ func TestPreflight(t *testing.T) {
 		{
 			name: "should name the account variable and profile create when a run without a profile has no account",
 			show: "profile: none\nprovider: cloudflare\nchosen by: ONESIE_PROVIDER\nkey: env CLOUDFLARE_API_TOKEN\n" +
-				"model: the provider's\nbase_url: the provider's\naccount: none\n",
+				"model: typesafe/jev, the provider's default\nbase_url: none\naccount: none\n",
 			code: 2,
 			want: "onesie is on PATH and a key resolves for provider cloudflare, but no account does. Every " +
 				"request fails until the user sets CLOUDFLARE_ACCOUNT_ID or stores a profile with onesie " +
