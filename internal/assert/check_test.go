@@ -1008,6 +1008,11 @@ func TestBracketHint(t *testing.T) {
 			want:   `Write the id 'a b' in brackets, as in ["a b"].value`,
 		},
 		{
+			name:   "should advise brackets for a dotted id written bare",
+			source: `a.b.value < 0.5 and`,
+			want:   `Write the id 'a.b' in brackets, as in ["a.b"].value`,
+		},
+		{
 			name:   "should advise nothing when the id is already in brackets",
 			source: `["a-b"].value < 0.5 and`,
 		},
