@@ -259,6 +259,11 @@ func TestResolveChoice(t *testing.T) {
 			wantProfile: "cf", wantProvider: "cloudflare", wantBy: "--profile", wantKeyFrom: sourceFile,
 		},
 		{
+			name: "should take the profile ONESIE_PROFILE names over the default", profiles: withDefault,
+			chosen:      choice{profile: "cf", by: "ONESIE_PROFILE"},
+			wantProfile: "cf", wantProvider: "cloudflare", wantBy: "ONESIE_PROFILE", wantKeyFrom: sourceFile,
+		},
+		{
 			name: "should name the profiles there are for a missing one", profiles: withDefault,
 			chosen:  choice{profile: "nope", by: "ONESIE_PROFILE"},
 			wantErr: "onesie: ONESIE_PROFILE names profile 'nope', which does not exist. The profiles are cf, work",
@@ -365,6 +370,11 @@ func TestProfileRun(t *testing.T) {
 			name:        "should give a file key under 16 characters no ending",
 			profile:     creds.Profile{Provider: "typesafe", APIKey: "SECRET-01234567"},
 			wantKeyFrom: sourceFile, wantKey: "SECRET-01234567",
+		},
+		{
+			name:        "should end a padded file key on its last real characters",
+			profile:     creds.Profile{Provider: "typesafe", APIKey: "  SECRET-012345678\n"},
+			wantKeyFrom: sourceFile, wantKey: "  SECRET-012345678\n", wantKeyEnd: "5678",
 		},
 	}
 
@@ -591,6 +601,80 @@ func TestResolutionEnv(t *testing.T) {
 			t.Errorf("CLOUDFLARE_ACCOUNT_ID = %q, want the environment's", got)
 		}
 	})
+
+	t.Run("should keep a profile run with a blank key off the provider's key variable", func(t *testing.T) {
+		t.Parallel()
+
+		run, err := profileRun("or", creds.Profile{Provider: "openrouter", APIKey: "SECRET-OR"}, "--profile")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		lookupWithKey := lookupFrom(map[string]string{"OPENROUTER_API_KEY": "SECRET-ENV"})
+		opts := []onesie.Option{onesie.WithProvider(run.provider), onesie.WithEnv(run.env(lookupWithKey))}
+
+		_, err = onesie.New(append(opts, run.options("", "  ", lookupWithKey)...)...)
+		if !errors.Is(err, onesie.ErrValidation) || !strings.Contains(err.Error(), "no API key") {
+			t.Errorf("error = %v, want onesie-go's missing key error", err)
+		}
+	})
+
+	t.Run("should pass the provider's key variable through on a run without a profile", func(t *testing.T) {
+		t.Parallel()
+
+		bare, err := providerRun("openrouter", "--provider", lookupFrom(nil))
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if got, _ := bare.env(lookupFrom(map[string]string{"OPENROUTER_API_KEY": "SECRET-ENV"}))("OPENROUTER_API_KEY"); got != "SECRET-ENV" {
+			t.Error("the provider's key variable did not reach a run without a profile")
+		}
+	})
+}
+
+func TestFirstProfileOf(t *testing.T) {
+	t.Parallel()
+
+	both := map[string]creds.Profile{
+		"personal": {Provider: "openrouter", APIKey: "SECRET-HOME"},
+		"work":     {Provider: "openrouter", APIKey: "SECRET-WORK"},
+		"ts":       {Provider: "typesafe", APIKey: "SECRET-TS"},
+	}
+
+	tests := []struct {
+		name     string
+		profiles creds.Profiles
+		provider string
+		want     string
+	}{
+		{
+			name:     "should prefer the default when its provider matches",
+			profiles: creds.Profiles{Default: "work", Profiles: both}, provider: "openrouter", want: "work",
+		},
+		{
+			name:     "should take the first by name when the default has another provider",
+			profiles: creds.Profiles{Default: "ts", Profiles: both}, provider: "openrouter", want: "personal",
+		},
+		{
+			name:     "should take the first by name when there is no default",
+			profiles: creds.Profiles{Profiles: both}, provider: "openrouter", want: "personal",
+		},
+		{
+			name:     "should name nothing when no profile has the provider",
+			profiles: creds.Profiles{Default: "work", Profiles: both}, provider: "berget",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := firstProfileOf(tc.provider, tc.profiles); got != tc.want {
+				t.Errorf("firstProfileOf = %q, want %q", got, tc.want)
+			}
+		})
+	}
 }
 
 func TestResolutionBaseURLSource(t *testing.T) {

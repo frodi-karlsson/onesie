@@ -97,7 +97,7 @@ func resolveChoice(
 	if chosen.provider != "" {
 		bare, err := providerRun(chosen.provider, chosen.by, lookupEnv)
 		if err != nil {
-			return resolution{}, unknownProvider(err, chosen, profiles)
+			return resolution{}, providerIsProfileHint(err, chosen, profiles)
 		}
 
 		return bare, nil
@@ -126,7 +126,7 @@ func resolveChoice(
 	return profileRun(name, profile, by)
 }
 
-func unknownProvider(err error, chosen choice, profiles creds.Profiles) error {
+func providerIsProfileHint(err error, chosen choice, profiles creds.Profiles) error {
 	if _, isProfile := profiles.Profiles[chosen.provider]; !isProfile {
 		return err
 	}
@@ -170,7 +170,7 @@ func profileRun(name string, profile creds.Profile, by string) (resolution, erro
 
 	kept := resolution{
 		provider: provider, profile: name, by: by,
-		keyFrom: sourceFile, key: profile.APIKey, keyEnd: creds.KeyEnd(profile.APIKey),
+		keyFrom: sourceFile, key: profile.APIKey, keyEnd: creds.KeyEnd(strings.TrimSpace(profile.APIKey)),
 		model: profile.Model, baseURL: profile.BaseURL, accountID: profile.AccountID,
 	}
 
@@ -218,12 +218,16 @@ func (r resolution) modelFor(explicit string, lookupEnv func(string) (string, bo
 }
 
 func (r resolution) env(lookupEnv func(string) (string, bool)) func(string) (string, bool) {
-	if r.accountID == "" || r.provider.EnvAccountID == "" {
+	if r.profile == "" {
 		return lookupEnv
 	}
 
 	return func(name string) (string, bool) {
-		if name == r.provider.EnvAccountID {
+		switch {
+		// onesie-go falls back to this variable for a blank key, and a profile run takes its key from the profile alone.
+		case name == r.provider.EnvAPIKey:
+			return "", false
+		case name == r.provider.EnvAccountID && r.accountID != "":
 			return r.accountID, true
 		}
 
@@ -291,6 +295,10 @@ func missingKeyHint(err error, bare resolution, profiles creds.Profiles) error {
 }
 
 func firstProfileOf(provider string, profiles creds.Profiles) string {
+	if preferred, ok := profiles.Profiles[profiles.Default]; ok && preferred.Provider == provider {
+		return profiles.Default
+	}
+
 	for _, name := range slices.Sorted(maps.Keys(profiles.Profiles)) {
 		if profiles.Profiles[name].Provider == provider {
 			return name

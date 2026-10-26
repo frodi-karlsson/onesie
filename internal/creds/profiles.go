@@ -134,7 +134,7 @@ func (p Profile) validate(name string) error {
 			name, p.Provider)
 	}
 
-	inFile := p.APIKey != "" && p.Store == "" && p.Account == ""
+	inFile := strings.TrimSpace(p.APIKey) != "" && p.Store == "" && p.Account == ""
 	inKeychain := p.APIKey == "" && p.Store == StoreKeychain && p.Account != ""
 
 	if !inFile && !inKeychain {

@@ -119,6 +119,11 @@ func TestProfilesValidate(t *testing.T) {
 			wantErr:  "profile 'x' needs its key in exactly one place",
 		},
 		{
+			name:     "should refuse a whitespace only api_key",
+			profiles: creds.Profiles{Profiles: map[string]creds.Profile{"x": {Provider: "typesafe", APIKey: " \t\n"}}},
+			wantErr:  "profile 'x' needs its key in exactly one place",
+		},
+		{
 			name: "should refuse a profile with a key in both places",
 			profiles: creds.Profiles{Profiles: map[string]creds.Profile{
 				"x": {Provider: "typesafe", APIKey: "k", Store: creds.StoreKeychain, Account: "x@a"},
