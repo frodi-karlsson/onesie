@@ -37,6 +37,10 @@ func run(
 ) error {
 	flags.timeoutSet = cmd.Flags().Changed(flagTimeout)
 
+	if err := checkSwitches(settings.lookupEnv); err != nil {
+		return err
+	}
+
 	cfg, inputMode, err := configOf(cmd, events, positional, flags)
 	if err != nil {
 		return err

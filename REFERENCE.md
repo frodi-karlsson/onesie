@@ -408,7 +408,8 @@ onesie cache clear
 
 `--cache`, or `ONESIE_CACHE=1`, stores each successful response on disk and answers a repeated
 request from it. Without either, nothing is stored and nothing is read. `ONESIE_CACHE` takes the
-values the flag takes, such as `1`, `true`, `0` and `false`, and anything else exits 2.
+values the flag takes, such as `1`, `true`, `0` and `false`, and anything else exits 2 in every run
+and `calibrate`, `--mock` and `--print-request` included.
 `--cache=false` turns the cache off for one run under `ONESIE_CACHE=1`, so that run asks the API
 again.
 
@@ -428,7 +429,7 @@ again.
   `Qwen/Qwen3.5-2B` on Berget and `levanto-sage-v1.4` on Levanto included. An alias's answers expire after 24 hours, since the model
   behind it can move. `ONESIE_CACHE_TTL` sets that lifetime as a duration, such as `90m` or `72h`,
   and `0` stops reading and storing answers for an alias. A negative or malformed value exits 2,
-  in a run, in `onesie cache` and in `onesie cache clear`. A run's lifetime decides what it reads,
+  in every run whether or not it uses the cache, in `onesie cache` and in `onesie cache clear`. A run's lifetime decides what it reads,
   not what it deletes: an expired answer is only a miss, which the next answer overwrites, and onesie deletes
   an alias's answer only once it is older than 24 hours, or than the run's own lifetime when that is
   longer. So a short lifetime in one run never deletes answers other runs still read. An answer
@@ -762,7 +763,7 @@ table, and `onesie calibrate --help` lists the codes calibrate uses.
 | `ONESIE_CACHE` | `1` turns the response cache on, as `--cache` |
 | `ONESIE_CACHE_DIR` | where the response cache lives |
 | `ONESIE_CACHE_TTL` | how long a cached answer for a model alias lives, `24h` unless set |
-| `ONESIE_LONG_CONTEXT` | `1` or `true` raises the context limits, as `--long-context` |
+| `ONESIE_LONG_CONTEXT` | `1` or `true` raises the context limits, as `--long-context`. It takes the values the flag takes, and anything else exits 2 |
 
 ## More
 

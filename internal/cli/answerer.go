@@ -2,7 +2,8 @@ package cli
 
 import (
 	"context"
-	"strings"
+	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/frodi-karlsson/onesie-go"
@@ -57,8 +58,29 @@ func longContext(settings rootSettings, flags *runFlags) bool {
 	}
 
 	value, _ := settings.lookupEnv(envLongContext)
+	on, err := strconv.ParseBool(value)
 
-	return value == "1" || strings.EqualFold(value, "true")
+	return err == nil && on
+}
+
+func checkSwitches(lookupEnv func(string) (string, bool)) error {
+	for _, variable := range []struct{ name, flag string }{
+		{envCache, "--" + flagCache},
+		{envLongContext, "--long-context"},
+	} {
+		value, found := lookupEnv(variable.name)
+		if !found || value == "" {
+			continue
+		}
+
+		if _, err := strconv.ParseBool(value); err != nil {
+			return fmt.Errorf("onesie: %s=%s is not a value %s takes. Use 1 or 0", variable.name, value, variable.flag)
+		}
+	}
+
+	_, err := aliasTTL(lookupEnv)
+
+	return err
 }
 
 func (a liveAnswerer) answer(ctx context.Context, _ recordKey, req onesie.Request) (reply, error) {

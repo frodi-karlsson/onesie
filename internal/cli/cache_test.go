@@ -92,6 +92,54 @@ func TestCaching(t *testing.T) {
 	}
 }
 
+func TestCheckSwitches(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		env     map[string]string
+		wantErr string
+	}{
+		{name: "should accept no variable"},
+		{name: "should accept empty variables", env: map[string]string{envCache: "", envLongContext: ""}},
+		{name: "should accept what the flags take", env: map[string]string{envCache: "true", envLongContext: "0"}},
+		{
+			name:    "should refuse an ONESIE_LONG_CONTEXT the flag would not take",
+			env:     map[string]string{envLongContext: "garbage"},
+			wantErr: "onesie: ONESIE_LONG_CONTEXT=garbage is not a value --long-context takes. Use 1 or 0",
+		},
+		{
+			name:    "should refuse an ONESIE_CACHE the flag would not take",
+			env:     map[string]string{envCache: "yes"},
+			wantErr: "onesie: ONESIE_CACHE=yes is not a value --cache takes. Use 1 or 0",
+		},
+		{
+			name:    "should refuse a malformed ONESIE_CACHE_TTL",
+			env:     map[string]string{envCacheTTL: "-1h"},
+			wantErr: "onesie: ONESIE_CACHE_TTL=-1h is not a duration of zero or more, such as 90m or 72h",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := checkSwitches(lookupFrom(tc.env))
+			if tc.wantErr == "" {
+				if err != nil {
+					t.Fatalf("checkSwitches = %v, want nil", err)
+				}
+
+				return
+			}
+
+			if err == nil || err.Error() != tc.wantErr || Classify(err) != ExitUsage {
+				t.Fatalf("checkSwitches = %v, want the usage error %q", err, tc.wantErr)
+			}
+		})
+	}
+}
+
 func TestOpenCache(t *testing.T) {
 	t.Parallel()
 
