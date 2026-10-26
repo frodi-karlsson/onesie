@@ -106,19 +106,22 @@ ONESIE_MOCK=answers.json ./gate.sh
   read as that question, which only `line` can be, since the others are reserved ids and `-i lines`
   reserves `line`.
 - A yes or no answer is a probability, or an object whose `value` is one. A pick or rate answer is a
-  name, or an object with `value` and an optional `confidence`, which defaults to 1. With no `p`, the
-  value's probability is the confidence, or twice what each other option or level gets when that is
-  more, rounded up to four places, so it is never below the confidence. The others share the rest evenly in steps of 0.0001, the first of
-  them taking one step more where it does not divide evenly. So the value is always the most likely, and the `p` printed replays. A rate's `score` is
-  the level index averaged over `p`, rounded to four places, unless the entry gives one. A number whose
-  text is a name is that name, so `4` rates `--rate 1,2,3,4,5`. A rate question from a request body
-  takes its level index.
+  name, or an object with `value` and an optional `confidence`, which defaults to 1. With no `p`,
+  the value's probability is the confidence, or twice what each other option or level gets when that
+  is more, rounded up to four places, so it is never below the confidence. The others share the rest
+  evenly in steps of 0.0001, the first of them taking one step more where it does not divide evenly.
+  So the value is always the most likely, and the `p` printed replays. A rate's `score` is the level
+  index averaged over `p`, rounded to four places, unless the entry gives one. A number whose text
+  is a name is that name, so `4` rates `--rate 1,2,3,4,5`. A rate question from a request body takes
+  its level index.
 - The other keys `-o json` writes are accepted. A line's `model`, `usage`, `line`, `assert` and
   `abstain` are ignored, since the gate runs again. Inside an answer, `decision`, `fallback` and
-  `legend` are ignored. A rate's `score` and `norm` are replayed, a `norm` written exactly or rounded to four places alike, and so is a pick or rate's `p`, whose keys must
-  be exactly the options or levels, whose values lie between 0 and 1, and whose most likely entry is
-  the value. So a replay prints what the real run printed, and a gate that reads `p` decides the
-  same way.
+  `legend` are ignored. A rate's `score` and `norm` are replayed, a `norm` written exactly or
+  rounded to four places alike, and so is a pick or rate's `p`, whose keys must be exactly the
+  options or levels, whose values lie between 0 and 1, and whose most likely entry is the value. So
+  a replay prints the answers the real run printed, and a gate that reads `p` decides the same way.
+  The `model` it prints is the one the mock run resolved, not the one the record holds, so an alias
+  such as `jev-latest` stays an alias.
 - An entry answers every question the run asks. The file is checked against the questions before
   any record, and an unknown question id, a missing answer, a value of the wrong shape or a name
   that is not an option exits 2, naming the line.
@@ -435,12 +438,13 @@ again.
 - On the `typesafe` provider, a model name that ends in a version, such as `jev-1.13.0`, is pinned,
   and its answers live until they are evicted. Every other model is an alias, such as `jev-latest`,
   and so is every model on any other provider, `typesafe/jev-1.13` on OpenRouter and
-  `Qwen/Qwen3.5-2B` on Berget and `levanto-sage-v1.4` on Levanto included. An alias's answers expire after 24 hours, since the model
-  behind it can move. `ONESIE_CACHE_TTL` sets that lifetime as a duration, such as `90m` or `72h`,
-  and `0` stops reading and storing answers for an alias. A negative or malformed value exits 2,
-  in every run whether or not it uses the cache, in `onesie cache` and in `onesie cache clear`. A run's lifetime decides what it reads,
-  not what it deletes: an expired answer is only a miss, which the next answer overwrites, and onesie deletes
-  an alias's answer only once it is older than 24 hours, or than the run's own lifetime when that is
+  `Qwen/Qwen3.5-2B` on Berget and `levanto-sage-v1.4` on Levanto included. An alias's answers expire
+  after 24 hours, since the model behind it can move. `ONESIE_CACHE_TTL` sets that lifetime as a
+  duration, such as `90m` or `72h`, and `0` stops reading and storing answers for an alias. A
+  negative or malformed value exits 2, in every run whether or not it uses the cache, in
+  `onesie cache` and in `onesie cache clear`. A run's lifetime decides what it reads, not what it
+  deletes: an expired answer is only a miss, which the next answer overwrites, and onesie deletes an
+  alias's answer only once it is older than 24 hours, or than the run's own lifetime when that is
   longer. So a short lifetime in one run never deletes answers other runs still read. An answer
   stored at a time later than the clock reads is a miss too.
 - The cache lives in `$ONESIE_CACHE_DIR`, or else `$XDG_CACHE_HOME/onesie`, or else:
@@ -740,12 +744,13 @@ onesie --profile cf -f shell-safety -q --state "$cmd"
   `--provider cloudflare`, not by curl.
 - `jev-latest` works on typesafe and openrouter, but pinned ids differ: `jev-1.13.0` on TypeSafe,
   `typesafe/jev-1.13` on OpenRouter. Berget serves its own models and not `jev-latest`. Its default
-  is the `systemone` alias, and `--list-models` there lists only the System One models, each with its
-  aliases. Levanto also serves its own models and not `jev-latest`. Its default is the `sage-latest`
-  alias, and an unknown model there is a 422 rather than a 400. On OpenRouter, `--usage` also reports the cost, which the `-o table` header and `--stats` show too. A 200 whose answers onesie cannot use
-  still spent its tokens, so under `--usage` its json error record carries them too, and `--stats`
-  counts them. `-o values`, `-o raw`, `-r`, `-o csv` and `-o tsv`
-  have no place for `--usage`, and `-q` writes nothing, so they all refuse it with exit 2.
+  is the `systemone` alias, and `--list-models` there lists only the System One models, each with
+  its aliases. Levanto also serves its own models and not `jev-latest`. Its default is the
+  `sage-latest` alias, and an unknown model there is a 422 rather than a 400. On OpenRouter,
+  `--usage` also reports the cost, which the `-o table` header and `--stats` show too. A 200 whose
+  answers onesie cannot use still spent its tokens, so under `--usage` its json error record carries
+  them too, and `--stats` counts them. `-o values`, `-o raw`, `-r`, `-o csv` and `-o tsv` have no
+  place for `--usage`, and `-q` writes nothing, so they all refuse it with exit 2.
 
 ## Exit codes
 
