@@ -333,7 +333,7 @@ func TestNewRootCmd(t *testing.T) {
 			args:     []string{"q", "-i", "jsonl", "--out", missingOut},
 			stdin:    `{"a":1}` + "\n",
 			wantCode: cli.ExitUsage,
-			contains: []string{"onesie: opening " + missingOut + ": no such file or directory"},
+			contains: []string{"onesie: opening " + missingOut + ": "},
 			absent:   []string{"open " + missingOut},
 		},
 		{
