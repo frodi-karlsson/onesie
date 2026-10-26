@@ -38,7 +38,7 @@ case "$key" in
       cloudflare) variable=CLOUDFLARE_API_TOKEN ;;
       *) variable=TYPESAFE_API_KEY ;;
     esac
-    printf 'onesie is on PATH, but no API key resolves for provider %s. Only --print-request and --print-questions work until the user runs onesie profile create NAME --provider %s or sets %s. The onesie-setup skill walks them through it.\n' "$provider" "$provider" "$variable"
+    printf 'onesie is on PATH, but no API key resolves for provider %s. Only --print-request, --print-questions, --print-schema and --mock work until the user runs onesie profile create NAME --provider %s or sets %s. The onesie-setup skill walks them through it.\n' "$provider" "$provider" "$variable"
     ;;
   ?*)
     if [ "$account" != none ]; then

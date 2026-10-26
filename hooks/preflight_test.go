@@ -57,8 +57,8 @@ func TestPreflight(t *testing.T) {
 			show: "profile: none\nprovider: openrouter\nchosen by: ONESIE_PROVIDER\nkey: none\n" +
 				"model: jev-latest, the provider's default\nbase_url: https://openrouter.ai/api, the provider's default\n",
 			code: 2,
-			want: "onesie is on PATH, but no API key resolves for provider openrouter. Only --print-request and " +
-				"--print-questions work until the user runs onesie profile create NAME --provider openrouter or " +
+			want: "onesie is on PATH, but no API key resolves for provider openrouter. Only --print-request, " +
+				"--print-questions, --print-schema and --mock work until the user runs onesie profile create NAME --provider openrouter or " +
 				"sets OPENROUTER_API_KEY. The onesie-setup skill walks them through it.\n",
 		},
 		{
@@ -66,8 +66,8 @@ func TestPreflight(t *testing.T) {
 			show: "profile: none\nprovider: berget\nchosen by: nothing\nkey: none\n" +
 				"model: systemone, the provider's default\nbase_url: https://api.berget.ai, the provider's default\n",
 			code: 2,
-			want: "onesie is on PATH, but no API key resolves for provider berget. Only --print-request and " +
-				"--print-questions work until the user runs onesie profile create NAME --provider berget or " +
+			want: "onesie is on PATH, but no API key resolves for provider berget. Only --print-request, " +
+				"--print-questions, --print-schema and --mock work until the user runs onesie profile create NAME --provider berget or " +
 				"sets BERGET_API_KEY. The onesie-setup skill walks them through it.\n",
 		},
 		{
@@ -75,8 +75,8 @@ func TestPreflight(t *testing.T) {
 			show: "profile: none\nprovider: levanto\nchosen by: nothing\nkey: none\n" +
 				"model: sage-latest, the provider's default\nbase_url: https://sage.levanto.ai, the provider's default\n",
 			code: 2,
-			want: "onesie is on PATH, but no API key resolves for provider levanto. Only --print-request and " +
-				"--print-questions work until the user runs onesie profile create NAME --provider levanto or " +
+			want: "onesie is on PATH, but no API key resolves for provider levanto. Only --print-request, " +
+				"--print-questions, --print-schema and --mock work until the user runs onesie profile create NAME --provider levanto or " +
 				"sets LEVANTO_API_KEY. The onesie-setup skill walks them through it.\n",
 		},
 		{
@@ -84,8 +84,8 @@ func TestPreflight(t *testing.T) {
 			show: "profile: none\nprovider: cloudflare\nchosen by: nothing\nkey: none\n" +
 				"model: typesafe/jev, the provider's default\nbase_url: none\n",
 			code: 2,
-			want: "onesie is on PATH, but no API key resolves for provider cloudflare. Only --print-request and " +
-				"--print-questions work until the user runs onesie profile create NAME --provider cloudflare or " +
+			want: "onesie is on PATH, but no API key resolves for provider cloudflare. Only --print-request, " +
+				"--print-questions, --print-schema and --mock work until the user runs onesie profile create NAME --provider cloudflare or " +
 				"sets CLOUDFLARE_API_TOKEN. The onesie-setup skill walks them through it.\n",
 		},
 		{
@@ -93,8 +93,8 @@ func TestPreflight(t *testing.T) {
 			show: "profile: none\nprovider: typesafe\nchosen by: nothing\nkey: none\n" +
 				"model: jev-latest, the provider's default\nbase_url: https://api.typesafe.ai, the provider's default\n",
 			code: 2,
-			want: "onesie is on PATH, but no API key resolves for provider typesafe. Only --print-request and " +
-				"--print-questions work until the user runs onesie profile create NAME --provider typesafe or " +
+			want: "onesie is on PATH, but no API key resolves for provider typesafe. Only --print-request, " +
+				"--print-questions, --print-schema and --mock work until the user runs onesie profile create NAME --provider typesafe or " +
 				"sets TYPESAFE_API_KEY. The onesie-setup skill walks them through it.\n",
 		},
 		{

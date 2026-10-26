@@ -571,12 +571,15 @@ on the provider's key variable alone.
 | Value | With a profile | Without a profile |
 |-------|----------------|-------------------|
 | key | the profile's key. The provider's key variable is not read | the provider's key variable |
-| model | `-m`, then the question file's `model`, then the profile's `model`, then `TYPESAFE_DEFAULT_MODEL` on typesafe, then the provider's default | `-m`, then the question file's `model`, then `TYPESAFE_DEFAULT_MODEL` on typesafe, then the provider's default |
+| model | `-m`, then the `model` of a `-f` request body, then the profile's `model`, then `TYPESAFE_DEFAULT_MODEL` on typesafe, then the provider's default | `-m`, then the `model` of a `-f` request body, then `TYPESAFE_DEFAULT_MODEL` on typesafe, then the provider's default |
 | base_url | `--base-url`, then the profile's `base_url`, then `TYPESAFE_BASE_URL` on typesafe, then the provider's own | `--base-url`, then `TYPESAFE_BASE_URL` on typesafe, then the provider's own |
 | account_id, on cloudflare | the profile's `account_id`, then `CLOUDFLARE_ACCOUNT_ID` | `CLOUDFLARE_ACCOUNT_ID` |
 
 - A flag beats the profile, the profile beats the environment, and the environment beats the built
   in default. No provider falls back to another's key.
+- A question file carries no model, since `model` is a reserved question id there. Only a request
+  body, as `--print-request` writes it, names one. Under `-i request` each body sends the model it
+  names, and a body that names none takes the profile's `model`, then the order above.
 - On cloudflare the account counts only when no base URL is chosen, since a Cloudflare base URL
   holds the account. A cloudflare run with no account exits 2 and names `CLOUDFLARE_ACCOUNT_ID` and
   the base URL `https://api.cloudflare.com/client/v4/accounts/<account_id>/ai`. On a profile it also
@@ -737,6 +740,8 @@ table, and `onesie calibrate --help` lists the codes calibrate uses.
 |----------|--------------|
 | `TYPESAFE_API_KEY`, `OPENROUTER_API_KEY`, `BERGET_API_KEY`, `LEVANTO_API_KEY`, `CLOUDFLARE_API_TOKEN` | the key for each provider on a run without a profile, as in Profiles and providers |
 | `CLOUDFLARE_ACCOUNT_ID` | the Cloudflare account when no flag or profile names one, as in Profiles and providers |
+| `TYPESAFE_DEFAULT_MODEL` | the model on typesafe when neither `-m`, a request body nor the profile names one |
+| `TYPESAFE_BASE_URL` | the API root on typesafe when neither `--base-url` nor the profile's `base_url` names one |
 | `ONESIE_PROFILE` | the profile a run uses when neither `--profile` nor `--provider` is given |
 | `ONESIE_PROVIDER` | runs without a profile on this provider when neither `--profile` nor `--provider` is given. Set beside `ONESIE_PROFILE`, it exits 2 |
 | `ONESIE_CONFIG_DIR` | where `profiles.json` and the saved question files live |
