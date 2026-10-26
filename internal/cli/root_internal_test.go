@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -155,6 +156,61 @@ func TestProfilesLocation(t *testing.T) {
 
 			if !strings.Contains(out.String(), "* work") {
 				t.Errorf("stdout = %q, want the profile from %v marked", out.String(), tc.nested)
+			}
+		})
+	}
+}
+
+func TestIsTerminal(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		open func(t *testing.T) *os.File
+	}{
+		{
+			// A character device that is not a terminal, as stdin is under < /dev/null.
+			name: "should not take the null device for a terminal",
+			open: func(t *testing.T) *os.File {
+				t.Helper()
+
+				f, err := os.Open(os.DevNull)
+				if err != nil {
+					t.Fatalf("opening the null device: %v", err)
+				}
+
+				return f
+			},
+		},
+		{
+			name: "should not take a regular file for a terminal",
+			open: func(t *testing.T) *os.File {
+				t.Helper()
+
+				path := filepath.Join(t.TempDir(), "stdin")
+				if err := os.WriteFile(path, nil, 0o600); err != nil {
+					t.Fatalf("writing the file: %v", err)
+				}
+
+				f, err := os.Open(path)
+				if err != nil {
+					t.Fatalf("opening the file: %v", err)
+				}
+
+				return f
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := tc.open(t)
+			defer f.Close()
+
+			if isTerminal(f) {
+				t.Errorf("isTerminal(%s) = true, want false", f.Name())
 			}
 		})
 	}

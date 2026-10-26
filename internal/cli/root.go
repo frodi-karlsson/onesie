@@ -720,12 +720,8 @@ func readHiddenSecret() (string, error) {
 }
 
 func isTerminal(f *os.File) bool {
-	info, err := f.Stat()
-	if err != nil {
-		return false
-	}
-
-	return info.Mode()&os.ModeCharDevice != 0
+	// A character device is not enough, since /dev/null is one and a hidden prompt cannot read it.
+	return term.IsTerminal(int(f.Fd()))
 }
 
 type choiceValue struct {
