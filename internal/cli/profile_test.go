@@ -57,6 +57,12 @@ func TestNewProfileCmd(t *testing.T) {
 			wantCode: ExitOK,
 		},
 		{
+			name:     "should say in the test help that openrouter also reads /v1/key",
+			args:     []string{"profile", "test", "--help"},
+			wantOut:  "On openrouter profile test also reads /v1/key under the base URL",
+			wantCode: ExitOK,
+		},
+		{
 			name:     "should reject an unknown subcommand",
 			args:     []string{"profile", "nonsense"},
 			wantErr:  `onesie: unknown command "nonsense" for "onesie profile"`,

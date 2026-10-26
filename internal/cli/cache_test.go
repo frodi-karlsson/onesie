@@ -223,11 +223,14 @@ func TestCachedAnswerer(t *testing.T) {
 			},
 		}
 
+		flags := &runFlags{}
+		settings.holder = newHolder(settings, flags, func() io.Writer { return io.Discard })
+
 		if warn == nil {
 			warn = func(err error) { t.Errorf("unexpected cache warning: %v", err) }
 		}
 
-		return cachedAnswers(settings, &runFlags{}, onesie.TypeSafe(), onesie.DefaultModel, questions, warn), dir
+		return cachedAnswers(settings, flags, onesie.TypeSafe(), onesie.DefaultModel, questions, warn), dir
 	}
 
 	t.Run("should ask on a miss, store the answer and answer the next call from it", func(t *testing.T) {
@@ -261,6 +264,17 @@ func TestCachedAnswerer(t *testing.T) {
 
 		if _, noulErr := second.result.Noul("u"); noulErr != nil {
 			t.Errorf("cached result: %v", noulErr)
+		}
+	})
+
+	t.Run("should say the cache needs the key when the client has none", func(t *testing.T) {
+		t.Parallel()
+
+		factory, _ := build(t, newAnswerStub(t), nil, onesie.WithAPIKey(""))
+
+		_, err := factory(t.Context(), &collector{})
+		if err == nil || !strings.Contains(err.Error(), "The cache needs the key too") {
+			t.Errorf("error = %v, want it to say the cache needs the key", err)
 		}
 	})
 

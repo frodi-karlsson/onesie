@@ -77,7 +77,8 @@ func WithRename(rename func(oldpath, newpath string) error) StoreOption {
 	}
 }
 
-// WithRemove replaces how a Store deletes the credential file and a leftover temporary file.
+// WithRemove replaces how a Store deletes profiles.json, the credentials.json it replaces and a
+// leftover temporary file.
 func WithRemove(remove func(string) error) StoreOption {
 	return func(s *Store) {
 		s.remove = remove

@@ -652,8 +652,10 @@ func newProfileTestCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 		Short: "Call the models endpoint with a profile's key",
 		Long: "Call the provider's models endpoint with the key of the named profile, or of what a run would " +
 			"use when given no name, which costs no tokens.\n\n" +
-			"Berget lists its models to any key, so on berget profile test also asks one small question with " +
-			"the profile's model, which spends a few tokens.",
+			"On openrouter profile test also reads /v1/key under the base URL, which costs nothing and refuses " +
+			"a bad key, so a proxy set as the base URL must serve it too. Berget lists its models to any key, " +
+			"so on berget profile test also asks one small question with the profile's model, which spends a " +
+			"few tokens.",
 		Args: profileNames("test", 0, 1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return profileTest(cmd, settings, flags, args)

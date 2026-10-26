@@ -485,7 +485,7 @@ func TestStoreSaveProfiles(t *testing.T) {
 			name        string
 			blockRename bool
 		}{
-			{name: "should leave the credential file as the only entry"},
+			{name: "should leave profiles.json as the only entry"},
 			{name: "should remove the temporary file when the rename fails", blockRename: true},
 		}
 
