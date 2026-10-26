@@ -329,6 +329,15 @@ func TestWrite(t *testing.T) {
 			want: "refuse",
 		},
 		{
+			name: "should print a small number in raw output as -o json writes it",
+			mode: output.Raw,
+			rec: output.Record{
+				Model:   "onesie-1.13.0",
+				Answers: []output.Named{{ID: "urgent", Answer: &answer.Answer{Value: 0.00005}}},
+			},
+			want: "0.00005",
+		},
+		{
 			name: "should print an empty line in raw output with no fallback",
 			mode: output.Raw,
 			rec: output.Record{

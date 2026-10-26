@@ -27,11 +27,12 @@ func writeRaw(w io.Writer, rec Record) error {
 
 		return err
 	case float64:
-		_, err := fmt.Fprintf(w, "%g\n", typed)
+		_, err := fmt.Fprintln(w, answer.Number(typed))
 
 		return err
 	case answer.Edges:
-		_, err := fmt.Fprintf(w, "%g %g %g %g\n", typed.Left, typed.Top, typed.Right, typed.Bottom)
+		_, err := fmt.Fprintln(w, answer.Number(typed.Left), answer.Number(typed.Top),
+			answer.Number(typed.Right), answer.Number(typed.Bottom))
 
 		return err
 	default:
