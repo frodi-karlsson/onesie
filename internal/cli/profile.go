@@ -323,7 +323,7 @@ func replaceKey(
 
 	notices := []string{notice}
 
-	// The file names the old item until the save, so the delete waits for it.
+	// Only once saved does the file stop naming the replaced item, so it can go.
 	if oldItem != "" && oldItem != stored.Account && !sharedItem(profiles, name, oldItem) {
 		if deleteErr := settings.keychain.Delete(oldItem); deleteErr != nil {
 			notices = append(notices, leftBehind(deleteErr, oldItem))
