@@ -103,6 +103,19 @@ func TestReadQuestionFile(t *testing.T) {
 			noLookup: true,
 		},
 		{
+			name:     "should refuse an empty file at a path, naming it",
+			value:    "triage.yaml",
+			files:    map[string]string{"/repo/sub/triage.yaml": " \n"},
+			wantErr:  []string{"onesie: the question file triage.yaml is empty"},
+			noLookup: true,
+		},
+		{
+			name:    "should refuse an empty file a name finds, naming it",
+			value:   "triage",
+			files:   map[string]string{"/repo/.onesie/questions/triage.yaml": ""},
+			wantErr: []string{"onesie: the question file " + filepath.Join(repoDir, "triage.yaml") + " is empty"},
+		},
+		{
 			name:  "should name every directory searched for a missing name",
 			value: "triage",
 			wantErr: []string{
@@ -334,6 +347,25 @@ func TestReadQuestionFile(t *testing.T) {
 				"-f", "shell-safety", "--state", "x", "--print-request")
 			if code != ExitOK || !strings.Contains(out, "a custom question") || strings.Contains(out, "destroys") {
 				t.Errorf("exit code = %d, want the local file asked\nstdout:\n%s\nstderr:\n%s", code, out, errOut)
+			}
+		})
+
+		t.Run("should point an empty local file at the built-in set it hides", func(t *testing.T) {
+			t.Parallel()
+
+			emptied := newFakeTree(map[string]string{"/repo/.onesie/questions/shell-safety.yaml": ""}, workDir, configDir)
+
+			for _, args := range [][]string{
+				{"-f", "shell-safety", "--print-questions"},
+				{"-f", "shell-safety", "--state", "x", "--print-request"},
+			} {
+				_, errOut, code := runTree(t, emptied, []RootOption{realBuiltIns()}, args...)
+
+				want := "onesie: the question file " + filepath.Join(repoDir, "shell-safety.yaml") +
+					" is empty. Remove it, and -f shell-safety takes the built-in set again\n"
+				if code != ExitUsage || errOut != want {
+					t.Errorf("%v: exit code = %d, want %d\nstderr:\n%s\nwant:\n%s", args, code, ExitUsage, errOut, want)
+				}
 			}
 		})
 

@@ -16,11 +16,13 @@ onesie -f shell-safety -q --state 'rm -rf ./build'
 ```
 
 To edit a set, save a copy into `.onesie/questions/`. A saved file wins over the built-in set of the
-same name:
+same name, so print the copy elsewhere and move it in. A redirect straight into
+`.onesie/questions/` would empty the file before `-f` read it:
 
 ```sh
 mkdir -p .onesie/questions
-onesie -f shell-safety --print-questions > .onesie/questions/shell-safety.yaml
+onesie -f shell-safety --print-questions > shell-safety.yaml
+mv shell-safety.yaml .onesie/questions/
 ```
 
 Each file carries its own gate as `assert` and `abstain_if`, so `-f NAME` alone runs the whole

@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -11,7 +12,7 @@ import (
 func readQuestionFile(settings rootSettings, value string) ([]byte, string, error) {
 	data, err := settings.readFile(value)
 	if err == nil {
-		return data, value, nil
+		return data, value, refuseEmptyFile(data, value, "")
 	}
 
 	if !qfile.IsName(value) || !lookupPast(settings, value, err) {
@@ -44,7 +45,27 @@ func readQuestionFile(settings rootSettings, value string) ([]byte, string, erro
 		return nil, "", fmt.Errorf("onesie: reading %s: %w", path, err)
 	}
 
-	return data, path, nil
+	hidden := ""
+	if settings.readBuiltIn != nil {
+		if _, ok := settings.readBuiltIn(value); ok {
+			hidden = value
+		}
+	}
+
+	return data, path, refuseEmptyFile(data, path, hidden)
+}
+
+func refuseEmptyFile(data []byte, path, hiddenBuiltIn string) error {
+	if len(bytes.TrimSpace(data)) > 0 {
+		return nil
+	}
+
+	if hiddenBuiltIn != "" {
+		return fmt.Errorf("onesie: the question file %s is empty. Remove it, and -f %s takes the built-in set again",
+			path, hiddenBuiltIn)
+	}
+
+	return fmt.Errorf("onesie: the question file %s is empty", path)
 }
 
 func lookupPast(settings rootSettings, value string, readErr error) bool {
