@@ -40,8 +40,8 @@ func newProfileCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 			"%APPDATA%\\onesie on Windows, then ~/.config/onesie. A credentials.json there is converted into " +
 			"it the first time onesie reads it.",
 		Args: cobra.NoArgs,
-		// Set, so cobra validates the arguments before deciding the command is not runnable. A parent
-		// with no RunE answers onesie profile nonsense with its own help and exit 0.
+		// Cobra validates the arguments only of a runnable command. A parent with no RunE answers
+		// onesie profile nonsense with its own help and exit 0.
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return cmd.Help()
 		},
@@ -323,7 +323,7 @@ func replaceKey(
 
 	notices := []string{notice}
 
-	// After the save, since the file points at the old item until then.
+	// The file names the old item until the save, so the delete waits for it.
 	if oldItem != "" && oldItem != stored.Account && !sharedItem(profiles, name, oldItem) {
 		if deleteErr := settings.keychain.Delete(oldItem); deleteErr != nil {
 			notices = append(notices, leftBehind(deleteErr, oldItem))
@@ -442,8 +442,8 @@ func profileDelete(cmd *cobra.Command, settings rootSettings, flags *runFlags, n
 			"Run onesie profile use NAME to choose one")
 	}
 
-	// After the save, since the file points at the item until then. A hand written file can name one
-	// item from two profiles, and the other one still needs it.
+	// The file names the item until the save, so the delete waits for it. A hand written file can name
+	// one item from two profiles, and the other one still needs it.
 	if account := keychainItem(profile); account != "" && !sharedItem(opened.Profiles, name, account) {
 		if deleteErr := settings.keychain.Delete(account); deleteErr != nil {
 			notices = append(notices, leftBehind(deleteErr, account))

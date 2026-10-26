@@ -145,8 +145,8 @@ func Convert(file File) Profiles {
 		profiles.Profiles[name] = profile
 	}
 
-	// A lone entry for another provider is not made the default, since a bare run used typesafe
-	// before and would silently move to that provider and spend its key.
+	// A lone entry for another provider is not made the default, so a bare run asks for a choice
+	// instead of silently moving to that provider and spending its key.
 	if _, ok := profiles.Profiles[convertedDefault]; ok {
 		profiles.Default = convertedDefault
 	}

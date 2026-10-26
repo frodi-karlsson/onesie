@@ -553,8 +553,8 @@ func WithProfilesPath(path func() (string, error)) RootOption {
 	}
 }
 
-// WithCredentialStore replaces the store profiles.json and the credentials.json it converts are read
-// and written through.
+// WithCredentialStore sets the store that reads and writes profiles.json and converts a
+// credentials.json.
 func WithCredentialStore(store creds.Store) RootOption {
 	return func(s *rootSettings) {
 		s.credStore = store
