@@ -305,6 +305,12 @@ func TestNewRootCmd(t *testing.T) {
 			contains: []string{"onesie: --jobs takes a whole number, got '1.5'\n"},
 		},
 		{
+			name:     "should name the long form when a dash value looks like its shorthand",
+			args:     []string{"--state", "-just", "--jobs", "1.5", "q"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: --jobs takes a whole number, got '1.5'\n"},
+		},
+		{
 			name:     "should say what a flag that takes true or false got",
 			args:     []string{"--cache=maybe", "q"},
 			wantCode: cli.ExitUsage,

@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"slices"
 	"strings"
 	"time"
 
@@ -394,15 +395,18 @@ func plainFlagError(err error, args []string) error {
 
 func flagSpelling(flag *pflag.Flag, args []string) string {
 	// pflag keeps no spelling for a value it refused, so the command line says which one was typed.
-	for _, arg := range args {
-		if arg == "--" {
-			break
-		}
+	// A long form is matched first, since a value such as -just can look like a cluster of shorthands.
+	if dash := slices.Index(args, "--"); dash >= 0 {
+		args = args[:dash]
+	}
 
+	for _, arg := range args {
 		if arg == "--"+flag.Name || strings.HasPrefix(arg, "--"+flag.Name+"=") {
 			return "--" + flag.Name
 		}
+	}
 
+	for _, arg := range args {
 		if flag.Shorthand != "" && !strings.HasPrefix(arg, "--") && strings.HasPrefix(arg, "-") &&
 			!strings.Contains(arg, " ") && strings.Contains(arg[1:], flag.Shorthand) {
 			return "-" + flag.Shorthand

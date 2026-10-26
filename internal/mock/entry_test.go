@@ -74,9 +74,9 @@ func TestEntryResult(t *testing.T) {
 			question:   five,
 			value:      "2",
 			confidence: 0.1,
-			score:      1.8332,
+			score:      1.833,
 			norm:       0.4583,
-			p:          map[string]float64{"1": 0.1667, "2": 0.3333, "3": 0.1667, "4": 0.1667, "5": 0.1666},
+			p:          map[string]float64{"1": 0.1667, "2": 0.3334, "3": 0.1667, "4": 0.1666, "5": 0.1666},
 		},
 		{
 			name:       "should replay a score between levels as the real run printed it",
@@ -250,8 +250,30 @@ func TestEntryResult(t *testing.T) {
 					for step := 0; step <= 20; step++ {
 						assertRoundTrip(t, question, value, float64(step)/20)
 					}
+
+					for _, confidence := range []float64{0.81014, 0.12345, 0.33333333} {
+						assertRoundTrip(t, question, value, confidence)
+					}
 				}
 			}
+		}
+	})
+
+	t.Run("should load a norm written exactly by an older onesie and one rounded to four places", func(t *testing.T) {
+		t.Parallel()
+
+		four := rateQuestion("q", "a", "b", "c", "d")
+
+		for _, norm := range []string{"0.3333333333333333", "0.3333"} {
+			file := `{"q":{"value":"b","score":1,"norm":` + norm + `}}`
+			if _, err := Load(strings.NewReader(file), []plan.Question{four}, Options{}); err != nil {
+				t.Errorf("Load(%s): %v", file, err)
+			}
+		}
+
+		file := `{"q":{"value":"b","score":1,"norm":0.334}}`
+		if _, err := Load(strings.NewReader(file), []plan.Question{four}, Options{}); err == nil {
+			t.Errorf("Load(%s) = nil, want a norm the score does not give refused", file)
 		}
 	})
 
@@ -386,8 +408,12 @@ func assertRoundTrip(t *testing.T, question plan.Question, value string, confide
 	first := loadNormalized(t, question, file)
 
 	levels := len(question.Options) + len(question.Levels)
-	if want := math.Round(max(confidence, 2/float64(levels+1))*1e4) / 1e4; first.P.Values[value] != want {
+	if want := math.Ceil(max(confidence, 2/float64(levels+1))*1e4-1e-6) / 1e4; first.P.Values[value] != want {
 		t.Errorf("%s: the value's p is %v, want %v", file, first.P.Values[value], want)
+	}
+
+	if first.P.Values[value] < confidence {
+		t.Errorf("%s: the value's p %v is below its confidence", file, first.P.Values[value])
 	}
 
 	for key, share := range first.P.Values {
@@ -409,14 +435,20 @@ func assertRoundTrip(t *testing.T, question plan.Question, value string, confide
 		t.Errorf("%s: p sums to %v, want 1", file, sum)
 	}
 
-	p, err := json.Marshal(first.P.Values)
+	printed, err := json.Marshal(first)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	replay := fmt.Sprintf(`{"q":{"value":%q,"confidence":%v,"p":%s}}`, value, confidence, p)
-	if _, err := Load(strings.NewReader(replay), []plan.Question{question}, Options{}); err != nil {
-		t.Errorf("%s synthesized p that does not load back: %v", file, err)
+	replayed := loadNormalized(t, question, fmt.Sprintf(`{"q":%s}`, printed))
+
+	again, err := json.Marshal(replayed)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if string(again) != string(printed) {
+		t.Errorf("%s printed %s, which replays as %s", file, printed, again)
 	}
 }
 

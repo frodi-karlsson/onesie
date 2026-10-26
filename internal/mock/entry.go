@@ -311,7 +311,9 @@ func rateAnswer(question plan.Question, parts answerParts) (onesie.Answer, error
 		}
 
 		norm, isNumber := finiteNumber(parts.norm)
-		if !isNumber || math.Abs(norm-want) > normTolerance {
+		// onesie rounds the norm it prints to four places, and an older one printed it exact, so
+		// either replays.
+		if !isNumber || (math.Abs(norm-want) > normTolerance && norm != answer.Rounded(want)) {
 			return nil, fmt.Errorf("has norm %s, but score %s on %d levels gives %s",
 				shown(parts.norm), strconv.FormatFloat(score, 'g', -1, 64), len(names),
 				strconv.FormatFloat(want, 'g', -1, 64))
@@ -354,7 +356,9 @@ func synthesized(names []string, value string, confidence float64) map[string]fl
 	// first of them taking one unit more where it does not divide evenly.
 	const units = 10000
 
-	share := int(math.Round(max(confidence, 2/float64(len(names)+1)) * units))
+	// Rounded up, so a confidence with more than four places never rises above the value's p. The
+	// small allowance keeps float noise, as in 0.6 times 10000, from rounding up a whole unit.
+	share := int(math.Ceil(max(confidence, 2/float64(len(names)+1))*units - 1e-6))
 	others := max(len(names)-1, 1)
 	each, extra := (units-share)/others, (units-share)%others
 

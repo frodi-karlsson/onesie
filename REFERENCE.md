@@ -108,14 +108,14 @@ ONESIE_MOCK=answers.json ./gate.sh
 - A yes or no answer is a probability, or an object whose `value` is one. A pick or rate answer is a
   name, or an object with `value` and an optional `confidence`, which defaults to 1. With no `p`, the
   value's probability is the confidence, or twice what each other option or level gets when that is
-  more, rounded to four places. The others share the rest evenly in steps of 0.0001, the first of
+  more, rounded up to four places, so it is never below the confidence. The others share the rest evenly in steps of 0.0001, the first of
   them taking one step more where it does not divide evenly. So the value is always the most likely, and the `p` printed replays. A rate's `score` is
   the level index averaged over `p`, rounded to four places, unless the entry gives one. A number whose
   text is a name is that name, so `4` rates `--rate 1,2,3,4,5`. A rate question from a request body
   takes its level index.
 - The other keys `-o json` writes are accepted. A line's `model`, `usage`, `line`, `assert` and
   `abstain` are ignored, since the gate runs again. Inside an answer, `decision`, `fallback` and
-  `legend` are ignored. A rate's `score` and `norm` are replayed, and so is a pick or rate's `p`, whose keys must
+  `legend` are ignored. A rate's `score` and `norm` are replayed, a `norm` written exactly or rounded to four places alike, and so is a pick or rate's `p`, whose keys must
   be exactly the options or levels, whose values lie between 0 and 1, and whose most likely entry is
   the value. So a replay prints what the real run printed, and a gate that reads `p` decides the
   same way.
