@@ -67,7 +67,12 @@ func (c *checker) comparison(n *comparisonNode) {
 
 	if ordered(n.op) && left != typeNumber {
 		c.fail("cannot order %s. '%s' takes two numbers", describe(n.left, left), opSymbol(n.op))
+
+		return
 	}
+
+	c.knownName(n.left, n.right)
+	c.knownName(n.right, n.left)
 }
 
 func (c *checker) membership(n *inNode) {
@@ -88,7 +93,46 @@ func (c *checker) membership(n *inNode) {
 
 			return
 		}
+
+		c.knownName(n.operand, member)
 	}
+}
+
+func (c *checker) knownName(path, literal node) {
+	at, isPath := path.(*pathNode)
+	name, isString := literal.(*stringNode)
+	if c.err != nil || !isPath || !isString {
+		return
+	}
+
+	q := c.chosenValue(at)
+	if q == nil {
+		return
+	}
+
+	keys := keysOf(*q)
+	if !slices.Contains(keys.names, name.value) {
+		c.unknownKey(*q, keys, name.value)
+	}
+}
+
+func (c *checker) chosenValue(n *pathNode) *plan.Question {
+	if len(n.segments) != 2 || n.segments[1] != "value" {
+		return nil
+	}
+
+	at := slices.IndexFunc(c.built.Questions, func(q plan.Question) bool {
+		return q.ID == n.segments[0]
+	})
+	if at < 0 {
+		return nil
+	}
+
+	if q := &c.built.Questions[at]; q.Shape == plan.Pick || q.Shape == plan.Rate {
+		return q
+	}
+
+	return nil
 }
 
 func (c *checker) typeOf(n node) (valueType, bool) {
@@ -278,12 +322,16 @@ func (c *checker) probability(q plan.Question, n *pathNode, f field) (valueType,
 	}
 
 	if key := n.segments[2]; !slices.Contains(keys.names, key) {
-		c.fail("'%s' has no %s '%s'. %s", q.ID, keys.noun, key, keys.has)
+		c.unknownKey(q, keys, key)
 
 		return typeNumber, 0, false
 	}
 
 	return f.typeOf(q), 3, true
+}
+
+func (c *checker) unknownKey(q plan.Question, keys keyset, key string) {
+	c.fail("'%s' has no %s '%s'. %s", q.ID, keys.noun, key, keys.has)
 }
 
 func decisionNeeds(q plan.Question) string {

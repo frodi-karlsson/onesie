@@ -50,7 +50,8 @@ prints the built in limits.
 ## Gating
 
 `--assert` is one boolean over the record, and it sets the exit code. It reads the field names
-`-o json` prints, and every path is checked before any request:
+`-o json` prints, and every path is checked before any request. So is every string compared with a
+pick or rate `value` by `==`, `!=` or `in`, which must name one of its options or levels:
 
 ```sh
 onesie --ask urgent='is this urgent' --assert 'urgnet.value < 0.5'

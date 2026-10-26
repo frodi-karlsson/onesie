@@ -150,6 +150,16 @@ func TestAsk(t *testing.T) {
 				noRequest: true,
 			},
 			{
+				name: "should reject a pick value compared with a name that is not an option",
+				args: []string{
+					"--ask", "a=hi", "--pick", "x,y", "--state", "x", "--assert", `a.value in ["x", "q"]`,
+				},
+				response:  urgent,
+				wantCode:  cli.ExitUsage,
+				wantErr:   "onesie: --assert: 'a' has no option 'q'. --pick has: x, y",
+				noRequest: true,
+			},
+			{
 				name:      "should point a hyphenated id at the bracket form",
 				args:      []string{"--ask", "a-b=q", "--state", "x", "--assert", "a-b.value < 0.5"},
 				response:  urgent,
