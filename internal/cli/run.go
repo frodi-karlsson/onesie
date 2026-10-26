@@ -69,8 +69,8 @@ func run(
 			return checkErr
 		}
 
-		// Each body names its own model, and onesie sends it as written, so the fingerprint holds
-		// no model for the default to fill.
+		// Each body names its own model or takes the run's, and the fingerprint holds no model, as
+		// it holds nothing else a body carries.
 		if bindErr := bindOut(out, settings, flags, nil, fingerprintInputs{
 			input: inputMode.String(), longContext: longContext(settings, flags),
 		}); bindErr != nil {

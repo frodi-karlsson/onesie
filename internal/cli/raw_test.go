@@ -44,7 +44,7 @@ func TestStreamRaw(t *testing.T) {
 			args:     []string{"-i", "request"},
 			stdin:    "{\"state\":\"one\"}\n{\"state\":\"two\"}\n",
 			response: answered,
-			wantSent: []string{`{"state":"one"}`, `{"state":"two"}`},
+			wantSent: []string{`{"model":"jev-latest","state":"one"}`, `{"model":"jev-latest","state":"two"}`},
 			wantOut:  []string{answered, answered},
 			wantCode: ExitOK,
 		},
@@ -62,7 +62,7 @@ func TestStreamRaw(t *testing.T) {
 			args:     []string{"-i", "request", "--skip-blank"},
 			stdin:    "{\"state\":\"one\"}\n\n{\"state\":\"two\"}\n",
 			response: answered,
-			wantSent: []string{`{"state":"one"}`, `{"state":"two"}`},
+			wantSent: []string{`{"model":"jev-latest","state":"one"}`, `{"model":"jev-latest","state":"two"}`},
 			wantOut:  []string{answered, answered},
 			wantCode: ExitOK,
 		},
@@ -71,7 +71,7 @@ func TestStreamRaw(t *testing.T) {
 			args:     []string{"-i", "request"},
 			stdin:    "{\"state\":\"a\"}\n{\"state\":\"b\"}\n",
 			response: `{"answers":{}}` + "\n",
-			wantSent: []string{`{"state":"a"}`, `{"state":"b"}`},
+			wantSent: []string{`{"model":"jev-latest","state":"a"}`, `{"model":"jev-latest","state":"b"}`},
 			wantOut:  []string{`{"answers":{}}`, `{"answers":{}}`},
 			wantCode: ExitOK,
 		},
@@ -80,7 +80,7 @@ func TestStreamRaw(t *testing.T) {
 			args:     []string{"-i", "request"},
 			stdin:    "{\"state\":\"a\"}\n{\"state\":\"b\"}\n",
 			response: "{\n  \"answers\": {\n    \"a\": 1\n  }\n}\n",
-			wantSent: []string{`{"state":"a"}`, `{"state":"b"}`},
+			wantSent: []string{`{"model":"jev-latest","state":"a"}`, `{"model":"jev-latest","state":"b"}`},
 			wantOut:  []string{`{"answers":{"a":1}}`, `{"answers":{"a":1}}`},
 			wantCode: ExitOK,
 		},
@@ -89,25 +89,25 @@ func TestStreamRaw(t *testing.T) {
 			args:     []string{"-i", "request"},
 			stdin:    "{\"state\":\"a\"}\n",
 			response: "not json\nat all\n",
-			wantSent: []string{`{"state":"a"}`},
+			wantSent: []string{`{"model":"jev-latest","state":"a"}`},
 			wantOut:  []string{"not json at all"},
 			wantCode: ExitOK,
 		},
 		{
 			name:     "should send a body the way --print-request printed it",
 			args:     []string{"-i", "request"},
-			stdin:    `{"state":"a < b & c > d"}` + "\n",
+			stdin:    `{"model":"jev-latest","state":"a < b & c > d"}` + "\n",
 			response: answered,
-			wantSent: []string{`{"state":"a < b & c > d"}`},
+			wantSent: []string{`{"model":"jev-latest","state":"a < b & c > d"}`},
 			wantOut:  []string{answered},
 			wantCode: ExitOK,
 		},
 		{
-			name:     "should print a spaced body unchanged under --print-request",
+			name:     "should print a spaced body as written apart from the model under --print-request",
 			args:     []string{"-i", "request", "--print-request"},
 			stdin:    "{\"state\": \"a < b\"}\n",
 			response: answered,
-			wantOut:  []string{`{"state": "a < b"}`},
+			wantOut:  []string{`{"model":"jev-latest","state": "a < b"}`},
 			wantCode: ExitOK,
 		},
 		{
@@ -352,7 +352,7 @@ func TestStreamRaw(t *testing.T) {
 			{
 				name:     "should write a record as it completes rather than in input order",
 				args:     []string{"-i", "request", "--unordered", "-j", "3"},
-				wantLast: `{"state":0}`,
+				wantLast: `{"model":"m","state":0}`,
 			},
 		}
 
@@ -376,7 +376,7 @@ func TestStreamRaw(t *testing.T) {
 						t.Errorf("reading the request body: %v", err)
 					}
 
-					if bytes.Contains(body, []byte(`{"state":0}`)) {
+					if bytes.Contains(body, []byte(`"state":0}`)) {
 						select {
 						case <-others:
 						case <-time.After(3 * time.Second):
@@ -406,7 +406,7 @@ func TestStreamRaw(t *testing.T) {
 				defer srv.Close()
 
 				out, errOut, code := runAgainst(
-					t, tc.args, "{\"state\":0}\n{\"state\":1}\n{\"state\":2}\n", srv.URL)
+					t, tc.args, "{\"model\":\"m\",\"state\":0}\n{\"model\":\"m\",\"state\":1}\n{\"model\":\"m\",\"state\":2}\n", srv.URL)
 
 				if code != ExitOK {
 					t.Fatalf("exit code = %d, want %d\nstdout:\n%s\nstderr:\n%s",
@@ -531,6 +531,118 @@ func TestStreamRaw(t *testing.T) {
 
 				if diff := compareLines(sent, outputLines(printed)); diff != "" {
 					t.Errorf("sent bodies: %s", diff)
+				}
+			})
+		}
+	})
+
+	t.Run("should fill in the resolved model for a body that names none", func(t *testing.T) {
+		t.Parallel()
+
+		const bare = `{"state":"x","questions":{"q":{"type":"noul","instructions":"q"}}}`
+
+		profiles := `{"default":"work","profiles":{"work":{"provider":"typesafe","api_key":"SECRET-W",` +
+			`"base_url":"{url}","model":"jev-profile"}}}`
+
+		tests := []struct {
+			name     string
+			profiles string
+			env      map[string]string
+			args     []string
+			stdin    string
+			want     string
+		}{
+			{
+				name:     "should send the profile's model",
+				profiles: profiles,
+				args:     []string{"-i", "request"},
+				stdin:    bare,
+				want:     `{"model":"jev-profile","state":"x","questions":{"q":{"type":"noul","instructions":"q"}}}`,
+			},
+			{
+				name:     "should print the profile's model under --print-request",
+				profiles: profiles,
+				args:     []string{"-i", "request", "--print-request"},
+				stdin:    bare,
+				want:     `{"model":"jev-profile","state":"x","questions":{"q":{"type":"noul","instructions":"q"}}}`,
+			},
+			{
+				name:  "should send the default model variable with no profile",
+				env:   map[string]string{onesie.EnvAPIKey: "SECRET-ENV", onesie.EnvBaseURL: "{url}", onesie.EnvDefaultModel: "jev-env"},
+				args:  []string{"-i", "request"},
+				stdin: bare,
+				want:  `{"model":"jev-env","state":"x","questions":{"q":{"type":"noul","instructions":"q"}}}`,
+			},
+			{
+				name:     "should keep the model a body names",
+				profiles: profiles,
+				args:     []string{"-i", "request", "--print-request"},
+				stdin:    `{"model":"jev-own","state":"x"}`,
+				want:     `{"model":"jev-own","state":"x"}`,
+			},
+			{
+				name:     "should fill an empty object",
+				profiles: profiles,
+				args:     []string{"-i", "request", "--print-request"},
+				stdin:    `{}`,
+				want:     `{"model":"jev-profile"}`,
+			},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				var (
+					mu   sync.Mutex
+					sent []string
+				)
+
+				srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					body, err := io.ReadAll(r.Body)
+					if err != nil {
+						t.Errorf("reading the request body: %v", err)
+					}
+
+					mu.Lock()
+					sent = append(sent, string(body))
+					mu.Unlock()
+
+					w.Header().Set("Content-Type", "application/json")
+
+					if _, err := io.WriteString(w, `{"model":"jev-1.14.0","answers":{}}`); err != nil {
+						t.Errorf("writing the stub response: %v", err)
+					}
+				}))
+				t.Cleanup(srv.Close)
+
+				fill := strings.NewReplacer("{url}", srv.URL).Replace
+
+				env := map[string]string{}
+				for name, value := range tc.env {
+					env[name] = fill(value)
+				}
+
+				dir := t.TempDir()
+				if tc.profiles != "" {
+					dir = configWith(t, fill(tc.profiles))
+				}
+
+				out, errOut, code := runInConfig(t, dir, tc.args, tc.stdin+"\n", env)
+				if code != ExitOK {
+					t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, ExitOK, errOut)
+				}
+
+				mu.Lock()
+				defer mu.Unlock()
+
+				got := strings.TrimSuffix(out, "\n")
+				if len(sent) > 0 {
+					got = sent[0]
+				}
+
+				if got != tc.want {
+					t.Errorf("body = %s, want %s", got, tc.want)
 				}
 			})
 		}
@@ -1151,7 +1263,8 @@ func runAgainst(
 			WithStdin(strings.NewReader(stdin)),
 			WithStdinTTY(false),
 			WithStdoutTTY(false),
-			WithLookupEnv(func(string) (string, bool) { return "", false }),
+			// An empty config dir, so the developer's own profiles never choose the model a body takes.
+			WithLookupEnv(lookupFrom(map[string]string{"ONESIE_CONFIG_DIR": t.TempDir()})),
 		}, extra...)...,
 	)
 

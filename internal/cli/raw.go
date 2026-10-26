@@ -22,11 +22,16 @@ func streamRaw(
 	answers *outFile,
 	resume resumePlan,
 ) error {
-	var (
-		client       *onesie.Client
-		provider     onesie.Provider
-		defaultModel string
-	)
+	// Resolved for --print-request too, which prints the model a body that names none is sent with.
+	chosen, resolveErr := runResolution(settings)
+	if resolveErr != nil {
+		return resolveErr
+	}
+
+	provider := chosen.provider
+	defaultModel := chosen.modelFor("", settings.lookupEnv)
+
+	var client *onesie.Client
 
 	// Built only when the run makes a request, so -i request --print-request needs no key.
 	if requests(flags) {
@@ -34,14 +39,6 @@ func streamRaw(
 		if err != nil {
 			return err
 		}
-
-		chosen, err := runResolution(settings)
-		if err != nil {
-			return err
-		}
-
-		provider = chosen.provider
-		defaultModel = chosen.modelFor("", settings.lookupEnv)
 
 		client = built
 	}
@@ -79,17 +76,19 @@ func streamRaw(
 				return errorLine(rec.Err), rec.Err
 			}
 
-			// --print-request is the identity here: bodies pass through unchanged, with exit 0 and
-			// no network. The same predicate decides this and the client above, so the two cannot
-			// disagree and leave a nil client.
+			body := withModel([]byte(rec.Raw), defaultModel)
+
+			// --print-request prints the body as it would be sent, with exit 0 and no network. The
+			// same predicate decides this and the client above, so the two cannot disagree and leave
+			// a nil client.
 			if !requests(flags) {
-				return []byte(rec.Raw), nil
+				return body, nil
 			}
 
 			// From the request rather than the response. A failed record has no answers but did
 			// carry questions, and counting the response would report zero for exactly the records
 			// a user turned --stats on to understand.
-			read := readRawRequest([]byte(rec.Raw))
+			read := readRawRequest(body)
 			asked := read.questions
 
 			var opts []onesie.RequestOption
@@ -105,7 +104,7 @@ func streamRaw(
 				opts = append(opts, onesie.WithLongContext())
 			}
 
-			body, err := client.SystemOneRaw(ctx, json.RawMessage(rec.Raw), opts...)
+			response, err := client.SystemOneRaw(ctx, json.RawMessage(body), opts...)
 			if err != nil {
 				// The body's model reached the wire unchanged, so the model it named is the one onesie sent,
 				// and nothing inside it was checked locally, so no local bound is implicated.
@@ -118,10 +117,10 @@ func streamRaw(
 				return errorLine(advised), advised
 			}
 
-			model, usage := rawSummary(body)
+			model, usage := rawSummary(response)
 			stats.record(model, usage, asked)
 
-			return oneLine(body), nil
+			return oneLine(response), nil
 		},
 		Write: func(body []byte) error {
 			_, writeErr := fmt.Fprintln(out, string(body))
@@ -150,6 +149,35 @@ func streamRaw(
 
 	// A request body carries no assertion, so no record can have failed one.
 	return streamResult(result, 0, 0)
+}
+
+func withModel(body []byte, model string) []byte {
+	object, isObject := bytes.CutPrefix(bytes.TrimSpace(body), []byte("{"))
+	if model == "" || !isObject {
+		return body
+	}
+
+	// The body is otherwise sent as written, so the model goes in front rather than through a
+	// decode and encode that would reorder the keys and reformat the numbers.
+	var probe struct {
+		Model json.RawMessage `json:"model"`
+	}
+
+	if err := json.Unmarshal(body, &probe); err != nil || probe.Model != nil {
+		return body
+	}
+
+	name, err := json.Marshal(model)
+	if err != nil {
+		return body
+	}
+
+	filled := append([]byte(`{"model":`), name...)
+	if !bytes.HasPrefix(bytes.TrimSpace(object), []byte("}")) {
+		filled = append(filled, ',')
+	}
+
+	return append(filled, object...)
 }
 
 func oneLine(body []byte) []byte {
