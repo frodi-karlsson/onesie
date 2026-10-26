@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"unicode"
 
 	"github.com/frodi-karlsson/onesie-go"
 )
@@ -35,7 +36,43 @@ func advise(err error, model string, validated bool) error {
 		return &advisedError{cause: err, message: staleLimits(err.Error())}
 	}
 
+	var advised *advisedError
+	if text, isText := api.Body.(string); isText && !errors.As(err, &advised) {
+		return &advisedError{cause: err, message: notJSON(api.Status, text)}
+	}
+
 	return err
+}
+
+func notJSON(status int, body string) string {
+	message := fmt.Sprintf("onesie: %d %s, with a response body that is not JSON", status, http.StatusText(status))
+
+	// An HTML page from a proxy or a web server says nothing a terminal line can show, while a one
+	// line text body may name the cause.
+	if line := bodyLine(body); line != "" && !strings.HasPrefix(line, "<") {
+		message += ": " + line
+	}
+
+	return withNote(message, "Check that the base URL points at the System One API")
+}
+
+func bodyLine(body string) string {
+	line, _, _ := strings.Cut(strings.TrimSpace(body), "\n")
+	line = strings.TrimSpace(strings.Map(func(r rune) rune {
+		if unicode.IsControl(r) {
+			return -1
+		}
+
+		return r
+	}, line))
+
+	const most = 120
+
+	if runes := []rune(line); len(runes) > most {
+		return string(runes[:most]) + "..."
+	}
+
+	return line
 }
 
 func adviseLongContext(err error, helps bool) error {

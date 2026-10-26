@@ -298,6 +298,63 @@ func TestAdvise(t *testing.T) {
 		}
 	})
 
+	t.Run("should summarise an error body that is not JSON", func(t *testing.T) {
+		t.Parallel()
+
+		const (
+			page  = "<!doctype html>\n<html><head><title>405 Not Allowed</title></head><body>nginx</body></html>\n"
+			check = ". Check that the base URL points at the System One API"
+		)
+
+		tests := []adviceCase{
+			{
+				name:     "should give the status and leave an html page out",
+				args:     []string{"is this urgent"},
+				stdin:    "a ticket",
+				status:   http.StatusMethodNotAllowed,
+				response: page,
+				wantCode: ExitUsage,
+				wantErr:  "onesie: 405 Method Not Allowed, with a response body that is not JSON" + check + "\n",
+				wantOut: []string{`"message":"405 Method Not Allowed, with a response body that is not JSON` +
+					check + `"`},
+			},
+			{
+				name:     "should keep the first line of a plain text body",
+				args:     []string{"is this urgent"},
+				stdin:    "a ticket",
+				status:   http.StatusNotFound,
+				response: "no such route\nsecond line\n",
+				wantCode: ExitUsage,
+				wantErr:  "onesie: 404 Not Found, with a response body that is not JSON: no such route" + check + "\n",
+			},
+			{
+				name:     "should summarise a replayed body's error line too",
+				args:     []string{"-i", "request"},
+				stdin:    `{"state":"s","model":"m","questions":{"q":{"type":"noul","instructions":"q"}}}` + "\n",
+				status:   http.StatusMethodNotAllowed,
+				response: page,
+				wantCode: ExitRecords,
+				wantOut: []string{`"message":"405 Method Not Allowed, with a response body that is not JSON` +
+					check + `"`},
+			},
+			{
+				name:     "should summarise the body for --list-models",
+				args:     []string{"--list-models"},
+				status:   http.StatusMethodNotAllowed,
+				response: page,
+				wantCode: ExitUsage,
+				wantErr:  "onesie: 405 Method Not Allowed, with a response body that is not JSON" + check + "\n",
+			},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				checkAdvice(t, tc)
+			})
+		}
+	})
+
 	t.Run("should point at the flag or model a refusal needs", func(t *testing.T) {
 		t.Parallel()
 
