@@ -34,33 +34,37 @@ carry on. With `--id` the failed record is asked again instead.
 
 ## On exit 3
 
-Run `onesie auth status` to see which source holds the key, then `onesie auth test` to check it
-against the server. `auth status` only names the source. It never reads the keychain, so a
-keychain item that is gone shows up in `auth test` or a real run, not in `auth status`.
+Run `onesie profile show` to see what a run would use, then `onesie profile test` to check the key
+against the server. `profile show` only names where the key lives. It never reads the keychain, so
+a keychain item that is gone shows up in `profile test` or a real run, not in `profile show`.
 
-The provider comes first: `--provider`, then `ONESIE_PROVIDER`, then `typesafe`. A key then
-resolves for that provider in this order, first match wins:
+A run uses one profile, or none. The choice comes from, strongest first:
 
-1. The provider's variable: `TYPESAFE_API_KEY` for typesafe, `OPENROUTER_API_KEY` for openrouter,
-   `BERGET_API_KEY` for berget, `LEVANTO_API_KEY` for levanto, `CLOUDFLARE_API_TOKEN` for cloudflare. No provider falls back to another's key.
-2. The provider's entry in `credentials.json`, in `$ONESIE_CONFIG_DIR`, then
-   `$XDG_CONFIG_HOME/onesie`, then, on Windows, `%APPDATA%\onesie`, and otherwise
-   `~/.config/onesie`. The entry holds the key, or says the key is in the OS keychain, which
-   `auth status` reports as `source: keychain`.
+1. `--profile NAME` or `--provider NAME`.
+2. `ONESIE_PROFILE` or `ONESIE_PROVIDER`.
+3. The default in `profiles.json`, which `onesie profile use NAME` sets.
+
+Two choices of the same strength exit 2. With no choice and no profiles, a run uses typesafe. A
+profile's key comes from the profile alone, in the OS keychain or in `profiles.json`, which lives
+in `$ONESIE_CONFIG_DIR`, then `$XDG_CONFIG_HOME/onesie`, then, on Windows, `%APPDATA%\onesie`, and
+otherwise `~/.config/onesie`. `--provider` or `ONESIE_PROVIDER` runs without a profile, and the key
+comes from the provider's variable alone: `TYPESAFE_API_KEY` for typesafe, `OPENROUTER_API_KEY` for
+openrouter, `BERGET_API_KEY` for berget, `LEVANTO_API_KEY` for levanto, `CLOUDFLARE_API_TOKEN` for
+cloudflare. No provider falls back to another's key.
 
 Exit 3 also covers these:
 
 - A 401, a 403 or a 402. OpenRouter sends 402 when the account is out of credits, Berget when
   the key has no subscription, and Levanto when the period's included usage is used up, and Cloudflare when AI Gateway has no
   credits left for Jev.
-- A credential file that others can reach. The message names the file and its mode. Run
+- A `profiles.json` that others can reach. The message names the file and its mode. Run
   `chmod 600` on it.
-- A keychain that refuses, holds no item for the entry, or does not answer within 10 seconds,
-  usually because a prompt is waiting. Answer the prompt, or run `onesie auth set` again, with
-  `--file` to skip the keychain.
+- A keychain that refuses, holds no item for the profile, or does not answer within 10 seconds,
+  usually because a prompt is waiting. Answer the prompt, or store the key again with
+  `onesie profile update NAME --key`, adding `--file` to skip the keychain.
 
-`--base-url` outranks a base URL stored in the credential file. Under typesafe,
-`TYPESAFE_BASE_URL` does too.
+`--base-url` outranks a profile's `base_url`, and a profile's `base_url` outranks
+`TYPESAFE_BASE_URL`.
 
 ## On exit 2
 
@@ -75,7 +79,9 @@ Exit 3 also covers these:
 | `an empty state is a request the model cannot answer` | `--state`, `--state-file`, stdin, the `state` of a `-f` file, a stream line or `--map` gave an empty or all whitespace string, an empty object or an empty array. In a stream it is an error line instead, and `--skip-blank` does not drop it. An `-i request` body is forwarded as it is and not checked |
 | `an empty question is one the model cannot answer` | the positional question, an `--ask`, a question file's `ask` or a `-f` body's `instructions` is empty, all whitespace or null |
 | `has no 'instructions'` or `names its question 'instructions'` | a `-f` request body question has no `instructions`, or carries a question file's `ask` in its place |
-| `no API key` | nothing resolved for the provider, see the order above. A real run and `auth test` exit 2 here. `auth status` exits 2 too, after printing `source: none` |
+| `no API key` | nothing resolved for the provider, see the order above. A real run and `profile test` exit 2 here. `profile show` exits 2 too, after printing `key: none`. Under `--provider` or `ONESIE_PROVIDER` the message names a profile with that provider when there is one |
+| `no profile is the default` | there are profiles, none is the default and nothing chose one. Run `onesie profile use NAME`, or pass `--profile` or `--provider` |
+| `which does not exist` | `--profile` or `ONESIE_PROFILE` names a profile that is not in `profiles.json`. The message lists the profiles there are |
 | `is in use by another onesie run` | another run holds the lock beside the `--out` file |
 | `Drop --resume to start over` | the `--out` file was written by a different run, or has no fingerprint |
 | `--resume needs output that keeps each record's outcome` | `-o raw` and `-r` keep no id, failure or gate outcome, so a resume refuses them. Use `-o values` or `-o json` |
@@ -91,7 +97,7 @@ Exit 3 also covers these:
 | `long_context` and `must be true or false` | a request body's `long_context` is not a boolean |
 | `takes no images or box questions` | the provider, Levanto or Berget, reads neither. Ask with `--provider typesafe`, `--provider openrouter`, or for images alone `--provider cloudflare` |
 | `takes no box questions` or `takes no long context` | the provider's model reads images but not that. Ask with `--provider typesafe` |
-| `no cloudflare account id` | cloudflare has a token and no account. Set `CLOUDFLARE_ACCOUNT_ID`, or store a base URL holding it with `onesie --provider cloudflare auth set --base-url` |
+| `no cloudflare account id` | cloudflare has a token and no account. Set `CLOUDFLARE_ACCOUNT_ID`, or store one in the profile with `onesie profile update NAME --account-id ACCOUNT_ID` |
 | `Insufficient balance` | Cloudflare's AI Gateway has no credits for Jev. Add credits, or ask Clef with `-m clef-flash`, which runs on the free allowance |
 | `No such model` | Workers AI does not serve that model id. Clef's are `clef`, `clef-flash` and `clef-omni`. Try `--list-models` |
 | `A box question needs a model that serves it` | the model refused a `--box` question on TypeSafe. Pass `-m jev-preview` |

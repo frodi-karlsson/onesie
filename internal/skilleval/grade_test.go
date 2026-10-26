@@ -24,7 +24,7 @@ func TestGraderGrade(t *testing.T) {
 
 	files := map[string]string{
 		"/r/aggregate-result.json": result,
-		"/t/with-1.jsonl":          traceOf(`"onesie 'is this safe' -q --state x && onesie auth clear"`),
+		"/t/with-1.jsonl":          traceOf(`"onesie 'is this safe' -q --state x && onesie profile delete work"`),
 		"/t/without-1.jsonl":       traceOf(`"onesie 'is this safe' --bogus; onesie 'a' | jq ."`),
 	}
 
@@ -69,8 +69,8 @@ func TestGraderGrade(t *testing.T) {
 			t.Fatalf("with arm = %+v, want 2 commands, 1 clean, 1 skipped", arms[0])
 		}
 
-		if got := arms[0].Skipped[0].Detail; got != "runs the auth subcommand" {
-			t.Errorf("skip detail = %q, want runs the auth subcommand", got)
+		if got := arms[0].Skipped[0].Detail; got != "runs the profile subcommand" {
+			t.Errorf("skip detail = %q, want runs the profile subcommand", got)
 		}
 	})
 
@@ -172,8 +172,8 @@ func TestGraderGrade(t *testing.T) {
 		},
 		{
 			name:     "should skip a subcommand that follows a value flag",
-			script:   "onesie -m x auth clear",
-			wantSkip: "runs the auth subcommand",
+			script:   "onesie -m x profile delete work",
+			wantSkip: "runs the profile subcommand",
 		},
 		{
 			name:     "should skip --state-file with a variable value",

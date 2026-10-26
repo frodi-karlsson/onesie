@@ -103,8 +103,8 @@ type DryRunResult struct {
 	Stderr   string
 }
 
-// Help returns the --help text of the onesie command that path names, such as calibrate or auth
-// set. An empty path is the root command.
+// Help returns the --help text of the onesie command that path names, such as calibrate or profile
+// create. An empty path is the root command.
 func (r *Runner) Help(ctx context.Context, path []string) (string, error) {
 	runCtx, cancel := context.WithTimeout(ctx, runTimeout)
 	defer cancel()

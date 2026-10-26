@@ -4,10 +4,10 @@ There are two ways in. A user who installs onesie first can add the plugin after
 
 The steps, in order:
 
-1. Check what is there already: `command -v onesie`, then `onesie auth status`.
+1. Check what is there already: `command -v onesie`, then `onesie profile show`.
 2. Install onesie if it is missing, per the install section below.
 3. Ask which provider the user has an account with.
-4. Have the user store the key, outside the conversation.
-5. Run `onesie auth test` and confirm it reports the provider and a model count.
+4. Have the user store the key in a profile, outside the conversation.
+5. Run `onesie profile test` and confirm it reports the provider and a model count.
 
-For a flag this skill does not cover, run `onesie --help` or `onesie calibrate --help`, and `onesie -V` for the version and the built in limits.
+For a flag this skill does not cover, run `onesie --help`, `onesie profile --help` or `onesie calibrate --help`, and `onesie -V` for the version and the built in limits.

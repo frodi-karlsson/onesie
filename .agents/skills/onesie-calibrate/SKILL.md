@@ -101,7 +101,7 @@ onesie calibrate --ask urgent='is this urgent' -i jsonl --map '.body' --label ur
 
 ### In CI, commit the answers file and its .onesie sidecar, run --offline, and pin -m, plus --provider when it matters.
 
-`--offline`, with `--out` and `--resume`, reads every answer from the file and asks nothing, so the check needs no key, costs nothing and never rewrites the file. A record the file does not answer, a missing file or a fingerprint that does not match exits 2. In CI that means the questions or the records changed, so rerun without `--offline` and commit the new file. The fingerprint names the model and the provider, so pin a versioned model such as `-m jev-1.13.0`, since an alias such as `jev-latest` moves on release. Pin `--provider` too when `ONESIE_PROVIDER` can differ between the machine that wrote the file and CI. `--offline` is refused beside `--mock`, `--print-request` and `--prune`.
+`--offline`, with `--out` and `--resume`, reads every answer from the file and asks nothing, so the check needs no key, costs nothing and never rewrites the file. A record the file does not answer, a missing file or a fingerprint that does not match exits 2. In CI that means the questions or the records changed, so rerun without `--offline` and commit the new file. The fingerprint names the model and the provider, so pin a versioned model such as `-m jev-1.13.0`, since an alias such as `jev-latest` moves on release. Pin `--profile` or `--provider` too when `ONESIE_PROFILE`, `ONESIE_PROVIDER` or the default profile can differ between the machine that wrote the file and CI. `--offline` is refused beside `--mock`, `--print-request` and `--prune`.
 
 **Bad:**
 

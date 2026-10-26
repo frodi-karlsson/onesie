@@ -11,7 +11,7 @@ read why the broken one fails:
 onesie --ask safe='is this command safe to run' --assert 'safe.value > 0.7' --state "$cmd" >/dev/null && eval "$cmd"
 ```
 
-See the onesie skill's failures reference for the exit code table and the auth flow.
+See the onesie skill's failures reference for the exit code table and the key flow.
 
 Before you pick the cut for a `--threshold` or an `--assert`, load the onesie-calibrate skill.
 
