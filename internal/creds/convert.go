@@ -48,6 +48,7 @@ func (s Store) OpenProfiles(dir string) (Opened, error) {
 
 	warnings, err := s.SaveProfilesIn(dir, converted)
 	if err != nil {
+		opened.InMemory = true
 		opened.Warnings = append(opened.Warnings, fmt.Errorf(
 			"onesie: could not write %s, so %s is converted for this run only: %w",
 			path, oldPath, withoutPrefix(err)))
@@ -72,14 +73,32 @@ func (s Store) SaveProfilesIn(dir string, profiles Profiles) (warnings []error, 
 		warnings = append(warnings, warning)
 	}
 
-	if removal := s.removeCredentials(filepath.Join(dir, fileName)); removal != nil {
+	oldPath := filepath.Join(dir, fileName)
+
+	if removal := s.removeCredentials(oldPath, "converted "+oldPath+" but could not remove it"); removal != nil {
 		warnings = append(warnings, removal)
 	}
 
 	return warnings, nil
 }
 
-func (s Store) removeCredentials(oldPath string) error {
+// ClearProfilesIn removes profiles.json in dir and any credentials.json left beside it, so deleting
+// the last profile is not undone by a later conversion. Warnings are removals that failed after it.
+func (s Store) ClearProfilesIn(dir string) (warnings []error, err error) {
+	if clearErr := s.clear(filepath.Join(dir, profilesName), profilesKind); clearErr != nil {
+		return nil, clearErr
+	}
+
+	oldPath := filepath.Join(dir, fileName)
+
+	if removal := s.removeCredentials(oldPath, "could not remove "+oldPath); removal != nil {
+		warnings = append(warnings, removal)
+	}
+
+	return warnings, nil
+}
+
+func (s Store) removeCredentials(oldPath, failure string) error {
 	info, statErr := s.lstat(oldPath)
 	if errors.Is(statErr, os.ErrNotExist) {
 		return nil
@@ -96,7 +115,7 @@ func (s Store) removeCredentials(oldPath string) error {
 
 	// Another process converting at the same moment may have removed it first.
 	if err := s.remove(oldPath); err != nil && !errors.Is(err, os.ErrNotExist) {
-		return fmt.Errorf("onesie: converted %s but could not remove it: %w", oldPath, err)
+		return fmt.Errorf("onesie: %s: %w", failure, err)
 	}
 
 	if !isLink {
@@ -135,12 +154,13 @@ func Convert(file File) Profiles {
 	return profiles
 }
 
-// Opened is what OpenProfiles found. Found is false when neither file was there, Converted names the
-// profiles made from credentials.json on this call, sorted, and Warnings are failures that did not stop it.
+// Opened is what OpenProfiles found. Found is false with neither file, Converted names the profiles
+// converted on this call, InMemory means profiles.json was not written, and Warnings did not stop it.
 type Opened struct {
 	Profiles  Profiles
 	Found     bool
 	Converted []string
+	InMemory  bool
 	Warnings  []error
 }
 

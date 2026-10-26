@@ -332,13 +332,17 @@ func (e *ModeWarning) Error() string {
 // Clear deletes the credential file. An absent file is not an error, since auth clear is defined to
 // exit 0 either way.
 func (s Store) Clear(path string) error {
+	return s.clear(path, credentialKind)
+}
+
+func (s Store) clear(path, kind string) error {
 	// os.Remove calls rmdir on a directory, so without this Clear would delete a directory it was
 	// never asked to touch. os.Lstat, since a symlink here is the link to remove.
 	//
 	// Only a directory is refused, so Clear is deliberately laxer than Load. auth clear is asked to
 	// leave nothing at the path, even something onesie itself will not read.
 	if info, statErr := s.lstat(path); statErr == nil && info.IsDir() {
-		return fmt.Errorf("onesie: credential file %s is not a regular file", path)
+		return fmt.Errorf("onesie: %s %s is not a regular file", kind, path)
 	}
 
 	if err := s.remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {

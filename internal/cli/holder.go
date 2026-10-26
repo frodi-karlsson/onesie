@@ -1,11 +1,14 @@
 package cli
 
 import (
+	"fmt"
 	"io"
+	"path/filepath"
 	"strings"
 	"sync"
 
 	"github.com/frodi-karlsson/onesie-go"
+	"github.com/frodi-karlsson/onesie/internal/creds"
 )
 
 func runResolution(settings rootSettings, flags *runFlags) (resolution, error) {
@@ -16,9 +19,20 @@ func runResolution(settings rootSettings, flags *runFlags) (resolution, error) {
 	return settings.holder.resolved()
 }
 
+func openedProfiles(settings rootSettings) (creds.Opened, error) {
+	if settings.holder == nil {
+		return openProfiles(settings, io.Discard)
+	}
+
+	return settings.holder.opened()
+}
+
 func newHolder(settings rootSettings, flags *runFlags, stderr func() io.Writer) *holder {
 	return &holder{
 		stderr: stderr,
+		opened: sync.OnceValues(func() (creds.Opened, error) {
+			return openProfiles(settings, stderr())
+		}),
 		resolved: sync.OnceValues(func() (resolution, error) {
 			return resolveRun(settings, flags)
 		}),
@@ -27,6 +41,7 @@ func newHolder(settings rootSettings, flags *runFlags, stderr func() io.Writer) 
 
 type holder struct {
 	stderr   func() io.Writer
+	opened   func() (creds.Opened, error)
 	resolved func() (resolution, error)
 }
 
@@ -47,4 +62,78 @@ func resolveProvider(settings rootSettings, flags *runFlags) (onesie.Provider, e
 	value, _ := settings.lookupEnv(envProvider)
 
 	return onesie.ProviderNamed(value)
+}
+
+func openProfiles(settings rootSettings, stderr io.Writer) (creds.Opened, error) {
+	dir, resolved := profilesDir(settings)
+	if !resolved {
+		// A config dir that cannot be resolved holds no file, as -f treats it, so a run on a machine
+		// with no home still runs on its environment key.
+		return creds.Opened{}, nil
+	}
+
+	opened, err := settings.credStore.OpenProfiles(dir)
+	if err != nil {
+		return creds.Opened{}, err
+	}
+
+	for _, line := range conversionLines(opened, settings.lookupEnv) {
+		if _, printErr := fmt.Fprintln(stderr, line); printErr != nil {
+			return creds.Opened{}, printErr
+		}
+	}
+
+	return opened, nil
+}
+
+func profilesDir(settings rootSettings) (string, bool) {
+	if settings.profilesPath == nil {
+		return "", false
+	}
+
+	path, err := settings.profilesPath()
+
+	return filepath.Dir(path), err == nil
+}
+
+func conversionLines(opened creds.Opened, lookupEnv func(string) (string, bool)) []string {
+	var lines []string
+
+	if len(opened.Converted) > 0 {
+		where := "into profiles.json"
+		if opened.InMemory {
+			where = "for this run"
+		}
+
+		lines = append(lines, "onesie: converted credentials.json "+where+", with "+
+			namedProfiles(opened.Converted)+". "+defaultSentence(opened.Profiles.Default))
+
+		if setVariable(lookupEnv, envProvider) != "" {
+			lines = append(lines, "onesie: "+envProvider+" is set, so a run uses no profile and reads only the "+
+				"provider's key variable. To use a stored key, unset it and run onesie profile use NAME, "+
+				"or pass --profile NAME")
+		}
+	}
+
+	for _, warning := range opened.Warnings {
+		lines = append(lines, warning.Error())
+	}
+
+	return lines
+}
+
+func namedProfiles(names []string) string {
+	if len(names) == 1 {
+		return "profile " + names[0]
+	}
+
+	return "profiles " + strings.Join(names[:len(names)-1], ", ") + " and " + names[len(names)-1]
+}
+
+func defaultSentence(name string) string {
+	if name == "" {
+		return "No profile is the default, so run onesie profile use NAME to choose one"
+	}
+
+	return name + " is the default"
 }

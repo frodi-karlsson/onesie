@@ -11,24 +11,29 @@ import (
 	"time"
 
 	"github.com/frodi-karlsson/onesie-go"
+	"github.com/frodi-karlsson/onesie/internal/creds"
 	"github.com/frodi-karlsson/onesie/internal/output"
 )
 
-func defaultClientFactory(info BuildInfo, flags *runFlags, settings rootSettings) clientFactory {
-	var warned, doubled sync.Once
-
-	return func(_ context.Context, extra ...onesie.Option) (*onesie.Client, error) {
+func defaultClientFactory(settings rootSettings, flags *runFlags, build resolvedClientFactory) clientFactory {
+	return func(ctx context.Context, extra ...onesie.Option) (*onesie.Client, error) {
 		chosen, err := runResolution(settings, flags)
 		if err != nil {
 			return nil, err
 		}
 
-		provider := chosen.provider
+		return build(ctx, chosen, extra...)
+	}
+}
 
+func clientBuilder(info BuildInfo, flags *runFlags, settings rootSettings) resolvedClientFactory {
+	var warned, doubled sync.Once
+
+	return func(_ context.Context, chosen resolution, extra ...onesie.Option) (*onesie.Client, error) {
 		opts := []onesie.Option{
-			onesie.WithProvider(provider),
+			onesie.WithProvider(chosen.provider),
 			onesie.WithUserAgent("onesie/" + info.Version),
-			onesie.WithEnv(settings.lookupEnv),
+			onesie.WithEnv(chosen.env(settings.lookupEnv)),
 		}
 
 		if transport := pooled(flags.jobs); transport != nil {
@@ -39,15 +44,14 @@ func defaultClientFactory(info BuildInfo, flags *runFlags, settings rootSettings
 			opts = append(opts, onesie.WithBaseURL(baseURL))
 		}
 
-		// The credential file is the last source, after the provider's environment variable. Every
-		// dry run returns before a client is built, so opening the file here is what makes it
-		// invisible to a run that needs no key.
-		stored, err := storedCredentials(settings, flags)
+		// Every dry run returns before a client is built, so reading the key here is what keeps the
+		// file and the keychain away from a run that needs no key.
+		keyed, err := keyOptions(settings, flags, chosen)
 		if err != nil {
 			return nil, err
 		}
 
-		opts = append(opts, stored...)
+		opts = append(opts, keyed...)
 
 		opts = append(opts, onesie.WithAttemptTimeout(
 			time.Duration(flags.timeout)*time.Second))
@@ -80,7 +84,7 @@ func defaultClientFactory(info BuildInfo, flags *runFlags, settings rootSettings
 
 		if endsInVersion(client.BaseURL()) {
 			doubled.Do(func() {
-				_, printErr = fmt.Fprintln(settings.holder.stderr(), "warning: "+baseURLSource(settings, flags, provider)+
+				_, printErr = fmt.Fprintln(settings.holder.stderr(), "warning: "+baseURLSource(settings, flags, chosen)+
 					" ends in /v1 and onesie adds the API path itself, so requests go to "+
 					output.Printable(client.SystemOneURL()))
 			})
@@ -94,24 +98,59 @@ func defaultClientFactory(info BuildInfo, flags *runFlags, settings rootSettings
 	}
 }
 
+func ignoringResolution(newClient clientFactory) resolvedClientFactory {
+	return func(ctx context.Context, _ resolution, extra ...onesie.Option) (*onesie.Client, error) {
+		return newClient(ctx, extra...)
+	}
+}
+
+func keyOptions(settings rootSettings, flags *runFlags, chosen resolution) ([]onesie.Option, error) {
+	if chosen.profile == "" {
+		return storedCredentials(settings, flags)
+	}
+
+	key := chosen.key
+
+	if chosen.keyFrom == sourceKeychain {
+		read, err := settings.keychain.Get(chosen.account)
+		if err != nil {
+			return nil, err
+		}
+
+		// An empty key would leave onesie-go to read the provider's variable, which a profile run
+		// never does.
+		if read == "" {
+			return nil, &creds.KeychainError{Op: "read the key from", Err: creds.ErrKeychainMissing}
+		}
+
+		key = read
+	}
+
+	return chosen.options(flags.baseURL, key, settings.lookupEnv), nil
+}
+
 func endsInVersion(baseURL string) bool {
 	parsed, err := url.Parse(baseURL)
 
 	return err == nil && strings.HasSuffix(strings.TrimRight(parsed.Path, "/"), "/v1")
 }
 
-func baseURLSource(settings rootSettings, flags *runFlags, provider onesie.Provider) string {
+func baseURLSource(settings rootSettings, flags *runFlags, chosen resolution) string {
+	if chosen.profile != "" {
+		return chosen.baseURLSource(flags.baseURL, settings.lookupEnv)
+	}
+
 	if strings.TrimSpace(flags.baseURL) != "" {
 		return "--base-url"
 	}
 
-	if name := provider.EnvBaseURL; name != "" {
+	if name := chosen.provider.EnvBaseURL; name != "" {
 		if value, found := settings.lookupEnv(name); found && strings.TrimSpace(value) != "" {
 			return name
 		}
 	}
 
-	if name := provider.EnvAccountID; name != "" {
+	if name := chosen.provider.EnvAccountID; name != "" {
 		if value, found := settings.lookupEnv(name); found && strings.TrimSpace(value) != "" {
 			return name
 		}
@@ -181,6 +220,8 @@ func pooled(jobs int) http.RoundTripper {
 }
 
 type clientFactory func(ctx context.Context, opts ...onesie.Option) (*onesie.Client, error)
+
+type resolvedClientFactory func(ctx context.Context, chosen resolution, opts ...onesie.Option) (*onesie.Client, error)
 
 func resolveModel(settings rootSettings, flags *runFlags, model string) (string, error) {
 	chosen, err := runResolution(settings, flags)

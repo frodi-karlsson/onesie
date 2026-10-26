@@ -1,17 +1,14 @@
 package cli
 
 import (
-	"bufio"
 	"errors"
 	"fmt"
-	"io"
 	"strings"
 
 	"github.com/spf13/cobra"
 
 	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/creds"
-	"github.com/frodi-karlsson/onesie/internal/interrupt"
 )
 
 func newAuthCmd(settings rootSettings, flags *runFlags) *cobra.Command {
@@ -26,7 +23,7 @@ func newAuthCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 			return cmd.Help()
 		},
 		PersistentPreRunE: func(*cobra.Command, []string) error {
-			return refuseMock(settings, flags)
+			return refuseMock(settings, flags, "auth reads and writes a real key")
 		},
 	}
 
@@ -36,20 +33,6 @@ func newAuthCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 	cmd.AddCommand(newAuthClearCmd(settings, flags))
 
 	return cmd
-}
-
-func refuseMock(settings rootSettings, flags *runFlags) error {
-	_, spelled := mockSource(settings, flags)
-	if spelled == "" {
-		return nil
-	}
-
-	advice := "Unset it"
-	if spelled == flagMock {
-		advice = "Drop it"
-	}
-
-	return fmt.Errorf("onesie: auth reads and writes a real key, so it does not run under %s. %s", spelled, advice)
 }
 
 func newAuthSetCmd(settings rootSettings, flags *runFlags) *cobra.Command {
@@ -95,13 +78,9 @@ func authSet(cmd *cobra.Command, settings rootSettings, flags *runFlags, opts se
 		}
 	}
 
-	key, err := readKey(cmd, settings)
+	key, err := readKey(cmd, settings, "auth set")
 	if err != nil {
 		return err
-	}
-
-	if key == "" {
-		return errors.New("onesie: auth set: the key is empty")
 	}
 
 	path, err := settings.credPath()
@@ -246,70 +225,6 @@ func (r replaced) undo(keychain Keychain, account string) error {
 	}
 
 	return keychain.Set(account, r.key)
-}
-
-func readKey(cmd *cobra.Command, settings rootSettings) (string, error) {
-	if !settings.stdinTTY {
-		ctx := cmd.Context()
-
-		key, err := interrupt.Wait(ctx, func() (string, error) { return firstLine(settings.stdin) })
-		if ctx.Err() != nil {
-			return "", ctx.Err()
-		}
-
-		return key, err
-	}
-
-	// The prompt goes to stderr so onesie auth set inside a pipeline does not corrupt what stdout
-	// carries.
-	if _, printErr := fmt.Fprint(cmd.ErrOrStderr(), "API key: "); printErr != nil {
-		return "", printErr
-	}
-
-	secret, err := settings.readSecret()
-
-	// Written whether or not the read succeeded, since the terminal echoed nothing and the cursor
-	// is still on the prompt line.
-	if _, printErr := fmt.Fprintln(cmd.ErrOrStderr()); printErr != nil {
-		return "", printErr
-	}
-
-	if err != nil {
-		return "", err
-	}
-
-	return strings.TrimSpace(secret), nil
-}
-
-func firstLine(r io.Reader) (string, error) {
-	scanner := bufio.NewScanner(r)
-
-	key := ""
-
-	if scanner.Scan() {
-		key = strings.TrimSpace(scanner.Text())
-	} else if err := scanner.Err(); err != nil {
-		// Without this a key over the scanner's 64KiB cap leaves the first Scan empty and the loop
-		// below hands back the remainder, which reads as a second line and is rejected as one.
-		return "", fmt.Errorf("onesie: reading the key from stdin: %w", err)
-	}
-
-	// pass show and its siblings print the secret first and metadata after it, so a second non
-	// blank line means the caller piped more than the key. Storing it would make the metadata part
-	// of the key and truncating it in silence would hide the mistake.
-	for scanner.Scan() {
-		if strings.TrimSpace(scanner.Text()) != "" {
-			return "", errors.New(
-				"onesie: auth set: stdin carries more than one line, and it must hold the key alone. " +
-					"Pipe a password manager entry through head -n 1")
-		}
-	}
-
-	if err := scanner.Err(); err != nil {
-		return "", fmt.Errorf("onesie: reading the key from stdin: %w", err)
-	}
-
-	return key, nil
 }
 
 func newAuthStatusCmd(settings rootSettings, flags *runFlags) *cobra.Command {

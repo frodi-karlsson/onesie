@@ -125,6 +125,10 @@ func TestStoreOpenProfiles(t *testing.T) {
 			t.Errorf("warnings = %v, want none", opened.Warnings)
 		}
 
+		if opened.InMemory {
+			t.Error("InMemory is true, want false once profiles.json is written")
+		}
+
 		if _, statErr := os.Stat(filepath.Join(dir, "credentials.json")); !errors.Is(statErr, os.ErrNotExist) {
 			t.Errorf("credentials.json is still there: %v", statErr)
 		}
@@ -152,6 +156,10 @@ func TestStoreOpenProfiles(t *testing.T) {
 
 		if len(opened.Warnings) != 1 || !strings.Contains(opened.Warnings[0].Error(), "for this run only") {
 			t.Fatalf("warnings = %v, want one naming this run only", opened.Warnings)
+		}
+
+		if !opened.InMemory {
+			t.Error("InMemory is false, want true when profiles.json was not written")
 		}
 
 		if count := strings.Count(opened.Warnings[0].Error(), "onesie: "); count != 1 {
@@ -359,5 +367,107 @@ func TestStoreSaveProfilesIn(t *testing.T) {
 		if _, statErr := os.Lstat(filepath.Join(dir, "credentials.json")); !errors.Is(statErr, os.ErrNotExist) {
 			t.Errorf("the link is still there: %v", statErr)
 		}
+	})
+}
+
+func TestStoreClearProfilesIn(t *testing.T) {
+	t.Parallel()
+
+	write := func(t *testing.T, dir, name string) {
+		t.Helper()
+
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(`{}`), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	gone := func(t *testing.T, path string) {
+		t.Helper()
+
+		if _, statErr := os.Lstat(path); !errors.Is(statErr, os.ErrNotExist) {
+			t.Errorf("%s is still there: %v", filepath.Base(path), statErr)
+		}
+	}
+
+	t.Run("should remove profiles.json and a leftover credentials.json", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		write(t, dir, "profiles.json")
+		write(t, dir, "credentials.json")
+
+		warnings, err := creds.NewStore().ClearProfilesIn(dir)
+		if err != nil || len(warnings) != 0 {
+			t.Fatalf("ClearProfilesIn = %v, %v, want no warning", warnings, err)
+		}
+
+		gone(t, filepath.Join(dir, "profiles.json"))
+		gone(t, filepath.Join(dir, "credentials.json"))
+	})
+
+	t.Run("should remove a credentials.json whose conversion was never written", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		write(t, dir, "credentials.json")
+
+		warnings, err := creds.NewStore().ClearProfilesIn(dir)
+		if err != nil || len(warnings) != 0 {
+			t.Fatalf("ClearProfilesIn = %v, %v, want no warning", warnings, err)
+		}
+
+		gone(t, filepath.Join(dir, "credentials.json"))
+	})
+
+	t.Run("should refuse a directory at profiles.json and name it as the profiles file", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		if err := os.Mkdir(filepath.Join(dir, "profiles.json"), 0o700); err != nil {
+			t.Fatal(err)
+		}
+
+		_, err := creds.NewStore().ClearProfilesIn(dir)
+		if err == nil || !strings.Contains(err.Error(), "profiles file") || !strings.Contains(err.Error(), "is not a regular file") {
+			t.Errorf("error = %v, want the profiles file refused as not a regular file", err)
+		}
+	})
+
+	t.Run("should give no warning when neither file is there", func(t *testing.T) {
+		t.Parallel()
+
+		warnings, err := creds.NewStore().ClearProfilesIn(t.TempDir())
+		if err != nil || len(warnings) != 0 {
+			t.Fatalf("ClearProfilesIn = %v, %v, want no warning", warnings, err)
+		}
+	})
+
+	t.Run("should warn when credentials.json cannot be removed and still remove profiles.json", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		write(t, dir, "profiles.json")
+		write(t, dir, "credentials.json")
+
+		store := creds.NewStore(creds.WithRemove(func(path string) error {
+			if filepath.Base(path) == "credentials.json" {
+				return errors.New("the disk is read only")
+			}
+
+			return os.Remove(path)
+		}))
+
+		warnings, err := store.ClearProfilesIn(dir)
+		if err != nil || len(warnings) != 1 {
+			t.Fatalf("ClearProfilesIn = %v, %v, want one warning", warnings, err)
+		}
+
+		message := warnings[0].Error()
+		if !strings.Contains(message, "could not remove "+filepath.Join(dir, "credentials.json")) ||
+			strings.Contains(message, "converted") {
+			t.Errorf("warning = %q, want it to name the removal and nothing converted", message)
+		}
+
+		gone(t, filepath.Join(dir, "profiles.json"))
 	})
 }

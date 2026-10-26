@@ -104,9 +104,13 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 	}
 
 	// Installed after the options, since they read the environment lookup and home directory a test
-	// may have replaced, and before the factory, which resolves the credential file through them.
+	// may have replaced, and before the holder and the factory, which resolve the files through them.
 	if settings.credPath == nil {
 		settings.credPath = credentialPath(settings.lookupEnv, settings.homeDir, settings.goos)
+	}
+
+	if settings.profilesPath == nil {
+		settings.profilesPath = profilesLocation(settings.lookupEnv, settings.homeDir, settings.goos)
 	}
 
 	if settings.configDir == nil {
@@ -121,9 +125,12 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 		return root.ErrOrStderr()
 	})
 
-	// Installing it only when absent keeps an injected factory winning.
+	// Installed only when absent, so an injected factory wins, for profile test too.
 	if settings.newClient == nil {
-		settings.newClient = defaultClientFactory(info, flags, settings)
+		settings.clientFor = clientBuilder(info, flags, settings)
+		settings.newClient = defaultClientFactory(settings, flags, settings.clientFor)
+	} else {
+		settings.clientFor = ignoringResolution(settings.newClient)
 	}
 
 	recorder := argv.New()
@@ -250,8 +257,11 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 			"on every output line. It runs one record at a time as the input is read, so keep it cheap, "+
 			"such as a field lookup, and -V lists the cap on its length")
 	root.Flags().StringVarP(&flags.model, flagModel, "m", "", "model override")
-	root.PersistentFlags().StringVar(&flags.provider, "provider", "",
+	root.PersistentFlags().Var(choiceValue{value: &flags.provider, set: &flags.providerSet}, flagProvider,
 		"typesafe, openrouter, berget, levanto or cloudflare. Defaults to ONESIE_PROVIDER, then typesafe")
+	root.PersistentFlags().Var(choiceValue{value: &flags.profile, set: &flags.profileSet}, flagProfile,
+		"the profile a run uses, from profiles.json in the config dir. Also ONESIE_PROFILE, and otherwise "+
+			"the default profile, which onesie profile use sets")
 	root.PersistentFlags().StringVar(&flags.mock, "mock", "",
 		"answer from this file instead of the API. Also ONESIE_MOCK. The file is an object keyed by question id, "+
 			`as {"answer":0.9,"team":"billing"}, or one line per record in the shape -o json writes. `+
@@ -309,6 +319,7 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 
 	root.AddCommand(newVersionCmd(info))
 	root.AddCommand(newAuthCmd(settings, flags))
+	root.AddCommand(newProfileCmd(settings, flags))
 	root.AddCommand(newCalibrateCmd(settings, flags))
 	root.AddCommand(newQuestionsCmd(settings))
 	root.AddCommand(newCacheCmd(settings))
@@ -536,6 +547,14 @@ func WithCredentialPath(path func() (string, error)) RootOption {
 	}
 }
 
+// WithProfilesPath replaces how the profiles file's location is resolved, so a test needs no real
+// home directory. Its directory also holds the credentials.json a first read converts.
+func WithProfilesPath(path func() (string, error)) RootOption {
+	return func(s *rootSettings) {
+		s.profilesPath = path
+	}
+}
+
 // WithCredentialStore replaces the store the auth subcommands read and write through.
 func WithCredentialStore(store creds.Store) RootOption {
 	return func(s *rootSettings) {
@@ -585,6 +604,7 @@ type rootSettings struct {
 	args          []string
 	holder        *holder
 	newClient     clientFactory
+	clientFor     resolvedClientFactory
 	stdin         io.Reader
 	stdinTTY      bool
 	stdoutTTY     bool
@@ -606,6 +626,7 @@ type rootSettings struct {
 	stdinClock    input.Clock
 	terminalWidth func() (int, bool)
 	credPath      func() (string, error)
+	profilesPath  func() (string, error)
 	credStore     creds.Store
 	keychain      Keychain
 	readSecret    func() (string, error)
@@ -657,6 +678,16 @@ func credentialPath(
 	}
 }
 
+func profilesLocation(
+	lookupEnv func(string) (string, bool),
+	homeDir func() (string, error),
+	goos string,
+) func() (string, error) {
+	return func() (string, error) {
+		return creds.ProfilesPath(configEnv(lookupEnv, homeDir, goos))
+	}
+}
+
 func configDir(
 	lookupEnv func(string) (string, bool),
 	homeDir func() (string, error),
@@ -691,4 +722,27 @@ func isTerminal(f *os.File) bool {
 	}
 
 	return info.Mode()&os.ModeCharDevice != 0
+}
+
+type choiceValue struct {
+	value *string
+	set   *bool
+}
+
+func (c choiceValue) String() string {
+	if c.value == nil {
+		return ""
+	}
+
+	return *c.value
+}
+
+func (c choiceValue) Set(value string) error {
+	*c.value, *c.set = value, true
+
+	return nil
+}
+
+func (choiceValue) Type() string {
+	return "string"
 }
