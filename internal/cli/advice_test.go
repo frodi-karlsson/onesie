@@ -359,7 +359,17 @@ func TestAdvise(t *testing.T) {
 				contentType: "text/plain",
 				wantCode:    ExitAuth,
 				wantErr: "onesie: 401 Unauthorized, with a response body that is not JSON: bad key. " +
-					"Check the key in TYPESAFE_API_KEY\n",
+					"The key came from TYPESAFE_API_KEY\n",
+			},
+			{
+				name:     "should not repeat a refused key message that already says to check the key",
+				args:     []string{"is this urgent"},
+				stdin:    "a ticket",
+				status:   http.StatusUnauthorized,
+				response: `{"error":{"message":"Cannot authenticate with the server. Please check your API key and try again."}}`,
+				wantCode: ExitAuth,
+				wantErr: "onesie: 401 Cannot authenticate with the server. Please check your API key and try again. " +
+					"The key came from TYPESAFE_API_KEY\n",
 			},
 			{
 				name:     "should show a JSON string body's first line and not call it not JSON",
@@ -634,7 +644,7 @@ func TestWithKeyHint(t *testing.T) {
 			env:      map[string]string{"OPENROUTER_API_KEY": "SECRET-OR"},
 			status:   http.StatusForbidden,
 			wantCode: ExitAuth,
-			wantErr:  "onesie: 403 the key was refused. Check the key in OPENROUTER_API_KEY",
+			wantErr:  "onesie: 403 the key was refused. The key came from OPENROUTER_API_KEY",
 		},
 		{
 			name: "should name the key variable when calibrate is refused",
@@ -645,7 +655,7 @@ func TestWithKeyHint(t *testing.T) {
 			env:      map[string]string{onesie.EnvAPIKey: "SECRET-TS"},
 			status:   http.StatusUnauthorized,
 			wantCode: ExitAuth,
-			wantErr:  "Check the key in TYPESAFE_API_KEY",
+			wantErr:  "The key came from TYPESAFE_API_KEY",
 		},
 		{
 			name: "should leave a 402 without the key hint",

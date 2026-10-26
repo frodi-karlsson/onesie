@@ -1642,7 +1642,7 @@ func TestProfileTest(t *testing.T) {
 			env:      map[string]string{"ONESIE_PROVIDER": "typesafe", onesie.EnvAPIKey: "SECRET-ENV", onesie.EnvBaseURL: "{url}"},
 			status:   http.StatusUnauthorized,
 			wantCode: ExitAuth,
-			wantErr:  "onesie: 401 the key was refused. Check the key in TYPESAFE_API_KEY",
+			wantErr:  "onesie: 401 the key was refused. The key came from TYPESAFE_API_KEY",
 		},
 		{
 			name:     "should exit 3 on a forbidden key",
