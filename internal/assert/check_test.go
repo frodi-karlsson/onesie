@@ -951,3 +951,44 @@ func rawAnswer(q plan.Question, confidence float64) onesie.Answer {
 func ptr[T any](value T) *T {
 	return &value
 }
+
+func TestBracketHint(t *testing.T) {
+	t.Parallel()
+
+	ids := []string{"urgent", "a-b", "a b", "a.b"}
+
+	tests := []struct {
+		name   string
+		source string
+		want   string
+	}{
+		{
+			name:   "should advise brackets for a hyphenated id written bare",
+			source: `a-b.value < 0.5`,
+			want:   `Write the id 'a-b' in brackets, as in ["a-b"].value`,
+		},
+		{
+			name:   "should advise brackets for an id with a space written bare",
+			source: `a b.value < 0.5`,
+			want:   `Write the id 'a b' in brackets, as in ["a b"].value`,
+		},
+		{
+			name:   "should advise nothing when the id is already in brackets",
+			source: `["a-b"].value < 0.5 and`,
+		},
+		{
+			name:   "should advise nothing for a plain id",
+			source: `urgent.value <`,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := BracketHint(tc.source, ids); got != tc.want {
+				t.Errorf("BracketHint(%q) = %q, want %q", tc.source, got, tc.want)
+			}
+		})
+	}
+}

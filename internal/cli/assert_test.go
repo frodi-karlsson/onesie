@@ -149,6 +149,30 @@ func TestAsk(t *testing.T) {
 				wantErr:   "onesie: --assert: unknown question 'sevrity'. Questions: answer",
 				noRequest: true,
 			},
+			{
+				name:      "should point a hyphenated id at the bracket form",
+				args:      []string{"--ask", "a-b=q", "--state", "x", "--assert", "a-b.value < 0.5"},
+				response:  urgent,
+				wantCode:  cli.ExitUsage,
+				wantErr:   `onesie: --assert: unexpected character '-'. Write the id 'a-b' in brackets, as in ["a-b"].value`,
+				noRequest: true,
+			},
+			{
+				name:      "should point a dotted id at the bracket form",
+				args:      []string{"--ask", "a.b=q", "--state", "x", "--assert", "a.b.value < 0.5"},
+				response:  urgent,
+				wantCode:  cli.ExitUsage,
+				wantErr:   `onesie: --assert: unknown question 'a'. Write the id 'a.b' in brackets, as in ["a.b"].value`,
+				noRequest: true,
+			},
+			{
+				name:      "should point an id with a space at the bracket form",
+				args:      []string{"--ask", "a b=q", "--state", "x", "--assert", "a b.value < 0.5"},
+				response:  urgent,
+				wantCode:  cli.ExitUsage,
+				wantErr:   `. Write the id 'a b' in brackets, as in ["a b"].value`,
+				noRequest: true,
+			},
 		}
 
 		for _, tc := range tests {

@@ -244,6 +244,10 @@ func gateOf(flag, fileSource string, sources []string, built *plan.Plan) (*asser
 func gateExpr(source, named string, built *plan.Plan) (*assert.Expr, error) {
 	expr, err := assert.Parse(source)
 	if err != nil {
+		if hint := assert.BracketHint(source, questionIDs(built.Questions)); hint != "" {
+			return nil, fmt.Errorf("onesie: %s: %w. %s", named, err, hint)
+		}
+
 		return nil, fmt.Errorf("onesie: %s: %w", named, err)
 	}
 
@@ -255,6 +259,15 @@ func gateExpr(source, named string, built *plan.Plan) (*assert.Expr, error) {
 	}
 
 	return expr, nil
+}
+
+func questionIDs(questions []plan.Question) []string {
+	ids := make([]string, 0, len(questions))
+	for _, q := range questions {
+		ids = append(ids, q.ID)
+	}
+
+	return ids
 }
 
 func exprOf(given bool, flag, source string) (*jq.Expr, error) {

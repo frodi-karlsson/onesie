@@ -57,6 +57,12 @@ onesie --ask urgent='is this urgent' --assert 'urgnet.value < 0.5'
 # onesie: --assert: unknown question 'urgnet'. Questions: urgent
 ```
 
+- A question id may hold any character, but a path reaches it by its bare name only when it is
+  letters, digits and `_`, starts with a letter or `_`, and is not one of `and`, `or`, `not`, `in`,
+  `true` and `false`. Write any other id in brackets and double quotes, as in
+  `["needs review"].value` or `["a-b"].value`, and an option or level the same way after `p`, as in
+  `team.p["on call"]`. An id written bare that only the bracket form reaches exits 2 and shows the
+  bracket form.
 - A false assertion exits 1 and still prints the record with `"assert": false`. `-q` prints nothing
   and leaves the exit code to the assertion. Repeated flags combine with `and`.
 - `--abstain-if` is checked only when the assertion fails. When it holds, the record is an unsure:

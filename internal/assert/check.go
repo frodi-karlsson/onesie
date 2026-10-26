@@ -149,7 +149,7 @@ func (c *checker) pathType(n *pathNode) (valueType, bool) {
 		return typeString, true
 	}
 
-	q := c.question(head)
+	q := c.question(n)
 	if q == nil {
 		return typeString, false
 	}
@@ -174,7 +174,8 @@ func (c *checker) pathType(n *pathNode) (valueType, bool) {
 	return got, true
 }
 
-func (c *checker) question(id string) *plan.Question {
+func (c *checker) question(n *pathNode) *plan.Question {
+	id := n.segments[0]
 	if at := slices.IndexFunc(c.built.Questions, func(q plan.Question) bool {
 		return q.ID == id
 	}); at >= 0 {
@@ -184,6 +185,12 @@ func (c *checker) question(id string) *plan.Question {
 	ids := make([]string, 0, len(c.built.Questions))
 	for _, q := range c.built.Questions {
 		ids = append(ids, q.ID)
+	}
+
+	if dotted, found := dottedID(n, ids); found {
+		c.fail("unknown question '%s'. %s", id, bracketAdvice(dotted))
+
+		return nil
 	}
 
 	// Naming a plan with no question at all would print the separator and nothing after it, which
@@ -197,6 +204,17 @@ func (c *checker) question(id string) *plan.Question {
 	c.fail("unknown question '%s'. Questions: %s", id, strings.Join(ids, ", "))
 
 	return nil
+}
+
+func dottedID(n *pathNode, ids []string) (string, bool) {
+	for end := len(n.segments); end > 1; end-- {
+		joined := strings.Join(n.segments[:end], ".")
+		if slices.Contains(ids, joined) {
+			return joined, true
+		}
+	}
+
+	return "", false
 }
 
 func (c *checker) fieldType(q plan.Question, n *pathNode) (valueType, int, bool) {
@@ -278,6 +296,32 @@ func decisionNeeds(q plan.Question) string {
 
 	return plan.Spelling(q.Origin, "--threshold") + " or " +
 		plan.Spelling(q.Origin, "--min-confidence")
+}
+
+// BracketHint advises the bracket form for the first id in ids that source writes bare, although
+// only the bracket form can reach it. It returns the empty string when there is none.
+func BracketHint(source string, ids []string) string {
+	for _, id := range ids {
+		if bareSegment(id) || !strings.Contains(source, id) {
+			continue
+		}
+
+		if strings.Contains(source, bracketed(id)) {
+			continue
+		}
+
+		return bracketAdvice(id)
+	}
+
+	return ""
+}
+
+func bracketAdvice(id string) string {
+	return fmt.Sprintf("Write the id '%s' in brackets, as in %s.value", id, bracketed(id))
+}
+
+func bracketed(id string) string {
+	return "[" + strconv.Quote(id) + "]"
 }
 
 func (c *checker) fail(format string, args ...any) {
