@@ -17,6 +17,13 @@ const (
 	unwritten = "onesie: could not write /home/u/.config/onesie/profiles.json, so " +
 		"/home/u/.config/onesie/credentials.json is converted for this run only: creating a temporary file in " +
 		"/home/u/.config/onesie: permission denied"
+	modeWarning = "warning: could not set mode 600 on /home/u/.config/onesie/profiles.json. The key is not " +
+		"protected by the filesystem"
+	removedLink = "onesie: removed the link /home/u/.config/onesie/credentials.json, but " +
+		"/home/u/secrets/credentials.json still holds the key"
+	goodReport = "profile: work\nprovider: openrouter\nchosen by: the default\nkey: file, ends in cdef\n" +
+		"model: the provider's\nbase_url: the provider's\n"
+	goodVerdict = "onesie is on PATH and a key resolves, profile: work, provider: openrouter, key: file.\n"
 )
 
 func TestPreflight(t *testing.T) {
@@ -53,6 +60,42 @@ func TestPreflight(t *testing.T) {
 			want: "onesie is on PATH, but no API key resolves for provider openrouter. Only --print-request and " +
 				"--print-questions work until the user runs onesie profile create NAME --provider openrouter or " +
 				"sets OPENROUTER_API_KEY. The onesie-setup skill walks them through it.\n",
+		},
+		{
+			name: "should name the key variable of berget when no key resolves",
+			show: "profile: none\nprovider: berget\nchosen by: nothing\nkey: none\n" +
+				"model: the provider's\nbase_url: the provider's\n",
+			code: 2,
+			want: "onesie is on PATH, but no API key resolves for provider berget. Only --print-request and " +
+				"--print-questions work until the user runs onesie profile create NAME --provider berget or " +
+				"sets BERGET_API_KEY. The onesie-setup skill walks them through it.\n",
+		},
+		{
+			name: "should name the key variable of levanto when no key resolves",
+			show: "profile: none\nprovider: levanto\nchosen by: nothing\nkey: none\n" +
+				"model: the provider's\nbase_url: the provider's\n",
+			code: 2,
+			want: "onesie is on PATH, but no API key resolves for provider levanto. Only --print-request and " +
+				"--print-questions work until the user runs onesie profile create NAME --provider levanto or " +
+				"sets LEVANTO_API_KEY. The onesie-setup skill walks them through it.\n",
+		},
+		{
+			name: "should name the key variable of cloudflare when no key resolves",
+			show: "profile: none\nprovider: cloudflare\nchosen by: nothing\nkey: none\n" +
+				"model: the provider's\nbase_url: the provider's\n",
+			code: 2,
+			want: "onesie is on PATH, but no API key resolves for provider cloudflare. Only --print-request and " +
+				"--print-questions work until the user runs onesie profile create NAME --provider cloudflare or " +
+				"sets CLOUDFLARE_API_TOKEN. The onesie-setup skill walks them through it.\n",
+		},
+		{
+			name: "should name TYPESAFE_API_KEY through the default arm when no key resolves on typesafe",
+			show: "profile: none\nprovider: typesafe\nchosen by: nothing\nkey: none\n" +
+				"model: the provider's\nbase_url: the provider's\n",
+			code: 2,
+			want: "onesie is on PATH, but no API key resolves for provider typesafe. Only --print-request and " +
+				"--print-questions work until the user runs onesie profile create NAME --provider typesafe or " +
+				"sets TYPESAFE_API_KEY. The onesie-setup skill walks them through it.\n",
 		},
 		{
 			name: "should name profile update when a profile has no account",
@@ -110,6 +153,16 @@ func TestPreflight(t *testing.T) {
 				providerNotice + "\n" +
 				"onesie is on PATH, but onesie profile show failed with: onesie: unknown provider bogus. Use " +
 				"typesafe, openrouter, berget, levanto or cloudflare\n",
+		},
+		{
+			name: "should pass on a mode warning and still report the key",
+			show: modeWarning + "\n" + goodReport,
+			want: modeWarning + "\n" + goodVerdict,
+		},
+		{
+			name: "should pass on a removed link and still report the key",
+			show: removedLink + "\n" + goodReport,
+			want: removedLink + "\n" + goodVerdict,
 		},
 		{
 			name: "should report the first line of any other failure",

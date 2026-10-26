@@ -194,7 +194,7 @@ func (s Store) read(path, kind string) (data []byte, found bool, err error) {
 		return nil, false, fmt.Errorf("onesie: reading %s: %w", path, err)
 	}
 
-	// Ahead of the mode check, since a directory or a device node is not a credential file at a bad
+	// Ahead of the mode check, since a directory or a device node is not a config file at a bad
 	// mode, and no chmod 600 would fix it.
 	if !info.Mode().IsRegular() {
 		return nil, false, fmt.Errorf("onesie: %s %s is not a regular file", kind, path)
@@ -370,9 +370,9 @@ func (s Store) checkMode(path, kind string, mode os.FileMode) error {
 		return nil
 	}
 
-	// 0o077 rather than 0o044. A group writable credential file is as bad as a readable one, since
-	// whoever can replace it can substitute a key whose traffic they see. The message says
-	// accessible rather than readable because of it.
+	// 0o077 rather than 0o044. A group writable profiles.json or credentials.json is as bad as a
+	// readable one, since whoever can replace it can substitute a key whose traffic they see. The
+	// message says accessible rather than readable because of it.
 	if mode.Perm()&0o077 == 0 {
 		return nil
 	}
@@ -381,7 +381,7 @@ func (s Store) checkMode(path, kind string, mode os.FileMode) error {
 }
 
 // ReadableError means a file's mode lets someone other than its owner reach it. Kind names the
-// file, as credential file.
+// file, as profiles file or credential file.
 type ReadableError struct {
 	Path string
 	Kind string

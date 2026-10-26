@@ -121,10 +121,10 @@ ONESIE_MOCK=answers.json ./gate.sh
   `--profile` that does not exist, a Box question on cloudflare or a body openrouter cannot take
   fails as it would for real. It reads `profiles.json` unless `--provider` or `ONESIE_PROVIDER`
   chooses the run. A test can point `ONESIE_CONFIG_DIR` at a fixture of its own, at mode `600`,
-  whose profile holds a dummy `api_key`. It reads no key, opens no network, and ignores `--base-url`
-  and the cloudflare account. It prints the model the run resolved wherever a model is shown, and
-  `--usage` reports zero tokens. `--stats` counts no requests, tokens or attempts, as in
-  `2 records answered from the mock, 2 questions, 0s`.
+  whose profile holds a dummy `api_key`, since every profile must hold a key. A mock run uses no
+  key, opens no network, and ignores `--base-url` and the cloudflare account. It prints the model
+  the run resolved wherever a model is shown, and `--usage` reports zero tokens. `--stats` counts
+  no requests, tokens or attempts, as in `2 records answered from the mock, 2 questions, 0s`.
 - The `--out` fingerprint marks the run as a mock, so a real run refuses to resume a mock run's
   file and the other way round. The mock file's content is not part of it.
 - `calibrate --mock` works, so a calibration can be tested too. Its `-o json` report carries
