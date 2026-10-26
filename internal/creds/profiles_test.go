@@ -161,6 +161,13 @@ func TestProfilesValidate(t *testing.T) {
 			wantErr: "profile 'x' has both base_url and account_id. Keep one",
 		},
 		{
+			name: "should refuse a key_end longer than 4 characters",
+			profiles: creds.Profiles{Profiles: map[string]creds.Profile{
+				"x": {Provider: "typesafe", APIKey: "k", KeyEnd: "abcde"},
+			}},
+			wantErr: "profile 'x' has a key_end longer than 4 characters",
+		},
+		{
 			name:     "should refuse a default that names no profile",
 			profiles: creds.Profiles{Default: "gone", Profiles: map[string]creds.Profile{"work": keychain}},
 			wantErr:  "default names profile 'gone', which does not exist",
@@ -236,6 +243,20 @@ func TestStoreLoadProfiles(t *testing.T) {
 		{
 			name:     "should refuse a file that is not JSON",
 			contents: `not json`,
+			mode:     0o600,
+			wantErr:  "is not a JSON object of profiles",
+			invalid:  true,
+		},
+		{
+			name:     "should refuse a file that is JSON null",
+			contents: `null`,
+			mode:     0o600,
+			wantErr:  "is not a JSON object of profiles",
+			invalid:  true,
+		},
+		{
+			name:     "should refuse a file that is a JSON array",
+			contents: ` []`,
 			mode:     0o600,
 			wantErr:  "is not a JSON object of profiles",
 			invalid:  true,

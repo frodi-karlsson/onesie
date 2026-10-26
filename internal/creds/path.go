@@ -1,5 +1,5 @@
-// Package creds resolves, reads and writes the credential file that holds an API key when neither
-// a flag nor the environment supplies one.
+// Package creds resolves, reads and writes the credential and profiles files that hold an API key
+// when neither a flag nor the environment supplies one.
 package creds
 
 import (
@@ -34,7 +34,8 @@ func ProfilesPath(env Env) (string, error) {
 	return filepath.Join(dir, profilesName), nil
 }
 
-// Dir reports onesie's config dir, which holds the credential file and the saved question files.
+// Dir reports onesie's config dir, which holds the credential and profiles files and the saved
+// question files.
 func Dir(env Env) (string, error) {
 	if dir := lookup(env, "ONESIE_CONFIG_DIR"); dir != "" {
 		return filepath.Clean(dir), nil

@@ -87,7 +87,7 @@ func TestStoreOpenProfiles(t *testing.T) {
 		write(t, filepath.Join(dir, "credentials.json"), old)
 
 		opened, err := creds.NewStore().OpenProfiles(dir)
-		if err != nil || len(opened.Converted) != 0 || len(opened.Profiles.Profiles) != 1 {
+		if err != nil || !opened.Found || len(opened.Converted) != 0 || len(opened.Profiles.Profiles) != 1 {
 			t.Fatalf("OpenProfiles = %+v, %v, want the one profile and no conversion", opened, err)
 		}
 
@@ -100,7 +100,7 @@ func TestStoreOpenProfiles(t *testing.T) {
 		t.Parallel()
 
 		opened, err := creds.NewStore().OpenProfiles(t.TempDir())
-		if err != nil || len(opened.Profiles.Profiles) != 0 || len(opened.Converted) != 0 {
+		if err != nil || opened.Found || len(opened.Profiles.Profiles) != 0 || len(opened.Converted) != 0 {
 			t.Fatalf("OpenProfiles = %+v, %v, want nothing", opened, err)
 		}
 	})
@@ -112,8 +112,8 @@ func TestStoreOpenProfiles(t *testing.T) {
 		write(t, filepath.Join(dir, "credentials.json"), old)
 
 		opened, err := creds.NewStore().OpenProfiles(dir)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if err != nil || !opened.Found {
+			t.Fatalf("OpenProfiles = %+v, %v, want the converted profiles found", opened, err)
 		}
 
 		if !reflect.DeepEqual(opened.Converted, []string{"levanto", "typesafe"}) || opened.Profiles.Default != "typesafe" {
@@ -146,12 +146,16 @@ func TestStoreOpenProfiles(t *testing.T) {
 		}))
 
 		opened, err := store.OpenProfiles(dir)
-		if err != nil || len(opened.Profiles.Profiles) != 2 {
+		if err != nil || !opened.Found || len(opened.Profiles.Profiles) != 2 {
 			t.Fatalf("OpenProfiles = %+v, %v, want the two converted profiles", opened, err)
 		}
 
 		if len(opened.Warnings) != 1 || !strings.Contains(opened.Warnings[0].Error(), "for this run only") {
-			t.Errorf("warnings = %v, want one naming this run only", opened.Warnings)
+			t.Fatalf("warnings = %v, want one naming this run only", opened.Warnings)
+		}
+
+		if count := strings.Count(opened.Warnings[0].Error(), "onesie: "); count != 1 {
+			t.Errorf("warning = %v, want the onesie prefix once, got it %d times", opened.Warnings[0], count)
 		}
 
 		if _, err := os.Stat(filepath.Join(dir, "credentials.json")); err != nil {
@@ -209,6 +213,32 @@ func TestStoreOpenProfiles(t *testing.T) {
 		}
 	})
 
+	t.Run("should refuse an invalid profiles.json and leave credentials.json alone", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		profilesPath := filepath.Join(dir, "profiles.json")
+		broken := `{"profiles":{"work":{"provider":"typesafe"}}}`
+		write(t, profilesPath, broken)
+		write(t, filepath.Join(dir, "credentials.json"), old)
+
+		_, err := creds.NewStore().OpenProfiles(dir)
+
+		var invalid *creds.InvalidProfilesError
+		if !errors.As(err, &invalid) {
+			t.Fatalf("error = %v, want an InvalidProfilesError", err)
+		}
+
+		if _, statErr := os.Stat(filepath.Join(dir, "credentials.json")); statErr != nil {
+			t.Errorf("credentials.json is gone: %v", statErr)
+		}
+
+		data, readErr := os.ReadFile(profilesPath)
+		if readErr != nil || string(data) != broken {
+			t.Errorf("profiles.json = %s, %v, want it unchanged", data, readErr)
+		}
+	})
+
 	t.Run("should convert nothing from a credentials.json today's Load refuses", func(t *testing.T) {
 		t.Parallel()
 
@@ -256,6 +286,78 @@ func TestStoreOpenProfiles(t *testing.T) {
 		if !errors.As(err, &invalid) || !strings.Contains(err.Error(), "credential file") ||
 			!strings.Contains(err.Error(), "credentials.json") {
 			t.Fatalf("error = %v, want an InvalidProfilesError naming the credential file", err)
+		}
+	})
+}
+
+func TestStoreSaveProfilesIn(t *testing.T) {
+	t.Parallel()
+
+	profiles := creds.Profiles{Profiles: map[string]creds.Profile{"work": {Provider: "typesafe", APIKey: "k"}}}
+
+	t.Run("should write profiles.json and remove a leftover credentials.json", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		if err := os.WriteFile(filepath.Join(dir, "credentials.json"), []byte(`{}`), 0o600); err != nil {
+			t.Fatal(err)
+		}
+
+		warnings, err := creds.NewStore().SaveProfilesIn(dir, profiles)
+		if err != nil || len(warnings) != 0 {
+			t.Fatalf("SaveProfilesIn = %v, %v, want no warning", warnings, err)
+		}
+
+		if _, statErr := os.Stat(filepath.Join(dir, "credentials.json")); !errors.Is(statErr, os.ErrNotExist) {
+			t.Errorf("credentials.json is still there: %v", statErr)
+		}
+
+		if _, statErr := os.Stat(filepath.Join(dir, "profiles.json")); statErr != nil {
+			t.Errorf("profiles.json was not written: %v", statErr)
+		}
+	})
+
+	t.Run("should give no warning when there is no credentials.json", func(t *testing.T) {
+		t.Parallel()
+
+		warnings, err := creds.NewStore().SaveProfilesIn(t.TempDir(), profiles)
+		if err != nil || len(warnings) != 0 {
+			t.Fatalf("SaveProfilesIn = %v, %v, want no warning", warnings, err)
+		}
+	})
+
+	t.Run("should warn that the target of a symlinked credentials.json still holds the key", func(t *testing.T) {
+		t.Parallel()
+
+		if runtime.GOOS == "windows" {
+			t.Skip("a symlink needs privileges on windows")
+		}
+
+		dir := t.TempDir()
+		target := filepath.Join(t.TempDir(), "real.json")
+		if err := os.WriteFile(target, []byte(`{}`), 0o600); err != nil {
+			t.Fatal(err)
+		}
+
+		if err := os.Symlink(target, filepath.Join(dir, "credentials.json")); err != nil {
+			t.Fatal(err)
+		}
+
+		warnings, err := creds.NewStore().SaveProfilesIn(dir, profiles)
+		if err != nil || len(warnings) != 1 {
+			t.Fatalf("SaveProfilesIn = %v, %v, want one warning", warnings, err)
+		}
+
+		if !strings.Contains(warnings[0].Error(), target) || !strings.Contains(warnings[0].Error(), "still holds the key") {
+			t.Errorf("warning = %v, want it to name %s and say it still holds the key", warnings[0], target)
+		}
+
+		if _, statErr := os.Stat(target); statErr != nil {
+			t.Errorf("the target is gone: %v", statErr)
+		}
+
+		if _, statErr := os.Lstat(filepath.Join(dir, "credentials.json")); !errors.Is(statErr, os.ErrNotExist) {
+			t.Errorf("the link is still there: %v", statErr)
 		}
 	})
 }

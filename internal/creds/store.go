@@ -25,6 +25,7 @@ func NewStore(opts ...StoreOption) Store {
 		open:       os.Open,
 		stat:       os.Stat,
 		lstat:      os.Lstat,
+		readlink:   os.Readlink,
 		mkdirAll:   os.MkdirAll,
 		rename:     os.Rename,
 		remove:     os.Remove,
@@ -41,35 +42,35 @@ func NewStore(opts ...StoreOption) Store {
 	return store
 }
 
-// WithOpen replaces how a Store opens the credential file and its directory.
+// WithOpen replaces how a Store opens the file it reads and the directory it syncs.
 func WithOpen(open func(string) (*os.File, error)) StoreOption {
 	return func(s *Store) {
 		s.open = open
 	}
 }
 
-// WithStat replaces how a Store reads the mode of a credential file it could not open.
+// WithStat replaces how a Store reads the mode of a file it could not open.
 func WithStat(stat func(string) (fs.FileInfo, error)) StoreOption {
 	return func(s *Store) {
 		s.stat = stat
 	}
 }
 
-// WithLstat replaces how a Store inspects the credential path before removing it.
+// WithLstat replaces how a Store inspects a path before removing it.
 func WithLstat(lstat func(string) (fs.FileInfo, error)) StoreOption {
 	return func(s *Store) {
 		s.lstat = lstat
 	}
 }
 
-// WithMkdirAll replaces how a Store creates the credential file's directory.
+// WithMkdirAll replaces how a Store creates the directory of the file it writes.
 func WithMkdirAll(mkdirAll func(string, os.FileMode) error) StoreOption {
 	return func(s *Store) {
 		s.mkdirAll = mkdirAll
 	}
 }
 
-// WithRename replaces how a Store moves the temporary file onto the credential path.
+// WithRename replaces how a Store moves the temporary file onto the path of the file it writes.
 func WithRename(rename func(oldpath, newpath string) error) StoreOption {
 	return func(s *Store) {
 		s.rename = rename
@@ -115,12 +116,13 @@ func WithGOOS(goos string) StoreOption {
 // filesystem that fails it.
 type StoreOption func(*Store)
 
-// Store reads and writes credential files. Build one with NewStore, since the zero value has no
-// filesystem to call. Its zero value also assumes a unix filesystem.
+// Store reads and writes the credential and profiles files. Build one with NewStore, since the zero
+// value has no filesystem to call. Its zero value also assumes a unix filesystem.
 type Store struct {
 	open       func(string) (*os.File, error)
 	stat       func(string) (fs.FileInfo, error)
 	lstat      func(string) (fs.FileInfo, error)
+	readlink   func(string) (string, error)
 	mkdirAll   func(string, os.FileMode) error
 	rename     func(oldpath, newpath string) error
 	remove     func(string) error

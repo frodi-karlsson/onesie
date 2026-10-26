@@ -59,7 +59,12 @@ func decodeDetail(err error) string {
 }
 
 func decodeProfiles(data []byte) (Profiles, error) {
+	if !bytes.HasPrefix(bytes.TrimSpace(data), []byte("{")) {
+		return Profiles{}, errors.New("not a JSON object")
+	}
+
 	decoder := json.NewDecoder(bytes.NewReader(data))
+	// A misspelled member is refused, not silently dropped.
 	decoder.DisallowUnknownFields()
 
 	var profiles Profiles
@@ -136,6 +141,10 @@ func (p Profile) validate(name string) error {
 		return fmt.Errorf(
 			"profile '%s' needs its key in exactly one place, a non empty api_key or store keychain with an account",
 			name)
+	}
+
+	if len(p.KeyEnd) > keyEndLength {
+		return fmt.Errorf("profile '%s' has a key_end longer than %d characters", name, keyEndLength)
 	}
 
 	if p.AccountID == "" {
