@@ -157,9 +157,9 @@ func TestCheck(t *testing.T) {
 			wantErr: "'team' has no option 'sals'. --pick has: billing, technical, sales",
 		},
 		{
-			name:    "should reject a rate value compared with a name that is not a label",
+			name:    "should reject a rate value compared with a name that is not a level",
 			input:   `severity.value == "lo"`,
-			wantErr: "'severity' has no label 'lo'. --rate has: low, high",
+			wantErr: "'severity' has no level 'lo'. --rate has: low, high",
 		},
 		{
 			name:    "should reject an unlabelled rate value compared with an index it does not have",
@@ -175,9 +175,9 @@ func TestCheck(t *testing.T) {
 			input: `decided.decision == "b" or decided.fallback == "low_confidence"`,
 		},
 		{
-			name:    "should reject an unknown rate label",
+			name:    "should reject an unknown rate level",
 			input:   `severity.p.lo > 0.2`,
-			wantErr: "'severity' has no label 'lo'. --rate has: low, high",
+			wantErr: "'severity' has no level 'lo'. --rate has: low, high",
 		},
 		{
 			name:    "should reject an index an unlabelled rate does not have",
@@ -197,7 +197,7 @@ func TestCheck(t *testing.T) {
 		{
 			name:    "should reject p without a label",
 			input:   `severity.p > 0.2`,
-			wantErr: "'severity.p' needs a level label",
+			wantErr: "'severity.p' needs a level name",
 		},
 		{
 			name:    "should reject p without an index",
@@ -459,7 +459,7 @@ func TestCheck(t *testing.T) {
 					Levels: []plan.Level{{Label: "low"}, {Label: "high"}},
 				},
 				input:   `severity.p.lo > 0.2`,
-				wantErr: "'severity' has no label 'lo'. 'rate' has: low, high",
+				wantErr: "'severity' has no level 'lo'. 'rate' has: low, high",
 			},
 			{
 				name: "should spell a file's policy keys in the fallback message",

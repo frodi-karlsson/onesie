@@ -399,8 +399,8 @@ func keysOf(q plan.Question) keyset {
 
 		return keyset{
 			names: labels,
-			noun:  "label",
-			want:  "a level label",
+			noun:  "level",
+			want:  "a level name",
 			has:   plan.ShapeName(&q, "--rate") + " has: " + strings.Join(labels, ", "),
 		}
 	}
