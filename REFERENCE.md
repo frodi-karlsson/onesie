@@ -116,18 +116,21 @@ ONESIE_MOCK=answers.json ./gate.sh
   stops at that record, so it holds only the lines before it in input order, or under `--unordered`
   the lines that arrived before it. Under `--out --resume` the file holds the same lines, so a rerun
   with a full file asks that record and the ones after it.
-- A mock run resolves the provider and the model as a real run does, and refuses what the real run
-  would before it answers from the file. So a misspelled `--provider`, a Box question on cloudflare
-  or a body openrouter cannot take fails as it would for real. It reads no key, opens no network,
-  and ignores `--base-url` and the cloudflare account. It prints the model the run resolved wherever
-  a model is shown, and `--usage` reports zero tokens. `--stats` counts no requests, tokens or
-  attempts, as in `2 records answered from the mock, 2 questions, 0s`.
+- A mock run chooses its profile and resolves the provider and the model as a real run does, and
+  refuses what the real run would before it answers from the file. So a misspelled `--provider`, a
+  `--profile` that does not exist, a Box question on cloudflare or a body openrouter cannot take
+  fails as it would for real. It reads `profiles.json` unless `--provider` or `ONESIE_PROVIDER`
+  chooses the run. A test can point `ONESIE_CONFIG_DIR` at a fixture of its own, at mode `600`,
+  whose profile holds a dummy `api_key`. It reads no key, opens no network, and ignores `--base-url`
+  and the cloudflare account. It prints the model the run resolved wherever a model is shown, and
+  `--usage` reports zero tokens. `--stats` counts no requests, tokens or attempts, as in
+  `2 records answered from the mock, 2 questions, 0s`.
 - The `--out` fingerprint marks the run as a mock, so a real run refuses to resume a mock run's
   file and the other way round. The mock file's content is not part of it.
 - `calibrate --mock` works, so a calibration can be tested too. Its `-o json` report carries
   `"mocked":true`. An entry may also answer the questions `calibrate` skips, so one mock file for a
   whole question file serves any set of labels. `--mock` and `ONESIE_MOCK` are refused beside
-  `--print-request`, `-i request`, `--list-models` and every `auth` subcommand. The flag wins over
+  `--print-request`, `-i request`, `--list-models` and every `profile` subcommand. The flag wins over
   the variable, and an empty `ONESIE_MOCK` is ignored.
 
 ## Calibrating
@@ -425,7 +428,7 @@ again.
     `LOCALAPPDATA` is unset
   - `~/.cache/onesie` on Linux and every other system
 - Its files are mode `600` in directories of mode `700`. `--cache` refuses a cache directory others
-  can reach with exit 2, before any request, as it refuses such a credential file. Windows carries no
+  can reach with exit 2, before any request. Windows carries no
   such modes, so the check is skipped there. onesie writes a `CACHEDIR.TAG` file, so backup tools
   skip the cache, into a new cache directory and into an existing one that is empty or holds only
   what onesie writes. onesie counts, evicts and clears only its own entries and temporary files, and
@@ -470,35 +473,220 @@ and `ONESIE_VERSION` a release other than the latest. It checks the download aga
 The darwin binaries are signed and notarized, so an archive downloaded from the releases page in a
 browser runs too.
 
-## Keys and providers
+## Profiles and providers
 
 ```sh
-onesie auth set                                    # prompts, or reads the key alone from stdin
-pass show openrouter | head -n 1 | onesie --provider openrouter auth set
-onesie auth status                                 # which provider and source, never the key
-onesie auth test                                   # checks the key
+onesie profile create work --provider openrouter   # prompts, or reads the key alone from stdin
+pass show openrouter | head -n 1 | onesie profile create work --provider openrouter
+onesie profile list                                # every profile, with * on the one a run uses
+onesie profile show                                # what a run would use, never the key
+onesie profile test work                           # checks the key
+onesie profile use work                            # makes work the default
 ```
 
-| Provider | Key variable | Chosen with |
-|----------|--------------|-------------|
-| `typesafe`, the default | `TYPESAFE_API_KEY` | nothing |
-| `openrouter` | `OPENROUTER_API_KEY` | `--provider openrouter` or `ONESIE_PROVIDER=openrouter` |
-| `berget` | `BERGET_API_KEY` | `--provider berget` or `ONESIE_PROVIDER=berget` |
-| `levanto` | `LEVANTO_API_KEY` | `--provider levanto` or `ONESIE_PROVIDER=levanto` |
-| `cloudflare` | `CLOUDFLARE_API_TOKEN` | `--provider cloudflare` or `ONESIE_PROVIDER=cloudflare` |
+A profile is a named connection: a provider, its key in the OS keychain or in `profiles.json`, and
+optionally a model and a base URL or a Cloudflare account id. Two profiles may share a provider, so
+a work key and a personal key for OpenRouter sit side by side. `--provider` runs without a profile,
+on the provider's key variable alone.
 
-- A key comes from the provider's variable, then the credential file. No provider falls back to
-  another's key.
-- `auth set` stores the key in the OS keychain when there is one, and otherwise in a file at mode
-  `600` under `$ONESIE_CONFIG_DIR`, `$XDG_CONFIG_HOME/onesie` or `~/.config/onesie`. onesie refuses
-  a file anyone else can reach. On Linux the key reaches the Secret Service over the session bus
-  unencrypted, readable only by your own user.
-- `auth status` exits 2 when no key resolves, after printing `source: none`, as a real run and
-  `auth test` do.
-- Cloudflare also needs the account id, from `--base-url`, then `CLOUDFLARE_ACCOUNT_ID`, then a base
-  URL stored with `onesie --provider cloudflare auth set --base-url
-  https://api.cloudflare.com/client/v4/accounts/<account_id>/ai`. A stored base URL applies only
-  to a stored key. `auth status` prints where the account comes from, and exits 2 when none does.
+| Provider | Key variable | Default model |
+|----------|--------------|---------------|
+| `typesafe` | `TYPESAFE_API_KEY` | `jev-latest` |
+| `openrouter` | `OPENROUTER_API_KEY` | `jev-latest` |
+| `berget` | `BERGET_API_KEY` | `systemone` |
+| `levanto` | `LEVANTO_API_KEY` | `sage-latest` |
+| `cloudflare` | `CLOUDFLARE_API_TOKEN` | `typesafe/jev` |
+
+### Commands
+
+| Command | What it does |
+|---------|--------------|
+| `profile create NAME --provider P [--model M] [--base-url U] [--account-id A] [--file]` | stores a new profile and reads its key. The first profile becomes the default |
+| `profile update NAME [--provider P] [--model M] [--base-url U] [--account-id A] [--key] [--file]` | changes only the members named, and an empty value clears one, as in `--model ""`. `--key` reads a new key. `--provider` needs `--key`, since a key belongs to one provider, and `--file` needs `--key` too |
+| `profile delete NAME` | removes the profile and its keychain item. Deleting the default leaves no default, and deleting the last profile removes `profiles.json` |
+| `profile use NAME` | makes the profile the default |
+| `profile list` | lists each profile's provider, key store and model, with `*` on the one a run would use now. When a run would use none, a stderr line says why, as in `active: ONESIE_PROVIDER=openrouter, no profile` |
+| `profile show [NAME]` | prints `profile`, `provider`, `chosen by`, `key`, `model` and `base_url` lines, and an `account` line on cloudflare, for the named profile or for what a run would use now |
+| `profile test [NAME]` | lists the provider's models with the key, which costs no tokens, and prints `profile`, `provider`, `key` and `models` lines |
+
+- A name is 1 to 64 lowercase letters, digits, `-` or `_`, does not start with `-`, and is not
+  `none`. There is no rename, so delete a profile and create it again.
+- The key is read from a hidden prompt on a terminal, and otherwise from the first line of stdin,
+  which must hold the key alone. A second line that is not blank exits 2, so pipe a password manager
+  entry through `head -n 1`. The key is never a flag, since a flag lands in shell history.
+- `create` and `update --key` put the key in the OS keychain, or in `profiles.json` with `--file`. A
+  keychain that does not answer in time exits 3 and names `--file`. Any other keychain error stores
+  the key in the file instead, with a warning. On Linux the key reaches the Secret Service over the
+  session bus unencrypted, readable only by your own user.
+- `create` and `update` check the rules below, the base URL and the account id before they read the
+  key, so a typo costs nothing.
+- `show` never reads the keychain or prints a key. `key:` is `keychain` or `file`, with
+  `, ends in XXXX` when the key has 16 characters or more, `env` and the key variable for a run
+  without a profile, or `none`. A converted keychain key shows no ending until
+  `onesie profile update NAME --key`. `chosen by:` is `--profile`, `ONESIE_PROFILE`, `the default`,
+  `--provider`, `ONESIE_PROVIDER` or `nothing`, and `not active` for a named profile a run would not
+  use. `model:` and `base_url:` read `the provider's` when the profile sets none, and `account:`
+  names `account_id`, `base_url`, `CLOUDFLARE_ACCOUNT_ID` or `none`. `show` exits 2 when `key` or
+  `account` is `none`, as a real run would.
+- `test` proves the key on every provider. On berget it also asks one tiny question with the
+  profile's model, which spends a few tokens. On openrouter it also reads `/v1/key` under the base
+  URL, which costs nothing, so a proxy set as an openrouter base URL must serve `/v1/key` too.
+- `--profile` exits 2 beside `create`, `update`, `delete`, `use` and `list`, and beside `show` or
+  `test` given a name. So does `--provider`, apart from `create` and `update`, where it is the
+  profile's own provider. `show` and `test` with no name take both as a run does. Every `profile`
+  command refuses `--mock` and `ONESIE_MOCK`.
+- `profile` is a subcommand name, so a one word question `profile` needs `--ask`, or `--` before it.
+
+### Choosing a profile
+
+| Choice | Strength |
+|--------|----------|
+| `--profile NAME` or `--provider NAME` | flag |
+| `ONESIE_PROFILE` or `ONESIE_PROVIDER` | environment |
+| the file's `default`, which `profile use` sets | file |
+
+- The strongest choice wins, so a flag beats a variable, and a variable beats the default.
+- Two choices of the same strength exit 2, naming both. So `--profile` with `--provider` exits 2,
+  and so do `ONESIE_PROFILE` and `ONESIE_PROVIDER` set together.
+- An empty or whitespace only variable counts as unset. An empty `--profile` or `--provider` exits 2,
+  since a flag given is a choice made.
+- `--provider` or `ONESIE_PROVIDER` runs without a profile.
+- With no choice and no profiles, a run uses no profile and the `typesafe` provider.
+- With no choice, and profiles but no default, a run exits 2 and names `onesie profile use NAME`,
+  `--profile NAME` and `--provider NAME`.
+- A profile that does not exist exits 2, naming the profiles there are. A `--provider` that names a
+  profile rather than a provider exits 2 with a hint to pass `--profile`.
+
+### What a run uses
+
+| Value | With a profile | Without a profile |
+|-------|----------------|-------------------|
+| key | the profile's key. The provider's key variable is not read | the provider's key variable |
+| model | `-m`, then the question file's `model`, then the profile's `model`, then `TYPESAFE_DEFAULT_MODEL` on typesafe, then the provider's default | `-m`, then the question file's `model`, then `TYPESAFE_DEFAULT_MODEL` on typesafe, then the provider's default |
+| base_url | `--base-url`, then the profile's `base_url`, then `TYPESAFE_BASE_URL` on typesafe, then the provider's own | `--base-url`, then `TYPESAFE_BASE_URL` on typesafe, then the provider's own |
+| account_id, on cloudflare | the profile's `account_id`, then `CLOUDFLARE_ACCOUNT_ID` | `CLOUDFLARE_ACCOUNT_ID` |
+
+- A flag beats the profile, the profile beats the environment, and the environment beats the built
+  in default. No provider falls back to another's key.
+- On cloudflare the account counts only when no base URL is chosen, since a Cloudflare base URL
+  holds the account. A cloudflare run with no account exits 2 and names `CLOUDFLARE_ACCOUNT_ID` and
+  the base URL `https://api.cloudflare.com/client/v4/accounts/<account_id>/ai`. On a profile it also
+  names `onesie profile update NAME --account-id ACCOUNT_ID`.
+- A run that `--provider` or `ONESIE_PROVIDER` chooses, and that succeeds, never opens
+  `profiles.json`, so CI that names its provider does not depend on any file on the machine. Only a
+  run that then fails for a missing key or an unknown provider reads it, to name a profile in the
+  hint.
+- Every other run reads it, `--print-request` and `--mock` included, so a `profiles.json` others can
+  reach exits 3 there too. `--print-questions` and `--print-schema` never read it. `profile show`,
+  `profile list` and `profile test` always read it, whatever chooses.
+- Reading `profiles.json` never opens the keychain. Only a run that sends a request reads a keychain
+  key.
+
+### profiles.json
+
+```json
+{
+  "default": "work",
+  "profiles": {
+    "work": {
+      "provider": "openrouter",
+      "store": "keychain",
+      "account": "work@3c9a1f2b7e10",
+      "key_end": "3f9a",
+      "model": "typesafe/jev"
+    },
+    "cf": {
+      "provider": "cloudflare",
+      "api_key": "YOUR_CLOUDFLARE_API_TOKEN",
+      "account_id": "0123456789abcdef0123456789abcdef",
+      "model": "clef-flash"
+    }
+  }
+}
+```
+
+The format is stable, and the file may be written by hand. It lives in the config dir:
+`$ONESIE_CONFIG_DIR`, then `$XDG_CONFIG_HOME/onesie`, then `%APPDATA%\onesie` on Windows, then
+`~/.config/onesie`.
+
+| Member | Meaning |
+|--------|---------|
+| `default` | the profile a run uses when nothing else chooses one. Optional |
+| `profiles` | name to profile. May be empty |
+| `provider` | `typesafe`, `openrouter`, `berget`, `levanto` or `cloudflare`. Required |
+| `api_key` | the key, held in the file |
+| `store`, `account` | `keychain` and the keychain item's name, for a key held in the keychain |
+| `key_end` | the last four characters of a keychain key of 16 characters or more, so `profile show` tells two keys apart without reading the keychain |
+| `base_url` | the API root the profile's runs use |
+| `account_id` | cloudflare only, the account, 32 hexadecimal characters |
+| `model` | the model a run uses when it names none |
+
+- A file that does not parse or breaks a rule exits 2, naming the rule and the profile, never a key.
+  Each key is held in exactly one place, a non empty `api_key` or `store` set to `keychain` with an
+  `account`. An unknown member, such as a misspelled `modle`, is refused, not dropped. `account_id`
+  appears only on cloudflare, and a profile holds `base_url` or `account_id`, not both. `default`
+  names a profile that exists.
+- onesie writes the file atomically at mode `600`, and makes a directory it creates at mode `700`.
+  On every system but Windows, a file whose mode gives the group or others any access exits 3. The
+  file is capped at 1 MiB.
+
+### The keychain
+
+- A key goes to the OS keychain under the service `onesie`: the macOS Keychain, the Secret Service
+  on Linux, or the Windows Credential Manager. The item is named `PROFILE@HASH`, where the hash is
+  the first 12 hexadecimal characters of the sha256 of the absolute path of `profiles.json`, so two
+  config dirs never share, overwrite or delete one item. The profile's `account` holds the name. A
+  converted profile keeps its old item name until `onesie profile update NAME --key`.
+- `profile delete` and `profile update --key` delete the old item once the file no longer names
+  it, unless another profile names the same item. A failure warns and names the item left behind.
+
+### Converting credentials.json
+
+When the config dir holds `credentials.json` and no `profiles.json`, the first command that reads
+the config dir converts it once:
+
+- Each provider entry becomes a profile named after its provider. A key in the file stays in the
+  file. A key in the keychain keeps its item, which is neither read nor moved, so no keychain prompt
+  appears. A stored base URL stays a `base_url`.
+- `typesafe` becomes the default when there is a typesafe entry. Otherwise no profile is the
+  default, so a run with no choice exits 2, even with `TYPESAFE_API_KEY` set, and names
+  `onesie profile use NAME`, `--profile NAME` and `--provider NAME`.
+- onesie writes `profiles.json`, removes `credentials.json` and says so on stderr, as in
+  `onesie: converted credentials.json into profiles.json, with profiles levanto and typesafe. typesafe is the default`.
+  Under `ONESIE_PROVIDER` a second line says the run uses no profile, and how to use a stored key.
+- A `credentials.json` whose mode is too open exits 3, and one whose entries cannot become profiles
+  exits 2, naming the entry. Nothing converts either way.
+- When `profiles.json` cannot be written, as in a read only config dir, the run uses the converted
+  profiles for this run only, warns, and converts again next time.
+
+### Servers and CI
+
+One connection needs no file. Set the provider's key variable and pass `--provider`, or set
+`ONESIE_PROVIDER`:
+
+```sh
+onesie --provider openrouter -f shell-safety -q --state "$cmd"   # OPENROUTER_API_KEY is set
+```
+
+Several connections make profiles on the spot from the key variables, in a config dir of the job's
+own, and choose one per run with `--profile`:
+
+```sh
+export ONESIE_CONFIG_DIR="$RUNNER_TEMP/onesie"
+onesie profile create prod --provider openrouter --file <<< "$OPENROUTER_API_KEY"
+onesie profile create cf --provider cloudflare --account-id "$CLOUDFLARE_ACCOUNT_ID" --file <<< "$CLOUDFLARE_API_TOKEN"
+onesie --profile cf -f shell-safety -q --state "$cmd"
+```
+
+- `--file` keeps the key out of a keychain the runner may not have. `<<<` is a bash here string, so
+  under a plain `sh` pipe the key in with `printf '%s\n' "$OPENROUTER_API_KEY" |` instead.
+- A server mounts a `profiles.json` with `api_key` inline, at a mode such as `0400`, and points
+  `ONESIE_CONFIG_DIR` at its directory.
+- No variable holds the whole file. CI log masking matches each line of a multi line secret on its
+  own, and every child process would inherit it.
+
+### Provider notes
+
 - The Cloudflare token needs `Account` > `Workers AI` > `Read`. Its default model, `typesafe/jev`,
   is TypeSafe's Jev through AI Gateway, billed from AI Gateway credits, with a 32,000 token
   context and no choice of version. `clef`, `clef-flash` and `clef-omni` are Cloudflare's own
@@ -507,9 +695,6 @@ onesie auth test                                   # checks the key
 - Cloudflare takes no long context, so `--long-context` there exits 2 before any request.
 - A printed body is onesie's, not Cloudflare's envelope, so it replays through `-i request` with
   `--provider cloudflare`, not by curl.
-- `auth test` lists the provider's models, which costs no tokens. Berget lists its models to any
-  key, so on berget `auth test` also asks one tiny question with the default model, which spends a
-  few tokens.
 - `jev-latest` works on typesafe and openrouter, but pinned ids differ: `jev-1.13.0` on TypeSafe,
   `typesafe/jev-1.13` on OpenRouter. Berget serves its own models and not `jev-latest`. Its default
   is the `systemone` alias, and `--list-models` there lists only the System One models, each with its
@@ -526,7 +711,7 @@ onesie auth test                                   # checks the key
 | 0 | answered |
 | 1 | a false `--assert`, or under `-q` alone the policy did not accept the answer |
 | 2 | usage or validation error, including a missing key |
-| 3 | the key was refused, the account is out of credits, or the credential file is exposed |
+| 3 | the key was refused, the account is out of credits, the keychain failed, or `profiles.json` or `credentials.json` is exposed |
 | 4 | the server did not answer after retries |
 | 5 | transport error or timeout |
 | 6 | a stream finished with one or more failed records, or `--stop-on-error` stopped it at a record that never became a request |
@@ -541,10 +726,11 @@ table, and `onesie calibrate --help` lists the codes calibrate uses.
 
 | Variable | What it does |
 |----------|--------------|
-| `TYPESAFE_API_KEY`, `OPENROUTER_API_KEY`, `BERGET_API_KEY`, `LEVANTO_API_KEY`, `CLOUDFLARE_API_TOKEN` | the key for each provider, as in Keys and providers |
-| `CLOUDFLARE_ACCOUNT_ID` | the Cloudflare account, as in Keys and providers |
-| `ONESIE_PROVIDER` | the provider when `--provider` is not given |
-| `ONESIE_CONFIG_DIR` | where the credential file and the saved question files live |
+| `TYPESAFE_API_KEY`, `OPENROUTER_API_KEY`, `BERGET_API_KEY`, `LEVANTO_API_KEY`, `CLOUDFLARE_API_TOKEN` | the key for each provider on a run without a profile, as in Profiles and providers |
+| `CLOUDFLARE_ACCOUNT_ID` | the Cloudflare account when no flag or profile names one, as in Profiles and providers |
+| `ONESIE_PROFILE` | the profile a run uses when neither `--profile` nor `--provider` is given |
+| `ONESIE_PROVIDER` | runs without a profile on this provider when neither `--profile` nor `--provider` is given. Set beside `ONESIE_PROFILE`, it exits 2 |
+| `ONESIE_CONFIG_DIR` | where `profiles.json` and the saved question files live |
 | `ONESIE_MOCK` | a file to answer from, as `--mock` |
 | `ONESIE_CACHE` | `1` turns the response cache on, as `--cache` |
 | `ONESIE_CACHE_DIR` | where the response cache lives |
@@ -558,8 +744,13 @@ table, and `onesie calibrate --help` lists the codes calibrate uses.
 - `--base-url` points onesie at any server that speaks the System One API. A plain http URL to a
   host other than localhost prints a warning, and a redirect is refused rather than followed with
   the key. onesie adds `/v1/systemone` itself, so a base URL whose path ends in `/v1`, from
-  `--base-url`, `TYPESAFE_BASE_URL` or the credential file, prints one warning naming the URL
-  requests go to. It is not refused, since a proxy may use that prefix.
+  `--base-url`, `TYPESAFE_BASE_URL` or a profile's `base_url`, prints one warning naming where it
+  came from and the URL requests go to. It is not refused, since a proxy may use that prefix.
+- A base URL that holds a user or a password, or any `@`, `?` or `#`, or that does not parse, exits 2
+  before any request, whether it comes from `--base-url`, `TYPESAFE_BASE_URL` or a profile, so a key
+  never travels in a URL or reaches a message. `profile create` and `profile update` refuse one too,
+  and `profile show` refuses a profile that holds one. `--print-request` sends nothing and does not
+  check it.
 - `-f VALUE` reads VALUE as a file when one exists at that path. Otherwise a bare name loads
   `NAME.yaml`, `NAME.yml` or `NAME.json` from the nearest `.onesie/questions`, then from `questions`
   in the config dir, and last takes a starter set built into onesie: `moderation`, `personal-data`,
