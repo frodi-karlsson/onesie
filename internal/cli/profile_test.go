@@ -193,7 +193,7 @@ func TestNewProfileCmd(t *testing.T) {
 		{
 			name:     "should reject a root question flag on a subcommand",
 			args:     []string{"profile", "list", "--pick", "a,b"},
-			wantErr:  "onesie: unknown flag: --pick",
+			wantErr:  "onesie: profile list has no flag --pick",
 			wantCode: ExitUsage,
 		},
 	}

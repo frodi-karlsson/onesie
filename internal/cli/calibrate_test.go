@@ -500,7 +500,7 @@ func TestNewCalibrateCmd(t *testing.T) {
 			name:     "should refuse a flag the root does not know either",
 			args:     with("--bogus"),
 			wantCode: ExitUsage,
-			contains: []string{"unknown flag: --bogus"},
+			contains: []string{"onesie: calibrate has no flag --bogus\n"},
 		},
 	}
 

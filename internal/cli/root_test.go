@@ -463,7 +463,7 @@ func TestNewRootCmd(t *testing.T) {
 			args:     []string{"--print-request", "-x is it bad"},
 			stdin:    "x",
 			wantCode: cli.ExitUsage,
-			contains: []string{"unknown shorthand flag", "'-x is it bad' was read as flags"},
+			contains: []string{"onesie: there is no flag -x. '-x is it bad' was read as flags"},
 		},
 		{
 			name:     "should leave a dash value given to a flag alone",
@@ -485,7 +485,7 @@ func TestNewRootCmd(t *testing.T) {
 			args:     []string{"-urgent"},
 			stdin:    "x",
 			wantCode: cli.ExitUsage,
-			contains: []string{"unknown shorthand flag"},
+			contains: []string{"onesie: there is no flag -u in -urgent"},
 			absent:   []string{"was read as flags"},
 		},
 		{
@@ -727,10 +727,59 @@ func TestNewRootCmd(t *testing.T) {
 			},
 		},
 		{
-			name:     "should prefix a cobra parse error",
+			name:     "should name an unknown long flag in a plain sentence",
 			args:     []string{"--nope"},
 			wantCode: cli.ExitUsage,
-			contains: []string{"onesie: unknown flag: --nope"},
+			contains: []string{"onesie: there is no flag --nope\n"},
+		},
+		{
+			name:     "should name the closest flag to a misspelled one",
+			args:     []string{"--modl", "x", "q"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: there is no flag --modl. The closest is --model\n"},
+		},
+		{
+			name:     "should name the closest flag to a cut short one",
+			args:     []string{"--stat", "q"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: there is no flag --stat. The closest is --state or --stats\n"},
+		},
+		{
+			name:     "should name no closest flag when none is near",
+			args:     []string{"--bogus", "q"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: there is no flag --bogus\n"},
+		},
+		{
+			name:     "should name an unknown shorthand in a plain sentence",
+			args:     []string{"-z", "q"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: there is no flag -z\n"},
+		},
+		{
+			name:     "should name the cluster an unknown shorthand came from",
+			args:     []string{"-qz", "q"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: there is no flag -z in -qz\n"},
+		},
+		{
+			name:     "should point a long flag given one dash at two",
+			args:     []string{"-stats", "q"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: there is no flag -s in -stats. A long flag takes two dashes, as in --stats\n"},
+		},
+		{
+			name:     "should name an unknown flag on a subcommand in a plain sentence",
+			args:     []string{"profile", "list", "--bogus"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: profile list has no flag --bogus\n"},
+		},
+		{
+			name:     "should give the name rule for a profile name that starts with a dash",
+			args:     []string{"profile", "create", "-work", "--provider", "typesafe"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: '-work' is not a profile name. A name is 1 to 64 lowercase letters"},
+			absent:   []string{"no flag"},
 		},
 		{
 			name:     "should document how to ask a question that begins with a dash",
@@ -1926,7 +1975,7 @@ func TestNewRootCmd(t *testing.T) {
 				name:     "should not hint for --print-schema, which takes no question",
 				args:     []string{"version", "--print-schema"},
 				wantCode: cli.ExitUsage,
-				stderr:   "onesie: unknown flag: --print-schema\n",
+				stderr:   "onesie: version has no flag --print-schema\n",
 			},
 		}
 
@@ -1980,27 +2029,27 @@ func TestNewRootCmd(t *testing.T) {
 			{
 				name: "should hint for version",
 				args: []string{"--print-request", "version"},
-				want: "onesie: unknown flag: --print-request. 'version' " + hint,
+				want: "onesie: version has no flag --print-request. 'version' " + hint,
 			},
 			{
 				name: "should hint for profile",
 				args: []string{"profile", "--print-request"},
-				want: "onesie: unknown flag: --print-request. 'profile' " + hint,
+				want: "onesie: profile has no flag --print-request. 'profile' " + hint,
 			},
 			{
 				name: "should hint for completion",
 				args: []string{"completion", "--print-request"},
-				want: "onesie: unknown flag: --print-request. 'completion' " + hint,
+				want: "onesie: completion has no flag --print-request. 'completion' " + hint,
 			},
 			{
 				name: "should hint for cache",
 				args: []string{"cache", "--state", "x"},
-				want: "onesie: unknown flag: --state. 'cache' " + hint,
+				want: "onesie: cache has no flag --state. 'cache' " + hint,
 			},
 			{
 				name: "should hint for cache clear",
 				args: []string{"cache", "clear", "--state", "x"},
-				want: "onesie: unknown flag: --state. 'cache' " + hint,
+				want: "onesie: cache clear has no flag --state. 'cache' " + hint,
 			},
 			{
 				name:   "should refuse --state on calibrate with its own reason in place of the hint",
@@ -2016,25 +2065,25 @@ func TestNewRootCmd(t *testing.T) {
 			{
 				name:   "should not hint for -V, which takes no question",
 				args:   []string{"version", "-V"},
-				want:   "onesie: unknown shorthand flag: 'V' in -V",
+				want:   "onesie: version has no flag -V\n",
 				absent: true,
 			},
 			{
 				name:   "should not hint for --version, which takes no question",
 				args:   []string{"calibrate", "--version"},
-				want:   "onesie: unknown flag: --version",
+				want:   "onesie: calibrate has no flag --version\n",
 				absent: true,
 			},
 			{
 				name:   "should not hint for --list-models, which takes no question",
 				args:   []string{"calibrate", "--list-models"},
-				want:   "onesie: unknown flag: --list-models",
+				want:   "onesie: calibrate has no flag --list-models\n",
 				absent: true,
 			},
 			{
 				name:   "should not hint for a flag the root does not know either",
 				args:   []string{"version", "--bogus"},
-				want:   "onesie: unknown flag: --bogus",
+				want:   "onesie: version has no flag --bogus\n",
 				absent: true,
 			},
 		}

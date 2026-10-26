@@ -30,7 +30,10 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/release"
 )
 
-const annotationAsksNothing = "onesie-asks-nothing"
+const (
+	annotationAsksNothing      = "onesie-asks-nothing"
+	annotationTakesProfileName = "onesie-takes-profile-name"
+)
 
 var pastTag = regexp.MustCompile(`-[0-9]+-g[0-9a-f]+$`)
 
@@ -348,7 +351,7 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 	// subcommands cobra adds itself, such as completion.
 	hint := subcommandHint(root)
 	root.SetFlagErrorFunc(func(cmd *cobra.Command, err error) error {
-		return withDashQuestionHint(hint(cmd, plainFlagError(err, settings.args)), cmd.Flags(), settings.args, nil)
+		return withDashQuestionHint(hint(cmd, plainFlagError(cmd, err, settings.args)), cmd.Flags(), settings.args, nil)
 	})
 	// Cobra would add completion only when the tree runs, after the walk below.
 	root.InitDefaultCompletionCmd()
@@ -394,13 +397,16 @@ func isBlank(value string) bool {
 	return strings.TrimSpace(value) == ""
 }
 
-func plainFlagError(err error, args []string) error {
+func plainFlagError(cmd *cobra.Command, err error, args []string) error {
 	var (
 		invalid  *pflag.InvalidValueError
 		required *pflag.ValueRequiredError
+		unknown  *pflag.NotExistError
 	)
 
 	switch {
+	case errors.As(err, &unknown):
+		return &plainError{cause: err, message: unknownFlag(cmd, unknown, args)}
 	case errors.As(err, &invalid):
 		return &plainError{cause: err, message: fmt.Sprintf("onesie: %s takes %s, got '%s'",
 			flagSpelling(invalid.GetFlag(), args), valueKind(invalid.GetFlag()), invalid.GetValue())}
@@ -414,6 +420,90 @@ func plainFlagError(err error, args []string) error {
 	default:
 		return err
 	}
+}
+
+func unknownFlag(cmd *cobra.Command, unknown *pflag.NotExistError, args []string) string {
+	if unknown.GetSpecifiedShortnames() == "" {
+		message := noSuchFlag(cmd, "--"+unknown.GetSpecifiedName())
+		if near := nearFlag(cmd, unknown.GetSpecifiedName()); near != "" {
+			message += ". The closest is " + near
+		}
+
+		return message
+	}
+
+	spelled := "-" + unknown.GetSpecifiedName()
+	typed := typedShorthands(unknown.GetSpecifiedShortnames(), args)
+
+	if _, named := cmd.Annotations[annotationTakesProfileName]; named && len(typed) > len(spelled) {
+		if invalid := creds.ValidName(typed); invalid != nil {
+			return "onesie: " + invalid.Error()
+		}
+	}
+
+	// A word that holds a space is a question the dash question hint speaks to.
+	message := noSuchFlag(cmd, spelled)
+	if typed == spelled || strings.ContainsAny(typed, " \t\n") {
+		return message
+	}
+
+	message += " in " + typed
+	if long := cmd.Flags().Lookup(typed[1:]); long != nil {
+		message += ". A long flag takes two dashes, as in --" + long.Name
+	}
+
+	return message
+}
+
+func noSuchFlag(cmd *cobra.Command, spelled string) string {
+	if !cmd.HasParent() {
+		return "onesie: there is no flag " + spelled
+	}
+
+	return fmt.Sprintf("onesie: %s has no flag %s", strings.TrimPrefix(cmd.CommandPath(), cmd.Root().Name()+" "), spelled)
+}
+
+func nearFlag(cmd *cobra.Command, name string) string {
+	// A word typed after two dashes was meant as a flag, so the allowance is wider than the one a
+	// bare word gets against the subcommands.
+	allowance := 1
+	if len(name) > 5 {
+		allowance = 2
+	}
+
+	var near []string
+
+	best := allowance + 1
+
+	cmd.Flags().VisitAll(func(flag *pflag.Flag) {
+		distance := editDistance(strings.ToLower(name), flag.Name)
+
+		switch {
+		case flag.Hidden || distance > best:
+		case distance < best:
+			near, best = []string{"--" + flag.Name}, distance
+		default:
+			near = append(near, "--"+flag.Name)
+		}
+	})
+
+	return strings.Join(near, " or ")
+}
+
+func typedShorthands(remaining string, args []string) string {
+	// pflag names only the shorthands left when it stopped, so the command line says which word they
+	// ended, as -qz does for z.
+	if dash := slices.Index(args, "--"); dash >= 0 {
+		args = args[:dash]
+	}
+
+	for _, arg := range args {
+		if !strings.HasPrefix(arg, "--") && strings.HasPrefix(arg, "-") && strings.HasSuffix(arg, remaining) {
+			return arg
+		}
+	}
+
+	return "-" + remaining
 }
 
 func flagSpelling(flag *pflag.Flag, args []string) string {
