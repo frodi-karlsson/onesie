@@ -344,7 +344,7 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 	// subcommands cobra adds itself, such as completion.
 	hint := subcommandHint(root)
 	root.SetFlagErrorFunc(func(cmd *cobra.Command, err error) error {
-		return withDashQuestionHint(hint(cmd, plainFlagError(err)), cmd.Flags(), settings.args, nil)
+		return withDashQuestionHint(hint(cmd, plainFlagError(err, settings.args)), cmd.Flags(), settings.args, nil)
 	})
 	plainArgErrors(root)
 
@@ -368,7 +368,7 @@ func refuseEmptyBaseURL(cmd *cobra.Command, flags *runFlags) error {
 	return nil
 }
 
-func plainFlagError(err error) error {
+func plainFlagError(err error, args []string) error {
 	var (
 		invalid  *pflag.InvalidValueError
 		required *pflag.ValueRequiredError
@@ -377,7 +377,7 @@ func plainFlagError(err error) error {
 	switch {
 	case errors.As(err, &invalid):
 		return &plainError{cause: err, message: fmt.Sprintf("onesie: %s takes %s, got '%s'",
-			flagSpelling(invalid.GetFlag()), valueKind(invalid.GetFlag()), invalid.GetValue())}
+			flagSpelling(invalid.GetFlag(), args), valueKind(invalid.GetFlag()), invalid.GetValue())}
 	case errors.As(err, &required):
 		spelled := "--" + required.GetSpecifiedName()
 		if required.GetSpecifiedShortnames() != "" {
@@ -390,8 +390,23 @@ func plainFlagError(err error) error {
 	}
 }
 
-func flagSpelling(flag *pflag.Flag) string {
-	// pflag keeps no spelling for a value it refused, so a flag with a shorthand is named by it.
+func flagSpelling(flag *pflag.Flag, args []string) string {
+	// pflag keeps no spelling for a value it refused, so the command line says which one was typed.
+	for _, arg := range args {
+		if arg == "--" {
+			break
+		}
+
+		if arg == "--"+flag.Name || strings.HasPrefix(arg, "--"+flag.Name+"=") {
+			return "--" + flag.Name
+		}
+
+		if flag.Shorthand != "" && !strings.HasPrefix(arg, "--") && strings.HasPrefix(arg, "-") &&
+			!strings.Contains(arg, " ") && strings.Contains(arg[1:], flag.Shorthand) {
+			return "-" + flag.Shorthand
+		}
+	}
+
 	if flag.Shorthand != "" {
 		return "-" + flag.Shorthand
 	}

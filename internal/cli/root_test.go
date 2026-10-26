@@ -293,6 +293,12 @@ func TestNewRootCmd(t *testing.T) {
 			contains: []string{"onesie: -j takes a whole number, got 'abc'\n"},
 		},
 		{
+			name:     "should name a flag the way it was spelled when its value is refused",
+			args:     []string{"--jobs", "1.5", "q"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: --jobs takes a whole number, got '1.5'\n"},
+		},
+		{
 			name:     "should say what a flag that takes true or false got",
 			args:     []string{"--cache=maybe", "q"},
 			wantCode: cli.ExitUsage,
