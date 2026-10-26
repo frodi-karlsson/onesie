@@ -2014,21 +2014,19 @@ func TestDefaultClientFactory(t *testing.T) {
 		})
 	})
 
-	t.Run("should warn once under --allow-http when the key would cross the network over plain http", func(t *testing.T) {
+	t.Run("should not warn under --allow-http for https, this machine or a refused base url", func(t *testing.T) {
 		t.Parallel()
 
 		tests := []struct {
 			name    string
 			baseURL string
-			warns   bool
 			refused bool
 		}{
-			{name: "should warn for a remote host", baseURL: "http://onesie.invalid", warns: true},
 			{
 				name:    "should refuse rather than warn for a base url with credentials",
 				baseURL: "http://user:SECRET-pw@onesie.invalid/v1", refused: true,
 			},
-			{name: "should not warn for https", baseURL: "https://onesie.invalid"},
+			{name: "should not warn for https", baseURL: "https://127.0.0.1:1"},
 			{name: "should not warn for localhost", baseURL: "http://localhost:1"},
 			{name: "should not warn for a loopback address", baseURL: "http://127.0.0.1:1"},
 			{name: "should not warn for the ipv6 loopback", baseURL: "http://[::1]:1"},
@@ -2066,13 +2064,7 @@ func TestDefaultClientFactory(t *testing.T) {
 					t.Errorf("stderr = %q, want the refusal %v", errOut.String(), tc.refused)
 				}
 
-				want := "warning: " + tc.baseURL + " is plain http, so the API key crosses the network " +
-					"unencrypted\n"
-				if got := strings.Count(errOut.String(), want); got != map[bool]int{true: 1, false: 0}[tc.warns] {
-					t.Errorf("stderr = %q, want the warning %v", errOut.String(), tc.warns)
-				}
-
-				if !tc.warns && strings.Contains(errOut.String(), "warning") {
+				if strings.Contains(errOut.String(), "warning") {
 					t.Errorf("stderr = %q, want no warning", errOut.String())
 				}
 			})

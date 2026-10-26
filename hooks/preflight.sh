@@ -24,6 +24,7 @@ profile=$(printf '%s\n' "$report" | sed -n 's/^profile: //p')
 provider=$(printf '%s\n' "$report" | sed -n 's/^provider: //p')
 key=$(printf '%s\n' "$report" | sed -n 's/^key: //p')
 account=$(printf '%s\n' "$report" | sed -n 's/^account: //p')
+allow_http=$(printf '%s\n' "$report" | sed -n 's/^allow_http: //p')
 
 if [ -n "$notices" ]; then
   printf '%s\n' "$notices"
@@ -43,6 +44,9 @@ case "$key" in
   ?*)
     if [ "$account" != none ]; then
       printf 'onesie is on PATH and a key resolves, profile: %s, provider: %s, key: %s.\n' "$profile" "$provider" "${key%%, ends in *}"
+      if [ -n "$allow_http" ]; then
+        printf '%s\n' 'Its base URL is plain http to another host, so every run exits 2 unless it passes --allow-http.'
+      fi
     elif [ "$profile" = none ]; then
       printf 'onesie is on PATH and a key resolves for provider %s, but no account does. Every request fails until the user sets CLOUDFLARE_ACCOUNT_ID or stores a profile with onesie profile create NAME --provider cloudflare --account-id ACCOUNT_ID. The onesie-setup skill walks them through it.\n' "$provider"
     else

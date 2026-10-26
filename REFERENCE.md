@@ -506,7 +506,7 @@ on the provider's key variable alone.
 | `profile delete NAME` | removes the profile and its keychain item. Deleting the default leaves no default, and deleting the last profile removes `profiles.json` |
 | `profile use NAME` | makes the profile the default |
 | `profile list` | lists each profile's provider, key store and model, with `*` on the one a run would use now. When a run would use none, a stderr line says why, as in `active: ONESIE_PROVIDER=openrouter, no profile` |
-| `profile show [NAME]` | prints `profile`, `provider`, `chosen by`, `key`, `model` and `base_url` lines, and an `account` line on cloudflare, for the named profile or for what a run would use now |
+| `profile show [NAME]` | prints `profile`, `provider`, `chosen by`, `key`, `model` and `base_url` lines, an `allow_http` line for a plain http base URL to another host, and an `account` line on cloudflare, for the named profile or for what a run would use now |
 | `profile test [NAME]` | lists the provider's models with the key, which costs no tokens, and prints `profile`, `provider`, `key` and `models` lines |
 
 - A name is 1 to 64 lowercase letters, digits, `-` or `_`, does not start with `-`, and is not
@@ -530,9 +530,11 @@ on the provider's key variable alone.
   use. `model:` and `base_url:` give the value a run would use, in the order a run picks it, then
   where it comes from: `profile`, `env TYPESAFE_DEFAULT_MODEL`, `env TYPESAFE_BASE_URL`,
   `account_id`, `env CLOUDFLARE_ACCOUNT_ID` or `the provider's default`, as in
-  `model: jev-latest, the provider's default`. `base_url:` is `none` on cloudflare with no account.
-  `account:` names `account_id`, `base_url`, `CLOUDFLARE_ACCOUNT_ID` or `none`. `show` exits 2 when
-  `key` or `account` is `none`, as a real run would.
+  `model: jev-latest, the provider's default`. `base_url:` is `none` on cloudflare with no
+  account. An `allow_http: needed` line follows it when the base URL is plain http to another host,
+  since every run then needs `--allow-http`. `account:` names `account_id`, `base_url`,
+  `CLOUDFLARE_ACCOUNT_ID` or `none`. `show` exits 2 when `key` or `account` is `none`, as a real
+  run would.
 - A key the server refuses with 401 or 403 exits 3, on a run or on `test`. On a profile the message
   names `onesie profile update NAME --key`, and without one it names the provider's key variable. A
   run with no key and no profile for its provider names
@@ -757,13 +759,14 @@ table, and `onesie calibrate --help` lists the codes calibrate uses.
 - `--list-models` shows what the account can ask, and `-m` picks one.
 - `--base-url` points onesie at any server that speaks the System One API. A redirect is refused
   rather than followed with the key.
-- A plain `http://` base URL to a host other than `localhost`, `127.0.0.0/8` or `::1` exits 2
-  before any request, since the key would cross the network unencrypted. `--allow-http` sends it
-  anyway, with a warning. The rule holds whether the URL comes from `--base-url`,
-  `TYPESAFE_BASE_URL` or a profile's `base_url`, and `profile test` follows it too. `profile create`
-  and `profile update` refuse such a `--base-url` unless given `--allow-http`, and the file does not
-  record that choice, so every run on the profile needs `--allow-http` as well. There is no
-  variable for it.
+- A plain `http://` base URL to a host other than `localhost` in any case, `127.0.0.0/8`, also in
+  IPv4-mapped form, or `::1` exits 2 before any request, since the key would cross the network
+  unencrypted. `--allow-http` sends it anyway, with a warning. The rule holds whether the URL comes
+  from `--base-url`, `TYPESAFE_BASE_URL` or a profile's `base_url`, and `profile test` follows it
+  too. `profile create` and `profile update` refuse such a `--base-url` unless given
+  `--allow-http`, and the file does not record that choice, so every run on the profile needs
+  `--allow-http` as well, and `profile show` prints `allow_http: needed`. There is no variable for
+  it.
 - onesie adds `/v1/systemone` itself, so a base URL whose path ends in `/v1`, from
   `--base-url`, `TYPESAFE_BASE_URL` or a profile's `base_url`, prints one warning naming where it
   came from and the URL requests go to. It is not refused, since a proxy may use that prefix.

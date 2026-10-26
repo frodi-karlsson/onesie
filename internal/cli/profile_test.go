@@ -1487,6 +1487,22 @@ func TestProfileShow(t *testing.T) {
 				"model: jev-env, env TYPESAFE_DEFAULT_MODEL\nbase_url: https://env.example, env TYPESAFE_BASE_URL\n",
 		},
 		{
+			name: "should say a run needs --allow-http for a plain http base_url to another host",
+			file: `{"default":"ts","profiles":{"ts":{"provider":"typesafe","api_key":"SECRET-TS-0123456789",` +
+				`"base_url":"http://proxy.example"}}}`,
+			args: []string{"profile", "show"},
+			wantOut: tsShown + "model: jev-latest, the provider's default\nbase_url: http://proxy.example, profile\n" +
+				"allow_http: needed, since base_url is plain http to another host\n",
+		},
+		{
+			name: "should leave the allow_http line out for a plain http base_url on this machine",
+			file: tsFile,
+			env:  map[string]string{"TYPESAFE_BASE_URL": "http://127.0.0.1:8080"},
+			args: []string{"profile", "show"},
+			wantOut: tsShown + "model: jev-latest, the provider's default\n" +
+				"base_url: http://127.0.0.1:8080, env TYPESAFE_BASE_URL\n",
+		},
+		{
 			name:     "should refuse a TYPESAFE_BASE_URL that holds credentials rather than print it",
 			file:     tsFile,
 			env:      map[string]string{"TYPESAFE_BASE_URL": "https://u:SECRET-pw@env.example"},

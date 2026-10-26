@@ -278,6 +278,7 @@ func TestClientBuilder(t *testing.T) {
 		env      map[string]string
 		wantCode int
 		wantErr  []string
+		notErr   string
 	}{
 		{
 			name:     "should refuse a plain http --base-url to another host",
@@ -318,19 +319,26 @@ func TestClientBuilder(t *testing.T) {
 			wantErr:  []string{"is plain http", "--allow-http"},
 		},
 		{
-			name:     "should warn and send under --allow-http",
-			args:     []string{"--list-models", "--base-url", "http://proxy.invalid", "--allow-http", "--retries", "0", "--timeout", "2"},
+			name:     "should send to a plain http server on this machine without --allow-http",
+			args:     []string{"--list-models", "--base-url", "{url}"},
 			env:      map[string]string{onesie.EnvAPIKey: "SECRET-ENV"},
-			wantCode: ExitTransport,
-			wantErr:  []string{"warning: http://proxy.invalid is plain http, so the API key crosses the network unencrypted"},
+			wantCode: ExitOK,
+			notErr:   "plain http",
 		},
 		{
-			name: "should let profile test send under --allow-http",
+			name:     "should send to this machine under --allow-http without a warning",
+			args:     []string{"--list-models", "--base-url", "{url}", "--allow-http"},
+			env:      map[string]string{onesie.EnvAPIKey: "SECRET-ENV"},
+			wantCode: ExitOK,
+			notErr:   "plain http",
+		},
+		{
+			name: "should let profile test take --allow-http",
 			profiles: `{"default":"work","profiles":{"work":{"provider":"typesafe","api_key":"SECRET-WORK",` +
-				`"base_url":"http://proxy.invalid"}}}`,
+				`"base_url":"{url}"}}}`,
 			args:     []string{"profile", "test", "work", "--allow-http"},
-			wantCode: ExitTransport,
-			wantErr:  []string{"warning: http://proxy.invalid is plain http"},
+			wantCode: ExitOK,
+			notErr:   "plain http",
 		},
 	}
 
@@ -338,12 +346,27 @@ func TestClientBuilder(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
+			// A loopback server, so no case sends a key off this machine, whatever proxy the
+			// environment names.
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(`{"models":[]}`))
+			}))
+			defer srv.Close()
+
+			fill := strings.NewReplacer("{url}", srv.URL).Replace
+
 			dir := t.TempDir()
 			if tc.profiles != "" {
-				dir = configWith(t, tc.profiles)
+				dir = configWith(t, fill(tc.profiles))
 			}
 
-			out, errOut, code := runInConfig(t, dir, tc.args, `{"body":"x","u":true}`+"\n", tc.env)
+			args := make([]string, 0, len(tc.args))
+			for _, arg := range tc.args {
+				args = append(args, fill(arg))
+			}
+
+			out, errOut, code := runInConfig(t, dir, args, `{"body":"x","u":true}`+"\n", tc.env)
 
 			assertNoSecret(t, out, errOut)
 
@@ -355,6 +378,10 @@ func TestClientBuilder(t *testing.T) {
 				if !strings.Contains(errOut, want) {
 					t.Errorf("stderr = %q, want it to contain %q", errOut, want)
 				}
+			}
+
+			if tc.notErr != "" && strings.Contains(errOut, tc.notErr) {
+				t.Errorf("stderr = %q, want no %q", errOut, tc.notErr)
 			}
 		})
 	}
@@ -444,6 +471,10 @@ func TestPlainRemote(t *testing.T) {
 		{name: "should pass plain http to 127.0.0.1", baseURL: "http://127.0.0.1:8080"},
 		{name: "should pass plain http to any address in 127.0.0.0/8", baseURL: "http://127.1.2.3"},
 		{name: "should pass plain http to ::1", baseURL: "http://[::1]:8080"},
+		{name: "should pass plain http to localhost in another case", baseURL: "http://LocalHost:8080"},
+		{name: "should pass plain http to an IPv4-mapped loopback address", baseURL: "http://[::ffff:127.0.0.1]:8080"},
+		{name: "should flag plain http to localhost with a trailing dot", baseURL: "http://localhost.", want: true},
+		{name: "should flag plain http to an IPv4-mapped private address", baseURL: "http://[::ffff:10.0.0.1]", want: true},
 		{name: "should flag plain http to a named host", baseURL: "http://proxy.example", want: true},
 		{name: "should flag plain http to a private address", baseURL: "http://10.0.0.1", want: true},
 		{name: "should flag plain http to a name under localhost", baseURL: "http://api.localhost", want: true},
@@ -456,6 +487,50 @@ func TestPlainRemote(t *testing.T) {
 
 			if got := plainRemote(tc.baseURL); got != tc.want {
 				t.Errorf("plainRemote(%q) = %v, want %v", tc.baseURL, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestPlainHTTPCheck(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		baseURL     string
+		allowHTTP   bool
+		wantWarning string
+		wantRefusal string
+	}{
+		{
+			name: "should refuse plain http to another host, naming the source and --allow-http", baseURL: "http://proxy.example",
+			wantRefusal: "onesie: TYPESAFE_BASE_URL http://proxy.example is plain http to a host other than this " +
+				"machine, so the API key would cross the network unencrypted. Use https, or pass --allow-http to send it anyway",
+		},
+		{
+			name: "should warn rather than refuse under --allow-http", baseURL: "http://proxy.example", allowHTTP: true,
+			wantWarning: "warning: http://proxy.example is plain http, so the API key crosses the network unencrypted",
+		},
+		{name: "should pass https to another host", baseURL: "https://proxy.example"},
+		{name: "should pass plain http to this machine", baseURL: "http://127.0.0.1:8080"},
+		{name: "should pass plain http to this machine under --allow-http", baseURL: "http://[::1]:8080", allowHTTP: true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			warning, refused := plainHTTPCheck(tc.baseURL, onesie.EnvBaseURL, tc.allowHTTP)
+
+			if warning != tc.wantWarning {
+				t.Errorf("warning = %q, want %q", warning, tc.wantWarning)
+			}
+
+			switch {
+			case tc.wantRefusal == "" && refused != nil:
+				t.Errorf("refused with %v, want no refusal", refused)
+			case tc.wantRefusal != "" && (refused == nil || refused.Error() != tc.wantRefusal):
+				t.Errorf("refusal = %v, want %q", refused, tc.wantRefusal)
 			}
 		})
 	}

@@ -20,7 +20,7 @@ const (
 	refusedBaseURL = "the base URL must be a plain URL with no credentials, query or fragment. " +
 		"Put the API key in a profile or the provider's key variable instead"
 	allowHTTPHelp = "send the API key over a plain http base URL to a host other than localhost, " +
-		"127.0.0.0/8 or ::1. Without it such a base URL exits 2 before any request"
+		"127.0.0.0/8, also in IPv4-mapped form, or ::1. Without it such a base URL exits 2 before any request"
 	plainHTTPReason = " is plain http to a host other than this machine, so the API key would cross the " +
 		"network unencrypted"
 )
@@ -89,17 +89,17 @@ func clientBuilder(info BuildInfo, flags *runFlags, settings rootSettings) resol
 			return nil, refused
 		}
 
-		if plainRemote(client.BaseURL()) && !flags.allowHTTP {
-			return nil, plainHTTPRefused(chosen.baseURLSource(flags.baseURL, settings.lookupEnv), client.BaseURL())
+		warning, refused := plainHTTPCheck(
+			client.BaseURL(), chosen.baseURLSource(flags.baseURL, settings.lookupEnv), flags.allowHTTP)
+		if refused != nil {
+			return nil, refused
 		}
 
 		var printErr error
 
-		if plainRemote(client.BaseURL()) {
+		if warning != "" {
 			warned.Do(func() {
-				_, printErr = fmt.Fprintln(settings.holder.stderr(), "warning: "+
-					output.Printable(client.BaseURL())+
-					" is plain http, so the API key crosses the network unencrypted")
+				_, printErr = fmt.Fprintln(settings.holder.stderr(), warning)
 			})
 		}
 
@@ -120,9 +120,16 @@ func clientBuilder(info BuildInfo, flags *runFlags, settings rootSettings) resol
 	}
 }
 
-func plainHTTPRefused(source, baseURL string) error {
-	return errors.New("onesie: " + source + " " + output.Printable(baseURL) + plainHTTPReason +
-		". Use https, or pass --" + flagAllowHTTP + " to send it anyway")
+func plainHTTPCheck(baseURL, source string, allowHTTP bool) (warning string, refused error) {
+	switch {
+	case !plainRemote(baseURL):
+		return "", nil
+	case !allowHTTP:
+		return "", errors.New("onesie: " + source + " " + output.Printable(baseURL) + plainHTTPReason +
+			". Use https, or pass --" + flagAllowHTTP + " to send it anyway")
+	}
+
+	return "warning: " + output.Printable(baseURL) + " is plain http, so the API key crosses the network unencrypted", nil
 }
 
 func validBaseURL(baseURL string) error {
@@ -214,8 +221,10 @@ func plainRemote(baseURL string) bool {
 		return false
 	}
 
+	// Not localhost. with its trailing dot, which a resolver may send on to DNS rather than answer
+	// from the hosts file.
 	host := parsed.Hostname()
-	if host == "localhost" {
+	if strings.EqualFold(host, "localhost") {
 		return false
 	}
 

@@ -47,6 +47,14 @@ func TestPreflight(t *testing.T) {
 			want: "onesie is on PATH and a key resolves, profile: work, provider: openrouter, key: keychain.\n",
 		},
 		{
+			name: "should say every run needs --allow-http when show reports it",
+			show: "profile: work\nprovider: typesafe\nchosen by: the default\nkey: file\n" +
+				"model: jev-latest, the provider's default\nbase_url: http://proxy.example, profile\n" +
+				"allow_http: needed, since base_url is plain http to another host\n",
+			want: "onesie is on PATH and a key resolves, profile: work, provider: typesafe, key: file.\n" +
+				"Its base URL is plain http to another host, so every run exits 2 unless it passes --allow-http.\n",
+		},
+		{
 			name: "should report a key from the environment for a run without a profile",
 			show: "profile: none\nprovider: typesafe\nchosen by: nothing\nkey: env TYPESAFE_API_KEY\n" +
 				"model: jev-latest, the provider's default\nbase_url: https://api.typesafe.ai, the provider's default\n",

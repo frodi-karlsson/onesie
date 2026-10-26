@@ -134,8 +134,8 @@ func profileCreate(
 	}
 
 	if _, taken := opened.Profiles.Profiles[name]; taken {
-		return fmt.Errorf("onesie: profile '%s' exists. Change it with onesie profile update '%s', "+
-			"or delete it and create it again", name, name)
+		return fmt.Errorf("onesie: profile %s exists. Change it with onesie profile update %s, "+
+			"or delete it and create it again", quotedName(name), quotedName(name))
 	}
 
 	profile := creds.Profile{
@@ -244,7 +244,8 @@ func profileUpdate(
 	profile := updated(old, fields, changed)
 	if profile == old && !fields.key {
 		return fmt.Errorf(
-			"onesie: profile update '%s' changes nothing. Pass --model, --base-url, --account-id or --key", name)
+			"onesie: profile update %s changes nothing. Pass --model, --base-url, --account-id or --key",
+			quotedName(name))
 	}
 
 	// Ahead of the read, so a broken rule costs the user nothing.
@@ -624,7 +625,8 @@ func newProfileShowCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 			"not, as --profile, --provider and their variables choose. It prints profile, provider, chosen " +
 			"by, key, model and base_url lines, and an account line on cloudflare. The model and base_url " +
 			"lines give the value a run would use and where it comes from: profile, an env variable such as " +
-			"TYPESAFE_DEFAULT_MODEL, account_id, or the provider's default. It never reads the keychain or " +
+			"TYPESAFE_DEFAULT_MODEL, account_id, or the provider's default. An allow_http line says a run needs " +
+			"--allow-http, when base_url is plain http to another host. It never reads the keychain or " +
 			"prints a key.\n\n" +
 			"It exits 2 when key or account is none, as a real run does.",
 		Args: profileNames("show", 0, 1),
@@ -667,6 +669,10 @@ func profileShow(cmd *cobra.Command, settings rootSettings, flags *runFlags, arg
 		"model: " + output.Printable(shown.modelFor("", settings.lookupEnv)) + ", " +
 			modelOrigin(shown, settings.lookupEnv),
 		"base_url: " + baseURLLine,
+	}
+
+	if found && plainRemote(baseURL) {
+		lines = append(lines, "allow_http: needed, since base_url is plain http to another host")
 	}
 
 	if account != "" {
@@ -824,8 +830,8 @@ func addMemberFlags(cmd *cobra.Command, fields *profileFlags, flags *runFlags) {
 	cmd.Flags().StringVar(&fields.model, flagModel, "", "the model a run uses when it names none")
 	cmd.Flags().StringVar(&fields.baseURL, flagBaseURL, "", "the api root the profile's runs use")
 	cmd.Flags().BoolVar(&flags.allowHTTP, flagAllowHTTP, false,
-		"store a plain http --base-url to a host other than localhost, 127.0.0.0/8 or ::1. Every run on "+
-			"the profile then needs --allow-http too")
+		"store a plain http --base-url to a host other than localhost, 127.0.0.0/8, also in IPv4-mapped "+
+			"form, or ::1. Every run on the profile then needs --allow-http too")
 	cmd.Flags().StringVar(&fields.accountID, flagAccountID, "",
 		"cloudflare only, the account id, 32 hexadecimal characters")
 }
@@ -882,7 +888,7 @@ func profilesToWrite(settings rootSettings) (string, creds.Opened, error) {
 }
 
 func noProfileNamed(name string, profiles creds.Profiles) error {
-	return fmt.Errorf("onesie: there is no profile named '%s'. %s", name, knownProfiles(profiles))
+	return fmt.Errorf("onesie: there is no profile named %s. %s", quotedName(name), knownProfiles(profiles))
 }
 
 func refuseEmpty(fields profileFlags, changed func(string) bool) error {
@@ -1033,8 +1039,8 @@ func refuseTakenItem(profiles creds.Profiles, name, account string, toFile bool)
 		return nil
 	}
 
-	return fmt.Errorf("onesie: profile '%s' already uses the keychain item %s. Delete or update it first",
-		owner, account)
+	return fmt.Errorf("onesie: profile %s already uses the keychain item %s. Delete or update it first",
+		quotedName(owner), account)
 }
 
 func sharedItem(profiles creds.Profiles, except, account string) bool {
