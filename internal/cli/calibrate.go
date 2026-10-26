@@ -126,6 +126,7 @@ func newCalibrateCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 			}
 
 			flags.timeoutSet = cmd.Flags().Changed(flagTimeout)
+			flags.longContextSet = cmd.Flags().Changed(flagLongContext)
 
 			return runCalibrate(cmd, settings, flags, *calib, recorder.Events(), positional)
 		},

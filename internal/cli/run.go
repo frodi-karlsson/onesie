@@ -1404,21 +1404,22 @@ type runFlags struct {
 	stats          bool
 	cache          bool
 
-	jobs          int
-	timeout       int
-	retries       int
-	maxRetryAfter int
-	unordered     bool
-	stopOnError   bool
-	stopOnAssert  bool
-	skipBlank     bool
-	noDedup       bool
-	merge         bool
-	mergeKey      string
-	mapSource     string
-	idSource      string
-	images        []string
-	imageFields   []string
-	timeoutSet    bool
-	longContext   bool
+	jobs           int
+	timeout        int
+	retries        int
+	maxRetryAfter  int
+	unordered      bool
+	stopOnError    bool
+	stopOnAssert   bool
+	skipBlank      bool
+	noDedup        bool
+	merge          bool
+	mergeKey       string
+	mapSource      string
+	idSource       string
+	images         []string
+	imageFields    []string
+	timeoutSet     bool
+	longContext    bool
+	longContextSet bool
 }

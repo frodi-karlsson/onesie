@@ -53,8 +53,8 @@ func newLiveAnswerer(client *onesie.Client, provider onesie.Provider, flags *run
 }
 
 func longContext(settings rootSettings, flags *runFlags) bool {
-	if flags.longContext {
-		return true
+	if flags.longContextSet {
+		return flags.longContext
 	}
 
 	value, _ := settings.lookupEnv(envLongContext)
