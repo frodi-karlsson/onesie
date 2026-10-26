@@ -258,7 +258,8 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 			"such as a field lookup, and -V lists the cap on its length")
 	root.Flags().StringVarP(&flags.model, flagModel, "m", "", "model override")
 	root.PersistentFlags().Var(choiceValue{value: &flags.provider, set: &flags.providerSet}, flagProvider,
-		"typesafe, openrouter, berget, levanto or cloudflare. Defaults to ONESIE_PROVIDER, then typesafe")
+		"run on this provider without a profile, typesafe, openrouter, berget, levanto or cloudflare. "+
+			"Overrides ONESIE_PROVIDER")
 	root.PersistentFlags().Var(choiceValue{value: &flags.profile, set: &flags.profileSet}, flagProfile,
 		"the profile a run uses, from profiles.json in the config dir. Also ONESIE_PROFILE, and otherwise "+
 			"the default profile, which onesie profile use sets")

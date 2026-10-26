@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"io"
 	"maps"
+	"net/url"
 	"path/filepath"
 	"slices"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/spf13/cobra"
 
@@ -136,8 +138,14 @@ func profileCreate(
 		AccountID: strings.TrimSpace(fields.accountID),
 	}
 
+	account := creds.KeychainAccount(name, path)
+
 	// Ahead of the read, so a typo costs the user nothing and leaves no file behind.
 	if refused := checkProfile(opened.Profiles, name, profile); refused != nil {
+		return refused
+	}
+
+	if refused := refuseTakenItem(opened.Profiles, name, account, fields.toFile); refused != nil {
 		return refused
 	}
 
@@ -145,8 +153,6 @@ func profileCreate(
 	if err != nil {
 		return err
 	}
-
-	account := creds.KeychainAccount(name, path)
 
 	stored, notice, err := storeProfileKey(settings, profile, key, account, path, fields.toFile)
 	if err != nil {
@@ -163,7 +169,7 @@ func profileCreate(
 
 	if saveErr := saveProfiles(cmd, settings, path, profiles); saveErr != nil {
 		if stored.Store == creds.StoreKeychain {
-			return errors.Join(saveErr, settings.keychain.Delete(account))
+			return failedSave(cmd, saveErr, undoneItem(settings.keychain.Delete(account), account))
 		}
 
 		return saveErr
@@ -237,17 +243,23 @@ func profileUpdate(
 		return saveProfiles(cmd, settings, path, withProfile(opened.Profiles, name, profile))
 	}
 
+	if refused := refuseTakenItem(
+		opened.Profiles, name, creds.KeychainAccount(name, path), fields.toFile); refused != nil {
+		return refused
+	}
+
 	return replaceKey(cmd, settings, path, opened.Profiles, name, profile, fields.toFile)
 }
 
 func refuseUpdate(fields profileFlags, changed func(string) bool) error {
 	switch {
 	case fields.toFile && !fields.key:
-		return errors.New("onesie: --file applies to a new key, so it needs --key")
+		return errors.New("onesie: profile update: --file applies to a new key, so it needs --key")
 	case changed(flagProvider) && !fields.key:
-		return errors.New("onesie: --provider needs --key, since a key belongs to one provider")
+		return errors.New("onesie: profile update: --provider needs --key, since a key belongs to one provider")
 	case changed(flagProvider) && strings.TrimSpace(fields.provider) == "":
-		return errors.New("onesie: --provider is empty. Name typesafe, openrouter, berget, levanto or cloudflare")
+		return errors.New("onesie: profile update: --provider is empty. " +
+			"Name typesafe, openrouter, berget, levanto or cloudflare")
 	}
 
 	return nil
@@ -290,7 +302,11 @@ func replaceKey(
 
 	oldItem := keychainItem(profiles.Profiles[name])
 	account := creds.KeychainAccount(name, path)
-	kept := keepKey(settings.keychain, oldItem, account, toFile)
+
+	kept, err := keepKey(settings.keychain, oldItem, account, toFile)
+	if err != nil {
+		return err
+	}
 
 	stored, notice, err := storeProfileKey(settings, profile, key, account, path, toFile)
 	if err != nil {
@@ -299,7 +315,7 @@ func replaceKey(
 
 	if saveErr := saveProfiles(cmd, settings, path, withProfile(profiles, name, stored)); saveErr != nil {
 		if stored.Store == creds.StoreKeychain {
-			return errors.Join(saveErr, kept.undo(settings.keychain, account))
+			return failedSave(cmd, saveErr, kept.undo(settings.keychain, account))
 		}
 
 		return saveErr
@@ -317,14 +333,22 @@ func replaceKey(
 	return notify(cmd, notices...)
 }
 
-func keepKey(keychain Keychain, oldItem, account string, toFile bool) keptKey {
+func keepKey(keychain Keychain, oldItem, account string, toFile bool) (keptKey, error) {
 	if toFile || oldItem != account {
-		return keptKey{}
+		return keptKey{}, nil
 	}
 
 	key, err := keychain.Get(account)
 
-	return keptKey{same: true, key: key, found: err == nil, missing: errors.Is(err, creds.ErrKeychainMissing)}
+	// A keychain that did not answer a read would not answer a write either, and a write to it
+	// could land later, after onesie has given up on it.
+	if errors.Is(err, creds.ErrKeychainTimeout) {
+		return keptKey{}, fmt.Errorf("%w. Answer the keychain prompt, or run the command again with --file", err)
+	}
+
+	return keptKey{
+		same: true, key: key, found: err == nil, missing: errors.Is(err, creds.ErrKeychainMissing),
+	}, nil
 }
 
 type keptKey struct {
@@ -334,18 +358,34 @@ type keptKey struct {
 	missing bool
 }
 
-func (k keptKey) undo(keychain Keychain, account string) error {
+func (k keptKey) undo(keychain Keychain, account string) string {
 	// A new item, or one that held no key, would keep a key no saved file chose.
 	if !k.same || k.missing {
-		return keychain.Delete(account)
+		return undoneItem(keychain.Delete(account), account)
 	}
 
-	// The item could not be read, so its old key is unknown and the item is left as it is.
 	if !k.found {
-		return nil
+		return "warning: the keychain item " + account + " now holds the new key, and its old key " +
+			"could not be read to put back"
 	}
 
-	return keychain.Set(account, k.key)
+	return undoneItem(keychain.Set(account, k.key), account)
+}
+
+func failedSave(cmd *cobra.Command, saveErr error, notice string) error {
+	if notifyErr := notify(cmd, notice); notifyErr != nil {
+		return errors.Join(saveErr, notifyErr)
+	}
+
+	return saveErr
+}
+
+func undoneItem(err error, account string) string {
+	if err == nil {
+		return ""
+	}
+
+	return leftBehind(err, account)
 }
 
 func newProfileDeleteCmd(settings rootSettings, flags *runFlags) *cobra.Command {
@@ -509,7 +549,7 @@ func writeProfiles(w io.Writer, profiles creds.Profiles, active string) error {
 
 	for _, row := range rows {
 		for i, cell := range row {
-			widths[i] = max(widths[i], len(cell))
+			widths[i] = max(widths[i], utf8.RuneCountInString(cell))
 		}
 	}
 
@@ -526,7 +566,7 @@ func writeProfiles(w io.Writer, profiles creds.Profiles, active string) error {
 			line.WriteString(cell)
 
 			if j < len(row)-1 {
-				line.WriteString(strings.Repeat(" ", widths[j]-len(cell)+2))
+				line.WriteString(strings.Repeat(" ", widths[j]-utf8.RuneCountInString(cell)+2))
 			}
 		}
 
@@ -579,7 +619,7 @@ func profileShow(cmd *cobra.Command, settings rootSettings, flags *runFlags, arg
 		"chosen by: " + shown.by,
 		"key: " + shown.keyLine(),
 		"model: " + cmp.Or(output.Printable(shown.model), providersOwn),
-		"base_url: " + cmp.Or(output.Printable(shown.baseURL), providersOwn),
+		"base_url: " + cmp.Or(output.Printable(withoutUserinfo(shown.baseURL)), providersOwn),
 	}
 
 	if account != "" {
@@ -595,6 +635,17 @@ func profileShow(cmd *cobra.Command, settings rootSettings, flags *runFlags, arg
 	}
 
 	return nil
+}
+
+func withoutUserinfo(baseURL string) string {
+	parsed, err := url.Parse(baseURL)
+	if err != nil || parsed.User == nil {
+		return baseURL
+	}
+
+	parsed.User = nil
+
+	return parsed.String()
 }
 
 func newProfileTestCmd(settings rootSettings, flags *runFlags) *cobra.Command {
@@ -829,14 +880,28 @@ func keychainItem(profile creds.Profile) string {
 	return profile.Account
 }
 
+func refuseTakenItem(profiles creds.Profiles, name, account string, toFile bool) error {
+	owner := itemOwner(profiles, name, account)
+	if toFile || owner == "" {
+		return nil
+	}
+
+	return fmt.Errorf("onesie: profile '%s' already uses the keychain item %s. Delete or update it first",
+		owner, account)
+}
+
 func sharedItem(profiles creds.Profiles, except, account string) bool {
-	for name, profile := range profiles.Profiles {
-		if name != except && keychainItem(profile) == account {
-			return true
+	return itemOwner(profiles, except, account) != ""
+}
+
+func itemOwner(profiles creds.Profiles, except, account string) string {
+	for _, name := range slices.Sorted(maps.Keys(profiles.Profiles)) {
+		if name != except && keychainItem(profiles.Profiles[name]) == account {
+			return name
 		}
 	}
 
-	return false
+	return ""
 }
 
 func leftBehind(err error, account string) string {

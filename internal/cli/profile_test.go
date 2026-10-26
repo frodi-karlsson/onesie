@@ -25,9 +25,11 @@ const (
 	key15 = "SECRET-01234567"
 	key16 = "SECRET-012345678"
 
-	keychainNone       = "none"
-	keychainTimeout    = "timeout"
-	keychainUnreadable = "unreadable"
+	keychainNone        = "none"
+	keychainTimeout     = "timeout"
+	keychainStalled     = "stalled"
+	keychainUnreadable  = "unreadable"
+	keychainUndeletable = "undeletable"
 )
 
 func TestNewProfileCmd(t *testing.T) {
@@ -202,7 +204,11 @@ func TestProfileCreate(t *testing.T) {
 		return errors.New("the test chmod failed")
 	})}
 
-	const existing = `{"default":"home","profiles":{"home":{"provider":"typesafe","api_key":"SECRET-HOME"}}}`
+	const (
+		existing  = `{"default":"home","profiles":{"home":{"provider":"typesafe","api_key":"SECRET-HOME"}}}`
+		takenItem = `{"default":"home","profiles":{"home":{"provider":"typesafe","store":"keychain",` +
+			`"account":"work@{hash}"}}}`
+	)
 
 	tests := []profileCase{
 		{
@@ -286,69 +292,69 @@ func TestProfileCreate(t *testing.T) {
 			wantNoFile: true,
 		},
 		{
-			name:     "should refuse a name that exists",
-			file:     existing,
-			args:     []string{"profile", "create", "home", "--provider", "typesafe", "--file"},
-			stdin:    key16 + "\n",
-			wantCode: ExitUsage,
-			wantErr:  []string{"onesie: profile 'home' exists. Change it with onesie profile update home"},
-			wantFile: existing,
+			name:        "should refuse a name that exists",
+			file:        existing,
+			args:        []string{"profile", "create", "home", "--provider", "typesafe", "--file"},
+			stdinUnread: true,
+			wantCode:    ExitUsage,
+			wantErr:     []string{"onesie: profile 'home' exists. Change it with onesie profile update home"},
+			wantFile:    existing,
 		},
 		{
-			name:       "should refuse an uppercase name",
-			args:       []string{"profile", "create", "Work", "--provider", "typesafe", "--file"},
-			stdin:      key16 + "\n",
-			wantCode:   ExitUsage,
-			wantErr:    []string{"onesie: 'Work' is not a profile name"},
-			wantNoFile: true,
+			name:        "should refuse an uppercase name",
+			args:        []string{"profile", "create", "Work", "--provider", "typesafe", "--file"},
+			stdinUnread: true,
+			wantCode:    ExitUsage,
+			wantErr:     []string{"onesie: 'Work' is not a profile name"},
+			wantNoFile:  true,
 		},
 		{
-			name:       "should refuse a name that starts with a dash",
-			args:       []string{"profile", "create", "--provider", "typesafe", "--file", "--", "-work"},
-			stdin:      key16 + "\n",
-			wantCode:   ExitUsage,
-			wantErr:    []string{"onesie: '-work' is not a profile name"},
-			wantNoFile: true,
+			name:        "should refuse a name that starts with a dash",
+			args:        []string{"profile", "create", "--provider", "typesafe", "--file", "--", "-work"},
+			stdinUnread: true,
+			wantCode:    ExitUsage,
+			wantErr:     []string{"onesie: '-work' is not a profile name"},
+			wantNoFile:  true,
 		},
 		{
-			name:       "should refuse a create with no provider",
-			args:       []string{"profile", "create", "work", "--file"},
-			stdin:      key16 + "\n",
-			wantCode:   ExitUsage,
-			wantErr:    []string{"onesie: profile create needs --provider"},
-			wantNoFile: true,
+			name:        "should refuse a create with no provider",
+			args:        []string{"profile", "create", "work", "--file"},
+			stdinUnread: true,
+			wantCode:    ExitUsage,
+			wantErr:     []string{"onesie: profile create needs --provider"},
+			wantNoFile:  true,
 		},
 		{
-			name:       "should refuse an unknown provider before reading the key",
-			args:       []string{"profile", "create", "work", "--provider", "nope", "--file"},
-			stdin:      key16 + "\n",
-			wantCode:   ExitUsage,
-			wantErr:    []string{"names provider 'nope'"},
-			wantNoFile: true,
+			name:        "should refuse an unknown provider before reading the key",
+			args:        []string{"profile", "create", "work", "--provider", "nope", "--file"},
+			stdinUnread: true,
+			wantCode:    ExitUsage,
+			wantErr:     []string{"names provider 'nope'"},
+			wantNoFile:  true,
 		},
 		{
-			name:       "should refuse a base url with no scheme before reading the key",
-			args:       []string{"profile", "create", "work", "--provider", "typesafe", "--base-url", "proxy.example"},
-			stdin:      key16 + "\n",
-			wantCode:   ExitUsage,
-			wantErr:    []string{"base URL must be an absolute http or https URL, got proxy.example"},
-			wantNoFile: true,
+			name:        "should refuse a base url with no scheme before reading the key",
+			args:        []string{"profile", "create", "work", "--provider", "typesafe", "--base-url", "proxy.example"},
+			stdinUnread: true,
+			wantCode:    ExitUsage,
+			wantErr:     []string{"base URL must be an absolute http or https URL, got proxy.example"},
+			wantNoFile:  true,
 		},
 		{
-			name:       "should refuse an account id on a provider other than cloudflare",
-			args:       []string{"profile", "create", "work", "--provider", "openrouter", "--account-id", testAccountID},
-			stdin:      key16 + "\n",
-			wantCode:   ExitUsage,
-			wantErr:    []string{"has account_id, which only cloudflare takes"},
-			wantNoFile: true,
+			name:        "should refuse an account id on a provider other than cloudflare",
+			args:        []string{"profile", "create", "work", "--provider", "openrouter", "--account-id", testAccountID},
+			stdinUnread: true,
+			wantCode:    ExitUsage,
+			wantErr:     []string{"has account_id, which only cloudflare takes"},
+			wantNoFile:  true,
 		},
 		{
-			name:       "should refuse an account id that is not 32 hexadecimal characters",
-			args:       []string{"profile", "create", "cf", "--provider", "cloudflare", "--account-id", "abc"},
-			stdin:      key16 + "\n",
-			wantCode:   ExitUsage,
-			wantErr:    []string{"has an account_id that is not 32 hexadecimal characters"},
-			wantNoFile: true,
+			name:        "should refuse an account id that is not 32 hexadecimal characters",
+			args:        []string{"profile", "create", "cf", "--provider", "cloudflare", "--account-id", "abc"},
+			stdinUnread: true,
+			wantCode:    ExitUsage,
+			wantErr:     []string{"has an account_id that is not 32 hexadecimal characters"},
+			wantNoFile:  true,
 		},
 		{
 			name: "should refuse both a base url and an account id",
@@ -356,10 +362,10 @@ func TestProfileCreate(t *testing.T) {
 				"profile", "create", "cf", "--provider", "cloudflare", "--account-id", testAccountID,
 				"--base-url", "https://proxy.example",
 			},
-			stdin:      key16 + "\n",
-			wantCode:   ExitUsage,
-			wantErr:    []string{"has both base_url and account_id"},
-			wantNoFile: true,
+			stdinUnread: true,
+			wantCode:    ExitUsage,
+			wantErr:     []string{"has both base_url and account_id"},
+			wantNoFile:  true,
 		},
 		{
 			name:       "should refuse an empty key",
@@ -428,6 +434,48 @@ func TestProfileCreate(t *testing.T) {
 			wantItems:  map[string]string{},
 		},
 		{
+			name:        "should refuse an item another profile names before reading the key",
+			file:        takenItem,
+			items:       map[string]string{"work@{hash}": key16},
+			args:        []string{"profile", "create", "work", "--provider", "openrouter"},
+			stdinUnread: true,
+			wantCode:    ExitUsage,
+			wantErr: []string{"onesie: profile 'home' already uses the keychain item work@{hash}. " +
+				"Delete or update it first"},
+			wantFile:  takenItem,
+			wantItems: map[string]string{"work@{hash}": key16},
+		},
+		{
+			name:  "should store the key in the file under --file when another profile names the item",
+			file:  takenItem,
+			items: map[string]string{"work@{hash}": key16},
+			args:  []string{"profile", "create", "work", "--provider", "openrouter", "--file"},
+			stdin: key15 + "\n",
+			wantFile: `{"default":"home","profiles":{` +
+				`"home":{"provider":"typesafe","store":"keychain","account":"work@{hash}"},` +
+				`"work":{"provider":"openrouter","api_key":"` + key15 + `"}}}`,
+			wantItems: map[string]string{"work@{hash}": key16},
+		},
+		{
+			name:       "should keep exit 2 and name the item left behind when its removal also fails",
+			keychain:   keychainUndeletable,
+			store:      failingWrite,
+			args:       []string{"profile", "create", "work", "--provider", "typesafe"},
+			stdin:      key16 + "\n",
+			wantCode:   ExitUsage,
+			wantErr:    []string{"the disk is full", "The keychain item work@{hash} is left behind"},
+			wantNoFile: true,
+			wantItems:  map[string]string{"work@{hash}": key16},
+		},
+		{
+			name:  "should ignore ONESIE_PROFILE and ONESIE_PROVIDER",
+			env:   map[string]string{"ONESIE_PROFILE": "home", "ONESIE_PROVIDER": "berget"},
+			args:  []string{"profile", "create", "work", "--provider", "openrouter", "--file"},
+			stdin: key16 + "\n",
+			wantFile: `{"default":"work","profiles":{"work":{"provider":"openrouter","api_key":"` +
+				key16 + `"}}}`,
+		},
+		{
 			name:     "should warn when the mode cannot be set and still store the key",
 			store:    failingChmod,
 			args:     []string{"profile", "create", "work", "--provider", "typesafe", "--file"},
@@ -481,6 +529,8 @@ func TestProfileUpdate(t *testing.T) {
 			`"account":"work@{hash}","key_end":"5678","model":"typesafe/jev"}}}`
 		converted = `{"default":"typesafe","profiles":{"typesafe":{"provider":"typesafe","store":"keychain",` +
 			`"account":"typesafe"}}}`
+		takenItem = `{"default":"work","profiles":{"work":{"provider":"openrouter","api_key":"SECRET-WORK"},` +
+			`"home":{"provider":"openrouter","store":"keychain","account":"work@{hash}"}}}`
 		shared = `{"default":"work","profiles":{` +
 			`"work":{"provider":"openrouter","store":"keychain","account":"shared"},` +
 			`"home":{"provider":"openrouter","store":"keychain","account":"shared"}}}`
@@ -529,26 +579,126 @@ func TestProfileUpdate(t *testing.T) {
 			wantErr:  []string{"onesie: there is no profile named 'nope'. The profiles are work"},
 		},
 		{
+			name:        "should refuse a missing profile before reading the key",
+			file:        work,
+			args:        []string{"profile", "update", "nope", "--key"},
+			stdinUnread: true,
+			wantCode:    ExitUsage,
+			wantErr:     []string{"onesie: there is no profile named 'nope'"},
+			wantFile:    work,
+		},
+		{
+			name:        "should refuse a name that is not a profile name before reading the key",
+			file:        work,
+			args:        []string{"profile", "update", "Work", "--key"},
+			stdinUnread: true,
+			wantCode:    ExitUsage,
+			wantErr:     []string{"onesie: there is no profile named 'Work'"},
+			wantFile:    work,
+		},
+		{
+			name:        "should refuse an unknown provider before reading the key",
+			file:        work,
+			items:       workItems,
+			args:        []string{"profile", "update", "work", "--provider", "nope", "--key"},
+			stdinUnread: true,
+			wantCode:    ExitUsage,
+			wantErr:     []string{"names provider 'nope'"},
+			wantFile:    work,
+			wantItems:   workItems,
+		},
+		{
+			name:        "should refuse an item another profile names before reading the key",
+			file:        takenItem,
+			items:       workItems,
+			args:        []string{"profile", "update", "work", "--key"},
+			stdinUnread: true,
+			wantCode:    ExitUsage,
+			wantErr: []string{"onesie: profile 'home' already uses the keychain item work@{hash}. " +
+				"Delete or update it first"},
+			wantFile:  takenItem,
+			wantItems: workItems,
+		},
+		{
+			name:  "should store a new key in the file under --file when another profile names the item",
+			file:  takenItem,
+			items: workItems,
+			args:  []string{"profile", "update", "work", "--key", "--file"},
+			stdin: newKey + "\n",
+			wantFile: `{"default":"work","profiles":{` +
+				`"work":{"provider":"openrouter","api_key":"` + newKey + `"},` +
+				`"home":{"provider":"openrouter","store":"keychain","account":"work@{hash}"}}}`,
+			wantItems: workItems,
+		},
+		{
+			name:     "should fall back to the file and name the item left behind when the keychain cannot store",
+			file:     work,
+			keychain: keychainNone,
+			args:     []string{"profile", "update", "work", "--key"},
+			stdin:    newKey + "\n",
+			wantErr: []string{
+				"warning: could not store the key in the OS keychain: no keychain in tests. The key is in {path} instead",
+				"The keychain item work@{hash} is left behind",
+			},
+			wantFile: `{"default":"work","profiles":{"work":{"provider":"openrouter","api_key":"` + newKey +
+				`","model":"typesafe/jev"}}}`,
+		},
+		{
+			name:     "should refuse rather than write when reading the old key times out",
+			file:     work,
+			items:    workItems,
+			keychain: keychainStalled,
+			args:     []string{"profile", "update", "work", "--key"},
+			stdin:    newKey + "\n",
+			wantCode: ExitAuth,
+			wantErr: []string{
+				"the keychain did not answer in time",
+				"Answer the keychain prompt, or run the command again with --file",
+			},
+			wantFile:  work,
+			wantItems: workItems,
+		},
+		{
+			name:  "should ignore ONESIE_PROFILE and ONESIE_PROVIDER",
+			file:  work,
+			items: workItems,
+			env:   map[string]string{"ONESIE_PROFILE": "nope", "ONESIE_PROVIDER": "berget"},
+			args:  []string{"profile", "update", "work", "--model", "typesafe/jev-1.13"},
+			wantFile: `{"default":"work","profiles":{"work":{"provider":"openrouter","store":"keychain",` +
+				`"account":"work@{hash}","key_end":"5678","model":"typesafe/jev-1.13"}}}`,
+			wantItems: workItems,
+		},
+		{
+			name:  "should take --provider given before the subcommand as the new provider",
+			file:  work,
+			items: workItems,
+			args:  []string{"--provider", "berget", "profile", "update", "work", "--key", "--file"},
+			stdin: newKey + "\n",
+			wantFile: `{"default":"work","profiles":{"work":{"provider":"berget","api_key":"` + newKey +
+				`","model":"typesafe/jev"}}}`,
+			wantItems: map[string]string{},
+		},
+		{
 			name:     "should refuse --file without --key",
 			file:     work,
 			args:     []string{"profile", "update", "work", "--file"},
 			wantCode: ExitUsage,
-			wantErr:  []string{"onesie: --file applies to a new key, so it needs --key"},
+			wantErr:  []string{"onesie: profile update: --file applies to a new key, so it needs --key"},
 		},
 		{
 			name:     "should refuse --provider without --key",
 			file:     work,
 			args:     []string{"profile", "update", "work", "--provider", "berget"},
 			wantCode: ExitUsage,
-			wantErr:  []string{"onesie: --provider needs --key, since a key belongs to one provider"},
+			wantErr:  []string{"onesie: profile update: --provider needs --key, since a key belongs to one provider"},
 		},
 		{
-			name:     "should refuse an empty --provider",
-			file:     work,
-			args:     []string{"profile", "update", "work", "--provider", "", "--key"},
-			stdin:    newKey + "\n",
-			wantCode: ExitUsage,
-			wantErr:  []string{"onesie: --provider is empty"},
+			name:        "should refuse an empty --provider",
+			file:        work,
+			args:        []string{"profile", "update", "work", "--provider", "", "--key"},
+			stdinUnread: true,
+			wantCode:    ExitUsage,
+			wantErr:     []string{"onesie: profile update: --provider is empty"},
 		},
 		{
 			name:  "should write a new key to the profile's item and rewrite key_end",
@@ -601,6 +751,19 @@ func TestProfileUpdate(t *testing.T) {
 			wantItems: map[string]string{"shared": key16, "work@{hash}": newKey},
 		},
 		{
+			name:      "should keep exit 2 and name the item left behind when its removal also fails",
+			file:      converted,
+			items:     map[string]string{"typesafe": key15},
+			keychain:  keychainUndeletable,
+			store:     failingWrite,
+			args:      []string{"profile", "update", "typesafe", "--key"},
+			stdin:     newKey + "\n",
+			wantCode:  ExitUsage,
+			wantErr:   []string{"the disk is full", "The keychain item typesafe@{hash} is left behind"},
+			wantFile:  converted,
+			wantItems: map[string]string{"typesafe": key15, "typesafe@{hash}": newKey},
+		},
+		{
 			name:      "should delete the new item when the file cannot be written",
 			file:      converted,
 			items:     map[string]string{"typesafe": key15},
@@ -636,15 +799,18 @@ func TestProfileUpdate(t *testing.T) {
 			wantItems: map[string]string{},
 		},
 		{
-			name:      "should leave an item it could not read when the file cannot be written",
-			file:      work,
-			items:     workItems,
-			keychain:  keychainUnreadable,
-			store:     failingWrite,
-			args:      []string{"profile", "update", "work", "--key"},
-			stdin:     newKey + "\n",
-			wantCode:  ExitUsage,
-			wantErr:   []string{"the disk is full"},
+			name:     "should leave an item it could not read when the file cannot be written",
+			file:     work,
+			items:    workItems,
+			keychain: keychainUnreadable,
+			store:    failingWrite,
+			args:     []string{"profile", "update", "work", "--key"},
+			stdin:    newKey + "\n",
+			wantCode: ExitUsage,
+			wantErr: []string{
+				"the disk is full",
+				"warning: the keychain item work@{hash} now holds the new key, and its old key could not be read",
+			},
 			wantFile:  work,
 			wantItems: map[string]string{"work@{hash}": newKey},
 		},
@@ -667,15 +833,15 @@ func TestProfileUpdate(t *testing.T) {
 				`","base_url":"https://proxy.example","model":"jev-1.13.0"}}}`,
 		},
 		{
-			name:      "should refuse a result that breaks a rule before reading the key",
-			file:      work,
-			items:     workItems,
-			args:      []string{"profile", "update", "work", "--account-id", testAccountID, "--key"},
-			stdin:     newKey + "\n",
-			wantCode:  ExitUsage,
-			wantErr:   []string{"has account_id, which only cloudflare takes"},
-			wantFile:  work,
-			wantItems: workItems,
+			name:        "should refuse a result that breaks a rule before reading the key",
+			file:        work,
+			items:       workItems,
+			args:        []string{"profile", "update", "work", "--account-id", testAccountID, "--key"},
+			stdinUnread: true,
+			wantCode:    ExitUsage,
+			wantErr:     []string{"has account_id, which only cloudflare takes"},
+			wantFile:    work,
+			wantItems:   workItems,
 		},
 	}
 
@@ -764,6 +930,36 @@ func TestProfileDelete(t *testing.T) {
 			wantNoOld:  true,
 		},
 		{
+			name:      "should keep the keychain item when the file cannot be written",
+			file:      two,
+			items:     map[string]string{"work@{hash}": key16},
+			store:     failingWrite,
+			args:      []string{"profile", "delete", "work"},
+			wantCode:  ExitUsage,
+			wantErr:   []string{"the disk is full"},
+			wantFile:  two,
+			wantItems: map[string]string{"work@{hash}": key16},
+		},
+		{
+			name:      "should ignore ONESIE_PROFILE and ONESIE_PROVIDER",
+			file:      two,
+			items:     map[string]string{"work@{hash}": key16},
+			env:       map[string]string{"ONESIE_PROFILE": "work", "ONESIE_PROVIDER": "openrouter"},
+			args:      []string{"profile", "delete", "home"},
+			wantFile:  `{"default":"work","profiles":{"work":{"provider":"openrouter","store":"keychain","account":"work@{hash}"}}}`,
+			wantItems: map[string]string{"work@{hash}": key16},
+		},
+		{
+			name:      "should refuse --provider given before the subcommand",
+			file:      two,
+			items:     map[string]string{"work@{hash}": key16},
+			args:      []string{"--provider", "typesafe", "profile", "delete", "work"},
+			wantCode:  ExitUsage,
+			wantErr:   []string{"onesie: --provider does not apply to profile delete"},
+			wantFile:  two,
+			wantItems: map[string]string{"work@{hash}": key16},
+		},
+		{
 			name:     "should refuse a missing profile",
 			file:     two,
 			args:     []string{"profile", "delete", "nope"},
@@ -785,6 +981,10 @@ func TestProfileDelete(t *testing.T) {
 func TestProfileUse(t *testing.T) {
 	t.Parallel()
 
+	failingWrite := []creds.StoreOption{creds.WithCreateTemp(func(string, string) (*os.File, error) {
+		return nil, errors.New("the disk is full")
+	})}
+
 	const two = `{"default":"work","profiles":{` +
 		`"work":{"provider":"openrouter","api_key":"SECRET-WORK"},` +
 		`"home":{"provider":"typesafe","api_key":"SECRET-HOME"}}}`
@@ -797,6 +997,24 @@ func TestProfileUse(t *testing.T) {
 			wantFile: `{"default":"home","profiles":{` +
 				`"work":{"provider":"openrouter","api_key":"SECRET-WORK"},` +
 				`"home":{"provider":"typesafe","api_key":"SECRET-HOME"}}}`,
+		},
+		{
+			name: "should ignore ONESIE_PROFILE and ONESIE_PROVIDER",
+			file: two,
+			env:  map[string]string{"ONESIE_PROFILE": "work", "ONESIE_PROVIDER": "openrouter"},
+			args: []string{"profile", "use", "home"},
+			wantFile: `{"default":"home","profiles":{` +
+				`"work":{"provider":"openrouter","api_key":"SECRET-WORK"},` +
+				`"home":{"provider":"typesafe","api_key":"SECRET-HOME"}}}`,
+		},
+		{
+			name:       "should fail when a conversion held in memory cannot be written",
+			old:        `{"providers":{"typesafe":{"api_key":"SECRET-OLD"},"openrouter":{"api_key":"SECRET-OR"}}}`,
+			store:      failingWrite,
+			args:       []string{"profile", "use", "openrouter"},
+			wantCode:   ExitUsage,
+			wantErr:    []string{"the disk is full"},
+			wantNoFile: true,
 		},
 		{
 			name:     "should refuse a missing profile",
@@ -878,6 +1096,22 @@ func TestProfileList(t *testing.T) {
 			wantErr: []string{"active: none, since ONESIE_PROFILE names profile 'nope', which does not exist"},
 		},
 		{
+			name:     "should refuse a profiles file others can reach",
+			file:     withDefault,
+			mode:     0o644,
+			unixOnly: true,
+			args:     []string{"profile", "list"},
+			wantCode: ExitAuth,
+			wantErr:  []string{"is accessible by others, mode 644"},
+		},
+		{
+			name: "should print a model with non-ASCII characters whole",
+			file: `{"default":"ts","profiles":{"ts":{"provider":"typesafe","api_key":"SECRET-TS","model":"jév-ü"}}}`,
+			args: []string{"profile", "list"},
+			wantOut: "  NAME  PROVIDER  KEY   MODEL\n" +
+				"* ts    typesafe  file  jév-ü\n",
+		},
+		{
 			name:    "should print nothing and name profile create with no profiles",
 			args:    []string{"profile", "list"},
 			wantErr: []string{"onesie: no profiles. Run onesie profile create NAME --provider PROVIDER to store one"},
@@ -900,6 +1134,44 @@ func TestProfileList(t *testing.T) {
 			t.Parallel()
 
 			runProfileCase(t, tc)
+		})
+	}
+}
+
+func TestWriteProfiles(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		profiles creds.Profiles
+		active   string
+		want     string
+	}{
+		{
+			name: "should pad a column by its characters, not its bytes",
+			profiles: creds.Profiles{Profiles: map[string]creds.Profile{
+				"a": {Provider: "typesafé", Model: "m"},
+				"b": {Provider: "openrouter", Model: "m"},
+			}},
+			active: "a",
+			want: "  NAME  PROVIDER    KEY   MODEL\n" +
+				"* a     typesafé    file  m\n" +
+				"  b     openrouter  file  m\n",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var out bytes.Buffer
+			if err := writeProfiles(&out, tc.profiles, tc.active); err != nil {
+				t.Fatalf("writeProfiles: %v", err)
+			}
+
+			if out.String() != tc.want {
+				t.Errorf("output = %q, want %q", out.String(), tc.want)
+			}
 		})
 	}
 }
@@ -985,11 +1257,20 @@ func TestProfileShow(t *testing.T) {
 			wantErr:  []string{"Run onesie profile use NAME, or pass --profile NAME or --provider NAME"},
 		},
 		{
-			name:     "should never read the keychain",
-			file:     shown,
-			keychain: keychainTimeout,
-			args:     []string{"profile", "show"},
-			wantOut:  workShown,
+			name:            "should never read the keychain",
+			file:            shown,
+			args:            []string{"profile", "show"},
+			wantOut:         workShown,
+			noKeychainCalls: true,
+		},
+		{
+			name: "should leave the userinfo out of base_url",
+			file: `{"default":"ts","profiles":{"ts":{"provider":"typesafe","api_key":"SECRET-TS-0123456789",` +
+				`"base_url":"https://user:SECRET-TOKEN@proxy.example/v1"}}}`,
+			args: []string{"profile", "show"},
+			wantOut: "profile: ts\nprovider: typesafe\nchosen by: the default\nkey: file, ends in 6789\n" +
+				"model: the provider's\nbase_url: https://proxy.example/v1\n",
+			notErr: []string{"SECRET-TOKEN", "user"},
 		},
 		{
 			name:     "should refuse a missing profile",
@@ -1075,6 +1356,7 @@ func TestProfileTest(t *testing.T) {
 			args:     []string{"profile", "test", "work"},
 			status:   http.StatusUnauthorized,
 			wantCode: ExitAuth,
+			wantErr:  "onesie: 401 the key was refused",
 		},
 		{
 			name:     "should exit 3 on a forbidden key",
@@ -1082,6 +1364,7 @@ func TestProfileTest(t *testing.T) {
 			args:     []string{"profile", "test", "work"},
 			status:   http.StatusForbidden,
 			wantCode: ExitAuth,
+			wantErr:  "onesie: 403 the key was refused",
 		},
 		{
 			name: "should exit 3 and suggest credits on a 402",
@@ -1099,6 +1382,7 @@ func TestProfileTest(t *testing.T) {
 			args:     []string{"profile", "test", "work"},
 			response: "not json",
 			wantCode: ExitUnavailable,
+			wantErr:  "onesie: 200 response could not be used: the response is not JSON",
 		},
 		{
 			name:      "should exit 5 when the server cannot be reached",
@@ -1106,6 +1390,7 @@ func TestProfileTest(t *testing.T) {
 			args:      []string{"profile", "test", "work"},
 			unreached: true,
 			wantCode:  ExitTransport,
+			wantErr:   "onesie: connection error",
 		},
 		{
 			name: "should only list the models on levanto, whose list needs the key",
@@ -1210,6 +1495,10 @@ func TestProfileTest(t *testing.T) {
 				t.Errorf("stdout = %q, want %q", out, tc.wantOut)
 			}
 
+			if tc.wantErr == "" && errOut != "" {
+				t.Errorf("stderr = %q, want it empty", errOut)
+			}
+
 			if !strings.Contains(errOut, tc.wantErr) {
 				t.Errorf("stderr = %q, want it to contain %q", errOut, tc.wantErr)
 			}
@@ -1298,6 +1587,7 @@ type profileCase struct {
 	store           []creds.StoreOption
 	args            []string
 	stdin           string
+	stdinUnread     bool
 	tty             bool
 	secret          string
 	env             map[string]string
@@ -1341,12 +1631,20 @@ func runProfileCase(t *testing.T, tc profileCase) {
 		opts = append(opts, WithKeychain(noKeychain()))
 	case keychainTimeout:
 		opts = append(opts, WithKeychain(timingOutKeychain{}))
+	case keychainStalled:
+		opts = append(opts, WithKeychain(stalledKeychain{chain}))
 	case keychainUnreadable:
 		opts = append(opts, WithKeychain(unreadableKeychain{chain}))
+	case keychainUndeletable:
+		opts = append(opts, WithKeychain(undeletableKeychain{chain}))
 	}
 
 	if tc.store != nil {
 		opts = append(opts, WithCredentialStore(creds.NewStore(tc.store...)))
+	}
+
+	if tc.stdinUnread {
+		opts = append(opts, WithStdin(unreadStdin{t}))
 	}
 
 	out, errOut, code := runInConfig(t, dir, tc.args, tc.stdin, tc.env, opts...)
@@ -1525,4 +1823,30 @@ type unreadableKeychain struct {
 
 func (unreadableKeychain) Get(string) (string, error) {
 	return "", &creds.KeychainError{Op: "read the key from", Err: errors.New("the keychain is locked")}
+}
+
+type unreadStdin struct {
+	t *testing.T
+}
+
+func (s unreadStdin) Read([]byte) (int, error) {
+	s.t.Error("stdin was read, want every check to run before the key is read")
+
+	return 0, io.EOF
+}
+
+type stalledKeychain struct {
+	*fakeKeychain
+}
+
+func (stalledKeychain) Get(string) (string, error) {
+	return "", &creds.KeychainError{Op: "read the key from", Err: creds.ErrKeychainTimeout}
+}
+
+type undeletableKeychain struct {
+	*fakeKeychain
+}
+
+func (undeletableKeychain) Delete(string) error {
+	return &creds.KeychainError{Op: "remove the key from", Err: errors.New("the keychain is locked")}
 }
