@@ -43,7 +43,8 @@ With Go:
 go install github.com/frodi-karlsson/onesie/cmd/onesie@latest
 ```
 
-Then store a key with `onesie auth set`.
+Then store a key in a profile with `onesie profile create work --provider typesafe`, which prompts
+for it and keeps it in the OS keychain.
 
 In Claude Code, the plugin can come first and walk you through the rest:
 
@@ -187,9 +188,12 @@ tables.
 
 ## Also
 
-- **Providers.** TypeSafe is the default, and `--provider openrouter`, `--provider berget`,
-  `--provider levanto` or `--provider cloudflare` asks through OpenRouter, Berget, Levanto or
-  Cloudflare instead. Cloudflare needs `CLOUDFLARE_ACCOUNT_ID` beside its token.
+- **Profiles and providers.** A profile names a provider, TypeSafe, OpenRouter, Berget, Levanto or
+  Cloudflare, and holds its key, as in `onesie profile create work --provider openrouter`. Two
+  profiles can hold two keys for one provider, and `--profile NAME` picks one for a run. A run with
+  no choice uses the default profile, or TypeSafe on `TYPESAFE_API_KEY` when there are no profiles.
+  `--provider NAME` runs without a profile, on the provider's key variable, which suits CI.
+  Cloudflare needs an account id beside its token.
 - **Caching.** `--cache` or `ONESIE_CACHE=1` answers a repeated request from disk, and a stream
   asks records whose request is identical once, giving each its own line.
 - **Dry runs.** `--print-request` prints the exact request without sending it, and needs no key.
@@ -210,7 +214,7 @@ onesie ships agent skills instead of an MCP server:
 ## Reference
 
 [REFERENCE.md](REFERENCE.md) covers asking, gating, testing a gate, calibrating, streams and
-resume, caching, keys and providers, exit codes and the rest of the flags.
+resume, caching, profiles and providers, exit codes and the rest of the flags.
 
 ## Contributing
 

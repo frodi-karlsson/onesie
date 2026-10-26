@@ -149,7 +149,7 @@ func streamRequests(
 ) error {
 	questions := wireAll(built.Questions)
 
-	model, err := resolveModel(settings, flags, built.Model)
+	model, err := resolveModel(settings, built.Model)
 	if err != nil {
 		return err
 	}

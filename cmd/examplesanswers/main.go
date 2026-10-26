@@ -63,7 +63,7 @@ func run(ctx context.Context, opts options) (code int, err error) {
 		return cli.ExitUsage, err
 	}
 
-	// A scratch config dir and home, so no saved key, question or credential file of the user's is read.
+	// A scratch config dir and home, so no saved key, question or profile of the user's is read.
 	scratch, err := os.MkdirTemp("", "examplesanswers-")
 	if err != nil {
 		return cli.ExitUsage, err

@@ -108,7 +108,7 @@ func newCalibrateCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) (err error) {
 			defer func() {
-				err = withDashQuestionHint(err, cmd.Flags(), settings.args, args)
+				err = withKeyHint(withDashQuestionHint(err, cmd.Flags(), settings.args, args), settings)
 			}()
 
 			positional := ""
@@ -118,6 +118,10 @@ func newCalibrateCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 
 			if cmd.Flags().NFlag() == 0 && len(args) == 0 {
 				return cmd.Help()
+			}
+
+			if refused := refuseEmptyBaseURL(cmd, flags); refused != nil {
+				return refused
 			}
 
 			flags.timeoutSet = cmd.Flags().Changed(flagTimeout)
@@ -184,6 +188,7 @@ func bindSharedFlags(cmd *cobra.Command, flags *runFlags) {
 		"jq expression run on each record, whose string or number result names it")
 	cmd.Flags().StringVarP(&flags.model, flagModel, "m", "", "model override")
 	cmd.Flags().StringVar(&flags.baseURL, flagBaseURL, "", "api root override")
+	cmd.Flags().BoolVar(&flags.allowHTTP, flagAllowHTTP, false, allowHTTPHelp)
 	cmd.Flags().BoolVar(&flags.longContext, flagLongContext, false,
 		"raise the context limits to 262k tokens, slower and less accurate. Also ONESIE_LONG_CONTEXT=1. "+
 			"Experimental on TypeSafe's side")

@@ -223,11 +223,14 @@ func TestCachedAnswerer(t *testing.T) {
 			},
 		}
 
+		flags := &runFlags{}
+		settings.holder = newHolder(settings, flags, func() io.Writer { return io.Discard })
+
 		if warn == nil {
 			warn = func(err error) { t.Errorf("unexpected cache warning: %v", err) }
 		}
 
-		return cachedAnswers(settings, &runFlags{}, onesie.TypeSafe(), onesie.DefaultModel, questions, warn), dir
+		return cachedAnswers(settings, flags, onesie.TypeSafe(), onesie.DefaultModel, questions, warn), dir
 	}
 
 	t.Run("should ask on a miss, store the answer and answer the next call from it", func(t *testing.T) {
@@ -261,6 +264,17 @@ func TestCachedAnswerer(t *testing.T) {
 
 		if _, noulErr := second.result.Noul("u"); noulErr != nil {
 			t.Errorf("cached result: %v", noulErr)
+		}
+	})
+
+	t.Run("should say the cache needs the key when the client has none", func(t *testing.T) {
+		t.Parallel()
+
+		factory, _ := build(t, newAnswerStub(t), nil, onesie.WithAPIKey(""))
+
+		_, err := factory(t.Context(), &collector{})
+		if err == nil || !strings.Contains(err.Error(), "The cache needs the key too") {
+			t.Errorf("error = %v, want it to say the cache needs the key", err)
 		}
 	})
 
@@ -458,6 +472,55 @@ func TestCachedAnswerer(t *testing.T) {
 
 		if len(warnings) != 1 || !strings.Contains(warnings[0], "for the rest of this run") || !strings.Contains(warnings[0], dir) {
 			t.Errorf("warnings = %q, want one naming the directory and the rest of this run", warnings)
+		}
+	})
+}
+
+func TestCachedAnswers(t *testing.T) {
+	t.Parallel()
+
+	t.Run("should key a profile's answers by its base_url", func(t *testing.T) {
+		t.Parallel()
+
+		first, firstAuths := recordingServer(t, 0)
+		second, secondAuths := recordingServer(t, 0)
+		stray, strayAuths := recordingServer(t, 0)
+
+		// cacheEnv carries a key, so the variable points at a local server and no run leaves the
+		// machine, even one that ignores the profile.
+		env := cacheEnv(t)
+		env[onesie.EnvBaseURL] = stray.URL
+		args := []string{"is this urgent", "-r", "--cache", "--state", "the server is down"}
+
+		profileAt := func(base string) {
+			writeConfig(t, env["ONESIE_CONFIG_DIR"], "profiles.json",
+				`{"default":"p","profiles":{"p":{"provider":"typesafe","api_key":"SECRET-P","base_url":"`+base+`"}}}`, 0)
+		}
+
+		profileAt(first.URL)
+
+		for range 2 {
+			if _, errOut, code := runCached(t, env, args, ""); code != ExitOK {
+				t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, ExitOK, errOut)
+			}
+		}
+
+		profileAt(second.URL)
+
+		if _, errOut, code := runCached(t, env, args, ""); code != ExitOK {
+			t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, ExitOK, errOut)
+		}
+
+		if got := len(firstAuths()); got != 1 {
+			t.Errorf("the first base url took %d requests, want one, then the cache", got)
+		}
+
+		if got := len(secondAuths()); got != 1 {
+			t.Errorf("the second base url took %d requests, want one, since its answers are keyed apart", got)
+		}
+
+		if got := len(strayAuths()); got != 0 {
+			t.Errorf("TYPESAFE_BASE_URL took %d requests, want none, since the profile's base_url beats it", got)
 		}
 	})
 }

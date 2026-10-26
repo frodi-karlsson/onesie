@@ -1,5 +1,5 @@
-// Package creds resolves, reads and writes the credential file that holds an API key when neither
-// a flag nor the environment supplies one.
+// Package creds resolves, reads and writes the profiles file that holds each profile's API key, and
+// converts the credentials.json it replaces.
 package creds
 
 import (
@@ -9,21 +9,23 @@ import (
 )
 
 const (
-	appName  = "onesie"
-	fileName = "credentials.json"
+	appName      = "onesie"
+	fileName     = "credentials.json"
+	profilesName = "profiles.json"
 )
 
-// Path reports where the credential file lives.
-func Path(env Env) (string, error) {
+// ProfilesPath reports where the profiles file lives.
+func ProfilesPath(env Env) (string, error) {
 	dir, err := Dir(env)
 	if err != nil {
 		return "", err
 	}
 
-	return filepath.Join(dir, fileName), nil
+	return filepath.Join(dir, profilesName), nil
 }
 
-// Dir reports onesie's config dir, which holds the credential file and the saved question files.
+// Dir reports onesie's config dir, which holds the credential and profiles files and the saved
+// question files.
 func Dir(env Env) (string, error) {
 	if dir := lookup(env, "ONESIE_CONFIG_DIR"); dir != "" {
 		return filepath.Clean(dir), nil
@@ -42,12 +44,12 @@ func Dir(env Env) (string, error) {
 	home, err := env.Home()
 	if err != nil {
 		return "", fmt.Errorf(
-			"onesie: finding the home directory for the config dir, where the credential file lives: %w", err)
+			"onesie: finding the home directory for the config dir, where the profiles file lives: %w", err)
 	}
 
 	if home == "" {
 		return "", errors.New(
-			"onesie: cannot find a home directory for the config dir, where the credential file lives")
+			"onesie: cannot find a home directory for the config dir, where the profiles file lives")
 	}
 
 	return filepath.Join(home, ".config", appName), nil

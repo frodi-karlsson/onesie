@@ -30,12 +30,12 @@ func answersFor(
 	model string,
 ) (answererFactory, error) {
 	if path, spelled := mockSource(settings, flags); path != "" {
-		provider, err := resolveProvider(settings, flags)
+		chosen, err := runResolution(settings)
 		if err != nil {
 			return nil, err
 		}
 
-		answers, err := mockAnswers(settings, flags, provider, path, spelled, built, known)
+		answers, err := mockAnswers(settings, flags, chosen.provider, path, spelled, built, known)
 		if err != nil {
 			return nil, err
 		}
@@ -52,7 +52,7 @@ func answersFor(
 		return wrapped(settings, liveAnswers(settings, flags)), nil
 	}
 
-	provider, err := resolveProvider(settings, flags)
+	chosen, err := runResolution(settings)
 	if err != nil {
 		return nil, err
 	}
@@ -70,7 +70,7 @@ func answersFor(
 		}
 	}
 
-	return wrapped(settings, cachedAnswers(settings, flags, provider, model, built.Questions, warn)), nil
+	return wrapped(settings, cachedAnswers(settings, flags, chosen.provider, model, built.Questions, warn)), nil
 }
 
 func caching(cmd *cobra.Command, settings rootSettings, flags *runFlags) (bool, error) {
@@ -104,7 +104,7 @@ func cachedAnswers(
 	return func(ctx context.Context, stats *collector) (answerer, error) {
 		client, err := settings.newClient(ctx, observing(stats)...)
 		if err != nil {
-			return nil, noKeyForCache(settings, flags, err)
+			return nil, noKeyForCache(settings, err)
 		}
 
 		return &cachedAnswerer{
@@ -119,13 +119,13 @@ func cachedAnswers(
 	}
 }
 
-func noKeyForCache(settings rootSettings, flags *runFlags, err error) error {
+func noKeyForCache(settings rootSettings, err error) error {
 	if !errors.Is(err, onesie.ErrValidation) {
 		return err
 	}
 
-	source, locateErr := locateKey(settings, flags)
-	if locateErr != nil || source.name != sourceNone {
+	chosen, resolveErr := runResolution(settings)
+	if resolveErr != nil || chosen.keyFrom != sourceNone {
 		return err
 	}
 

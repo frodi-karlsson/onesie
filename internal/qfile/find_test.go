@@ -50,7 +50,7 @@ func TestFind(t *testing.T) {
 	configQuestions := filepath.Join(configDir, "questions")
 	workDir := filepath.Join(string(filepath.Separator)+"repo", "sub", "deeper")
 
-	errNoHome := errors.New("onesie: cannot find a home directory for the config dir, where the credential file lives")
+	errNoHome := errors.New("onesie: cannot find a home directory for the config dir, where the profiles file lives")
 
 	tests := []struct {
 		name        string
@@ -430,7 +430,7 @@ func TestList(t *testing.T) {
 	configQuestions := filepath.Join(configDir, "questions")
 	workDir := filepath.Join(string(filepath.Separator)+"repo", "sub")
 
-	errNoHome := errors.New("onesie: cannot find a home directory for the config dir, where the credential file lives")
+	errNoHome := errors.New("onesie: cannot find a home directory for the config dir, where the profiles file lives")
 
 	tests := []struct {
 		name      string

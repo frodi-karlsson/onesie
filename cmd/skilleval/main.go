@@ -17,16 +17,36 @@ import (
 )
 
 func main() {
-	if err := newApp().run(context.Background(), os.Args[1:], os.Stdout); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
-	}
+	os.Exit(run())
 }
 
-func newApp() *app {
+func run() int {
+	configDir, err := os.MkdirTemp("", "onesie-skilleval-")
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+
+		return 1
+	}
+
+	defer func() {
+		if removeErr := os.RemoveAll(configDir); removeErr != nil {
+			fmt.Fprintln(os.Stderr, removeErr)
+		}
+	}()
+
+	if err := newApp(configDir).run(context.Background(), os.Args[1:], os.Stdout); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+
+		return 1
+	}
+
+	return 0
+}
+
+func newApp(configDir string) *app {
 	return &app{
 		glob:   filepath.Glob,
-		grader: skilleval.NewGrader(skillcheck.NewRunner("", os.Environ())),
+		grader: skilleval.NewGrader(skillcheck.NewRunner("", os.Environ(), configDir)),
 	}
 }
 

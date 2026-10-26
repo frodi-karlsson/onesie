@@ -430,7 +430,8 @@ func TestNewCalibrateCmd(t *testing.T) {
 				"null, no result or an empty string leaves a record unlabelled",
 				`{"id":"T-1","body":"the site is down","is_urgent":true}`,
 				"T-1,the site is down,yes",
-				"3    the key was refused, the account is out of credits",
+				"3    the key was refused, the account is out of credits, the keychain failed, or profiles.json or " +
+					"credentials.json is exposed. No report prints",
 				"found is the share of the records labelled with a name that were picked as it",
 				"the same questions, model, -i, --map and --id, with -o json and no gate or merge",
 				"A question file's assert, abstain_if, threshold, min_confidence and fallback are ignored, " +

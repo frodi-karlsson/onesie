@@ -114,7 +114,7 @@ func run(
 			abstain.Source(), loaded, settings.schemaURL)
 	}
 
-	model, err := resolveModel(settings, flags, built.Model)
+	model, err := resolveModel(settings, built.Model)
 	if err != nil {
 		return err
 	}
@@ -196,7 +196,7 @@ func run(
 
 	// After the state is resolved, so the body carries the state a real run would send.
 	if flags.printRequest {
-		model, err := resolveModel(settings, flags, built.Model)
+		model, err := resolveModel(settings, built.Model)
 		if err != nil {
 			return err
 		}
@@ -374,12 +374,12 @@ func outFingerprint(
 }
 
 func runInputs(settings rootSettings, flags *runFlags, inputs fingerprintInputs) (fingerprintInputs, error) {
-	provider, err := resolveProvider(settings, flags)
+	chosen, err := runResolution(settings)
 	if err != nil {
 		return fingerprintInputs{}, err
 	}
 
-	inputs.provider = provider.Name
+	inputs.provider = chosen.provider.Name
 	inputs.mapSource = flags.mapSource
 	inputs.idSource = flags.idSource
 
@@ -467,7 +467,7 @@ func stream(
 
 	questions := wireAll(built.Questions)
 
-	model, err := resolveModel(settings, flags, built.Model)
+	model, err := resolveModel(settings, built.Model)
 	if err != nil {
 		return err
 	}
@@ -947,7 +947,7 @@ func ask(
 
 	questions := wireAll(built.Questions)
 
-	model, err := resolveModel(settings, flags, built.Model)
+	model, err := resolveModel(settings, built.Model)
 	if err != nil {
 		return err
 	}
@@ -1368,22 +1368,26 @@ func outputName(flags *runFlags) string {
 }
 
 type runFlags struct {
-	provider  string
-	mock      string
-	out       string
-	resume    bool
-	prune     bool
-	output    string
-	raw       bool
-	quiet     bool
-	usage     bool
-	input     string
-	state     string
-	stateFile string
-	model     string
-	baseURL   string
-	file      string
-	replace   bool
+	provider    string
+	providerSet bool
+	profile     string
+	profileSet  bool
+	mock        string
+	out         string
+	resume      bool
+	prune       bool
+	output      string
+	raw         bool
+	quiet       bool
+	usage       bool
+	input       string
+	state       string
+	stateFile   string
+	model       string
+	baseURL     string
+	allowHTTP   bool
+	file        string
+	replace     bool
 
 	assert    []string
 	abstainIf []string

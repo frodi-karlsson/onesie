@@ -12,14 +12,14 @@ import (
 
 const runTimeout = 10 * time.Second
 
-// NewRunner returns a Runner that runs binary in environ, defaulting to onesie on PATH when binary
-// is empty. ONESIE_MOCK is removed, since a dry run beside it would be refused.
-func NewRunner(binary string, environ []string) *Runner {
+// NewRunner returns a Runner for binary, onesie on PATH when empty. It drops ONESIE_MOCK,
+// ONESIE_PROFILE, ONESIE_PROVIDER and ONESIE_CONFIG_DIR, then sets the last to configDir when given.
+func NewRunner(binary string, environ []string, configDir string) *Runner {
 	if binary == "" {
 		binary = "onesie"
 	}
 
-	env := withoutMock(environ)
+	env := isolated(environ, configDir)
 
 	return &Runner{
 		Binary: binary,
@@ -32,13 +32,22 @@ func NewRunner(binary string, environ []string) *Runner {
 	}
 }
 
-func withoutMock(environ []string) []string {
-	kept := make([]string, 0, len(environ))
+func isolated(environ []string, configDir string) []string {
+	kept := make([]string, 0, len(environ)+1)
 
 	for _, entry := range environ {
-		if !strings.HasPrefix(entry, "ONESIE_MOCK=") {
-			kept = append(kept, entry)
+		name, _, _ := strings.Cut(entry, "=")
+
+		switch name {
+		case "ONESIE_MOCK", "ONESIE_PROFILE", "ONESIE_PROVIDER", "ONESIE_CONFIG_DIR":
+			continue
 		}
+
+		kept = append(kept, entry)
+	}
+
+	if configDir != "" {
+		kept = append(kept, "ONESIE_CONFIG_DIR="+configDir)
 	}
 
 	return kept
@@ -94,8 +103,8 @@ type DryRunResult struct {
 	Stderr   string
 }
 
-// Help returns the --help text of the onesie command that path names, such as calibrate or auth
-// set. An empty path is the root command.
+// Help returns the --help text of the onesie command that path names, such as calibrate or profile
+// create. An empty path is the root command.
 func (r *Runner) Help(ctx context.Context, path []string) (string, error) {
 	runCtx, cancel := context.WithTimeout(ctx, runTimeout)
 	defer cancel()

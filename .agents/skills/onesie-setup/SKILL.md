@@ -13,27 +13,27 @@ There are two ways in. A user who installs onesie first can add the plugin after
 
 The steps, in order:
 
-1. Check what is there already: `command -v onesie`, then `onesie auth status`.
+1. Check what is there already: `command -v onesie`, then `onesie profile show`.
 2. Install onesie if it is missing, per the install section below.
 3. Ask which provider the user has an account with.
-4. Have the user store the key, outside the conversation.
-5. Run `onesie auth test` and confirm it reports the provider and a model count.
+4. Have the user store the key in a profile, outside the conversation.
+5. Run `onesie profile test` and confirm it reports the provider and a model count.
 
-For a flag this skill does not cover, run `onesie --help` or `onesie calibrate --help`, and `onesie -V` for the version and the built in limits.
+For a flag this skill does not cover, run `onesie --help`, `onesie profile --help` or `onesie calibrate --help`, and `onesie -V` for the version and the built in limits.
 
 ## Rules
 
-### Never ask for the key in chat. The user stores it with onesie auth set, outside the conversation.
+### Never ask for the key in chat. The user stores it with onesie profile create, outside the conversation.
 
-Anything typed into the conversation is sent to the model and kept in the transcript. `onesie auth set` reads the key from a hidden prompt in a real terminal, or from stdin otherwise, and never prints it. So ask the user to run `onesie auth set` in their own terminal, or to pipe it from a password manager, as in `pass show typesafe | head -n 1 | onesie auth set`. `pass show` and its siblings print metadata after the secret, and `auth set` refuses stdin that holds more than one non blank line, so keep the `head -n 1`. A command that reads from a password manager is safe to run for them, since only the stderr lines naming the file and the keychain come back.
+Anything typed into the conversation is sent to the model and kept in the transcript. `onesie profile create NAME --provider PROVIDER` reads the key from a hidden prompt in a real terminal, or from stdin otherwise, and never prints it. So ask the user to run it in their own terminal, or to pipe the key from a password manager, as in `pass show typesafe | head -n 1 | onesie profile create work --provider typesafe`. `pass show` and its siblings print metadata after the secret, and `profile create` refuses stdin that holds more than one non blank line, so keep the `head -n 1`. A command that reads from a password manager is safe to run for them, since only stderr lines naming the keychain item or the file come back.
 
 ### Ask which account the user has, TypeSafe, OpenRouter, Berget, Levanto or Cloudflare, before storing a key.
 
-typesafe is the default. For openrouter, store the key with `onesie --provider openrouter auth set`, and have the user add `export ONESIE_PROVIDER=openrouter` to their shell profile. Otherwise every command needs `--provider openrouter`, and without it onesie looks for a TypeSafe key and reports none. berget and levanto work the same way, with `onesie --provider berget auth set` and `export ONESIE_PROVIDER=berget`, or `onesie --provider levanto auth set` and `export ONESIE_PROVIDER=levanto`. For cloudflare, store the token with `onesie --provider cloudflare auth set --base-url https://api.cloudflare.com/client/v4/accounts/<account_id>/ai`, which keeps the account beside it, and have the user add `export ONESIE_PROVIDER=cloudflare` to their shell profile.
+A profile names its provider, so `onesie profile create work --provider openrouter` makes an OpenRouter profile. The first profile becomes the default, and a run with no `--profile` uses the default. To switch to another profile, run `onesie profile use NAME`. Do not export `ONESIE_PROVIDER` for a stored key, since `--provider` and `ONESIE_PROVIDER` run without a profile and read only the provider's key variable. For cloudflare, pass the account too, as in `onesie profile create cf --provider cloudflare --account-id ACCOUNT_ID`. `--model` stores the model a run uses when it names none.
 
-### End the setup with onesie auth test, not auth status.
+### End the setup with onesie profile test, not profile show.
 
-`auth status` only reports where a key would come from, and never reads the keychain. `auth test` resolves the key and sends it to the provider's model listing, which costs no tokens, then prints `provider:`, `source:` and `models:` with a count. Berget lists its models to any key, so on berget it also asks one tiny question, which spends a few tokens. It exits 2 when no key resolves, 3 when the provider refuses the key or the keychain cannot give it up, and 4 or 5 when the provider cannot be reached. Only a clean `auth test` means the next real command will work.
+`profile show` only reports what a run would use and where its key lives, and never reads the keychain. `profile test` reads the key and sends it to the provider's model listing, which costs no tokens, then prints `profile:`, `provider:`, `key:` and `models:` with a count. Berget lists its models to any key, so on berget it also asks one tiny question with the profile's model, which spends a few tokens. It exits 2 when no key resolves, 3 when the provider refuses the key or the keychain cannot give it up, and 4 or 5 when the provider cannot be reached. Only a clean `profile test` means the next real command will work.
 
 ## Installing onesie
 
@@ -51,24 +51,27 @@ Confirm the install with `onesie -V`, which prints the version and the built in 
 
 | provider | command | env var alternative |
 | --- | --- | --- |
-| typesafe | `onesie auth set` | `TYPESAFE_API_KEY` |
-| openrouter | `onesie --provider openrouter auth set` | `OPENROUTER_API_KEY` |
-| berget | `onesie --provider berget auth set` | `BERGET_API_KEY` |
-| levanto | `onesie --provider levanto auth set` | `LEVANTO_API_KEY` |
-| cloudflare | `onesie --provider cloudflare auth set` | `CLOUDFLARE_API_TOKEN`, with `CLOUDFLARE_ACCOUNT_ID` |
+| typesafe | `onesie profile create work --provider typesafe` | `TYPESAFE_API_KEY` |
+| openrouter | `onesie profile create work --provider openrouter` | `OPENROUTER_API_KEY` |
+| berget | `onesie profile create work --provider berget` | `BERGET_API_KEY` |
+| levanto | `onesie profile create work --provider levanto` | `LEVANTO_API_KEY` |
+| cloudflare | `onesie profile create work --provider cloudflare --account-id ACCOUNT_ID` | `CLOUDFLARE_API_TOKEN`, with `CLOUDFLARE_ACCOUNT_ID` |
 
-An env var outranks a stored key, which suits CI. `auth set` stores one entry per provider in `credentials.json`, in `$ONESIE_CONFIG_DIR`, then `$XDG_CONFIG_HOME/onesie`, then, on Windows, `%APPDATA%\onesie`, and otherwise `~/.config/onesie`. The file is written at mode 600, and a directory it creates at mode 700. When there is an OS keychain the key goes there, under the service `onesie`, and the file entry only points at it. `auth set --file` keeps the key in the file itself. `--base-url` on `auth set` stores an API root beside the key. `onesie auth clear` removes the provider's entry and its keychain item.
+A name in place of `work` is 1 to 64 lowercase letters, digits, `-` or `_`, does not start with `-`, and is not `none`. A profile holds the provider, its key, and optionally `--model`, the model a run uses when it names none, and `--base-url`, or `--account-id` on cloudflare. The first profile becomes the default, and `onesie profile use NAME` changes it. A run uses the default unless `--profile NAME` or `ONESIE_PROFILE` names another. `--provider` or `ONESIE_PROVIDER` runs without a profile and reads only the provider's env var, which suits CI.
 
-`auth set` writes only to stderr, never the key:
+Profiles live in `profiles.json`, in `$ONESIE_CONFIG_DIR`, then `$XDG_CONFIG_HOME/onesie`, then, on Windows, `%APPDATA%\onesie`, and otherwise `~/.config/onesie`. The file is written at mode 600, and a directory it creates at mode 700. When there is an OS keychain the key goes there, under the service `onesie`, and the profile only names the item. `--file` keeps the key in the file itself. An older `credentials.json` there is converted into profiles the first time onesie reads it. `onesie profile list` lists the profiles, `onesie profile update NAME --key` stores a new key, and `onesie profile delete NAME` removes a profile and its keychain item.
+
+`profile create` writes only to stderr, never the key:
 
 | stderr line | meaning |
 | --- | --- |
-| `writing the credential file PATH` | the credential file it is about to write |
-| `stored the typesafe key in the OS keychain` | the key is in the keychain, the file points at it |
+| `stored the key in the OS keychain as NAME@...` | the key is in the keychain, and the profile names the item |
+| `NAME is the default profile, since it is the first` | the first profile became the default |
 | `warning: ... The key is in PATH instead` | the keychain refused, so the key went into the file |
-| `the keychain did not answer in time` | a keychain prompt waited over 10 seconds, and the file was not written. Have the user answer the prompt and run `auth set` again, or pass `--file` |
+| `the keychain did not answer in time` | a keychain prompt waited over 10 seconds, and the file was not written. Have the user answer the prompt and run the command again, or pass `--file` |
 | `stdin carries more than one line` | the piped input held more than the key. Pipe it through `head -n 1` |
-| `is accessible by others` | the existing credential file is readable or writable by others. Have the user run `chmod 600` on it |
+| `is readable or writable by its group or others` | the existing `profiles.json` is readable or writable by its group or others. Have the user run `chmod 600` on it |
+| `converted credentials.json into profiles.json` | an older key file became profiles, named after their providers |
 
 ## Installing the plugin
 

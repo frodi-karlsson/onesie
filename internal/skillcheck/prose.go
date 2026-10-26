@@ -29,7 +29,7 @@ var (
 //   - A onesie command in a code span or on a line of a fenced block. It may follow a pipe, a chain
 //     or env assignments, as in `ONESIE_MOCK=x onesie ...`, or sit inside `$(...)`. Its flags are
 //     checked against the help of the command they follow, the root before any subcommand and,
-//     after `onesie calibrate` or `onesie auth set`, that subcommand's own. A bare word where a
+//     after `onesie calibrate` or `onesie profile create`, that subcommand's own. A bare word where a
 //     subcommand can stand must be one. The command ends at a pipe, a chain, a redirection, a
 //     closing parenthesis or a lone --, so `onesie ... | jq -c --unbuffered` checks nothing of jq.
 //   - A code span whose first word is a --flag, such as `--ask NAME=@FILE`. Only that flag counts.

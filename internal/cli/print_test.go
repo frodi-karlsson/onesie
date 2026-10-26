@@ -1909,7 +1909,7 @@ func runClosed(t *testing.T, args []string, stdin, baseURL string) (string, int)
 	var errOut bytes.Buffer
 
 	// ONESIE_CONFIG_DIR points at an empty directory for the same reason runOfflineStdin does it: the
-	// cases with no base URL build no client, and a credential file in the developer's home would
+	// cases with no base URL build no client, and a profiles file in the developer's home would
 	// have them build one.
 	opts := []RootOption{
 		WithStdin(strings.NewReader(stdin)),
@@ -2005,7 +2005,7 @@ func runOfflineStdin(t *testing.T, args []string, stdin string) (string, string,
 	// No client factory, so the real factory runs on a machine with no key, and a case that exits
 	// ok reached no network.
 	//
-	// ONESIE_CONFIG_DIR points at an empty directory, because the credential file would otherwise
+	// ONESIE_CONFIG_DIR points at an empty directory, because a profiles file would otherwise
 	// read the developer's own key into these tests.
 	root := NewRootCmd(
 		BuildInfo{Version: "1.2.3"},

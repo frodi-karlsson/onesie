@@ -127,21 +127,21 @@ func TestKeychain(t *testing.T) {
 func TestKeychainAccount(t *testing.T) {
 	t.Parallel()
 
-	t.Run("should name the provider and differ between credential files", func(t *testing.T) {
+	t.Run("should start with the profile name and differ between profiles files", func(t *testing.T) {
 		t.Parallel()
 
-		first := creds.KeychainAccount("typesafe", "/a/credentials.json")
-		second := creds.KeychainAccount("typesafe", "/b/credentials.json")
+		first := creds.KeychainAccount("work", "/a/profiles.json")
+		second := creds.KeychainAccount("work", "/b/profiles.json")
 
-		if !strings.HasPrefix(first, "typesafe@") {
-			t.Errorf("account = %q, want it to start with typesafe@", first)
+		if !strings.HasPrefix(first, "work@") {
+			t.Errorf("account = %q, want it to start with work@", first)
 		}
 
 		if first == second {
-			t.Errorf("two credential files share the account %q", first)
+			t.Errorf("two profiles files share the account %q", first)
 		}
 
-		if again := creds.KeychainAccount("typesafe", "/a/credentials.json"); again != first {
+		if again := creds.KeychainAccount("work", "/a/profiles.json"); again != first {
 			t.Errorf("account = %q then %q, want it stable", first, again)
 		}
 	})

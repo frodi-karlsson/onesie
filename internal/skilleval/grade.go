@@ -21,7 +21,7 @@ import (
 )
 
 var (
-	subcommands = []string{"auth", "completion", "help", "version"}
+	subcommands = []string{"completion", "help", "profile", "version"}
 
 	fileFlags = []string{"file", "state-file"}
 

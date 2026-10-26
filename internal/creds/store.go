@@ -13,6 +13,7 @@ import (
 
 const (
 	maxCredentialBytes = 1 << 20
+	credentialKind     = "credential file"
 
 	// StoreKeychain marks an entry whose key lives in the OS keychain rather than in the file.
 	StoreKeychain = "keychain"
@@ -24,6 +25,7 @@ func NewStore(opts ...StoreOption) Store {
 		open:       os.Open,
 		stat:       os.Stat,
 		lstat:      os.Lstat,
+		readlink:   os.Readlink,
 		mkdirAll:   os.MkdirAll,
 		rename:     os.Rename,
 		remove:     os.Remove,
@@ -40,42 +42,43 @@ func NewStore(opts ...StoreOption) Store {
 	return store
 }
 
-// WithOpen replaces how a Store opens the credential file and its directory.
+// WithOpen replaces how a Store opens the file it reads and the directory it syncs.
 func WithOpen(open func(string) (*os.File, error)) StoreOption {
 	return func(s *Store) {
 		s.open = open
 	}
 }
 
-// WithStat replaces how a Store reads the mode of a credential file it could not open.
+// WithStat replaces how a Store reads the mode of a file it could not open.
 func WithStat(stat func(string) (fs.FileInfo, error)) StoreOption {
 	return func(s *Store) {
 		s.stat = stat
 	}
 }
 
-// WithLstat replaces how a Store inspects the credential path before removing it.
+// WithLstat replaces how a Store inspects a path before removing it.
 func WithLstat(lstat func(string) (fs.FileInfo, error)) StoreOption {
 	return func(s *Store) {
 		s.lstat = lstat
 	}
 }
 
-// WithMkdirAll replaces how a Store creates the credential file's directory.
+// WithMkdirAll replaces how a Store creates the directory of the file it writes.
 func WithMkdirAll(mkdirAll func(string, os.FileMode) error) StoreOption {
 	return func(s *Store) {
 		s.mkdirAll = mkdirAll
 	}
 }
 
-// WithRename replaces how a Store moves the temporary file onto the credential path.
+// WithRename replaces how a Store moves the temporary file onto the path of the file it writes.
 func WithRename(rename func(oldpath, newpath string) error) StoreOption {
 	return func(s *Store) {
 		s.rename = rename
 	}
 }
 
-// WithRemove replaces how a Store deletes the credential file and a leftover temporary file.
+// WithRemove replaces how a Store deletes profiles.json, the credentials.json it replaces and a
+// leftover temporary file.
 func WithRemove(remove func(string) error) StoreOption {
 	return func(s *Store) {
 		s.remove = remove
@@ -114,12 +117,13 @@ func WithGOOS(goos string) StoreOption {
 // filesystem that fails it.
 type StoreOption func(*Store)
 
-// Store reads and writes credential files. Build one with NewStore, since the zero value has no
-// filesystem to call. Its zero value also assumes a unix filesystem.
+// Store reads and writes the credential and profiles files. Build one with NewStore, since the zero
+// value has no filesystem to call. Its zero value also assumes a unix filesystem.
 type Store struct {
 	open       func(string) (*os.File, error)
 	stat       func(string) (fs.FileInfo, error)
 	lstat      func(string) (fs.FileInfo, error)
+	readlink   func(string) (string, error)
 	mkdirAll   func(string, os.FileMode) error
 	rename     func(oldpath, newpath string) error
 	remove     func(string) error
@@ -130,8 +134,25 @@ type Store struct {
 }
 
 // Load reads the credential file, refusing one another user can reach, and found is false when it
-// does not exist. Check err first, since a failed Close returns a File beside the error.
+// does not exist.
 func (s Store) Load(path string) (file File, found bool, err error) {
+	data, found, err := s.read(path, credentialKind)
+	if err != nil || !found {
+		return File{}, false, err
+	}
+
+	if decodeErr := json.Unmarshal(data, &file); decodeErr != nil || !file.complete() {
+		// An empty or absent api_key is the same failure as a malformed file. Returning it as
+		// found would convert a file holding nothing into a profile with no key.
+		return File{}, false, fmt.Errorf(
+			"onesie: credential file %s is not a JSON object with a 'providers' map of 'api_key' strings or keychain entries",
+			path)
+	}
+
+	return file, true, nil
+}
+
+func (s Store) read(path, kind string) (data []byte, found bool, err error) {
 	// A named pipe at this path blocks the open until something writes to it. Known and out of
 	// scope: the fix needs O_NONBLOCK behind a unix build tag, and planting the pipe needs write
 	// access to a 0700 directory.
@@ -141,7 +162,7 @@ func (s Store) Load(path string) (file File, found bool, err error) {
 	// needs a second process between the two calls.
 	handle, err := s.open(path)
 	if errors.Is(err, os.ErrNotExist) {
-		return File{}, false, nil
+		return nil, false, nil
 	}
 
 	if err != nil {
@@ -153,13 +174,13 @@ func (s Store) Load(path string) (file File, found bool, err error) {
 			// target, and Lstat would name the link's own mode instead. Measured on a link to an
 			// 0o060 file: Lstat reports 755, Stat reports 60.
 			if info, statErr := s.stat(path); statErr == nil {
-				if modeErr := s.checkMode(path, info.Mode()); modeErr != nil {
-					return File{}, false, modeErr
+				if modeErr := s.checkMode(path, kind, info.Mode()); modeErr != nil {
+					return nil, false, modeErr
 				}
 			}
 		}
 
-		return File{}, false, fmt.Errorf("onesie: reading %s: %w", path, err)
+		return nil, false, fmt.Errorf("onesie: reading %s: %w", path, err)
 	}
 
 	// Joined into the named return rather than discarded. An empty branch would trip staticcheck
@@ -170,47 +191,36 @@ func (s Store) Load(path string) (file File, found bool, err error) {
 
 	info, err := handle.Stat()
 	if err != nil {
-		return File{}, false, fmt.Errorf("onesie: reading %s: %w", path, err)
+		return nil, false, fmt.Errorf("onesie: reading %s: %w", path, err)
 	}
 
-	// Ahead of the mode check, since a directory or a device node is not a credential file at a bad
+	// Ahead of the mode check, since a directory or a device node is not a config file at a bad
 	// mode, and no chmod 600 would fix it.
 	if !info.Mode().IsRegular() {
-		return File{}, false, fmt.Errorf("onesie: credential file %s is not a regular file", path)
+		return nil, false, fmt.Errorf("onesie: %s %s is not a regular file", kind, path)
 	}
 
-	if modeErr := s.checkMode(path, info.Mode()); modeErr != nil {
-		return File{}, false, modeErr
+	if modeErr := s.checkMode(path, kind, info.Mode()); modeErr != nil {
+		return nil, false, modeErr
 	}
 
 	// One byte past the cap, so a file at exactly the cap still loads and the first byte beyond it
 	// is refused. A plain limit would truncate instead, and a truncated file that still parsed would
 	// hand back half a credential as if it were whole.
-	data, err := io.ReadAll(io.LimitReader(handle, maxCredentialBytes+1))
+	data, err = io.ReadAll(io.LimitReader(handle, maxCredentialBytes+1))
 	if err != nil {
-		return File{}, false, fmt.Errorf("onesie: reading %s: %w", path, err)
+		return nil, false, fmt.Errorf("onesie: reading %s: %w", path, err)
 	}
 
 	if len(data) > maxCredentialBytes {
-		return File{}, false, fmt.Errorf(
-			"onesie: credential file %s is larger than %d bytes", path, maxCredentialBytes)
+		return nil, false, fmt.Errorf(
+			"onesie: %s %s is larger than %d bytes", kind, path, maxCredentialBytes)
 	}
 
-	if decodeErr := json.Unmarshal(data, &file); decodeErr != nil || !file.complete() {
-		// An empty or absent api_key is the same failure as a malformed file. Returning it as
-		// found would make auth status report a source for a file holding nothing, and would send
-		// an empty key to the client.
-		return File{}, false, fmt.Errorf(
-			"onesie: credential file %s is not a JSON object with a 'providers' map of 'api_key' strings or keychain entries",
-			path)
-	}
-
-	return file, true, nil
+	return data, true, nil
 }
 
-// Save writes the credential file atomically through a renamed temporary file, replacing a symlink
-// at path. A non nil warning means the file was written but its mode could not be set.
-func (s Store) Save(path string, file File) (*ModeWarning, error) {
+func (s Store) write(path string, data []byte, pattern string) (*ModeWarning, error) {
 	// A symlink at the directory is resolved, since creating it and the temporary file both walk
 	// that path. Whoever can replace the directory already owns the config location.
 	dir := filepath.Dir(path)
@@ -218,18 +228,10 @@ func (s Store) Save(path string, file File) (*ModeWarning, error) {
 		return nil, fmt.Errorf("onesie: creating %s: %w", dir, err)
 	}
 
-	// Unreachable while File is plain strings, since json.Marshal cannot fail on those. A future
-	// field of any other type makes it reachable, and json.UnsupportedValueError.Error embeds the
-	// offending value verbatim, so such a field must keep the key out of this %w.
-	data, err := json.Marshal(file)
-	if err != nil {
-		return nil, fmt.Errorf("onesie: encoding the credential file: %w", err)
-	}
-
 	// Created beside the target, because a rename across filesystems is not atomic and os.TempDir
 	// may be on another one. os.CreateTemp opens with O_CREATE and O_EXCL at 0600, which keeps a
 	// planted symlink from redirecting the key.
-	temp, err := s.createTemp(dir, ".credentials-*")
+	temp, err := s.createTemp(dir, pattern)
 	if err != nil {
 		return nil, fmt.Errorf("onesie: creating a temporary file in %s: %w", dir, err)
 	}
@@ -313,16 +315,14 @@ func (e *ModeWarning) Error() string {
 		"warning: could not set mode 600 on %s. The key is not protected by the filesystem", e.Path)
 }
 
-// Clear deletes the credential file. An absent file is not an error, since auth clear is defined to
-// exit 0 either way.
-func (s Store) Clear(path string) error {
-	// os.Remove calls rmdir on a directory, so without this Clear would delete a directory it was
+func (s Store) clear(path, kind string) error {
+	// os.Remove calls rmdir on a directory, so without this clear would delete a directory it was
 	// never asked to touch. os.Lstat, since a symlink here is the link to remove.
 	//
-	// Only a directory is refused, so Clear is deliberately laxer than Load. auth clear is asked to
-	// leave nothing at the path, even something onesie itself will not read.
+	// Only a directory is refused, so clear is deliberately laxer than Load. profile delete is asked
+	// to leave nothing at the path, even something onesie itself will not read.
 	if info, statErr := s.lstat(path); statErr == nil && info.IsDir() {
-		return fmt.Errorf("onesie: credential file %s is not a regular file", path)
+		return fmt.Errorf("onesie: %s %s is not a regular file", kind, path)
 	}
 
 	if err := s.remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
@@ -363,32 +363,32 @@ func (f File) complete() bool {
 	return true
 }
 
-func (s Store) checkMode(path string, mode os.FileMode) error {
+func (s Store) checkMode(path, kind string, mode os.FileMode) error {
 	// Windows does not carry unix permission bits, so the check would reject every file or accept
 	// every file depending on how the bits happen to be reported.
 	if s.goos == "windows" {
 		return nil
 	}
 
-	// 0o077 rather than 0o044. A group writable credential file is as bad as a readable one, since
-	// whoever can replace it can substitute a key whose traffic they see. The message says
-	// accessible rather than readable because of it.
+	// 0o077 rather than 0o044. A group writable profiles.json or credentials.json is as bad as a
+	// readable one, since whoever can replace it can substitute a key whose traffic they see.
 	if mode.Perm()&0o077 == 0 {
 		return nil
 	}
 
-	return &ReadableError{Path: path, Mode: mode.Perm()}
+	return &ReadableError{Path: path, Kind: kind, Mode: mode.Perm()}
 }
 
-// ReadableError means the credential file's mode lets someone other than its owner reach it.
+// ReadableError means a file's mode lets someone other than its owner reach it. Kind names the
+// file, as profiles file or credential file.
 type ReadableError struct {
 	Path string
+	Kind string
 	Mode os.FileMode
 }
 
 // Error names the path and the mode, never the contents.
 func (e *ReadableError) Error() string {
 	return fmt.Sprintf(
-		"onesie: credential file %s is accessible by others, mode %o. Run chmod 600 on it",
-		e.Path, e.Mode)
+		"onesie: %s %s is readable or writable by its group or others, mode %o. Run chmod 600 on it", e.Kind, e.Path, e.Mode)
 }

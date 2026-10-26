@@ -415,10 +415,12 @@ func TestMockAnswers(t *testing.T) {
 			wantCode: ExitUsage,
 		},
 		{
-			name:     "should refuse auth test under --mock",
-			args:     []string{"auth", "test"},
-			mock:     mockAll,
-			stderr:   []string{"onesie: auth reads and writes a real key, so it does not run under --mock. Drop it"},
+			name: "should refuse profile test under --mock",
+			args: []string{"profile", "test"},
+			mock: mockAll,
+			stderr: []string{
+				"onesie: profile reads and writes real configuration, so it does not run under --mock. Drop it",
+			},
 			wantCode: ExitUsage,
 		},
 		{
@@ -527,6 +529,47 @@ func TestMockAnswers(t *testing.T) {
 		if calls := chain.calls(); calls != 0 {
 			t.Errorf("keychain calls = %d, want none", calls)
 		}
+	})
+
+	t.Run("should answer with the provider and the model of the profile", func(t *testing.T) {
+		t.Parallel()
+
+		dir := configWith(t, `{"default":"lv","profiles":{"lv":{"provider":"levanto","api_key":"SECRET-LV"},`+
+			`"or":{"provider":"openrouter","store":"keychain","account":"or@abc","model":"typesafe/jev-1.13"}}}`)
+		chain := workingKeychain(nil)
+
+		asks := []struct {
+			args  []string
+			model string
+		}{
+			{args: with("-o", "json", "--state", "x"), model: "sage-latest"},
+			{args: with("-o", "json", "--state", "x", "--profile", "or"), model: "typesafe/jev-1.13"},
+		}
+
+		for _, ask := range asks {
+			out, errOut, code := runMocked(t, t.Context(), append(ask.args, "--mock", writeMock(t, mockAll)), "",
+				map[string]string{"ONESIE_CONFIG_DIR": dir}, nil, WithKeychain(chain))
+
+			checkMocked(t, out, errOut, code, ExitOK, fileOf(`{"model":"`+ask.model+`",`+mockAllJSON+"}\n"),
+				nil, nil, nil)
+		}
+
+		if calls := chain.calls(); calls != 0 {
+			t.Errorf("keychain calls = %d, want none", calls)
+		}
+	})
+
+	t.Run("should refuse a profile that does not exist", func(t *testing.T) {
+		t.Parallel()
+
+		dir := configWith(t, `{"profiles":{"lv":{"provider":"levanto","api_key":"SECRET-LV"}}}`)
+
+		out, errOut, code := runMocked(t, t.Context(),
+			with("--state", "x", "--profile", "nope", "--mock", writeMock(t, mockAll)), "",
+			map[string]string{"ONESIE_CONFIG_DIR": dir}, nil)
+
+		checkMocked(t, out, errOut, code, ExitUsage, nil, nil, nil,
+			[]string{"onesie: --profile names profile 'nope', which does not exist. The profiles are 'lv'"})
 	})
 }
 
@@ -712,10 +755,12 @@ func TestMockSource(t *testing.T) {
 			wantCode: ExitUsage,
 		},
 		{
-			name:     "should refuse auth status under ONESIE_MOCK",
-			args:     []string{"auth", "status"},
-			env:      func(path string) map[string]string { return map[string]string{envMock: path} },
-			stderr:   []string{"onesie: auth reads and writes a real key, so it does not run under ONESIE_MOCK. Unset it"},
+			name: "should refuse profile show under ONESIE_MOCK",
+			args: []string{"profile", "show"},
+			env:  func(path string) map[string]string { return map[string]string{envMock: path} },
+			stderr: []string{
+				"onesie: profile reads and writes real configuration, so it does not run under ONESIE_MOCK. Unset it",
+			},
 			wantCode: ExitUsage,
 		},
 	}

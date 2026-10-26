@@ -91,6 +91,28 @@ func TestNewRootCmd(t *testing.T) {
 				"which a markdown table does not keep. Use -o json, values, csv or tsv"},
 		},
 		{
+			name:     "should refuse an empty --base-url",
+			args:     []string{"is this urgent", "--state", "site down", "--base-url", ""},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: --base-url is empty. Name one, or leave the flag out"},
+		},
+		{
+			name:     "should refuse a whitespace --base-url on a dry run",
+			args:     []string{"is this urgent", "--state", "site down", "--print-request", "--base-url", " "},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: --base-url is empty. Name one, or leave the flag out"},
+		},
+		{
+			name: "should refuse an empty --base-url on calibrate",
+			args: []string{
+				"calibrate", "--ask", "u=is this urgent", "-i", "jsonl", "--map", ".body", "--label", "u=.u",
+				"--base-url", "",
+			},
+			stdin:    `{"body":"x","u":true}` + "\n",
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: --base-url is empty. Name one, or leave the flag out"},
+		},
+		{
 			name:     "should print help when given no arguments",
 			args:     []string{},
 			wantCode: cli.ExitOK,
@@ -143,11 +165,11 @@ func TestNewRootCmd(t *testing.T) {
 			sends:    []string{`"instructions":"urgent"`},
 		},
 		{
-			name:     "should ask a one word question two edits from a short subcommand",
-			args:     []string{"author", "--print-request"},
+			name:     "should ask a one word question two edits from a seven letter subcommand",
+			args:     []string{"profit", "--print-request"},
 			stdin:    "x",
 			wantCode: cli.ExitOK,
-			contains: []string{`"instructions":"author"`},
+			contains: []string{`"instructions":"profit"`},
 		},
 		{
 			name:     "should ask a near miss placed after --",
@@ -274,22 +296,41 @@ func TestNewRootCmd(t *testing.T) {
 		},
 		{
 			name:     "should refuse an unknown topic under a subcommand",
-			args:     []string{"help", "auth", "nope"},
+			args:     []string{"help", "profile", "nope"},
 			wantCode: cli.ExitUsage,
-			contains: []string{"onesie: unknown help topic 'auth nope'"},
+			contains: []string{"onesie: unknown help topic 'profile nope'"},
 			absent:   []string{"Usage:"},
 		},
 		{
 			name:     "should print a subcommand's help for its help topic",
-			args:     []string{"help", "auth", "set"},
+			args:     []string{"help", "profile", "create"},
 			wantCode: cli.ExitOK,
-			contains: []string{"onesie auth set"},
+			contains: []string{"onesie profile create"},
 		},
 		{
 			name:     "should print the root help for help with no topic",
 			args:     []string{"help"},
 			wantCode: cli.ExitOK,
 			contains: []string{"Usage:", "onesie [question]"},
+		},
+		{
+			name:     "should say in the root help that a run uses a profile",
+			args:     []string{"--help"},
+			wantCode: cli.ExitOK,
+			contains: []string{"onesie profile create", "--profile string"},
+		},
+		{
+			name:     "should exit 2 for auth status, since auth is no longer a subcommand",
+			args:     []string{"auth", "status"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"accepts at most 1 arg(s), received 2"},
+		},
+		{
+			name:     "should ask auth as an ordinary one word question",
+			args:     []string{"auth", "--print-request"},
+			stdin:    "x",
+			wantCode: cli.ExitOK,
+			contains: []string{`"instructions":"auth"`},
 		},
 		{
 			name:     "should list --mock in the root help",
@@ -1595,9 +1636,9 @@ func TestNewRootCmd(t *testing.T) {
 				want: "onesie: unknown flag: --print-request. 'version' " + hint,
 			},
 			{
-				name: "should hint for auth",
-				args: []string{"auth", "--print-request"},
-				want: "onesie: unknown flag: --print-request. 'auth' " + hint,
+				name: "should hint for profile",
+				args: []string{"profile", "--print-request"},
+				want: "onesie: unknown flag: --print-request. 'profile' " + hint,
 			},
 			{
 				name: "should hint for completion",
@@ -1973,16 +2014,19 @@ func TestDefaultClientFactory(t *testing.T) {
 		})
 	})
 
-	t.Run("should warn once when the key would cross the network over plain http", func(t *testing.T) {
+	t.Run("should not warn under --allow-http for https, this machine or a refused base url", func(t *testing.T) {
 		t.Parallel()
 
 		tests := []struct {
 			name    string
 			baseURL string
-			warns   bool
+			refused bool
 		}{
-			{name: "should warn for a remote host", baseURL: "http://onesie.invalid", warns: true},
-			{name: "should not warn for https", baseURL: "https://onesie.invalid"},
+			{
+				name:    "should refuse rather than warn for a base url with credentials",
+				baseURL: "http://user:SECRET-pw@onesie.invalid/v1", refused: true,
+			},
+			{name: "should not warn for https", baseURL: "https://127.0.0.1:1"},
 			{name: "should not warn for localhost", baseURL: "http://localhost:1"},
 			{name: "should not warn for a loopback address", baseURL: "http://127.0.0.1:1"},
 			{name: "should not warn for the ipv6 loopback", baseURL: "http://[::1]:1"},
@@ -2006,19 +2050,21 @@ func TestDefaultClientFactory(t *testing.T) {
 				root.SetOut(&out)
 				root.SetErr(&errOut)
 				root.SetArgs([]string{
-					"--list-models", "--base-url", tc.baseURL, "--retries", "0",
+					"--list-models", "--base-url", tc.baseURL, "--allow-http", "--retries", "0",
 					"--timeout", "1",
 				})
 
 				cli.Execute(t.Context(), root)
 
-				want := "warning: " + tc.baseURL + " is plain http, so the API key crosses the network " +
-					"unencrypted\n"
-				if got := strings.Count(errOut.String(), want); got != map[bool]int{true: 1, false: 0}[tc.warns] {
-					t.Errorf("stderr = %q, want the warning %v", errOut.String(), tc.warns)
+				if strings.Contains(errOut.String(), "SECRET-") {
+					t.Error("stderr carries the base URL's password")
 				}
 
-				if !tc.warns && strings.Contains(errOut.String(), "warning") {
+				if refusal := "must be a plain URL with no credentials"; tc.refused != strings.Contains(errOut.String(), refusal) {
+					t.Errorf("stderr = %q, want the refusal %v", errOut.String(), tc.refused)
+				}
+
+				if strings.Contains(errOut.String(), "warning") {
 					t.Errorf("stderr = %q, want no warning", errOut.String())
 				}
 			})
@@ -2035,15 +2081,21 @@ func TestDefaultClientFactory(t *testing.T) {
 			flag     string
 			env      string
 			stored   string
+			userinfo string
 			spelled  string
 			wantWarn bool
+			refused  bool
 		}{
 			{name: "should warn for --base-url ending in /v1", flag: "/v1", spelled: "--base-url", wantWarn: true},
 			{name: "should warn for --base-url ending in /v1/", flag: "/v1/", spelled: "--base-url", wantWarn: true},
+			{
+				name: "should refuse rather than warn for a base url with credentials", flag: "/v1",
+				userinfo: "user:SECRET-pw@", refused: true,
+			},
 			{name: "should warn for TYPESAFE_BASE_URL ending in /v1", env: "/v1", spelled: onesie.EnvBaseURL, wantWarn: true},
 			{
-				name: "should name the credential file for a stored base URL ending in /v1", stored: "/v1",
-				spelled: "the base URL in the credential file", wantWarn: true,
+				name: "should name the profile's base_url when it ends in /v1", stored: "/v1",
+				spelled: "the profile's base_url", wantWarn: true,
 			},
 			{name: "should not warn for a proxy prefix that is not /v1", flag: "/proxy"},
 			{name: "should not warn for a bare host", flag: "/"},
@@ -2060,21 +2112,22 @@ func TestDefaultClientFactory(t *testing.T) {
 				})
 				defer srv.Close()
 
-				env := map[string]string{onesie.EnvAPIKey: "test"}
+				config := t.TempDir()
+				env := map[string]string{onesie.EnvAPIKey: "test", "ONESIE_CONFIG_DIR": config}
 				args := []string{"is this urgent", "-i", "lines", "-o", "values", "--retries", "0"}
-				credentials := filepath.Join(t.TempDir(), "credentials.json")
 
 				if tc.stored != "" {
 					delete(env, onesie.EnvAPIKey)
 
-					stored := `{"providers":{"typesafe":{"api_key":"test","base_url":"` + srv.URL + tc.stored + `"}}}`
-					if err := os.WriteFile(credentials, []byte(stored), 0o600); err != nil {
-						t.Fatalf("writing the credential file: %v", err)
+					stored := `{"default":"proxy","profiles":{"proxy":{"provider":"typesafe","api_key":"test",` +
+						`"base_url":"` + srv.URL + tc.stored + `"}}}`
+					if err := os.WriteFile(filepath.Join(config, "profiles.json"), []byte(stored), 0o600); err != nil {
+						t.Fatalf("writing the profiles file: %v", err)
 					}
 				}
 
 				if tc.flag != "" {
-					args = append(args, "--base-url", srv.URL+tc.flag)
+					args = append(args, "--base-url", strings.Replace(srv.URL, "//", "//"+tc.userinfo, 1)+tc.flag)
 				}
 
 				if tc.env != "" {
@@ -2087,7 +2140,6 @@ func TestDefaultClientFactory(t *testing.T) {
 					cli.BuildInfo{Version: "1.2.3"},
 					cli.WithKeychain(offKeychain{}),
 					cli.WithStdin(strings.NewReader("one\ntwo\n")),
-					cli.WithCredentialPath(func() (string, error) { return credentials, nil }),
 					cli.WithStdinTTY(false),
 					cli.WithStdoutTTY(false),
 					cli.WithLookupEnv(func(name string) (string, bool) {
@@ -2102,6 +2154,14 @@ func TestDefaultClientFactory(t *testing.T) {
 				root.SetArgs(args)
 
 				cli.Execute(t.Context(), root)
+
+				if strings.Contains(errOut.String(), "SECRET-") {
+					t.Error("stderr carries the base URL's password")
+				}
+
+				if refusal := "must be a plain URL with no credentials"; tc.refused != strings.Contains(errOut.String(), refusal) {
+					t.Errorf("stderr = %q, want the refusal %v", errOut.String(), tc.refused)
+				}
 
 				want := "warning: " + tc.spelled + " ends in /v1 and onesie adds the API path itself, " +
 					"so requests go to " + srv.URL + "/v1/v1/systemone\n"

@@ -38,12 +38,12 @@ func liveAnswers(settings rootSettings, flags *runFlags) answererFactory {
 			return nil, err
 		}
 
-		provider, err := resolveProvider(settings, flags)
+		chosen, err := runResolution(settings)
 		if err != nil {
 			return nil, err
 		}
 
-		return newLiveAnswerer(client, provider, flags), nil
+		return newLiveAnswerer(client, chosen.provider, flags), nil
 	}
 }
 

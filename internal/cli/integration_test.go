@@ -1028,31 +1028,32 @@ func TestRequestRoundTripIntegration(t *testing.T) {
 	})
 }
 
-func TestAuthTestIntegration(t *testing.T) {
+func TestProfileTestIntegration(t *testing.T) {
 	requireAPIKey(t)
 
-	t.Run("should authenticate with a key read back from the file", func(t *testing.T) {
-		path := filepath.Join(t.TempDir(), "credentials.json")
+	t.Run("should authenticate with a key read back from the profiles file", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "profiles.json")
 
 		// The key is piped in and never held in a variable this test formats. Every assertion
-		// below is on the source line or the model count, so a failure cannot print it.
-		_, errOut, code := runStored(t, path, []string{"auth", "set"}, os.Getenv("TYPESAFE_API_KEY"))
+		// below is on the key line or the model count, so a failure cannot print it.
+		_, errOut, code := runStored(t, path, []string{"profile", "create", "live", "--provider", "typesafe", "--file"},
+			os.Getenv("TYPESAFE_API_KEY"))
 		if code != cli.ExitOK {
-			t.Fatalf("auth set exit code = %d, stderr:\n%s", code, errOut)
+			t.Fatalf("profile create exit code = %d, stderr:\n%s", code, errOut)
 		}
 
-		out, errOut, code := runStored(t, path, []string{"auth", "test"}, "")
+		out, errOut, code := runStored(t, path, []string{"profile", "test", "live"}, "")
 		if code != cli.ExitOK {
-			t.Fatalf("auth test exit code = %d, stderr:\n%s", code, errOut)
+			t.Fatalf("profile test exit code = %d, stderr:\n%s", code, errOut)
 		}
 
 		// The environment is hidden from this run, so reaching the API at all proves the key came
-		// off disk. This is the one credential path with no offline equivalent.
-		if want := "source: file " + path; !strings.Contains(out, want) {
-			t.Errorf("auth test output = %q, want it to name %s", out, want)
+		// off disk. This is the one key path with no offline equivalent.
+		if !strings.Contains(out, "key: file") {
+			t.Errorf("profile test output = %q, want it to name the file", out)
 		}
 
-		count, err := strconv.Atoi(strings.TrimPrefix(nonEmptyLines(out)[2], "models: "))
+		count, err := strconv.Atoi(strings.TrimPrefix(nonEmptyLines(out)[3], "models: "))
 		if err != nil {
 			t.Fatalf("parsing the model count from %q: %v", out, err)
 		}
@@ -1062,15 +1063,15 @@ func TestAuthTestIntegration(t *testing.T) {
 		}
 
 		if _, err := os.Stat(path); err != nil {
-			t.Fatalf("the credential file is gone before clear: %v", err)
+			t.Fatalf("profiles.json is gone before delete: %v", err)
 		}
 
-		if _, errOut, code = runStored(t, path, []string{"auth", "clear"}, ""); code != cli.ExitOK {
-			t.Fatalf("auth clear exit code = %d, stderr:\n%s", code, errOut)
+		if _, errOut, code = runStored(t, path, []string{"profile", "delete", "live"}, ""); code != cli.ExitOK {
+			t.Fatalf("profile delete exit code = %d, stderr:\n%s", code, errOut)
 		}
 
 		if _, err := os.Stat(path); !os.IsNotExist(err) {
-			t.Errorf("auth clear left the file behind, stat error = %v", err)
+			t.Errorf("profile delete left the file behind, stat error = %v", err)
 		}
 	})
 }
@@ -1158,9 +1159,9 @@ func runStored(t *testing.T, path string, args []string, stdin string) (string, 
 		cli.WithStdin(strings.NewReader(stdin)),
 		cli.WithStdinTTY(false),
 		cli.WithStdoutTTY(false),
-		cli.WithCredentialPath(func() (string, error) { return path, nil }),
-		// The live key is in the environment of whoever runs this suite, and it would otherwise
-		// outrank the file and make the stored key untested.
+		cli.WithProfilesPath(func() (string, error) { return path, nil }),
+		// The live key is in the environment of whoever runs this suite, and hiding it proves the
+		// stored key is the one sent.
 		cli.WithLookupEnv(func(string) (string, bool) { return "", false }),
 		cli.WithKeychain(offKeychain{}),
 	)

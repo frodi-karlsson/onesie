@@ -48,6 +48,7 @@ const (
 	flagRetries       = "retries"
 	flagMaxRetryAfter = "max-retry-after"
 	flagBaseURL       = "base-url"
+	flagAllowHTTP     = "allow-http"
 	flagMap           = "map"
 	flagID            = "id"
 )
@@ -104,23 +105,29 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 	}
 
 	// Installed after the options, since they read the environment lookup and home directory a test
-	// may have replaced, and before the factory, which resolves the credential file through them.
-	if settings.credPath == nil {
-		settings.credPath = credentialPath(settings.lookupEnv, settings.homeDir, settings.goos)
+	// may have replaced, and before the holder and the factory, which resolve the files through them.
+	if settings.profilesPath == nil {
+		settings.profilesPath = profilesLocation(settings.lookupEnv, settings.homeDir, settings.goos)
 	}
 
 	if settings.configDir == nil {
 		settings.configDir = configDir(settings.lookupEnv, settings.homeDir, settings.goos)
 	}
 
-	// The factory reads flags, which are parsed after this returns, so it closes over the pointer.
-	// Installing it only when absent keeps an injected factory winning.
+	// The holder and the factory read flags, which are parsed after this returns, so both close over
+	// the pointer. The holder comes first, since the factory reads through it.
 	var root *cobra.Command
 
+	settings.holder = newHolder(settings, flags, func() io.Writer {
+		return root.ErrOrStderr()
+	})
+
+	// Installed only when absent, so an injected factory wins, for profile test too.
 	if settings.newClient == nil {
-		settings.newClient = defaultClientFactory(info, flags, settings, func() io.Writer {
-			return root.ErrOrStderr()
-		})
+		settings.clientFor = clientBuilder(info, flags, settings)
+		settings.newClient = defaultClientFactory(settings, settings.clientFor)
+	} else {
+		settings.clientFor = ignoringResolution(settings.newClient)
 	}
 
 	recorder := argv.New()
@@ -131,9 +138,14 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 		Long: "onesie is a Unix filter over the System One API, served by TypeSafe, OpenRouter, Berget, Levanto or Cloudflare.\n\n" +
 			"State arrives on stdin, typed answers leave on stdout, and the exit status is " +
 			"usable in a conditional.\n\n" +
-			"The API key comes from the provider's variable, TYPESAFE_API_KEY, OPENROUTER_API_KEY, " +
-			"BERGET_API_KEY, LEVANTO_API_KEY or CLOUDFLARE_API_TOKEN, then from the credential file onesie auth set " +
-			"writes. Cloudflare also needs CLOUDFLARE_ACCOUNT_ID, or a base URL that holds the account.\n\n" +
+			"A run uses a profile from profiles.json in the config dir: the one --profile or ONESIE_PROFILE " +
+			"names, or the default one. A profile holds the provider, its key, in the OS keychain or the " +
+			"file, and optionally a model and a base URL or Cloudflare account. onesie profile create stores " +
+			"one, and onesie profile use makes it the default. --provider or ONESIE_PROVIDER runs without a " +
+			"profile, with the key from the provider's variable, TYPESAFE_API_KEY, OPENROUTER_API_KEY, " +
+			"BERGET_API_KEY, LEVANTO_API_KEY or CLOUDFLARE_API_TOKEN, and so does a run on typesafe when " +
+			"there are no profiles. Cloudflare also needs an account, from the profile, CLOUDFLARE_ACCOUNT_ID " +
+			"or a base URL that holds it.\n\n" +
 			"--mock FILE, or ONESIE_MOCK=FILE, answers from a file instead of the API, with no key and no " +
 			"network, so a gate script can be tested for free.\n\n" +
 			"--cache, or ONESIE_CACHE=1, stores each successful response on disk and answers a repeated " +
@@ -150,7 +162,7 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) (err error) {
 			defer func() {
-				err = withDashQuestionHint(err, cmd.Flags(), settings.args, args)
+				err = withKeyHint(withDashQuestionHint(err, cmd.Flags(), settings.args, args), settings)
 			}()
 
 			positional := ""
@@ -169,6 +181,10 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 				return refused
 			}
 
+			if refused := refuseEmptyBaseURL(cmd, flags); refused != nil {
+				return refused
+			}
+
 			// Ahead of the provider, since the schema is the same for every provider and a bad
 			// ONESIE_PROVIDER should not stand between an editor and it.
 			if flags.printSchema {
@@ -180,8 +196,13 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 			}
 
 			// Ahead of run, since a dry run builds no client and would otherwise never look at it.
-			if _, providerErr := resolveProvider(settings, flags); providerErr != nil {
-				return providerErr
+			// --print-questions prints no provider and no model, so it checks the choice without the file.
+			if flags.printQuestions {
+				if refused := checkChoice(flags, settings.lookupEnv); refused != nil {
+					return refused
+				}
+			} else if _, resolveErr := runResolution(settings); resolveErr != nil {
+				return resolveErr
 			}
 
 			out, resume, err := openOut(settings, flags)
@@ -247,13 +268,18 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 			"on every output line. It runs one record at a time as the input is read, so keep it cheap, "+
 			"such as a field lookup, and -V lists the cap on its length")
 	root.Flags().StringVarP(&flags.model, flagModel, "m", "", "model override")
-	root.PersistentFlags().StringVar(&flags.provider, "provider", "",
-		"typesafe, openrouter, berget, levanto or cloudflare. Defaults to ONESIE_PROVIDER, then typesafe")
+	root.PersistentFlags().Var(choiceValue{value: &flags.provider, set: &flags.providerSet}, flagProvider,
+		"run on this provider without a profile, typesafe, openrouter, berget, levanto or cloudflare. "+
+			"Overrides ONESIE_PROVIDER")
+	root.PersistentFlags().Var(choiceValue{value: &flags.profile, set: &flags.profileSet}, flagProfile,
+		"the profile a run uses, from profiles.json in the config dir. Also ONESIE_PROFILE, and otherwise "+
+			"the default profile, which onesie profile use sets")
 	root.PersistentFlags().StringVar(&flags.mock, "mock", "",
 		"answer from this file instead of the API. Also ONESIE_MOCK. The file is an object keyed by question id, "+
 			`as {"answer":0.9,"team":"billing"}, or one line per record in the shape -o json writes. `+
 			"A lone line that carries id, line, model, usage, assert, abstain or an error object is one record")
 	root.Flags().StringVar(&flags.baseURL, flagBaseURL, "", "api root override")
+	root.Flags().BoolVar(&flags.allowHTTP, flagAllowHTTP, false, allowHTTPHelp)
 	root.Flags().StringVarP(&flags.file, "file", "f", "",
 		"question file or request body, or the name of one saved in .onesie/questions or the config dir, "+
 			"or of a built-in starter set")
@@ -305,7 +331,7 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 		"where the answers land in the merged record, implies --merge")
 
 	root.AddCommand(newVersionCmd(info))
-	root.AddCommand(newAuthCmd(settings, flags))
+	root.AddCommand(newProfileCmd(settings, flags))
 	root.AddCommand(newCalibrateCmd(settings, flags))
 	root.AddCommand(newQuestionsCmd(settings))
 	root.AddCommand(newCacheCmd(settings))
@@ -327,6 +353,15 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 	asksNothing(root.Flags(), "help")
 
 	return root
+}
+
+func refuseEmptyBaseURL(cmd *cobra.Command, flags *runFlags) error {
+	// A flag given is a choice made, as an empty --profile is, so it is not read as unset.
+	if cmd.Flags().Changed(flagBaseURL) && strings.TrimSpace(flags.baseURL) == "" {
+		return fmt.Errorf("onesie: --%s is empty. Name one, or leave the flag out", flagBaseURL)
+	}
+
+	return nil
 }
 
 func refuseUnknownHelpTopics(root *cobra.Command) {
@@ -495,8 +530,8 @@ func WithLookupEnv(lookup func(string) (string, bool)) RootOption {
 	}
 }
 
-// WithHomeDir replaces how the home directory is found, which the credential file falls back to
-// when no environment variable names its location.
+// WithHomeDir replaces how the home directory is found, which the config dir and profiles.json fall
+// back to when no environment variable names their location.
 func WithHomeDir(home func() (string, error)) RootOption {
 	return func(s *rootSettings) {
 		s.homeDir = home
@@ -525,22 +560,23 @@ func WithTerminalWidth(width func() (int, bool)) RootOption {
 	}
 }
 
-// WithCredentialPath replaces how the credential file's location is resolved, so a test needs no
-// real home directory.
-func WithCredentialPath(path func() (string, error)) RootOption {
+// WithProfilesPath replaces how the profiles file's location is resolved, so a test needs no real
+// home directory. Its directory also holds the credentials.json a first read converts.
+func WithProfilesPath(path func() (string, error)) RootOption {
 	return func(s *rootSettings) {
-		s.credPath = path
+		s.profilesPath = path
 	}
 }
 
-// WithCredentialStore replaces the store the auth subcommands read and write through.
+// WithCredentialStore sets the store that reads and writes profiles.json and converts a
+// credentials.json.
 func WithCredentialStore(store creds.Store) RootOption {
 	return func(s *rootSettings) {
 		s.credStore = store
 	}
 }
 
-// WithKeychain replaces the OS keychain the auth subcommands store keys in.
+// WithKeychain replaces the OS keychain profiles keep their keys in.
 func WithKeychain(keychain Keychain) RootOption {
 	return func(s *rootSettings) {
 		s.keychain = keychain
@@ -580,7 +616,9 @@ func schemaURLOf(info BuildInfo) string {
 
 type rootSettings struct {
 	args          []string
+	holder        *holder
 	newClient     clientFactory
+	clientFor     resolvedClientFactory
 	stdin         io.Reader
 	stdinTTY      bool
 	stdoutTTY     bool
@@ -601,7 +639,7 @@ type rootSettings struct {
 	now           func() time.Time
 	stdinClock    input.Clock
 	terminalWidth func() (int, bool)
-	credPath      func() (string, error)
+	profilesPath  func() (string, error)
 	credStore     creds.Store
 	keychain      Keychain
 	readSecret    func() (string, error)
@@ -612,7 +650,8 @@ type rootSettings struct {
 	builtIns      func() []string
 }
 
-// Keychain is where auth set stores a key when the OS has one, one item per account.
+// Keychain is where profile create and profile update store a key when the OS has one, one item per
+// account.
 type Keychain interface {
 	Get(account string) (string, error)
 	Set(account, key string) error
@@ -643,13 +682,13 @@ func widthOf(f *os.File) func() (int, bool) {
 	}
 }
 
-func credentialPath(
+func profilesLocation(
 	lookupEnv func(string) (string, bool),
 	homeDir func() (string, error),
 	goos string,
 ) func() (string, error) {
 	return func() (string, error) {
-		return creds.Path(configEnv(lookupEnv, homeDir, goos))
+		return creds.ProfilesPath(configEnv(lookupEnv, homeDir, goos))
 	}
 }
 
@@ -681,10 +720,29 @@ func readHiddenSecret() (string, error) {
 }
 
 func isTerminal(f *os.File) bool {
-	info, err := f.Stat()
-	if err != nil {
-		return false
+	// A character device is not enough, since /dev/null is one and a hidden prompt cannot read it.
+	return term.IsTerminal(int(f.Fd()))
+}
+
+type choiceValue struct {
+	value *string
+	set   *bool
+}
+
+func (c choiceValue) String() string {
+	if c.value == nil {
+		return ""
 	}
 
-	return info.Mode()&os.ModeCharDevice != 0
+	return *c.value
+}
+
+func (c choiceValue) Set(value string) error {
+	*c.value, *c.set = value, true
+
+	return nil
+}
+
+func (choiceValue) Type() string {
+	return "string"
 }

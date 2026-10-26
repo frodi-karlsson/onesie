@@ -1,7 +1,10 @@
 package cli
 
 import (
+	"bytes"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -87,6 +90,127 @@ func TestWithTerminalWidth(t *testing.T) {
 
 			if got := strings.Count(out, "█"); got != tc.wantBars {
 				t.Errorf("bar cells = %d, want %d\nstdout:\n%s", got, tc.wantBars, out)
+			}
+		})
+	}
+}
+
+func TestProfilesLocation(t *testing.T) {
+	t.Parallel()
+
+	t.Run("should resolve profiles.json from APPDATA for the goos it is given", func(t *testing.T) {
+		t.Parallel()
+
+		env := lookupFrom(map[string]string{"APPDATA": "appdata"})
+		home := func() (string, error) { return "home", nil }
+
+		for goos, want := range map[string]string{
+			"windows": filepath.Join("appdata", "onesie", "profiles.json"),
+			"linux":   filepath.Join("home", ".config", "onesie", "profiles.json"),
+		} {
+			if got, err := profilesLocation(env, home, goos)(); err != nil || got != want {
+				t.Errorf("%s: path = %q, %v, want %q", goos, got, err, want)
+			}
+		}
+	})
+
+	tests := []struct {
+		name     string
+		variable string
+		// nested names the directories the config dir sits under in the one the variable holds.
+		nested []string
+	}{
+		{name: "should find profiles.json under the home directory", nested: []string{".config", "onesie"}},
+		{name: "should find profiles.json in ONESIE_CONFIG_DIR", variable: "ONESIE_CONFIG_DIR"},
+		{name: "should find profiles.json under XDG_CONFIG_HOME", variable: "XDG_CONFIG_HOME", nested: []string{"onesie"}},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			dir := t.TempDir()
+			writeConfig(t, filepath.Join(append([]string{dir}, tc.nested...)...), "profiles.json",
+				`{"default":"work","profiles":{"work":{"provider":"typesafe","api_key":"SECRET-WORK"}}}`, 0)
+
+			env := map[string]string{}
+			if tc.variable != "" {
+				env[tc.variable] = dir
+			}
+
+			var out, errOut bytes.Buffer
+
+			// Only the environment and the home directory are replaced, so the ordering NewRootCmd
+			// builds from them is the one under test.
+			root := NewRootCmd(BuildInfo{Version: "1.2.3"},
+				WithLookupEnv(lookupFrom(env)),
+				WithHomeDir(func() (string, error) { return dir, nil }),
+				WithKeychain(noKeychain()))
+			root.SetOut(&out)
+			root.SetErr(&errOut)
+			root.SetArgs([]string{"profile", "list"})
+
+			if code := Execute(t.Context(), root); code != ExitOK {
+				t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, ExitOK, errOut.String())
+			}
+
+			if !strings.Contains(out.String(), "* work") {
+				t.Errorf("stdout = %q, want the profile from %v marked", out.String(), tc.nested)
+			}
+		})
+	}
+}
+
+func TestIsTerminal(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		open func(t *testing.T) *os.File
+	}{
+		{
+			// A character device that is not a terminal, as stdin is under < /dev/null.
+			name: "should not take the null device for a terminal",
+			open: func(t *testing.T) *os.File {
+				t.Helper()
+
+				f, err := os.Open(os.DevNull)
+				if err != nil {
+					t.Fatalf("opening the null device: %v", err)
+				}
+
+				return f
+			},
+		},
+		{
+			name: "should not take a regular file for a terminal",
+			open: func(t *testing.T) *os.File {
+				t.Helper()
+
+				path := filepath.Join(t.TempDir(), "stdin")
+				if err := os.WriteFile(path, nil, 0o600); err != nil {
+					t.Fatalf("writing the file: %v", err)
+				}
+
+				f, err := os.Open(path)
+				if err != nil {
+					t.Fatalf("opening the file: %v", err)
+				}
+
+				return f
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := tc.open(t)
+			defer f.Close()
+
+			if isTerminal(f) {
+				t.Errorf("isTerminal(%s) = true, want false", f.Name())
 			}
 		})
 	}
