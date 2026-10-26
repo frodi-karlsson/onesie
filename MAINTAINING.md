@@ -35,8 +35,10 @@ gitignored `.env`, and skips the cases of a provider whose key is absent:
 make test-integration
 ```
 
-The live suite and `make skills-check` both hide `ONESIE_MOCK` from the onesie they run, so an
-exported mock file never turns a live run into a mock one or fails a dry run.
+The live suite and `make skills-check` both run onesie in a temporary config dir, with
+`ONESIE_MOCK`, `ONESIE_PROFILE` and `ONESIE_PROVIDER` hidden. So an exported mock file, profile or
+provider never changes a run, and no test reads or converts your own `profiles.json` or
+`credentials.json`.
 
 ## Repository secrets
 
@@ -72,7 +74,7 @@ internal/answer/      normalizes an answer and applies the question's policy
 internal/assert/      parses and evaluates --assert and --abstain-if
 internal/calibrate/   reads the labels calibrate compares with, and scores the answers
 internal/output/      encodes a normalized record in each output mode
-internal/creds/       resolves, reads and writes the credential file and the keychain item
+internal/creds/       reads and writes profiles.json and the keychain items, and converts credentials.json once
 internal/limits/      the API limits onesie enforces locally
 internal/skillgen/    decodes and validates skill.json and renders the skill files
 internal/skillcheck/  dry runs each skill rule's bad and good example, and checks the flags the prose names against --help
