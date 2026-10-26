@@ -48,6 +48,7 @@ const (
 	flagRetries       = "retries"
 	flagMaxRetryAfter = "max-retry-after"
 	flagBaseURL       = "base-url"
+	flagAllowHTTP     = "allow-http"
 	flagMap           = "map"
 	flagID            = "id"
 )
@@ -274,6 +275,7 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 			`as {"answer":0.9,"team":"billing"}, or one line per record in the shape -o json writes. `+
 			"A lone line that carries id, line, model, usage, assert, abstain or an error object is one record")
 	root.Flags().StringVar(&flags.baseURL, flagBaseURL, "", "api root override")
+	root.Flags().BoolVar(&flags.allowHTTP, flagAllowHTTP, false, allowHTTPHelp)
 	root.Flags().StringVarP(&flags.file, "file", "f", "",
 		"question file or request body, or the name of one saved in .onesie/questions or the config dir, "+
 			"or of a built-in starter set")

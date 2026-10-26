@@ -57,6 +57,12 @@ func TestNewProfileCmd(t *testing.T) {
 			wantCode: ExitOK,
 		},
 		{
+			name:     "should say in the create help that a run on a plain http base url needs --allow-http",
+			args:     []string{"profile", "create", "--help"},
+			wantOut:  "Every run on the profile then needs --allow-http too",
+			wantCode: ExitOK,
+		},
+		{
 			name:     "should say in the test help that openrouter also reads /v1/key",
 			args:     []string{"profile", "test", "--help"},
 			wantOut:  "On openrouter profile test also reads /v1/key under the base URL",
@@ -356,6 +362,33 @@ func TestProfileCreate(t *testing.T) {
 			wantNoFile:  true,
 		},
 		{
+			name:        "should refuse a plain http base url to another host before reading the key",
+			args:        []string{"profile", "create", "work", "--provider", "typesafe", "--base-url", "http://proxy.example"},
+			stdinUnread: true,
+			wantCode:    ExitUsage,
+			wantErr: []string{"onesie: --base-url http://proxy.example is plain http to a host other than this machine, " +
+				"so the API key would cross the network unencrypted. Use https, or pass --allow-http to store it, " +
+				"and every run on the profile then needs --allow-http too"},
+			wantNoFile: true,
+		},
+		{
+			name: "should store a plain http base url to another host under --allow-http",
+			args: []string{
+				"profile", "create", "work", "--provider", "typesafe", "--base-url", "http://proxy.example",
+				"--allow-http", "--file",
+			},
+			stdin: key16 + "\n",
+			wantFile: `{"default":"work","profiles":{"work":{"provider":"typesafe","api_key":"` + key16 +
+				`","base_url":"http://proxy.example"}}}`,
+		},
+		{
+			name:  "should store a plain http base url to this machine",
+			args:  []string{"profile", "create", "work", "--provider", "typesafe", "--base-url", "http://127.0.0.1:8080", "--file"},
+			stdin: key16 + "\n",
+			wantFile: `{"default":"work","profiles":{"work":{"provider":"typesafe","api_key":"` + key16 +
+				`","base_url":"http://127.0.0.1:8080"}}}`,
+		},
+		{
 			name:  "should accept an escaped @ in the path of a base url",
 			args:  []string{"profile", "create", "work", "--provider", "typesafe", "--base-url", "https://proxy.example/a%40b", "--file"},
 			stdin: key16 + "\n",
@@ -610,6 +643,22 @@ func TestProfileUpdate(t *testing.T) {
 			args:  []string{"profile", "update", "work", "--model", ""},
 			wantFile: `{"default":"work","profiles":{"work":{"provider":"openrouter","store":"keychain",` +
 				`"account":"work@{hash}","key_end":"5678"}}}`,
+		},
+		{
+			name:     "should refuse a plain http base url to another host",
+			file:     work,
+			args:     []string{"profile", "update", "work", "--base-url", "http://proxy.example"},
+			wantCode: ExitUsage,
+			wantErr:  []string{"onesie: --base-url http://proxy.example is plain http", "pass --allow-http to store it"},
+			wantFile: work,
+		},
+		{
+			name:  "should store a plain http base url to another host under --allow-http",
+			file:  work,
+			items: workItems,
+			args:  []string{"profile", "update", "work", "--base-url", "http://proxy.example", "--allow-http"},
+			wantFile: `{"default":"work","profiles":{"work":{"provider":"openrouter","store":"keychain",` +
+				`"account":"work@{hash}","key_end":"5678","model":"typesafe/jev","base_url":"http://proxy.example"}}}`,
 		},
 		{
 			name:     "should exit 2 when nothing changes",

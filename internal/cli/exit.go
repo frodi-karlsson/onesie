@@ -41,7 +41,8 @@ const (
 var rootExitCodes = []exitCodeLine{
 	{ExitOK, "answered"},
 	{ExitRejected, "a false --assert, or under -q alone the policy did not accept the answer"},
-	{ExitUsage, "usage or validation error, including a missing key"},
+	{ExitUsage, "usage or validation error, including a missing key, or a plain http base URL to another " +
+		"host without --allow-http"},
 	{ExitAuth, "the key was refused, the account is out of credits, the keychain failed, or profiles.json or " +
 		"credentials.json is exposed"},
 	{ExitUnavailable, "the server did not answer after retries"},

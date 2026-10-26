@@ -184,6 +184,7 @@ func bindSharedFlags(cmd *cobra.Command, flags *runFlags) {
 		"jq expression run on each record, whose string or number result names it")
 	cmd.Flags().StringVarP(&flags.model, flagModel, "m", "", "model override")
 	cmd.Flags().StringVar(&flags.baseURL, flagBaseURL, "", "api root override")
+	cmd.Flags().BoolVar(&flags.allowHTTP, flagAllowHTTP, false, allowHTTPHelp)
 	cmd.Flags().BoolVar(&flags.longContext, flagLongContext, false,
 		"raise the context limits to 262k tokens, slower and less accurate. Also ONESIE_LONG_CONTEXT=1. "+
 			"Experimental on TypeSafe's side")

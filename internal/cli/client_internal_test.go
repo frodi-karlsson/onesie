@@ -271,6 +271,94 @@ func TestClientBuilder(t *testing.T) {
 		})
 	}
 
+	plain := []struct {
+		name     string
+		profiles string
+		args     []string
+		env      map[string]string
+		wantCode int
+		wantErr  []string
+	}{
+		{
+			name:     "should refuse a plain http --base-url to another host",
+			args:     []string{"--list-models", "--base-url", "http://proxy.example"},
+			env:      map[string]string{onesie.EnvAPIKey: "SECRET-ENV"},
+			wantCode: ExitUsage,
+			wantErr: []string{"onesie: --base-url http://proxy.example is plain http to a host other than this " +
+				"machine, so the API key would cross the network unencrypted. Use https, or pass --allow-http"},
+		},
+		{
+			name:     "should refuse a plain http TYPESAFE_BASE_URL to another host",
+			args:     asking(),
+			env:      map[string]string{onesie.EnvAPIKey: "SECRET-ENV", onesie.EnvBaseURL: "http://proxy.example"},
+			wantCode: ExitUsage,
+			wantErr:  []string{"onesie: TYPESAFE_BASE_URL http://proxy.example is plain http", "--allow-http"},
+		},
+		{
+			name: "should refuse a profile's plain http base_url to another host",
+			profiles: `{"default":"work","profiles":{"work":{"provider":"typesafe","api_key":"SECRET-WORK",` +
+				`"base_url":"http://proxy.example"}}}`,
+			args:     asking(),
+			wantCode: ExitUsage,
+			wantErr:  []string{"onesie: the profile's base_url http://proxy.example is plain http", "--allow-http"},
+		},
+		{
+			name: "should refuse a profile's plain http base_url before profile test sends a request",
+			profiles: `{"default":"work","profiles":{"work":{"provider":"typesafe","api_key":"SECRET-WORK",` +
+				`"base_url":"http://proxy.example"}}}`,
+			args:     []string{"profile", "test", "work"},
+			wantCode: ExitUsage,
+			wantErr:  []string{"is plain http", "--allow-http"},
+		},
+		{
+			name:     "should refuse a plain http --base-url from calibrate",
+			args:     []string{"calibrate", "--ask", "u=is this urgent", "-i", "jsonl", "--map", ".body", "--label", "u=.u", "--base-url", "http://proxy.example"},
+			env:      map[string]string{onesie.EnvAPIKey: "SECRET-ENV"},
+			wantCode: ExitUsage,
+			wantErr:  []string{"is plain http", "--allow-http"},
+		},
+		{
+			name:     "should warn and send under --allow-http",
+			args:     []string{"--list-models", "--base-url", "http://proxy.invalid", "--allow-http", "--retries", "0", "--timeout", "2"},
+			env:      map[string]string{onesie.EnvAPIKey: "SECRET-ENV"},
+			wantCode: ExitTransport,
+			wantErr:  []string{"warning: http://proxy.invalid is plain http, so the API key crosses the network unencrypted"},
+		},
+		{
+			name: "should let profile test send under --allow-http",
+			profiles: `{"default":"work","profiles":{"work":{"provider":"typesafe","api_key":"SECRET-WORK",` +
+				`"base_url":"http://proxy.invalid"}}}`,
+			args:     []string{"profile", "test", "work", "--allow-http"},
+			wantCode: ExitTransport,
+			wantErr:  []string{"warning: http://proxy.invalid is plain http"},
+		},
+	}
+
+	for _, tc := range plain {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			dir := t.TempDir()
+			if tc.profiles != "" {
+				dir = configWith(t, tc.profiles)
+			}
+
+			out, errOut, code := runInConfig(t, dir, tc.args, `{"body":"x","u":true}`+"\n", tc.env)
+
+			assertNoSecret(t, out, errOut)
+
+			if code != tc.wantCode {
+				t.Errorf("exit code = %d, want %d\nstderr:\n%s", code, tc.wantCode, errOut)
+			}
+
+			for _, want := range tc.wantErr {
+				if !strings.Contains(errOut, want) {
+					t.Errorf("stderr = %q, want it to contain %q", errOut, want)
+				}
+			}
+		})
+	}
+
 	t.Run("should send each openrouter profile its own key", func(t *testing.T) {
 		t.Parallel()
 
@@ -341,6 +429,36 @@ func modelServer(t *testing.T) (*httptest.Server, func() []sentRequest) {
 type sentRequest struct {
 	auth  string
 	model string
+}
+
+func TestPlainRemote(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		baseURL string
+		want    bool
+	}{
+		{name: "should pass https to any host", baseURL: "https://proxy.example"},
+		{name: "should pass plain http to localhost", baseURL: "http://localhost:8080"},
+		{name: "should pass plain http to 127.0.0.1", baseURL: "http://127.0.0.1:8080"},
+		{name: "should pass plain http to any address in 127.0.0.0/8", baseURL: "http://127.1.2.3"},
+		{name: "should pass plain http to ::1", baseURL: "http://[::1]:8080"},
+		{name: "should flag plain http to a named host", baseURL: "http://proxy.example", want: true},
+		{name: "should flag plain http to a private address", baseURL: "http://10.0.0.1", want: true},
+		{name: "should flag plain http to a name under localhost", baseURL: "http://api.localhost", want: true},
+		{name: "should flag plain http to an address that only starts like loopback", baseURL: "http://128.0.0.1", want: true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := plainRemote(tc.baseURL); got != tc.want {
+				t.Errorf("plainRemote(%q) = %v, want %v", tc.baseURL, got, tc.want)
+			}
+		})
+	}
 }
 
 func TestEndsInVersion(t *testing.T) {

@@ -710,7 +710,7 @@ onesie --profile cf -f shell-safety -q --state "$cmd"
 |------|---------|
 | 0 | answered |
 | 1 | a false `--assert`, or under `-q` alone the policy did not accept the answer |
-| 2 | usage or validation error, including a missing key |
+| 2 | usage or validation error, including a missing key, or a plain http base URL to another host without `--allow-http` |
 | 3 | the key was refused, the account is out of credits, the keychain failed, or `profiles.json` or `credentials.json` is exposed |
 | 4 | the server did not answer after retries |
 | 5 | transport error or timeout |
@@ -741,9 +741,16 @@ table, and `onesie calibrate --help` lists the codes calibrate uses.
 
 - `--stats` writes a one line summary to stderr: requests, tokens, model, retries and time.
 - `--list-models` shows what the account can ask, and `-m` picks one.
-- `--base-url` points onesie at any server that speaks the System One API. A plain http URL to a
-  host other than localhost prints a warning, and a redirect is refused rather than followed with
-  the key. onesie adds `/v1/systemone` itself, so a base URL whose path ends in `/v1`, from
+- `--base-url` points onesie at any server that speaks the System One API. A redirect is refused
+  rather than followed with the key.
+- A plain `http://` base URL to a host other than `localhost`, `127.0.0.0/8` or `::1` exits 2
+  before any request, since the key would cross the network unencrypted. `--allow-http` sends it
+  anyway, with a warning. The rule holds whether the URL comes from `--base-url`,
+  `TYPESAFE_BASE_URL` or a profile's `base_url`, and `profile test` follows it too. `profile create`
+  and `profile update` refuse such a `--base-url` unless given `--allow-http`, and the file does not
+  record that choice, so every run on the profile needs `--allow-http` as well. There is no
+  variable for it.
+- onesie adds `/v1/systemone` itself, so a base URL whose path ends in `/v1`, from
   `--base-url`, `TYPESAFE_BASE_URL` or a profile's `base_url`, prints one warning naming where it
   came from and the URL requests go to. It is not refused, since a proxy may use that prefix.
 - A base URL that holds a user or a password, or any `@`, `?` or `#`, or that does not parse, exits 2

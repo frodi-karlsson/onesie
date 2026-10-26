@@ -1385,6 +1385,7 @@ type runFlags struct {
 	stateFile   string
 	model       string
 	baseURL     string
+	allowHTTP   bool
 	file        string
 	replace     bool
 

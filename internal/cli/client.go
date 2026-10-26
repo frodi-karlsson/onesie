@@ -16,8 +16,14 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/output"
 )
 
-const refusedBaseURL = "the base URL must be a plain URL with no credentials, query or fragment. " +
-	"Put the API key in a profile or the provider's key variable instead"
+const (
+	refusedBaseURL = "the base URL must be a plain URL with no credentials, query or fragment. " +
+		"Put the API key in a profile or the provider's key variable instead"
+	allowHTTPHelp = "send the API key over a plain http base URL to a host other than localhost, " +
+		"127.0.0.0/8 or ::1. Without it such a base URL exits 2 before any request"
+	plainHTTPReason = " is plain http to a host other than this machine, so the API key would cross the " +
+		"network unencrypted"
+)
 
 func defaultClientFactory(settings rootSettings, build resolvedClientFactory) clientFactory {
 	return func(ctx context.Context, extra ...onesie.Option) (*onesie.Client, error) {
@@ -83,6 +89,10 @@ func clientBuilder(info BuildInfo, flags *runFlags, settings rootSettings) resol
 			return nil, refused
 		}
 
+		if plainRemote(client.BaseURL()) && !flags.allowHTTP {
+			return nil, plainHTTPRefused(chosen.baseURLSource(flags.baseURL, settings.lookupEnv), client.BaseURL())
+		}
+
 		var printErr error
 
 		if plainRemote(client.BaseURL()) {
@@ -108,6 +118,11 @@ func clientBuilder(info BuildInfo, flags *runFlags, settings rootSettings) resol
 
 		return client, nil
 	}
+}
+
+func plainHTTPRefused(source, baseURL string) error {
+	return errors.New("onesie: " + source + " " + output.Printable(baseURL) + plainHTTPReason +
+		". Use https, or pass --" + flagAllowHTTP + " to send it anyway")
 }
 
 func validBaseURL(baseURL string) error {
@@ -200,7 +215,7 @@ func plainRemote(baseURL string) bool {
 	}
 
 	host := parsed.Hostname()
-	if host == "localhost" || strings.HasSuffix(host, ".localhost") {
+	if host == "localhost" {
 		return false
 	}
 

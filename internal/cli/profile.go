@@ -100,7 +100,7 @@ func newProfileCreateCmd(settings rootSettings, flags *runFlags) *cobra.Command 
 
 	cmd.Flags().StringVar(&fields.provider, flagProvider, "",
 		"the profile's provider, typesafe, openrouter, berget, levanto or cloudflare. Required")
-	addMemberFlags(cmd, fields)
+	addMemberFlags(cmd, fields, flags)
 	cmd.Flags().BoolVar(&fields.toFile, flagToFile, false, "store the key in profiles.json, not the OS keychain")
 
 	return cmd
@@ -141,6 +141,10 @@ func profileCreate(
 	account := creds.KeychainAccount(name, path)
 
 	// Ahead of the read, so a typo costs the user nothing and leaves no file behind.
+	if refused := refusePlainBaseURL(flags, profile.BaseURL); refused != nil {
+		return refused
+	}
+
 	if refused := checkProfile(opened.Profiles, name, profile); refused != nil {
 		return refused
 	}
@@ -197,7 +201,7 @@ func newProfileUpdateCmd(settings rootSettings, flags *runFlags) *cobra.Command 
 	}
 
 	cmd.Flags().StringVar(&fields.provider, flagProvider, "", "a new provider for the profile, which needs --key")
-	addMemberFlags(cmd, fields)
+	addMemberFlags(cmd, fields, flags)
 	cmd.Flags().BoolVar(&fields.key, flagKey, false, "read a new key from a prompt or stdin")
 	cmd.Flags().BoolVar(&fields.toFile, flagToFile, false,
 		"with --key, store the new key in profiles.json, not the OS keychain")
@@ -235,6 +239,12 @@ func profileUpdate(
 	}
 
 	// Ahead of the read, so a broken rule costs the user nothing.
+	if changed(flagBaseURL) {
+		if refused := refusePlainBaseURL(flags, profile.BaseURL); refused != nil {
+			return refused
+		}
+	}
+
 	if refused := checkProfile(opened.Profiles, name, profile); refused != nil {
 		return refused
 	}
@@ -647,7 +657,7 @@ func profileShow(cmd *cobra.Command, settings rootSettings, flags *runFlags, arg
 }
 
 func newProfileTestCmd(settings rootSettings, flags *runFlags) *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "test [NAME]",
 		Short: "Call the models endpoint with a profile's key",
 		Long: "Call the provider's models endpoint with the key of the named profile, or of what a run would " +
@@ -661,6 +671,10 @@ func newProfileTestCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 			return profileTest(cmd, settings, flags, args)
 		},
 	}
+
+	cmd.Flags().BoolVar(&flags.allowHTTP, flagAllowHTTP, false, allowHTTPHelp)
+
+	return cmd
 }
 
 func profileTest(cmd *cobra.Command, settings rootSettings, flags *runFlags, args []string) error {
@@ -733,9 +747,12 @@ func shownResolution(settings rootSettings, flags *runFlags, args []string, comm
 	return profileRun(name, profile, by)
 }
 
-func addMemberFlags(cmd *cobra.Command, fields *profileFlags) {
+func addMemberFlags(cmd *cobra.Command, fields *profileFlags, flags *runFlags) {
 	cmd.Flags().StringVar(&fields.model, flagModel, "", "the model a run uses when it names none")
 	cmd.Flags().StringVar(&fields.baseURL, flagBaseURL, "", "the api root the profile's runs use")
+	cmd.Flags().BoolVar(&flags.allowHTTP, flagAllowHTTP, false,
+		"store a plain http --base-url to a host other than localhost, 127.0.0.0/8 or ::1. Every run on "+
+			"the profile then needs --allow-http too")
 	cmd.Flags().StringVar(&fields.accountID, flagAccountID, "",
 		"cloudflare only, the account id, 32 hexadecimal characters")
 }
@@ -793,6 +810,21 @@ func profilesToWrite(settings rootSettings) (string, creds.Opened, error) {
 
 func noProfileNamed(name string, profiles creds.Profiles) error {
 	return fmt.Errorf("onesie: there is no profile named '%s'. %s", name, knownProfiles(profiles))
+}
+
+func refusePlainBaseURL(flags *runFlags, baseURL string) error {
+	if flags.allowHTTP || !plainRemote(baseURL) {
+		return nil
+	}
+
+	// Ahead of the message, which quotes the URL.
+	if refused := refuseUnclearBaseURL(baseURL); refused != nil {
+		return refused
+	}
+
+	return errors.New("onesie: --" + flagBaseURL + " " + output.Printable(baseURL) + plainHTTPReason +
+		". Use https, or pass --" + flagAllowHTTP + " to store it, and every run on the profile then needs --" +
+		flagAllowHTTP + " too")
 }
 
 func checkProfile(profiles creds.Profiles, name string, profile creds.Profile) error {

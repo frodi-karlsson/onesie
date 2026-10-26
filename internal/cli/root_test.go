@@ -1992,7 +1992,7 @@ func TestDefaultClientFactory(t *testing.T) {
 		})
 	})
 
-	t.Run("should warn once when the key would cross the network over plain http", func(t *testing.T) {
+	t.Run("should warn once under --allow-http when the key would cross the network over plain http", func(t *testing.T) {
 		t.Parallel()
 
 		tests := []struct {
@@ -2030,7 +2030,7 @@ func TestDefaultClientFactory(t *testing.T) {
 				root.SetOut(&out)
 				root.SetErr(&errOut)
 				root.SetArgs([]string{
-					"--list-models", "--base-url", tc.baseURL, "--retries", "0",
+					"--list-models", "--base-url", tc.baseURL, "--allow-http", "--retries", "0",
 					"--timeout", "1",
 				})
 
