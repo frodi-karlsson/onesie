@@ -872,6 +872,33 @@ func TestAsk(t *testing.T) {
 			t.Errorf("%d requests, want none", got)
 		}
 	})
+
+	t.Run("should exit 2 before any request for an untagged cache dir holding foreign files", func(t *testing.T) {
+		t.Parallel()
+
+		stub := newAnswerStub(t)
+		env := cacheEnv(t)
+		dir := env["ONESIE_CACHE_DIR"]
+		mustMkdirMode(t, dir, 0o700)
+
+		if err := os.WriteFile(filepath.Join(dir, "notes.txt"), []byte("mine"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+
+		_, errOut, code := runCached(t, env, append(slicesOf(base), "--base-url", stub.url), "")
+		if code != ExitUsage || !strings.Contains(errOut, dir) || !strings.Contains(errOut, "no CACHEDIR.TAG") {
+			t.Errorf("exit %d, stderr %q, want exit 2 naming the directory", code, errOut)
+		}
+
+		if got := stub.requests.Load(); got != 0 {
+			t.Errorf("%d requests, want none", got)
+		}
+
+		entries, err := os.ReadDir(dir)
+		if err != nil || len(entries) != 1 {
+			t.Errorf("cache dir holds %d files, %v, want only the foreign one", len(entries), err)
+		}
+	})
 }
 
 func newAnswerStub(t *testing.T) *answerStub {

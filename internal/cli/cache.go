@@ -138,8 +138,8 @@ func openCache(settings rootSettings) (*cache.Store, error) {
 		return nil, err
 	}
 
-	// A cache others can read, or a lifetime onesie cannot read, is something the user asked for and
-	// has to fix, so either ends the run. Any other failure only turns the cache off.
+	// A cache others can read, a directory that may not be onesie's, or a lifetime onesie cannot read
+	// is something the user asked for and has to fix, so each ends the run. Any other failure only turns the cache off.
 	ttl, err := aliasTTL(settings.lookupEnv)
 	if err != nil {
 		return nil, &cacheRefusedError{err: err}
@@ -147,8 +147,11 @@ func openCache(settings rootSettings) (*cache.Store, error) {
 
 	store, err := cache.Open(dir, cache.Options{Now: settings.now, GOOS: settings.goos, AliasTTL: ttl})
 
-	var readable *cache.ModeError
-	if errors.As(err, &readable) {
+	var (
+		readable *cache.ModeError
+		foreign  *cache.ForeignError
+	)
+	if errors.As(err, &readable) || errors.As(err, &foreign) {
 		return nil, &cacheRefusedError{err: err}
 	}
 

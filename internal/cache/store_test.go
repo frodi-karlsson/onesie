@@ -41,11 +41,13 @@ func TestOpen(t *testing.T) {
 		name    string
 		content []string
 		want    bool
+		refused bool
 	}{
 		{name: "should tag an existing empty directory", want: true},
 		{name: "should tag a directory holding only fan out directories and temporary files", content: []string{"ab/", "cd/", ".onesie-tmp-1"}, want: true},
-		{name: "should not tag a directory holding a foreign file", content: []string{"ab/", "notes.txt"}},
-		{name: "should not tag a directory holding a foreign directory", content: []string{"zz/"}},
+		{name: "should refuse and not tag a directory holding a foreign file", content: []string{"ab/", "notes.txt"}, refused: true},
+		{name: "should refuse and not tag a directory holding a foreign directory", content: []string{"zz/"}, refused: true},
+		{name: "should accept a tagged directory holding a foreign file", content: []string{"CACHEDIR.TAG", "notes.txt"}, want: true},
 	}
 
 	for _, tc := range tagged {
@@ -63,11 +65,20 @@ func TestOpen(t *testing.T) {
 				}
 			}
 
-			if _, err := cache.Open(dir, cache.Options{Now: fixed(t0)}); err != nil {
+			_, err := cache.Open(dir, cache.Options{Now: fixed(t0)})
+
+			var foreign *cache.ForeignError
+			if tc.refused {
+				want := "onesie: the cache dir " + dir + " holds files onesie did not write and no CACHEDIR.TAG, " +
+					"so onesie will not store answers there. Point ONESIE_CACHE_DIR at a new or empty directory"
+				if !errors.As(err, &foreign) || err.Error() != want {
+					t.Fatalf("Open error = %v, want %q", err, want)
+				}
+			} else if err != nil {
 				t.Fatal(err)
 			}
 
-			_, err := os.Stat(filepath.Join(dir, "CACHEDIR.TAG"))
+			_, err = os.Stat(filepath.Join(dir, "CACHEDIR.TAG"))
 			if got := err == nil; got != tc.want {
 				t.Errorf("CACHEDIR.TAG written = %v, want %v", got, tc.want)
 			}

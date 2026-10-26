@@ -443,8 +443,11 @@ again.
   can reach with exit 2, before any request. Windows carries no
   such modes, so the check is skipped there. onesie writes a `CACHEDIR.TAG` file, so backup tools
   skip the cache, into a new cache directory and into an existing one that is empty or holds only
-  what onesie writes. onesie counts, evicts and clears only its own entries and temporary files, and
-  leaves anything else in the directory alone. Writes are atomic, so parallel runs can share one
+  what onesie writes. `--cache` refuses an existing directory with no `CACHEDIR.TAG` that holds
+  anything else with exit 2, before any request, since a tag there would hide those files from
+  backup tools, and entries stored without one could never be cleared. onesie counts, evicts and
+  clears only its own entries and temporary files, and leaves anything else in a tagged directory
+  alone. Writes are atomic, so parallel runs can share one
   cache.
 - The cache holds about `max-cache-bytes`, 100 MB, which `onesie -V` lists beside `cache-ttl`. Past
   that it evicts the least recently used answers first, and a hit counts as a use.

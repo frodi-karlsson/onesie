@@ -39,7 +39,7 @@ const (
 const NoAliasTTL time.Duration = -1
 
 // Open opens the cache in dir, creating it with mode 700 and a CACHEDIR.TAG when it is missing. It
-// refuses a directory others can reach, except on windows, which carries no such modes.
+// refuses a directory others can reach, except on windows, and an untagged one holding foreign files.
 func Open(dir string, opts Options) (*Store, error) {
 	opts = opts.withDefaults()
 	fsys := opts.FS
@@ -72,7 +72,8 @@ func Open(dir string, opts Options) (*Store, error) {
 
 func tagUntagged(fsys FS, dir string) error {
 	// A directory holding nothing but what onesie writes gets its tag, so clear can empty it later.
-	// One holding anything else may not be onesie's, and is left untagged.
+	// One holding anything else may not be onesie's. A tag there would hide the foreign files from
+	// backup tools, and storing without one would leave entries clear refuses to remove.
 	if _, err := fsys.Stat(filepath.Join(dir, tagName)); !errors.Is(err, fs.ErrNotExist) {
 		return nil
 	}
@@ -86,7 +87,7 @@ func tagUntagged(fsys FS, dir string) error {
 		ours := (named.IsDir() && isFanout(named.Name())) ||
 			(named.Type().IsRegular() && strings.HasPrefix(named.Name(), tempPrefix))
 		if !ours {
-			return nil
+			return &ForeignError{Dir: dir}
 		}
 	}
 
@@ -184,6 +185,18 @@ type ModeError struct {
 func (e *ModeError) Error() string {
 	return fmt.Sprintf("onesie: the cache dir %s has mode %o, so others can read cached answers. Run chmod 700 %s",
 		e.Dir, e.Mode, e.Dir)
+}
+
+// ForeignError means the cache directory holds files onesie did not write and no CACHEDIR.TAG, so it
+// may not be onesie's to fill.
+type ForeignError struct {
+	Dir string
+}
+
+// Error names the directory and the fix.
+func (e *ForeignError) Error() string {
+	return fmt.Sprintf("onesie: the cache dir %s holds files onesie did not write and no %s, "+
+		"so onesie will not store answers there. Point ONESIE_CACHE_DIR at a new or empty directory", e.Dir, tagName)
 }
 
 // Key names one cached response, a sha256 of everything that decides it.
