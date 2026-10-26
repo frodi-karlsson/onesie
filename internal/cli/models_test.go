@@ -120,7 +120,7 @@ func TestListModels(t *testing.T) {
 				response: `{"models":[` +
 					`{"name":"onesie-1.13.0","description":"current","release_date":"2026-08-01"}]}`,
 				wantCode: ExitOK,
-				wantErr:  "1 request, 0 questions, 0 in / 0 out, 1 attempt, 10s/attempt,",
+				wantErr:  "1 request, 0 questions asked, 0 in / 0 out tokens, 1 attempt, 10s/attempt,",
 			},
 			{
 				// A rejected key ends the request rather than causing a retry, so the attempt it
@@ -129,7 +129,7 @@ func TestListModels(t *testing.T) {
 				status:   http.StatusUnauthorized,
 				response: `{"error":{"message":"invalid api key"}}`,
 				wantCode: ExitAuth,
-				wantErr:  "1 request, 1 failed, 0 questions, 0 in / 0 out, 1 attempt, 10s/attempt,",
+				wantErr:  "1 request, 1 failed, 0 questions asked, 0 in / 0 out tokens, 1 attempt, 10s/attempt,",
 			},
 		}
 

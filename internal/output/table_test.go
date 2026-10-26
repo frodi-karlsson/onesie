@@ -74,6 +74,7 @@ func TestWriteTable(t *testing.T) {
 
 	confidence := 0.81
 	sharp := 0.977
+	cost := 0.0000123
 	score := 1.0
 	norm := 0.5
 
@@ -174,6 +175,19 @@ func TestWriteTable(t *testing.T) {
 				},
 			},
 			contains: []string{"2841 in", "71 out"},
+			absent:   []string{"$"},
+		},
+		{
+			name:    "should add the cost to the usage in the header",
+			columns: 80,
+			rec: output.Record{
+				Model: "onesie-1.13.0",
+				Usage: &onesie.Usage{InputTokens: 2841, OutputTokens: 71, Cost: &cost},
+				Answers: []output.Named{
+					{ID: "urgent", Answer: &answer.Answer{Value: 0.92}},
+				},
+			},
+			contains: []string{"model onesie-1.13.0  2841 in / 71 out  $0.0000123\n"},
 		},
 		{
 			name:    "should draw a bar per option",

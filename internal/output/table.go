@@ -91,6 +91,10 @@ func writeHeader(w io.Writer, rec Record) error {
 		line := "model " + Printable(rec.Model)
 		if rec.Usage != nil {
 			line += fmt.Sprintf("  %d in / %d out", rec.Usage.InputTokens, rec.Usage.OutputTokens)
+
+			if rec.Usage.Cost != nil {
+				line += "  " + Cost(*rec.Usage.Cost)
+			}
 		}
 
 		if _, err := fmt.Fprintln(w, line); err != nil {

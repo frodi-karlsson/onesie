@@ -10,6 +10,8 @@ import (
 func TestStatsString(t *testing.T) {
 	t.Parallel()
 
+	cost := 0.000012
+
 	tests := []struct {
 		name  string
 		stats cli.Stats
@@ -23,7 +25,7 @@ func TestStatsString(t *testing.T) {
 				Retries: map[int]int{429: 2}, AttemptTimeout: 10 * time.Second,
 				Elapsed: 11400 * time.Millisecond,
 			},
-			want: "1 request, 3 questions, 2841 in / 71 out, model onesie-1.13.0, " +
+			want: "1 request, 3 questions asked, 2841 in / 71 out tokens, model onesie-1.13.0, " +
 				"3 attempts (2 retries: 429×2), 10s/attempt, 11.4s",
 		},
 		{
@@ -35,7 +37,7 @@ func TestStatsString(t *testing.T) {
 				Retries: map[int]int{429: 1}, AttemptTimeout: 10 * time.Second,
 				Elapsed: 30 * time.Second,
 			},
-			want: "40 requests, 2 failed, 80 questions, 10000 in / 400 out, " +
+			want: "40 requests, 2 failed, 80 questions asked, 10000 in / 400 out tokens, " +
 				"models onesie-1.13.0, onesie-1.14.0, 41 attempts (1 retry: 429×1), " +
 				"10s/attempt, 30s",
 		},
@@ -46,7 +48,7 @@ func TestStatsString(t *testing.T) {
 				Models: []string{"onesie-1.13.0"}, Attempts: 9,
 				AttemptTimeout: 10 * time.Second, Elapsed: time.Second,
 			},
-			want: "12 records, 3 deduplicated, 9 requests, 9 questions, 0 in / 0 out, " +
+			want: "12 records, 3 deduplicated, 9 requests, 9 questions asked, 0 in / 0 out tokens, " +
 				"model onesie-1.13.0, 9 attempts, 10s/attempt, 1s",
 		},
 		{
@@ -56,8 +58,18 @@ func TestStatsString(t *testing.T) {
 				Models: []string{"onesie-1.13.0"}, Attempts: 5,
 				AttemptTimeout: 10 * time.Second, Elapsed: time.Second,
 			},
-			want: "12 records, 3 deduplicated, 4 cached, 5 requests, 5 questions, 0 in / 0 out, " +
+			want: "12 records, 3 deduplicated, 4 cached, 5 requests, 5 questions asked, 0 in / 0 out tokens, " +
 				"model onesie-1.13.0, 5 attempts, 10s/attempt, 1s",
+		},
+		{
+			name: "should render the cost the provider reported after the tokens",
+			stats: cli.Stats{
+				Requests: 1, Questions: 1, InputTokens: 10, OutputTokens: 2, Cost: &cost,
+				Models: []string{"typesafe/jev"}, Attempts: 1,
+				AttemptTimeout: 10 * time.Second, Elapsed: time.Second,
+			},
+			want: "1 request, 1 question asked, 10 in / 2 out tokens, $0.000012, model typesafe/jev, " +
+				"1 attempt, 10s/attempt, 1s",
 		},
 		{
 			name: "should render a one record run the cache answered",
@@ -65,8 +77,8 @@ func TestStatsString(t *testing.T) {
 				Records: 1, Cached: 1, Models: []string{"onesie-1.13.0"},
 				AttemptTimeout: 10 * time.Second, Elapsed: time.Second,
 			},
-			want: "1 record, 1 cached, 0 requests, 0 questions, 0 in / 0 out, " +
-				"model onesie-1.13.0, 0 attempts, 10s/attempt, 1s",
+			want: "1 record, 1 cached, 0 requests, 0 questions asked, 0 in / 0 out tokens, " +
+				"model onesie-1.13.0, 0 attempts, 1s",
 		},
 		{
 			name: "should report the records a resume skipped",
@@ -75,7 +87,7 @@ func TestStatsString(t *testing.T) {
 				Models: []string{"onesie-1.13.0"}, Attempts: 2,
 				AttemptTimeout: 10 * time.Second, Elapsed: time.Second,
 			},
-			want: "2 requests, 18 skipped, 2 questions, 0 in / 0 out, " +
+			want: "20 records, 18 skipped by --resume, 2 requests, 2 questions asked, 0 in / 0 out tokens, " +
 				"model onesie-1.13.0, 2 attempts, 10s/attempt, 1s",
 		},
 		{
@@ -85,7 +97,7 @@ func TestStatsString(t *testing.T) {
 				Models: []string{"onesie-1.13.0"}, Attempts: 3,
 				AttemptTimeout: 10 * time.Second, Elapsed: time.Second,
 			},
-			want: "3 requests, 1 false assertion, 1 abstain, 3 questions, 0 in / 0 out, " +
+			want: "3 requests, 1 false assertion, 1 abstain, 3 questions asked, 0 in / 0 out tokens, " +
 				"model onesie-1.13.0, 3 attempts, 10s/attempt, 1s",
 		},
 		{
@@ -96,7 +108,7 @@ func TestStatsString(t *testing.T) {
 				Retries: map[int]int{0: 1, 429: 1}, AttemptTimeout: 10 * time.Second,
 				Elapsed: time.Second,
 			},
-			want: "1 request, 1 question, 0 in / 0 out, model onesie-1.13.0, " +
+			want: "1 request, 1 question asked, 0 in / 0 out tokens, model onesie-1.13.0, " +
 				"3 attempts (2 retries: transport×1, 429×1), 10s/attempt, 1s",
 		},
 		{
@@ -107,7 +119,7 @@ func TestStatsString(t *testing.T) {
 				Retries: map[int]int{429: 1}, AttemptTimeout: 10 * time.Second,
 				Elapsed: time.Second,
 			},
-			want: "3 records, 1 failed, 2 requests, 2 questions, 0 in / 0 out, " +
+			want: "3 records, 1 failed, 2 requests, 2 questions asked, 0 in / 0 out tokens, " +
 				"model onesie-1.13.0, 3 attempts (1 retry: 429×1), 10s/attempt, 1s",
 		},
 		{
@@ -116,7 +128,7 @@ func TestStatsString(t *testing.T) {
 				Requests: 1, Questions: 1, Attempts: 1,
 				AttemptTimeout: 10 * time.Second, Elapsed: 3040959 * time.Nanosecond,
 			},
-			want: "1 request, 1 question, 0 in / 0 out, 1 attempt, 10s/attempt, 3ms",
+			want: "1 request, 1 question asked, 0 in / 0 out tokens, 1 attempt, 10s/attempt, 3ms",
 		},
 		{
 			name: "should round elapsed to a tenth of a second above one second",
@@ -124,7 +136,7 @@ func TestStatsString(t *testing.T) {
 				Requests: 1, Questions: 1, Attempts: 1,
 				AttemptTimeout: 10 * time.Second, Elapsed: 11432123456 * time.Nanosecond,
 			},
-			want: "1 request, 1 question, 0 in / 0 out, 1 attempt, 10s/attempt, 11.4s",
+			want: "1 request, 1 question asked, 0 in / 0 out tokens, 1 attempt, 10s/attempt, 11.4s",
 		},
 		{
 			name: "should omit the retry clause when nothing was retried",
@@ -132,7 +144,7 @@ func TestStatsString(t *testing.T) {
 				Requests: 1, Questions: 1, Models: []string{"onesie-1.13.0"},
 				Attempts: 1, AttemptTimeout: 10 * time.Second, Elapsed: time.Second,
 			},
-			want: "1 request, 1 question, 0 in / 0 out, model onesie-1.13.0, " +
+			want: "1 request, 1 question asked, 0 in / 0 out tokens, model onesie-1.13.0, " +
 				"1 attempt, 10s/attempt, 1s",
 		},
 		{
@@ -143,8 +155,8 @@ func TestStatsString(t *testing.T) {
 				Models: []string{"onesie-1.13.0"}, Attempts: 40,
 				AttemptTimeout: 10 * time.Second, Elapsed: 30 * time.Second,
 			},
-			want: "40 requests, 2 failed, 1 false assertion, 80 questions, " +
-				"10000 in / 400 out, model onesie-1.13.0, 40 attempts, 10s/attempt, 30s",
+			want: "40 requests, 2 failed, 1 false assertion, 80 questions asked, " +
+				"10000 in / 400 out tokens, model onesie-1.13.0, 40 attempts, 10s/attempt, 30s",
 		},
 		{
 			name: "should omit the false assertion clause when every assertion held",
@@ -153,7 +165,7 @@ func TestStatsString(t *testing.T) {
 				Models: []string{"onesie-1.13.0"}, Attempts: 40,
 				AttemptTimeout: 10 * time.Second, Elapsed: 30 * time.Second,
 			},
-			want: "40 requests, 80 questions, 10000 in / 400 out, model onesie-1.13.0, " +
+			want: "40 requests, 80 questions asked, 10000 in / 400 out tokens, model onesie-1.13.0, " +
 				"40 attempts, 10s/attempt, 30s",
 		},
 		{
@@ -162,7 +174,7 @@ func TestStatsString(t *testing.T) {
 				Requests: 1, Failed: 1, Questions: 1, Attempts: 1,
 				AttemptTimeout: 10 * time.Second, Elapsed: time.Second,
 			},
-			want: "1 request, 1 failed, 1 question, 0 in / 0 out, " +
+			want: "1 request, 1 failed, 1 question asked, 0 in / 0 out tokens, " +
 				"1 attempt, 10s/attempt, 1s",
 		},
 		{
@@ -171,7 +183,7 @@ func TestStatsString(t *testing.T) {
 				Mocked: true, Requests: 2, Questions: 2, Models: []string{"jev-latest"},
 				AttemptTimeout: 10 * time.Second, Elapsed: 0,
 			},
-			want: "2 records answered from the mock, 2 questions, 0s",
+			want: "2 records answered from the mock, 2 questions answered, 0s",
 		},
 		{
 			name: "should say one record came from the mock",
@@ -179,7 +191,7 @@ func TestStatsString(t *testing.T) {
 				Mocked: true, Requests: 1, Questions: 3, Models: []string{"jev-latest"},
 				AttemptTimeout: 10 * time.Second, Elapsed: time.Second,
 			},
-			want: "1 record answered from the mock, 3 questions, 1s",
+			want: "1 record answered from the mock, 3 questions answered, 1s",
 		},
 		{
 			name: "should count a mock run's records apart when a line never reached the mock",
@@ -188,7 +200,8 @@ func TestStatsString(t *testing.T) {
 				Questions: 2, Models: []string{"jev-latest"}, AttemptTimeout: 10 * time.Second,
 				Elapsed: time.Second,
 			},
-			want: "3 records, 1 skipped, 2 failed, 1 false assertion, 2 answered from the mock, 2 questions, 1s",
+			want: "4 records, 1 skipped by --resume, 2 failed, 1 false assertion, 2 answered from the mock, " +
+				"2 questions answered, 1s",
 		},
 	}
 

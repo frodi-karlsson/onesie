@@ -1909,7 +1909,7 @@ func TestCalibrateRun(t *testing.T) {
 			t.Errorf("the resume printed\n%s\nthe first run printed\n%s", out, fresh)
 		}
 
-		if strings.Contains(errOut, "onesie: record") || !strings.Contains(errOut, "3 requests, 3 skipped, ") {
+		if strings.Contains(errOut, "onesie: record") || !strings.Contains(errOut, "6 records, 3 skipped by --resume, ") {
 			t.Errorf("stderr =\n%s\nwant no failed record and the stored ones skipped", errOut)
 		}
 
@@ -1975,7 +1975,7 @@ func TestCalibrateRun(t *testing.T) {
 			}
 		}
 
-		if causes != 1 || !strings.Contains(errOut, "1 request, 6 skipped, 1 failed, ") {
+		if causes != 1 || !strings.Contains(errOut, "7 records, 6 skipped by --resume, 1 failed, ") {
 			t.Errorf("stderr =\n%s\nwant one failed record named and counted once", errOut)
 		}
 	})
@@ -2213,7 +2213,7 @@ func TestCalibrateRun(t *testing.T) {
 			t.Fatalf("exit code = %d, stderr:\n%s", code, errOut)
 		}
 
-		if !strings.Contains(errOut, "0 requests, 6 skipped, ") {
+		if !strings.Contains(errOut, "6 records, 6 skipped by --resume, ") {
 			t.Errorf("stderr =\n%s\nwant the stored records counted as skipped", errOut)
 		}
 	})

@@ -406,7 +406,7 @@ func footerOf(models []string, usage *onesie.Usage) string {
 		parts = append(parts, fmt.Sprintf("%d in, %d out tokens", usage.InputTokens, usage.OutputTokens))
 
 		if usage.Cost != nil {
-			parts = append(parts, "$"+strconv.FormatFloat(math.Round(*usage.Cost*1e8)/1e8, 'f', -1, 64))
+			parts = append(parts, Cost(*usage.Cost))
 		}
 	}
 
@@ -488,4 +488,10 @@ func longestBacktickRun(text string) int {
 	}
 
 	return longest
+}
+
+// Cost writes a cost in dollars, rounded to the hundred millionth, which keeps a provider's float
+// noise out of a line meant for people.
+func Cost(dollars float64) string {
+	return "$" + strconv.FormatFloat(math.Round(dollars*1e8)/1e8, 'f', -1, 64)
 }

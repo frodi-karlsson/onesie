@@ -217,7 +217,7 @@ func TestMockAnswers(t *testing.T) {
 			args:     with("-o", "values", "-i", "lines", "--stats"),
 			stdin:    "a\nb\n",
 			mock:     mockAll,
-			stderr:   []string{"2 records answered from the mock, 6 questions, "},
+			stderr:   []string{"2 records answered from the mock, 6 questions answered, "},
 			wantCode: ExitOK,
 
 			stderrAbsent: []string{"request", "attempt", "in / "},
@@ -300,7 +300,7 @@ func TestMockAnswers(t *testing.T) {
 			args:     with("-o", "values", "-i", "lines", "--stats"),
 			stdin:    "a\nb\n",
 			mock:     lines(mockAll, mockUnread),
-			stderr:   []string{"2 records, 1 failed, 1 answered from the mock, 3 questions, "},
+			stderr:   []string{"2 records, 1 failed, 1 answered from the mock, 3 questions answered, "},
 			wantCode: ExitUsage,
 		},
 		{
@@ -814,7 +814,7 @@ func TestMockResume(t *testing.T) {
 			t.Fatalf("second run exit %d, want 0\n%s", code, errOut)
 		}
 
-		if !strings.Contains(errOut, "1 skipped") || !strings.Contains(errOut, "2 records answered from the mock") {
+		if !strings.Contains(errOut, "3 records, 1 skipped by --resume, 2 answered from the mock") {
 			t.Errorf("the second run did not ask exactly the last two records: %s", errOut)
 		}
 

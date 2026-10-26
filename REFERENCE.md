@@ -138,7 +138,7 @@ ONESIE_MOCK=answers.json ./gate.sh
   whose profile holds a dummy `api_key`, since every profile must hold a key. A mock run uses no
   key, opens no network, and ignores `--base-url` and the cloudflare account. It prints the model
   the run resolved wherever a model is shown, and `--usage` reports zero tokens. `--stats` counts
-  no requests, tokens or attempts, as in `2 records answered from the mock, 2 questions, 0s`.
+  no requests, tokens or attempts, as in `2 records answered from the mock, 2 questions answered, 0s`.
 - The `--out` fingerprint marks the run as a mock, so a real run refuses to resume a mock run's
   file and the other way round. The mock file's content is not part of it.
 - `calibrate --mock` works, so a calibration can be tested too. Its `-o json` report carries
@@ -732,7 +732,7 @@ onesie --profile cf -f shell-safety -q --state "$cmd"
   `typesafe/jev-1.13` on OpenRouter. Berget serves its own models and not `jev-latest`. Its default
   is the `systemone` alias, and `--list-models` there lists only the System One models, each with its
   aliases. Levanto also serves its own models and not `jev-latest`. Its default is the `sage-latest`
-  alias, and an unknown model there is a 422 rather than a 400. On OpenRouter, `--usage` also reports the cost. A 200 whose answers onesie cannot use
+  alias, and an unknown model there is a 422 rather than a 400. On OpenRouter, `--usage` also reports the cost, which the `-o table` header and `--stats` show too. A 200 whose answers onesie cannot use
   still spent its tokens, so under `--usage` its json error record carries them too, and `--stats`
   counts them. `-o values`, `-o raw`, `-r`, `-o csv` and `-o tsv`
   have no place for `--usage`, and `-q` writes nothing, so they all refuse it with exit 2.
@@ -774,7 +774,14 @@ table, and `onesie calibrate --help` lists the codes calibrate uses.
 
 ## More
 
-- `--stats` writes a one line summary to stderr: requests, tokens, model, retries and time.
+- `--stats` writes a one line summary to stderr, as in
+  `6 records, 2 skipped by --resume, 1 cached, 3 requests, 3 questions asked, 412 in / 9 out tokens, model jev-latest, 4 attempts (1 retry: 429×1), 10s/attempt, 2.1s`.
+  The records lead with every one the run read, and the counts after them are parts of that whole:
+  those `--resume` skipped, the cache answered, deduplication shared, that failed, and the requests
+  sent. A run of one record that became one request leads with `1 request` alone. The questions
+  are those the requests asked, so a cache hit asks none. The tokens and the cost OpenRouter reports
+  are summed over the requests, and the per attempt timeout is left out of a run that made no
+  attempt.
 - `--list-models` shows what the account can ask, and `-m` picks one.
 - `--base-url` points onesie at any server that speaks the System One API. A redirect is refused
   rather than followed with the key.

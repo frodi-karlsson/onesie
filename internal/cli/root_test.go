@@ -587,6 +587,22 @@ func TestNewRootCmd(t *testing.T) {
 			contains: []string{`"usage":{"input_tokens":10,"output_tokens":2,"cost":0.000012}`},
 		},
 		{
+			name:     "should add the cost to the table's usage when the response carries one",
+			args:     []string{"is this urgent", "-o", "table", "--usage"},
+			stdin:    "the server is down",
+			response: costed,
+			wantCode: cli.ExitOK,
+			contains: []string{"10 in / 2 out  $0.000012\n"},
+		},
+		{
+			name:     "should add the cost to --stats when the response carries one",
+			args:     []string{"is this urgent", "--stats"},
+			stdin:    "the server is down",
+			response: costed,
+			wantCode: cli.ExitOK,
+			contains: []string{"1 request, 1 question asked, 10 in / 2 out tokens, $0.000012, model "},
+		},
+		{
 			name:     "should keep a zero cost in usage",
 			args:     []string{"is this urgent", "-o", "json", "--usage"},
 			stdin:    "the server is down",

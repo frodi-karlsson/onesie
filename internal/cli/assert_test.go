@@ -129,7 +129,7 @@ func TestAsk(t *testing.T) {
 				response: urgent,
 				wantCode: cli.ExitRejected,
 				contains: []string{`"assert":false`},
-				wantErr:  "1 request, 1 false assertion, 1 question",
+				wantErr:  "1 request, 1 false assertion, 1 question asked",
 			},
 			{
 				name:      "should reject a bad expression before any request",
@@ -320,7 +320,7 @@ func TestAsk(t *testing.T) {
 				abstain:   holds,
 				wantCode:  cli.ExitOK,
 				wantOut:   "{\"answer\":0.9}\n",
-				wantStats: "1 request, 1 question",
+				wantStats: "1 request, 1 question asked",
 			},
 			{
 				name:      "should exit seven on an unsure",
@@ -328,7 +328,7 @@ func TestAsk(t *testing.T) {
 				abstain:   holds,
 				wantCode:  cli.ExitAbstain,
 				wantOut:   "{\"abstain\":true,\"answer\":0.9}\n",
-				wantStats: "1 request, 1 abstain, 1 question",
+				wantStats: "1 request, 1 abstain, 1 question asked",
 			},
 			{
 				name:      "should exit one on a no",
@@ -336,7 +336,7 @@ func TestAsk(t *testing.T) {
 				abstain:   fails,
 				wantCode:  cli.ExitRejected,
 				wantOut:   "{\"assert\":false,\"answer\":0.9}\n",
-				wantStats: "1 request, 1 false assertion, 1 question",
+				wantStats: "1 request, 1 false assertion, 1 question asked",
 			},
 		}
 
@@ -865,7 +865,7 @@ func TestStopping(t *testing.T) {
 	}{
 		{
 			name: "should count no failed record for a request the stop cancelled",
-			want: "1 request, 1 false assertion, 1 question",
+			want: "1 request, 1 false assertion, 1 question asked",
 		},
 	}
 

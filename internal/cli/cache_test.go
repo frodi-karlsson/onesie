@@ -709,7 +709,7 @@ func TestAsk(t *testing.T) {
 		runCached(t, env, args, "")
 
 		_, errOut, code := runCached(t, env, args, "")
-		if code != ExitOK || !strings.Contains(errOut, "1 record, 1 cached, 0 requests, 0 questions, 0 in / 0 out, model onesie-1.13.0") {
+		if code != ExitOK || !strings.Contains(errOut, "1 record, 1 cached, 0 requests, 0 questions asked, 0 in / 0 out tokens, model onesie-1.13.0") {
 			t.Errorf("exit %d, stderr %q, want a cached record", code, errOut)
 		}
 	})
