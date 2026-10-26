@@ -4,6 +4,7 @@ import (
 	"math"
 	"testing"
 
+	"github.com/frodi-karlsson/onesie/internal/answer"
 	"github.com/frodi-karlsson/onesie/internal/calibrate"
 )
 
@@ -24,6 +25,7 @@ func TestWilson(t *testing.T) {
 		{name: "should match the closed form for 45 of 47", hits: 45, of: 47, closedForm: true},
 		{name: "should match the closed form for 16 of 165", hits: 16, of: 165, closedForm: true},
 		{name: "should match the closed form for 1 of 1", hits: 1, of: 1, closedForm: true},
+		{name: "should round the rate and interval of 2 of 3 to four places", hits: 2, of: 3, wantLow: 0.2077, wantHigh: 0.9385},
 	}
 
 	for _, tc := range tests {
@@ -32,21 +34,21 @@ func TestWilson(t *testing.T) {
 
 			got := calibrate.Wilson(tc.hits, tc.of)
 
-			wantLow, wantHigh, tolerance := tc.wantLow, tc.wantHigh, 1e-4
+			wantLow, wantHigh := tc.wantLow, tc.wantHigh
 			if tc.closedForm {
 				wantLow, wantHigh = closedForm(tc.hits, tc.of)
-				tolerance = 1e-9
+				wantLow, wantHigh = answer.Rounded(wantLow), answer.Rounded(wantHigh)
 			}
 
 			if !got.Defined || got.Hits != tc.hits || got.Of != tc.of {
 				t.Fatalf("Wilson(%d, %d) = %+v, want a defined share of %d of %d", tc.hits, tc.of, got, tc.hits, tc.of)
 			}
 
-			if want := float64(tc.hits) / float64(tc.of); got.Rate != want {
+			if want := answer.Rounded(float64(tc.hits) / float64(tc.of)); got.Rate != want {
 				t.Errorf("Rate = %v, want %v", got.Rate, want)
 			}
 
-			if math.Abs(got.Low-wantLow) > tolerance || math.Abs(got.High-wantHigh) > tolerance {
+			if got.Low != wantLow || got.High != wantHigh {
 				t.Errorf("interval = %v to %v, want %v to %v", got.Low, got.High, wantLow, wantHigh)
 			}
 		})

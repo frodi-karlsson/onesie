@@ -1,11 +1,15 @@
 package calibrate
 
-import "math"
+import (
+	"math"
+
+	"github.com/frodi-karlsson/onesie/internal/answer"
+)
 
 const z95 = 1.959963984540054
 
-// Wilson returns hits of of as a share with its 95 percent Wilson score interval. A share of
-// nothing is not Defined.
+// Wilson returns hits of of as a share with its 95 percent Wilson score interval, each rounded to
+// four places. A share of nothing is not Defined.
 func Wilson(hits, of int) Share {
 	if of <= 0 {
 		return Share{Hits: hits, Of: of}
@@ -26,7 +30,10 @@ func Wilson(hits, of int) Share {
 		high = 1
 	}
 
-	return Share{Hits: hits, Of: of, Rate: rate, Low: low, High: high, Defined: true}
+	return Share{
+		Hits: hits, Of: of, Rate: answer.Rounded(rate), Low: answer.Rounded(low), High: answer.Rounded(high),
+		Defined: true,
+	}
 }
 
 // Share is hits out of of, with the rate and its 95 percent Wilson interval. Defined is false when

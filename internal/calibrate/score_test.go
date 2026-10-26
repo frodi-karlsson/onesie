@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/frodi-karlsson/onesie/internal/answer"
 	"github.com/frodi-karlsson/onesie/internal/calibrate"
 )
 
@@ -43,6 +44,12 @@ func TestAUC(t *testing.T) {
 			want:        0.5,
 			wantDefined: true,
 		},
+		{
+			name:        "should round to four places",
+			cases:       yesNoCases("yes", 0.9, "no", 0.5, "no", 0.95, "no", 0.1),
+			want:        0.6667,
+			wantDefined: true,
+		},
 		{name: "should leave only yes labels undefined", cases: yesNoCases("yes", 0.9, "yes", 0.1)},
 		{name: "should leave only no labels undefined", cases: yesNoCases("no", 0.9, "no", 0.1)},
 		{name: "should leave no cases undefined"},
@@ -53,7 +60,7 @@ func TestAUC(t *testing.T) {
 			t.Parallel()
 
 			got, defined := calibrate.AUC(tc.cases)
-			if defined != tc.wantDefined || defined && math.Abs(got-tc.want) > 1e-12 {
+			if defined != tc.wantDefined || defined && got != tc.want {
 				t.Errorf("AUC = %v, %v, want %v, %v", got, defined, tc.want, tc.wantDefined)
 			}
 		})
@@ -108,7 +115,7 @@ func TestAUC(t *testing.T) {
 		got, defined := calibrate.AUC(cases)
 		elapsed := time.Since(start)
 
-		if want := wins / (yesTotal * noTotal); !defined || math.Abs(got-want) > 1e-9 {
+		if want := answer.Rounded(wins / (yesTotal * noTotal)); !defined || got != want {
 			t.Errorf("AUC = %v, %v, want %v, true", got, defined, want)
 		}
 
@@ -449,7 +456,7 @@ func TestScoreRate(t *testing.T) {
 
 		checkShare(t, "within one", got.WithinOne, 4, 7)
 
-		if want := 12.0 / 7; !got.HasMeanDistance || math.Abs(got.MeanDistance-want) > 1e-12 {
+		if want := 1.7143; !got.HasMeanDistance || got.MeanDistance != want {
 			t.Errorf("mean distance = %v, want %v", got.MeanDistance, want)
 		}
 	})

@@ -387,7 +387,9 @@ func countedShare(s Share) string {
 }
 
 func percent(rate float64) string {
-	rounded := int(math.Round(rate * 100))
+	// From the four place value in whole hundredths of a percent, since 0.565 times 100 lands just
+	// under 56.5 in floating point and would round down.
+	rounded := int(math.Round(math.Round(rate*1e4) / 100))
 
 	switch {
 	case rounded >= 100 && rate < 1:

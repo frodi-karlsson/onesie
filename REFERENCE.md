@@ -222,7 +222,9 @@ onesie calibrate -f prompt-injection -i jsonl --map .text --id .id \
 - Each requirement that did not hold is named on stderr with its value, interval and cut. A failed
   record still exits 6, which wins over 1.
 - The `-o json` report gains a `require` array, one entry per requirement:
-  `{"expr":"...","held":false,"value":0.65,"interval":[0.43,0.82],"cut":0.25}`. `auc` has
+  `{"expr":"u.catches >= 0.9 at 0.5","held":false,"value":0.6667,"interval":[0.2077,0.9385],"cut":0.5}`,
+  for 2 of 3 caught. Each rate, interval end, `auc` and mean distance in the report is rounded to
+  four places when it is computed, so a requirement compares the number the report prints. `auc` has
   `"interval":null`, a pick or rate measure `"cut":null`, and a measure over no records
   `"value":null` with a `reason`.
 - `--print-request` checks each requirement and its cut, then prints the requests as usual.
