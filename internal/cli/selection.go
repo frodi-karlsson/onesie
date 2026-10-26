@@ -301,7 +301,7 @@ func missingKeyHint(err error, bare resolution, profiles creds.Profiles) error {
 
 	name := firstProfileOf(bare.provider.Name, profiles)
 	if name == "" {
-		return err
+		return fmt.Errorf("%w, or store one with onesie profile create NAME --provider %s", err, bare.provider.Name)
 	}
 
 	if bare.by == envProvider {

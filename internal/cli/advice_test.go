@@ -508,3 +508,91 @@ type adviceCase struct {
 	wantErr  string
 	wantOut  []string
 }
+
+func TestWithKeyHint(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		profiles string
+		args     []string
+		env      map[string]string
+		status   int
+		wantCode int
+		wantErr  string
+		notErr   string
+	}{
+		{
+			name: "should name profile update --key when the server refuses a profile's key",
+			profiles: `{"default":"work","profiles":{"work":{"provider":"typesafe","api_key":"SECRET-WORK",` +
+				`"base_url":"{url}"}}}`,
+			args:     []string{"is this urgent", "--state", "x", "-r"},
+			status:   http.StatusUnauthorized,
+			wantCode: ExitAuth,
+			wantErr:  "onesie: 401 the key was refused. Replace the key with onesie profile update 'work' --key",
+		},
+		{
+			name:     "should name the key variable when the server refuses a key from the environment",
+			args:     []string{"is this urgent", "--state", "x", "-r", "--provider", "openrouter", "--base-url", "{url}"},
+			env:      map[string]string{"OPENROUTER_API_KEY": "SECRET-OR"},
+			status:   http.StatusForbidden,
+			wantCode: ExitAuth,
+			wantErr:  "onesie: 403 the key was refused. Check the key in OPENROUTER_API_KEY",
+		},
+		{
+			name: "should name the key variable when calibrate is refused",
+			args: []string{
+				"calibrate", "--ask", "u=is this urgent", "-i", "jsonl", "--map", ".body", "--label", "u=.u",
+				"--base-url", "{url}",
+			},
+			env:      map[string]string{onesie.EnvAPIKey: "SECRET-TS"},
+			status:   http.StatusUnauthorized,
+			wantCode: ExitAuth,
+			wantErr:  "Check the key in TYPESAFE_API_KEY",
+		},
+		{
+			name: "should leave a 402 without the key hint",
+			profiles: `{"default":"work","profiles":{"work":{"provider":"typesafe","api_key":"SECRET-WORK",` +
+				`"base_url":"{url}"}}}`,
+			args:     []string{"is this urgent", "--state", "x", "-r"},
+			status:   http.StatusPaymentRequired,
+			wantCode: ExitAuth,
+			notErr:   "profile update",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			srv, _ := recordingServer(t, tc.status)
+			fill := strings.NewReplacer("{url}", srv.URL).Replace
+
+			dir := t.TempDir()
+			if tc.profiles != "" {
+				dir = configWith(t, fill(tc.profiles))
+			}
+
+			args := make([]string, 0, len(tc.args))
+			for _, arg := range tc.args {
+				args = append(args, fill(arg))
+			}
+
+			out, errOut, code := runInConfig(t, dir, args, `{"body":"x","u":true}`+"\n", tc.env)
+
+			assertNoSecret(t, out, errOut)
+
+			if code != tc.wantCode {
+				t.Errorf("exit code = %d, want %d\nstderr:\n%s", code, tc.wantCode, errOut)
+			}
+
+			if !strings.Contains(errOut, tc.wantErr) {
+				t.Errorf("stderr = %q, want it to contain %q", errOut, tc.wantErr)
+			}
+
+			if tc.notErr != "" && strings.Contains(errOut, tc.notErr) {
+				t.Errorf("stderr = %q, want no %q", errOut, tc.notErr)
+			}
+		})
+	}
+}

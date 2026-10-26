@@ -706,7 +706,7 @@ func profileTest(cmd *cobra.Command, settings rootSettings, flags *runFlags, arg
 
 	models, err := client.VerifyKey(cmd.Context())
 	if err != nil {
-		return advise(err, "", false)
+		return keyHint(advise(err, "", false), tested)
 	}
 
 	_, printErr := fmt.Fprintf(cmd.OutOrStdout(), "profile: %s\nprovider: %s\nkey: %s\nmodels: %d\n",
@@ -718,10 +718,10 @@ func profileTest(cmd *cobra.Command, settings rootSettings, flags *runFlags, arg
 func noKeyToTest(settings rootSettings, tested resolution) error {
 	missing := &onesie.ValidationError{Message: "no API key. Set " + tested.provider.EnvAPIKey}
 
+	// A file that cannot be read names no profile, and the missing key is the failure to report.
 	opened, err := openedProfiles(settings)
-	if err != nil || firstProfileOf(tested.provider.Name, opened.Profiles) == "" {
-		return fmt.Errorf("%w, or store one with onesie profile create NAME --provider %s",
-			missing, tested.provider.Name)
+	if err != nil {
+		opened = creds.Opened{}
 	}
 
 	return missingKeyHint(missing, tested, opened.Profiles)

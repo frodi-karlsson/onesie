@@ -1568,7 +1568,15 @@ func TestProfileTest(t *testing.T) {
 			args:     []string{"profile", "test", "work"},
 			status:   http.StatusUnauthorized,
 			wantCode: ExitAuth,
-			wantErr:  "onesie: 401 the key was refused",
+			wantErr:  "onesie: 401 the key was refused. Replace the key with onesie profile update 'work' --key",
+		},
+		{
+			name:     "should name the key variable when the server refuses an environment key",
+			args:     []string{"profile", "test"},
+			env:      map[string]string{"ONESIE_PROVIDER": "typesafe", onesie.EnvAPIKey: "SECRET-ENV", onesie.EnvBaseURL: "{url}"},
+			status:   http.StatusUnauthorized,
+			wantCode: ExitAuth,
+			wantErr:  "onesie: 401 the key was refused. Check the key in TYPESAFE_API_KEY",
 		},
 		{
 			name:     "should exit 3 on a forbidden key",
@@ -1576,7 +1584,7 @@ func TestProfileTest(t *testing.T) {
 			args:     []string{"profile", "test", "work"},
 			status:   http.StatusForbidden,
 			wantCode: ExitAuth,
-			wantErr:  "onesie: 403 the key was refused",
+			wantErr:  "onesie: 403 the key was refused. Replace the key with onesie profile update 'work' --key",
 		},
 		{
 			name: "should exit 3 and suggest credits on a 402",

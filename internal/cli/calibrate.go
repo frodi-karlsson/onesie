@@ -108,7 +108,7 @@ func newCalibrateCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) (err error) {
 			defer func() {
-				err = withDashQuestionHint(err, cmd.Flags(), settings.args, args)
+				err = withKeyHint(withDashQuestionHint(err, cmd.Flags(), settings.args, args), settings)
 			}()
 
 			positional := ""

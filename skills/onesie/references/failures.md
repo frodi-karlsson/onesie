@@ -54,7 +54,9 @@ cloudflare. No provider falls back to another's key.
 
 Exit 3 also covers these:
 
-- A 401, a 403 or a 402. OpenRouter sends 402 when the account is out of credits, Berget when
+- A 401 or a 403, where the message names `onesie profile update NAME --key` on a profile run, and
+  the provider's key variable on a run without a profile.
+- A 402. OpenRouter sends 402 when the account is out of credits, Berget when
   the key has no subscription, and Levanto when the period's included usage is used up, and Cloudflare when AI Gateway has no
   credits left for Jev.
 - A `profiles.json` that others can reach. The message names the file and its mode. Run
@@ -79,7 +81,7 @@ Exit 3 also covers these:
 | `an empty state is a request the model cannot answer` | `--state`, `--state-file`, stdin, the `state` of a `-f` file, a stream line or `--map` gave an empty or all whitespace string, an empty object or an empty array. In a stream it is an error line instead, and `--skip-blank` does not drop it. An `-i request` body is forwarded as it is and not checked |
 | `an empty question is one the model cannot answer` | the positional question, an `--ask`, a question file's `ask` or a `-f` body's `instructions` is empty, all whitespace or null |
 | `has no 'instructions'` or `names its question 'instructions'` | a `-f` request body question has no `instructions`, or carries a question file's `ask` in its place |
-| `no API key` | nothing resolved for the provider, see the order above. A real run and `profile test` exit 2 here. `profile show` exits 2 too, after printing `key: none`. Under `--provider` or `ONESIE_PROVIDER` the message names a profile with that provider when there is one |
+| `no API key` | nothing resolved for the provider, see the order above. A real run and `profile test` exit 2 here. `profile show` exits 2 too, after printing `key: none`. Under `--provider` or `ONESIE_PROVIDER` the message names a profile with that provider when there is one, and otherwise `onesie profile create NAME --provider PROVIDER` |
 | `no profile is the default` | there are profiles, none is the default and nothing chose one. Run `onesie profile use NAME`, or pass `--profile` or `--provider` |
 | `which does not exist` | `--profile` or `ONESIE_PROFILE` names a profile that is not in `profiles.json`. The message lists the profiles there are |
 | `is in use by another onesie run` | another run holds the lock beside the `--out` file |

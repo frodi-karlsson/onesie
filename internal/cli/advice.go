@@ -69,6 +69,36 @@ func adviseBox(err error, provider string, boxed bool) error {
 	}
 }
 
+func withKeyHint(err error, settings rootSettings) error {
+	if !keyRefused(err) {
+		return err
+	}
+
+	chosen, resolveErr := runResolution(settings)
+	if resolveErr != nil {
+		return err
+	}
+
+	return keyHint(err, chosen)
+}
+
+func keyHint(err error, chosen resolution) error {
+	if !keyRefused(err) {
+		return err
+	}
+
+	note := "Check the key in " + chosen.provider.EnvAPIKey
+	if chosen.profile != "" {
+		note = "Replace the key with onesie profile update " + quotedName(chosen.profile) + " --key"
+	}
+
+	return &advisedError{cause: err, message: withNote(err.Error(), note)}
+}
+
+func keyRefused(err error) bool {
+	return errors.Is(err, onesie.ErrAuthentication) || errors.Is(err, onesie.ErrPermissionDenied)
+}
+
 type advisedError struct {
 	cause   error
 	message string

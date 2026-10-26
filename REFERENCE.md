@@ -530,6 +530,10 @@ on the provider's key variable alone.
   use. `model:` and `base_url:` read `the provider's` when the profile sets none, and `account:`
   names `account_id`, `base_url`, `CLOUDFLARE_ACCOUNT_ID` or `none`. `show` exits 2 when `key` or
   `account` is `none`, as a real run would.
+- A key the server refuses with 401 or 403 exits 3, on a run or on `test`. On a profile the message
+  names `onesie profile update NAME --key`, and without one it names the provider's key variable. A
+  run with no key and no profile for its provider names
+  `onesie profile create NAME --provider PROVIDER`.
 - `test` proves the key on every provider. On berget it also asks one tiny question with the
   profile's model, which spends a few tokens. On openrouter it also reads `/v1/key` under the base
   URL, which costs nothing, so a proxy set as an openrouter base URL must serve `/v1/key` too.

@@ -928,9 +928,9 @@ func TestMissingKeyHint(t *testing.T) {
 			want: "onesie: no API key. Set TYPESAFE_API_KEY, or drop --provider and pass --profile 'ts'",
 		},
 		{
-			name: "should leave the error alone when no profile has the provider",
+			name: "should name profile create when no profile has the provider",
 			err:  missing("BERGET_API_KEY"), run: bareOf("berget", "--provider", nil),
-			want: "onesie: no API key. Set BERGET_API_KEY",
+			want: "onesie: no API key. Set BERGET_API_KEY, or store one with onesie profile create NAME --provider berget",
 		},
 		{
 			name: "should leave the error alone when the variable holds a key",

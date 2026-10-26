@@ -230,6 +230,12 @@ func TestResolveRun(t *testing.T) {
 			notErr: []string{"--profile work", "is readable or writable by its group or others"},
 		},
 		{
+			name: "should name profile create for a run with no key and no profiles", args: asking("-r"),
+			wantCode: ExitUsage,
+			wantErr: []string{"onesie: no API key. Set TYPESAFE_API_KEY, or store one with onesie profile create NAME " +
+				"--provider typesafe"},
+		},
+		{
 			name: "should convert credentials.json on --print-request", old: oldTypesafe,
 			args: asking("--print-request"), wantOut: `"model":"jev-latest"`, wantFile: true,
 			wantErr: []string{"onesie: converted credentials.json into profiles.json, with profile 'typesafe'"},
