@@ -311,8 +311,7 @@ func rateAnswer(question plan.Question, parts answerParts) (onesie.Answer, error
 		}
 
 		norm, isNumber := finiteNumber(parts.norm)
-		// onesie rounds the norm it prints to four places, and an older one printed it exact, so
-		// either replays.
+		// A norm replays whether it is exact or rounded to four places, the form onesie prints.
 		if !isNumber || (math.Abs(norm-want) > normTolerance && norm != answer.Rounded(want)) {
 			return nil, fmt.Errorf("has norm %s, but score %s on %d levels gives %s",
 				shown(parts.norm), strconv.FormatFloat(score, 'g', -1, 64), len(names),
