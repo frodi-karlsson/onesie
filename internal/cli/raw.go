@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 
 	"github.com/spf13/cobra"
 
@@ -239,19 +240,35 @@ func oneLine(body []byte) []byte {
 func readRawRequest(prepared []byte) rawRequest {
 	// The prepared body holds one member per key, so a decode into members reads exactly what is
 	// sent, by the exact key.
-	var members map[string]json.RawMessage
+	var members map[string]borrowed
 	if json.Unmarshal(prepared, &members) != nil {
 		return rawRequest{}
 	}
 
-	questions := member[map[string]json.RawMessage](members, "questions")
-	read := rawRequest{
-		model: member[string](members, "model"), longContext: member[bool](members, "long_context"),
-		questions: len(questions), asked: requestQuestions(members["questions"]),
+	read := rawRequest{model: member[string](members, "model"), longContext: member[bool](members, "long_context")}
+
+	questions, found := members["questions"]
+	if !found {
+		return read
 	}
 
-	for _, raw := range questions {
-		var question map[string]json.RawMessage
+	if asked := requestQuestions(questions); asked != nil {
+		read.asked, read.questions = asked, len(asked)
+		read.boxed = slices.ContainsFunc(asked, func(q plan.Question) bool { return q.Shape == plan.Box })
+
+		return read
+	}
+
+	// The questions do not load, so they are counted and their types read one by one.
+	var each map[string]borrowed
+	if json.Unmarshal(questions, &each) != nil {
+		return read
+	}
+
+	read.questions = len(each)
+
+	for _, raw := range each {
+		var question map[string]borrowed
 		if json.Unmarshal(raw, &question) == nil && member[string](question, "type") == "box" {
 			read.boxed = true
 		}
@@ -268,7 +285,7 @@ type rawRequest struct {
 	asked       []plan.Question
 }
 
-func member[T any](members map[string]json.RawMessage, name string) T {
+func member[T any](members map[string]borrowed, name string) T {
 	var value T
 
 	raw, found := members[name]
@@ -281,17 +298,11 @@ func member[T any](members map[string]json.RawMessage, name string) T {
 	return value
 }
 
-func requestQuestions(questions json.RawMessage) []plan.Question {
+func requestQuestions(questions borrowed) []plan.Question {
 	// qfile.Load reads a mapping with no questions key as a question file, so the member goes back
 	// under its key to be read as a body's questions.
-	if questions == nil {
-		return nil
-	}
-
-	body, err := json.Marshal(map[string]json.RawMessage{"questions": questions})
-	if err != nil {
-		return nil
-	}
+	body := make([]byte, 0, len(questions)+len(`{"questions":}`))
+	body = append(append(append(body, `{"questions":`...), questions...), '}')
 
 	loaded, err := qfile.Load(body)
 	if err != nil {
@@ -299,4 +310,14 @@ func requestQuestions(questions json.RawMessage) []plan.Question {
 	}
 
 	return loaded.Questions
+}
+
+type borrowed []byte
+
+func (b *borrowed) UnmarshalJSON(data []byte) error {
+	// json.Unmarshal hands each member a slice of its own input, so keeping it copies nothing. The
+	// input is a body this package holds and never writes, so the slice stays valid while it is read.
+	*b = data
+
+	return nil
 }

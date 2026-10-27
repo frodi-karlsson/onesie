@@ -951,6 +951,17 @@ func TestReadRawRequest(t *testing.T) {
 			body: `{"model":"m","questions":{"q":{"type":"noul"}},"Model":"ignored"}`,
 			want: rawRequest{model: "m", questions: 1},
 		},
+		{
+			name: "should mark a box question the body loads",
+			body: `{"state":"s","questions":{"where":{"type":"box","instructions":"where is the cat"}},` +
+				`"assets":{"image-1":"aGVsbG8="}}`,
+			want: rawRequest{questions: 1, boxed: true},
+		},
+		{
+			name: "should read past the assets",
+			body: `{"model":"m","assets":{"image-1":"aGVsbG8="},"questions":{"u":{"type":"noul","instructions":"is it urgent"}}}`,
+			want: rawRequest{model: "m", questions: 1, asked: urgent},
+		},
 		{name: "should read nothing from a body it cannot parse", body: `not json`},
 		{
 			name: "should keep the model and count past a question that is not an object",
