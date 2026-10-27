@@ -258,23 +258,22 @@ func TestPathNamedOnce(t *testing.T) {
 	}
 }
 
-func TestPlainArgErrors(t *testing.T) {
+func TestNoArguments(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		name  string
-		check cobra.PositionalArgs
+		child bool
+		args  []string
 		want  string
 	}{
+		{name: "should accept no argument", args: nil, want: ""},
+		{name: "should refuse an argument in a plain sentence", args: []string{"a", "b"}, want: "onesie: leaf takes no argument, got 'a'"},
 		{
-			name:  "should reword cobra.NoArgs as a plain sentence",
-			check: cobra.NoArgs,
-			want:  "onesie: leaf takes no argument, got 'a'",
-		},
-		{
-			name:  "should keep another validator's message as written",
-			check: cobra.ExactArgs(3),
-			want:  "accepts 3 arg(s), received 2",
+			name:  "should name the subcommands of a command that has them",
+			child: true,
+			args:  []string{"a"},
+			want:  "onesie: leaf has no subcommand 'a'. Its subcommands: child",
 		},
 	}
 
@@ -283,12 +282,22 @@ func TestPlainArgErrors(t *testing.T) {
 			t.Parallel()
 
 			root := &cobra.Command{Use: "onesie"}
-			leaf := &cobra.Command{Use: "leaf", Args: tc.check, RunE: func(*cobra.Command, []string) error { return nil }}
+			leaf := &cobra.Command{Use: "leaf"}
 			root.AddCommand(leaf)
-			plainArgErrors(root)
 
-			if err := leaf.Args(leaf, []string{"a", "b"}); err == nil || err.Error() != tc.want {
-				t.Errorf("Args = %v, want %q", err, tc.want)
+			if tc.child {
+				leaf.AddCommand(&cobra.Command{Use: "child", RunE: func(*cobra.Command, []string) error { return nil }})
+			}
+
+			err := noArguments(leaf, tc.args)
+
+			got := ""
+			if err != nil {
+				got = err.Error()
+			}
+
+			if got != tc.want {
+				t.Errorf("noArguments = %q, want %q", got, tc.want)
 			}
 		})
 	}

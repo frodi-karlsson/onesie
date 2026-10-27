@@ -125,7 +125,7 @@ func TestNewRootCmd(t *testing.T) {
 			args:     []string{"is this urgent", "--state", "site down", "-m", ""},
 			response: answered,
 			wantCode: cli.ExitUsage,
-			contains: []string{"onesie: -m is empty. Name one, or leave the flag out"},
+			contains: []string{"onesie: --model is empty. Name one, or leave the flag out"},
 		},
 		{
 			name:     "should refuse an empty --model rather than run",
@@ -139,7 +139,7 @@ func TestNewRootCmd(t *testing.T) {
 			args:     []string{"is this urgent", "--state", "site down", "-o", ""},
 			response: answered,
 			wantCode: cli.ExitUsage,
-			contains: []string{"onesie: -o is empty. Name one, or leave the flag out"},
+			contains: []string{"onesie: --output is empty. Name one, or leave the flag out"},
 		},
 		{
 			name:     "should refuse an empty --output rather than run",
@@ -153,7 +153,7 @@ func TestNewRootCmd(t *testing.T) {
 			args:     []string{"is this urgent", "--state", "site down", "-i", ""},
 			response: answered,
 			wantCode: cli.ExitUsage,
-			contains: []string{"onesie: -i is empty. Name one, or leave the flag out"},
+			contains: []string{"onesie: --input is empty. Name one, or leave the flag out"},
 		},
 		{
 			name:     "should refuse an empty --input rather than run",
@@ -174,7 +174,7 @@ func TestNewRootCmd(t *testing.T) {
 			args:     []string{"is this urgent", "--state", "site down", "-f", ""},
 			response: answered,
 			wantCode: cli.ExitUsage,
-			contains: []string{"onesie: -f is empty. Name one, or leave the flag out"},
+			contains: []string{"onesie: --file is empty. Name one, or leave the flag out"},
 		},
 		{
 			name:     "should refuse an empty --file rather than run",
@@ -226,7 +226,7 @@ func TestNewRootCmd(t *testing.T) {
 			args:     []string{"is this urgent", "--state", "site down", "-qm", " "},
 			response: answered,
 			wantCode: cli.ExitUsage,
-			contains: []string{"onesie: -m is empty. Name one, or leave the flag out"},
+			contains: []string{"onesie: --model is empty. Name one, or leave the flag out"},
 		},
 		{
 			name:     "should refuse an empty --sep rather than split the options into characters",
@@ -255,7 +255,7 @@ func TestNewRootCmd(t *testing.T) {
 			stdin:    `{"body":"x","u":true}` + "\n",
 			response: answered,
 			wantCode: cli.ExitUsage,
-			contains: []string{"onesie: -m is empty. Name one, or leave the flag out"},
+			contains: []string{"onesie: --model is empty. Name one, or leave the flag out"},
 		},
 		{
 			name: "should refuse an empty -o on calibrate",
@@ -266,7 +266,7 @@ func TestNewRootCmd(t *testing.T) {
 			stdin:    `{"body":"x","u":true}` + "\n",
 			response: answered,
 			wantCode: cli.ExitUsage,
-			contains: []string{"onesie: -o is empty. Name one, or leave the flag out"},
+			contains: []string{"onesie: --output is empty. Name one, or leave the flag out"},
 		},
 		{
 			name: "should refuse an empty -i on calibrate",
@@ -277,7 +277,7 @@ func TestNewRootCmd(t *testing.T) {
 			stdin:    `{"body":"x","u":true}` + "\n",
 			response: answered,
 			wantCode: cli.ExitUsage,
-			contains: []string{"onesie: -i is empty. Name one, or leave the flag out"},
+			contains: []string{"onesie: --input is empty. Name one, or leave the flag out"},
 		},
 		{
 			name: "should refuse an empty --out on calibrate",
@@ -299,7 +299,7 @@ func TestNewRootCmd(t *testing.T) {
 			stdin:    `{"body":"x","u":true}` + "\n",
 			response: answered,
 			wantCode: cli.ExitUsage,
-			contains: []string{"onesie: -f is empty. Name one, or leave the flag out"},
+			contains: []string{"onesie: --file is empty. Name one, or leave the flag out"},
 		},
 		{
 			name: "should refuse an empty --label on calibrate",
@@ -349,7 +349,7 @@ func TestNewRootCmd(t *testing.T) {
 			name:     "should refuse an empty -o on questions",
 			args:     []string{"questions", "-o", ""},
 			wantCode: cli.ExitUsage,
-			contains: []string{"onesie: -o is empty. Name one, or leave the flag out"},
+			contains: []string{"onesie: --output is empty. Name one, or leave the flag out"},
 		},
 		{
 			name:     "should name the question argument when it clashes with a file's id",
@@ -538,13 +538,13 @@ func TestNewRootCmd(t *testing.T) {
 			contains: []string{"onesie: completion bash takes no argument, got 'extra'\n"},
 		},
 		{
-			name:     "should say what a flag that takes a number got",
+			name:     "should name the long form of a shorthand whose value is refused",
 			args:     []string{"-j", "abc", "q"},
 			wantCode: cli.ExitUsage,
-			contains: []string{"onesie: -j takes a whole number, got 'abc'\n"},
+			contains: []string{"onesie: --jobs takes a whole number, got 'abc'\n"},
 		},
 		{
-			name:     "should name a flag the way it was spelled when its value is refused",
+			name:     "should say what a flag that takes a number got",
 			args:     []string{"--jobs", "1.5", "q"},
 			wantCode: cli.ExitUsage,
 			contains: []string{"onesie: --jobs takes a whole number, got '1.5'\n"},
@@ -568,10 +568,10 @@ func TestNewRootCmd(t *testing.T) {
 			contains: []string{"onesie: --state needs a value\n"},
 		},
 		{
-			name:     "should say a shorthand flag needs a value",
+			name:     "should name the long form of a shorthand that needs a value",
 			args:     []string{"q", "-m"},
 			wantCode: cli.ExitUsage,
-			contains: []string{"onesie: -m needs a value\n"},
+			contains: []string{"onesie: --model needs a value\n"},
 		},
 		{
 			name:     "should name an --out file it cannot open once",
@@ -771,16 +771,16 @@ func TestNewRootCmd(t *testing.T) {
 			contains: []string{"onesie: there is no flag -z\n"},
 		},
 		{
-			name:     "should name the cluster an unknown shorthand came from",
+			name:     "should name an unknown shorthand at the end of a cluster",
 			args:     []string{"-qz", "q"},
 			wantCode: cli.ExitUsage,
-			contains: []string{"onesie: there is no flag -z in -qz\n"},
+			contains: []string{"onesie: there is no flag -z\n"},
 		},
 		{
 			name:     "should point a long flag given one dash at two",
 			args:     []string{"-stats", "q"},
 			wantCode: cli.ExitUsage,
-			contains: []string{"onesie: there is no flag -s in -stats. A long flag takes two dashes, as in --stats\n"},
+			contains: []string{"onesie: there is no flag -s in -stats. The closest is --stats\n"},
 		},
 		{
 			name:     "should name an unknown flag on a subcommand in a plain sentence",
@@ -799,7 +799,7 @@ func TestNewRootCmd(t *testing.T) {
 			name:     "should read a dashed word after a profile name as flags beside the run flag note",
 			args:     []string{"profile", "update", "work", "-fz"},
 			wantCode: cli.ExitUsage,
-			contains: []string{"onesie: profile update has no flag -f in -fz. -f belongs to a run, not to profile update\n"},
+			contains: []string{"onesie: profile update has no flag -f in -fz. --file belongs to a run, not to profile update\n"},
 			absent:   []string{"not a profile name"},
 		},
 		{
@@ -815,23 +815,22 @@ func TestNewRootCmd(t *testing.T) {
 			contains: []string{"onesie: profile show has no flag --base-url. --base-url belongs to a run, not to profile show\n"},
 		},
 		{
-			name:     "should name the run flag and the question form on a bare subcommand",
+			name:     "should name the run flag on a bare subcommand",
 			args:     []string{"cache", "--model", "x"},
 			wantCode: cli.ExitUsage,
-			contains: []string{"onesie: cache has no flag --model. --model belongs to a run, not to cache. " +
-				"To ask 'cache' as a question, put it after --\n"},
+			contains: []string{"onesie: cache has no flag --model. --model belongs to a run, not to cache\n"},
 		},
 		{
-			name:     "should leave out the question form when a subcommand also got a word",
+			name:     "should name the run flag when a subcommand also got a word",
 			args:     []string{"questions", "extra", "--stats"},
 			wantCode: cli.ExitUsage,
 			contains: []string{"onesie: questions has no flag --stats. --stats belongs to a run, not to questions\n"},
 		},
 		{
-			name:     "should give the name rule for a dashed word after a flag value",
+			name:     "should read a dashed word after a flag value as flags",
 			args:     []string{"profile", "create", "--provider", "typesafe", "-work"},
 			wantCode: cli.ExitUsage,
-			contains: []string{"onesie: '-work' is not a profile name."},
+			contains: []string{"onesie: profile create has no flag -w in -work\n"},
 		},
 		{
 			name:     "should name no flag one edit past the allowance, even when two tie there",
@@ -840,11 +839,10 @@ func TestNewRootCmd(t *testing.T) {
 			contains: []string{"onesie: there is no flag --x\n"},
 		},
 		{
-			name:     "should give the name rule for a profile name that starts with a dash",
+			name:     "should read a profile name that starts with a dash as flags",
 			args:     []string{"profile", "create", "-work", "--provider", "typesafe"},
 			wantCode: cli.ExitUsage,
-			contains: []string{"onesie: '-work' is not a profile name. A name is 1 to 64 lowercase letters"},
-			absent:   []string{"no flag"},
+			contains: []string{"onesie: profile create has no flag -w in -work\n"},
 		},
 		{
 			name:     "should document how to ask a question that begins with a dash",
@@ -2235,7 +2233,7 @@ func TestNewRootCmd(t *testing.T) {
 	t.Run("should hint that a subcommand rejected a flag the root knows", func(t *testing.T) {
 		t.Parallel()
 
-		const hint = "as a question, put it after --"
+		const hint = "belongs to a run"
 
 		tests := []struct {
 			name   string
@@ -2246,31 +2244,27 @@ func TestNewRootCmd(t *testing.T) {
 			{
 				name: "should hint for version",
 				args: []string{"--print-request", "version"},
-				want: "onesie: version has no flag --print-request. --print-request belongs to a run, not to version. " +
-					"To ask 'version' " + hint + "\n",
+				want: "onesie: version has no flag --print-request. --print-request belongs to a run, not to version\n",
 			},
 			{
 				name: "should hint for profile",
 				args: []string{"profile", "--print-request"},
-				want: "onesie: profile has no flag --print-request. --print-request belongs to a run, not to profile. " +
-					"To ask 'profile' " + hint + "\n",
+				want: "onesie: profile has no flag --print-request. --print-request belongs to a run, not to profile\n",
 			},
 			{
 				name: "should hint for completion",
 				args: []string{"completion", "--print-request"},
-				want: "onesie: completion has no flag --print-request. --print-request belongs to a run, not to completion. " +
-					"To ask 'completion' " + hint + "\n",
+				want: "onesie: completion has no flag --print-request. --print-request belongs to a run, not to completion\n",
 			},
 			{
 				name: "should hint for cache",
 				args: []string{"cache", "--state", "x"},
-				want: "onesie: cache has no flag --state. --state belongs to a run, not to cache. To ask 'cache' " + hint + "\n",
+				want: "onesie: cache has no flag --state. --state belongs to a run, not to cache\n",
 			},
 			{
-				name:   "should say a run flag does not belong to cache clear, which no question names",
-				args:   []string{"cache", "clear", "--state", "x"},
-				want:   "onesie: cache clear has no flag --state. --state belongs to a run, not to cache clear\n",
-				absent: true,
+				name: "should hint for cache clear",
+				args: []string{"cache", "clear", "--state", "x"},
+				want: "onesie: cache clear has no flag --state. --state belongs to a run, not to cache clear\n",
 			},
 			{
 				name:   "should refuse --state on calibrate with its own reason in place of the hint",
@@ -2281,7 +2275,7 @@ func TestNewRootCmd(t *testing.T) {
 			{
 				name: "should hint for a shorthand the root knows",
 				args: []string{"version", "-o", "json"},
-				want: "-o belongs to a run, not to version. To ask 'version' " + hint,
+				want: "--output belongs to a run, not to version\n",
 			},
 			{
 				name:   "should not hint for -V, which takes no question",

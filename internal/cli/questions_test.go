@@ -174,7 +174,7 @@ func TestNewQuestionsCmd(t *testing.T) {
 			name:     "should hint that a question flag belongs to the root",
 			args:     []string{"questions", "--ask", "a=b"},
 			wantCode: ExitUsage,
-			contains: []string{"--ask belongs to a run, not to questions. To ask 'questions' as a question, put it after --"},
+			contains: []string{"--ask belongs to a run, not to questions\n"},
 		},
 		{
 			name:     "should still ask questions as a question after --",

@@ -40,7 +40,7 @@ func newProfileCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 			"profiles.json lives in the config dir: $ONESIE_CONFIG_DIR, then $XDG_CONFIG_HOME/onesie, then " +
 			"%APPDATA%\\onesie on Windows, then ~/.config/onesie. A credentials.json there is converted into " +
 			"it the first time onesie reads it.",
-		Args: cobra.NoArgs,
+		Args: noArguments,
 		// Cobra validates the arguments only of a runnable command. A parent with no RunE answers
 		// onesie profile nonsense with its own help and exit 0.
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -60,18 +60,6 @@ func newProfileCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 		newProfileShowCmd(settings, flags),
 		newProfileTestCmd(settings, flags),
 	)
-
-	// A name that starts with a dash reaches pflag first, which reads it as flags. The mark lets the
-	// flag error give the name rule instead.
-	for _, sub := range cmd.Commands() {
-		if sub.Args != nil && sub.Args(sub, []string{"work"}) == nil {
-			if sub.Annotations == nil {
-				sub.Annotations = map[string]string{}
-			}
-
-			sub.Annotations[annotationTakesProfileName] = ""
-		}
-	}
 
 	return cmd
 }

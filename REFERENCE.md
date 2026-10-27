@@ -916,7 +916,5 @@ table, and `onesie calibrate --help` lists the codes calibrate uses.
   on, the message says so. It is experimental on TypeSafe's side.
 - `onesie --help` lists every flag, and `onesie -V` prints the built in limits. A flag onesie does
   not know exits 2, naming the closest one when one is near. A flag that belongs to a run, given to
-  a subcommand, says so, and on a bare subcommand name such as `onesie cache --model x` it also
-  says how to ask that word as a question. `-V` takes no
-  question, so a word beside it exits 2. `onesie help
+  a subcommand, says so. `-V` takes no question, so a word beside it exits 2. `onesie help
   calibrate` prints a subcommand's help, and a topic that names no subcommand exits 2.

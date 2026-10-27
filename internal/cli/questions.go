@@ -38,7 +38,7 @@ func newQuestionsCmd(settings rootSettings) *cobra.Command {
 			return errors.New("onesie: questions takes no argument. To ask it as a question, put it after --")
 		},
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			if refused := refuseEmptyValues(cmd, settings.args, "output"); refused != nil {
+			if refused := refuseEmptyValues(cmd, "output"); refused != nil {
 				return refused
 			}
 

@@ -30,10 +30,7 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/release"
 )
 
-const (
-	annotationAsksNothing      = "onesie-asks-nothing"
-	annotationTakesProfileName = "onesie-takes-profile-name"
-)
+const annotationAsksNothing = "onesie-asks-nothing"
 
 var pastTag = regexp.MustCompile(`-[0-9]+-g[0-9a-f]+$`)
 
@@ -191,7 +188,7 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 				return refused
 			}
 
-			if refused := refuseEmptyValues(cmd, settings.args, flagBaseURL, flagModel, "output", flagInput, "mock",
+			if refused := refuseEmptyValues(cmd, flagBaseURL, flagModel, "output", flagInput, "mock",
 				"out", "file", flagStateFile, flagMap, flagID, "merge-key", flagImageField); refused != nil {
 				return refused
 			}
@@ -350,13 +347,13 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 
 	// Cobra hands every subcommand the nearest parent's flag error function, so one hook covers the
 	// subcommands cobra adds itself, such as completion.
-	hint := subcommandHint(root, settings.args)
+	hint := subcommandHint(root)
 	root.SetFlagErrorFunc(func(cmd *cobra.Command, err error) error {
-		return withDashQuestionHint(hint(cmd, plainFlagError(cmd, err, settings.args)), cmd.Flags(), settings.args, nil)
+		return withDashQuestionHint(hint(cmd, plainFlagError(cmd, err)), cmd.Flags(), settings.args, nil)
 	})
-	// Cobra would add completion only when the tree runs, after the walk below.
+	// Cobra would add completion only when the tree runs, too late to set its argument check.
 	root.InitDefaultCompletionCmd()
-	plainArgErrors(root)
+	completionTakesNoArguments(root)
 
 	if settings.args != nil {
 		root.SetArgs(settings.args)
@@ -369,7 +366,7 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 	return root
 }
 
-func refuseEmptyValues(cmd *cobra.Command, args []string, names ...string) error {
+func refuseEmptyValues(cmd *cobra.Command, names ...string) error {
 	// A flag given is a choice made, as an empty --profile is, so it is not read as unset. An unset
 	// variable in a script would otherwise drop a --mock and send a paid request.
 	for _, name := range names {
@@ -379,7 +376,7 @@ func refuseEmptyValues(cmd *cobra.Command, args []string, names ...string) error
 		}
 
 		if slices.ContainsFunc(flagValues(flag), isBlank) {
-			return fmt.Errorf("onesie: %s is empty. Name one, or leave the flag out", flagSpelling(flag, args))
+			return fmt.Errorf("onesie: --%s is empty. Name one, or leave the flag out", flag.Name)
 		}
 	}
 
@@ -398,7 +395,7 @@ func isBlank(value string) bool {
 	return strings.TrimSpace(value) == ""
 }
 
-func plainFlagError(cmd *cobra.Command, err error, args []string) error {
+func plainFlagError(cmd *cobra.Command, err error) error {
 	var (
 		invalid  *pflag.InvalidValueError
 		required *pflag.ValueRequiredError
@@ -407,75 +404,30 @@ func plainFlagError(cmd *cobra.Command, err error, args []string) error {
 
 	switch {
 	case errors.As(err, &unknown):
-		return &plainError{cause: err, message: unknownFlag(cmd, unknown, args)}
+		return &plainError{cause: err, message: unknownFlag(cmd, unknown)}
 	case errors.As(err, &invalid):
-		return &plainError{cause: err, message: fmt.Sprintf("onesie: %s takes %s, got '%s'",
-			flagSpelling(invalid.GetFlag(), args), valueKind(invalid.GetFlag()), invalid.GetValue())}
+		return &plainError{cause: err, message: fmt.Sprintf("onesie: --%s takes %s, got '%s'",
+			invalid.GetFlag().Name, valueKind(invalid.GetFlag()), invalid.GetValue())}
 	case errors.As(err, &required):
-		spelled := "--" + required.GetSpecifiedName()
-		if required.GetSpecifiedShortnames() != "" {
-			spelled = "-" + required.GetSpecifiedName()
-		}
-
-		return &plainError{cause: err, message: fmt.Sprintf("onesie: %s needs a value", spelled)}
+		return &plainError{cause: err, message: fmt.Sprintf("onesie: --%s needs a value", required.GetFlag().Name)}
 	default:
 		return err
 	}
 }
 
-func unknownFlag(cmd *cobra.Command, unknown *pflag.NotExistError, args []string) string {
-	if unknown.GetSpecifiedShortnames() == "" {
-		message := noSuchFlag(cmd, "--"+unknown.GetSpecifiedName())
-		if near := nearFlag(cmd, unknown.GetSpecifiedName()); near != "" {
-			message += ". The closest is " + near
-		}
-
-		return message
-	}
-
-	spelled := "-" + unknown.GetSpecifiedName()
-	typed := typedShorthands(unknown.GetSpecifiedShortnames(), args)
-
-	if _, named := cmd.Annotations[annotationTakesProfileName]; named && len(typed) > len(spelled) &&
-		!positionalBefore(cmd, args, typed) {
-		if invalid := creds.ValidName(typed); invalid != nil {
-			return "onesie: " + invalid.Error()
-		}
+func unknownFlag(cmd *cobra.Command, unknown *pflag.NotExistError) string {
+	name, word := unknown.GetSpecifiedName(), unknown.GetSpecifiedShortnames()
+	if word == "" {
+		return noSuchFlag(cmd, "--"+name) + closestFlag(cmd, name)
 	}
 
 	// A word that holds a space is a question the dash question hint speaks to.
-	message := noSuchFlag(cmd, spelled)
-	if typed == spelled || strings.ContainsAny(typed, " \t\n") {
+	message := noSuchFlag(cmd, "-"+name)
+	if word == name || strings.ContainsAny(word, " \t\n") {
 		return message
 	}
 
-	message += " in " + typed
-	if long := cmd.Flags().Lookup(typed[1:]); long != nil {
-		message += ". A long flag takes two dashes, as in --" + long.Name
-	}
-
-	return message
-}
-
-func positionalBefore(cmd *cobra.Command, args []string, word string) bool {
-	// With no word, it reports whether the command line holds any positional at all. A flag the
-	// subcommand does not know may still be the root's, which takes the next word as its value.
-	path := strings.Fields(strings.TrimPrefix(cmd.CommandPath(), cmd.Root().Name()))
-
-	for i, arg := range args {
-		switch {
-		case (word != "" && arg == word) || arg == "--":
-			return false
-		case len(path) > 0 && arg == path[0]:
-			path = path[1:]
-		case strings.HasPrefix(arg, "-") ||
-			(i > 0 && (takesNextAsValue(cmd.Flags(), args[i-1]) || takesNextAsValue(cmd.Root().Flags(), args[i-1]))):
-		default:
-			return true
-		}
-	}
-
-	return false
+	return message + " in -" + word + closestFlag(cmd, word)
 }
 
 func noSuchFlag(cmd *cobra.Command, spelled string) string {
@@ -486,9 +438,18 @@ func noSuchFlag(cmd *cobra.Command, spelled string) string {
 	return fmt.Sprintf("onesie: %s has no flag %s", strings.TrimPrefix(cmd.CommandPath(), cmd.Root().Name()+" "), spelled)
 }
 
+func closestFlag(cmd *cobra.Command, name string) string {
+	near := nearFlag(cmd, name)
+	if near == "" {
+		return ""
+	}
+
+	return ". The closest is " + near
+}
+
 func nearFlag(cmd *cobra.Command, name string) string {
-	// A word typed after two dashes was meant as a flag, so the allowance is wider than the one a
-	// bare word gets against the subcommands.
+	// Every short name sits one or two edits from many unrelated words, so only a longer name earns
+	// a second edit.
 	allowance := 1
 	if len(name) > 5 {
 		allowance = 2
@@ -511,49 +472,6 @@ func nearFlag(cmd *cobra.Command, name string) string {
 	})
 
 	return strings.Join(near, " or ")
-}
-
-func typedShorthands(remaining string, args []string) string {
-	// pflag names only the shorthands left when it stopped, so the command line says which word they
-	// ended, as -qz does for z.
-	if dash := slices.Index(args, "--"); dash >= 0 {
-		args = args[:dash]
-	}
-
-	for _, arg := range args {
-		if !strings.HasPrefix(arg, "--") && strings.HasPrefix(arg, "-") && strings.HasSuffix(arg, remaining) {
-			return arg
-		}
-	}
-
-	return "-" + remaining
-}
-
-func flagSpelling(flag *pflag.Flag, args []string) string {
-	// pflag keeps no spelling for a value it refused, so the command line says which one was typed.
-	// A long form is matched first, since a value such as -just can look like a cluster of shorthands.
-	if dash := slices.Index(args, "--"); dash >= 0 {
-		args = args[:dash]
-	}
-
-	for _, arg := range args {
-		if arg == "--"+flag.Name || strings.HasPrefix(arg, "--"+flag.Name+"=") {
-			return "--" + flag.Name
-		}
-	}
-
-	for _, arg := range args {
-		if flag.Shorthand != "" && !strings.HasPrefix(arg, "--") && strings.HasPrefix(arg, "-") &&
-			!strings.Contains(arg, " ") && strings.Contains(arg[1:], flag.Shorthand) {
-			return "-" + flag.Shorthand
-		}
-	}
-
-	if flag.Shorthand != "" {
-		return "-" + flag.Shorthand
-	}
-
-	return "--" + flag.Name
 }
 
 func valueKind(flag *pflag.Flag) string {
@@ -584,45 +502,39 @@ func (e *plainError) Unwrap() error {
 	return e.cause
 }
 
-func plainArgErrors(cmd *cobra.Command) {
-	for _, sub := range cmd.Commands() {
-		plainArgErrors(sub)
-	}
-
-	check := cmd.Args
-	if check == nil {
+func completionTakesNoArguments(root *cobra.Command) {
+	completion, _, err := root.Find([]string{"completion"})
+	if err != nil {
 		return
 	}
 
-	// cobra.NoArgs speaks in cobra's terms, as in unknown command "x" for "onesie version". Any other
-	// validator's message is kept as written, since the sentences below fit only a command that
-	// takes no argument.
-	cmd.Args = func(cmd *cobra.Command, args []string) error {
-		err := check(cmd, args)
-		if err == nil || len(args) == 0 {
-			return err
-		}
-
-		if noArgs := cobra.NoArgs(cmd, args); noArgs == nil || noArgs.Error() != err.Error() {
-			return err
-		}
-
-		name := strings.TrimPrefix(cmd.CommandPath(), cmd.Root().Name()+" ")
-
-		var subcommands []string
-		for _, sub := range cmd.Commands() {
-			if sub.IsAvailableCommand() {
-				subcommands = append(subcommands, sub.Name())
-			}
-		}
-
-		if len(subcommands) > 0 {
-			return &plainError{cause: err, message: fmt.Sprintf("onesie: %s has no subcommand '%s'. Its subcommands: %s",
-				name, args[0], strings.Join(subcommands, ", "))}
-		}
-
-		return &plainError{cause: err, message: fmt.Sprintf("onesie: %s takes no argument, got '%s'", name, args[0])}
+	completion.Args = noArguments
+	for _, shell := range completion.Commands() {
+		shell.Args = noArguments
 	}
+}
+
+func noArguments(cmd *cobra.Command, args []string) error {
+	if len(args) == 0 {
+		return nil
+	}
+
+	name := strings.TrimPrefix(cmd.CommandPath(), cmd.Root().Name()+" ")
+
+	var subcommands []string
+
+	for _, sub := range cmd.Commands() {
+		if sub.IsAvailableCommand() {
+			subcommands = append(subcommands, sub.Name())
+		}
+	}
+
+	if len(subcommands) > 0 {
+		return fmt.Errorf("onesie: %s has no subcommand '%s'. Its subcommands: %s",
+			name, args[0], strings.Join(subcommands, ", "))
+	}
+
+	return fmt.Errorf("onesie: %s takes no argument, got '%s'", name, args[0])
 }
 
 func groupFlag(recorder *argv.Recorder, name string) pflag.Value {
@@ -680,14 +592,14 @@ func refuseUnknownHelpTopics(root *cobra.Command) {
 	}
 }
 
-func subcommandHint(root *cobra.Command, args []string) func(*cobra.Command, error) error {
+func subcommandHint(root *cobra.Command) func(*cobra.Command, error) error {
 	return func(cmd *cobra.Command, err error) error {
 		var unknown *pflag.NotExistError
 		if cmd == root || !errors.As(err, &unknown) {
 			return err
 		}
 
-		// A flag that asks no question would refuse the question the hint tells the user to ask.
+		// A flag that asks no question would be refused on a run too.
 		known := rootFlag(root, unknown)
 		if known == nil {
 			return err
@@ -697,21 +609,8 @@ func subcommandHint(root *cobra.Command, args []string) func(*cobra.Command, err
 			return err
 		}
 
-		spelled := "--" + known.Name
-		if unknown.GetSpecifiedShortnames() != "" {
-			spelled = "-" + known.Shorthand
-		}
-
-		name := strings.TrimPrefix(cmd.CommandPath(), root.Name()+" ")
-		hinted := fmt.Errorf("%w. %s belongs to a run, not to %s", err, spelled, name)
-
-		// Only a bare subcommand name could have been meant as a one word question. A deeper
-		// subcommand, or one given a word of its own, was meant as that subcommand.
-		if cmd.Parent() != root || positionalBefore(cmd, args, "") {
-			return hinted
-		}
-
-		return fmt.Errorf("%w. To ask '%s' as a question, put it after --", hinted, cmd.Name())
+		return fmt.Errorf("%w. --%s belongs to a run, not to %s",
+			err, known.Name, strings.TrimPrefix(cmd.CommandPath(), root.Name()+" "))
 	}
 }
 
