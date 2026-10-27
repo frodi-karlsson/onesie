@@ -136,7 +136,7 @@ func TestReadQuestionFile(t *testing.T) {
 
 			tree := newFakeTree(tc.files, workDir, configDir)
 			tree.dangling = tc.links
-			settings := tree.settings(rootSettings{})
+			settings := tree.settings(testSettings(withBuiltIns(nil)))
 
 			if tc.readErr != nil {
 				settings.readFile = func(string) ([]byte, error) { return nil, tc.readErr }
@@ -491,7 +491,7 @@ func TestReadQuestionFile(t *testing.T) {
 
 		gone := errors.New("getwd: no such file or directory")
 
-		settings := newFakeTree(nil, workDir, configDir).settings(rootSettings{})
+		settings := newFakeTree(nil, workDir, configDir).settings(testSettings(withBuiltIns(nil)))
 		settings.getwd = func() (string, error) { return "", gone }
 
 		if _, _, _, err := readQuestionFile(settings, "triage"); !errors.Is(err, gone) {
@@ -721,14 +721,18 @@ func (f fakeTree) options() []RootOption {
 	}
 }
 
+func testSettings(opts ...RootOption) rootSettings {
+	settings := defaultSettings(BuildInfo{})
+
+	for _, opt := range opts {
+		opt(&settings)
+	}
+
+	return settings
+}
+
 func withBuiltIns(sets map[string]string) RootOption {
 	return func(s *rootSettings) {
-		if sets == nil {
-			s.readBuiltIn, s.builtIns = nil, nil
-
-			return
-		}
-
 		s.readBuiltIn = func(name string) ([]byte, bool) {
 			content, ok := sets[name]
 

@@ -75,33 +75,7 @@ var groupFlagHelp = map[string]string{
 func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 	flags := &runFlags{}
 
-	settings := rootSettings{
-		stdin:         os.Stdin,
-		stdinTTY:      isTerminal(os.Stdin),
-		stdoutTTY:     isTerminal(os.Stdout),
-		readFile:      os.ReadFile,
-		readDir:       os.ReadDir,
-		stat:          os.Stat,
-		getwd:         os.Getwd,
-		openFile:      os.OpenFile,
-		rename:        os.Rename,
-		remove:        os.Remove,
-		resolve:       filepath.EvalSymlinks,
-		readlink:      os.Readlink,
-		goos:          runtime.GOOS,
-		lock:          newLocker(runtime.GOOS).lockAnswers,
-		lookupEnv:     os.LookupEnv,
-		homeDir:       os.UserHomeDir,
-		now:           time.Now,
-		terminalWidth: widthOf(os.Stdout),
-		credStore:     creds.NewStore(),
-		keychain:      creds.NewKeychain(),
-		readSecret:    readHiddenSecret,
-		schemaURL:     schemaURLOf(info),
-		dedupLimit:    limits.MaxDedupRequests,
-		readBuiltIn:   questions.Read,
-		builtIns:      questions.Names,
-	}
+	settings := defaultSettings(info)
 
 	for _, opt := range opts {
 		opt(&settings)
@@ -333,6 +307,36 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 	asksNothing(root.Flags(), "help")
 
 	return root
+}
+
+func defaultSettings(info BuildInfo) rootSettings {
+	return rootSettings{
+		stdin:         os.Stdin,
+		stdinTTY:      isTerminal(os.Stdin),
+		stdoutTTY:     isTerminal(os.Stdout),
+		readFile:      os.ReadFile,
+		readDir:       os.ReadDir,
+		stat:          os.Stat,
+		getwd:         os.Getwd,
+		openFile:      os.OpenFile,
+		rename:        os.Rename,
+		remove:        os.Remove,
+		resolve:       filepath.EvalSymlinks,
+		readlink:      os.Readlink,
+		goos:          runtime.GOOS,
+		lock:          newLocker(runtime.GOOS).lockAnswers,
+		lookupEnv:     os.LookupEnv,
+		homeDir:       os.UserHomeDir,
+		now:           time.Now,
+		terminalWidth: widthOf(os.Stdout),
+		credStore:     creds.NewStore(),
+		keychain:      creds.NewKeychain(),
+		readSecret:    readHiddenSecret,
+		schemaURL:     schemaURLOf(info),
+		dedupLimit:    limits.MaxDedupRequests,
+		readBuiltIn:   questions.Read,
+		builtIns:      questions.Names,
+	}
 }
 
 func addRunFlags(set *pflag.FlagSet, flags *runFlags, help runFlagHelp) {

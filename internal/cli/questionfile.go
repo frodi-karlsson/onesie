@@ -43,10 +43,8 @@ func readQuestionFile(settings rootSettings, value string) (data []byte, path, h
 		return nil, "", "", fmt.Errorf("reading %s: %w", source.Path, patherr.Inner(err))
 	}
 
-	if settings.readBuiltIn != nil {
-		if _, ok := settings.readBuiltIn(value); ok {
-			hides = value
-		}
+	if _, ok := settings.readBuiltIn(value); ok {
+		hides = value
 	}
 
 	return data, source.Path, hides, nil
@@ -71,23 +69,18 @@ func findEnv(settings rootSettings) (qfile.FindEnv, error) {
 		return qfile.FindEnv{}, fmt.Errorf("finding the working directory to look up a question file: %w", err)
 	}
 
-	env := qfile.FindEnv{
+	return qfile.FindEnv{
 		WorkDir:   workDir,
 		ConfigDir: settings.configDir,
 		ReadDir:   settings.readDir,
 		Resolve:   settings.resolve,
 		BuiltIns:  settings.builtIns,
-	}
-
-	if settings.readBuiltIn != nil {
-		env.BuiltIn = func(name string) bool {
+		BuiltIn: func(name string) bool {
 			_, ok := settings.readBuiltIn(name)
 
 			return ok
-		}
-	}
-
-	return env, nil
+		},
+	}, nil
 }
 
 func loadQuestionFile(data []byte, path, hides string, alone bool) (*qfile.File, error) {
