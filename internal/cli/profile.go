@@ -255,6 +255,14 @@ func profileUpdate(
 
 	profile := updated(old, fields, changed)
 	if profile == old && !fields.key {
+		// A member named with the value it already has is a choice the file already holds, so it
+		// is noted rather than refused. Naming none is still a mistake.
+		if already := alreadySet(old, changed); already != "" {
+			_, err := fmt.Fprintf(cmd.ErrOrStderr(), "onesie: profile %s is unchanged, since %s\n", quotedName(name), already)
+
+			return err
+		}
+
 		return fmt.Errorf(
 			"onesie: profile update %s changes nothing. Pass --model, --base-url, --account-id or --key",
 			quotedName(name))
@@ -846,6 +854,35 @@ func addMemberFlags(cmd *cobra.Command, fields *profileFlags, flags *runFlags) {
 			"form, or ::1. Every run on the profile then needs --allow-http too")
 	cmd.Flags().StringVar(&fields.accountID, flagAccountID, "",
 		"cloudflare only, the account id, 32 hexadecimal characters")
+}
+
+func alreadySet(profile creds.Profile, changed func(string) bool) string {
+	var unset, held []string
+
+	for _, member := range []struct{ flag, name, value string }{
+		{flag: flagModel, name: "model", value: profile.Model},
+		{flag: flagBaseURL, name: "base_url", value: profile.BaseURL},
+		{flag: flagAccountID, name: "account_id", value: profile.AccountID},
+	} {
+		switch {
+		case !changed(member.flag):
+		case member.value == "":
+			unset = append(unset, "its "+member.name)
+		default:
+			held = append(held, fmt.Sprintf("its %s is already %s", member.name, output.Printable(member.value)))
+		}
+	}
+
+	if len(unset) > 0 {
+		verb := "is"
+		if len(unset) > 1 {
+			verb = "are"
+		}
+
+		held = append(held, fmt.Sprintf("%s %s already unset", strings.Join(unset, " and "), verb))
+	}
+
+	return strings.Join(held, ", and ")
 }
 
 func profileNames(command string, least, most int) cobra.PositionalArgs {

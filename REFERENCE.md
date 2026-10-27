@@ -567,6 +567,8 @@ on the provider's key variable alone.
 - The key is read from a hidden prompt on a terminal, and otherwise from the first line of stdin,
   which must hold the key alone. A second line that is not blank exits 2, so pipe a password manager
   entry through `head -n 1`. The key is never a flag, since a flag lands in shell history.
+- `update` with a member set to the value it already has, or cleared when it is already unset,
+  leaves the file alone, says so on stderr and exits 0. `update` with no member at all exits 2.
 - `create` and `update --key` put the key in the OS keychain, or in `profiles.json` with `--file`. A
   keychain that does not answer in time exits 3 and names `--file`. Any other keychain error stores
   the key in the file instead, with a warning. On Linux the key reaches the Secret Service over the

@@ -753,11 +753,18 @@ func TestProfileUpdate(t *testing.T) {
 			wantFile: work,
 		},
 		{
-			name:     "should exit 2 when a member is set to the value it has",
+			name:     "should note that a member set to the value it has changes nothing, and exit 0",
 			file:     work,
 			args:     []string{"profile", "update", "work", "--model", "typesafe/jev"},
-			wantCode: ExitUsage,
-			wantErr:  []string{"onesie: profile update 'work' changes nothing"},
+			wantErr:  []string{"onesie: profile 'work' is unchanged, since its model is already typesafe/jev"},
+			wantFile: work,
+		},
+		{
+			name:     "should note that clearing an unset member changes nothing, and exit 0",
+			file:     levanto,
+			args:     []string{"profile", "update", "lv", "--model", "", "--base-url", ""},
+			wantErr:  []string{"onesie: profile 'lv' is unchanged, since its model and its base_url are already unset"},
+			wantFile: levanto,
 		},
 		{
 			name:     "should refuse a missing profile",
