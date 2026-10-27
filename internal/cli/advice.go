@@ -65,7 +65,7 @@ func textBody(api *onesie.APIError, body string) string {
 
 	// An HTML page from a proxy or a web server says nothing a terminal line can show, while a one
 	// line text body may name the cause.
-	if line != "" && !strings.HasPrefix(line, "<") {
+	if line != "" && !strings.HasPrefix(line, "<") && !repeatsStatus(line, api.Status) {
 		message += ": " + line
 	}
 
@@ -76,6 +76,14 @@ func textBody(api *onesie.APIError, body string) string {
 	}
 
 	return withNote(message, "Check that the base URL points at the System One API")
+}
+
+func repeatsStatus(line string, status int) bool {
+	// A body of only Unauthorized, or of 401 Unauthorized, adds nothing to the status already named.
+	text := strings.TrimSuffix(line, ".")
+	text = strings.TrimSpace(strings.TrimPrefix(text, strconv.Itoa(status)))
+
+	return strings.EqualFold(text, http.StatusText(status))
 }
 
 func jsonContent(contentType string) bool {

@@ -362,6 +362,27 @@ func TestAdvise(t *testing.T) {
 					"The key came from TYPESAFE_API_KEY\n",
 			},
 			{
+				name:        "should drop a text body that only repeats the status text",
+				args:        []string{"is this urgent"},
+				stdin:       "a ticket",
+				status:      http.StatusUnauthorized,
+				response:    "Unauthorized\n",
+				contentType: "text/plain",
+				wantCode:    ExitAuth,
+				wantErr: "onesie: 401 Unauthorized, with a response body that is not JSON. " +
+					"The key came from TYPESAFE_API_KEY\n",
+			},
+			{
+				name:        "should drop a text body that only repeats the status line",
+				args:        []string{"is this urgent", "--retries", "0"},
+				stdin:       "a ticket",
+				status:      http.StatusServiceUnavailable,
+				response:    "503 service unavailable\n",
+				contentType: "text/plain",
+				wantCode:    ExitUnavailable,
+				wantErr:     "onesie: 503 Service Unavailable, with a response body that is not JSON\n",
+			},
+			{
 				name:     "should not repeat a refused key message that already says to check the key",
 				args:     []string{"is this urgent"},
 				stdin:    "a ticket",
