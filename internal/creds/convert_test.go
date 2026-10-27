@@ -163,8 +163,8 @@ func TestStoreOpenProfiles(t *testing.T) {
 			t.Error("InMemory is false, want true when profiles.json was not written")
 		}
 
-		if count := strings.Count(opened.Warnings[0].Error(), "onesie: "); count != 1 {
-			t.Errorf("warning = %v, want the onesie prefix once, got it %d times", opened.Warnings[0], count)
+		if count := strings.Count(opened.Warnings[0].Error(), "onesie: "); count != 0 {
+			t.Errorf("warning = %v, want no onesie prefix, got it %d times", opened.Warnings[0], count)
 		}
 
 		if _, err := os.Stat(filepath.Join(dir, "credentials.json")); err != nil {

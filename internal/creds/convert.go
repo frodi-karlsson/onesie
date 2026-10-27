@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
-	"strings"
 
 	"github.com/frodi-karlsson/onesie-go"
 )
@@ -50,8 +49,8 @@ func (s Store) OpenProfiles(dir string) (Opened, error) {
 	if err != nil {
 		opened.InMemory = true
 		opened.Warnings = append(opened.Warnings, fmt.Errorf(
-			"onesie: could not write %s, so %s is converted for this run only: %w",
-			path, oldPath, withoutPrefix(err)))
+			"could not write %s, so %s is converted for this run only: %w",
+			path, oldPath, err))
 
 		return opened, nil
 	}
@@ -115,14 +114,14 @@ func (s Store) removeCredentials(oldPath, failure string) error {
 
 	// Another process converting at the same moment may have removed it first.
 	if err := s.remove(oldPath); err != nil && !errors.Is(err, os.ErrNotExist) {
-		return fmt.Errorf("onesie: %s: %w", failure, err)
+		return fmt.Errorf("%s: %w", failure, err)
 	}
 
 	if !isLink {
 		return nil
 	}
 
-	return fmt.Errorf("onesie: removed the link %s, but %s still holds the key", oldPath, target)
+	return fmt.Errorf("removed the link %s, but %s still holds the key", oldPath, target)
 }
 
 // Convert turns a credential file into profiles, one per provider and named after it. Keychain
@@ -174,20 +173,4 @@ type Opened struct {
 	Converted []string
 	InMemory  bool
 	Warnings  []error
-}
-
-func withoutPrefix(err error) error {
-	return unprefixed{err}
-}
-
-type unprefixed struct {
-	error
-}
-
-func (u unprefixed) Error() string {
-	return strings.TrimPrefix(u.error.Error(), "onesie: ")
-}
-
-func (u unprefixed) Unwrap() error {
-	return u.error
 }

@@ -397,7 +397,7 @@ func (k keptKey) undo(keychain Keychain, account string) string {
 	}
 
 	if err := keychain.Set(account, k.key); err != nil {
-		return "warning: " + strings.TrimPrefix(err.Error(), "onesie: ") + ". The keychain item " + account +
+		return "warning: " + err.Error() + ". The keychain item " + account +
 			" now holds the new key, and its old key could not be put back"
 	}
 
@@ -1030,7 +1030,7 @@ func storeProfileKey(
 
 	profile.APIKey = key
 
-	return profile, "warning: " + strings.TrimPrefix(err.Error(), "onesie: ") + ". The key is in " + path + " instead", nil
+	return profile, "warning: " + err.Error() + ". The key is in " + path + " instead", nil
 }
 
 func saveProfiles(cmd *cobra.Command, settings rootSettings, path string, profiles creds.Profiles) error {
@@ -1045,10 +1045,19 @@ func saveProfiles(cmd *cobra.Command, settings rootSettings, path string, profil
 func warningLines(warnings []error) []string {
 	lines := make([]string, 0, len(warnings))
 	for _, warning := range warnings {
-		lines = append(lines, warning.Error())
+		lines = append(lines, warningLine(warning))
 	}
 
 	return lines
+}
+
+func warningLine(warning error) string {
+	var unprotected *creds.ModeWarning
+	if errors.As(warning, &unprotected) {
+		return warning.Error()
+	}
+
+	return "onesie: " + warning.Error()
 }
 
 func keychainItem(profile creds.Profile) string {
@@ -1084,7 +1093,7 @@ func itemOwner(profiles creds.Profiles, except, account string) string {
 }
 
 func leftBehind(err error, account string) string {
-	return "warning: " + strings.TrimPrefix(err.Error(), "onesie: ") + ". The keychain item " + account +
+	return "warning: " + err.Error() + ". The keychain item " + account +
 		" is left behind"
 }
 
