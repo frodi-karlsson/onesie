@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 
 	"github.com/spf13/cobra"
 
@@ -162,18 +163,13 @@ func streamRaw(
 }
 
 func withModel(body []byte, model string) []byte {
-	object, isObject := bytes.CutPrefix(bytes.TrimSpace(body), []byte("{"))
-	if model == "" || !isObject {
+	object := bytes.TrimSpace(body)
+	if model == "" || !bytes.HasPrefix(object, []byte("{")) {
 		return body
 	}
 
-	// The body is otherwise sent as written, so the model goes in front rather than through a
-	// decode and encode that would reorder the keys and reformat the numbers.
-	var probe struct {
-		Model json.RawMessage `json:"model"`
-	}
-
-	if err := json.Unmarshal(body, &probe); err != nil || probe.Model != nil {
+	start, end, found, ok := modelValue(object)
+	if !ok {
 		return body
 	}
 
@@ -182,12 +178,55 @@ func withModel(body []byte, model string) []byte {
 		return body
 	}
 
-	filled := append([]byte(`{"model":`), name...)
-	if !bytes.HasPrefix(bytes.TrimSpace(object), []byte("}")) {
-		filled = append(filled, ',')
+	// The body is otherwise sent as written, so the model goes in place or in front rather than
+	// through a decode and encode that would reorder the keys and reformat the numbers.
+	if found {
+		if value := string(object[start:end]); value != `""` && value != "null" {
+			return body
+		}
+
+		return slices.Concat(object[:start], name, object[end:])
 	}
 
-	return append(filled, object...)
+	filled := append([]byte(`{"model":`), name...)
+	if rest := bytes.TrimSpace(object[1:]); bytes.HasPrefix(rest, []byte("}")) {
+		return append(filled, rest...)
+	}
+
+	return slices.Concat(filled, []byte(","), object[1:])
+}
+
+func modelValue(object []byte) (start, end int, found, ok bool) {
+	// Walked key by key, since encoding/json matches a field name in any case and a body that holds
+	// only Model names no model the API reads.
+	decoder := json.NewDecoder(bytes.NewReader(object))
+	if _, err := decoder.Token(); err != nil {
+		return 0, 0, false, false
+	}
+
+	for decoder.More() {
+		key, err := decoder.Token()
+		if err != nil {
+			return 0, 0, false, false
+		}
+
+		var value json.RawMessage
+		if err := decoder.Decode(&value); err != nil {
+			return 0, 0, false, false
+		}
+
+		if key == "model" {
+			end := int(decoder.InputOffset())
+
+			return end - len(value), end, true, true
+		}
+	}
+
+	if _, err := decoder.Token(); err != nil {
+		return 0, 0, false, false
+	}
+
+	return 0, 0, false, true
 }
 
 func oneLine(body []byte) []byte {

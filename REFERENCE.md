@@ -23,7 +23,7 @@ prints the built in limits.
   `instructions` of a `-f` request body. So does a null or missing question, one that is a number
   or `true` or `false`, and an empty mapping or sequence. A `-f` body question that carries `ask`
   in place of `instructions` exits 2 and says so. An `-i request` body is forwarded as it is and not
-  checked, apart from a missing `model`, which onesie fills in.
+  checked, apart from a `model` that is missing, empty or null, which onesie fills in.
 - A pick or rate answer carries `confidence`, a number from 0 to 1 the API computes from `p`. In
   the committed rate answers it is about 1 when `p` sits on one level, never above the top
   probability, and lower as the rest spreads to other levels, most of all to far ones.
@@ -616,8 +616,9 @@ on the provider's key variable alone.
   in default. No provider falls back to another's key.
 - A question file carries no model, since `model` is a reserved question id there. Only a request
   body, as `--print-request` writes it, names one. Under `-i request` each body sends the model it
-  names, and a body that names none takes the profile's `model`, then the order above. onesie
-  writes that model into the body, so `--print-request` shows it too.
+  names, and a body that names none, or an empty or null one, takes the profile's `model`, then the
+  order above. Only the key `model` spelled in that case counts, so a body that holds only `Model`
+  names none. onesie writes that model into the body, so `--print-request` shows it too.
 - On cloudflare the account counts only when no base URL is chosen, since a Cloudflare base URL
   holds the account. A cloudflare run with no account exits 2 and names `CLOUDFLARE_ACCOUNT_ID` and
   the base URL `https://api.cloudflare.com/client/v4/accounts/<account_id>/ai`. On a profile it also

@@ -713,6 +713,38 @@ func TestStreamRaw(t *testing.T) {
 	})
 }
 
+func TestWithModel(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		body  string
+		model string
+		want  string
+	}{
+		{name: "should put the model in front of a body that names none", body: `{"state":"x"}`, model: "m", want: `{"model":"m","state":"x"}`},
+		{name: "should fill a body that starts with whitespace", body: " \t{\"state\":\"x\"}", model: "m", want: `{"model":"m","state":"x"}`},
+		{name: "should fill an empty object", body: `{ }`, model: "m", want: `{"model":"m"}`},
+		{name: "should fill an empty model in place", body: `{"state":"x", "model": "", "q":1}`, model: "m", want: `{"state":"x", "model": "m", "q":1}`},
+		{name: "should fill a null model in place", body: `{"model":null}`, model: "m", want: `{"model":"m"}`},
+		{name: "should read a key in another case as no model", body: `{"Model":"x"}`, model: "m", want: `{"model":"m","Model":"x"}`},
+		{name: "should keep the model a body names", body: `{"state":"x","model":"own"}`, model: "m", want: `{"state":"x","model":"own"}`},
+		{name: "should leave a body that is not an object", body: `["state"]`, model: "m", want: `["state"]`},
+		{name: "should leave a body that is not JSON", body: `{"state":`, model: "m", want: `{"state":`},
+		{name: "should leave a body alone with no model to fill", body: `{"state":"x"}`, want: `{"state":"x"}`},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := string(withModel([]byte(tc.body), tc.model)); got != tc.want {
+				t.Errorf("withModel(%s) = %s, want %s", tc.body, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestCheckFlags(t *testing.T) {
 	t.Parallel()
 
