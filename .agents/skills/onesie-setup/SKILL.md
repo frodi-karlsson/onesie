@@ -33,7 +33,7 @@ A profile names its provider, so `onesie profile create work --provider openrout
 
 ### End the setup with onesie profile test, not profile show.
 
-`profile show` only reports what a run would use and where its key lives, and never reads the keychain. `profile test` reads the key and sends it to the provider's model listing, which costs no tokens, then prints `profile:`, `provider:`, `key:` and `models:` with a count. Berget lists its models to any key, so on berget it also asks one tiny question with the profile's model, which spends a few tokens. It exits 2 when no key resolves, 3 when the provider refuses the key or the keychain cannot give it up, and 4 or 5 when the provider cannot be reached. Only a clean `profile test` means the next real command will work.
+`profile show` only reports what a run would use and where its key lives, and never reads the keychain. `profile test` reads the key and sends it to the provider's model listing, which costs no tokens, then prints `profile:`, `provider:`, `key:` and `models:` with a count. On berget it also asks one tiny question with the profile's model, which spends a few tokens. It exits 2 when no key resolves, 3 when the provider refuses the key or the keychain cannot give it up, and 4 or 5 when the provider cannot be reached. Only a clean `profile test` means the next real command will work.
 
 ## Installing onesie
 
