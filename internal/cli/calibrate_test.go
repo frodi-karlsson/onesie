@@ -227,6 +227,14 @@ func TestNewCalibrateCmd(t *testing.T) {
 			contains: []string{"so -q/--quiet does not apply. Drop it"},
 		},
 		{
+			name:     "should refuse --quiet rather than print help when --help comes first",
+			args:     []string{"calibrate", "--help", "--quiet"},
+			wantCode: ExitUsage,
+			contains: []string{
+				"onesie: calibrate prints a report, and its exit code judges nothing, so -q/--quiet does not apply. Drop it\n",
+			},
+		},
+		{
 			name:     "should refuse --stop-on-error",
 			args:     with("--stop-on-error"),
 			wantCode: ExitUsage,
