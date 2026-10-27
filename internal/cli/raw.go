@@ -179,8 +179,8 @@ func requests(flags runConfig) bool {
 }
 
 func checkRawResponse(asked []plan.Question, response []byte) (onesie.Result, error) {
-	// One decode reads the model, the usage and the answers. The usage is read ahead of the answers,
-	// so a 200 whose answers onesie cannot read still reports what it cost.
+	// One decode reads the model, the usage and the answers. A 200 whose answers onesie cannot read
+	// leaves the usage unset, so the usage is read again alone to report what the request cost.
 	var result onesie.Result
 
 	err := json.Unmarshal(response, &result)
@@ -191,12 +191,26 @@ func checkRawResponse(asked []plan.Question, response []byte) (onesie.Result, er
 	case errors.As(err, &syntax):
 		return result, answer.Unusable("the response is not JSON")
 	case err != nil:
+		result.Usage = billedUsage(response)
+
 		return result, &onesie.ResponseError{Status: http.StatusOK, Err: err}
 	case len(result.Answers) == 0 && !holdsAnswers(response):
 		return result, answer.Unusable("the response is not a System One result, since it has no answers")
 	}
 
 	return result, answer.CheckAll(asked, &result)
+}
+
+func billedUsage(response []byte) onesie.Usage {
+	var billed struct {
+		Usage onesie.Usage `json:"usage"`
+	}
+
+	if json.Unmarshal(response, &billed) != nil {
+		return onesie.Usage{}
+	}
+
+	return billed.Usage
 }
 
 func holdsAnswers(response []byte) bool {
