@@ -492,7 +492,7 @@ func readmeRoot(t *testing.T, stdin io.Reader) *cobra.Command {
 
 	return cli.NewRootCmd(
 		cli.BuildInfo{Version: "1.2.3"},
-		cli.WithKeychain(offKeychain{}),
+		cli.WithKeychain(offKeychain()),
 		cli.WithStdin(stdin),
 		cli.WithStdinTTY(false),
 		cli.WithStdoutTTY(false),

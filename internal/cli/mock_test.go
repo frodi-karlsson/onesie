@@ -521,7 +521,7 @@ func TestMockAnswers(t *testing.T) {
 
 		_, errOut, code := runMocked(t, t.Context(),
 			[]string{"is it urgent", "-o", "values", "--state", "x", "--mock", writeMock(t, `{"answer":0.9}`)},
-			"", nil, nil, WithKeychain(chain))
+			"", nil, nil, withKeychain(chain))
 		if code != ExitOK {
 			t.Fatalf("exit %d\n%s", code, errOut)
 		}
@@ -548,7 +548,7 @@ func TestMockAnswers(t *testing.T) {
 
 		for _, ask := range asks {
 			out, errOut, code := runMocked(t, t.Context(), append(ask.args, "--mock", writeMock(t, mockAll)), "",
-				map[string]string{"ONESIE_CONFIG_DIR": dir}, nil, WithKeychain(chain))
+				map[string]string{"ONESIE_CONFIG_DIR": dir}, nil, withKeychain(chain))
 
 			checkMocked(t, out, errOut, code, ExitOK, fileOf(`{"model":"`+ask.model+`",`+mockAllJSON+"}\n"),
 				nil, nil, nil)
@@ -1058,7 +1058,7 @@ func runMocked(
 	var out, errOut bytes.Buffer
 
 	opts := []RootOption{
-		WithKeychain(noKeychain()),
+		withKeychain(noKeychain()),
 		WithStdin(reader),
 		WithStdinTTY(false),
 		WithStdoutTTY(false),
@@ -1088,7 +1088,7 @@ func runReal(t *testing.T, args []string, stdin, base string) (string, string, i
 
 	root := NewRootCmd(
 		BuildInfo{Version: "1.2.3"},
-		WithKeychain(noKeychain()),
+		withKeychain(noKeychain()),
 		WithStdin(strings.NewReader(stdin)),
 		WithStdinTTY(false),
 		WithStdoutTTY(false),

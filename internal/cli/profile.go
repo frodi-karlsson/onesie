@@ -134,15 +134,13 @@ func profileCreate(
 
 	if _, taken := opened.Profiles.Profiles[name]; taken {
 		return fmt.Errorf("profile %s exists. Change it with onesie profile update %s, "+
-			"or delete it and create it again", quotedName(name), quotedName(name))
+			"or delete it and create it again", creds.QuotedName(name), creds.QuotedName(name))
 	}
 
 	profile := creds.Profile{
 		Provider: provider, Model: strings.TrimSpace(fields.model), BaseURL: strings.TrimSpace(fields.baseURL),
 		AccountID: strings.TrimSpace(fields.accountID),
 	}
-
-	account := creds.KeychainAccount(name, path)
 
 	// Ahead of the read, so a typo costs the user nothing and leaves no file behind.
 	if refused := checkGiven(profile, cmd.Flags().Changed, true); refused != nil {
@@ -157,37 +155,13 @@ func profileCreate(
 		return refused
 	}
 
-	if refused := refuseTakenItem(opened.Profiles, name, account, fields.toFile); refused != nil {
-		return refused
+	change := creds.Change{
+		Path: path, Profiles: opened.Profiles, Name: name, Profile: profile, ToFile: fields.toFile,
+		ReadKey: func() (string, error) { return readKey(cmd, settings, "profile create") },
 	}
+	notices, err := creds.NewProfileManager(settings.credStore, settings.keychain).Create(change)
 
-	key, err := readKey(cmd, settings, "profile create")
-	if err != nil {
-		return err
-	}
-
-	stored, notice, err := storeProfileKey(settings, profile, key, account, path, fields.toFile)
-	if err != nil {
-		return err
-	}
-
-	profiles := withProfile(opened.Profiles, name, stored)
-
-	first := ""
-	if len(opened.Profiles.Profiles) == 0 {
-		profiles.Default = name
-		first = "onesie: " + quotedName(name) + " is the default profile, since it is the first"
-	}
-
-	if saveErr := saveProfiles(cmd, settings, path, profiles); saveErr != nil {
-		if stored.Store == creds.StoreKeychain {
-			return failedSave(cmd, saveErr, undoneItem(settings.keychain.Delete(account), account))
-		}
-
-		return saveErr
-	}
-
-	return notify(cmd, notice, first)
+	return reported(cmd, change, notices, err)
 }
 
 func newProfileUpdateCmd(settings rootSettings, flags *runFlags) *cobra.Command {
@@ -244,14 +218,15 @@ func profileUpdate(
 	profile := updated(old, fields, changed)
 	if profile == old && !fields.key {
 		if already := alreadySet(old, changed); already != "" {
-			_, err := fmt.Fprintf(cmd.ErrOrStderr(), "onesie: profile %s is unchanged, since %s\n", quotedName(name), already)
+			_, printErr := fmt.Fprintf(cmd.ErrOrStderr(), "onesie: profile %s is unchanged, since %s\n",
+				creds.QuotedName(name), already)
 
-			return err
+			return printErr
 		}
 
 		return fmt.Errorf(
 			"profile update %s changes nothing. Pass --model, --base-url, --account-id or --key",
-			quotedName(name))
+			creds.QuotedName(name))
 	}
 
 	// Ahead of the read, so a broken rule costs the user nothing.
@@ -269,16 +244,14 @@ func profileUpdate(
 		return refused
 	}
 
-	if !fields.key {
-		return saveProfiles(cmd, settings, path, withProfile(opened.Profiles, name, profile))
+	change := creds.Change{Path: path, Profiles: opened.Profiles, Name: name, Profile: profile, ToFile: fields.toFile}
+	if fields.key {
+		change.ReadKey = func() (string, error) { return readKey(cmd, settings, "profile update") }
 	}
 
-	if refused := refuseTakenItem(
-		opened.Profiles, name, creds.KeychainAccount(name, path), fields.toFile); refused != nil {
-		return refused
-	}
+	notices, err := creds.NewProfileManager(settings.credStore, settings.keychain).Update(change)
 
-	return replaceKey(cmd, settings, path, opened.Profiles, name, profile, fields.toFile)
+	return reported(cmd, change, notices, err)
 }
 
 func refuseUpdate(fields profileFlags, changed func(string) bool) error {
@@ -318,107 +291,6 @@ func updated(old creds.Profile, fields profileFlags, changed func(string) bool) 
 	return profile
 }
 
-func replaceKey(
-	cmd *cobra.Command, settings rootSettings, path string, profiles creds.Profiles, name string,
-	profile creds.Profile, toFile bool,
-) error {
-	key, err := readKey(cmd, settings, "profile update")
-	if err != nil {
-		return err
-	}
-
-	oldItem := keychainItem(profiles.Profiles[name])
-	account := creds.KeychainAccount(name, path)
-
-	kept, err := keepKey(settings.keychain, oldItem, account, toFile)
-	if err != nil {
-		return err
-	}
-
-	stored, notice, err := storeProfileKey(settings, profile, key, account, path, toFile)
-	if err != nil {
-		return err
-	}
-
-	if saveErr := saveProfiles(cmd, settings, path, withProfile(profiles, name, stored)); saveErr != nil {
-		if stored.Store == creds.StoreKeychain {
-			return failedSave(cmd, saveErr, kept.undo(settings.keychain, account))
-		}
-
-		return saveErr
-	}
-
-	notices := []string{notice}
-
-	// Only once saved does the file stop naming the replaced item, so it can go.
-	if oldItem != "" && oldItem != stored.Account && !sharedItem(profiles, name, oldItem) {
-		if deleteErr := settings.keychain.Delete(oldItem); deleteErr != nil {
-			notices = append(notices, leftBehind(deleteErr, oldItem))
-		}
-	}
-
-	return notify(cmd, notices...)
-}
-
-func keepKey(keychain Keychain, oldItem, account string, toFile bool) (keptKey, error) {
-	if toFile || oldItem != account {
-		return keptKey{}, nil
-	}
-
-	key, err := keychain.Get(account)
-
-	// A keychain that did not answer a read would not answer a write either, and a write to it
-	// could land later, after onesie has given up on it.
-	if errors.Is(err, creds.ErrKeychainTimeout) {
-		return keptKey{}, fmt.Errorf("%w. Answer the keychain prompt, or run the command again with --file", err)
-	}
-
-	return keptKey{
-		same: true, key: key, found: err == nil, missing: errors.Is(err, creds.ErrKeychainMissing),
-	}, nil
-}
-
-type keptKey struct {
-	same    bool
-	key     string
-	found   bool
-	missing bool
-}
-
-func (k keptKey) undo(keychain Keychain, account string) string {
-	// A new item, or one that held no key, would keep a key no saved file chose.
-	if !k.same || k.missing {
-		return undoneItem(keychain.Delete(account), account)
-	}
-
-	if !k.found {
-		return "warning: the keychain item " + account + " now holds the new key, and its old key " +
-			"could not be read to put back"
-	}
-
-	if err := keychain.Set(account, k.key); err != nil {
-		return "warning: " + err.Error() + ". The keychain item " + account +
-			" now holds the new key, and its old key could not be put back"
-	}
-
-	return ""
-}
-
-func failedSave(cmd *cobra.Command, saveErr error, notice string) error {
-	//nolint:errcheck // The save error carries the exit code, and a stderr that cannot take the notice must not replace it.
-	_ = notify(cmd, notice)
-
-	return saveErr
-}
-
-func undoneItem(err error, account string) string {
-	if err == nil {
-		return ""
-	}
-
-	return leftBehind(err, account)
-}
-
 func newProfileDeleteCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 	return &cobra.Command{
 		Use:   "delete NAME",
@@ -442,53 +314,14 @@ func profileDelete(cmd *cobra.Command, settings rootSettings, flags *runFlags, n
 		return err
 	}
 
-	profile, found := opened.Profiles.Profiles[name]
-	if !found {
+	if _, found := opened.Profiles.Profiles[name]; !found {
 		return noProfileNamed(name, opened.Profiles)
 	}
 
-	rest := withoutProfile(opened.Profiles, name)
+	change := creds.Change{Path: path, Profiles: opened.Profiles, Name: name}
+	notices, err := creds.NewProfileManager(settings.credStore, settings.keychain).Delete(change)
 
-	var notices []string
-
-	// With the last profile goes any credentials.json beside it, so a later run does not convert
-	// the deleted profiles back.
-	if len(rest.Profiles) == 0 {
-		warnings, clearErr := settings.credStore.ClearProfilesIn(filepath.Dir(path))
-		if clearErr != nil {
-			return clearErr
-		}
-
-		notices = append(notices, warningLines(warnings)...)
-	} else if saveErr := saveProfiles(cmd, settings, path, rest); saveErr != nil {
-		return saveErr
-	}
-
-	if opened.Profiles.Default == name && len(rest.Profiles) > 0 {
-		notices = append(notices, "onesie: "+quotedName(name)+" was the default, so no profile is the default now. "+
-			"Run onesie profile use NAME to choose one")
-	}
-
-	// The file names the item until the save, so the delete waits for it. A hand written file can name
-	// one item from two profiles, and the other one still needs it.
-	if account := keychainItem(profile); account != "" && !sharedItem(opened.Profiles, name, account) {
-		if deleteErr := settings.keychain.Delete(account); deleteErr != nil {
-			notices = append(notices, leftBehind(deleteErr, account))
-		}
-	}
-
-	return notify(cmd, notices...)
-}
-
-func withoutProfile(profiles creds.Profiles, name string) creds.Profiles {
-	rest := creds.Profiles{Default: profiles.Default, Profiles: maps.Clone(profiles.Profiles)}
-	delete(rest.Profiles, name)
-
-	if rest.Default == name {
-		rest.Default = ""
-	}
-
-	return rest
+	return reported(cmd, change, notices, err)
 }
 
 func newProfileUseCmd(settings rootSettings, flags *runFlags) *cobra.Command {
@@ -519,7 +352,7 @@ func profileUse(cmd *cobra.Command, settings rootSettings, flags *runFlags, name
 		return noProfileNamed(name, opened.Profiles)
 	}
 
-	profiles := withProfile(opened.Profiles, name, profile)
+	profiles := opened.Profiles.With(name, profile)
 	profiles.Default = name
 
 	return saveProfiles(cmd, settings, path, profiles)
@@ -927,14 +760,14 @@ func profilesToWrite(settings rootSettings) (string, creds.Opened, error) {
 }
 
 func noProfileNamed(name string, profiles creds.Profiles) error {
-	return fmt.Errorf("there is no profile named %s. %s", quotedName(name), knownProfiles(profiles))
+	return fmt.Errorf("there is no profile named %s. %s", creds.QuotedName(name), knownProfiles(profiles))
 }
 
 func checkGiven(profile creds.Profile, changed func(string) bool, providerGiven bool) error {
 	provider, err := onesie.ProviderNamed(profile.Provider)
 	if providerGiven && (err != nil || provider.Name != profile.Provider) {
-		return fmt.Errorf("--%s names '%s', which is not typesafe, openrouter, berget, levanto or cloudflare",
-			flagProvider, profile.Provider)
+		return fmt.Errorf("--%s names %s, which is not typesafe, openrouter, berget, levanto or cloudflare",
+			flagProvider, creds.QuotedName(profile.Provider))
 	}
 
 	accountGiven := changed(flagAccountID) && profile.AccountID != ""
@@ -986,51 +819,11 @@ func checkProfile(profiles creds.Profiles, name string, profile creds.Profile) e
 		profile.APIKey = keyPlaceholder
 	}
 
-	if broken := withProfile(profiles, name, profile).Validate(); broken != nil {
+	if broken := profiles.With(name, profile).Validate(); broken != nil {
 		return broken
 	}
 
 	return nil
-}
-
-func withProfile(profiles creds.Profiles, name string, profile creds.Profile) creds.Profiles {
-	changed := creds.Profiles{Default: profiles.Default, Profiles: maps.Clone(profiles.Profiles)}
-	if changed.Profiles == nil {
-		changed.Profiles = map[string]creds.Profile{}
-	}
-
-	changed.Profiles[name] = profile
-
-	return changed
-}
-
-func storeProfileKey(
-	settings rootSettings, profile creds.Profile, key, account, path string, toFile bool,
-) (stored creds.Profile, notice string, err error) {
-	profile.APIKey, profile.Store, profile.Account, profile.KeyEnd = "", "", "", ""
-
-	if toFile {
-		profile.APIKey = key
-
-		return profile, "", nil
-	}
-
-	err = settings.keychain.Set(account, key)
-	if err == nil {
-		profile.Store, profile.Account, profile.KeyEnd = creds.StoreKeychain, account, creds.KeyEnd(key)
-
-		return profile, "stored the key in the OS keychain as " + account, nil
-	}
-
-	// A keychain that timed out may still be waiting on a prompt that stores the key later, so a
-	// fallback here could leave the key in both places.
-	if errors.Is(err, creds.ErrKeychainTimeout) {
-		return creds.Profile{}, "", fmt.Errorf("%w. Answer the keychain prompt, or run the command again with --file", err)
-	}
-
-	profile.APIKey = key
-
-	return profile, "warning: " + err.Error() + ". The key is in " + path + " instead", nil
 }
 
 func saveProfiles(cmd *cobra.Command, settings rootSettings, path string, profiles creds.Profiles) error {
@@ -1040,6 +833,52 @@ func saveProfiles(cmd *cobra.Command, settings rootSettings, path string, profil
 	}
 
 	return notify(cmd, warningLines(warnings)...)
+}
+
+func reported(cmd *cobra.Command, change creds.Change, notices []creds.Notice, err error) error {
+	lines := make([]string, 0, len(notices))
+	for _, notice := range notices {
+		lines = append(lines, noticeLine(notice, change))
+	}
+
+	if err == nil {
+		return notify(cmd, lines...)
+	}
+
+	if errors.Is(err, creds.ErrKeychainTimeout) {
+		err = fmt.Errorf("%w. Answer the keychain prompt, or run the command again with --file", err)
+	}
+
+	//nolint:errcheck // The error carries the exit code, and a stderr that cannot take the notices must not replace it.
+	_ = notify(cmd, lines...)
+
+	return err
+}
+
+func noticeLine(notice creds.Notice, change creds.Change) string {
+	switch notice.Kind {
+	case creds.SaveWarning:
+		return warningLine(notice.Err)
+	case creds.KeyInKeychain:
+		return "stored the key in the OS keychain as " + notice.Account
+	case creds.KeyInFile:
+		return "warning: " + notice.Err.Error() + ". The key is in " + change.Path + " instead"
+	case creds.FirstDefault:
+		return "onesie: " + creds.QuotedName(change.Name) + " is the default profile, since it is the first"
+	case creds.DefaultDeleted:
+		return "onesie: " + creds.QuotedName(change.Name) + " was the default, so no profile is the default now. " +
+			"Run onesie profile use NAME to choose one"
+	case creds.ItemLeftBehind:
+		return "warning: " + notice.Err.Error() + ". The keychain item " + notice.Account + " is left behind"
+	case creds.OldKeyUnread:
+		return "warning: the keychain item " + notice.Account + " now holds the new key, and its old key " +
+			"could not be read to put back"
+	case creds.OldKeyLost:
+		return "warning: " + notice.Err.Error() + ". The keychain item " + notice.Account +
+			" now holds the new key, and its old key could not be put back"
+	}
+
+	return ""
 }
 
 func warningLines(warnings []error) []string {
@@ -1058,43 +897,6 @@ func warningLine(warning error) string {
 	}
 
 	return "onesie: " + warning.Error()
-}
-
-func keychainItem(profile creds.Profile) string {
-	if profile.Store != creds.StoreKeychain {
-		return ""
-	}
-
-	return profile.Account
-}
-
-func refuseTakenItem(profiles creds.Profiles, name, account string, toFile bool) error {
-	owner := itemOwner(profiles, name, account)
-	if toFile || owner == "" {
-		return nil
-	}
-
-	return fmt.Errorf("profile %s already uses the keychain item %s. Delete or update it first",
-		quotedName(owner), account)
-}
-
-func sharedItem(profiles creds.Profiles, except, account string) bool {
-	return itemOwner(profiles, except, account) != ""
-}
-
-func itemOwner(profiles creds.Profiles, except, account string) string {
-	for _, name := range slices.Sorted(maps.Keys(profiles.Profiles)) {
-		if name != except && keychainItem(profiles.Profiles[name]) == account {
-			return name
-		}
-	}
-
-	return ""
-}
-
-func leftBehind(err error, account string) string {
-	return "warning: " + err.Error() + ". The keychain item " + account +
-		" is left behind"
 }
 
 func notify(cmd *cobra.Command, lines ...string) error {

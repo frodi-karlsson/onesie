@@ -22,6 +22,7 @@ import (
 
 	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/examples/questions"
+	"github.com/frodi-karlsson/onesie/internal/answersfile"
 	"github.com/frodi-karlsson/onesie/internal/argv"
 	"github.com/frodi-karlsson/onesie/internal/creds"
 	"github.com/frodi-karlsson/onesie/internal/input"
@@ -180,14 +181,15 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 				return resolveErr
 			}
 
-			out, resume, err := openOut(settings, *flags)
+			out, resume, err := openOut(settings, *flags, false)
+
+			defer func() {
+				err = errors.Join(err, prefixed(out.Release()))
+			}()
+
 			if err != nil {
 				return err
 			}
-
-			defer func() {
-				err = errors.Join(err, prefixed(out.release()))
-			}()
 
 			if out == nil {
 				return run(cmd, settings, recorder.Events(), positional, flags, nil, resume)
@@ -197,7 +199,7 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 
 			runErr := run(cmd, settings, recorder.Events(), positional, flags, out, resume)
 
-			return errors.Join(runErr, prefixed(out.finish(runErr)))
+			return errors.Join(runErr, prefixed(out.Finish(runErr)))
 		},
 	}
 
@@ -310,6 +312,49 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 	return root
 }
 
+func openOut(settings rootSettings, flags runFlags, readOnly bool) (*answersfile.File, answersfile.Resume, error) {
+	out, resume, err := answersfile.Open(answersfile.Options{
+		OpenFile: settings.openFile,
+		Stat:     settings.stat,
+		Rename:   settings.rename,
+		Remove:   settings.remove,
+		Resolve:  settings.resolve,
+		Readlink: settings.readlink,
+		Lock:     settings.lock,
+		GOOS:     settings.goos,
+	}, answersfile.Config{
+		Path:     flags.out,
+		Resume:   flags.resume,
+		Output:   flags.output,
+		ByID:     resumesByID(flags),
+		ReadOnly: readOnly,
+	})
+
+	return out, resume, wordAnswersError(err)
+}
+
+func wordAnswersError(err error) error {
+	var (
+		notRegular *answersfile.NotRegularError
+		directory  *answersfile.DirectoryError
+		stale      *answersfile.StaleAnswersError
+	)
+
+	switch {
+	case errors.As(err, &notRegular):
+		return &plainError{cause: err, message: fmt.Sprintf(
+			"--resume needs --out to name a regular file, and %s is not one", notRegular.Path)}
+	case errors.As(err, &directory):
+		return &plainError{cause: err, message: fmt.Sprintf("--out %s is a directory", directory.Path)}
+	case errors.As(err, &stale) && stale.Reason == answersfile.OlderColumns:
+		return &plainError{cause: err, message: err.Error() + ". Regenerate it without --resume, or write to a new --out"}
+	case errors.As(err, &stale), errors.Is(err, answersfile.ErrNoLock):
+		return &plainError{cause: err, message: err.Error() + ". Drop --resume to start over"}
+	default:
+		return err
+	}
+}
+
 func defaultSettings(info BuildInfo) rootSettings {
 	return rootSettings{
 		stdin:         os.Stdin,
@@ -325,7 +370,6 @@ func defaultSettings(info BuildInfo) rootSettings {
 		resolve:       filepath.EvalSymlinks,
 		readlink:      os.Readlink,
 		goos:          runtime.GOOS,
-		lock:          newLocker(runtime.GOOS).lockAnswers,
 		lookupEnv:     os.LookupEnv,
 		homeDir:       os.UserHomeDir,
 		now:           time.Now,
@@ -799,7 +843,7 @@ func WithCredentialStore(store creds.Store) RootOption {
 }
 
 // WithKeychain replaces the OS keychain profiles keep their keys in.
-func WithKeychain(keychain Keychain) RootOption {
+func WithKeychain(keychain *creds.Keychain) RootOption {
 	return func(s *rootSettings) {
 		s.keychain = keychain
 	}
@@ -862,7 +906,7 @@ type rootSettings struct {
 	terminalWidth func() (int, bool)
 	profilesPath  func() (string, error)
 	credStore     creds.Store
-	keychain      Keychain
+	keychain      *creds.Keychain
 	readSecret    func() (string, error)
 	wrapAnswerer  func(answerer) answerer
 	schemaURL     string
@@ -870,14 +914,6 @@ type rootSettings struct {
 	readBuiltIn   func(name string) ([]byte, bool)
 	builtIns      func() []string
 	transport     http.RoundTripper
-}
-
-// Keychain is where profile create and profile update store a key when the OS has one, one item per
-// account.
-type Keychain interface {
-	Get(account string) (string, error)
-	Set(account, key string) error
-	Delete(account string) error
 }
 
 func widthOf(f *os.File) func() (int, bool) {

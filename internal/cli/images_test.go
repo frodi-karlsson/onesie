@@ -1059,7 +1059,7 @@ func runImaged(t *testing.T, args []string, stdin, answers string, env map[strin
 
 	root := NewRootCmd(
 		BuildInfo{Version: "1.2.3"},
-		WithKeychain(noKeychain()),
+		withKeychain(noKeychain()),
 		WithClientFactory(func(_ context.Context, opts ...onesie.Option) (*onesie.Client, error) {
 			return onesie.New(append([]onesie.Option{
 				onesie.WithProvider(provider),

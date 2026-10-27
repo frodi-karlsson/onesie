@@ -12,6 +12,7 @@ import (
 
 	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/answer"
+	"github.com/frodi-karlsson/onesie/internal/answersfile"
 	"github.com/frodi-karlsson/onesie/internal/engine"
 	"github.com/frodi-karlsson/onesie/internal/input"
 	"github.com/frodi-karlsson/onesie/internal/plan"
@@ -23,8 +24,8 @@ func streamRaw(
 	settings rootSettings,
 	flags runConfig,
 	stats *collector,
-	answers *outFile,
-	resume resumePlan,
+	answers *answersfile.File,
+	resume answersfile.Resume,
 ) error {
 	// --print-request needs the resolution too, to print the model a body with none is sent with.
 	chosen, resolveErr := settings.holder.resolved()
@@ -56,15 +57,15 @@ func streamRaw(
 		}
 	}
 
-	resume, readErr := resumedVerdicts(cmd.Context(), answers, nil, answersFormat{forwarded: true}, flags, resume)
+	resume, readErr := answersfile.ResumedVerdicts(cmd.Context(), answers, answersfile.Format{Forwarded: true}, flags.stopOnError, resume)
 	if readErr != nil {
 		return readErr
 	}
 
 	source := &resumed{
 		source: input.NewStream(settings.stdin, input.Request, flags.skipBlank),
-		left:   resume.skip,
-		stored: resume.stored,
+		left:   resume.Skip,
+		stored: resume.Stored,
 		// --stop-on-assert is refused under -i request, whose bodies carry no assertion.
 		haltOnError: flags.stopOnError,
 	}
@@ -149,7 +150,7 @@ func streamRaw(
 	stats.skip(skips)
 
 	// A stored failure a resume skipped fails the run as it failed the one that wrote it.
-	result.Failed += skips.failed
+	result.Failed += skips.Failed
 
 	if freshAbort := source.freshRunAbort(); freshAbort != nil {
 		return freshAbort

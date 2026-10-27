@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/frodi-karlsson/onesie-go"
+	"github.com/frodi-karlsson/onesie/internal/creds"
 )
 
 func explain(err error, facts requestFacts) error {
@@ -125,7 +126,7 @@ func keyHint(err error, chosen resolution) error {
 
 	note := "The key came from " + chosen.provider.EnvAPIKey
 	if chosen.profile != "" {
-		note = "Replace the key with onesie profile update " + quotedName(chosen.profile) + " --key"
+		note = "Replace the key with onesie profile update " + creds.QuotedName(chosen.profile) + " --key"
 	}
 
 	return &advisedError{cause: err, message: withNote(err.Error(), note)}

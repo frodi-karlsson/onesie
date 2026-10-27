@@ -18,6 +18,7 @@ import (
 	"testing"
 
 	"github.com/frodi-karlsson/onesie-go"
+	"github.com/frodi-karlsson/onesie/internal/answersfile"
 	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
@@ -25,9 +26,9 @@ func TestResumeLedger(t *testing.T) {
 	t.Parallel()
 
 	printed := func(input, idSource, output, mergeKey string) string {
-		return fingerprintWith(t, plan.Source{Positional: "is this urgent"}, fingerprintInputs{
-			provider: "typesafe", model: onesie.DefaultModel, idSource: idSource, output: output,
-			input: input, mergeKey: mergeKey,
+		return fingerprintWith(t, plan.Source{Positional: "is this urgent"}, answersfile.FingerprintInputs{
+			Provider: "typesafe", Model: onesie.DefaultModel, IDSource: idSource, Output: output,
+			Input: input, MergeKey: mergeKey,
 		})
 	}
 
@@ -36,20 +37,20 @@ func TestResumeLedger(t *testing.T) {
 	byItself := printed("jsonl", ".", "values", "answers")
 	byItselfInLines := printed("lines", ".", "values", "answers")
 	byPositionInLines := printed("lines", "", "values", "")
-	byPositionInLinesSkippingBlanks := fingerprintWith(t, plan.Source{Positional: "is this urgent"}, fingerprintInputs{
-		provider: "typesafe", model: onesie.DefaultModel, output: "values", input: "lines", skipBlank: true,
+	byPositionInLinesSkippingBlanks := fingerprintWith(t, plan.Source{Positional: "is this urgent"}, answersfile.FingerprintInputs{
+		Provider: "typesafe", Model: onesie.DefaultModel, Output: "values", Input: "lines", SkipBlank: true,
 	})
 	byStateKey := printed("jsonl", ".state", "values", "answers")
 	byIDInTSV := printed("jsonl", ".id", "tsv", "")
 	byIDInCSV := printed("jsonl", ".id", "csv", "")
 	byIDMergedInCSV := printed("csv", ".id", "csv", "answers")
-	abstaining := fingerprintInputs{
-		provider: "typesafe", model: onesie.DefaultModel, idSource: ".id", output: "values", input: "jsonl",
-		assert: "answer.value > 0.9", abstainIf: "answer.value > 0.4",
+	abstaining := answersfile.FingerprintInputs{
+		Provider: "typesafe", Model: onesie.DefaultModel, IDSource: ".id", Output: "values", Input: "jsonl",
+		Assert: "answer.value > 0.9", AbstainIf: "answer.value > 0.4",
 	}
 	byIDAbstaining := fingerprintWith(t, plan.Source{Positional: "is this urgent"}, abstaining)
 	gateArgs := []string{"--assert", "answer.value > 0.9", "--abstain-if", "answer.value > 0.4"}
-	abstaining.abstainIf = "answer.value > 0.6"
+	abstaining.AbstainIf = "answer.value > 0.6"
 	byIDRejecting := fingerprintWith(t, plan.Source{Positional: "is this urgent"}, abstaining)
 
 	values := []string{"-i", "jsonl", "-o", "values", "--id", ".id", "--resume"}
@@ -1143,19 +1144,19 @@ func TestResumed(t *testing.T) {
 	answeredBody := `{"model":"m","answers":{"answer":{"type":"noul","noul":0.5}},"usage":{}}` + "\n"
 	failedBody := `{"error":{"kind":"http","status":400,"message":"400 bad key"}}` + "\n"
 	unavailableBody := `{"error":{"kind":"http","status":503,"message":"503 bad key"}}` + "\n"
-	forwarded, err := fingerprintOf(nil, fingerprintInputs{provider: "typesafe", input: "request"})
+	forwarded, err := answersfile.Fingerprint(nil, wireAll(nil), answersfile.FingerprintInputs{Provider: "typesafe", Input: "request"})
 	if err != nil {
 		t.Fatalf("fingerprinting -i request: %v", err)
 	}
 
-	byPositionAbstaining := fingerprintWith(t, plan.Source{Positional: "is this urgent"}, fingerprintInputs{
-		provider: "typesafe", model: onesie.DefaultModel, output: "values", input: "jsonl",
-		assert: "answer.value > 0.9", abstainIf: "answer.value > 0.4",
+	byPositionAbstaining := fingerprintWith(t, plan.Source{Positional: "is this urgent"}, answersfile.FingerprintInputs{
+		Provider: "typesafe", Model: onesie.DefaultModel, Output: "values", Input: "jsonl",
+		Assert: "answer.value > 0.9", AbstainIf: "answer.value > 0.4",
 	})
 	stored := "{\"abstain\":true,\"answer\":0.5}\n{\"assert\":false,\"answer\":0.5}\n"
-	byPositionRejecting := fingerprintWith(t, plan.Source{Positional: "is this urgent"}, fingerprintInputs{
-		provider: "typesafe", model: onesie.DefaultModel, output: "values", input: "jsonl",
-		assert: "answer.value > 0.9", abstainIf: "answer.value > 0.6",
+	byPositionRejecting := fingerprintWith(t, plan.Source{Positional: "is this urgent"}, answersfile.FingerprintInputs{
+		Provider: "typesafe", Model: onesie.DefaultModel, Output: "values", Input: "jsonl",
+		Assert: "answer.value > 0.9", AbstainIf: "answer.value > 0.6",
 	})
 
 	runResumeCases(t, []resumeCase{
@@ -1593,19 +1594,19 @@ func runResumeCases(t *testing.T, tests []resumeCase) {
 			writeSidecar(t, path+".onesie", tc.sidecar, false, false)
 
 			if tc.stalePart {
-				if err := os.WriteFile(path+compactSuffix, []byte("stale\n"), 0o600); err != nil {
+				if err := os.WriteFile(path+".onesie.part", []byte("stale\n"), 0o600); err != nil {
 					t.Fatalf("writing the stale compaction file: %v", err)
 				}
 			}
 
 			if tc.held {
-				release, err := newLocker(runtime.GOOS).lockAnswers(path)
+				held, err := lockAnswers(path)
 				if err != nil {
 					t.Fatalf("holding the lock: %v", err)
 				}
 
 				t.Cleanup(func() {
-					if err := release(); err != nil {
+					if err := held.Release(); err != nil {
 						t.Errorf("releasing the held lock: %v", err)
 					}
 				})
@@ -1627,7 +1628,7 @@ func runResumeCases(t *testing.T, tests []resumeCase) {
 				assertUnlocked(t, path)
 			}
 
-			if _, err := os.Stat(path + compactSuffix); !os.IsNotExist(err) {
+			if _, err := os.Stat(path + ".onesie.part"); !os.IsNotExist(err) {
 				t.Errorf("temporary compaction file left behind: %v", err)
 			}
 
@@ -1677,7 +1678,7 @@ func runResume(t *testing.T, label, path, stdin string, run resumeRun) {
 		WithStdin(strings.NewReader(stdin)),
 		WithStdinTTY(false),
 		WithStdoutTTY(false),
-		WithKeychain(noKeychain()),
+		withKeychain(noKeychain()),
 		WithLookupEnv(lookupFrom(nil)),
 		WithClientFactory(stubFactory(srv.URL)),
 	)
@@ -1872,165 +1873,24 @@ func assertMode(t *testing.T, path string, want os.FileMode) {
 func assertUnlocked(t *testing.T, path string) {
 	t.Helper()
 
-	release, err := newLocker(runtime.GOOS).lockAnswers(path)
+	held, err := lockAnswers(path)
 	if err != nil {
 		t.Fatalf("the run left %s locked: %v", filepath.Base(path), err)
 	}
 
-	if err := release(); err != nil {
+	if err := held.Release(); err != nil {
 		t.Fatalf("releasing the lock: %v", err)
 	}
 
-	if _, err := os.Stat(path + lockSuffix); !os.IsNotExist(err) {
+	if _, err := os.Stat(path + ".onesie.lock"); !os.IsNotExist(err) {
 		t.Errorf("lock file left behind: %v", err)
 	}
 }
 
-func TestLedger_TakeOrder(t *testing.T) {
-	t.Parallel()
+func lockAnswers(path string) (*answersfile.File, error) {
+	held, _, err := answersfile.Open(answersfile.Options{}, answersfile.Config{Path: path})
 
-	tests := []struct {
-		name  string
-		prune bool
-	}{
-		{name: "should hand over the order it built without copying it", prune: true},
-		{name: "should hand over the order with the unasked answers after it", prune: false},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			book := &ledger{answered: map[ledgerKey]answeredLine{}}
-			book.note("9", span{start: 0, end: 10}, verdict{})
-			book.note("1", span{start: 10, end: 20}, verdict{})
-
-			for _, id := range []string{"1", "2"} {
-				rec := &namedRecord{id: id}
-				book.admit(rec)
-			}
-
-			first := &book.lines[0]
-
-			got := book.takeOrder(tc.prune)
-
-			want := []span{{start: 10, end: 20}, {}}
-			if !tc.prune {
-				want = append(want, span{start: 0, end: 10})
-			}
-
-			if !slices.Equal(got, want) {
-				t.Errorf("order = %v, want %v", got, want)
-			}
-
-			if tc.prune && &got[0] != first {
-				t.Errorf("order was copied, want the ledger's own slice handed over")
-			}
-
-			if book.lines != nil {
-				t.Errorf("ledger still holds %v, want it handed over", book.lines)
-			}
-		})
-	}
-}
-
-func TestCopyLines(t *testing.T) {
-	t.Parallel()
-
-	var file strings.Builder
-
-	var forward []span
-
-	for i := range 2000 {
-		start := int64(file.Len())
-		fmt.Fprintf(&file, "{\"id\":%d,\"answer\":0.5}\n", i)
-		forward = append(forward, span{start: start, end: int64(file.Len())})
-	}
-
-	backward := slices.Clone(forward)
-	slices.Reverse(backward)
-
-	source := file.String()
-
-	tests := []struct {
-		name      string
-		header    int64
-		lines     []span
-		want      string
-		wantReads int
-		wantErr   bool
-	}{
-		{
-			name:      "should read spans that run forward in a few large reads",
-			lines:     forward,
-			want:      source,
-			wantReads: 10,
-		},
-		{
-			name:      "should copy spans that run backward",
-			lines:     backward,
-			want:      reversedLines(source),
-			wantReads: 2 * len(backward),
-		},
-		{
-			name:      "should write the header once and skip it inside a span",
-			header:    forward[0].end,
-			lines:     []span{{start: 0, end: forward[1].end}, forward[2]},
-			want:      source[:forward[2].end],
-			wantReads: 10,
-		},
-		{
-			name:      "should fail when a span read on its own runs past a short source",
-			lines:     []span{backward[0], {start: backward[1].start, end: backward[0].end + 1}},
-			wantReads: 4,
-			wantErr:   true,
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			reader := &countingReaderAt{source: strings.NewReader(source)}
-
-			var out bytes.Buffer
-
-			err := copyLines(&out, reader, int64(len(source)), tc.header, tc.lines)
-			if (err != nil) != tc.wantErr {
-				t.Fatalf("copyLines error = %v, want an error %v", err, tc.wantErr)
-			}
-
-			if tc.wantErr {
-				return
-			}
-
-			if out.String() != tc.want {
-				t.Errorf("copied %d bytes, want %d matching the source", out.Len(), len(tc.want))
-			}
-
-			if got := int(reader.reads.Load()); got > tc.wantReads {
-				t.Errorf("reads = %d, want at most %d", got, tc.wantReads)
-			}
-		})
-	}
-}
-
-type countingReaderAt struct {
-	source io.ReaderAt
-	reads  atomic.Int32
-}
-
-func (r *countingReaderAt) ReadAt(p []byte, off int64) (int, error) {
-	r.reads.Add(1)
-
-	return r.source.ReadAt(p, off)
-}
-
-func reversedLines(text string) string {
-	lines := strings.SplitAfter(text, "\n")
-	slices.Reverse(lines)
-
-	return strings.Join(lines, "")
+	return held, err
 }
 
 func rejectedLines(from, to int) string {

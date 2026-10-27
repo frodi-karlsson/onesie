@@ -703,7 +703,7 @@ func runAdvised(t *testing.T, tc adviceCase) ([]string, string, string, int) {
 
 	root := NewRootCmd(
 		BuildInfo{Version: "1.2.3"},
-		WithKeychain(noKeychain()),
+		withKeychain(noKeychain()),
 		WithClientFactory(func(_ context.Context, opts ...onesie.Option) (*onesie.Client, error) {
 			return onesie.New(append([]onesie.Option{
 				onesie.WithAPIKey("k"),

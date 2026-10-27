@@ -138,8 +138,8 @@ func TestNoKeychain(t *testing.T) {
 
 		keychain := noKeychain{}
 
-		_, getErr := keychain.Get("typesafe")
-		if getErr == nil || keychain.Set("typesafe", "k") == nil || keychain.Delete("typesafe") == nil {
+		_, getErr := keychain.Get("onesie", "typesafe")
+		if getErr == nil || keychain.Set("onesie", "typesafe", "k") == nil || keychain.Delete("onesie", "typesafe") == nil {
 			t.Error("a noKeychain call succeeded")
 		}
 	})

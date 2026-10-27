@@ -158,11 +158,11 @@ func (p Profiles) validateEntries() error {
 	for _, name := range slices.Sorted(maps.Keys(p.Profiles)) {
 		if provider, err := onesie.ProviderNamed(name); err != nil || provider.Name != name {
 			return fmt.Errorf(
-				"its entry '%s' is not a provider. Use typesafe, openrouter, berget, levanto or cloudflare", name)
+				"its entry %s is not a provider. Use typesafe, openrouter, berget, levanto or cloudflare", QuotedName(name))
 		}
 	}
 
-	return p.validateAs(func(name string) string { return fmt.Sprintf("its entry '%s'", name) })
+	return p.validateAs(func(name string) string { return "its entry " + QuotedName(name) })
 }
 
 // Opened is what OpenProfiles found. Found is false with neither file, Converted names the profiles

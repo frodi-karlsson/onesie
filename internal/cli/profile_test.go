@@ -575,6 +575,26 @@ func TestProfileCreate(t *testing.T) {
 			wantErr:  []string{"warning: could not set mode 600 on {path}. The key is not protected by the filesystem"},
 			wantFile: `{"default":"work","profiles":{"work":{"provider":"typesafe","api_key":"` + key16 + `"}}}`,
 		},
+		{
+			name:  "should print the mode warning, the keychain notice and the default notice in that order",
+			store: failingChmod,
+			args:  []string{"profile", "create", "work", "--provider", "typesafe"},
+			stdin: key16 + "\n",
+			wantStderr: "warning: could not set mode 600 on {path}. The key is not protected by the filesystem\n" +
+				"stored the key in the OS keychain as work@{hash}\n" +
+				"onesie: 'work' is the default profile, since it is the first\n",
+		},
+		{
+			name:     "should print the item left behind ahead of the save error",
+			keychain: keychainUndeletable,
+			store:    failingWrite,
+			args:     []string{"profile", "create", "work", "--provider", "typesafe"},
+			stdin:    key16 + "\n",
+			wantCode: ExitUsage,
+			wantStderr: "warning: could not remove the key from the OS keychain: the keychain is locked. " +
+				"The keychain item work@{hash} is left behind\n" +
+				"onesie: creating a temporary file in {dir}: the disk is full\n",
+		},
 	}
 
 	for _, unclear := range unclearBaseURLs() {
@@ -606,7 +626,7 @@ func TestProfileCreate(t *testing.T) {
 			WithStdinTTY(false),
 			WithStdoutTTY(false),
 			WithLookupEnv(lookupFrom(map[string]string{"ONESIE_CONFIG_DIR": dir})),
-			WithKeychain(undeletableKeychain{workingKeychain(nil)}),
+			withKeychain(undeletableKeychain{workingKeychain(nil)}),
 			WithCredentialStore(creds.NewStore(failingWrite...)))
 
 		root.SetOut(io.Discard)
@@ -629,7 +649,7 @@ func TestProfileCreate(t *testing.T) {
 			WithStdinTTY(false),
 			WithStdoutTTY(false),
 			WithLookupEnv(lookupFrom(map[string]string{"ONESIE_CONFIG_DIR": dir})),
-			WithKeychain(noKeychain()))
+			withKeychain(noKeychain()))
 
 		if code != ExitInterrupt {
 			t.Errorf("exit code = %d, want %d", code, ExitInterrupt)
@@ -646,6 +666,9 @@ func TestProfileUpdate(t *testing.T) {
 
 	failingWrite := []creds.StoreOption{creds.WithCreateTemp(func(string, string) (*os.File, error) {
 		return nil, errors.New("the disk is full")
+	})}
+	failingChmod := []creds.StoreOption{creds.WithChmod(func(string, os.FileMode) error {
+		return errors.New("the test chmod failed")
 	})}
 
 	const (
@@ -977,6 +1000,32 @@ func TestProfileUpdate(t *testing.T) {
 			wantItems: map[string]string{"work@{hash}": newKey},
 		},
 		{
+			name:     "should print the restore warning ahead of the save error",
+			file:     work,
+			items:    workItems,
+			keychain: keychainUnrestorable,
+			store:    failingWrite,
+			args:     []string{"profile", "update", "work", "--key"},
+			stdin:    newKey + "\n",
+			wantCode: ExitUsage,
+			wantStderr: "warning: could not store the key in the OS keychain: the keychain is locked. " +
+				"The keychain item work@{hash} now holds the new key, and its old key could not be put back\n" +
+				"onesie: creating a temporary file in {dir}: the disk is full\n",
+		},
+		{
+			name:     "should print the mode warning, the keychain notice and the item left behind in that order",
+			file:     `{"default":"work","profiles":{"work":{"provider":"openrouter","store":"keychain","account":"old"}}}`,
+			items:    map[string]string{"old": key16},
+			keychain: keychainUndeletable,
+			store:    failingChmod,
+			args:     []string{"profile", "update", "work", "--key"},
+			stdin:    newKey + "\n",
+			wantStderr: "warning: could not set mode 600 on {path}. The key is not protected by the filesystem\n" +
+				"stored the key in the OS keychain as work@{hash}\n" +
+				"warning: could not remove the key from the OS keychain: the keychain is locked. " +
+				"The keychain item old is left behind\n",
+		},
+		{
 			name:      "should delete the new item when the file cannot be written",
 			file:      converted,
 			items:     map[string]string{"typesafe": key15},
@@ -1084,6 +1133,9 @@ func TestProfileDelete(t *testing.T) {
 	failingWrite := []creds.StoreOption{creds.WithCreateTemp(func(string, string) (*os.File, error) {
 		return nil, errors.New("the disk is full")
 	})}
+	failingChmod := []creds.StoreOption{creds.WithChmod(func(string, os.FileMode) error {
+		return errors.New("the test chmod failed")
+	})}
 
 	const (
 		two = `{"default":"work","profiles":{` +
@@ -1164,6 +1216,19 @@ func TestProfileDelete(t *testing.T) {
 			wantErr:   []string{"the disk is full"},
 			wantFile:  two,
 			wantItems: map[string]string{"work@{hash}": key16},
+		},
+		{
+			name:     "should print the mode warning, the default notice and the item left behind in that order",
+			file:     two,
+			items:    map[string]string{"work@{hash}": key16},
+			keychain: keychainUndeletable,
+			store:    failingChmod,
+			args:     []string{"profile", "delete", "work"},
+			wantStderr: "warning: could not set mode 600 on {path}. The key is not protected by the filesystem\n" +
+				"onesie: 'work' was the default, so no profile is the default now. " +
+				"Run onesie profile use NAME to choose one\n" +
+				"warning: could not remove the key from the OS keychain: the keychain is locked. " +
+				"The keychain item work@{hash} is left behind\n",
 		},
 		{
 			name:      "should ignore ONESIE_PROFILE and ONESIE_PROVIDER",
@@ -1783,7 +1848,7 @@ func TestProfileTest(t *testing.T) {
 				env[name] = withURL(value)
 			}
 
-			opts := []RootOption{WithKeychain(workingKeychain(tc.items))}
+			opts := []RootOption{withKeychain(workingKeychain(tc.items))}
 
 			if tc.unreached {
 				// Closed before the run, so the connection is refused rather than answered.
@@ -1904,6 +1969,7 @@ type profileCase struct {
 	wantCode        int
 	wantOut         string
 	wantErr         []string
+	wantStderr      string
 	notErr          []string
 	wantFile        string
 	wantNoFile      bool
@@ -1924,6 +1990,7 @@ func runProfileCase(t *testing.T, tc profileCase) {
 	fill := strings.NewReplacer(
 		"{hash}", strings.TrimPrefix(creds.KeychainAccount("x", path), "x@"),
 		"{path}", path,
+		"{dir}", dir,
 	).Replace
 
 	writeConfig(t, dir, "profiles.json", fill(tc.file), tc.mode)
@@ -1931,24 +1998,24 @@ func runProfileCase(t *testing.T, tc profileCase) {
 
 	chain := workingKeychain(filled(tc.items, fill))
 	opts := []RootOption{
-		WithKeychain(chain),
+		withKeychain(chain),
 		WithStdinTTY(tc.tty),
 		WithSecretReader(func() (string, error) { return tc.secret, nil }),
 	}
 
 	switch tc.keychain {
 	case keychainNone:
-		opts = append(opts, WithKeychain(noKeychain()))
+		opts = append(opts, withKeychain(noKeychain()))
 	case keychainTimeout:
-		opts = append(opts, WithKeychain(timingOutKeychain{}))
+		opts = append(opts, withKeychain(timingOutKeychain{}))
 	case keychainStalled:
-		opts = append(opts, WithKeychain(stalledKeychain{chain}))
+		opts = append(opts, withKeychain(stalledKeychain{chain}))
 	case keychainUnreadable:
-		opts = append(opts, WithKeychain(unreadableKeychain{chain}))
+		opts = append(opts, withKeychain(unreadableKeychain{chain}))
 	case keychainUndeletable:
-		opts = append(opts, WithKeychain(undeletableKeychain{chain}))
+		opts = append(opts, withKeychain(undeletableKeychain{chain}))
 	case keychainUnrestorable:
-		opts = append(opts, WithKeychain(&unrestorableKeychain{fakeKeychain: chain}))
+		opts = append(opts, withKeychain(&unrestorableKeychain{fakeKeychain: chain}))
 	}
 
 	if tc.store != nil {
@@ -1977,6 +2044,10 @@ func runProfileCase(t *testing.T, tc profileCase) {
 		if !strings.Contains(errOut, fill(want)) {
 			t.Errorf("stderr = %q, want it to contain %q", errOut, fill(want))
 		}
+	}
+
+	if want := fill(tc.wantStderr); tc.wantStderr != "" && errOut != want {
+		t.Errorf("stderr = %q, want %q", errOut, want)
 	}
 
 	for _, unwanted := range tc.notErr {
@@ -2028,7 +2099,7 @@ func runInConfig(
 		WithStdoutTTY(false),
 		WithLookupEnv(lookupFrom(lookup)),
 		// Never the real keychain. A case that wants one working passes its own.
-		WithKeychain(noKeychain()),
+		withKeychain(noKeychain()),
 	}, opts...)...)
 
 	root.SetOut(&out)
@@ -2133,8 +2204,8 @@ type unreadableKeychain struct {
 	*fakeKeychain
 }
 
-func (unreadableKeychain) Get(string) (string, error) {
-	return "", &creds.KeychainError{Op: "read the key from", Err: errors.New("the keychain is locked")}
+func (unreadableKeychain) Get(string, string) (string, error) {
+	return "", errors.New("the keychain is locked")
 }
 
 type unreadStdin struct {
@@ -2151,16 +2222,16 @@ type stalledKeychain struct {
 	*fakeKeychain
 }
 
-func (stalledKeychain) Get(string) (string, error) {
-	return "", &creds.KeychainError{Op: "read the key from", Err: creds.ErrKeychainTimeout}
+func (stalledKeychain) Get(string, string) (string, error) {
+	return "", creds.ErrKeychainTimeout
 }
 
 type undeletableKeychain struct {
 	*fakeKeychain
 }
 
-func (undeletableKeychain) Delete(string) error {
-	return &creds.KeychainError{Op: "remove the key from", Err: errors.New("the keychain is locked")}
+func (undeletableKeychain) Delete(string, string) error {
+	return errors.New("the keychain is locked")
 }
 
 type unrestorableKeychain struct {
@@ -2169,13 +2240,13 @@ type unrestorableKeychain struct {
 	sets int
 }
 
-func (k *unrestorableKeychain) Set(account, key string) error {
+func (k *unrestorableKeychain) Set(service, account, key string) error {
 	k.sets++
 	if k.sets > 1 {
-		return &creds.KeychainError{Op: "store the key in", Err: errors.New("the keychain is locked")}
+		return errors.New("the keychain is locked")
 	}
 
-	return k.fakeKeychain.Set(account, key)
+	return k.fakeKeychain.Set(service, account, key)
 }
 
 type closedPipe struct{}

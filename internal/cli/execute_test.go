@@ -38,7 +38,7 @@ func TestExecute(t *testing.T) {
 				WithStdinTTY(false),
 				WithStdoutTTY(false),
 				WithLookupEnv(lookupFrom(map[string]string{"TYPESAFE_API_KEY": "k"})),
-				WithKeychain(noKeychain()),
+				withKeychain(noKeychain()),
 				WithClientFactory(func(context.Context, ...onesie.Option) (*onesie.Client, error) {
 					return nil, errors.New("onesie: no client should be built before stdin ends")
 				}))
@@ -184,6 +184,19 @@ func TestExecute(t *testing.T) {
 			prepare:  failingRelease,
 			wantCode: ExitUsage,
 			want: "onesie: --mock: the file is empty\n" +
+				"onesie: unlocking {dir}{/}answers.jsonl: the test release failed\n",
+		},
+		{
+			name: "should prefix both lines of a resume failure joined with a release failure",
+			args: []string{
+				"--mock", "{dir}{/}m.json", "--out", "{dir}{/}answers.jsonl", "--resume", "--state", "x", "is it urgent",
+			},
+			files:    map[string]string{"m.json": `{"q":0.9}`},
+			prepare:  stalePartAndFailingRelease,
+			unixOnly: true,
+			wantCode: ExitUsage,
+			want: "onesie: removing {dir}{/}answers.jsonl.onesie.part, which an interrupted run left behind: " +
+				"remove {dir}{/}answers.jsonl.onesie.part: directory not empty\n" +
 				"onesie: unlocking {dir}{/}answers.jsonl: the test release failed\n",
 		},
 		{
@@ -382,6 +395,16 @@ func failingChmodStore(*testing.T, string) []RootOption {
 	return []RootOption{WithCredentialStore(creds.NewStore(creds.WithChmod(func(string, os.FileMode) error {
 		return errors.New("the test chmod failed")
 	})))}
+}
+
+func stalePartAndFailingRelease(t *testing.T, dir string) []RootOption {
+	t.Helper()
+
+	if err := os.MkdirAll(filepath.Join(dir, "answers.jsonl.onesie.part", "held"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+
+	return failingRelease(t, dir)
 }
 
 func failingRelease(*testing.T, string) []RootOption {

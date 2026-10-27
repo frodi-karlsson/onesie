@@ -407,7 +407,7 @@ func TestAsk(t *testing.T) {
 
 			root := cli.NewRootCmd(
 				cli.BuildInfo{Version: "1.2.3"},
-				cli.WithKeychain(offKeychain{}),
+				cli.WithKeychain(offKeychain()),
 				cli.WithClientFactory(func(_ context.Context, opts ...onesie.Option) (*onesie.Client, error) {
 					return onesie.New(append([]onesie.Option{
 						onesie.WithAPIKey("k"), onesie.WithBaseURL(srv.URL),
@@ -778,7 +778,7 @@ func runAsserted(
 		cli.WithStdinTTY(false),
 		cli.WithStdoutTTY(false),
 		cli.WithLookupEnv(func(string) (string, bool) { return "", false }),
-		cli.WithKeychain(offKeychain{}),
+		cli.WithKeychain(offKeychain()),
 	}
 
 	root := cli.NewRootCmd(cli.BuildInfo{Version: "1.2.3"}, append(options, extra...)...)
@@ -827,7 +827,7 @@ func runAssertedStream(t *testing.T, args []string, stdin string, wantCode int) 
 
 	root := cli.NewRootCmd(
 		cli.BuildInfo{Version: "1.2.3"},
-		cli.WithKeychain(offKeychain{}),
+		cli.WithKeychain(offKeychain()),
 		cli.WithClientFactory(func(_ context.Context, opts ...onesie.Option) (*onesie.Client, error) {
 			policy := onesie.DefaultRetryPolicy()
 			policy.MaxRetries = 0
@@ -921,7 +921,7 @@ func runStoppedStream(t *testing.T) string {
 
 	root := cli.NewRootCmd(
 		cli.BuildInfo{Version: "1.2.3"},
-		cli.WithKeychain(offKeychain{}),
+		cli.WithKeychain(offKeychain()),
 		cli.WithClientFactory(func(_ context.Context, opts ...onesie.Option) (*onesie.Client, error) {
 			policy := onesie.DefaultRetryPolicy()
 			policy.MaxRetries = 0

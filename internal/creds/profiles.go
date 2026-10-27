@@ -92,7 +92,7 @@ func decodeProfiles(data []byte) (Profiles, error) {
 	// One profile at a time, so a misfit names the profile it is in.
 	for _, name := range slices.Sorted(maps.Keys(top.Profiles)) {
 		var profile Profile
-		if err := decodeMembers(top.Profiles[name], &profile, fmt.Sprintf("profile '%s'", name)); err != nil {
+		if err := decodeMembers(top.Profiles[name], &profile, "profile "+QuotedName(name)); err != nil {
 			return Profiles{}, err
 		}
 
@@ -115,7 +115,7 @@ func decodeMembers(data []byte, into any, holder string) error {
 
 	for _, name := range slices.Sorted(maps.Keys(members)) {
 		if !knownMember(into, name) {
-			return &misfitError{fmt.Sprintf("%s has an unknown member '%s'", holder, name)}
+			return &misfitError{fmt.Sprintf("%s has an unknown member %s", holder, QuotedName(name))}
 		}
 	}
 
@@ -209,7 +209,7 @@ func (s Store) SaveProfiles(path string, profiles Profiles) (*ModeWarning, error
 
 // Validate reports the first rule the profiles break, checking profiles in name order.
 func (p Profiles) Validate() error {
-	return p.validateAs(func(name string) string { return fmt.Sprintf("profile '%s'", name) })
+	return p.validateAs(func(name string) string { return "profile " + QuotedName(name) })
 }
 
 func (p Profiles) validateAs(subject func(name string) string) error {
@@ -224,7 +224,7 @@ func (p Profiles) validateAs(subject func(name string) string) error {
 	}
 
 	if _, ok := p.Profiles[p.Default]; p.Default != "" && !ok {
-		return fmt.Errorf("default names profile '%s', which does not exist", p.Default)
+		return fmt.Errorf("default names profile %s, which does not exist", QuotedName(p.Default))
 	}
 
 	return nil
@@ -238,8 +238,8 @@ func (p Profile) validate(subject string) error {
 	provider, err := onesie.ProviderNamed(p.Provider)
 	if err != nil || provider.Name != p.Provider {
 		return fmt.Errorf(
-			"%s names provider '%s', which is not typesafe, openrouter, berget, levanto or cloudflare",
-			subject, p.Provider)
+			"%s names provider %s, which is not typesafe, openrouter, berget, levanto or cloudflare",
+			subject, QuotedName(p.Provider))
 	}
 
 	inFile := strings.TrimSpace(p.APIKey) != "" && p.Store == "" && p.Account == ""
@@ -282,8 +282,8 @@ func ValidName(name string) error {
 	}
 
 	return fmt.Errorf(
-		"'%s' is not a profile name. A name is 1 to 64 lowercase letters, digits, - or _, does not start with -, and is not none",
-		name)
+		"%s is not a profile name. A name is 1 to 64 lowercase letters, digits, - or _, does not start with -, and is not none",
+		QuotedName(name))
 }
 
 // ValidAccountID reports whether id is a Cloudflare account id, 32 hexadecimal characters.
@@ -332,4 +332,9 @@ type InvalidProfilesError struct {
 // Error names the file and the rule.
 func (e *InvalidProfilesError) Error() string {
 	return e.Kind + " " + e.Path + " " + e.Reason
+}
+
+// QuotedName quotes a name in a message, such as a profile, a provider or a member of profiles.json.
+func QuotedName(name string) string {
+	return "'" + name + "'"
 }

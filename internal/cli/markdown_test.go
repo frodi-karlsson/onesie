@@ -92,7 +92,7 @@ func TestWriteRecord(t *testing.T) {
 				WithStdin(strings.NewReader("the site is down")),
 				WithStdinTTY(false),
 				WithStdoutTTY(false),
-				WithKeychain(noKeychain()),
+				withKeychain(noKeychain()),
 				WithLookupEnv(lookupFrom(nil)),
 				WithClientFactory(stubFactory(srv.URL)),
 			)

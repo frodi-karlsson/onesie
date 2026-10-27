@@ -929,3 +929,26 @@ func TestStoreSaveProfiles(t *testing.T) {
 func oneProfile(key string) creds.Profiles {
 	return creds.Profiles{Profiles: map[string]creds.Profile{"work": {Provider: "typesafe", APIKey: key}}}
 }
+
+func TestQuotedName(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		given string
+		want  string
+	}{
+		{name: "should wrap a profile name in single quotes", given: "work", want: "'work'"},
+		{name: "should wrap an empty name in single quotes", given: "", want: "''"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := creds.QuotedName(tc.given); got != tc.want {
+				t.Errorf("QuotedName(%q) = %q, want %q", tc.given, got, tc.want)
+			}
+		})
+	}
+}

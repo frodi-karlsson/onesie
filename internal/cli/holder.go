@@ -117,10 +117,10 @@ func conversionLines(opened creds.Opened, lookupEnv func(string) (string, bool))
 
 func namedProfiles(names []string) string {
 	if len(names) == 1 {
-		return "profile " + quotedName(names[0])
+		return "profile " + creds.QuotedName(names[0])
 	}
 
-	return "profiles " + quotedNames(names[:len(names)-1], ", ") + " and " + quotedName(names[len(names)-1])
+	return "profiles " + quotedNames(names[:len(names)-1], ", ") + " and " + creds.QuotedName(names[len(names)-1])
 }
 
 func defaultSentence(name string) string {
@@ -128,5 +128,5 @@ func defaultSentence(name string) string {
 		return "No profile is the default, so run onesie profile use NAME to choose one"
 	}
 
-	return quotedName(name) + " is the default"
+	return creds.QuotedName(name) + " is the default"
 }

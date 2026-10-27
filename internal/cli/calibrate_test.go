@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/frodi-karlsson/onesie/internal/answer"
+	"github.com/frodi-karlsson/onesie/internal/answersfile"
 	"github.com/frodi-karlsson/onesie/internal/calibrate"
 	"github.com/frodi-karlsson/onesie/internal/input"
 	"github.com/frodi-karlsson/onesie/internal/limits"
@@ -568,7 +569,7 @@ func TestNewCalibrateCmd(t *testing.T) {
 
 		root := NewRootCmd(
 			BuildInfo{Version: "1.2.3"},
-			WithKeychain(noKeychain()),
+			withKeychain(noKeychain()),
 			WithStdin(unreadable{t: t}),
 			WithStdinTTY(false),
 			WithStdoutTTY(false),
@@ -925,7 +926,7 @@ func TestCalibrateRequests(t *testing.T) {
 
 			root := NewRootCmd(
 				BuildInfo{Version: "1.2.3"},
-				WithKeychain(noKeychain()),
+				withKeychain(noKeychain()),
 				WithStdin(tc.stdin(cancel)),
 				WithStdinTTY(false),
 				WithStdoutTTY(false),
@@ -1523,7 +1524,7 @@ func TestCalibrateRun(t *testing.T) {
 			}
 		}
 
-		if _, err := os.Stat(answers + fingerprintSuffix); err != nil {
+		if _, err := os.Stat(answers + ".onesie"); err != nil {
 			t.Errorf("no fingerprint beside the answers file: %v", err)
 		}
 
@@ -1652,7 +1653,7 @@ func TestCalibrateRun(t *testing.T) {
 		t.Parallel()
 
 		answers, first := answered(t)
-		check := untouched(t, answers, answers+fingerprintSuffix)
+		check := untouched(t, answers, answers+".onesie")
 
 		// runMocked passes no key and fails the test if a client is built.
 		out, errOut, code := runMocked(t, t.Context(), calibrating(answers, "--resume", "--offline"), urgentSet, nil, nil)
@@ -1671,7 +1672,7 @@ func TestCalibrateRun(t *testing.T) {
 		writeAnswerLines(t, answers, slices.DeleteFunc(lines, func(line string) bool {
 			return strings.Contains(line, `"T-5"`) || strings.Contains(line, `"T-6"`)
 		}))
-		check := untouched(t, answers, answers+fingerprintSuffix)
+		check := untouched(t, answers, answers+".onesie")
 
 		out, errOut, code := runMocked(t, t.Context(), calibrating(answers, "--resume", "--offline"), urgentSet, nil, nil)
 		if code != ExitUsage || !strings.Contains(errOut, answers+" does not answer record T-5 or 1 more, so --offline "+
@@ -1727,11 +1728,11 @@ func TestCalibrateRun(t *testing.T) {
 
 			switch {
 			case stale.sidecar != nil:
-				if err := os.WriteFile(answers+fingerprintSuffix, []byte(*stale.sidecar+"\n"), 0o600); err != nil {
+				if err := os.WriteFile(answers+".onesie", []byte(*stale.sidecar+"\n"), 0o600); err != nil {
 					t.Fatal(err)
 				}
 			case stale.ask == "":
-				if err := os.Remove(answers + fingerprintSuffix); err != nil {
+				if err := os.Remove(answers + ".onesie"); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -1759,13 +1760,13 @@ func TestCalibrateRun(t *testing.T) {
 		t.Parallel()
 
 		answers, _ := answered(t)
-		if err := os.Remove(answers + fingerprintSuffix); err != nil {
+		if err := os.Remove(answers + ".onesie"); err != nil {
 			t.Fatal(err)
 		}
 
 		root := NewRootCmd(
 			BuildInfo{Version: "1.2.3"},
-			WithKeychain(noKeychain()),
+			withKeychain(noKeychain()),
 			WithStdin(strings.NewReader(urgentSet)),
 			WithStdinTTY(false),
 			WithStdoutTTY(false),
@@ -1775,7 +1776,7 @@ func TestCalibrateRun(t *testing.T) {
 		root.SetErr(io.Discard)
 		root.SetArgs(calibrating(answers, "--resume", "--offline"))
 
-		if err := root.ExecuteContext(t.Context()); !errors.Is(err, ErrStaleAnswers) {
+		if err := root.ExecuteContext(t.Context()); !errors.Is(err, answersfile.ErrStaleAnswers) {
 			t.Errorf("error = %v, want one matching ErrStaleAnswers", err)
 		}
 	})
@@ -2563,7 +2564,7 @@ func executeCalibrate(
 
 	root := NewRootCmd(
 		BuildInfo{Version: "1.2.3"},
-		WithKeychain(noKeychain()),
+		withKeychain(noKeychain()),
 		WithClientFactory(stubFactory(baseURL)),
 		WithStdin(strings.NewReader(stdin)),
 		WithStdinTTY(false),
@@ -3197,7 +3198,7 @@ func calibrateWithEnv(t *testing.T, env map[string]string, args []string, stdin,
 
 	root := NewRootCmd(
 		BuildInfo{Version: "1.2.3"},
-		WithKeychain(noKeychain()),
+		withKeychain(noKeychain()),
 		WithClientFactory(stubFactory(baseURL)),
 		WithStdin(strings.NewReader(stdin)),
 		WithStdinTTY(false),

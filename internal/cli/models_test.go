@@ -315,7 +315,7 @@ func runRealFactory(t *testing.T, args []string) (string, string, int) {
 
 	root := NewRootCmd(
 		BuildInfo{Version: "1.2.3"},
-		WithKeychain(noKeychain()),
+		withKeychain(noKeychain()),
 		WithStdin(strings.NewReader("")),
 		WithStdinTTY(false),
 		WithStdoutTTY(false),

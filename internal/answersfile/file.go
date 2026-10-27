@@ -1,4 +1,5 @@
-package cli
+// Package answersfile opens, locks, resumes and compacts the file a run writes its answers to.
+package answersfile
 
 import (
 	"bufio"
@@ -13,6 +14,8 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -29,124 +32,201 @@ const (
 	maxLinks           = 40
 )
 
-var (
-	errLinkLoop = errors.New("too many levels of symbolic links")
-	// ErrStaleAnswers matches the refusal of an --out file whose fingerprint does not match the run,
-	// so a caller of the root command can tell it apart without reading the message.
-	ErrStaleAnswers = errors.New("stale answers")
+// The reasons a StaleAnswersError gives for refusing a file.
+const (
+	NoFingerprint StaleReason = iota
+	ForeignFingerprint
+	OlderFingerprint
+	NewerFingerprint
+	OlderColumns
+	ChangedRun
 )
 
-func openOut(settings rootSettings, flags runFlags) (*outFile, resumePlan, error) {
-	return openOutFile(settings, flags, false)
-}
+var (
+	errLinkLoop = errors.New("too many levels of symbolic links")
+	// ErrStaleAnswers matches every StaleAnswersError, so a caller tells a stale file apart without
+	// reading the message.
+	ErrStaleAnswers = errors.New("stale answers")
+	// ErrNoLock refuses a resume on a platform with no file lock.
+	ErrNoLock = errors.New("onesie has no file lock on this platform, so it cannot keep another run " +
+		"out of the file")
+)
 
-func openOutFile(settings rootSettings, flags runFlags, readOnly bool) (*outFile, resumePlan, error) {
-	if flags.out == "" {
-		return nil, resumePlan{}, nil
+// Open resolves and locks the answers file at config.Path and reads what a resume skips. When an
+// error comes after the lock, the File comes back still locked for the caller to release.
+func Open(opts Options, config Config) (*File, Resume, error) {
+	if config.Path == "" {
+		return nil, Resume{}, nil
 	}
 
-	out := &outFile{
-		path:     flags.out,
-		open:     settings.openFile,
-		rename:   settings.rename,
-		remove:   settings.remove,
-		goos:     settings.goos,
-		readOnly: readOnly,
+	opts = opts.withDefaults()
+	if opts.Lock == nil {
+		opts.Lock = newLocker(opts).lock
+	}
+
+	out := &File{
+		path:     config.Path,
+		open:     opts.OpenFile,
+		rename:   opts.Rename,
+		remove:   opts.Remove,
+		goos:     opts.GOOS,
+		readOnly: config.ReadOnly,
 	}
 
 	// Once, and ahead of the lock, so a run through a symlink and a run into its target take the
 	// same lock, read the same fingerprint and compact beside the same file.
-	target, err := resolveTarget(flags.out, settings.resolve, settings.readlink)
+	target, err := resolveTarget(config.Path, opts.Resolve, opts.Readlink)
 	if err != nil {
-		return nil, resumePlan{}, err
+		return nil, Resume{}, err
 	}
 
 	out.target = target
 
-	special, err := specialFile(target, settings.goos, settings.stat)
+	special, err := specialFile(target, opts.GOOS, opts.Stat)
 	if err != nil {
-		return nil, resumePlan{}, err
+		return nil, Resume{}, err
 	}
 
 	out.special = special
 
 	// A device or a pipe has no answers another run could lose, so it takes no lock.
 	if special {
-		if flags.resume {
-			return nil, resumePlan{}, fmt.Errorf(
-				"--resume needs --out to name a regular file, and %s is not one", flags.out)
+		if config.Resume {
+			return nil, Resume{}, &NotRegularError{Path: config.Path}
 		}
 
-		return out, resumePlan{}, nil
+		return out, Resume{}, nil
 	}
 
 	// Held for the whole run, since a second run appending to the file, truncating it or renaming
 	// its own compaction over it would lose answers this one wrote.
-	if err := out.lock(settings.lock, flags.resume); err != nil {
-		return nil, resumePlan{}, err
+	if err := out.lock(opts.Lock, config.Resume); err != nil {
+		return nil, Resume{}, err
 	}
 
-	if !flags.resume {
-		return out, resumePlan{}, nil
+	if !config.Resume {
+		return out, Resume{}, nil
 	}
 
-	resume, resumeErr := resumeOut(out, settings, flags)
+	resume, resumeErr := resumeOut(out, config)
 	if resumeErr != nil {
-		return nil, resumePlan{}, errors.Join(resumeErr, prefixed(out.release()))
+		return out, Resume{}, resumeErr
 	}
 
 	return out, resume, nil
 }
 
-func resumeOut(out *outFile, settings rootSettings, flags runFlags) (resumePlan, error) {
-	if err := out.removeStalePart(); err != nil {
-		return resumePlan{}, err
+// Options holds what Open reaches the filesystem through. A nil function or an empty GOOS takes
+// the real one.
+type Options struct {
+	OpenFile func(name string, flag int, perm os.FileMode) (*os.File, error)
+	Stat     func(name string) (fs.FileInfo, error)
+	Rename   func(oldpath, newpath string) error
+	Remove   func(name string) error
+	Resolve  func(path string) (string, error)
+	Readlink func(name string) (string, error)
+	Lock     func(answers string) (release func() error, err error)
+	GOOS     string
+}
+
+func (o Options) withDefaults() Options {
+	if o.OpenFile == nil {
+		o.OpenFile = os.OpenFile
 	}
 
-	var resume resumePlan
+	if o.Stat == nil {
+		o.Stat = os.Stat
+	}
 
-	if flags.output == "csv" || flags.output == "tsv" {
-		rows, length, err := completeRows(settings, flags.out, flags.output == "csv")
+	if o.Rename == nil {
+		o.Rename = os.Rename
+	}
+
+	if o.Remove == nil {
+		o.Remove = os.Remove
+	}
+
+	if o.Resolve == nil {
+		o.Resolve = filepath.EvalSymlinks
+	}
+
+	if o.Readlink == nil {
+		o.Readlink = os.Readlink
+	}
+
+	if o.GOOS == "" {
+		o.GOOS = runtime.GOOS
+	}
+
+	return o
+}
+
+// Config names the answers file and says how a resume reads it.
+type Config struct {
+	Path     string
+	Resume   bool
+	Output   string
+	ByID     bool
+	ReadOnly bool
+}
+
+func resumeOut(out *File, config Config) (Resume, error) {
+	if err := out.removeStalePart(); err != nil {
+		return Resume{}, err
+	}
+
+	var resume Resume
+
+	if config.Output == "csv" || config.Output == "tsv" {
+		rows, length, err := out.completeRows(config.Output == "csv")
 		if err != nil {
-			return resumePlan{}, err
+			return Resume{}, err
 		}
 
 		out.resumeAt(length)
 
 		// The first row is the header, which is written once and answers no record.
 		if rows > 0 {
-			resume.header = true
+			resume.Header = true
 		}
 
-		if rows > 0 && !resumesByID(flags) {
-			resume.skip = rows - 1
+		if rows > 0 && !config.ByID {
+			resume.Skip = rows - 1
 		}
 
 		return resume, nil
 	}
 
-	lines, length, err := completeLines(settings, flags.out)
+	lines, length, err := out.completeLines()
 	if err != nil {
-		return resumePlan{}, err
+		return Resume{}, err
 	}
 
 	out.resumeAt(length)
 
-	if !resumesByID(flags) {
-		resume.skip = lines
+	if !config.ByID {
+		resume.Skip = lines
 	}
 
 	return resume, nil
 }
 
-type resumePlan struct {
-	skip   int
-	header bool
-	stored []verdict
+// Resume says how many records a resume by position skips, the verdicts stored for them and whether
+// the file has its header row.
+type Resume struct {
+	Skip   int
+	Header bool
+	Stored []Verdict
 }
 
-func resumesByID(flags runFlags) bool {
-	return flags.idSource != ""
+// NotRegularError refuses to resume from a device or a pipe, which holds no answers to read back.
+type NotRegularError struct {
+	Path string
+}
+
+// Error names the file.
+func (e *NotRegularError) Error() string {
+	return e.Path + " is not a regular file"
 }
 
 func specialFile(target, goos string, stat func(string) (fs.FileInfo, error)) (bool, error) {
@@ -159,10 +239,20 @@ func specialFile(target, goos string, stat func(string) (fs.FileInfo, error)) (b
 	// A path that cannot be stated is left to the write probe, which names the real failure.
 	info, statErr := stat(target)
 	if statErr == nil && info.IsDir() {
-		return false, fmt.Errorf("--out %s is a directory", target)
+		return false, &DirectoryError{Path: target}
 	}
 
 	return statErr == nil && !info.Mode().IsRegular(), nil
+}
+
+// DirectoryError refuses a path that names a directory.
+type DirectoryError struct {
+	Path string
+}
+
+// Error names the directory.
+func (e *DirectoryError) Error() string {
+	return e.Path + " is a directory"
 }
 
 func resolveTarget(
@@ -205,7 +295,8 @@ func linkAt(path string, readlink func(name string) (string, error)) (string, bo
 	return link, err == nil
 }
 
-type outFile struct {
+// File is the answers file of one run, written through Write and compacted by Finish.
+type File struct {
 	path     string
 	target   string
 	open     func(name string, flag int, perm os.FileMode) (*os.File, error)
@@ -228,12 +319,12 @@ type outFile struct {
 }
 
 type rewrite struct {
-	lines     []span
+	lines     []Span
 	delimited bool
 	quoted    bool
 }
 
-func (o *outFile) lock(take func(answers string) (func() error, error), resume bool) error {
+func (o *File) lock(take func(answers string) (func() error, error), resume bool) error {
 	unlock, err := take(o.target)
 	if errors.Is(err, errLocked) {
 		return fmt.Errorf("%s is in use by another onesie run. Wait for it to finish, "+
@@ -255,7 +346,8 @@ func (o *outFile) lock(take func(answers string) (func() error, error), resume b
 	return nil
 }
 
-func (o *outFile) release() error {
+// Release lets go of the lock. It is safe on a nil File and after an earlier Release.
+func (o *File) Release() error {
 	if o == nil || o.unlock == nil {
 		return nil
 	}
@@ -270,13 +362,13 @@ func (o *outFile) release() error {
 	return nil
 }
 
-func (o *outFile) resumeAt(length int64) {
+func (o *File) resumeAt(length int64) {
 	o.resume = true
 	o.keep = length
 	o.size = length
 }
 
-func (o *outFile) removeStalePart() error {
+func (o *File) removeStalePart() error {
 	if o.special || o.readOnly {
 		return nil
 	}
@@ -289,11 +381,13 @@ func (o *outFile) removeStalePart() error {
 	return nil
 }
 
-func (o *outFile) offset() int64 {
+// Offset is the length of the file as this run has written it.
+func (o *File) Offset() int64 {
 	return o.size
 }
 
-func (o *outFile) compactInto(lines []span, mode output.Mode) {
+// CompactInto has Finish rewrite the file with these lines in this order.
+func (o *File) CompactInto(lines []Span, mode output.Mode) {
 	o.rewrite = &rewrite{
 		lines:     lines,
 		delimited: mode == output.CSV || mode == output.TSV,
@@ -301,7 +395,8 @@ func (o *outFile) compactInto(lines []span, mode output.Mode) {
 	}
 }
 
-func (o *outFile) Write(p []byte) (int, error) {
+// Write appends to the file, opening it on the first write.
+func (o *File) Write(p []byte) (int, error) {
 	// Opened on the first write, so a command rejected before it writes leaves the file, and the
 	// answers a resume needs, untouched.
 	if o.file == nil {
@@ -316,7 +411,8 @@ func (o *outFile) Write(p []byte) (int, error) {
 	return n, err
 }
 
-func (o *outFile) finish(runErr error) error {
+// Finish closes the file once the run ended with runErr, and compacts it when CompactInto asked.
+func (o *File) Finish(runErr error) error {
 	// A run that failed before writing anything leaves the file as it was, so an interrupt or an
 	// outage never costs the answers a resume needs.
 	succeeded := runErr == nil
@@ -344,7 +440,7 @@ func (o *outFile) finish(runErr error) error {
 	return o.compact()
 }
 
-func (o *outFile) compact() error {
+func (o *File) compact() error {
 	// Written beside the file and renamed over it, so an interrupt or a full disk during the rewrite
 	// leaves every appended answer where it was. Beside the link's target rather than the link, so a
 	// symlink at the path stays one.
@@ -369,7 +465,7 @@ func (o *outFile) compact() error {
 	return errors.Join(fmt.Errorf("compacting %s: %w", o.path, err), removeErr)
 }
 
-func (o *outFile) writeCompacted(temporary string) (err error) {
+func (o *File) writeCompacted(temporary string) (err error) {
 	source, err := o.open(o.path, os.O_RDONLY, 0)
 	if err != nil {
 		return err
@@ -426,7 +522,7 @@ func keepMode(file *os.File, want os.FileMode) error {
 	return file.Chmod(want)
 }
 
-func (o *outFile) syncDir(dir string) {
+func (o *File) syncDir(dir string) {
 	// Windows has no durable directory flush. FlushFileBuffers refuses a directory handle.
 	if o.goos == "windows" {
 		return
@@ -445,7 +541,7 @@ func (o *outFile) syncDir(dir string) {
 	}
 }
 
-func copyLines(w io.Writer, source io.ReaderAt, size, header int64, lines []span) error {
+func copyLines(w io.Writer, source io.ReaderAt, size, header int64, lines []Span) error {
 	buffered := bufio.NewWriter(w)
 	reader := &forwardReader{source: source, size: size}
 
@@ -456,12 +552,12 @@ func copyLines(w io.Writer, source io.ReaderAt, size, header int64, lines []span
 	for _, at := range lines {
 		// The first row a fresh csv run wrote carries the header with it, and the header is
 		// written once, above.
-		from := max(at.start, header)
-		if from >= at.end {
+		from := max(at.Start, header)
+		if from >= at.End {
 			continue
 		}
 
-		if err := reader.copy(buffered, from, at.end); err != nil {
+		if err := reader.copy(buffered, from, at.End); err != nil {
 			return err
 		}
 	}
@@ -504,7 +600,26 @@ func (r *forwardReader) copy(w io.Writer, from, to int64) error {
 	return err
 }
 
-func (o *outFile) bind(fingerprint string) error {
+// Bind checks a resumed file against the run's fingerprint and probes that the file can be written.
+func (o *File) Bind(questions []plan.Question, wired json.Marshaler, inputs FingerprintInputs) error {
+	fingerprint, err := Fingerprint(questions, wired, inputs)
+	if err != nil {
+		return err
+	}
+
+	if delimitedOutput(inputs.Output) && hasFallback(questions) {
+		older := inputs
+		older.WithoutFallbackColumns = true
+
+		if o.olderColumns, err = Fingerprint(questions, wired, older); err != nil {
+			return err
+		}
+	}
+
+	return o.bindFingerprint(fingerprint)
+}
+
+func (o *File) bindFingerprint(fingerprint string) error {
 	if o.resume {
 		matched, err := o.checkFingerprint(fingerprint)
 		if err != nil {
@@ -526,7 +641,7 @@ func (o *outFile) bind(fingerprint string) error {
 	return o.probe()
 }
 
-func (o *outFile) probe() error {
+func (o *File) probe() error {
 	if o.special {
 		return nil
 	}
@@ -549,7 +664,7 @@ func (o *outFile) probe() error {
 	return errors.Join(file.Close(), o.remove(temporary))
 }
 
-func (o *outFile) probeAnswers() error {
+func (o *File) probeAnswers() error {
 	file, err := o.open(o.target, os.O_WRONLY, 0)
 	if err == nil {
 		return file.Close()
@@ -567,7 +682,8 @@ func (o *outFile) probeAnswers() error {
 	return errors.Join(file.Close(), o.remove(o.target))
 }
 
-func (o *outFile) bindWithoutFingerprint() {
+// BindWithoutFingerprint lets a fresh run write a file that keeps no fingerprint.
+func (o *File) BindWithoutFingerprint() {
 	if o == nil || o.resume {
 		return
 	}
@@ -575,7 +691,12 @@ func (o *outFile) bindWithoutFingerprint() {
 	o.bound = true
 }
 
-func (o *outFile) checkFingerprint(fingerprint string) (matched bool, err error) {
+// Resuming reports whether the run resumes into this file.
+func (o *File) Resuming() bool {
+	return o.resume
+}
+
+func (o *File) checkFingerprint(fingerprint string) (matched bool, err error) {
 	written, err := o.holdsAnswers()
 	if err != nil || !written {
 		return false, err
@@ -586,56 +707,97 @@ func (o *outFile) checkFingerprint(fingerprint string) (matched bool, err error)
 		return false, err
 	}
 
-	sidecar := o.target + fingerprintSuffix
+	reason, stale := staleReason(stored, found, fingerprint, o.olderColumns)
+	if stale {
+		return false, &StaleAnswersError{Path: o.path, Sidecar: o.target + fingerprintSuffix, Reason: reason}
+	}
 
+	return true, nil
+}
+
+// StoredFingerprint reads the fingerprint beside a file that holds answers. found is false when
+// either is missing.
+func (o *File) StoredFingerprint() (stored string, found bool, err error) {
+	written, err := o.holdsAnswers()
+	if err != nil || !written {
+		return "", false, err
+	}
+
+	return o.readFingerprint()
+}
+
+func staleReason(stored string, found bool, fingerprint, olderColumns string) (StaleReason, bool) {
 	if !found {
-		return false, staleAnswers("it has no fingerprint beside it",
-			"%s has no fingerprint beside it, so onesie cannot tell which run wrote it. "+
-				"Drop --resume to start over", o.path)
+		return NoFingerprint, true
 	}
 
 	version, ok := fingerprintVersionOf(stored)
 
 	switch {
 	case !ok:
-		return false, staleAnswers("onesie did not write its fingerprint",
-			"%s does not hold a fingerprint onesie wrote, so onesie cannot tell which run "+
-				"wrote %s. Drop --resume to start over", sidecar, o.path)
+		return ForeignFingerprint, true
 	case version < fingerprintVersion:
-		return false, staleAnswers("an older onesie wrote its fingerprint",
-			"an older onesie wrote %s, so this one cannot tell which run wrote %s. "+
-				"Drop --resume to start over", sidecar, o.path)
+		return OlderFingerprint, true
 	case version > fingerprintVersion:
-		return false, staleAnswers("a newer onesie wrote its fingerprint",
-			"a newer onesie wrote %s, so this one cannot tell which run wrote %s. "+
-				"Drop --resume to start over", sidecar, o.path)
-	case o.olderColumns != "" && stored == o.olderColumns:
-		return false, staleAnswers("an older onesie wrote its columns",
-			"%s was written by an older onesie, without the fallback columns this run adds. "+
-				"Regenerate it without --resume, or write to a new --out", o.path)
+		return NewerFingerprint, true
+	case olderColumns != "" && stored == olderColumns:
+		return OlderColumns, true
 	case stored != fingerprint:
-		return false, staleAnswers("the questions, model or flags changed since it was written",
-			"the questions, flags or gate changed since %s was written. "+
-				"Drop --resume to start over", o.path)
+		return ChangedRun, true
 	}
 
-	return true, nil
+	return 0, false
 }
 
-func staleAnswers(cause, format string, args ...any) error {
-	// Not %w, which would add the sentinel's own text to a message people already read.
-	return &staleAnswersError{message: fmt.Sprintf(format, args...), cause: cause}
+// StaleAnswersError refuses a file whose fingerprint does not match the run. Sidecar is the file the
+// fingerprint is kept in.
+type StaleAnswersError struct {
+	Path, Sidecar string
+	Reason        StaleReason
 }
 
-type staleAnswersError struct {
-	message, cause string
+// StaleReason says why a file's fingerprint does not match the run.
+type StaleReason int
+
+// Error says why the file does not match, without the sentinel's own text.
+func (e *StaleAnswersError) Error() string {
+	switch e.Reason {
+	case NoFingerprint:
+		return e.Path + " has no fingerprint beside it, so onesie cannot tell which run wrote it"
+	case ForeignFingerprint:
+		return fmt.Sprintf("%s does not hold a fingerprint onesie wrote, so onesie cannot tell which run "+
+			"wrote %s", e.Sidecar, e.Path)
+	case OlderFingerprint:
+		return fmt.Sprintf("an older onesie wrote %s, so this one cannot tell which run wrote %s", e.Sidecar, e.Path)
+	case NewerFingerprint:
+		return fmt.Sprintf("a newer onesie wrote %s, so this one cannot tell which run wrote %s", e.Sidecar, e.Path)
+	case OlderColumns:
+		return e.Path + " was written by an older onesie, without the fallback columns this run adds"
+	default:
+		return "the questions, flags or gate changed since " + e.Path + " was written"
+	}
 }
 
-func (e *staleAnswersError) Error() string {
-	return e.message
+// Cause says why the file does not match, in words that follow since.
+func (e *StaleAnswersError) Cause() string {
+	switch e.Reason {
+	case NoFingerprint:
+		return "it has no fingerprint beside it"
+	case ForeignFingerprint:
+		return "onesie did not write its fingerprint"
+	case OlderFingerprint:
+		return "an older onesie wrote its fingerprint"
+	case NewerFingerprint:
+		return "a newer onesie wrote its fingerprint"
+	case OlderColumns:
+		return "an older onesie wrote its columns"
+	default:
+		return "the questions, model or flags changed since it was written"
+	}
 }
 
-func (e *staleAnswersError) Is(target error) bool {
+// Is matches ErrStaleAnswers.
+func (e *StaleAnswersError) Is(target error) bool {
 	return target == ErrStaleAnswers
 }
 
@@ -664,7 +826,7 @@ func fingerprintVersionOf(stored string) (version int, ok bool) {
 	return version, true
 }
 
-func (o *outFile) holdsAnswers() (written bool, err error) {
+func (o *File) holdsAnswers() (written bool, err error) {
 	file, err := o.open(o.path, os.O_RDONLY, 0)
 	if errors.Is(err, os.ErrNotExist) {
 		return false, nil
@@ -686,7 +848,7 @@ func (o *outFile) holdsAnswers() (written bool, err error) {
 	return info.Size() > 0, nil
 }
 
-func (o *outFile) readFingerprint() (stored string, found bool, err error) {
+func (o *File) readFingerprint() (stored string, found bool, err error) {
 	path := o.target + fingerprintSuffix
 
 	file, err := o.open(path, os.O_RDONLY, 0)
@@ -710,7 +872,7 @@ func (o *outFile) readFingerprint() (stored string, found bool, err error) {
 	return string(bytes.TrimSpace(data)), true, nil
 }
 
-func (o *outFile) create() error {
+func (o *File) create() error {
 	if o.resume && !o.bound {
 		return fmt.Errorf("resuming %s, which was never checked against its fingerprint", o.path)
 	}
@@ -731,7 +893,7 @@ func (o *outFile) create() error {
 	return nil
 }
 
-func (o *outFile) openAnswers() error {
+func (o *File) openAnswers() error {
 	if !o.resume {
 		if err := o.removeStalePart(); err != nil {
 			return err
@@ -766,7 +928,7 @@ func (o *outFile) openAnswers() error {
 	return nil
 }
 
-func (o *outFile) writeFingerprint() error {
+func (o *File) writeFingerprint() error {
 	// Nothing can be written beside a device or a pipe, and nothing resumes from one.
 	if o.special {
 		return nil
@@ -812,7 +974,8 @@ func (o *outFile) writeFingerprint() error {
 	return nil
 }
 
-func fingerprintOf(questions []plan.Question, inputs fingerprintInputs) (string, error) {
+// Fingerprint sums the questions, the form they are sent in and the inputs that change an answer.
+func Fingerprint(questions []plan.Question, wired json.Marshaler, inputs FingerprintInputs) (string, error) {
 	encoded, err := json.Marshal(struct {
 		Questions   json.Marshaler `json:"questions"`
 		Policies    []policyPrint  `json:"policies"`
@@ -834,24 +997,24 @@ func fingerprintOf(questions []plan.Question, inputs fingerprintInputs) (string,
 		// A mock run and a real run never resume each other's file.
 		Mock bool `json:"mock,omitempty"`
 	}{
-		Questions: wireAll(questions),
+		Questions: wired,
 		Policies:  policiesOf(questions),
-		Provider:  inputs.provider,
-		Model:     inputs.model,
-		Map:       inputs.mapSource,
-		ID:        inputs.idSource,
-		Output:    inputs.output,
-		Input:     inputs.input,
-		MergeKey:  inputs.mergeKey,
-		Assert:    inputs.assert,
-		AbstainIf: inputs.abstainIf,
-		SkipBlank: inputs.skipBlank,
-		Images:    inputs.images,
+		Provider:  inputs.Provider,
+		Model:     inputs.Model,
+		Map:       inputs.MapSource,
+		ID:        inputs.IDSource,
+		Output:    inputs.Output,
+		Input:     inputs.Input,
+		MergeKey:  inputs.MergeKey,
+		Assert:    inputs.Assert,
+		AbstainIf: inputs.AbstainIf,
+		SkipBlank: inputs.SkipBlank,
+		Images:    inputs.Images,
 
-		LongContext: inputs.longContext,
+		LongContext: inputs.LongContext,
 
-		FallbackColumns: !inputs.withoutFallbackColumns && delimitedOutput(inputs.output) && hasFallback(questions),
-		Mock:            inputs.mock,
+		FallbackColumns: !inputs.WithoutFallbackColumns && delimitedOutput(inputs.Output) && hasFallback(questions),
+		Mock:            inputs.Mock,
 	})
 	if err != nil {
 		return "", fmt.Errorf("fingerprinting the run: %w", err)
@@ -867,26 +1030,29 @@ func delimitedOutput(name string) bool {
 }
 
 func hasFallback(questions []plan.Question) bool {
-	return len(fallbackIDs(questions)) > 0
+	return slices.ContainsFunc(questions, func(question plan.Question) bool {
+		return question.Policy.Fallback != nil
+	})
 }
 
-type fingerprintInputs struct {
-	provider  string
-	model     string
-	mapSource string
-	idSource  string
-	output    string
-	input     string
-	mergeKey  string
-	assert    string
-	abstainIf string
-	skipBlank bool
-	images    []string
+// FingerprintInputs are the choices beside the questions that Fingerprint covers.
+type FingerprintInputs struct {
+	Provider  string
+	Model     string
+	MapSource string
+	IDSource  string
+	Output    string
+	Input     string
+	MergeKey  string
+	Assert    string
+	AbstainIf string
+	SkipBlank bool
+	Images    []string
 
-	longContext bool
-	mock        bool
+	LongContext bool
+	Mock        bool
 
-	withoutFallbackColumns bool
+	WithoutFallbackColumns bool
 }
 
 func policiesOf(questions []plan.Question) []policyPrint {
@@ -916,19 +1082,19 @@ type policyPrint struct {
 	Fallback      *string  `json:"fallback"`
 }
 
-func completeRows(settings rootSettings, path string, quoted bool) (rows int, length int64, err error) {
+func (o *File) completeRows(quoted bool) (rows int, length int64, err error) {
 	// TSV has no quoting, so a row is a line.
 	if !quoted {
-		return completeLines(settings, path)
+		return o.completeLines()
 	}
 
-	file, err := settings.openFile(path, os.O_RDONLY, 0)
+	file, err := o.open(o.path, os.O_RDONLY, 0)
 	if errors.Is(err, os.ErrNotExist) {
 		return 0, 0, nil
 	}
 
 	if err != nil {
-		return 0, 0, fmt.Errorf("reading %s to resume: %w", path, err)
+		return 0, 0, fmt.Errorf("reading %s to resume: %w", o.path, err)
 	}
 
 	defer func() {
@@ -958,14 +1124,14 @@ func completeRows(settings rootSettings, path string, quoted bool) (rows int, le
 	}
 }
 
-func completeLines(settings rootSettings, path string) (lines int, length int64, err error) {
-	file, err := settings.openFile(path, os.O_RDONLY, 0)
+func (o *File) completeLines() (lines int, length int64, err error) {
+	file, err := o.open(o.path, os.O_RDONLY, 0)
 	if errors.Is(err, os.ErrNotExist) {
 		return 0, 0, nil
 	}
 
 	if err != nil {
-		return 0, 0, fmt.Errorf("reading %s to resume: %w", path, err)
+		return 0, 0, fmt.Errorf("reading %s to resume: %w", o.path, err)
 	}
 
 	defer func() {
@@ -995,6 +1161,6 @@ func completeLines(settings rootSettings, path string) (lines int, length int64,
 			return lines, length, nil
 		}
 
-		return 0, 0, fmt.Errorf("reading %s to resume: %w", path, readErr)
+		return 0, 0, fmt.Errorf("reading %s to resume: %w", o.path, readErr)
 	}
 }

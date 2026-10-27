@@ -14,6 +14,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/frodi-karlsson/onesie/internal/answer"
+	"github.com/frodi-karlsson/onesie/internal/answersfile"
 	"github.com/frodi-karlsson/onesie/internal/calibrate"
 	"github.com/frodi-karlsson/onesie/internal/engine"
 	"github.com/frodi-karlsson/onesie/internal/input"
@@ -47,20 +48,21 @@ func calibrateRun(
 		}
 	}
 
-	out, _, err := openOutFile(settings, flags.runFlags, calib.offline)
+	out, _, err := openOut(settings, flags.runFlags, calib.offline)
+
+	defer func() {
+		err = errors.Join(err, prefixed(out.Release()))
+	}()
+
 	if err != nil {
 		return err
 	}
 
-	defer func() {
-		err = errors.Join(err, prefixed(out.release()))
-	}()
-
 	// The labels and the cuts stay out, since neither changes an answer, and a later stream run
 	// with -o json and the same questions reads the file as its own.
-	inputs := fingerprintInputs{
-		model: model, output: output.JSON.String(), input: inputMode.String(), images: inv.images.fingerprint(),
-		longContext: inv.plan.LongContext,
+	inputs := answersfile.FingerprintInputs{
+		Model: model, Output: output.JSON.String(), Input: inputMode.String(), Images: inv.images.fingerprint(),
+		LongContext: inv.plan.LongContext,
 	}
 
 	asked, err := askedPlan(settings, flags, out, scope, inputs)
@@ -81,22 +83,17 @@ func calibrateRun(
 		return runErr
 	}
 
-	return errors.Join(runErr, prefixed(out.finish(runErr)))
+	return errors.Join(runErr, prefixed(out.Finish(runErr)))
 }
 
 func askedPlan(
-	settings rootSettings, flags runConfig, out *outFile, scope calibrateScope, inputs fingerprintInputs,
+	settings rootSettings, flags runConfig, out *answersfile.File, scope calibrateScope, inputs answersfile.FingerprintInputs,
 ) (*plan.Plan, error) {
-	if out == nil || !out.resume || len(scope.skipped) == 0 {
+	if out == nil || !out.Resuming() || len(scope.skipped) == 0 {
 		return scope.scored, nil
 	}
 
-	written, err := out.holdsAnswers()
-	if err != nil || !written {
-		return scope.scored, err
-	}
-
-	stored, found, err := out.readFingerprint()
+	stored, found, err := out.StoredFingerprint()
 	if err != nil || !found {
 		return scope.scored, err
 	}
@@ -117,10 +114,10 @@ type calibrateAsk struct {
 	scope   calibrateScope
 	asked   *plan.Plan
 	model   string
-	inputs  fingerprintInputs
+	inputs  answersfile.FingerprintInputs
 	cuts    [][]float64
 	bound   []boundRequirement
-	out     *outFile
+	out     *answersfile.File
 	answers answererFactory
 	images  *imaging
 }
@@ -148,9 +145,9 @@ func calibrateAnswers(
 	}
 
 	bindErr := bindOut(out, settings, flags, run.asked.Questions, run.inputs)
-	if stale := (*staleAnswersError)(nil); calib.offline && errors.As(bindErr, &stale) {
-		return staleAnswers(stale.cause, "%s does not match this run, since %s, so --offline cannot "+
-			"read it. Rerun without --offline and --resume to regenerate it", flags.out, stale.cause)
+	if stale := (*answersfile.StaleAnswersError)(nil); calib.offline && errors.As(bindErr, &stale) {
+		return &plainError{cause: bindErr, message: fmt.Sprintf("%s does not match this run, since %s, so "+
+			"--offline cannot read it. Rerun without --offline and --resume to regenerate it", flags.out, stale.Cause())}
 	}
 
 	if bindErr != nil {
@@ -188,7 +185,7 @@ func calibrateAnswers(
 
 	return withStats(cmd, settings.now, flags, func(stats *collector) error {
 		if resumed.book != nil {
-			stats.skip(resumed.book.skipped())
+			stats.skip(resumed.book.Skipped())
 		}
 
 		outcomes, result, askErr := askLabelled(cmd, flags, run, resumed, stats, calib.offline)
@@ -336,11 +333,11 @@ func askLabelled(
 				return nil
 			}
 
-			start := out.offset()
+			start := out.Offset()
 			writeErr := output.Write(out, output.JSON, l.record)
 
 			if book != nil {
-				book.wrote(l.slot, span{start: start, end: out.offset()})
+				book.Wrote(l.slot, answersfile.Span{Start: start, End: out.Offset()})
 			}
 
 			return writeErr
@@ -364,8 +361,8 @@ func askLabelled(
 
 	// Only a run that asked every record rewrites the file. An interrupted one leaves the appended
 	// lines as they are, for the next resume to finish.
-	if book != nil && book.complete() && !offline {
-		out.compactInto(book.takeOrder(flags.prune), output.JSON)
+	if book != nil && book.Complete() && !offline {
+		out.CompactInto(book.TakeOrder(flags.prune), output.JSON)
 	}
 
 	return outcomes, result, nil

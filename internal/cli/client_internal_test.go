@@ -97,7 +97,7 @@ func TestClientBuilder(t *testing.T) {
 
 			chain := workingKeychain(map[string]string{"work@abc": "SECRET-KC"})
 
-			out, errOut, code := runInConfig(t, dir, args, "", env, WithKeychain(chain))
+			out, errOut, code := runInConfig(t, dir, args, "", env, withKeychain(chain))
 
 			assertNoSecret(t, out, errOut)
 
@@ -295,7 +295,7 @@ func TestClientBuilder(t *testing.T) {
 			}
 
 			out, errOut, code := runInConfig(t, configWith(t, fill(tc.profiles)), args, tc.stdin, env,
-				WithKeychain(workingKeychain(tc.items)))
+				withKeychain(workingKeychain(tc.items)))
 
 			assertNoSecret(t, out, errOut)
 

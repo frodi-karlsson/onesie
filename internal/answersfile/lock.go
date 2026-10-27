@@ -1,4 +1,4 @@
-package cli
+package answersfile
 
 import (
 	"errors"
@@ -13,8 +13,10 @@ const (
 
 var errLocked = errors.New("held by another process")
 
-func newLocker(goos string) *locker {
-	return &locker{openFile: os.OpenFile, stat: os.Stat, remove: os.Remove, goos: goos}
+func newLocker(opts Options) *locker {
+	opts = opts.withDefaults()
+
+	return &locker{openFile: opts.OpenFile, stat: opts.Stat, remove: opts.Remove, goos: opts.GOOS}
 }
 
 type locker struct {
@@ -24,7 +26,7 @@ type locker struct {
 	goos     string
 }
 
-func (l *locker) lockAnswers(answers string) (release func() error, err error) {
+func (l *locker) lock(answers string) (release func() error, err error) {
 	// An OS lock rather than a file created with O_EXCL, since the kernel lets go of an OS lock when
 	// the process dies, and a second Ctrl-C or a kill would otherwise leave a lock that refuses
 	// every later resume.

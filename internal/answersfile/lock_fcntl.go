@@ -1,6 +1,6 @@
 //go:build aix || solaris
 
-package cli
+package answersfile
 
 import (
 	"errors"

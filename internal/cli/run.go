@@ -15,6 +15,7 @@ import (
 
 	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/answer"
+	"github.com/frodi-karlsson/onesie/internal/answersfile"
 	"github.com/frodi-karlsson/onesie/internal/argv"
 	"github.com/frodi-karlsson/onesie/internal/assert"
 	"github.com/frodi-karlsson/onesie/internal/engine"
@@ -32,8 +33,8 @@ func run(
 	events []argv.Event,
 	positional string,
 	parsed *runFlags,
-	out *outFile,
-	resume resumePlan,
+	out *answersfile.File,
+	resume answersfile.Resume,
 ) error {
 	flags, err := newRunConfig(cmd, settings.lookupEnv, *parsed, events, positional)
 	if err != nil {
@@ -51,7 +52,7 @@ func run(
 			return checkErr
 		}
 
-		out.bindWithoutFingerprint()
+		out.BindWithoutFingerprint()
 
 		return withStats(cmd, settings.now, flags, func(stats *collector) error {
 			return listModels(cmd, settings, stats)
@@ -65,8 +66,8 @@ func run(
 
 		// Each body names its own model or takes the run's, and the fingerprint holds no model, as
 		// it holds nothing else a body carries.
-		if bindErr := bindOut(out, settings, flags, nil, fingerprintInputs{
-			input: inputMode.String(), longContext: flags.env.longContext,
+		if bindErr := bindOut(out, settings, flags, nil, answersfile.FingerprintInputs{
+			Input: inputMode.String(), LongContext: flags.env.longContext,
 		}); bindErr != nil {
 			return bindErr
 		}
@@ -103,7 +104,7 @@ func run(
 	// for it. After validation, because a dry run that accepted a plan the real run would reject
 	// would be worse than useless.
 	if flags.printQuestions {
-		out.bindWithoutFingerprint()
+		out.BindWithoutFingerprint()
 
 		return printQuestions(
 			cmd.OutOrStdout(), cmd.ErrOrStderr(), built.Questions, gate.Source(),
@@ -130,9 +131,9 @@ func run(
 
 	// After the plan is built, since the fingerprint covers its questions, and before any mode
 	// writes, since a refused resume must leave the file as it was.
-	bindErr := bindOut(out, settings, flags, built.Questions, fingerprintInputs{
-		model: model, output: outputMode.String(), input: inputMode.String(), assert: gate.Source(),
-		abstainIf: abstain.Source(), images: inv.images.fingerprint(), longContext: built.LongContext,
+	bindErr := bindOut(out, settings, flags, built.Questions, answersfile.FingerprintInputs{
+		Model: model, Output: outputMode.String(), Input: inputMode.String(), Assert: gate.Source(),
+		AbstainIf: abstain.Source(), Images: inv.images.fingerprint(), LongContext: built.LongContext,
 	})
 	if bindErr != nil {
 		return bindErr
@@ -322,11 +323,11 @@ func resolveState(
 }
 
 func bindOut(
-	out *outFile,
+	out *answersfile.File,
 	settings rootSettings,
 	flags runConfig,
 	questions []plan.Question,
-	inputs fingerprintInputs,
+	inputs answersfile.FingerprintInputs,
 ) error {
 	if out == nil {
 		return nil
@@ -337,54 +338,44 @@ func bindOut(
 		return err
 	}
 
-	fingerprint, err := fingerprintOf(questions, inputs)
-	if err != nil {
-		return err
-	}
-
-	if delimitedOutput(inputs.output) && hasFallback(questions) {
-		older := inputs
-		older.withoutFallbackColumns = true
-
-		if out.olderColumns, err = fingerprintOf(questions, older); err != nil {
-			return err
-		}
-	}
-
-	return out.bind(fingerprint)
+	return wordAnswersError(out.Bind(questions, wireAll(questions), inputs))
 }
 
 func outFingerprint(
-	settings rootSettings, flags runConfig, questions []plan.Question, inputs fingerprintInputs,
+	settings rootSettings, flags runConfig, questions []plan.Question, inputs answersfile.FingerprintInputs,
 ) (string, error) {
 	inputs, err := runInputs(settings, flags, inputs)
 	if err != nil {
 		return "", err
 	}
 
-	return fingerprintOf(questions, inputs)
+	return answersfile.Fingerprint(questions, wireAll(questions), inputs)
 }
 
-func runInputs(settings rootSettings, flags runConfig, inputs fingerprintInputs) (fingerprintInputs, error) {
+func runInputs(settings rootSettings, flags runConfig, inputs answersfile.FingerprintInputs) (answersfile.FingerprintInputs, error) {
 	chosen, err := settings.holder.resolved()
 	if err != nil {
-		return fingerprintInputs{}, err
+		return answersfile.FingerprintInputs{}, err
 	}
 
-	inputs.provider = chosen.provider.Name
-	inputs.mapSource = flags.mapSource
-	inputs.idSource = flags.idSource
+	inputs.Provider = chosen.provider.Name
+	inputs.MapSource = flags.mapSource
+	inputs.IDSource = flags.idSource
 
 	if merging(flags) {
-		inputs.mergeKey = mergeKey(flags)
+		inputs.MergeKey = mergeKey(flags)
 	}
 
 	// A resume by position skips one record per stored line, and --skip-blank changes which record
 	// a line stands for everywhere but csv and tsv, which skip a blank line either way.
-	inputs.skipBlank = flags.skipBlank && !resumesByID(flags.runFlags) && !delimitedInput(inputs.input)
-	inputs.mock = flags.mockPath != ""
+	inputs.SkipBlank = flags.skipBlank && !resumesByID(flags.runFlags) && !delimitedInput(inputs.Input)
+	inputs.Mock = flags.mockPath != ""
 
 	return inputs, nil
+}
+
+func resumesByID(flags runFlags) bool {
+	return flags.idSource != ""
 }
 
 func delimitedInput(name string) bool {
@@ -420,8 +411,8 @@ func stream(
 	inv *invocation,
 	outputMode output.Mode,
 	stats *collector,
-	answers *outFile,
-	resume resumePlan,
+	answers *answersfile.File,
+	resume answersfile.Resume,
 	answerers answererFactory,
 ) error {
 	if flags.printRequest {
@@ -443,14 +434,16 @@ func stream(
 		return err
 	}
 
-	book, err := resumeLedger(cmd.Context(), answers, flags, namer, outputMode, gate != nil)
+	format := answersfile.Format{
+		Mode: outputMode, Merge: merging(flags), MergeKey: mergeKey(flags), Namer: namer, Gated: gate != nil,
+	}
+
+	book, err := answersfile.ResumeLedger(cmd.Context(), answers, format)
 	if err != nil {
 		return err
 	}
 
-	resume, err = resumedVerdicts(cmd.Context(), answers, namer, answersFormat{
-		mode: outputMode, merge: merging(flags), mergeKey: mergeKey(flags), gated: gate != nil,
-	}, flags, resume)
+	resume, err = answersfile.ResumedVerdicts(cmd.Context(), answers, format, flags.stopOnError, resume)
 	if err != nil {
 		return err
 	}
@@ -458,7 +451,7 @@ func stream(
 	source := records(cmd.Context(), settings, inputMode, flags, namer, book, resume, outputMode)
 	out := cmd.OutOrStdout()
 	merge := merging(flags)
-	table := delimited(out, outputMode, built, gate != nil, namer != nil && !merge, resume.header)
+	table := delimited(out, outputMode, built, gate != nil, namer != nil && !merge, resume.Header)
 	md := markdown(out, outputMode, built, gate != nil, namer != nil)
 
 	var (
@@ -634,9 +627,9 @@ func stream(
 				return write(l)
 			}
 
-			start := answers.offset()
+			start := answers.Offset()
 			writeErr := write(l)
-			book.wrote(l.slot, span{start: start, end: answers.offset()})
+			book.Wrote(l.slot, answersfile.Span{Start: start, End: answers.Offset()})
 
 			return writeErr
 		},
@@ -662,7 +655,7 @@ func stream(
 	stats.skip(skips)
 
 	// A stored failure a resume skipped fails the run as it failed the one that wrote it.
-	result.Failed += skips.failed
+	result.Failed += skips.Failed
 
 	if freshAbort := source.freshRunAbort(); freshAbort != nil {
 		return freshAbort
@@ -677,8 +670,8 @@ func stream(
 
 	// Only a run that read and wrote every record rewrites the file. Anything short of that leaves
 	// the appended lines as they are, for the next resume to finish.
-	if book != nil && !result.Aborted && !result.Broken && !stopped.Load() && book.complete() {
-		answers.compactInto(book.takeOrder(flags.prune), outputMode)
+	if book != nil && !result.Aborted && !result.Broken && !stopped.Load() && book.Complete() {
+		answers.CompactInto(book.TakeOrder(flags.prune), outputMode)
 	}
 
 	// The records' own outcome wins, since a note that failed to print is the smaller loss.

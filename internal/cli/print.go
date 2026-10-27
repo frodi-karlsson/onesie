@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/pflag"
 
 	"github.com/frodi-karlsson/onesie-go"
+	"github.com/frodi-karlsson/onesie/internal/answersfile"
 	"github.com/frodi-karlsson/onesie/internal/engine"
 	"github.com/frodi-karlsson/onesie/internal/input"
 	"github.com/frodi-karlsson/onesie/internal/output"
@@ -140,7 +141,7 @@ func streamRequests(
 	settings rootSettings,
 	flags runConfig,
 	inv *invocation,
-	resume resumePlan,
+	resume answersfile.Resume,
 ) error {
 	built, mapper, namer, images, inputMode := inv.plan, inv.mapper, inv.namer, inv.images, flags.inputMode
 

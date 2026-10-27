@@ -1,4 +1,4 @@
-package cli
+package answersfile
 
 import (
 	"errors"
@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-func TestLocker_LockAnswers(t *testing.T) {
+func TestLocker_Lock(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -94,7 +94,7 @@ func TestLocker_LockAnswers(t *testing.T) {
 
 			var openedAnswers bool
 
-			l := newLocker(goos)
+			l := newLocker(Options{GOOS: goos})
 			l.openFile = func(name string, flag int, perm os.FileMode) (*os.File, error) {
 				if name == path {
 					openedAnswers = true
@@ -107,7 +107,7 @@ func TestLocker_LockAnswers(t *testing.T) {
 				return os.OpenFile(name, flag, perm)
 			}
 
-			release, err := l.lockAnswers(path)
+			release, err := l.lock(path)
 			if tc.wantErr != nil {
 				if !errors.Is(err, tc.wantErr) {
 					t.Fatalf("lock error = %v, want %v", err, tc.wantErr)
@@ -124,7 +124,7 @@ func TestLocker_LockAnswers(t *testing.T) {
 				t.Fatalf("first lock: %v", err)
 			}
 
-			_, secondErr := l.lockAnswers(path)
+			_, secondErr := l.lock(path)
 			if errors.Is(secondErr, errLocked) != tc.wantLocked {
 				t.Fatalf("second lock error = %v, want locked %v", secondErr, tc.wantLocked)
 			}
@@ -133,7 +133,7 @@ func TestLocker_LockAnswers(t *testing.T) {
 				t.Fatalf("release: %v", releaseErr)
 			}
 
-			again, err := l.lockAnswers(path)
+			again, err := l.lock(path)
 			if err != nil {
 				t.Fatalf("lock after the release: %v", err)
 			}
@@ -160,14 +160,14 @@ func TestLocker_LockAnswers(t *testing.T) {
 
 		var removed []string
 
-		l := newLocker(runtime.GOOS)
+		l := newLocker(Options{GOOS: runtime.GOOS})
 		l.remove = func(name string) error {
 			removed = append(removed, name)
 
 			return refused
 		}
 
-		release, err := l.lockAnswers(path)
+		release, err := l.lock(path)
 		if err != nil {
 			t.Fatalf("lock: %v", err)
 		}
@@ -246,7 +246,7 @@ func TestLocker_LockAt(t *testing.T) {
 
 			var opens, stats int
 
-			l := newLocker(runtime.GOOS)
+			l := newLocker(Options{GOOS: runtime.GOOS})
 			l.openFile = func(name string, flag int, perm os.FileMode) (*os.File, error) {
 				opens++
 
@@ -291,4 +291,18 @@ func TestLocker_LockAt(t *testing.T) {
 			}
 		})
 	}
+}
+
+func lockDir(t *testing.T, dir string) {
+	t.Helper()
+
+	if err := os.Chmod(dir, 0o500); err != nil {
+		t.Fatalf("locking %s: %v", dir, err)
+	}
+
+	t.Cleanup(func() {
+		if err := os.Chmod(dir, 0o700); err != nil {
+			t.Errorf("unlocking %s: %v", dir, err)
+		}
+	})
 }
