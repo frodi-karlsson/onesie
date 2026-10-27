@@ -36,8 +36,7 @@ func validatePlan(built *plan.Plan, config runConfig, facts runFacts) ([]string,
 
 	var warnings []string
 
-	// Ahead of checkSingle, so a streaming -q reports the streaming message rather than the single
-	// question policy one.
+	// checkFlags runs first, so a streaming -q reports the streaming message.
 	hint, err := checkFlags(config, facts)
 	if hint != "" {
 		warnings = append(warnings, hint)
