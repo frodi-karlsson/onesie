@@ -36,19 +36,19 @@ func liveAnswers(settings rootSettings, flags runConfig) answererFactory {
 			return nil, err
 		}
 
-		return newLiveAnswerer(client, chosen.provider), nil
+		return newLiveAnswerer(client), nil
 	}
 }
 
-func newLiveAnswerer(client *onesie.Client, provider onesie.Provider) liveAnswerer {
-	return liveAnswerer{client: client, provider: provider}
+func newLiveAnswerer(client *onesie.Client) liveAnswerer {
+	return liveAnswerer{client: client}
 }
 
 func (a liveAnswerer) answer(ctx context.Context, _ recordKey, req onesie.Request) (reply, error) {
 	result, err := a.client.SystemOne(ctx, req)
 
 	return reply{result: result}, explain(err, requestFacts{
-		provider: a.provider, model: req.Model, longContext: req.LongContext, boxed: hasBox(req.Questions),
+		provider: a.client.Provider(), model: req.Model, longContext: req.LongContext, boxed: hasBox(req.Questions),
 	})
 }
 
@@ -57,6 +57,5 @@ func (liveAnswerer) salt(recordKey) (string, bool) {
 }
 
 type liveAnswerer struct {
-	client   *onesie.Client
-	provider onesie.Provider
+	client *onesie.Client
 }

@@ -76,4 +76,39 @@ func TestLiveAnswerer(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("should advise from the provider of the client it holds", func(t *testing.T) {
+		t.Parallel()
+
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusBadRequest)
+
+			if _, err := io.WriteString(w, `{"detail":"max_tokens_exceeded"}`); err != nil {
+				t.Errorf("writing the stub response: %v", err)
+			}
+		}))
+		t.Cleanup(srv.Close)
+
+		for _, tc := range []struct {
+			provider onesie.Provider
+			want     bool
+		}{
+			{provider: onesie.TypeSafe(), want: true},
+			{provider: onesie.Cloudflare()},
+		} {
+			client, err := onesie.New(
+				onesie.WithProvider(tc.provider), onesie.WithAPIKey("SECRET-K"), onesie.WithBaseURL(srv.URL))
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			_, err = newLiveAnswerer(client).answer(t.Context(), recordKey{}, onesie.Request{
+				State: "a ticket", Model: client.DefaultModel(),
+				Questions: onesie.Questions{{ID: "u", Question: onesie.Noul{Instructions: "is it urgent"}}},
+			})
+			if got := strings.Contains(text(err), "--long-context"); got != tc.want {
+				t.Errorf("%s: error = %v, want a --long-context note %v", tc.provider.Name(), err, tc.want)
+			}
+		}
+	})
 }

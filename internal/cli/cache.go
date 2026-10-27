@@ -44,11 +44,6 @@ func answersFor(
 		return wrapped(settings, liveAnswers(settings, flags)), nil
 	}
 
-	chosen, err := settings.holder.resolved()
-	if err != nil {
-		return nil, err
-	}
-
 	var warned atomic.Bool
 
 	warn := func(err error) {
@@ -62,7 +57,7 @@ func answersFor(
 		}
 	}
 
-	return wrapped(settings, cachedAnswers(settings, flags, chosen.provider, model, built.Questions, warn)), nil
+	return wrapped(settings, cachedAnswers(settings, flags, model, built.Questions, warn)), nil
 }
 
 func caching(flags runConfig) bool {
@@ -76,8 +71,7 @@ func caching(flags runConfig) bool {
 }
 
 func cachedAnswers(
-	settings rootSettings, flags runConfig, provider onesie.Provider, model string, questions []plan.Question,
-	warn func(error),
+	settings rootSettings, flags runConfig, model string, questions []plan.Question, warn func(error),
 ) answererFactory {
 	return func(ctx context.Context, stats *collector) (answerer, error) {
 		chosen, err := settings.holder.resolved()
@@ -91,11 +85,11 @@ func cachedAnswers(
 		}
 
 		return &cachedAnswerer{
-			next:      newLiveAnswerer(client, provider),
+			next:      newLiveAnswerer(client),
 			open:      sync.OnceValues(func() (*cache.Store, error) { return openCache(settings, flags.env.aliasTTL) }),
 			model:     model,
-			provider:  provider.Name(),
-			origin:    provider.Name() + "\x00" + client.BaseURL(),
+			provider:  client.Provider().Name(),
+			origin:    client.Provider().Name() + "\x00" + client.BaseURL(),
 			questions: questions,
 			warn:      warn,
 		}, nil

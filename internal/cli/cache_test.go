@@ -189,7 +189,7 @@ func TestCachedAnswerer(t *testing.T) {
 			warn = func(err error) { t.Errorf("unexpected cache warning: %v", err) }
 		}
 
-		return cachedAnswers(settings, runConfig{}, onesie.TypeSafe(), onesie.TypeSafe().DefaultModel(), questions, warn), dir
+		return cachedAnswers(settings, runConfig{}, onesie.TypeSafe().DefaultModel(), questions, warn), dir
 	}
 
 	t.Run("should ask on a miss, store the answer and answer the next call from it", func(t *testing.T) {
