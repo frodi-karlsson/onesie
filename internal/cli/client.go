@@ -80,7 +80,7 @@ func clientBuilder(info BuildInfo, flags *runFlags, settings rootSettings) resol
 
 		client, err := onesie.New(opts...)
 		if err != nil {
-			return nil, explained(settings, flags, chosen, withoutCredentials(err))
+			return nil, explained(settings, flags, chosen, readableBaseURL(withoutCredentials(err)))
 		}
 
 		// After New, since only the client knows which of the flag, the variable and the profile chose
@@ -137,7 +137,35 @@ func validBaseURL(baseURL string) error {
 		return refused
 	}
 
-	return onesie.ValidateBaseURL(baseURL)
+	return readableBaseURL(onesie.ValidateBaseURL(baseURL))
+}
+
+func readableBaseURL(err error) error {
+	// onesie-go calls every refused base URL not absolute and echoes it with a trailing slash
+	// trimmed, which reads wrong for one that has a scheme but no host, or that does not parse.
+	const prefix = "base URL must be an absolute http or https URL, got "
+
+	var invalid *onesie.ValidationError
+	if !errors.As(err, &invalid) || !strings.HasPrefix(invalid.Message, prefix) {
+		return err
+	}
+
+	given := strings.TrimPrefix(invalid.Message, prefix)
+
+	parsed, parseErr := url.Parse(given)
+
+	var malformed *url.Error
+
+	switch {
+	case errors.As(parseErr, &malformed):
+		return &onesie.ValidationError{Question: invalid.Question, Message: fmt.Sprintf(
+			"base URL %s does not parse: %s", given, malformed.Err)}
+	case parseErr == nil && (parsed.Scheme == "http" || parsed.Scheme == "https") && parsed.Host == "":
+		return &onesie.ValidationError{Question: invalid.Question, Message: fmt.Sprintf(
+			"base URL %s:// names no host. Write it as %s://HOST", parsed.Scheme, parsed.Scheme)}
+	default:
+		return err
+	}
 }
 
 func refuseUnclearBaseURL(baseURL string) error {

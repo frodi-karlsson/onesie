@@ -602,3 +602,51 @@ func TestWithoutCredentials(t *testing.T) {
 		})
 	}
 }
+
+func TestReadableBaseURL(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{
+			name: "should say a base URL with a scheme and no host names no host",
+			args: []string{"--base-url", "https://"},
+			want: "onesie: base URL https:// names no host. Write it as https://HOST\n",
+		},
+		{
+			name: "should say a base URL that does not parse does not parse",
+			args: []string{"--base-url", "https://x.invalid/%zz"},
+			want: `onesie: base URL https://x.invalid/%zz does not parse: invalid URL escape "%zz"` + "\n",
+		},
+		{
+			name: "should keep the message for a base URL with no scheme",
+			args: []string{"--base-url", "proxy.example"},
+			want: "onesie: base URL must be an absolute http or https URL, got proxy.example\n",
+		},
+		{
+			name: "should word profile create the same way",
+			args: []string{"profile", "create", "w", "--provider", "typesafe", "--base-url", "https://"},
+			want: "onesie: base URL https:// names no host. Write it as https://HOST\n",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			args := tc.args
+			if args[0] != "profile" {
+				args = append([]string{"is this urgent", "--state", "x"}, args...)
+			}
+
+			_, errOut, code := runInConfig(t, t.TempDir(), args, "SECRET-NEW-0123456789\n",
+				map[string]string{onesie.EnvAPIKey: "SECRET-TEST"})
+			if code != ExitUsage || errOut != tc.want {
+				t.Errorf("exit code = %d, stderr = %q, want %d and %q", code, errOut, ExitUsage, tc.want)
+			}
+		})
+	}
+}
