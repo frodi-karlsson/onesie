@@ -2,6 +2,8 @@ package cli
 
 import (
 	"bytes"
+	"context"
+	"errors"
 	"maps"
 	"net/http/httptest"
 	"os"
@@ -13,8 +15,39 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
+	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/limits"
 )
+
+func TestWithClientFactory(t *testing.T) {
+	t.Parallel()
+
+	t.Run("should hand the injected factory the run's options whatever the resolution", func(t *testing.T) {
+		t.Parallel()
+
+		refused := errors.New("the stub builds no client")
+
+		var handed []onesie.Option
+
+		var settings rootSettings
+
+		WithClientFactory(func(_ context.Context, opts ...onesie.Option) (*onesie.Client, error) {
+			handed = opts
+
+			return nil, refused
+		})(&settings)
+
+		_, err := settings.newClient(t.Context(), resolution{provider: onesie.Berget(), profile: "work"},
+			onesie.WithAPIKey("SECRET-TEST"), onesie.WithUserAgent("onesie/test"))
+		if !errors.Is(err, refused) {
+			t.Fatalf("newClient = %v, want the stub's error", err)
+		}
+
+		if len(handed) != 2 {
+			t.Errorf("the factory got %d options, want the 2 the run passed", len(handed))
+		}
+	})
+}
 
 func TestSchemaURLOf(t *testing.T) {
 	t.Parallel()

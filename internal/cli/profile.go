@@ -776,7 +776,7 @@ func profileTest(cmd *cobra.Command, settings rootSettings, flags *runFlags, arg
 		return noKeyToTest(settings, tested)
 	}
 
-	client, err := settings.clientFor(cmd.Context(), tested)
+	client, err := settings.newClient(cmd.Context(), tested)
 	if err != nil {
 		return err
 	}

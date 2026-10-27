@@ -582,7 +582,7 @@ func TestResolutionOptions(t *testing.T) {
 
 			lookup := lookupFrom(tc.env)
 
-			// The options defaultClientFactory adds ahead of these, so the order is the one a real
+			// The options clientBuilder adds ahead of these, so the order is the one a real
 			// run builds.
 			opts := []onesie.Option{onesie.WithProvider(tc.run.provider), onesie.WithEnv(tc.run.env(lookup))}
 			if tc.flag != "" {

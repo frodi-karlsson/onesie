@@ -80,7 +80,12 @@ func cachedAnswers(
 	warn func(error),
 ) answererFactory {
 	return func(ctx context.Context, stats *collector) (answerer, error) {
-		client, err := settings.newClient(ctx, observing(stats)...)
+		chosen, err := runResolution(settings)
+		if err != nil {
+			return nil, err
+		}
+
+		client, err := settings.newClient(ctx, chosen, observing(stats)...)
 		if err != nil {
 			return nil, noKeyForCache(settings, err)
 		}

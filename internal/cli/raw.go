@@ -39,7 +39,7 @@ func streamRaw(
 
 	// Built only when the run makes a request, so -i request --print-request needs no key.
 	if requests(flags) {
-		built, err := settings.newClient(cmd.Context(), observing(stats)...)
+		built, err := settings.newClient(cmd.Context(), chosen, observing(stats)...)
 		if err != nil {
 			return err
 		}

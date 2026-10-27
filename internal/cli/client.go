@@ -25,18 +25,7 @@ const (
 		"network unencrypted"
 )
 
-func defaultClientFactory(settings rootSettings, build resolvedClientFactory) clientFactory {
-	return func(ctx context.Context, extra ...onesie.Option) (*onesie.Client, error) {
-		chosen, err := runResolution(settings)
-		if err != nil {
-			return nil, err
-		}
-
-		return build(ctx, chosen, extra...)
-	}
-}
-
-func clientBuilder(info BuildInfo, flags *runFlags, settings rootSettings) resolvedClientFactory {
+func clientBuilder(info BuildInfo, flags *runFlags, settings rootSettings) clientFactory {
 	var warned, doubled sync.Once
 
 	return func(_ context.Context, chosen resolution, extra ...onesie.Option) (*onesie.Client, error) {
@@ -151,12 +140,6 @@ func refuseUnclearBaseURL(baseURL string) error {
 	return nil
 }
 
-func ignoringResolution(newClient clientFactory) resolvedClientFactory {
-	return func(ctx context.Context, _ resolution, extra ...onesie.Option) (*onesie.Client, error) {
-		return newClient(ctx, extra...)
-	}
-}
-
 func keyOptions(settings rootSettings, flags *runFlags, chosen resolution) ([]onesie.Option, error) {
 	key := chosen.key
 
@@ -251,9 +234,7 @@ func pooled(jobs int) http.RoundTripper {
 	return transport
 }
 
-type clientFactory func(ctx context.Context, opts ...onesie.Option) (*onesie.Client, error)
-
-type resolvedClientFactory func(ctx context.Context, chosen resolution, opts ...onesie.Option) (*onesie.Client, error)
+type clientFactory func(ctx context.Context, chosen resolution, opts ...onesie.Option) (*onesie.Client, error)
 
 func resolveModel(settings rootSettings, model string) (string, error) {
 	chosen, err := runResolution(settings)

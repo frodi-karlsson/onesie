@@ -29,12 +29,12 @@ type answererFactory func(ctx context.Context, stats *collector) (answerer, erro
 
 func liveAnswers(settings rootSettings, flags runConfig) answererFactory {
 	return func(ctx context.Context, stats *collector) (answerer, error) {
-		client, err := settings.newClient(ctx, observing(stats)...)
+		chosen, err := runResolution(settings)
 		if err != nil {
 			return nil, err
 		}
 
-		chosen, err := runResolution(settings)
+		client, err := settings.newClient(ctx, chosen, observing(stats)...)
 		if err != nil {
 			return nil, err
 		}

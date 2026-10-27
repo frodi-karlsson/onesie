@@ -127,10 +127,7 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 
 	// Installed only when absent, so an injected factory wins, for profile test too.
 	if settings.newClient == nil {
-		settings.clientFor = clientBuilder(info, flags, settings)
-		settings.newClient = defaultClientFactory(settings, settings.clientFor)
-	} else {
-		settings.clientFor = ignoringResolution(settings.newClient)
+		settings.newClient = clientBuilder(info, flags, settings)
 	}
 
 	recorder := argv.New()
@@ -683,7 +680,9 @@ func WithClientFactory(
 	newClient func(ctx context.Context, opts ...onesie.Option) (*onesie.Client, error),
 ) RootOption {
 	return func(s *rootSettings) {
-		s.newClient = newClient
+		s.newClient = func(ctx context.Context, _ resolution, opts ...onesie.Option) (*onesie.Client, error) {
+			return newClient(ctx, opts...)
+		}
 	}
 }
 
@@ -833,7 +832,6 @@ type rootSettings struct {
 	args          []string
 	holder        *holder
 	newClient     clientFactory
-	clientFor     resolvedClientFactory
 	stdin         io.Reader
 	stdinTTY      bool
 	stdoutTTY     bool

@@ -2678,7 +2678,7 @@ func helpExitCodes(help string) []string {
 	return codes
 }
 
-func TestDefaultClientFactory(t *testing.T) {
+func TestClientBuilder(t *testing.T) {
 	t.Parallel()
 
 	t.Run("should exit 2 naming CLOUDFLARE_ACCOUNT_ID when cloudflare has a token and no account", func(t *testing.T) {
