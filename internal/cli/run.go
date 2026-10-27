@@ -54,7 +54,7 @@ func run(
 		out.BindWithoutFingerprint()
 
 		return withStats(cmd, settings.now, flags, func(stats *collector) error {
-			return listModels(cmd, settings, stats)
+			return listModels(cmd, settings, flags, stats)
 		})
 	}
 
@@ -1145,10 +1145,6 @@ func evaluate(
 	withUsage bool,
 	stats *collector,
 ) (output.Record, error) {
-	if len(assets) > 0 {
-		stats.imaged()
-	}
-
 	record, usage, cached, err := answered(ctx, asker, key, built, model, questions, state, assets, withUsage)
 	if halting(err) {
 		// No request stood behind it, so it is a record and not a request, and no attempt ended.

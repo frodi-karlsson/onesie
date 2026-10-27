@@ -33,12 +33,7 @@ func withStats(
 		return err
 	}
 
-	timeout := time.Duration(flags.timeout) * time.Second
-	if stats.sentImages() && !flags.timeoutSet {
-		timeout = imageAttemptTimeout
-	}
-
-	summary := stats.snapshot(timeout, now().Sub(started))
+	summary := stats.snapshot(now().Sub(started))
 
 	// A run that failed before it read a record or made an attempt never started, and a line of
 	// zeros beside the error reads as a run that was made and came back empty. An empty stream is
@@ -66,7 +61,6 @@ type collector struct {
 	mu sync.Mutex
 
 	mocked         bool
-	images         bool
 	records        int
 	skipped        int
 	dedups         int
@@ -81,6 +75,7 @@ type collector struct {
 	cost           *float64
 	models         map[string]struct{}
 	attempts       int
+	timeout        time.Duration
 	failedAttempts map[int]int // Non 2xx attempts by status. Less terminal, it is the retry breakdown.
 	terminal       map[int]int
 }
@@ -90,6 +85,10 @@ func (c *collector) observe(a onesie.Attempt) {
 	defer c.mu.Unlock()
 
 	c.attempts++
+
+	// A stream can mix requests with images and without, and the longest timeout is the one a
+	// reader has to allow for.
+	c.timeout = max(c.timeout, a.Timeout)
 
 	if a.Err == nil && a.Status >= 200 && a.Status < 300 {
 		return
@@ -252,20 +251,6 @@ func (c *collector) deduplicated(cause error) {
 	}
 }
 
-func (c *collector) imaged() {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	c.images = true
-}
-
-func (c *collector) sentImages() bool {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	return c.images
-}
-
 func (c *collector) skip(skips answersfile.Tally) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -304,7 +289,7 @@ func (c *collector) abstains() int {
 	return c.abstainCount
 }
 
-func (c *collector) snapshot(attemptTimeout, elapsed time.Duration) Stats {
+func (c *collector) snapshot(elapsed time.Duration) Stats {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -327,7 +312,7 @@ func (c *collector) snapshot(attemptTimeout, elapsed time.Duration) Stats {
 		FalseAsserts: c.falseAsserts, Abstains: c.abstainCount, Questions: c.questions,
 		InputTokens: c.inputTokens, OutputTokens: c.outputTokens, Cost: c.cost,
 		Models: slices.Sorted(maps.Keys(c.models)), Attempts: c.attempts, Retries: retries,
-		AttemptTimeout: attemptTimeout, Elapsed: elapsed,
+		AttemptTimeout: c.timeout, Elapsed: elapsed,
 	}
 }
 

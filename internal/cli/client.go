@@ -46,9 +46,6 @@ func clientBuilder(info BuildInfo, flags *runFlags, settings rootSettings) clien
 
 		opts = append(opts, chosen.options(flags.baseURL, profileKey(settings, chosen), settings.lookupEnv)...)
 
-		opts = append(opts, onesie.WithAttemptTimeout(
-			time.Duration(flags.timeout)*time.Second))
-
 		// Started from the default rather than a zero value, because a Go struct cannot tell an
 		// unset field from a zero one and the policy carries seven fields this run does not touch.
 		policy := onesie.DefaultRetryPolicy()
@@ -91,6 +88,17 @@ func clientBuilder(info BuildInfo, flags *runFlags, settings rootSettings) clien
 
 		return client, nil
 	}
+}
+
+func runOptions(flags runConfig, stats *collector) []onesie.Option {
+	opts := observing(stats)
+
+	// Only when given, so onesie-go keeps its longer default for a request with images.
+	if flags.timeoutSet {
+		opts = append(opts, onesie.WithAttemptTimeout(time.Duration(flags.timeout)*time.Second))
+	}
+
+	return opts
 }
 
 func profileKey(settings rootSettings, chosen resolution) func() (string, error) {

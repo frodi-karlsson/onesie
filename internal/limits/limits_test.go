@@ -20,6 +20,7 @@ func TestReport(t *testing.T) {
 		{name: "should report the score level ceiling", want: "max-score-levels 10"},
 		{name: "should report the score level floor", want: "min-score-levels 2"},
 		{name: "should report the attempt timeout", want: "attempt-timeout 10s"},
+		{name: "should report the attempt timeout for a request with images", want: "asset-attempt-timeout 1m0s"},
 		{name: "should report the retry count", want: "retries 2"},
 		{name: "should report the retry after cap", want: "max-retry-after 1m0s"},
 		{name: "should report the seconds ceiling", want: "max-seconds 86400"},

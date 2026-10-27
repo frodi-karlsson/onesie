@@ -67,7 +67,7 @@ Flags:
       --sep string                separator for --pick and --rate that follow it
       --skip-blank                drop blank lines
       --stats                     write a one line summary of the run to stderr at exit
-      --timeout int               seconds per attempt (default 10)
+      --timeout int               seconds per attempt, 60 for a request with images unless given (default 10)
       --usage                     add the api usage object to the answers file and the json report
 
 Global Flags:

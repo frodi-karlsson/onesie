@@ -85,13 +85,13 @@ func cachedAnswers(
 			return nil, err
 		}
 
-		client, err := settings.newClient(ctx, chosen, observing(stats)...)
+		client, err := settings.newClient(ctx, chosen, runOptions(flags, stats)...)
 		if err != nil {
 			return nil, noKeyForCache(settings, err)
 		}
 
 		return &cachedAnswerer{
-			next:      newLiveAnswerer(client, provider, flags),
+			next:      newLiveAnswerer(client, provider),
 			open:      sync.OnceValues(func() (*cache.Store, error) { return openCache(settings, flags.env.aliasTTL) }),
 			model:     model,
 			provider:  provider.Name(),

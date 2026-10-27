@@ -10,13 +10,13 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/output"
 )
 
-func listModels(cmd *cobra.Command, settings rootSettings, stats *collector) error {
+func listModels(cmd *cobra.Command, settings rootSettings, flags runConfig, stats *collector) error {
 	chosen, err := settings.holder.resolved()
 	if err != nil {
 		return err
 	}
 
-	client, err := settings.newClient(cmd.Context(), chosen, observing(stats)...)
+	client, err := settings.newClient(cmd.Context(), chosen, runOptions(flags, stats)...)
 	if err != nil {
 		return err
 	}

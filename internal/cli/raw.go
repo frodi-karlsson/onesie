@@ -40,7 +40,7 @@ func streamRaw(
 
 	// Built only when the run makes a request, so -i request --print-request needs no key.
 	if requests(flags) {
-		built, err := settings.newClient(cmd.Context(), chosen, observing(stats)...)
+		built, err := settings.newClient(cmd.Context(), chosen, runOptions(flags, stats)...)
 		if err != nil {
 			return err
 		}
@@ -102,14 +102,6 @@ func streamRaw(
 			asked := read.questions
 
 			var opts []onesie.RequestOption
-			if read.needsImages {
-				stats.imaged()
-
-				if !flags.timeoutSet {
-					opts = append(opts, onesie.WithRequestAttemptTimeout(imageAttemptTimeout))
-				}
-			}
-
 			if long {
 				opts = append(opts, onesie.WithLongContext())
 			}

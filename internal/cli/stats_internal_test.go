@@ -105,7 +105,7 @@ func TestCollectorSnapshot(t *testing.T) {
 
 			wg.Wait()
 
-			got := c.snapshot(time.Second, time.Second)
+			got := c.snapshot(time.Second)
 			each := tc.workers * tc.each
 
 			if got.Attempts != 3*each {
@@ -138,6 +138,48 @@ func TestCollectorSnapshot(t *testing.T) {
 	}
 }
 
+func TestCollectorObserve(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		attempts []onesie.Attempt
+		want     time.Duration
+	}{
+		{name: "should report no timeout before any attempt"},
+		{
+			name:     "should report the timeout each attempt ran with",
+			attempts: []onesie.Attempt{{Status: http.StatusOK, Timeout: 10 * time.Second}},
+			want:     10 * time.Second,
+		},
+		{
+			name: "should report the longest timeout a mixed stream ran with",
+			attempts: []onesie.Attempt{
+				{Status: http.StatusOK, Timeout: 10 * time.Second},
+				{Status: http.StatusOK, Timeout: time.Minute},
+				{Status: http.StatusOK, Timeout: 10 * time.Second},
+			},
+			want: time.Minute,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var c collector
+
+			for _, attempt := range tc.attempts {
+				c.observe(attempt)
+			}
+
+			if got := c.snapshot(time.Second).AttemptTimeout; got != tc.want {
+				t.Errorf("AttemptTimeout = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestCollectorCachedRecord(t *testing.T) {
 	t.Parallel()
 
@@ -150,7 +192,7 @@ func TestCollectorCachedRecord(t *testing.T) {
 		c.cachedRecord("onesie-1.14.0")
 		c.record("onesie-1.13.0", onesie.Usage{InputTokens: 3, OutputTokens: 1}, 2)
 
-		got := c.snapshot(time.Second, time.Second)
+		got := c.snapshot(time.Second)
 
 		if got.Records != 3 || got.Cached != 2 || got.Requests != 1 || got.Questions != 2 || got.Attempts != 0 {
 			t.Errorf("snapshot = %+v, want 3 records, 2 cached, 1 request, 2 questions, 0 attempts", got)
@@ -193,7 +235,7 @@ func TestCollectorRecordFailure(t *testing.T) {
 
 			c.recordFailure(tc.cause, true, 1)
 
-			got := c.snapshot(time.Second, time.Second)
+			got := c.snapshot(time.Second)
 
 			if got.Records != tc.wantRecords {
 				t.Errorf("Records = %d, want %d", got.Records, tc.wantRecords)
@@ -240,7 +282,7 @@ func TestCollectorDeduplicated(t *testing.T) {
 
 			c.deduplicated(tc.cause)
 
-			got := c.snapshot(time.Second, time.Second)
+			got := c.snapshot(time.Second)
 
 			if got.Records != tc.wantRecords || got.Dedups != tc.wantDedups || got.Failed != tc.wantFailed {
 				t.Errorf("records, dedups, failed = %d, %d, %d, want %d, %d, %d",

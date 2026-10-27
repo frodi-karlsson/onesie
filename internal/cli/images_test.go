@@ -966,33 +966,6 @@ func TestReadRawRequest(t *testing.T) {
 	}
 }
 
-func TestRequestOptions(t *testing.T) {
-	t.Parallel()
-
-	withImage := onesie.Request{Assets: onesie.Assets{"r": {}}}
-
-	tests := []struct {
-		name       string
-		req        onesie.Request
-		timeoutSet bool
-		want       int
-	}{
-		{name: "should raise the attempt timeout for a request with an image", req: withImage, want: 1},
-		{name: "should leave an explicit --timeout alone", req: withImage, timeoutSet: true},
-		{name: "should add nothing to a text request", req: onesie.Request{}},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			if got := requestOptions(tc.req, tc.timeoutSet); len(got) != tc.want {
-				t.Errorf("options = %d, want %d", len(got), tc.want)
-			}
-		})
-	}
-}
-
 func TestAskLabelled(t *testing.T) {
 	t.Parallel()
 

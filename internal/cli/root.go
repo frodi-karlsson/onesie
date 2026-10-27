@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
@@ -406,7 +407,9 @@ func addRunFlags(set *pflag.FlagSet, flags *runFlags, help runFlagHelp) {
 	refuseEmpty(set, "file")
 	set.BoolVar(&flags.replace, "replace", false, "--ask overrides an id from -f")
 	set.IntVarP(&flags.jobs, flagJobs, "j", 1, "records in flight at once")
-	set.IntVar(&flags.timeout, flagTimeout, int(limits.DefaultAttemptTimeout.Seconds()), "seconds per attempt")
+	set.IntVar(&flags.timeout, flagTimeout, int(limits.DefaultAttemptTimeout.Seconds()),
+		"seconds per attempt, "+strconv.Itoa(int(limits.AssetAttemptTimeout.Seconds()))+
+			" for a request with images unless given")
 	set.IntVar(&flags.retries, flagRetries, limits.DefaultRetries, "retries after a failed attempt")
 	set.IntVar(&flags.maxRetryAfter, flagMaxRetryAfter, int(limits.DefaultMaxRetryAfter.Seconds()),
 		"most seconds to wait out a server Retry-After")

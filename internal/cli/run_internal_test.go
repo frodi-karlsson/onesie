@@ -78,7 +78,7 @@ func TestJudge(t *testing.T) {
 				t.Errorf("Abstained = %v, want %v", got.Abstained, tc.wantAbstained)
 			}
 
-			snapshot := stats.snapshot(0, 0)
+			snapshot := stats.snapshot(0)
 
 			if want := count(tc.wantFailed); snapshot.FalseAsserts != want {
 				t.Errorf("FalseAsserts = %d, want %d", snapshot.FalseAsserts, want)
