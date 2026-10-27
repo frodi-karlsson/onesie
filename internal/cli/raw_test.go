@@ -94,11 +94,19 @@ func TestStreamRaw(t *testing.T) {
 			wantCode: ExitOK,
 		},
 		{
-			name:     "should print a spaced body as written apart from the model under --print-request",
+			name:     "should print a spaced body with the model filled in and its values as written under --print-request",
 			args:     []string{"-i", "request", "--print-request"},
-			stdin:    "{\"state\": \"a < b\"}\n",
+			stdin:    "{\"state\": \"a < b\", \"n\": 1.50}\n",
 			response: answered,
-			wantOut:  []string{`{"model":"jev-latest","state": "a < b"}`},
+			wantOut:  []string{`{"model":"jev-latest","state":"a < b","n":1.50}`},
+			wantCode: ExitOK,
+		},
+		{
+			name:     "should print long_context as true under --long-context with --print-request",
+			args:     []string{"-i", "request", "--print-request", "--long-context"},
+			stdin:    "{\"model\":\"jev-own\",\"long_context\":false,\"state\":\"a\"}\n",
+			response: answered,
+			wantOut:  []string{`{"model":"jev-own","long_context":true,"state":"a"}`},
 			wantCode: ExitOK,
 		},
 		{
@@ -769,53 +777,6 @@ func TestStreamRaw(t *testing.T) {
 	})
 }
 
-func TestWithModel(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name  string
-		body  string
-		model string
-		want  string
-	}{
-		{name: "should put the model in front of a body that names none", body: `{"state":"x"}`, model: "m", want: `{"model":"m","state":"x"}`},
-		{name: "should fill a body that starts with whitespace", body: " \t{\"state\":\"x\"}", model: "m", want: `{"model":"m","state":"x"}`},
-		{name: "should fill an empty object", body: `{ }`, model: "m", want: `{"model":"m"}`},
-		{name: "should fill an empty model in place", body: `{"state":"x", "model": "", "q":1}`, model: "m", want: `{"state":"x", "model": "m", "q":1}`},
-		{name: "should fill a null model in place", body: `{"model":null}`, model: "m", want: `{"model":"m"}`},
-		{name: "should read a key in another case as no model", body: `{"Model":"x"}`, model: "m", want: `{"model":"m","Model":"x"}`},
-		{name: "should keep the model a body names", body: `{"state":"x","model":"own"}`, model: "m", want: `{"state":"x","model":"own"}`},
-		{name: "should leave a body that is not an object", body: `["state"]`, model: "m", want: `["state"]`},
-		{name: "should leave a body that is not JSON", body: `{"state":`, model: "m", want: `{"state":`},
-		{name: "should leave a body alone with no model to fill", body: `{"state":"x"}`, want: `{"state":"x"}`},
-		{name: "should fill a whitespace only model", body: `{"model":"  "}`, model: "m", want: `{"model":"m"}`},
-		{
-			name:  "should fill the last model key, which a server that reads the last one sends",
-			body:  `{"model":"own","state":{"model":""},"model":""}`,
-			model: "m",
-			want:  `{"model":"own","state":{"model":""},"model":"m"}`,
-		},
-		{
-			name:  "should fill every empty model key",
-			body:  `{"model":null,"q":[1,{"a":"}"}],"model":" "}`,
-			model: "m",
-			want:  `{"model":"m","q":[1,{"a":"}"}],"model":"m"}`,
-		},
-		{name: "should read an escaped key as model", body: `{"mod\u0065l":""}`, model: "m", want: `{"mod\u0065l":"m"}`},
-		{name: "should skip a string that holds an escaped quote", body: `{"s":"a\"model\":\"\"","t":1}`, model: "m", want: `{"model":"m","s":"a\"model\":\"\"","t":1}`},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			if got := string(withModel([]byte(tc.body), tc.model)); got != tc.want {
-				t.Errorf("withModel(%s) = %s, want %s", tc.body, got, tc.want)
-			}
-		})
-	}
-}
-
 func TestCheckFlags(t *testing.T) {
 	t.Parallel()
 
@@ -1392,30 +1353,4 @@ func compareLines(got, want []string) string {
 	}
 
 	return ""
-}
-
-func TestWithLongContext(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name string
-		body string
-		want string
-	}{
-		{name: "should add the key to a body without it", body: `{"state":"x"}`, want: `{"state":"x","long_context":true}`},
-		{name: "should fill an empty object", body: `{ }`, want: `{"long_context":true}`},
-		{name: "should turn a false on", body: `{"long_context":false,"s":1}`, want: `{"long_context":true,"s":1}`},
-		{name: "should keep a true", body: `{"long_context":true}`, want: `{"long_context":true}`},
-		{name: "should leave a body that is not an object", body: `[1]`, want: `[1]`},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			if got := string(withLongContext([]byte(tc.body))); got != tc.want {
-				t.Errorf("withLongContext(%s) = %s, want %s", tc.body, got, tc.want)
-			}
-		})
-	}
 }

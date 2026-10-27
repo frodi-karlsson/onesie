@@ -7,8 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"slices"
-	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -82,18 +80,14 @@ func streamRaw(
 				return errorLine(rec.Err), rec.Err
 			}
 
-			body := withModel([]byte(rec.Raw), defaultModel)
-
 			// --print-request prints the body as it would be sent, with exit 0 and no network. The
 			// same predicate decides this and the client above, so the two cannot disagree and leave
 			// a nil client.
 			if !requests(flags) {
-				if long {
-					return withLongContext(body), nil
-				}
-
-				return body, nil
+				return onesie.PrepareRawBody(json.RawMessage(rec.Raw), defaultModel, long), nil
 			}
+
+			body := onesie.PrepareRawBody(json.RawMessage(rec.Raw), defaultModel, false)
 
 			// From the request rather than the response. A failed record has no answers but did
 			// carry questions, and counting the response would report zero for exactly the records
@@ -114,7 +108,7 @@ func streamRaw(
 				opts = append(opts, onesie.WithLongContext())
 			}
 
-			response, err := client.SystemOneRaw(ctx, json.RawMessage(body), opts...)
+			response, err := client.SystemOneRaw(ctx, body, opts...)
 			// The client refuses what the route cannot take in its own words, which name too few of
 			// the providers that can.
 			if errors.Is(err, onesie.ErrValidation) {
@@ -126,8 +120,8 @@ func streamRaw(
 			}
 
 			if err != nil {
-				// The body's model reached the wire unchanged, so the model it named is the one onesie sent,
-				// and nothing inside it was checked locally, so no local bound is implicated.
+				// The prepared body names the model onesie sent, and nothing inside it was checked locally,
+				// so no local bound is implicated.
 				advised := advise(adviseBox(adviseLongContext(err,
 					longContextHelps(provider, read.model, long || read.longContext)), provider.Name, read.boxed), read.model, false)
 
@@ -176,181 +170,6 @@ func streamRaw(
 
 	// A request body carries no assertion, so no record can have failed one.
 	return streamResult(result, 0, 0)
-}
-
-func withModel(body []byte, model string) []byte {
-	object := bytes.TrimSpace(body)
-	if model == "" || !bytes.HasPrefix(object, []byte("{")) || !json.Valid(object) {
-		return body
-	}
-
-	name, err := json.Marshal(model)
-	if err != nil {
-		return body
-	}
-
-	// The body is otherwise sent as written, so the model goes in place or in front rather than
-	// through a decode and encode that would reorder the keys and reformat the numbers. Every empty
-	// model key is filled, since a server may read the first or the last of them.
-	spans := keyValues(object, "model")
-	if len(spans) == 0 {
-		filled := append([]byte(`{"model":`), name...)
-		if rest := bytes.TrimSpace(object[1:]); bytes.HasPrefix(rest, []byte("}")) {
-			return append(filled, rest...)
-		}
-
-		return slices.Concat(filled, []byte(","), object[1:])
-	}
-
-	filled, at := []byte{}, 0
-
-	for _, span := range spans {
-		if !blankModel(object[span[0]:span[1]]) {
-			continue
-		}
-
-		filled = slices.Concat(filled, object[at:span[0]], name)
-		at = span[1]
-	}
-
-	if at == 0 {
-		return body
-	}
-
-	return append(filled, object[at:]...)
-}
-
-func withLongContext(body []byte) []byte {
-	// A printed body carries long context as -f prints it, so a replay keeps what this run sends,
-	// and a body's own false does not turn off the flag or the variable.
-	object := bytes.TrimSpace(body)
-	if !bytes.HasPrefix(object, []byte("{")) || !json.Valid(object) {
-		return body
-	}
-
-	spans := keyValues(object, "long_context")
-	if len(spans) == 0 {
-		inner := bytes.TrimSpace(object[1 : len(object)-1])
-		if len(inner) == 0 {
-			return []byte(`{"long_context":true}`)
-		}
-
-		return slices.Concat(object[:len(object)-1], []byte(`,"long_context":true}`))
-	}
-
-	filled, at := []byte{}, 0
-
-	for _, span := range spans {
-		filled = slices.Concat(filled, object[at:span[0]], []byte("true"))
-		at = span[1]
-	}
-
-	return append(filled, object[at:]...)
-}
-
-func keyValues(object []byte, name string) [][2]int {
-	// A scan of a body json.Valid passed, rather than a decode, so the assets a body carries are
-	// walked past and never copied. Only the exact key counts, since encoding/json would match
-	// Model for model too and the API reads only the exact one.
-	var spans [][2]int
-
-	for i := 1; i < len(object); {
-		i = skipSpace(object, i)
-		if object[i] == ',' {
-			i++
-
-			continue
-		}
-
-		if object[i] == '}' {
-			break
-		}
-
-		keyEnd := stringEnd(object, i)
-		key := object[i:keyEnd]
-		valueStart := skipSpace(object, skipSpace(object, keyEnd)+1)
-		valueEnd := jsonValueEnd(object, valueStart)
-
-		if isKey(key, name) {
-			spans = append(spans, [2]int{valueStart, valueEnd})
-		}
-
-		i = valueEnd
-	}
-
-	return spans
-}
-
-func skipSpace(b []byte, i int) int {
-	for i < len(b) && (b[i] == ' ' || b[i] == '\t' || b[i] == '\n' || b[i] == '\r') {
-		i++
-	}
-
-	return i
-}
-
-func stringEnd(b []byte, i int) int {
-	for i++; b[i] != '"'; i++ {
-		if b[i] == '\\' {
-			i++
-		}
-	}
-
-	return i + 1
-}
-
-func jsonValueEnd(b []byte, i int) int {
-	switch b[i] {
-	case '"':
-		return stringEnd(b, i)
-	case '{', '[':
-		depth := 0
-
-		for {
-			switch b[i] {
-			case '"':
-				i = stringEnd(b, i)
-
-				continue
-			case '{', '[':
-				depth++
-			case '}', ']':
-				depth--
-				if depth == 0 {
-					return i + 1
-				}
-			}
-
-			i++
-		}
-	default:
-		for i < len(b) && !bytes.ContainsRune([]byte(",}] \t\r\n"), rune(b[i])) {
-			i++
-		}
-
-		return i
-	}
-}
-
-func isKey(key []byte, name string) bool {
-	if !bytes.Contains(key, []byte(`\`)) {
-		return string(key) == `"`+name+`"`
-	}
-
-	var decoded string
-
-	return json.Unmarshal(key, &decoded) == nil && decoded == name
-}
-
-func blankModel(value []byte) bool {
-	if string(value) == "null" {
-		return true
-	}
-
-	// A model name is short, so a long value is no blank one and is not decoded.
-	var name string
-
-	return len(value) <= 256 && json.Unmarshal(value, &name) == nil && strings.TrimSpace(name) == ""
 }
 
 func checkRawResponse(request, response []byte) (onesie.Usage, error) {

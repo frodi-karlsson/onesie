@@ -603,8 +603,9 @@ on the provider's key variable alone.
   body, as `--print-request` writes it, names one. Under `-i request` each body sends the model it
   names, and a body that names none, or an empty, all whitespace or null one, takes the profile's
   `model`, then the order above. Only the key `model` spelled in that case counts, so a body that
-  holds only `Model` names none, and every blank `model` key in a body is filled. onesie writes that
-  model into the body, so `--print-request` shows it too.
+  holds only `Model` names none. Of several `model` keys the last one counts, and a blank last one
+  leaves a single `model` key. onesie writes that model into the body, so `--print-request` shows
+  it too.
 - On cloudflare the account counts only when no base URL is chosen, since a Cloudflare base URL
   holds the account. A cloudflare run with no account exits 2 and names `CLOUDFLARE_ACCOUNT_ID` and
   the base URL `https://api.cloudflare.com/client/v4/accounts/<account_id>/ai`. On a profile it also
