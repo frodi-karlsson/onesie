@@ -300,6 +300,12 @@ func missingKeyHint(err error, bare resolution, profiles creds.Profiles) error {
 	}
 
 	name := firstProfileOf(bare.provider.Name, profiles)
+	if name == "" && bare.by == envProvider {
+		// A profile created now would still go unused while the variable chooses the run.
+		return fmt.Errorf("%w. %s is set, so a stored profile is not used. To use one instead, unset %s "+
+			"and run onesie profile create NAME --provider %s", err, envProvider, envProvider, bare.provider.Name)
+	}
+
 	if name == "" {
 		return fmt.Errorf("%w, or store one with onesie profile create NAME --provider %s", err, bare.provider.Name)
 	}

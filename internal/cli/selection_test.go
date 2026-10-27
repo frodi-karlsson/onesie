@@ -923,6 +923,12 @@ func TestMissingKeyHint(t *testing.T) {
 				"onesie profile use 'personal', or run with --profile 'personal'",
 		},
 		{
+			name: "should say a stored profile is not used under ONESIE_PROVIDER when none has the provider",
+			err:  missing("LEVANTO_API_KEY"), run: bareOf("levanto", "ONESIE_PROVIDER", nil),
+			want: "onesie: no API key. Set LEVANTO_API_KEY. ONESIE_PROVIDER is set, so a stored profile is not " +
+				"used. To use one instead, unset ONESIE_PROVIDER and run onesie profile create NAME --provider levanto",
+		},
+		{
 			name: "should say to drop --provider under --provider",
 			err:  missing("TYPESAFE_API_KEY"), run: bareOf("typesafe", "--provider", nil),
 			want: "onesie: no API key. Set TYPESAFE_API_KEY, or drop --provider and pass --profile 'ts'",

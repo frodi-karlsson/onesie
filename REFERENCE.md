@@ -655,7 +655,8 @@ on the provider's key variable alone.
 - A run that `--provider` or `ONESIE_PROVIDER` chooses, and that succeeds, never opens
   `profiles.json`, so CI that names its provider does not depend on any file on the machine. Only a
   run that then fails for a missing key or an unknown provider reads it, to name a profile in the
-  hint.
+  hint. Under `ONESIE_PROVIDER` with no profile for that provider, the hint names the key variable
+  and says a stored profile is not used while the variable is set.
 - Every other run reads it, `--print-request` and `--mock` included, so a `profiles.json` others can
   reach exits 3 there too. `--print-questions` and `--print-schema` never read it. `profile show`,
   `profile list` and `profile test` always read it, whatever chooses.
