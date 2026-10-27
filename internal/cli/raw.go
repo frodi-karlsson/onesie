@@ -112,8 +112,9 @@ func streamRaw(
 			if err != nil {
 				// The prepared body names the model onesie sent, and nothing inside it was checked locally,
 				// so no local bound is implicated.
-				advised := advise(adviseBox(adviseLongContext(err,
-					longContextHelps(provider, read.model, long || read.longContext)), provider.Name, read.boxed), read.model, false)
+				advised := explain(err, requestFacts{
+					provider: provider, model: read.model, longContext: long || read.longContext, boxed: read.boxed,
+				})
 
 				stats.recordFailure(advised, true, asked)
 				stats.terminalAttempt(advised)

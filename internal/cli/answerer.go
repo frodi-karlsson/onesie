@@ -52,9 +52,10 @@ func (a liveAnswerer) answer(ctx context.Context, _ recordKey, req onesie.Reques
 
 	// Every question on this path passed onesie's own bounds check, so a count the server rejects
 	// says something about those bounds.
-	return reply{result: result}, advise(adviseBox(
-		adviseLongContext(err, longContextHelps(a.provider, req.Model, req.LongContext)),
-		a.provider.Name, hasBox(req.Questions)), req.Model, true)
+	return reply{result: result}, explain(err, requestFacts{
+		provider: a.provider, model: req.Model, longContext: req.LongContext, boxed: hasBox(req.Questions),
+		validated: true,
+	})
 }
 
 func requestOptions(req onesie.Request, timeoutSet bool) []onesie.RequestOption {
