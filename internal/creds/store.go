@@ -9,6 +9,8 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+
+	"github.com/frodi-karlsson/onesie/internal/patherr"
 )
 
 const (
@@ -180,7 +182,7 @@ func (s Store) read(path, kind string) (data []byte, found bool, err error) {
 			}
 		}
 
-		return nil, false, fmt.Errorf("onesie: reading %s: %w", path, err)
+		return nil, false, fmt.Errorf("onesie: reading %s: %w", path, patherr.Inner(err))
 	}
 
 	// Joined into the named return rather than discarded. An empty branch would trip staticcheck
@@ -191,7 +193,7 @@ func (s Store) read(path, kind string) (data []byte, found bool, err error) {
 
 	info, err := handle.Stat()
 	if err != nil {
-		return nil, false, fmt.Errorf("onesie: reading %s: %w", path, err)
+		return nil, false, fmt.Errorf("onesie: reading %s: %w", path, patherr.Inner(err))
 	}
 
 	// Ahead of the mode check, since a directory or a device node is not a config file at a bad
@@ -209,7 +211,7 @@ func (s Store) read(path, kind string) (data []byte, found bool, err error) {
 	// hand back half a credential as if it were whole.
 	data, err = io.ReadAll(io.LimitReader(handle, maxCredentialBytes+1))
 	if err != nil {
-		return nil, false, fmt.Errorf("onesie: reading %s: %w", path, err)
+		return nil, false, fmt.Errorf("onesie: reading %s: %w", path, patherr.Inner(err))
 	}
 
 	if len(data) > maxCredentialBytes {
@@ -265,7 +267,7 @@ func (s Store) write(path string, data []byte, pattern string) (*ModeWarning, er
 
 func (s Store) writeAndClose(file *os.File, data []byte) error {
 	if _, err := file.Write(data); err != nil {
-		return errors.Join(fmt.Errorf("onesie: writing %s: %w", file.Name(), err), file.Close())
+		return errors.Join(fmt.Errorf("onesie: writing %s: %w", file.Name(), patherr.Inner(err)), file.Close())
 	}
 
 	// Ahead of the close and the rename, so a power loss cannot leave a renamed file whose contents
@@ -276,7 +278,7 @@ func (s Store) writeAndClose(file *os.File, data []byte) error {
 	}
 
 	if err := file.Close(); err != nil {
-		return fmt.Errorf("onesie: closing %s: %w", file.Name(), err)
+		return fmt.Errorf("onesie: closing %s: %w", file.Name(), patherr.Inner(err))
 	}
 
 	return nil
@@ -326,7 +328,7 @@ func (s Store) clear(path, kind string) error {
 	}
 
 	if err := s.remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
-		return fmt.Errorf("onesie: removing %s: %w", path, err)
+		return fmt.Errorf("onesie: removing %s: %w", path, patherr.Inner(err))
 	}
 
 	return nil

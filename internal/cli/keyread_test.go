@@ -9,7 +9,6 @@ import (
 func TestFirstLine(t *testing.T) {
 	t.Parallel()
 
-	// The first length bufio.Scanner refuses to hand back as a token.
 	const overCap = bufio.MaxScanTokenSize
 
 	tests := []struct {

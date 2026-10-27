@@ -6,7 +6,7 @@
 | 1 | The answer was a no: `-q` rejected it, or an assertion was false on the record or on any record of a stream |
 | 2 | A usage or validation error, a missing key, a refused resume, or a 4xx from the server other than 401, 402, 403, 408 and 429 |
 | 3 | Authentication, permission or payment failed, or the credential store could not be used |
-| 4 | The server did not answer after retries: a 429, a 5xx, or a 2xx body onesie cannot use |
+| 4 | The server did not answer after retries, a 429 or a 5xx, or it answered 2xx with a body or an answer onesie cannot use, which is never retried. The message says `response could not be used` and names the question and the value |
 | 5 | A transport error or a timeout, including a 408 |
 | 6 | A stream finished with one or more failed records, or `--stop-on-error` stopped it at a record that never became a request |
 | 7 | The gate could not decide: the assertion did not hold and `--abstain-if` did |
@@ -72,7 +72,7 @@ Exit 3 also covers these:
 
 | Message contains | What it means |
 | --- | --- |
-| `unknown flag`, `unknown command` or `accepts at most 1 arg` | a typo in a flag name, a flag cobra cannot see, such as `--print-request` after a subcommand or any flag after `--`, or an unquoted question |
+| `there is no flag`, `has no flag`, `has no subcommand`, `takes no argument` or `expected one question` | a typo in a flag name, a flag the command does not take there, such as `--print-request` after a subcommand or any flag after `--`, or an unquoted question. `The closest is` names the flag onesie thinks was meant |
 | `is not a subcommand. The closest is` | a one word question is close to a subcommand name, such as `questoins`. Fix the typo, or put the word after `--` to ask it |
 | a complaint about a flag you never typed, or `was read as flags` | a question beginning with a dash was read as flags. Put the flags first, then `--`, then the question |
 | `flags go before --` | a flag was typed after `--`, where every word is the question. Move it before `--` |
@@ -97,11 +97,10 @@ Exit 3 also covers these:
 | `each side must be`, `an image must be PNG or JPEG` or `an image is at most` | onesie refused an `--image` file before any request, naming the limit `onesie -V` lists. Resize it to at most 1568 pixels a side, or convert it to PNG or a smaller JPEG. An `--image-field` file is an error line instead |
 | `needs an image in the request` | a `--box` question was asked with no `--image` or `--image-field` to look in |
 | `long_context` and `must be true or false` | a request body's `long_context` is not a boolean |
-| `takes no images or box questions` | the provider, Levanto or Berget, reads neither. Ask with `--provider typesafe`, `--provider openrouter`, or for images alone `--provider cloudflare` |
-| `takes no box questions` or `takes no long context` | the provider's model reads images but not that. Ask with `--provider typesafe` |
+| `takes no images`, `takes no box questions` or `takes no long context` | the provider cannot take what the run asks for. The message names the providers that can, so ask with one of them through `--provider` |
 | `no cloudflare account id` | cloudflare has a token and no account. Set `CLOUDFLARE_ACCOUNT_ID`, or store one in the profile with `onesie profile update NAME --account-id ACCOUNT_ID` |
 | `is plain http to a host other than this machine` | the base URL from `--base-url`, `TYPESAFE_BASE_URL` or a profile's `base_url` is `http://` to a host other than `localhost`, `127.0.0.0/8`, also in IPv4-mapped form, or `::1`, so the key would travel unencrypted. Use https, or pass `--allow-http` to send it anyway. A profile stored with an http `base_url` needs `--allow-http` on every run |
-| `must be a plain URL with no credentials` | the base URL from `--base-url`, `TYPESAFE_BASE_URL` or a profile's `base_url` holds credentials, `@`, `?` or `#`. Pass the API root alone, and keep the key in a profile or the provider's key variable |
+| `must not hold @, ? or #` | the base URL from `--base-url`, `TYPESAFE_BASE_URL` or a profile's `base_url` holds `@`, `?` or `#`, as credentials, a query or a fragment do. Pass the API root alone, and keep the key in a profile or the provider's key variable |
 | `Insufficient balance` | Cloudflare's AI Gateway has no credits for Jev. Add credits, or ask Clef with `-m clef-flash`, which runs on the free allowance |
 | `No such model` | Workers AI does not serve that model id. Clef's are `clef`, `clef-flash` and `clef-omni`. Try `--list-models` |
 | `A box question needs a model that serves it` | the model refused a `--box` question on TypeSafe. Pass `-m jev-preview` |

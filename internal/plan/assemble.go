@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/frodi-karlsson/onesie/internal/argv"
+	"github.com/frodi-karlsson/onesie/internal/patherr"
 )
 
 // PositionalID is the reserved id a bare QUESTION argument is keyed under.
@@ -149,9 +150,14 @@ func merge(built *Plan, fromFile map[string]int, question Question, replace bool
 			name = unnamedFile
 		}
 
+		source := "--ask"
+		if question.Origin == OriginPositional {
+			source = "the question argument"
+		}
+
 		return fmt.Errorf(
-			"onesie: '%s' is defined in %s and by --ask. Pass --replace to override",
-			question.ID, name)
+			"onesie: '%s' is defined in %s and by %s. Pass --replace to override",
+			question.ID, name, source)
 	}
 
 	// The replacement keeps the file's position, so output order is stable whether or not a
@@ -334,7 +340,7 @@ func resolve(text string, readFile func(string) ([]byte, error)) (string, error)
 
 	body, err := readFile(text[1:])
 	if err != nil {
-		return "", fmt.Errorf("onesie: reading %s: %w", text[1:], err)
+		return "", fmt.Errorf("onesie: reading %s: %w", text[1:], patherr.Inner(err))
 	}
 
 	// One trailing newline goes, so an editor's trailing newline does not become part of the text.

@@ -6,12 +6,16 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 
 	"github.com/spf13/cobra"
 
 	"github.com/frodi-karlsson/onesie-go"
+	"github.com/frodi-karlsson/onesie/internal/answer"
 	"github.com/frodi-karlsson/onesie/internal/engine"
 	"github.com/frodi-karlsson/onesie/internal/input"
+	"github.com/frodi-karlsson/onesie/internal/plan"
+	"github.com/frodi-karlsson/onesie/internal/qfile"
 )
 
 func streamRaw(
@@ -22,11 +26,16 @@ func streamRaw(
 	answers *outFile,
 	resume resumePlan,
 ) error {
-	var (
-		client       *onesie.Client
-		provider     onesie.Provider
-		defaultModel string
-	)
+	// --print-request needs the resolution too, to print the model a body with none is sent with.
+	chosen, resolveErr := runResolution(settings)
+	if resolveErr != nil {
+		return resolveErr
+	}
+
+	provider := chosen.provider
+	defaultModel := chosen.modelFor("", settings.lookupEnv)
+
+	var client *onesie.Client
 
 	// Built only when the run makes a request, so -i request --print-request needs no key.
 	if requests(flags) {
@@ -35,23 +44,15 @@ func streamRaw(
 			return err
 		}
 
-		chosen, err := runResolution(settings)
-		if err != nil {
-			return err
-		}
-
-		provider = chosen.provider
-		defaultModel = chosen.modelFor("", settings.lookupEnv)
-
 		client = built
 	}
 
-	long := longContext(settings, flags)
+	long := flags.env.longContext
 
 	// Every body would be refused, so the run stops before it reads any.
 	if long && requests(flags) {
 		if refusal := provider.Refuse(defaultModel, onesie.Needs{LongContext: true}); refusal != nil {
-			return refusal
+			return longContextCause(refusal, settings, flags)
 		}
 	}
 
@@ -79,17 +80,19 @@ func streamRaw(
 				return errorLine(rec.Err), rec.Err
 			}
 
-			// --print-request is the identity here: bodies pass through unchanged, with exit 0 and
-			// no network. The same predicate decides this and the client above, so the two cannot
-			// disagree and leave a nil client.
+			// --print-request prints the body as it would be sent, with exit 0 and no network. The
+			// same predicate decides this and the client above, so the two cannot disagree and leave
+			// a nil client.
 			if !requests(flags) {
-				return []byte(rec.Raw), nil
+				return onesie.PrepareRawBody(json.RawMessage(rec.Raw), defaultModel, long), nil
 			}
+
+			body := onesie.PrepareRawBody(json.RawMessage(rec.Raw), defaultModel, false)
 
 			// From the request rather than the response. A failed record has no answers but did
 			// carry questions, and counting the response would report zero for exactly the records
 			// a user turned --stats on to understand.
-			read := readRawRequest([]byte(rec.Raw))
+			read := readRawRequest(body)
 			asked := read.questions
 
 			var opts []onesie.RequestOption
@@ -105,10 +108,10 @@ func streamRaw(
 				opts = append(opts, onesie.WithLongContext())
 			}
 
-			body, err := client.SystemOneRaw(ctx, json.RawMessage(rec.Raw), opts...)
+			response, err := client.SystemOneRaw(ctx, body, opts...)
 			if err != nil {
-				// The body's model reached the wire unchanged, so the model it named is the one onesie sent,
-				// and nothing inside it was checked locally, so no local bound is implicated.
+				// The prepared body names the model onesie sent, and nothing inside it was checked locally,
+				// so no local bound is implicated.
 				advised := advise(adviseBox(adviseLongContext(err,
 					longContextHelps(provider, read.model, long || read.longContext)), provider.Name, read.boxed), read.model, false)
 
@@ -118,10 +121,17 @@ func streamRaw(
 				return errorLine(advised), advised
 			}
 
-			model, usage := rawSummary(body)
+			if usage, checkErr := checkRawResponse(body, response); checkErr != nil {
+				stats.spend(usage)
+				stats.recordFailure(checkErr, true, asked)
+
+				return errorLine(checkErr), checkErr
+			}
+
+			model, usage := rawSummary(response)
 			stats.record(model, usage, asked)
 
-			return oneLine(body), nil
+			return oneLine(response), nil
 		},
 		Write: func(body []byte) error {
 			_, writeErr := fmt.Fprintln(out, string(body))
@@ -150,6 +160,56 @@ func streamRaw(
 
 	// A request body carries no assertion, so no record can have failed one.
 	return streamResult(result, 0, 0)
+}
+
+func checkRawResponse(request, response []byte) (onesie.Usage, error) {
+	// The usage is read apart from the answers, so a 200 whose answers onesie cannot read still
+	// reports what it cost.
+	var probe struct {
+		Answers json.RawMessage `json:"answers"`
+		Usage   onesie.Usage    `json:"usage"`
+	}
+
+	var (
+		syntax *json.SyntaxError
+		result onesie.Result
+	)
+
+	probeErr := json.Unmarshal(response, &probe)
+	resultErr := json.Unmarshal(response, &result)
+
+	switch {
+	case errors.As(probeErr, &syntax):
+		return onesie.Usage{}, answer.Unusable("the response is not JSON")
+	case probeErr != nil:
+		// The result holds the same usage, so it fails too, and onesie-go words the failure.
+		return onesie.Usage{}, &onesie.ResponseError{Status: http.StatusOK, Err: resultErr}
+	case !bytes.HasPrefix(bytes.TrimSpace(probe.Answers), []byte("{")):
+		return probe.Usage, answer.Unusable("the response is not a System One result, since it has no answers")
+	case resultErr != nil:
+		return probe.Usage, &onesie.ResponseError{Status: http.StatusOK, Err: resultErr}
+	}
+
+	// Only a body whose questions onesie can read, as -f reads one, says what each answer must fit.
+	return probe.Usage, answer.CheckAll(requestQuestions(request), &result)
+}
+
+func requestQuestions(request []byte) []plan.Question {
+	// qfile.Load reads a body with no questions key as a bare question map, so the key is looked for first.
+	var probe struct {
+		Questions json.RawMessage `json:"questions"`
+	}
+
+	if json.Unmarshal(request, &probe) != nil || probe.Questions == nil {
+		return nil
+	}
+
+	loaded, err := qfile.Load(request)
+	if err != nil {
+		return nil
+	}
+
+	return loaded.Questions
 }
 
 func oneLine(body []byte) []byte {

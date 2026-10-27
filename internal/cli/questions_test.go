@@ -65,6 +65,21 @@ func TestNewQuestionsCmd(t *testing.T) {
 				"triage  " + filepath.Join(upOne, "triage.json") + "  clash\n",
 		},
 		{
+			name:     "should mark an empty saved file in the table",
+			args:     []string{"questions"},
+			files:    map[string]string{"/repo/.onesie/questions/shell-safety.yaml": ""},
+			wantCode: ExitOK,
+			want:     "shell-safety  " + filepath.Join(upOne, "shell-safety.yaml") + "  empty\n",
+		},
+		{
+			name:     "should mark an empty saved file in json",
+			args:     []string{"questions", "-o", "json"},
+			files:    map[string]string{"/repo/.onesie/questions/triage.yaml": " \n"},
+			wantCode: ExitOK,
+			want: `[{"name":"triage","path":` + quoted(filepath.Join(repoDir, "triage.yaml")) +
+				`,"empty":true,"builtin":false}]` + "\n",
+		},
+		{
 			name:     "should print json with absolute paths",
 			args:     []string{"questions", "-o", "json"},
 			files:    sets,
@@ -159,7 +174,7 @@ func TestNewQuestionsCmd(t *testing.T) {
 			name:     "should hint that a question flag belongs to the root",
 			args:     []string{"questions", "--ask", "a=b"},
 			wantCode: ExitUsage,
-			contains: []string{"'questions' is a subcommand. To ask it as a question, put it after --"},
+			contains: []string{"--ask belongs to a run, not to questions\n"},
 		},
 		{
 			name:     "should still ask questions as a question after --",

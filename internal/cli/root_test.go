@@ -48,6 +48,7 @@ func TestNewRootCmd(t *testing.T) {
 		`"usage":{"input_tokens":10,"output_tokens":2}}`
 
 	markdownOut := filepath.Join(t.TempDir(), "answers.md")
+	missingOut := filepath.Join(t.TempDir(), "missing", "answers.jsonl")
 
 	tests := []struct {
 		name     string
@@ -111,6 +112,276 @@ func TestNewRootCmd(t *testing.T) {
 			stdin:    `{"body":"x","u":true}` + "\n",
 			wantCode: cli.ExitUsage,
 			contains: []string{"onesie: --base-url is empty. Name one, or leave the flag out"},
+		},
+		{
+			name:     "should refuse an empty --mock rather than run",
+			args:     []string{"is this urgent", "--state", "site down", "--mock", ""},
+			response: answered,
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: --mock is empty. Name one, or leave the flag out"},
+		},
+		{
+			name:     "should refuse an empty -m rather than run",
+			args:     []string{"is this urgent", "--state", "site down", "-m", ""},
+			response: answered,
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: --model is empty. Name one, or leave the flag out"},
+		},
+		{
+			name:     "should refuse an empty --model rather than run",
+			args:     []string{"is this urgent", "--state", "site down", "--model", ""},
+			response: answered,
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: --model is empty. Name one, or leave the flag out"},
+		},
+		{
+			name:     "should refuse an empty -o rather than run",
+			args:     []string{"is this urgent", "--state", "site down", "-o", ""},
+			response: answered,
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: --output is empty. Name one, or leave the flag out"},
+		},
+		{
+			name:     "should refuse an empty --output rather than run",
+			args:     []string{"is this urgent", "--state", "site down", "--output", ""},
+			response: answered,
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: --output is empty. Name one, or leave the flag out"},
+		},
+		{
+			name:     "should refuse an empty -i rather than run",
+			args:     []string{"is this urgent", "--state", "site down", "-i", ""},
+			response: answered,
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: --input is empty. Name one, or leave the flag out"},
+		},
+		{
+			name:     "should refuse an empty --input rather than run",
+			args:     []string{"is this urgent", "--state", "site down", "--input", ""},
+			response: answered,
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: --input is empty. Name one, or leave the flag out"},
+		},
+		{
+			name:     "should refuse an empty --out rather than run",
+			args:     []string{"is this urgent", "--state", "site down", "--out", ""},
+			response: answered,
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: --out is empty. Name one, or leave the flag out"},
+		},
+		{
+			name:     "should refuse an empty -f rather than run",
+			args:     []string{"is this urgent", "--state", "site down", "-f", ""},
+			response: answered,
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: --file is empty. Name one, or leave the flag out"},
+		},
+		{
+			name:     "should refuse an empty --file rather than run",
+			args:     []string{"is this urgent", "--state", "site down", "--file", ""},
+			response: answered,
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: --file is empty. Name one, or leave the flag out"},
+		},
+		{
+			name:     "should refuse an empty --state-file rather than run",
+			args:     []string{"is this urgent", "--state", "site down", "--state-file", ""},
+			response: answered,
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: --state-file is empty. Name one, or leave the flag out"},
+		},
+		{
+			name:     "should refuse an empty --merge-key rather than run",
+			args:     []string{"is this urgent", "--state", "site down", "--merge-key", ""},
+			response: answered,
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: --merge-key is empty. Name one, or leave the flag out"},
+		},
+		{
+			name:     "should refuse an empty --map on a stream",
+			args:     []string{"is this urgent", "-i", "jsonl", "--map", ""},
+			stdin:    `{"body":"x"}` + "\n",
+			response: answered,
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: --map is empty. Name one, or leave the flag out"},
+		},
+		{
+			name:     "should refuse an empty --id on a stream",
+			args:     []string{"is this urgent", "-i", "jsonl", "--id", ""},
+			stdin:    `{"body":"x"}` + "\n",
+			response: answered,
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: --id is empty. Name one, or leave the flag out"},
+		},
+		{
+			name:     "should refuse an empty --image-field on a stream",
+			args:     []string{"is this urgent", "-i", "jsonl", "--image-field", ""},
+			stdin:    `{"body":"x"}` + "\n",
+			response: answered,
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: --image-field is empty. Name one, or leave the flag out"},
+		},
+		{
+			name:     "should refuse a whitespace -m given as the value of a combined short flag",
+			args:     []string{"is this urgent", "--state", "site down", "-qm", " "},
+			response: answered,
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: --model is empty. Name one, or leave the flag out"},
+		},
+		{
+			name:     "should refuse an empty --sep rather than split the options into characters",
+			args:     []string{"is it billing", "--sep", "", "--pick", "a,b", "--state", "x"},
+			response: picked,
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: --sep is empty. Name one, or leave the flag out"},
+		},
+		{
+			name:     "should print no empty list default for a flag that refuses an empty value",
+			args:     []string{"calibrate", "--help"},
+			wantCode: cli.ExitOK,
+			contains: []string{"--label stringArray"},
+			absent:   []string{"(default [])"},
+		},
+		{
+			name:     "should split the options on a --sep of one space",
+			args:     []string{"is it billing", "--sep", " ", "--pick", "billing technical", "--print-request", "--state", "x"},
+			wantCode: cli.ExitOK,
+			contains: []string{`"criteria":{"billing":null,"technical":null}`},
+		},
+		{
+			name:     "should refuse an empty --provider on profile update",
+			args:     []string{"profile", "update", "work", "--provider", "", "--key"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: --provider is empty. Name one, or leave the flag out\n"},
+		},
+		{
+			name:     "should refuse an empty --account-id on profile create",
+			args:     []string{"profile", "create", "work", "--provider", "cloudflare", "--account-id", ""},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: --account-id is empty. Name one, or leave the flag out\n"},
+		},
+		{
+			name: "should refuse an empty --mock on calibrate",
+			args: []string{
+				"calibrate", "--ask", "u=is this urgent", "-i", "jsonl", "--map", ".body", "--label", "u=.u",
+				"--mock", "",
+			},
+			stdin:    `{"body":"x","u":true}` + "\n",
+			response: answered,
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: --mock is empty. Name one, or leave the flag out"},
+		},
+		{
+			name: "should refuse an empty -m on calibrate",
+			args: []string{
+				"calibrate", "--ask", "u=is this urgent", "-i", "jsonl", "--map", ".body", "--label", "u=.u",
+				"-m", "",
+			},
+			stdin:    `{"body":"x","u":true}` + "\n",
+			response: answered,
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: --model is empty. Name one, or leave the flag out"},
+		},
+		{
+			name: "should refuse an empty -o on calibrate",
+			args: []string{
+				"calibrate", "--ask", "u=is this urgent", "-i", "jsonl", "--map", ".body", "--label", "u=.u",
+				"-o", "",
+			},
+			stdin:    `{"body":"x","u":true}` + "\n",
+			response: answered,
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: --output is empty. Name one, or leave the flag out"},
+		},
+		{
+			name: "should refuse an empty -i on calibrate",
+			args: []string{
+				"calibrate", "--ask", "u=is this urgent", "-i", "jsonl", "--map", ".body", "--label", "u=.u",
+				"-i", "",
+			},
+			stdin:    `{"body":"x","u":true}` + "\n",
+			response: answered,
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: --input is empty. Name one, or leave the flag out"},
+		},
+		{
+			name: "should refuse an empty --out on calibrate",
+			args: []string{
+				"calibrate", "--ask", "u=is this urgent", "-i", "jsonl", "--map", ".body", "--label", "u=.u",
+				"--out", "",
+			},
+			stdin:    `{"body":"x","u":true}` + "\n",
+			response: answered,
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: --out is empty. Name one, or leave the flag out"},
+		},
+		{
+			name: "should refuse an empty -f on calibrate",
+			args: []string{
+				"calibrate", "--ask", "u=is this urgent", "-i", "jsonl", "--map", ".body", "--label", "u=.u",
+				"-f", "",
+			},
+			stdin:    `{"body":"x","u":true}` + "\n",
+			response: answered,
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: --file is empty. Name one, or leave the flag out"},
+		},
+		{
+			name: "should refuse an empty --label on calibrate",
+			args: []string{
+				"calibrate", "--ask", "u=is this urgent", "-i", "jsonl", "--map", ".body", "--label", "u=.u",
+				"--label", "",
+			},
+			stdin:    `{"body":"x","u":true}` + "\n",
+			response: answered,
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: --label is empty. Name one, or leave the flag out"},
+		},
+		{
+			name: "should refuse an empty --image-field on calibrate",
+			args: []string{
+				"calibrate", "--ask", "u=is this urgent", "-i", "jsonl", "--map", ".body", "--label", "u=.u",
+				"--image-field", "",
+			},
+			stdin:    `{"body":"x","u":true}` + "\n",
+			response: answered,
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: --image-field is empty. Name one, or leave the flag out"},
+		},
+		{
+			name: "should refuse an empty --map on calibrate",
+			args: []string{
+				"calibrate", "--ask", "u=is this urgent", "-i", "jsonl", "--map", ".body", "--label", "u=.u",
+				"--map", "",
+			},
+			stdin:    `{"body":"x","u":true}` + "\n",
+			response: answered,
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: --map is empty. Name one, or leave the flag out"},
+		},
+		{
+			name: "should refuse an empty --id on calibrate",
+			args: []string{
+				"calibrate", "--ask", "u=is this urgent", "-i", "jsonl", "--map", ".body", "--label", "u=.u",
+				"--id", "",
+			},
+			stdin:    `{"body":"x","u":true}` + "\n",
+			response: answered,
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: --id is empty. Name one, or leave the flag out"},
+		},
+		{
+			name:     "should refuse an empty -o on questions",
+			args:     []string{"questions", "-o", ""},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: --output is empty. Name one, or leave the flag out"},
+		},
+		{
+			name:     "should name the question argument when it clashes with a file's id",
+			args:     []string{"is it", "-f", "ab.json", "--state", "x", "--print-request"},
+			files:    map[string]string{"ab.json": `{"questions":{"answer":{"type":"noul","instructions":"q"}}}`},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: 'answer' is defined in ab.json and by the question argument. Pass --replace to override\n"},
 		},
 		{
 			name:     "should print help when given no arguments",
@@ -224,7 +495,7 @@ func TestNewRootCmd(t *testing.T) {
 			args:     []string{"--print-request", "-x is it bad"},
 			stdin:    "x",
 			wantCode: cli.ExitUsage,
-			contains: []string{"unknown shorthand flag", "'-x is it bad' was read as flags"},
+			contains: []string{"onesie: there is no flag -x. '-x is it bad' was read as flags"},
 		},
 		{
 			name:     "should leave a dash value given to a flag alone",
@@ -246,7 +517,7 @@ func TestNewRootCmd(t *testing.T) {
 			args:     []string{"-urgent"},
 			stdin:    "x",
 			wantCode: cli.ExitUsage,
-			contains: []string{"unknown shorthand flag"},
+			contains: []string{"onesie: there is no flag -u in -urgent"},
 			absent:   []string{"was read as flags"},
 		},
 		{
@@ -254,7 +525,7 @@ func TestNewRootCmd(t *testing.T) {
 			args:     []string{"--", "-rm is this bad", "--mock", "m.json", "--state", "x"},
 			wantCode: cli.ExitUsage,
 			contains: []string{
-				"onesie: accepts at most 1 arg(s), received 5. Everything after -- is the question, " +
+				"onesie: expected one question, got 5 arguments. Everything after -- is the question, " +
 					"so flags go before --, as in onesie --mock m.json --state x -- '-rm is this bad'",
 			},
 		},
@@ -268,8 +539,72 @@ func TestNewRootCmd(t *testing.T) {
 			name:     "should not blame flags for plain words after --",
 			args:     []string{"--", "is", "urgent"},
 			wantCode: cli.ExitUsage,
-			contains: []string{"accepts at most 1 arg(s), received 2"},
-			absent:   []string{"flags go before"},
+			contains: []string{"onesie: expected one question, got 2 arguments. " +
+				"Quote a question that holds spaces, as in onesie 'is this urgent'"},
+			absent: []string{"flags go before"},
+		},
+		{
+			name:     "should name calibrate when it is given two questions",
+			args:     []string{"calibrate", "is", "urgent"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: expected one question, got 2 arguments. " +
+				"Quote a question that holds spaces, as in onesie calibrate 'is this urgent'"},
+		},
+		{
+			name:     "should refuse an argument to version in a plain sentence",
+			args:     []string{"version", "extra"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: version takes no argument, got 'extra'\n"},
+		},
+		{
+			name:     "should refuse an argument to a completion subcommand in a plain sentence",
+			args:     []string{"completion", "bash", "extra"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: completion bash takes no argument, got 'extra'\n"},
+		},
+		{
+			name:     "should name the long form of a shorthand whose value is refused",
+			args:     []string{"-j", "abc", "q"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: --jobs takes a whole number, got 'abc'\n"},
+		},
+		{
+			name:     "should say what a flag that takes a number got",
+			args:     []string{"--jobs", "1.5", "q"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: --jobs takes a whole number, got '1.5'\n"},
+		},
+		{
+			name:     "should name the long form when a dash value looks like its shorthand",
+			args:     []string{"--state", "-just", "--jobs", "1.5", "q"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: --jobs takes a whole number, got '1.5'\n"},
+		},
+		{
+			name:     "should say what a flag that takes true or false got",
+			args:     []string{"--cache=maybe", "q"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: --cache takes true or false, got 'maybe'\n"},
+		},
+		{
+			name:     "should say a flag needs a value",
+			args:     []string{"q", "--state"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: --state needs a value\n"},
+		},
+		{
+			name:     "should name the long form of a shorthand that needs a value",
+			args:     []string{"q", "-m"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: --model needs a value\n"},
+		},
+		{
+			name:     "should name an --out file it cannot open once",
+			args:     []string{"q", "-i", "jsonl", "--out", missingOut},
+			stdin:    `{"a":1}` + "\n",
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: opening " + missingOut + ": "},
+			absent:   []string{"open " + missingOut},
 		},
 		{
 			name:     "should refuse a question id line under -i lines",
@@ -323,7 +658,7 @@ func TestNewRootCmd(t *testing.T) {
 			name:     "should exit 2 for auth status, since auth is no longer a subcommand",
 			args:     []string{"auth", "status"},
 			wantCode: cli.ExitUsage,
-			contains: []string{"accepts at most 1 arg(s), received 2"},
+			contains: []string{"expected one question, got 2 arguments"},
 		},
 		{
 			name:     "should ask auth as an ordinary one word question",
@@ -358,6 +693,41 @@ func TestNewRootCmd(t *testing.T) {
 				`an object keyed by question id, as {"answer":0.9,"team":"billing"}, ` +
 					"or one line per record in the shape -o json writes",
 			},
+		},
+		{
+			name:     "should refuse a word beside the version flag",
+			args:     []string{"-V", "extra"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: -V takes no question, got 'extra'"},
+			absent:   []string{"onesie 1.2.3"},
+		},
+		{
+			name:     "should ask the question when the version flag is set to false",
+			args:     []string{"--version=false", "is this urgent", "--state", "site down"},
+			response: answered,
+			wantCode: cli.ExitOK,
+			absent:   []string{"takes no question"},
+		},
+		{
+			name:     "should refuse two words beside the version flag with the version flag's message",
+			args:     []string{"-V", "a", "b"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: -V takes no question, got 'a b'\n"},
+			absent:   []string{"expected one question"},
+		},
+		{
+			name:     "should show --box in the help as a switch that takes no value",
+			args:     []string{"--help"},
+			wantCode: cli.ExitOK,
+			contains: []string{"      --box      "},
+			absent:   []string{"--box string"},
+		},
+		{
+			name:     "should show --box in the calibrate help as a switch that takes no value",
+			args:     []string{"calibrate", "--help"},
+			wantCode: cli.ExitOK,
+			contains: []string{"      --box      "},
+			absent:   []string{"--box string"},
 		},
 		{
 			name:     "should list --mock in the calibrate help",
@@ -396,10 +766,108 @@ func TestNewRootCmd(t *testing.T) {
 			},
 		},
 		{
-			name:     "should prefix a cobra parse error",
+			name:     "should name an unknown long flag in a plain sentence",
 			args:     []string{"--nope"},
 			wantCode: cli.ExitUsage,
-			contains: []string{"onesie: unknown flag: --nope"},
+			contains: []string{"onesie: there is no flag --nope\n"},
+		},
+		{
+			name:     "should name the closest flag to a misspelled one",
+			args:     []string{"--modl", "x", "q"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: there is no flag --modl. The closest is --model\n"},
+		},
+		{
+			name:     "should name the closest flag to a cut short one",
+			args:     []string{"--stat", "q"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: there is no flag --stat. The closest is --state or --stats\n"},
+		},
+		{
+			name:     "should name no closest flag when none is near",
+			args:     []string{"--bogus", "q"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: there is no flag --bogus\n"},
+		},
+		{
+			name:     "should name an unknown shorthand in a plain sentence",
+			args:     []string{"-z", "q"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: there is no flag -z\n"},
+		},
+		{
+			name:     "should name an unknown shorthand at the end of a cluster",
+			args:     []string{"-qz", "q"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: there is no flag -z\n"},
+		},
+		{
+			name:     "should point a long flag given one dash at two",
+			args:     []string{"-stats", "q"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: there is no flag -s in -stats. The closest is --stats\n"},
+		},
+		{
+			name:     "should name an unknown flag on a subcommand in a plain sentence",
+			args:     []string{"profile", "list", "--bogus"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: profile list has no flag --bogus\n"},
+		},
+		{
+			name:     "should read a dashed word after a profile name as flags",
+			args:     []string{"profile", "create", "work", "--provider", "typesafe", "-xy"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: profile create has no flag -x in -xy\n"},
+			absent:   []string{"not a profile name"},
+		},
+		{
+			name:     "should read a dashed word after a profile name as flags beside the run flag note",
+			args:     []string{"profile", "update", "work", "-fz"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: profile update has no flag -f in -fz. --file belongs to a run, not to profile update\n"},
+			absent:   []string{"not a profile name"},
+		},
+		{
+			name:     "should say a run flag does not belong to profile create",
+			args:     []string{"profile", "create", "z", "--provider", "typesafe", "--state", "x"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: profile create has no flag --state. --state belongs to a run, not to profile create\n"},
+		},
+		{
+			name:     "should say a run flag does not belong to profile show",
+			args:     []string{"profile", "show", "--base-url", "https://x.example"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: profile show has no flag --base-url. --base-url belongs to a run, not to profile show\n"},
+		},
+		{
+			name:     "should name the run flag on a bare subcommand",
+			args:     []string{"cache", "--model", "x"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: cache has no flag --model. --model belongs to a run, not to cache\n"},
+		},
+		{
+			name:     "should name the run flag when a subcommand also got a word",
+			args:     []string{"questions", "extra", "--stats"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: questions has no flag --stats. --stats belongs to a run, not to questions\n"},
+		},
+		{
+			name:     "should read a dashed word after a flag value as flags",
+			args:     []string{"profile", "create", "--provider", "typesafe", "-work"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: profile create has no flag -w in -work\n"},
+		},
+		{
+			name:     "should name no flag one edit past the allowance, even when two tie there",
+			args:     []string{"--x", "q"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: there is no flag --x\n"},
+		},
+		{
+			name:     "should read a profile name that starts with a dash as flags",
+			args:     []string{"profile", "create", "-work", "--provider", "typesafe"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: profile create has no flag -w in -work\n"},
 		},
 		{
 			name:     "should document how to ask a question that begins with a dash",
@@ -517,6 +985,22 @@ func TestNewRootCmd(t *testing.T) {
 			response: costed,
 			wantCode: cli.ExitOK,
 			contains: []string{`"usage":{"input_tokens":10,"output_tokens":2,"cost":0.000012}`},
+		},
+		{
+			name:     "should add the cost to the table's usage when the response carries one",
+			args:     []string{"is this urgent", "-o", "table", "--usage"},
+			stdin:    "the server is down",
+			response: costed,
+			wantCode: cli.ExitOK,
+			contains: []string{"10 in / 2 out  $0.000012\n"},
+		},
+		{
+			name:     "should add the cost to --stats when the response carries one",
+			args:     []string{"is this urgent", "--stats"},
+			stdin:    "the server is down",
+			response: costed,
+			wantCode: cli.ExitOK,
+			contains: []string{"1 request, 1 question asked, 10 in / 2 out tokens, $0.000012, model "},
 		},
 		{
 			name:     "should keep a zero cost in usage",
@@ -1469,6 +1953,158 @@ func TestNewRootCmd(t *testing.T) {
 		}
 	})
 
+	t.Run("should refuse an answer that does not fit the question on every run path", func(t *testing.T) {
+		t.Parallel()
+
+		const usage = `"usage":{"input_tokens":10,"output_tokens":2}`
+
+		noul := []string{"is this urgent"}
+		pick := []string{"who handles this", "--pick", "billing,technical"}
+		rate := []string{"how bad", "--rate", "low,mid,high"}
+
+		tests := []struct {
+			name     string
+			question []string
+			answer   string
+			gate     []string
+			want     string
+		}{
+			{
+				name: "should refuse an answer that carries only its type", question: noul,
+				answer: `{"type":"noul"}`, gate: []string{"-q"},
+				want: "response could not be used",
+			},
+			{
+				name: "should refuse a noul outside [0,1]", question: noul,
+				answer: `{"type":"noul","noul":1.5}`, gate: []string{"-q"},
+				want: "response could not be used: question 'answer' answered 1.5, which lies outside [0,1]",
+			},
+			{
+				name: "should refuse an answer of the wrong type", question: noul,
+				answer: `{"type":"choice","choice":"a","confidence":1,"probabilities":{"a":1}}`, gate: []string{"-q"},
+				want: "response could not be used: question 'answer' expects a noul answer, got choice",
+			},
+			{
+				name: "should refuse a choice that is not an option", question: pick,
+				answer: `{"type":"choice","choice":"sales","confidence":1,"probabilities":{"billing":0.5,"technical":0.5}}`,
+				gate:   []string{"--assert", `answer.value != "billing"`},
+				want:   "response could not be used: question 'answer' picked 'sales', which is not one of its options: billing, technical",
+			},
+			{
+				name: "should refuse p that leaves an option out", question: pick,
+				answer: `{"type":"choice","choice":"billing","confidence":1,"probabilities":{"billing":1}}`,
+				gate:   []string{"--assert", `answer.value == "billing"`},
+				want:   "response could not be used: question 'answer' has no p for 'technical'",
+			},
+			{
+				name: "should refuse a negative p", question: pick,
+				answer: `{"type":"choice","choice":"billing","confidence":1,"probabilities":{"billing":1.2,"technical":-0.2}}`,
+				gate:   []string{"--assert", `answer.value == "billing"`},
+				want:   "response could not be used: question 'answer' has p for 'billing' of 1.2, which lies outside [0,1]",
+			},
+			{
+				name: "should refuse a confidence above 1", question: pick,
+				answer: `{"type":"choice","choice":"billing","confidence":1.5,"probabilities":{"billing":1,"technical":0}}`,
+				gate:   []string{"--assert", `answer.confidence > 0.9`},
+				want:   "response could not be used: question 'answer' has confidence 1.5, which lies outside [0,1]",
+			},
+			{
+				name: "should refuse a score outside its levels", question: rate,
+				answer: `{"type":"score","score":7,"confidence":1,"probabilities":{"0":0,"1":0,"2":1}}`,
+				gate:   []string{"--assert", `answer.score >= 0`},
+				want:   "response could not be used: question 'answer' has score 7, which lies outside [0,2]",
+			},
+			{
+				name: "should refuse p keyed by label rather than by index", question: rate,
+				answer: `{"type":"score","score":2,"confidence":1,"probabilities":{"low":0,"mid":0,"high":1}}`,
+				gate:   []string{"--assert", `answer.score >= 0`},
+				want:   "response could not be used: question 'answer' has p for 'high', which is not a level index from 0 to 2",
+			},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				var requests atomic.Int64
+
+				srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					requests.Add(1)
+					w.Header().Set("Content-Type", "application/json")
+
+					if _, err := io.WriteString(w, `{"model":"jev-1.14.0","answers":{"answer":`+tc.answer+`},`+usage+`}`); err != nil {
+						t.Errorf("writing the stub response: %v", err)
+					}
+				}))
+				t.Cleanup(srv.Close)
+
+				env := map[string]string{
+					"ONESIE_CONFIG_DIR": t.TempDir(),
+					"ONESIE_CACHE_DIR":  filepath.Join(t.TempDir(), "cache"),
+					onesie.EnvAPIKey:    "SECRET-TEST",
+					onesie.EnvBaseURL:   srv.URL,
+				}
+
+				run := func(stdin string, args ...string) (string, string, int) {
+					var out, errOut bytes.Buffer
+
+					root := cli.NewRootCmd(
+						cli.BuildInfo{Version: "1.2.3"},
+						cli.WithKeychain(offKeychain{}),
+						cli.WithStdin(strings.NewReader(stdin)),
+						cli.WithStdinTTY(false),
+						cli.WithStdoutTTY(false),
+						cli.WithLookupEnv(func(name string) (string, bool) {
+							value, ok := env[name]
+
+							return value, ok
+						}),
+					)
+
+					root.SetOut(&out)
+					root.SetErr(&errOut)
+					root.SetArgs(append(slices.Clone(tc.question), append(args, "--retries", "0")...))
+
+					code := cli.Execute(t.Context(), root)
+
+					return out.String(), errOut.String(), code
+				}
+
+				_, errOut, code := run("", "--state", "x", "--stats")
+				if code != cli.ExitUnavailable || !strings.Contains(errOut, tc.want) {
+					t.Errorf("plain run = %d, stderr %q, want %d and %q", code, errOut, cli.ExitUnavailable, tc.want)
+				}
+
+				if !strings.Contains(errOut, "10 in / 2 out tokens") {
+					t.Errorf("plain run stderr = %q, want the usage counted", errOut)
+				}
+
+				if _, gateErr, gateCode := run("", append([]string{"--state", "x"}, tc.gate...)...); gateCode != cli.ExitUnavailable {
+					t.Errorf("gate = %d, want %d\nstderr:\n%s", gateCode, cli.ExitUnavailable, gateErr)
+				}
+
+				out, errOut, code := run("a\n", "-i", "lines", "-o", "json", "--usage")
+				if code != cli.ExitRecords || !strings.Contains(out, `"kind":"response"`) || !strings.Contains(out, tc.want) ||
+					!strings.Contains(out, `"input_tokens":10`) {
+					t.Errorf("stream = %d, stdout %q, stderr %q, want %d and an error line with its usage", code, out, errOut,
+						cli.ExitRecords)
+				}
+
+				before := requests.Load()
+
+				for range 2 {
+					if _, cacheErr, cacheCode := run("", "--state", "x", "--cache"); cacheCode != cli.ExitUnavailable {
+						t.Errorf("cached run = %d, want %d\nstderr:\n%s", cacheCode, cli.ExitUnavailable, cacheErr)
+					}
+				}
+
+				if got := requests.Load() - before; got != 2 {
+					t.Errorf("two cached runs made %d requests, want 2, since nothing unusable is stored", got)
+				}
+			})
+		}
+	})
+
 	t.Run("should list calibrate in its help", func(t *testing.T) {
 		t.Parallel()
 
@@ -1579,7 +2215,7 @@ func TestNewRootCmd(t *testing.T) {
 				name:     "should not hint for --print-schema, which takes no question",
 				args:     []string{"version", "--print-schema"},
 				wantCode: cli.ExitUsage,
-				stderr:   "onesie: unknown flag: --print-schema\n",
+				stderr:   "onesie: version has no flag --print-schema\n",
 			},
 		}
 
@@ -1619,10 +2255,42 @@ func TestNewRootCmd(t *testing.T) {
 		}
 	})
 
+	t.Run("should name a file it cannot read once", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		missing := filepath.Join(dir, "missing.txt")
+		env := map[string]string{"ONESIE_CONFIG_DIR": dir, "TYPESAFE_API_KEY": "SECRET-key"}
+
+		tests := []struct {
+			name string
+			args []string
+		}{
+			{name: "should name a missing --state-file once", args: []string{"q", "--state-file", missing, "--print-request"}},
+			{name: "should name a missing -f once", args: []string{"-f", missing, "--print-request"}},
+			{name: "should name a missing @FILE once", args: []string{"--ask", "a=@" + missing, "--print-request"}},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				out, code := runWithEnv(t, env, tc.args)
+				if code != cli.ExitUsage {
+					t.Errorf("exit code = %d, want %d\noutput:\n%s", code, cli.ExitUsage, out)
+				}
+
+				if !strings.Contains(out, "reading "+missing+": ") || strings.Contains(out, "open "+missing) {
+					t.Errorf("output = %q, want %s named once", out, missing)
+				}
+			})
+		}
+	})
+
 	t.Run("should hint that a subcommand rejected a flag the root knows", func(t *testing.T) {
 		t.Parallel()
 
-		const hint = "is a subcommand. To ask it as a question, put it after --"
+		const hint = "belongs to a run"
 
 		tests := []struct {
 			name   string
@@ -1633,27 +2301,27 @@ func TestNewRootCmd(t *testing.T) {
 			{
 				name: "should hint for version",
 				args: []string{"--print-request", "version"},
-				want: "onesie: unknown flag: --print-request. 'version' " + hint,
+				want: "onesie: version has no flag --print-request. --print-request belongs to a run, not to version\n",
 			},
 			{
 				name: "should hint for profile",
 				args: []string{"profile", "--print-request"},
-				want: "onesie: unknown flag: --print-request. 'profile' " + hint,
+				want: "onesie: profile has no flag --print-request. --print-request belongs to a run, not to profile\n",
 			},
 			{
 				name: "should hint for completion",
 				args: []string{"completion", "--print-request"},
-				want: "onesie: unknown flag: --print-request. 'completion' " + hint,
+				want: "onesie: completion has no flag --print-request. --print-request belongs to a run, not to completion\n",
 			},
 			{
 				name: "should hint for cache",
 				args: []string{"cache", "--state", "x"},
-				want: "onesie: unknown flag: --state. 'cache' " + hint,
+				want: "onesie: cache has no flag --state. --state belongs to a run, not to cache\n",
 			},
 			{
 				name: "should hint for cache clear",
 				args: []string{"cache", "clear", "--state", "x"},
-				want: "onesie: unknown flag: --state. 'cache' " + hint,
+				want: "onesie: cache clear has no flag --state. --state belongs to a run, not to cache clear\n",
 			},
 			{
 				name:   "should refuse --state on calibrate with its own reason in place of the hint",
@@ -1664,30 +2332,30 @@ func TestNewRootCmd(t *testing.T) {
 			{
 				name: "should hint for a shorthand the root knows",
 				args: []string{"version", "-o", "json"},
-				want: "'version' " + hint,
+				want: "--output belongs to a run, not to version\n",
 			},
 			{
 				name:   "should not hint for -V, which takes no question",
 				args:   []string{"version", "-V"},
-				want:   "onesie: unknown shorthand flag: 'V' in -V",
+				want:   "onesie: version has no flag -V\n",
 				absent: true,
 			},
 			{
 				name:   "should not hint for --version, which takes no question",
 				args:   []string{"calibrate", "--version"},
-				want:   "onesie: unknown flag: --version",
+				want:   "onesie: calibrate has no flag --version\n",
 				absent: true,
 			},
 			{
 				name:   "should not hint for --list-models, which takes no question",
 				args:   []string{"calibrate", "--list-models"},
-				want:   "onesie: unknown flag: --list-models",
+				want:   "onesie: calibrate has no flag --list-models\n",
 				absent: true,
 			},
 			{
 				name:   "should not hint for a flag the root does not know either",
 				args:   []string{"version", "--bogus"},
-				want:   "onesie: unknown flag: --bogus",
+				want:   "onesie: version has no flag --bogus\n",
 				absent: true,
 			},
 		}
@@ -2060,7 +2728,7 @@ func TestDefaultClientFactory(t *testing.T) {
 					t.Error("stderr carries the base URL's password")
 				}
 
-				if refusal := "must be a plain URL with no credentials"; tc.refused != strings.Contains(errOut.String(), refusal) {
+				if refusal := "must not hold @, ? or #"; tc.refused != strings.Contains(errOut.String(), refusal) {
 					t.Errorf("stderr = %q, want the refusal %v", errOut.String(), tc.refused)
 				}
 
@@ -2159,7 +2827,7 @@ func TestDefaultClientFactory(t *testing.T) {
 					t.Error("stderr carries the base URL's password")
 				}
 
-				if refusal := "must be a plain URL with no credentials"; tc.refused != strings.Contains(errOut.String(), refusal) {
+				if refusal := "must not hold @, ? or #"; tc.refused != strings.Contains(errOut.String(), refusal) {
 					t.Errorf("stderr = %q, want the refusal %v", errOut.String(), tc.refused)
 				}
 

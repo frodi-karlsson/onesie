@@ -11,6 +11,7 @@ import (
 
 	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/jq"
+	"github.com/frodi-karlsson/onesie/internal/num"
 )
 
 // WriteMarkdown writes one record as a GitHub flavoured markdown table under an alert for its
@@ -383,17 +384,7 @@ func decisionText(decision any) string {
 }
 
 func probabilityText(probability float64) string {
-	rounded := math.Round(probability*10000) / 10000
-
-	// Rounding would print a near certainty as a certainty, which a reader takes at its word.
-	switch {
-	case rounded == 0 && probability > 0:
-		return "<0.0001"
-	case rounded == 1 && probability < 1:
-		return ">0.9999"
-	default:
-		return strconv.FormatFloat(rounded, 'f', -1, 64)
-	}
+	return num.Format(probability)
 }
 
 func confidenceText(a *Answer) string {
@@ -402,7 +393,7 @@ func confidenceText(a *Answer) string {
 		return ""
 	}
 
-	return strconv.Itoa(int(math.Round(*a.Confidence*100))) + "%"
+	return num.Format(*a.Confidence)
 }
 
 func footerOf(models []string, usage *onesie.Usage) string {
@@ -415,7 +406,7 @@ func footerOf(models []string, usage *onesie.Usage) string {
 		parts = append(parts, fmt.Sprintf("%d in, %d out tokens", usage.InputTokens, usage.OutputTokens))
 
 		if usage.Cost != nil {
-			parts = append(parts, "$"+strconv.FormatFloat(math.Round(*usage.Cost*1e8)/1e8, 'f', -1, 64))
+			parts = append(parts, Cost(*usage.Cost))
 		}
 	}
 
@@ -497,4 +488,10 @@ func longestBacktickRun(text string) int {
 	}
 
 	return longest
+}
+
+// Cost writes a cost in dollars, rounded to the hundred millionth, which keeps a provider's float
+// noise out of a line meant for people.
+func Cost(dollars float64) string {
+	return "$" + strconv.FormatFloat(math.Round(dollars*1e8)/1e8, 'f', -1, 64)
 }

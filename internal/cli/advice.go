@@ -35,7 +35,29 @@ func advise(err error, model string, validated bool) error {
 		return &advisedError{cause: err, message: staleLimits(err.Error())}
 	}
 
+	var advised *advisedError
+	if errors.As(err, &advised) {
+		return err
+	}
+
+	if _, isText := api.Body.(string); isText && api.BodyJSON {
+		return &advisedError{cause: err, message: messageLine(err.Error())}
+	}
+
+	// Only a missing path or method points at the base URL. An outage, a rate limit or a refused key
+	// arrives from the right server too.
+	if !api.BodyJSON && len(api.RawBody) > 0 &&
+		(api.Status == http.StatusNotFound || api.Status == http.StatusMethodNotAllowed) {
+		return &advisedError{cause: err, message: withNote(err.Error(), "Check that the base URL points at the System One API")}
+	}
+
 	return err
+}
+
+func messageLine(message string) string {
+	line, _, _ := strings.Cut(message, "\n")
+
+	return strings.TrimSpace(line)
 }
 
 func adviseLongContext(err error, helps bool) error {
@@ -87,7 +109,7 @@ func keyHint(err error, chosen resolution) error {
 		return err
 	}
 
-	note := "Check the key in " + chosen.provider.EnvAPIKey
+	note := "The key came from " + chosen.provider.EnvAPIKey
 	if chosen.profile != "" {
 		note = "Replace the key with onesie profile update " + quotedName(chosen.profile) + " --key"
 	}

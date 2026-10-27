@@ -668,6 +668,11 @@ func checkSingleRecord(cfg Config) (string, error) {
 		}
 	}
 
+	if cfg.HasInput && cfg.HasImage && !cfg.HasState && !cfg.HasStateFile {
+		return "", fmt.Errorf("onesie: -i %s holds one record, which beside --image reads stdin only through "+
+			"--state -. Pass --state - to read the state from stdin", cfg.InputName)
+	}
+
 	if cfg.Jobs > 1 {
 		// A resource hint rather than a semantic one, and it may reasonably come from a shared
 		// alias, so it warns and proceeds rather than failing.
@@ -862,8 +867,9 @@ func checkDuplicateIDs(p *Plan) error {
 
 func checkQuestion(q *Question) (string, error) {
 	// The positional question is keyed answer by design, so the reserved list only applies to an
-	// id the user chose.
-	if q.Origin.Chosen() && (reserved(q.ID) || q.ID == PositionalID) {
+	// id the user chose. A request body may carry answer, since --print-request writes a positional
+	// question under it and -f reads that body back.
+	if q.Origin.Chosen() && (reserved(q.ID) || (q.ID == PositionalID && q.Origin != OriginBody)) {
 		return "", fmt.Errorf("onesie: question id '%s' is reserved", q.ID)
 	}
 

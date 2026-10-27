@@ -103,7 +103,6 @@ func decodeProfiles(data []byte) (Profiles, error) {
 
 func strictDecoder(data []byte) *json.Decoder {
 	decoder := json.NewDecoder(bytes.NewReader(data))
-	// A misspelled member is refused, not silently dropped.
 	decoder.DisallowUnknownFields()
 
 	return decoder

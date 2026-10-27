@@ -49,17 +49,17 @@ func TestEval(t *testing.T) {
 		{name: "should read an absent fallback as empty", input: `team.fallback == ""`, want: true},
 		{name: "should read the model", input: `model == "onesie-1.13.0"`, want: true},
 		{name: "should and", input: `urgent.value > 0.5 and team.value == "billing"`, want: true},
-		{name: "should and a false right side", input: `urgent.value > 0.5 and team.value == "x"`, want: false},
-		{name: "should short circuit and", input: `urgent.value < 0.1 and team.value == "x"`, want: false},
+		{name: "should and a false right side", input: `urgent.value > 0.5 and team.value == "technical"`, want: false},
+		{name: "should short circuit and", input: `urgent.value < 0.1 and team.value == "technical"`, want: false},
 		{name: "should or", input: `urgent.value < 0.1 or team.value == "billing"`, want: true},
-		{name: "should short circuit or", input: `urgent.value > 0.5 or team.value == "x"`, want: true},
-		{name: "should or two false sides", input: `urgent.value < 0.1 or team.value == "x"`, want: false},
+		{name: "should short circuit or", input: `urgent.value > 0.5 or team.value == "technical"`, want: true},
+		{name: "should or two false sides", input: `urgent.value < 0.1 or team.value == "technical"`, want: false},
 		{name: "should not", input: `not urgent.value < 0.5`, want: true},
 		{name: "should not a true comparison", input: `not urgent.value > 0.5`, want: false},
 		{name: "should not a group", input: `not (urgent.value > 0.5 and team.value == "billing")`, want: false},
 		{name: "should group ahead of and", input: `(urgent.value < 0.1 or team.value == "billing") and severity.norm == 0.5`, want: true},
-		{name: "should test membership", input: `team.value in ["billing", "sales"]`, want: true},
-		{name: "should test absence", input: `team.value in ["sales"]`, want: false},
+		{name: "should test membership", input: `team.value in ["billing", "technical"]`, want: true},
+		{name: "should test absence", input: `team.value in ["technical"]`, want: false},
 		{name: "should test membership of numbers", input: `urgent.value in [0.1, 0.9]`, want: true},
 		{name: "should test membership of booleans", input: `gated.decision in [true]`, want: true},
 		{name: "should take the smallest of one number", input: `min(urgent.value) == 0.9`, want: true},
@@ -75,7 +75,7 @@ func TestEval(t *testing.T) {
 		{name: "should evaluate a call on the right", input: `severity.norm < max(urgent.value, 0.1)`, want: true},
 		{name: "should evaluate a call in a list", input: `severity.norm in [min(urgent.value, 0.5)]`, want: true},
 		{name: "should join two assertions", input: `urgent.value > 0.5`, second: `team.value == "billing"`, want: true},
-		{name: "should fail a joined assertion on its second half", input: `urgent.value > 0.5`, second: `team.value == "x"`, want: false},
+		{name: "should fail a joined assertion on its second half", input: `urgent.value > 0.5`, second: `team.value == "technical"`, want: false},
 		{
 			name:    "should name the fallback in the decision once it fired",
 			input:   `team.decision == "human"`,
@@ -165,20 +165,19 @@ func TestEval(t *testing.T) {
 		}
 	})
 
-	t.Run("should read a key the answer left out as zero in both shapes", func(t *testing.T) {
+	t.Run("should compare a zero probability exactly in both shapes", func(t *testing.T) {
 		t.Parallel()
 
-		// The API is free to name only the winner, and Normalize fills the rest of the keys the
-		// question asked about. Comparisons take no tolerance, so that the ordered and the equality
-		// readings of one pair of numbers can never disagree, which is what this holds them to.
-		omitted := omittedRecord(t, built)
+		// Comparisons take no tolerance, so that the ordered and the equality readings of one pair
+		// of numbers can never disagree, which is what this holds them to.
+		zeroed := zeroedRecord(t, built)
 
 		for _, source := range []string{
 			`team.p.technical == 0`, `team.p.technical <= 0`, `team.p.technical < 0.5`,
 			`severity.p.low == 0`, `severity.p.low <= 0`, `severity.p.low < 0.5`,
 		} {
-			if !Eval(mustParse(t, source), omitted) {
-				t.Errorf("Eval(%q) over an omitted key = false, want true", source)
+			if !Eval(mustParse(t, source), zeroed) {
+				t.Errorf("Eval(%q) over a zero key = false, want true", source)
 			}
 		}
 
@@ -186,8 +185,8 @@ func TestEval(t *testing.T) {
 			`team.p.technical != 0`, `team.p.technical > 0`,
 			`severity.p.low != 0`, `severity.p.low > 0`,
 		} {
-			if Eval(mustParse(t, source), omitted) {
-				t.Errorf("Eval(%q) over an omitted key = true, want false", source)
+			if Eval(mustParse(t, source), zeroed) {
+				t.Errorf("Eval(%q) over a zero key = true, want false", source)
 			}
 		}
 	})
@@ -297,13 +296,13 @@ func evalRecord(t *testing.T, built *plan.Plan, confidence float64) output.Recor
 	return record
 }
 
-func omittedRecord(t *testing.T, built *plan.Plan) output.Record {
+func zeroedRecord(t *testing.T, built *plan.Plan) output.Record {
 	t.Helper()
 
 	record := output.Record{Model: built.Model}
 
 	for _, q := range built.Questions {
-		normalized, err := answer.Normalize(q, evalOmitted(q))
+		normalized, err := answer.Normalize(q, evalZeroed(q))
 		if err != nil {
 			t.Fatalf("Normalize(%q) error = %v, want no error", q.ID, err)
 		}
@@ -314,21 +313,19 @@ func omittedRecord(t *testing.T, built *plan.Plan) output.Record {
 	return record
 }
 
-func evalOmitted(q plan.Question) onesie.Answer {
-	// Only the winner is named, which is what a model that says nothing about the other keys
-	// sends back.
+func evalZeroed(q plan.Question) onesie.Answer {
 	switch q.Shape {
 	case plan.Pick:
 		return &onesie.ChoiceAnswer{
 			Choice:        "billing",
 			Confidence:    0.9,
-			Probabilities: map[string]float64{"billing": 1},
+			Probabilities: map[string]float64{"billing": 1, "technical": 0},
 		}
 	case plan.Rate:
 		return &onesie.ScoreAnswer{
 			Score:         2,
 			Confidence:    0.9,
-			Probabilities: map[string]float64{"2": 1},
+			Probabilities: map[string]float64{"0": 0, "1": 0, "2": 1},
 		}
 	default:
 		return &onesie.NoulAnswer{Noul: 0.9}

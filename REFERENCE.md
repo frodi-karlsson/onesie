@@ -7,8 +7,10 @@ prints the built in limits.
 
 - A yes or no question answers with how likely the yes is. `-r` prints only the answer. Without it,
   the table for a pick or a rate also shows the model's confidence and the probability of each
-  option or level. The table prints a yes or no probability to two places, as `-o json` does, and
-  keeps any further places the value carries.
+  option or level.
+- Every output format writes each number of an answer as `-o json` does. A number the provider
+  sent prints as sent, never rounded. A number onesie computes itself, such as `norm` or a mock's
+  `p` and `score`, is rounded to four places. A printed number is the one a gate compares.
 - `--pick` and `--rate` split their names on the comma, or on `--sep`, and trim the spaces around
   each one, so `--pick 'yes, no'` names `yes` and `no`. A repeated `--pick` or `--rate` adds its
   names after the earlier ones. An empty name exits 2. A question file's names are kept as
@@ -18,20 +20,28 @@ prints the built in limits.
   `instructions` of a `-f` request body. So does a null or missing question, one that is a number
   or `true` or `false`, and an empty mapping or sequence. A `-f` body question that carries `ask`
   in place of `instructions` exits 2 and says so. An `-i request` body is forwarded as it is and not
-  checked.
-- A pick or rate answer carries `confidence`, a number from 0 to 1 the API computes from `p`. In
-  the committed rate answers it is about 1 when `p` sits on one level, never above the top
-  probability, and lower as the rest spreads to other levels, most of all to far ones.
-  `--min-confidence` cuts on it. A yes or no answer carries no confidence.
+  checked, apart from a `model` that is missing, empty, all whitespace or null, which onesie fills
+  in.
+- A pick or rate answer carries `confidence`, a number from 0 to 1 the API computes from `p`.
+  `--min-confidence` cuts on it. A yes or no answer carries no confidence. A response that leaves
+  `confidence` out reads as 0, so `--min-confidence` falls back and a gate on `confidence` does not
+  pass.
+- Every answer is checked against the question asked before it is printed, gated or cached, on a
+  plain run, in a stream, under `-q` and `--assert`, in `calibrate` and when the cache is read. A
+  yes or no value, each `p` and each `confidence` lies in [0,1], a pick names one of its options, a
+  rate's `score` lies between 0 and its top level index, the keys of `p` are exactly the options,
+  or the level indexes from 0 for a rate, and `p` adds up to 1 within half a hundredth per entry,
+  and at least a hundredth. An answer of the wrong type fails too. Any of these exits 4 with
+  `200 response could not be used:` and names the question and the value, as in
+  `question 'urgent' answered 1.5, which lies outside [0,1]`. In a stream the record is an error
+  line of kind `response`. Its tokens still count toward `--usage` and `--stats`, it is never
+  stored in the cache, and it is not retried.
 - A rate answer also carries `score` and `norm`. `score` is the level index averaged over `p`, with
   0 for the lowest level, so it can land between levels. `norm` is `score` over the top index, from
   0 to 1, so `2.02` on four levels is a `norm` of `0.67`.
 - A question that is one bare word close to a subcommand name exits 2 and names the closest
-  subcommand, as `onesie questoins` does. For a name of up to 5 letters, such as `help`, close means
-  two neighbouring letters swapped, as in `hlep`. For 6 or 7 letters, such as `version`, it means one
-  edit, and for 8 or more, such as `calibrate`, two. A swap of two neighbouring letters is one edit,
-  and case is ignored. A word after `--` is asked, as in
-  `onesie -- questoins`, and so is a question of more than one word or one beside `--ask`.
+  subcommand, as `onesie questoins` does. A word after `--` is asked, as in `onesie -- questoins`,
+  and so is a question of more than one word or one beside `--ask`.
 - A question that starts with a dash needs `--` before it, with every flag placed first, as in
   `onesie -o json -- '-is this urgent'`. When such a question holds a space and was read as flags,
   the error says `was read as flags`. A flag typed after `--` is part of the question, so the
@@ -40,23 +50,32 @@ prints the built in limits.
   rate needs every level described, or none.
 - `--box` makes a question a box, answered with `left`, `top`, `right` and `bottom`, each a fraction
   of the image from its top left corner, and a `confidence`. It needs an image, as in Images below,
-  and a provider and model that serve it: `jev-preview` on TypeSafe until `jev-latest` moves, or
-  `typesafe/jev-1.14` on OpenRouter. Levanto and Berget refuse it. It takes no value and no
-  `--desc`, `--threshold`, `--min-confidence` or `--fallback`. `-r` prints the four edges in that
-  order, and `-o csv` writes them as four columns, `ID_left`, `ID_top`, `ID_right` and `ID_bottom`.
+  and a provider that takes it, TypeSafe or OpenRouter, as on `typesafe/jev-1.14`. Cloudflare,
+  Levanto and Berget refuse it before any request. On TypeSafe the model must serve it too: one that
+  does not answers 400 `Invalid request`, and onesie then names `-m jev-preview`, which does. It
+  takes no value and no `--desc`, `--threshold`, `--min-confidence` or `--fallback`. `-r` prints the
+  four edges in that order, and `-o csv` writes them as four columns, `ID_left`, `ID_top`,
+  `ID_right` and `ID_bottom`.
   A box always returns a box, even when the target is not there, so pair it with a yes or no
   question that asks whether it is.
 
 ## Gating
 
 `--assert` is one boolean over the record, and it sets the exit code. It reads the field names
-`-o json` prints, and every path is checked before any request:
+`-o json` prints, and every path is checked before any request. So is every string compared with a
+pick or rate `value` by `==`, `!=` or `in`, which must name one of its options or levels:
 
 ```sh
 onesie --ask urgent='is this urgent' --assert 'urgnet.value < 0.5'
 # onesie: --assert: unknown question 'urgnet'. Questions: urgent
 ```
 
+- A question id may hold any character, but a path reaches it by its bare name only when it is
+  letters, digits and `_`, starts with a letter or `_`, and is not one of `and`, `or`, `not`, `in`,
+  `true` and `false`. Write any other id in brackets and double quotes, as in
+  `["needs review"].value` or `["a-b"].value`, and an option or level the same way after `p`, as in
+  `team.p["on call"]`. An id written bare that only the bracket form reaches exits 2 and shows the
+  bracket form.
 - A false assertion exits 1 and still prints the record with `"assert": false`. `-q` prints nothing
   and leaves the exit code to the assertion. Repeated flags combine with `and`.
 - `--abstain-if` is checked only when the assertion fails. When it holds, the record is an unsure:
@@ -90,19 +109,20 @@ ONESIE_MOCK=answers.json ./gate.sh
 - A file of one line whose object carries a key `-o json` writes on a line, `id`, `line`, `model`,
   `usage`, `assert`, `abstain` or an `error` object, is the line shape. So the `--out` file of a one
   record run answers record 1 alone, and record 2 exits 2 with a message naming the key. An object
-  over several lines that carries one of those keys is refused. A key that is also a question id is
-  read as that question, which only `line` can be, since the others are reserved ids and `-i lines`
-  reserves `line`.
+  over several lines that carries one of those keys is refused.
 - A yes or no answer is a probability, or an object whose `value` is one. A pick or rate answer is a
-  name, or an object with `value` and an optional `confidence`, which defaults to 1. A number whose
+  name, or an object with `value` and an optional `confidence`, which defaults to 1. With no `p`,
+  onesie fills one in where the value is the most likely and the others share the rest evenly. A
+  rate's `score` is the level index averaged over `p`, unless the entry gives one. A number whose
   text is a name is that name, so `4` rates `--rate 1,2,3,4,5`. A rate question from a request body
   takes its level index.
 - The other keys `-o json` writes are accepted. A line's `model`, `usage`, `line`, `assert` and
   `abstain` are ignored, since the gate runs again. Inside an answer, `decision`, `fallback` and
-  `legend` are ignored. A rate's `score` and `norm` are replayed, and so is a pick or rate's `p`, whose keys must
-  be exactly the options or levels, whose values lie between 0 and 1, and whose most likely entry is
-  the value. So a replay prints what the real run printed, and a gate that reads `p` decides the
-  same way.
+  `legend` are ignored. A rate's `score` and `norm` are replayed, and so is a pick or rate's `p`,
+  whose keys must be exactly the options or levels, whose values lie between 0 and 1 and add up to
+  1 within 0.02, and whose most likely entry is the value. So a replay prints the answers the real
+  run printed, and a gate that reads `p` decides the same way. The `model` it prints is the one the
+  mock run resolved, not the one the record holds.
 - An entry answers every question the run asks. The file is checked against the questions before
   any record, and an unknown question id, a missing answer, a value of the wrong shape or a name
   that is not an option exits 2, naming the line.
@@ -124,7 +144,7 @@ ONESIE_MOCK=answers.json ./gate.sh
   whose profile holds a dummy `api_key`, since every profile must hold a key. A mock run uses no
   key, opens no network, and ignores `--base-url` and the cloudflare account. It prints the model
   the run resolved wherever a model is shown, and `--usage` reports zero tokens. `--stats` counts
-  no requests, tokens or attempts, as in `2 records answered from the mock, 2 questions, 0s`.
+  no requests, tokens or attempts, as in `2 records answered from the mock, 2 questions answered, 0s`.
 - The `--out` fingerprint marks the run as a mock, so a real run refuses to resume a mock run's
   file and the other way round. The mock file's content is not part of it.
 - `calibrate --mock` works, so a calibration can be tested too. Its `-o json` report carries
@@ -201,12 +221,17 @@ onesie calibrate -f prompt-injection -i jsonl --map .text --id .id \
 - `catches` is always the share of labelled yes records with `value >= cut`. A cut outside
   `--cuts` adds its row to that question's table only.
 - A measure over no records, such as false alarms with no labelled no, does not hold, and says why.
-- Requirements live only on the command line. A question file carries none, so a copy of a starter
-  set calibrated on other data inherits no guarantee measured on ours.
-- Each requirement that did not hold is named on stderr with its value, interval and cut. A failed
-  record still exits 6, which wins over 1.
+- Requirements live only on the command line. A question file carries none.
+- Each requirement that did not hold is named on stderr with the four place numbers it compared,
+  its value, interval and cut, as in
+  `'u.catches >= 0.9' did not hold: 3/4 is 0.75, interval 0.3006 to 0.9544, at cut 0.50`, or
+  `AUC 0.9993` for `auc`. A failed record still exits 6, which wins over 1.
 - The `-o json` report gains a `require` array, one entry per requirement:
-  `{"expr":"...","held":false,"value":0.65,"interval":[0.43,0.82],"cut":0.25}`. `auc` has
+  `{"expr":"u.catches >= 0.9 at 0.5","held":false,"value":0.6667,"interval":[0.2077,0.9385],"cut":0.5}`,
+  for 2 of 3 caught. A requirement compares the four place number the `-o json` report prints. A
+  rate, interval end or `auc` that is not exactly 0 or 1 never prints as 0 or 1, so 29999 of 30000
+  is `0.9999`. The table report shows each rate and interval end as a whole percent between 1 and
+  99, so `1/1000` reads `1% 1-1%` and `4/4` reads `99% 51-99%`, and `auc` to 2 places. `auc` has
   `"interval":null`, a pick or rate measure `"cut":null`, and a measure over no records
   `"value":null` with a `reason`.
 - `--print-request` checks each requirement and its cut, then prints the requests as usual.
@@ -235,11 +260,9 @@ onesie calibrate -f shell-safety -i jsonl --map .command --id .id \
   questions, model or flags, or a fingerprint a newer onesie wrote. To regenerate the file, run
   again without `--offline` and `--resume`. The model and provider are part of the match, so pin
   both with `-m` and `--provider`.
-- A stale `.onesie.part` file an interrupted rewrite left beside the answers file stays where it
-  is, since `--offline` changes nothing on disk.
 - `--offline` is refused beside `--mock`, `--print-request` and `--prune`.
-- The starter sets in `examples/` commit their answers files, and a test checks each set offline
-  with the requirements `examples/README.md` lists.
+- The starter sets in `examples/` commit their answers files, and `examples/README.md` lists the
+  requirements each one holds.
 
 ## Streams
 
@@ -250,9 +273,8 @@ onesie calibrate -f shell-safety -i jsonl --map .command --id .id \
   timeout or a transport error, and 2 for any other 4xx. A record that never became a request, such as a line
   onesie could not read or an empty state, has no code of its own, so it exits 6 as it does without
   the flag, and its error line is the only report.
-- Use `--map` to drop the fields that do not bear on the question, such as timestamps and ids, since
-  they add noise to the answer. Two log lines that differed only by timestamp and order id have
-  scored on opposite sides of a cut. `--map 'del(.ts, .order_id)'` sends the rest of a record.
+- Use `--map` to drop the fields that do not bear on the question, such as timestamps and ids,
+  since they add noise to the answer. `--map 'del(.ts, .order_id)'` sends the rest of a record.
 - `--map` is a jq expression whose result is the state. An object it builds has its keys sorted.
   The result may nest `max-map-depth` levels deep and encode to `max-line-bytes`, both of which
   `onesie -V` lists. An empty or all whitespace string, an empty object and
@@ -265,10 +287,8 @@ onesie calibrate -f shell-safety -i jsonl --map .command --id .id \
   number from 1. A blank line `--skip-blank` drops still counts, so the numbers match the file. Under
   `--merge` it sits in the answers object, beside `model`. `-o csv`, `-o tsv`, `-o markdown` and raw
   output leave it out, and `line` is a reserved question id under `-i lines`.
-- `line` leaves the `--out` fingerprint as it was, since a resume reads no line number. So a file an
-  older onesie wrote still resumes, and only the lines this run adds carry `line`. A resume with
-  `--id` keeps each stored line as written, so a skipped record keeps the line number it was answered
-  at, as it keeps its answer.
+- `line` is not part of the `--out` fingerprint. A resume with `--id` keeps each stored line as
+  written, so a skipped record keeps the line number it was answered at, as it keeps its answer.
 - `--id` names each record on every output line. It runs one record at a time, so keep it a cheap
   lookup. Ids match by their text, so `7`, `7.0` and `"7"` are one id in jsonl.
 - `--out` writes to a file with a fingerprint beside it, and a lock so two runs cannot share it. The
@@ -277,7 +297,7 @@ onesie calibrate -f shell-safety -i jsonl --map .command --id .id \
   `--image-field`, a body's images and long context. It covers `--skip-blank` too when a resume
   counts lines, which is without `--id` on any input but csv and tsv.
 - `--resume` with `--id` skips answered records and asks the rest, failed ones included. A finished
-  run rewrites the file in input order and keeps answered ids the input no longer has, unless
+  run rewrites the file in input order and keeps answered ids missing from the input, unless
   `--prune` drops them. A changed fingerprint refuses with exit 2. A record whose content changed
   but whose id did not keeps its old answer. Without `--id`, it carries on by line count. It does
   not ask a failed record again, apart from the `--stop-on-error` case below, so a skipped error
@@ -296,8 +316,7 @@ onesie calibrate -f shell-safety -i jsonl --map .command --id .id \
 - Records whose request is identical are asked once in a run. Identical means the same state after
   `--map`, the same questions and the same model, and under `--mock` the same answer from the file.
   A JSON line's whitespace does not matter, but its key order does. A record the mock file does not
-  answer is never shared. A record whose identical request is still in flight waits for it, holding
-  its `-j` slot. Every record still gets its own line, with its own `id` and its own input under
+  answer is never shared. Every record still gets its own line, with its own `id` and its own input under
   `--merge`, in input order or as answers arrive under `--unordered`. `--stats` counts the saved
   requests, as in `12 records, 3 deduplicated, 9 requests`. Under `--usage` only the first line
   written for a request carries its tokens, and its other lines carry
@@ -316,8 +335,8 @@ onesie calibrate -f shell-safety -i jsonl --map .command --id .id \
   after its own, as in `team,team_fallback`. It holds `low_confidence` or `error` when the fallback
   replaced the answer, the same reason `-o json` writes as `fallback`, and is empty otherwise. Under
   `--merge` the input columns come first, and one named like an output column exits 2. `--resume`
-  refuses a csv or tsv file an older onesie wrote without the fallback columns, and says to
-  regenerate it or write to a new `--out`.
+  refuses a csv or tsv file without the fallback columns, and says to regenerate it or write to a
+  new `--out`.
 - onesie writes csv cells exactly as they are, the ones `--merge` carries over included. A cell
   from untrusted input that starts with `=`, `+`, `-` or `@` can act as a formula when the file is
   opened in a spreadsheet.
@@ -336,55 +355,57 @@ ls photos/*.jpg | onesie -i lines --image-field photo 'is there a dog in `photo`
 
 - `--image NAME=PATH` puts a PNG or JPEG in the state under `NAME`, and a question names it in
   backticks. It is repeatable.
-- stdin is never read beside `--image`, so text joins it only from `--state`, `--state-file` or
-  `--state -`. Text goes under the key `text`, a JSON object gains the image keys, and a key clash or
-  an array state exits 2.
+- For one record, stdin is read beside `--image` only through `--state -`, so text joins the image
+  only from `--state`, `--state-file` or `--state -`. Text goes under the key `text`, a JSON object
+  gains the image keys, and a key clash or an array state exits 2. `-i text` or `-i json` beside
+  `--image` with neither `--state` nor `--state-file` exits 2 and names `--state -`.
+- A stream, `-i jsonl`, `-i lines`, `-i csv` or `-i tsv`, reads its records from stdin as usual
+  beside `--image`, and adds the same image to every record.
 - `--image-field NAME` reads each record's `NAME` as a path, in a stream or in `calibrate`. Under
   `-i lines` the line is the path, and only one `--image-field` is taken. A missing or unreadable
-  file is an input error line, and the run goes on and exits 6. `--image` in a stream adds the same
-  image to every record.
+  file is an input error line, and the run goes on and exits 6.
 - onesie checks the format, the file size and the sides of each image before any request, and
   `onesie -V` lists the limits as `max-image-bytes`, `image-side`, `image-pixels` and
   `max-body-bytes`. An `--image` refused there exits 2 and names the limit, and an `--image-field`
   one is an input error line. The API ignores EXIF
   rotation, so rotate a phone photo upright first.
-- Each image is sent under the name `image-` and part of a sha256 of its bytes, so the cache,
-  deduplication and `--resume` see the same file as the same record.
-- A request with an image waits up to 60 seconds per attempt, unless `--timeout` says otherwise. At
-  most `-j` records hold image bytes at once, about four times the body each while it is checked and
-  sent, and about six times on OpenRouter, which also holds the rewritten body. So lower `-j` for
-  large images.
+- The cache, deduplication and `--resume` see the same image file as the same record.
+- A request with an image waits up to 60 seconds per attempt, unless `--timeout` says otherwise.
+  Lower `-j` for large images, since each record in flight holds its image bytes.
 - `--map` runs before the images are attached, so it sees the text state and the paths, never the
   references. With `--image` and no text there is nothing to map.
 - In a stream, `--merge` writes the input record as it was read, so an `--image-field` holds its
   path. For one record whose state was built from images, it writes that state, references included.
 - `--print-request` writes onesie's request format: the System One body plus the settings that
-  change the answer, each image as base64 under `assets`, which each provider's client adapts when
-  it sends. `-i request` reads lines up to `max-request-line-bytes`, so a printed body replays. A
+  change the answer, each image as base64 under `assets`. `-i request` reads lines up to
+  `max-request-line-bytes`, so a printed body replays. A
   printed body holding `long_context` is refused by TypeSafe if sent to it directly, rather than
   through `-i request`.
 - A printed body names its model, the provider's default unless `-m` gave one, so it replays on a
   provider that serves that model. To print for another provider, pass `-m`.
+- Under `-i request` onesie does not check the body it sends, apart from filling a blank `model`,
+  but it checks each 200 that comes back before printing it. A response that is not JSON, that is
+  not a System One result with an `answers` object, or whose answers do not decode, is an error
+  line of kind `response` with `200 response could not be used:`, and the run exits 6. When the
+  body's `questions` read as a `-f` body's would, each answer is also checked against its question
+  as on any other run, so a missing answer or a value out of its range fails the same way. A
+  body whose questions onesie cannot read, such as one past `max-question-file-bytes`, gets only
+  the first checks. The tokens of a refused response still count toward `--stats`.
 - A malformed image body, such as one whose asset nothing references, is refused before any
   request on every provider, with the same message.
 - Providers read images differently:
-  - TypeSafe takes the `assets` map and the images header, both of which onesie sends.
-  - OpenRouter takes each image as an inline part where its reference stands, which onesie
-    rewrites the body into. An image named in several places is sent once per place, and counts
-    toward the body size each time. Only Jev is measured there.
-  - Cloudflare takes images and no Box questions. Its Jev reads the `assets` map as TypeSafe does.
-    Clef takes up to 4 images, which onesie sends in the order their names first appear, writing
-    each name in the text as `image 1`, `image 2` and so on, so a question names an image as it
-    does on TypeSafe.
+  - TypeSafe takes images and Box questions.
+  - OpenRouter takes each image where its reference stands. An image named in several places is
+    sent once per place, and counts toward the body size each time.
+  - Cloudflare takes images and no Box questions. Clef takes up to 4 images, and a question names
+    an image as it does on TypeSafe.
   - Levanto and Berget take no images or Box questions, and a run that would send either exits 2
     before any request. Under `-i request` such a body is an error line instead.
-  - `-i request` sends the images header only to TypeSafe, rewrites a body into inline parts for
-    OpenRouter, and on Cloudflare sends Jev the assets as written and Clef numbered images.
 - onesie's image limits, which `onesie -V` lists, are TypeSafe's. They also apply on Cloudflare,
   where they are not measured for Clef.
 - `--image`, `--image-field` and `--box` are refused under `-i request`, whose bodies carry their own
   state and questions.
-- Images and Box are experimental on TypeSafe's side, and less reliable than text.
+- Images and Box are experimental, and less reliable than text.
 
 ## Caching
 
@@ -397,7 +418,8 @@ onesie cache clear
 
 `--cache`, or `ONESIE_CACHE=1`, stores each successful response on disk and answers a repeated
 request from it. Without either, nothing is stored and nothing is read. `ONESIE_CACHE` takes the
-values the flag takes, such as `1`, `true`, `0` and `false`, and anything else exits 2.
+values the flag takes, such as `1`, `true`, `0` and `false`, and anything else exits 2 in every run
+and `calibrate`, `--mock` and `--print-request` included.
 `--cache=false` turns the cache off for one run under `ONESIE_CACHE=1`, so that run asks the API
 again.
 
@@ -414,36 +436,31 @@ again.
 - On the `typesafe` provider, a model name that ends in a version, such as `jev-1.13.0`, is pinned,
   and its answers live until they are evicted. Every other model is an alias, such as `jev-latest`,
   and so is every model on any other provider, `typesafe/jev-1.13` on OpenRouter and
-  `Qwen/Qwen3.5-2B` on Berget and `levanto-sage-v1.4` on Levanto included. An alias's answers expire after 24 hours, since the model
-  behind it can move. `ONESIE_CACHE_TTL` sets that lifetime as a duration, such as `90m` or `72h`,
-  and `0` stops reading and storing answers for an alias. A negative or malformed value exits 2,
-  in a run, in `onesie cache` and in `onesie cache clear`. A run's lifetime decides what it reads,
-  not what it deletes: an expired answer is only a miss, which the next answer overwrites, and onesie deletes
-  an alias's answer only once it is older than 24 hours, or than the run's own lifetime when that is
-  longer. So a short lifetime in one run never deletes answers other runs still read. An answer
-  stored at a time later than the clock reads is a miss too.
+  `Qwen/Qwen3.5-2B` on Berget and `levanto-sage-v1.4` on Levanto included. An alias's answers expire
+  after 24 hours, since the model behind it can move. `ONESIE_CACHE_TTL` sets that lifetime as a
+  duration, such as `90m` or `72h`, and `0` stops reading and storing answers for an alias. A
+  negative or malformed value exits 2, in every run whether or not it uses the cache, in
+  `onesie cache` and in `onesie cache clear`. A short lifetime in one run never deletes answers
+  other runs still read.
 - The cache lives in `$ONESIE_CACHE_DIR`, or else `$XDG_CACHE_HOME/onesie`, or else:
   - `~/Library/Caches/onesie` on macOS
   - `%LOCALAPPDATA%\onesie` on Windows, or `AppData\Local\onesie` under the home directory when
     `LOCALAPPDATA` is unset
   - `~/.cache/onesie` on Linux and every other system
 - Its files are mode `600` in directories of mode `700`. `--cache` refuses a cache directory others
-  can reach with exit 2, before any request. Windows carries no
-  such modes, so the check is skipped there. onesie writes a `CACHEDIR.TAG` file, so backup tools
-  skip the cache, into a new cache directory and into an existing one that is empty or holds only
-  what onesie writes. onesie counts, evicts and clears only its own entries and temporary files, and
-  leaves anything else in the directory alone. Writes are atomic, so parallel runs can share one
-  cache.
+  can reach with exit 2, before any request, apart from on Windows. onesie writes a `CACHEDIR.TAG`
+  file, so backup tools skip the cache. `--cache` refuses an existing directory with no
+  `CACHEDIR.TAG` that holds anything else with exit 2, before any request. onesie counts, evicts
+  and clears only its own entries, and parallel runs can share one cache.
 - The cache holds about `max-cache-bytes`, 100 MB, which `onesie -V` lists beside `cache-ttl`. Past
   that it evicts the least recently used answers first, and a hit counts as a use.
 - `--mock` answers from its file and never reads or fills the cache. `--print-request` sends
   nothing, `calibrate --offline` asks nothing, and a run that `--resume` finds fully answered asks
   nothing, so none of them opens the cache. `-i request` and `--list-models` never go through it, so
-  `--cache` beside either exits 2, since asking the API there without a word would spend what
-  `--cache` was meant to save. `--cache=false` beside them is fine, and `ONESIE_CACHE=1` is ignored
-  there.
-- A cached run still needs a key, since onesie finds the API address the cache keys answers by
-  together with the key. A hit sends nothing. Under `--cache`, the no key message says so.
+  `--cache` beside either exits 2. `--cache=false` beside them is fine, and `ONESIE_CACHE=1` is
+  ignored there.
+- A cached run still needs a key, even though a hit sends nothing. Under `--cache`, the no key
+  message says so.
 - Any other cache error in a run, such as a full disk or a home directory onesie cannot write, turns
   the cache off for the rest of that run with one warning on stderr, and the run carries on against
   the API.
@@ -514,14 +531,15 @@ on the provider's key variable alone.
 - The key is read from a hidden prompt on a terminal, and otherwise from the first line of stdin,
   which must hold the key alone. A second line that is not blank exits 2, so pipe a password manager
   entry through `head -n 1`. The key is never a flag, since a flag lands in shell history.
+- `update` with a member set to the value it already has, or cleared when it is already unset,
+  leaves the file alone, says so on stderr and exits 0. `update` with no member at all exits 2.
 - `create` and `update --key` put the key in the OS keychain, or in `profiles.json` with `--file`. A
   keychain that does not answer in time exits 3 and names `--file`. Any other keychain error stores
   the key in the file instead, with a warning. On Linux the key reaches the Secret Service over the
   session bus unencrypted, readable only by your own user.
 - `create` and `update` check the rules below, the base URL and the account id before they read the
   key, so a typo costs nothing. A bad value from a flag is named by its flag, as in
-  `--account-id must be 32 hexadecimal characters`. `create` refuses an empty `--base-url` or
-  `--account-id` with exit 2, while on `update` an empty value clears the member.
+  `--account-id must be 32 hexadecimal characters`.
 - `show` never reads the keychain or prints a key. `key:` is `keychain` or `file`, with
   `, ends in XXXX` when the key has 16 characters or more, `env` and the key variable for a run
   without a profile, or `none`. A converted keychain key shows no ending until
@@ -534,7 +552,8 @@ on the provider's key variable alone.
   account. An `allow_http: needed` line follows it when the base URL is plain http to another host,
   since every run then needs `--allow-http`. `account:` names `account_id`, `base_url`,
   `CLOUDFLARE_ACCOUNT_ID` or `none`. `show` exits 2 when `key` or `account` is `none`, as a real
-  run would.
+  run would, and exits 2 with the run's message when `CLOUDFLARE_ACCOUNT_ID` is not 32
+  hexadecimal characters.
 - A key the server refuses with 401 or 403 exits 3, on a run or on `test`. On a profile the message
   names `onesie profile update NAME --key`, and without one it names the provider's key variable. A
   run with no key and no profile for its provider names
@@ -559,8 +578,9 @@ on the provider's key variable alone.
 - The strongest choice wins, so a flag beats a variable, and a variable beats the default.
 - Two choices of the same strength exit 2, naming both. So `--profile` with `--provider` exits 2,
   and so do `ONESIE_PROFILE` and `ONESIE_PROVIDER` set together.
-- An empty or whitespace only variable counts as unset. An empty `--profile`, `--provider` or
-  `--base-url` exits 2, since a flag given is a choice made.
+- An empty or whitespace only variable counts as unset. A flag that names a value, such as a file,
+  a model or a profile, exits 2 on an empty or whitespace only one, so `--mock "$UNSET"` never
+  reaches the API. `profile update` is the exception, where an empty value clears a member.
 - `--provider` or `ONESIE_PROVIDER` runs without a profile.
 - With no choice and no profiles, a run uses no profile and the `typesafe` provider.
 - With no choice, and profiles but no default, a run exits 2 and names `onesie profile use NAME`,
@@ -581,7 +601,11 @@ on the provider's key variable alone.
   in default. No provider falls back to another's key.
 - A question file carries no model, since `model` is a reserved question id there. Only a request
   body, as `--print-request` writes it, names one. Under `-i request` each body sends the model it
-  names, and a body that names none takes the profile's `model`, then the order above.
+  names, and a body that names none, or an empty, all whitespace or null one, takes the profile's
+  `model`, then the order above. Only the key `model` spelled in that case counts, so a body that
+  holds only `Model` names none. Of several `model` keys the last one counts, and a blank last one
+  leaves a single `model` key. onesie writes that model into the body, so `--print-request` shows
+  it too.
 - On cloudflare the account counts only when no base URL is chosen, since a Cloudflare base URL
   holds the account. A cloudflare run with no account exits 2 and names `CLOUDFLARE_ACCOUNT_ID` and
   the base URL `https://api.cloudflare.com/client/v4/accounts/<account_id>/ai`. On a profile it also
@@ -589,7 +613,8 @@ on the provider's key variable alone.
 - A run that `--provider` or `ONESIE_PROVIDER` chooses, and that succeeds, never opens
   `profiles.json`, so CI that names its provider does not depend on any file on the machine. Only a
   run that then fails for a missing key or an unknown provider reads it, to name a profile in the
-  hint.
+  hint. Under `ONESIE_PROVIDER` with no profile for that provider, the hint names the key variable
+  and says a stored profile is not used while the variable is set.
 - Every other run reads it, `--print-request` and `--mock` included, so a `profiles.json` others can
   reach exits 3 there too. `--print-questions` and `--print-schema` never read it. `profile show`,
   `profile list` and `profile test` always read it, whatever chooses.
@@ -647,12 +672,11 @@ The format is stable, and the file may be written by hand. It lives in the confi
 ### The keychain
 
 - A key goes to the OS keychain under the service `onesie`: the macOS Keychain, the Secret Service
-  on Linux, or the Windows Credential Manager. The item is named `PROFILE@HASH`, where the hash is
-  the first 12 hexadecimal characters of the sha256 of the absolute path of `profiles.json`, so two
-  config dirs never share, overwrite or delete one item. The profile's `account` holds the name. A
-  converted profile keeps its old item name until `onesie profile update NAME --key`.
-- `profile delete` and `profile update --key` delete the old item once the file no longer names
-  it, unless another profile names the same item. A failure warns and names the item left behind.
+  on Linux, or the Windows Credential Manager. The item is named `PROFILE@HASH`, where the hash
+  stands for the config dir, so two config dirs never share one item. The profile's `account`
+  holds the name. A converted profile keeps its item name until `onesie profile update NAME --key`.
+- `profile delete` and `profile update --key` delete the replaced item after the file is saved,
+  unless another profile names the same item. A failure warns and names the item left behind.
 
 ### Converting credentials.json
 
@@ -696,8 +720,7 @@ onesie --profile cf -f shell-safety -q --state "$cmd"
   under a plain `sh` pipe the key in with `printf '%s\n' "$OPENROUTER_API_KEY" |` instead.
 - A server mounts a `profiles.json` with `api_key` inline, at a mode such as `0400`, and points
   `ONESIE_CONFIG_DIR` at its directory.
-- No variable holds the whole file. CI log masking matches each line of a multi line secret on its
-  own, and every child process would inherit it.
+- No variable holds the whole file.
 
 ### Provider notes
 
@@ -711,12 +734,13 @@ onesie --profile cf -f shell-safety -q --state "$cmd"
   `--provider cloudflare`, not by curl.
 - `jev-latest` works on typesafe and openrouter, but pinned ids differ: `jev-1.13.0` on TypeSafe,
   `typesafe/jev-1.13` on OpenRouter. Berget serves its own models and not `jev-latest`. Its default
-  is the `systemone` alias, and `--list-models` there lists only the System One models, each with its
-  aliases. Levanto also serves its own models and not `jev-latest`. Its default is the `sage-latest`
-  alias, and an unknown model there is a 422 rather than a 400. On OpenRouter, `--usage` also reports the cost. A 200 whose answers onesie cannot use
-  still spent its tokens, so under `--usage` its json error record carries them too, and `--stats`
-  counts them. `-o values`, `-o raw`, `-r`, `-o csv` and `-o tsv`
-  have no place for `--usage`, and `-q` writes nothing, so they all refuse it with exit 2.
+  is the `systemone` alias, and `--list-models` there lists only the System One models, each with
+  its aliases. Levanto also serves its own models and not `jev-latest`. Its default is the
+  `sage-latest` alias, and an unknown model there is a 422 rather than a 400. On OpenRouter,
+  `--usage` also reports the cost, which the `-o table` header and `--stats` show too. A 200 whose
+  answers onesie cannot use still spent its tokens, so under `--usage` its json error record carries
+  them too, and `--stats` counts them. `-o values`, `-o raw`, `-r`, `-o csv` and `-o tsv` have no
+  place for `--usage`, and `-q` writes nothing, so they all refuse it with exit 2.
 
 ## Exit codes
 
@@ -726,7 +750,7 @@ onesie --profile cf -f shell-safety -q --state "$cmd"
 | 1 | a false `--assert`, or under `-q` alone the policy did not accept the answer |
 | 2 | usage or validation error, including a missing key, or a plain http base URL to another host without `--allow-http` |
 | 3 | the key was refused, the account is out of credits, the keychain failed, or `profiles.json` or `credentials.json` is exposed |
-| 4 | the server did not answer after retries |
+| 4 | the server did not answer after retries, or it answered 200 with a response onesie could not use, which is never retried |
 | 5 | transport error or timeout |
 | 6 | a stream finished with one or more failed records, or `--stop-on-error` stopped it at a record that never became a request |
 | 7 | the gate could not decide: the assertion failed and `--abstain-if` held |
@@ -751,11 +775,18 @@ table, and `onesie calibrate --help` lists the codes calibrate uses.
 | `ONESIE_CACHE` | `1` turns the response cache on, as `--cache` |
 | `ONESIE_CACHE_DIR` | where the response cache lives |
 | `ONESIE_CACHE_TTL` | how long a cached answer for a model alias lives, `24h` unless set |
-| `ONESIE_LONG_CONTEXT` | `1` or `true` raises the context limits, as `--long-context` |
+| `ONESIE_LONG_CONTEXT` | `1` or `true` raises the context limits, as `--long-context`. It takes the values the flag takes, and anything else exits 2 |
 
 ## More
 
-- `--stats` writes a one line summary to stderr: requests, tokens, model, retries and time.
+- `--stats` writes a one line summary to stderr, as in
+  `6 records, 2 skipped by --resume, 1 cached, 3 requests, 3 questions asked, 412 in / 9 out tokens, model jev-latest, 4 attempts (1 retry: 429×1), 10s/attempt, 2.1s`.
+  The records lead with every one the run read, and the counts after them are parts of that whole:
+  those `--resume` skipped, the cache answered, deduplication shared, that failed, and the requests
+  sent. A run of one record that became one request leads with `1 request` alone. The questions
+  are those the requests asked, so a cache hit asks none. The tokens and the cost OpenRouter reports
+  are summed over the requests, and the per attempt timeout is left out of a run that made no
+  attempt.
 - `--list-models` shows what the account can ask, and `-m` picks one.
 - `--base-url` points onesie at any server that speaks the System One API. A redirect is refused
   rather than followed with the key.
@@ -770,6 +801,12 @@ table, and `onesie calibrate --help` lists the codes calibrate uses.
 - onesie adds `/v1/systemone` itself, so a base URL whose path ends in `/v1`, from
   `--base-url`, `TYPESAFE_BASE_URL` or a profile's `base_url`, prints one warning naming where it
   came from and the URL requests go to. It is not refused, since a proxy may use that prefix.
+- An error response whose body is not JSON, such as the HTML page a web server sends for a wrong
+  path, prints its status and says the body is not JSON, as in
+  `onesie: 405 Method Not Allowed, with a response body that is not JSON. Check that the base URL points at the System One API`.
+  A page is left out, and only the first line of a plain text body is kept. Only a 404 or a 405
+  adds the hint to check the base URL. A body sent as JSON that holds only a string prints the
+  first line of that string after the status.
 - A base URL that holds a user or a password, or any `@`, `?` or `#`, or that does not parse, exits 2
   before any request, whether it comes from `--base-url`, `TYPESAFE_BASE_URL` or a profile, so a key
   never travels in a URL or reaches a message. `profile create` and `profile update` refuse one too,
@@ -778,41 +815,55 @@ table, and `onesie calibrate --help` lists the codes calibrate uses.
 - `-f VALUE` reads VALUE as a file when one exists at that path. Otherwise a bare name loads
   `NAME.yaml`, `NAME.yml` or `NAME.json` from the nearest `.onesie/questions`, then from `questions`
   in the config dir, and last takes a starter set built into onesie: `moderation`, `personal-data`,
-  `prompt-injection` or `shell-safety`. A saved file wins over a built-in set of the same name, and
-  `onesie -f shell-safety --print-questions > .onesie/questions/shell-safety.yaml` saves a copy to
-  edit. `onesie questions` lists every name `-f` finds, with a built-in set shown as `built in`. A
-  question file is refused with exit 2 when it uses a YAML alias or is larger than
-  `max-question-file-bytes`.
+  `prompt-injection` or `shell-safety`. A saved file wins over a built-in set of the same name, so
+  a copy to edit is printed elsewhere first, as in
+  `onesie -f shell-safety --print-questions > shell-safety.yaml`, then moved with
+  `mv shell-safety.yaml .onesie/questions/`. A redirect straight into `.onesie/questions` empties
+  the file before onesie runs, and `-f` then finds that empty file ahead of the built-in set.
+  `onesie questions` lists every name `-f` finds, with a built-in set shown as `built in` and an
+  empty saved file marked `empty`, or `"empty":true` under `-o json`. A
+  question file is refused with exit 2 when it uses a YAML alias or when it is larger than
+  `max-question-file-bytes`, and every error in a file names its path. A file that holds no
+  question, such as an empty one, `{}` or only comments, adds nothing beside `--ask`, and on its
+  own it exits 2, naming the file. One that hides a built-in set always exits 2, naming how to
+  reach the set.
 - For one record, onesie reads the state from stdin when stdin is not a terminal and no other
   source gave one. When nothing arrives there for 2 seconds, it prints
   `onesie: waiting for text on stdin. Pass --state, or close stdin.` to stderr once and keeps
   waiting. Under `--state -` it prints `onesie: waiting for text on stdin. Close stdin when the text
   is complete.` instead. A stream never prints it, since a slow producer is normal there and
   `--state` does not apply to a stream.
-- `-f` also takes a request body, as `--print-request` writes it. For one record, a body that holds
-  a `state` sends that state, and onesie then never reads stdin, since it cannot tell a pipe that
-  holds text from one that is still open without waiting on it. `--state` or `--state-file` beside
+- `-f` also takes a request body, as `--print-request` writes it, a positional question's body
+  keyed `answer` included. For one record, a body that holds a `state` sends that state, and
+  onesie then never reads stdin. `--state` or `--state-file` beside
   such a body exits 2, naming both. `-i request` refuses both flags the same way, since each body
   there holds its own state. A stream and `calibrate` read their records from stdin as usual and
   send each one as its state, so they use the body only for its questions, and say on stderr that
   its state is ignored. A body's `assets` are sent with it. When its state is ignored, an asset only
   that state named is dropped, and the warning counts it.
-- `--print-schema` prints the JSON Schema for a question file. `schema/questions.json` in the
-  repository is the same file, and `make schema` regenerates it. The first line `--print-questions`
+- `--print-schema` prints the JSON Schema for a question file. The first line `--print-questions`
   writes is `# yaml-language-server: $schema=URL`, which an editor running the YAML language server
   reads, such as VS Code with the Red Hat YAML extension, to check each key and value as you type.
   The URL names the release tag the binary was built from, and `main` for any other build. A JSON
   question file names the schema in a top level `"$schema"` key, which onesie accepts and ignores,
   so `$schema` is a reserved question id. The schema accepts any request body as it is.
-- The schema checks a question file as if it runs on its own, except that its gate and its fallbacks
-  may come from flags. So an editor flags a `threshold` outside 0 to 1 or a pick with one option,
-  and accepts a file that holds only a gate, an `abstain_if` with no `assert`, or a `min_confidence`
-  with no `fallback`. onesie refuses such a file at run time when the flag is missing. The schema
-  also leaves a `min_confidence` on a yes/no question and a partly described rate to onesie.
+- An editor flags a `threshold` outside 0 to 1 or a pick with one option. It accepts a file that
+  holds only a gate, an `abstain_if` with no `assert`, or a `min_confidence` with no `fallback`,
+  since a flag can supply the rest, and onesie refuses such a file at run time when the flag is
+  missing.
 - `--retries`, `--timeout` and `--max-retry-after` bound how long a call can take.
 - `--long-context`, or `ONESIE_LONG_CONTEXT=1`, raises the context limits to 262k tokens, which is
   slower and less accurate. It is written into a printed body as `long_context`, so a replay keeps
   it, and a `-f` body's `long_context: true` turns it on with no flag. A body's `false` does not
-  turn off the flag or the variable. It is experimental on TypeSafe's side.
-- `onesie --help` lists every flag, and `onesie -V` prints the built in limits. `onesie help
+  turn off the flag or the variable. The flag wins over the variable, so `--long-context=false`
+  turns it off for one run under `ONESIE_LONG_CONTEXT=1`, as `--cache=false` does for the cache.
+  It does not turn off a body's `long_context: true`, from `-f` or under `-i request`, since the
+  body asks for it itself. Set that key to `false` in the body, or remove it, to run without it.
+  `-i request` follows the same order for each body it replays, and under `--print-request` it
+  writes `"long_context":true` into a body the flag or the variable turns it on for. A provider
+  that takes no long context refuses the run with exit 2, and when `ONESIE_LONG_CONTEXT` turned it
+  on, the message says so. It is experimental.
+- `onesie --help` lists every flag, and `onesie -V` prints the built in limits. A flag onesie does
+  not know exits 2, naming the closest one when one is near. A flag that belongs to a run, given to
+  a subcommand, says so. `-V` takes no question, so a word beside it exits 2. `onesie help
   calibrate` prints a subcommand's help, and a topic that names no subcommand exits 2.

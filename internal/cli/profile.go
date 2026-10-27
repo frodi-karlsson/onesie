@@ -40,7 +40,7 @@ func newProfileCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 			"profiles.json lives in the config dir: $ONESIE_CONFIG_DIR, then $XDG_CONFIG_HOME/onesie, then " +
 			"%APPDATA%\\onesie on Windows, then ~/.config/onesie. A credentials.json there is converted into " +
 			"it the first time onesie reads it.",
-		Args: cobra.NoArgs,
+		Args: noArguments,
 		// Cobra validates the arguments only of a runnable command. A parent with no RunE answers
 		// onesie profile nonsense with its own help and exit 0.
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -102,6 +102,9 @@ func newProfileCreateCmd(settings rootSettings, flags *runFlags) *cobra.Command 
 	cmd.Flags().StringVar(&fields.provider, flagProvider, "",
 		"the profile's provider, typesafe, openrouter, berget, levanto or cloudflare. Required")
 	addMemberFlags(cmd, fields, flags)
+	refuseEmpty(cmd.Flags(), flagModel)
+	refuseEmpty(cmd.Flags(), flagBaseURL)
+	refuseEmpty(cmd.Flags(), flagAccountID)
 	cmd.Flags().BoolVar(&fields.toFile, flagToFile, false, "store the key in profiles.json, not the OS keychain")
 
 	return cmd
@@ -122,10 +125,6 @@ func profileCreate(
 	if provider == "" {
 		return errors.New(
 			"onesie: profile create needs --provider: typesafe, openrouter, berget, levanto or cloudflare")
-	}
-
-	if refused := refuseEmpty(fields, cmd.Flags().Changed); refused != nil {
-		return refused
 	}
 
 	path, opened, err := profilesToWrite(settings)
@@ -210,6 +209,7 @@ func newProfileUpdateCmd(settings rootSettings, flags *runFlags) *cobra.Command 
 	}
 
 	cmd.Flags().StringVar(&fields.provider, flagProvider, "", "a new provider for the profile, which needs --key")
+	refuseEmpty(cmd.Flags(), flagProvider)
 	addMemberFlags(cmd, fields, flags)
 	cmd.Flags().BoolVar(&fields.key, flagKey, false, "read a new key from a prompt or stdin")
 	cmd.Flags().BoolVar(&fields.toFile, flagToFile, false,
@@ -243,6 +243,12 @@ func profileUpdate(
 
 	profile := updated(old, fields, changed)
 	if profile == old && !fields.key {
+		if already := alreadySet(old, changed); already != "" {
+			_, err := fmt.Fprintf(cmd.ErrOrStderr(), "onesie: profile %s is unchanged, since %s\n", quotedName(name), already)
+
+			return err
+		}
+
 		return fmt.Errorf(
 			"onesie: profile update %s changes nothing. Pass --model, --base-url, --account-id or --key",
 			quotedName(name))
@@ -281,9 +287,6 @@ func refuseUpdate(fields profileFlags, changed func(string) bool) error {
 		return errors.New("onesie: profile update: --file applies to a new key, so it needs --key")
 	case changed(flagProvider) && !fields.key:
 		return errors.New("onesie: profile update: --provider needs --key, since a key belongs to one provider")
-	case changed(flagProvider) && strings.TrimSpace(fields.provider) == "":
-		return errors.New("onesie: profile update: --provider is empty. " +
-			"Name typesafe, openrouter, berget, levanto or cloudflare")
 	}
 
 	return nil
@@ -628,7 +631,8 @@ func newProfileShowCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 			"TYPESAFE_DEFAULT_MODEL, account_id, or the provider's default. An allow_http line says a run needs " +
 			"--allow-http, when base_url is plain http to another host. It never reads the keychain or " +
 			"prints a key.\n\n" +
-			"It exits 2 when key or account is none, as a real run does.",
+			"It exits 2 when key or account is none, or the account is not 32 hexadecimal characters, " +
+			"as a real run does.",
 		Args: profileNames("show", 0, 1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return profileShow(cmd, settings, flags, args)
@@ -647,7 +651,15 @@ func profileShow(cmd *cobra.Command, settings rootSettings, flags *runFlags, arg
 		return refused
 	}
 
-	baseURL, found := effectiveBaseURL(shown, settings.lookupEnv)
+	baseURL, found, invalid := effectiveBaseURL(shown, settings.lookupEnv)
+
+	account := shown.accountSource(settings.lookupEnv)
+
+	// A run refuses a malformed account, so show refuses it too. A missing account prints as none
+	// and exits 2 below.
+	if invalid != nil && account != sourceNone && account != "" {
+		return invalid
+	}
 
 	// Again for what the variables chose, since TYPESAFE_BASE_URL skips create's checks too.
 	if refused := refuseUnclearBaseURL(baseURL); found && refused != nil {
@@ -658,8 +670,6 @@ func profileShow(cmd *cobra.Command, settings rootSettings, flags *runFlags, arg
 	if found {
 		baseURLLine = output.Printable(baseURL) + ", " + baseURLOrigin(shown, settings.lookupEnv)
 	}
-
-	account := shown.accountSource(settings.lookupEnv)
 
 	lines := []string{
 		"profile: " + cmp.Or(shown.profile, noProfile),
@@ -690,7 +700,7 @@ func profileShow(cmd *cobra.Command, settings rootSettings, flags *runFlags, arg
 	return nil
 }
 
-func effectiveBaseURL(shown resolution, lookupEnv func(string) (string, bool)) (string, bool) {
+func effectiveBaseURL(shown resolution, lookupEnv func(string) (string, bool)) (string, bool, error) {
 	// Built the way a run builds its client, with a stand in for the key show never reads, so the
 	// order the URL is chosen in is the run's own.
 	opts := []onesie.Option{
@@ -703,10 +713,10 @@ func effectiveBaseURL(shown resolution, lookupEnv func(string) (string, bool)) (
 
 	client, err := onesie.New(opts...)
 	if err != nil {
-		return "", false
+		return "", false, err
 	}
 
-	return client.BaseURL(), true
+	return client.BaseURL(), true, nil
 }
 
 func baseURLOrigin(shown resolution, lookupEnv func(string) (string, bool)) string {
@@ -836,6 +846,35 @@ func addMemberFlags(cmd *cobra.Command, fields *profileFlags, flags *runFlags) {
 		"cloudflare only, the account id, 32 hexadecimal characters")
 }
 
+func alreadySet(profile creds.Profile, changed func(string) bool) string {
+	var unset, held []string
+
+	for _, member := range []struct{ flag, name, value string }{
+		{flag: flagModel, name: "model", value: profile.Model},
+		{flag: flagBaseURL, name: "base_url", value: profile.BaseURL},
+		{flag: flagAccountID, name: "account_id", value: profile.AccountID},
+	} {
+		switch {
+		case !changed(member.flag):
+		case member.value == "":
+			unset = append(unset, "its "+member.name)
+		default:
+			held = append(held, fmt.Sprintf("its %s is already %s", member.name, output.Printable(member.value)))
+		}
+	}
+
+	if len(unset) > 0 {
+		verb := "is"
+		if len(unset) > 1 {
+			verb = "are"
+		}
+
+		held = append(held, fmt.Sprintf("%s %s already unset", strings.Join(unset, " and "), verb))
+	}
+
+	return strings.Join(held, ", and ")
+}
+
 func profileNames(command string, least, most int) cobra.PositionalArgs {
 	return func(_ *cobra.Command, args []string) error {
 		switch {
@@ -889,19 +928,6 @@ func profilesToWrite(settings rootSettings) (string, creds.Opened, error) {
 
 func noProfileNamed(name string, profiles creds.Profiles) error {
 	return fmt.Errorf("onesie: there is no profile named %s. %s", quotedName(name), knownProfiles(profiles))
-}
-
-func refuseEmpty(fields profileFlags, changed func(string) bool) error {
-	for _, given := range []struct{ flag, value string }{
-		{flag: flagBaseURL, value: fields.baseURL},
-		{flag: flagAccountID, value: fields.accountID},
-	} {
-		if changed(given.flag) && strings.TrimSpace(given.value) == "" {
-			return fmt.Errorf("onesie: --%s is empty. Name one, or leave the flag out", given.flag)
-		}
-	}
-
-	return nil
 }
 
 func checkGiven(profile creds.Profile, changed func(string) bool, providerGiven bool) error {

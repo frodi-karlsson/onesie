@@ -142,9 +142,42 @@ func TestCheck(t *testing.T) {
 			wantErr: "'team' has no option 'bilingl'. --pick has: billing, technical, sales",
 		},
 		{
-			name:    "should reject an unknown rate label",
+			name:    "should reject a pick value compared with a name that is not an option",
+			input:   `team.value == "biling"`,
+			wantErr: "'team' has no option 'biling'. --pick has: billing, technical, sales",
+		},
+		{
+			name:    "should reject an option name that is not an option, whichever side it is on",
+			input:   `"biling" != team.value`,
+			wantErr: "'team' has no option 'biling'. --pick has: billing, technical, sales",
+		},
+		{
+			name:    "should reject a list member that is not an option",
+			input:   `team.value in ["billing", "sals"]`,
+			wantErr: "'team' has no option 'sals'. --pick has: billing, technical, sales",
+		},
+		{
+			name:    "should reject a rate value compared with a name that is not a level",
+			input:   `severity.value == "lo"`,
+			wantErr: "'severity' has no level 'lo'. --rate has: low, high",
+		},
+		{
+			name:    "should reject an unlabelled rate value compared with an index it does not have",
+			input:   `indexed.value == "9"`,
+			wantErr: "'indexed' has no level '9'. Its levels are numbered 0 to 2",
+		},
+		{
+			name:  "should accept an unlabelled rate value compared with one of its indexes",
+			input: `indexed.value == "2"`,
+		},
+		{
+			name:  "should accept a decision compared with a fallback that is not an option",
+			input: `decided.decision == "b" or decided.fallback == "low_confidence"`,
+		},
+		{
+			name:    "should reject an unknown rate level",
 			input:   `severity.p.lo > 0.2`,
-			wantErr: "'severity' has no label 'lo'. --rate has: low, high",
+			wantErr: "'severity' has no level 'lo'. --rate has: low, high",
 		},
 		{
 			name:    "should reject an index an unlabelled rate does not have",
@@ -164,7 +197,7 @@ func TestCheck(t *testing.T) {
 		{
 			name:    "should reject p without a label",
 			input:   `severity.p > 0.2`,
-			wantErr: "'severity.p' needs a level label",
+			wantErr: "'severity.p' needs a level name",
 		},
 		{
 			name:    "should reject p without an index",
@@ -426,7 +459,7 @@ func TestCheck(t *testing.T) {
 					Levels: []plan.Level{{Label: "low"}, {Label: "high"}},
 				},
 				input:   `severity.p.lo > 0.2`,
-				wantErr: "'severity' has no label 'lo'. 'rate' has: low, high",
+				wantErr: "'severity' has no level 'lo'. 'rate' has: low, high",
 			},
 			{
 				name: "should spell a file's policy keys in the fallback message",
@@ -545,7 +578,7 @@ func TestCheck(t *testing.T) {
 				id:   "team",
 				allowed: map[string]string{
 					"value": `"technical"`, "confidence": "0.9",
-					"p.billing": "0.25", "p.technical": "0.5",
+					"p.billing": "0.25", "p.technical": "0.75",
 				},
 				low: map[string]string{"confidence": "0.5"},
 			},
@@ -554,7 +587,7 @@ func TestCheck(t *testing.T) {
 				id:   "routed",
 				allowed: map[string]string{
 					"value": `"technical"`, "confidence": "0.9",
-					"p.billing": "0.25", "p.technical": "0.5",
+					"p.billing": "0.25", "p.technical": "0.75",
 					"decision": `"technical"`, "fallback": `""`,
 				},
 				low: map[string]string{
@@ -566,7 +599,7 @@ func TestCheck(t *testing.T) {
 				id:   "unsure",
 				allowed: map[string]string{
 					"value": `"technical"`, "confidence": "0.9",
-					"p.billing": "0.25", "p.technical": "0.5",
+					"p.billing": "0.25", "p.technical": "0.75",
 					"fallback": `""`,
 				},
 				low: map[string]string{"confidence": "0.5"},
@@ -669,7 +702,7 @@ func TestCheck(t *testing.T) {
 				id:   "routed",
 				allowed: map[string]string{
 					"value": `"technical"`, "confidence": "0.9",
-					"p.billing": "0.25", "p.technical": "0.5",
+					"p.billing": "0.25", "p.technical": "0.75",
 					"decision": `"technical"`, "fallback": `""`,
 				},
 				low: map[string]string{
@@ -850,7 +883,9 @@ func parseAll(sources ...string) (*Expr, error) {
 func probe(t *testing.T, built *plan.Plan, path string) (valueType, bool) {
 	t.Helper()
 
-	literals := map[valueType]string{typeNumber: "1", typeString: `""`, typeBoolean: "true"}
+	// model stands for a string, since a string literal must also name an option when it meets a
+	// pick or rate value.
+	literals := map[valueType]string{typeNumber: "1", typeString: "model", typeBoolean: "true"}
 
 	var (
 		found    valueType
@@ -926,6 +961,15 @@ func rawAnswer(q plan.Question, confidence float64) onesie.Answer {
 			probabilities[option.Name] = float64(i+1) / float64(len(q.Options)*2)
 		}
 
+		// The last option takes the rest, so the distribution adds up to 1 as Normalize requires.
+		last := q.Options[len(q.Options)-1].Name
+		probabilities[last] = 1
+		for name, value := range probabilities {
+			if name != last {
+				probabilities[last] -= value
+			}
+		}
+
 		return &onesie.ChoiceAnswer{
 			Choice:        q.Options[len(q.Options)-1].Name,
 			Confidence:    confidence,
@@ -950,4 +994,50 @@ func rawAnswer(q plan.Question, confidence float64) onesie.Answer {
 
 func ptr[T any](value T) *T {
 	return &value
+}
+
+func TestBracketHint(t *testing.T) {
+	t.Parallel()
+
+	ids := []string{"urgent", "a-b", "a b", "a.b"}
+
+	tests := []struct {
+		name   string
+		source string
+		want   string
+	}{
+		{
+			name:   "should advise brackets for a hyphenated id written bare",
+			source: `a-b.value < 0.5`,
+			want:   `Write the id 'a-b' in brackets, as in ["a-b"].value`,
+		},
+		{
+			name:   "should advise brackets for an id with a space written bare",
+			source: `a b.value < 0.5`,
+			want:   `Write the id 'a b' in brackets, as in ["a b"].value`,
+		},
+		{
+			name:   "should advise brackets for a dotted id written bare",
+			source: `a.b.value < 0.5 and`,
+			want:   `Write the id 'a.b' in brackets, as in ["a.b"].value`,
+		},
+		{
+			name:   "should advise nothing when the id is already in brackets",
+			source: `["a-b"].value < 0.5 and`,
+		},
+		{
+			name:   "should advise nothing for a plain id",
+			source: `urgent.value <`,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := BracketHint(tc.source, ids); got != tc.want {
+				t.Errorf("BracketHint(%q) = %q, want %q", tc.source, got, tc.want)
+			}
+		})
+	}
 }

@@ -95,7 +95,7 @@ func build(
 	fileName := flags.file
 
 	if flags.file != "" {
-		data, path, readErr := readQuestionFile(settings, flags.file)
+		data, path, hides, readErr := readQuestionFile(settings, flags.file)
 		if readErr != nil {
 			return nil, nil, readErr
 		}
@@ -104,7 +104,7 @@ func build(
 
 		var loadErr error
 
-		loaded, loadErr = qfile.Load(data)
+		loaded, loadErr = loadQuestionFile(data, path, hides, positional == "" && !asked(events))
 		if loadErr != nil {
 			return nil, nil, loadErr
 		}
@@ -152,7 +152,7 @@ func build(
 		built.Model = loaded.Model
 	}
 
-	built.LongContext = longContext(settings, flags) || (loaded != nil && loaded.LongContext)
+	built.LongContext = flags.env.longContext || (loaded != nil && loaded.LongContext)
 
 	warnings, err := plan.Validate(built, cfg)
 	if err != nil {
@@ -244,6 +244,10 @@ func gateOf(flag, fileSource string, sources []string, built *plan.Plan) (*asser
 func gateExpr(source, named string, built *plan.Plan) (*assert.Expr, error) {
 	expr, err := assert.Parse(source)
 	if err != nil {
+		if hint := assert.BracketHint(source, questionIDs(built.Questions)); hint != "" {
+			return nil, fmt.Errorf("onesie: %s: %w. %s", named, err, hint)
+		}
+
 		return nil, fmt.Errorf("onesie: %s: %w", named, err)
 	}
 
@@ -255,6 +259,15 @@ func gateExpr(source, named string, built *plan.Plan) (*assert.Expr, error) {
 	}
 
 	return expr, nil
+}
+
+func questionIDs(questions []plan.Question) []string {
+	ids := make([]string, 0, len(questions))
+	for _, q := range questions {
+		ids = append(ids, q.ID)
+	}
+
+	return ids
 }
 
 func exprOf(given bool, flag, source string) (*jq.Expr, error) {

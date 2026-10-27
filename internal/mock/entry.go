@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"math"
 	"net/http"
 	"slices"
@@ -12,6 +13,8 @@ import (
 	"time"
 
 	"github.com/frodi-karlsson/onesie-go"
+	"github.com/frodi-karlsson/onesie/internal/answer"
+	"github.com/frodi-karlsson/onesie/internal/num"
 	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
@@ -263,13 +266,7 @@ func pickAnswer(question plan.Question, parts answerParts) (onesie.Answer, error
 	}
 
 	if probabilities == nil {
-		// The value comes from Choice, so the rest of the mass only needs to add up.
-		probabilities = make(map[string]float64, len(names))
-		for _, other := range names {
-			probabilities[other] = (1 - parts.confidence) / float64(max(len(names)-1, 1))
-		}
-
-		probabilities[name] = parts.confidence
+		probabilities = synthesized(names, name, parts.confidence)
 	}
 
 	return &onesie.ChoiceAnswer{Choice: name, Confidence: parts.confidence, Probabilities: probabilities}, nil
@@ -288,8 +285,17 @@ func rateAnswer(question plan.Question, parts answerParts) (onesie.Answer, error
 		return nil, fmt.Errorf("rated '%s', which is not a level. Levels: %s", name, strings.Join(names, ", "))
 	}
 
+	given, err := replayed(parts.p, names, name, true)
+	if err != nil {
+		return nil, err
+	}
+
+	if given == nil {
+		given = synthesized(names, name, parts.confidence)
+	}
+
 	top := float64(len(names) - 1)
-	score := float64(index)
+	score := averaged(names, given, index)
 
 	if parts.score != nil {
 		replayed, isNumber := finiteNumber(parts.score)
@@ -307,16 +313,12 @@ func rateAnswer(question plan.Question, parts answerParts) (onesie.Answer, error
 		}
 
 		norm, isNumber := finiteNumber(parts.norm)
-		if !isNumber || math.Abs(norm-want) > normTolerance {
+		// A norm replays whether it is exact or rounded to four places, the form onesie prints.
+		if !isNumber || (math.Abs(norm-want) > normTolerance && norm != num.Rounded(want)) {
 			return nil, fmt.Errorf("has norm %s, but score %s on %d levels gives %s",
 				shown(parts.norm), strconv.FormatFloat(score, 'g', -1, 64), len(names),
 				strconv.FormatFloat(want, 'g', -1, 64))
 		}
-	}
-
-	given, err := replayed(parts.p, names, name, true)
-	if err != nil {
-		return nil, err
 	}
 
 	probabilities := make(map[string]float64, len(names))
@@ -328,15 +330,43 @@ func rateAnswer(question plan.Question, parts answerParts) (onesie.Answer, error
 		legend[key] = legendOf(question, level)
 	}
 
-	// With no p to replay, all the mass is on the chosen level, so the modal level the value is read
-	// from is that one.
-	if given == nil {
-		probabilities[strconv.Itoa(index)] = 1
-	}
-
 	return &onesie.ScoreAnswer{
 		Score: score, Confidence: parts.confidence, Legend: legend, Probabilities: probabilities,
 	}, nil
+}
+
+func averaged(names []string, p map[string]float64, index int) float64 {
+	weighted, total := 0.0, 0.0
+	for i, name := range names {
+		weighted += float64(i) * p[name]
+		total += p[name]
+	}
+
+	// A written p adds up to 1 only within the rounding SumFits allows, so the average is taken over
+	// what it holds.
+	if total == 0 {
+		return float64(index)
+	}
+
+	return num.Rounded(weighted / total)
+}
+
+func synthesized(names []string, value string, confidence float64) map[string]float64 {
+	// At least twice what each other name takes keeps the value the strict mode, which replayed
+	// demands of a written p, since a rate reads its value from the first of equal modes. Rounded up
+	// to four places, so the value's p is never below its confidence. The small allowance keeps
+	// float noise, as in 0.6 times 10000, from rounding up a whole step.
+	share := math.Ceil(max(confidence, 2/float64(len(names)+1))*1e4-1e-6) / 1e4
+	rest := num.Rounded((1 - share) / float64(len(names)-1))
+
+	probabilities := make(map[string]float64, len(names))
+	for _, name := range names {
+		probabilities[name] = rest
+	}
+
+	probabilities[value] = share
+
+	return probabilities
 }
 
 func boxAnswer(given any) (onesie.Answer, error) {
@@ -421,6 +451,11 @@ func replayed(given any, names []string, value string, firstWins bool) (map[stri
 		}
 
 		probabilities[name] = probability
+	}
+
+	// The same rule the answer check applies at run time, so a mock it would refuse exits 2 here.
+	if sum, fits := answer.SumFits(slices.Collect(maps.Values(probabilities))); !fits {
+		return nil, fmt.Errorf("has p that adds up to %s, not 1", num.Format(sum))
 	}
 
 	for i, name := range names {

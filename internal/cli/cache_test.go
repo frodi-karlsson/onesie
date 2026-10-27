@@ -21,8 +21,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/spf13/cobra"
-
 	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/cache"
 	"github.com/frodi-karlsson/onesie/internal/plan"
@@ -36,57 +34,24 @@ func TestCaching(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name    string
-		env     map[string]string
-		args    []string
-		want    bool
-		wantErr string
+		name  string
+		env   map[string]string
+		flags runFlags
+		want  bool
 	}{
-		{name: "should be on under ONESIE_CACHE=1", env: map[string]string{envCache: "1"}, want: true},
-		{name: "should be on under ONESIE_CACHE=true", env: map[string]string{envCache: "true"}, want: true},
-		{name: "should be off under ONESIE_CACHE=0", env: map[string]string{envCache: "0"}},
-		{name: "should be off under ONESIE_CACHE=false", env: map[string]string{envCache: "false"}},
-		{name: "should be off under an empty ONESIE_CACHE", env: map[string]string{envCache: ""}},
-		{name: "should be off with no variable and no flag"},
-		{name: "should be on under --cache", args: []string{"--cache"}, want: true},
-		{name: "should let --cache=false win over ONESIE_CACHE=1", env: map[string]string{envCache: "1"}, args: []string{"--cache=false"}},
-		{name: "should let --cache win over ONESIE_CACHE=0", env: map[string]string{envCache: "0"}, args: []string{"--cache"}, want: true},
-		{
-			name: "should refuse a value the flag would not take, naming the variable",
-			env:  map[string]string{envCache: "yes"}, wantErr: "ONESIE_CACHE=yes",
-		},
-		{name: "should be off under --mock", args: []string{"--cache", "--mock", "m.json"}},
-		{name: "should be off under ONESIE_MOCK", env: map[string]string{envCache: "1", envMock: "m.json"}},
-		{name: "should be off under ONESIE_MOCK before it reads a bad ONESIE_CACHE", env: map[string]string{envCache: "yes", envMock: "m.json"}},
-		{name: "should be off under --print-request", args: []string{"--cache", "--print-request"}},
+		{name: "should be on when the switches turn it on", flags: runFlags{env: switches{cache: true}}, want: true},
+		{name: "should be off when the switches leave it off"},
+		{name: "should be off under --mock", flags: runFlags{mock: "m.json", env: switches{cache: true}}},
+		{name: "should be off under ONESIE_MOCK", env: map[string]string{envMock: "m.json"}, flags: runFlags{env: switches{cache: true}}},
+		{name: "should be off under --print-request", flags: runFlags{printRequest: true, env: switches{cache: true}}},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			flags := &runFlags{}
-			cmd := &cobra.Command{Use: "onesie"}
-			cmd.Flags().BoolVar(&flags.cache, "cache", false, "")
-			cmd.Flags().StringVar(&flags.mock, "mock", "", "")
-			cmd.Flags().BoolVar(&flags.printRequest, "print-request", false, "")
-
-			if err := cmd.Flags().Parse(tc.args); err != nil {
-				t.Fatal(err)
-			}
-
-			got, err := caching(cmd, rootSettings{lookupEnv: lookupFrom(tc.env)}, flags)
-
-			if tc.wantErr != "" {
-				if err == nil || !strings.Contains(err.Error(), tc.wantErr) || Classify(err) != ExitUsage {
-					t.Fatalf("caching = %v, %v, want a usage error naming %q", got, err, tc.wantErr)
-				}
-
-				return
-			}
-
-			if err != nil || got != tc.want {
-				t.Errorf("caching = %v, %v, want %v", got, err, tc.want)
+			if got := caching(rootSettings{lookupEnv: lookupFrom(tc.env)}, &tc.flags); got != tc.want {
+				t.Errorf("caching = %v, want %v", got, tc.want)
 			}
 		})
 	}
@@ -112,14 +77,14 @@ func TestOpenCache(t *testing.T) {
 			settings, dir := settingsAt(t, nil, goos, time.Now)
 			mustMkdirMode(t, dir, 0o755)
 
-			_, err := openCache(settings)
+			_, err := openCache(settings, 0)
 			if (err != nil) != wantErr {
 				t.Errorf("openCache on %s = %v, want an error %v", goos, err, wantErr)
 			}
 		}
 	})
 
-	t.Run("should refuse only a readable directory and a bad lifetime, and pass every other error on", func(t *testing.T) {
+	t.Run("should refuse only a readable directory, and pass every other error on", func(t *testing.T) {
 		t.Parallel()
 
 		var refused *cacheRefusedError
@@ -127,13 +92,8 @@ func TestOpenCache(t *testing.T) {
 		settings, dir := settingsAt(t, nil, "linux", time.Now)
 		mustMkdirMode(t, dir, 0o755)
 
-		if _, err := openCache(settings); !errors.As(err, &refused) {
+		if _, err := openCache(settings, 0); !errors.As(err, &refused) {
 			t.Errorf("openCache on mode 755 = %v, want a refusal", err)
-		}
-
-		settings, _ = settingsAt(t, map[string]string{envCacheTTL: "soon"}, "linux", time.Now)
-		if _, err := openCache(settings); !errors.As(err, &refused) {
-			t.Errorf("openCache under a bad lifetime = %v, want a refusal", err)
 		}
 
 		settings, dir = settingsAt(t, nil, "linux", time.Now)
@@ -141,18 +101,18 @@ func TestOpenCache(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if _, err := openCache(settings); err == nil || errors.As(err, &refused) {
+		if _, err := openCache(settings, 0); err == nil || errors.As(err, &refused) {
 			t.Errorf("openCache on a file = %v, want an error that is not a refusal", err)
 		}
 	})
 
-	t.Run("should read ONESIE_CACHE_TTL for alias entries", func(t *testing.T) {
+	t.Run("should keep alias entries for the lifetime it is given", func(t *testing.T) {
 		t.Parallel()
 
 		clock := cacheEpoch
-		settings, _ := settingsAt(t, map[string]string{envCacheTTL: "90m"}, "linux", func() time.Time { return clock })
+		settings, _ := settingsAt(t, nil, "linux", func() time.Time { return clock })
 
-		store, err := openCache(settings)
+		store, err := openCache(settings, 90*time.Minute)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -168,12 +128,12 @@ func TestOpenCache(t *testing.T) {
 		}
 	})
 
-	t.Run("should neither store nor read an alias entry under ONESIE_CACHE_TTL=0", func(t *testing.T) {
+	t.Run("should neither store nor read an alias entry under no alias lifetime", func(t *testing.T) {
 		t.Parallel()
 
-		settings, dir := settingsAt(t, map[string]string{envCacheTTL: "0"}, "linux", time.Now)
+		settings, dir := settingsAt(t, nil, "linux", time.Now)
 
-		store, err := openCache(settings)
+		store, err := openCache(settings, cache.NoAliasTTL)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -186,19 +146,6 @@ func TestOpenCache(t *testing.T) {
 			t.Errorf("Summarize = %+v, want no entry", summary)
 		}
 	})
-
-	for _, value := range []string{"-1h", "soon"} {
-		t.Run("should exit 2 for ONESIE_CACHE_TTL="+value, func(t *testing.T) {
-			t.Parallel()
-
-			settings, _ := settingsAt(t, map[string]string{envCacheTTL: value}, "linux", time.Now)
-
-			_, err := openCache(settings)
-			if err == nil || !strings.Contains(err.Error(), "ONESIE_CACHE_TTL="+value) || Classify(err) != ExitUsage {
-				t.Errorf("openCache = %v, want a usage error naming ONESIE_CACHE_TTL", err)
-			}
-		})
-	}
 }
 
 func TestCachedAnswerer(t *testing.T) {
@@ -264,6 +211,49 @@ func TestCachedAnswerer(t *testing.T) {
 
 		if _, noulErr := second.result.Noul("u"); noulErr != nil {
 			t.Errorf("cached result: %v", noulErr)
+		}
+	})
+
+	t.Run("should ask again past a stored answer that no longer fits its question", func(t *testing.T) {
+		t.Parallel()
+
+		stub := newAnswerStub(t)
+		factory, _ := build(t, stub, nil)
+
+		asker, err := factory(t.Context(), &collector{})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		cached, isCached := asker.(*cachedAnswerer)
+		if !isCached {
+			t.Fatalf("answerer = %T, want *cachedAnswerer", asker)
+		}
+
+		store, err := cached.open()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		id, err := requestKey(onesie.Request{
+			State: request.State, Model: cached.model, Questions: request.Questions,
+		}, cached.origin)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		outOfRange := &onesie.Result{Model: "m", Answers: map[string]onesie.Answer{"u": &onesie.NoulAnswer{Noul: 1.5}}}
+		if putErr := cached.put(store, cache.Key(id), outOfRange); putErr != nil {
+			t.Fatal(putErr)
+		}
+
+		got, err := asker.answer(t.Context(), key, request)
+		if err != nil || got.cached {
+			t.Fatalf("answer = %+v, %v, want a fresh answer past the refused entry", got, err)
+		}
+
+		if requests := stub.requests.Load(); requests != 1 {
+			t.Errorf("%d requests, want 1", requests)
 		}
 	})
 
@@ -661,7 +651,7 @@ func TestAsk(t *testing.T) {
 		runCached(t, env, args, "")
 
 		_, errOut, code := runCached(t, env, args, "")
-		if code != ExitOK || !strings.Contains(errOut, "1 record, 1 cached, 0 requests, 0 questions, 0 in / 0 out, model onesie-1.13.0") {
+		if code != ExitOK || !strings.Contains(errOut, "1 record, 1 cached, 0 requests, 0 questions asked, 0 in / 0 out tokens, model onesie-1.13.0") {
 			t.Errorf("exit %d, stderr %q, want a cached record", code, errOut)
 		}
 	})
@@ -822,6 +812,33 @@ func TestAsk(t *testing.T) {
 
 		if got := stub.requests.Load(); got != 0 {
 			t.Errorf("%d requests, want none", got)
+		}
+	})
+
+	t.Run("should exit 2 before any request for an untagged cache dir holding foreign files", func(t *testing.T) {
+		t.Parallel()
+
+		stub := newAnswerStub(t)
+		env := cacheEnv(t)
+		dir := env["ONESIE_CACHE_DIR"]
+		mustMkdirMode(t, dir, 0o700)
+
+		if err := os.WriteFile(filepath.Join(dir, "notes.txt"), []byte("mine"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+
+		_, errOut, code := runCached(t, env, append(slicesOf(base), "--base-url", stub.url), "")
+		if code != ExitUsage || !strings.Contains(errOut, dir) || !strings.Contains(errOut, "no CACHEDIR.TAG") {
+			t.Errorf("exit %d, stderr %q, want exit 2 naming the directory", code, errOut)
+		}
+
+		if got := stub.requests.Load(); got != 0 {
+			t.Errorf("%d requests, want none", got)
+		}
+
+		entries, err := os.ReadDir(dir)
+		if err != nil || len(entries) != 1 {
+			t.Errorf("cache dir holds %d files, %v, want only the foreign one", len(entries), err)
 		}
 	})
 }

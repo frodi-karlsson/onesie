@@ -45,7 +45,8 @@ var rootExitCodes = []exitCodeLine{
 		"host without --allow-http"},
 	{ExitAuth, "the key was refused, the account is out of credits, the keychain failed, or profiles.json or " +
 		"credentials.json is exposed"},
-	{ExitUnavailable, "the server did not answer after retries"},
+	{ExitUnavailable, "the server did not answer after retries, or it answered 200 with a response onesie " +
+		"could not use, which is never retried"},
 	{ExitTransport, "transport error or timeout"},
 	{ExitRecords, "a stream finished with one or more failed records, or --stop-on-error stopped it at " +
 		"a record that never became a request"},

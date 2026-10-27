@@ -13,7 +13,7 @@ func newVersionCmd(info BuildInfo) *cobra.Command {
 	return &cobra.Command{
 		Use:   "version",
 		Short: "Print version, commit, build date and the built in limits",
-		Args:  cobra.NoArgs,
+		Args:  noArguments,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			// cobra's own Print helpers write to stderr, not stdout.
 			out := cmd.OutOrStdout()

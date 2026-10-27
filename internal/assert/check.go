@@ -67,7 +67,12 @@ func (c *checker) comparison(n *comparisonNode) {
 
 	if ordered(n.op) && left != typeNumber {
 		c.fail("cannot order %s. '%s' takes two numbers", describe(n.left, left), opSymbol(n.op))
+
+		return
 	}
+
+	c.knownName(n.left, n.right)
+	c.knownName(n.right, n.left)
 }
 
 func (c *checker) membership(n *inNode) {
@@ -88,7 +93,46 @@ func (c *checker) membership(n *inNode) {
 
 			return
 		}
+
+		c.knownName(n.operand, member)
 	}
+}
+
+func (c *checker) knownName(path, literal node) {
+	at, isPath := path.(*pathNode)
+	name, isString := literal.(*stringNode)
+	if c.err != nil || !isPath || !isString {
+		return
+	}
+
+	q := c.chosenValue(at)
+	if q == nil {
+		return
+	}
+
+	keys := keysOf(*q)
+	if !slices.Contains(keys.names, name.value) {
+		c.unknownKey(*q, keys, name.value)
+	}
+}
+
+func (c *checker) chosenValue(n *pathNode) *plan.Question {
+	if len(n.segments) != 2 || n.segments[1] != "value" {
+		return nil
+	}
+
+	at := slices.IndexFunc(c.built.Questions, func(q plan.Question) bool {
+		return q.ID == n.segments[0]
+	})
+	if at < 0 {
+		return nil
+	}
+
+	if q := &c.built.Questions[at]; q.Shape == plan.Pick || q.Shape == plan.Rate {
+		return q
+	}
+
+	return nil
 }
 
 func (c *checker) typeOf(n node) (valueType, bool) {
@@ -149,7 +193,7 @@ func (c *checker) pathType(n *pathNode) (valueType, bool) {
 		return typeString, true
 	}
 
-	q := c.question(head)
+	q := c.question(n)
 	if q == nil {
 		return typeString, false
 	}
@@ -174,7 +218,8 @@ func (c *checker) pathType(n *pathNode) (valueType, bool) {
 	return got, true
 }
 
-func (c *checker) question(id string) *plan.Question {
+func (c *checker) question(n *pathNode) *plan.Question {
+	id := n.segments[0]
 	if at := slices.IndexFunc(c.built.Questions, func(q plan.Question) bool {
 		return q.ID == id
 	}); at >= 0 {
@@ -184,6 +229,12 @@ func (c *checker) question(id string) *plan.Question {
 	ids := make([]string, 0, len(c.built.Questions))
 	for _, q := range c.built.Questions {
 		ids = append(ids, q.ID)
+	}
+
+	if dotted, found := dottedID(n, ids); found {
+		c.fail("unknown question '%s'. %s", id, bracketAdvice(dotted))
+
+		return nil
 	}
 
 	// Naming a plan with no question at all would print the separator and nothing after it, which
@@ -197,6 +248,17 @@ func (c *checker) question(id string) *plan.Question {
 	c.fail("unknown question '%s'. Questions: %s", id, strings.Join(ids, ", "))
 
 	return nil
+}
+
+func dottedID(n *pathNode, ids []string) (string, bool) {
+	for end := len(n.segments); end > 1; end-- {
+		joined := strings.Join(n.segments[:end], ".")
+		if slices.Contains(ids, joined) {
+			return joined, true
+		}
+	}
+
+	return "", false
 }
 
 func (c *checker) fieldType(q plan.Question, n *pathNode) (valueType, int, bool) {
@@ -260,12 +322,16 @@ func (c *checker) probability(q plan.Question, n *pathNode, f field) (valueType,
 	}
 
 	if key := n.segments[2]; !slices.Contains(keys.names, key) {
-		c.fail("'%s' has no %s '%s'. %s", q.ID, keys.noun, key, keys.has)
+		c.unknownKey(q, keys, key)
 
 		return typeNumber, 0, false
 	}
 
 	return f.typeOf(q), 3, true
+}
+
+func (c *checker) unknownKey(q plan.Question, keys keyset, key string) {
+	c.fail("'%s' has no %s '%s'. %s", q.ID, keys.noun, key, keys.has)
 }
 
 func decisionNeeds(q plan.Question) string {
@@ -278,6 +344,32 @@ func decisionNeeds(q plan.Question) string {
 
 	return plan.Spelling(q.Origin, "--threshold") + " or " +
 		plan.Spelling(q.Origin, "--min-confidence")
+}
+
+// BracketHint advises the bracket form for the first id in ids that source writes bare, although
+// only the bracket form can reach it. It returns the empty string when there is none.
+func BracketHint(source string, ids []string) string {
+	for _, id := range ids {
+		if bareSegment(id) || !strings.Contains(source, id) {
+			continue
+		}
+
+		if strings.Contains(source, bracketed(id)) {
+			continue
+		}
+
+		return bracketAdvice(id)
+	}
+
+	return ""
+}
+
+func bracketAdvice(id string) string {
+	return fmt.Sprintf("Write the id '%s' in brackets, as in %s.value", id, bracketed(id))
+}
+
+func bracketed(id string) string {
+	return "[" + strconv.Quote(id) + "]"
 }
 
 func (c *checker) fail(format string, args ...any) {
@@ -307,8 +399,8 @@ func keysOf(q plan.Question) keyset {
 
 		return keyset{
 			names: labels,
-			noun:  "label",
-			want:  "a level label",
+			noun:  "level",
+			want:  "a level name",
 			has:   plan.ShapeName(&q, "--rate") + " has: " + strings.Join(labels, ", "),
 		}
 	}

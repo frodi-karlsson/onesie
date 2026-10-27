@@ -61,13 +61,15 @@ func TestPreflight(t *testing.T) {
 			want: "onesie is on PATH and a key resolves, profile: none, provider: typesafe, key: env TYPESAFE_API_KEY.\n",
 		},
 		{
-			name: "should name profile create and the key variable when no key resolves",
+			name: "should name the key variable first under ONESIE_PROVIDER, which no stored profile serves",
 			show: "profile: none\nprovider: openrouter\nchosen by: ONESIE_PROVIDER\nkey: none\n" +
 				"model: jev-latest, the provider's default\nbase_url: https://openrouter.ai/api, the provider's default\n",
 			code: 2,
 			want: "onesie is on PATH, but no API key resolves for provider openrouter. Only --print-request, " +
-				"--print-questions, --print-schema and --mock work until the user runs onesie profile create NAME --provider openrouter or " +
-				"sets OPENROUTER_API_KEY. The onesie-setup skill walks them through it.\n",
+				"--print-questions, --print-schema and --mock work until the user sets OPENROUTER_API_KEY. " +
+				"ONESIE_PROVIDER is set, so a stored profile is not used. To use one instead, the user unsets " +
+				"ONESIE_PROVIDER and runs onesie profile create NAME --provider openrouter. " +
+				"The onesie-setup skill walks them through it.\n",
 		},
 		{
 			name: "should name the key variable of berget when no key resolves",

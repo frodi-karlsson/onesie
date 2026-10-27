@@ -527,6 +527,9 @@ func schemaInstance(doc string) (any, bool, bool) {
 }
 
 func loaderOnlyRule(stderr string) (string, bool) {
+	// The loader names the file ahead of its own sentence, and the rules match that sentence.
+	stderr = regexp.MustCompile(`^onesie: \S+\.(yaml|yml|json): `).ReplaceAllString(stderr, "onesie: ")
+
 	rules := []struct {
 		name    string
 		pattern *regexp.Regexp
@@ -539,6 +542,7 @@ func loaderOnlyRule(stderr string) (string, bool) {
 		{name: "the size cap", pattern: regexp.MustCompile(`^onesie: a question file is at most \d+ bytes`)},
 		{name: "a level named twice", pattern: regexp.MustCompile(`^onesie: 'rate' label '.*' is listed twice in question `)},
 		{name: "a file with no question, which --ask completes", pattern: regexp.MustCompile(`^onesie: no question given\. `)},
+		{name: "a file that holds nothing", pattern: regexp.MustCompile(`^onesie: the question file \S+ holds no questions`)},
 		{name: "abstain_if with no assert, which --assert completes", pattern: regexp.MustCompile(`^onesie: 'abstain_if' needs --assert, `)},
 		{name: "min_confidence with no fallback, which --fallback completes", pattern: regexp.MustCompile(`^onesie: 'min_confidence' needs 'fallback', `)},
 		{name: "min_confidence on a yes/no question, which --pick or --rate completes", pattern: regexp.MustCompile(`^onesie: 'min_confidence' needs a confidence value\. `)},
@@ -1153,11 +1157,6 @@ func TestPrintRequest(t *testing.T) {
 				stdin: "the server is down",
 			},
 			{
-				name:  "should print the resolved model a whitespace only -m sends",
-				args:  []string{"--ask", "urgent=is this urgent", "-m", "   "},
-				stdin: "the server is down",
-			},
-			{
 				name: "should print the trimmed model an untrimmed request body sends",
 				file: `{"state":"the server is down","model":" onesie-1.13.0 ","questions":` +
 					`{"urgent":{"type":"noul","instructions":"is this urgent"}}}`,
@@ -1494,6 +1493,45 @@ func TestPrintRequest(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("should load a printed body back through -f", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name  string
+			args  []string
+			stdin string
+		}{
+			{name: "should load a positional question under --state", args: []string{"is this urgent", "--state", "hi"}},
+			{name: "should load a positional pick under --state", args: []string{"who", "--pick", "a,b", "--state", "hi"}},
+			{name: "should load a positional question printed from a stream", args: []string{"is this urgent", "-i", "lines"}, stdin: "hi\n"},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				printed, errOut, code := runOfflineStdin(t, append(slices.Clone(tc.args), "--print-request"), tc.stdin)
+				if code != ExitOK {
+					t.Fatalf("printing exit code = %d\nstderr:\n%s", code, errOut)
+				}
+
+				body := filepath.Join(t.TempDir(), "body.json")
+				if err := os.WriteFile(body, []byte(strings.Split(printed, "\n")[0]), 0o600); err != nil {
+					t.Fatal(err)
+				}
+
+				reloaded, errOut, code := runOfflineStdin(t, []string{"-f", body, "--print-request"}, "")
+				if code != ExitOK {
+					t.Fatalf("reloading exit code = %d\nstderr:\n%s", code, errOut)
+				}
+
+				if reloaded != strings.Split(printed, "\n")[0]+"\n" {
+					t.Errorf("reloaded:\n%s\nprinted:\n%s", reloaded, printed)
+				}
+			})
+		}
+	})
 }
 
 func runRecorded(t *testing.T, args []string, stdin string) (string, string, int) {

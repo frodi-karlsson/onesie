@@ -11,46 +11,169 @@ import (
 	"slices"
 	"sort"
 	"strconv"
+	"strings"
 
 	"github.com/frodi-karlsson/onesie-go"
 
+	"github.com/frodi-karlsson/onesie/internal/num"
 	"github.com/frodi-karlsson/onesie/internal/plan"
 )
+
+// CheckAll reports the first answer in result that does not fit its question, as Normalize would.
+func CheckAll(questions []plan.Question, result *onesie.Result) error {
+	_, err := NormalizeAll(questions, result)
+
+	return err
+}
+
+// NormalizeAll normalizes the answer to every question, in question order.
+func NormalizeAll(questions []plan.Question, result *onesie.Result) ([]*Answer, error) {
+	normalized := make([]*Answer, 0, len(questions))
+
+	for _, question := range questions {
+		one, err := Normalize(question, result.Answers[question.ID])
+		if err != nil {
+			return nil, err
+		}
+
+		normalized = append(normalized, one)
+	}
+
+	return normalized, nil
+}
 
 // Normalize turns one API answer into the printed shape, keeping the API's own keys when the
 // question carries no labels.
 func Normalize(q plan.Question, raw onesie.Answer) (*Answer, error) {
 	if raw == nil {
-		return nil, unusable("onesie: question '%s' has no answer", q.ID)
+		return nil, unusable("question '%s' has no answer", q.ID)
 	}
 
 	// Checked once here rather than per branch, since every branch below reads labels the
 	// question only has for its own shape.
 	if want := wireKind(q.Shape); want != raw.Kind() {
-		return nil, unusable("onesie: question '%s' expects a %s answer, got %s",
-			q.ID, want, raw.Kind())
+		return nil, unusable("question '%s' expects a %s answer, got %s", q.ID, want, raw.Kind())
 	}
 
 	switch typed := raw.(type) {
 	case *onesie.NoulAnswer:
+		if !unit(typed.Noul) {
+			return nil, unusable("question '%s' answered %s, which lies outside [0,1]", q.ID, num.Format(typed.Noul))
+		}
+
 		return &Answer{Value: typed.Noul}, nil
 	case *onesie.ChoiceAnswer:
+		if err := checkChoice(q, typed); err != nil {
+			return nil, err
+		}
+
 		return normalizeChoice(q, typed), nil
 	case *onesie.ScoreAnswer:
+		if err := checkScore(q, typed); err != nil {
+			return nil, err
+		}
+
 		return normalizeScore(q, typed), nil
 	case *onesie.BoxAnswer:
 		return normalizeBox(q, typed)
 	default:
-		return nil, unusable("onesie: question '%s' returned an unknown answer type '%s'",
-			q.ID, raw.Kind())
+		return nil, unusable("question '%s' returned an unknown answer type '%s'", q.ID, raw.Kind())
 	}
 }
 
 func unusable(format string, args ...any) error {
-	// A shape the question did not ask for is deterministic, so it is a 200 whose body onesie could
-	// not use rather than a transport failure. That gives it kind response in a stream and exit 4
-	// in a single shot run.
-	return &onesie.ResponseError{Status: http.StatusOK, Message: fmt.Sprintf(format, args...)}
+	return Unusable(fmt.Sprintf(format, args...))
+}
+
+// Unusable is a 200 response onesie could not use. It has kind response in a stream and exits 4 in a
+// single shot run, since the same request would only get it again.
+func Unusable(reason string) error {
+	return &onesie.ResponseError{Status: http.StatusOK, Message: "onesie: 200 response could not be used: " + reason}
+}
+
+func unit(value float64) bool {
+	return !math.IsNaN(value) && value >= 0 && value <= 1
+}
+
+func checkChoice(q plan.Question, raw *onesie.ChoiceAnswer) error {
+	names := make([]string, 0, len(q.Options))
+	for _, option := range q.Options {
+		names = append(names, option.Name)
+	}
+
+	options := strings.Join(names, ", ")
+
+	if !slices.Contains(names, raw.Choice) {
+		return unusable("question '%s' picked '%s', which is not one of its options: %s", q.ID, raw.Choice, options)
+	}
+
+	for _, key := range slices.Sorted(maps.Keys(raw.Probabilities)) {
+		if !slices.Contains(names, key) {
+			return unusable("question '%s' has p for '%s', which is not one of its options: %s", q.ID, key, options)
+		}
+	}
+
+	for _, name := range names {
+		if _, found := raw.Probabilities[name]; !found {
+			return unusable("question '%s' has no p for '%s'", q.ID, name)
+		}
+	}
+
+	return checkSpread(q.ID, names, raw.Probabilities, raw.Confidence)
+}
+
+func checkScore(q plan.Question, raw *onesie.ScoreAnswer) error {
+	if len(q.Levels) == 0 {
+		return unusable("question '%s' has no levels to score against", q.ID)
+	}
+
+	top := len(q.Levels) - 1
+
+	if math.IsNaN(raw.Score) || raw.Score < 0 || raw.Score > float64(top) {
+		return unusable("question '%s' has score %s, which lies outside [0,%d]", q.ID, num.Format(raw.Score), top)
+	}
+
+	indexes := make([]string, 0, top+1)
+	for i := range top + 1 {
+		indexes = append(indexes, strconv.Itoa(i))
+	}
+
+	for _, key := range sortedIndexes(raw.Probabilities) {
+		if !slices.Contains(indexes, key) {
+			return unusable("question '%s' has p for '%s', which is not a level index from 0 to %d", q.ID, key, top)
+		}
+	}
+
+	for i, index := range indexes {
+		if _, found := raw.Probabilities[index]; !found {
+			return unusable("question '%s' has no p for level %d", q.ID, i)
+		}
+	}
+
+	return checkSpread(q.ID, indexes, raw.Probabilities, raw.Confidence)
+}
+
+func checkSpread(id string, keys []string, probabilities map[string]float64, confidence float64) error {
+	values := make([]float64, 0, len(keys))
+
+	for _, key := range keys {
+		value := probabilities[key]
+		if !unit(value) {
+			return unusable("question '%s' has p for '%s' of %s, which lies outside [0,1]", id, key, num.Format(value))
+		}
+
+		values = append(values, value)
+	}
+
+	if sum, fits := SumFits(values); !fits {
+		return unusable("question '%s' has p that adds up to %s, not 1", id, num.Format(sum))
+	}
+
+	if !unit(confidence) {
+		return unusable("question '%s' has confidence %s, which lies outside [0,1]", id, num.Format(confidence))
+	}
+
+	return nil
 }
 
 func wireKind(shape plan.Shape) string {
@@ -98,17 +221,13 @@ func (a Answer) MarshalJSON() ([]byte, error) {
 }
 
 func normalizeChoice(q plan.Question, raw *onesie.ChoiceAnswer) *Answer {
+	// checkChoice proved the keys are exactly the options, so the plan's order is the whole set.
 	keys := make([]string, 0, len(q.Options))
-	values := make(map[string]float64, len(q.Options)+len(raw.Probabilities))
-
-	// An option the API left out of its distribution carries no mass, so it reads as zero, the same
-	// way the printed record reads it through Keys.
 	for _, option := range q.Options {
 		keys = append(keys, option.Name)
-		values[option.Name] = 0
 	}
 
-	maps.Copy(values, raw.Probabilities)
+	values := maps.Clone(raw.Probabilities)
 
 	confidence := raw.Confidence
 
@@ -123,17 +242,12 @@ func normalizeScore(q plan.Question, raw *onesie.ScoreAnswer) *Answer {
 	indexes := sortedIndexes(raw.Probabilities)
 	winner := modal(indexes, raw.Probabilities)
 
-	levels := len(q.Levels)
-	if levels == 0 {
-		levels = len(indexes)
-	}
-
 	score := raw.Score
 	confidence := raw.Confidence
 
 	norm := 0.0
-	if levels > 1 {
-		norm = score / float64(levels-1)
+	if top := len(q.Levels) - 1; top > 0 {
+		norm = num.Rounded(score / float64(top))
 	}
 
 	out := &Answer{
@@ -169,11 +283,11 @@ func normalizeBox(q plan.Question, raw *onesie.BoxAnswer) (*Answer, error) {
 	values := []float64{edges.Left, edges.Top, edges.Right, edges.Bottom, raw.Confidence}
 
 	if slices.ContainsFunc(values, func(v float64) bool { return math.IsNaN(v) || v < 0 || v > 1 }) {
-		return nil, unusable("onesie: box question '%s' has an edge or a confidence outside 0 to 1", q.ID)
+		return nil, unusable("box question '%s' has an edge or a confidence outside [0,1]", q.ID)
 	}
 
 	if edges.Left >= edges.Right || edges.Top >= edges.Bottom {
-		return nil, unusable("onesie: box question '%s' has a left edge not left of its right edge, "+
+		return nil, unusable("box question '%s' has a left edge not left of its right edge, "+
 			"or a top edge not above its bottom edge", q.ID)
 	}
 
@@ -205,11 +319,20 @@ type Edges struct {
 // String writes the edges for a person, as the table does.
 func (e Edges) String() string {
 	return fmt.Sprintf("left %s  top %s  right %s  bottom %s",
-		edgeText(e.Left), edgeText(e.Top), edgeText(e.Right), edgeText(e.Bottom))
+		num.Format(e.Left), num.Format(e.Top), num.Format(e.Right), num.Format(e.Bottom))
 }
 
-func edgeText(value float64) string {
-	return strconv.FormatFloat(value, 'f', -1, 64)
+// SumFits reports a distribution's sum, rounded to four places, and whether it is 1 within 0.02.
+func SumFits(probabilities []float64) (float64, bool) {
+	sum := 0.0
+	for _, value := range probabilities {
+		sum += value
+	}
+
+	// A provider that writes two places per entry leaves the sum a hundredth or two off 1.
+	const tolerance = 0.02
+
+	return num.Rounded(sum), math.Abs(sum-1) <= tolerance+1e-9
 }
 
 // Answer is the normalized shape for one question. Absent fields are omitted, which is what makes
@@ -276,7 +399,7 @@ func (p Probabilities) MarshalJSON() ([]byte, error) {
 
 		buf = append(buf, name...)
 		buf = append(buf, ':')
-		buf = strconv.AppendFloat(buf, value, 'g', -1, 64)
+		buf = append(buf, num.Format(value)...)
 	}
 
 	return append(buf, '}'), nil

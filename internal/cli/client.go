@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	refusedBaseURL = "the base URL must be a plain URL with no credentials, query or fragment. " +
+	refusedBaseURL = "the base URL must not hold @, ? or #. " +
 		"Put the API key in a profile or the provider's key variable instead"
 	allowHTTPHelp = "send the API key over a plain http base URL to a host other than localhost, " +
 		"127.0.0.0/8, also in IPv4-mapped form, or ::1. Without it such a base URL exits 2 before any request"
@@ -40,6 +40,12 @@ func clientBuilder(info BuildInfo, flags *runFlags, settings rootSettings) resol
 	var warned, doubled sync.Once
 
 	return func(_ context.Context, chosen resolution, extra ...onesie.Option) (*onesie.Client, error) {
+		// Ahead of the keychain and of New, so a base URL that carries a key is refused in onesie's
+		// words and nothing is sent.
+		if refused := refuseUnclearBaseURL(chosen.baseURLGiven(flags.baseURL, settings.lookupEnv)); refused != nil {
+			return nil, refused
+		}
+
 		opts := []onesie.Option{
 			onesie.WithProvider(chosen.provider),
 			onesie.WithUserAgent("onesie/" + info.Version),
@@ -80,13 +86,7 @@ func clientBuilder(info BuildInfo, flags *runFlags, settings rootSettings) resol
 
 		client, err := onesie.New(opts...)
 		if err != nil {
-			return nil, explained(settings, flags, chosen, withoutCredentials(err))
-		}
-
-		// After New, since only the client knows which of the flag, the variable and the profile chose
-		// the base URL.
-		if refused := refuseUnclearBaseURL(client.BaseURL()); refused != nil {
-			return nil, refused
+			return nil, explained(settings, flags, chosen, err)
 		}
 
 		warning, refused := plainHTTPCheck(
@@ -144,23 +144,11 @@ func refuseUnclearBaseURL(baseURL string) error {
 	// Any literal @, ? or #, since a password holding a /, a ? or a # parses cleanly as a host with
 	// the rest of the password in the path, query or fragment. A provider takes its key from the
 	// profile, so a base URL has no use for credentials.
-	parsed, err := url.Parse(baseURL)
-	if err != nil || strings.ContainsAny(baseURL, "@?#") || parsed.User != nil {
+	if strings.ContainsAny(baseURL, "@?#") {
 		return &onesie.ValidationError{Message: refusedBaseURL}
 	}
 
 	return nil
-}
-
-func withoutCredentials(err error) error {
-	// onesie-go's own check runs inside New, ahead of onesie's, and its message ends with the URL as
-	// given, credentials and all.
-	var invalid *onesie.ValidationError
-	if errors.As(err, &invalid) && strings.Contains(invalid.Message, "@") {
-		return &onesie.ValidationError{Question: invalid.Question, Message: refusedBaseURL}
-	}
-
-	return err
 }
 
 func ignoringResolution(newClient clientFactory) resolvedClientFactory {
@@ -199,7 +187,7 @@ func explained(settings rootSettings, flags *runFlags, chosen resolution, err er
 		return err
 	}
 
-	// Read only now, so a run that names its provider and has its key never opens the file. An
+	// Read only here, so a run that names its provider and has its key never opens the file. An
 	// error reading it leaves the hint out, since the missing key is the failure to report.
 	opened, openErr := openedProfiles(settings)
 	if openErr != nil {

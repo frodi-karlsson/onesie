@@ -2,16 +2,12 @@ package cli
 
 import (
 	"context"
-	"strings"
 	"time"
 
 	"github.com/frodi-karlsson/onesie-go"
 )
 
-const (
-	envLongContext      = "ONESIE_LONG_CONTEXT"
-	imageAttemptTimeout = 60 * time.Second
-)
+const imageAttemptTimeout = 60 * time.Second
 
 type answerer interface {
 	answer(ctx context.Context, key recordKey, req onesie.Request) (reply, error)
@@ -49,16 +45,6 @@ func liveAnswers(settings rootSettings, flags *runFlags) answererFactory {
 
 func newLiveAnswerer(client *onesie.Client, provider onesie.Provider, flags *runFlags) liveAnswerer {
 	return liveAnswerer{client: client, provider: provider, timeoutSet: flags.timeoutSet}
-}
-
-func longContext(settings rootSettings, flags *runFlags) bool {
-	if flags.longContext {
-		return true
-	}
-
-	value, _ := settings.lookupEnv(envLongContext)
-
-	return value == "1" || strings.EqualFold(value, "true")
 }
 
 func (a liveAnswerer) answer(ctx context.Context, _ recordKey, req onesie.Request) (reply, error) {

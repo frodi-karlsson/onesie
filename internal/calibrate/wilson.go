@@ -1,11 +1,15 @@
 package calibrate
 
-import "math"
+import (
+	"math"
+
+	"github.com/frodi-karlsson/onesie/internal/num"
+)
 
 const z95 = 1.959963984540054
 
-// Wilson returns hits of of as a share with its 95 percent Wilson score interval. A share of
-// nothing is not Defined.
+// Wilson returns hits of of as a share with its 95 percent Wilson score interval, each rounded to
+// four places and never to 0 or 1 unless it is exactly that. A share of nothing is not Defined.
 func Wilson(hits, of int) Share {
 	if of <= 0 {
 		return Share{Hits: hits, Of: of}
@@ -26,7 +30,10 @@ func Wilson(hits, of int) Share {
 		high = 1
 	}
 
-	return Share{Hits: hits, Of: of, Rate: rate, Low: low, High: high, Defined: true}
+	return Share{
+		Hits: hits, Of: of, Rate: roundedInside(rate), Low: roundedInside(low), High: roundedInside(high),
+		Defined: true,
+	}
 }
 
 // Share is hits out of of, with the rate and its 95 percent Wilson interval. Defined is false when
@@ -35,4 +42,19 @@ type Share struct {
 	Hits, Of        int
 	Rate, Low, High float64
 	Defined         bool
+}
+
+func roundedInside(fraction float64) float64 {
+	// A share that is not all or none must not print as one, or 29999 of 30000 would read as every
+	// record and pass a requirement of 1.
+	rounded := num.Rounded(fraction)
+
+	switch {
+	case fraction > 0 && rounded <= 0:
+		return 0.0001
+	case fraction < 1 && rounded >= 1:
+		return 0.9999
+	default:
+		return rounded
+	}
 }

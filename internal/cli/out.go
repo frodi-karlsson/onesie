@@ -17,6 +17,7 @@ import (
 	"strings"
 
 	"github.com/frodi-karlsson/onesie/internal/output"
+	"github.com/frodi-karlsson/onesie/internal/patherr"
 	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
@@ -333,7 +334,7 @@ func (o *outFile) finish(runErr error) error {
 	o.file = nil
 
 	if err := file.Close(); err != nil {
-		return fmt.Errorf("onesie: closing %s: %w", o.path, err)
+		return fmt.Errorf("onesie: closing %s: %w", o.path, patherr.Inner(err))
 	}
 
 	if o.rewrite == nil {
@@ -531,7 +532,7 @@ func (o *outFile) probe() error {
 	}
 
 	if err := o.probeAnswers(); err != nil {
-		return fmt.Errorf("onesie: opening %s: %w", o.path, err)
+		return fmt.Errorf("onesie: opening %s: %w", o.path, patherr.Inner(err))
 	}
 
 	if o.fingerprint == "" || o.matched {
@@ -542,7 +543,7 @@ func (o *outFile) probe() error {
 
 	file, err := o.open(temporary, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
 	if err != nil {
-		return fmt.Errorf("onesie: opening %s: %w", temporary, err)
+		return fmt.Errorf("onesie: opening %s: %w", temporary, patherr.Inner(err))
 	}
 
 	return errors.Join(file.Close(), o.remove(temporary))
@@ -694,7 +695,7 @@ func (o *outFile) readFingerprint() (stored string, found bool, err error) {
 	}
 
 	if err != nil {
-		return "", false, fmt.Errorf("onesie: reading %s: %w", path, err)
+		return "", false, fmt.Errorf("onesie: reading %s: %w", path, patherr.Inner(err))
 	}
 
 	defer func() {
@@ -703,7 +704,7 @@ func (o *outFile) readFingerprint() (stored string, found bool, err error) {
 
 	data, err := io.ReadAll(io.LimitReader(file, 1024))
 	if err != nil {
-		return "", false, fmt.Errorf("onesie: reading %s: %w", path, err)
+		return "", false, fmt.Errorf("onesie: reading %s: %w", path, patherr.Inner(err))
 	}
 
 	return string(bytes.TrimSpace(data)), true, nil
@@ -738,7 +739,7 @@ func (o *outFile) openAnswers() error {
 
 		file, err := o.open(o.path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
 		if err != nil {
-			return fmt.Errorf("onesie: opening %s: %w", o.path, err)
+			return fmt.Errorf("onesie: opening %s: %w", o.path, patherr.Inner(err))
 		}
 
 		o.file = file
@@ -748,16 +749,16 @@ func (o *outFile) openAnswers() error {
 
 	file, err := o.open(o.path, os.O_WRONLY|os.O_CREATE, 0o600)
 	if err != nil {
-		return fmt.Errorf("onesie: opening %s: %w", o.path, err)
+		return fmt.Errorf("onesie: opening %s: %w", o.path, patherr.Inner(err))
 	}
 
 	// Drops a line the earlier run was cut off in the middle of, so the next answer starts clean.
 	if err := file.Truncate(o.keep); err != nil {
-		return errors.Join(fmt.Errorf("onesie: trimming %s: %w", o.path, err), file.Close())
+		return errors.Join(fmt.Errorf("onesie: trimming %s: %w", o.path, patherr.Inner(err)), file.Close())
 	}
 
 	if _, err := file.Seek(0, io.SeekEnd); err != nil {
-		return errors.Join(fmt.Errorf("onesie: seeking in %s: %w", o.path, err), file.Close())
+		return errors.Join(fmt.Errorf("onesie: seeking in %s: %w", o.path, patherr.Inner(err)), file.Close())
 	}
 
 	o.file = file
@@ -775,7 +776,7 @@ func (o *outFile) writeFingerprint() error {
 
 	if o.fingerprint == "" {
 		if err := o.remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
-			return fmt.Errorf("onesie: removing %s: %w", path, err)
+			return fmt.Errorf("onesie: removing %s: %w", path, patherr.Inner(err))
 		}
 
 		return nil
@@ -791,7 +792,7 @@ func (o *outFile) writeFingerprint() error {
 
 	file, err := o.open(temporary, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
 	if err != nil {
-		return fmt.Errorf("onesie: opening %s: %w", temporary, err)
+		return fmt.Errorf("onesie: opening %s: %w", temporary, patherr.Inner(err))
 	}
 
 	_, err = io.WriteString(file, o.fingerprint+"\n")

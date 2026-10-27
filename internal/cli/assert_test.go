@@ -71,7 +71,7 @@ func TestAsk(t *testing.T) {
 				args:     []string{"is this urgent", "-o", "table", "--assert", "answer.value > 0.95"},
 				response: urgent,
 				wantCode: cli.ExitRejected,
-				contains: []string{"model onesie-1.13.0\nassert false\n", "answer  0.90\n"},
+				contains: []string{"model onesie-1.13.0\nassert false\n", "answer  0.9\n"},
 			},
 			{
 				name:     "should print the bare scalar and nothing else in raw mode",
@@ -129,7 +129,7 @@ func TestAsk(t *testing.T) {
 				response: urgent,
 				wantCode: cli.ExitRejected,
 				contains: []string{`"assert":false`},
-				wantErr:  "1 request, 1 false assertion, 1 question",
+				wantErr:  "1 request, 1 false assertion, 1 question asked",
 			},
 			{
 				name:      "should reject a bad expression before any request",
@@ -147,6 +147,40 @@ func TestAsk(t *testing.T) {
 				wantCode:  cli.ExitUsage,
 				wantOut:   "",
 				wantErr:   "onesie: --assert: unknown question 'sevrity'. Questions: answer",
+				noRequest: true,
+			},
+			{
+				name: "should reject a pick value compared with a name that is not an option",
+				args: []string{
+					"--ask", "a=hi", "--pick", "x,y", "--state", "x", "--assert", `a.value in ["x", "q"]`,
+				},
+				response:  urgent,
+				wantCode:  cli.ExitUsage,
+				wantErr:   "onesie: --assert: 'a' has no option 'q'. --pick has: x, y",
+				noRequest: true,
+			},
+			{
+				name:      "should point a hyphenated id at the bracket form",
+				args:      []string{"--ask", "a-b=q", "--state", "x", "--assert", "a-b.value < 0.5"},
+				response:  urgent,
+				wantCode:  cli.ExitUsage,
+				wantErr:   `onesie: --assert: unexpected character '-'. Write the id 'a-b' in brackets, as in ["a-b"].value`,
+				noRequest: true,
+			},
+			{
+				name:      "should point a dotted id at the bracket form",
+				args:      []string{"--ask", "a.b=q", "--state", "x", "--assert", "a.b.value < 0.5"},
+				response:  urgent,
+				wantCode:  cli.ExitUsage,
+				wantErr:   `onesie: --assert: unknown question 'a'. Write the id 'a.b' in brackets, as in ["a.b"].value`,
+				noRequest: true,
+			},
+			{
+				name:      "should point an id with a space at the bracket form",
+				args:      []string{"--ask", "a b=q", "--state", "x", "--assert", "a b.value < 0.5"},
+				response:  urgent,
+				wantCode:  cli.ExitUsage,
+				wantErr:   `. Write the id 'a b' in brackets, as in ["a b"].value`,
 				noRequest: true,
 			},
 		}
@@ -286,7 +320,7 @@ func TestAsk(t *testing.T) {
 				abstain:   holds,
 				wantCode:  cli.ExitOK,
 				wantOut:   "{\"answer\":0.9}\n",
-				wantStats: "1 request, 1 question",
+				wantStats: "1 request, 1 question asked",
 			},
 			{
 				name:      "should exit seven on an unsure",
@@ -294,7 +328,7 @@ func TestAsk(t *testing.T) {
 				abstain:   holds,
 				wantCode:  cli.ExitAbstain,
 				wantOut:   "{\"abstain\":true,\"answer\":0.9}\n",
-				wantStats: "1 request, 1 abstain, 1 question",
+				wantStats: "1 request, 1 abstain, 1 question asked",
 			},
 			{
 				name:      "should exit one on a no",
@@ -302,7 +336,7 @@ func TestAsk(t *testing.T) {
 				abstain:   fails,
 				wantCode:  cli.ExitRejected,
 				wantOut:   "{\"assert\":false,\"answer\":0.9}\n",
-				wantStats: "1 request, 1 false assertion, 1 question",
+				wantStats: "1 request, 1 false assertion, 1 question asked",
 			},
 		}
 
@@ -831,7 +865,7 @@ func TestStopping(t *testing.T) {
 	}{
 		{
 			name: "should count no failed record for a request the stop cancelled",
-			want: "1 request, 1 false assertion, 1 question",
+			want: "1 request, 1 false assertion, 1 question asked",
 		},
 	}
 

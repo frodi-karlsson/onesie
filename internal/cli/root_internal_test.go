@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/spf13/cobra"
 )
 
 func TestSchemaURLOf(t *testing.T) {
@@ -53,20 +55,20 @@ func TestWithTerminalWidth(t *testing.T) {
 	}{
 		{
 			name: "should size the bars to the terminal", columns: 60, known: true,
-			wantBars: 35,
+			wantBars: 39,
 		},
 		{
 			name: "should size the bars to a wider terminal", columns: 100, known: true,
-			wantBars: 75,
+			wantBars: 79,
 		},
 		{
 			name:     "should fall back to eighty columns when the terminal reports no width",
-			wantBars: 55,
+			wantBars: 59,
 		},
 		{
 			name: "should prefer COLUMNS over the terminal", columns: 100, known: true,
 			env:      map[string]string{"COLUMNS": "50"},
-			wantBars: 25,
+			wantBars: 29,
 		},
 	}
 
@@ -211,6 +213,51 @@ func TestIsTerminal(t *testing.T) {
 
 			if isTerminal(f) {
 				t.Errorf("isTerminal(%s) = true, want false", f.Name())
+			}
+		})
+	}
+}
+
+func TestNoArguments(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		child bool
+		args  []string
+		want  string
+	}{
+		{name: "should accept no argument", args: nil, want: ""},
+		{name: "should refuse an argument in a plain sentence", args: []string{"a", "b"}, want: "onesie: leaf takes no argument, got 'a'"},
+		{
+			name:  "should name the subcommands of a command that has them",
+			child: true,
+			args:  []string{"a"},
+			want:  "onesie: leaf has no subcommand 'a'. Its subcommands: child",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			root := &cobra.Command{Use: "onesie"}
+			leaf := &cobra.Command{Use: "leaf"}
+			root.AddCommand(leaf)
+
+			if tc.child {
+				leaf.AddCommand(&cobra.Command{Use: "child", RunE: func(*cobra.Command, []string) error { return nil }})
+			}
+
+			err := noArguments(leaf, tc.args)
+
+			got := ""
+			if err != nil {
+				got = err.Error()
+			}
+
+			if got != tc.want {
+				t.Errorf("noArguments = %q, want %q", got, tc.want)
 			}
 		})
 	}

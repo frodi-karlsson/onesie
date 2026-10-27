@@ -36,7 +36,7 @@ func TestWriteMarkdown(t *testing.T) {
 			rec:  output.Record{Model: "m", Answers: []output.Named{{ID: "mug", Box: true, Answer: boxAnswer()}}},
 			want: "| question | answer | confidence |\n" +
 				"|---|---|---|\n" +
-				"| `mug` | left 0.44, top 0.25, right 0.84, bottom 0.82 | 92% |\n" +
+				"| `mug` | left 0.44, top 0.25, right 0.84, bottom 0.82 | 0.92 |\n" +
 				"\n" +
 				"_`m`_\n",
 		},
@@ -46,7 +46,7 @@ func TestWriteMarkdown(t *testing.T) {
 			want: "| question | answer | confidence |\n" +
 				"|---|---|---|\n" +
 				"| `urgent` | 0.97 | |\n" +
-				"| `team` | `billing` | 92% |\n" +
+				"| `team` | `billing` | 0.92 |\n" +
 				"\n" +
 				"_`jev-1.13.0`_\n",
 		},
@@ -86,7 +86,7 @@ func TestWriteMarkdown(t *testing.T) {
 				"| question | answer | confidence |\n" +
 				"|---|---|---|\n" +
 				"| `urgent` | 0.97 | |\n" +
-				"| `team` | `billing` | 92% |\n" +
+				"| `team` | `billing` | 0.92 |\n" +
 				"\n" +
 				"_`jev-1.13.0`_\n",
 		},
@@ -131,13 +131,13 @@ func TestWriteMarkdown(t *testing.T) {
 				"_`jev-1.13.0`_\n",
 		},
 		{
-			name: "should round a probability to four places",
+			name: "should print a probability unrounded, as -o json writes it",
 			rec: output.Record{Model: "jev-1.13.0", Answers: []output.Named{
 				{ID: "urgent", Answer: &answer.Answer{Value: 0.123456}},
 			}},
 			want: "| question | answer | confidence |\n" +
 				"|---|---|---|\n" +
-				"| `urgent` | 0.1235 | |\n" +
+				"| `urgent` | 0.123456 | |\n" +
 				"\n" +
 				"_`jev-1.13.0`_\n",
 		},
@@ -165,8 +165,8 @@ func TestWriteMarkdown(t *testing.T) {
 			}},
 			want: "| question | answer | confidence |\n" +
 				"|---|---|---|\n" +
-				"| `mood` | `1 Frustrated` | 92% |\n" +
-				"| `severity` | `high` | 92% |\n" +
+				"| `mood` | `1 Frustrated` | 0.92 |\n" +
+				"| `severity` | `high` | 0.92 |\n" +
 				"\n" +
 				"_`jev-1.13.0`_\n",
 		},
@@ -198,7 +198,7 @@ func TestWriteMarkdown(t *testing.T) {
 				"| `urgent` | fallback no | |\n",
 		},
 		{
-			name: "should show a probability too small or too large to round as a bound",
+			name: "should print a probability near 0 or 1 as -o json writes it",
 			rec: output.Record{Model: "jev-1.13.0", Answers: []output.Named{
 				{ID: "low", Answer: &answer.Answer{Value: 0.00001}},
 				{ID: "high", Answer: &answer.Answer{Value: 0.99999}},
@@ -207,8 +207,8 @@ func TestWriteMarkdown(t *testing.T) {
 			}},
 			want: "| question | answer | confidence |\n" +
 				"|---|---|---|\n" +
-				"| `low` | <0.0001 | |\n" +
-				"| `high` | >0.9999 | |\n" +
+				"| `low` | 0.00001 | |\n" +
+				"| `high` | 0.99999 | |\n" +
 				"| `none` | 0 | |\n" +
 				"| `all` | yes, 1 | |\n" +
 				"\n" +
@@ -247,7 +247,7 @@ func TestWriteMarkdown(t *testing.T) {
 				"\n" +
 				"| question | answer | confidence |\n" +
 				"|---|---|---|\n" +
-				"| <code>&#64;team&#124;&#35;12</code> | ``<b>`x`</b>`` | 92% |\n" +
+				"| <code>&#64;team&#124;&#35;12</code> | ``<b>`x`</b>`` | 0.92 |\n" +
 				"\n" +
 				"_`jev-1.13.0`_\n",
 		},

@@ -341,14 +341,14 @@ func TestWithStats(t *testing.T) {
 		{
 			name:    "should report the elapsed time between the clock's two readings",
 			elapsed: 1500 * time.Millisecond,
-			wantLine: "1 request, 1 question, 0 in / 0 out, model onesie-1.13.0, 0 attempts, " +
-				"10s/attempt, 1.5s\n",
+			wantLine: "1 request, 1 question asked, 0 in / 0 out tokens, model onesie-1.13.0, 0 attempts, " +
+				"1.5s\n",
 		},
 		{
 			name:    "should report a sub second run to the millisecond",
 			elapsed: 250*time.Millisecond + 400*time.Microsecond,
-			wantLine: "1 request, 1 question, 0 in / 0 out, model onesie-1.13.0, 0 attempts, " +
-				"10s/attempt, 250ms\n",
+			wantLine: "1 request, 1 question asked, 0 in / 0 out tokens, model onesie-1.13.0, 0 attempts, " +
+				"250ms\n",
 		},
 	}
 
@@ -410,7 +410,7 @@ func TestWithStats(t *testing.T) {
 				},
 				wantCode: ExitOK,
 				wantErr: []string{
-					"1 request, 1 question, 2841 in / 71 out, model onesie-1.13.0, " +
+					"1 request, 1 question asked, 2841 in / 71 out tokens, model onesie-1.13.0, " +
 						"1 attempt, 10s/attempt, 2s\n",
 				},
 			},
@@ -421,7 +421,7 @@ func TestWithStats(t *testing.T) {
 				handler:  func() http.HandlerFunc { return answerHandler(answered) },
 				wantCode: ExitOK,
 				wantErr: []string{
-					"1 request, 1 question, 2841 in / 71 out, model onesie-1.13.0, " +
+					"1 request, 1 question asked, 2841 in / 71 out tokens, model onesie-1.13.0, " +
 						"1 attempt, 10s/attempt,",
 				},
 				wantOutHas: []string{`"urgent"`},
@@ -459,7 +459,7 @@ func TestWithStats(t *testing.T) {
 				stdin:      "{\"id\":1}\nnot json\n",
 				handler:    func() http.HandlerFunc { return answerHandler(answered) },
 				wantCode:   ExitRecords,
-				wantErr:    []string{"2 records, 1 failed, 1 request, 1 question, 2841 in / 71 out"},
+				wantErr:    []string{"2 records, 1 failed, 1 request, 1 question asked, 2841 in / 71 out tokens"},
 				wantOutHas: []string{`"urgent"`},
 			},
 			{
@@ -520,7 +520,7 @@ func TestWithStats(t *testing.T) {
 				},
 				wantCode: ExitUnavailable,
 				wantErr: []string{
-					"1 request, 1 failed, 2 questions, 0 in / 0 out, " +
+					"1 request, 1 failed, 2 questions asked, 0 in / 0 out tokens, " +
 						"3 attempts (2 retries: 500×2)",
 				},
 			},
@@ -533,7 +533,7 @@ func TestWithStats(t *testing.T) {
 						`"answers":{"urgent":{"type":"choice","choice":"a","confidence":0.5,"probabilities":{"a":1}}}}`)
 				},
 				wantCode: ExitRecords,
-				wantErr:  []string{"1 request, 1 failed, 1 question, 7 in / 3 out"},
+				wantErr:  []string{"1 request, 1 failed, 1 question asked, 7 in / 3 out tokens"},
 			},
 			{
 				name:  "should count the tokens of a 200 that carries no answer for a question",
@@ -544,7 +544,7 @@ func TestWithStats(t *testing.T) {
 						`"answers":{}}`)
 				},
 				wantCode: ExitRecords,
-				wantErr:  []string{"1 request, 1 failed, 1 question, 7 in / 3 out"},
+				wantErr:  []string{"1 request, 1 failed, 1 question asked, 7 in / 3 out tokens"},
 			},
 			{
 				// A stream that carried nothing still ran, so 0 records is the measurement rather
@@ -556,7 +556,7 @@ func TestWithStats(t *testing.T) {
 				stdin:    "",
 				handler:  func() http.HandlerFunc { return answerHandler(answered) },
 				wantCode: ExitOK,
-				wantErr:  []string{"0 requests, 0 questions, 0 in / 0 out, 0 attempts, 10s/attempt,"},
+				wantErr:  []string{"0 requests, 0 questions asked, 0 in / 0 out tokens, 0 attempts, "},
 			},
 			{
 				name: "should total every record when they run concurrently",
@@ -570,7 +570,7 @@ func TestWithStats(t *testing.T) {
 				},
 				wantCode: ExitOK,
 				wantErr: []string{
-					"8 requests, 8 questions, 22728 in / 568 out, model onesie-1.13.0, 8 attempts",
+					"8 requests, 8 questions asked, 22728 in / 568 out tokens, model onesie-1.13.0, 8 attempts",
 				},
 				wantOutHas: []string{`"urgent"`},
 			},
@@ -586,7 +586,7 @@ func TestWithStats(t *testing.T) {
 				},
 				wantCode: ExitOK,
 				wantErr: []string{
-					"8 records, 7 deduplicated, 1 request, 1 question, 2841 in / 71 out, model onesie-1.13.0, 1 attempt,",
+					"8 records, 7 deduplicated, 1 request, 1 question asked, 2841 in / 71 out tokens, model onesie-1.13.0, 1 attempt,",
 				},
 				wantOutHas: []string{`"urgent"`},
 			},
@@ -643,10 +643,10 @@ func TestWithStats(t *testing.T) {
 			{
 				name:   "should take tokens from the response and questions from the request",
 				status: http.StatusOK,
-				response: `{"model":"onesie-1.14.0","answers":{},` +
+				response: `{"model":"onesie-1.14.0","answers":{"a":{"type":"noul","noul":0.1},"b":{"type":"noul","noul":0.2}},` +
 					`"usage":{"input_tokens":12,"output_tokens":3}}`,
 				wantCode: ExitOK,
-				wantErr: "1 request, 2 questions, 12 in / 3 out, model onesie-1.14.0, " +
+				wantErr: "1 request, 2 questions asked, 12 in / 3 out tokens, model onesie-1.14.0, " +
 					"1 attempt, 10s/attempt,",
 			},
 			{
@@ -656,7 +656,7 @@ func TestWithStats(t *testing.T) {
 				status:   http.StatusUnprocessableEntity,
 				response: `{"error":{"message":"bad body"}}`,
 				wantCode: ExitRecords,
-				wantErr:  "1 request, 1 failed, 2 questions, 0 in / 0 out, 1 attempt, 10s/attempt,",
+				wantErr:  "1 request, 1 failed, 2 questions asked, 0 in / 0 out tokens, 1 attempt, 10s/attempt,",
 			},
 		}
 

@@ -2,12 +2,17 @@ package mock
 
 import (
 	"encoding/json"
+	"fmt"
+	"maps"
 	"math"
+	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/answer"
+	"github.com/frodi-karlsson/onesie/internal/num"
 	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
@@ -32,11 +37,19 @@ func TestEntryResult(t *testing.T) {
 	}{
 		{
 			name:       "should build a pick whose value is the name and whose confidence is as given",
-			file:       `{"t":{"value":"platform","confidence":0.4}}`,
+			file:       `{"t":{"value":"platform","confidence":0.6}}`,
 			question:   plan.Question{ID: "t", Shape: plan.Pick, Options: []plan.Option{{Name: "billing"}, {Name: "platform"}, {Name: "sales"}}},
 			value:      "platform",
-			confidence: 0.4,
-			p:          map[string]float64{"platform": 0.4, "billing": 0.3, "sales": 0.3},
+			confidence: 0.6,
+			p:          map[string]float64{"platform": 0.6, "billing": 0.2, "sales": 0.2},
+		},
+		{
+			name:       "should keep a low confidence pick at least twice as likely as any other option",
+			file:       `{"t":{"value":"platform","confidence":0.2}}`,
+			question:   three,
+			value:      "platform",
+			confidence: 0.2,
+			p:          map[string]float64{"platform": 0.5, "billing": 0.25, "sales": 0.25},
 		},
 		{
 			name:       "should build a rate whose value is the level and whose norm is its index over the top",
@@ -49,14 +62,24 @@ func TestEntryResult(t *testing.T) {
 			p:          map[string]float64{"1": 0, "2": 0, "3": 0, "4": 1, "5": 0},
 		},
 		{
+			name:       "should spread a rate's p by its confidence as a pick's, and average its score over p",
+			file:       `{"r":{"value":"2","confidence":0.6}}`,
+			question:   five,
+			value:      "2",
+			confidence: 0.6,
+			score:      1.5,
+			norm:       0.375,
+			p:          map[string]float64{"1": 0.1, "2": 0.6, "3": 0.1, "4": 0.1, "5": 0.1},
+		},
+		{
 			name:       "should keep the chosen level at a low confidence",
 			file:       `{"r":{"value":"2","confidence":0.1}}`,
 			question:   five,
 			value:      "2",
 			confidence: 0.1,
-			score:      1,
-			norm:       0.25,
-			p:          map[string]float64{"1": 0, "2": 1, "3": 0, "4": 0, "5": 0},
+			score:      1.8333,
+			norm:       0.4583,
+			p:          map[string]float64{"1": 0.1667, "2": 0.3334, "3": 0.1667, "4": 0.1667, "5": 0.1667},
 		},
 		{
 			name:       "should replay a score between levels as the real run printed it",
@@ -76,13 +99,13 @@ func TestEntryResult(t *testing.T) {
 			p:          map[string]float64{"billing": 0.3, "platform": 0.6, "sales": 0.1},
 		},
 		{
-			name:       "should replay the probabilities of a rate",
+			name:       "should replay the probabilities of a rate and average its score over them",
 			file:       `{"r":{"value":"curt","p":{"calm":0.1,"curt":0.5,"rude":0.4}}}`,
 			question:   rateQuestion("r", "calm", "curt", "rude"),
 			value:      "curt",
 			confidence: 1,
-			score:      1,
-			norm:       0.5,
+			score:      1.3,
+			norm:       0.65,
 			p:          map[string]float64{"calm": 0.1, "curt": 0.5, "rude": 0.4},
 		},
 		{
@@ -91,8 +114,8 @@ func TestEntryResult(t *testing.T) {
 			question:   plan.Question{ID: "b", Shape: plan.Rate, Levels: []plan.Level{{}, {}, {}}},
 			value:      "2",
 			confidence: 1,
-			score:      2,
-			norm:       1,
+			score:      1.6,
+			norm:       0.8,
 			p:          map[string]float64{"0": 0.1, "1": 0.2, "2": 0.7},
 		},
 		{
@@ -112,6 +135,12 @@ func TestEntryResult(t *testing.T) {
 			file:     `{"t":{"value":"platform","p":{"billing":-0.1,"platform":0.7,"sales":0.1}}}`,
 			question: three,
 			wantErr:  "onesie: --mock: question 't' has p for 'billing' of -0.1, which lies outside [0,1]",
+		},
+		{
+			name:     "should refuse p that does not add up to 1",
+			file:     `{"t":{"value":"platform","p":{"billing":0.1,"platform":0.5,"sales":0.1}}}`,
+			question: three,
+			wantErr:  "onesie: --mock: question 't' has p that adds up to 0.7, not 1",
 		},
 		{
 			name:     "should refuse p that is not an object",
@@ -207,6 +236,55 @@ func TestEntryResult(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("should synthesize a p that loads back for every value and confidence", func(t *testing.T) {
+		t.Parallel()
+
+		for levels := 1; levels <= 6; levels++ {
+			names := make([]string, 0, levels)
+			for i := range levels {
+				names = append(names, "l"+strconv.Itoa(i))
+			}
+
+			questions := []plan.Question{rateQuestion("q", names...)}
+			options := make([]plan.Option, 0, levels)
+			for _, name := range names {
+				options = append(options, plan.Option{Name: name})
+			}
+
+			questions = append(questions, plan.Question{ID: "q", Shape: plan.Pick, Options: options})
+
+			for _, question := range questions {
+				for _, value := range names {
+					for step := 0; step <= 20; step++ {
+						assertRoundTrip(t, question, value, float64(step)/20)
+					}
+
+					for _, confidence := range []float64{0.81014, 0.12345, 0.33333333} {
+						assertRoundTrip(t, question, value, confidence)
+					}
+				}
+			}
+		}
+	})
+
+	t.Run("should load a norm written exactly by an older onesie and one rounded to four places", func(t *testing.T) {
+		t.Parallel()
+
+		four := rateQuestion("q", "a", "b", "c", "d")
+
+		for _, norm := range []string{"0.3333333333333333", "0.3333"} {
+			file := `{"q":{"value":"b","score":1,"norm":` + norm + `}}`
+			if _, err := Load(strings.NewReader(file), []plan.Question{four}, Options{}); err != nil {
+				t.Errorf("Load(%s): %v", file, err)
+			}
+		}
+
+		file := `{"q":{"value":"b","score":1,"norm":0.334}}`
+		if _, err := Load(strings.NewReader(file), []plan.Question{four}, Options{}); err == nil {
+			t.Errorf("Load(%s) = nil, want a norm the score does not give refused", file)
+		}
+	})
 
 	t.Run("should name no model and bill nothing", func(t *testing.T) {
 		t.Parallel()
@@ -329,4 +407,76 @@ func TestBoxAnswer(t *testing.T) {
 			}
 		})
 	}
+}
+
+func assertRoundTrip(t *testing.T, question plan.Question, value string, confidence float64) {
+	t.Helper()
+
+	file := fmt.Sprintf(`{"q":{"value":%q,"confidence":%v}}`, value, confidence)
+
+	first := loadNormalized(t, question, file)
+
+	levels := len(question.Options) + len(question.Levels)
+	if want := math.Ceil(max(confidence, 2/float64(levels+1))*1e4-1e-6) / 1e4; first.P.Values[value] != want {
+		t.Errorf("%s: the value's p is %v, want %v", file, first.P.Values[value], want)
+	}
+
+	if first.P.Values[value] < confidence {
+		t.Errorf("%s: the value's p %v is below its confidence", file, first.P.Values[value])
+	}
+
+	rest := num.Rounded((1 - first.P.Values[value]) / float64(levels-1))
+
+	for key, share := range first.P.Values {
+		if key != value && share != rest {
+			t.Errorf("%s: p[%s] = %v, want an even share of the rest, %v", file, key, share, rest)
+		}
+
+		if key != value && share >= first.P.Values[value] {
+			t.Errorf("%s: p[%s] = %v, want it below the value's %v", file, key, share, first.P.Values[value])
+		}
+	}
+
+	if sum, fits := answer.SumFits(slices.Collect(maps.Values(first.P.Values))); !fits {
+		t.Errorf("%s: p sums to %v, want 1 within the sum check", file, sum)
+	}
+
+	printed, err := json.Marshal(first)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	replayed := loadNormalized(t, question, fmt.Sprintf(`{"q":%s}`, printed))
+
+	again, err := json.Marshal(replayed)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if string(again) != string(printed) {
+		t.Errorf("%s printed %s, which replays as %s", file, printed, again)
+	}
+}
+
+func loadNormalized(t *testing.T, question plan.Question, file string) *answer.Answer {
+	t.Helper()
+
+	answers, err := Load(strings.NewReader(file), []plan.Question{question}, Options{})
+	if err != nil {
+		t.Fatalf("Load(%s): %v", file, err)
+	}
+
+	entry, _ := answers.Lookup(1, nil)
+
+	result, err := entry.Result()
+	if err != nil {
+		t.Fatalf("Result: %v", err)
+	}
+
+	normalized, err := answer.Normalize(question, result.Answers[question.ID])
+	if err != nil {
+		t.Fatalf("Normalize: %v", err)
+	}
+
+	return normalized
 }

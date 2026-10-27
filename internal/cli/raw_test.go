@@ -44,7 +44,7 @@ func TestStreamRaw(t *testing.T) {
 			args:     []string{"-i", "request"},
 			stdin:    "{\"state\":\"one\"}\n{\"state\":\"two\"}\n",
 			response: answered,
-			wantSent: []string{`{"state":"one"}`, `{"state":"two"}`},
+			wantSent: []string{`{"model":"jev-latest","state":"one"}`, `{"model":"jev-latest","state":"two"}`},
 			wantOut:  []string{answered, answered},
 			wantCode: ExitOK,
 		},
@@ -62,7 +62,7 @@ func TestStreamRaw(t *testing.T) {
 			args:     []string{"-i", "request", "--skip-blank"},
 			stdin:    "{\"state\":\"one\"}\n\n{\"state\":\"two\"}\n",
 			response: answered,
-			wantSent: []string{`{"state":"one"}`, `{"state":"two"}`},
+			wantSent: []string{`{"model":"jev-latest","state":"one"}`, `{"model":"jev-latest","state":"two"}`},
 			wantOut:  []string{answered, answered},
 			wantCode: ExitOK,
 		},
@@ -71,7 +71,7 @@ func TestStreamRaw(t *testing.T) {
 			args:     []string{"-i", "request"},
 			stdin:    "{\"state\":\"a\"}\n{\"state\":\"b\"}\n",
 			response: `{"answers":{}}` + "\n",
-			wantSent: []string{`{"state":"a"}`, `{"state":"b"}`},
+			wantSent: []string{`{"model":"jev-latest","state":"a"}`, `{"model":"jev-latest","state":"b"}`},
 			wantOut:  []string{`{"answers":{}}`, `{"answers":{}}`},
 			wantCode: ExitOK,
 		},
@@ -79,35 +79,34 @@ func TestStreamRaw(t *testing.T) {
 			name:     "should write one line for a pretty printed response",
 			args:     []string{"-i", "request"},
 			stdin:    "{\"state\":\"a\"}\n{\"state\":\"b\"}\n",
-			response: "{\n  \"answers\": {\n    \"a\": 1\n  }\n}\n",
-			wantSent: []string{`{"state":"a"}`, `{"state":"b"}`},
-			wantOut:  []string{`{"answers":{"a":1}}`, `{"answers":{"a":1}}`},
-			wantCode: ExitOK,
-		},
-		{
-			name:     "should write one line for a response that is not JSON at all",
-			args:     []string{"-i", "request"},
-			stdin:    "{\"state\":\"a\"}\n",
-			response: "not json\nat all\n",
-			wantSent: []string{`{"state":"a"}`},
-			wantOut:  []string{"not json at all"},
+			response: "{\n  \"answers\": {\n    \"a\": {\"type\": \"noul\", \"noul\": 1}\n  }\n}\n",
+			wantSent: []string{`{"model":"jev-latest","state":"a"}`, `{"model":"jev-latest","state":"b"}`},
+			wantOut:  []string{`{"answers":{"a":{"type":"noul","noul":1}}}`, `{"answers":{"a":{"type":"noul","noul":1}}}`},
 			wantCode: ExitOK,
 		},
 		{
 			name:     "should send a body the way --print-request printed it",
 			args:     []string{"-i", "request"},
-			stdin:    `{"state":"a < b & c > d"}` + "\n",
+			stdin:    `{"model":"jev-latest","state":"a < b & c > d"}` + "\n",
 			response: answered,
-			wantSent: []string{`{"state":"a < b & c > d"}`},
+			wantSent: []string{`{"model":"jev-latest","state":"a < b & c > d"}`},
 			wantOut:  []string{answered},
 			wantCode: ExitOK,
 		},
 		{
-			name:     "should print a spaced body unchanged under --print-request",
+			name:     "should print a spaced body with the model filled in and its values as written under --print-request",
 			args:     []string{"-i", "request", "--print-request"},
-			stdin:    "{\"state\": \"a < b\"}\n",
+			stdin:    "{\"state\": \"a < b\", \"n\": 1.50}\n",
 			response: answered,
-			wantOut:  []string{`{"state": "a < b"}`},
+			wantOut:  []string{`{"model":"jev-latest","state":"a < b","n":1.50}`},
+			wantCode: ExitOK,
+		},
+		{
+			name:     "should print long_context as true under --long-context with --print-request",
+			args:     []string{"-i", "request", "--print-request", "--long-context"},
+			stdin:    "{\"model\":\"jev-own\",\"long_context\":false,\"state\":\"a\"}\n",
+			response: answered,
+			wantOut:  []string{`{"model":"jev-own","long_context":true,"state":"a"}`},
 			wantCode: ExitOK,
 		},
 		{
@@ -266,6 +265,70 @@ func TestStreamRaw(t *testing.T) {
 		}
 	})
 
+	t.Run("should refuse a 200 that is no System One result or does not fit its request", func(t *testing.T) {
+		t.Parallel()
+
+		const asked = `{"state":"x","model":"m","questions":{"u":{"type":"noul","instructions":"q"}}}`
+
+		tests := []struct {
+			name     string
+			stdin    string
+			response string
+			want     string
+		}{
+			{name: "should refuse a body that is not JSON", stdin: asked, response: "garbage", want: "the response is not JSON"},
+			{
+				name: "should refuse a result with no answers object", stdin: `{"state":"x"}`, response: `{"x":1}`,
+				want: "the response is not a System One result, since it has no answers",
+			},
+			{
+				name: "should refuse an answer that carries only its type", stdin: asked,
+				response: `{"answers":{"u":{"type":"noul"}}}`, want: "answer 'u' has no noul, or it is null",
+			},
+			{
+				name: "should refuse an answer the request did not get", stdin: asked,
+				response: `{"answers":{"v":{"type":"noul","noul":0.5}}}`, want: "question 'u' has no answer",
+			},
+			{
+				name: "should refuse an answer outside its range", stdin: asked,
+				response: `{"answers":{"u":{"type":"noul","noul":1.5}}}`,
+				want:     "question 'u' answered 1.5, which lies outside [0,1]",
+			},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				_, out, errOut, code := runRequestMode(t, []string{"-i", "request", "--stats"}, tc.stdin+"\n", 0, tc.response)
+				if code != ExitRecords {
+					t.Errorf("exit code = %d, want %d\nstdout:\n%s\nstderr:\n%s", code, ExitRecords, out, errOut)
+				}
+
+				lines := outputLines(out)
+				if len(lines) != 1 || !strings.HasPrefix(lines[0], `{"error":{"kind":"response","status":200,`) ||
+					!strings.Contains(lines[0], "response could not be used: "+tc.want) {
+					t.Errorf("stdout = %q, want one response error line naming %q", out, tc.want)
+				}
+
+				if !strings.Contains(errOut, "1 failed") {
+					t.Errorf("stderr = %q, want the record counted as failed", errOut)
+				}
+			})
+		}
+	})
+
+	t.Run("should count the tokens of a 200 it could not use", func(t *testing.T) {
+		t.Parallel()
+
+		_, out, errOut, code := runRequestMode(t, []string{"-i", "request", "--stats"},
+			`{"state":"x","model":"m","questions":{"u":{"type":"noul","instructions":"q"}}}`+"\n", 0,
+			`{"answers":{"u":{"type":"noul","noul":2}},"usage":{"input_tokens":10,"output_tokens":2}}`)
+		if code != ExitRecords || !strings.Contains(errOut, "10 in / 2 out tokens") {
+			t.Errorf("exit code = %d, stderr = %q, want %d and the tokens counted\nstdout:\n%s", code, errOut, ExitRecords, out)
+		}
+	})
+
 	t.Run("should keep multiple requests in flight under -j", func(t *testing.T) {
 		t.Parallel()
 
@@ -352,7 +415,7 @@ func TestStreamRaw(t *testing.T) {
 			{
 				name:     "should write a record as it completes rather than in input order",
 				args:     []string{"-i", "request", "--unordered", "-j", "3"},
-				wantLast: `{"state":0}`,
+				wantLast: `{"model":"m","answers":{},"state":0}`,
 			},
 		}
 
@@ -376,7 +439,7 @@ func TestStreamRaw(t *testing.T) {
 						t.Errorf("reading the request body: %v", err)
 					}
 
-					if bytes.Contains(body, []byte(`{"state":0}`)) {
+					if bytes.Contains(body, []byte(`"state":0}`)) {
 						select {
 						case <-others:
 						case <-time.After(3 * time.Second):
@@ -406,7 +469,8 @@ func TestStreamRaw(t *testing.T) {
 				defer srv.Close()
 
 				out, errOut, code := runAgainst(
-					t, tc.args, "{\"state\":0}\n{\"state\":1}\n{\"state\":2}\n", srv.URL)
+					t, tc.args, "{\"model\":\"m\",\"answers\":{},\"state\":0}\n{\"model\":\"m\",\"answers\":{},\"state\":1}\n"+
+						"{\"model\":\"m\",\"answers\":{},\"state\":2}\n", srv.URL)
 
 				if code != ExitOK {
 					t.Fatalf("exit code = %d, want %d\nstdout:\n%s\nstderr:\n%s",
@@ -523,7 +587,7 @@ func TestStreamRaw(t *testing.T) {
 
 				// The bodies a real run sends are the printed ones, byte for byte.
 				sent, out, errOut, code := runRequestMode(
-					t, []string{"-i", "request"}, printed, 0, `{"answers":{}}`)
+					t, []string{"-i", "request"}, printed, 0, `{"answers":{"urgent":{"type":"noul","noul":0.5}}}`)
 				if code != ExitOK {
 					t.Fatalf("sending exit code = %d, want %d\nstdout:\n%s\nstderr:\n%s",
 						code, ExitOK, out, errOut)
@@ -536,10 +600,122 @@ func TestStreamRaw(t *testing.T) {
 		}
 	})
 
+	t.Run("should fill in the resolved model for a body that names none", func(t *testing.T) {
+		t.Parallel()
+
+		const bare = `{"state":"x","questions":{"q":{"type":"noul","instructions":"q"}}}`
+
+		profiles := `{"default":"work","profiles":{"work":{"provider":"typesafe","api_key":"SECRET-W",` +
+			`"base_url":"{url}","model":"jev-profile"}}}`
+
+		tests := []struct {
+			name     string
+			profiles string
+			env      map[string]string
+			args     []string
+			stdin    string
+			want     string
+		}{
+			{
+				name:     "should send the profile's model",
+				profiles: profiles,
+				args:     []string{"-i", "request"},
+				stdin:    bare,
+				want:     `{"model":"jev-profile","state":"x","questions":{"q":{"type":"noul","instructions":"q"}}}`,
+			},
+			{
+				name:     "should print the profile's model under --print-request",
+				profiles: profiles,
+				args:     []string{"-i", "request", "--print-request"},
+				stdin:    bare,
+				want:     `{"model":"jev-profile","state":"x","questions":{"q":{"type":"noul","instructions":"q"}}}`,
+			},
+			{
+				name:  "should send the default model variable with no profile",
+				env:   map[string]string{onesie.EnvAPIKey: "SECRET-ENV", onesie.EnvBaseURL: "{url}", onesie.EnvDefaultModel: "jev-env"},
+				args:  []string{"-i", "request"},
+				stdin: bare,
+				want:  `{"model":"jev-env","state":"x","questions":{"q":{"type":"noul","instructions":"q"}}}`,
+			},
+			{
+				name:     "should keep the model a body names",
+				profiles: profiles,
+				args:     []string{"-i", "request", "--print-request"},
+				stdin:    `{"model":"jev-own","state":"x"}`,
+				want:     `{"model":"jev-own","state":"x"}`,
+			},
+			{
+				name:     "should fill an empty object",
+				profiles: profiles,
+				args:     []string{"-i", "request", "--print-request"},
+				stdin:    `{}`,
+				want:     `{"model":"jev-profile"}`,
+			},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				var (
+					mu   sync.Mutex
+					sent []string
+				)
+
+				srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					body, err := io.ReadAll(r.Body)
+					if err != nil {
+						t.Errorf("reading the request body: %v", err)
+					}
+
+					mu.Lock()
+					sent = append(sent, string(body))
+					mu.Unlock()
+
+					w.Header().Set("Content-Type", "application/json")
+
+					if _, err := io.WriteString(w, `{"model":"jev-1.14.0","answers":{"q":{"type":"noul","noul":0.5}}}`); err != nil {
+						t.Errorf("writing the stub response: %v", err)
+					}
+				}))
+				t.Cleanup(srv.Close)
+
+				fill := strings.NewReplacer("{url}", srv.URL).Replace
+
+				env := map[string]string{}
+				for name, value := range tc.env {
+					env[name] = fill(value)
+				}
+
+				dir := t.TempDir()
+				if tc.profiles != "" {
+					dir = configWith(t, fill(tc.profiles))
+				}
+
+				out, errOut, code := runInConfig(t, dir, tc.args, tc.stdin+"\n", env)
+				if code != ExitOK {
+					t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, ExitOK, errOut)
+				}
+
+				mu.Lock()
+				defer mu.Unlock()
+
+				got := strings.TrimSuffix(out, "\n")
+				if len(sent) > 0 {
+					got = sent[0]
+				}
+
+				if got != tc.want {
+					t.Errorf("body = %s, want %s", got, tc.want)
+				}
+			})
+		}
+	})
+
 	t.Run("should check long context against the run's resolved model", func(t *testing.T) {
 		t.Parallel()
 
-		body := `{"state":"s","questions":{"q":{"type":"noul","instructions":"q"}}}` + "\n"
+		body := `{"state":"s","questions":{"answer":{"type":"noul","instructions":"q"}}}` + "\n"
 
 		tests := []struct {
 			name     string
@@ -1151,7 +1327,8 @@ func runAgainst(
 			WithStdin(strings.NewReader(stdin)),
 			WithStdinTTY(false),
 			WithStdoutTTY(false),
-			WithLookupEnv(func(string) (string, bool) { return "", false }),
+			// An empty config dir, so the developer's own profiles never choose the model a body takes.
+			WithLookupEnv(lookupFrom(map[string]string{"ONESIE_CONFIG_DIR": t.TempDir()})),
 		}, extra...)...,
 	)
 

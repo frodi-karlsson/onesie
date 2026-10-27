@@ -37,6 +37,13 @@ func run(
 ) error {
 	flags.timeoutSet = cmd.Flags().Changed(flagTimeout)
 
+	env, err := readSwitches(cmd, settings.lookupEnv, flags)
+	if err != nil {
+		return err
+	}
+
+	flags.env = env
+
 	cfg, inputMode, err := configOf(cmd, events, positional, flags)
 	if err != nil {
 		return err
@@ -65,10 +72,10 @@ func run(
 			return checkErr
 		}
 
-		// Each body names its own model, and onesie sends it as written, so the fingerprint holds
-		// no model for the default to fill.
+		// Each body names its own model or takes the run's, and the fingerprint holds no model, as
+		// it holds nothing else a body carries.
 		if bindErr := bindOut(out, settings, flags, nil, fingerprintInputs{
-			input: inputMode.String(), longContext: longContext(settings, flags),
+			input: inputMode.String(), longContext: flags.env.longContext,
 		}); bindErr != nil {
 			return bindErr
 		}
@@ -1259,18 +1266,16 @@ func answered(
 		record.Usage = &usage
 	}
 
-	// SystemOne already refused a response missing any of these questions, since every caller asks
-	// built.Questions.
-	for _, question := range built.Questions {
-		normalized, normErr := answer.Normalize(question, result.Answers[question.ID])
-		if normErr != nil {
-			return spent(failureRecord(built, normErr), record.Usage), result.Usage, got.cached, normErr
-		}
+	normalized, normErr := answer.NormalizeAll(built.Questions, result)
+	if normErr != nil {
+		return spent(failureRecord(built, normErr), record.Usage), result.Usage, got.cached, normErr
+	}
 
-		answer.Apply(question, normalized)
+	for i, question := range built.Questions {
+		answer.Apply(question, normalized[i])
 
 		record.Answers = append(record.Answers,
-			output.Named{ID: question.ID, Answer: normalized, Box: question.Shape == plan.Box})
+			output.Named{ID: question.ID, Answer: normalized[i], Box: question.Shape == plan.Box})
 	}
 
 	return record, result.Usage, got.cached, nil
@@ -1368,6 +1373,7 @@ func outputName(flags *runFlags) string {
 }
 
 type runFlags struct {
+	version     bool
 	provider    string
 	providerSet bool
 	profile     string
@@ -1399,21 +1405,23 @@ type runFlags struct {
 	stats          bool
 	cache          bool
 
-	jobs          int
-	timeout       int
-	retries       int
-	maxRetryAfter int
-	unordered     bool
-	stopOnError   bool
-	stopOnAssert  bool
-	skipBlank     bool
-	noDedup       bool
-	merge         bool
-	mergeKey      string
-	mapSource     string
-	idSource      string
-	images        []string
-	imageFields   []string
-	timeoutSet    bool
-	longContext   bool
+	jobs           int
+	timeout        int
+	retries        int
+	maxRetryAfter  int
+	unordered      bool
+	stopOnError    bool
+	stopOnAssert   bool
+	skipBlank      bool
+	noDedup        bool
+	merge          bool
+	mergeKey       string
+	mapSource      string
+	idSource       string
+	images         []string
+	imageFields    []string
+	timeoutSet     bool
+	longContext    bool
+	longContextSet bool
+	env            switches
 }

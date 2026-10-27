@@ -22,6 +22,7 @@ notices=$(printf '%s\n' "$status" | grep -e "$converted" -e "$unprofiled" -e "$u
 report=$(printf '%s\n' "$status" | grep -v -e "$converted" -e "$unprofiled" -e "$unwritten" -e "$unlinked" -e "$warned")
 profile=$(printf '%s\n' "$report" | sed -n 's/^profile: //p')
 provider=$(printf '%s\n' "$report" | sed -n 's/^provider: //p')
+chosen=$(printf '%s\n' "$report" | sed -n 's/^chosen by: //p')
 key=$(printf '%s\n' "$report" | sed -n 's/^key: //p')
 account=$(printf '%s\n' "$report" | sed -n 's/^account: //p')
 allow_http=$(printf '%s\n' "$report" | sed -n 's/^allow_http: //p')
@@ -39,7 +40,12 @@ case "$key" in
       cloudflare) variable=CLOUDFLARE_API_TOKEN ;;
       *) variable=TYPESAFE_API_KEY ;;
     esac
-    printf 'onesie is on PATH, but no API key resolves for provider %s. Only --print-request, --print-questions, --print-schema and --mock work until the user runs onesie profile create NAME --provider %s or sets %s. The onesie-setup skill walks them through it.\n' "$provider" "$provider" "$variable"
+    # A profile is never used while ONESIE_PROVIDER chooses the run, so creating one is no fix there.
+    if [ "$chosen" = ONESIE_PROVIDER ]; then
+      printf 'onesie is on PATH, but no API key resolves for provider %s. Only --print-request, --print-questions, --print-schema and --mock work until the user sets %s. ONESIE_PROVIDER is set, so a stored profile is not used. To use one instead, the user unsets ONESIE_PROVIDER and runs onesie profile create NAME --provider %s. The onesie-setup skill walks them through it.\n' "$provider" "$variable" "$provider"
+    else
+      printf 'onesie is on PATH, but no API key resolves for provider %s. Only --print-request, --print-questions, --print-schema and --mock work until the user runs onesie profile create NAME --provider %s or sets %s. The onesie-setup skill walks them through it.\n' "$provider" "$provider" "$variable"
+    fi
     ;;
   ?*)
     if [ "$account" != none ]; then

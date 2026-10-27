@@ -283,6 +283,11 @@ func TestLoad(t *testing.T) {
 			wantErr: `onesie: --mock: question 'u' answered "yes", which is not a probability`,
 		},
 		{
+			name:    "should refuse a written p that does not add up to 1, naming the line",
+			file:    "{" + full + "}\n" + `{"u":0.9,"t":{"value":"billing","p":{"billing":0.5,"platform":0.2}},"r":"curt"}`,
+			wantErr: "onesie: --mock line 2: question 't' has p that adds up to 0.7, not 1",
+		},
+		{
 			name:    "should refuse a number that names no option",
 			file:    `{"u":0.9,"t":7,"r":"curt"}`,
 			wantErr: "onesie: --mock: question 't' picked '7', which is not an option. Options: billing, platform",

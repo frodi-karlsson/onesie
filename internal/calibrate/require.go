@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 	"unicode"
+
+	"github.com/frodi-karlsson/onesie/internal/num"
 )
 
 const (
@@ -379,19 +381,24 @@ func (r Result) String() string {
 	switch {
 	case !r.HasValue:
 	case r.HasInterval:
-		measured = countedShare(Share{
-			Hits: r.Hits, Of: r.Of, Rate: r.Value, Low: r.Low, High: r.High, Defined: true,
-		})
+		// The four place numbers the requirement compared, not the table's percents, so a miss by
+		// less than a percent still shows.
+		measured = fmt.Sprintf("%d/%d is %s, interval %s to %s", r.Hits, r.Of,
+			num.Format(r.Value), num.Format(r.Low), num.Format(r.High))
 	default:
-		measured = "AUC " + strconv.FormatFloat(r.Value, 'f', 2, 64)
+		measured = "AUC " + num.Format(r.Value)
 	}
 
 	line := fmt.Sprintf("'%s' %s: %s", r.Source, verdict, measured)
-	if r.HasCut {
-		line += " at cut " + cutText(r.Cut)
+	if !r.HasCut {
+		return line
 	}
 
-	return line
+	if r.HasValue && r.HasInterval {
+		line += ","
+	}
+
+	return line + " at cut " + cutText(r.Cut)
 }
 
 // Measure names what a requirement reads from a question's score.

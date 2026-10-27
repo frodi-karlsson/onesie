@@ -468,7 +468,7 @@ func TestStream(t *testing.T) {
 				wantCode:  cli.ExitRejected,
 				wantLines: 3,
 				wantFalse: 1,
-				wantErr:   "3 requests, 1 false assertion, 3 questions",
+				wantErr:   "3 records, 1 false assertion, 3 requests, 3 questions",
 			},
 			{
 				name: "should count a false assertion on every record that shares a request",
@@ -541,7 +541,7 @@ func TestStream(t *testing.T) {
 				wantCode:  cli.ExitAbstain,
 				wantLines: 3,
 				contains:  []string{`{"line":2,"abstain":true,"model":"onesie-1.13.0","answer":{"value":0.9}}`},
-				wantErr:   "3 requests, 1 abstain, 3 questions",
+				wantErr:   "3 records, 1 abstain, 3 requests, 3 questions",
 			},
 			{
 				name: "should count an abstain on every record that shares a request",
@@ -1737,8 +1737,9 @@ func TestStream(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		// a scores 0.7*0.9 + 0.3*(1 - 1/3) = 0.83 and b scores 0.7*0.4 + 0.3*1 = 0.58.
-		if want := `[{"id":"a","score":0.83},{"id":"b","score":0.58}]`; !sameRanking(t, encoded, want) {
+		// a scores 0.7*0.9 + 0.3*(1 - 0.3333) = 0.83001, with norm rounded to four places, and b
+		// scores 0.7*0.4 + 0.3*1 = 0.58.
+		if want := `[{"id":"a","score":0.83001},{"id":"b","score":0.58}]`; !sameRanking(t, encoded, want) {
 			t.Errorf("ranked = %s, want %s", encoded, want)
 		}
 	})

@@ -3,6 +3,7 @@ package output_test
 import (
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/answer"
@@ -72,6 +73,8 @@ func TestWriteTable(t *testing.T) {
 	t.Parallel()
 
 	confidence := 0.81
+	sharp := 0.977
+	cost := 0.0000123
 	score := 1.0
 	norm := 0.5
 
@@ -172,6 +175,19 @@ func TestWriteTable(t *testing.T) {
 				},
 			},
 			contains: []string{"2841 in", "71 out"},
+			absent:   []string{"$"},
+		},
+		{
+			name:    "should add the cost to the usage in the header",
+			columns: 80,
+			rec: output.Record{
+				Model: "onesie-1.13.0",
+				Usage: &onesie.Usage{InputTokens: 2841, OutputTokens: 71, Cost: &cost},
+				Answers: []output.Named{
+					{ID: "urgent", Answer: &answer.Answer{Value: 0.92}},
+				},
+			},
+			contains: []string{"model onesie-1.13.0  2841 in / 71 out  $0.0000123\n"},
 		},
 		{
 			name:    "should draw a bar per option",
@@ -223,7 +239,7 @@ func TestWriteTable(t *testing.T) {
 					}},
 				},
 			},
-			contains: []string{"score 1.0000", "norm 0.5000"},
+			contains: []string{"score 1  norm 0.5\n"},
 		},
 		{
 			name:    "should omit the score and the norm of a yes/no answer",
@@ -324,40 +340,68 @@ func TestWriteTable(t *testing.T) {
 			contains: []string{"urgent  0.92\n"},
 		},
 		{
-			name: "should pad a yes/no probability to two decimals",
+			name: "should print a yes/no probability as -o json writes it",
 			rec: output.Record{
 				Model:   "onesie-1.13.0",
 				Answers: []output.Named{{ID: "urgent", Answer: &answer.Answer{Value: 0.1}}},
 			},
 			columns:  80,
-			contains: []string{"urgent  0.10\n"},
+			contains: []string{"urgent  0.1\n"},
 		},
 		{
-			name: "should print a zero probability to two places",
+			name: "should print a zero probability as -o json writes it",
 			rec: output.Record{
 				Model:   "onesie-1.13.0",
 				Answers: []output.Named{{ID: "urgent", Answer: &answer.Answer{Value: 0.0}}},
 			},
 			columns:  80,
-			contains: []string{"urgent  0.00\n"},
+			contains: []string{"urgent  0\n"},
 		},
 		{
-			name: "should print a certain probability to two places",
+			name: "should print a certain probability as -o json writes it",
 			rec: output.Record{
 				Model:   "onesie-1.13.0",
 				Answers: []output.Named{{ID: "urgent", Answer: &answer.Answer{Value: 1.0}}},
 			},
 			columns:  80,
-			contains: []string{"urgent  1.00\n"},
+			contains: []string{"urgent  1\n"},
 		},
 		{
-			name: "should keep every decimal a yes/no probability carries past two",
+			name: "should keep every decimal a yes/no probability carries",
 			rec: output.Record{
 				Model:   "onesie-1.13.0",
 				Answers: []output.Named{{ID: "urgent", Answer: &answer.Answer{Value: 0.795}}},
 			},
 			columns:  80,
 			contains: []string{"urgent  0.795\n"},
+		},
+		{
+			name: "should print a confidence and p unrounded, as -o json writes them",
+			rec: output.Record{
+				Answers: []output.Named{{ID: "team", Answer: &answer.Answer{
+					Value: "billing", Confidence: &sharp,
+					P: &answer.Probabilities{
+						Keys:   []string{"billing", "sales"},
+						Values: map[string]float64{"billing": 0.58984375, "sales": 0.41015625},
+					},
+				}}},
+			},
+			columns:  80,
+			contains: []string{"  confidence 0.977\n", " 0.58984375\n", " 0.41015625\n"},
+		},
+		{
+			name: "should fit a long probability inside the width",
+			rec: output.Record{
+				Answers: []output.Named{{ID: "team", Answer: &answer.Answer{
+					Value: "billing",
+					P: &answer.Probabilities{
+						Keys:   []string{"billing", "sales"},
+						Values: map[string]float64{"billing": 0.6666666666666666, "sales": 0.33333333333333337},
+					},
+				}}},
+			},
+			columns:  80,
+			contains: []string{" 0.33333333333333337\n"},
 		},
 		{
 			name: "should leave a decided pick answer unchanged",
@@ -399,6 +443,30 @@ func TestWriteTable(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("should keep every line inside the width when a probability is long", func(t *testing.T) {
+		t.Parallel()
+
+		var buf strings.Builder
+
+		rec := output.Record{Answers: []output.Named{{ID: "team", Answer: &answer.Answer{
+			Value: "billing",
+			P: &answer.Probabilities{
+				Keys:   []string{"billing", "sales"},
+				Values: map[string]float64{"billing": 0.6666666666666666, "sales": 0.33333333333333337},
+			},
+		}}}}
+
+		if err := output.WriteTable(&buf, rec, 80); err != nil {
+			t.Fatal(err)
+		}
+
+		for line := range strings.SplitSeq(buf.String(), "\n") {
+			if width := utf8.RuneCountInString(line); width > 80 {
+				t.Errorf("line %q is %d wide, want at most 80", line, width)
+			}
+		}
+	})
 
 	t.Run("should not panic on an extreme bar width", func(t *testing.T) {
 		t.Parallel()

@@ -14,6 +14,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/frodi-karlsson/onesie-go"
+	"github.com/frodi-karlsson/onesie/internal/output"
 )
 
 func withStats(
@@ -76,6 +77,7 @@ type collector struct {
 	questions      int
 	inputTokens    int
 	outputTokens   int
+	cost           *float64
 	models         map[string]struct{}
 	attempts       int
 	failedAttempts map[int]int // Non 2xx attempts by status. Less terminal, it is the retry breakdown.
@@ -152,8 +154,7 @@ func (c *collector) record(model string, usage onesie.Usage, questions int) {
 	c.records++
 	c.requests++
 	c.questions += questions
-	c.inputTokens += usage.InputTokens
-	c.outputTokens += usage.OutputTokens
+	c.addUsage(usage)
 
 	if model != "" {
 		if c.models == nil {
@@ -185,8 +186,21 @@ func (c *collector) spend(usage onesie.Usage) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
+	c.addUsage(usage)
+}
+
+func (c *collector) addUsage(usage onesie.Usage) {
 	c.inputTokens += usage.InputTokens
 	c.outputTokens += usage.OutputTokens
+
+	if usage.Cost != nil {
+		cost := *usage.Cost
+		if c.cost != nil {
+			cost += *c.cost
+		}
+
+		c.cost = &cost
+	}
 }
 
 func (c *collector) unusable() {
@@ -310,7 +324,7 @@ func (c *collector) snapshot(attemptTimeout, elapsed time.Duration) Stats {
 		Records: c.records, Skipped: c.skipped, Dedups: c.dedups, Cached: c.cached, Requests: c.requests,
 		Failed:       c.failed,
 		FalseAsserts: c.falseAsserts, Abstains: c.abstainCount, Questions: c.questions,
-		InputTokens: c.inputTokens, OutputTokens: c.outputTokens,
+		InputTokens: c.inputTokens, OutputTokens: c.outputTokens, Cost: c.cost,
 		Models: slices.Sorted(maps.Keys(c.models)), Attempts: c.attempts, Retries: retries,
 		AttemptTimeout: attemptTimeout, Elapsed: elapsed,
 	}
@@ -322,7 +336,8 @@ type Stats struct {
 	// records the file answered.
 	Mocked bool
 	// Records is every input record a resume did not skip. Requests is the subset that reached the
-	// client, which is smaller whenever a line failed to parse.
+	// client, which is smaller whenever a line failed to parse, the cache answered or a request was
+	// shared.
 	Records int
 	// Skipped counts the records a resume left alone, since the file already answered them.
 	Skipped int
@@ -339,10 +354,13 @@ type Stats struct {
 	FalseAsserts int
 	// Abstains counts the records whose assertion did not hold and whose abstain expression did, a
 	// resume's skipped ones included.
-	Abstains       int
-	Questions      int
-	InputTokens    int
-	OutputTokens   int
+	Abstains int
+	// Questions counts the questions the requests asked, so a record the cache answered adds none.
+	Questions    int
+	InputTokens  int
+	OutputTokens int
+	// Cost is the summed cost the provider reported, nil when it reported none.
+	Cost           *float64
 	Models         []string
 	Attempts       int
 	Retries        map[int]int
@@ -354,13 +372,16 @@ type Stats struct {
 func (s Stats) String() string {
 	parts := make([]string, 0, 10)
 
-	// A non streaming run has one record and one request and says so once. A stream reports both
-	// only when they differ, which is exactly when a record never became a request.
-	split := s.Records > s.Requests
+	// A run of one record that became one request says so once. Any other run leads with the
+	// records, every one it read, those a resume skipped included, so each count after them reads as
+	// a part of that whole. A mock run says how many the mock answered in the same clause when that
+	// is all of them.
+	total := s.Records + s.Skipped
+	split := total > s.Requests || (!s.Mocked && total != 1)
 
 	switch {
 	case split:
-		parts = append(parts, plural(s.Records, "record"))
+		parts = append(parts, plural(total, "record"))
 	case s.Mocked:
 		parts = append(parts, plural(s.Requests, "record")+" answered from the mock")
 	default:
@@ -368,7 +389,7 @@ func (s Stats) String() string {
 	}
 
 	if s.Skipped > 0 {
-		parts = append(parts, fmt.Sprintf("%d skipped", s.Skipped))
+		parts = append(parts, fmt.Sprintf("%d skipped by --resume", s.Skipped))
 	}
 
 	if s.Dedups > 0 {
@@ -400,17 +421,25 @@ func (s Stats) String() string {
 	}
 
 	parts = append(parts,
-		plural(s.Questions, "question"),
-		fmt.Sprintf("%d in / %d out", s.InputTokens, s.OutputTokens))
+		plural(s.Questions, "question")+" asked",
+		fmt.Sprintf("%d in / %d out tokens", s.InputTokens, s.OutputTokens))
+
+	if s.Cost != nil {
+		parts = append(parts, output.Cost(*s.Cost))
+	}
 
 	if model := s.modelClause(); model != "" {
 		parts = append(parts, model)
 	}
 
-	return strings.Join(append(parts,
-		s.attemptClause(),
-		s.AttemptTimeout.String()+"/attempt",
-		roundElapsed(s.Elapsed)), ", ")
+	parts = append(parts, s.attemptClause())
+
+	// A run that made no attempt waited on none, so a per attempt timeout would describe nothing.
+	if s.Attempts > 0 {
+		parts = append(parts, s.AttemptTimeout.String()+"/attempt")
+	}
+
+	return strings.Join(append(parts, roundElapsed(s.Elapsed)), ", ")
 }
 
 func (s Stats) mockedTail(parts []string, split bool) string {
@@ -420,7 +449,7 @@ func (s Stats) mockedTail(parts []string, split bool) string {
 		parts = append(parts, fmt.Sprintf("%d answered from the mock", s.Requests))
 	}
 
-	return strings.Join(append(parts, plural(s.Questions, "question"), roundElapsed(s.Elapsed)), ", ")
+	return strings.Join(append(parts, plural(s.Questions, "question")+" answered", roundElapsed(s.Elapsed)), ", ")
 }
 
 func roundElapsed(d time.Duration) string {

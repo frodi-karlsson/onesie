@@ -31,7 +31,10 @@ import (
 
 const annotationAsksNothing = "onesie-asks-nothing"
 
-var pastTag = regexp.MustCompile(`-[0-9]+-g[0-9a-f]+$`)
+var (
+	pastTag       = regexp.MustCompile(`-[0-9]+-g[0-9a-f]+$`)
+	errEmptyValue = errors.New("empty value")
+)
 
 // Changed reports false for a name pflag does not know, and reports no error, so a name that has
 // to survive a rename is spelled once. A flag nothing passes to Changed needs no constant.
@@ -154,8 +157,7 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 			"first, as in onesie -o json -- '-is this urgent'. So does a one word question close to " +
 			"a subcommand name, since onesie questoins exits 2 and names questions as the closest.\n\n" +
 			exitCodesSection(rootExitCodes),
-		Version: info.Version,
-		Args:    atMostOneQuestion,
+		Args: rootArgs(flags),
 		// Cobra otherwise buries every returned error under the full help text. Execute owns the
 		// reporting instead.
 		SilenceUsage:  true,
@@ -164,6 +166,13 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 			defer func() {
 				err = withKeyHint(withDashQuestionHint(err, cmd.Flags(), settings.args, args), settings)
 			}()
+
+			flags.longContextSet = cmd.Flags().Changed(flagLongContext)
+
+			// Not cobra's own version flag, which prints before any argument is checked.
+			if flags.version {
+				return printVersion(cmd, info)
+			}
 
 			positional := ""
 			if len(args) == 1 {
@@ -178,10 +187,6 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 			}
 
 			if refused := refuseMisspelledSubcommand(cmd, args, recorder.Events()); refused != nil {
-				return refused
-			}
-
-			if refused := refuseEmptyBaseURL(cmd, flags); refused != nil {
 				return refused
 			}
 
@@ -228,18 +233,18 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 
 	// Cobra would claim the lowercase -v for --version, and onesie spells it -V. Registering it
 	// here takes the name before cobra reaches for a shorthand of its own.
-	root.Flags().BoolP("version", "V", false, "print the version and the built in limits")
+	root.Flags().BoolVarP(&flags.version, "version", "V", false, "print the version and the built in limits")
 	asksNothing(root.Flags(), "version")
-	root.SetVersionTemplate("{{.Name}} {{.Version}}\n" + limitsBlock())
 
 	for name, help := range groupFlagHelp {
-		root.Flags().Var(recorder.Flag(name), name, help)
+		root.Flags().Var(groupFlag(recorder, name), name, help)
 	}
 
 	// A recorded flag is a string, so without this --box would take the next argument as its value.
 	root.Flags().Lookup("box").NoOptDefVal = "true"
 
 	root.Flags().StringVarP(&flags.output, "output", "o", "", "auto, json, values, table, raw, csv, tsv or markdown")
+	refuseEmpty(root.Flags(), "output")
 	root.Flags().BoolVarP(&flags.raw, "raw", "r", false, "print the bare scalar")
 	root.Flags().BoolVarP(&flags.quiet, "quiet", "q", false,
 		"suppress output, the exit code carries the answer")
@@ -252,22 +257,28 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 		"boolean expression that turns a no into an unsure, repeatable, needs --assert")
 	root.Flags().StringVarP(&flags.input, flagInput, "i", "text",
 		"text, json, jsonl, lines, csv, tsv or request")
+	refuseEmpty(root.Flags(), flagInput)
 	root.Flags().StringVar(&flags.state, flagState, "", "state to evaluate, or - to read stdin")
 	root.Flags().StringVar(&flags.stateFile, flagStateFile, "", "read the state from this file")
+	refuseEmpty(root.Flags(), flagStateFile)
 	root.Flags().StringArrayVar(&flags.images, flagImage, nil,
 		"NAME=PATH, repeatable, puts a PNG or JPEG in the state under NAME, experimental on TypeSafe's side. "+
-			"stdin is never read beside it, so text joins it only from --state, --state-file or --state -")
-	root.Flags().StringArrayVar(&flags.imageFields, flagImageField, nil,
+			"For one record stdin is read beside it only through --state -, so text joins it from --state, "+
+			"--state-file or --state -. A stream reads its records from stdin and adds the image to each")
+	root.Flags().Var(nonEmptyList{values: &flags.imageFields}, flagImageField,
 		"streaming only, repeatable, a state key whose value is a path to a PNG or JPEG, read per record. "+
 			"Under -i lines the line is the path. Experimental on TypeSafe's side")
 	root.Flags().StringVar(&flags.mapSource, flagMap, "",
 		"jq expression run on each record, whose result is the state sent. "+
 			"Object keys come out sorted. The result may nest max-map-depth levels deep and encode to max-line-bytes, as -V lists")
+	refuseEmpty(root.Flags(), flagMap)
 	root.Flags().StringVar(&flags.idSource, flagID, "",
 		"streaming only, jq expression run on each record, whose string or number result names it "+
 			"on every output line. It runs one record at a time as the input is read, so keep it cheap, "+
 			"such as a field lookup, and -V lists the cap on its length")
+	refuseEmpty(root.Flags(), flagID)
 	root.Flags().StringVarP(&flags.model, flagModel, "m", "", "model override")
+	refuseEmpty(root.Flags(), flagModel)
 	root.PersistentFlags().Var(choiceValue{value: &flags.provider, set: &flags.providerSet}, flagProvider,
 		"run on this provider without a profile, typesafe, openrouter, berget, levanto or cloudflare. "+
 			"Overrides ONESIE_PROVIDER")
@@ -278,11 +289,14 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 		"answer from this file instead of the API. Also ONESIE_MOCK. The file is an object keyed by question id, "+
 			`as {"answer":0.9,"team":"billing"}, or one line per record in the shape -o json writes. `+
 			"A lone line that carries id, line, model, usage, assert, abstain or an error object is one record")
+	refuseEmpty(root.PersistentFlags(), "mock")
 	root.Flags().StringVar(&flags.baseURL, flagBaseURL, "", "api root override")
+	refuseEmpty(root.Flags(), flagBaseURL)
 	root.Flags().BoolVar(&flags.allowHTTP, flagAllowHTTP, false, allowHTTPHelp)
 	root.Flags().StringVarP(&flags.file, "file", "f", "",
 		"question file or request body, or the name of one saved in .onesie/questions or the config dir, "+
 			"or of a built-in starter set")
+	refuseEmpty(root.Flags(), "file")
 	root.Flags().BoolVar(&flags.replace, "replace", false, "--ask overrides an id from -f")
 	root.Flags().BoolVar(&flags.printQuestions, "print-questions", false,
 		"write a question file to stdout and exit, its first line naming the schema --print-schema prints")
@@ -319,6 +333,7 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 	root.Flags().BoolVar(&flags.noDedup, "no-dedup", false,
 		"streaming only, ask every record even when its request repeats an earlier one")
 	root.Flags().StringVar(&flags.out, "out", "", "write the answers to this file rather than stdout")
+	refuseEmpty(root.Flags(), "out")
 	root.Flags().BoolVar(&flags.resume, "resume", false,
 		"streaming only, with --out, carry on after the last complete line in the file. "+
 			"Under --id it skips the ids the file answers, so a record whose content changed but whose "+
@@ -329,6 +344,7 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 	root.Flags().BoolVar(&flags.merge, "merge", false, "fold the answers into the input record")
 	root.Flags().StringVar(&flags.mergeKey, "merge-key", "",
 		"where the answers land in the merged record, implies --merge")
+	refuseEmpty(root.Flags(), "merge-key")
 
 	root.AddCommand(newVersionCmd(info))
 	root.AddCommand(newProfileCmd(settings, flags))
@@ -341,8 +357,9 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 	// subcommands cobra adds itself, such as completion.
 	hint := subcommandHint(root)
 	root.SetFlagErrorFunc(func(cmd *cobra.Command, err error) error {
-		return withDashQuestionHint(hint(cmd, err), cmd.Flags(), settings.args, nil)
+		return withDashQuestionHint(hint(cmd, plainFlagError(cmd, err)), cmd.Flags(), settings.args, nil)
 	})
+	addCompletionTakingNoArguments(root)
 
 	if settings.args != nil {
 		root.SetArgs(settings.args)
@@ -355,13 +372,179 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 	return root
 }
 
-func refuseEmptyBaseURL(cmd *cobra.Command, flags *runFlags) error {
-	// A flag given is a choice made, as an empty --profile is, so it is not read as unset.
-	if cmd.Flags().Changed(flagBaseURL) && strings.TrimSpace(flags.baseURL) == "" {
-		return fmt.Errorf("onesie: --%s is empty. Name one, or leave the flag out", flagBaseURL)
+func plainFlagError(cmd *cobra.Command, err error) error {
+	var (
+		invalid  *pflag.InvalidValueError
+		required *pflag.ValueRequiredError
+		unknown  *pflag.NotExistError
+	)
+
+	switch {
+	case errors.As(err, &unknown):
+		return &plainError{cause: err, message: unknownFlag(cmd, unknown)}
+	case errors.As(err, &invalid) && errors.Is(err, errEmptyValue):
+		return &plainError{cause: err, message: fmt.Sprintf("onesie: --%s is empty. Name one, or leave the flag out",
+			invalid.GetFlag().Name)}
+	case errors.As(err, &invalid):
+		return &plainError{cause: err, message: fmt.Sprintf("onesie: --%s takes %s, got '%s'",
+			invalid.GetFlag().Name, valueKind(invalid.GetFlag()), invalid.GetValue())}
+	case errors.As(err, &required):
+		return &plainError{cause: err, message: fmt.Sprintf("onesie: --%s needs a value", required.GetFlag().Name)}
+	default:
+		return err
+	}
+}
+
+func unknownFlag(cmd *cobra.Command, unknown *pflag.NotExistError) string {
+	name, word := unknown.GetSpecifiedName(), unknown.GetSpecifiedShortnames()
+	if word == "" {
+		return noSuchFlag(cmd, "--"+name) + closestFlag(cmd, name)
 	}
 
-	return nil
+	// A word that holds a space is a question the dash question hint speaks to.
+	message := noSuchFlag(cmd, "-"+name)
+	if word == name || strings.ContainsAny(word, " \t\n") {
+		return message
+	}
+
+	return message + " in -" + word + closestFlag(cmd, word)
+}
+
+func noSuchFlag(cmd *cobra.Command, spelled string) string {
+	if !cmd.HasParent() {
+		return "onesie: there is no flag " + spelled
+	}
+
+	return fmt.Sprintf("onesie: %s has no flag %s", strings.TrimPrefix(cmd.CommandPath(), cmd.Root().Name()+" "), spelled)
+}
+
+func closestFlag(cmd *cobra.Command, name string) string {
+	near := nearFlag(cmd, name)
+	if near == "" {
+		return ""
+	}
+
+	return ". The closest is " + near
+}
+
+func nearFlag(cmd *cobra.Command, name string) string {
+	// Every short name sits one or two edits from many unrelated words, so only a longer name earns
+	// a second edit.
+	allowance := 1
+	if len(name) > 5 {
+		allowance = 2
+	}
+
+	var near []string
+
+	best := allowance
+
+	cmd.Flags().VisitAll(func(flag *pflag.Flag) {
+		distance := editDistance(strings.ToLower(name), flag.Name)
+
+		switch {
+		case flag.Hidden || distance > best:
+		case distance < best:
+			near, best = []string{"--" + flag.Name}, distance
+		default:
+			near = append(near, "--"+flag.Name)
+		}
+	})
+
+	return strings.Join(near, " or ")
+}
+
+func valueKind(flag *pflag.Flag) string {
+	switch flag.Value.Type() {
+	case "int", "int64", "uint", "uint64":
+		return "a whole number"
+	case "float64":
+		return "a number"
+	case "bool":
+		return "true or false"
+	case "duration":
+		return "a duration, such as 30s"
+	default:
+		return "a value of type " + flag.Value.Type()
+	}
+}
+
+type plainError struct {
+	cause   error
+	message string
+}
+
+func (e *plainError) Error() string {
+	return e.message
+}
+
+func (e *plainError) Unwrap() error {
+	return e.cause
+}
+
+func addCompletionTakingNoArguments(root *cobra.Command) {
+	root.InitDefaultCompletionCmd()
+
+	completion, _, err := root.Find([]string{"completion"})
+	if err != nil {
+		return
+	}
+
+	completion.Args = noArguments
+	for _, shell := range completion.Commands() {
+		shell.Args = noArguments
+	}
+}
+
+func noArguments(cmd *cobra.Command, args []string) error {
+	if len(args) == 0 {
+		return nil
+	}
+
+	name := strings.TrimPrefix(cmd.CommandPath(), cmd.Root().Name()+" ")
+
+	var subcommands []string
+
+	for _, sub := range cmd.Commands() {
+		if sub.IsAvailableCommand() {
+			subcommands = append(subcommands, sub.Name())
+		}
+	}
+
+	if len(subcommands) > 0 {
+		return fmt.Errorf("onesie: %s has no subcommand '%s'. Its subcommands: %s",
+			name, args[0], strings.Join(subcommands, ", "))
+	}
+
+	return fmt.Errorf("onesie: %s takes no argument, got '%s'", name, args[0])
+}
+
+func groupFlag(recorder *argv.Recorder, name string) pflag.Value {
+	switch name {
+	case "box":
+		return recorder.Switch(name)
+	case "sep":
+		return nonEmpty{Value: recorder.Flag(name), spaceAllowed: true}
+	}
+
+	return recorder.Flag(name)
+}
+
+func printVersion(cmd *cobra.Command, info BuildInfo) error {
+	_, err := fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n%s", cmd.Name(), info.Version, limitsBlock())
+
+	return err
+}
+
+func rootArgs(flags *runFlags) cobra.PositionalArgs {
+	return func(cmd *cobra.Command, args []string) error {
+		// -V answers before any question is read, so its own message names what it refuses.
+		if flags.version && len(args) > 0 {
+			return fmt.Errorf("onesie: -V takes no question, got '%s'", strings.Join(args, " "))
+		}
+
+		return atMostOneQuestion(cmd, args)
+	}
 }
 
 func refuseUnknownHelpTopics(root *cobra.Command) {
@@ -401,7 +584,7 @@ func subcommandHint(root *cobra.Command) func(*cobra.Command, error) error {
 			return err
 		}
 
-		// A flag that asks no question would refuse the question the hint tells the user to ask.
+		// A flag that asks no question would be refused on a run too.
 		known := rootFlag(root, unknown)
 		if known == nil {
 			return err
@@ -411,12 +594,8 @@ func subcommandHint(root *cobra.Command) func(*cobra.Command, error) error {
 			return err
 		}
 
-		top := cmd
-		for top.HasParent() && top.Parent() != root {
-			top = top.Parent()
-		}
-
-		return fmt.Errorf("%w. '%s' is a subcommand. To ask it as a question, put it after --", err, top.Name())
+		return fmt.Errorf("%w. --%s belongs to a run, not to %s",
+			err, known.Name, strings.TrimPrefix(cmd.CommandPath(), root.Name()+" "))
 	}
 }
 
@@ -738,6 +917,10 @@ func (c choiceValue) String() string {
 }
 
 func (c choiceValue) Set(value string) error {
+	if strings.TrimSpace(value) == "" {
+		return errEmptyValue
+	}
+
 	*c.value, *c.set = value, true
 
 	return nil
@@ -745,4 +928,46 @@ func (c choiceValue) Set(value string) error {
 
 func (choiceValue) Type() string {
 	return "string"
+}
+
+func refuseEmpty(set *pflag.FlagSet, name string) {
+	// A flag given is a choice made, so an empty value is refused rather than read as unset. An unset
+	// variable in a script would otherwise drop a --mock and send a paid request.
+	flag := set.Lookup(name)
+	flag.Value = nonEmpty{Value: flag.Value}
+}
+
+type nonEmpty struct {
+	pflag.Value
+	spaceAllowed bool
+}
+
+func (v nonEmpty) Set(value string) error {
+	if value == "" || (!v.spaceAllowed && strings.TrimSpace(value) == "") {
+		return errEmptyValue
+	}
+
+	return v.Value.Set(value)
+}
+
+type nonEmptyList struct {
+	values *[]string
+}
+
+func (l nonEmptyList) Set(value string) error {
+	if strings.TrimSpace(value) == "" {
+		return errEmptyValue
+	}
+
+	*l.values = append(*l.values, value)
+
+	return nil
+}
+
+func (l nonEmptyList) String() string {
+	return strings.Join(*l.values, ",")
+}
+
+func (nonEmptyList) Type() string {
+	return "stringArray"
 }

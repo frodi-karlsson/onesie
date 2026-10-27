@@ -500,7 +500,7 @@ func TestNewCalibrateCmd(t *testing.T) {
 			name:     "should refuse a flag the root does not know either",
 			args:     with("--bogus"),
 			wantCode: ExitUsage,
-			contains: []string{"unknown flag: --bogus"},
+			contains: []string{"onesie: calibrate has no flag --bogus\n"},
 		},
 	}
 
@@ -1001,8 +1001,8 @@ func TestCalibrateRun(t *testing.T) {
 			"flagged means urgent.value >= cut",
 			"",
 			"  cut   flagged  catches         false alarms   right when flagged",
-			"  0.50        3  2/3 67% 21-94%  1/3 33% 6-79%  2/3  67% 21-94%",
-			"  0.70        2  2/3 67% 21-94%  0/3  0% 0-56%  2/2 100% 34-100%",
+			"  0.50        3  2/3 67% 21-94%  1/3 33% 6-79%  2/3 67% 21-94%",
+			"  0.70        2  2/3 67% 21-94%  0/3  1% 1-56%  2/2 99% 34-99%",
 			"",
 			"worst misses",
 			`  T-3  {"urgent":0.3}  labelled yes  answered 0.30`,
@@ -1338,7 +1338,7 @@ func TestCalibrateRun(t *testing.T) {
 			t.Errorf("stdout =\n%s\nwant the report to count two failed records", out)
 		}
 
-		if !strings.Contains(errOut, "8 requests, 2 failed, ") {
+		if !strings.Contains(errOut, "8 records, 2 failed, 8 requests, ") {
 			t.Errorf("stderr =\n%s\nwant the stats line to count the same two failed records", errOut)
 		}
 	})
@@ -1358,9 +1358,9 @@ func TestCalibrateRun(t *testing.T) {
 		}
 
 		report := strings.Index(out, "urgent, yes/no:")
-		first := strings.Index(out, "\nonesie: record T-7: question 'urgent' answered 1.5, which lies outside [0,1]\n")
+		first := strings.Index(out, "\nonesie: record T-7: 200 response could not be used: question 'urgent' answered 1.5, which lies outside [0,1]\n")
 		second := strings.Index(out, "\nonesie: record T-8: ")
-		stats := strings.Index(out, "8 requests, 2 failed, ")
+		stats := strings.Index(out, "8 records, 2 failed, 8 requests, ")
 
 		if report < 0 || first < report || second < first || stats < second {
 			t.Errorf("output =\n%s\nwant the report, then one line per failed record, then the stats line", out)
@@ -1909,7 +1909,7 @@ func TestCalibrateRun(t *testing.T) {
 			t.Errorf("the resume printed\n%s\nthe first run printed\n%s", out, fresh)
 		}
 
-		if strings.Contains(errOut, "onesie: record") || !strings.Contains(errOut, "3 requests, 3 skipped, ") {
+		if strings.Contains(errOut, "onesie: record") || !strings.Contains(errOut, "6 records, 3 skipped by --resume, ") {
 			t.Errorf("stderr =\n%s\nwant no failed record and the stored ones skipped", errOut)
 		}
 
@@ -1975,7 +1975,7 @@ func TestCalibrateRun(t *testing.T) {
 			}
 		}
 
-		if causes != 1 || !strings.Contains(errOut, "1 request, 6 skipped, 1 failed, ") {
+		if causes != 1 || !strings.Contains(errOut, "7 records, 6 skipped by --resume, 1 failed, ") {
 			t.Errorf("stderr =\n%s\nwant one failed record named and counted once", errOut)
 		}
 	})
@@ -2213,7 +2213,7 @@ func TestCalibrateRun(t *testing.T) {
 			t.Fatalf("exit code = %d, stderr:\n%s", code, errOut)
 		}
 
-		if !strings.Contains(errOut, "0 requests, 6 skipped, ") {
+		if !strings.Contains(errOut, "6 records, 6 skipped by --resume, ") {
 			t.Errorf("stderr =\n%s\nwant the stored records counted as skipped", errOut)
 		}
 	})
@@ -2563,7 +2563,8 @@ func (s *calibrateStub) serve(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		State     json.RawMessage `json:"state"`
 		Questions map[string]struct {
-			Type string `json:"type"`
+			Type     string          `json:"type"`
+			Criteria json.RawMessage `json:"criteria"`
 		} `json:"questions"`
 	}
 
@@ -2631,7 +2632,7 @@ func (s *calibrateStub) serve(w http.ResponseWriter, r *http.Request) {
 	answers := map[string]any{}
 
 	for id, question := range body.Questions {
-		answers[id] = stubAnswer(s.t, question.Type, fields[id], s.raw)
+		answers[id] = stubAnswer(s.t, question.Type, criteriaKeys(question.Criteria), fields[id], s.raw)
 	}
 
 	response := map[string]any{"model": "onesie-1.13.0", "answers": answers}
@@ -2659,7 +2660,45 @@ func (s *calibrateStub) counted(state string) int {
 	return s.requests
 }
 
-func stubAnswer(t *testing.T, kind string, raw json.RawMessage, verbatim bool) map[string]any {
+func criteriaKeys(criteria json.RawMessage) []string {
+	var named map[string]json.RawMessage
+	if json.Unmarshal(criteria, &named) == nil {
+		return slices.Collect(maps.Keys(named))
+	}
+
+	var listed []json.RawMessage
+	if json.Unmarshal(criteria, &listed) != nil {
+		return nil
+	}
+
+	keys := make([]string, 0, len(listed))
+	for i := range listed {
+		keys = append(keys, strconv.Itoa(i))
+	}
+
+	return keys
+}
+
+func spread(keys []string, picked string, p any) map[string]any {
+	// The picked key takes p and the rest share what is left, so the distribution adds up to 1.
+	value, _ := p.(float64)
+	rest := 0.0
+
+	if len(keys) > 1 {
+		rest = (1 - value) / float64(len(keys)-1)
+	}
+
+	probabilities := map[string]any{}
+	for _, key := range keys {
+		probabilities[key] = rest
+	}
+
+	probabilities[picked] = p
+
+	return probabilities
+}
+
+func stubAnswer(t *testing.T, kind string, keys []string, raw json.RawMessage, verbatim bool) map[string]any {
 	t.Helper()
 
 	if kind == "noul" && verbatim {
@@ -2685,13 +2724,13 @@ func stubAnswer(t *testing.T, kind string, raw json.RawMessage, verbatim bool) m
 	if kind == "choice" {
 		return map[string]any{
 			"type": "choice", "choice": pair[0], "confidence": pair[1],
-			"probabilities": map[string]any{fmt.Sprint(pair[0]): pair[1]},
+			"probabilities": spread(keys, fmt.Sprint(pair[0]), pair[1]),
 		}
 	}
 
 	return map[string]any{
 		"type": "score", "score": pair[0], "confidence": pair[1],
-		"probabilities": map[string]any{fmt.Sprint(pair[0]): pair[1]},
+		"probabilities": spread(keys, fmt.Sprint(pair[0]), pair[1]),
 	}
 }
 
@@ -2852,7 +2891,7 @@ func TestCalibrateAnswers(t *testing.T) {
 			args:     base(mockFile, "--require", "u.catches >= 0.9", "--require", "u.auc >= 0.5"),
 			wantCode: ExitRejected,
 			stdout:   []string{"u, yes/no: labelled 8"},
-			stderr:   []string{"onesie: 'u.catches >= 0.9' did not hold: 3/4 75% 30-95% at cut 0.50\n"},
+			stderr:   []string{"onesie: 'u.catches >= 0.9' did not hold: 3/4 is 0.75, interval 0.3006 to 0.9544, at cut 0.50\n"},
 			noStderr: []string{"u.auc"},
 		},
 		{

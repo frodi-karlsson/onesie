@@ -30,10 +30,15 @@ func Load(data []byte) (*File, error) {
 		return nil, err
 	}
 
+	// An empty file, or one of only comments, decodes as null and holds no question.
+	if raw == nil {
+		return &File{}, nil
+	}
+
 	top, ok := mapping(raw)
 	if !ok {
 		return nil, errors.New(
-			"onesie: a question file is a mapping of question id to definition")
+			"a question file is a mapping of question id to definition")
 	}
 
 	if _, isBody := lookup(top, "questions"); isBody {
@@ -75,7 +80,7 @@ type File struct {
 // number as its json.Number, so the loader reads order and numbers as the file wrote them.
 func DecodeOrdered(data []byte) (any, error) {
 	if len(data) > limits.MaxQuestionFileBytes {
-		return nil, fmt.Errorf("onesie: a question file is at most %d bytes, and this one is %d",
+		return nil, fmt.Errorf("a question file is at most %d bytes, and this one is %d",
 			limits.MaxQuestionFileBytes, len(data))
 	}
 
@@ -93,7 +98,7 @@ func DecodeOrdered(data []byte) (any, error) {
 
 		err = yaml.UnmarshalWithOptions(data, &raw, yaml.UseOrderedMap())
 
-		return nil, fmt.Errorf("onesie: %w", err)
+		return nil, err
 	}
 
 	if err := checkSingleDocument(parsed); err != nil {
@@ -113,14 +118,14 @@ func DecodeOrdered(data []byte) (any, error) {
 		ast.Walk(refusal, document.Body)
 
 		if refusal.found {
-			return nil, errors.New("onesie: a question file cannot use a YAML alias, since onesie does " +
+			return nil, errors.New("a question file cannot use a YAML alias, since onesie does " +
 				"not expand one. Write the value out in full")
 		}
 
 		ast.Walk(exponents{}, document.Body)
 
 		if err := yaml.NodeToValue(document.Body, &raw, yaml.UseOrderedMap()); err != nil {
-			return nil, fmt.Errorf("onesie: %w", err)
+			return nil, err
 		}
 	}
 
@@ -137,7 +142,7 @@ func decodeJSON(data []byte) (any, error) {
 func decodeJSONValue(decoder *json.Decoder) (any, error) {
 	tok, err := decoder.Token()
 	if err != nil {
-		return nil, fmt.Errorf("onesie: %w", err)
+		return nil, err
 	}
 
 	switch tok {
@@ -147,16 +152,16 @@ func decodeJSONValue(decoder *json.Decoder) (any, error) {
 		for decoder.More() {
 			keyTok, keyErr := decoder.Token()
 			if keyErr != nil {
-				return nil, fmt.Errorf("onesie: %w", keyErr)
+				return nil, keyErr
 			}
 
 			key, isText := keyTok.(string)
 			if !isText {
-				return nil, fmt.Errorf("onesie: a mapping key must be text, got %v", keyTok)
+				return nil, fmt.Errorf("a mapping key must be text, got %v", keyTok)
 			}
 
 			if _, repeated := lookup(items, key); repeated {
-				return nil, fmt.Errorf("onesie: mapping key %q already defined", key)
+				return nil, fmt.Errorf("mapping key %q already defined", key)
 			}
 
 			value, valueErr := decodeJSONValue(decoder)
@@ -251,7 +256,7 @@ func checkSingleDocument(parsed *ast.File) error {
 
 	if documents > 1 {
 		return errors.New(
-			"onesie: a question file is one document, found a second after a --- separator")
+			"a question file is one document, found a second after a --- separator")
 	}
 
 	return nil

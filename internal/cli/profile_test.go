@@ -83,7 +83,7 @@ func TestNewProfileCmd(t *testing.T) {
 		{
 			name:     "should reject an unknown subcommand",
 			args:     []string{"profile", "nonsense"},
-			wantErr:  `onesie: unknown command "nonsense" for "onesie profile"`,
+			wantErr:  "onesie: profile has no subcommand 'nonsense'. Its subcommands: create, delete, list, show, test, update, use",
 			wantCode: ExitUsage,
 		},
 		{
@@ -193,7 +193,7 @@ func TestNewProfileCmd(t *testing.T) {
 		{
 			name:     "should reject a root question flag on a subcommand",
 			args:     []string{"profile", "list", "--pick", "a,b"},
-			wantErr:  "onesie: unknown flag: --pick",
+			wantErr:  "onesie: profile list has no flag --pick",
 			wantCode: ExitUsage,
 		},
 	}
@@ -363,7 +363,7 @@ func TestProfileCreate(t *testing.T) {
 			args:        []string{"profile", "create", "work", "--provider", "typesafe", "--base-url", "proxy.example"},
 			stdinUnread: true,
 			wantCode:    ExitUsage,
-			wantErr:     []string{"base URL must be an absolute http or https URL, got proxy.example"},
+			wantErr:     []string{"onesie: base URL proxy.example is not an http or https URL"},
 			wantNoFile:  true,
 		},
 		{
@@ -449,6 +449,14 @@ func TestProfileCreate(t *testing.T) {
 			stdinUnread: true,
 			wantCode:    ExitUsage,
 			wantErr:     []string{"onesie: --base-url is empty. Name one, or leave the flag out"},
+			wantNoFile:  true,
+		},
+		{
+			name:        "should refuse an empty --model",
+			args:        []string{"profile", "create", "work", "--provider", "typesafe", "--model", ""},
+			stdinUnread: true,
+			wantCode:    ExitUsage,
+			wantErr:     []string{"onesie: --model is empty. Name one, or leave the flag out"},
 			wantNoFile:  true,
 		},
 		{
@@ -745,11 +753,18 @@ func TestProfileUpdate(t *testing.T) {
 			wantFile: work,
 		},
 		{
-			name:     "should exit 2 when a member is set to the value it has",
+			name:     "should note that a member set to the value it has changes nothing, and exit 0",
 			file:     work,
 			args:     []string{"profile", "update", "work", "--model", "typesafe/jev"},
-			wantCode: ExitUsage,
-			wantErr:  []string{"onesie: profile update 'work' changes nothing"},
+			wantErr:  []string{"onesie: profile 'work' is unchanged, since its model is already typesafe/jev"},
+			wantFile: work,
+		},
+		{
+			name:     "should note that clearing an unset member changes nothing, and exit 0",
+			file:     levanto,
+			args:     []string{"profile", "update", "lv", "--model", "", "--base-url", ""},
+			wantErr:  []string{"onesie: profile 'lv' is unchanged, since its model and its base_url are already unset"},
+			wantFile: levanto,
 		},
 		{
 			name:     "should refuse a missing profile",
@@ -878,7 +893,7 @@ func TestProfileUpdate(t *testing.T) {
 			args:        []string{"profile", "update", "work", "--provider", "", "--key"},
 			stdinUnread: true,
 			wantCode:    ExitUsage,
-			wantErr:     []string{"onesie: profile update: --provider is empty"},
+			wantErr:     []string{"onesie: --provider is empty. Name one, or leave the flag out"},
 		},
 		{
 			name:  "should write a new key to the profile's item and rewrite key_end",
@@ -1412,6 +1427,13 @@ func TestProfileShow(t *testing.T) {
 			wantOut: workShown,
 		},
 		{
+			name:     "should refuse a malformed CLOUDFLARE_ACCOUNT_ID as a run does",
+			args:     []string{"--provider", "cloudflare", "profile", "show"},
+			env:      map[string]string{"CLOUDFLARE_API_TOKEN": "SECRET-CF-0123456789", "CLOUDFLARE_ACCOUNT_ID": "bad"},
+			wantCode: ExitUsage,
+			wantErr:  []string{"onesie: CLOUDFLARE_ACCOUNT_ID must be 32 hexadecimal characters"},
+		},
+		{
 			name: "should show a named profile that is not active",
 			file: shown,
 			args: []string{"profile", "show", "personal"},
@@ -1634,7 +1656,7 @@ func TestProfileTest(t *testing.T) {
 			env:      map[string]string{"ONESIE_PROVIDER": "typesafe", onesie.EnvAPIKey: "SECRET-ENV", onesie.EnvBaseURL: "{url}"},
 			status:   http.StatusUnauthorized,
 			wantCode: ExitAuth,
-			wantErr:  "onesie: 401 the key was refused. Check the key in TYPESAFE_API_KEY",
+			wantErr:  "onesie: 401 the key was refused. The key came from TYPESAFE_API_KEY",
 		},
 		{
 			name:     "should exit 3 on a forbidden key",

@@ -5,46 +5,51 @@ import (
 	"fmt"
 	"io/fs"
 
+	"github.com/frodi-karlsson/onesie/internal/patherr"
 	"github.com/frodi-karlsson/onesie/internal/qfile"
 )
 
-func readQuestionFile(settings rootSettings, value string) ([]byte, string, error) {
-	data, err := settings.readFile(value)
+func readQuestionFile(settings rootSettings, value string) (data []byte, path, hides string, err error) {
+	data, err = settings.readFile(value)
 	if err == nil {
-		return data, value, nil
+		return data, value, "", nil
 	}
 
 	if !qfile.IsName(value) || !lookupPast(settings, value, err) {
-		return nil, "", fmt.Errorf("onesie: reading %s: %w", value, err)
+		return nil, "", "", fmt.Errorf("onesie: reading %s: %w", value, patherr.Inner(err))
 	}
 
 	env, err := findEnv(settings)
 	if err != nil {
-		return nil, "", err
+		return nil, "", "", err
 	}
 
 	source, err := qfile.Find(value, env)
 	if err != nil {
-		return nil, "", err
+		return nil, "", "", err
 	}
 
 	if source.BuiltIn != "" {
 		builtIn, ok := settings.readBuiltIn(source.BuiltIn)
 		if !ok {
-			return nil, "", fmt.Errorf("onesie: the built-in set %s could not be read", source.BuiltIn)
+			return nil, "", "", fmt.Errorf("onesie: the built-in set %s could not be read", source.BuiltIn)
 		}
 
-		return builtIn, "built-in " + source.BuiltIn, nil
+		return builtIn, "built-in " + source.BuiltIn, "", nil
 	}
 
-	path := source.Path
-
-	data, err = settings.readFile(path)
+	data, err = settings.readFile(source.Path)
 	if err != nil {
-		return nil, "", fmt.Errorf("onesie: reading %s: %w", path, err)
+		return nil, "", "", fmt.Errorf("onesie: reading %s: %w", source.Path, patherr.Inner(err))
 	}
 
-	return data, path, nil
+	if settings.readBuiltIn != nil {
+		if _, ok := settings.readBuiltIn(value); ok {
+			hides = value
+		}
+	}
+
+	return data, source.Path, hides, nil
 }
 
 func lookupPast(settings rootSettings, value string, readErr error) bool {
@@ -83,4 +88,24 @@ func findEnv(settings rootSettings) (qfile.FindEnv, error) {
 	}
 
 	return env, nil
+}
+
+func loadQuestionFile(data []byte, path, hides string, alone bool) (*qfile.File, error) {
+	loaded, err := qfile.Load(data)
+	if err != nil {
+		return nil, fmt.Errorf("onesie: %s: %w", path, err)
+	}
+
+	// A file with no question beside --ask only adds nothing, unless it hides the built-in set the
+	// user meant to add.
+	if len(loaded.Questions) > 0 || (!alone && hides == "") {
+		return loaded, nil
+	}
+
+	if hides != "" {
+		return nil, fmt.Errorf("onesie: the question file %s holds no questions. Remove it, and -f %s takes "+
+			"the built-in set again", path, hides)
+	}
+
+	return nil, fmt.Errorf("onesie: the question file %s holds no questions", path)
 }

@@ -7,12 +7,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/fs"
 	"maps"
 	"slices"
 	"strings"
 
 	"github.com/frodi-karlsson/onesie-go"
+	"github.com/frodi-karlsson/onesie/internal/patherr"
 	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
@@ -192,13 +192,7 @@ func (m *imaging) bodyAssets() onesie.Assets {
 func (m *imaging) load(path string) (string, onesie.Image, error) {
 	data, err := m.readFile(path)
 	if err != nil {
-		// The path is named once here, so the copy a PathError carries is dropped.
-		var pathErr *fs.PathError
-		if errors.As(err, &pathErr) {
-			err = pathErr.Err
-		}
-
-		return "", onesie.Image{}, fmt.Errorf("reading %s: %w", path, err)
+		return "", onesie.Image{}, fmt.Errorf("reading %s: %w", path, patherr.Inner(err))
 	}
 
 	img, err := onesie.NewImage(data)
@@ -231,11 +225,26 @@ func checkProviderNeeds(settings rootSettings, flags *runFlags, built *plan.Plan
 		return err
 	}
 
-	return chosen.provider.Refuse(model, onesie.Needs{
+	return longContextCause(chosen.provider.Refuse(model, onesie.Needs{
 		Images:      sendsAssets(images),
 		Box:         asksBox(built),
 		LongContext: built.LongContext,
-	})
+	}), settings, flags)
+}
+
+func longContextCause(refusal error, settings rootSettings, flags *runFlags) error {
+	// The variable is easy to forget once it is exported, so a refusal it caused says so.
+	var lacking *onesie.CapabilityError
+	if !errors.As(refusal, &lacking) || !lacking.Missing.LongContext || flags.longContextSet ||
+		!longContext(settings, flags) {
+		return refusal
+	}
+
+	return &advisedError{
+		cause: refusal,
+		message: refusal.Error() + ". " + envLongContext +
+			" turned it on, so unset it or pass --long-context=false",
+	}
 }
 
 func sendsAssets(images *imaging) bool {

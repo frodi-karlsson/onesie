@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/frodi-karlsson/onesie/internal/limits"
+	"github.com/frodi-karlsson/onesie/internal/patherr"
 )
 
 const (
@@ -39,7 +40,7 @@ const (
 const NoAliasTTL time.Duration = -1
 
 // Open opens the cache in dir, creating it with mode 700 and a CACHEDIR.TAG when it is missing. It
-// refuses a directory others can reach, except on windows, which carries no such modes.
+// refuses a directory others can reach, except on windows, and an untagged one holding foreign files.
 func Open(dir string, opts Options) (*Store, error) {
 	opts = opts.withDefaults()
 	fsys := opts.FS
@@ -56,7 +57,7 @@ func Open(dir string, opts Options) (*Store, error) {
 			return nil, err
 		}
 	case statErr != nil:
-		return nil, fmt.Errorf("onesie: reading the cache dir %s: %w", dir, statErr)
+		return nil, fmt.Errorf("onesie: reading the cache dir %s: %w", dir, patherr.Inner(statErr))
 	case !info.IsDir():
 		return nil, fmt.Errorf("onesie: the cache dir %s is not a directory", dir)
 	case opts.GOOS != "windows" && info.Mode().Perm()&0o077 != 0:
@@ -72,21 +73,22 @@ func Open(dir string, opts Options) (*Store, error) {
 
 func tagUntagged(fsys FS, dir string) error {
 	// A directory holding nothing but what onesie writes gets its tag, so clear can empty it later.
-	// One holding anything else may not be onesie's, and is left untagged.
+	// One holding anything else may not be onesie's. A tag there would hide the foreign files from
+	// backup tools, and storing without one would leave entries clear refuses to remove.
 	if _, err := fsys.Stat(filepath.Join(dir, tagName)); !errors.Is(err, fs.ErrNotExist) {
 		return nil
 	}
 
 	names, err := fsys.ReadDir(dir)
 	if err != nil {
-		return fmt.Errorf("onesie: reading the cache dir %s: %w", dir, err)
+		return fmt.Errorf("onesie: reading the cache dir %s: %w", dir, patherr.Inner(err))
 	}
 
 	for _, named := range names {
 		ours := (named.IsDir() && isFanout(named.Name())) ||
 			(named.Type().IsRegular() && strings.HasPrefix(named.Name(), tempPrefix))
 		if !ours {
-			return nil
+			return &ForeignError{Dir: dir}
 		}
 	}
 
@@ -186,6 +188,18 @@ func (e *ModeError) Error() string {
 		e.Dir, e.Mode, e.Dir)
 }
 
+// ForeignError means the cache directory holds files onesie did not write and no CACHEDIR.TAG, so it
+// may not be onesie's to fill.
+type ForeignError struct {
+	Dir string
+}
+
+// Error names the directory and the fix.
+func (e *ForeignError) Error() string {
+	return fmt.Sprintf("onesie: the cache dir %s holds files onesie did not write and no %s, "+
+		"so onesie will not store answers there. Point ONESIE_CACHE_DIR at a new or empty directory", e.Dir, tagName)
+}
+
 // Key names one cached response, a sha256 of everything that decides it.
 type Key [sha256.Size]byte
 
@@ -228,7 +242,7 @@ func (s *Store) Get(key Key, provider, model string) ([]byte, bool, error) {
 			return nil, false, nil
 		}
 
-		return nil, false, fmt.Errorf("reading %s: %w", path, err)
+		return nil, false, fmt.Errorf("reading %s: %w", path, patherr.Inner(err))
 	}
 
 	stored, ok := readEntry(data, model)
@@ -414,7 +428,7 @@ func (s *Store) evict() error {
 		}
 
 		if err := s.remove(f.path); err != nil && !errors.Is(err, fs.ErrNotExist) {
-			return fmt.Errorf("evicting %s: %w", f.path, err)
+			return fmt.Errorf("evicting %s: %w", f.path, patherr.Inner(err))
 		}
 
 		s.total -= f.size
@@ -443,7 +457,7 @@ func (s *Store) walk() (int64, error) {
 
 		if stale {
 			if err := s.remove(f.path); err != nil && !errors.Is(err, fs.ErrNotExist) {
-				return 0, fmt.Errorf("removing %s: %w", f.path, err)
+				return 0, fmt.Errorf("removing %s: %w", f.path, patherr.Inner(err))
 			}
 
 			continue
@@ -534,7 +548,7 @@ func Clear(dir string, fsys FS) (int, error) {
 
 	for _, f := range files {
 		if err := fsys.Remove(f.path); err != nil && !errors.Is(err, fs.ErrNotExist) {
-			return removed, fmt.Errorf("onesie: removing %s: %w", f.path, err)
+			return removed, fmt.Errorf("onesie: removing %s: %w", f.path, patherr.Inner(err))
 		}
 
 		if f.kind != tempFile {
@@ -570,7 +584,7 @@ func scan(fsys FS, dir string) ([]file, error) {
 		}
 
 		if err != nil {
-			return nil, fmt.Errorf("onesie: reading %s: %w", sub, err)
+			return nil, fmt.Errorf("onesie: reading %s: %w", sub, patherr.Inner(err))
 		}
 
 		for _, named := range names {
@@ -585,7 +599,7 @@ func scan(fsys FS, dir string) ([]file, error) {
 			}
 
 			if err != nil {
-				return nil, fmt.Errorf("onesie: reading %s: %w", filepath.Join(sub, named.Name()), err)
+				return nil, fmt.Errorf("onesie: reading %s: %w", filepath.Join(sub, named.Name()), patherr.Inner(err))
 			}
 
 			files = append(files, file{

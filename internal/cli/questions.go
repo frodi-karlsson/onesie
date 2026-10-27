@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -42,6 +43,7 @@ func newQuestionsCmd(settings rootSettings) *cobra.Command {
 	}
 
 	cmd.Flags().StringVarP(&format, "output", "o", "", "table, json or auto, which means table")
+	refuseEmpty(cmd.Flags(), "output")
 
 	return cmd
 }
@@ -63,7 +65,7 @@ func listQuestions(w io.Writer, settings rootSettings, format string) error {
 		return err
 	}
 
-	rows := savedRows(listed)
+	rows := savedRows(listed, settings.readFile)
 
 	if format == "json" {
 		return writeSavedJSON(w, rows)
@@ -72,7 +74,7 @@ func listQuestions(w io.Writer, settings rootSettings, format string) error {
 	return writeSavedTable(w, rows, shortPath(env.WorkDir, settings.homeDir))
 }
 
-func savedRows(listed []qfile.Found) []savedRow {
+func savedRows(listed []qfile.Found, readFile func(string) ([]byte, error)) []savedRow {
 	rows := []savedRow{}
 
 	for _, found := range listed {
@@ -81,8 +83,12 @@ func savedRows(listed []qfile.Found) []savedRow {
 		}
 
 		for _, path := range found.Paths {
+			// A file that cannot be read is listed as it is, since -f reports why when it reaches it.
+			data, readErr := readFile(path)
+
 			rows = append(rows, savedRow{
-				Name: found.Name, Path: &path, Clash: len(found.Paths) > 1, inRepo: found.InRepo,
+				Name: found.Name, Path: &path, Clash: len(found.Paths) > 1,
+				Empty: readErr == nil && len(bytes.TrimSpace(data)) == 0, inRepo: found.InRepo,
 			})
 		}
 	}
@@ -95,6 +101,7 @@ type savedRow struct {
 	// Path is nil for a built-in, which has no file.
 	Path    *string `json:"path"`
 	Clash   bool    `json:"clash,omitempty"`
+	Empty   bool    `json:"empty,omitempty"`
 	BuiltIn bool    `json:"builtin"`
 
 	inRepo bool
@@ -121,6 +128,10 @@ func writeSavedTable(w io.Writer, rows []savedRow, short func(savedRow) string) 
 		line := fmt.Sprintf("%-*s  %s", width, row.Name, short(row))
 		if row.Clash {
 			line += "  clash"
+		}
+
+		if row.Empty {
+			line += "  empty"
 		}
 
 		if _, err := fmt.Fprintln(w, line); err != nil {

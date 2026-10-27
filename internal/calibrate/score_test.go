@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/frodi-karlsson/onesie/internal/calibrate"
+	"github.com/frodi-karlsson/onesie/internal/num"
 )
 
 func TestAUC(t *testing.T) {
@@ -43,6 +44,12 @@ func TestAUC(t *testing.T) {
 			want:        0.5,
 			wantDefined: true,
 		},
+		{
+			name:        "should round to four places",
+			cases:       yesNoCases("yes", 0.9, "no", 0.5, "no", 0.95, "no", 0.1),
+			want:        0.6667,
+			wantDefined: true,
+		},
 		{name: "should leave only yes labels undefined", cases: yesNoCases("yes", 0.9, "yes", 0.1)},
 		{name: "should leave only no labels undefined", cases: yesNoCases("no", 0.9, "no", 0.1)},
 		{name: "should leave no cases undefined"},
@@ -53,11 +60,36 @@ func TestAUC(t *testing.T) {
 			t.Parallel()
 
 			got, defined := calibrate.AUC(tc.cases)
-			if defined != tc.wantDefined || defined && math.Abs(got-tc.want) > 1e-12 {
+			if defined != tc.wantDefined || defined && got != tc.want {
 				t.Errorf("AUC = %v, %v, want %v, %v", got, defined, tc.want, tc.wantDefined)
 			}
 		})
 	}
+
+	t.Run("should never round an AUC that is not 0 or 1 to 0 or 1", func(t *testing.T) {
+		t.Parallel()
+
+		var high, low []calibrate.YesNoCase
+
+		for i := range 150 {
+			high = append(high, calibrate.YesNoCase{Yes: true, Value: 0.5 + float64(i)/1000},
+				calibrate.YesNoCase{Value: float64(i) / 1000})
+			low = append(low, calibrate.YesNoCase{Value: 0.5 + float64(i)/1000},
+				calibrate.YesNoCase{Yes: true, Value: float64(i) / 1000})
+		}
+
+		// One no tied with the lowest yes, which counts half a pair of 22500.
+		high[1].Value = 0.5
+		low[0].Value = 0.149
+
+		if got, _ := calibrate.AUC(high); got != 0.9999 {
+			t.Errorf("AUC = %v, want 0.9999", got)
+		}
+
+		if got, _ := calibrate.AUC(low); got != 0.0001 {
+			t.Errorf("AUC = %v, want 0.0001", got)
+		}
+	})
 
 	t.Run("should finish when a value is NaN", func(t *testing.T) {
 		t.Parallel()
@@ -108,7 +140,7 @@ func TestAUC(t *testing.T) {
 		got, defined := calibrate.AUC(cases)
 		elapsed := time.Since(start)
 
-		if want := wins / (yesTotal * noTotal); !defined || math.Abs(got-want) > 1e-9 {
+		if want := num.Rounded(wins / (yesTotal * noTotal)); !defined || got != want {
 			t.Errorf("AUC = %v, %v, want %v, true", got, defined, want)
 		}
 
@@ -449,7 +481,7 @@ func TestScoreRate(t *testing.T) {
 
 		checkShare(t, "within one", got.WithinOne, 4, 7)
 
-		if want := 12.0 / 7; !got.HasMeanDistance || math.Abs(got.MeanDistance-want) > 1e-12 {
+		if want := 1.7143; !got.HasMeanDistance || got.MeanDistance != want {
 			t.Errorf("mean distance = %v, want %v", got.MeanDistance, want)
 		}
 	})

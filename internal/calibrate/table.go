@@ -352,7 +352,7 @@ func shareCells(shares []Share) []string {
 	for _, s := range shares {
 		p := parts{hits: strconv.Itoa(s.Hits), of: strconv.Itoa(s.Of), rate: "-"}
 		if s.Defined {
-			p.rate, p.low, p.high = percent(s.Rate)+"%", percent(s.Low), percent(s.High)+"%"
+			p.rate, p.low, p.high = wholePercent(s.Rate)+"%", wholePercent(s.Low), wholePercent(s.High)+"%"
 		}
 
 		hw, ow, rw = max(hw, len(p.hits)), max(ow, len(p.of)), max(rw, len(p.rate))
@@ -379,24 +379,19 @@ func inlineShare(s Share) string {
 		return "-"
 	}
 
-	return percent(s.Rate) + "% " + percent(s.Low) + "-" + percent(s.High) + "%"
+	return wholePercent(s.Rate) + "% " + wholePercent(s.Low) + "-" + wholePercent(s.High) + "%"
 }
 
 func countedShare(s Share) string {
 	return strconv.Itoa(s.Hits) + "/" + strconv.Itoa(s.Of) + " " + inlineShare(s)
 }
 
-func percent(rate float64) string {
-	rounded := int(math.Round(rate * 100))
+func wholePercent(fraction float64) string {
+	// From the four place value in whole hundredths of a percent, since 0.565 times 100 lands just
+	// under 56.5 in floating point and would round down.
+	hundredths := math.Round(fraction * 1e4)
 
-	switch {
-	case rounded >= 100 && rate < 1:
-		rounded = 99
-	case rounded <= 0 && rate > 0:
-		rounded = 1
-	}
-
-	return strconv.Itoa(rounded)
+	return strconv.Itoa(min(99, max(1, int(math.Round(hundredths/100)))))
 }
 
 func cutText(cut float64) string {

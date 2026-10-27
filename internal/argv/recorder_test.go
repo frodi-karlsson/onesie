@@ -59,6 +59,15 @@ func TestRecorder(t *testing.T) {
 			},
 		},
 		{
+			name: "should record a switch given with no value as true, in order with the rest",
+			args: []string{"--ask", "a=first", "--box", "--ask", "b=second"},
+			want: []argv.Event{
+				{Name: "ask", Value: "a=first"},
+				{Name: "box", Value: "true"},
+				{Name: "ask", Value: "b=second"},
+			},
+		},
+		{
 			name: "should keep a dash inside a description",
 			args: []string{"--desc", "x=- a bullet"},
 			want: []argv.Event{
@@ -78,6 +87,9 @@ func TestRecorder(t *testing.T) {
 				set.Var(recorder.Flag(name), name, "recorded")
 			}
 
+			set.Var(recorder.Switch("box"), "box", "recorded")
+			set.Lookup("box").NoOptDefVal = "true"
+
 			if err := set.Parse(tc.args); err != nil {
 				t.Fatalf("parsing %v: %v", tc.args, err)
 			}
@@ -94,4 +106,20 @@ func TestRecorder(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRecorder_Switch(t *testing.T) {
+	t.Parallel()
+
+	t.Run("should show no value in the usage line", func(t *testing.T) {
+		t.Parallel()
+
+		set := pflag.NewFlagSet("onesie", pflag.ContinueOnError)
+		set.Var(argv.New().Switch("box"), "box", "a switch")
+		set.Lookup("box").NoOptDefVal = "true"
+
+		if got := set.FlagUsages(); got != "      --box   a switch\n" {
+			t.Errorf("usage = %q, want the flag with no value", got)
+		}
+	})
 }
