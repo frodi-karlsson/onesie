@@ -1,10 +1,13 @@
 package cli
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"mime"
 	"net/http"
+	"reflect"
+	"strconv"
 	"strings"
 	"unicode"
 
@@ -240,4 +243,95 @@ func withNote(message, note string) string {
 	}
 
 	return message + ". " + note
+}
+
+func readableResponse(err error) error {
+	// onesie-go reports a body that did not decode with the decoder's own sentence, which names Go
+	// types. The fields it names are the wire's, so they are said again in the response's terms.
+	var (
+		unusable *onesie.ResponseError
+		mistyped *json.UnmarshalTypeError
+	)
+
+	if !errors.As(err, &unusable) || unusable.Message != "" || !errors.As(err, &mistyped) {
+		return err
+	}
+
+	translated := *unusable
+	translated.Message = "onesie: " + strconv.Itoa(unusable.Status) + " response could not be used: " +
+		mistypedSentence(unusable.Err, mistyped)
+
+	return &translated
+}
+
+func mistypedSentence(cause error, mistyped *json.UnmarshalTypeError) string {
+	field := strings.TrimPrefix(mistyped.Field, ".")
+	want := wantedKind(mistyped.Type)
+
+	name, isAnswer := answerName(cause)
+	if !isAnswer {
+		if field == "" {
+			return "the response is not a System One result"
+		}
+
+		return fmt.Sprintf("the response is not a System One result, since its %s %s not %s",
+			field, verbFor(field), want)
+	}
+
+	if field == "" {
+		return fmt.Sprintf("answer '%s' is not an object", name)
+	}
+
+	switch {
+	case strings.HasPrefix(field, "probabilities."):
+		field = fmt.Sprintf("probability for '%s'", strings.TrimPrefix(field, "probabilities."))
+	case strings.HasPrefix(field, "box."):
+		field = fmt.Sprintf("box %s edge", strings.TrimPrefix(field, "box."))
+	}
+
+	return fmt.Sprintf("answer '%s' has a %s that is not %s", name, field, want)
+}
+
+func answerName(cause error) (string, bool) {
+	// onesie-go names the answer as answer "x": ahead of the decoder's sentence.
+	rest, found := strings.CutPrefix(cause.Error(), "answer ")
+	if !found {
+		return "", false
+	}
+
+	quoted, err := strconv.QuotedPrefix(rest)
+	if err != nil {
+		return "", false
+	}
+
+	name, err := strconv.Unquote(quoted)
+
+	return name, err == nil
+}
+
+func wantedKind(wanted reflect.Type) string {
+	if wanted == nil {
+		return "the right type"
+	}
+
+	switch wanted.Kind() {
+	case reflect.Float32, reflect.Float64, reflect.Int, reflect.Int64:
+		return "a number"
+	case reflect.String:
+		return "a string"
+	case reflect.Bool:
+		return "true or false"
+	case reflect.Slice, reflect.Array:
+		return "an array"
+	default:
+		return "an object"
+	}
+}
+
+func verbFor(field string) string {
+	if strings.HasSuffix(field, "s") {
+		return "are"
+	}
+
+	return "is"
 }
