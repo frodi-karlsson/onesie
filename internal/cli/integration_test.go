@@ -248,7 +248,7 @@ func TestFilterIntegration(t *testing.T) {
 		}
 	})
 
-	t.Run("should normalize a pick and a rate on every provider", func(t *testing.T) {
+	t.Run("should answer a pick and a rate with one of the names and p over exactly those names on openrouter, levanto and cloudflare", func(t *testing.T) {
 		for _, provider := range []struct {
 			name string
 			args []string
@@ -277,7 +277,7 @@ func TestFilterIntegration(t *testing.T) {
 				{shape: "pick", args: []string{"who should handle this", "--pick", "billing,shipping,technical"}, names: []string{"billing", "shipping", "technical"}},
 				{shape: "rate", args: []string{"how frustrated is the customer", "--rate", "calm,annoyed,furious"}, names: []string{"calm", "annoyed", "furious"}},
 			} {
-				t.Run("should normalize a "+question.shape+" through "+provider.name, func(t *testing.T) {
+				t.Run("should answer a "+question.shape+" through "+provider.name+" with one of the names and p over exactly those names", func(t *testing.T) {
 					for _, key := range provider.keys {
 						if strings.TrimSpace(os.Getenv(key)) == "" {
 							t.Skip(key + " is not set, skipping the " + provider.name + " case")

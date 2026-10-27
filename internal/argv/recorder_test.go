@@ -108,7 +108,7 @@ func TestRecorder(t *testing.T) {
 	}
 }
 
-func TestRecorderSwitch(t *testing.T) {
+func TestRecorder_Switch(t *testing.T) {
 	t.Parallel()
 
 	t.Run("should show no value in the usage line", func(t *testing.T) {
