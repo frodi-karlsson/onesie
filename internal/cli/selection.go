@@ -103,13 +103,14 @@ func providerIsProfileHint(err error, chosen choice, profiles creds.Profiles) er
 		return err
 	}
 
+	note := fmt.Sprintf("%s is a profile, so pass --profile %s in place of --provider",
+		creds.QuotedName(chosen.provider), creds.QuotedName(chosen.provider))
 	if chosen.by == envProvider {
-		return fmt.Errorf("%w. %s is a profile, so set %s=%s in place of %s",
-			err, creds.QuotedName(chosen.provider), envProfile, creds.QuotedName(chosen.provider), envProvider)
+		note = fmt.Sprintf("%s is a profile, so set %s=%s in place of %s",
+			creds.QuotedName(chosen.provider), envProfile, creds.QuotedName(chosen.provider), envProvider)
 	}
 
-	return fmt.Errorf("%w. %s is a profile, so pass --profile %s in place of --provider",
-		err, creds.QuotedName(chosen.provider), creds.QuotedName(chosen.provider))
+	return &advisedError{cause: err, message: text(err) + ". " + note}
 }
 
 func knownProfiles(profiles creds.Profiles) string {
@@ -280,23 +281,27 @@ func missingKeyHint(err error, bare resolution, profiles creds.Profiles) error {
 		return err
 	}
 
+	return &advisedError{cause: err, message: text(err) + storeKeyHint(bare, profiles)}
+}
+
+func storeKeyHint(bare resolution, profiles creds.Profiles) string {
 	name := firstProfileOf(bare.provider.Name(), profiles)
 	if name == "" && bare.by == envProvider {
 		// A profile created now would still go unused while the variable chooses the run.
-		return fmt.Errorf("%w. %s is set, so a stored profile is not used. To use one instead, unset %s "+
-			"and run onesie profile create NAME --provider %s", err, envProvider, envProvider, bare.provider.Name())
+		return fmt.Sprintf(". %s is set, so a stored profile is not used. To use one instead, unset %s "+
+			"and run onesie profile create NAME --provider %s", envProvider, envProvider, bare.provider.Name())
 	}
 
 	if name == "" {
-		return fmt.Errorf("%w, or store one with onesie profile create NAME --provider %s", err, bare.provider.Name())
+		return ", or store one with onesie profile create NAME --provider " + bare.provider.Name()
 	}
 
 	if bare.by == envProvider {
-		return fmt.Errorf("%w, or unset %s and run onesie profile use %s, or run with --profile %s",
-			err, envProvider, creds.QuotedName(name), creds.QuotedName(name))
+		return fmt.Sprintf(", or unset %s and run onesie profile use %s, or run with --profile %s",
+			envProvider, creds.QuotedName(name), creds.QuotedName(name))
 	}
 
-	return fmt.Errorf("%w, or drop --provider and pass --profile %s", err, creds.QuotedName(name))
+	return ", or drop --provider and pass --profile " + creds.QuotedName(name)
 }
 
 func firstProfileOf(provider string, profiles creds.Profiles) string {
@@ -322,7 +327,10 @@ func accountNote(
 		return err
 	}
 
-	return fmt.Errorf("%w, or run onesie profile update %s --account-id ACCOUNT_ID", err, creds.QuotedName(chosen.profile))
+	return &advisedError{
+		cause:   err,
+		message: text(err) + ", or run onesie profile update " + creds.QuotedName(chosen.profile) + " --account-id ACCOUNT_ID",
+	}
 }
 
 func (r resolution) accountSource(lookupEnv func(string) (string, bool)) string {

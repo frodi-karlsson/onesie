@@ -786,6 +786,10 @@ func TestRun(t *testing.T) {
 				t.Errorf("stderr = %q, want it to contain %q", run.stderr, tc.wantErr)
 			}
 
+			if strings.Contains(run.stderr, "onesie: onesie: ") {
+				t.Errorf("stderr = %q, want the onesie prefix once", run.stderr)
+			}
+
 			if tc.wantOut != "" && !strings.Contains(run.stdout, tc.wantOut) {
 				t.Errorf("stdout = %q, want it to contain %q", run.stdout, tc.wantOut)
 			}
@@ -1209,4 +1213,37 @@ func noisePNG(t *testing.T, side, names int) []byte {
 	}
 
 	return buf.Bytes()
+}
+
+func TestLongContextCause(t *testing.T) {
+	t.Parallel()
+
+	const refused = "the cloudflare provider takes no long context. The typesafe, openrouter, berget and levanto providers do"
+
+	refusal := onesie.Cloudflare().Refuse(onesie.Cloudflare().DefaultModel(), onesie.Needs{LongContext: true})
+
+	tests := []struct {
+		name  string
+		flags runConfig
+		want  string
+	}{
+		{
+			name: "should name ONESIE_LONG_CONTEXT when it turned long context on", flags: runConfig{env: switches{longContext: true}},
+			want: refused + ". ONESIE_LONG_CONTEXT turned it on, so unset it or pass --long-context=false",
+		},
+		{
+			name:  "should leave a refusal --long-context caused alone",
+			flags: runConfig{env: switches{longContext: true}, longContextSet: true}, want: refused,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := text(longContextCause(refusal, tc.flags)); got != tc.want {
+				t.Errorf("text = %q, want %q", got, tc.want)
+			}
+		})
+	}
 }

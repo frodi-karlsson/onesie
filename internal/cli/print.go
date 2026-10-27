@@ -208,7 +208,7 @@ func streamRequests(
 				State: sent, Model: model, Questions: questions, Assets: assets, LongContext: built.LongContext,
 			}
 			if validErr := onesie.ValidateRequest(req); validErr != nil {
-				bad := &input.LineError{Line: rec.Line, Err: unprefixed(validErr)}
+				bad := &input.LineError{Line: rec.Line, Err: embed("", validErr)}
 
 				return errorLine(bad), bad
 			}
@@ -238,7 +238,7 @@ func streamRequests(
 func requestLine(number int, req onesie.Request) ([]byte, error) {
 	body, err := onesie.MarshalBody(req)
 	if err != nil {
-		bad := &input.LineError{Line: number, Err: fmt.Errorf("encoding the request: %w", err)}
+		bad := &input.LineError{Line: number, Err: embed("encoding the request", err)}
 
 		return errorLine(bad), bad
 	}

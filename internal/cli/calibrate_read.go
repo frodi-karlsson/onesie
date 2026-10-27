@@ -48,7 +48,7 @@ func calibrateRequests(
 			State: sent, Model: model, Questions: questions, Assets: assets, LongContext: scope.scored.LongContext,
 		}
 		if validErr := onesie.ValidateRequest(req); validErr != nil {
-			return &input.LineError{Line: rec.line, Err: unprefixed(validErr)}
+			return &input.LineError{Line: rec.line, Err: embed("", validErr)}
 		}
 
 		body, bodyErr := requestLine(rec.line, req)

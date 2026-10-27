@@ -163,7 +163,7 @@ func TestDescribe(t *testing.T) {
 		{name: "should agree with a fresh run on a bad request", cause: apiError(http.StatusBadRequest)},
 		{name: "should agree with a fresh run on an unauthorized status", cause: apiError(http.StatusUnauthorized)},
 		{name: "should agree with a fresh run on a payment required status", cause: &advisedError{
-			cause: apiError(http.StatusPaymentRequired), message: "onesie: 402. Add credits",
+			cause: apiError(http.StatusPaymentRequired), message: "402. Add credits",
 		}},
 		{name: "should agree with a fresh run on a forbidden status", cause: apiError(http.StatusForbidden)},
 		{name: "should agree with a fresh run on a not found status", cause: apiError(http.StatusNotFound)},
@@ -229,7 +229,7 @@ func TestDescribe(t *testing.T) {
 				kind:  "http", status: statusOf(http.StatusBadRequest),
 			},
 			{
-				cause: &advisedError{cause: &onesie.APIError{Status: http.StatusPaymentRequired}, message: "onesie: 402. Add credits"},
+				cause: &advisedError{cause: &onesie.APIError{Status: http.StatusPaymentRequired}, message: "402. Add credits"},
 				kind:  "http", status: statusOf(http.StatusPaymentRequired), message: "402. Add credits",
 			},
 			{

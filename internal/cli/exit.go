@@ -303,10 +303,10 @@ type sourceError struct {
 
 func (e *sourceError) Error() string {
 	if e.failed == 0 {
-		return e.cause.Error()
+		return text(e.cause)
 	}
 
-	return fmt.Sprintf("%v, after %s failed", e.cause, plural(e.failed, "record"))
+	return fmt.Sprintf("%s, after %s failed", text(e.cause), plural(e.failed, "record"))
 }
 
 func (e *sourceError) Unwrap() error {
@@ -318,7 +318,7 @@ type abortError struct {
 }
 
 func (e *abortError) Error() string {
-	return e.cause.Error()
+	return text(e.cause)
 }
 
 func (e *abortError) Unwrap() error {
@@ -330,7 +330,7 @@ type stoppedError struct {
 }
 
 func (e *stoppedError) Error() string {
-	return e.cause.Error()
+	return text(e.cause)
 }
 
 func (e *stoppedError) Unwrap() error {

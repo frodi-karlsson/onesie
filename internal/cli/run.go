@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"slices"
-	"strings"
 	"sync/atomic"
 
 	"github.com/spf13/cobra"
@@ -1267,9 +1266,7 @@ func failureRecord(built *plan.Plan, cause error) output.Record {
 func describe(cause error) *output.Failure {
 	found := classify(cause)
 
-	// The prefix names the program on stderr. On an output line it would say nothing, and a line
-	// error carries none.
-	return &output.Failure{Kind: found.kind, Status: found.status, Message: strings.TrimPrefix(cause.Error(), "onesie: ")}
+	return &output.Failure{Kind: found.kind, Status: found.status, Message: text(cause)}
 }
 
 func quietResult(question plan.Question, a *answer.Answer) error {

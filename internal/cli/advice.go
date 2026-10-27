@@ -33,21 +33,21 @@ func advise(err error, model string, validated bool) error {
 	if api.Status == http.StatusPaymentRequired {
 		return &advisedError{
 			cause:   err,
-			message: withNote(err.Error(), "Add credits to the account this key belongs to"),
+			message: withNote(text(err), "Add credits to the account this key belongs to"),
 		}
 	}
 
 	if unknownModel(api, model) {
 		return &advisedError{
 			cause:   err,
-			message: fmt.Sprintf("onesie: model '%s' not found. Try --list-models", model),
+			message: fmt.Sprintf("model '%s' not found. Try --list-models", model),
 		}
 	}
 
 	// Only where onesie ran its own bounds check. A body replayed through -i request is sent
 	// unchecked, so a note about stale limits would blame a check that never ran.
 	if validated && countRejected(api) {
-		return &advisedError{cause: err, message: staleLimits(err.Error())}
+		return &advisedError{cause: err, message: staleLimits(text(err))}
 	}
 
 	var advised *advisedError
@@ -56,14 +56,14 @@ func advise(err error, model string, validated bool) error {
 	}
 
 	if _, isText := api.Body.(string); isText {
-		return &advisedError{cause: err, message: messageLine(err.Error())}
+		return &advisedError{cause: err, message: messageLine(text(err))}
 	}
 
 	// Only a missing path or method points at the base URL. An outage, a rate limit or a refused key
 	// arrives from the right server too.
 	if api.Body == nil && len(api.RawBody) > 0 &&
 		(api.Status == http.StatusNotFound || api.Status == http.StatusMethodNotAllowed) {
-		return &advisedError{cause: err, message: withNote(err.Error(), "Check that the base URL points at the System One API")}
+		return &advisedError{cause: err, message: withNote(text(err), "Check that the base URL points at the System One API")}
 	}
 
 	return err
@@ -83,7 +83,7 @@ func adviseLongContext(err error, helps bool) error {
 
 	return &advisedError{
 		cause:   err,
-		message: withNote(err.Error(), "Pass --long-context to raise the context limit, which is slower and less accurate"),
+		message: withNote(text(err), "Pass --long-context to raise the context limit, which is slower and less accurate"),
 	}
 }
 
@@ -102,7 +102,7 @@ func adviseBox(err error, provider string, boxed bool) error {
 	// names neither the question nor the model.
 	return &advisedError{
 		cause:   err,
-		message: withNote(err.Error(), "A box question needs a model that serves it, such as -m jev-preview"),
+		message: withNote(text(err), "A box question needs a model that serves it, such as -m jev-preview"),
 	}
 }
 
@@ -129,7 +129,7 @@ func keyHint(err error, chosen resolution) error {
 		note = "Replace the key with onesie profile update " + creds.QuotedName(chosen.profile) + " --key"
 	}
 
-	return &advisedError{cause: err, message: withNote(err.Error(), note)}
+	return &advisedError{cause: err, message: withNote(text(err), note)}
 }
 
 func keyRefused(err error) bool {

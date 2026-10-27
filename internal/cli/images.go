@@ -197,13 +197,13 @@ func (m *imaging) load(path string) (string, onesie.Image, error) {
 
 	img, err := onesie.NewImage(data)
 	if err != nil {
-		return "", onesie.Image{}, fmt.Errorf("%s: %w", path, unprefixed(err))
+		return "", onesie.Image{}, embed(path, err)
 	}
 
 	// Checked here rather than when the request is built, so a file the API would refuse costs no
 	// request and names its own path.
 	if err := onesie.ValidateImage(path, img); err != nil {
-		return "", onesie.Image{}, unprefixed(err)
+		return "", onesie.Image{}, embed("", err)
 	}
 
 	return imageRef(data), img, nil
@@ -242,7 +242,7 @@ func longContextCause(refusal error, flags runConfig) error {
 
 	return &advisedError{
 		cause: refusal,
-		message: refusal.Error() + ". " + envLongContext +
+		message: text(refusal) + ". " + envLongContext +
 			" turned it on, so unset it or pass --long-context=false",
 	}
 }
@@ -324,8 +324,4 @@ func jsonKind(value any) string {
 	default:
 		return "an object"
 	}
-}
-
-func unprefixed(err error) error {
-	return errors.New(strings.TrimPrefix(err.Error(), "onesie: "))
 }

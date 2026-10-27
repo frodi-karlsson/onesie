@@ -112,7 +112,9 @@ func noKeyForCache(settings rootSettings, err error) error {
 		return err
 	}
 
-	return fmt.Errorf("%w. The cache needs the key too, to find the API address it keys answers by", err)
+	return &advisedError{
+		cause: err, message: text(err) + ". The cache needs the key too, to find the API address it keys answers by",
+	}
 }
 
 func openCache(settings rootSettings, ttl time.Duration) (*cache.Store, error) {

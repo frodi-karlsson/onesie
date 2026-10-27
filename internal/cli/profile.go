@@ -445,7 +445,7 @@ func writeProfiles(w io.Writer, profiles creds.Profiles, active string) error {
 func inactiveReason(active resolution, err error) string {
 	switch {
 	case err != nil:
-		return "active: none, since " + strings.TrimPrefix(err.Error(), "onesie: ")
+		return "active: none, since " + text(err)
 	case active.profile == "":
 		return "active: " + active.by + "=" + active.provider.Name() + ", no profile"
 	}

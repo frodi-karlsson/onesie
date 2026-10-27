@@ -850,41 +850,41 @@ func TestMissingKeyHint(t *testing.T) {
 		{
 			name: "should name the first profile with the provider under ONESIE_PROVIDER",
 			err:  missing("OPENROUTER_API_KEY"), run: bareOf("openrouter", "ONESIE_PROVIDER", nil),
-			want: "onesie: no API key. Set OPENROUTER_API_KEY, or unset ONESIE_PROVIDER and run " +
+			want: "no API key. Set OPENROUTER_API_KEY, or unset ONESIE_PROVIDER and run " +
 				"onesie profile use 'personal', or run with --profile 'personal'",
 		},
 		{
 			name: "should say a stored profile is not used under ONESIE_PROVIDER when none has the provider",
 			err:  missing("LEVANTO_API_KEY"), run: bareOf("levanto", "ONESIE_PROVIDER", nil),
-			want: "onesie: no API key. Set LEVANTO_API_KEY. ONESIE_PROVIDER is set, so a stored profile is not " +
+			want: "no API key. Set LEVANTO_API_KEY. ONESIE_PROVIDER is set, so a stored profile is not " +
 				"used. To use one instead, unset ONESIE_PROVIDER and run onesie profile create NAME --provider levanto",
 		},
 		{
 			name: "should say to drop --provider under --provider",
 			err:  missing("TYPESAFE_API_KEY"), run: bareOf("typesafe", "--provider", nil),
-			want: "onesie: no API key. Set TYPESAFE_API_KEY, or drop --provider and pass --profile 'ts'",
+			want: "no API key. Set TYPESAFE_API_KEY, or drop --provider and pass --profile 'ts'",
 		},
 		{
 			name: "should name profile create when no profile has the provider",
 			err:  missing("BERGET_API_KEY"), run: bareOf("berget", "--provider", nil),
-			want: "onesie: no API key. Set BERGET_API_KEY, or store one with onesie profile create NAME --provider berget",
+			want: "no API key. Set BERGET_API_KEY, or store one with onesie profile create NAME --provider berget",
 		},
 		{
 			name: "should leave the error alone when the variable holds a key",
 			err:  missing("OPENROUTER_API_KEY"),
 			run:  bareOf("openrouter", "--provider", map[string]string{"OPENROUTER_API_KEY": "SECRET-OR"}),
-			want: "onesie: no API key. Set OPENROUTER_API_KEY",
+			want: "no API key. Set OPENROUTER_API_KEY",
 		},
 		{
 			name: "should leave an unrelated validation error alone",
 			err:  &onesie.ValidationError{Message: "base URL must be an absolute http or https URL, got proxy.example"},
 			run:  bareOf("openrouter", "ONESIE_PROVIDER", nil),
-			want: "onesie: base URL must be an absolute http or https URL, got proxy.example",
+			want: "base URL must be an absolute http or https URL, got proxy.example",
 		},
 		{
 			name: "should leave an error that is not a validation error alone",
-			err:  errors.New("onesie: the server is down"), run: bareOf("openrouter", "--provider", nil),
-			want: "onesie: the server is down",
+			err:  errors.New("the server is down"), run: bareOf("openrouter", "--provider", nil),
+			want: "the server is down",
 		},
 	}
 
@@ -893,8 +893,8 @@ func TestMissingKeyHint(t *testing.T) {
 			t.Parallel()
 
 			got := missingKeyHint(tc.err, tc.run, profiles)
-			if got.Error() != tc.want {
-				t.Errorf("error = %q, want %q", got.Error(), tc.want)
+			if text(got) != tc.want {
+				t.Errorf("error = %q, want %q", text(got), tc.want)
 			}
 
 			if !errors.Is(got, tc.err) {
@@ -911,8 +911,8 @@ func TestMissingKeyHint(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if got := missingKeyHint(missing("OPENROUTER_API_KEY"), run, profiles); got.Error() != "onesie: no API key. Set OPENROUTER_API_KEY" {
-			t.Errorf("error = %q, want it unchanged", got.Error())
+		if got := missingKeyHint(missing("OPENROUTER_API_KEY"), run, profiles); text(got) != "no API key. Set OPENROUTER_API_KEY" {
+			t.Errorf("error = %q, want it unchanged", text(got))
 		}
 	})
 }
@@ -941,21 +941,21 @@ func TestAccountNote(t *testing.T) {
 	}{
 		{
 			name: "should name profile update for a cloudflare profile with no account", run: cf,
-			want: "onesie: no cloudflare account id. Set CLOUDFLARE_ACCOUNT_ID, " +
+			want: "no cloudflare account id. Set CLOUDFLARE_ACCOUNT_ID, " +
 				"or run onesie profile update 'cf' --account-id ACCOUNT_ID",
 		},
 		{
 			name: "should leave the error alone when CLOUDFLARE_ACCOUNT_ID is set", run: cf,
 			env:  map[string]string{"CLOUDFLARE_ACCOUNT_ID": testAccountID},
-			want: "onesie: no cloudflare account id. Set CLOUDFLARE_ACCOUNT_ID",
+			want: "no cloudflare account id. Set CLOUDFLARE_ACCOUNT_ID",
 		},
 		{
 			name: "should leave the error alone beside --base-url", run: cf, flag: "https://proxy.example",
-			want: "onesie: no cloudflare account id. Set CLOUDFLARE_ACCOUNT_ID",
+			want: "no cloudflare account id. Set CLOUDFLARE_ACCOUNT_ID",
 		},
 		{
 			name: "should leave a run without a profile alone", run: bare,
-			want: "onesie: no cloudflare account id. Set CLOUDFLARE_ACCOUNT_ID",
+			want: "no cloudflare account id. Set CLOUDFLARE_ACCOUNT_ID",
 		},
 	}
 
@@ -963,8 +963,8 @@ func TestAccountNote(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			if got := accountNote(noAccount, tc.run, tc.flag, lookupFrom(tc.env)); got.Error() != tc.want {
-				t.Errorf("error = %q, want %q", got.Error(), tc.want)
+			if got := accountNote(noAccount, tc.run, tc.flag, lookupFrom(tc.env)); text(got) != tc.want {
+				t.Errorf("error = %q, want %q", text(got), tc.want)
 			}
 		})
 	}

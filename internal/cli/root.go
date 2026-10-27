@@ -184,7 +184,7 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 			out, resume, err := openOut(settings, *flags, false)
 
 			defer func() {
-				err = errors.Join(err, prefixed(out.Release()))
+				err = alsoFailed(err, out.Release())
 			}()
 
 			if err != nil {
@@ -199,7 +199,7 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 
 			runErr := run(cmd, settings, recorder.Events(), positional, flags, out, resume)
 
-			return errors.Join(runErr, prefixed(out.Finish(runErr)))
+			return alsoFailed(runErr, out.Finish(runErr))
 		},
 	}
 
@@ -703,27 +703,12 @@ func Execute(ctx context.Context, root *cobra.Command) int {
 
 	if worthReporting(err) {
 		// Stripped, since a message can quote the server or the input to a terminal.
-		message := output.Printable(err.Error())
-		// Library errors carry the prefix and the CLI's own errors do not, and a consumer filtering
-		// stderr should not have to know which layer produced a line.
-		if !strings.HasPrefix(message, "onesie: ") {
-			message = "onesie: " + message
-		}
-
-		if _, printErr := fmt.Fprintln(root.ErrOrStderr(), message); printErr != nil {
+		if _, printErr := fmt.Fprintln(root.ErrOrStderr(), "onesie: "+output.Printable(text(err))); printErr != nil {
 			return ExitUsage
 		}
 	}
 
 	return Classify(err)
-}
-
-func prefixed(err error) error {
-	if err == nil {
-		return nil
-	}
-
-	return fmt.Errorf("onesie: %w", err)
 }
 
 // WithClientFactory replaces how commands build their API client, so a test can point one at a
