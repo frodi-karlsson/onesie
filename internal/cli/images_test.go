@@ -508,7 +508,7 @@ func TestRun(t *testing.T) {
 			name:     "should refuse a body whose long_context is not true or false",
 			args:     []string{"-f", writeImage(t, dir, "bad-long.json", []byte(`{"state":"s","questions":{"red":{"type":"noul","instructions":"q"}},"long_context":"yes"}`))},
 			wantCode: ExitUsage,
-			wantErr:  "onesie: 'long_context' in a request body must be true or false",
+			wantErr:  "bad-long.json: 'long_context' in a request body must be true or false",
 		},
 		{
 			name:     "should warn that --print-questions drops a body's long context",

@@ -527,6 +527,9 @@ func schemaInstance(doc string) (any, bool, bool) {
 }
 
 func loaderOnlyRule(stderr string) (string, bool) {
+	// The loader names the file ahead of its own sentence, and the rules match that sentence.
+	stderr = regexp.MustCompile(`^onesie: \S+\.(yaml|yml|json): `).ReplaceAllString(stderr, "onesie: ")
+
 	rules := []struct {
 		name    string
 		pattern *regexp.Regexp
@@ -539,6 +542,7 @@ func loaderOnlyRule(stderr string) (string, bool) {
 		{name: "the size cap", pattern: regexp.MustCompile(`^onesie: a question file is at most \d+ bytes`)},
 		{name: "a level named twice", pattern: regexp.MustCompile(`^onesie: 'rate' label '.*' is listed twice in question `)},
 		{name: "a file with no question, which --ask completes", pattern: regexp.MustCompile(`^onesie: no question given\. `)},
+		{name: "a file that holds nothing", pattern: regexp.MustCompile(`^onesie: the question file \S+ holds no questions`)},
 		{name: "abstain_if with no assert, which --assert completes", pattern: regexp.MustCompile(`^onesie: 'abstain_if' needs --assert, `)},
 		{name: "min_confidence with no fallback, which --fallback completes", pattern: regexp.MustCompile(`^onesie: 'min_confidence' needs 'fallback', `)},
 		{name: "min_confidence on a yes/no question, which --pick or --rate completes", pattern: regexp.MustCompile(`^onesie: 'min_confidence' needs a confidence value\. `)},

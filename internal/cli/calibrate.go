@@ -15,7 +15,6 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/jq"
 	"github.com/frodi-karlsson/onesie/internal/limits"
 	"github.com/frodi-karlsson/onesie/internal/plan"
-	"github.com/frodi-karlsson/onesie/internal/qfile"
 )
 
 const (
@@ -421,12 +420,12 @@ func refuseUnlabelledBody(settings rootSettings, name string, scored *plan.Plan)
 		return nil
 	}
 
-	data, _, err := readQuestionFile(settings, name)
+	data, path, err := readQuestionFile(settings, name)
 	if err != nil {
 		return err
 	}
 
-	loaded, err := qfile.Load(data)
+	loaded, err := loadQuestionFile(data, path, false)
 	if err != nil {
 		return err
 	}

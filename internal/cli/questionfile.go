@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"strings"
 
 	"github.com/frodi-karlsson/onesie/internal/qfile"
 )
@@ -104,4 +105,29 @@ func findEnv(settings rootSettings) (qfile.FindEnv, error) {
 	}
 
 	return env, nil
+}
+
+func loadQuestionFile(data []byte, path string, alone bool) (*qfile.File, error) {
+	loaded, err := qfile.Load(data)
+	if err != nil {
+		// A file of only comments reads as null, which holds no more than an empty mapping does.
+		decoded, decodeErr := qfile.DecodeOrdered(data)
+		if decodeErr != nil || decoded != nil {
+			return nil, fmt.Errorf("onesie: %s: %s", path, strings.TrimPrefix(err.Error(), "onesie: "))
+		}
+
+		loaded = &qfile.File{}
+	}
+
+	// An empty file beside --ask only adds nothing, which is fine. Alone it is the whole run, so
+	// the file is what to name.
+	if alone && len(loaded.Questions) == 0 {
+		return nil, noQuestionsIn(path)
+	}
+
+	return loaded, nil
+}
+
+func noQuestionsIn(path string) error {
+	return fmt.Errorf("onesie: the question file %s holds no questions", path)
 }

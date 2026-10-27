@@ -104,7 +104,7 @@ func build(
 
 		var loadErr error
 
-		loaded, loadErr = qfile.Load(data)
+		loaded, loadErr = loadQuestionFile(data, path, positional == "" && !asked(events))
 		if loadErr != nil {
 			return nil, nil, loadErr
 		}

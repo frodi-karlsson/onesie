@@ -65,6 +65,21 @@ func TestNewQuestionsCmd(t *testing.T) {
 				"triage  " + filepath.Join(upOne, "triage.json") + "  clash\n",
 		},
 		{
+			name:     "should mark an empty saved file in the table",
+			args:     []string{"questions"},
+			files:    map[string]string{"/repo/.onesie/questions/shell-safety.yaml": ""},
+			wantCode: ExitOK,
+			want:     "shell-safety  " + filepath.Join(upOne, "shell-safety.yaml") + "  empty\n",
+		},
+		{
+			name:     "should mark an empty saved file in json",
+			args:     []string{"questions", "-o", "json"},
+			files:    map[string]string{"/repo/.onesie/questions/triage.yaml": " \n"},
+			wantCode: ExitOK,
+			want: `[{"name":"triage","path":` + quoted(filepath.Join(repoDir, "triage.yaml")) +
+				`,"empty":true,"builtin":false}]` + "\n",
+		},
+		{
 			name:     "should print json with absolute paths",
 			args:     []string{"questions", "-o", "json"},
 			files:    sets,

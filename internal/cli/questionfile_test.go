@@ -771,3 +771,40 @@ func (f fakeTree) path(name string) string {
 
 	return trimmed
 }
+
+func TestLoadQuestionFile(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		data string
+		want string
+	}{
+		{name: "should name a file of only comments as holding no questions", data: "# a note\n", want: "onesie: the question file q.yaml holds no questions"},
+		{name: "should name an empty mapping as holding no questions", data: "{}\n", want: "onesie: the question file q.yaml holds no questions"},
+		{name: "should name a body with no questions", data: `{"questions":{}}`, want: "onesie: the question file q.yaml holds no questions"},
+		{name: "should name the file in a load error", data: "a:\n  bogus: 1\n", want: "onesie: q.yaml: question 'a' has no 'ask'"},
+		{name: "should name the file when it is not a mapping", data: "- a\n", want: "onesie: q.yaml: a question file is a mapping of question id to definition"},
+	}
+
+	t.Run("should take an empty file beside --ask", func(t *testing.T) {
+		t.Parallel()
+
+		for _, data := range []string{"{}\n", "# a note\n"} {
+			if _, err := loadQuestionFile([]byte(data), "q.yaml", false); err != nil {
+				t.Errorf("loadQuestionFile(%q) = %v, want no error", data, err)
+			}
+		}
+	})
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := loadQuestionFile([]byte(tc.data), "q.yaml", true)
+			if err == nil || err.Error() != tc.want {
+				t.Errorf("loadQuestionFile = %v, want %q", err, tc.want)
+			}
+		})
+	}
+}
