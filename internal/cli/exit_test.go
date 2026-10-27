@@ -237,6 +237,39 @@ func TestClassify(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("should give each error the kind a record is written with and whether it is quiet", func(t *testing.T) {
+		t.Parallel()
+
+		pins := []struct {
+			err   error
+			kind  output.Kind
+			quiet bool
+		}{
+			{err: &recordsError{}, kind: output.KindInput, quiet: true},
+			{err: &stoppedError{cause: &input.LineError{Line: 2, Err: errors.New("not json")}}, kind: output.KindInput, quiet: true},
+			{err: &rejectedError{}, kind: output.KindInput, quiet: true},
+			{err: &abstainError{}, kind: output.KindInput, quiet: true},
+			{err: &input.LineError{Line: 1, Err: errors.New("not json")}, kind: output.KindInput},
+			{err: context.Canceled, kind: output.KindInput, quiet: true},
+			{err: context.DeadlineExceeded, kind: output.KindTransport},
+			{err: apiError(http.StatusUnauthorized), kind: output.KindHTTP},
+			{err: apiError(http.StatusBadRequest), kind: output.KindHTTP},
+			{err: &onesie.ResponseError{Status: http.StatusOK}, kind: output.KindResponse},
+			{err: &onesie.ConnectionError{Err: errors.New("refused")}, kind: output.KindTransport},
+			{err: &onesie.ConnectionError{Err: syscall.EPIPE}, kind: output.KindTransport, quiet: true},
+			{err: &fs.PathError{Op: "write", Path: "/dev/stdout", Err: syscall.EPIPE}, kind: output.KindInput, quiet: true},
+			{err: &silentError{code: ExitAuth}, kind: output.KindInput, quiet: true},
+			{err: errors.New("boom"), kind: output.KindInput},
+		}
+
+		for _, pin := range pins {
+			if got := classify(pin.err); got.kind != pin.kind || got.quiet != pin.quiet {
+				t.Errorf("classify(%v) = kind %s, quiet %t, want kind %s, quiet %t",
+					pin.err, got.kind, got.quiet, pin.kind, pin.quiet)
+			}
+		}
+	})
 }
 
 func TestWorthReporting(t *testing.T) {
@@ -271,6 +304,7 @@ func TestWorthReporting(t *testing.T) {
 		{name: "should report a line onesie could not read", err: &input.LineError{Line: 1, Err: errors.New("x")}, want: true},
 		{name: "should report a server error", err: &onesie.APIError{Status: http.StatusBadGateway}, want: true},
 		{name: "should report a connection error", err: &onesie.ConnectionError{Err: errors.New("refused")}, want: true},
+		{name: "should stay quiet for a connection that broke with EPIPE", err: &onesie.ConnectionError{Err: syscall.EPIPE}},
 	}
 
 	for _, tc := range tests {
