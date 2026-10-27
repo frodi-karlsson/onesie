@@ -436,7 +436,8 @@ func unknownFlag(cmd *cobra.Command, unknown *pflag.NotExistError, args []string
 	spelled := "-" + unknown.GetSpecifiedName()
 	typed := typedShorthands(unknown.GetSpecifiedShortnames(), args)
 
-	if _, named := cmd.Annotations[annotationTakesProfileName]; named && len(typed) > len(spelled) {
+	if _, named := cmd.Annotations[annotationTakesProfileName]; named && len(typed) > len(spelled) &&
+		!positionalBefore(cmd, args, typed) {
 		if invalid := creds.ValidName(typed); invalid != nil {
 			return "onesie: " + invalid.Error()
 		}
@@ -454,6 +455,24 @@ func unknownFlag(cmd *cobra.Command, unknown *pflag.NotExistError, args []string
 	}
 
 	return message
+}
+
+func positionalBefore(cmd *cobra.Command, args []string, word string) bool {
+	path := strings.Fields(strings.TrimPrefix(cmd.CommandPath(), cmd.Root().Name()))
+
+	for i, arg := range args {
+		switch {
+		case arg == word || arg == "--":
+			return false
+		case len(path) > 0 && arg == path[0]:
+			path = path[1:]
+		case strings.HasPrefix(arg, "-") || (i > 0 && takesNextAsValue(cmd.Flags(), args[i-1])):
+		default:
+			return true
+		}
+	}
+
+	return false
 }
 
 func noSuchFlag(cmd *cobra.Command, spelled string) string {
@@ -474,7 +493,7 @@ func nearFlag(cmd *cobra.Command, name string) string {
 
 	var near []string
 
-	best := allowance + 1
+	best := allowance
 
 	cmd.Flags().VisitAll(func(flag *pflag.Flag) {
 		distance := editDistance(strings.ToLower(name), flag.Name)

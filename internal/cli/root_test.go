@@ -775,6 +775,32 @@ func TestNewRootCmd(t *testing.T) {
 			contains: []string{"onesie: profile list has no flag --bogus\n"},
 		},
 		{
+			name:     "should read a dashed word after a profile name as flags",
+			args:     []string{"profile", "create", "work", "--provider", "typesafe", "-xy"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: profile create has no flag -x in -xy\n"},
+			absent:   []string{"not a profile name"},
+		},
+		{
+			name:     "should read a dashed word after a profile name as flags beside the subcommand hint",
+			args:     []string{"profile", "update", "work", "-fz"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: profile update has no flag -f in -fz. 'profile' is a subcommand"},
+			absent:   []string{"not a profile name"},
+		},
+		{
+			name:     "should give the name rule for a dashed word after a flag value",
+			args:     []string{"profile", "create", "--provider", "typesafe", "-work"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: '-work' is not a profile name."},
+		},
+		{
+			name:     "should name no flag one edit past the allowance, even when two tie there",
+			args:     []string{"--x", "q"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: there is no flag --x\n"},
+		},
+		{
 			name:     "should give the name rule for a profile name that starts with a dash",
 			args:     []string{"profile", "create", "-work", "--provider", "typesafe"},
 			wantCode: cli.ExitUsage,

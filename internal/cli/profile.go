@@ -64,7 +64,7 @@ func newProfileCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 	// A name that starts with a dash reaches pflag first, which reads it as flags. The mark lets the
 	// flag error give the name rule instead.
 	for _, sub := range cmd.Commands() {
-		if sub.Args(sub, []string{"work"}) == nil {
+		if sub.Args != nil && sub.Args(sub, []string{"work"}) == nil {
 			if sub.Annotations == nil {
 				sub.Annotations = map[string]string{}
 			}
