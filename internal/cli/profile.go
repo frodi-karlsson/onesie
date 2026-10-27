@@ -360,7 +360,7 @@ func replaceKey(
 	return notify(cmd, notices...)
 }
 
-func keepKey(keychain Keychain, oldItem, account string, toFile bool) (keptKey, error) {
+func keepKey(keychain *creds.Keychain, oldItem, account string, toFile bool) (keptKey, error) {
 	if toFile || oldItem != account {
 		return keptKey{}, nil
 	}
@@ -385,7 +385,7 @@ type keptKey struct {
 	missing bool
 }
 
-func (k keptKey) undo(keychain Keychain, account string) string {
+func (k keptKey) undo(keychain *creds.Keychain, account string) string {
 	// A new item, or one that held no key, would keep a key no saved file chose.
 	if !k.same || k.missing {
 		return undoneItem(keychain.Delete(account), account)

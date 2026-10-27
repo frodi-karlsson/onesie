@@ -569,7 +569,7 @@ func TestNewCalibrateCmd(t *testing.T) {
 
 		root := NewRootCmd(
 			BuildInfo{Version: "1.2.3"},
-			WithKeychain(noKeychain()),
+			withKeychain(noKeychain()),
 			WithStdin(unreadable{t: t}),
 			WithStdinTTY(false),
 			WithStdoutTTY(false),
@@ -926,7 +926,7 @@ func TestCalibrateRequests(t *testing.T) {
 
 			root := NewRootCmd(
 				BuildInfo{Version: "1.2.3"},
-				WithKeychain(noKeychain()),
+				withKeychain(noKeychain()),
 				WithStdin(tc.stdin(cancel)),
 				WithStdinTTY(false),
 				WithStdoutTTY(false),
@@ -1766,7 +1766,7 @@ func TestCalibrateRun(t *testing.T) {
 
 		root := NewRootCmd(
 			BuildInfo{Version: "1.2.3"},
-			WithKeychain(noKeychain()),
+			withKeychain(noKeychain()),
 			WithStdin(strings.NewReader(urgentSet)),
 			WithStdinTTY(false),
 			WithStdoutTTY(false),
@@ -2564,7 +2564,7 @@ func executeCalibrate(
 
 	root := NewRootCmd(
 		BuildInfo{Version: "1.2.3"},
-		WithKeychain(noKeychain()),
+		withKeychain(noKeychain()),
 		WithClientFactory(stubFactory(baseURL)),
 		WithStdin(strings.NewReader(stdin)),
 		WithStdinTTY(false),
@@ -3198,7 +3198,7 @@ func calibrateWithEnv(t *testing.T, env map[string]string, args []string, stdin,
 
 	root := NewRootCmd(
 		BuildInfo{Version: "1.2.3"},
-		WithKeychain(noKeychain()),
+		withKeychain(noKeychain()),
 		WithClientFactory(stubFactory(baseURL)),
 		WithStdin(strings.NewReader(stdin)),
 		WithStdinTTY(false),

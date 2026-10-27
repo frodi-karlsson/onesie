@@ -1678,7 +1678,7 @@ func runResume(t *testing.T, label, path, stdin string, run resumeRun) {
 		WithStdin(strings.NewReader(stdin)),
 		WithStdinTTY(false),
 		WithStdoutTTY(false),
-		WithKeychain(noKeychain()),
+		withKeychain(noKeychain()),
 		WithLookupEnv(lookupFrom(nil)),
 		WithClientFactory(stubFactory(srv.URL)),
 	)

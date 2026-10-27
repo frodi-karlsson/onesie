@@ -181,7 +181,7 @@ func TestFilterIntegration(t *testing.T) {
 
 			root := cli.NewRootCmd(
 				cli.BuildInfo{Version: "integration"},
-				cli.WithKeychain(offKeychain{}),
+				cli.WithKeychain(offKeychain()),
 				cli.WithStdin(strings.NewReader(tc.stdin)),
 				cli.WithStdinTTY(false),
 				cli.WithStdoutTTY(false),
@@ -593,7 +593,7 @@ func TestFileIntegration(t *testing.T) {
 
 			root := cli.NewRootCmd(
 				cli.BuildInfo{Version: "integration"},
-				cli.WithKeychain(offKeychain{}),
+				cli.WithKeychain(offKeychain()),
 				cli.WithStdin(strings.NewReader(tc.stdin)),
 				cli.WithStdinTTY(false),
 				cli.WithStdoutTTY(false),
@@ -796,7 +796,7 @@ not json at all
 
 			root := cli.NewRootCmd(
 				cli.BuildInfo{Version: "integration"},
-				cli.WithKeychain(offKeychain{}),
+				cli.WithKeychain(offKeychain()),
 				cli.WithStdin(strings.NewReader(tc.stdin)),
 				cli.WithStdinTTY(false),
 				cli.WithStdoutTTY(false),
@@ -1194,7 +1194,7 @@ func runLive(t *testing.T, args []string, stdin string) (string, string, int) {
 
 	root := cli.NewRootCmd(
 		cli.BuildInfo{Version: "integration"},
-		cli.WithKeychain(offKeychain{}),
+		cli.WithKeychain(offKeychain()),
 		cli.WithStdin(strings.NewReader(stdin)),
 		cli.WithStdinTTY(false),
 		cli.WithStdoutTTY(false),
@@ -1227,7 +1227,7 @@ func runStored(t *testing.T, path string, args []string, stdin string) (string, 
 		// The live key is in the environment of whoever runs this suite, and hiding it proves the
 		// stored key is the one sent.
 		cli.WithLookupEnv(func(string) (string, bool) { return "", false }),
-		cli.WithKeychain(offKeychain{}),
+		cli.WithKeychain(offKeychain()),
 	)
 
 	root.SetOut(&out)

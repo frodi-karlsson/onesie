@@ -94,6 +94,10 @@ func assertNoSecret(t *testing.T, out, errOut string) {
 	}
 }
 
+func withKeychain(backend creds.Backend) RootOption {
+	return WithKeychain(creds.NewKeychain(creds.WithBackend(backend)))
+}
+
 func noKeychain() *fakeKeychain {
 	return &fakeKeychain{items: map[string]string{}, unavailable: true}
 }
@@ -113,32 +117,32 @@ type fakeKeychain struct {
 	count       int
 }
 
-func (k *fakeKeychain) Get(account string) (string, error) {
+func (k *fakeKeychain) Get(_, account string) (string, error) {
 	k.mu.Lock()
 	defer k.mu.Unlock()
 
 	k.count++
 
 	if k.unavailable {
-		return "", &creds.KeychainError{Op: "read the key from", Err: errors.New("no keychain in tests")}
+		return "", errors.New("no keychain in tests")
 	}
 
 	key, ok := k.items[account]
 	if !ok {
-		return "", &creds.KeychainError{Op: "read the key from", Err: creds.ErrKeychainMissing}
+		return "", creds.ErrKeychainMissing
 	}
 
 	return key, nil
 }
 
-func (k *fakeKeychain) Set(account, key string) error {
+func (k *fakeKeychain) Set(_, account, key string) error {
 	k.mu.Lock()
 	defer k.mu.Unlock()
 
 	k.count++
 
 	if k.unavailable {
-		return &creds.KeychainError{Op: "store the key in", Err: errors.New("no keychain in tests")}
+		return errors.New("no keychain in tests")
 	}
 
 	k.items[account] = key
@@ -146,14 +150,14 @@ func (k *fakeKeychain) Set(account, key string) error {
 	return nil
 }
 
-func (k *fakeKeychain) Delete(account string) error {
+func (k *fakeKeychain) Delete(_, account string) error {
 	k.mu.Lock()
 	defer k.mu.Unlock()
 
 	k.count++
 
 	if k.unavailable {
-		return &creds.KeychainError{Op: "remove the key from", Err: errors.New("no keychain in tests")}
+		return errors.New("no keychain in tests")
 	}
 
 	delete(k.items, account)
@@ -170,14 +174,14 @@ func (k *fakeKeychain) calls() int {
 
 type timingOutKeychain struct{}
 
-func (timingOutKeychain) Get(string) (string, error) {
-	return "", &creds.KeychainError{Op: "read the key from", Err: creds.ErrKeychainTimeout}
+func (timingOutKeychain) Get(string, string) (string, error) {
+	return "", creds.ErrKeychainTimeout
 }
 
-func (timingOutKeychain) Set(string, string) error {
-	return &creds.KeychainError{Op: "store the key in", Err: creds.ErrKeychainTimeout}
+func (timingOutKeychain) Set(string, string, string) error {
+	return creds.ErrKeychainTimeout
 }
 
-func (timingOutKeychain) Delete(string) error {
-	return &creds.KeychainError{Op: "remove the key from", Err: creds.ErrKeychainTimeout}
+func (timingOutKeychain) Delete(string, string) error {
+	return creds.ErrKeychainTimeout
 }

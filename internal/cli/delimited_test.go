@@ -106,7 +106,7 @@ func TestDelimited(t *testing.T) {
 				WithStdin(strings.NewReader(tc.stdin)),
 				WithStdinTTY(false),
 				WithStdoutTTY(false),
-				WithKeychain(noKeychain()),
+				withKeychain(noKeychain()),
 				WithLookupEnv(lookupFrom(nil)),
 				WithClientFactory(stubFactory(srv.URL)),
 			)
@@ -143,7 +143,7 @@ func TestDelimited(t *testing.T) {
 			WithStdin(strings.NewReader("the site is down")),
 			WithStdinTTY(false),
 			WithStdoutTTY(false),
-			WithKeychain(noKeychain()),
+			withKeychain(noKeychain()),
 			WithLookupEnv(lookupFrom(nil)),
 			WithClientFactory(stubFactory(srv.URL)),
 		)
@@ -193,7 +193,7 @@ func TestDelimited(t *testing.T) {
 			WithStdin(strings.NewReader("id,body\n1,\"two\nlines\"\n2,second\n3,third\n")),
 			WithStdinTTY(false),
 			WithStdoutTTY(false),
-			WithKeychain(noKeychain()),
+			withKeychain(noKeychain()),
 			WithLookupEnv(lookupFrom(nil)),
 			WithClientFactory(stubFactory(srv.URL)),
 		)

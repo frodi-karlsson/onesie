@@ -819,7 +819,7 @@ func WithCredentialStore(store creds.Store) RootOption {
 }
 
 // WithKeychain replaces the OS keychain profiles keep their keys in.
-func WithKeychain(keychain Keychain) RootOption {
+func WithKeychain(keychain *creds.Keychain) RootOption {
 	return func(s *rootSettings) {
 		s.keychain = keychain
 	}
@@ -882,7 +882,7 @@ type rootSettings struct {
 	terminalWidth func() (int, bool)
 	profilesPath  func() (string, error)
 	credStore     creds.Store
-	keychain      Keychain
+	keychain      *creds.Keychain
 	readSecret    func() (string, error)
 	wrapAnswerer  func(answerer) answerer
 	schemaURL     string
@@ -890,14 +890,6 @@ type rootSettings struct {
 	readBuiltIn   func(name string) ([]byte, bool)
 	builtIns      func() []string
 	transport     http.RoundTripper
-}
-
-// Keychain is where profile create and profile update store a key when the OS has one, one item per
-// account.
-type Keychain interface {
-	Get(account string) (string, error)
-	Set(account, key string) error
-	Delete(account string) error
 }
 
 func widthOf(f *os.File) func() (int, bool) {

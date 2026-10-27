@@ -626,7 +626,7 @@ func TestProfileCreate(t *testing.T) {
 			WithStdinTTY(false),
 			WithStdoutTTY(false),
 			WithLookupEnv(lookupFrom(map[string]string{"ONESIE_CONFIG_DIR": dir})),
-			WithKeychain(undeletableKeychain{workingKeychain(nil)}),
+			withKeychain(undeletableKeychain{workingKeychain(nil)}),
 			WithCredentialStore(creds.NewStore(failingWrite...)))
 
 		root.SetOut(io.Discard)
@@ -649,7 +649,7 @@ func TestProfileCreate(t *testing.T) {
 			WithStdinTTY(false),
 			WithStdoutTTY(false),
 			WithLookupEnv(lookupFrom(map[string]string{"ONESIE_CONFIG_DIR": dir})),
-			WithKeychain(noKeychain()))
+			withKeychain(noKeychain()))
 
 		if code != ExitInterrupt {
 			t.Errorf("exit code = %d, want %d", code, ExitInterrupt)
@@ -1848,7 +1848,7 @@ func TestProfileTest(t *testing.T) {
 				env[name] = withURL(value)
 			}
 
-			opts := []RootOption{WithKeychain(workingKeychain(tc.items))}
+			opts := []RootOption{withKeychain(workingKeychain(tc.items))}
 
 			if tc.unreached {
 				// Closed before the run, so the connection is refused rather than answered.
@@ -1998,24 +1998,24 @@ func runProfileCase(t *testing.T, tc profileCase) {
 
 	chain := workingKeychain(filled(tc.items, fill))
 	opts := []RootOption{
-		WithKeychain(chain),
+		withKeychain(chain),
 		WithStdinTTY(tc.tty),
 		WithSecretReader(func() (string, error) { return tc.secret, nil }),
 	}
 
 	switch tc.keychain {
 	case keychainNone:
-		opts = append(opts, WithKeychain(noKeychain()))
+		opts = append(opts, withKeychain(noKeychain()))
 	case keychainTimeout:
-		opts = append(opts, WithKeychain(timingOutKeychain{}))
+		opts = append(opts, withKeychain(timingOutKeychain{}))
 	case keychainStalled:
-		opts = append(opts, WithKeychain(stalledKeychain{chain}))
+		opts = append(opts, withKeychain(stalledKeychain{chain}))
 	case keychainUnreadable:
-		opts = append(opts, WithKeychain(unreadableKeychain{chain}))
+		opts = append(opts, withKeychain(unreadableKeychain{chain}))
 	case keychainUndeletable:
-		opts = append(opts, WithKeychain(undeletableKeychain{chain}))
+		opts = append(opts, withKeychain(undeletableKeychain{chain}))
 	case keychainUnrestorable:
-		opts = append(opts, WithKeychain(&unrestorableKeychain{fakeKeychain: chain}))
+		opts = append(opts, withKeychain(&unrestorableKeychain{fakeKeychain: chain}))
 	}
 
 	if tc.store != nil {
@@ -2099,7 +2099,7 @@ func runInConfig(
 		WithStdoutTTY(false),
 		WithLookupEnv(lookupFrom(lookup)),
 		// Never the real keychain. A case that wants one working passes its own.
-		WithKeychain(noKeychain()),
+		withKeychain(noKeychain()),
 	}, opts...)...)
 
 	root.SetOut(&out)
@@ -2204,8 +2204,8 @@ type unreadableKeychain struct {
 	*fakeKeychain
 }
 
-func (unreadableKeychain) Get(string) (string, error) {
-	return "", &creds.KeychainError{Op: "read the key from", Err: errors.New("the keychain is locked")}
+func (unreadableKeychain) Get(string, string) (string, error) {
+	return "", errors.New("the keychain is locked")
 }
 
 type unreadStdin struct {
@@ -2222,16 +2222,16 @@ type stalledKeychain struct {
 	*fakeKeychain
 }
 
-func (stalledKeychain) Get(string) (string, error) {
-	return "", &creds.KeychainError{Op: "read the key from", Err: creds.ErrKeychainTimeout}
+func (stalledKeychain) Get(string, string) (string, error) {
+	return "", creds.ErrKeychainTimeout
 }
 
 type undeletableKeychain struct {
 	*fakeKeychain
 }
 
-func (undeletableKeychain) Delete(string) error {
-	return &creds.KeychainError{Op: "remove the key from", Err: errors.New("the keychain is locked")}
+func (undeletableKeychain) Delete(string, string) error {
+	return errors.New("the keychain is locked")
 }
 
 type unrestorableKeychain struct {
@@ -2240,13 +2240,13 @@ type unrestorableKeychain struct {
 	sets int
 }
 
-func (k *unrestorableKeychain) Set(account, key string) error {
+func (k *unrestorableKeychain) Set(service, account, key string) error {
 	k.sets++
 	if k.sets > 1 {
-		return &creds.KeychainError{Op: "store the key in", Err: errors.New("the keychain is locked")}
+		return errors.New("the keychain is locked")
 	}
 
-	return k.fakeKeychain.Set(account, key)
+	return k.fakeKeychain.Set(service, account, key)
 }
 
 type closedPipe struct{}

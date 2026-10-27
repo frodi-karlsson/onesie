@@ -360,7 +360,7 @@ func TestStream(t *testing.T) {
 
 			root := cli.NewRootCmd(
 				cli.BuildInfo{Version: "1.2.3"},
-				cli.WithKeychain(offKeychain{}),
+				cli.WithKeychain(offKeychain()),
 				cli.WithClientFactory(func(_ context.Context, opts ...onesie.Option) (*onesie.Client, error) {
 					// No retries. The 500 cases would otherwise spend the client's backoff twice
 					// per record for no coverage.
@@ -775,7 +775,7 @@ func TestStream(t *testing.T) {
 
 				root := cli.NewRootCmd(
 					cli.BuildInfo{Version: "1.2.3"},
-					cli.WithKeychain(offKeychain{}),
+					cli.WithKeychain(offKeychain()),
 					cli.WithClientFactory(func(_ context.Context, opts ...onesie.Option) (*onesie.Client, error) {
 						return onesie.New(append([]onesie.Option{
 							onesie.WithAPIKey("k"), onesie.WithBaseURL(srv.URL),
@@ -987,7 +987,7 @@ func TestStream(t *testing.T) {
 
 				root := cli.NewRootCmd(
 					cli.BuildInfo{Version: "1.2.3"},
-					cli.WithKeychain(offKeychain{}),
+					cli.WithKeychain(offKeychain()),
 					cli.WithClientFactory(func(_ context.Context, opts ...onesie.Option) (*onesie.Client, error) {
 						return onesie.New(append([]onesie.Option{
 							onesie.WithAPIKey("k"), onesie.WithBaseURL(srv.URL),
@@ -1058,7 +1058,7 @@ func TestStream(t *testing.T) {
 
 				root := cli.NewRootCmd(
 					cli.BuildInfo{Version: "1.2.3"},
-					cli.WithKeychain(offKeychain{}),
+					cli.WithKeychain(offKeychain()),
 					cli.WithClientFactory(func(_ context.Context, opts ...onesie.Option) (*onesie.Client, error) {
 						return onesie.New(append([]onesie.Option{
 							onesie.WithAPIKey("k"), onesie.WithBaseURL(srv.URL),
@@ -1116,7 +1116,7 @@ func TestStream(t *testing.T) {
 
 			root := cli.NewRootCmd(
 				cli.BuildInfo{Version: "1.2.3"},
-				cli.WithKeychain(offKeychain{}),
+				cli.WithKeychain(offKeychain()),
 				cli.WithClientFactory(func(_ context.Context, opts ...onesie.Option) (*onesie.Client, error) {
 					policy := onesie.DefaultRetryPolicy()
 					policy.MaxRetries = 0
@@ -1201,7 +1201,7 @@ func TestStream(t *testing.T) {
 
 				root := cli.NewRootCmd(
 					cli.BuildInfo{Version: "1.2.3"},
-					cli.WithKeychain(offKeychain{}),
+					cli.WithKeychain(offKeychain()),
 					cli.WithClientFactory(func(_ context.Context, opts ...onesie.Option) (*onesie.Client, error) {
 						return onesie.New(append([]onesie.Option{
 							onesie.WithAPIKey("k"), onesie.WithBaseURL(srv.URL),
@@ -1310,7 +1310,7 @@ func TestStream(t *testing.T) {
 
 				root := cli.NewRootCmd(
 					cli.BuildInfo{Version: "1.2.3"},
-					cli.WithKeychain(offKeychain{}),
+					cli.WithKeychain(offKeychain()),
 					cli.WithClientFactory(func(_ context.Context, opts ...onesie.Option) (*onesie.Client, error) {
 						return onesie.New(append([]onesie.Option{
 							onesie.WithAPIKey("k"), onesie.WithBaseURL(srv.URL),
@@ -1417,7 +1417,7 @@ func TestStream(t *testing.T) {
 
 				root := cli.NewRootCmd(
 					cli.BuildInfo{Version: "1.2.3"},
-					cli.WithKeychain(offKeychain{}),
+					cli.WithKeychain(offKeychain()),
 					cli.WithClientFactory(func(_ context.Context, opts ...onesie.Option) (*onesie.Client, error) {
 						return onesie.New(append([]onesie.Option{
 							onesie.WithAPIKey("k"), onesie.WithBaseURL(srv.URL),
@@ -1586,7 +1586,7 @@ func TestStream(t *testing.T) {
 
 				root := cli.NewRootCmd(
 					cli.BuildInfo{Version: "1.2.3"},
-					cli.WithKeychain(offKeychain{}),
+					cli.WithKeychain(offKeychain()),
 					cli.WithClientFactory(func(_ context.Context, opts ...onesie.Option) (*onesie.Client, error) {
 						return onesie.New(append([]onesie.Option{
 							onesie.WithAPIKey("k"), onesie.WithBaseURL(srv.URL),
@@ -1657,7 +1657,7 @@ func TestStream(t *testing.T) {
 
 			root := cli.NewRootCmd(
 				cli.BuildInfo{Version: "1.2.3"},
-				cli.WithKeychain(offKeychain{}),
+				cli.WithKeychain(offKeychain()),
 				cli.WithClientFactory(func(_ context.Context, opts ...onesie.Option) (*onesie.Client, error) {
 					return onesie.New(append([]onesie.Option{
 						onesie.WithAPIKey("k"), onesie.WithBaseURL(srv.URL),
@@ -1767,7 +1767,7 @@ func TestWriteMerged(t *testing.T) {
 
 			root := cli.NewRootCmd(
 				cli.BuildInfo{Version: "1.2.3"},
-				cli.WithKeychain(offKeychain{}),
+				cli.WithKeychain(offKeychain()),
 				cli.WithClientFactory(func(_ context.Context, opts ...onesie.Option) (*onesie.Client, error) {
 					return onesie.New(append([]onesie.Option{
 						onesie.WithAPIKey("k"), onesie.WithBaseURL(srv.URL),
@@ -1857,7 +1857,7 @@ func TestWriteMerged(t *testing.T) {
 
 				root := cli.NewRootCmd(
 					cli.BuildInfo{Version: "1.2.3"},
-					cli.WithKeychain(offKeychain{}),
+					cli.WithKeychain(offKeychain()),
 					cli.WithClientFactory(func(_ context.Context, opts ...onesie.Option) (*onesie.Client, error) {
 						return onesie.New(append([]onesie.Option{
 							onesie.WithAPIKey("k"), onesie.WithBaseURL(srv.URL),

@@ -17,6 +17,7 @@ import (
 
 	"github.com/frodi-karlsson/onesie/examples"
 	"github.com/frodi-karlsson/onesie/internal/cli"
+	"github.com/frodi-karlsson/onesie/internal/creds"
 )
 
 var errKeychain = errors.New("the starter set tests never use the keychain")
@@ -294,7 +295,7 @@ func run(t *testing.T, stdin io.Reader, args ...string) (string, string, int) {
 
 	root := cli.NewRootCmd(
 		cli.BuildInfo{Version: "test"},
-		cli.WithKeychain(failingKeychain{t: t}),
+		cli.WithKeychain(creds.NewKeychain(creds.WithBackend(failingKeychain{t: t}))),
 		cli.WithHomeDir(func() (string, error) { return home, nil }),
 		cli.WithStdin(stdin),
 		cli.WithStdinTTY(false),
@@ -315,19 +316,19 @@ type failingKeychain struct {
 	t *testing.T
 }
 
-func (k failingKeychain) Get(string) (string, error) {
+func (k failingKeychain) Get(string, string) (string, error) {
 	k.t.Error("a starter set test read the keychain")
 
 	return "", errKeychain
 }
 
-func (k failingKeychain) Set(string, string) error {
+func (k failingKeychain) Set(string, string, string) error {
 	k.t.Error("a starter set test wrote the keychain")
 
 	return errKeychain
 }
 
-func (k failingKeychain) Delete(string) error {
+func (k failingKeychain) Delete(string, string) error {
 	k.t.Error("a starter set test deleted from the keychain")
 
 	return errKeychain

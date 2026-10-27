@@ -191,7 +191,7 @@ func TestNewQuestionsCmd(t *testing.T) {
 			var out, errOut bytes.Buffer
 
 			opts := append([]RootOption{
-				WithKeychain(noKeychain()),
+				withKeychain(noKeychain()),
 				WithStdin(strings.NewReader("")),
 				WithStdinTTY(false),
 				WithStdoutTTY(false),

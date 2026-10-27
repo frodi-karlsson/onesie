@@ -1034,7 +1034,7 @@ func runCached(t *testing.T, env map[string]string, args []string, stdin string,
 	// No client factory, so the real one resolves the provider, the key and the base URL the cache
 	// keys answers by.
 	root := NewRootCmd(BuildInfo{Version: "1.2.3"}, append([]RootOption{
-		WithKeychain(noKeychain()),
+		withKeychain(noKeychain()),
 		WithStdin(strings.NewReader(stdin)),
 		WithStdinTTY(false),
 		WithStdoutTTY(false),

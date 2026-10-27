@@ -250,7 +250,7 @@ func TestReadQuestionFile(t *testing.T) {
 				var out, errOut bytes.Buffer
 
 				opts := append([]RootOption{
-					WithKeychain(noKeychain()),
+					withKeychain(noKeychain()),
 					WithStdin(strings.NewReader("{\"body\":\"a\",\"u\":true}\n")),
 					WithStdinTTY(false),
 					WithStdoutTTY(false),
@@ -510,7 +510,7 @@ func runTree(t *testing.T, tree fakeTree, extra []RootOption, args ...string) (s
 	var out, errOut bytes.Buffer
 
 	opts := append([]RootOption{
-		WithKeychain(noKeychain()),
+		withKeychain(noKeychain()),
 		WithStdin(strings.NewReader("{\"body\":\"a\",\"u\":true}\n")),
 		WithStdinTTY(false),
 		WithStdoutTTY(false),
@@ -532,7 +532,7 @@ func runInDir(t *testing.T, dir, stdin string, args ...string) (string, string, 
 	var out, errOut bytes.Buffer
 
 	root := NewRootCmd(BuildInfo{Version: "1.2.3"},
-		WithKeychain(noKeychain()),
+		withKeychain(noKeychain()),
 		WithStdin(strings.NewReader(stdin)),
 		WithStdinTTY(false),
 		WithStdoutTTY(false),

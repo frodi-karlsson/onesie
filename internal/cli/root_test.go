@@ -1724,7 +1724,7 @@ func TestNewRootCmd(t *testing.T) {
 
 			root := cli.NewRootCmd(
 				cli.BuildInfo{Version: "1.2.3", Commit: "abc1234", Date: "2026-01-01"},
-				cli.WithKeychain(offKeychain{}),
+				cli.WithKeychain(offKeychain()),
 				cli.WithClientFactory(func(_ context.Context, opts ...onesie.Option) (*onesie.Client, error) {
 					return onesie.New(append([]onesie.Option{
 						onesie.WithAPIKey("k"), onesie.WithBaseURL(srv.URL),
@@ -1927,7 +1927,7 @@ func TestNewRootCmd(t *testing.T) {
 				// and the point of the test is the plumbing a stub would replace.
 				root := cli.NewRootCmd(
 					cli.BuildInfo{Version: "1.2.3"},
-					cli.WithKeychain(offKeychain{}),
+					cli.WithKeychain(offKeychain()),
 					cli.WithStdin(strings.NewReader("a ticket")),
 					cli.WithStdinTTY(false),
 					cli.WithStdoutTTY(false),
@@ -2052,7 +2052,7 @@ func TestNewRootCmd(t *testing.T) {
 
 					root := cli.NewRootCmd(
 						cli.BuildInfo{Version: "1.2.3"},
-						cli.WithKeychain(offKeychain{}),
+						cli.WithKeychain(offKeychain()),
 						cli.WithStdin(strings.NewReader(stdin)),
 						cli.WithStdinTTY(false),
 						cli.WithStdoutTTY(false),
@@ -2299,7 +2299,7 @@ func TestNewRootCmd(t *testing.T) {
 
 				root := cli.NewRootCmd(
 					cli.BuildInfo{Version: "1.2.3"},
-					cli.WithKeychain(offKeychain{}),
+					cli.WithKeychain(offKeychain()),
 					cli.WithStdin(strings.NewReader("")),
 					cli.WithLookupEnv(func(name string) (string, bool) {
 						value, found := tc.env[name]
@@ -2440,7 +2440,7 @@ func TestNewRootCmd(t *testing.T) {
 
 				root := cli.NewRootCmd(
 					cli.BuildInfo{Version: "1.2.3"},
-					cli.WithKeychain(offKeychain{}),
+					cli.WithKeychain(offKeychain()),
 					cli.WithStdin(strings.NewReader("")),
 					cli.WithLookupEnv(func(string) (string, bool) { return "", false }),
 				)
@@ -2519,7 +2519,7 @@ func TestNewRootCmd(t *testing.T) {
 
 				root := cli.NewRootCmd(
 					cli.BuildInfo{Version: "1.2.3"},
-					cli.WithKeychain(offKeychain{}),
+					cli.WithKeychain(offKeychain()),
 					cli.WithStdin(strings.NewReader(request)),
 					cli.WithStdinTTY(false),
 					cli.WithStdoutTTY(false),
@@ -2551,7 +2551,7 @@ func TestNewRootCmd(t *testing.T) {
 		for _, args := range [][]string{{"--help"}, {"calibrate", "--help"}, {"-V"}} {
 			var out bytes.Buffer
 
-			root := cli.NewRootCmd(cli.BuildInfo{Version: "1.2.3"}, cli.WithKeychain(offKeychain{}),
+			root := cli.NewRootCmd(cli.BuildInfo{Version: "1.2.3"}, cli.WithKeychain(offKeychain()),
 				cli.WithLookupEnv(func(string) (string, bool) { return "", false }))
 			root.SetOut(&out)
 			root.SetErr(&out)
@@ -2603,7 +2603,7 @@ func TestNewRootCmd(t *testing.T) {
 
 				var out bytes.Buffer
 
-				root := cli.NewRootCmd(cli.BuildInfo{Version: "1.2.3"}, cli.WithKeychain(offKeychain{}),
+				root := cli.NewRootCmd(cli.BuildInfo{Version: "1.2.3"}, cli.WithKeychain(offKeychain()),
 					cli.WithLookupEnv(func(string) (string, bool) { return "", false }))
 				root.SetOut(&out)
 				root.SetErr(&out)
@@ -2688,7 +2688,7 @@ func TestClientBuilder(t *testing.T) {
 
 		root := cli.NewRootCmd(
 			cli.BuildInfo{Version: "1.2.3"},
-			cli.WithKeychain(offKeychain{}),
+			cli.WithKeychain(offKeychain()),
 			cli.WithStdin(strings.NewReader("body")),
 			cli.WithStdinTTY(false),
 			cli.WithStdoutTTY(false),
@@ -2731,7 +2731,7 @@ func TestClientBuilder(t *testing.T) {
 
 			root := cli.NewRootCmd(
 				cli.BuildInfo{Version: "1.2.3"},
-				cli.WithKeychain(offKeychain{}),
+				cli.WithKeychain(offKeychain()),
 				cli.WithStdin(strings.NewReader("body")),
 				cli.WithStdinTTY(false),
 				cli.WithStdoutTTY(false),
@@ -2780,7 +2780,7 @@ func TestClientBuilder(t *testing.T) {
 
 				root := cli.NewRootCmd(
 					cli.BuildInfo{Version: "1.2.3"},
-					cli.WithKeychain(offKeychain{}),
+					cli.WithKeychain(offKeychain()),
 					cli.WithStdin(strings.NewReader("")),
 					cli.WithStdinTTY(false),
 					cli.WithStdoutTTY(false),
@@ -2878,7 +2878,7 @@ func TestClientBuilder(t *testing.T) {
 
 				root := cli.NewRootCmd(
 					cli.BuildInfo{Version: "1.2.3"},
-					cli.WithKeychain(offKeychain{}),
+					cli.WithKeychain(offKeychain()),
 					cli.WithStdin(strings.NewReader("one\ntwo\n")),
 					cli.WithStdinTTY(false),
 					cli.WithStdoutTTY(false),
@@ -3033,7 +3033,7 @@ func TestClientBuilder(t *testing.T) {
 				// and a stub one would never see them.
 				root := cli.NewRootCmd(
 					cli.BuildInfo{Version: "1.2.3"},
-					cli.WithKeychain(offKeychain{}),
+					cli.WithKeychain(offKeychain()),
 					cli.WithStdin(strings.NewReader("the server is down")),
 					cli.WithStdinTTY(false),
 					cli.WithStdoutTTY(false),
@@ -3101,7 +3101,7 @@ func TestClientBuilder(t *testing.T) {
 				// and a stub one would never see it.
 				root := cli.NewRootCmd(
 					cli.BuildInfo{Version: "1.2.3"},
-					cli.WithKeychain(offKeychain{}),
+					cli.WithKeychain(offKeychain()),
 					cli.WithStdin(strings.NewReader("the server is down")),
 					cli.WithStdinTTY(false),
 					cli.WithStdoutTTY(false),
@@ -3146,7 +3146,7 @@ func TestClientBuilder(t *testing.T) {
 			// stub one would never see it.
 			root := cli.NewRootCmd(
 				cli.BuildInfo{Version: "1.2.3"},
-				cli.WithKeychain(offKeychain{}),
+				cli.WithKeychain(offKeychain()),
 				cli.WithStdin(strings.NewReader("the server is quiet")),
 				cli.WithStdinTTY(false),
 				cli.WithStdoutTTY(false),
@@ -3182,7 +3182,7 @@ func runWithEnv(t *testing.T, env map[string]string, args []string) (string, int
 	// standing between it and the process environment.
 	root := cli.NewRootCmd(
 		cli.BuildInfo{Version: "1.2.3"},
-		cli.WithKeychain(offKeychain{}),
+		cli.WithKeychain(offKeychain()),
 		cli.WithStdin(strings.NewReader("body")),
 		cli.WithStdinTTY(false),
 		cli.WithStdoutTTY(false),
@@ -3255,7 +3255,7 @@ func TestWireAll(t *testing.T) {
 
 			root := cli.NewRootCmd(
 				cli.BuildInfo{Version: "1.2.3", Commit: "abc1234", Date: "2026-01-01"},
-				cli.WithKeychain(offKeychain{}),
+				cli.WithKeychain(offKeychain()),
 				cli.WithClientFactory(func(_ context.Context, opts ...onesie.Option) (*onesie.Client, error) {
 					return onesie.New(append([]onesie.Option{
 						onesie.WithAPIKey("k"), onesie.WithBaseURL(srv.URL),
@@ -3305,16 +3305,20 @@ func stubAnswering(t *testing.T, body string, observe func(*http.Request)) *http
 	}))
 }
 
-type offKeychain struct{}
-
-func (offKeychain) Get(string) (string, error) {
-	return "", &creds.KeychainError{Op: "read the key", Err: errors.New("the live suite never uses the keychain")}
+func offKeychain() *creds.Keychain {
+	return creds.NewKeychain(creds.WithBackend(offBackend{}))
 }
 
-func (offKeychain) Set(string, string) error {
-	return &creds.KeychainError{Op: "store the key", Err: errors.New("the live suite never uses the keychain")}
+type offBackend struct{}
+
+func (offBackend) Get(string, string) (string, error) {
+	return "", errors.New("the live suite never uses the keychain")
 }
 
-func (offKeychain) Delete(string) error {
+func (offBackend) Set(string, string, string) error {
+	return errors.New("the live suite never uses the keychain")
+}
+
+func (offBackend) Delete(string, string) error {
 	return nil
 }

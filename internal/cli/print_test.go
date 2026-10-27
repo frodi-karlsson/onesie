@@ -956,7 +956,7 @@ func TestPrintRequest(t *testing.T) {
 
 		root := NewRootCmd(
 			BuildInfo{Version: "1.2.3"},
-			WithKeychain(noKeychain()),
+			withKeychain(noKeychain()),
 			WithStdin(unreadable{t: t}),
 			WithStdinTTY(false),
 			WithStdoutTTY(false),
@@ -1038,7 +1038,7 @@ func TestPrintRequest(t *testing.T) {
 
 		root := NewRootCmd(
 			BuildInfo{Version: "1.2.3"},
-			WithKeychain(noKeychain()),
+			withKeychain(noKeychain()),
 			WithStdin(&heldReader{data: strings.NewReader("late text"), until: written}),
 			WithStdinTTY(false),
 			WithStdoutTTY(false),
@@ -1469,7 +1469,7 @@ func TestPrintRequest(t *testing.T) {
 
 			root := NewRootCmd(
 				BuildInfo{Version: "1.2.3"},
-				WithKeychain(noKeychain()),
+				withKeychain(noKeychain()),
 				WithStdin(strings.NewReader("the server is down")),
 				WithStdinTTY(false),
 				WithStdoutTTY(false),
@@ -1565,7 +1565,7 @@ func runRecorded(t *testing.T, args []string, stdin string) (string, string, int
 
 	root := NewRootCmd(
 		BuildInfo{Version: "1.2.3"},
-		WithKeychain(noKeychain()),
+		withKeychain(noKeychain()),
 		WithClientFactory(func(_ context.Context, opts ...onesie.Option) (*onesie.Client, error) {
 			// The client gets its own blank environment as well as the command, so the machine
 			// running the test cannot supply a default model to one side of the comparison.
@@ -1967,7 +1967,7 @@ func runClosed(t *testing.T, args []string, stdin, baseURL string) (string, int)
 			}))
 	}
 
-	root := NewRootCmd(BuildInfo{Version: "1.2.3"}, append(opts, WithKeychain(noKeychain()))...)
+	root := NewRootCmd(BuildInfo{Version: "1.2.3"}, append(opts, withKeychain(noKeychain()))...)
 
 	root.SetOut(closedConsumer{})
 	root.SetErr(&errOut)
@@ -2047,7 +2047,7 @@ func runOfflineStdin(t *testing.T, args []string, stdin string) (string, string,
 	// read the developer's own key into these tests.
 	root := NewRootCmd(
 		BuildInfo{Version: "1.2.3"},
-		WithKeychain(noKeychain()),
+		withKeychain(noKeychain()),
 		WithStdin(strings.NewReader(stdin)),
 		WithStdinTTY(false),
 		WithStdoutTTY(false),

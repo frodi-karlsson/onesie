@@ -206,7 +206,7 @@ func TestProfilesLocation(t *testing.T) {
 			root := NewRootCmd(BuildInfo{Version: "1.2.3"},
 				WithLookupEnv(lookupFrom(env)),
 				WithHomeDir(func() (string, error) { return dir, nil }),
-				WithKeychain(noKeychain()))
+				withKeychain(noKeychain()))
 			root.SetOut(&out)
 			root.SetErr(&errOut)
 			root.SetArgs([]string{"profile", "list"})

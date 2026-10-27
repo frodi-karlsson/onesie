@@ -38,7 +38,7 @@ func TestExecute(t *testing.T) {
 				WithStdinTTY(false),
 				WithStdoutTTY(false),
 				WithLookupEnv(lookupFrom(map[string]string{"TYPESAFE_API_KEY": "k"})),
-				WithKeychain(noKeychain()),
+				withKeychain(noKeychain()),
 				WithClientFactory(func(context.Context, ...onesie.Option) (*onesie.Client, error) {
 					return nil, errors.New("onesie: no client should be built before stdin ends")
 				}))

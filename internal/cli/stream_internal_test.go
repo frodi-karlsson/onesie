@@ -742,7 +742,7 @@ func runStub(
 	var out, errOut bytes.Buffer
 
 	opts := []RootOption{
-		WithKeychain(noKeychain()),
+		withKeychain(noKeychain()),
 		WithStdin(strings.NewReader(stdin)),
 		WithStdinTTY(false),
 		WithStdoutTTY(false),

@@ -17,6 +17,7 @@ import (
 	"github.com/frodi-karlsson/onesie/examples"
 	"github.com/frodi-karlsson/onesie/internal/answersfile"
 	"github.com/frodi-karlsson/onesie/internal/cli"
+	"github.com/frodi-karlsson/onesie/internal/creds"
 )
 
 const (
@@ -125,7 +126,7 @@ func command(
 	root := cli.NewRootCmd(
 		cli.BuildInfo{Version: "examplesanswers"},
 		append([]cli.RootOption{
-			cli.WithKeychain(noKeychain{}),
+			cli.WithKeychain(creds.NewKeychain(creds.WithBackend(noKeychain{}))),
 			cli.WithLookupEnv(func(name string) (string, bool) {
 				value, found := env[name]
 
@@ -147,8 +148,8 @@ func command(
 
 type noKeychain struct{}
 
-func (noKeychain) Get(string) (string, error) { return "", errNoKeychain }
+func (noKeychain) Get(string, string) (string, error) { return "", errNoKeychain }
 
-func (noKeychain) Set(string, string) error { return errNoKeychain }
+func (noKeychain) Set(string, string, string) error { return errNoKeychain }
 
-func (noKeychain) Delete(string) error { return errNoKeychain }
+func (noKeychain) Delete(string, string) error { return errNoKeychain }

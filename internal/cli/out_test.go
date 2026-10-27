@@ -727,7 +727,7 @@ func TestOpenOut(t *testing.T) {
 				WithStdin(strings.NewReader(tc.stdin)),
 				WithStdinTTY(false),
 				WithStdoutTTY(false),
-				WithKeychain(noKeychain()),
+				withKeychain(noKeychain()),
 				WithLookupEnv(lookupFrom(tc.env)),
 				WithClientFactory(stubFactory(baseFor(srv.URL, tc.unreached))),
 			)
@@ -853,7 +853,7 @@ func TestOpenOut(t *testing.T) {
 				WithStdin(strings.NewReader(input)),
 				WithStdinTTY(false),
 				WithStdoutTTY(false),
-				WithKeychain(noKeychain()),
+				withKeychain(noKeychain()),
 				WithLookupEnv(lookupFrom(nil)),
 				WithClientFactory(stubFactory(srv.URL)),
 			)
@@ -1086,7 +1086,7 @@ func TestBindOut(t *testing.T) {
 				WithStdin(strings.NewReader("first\nsecond\n")),
 				WithStdinTTY(false),
 				WithStdoutTTY(false),
-				WithKeychain(noKeychain()),
+				withKeychain(noKeychain()),
 				WithLookupEnv(lookupFrom(nil)),
 				WithClientFactory(stubFactory(srv.URL)),
 			)
