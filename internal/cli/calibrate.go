@@ -119,11 +119,6 @@ func newCalibrateCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 				return cmd.Help()
 			}
 
-			if refused := refuseEmptyValues(cmd, flagBaseURL, flagModel, "output", flagInput, "mock",
-				"out", "file", flagMap, flagID, "label", flagImageField); refused != nil {
-				return refused
-			}
-
 			flags.timeoutSet = cmd.Flags().Changed(flagTimeout)
 			flags.longContextSet = cmd.Flags().Changed(flagLongContext)
 
@@ -140,7 +135,7 @@ func newCalibrateCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 
 	cmd.Flags().StringArrayVar(&flags.images, flagImage, nil,
 		"NAME=PATH, repeatable, puts a PNG or JPEG in every record's state under NAME. Experimental on TypeSafe's side")
-	cmd.Flags().StringArrayVar(&flags.imageFields, flagImageField, nil,
+	cmd.Flags().Var(nonEmptyList{values: &flags.imageFields}, flagImageField,
 		"repeatable, a state key whose value is a path to a PNG or JPEG, read per record. Experimental on TypeSafe's side")
 
 	for _, name := range []string{"threshold", "min-confidence", "fallback"} {
@@ -158,7 +153,7 @@ func newCalibrateCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 		hide(cmd, refused.name)
 	}
 
-	cmd.Flags().StringArrayVar(&calib.labels, "label", nil,
+	cmd.Flags().Var(nonEmptyList{values: &calib.labels}, "label",
 		"[ID=]EXPR, a jq expression run on the record, not on the mapped state, whose result is the "+
 			"right answer for question ID. A question with none is skipped. With one question ID= may be "+
 			"left out")
@@ -170,6 +165,7 @@ func newCalibrateCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 	cmd.Flags().BoolVar(&calib.offline, "offline", false,
 		"with --out and --resume, read every answer from the file and ask nothing, needing no key")
 	cmd.Flags().StringVarP(&calib.report, "output", "o", "", "the report, table, json or auto, which means table")
+	refuseEmpty(cmd.Flags(), "output")
 
 	bindSharedFlags(cmd, flags)
 
@@ -182,13 +178,18 @@ func bindSharedFlags(cmd *cobra.Command, flags *runFlags) {
 	cmd.Flags().StringVarP(&flags.input, flagInput, "i", "text", "required, jsonl, csv or tsv")
 	// The root's text default stays in the field, and help leaves it out, since calibrate refuses it.
 	cmd.Flags().Lookup(flagInput).DefValue = ""
+	refuseEmpty(cmd.Flags(), flagInput)
 	cmd.Flags().StringVar(&flags.mapSource, flagMap, "",
 		"jq expression run on each record, whose result is the state sent. Map only the text a person "+
 			"would read")
+	refuseEmpty(cmd.Flags(), flagMap)
 	cmd.Flags().StringVar(&flags.idSource, flagID, "",
 		"jq expression run on each record, whose string or number result names it")
+	refuseEmpty(cmd.Flags(), flagID)
 	cmd.Flags().StringVarP(&flags.model, flagModel, "m", "", "model override")
+	refuseEmpty(cmd.Flags(), flagModel)
 	cmd.Flags().StringVar(&flags.baseURL, flagBaseURL, "", "api root override")
+	refuseEmpty(cmd.Flags(), flagBaseURL)
 	cmd.Flags().BoolVar(&flags.allowHTTP, flagAllowHTTP, false, allowHTTPHelp)
 	cmd.Flags().BoolVar(&flags.longContext, flagLongContext, false,
 		"raise the context limits to 262k tokens, slower and less accurate. Also ONESIE_LONG_CONTEXT=1. "+
@@ -196,6 +197,7 @@ func bindSharedFlags(cmd *cobra.Command, flags *runFlags) {
 	cmd.Flags().StringVarP(&flags.file, "file", "f", "",
 		"question file or request body, or the name of one saved in .onesie/questions or the config dir, "+
 			"or of a built-in starter set")
+	refuseEmpty(cmd.Flags(), "file")
 	cmd.Flags().BoolVar(&flags.replace, "replace", false, "--ask overrides an id from -f")
 	cmd.Flags().IntVarP(&flags.jobs, flagJobs, "j", 1, "records in flight at once")
 	cmd.Flags().IntVar(&flags.timeout, flagTimeout, int(limits.DefaultAttemptTimeout.Seconds()),
@@ -206,6 +208,7 @@ func bindSharedFlags(cmd *cobra.Command, flags *runFlags) {
 		int(limits.DefaultMaxRetryAfter.Seconds()),
 		"most seconds to wait out a server Retry-After")
 	cmd.Flags().StringVar(&flags.out, "out", "", "write the answers to this file as -o json lines")
+	refuseEmpty(cmd.Flags(), "out")
 	cmd.Flags().BoolVar(&flags.resume, "resume", false,
 		"with --out and --id, skip the ids the file already answers")
 	cmd.Flags().BoolVar(&flags.prune, "prune", false,

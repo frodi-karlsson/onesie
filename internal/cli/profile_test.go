@@ -893,7 +893,7 @@ func TestProfileUpdate(t *testing.T) {
 			args:        []string{"profile", "update", "work", "--provider", "", "--key"},
 			stdinUnread: true,
 			wantCode:    ExitUsage,
-			wantErr:     []string{"onesie: profile update: --provider is empty"},
+			wantErr:     []string{"onesie: --provider is empty. Name one, or leave the flag out"},
 		},
 		{
 			name:  "should write a new key to the profile's item and rewrite key_end",

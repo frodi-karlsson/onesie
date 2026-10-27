@@ -91,16 +91,6 @@ func TestChoose(t *testing.T) {
 				"Unset one",
 		},
 		{
-			name:    "should refuse an empty --profile",
-			flags:   runFlags{profileSet: true},
-			wantErr: "onesie: --profile is empty. Name one, or leave the flag out",
-		},
-		{
-			name:    "should refuse a whitespace only --provider",
-			flags:   runFlags{provider: "  ", providerSet: true},
-			wantErr: "onesie: --provider is empty. Name one, or leave the flag out",
-		},
-		{
 			name: "should count an empty ONESIE_PROFILE as unset",
 			env:  map[string]string{"ONESIE_PROFILE": "", "ONESIE_PROVIDER": "berget"},
 			want: choice{provider: "berget", by: "ONESIE_PROVIDER"},
@@ -272,9 +262,11 @@ func TestChooseAndResolve(t *testing.T) {
 	t.Run("should pass a refused choice on", func(t *testing.T) {
 		t.Parallel()
 
-		_, err := chooseAndResolve(&runFlags{profileSet: true}, lookupFrom(nil), profiles)
-		if err == nil || !strings.Contains(err.Error(), "--profile is empty") {
-			t.Errorf("error = %v, want the empty --profile refusal", err)
+		chosen := &runFlags{profile: "work", profileSet: true, provider: "berget", providerSet: true}
+
+		_, err := chooseAndResolve(chosen, lookupFrom(nil), profiles)
+		if err == nil || !strings.Contains(err.Error(), "both choose what the run uses") {
+			t.Errorf("error = %v, want the refusal of two choices", err)
 		}
 	})
 }

@@ -581,8 +581,7 @@ on the provider's key variable alone.
   session bus unencrypted, readable only by your own user.
 - `create` and `update` check the rules below, the base URL and the account id before they read the
   key, so a typo costs nothing. A bad value from a flag is named by its flag, as in
-  `--account-id must be 32 hexadecimal characters`. `create` refuses an empty `--base-url` or
-  `--account-id` with exit 2, while on `update` an empty value clears the member.
+  `--account-id must be 32 hexadecimal characters`.
 - `show` never reads the keychain or prints a key. `key:` is `keychain` or `file`, with
   `, ends in XXXX` when the key has 16 characters or more, `env` and the key variable for a run
   without a profile, or `none`. A converted keychain key shows no ending until
@@ -621,12 +620,9 @@ on the provider's key variable alone.
 - The strongest choice wins, so a flag beats a variable, and a variable beats the default.
 - Two choices of the same strength exit 2, naming both. So `--profile` with `--provider` exits 2,
   and so do `ONESIE_PROFILE` and `ONESIE_PROVIDER` set together.
-- An empty or whitespace only variable counts as unset. An empty or whitespace only flag value
-  exits 2 instead, since a flag given is a choice made. That holds for `--profile`, `--provider`,
-  `--base-url`, `-m`, `--mock`, `-f`, `-i`, `-o`, `--out`, `--state-file`, `--map`, `--id`,
-  `--merge-key`, `--image-field` and calibrate's `--label`, so `--mock "$UNSET"` never reaches the
-  API. An empty `--sep` exits 2 too. `profile update` is the exception, where an empty value clears
-  a member.
+- An empty or whitespace only variable counts as unset. A flag that names a value, such as a file,
+  a model or a profile, exits 2 on an empty or whitespace only one, so `--mock "$UNSET"` never
+  reaches the API. `profile update` is the exception, where an empty value clears a member.
 - `--provider` or `ONESIE_PROVIDER` runs without a profile.
 - With no choice and no profiles, a run uses no profile and the `typesafe` provider.
 - With no choice, and profiles but no default, a run exits 2 and names `onesie profile use NAME`,

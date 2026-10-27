@@ -38,15 +38,12 @@ func newQuestionsCmd(settings rootSettings) *cobra.Command {
 			return errors.New("onesie: questions takes no argument. To ask it as a question, put it after --")
 		},
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			if refused := refuseEmptyValues(cmd, "output"); refused != nil {
-				return refused
-			}
-
 			return listQuestions(cmd.OutOrStdout(), settings, format)
 		},
 	}
 
 	cmd.Flags().StringVarP(&format, "output", "o", "", "table, json or auto, which means table")
+	refuseEmpty(cmd.Flags(), "output")
 
 	return cmd
 }

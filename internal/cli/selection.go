@@ -57,9 +57,9 @@ func choose(flags *runFlags, lookupEnv func(string) (string, bool)) (choice, err
 
 	switch {
 	case flags.profileSet:
-		return named(choice{profile: strings.TrimSpace(flags.profile), by: "--" + flagProfile})
+		return choice{profile: strings.TrimSpace(flags.profile), by: "--" + flagProfile}, nil
 	case flags.providerSet:
-		return named(choice{provider: strings.TrimSpace(flags.provider), by: "--" + flagProvider})
+		return choice{provider: strings.TrimSpace(flags.provider), by: "--" + flagProvider}, nil
 	}
 
 	profile, provider := setVariable(lookupEnv, envProfile), setVariable(lookupEnv, envProvider)
@@ -75,14 +75,6 @@ func choose(flags *runFlags, lookupEnv func(string) (string, bool)) (choice, err
 	}
 
 	return choice{}, nil
-}
-
-func named(chosen choice) (choice, error) {
-	if chosen.profile == "" && chosen.provider == "" {
-		return choice{}, fmt.Errorf("onesie: %s is empty. Name one, or leave the flag out", chosen.by)
-	}
-
-	return chosen, nil
 }
 
 type choice struct {

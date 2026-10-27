@@ -236,6 +236,31 @@ func TestNewRootCmd(t *testing.T) {
 			contains: []string{"onesie: --sep is empty. Name one, or leave the flag out"},
 		},
 		{
+			name:     "should print no empty list default for a flag that refuses an empty value",
+			args:     []string{"calibrate", "--help"},
+			wantCode: cli.ExitOK,
+			contains: []string{"--label stringArray"},
+			absent:   []string{"(default [])"},
+		},
+		{
+			name:     "should split the options on a --sep of one space",
+			args:     []string{"is it billing", "--sep", " ", "--pick", "billing technical", "--print-request", "--state", "x"},
+			wantCode: cli.ExitOK,
+			contains: []string{`"criteria":{"billing":null,"technical":null}`},
+		},
+		{
+			name:     "should refuse an empty --provider on profile update",
+			args:     []string{"profile", "update", "work", "--provider", "", "--key"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: --provider is empty. Name one, or leave the flag out\n"},
+		},
+		{
+			name:     "should refuse an empty --account-id on profile create",
+			args:     []string{"profile", "create", "work", "--provider", "cloudflare", "--account-id", ""},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: --account-id is empty. Name one, or leave the flag out\n"},
+		},
+		{
 			name: "should refuse an empty --mock on calibrate",
 			args: []string{
 				"calibrate", "--ask", "u=is this urgent", "-i", "jsonl", "--map", ".body", "--label", "u=.u",

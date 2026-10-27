@@ -102,6 +102,9 @@ func newProfileCreateCmd(settings rootSettings, flags *runFlags) *cobra.Command 
 	cmd.Flags().StringVar(&fields.provider, flagProvider, "",
 		"the profile's provider, typesafe, openrouter, berget, levanto or cloudflare. Required")
 	addMemberFlags(cmd, fields, flags)
+	refuseEmpty(cmd.Flags(), flagModel)
+	refuseEmpty(cmd.Flags(), flagBaseURL)
+	refuseEmpty(cmd.Flags(), flagAccountID)
 	cmd.Flags().BoolVar(&fields.toFile, flagToFile, false, "store the key in profiles.json, not the OS keychain")
 
 	return cmd
@@ -122,10 +125,6 @@ func profileCreate(
 	if provider == "" {
 		return errors.New(
 			"onesie: profile create needs --provider: typesafe, openrouter, berget, levanto or cloudflare")
-	}
-
-	if refused := refuseEmpty(fields, cmd.Flags().Changed); refused != nil {
-		return refused
 	}
 
 	path, opened, err := profilesToWrite(settings)
@@ -210,6 +209,7 @@ func newProfileUpdateCmd(settings rootSettings, flags *runFlags) *cobra.Command 
 	}
 
 	cmd.Flags().StringVar(&fields.provider, flagProvider, "", "a new provider for the profile, which needs --key")
+	refuseEmpty(cmd.Flags(), flagProvider)
 	addMemberFlags(cmd, fields, flags)
 	cmd.Flags().BoolVar(&fields.key, flagKey, false, "read a new key from a prompt or stdin")
 	cmd.Flags().BoolVar(&fields.toFile, flagToFile, false,
@@ -289,9 +289,6 @@ func refuseUpdate(fields profileFlags, changed func(string) bool) error {
 		return errors.New("onesie: profile update: --file applies to a new key, so it needs --key")
 	case changed(flagProvider) && !fields.key:
 		return errors.New("onesie: profile update: --provider needs --key, since a key belongs to one provider")
-	case changed(flagProvider) && strings.TrimSpace(fields.provider) == "":
-		return errors.New("onesie: profile update: --provider is empty. " +
-			"Name typesafe, openrouter, berget, levanto or cloudflare")
 	}
 
 	return nil
@@ -933,20 +930,6 @@ func profilesToWrite(settings rootSettings) (string, creds.Opened, error) {
 
 func noProfileNamed(name string, profiles creds.Profiles) error {
 	return fmt.Errorf("onesie: there is no profile named %s. %s", quotedName(name), knownProfiles(profiles))
-}
-
-func refuseEmpty(fields profileFlags, changed func(string) bool) error {
-	for _, given := range []struct{ flag, value string }{
-		{flag: flagModel, value: fields.model},
-		{flag: flagBaseURL, value: fields.baseURL},
-		{flag: flagAccountID, value: fields.accountID},
-	} {
-		if changed(given.flag) && strings.TrimSpace(given.value) == "" {
-			return fmt.Errorf("onesie: --%s is empty. Name one, or leave the flag out", given.flag)
-		}
-	}
-
-	return nil
 }
 
 func checkGiven(profile creds.Profile, changed func(string) bool, providerGiven bool) error {
