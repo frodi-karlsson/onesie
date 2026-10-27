@@ -231,11 +231,25 @@ func checkProviderNeeds(settings rootSettings, flags *runFlags, built *plan.Plan
 		return err
 	}
 
-	return refuseNeeds(chosen.provider, model, onesie.Needs{
+	return longContextCause(refuseNeeds(chosen.provider, model, onesie.Needs{
 		Images:      sendsAssets(images),
 		Box:         asksBox(built),
 		LongContext: built.LongContext,
-	})
+	}), settings, flags)
+}
+
+func longContextCause(refusal error, settings rootSettings, flags *runFlags) error {
+	// The variable is easy to forget once it is exported, so a refusal it caused says so.
+	if refusal == nil || flags.longContextSet || !strings.Contains(refusal.Error(), "takes no long context") ||
+		!longContext(settings, flags) {
+		return refusal
+	}
+
+	return &advisedError{
+		cause: refusal,
+		message: refusal.Error() + ". " + envLongContext +
+			" turned it on, so unset it or pass --long-context=false",
+	}
 }
 
 func refuseNeeds(provider onesie.Provider, model string, needs onesie.Needs) error {

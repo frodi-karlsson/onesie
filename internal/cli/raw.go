@@ -54,7 +54,7 @@ func streamRaw(
 	// Every body would be refused, so the run stops before it reads any.
 	if long && requests(flags) {
 		if refusal := refuseNeeds(provider, defaultModel, onesie.Needs{LongContext: true}); refusal != nil {
-			return refusal
+			return longContextCause(refusal, settings, flags)
 		}
 	}
 

@@ -385,6 +385,22 @@ func TestRun(t *testing.T) {
 			wantErr:  "onesie: the cloudflare provider takes no long context. The typesafe, openrouter, berget and levanto providers do\n",
 		},
 		{
+			name:     "should say ONESIE_LONG_CONTEXT turned long context on when cloudflare refuses it",
+			args:     []string{"--state", "s", "q"},
+			env:      map[string]string{"ONESIE_PROVIDER": "cloudflare", "ONESIE_LONG_CONTEXT": "1"},
+			wantCode: ExitUsage,
+			wantErr: "onesie: the cloudflare provider takes no long context. The typesafe, openrouter, berget and " +
+				"levanto providers do. ONESIE_LONG_CONTEXT turned it on, so unset it or pass --long-context=false\n",
+		},
+		{
+			name:     "should say ONESIE_LONG_CONTEXT turned long context on under -i request",
+			args:     []string{"-i", "request"},
+			stdin:    `{"state":"s","questions":{"q":{"type":"noul","instructions":"q"}}}` + "\n",
+			env:      map[string]string{"ONESIE_PROVIDER": "cloudflare", "ONESIE_LONG_CONTEXT": "1"},
+			wantCode: ExitUsage,
+			wantErr:  "ONESIE_LONG_CONTEXT turned it on, so unset it or pass --long-context=false\n",
+		},
+		{
 			name:     "should refuse --box on cloudflare before any request",
 			args:     []string{"--image", "photo=" + square, "--ask", "mug=the mug in `photo`", "--box"},
 			env:      cloudflare,
