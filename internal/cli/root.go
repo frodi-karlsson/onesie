@@ -359,7 +359,7 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 	root.SetFlagErrorFunc(func(cmd *cobra.Command, err error) error {
 		return withDashQuestionHint(hint(cmd, plainFlagError(cmd, err)), cmd.Flags(), settings.args, nil)
 	})
-	// Cobra would add completion only when the tree runs, too late to set its argument check.
+	// Cobra adds the completion command inside Execute. Adding it here lets its argument check be set.
 	root.InitDefaultCompletionCmd()
 	completionTakesNoArguments(root)
 

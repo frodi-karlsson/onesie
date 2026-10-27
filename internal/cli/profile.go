@@ -655,8 +655,8 @@ func profileShow(cmd *cobra.Command, settings rootSettings, flags *runFlags, arg
 
 	account := shown.accountSource(settings.lookupEnv)
 
-	// A missing account prints as none and exits 2 below. One that is there but malformed fails a
-	// run the same way, so show names it rather than print a base_url of none.
+	// A run refuses a malformed account, so show refuses it too. A missing account prints as none
+	// and exits 2 below.
 	if invalid != nil && account != sourceNone && account != "" {
 		return invalid
 	}

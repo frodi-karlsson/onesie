@@ -26,7 +26,7 @@ func streamRaw(
 	answers *outFile,
 	resume resumePlan,
 ) error {
-	// Resolved for --print-request too, which prints the model a body that names none is sent with.
+	// --print-request needs the resolution too, to print the model a body with none is sent with.
 	chosen, resolveErr := runResolution(settings)
 	if resolveErr != nil {
 		return resolveErr
