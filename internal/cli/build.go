@@ -116,7 +116,7 @@ func build(settings rootSettings, flags runConfig, ignoreFileJudgment bool) (*in
 
 	return &invocation{
 		plan: built, gate: gate, abstain: abstain, mapper: mapper, namer: namer, loaded: loaded,
-		fileGate: setAside, facts: facts, images: images,
+		fileGate: setAside, images: images,
 	}, warnings, nil
 }
 
@@ -208,7 +208,6 @@ type invocation struct {
 	namer    *jq.Expr
 	loaded   *qfile.File
 	fileGate fileGate
-	facts    runFacts
 	images   *imaging
 }
 
