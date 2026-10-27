@@ -54,6 +54,20 @@ func TestWilson(t *testing.T) {
 		})
 	}
 
+	t.Run("should never round a rate or interval end that is not 0 or 1 to 0 or 1", func(t *testing.T) {
+		t.Parallel()
+
+		near := calibrate.Wilson(29999, 30000)
+		if near.Rate != 0.9999 || near.High != 0.9999 {
+			t.Errorf("Wilson(29999, 30000) = %+v, want a rate and high of 0.9999", near)
+		}
+
+		far := calibrate.Wilson(1, 30000)
+		if far.Rate != 0.0001 || far.Low != 0.0001 {
+			t.Errorf("Wilson(1, 30000) = %+v, want a rate and low of 0.0001", far)
+		}
+	})
+
 	t.Run("should leave 0 of 0 undefined", func(t *testing.T) {
 		t.Parallel()
 

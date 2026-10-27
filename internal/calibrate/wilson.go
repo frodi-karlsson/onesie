@@ -9,7 +9,7 @@ import (
 const z95 = 1.959963984540054
 
 // Wilson returns hits of of as a share with its 95 percent Wilson score interval, each rounded to
-// four places. A share of nothing is not Defined.
+// four places and never to 0 or 1 unless it is exactly that. A share of nothing is not Defined.
 func Wilson(hits, of int) Share {
 	if of <= 0 {
 		return Share{Hits: hits, Of: of}
@@ -31,7 +31,7 @@ func Wilson(hits, of int) Share {
 	}
 
 	return Share{
-		Hits: hits, Of: of, Rate: answer.Rounded(rate), Low: answer.Rounded(low), High: answer.Rounded(high),
+		Hits: hits, Of: of, Rate: roundedInside(rate), Low: roundedInside(low), High: roundedInside(high),
 		Defined: true,
 	}
 }
@@ -42,4 +42,19 @@ type Share struct {
 	Hits, Of        int
 	Rate, Low, High float64
 	Defined         bool
+}
+
+func roundedInside(fraction float64) float64 {
+	// A share that is not all or none must not print as one, or 29999 of 30000 would read as every
+	// record and pass a requirement of 1.
+	rounded := answer.Rounded(fraction)
+
+	switch {
+	case fraction > 0 && rounded <= 0:
+		return 0.0001
+	case fraction < 1 && rounded >= 1:
+		return 0.9999
+	default:
+		return rounded
+	}
 }

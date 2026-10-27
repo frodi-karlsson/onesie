@@ -117,7 +117,7 @@ func gap(c YesNoCase) float64 {
 }
 
 // AUC is the chance that a random yes case has a higher value than a random no case, a tie counting
-// half, rounded to four places. Values lie in [0,1], and it is undefined unless both labels occur.
+// half, rounded to four places and never to 0 or 1 unless it is exactly that. Values lie in [0,1], and it is undefined unless both labels occur.
 func AUC(cases []YesNoCase) (float64, bool) {
 	order := make([]int, len(cases))
 	for i := range order {
@@ -155,7 +155,7 @@ func AUC(cases []YesNoCase) (float64, bool) {
 
 	y := float64(yesCount)
 
-	return answer.Rounded((yesRanks - y*(y+1)/2) / (y * float64(noCount))), true
+	return roundedInside((yesRanks - y*(y+1)/2) / (y * float64(noCount))), true
 }
 
 // YesNoCase is one answered record of a yes/no question, with its label and the value answered.

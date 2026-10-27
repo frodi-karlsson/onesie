@@ -66,6 +66,31 @@ func TestAUC(t *testing.T) {
 		})
 	}
 
+	t.Run("should never round an AUC that is not 0 or 1 to 0 or 1", func(t *testing.T) {
+		t.Parallel()
+
+		var high, low []calibrate.YesNoCase
+
+		for i := range 150 {
+			high = append(high, calibrate.YesNoCase{Yes: true, Value: 0.5 + float64(i)/1000},
+				calibrate.YesNoCase{Value: float64(i) / 1000})
+			low = append(low, calibrate.YesNoCase{Value: 0.5 + float64(i)/1000},
+				calibrate.YesNoCase{Yes: true, Value: float64(i) / 1000})
+		}
+
+		// One no tied with the lowest yes, which counts half a pair of 22500.
+		high[1].Value = 0.5
+		low[0].Value = 0.149
+
+		if got, _ := calibrate.AUC(high); got != 0.9999 {
+			t.Errorf("AUC = %v, want 0.9999", got)
+		}
+
+		if got, _ := calibrate.AUC(low); got != 0.0001 {
+			t.Errorf("AUC = %v, want 0.0001", got)
+		}
+	})
+
 	t.Run("should finish when a value is NaN", func(t *testing.T) {
 		t.Parallel()
 
