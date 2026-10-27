@@ -25,7 +25,7 @@ var reservedIDs = []string{
 // caller can print the warnings whether or not validation succeeded.
 func Validate(p *Plan, cfg Config) ([]string, error) {
 	if len(p.Questions) == 0 {
-		return nil, errors.New("onesie: no question given. Pass a question, --ask, or -f")
+		return nil, errors.New("no question given. Pass a question, --ask, or -f")
 	}
 
 	var warnings []string
@@ -113,19 +113,19 @@ func CheckFlags(cfg Config) (string, error) {
 	}
 
 	if cfg.Raw && cfg.Output != "" {
-		return "", errors.New("onesie: -r and -o are mutually exclusive")
+		return "", errors.New("-r and -o are mutually exclusive")
 	}
 
 	if cfg.Quiet && markdown(cfg) {
-		return "", fmt.Errorf("onesie: -q suppresses output, which leaves -o %s nothing to write", cfg.Output)
+		return "", fmt.Errorf("-q suppresses output, which leaves -o %s nothing to write", cfg.Output)
 	}
 
 	if cfg.HasState && cfg.HasStateFile {
-		return "", errors.New("onesie: --state and --state-file are mutually exclusive")
+		return "", errors.New("--state and --state-file are mutually exclusive")
 	}
 
 	if cfg.Replace && cfg.FileName == "" {
-		return "", errors.New("onesie: --replace applies to -f, which was not given")
+		return "", errors.New("--replace applies to -f, which was not given")
 	}
 
 	hint, err := checkStreaming(cfg)
@@ -135,7 +135,7 @@ func CheckFlags(cfg Config) (string, error) {
 
 	// After the streaming rules, so --stop-on-assert on one record is told it needs a stream first.
 	if cfg.StopOnAssert && !cfg.HasAssert {
-		return hint, errors.New("onesie: --stop-on-assert needs --assert, since without one no assertion is false")
+		return hint, errors.New("--stop-on-assert needs --assert, since without one no assertion is false")
 	}
 
 	return hint, nil
@@ -146,7 +146,7 @@ func checkAbstainNeedsAssert(cfg Config) error {
 		return nil
 	}
 
-	return fmt.Errorf("onesie: %s needs --assert, since without one every record is a yes",
+	return fmt.Errorf("%s needs --assert, since without one every record is a yes",
 		abstainFlag(cfg))
 }
 
@@ -157,24 +157,24 @@ func checkResume(cfg Config) error {
 
 	switch {
 	case cfg.Out == "":
-		return errors.New("onesie: --resume needs --out, the file it picks up from")
+		return errors.New("--resume needs --out, the file it picks up from")
 	case cfg.ListModels:
-		return errors.New("onesie: --resume applies to streaming input, which --list-models does not read")
+		return errors.New("--resume applies to streaming input, which --list-models does not read")
 	case cfg.PrintQuestions:
-		return errors.New("onesie: --resume applies to streaming input, which --print-questions does not read")
+		return errors.New("--resume applies to streaming input, which --print-questions does not read")
 	case cfg.PrintRequest:
-		return errors.New("onesie: --print-request writes request bodies, not answers, " +
+		return errors.New("--print-request writes request bodies, not answers, " +
 			"so --resume has nothing to pick up. Drop --resume")
 	case !cfg.Streaming:
-		return fmt.Errorf("onesie: --resume applies to streaming input. -i %s reads one record", cfg.InputName)
+		return fmt.Errorf("--resume applies to streaming input. -i %s reads one record", cfg.InputName)
 	case cfg.Unordered && !cfg.HasID:
-		return errors.New("onesie: --resume relies on input order, which --unordered gives up. " +
+		return errors.New("--resume relies on input order, which --unordered gives up. " +
 			"Pass --id to resume by id")
 	case cfg.Raw || cfg.Output == "raw":
-		return errors.New("onesie: --resume needs output that keeps each record's outcome, " +
+		return errors.New("--resume needs output that keeps each record's outcome, " +
 			"which raw lines do not. Use -o values or -o json")
 	case markdown(cfg):
-		return errors.New("onesie: --resume reads each record's outcome back from --out, " +
+		return errors.New("--resume reads each record's outcome back from --out, " +
 			"which a markdown table does not keep. Use -o json, values, csv or tsv")
 	default:
 		return nil
@@ -190,9 +190,9 @@ func checkPrune(cfg Config) error {
 	case !cfg.Prune:
 		return nil
 	case !cfg.Resume:
-		return errors.New("onesie: --prune applies to --resume, which was not given")
+		return errors.New("--prune applies to --resume, which was not given")
 	case !cfg.HasID:
-		return errors.New("onesie: --prune drops the answered ids the input no longer has, so it needs --id")
+		return errors.New("--prune drops the answered ids the input no longer has, so it needs --id")
 	default:
 		return nil
 	}
@@ -217,13 +217,13 @@ func checkListModels(cfg Config) error {
 	}
 
 	if cfg.HasPositional {
-		return errors.New("onesie: --list-models asks no question. Drop the question argument")
+		return errors.New("--list-models asks no question. Drop the question argument")
 	}
 
 	// Every group flag at once, since a listing has no use for any of them and the only part of
 	// the message that varies is the name the user typed.
 	if len(cfg.GroupFlags) > 0 {
-		return fmt.Errorf("onesie: --list-models asks no question. Drop --%s", cfg.GroupFlags[0])
+		return fmt.Errorf("--list-models asks no question. Drop --%s", cfg.GroupFlags[0])
 	}
 
 	// In a fixed order, for the same reason checkRequestMode is.
@@ -231,43 +231,43 @@ func checkListModels(cfg Config) error {
 		given   bool
 		message string
 	}{
-		{cfg.FileName != "", "onesie: -f does not apply to --list-models, which asks no question"},
-		{cfg.Replace, "onesie: --replace applies to -f, which --list-models does not accept"},
-		{cfg.HasState, "onesie: --state does not apply to --list-models, which reads no state"},
-		{cfg.HasStateFile, "onesie: --state-file does not apply to --list-models, " +
+		{cfg.FileName != "", "-f does not apply to --list-models, which asks no question"},
+		{cfg.Replace, "--replace applies to -f, which --list-models does not accept"},
+		{cfg.HasState, "--state does not apply to --list-models, which reads no state"},
+		{cfg.HasStateFile, "--state-file does not apply to --list-models, " +
 			"which reads no state"},
-		{cfg.HasInput, "onesie: -i does not apply to --list-models, which reads no input"},
-		{cfg.HasMap, "onesie: --map does not apply to --list-models, which reads no state"},
-		{cfg.HasID, "onesie: --id does not apply to --list-models, which reads no input"},
-		{cfg.Output != "", "onesie: -o does not apply to --list-models, " +
+		{cfg.HasInput, "-i does not apply to --list-models, which reads no input"},
+		{cfg.HasMap, "--map does not apply to --list-models, which reads no state"},
+		{cfg.HasID, "--id does not apply to --list-models, which reads no input"},
+		{cfg.Output != "", "-o does not apply to --list-models, " +
 			"which writes a fixed listing"},
-		{cfg.Raw, "onesie: -r does not apply to --list-models, which writes a fixed listing"},
-		{cfg.Quiet, "onesie: -q suppresses output, which leaves --list-models nothing to write"},
-		{cfg.HasAssert, "onesie: --assert judges an answer, " +
+		{cfg.Raw, "-r does not apply to --list-models, which writes a fixed listing"},
+		{cfg.Quiet, "-q suppresses output, which leaves --list-models nothing to write"},
+		{cfg.HasAssert, "--assert judges an answer, " +
 			"which --list-models does not produce"},
-		{cfg.HasAbstainIf, "onesie: --abstain-if judges an answer, " +
+		{cfg.HasAbstainIf, "--abstain-if judges an answer, " +
 			"which --list-models does not produce"},
-		{cfg.Usage, "onesie: --usage reports the tokens a question cost, " +
+		{cfg.Usage, "--usage reports the tokens a question cost, " +
 			"which --list-models does not ask"},
-		{cfg.Merge, "onesie: " + mergeFlag(cfg) + " needs answers to fold in, " +
+		{cfg.Merge, mergeFlag(cfg) + " needs answers to fold in, " +
 			"which --list-models does not produce"},
-		{cfg.JobsSet, "onesie: -j does not apply to --list-models, which makes one request"},
-		{cfg.HasModel, "onesie: -m names a model to ask, which --list-models does not do"},
-		{cfg.Unordered, "onesie: --unordered applies to streaming input, " +
+		{cfg.JobsSet, "-j does not apply to --list-models, which makes one request"},
+		{cfg.HasModel, "-m names a model to ask, which --list-models does not do"},
+		{cfg.Unordered, "--unordered applies to streaming input, " +
 			"which --list-models does not read"},
-		{cfg.StopOnError, "onesie: --stop-on-error applies to streaming input, " +
+		{cfg.StopOnError, "--stop-on-error applies to streaming input, " +
 			"which --list-models does not read"},
-		{cfg.StopOnAssert, "onesie: --stop-on-assert applies to streaming input, " +
+		{cfg.StopOnAssert, "--stop-on-assert applies to streaming input, " +
 			"which --list-models does not read"},
-		{cfg.SkipBlank, "onesie: --skip-blank applies to streaming input, " +
+		{cfg.SkipBlank, "--skip-blank applies to streaming input, " +
 			"which --list-models does not read"},
-		{cfg.PrintRequest, "onesie: --print-request and --list-models each write a different " +
+		{cfg.PrintRequest, "--print-request and --list-models each write a different " +
 			"thing to stdout. Pass one"},
-		{cfg.PrintQuestions, "onesie: --print-questions and --list-models each write a different " +
+		{cfg.PrintQuestions, "--print-questions and --list-models each write a different " +
 			"thing to stdout. Pass one"},
-		{cfg.Mock != "", fmt.Sprintf("onesie: --list-models asks no question, so %s has nothing to answer. %s",
+		{cfg.Mock != "", fmt.Sprintf("--list-models asks no question, so %s has nothing to answer. %s",
 			cfg.Mock, mockAdvice(cfg, "--list-models"))},
-		{cfg.Cache, "onesie: --list-models asks no question, so --cache has nothing to store. Drop one"},
+		{cfg.Cache, "--list-models asks no question, so --cache has nothing to store. Drop one"},
 	} {
 		if rule.given {
 			return errors.New(rule.message)
@@ -288,54 +288,54 @@ func checkRequestMode(cfg Config) error {
 		given   bool
 		message string
 	}{
-		{cfg.HasPositional, "onesie: -i request carries its own questions. " +
+		{cfg.HasPositional, "-i request carries its own questions. " +
 			"Drop the question argument"},
-		{cfg.HasAsk, "onesie: -i request carries its own questions. Drop --ask"},
-		{cfg.FileName != "", "onesie: -f does not apply to -i request, " +
+		{cfg.HasAsk, "-i request carries its own questions. Drop --ask"},
+		{cfg.FileName != "", "-f does not apply to -i request, " +
 			"which carries its own questions"},
-		{cfg.Replace, "onesie: --replace applies to -f, which -i request does not accept"},
-		{given(cfg, "pick"), "onesie: -i request carries its own questions. Drop --pick"},
-		{given(cfg, "rate"), "onesie: -i request carries its own questions. Drop --rate"},
-		{given(cfg, "box"), "onesie: -i request carries its own questions. Drop --box"},
-		{given(cfg, "desc"), "onesie: -i request carries its own questions. Drop --desc"},
-		{given(cfg, "sep"), "onesie: -i request carries its own questions. Drop --sep"},
-		{given(cfg, "threshold"), "onesie: --threshold does not apply to -i request, " +
+		{cfg.Replace, "--replace applies to -f, which -i request does not accept"},
+		{given(cfg, "pick"), "-i request carries its own questions. Drop --pick"},
+		{given(cfg, "rate"), "-i request carries its own questions. Drop --rate"},
+		{given(cfg, "box"), "-i request carries its own questions. Drop --box"},
+		{given(cfg, "desc"), "-i request carries its own questions. Drop --desc"},
+		{given(cfg, "sep"), "-i request carries its own questions. Drop --sep"},
+		{given(cfg, "threshold"), "--threshold does not apply to -i request, " +
 			"which carries no policy"},
-		{given(cfg, "min-confidence"), "onesie: --min-confidence does not apply to -i request, " +
+		{given(cfg, "min-confidence"), "--min-confidence does not apply to -i request, " +
 			"which carries no policy"},
-		{given(cfg, "fallback"), "onesie: --fallback does not apply to -i request, " +
+		{given(cfg, "fallback"), "--fallback does not apply to -i request, " +
 			"which carries no policy"},
-		{cfg.HasState, "onesie: --state does not apply to -i request, " +
+		{cfg.HasState, "--state does not apply to -i request, " +
 			"whose bodies carry their own state"},
-		{cfg.HasStateFile, "onesie: --state-file does not apply to -i request, " +
+		{cfg.HasStateFile, "--state-file does not apply to -i request, " +
 			"whose bodies carry their own state"},
-		{cfg.HasImage, "onesie: --image does not apply to -i request, " +
+		{cfg.HasImage, "--image does not apply to -i request, " +
 			"whose bodies carry their own state"},
-		{len(cfg.ImageFields) > 0, "onesie: --image-field does not apply to -i request, " +
+		{len(cfg.ImageFields) > 0, "--image-field does not apply to -i request, " +
 			"whose bodies carry their own state"},
-		{cfg.HasMap, "onesie: --map does not apply to -i request, " +
+		{cfg.HasMap, "--map does not apply to -i request, " +
 			"whose bodies carry their own state"},
-		{cfg.HasID, "onesie: --id does not apply to -i request, which forwards raw responses"},
-		{cfg.Output != "", "onesie: -o does not apply to -i request, which forwards raw responses"},
-		{cfg.Raw, "onesie: -r does not apply to -i request, which forwards raw responses"},
-		{cfg.Quiet, "onesie: -q needs a policy to report, which -i request has none of"},
-		{cfg.HasAssert, "onesie: --assert does not apply to -i request, " +
+		{cfg.HasID, "--id does not apply to -i request, which forwards raw responses"},
+		{cfg.Output != "", "-o does not apply to -i request, which forwards raw responses"},
+		{cfg.Raw, "-r does not apply to -i request, which forwards raw responses"},
+		{cfg.Quiet, "-q needs a policy to report, which -i request has none of"},
+		{cfg.HasAssert, "--assert does not apply to -i request, " +
 			"which forwards raw responses"},
-		{cfg.HasAbstainIf, "onesie: --abstain-if does not apply to -i request, " +
+		{cfg.HasAbstainIf, "--abstain-if does not apply to -i request, " +
 			"which forwards raw responses"},
-		{cfg.Usage, "onesie: --usage does not apply to -i request, " +
+		{cfg.Usage, "--usage does not apply to -i request, " +
 			"whose response bodies already carry usage"},
-		{cfg.Merge, "onesie: " + mergeFlag(cfg) +
+		{cfg.Merge, mergeFlag(cfg) +
 			" does not apply to -i request, which forwards raw responses"},
-		{cfg.HasModel, "onesie: -m does not apply to -i request, " +
+		{cfg.HasModel, "-m does not apply to -i request, " +
 			"whose bodies carry their own model"},
-		{cfg.StopOnAssert, "onesie: --stop-on-assert does not apply to -i request, " +
+		{cfg.StopOnAssert, "--stop-on-assert does not apply to -i request, " +
 			"whose bodies carry no assertion"},
-		{cfg.PrintQuestions, "onesie: --print-questions needs questions of its own, " +
+		{cfg.PrintQuestions, "--print-questions needs questions of its own, " +
 			"which -i request does not build"},
-		{cfg.Mock != "", fmt.Sprintf("onesie: -i request sends each body as written, so %s has nothing "+
+		{cfg.Mock != "", fmt.Sprintf("-i request sends each body as written, so %s has nothing "+
 			"to answer. %s", cfg.Mock, mockAdvice(cfg, "-i request"))},
-		{cfg.Cache, "onesie: -i request sends each body as written, so --cache has nothing to store. Drop one"},
+		{cfg.Cache, "-i request sends each body as written, so --cache has nothing to store. Drop one"},
 	} {
 		if rule.given {
 			return errors.New(rule.message)
@@ -347,12 +347,12 @@ func checkRequestMode(cfg Config) error {
 
 func checkPrintFlags(cfg Config) error {
 	if cfg.PrintRequest && cfg.Mock != "" {
-		return fmt.Errorf("onesie: %s answers requests, and --print-request sends none. %s",
+		return fmt.Errorf("%s answers requests, and --print-request sends none. %s",
 			cfg.Mock, mockAdvice(cfg, "--print-request"))
 	}
 
 	if cfg.PrintRequest && cfg.PrintQuestions {
-		return errors.New("onesie: --print-request and --print-questions each write a " +
+		return errors.New("--print-request and --print-questions each write a " +
 			"different thing to stdout. Pass one")
 	}
 
@@ -370,59 +370,59 @@ func checkPrintFlags(cfg Config) error {
 	}{
 		{
 			cfg.PrintQuestions && cfg.HasState,
-			"onesie: --state does not apply to --print-questions, which reads no state",
+			"--state does not apply to --print-questions, which reads no state",
 		},
 		{
 			cfg.PrintQuestions && cfg.HasStateFile,
-			"onesie: --state-file does not apply to --print-questions, which reads no state",
+			"--state-file does not apply to --print-questions, which reads no state",
 		},
 		{
 			cfg.PrintQuestions && cfg.HasInput,
-			"onesie: -i does not apply to --print-questions, which reads no input",
+			"-i does not apply to --print-questions, which reads no input",
 		},
 		{
 			cfg.PrintQuestions && cfg.HasMap,
-			"onesie: --map does not apply to --print-questions, which reads no state",
+			"--map does not apply to --print-questions, which reads no state",
 		},
 		{
 			cfg.PrintQuestions && cfg.HasID,
-			"onesie: --id does not apply to --print-questions, which reads no input",
+			"--id does not apply to --print-questions, which reads no input",
 		},
 		{cfg.Output != "", fmt.Sprintf(
-			"onesie: -o does not apply to %s, which writes %s", name, writes)},
-		{cfg.Raw, fmt.Sprintf("onesie: -r does not apply to %s, which writes %s", name, writes)},
+			"-o does not apply to %s, which writes %s", name, writes)},
+		{cfg.Raw, fmt.Sprintf("-r does not apply to %s, which writes %s", name, writes)},
 		{cfg.Quiet, fmt.Sprintf(
-			"onesie: -q suppresses output, which leaves %s nothing to write", name)},
+			"-q suppresses output, which leaves %s nothing to write", name)},
 		// Guarded to --print-request, since --print-questions writes the assertion into the file it
 		// prints and so is the one dry run that carries it. A gate that only the file carries is
 		// ignored, so a gated file can be dry run as it stands.
 		{cfg.PrintRequest && cfg.HasAssert && !fromFile(cfg.AssertName, "--assert"), fmt.Sprintf(
-			"onesie: %s judges an answer, which --print-request does not produce",
+			"%s judges an answer, which --print-request does not produce",
 			assertFlag(cfg))},
 		{cfg.PrintRequest && cfg.HasAbstainIf && !fromFile(cfg.AbstainIfName, "--abstain-if"), fmt.Sprintf(
-			"onesie: %s judges an answer, which --print-request does not produce",
+			"%s judges an answer, which --print-request does not produce",
 			abstainFlag(cfg))},
 		{cfg.Usage, fmt.Sprintf(
-			"onesie: --usage reports the tokens a question cost, which %s does not ask", name)},
+			"--usage reports the tokens a question cost, which %s does not ask", name)},
 		{cfg.Merge, fmt.Sprintf(
-			"onesie: %s needs answers to fold in, which %s does not produce", mergeFlag(cfg), name)},
+			"%s needs answers to fold in, which %s does not produce", mergeFlag(cfg), name)},
 		{
 			cfg.PrintQuestions && cfg.JobsSet,
-			"onesie: -j does not apply to --print-questions, which makes no request",
+			"-j does not apply to --print-questions, which makes no request",
 		},
 		{
 			cfg.PrintQuestions && cfg.HasModel,
-			"onesie: -m names a model to ask, which --print-questions does not do",
+			"-m names a model to ask, which --print-questions does not do",
 		},
 		// --stop-on-error and --unordered are absent because streamRequests honours both. Only the
 		// assertion is a judgment a dry run never makes, so only its stop condition is rejected.
 		{
 			cfg.PrintRequest && cfg.StopOnAssert,
-			"onesie: --stop-on-assert ends a stream on a false assertion, " +
+			"--stop-on-assert ends a stream on a false assertion, " +
 				"which --print-request does not produce",
 		},
 		{cfg.Stats, fmt.Sprintf(
-			"onesie: --stats has nothing to report with %s, which makes no request", name)},
+			"--stats has nothing to report with %s, which makes no request", name)},
 	} {
 		if rule.given {
 			return errors.New(rule.message)
@@ -485,7 +485,7 @@ func abstainFlag(cfg Config) string {
 func checkStreaming(cfg Config) (string, error) {
 	// Checked for every mode, since --merge applies to the non streaming ones too.
 	if cfg.Merge && !mergeable(cfg) {
-		return "", fmt.Errorf("onesie: %s needs -o json, values, csv or tsv", mergeFlag(cfg))
+		return "", fmt.Errorf("%s needs -o json, values, csv or tsv", mergeFlag(cfg))
 	}
 
 	if err := checkDelimited(cfg); err != nil {
@@ -500,17 +500,17 @@ func checkStreaming(cfg Config) (string, error) {
 	// is exactly as wrong outside a stream as inside one. Gated on JobsSet because Jobs is an int
 	// and its zero value cannot be told from the flag being absent.
 	if cfg.JobsSet && cfg.Jobs < 1 {
-		return "", fmt.Errorf("onesie: -j takes a positive number of records in flight, got %d",
+		return "", fmt.Errorf("-j takes a positive number of records in flight, got %d",
 			cfg.Jobs)
 	}
 
 	if cfg.JobsSet && cfg.Jobs > limits.MaxJobs {
-		return "", fmt.Errorf("onesie: -j takes at most %d records in flight, got %d",
+		return "", fmt.Errorf("-j takes at most %d records in flight, got %d",
 			limits.MaxJobs, cfg.Jobs)
 	}
 
 	if cfg.TimeoutSet && cfg.Timeout < 1 {
-		return "", fmt.Errorf("onesie: --timeout takes a positive number of seconds, got %d",
+		return "", fmt.Errorf("--timeout takes a positive number of seconds, got %d",
 			cfg.Timeout)
 	}
 
@@ -519,12 +519,12 @@ func checkStreaming(cfg Config) (string, error) {
 	}
 
 	if cfg.RetriesSet && cfg.Retries < 0 {
-		return "", fmt.Errorf("onesie: --retries takes a retry count of zero or more, got %d",
+		return "", fmt.Errorf("--retries takes a retry count of zero or more, got %d",
 			cfg.Retries)
 	}
 
 	if cfg.RetriesSet && cfg.Retries > limits.MaxRetries {
-		return "", fmt.Errorf("onesie: --retries takes at most %d, got %d",
+		return "", fmt.Errorf("--retries takes at most %d, got %d",
 			limits.MaxRetries, cfg.Retries)
 	}
 
@@ -532,7 +532,7 @@ func checkStreaming(cfg Config) (string, error) {
 	// rejected rather than given one of those meanings.
 	if cfg.MaxRetryAfterSet && cfg.MaxRetryAfter < 1 {
 		return "", fmt.Errorf(
-			"onesie: --max-retry-after must be a positive number of seconds, got %d",
+			"--max-retry-after must be a positive number of seconds, got %d",
 			cfg.MaxRetryAfter)
 	}
 
@@ -549,27 +549,27 @@ func checkStreaming(cfg Config) (string, error) {
 	// --state-file mistake sends them to the wrong flag, and naming jsonl for a lines run sends
 	// them to the wrong mode.
 	if cfg.HasState {
-		return "", fmt.Errorf("onesie: --state cannot be combined with -i %s", cfg.InputName)
+		return "", fmt.Errorf("--state cannot be combined with -i %s", cfg.InputName)
 	}
 
 	if cfg.HasStateFile {
-		return "", fmt.Errorf("onesie: --state-file cannot be combined with -i %s", cfg.InputName)
+		return "", fmt.Errorf("--state-file cannot be combined with -i %s", cfg.InputName)
 	}
 
 	if cfg.LinesInput && len(cfg.ImageFields) > 1 {
-		return "", errors.New("onesie: -i lines takes one --image-field, since a line holds one path")
+		return "", errors.New("-i lines takes one --image-field, since a line holds one path")
 	}
 
 	if cfg.Quiet {
 		return "", fmt.Errorf(
-			"onesie: -q reads one record. Drop -i %s or use -o values and filter the stream",
+			"-q reads one record. Drop -i %s or use -o values and filter the stream",
 			cfg.InputName)
 	}
 
 	// A stream writes one line per input line. A table is several lines with a repeated header, and
 	// unlike raw it has no streaming form.
 	if cfg.Output == "table" {
-		return "", fmt.Errorf("onesie: -o table reads one record. Drop -i %s or use -o json",
+		return "", fmt.Errorf("-o table reads one record. Drop -i %s or use -o json",
 			cfg.InputName)
 	}
 
@@ -591,7 +591,7 @@ func tooManySeconds(flag string, seconds int, set bool) error {
 
 	// Seconds become a time.Duration downstream, and past a point that multiplication wraps. A
 	// wrap to a positive value would hand a user who asked for centuries a fraction of a second.
-	return fmt.Errorf("onesie: %s takes at most %d seconds, got %d", flag, limits.MaxSeconds, seconds)
+	return fmt.Errorf("%s takes at most %d seconds, got %d", flag, limits.MaxSeconds, seconds)
 }
 
 func mergeable(cfg Config) bool {
@@ -616,12 +616,12 @@ func checkDelimited(cfg Config) error {
 
 	switch {
 	case cfg.HasMergeKey:
-		return fmt.Errorf("onesie: --merge-key does not apply to -o %s, which puts the answers in columns", cfg.Output)
+		return fmt.Errorf("--merge-key does not apply to -o %s, which puts the answers in columns", cfg.Output)
 	case cfg.Merge && cfg.InputName != "csv" && cfg.InputName != "tsv":
 		return fmt.Errorf(
-			"onesie: -o %s with --merge needs -i csv or -i tsv, since other input has no fixed columns", cfg.Output)
+			"-o %s with --merge needs -i csv or -i tsv, since other input has no fixed columns", cfg.Output)
 	case cfg.Usage:
-		return fmt.Errorf("onesie: --usage does not apply to -o %s, which has no column for it", cfg.Output)
+		return fmt.Errorf("--usage does not apply to -o %s, which has no column for it", cfg.Output)
 	default:
 		return nil
 	}
@@ -636,7 +636,7 @@ func checkUsage(cfg Config) error {
 
 	switch {
 	case cfg.Quiet:
-		return errors.New("onesie: --usage does not apply to -q, which suppresses output")
+		return errors.New("--usage does not apply to -q, which suppresses output")
 	case cfg.Raw:
 		mode = "-r"
 	case cfg.Output == "values", cfg.Output == "raw":
@@ -645,7 +645,7 @@ func checkUsage(cfg Config) error {
 		return nil
 	}
 
-	return fmt.Errorf("onesie: --usage does not apply to %s, which writes only the answers. Use -o json", mode)
+	return fmt.Errorf("--usage does not apply to %s, which writes only the answers. Use -o json", mode)
 }
 
 func checkSingleRecord(cfg Config) (string, error) {
@@ -663,13 +663,13 @@ func checkSingleRecord(cfg Config) (string, error) {
 	} {
 		if flag.set {
 			return "", fmt.Errorf(
-				"onesie: %s applies to streaming input. -i %s reads one record",
+				"%s applies to streaming input. -i %s reads one record",
 				flag.name, cfg.InputName)
 		}
 	}
 
 	if cfg.HasInput && cfg.HasImage && !cfg.HasState && !cfg.HasStateFile {
-		return "", fmt.Errorf("onesie: -i %s holds one record, which beside --image reads stdin only through "+
+		return "", fmt.Errorf("-i %s holds one record, which beside --image reads stdin only through "+
 			"--state -. Pass --state - to read the state from stdin", cfg.InputName)
 	}
 
@@ -733,7 +733,7 @@ func bodyPolicyError(name string, questions int) error {
 	}
 
 	return fmt.Errorf(
-		"onesie: policy flags apply to a request body only when it has one question. "+
+		"policy flags apply to a request body only when it has one question. "+
 			"%s has %d, freeze with --print-questions first", name, questions)
 }
 
@@ -743,7 +743,7 @@ func checkOrphans(p *Plan) error {
 	}
 
 	orphan := p.Orphans[0].Name
-	err := fmt.Errorf("onesie: --%s given with no --ask to bind to and %d questions asked",
+	err := fmt.Errorf("--%s given with no --ask to bind to and %d questions asked",
 		orphan, len(p.Questions))
 
 	keys := fileKeysFor(orphan)
@@ -782,7 +782,7 @@ func checkSources(p *Plan) error {
 
 	if named > 0 && positional > 0 {
 		return errors.New(
-			"onesie: a positional question cannot be combined with --ask or -f")
+			"a positional question cannot be combined with --ask or -f")
 	}
 
 	return nil
@@ -805,7 +805,7 @@ func checkFallbackColumns(p *Plan, cfg Config) error {
 
 		for _, column := range BoxColumns(question.ID) {
 			if slices.Contains(ids, column) {
-				return fmt.Errorf("onesie: question '%s' takes a column name box question '%s' writes. "+
+				return fmt.Errorf("question '%s' takes a column name box question '%s' writes. "+
 					"Rename one", column, question.ID)
 			}
 		}
@@ -817,7 +817,7 @@ func checkFallbackColumns(p *Plan, cfg Config) error {
 		}
 
 		if taken := FallbackColumn(question.ID); slices.Contains(ids, taken) {
-			return fmt.Errorf("onesie: question '%s' has the name of the fallback column -o %s writes for '%s'",
+			return fmt.Errorf("question '%s' has the name of the fallback column -o %s writes for '%s'",
 				taken, cfg.Output, question.ID)
 		}
 	}
@@ -832,7 +832,7 @@ func checkLineField(p *Plan, cfg Config) error {
 
 	for _, question := range p.Questions {
 		if question.ID == LineField {
-			return fmt.Errorf("onesie: question id '%s' is reserved under -i lines, "+
+			return fmt.Errorf("question id '%s' is reserved under -i lines, "+
 				"which writes the input line number as %s", LineField, LineField)
 		}
 	}
@@ -859,7 +859,7 @@ func checkDuplicateIDs(p *Plan) error {
 	// The request body is keyed by id, so a repeated one would collapse into a single question
 	// while the output still carries the key twice.
 	if dupe, found := firstDuplicate(ids); found {
-		return fmt.Errorf("onesie: question id '%s' is given twice", dupe)
+		return fmt.Errorf("question id '%s' is given twice", dupe)
 	}
 
 	return nil
@@ -870,7 +870,7 @@ func checkQuestion(q *Question) (string, error) {
 	// id the user chose. A request body may carry answer, since --print-request writes a positional
 	// question under it and -f reads that body back.
 	if q.Origin.Chosen() && (reserved(q.ID) || (q.ID == PositionalID && q.Origin != OriginBody)) {
-		return "", fmt.Errorf("onesie: question id '%s' is reserved", q.ID)
+		return "", fmt.Errorf("question id '%s' is reserved", q.ID)
 	}
 
 	if err := checkBlankQuestion(q); err != nil {
@@ -880,11 +880,11 @@ func checkQuestion(q *Question) (string, error) {
 	if shapes := countTrue(len(q.Options) > 0, len(q.Levels) > 0, q.Boxed); shapes > 1 {
 		if q.Boxed {
 			return "", errors.New(
-				"onesie: --box, --pick and --rate are mutually exclusive. A question is one of them")
+				"--box, --pick and --rate are mutually exclusive. A question is one of them")
 		}
 
 		return "", errors.New(
-			"onesie: --pick and --rate are mutually exclusive. A question is one or the other")
+			"--pick and --rate are mutually exclusive. A question is one or the other")
 	}
 
 	switch q.Shape {
@@ -912,21 +912,21 @@ func checkBlankQuestion(q *Question) error {
 			return nil
 		}
 	case nil:
-		return fmt.Errorf("onesie: question '%s' has %s, %s", q.ID, nullKey(q.Origin), cannot)
+		return fmt.Errorf("question '%s' has %s, %s", q.ID, nullKey(q.Origin), cannot)
 	default:
-		return fmt.Errorf("onesie: question '%s' has %s, so the model has no question to answer",
+		return fmt.Errorf("question '%s' has %s, so the model has no question to answer",
 			q.ID, notText(q.Origin))
 	}
 
 	switch q.Origin {
 	case OriginPositional:
-		return errors.New("onesie: the question is blank, " + cannot)
+		return errors.New("the question is blank, " + cannot)
 	case OriginFlag:
-		return fmt.Errorf("onesie: --ask %s= is blank, %s", q.ID, cannot)
+		return fmt.Errorf("--ask %s= is blank, %s", q.ID, cannot)
 	case OriginFile:
-		return fmt.Errorf("onesie: question '%s' has a blank 'ask', %s", q.ID, cannot)
+		return fmt.Errorf("question '%s' has a blank 'ask', %s", q.ID, cannot)
 	default:
-		return fmt.Errorf("onesie: question '%s' has blank 'instructions', %s", q.ID, cannot)
+		return fmt.Errorf("question '%s' has blank 'instructions', %s", q.ID, cannot)
 	}
 }
 
@@ -967,7 +967,7 @@ func checkPick(q *Question) (string, error) {
 
 	if dupe, found := firstDuplicate(names); found {
 		return "", fmt.Errorf(
-			"onesie: %s option '%s' is listed twice in question '%s'", pick, dupe, q.ID)
+			"%s option '%s' is listed twice in question '%s'", pick, dupe, q.ID)
 	}
 
 	if err := checkUnknownDesc(q, names, pick); err != nil {
@@ -1020,7 +1020,7 @@ func checkRate(q *Question) error {
 func checkBlankNames(q *Question, shape, noun string, names []string) error {
 	for i, name := range names {
 		if strings.TrimSpace(name) == "" {
-			return fmt.Errorf("onesie: %s %s %d%s is empty", shape, noun, i+1, questionClause(q))
+			return fmt.Errorf("%s %s %d%s is empty", shape, noun, i+1, questionClause(q))
 		}
 	}
 
@@ -1032,16 +1032,16 @@ func tooFew(q *Question, name, noun string, count int, names []string) error {
 	// a body's unlabelled levels. Naming it would print the separator and nothing else.
 	listed := strings.Join(names, ", ")
 	if listed == "" {
-		return fmt.Errorf("onesie: %s needs at least two %s%s, got %d",
+		return fmt.Errorf("%s needs at least two %s%s, got %d",
 			name, noun, questionClause(q), count)
 	}
 
-	return fmt.Errorf("onesie: %s needs at least two %s%s, got %d: %s",
+	return fmt.Errorf("%s needs at least two %s%s, got %d: %s",
 		name, noun, questionClause(q), count, listed)
 }
 
 func tooMany(q *Question, name, noun string, limit, count int) error {
-	return fmt.Errorf("onesie: %s takes at most %d %s%s, got %d",
+	return fmt.Errorf("%s takes at most %d %s%s, got %d",
 		name, limit, noun, questionClause(q), count)
 }
 
@@ -1051,7 +1051,7 @@ func checkRubric(q *Question, rate string, labels []string) error {
 	}
 
 	if dupe, found := firstDuplicate(labels); found {
-		return fmt.Errorf("onesie: %s label '%s' is listed twice in question '%s'", rate, dupe, q.ID)
+		return fmt.Errorf("%s label '%s' is listed twice in question '%s'", rate, dupe, q.ID)
 	}
 
 	if err := checkUnknownDesc(q, labels, rate); err != nil {
@@ -1063,7 +1063,7 @@ func checkRubric(q *Question, rate string, labels []string) error {
 	have := described(q)
 	if len(have) != 0 && len(have) != len(labels) {
 		return fmt.Errorf(
-			"onesie: %s levels must all be described or all bare%s. Described %s but not %s",
+			"%s levels must all be described or all bare%s. Described %s but not %s",
 			rate, questionClause(q), strings.Join(have, ", "),
 			strings.Join(missing(labels, have), ", "),
 		)
@@ -1086,7 +1086,7 @@ func checkNoul(q *Question) error {
 	for _, key := range q.DescOrder {
 		if key != "yes" && key != "no" {
 			return fmt.Errorf(
-				"onesie: --desc on a yes/no question takes 'yes' or 'no', got '%s'", key)
+				"--desc on a yes/no question takes 'yes' or 'no', got '%s'", key)
 		}
 	}
 
@@ -1096,7 +1096,7 @@ func checkNoul(q *Question) error {
 func checkBox(q *Question) error {
 	if len(q.DescOrder) > 0 {
 		return fmt.Errorf(
-			"onesie: --desc does not apply to box question '%s', which has no options", q.ID)
+			"--desc does not apply to box question '%s', which has no options", q.ID)
 	}
 
 	for _, flag := range []struct {
@@ -1108,7 +1108,7 @@ func checkBox(q *Question) error {
 		{"--fallback", q.Policy.Fallback != nil},
 	} {
 		if flag.set {
-			return fmt.Errorf("onesie: %s does not apply to box question '%s'. Gate a box with %s",
+			return fmt.Errorf("%s does not apply to box question '%s'. Gate a box with %s",
 				Spelling(q.Origin, flag.name), q.ID, Spelling(q.Origin, "--assert"))
 		}
 	}
@@ -1142,12 +1142,12 @@ func checkPolicy(q *Question, yesNo bool) error {
 			}
 
 			return fmt.Errorf(
-				"onesie: %s cuts a yes/no probability. '%s' has %s, use %s with %s",
+				"%s cuts a yes/no probability. '%s' has %s, use %s with %s",
 				threshold, q.ID, noun, confidence, fallback)
 		}
 
 		if outsideUnit(*policy.Threshold) {
-			return fmt.Errorf("onesie: %s must be between 0 and 1, got %s",
+			return fmt.Errorf("%s must be between 0 and 1, got %s",
 				threshold, strconv.FormatFloat(*policy.Threshold, 'g', -1, 64))
 		}
 	}
@@ -1155,27 +1155,27 @@ func checkPolicy(q *Question, yesNo bool) error {
 	if policy.MinConfidence != nil {
 		if yesNo {
 			return fmt.Errorf(
-				"onesie: %s needs a confidence value. '%s' is a yes/no question, "+
+				"%s needs a confidence value. '%s' is a yes/no question, "+
 					"use %s, or add %s or %s",
 				confidence, q.ID, threshold,
 				Spelling(q.Origin, "--pick"), Spelling(q.Origin, "--rate"))
 		}
 
 		if outsideUnit(*policy.MinConfidence) {
-			return fmt.Errorf("onesie: %s must be between 0 and 1, got %s",
+			return fmt.Errorf("%s must be between 0 and 1, got %s",
 				confidence, strconv.FormatFloat(*policy.MinConfidence, 'g', -1, 64))
 		}
 
 		if policy.Fallback == nil {
 			return fmt.Errorf(
-				"onesie: %s needs %s, nothing to substitute for '%s'", confidence, fallback, q.ID)
+				"%s needs %s, nothing to substitute for '%s'", confidence, fallback, q.ID)
 		}
 	}
 
 	if yesNo && policy.Fallback != nil {
 		if _, ok := ParseFallback(policy.Fallback.Text); !ok {
 			return fmt.Errorf(
-				"onesie: %s on a yes/no question takes true, false, yes or no, got '%s'",
+				"%s on a yes/no question takes true, false, yes or no, got '%s'",
 				fallback, policy.Fallback.Text)
 		}
 	}
@@ -1195,7 +1195,7 @@ func checkUnknownDesc(q *Question, vocabulary []string, shape string) error {
 
 		// The key itself always comes from --desc, since a file has no way to name one. Only the
 		// vocabulary it missed is spelled the way the question was written.
-		return fmt.Errorf("onesie: --desc names an unknown key '%s' in question '%s'. %s has: %s",
+		return fmt.Errorf("--desc names an unknown key '%s' in question '%s'. %s has: %s",
 			key, q.ID, shape, strings.Join(vocabulary, ", "))
 	}
 
@@ -1229,20 +1229,20 @@ func checkSingle(p *Plan, cfg Config) error {
 	}
 
 	if len(p.Questions) != 1 {
-		return fmt.Errorf("onesie: %s needs a single question. %s were asked",
+		return fmt.Errorf("%s needs a single question. %s were asked",
 			flag, strings.Join(names, ", "))
 	}
 
 	only := p.Questions[0]
 	if quietGate && only.Shape == Box {
 		return fmt.Errorf(
-			"onesie: -q on '%s' needs %s. A box has no policy that could fail it",
+			"-q on '%s' needs %s. A box has no policy that could fail it",
 			only.ID, Spelling(only.Origin, "--assert"))
 	}
 
 	if quietGate && only.Shape != Noul && only.Policy.MinConfidence == nil {
 		return fmt.Errorf(
-			"onesie: -q on '%s' needs %s and %s, or --assert. Without one the exit code is always 0",
+			"-q on '%s' needs %s and %s, or --assert. Without one the exit code is always 0",
 			only.ID, Spelling(only.Origin, "--min-confidence"), Spelling(only.Origin, "--fallback"))
 	}
 

@@ -34,23 +34,23 @@ func TestValidate(t *testing.T) {
 		{
 			name:    "should refuse --box beside --pick",
 			events:  []argv.Event{{Name: "ask", Value: "mug=x"}, {Name: "box", Value: "true"}, {Name: "pick", Value: "a,b"}},
-			wantErr: "onesie: --box, --pick and --rate are mutually exclusive. A question is one of them",
+			wantErr: "--box, --pick and --rate are mutually exclusive. A question is one of them",
 		},
 		{
 			name:    "should refuse --desc on a box",
 			events:  []argv.Event{{Name: "ask", Value: "mug=x"}, {Name: "box", Value: "true"}, {Name: "desc", Value: "a=b"}},
-			wantErr: "onesie: --desc does not apply to box question 'mug', which has no options",
+			wantErr: "--desc does not apply to box question 'mug', which has no options",
 		},
 		{
 			name:    "should refuse --min-confidence on a box",
 			events:  []argv.Event{{Name: "ask", Value: "mug=x"}, {Name: "box", Value: "true"}, {Name: "min-confidence", Value: "0.5"}},
-			wantErr: "onesie: --min-confidence does not apply to box question 'mug'. Gate a box with --assert",
+			wantErr: "--min-confidence does not apply to box question 'mug'. Gate a box with --assert",
 		},
 		{
 			name:    "should name only --assert for -q on a box",
 			events:  []argv.Event{{Name: "ask", Value: "mug=x"}, {Name: "box", Value: "true"}},
 			cfg:     plan.Config{Quiet: true, Jobs: 1},
-			wantErr: "onesie: -q on 'mug' needs --assert. A box has no policy that could fail it",
+			wantErr: "-q on 'mug' needs --assert. A box has no policy that could fail it",
 		},
 		{
 			name: "should refuse a question named like a box column under -o csv",
@@ -58,17 +58,17 @@ func TestValidate(t *testing.T) {
 				{Name: "ask", Value: "mug=x"}, {Name: "box", Value: "true"}, {Name: "ask", Value: "mug_left=y"},
 			},
 			cfg:     plan.Config{Output: "csv", Jobs: 1},
-			wantErr: "onesie: question 'mug_left' takes a column name box question 'mug' writes. Rename one",
+			wantErr: "question 'mug_left' takes a column name box question 'mug' writes. Rename one",
 		},
 		{
 			name:    "should reject an empty invocation",
-			wantErr: "onesie: no question given. Pass a question, --ask, or -f",
+			wantErr: "no question given. Pass a question, --ask, or -f",
 		},
 		{
 			name:       "should reject a positional combined with ask",
 			positional: "is this urgent",
 			events:     []argv.Event{{Name: "ask", Value: "a=first"}},
-			wantErr:    "onesie: a positional question cannot be combined with --ask or -f",
+			wantErr:    "a positional question cannot be combined with --ask or -f",
 		},
 		{
 			name:       "should reject a positional combined with a file question",
@@ -76,62 +76,62 @@ func TestValidate(t *testing.T) {
 			file: []plan.Question{
 				{ID: "urgent", Shape: plan.Noul, Instructions: "is this urgent", Origin: plan.OriginFile},
 			},
-			wantErr: "onesie: a positional question cannot be combined with --ask or -f",
+			wantErr: "a positional question cannot be combined with --ask or -f",
 		},
 		{
 			name:    "should reject a reserved id",
 			events:  []argv.Event{{Name: "ask", Value: "usage=first"}},
-			wantErr: "onesie: question id 'usage' is reserved",
+			wantErr: "question id 'usage' is reserved",
 		},
 		{
 			name:    "should reject an empty --ask question",
 			events:  []argv.Event{{Name: "ask", Value: "a="}},
-			wantErr: "onesie: --ask a= is blank, an empty question is one the model cannot answer",
+			wantErr: "--ask a= is blank, an empty question is one the model cannot answer",
 		},
 		{
 			name:    "should reject an all space --ask question",
 			events:  []argv.Event{{Name: "ask", Value: "a= \t "}},
-			wantErr: "onesie: --ask a= is blank, an empty question is one the model cannot answer",
+			wantErr: "--ask a= is blank, an empty question is one the model cannot answer",
 		},
 		{
 			name:       "should reject an all space positional question",
 			positional: "   ",
-			wantErr:    "onesie: the question is blank, an empty question is one the model cannot answer",
+			wantErr:    "the question is blank, an empty question is one the model cannot answer",
 		},
 		{
 			name: "should reject an empty question in a question file",
 			file: []plan.Question{
 				{ID: "urgent", Shape: plan.Noul, Instructions: " ", Origin: plan.OriginFile},
 			},
-			wantErr: "onesie: question 'urgent' has a blank 'ask', an empty question is one the model cannot answer",
+			wantErr: "question 'urgent' has a blank 'ask', an empty question is one the model cannot answer",
 		},
 		{
 			name: "should reject empty instructions in a request body",
 			file: []plan.Question{
 				{ID: "urgent", Shape: plan.Noul, Instructions: "", Origin: plan.OriginBody},
 			},
-			wantErr: "onesie: question 'urgent' has blank 'instructions', an empty question is one the model cannot answer",
+			wantErr: "question 'urgent' has blank 'instructions', an empty question is one the model cannot answer",
 		},
 		{
 			name: "should reject null instructions in a request body",
 			file: []plan.Question{
 				{ID: "urgent", Shape: plan.Noul, Instructions: nil, Origin: plan.OriginBody},
 			},
-			wantErr: "onesie: question 'urgent' has null 'instructions', an empty question is one the model cannot answer",
+			wantErr: "question 'urgent' has null 'instructions', an empty question is one the model cannot answer",
 		},
 		{
 			name: "should reject a null ask in a question file",
 			file: []plan.Question{
 				{ID: "urgent", Shape: plan.Noul, Instructions: nil, Origin: plan.OriginFile},
 			},
-			wantErr: "onesie: question 'urgent' has a null 'ask', an empty question is one the model cannot answer",
+			wantErr: "question 'urgent' has a null 'ask', an empty question is one the model cannot answer",
 		},
 		{
 			name: "should reject number instructions in a request body",
 			file: []plan.Question{
 				{ID: "urgent", Shape: plan.Noul, Instructions: uint64(7), Origin: plan.OriginBody},
 			},
-			wantErr: "onesie: question 'urgent' has 'instructions' that are not text or a mapping, so the " +
+			wantErr: "question 'urgent' has 'instructions' that are not text or a mapping, so the " +
 				"model has no question to answer",
 		},
 		{
@@ -139,7 +139,7 @@ func TestValidate(t *testing.T) {
 			file: []plan.Question{
 				{ID: "urgent", Shape: plan.Noul, Instructions: true, Origin: plan.OriginBody},
 			},
-			wantErr: "onesie: question 'urgent' has 'instructions' that are not text or a mapping, so the " +
+			wantErr: "question 'urgent' has 'instructions' that are not text or a mapping, so the " +
 				"model has no question to answer",
 		},
 		{
@@ -147,7 +147,7 @@ func TestValidate(t *testing.T) {
 			file: []plan.Question{
 				{ID: "urgent", Shape: plan.Noul, Instructions: json.RawMessage(`{}`), Origin: plan.OriginBody},
 			},
-			wantErr: "onesie: question 'urgent' has blank 'instructions', an empty question is one the model cannot answer",
+			wantErr: "question 'urgent' has blank 'instructions', an empty question is one the model cannot answer",
 		},
 		{
 			name: "should accept structured instructions in a request body",
@@ -158,12 +158,12 @@ func TestValidate(t *testing.T) {
 		{
 			name:    "should reject the positional id used explicitly",
 			events:  []argv.Event{{Name: "ask", Value: "answer=first"}},
-			wantErr: "onesie: question id 'answer' is reserved",
+			wantErr: "question id 'answer' is reserved",
 		},
 		{
 			name:    "should reject an id beginning with two underscores",
 			events:  []argv.Event{{Name: "ask", Value: "__private=first"}},
-			wantErr: "onesie: question id '__private' is reserved",
+			wantErr: "question id '__private' is reserved",
 		},
 		{
 			name: "should reject a single option pick",
@@ -171,7 +171,7 @@ func TestValidate(t *testing.T) {
 				{Name: "ask", Value: "a=first"},
 				{Name: "pick", Value: "safe"},
 			},
-			wantErr: "onesie: --pick needs at least two options in question 'a', got 1: safe",
+			wantErr: "--pick needs at least two options in question 'a', got 1: safe",
 		},
 		{
 			name: "should reject a single level rate",
@@ -179,7 +179,7 @@ func TestValidate(t *testing.T) {
 				{Name: "ask", Value: "a=first"},
 				{Name: "rate", Value: "calm"},
 			},
-			wantErr: "onesie: --rate needs at least two levels in question 'a', got 1: calm",
+			wantErr: "--rate needs at least two levels in question 'a', got 1: calm",
 		},
 		{
 			name: "should reject a duplicate option",
@@ -187,7 +187,7 @@ func TestValidate(t *testing.T) {
 				{Name: "ask", Value: "team=first"},
 				{Name: "pick", Value: "billing,technical,billing"},
 			},
-			wantErr: "onesie: --pick option 'billing' is listed twice in question 'team'",
+			wantErr: "--pick option 'billing' is listed twice in question 'team'",
 		},
 		{
 			name: "should reject a question named like another question's csv fallback column",
@@ -197,7 +197,7 @@ func TestValidate(t *testing.T) {
 				{Name: "ask", Value: "a_fallback=q2"},
 			},
 			cfg:       plan.Config{Output: "csv", InputName: "text"},
-			wantExact: "onesie: question 'a_fallback' has the name of the fallback column -o csv writes for 'a'",
+			wantExact: "question 'a_fallback' has the name of the fallback column -o csv writes for 'a'",
 		},
 		{
 			name: "should accept a question named like a fallback column outside csv and tsv",
@@ -214,7 +214,7 @@ func TestValidate(t *testing.T) {
 				{Name: "ask", Value: "team=first"},
 				{Name: "pick", Value: "billing,,technical"},
 			},
-			wantExact: "onesie: --pick option 2 in question 'team' is empty",
+			wantExact: "--pick option 2 in question 'team' is empty",
 		},
 		{
 			name: "should reject an option of only spaces",
@@ -222,7 +222,7 @@ func TestValidate(t *testing.T) {
 				{Name: "ask", Value: "team=first"},
 				{Name: "pick", Value: "billing, "},
 			},
-			wantExact: "onesie: --pick option 2 in question 'team' is empty",
+			wantExact: "--pick option 2 in question 'team' is empty",
 		},
 		{
 			name: "should reject an empty level",
@@ -230,12 +230,12 @@ func TestValidate(t *testing.T) {
 				{Name: "ask", Value: "severity=first"},
 				{Name: "rate", Value: "low,,high"},
 			},
-			wantExact: "onesie: --rate level 2 in question 'severity' is empty",
+			wantExact: "--rate level 2 in question 'severity' is empty",
 		},
 		{
 			name:      "should reject a file's blank option",
 			file:      filePick("billing", "  "),
-			wantExact: "onesie: 'pick' option 2 in question 'team' is empty",
+			wantExact: "'pick' option 2 in question 'team' is empty",
 		},
 		{
 			name: "should match a description against the trimmed option",
@@ -252,7 +252,7 @@ func TestValidate(t *testing.T) {
 				{Name: "ask", Value: "severity=first"},
 				{Name: "rate", Value: "low,high,high"},
 			},
-			wantErr: "onesie: --rate label 'high' is listed twice in question 'severity'",
+			wantErr: "--rate label 'high' is listed twice in question 'severity'",
 		},
 		{
 			name: "should reject pick and rate together",
@@ -261,7 +261,7 @@ func TestValidate(t *testing.T) {
 				{Name: "pick", Value: "x,y"},
 				{Name: "rate", Value: "p,q"},
 			},
-			wantErr: "onesie: --pick and --rate are mutually exclusive",
+			wantErr: "--pick and --rate are mutually exclusive",
 		},
 		{
 			name: "should reject a partly described rubric",
@@ -270,7 +270,7 @@ func TestValidate(t *testing.T) {
 				{Name: "rate", Value: "minor,major,critical"},
 				{Name: "desc", Value: "minor=small"},
 			},
-			wantErr: "onesie: --rate levels must all be described or all bare in question 'severity'. " +
+			wantErr: "--rate levels must all be described or all bare in question 'severity'. " +
 				"Described minor but not major, critical",
 		},
 		{
@@ -280,7 +280,7 @@ func TestValidate(t *testing.T) {
 				{Name: "pick", Value: "billing,technical"},
 				{Name: "desc", Value: "bilingl=typo"},
 			},
-			wantErr: "onesie: --desc names an unknown key 'bilingl' in question 'team'. --pick has: billing, technical",
+			wantErr: "--desc names an unknown key 'bilingl' in question 'team'. --pick has: billing, technical",
 		},
 		{
 			name: "should reject a desc other than yes or no on a yes/no question",
@@ -288,7 +288,7 @@ func TestValidate(t *testing.T) {
 				{Name: "ask", Value: "urgent=first"},
 				{Name: "desc", Value: "maybe=unclear"},
 			},
-			wantErr: "onesie: --desc on a yes/no question takes 'yes' or 'no', got 'maybe'",
+			wantErr: "--desc on a yes/no question takes 'yes' or 'no', got 'maybe'",
 		},
 		{
 			name: "should reject min-confidence on a yes/no question",
@@ -297,7 +297,7 @@ func TestValidate(t *testing.T) {
 				{Name: "min-confidence", Value: "0.7"},
 				{Name: "fallback", Value: "true"},
 			},
-			wantErr: "onesie: --min-confidence needs a confidence value. 'urgent' is a yes/no question",
+			wantErr: "--min-confidence needs a confidence value. 'urgent' is a yes/no question",
 		},
 		{
 			name: "should reject threshold on a pick question",
@@ -306,7 +306,7 @@ func TestValidate(t *testing.T) {
 				{Name: "pick", Value: "x,y"},
 				{Name: "threshold", Value: "0.5"},
 			},
-			wantErr: "onesie: --threshold cuts a yes/no probability. 'team' has options",
+			wantErr: "--threshold cuts a yes/no probability. 'team' has options",
 		},
 		{
 			name: "should reject threshold on a rate question",
@@ -315,7 +315,7 @@ func TestValidate(t *testing.T) {
 				{Name: "rate", Value: "low,high"},
 				{Name: "threshold", Value: "0.5"},
 			},
-			wantErr: "onesie: --threshold cuts a yes/no probability. 'severity' has levels",
+			wantErr: "--threshold cuts a yes/no probability. 'severity' has levels",
 		},
 		{
 			name: "should reject min-confidence with no fallback",
@@ -324,7 +324,7 @@ func TestValidate(t *testing.T) {
 				{Name: "pick", Value: "x,y"},
 				{Name: "min-confidence", Value: "0.7"},
 			},
-			wantErr: "onesie: --min-confidence needs --fallback, nothing to substitute for 'team'",
+			wantErr: "--min-confidence needs --fallback, nothing to substitute for 'team'",
 		},
 		{
 			name: "should reject a threshold outside zero to one",
@@ -332,7 +332,7 @@ func TestValidate(t *testing.T) {
 				{Name: "ask", Value: "urgent=first"},
 				{Name: "threshold", Value: "85"},
 			},
-			wantErr: "onesie: --threshold must be between 0 and 1, got 85",
+			wantErr: "--threshold must be between 0 and 1, got 85",
 		},
 		{
 			name: "should reject a min-confidence outside zero to one",
@@ -342,7 +342,7 @@ func TestValidate(t *testing.T) {
 				{Name: "min-confidence", Value: "1.5"},
 				{Name: "fallback", Value: "human"},
 			},
-			wantErr: "onesie: --min-confidence must be between 0 and 1, got 1.5",
+			wantErr: "--min-confidence must be between 0 and 1, got 1.5",
 		},
 		{
 			name: "should reject a non boolean fallback on a yes/no question",
@@ -350,7 +350,7 @@ func TestValidate(t *testing.T) {
 				{Name: "ask", Value: "urgent=first"},
 				{Name: "fallback", Value: "human"},
 			},
-			wantErr: "onesie: --fallback on a yes/no question takes true, false, yes or no, got 'human'",
+			wantErr: "--fallback on a yes/no question takes true, false, yes or no, got 'human'",
 		},
 		{
 			name: "should accept yes as a boolean fallback",
@@ -368,7 +368,7 @@ func TestValidate(t *testing.T) {
 				{Name: "ask", Value: "b=two"},
 				{Name: "ask", Value: "c=three"},
 			},
-			wantErr: "onesie: --pick given with no --ask to bind to and 3 questions asked",
+			wantErr: "--pick given with no --ask to bind to and 3 questions asked",
 		},
 		{
 			name: "should reject raw with more than one question",
@@ -377,7 +377,7 @@ func TestValidate(t *testing.T) {
 				{Name: "ask", Value: "b=two"},
 			},
 			cfg:     plan.Config{Raw: true},
-			wantErr: "onesie: -r needs a single question. 'a', 'b' were asked",
+			wantErr: "-r needs a single question. 'a', 'b' were asked",
 		},
 		{
 			name: "should reject -o raw with more than one question",
@@ -386,7 +386,7 @@ func TestValidate(t *testing.T) {
 				{Name: "ask", Value: "b=two"},
 			},
 			cfg:     plan.Config{Output: "raw"},
-			wantErr: "onesie: -o raw needs a single question. 'a', 'b' were asked",
+			wantErr: "-o raw needs a single question. 'a', 'b' were asked",
 		},
 		{
 			name:       "should accept -o raw with a single question",
@@ -399,7 +399,7 @@ func TestValidate(t *testing.T) {
 				{Name: "ask", Value: "a=one"},
 				{Name: "ask", Value: "a=two"},
 			},
-			wantErr: "onesie: question id 'a' is given twice",
+			wantErr: "question id 'a' is given twice",
 		},
 		{
 			name: "should reject quiet on a pick with no policy",
@@ -408,7 +408,7 @@ func TestValidate(t *testing.T) {
 				{Name: "pick", Value: "x,y"},
 			},
 			cfg: plan.Config{Quiet: true},
-			wantErr: "onesie: -q on 'team' needs --min-confidence and --fallback, or --assert. " +
+			wantErr: "-q on 'team' needs --min-confidence and --fallback, or --assert. " +
 				"Without one the exit code is always 0",
 		},
 		{
@@ -423,13 +423,13 @@ func TestValidate(t *testing.T) {
 			name:       "should reject raw combined with output",
 			positional: "is this urgent",
 			cfg:        plan.Config{Raw: true, Output: "json"},
-			wantErr:    "onesie: -r and -o are mutually exclusive",
+			wantErr:    "-r and -o are mutually exclusive",
 		},
 		{
 			name:       "should reject both state flags together",
 			positional: "is this urgent",
 			cfg:        plan.Config{HasState: true, HasStateFile: true},
-			wantErr:    "onesie: --state and --state-file are mutually exclusive",
+			wantErr:    "--state and --state-file are mutually exclusive",
 		},
 		{
 			name:       "should warn about a partly described option set",
@@ -470,7 +470,7 @@ func TestValidate(t *testing.T) {
 			name:   "should reject a policy flag aimed at a two question body",
 			file:   bodyQuestions(2),
 			events: []argv.Event{{Name: "threshold", Value: "0.8"}},
-			wantErr: "onesie: policy flags apply to a request body only when it has one question. " +
+			wantErr: "policy flags apply to a request body only when it has one question. " +
 				"the question file has 2, freeze with --print-questions first",
 		},
 		{
@@ -500,33 +500,33 @@ func TestValidate(t *testing.T) {
 		{
 			name:    "should reject the reserved assert id",
 			events:  []argv.Event{{Name: "ask", Value: "assert=first"}},
-			wantErr: "onesie: question id 'assert' is reserved",
+			wantErr: "question id 'assert' is reserved",
 		},
 		{
 			name:    "should reject the reserved abstain_if id",
 			events:  []argv.Event{{Name: "ask", Value: "abstain_if=first"}},
-			wantErr: "onesie: question id 'abstain_if' is reserved",
+			wantErr: "question id 'abstain_if' is reserved",
 		},
 		{
 			name:    "should reject the reserved abstain id",
 			events:  []argv.Event{{Name: "ask", Value: "abstain=first"}},
-			wantErr: "onesie: question id 'abstain' is reserved",
+			wantErr: "question id 'abstain' is reserved",
 		},
 		{
 			name:    "should reject the reserved $schema id",
 			events:  []argv.Event{{Name: "ask", Value: "$schema=is it"}},
-			wantErr: "onesie: question id '$schema' is reserved",
+			wantErr: "question id '$schema' is reserved",
 		},
 		{
 			name:    "should reject the reserved id id",
 			events:  []argv.Event{{Name: "ask", Value: "id=first"}},
-			wantErr: "onesie: question id 'id' is reserved",
+			wantErr: "question id 'id' is reserved",
 		},
 		{
 			name:       "should reject replace with no file given",
 			positional: "is this urgent",
 			cfg:        plan.Config{Replace: true},
-			wantErr:    "onesie: --replace applies to -f, which was not given",
+			wantErr:    "--replace applies to -f, which was not given",
 		},
 		{
 			name: "should accept replace alongside a file",
@@ -541,12 +541,12 @@ func TestValidate(t *testing.T) {
 				{Name: "ask", Value: "a=first"},
 				{Name: "pick", Value: ""},
 			},
-			wantExact: "onesie: --pick needs at least two options in question 'a', got 1",
+			wantExact: "--pick needs at least two options in question 'a', got 1",
 		},
 		{
 			name:      "should report an unlabelled body's level count without a list",
 			file:      bodyLevels(1),
-			wantExact: "onesie: 'criteria' needs at least two levels in question 'bq', got 1",
+			wantExact: "'criteria' needs at least two levels in question 'bq', got 1",
 		},
 		{
 			name: "should name criteria when a body's choice has one option",
@@ -554,7 +554,7 @@ func TestValidate(t *testing.T) {
 				ID: "bq", Shape: plan.Pick, Instructions: "q", Origin: plan.OriginBody,
 				Options: []plan.Option{{Name: "only"}},
 			}},
-			wantExact: "onesie: 'criteria' needs at least two options in question 'bq', got 1: only",
+			wantExact: "'criteria' needs at least two options in question 'bq', got 1: only",
 		},
 		{
 			name: "should not hold an unlabelled body to the all described or all bare rule",
@@ -574,7 +574,7 @@ func TestValidate(t *testing.T) {
 		{
 			name:      "should name the pick key when a file question has one option",
 			file:      filePick("only"),
-			wantExact: "onesie: 'pick' needs at least two options in question 'team', got 1: only",
+			wantExact: "'pick' needs at least two options in question 'team', got 1: only",
 		},
 		{
 			name: "should keep the flag spelling when the question was opened with ask",
@@ -582,24 +582,24 @@ func TestValidate(t *testing.T) {
 				{Name: "ask", Value: "team=first"},
 				{Name: "pick", Value: "only"},
 			},
-			wantExact: "onesie: --pick needs at least two options in question 'team', got 1: only",
+			wantExact: "--pick needs at least two options in question 'team', got 1: only",
 		},
 		{
 			name:       "should omit the question from a positional pick's option count",
 			positional: "is this urgent",
 			events:     []argv.Event{{Name: "pick", Value: "only"}},
-			wantExact:  "onesie: --pick needs at least two options, got 1: only",
+			wantExact:  "--pick needs at least two options, got 1: only",
 		},
 		{
 			name:       "should omit the question from a positional rate's level count",
 			positional: "is this urgent",
 			events:     []argv.Event{{Name: "rate", Value: "calm"}},
-			wantExact:  "onesie: --rate needs at least two levels, got 1: calm",
+			wantExact:  "--rate needs at least two levels, got 1: calm",
 		},
 		{
 			name:      "should name the question when a file's pick has too many options",
 			file:      filePick(generated("o", 256)...),
-			wantExact: "onesie: 'pick' takes at most 255 options in question 'team', got 256",
+			wantExact: "'pick' takes at most 255 options in question 'team', got 256",
 		},
 		{
 			name:       "should omit the question when a positional pick has too many options",
@@ -607,7 +607,7 @@ func TestValidate(t *testing.T) {
 			events: []argv.Event{
 				{Name: "pick", Value: strings.Join(generated("o", 256), ",")},
 			},
-			wantExact: "onesie: --pick takes at most 255 options, got 256",
+			wantExact: "--pick takes at most 255 options, got 256",
 		},
 		{
 			name: "should name the question when a rate has too many levels",
@@ -615,7 +615,7 @@ func TestValidate(t *testing.T) {
 				{Name: "ask", Value: "severity=first"},
 				{Name: "rate", Value: strings.Join(generated("l", 11), ",")},
 			},
-			wantExact: "onesie: --rate takes at most 10 levels in question 'severity', got 11",
+			wantExact: "--rate takes at most 10 levels in question 'severity', got 11",
 		},
 		{
 			name:       "should omit the question when a positional rate has too many levels",
@@ -623,7 +623,7 @@ func TestValidate(t *testing.T) {
 			events: []argv.Event{
 				{Name: "rate", Value: strings.Join(generated("l", 11), ",")},
 			},
-			wantExact: "onesie: --rate takes at most 10 levels, got 11",
+			wantExact: "--rate takes at most 10 levels, got 11",
 		},
 		{
 			name:       "should omit the question from a positional mixed rubric",
@@ -632,19 +632,19 @@ func TestValidate(t *testing.T) {
 				{Name: "rate", Value: "minor,major"},
 				{Name: "desc", Value: "minor=small"},
 			},
-			wantExact: "onesie: --rate levels must all be described or all bare. " +
+			wantExact: "--rate levels must all be described or all bare. " +
 				"Described minor but not major",
 		},
 		{
 			name:      "should name the pick key for a file's duplicate option",
 			file:      filePick("billing", "billing"),
-			wantExact: "onesie: 'pick' option 'billing' is listed twice in question 'team'",
+			wantExact: "'pick' option 'billing' is listed twice in question 'team'",
 		},
 		{
 			name:   "should name the pick key in a file question's desc vocabulary",
 			file:   filePick("billing", "technical"),
 			events: []argv.Event{{Name: "desc", Value: "bilingl=x"}},
-			wantExact: "onesie: --desc names an unknown key 'bilingl' in question 'team'. " +
+			wantExact: "--desc names an unknown key 'bilingl' in question 'team'. " +
 				"'pick' has: billing, technical",
 		},
 		{
@@ -656,7 +656,7 @@ func TestValidate(t *testing.T) {
 					{Label: "minor"}, {Label: "major", Desc: "bad"},
 				},
 			}},
-			wantExact: "onesie: 'rate' levels must all be described or all bare in question " +
+			wantExact: "'rate' levels must all be described or all bare in question " +
 				"'severity'. Described major but not minor",
 		},
 		{
@@ -664,14 +664,14 @@ func TestValidate(t *testing.T) {
 			file: withPolicy(filePick("billing", "technical"), plan.Policy{
 				MinConfidence: pointerTo(0.7),
 			}),
-			wantExact: "onesie: 'min_confidence' needs 'fallback', nothing to substitute for 'team'",
+			wantExact: "'min_confidence' needs 'fallback', nothing to substitute for 'team'",
 		},
 		{
 			name: "should name the file's keys in the threshold remedy",
 			file: withPolicy(filePick("billing", "technical"), plan.Policy{
 				Threshold: pointerTo(0.8),
 			}),
-			wantExact: "onesie: 'threshold' cuts a yes/no probability. 'team' has options, " +
+			wantExact: "'threshold' cuts a yes/no probability. 'team' has options, " +
 				"use 'min_confidence' with 'fallback'",
 		},
 		{
@@ -680,7 +680,7 @@ func TestValidate(t *testing.T) {
 				ID: "urgent", Shape: plan.Noul, Instructions: "q", Origin: plan.OriginFile,
 				Policy: plan.Policy{MinConfidence: pointerTo(0.7)},
 			}},
-			wantExact: "onesie: 'min_confidence' needs a confidence value. 'urgent' is a yes/no " +
+			wantExact: "'min_confidence' needs a confidence value. 'urgent' is a yes/no " +
 				"question, use 'threshold', or add 'pick' or 'rate'",
 		},
 		{
@@ -689,7 +689,7 @@ func TestValidate(t *testing.T) {
 				{Name: "ask", Value: "urgent=first"},
 				{Name: "threshold", Value: "nan"},
 			},
-			wantExact: "onesie: --threshold must be between 0 and 1, got NaN",
+			wantExact: "--threshold must be between 0 and 1, got NaN",
 		},
 		{
 			name: "should reject a min confidence of nan",
@@ -699,7 +699,7 @@ func TestValidate(t *testing.T) {
 				{Name: "min-confidence", Value: "NaN"},
 				{Name: "fallback", Value: "x"},
 			},
-			wantExact: "onesie: --min-confidence must be between 0 and 1, got NaN",
+			wantExact: "--min-confidence must be between 0 and 1, got NaN",
 		},
 		{
 			name: "should reject a file's threshold of nan",
@@ -707,7 +707,7 @@ func TestValidate(t *testing.T) {
 				ID: "urgent", Shape: plan.Noul, Instructions: "q", Origin: plan.OriginFile,
 				Policy: plan.Policy{Threshold: pointerTo(math.NaN())},
 			}},
-			wantExact: "onesie: 'threshold' must be between 0 and 1, got NaN",
+			wantExact: "'threshold' must be between 0 and 1, got NaN",
 		},
 		{
 			name: "should name the threshold key when a file's value is out of range",
@@ -715,7 +715,7 @@ func TestValidate(t *testing.T) {
 				ID: "urgent", Shape: plan.Noul, Instructions: "q", Origin: plan.OriginFile,
 				Policy: plan.Policy{Threshold: pointerTo(85.0)},
 			}},
-			wantExact: "onesie: 'threshold' must be between 0 and 1, got 85",
+			wantExact: "'threshold' must be between 0 and 1, got 85",
 		},
 		{
 			name: "should name the fallback key when a file's yes/no value is not a boolean",
@@ -723,14 +723,14 @@ func TestValidate(t *testing.T) {
 				ID: "urgent", Shape: plan.Noul, Instructions: "q", Origin: plan.OriginFile,
 				Policy: plan.Policy{Fallback: &plan.Fallback{Text: "human"}},
 			}},
-			wantExact: "onesie: 'fallback' on a yes/no question takes true, false, yes or no, " +
+			wantExact: "'fallback' on a yes/no question takes true, false, yes or no, " +
 				"got 'human'",
 		},
 		{
 			name: "should name the file's keys in the quiet policy remedy",
 			file: filePick("billing", "technical"),
 			cfg:  plan.Config{Quiet: true},
-			wantExact: "onesie: -q on 'team' needs 'min_confidence' and 'fallback', or --assert. " +
+			wantExact: "-q on 'team' needs 'min_confidence' and 'fallback', or --assert. " +
 				"Without one the exit code is always 0",
 		},
 		{
@@ -884,7 +884,7 @@ func TestValidate(t *testing.T) {
 				{Name: "pick", Value: "billing"},
 			},
 			cfg:         plan.Config{Jobs: 8, JobsSet: true, InputName: "text"},
-			wantErr:     "onesie: --pick needs at least two options, got 1: billing",
+			wantErr:     "--pick needs at least two options, got 1: billing",
 			wantWarning: "-j 8 ignored. -i text reads one record",
 		},
 		{
@@ -908,19 +908,19 @@ func TestValidate(t *testing.T) {
 			name:       "should reject a timeout of zero",
 			positional: "is this urgent",
 			cfg:        plan.Config{Timeout: 0, TimeoutSet: true, InputName: "text"},
-			wantErr:    "onesie: --timeout takes a positive number of seconds, got 0",
+			wantErr:    "--timeout takes a positive number of seconds, got 0",
 		},
 		{
 			name:       "should reject a negative retry count",
 			positional: "is this urgent",
 			cfg:        plan.Config{Retries: -1, RetriesSet: true, InputName: "text"},
-			wantErr:    "onesie: --retries takes a retry count of zero or more, got -1",
+			wantErr:    "--retries takes a retry count of zero or more, got -1",
 		},
 		{
 			name:       "should reject a retry count above the ceiling",
 			positional: "is this urgent",
 			cfg:        plan.Config{Retries: 100001, RetriesSet: true, InputName: "text"},
-			wantErr:    "onesie: --retries takes at most 100, got 100001",
+			wantErr:    "--retries takes at most 100, got 100001",
 		},
 		{
 			name:       "should accept a retry count at the ceiling",
@@ -931,25 +931,25 @@ func TestValidate(t *testing.T) {
 			name:       "should reject a max retry after of zero",
 			positional: "is this urgent",
 			cfg:        plan.Config{MaxRetryAfter: 0, MaxRetryAfterSet: true, InputName: "text"},
-			wantErr:    "onesie: --max-retry-after must be a positive number of seconds, got 0",
+			wantErr:    "--max-retry-after must be a positive number of seconds, got 0",
 		},
 		{
 			name:       "should reject a negative max retry after",
 			positional: "is this urgent",
 			cfg:        plan.Config{MaxRetryAfter: -5, MaxRetryAfterSet: true, InputName: "text"},
-			wantErr:    "onesie: --max-retry-after must be a positive number of seconds, got -5",
+			wantErr:    "--max-retry-after must be a positive number of seconds, got -5",
 		},
 		{
 			name:       "should reject a timeout above the ceiling",
 			positional: "is this urgent",
 			cfg:        plan.Config{Timeout: 86401, TimeoutSet: true, InputName: "text"},
-			wantErr:    "onesie: --timeout takes at most 86400 seconds, got 86401",
+			wantErr:    "--timeout takes at most 86400 seconds, got 86401",
 		},
 		{
 			name:       "should reject a timeout that would wrap a duration to a fraction",
 			positional: "is this urgent",
 			cfg:        plan.Config{Timeout: 18446744074, TimeoutSet: true, InputName: "text"},
-			wantErr:    "onesie: --timeout takes at most 86400 seconds, got 18446744074",
+			wantErr:    "--timeout takes at most 86400 seconds, got 18446744074",
 		},
 		{
 			name:       "should reject a max retry after above the ceiling",
@@ -957,7 +957,7 @@ func TestValidate(t *testing.T) {
 			cfg: plan.Config{
 				MaxRetryAfter: 86401, MaxRetryAfterSet: true, InputName: "text",
 			},
-			wantErr: "onesie: --max-retry-after takes at most 86400 seconds, got 86401",
+			wantErr: "--max-retry-after takes at most 86400 seconds, got 86401",
 		},
 		{
 			name:       "should reject a max retry after that would wrap a duration to a fraction",
@@ -965,7 +965,7 @@ func TestValidate(t *testing.T) {
 			cfg: plan.Config{
 				MaxRetryAfter: 18446744074, MaxRetryAfterSet: true, InputName: "text",
 			},
-			wantErr: "onesie: --max-retry-after takes at most 86400 seconds, got 18446744074",
+			wantErr: "--max-retry-after takes at most 86400 seconds, got 18446744074",
 		},
 		{
 			name:       "should accept a timeout at the ceiling",
@@ -1140,32 +1140,32 @@ func TestCheckFlags(t *testing.T) {
 		{
 			name:    "should refuse --image with -i request",
 			cfg:     request(func(c *plan.Config) { c.HasImage = true }),
-			wantErr: "onesie: --image does not apply to -i request, whose bodies carry their own state",
+			wantErr: "--image does not apply to -i request, whose bodies carry their own state",
 		},
 		{
 			name:    "should refuse --image-field with -i request",
 			cfg:     request(func(c *plan.Config) { c.ImageFields = []string{"photo"} }),
-			wantErr: "onesie: --image-field does not apply to -i request, whose bodies carry their own state",
+			wantErr: "--image-field does not apply to -i request, whose bodies carry their own state",
 		},
 		{
 			name:    "should refuse --box with -i request",
 			cfg:     request(func(c *plan.Config) { c.GroupFlags = []string{"box"} }),
-			wantErr: "onesie: -i request carries its own questions. Drop --box",
+			wantErr: "-i request carries its own questions. Drop --box",
 		},
 		{
 			name:    "should refuse --image-field on one record",
 			cfg:     plan.Config{InputName: "text", ImageFields: []string{"photo"}, Jobs: 1},
-			wantErr: "onesie: --image-field applies to streaming input. -i text reads one record",
+			wantErr: "--image-field applies to streaming input. -i text reads one record",
 		},
 		{
 			name:    "should refuse a second --image-field under -i lines",
 			cfg:     plan.Config{Streaming: true, InputName: "lines", LinesInput: true, ImageFields: []string{"a", "b"}, Jobs: 1},
-			wantErr: "onesie: -i lines takes one --image-field, since a line holds one path",
+			wantErr: "-i lines takes one --image-field, since a line holds one path",
 		},
 		{
 			name:    "should reject -o csv with --merge over jsonl",
 			cfg:     plan.Config{Streaming: true, InputName: "jsonl", Output: "csv", Merge: true, Jobs: 1},
-			wantErr: "onesie: -o csv with --merge needs -i csv or -i tsv, since other input has no fixed columns",
+			wantErr: "-o csv with --merge needs -i csv or -i tsv, since other input has no fixed columns",
 		},
 		{
 			name: "should accept -o tsv with --merge over csv",
@@ -1174,42 +1174,42 @@ func TestCheckFlags(t *testing.T) {
 		{
 			name:    "should reject --merge-key with -o csv",
 			cfg:     plan.Config{Streaming: true, InputName: "csv", Output: "csv", Merge: true, MergeName: "--merge-key", HasMergeKey: true, Jobs: 1},
-			wantErr: "onesie: --merge-key does not apply to -o csv, which puts the answers in columns",
+			wantErr: "--merge-key does not apply to -o csv, which puts the answers in columns",
 		},
 		{
 			name:    "should reject --merge-key with --merge and -o csv, which --merge would otherwise hide",
 			cfg:     plan.Config{Streaming: true, InputName: "csv", Output: "csv", Merge: true, MergeName: "--merge", HasMergeKey: true, Jobs: 1},
-			wantErr: "onesie: --merge-key does not apply to -o csv, which puts the answers in columns",
+			wantErr: "--merge-key does not apply to -o csv, which puts the answers in columns",
 		},
 		{
 			name:    "should reject --merge-key with --merge and -o tsv",
 			cfg:     plan.Config{Streaming: true, InputName: "tsv", Output: "tsv", Merge: true, MergeName: "--merge", HasMergeKey: true, Jobs: 1},
-			wantErr: "onesie: --merge-key does not apply to -o tsv, which puts the answers in columns",
+			wantErr: "--merge-key does not apply to -o tsv, which puts the answers in columns",
 		},
 		{
 			name:    "should reject --usage with -q",
 			cfg:     plan.Config{InputName: "text", Quiet: true, Usage: true, Jobs: 1},
-			wantErr: "onesie: --usage does not apply to -q, which suppresses output",
+			wantErr: "--usage does not apply to -q, which suppresses output",
 		},
 		{
 			name:    "should reject --usage with -o tsv",
 			cfg:     plan.Config{Streaming: true, InputName: "csv", Output: "tsv", Usage: true, Jobs: 1},
-			wantErr: "onesie: --usage does not apply to -o tsv, which has no column for it",
+			wantErr: "--usage does not apply to -o tsv, which has no column for it",
 		},
 		{
 			name:    "should reject --usage with -o values",
 			cfg:     plan.Config{InputName: "text", Output: "values", Usage: true, Jobs: 1},
-			wantErr: "onesie: --usage does not apply to -o values, which writes only the answers. Use -o json",
+			wantErr: "--usage does not apply to -o values, which writes only the answers. Use -o json",
 		},
 		{
 			name:    "should reject --usage with -o raw",
 			cfg:     plan.Config{Streaming: true, InputName: "jsonl", Output: "raw", Usage: true, Jobs: 1},
-			wantErr: "onesie: --usage does not apply to -o raw, which writes only the answers. Use -o json",
+			wantErr: "--usage does not apply to -o raw, which writes only the answers. Use -o json",
 		},
 		{
 			name:    "should reject --usage with -r",
 			cfg:     plan.Config{InputName: "text", Raw: true, Usage: true, Jobs: 1},
-			wantErr: "onesie: --usage does not apply to -r, which writes only the answers. Use -o json",
+			wantErr: "--usage does not apply to -r, which writes only the answers. Use -o json",
 		},
 		{
 			name: "should accept --usage with -o json",
@@ -1218,22 +1218,22 @@ func TestCheckFlags(t *testing.T) {
 		{
 			name:    "should reject -j above the cap",
 			cfg:     plan.Config{Streaming: true, InputName: "jsonl", Jobs: 2000000, JobsSet: true},
-			wantErr: "onesie: -j takes at most 256 records in flight, got 2000000",
+			wantErr: "-j takes at most 256 records in flight, got 2000000",
 		},
 		{
 			name:    "should reject --resume without --out",
 			cfg:     plan.Config{Streaming: true, InputName: "jsonl", Resume: true},
-			wantErr: "onesie: --resume needs --out, the file it picks up from",
+			wantErr: "--resume needs --out, the file it picks up from",
 		},
 		{
 			name:    "should reject --resume on a single record",
 			cfg:     plan.Config{InputName: "text", Resume: true, Out: "answers.txt"},
-			wantErr: "onesie: --resume applies to streaming input. -i text reads one record",
+			wantErr: "--resume applies to streaming input. -i text reads one record",
 		},
 		{
 			name:    "should reject --merge with -o markdown",
 			cfg:     plan.Config{Streaming: true, InputName: "jsonl", Output: "markdown", Merge: true, Jobs: 1},
-			wantErr: "onesie: --merge needs -o json, values, csv or tsv",
+			wantErr: "--merge needs -o json, values, csv or tsv",
 		},
 		{
 			name: "should reject --merge-key with -o md",
@@ -1241,29 +1241,29 @@ func TestCheckFlags(t *testing.T) {
 				Streaming: true, InputName: "jsonl", Output: "md", Merge: true, MergeName: "--merge-key",
 				HasMergeKey: true, Jobs: 1,
 			},
-			wantErr: "onesie: --merge-key needs -o json, values, csv or tsv",
+			wantErr: "--merge-key needs -o json, values, csv or tsv",
 		},
 		{
 			name:    "should reject -r with -o markdown",
 			cfg:     plan.Config{InputName: "text", Raw: true, Output: "markdown", Jobs: 1},
-			wantErr: "onesie: -r and -o are mutually exclusive",
+			wantErr: "-r and -o are mutually exclusive",
 		},
 		{
 			name:    "should reject -q with -o markdown on one record",
 			cfg:     plan.Config{InputName: "text", Output: "markdown", Quiet: true, Jobs: 1},
-			wantErr: "onesie: -q suppresses output, which leaves -o markdown nothing to write",
+			wantErr: "-q suppresses output, which leaves -o markdown nothing to write",
 		},
 		{
 			name:    "should reject -q with -o md on a stream, naming the spelling given",
 			cfg:     plan.Config{Streaming: true, InputName: "jsonl", Output: "md", Quiet: true, Jobs: 1},
-			wantErr: "onesie: -q suppresses output, which leaves -o md nothing to write",
+			wantErr: "-q suppresses output, which leaves -o md nothing to write",
 		},
 		{
 			name: "should reject --resume with -o markdown",
 			cfg: plan.Config{
 				Streaming: true, InputName: "jsonl", Output: "markdown", Resume: true, Out: "a.md", Jobs: 1,
 			},
-			wantErr: "onesie: --resume reads each record's outcome back from --out, " +
+			wantErr: "--resume reads each record's outcome back from --out, " +
 				"which a markdown table does not keep. Use -o json, values, csv or tsv",
 		},
 		{
@@ -1277,7 +1277,7 @@ func TestCheckFlags(t *testing.T) {
 		{
 			name:    "should reject --resume with --unordered",
 			cfg:     plan.Config{Streaming: true, InputName: "jsonl", Resume: true, Out: "a.jsonl", Unordered: true},
-			wantErr: "onesie: --resume relies on input order, which --unordered gives up. Pass --id to resume by id",
+			wantErr: "--resume relies on input order, which --unordered gives up. Pass --id to resume by id",
 		},
 		{
 			name: "should accept --resume with --unordered when --id names the records",
@@ -1289,17 +1289,17 @@ func TestCheckFlags(t *testing.T) {
 		{
 			name:    "should reject --resume with --id and -r, which writes no id",
 			cfg:     plan.Config{Streaming: true, InputName: "jsonl", Resume: true, Out: "a.txt", HasID: true, Raw: true},
-			wantErr: "onesie: --resume needs output that keeps each record's outcome, which raw lines do not. Use -o values or -o json",
+			wantErr: "--resume needs output that keeps each record's outcome, which raw lines do not. Use -o values or -o json",
 		},
 		{
 			name:    "should reject --resume with --id and -o raw, which writes no id",
 			cfg:     plan.Config{Streaming: true, InputName: "jsonl", Resume: true, Out: "a.txt", HasID: true, Output: "raw"},
-			wantErr: "onesie: --resume needs output that keeps each record's outcome, which raw lines do not. Use -o values or -o json",
+			wantErr: "--resume needs output that keeps each record's outcome, which raw lines do not. Use -o values or -o json",
 		},
 		{
 			name:    "should reject a resume by position with -r and --assert, since a raw line keeps no outcome",
 			cfg:     plan.Config{Streaming: true, InputName: "jsonl", Resume: true, Out: "a.txt", Raw: true, HasAssert: true},
-			wantErr: "onesie: --resume needs output that keeps each record's outcome, which raw lines do not. Use -o values or -o json",
+			wantErr: "--resume needs output that keeps each record's outcome, which raw lines do not. Use -o values or -o json",
 		},
 		{
 			name: "should reject a resume by position with -o raw and a file's assert",
@@ -1307,7 +1307,7 @@ func TestCheckFlags(t *testing.T) {
 				Streaming: true, InputName: "jsonl", Resume: true, Out: "a.txt", Output: "raw",
 				HasAssert: true, AssertName: "'assert'",
 			},
-			wantErr: "onesie: --resume needs output that keeps each record's outcome, which raw lines do not. Use -o values or -o json",
+			wantErr: "--resume needs output that keeps each record's outcome, which raw lines do not. Use -o values or -o json",
 		},
 		{
 			name: "should reject a resume by id with -o raw and --assert",
@@ -1315,17 +1315,17 @@ func TestCheckFlags(t *testing.T) {
 				Streaming: true, InputName: "jsonl", Resume: true, Out: "a.txt", Output: "raw", HasID: true,
 				HasAssert: true,
 			},
-			wantErr: "onesie: --resume needs output that keeps each record's outcome, which raw lines do not. Use -o values or -o json",
+			wantErr: "--resume needs output that keeps each record's outcome, which raw lines do not. Use -o values or -o json",
 		},
 		{
 			name:    "should reject a resume by position with -o raw and no gate, since a raw line keeps no failure",
 			cfg:     plan.Config{Streaming: true, InputName: "jsonl", Resume: true, Out: "a.txt", Output: "raw", Jobs: 1},
-			wantErr: "onesie: --resume needs output that keeps each record's outcome, which raw lines do not. Use -o values or -o json",
+			wantErr: "--resume needs output that keeps each record's outcome, which raw lines do not. Use -o values or -o json",
 		},
 		{
 			name:    "should reject a resume by position with -r and no gate",
 			cfg:     plan.Config{Streaming: true, InputName: "jsonl", Resume: true, Out: "a.txt", Raw: true, Jobs: 1},
-			wantErr: "onesie: --resume needs output that keeps each record's outcome, which raw lines do not. Use -o values or -o json",
+			wantErr: "--resume needs output that keeps each record's outcome, which raw lines do not. Use -o values or -o json",
 		},
 		{
 			name: "should accept a tsv resume by position under --stop-on-error, since the file is read at runtime",
@@ -1343,12 +1343,12 @@ func TestCheckFlags(t *testing.T) {
 		{
 			name:    "should reject --prune without --resume",
 			cfg:     plan.Config{Streaming: true, InputName: "jsonl", Out: "a.jsonl", HasID: true, Prune: true, Jobs: 1},
-			wantErr: "onesie: --prune applies to --resume, which was not given",
+			wantErr: "--prune applies to --resume, which was not given",
 		},
 		{
 			name:    "should reject --prune without --id",
 			cfg:     plan.Config{Streaming: true, InputName: "jsonl", Resume: true, Out: "a.jsonl", Prune: true, Jobs: 1},
-			wantErr: "onesie: --prune drops the answered ids the input no longer has, so it needs --id",
+			wantErr: "--prune drops the answered ids the input no longer has, so it needs --id",
 		},
 		{
 			name: "should accept --prune with --resume and --id",
@@ -1363,104 +1363,104 @@ func TestCheckFlags(t *testing.T) {
 				Streaming: true, InputName: "jsonl", Resume: true, Out: "a.jsonl", HasID: true,
 				PrintRequest: true, Jobs: 1,
 			},
-			wantErr: "onesie: --print-request writes request bodies, not answers, so --resume has nothing to pick up. Drop --resume",
+			wantErr: "--print-request writes request bodies, not answers, so --resume has nothing to pick up. Drop --resume",
 		},
 		{
 			name:    "should reject --resume with --list-models",
 			cfg:     plan.Config{ListModels: true, InputName: "text", Resume: true, Out: "m.txt"},
-			wantErr: "onesie: --resume applies to streaming input, which --list-models does not read",
+			wantErr: "--resume applies to streaming input, which --list-models does not read",
 		},
 		{
 			name:    "should reject --resume with --print-questions",
 			cfg:     plan.Config{PrintQuestions: true, InputName: "text", Resume: true, Out: "q.yaml"},
-			wantErr: "onesie: --resume applies to streaming input, which --print-questions does not read",
+			wantErr: "--resume applies to streaming input, which --print-questions does not read",
 		},
 		{
 			name: "should reject a positional question with -i request",
 			cfg:  request(func(c *plan.Config) { c.HasPositional = true }),
-			wantErr: "onesie: -i request carries its own questions. " +
+			wantErr: "-i request carries its own questions. " +
 				"Drop the question argument",
 		},
 		{
 			name:    "should reject --ask with -i request",
 			cfg:     request(func(c *plan.Config) { c.HasAsk = true }),
-			wantErr: "onesie: -i request carries its own questions. Drop --ask",
+			wantErr: "-i request carries its own questions. Drop --ask",
 		},
 		{
 			name: "should reject -f with -i request",
 			cfg:  request(func(c *plan.Config) { c.FileName = "q.yaml" }),
-			wantErr: "onesie: -f does not apply to -i request, " +
+			wantErr: "-f does not apply to -i request, " +
 				"which carries its own questions",
 		},
 		{
 			name:    "should reject --replace with -i request",
 			cfg:     request(func(c *plan.Config) { c.Replace = true }),
-			wantErr: "onesie: --replace applies to -f, which -i request does not accept",
+			wantErr: "--replace applies to -f, which -i request does not accept",
 		},
 		{
 			name:    "should reject --pick with -i request",
 			cfg:     request(func(c *plan.Config) { c.GroupFlags = []string{"pick"} }),
-			wantErr: "onesie: -i request carries its own questions. Drop --pick",
+			wantErr: "-i request carries its own questions. Drop --pick",
 		},
 		{
 			name:    "should reject --rate with -i request",
 			cfg:     request(func(c *plan.Config) { c.GroupFlags = []string{"rate"} }),
-			wantErr: "onesie: -i request carries its own questions. Drop --rate",
+			wantErr: "-i request carries its own questions. Drop --rate",
 		},
 		{
 			name:    "should reject --desc with -i request",
 			cfg:     request(func(c *plan.Config) { c.GroupFlags = []string{"desc"} }),
-			wantErr: "onesie: -i request carries its own questions. Drop --desc",
+			wantErr: "-i request carries its own questions. Drop --desc",
 		},
 		{
 			name:    "should reject --sep with -i request",
 			cfg:     request(func(c *plan.Config) { c.GroupFlags = []string{"sep"} }),
-			wantErr: "onesie: -i request carries its own questions. Drop --sep",
+			wantErr: "-i request carries its own questions. Drop --sep",
 		},
 		{
 			name: "should reject --threshold with -i request",
 			cfg:  request(func(c *plan.Config) { c.GroupFlags = []string{"threshold"} }),
-			wantErr: "onesie: --threshold does not apply to -i request, " +
+			wantErr: "--threshold does not apply to -i request, " +
 				"which carries no policy",
 		},
 		{
 			name: "should reject --min-confidence with -i request",
 			cfg:  request(func(c *plan.Config) { c.GroupFlags = []string{"min-confidence"} }),
-			wantErr: "onesie: --min-confidence does not apply to -i request, " +
+			wantErr: "--min-confidence does not apply to -i request, " +
 				"which carries no policy",
 		},
 		{
 			name: "should reject --fallback with -i request",
 			cfg:  request(func(c *plan.Config) { c.GroupFlags = []string{"fallback"} }),
-			wantErr: "onesie: --fallback does not apply to -i request, " +
+			wantErr: "--fallback does not apply to -i request, " +
 				"which carries no policy",
 		},
 		{
 			name: "should reject --state with -i request",
 			cfg:  request(func(c *plan.Config) { c.HasState = true }),
-			wantErr: "onesie: --state does not apply to -i request, " +
+			wantErr: "--state does not apply to -i request, " +
 				"whose bodies carry their own state",
 		},
 		{
 			name: "should reject --state-file with -i request",
 			cfg:  request(func(c *plan.Config) { c.HasStateFile = true }),
-			wantErr: "onesie: --state-file does not apply to -i request, " +
+			wantErr: "--state-file does not apply to -i request, " +
 				"whose bodies carry their own state",
 		},
 		{
 			name:    "should reject --map with -i request",
 			cfg:     request(func(c *plan.Config) { c.HasMap = true }),
-			wantErr: "onesie: --map does not apply to -i request, whose bodies carry their own state",
+			wantErr: "--map does not apply to -i request, whose bodies carry their own state",
 		},
 		{
 			name:    "should reject --map with --list-models",
 			cfg:     plan.Config{ListModels: true, HasMap: true, InputName: "text"},
-			wantErr: "onesie: --map does not apply to --list-models, which reads no state",
+			wantErr: "--map does not apply to --list-models, which reads no state",
 		},
 		{
 			name:    "should reject --map with --print-questions",
 			cfg:     plan.Config{PrintQuestions: true, HasMap: true, InputName: "text"},
-			wantErr: "onesie: --map does not apply to --print-questions, which reads no state",
+			wantErr: "--map does not apply to --print-questions, which reads no state",
 		},
 		{
 			name: "should accept --map with --print-request",
@@ -1469,27 +1469,27 @@ func TestCheckFlags(t *testing.T) {
 		{
 			name:    "should reject --id with -i request",
 			cfg:     request(func(c *plan.Config) { c.HasID = true }),
-			wantErr: "onesie: --id does not apply to -i request, which forwards raw responses",
+			wantErr: "--id does not apply to -i request, which forwards raw responses",
 		},
 		{
 			name:    "should reject --id with --list-models",
 			cfg:     plan.Config{ListModels: true, HasID: true, InputName: "text"},
-			wantErr: "onesie: --id does not apply to --list-models, which reads no input",
+			wantErr: "--id does not apply to --list-models, which reads no input",
 		},
 		{
 			name:    "should reject --id with --print-questions",
 			cfg:     plan.Config{PrintQuestions: true, HasID: true, InputName: "text"},
-			wantErr: "onesie: --id does not apply to --print-questions, which reads no input",
+			wantErr: "--id does not apply to --print-questions, which reads no input",
 		},
 		{
 			name:    "should reject --id with -i text",
 			cfg:     plan.Config{HasID: true, InputName: "text"},
-			wantErr: "onesie: --id applies to streaming input. -i text reads one record",
+			wantErr: "--id applies to streaming input. -i text reads one record",
 		},
 		{
 			name:    "should reject --id with -i json",
 			cfg:     plan.Config{HasID: true, InputName: "json"},
-			wantErr: "onesie: --id applies to streaming input. -i json reads one record",
+			wantErr: "--id applies to streaming input. -i json reads one record",
 		},
 		{
 			name: "should accept --id with streaming input",
@@ -1502,28 +1502,28 @@ func TestCheckFlags(t *testing.T) {
 		{
 			name:    "should reject -o with -i request",
 			cfg:     request(func(c *plan.Config) { c.Output = "json" }),
-			wantErr: "onesie: -o does not apply to -i request, which forwards raw responses",
+			wantErr: "-o does not apply to -i request, which forwards raw responses",
 		},
 		{
 			name:    "should reject -r with -i request",
 			cfg:     request(func(c *plan.Config) { c.Raw = true }),
-			wantErr: "onesie: -r does not apply to -i request, which forwards raw responses",
+			wantErr: "-r does not apply to -i request, which forwards raw responses",
 		},
 		{
 			name:    "should reject -q with -i request",
 			cfg:     request(func(c *plan.Config) { c.Quiet = true }),
-			wantErr: "onesie: -q needs a policy to report, which -i request has none of",
+			wantErr: "-q needs a policy to report, which -i request has none of",
 		},
 		{
 			name: "should reject --usage with -i request",
 			cfg:  request(func(c *plan.Config) { c.Usage = true }),
-			wantErr: "onesie: --usage does not apply to -i request, " +
+			wantErr: "--usage does not apply to -i request, " +
 				"whose response bodies already carry usage",
 		},
 		{
 			name:    "should reject --merge with -i request",
 			cfg:     request(func(c *plan.Config) { c.Merge = true }),
-			wantErr: "onesie: --merge does not apply to -i request, which forwards raw responses",
+			wantErr: "--merge does not apply to -i request, which forwards raw responses",
 		},
 		{
 			name: "should name --merge-key when that is the flag given",
@@ -1531,19 +1531,19 @@ func TestCheckFlags(t *testing.T) {
 				c.Merge = true
 				c.MergeName = "--merge-key"
 			}),
-			wantErr: "onesie: --merge-key does not apply to -i request, " +
+			wantErr: "--merge-key does not apply to -i request, " +
 				"which forwards raw responses",
 		},
 		{
 			name: "should reject -m with -i request",
 			cfg:  request(func(c *plan.Config) { c.HasModel = true }),
-			wantErr: "onesie: -m does not apply to -i request, " +
+			wantErr: "-m does not apply to -i request, " +
 				"whose bodies carry their own model",
 		},
 		{
 			name: "should reject --print-questions with -i request",
 			cfg:  request(func(c *plan.Config) { c.PrintQuestions = true }),
-			wantErr: "onesie: --print-questions needs questions of its own, " +
+			wantErr: "--print-questions needs questions of its own, " +
 				"which -i request does not build",
 		},
 		{
@@ -1562,48 +1562,48 @@ func TestCheckFlags(t *testing.T) {
 				c.Jobs = 0
 				c.JobsSet = true
 			}),
-			wantErr: "onesie: -j takes a positive number of records in flight, got 0",
+			wantErr: "-j takes a positive number of records in flight, got 0",
 		},
 		{
 			name:    "should reject -r with -o outside request mode",
 			cfg:     plan.Config{Raw: true, Output: "json", InputName: "text"},
-			wantErr: "onesie: -r and -o are mutually exclusive",
+			wantErr: "-r and -o are mutually exclusive",
 		},
 		{
 			name: "should reject both print flags at once",
 			cfg: plan.Config{
 				PrintRequest: true, PrintQuestions: true, InputName: "text",
 			},
-			wantErr: "onesie: --print-request and --print-questions each write a different " +
+			wantErr: "--print-request and --print-questions each write a different " +
 				"thing to stdout. Pass one",
 		},
 		{
 			name:    "should reject -o with --print-questions",
 			cfg:     plan.Config{PrintQuestions: true, Output: "json", InputName: "text"},
-			wantErr: "onesie: -o does not apply to --print-questions, which writes a question file",
+			wantErr: "-o does not apply to --print-questions, which writes a question file",
 		},
 		{
 			name:    "should reject -r with --print-request",
 			cfg:     plan.Config{PrintRequest: true, Raw: true, InputName: "text"},
-			wantErr: "onesie: -r does not apply to --print-request, which writes a request body",
+			wantErr: "-r does not apply to --print-request, which writes a request body",
 		},
 		{
 			name: "should name --merge-key when that is the spelling given",
 			cfg: plan.Config{
 				PrintRequest: true, Merge: true, MergeName: "--merge-key", InputName: "text",
 			},
-			wantErr: "onesie: --merge-key needs answers to fold in, " +
+			wantErr: "--merge-key needs answers to fold in, " +
 				"which --print-request does not produce",
 		},
 		{
 			name:    "should reject -q with --print-request",
 			cfg:     plan.Config{PrintRequest: true, Quiet: true, InputName: "text"},
-			wantErr: "onesie: -q suppresses output, which leaves --print-request nothing to write",
+			wantErr: "-q suppresses output, which leaves --print-request nothing to write",
 		},
 		{
 			name: "should reject --stats with --print-questions",
 			cfg:  plan.Config{PrintQuestions: true, Stats: true, InputName: "text"},
-			wantErr: "onesie: --stats has nothing to report with --print-questions, " +
+			wantErr: "--stats has nothing to report with --print-questions, " +
 				"which makes no request",
 		},
 		{
@@ -1612,7 +1612,7 @@ func TestCheckFlags(t *testing.T) {
 				c.PrintRequest = true
 				c.Stats = true
 			}),
-			wantErr: "onesie: --stats has nothing to report with --print-request, " +
+			wantErr: "--stats has nothing to report with --print-request, " +
 				"which makes no request",
 		},
 		{
@@ -1627,7 +1627,7 @@ func TestCheckFlags(t *testing.T) {
 				c.PrintRequest = true
 				c.Output = "json"
 			}),
-			wantErr: "onesie: -o does not apply to --print-request, which writes a request body",
+			wantErr: "-o does not apply to --print-request, which writes a request body",
 		},
 		{
 			// Same, and there is no response body to carry a usage object either.
@@ -1636,7 +1636,7 @@ func TestCheckFlags(t *testing.T) {
 				c.PrintRequest = true
 				c.Usage = true
 			}),
-			wantErr: "onesie: --usage reports the tokens a question cost, " +
+			wantErr: "--usage reports the tokens a question cost, " +
 				"which --print-request does not ask",
 		},
 		{
@@ -1645,12 +1645,12 @@ func TestCheckFlags(t *testing.T) {
 				c.PrintRequest = true
 				c.HasAsk = true
 			}),
-			wantErr: "onesie: -i request carries its own questions. Drop --ask",
+			wantErr: "-i request carries its own questions. Drop --ask",
 		},
 		{
 			name: "should reject --assert with -i request",
 			cfg:  request(func(c *plan.Config) { c.HasAssert = true }),
-			wantErr: "onesie: --assert does not apply to -i request, " +
+			wantErr: "--assert does not apply to -i request, " +
 				"which forwards raw responses",
 		},
 		{
@@ -1658,14 +1658,14 @@ func TestCheckFlags(t *testing.T) {
 			cfg: plan.Config{
 				ListModels: true, HasAssert: true, InputName: "text",
 			},
-			wantErr: "onesie: --assert judges an answer, which --list-models does not produce",
+			wantErr: "--assert judges an answer, which --list-models does not produce",
 		},
 		{
 			name: "should reject --assert with --print-request",
 			cfg: plan.Config{
 				PrintRequest: true, HasAssert: true, InputName: "text",
 			},
-			wantErr: "onesie: --assert judges an answer, which --print-request does not produce",
+			wantErr: "--assert judges an answer, which --print-request does not produce",
 		},
 		{
 			name: "should ignore a file's assertion with --print-request",
@@ -1686,7 +1686,7 @@ func TestCheckFlags(t *testing.T) {
 			cfg: plan.Config{
 				PrintRequest: true, HasAssert: true, FileName: "q.yaml", InputName: "text",
 			},
-			wantErr: "onesie: --assert judges an answer, which --print-request does not produce",
+			wantErr: "--assert judges an answer, which --print-request does not produce",
 		},
 		{
 			name: "should reject --abstain-if typed beside a file's gates with --print-request",
@@ -1694,7 +1694,7 @@ func TestCheckFlags(t *testing.T) {
 				PrintRequest: true, HasAssert: true, AssertName: "'assert'", HasAbstainIf: true,
 				FileName: "q.yaml", InputName: "text",
 			},
-			wantErr: "onesie: --abstain-if judges an answer, which --print-request does not produce",
+			wantErr: "--abstain-if judges an answer, which --print-request does not produce",
 		},
 		{
 			name: "should accept --assert with --print-questions",
@@ -1707,20 +1707,20 @@ func TestCheckFlags(t *testing.T) {
 			cfg: plan.Config{
 				PrintRequest: true, StopOnAssert: true, Streaming: true, InputName: "lines",
 			},
-			wantErr: "onesie: --stop-on-assert ends a stream on a false assertion, " +
+			wantErr: "--stop-on-assert ends a stream on a false assertion, " +
 				"which --print-request does not produce",
 		},
 		{
 			name:    "should reject --abstain-if without an assertion",
 			cfg:     plan.Config{HasAbstainIf: true, InputName: "text"},
-			wantErr: "onesie: --abstain-if needs --assert, since without one every record is a yes",
+			wantErr: "--abstain-if needs --assert, since without one every record is a yes",
 		},
 		{
 			name: "should name the file's key when only the file carried the abstain expression",
 			cfg: plan.Config{
 				HasAbstainIf: true, AbstainIfName: "'abstain_if'", FileName: "q.yaml", InputName: "text",
 			},
-			wantErr: "onesie: 'abstain_if' needs --assert, since without one every record is a yes",
+			wantErr: "'abstain_if' needs --assert, since without one every record is a yes",
 		},
 		{
 			name: "should accept --abstain-if when the only assertion comes from the file",
@@ -1732,7 +1732,7 @@ func TestCheckFlags(t *testing.T) {
 		{
 			name:    "should reject --stop-on-assert without an assertion",
 			cfg:     plan.Config{StopOnAssert: true, Streaming: true, InputName: "jsonl"},
-			wantErr: "onesie: --stop-on-assert needs --assert, since without one no assertion is false",
+			wantErr: "--stop-on-assert needs --assert, since without one no assertion is false",
 		},
 		{
 			name: "should accept --stop-on-assert when the only assertion comes from the file",
@@ -1746,12 +1746,12 @@ func TestCheckFlags(t *testing.T) {
 			cfg: plan.Config{
 				ListModels: true, HasAbstainIf: true, InputName: "text",
 			},
-			wantErr: "onesie: --abstain-if judges an answer, which --list-models does not produce",
+			wantErr: "--abstain-if judges an answer, which --list-models does not produce",
 		},
 		{
 			name: "should reject --abstain-if with -i request",
 			cfg:  request(func(c *plan.Config) { c.HasAbstainIf = true }),
-			wantErr: "onesie: --abstain-if does not apply to -i request, " +
+			wantErr: "--abstain-if does not apply to -i request, " +
 				"which forwards raw responses",
 		},
 		{
@@ -1759,14 +1759,14 @@ func TestCheckFlags(t *testing.T) {
 			cfg: plan.Config{
 				PrintRequest: true, HasAssert: true, HasAbstainIf: true, InputName: "text",
 			},
-			wantErr: "onesie: --assert judges an answer, which --print-request does not produce",
+			wantErr: "--assert judges an answer, which --print-request does not produce",
 		},
 		{
 			name: "should reject --abstain-if with --print-request",
 			cfg: plan.Config{
 				PrintRequest: true, HasAbstainIf: true, InputName: "text",
 			},
-			wantErr: "onesie: --abstain-if judges an answer, which --print-request does not produce",
+			wantErr: "--abstain-if judges an answer, which --print-request does not produce",
 		},
 		{
 			name: "should accept --abstain-if with --print-questions",

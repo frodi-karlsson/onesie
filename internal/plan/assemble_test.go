@@ -740,7 +740,7 @@ func TestAssemble(t *testing.T) {
 					Events:   []argv.Event{{Name: "pick", Value: "x,y"}},
 					ReadFile: readFile,
 				},
-				wantErr: "onesie: --pick cannot reshape a request body's question. " +
+				wantErr: "--pick cannot reshape a request body's question. " +
 					"A body carries its own type and criteria",
 			},
 			{
@@ -752,7 +752,7 @@ func TestAssemble(t *testing.T) {
 					Events:   []argv.Event{{Name: "desc", Value: "yes=nope"}},
 					ReadFile: readFile,
 				},
-				wantErr: "onesie: --desc cannot reshape a request body's question",
+				wantErr: "--desc cannot reshape a request body's question",
 			},
 			{
 				name: "should bind a policy flag to a lone body question",
