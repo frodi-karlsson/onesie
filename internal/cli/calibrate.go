@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 
 	"github.com/frodi-karlsson/onesie/internal/argv"
 	"github.com/frodi-karlsson/onesie/internal/calibrate"
@@ -16,41 +17,24 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
-const (
-	flagCuts    = "cuts"
-	quietReason = "calibrate prints a report, and its exit code judges nothing"
-	rawReason   = "calibrate prints its report as a table or as json"
-	stateReason = "calibrate reads each state from its input through --map"
-)
-
-var refusedFlags = []struct {
-	name, short, reason string
-	boolean             bool
-}{
-	{name: "assert", reason: refusedReasons["assert"]},
-	{name: "abstain-if", reason: refusedReasons["abstain-if"]},
-	{name: "merge", reason: "calibrate prints a report, not the records", boolean: true},
-	{name: "merge-key", reason: "calibrate prints a report, not the records"},
-	// Each short spelling is a flag of its own, since pflag does not say which spelling set a flag,
-	// and a refusal names the one the user typed.
-	{name: "quiet", reason: quietReason, boolean: true},
-	{name: "q", short: "q", reason: quietReason, boolean: true},
-	{name: "raw", reason: rawReason, boolean: true},
-	{name: "r", short: "r", reason: rawReason, boolean: true},
-	{name: "stop-on-error", reason: "calibrate scores every record it can", boolean: true},
-	{name: "stop-on-assert", reason: "calibrate judges no assertion", boolean: true},
-	{name: "unordered", reason: "calibrate prints its report once every record is answered", boolean: true},
-	{name: "print-questions", reason: "a question file carries no labels", boolean: true},
-	{name: flagState, reason: stateReason},
-	{name: flagStateFile, reason: stateReason},
-}
+const flagCuts = "cuts"
 
 var refusedReasons = map[string]string{
-	"assert":         "calibrate reports every cut and judges none",
-	"abstain-if":     "calibrate reports every cut and judges none",
-	"threshold":      "calibrate reports every cut",
-	"min-confidence": "calibrate reports every confidence cut",
-	"fallback":       "calibrate scores the answers the model gave",
+	"assert":          "calibrate reports every cut and judges none",
+	"abstain-if":      "calibrate reports every cut and judges none",
+	"threshold":       "calibrate reports every cut",
+	"min-confidence":  "calibrate reports every confidence cut",
+	"fallback":        "calibrate scores the answers the model gave",
+	"merge":           "calibrate prints a report, not the records",
+	"merge-key":       "calibrate prints a report, not the records",
+	"quiet":           "calibrate prints a report, and its exit code judges nothing",
+	"raw":             "calibrate prints its report as a table or as json",
+	"stop-on-error":   "calibrate scores every record it can",
+	"stop-on-assert":  "calibrate judges no assertion",
+	"unordered":       "calibrate prints its report once every record is answered",
+	"print-questions": "a question file carries no labels",
+	flagState:         "calibrate reads each state from its input through --map",
+	flagStateFile:     "calibrate reads each state from its input through --map",
 }
 
 func newCalibrateCmd(settings rootSettings, flags *runFlags) *cobra.Command {
@@ -129,21 +113,6 @@ func newCalibrateCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 	// A recorded flag is a string, so without this --box would take the next argument as its value.
 	cmd.Flags().Lookup("box").NoOptDefVal = "true"
 
-	for _, name := range []string{"threshold", "min-confidence", "fallback"} {
-		cmd.Flags().Var(recorder.Flag(name), name, "refused, "+refusedReasons[name])
-		hide(cmd, name)
-	}
-
-	for _, refused := range refusedFlags {
-		if refused.boolean {
-			cmd.Flags().BoolP(refused.name, refused.short, false, "refused, "+refused.reason)
-		} else {
-			cmd.Flags().StringArrayP(refused.name, refused.short, nil, "refused, "+refused.reason)
-		}
-
-		hide(cmd, refused.name)
-	}
-
 	cmd.Flags().Var(nonEmptyList{values: &calib.labels}, "label",
 		"[ID=]EXPR, a jq expression run on the record, not on the mapped state, whose result is the "+
 			"right answer for question ID. A question with none is skipped. With one question ID= may be "+
@@ -174,10 +143,6 @@ func newCalibrateCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 	})
 
 	return cmd
-}
-
-func hide(cmd *cobra.Command, name string) {
-	cmd.Flags().Lookup(name).Hidden = true
 }
 
 func runCalibrate(
@@ -248,10 +213,6 @@ func runCalibrate(
 }
 
 func checkCalibrate(cmd *cobra.Command, flags runConfig, calib calibrateFlags) ([]calibrate.Requirement, error) {
-	if err := checkRefused(cmd, flags.events); err != nil {
-		return nil, err
-	}
-
 	if err := checkCalibrateInput(flags); err != nil {
 		return nil, err
 	}
@@ -324,31 +285,28 @@ func checkOffline(flags runConfig, calib calibrateFlags) error {
 	return nil
 }
 
-func checkRefused(cmd *cobra.Command, events []argv.Event) error {
-	for _, refused := range refusedFlags {
-		if !cmd.Flags().Changed(refused.name) {
-			continue
-		}
-
-		spelled := "--" + refused.name
-		if refused.short != "" {
-			spelled = "-" + refused.short
-		}
-
-		return refusal(refused.reason, spelled)
+func refusedOnCalibrate(root *cobra.Command, err error) error {
+	var unknown *pflag.NotExistError
+	if !errors.As(err, &unknown) {
+		return nil
 	}
 
-	for _, event := range events {
-		if reason, found := refusedReasons[event.Name]; found {
-			return refusal(reason, "--"+event.Name)
-		}
+	known := rootFlag(root, unknown)
+	if known == nil {
+		return nil
 	}
 
-	return nil
-}
+	reason, refused := refusedReasons[known.Name]
+	if !refused {
+		return nil
+	}
 
-func refusal(reason, spelled string) error {
-	return fmt.Errorf("%s, so %s does not apply. Drop it", reason, spelled)
+	spelled := "--" + known.Name
+	if known.Shorthand != "" {
+		spelled = "-" + known.Shorthand + "/" + spelled
+	}
+
+	return &plainError{cause: err, message: fmt.Sprintf("%s, so %s does not apply. Drop it", reason, spelled)}
 }
 
 func checkCalibrateInput(flags runConfig) error {

@@ -181,28 +181,50 @@ func TestNewCalibrateCmd(t *testing.T) {
 			contains: []string{"so --merge-key does not apply. Drop it"},
 		},
 		{
-			name:     "should refuse -q",
+			name:     "should refuse -q naming both spellings",
 			args:     with("-q"),
 			wantCode: ExitUsage,
-			contains: []string{"so -q does not apply. Drop it"},
+			contains: []string{
+				"onesie: calibrate prints a report, and its exit code judges nothing, so -q/--quiet does not apply. Drop it\n",
+			},
 		},
 		{
-			name:     "should refuse --quiet by the spelling given",
+			name:     "should refuse --quiet naming both spellings",
 			args:     with("--quiet"),
 			wantCode: ExitUsage,
-			contains: []string{"so --quiet does not apply. Drop it"},
+			contains: []string{"so -q/--quiet does not apply. Drop it"},
 		},
 		{
-			name:     "should refuse --raw by the spelling given",
+			name:     "should refuse --raw naming both spellings",
 			args:     with("--raw"),
 			wantCode: ExitUsage,
-			contains: []string{"so --raw does not apply. Drop it"},
+			contains: []string{
+				"onesie: calibrate prints its report as a table or as json, so -r/--raw does not apply. Drop it\n",
+			},
 		},
 		{
-			name:     "should refuse -r",
+			name:     "should refuse -r naming both spellings",
 			args:     with("-r"),
 			wantCode: ExitUsage,
-			contains: []string{"so -r does not apply. Drop it"},
+			contains: []string{"so -r/--raw does not apply. Drop it"},
+		},
+		{
+			name:     "should refuse -q inside a cluster of short flags",
+			args:     with("-qj4"),
+			wantCode: ExitUsage,
+			contains: []string{"so -q/--quiet does not apply. Drop it"},
+		},
+		{
+			name:     "should refuse --q as a flag calibrate does not have",
+			args:     with("--q"),
+			wantCode: ExitUsage,
+			contains: []string{"onesie: calibrate has no flag --q\n"},
+		},
+		{
+			name:     "should refuse a run flag before a later flag's bad value",
+			args:     with("--quiet", "-j", "x"),
+			wantCode: ExitUsage,
+			contains: []string{"so -q/--quiet does not apply. Drop it"},
 		},
 		{
 			name:     "should refuse --stop-on-error",

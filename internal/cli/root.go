@@ -313,16 +313,17 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 
 	root.AddCommand(newVersionCmd(info))
 	root.AddCommand(newProfileCmd(settings, flags))
-	root.AddCommand(newCalibrateCmd(settings, flags))
+	calibrate := newCalibrateCmd(settings, flags)
+	root.AddCommand(calibrate)
 	root.AddCommand(newQuestionsCmd(settings))
 	root.AddCommand(newCacheCmd(settings))
 	refuseUnknownHelpTopics(root)
 
 	// Cobra hands every subcommand the nearest parent's flag error function, so one hook covers the
 	// subcommands cobra adds itself, such as completion.
-	hint := subcommandHint(root)
+	explain := flagError(root, calibrate)
 	root.SetFlagErrorFunc(func(cmd *cobra.Command, err error) error {
-		return withDashQuestionHint(hint(cmd, plainFlagError(cmd, err)), cmd.Flags(), settings.args, nil)
+		return withDashQuestionHint(explain(cmd, err), cmd.Flags(), settings.args, nil)
 	})
 	addCompletionTakingNoArguments(root)
 
@@ -383,6 +384,20 @@ type runFlagHelp struct {
 	prune      string
 	skipBlank  string
 	usage      string
+}
+
+func flagError(root, calibrate *cobra.Command) func(*cobra.Command, error) error {
+	hint := subcommandHint(root)
+
+	return func(cmd *cobra.Command, err error) error {
+		if cmd == calibrate {
+			if refused := refusedOnCalibrate(root, err); refused != nil {
+				return refused
+			}
+		}
+
+		return hint(cmd, plainFlagError(cmd, err))
+	}
 }
 
 func plainFlagError(cmd *cobra.Command, err error) error {
