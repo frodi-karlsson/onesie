@@ -220,6 +220,34 @@ func withModel(body []byte, model string) []byte {
 	return append(filled, object[at:]...)
 }
 
+func withLongContext(body []byte) []byte {
+	// A printed body carries long context as -f prints it, so a replay keeps what this run sends,
+	// and a body's own false does not turn off the flag or the variable.
+	object := bytes.TrimSpace(body)
+	if !bytes.HasPrefix(object, []byte("{")) || !json.Valid(object) {
+		return body
+	}
+
+	spans := keyValues(object, "long_context")
+	if len(spans) == 0 {
+		inner := bytes.TrimSpace(object[1 : len(object)-1])
+		if len(inner) == 0 {
+			return []byte(`{"long_context":true}`)
+		}
+
+		return slices.Concat(object[:len(object)-1], []byte(`,"long_context":true}`))
+	}
+
+	filled, at := []byte{}, 0
+
+	for _, span := range spans {
+		filled = slices.Concat(filled, object[at:span[0]], []byte("true"))
+		at = span[1]
+	}
+
+	return append(filled, object[at:]...)
+}
+
 func keyValues(object []byte, name string) [][2]int {
 	// A scan of a body json.Valid passed, rather than a decode, so the assets a body carries are
 	// walked past and never copied. Only the exact key counts, since encoding/json would match
@@ -312,34 +340,6 @@ func isKey(key []byte, name string) bool {
 	var decoded string
 
 	return json.Unmarshal(key, &decoded) == nil && decoded == name
-}
-
-func withLongContext(body []byte) []byte {
-	// A printed body carries long context as -f prints it, so a replay keeps what this run sends,
-	// and a body's own false does not turn off the flag or the variable.
-	object := bytes.TrimSpace(body)
-	if !bytes.HasPrefix(object, []byte("{")) || !json.Valid(object) {
-		return body
-	}
-
-	spans := keyValues(object, "long_context")
-	if len(spans) == 0 {
-		inner := bytes.TrimSpace(object[1 : len(object)-1])
-		if len(inner) == 0 {
-			return []byte(`{"long_context":true}`)
-		}
-
-		return slices.Concat(object[:len(object)-1], []byte(`,"long_context":true}`))
-	}
-
-	filled, at := []byte{}, 0
-
-	for _, span := range spans {
-		filled = slices.Concat(filled, object[at:span[0]], []byte("true"))
-		at = span[1]
-	}
-
-	return append(filled, object[at:]...)
 }
 
 func blankModel(value []byte) bool {
