@@ -211,7 +211,7 @@ func TestDescribe(t *testing.T) {
 
 		pins := []struct {
 			cause   error
-			kind    string
+			kind    output.Kind
 			status  *int
 			message string
 		}{

@@ -894,7 +894,7 @@ func streamResult(result engine.Result, falseAsserts, abstains int) error {
 func stoppedAtInput(cause error) bool {
 	// --stop-on-error ended the run at a record that never became a request. The exit code table
 	// has no code of its own for that, so it exits 6 as the same record does without the flag.
-	return !aborting(cause) && !errors.Is(cause, context.Canceled) && describe(cause).Kind == "input"
+	return !aborting(cause) && !errors.Is(cause, context.Canceled) && describe(cause).Kind == output.KindInput
 }
 
 func ask(
@@ -1282,24 +1282,24 @@ func describe(cause error) *output.Failure {
 		// the caller may retry, and calling it transport a connection blip that never happened.
 		status := unusable.Status
 
-		return &output.Failure{Kind: "response", Status: &status, Message: message}
+		return &output.Failure{Kind: output.KindResponse, Status: &status, Message: message}
 	}
 
 	var api *onesie.APIError
 	if errors.As(cause, &api) {
 		status := api.Status
 
-		return &output.Failure{Kind: "http", Status: &status, Message: message}
+		return &output.Failure{Kind: output.KindHTTP, Status: &status, Message: message}
 	}
 
 	if errors.Is(cause, onesie.ErrConnection) || errors.Is(cause, context.DeadlineExceeded) {
-		return &output.Failure{Kind: "transport", Message: message}
+		return &output.Failure{Kind: output.KindTransport, Message: message}
 	}
 
 	// No status arrived and the network did not fail, so the record never became a request, as with
 	// a line onesie could not read. Calling it transport would blame the network, and exit 5 where a
 	// fresh run exits 2.
-	return &output.Failure{Kind: "input", Message: message}
+	return &output.Failure{Kind: output.KindInput, Message: message}
 }
 
 func quietResult(question plan.Question, a *answer.Answer) error {

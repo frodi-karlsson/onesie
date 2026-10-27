@@ -22,7 +22,7 @@ func TestClassify(t *testing.T) {
 		return &onesie.APIError{Status: status}
 	}
 
-	stored := func(kind string, status *int) error {
+	stored := func(kind output.Kind, status *int) error {
 		return &storedFailure{failure: output.Failure{Kind: kind, Status: status, Message: "onesie: stored"}}
 	}
 

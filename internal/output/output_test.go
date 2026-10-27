@@ -479,6 +479,11 @@ func TestEncodeFailure(t *testing.T) {
 			want:    `{"error":{"kind":"http","status":422,"message":"boom"}}`,
 		},
 		{
+			name:    "should encode the kind a constant names",
+			failure: &output.Failure{Kind: output.KindTransport, Message: "connection reset"},
+			want:    `{"error":{"kind":"transport","status":null,"message":"connection reset"}}`,
+		},
+		{
 			name:    "should encode an empty object when there is no failure",
 			failure: nil,
 			want:    `{}`,

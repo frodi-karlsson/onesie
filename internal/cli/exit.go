@@ -245,13 +245,13 @@ func (e *storedFailure) Error() string {
 
 func (e *storedFailure) freshRunCode() int {
 	switch e.failure.Kind {
-	case "input":
+	case output.KindInput:
 		return ExitRecords
-	case "response":
+	case output.KindResponse:
 		return ExitUnavailable
-	case "transport":
+	case output.KindTransport:
 		return ExitTransport
-	case "http":
+	case output.KindHTTP:
 		return storedStatus(e.failure.Status)
 	default:
 		return ExitRecords

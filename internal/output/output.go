@@ -10,6 +10,18 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/answer"
 )
 
+// The kinds a record's error key names.
+const (
+	// KindResponse is a 2xx response onesie could not use.
+	KindResponse Kind = "response"
+	// KindHTTP is a response with a status outside 2xx.
+	KindHTTP Kind = "http"
+	// KindTransport is a connection that failed or timed out.
+	KindTransport Kind = "transport"
+	// KindInput is a record that never became a request.
+	KindInput Kind = "input"
+)
+
 // Write encodes one record in the requested mode. The table mode is rendered at a default width,
 // so a caller that knows the terminal width should call WriteTable directly.
 func Write(w io.Writer, mode Mode, rec Record) error {
@@ -144,7 +156,10 @@ type Named struct {
 // Failure is the reserved error key. Status is nil for a transport or input failure, where no HTTP
 // status was ever received.
 type Failure struct {
-	Kind    string `json:"kind"`
+	Kind    Kind   `json:"kind"`
 	Status  *int   `json:"status"`
 	Message string `json:"message"`
 }
+
+// Kind names what failed, so a consumer can tell a retry worth making from a record to fix.
+type Kind string
