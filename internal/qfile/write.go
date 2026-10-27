@@ -37,7 +37,7 @@ func Write(questions []plan.Question, assertion, abstainIf string) ([]byte, erro
 	for _, question := range questions {
 		if question.ID == plan.PositionalID {
 			return nil, errors.New(
-				"onesie: --print-questions needs a named question. Use --ask NAME=QUESTION")
+				"--print-questions needs a named question. Use --ask NAME=QUESTION")
 		}
 
 		body, err := writeQuestion(question)
@@ -55,14 +55,14 @@ func writeQuestion(question plan.Question) (yaml.MapSlice, error) {
 	instructions, err := yamlValue(question.Instructions)
 	if err != nil {
 		return nil, fmt.Errorf(
-			"onesie: 'ask' in question '%s' cannot be written: %w", question.ID, err)
+			"'ask' in question '%s' cannot be written: %w", question.ID, err)
 	}
 
 	if question.Criteria != nil && question.Shape != plan.Noul {
 		// Dropping the rubric silently would leave the user believing it reached the API, which is
 		// the line the loader already holds against a file carrying both.
 		return nil, fmt.Errorf(
-			"onesie: question '%s' has both 'yes_means' and '%s'. A question is one or the other",
+			"question '%s' has both 'yes_means' and '%s'. A question is one or the other",
 			question.ID, question.Shape)
 	}
 
@@ -113,7 +113,7 @@ func writeOptions(question plan.Question) (any, error) {
 		desc, err := yamlValue(option.Desc)
 		if err != nil {
 			return nil, fmt.Errorf(
-				"onesie: 'pick' option '%s' in question '%s' cannot be written: %w",
+				"'pick' option '%s' in question '%s' cannot be written: %w",
 				option.Name, question.ID, err)
 		}
 
@@ -144,7 +144,7 @@ func writeLevels(question plan.Question) ([]any, error) {
 		desc, err := yamlValue(level.Desc)
 		if err != nil {
 			return nil, fmt.Errorf(
-				"onesie: 'rate' level '%s' in question '%s' cannot be written: %w",
+				"'rate' level '%s' in question '%s' cannot be written: %w",
 				label, question.ID, err)
 		}
 
@@ -182,13 +182,13 @@ func writeRubric(question plan.Question) (yaml.MapSlice, error) {
 	yes, err := yamlValue(question.Criteria.Yes)
 	if err != nil {
 		return nil, fmt.Errorf(
-			"onesie: 'yes_means' in question '%s' cannot be written: %w", question.ID, err)
+			"'yes_means' in question '%s' cannot be written: %w", question.ID, err)
 	}
 
 	no, err := yamlValue(question.Criteria.No)
 	if err != nil {
 		return nil, fmt.Errorf(
-			"onesie: 'no_means' in question '%s' cannot be written: %w", question.ID, err)
+			"'no_means' in question '%s' cannot be written: %w", question.ID, err)
 	}
 
 	// yes_means and no_means, not yes and no. Under the YAML 1.2 core schema goccy implements a

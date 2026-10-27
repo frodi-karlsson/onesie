@@ -50,7 +50,7 @@ func TestFind(t *testing.T) {
 	configQuestions := filepath.Join(configDir, "questions")
 	workDir := filepath.Join(string(filepath.Separator)+"repo", "sub", "deeper")
 
-	errNoHome := errors.New("onesie: cannot find a home directory for the config dir, where the profiles file lives")
+	errNoHome := errors.New("cannot find a home directory for the config dir, where the profiles file lives")
 
 	tests := []struct {
 		name        string
@@ -87,13 +87,13 @@ func TestFind(t *testing.T) {
 				"/repo/.onesie/questions/triage.json",
 			},
 			builtIns: []string{"triage"},
-			wantErr:  []string{"onesie: question file triage is both", "Remove one"},
+			wantErr:  []string{"question file triage is both", "Remove one"},
 		},
 		{
 			name:     "should name the built-in sets when nothing has the name",
 			builtIns: []string{"support", "billing"},
 			wantErr: []string{
-				"onesie: no file or question file named triage",
+				"no file or question file named triage",
 				configQuestions,
 				"or any parent. Built in: billing, support",
 			},
@@ -172,7 +172,7 @@ func TestFind(t *testing.T) {
 			name:  "should not match another name with the same prefix",
 			files: []string{"/repo/.onesie/questions/triage-old.yaml"},
 			wantErr: []string{
-				"onesie: no file or question file named triage",
+				"no file or question file named triage",
 				"triage.yaml, triage.yml and triage.json",
 				repoDir,
 				configQuestions,
@@ -186,7 +186,7 @@ func TestFind(t *testing.T) {
 				"/home/.config/onesie/questions/triage.yaml",
 			},
 			wantErr: []string{
-				"onesie: question file triage is both",
+				"question file triage is both",
 				filepath.Join(repoDir, "triage.yaml"),
 				filepath.Join(repoDir, "triage.json"),
 				"Remove one",
@@ -206,7 +206,7 @@ func TestFind(t *testing.T) {
 		{
 			name: "should name every directory searched when no repository set exists",
 			wantErr: []string{
-				"onesie: no file or question file named triage",
+				"no file or question file named triage",
 				configQuestions,
 				"no .onesie/questions in " + workDir + " or any parent",
 			},
@@ -222,7 +222,7 @@ func TestFind(t *testing.T) {
 			files:     []string{"/repo/.onesie/questions/other.yaml"},
 			configErr: errNoHome,
 			wantErr: []string{
-				"onesie: no file or question file named triage",
+				"no file or question file named triage",
 				"in " + repoDir + ".",
 				"The config dir could not be resolved, so it was not searched: " +
 					"cannot find a home directory for the config dir",
@@ -430,7 +430,7 @@ func TestList(t *testing.T) {
 	configQuestions := filepath.Join(configDir, "questions")
 	workDir := filepath.Join(string(filepath.Separator)+"repo", "sub")
 
-	errNoHome := errors.New("onesie: cannot find a home directory for the config dir, where the profiles file lives")
+	errNoHome := errors.New("cannot find a home directory for the config dir, where the profiles file lives")
 
 	tests := []struct {
 		name      string

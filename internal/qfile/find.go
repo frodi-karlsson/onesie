@@ -25,7 +25,7 @@ func IsName(value string) bool {
 // to a set built into onesie.
 func Find(name string, env FindEnv) (Source, error) {
 	if !IsName(name) {
-		return Source{}, fmt.Errorf("onesie: %q is not a question file name to look up", name)
+		return Source{}, fmt.Errorf("%q is not a question file name to look up", name)
 	}
 
 	repo, entries, err := repoSet(env)
@@ -204,7 +204,7 @@ func readSet(env FindEnv, dir string) ([]fs.DirEntry, bool, error) {
 	}
 
 	if err != nil {
-		return nil, false, fmt.Errorf("onesie: reading %s: %w", dir, patherr.Inner(err))
+		return nil, false, fmt.Errorf("reading %s: %w", dir, patherr.Inner(err))
 	}
 
 	return entries, true, nil
@@ -241,7 +241,7 @@ func matchOne(name, dir string, entries []fs.DirEntry) (string, error) {
 	case 1:
 		return paths[0], nil
 	default:
-		return "", fmt.Errorf("onesie: question file %s is both %s. Remove one, "+
+		return "", fmt.Errorf("question file %s is both %s. Remove one, "+
 			"since the order would otherwise decide", name, joinAnd(paths))
 	}
 }
@@ -275,7 +275,7 @@ func notFound(name string, env FindEnv, repo string, config configDir) error {
 		tried = append(tried, name+ext)
 	}
 
-	message := fmt.Sprintf("onesie: no file or question file named %s. Looked for %s", name, joinAnd(tried))
+	message := fmt.Sprintf("no file or question file named %s. Looked for %s", name, joinAnd(tried))
 	if len(searched) > 0 {
 		message += " in " + joinAnd(searched)
 	}
@@ -301,8 +301,8 @@ type unsearchedError struct {
 }
 
 func (e *unsearchedError) Error() string {
-	return fmt.Sprintf("%s. The config dir could not be resolved, so it was not searched: %s",
-		e.message, strings.TrimPrefix(e.cause.Error(), "onesie: "))
+	return fmt.Sprintf("%s. The config dir could not be resolved, so it was not searched: %v",
+		e.message, e.cause)
 }
 
 func (e *unsearchedError) Unwrap() error {

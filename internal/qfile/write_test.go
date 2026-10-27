@@ -226,7 +226,7 @@ func TestWrite(t *testing.T) {
 			questions: []plan.Question{
 				{ID: "q", Shape: plan.Noul, Instructions: json.Number("123456789012345678901234567890")},
 			},
-			wantErr: "onesie: 'ask' in question 'q' cannot be written: 123456789012345678901234567890 " +
+			wantErr: "'ask' in question 'q' cannot be written: 123456789012345678901234567890 " +
 				"has more digits than a question file keeps",
 		},
 		{
@@ -258,7 +258,7 @@ func TestWrite(t *testing.T) {
 			questions: []plan.Question{
 				{ID: "answer", Shape: plan.Noul, Instructions: "q"},
 			},
-			wantErr: "onesie: --print-questions needs a named question. Use --ask NAME=QUESTION",
+			wantErr: "--print-questions needs a named question. Use --ask NAME=QUESTION",
 		},
 		{
 			name: "should reject a rubric on a pick question",
@@ -269,7 +269,7 @@ func TestWrite(t *testing.T) {
 					Criteria: &plan.YesNoCriteria{Yes: "y", No: "n"},
 				},
 			},
-			wantErr: "onesie: question 'team' has both 'yes_means' and 'pick'. " +
+			wantErr: "question 'team' has both 'yes_means' and 'pick'. " +
 				"A question is one or the other",
 		},
 		{
@@ -281,7 +281,7 @@ func TestWrite(t *testing.T) {
 					Criteria: &plan.YesNoCriteria{Yes: "y", No: "n"},
 				},
 			},
-			wantErr: "onesie: question 'mood' has both 'yes_means' and 'rate'. " +
+			wantErr: "question 'mood' has both 'yes_means' and 'rate'. " +
 				"A question is one or the other",
 		},
 	}

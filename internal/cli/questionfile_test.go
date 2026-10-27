@@ -112,7 +112,7 @@ func TestReadQuestionFile(t *testing.T) {
 			name:  "should name every directory searched for a missing name",
 			value: "triage",
 			wantErr: []string{
-				"onesie: no file or question file named triage",
+				"no file or question file named triage",
 				filepath.Join(configDir, "questions"),
 				"no .onesie/questions in " + workDir + " or any parent",
 			},
