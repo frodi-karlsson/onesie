@@ -47,14 +47,15 @@ func calibrateRun(
 		}
 	}
 
-	out, _, err := openOutFile(settings, flags.runFlags, calib.offline)
-	if err != nil {
-		return err
-	}
+	out, _, err := openOut(settings, flags.runFlags, calib.offline)
 
 	defer func() {
 		err = errors.Join(err, prefixed(out.release()))
 	}()
+
+	if err != nil {
+		return err
+	}
 
 	// The labels and the cuts stay out, since neither changes an answer, and a later stream run
 	// with -o json and the same questions reads the file as its own.

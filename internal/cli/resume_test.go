@@ -1143,7 +1143,7 @@ func TestResumed(t *testing.T) {
 	answeredBody := `{"model":"m","answers":{"answer":{"type":"noul","noul":0.5}},"usage":{}}` + "\n"
 	failedBody := `{"error":{"kind":"http","status":400,"message":"400 bad key"}}` + "\n"
 	unavailableBody := `{"error":{"kind":"http","status":503,"message":"503 bad key"}}` + "\n"
-	forwarded, err := fingerprintOf(nil, fingerprintInputs{provider: "typesafe", input: "request"})
+	forwarded, err := fingerprintOf(nil, wireAll(nil), fingerprintInputs{provider: "typesafe", input: "request"})
 	if err != nil {
 		t.Fatalf("fingerprinting -i request: %v", err)
 	}
@@ -1599,7 +1599,7 @@ func runResumeCases(t *testing.T, tests []resumeCase) {
 			}
 
 			if tc.held {
-				release, err := newLocker(runtime.GOOS).lockAnswers(path)
+				release, err := newLocker(outOptions{goos: runtime.GOOS}).lockAnswers(path)
 				if err != nil {
 					t.Fatalf("holding the lock: %v", err)
 				}
@@ -1872,7 +1872,7 @@ func assertMode(t *testing.T, path string, want os.FileMode) {
 func assertUnlocked(t *testing.T, path string) {
 	t.Helper()
 
-	release, err := newLocker(runtime.GOOS).lockAnswers(path)
+	release, err := newLocker(outOptions{goos: runtime.GOOS}).lockAnswers(path)
 	if err != nil {
 		t.Fatalf("the run left %s locked: %v", filepath.Base(path), err)
 	}

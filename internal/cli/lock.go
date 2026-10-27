@@ -13,8 +13,10 @@ const (
 
 var errLocked = errors.New("held by another process")
 
-func newLocker(goos string) *locker {
-	return &locker{openFile: os.OpenFile, stat: os.Stat, remove: os.Remove, goos: goos}
+func newLocker(opts outOptions) *locker {
+	opts = opts.withDefaults()
+
+	return &locker{openFile: opts.openFile, stat: opts.stat, remove: opts.remove, goos: opts.goos}
 }
 
 type locker struct {

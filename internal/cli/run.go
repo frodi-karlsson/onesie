@@ -337,21 +337,7 @@ func bindOut(
 		return err
 	}
 
-	fingerprint, err := fingerprintOf(questions, inputs)
-	if err != nil {
-		return err
-	}
-
-	if delimitedOutput(inputs.output) && hasFallback(questions) {
-		older := inputs
-		older.withoutFallbackColumns = true
-
-		if out.olderColumns, err = fingerprintOf(questions, older); err != nil {
-			return err
-		}
-	}
-
-	return out.bind(fingerprint)
+	return out.bind(questions, wireAll(questions), inputs)
 }
 
 func outFingerprint(
@@ -362,7 +348,7 @@ func outFingerprint(
 		return "", err
 	}
 
-	return fingerprintOf(questions, inputs)
+	return fingerprintOf(questions, wireAll(questions), inputs)
 }
 
 func runInputs(settings rootSettings, flags runConfig, inputs fingerprintInputs) (fingerprintInputs, error) {
@@ -385,6 +371,10 @@ func runInputs(settings rootSettings, flags runConfig, inputs fingerprintInputs)
 	inputs.mock = flags.mockPath != ""
 
 	return inputs, nil
+}
+
+func resumesByID(flags runFlags) bool {
+	return flags.idSource != ""
 }
 
 func delimitedInput(name string) bool {
@@ -443,14 +433,16 @@ func stream(
 		return err
 	}
 
-	book, err := resumeLedger(cmd.Context(), answers, flags, namer, outputMode, gate != nil)
+	format := answersFormat{
+		mode: outputMode, merge: merging(flags), mergeKey: mergeKey(flags), namer: namer, gated: gate != nil,
+	}
+
+	book, err := resumeLedger(cmd.Context(), answers, format)
 	if err != nil {
 		return err
 	}
 
-	resume, err = resumedVerdicts(cmd.Context(), answers, namer, answersFormat{
-		mode: outputMode, merge: merging(flags), mergeKey: mergeKey(flags), gated: gate != nil,
-	}, flags, resume)
+	resume, err = resumedVerdicts(cmd.Context(), answers, format, flags.stopOnError, resume)
 	if err != nil {
 		return err
 	}

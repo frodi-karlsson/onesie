@@ -94,7 +94,7 @@ func TestLocker_LockAnswers(t *testing.T) {
 
 			var openedAnswers bool
 
-			l := newLocker(goos)
+			l := newLocker(outOptions{goos: goos})
 			l.openFile = func(name string, flag int, perm os.FileMode) (*os.File, error) {
 				if name == path {
 					openedAnswers = true
@@ -160,7 +160,7 @@ func TestLocker_LockAnswers(t *testing.T) {
 
 		var removed []string
 
-		l := newLocker(runtime.GOOS)
+		l := newLocker(outOptions{goos: runtime.GOOS})
 		l.remove = func(name string) error {
 			removed = append(removed, name)
 
@@ -246,7 +246,7 @@ func TestLocker_LockAt(t *testing.T) {
 
 			var opens, stats int
 
-			l := newLocker(runtime.GOOS)
+			l := newLocker(outOptions{goos: runtime.GOOS})
 			l.openFile = func(name string, flag int, perm os.FileMode) (*os.File, error) {
 				opens++
 

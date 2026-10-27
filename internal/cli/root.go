@@ -180,14 +180,15 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 				return resolveErr
 			}
 
-			out, resume, err := openOut(settings, *flags)
-			if err != nil {
-				return err
-			}
+			out, resume, err := openOut(settings, *flags, false)
 
 			defer func() {
 				err = errors.Join(err, prefixed(out.release()))
 			}()
+
+			if err != nil {
+				return err
+			}
 
 			if out == nil {
 				return run(cmd, settings, recorder.Events(), positional, flags, nil, resume)
@@ -310,6 +311,25 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 	return root
 }
 
+func openOut(settings rootSettings, flags runFlags, readOnly bool) (*outFile, resumePlan, error) {
+	return openOutFile(outOptions{
+		openFile: settings.openFile,
+		stat:     settings.stat,
+		rename:   settings.rename,
+		remove:   settings.remove,
+		resolve:  settings.resolve,
+		readlink: settings.readlink,
+		lock:     settings.lock,
+		goos:     settings.goos,
+	}, outConfig{
+		path:     flags.out,
+		resume:   flags.resume,
+		output:   flags.output,
+		byID:     resumesByID(flags),
+		readOnly: readOnly,
+	})
+}
+
 func defaultSettings(info BuildInfo) rootSettings {
 	return rootSettings{
 		stdin:         os.Stdin,
@@ -325,7 +345,6 @@ func defaultSettings(info BuildInfo) rootSettings {
 		resolve:       filepath.EvalSymlinks,
 		readlink:      os.Readlink,
 		goos:          runtime.GOOS,
-		lock:          newLocker(runtime.GOOS).lockAnswers,
 		lookupEnv:     os.LookupEnv,
 		homeDir:       os.UserHomeDir,
 		now:           time.Now,

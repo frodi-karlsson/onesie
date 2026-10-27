@@ -13,6 +13,8 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -36,34 +38,35 @@ var (
 	ErrStaleAnswers = errors.New("stale answers")
 )
 
-func openOut(settings rootSettings, flags runFlags) (*outFile, resumePlan, error) {
-	return openOutFile(settings, flags, false)
-}
-
-func openOutFile(settings rootSettings, flags runFlags, readOnly bool) (*outFile, resumePlan, error) {
-	if flags.out == "" {
+func openOutFile(opts outOptions, config outConfig) (*outFile, resumePlan, error) {
+	if config.path == "" {
 		return nil, resumePlan{}, nil
 	}
 
+	opts = opts.withDefaults()
+	if opts.lock == nil {
+		opts.lock = newLocker(opts).lockAnswers
+	}
+
 	out := &outFile{
-		path:     flags.out,
-		open:     settings.openFile,
-		rename:   settings.rename,
-		remove:   settings.remove,
-		goos:     settings.goos,
-		readOnly: readOnly,
+		path:     config.path,
+		open:     opts.openFile,
+		rename:   opts.rename,
+		remove:   opts.remove,
+		goos:     opts.goos,
+		readOnly: config.readOnly,
 	}
 
 	// Once, and ahead of the lock, so a run through a symlink and a run into its target take the
 	// same lock, read the same fingerprint and compact beside the same file.
-	target, err := resolveTarget(flags.out, settings.resolve, settings.readlink)
+	target, err := resolveTarget(config.path, opts.resolve, opts.readlink)
 	if err != nil {
 		return nil, resumePlan{}, err
 	}
 
 	out.target = target
 
-	special, err := specialFile(target, settings.goos, settings.stat)
+	special, err := specialFile(target, opts.goos, opts.stat)
 	if err != nil {
 		return nil, resumePlan{}, err
 	}
@@ -72,9 +75,9 @@ func openOutFile(settings rootSettings, flags runFlags, readOnly bool) (*outFile
 
 	// A device or a pipe has no answers another run could lose, so it takes no lock.
 	if special {
-		if flags.resume {
+		if config.resume {
 			return nil, resumePlan{}, fmt.Errorf(
-				"--resume needs --out to name a regular file, and %s is not one", flags.out)
+				"--resume needs --out to name a regular file, and %s is not one", config.path)
 		}
 
 		return out, resumePlan{}, nil
@@ -82,31 +85,84 @@ func openOutFile(settings rootSettings, flags runFlags, readOnly bool) (*outFile
 
 	// Held for the whole run, since a second run appending to the file, truncating it or renaming
 	// its own compaction over it would lose answers this one wrote.
-	if err := out.lock(settings.lock, flags.resume); err != nil {
+	if err := out.lock(opts.lock, config.resume); err != nil {
 		return nil, resumePlan{}, err
 	}
 
-	if !flags.resume {
+	if !config.resume {
 		return out, resumePlan{}, nil
 	}
 
-	resume, resumeErr := resumeOut(out, settings, flags)
+	// The file comes back still locked, so the caller's release reports a failure to unlock in
+	// its own words.
+	resume, resumeErr := resumeOut(out, config)
 	if resumeErr != nil {
-		return nil, resumePlan{}, errors.Join(resumeErr, prefixed(out.release()))
+		return out, resumePlan{}, resumeErr
 	}
 
 	return out, resume, nil
 }
 
-func resumeOut(out *outFile, settings rootSettings, flags runFlags) (resumePlan, error) {
+type outOptions struct {
+	openFile func(name string, flag int, perm os.FileMode) (*os.File, error)
+	stat     func(name string) (fs.FileInfo, error)
+	rename   func(oldpath, newpath string) error
+	remove   func(name string) error
+	resolve  func(path string) (string, error)
+	readlink func(name string) (string, error)
+	lock     func(answers string) (release func() error, err error)
+	goos     string
+}
+
+func (o outOptions) withDefaults() outOptions {
+	if o.openFile == nil {
+		o.openFile = os.OpenFile
+	}
+
+	if o.stat == nil {
+		o.stat = os.Stat
+	}
+
+	if o.rename == nil {
+		o.rename = os.Rename
+	}
+
+	if o.remove == nil {
+		o.remove = os.Remove
+	}
+
+	if o.resolve == nil {
+		o.resolve = filepath.EvalSymlinks
+	}
+
+	if o.readlink == nil {
+		o.readlink = os.Readlink
+	}
+
+	if o.goos == "" {
+		o.goos = runtime.GOOS
+	}
+
+	return o
+}
+
+type outConfig struct {
+	path     string
+	resume   bool
+	output   string
+	byID     bool
+	readOnly bool
+}
+
+func resumeOut(out *outFile, config outConfig) (resumePlan, error) {
 	if err := out.removeStalePart(); err != nil {
 		return resumePlan{}, err
 	}
 
 	var resume resumePlan
 
-	if flags.output == "csv" || flags.output == "tsv" {
-		rows, length, err := completeRows(settings, flags.out, flags.output == "csv")
+	if config.output == "csv" || config.output == "tsv" {
+		rows, length, err := out.completeRows(config.output == "csv")
 		if err != nil {
 			return resumePlan{}, err
 		}
@@ -118,21 +174,21 @@ func resumeOut(out *outFile, settings rootSettings, flags runFlags) (resumePlan,
 			resume.header = true
 		}
 
-		if rows > 0 && !resumesByID(flags) {
+		if rows > 0 && !config.byID {
 			resume.skip = rows - 1
 		}
 
 		return resume, nil
 	}
 
-	lines, length, err := completeLines(settings, flags.out)
+	lines, length, err := out.completeLines()
 	if err != nil {
 		return resumePlan{}, err
 	}
 
 	out.resumeAt(length)
 
-	if !resumesByID(flags) {
+	if !config.byID {
 		resume.skip = lines
 	}
 
@@ -143,10 +199,6 @@ type resumePlan struct {
 	skip   int
 	header bool
 	stored []verdict
-}
-
-func resumesByID(flags runFlags) bool {
-	return flags.idSource != ""
 }
 
 func specialFile(target, goos string, stat func(string) (fs.FileInfo, error)) (bool, error) {
@@ -504,7 +556,25 @@ func (r *forwardReader) copy(w io.Writer, from, to int64) error {
 	return err
 }
 
-func (o *outFile) bind(fingerprint string) error {
+func (o *outFile) bind(questions []plan.Question, wired json.Marshaler, inputs fingerprintInputs) error {
+	fingerprint, err := fingerprintOf(questions, wired, inputs)
+	if err != nil {
+		return err
+	}
+
+	if delimitedOutput(inputs.output) && hasFallback(questions) {
+		older := inputs
+		older.withoutFallbackColumns = true
+
+		if o.olderColumns, err = fingerprintOf(questions, wired, older); err != nil {
+			return err
+		}
+	}
+
+	return o.bindFingerprint(fingerprint)
+}
+
+func (o *outFile) bindFingerprint(fingerprint string) error {
 	if o.resume {
 		matched, err := o.checkFingerprint(fingerprint)
 		if err != nil {
@@ -821,7 +891,7 @@ func (o *outFile) writeFingerprint() error {
 	return nil
 }
 
-func fingerprintOf(questions []plan.Question, inputs fingerprintInputs) (string, error) {
+func fingerprintOf(questions []plan.Question, wired json.Marshaler, inputs fingerprintInputs) (string, error) {
 	encoded, err := json.Marshal(struct {
 		Questions   json.Marshaler `json:"questions"`
 		Policies    []policyPrint  `json:"policies"`
@@ -843,7 +913,7 @@ func fingerprintOf(questions []plan.Question, inputs fingerprintInputs) (string,
 		// A mock run and a real run never resume each other's file.
 		Mock bool `json:"mock,omitempty"`
 	}{
-		Questions: wireAll(questions),
+		Questions: wired,
 		Policies:  policiesOf(questions),
 		Provider:  inputs.provider,
 		Model:     inputs.model,
@@ -876,7 +946,9 @@ func delimitedOutput(name string) bool {
 }
 
 func hasFallback(questions []plan.Question) bool {
-	return len(fallbackIDs(questions)) > 0
+	return slices.ContainsFunc(questions, func(question plan.Question) bool {
+		return question.Policy.Fallback != nil
+	})
 }
 
 type fingerprintInputs struct {
@@ -925,19 +997,19 @@ type policyPrint struct {
 	Fallback      *string  `json:"fallback"`
 }
 
-func completeRows(settings rootSettings, path string, quoted bool) (rows int, length int64, err error) {
+func (o *outFile) completeRows(quoted bool) (rows int, length int64, err error) {
 	// TSV has no quoting, so a row is a line.
 	if !quoted {
-		return completeLines(settings, path)
+		return o.completeLines()
 	}
 
-	file, err := settings.openFile(path, os.O_RDONLY, 0)
+	file, err := o.open(o.path, os.O_RDONLY, 0)
 	if errors.Is(err, os.ErrNotExist) {
 		return 0, 0, nil
 	}
 
 	if err != nil {
-		return 0, 0, fmt.Errorf("reading %s to resume: %w", path, err)
+		return 0, 0, fmt.Errorf("reading %s to resume: %w", o.path, err)
 	}
 
 	defer func() {
@@ -967,14 +1039,14 @@ func completeRows(settings rootSettings, path string, quoted bool) (rows int, le
 	}
 }
 
-func completeLines(settings rootSettings, path string) (lines int, length int64, err error) {
-	file, err := settings.openFile(path, os.O_RDONLY, 0)
+func (o *outFile) completeLines() (lines int, length int64, err error) {
+	file, err := o.open(o.path, os.O_RDONLY, 0)
 	if errors.Is(err, os.ErrNotExist) {
 		return 0, 0, nil
 	}
 
 	if err != nil {
-		return 0, 0, fmt.Errorf("reading %s to resume: %w", path, err)
+		return 0, 0, fmt.Errorf("reading %s to resume: %w", o.path, err)
 	}
 
 	defer func() {
@@ -1004,6 +1076,6 @@ func completeLines(settings rootSettings, path string) (lines int, length int64,
 			return lines, length, nil
 		}
 
-		return 0, 0, fmt.Errorf("reading %s to resume: %w", path, readErr)
+		return 0, 0, fmt.Errorf("reading %s to resume: %w", o.path, readErr)
 	}
 }

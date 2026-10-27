@@ -22,22 +22,12 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/output"
 )
 
-func resumeLedger(
-	ctx context.Context,
-	answers *outFile,
-	flags runConfig,
-	namer *jq.Expr,
-	mode output.Mode,
-	gated bool,
-) (*ledger, error) {
-	if answers == nil || !answers.resume || namer == nil {
+func resumeLedger(ctx context.Context, answers *outFile, format answersFormat) (*ledger, error) {
+	if answers == nil || !answers.resume || format.namer == nil {
 		return nil, nil
 	}
 
 	book := &ledger{answered: map[ledgerKey]answeredLine{}}
-	format := answersFormat{
-		mode: mode, merge: merging(flags), mergeKey: mergeKey(flags), namer: namer, gated: gated,
-	}
 
 	err := readAnswers(ctx, answers, func(r io.Reader) error {
 		return format.eachAnswer(ctx, r, book.note)
@@ -50,14 +40,9 @@ func resumeLedger(
 }
 
 func resumedVerdicts(
-	ctx context.Context,
-	answers *outFile,
-	namer *jq.Expr,
-	format answersFormat,
-	flags runConfig,
-	resume resumePlan,
+	ctx context.Context, answers *outFile, format answersFormat, stopOnError bool, resume resumePlan,
 ) (resumePlan, error) {
-	if answers == nil || !answers.resume || namer != nil {
+	if answers == nil || !answers.resume || format.namer != nil {
 		return resume, nil
 	}
 
@@ -79,7 +64,7 @@ func resumedVerdicts(
 	// A run stopped by --stop-on-error writes nothing after the record it stopped at, so a stored
 	// failure on the last line is where it stopped, and that record is asked again. The line is
 	// trimmed with the partial one, under the lock, on the first write.
-	if flags.stopOnError && len(judged) > 0 && judged[len(judged)-1].failure != nil {
+	if stopOnError && len(judged) > 0 && judged[len(judged)-1].failure != nil {
 		answers.resumeAt(last.start)
 		resume.skip--
 		resume.stored = judged[:len(judged)-1]

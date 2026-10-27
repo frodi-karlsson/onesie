@@ -16,7 +16,9 @@ func resumeLabelled(
 ) (resumedSet, error) {
 	resumed := resumedSet{pending: set.records, answered: make([]output.Record, len(set.records))}
 
-	book, err := resumeLedger(ctx, out, flags, namer, output.JSON, false)
+	book, err := resumeLedger(ctx, out, answersFormat{
+		mode: output.JSON, merge: merging(flags), mergeKey: mergeKey(flags), namer: namer,
+	})
 	if err != nil || book == nil {
 		return resumed, err
 	}

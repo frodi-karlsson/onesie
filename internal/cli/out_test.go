@@ -1118,7 +1118,7 @@ func TestOutFile_Write(t *testing.T) {
 			}
 
 			if tc.bind {
-				if err := out.bind("v1:" + strings.Repeat("a", 64)); err != nil {
+				if err := out.bindFingerprint("v1:" + strings.Repeat("a", 64)); err != nil {
 					t.Fatalf("bind: %v", err)
 				}
 			}
@@ -1282,7 +1282,7 @@ func TestOutFile_Finish(t *testing.T) {
 				goos:   goos,
 				resume: true,
 			}
-			if err := out.bind("v1:" + strings.Repeat("a", 64)); err != nil {
+			if err := out.bindFingerprint("v1:" + strings.Repeat("a", 64)); err != nil {
 				t.Fatalf("bind: %v", err)
 			}
 
@@ -1464,7 +1464,7 @@ func fingerprintWith(t *testing.T, source plan.Source, inputs fingerprintInputs)
 		t.Fatalf("assembling %q: %v", source.Positional, err)
 	}
 
-	fingerprint, err := fingerprintOf(built.Questions, inputs)
+	fingerprint, err := fingerprintOf(built.Questions, wireAll(built.Questions), inputs)
 	if err != nil {
 		t.Fatalf("fingerprinting %q: %v", source.Positional, err)
 	}

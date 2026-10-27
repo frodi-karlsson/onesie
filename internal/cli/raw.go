@@ -56,7 +56,7 @@ func streamRaw(
 		}
 	}
 
-	resume, readErr := resumedVerdicts(cmd.Context(), answers, nil, answersFormat{forwarded: true}, flags, resume)
+	resume, readErr := resumedVerdicts(cmd.Context(), answers, answersFormat{forwarded: true}, flags.stopOnError, resume)
 	if readErr != nil {
 		return readErr
 	}
