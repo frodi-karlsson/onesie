@@ -201,7 +201,7 @@ func refuseTakenItem(profiles Profiles, name, account string, toFile bool) error
 		return nil
 	}
 
-	return fmt.Errorf("profile '%s' already uses the keychain item %s. Delete or update it first", owner, account)
+	return fmt.Errorf("profile %s already uses the keychain item %s. Delete or update it first", QuotedName(owner), account)
 }
 
 func sharedItem(profiles Profiles, except, account string) bool {

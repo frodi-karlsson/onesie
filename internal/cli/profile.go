@@ -134,7 +134,7 @@ func profileCreate(
 
 	if _, taken := opened.Profiles.Profiles[name]; taken {
 		return fmt.Errorf("profile %s exists. Change it with onesie profile update %s, "+
-			"or delete it and create it again", quotedName(name), quotedName(name))
+			"or delete it and create it again", creds.QuotedName(name), creds.QuotedName(name))
 	}
 
 	profile := creds.Profile{
@@ -219,14 +219,14 @@ func profileUpdate(
 	if profile == old && !fields.key {
 		if already := alreadySet(old, changed); already != "" {
 			_, printErr := fmt.Fprintf(cmd.ErrOrStderr(), "onesie: profile %s is unchanged, since %s\n",
-				quotedName(name), already)
+				creds.QuotedName(name), already)
 
 			return printErr
 		}
 
 		return fmt.Errorf(
 			"profile update %s changes nothing. Pass --model, --base-url, --account-id or --key",
-			quotedName(name))
+			creds.QuotedName(name))
 	}
 
 	// Ahead of the read, so a broken rule costs the user nothing.
@@ -760,14 +760,14 @@ func profilesToWrite(settings rootSettings) (string, creds.Opened, error) {
 }
 
 func noProfileNamed(name string, profiles creds.Profiles) error {
-	return fmt.Errorf("there is no profile named %s. %s", quotedName(name), knownProfiles(profiles))
+	return fmt.Errorf("there is no profile named %s. %s", creds.QuotedName(name), knownProfiles(profiles))
 }
 
 func checkGiven(profile creds.Profile, changed func(string) bool, providerGiven bool) error {
 	provider, err := onesie.ProviderNamed(profile.Provider)
 	if providerGiven && (err != nil || provider.Name != profile.Provider) {
-		return fmt.Errorf("--%s names '%s', which is not typesafe, openrouter, berget, levanto or cloudflare",
-			flagProvider, profile.Provider)
+		return fmt.Errorf("--%s names %s, which is not typesafe, openrouter, berget, levanto or cloudflare",
+			flagProvider, creds.QuotedName(profile.Provider))
 	}
 
 	accountGiven := changed(flagAccountID) && profile.AccountID != ""
@@ -864,9 +864,9 @@ func noticeLine(notice creds.Notice, change creds.Change) string {
 	case creds.KeyInFile:
 		return "warning: " + notice.Err.Error() + ". The key is in " + change.Path + " instead"
 	case creds.FirstDefault:
-		return "onesie: " + quotedName(change.Name) + " is the default profile, since it is the first"
+		return "onesie: " + creds.QuotedName(change.Name) + " is the default profile, since it is the first"
 	case creds.DefaultDeleted:
-		return "onesie: " + quotedName(change.Name) + " was the default, so no profile is the default now. " +
+		return "onesie: " + creds.QuotedName(change.Name) + " was the default, so no profile is the default now. " +
 			"Run onesie profile use NAME to choose one"
 	case creds.ItemLeftBehind:
 		return "warning: " + notice.Err.Error() + ". The keychain item " + notice.Account + " is left behind"

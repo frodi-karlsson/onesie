@@ -92,7 +92,7 @@ func resolveProfile(
 	profile, found := profiles.Profiles[name]
 	if !found {
 		return resolution{}, fmt.Errorf("%s names profile %s, which does not exist. %s",
-			by, quotedName(name), knownProfiles(profiles))
+			by, creds.QuotedName(name), knownProfiles(profiles))
 	}
 
 	return profileRun(name, profile, by)
@@ -105,11 +105,11 @@ func providerIsProfileHint(err error, chosen choice, profiles creds.Profiles) er
 
 	if chosen.by == envProvider {
 		return fmt.Errorf("%w. %s is a profile, so set %s=%s in place of %s",
-			err, quotedName(chosen.provider), envProfile, quotedName(chosen.provider), envProvider)
+			err, creds.QuotedName(chosen.provider), envProfile, creds.QuotedName(chosen.provider), envProvider)
 	}
 
 	return fmt.Errorf("%w. %s is a profile, so pass --profile %s in place of --provider",
-		err, quotedName(chosen.provider), quotedName(chosen.provider))
+		err, creds.QuotedName(chosen.provider), creds.QuotedName(chosen.provider))
 }
 
 func knownProfiles(profiles creds.Profiles) string {
@@ -123,14 +123,10 @@ func knownProfiles(profiles creds.Profiles) string {
 func quotedNames(names []string, sep string) string {
 	quoted := make([]string, 0, len(names))
 	for _, name := range names {
-		quoted = append(quoted, quotedName(name))
+		quoted = append(quoted, creds.QuotedName(name))
 	}
 
 	return strings.Join(quoted, sep)
-}
-
-func quotedName(name string) string {
-	return "'" + name + "'"
 }
 
 func providerRun(name, by string, lookupEnv func(string) (string, bool)) (resolution, error) {
@@ -297,10 +293,10 @@ func missingKeyHint(err error, bare resolution, profiles creds.Profiles) error {
 
 	if bare.by == envProvider {
 		return fmt.Errorf("%w, or unset %s and run onesie profile use %s, or run with --profile %s",
-			err, envProvider, quotedName(name), quotedName(name))
+			err, envProvider, creds.QuotedName(name), creds.QuotedName(name))
 	}
 
-	return fmt.Errorf("%w, or drop --provider and pass --profile %s", err, quotedName(name))
+	return fmt.Errorf("%w, or drop --provider and pass --profile %s", err, creds.QuotedName(name))
 }
 
 func firstProfileOf(provider string, profiles creds.Profiles) string {
@@ -326,7 +322,7 @@ func accountNote(
 		return err
 	}
 
-	return fmt.Errorf("%w, or run onesie profile update %s --account-id ACCOUNT_ID", err, quotedName(chosen.profile))
+	return fmt.Errorf("%w, or run onesie profile update %s --account-id ACCOUNT_ID", err, creds.QuotedName(chosen.profile))
 }
 
 func (r resolution) accountSource(lookupEnv func(string) (string, bool)) string {
