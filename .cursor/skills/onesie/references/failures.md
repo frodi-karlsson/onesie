@@ -96,14 +96,16 @@ Exit 3 also covers these:
 | `model '...' not found` | the provider does not serve that model id. Try `--list-models` |
 | `each side must be`, `an image must be PNG or JPEG` or `an image is at most` | onesie refused an `--image` file before any request, naming the limit `onesie -V` lists. Resize it to at most 1568 pixels a side, or convert it to PNG or a smaller JPEG. An `--image-field` file is an error line instead |
 | `needs an image in the request` | a `--box` question was asked with no `--image` or `--image-field` to look in |
-| `long_context` and `must be true or false` | a request body's `long_context` is not a boolean |
+| `long_context` and `must be true or false` | a request body's `long_context` is not a boolean. Under `-i request` it is an error line of kind `input`, and `--print-request` refuses it the same way |
+| `and at most` and `are allowed` | an `-i request` body holds a choice question with more options, or a score question with more levels, than `onesie -V` lists. It is an error line of kind `input`, and nothing is sent for it |
 | `takes no images`, `takes no box questions` or `takes no long context` | the provider cannot take what the run asks for. The message names the providers that can, so ask with one of them through `--provider` |
-| `no cloudflare account id` | cloudflare has a token and no account. Set `CLOUDFLARE_ACCOUNT_ID`, or store one in the profile with `onesie profile update NAME --account-id ACCOUNT_ID` |
-| `is plain http to a host other than this machine` | the base URL from `--base-url`, `TYPESAFE_BASE_URL` or a profile's `base_url` is `http://` to a host other than `localhost`, `127.0.0.0/8`, also in IPv4-mapped form, or `::1`, so the key would travel unencrypted. Use https, or pass `--allow-http` to send it anyway. A profile stored with an http `base_url` needs `--allow-http` on every run |
-| `must not hold @, ? or #` | the base URL from `--base-url`, `TYPESAFE_BASE_URL` or a profile's `base_url` holds `@`, `?` or `#`, as credentials, a query or a fragment do. Pass the API root alone, and keep the key in a profile or the provider's key variable |
+| `no cloudflare account id` | cloudflare has a token and no account. Set `CLOUDFLARE_ACCOUNT_ID`, or store one in the profile with `onesie profile update NAME --account-id ACCOUNT_ID`, or in a new one with `onesie profile create NAME --provider cloudflare --account-id ACCOUNT_ID` |
+| `is plain http to a host other than this machine` | the base URL the message names, `--base-url`, `TYPESAFE_BASE_URL` or `the profile's base_url`, is `http://` to a host other than `localhost`, `127.0.0.0/8`, also in IPv4-mapped form, or `::1`, so the key would travel unencrypted. Use https, or pass `--allow-http` to send it anyway. A profile stored with an http `base_url` needs `--allow-http` on every run |
+| `must not hold @, ? or #` | the base URL the message names holds `@`, `?` or `#`, as credentials, a query or a fragment do. Pass the API root alone, and keep the key in a profile or the provider's key variable |
+| `names no host`, `is not an http or https URL` or `does not parse` | the base URL the message names is not an absolute http or https URL with a host. Write it as `https://HOST`, with a path after it when the server needs one |
 | `Insufficient balance` | Cloudflare's AI Gateway has no credits for Jev. Add credits, or ask Clef with `-m clef-flash`, which runs on the free allowance |
 | `No such model` | Workers AI does not serve that model id. Clef's are `clef`, `clef-flash` and `clef-omni`. Try `--list-models` |
-| `A box question needs a model that serves it` | the model refused a `--box` question on TypeSafe. Pass `-m jev-preview` |
+| `A box question needs a model that serves it` | the model refused a `--box` question on TypeSafe or OpenRouter. Pass `-m jev-preview` |
 | `max_tokens_exceeded` | the state and questions are over the model's context limit. Trim the state with `--map`, or pass `--long-context`, which is slower and less accurate |
 
 Every flag and question error is caught before any network call. Reach for `--print-request` or
