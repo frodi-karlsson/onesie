@@ -149,7 +149,10 @@ func runCalibrate(
 	cmd *cobra.Command, settings rootSettings, parsed *runFlags, calib calibrateFlags,
 	events []argv.Event, positional string,
 ) error {
-	flags, err := newRunConfig(cmd, settings.lookupEnv, calib.withInput(*parsed), events, positional)
+	own := *parsed
+	own.input = calib.input
+
+	flags, err := newRunConfig(cmd, settings.lookupEnv, own, events, positional)
 	if err != nil {
 		return err
 	}
@@ -467,12 +470,6 @@ type calibrateFlags struct {
 	report   string
 	input    string
 	offline  bool
-}
-
-func (c calibrateFlags) withInput(flags runFlags) runFlags {
-	flags.input = c.input
-
-	return flags
 }
 
 type questionLabel struct {
