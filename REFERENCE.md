@@ -287,19 +287,21 @@ onesie calibrate -f shell-safety -i jsonl --map .command --id .id \
   number from 1. A blank line `--skip-blank` drops still counts, so the numbers match the file. Under
   `--merge` it sits in the answers object, beside `model`. `-o csv`, `-o tsv`, `-o markdown` and raw
   output leave it out, and `line` is a reserved question id under `-i lines`.
-- `line` is not part of the `--out` fingerprint. A resume with `--id` keeps each stored line as
-  written, so a skipped record keeps the line number it was answered at, as it keeps its answer.
+- A resume with `--id` keeps each stored line as written, so a skipped record keeps the line
+  number it was answered at, as it keeps its answer.
 - `--id` names each record on every output line. It runs one record at a time, so keep it a cheap
   lookup. Ids match by their text, so `7`, `7.0` and `"7"` are one id in jsonl.
-- `--out` writes to a file with a fingerprint beside it, and a lock so two runs cannot share it. The
-  fingerprint covers the questions and their policy flags, the provider, the model, the input and
-  output modes, `--map`, `--id`, `--merge-key`, `--assert`, `--abstain-if`, `--image`,
-  `--image-field`, a body's images and long context. It covers `--skip-blank` too when a resume
-  counts lines, which is without `--id` on any input but csv and tsv.
+- `--out` writes to a file with a fingerprint beside it, and a lock so two runs cannot share it.
+- `--resume` refuses with exit 2 when a change would alter what a record is asked or what its line
+  holds: the questions or their policy flags, the provider, the model, the images, long context,
+  `--mock`, the input or output format, `--map`, `--id`, `--merge-key`, `--assert` or
+  `--abstain-if`. `--skip-blank` counts too when a resume counts lines, which is without `--id` on
+  any input but csv and tsv. A file written by another onesie version is refused the same way.
+  `-j`, `--timeout`, `--retries`, `--cache` and `--unordered` can change between runs.
 - `--resume` with `--id` skips answered records and asks the rest, failed ones included. A finished
   run rewrites the file in input order and keeps answered ids missing from the input, unless
-  `--prune` drops them. A changed fingerprint refuses with exit 2. A record whose content changed
-  but whose id did not keeps its old answer. Without `--id`, it carries on by line count. It does
+  `--prune` drops them. A record whose content changed but whose id did not keeps its old answer.
+  Without `--id`, it carries on by line count. It does
   not ask a failed record again, apart from the `--stop-on-error` case below, so a skipped error
   line still counts as failed toward exit 6 and `--stats`, under `-i request` too. Either way, a
   skipped record keeps its stored `--assert` outcome, so it counts toward the exit code and
@@ -308,8 +310,8 @@ onesie calibrate -f shell-safety -i jsonl --map .command --id .id \
   Under `--stop-on-error`, a resume by line count whose last line is an error line drops that line,
   asks its record again and carries on. A run stopped by `--stop-on-error` leaves exactly that, so
   a rerun makes progress once the cause is gone. An error line with more lines after it was written
-  without `--stop-on-error`, so the resume stops there before any request, with the code a fresh
-  run exited with, rebuilt from the line's kind and status. A csv or tsv row keeps only the
+  without `--stop-on-error`, so the resume stops there before any request and exits with the failed
+  record's own code, as a fresh run under `--stop-on-error` would. A csv or tsv row keeps only the
   message, so there it exits 2. Either way, pass `--id` or drop `--stop-on-error` to carry on. The
   same holds under `-i request`. With `--id` the failed record is asked again, and stops the run
   only if it fails again.
@@ -423,10 +425,10 @@ and `calibrate`, `--mock` and `--print-request` included.
 `--cache=false` turns the cache off for one run under `ONESIE_CACHE=1`, so that run asks the API
 again.
 
-- The key is a sha256 of the request body as `--print-request` writes it, which holds the state, the
-  questions, the model name and long context, together with the provider, the base URL and the bytes
-  of each image. `--timeout`, `--retries`, `--assert`, `--abstain-if`, the policy flags and the
-  output flags are left out, since none of them change the answer.
+- A stored answer is used only for the same request. A change to the state, the questions, the
+  model, long context, the provider, the base URL or any image asks the API again. `--timeout`,
+  `--retries`, `--assert`, `--abstain-if`, the policy flags and the output flags never change the
+  answer, so a run that differs only in those still hits.
 - A hit prints what the live run printed, byte for byte, except that `--usage` reports
   `{"input_tokens":0,"output_tokens":0}` and no cost. `--stats` counts a hit as a record and not a
   request, as in `1 record, 1 cached, 0 requests`. Gates, exit codes, `--out` and `--resume` work as
@@ -467,9 +469,9 @@ again.
 - Deduplication covers repeats within one run, the cache covers repeats across runs, and `--resume`
   skips the ids an `--out` file already answers. A group of identical records asks the cache once,
   so a group whose first record hits counts one cached record and the rest deduplicated. A cached
-  line in `--out` carries zero usage like any other hit. The fingerprint leaves `--cache` out, so a
-  file written with the cache resumes without it, and the other way round. `calibrate --cache`
-  works too.
+  line in `--out` carries zero usage like any other hit. Turning the cache on or off never refuses
+  a resume, so a file written with the cache resumes without it, and the other way round.
+  `calibrate --cache` works too.
 - `onesie cache` prints how many entries the cache holds, how many of them expire since their model
   is an alias, their size and the directory, or `0 entries in DIR` when there is none. It creates nothing, and names a
   directory others can reach on stderr. `onesie cache clear` removes every entry, keeps the directory

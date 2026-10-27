@@ -56,41 +56,54 @@ never runs on a pull request.
 The public System One client is maintained in the `github.com/frodi-karlsson/onesie-go` module.
 
 ```
-cmd/onesie/           thin main: signal handling, exit codes, ldflags targets
-cmd/skillgen/         generates the per client skill files from skills/
+cmd/onesie/           thin main: signal handling and ldflags targets
+cmd/examplesanswers/  regenerates the starter sets' answers files from the live API, for make examples-answers
+cmd/examplesimage/    writes examples/images/square.png, for make examples-image
+cmd/formulagen/       writes the Homebrew formula for a release from its checksums.txt
+cmd/proseblocks/      writes the Go and Markdown prose a diff adds as JSON lines, for the history lessons check
+cmd/releaseprep/      checks a release tag and bumps the plugin manifests, for scripts/release.sh
 cmd/skillcheck/       dry runs every example in every skill against the built binary, and checks the prose flags
 cmd/skilleval/        dry runs every onesie command an agent wrote in a plugin eval run
-cmd/releaseprep/      checks a release tag and bumps the plugin manifests, for scripts/release.sh
-cmd/proseblocks/      writes the Go and Markdown prose a diff adds as JSON lines, for the history lessons check
-internal/cli/         the cobra command tree, unexported and testable in process
+cmd/skillgen/         generates the per client skill files from skills/
+internal/answer/      normalizes an answer and applies the question's policy
+internal/answersfile/ opens, locks, resumes and compacts the file a run writes its answers to
 internal/argv/        records the group local flags in the order they arrive
-internal/plan/        folds a recorded command line into a validated invocation
+internal/assert/      parses and evaluates --assert and --abstain-if
+internal/cache/       stores responses on disk under a sha256 key, with alias lifetimes and least recently used eviction
+internal/calibrate/   reads the labels calibrate compares with, and scores the answers
+internal/cli/         the cobra command tree, unexported and testable in process, with the exit codes in exit.go
+internal/creds/       reads and writes profiles.json and the keychain items, and converts credentials.json once
+internal/engine/      runs one evaluation per record, bounded by -j and ordered by input
+internal/formula/     renders the Homebrew formula for a release from its checksums
 internal/input/       resolves where the state comes from and reads it
 internal/interrupt/   stops waiting on a read that has no deadline when the run is interrupted
-internal/qfile/       loads and writes a question file or a raw request body
-internal/engine/      runs one evaluation per record, bounded by -j and ordered by input
 internal/jq/          compiles and runs the jq expressions --map and --id take
-internal/answer/      normalizes an answer and applies the question's policy
-internal/assert/      parses and evaluates --assert and --abstain-if
-internal/calibrate/   reads the labels calibrate compares with, and scores the answers
-internal/output/      encodes a normalized record in each output mode
-internal/creds/       reads and writes profiles.json and the keychain items, and converts credentials.json once
 internal/limits/      the API limits onesie enforces locally
-internal/skillgen/    decodes and validates skill.json and renders the skill files
+internal/mock/        reads a file of canned answers and checks it against the questions a run asks
+internal/num/         writes and rounds the numbers onesie prints, the same in every output mode
+internal/output/      encodes a normalized record in each output mode
+internal/patherr/     strips the operation and path from an *fs.PathError, for a message that names the path itself
+internal/plan/        folds a recorded command line into a validated invocation
+internal/proseblocks/ splits Go comments and Markdown into blocks of prose, one per comment group, paragraph or list item
+internal/qfile/       loads and writes a question file or a raw request body
+internal/release/     orders release tags by semver and edits the plugin manifests in place
 internal/skillcheck/  dry runs each skill rule's bad and good example, and checks the flags the prose names against --help
 internal/skilleval/   extracts and grades the commands of a plugin eval run
-internal/release/     orders release tags by semver and edits the plugin manifests in place
-internal/proseblocks/ splits Go comments and Markdown into blocks of prose, one per comment group, paragraph or list item
+internal/skillgen/    decodes and validates skill.json and renders the skill files
+examples/             describes the starter question sets, and tests their gates against the committed answers
+examples/data/        the labelled records of each starter set and their committed answers files
+examples/images/      the example image the docs and skills use
+examples/questions/   the starter question sets built into onesie, which -f finds by name
+evals/                the plugin eval cases make skills-eval runs
+hooks/                the session start hook that checks onesie is on PATH and a key resolves
+schema/               the JSON Schema for a question file, written by make schema
+skills/               the skill sources make skills renders into .agents/, .cursor/ and each skill's SKILL.md
 scripts/release.sh    the steps behind make release
 ```
 
 `internal/` keeps everything unexported until there is a reason to publish an
 API. New packages go under `internal/` first and graduate out only when
 something outside this module needs them.
-
-Timeouts in `onesie` are per attempt, not per call. With the default policy a call retries
-twice, so it can outlast the attempt timeout. Bound a whole call with a context deadline or
-`WithTotalTimeout`.
 
 ## History lessons check
 
