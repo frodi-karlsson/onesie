@@ -18,6 +18,29 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
+// CheckAll reports the first answer in result that does not fit its question, as Normalize would.
+func CheckAll(questions []plan.Question, result *onesie.Result) error {
+	_, err := NormalizeAll(questions, result)
+
+	return err
+}
+
+// NormalizeAll normalizes the answer to every question, in question order.
+func NormalizeAll(questions []plan.Question, result *onesie.Result) ([]*Answer, error) {
+	normalized := make([]*Answer, 0, len(questions))
+
+	for _, question := range questions {
+		one, err := Normalize(question, result.Answers[question.ID])
+		if err != nil {
+			return nil, err
+		}
+
+		normalized = append(normalized, one)
+	}
+
+	return normalized, nil
+}
+
 // Normalize turns one API answer into the printed shape, keeping the API's own keys when the
 // question carries no labels.
 func Normalize(q plan.Question, raw onesie.Answer) (*Answer, error) {
@@ -58,13 +81,13 @@ func Normalize(q plan.Question, raw onesie.Answer) (*Answer, error) {
 }
 
 func unusable(format string, args ...any) error {
-	// An answer that does not fit the question is deterministic, so it is a 200 whose body onesie
-	// could not use rather than a transport failure. That gives it kind response in a stream and
-	// exit 4 in a single shot run, and the same retry would only get it again.
-	return &onesie.ResponseError{
-		Status:  http.StatusOK,
-		Message: "onesie: 200 response could not be used: " + fmt.Sprintf(format, args...),
-	}
+	return Unusable(fmt.Sprintf(format, args...))
+}
+
+// Unusable is a 200 response onesie could not use. It has kind response in a stream and exits 4 in a
+// single shot run, since the same request would only get it again.
+func Unusable(reason string) error {
+	return &onesie.ResponseError{Status: http.StatusOK, Message: "onesie: 200 response could not be used: " + reason}
 }
 
 func unit(value float64) bool {

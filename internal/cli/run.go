@@ -1266,18 +1266,16 @@ func answered(
 		record.Usage = &usage
 	}
 
-	// SystemOne already refused a response missing any of these questions, since every caller asks
-	// built.Questions.
-	for _, question := range built.Questions {
-		normalized, normErr := answer.Normalize(question, result.Answers[question.ID])
-		if normErr != nil {
-			return spent(failureRecord(built, normErr), record.Usage), result.Usage, got.cached, normErr
-		}
+	normalized, normErr := answer.NormalizeAll(built.Questions, result)
+	if normErr != nil {
+		return spent(failureRecord(built, normErr), record.Usage), result.Usage, got.cached, normErr
+	}
 
-		answer.Apply(question, normalized)
+	for i, question := range built.Questions {
+		answer.Apply(question, normalized[i])
 
 		record.Answers = append(record.Answers,
-			output.Named{ID: question.ID, Answer: normalized, Box: question.Shape == plan.Box})
+			output.Named{ID: question.ID, Answer: normalized[i], Box: question.Shape == plan.Box})
 	}
 
 	return record, result.Usage, got.cached, nil

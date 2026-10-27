@@ -496,3 +496,92 @@ func TestNumber(t *testing.T) {
 		})
 	}
 }
+
+func TestNormalizeAll(t *testing.T) {
+	t.Parallel()
+
+	questions := []plan.Question{{ID: "a", Shape: plan.Noul}, {ID: "b", Shape: plan.Noul}}
+
+	t.Run("should normalize every answer in question order", func(t *testing.T) {
+		t.Parallel()
+
+		result := &onesie.Result{Answers: map[string]onesie.Answer{
+			"b": &onesie.NoulAnswer{Noul: 0.2}, "a": &onesie.NoulAnswer{Noul: 0.9},
+		}}
+
+		got, err := answer.NormalizeAll(questions, result)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if len(got) != 2 || got[0].Value != 0.9 || got[1].Value != 0.2 {
+			t.Errorf("NormalizeAll = %+v, want a then b", got)
+		}
+	})
+
+	t.Run("should refuse the first answer that does not fit", func(t *testing.T) {
+		t.Parallel()
+
+		result := &onesie.Result{Answers: map[string]onesie.Answer{"a": &onesie.NoulAnswer{Noul: 0.9}}}
+
+		if _, err := answer.NormalizeAll(questions, result); err == nil || err.Error() !=
+			"onesie: 200 response could not be used: question 'b' has no answer" {
+			t.Errorf("NormalizeAll = %v, want the missing answer to b", err)
+		}
+	})
+}
+
+func TestCheckAll(t *testing.T) {
+	t.Parallel()
+
+	questions := []plan.Question{{ID: "a", Shape: plan.Noul}}
+
+	tests := []struct {
+		name    string
+		answers map[string]onesie.Answer
+		wantErr bool
+	}{
+		{name: "should accept answers that fit", answers: map[string]onesie.Answer{"a": &onesie.NoulAnswer{Noul: 0.5}}},
+		{name: "should refuse an answer outside [0,1]", answers: map[string]onesie.Answer{"a": &onesie.NoulAnswer{Noul: 2}}, wantErr: true},
+		{name: "should refuse a missing answer", wantErr: true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := answer.CheckAll(questions, &onesie.Result{Answers: tc.answers})
+			if (err != nil) != tc.wantErr {
+				t.Errorf("CheckAll = %v, want an error %v", err, tc.wantErr)
+			}
+		})
+	}
+}
+
+func TestUnusable(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		reason string
+		want   string
+	}{
+		{
+			name: "should name a 200 onesie could not use", reason: "the response is not JSON",
+			want: "onesie: 200 response could not be used: the response is not JSON",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := answer.Unusable(tc.reason)
+
+			var response *onesie.ResponseError
+			if !errors.As(err, &response) || response.Status != http.StatusOK || err.Error() != tc.want {
+				t.Errorf("Unusable = %v, want a 200 ResponseError %q", err, tc.want)
+			}
+		})
+	}
+}

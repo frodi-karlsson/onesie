@@ -200,13 +200,7 @@ func decodeCached(value []byte, questions onesie.Questions) (*onesie.Result, boo
 }
 
 func (a *cachedAnswerer) usable(result *onesie.Result) bool {
-	for _, question := range a.questions {
-		if _, err := answer.Normalize(question, result.Answers[question.ID]); err != nil {
-			return false
-		}
-	}
-
-	return true
+	return answer.CheckAll(a.questions, result) == nil
 }
 
 func (a *cachedAnswerer) put(store *cache.Store, id cache.Key, result *onesie.Result) error {

@@ -354,21 +354,24 @@ func blankModel(value []byte) bool {
 }
 
 func checkRawResponse(request, response []byte) (onesie.Usage, error) {
-	if !json.Valid(response) {
-		return onesie.Usage{}, unusableResponse("the response is not JSON")
-	}
-
+	// The usage is read apart from the answers, so a 200 whose answers onesie cannot read still
+	// reports what it cost.
 	var probe struct {
 		Answers json.RawMessage `json:"answers"`
 		Usage   onesie.Usage    `json:"usage"`
 	}
 
-	if err := json.Unmarshal(response, &probe); err != nil {
-		return onesie.Usage{}, readableResponse(&onesie.ResponseError{Status: http.StatusOK, Err: err})
-	}
+	var syntax *json.SyntaxError
 
-	if !bytes.HasPrefix(bytes.TrimSpace(probe.Answers), []byte("{")) {
-		return probe.Usage, unusableResponse("the response is not a System One result, since it has no answers")
+	err := json.Unmarshal(response, &probe)
+
+	switch {
+	case errors.As(err, &syntax):
+		return onesie.Usage{}, answer.Unusable("the response is not JSON")
+	case err != nil:
+		return onesie.Usage{}, readableResponse(&onesie.ResponseError{Status: http.StatusOK, Err: err})
+	case !bytes.HasPrefix(bytes.TrimSpace(probe.Answers), []byte("{")):
+		return probe.Usage, answer.Unusable("the response is not a System One result, since it has no answers")
 	}
 
 	var result onesie.Result
@@ -377,22 +380,11 @@ func checkRawResponse(request, response []byte) (onesie.Usage, error) {
 	}
 
 	// Only a body whose questions onesie can read, as -f reads one, says what each answer must fit.
-	for _, question := range requestQuestions(request) {
-		if _, err := answer.Normalize(question, result.Answers[question.ID]); err != nil {
-			return probe.Usage, err
-		}
-	}
-
-	return probe.Usage, nil
-}
-
-func unusableResponse(reason string) error {
-	return &onesie.ResponseError{
-		Status: http.StatusOK, Message: "onesie: 200 response could not be used: " + reason,
-	}
+	return probe.Usage, answer.CheckAll(requestQuestions(request), &result)
 }
 
 func requestQuestions(request []byte) []plan.Question {
+	// qfile.Load reads a body with no questions key as a bare question map, so the key is looked for first.
 	var probe struct {
 		Questions json.RawMessage `json:"questions"`
 	}
