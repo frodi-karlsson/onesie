@@ -100,7 +100,7 @@ Exit 3 also covers these:
 | `takes no images`, `takes no box questions` or `takes no long context` | the provider cannot take what the run asks for. The message names the providers that can, so ask with one of them through `--provider` |
 | `no cloudflare account id` | cloudflare has a token and no account. Set `CLOUDFLARE_ACCOUNT_ID`, or store one in the profile with `onesie profile update NAME --account-id ACCOUNT_ID` |
 | `is plain http to a host other than this machine` | the base URL from `--base-url`, `TYPESAFE_BASE_URL` or a profile's `base_url` is `http://` to a host other than `localhost`, `127.0.0.0/8`, also in IPv4-mapped form, or `::1`, so the key would travel unencrypted. Use https, or pass `--allow-http` to send it anyway. A profile stored with an http `base_url` needs `--allow-http` on every run |
-| `must be a plain URL with no credentials` | the base URL from `--base-url`, `TYPESAFE_BASE_URL` or a profile's `base_url` holds credentials, `@`, `?` or `#`. Pass the API root alone, and keep the key in a profile or the provider's key variable |
+| `must not hold @, ? or #` | the base URL from `--base-url`, `TYPESAFE_BASE_URL` or a profile's `base_url` holds `@`, `?` or `#`, as credentials, a query or a fragment do. Pass the API root alone, and keep the key in a profile or the provider's key variable |
 | `Insufficient balance` | Cloudflare's AI Gateway has no credits for Jev. Add credits, or ask Clef with `-m clef-flash`, which runs on the free allowance |
 | `No such model` | Workers AI does not serve that model id. Clef's are `clef`, `clef-flash` and `clef-omni`. Try `--list-models` |
 | `A box question needs a model that serves it` | the model refused a `--box` question on TypeSafe. Pass `-m jev-preview` |

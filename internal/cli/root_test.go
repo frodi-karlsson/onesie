@@ -2728,7 +2728,7 @@ func TestDefaultClientFactory(t *testing.T) {
 					t.Error("stderr carries the base URL's password")
 				}
 
-				if refusal := "must be a plain URL with no credentials"; tc.refused != strings.Contains(errOut.String(), refusal) {
+				if refusal := "must not hold @, ? or #"; tc.refused != strings.Contains(errOut.String(), refusal) {
 					t.Errorf("stderr = %q, want the refusal %v", errOut.String(), tc.refused)
 				}
 
@@ -2827,7 +2827,7 @@ func TestDefaultClientFactory(t *testing.T) {
 					t.Error("stderr carries the base URL's password")
 				}
 
-				if refusal := "must be a plain URL with no credentials"; tc.refused != strings.Contains(errOut.String(), refusal) {
+				if refusal := "must not hold @, ? or #"; tc.refused != strings.Contains(errOut.String(), refusal) {
 					t.Errorf("stderr = %q, want the refusal %v", errOut.String(), tc.refused)
 				}
 

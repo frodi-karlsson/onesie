@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	refusedBaseURL = "the base URL must be a plain URL with no credentials, query or fragment. " +
+	refusedBaseURL = "the base URL must not hold @, ? or #. " +
 		"Put the API key in a profile or the provider's key variable instead"
 	allowHTTPHelp = "send the API key over a plain http base URL to a host other than localhost, " +
 		"127.0.0.0/8, also in IPv4-mapped form, or ::1. Without it such a base URL exits 2 before any request"
@@ -87,11 +87,6 @@ func clientBuilder(info BuildInfo, flags *runFlags, settings rootSettings) resol
 		client, err := onesie.New(opts...)
 		if err != nil {
 			return nil, explained(settings, flags, chosen, err)
-		}
-
-		// Again on the client's own, which a Cloudflare account builds when no base URL was given.
-		if refused := refuseUnclearBaseURL(client.BaseURL()); refused != nil {
-			return nil, refused
 		}
 
 		warning, refused := plainHTTPCheck(
