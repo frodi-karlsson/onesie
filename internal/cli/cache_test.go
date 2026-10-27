@@ -242,15 +242,14 @@ func TestCachedAnswerer(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		// Stored before the answer checks, so it reads back now as one they refuse.
-		stale := &onesie.Result{Model: "m", Answers: map[string]onesie.Answer{"u": &onesie.NoulAnswer{Noul: 1.5}}}
-		if putErr := cached.put(store, cache.Key(id), stale); putErr != nil {
+		outOfRange := &onesie.Result{Model: "m", Answers: map[string]onesie.Answer{"u": &onesie.NoulAnswer{Noul: 1.5}}}
+		if putErr := cached.put(store, cache.Key(id), outOfRange); putErr != nil {
 			t.Fatal(putErr)
 		}
 
 		got, err := asker.answer(t.Context(), key, request)
 		if err != nil || got.cached {
-			t.Fatalf("answer = %+v, %v, want a fresh answer past the stale entry", got, err)
+			t.Fatalf("answer = %+v, %v, want a fresh answer past the refused entry", got, err)
 		}
 
 		if requests := stub.requests.Load(); requests != 1 {

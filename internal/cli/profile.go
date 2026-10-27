@@ -243,8 +243,6 @@ func profileUpdate(
 
 	profile := updated(old, fields, changed)
 	if profile == old && !fields.key {
-		// A member named with the value it already has is a choice the file already holds, so it
-		// is noted rather than refused. Naming none is still a mistake.
 		if already := alreadySet(old, changed); already != "" {
 			_, err := fmt.Fprintf(cmd.ErrOrStderr(), "onesie: profile %s is unchanged, since %s\n", quotedName(name), already)
 

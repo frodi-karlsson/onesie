@@ -160,7 +160,6 @@ func keyHint(err error, chosen resolution) error {
 		return err
 	}
 
-	// Not a request to check the key, which the server's own message often already makes.
 	note := "The key came from " + chosen.provider.EnvAPIKey
 	if chosen.profile != "" {
 		note = "Replace the key with onesie profile update " + quotedName(chosen.profile) + " --key"

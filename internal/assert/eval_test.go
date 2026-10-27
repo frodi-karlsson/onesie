@@ -314,7 +314,6 @@ func zeroedRecord(t *testing.T, built *plan.Plan) output.Record {
 }
 
 func evalZeroed(q plan.Question) onesie.Answer {
-	// Every key but the winner carries no mass.
 	switch q.Shape {
 	case plan.Pick:
 		return &onesie.ChoiceAnswer{

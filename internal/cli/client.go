@@ -231,7 +231,7 @@ func explained(settings rootSettings, flags *runFlags, chosen resolution, err er
 		return err
 	}
 
-	// Read only now, so a run that names its provider and has its key never opens the file. An
+	// Read only here, so a run that names its provider and has its key never opens the file. An
 	// error reading it leaves the hint out, since the missing key is the failure to report.
 	opened, openErr := openedProfiles(settings)
 	if openErr != nil {

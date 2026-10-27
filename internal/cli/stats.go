@@ -359,7 +359,7 @@ type Stats struct {
 	Questions    int
 	InputTokens  int
 	OutputTokens int
-	// Cost is the summed cost the provider reported, which only OpenRouter does, and nil otherwise.
+	// Cost is the summed cost the provider reported, nil when it reported none.
 	Cost           *float64
 	Models         []string
 	Attempts       int

@@ -161,8 +161,8 @@ func (a *cachedAnswerer) answer(ctx context.Context, key recordKey, req onesie.R
 		return a.next.answer(ctx, key, req)
 	}
 
-	// An entry stored before a check onesie now makes would fail every run until it expires, so one
-	// that fails is passed over and replaced by a fresh answer.
+	// An entry that fails the answer checks would fail every run until it expires, so it is passed
+	// over and replaced by a fresh answer.
 	if hit {
 		if result, decoded := decodeCached(value, req.Questions); decoded && a.usable(result) {
 			return reply{result: result, cached: true}, nil
