@@ -359,9 +359,7 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 	root.SetFlagErrorFunc(func(cmd *cobra.Command, err error) error {
 		return withDashQuestionHint(hint(cmd, plainFlagError(cmd, err)), cmd.Flags(), settings.args, nil)
 	})
-	// Cobra adds the completion command inside Execute. Adding it here lets its argument check be set.
-	root.InitDefaultCompletionCmd()
-	completionTakesNoArguments(root)
+	addCompletionTakingNoArguments(root)
 
 	if settings.args != nil {
 		root.SetArgs(settings.args)
@@ -484,7 +482,9 @@ func (e *plainError) Unwrap() error {
 	return e.cause
 }
 
-func completionTakesNoArguments(root *cobra.Command) {
+func addCompletionTakingNoArguments(root *cobra.Command) {
+	root.InitDefaultCompletionCmd()
+
 	completion, _, err := root.Find([]string{"completion"})
 	if err != nil {
 		return
