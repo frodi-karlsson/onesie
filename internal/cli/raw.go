@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -164,12 +165,7 @@ func streamRaw(
 
 func withModel(body []byte, model string) []byte {
 	object := bytes.TrimSpace(body)
-	if model == "" || !bytes.HasPrefix(object, []byte("{")) {
-		return body
-	}
-
-	start, end, found, ok := modelValue(object)
-	if !ok {
+	if model == "" || !bytes.HasPrefix(object, []byte("{")) || !json.Valid(object) {
 		return body
 	}
 
@@ -179,54 +175,139 @@ func withModel(body []byte, model string) []byte {
 	}
 
 	// The body is otherwise sent as written, so the model goes in place or in front rather than
-	// through a decode and encode that would reorder the keys and reformat the numbers.
-	if found {
-		if value := string(object[start:end]); value != `""` && value != "null" {
-			return body
+	// through a decode and encode that would reorder the keys and reformat the numbers. Every empty
+	// model key is filled, since a server may read the first or the last of them.
+	spans := modelValues(object)
+	if len(spans) == 0 {
+		filled := append([]byte(`{"model":`), name...)
+		if rest := bytes.TrimSpace(object[1:]); bytes.HasPrefix(rest, []byte("}")) {
+			return append(filled, rest...)
 		}
 
-		return slices.Concat(object[:start], name, object[end:])
+		return slices.Concat(filled, []byte(","), object[1:])
 	}
 
-	filled := append([]byte(`{"model":`), name...)
-	if rest := bytes.TrimSpace(object[1:]); bytes.HasPrefix(rest, []byte("}")) {
-		return append(filled, rest...)
+	filled, at := []byte{}, 0
+
+	for _, span := range spans {
+		if !blankModel(object[span[0]:span[1]]) {
+			continue
+		}
+
+		filled = slices.Concat(filled, object[at:span[0]], name)
+		at = span[1]
 	}
 
-	return slices.Concat(filled, []byte(","), object[1:])
+	if at == 0 {
+		return body
+	}
+
+	return append(filled, object[at:]...)
 }
 
-func modelValue(object []byte) (start, end int, found, ok bool) {
-	// Walked key by key, since encoding/json matches a field name in any case and a body that holds
-	// only Model names no model the API reads.
-	decoder := json.NewDecoder(bytes.NewReader(object))
-	if _, err := decoder.Token(); err != nil {
-		return 0, 0, false, false
-	}
+func modelValues(object []byte) [][2]int {
+	// A scan of a body json.Valid passed, rather than a decode, so the assets a body carries are
+	// walked past and never copied. Only the exact key model counts, since encoding/json would match
+	// Model too and the API reads only model.
+	var spans [][2]int
 
-	for decoder.More() {
-		key, err := decoder.Token()
-		if err != nil {
-			return 0, 0, false, false
+	for i := 1; i < len(object); {
+		i = skipSpace(object, i)
+		if object[i] == ',' {
+			i++
+
+			continue
 		}
 
-		var value json.RawMessage
-		if err := decoder.Decode(&value); err != nil {
-			return 0, 0, false, false
+		if object[i] == '}' {
+			break
 		}
 
-		if key == "model" {
-			end := int(decoder.InputOffset())
+		keyEnd := stringEnd(object, i)
+		key := object[i:keyEnd]
+		valueStart := skipSpace(object, skipSpace(object, keyEnd)+1)
+		valueEnd := jsonValueEnd(object, valueStart)
 
-			return end - len(value), end, true, true
+		if isModelKey(key) {
+			spans = append(spans, [2]int{valueStart, valueEnd})
+		}
+
+		i = valueEnd
+	}
+
+	return spans
+}
+
+func skipSpace(b []byte, i int) int {
+	for i < len(b) && (b[i] == ' ' || b[i] == '\t' || b[i] == '\n' || b[i] == '\r') {
+		i++
+	}
+
+	return i
+}
+
+func stringEnd(b []byte, i int) int {
+	for i++; b[i] != '"'; i++ {
+		if b[i] == '\\' {
+			i++
 		}
 	}
 
-	if _, err := decoder.Token(); err != nil {
-		return 0, 0, false, false
+	return i + 1
+}
+
+func jsonValueEnd(b []byte, i int) int {
+	switch b[i] {
+	case '"':
+		return stringEnd(b, i)
+	case '{', '[':
+		depth := 0
+
+		for {
+			switch b[i] {
+			case '"':
+				i = stringEnd(b, i)
+
+				continue
+			case '{', '[':
+				depth++
+			case '}', ']':
+				depth--
+				if depth == 0 {
+					return i + 1
+				}
+			}
+
+			i++
+		}
+	default:
+		for i < len(b) && !bytes.ContainsRune([]byte(",}] \t\r\n"), rune(b[i])) {
+			i++
+		}
+
+		return i
+	}
+}
+
+func isModelKey(key []byte) bool {
+	if !bytes.Contains(key, []byte(`\`)) {
+		return string(key) == `"model"`
 	}
 
-	return 0, 0, false, true
+	var decoded string
+
+	return json.Unmarshal(key, &decoded) == nil && decoded == "model"
+}
+
+func blankModel(value []byte) bool {
+	if string(value) == "null" {
+		return true
+	}
+
+	// A model name is short, so a long value is no blank one and is not decoded.
+	var name string
+
+	return len(value) <= 256 && json.Unmarshal(value, &name) == nil && strings.TrimSpace(name) == ""
 }
 
 func oneLine(body []byte) []byte {

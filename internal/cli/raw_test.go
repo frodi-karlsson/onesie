@@ -732,6 +732,21 @@ func TestWithModel(t *testing.T) {
 		{name: "should leave a body that is not an object", body: `["state"]`, model: "m", want: `["state"]`},
 		{name: "should leave a body that is not JSON", body: `{"state":`, model: "m", want: `{"state":`},
 		{name: "should leave a body alone with no model to fill", body: `{"state":"x"}`, want: `{"state":"x"}`},
+		{name: "should fill a whitespace only model", body: `{"model":"  "}`, model: "m", want: `{"model":"m"}`},
+		{
+			name:  "should fill the last model key, which a server that reads the last one sends",
+			body:  `{"model":"own","state":{"model":""},"model":""}`,
+			model: "m",
+			want:  `{"model":"own","state":{"model":""},"model":"m"}`,
+		},
+		{
+			name:  "should fill every empty model key",
+			body:  `{"model":null,"q":[1,{"a":"}"}],"model":" "}`,
+			model: "m",
+			want:  `{"model":"m","q":[1,{"a":"}"}],"model":"m"}`,
+		},
+		{name: "should read an escaped key as model", body: `{"mod\u0065l":""}`, model: "m", want: `{"mod\u0065l":"m"}`},
+		{name: "should skip a string that holds an escaped quote", body: `{"s":"a\"model\":\"\"","t":1}`, model: "m", want: `{"model":"m","s":"a\"model\":\"\"","t":1}`},
 	}
 
 	for _, tc := range tests {
