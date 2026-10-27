@@ -225,7 +225,7 @@ func checkProviderNeeds(settings rootSettings, flags *runFlags, built *plan.Plan
 		return err
 	}
 
-	return longContextCause(refuseNeeds(chosen.provider, model, onesie.Needs{
+	return longContextCause(chosen.provider.Refuse(model, onesie.Needs{
 		Images:      sendsAssets(images),
 		Box:         asksBox(built),
 		LongContext: built.LongContext,
@@ -234,7 +234,8 @@ func checkProviderNeeds(settings rootSettings, flags *runFlags, built *plan.Plan
 
 func longContextCause(refusal error, settings rootSettings, flags *runFlags) error {
 	// The variable is easy to forget once it is exported, so a refusal it caused says so.
-	if refusal == nil || flags.longContextSet || !strings.Contains(refusal.Error(), "takes no long context") ||
+	var lacking *onesie.CapabilityError
+	if !errors.As(refusal, &lacking) || !lacking.Missing.LongContext || flags.longContextSet ||
 		!longContext(settings, flags) {
 		return refusal
 	}
@@ -244,53 +245,6 @@ func longContextCause(refusal error, settings rootSettings, flags *runFlags) err
 		message: refusal.Error() + ". " + envLongContext +
 			" turned it on, so unset it or pass --long-context=false",
 	}
-}
-
-func refuseNeeds(provider onesie.Provider, model string, needs onesie.Needs) error {
-	refusal := provider.Refuse(model, needs)
-	if refusal == nil {
-		return nil
-	}
-
-	// The same order onesie-go refuses in, since a Box question is an image question too. The
-	// message names only what the run needs, and the providers that take all of it.
-	missing, wanted := "long context", onesie.Needs{LongContext: true}
-
-	switch {
-	case needs.Images && needs.Box && provider.Refuse(model, onesie.Needs{Images: true}) != nil:
-		missing, wanted = "images or box questions", onesie.Needs{Images: true, Box: true}
-	case needs.Images && provider.Refuse(model, onesie.Needs{Images: true}) != nil:
-		missing, wanted = "images", onesie.Needs{Images: true}
-	case needs.Box && provider.Refuse(model, onesie.Needs{Images: true, Box: true}) != nil:
-		missing, wanted = "box questions", onesie.Needs{Images: true, Box: true}
-	}
-
-	message := fmt.Sprintf("onesie: the %s provider takes no %s", provider.Name, missing)
-
-	switch takers := providersTaking(wanted); len(takers) {
-	case 0:
-	case 1:
-		message += fmt.Sprintf(". The %s provider does", takers[0])
-	default:
-		message += fmt.Sprintf(". The %s and %s providers do",
-			strings.Join(takers[:len(takers)-1], ", "), takers[len(takers)-1])
-	}
-
-	return &advisedError{cause: refusal, message: message}
-}
-
-func providersTaking(needs onesie.Needs) []string {
-	var takers []string
-
-	for _, provider := range []onesie.Provider{
-		onesie.TypeSafe(), onesie.OpenRouter(), onesie.Berget(), onesie.Levanto(), onesie.Cloudflare(),
-	} {
-		if provider.Refuse("", needs) == nil {
-			takers = append(takers, provider.Name)
-		}
-	}
-
-	return takers
 }
 
 func sendsAssets(images *imaging) bool {

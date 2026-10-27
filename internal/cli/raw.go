@@ -51,7 +51,7 @@ func streamRaw(
 
 	// Every body would be refused, so the run stops before it reads any.
 	if long && requests(flags) {
-		if refusal := refuseNeeds(provider, defaultModel, onesie.Needs{LongContext: true}); refusal != nil {
+		if refusal := provider.Refuse(defaultModel, onesie.Needs{LongContext: true}); refusal != nil {
 			return longContextCause(refusal, settings, flags)
 		}
 	}
@@ -109,16 +109,6 @@ func streamRaw(
 			}
 
 			response, err := client.SystemOneRaw(ctx, body, opts...)
-			// The client refuses what the route cannot take in its own words, which name too few of
-			// the providers that can.
-			if errors.Is(err, onesie.ErrValidation) {
-				if refusal := refuseNeeds(provider, read.model, onesie.Needs{
-					Images: read.needsImages, Box: read.boxed, LongContext: long || read.longContext,
-				}); refusal != nil {
-					err = refusal
-				}
-			}
-
 			if err != nil {
 				// The prepared body names the model onesie sent, and nothing inside it was checked locally,
 				// so no local bound is implicated.
