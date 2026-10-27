@@ -36,17 +36,19 @@ func run() int {
 		}
 	}()
 
-	always, questionsOnly := cli.DryRunRefusals()
-
-	catalog, err := skillcheck.NewCatalog(cli.NewRootCmd(cli.BuildInfo{}),
-		skillcheck.Rejected{Always: always, QuestionsOnly: questionsOnly})
+	catalog, err := skillcheck.NewCatalog(cli.DryRunRules())
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 
 		return 1
 	}
 
-	runner := skillcheck.NewRunner("", os.Environ(), configDir, catalog)
+	runner, err := skillcheck.NewRunner("", os.Environ(), configDir, catalog)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+
+		return 1
+	}
 
 	report, err := skillcheck.Check(context.Background(), root, runner)
 	if err != nil {

@@ -6,6 +6,8 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/spf13/cobra"
+
 	"github.com/frodi-karlsson/onesie/internal/argv"
 	"github.com/frodi-karlsson/onesie/internal/input"
 	"github.com/frodi-karlsson/onesie/internal/limits"
@@ -16,11 +18,15 @@ const lineField = "line"
 
 var errNoQuestion = errors.New("no question given. Pass a question, --ask, or -f")
 
-// DryRunRefusals names by long name the flags both dry runs refuse, then the ones only
-// --print-questions refuses, so a tool that builds a dry run knows what to strip.
-func DryRunRefusals() (always, questionsOnly []string) {
-	return []string{"output", "raw", "quiet", "usage", "merge", "merge-key", "stats", "stop-on-assert", "mock"},
-		[]string{flagInput, flagJobs, flagModel, flagState, flagStateFile, "unordered", "stop-on-error", "skip-blank"}
+// DryRunRules returns the command tree, then by long name the flags both dry runs refuse and the
+// ones only --print-questions refuses, so a tool that builds a dry run knows what to strip.
+func DryRunRules() (root *cobra.Command, always, questionsOnly []string) {
+	always = []string{"output", "raw", "quiet", "usage", "merge", "merge-key", "stats", "stop-on-assert", "mock"}
+	questionsOnly = []string{
+		flagInput, flagJobs, flagModel, flagState, flagStateFile, "unordered", "stop-on-error", "skip-blank",
+	}
+
+	return NewRootCmd(BuildInfo{}), always, questionsOnly
 }
 
 func validatePlan(built *plan.Plan, config runConfig, facts runFacts) ([]string, error) {

@@ -33,7 +33,7 @@ func TestNewCatalog(t *testing.T) {
 	t.Run("should refuse a rejected flag the tree does not have", func(t *testing.T) {
 		t.Parallel()
 
-		_, err := NewCatalog(&cobra.Command{Use: "onesie"}, Rejected{Always: []string{"quiet"}})
+		_, err := NewCatalog(&cobra.Command{Use: "onesie"}, []string{"quiet"}, nil)
 		if err == nil || err.Error() != "onesie: the command tree has no flag --print-request for a dry run to strip" {
 			t.Errorf("NewCatalog error = %v, want the missing --print-request named", err)
 		}
@@ -323,7 +323,9 @@ func TestProvenDryRun(t *testing.T) {
 
 	catalog := testCatalog(t)
 
-	strip, err := catalog.named(append(append([]string{}, printFlags...), testRejected().Always...))
+	always, _ := testRejected()
+
+	strip, err := catalog.named(append(append([]string{}, printFlags...), always...))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -454,7 +456,9 @@ func testCatalog(t *testing.T) *Catalog {
 	calibrate.Flags().String("label", "", "")
 	root.AddCommand(calibrate)
 
-	catalog, err := NewCatalog(root, testRejected())
+	always, questionsOnly := testRejected()
+
+	catalog, err := NewCatalog(root, always, questionsOnly)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -462,11 +466,7 @@ func testCatalog(t *testing.T) *Catalog {
 	return catalog
 }
 
-func testRejected() Rejected {
-	return Rejected{
-		Always: []string{"output", "raw", "quiet", "usage", "merge", "merge-key", "stats", "stop-on-assert", "mock"},
-		QuestionsOnly: []string{
-			"input", "jobs", "model", "state", "state-file", "unordered", "stop-on-error", "skip-blank",
-		},
-	}
+func testRejected() (always, questionsOnly []string) {
+	return []string{"output", "raw", "quiet", "usage", "merge", "merge-key", "stats", "stop-on-assert", "mock"},
+		[]string{"input", "jobs", "model", "state", "state-file", "unordered", "stop-on-error", "skip-blank"}
 }

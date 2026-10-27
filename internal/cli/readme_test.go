@@ -198,10 +198,7 @@ func TestReadme(t *testing.T) {
 		// The README shortens the offline check to calibrate ... and REFERENCE.md holds it whole.
 		abbreviated := " ... "
 
-		always, questionsOnly := cli.DryRunRefusals()
-
-		catalog, err := skillcheck.NewCatalog(cli.NewRootCmd(cli.BuildInfo{}),
-			skillcheck.Rejected{Always: always, QuestionsOnly: questionsOnly})
+		catalog, err := skillcheck.NewCatalog(cli.DryRunRules())
 		if err != nil {
 			t.Fatal(err)
 		}

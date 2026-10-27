@@ -15,8 +15,8 @@ var (
 )
 
 // NewCatalog reads each flag in the command tree under root, its spellings and whether it takes a
-// value. rejected names the flags a dry run refuses, which only the caller's flag rules know.
-func NewCatalog(root *cobra.Command, rejected Rejected) (*Catalog, error) {
+// value. always and questionsOnly name the flags a dry run refuses, which only the caller's flag rules know.
+func NewCatalog(root *cobra.Command, always, questionsOnly []string) (*Catalog, error) {
 	catalog := &Catalog{}
 	seen := map[string]bool{}
 
@@ -38,27 +38,19 @@ func NewCatalog(root *cobra.Command, rejected Rejected) (*Catalog, error) {
 		cmd.LocalFlags().VisitAll(add)
 	}
 
-	always := append(append(append([]string{}, printFlags...), rejected.Always...), answerFileFlags...)
+	stripped := append(append(append([]string{}, printFlags...), always...), answerFileFlags...)
 
 	var err error
 
-	if catalog.always, err = catalog.named(always); err != nil {
+	if catalog.always, err = catalog.named(stripped); err != nil {
 		return nil, err
 	}
 
-	if catalog.questionsOnly, err = catalog.named(rejected.QuestionsOnly); err != nil {
+	if catalog.questionsOnly, err = catalog.named(questionsOnly); err != nil {
 		return nil, err
 	}
 
 	return catalog, nil
-}
-
-// Rejected names by long name the flags a dry run refuses.
-type Rejected struct {
-	// Always lists the flags both --print-request and --print-questions refuse.
-	Always []string
-	// QuestionsOnly lists the flags only --print-questions refuses.
-	QuestionsOnly []string
 }
 
 // Catalog knows how each flag of a onesie command tree is spelled, so it can turn a command into

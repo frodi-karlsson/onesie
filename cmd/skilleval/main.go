@@ -35,17 +35,21 @@ func run() int {
 		}
 	}()
 
-	always, questionsOnly := cli.DryRunRefusals()
-
-	catalog, err := skillcheck.NewCatalog(cli.NewRootCmd(cli.BuildInfo{}),
-		skillcheck.Rejected{Always: always, QuestionsOnly: questionsOnly})
+	catalog, err := skillcheck.NewCatalog(cli.DryRunRules())
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 
 		return 1
 	}
 
-	if err := newApp(configDir, catalog).run(context.Background(), os.Args[1:], os.Stdout); err != nil {
+	runner, err := skillcheck.NewRunner("", os.Environ(), configDir, catalog)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+
+		return 1
+	}
+
+	if err := newApp(runner).run(context.Background(), os.Args[1:], os.Stdout); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 
 		return 1
@@ -54,11 +58,8 @@ func run() int {
 	return 0
 }
 
-func newApp(configDir string, catalog *skillcheck.Catalog) *app {
-	return &app{
-		glob:   filepath.Glob,
-		grader: skilleval.NewGrader(skillcheck.NewRunner("", os.Environ(), configDir, catalog)),
-	}
+func newApp(runner *skillcheck.Runner) *app {
+	return &app{glob: filepath.Glob, grader: skilleval.NewGrader(runner)}
 }
 
 type app struct {

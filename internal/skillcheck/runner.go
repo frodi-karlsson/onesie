@@ -14,7 +14,11 @@ const runTimeout = 10 * time.Second
 
 // NewRunner returns a Runner for binary, onesie on PATH when empty. It drops ONESIE_MOCK,
 // ONESIE_PROFILE, ONESIE_PROVIDER and ONESIE_CONFIG_DIR, then sets the last to configDir when given.
-func NewRunner(binary string, environ []string, configDir string, catalog *Catalog) *Runner {
+func NewRunner(binary string, environ []string, configDir string, catalog *Catalog) (*Runner, error) {
+	if catalog == nil {
+		return nil, errors.New("onesie: a runner needs a catalog to build its dry runs")
+	}
+
 	if binary == "" {
 		binary = "onesie"
 	}
@@ -30,7 +34,7 @@ func NewRunner(binary string, environ []string, configDir string, catalog *Catal
 		help: func(ctx context.Context, binary string, args []string) (string, error) {
 			return runHelp(ctx, binary, args, env)
 		},
-	}
+	}, nil
 }
 
 func isolated(environ []string, configDir string) []string {
