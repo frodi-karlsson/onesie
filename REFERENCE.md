@@ -592,7 +592,8 @@ on the provider's key variable alone.
   account. An `allow_http: needed` line follows it when the base URL is plain http to another host,
   since every run then needs `--allow-http`. `account:` names `account_id`, `base_url`,
   `CLOUDFLARE_ACCOUNT_ID` or `none`. `show` exits 2 when `key` or `account` is `none`, as a real
-  run would.
+  run would, and exits 2 with the run's message when `CLOUDFLARE_ACCOUNT_ID` is not 32
+  hexadecimal characters.
 - A key the server refuses with 401 or 403 exits 3, on a run or on `test`. On a profile the message
   names `onesie profile update NAME --key`, and without one it names the provider's key variable. A
   run with no key and no profile for its provider names

@@ -648,7 +648,8 @@ func newProfileShowCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 			"TYPESAFE_DEFAULT_MODEL, account_id, or the provider's default. An allow_http line says a run needs " +
 			"--allow-http, when base_url is plain http to another host. It never reads the keychain or " +
 			"prints a key.\n\n" +
-			"It exits 2 when key or account is none, as a real run does.",
+			"It exits 2 when key or account is none, or the account is not 32 hexadecimal characters, " +
+			"as a real run does.",
 		Args: profileNames("show", 0, 1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return profileShow(cmd, settings, flags, args)
@@ -667,7 +668,15 @@ func profileShow(cmd *cobra.Command, settings rootSettings, flags *runFlags, arg
 		return refused
 	}
 
-	baseURL, found := effectiveBaseURL(shown, settings.lookupEnv)
+	baseURL, found, invalid := effectiveBaseURL(shown, settings.lookupEnv)
+
+	account := shown.accountSource(settings.lookupEnv)
+
+	// A missing account prints as none and exits 2 below. One that is there but malformed fails a
+	// run the same way, so show names it rather than print a base_url of none.
+	if invalid != nil && account != sourceNone && account != "" {
+		return invalid
+	}
 
 	// Again for what the variables chose, since TYPESAFE_BASE_URL skips create's checks too.
 	if refused := refuseUnclearBaseURL(baseURL); found && refused != nil {
@@ -678,8 +687,6 @@ func profileShow(cmd *cobra.Command, settings rootSettings, flags *runFlags, arg
 	if found {
 		baseURLLine = output.Printable(baseURL) + ", " + baseURLOrigin(shown, settings.lookupEnv)
 	}
-
-	account := shown.accountSource(settings.lookupEnv)
 
 	lines := []string{
 		"profile: " + cmp.Or(shown.profile, noProfile),
@@ -710,7 +717,7 @@ func profileShow(cmd *cobra.Command, settings rootSettings, flags *runFlags, arg
 	return nil
 }
 
-func effectiveBaseURL(shown resolution, lookupEnv func(string) (string, bool)) (string, bool) {
+func effectiveBaseURL(shown resolution, lookupEnv func(string) (string, bool)) (string, bool, error) {
 	// Built the way a run builds its client, with a stand in for the key show never reads, so the
 	// order the URL is chosen in is the run's own.
 	opts := []onesie.Option{
@@ -723,10 +730,10 @@ func effectiveBaseURL(shown resolution, lookupEnv func(string) (string, bool)) (
 
 	client, err := onesie.New(opts...)
 	if err != nil {
-		return "", false
+		return "", false, err
 	}
 
-	return client.BaseURL(), true
+	return client.BaseURL(), true, nil
 }
 
 func baseURLOrigin(shown resolution, lookupEnv func(string) (string, bool)) string {

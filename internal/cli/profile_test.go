@@ -1427,6 +1427,13 @@ func TestProfileShow(t *testing.T) {
 			wantOut: workShown,
 		},
 		{
+			name:     "should refuse a malformed CLOUDFLARE_ACCOUNT_ID as a run does",
+			args:     []string{"--provider", "cloudflare", "profile", "show"},
+			env:      map[string]string{"CLOUDFLARE_API_TOKEN": "SECRET-CF-0123456789", "CLOUDFLARE_ACCOUNT_ID": "bad"},
+			wantCode: ExitUsage,
+			wantErr:  []string{"onesie: CLOUDFLARE_ACCOUNT_ID must be 32 hexadecimal characters"},
+		},
+		{
 			name: "should show a named profile that is not active",
 			file: shown,
 			args: []string{"profile", "show", "personal"},
