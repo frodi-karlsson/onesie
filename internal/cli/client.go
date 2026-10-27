@@ -38,7 +38,7 @@ func clientBuilder(info BuildInfo, flags *runFlags, settings rootSettings) clien
 		opts := []onesie.Option{
 			onesie.WithProvider(chosen.provider),
 			onesie.WithUserAgent("onesie/" + info.Version),
-			onesie.WithEnv(chosen.env(settings.lookupEnv)),
+			onesie.WithEnv(settings.lookupEnv),
 			// plainHTTPCheck decides plain http below, in the words of the source that set it.
 			onesie.WithInsecureHTTP(),
 		}
@@ -51,14 +51,7 @@ func clientBuilder(info BuildInfo, flags *runFlags, settings rootSettings) clien
 			opts = append(opts, onesie.WithBaseURL(baseURL))
 		}
 
-		// Every dry run returns before a client is built, so reading the keychain here is what keeps
-		// it away from a run that needs no key.
-		keyed, err := keyOptions(settings, flags, chosen)
-		if err != nil {
-			return nil, err
-		}
-
-		opts = append(opts, keyed...)
+		opts = append(opts, chosen.options(flags.baseURL, profileKey(settings, chosen), settings.lookupEnv)...)
 
 		opts = append(opts, onesie.WithAttemptTimeout(
 			time.Duration(flags.timeout)*time.Second))
@@ -77,7 +70,7 @@ func clientBuilder(info BuildInfo, flags *runFlags, settings rootSettings) clien
 
 		client, err := onesie.New(opts...)
 		if err != nil {
-			return nil, explained(settings, flags, chosen, err)
+			return nil, explained(settings, chosen, err)
 		}
 
 		warning, refused := plainHTTPCheck(
@@ -142,33 +135,34 @@ func refuseUnclearBaseURL(baseURL string) error {
 	return nil
 }
 
-func keyOptions(settings rootSettings, flags *runFlags, chosen resolution) ([]onesie.Option, error) {
-	key := chosen.key
+func profileKey(settings rootSettings, chosen resolution) func() (string, error) {
+	// New calls it only after every other check passed, so a run refused for anything else never
+	// reads the keychain.
+	return func() (string, error) {
+		if chosen.keyFrom != sourceKeychain {
+			return chosen.key, nil
+		}
 
-	if chosen.keyFrom == sourceKeychain {
 		read, err := settings.keychain.Get(chosen.account)
 		if err != nil {
-			return nil, err
+			return "", err
 		}
 
-		// An empty key would leave onesie-go to read the provider's variable, which a profile run
-		// never does.
+		// An empty item is a broken entry, so it exits 3 as every other keychain fault does.
 		if read == "" {
-			return nil, &creds.KeychainError{Op: "read the key from", Err: creds.ErrKeychainMissing}
+			return "", &creds.KeychainError{Op: "read the key from", Err: creds.ErrKeychainMissing}
 		}
 
-		key = read
+		return read, nil
 	}
-
-	return chosen.options(flags.baseURL, key, settings.lookupEnv), nil
 }
 
-func explained(settings rootSettings, flags *runFlags, chosen resolution, err error) error {
-	if chosen.profile != "" {
-		return accountNote(err, chosen, flags.baseURL, settings.lookupEnv)
+func explained(settings rootSettings, chosen resolution, err error) error {
+	if errors.Is(err, onesie.ErrNoAccountID) {
+		return accountNote(err, chosen)
 	}
 
-	if chosen.keyFrom != sourceNone {
+	if chosen.profile != "" || chosen.keyFrom != sourceNone {
 		return err
 	}
 

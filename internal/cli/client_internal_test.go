@@ -2,6 +2,7 @@ package cli
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"slices"
@@ -11,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/frodi-karlsson/onesie-go"
+	"github.com/frodi-karlsson/onesie/internal/creds"
 )
 
 func TestClientBuilder(t *testing.T) {
@@ -118,6 +120,20 @@ func TestClientBuilder(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("should refuse a keychain profile's base url with no host before reading the keychain", func(t *testing.T) {
+		t.Parallel()
+
+		dir := configWith(t, `{"default":"work","profiles":{"work":{"provider":"typesafe","store":"keychain",`+
+			`"account":"work@abc","base_url":"https://"}}}`)
+		chain := workingKeychain(map[string]string{"work@abc": "SECRET-KC"})
+
+		_, errOut, code := runInConfig(t, dir, []string{"is this urgent", "--state", "hello"}, "", nil, withKeychain(chain))
+		if code != ExitUsage || chain.calls() != 0 {
+			t.Errorf("exit code = %d, keychain calls = %d, stderr = %q, want %d and no keychain call",
+				code, chain.calls(), errOut, ExitUsage)
+		}
+	})
 
 	t.Run("should refuse a base url onesie-go refuses in its words", func(t *testing.T) {
 		t.Parallel()
@@ -655,6 +671,60 @@ func TestEndsInVersion(t *testing.T) {
 
 			if got := endsInVersion(tc.baseURL); got != tc.want {
 				t.Errorf("endsInVersion(%q) = %v, want %v", tc.baseURL, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestProfileKey(t *testing.T) {
+	t.Parallel()
+
+	file, err := profileRun("ts", creds.Profile{Provider: "typesafe", APIKey: "SECRET-FILE"}, "--profile")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	keychained, err := profileRun("work",
+		creds.Profile{Provider: "typesafe", Store: creds.StoreKeychain, Account: "work@abc"}, "--profile")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		name         string
+		run          resolution
+		items        map[string]string
+		want         string
+		wantKeychain bool
+	}{
+		{name: "should give a file profile's key without the keychain", run: file, want: "SECRET-FILE"},
+		{
+			name: "should read a keychain profile's key from the keychain", run: keychained,
+			items: map[string]string{"work@abc": "SECRET-KC"}, want: "SECRET-KC",
+		},
+		{
+			name: "should refuse an empty keychain item as a keychain failure", run: keychained,
+			items: map[string]string{"work@abc": ""}, wantKeychain: true,
+		},
+		{name: "should pass a missing keychain item on as a keychain failure", run: keychained, wantKeychain: true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			chain := workingKeychain(tc.items)
+			settings := rootSettings{keychain: creds.NewKeychain(creds.WithBackend(chain))}
+
+			got, err := profileKey(settings, tc.run)()
+
+			var keychainErr *creds.KeychainError
+			if errors.As(err, &keychainErr) != tc.wantKeychain || got != tc.want {
+				t.Errorf("key = %q, error = %v, want %q and a keychain failure %v", got, err, tc.want, tc.wantKeychain)
+			}
+
+			if tc.run.keyFrom == sourceFile && chain.calls() != 0 {
+				t.Errorf("keychain calls = %d, want none for a file profile", chain.calls())
 			}
 		})
 	}

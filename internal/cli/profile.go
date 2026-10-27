@@ -533,8 +533,12 @@ func effectiveBaseURL(shown resolution, lookupEnv func(string) (string, bool)) (
 	// Built the way a run builds its client, with a stand in for the key show never reads, so the
 	// order the URL is chosen in is the run's own.
 	opts := []onesie.Option{
-		onesie.WithProvider(shown.provider), onesie.WithEnv(shown.env(lookupEnv)), onesie.WithAPIKey(keyPlaceholder),
+		onesie.WithProvider(shown.provider), onesie.WithEnv(lookupEnv), onesie.WithAPIKey(keyPlaceholder),
 		onesie.WithInsecureHTTP(),
+	}
+
+	if shown.accountID != "" {
+		opts = append(opts, onesie.WithAccountID(shown.accountID))
 	}
 
 	if shown.baseURL != "" {
@@ -623,7 +627,7 @@ func profileTest(cmd *cobra.Command, settings rootSettings, flags *runFlags, arg
 }
 
 func noKeyToTest(settings rootSettings, tested resolution) error {
-	missing := &onesie.ValidationError{Message: "no API key. Set " + tested.provider.EnvAPIKey()}
+	missing := &noKeyError{provider: tested.provider}
 
 	// A file that cannot be read names no profile, and the missing key is the failure to report.
 	opened, err := settings.holder.opened()
@@ -632,6 +636,18 @@ func noKeyToTest(settings rootSettings, tested resolution) error {
 	}
 
 	return missingKeyHint(missing, tested, opened.Profiles)
+}
+
+type noKeyError struct {
+	provider onesie.Provider
+}
+
+func (e *noKeyError) Error() string {
+	return "no API key. Set " + e.provider.EnvAPIKey()
+}
+
+func (e *noKeyError) Is(target error) bool {
+	return target == onesie.ErrNoAPIKey || target == onesie.ErrValidation
 }
 
 func shownResolution(settings rootSettings, flags *runFlags, args []string, command string) (resolution, error) {

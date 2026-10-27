@@ -176,16 +176,22 @@ type resolution struct {
 	accountID string
 }
 
-func (r resolution) options(baseURLFlag, key string, lookupEnv func(string) (string, bool)) []onesie.Option {
+func (r resolution) options(
+	baseURLFlag string, key func() (string, error), lookupEnv func(string) (string, bool),
+) []onesie.Option {
 	if r.profile == "" {
 		return nil
 	}
 
-	opts := []onesie.Option{onesie.WithAPIKey(key), onesie.WithDefaultModel(r.modelFor("", lookupEnv))}
+	opts := []onesie.Option{onesie.WithAPIKeyFunc(key), onesie.WithDefaultModel(r.modelFor("", lookupEnv))}
 
 	// The factory adds --base-url ahead of these, and a later WithBaseURL would replace it.
 	if strings.TrimSpace(baseURLFlag) == "" && r.baseURL != "" {
 		opts = append(opts, onesie.WithBaseURL(r.baseURL))
+	}
+
+	if r.accountID != "" {
+		opts = append(opts, onesie.WithAccountID(r.accountID))
 	}
 
 	return opts
@@ -197,24 +203,6 @@ func (r resolution) modelFor(explicit string, lookupEnv func(string) (string, bo
 	}
 
 	return r.provider.ResolveModel(explicit, lookupEnv)
-}
-
-func (r resolution) env(lookupEnv func(string) (string, bool)) func(string) (string, bool) {
-	if r.profile == "" {
-		return lookupEnv
-	}
-
-	return func(name string) (string, bool) {
-		switch {
-		// onesie-go falls back to this variable for a blank key, and a profile run takes its key from the profile alone.
-		case name == r.provider.EnvAPIKey():
-			return "", false
-		case name == r.provider.EnvAccountID() && r.accountID != "":
-			return r.accountID, true
-		}
-
-		return lookupEnv(name)
-	}
 }
 
 func (r resolution) baseURLGiven(baseURLFlag string, lookupEnv func(string) (string, bool)) string {
@@ -275,9 +263,7 @@ func (r resolution) keyLine() string {
 }
 
 func missingKeyHint(err error, bare resolution, profiles creds.Profiles) error {
-	// onesie-go gives the missing key no sentinel of its own, so its message is what marks it.
-	if bare.profile != "" || bare.keyFrom != sourceNone || !errors.Is(err, onesie.ErrValidation) ||
-		!strings.Contains(err.Error(), "no API key") {
+	if bare.profile != "" || bare.keyFrom != sourceNone || !errors.Is(err, onesie.ErrNoAPIKey) {
 		return err
 	}
 
@@ -318,19 +304,20 @@ func firstProfileOf(provider string, profiles creds.Profiles) string {
 	return ""
 }
 
-func accountNote(
-	err error, chosen resolution, baseURLFlag string, lookupEnv func(string) (string, bool),
-) error {
-	// onesie-go gives the missing account no sentinel of its own, so its message is what marks it.
-	if chosen.profile == "" || !errors.Is(err, onesie.ErrValidation) || strings.TrimSpace(baseURLFlag) != "" ||
-		chosen.accountSource(lookupEnv) != sourceNone || !strings.Contains(err.Error(), "account id") {
+func accountNote(err error, chosen resolution) error {
+	if !errors.Is(err, onesie.ErrNoAccountID) {
 		return err
 	}
 
-	return &advisedError{
-		cause:   err,
-		message: text(err) + ", or run onesie profile update " + creds.QuotedName(chosen.profile) + " --account-id ACCOUNT_ID",
+	missing := fmt.Sprintf("no %s account id. Set %s", chosen.provider.Name(), chosen.provider.EnvAccountID())
+	if chosen.profile == "" {
+		return &advisedError{cause: err, message: fmt.Sprintf(
+			"%s, or store it with onesie profile create NAME --provider %s --%s ACCOUNT_ID",
+			missing, chosen.provider.Name(), flagAccountID)}
 	}
+
+	return &advisedError{cause: err, message: fmt.Sprintf("%s, or run onesie profile update %s --%s ACCOUNT_ID",
+		missing, creds.QuotedName(chosen.profile), flagAccountID)}
 }
 
 func (r resolution) accountSource(lookupEnv func(string) (string, bool)) string {

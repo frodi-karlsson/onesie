@@ -2275,3 +2275,35 @@ type unclearBaseURL struct {
 	name string
 	url  string
 }
+
+func TestNoKeyError(t *testing.T) {
+	t.Parallel()
+
+	missing := &noKeyError{provider: onesie.OpenRouter()}
+
+	tests := []struct {
+		name   string
+		target error
+	}{
+		{name: "should match the library's missing key sentinel", target: onesie.ErrNoAPIKey},
+		{name: "should match the validation sentinel, so it exits 2", target: onesie.ErrValidation},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if !errors.Is(missing, tc.target) {
+				t.Errorf("errors.Is(%v, %v) = false, want true", missing, tc.target)
+			}
+		})
+	}
+
+	t.Run("should name the provider's key variable", func(t *testing.T) {
+		t.Parallel()
+
+		if got := missing.Error(); got != "no API key. Set OPENROUTER_API_KEY" {
+			t.Errorf("Error = %q, want the key variable named", got)
+		}
+	})
+}
