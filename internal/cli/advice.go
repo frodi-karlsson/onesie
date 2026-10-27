@@ -110,7 +110,7 @@ func withKeyHint(err error, settings rootSettings) error {
 		return err
 	}
 
-	chosen, resolveErr := runResolution(settings)
+	chosen, resolveErr := settings.holder.resolved()
 	if resolveErr != nil {
 		return err
 	}

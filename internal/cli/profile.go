@@ -544,7 +544,7 @@ func profileList(cmd *cobra.Command, settings rootSettings, flags *runFlags) err
 		return refused
 	}
 
-	opened, err := openedProfiles(settings)
+	opened, err := settings.holder.opened()
 	if err != nil {
 		return err
 	}
@@ -553,7 +553,7 @@ func profileList(cmd *cobra.Command, settings rootSettings, flags *runFlags) err
 		return notify(cmd, "onesie: no profiles. Run onesie profile create NAME --provider PROVIDER to store one")
 	}
 
-	active, err := chooseAndResolve(flags, settings.lookupEnv, opened.Profiles)
+	active, err := settings.holder.resolved()
 
 	if writeErr := writeProfiles(cmd.OutOrStdout(), opened.Profiles, active.profile); writeErr != nil {
 		return writeErr
@@ -796,7 +796,7 @@ func noKeyToTest(settings rootSettings, tested resolution) error {
 	missing := &onesie.ValidationError{Message: "no API key. Set " + tested.provider.EnvAPIKey}
 
 	// A file that cannot be read names no profile, and the missing key is the failure to report.
-	opened, err := openedProfiles(settings)
+	opened, err := settings.holder.opened()
 	if err != nil {
 		opened = creds.Opened{}
 	}
@@ -811,13 +811,13 @@ func shownResolution(settings rootSettings, flags *runFlags, args []string, comm
 		}
 	}
 
-	opened, err := openedProfiles(settings)
+	opened, err := settings.holder.opened()
 	if err != nil {
 		return resolution{}, err
 	}
 
 	if len(args) == 0 {
-		return chooseAndResolve(flags, settings.lookupEnv, opened.Profiles)
+		return settings.holder.resolved()
 	}
 
 	name := args[0]
@@ -828,7 +828,7 @@ func shownResolution(settings rootSettings, flags *runFlags, args []string, comm
 	}
 
 	by := notActive
-	if active, activeErr := chooseAndResolve(flags, settings.lookupEnv, opened.Profiles); activeErr == nil &&
+	if active, activeErr := settings.holder.resolved(); activeErr == nil &&
 		active.profile == name {
 		by = active.by
 	}
@@ -918,7 +918,7 @@ func profilesToWrite(settings rootSettings) (string, creds.Opened, error) {
 		return "", creds.Opened{}, err
 	}
 
-	opened, err := openedProfiles(settings)
+	opened, err := settings.holder.opened()
 	if err != nil {
 		return "", creds.Opened{}, err
 	}

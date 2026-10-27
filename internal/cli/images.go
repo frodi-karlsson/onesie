@@ -215,7 +215,7 @@ func checkProviderNeeds(settings rootSettings, flags runConfig, built *plan.Plan
 		return nil
 	}
 
-	chosen, err := runResolution(settings)
+	chosen, err := settings.holder.resolved()
 	if err != nil {
 		return err
 	}

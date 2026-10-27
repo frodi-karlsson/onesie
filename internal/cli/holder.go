@@ -9,14 +9,6 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/creds"
 )
 
-func runResolution(settings rootSettings) (resolution, error) {
-	return settings.holder.resolved()
-}
-
-func openedProfiles(settings rootSettings) (creds.Opened, error) {
-	return settings.holder.opened()
-}
-
 func newHolder(settings rootSettings, flags *runFlags, stderr func() io.Writer) *holder {
 	opened := sync.OnceValues(func() (creds.Opened, error) {
 		return openProfiles(settings, stderr())
@@ -26,7 +18,7 @@ func newHolder(settings rootSettings, flags *runFlags, stderr func() io.Writer) 
 		stderr: stderr,
 		opened: opened,
 		resolved: sync.OnceValues(func() (resolution, error) {
-			return resolveRun(settings, flags, opened)
+			return resolveRun(flags, settings.lookupEnv, opened)
 		}),
 	}
 }
@@ -38,9 +30,9 @@ type holder struct {
 }
 
 func resolveRun(
-	settings rootSettings, flags *runFlags, open func() (creds.Opened, error),
+	flags *runFlags, lookupEnv func(string) (string, bool), open func() (creds.Opened, error),
 ) (resolution, error) {
-	chosen, err := choose(flags, settings.lookupEnv)
+	chosen, err := choose(flags, lookupEnv)
 	if err != nil {
 		return resolution{}, err
 	}
@@ -48,7 +40,7 @@ func resolveRun(
 	// A run that names its provider and succeeds never opens the file, so CI that names one stays
 	// apart from any file on the machine. Only a failure reads it, for the hint.
 	if chosen.provider != "" {
-		bare, bareErr := providerRun(chosen.provider, chosen.by, settings.lookupEnv)
+		bare, bareErr := providerRun(chosen.provider, chosen.by, lookupEnv)
 		if bareErr == nil {
 			return bare, nil
 		}
@@ -66,7 +58,7 @@ func resolveRun(
 		return resolution{}, err
 	}
 
-	return resolveChoice(chosen, opened.Profiles, settings.lookupEnv)
+	return resolveProfile(chosen, opened.Profiles, lookupEnv)
 }
 
 func openProfiles(settings rootSettings, stderr io.Writer) (creds.Opened, error) {

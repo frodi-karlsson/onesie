@@ -27,7 +27,7 @@ func streamRaw(
 	resume resumePlan,
 ) error {
 	// --print-request needs the resolution too, to print the model a body with none is sent with.
-	chosen, resolveErr := runResolution(settings)
+	chosen, resolveErr := settings.holder.resolved()
 	if resolveErr != nil {
 		return resolveErr
 	}

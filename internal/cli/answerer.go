@@ -29,7 +29,7 @@ type answererFactory func(ctx context.Context, stats *collector) (answerer, erro
 
 func liveAnswers(settings rootSettings, flags runConfig) answererFactory {
 	return func(ctx context.Context, stats *collector) (answerer, error) {
-		chosen, err := runResolution(settings)
+		chosen, err := settings.holder.resolved()
 		if err != nil {
 			return nil, err
 		}

@@ -28,17 +28,6 @@ const (
 	sourceNone     = "none"
 )
 
-func chooseAndResolve(
-	flags *runFlags, lookupEnv func(string) (string, bool), profiles creds.Profiles,
-) (resolution, error) {
-	chosen, err := choose(flags, lookupEnv)
-	if err != nil {
-		return resolution{}, err
-	}
-
-	return resolveChoice(chosen, profiles, lookupEnv)
-}
-
 func checkChoice(flags *runFlags, lookupEnv func(string) (string, bool)) error {
 	chosen, err := choose(flags, lookupEnv)
 	if err != nil || chosen.provider == "" {
@@ -83,18 +72,9 @@ type choice struct {
 	by       string
 }
 
-func resolveChoice(
+func resolveProfile(
 	chosen choice, profiles creds.Profiles, lookupEnv func(string) (string, bool),
 ) (resolution, error) {
-	if chosen.provider != "" {
-		bare, err := providerRun(chosen.provider, chosen.by, lookupEnv)
-		if err != nil {
-			return resolution{}, providerIsProfileHint(err, chosen, profiles)
-		}
-
-		return bare, nil
-	}
-
 	name, by := chosen.profile, chosen.by
 	if name == "" {
 		name, by = profiles.Default, byDefault

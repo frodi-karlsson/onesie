@@ -11,7 +11,7 @@ import (
 )
 
 func listModels(cmd *cobra.Command, settings rootSettings, stats *collector) error {
-	chosen, err := runResolution(settings)
+	chosen, err := settings.holder.resolved()
 	if err != nil {
 		return err
 	}

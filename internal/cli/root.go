@@ -201,7 +201,7 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 				if refused := checkChoice(flags, settings.lookupEnv); refused != nil {
 					return refused
 				}
-			} else if _, resolveErr := runResolution(settings); resolveErr != nil {
+			} else if _, resolveErr := settings.holder.resolved(); resolveErr != nil {
 				return resolveErr
 			}
 

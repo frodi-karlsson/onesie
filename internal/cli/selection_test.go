@@ -239,39 +239,7 @@ func TestCheckChoice(t *testing.T) {
 	})
 }
 
-func TestChooseAndResolve(t *testing.T) {
-	t.Parallel()
-
-	profiles := creds.Profiles{Profiles: map[string]creds.Profile{
-		"work": {Provider: "openrouter", APIKey: "SECRET-WORK"},
-	}}
-
-	t.Run("should resolve what the flags choose", func(t *testing.T) {
-		t.Parallel()
-
-		got, err := chooseAndResolve(&runFlags{profile: "work", profileSet: true}, lookupFrom(nil), profiles)
-		if err != nil {
-			t.Fatalf("chooseAndResolve returned an error: %v", err)
-		}
-
-		if got.profile != "work" || got.by != "--profile" {
-			t.Errorf("resolution = %v, want work chosen by --profile", got)
-		}
-	})
-
-	t.Run("should pass a refused choice on", func(t *testing.T) {
-		t.Parallel()
-
-		chosen := &runFlags{profile: "work", profileSet: true, provider: "berget", providerSet: true}
-
-		_, err := chooseAndResolve(chosen, lookupFrom(nil), profiles)
-		if err == nil || !strings.Contains(err.Error(), "both choose what the run uses") {
-			t.Errorf("error = %v, want the refusal of two choices", err)
-		}
-	})
-}
-
-func TestResolveChoice(t *testing.T) {
+func TestResolveProfile(t *testing.T) {
 	t.Parallel()
 
 	withDefault := creds.Profiles{
@@ -337,41 +305,13 @@ func TestResolveChoice(t *testing.T) {
 			wantErr: "no profile is the default and nothing chose one. " +
 				"Run onesie profile use NAME, or pass --profile NAME or --provider NAME",
 		},
-		{
-			name: "should run without a profile under --provider and ignore the profile's key", profiles: withDefault,
-			chosen:       choice{provider: "openrouter", by: "--provider"},
-			wantProvider: "openrouter", wantBy: "--provider", wantKeyFrom: sourceNone,
-		},
-		{
-			name: "should take the key from the provider's variable under ONESIE_PROVIDER", profiles: withDefault,
-			chosen:       choice{provider: "openrouter", by: "ONESIE_PROVIDER"},
-			env:          map[string]string{"OPENROUTER_API_KEY": "SECRET-OR"},
-			wantProvider: "openrouter", wantBy: "ONESIE_PROVIDER", wantKeyFrom: sourceEnv,
-		},
-		{
-			name: "should refuse an unknown provider", profiles: withDefault,
-			chosen:  choice{provider: "bogus", by: "--provider"},
-			wantErr: "onesie: unknown provider bogus. Use typesafe, openrouter, berget, levanto or cloudflare",
-		},
-		{
-			name: "should point --provider at --profile when it names a profile", profiles: withDefault,
-			chosen: choice{provider: "work", by: "--provider"},
-			wantErr: "onesie: unknown provider work. Use typesafe, openrouter, berget, levanto or cloudflare. " +
-				"'work' is a profile, so pass --profile 'work' in place of --provider",
-		},
-		{
-			name: "should point ONESIE_PROVIDER at ONESIE_PROFILE when it names a profile", profiles: withDefault,
-			chosen: choice{provider: "work", by: "ONESIE_PROVIDER"},
-			wantErr: "onesie: unknown provider work. Use typesafe, openrouter, berget, levanto or cloudflare. " +
-				"'work' is a profile, so set ONESIE_PROFILE='work' in place of ONESIE_PROVIDER",
-		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := resolveChoice(tc.chosen, tc.profiles, lookupFrom(tc.env))
+			got, err := resolveProfile(tc.chosen, tc.profiles, lookupFrom(tc.env))
 			if tc.wantErr != "" {
 				if err == nil || err.Error() != tc.wantErr {
 					t.Errorf("error = %v, want %q", err, tc.wantErr)
@@ -381,7 +321,7 @@ func TestResolveChoice(t *testing.T) {
 			}
 
 			if err != nil {
-				t.Fatalf("resolveChoice returned an error: %v", err)
+				t.Fatalf("resolveProfile returned an error: %v", err)
 			}
 
 			if got.profile != tc.wantProfile || got.provider.Name != tc.wantProvider || got.by != tc.wantBy ||

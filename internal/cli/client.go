@@ -172,7 +172,7 @@ func explained(settings rootSettings, flags *runFlags, chosen resolution, err er
 
 	// Read only here, so a run that names its provider and has its key never opens the file. An
 	// error reading it leaves the hint out, since the missing key is the failure to report.
-	opened, openErr := openedProfiles(settings)
+	opened, openErr := settings.holder.opened()
 	if openErr != nil {
 		return err
 	}
@@ -237,7 +237,7 @@ func pooled(jobs int) http.RoundTripper {
 type clientFactory func(ctx context.Context, chosen resolution, opts ...onesie.Option) (*onesie.Client, error)
 
 func resolveModel(settings rootSettings, model string) (string, error) {
-	chosen, err := runResolution(settings)
+	chosen, err := settings.holder.resolved()
 	if err != nil {
 		return "", err
 	}

@@ -366,7 +366,7 @@ func outFingerprint(
 }
 
 func runInputs(settings rootSettings, flags runConfig, inputs fingerprintInputs) (fingerprintInputs, error) {
-	chosen, err := runResolution(settings)
+	chosen, err := settings.holder.resolved()
 	if err != nil {
 		return fingerprintInputs{}, err
 	}
