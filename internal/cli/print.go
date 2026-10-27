@@ -12,7 +12,6 @@ import (
 	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/engine"
 	"github.com/frodi-karlsson/onesie/internal/input"
-	"github.com/frodi-karlsson/onesie/internal/jq"
 	"github.com/frodi-karlsson/onesie/internal/output"
 	"github.com/frodi-karlsson/onesie/internal/plan"
 	"github.com/frodi-karlsson/onesie/internal/qfile"
@@ -139,14 +138,12 @@ func printRequest(
 func streamRequests(
 	cmd *cobra.Command,
 	settings rootSettings,
-	built *plan.Plan,
-	mapper *jq.Expr,
-	namer *jq.Expr,
-	images *imaging,
-	inputMode input.Mode,
-	flags *runFlags,
+	flags runConfig,
+	inv *invocation,
 	resume resumePlan,
 ) error {
+	built, mapper, namer, images, inputMode := inv.plan, inv.mapper, inv.namer, inv.images, flags.inputMode
+
 	questions := wireAll(built.Questions)
 
 	model, err := resolveModel(settings, built.Model)

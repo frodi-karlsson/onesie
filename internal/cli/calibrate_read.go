@@ -19,7 +19,7 @@ import (
 )
 
 func calibrateRequests(
-	cmd *cobra.Command, settings rootSettings, flags *runFlags, inputMode input.Mode, inv *invocation,
+	cmd *cobra.Command, settings rootSettings, flags runConfig, inputMode input.Mode, inv *invocation,
 	scope calibrateScope,
 ) error {
 	model, err := resolveModel(settings, scope.scored.Model)
@@ -65,7 +65,7 @@ func calibrateRequests(
 }
 
 func readLabelled(
-	ctx context.Context, settings rootSettings, inputMode input.Mode, flags *runFlags,
+	ctx context.Context, settings rootSettings, inputMode input.Mode, flags runConfig,
 	mapper, namer *jq.Expr, labels []questionLabel,
 ) (labelledSet, error) {
 	// Ended on every return, so the goroutine reading stdin stops waiting to hand over a record.

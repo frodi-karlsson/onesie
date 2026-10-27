@@ -192,6 +192,114 @@ func TestExecute(t *testing.T) {
 			wantCode: ExitUsage,
 			want:     "onesie: cache clear takes no argument\n",
 		},
+		{
+			name:     "should refuse --mock beside --list-models before listing",
+			args:     []string{"--list-models", "--mock", "{dir}{/}m.json"},
+			files:    map[string]string{"m.json": `{"q":0.9}`},
+			wantCode: ExitUsage,
+			want:     "onesie: --list-models asks no question, so --mock has nothing to answer. Drop one\n",
+		},
+		{
+			name:     "should refuse --assert beside -i request before reading a body",
+			args:     []string{"-i", "request", "--assert", "a"},
+			wantCode: ExitUsage,
+			want:     "onesie: --assert does not apply to -i request, which forwards raw responses\n",
+		},
+		{
+			name:     "should name ONESIE_MOCK when it is set beside -i request",
+			args:     []string{"-i", "request"},
+			env:      map[string]string{"ONESIE_MOCK": "{dir}{/}m.json"},
+			files:    map[string]string{"m.json": `{"q":0.9}`},
+			wantCode: ExitUsage,
+			want: "onesie: -i request sends each body as written, so ONESIE_MOCK has nothing to answer. " +
+				"Unset it or drop -i request\n",
+		},
+		{
+			name:     "should name the file's abstain_if key when it has no assertion beside it",
+			args:     []string{"-f", "{dir}{/}abstain.yaml", "--state", "x"},
+			files:    map[string]string{"abstain.yaml": "abstain_if: urgent.value > 0.5\nurgent:\n  ask: is it urgent\n"},
+			wantCode: ExitUsage,
+			want:     "onesie: 'abstain_if' needs --assert, since without one every record is a yes\n",
+		},
+		{
+			name:  "should dry run a file whose only gate is its own assert key",
+			args:  []string{"--print-request", "-f", "{dir}{/}gated.yaml", "--state", "x"},
+			files: map[string]string{"gated.yaml": "assert: urgent.value > 0.5\nurgent:\n  ask: is it urgent\n"},
+		},
+		{
+			name:     "should refuse --assert beside --print-request",
+			args:     []string{"--print-request", "--assert", "a", "--state", "x", "is it urgent"},
+			wantCode: ExitUsage,
+			want:     "onesie: --assert judges an answer, which --print-request does not produce\n",
+		},
+		{
+			name:     "should refuse -q on a stream",
+			args:     []string{"-q", "-i", "jsonl", "is it urgent"},
+			wantCode: ExitUsage,
+			want:     "onesie: -q reads one record. Drop -i jsonl or use -o values and filter the stream\n",
+		},
+		{
+			name:     "should report a missing question ahead of the flag rules",
+			args:     []string{"--pick", "a,b", "-r", "-o", "json"},
+			wantCode: ExitUsage,
+			want:     "onesie: no question given. Pass a question, --ask, or -f\n",
+		},
+		{
+			name:     "should report a question file it cannot load ahead of the flag rules",
+			args:     []string{"-f", "{dir}{/}unknown.yaml", "-r", "-o", "json"},
+			files:    map[string]string{"unknown.yaml": "urgent:\n  ask: x\n  bogus: 1\n"},
+			wantCode: ExitUsage,
+			want:     "onesie: {dir}{/}unknown.yaml: question 'urgent' has an unknown key 'bogus'\n",
+		},
+		{
+			name:     "should refuse -q over two questions",
+			args:     []string{"-q", "--ask", "a=x", "--ask", "b=y", "--state", "s"},
+			wantCode: ExitUsage,
+			want:     "onesie: -q needs a single question. 'a', 'b' were asked\n",
+		},
+		{
+			name:     "should report the line field ahead of a fault in the question",
+			args:     []string{"--ask", "line=x", "-i", "lines", "--pick", "a"},
+			wantCode: ExitUsage,
+			want: "onesie: question id 'line' is reserved under -i lines, " +
+				"which writes the input line number as line\n",
+		},
+		{
+			name: "should print the version whatever ONESIE_CACHE holds",
+			args: []string{"-V"},
+			env:  map[string]string{"ONESIE_CACHE": "maybe"},
+		},
+		{
+			name:     "should refuse an ONESIE_CACHE value it cannot read",
+			args:     []string{"--state", "s", "is it urgent"},
+			env:      map[string]string{"ONESIE_CACHE": "maybe"},
+			wantCode: ExitUsage,
+			want:     "onesie: ONESIE_CACHE=maybe is not a value --cache takes. Use 1 or 0\n",
+		},
+		{
+			name: "should warn that -j is ignored for one record",
+			args: []string{"-j", "4", "--print-request", "--state", "s", "is it urgent"},
+			want: "warning: -j 4 ignored. -i text reads one record\n",
+		},
+		{
+			name: "should refuse --offline beside --mock in calibrate",
+			args: []string{
+				"calibrate", "--ask", "urgent=is it urgent", "-i", "jsonl", "--map", ".body", "--label", "urgent=.u",
+				"--offline", "--mock", "{dir}{/}m.json",
+			},
+			files:    map[string]string{"m.json": `{"q":0.9}`},
+			wantCode: ExitUsage,
+			want:     "onesie: --offline reads every answer from --out, and --mock answers from a file of its own. Drop one\n",
+		},
+		{
+			name: "should say a run flag calibrate does not take belongs to a run",
+			args: []string{
+				"calibrate", "--ask", "urgent=is it urgent", "-i", "jsonl", "--map", ".body", "--label", "urgent=.u",
+				"--no-dedup",
+			},
+			wantCode: ExitUsage,
+			want:     "onesie: calibrate has no flag --no-dedup. --no-dedup belongs to a run, not to calibrate\n",
+		},
 	}
 
 	for _, tc := range pins {

@@ -25,7 +25,7 @@ import (
 func resumeLedger(
 	ctx context.Context,
 	answers *outFile,
-	flags *runFlags,
+	flags runConfig,
 	namer *jq.Expr,
 	mode output.Mode,
 	gated bool,
@@ -54,7 +54,7 @@ func resumedVerdicts(
 	answers *outFile,
 	namer *jq.Expr,
 	format answersFormat,
-	flags *runFlags,
+	flags runConfig,
 	resume resumePlan,
 ) (resumePlan, error) {
 	if answers == nil || !answers.resume || namer != nil {

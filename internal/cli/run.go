@@ -31,32 +31,23 @@ func run(
 	settings rootSettings,
 	events []argv.Event,
 	positional string,
-	flags *runFlags,
+	parsed *runFlags,
 	out *outFile,
 	resume resumePlan,
 ) error {
-	flags.timeoutSet = cmd.Flags().Changed(flagTimeout)
-
-	env, err := readSwitches(cmd, settings.lookupEnv, flags)
+	flags, err := newRunConfig(cmd, settings.lookupEnv, *parsed, events, positional)
 	if err != nil {
 		return err
 	}
 
-	flags.env = env
-
-	cfg, inputMode, err := configOf(cmd, events, positional, flags)
-	if err != nil {
-		return err
-	}
-
-	_, mockSpelled := mockSource(settings, flags)
-	cfg.Mock = mockSpelled
+	inputMode := flags.inputMode
 
 	// Both branches sit ahead of the plan, since neither has a question and failing for want of one
 	// would send the user to the wrong flag. --list-models comes first, so it names itself rather
 	// than the mode it was combined with.
 	if flags.listModels {
-		if checkErr := checkFlags(cfg); checkErr != nil {
+		// The only hint is -j on one record, which --list-models refuses and -i request never is.
+		if _, checkErr := checkFlags(flags, runFacts{}); checkErr != nil {
 			return checkErr
 		}
 
@@ -68,7 +59,7 @@ func run(
 	}
 
 	if inputMode == input.Request {
-		if checkErr := checkFlags(cfg); checkErr != nil {
+		if _, checkErr := checkFlags(flags, runFacts{}); checkErr != nil {
 			return checkErr
 		}
 
@@ -85,7 +76,7 @@ func run(
 		})
 	}
 
-	inv, warnings, err := build(settings, cfg, events, positional, flags, false)
+	inv, warnings, err := build(settings, flags, false)
 
 	// Warnings print whether or not validation succeeded, so a run that fails for one reason still
 	// reports the others.
@@ -102,11 +93,9 @@ func run(
 	built := inv.plan
 	gate := inv.gate
 	abstain := inv.abstain
-	mapper := inv.mapper
-	namer := inv.namer
 	loaded := inv.loaded
 
-	if bodyErr := checkBodyState(cfg, loaded); bodyErr != nil {
+	if bodyErr := checkBodyState(flags, loaded); bodyErr != nil {
 		return bodyErr
 	}
 
@@ -151,7 +140,7 @@ func run(
 
 	if inputMode.Streaming() {
 		if warnErr := warnIgnoredBodyState(
-			cmd.ErrOrStderr(), cfg, loaded, "a stream", inv.images, wireAll(built.Questions)); warnErr != nil {
+			cmd.ErrOrStderr(), flags, loaded, "a stream", inv.images, wireAll(built.Questions)); warnErr != nil {
 			return warnErr
 		}
 
@@ -160,9 +149,7 @@ func run(
 		}
 
 		return withStats(cmd, settings.now, flags, func(stats *collector) error {
-			return stream(
-				cmd, settings, built, mapper, namer, inv.images, inputMode, outputMode, flags, gate, abstain,
-				stats, out, resume, answers)
+			return stream(cmd, settings, flags, inv, outputMode, stats, out, resume, answers)
 		})
 	}
 
@@ -170,8 +157,7 @@ func run(
 		return refuseErr
 	}
 
-	resolved, err := resolveState(
-		cmd.Context(), settings, cfg, flags, inputMode, loaded, cmd.ErrOrStderr())
+	resolved, err := resolveState(cmd.Context(), settings, flags, loaded, cmd.ErrOrStderr())
 	if err != nil {
 		return err
 	}
@@ -183,7 +169,7 @@ func run(
 
 	sent := resolved.Wire
 	if resolved.Source != input.SourceNone {
-		sent, err = mapped(cmd.Context(), mapper, resolved.State, resolved.Wire)
+		sent, err = mapped(cmd.Context(), inv.mapper, resolved.State, resolved.Wire)
 		if err != nil {
 			return err
 		}
@@ -219,7 +205,8 @@ func run(
 	}
 
 	return withStats(cmd, settings.now, flags, func(stats *collector) error {
-		return ask(cmd, settings, built, resolved, sent, assets, outputMode, flags, gate, abstain, stats, answers)
+		return ask(cmd, settings, flags, inv, singleState{resolved: resolved, sent: sent, assets: assets},
+			outputMode, stats, answers)
 	})
 }
 
@@ -245,7 +232,7 @@ func imagedState(sent any) (input.Resolved, error) {
 	return input.Resolved{Source: input.SourceImages, State: state, Raw: string(encoded), Wire: sent}, nil
 }
 
-func checkBodyState(cfg plan.Config, loaded *qfile.File) error {
+func checkBodyState(flags runConfig, loaded *qfile.File) error {
 	if loaded == nil || !loaded.HasState {
 		return nil
 	}
@@ -253,21 +240,21 @@ func checkBodyState(cfg plan.Config, loaded *qfile.File) error {
 	var flag string
 
 	switch {
-	case cfg.HasState:
+	case flags.hasState:
 		flag = "--" + flagState
-	case cfg.HasStateFile:
+	case flags.hasStateFile:
 		flag = "--" + flagStateFile
-	case cfg.HasImage:
+	case len(flags.images) > 0:
 		flag = "--image"
 	default:
 		return nil
 	}
 
-	return fmt.Errorf("%s and the state in %s both give a state. Drop one", flag, cfg.FileName)
+	return fmt.Errorf("%s and the state in %s both give a state. Drop one", flag, flags.file)
 }
 
 func warnIgnoredBodyState(
-	w io.Writer, cfg plan.Config, loaded *qfile.File, sender string, images *imaging, questions onesie.Questions,
+	w io.Writer, flags runConfig, loaded *qfile.File, sender string, images *imaging, questions onesie.Questions,
 ) error {
 	if loaded == nil || !loaded.HasState {
 		return nil
@@ -285,7 +272,7 @@ func warnIgnoredBodyState(
 
 	_, err = fmt.Fprintf(w,
 		"warning: ignoring the state in %s%s, since %s sends each record as its state\n",
-		cfg.FileName, note, sender)
+		flags.file, note, sender)
 
 	return err
 }
@@ -293,9 +280,7 @@ func warnIgnoredBodyState(
 func resolveState(
 	ctx context.Context,
 	settings rootSettings,
-	cfg plan.Config,
-	flags *runFlags,
-	mode input.Mode,
+	flags runConfig,
 	loaded *qfile.File,
 	hint io.Writer,
 ) (input.Resolved, error) {
@@ -323,13 +308,13 @@ func resolveState(
 	stdinTTY := settings.stdinTTY || len(flags.images) > 0
 
 	return input.Resolve(ctx, input.Query{
-		Mode:         mode,
+		Mode:         flags.inputMode,
 		Stdin:        settings.stdin,
 		StdinTTY:     stdinTTY,
 		State:        flags.state,
-		HasState:     cfg.HasState,
+		HasState:     flags.hasState,
 		StateFile:    flags.stateFile,
-		HasStateFile: cfg.HasStateFile,
+		HasStateFile: flags.hasStateFile,
 		ReadFile:     settings.readFile,
 		Hint:         hint,
 		Clock:        settings.stdinClock,
@@ -339,7 +324,7 @@ func resolveState(
 func bindOut(
 	out *outFile,
 	settings rootSettings,
-	flags *runFlags,
+	flags runConfig,
 	questions []plan.Question,
 	inputs fingerprintInputs,
 ) error {
@@ -370,7 +355,7 @@ func bindOut(
 }
 
 func outFingerprint(
-	settings rootSettings, flags *runFlags, questions []plan.Question, inputs fingerprintInputs,
+	settings rootSettings, flags runConfig, questions []plan.Question, inputs fingerprintInputs,
 ) (string, error) {
 	inputs, err := runInputs(settings, flags, inputs)
 	if err != nil {
@@ -380,7 +365,7 @@ func outFingerprint(
 	return fingerprintOf(questions, inputs)
 }
 
-func runInputs(settings rootSettings, flags *runFlags, inputs fingerprintInputs) (fingerprintInputs, error) {
+func runInputs(settings rootSettings, flags runConfig, inputs fingerprintInputs) (fingerprintInputs, error) {
 	chosen, err := runResolution(settings)
 	if err != nil {
 		return fingerprintInputs{}, err
@@ -396,10 +381,8 @@ func runInputs(settings rootSettings, flags *runFlags, inputs fingerprintInputs)
 
 	// A resume by position skips one record per stored line, and --skip-blank changes which record
 	// a line stands for everywhere but csv and tsv, which skip a blank line either way.
-	inputs.skipBlank = flags.skipBlank && !resumesByID(flags) && !delimitedInput(inputs.input)
-
-	path, _ := mockSource(settings, flags)
-	inputs.mock = path != ""
+	inputs.skipBlank = flags.skipBlank && !resumesByID(flags.runFlags) && !delimitedInput(inputs.input)
+	inputs.mock = flags.mockPath != ""
 
 	return inputs, nil
 }
@@ -410,13 +393,6 @@ func delimitedInput(name string) bool {
 	return err == nil && mode.Delimited()
 }
 
-func checkFlags(cfg plan.Config) error {
-	// The only warning is -j on one record, which --list-models refuses and -i request never is.
-	_, err := plan.CheckFlags(cfg)
-
-	return err
-}
-
 func asked(events []argv.Event) bool {
 	for _, event := range events {
 		if event.Name == "ask" {
@@ -425,15 +401,6 @@ func asked(events []argv.Event) bool {
 	}
 
 	return false
-}
-
-func eventNames(events []argv.Event) []string {
-	names := make([]string, 0, len(events))
-	for _, event := range events {
-		names = append(names, event.Name)
-	}
-
-	return names
 }
 
 func inputName(flag string) string {
@@ -449,23 +416,20 @@ func inputName(flag string) string {
 func stream(
 	cmd *cobra.Command,
 	settings rootSettings,
-	built *plan.Plan,
-	mapper *jq.Expr,
-	namer *jq.Expr,
-	images *imaging,
-	inputMode input.Mode,
+	flags runConfig,
+	inv *invocation,
 	outputMode output.Mode,
-	flags *runFlags,
-	gate *assert.Expr,
-	abstain *assert.Expr,
 	stats *collector,
 	answers *outFile,
 	resume resumePlan,
 	answerers answererFactory,
 ) error {
 	if flags.printRequest {
-		return streamRequests(cmd, settings, built, mapper, namer, images, inputMode, flags, resume)
+		return streamRequests(cmd, settings, flags, inv, resume)
 	}
+
+	built, mapper, namer, images := inv.plan, inv.mapper, inv.namer, inv.images
+	gate, abstain, inputMode := inv.gate, inv.abstain, flags.inputMode
 
 	asker, err := answerers(cmd.Context(), stats)
 	if err != nil {
@@ -857,7 +821,7 @@ func aborting(err error) bool {
 		errors.Is(err, onesie.ErrPaymentRequired) || halting(err)
 }
 
-func stopping(flags *runFlags) func(line) bool {
+func stopping(flags runConfig) func(line) bool {
 	if !flags.stopOnAssert {
 		// Nil rather than a predicate that always says no, so the engine asks nothing of a run
 		// that did not pass the flag.
@@ -880,7 +844,7 @@ type line struct {
 	call   *sharedCall
 }
 
-func mergeName(flags *runFlags) string {
+func mergeName(flags runConfig) string {
 	if flags.merge {
 		return "--merge"
 	}
@@ -936,14 +900,10 @@ func stoppedAtInput(cause error) bool {
 func ask(
 	cmd *cobra.Command,
 	settings rootSettings,
-	built *plan.Plan,
-	resolved input.Resolved,
-	sent any,
-	assets onesie.Assets,
+	flags runConfig,
+	inv *invocation,
+	state singleState,
 	outputMode output.Mode,
-	flags *runFlags,
-	gate *assert.Expr,
-	abstain *assert.Expr,
 	stats *collector,
 	answerers answererFactory,
 ) error {
@@ -951,6 +911,8 @@ func ask(
 	if err != nil {
 		return err
 	}
+
+	built, gate, abstain := inv.plan, inv.gate, inv.abstain
 
 	questions := wireAll(built.Questions)
 
@@ -960,7 +922,8 @@ func ask(
 	}
 
 	record, err := evaluate(
-		cmd.Context(), asker, recordKey{position: 1, line: 1}, built, model, questions, sent, assets, flags.usage, stats)
+		cmd.Context(), asker, recordKey{position: 1, line: 1}, built, model, questions, state.sent, state.assets,
+		flags.usage, stats)
 	if halting(err) {
 		return err
 	}
@@ -970,8 +933,7 @@ func ask(
 		// for, so a shell guard reads a decision. An interrupt is skipped, since a transport record
 		// written into the pipe the caller was closing reports a fault that never happened.
 		if !errors.Is(err, context.Canceled) {
-			if writeErr := writeFailure(
-				cmd, settings, outputMode, flags, built, resolved, record, gate, abstain); writeErr != nil {
+			if writeErr := writeFailure(cmd, settings, outputMode, flags, inv, state.resolved, record); writeErr != nil {
 				return writeErr
 			}
 		}
@@ -994,11 +956,17 @@ func ask(
 	}
 
 	// The record prints whatever the assertion said, and the exit code follows it.
-	if writeErr := writeRecord(cmd, settings, outputMode, flags, built, resolved, record, gate, abstain); writeErr != nil {
+	if writeErr := writeRecord(cmd, settings, outputMode, flags, inv, state.resolved, record); writeErr != nil {
 		return writeErr
 	}
 
 	return assertResult(record)
+}
+
+type singleState struct {
+	resolved input.Resolved
+	sent     any
+	assets   onesie.Assets
 }
 
 func assertResult(record output.Record) error {
@@ -1039,38 +1007,34 @@ func writeFailure(
 	cmd *cobra.Command,
 	settings rootSettings,
 	mode output.Mode,
-	flags *runFlags,
-	built *plan.Plan,
+	flags runConfig,
+	inv *invocation,
 	resolved input.Resolved,
 	record output.Record,
-	gate *assert.Expr,
-	abstain *assert.Expr,
 ) error {
 	// -q suppresses output entirely, so the exit code carries the whole result.
 	if flags.quiet {
 		return nil
 	}
 
-	return writeRecord(cmd, settings, mode, flags, built, resolved, record, gate, abstain)
+	return writeRecord(cmd, settings, mode, flags, inv, resolved, record)
 }
 
 func writeRecord(
 	cmd *cobra.Command,
 	settings rootSettings,
 	mode output.Mode,
-	flags *runFlags,
-	built *plan.Plan,
+	flags runConfig,
+	inv *invocation,
 	resolved input.Resolved,
 	record output.Record,
-	gate *assert.Expr,
-	abstain *assert.Expr,
 ) error {
 	if mode == output.Markdown {
-		return output.WriteMarkdown(cmd.OutOrStdout(), record, markdownOptions(gate, abstain))
+		return output.WriteMarkdown(cmd.OutOrStdout(), record, markdownOptions(inv.gate, inv.abstain))
 	}
 
 	if mode == output.CSV || mode == output.TSV {
-		return delimited(cmd.OutOrStdout(), mode, built, gate != nil, false, false).Write(record, nil, nil)
+		return delimited(cmd.OutOrStdout(), mode, inv.plan, inv.gate != nil, false, false).Write(record, nil, nil)
 	}
 
 	if merging(flags) {
@@ -1155,7 +1119,7 @@ func fallbackIDs(questions []plan.Question) []string {
 	return ids
 }
 
-func merging(flags *runFlags) bool {
+func merging(flags runConfig) bool {
 	return flags.merge || flags.mergeKey != ""
 }
 
@@ -1164,12 +1128,12 @@ func writeMerged(
 	mode output.Mode,
 	record output.Record,
 	resolved input.Resolved,
-	flags *runFlags,
+	flags runConfig,
 ) error {
 	return output.WriteMerged(w, mode, record, resolved.Raw, resolved.Wire, mergeKey(flags))
 }
 
-func mergeKey(flags *runFlags) string {
+func mergeKey(flags runConfig) string {
 	if flags.mergeKey != "" {
 		return flags.mergeKey
 	}
@@ -1364,7 +1328,7 @@ func quietResult(question plan.Question, a *answer.Answer) error {
 	return nil
 }
 
-func outputName(flags *runFlags) string {
+func outputName(flags runConfig) string {
 	if flags.raw {
 		return "raw"
 	}
@@ -1405,23 +1369,20 @@ type runFlags struct {
 	stats          bool
 	cache          bool
 
-	jobs           int
-	timeout        int
-	retries        int
-	maxRetryAfter  int
-	unordered      bool
-	stopOnError    bool
-	stopOnAssert   bool
-	skipBlank      bool
-	noDedup        bool
-	merge          bool
-	mergeKey       string
-	mapSource      string
-	idSource       string
-	images         []string
-	imageFields    []string
-	timeoutSet     bool
-	longContext    bool
-	longContextSet bool
-	env            switches
+	jobs          int
+	timeout       int
+	retries       int
+	maxRetryAfter int
+	unordered     bool
+	stopOnError   bool
+	stopOnAssert  bool
+	skipBlank     bool
+	noDedup       bool
+	merge         bool
+	mergeKey      string
+	mapSource     string
+	idSource      string
+	images        []string
+	imageFields   []string
+	longContext   bool
 }

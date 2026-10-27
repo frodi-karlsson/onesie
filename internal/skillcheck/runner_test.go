@@ -32,10 +32,21 @@ func TestMain(m *testing.M) {
 func TestNewRunner(t *testing.T) {
 	t.Parallel()
 
+	newRunner := func(t *testing.T, binary string, environ []string) *Runner {
+		t.Helper()
+
+		runner, err := NewRunner(binary, environ, "", testCatalog(t))
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		return runner
+	}
+
 	t.Run("should default to onesie on PATH when binary is empty", func(t *testing.T) {
 		t.Parallel()
 
-		if got := NewRunner("", nil, "").Binary; got != "onesie" {
+		if got := newRunner(t, "", nil).Binary; got != "onesie" {
 			t.Errorf("NewRunner(\"\").Binary = %q, want onesie", got)
 		}
 	})
@@ -43,7 +54,7 @@ func TestNewRunner(t *testing.T) {
 	t.Run("should use the binary it is given", func(t *testing.T) {
 		t.Parallel()
 
-		if got := NewRunner("/usr/bin/onesie", nil, "").Binary; got != "/usr/bin/onesie" {
+		if got := newRunner(t, "/usr/bin/onesie", nil).Binary; got != "/usr/bin/onesie" {
 			t.Errorf("NewRunner(...).Binary = %q, want /usr/bin/onesie", got)
 		}
 	})
@@ -58,7 +69,7 @@ func TestNewRunner(t *testing.T) {
 			}
 		}
 
-		code, stderr, err := NewRunner(os.Args[0], environ, "").run(context.Background(), []string{"-test.run=^$"})
+		code, stderr, err := newRunner(t, os.Args[0], environ).run(context.Background(), []string{"-test.run=^$"})
 		if err != nil || code != 0 {
 			t.Errorf("the child exited %d, %v, so ONESIE_MOCK reached it\n%s", code, err, stderr)
 		}
@@ -66,6 +77,15 @@ func TestNewRunner(t *testing.T) {
 		if got := isolated(environ, ""); slices.Contains(got, "ONESIE_MOCK=answers.json") ||
 			!slices.Contains(got, "ONESIE_MOCKED=x") {
 			t.Errorf("isolated kept the wrong entries: %v", got)
+		}
+	})
+
+	t.Run("should refuse a nil catalog", func(t *testing.T) {
+		t.Parallel()
+
+		runner, err := NewRunner("", nil, "", nil)
+		if runner != nil || err == nil || err.Error() != "onesie: a runner needs a catalog to build its dry runs" {
+			t.Errorf("NewRunner = %v, %v, want the missing catalog named", runner, err)
 		}
 	})
 }
@@ -125,7 +145,7 @@ func TestRunnerDryRun(t *testing.T) {
 
 		var gotArgs []string
 
-		runner := &Runner{Binary: "onesie", exec: func(_ context.Context, _ string, args []string) (int, string, error) {
+		runner := &Runner{Binary: "onesie", catalog: testCatalog(t), exec: func(_ context.Context, _ string, args []string) (int, string, error) {
 			gotArgs = args
 
 			return 2, "onesie: bad", nil
@@ -179,7 +199,8 @@ func TestRunnerDryRun(t *testing.T) {
 				var ran bool
 
 				runner := &Runner{
-					Binary: "onesie",
+					Binary:  "onesie",
+					catalog: testCatalog(t),
 					exec: func(context.Context, string, []string) (int, string, error) {
 						ran = true
 
@@ -215,7 +236,7 @@ func TestRunnerDryRun(t *testing.T) {
 	t.Run("should skip a command it cannot parse without running anything", func(t *testing.T) {
 		t.Parallel()
 
-		runner := &Runner{Binary: "onesie", exec: neverCalled(t)}
+		runner := &Runner{Binary: "onesie", catalog: testCatalog(t), exec: neverCalled(t)}
 
 		result, err := runner.DryRun(context.Background(), "onesie 'is this safe' | jq .")
 		if err != nil {

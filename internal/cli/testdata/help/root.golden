@@ -1,0 +1,92 @@
+onesie is a Unix filter over the System One API, served by TypeSafe, OpenRouter, Berget, Levanto or Cloudflare.
+
+State arrives on stdin, typed answers leave on stdout, and the exit status is usable in a conditional.
+
+A run uses a profile from profiles.json in the config dir: the one --profile or ONESIE_PROFILE names, or the default one. A profile holds the provider, its key, in the OS keychain or the file, and optionally a model and a base URL or Cloudflare account. onesie profile create stores one, and onesie profile use makes it the default. --provider or ONESIE_PROVIDER runs without a profile, with the key from the provider's variable, TYPESAFE_API_KEY, OPENROUTER_API_KEY, BERGET_API_KEY, LEVANTO_API_KEY or CLOUDFLARE_API_TOKEN, and so does a run on typesafe when there are no profiles. Cloudflare also needs an account, from the profile, CLOUDFLARE_ACCOUNT_ID or a base URL that holds it.
+
+--mock FILE, or ONESIE_MOCK=FILE, answers from a file instead of the API, with no key and no network, so a gate script can be tested for free.
+
+--cache, or ONESIE_CACHE=1, stores each successful response on disk and answers a repeated request from it. onesie cache reports what it holds, and onesie cache clear empties it.
+
+A question that begins with a dash needs -- before it, with any flags placed first, as in onesie -o json -- '-is this urgent'. So does a one word question close to a subcommand name, since onesie questoins exits 2 and names questions as the closest.
+
+Exit codes:
+  0    answered
+  1    a false --assert, or under -q alone the policy did not accept the answer
+  2    usage or validation error, including a missing key, or a plain http base URL to another host without --allow-http
+  3    the key was refused, the account is out of credits, the keychain failed, or profiles.json or credentials.json is exposed
+  4    the server did not answer after retries, or it answered 200 with a response onesie could not use, which is never retried
+  5    transport error or timeout
+  6    a stream finished with one or more failed records, or --stop-on-error stopped it at a record that never became a request
+  7    the gate could not decide: the assertion failed and --abstain-if held
+  130  interrupted
+
+Usage:
+  onesie [question] [flags]
+  onesie [command]
+
+Available Commands:
+  cache       Report what the response cache holds
+  calibrate   Score questions against records whose answers are known
+  completion  Generate the autocompletion script for the specified shell
+  help        Help about any command
+  profile     Create, inspect and remove the named connections a run uses
+  questions   List the question files -f finds by name
+  version     Print version, commit, build date and the built in limits
+
+Flags:
+      --abstain-if stringArray    boolean expression that turns a no into an unsure, repeatable, needs --assert
+      --allow-http                send the API key over a plain http base URL to a host other than localhost, 127.0.0.0/8, also in IPv4-mapped form, or ::1. Without it such a base URL exits 2 before any request
+      --ask string                NAME=QUESTION, repeatable, opens a question group
+      --assert stringArray        boolean expression over the record, repeatable, combined with and
+      --base-url string           api root override
+      --box                       making this a box question, answered with the left, top, right and bottom edges of what it finds in an image, each from 0 to 1. Takes no value. Experimental on TypeSafe's side
+      --cache                     store responses on disk and answer a repeated request from them. Also ONESIE_CACHE=1
+      --desc string               KEY=TEXT, describing one option, level, yes or no
+      --fallback string           value substituted on low confidence and on error
+  -f, --file string               question file or request body, or the name of one saved in .onesie/questions or the config dir, or of a built-in starter set
+  -h, --help                      help for onesie
+      --id string                 streaming only, jq expression run on each record, whose string or number result names it on every output line. It runs one record at a time as the input is read, so keep it cheap, such as a field lookup, and -V lists the cap on its length
+      --image stringArray         NAME=PATH, repeatable, puts a PNG or JPEG in the state under NAME, experimental on TypeSafe's side. For one record stdin is read beside it only through --state -, so text joins it from --state, --state-file or --state -. A stream reads its records from stdin and adds the image to each
+      --image-field stringArray   streaming only, repeatable, a state key whose value is a path to a PNG or JPEG, read per record. Under -i lines the line is the path. Experimental on TypeSafe's side
+  -i, --input string              text, json, jsonl, lines, csv, tsv or request (default "text")
+  -j, --jobs int                  records in flight at once (default 1)
+      --list-models               write the available models to stdout and exit
+      --long-context              raise the context limits to 262k tokens, slower and less accurate. Also ONESIE_LONG_CONTEXT=1. Experimental on TypeSafe's side
+      --map string                jq expression run on each record, whose result is the state sent. Object keys come out sorted. The result may nest max-map-depth levels deep and encode to max-line-bytes, as -V lists
+      --max-retry-after int       most seconds to wait out a server Retry-After (default 60)
+      --merge                     fold the answers into the input record
+      --merge-key string          where the answers land in the merged record, implies --merge
+      --min-confidence string     pick or rate only, requires --fallback. Confidence is about 1 when p sits on one answer
+      --mock string               answer from this file instead of the API. Also ONESIE_MOCK. The file is an object keyed by question id, as {"answer":0.9,"team":"billing"}, or one line per record in the shape -o json writes. A lone line that carries id, line, model, usage, assert, abstain or an error object is one record
+  -m, --model string              model override
+      --no-dedup                  streaming only, ask every record even when its request repeats an earlier one
+      --out string                write the answers to this file rather than stdout
+  -o, --output string             auto, json, values, table, raw, csv, tsv or markdown
+      --pick string               comma separated options, making this a choice question. A repeated --pick adds to the options
+      --print-questions           write a question file to stdout and exit, its first line naming the schema --print-schema prints
+      --print-request             write api shaped request bodies to stdout and exit
+      --print-schema              write the JSON Schema for a question file to stdout and exit
+      --profile string            the profile a run uses, from profiles.json in the config dir. Also ONESIE_PROFILE, and otherwise the default profile, which onesie profile use sets
+      --provider string           run on this provider without a profile, typesafe, openrouter, berget, levanto or cloudflare. Overrides ONESIE_PROVIDER
+      --prune                     with --resume and --id, drop the answered ids the input no longer has
+  -q, --quiet                     suppress output, the exit code carries the answer
+      --rate string               comma separated levels in ascending order, making this a score question. A repeated --rate adds levels after the earlier ones. Its score is the level index averaged over p, from 0, and norm is score over the top index, from 0 to 1
+  -r, --raw                       print the bare scalar
+      --replace                   --ask overrides an id from -f
+      --resume                    streaming only, with --out, carry on after the last complete line in the file. Under --id it skips the ids the file answers, so a record whose content changed but whose id did not keeps its old answer. It then rewrites the file in input order, with the answered ids the input no longer has kept after them, which --prune drops
+      --retries int               retries after a failed attempt (default 2)
+      --sep string                separator for --pick and --rate that follow it
+      --skip-blank                streaming only, drop blank lines with no output line
+      --state string              state to evaluate, or - to read stdin
+      --state-file string         read the state from this file
+      --stats                     write a one line summary of the run to stderr at exit
+      --stop-on-assert            streaming only, end the run at the first false assertion
+      --stop-on-error             streaming only, end the run at the first failure, with its exit code, or 6 for a line onesie could not read
+      --threshold string          yes/no only, cut the probability at this value
+      --timeout int               seconds per attempt (default 10)
+      --unordered                 streaming only, emit records as they complete
+      --usage                     add the api usage object to json output
+  -V, --version                   print the version and the built in limits
+
+Use "onesie [command] --help" for more information about a command.

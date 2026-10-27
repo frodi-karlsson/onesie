@@ -22,7 +22,7 @@ type switches struct {
 	aliasTTL    time.Duration
 }
 
-func readSwitches(cmd *cobra.Command, lookupEnv func(string) (string, bool), flags *runFlags) (switches, error) {
+func readSwitches(cmd *cobra.Command, lookupEnv func(string) (string, bool), flags runFlags) (switches, error) {
 	cached, err := envSwitch(lookupEnv, envCache, flagCache)
 	if err != nil {
 		return switches{}, err
@@ -81,6 +81,6 @@ func aliasTTL(lookupEnv func(string) (string, bool)) (time.Duration, error) {
 	return ttl, nil
 }
 
-func longContext(_ rootSettings, flags *runFlags) bool {
+func longContext(_ rootSettings, flags runConfig) bool {
 	return flags.env.longContext
 }

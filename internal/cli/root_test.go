@@ -2125,6 +2125,39 @@ func TestNewRootCmd(t *testing.T) {
 		}
 	})
 
+	t.Run("should print the root and calibrate help as pinned", func(t *testing.T) {
+		t.Parallel()
+
+		for _, pin := range []struct {
+			args   []string
+			golden string
+		}{
+			{args: []string{"--help"}, golden: "root.golden"},
+			{args: []string{"calibrate", "--help"}, golden: "calibrate.golden"},
+		} {
+			want, err := os.ReadFile(filepath.Join("testdata", "help", pin.golden))
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			var out bytes.Buffer
+
+			root := cli.NewRootCmd(cli.BuildInfo{Version: "1.2.3"},
+				cli.WithStdin(strings.NewReader("")), cli.WithStdinTTY(false))
+			root.SetOut(&out)
+			root.SetErr(&out)
+			root.SetArgs(pin.args)
+
+			if code := cli.Execute(t.Context(), root); code != cli.ExitOK {
+				t.Fatalf("onesie %s exit code = %d, output:\n%s", strings.Join(pin.args, " "), code, out.String())
+			}
+
+			if out.String() != string(want) {
+				t.Errorf("onesie %s differs from testdata/help/%s\ngot:\n%s", strings.Join(pin.args, " "), pin.golden, out.String())
+			}
+		}
+	})
+
 	t.Run("should keep the root's defaults after the subcommands register theirs", func(t *testing.T) {
 		t.Parallel()
 

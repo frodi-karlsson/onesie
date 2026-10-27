@@ -70,7 +70,7 @@ func TestReadSwitches(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			got, err := readSwitches(cmd, lookupFrom(tc.env), flags)
+			got, err := readSwitches(cmd, lookupFrom(tc.env), *flags)
 
 			if tc.wantErr != "" {
 				if err == nil || err.Error() != tc.wantErr || Classify(err) != ExitUsage {

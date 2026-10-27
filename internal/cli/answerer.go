@@ -27,7 +27,7 @@ type recordKey struct {
 
 type answererFactory func(ctx context.Context, stats *collector) (answerer, error)
 
-func liveAnswers(settings rootSettings, flags *runFlags) answererFactory {
+func liveAnswers(settings rootSettings, flags runConfig) answererFactory {
 	return func(ctx context.Context, stats *collector) (answerer, error) {
 		client, err := settings.newClient(ctx, observing(stats)...)
 		if err != nil {
@@ -43,7 +43,7 @@ func liveAnswers(settings rootSettings, flags *runFlags) answererFactory {
 	}
 }
 
-func newLiveAnswerer(client *onesie.Client, provider onesie.Provider, flags *runFlags) liveAnswerer {
+func newLiveAnswerer(client *onesie.Client, provider onesie.Provider, flags runConfig) liveAnswerer {
 	return liveAnswerer{client: client, provider: provider, timeoutSet: flags.timeoutSet}
 }
 

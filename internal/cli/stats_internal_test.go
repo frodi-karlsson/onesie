@@ -367,7 +367,7 @@ func TestWithStats(t *testing.T) {
 
 			now := ticking(time.Date(2026, 9, 24, 12, 0, 0, 0, time.UTC), tc.elapsed)
 
-			got := withStats(cmd, now, &runFlags{stats: true, timeout: 10}, func(c *collector) error {
+			got := withStats(cmd, now, runConfig{runFlags: runFlags{stats: true, timeout: 10}}, func(c *collector) error {
 				c.record("onesie-1.13.0", onesie.Usage{}, 1)
 
 				return tc.run

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/frodi-karlsson/onesie/internal/cli"
 	"github.com/frodi-karlsson/onesie/internal/skillcheck"
 )
 
@@ -35,7 +36,19 @@ func run() int {
 		}
 	}()
 
-	runner := skillcheck.NewRunner("", os.Environ(), configDir)
+	catalog, err := skillcheck.NewCatalog(cli.DryRunRules())
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+
+		return 1
+	}
+
+	runner, err := skillcheck.NewRunner("", os.Environ(), configDir, catalog)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+
+		return 1
+	}
 
 	report, err := skillcheck.Check(context.Background(), root, runner)
 	if err != nil {

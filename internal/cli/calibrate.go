@@ -8,50 +8,33 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 
 	"github.com/frodi-karlsson/onesie/internal/argv"
 	"github.com/frodi-karlsson/onesie/internal/calibrate"
 	"github.com/frodi-karlsson/onesie/internal/input"
 	"github.com/frodi-karlsson/onesie/internal/jq"
-	"github.com/frodi-karlsson/onesie/internal/limits"
 	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
-const (
-	flagCuts    = "cuts"
-	quietReason = "calibrate prints a report, and its exit code judges nothing"
-	rawReason   = "calibrate prints its report as a table or as json"
-	stateReason = "calibrate reads each state from its input through --map"
-)
-
-var refusedFlags = []struct {
-	name, short, reason string
-	boolean             bool
-}{
-	{name: "assert", reason: refusedReasons["assert"]},
-	{name: "abstain-if", reason: refusedReasons["abstain-if"]},
-	{name: "merge", reason: "calibrate prints a report, not the records", boolean: true},
-	{name: "merge-key", reason: "calibrate prints a report, not the records"},
-	// Each short spelling is a flag of its own, since pflag does not say which spelling set a flag,
-	// and a refusal names the one the user typed.
-	{name: "quiet", reason: quietReason, boolean: true},
-	{name: "q", short: "q", reason: quietReason, boolean: true},
-	{name: "raw", reason: rawReason, boolean: true},
-	{name: "r", short: "r", reason: rawReason, boolean: true},
-	{name: "stop-on-error", reason: "calibrate scores every record it can", boolean: true},
-	{name: "stop-on-assert", reason: "calibrate judges no assertion", boolean: true},
-	{name: "unordered", reason: "calibrate prints its report once every record is answered", boolean: true},
-	{name: "print-questions", reason: "a question file carries no labels", boolean: true},
-	{name: flagState, reason: stateReason},
-	{name: flagStateFile, reason: stateReason},
-}
+const flagCuts = "cuts"
 
 var refusedReasons = map[string]string{
-	"assert":         "calibrate reports every cut and judges none",
-	"abstain-if":     "calibrate reports every cut and judges none",
-	"threshold":      "calibrate reports every cut",
-	"min-confidence": "calibrate reports every confidence cut",
-	"fallback":       "calibrate scores the answers the model gave",
+	"assert":          "calibrate reports every cut and judges none",
+	"abstain-if":      "calibrate reports every cut and judges none",
+	"threshold":       "calibrate reports every cut",
+	"min-confidence":  "calibrate reports every confidence cut",
+	"fallback":        "calibrate scores the answers the model gave",
+	"merge":           "calibrate prints a report, not the records",
+	"merge-key":       "calibrate prints a report, not the records",
+	"quiet":           "calibrate prints a report, and its exit code judges nothing",
+	"raw":             "calibrate prints its report as a table or as json",
+	"stop-on-error":   "calibrate scores every record it can",
+	"stop-on-assert":  "calibrate judges no assertion",
+	"unordered":       "calibrate prints its report once every record is answered",
+	"print-questions": "a question file carries no labels",
+	flagState:         "calibrate reads each state from its input through --map",
+	flagStateFile:     "calibrate reads each state from its input through --map",
 }
 
 func newCalibrateCmd(settings rootSettings, flags *runFlags) *cobra.Command {
@@ -119,9 +102,6 @@ func newCalibrateCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 				return cmd.Help()
 			}
 
-			flags.timeoutSet = cmd.Flags().Changed(flagTimeout)
-			flags.longContextSet = cmd.Flags().Changed(flagLongContext)
-
 			return runCalibrate(cmd, settings, flags, *calib, recorder.Events(), positional)
 		},
 	}
@@ -132,26 +112,6 @@ func newCalibrateCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 
 	// A recorded flag is a string, so without this --box would take the next argument as its value.
 	cmd.Flags().Lookup("box").NoOptDefVal = "true"
-
-	cmd.Flags().StringArrayVar(&flags.images, flagImage, nil,
-		"NAME=PATH, repeatable, puts a PNG or JPEG in every record's state under NAME. Experimental on TypeSafe's side")
-	cmd.Flags().Var(nonEmptyList{values: &flags.imageFields}, flagImageField,
-		"repeatable, a state key whose value is a path to a PNG or JPEG, read per record. Experimental on TypeSafe's side")
-
-	for _, name := range []string{"threshold", "min-confidence", "fallback"} {
-		cmd.Flags().Var(recorder.Flag(name), name, "refused, "+refusedReasons[name])
-		hide(cmd, name)
-	}
-
-	for _, refused := range refusedFlags {
-		if refused.boolean {
-			cmd.Flags().BoolP(refused.name, refused.short, false, "refused, "+refused.reason)
-		} else {
-			cmd.Flags().StringArrayP(refused.name, refused.short, nil, "refused, "+refused.reason)
-		}
-
-		hide(cmd, refused.name)
-	}
 
 	cmd.Flags().Var(nonEmptyList{values: &calib.labels}, "label",
 		"[ID=]EXPR, a jq expression run on the record, not on the mapped state, whose result is the "+
@@ -166,94 +126,47 @@ func newCalibrateCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 		"with --out and --resume, read every answer from the file and ask nothing, needing no key")
 	cmd.Flags().StringVarP(&calib.report, "output", "o", "", "the report, table, json or auto, which means table")
 	refuseEmpty(cmd.Flags(), "output")
+	cmd.Flags().StringVarP(&calib.input, flagInput, "i", "", "required, jsonl, csv or tsv")
+	refuseEmpty(cmd.Flags(), flagInput)
 
-	bindSharedFlags(cmd, flags)
+	addRunFlags(cmd.Flags(), flags, runFlagHelp{
+		image:      "NAME=PATH, repeatable, puts a PNG or JPEG in every record's state under NAME. Experimental on TypeSafe's side",
+		imageField: "repeatable, a state key whose value is a path to a PNG or JPEG, read per record. Experimental on TypeSafe's side",
+		mapSource: "jq expression run on each record, whose result is the state sent. Map only the text a person " +
+			"would read",
+		idSource:  "jq expression run on each record, whose string or number result names it",
+		out:       "write the answers to this file as -o json lines",
+		resume:    "with --out and --id, skip the ids the file already answers",
+		prune:     "with --resume, drop the answered ids the input no longer has",
+		skipBlank: "drop blank lines",
+		usage:     "add the api usage object to the answers file and the json report",
+	})
 
 	return cmd
 }
 
-func bindSharedFlags(cmd *cobra.Command, flags *runFlags) {
-	// Every default is the root's, since pflag writes a default into its field when the flag is
-	// registered, and this runs after the root registered the same field.
-	cmd.Flags().StringVarP(&flags.input, flagInput, "i", "text", "required, jsonl, csv or tsv")
-	// The root's text default stays in the field, and help leaves it out, since calibrate refuses it.
-	cmd.Flags().Lookup(flagInput).DefValue = ""
-	refuseEmpty(cmd.Flags(), flagInput)
-	cmd.Flags().StringVar(&flags.mapSource, flagMap, "",
-		"jq expression run on each record, whose result is the state sent. Map only the text a person "+
-			"would read")
-	refuseEmpty(cmd.Flags(), flagMap)
-	cmd.Flags().StringVar(&flags.idSource, flagID, "",
-		"jq expression run on each record, whose string or number result names it")
-	refuseEmpty(cmd.Flags(), flagID)
-	cmd.Flags().StringVarP(&flags.model, flagModel, "m", "", "model override")
-	refuseEmpty(cmd.Flags(), flagModel)
-	cmd.Flags().StringVar(&flags.baseURL, flagBaseURL, "", "api root override")
-	refuseEmpty(cmd.Flags(), flagBaseURL)
-	cmd.Flags().BoolVar(&flags.allowHTTP, flagAllowHTTP, false, allowHTTPHelp)
-	cmd.Flags().BoolVar(&flags.longContext, flagLongContext, false,
-		"raise the context limits to 262k tokens, slower and less accurate. Also ONESIE_LONG_CONTEXT=1. "+
-			"Experimental on TypeSafe's side")
-	cmd.Flags().StringVarP(&flags.file, "file", "f", "",
-		"question file or request body, or the name of one saved in .onesie/questions or the config dir, "+
-			"or of a built-in starter set")
-	refuseEmpty(cmd.Flags(), "file")
-	cmd.Flags().BoolVar(&flags.replace, "replace", false, "--ask overrides an id from -f")
-	cmd.Flags().IntVarP(&flags.jobs, flagJobs, "j", 1, "records in flight at once")
-	cmd.Flags().IntVar(&flags.timeout, flagTimeout, int(limits.DefaultAttemptTimeout.Seconds()),
-		"seconds per attempt")
-	cmd.Flags().IntVar(&flags.retries, flagRetries, limits.DefaultRetries,
-		"retries after a failed attempt")
-	cmd.Flags().IntVar(&flags.maxRetryAfter, flagMaxRetryAfter,
-		int(limits.DefaultMaxRetryAfter.Seconds()),
-		"most seconds to wait out a server Retry-After")
-	cmd.Flags().StringVar(&flags.out, "out", "", "write the answers to this file as -o json lines")
-	refuseEmpty(cmd.Flags(), "out")
-	cmd.Flags().BoolVar(&flags.resume, "resume", false,
-		"with --out and --id, skip the ids the file already answers")
-	cmd.Flags().BoolVar(&flags.prune, "prune", false,
-		"with --resume, drop the answered ids the input no longer has")
-	cmd.Flags().BoolVar(&flags.skipBlank, "skip-blank", false, "drop blank lines")
-	cmd.Flags().BoolVar(&flags.stats, "stats", false,
-		"write a one line summary of the run to stderr at exit")
-	cmd.Flags().BoolVar(&flags.usage, "usage", false,
-		"add the api usage object to the answers file and the json report")
-	cmd.Flags().BoolVar(&flags.printRequest, "print-request", false,
-		"write api shaped request bodies to stdout and exit")
-	cmd.Flags().BoolVar(&flags.cache, flagCache, false, cacheHelp)
-}
-
-func hide(cmd *cobra.Command, name string) {
-	cmd.Flags().Lookup(name).Hidden = true
-}
-
 func runCalibrate(
-	cmd *cobra.Command, settings rootSettings, flags *runFlags, calib calibrateFlags,
+	cmd *cobra.Command, settings rootSettings, parsed *runFlags, calib calibrateFlags,
 	events []argv.Event, positional string,
 ) error {
-	env, err := readSwitches(cmd, settings.lookupEnv, flags)
+	own := *parsed
+	own.input = calib.input
+
+	flags, err := newRunConfig(cmd, settings.lookupEnv, own, events, positional)
 	if err != nil {
 		return err
 	}
 
-	flags.env = env
+	inputMode := flags.inputMode
 
-	cfg, inputMode, err := configOf(cmd, events, positional, flags)
-	if err != nil {
-		return err
-	}
-
-	_, mockSpelled := mockSource(settings, flags)
-	cfg.Mock = mockSpelled
-
-	reqs, err := checkCalibrate(cmd, cfg, inputMode, calib, events)
+	reqs, err := checkCalibrate(cmd, flags, calib)
 	if err != nil {
 		return err
 	}
 
 	// A file's gate and policy are ignored, since calibrate reports every cut and a gated file is
 	// the one a user calibrates.
-	inv, warnings, err := build(settings, cfg, events, positional, flags, true)
+	inv, warnings, err := build(settings, flags, true)
 
 	for _, warning := range warnings {
 		if _, printErr := fmt.Fprintln(cmd.ErrOrStderr(), warning); printErr != nil {
@@ -266,7 +179,7 @@ func runCalibrate(
 	}
 
 	if warnErr := warnIgnoredBodyState(
-		cmd.ErrOrStderr(), cfg, inv.loaded, "calibrate", inv.images, wireAll(inv.plan.Questions)); warnErr != nil {
+		cmd.ErrOrStderr(), flags, inv.loaded, "calibrate", inv.images, wireAll(inv.plan.Questions)); warnErr != nil {
 		return warnErr
 	}
 
@@ -302,22 +215,16 @@ func runCalibrate(
 	return calibrateRun(cmd, settings, flags, calib, inputMode, inv, scope, bound)
 }
 
-func checkCalibrate(
-	cmd *cobra.Command, cfg plan.Config, inputMode input.Mode, calib calibrateFlags, events []argv.Event,
-) ([]calibrate.Requirement, error) {
-	if err := checkRefused(cmd, events); err != nil {
+func checkCalibrate(cmd *cobra.Command, flags runConfig, calib calibrateFlags) ([]calibrate.Requirement, error) {
+	if err := checkCalibrateInput(flags); err != nil {
 		return nil, err
 	}
 
-	if err := checkCalibrateInput(cfg, inputMode); err != nil {
+	if err := checkOffline(flags, calib); err != nil {
 		return nil, err
 	}
 
-	if err := checkOffline(cfg, calib); err != nil {
-		return nil, err
-	}
-
-	if !cfg.HasMap {
+	if !flags.hasMap {
 		return nil, errors.New("calibrate needs --map. Without it the whole record, label included, " +
 			"would be the state, and the report would flatter the question")
 	}
@@ -328,7 +235,7 @@ func checkCalibrate(
 		return nil, fmt.Errorf("calibrate -o takes table, json or auto, got %s", calib.report)
 	}
 
-	if cfg.PrintRequest && cmd.Flags().Changed("output") {
+	if flags.printRequest && cmd.Flags().Changed("output") {
 		return nil, errors.New("-o does not apply to --print-request, which writes a request body")
 	}
 
@@ -338,21 +245,22 @@ func checkCalibrate(
 		}
 	}
 
-	// A dry run is left to plan, whose message drops --resume rather than asking for an --id it
-	// would then refuse as well.
-	if cfg.Resume && !cfg.HasID && !cfg.PrintRequest {
+	// A dry run is left to the flag rules, whose message drops --resume rather than asking for an
+	// --id it would then refuse as well.
+	if flags.resume && !flags.hasID && !flags.printRequest {
 		return nil, errors.New(
 			"calibrate resumes by id, since which records are asked follows the labels. Pass --id")
 	}
 
-	// A resume is left to plan, whose message names --resume as the flag with nothing to do.
-	if cfg.PrintRequest && cfg.Out != "" && !cfg.Resume {
+	// A resume is left to the flag rules, whose message names --resume as the flag with nothing to
+	// do.
+	if flags.printRequest && flags.out != "" && !flags.resume {
 		return nil, errors.New("--print-request writes request bodies to stdout, " +
 			"so --out has no answers to hold. Drop --out")
 	}
 
-	// A dry run is left to plan, whose message names --print-request as the reason.
-	if cfg.Usage && !cfg.PrintRequest && cfg.Out == "" && calib.report != "json" {
+	// A dry run is left to the flag rules, whose message names --print-request as the reason.
+	if flags.usage && !flags.printRequest && flags.out == "" && calib.report != "json" {
 		return nil, errors.New("--usage adds token counts to the answers file or the json report, " +
 			"and this run writes neither")
 	}
@@ -360,64 +268,61 @@ func checkCalibrate(
 	return parseRequirements(calib.requires)
 }
 
-func checkOffline(cfg plan.Config, calib calibrateFlags) error {
+func checkOffline(flags runConfig, calib calibrateFlags) error {
 	switch {
 	case !calib.offline:
 		return nil
-	case cfg.Mock != "":
+	case flags.mockSpelled != "":
 		return fmt.Errorf("--offline reads every answer from --out, and %s answers from a file of "+
-			"its own. Drop one", cfg.Mock)
-	case cfg.PrintRequest:
+			"its own. Drop one", flags.mockSpelled)
+	case flags.printRequest:
 		return errors.New("--offline reads answers, and --print-request sends no request. Drop one")
-	case cfg.Out == "":
+	case flags.out == "":
 		return errors.New("--offline reads every answer from --out. Pass --out FILE --resume")
-	case !cfg.Resume:
+	case !flags.resume:
 		return errors.New("--offline needs --resume, since it reads the answers --out already holds")
-	case cfg.Prune:
+	case flags.prune:
 		return errors.New("--offline never rewrites --out, so --prune has nothing to drop. Drop one")
 	}
 
 	return nil
 }
 
-func checkRefused(cmd *cobra.Command, events []argv.Event) error {
-	for _, refused := range refusedFlags {
-		if !cmd.Flags().Changed(refused.name) {
-			continue
-		}
-
-		spelled := "--" + refused.name
-		if refused.short != "" {
-			spelled = "-" + refused.short
-		}
-
-		return refusal(refused.reason, spelled)
+func refusedOnCalibrate(root *cobra.Command, err error) error {
+	var unknown *pflag.NotExistError
+	if !errors.As(err, &unknown) {
+		return nil
 	}
 
-	for _, event := range events {
-		if reason, found := refusedReasons[event.Name]; found {
-			return refusal(reason, "--"+event.Name)
-		}
+	known := rootFlag(root, unknown)
+	if known == nil {
+		return nil
 	}
 
-	return nil
+	reason, refused := refusedReasons[known.Name]
+	if !refused {
+		return nil
+	}
+
+	spelled := "--" + known.Name
+	if known.Shorthand != "" {
+		spelled = "-" + known.Shorthand + "/" + spelled
+	}
+
+	return &plainError{cause: err, message: fmt.Sprintf("%s, so %s does not apply. Drop it", reason, spelled)}
 }
 
-func refusal(reason, spelled string) error {
-	return fmt.Errorf("%s, so %s does not apply. Drop it", reason, spelled)
-}
-
-func checkCalibrateInput(cfg plan.Config, inputMode input.Mode) error {
-	if !cfg.HasInput {
+func checkCalibrateInput(flags runConfig) error {
+	if !flags.hasInput {
 		return errors.New("calibrate needs -i jsonl, csv or tsv, since only a record has fields to label")
 	}
 
-	switch inputMode {
+	switch flags.inputMode {
 	case input.JSONL, input.CSV, input.TSV:
 		return nil
 	default:
 		return fmt.Errorf("calibrate needs -i jsonl, csv or tsv. -i %s carries no field to label",
-			cfg.InputName)
+			inputName(flags.input))
 	}
 }
 
@@ -563,6 +468,7 @@ type calibrateFlags struct {
 	requires []string
 	cuts     string
 	report   string
+	input    string
 	offline  bool
 }
 

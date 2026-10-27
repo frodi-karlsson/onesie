@@ -20,7 +20,7 @@ import (
 func withStats(
 	cmd *cobra.Command,
 	now func() time.Time,
-	flags *runFlags,
+	flags runConfig,
 	body func(*collector) error,
 ) error {
 	stats := &collector{}

@@ -17,7 +17,7 @@ func records(
 	ctx context.Context,
 	settings rootSettings,
 	inputMode input.Mode,
-	flags *runFlags,
+	flags runConfig,
 	namer *jq.Expr,
 	book *ledger,
 	resume resumePlan,
@@ -58,7 +58,7 @@ type resumed struct {
 	stoppedAtRecord int
 }
 
-func tableName(mode output.Mode, flags *runFlags) string {
+func tableName(mode output.Mode, flags runConfig) string {
 	if mode != output.CSV && mode != output.TSV {
 		return ""
 	}

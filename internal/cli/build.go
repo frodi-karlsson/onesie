@@ -1,13 +1,9 @@
 package cli
 
 import (
-	"errors"
 	"fmt"
 
-	"github.com/spf13/cobra"
-
 	"github.com/frodi-karlsson/onesie-go"
-	"github.com/frodi-karlsson/onesie/internal/argv"
 	"github.com/frodi-karlsson/onesie/internal/assert"
 	"github.com/frodi-karlsson/onesie/internal/input"
 	"github.com/frodi-karlsson/onesie/internal/jq"
@@ -15,81 +11,19 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/qfile"
 )
 
-func configOf(
-	cmd *cobra.Command, events []argv.Event, positional string, flags *runFlags,
-) (plan.Config, input.Mode, error) {
-	inputMode, err := input.ParseMode(flags.input)
-	if err != nil {
-		return plan.Config{}, 0, err
-	}
+func build(settings rootSettings, flags runConfig, ignoreFileJudgment bool) (*invocation, []string, error) {
+	events, positional := flags.events, flags.positional
 
-	cfg := plan.Config{
-		Raw:            flags.raw,
-		Quiet:          flags.quiet,
-		HasAssert:      len(flags.assert) > 0,
-		HasAbstainIf:   len(flags.abstainIf) > 0,
-		Output:         flags.output,
-		HasState:       cmd.Flags().Changed(flagState),
-		HasStateFile:   cmd.Flags().Changed(flagStateFile),
-		HasImage:       len(flags.images) > 0,
-		ImageFields:    flags.imageFields,
-		LinesInput:     inputMode == input.Lines,
-		HasMap:         cmd.Flags().Changed(flagMap),
-		HasID:          cmd.Flags().Changed(flagID),
-		Replace:        flags.replace,
-		FileName:       flags.file,
-		HasAsk:         asked(events),
-		GroupFlags:     eventNames(events),
-		HasPositional:  positional != "",
-		HasModel:       cmd.Flags().Changed(flagModel),
-		Usage:          flags.usage,
-		PrintQuestions: flags.printQuestions,
-		PrintRequest:   flags.printRequest,
-		Stats:          flags.stats,
-		Streaming:      inputMode.Streaming(),
-		RequestMode:    inputMode == input.Request,
-		ListModels:     flags.listModels,
-		InputName:      inputName(flags.input),
-		HasInput:       cmd.Flags().Changed(flagInput),
-		Unordered:      flags.unordered,
-		StopOnError:    flags.stopOnError,
-		NoDedup:        flags.noDedup,
-		Cache:          flags.cache && cmd.Flags().Changed(flagCache),
-		Out:            flags.out,
-		Resume:         flags.resume,
-		Prune:          flags.prune,
-		StopOnAssert:   flags.stopOnAssert,
-		SkipBlank:      flags.skipBlank,
-		Merge:          merging(flags),
-		MergeName:      mergeName(flags),
-		HasMergeKey:    flags.mergeKey != "",
-		Jobs:           flags.jobs,
-		JobsSet:        cmd.Flags().Changed(flagJobs),
-
-		Timeout:          flags.timeout,
-		TimeoutSet:       cmd.Flags().Changed(flagTimeout),
-		Retries:          flags.retries,
-		RetriesSet:       cmd.Flags().Changed(flagRetries),
-		MaxRetryAfter:    flags.maxRetryAfter,
-		MaxRetryAfterSet: cmd.Flags().Changed(flagMaxRetryAfter),
-	}
-
-	return cfg, inputMode, nil
-}
-
-func build(
-	settings rootSettings, cfg plan.Config, events []argv.Event, positional string,
-	flags *runFlags, ignoreFileJudgment bool,
-) (*invocation, []string, error) {
 	// Every mode except --list-models and -i request needs a question, and reporting that here
 	// rather than from Assemble keeps the message the same whichever source was missing.
 	if positional == "" && len(events) == 0 && flags.file == "" {
-		return nil, nil, errors.New("no question given. Pass a question, --ask, or -f")
+		return nil, nil, errNoQuestion
 	}
 
 	var (
 		loaded   *qfile.File
 		setAside fileGate
+		facts    runFacts
 	)
 
 	fileName := flags.file
@@ -114,20 +48,7 @@ func build(
 			withoutJudgment(loaded)
 		}
 
-		// The file's assertion is the same gate --assert is, so it answers the -q rule the same
-		// way. The config is built before the file is read, which is why this is not up there with
-		// the flags.
-		if loaded.Assert != "" && !cfg.HasAssert {
-			cfg.AssertName = plan.Spelling(plan.OriginFile, "--assert")
-		}
-
-		cfg.HasAssert = cfg.HasAssert || loaded.Assert != ""
-
-		if loaded.AbstainIf != "" && !cfg.HasAbstainIf {
-			cfg.AbstainIfName = plan.Spelling(plan.OriginFile, "--abstain-if")
-		}
-
-		cfg.HasAbstainIf = cfg.HasAbstainIf || loaded.AbstainIf != ""
+		facts = runFacts{assert: loaded.Assert, abstainIf: loaded.AbstainIf}
 	}
 
 	source := plan.Source{
@@ -154,35 +75,30 @@ func build(
 
 	built.LongContext = flags.env.longContext || (loaded != nil && loaded.LongContext)
 
-	warnings, err := plan.Validate(built, cfg)
+	warnings, err := validatePlan(built, flags, facts)
 	if err != nil {
 		return nil, warnings, err
-	}
-
-	var fileAssert, fileAbstain string
-	if loaded != nil {
-		fileAssert, fileAbstain = loaded.Assert, loaded.AbstainIf
 	}
 
 	// After validation, since the checker reads a plan the run has accepted, and before any mode
 	// dispatches, since the assertion is checked against the plan and every check runs before any
 	// network call.
-	gate, err := gateOf("--assert", fileAssert, flags.assert, built)
+	gate, err := gateOf("--assert", facts.assert, flags.assert, built)
 	if err != nil {
 		return nil, warnings, err
 	}
 
-	abstain, err := gateOf("--abstain-if", fileAbstain, flags.abstainIf, built)
+	abstain, err := gateOf("--abstain-if", facts.abstainIf, flags.abstainIf, built)
 	if err != nil {
 		return nil, warnings, err
 	}
 
-	mapper, err := exprOf(cfg.HasMap, "--map", flags.mapSource)
+	mapper, err := exprOf(flags.hasMap, "--map", flags.mapSource)
 	if err != nil {
 		return nil, warnings, err
 	}
 
-	namer, err := exprOf(cfg.HasID, "--id", flags.idSource)
+	namer, err := exprOf(flags.hasID, "--id", flags.idSource)
 	if err != nil {
 		return nil, warnings, err
 	}
@@ -192,7 +108,8 @@ func build(
 		bodyAssets = loaded.Assets
 	}
 
-	images, err := newImaging(flags.images, flags.imageFields, cfg.LinesInput, settings.readFile, bodyAssets)
+	images, err := newImaging(
+		flags.images, flags.imageFields, flags.inputMode == input.Lines, settings.readFile, bodyAssets)
 	if err != nil {
 		return nil, warnings, err
 	}

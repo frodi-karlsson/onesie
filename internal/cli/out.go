@@ -36,11 +36,11 @@ var (
 	ErrStaleAnswers = errors.New("stale answers")
 )
 
-func openOut(settings rootSettings, flags *runFlags) (*outFile, resumePlan, error) {
+func openOut(settings rootSettings, flags runFlags) (*outFile, resumePlan, error) {
 	return openOutFile(settings, flags, false)
 }
 
-func openOutFile(settings rootSettings, flags *runFlags, readOnly bool) (*outFile, resumePlan, error) {
+func openOutFile(settings rootSettings, flags runFlags, readOnly bool) (*outFile, resumePlan, error) {
 	if flags.out == "" {
 		return nil, resumePlan{}, nil
 	}
@@ -98,7 +98,7 @@ func openOutFile(settings rootSettings, flags *runFlags, readOnly bool) (*outFil
 	return out, resume, nil
 }
 
-func resumeOut(out *outFile, settings rootSettings, flags *runFlags) (resumePlan, error) {
+func resumeOut(out *outFile, settings rootSettings, flags runFlags) (resumePlan, error) {
 	if err := out.removeStalePart(); err != nil {
 		return resumePlan{}, err
 	}
@@ -145,7 +145,7 @@ type resumePlan struct {
 	stored []verdict
 }
 
-func resumesByID(flags *runFlags) bool {
+func resumesByID(flags runFlags) bool {
 	return flags.idSource != ""
 }
 

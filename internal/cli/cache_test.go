@@ -21,8 +21,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/spf13/cobra"
+
 	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/cache"
+	"github.com/frodi-karlsson/onesie/internal/input"
+	"github.com/frodi-karlsson/onesie/internal/output"
 	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
@@ -35,22 +39,30 @@ func TestCaching(t *testing.T) {
 
 	tests := []struct {
 		name  string
-		env   map[string]string
-		flags runFlags
+		flags runConfig
 		want  bool
 	}{
-		{name: "should be on when the switches turn it on", flags: runFlags{env: switches{cache: true}}, want: true},
+		{name: "should be on when the switches turn it on", flags: runConfig{env: switches{cache: true}}, want: true},
 		{name: "should be off when the switches leave it off"},
-		{name: "should be off under --mock", flags: runFlags{mock: "m.json", env: switches{cache: true}}},
-		{name: "should be off under ONESIE_MOCK", env: map[string]string{envMock: "m.json"}, flags: runFlags{env: switches{cache: true}}},
-		{name: "should be off under --print-request", flags: runFlags{printRequest: true, env: switches{cache: true}}},
+		{
+			name:  "should be off under --mock",
+			flags: runConfig{mockPath: "m.json", mockSpelled: flagMock, env: switches{cache: true}},
+		},
+		{
+			name:  "should be off under ONESIE_MOCK",
+			flags: runConfig{mockPath: "m.json", mockSpelled: envMock, env: switches{cache: true}},
+		},
+		{
+			name:  "should be off under --print-request",
+			flags: runConfig{runFlags: runFlags{printRequest: true}, env: switches{cache: true}},
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			if got := caching(rootSettings{lookupEnv: lookupFrom(tc.env)}, &tc.flags); got != tc.want {
+			if got := caching(tc.flags); got != tc.want {
 				t.Errorf("caching = %v, want %v", got, tc.want)
 			}
 		})
@@ -177,7 +189,7 @@ func TestCachedAnswerer(t *testing.T) {
 			warn = func(err error) { t.Errorf("unexpected cache warning: %v", err) }
 		}
 
-		return cachedAnswers(settings, flags, onesie.TypeSafe(), onesie.DefaultModel, questions, warn), dir
+		return cachedAnswers(settings, runConfig{}, onesie.TypeSafe(), onesie.DefaultModel, questions, warn), dir
 	}
 
 	t.Run("should ask on a miss, store the answer and answer the next call from it", func(t *testing.T) {
@@ -841,6 +853,56 @@ func TestAsk(t *testing.T) {
 			t.Errorf("cache dir holds %d files, %v, want only the foreign one", len(entries), err)
 		}
 	})
+
+	direct := []struct {
+		name     string
+		flags    runFlags
+		noul     float64
+		wantOut  string
+		wantFail bool
+	}{
+		{name: "should write the record the answerer gives", flags: runFlags{output: "values"}, noul: 0.9, wantOut: "{\"answer\":0.9}\n"},
+		{name: "should write nothing under -q and reject a no", flags: runFlags{quiet: true}, noul: 0.2, wantFail: true},
+	}
+
+	for _, tc := range direct {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var out strings.Builder
+
+			cmd := &cobra.Command{}
+			cmd.SetOut(&out)
+			cmd.SetContext(t.Context())
+
+			settings := rootSettings{
+				lookupEnv: lookupFrom(nil),
+				holder: &holder{resolved: func() (resolution, error) {
+					return resolution{provider: onesie.TypeSafe()}, nil
+				}},
+			}
+
+			inv := &invocation{plan: &plan.Plan{Questions: []plan.Question{{ID: "answer", Shape: plan.Noul}}}}
+			asker := resultAnswerer{result: func() *onesie.Result {
+				return &onesie.Result{Model: "m", Answers: map[string]onesie.Answer{"answer": &onesie.NoulAnswer{Noul: tc.noul}}}
+			}}
+
+			err := ask(cmd, settings, runConfig{runFlags: tc.flags}, inv,
+				singleState{resolved: input.Resolved{Source: input.SourceState, State: "x"}, sent: "x"},
+				output.Values, &collector{}, func(context.Context, *collector) (answerer, error) {
+					return asker, nil
+				})
+
+			var rejected *rejectedError
+			if errors.As(err, &rejected) != tc.wantFail || (err != nil && !tc.wantFail) {
+				t.Fatalf("ask = %v, want a rejection %v", err, tc.wantFail)
+			}
+
+			if out.String() != tc.wantOut {
+				t.Errorf("stdout = %q, want %q", out.String(), tc.wantOut)
+			}
+		})
+	}
 }
 
 func newAnswerStub(t *testing.T) *answerStub {
