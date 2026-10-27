@@ -643,7 +643,7 @@ func TestWithStats(t *testing.T) {
 			{
 				name:   "should take tokens from the response and questions from the request",
 				status: http.StatusOK,
-				response: `{"model":"onesie-1.14.0","answers":{},` +
+				response: `{"model":"onesie-1.14.0","answers":{"a":{"type":"noul","noul":0.1},"b":{"type":"noul","noul":0.2}},` +
 					`"usage":{"input_tokens":12,"output_tokens":3}}`,
 				wantCode: ExitOK,
 				wantErr: "1 request, 2 questions asked, 12 in / 3 out tokens, model onesie-1.14.0, " +

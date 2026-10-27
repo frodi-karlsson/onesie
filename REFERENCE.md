@@ -405,6 +405,14 @@ ls photos/*.jpg | onesie -i lines --image-field photo 'is there a dog in `photo`
   through `-i request`.
 - A printed body names its model, the provider's default unless `-m` gave one, so it replays on a
   provider that serves that model. To print for another provider, pass `-m`.
+- Under `-i request` onesie does not check the body it sends, apart from filling a blank `model`,
+  but it checks each 200 that comes back before printing it. A response that is not JSON, that is
+  not a System One result with an `answers` object, or whose answers do not decode, is an error
+  line of kind `response` with `200 response could not be used:`, and the run exits 6. When the
+  body's `questions` read as a `-f` body's would, each answer is also checked against its question
+  as on any other run, so a missing answer or a value out of its range fails the same way. A
+  body whose questions onesie cannot read, such as one past `max-question-file-bytes`, gets only
+  the first checks. The tokens of a refused response still count toward `--stats`.
 - A malformed image body, such as one whose asset nothing references, is refused before any
   request on every provider, with the same message.
 - Providers read images differently:

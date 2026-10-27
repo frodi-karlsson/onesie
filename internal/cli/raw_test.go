@@ -79,18 +79,9 @@ func TestStreamRaw(t *testing.T) {
 			name:     "should write one line for a pretty printed response",
 			args:     []string{"-i", "request"},
 			stdin:    "{\"state\":\"a\"}\n{\"state\":\"b\"}\n",
-			response: "{\n  \"answers\": {\n    \"a\": 1\n  }\n}\n",
+			response: "{\n  \"answers\": {\n    \"a\": {\"type\": \"noul\", \"noul\": 1}\n  }\n}\n",
 			wantSent: []string{`{"model":"jev-latest","state":"a"}`, `{"model":"jev-latest","state":"b"}`},
-			wantOut:  []string{`{"answers":{"a":1}}`, `{"answers":{"a":1}}`},
-			wantCode: ExitOK,
-		},
-		{
-			name:     "should write one line for a response that is not JSON at all",
-			args:     []string{"-i", "request"},
-			stdin:    "{\"state\":\"a\"}\n",
-			response: "not json\nat all\n",
-			wantSent: []string{`{"model":"jev-latest","state":"a"}`},
-			wantOut:  []string{"not json at all"},
+			wantOut:  []string{`{"answers":{"a":{"type":"noul","noul":1}}}`, `{"answers":{"a":{"type":"noul","noul":1}}}`},
 			wantCode: ExitOK,
 		},
 		{
@@ -266,6 +257,70 @@ func TestStreamRaw(t *testing.T) {
 		}
 	})
 
+	t.Run("should refuse a 200 that is no System One result or does not fit its request", func(t *testing.T) {
+		t.Parallel()
+
+		const asked = `{"state":"x","model":"m","questions":{"u":{"type":"noul","instructions":"q"}}}`
+
+		tests := []struct {
+			name     string
+			stdin    string
+			response string
+			want     string
+		}{
+			{name: "should refuse a body that is not JSON", stdin: asked, response: "garbage", want: "the response is not JSON"},
+			{
+				name: "should refuse a result with no answers object", stdin: `{"state":"x"}`, response: `{"x":1}`,
+				want: "the response is not a System One result, since it has no answers",
+			},
+			{
+				name: "should refuse an answer that carries only its type", stdin: asked,
+				response: `{"answers":{"u":{"type":"noul"}}}`, want: `answer \"u\": the noul answer has no noul`,
+			},
+			{
+				name: "should refuse an answer the request did not get", stdin: asked,
+				response: `{"answers":{"v":{"type":"noul","noul":0.5}}}`, want: "question 'u' has no answer",
+			},
+			{
+				name: "should refuse an answer outside its range", stdin: asked,
+				response: `{"answers":{"u":{"type":"noul","noul":1.5}}}`,
+				want:     "question 'u' answered 1.5, which lies outside [0,1]",
+			},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				_, out, errOut, code := runRequestMode(t, []string{"-i", "request", "--stats"}, tc.stdin+"\n", 0, tc.response)
+				if code != ExitRecords {
+					t.Errorf("exit code = %d, want %d\nstdout:\n%s\nstderr:\n%s", code, ExitRecords, out, errOut)
+				}
+
+				lines := outputLines(out)
+				if len(lines) != 1 || !strings.HasPrefix(lines[0], `{"error":{"kind":"response","status":200,`) ||
+					!strings.Contains(lines[0], "response could not be used: "+tc.want) {
+					t.Errorf("stdout = %q, want one response error line naming %q", out, tc.want)
+				}
+
+				if !strings.Contains(errOut, "1 failed") {
+					t.Errorf("stderr = %q, want the record counted as failed", errOut)
+				}
+			})
+		}
+	})
+
+	t.Run("should count the tokens of a 200 it could not use", func(t *testing.T) {
+		t.Parallel()
+
+		_, out, errOut, code := runRequestMode(t, []string{"-i", "request", "--stats"},
+			`{"state":"x","model":"m","questions":{"u":{"type":"noul","instructions":"q"}}}`+"\n", 0,
+			`{"answers":{"u":{"type":"noul","noul":2}},"usage":{"input_tokens":10,"output_tokens":2}}`)
+		if code != ExitRecords || !strings.Contains(errOut, "10 in / 2 out tokens") {
+			t.Errorf("exit code = %d, stderr = %q, want %d and the tokens counted\nstdout:\n%s", code, errOut, ExitRecords, out)
+		}
+	})
+
 	t.Run("should keep multiple requests in flight under -j", func(t *testing.T) {
 		t.Parallel()
 
@@ -352,7 +407,7 @@ func TestStreamRaw(t *testing.T) {
 			{
 				name:     "should write a record as it completes rather than in input order",
 				args:     []string{"-i", "request", "--unordered", "-j", "3"},
-				wantLast: `{"model":"m","state":0}`,
+				wantLast: `{"model":"m","answers":{},"state":0}`,
 			},
 		}
 
@@ -406,7 +461,8 @@ func TestStreamRaw(t *testing.T) {
 				defer srv.Close()
 
 				out, errOut, code := runAgainst(
-					t, tc.args, "{\"model\":\"m\",\"state\":0}\n{\"model\":\"m\",\"state\":1}\n{\"model\":\"m\",\"state\":2}\n", srv.URL)
+					t, tc.args, "{\"model\":\"m\",\"answers\":{},\"state\":0}\n{\"model\":\"m\",\"answers\":{},\"state\":1}\n"+
+						"{\"model\":\"m\",\"answers\":{},\"state\":2}\n", srv.URL)
 
 				if code != ExitOK {
 					t.Fatalf("exit code = %d, want %d\nstdout:\n%s\nstderr:\n%s",
@@ -523,7 +579,7 @@ func TestStreamRaw(t *testing.T) {
 
 				// The bodies a real run sends are the printed ones, byte for byte.
 				sent, out, errOut, code := runRequestMode(
-					t, []string{"-i", "request"}, printed, 0, `{"answers":{}}`)
+					t, []string{"-i", "request"}, printed, 0, `{"answers":{"urgent":{"type":"noul","noul":0.5}}}`)
 				if code != ExitOK {
 					t.Fatalf("sending exit code = %d, want %d\nstdout:\n%s\nstderr:\n%s",
 						code, ExitOK, out, errOut)
@@ -610,7 +666,7 @@ func TestStreamRaw(t *testing.T) {
 
 					w.Header().Set("Content-Type", "application/json")
 
-					if _, err := io.WriteString(w, `{"model":"jev-1.14.0","answers":{}}`); err != nil {
+					if _, err := io.WriteString(w, `{"model":"jev-1.14.0","answers":{"q":{"type":"noul","noul":0.5}}}`); err != nil {
 						t.Errorf("writing the stub response: %v", err)
 					}
 				}))
@@ -651,7 +707,7 @@ func TestStreamRaw(t *testing.T) {
 	t.Run("should check long context against the run's resolved model", func(t *testing.T) {
 		t.Parallel()
 
-		body := `{"state":"s","questions":{"q":{"type":"noul","instructions":"q"}}}` + "\n"
+		body := `{"state":"s","questions":{"answer":{"type":"noul","instructions":"q"}}}` + "\n"
 
 		tests := []struct {
 			name     string

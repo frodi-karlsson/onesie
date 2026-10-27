@@ -6,14 +6,18 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"slices"
 	"strings"
 
 	"github.com/spf13/cobra"
 
 	"github.com/frodi-karlsson/onesie-go"
+	"github.com/frodi-karlsson/onesie/internal/answer"
 	"github.com/frodi-karlsson/onesie/internal/engine"
 	"github.com/frodi-karlsson/onesie/internal/input"
+	"github.com/frodi-karlsson/onesie/internal/plan"
+	"github.com/frodi-karlsson/onesie/internal/qfile"
 )
 
 func streamRaw(
@@ -127,6 +131,13 @@ func streamRaw(
 				stats.terminalAttempt(advised)
 
 				return errorLine(advised), advised
+			}
+
+			if usage, checkErr := checkRawResponse(body, response); checkErr != nil {
+				stats.spend(usage)
+				stats.recordFailure(checkErr, true, asked)
+
+				return errorLine(checkErr), checkErr
 			}
 
 			model, usage := rawSummary(response)
@@ -308,6 +319,62 @@ func blankModel(value []byte) bool {
 	var name string
 
 	return len(value) <= 256 && json.Unmarshal(value, &name) == nil && strings.TrimSpace(name) == ""
+}
+
+func checkRawResponse(request, response []byte) (onesie.Usage, error) {
+	if !json.Valid(response) {
+		return onesie.Usage{}, unusableResponse("the response is not JSON")
+	}
+
+	var probe struct {
+		Answers json.RawMessage `json:"answers"`
+		Usage   onesie.Usage    `json:"usage"`
+	}
+
+	if err := json.Unmarshal(response, &probe); err != nil {
+		return onesie.Usage{}, readableResponse(&onesie.ResponseError{Status: http.StatusOK, Err: err})
+	}
+
+	if !bytes.HasPrefix(bytes.TrimSpace(probe.Answers), []byte("{")) {
+		return probe.Usage, unusableResponse("the response is not a System One result, since it has no answers")
+	}
+
+	var result onesie.Result
+	if err := json.Unmarshal(response, &result); err != nil {
+		return probe.Usage, readableResponse(&onesie.ResponseError{Status: http.StatusOK, Err: err})
+	}
+
+	// Only a body whose questions onesie can read, as -f reads one, says what each answer must fit.
+	for _, question := range requestQuestions(request) {
+		if _, err := answer.Normalize(question, result.Answers[question.ID]); err != nil {
+			return probe.Usage, err
+		}
+	}
+
+	return probe.Usage, nil
+}
+
+func unusableResponse(reason string) error {
+	return &onesie.ResponseError{
+		Status: http.StatusOK, Message: "onesie: 200 response could not be used: " + reason,
+	}
+}
+
+func requestQuestions(request []byte) []plan.Question {
+	var probe struct {
+		Questions json.RawMessage `json:"questions"`
+	}
+
+	if json.Unmarshal(request, &probe) != nil || probe.Questions == nil {
+		return nil
+	}
+
+	loaded, err := qfile.Load(request)
+	if err != nil {
+		return nil
+	}
+
+	return loaded.Questions
 }
 
 func oneLine(body []byte) []byte {
