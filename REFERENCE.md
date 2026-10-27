@@ -59,10 +59,12 @@ prints the built in limits.
   rate needs every level described, or none.
 - `--box` makes a question a box, answered with `left`, `top`, `right` and `bottom`, each a fraction
   of the image from its top left corner, and a `confidence`. It needs an image, as in Images below,
-  and a provider that serves it: TypeSafe on `jev-latest` or any other model, or OpenRouter, as on
-  `typesafe/jev-1.14`. Cloudflare, Levanto and Berget refuse it. It takes no value and no
-  `--desc`, `--threshold`, `--min-confidence` or `--fallback`. `-r` prints the four edges in that
-  order, and `-o csv` writes them as four columns, `ID_left`, `ID_top`, `ID_right` and `ID_bottom`.
+  and a provider that takes it, TypeSafe or OpenRouter, as on `typesafe/jev-1.14`. Cloudflare,
+  Levanto and Berget refuse it before any request. On TypeSafe the model must serve it too: one that
+  does not answers 400 `Invalid request`, and onesie then names `-m jev-preview`, which does. It
+  takes no value and no `--desc`, `--threshold`, `--min-confidence` or `--fallback`. `-r` prints the
+  four edges in that order, and `-o csv` writes them as four columns, `ID_left`, `ID_top`,
+  `ID_right` and `ID_bottom`.
   A box always returns a box, even when the target is not there, so pair it with a yes or no
   question that asks whether it is.
 
@@ -372,7 +374,7 @@ onesie calibrate -f shell-safety -i jsonl --map .command --id .id \
 
 ```sh
 onesie --image photo=examples/images/square.png 'is there a red square in `photo`'
-onesie --image photo=examples/images/square.png --ask where='the red square in `photo`' --box -r
+onesie --image photo=examples/images/square.png --ask where='the red square in `photo`' --box -m jev-preview -r
 ls photos/*.jpg | onesie -i lines --image-field photo 'is there a dog in `photo`' -o values
 ```
 

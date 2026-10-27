@@ -150,7 +150,7 @@ cat photo.jpg | onesie 'is there a dog'
 **Good:**
 
 ```sh
-onesie --image photo=examples/images/square.png --ask there='is there a red square in `photo`' --ask where='the red square in `photo`' --box --print-request
+onesie --image photo=examples/images/square.png --ask there='is there a red square in `photo`' --ask where='the red square in `photo`' --box -m jev-preview --print-request
 ```
 
 ### Say what an option, a level or a yes means with --desc.
