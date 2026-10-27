@@ -578,7 +578,7 @@ func TestCheck(t *testing.T) {
 				id:   "team",
 				allowed: map[string]string{
 					"value": `"technical"`, "confidence": "0.9",
-					"p.billing": "0.25", "p.technical": "0.5",
+					"p.billing": "0.25", "p.technical": "0.75",
 				},
 				low: map[string]string{"confidence": "0.5"},
 			},
@@ -587,7 +587,7 @@ func TestCheck(t *testing.T) {
 				id:   "routed",
 				allowed: map[string]string{
 					"value": `"technical"`, "confidence": "0.9",
-					"p.billing": "0.25", "p.technical": "0.5",
+					"p.billing": "0.25", "p.technical": "0.75",
 					"decision": `"technical"`, "fallback": `""`,
 				},
 				low: map[string]string{
@@ -599,7 +599,7 @@ func TestCheck(t *testing.T) {
 				id:   "unsure",
 				allowed: map[string]string{
 					"value": `"technical"`, "confidence": "0.9",
-					"p.billing": "0.25", "p.technical": "0.5",
+					"p.billing": "0.25", "p.technical": "0.75",
 					"fallback": `""`,
 				},
 				low: map[string]string{"confidence": "0.5"},
@@ -702,7 +702,7 @@ func TestCheck(t *testing.T) {
 				id:   "routed",
 				allowed: map[string]string{
 					"value": `"technical"`, "confidence": "0.9",
-					"p.billing": "0.25", "p.technical": "0.5",
+					"p.billing": "0.25", "p.technical": "0.75",
 					"decision": `"technical"`, "fallback": `""`,
 				},
 				low: map[string]string{
@@ -959,6 +959,15 @@ func rawAnswer(q plan.Question, confidence float64) onesie.Answer {
 		probabilities := map[string]float64{}
 		for i, option := range q.Options {
 			probabilities[option.Name] = float64(i+1) / float64(len(q.Options)*2)
+		}
+
+		// The last option takes the rest, so the distribution adds up to 1 as Normalize requires.
+		last := q.Options[len(q.Options)-1].Name
+		probabilities[last] = 1
+		for name, value := range probabilities {
+			if name != last {
+				probabilities[last] -= value
+			}
 		}
 
 		return &onesie.ChoiceAnswer{

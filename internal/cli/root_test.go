@@ -1891,27 +1891,72 @@ func TestNewRootCmd(t *testing.T) {
 		}
 	})
 
-	t.Run("should refuse an answer that carries only its type", func(t *testing.T) {
+	t.Run("should refuse an answer that does not fit the question on every run path", func(t *testing.T) {
 		t.Parallel()
 
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			w.Header().Set("Content-Type", "application/json")
+		const usage = `"usage":{"input_tokens":10,"output_tokens":2}`
 
-			if _, err := io.WriteString(w, `{"model":"jev-1.14.0","answers":{"answer":{"type":"noul"}},`+
-				`"usage":{"input_tokens":10,"output_tokens":2}}`); err != nil {
-				t.Errorf("writing the stub response: %v", err)
-			}
-		}))
-		t.Cleanup(srv.Close)
+		noul := []string{"is this urgent"}
+		pick := []string{"who handles this", "--pick", "billing,technical"}
+		rate := []string{"how bad", "--rate", "low,mid,high"}
 
 		tests := []struct {
-			name string
-			args []string
+			name     string
+			question []string
+			answer   string
+			gate     []string
+			want     string
 		}{
-			{name: "should exit 4 on a plain run", args: []string{"is this urgent", "--state", "x", "--retries", "0"}},
 			{
-				name: "should not pass a gate",
-				args: []string{"is this urgent", "--state", "x", "--retries", "0", "-q", "--assert", "answer.value < 0.5"},
+				name: "should refuse an answer that carries only its type", question: noul,
+				answer: `{"type":"noul"}`, gate: []string{"-q"},
+				want: "response could not be used",
+			},
+			{
+				name: "should refuse a noul outside [0,1]", question: noul,
+				answer: `{"type":"noul","noul":1.5}`, gate: []string{"-q"},
+				want: "response could not be used: question 'answer' answered 1.5, which lies outside [0,1]",
+			},
+			{
+				name: "should refuse an answer of the wrong type", question: noul,
+				answer: `{"type":"choice","choice":"a","confidence":1,"probabilities":{"a":1}}`, gate: []string{"-q"},
+				want: "response could not be used: question 'answer' expects a noul answer, got choice",
+			},
+			{
+				name: "should refuse a choice that is not an option", question: pick,
+				answer: `{"type":"choice","choice":"sales","confidence":1,"probabilities":{"billing":0.5,"technical":0.5}}`,
+				gate:   []string{"--assert", `answer.value != "billing"`},
+				want:   "response could not be used: question 'answer' picked 'sales', which is not one of its options: billing, technical",
+			},
+			{
+				name: "should refuse p that leaves an option out", question: pick,
+				answer: `{"type":"choice","choice":"billing","confidence":1,"probabilities":{"billing":1}}`,
+				gate:   []string{"--assert", `answer.value == "billing"`},
+				want:   "response could not be used: question 'answer' has no p for 'technical'",
+			},
+			{
+				name: "should refuse a negative p", question: pick,
+				answer: `{"type":"choice","choice":"billing","confidence":1,"probabilities":{"billing":1.2,"technical":-0.2}}`,
+				gate:   []string{"--assert", `answer.value == "billing"`},
+				want:   "response could not be used: question 'answer' has p for 'billing' of 1.2, which lies outside [0,1]",
+			},
+			{
+				name: "should refuse a confidence above 1", question: pick,
+				answer: `{"type":"choice","choice":"billing","confidence":1.5,"probabilities":{"billing":1,"technical":0}}`,
+				gate:   []string{"--assert", `answer.confidence > 0.9`},
+				want:   "response could not be used: question 'answer' has confidence 1.5, which lies outside [0,1]",
+			},
+			{
+				name: "should refuse a score outside its levels", question: rate,
+				answer: `{"type":"score","score":7,"confidence":1,"probabilities":{"0":0,"1":0,"2":1}}`,
+				gate:   []string{"--assert", `answer.score >= 0`},
+				want:   "response could not be used: question 'answer' has score 7, which lies outside [0,2]",
+			},
+			{
+				name: "should refuse p keyed by label rather than by index", question: rate,
+				answer: `{"type":"score","score":2,"confidence":1,"probabilities":{"low":0,"mid":0,"high":1}}`,
+				gate:   []string{"--assert", `answer.score >= 0`},
+				want:   "response could not be used: question 'answer' has p for 'high', which is not a level index from 0 to 2",
 			},
 		}
 
@@ -1919,38 +1964,80 @@ func TestNewRootCmd(t *testing.T) {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 
-				var out, errOut bytes.Buffer
+				var requests atomic.Int64
+
+				srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					requests.Add(1)
+					w.Header().Set("Content-Type", "application/json")
+
+					if _, err := io.WriteString(w, `{"model":"jev-1.14.0","answers":{"answer":`+tc.answer+`},`+usage+`}`); err != nil {
+						t.Errorf("writing the stub response: %v", err)
+					}
+				}))
+				t.Cleanup(srv.Close)
 
 				env := map[string]string{
 					"ONESIE_CONFIG_DIR": t.TempDir(),
+					"ONESIE_CACHE_DIR":  filepath.Join(t.TempDir(), "cache"),
 					onesie.EnvAPIKey:    "SECRET-TEST",
 					onesie.EnvBaseURL:   srv.URL,
 				}
 
-				root := cli.NewRootCmd(
-					cli.BuildInfo{Version: "1.2.3"},
-					cli.WithKeychain(offKeychain{}),
-					cli.WithStdin(strings.NewReader("")),
-					cli.WithStdinTTY(false),
-					cli.WithStdoutTTY(false),
-					cli.WithLookupEnv(func(name string) (string, bool) {
-						value, ok := env[name]
+				run := func(stdin string, args ...string) (string, string, int) {
+					var out, errOut bytes.Buffer
 
-						return value, ok
-					}),
-				)
+					root := cli.NewRootCmd(
+						cli.BuildInfo{Version: "1.2.3"},
+						cli.WithKeychain(offKeychain{}),
+						cli.WithStdin(strings.NewReader(stdin)),
+						cli.WithStdinTTY(false),
+						cli.WithStdoutTTY(false),
+						cli.WithLookupEnv(func(name string) (string, bool) {
+							value, ok := env[name]
 
-				root.SetOut(&out)
-				root.SetErr(&errOut)
-				root.SetArgs(tc.args)
+							return value, ok
+						}),
+					)
 
-				if code := cli.Execute(t.Context(), root); code != cli.ExitUnavailable {
-					t.Errorf("exit code = %d, want %d\nstdout:\n%s\nstderr:\n%s",
-						code, cli.ExitUnavailable, out.String(), errOut.String())
+					root.SetOut(&out)
+					root.SetErr(&errOut)
+					root.SetArgs(append(slices.Clone(tc.question), append(args, "--retries", "0")...))
+
+					code := cli.Execute(t.Context(), root)
+
+					return out.String(), errOut.String(), code
 				}
 
-				if !strings.Contains(errOut.String(), "response could not be used") {
-					t.Errorf("stderr = %q, want it to say the response could not be used", errOut.String())
+				_, errOut, code := run("", "--state", "x", "--stats")
+				if code != cli.ExitUnavailable || !strings.Contains(errOut, tc.want) {
+					t.Errorf("plain run = %d, stderr %q, want %d and %q", code, errOut, cli.ExitUnavailable, tc.want)
+				}
+
+				if !strings.Contains(errOut, "10 in / 2 out tokens") {
+					t.Errorf("plain run stderr = %q, want the usage counted", errOut)
+				}
+
+				if _, gateErr, gateCode := run("", append([]string{"--state", "x"}, tc.gate...)...); gateCode != cli.ExitUnavailable {
+					t.Errorf("gate = %d, want %d\nstderr:\n%s", gateCode, cli.ExitUnavailable, gateErr)
+				}
+
+				out, errOut, code := run("a\n", "-i", "lines", "-o", "json", "--usage")
+				if code != cli.ExitRecords || !strings.Contains(out, `"kind":"response"`) || !strings.Contains(out, tc.want) ||
+					!strings.Contains(out, `"input_tokens":10`) {
+					t.Errorf("stream = %d, stdout %q, stderr %q, want %d and an error line with its usage", code, out, errOut,
+						cli.ExitRecords)
+				}
+
+				before := requests.Load()
+
+				for range 2 {
+					if _, cacheErr, cacheCode := run("", "--state", "x", "--cache"); cacheCode != cli.ExitUnavailable {
+						t.Errorf("cached run = %d, want %d\nstderr:\n%s", cacheCode, cli.ExitUnavailable, cacheErr)
+					}
+				}
+
+				if got := requests.Load() - before; got != 2 {
+					t.Errorf("two cached runs made %d requests, want 2, since nothing unusable is stored", got)
 				}
 			})
 		}

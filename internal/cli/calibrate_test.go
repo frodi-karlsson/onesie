@@ -1358,7 +1358,7 @@ func TestCalibrateRun(t *testing.T) {
 		}
 
 		report := strings.Index(out, "urgent, yes/no:")
-		first := strings.Index(out, "\nonesie: record T-7: question 'urgent' answered 1.5, which lies outside [0,1]\n")
+		first := strings.Index(out, "\nonesie: record T-7: 200 response could not be used: question 'urgent' answered 1.5, which lies outside [0,1]\n")
 		second := strings.Index(out, "\nonesie: record T-8: ")
 		stats := strings.Index(out, "8 records, 2 failed, 8 requests, ")
 
@@ -2563,7 +2563,8 @@ func (s *calibrateStub) serve(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		State     json.RawMessage `json:"state"`
 		Questions map[string]struct {
-			Type string `json:"type"`
+			Type     string          `json:"type"`
+			Criteria json.RawMessage `json:"criteria"`
 		} `json:"questions"`
 	}
 
@@ -2631,7 +2632,7 @@ func (s *calibrateStub) serve(w http.ResponseWriter, r *http.Request) {
 	answers := map[string]any{}
 
 	for id, question := range body.Questions {
-		answers[id] = stubAnswer(s.t, question.Type, fields[id], s.raw)
+		answers[id] = stubAnswer(s.t, question.Type, criteriaKeys(question.Criteria), fields[id], s.raw)
 	}
 
 	response := map[string]any{"model": "onesie-1.13.0", "answers": answers}
@@ -2659,7 +2660,45 @@ func (s *calibrateStub) counted(state string) int {
 	return s.requests
 }
 
-func stubAnswer(t *testing.T, kind string, raw json.RawMessage, verbatim bool) map[string]any {
+func criteriaKeys(criteria json.RawMessage) []string {
+	var named map[string]json.RawMessage
+	if json.Unmarshal(criteria, &named) == nil {
+		return slices.Collect(maps.Keys(named))
+	}
+
+	var listed []json.RawMessage
+	if json.Unmarshal(criteria, &listed) != nil {
+		return nil
+	}
+
+	keys := make([]string, 0, len(listed))
+	for i := range listed {
+		keys = append(keys, strconv.Itoa(i))
+	}
+
+	return keys
+}
+
+func spread(keys []string, picked string, p any) map[string]any {
+	// The picked key takes p and the rest share what is left, so the distribution adds up to 1.
+	value, _ := p.(float64)
+	rest := 0.0
+
+	if len(keys) > 1 {
+		rest = (1 - value) / float64(len(keys)-1)
+	}
+
+	probabilities := map[string]any{}
+	for _, key := range keys {
+		probabilities[key] = rest
+	}
+
+	probabilities[picked] = p
+
+	return probabilities
+}
+
+func stubAnswer(t *testing.T, kind string, keys []string, raw json.RawMessage, verbatim bool) map[string]any {
 	t.Helper()
 
 	if kind == "noul" && verbatim {
@@ -2685,13 +2724,13 @@ func stubAnswer(t *testing.T, kind string, raw json.RawMessage, verbatim bool) m
 	if kind == "choice" {
 		return map[string]any{
 			"type": "choice", "choice": pair[0], "confidence": pair[1],
-			"probabilities": map[string]any{fmt.Sprint(pair[0]): pair[1]},
+			"probabilities": spread(keys, fmt.Sprint(pair[0]), pair[1]),
 		}
 	}
 
 	return map[string]any{
 		"type": "score", "score": pair[0], "confidence": pair[1],
-		"probabilities": map[string]any{fmt.Sprint(pair[0]): pair[1]},
+		"probabilities": spread(keys, fmt.Sprint(pair[0]), pair[1]),
 	}
 }
 

@@ -165,20 +165,19 @@ func TestEval(t *testing.T) {
 		}
 	})
 
-	t.Run("should read a key the answer left out as zero in both shapes", func(t *testing.T) {
+	t.Run("should compare a zero probability exactly in both shapes", func(t *testing.T) {
 		t.Parallel()
 
-		// The API is free to name only the winner, and Normalize fills the rest of the keys the
-		// question asked about. Comparisons take no tolerance, so that the ordered and the equality
-		// readings of one pair of numbers can never disagree, which is what this holds them to.
-		omitted := omittedRecord(t, built)
+		// Comparisons take no tolerance, so that the ordered and the equality readings of one pair
+		// of numbers can never disagree, which is what this holds them to.
+		zeroed := zeroedRecord(t, built)
 
 		for _, source := range []string{
 			`team.p.technical == 0`, `team.p.technical <= 0`, `team.p.technical < 0.5`,
 			`severity.p.low == 0`, `severity.p.low <= 0`, `severity.p.low < 0.5`,
 		} {
-			if !Eval(mustParse(t, source), omitted) {
-				t.Errorf("Eval(%q) over an omitted key = false, want true", source)
+			if !Eval(mustParse(t, source), zeroed) {
+				t.Errorf("Eval(%q) over a zero key = false, want true", source)
 			}
 		}
 
@@ -186,8 +185,8 @@ func TestEval(t *testing.T) {
 			`team.p.technical != 0`, `team.p.technical > 0`,
 			`severity.p.low != 0`, `severity.p.low > 0`,
 		} {
-			if Eval(mustParse(t, source), omitted) {
-				t.Errorf("Eval(%q) over an omitted key = true, want false", source)
+			if Eval(mustParse(t, source), zeroed) {
+				t.Errorf("Eval(%q) over a zero key = true, want false", source)
 			}
 		}
 	})
@@ -297,13 +296,13 @@ func evalRecord(t *testing.T, built *plan.Plan, confidence float64) output.Recor
 	return record
 }
 
-func omittedRecord(t *testing.T, built *plan.Plan) output.Record {
+func zeroedRecord(t *testing.T, built *plan.Plan) output.Record {
 	t.Helper()
 
 	record := output.Record{Model: built.Model}
 
 	for _, q := range built.Questions {
-		normalized, err := answer.Normalize(q, evalOmitted(q))
+		normalized, err := answer.Normalize(q, evalZeroed(q))
 		if err != nil {
 			t.Fatalf("Normalize(%q) error = %v, want no error", q.ID, err)
 		}
@@ -314,21 +313,20 @@ func omittedRecord(t *testing.T, built *plan.Plan) output.Record {
 	return record
 }
 
-func evalOmitted(q plan.Question) onesie.Answer {
-	// Only the winner is named, which is what a model that says nothing about the other keys
-	// sends back.
+func evalZeroed(q plan.Question) onesie.Answer {
+	// Every key but the winner carries no mass.
 	switch q.Shape {
 	case plan.Pick:
 		return &onesie.ChoiceAnswer{
 			Choice:        "billing",
 			Confidence:    0.9,
-			Probabilities: map[string]float64{"billing": 1},
+			Probabilities: map[string]float64{"billing": 1, "technical": 0},
 		}
 	case plan.Rate:
 		return &onesie.ScoreAnswer{
 			Score:         2,
 			Confidence:    0.9,
-			Probabilities: map[string]float64{"2": 1},
+			Probabilities: map[string]float64{"0": 0, "1": 0, "2": 1},
 		}
 	default:
 		return &onesie.NoulAnswer{Noul: 0.9}

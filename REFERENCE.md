@@ -28,7 +28,20 @@ prints the built in limits.
 - A pick or rate answer carries `confidence`, a number from 0 to 1 the API computes from `p`. In
   the committed rate answers it is about 1 when `p` sits on one level, never above the top
   probability, and lower as the rest spreads to other levels, most of all to far ones.
-  `--min-confidence` cuts on it. A yes or no answer carries no confidence.
+  `--min-confidence` cuts on it. A yes or no answer carries no confidence. The API always sends
+  `confidence`, and onesie reads one it leaves out as 0, the least confident value, since the
+  decoder cannot tell it from a sent 0. So `--min-confidence` falls back on it and a gate on
+  `confidence` does not pass. A mock entry's default of 1 is only shorthand for writing the mock.
+- Every answer is checked against the question asked before it is printed, gated or cached, on a
+  plain run, in a stream, under `-q` and `--assert`, in `calibrate` and when the cache is read. A
+  yes or no value, each `p` and each `confidence` lies in [0,1], a pick names one of its options, a
+  rate's `score` lies between 0 and its top level index, the keys of `p` are exactly the options,
+  or the level indexes from 0 for a rate, and `p` adds up to 1 within half a hundredth per entry,
+  and at least a hundredth. An answer of the wrong type fails too. Any of these exits 4 with
+  `200 response could not be used:` and names the question and the value, as in
+  `question 'urgent' answered 1.5, which lies outside [0,1]`. In a stream the record is an error
+  line of kind `response`. Its tokens still count toward `--usage` and `--stats`, it is never
+  stored in the cache, and it is not retried, since the same request would get the same answer.
 - A rate answer also carries `score` and `norm`. `score` is the level index averaged over `p`, with
   0 for the lowest level, so it can land between levels. `norm` is `score` over the top index, from
   0 to 1, so `2.02` on four levels is a `norm` of `0.67`.
