@@ -283,7 +283,7 @@ func TestWriteTable(t *testing.T) {
 			},
 		},
 		{
-			name: "should print 100 only for all hits and 0 only for none, bounds included",
+			name: "should print 100 only for all hits and 0 only for none, with the places that keep the rest apart",
 			questions: []calibrate.QuestionReport{yesNoReport("urgent", calibrate.YesNoScore{
 				Labelled: 2000, Yes: 1000, No: 1000, AUC: 0.5, HasAUC: true,
 				Cuts: []calibrate.CutRow{
@@ -302,9 +302,9 @@ func TestWriteTable(t *testing.T) {
 				"urgent, yes/no: labelled 2000, 1000 yes, 1000 no, 0 failed. AUC 0.50",
 				"flagged means urgent.value >= cut",
 				"",
-				"  cut   flagged  catches              false alarms    right when flagged",
-				"  0.50      999  999/1000 99% 99-99%  1/1000 1% 1-1%  999/999 100% 99-100%",
-				"  0.90        0    0/1000  0%  0-1%   1/1000 1% 1-1%  999/999 100% 99-100%",
+				"  cut   flagged  catches                       false alarms             right when flagged",
+				"  0.50      999  999/1000 99.90% 99.44-99.98%  1/1000 0.10% 0.02-0.56%  999/999 100% 99.6-100%",
+				"  0.90        0    0/1000     0%     0-0.4%    1/1000 0.10% 0.02-0.56%  999/999 100% 99.6-100%",
 			},
 		},
 		{

@@ -236,16 +236,19 @@ onesie calibrate -f prompt-injection -i jsonl --map .text --id .id \
 - A measure over no records, such as false alarms with no labelled no, does not hold, and says why.
 - Requirements live only on the command line. A question file carries none, so a copy of a starter
   set calibrated on other data inherits no guarantee measured on ours.
-- Each requirement that did not hold is named on stderr with its value, interval and cut. A failed
-  record still exits 6, which wins over 1.
+- Each requirement that did not hold is named on stderr with the four place numbers it compared,
+  its value, interval and cut, as in
+  `'u.catches >= 0.9' did not hold: 3/4 is 0.75, interval 0.3006 to 0.9544, at cut 0.50`, or
+  `AUC 0.9993` for `auc`. A failed record still exits 6, which wins over 1.
 - The `-o json` report gains a `require` array, one entry per requirement:
   `{"expr":"u.catches >= 0.9 at 0.5","held":false,"value":0.6667,"interval":[0.2077,0.9385],"cut":0.5}`,
   for 2 of 3 caught. Each rate, interval end, `auc` and mean distance is rounded to four places
   when it is computed, so a requirement compares the number the `-o json` report prints. A rate,
   interval end or `auc` that is not exactly 0 or 1 never rounds to 0 or 1, so 29999 of 30000 is
-  `0.9999`. The table report shows each rate and interval end as a whole percent, from 1 to 99 for
-  one that is not exactly 0 or 1, and `auc` to 2 places, so it can read a little apart from the
-  number compared. `auc` has `"interval":null`, a pick or rate measure `"cut":null`, and a measure
+  `0.9999`. The table report shows each rate and interval end as a whole percent, and adds one or
+  two places to a share when whole percents would show a share that is not exactly 0 or 1 as 0 or
+  100, or two different numbers as the same, so `1/1000` reads `0.10% 0.02-0.56%`. It shows `auc`
+  to 2 places, so it can read a little apart from the number compared. `auc` has `"interval":null`, a pick or rate measure `"cut":null`, and a measure
   over no records `"value":null` with a `reason`.
 - `--print-request` checks each requirement and its cut, then prints the requests as usual.
 

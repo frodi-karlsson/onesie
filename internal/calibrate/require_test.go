@@ -236,9 +236,44 @@ func TestRequirement_Check(t *testing.T) {
 		}
 
 		got := req.Check(calibrate.QuestionReport{ID: "instructs", Shape: plan.Noul, YesNo: &score}, 0.25).String()
-		want := "'instructs.catches >= 0.95' did not hold: 15/16 94% 72-99% at cut 0.25"
+		want := "'instructs.catches >= 0.95' did not hold: 15/16 is 0.9375, interval 0.7167 to 0.9889, at cut 0.25"
 		if got != want {
 			t.Errorf("String() = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("should name the four place numbers it compared", func(t *testing.T) {
+		t.Parallel()
+
+		alarms, err := calibrate.ParseRequirement("upper(u.false_alarms) <= 0.0001")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		auc, err := calibrate.ParseRequirement("u.auc >= 0.9999")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		for _, tc := range []struct {
+			result calibrate.Result
+			want   string
+		}{
+			{
+				result: calibrate.Result{
+					Requirement: alarms, Value: 0.0003, Low: 0.0001, High: 0.0009, Hits: 3, Of: 10000,
+					HasValue: true, HasInterval: true, HasCut: true, Cut: 0.5,
+				},
+				want: "'upper(u.false_alarms) <= 0.0001' did not hold: 3/10000 is 0.0003, interval 0.0001 to 0.0009, at cut 0.50",
+			},
+			{
+				result: calibrate.Result{Requirement: auc, Value: 0.9993, HasValue: true},
+				want:   "'u.auc >= 0.9999' did not hold: AUC 0.9993",
+			},
+		} {
+			if got := tc.result.String(); got != tc.want {
+				t.Errorf("String() = %q, want %q", got, tc.want)
+			}
 		}
 	})
 }

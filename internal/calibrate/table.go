@@ -352,7 +352,8 @@ func shareCells(shares []Share) []string {
 	for _, s := range shares {
 		p := parts{hits: strconv.Itoa(s.Hits), of: strconv.Itoa(s.Of), rate: "-"}
 		if s.Defined {
-			p.rate, p.low, p.high = percent(s.Rate)+"%", percent(s.Low), percent(s.High)+"%"
+			rate, low, high := shareTexts(s)
+			p.rate, p.low, p.high = rate+"%", low, high+"%"
 		}
 
 		hw, ow, rw = max(hw, len(p.hits)), max(ow, len(p.of)), max(rw, len(p.rate))
@@ -379,26 +380,65 @@ func inlineShare(s Share) string {
 		return "-"
 	}
 
-	return percent(s.Rate) + "% " + percent(s.Low) + "-" + percent(s.High) + "%"
+	rate, low, high := shareTexts(s)
+
+	return rate + "% " + low + "-" + high + "%"
 }
 
 func countedShare(s Share) string {
 	return strconv.Itoa(s.Hits) + "/" + strconv.Itoa(s.Of) + " " + inlineShare(s)
 }
 
-func percent(rate float64) string {
-	// From the four place value in whole hundredths of a percent, since 0.565 times 100 lands just
-	// under 56.5 in floating point and would round down.
-	rounded := int(math.Round(math.Round(rate*1e4) / 100))
+func shareTexts(s Share) (rate, low, high string) {
+	// Whole percents unless they would hide something: a share that is not none reading 0, one that
+	// is not all reading 100, or two different numbers reading the same. A four place share is exact
+	// at two places, so the search always ends.
+	values := []float64{s.Rate, s.Low, s.High}
 
-	switch {
-	case rounded >= 100 && rate < 1:
-		rounded = 99
-	case rounded <= 0 && rate > 0:
-		rounded = 1
+	for places := 0; ; places++ {
+		texts := make([]string, len(values))
+		for i, value := range values {
+			texts[i] = percentText(value, places)
+		}
+
+		if places == 2 || faithful(values, texts, places) {
+			return texts[0], texts[1], texts[2]
+		}
+	}
+}
+
+func percentText(fraction float64, places int) string {
+	switch fraction {
+	case 0:
+		return "0"
+	case 1:
+		return "100"
 	}
 
-	return strconv.Itoa(rounded)
+	// From the four place value in whole hundredths of a percent, since 0.565 times 100 lands just
+	// under 56.5 in floating point and would round down.
+	hundredths := math.Round(fraction * 1e4)
+	scale := math.Pow10(2 - places)
+
+	return strconv.FormatFloat(math.Round(hundredths/scale)*scale/100, 'f', places, 64)
+}
+
+func faithful(values []float64, texts []string, places int) bool {
+	zero, all := strconv.FormatFloat(0, 'f', places, 64), strconv.FormatFloat(100, 'f', places, 64)
+
+	for i, value := range values {
+		if (value > 0 && texts[i] == zero) || (value < 1 && texts[i] == all) {
+			return false
+		}
+
+		for j := range i {
+			if values[j] != value && texts[j] == texts[i] {
+				return false
+			}
+		}
+	}
+
+	return true
 }
 
 func cutText(cut float64) string {

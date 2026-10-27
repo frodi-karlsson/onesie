@@ -2891,7 +2891,7 @@ func TestCalibrateAnswers(t *testing.T) {
 			args:     base(mockFile, "--require", "u.catches >= 0.9", "--require", "u.auc >= 0.5"),
 			wantCode: ExitRejected,
 			stdout:   []string{"u, yes/no: labelled 8"},
-			stderr:   []string{"onesie: 'u.catches >= 0.9' did not hold: 3/4 75% 30-95% at cut 0.50\n"},
+			stderr:   []string{"onesie: 'u.catches >= 0.9' did not hold: 3/4 is 0.75, interval 0.3006 to 0.9544, at cut 0.50\n"},
 			noStderr: []string{"u.auc"},
 		},
 		{
