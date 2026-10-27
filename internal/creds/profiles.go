@@ -10,7 +10,6 @@ import (
 	"reflect"
 	"regexp"
 	"slices"
-	"strconv"
 	"strings"
 
 	"github.com/frodi-karlsson/onesie-go"
@@ -72,14 +71,16 @@ func decodeProfiles(data []byte) (Profiles, error) {
 		return Profiles{}, errors.New("not a JSON object")
 	}
 
-	var top struct {
-		Default  string                     `json:"default,omitempty"`
-		Profiles map[string]json.RawMessage `json:"profiles"`
+	decoder := json.NewDecoder(bytes.NewReader(data))
+
+	var first json.RawMessage
+	if err := decoder.Decode(&first); err != nil {
+		return Profiles{}, err
 	}
 
-	decoder := strictDecoder(data)
-	if err := decoder.Decode(&top); err != nil {
-		return Profiles{}, misfit(err, "the file")
+	var top profilesFile
+	if err := decodeMembers(first, &top, "the file"); err != nil {
+		return Profiles{}, err
 	}
 
 	if err := decoder.Decode(&json.RawMessage{}); !errors.Is(err, io.EOF) {
@@ -91,8 +92,8 @@ func decodeProfiles(data []byte) (Profiles, error) {
 	// One profile at a time, so a misfit names the profile it is in.
 	for _, name := range slices.Sorted(maps.Keys(top.Profiles)) {
 		var profile Profile
-		if err := strictDecoder(top.Profiles[name]).Decode(&profile); err != nil {
-			return Profiles{}, misfit(err, fmt.Sprintf("profile '%s'", name))
+		if err := decodeMembers(top.Profiles[name], &profile, fmt.Sprintf("profile '%s'", name)); err != nil {
+			return Profiles{}, err
 		}
 
 		profiles.Profiles[name] = profile
@@ -101,29 +102,53 @@ func decodeProfiles(data []byte) (Profiles, error) {
 	return profiles, nil
 }
 
-func strictDecoder(data []byte) *json.Decoder {
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
+type profilesFile struct {
+	Default  string                     `json:"default,omitempty"`
+	Profiles map[string]json.RawMessage `json:"profiles"`
+}
 
-	return decoder
+func decodeMembers(data []byte, into any, holder string) error {
+	var members map[string]json.RawMessage
+	if err := json.Unmarshal(data, &members); err != nil {
+		return misfit(err, holder)
+	}
+
+	for _, name := range slices.Sorted(maps.Keys(members)) {
+		if !knownMember(into, name) {
+			return &misfitError{fmt.Sprintf("%s has an unknown member '%s'", holder, name)}
+		}
+	}
+
+	if err := json.Unmarshal(data, into); err != nil {
+		return misfit(err, holder)
+	}
+
+	return nil
+}
+
+func knownMember(into any, name string) bool {
+	fields := reflect.TypeOf(into).Elem()
+
+	for i := range fields.NumField() {
+		member, _, _ := strings.Cut(fields.Field(i).Tag.Get("json"), ",")
+
+		// encoding/json matches a member to a field whatever its case, so a member it would read is
+		// a known one.
+		if strings.EqualFold(member, name) {
+			return true
+		}
+	}
+
+	return false
 }
 
 func misfit(err error, holder string) error {
-	// A syntax error can quote a character of the file, which may be part of a key, so only an
-	// unknown member and a member of the wrong type, which name the member and not its value, are
-	// passed on.
+	// A syntax error can quote a character of the file, which may be part of a key, so only a
+	// member of the wrong type, which names the member and not its value, is passed on.
 	var typeErr *json.UnmarshalTypeError
 	if errors.As(err, &typeErr) {
 		return &misfitError{fmt.Sprintf("%s has a %s that is %s, not %s",
 			holder, typeErr.Field, jsonKind(typeErr.Value), goKind(typeErr.Type))}
-	}
-
-	if field, found := strings.CutPrefix(err.Error(), "json: unknown field "); found {
-		if unquoted, unquoteErr := strconv.Unquote(field); unquoteErr == nil {
-			field = unquoted
-		}
-
-		return &misfitError{fmt.Sprintf("%s has an unknown member '%s'", holder, field)}
 	}
 
 	return err
