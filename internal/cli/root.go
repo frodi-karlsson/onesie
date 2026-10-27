@@ -216,7 +216,7 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 			}
 
 			defer func() {
-				err = errors.Join(err, out.release())
+				err = errors.Join(err, prefixed(out.release()))
 			}()
 
 			if out == nil {
@@ -227,7 +227,7 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 
 			runErr := run(cmd, settings, recorder.Events(), positional, flags, out, resume)
 
-			return errors.Join(runErr, out.finish(runErr))
+			return errors.Join(runErr, prefixed(out.finish(runErr)))
 		},
 	}
 
@@ -639,6 +639,14 @@ func Execute(ctx context.Context, root *cobra.Command) int {
 	}
 
 	return Classify(err)
+}
+
+func prefixed(err error) error {
+	if err == nil {
+		return nil
+	}
+
+	return fmt.Errorf("onesie: %w", err)
 }
 
 // WithClientFactory replaces how commands build their API client, so a test can point one at a

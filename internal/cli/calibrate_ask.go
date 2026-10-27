@@ -55,7 +55,7 @@ func calibrateRun(
 	}
 
 	defer func() {
-		err = errors.Join(err, out.release())
+		err = errors.Join(err, prefixed(out.release()))
 	}()
 
 	// The labels and the cuts stay out, since neither changes an answer, and a later stream run
@@ -83,7 +83,7 @@ func calibrateRun(
 		return runErr
 	}
 
-	return errors.Join(runErr, out.finish(runErr))
+	return errors.Join(runErr, prefixed(out.finish(runErr)))
 }
 
 func askedPlan(

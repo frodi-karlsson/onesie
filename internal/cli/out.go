@@ -92,7 +92,7 @@ func openOutFile(settings rootSettings, flags *runFlags, readOnly bool) (*outFil
 
 	resume, resumeErr := resumeOut(out, settings, flags)
 	if resumeErr != nil {
-		return nil, resumePlan{}, errors.Join(resumeErr, out.release())
+		return nil, resumePlan{}, errors.Join(resumeErr, prefixed(out.release()))
 	}
 
 	return out, resume, nil

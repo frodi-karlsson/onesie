@@ -167,6 +167,17 @@ func TestExecute(t *testing.T) {
 			want:     "onesie: --mock has no line 3, so input line 3 has no answer. Add one\n",
 		},
 		{
+			name: "should prefix both lines of a run failure joined with a release failure",
+			args: []string{
+				"--mock", "{dir}{/}empty.jsonl", "--out", "{dir}{/}answers.jsonl", "--state", "x", "is it urgent",
+			},
+			files:    map[string]string{"empty.jsonl": ""},
+			prepare:  failingRelease,
+			wantCode: ExitUsage,
+			want: "onesie: --mock: the file is empty\n" +
+				"onesie: unlocking {dir}{/}answers.jsonl: the test release failed\n",
+		},
+		{
 			name:     "should print a command error with one onesie prefix",
 			args:     []string{"cache", "clear", "extra"},
 			wantCode: ExitUsage,
@@ -248,6 +259,14 @@ func fullDisk(*testing.T, string) []RootOption {
 	return []RootOption{WithCredentialStore(creds.NewStore(creds.WithCreateTemp(func(string, string) (*os.File, error) {
 		return nil, errors.New("the disk is full")
 	})))}
+}
+
+func failingRelease(*testing.T, string) []RootOption {
+	return []RootOption{func(s *rootSettings) {
+		s.lock = func(string) (func() error, error) {
+			return func() error { return errors.New("the test release failed") }, nil
+		}
+	}}
 }
 
 func readableCacheDir(t *testing.T, dir string) []RootOption {
