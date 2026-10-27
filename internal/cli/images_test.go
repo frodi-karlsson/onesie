@@ -16,12 +16,14 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"sync"
 	"testing"
 
 	"github.com/frodi-karlsson/onesie-go"
+	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
 func TestImagingAttach(t *testing.T) {
@@ -917,6 +919,8 @@ func TestRun(t *testing.T) {
 func TestReadRawRequest(t *testing.T) {
 	t.Parallel()
 
+	urgent := []plan.Question{{ID: "u", Shape: plan.Noul, Instructions: "is it urgent", Origin: plan.OriginBody}}
+
 	tests := []struct {
 		name string
 		body string
@@ -928,29 +932,29 @@ func TestReadRawRequest(t *testing.T) {
 			want: rawRequest{model: "m", questions: 2},
 		},
 		{
-			name: "should need images for a body with assets",
-			body: `{"state":"s","questions":{"q":{"type":"noul"}},"assets":{"r":{"format":"png","data_base64":"AQ=="}}}`,
-			want: rawRequest{questions: 1, needsImages: true},
+			name: "should read the questions a response must answer",
+			body: `{"state":"s","model":"m","questions":{"u":{"type":"noul","instructions":"is it urgent"}}}`,
+			want: rawRequest{model: "m", questions: 1, asked: urgent},
 		},
 		{
-			name: "should need images for a box question",
+			name: "should mark a box question",
 			body: `{"state":"s","questions":{"m":{"type":"box"}}}`,
-			want: rawRequest{questions: 1, needsImages: true, boxed: true},
+			want: rawRequest{questions: 1, boxed: true},
 		},
 		{
 			name: "should read a body's long_context",
 			body: `{"model":"m","questions":{"q":{"type":"noul"}},"long_context":true}`,
 			want: rawRequest{model: "m", questions: 1, longContext: true},
 		},
+		{
+			name: "should read the model by its exact key",
+			body: `{"model":"m","questions":{"q":{"type":"noul"}},"Model":"ignored"}`,
+			want: rawRequest{model: "m", questions: 1},
+		},
 		{name: "should read nothing from a body it cannot parse", body: `not json`},
 		{
 			name: "should keep the model and count past a question that is not an object",
 			body: `{"model":"m","questions":{"q":"text"}}`,
-			want: rawRequest{model: "m", questions: 1},
-		},
-		{
-			name: "should keep the model past assets that are not an object",
-			body: `{"model":"m","questions":{"q":{"type":"noul"}},"assets":"x"}`,
 			want: rawRequest{model: "m", questions: 1},
 		},
 	}
@@ -959,8 +963,15 @@ func TestReadRawRequest(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			if got := readRawRequest([]byte(tc.body)); got != tc.want {
+			got := readRawRequest([]byte(tc.body))
+
+			if got.model != tc.want.model || got.questions != tc.want.questions || got.boxed != tc.want.boxed ||
+				got.longContext != tc.want.longContext {
 				t.Errorf("readRawRequest = %+v, want %+v", got, tc.want)
+			}
+
+			if tc.want.asked != nil && !reflect.DeepEqual(got.asked, tc.want.asked) {
+				t.Errorf("asked = %+v, want %+v", got.asked, tc.want.asked)
 			}
 		})
 	}

@@ -216,6 +216,16 @@ func TestAdvise(t *testing.T) {
 					`"message":"model 'onesie-1.12' not found. Try --list-models"}}`},
 			},
 			{
+				name:     "should name the model key a request body sent, not one that differs in case",
+				args:     []string{"-i", "request"},
+				stdin:    `{"state":"a ticket",` + body[1:len(body)-1] + `,"Model":"other"}` + "\n",
+				status:   http.StatusBadRequest,
+				response: `{"detail":"Unknown model: onesie-1.12"}`,
+				wantCode: ExitRecords,
+				wantOut: []string{`{"error":{"kind":"http","status":400,` +
+					`"message":"model 'onesie-1.12' not found. Try --list-models"}}`},
+			},
+			{
 				name:     "should carry the remedy into a streaming error record",
 				args:     []string{"is this urgent", "-i", "lines", "-m", "onesie-1.12"},
 				stdin:    "a ticket\n",
