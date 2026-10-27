@@ -98,7 +98,7 @@ func warnReadable(w io.Writer, settings rootSettings, dir string) error {
 	// carries no such modes.
 	info, err := settings.stat(dir)
 	if err == nil && settings.goos != "windows" && info.Mode().Perm()&0o077 != 0 {
-		_, printErr := fmt.Fprintln(w, (&cache.ModeError{Dir: dir, Mode: info.Mode().Perm()}).Error())
+		_, printErr := fmt.Fprintln(w, "onesie: "+(&cache.ModeError{Dir: dir, Mode: info.Mode().Perm()}).Error())
 
 		return printErr
 	}

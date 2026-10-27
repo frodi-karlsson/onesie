@@ -50,16 +50,16 @@ func Open(dir string, opts Options) (*Store, error) {
 	switch {
 	case errors.Is(statErr, fs.ErrNotExist):
 		if err := fsys.MkdirAll(dir, 0o700); err != nil {
-			return nil, fmt.Errorf("onesie: creating the cache dir %s: %w", dir, err)
+			return nil, fmt.Errorf("creating the cache dir %s: %w", dir, err)
 		}
 
 		if err := writeTag(fsys, dir); err != nil {
 			return nil, err
 		}
 	case statErr != nil:
-		return nil, fmt.Errorf("onesie: reading the cache dir %s: %w", dir, patherr.Inner(statErr))
+		return nil, fmt.Errorf("reading the cache dir %s: %w", dir, patherr.Inner(statErr))
 	case !info.IsDir():
-		return nil, fmt.Errorf("onesie: the cache dir %s is not a directory", dir)
+		return nil, fmt.Errorf("the cache dir %s is not a directory", dir)
 	case opts.GOOS != "windows" && info.Mode().Perm()&0o077 != 0:
 		return nil, &ModeError{Dir: dir, Mode: info.Mode().Perm()}
 	default:
@@ -81,7 +81,7 @@ func tagUntagged(fsys FS, dir string) error {
 
 	names, err := fsys.ReadDir(dir)
 	if err != nil {
-		return fmt.Errorf("onesie: reading the cache dir %s: %w", dir, patherr.Inner(err))
+		return fmt.Errorf("reading the cache dir %s: %w", dir, patherr.Inner(err))
 	}
 
 	for _, named := range names {
@@ -97,7 +97,7 @@ func tagUntagged(fsys FS, dir string) error {
 
 func writeTag(fsys FS, dir string) error {
 	if err := fsys.WriteFile(filepath.Join(dir, tagName), []byte(tagContent), 0o600); err != nil {
-		return fmt.Errorf("onesie: writing %s in the cache dir %s: %w", tagName, dir, err)
+		return fmt.Errorf("writing %s in the cache dir %s: %w", tagName, dir, err)
 	}
 
 	return nil
@@ -184,7 +184,7 @@ type ModeError struct {
 
 // Error names the directory, its mode and the fix.
 func (e *ModeError) Error() string {
-	return fmt.Sprintf("onesie: the cache dir %s has mode %o, so others can read cached answers. Run chmod 700 %s",
+	return fmt.Sprintf("the cache dir %s has mode %o, so others can read cached answers. Run chmod 700 %s",
 		e.Dir, e.Mode, e.Dir)
 }
 
@@ -196,7 +196,7 @@ type ForeignError struct {
 
 // Error names the directory and the fix.
 func (e *ForeignError) Error() string {
-	return fmt.Sprintf("onesie: the cache dir %s holds files onesie did not write and no %s, "+
+	return fmt.Sprintf("the cache dir %s holds files onesie did not write and no %s, "+
 		"so onesie will not store answers there. Point ONESIE_CACHE_DIR at a new or empty directory", e.Dir, tagName)
 }
 
@@ -532,11 +532,11 @@ func Clear(dir string, fsys FS) (int, error) {
 	if _, err := fsys.Stat(filepath.Join(dir, tagName)); err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
 			return 0, fmt.Errorf(
-				"onesie: %s holds no %s, so onesie did not make it and will not empty it. Check ONESIE_CACHE_DIR",
+				"%s holds no %s, so onesie did not make it and will not empty it. Check ONESIE_CACHE_DIR",
 				dir, tagName)
 		}
 
-		return 0, fmt.Errorf("onesie: reading the cache dir %s: %w", dir, err)
+		return 0, fmt.Errorf("reading the cache dir %s: %w", dir, err)
 	}
 
 	files, err := scan(fsys, dir)
@@ -548,7 +548,7 @@ func Clear(dir string, fsys FS) (int, error) {
 
 	for _, f := range files {
 		if err := fsys.Remove(f.path); err != nil && !errors.Is(err, fs.ErrNotExist) {
-			return removed, fmt.Errorf("onesie: removing %s: %w", f.path, patherr.Inner(err))
+			return removed, fmt.Errorf("removing %s: %w", f.path, patherr.Inner(err))
 		}
 
 		if f.kind != tempFile {
@@ -566,7 +566,7 @@ func scan(fsys FS, dir string) ([]file, error) {
 	}
 
 	if err != nil {
-		return nil, fmt.Errorf("onesie: reading the cache dir %s: %w", dir, err)
+		return nil, fmt.Errorf("reading the cache dir %s: %w", dir, err)
 	}
 
 	var files []file
@@ -584,7 +584,7 @@ func scan(fsys FS, dir string) ([]file, error) {
 		}
 
 		if err != nil {
-			return nil, fmt.Errorf("onesie: reading %s: %w", sub, patherr.Inner(err))
+			return nil, fmt.Errorf("reading %s: %w", sub, patherr.Inner(err))
 		}
 
 		for _, named := range names {
@@ -599,7 +599,7 @@ func scan(fsys FS, dir string) ([]file, error) {
 			}
 
 			if err != nil {
-				return nil, fmt.Errorf("onesie: reading %s: %w", filepath.Join(sub, named.Name()), patherr.Inner(err))
+				return nil, fmt.Errorf("reading %s: %w", filepath.Join(sub, named.Name()), patherr.Inner(err))
 			}
 
 			files = append(files, file{

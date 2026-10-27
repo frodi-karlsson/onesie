@@ -69,7 +69,7 @@ func TestOpen(t *testing.T) {
 
 			var foreign *cache.ForeignError
 			if tc.refused {
-				want := "onesie: the cache dir " + dir + " holds files onesie did not write and no CACHEDIR.TAG, " +
+				want := "the cache dir " + dir + " holds files onesie did not write and no CACHEDIR.TAG, " +
 					"so onesie will not store answers there. Point ONESIE_CACHE_DIR at a new or empty directory"
 				if !errors.As(err, &foreign) || err.Error() != want {
 					t.Fatalf("Open error = %v, want %q", err, want)
@@ -101,7 +101,7 @@ func TestOpen(t *testing.T) {
 			_, err := cache.Open(dir, cache.Options{Now: fixed(t0), GOOS: tc.goos})
 
 			if tc.wantErr {
-				want := fmt.Sprintf("onesie: the cache dir %s has mode %o, so others can read cached answers. Run chmod 700 %s",
+				want := fmt.Sprintf("the cache dir %s has mode %o, so others can read cached answers. Run chmod 700 %s",
 					dir, tc.mode, dir)
 				if err == nil || err.Error() != want {
 					t.Fatalf("Open error = %v, want %q", err, want)

@@ -130,7 +130,7 @@ func TestExecute(t *testing.T) {
 			env:   map[string]string{"ONESIE_CACHE_DIR": "{dir}{/}notdir"},
 			files: map[string]string{"notdir": "x"},
 			want: "warning: the cache could not open, so onesie asks the API for the rest of this run: " +
-				"onesie: the cache dir {dir}{/}notdir is not a directory\n",
+				"the cache dir {dir}{/}notdir is not a directory\n",
 		},
 		{
 			name:     "should print a cache error with one onesie prefix",
