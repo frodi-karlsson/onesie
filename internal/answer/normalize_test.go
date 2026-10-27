@@ -267,29 +267,6 @@ func TestNormalize(t *testing.T) {
 		}
 	})
 
-	t.Run("should hold the sum tolerance at its edges", func(t *testing.T) {
-		t.Parallel()
-
-		three := plan.Question{
-			ID: "team", Shape: plan.Pick, Options: []plan.Option{{Name: "a"}, {Name: "b"}, {Name: "c"}},
-		}
-		two := plan.Question{ID: "team", Shape: plan.Pick, Options: []plan.Option{{Name: "a"}, {Name: "b"}}}
-
-		accepted := &onesie.ChoiceAnswer{
-			Choice: "a", Confidence: 0.5, Probabilities: map[string]float64{"a": 0.335, "b": 0.325, "c": 0.325},
-		}
-		if _, err := answer.Normalize(three, accepted); err != nil {
-			t.Errorf("three options summing to 0.985: %v, want no error", err)
-		}
-
-		refused := &onesie.ChoiceAnswer{
-			Choice: "a", Confidence: 0.5, Probabilities: map[string]float64{"a": 0.5, "b": 0.48},
-		}
-		if _, err := answer.Normalize(two, refused); err == nil {
-			t.Error("two options summing to 0.98: no error, want one")
-		}
-	})
-
 	t.Run("should accept p that two place rounding leaves just off 1", func(t *testing.T) {
 		t.Parallel()
 
@@ -581,6 +558,38 @@ func TestUnusable(t *testing.T) {
 			var response *onesie.ResponseError
 			if !errors.As(err, &response) || response.Status != http.StatusOK || err.Error() != tc.want {
 				t.Errorf("Unusable = %v, want a 200 ResponseError %q", err, tc.want)
+			}
+		})
+	}
+}
+
+func TestSumFits(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		options int
+		sum     float64
+		fits    bool
+	}{
+		{name: "should accept two options summing to 0.98", options: 2, sum: 0.98, fits: true},
+		{name: "should accept two options summing to 1.02", options: 2, sum: 1.02, fits: true},
+		{name: "should refuse two options summing to 0.97", options: 2, sum: 0.97},
+		{name: "should refuse twenty options summing to 0.9", options: 20, sum: 0.9},
+		{name: "should refuse twenty options summing to 1.05", options: 20, sum: 1.05},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			probabilities := make([]float64, tc.options)
+			for i := range probabilities {
+				probabilities[i] = tc.sum / float64(tc.options)
+			}
+
+			if _, fits := answer.SumFits(probabilities); fits != tc.fits {
+				t.Errorf("SumFits = %v, want %v", fits, tc.fits)
 			}
 		})
 	}
