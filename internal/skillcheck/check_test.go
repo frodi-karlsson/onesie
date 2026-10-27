@@ -122,7 +122,8 @@ func TestCheckRule(t *testing.T) {
 			t.Parallel()
 
 			runner := &Runner{
-				Binary: "onesie",
+				Binary:  "onesie",
+				catalog: testCatalog(t),
 				exec: func(context.Context, string, []string) (int, string, error) {
 					return tc.exitCode, tc.stderr, nil
 				},
@@ -160,7 +161,8 @@ func TestCheckRule(t *testing.T) {
 			t.Parallel()
 
 			runner := &Runner{
-				Binary: "onesie",
+				Binary:  "onesie",
+				catalog: testCatalog(t),
 				exec: func(context.Context, string, []string) (int, string, error) {
 					return 0, "", context.DeadlineExceeded
 				},
@@ -204,7 +206,7 @@ func TestCheckRule(t *testing.T) {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 
-				runner := &Runner{Binary: "onesie", exec: neverCalled(t)}
+				runner := &Runner{Binary: "onesie", catalog: testCatalog(t), exec: neverCalled(t)}
 				report := &Report{}
 
 				err := checkRule(
@@ -247,7 +249,7 @@ func TestCheck(t *testing.T) {
 
 		root := t.TempDir()
 
-		report, err := Check(context.Background(), root, &Runner{Binary: "onesie", exec: neverCalled(t)})
+		report, err := Check(context.Background(), root, &Runner{Binary: "onesie", catalog: testCatalog(t), exec: neverCalled(t)})
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -286,7 +288,8 @@ func TestCheck(t *testing.T) {
 		}`)
 
 		runner := &Runner{
-			Binary: "onesie",
+			Binary:  "onesie",
+			catalog: testCatalog(t),
 			exec: func(_ context.Context, _ string, args []string) (int, string, error) {
 				for _, arg := range args {
 					if strings.Contains(arg, "BADMARKER") {
@@ -352,7 +355,7 @@ func TestCheck(t *testing.T) {
 			]
 		}`)
 
-		report, err := Check(context.Background(), root, &Runner{Binary: "onesie", exec: neverCalled(t)})
+		report, err := Check(context.Background(), root, &Runner{Binary: "onesie", catalog: testCatalog(t), exec: neverCalled(t)})
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -412,7 +415,8 @@ func TestCheck(t *testing.T) {
 		var called bool
 
 		runner := &Runner{
-			Binary: "onesie",
+			Binary:  "onesie",
+			catalog: testCatalog(t),
 			exec: func(context.Context, string, []string) (int, string, error) {
 				called = true
 
@@ -460,7 +464,8 @@ func TestCheck(t *testing.T) {
 		}`)
 
 		runner := &Runner{
-			Binary: "onesie",
+			Binary:  "onesie",
+			catalog: testCatalog(t),
 			exec: func(context.Context, string, []string) (int, string, error) {
 				return 0, "", context.DeadlineExceeded
 			},

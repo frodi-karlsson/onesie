@@ -14,7 +14,7 @@ const runTimeout = 10 * time.Second
 
 // NewRunner returns a Runner for binary, onesie on PATH when empty. It drops ONESIE_MOCK,
 // ONESIE_PROFILE, ONESIE_PROVIDER and ONESIE_CONFIG_DIR, then sets the last to configDir when given.
-func NewRunner(binary string, environ []string, configDir string) *Runner {
+func NewRunner(binary string, environ []string, configDir string, catalog *Catalog) *Runner {
 	if binary == "" {
 		binary = "onesie"
 	}
@@ -22,7 +22,8 @@ func NewRunner(binary string, environ []string, configDir string) *Runner {
 	env := isolated(environ, configDir)
 
 	return &Runner{
-		Binary: binary,
+		Binary:  binary,
+		catalog: catalog,
 		exec: func(ctx context.Context, binary string, args []string) (int, string, error) {
 			return runProcess(ctx, binary, args, env)
 		},
@@ -58,15 +59,16 @@ type Runner struct {
 	// Binary is the onesie executable to run.
 	Binary string
 
-	exec func(ctx context.Context, binary string, args []string) (exitCode int, stderr string, err error)
-	help func(ctx context.Context, binary string, args []string) (stdout string, err error)
-	book *helpBook
+	catalog *Catalog
+	exec    func(ctx context.Context, binary string, args []string) (exitCode int, stderr string, err error)
+	help    func(ctx context.Context, binary string, args []string) (stdout string, err error)
+	book    *helpBook
 }
 
 // DryRun strips the flags a dry run rejects from command, adds the print flag and runs it without a
 // shell. A command that is not a onesie invocation is not run, and Skipped says why.
 func (r *Runner) DryRun(ctx context.Context, command string) (DryRunResult, error) {
-	tokens, args, reason, err := prepare(command)
+	tokens, args, reason, err := r.prepare(command)
 	if err != nil {
 		return DryRunResult{}, err
 	}
@@ -112,13 +114,13 @@ func (r *Runner) Help(ctx context.Context, path []string) (string, error) {
 	return r.help(runCtx, r.Binary, append(append([]string{}, path...), "--help"))
 }
 
-func prepare(command string) (tokens, args []string, reason string, err error) {
+func (r *Runner) prepare(command string) (tokens, args []string, reason string, err error) {
 	tokens, reason = Tokenize(command)
 	if reason != "" {
 		return nil, nil, reason, nil
 	}
 
-	args, reason, err = DryRunArgs(tokens)
+	args, reason, err = r.catalog.DryRunArgs(tokens)
 
 	return tokens, args, reason, err
 }
@@ -126,11 +128,11 @@ func prepare(command string) (tokens, args []string, reason string, err error) {
 // answerFileProblem checks the flags the dry run strips from command before it can hide an error:
 // each must be in the --help of the command it follows, and each must come with the flags it needs.
 func (r *Runner) answerFileProblem(ctx context.Context, command string, tokens []string) (string, error) {
-	if !hasAnswerFileFlag(tokens) {
+	if !r.catalog.hasAnswerFileFlag(tokens) {
 		return "", nil
 	}
 
-	if problem := pairingProblem(tokens); problem != "" {
+	if problem := r.catalog.pairingProblem(tokens); problem != "" {
 		return problem, nil
 	}
 

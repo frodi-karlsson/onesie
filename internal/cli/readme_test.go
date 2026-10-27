@@ -198,6 +198,14 @@ func TestReadme(t *testing.T) {
 		// The README shortens the offline check to calibrate ... and REFERENCE.md holds it whole.
 		abbreviated := " ... "
 
+		always, questionsOnly := cli.DryRunRefusals()
+
+		catalog, err := skillcheck.NewCatalog(cli.NewRootCmd(cli.BuildInfo{}),
+			skillcheck.Rejected{Always: always, QuestionsOnly: questionsOnly})
+		if err != nil {
+			t.Fatal(err)
+		}
+
 		commands := readmeCommands(t)
 		if len(commands) < 10 {
 			t.Fatalf("found %d onesie commands in README.md, want the whole README", len(commands))
@@ -226,7 +234,7 @@ func TestReadme(t *testing.T) {
 			tokens = withoutFlag(tokens, "--assert")
 			tokens = intoTempDir(t, tokens)
 
-			args, reason, err := skillcheck.DryRunArgs(tokens)
+			args, reason, err := catalog.DryRunArgs(tokens)
 			if err != nil || reason != "" {
 				t.Errorf("%s has no dry run: %v %s", command.text, err, reason)
 

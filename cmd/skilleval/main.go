@@ -12,6 +12,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/frodi-karlsson/onesie/internal/cli"
 	"github.com/frodi-karlsson/onesie/internal/skillcheck"
 	"github.com/frodi-karlsson/onesie/internal/skilleval"
 )
@@ -34,7 +35,17 @@ func run() int {
 		}
 	}()
 
-	if err := newApp(configDir).run(context.Background(), os.Args[1:], os.Stdout); err != nil {
+	always, questionsOnly := cli.DryRunRefusals()
+
+	catalog, err := skillcheck.NewCatalog(cli.NewRootCmd(cli.BuildInfo{}),
+		skillcheck.Rejected{Always: always, QuestionsOnly: questionsOnly})
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+
+		return 1
+	}
+
+	if err := newApp(configDir, catalog).run(context.Background(), os.Args[1:], os.Stdout); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 
 		return 1
@@ -43,10 +54,10 @@ func run() int {
 	return 0
 }
 
-func newApp(configDir string) *app {
+func newApp(configDir string, catalog *skillcheck.Catalog) *app {
 	return &app{
 		glob:   filepath.Glob,
-		grader: skilleval.NewGrader(skillcheck.NewRunner("", os.Environ(), configDir)),
+		grader: skilleval.NewGrader(skillcheck.NewRunner("", os.Environ(), configDir, catalog)),
 	}
 }
 

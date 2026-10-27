@@ -2,11 +2,48 @@ package skillcheck
 
 import (
 	"reflect"
+	"slices"
 	"testing"
+
+	"github.com/spf13/cobra"
 )
+
+func TestNewCatalog(t *testing.T) {
+	t.Parallel()
+
+	t.Run("should read each flag's spellings and whether it takes a value from every command", func(t *testing.T) {
+		t.Parallel()
+
+		catalog := testCatalog(t)
+
+		for _, want := range []flagSpec{
+			{long: "output", short: "o", value: true},
+			{long: "quiet", short: "q"},
+			{long: "box"},
+			{long: "mock", value: true},
+			{long: "offline"},
+			{long: "label", value: true},
+		} {
+			if !slices.Contains(catalog.specs, want) {
+				t.Errorf("specs = %+v, want %+v among them", catalog.specs, want)
+			}
+		}
+	})
+
+	t.Run("should refuse a rejected flag the tree does not have", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := NewCatalog(&cobra.Command{Use: "onesie"}, Rejected{Always: []string{"quiet"}})
+		if err == nil || err.Error() != "onesie: the command tree has no flag --print-request for a dry run to strip" {
+			t.Errorf("NewCatalog error = %v, want the missing --print-request named", err)
+		}
+	})
+}
 
 func TestDryRunArgs(t *testing.T) {
 	t.Parallel()
+
+	catalog := testCatalog(t)
 
 	tests := []struct {
 		name       string
@@ -180,7 +217,7 @@ func TestDryRunArgs(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, reason, err := DryRunArgs(tc.tokens)
+			got, reason, err := catalog.DryRunArgs(tc.tokens)
 			if err != nil {
 				t.Fatalf("DryRunArgs(%v) unexpected error: %v", tc.tokens, err)
 			}
@@ -223,7 +260,7 @@ func TestDryRunArgs(t *testing.T) {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 
-				got, reason, err := DryRunArgs(tc.tokens)
+				got, reason, err := catalog.DryRunArgs(tc.tokens)
 				if err != nil || reason != "" {
 					t.Fatalf("DryRunArgs(%v) reason = %q, err = %v, want a clean parse", tc.tokens, reason, err)
 				}
@@ -241,7 +278,7 @@ func TestDryRunArgs(t *testing.T) {
 						tc.tokens, got, tc.wantValue)
 				}
 
-				if modeCount := countModeFlags(got); modeCount != 1 {
+				if modeCount := countModeFlags(catalog, got); modeCount != 1 {
 					t.Errorf("DryRunArgs(%v) = %#v, want exactly one dry run flag, counted %d",
 						tc.tokens, got, modeCount)
 				}
@@ -254,17 +291,17 @@ func TestDryRunArgs(t *testing.T) {
 	t.Run("should place the mode flag where nothing can consume it", func(t *testing.T) {
 		t.Parallel()
 
-		t.Run("should parse and run --fallback --merge rather than skip it", func(t *testing.T) {
+		t.Run("should parse and run --fallback --merge, keeping --merge as the value", func(t *testing.T) {
 			t.Parallel()
 
 			tokens := []string{"onesie", "--ask", "a=x", "--fallback", "--merge"}
 
-			got, reason, err := DryRunArgs(tokens)
+			got, reason, err := catalog.DryRunArgs(tokens)
 			if err != nil || reason != "" {
 				t.Fatalf("DryRunArgs(%v) reason = %q, err = %v, want a clean parse", tokens, reason, err)
 			}
 
-			want := []string{"--print-request", "--ask", "a=x", "--fallback"}
+			want := []string{"--print-request", "--ask", "a=x", "--fallback", "--merge"}
 			if !reflect.DeepEqual(got, want) {
 				t.Fatalf("DryRunArgs(%v) = %#v, want %#v", tokens, got, want)
 			}
@@ -273,7 +310,7 @@ func TestDryRunArgs(t *testing.T) {
 				t.Errorf("DryRunArgs(%v)[0] = %q, want the mode flag at the very front", tokens, got[0])
 			}
 
-			if modeCount := countModeFlags(got); modeCount != 1 {
+			if modeCount := countModeFlags(catalog, got); modeCount != 1 {
 				t.Errorf("DryRunArgs(%v) = %#v, want exactly one dry run flag, counted %d",
 					tokens, got, modeCount)
 			}
@@ -284,7 +321,12 @@ func TestDryRunArgs(t *testing.T) {
 func TestProvenDryRun(t *testing.T) {
 	t.Parallel()
 
-	strip := append(append([]flagSpec{}, printFlags...), alwaysStripped...)
+	catalog := testCatalog(t)
+
+	strip, err := catalog.named(append(append([]string{}, printFlags...), testRejected().Always...))
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	tests := []struct {
 		name string
@@ -319,17 +361,17 @@ func TestProvenDryRun(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			if got := provenDryRun(tc.args, strip); got != tc.want {
+			if got := catalog.provenDryRun(tc.args, strip); got != tc.want {
 				t.Errorf("provenDryRun(%v, strip) = %v, want %v", tc.args, got, tc.want)
 			}
 		})
 	}
 }
 
-func countModeFlags(args []string) int {
+func countModeFlags(catalog *Catalog, args []string) int {
 	count := 0
 
-	for _, occ := range flagOccurrences(args, catalog) {
+	for _, occ := range flagOccurrences(args, catalog.specs) {
 		if occ.spec.long == "print-request" || occ.spec.long == "print-questions" {
 			count++
 		}
@@ -372,9 +414,59 @@ func TestPairingProblem(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			if got := pairingProblem(tc.tokens); got != tc.want {
+			if got := testCatalog(t).pairingProblem(tc.tokens); got != tc.want {
 				t.Errorf("pairingProblem(%q) = %q, want %q", tc.tokens, got, tc.want)
 			}
 		})
+	}
+}
+
+func testCatalog(t *testing.T) *Catalog {
+	t.Helper()
+
+	root := &cobra.Command{Use: "onesie"}
+	root.PersistentFlags().String("mock", "", "")
+
+	for _, name := range []string{
+		"ask", "pick", "rate", "desc", "sep", "threshold", "min-confidence", "fallback", "assert", "abstain-if",
+		"state", "state-file", "map", "id", "merge-key", "out",
+	} {
+		root.Flags().String(name, "", "")
+	}
+
+	for _, name := range []string{
+		"box", "usage", "merge", "stats", "stop-on-assert", "resume", "prune", "unordered", "stop-on-error",
+		"skip-blank", "print-request", "print-questions",
+	} {
+		root.Flags().Bool(name, false, "")
+	}
+
+	root.Flags().StringP("output", "o", "", "")
+	root.Flags().StringP("input", "i", "text", "")
+	root.Flags().IntP("jobs", "j", 1, "")
+	root.Flags().StringP("model", "m", "", "")
+	root.Flags().StringP("file", "f", "", "")
+	root.Flags().BoolP("raw", "r", false, "")
+	root.Flags().BoolP("quiet", "q", false, "")
+
+	calibrate := &cobra.Command{Use: "calibrate"}
+	calibrate.Flags().Bool("offline", false, "")
+	calibrate.Flags().String("label", "", "")
+	root.AddCommand(calibrate)
+
+	catalog, err := NewCatalog(root, testRejected())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	return catalog
+}
+
+func testRejected() Rejected {
+	return Rejected{
+		Always: []string{"output", "raw", "quiet", "usage", "merge", "merge-key", "stats", "stop-on-assert", "mock"},
+		QuestionsOnly: []string{
+			"input", "jobs", "model", "state", "state-file", "unordered", "stop-on-error", "skip-blank",
+		},
 	}
 }

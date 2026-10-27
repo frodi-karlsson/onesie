@@ -16,6 +16,13 @@ const lineField = "line"
 
 var errNoQuestion = errors.New("no question given. Pass a question, --ask, or -f")
 
+// DryRunRefusals names by long name the flags both dry runs refuse, then the ones only
+// --print-questions refuses, so a tool that builds a dry run knows what to strip.
+func DryRunRefusals() (always, questionsOnly []string) {
+	return []string{"output", "raw", "quiet", "usage", "merge", "merge-key", "stats", "stop-on-assert", "mock"},
+		[]string{flagInput, flagJobs, flagModel, flagState, flagStateFile, "unordered", "stop-on-error", "skip-blank"}
+}
+
 func validatePlan(built *plan.Plan, config runConfig, facts runFacts) ([]string, error) {
 	if len(built.Questions) == 0 {
 		return nil, errNoQuestion
