@@ -1921,6 +1921,12 @@ func TestNewRootCmd(t *testing.T) {
 
 				var out, errOut bytes.Buffer
 
+				env := map[string]string{
+					"ONESIE_CONFIG_DIR": t.TempDir(),
+					onesie.EnvAPIKey:    "SECRET-TEST",
+					onesie.EnvBaseURL:   srv.URL,
+				}
+
 				root := cli.NewRootCmd(
 					cli.BuildInfo{Version: "1.2.3"},
 					cli.WithKeychain(offKeychain{}),
@@ -1928,11 +1934,7 @@ func TestNewRootCmd(t *testing.T) {
 					cli.WithStdinTTY(false),
 					cli.WithStdoutTTY(false),
 					cli.WithLookupEnv(func(name string) (string, bool) {
-						value, ok := map[string]string{
-							"ONESIE_CONFIG_DIR": t.TempDir(),
-							onesie.EnvAPIKey:    "SECRET-TEST",
-							onesie.EnvBaseURL:   srv.URL,
-						}[name]
+						value, ok := env[name]
 
 						return value, ok
 					}),
