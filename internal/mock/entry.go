@@ -353,33 +353,18 @@ func averaged(names []string, p map[string]float64, index int) float64 {
 
 func synthesized(names []string, value string, confidence float64) map[string]float64 {
 	// At least twice what each other name takes keeps the value the strict mode, which replayed
-	// demands of a written p, since a rate reads its value from the first of equal modes. Counted
-	// in units of 0.0001, the value keeps its share exactly and the others split the rest, the
-	// first of them taking one unit more where it does not divide evenly.
-	const units = 10000
-
-	// Rounded up, so a confidence with more than four places never rises above the value's p. The
-	// small allowance keeps float noise, as in 0.6 times 10000, from rounding up a whole unit.
-	share := int(math.Ceil(max(confidence, 2/float64(len(names)+1))*units - 1e-6))
-	others := max(len(names)-1, 1)
-	each, extra := (units-share)/others, (units-share)%others
+	// demands of a written p, since a rate reads its value from the first of equal modes. Rounded up
+	// to four places, so the value's p is never below its confidence. The small allowance keeps
+	// float noise, as in 0.6 times 10000, from rounding up a whole step.
+	share := math.Ceil(max(confidence, 2/float64(len(names)+1))*1e4-1e-6) / 1e4
+	rest := num.Rounded((1 - share) / float64(len(names)-1))
 
 	probabilities := make(map[string]float64, len(names))
 	for _, name := range names {
-		if name == value {
-			continue
-		}
-
-		got := each
-		if extra > 0 {
-			got++
-			extra--
-		}
-
-		probabilities[name] = float64(got) / units
+		probabilities[name] = rest
 	}
 
-	probabilities[value] = float64(share) / units
+	probabilities[value] = share
 
 	return probabilities
 }

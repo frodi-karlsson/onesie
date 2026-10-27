@@ -3,13 +3,16 @@ package mock
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"math"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/answer"
+	"github.com/frodi-karlsson/onesie/internal/num"
 	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
@@ -74,9 +77,9 @@ func TestEntryResult(t *testing.T) {
 			question:   five,
 			value:      "2",
 			confidence: 0.1,
-			score:      1.833,
+			score:      1.8333,
 			norm:       0.4583,
-			p:          map[string]float64{"1": 0.1667, "2": 0.3334, "3": 0.1667, "4": 0.1666, "5": 0.1666},
+			p:          map[string]float64{"1": 0.1667, "2": 0.3334, "3": 0.1667, "4": 0.1667, "5": 0.1667},
 		},
 		{
 			name:       "should replay a score between levels as the real run printed it",
@@ -422,23 +425,20 @@ func assertRoundTrip(t *testing.T, question plan.Question, value string, confide
 		t.Errorf("%s: the value's p %v is below its confidence", file, first.P.Values[value])
 	}
 
+	rest := num.Rounded((1 - first.P.Values[value]) / float64(levels-1))
+
 	for key, share := range first.P.Values {
+		if key != value && share != rest {
+			t.Errorf("%s: p[%s] = %v, want an even share of the rest, %v", file, key, share, rest)
+		}
+
 		if key != value && share >= first.P.Values[value] {
 			t.Errorf("%s: p[%s] = %v, want it below the value's %v", file, key, share, first.P.Values[value])
 		}
 	}
 
-	sum := 0.0
-	for key, share := range first.P.Values {
-		sum += share
-
-		if share != math.Round(share*1e4)/1e4 {
-			t.Errorf("%s: p[%s] = %v, want it rounded to four places", file, key, share)
-		}
-	}
-
-	if math.Abs(sum-1) > 1e-9 {
-		t.Errorf("%s: p sums to %v, want 1", file, sum)
+	if sum, fits := answer.SumFits(slices.Collect(maps.Values(first.P.Values))); !fits {
+		t.Errorf("%s: p sums to %v, want 1 within the sum check", file, sum)
 	}
 
 	printed, err := json.Marshal(first)
