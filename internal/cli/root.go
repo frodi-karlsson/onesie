@@ -641,7 +641,7 @@ func Execute(ctx context.Context, root *cobra.Command) int {
 
 	if worthReporting(err) {
 		// Stripped, since a message can quote the server or the input to a terminal.
-		message := output.Printable(pathNamedOnce(err.Error(), err))
+		message := output.Printable(err.Error())
 		// Cobra's own parse errors are the only ones that do not already carry the prefix, and a
 		// consumer filtering stderr should not have to know which layer produced a line.
 		if !strings.HasPrefix(message, "onesie: ") {
@@ -654,22 +654,6 @@ func Execute(ctx context.Context, root *cobra.Command) int {
 	}
 
 	return Classify(err)
-}
-
-func pathNamedOnce(message string, err error) string {
-	var pathErr *fs.PathError
-	if !errors.As(err, &pathErr) {
-		return message
-	}
-
-	// A caller that names the path already, as in reading X, makes the copy the PathError carries,
-	// as in open X, say the same thing twice.
-	repeated := ": " + pathErr.Op + " " + pathErr.Path + ": "
-	if !strings.Contains(message, " "+pathErr.Path+repeated) {
-		return message
-	}
-
-	return strings.Replace(message, repeated, ": ", 1)
 }
 
 // WithClientFactory replaces how commands build their API client, so a test can point one at a

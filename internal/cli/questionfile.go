@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"strings"
 
+	"github.com/frodi-karlsson/onesie/internal/patherr"
 	"github.com/frodi-karlsson/onesie/internal/qfile"
 )
 
@@ -17,7 +18,7 @@ func readQuestionFile(settings rootSettings, value string) ([]byte, string, erro
 	}
 
 	if !qfile.IsName(value) || !lookupPast(settings, value, err) {
-		return nil, "", fmt.Errorf("onesie: reading %s: %w", value, err)
+		return nil, "", fmt.Errorf("onesie: reading %s: %w", value, patherr.Inner(err))
 	}
 
 	env, err := findEnv(settings)
@@ -43,7 +44,7 @@ func readQuestionFile(settings rootSettings, value string) ([]byte, string, erro
 
 	data, err = settings.readFile(path)
 	if err != nil {
-		return nil, "", fmt.Errorf("onesie: reading %s: %w", path, err)
+		return nil, "", fmt.Errorf("onesie: reading %s: %w", path, patherr.Inner(err))
 	}
 
 	hidden := ""

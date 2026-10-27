@@ -2230,6 +2230,38 @@ func TestNewRootCmd(t *testing.T) {
 		}
 	})
 
+	t.Run("should name a file it cannot read once", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		missing := filepath.Join(dir, "missing.txt")
+		env := map[string]string{"ONESIE_CONFIG_DIR": dir, "TYPESAFE_API_KEY": "SECRET-key"}
+
+		tests := []struct {
+			name string
+			args []string
+		}{
+			{name: "should name a missing --state-file once", args: []string{"q", "--state-file", missing, "--print-request"}},
+			{name: "should name a missing -f once", args: []string{"-f", missing, "--print-request"}},
+			{name: "should name a missing @FILE once", args: []string{"--ask", "a=@" + missing, "--print-request"}},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				out, code := runWithEnv(t, env, tc.args)
+				if code != cli.ExitUsage {
+					t.Errorf("exit code = %d, want %d\noutput:\n%s", code, cli.ExitUsage, out)
+				}
+
+				if !strings.Contains(out, "reading "+missing+": ") || strings.Contains(out, "open "+missing) {
+					t.Errorf("output = %q, want %s named once", out, missing)
+				}
+			})
+		}
+	})
+
 	t.Run("should hint that a subcommand rejected a flag the root knows", func(t *testing.T) {
 		t.Parallel()
 

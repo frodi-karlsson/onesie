@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/frodi-karlsson/onesie/internal/limits"
+	"github.com/frodi-karlsson/onesie/internal/patherr"
 )
 
 const (
@@ -56,7 +57,7 @@ func Open(dir string, opts Options) (*Store, error) {
 			return nil, err
 		}
 	case statErr != nil:
-		return nil, fmt.Errorf("onesie: reading the cache dir %s: %w", dir, statErr)
+		return nil, fmt.Errorf("onesie: reading the cache dir %s: %w", dir, patherr.Inner(statErr))
 	case !info.IsDir():
 		return nil, fmt.Errorf("onesie: the cache dir %s is not a directory", dir)
 	case opts.GOOS != "windows" && info.Mode().Perm()&0o077 != 0:
@@ -80,7 +81,7 @@ func tagUntagged(fsys FS, dir string) error {
 
 	names, err := fsys.ReadDir(dir)
 	if err != nil {
-		return fmt.Errorf("onesie: reading the cache dir %s: %w", dir, err)
+		return fmt.Errorf("onesie: reading the cache dir %s: %w", dir, patherr.Inner(err))
 	}
 
 	for _, named := range names {
@@ -241,7 +242,7 @@ func (s *Store) Get(key Key, provider, model string) ([]byte, bool, error) {
 			return nil, false, nil
 		}
 
-		return nil, false, fmt.Errorf("reading %s: %w", path, err)
+		return nil, false, fmt.Errorf("reading %s: %w", path, patherr.Inner(err))
 	}
 
 	stored, ok := readEntry(data, model)
@@ -427,7 +428,7 @@ func (s *Store) evict() error {
 		}
 
 		if err := s.remove(f.path); err != nil && !errors.Is(err, fs.ErrNotExist) {
-			return fmt.Errorf("evicting %s: %w", f.path, err)
+			return fmt.Errorf("evicting %s: %w", f.path, patherr.Inner(err))
 		}
 
 		s.total -= f.size
@@ -456,7 +457,7 @@ func (s *Store) walk() (int64, error) {
 
 		if stale {
 			if err := s.remove(f.path); err != nil && !errors.Is(err, fs.ErrNotExist) {
-				return 0, fmt.Errorf("removing %s: %w", f.path, err)
+				return 0, fmt.Errorf("removing %s: %w", f.path, patherr.Inner(err))
 			}
 
 			continue
@@ -547,7 +548,7 @@ func Clear(dir string, fsys FS) (int, error) {
 
 	for _, f := range files {
 		if err := fsys.Remove(f.path); err != nil && !errors.Is(err, fs.ErrNotExist) {
-			return removed, fmt.Errorf("onesie: removing %s: %w", f.path, err)
+			return removed, fmt.Errorf("onesie: removing %s: %w", f.path, patherr.Inner(err))
 		}
 
 		if f.kind != tempFile {
@@ -583,7 +584,7 @@ func scan(fsys FS, dir string) ([]file, error) {
 		}
 
 		if err != nil {
-			return nil, fmt.Errorf("onesie: reading %s: %w", sub, err)
+			return nil, fmt.Errorf("onesie: reading %s: %w", sub, patherr.Inner(err))
 		}
 
 		for _, named := range names {
@@ -598,7 +599,7 @@ func scan(fsys FS, dir string) ([]file, error) {
 			}
 
 			if err != nil {
-				return nil, fmt.Errorf("onesie: reading %s: %w", filepath.Join(sub, named.Name()), err)
+				return nil, fmt.Errorf("onesie: reading %s: %w", filepath.Join(sub, named.Name()), patherr.Inner(err))
 			}
 
 			files = append(files, file{

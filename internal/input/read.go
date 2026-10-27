@@ -12,6 +12,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/frodi-karlsson/onesie/internal/interrupt"
+	"github.com/frodi-karlsson/onesie/internal/patherr"
 )
 
 const (
@@ -30,7 +31,7 @@ func Resolve(ctx context.Context, req Query) (Resolved, error) {
 	case req.HasStateFile:
 		body, err := req.ReadFile(req.StateFile)
 		if err != nil {
-			return Resolved{}, fmt.Errorf("onesie: reading %s: %w", req.StateFile, err)
+			return Resolved{}, fmt.Errorf("onesie: reading %s: %w", req.StateFile, patherr.Inner(err))
 		}
 
 		label := fmt.Sprintf("--state-file '%s'", req.StateFile)

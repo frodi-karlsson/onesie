@@ -8,6 +8,8 @@ import (
 	"slices"
 	"strings"
 	"syscall"
+
+	"github.com/frodi-karlsson/onesie/internal/patherr"
 )
 
 var extensions = []string{".yaml", ".yml", ".json"}
@@ -202,7 +204,7 @@ func readSet(env FindEnv, dir string) ([]fs.DirEntry, bool, error) {
 	}
 
 	if err != nil {
-		return nil, false, fmt.Errorf("onesie: reading %s: %w", dir, err)
+		return nil, false, fmt.Errorf("onesie: reading %s: %w", dir, patherr.Inner(err))
 	}
 
 	return entries, true, nil
