@@ -394,7 +394,7 @@ func (p Probabilities) MarshalJSON() ([]byte, error) {
 		// one parseable line per record, so failing loudly beats breaking every consumer.
 		value := p.Values[key]
 		if math.IsNaN(value) || math.IsInf(value, 0) {
-			return nil, fmt.Errorf("onesie: probability for '%s' is not a finite number", key)
+			return nil, fmt.Errorf("probability for '%s' is not a finite number", key)
 		}
 
 		buf = append(buf, name...)

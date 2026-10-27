@@ -67,7 +67,7 @@ func ParseMode(name string, tty, streaming, merge bool) (Mode, error) {
 		return JSON, nil
 	default:
 		return JSON, fmt.Errorf(
-			"onesie: -o takes auto, json, values, table, raw, csv, tsv or markdown, got '%s'", name)
+			"-o takes auto, json, values, table, raw, csv, tsv or markdown, got '%s'", name)
 	}
 }
 
