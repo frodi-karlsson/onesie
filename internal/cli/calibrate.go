@@ -13,7 +13,6 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/calibrate"
 	"github.com/frodi-karlsson/onesie/internal/input"
 	"github.com/frodi-karlsson/onesie/internal/jq"
-	"github.com/frodi-karlsson/onesie/internal/limits"
 	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
@@ -130,11 +129,6 @@ func newCalibrateCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 	// A recorded flag is a string, so without this --box would take the next argument as its value.
 	cmd.Flags().Lookup("box").NoOptDefVal = "true"
 
-	cmd.Flags().StringArrayVar(&flags.images, flagImage, nil,
-		"NAME=PATH, repeatable, puts a PNG or JPEG in every record's state under NAME. Experimental on TypeSafe's side")
-	cmd.Flags().Var(nonEmptyList{values: &flags.imageFields}, flagImageField,
-		"repeatable, a state key whose value is a path to a PNG or JPEG, read per record. Experimental on TypeSafe's side")
-
 	for _, name := range []string{"threshold", "min-confidence", "fallback"} {
 		cmd.Flags().Var(recorder.Flag(name), name, "refused, "+refusedReasons[name])
 		hide(cmd, name)
@@ -163,61 +157,23 @@ func newCalibrateCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 		"with --out and --resume, read every answer from the file and ask nothing, needing no key")
 	cmd.Flags().StringVarP(&calib.report, "output", "o", "", "the report, table, json or auto, which means table")
 	refuseEmpty(cmd.Flags(), "output")
+	cmd.Flags().StringVarP(&calib.input, flagInput, "i", "", "required, jsonl, csv or tsv")
+	refuseEmpty(cmd.Flags(), flagInput)
 
-	bindSharedFlags(cmd, flags)
+	addRunFlags(cmd.Flags(), flags, runFlagHelp{
+		image:      "NAME=PATH, repeatable, puts a PNG or JPEG in every record's state under NAME. Experimental on TypeSafe's side",
+		imageField: "repeatable, a state key whose value is a path to a PNG or JPEG, read per record. Experimental on TypeSafe's side",
+		mapSource: "jq expression run on each record, whose result is the state sent. Map only the text a person " +
+			"would read",
+		idSource:  "jq expression run on each record, whose string or number result names it",
+		out:       "write the answers to this file as -o json lines",
+		resume:    "with --out and --id, skip the ids the file already answers",
+		prune:     "with --resume, drop the answered ids the input no longer has",
+		skipBlank: "drop blank lines",
+		usage:     "add the api usage object to the answers file and the json report",
+	})
 
 	return cmd
-}
-
-func bindSharedFlags(cmd *cobra.Command, flags *runFlags) {
-	// Every default is the root's, since pflag writes a default into its field when the flag is
-	// registered, and this runs after the root registered the same field.
-	cmd.Flags().StringVarP(&flags.input, flagInput, "i", "text", "required, jsonl, csv or tsv")
-	// The root's text default stays in the field, and help leaves it out, since calibrate refuses it.
-	cmd.Flags().Lookup(flagInput).DefValue = ""
-	refuseEmpty(cmd.Flags(), flagInput)
-	cmd.Flags().StringVar(&flags.mapSource, flagMap, "",
-		"jq expression run on each record, whose result is the state sent. Map only the text a person "+
-			"would read")
-	refuseEmpty(cmd.Flags(), flagMap)
-	cmd.Flags().StringVar(&flags.idSource, flagID, "",
-		"jq expression run on each record, whose string or number result names it")
-	refuseEmpty(cmd.Flags(), flagID)
-	cmd.Flags().StringVarP(&flags.model, flagModel, "m", "", "model override")
-	refuseEmpty(cmd.Flags(), flagModel)
-	cmd.Flags().StringVar(&flags.baseURL, flagBaseURL, "", "api root override")
-	refuseEmpty(cmd.Flags(), flagBaseURL)
-	cmd.Flags().BoolVar(&flags.allowHTTP, flagAllowHTTP, false, allowHTTPHelp)
-	cmd.Flags().BoolVar(&flags.longContext, flagLongContext, false,
-		"raise the context limits to 262k tokens, slower and less accurate. Also ONESIE_LONG_CONTEXT=1. "+
-			"Experimental on TypeSafe's side")
-	cmd.Flags().StringVarP(&flags.file, "file", "f", "",
-		"question file or request body, or the name of one saved in .onesie/questions or the config dir, "+
-			"or of a built-in starter set")
-	refuseEmpty(cmd.Flags(), "file")
-	cmd.Flags().BoolVar(&flags.replace, "replace", false, "--ask overrides an id from -f")
-	cmd.Flags().IntVarP(&flags.jobs, flagJobs, "j", 1, "records in flight at once")
-	cmd.Flags().IntVar(&flags.timeout, flagTimeout, int(limits.DefaultAttemptTimeout.Seconds()),
-		"seconds per attempt")
-	cmd.Flags().IntVar(&flags.retries, flagRetries, limits.DefaultRetries,
-		"retries after a failed attempt")
-	cmd.Flags().IntVar(&flags.maxRetryAfter, flagMaxRetryAfter,
-		int(limits.DefaultMaxRetryAfter.Seconds()),
-		"most seconds to wait out a server Retry-After")
-	cmd.Flags().StringVar(&flags.out, "out", "", "write the answers to this file as -o json lines")
-	refuseEmpty(cmd.Flags(), "out")
-	cmd.Flags().BoolVar(&flags.resume, "resume", false,
-		"with --out and --id, skip the ids the file already answers")
-	cmd.Flags().BoolVar(&flags.prune, "prune", false,
-		"with --resume, drop the answered ids the input no longer has")
-	cmd.Flags().BoolVar(&flags.skipBlank, "skip-blank", false, "drop blank lines")
-	cmd.Flags().BoolVar(&flags.stats, "stats", false,
-		"write a one line summary of the run to stderr at exit")
-	cmd.Flags().BoolVar(&flags.usage, "usage", false,
-		"add the api usage object to the answers file and the json report")
-	cmd.Flags().BoolVar(&flags.printRequest, "print-request", false,
-		"write api shaped request bodies to stdout and exit")
-	cmd.Flags().BoolVar(&flags.cache, flagCache, false, cacheHelp)
 }
 
 func hide(cmd *cobra.Command, name string) {
@@ -228,7 +184,7 @@ func runCalibrate(
 	cmd *cobra.Command, settings rootSettings, parsed *runFlags, calib calibrateFlags,
 	events []argv.Event, positional string,
 ) error {
-	flags, err := newRunConfig(cmd, settings.lookupEnv, *parsed, events, positional)
+	flags, err := newRunConfig(cmd, settings.lookupEnv, calib.withInput(*parsed), events, positional)
 	if err != nil {
 		return err
 	}
@@ -551,7 +507,14 @@ type calibrateFlags struct {
 	requires []string
 	cuts     string
 	report   string
+	input    string
 	offline  bool
+}
+
+func (c calibrateFlags) withInput(flags runFlags) runFlags {
+	flags.input = c.input
+
+	return flags
 }
 
 type questionLabel struct {

@@ -246,7 +246,6 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 	root.Flags().BoolVarP(&flags.raw, "raw", "r", false, "print the bare scalar")
 	root.Flags().BoolVarP(&flags.quiet, "quiet", "q", false,
 		"suppress output, the exit code carries the answer")
-	root.Flags().BoolVar(&flags.usage, "usage", false, "add the api usage object to json output")
 	// Not a group flag. It is global, so it binds to no --ask group and may appear anywhere in
 	// argv, and StringArrayVar keeps the order it was given in.
 	root.Flags().StringArrayVar(&flags.assert, "assert", nil,
@@ -259,24 +258,6 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 	root.Flags().StringVar(&flags.state, flagState, "", "state to evaluate, or - to read stdin")
 	root.Flags().StringVar(&flags.stateFile, flagStateFile, "", "read the state from this file")
 	refuseEmpty(root.Flags(), flagStateFile)
-	root.Flags().StringArrayVar(&flags.images, flagImage, nil,
-		"NAME=PATH, repeatable, puts a PNG or JPEG in the state under NAME, experimental on TypeSafe's side. "+
-			"For one record stdin is read beside it only through --state -, so text joins it from --state, "+
-			"--state-file or --state -. A stream reads its records from stdin and adds the image to each")
-	root.Flags().Var(nonEmptyList{values: &flags.imageFields}, flagImageField,
-		"streaming only, repeatable, a state key whose value is a path to a PNG or JPEG, read per record. "+
-			"Under -i lines the line is the path. Experimental on TypeSafe's side")
-	root.Flags().StringVar(&flags.mapSource, flagMap, "",
-		"jq expression run on each record, whose result is the state sent. "+
-			"Object keys come out sorted. The result may nest max-map-depth levels deep and encode to max-line-bytes, as -V lists")
-	refuseEmpty(root.Flags(), flagMap)
-	root.Flags().StringVar(&flags.idSource, flagID, "",
-		"streaming only, jq expression run on each record, whose string or number result names it "+
-			"on every output line. It runs one record at a time as the input is read, so keep it cheap, "+
-			"such as a field lookup, and -V lists the cap on its length")
-	refuseEmpty(root.Flags(), flagID)
-	root.Flags().StringVarP(&flags.model, flagModel, "m", "", "model override")
-	refuseEmpty(root.Flags(), flagModel)
 	root.PersistentFlags().Var(choiceValue{value: &flags.provider, set: &flags.providerSet}, flagProvider,
 		"run on this provider without a profile, typesafe, openrouter, berget, levanto or cloudflare. "+
 			"Overrides ONESIE_PROVIDER")
@@ -288,61 +269,47 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 			`as {"answer":0.9,"team":"billing"}, or one line per record in the shape -o json writes. `+
 			"A lone line that carries id, line, model, usage, assert, abstain or an error object is one record")
 	refuseEmpty(root.PersistentFlags(), "mock")
-	root.Flags().StringVar(&flags.baseURL, flagBaseURL, "", "api root override")
-	refuseEmpty(root.Flags(), flagBaseURL)
-	root.Flags().BoolVar(&flags.allowHTTP, flagAllowHTTP, false, allowHTTPHelp)
-	root.Flags().StringVarP(&flags.file, "file", "f", "",
-		"question file or request body, or the name of one saved in .onesie/questions or the config dir, "+
-			"or of a built-in starter set")
-	refuseEmpty(root.Flags(), "file")
-	root.Flags().BoolVar(&flags.replace, "replace", false, "--ask overrides an id from -f")
 	root.Flags().BoolVar(&flags.printQuestions, "print-questions", false,
 		"write a question file to stdout and exit, its first line naming the schema --print-schema prints")
-	root.Flags().BoolVar(&flags.printRequest, "print-request", false,
-		"write api shaped request bodies to stdout and exit")
 	root.Flags().BoolVar(&flags.printSchema, "print-schema", false,
 		"write the JSON Schema for a question file to stdout and exit")
 	asksNothing(root.Flags(), "print-schema")
 	root.Flags().BoolVar(&flags.listModels, "list-models", false,
 		"write the available models to stdout and exit")
 	asksNothing(root.Flags(), "list-models")
-	root.Flags().BoolVar(&flags.stats, "stats", false,
-		"write a one line summary of the run to stderr at exit")
-	root.Flags().BoolVar(&flags.cache, flagCache, false, cacheHelp)
-	root.Flags().IntVarP(&flags.jobs, flagJobs, "j", 1, "records in flight at once")
-	root.Flags().IntVar(&flags.timeout, flagTimeout, int(limits.DefaultAttemptTimeout.Seconds()),
-		"seconds per attempt")
-	root.Flags().BoolVar(&flags.longContext, flagLongContext, false,
-		"raise the context limits to 262k tokens, slower and less accurate. Also ONESIE_LONG_CONTEXT=1. "+
-			"Experimental on TypeSafe's side")
-	root.Flags().IntVar(&flags.retries, flagRetries, limits.DefaultRetries,
-		"retries after a failed attempt")
-	root.Flags().IntVar(&flags.maxRetryAfter, flagMaxRetryAfter,
-		int(limits.DefaultMaxRetryAfter.Seconds()),
-		"most seconds to wait out a server Retry-After")
 	root.Flags().BoolVar(&flags.unordered, "unordered", false,
 		"streaming only, emit records as they complete")
 	root.Flags().BoolVar(&flags.stopOnError, "stop-on-error", false,
 		"streaming only, end the run at the first failure, with its exit code, or 6 for a line onesie could not read")
 	root.Flags().BoolVar(&flags.stopOnAssert, "stop-on-assert", false,
 		"streaming only, end the run at the first false assertion")
-	root.Flags().BoolVar(&flags.skipBlank, "skip-blank", false,
-		"streaming only, drop blank lines with no output line")
 	root.Flags().BoolVar(&flags.noDedup, "no-dedup", false,
 		"streaming only, ask every record even when its request repeats an earlier one")
-	root.Flags().StringVar(&flags.out, "out", "", "write the answers to this file rather than stdout")
-	refuseEmpty(root.Flags(), "out")
-	root.Flags().BoolVar(&flags.resume, "resume", false,
-		"streaming only, with --out, carry on after the last complete line in the file. "+
-			"Under --id it skips the ids the file answers, so a record whose content changed but whose "+
-			"id did not keeps its old answer. It then rewrites the file in input order, with the answered "+
-			"ids the input no longer has kept after them, which --prune drops")
-	root.Flags().BoolVar(&flags.prune, "prune", false,
-		"with --resume and --id, drop the answered ids the input no longer has")
 	root.Flags().BoolVar(&flags.merge, "merge", false, "fold the answers into the input record")
 	root.Flags().StringVar(&flags.mergeKey, "merge-key", "",
 		"where the answers land in the merged record, implies --merge")
 	refuseEmpty(root.Flags(), "merge-key")
+
+	addRunFlags(root.Flags(), flags, runFlagHelp{
+		image: "NAME=PATH, repeatable, puts a PNG or JPEG in the state under NAME, experimental on TypeSafe's side. " +
+			"For one record stdin is read beside it only through --state -, so text joins it from --state, " +
+			"--state-file or --state -. A stream reads its records from stdin and adds the image to each",
+		imageField: "streaming only, repeatable, a state key whose value is a path to a PNG or JPEG, read per record. " +
+			"Under -i lines the line is the path. Experimental on TypeSafe's side",
+		mapSource: "jq expression run on each record, whose result is the state sent. " +
+			"Object keys come out sorted. The result may nest max-map-depth levels deep and encode to max-line-bytes, as -V lists",
+		idSource: "streaming only, jq expression run on each record, whose string or number result names it " +
+			"on every output line. It runs one record at a time as the input is read, so keep it cheap, " +
+			"such as a field lookup, and -V lists the cap on its length",
+		out: "write the answers to this file rather than stdout",
+		resume: "streaming only, with --out, carry on after the last complete line in the file. " +
+			"Under --id it skips the ids the file answers, so a record whose content changed but whose " +
+			"id did not keeps its old answer. It then rewrites the file in input order, with the answered " +
+			"ids the input no longer has kept after them, which --prune drops",
+		prune:     "with --resume and --id, drop the answered ids the input no longer has",
+		skipBlank: "streaming only, drop blank lines with no output line",
+		usage:     "add the api usage object to json output",
+	})
 
 	root.AddCommand(newVersionCmd(info))
 	root.AddCommand(newProfileCmd(settings, flags))
@@ -368,6 +335,54 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 	asksNothing(root.Flags(), "help")
 
 	return root
+}
+
+func addRunFlags(set *pflag.FlagSet, flags *runFlags, help runFlagHelp) {
+	set.StringArrayVar(&flags.images, flagImage, nil, help.image)
+	set.Var(nonEmptyList{values: &flags.imageFields}, flagImageField, help.imageField)
+	set.StringVar(&flags.mapSource, flagMap, "", help.mapSource)
+	refuseEmpty(set, flagMap)
+	set.StringVar(&flags.idSource, flagID, "", help.idSource)
+	refuseEmpty(set, flagID)
+	set.StringVarP(&flags.model, flagModel, "m", "", "model override")
+	refuseEmpty(set, flagModel)
+	set.StringVar(&flags.baseURL, flagBaseURL, "", "api root override")
+	refuseEmpty(set, flagBaseURL)
+	set.BoolVar(&flags.allowHTTP, flagAllowHTTP, false, allowHTTPHelp)
+	set.BoolVar(&flags.longContext, flagLongContext, false,
+		"raise the context limits to 262k tokens, slower and less accurate. Also ONESIE_LONG_CONTEXT=1. "+
+			"Experimental on TypeSafe's side")
+	set.StringVarP(&flags.file, "file", "f", "",
+		"question file or request body, or the name of one saved in .onesie/questions or the config dir, "+
+			"or of a built-in starter set")
+	refuseEmpty(set, "file")
+	set.BoolVar(&flags.replace, "replace", false, "--ask overrides an id from -f")
+	set.IntVarP(&flags.jobs, flagJobs, "j", 1, "records in flight at once")
+	set.IntVar(&flags.timeout, flagTimeout, int(limits.DefaultAttemptTimeout.Seconds()), "seconds per attempt")
+	set.IntVar(&flags.retries, flagRetries, limits.DefaultRetries, "retries after a failed attempt")
+	set.IntVar(&flags.maxRetryAfter, flagMaxRetryAfter, int(limits.DefaultMaxRetryAfter.Seconds()),
+		"most seconds to wait out a server Retry-After")
+	set.StringVar(&flags.out, "out", "", help.out)
+	refuseEmpty(set, "out")
+	set.BoolVar(&flags.resume, "resume", false, help.resume)
+	set.BoolVar(&flags.prune, "prune", false, help.prune)
+	set.BoolVar(&flags.skipBlank, "skip-blank", false, help.skipBlank)
+	set.BoolVar(&flags.stats, "stats", false, "write a one line summary of the run to stderr at exit")
+	set.BoolVar(&flags.usage, "usage", false, help.usage)
+	set.BoolVar(&flags.printRequest, "print-request", false, "write api shaped request bodies to stdout and exit")
+	set.BoolVar(&flags.cache, flagCache, false, cacheHelp)
+}
+
+type runFlagHelp struct {
+	image      string
+	imageField string
+	mapSource  string
+	idSource   string
+	out        string
+	resume     string
+	prune      string
+	skipBlank  string
+	usage      string
 }
 
 func plainFlagError(cmd *cobra.Command, err error) error {

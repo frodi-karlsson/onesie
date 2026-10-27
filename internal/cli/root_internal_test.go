@@ -2,13 +2,18 @@ package cli
 
 import (
 	"bytes"
+	"maps"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
+
+	"github.com/frodi-karlsson/onesie/internal/limits"
 )
 
 func TestSchemaURLOf(t *testing.T) {
@@ -261,4 +266,37 @@ func TestNoArguments(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestAddRunFlags(t *testing.T) {
+	t.Parallel()
+
+	t.Run("should register the shared run flags with one set of defaults and leave -i and -o out", func(t *testing.T) {
+		t.Parallel()
+
+		flags := &runFlags{}
+		set := pflag.NewFlagSet("run", pflag.ContinueOnError)
+		addRunFlags(set, flags, runFlagHelp{})
+
+		want := map[string]string{
+			"image": "[]", "image-field": "", "map": "", "id": "", "model": "", "base-url": "",
+			"allow-http": "false", "long-context": "false", "file": "", "replace": "false", "jobs": "1",
+			"timeout":         strconv.Itoa(int(limits.DefaultAttemptTimeout.Seconds())),
+			"retries":         strconv.Itoa(limits.DefaultRetries),
+			"max-retry-after": strconv.Itoa(int(limits.DefaultMaxRetryAfter.Seconds())),
+			"out":             "", "resume": "false", "prune": "false", "skip-blank": "false", "stats": "false",
+			"usage": "false", "print-request": "false", "cache": "false",
+		}
+
+		got := map[string]string{}
+		set.VisitAll(func(flag *pflag.Flag) { got[flag.Name] = flag.DefValue })
+
+		if !maps.Equal(got, want) {
+			t.Errorf("flags and defaults = %v, want %v", got, want)
+		}
+
+		if flags.jobs != 1 || flags.input != "" || flags.output != "" {
+			t.Errorf("jobs %d, input %q, output %q, want 1 and -i and -o left alone", flags.jobs, flags.input, flags.output)
+		}
+	})
 }
