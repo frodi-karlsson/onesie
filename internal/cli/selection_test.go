@@ -660,13 +660,19 @@ func TestResolutionAccountSource(t *testing.T) {
 			env: map[string]string{"CLOUDFLARE_ACCOUNT_ID": testAccountID}, want: "CLOUDFLARE_ACCOUNT_ID",
 		},
 		{name: "should name none", run: resolution{provider: onesie.Cloudflare()}, want: "none"},
+		{
+			name: "should name CLOUDFLARE_ACCOUNT_ID when it is malformed", run: resolution{provider: onesie.Cloudflare()},
+			env: map[string]string{"CLOUDFLARE_ACCOUNT_ID": "not-hex"}, want: "CLOUDFLARE_ACCOUNT_ID",
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			if got := tc.run.accountSource(lookupFrom(tc.env)); got != tc.want {
+			_, source, resolveErr := tc.run.provider.ResolveBaseURL(tc.run.baseURL, tc.run.accountID, lookupFrom(tc.env))
+
+			if got := tc.run.accountSource(source, resolveErr); got != tc.want {
 				t.Errorf("accountSource = %q, want %q", got, tc.want)
 			}
 		})
@@ -842,11 +848,6 @@ func TestAccountNote(t *testing.T) {
 			name: "should name profile create for a run without a profile", err: noAccount, run: bare,
 			want: "no cloudflare account id. Set CLOUDFLARE_ACCOUNT_ID, " +
 				"or store it with onesie profile create NAME --provider cloudflare --account-id ACCOUNT_ID",
-		},
-		{
-			name: "should leave an unrelated validation error alone", run: cf,
-			err:  &onesie.ValidationError{Message: "the account id must be 32 hexadecimal characters"},
-			want: "the account id must be 32 hexadecimal characters",
 		},
 	}
 

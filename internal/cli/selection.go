@@ -273,10 +273,6 @@ func firstProfileOf(provider string, profiles creds.Profiles) string {
 }
 
 func accountNote(err error, chosen resolution) error {
-	if !errors.Is(err, onesie.ErrNoAccountID) {
-		return err
-	}
-
 	missing := fmt.Sprintf("no %s account id. Set %s", chosen.provider.Name(), chosen.provider.EnvAccountID())
 	if chosen.profile == "" {
 		return &advisedError{cause: err, message: fmt.Sprintf(
@@ -288,19 +284,19 @@ func accountNote(err error, chosen resolution) error {
 		missing, creds.QuotedName(chosen.profile), flagAccountID)}
 }
 
-func (r resolution) accountSource(lookupEnv func(string) (string, bool)) string {
+func (r resolution) accountSource(source onesie.BaseURLSource, resolveErr error) string {
 	switch {
 	case r.provider.EnvAccountID() == "":
 		return ""
+	case errors.Is(resolveErr, onesie.ErrNoAccountID):
+		return sourceNone
+	case source != onesie.BaseURLFromAccount:
+		return "base_url"
 	case r.accountID != "":
 		return "account_id"
-	case r.baseURL != "":
-		return "base_url"
-	case setVariable(lookupEnv, r.provider.EnvAccountID()) != "":
-		return r.provider.EnvAccountID()
 	}
 
-	return sourceNone
+	return r.provider.EnvAccountID()
 }
 
 func setVariable(lookupEnv func(string) (string, bool), name string) string {

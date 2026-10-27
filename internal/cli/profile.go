@@ -496,13 +496,13 @@ func profileShow(cmd *cobra.Command, settings rootSettings, flags *runFlags, arg
 		return baseURLRefusal(refused, sourceName, given)
 	}
 
-	account := shown.accountSource(settings.lookupEnv)
-
 	// A run refuses a malformed account, so show refuses it too. A missing account prints as none
 	// and exits 2 below.
-	if invalid != nil && account != sourceNone && account != "" {
+	if invalid != nil && !errors.Is(invalid, onesie.ErrNoAccountID) {
 		return invalid
 	}
+
+	account := shown.accountSource(source, invalid)
 
 	baseURLLine := sourceNone
 	if invalid == nil {
