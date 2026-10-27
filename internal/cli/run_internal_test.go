@@ -221,6 +221,10 @@ func TestDescribe(t *testing.T) {
 				kind:  "response", status: statusOf(http.StatusOK), message: "wrong shape",
 			},
 			{
+				cause: &unusableAnswer{message: "question 'urgent' has no answer"},
+				kind:  output.KindResponse, status: statusOf(http.StatusOK), message: "question 'urgent' has no answer",
+			},
+			{
 				cause: &onesie.APIError{Status: http.StatusBadRequest},
 				kind:  "http", status: statusOf(http.StatusBadRequest),
 			},

@@ -159,6 +159,13 @@ func classify(err error) failure {
 		return failure{kind: output.KindResponse, status: &status, code: ExitUnavailable}
 	}
 
+	var cannotUse *unusableAnswer
+	if errors.As(err, &cannotUse) {
+		status := http.StatusOK
+
+		return failure{kind: output.KindResponse, status: &status, code: ExitUnavailable}
+	}
+
 	var api *onesie.APIError
 
 	answered := errors.As(err, &api)
@@ -218,6 +225,14 @@ type failure struct {
 	status *int
 	code   int
 	quiet  bool
+}
+
+type unusableAnswer struct {
+	message string
+}
+
+func (e *unusableAnswer) Error() string {
+	return e.message
 }
 
 type silentError struct {

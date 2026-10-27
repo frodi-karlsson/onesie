@@ -152,6 +152,11 @@ func TestClassify(t *testing.T) {
 			want: ExitUnavailable,
 		},
 		{
+			name: "should report unavailable for an answer onesie cannot use",
+			err:  &unusableAnswer{message: "question 'urgent' has no answer"},
+			want: ExitUnavailable,
+		},
+		{
 			name: "should report unavailable for an unusable 200 body",
 			err: &onesie.ResponseError{
 				Status: http.StatusOK, Err: errors.New("invalid character 'n'"),
@@ -256,6 +261,7 @@ func TestClassify(t *testing.T) {
 			{err: apiError(http.StatusUnauthorized), kind: output.KindHTTP},
 			{err: apiError(http.StatusBadRequest), kind: output.KindHTTP},
 			{err: &onesie.ResponseError{Status: http.StatusOK}, kind: output.KindResponse},
+			{err: &unusableAnswer{message: "question 'urgent' has no answer"}, kind: output.KindResponse},
 			{err: &onesie.ConnectionError{Err: errors.New("refused")}, kind: output.KindTransport},
 			{err: &onesie.ConnectionError{Err: syscall.EPIPE}, kind: output.KindTransport, quiet: true},
 			{err: &fs.PathError{Op: "write", Path: "/dev/stdout", Err: syscall.EPIPE}, kind: output.KindInput, quiet: true},
