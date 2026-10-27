@@ -264,7 +264,7 @@ func TestStoreLoadProfiles(t *testing.T) {
 			name:     "should refuse a profile that is not an object",
 			contents: `{"profiles":{"work":3}}`,
 			mode:     0o600,
-			wantErr:  "is invalid. Profile 'work' has a  that is a number, not an object",
+			wantErr:  "is invalid. Profile 'work' is a number, not an object",
 			invalid:  true,
 		},
 		{

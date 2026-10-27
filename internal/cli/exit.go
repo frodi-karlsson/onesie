@@ -160,9 +160,9 @@ func firstMatch(err error) failure {
 		return failure{kind: output.KindHTTP, status: &status, code: ExitUnavailable}
 	}
 
-	// A 2xx body onesie cannot use is a server fault, not a usage error, and retrying it is
-	// reasonable, which is what exit 4 means. Its kind is response, since http would name a status
-	// the caller may retry and transport a connection blip that never happened.
+	// A 2xx body onesie cannot use is a server fault, not a usage error, so it exits 4 and is never
+	// retried. Its kind is response, since http would name a status worth retrying and transport a
+	// connection blip that never happened.
 	var unusable *onesie.ResponseError
 	if errors.As(err, &unusable) {
 		status := unusable.Status
@@ -212,9 +212,8 @@ func firstMatch(err error) failure {
 	}
 
 	// After the transport checks, so a socket write that failed with EPIPE keeps the transport exit
-	// code. What reaches here is onesie's own stdout, and no exit code means the
-	// consumer stopped reading. A line about it would go to a stderr the same consumer is often
-	// reading.
+	// code. What reaches here is onesie's own stdout, and no exit code means the consumer stopped
+	// reading. A line about it would go to a stderr the same consumer is often reading.
 	if engine.BrokenPipe(err) {
 		return failure{kind: output.KindInput, code: ExitOK}
 	}

@@ -146,12 +146,16 @@ func misfit(err error, holder string) error {
 	// A syntax error can quote a character of the file, which may be part of a key, so only a
 	// member of the wrong type, which names the member and not its value, is passed on.
 	var typeErr *json.UnmarshalTypeError
-	if errors.As(err, &typeErr) {
-		return &misfitError{fmt.Sprintf("%s has a %s that is %s, not %s",
-			holder, typeErr.Field, jsonKind(typeErr.Value), goKind(typeErr.Type))}
+	if !errors.As(err, &typeErr) {
+		return err
 	}
 
-	return err
+	if typeErr.Field == "" {
+		return &misfitError{fmt.Sprintf("%s is %s, not %s", holder, jsonKind(typeErr.Value), goKind(typeErr.Type))}
+	}
+
+	return &misfitError{fmt.Sprintf("%s has a %s that is %s, not %s",
+		holder, typeErr.Field, jsonKind(typeErr.Value), goKind(typeErr.Type))}
 }
 
 type misfitError struct {

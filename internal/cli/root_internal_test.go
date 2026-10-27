@@ -22,19 +22,19 @@ import (
 func TestDefaultSettings(t *testing.T) {
 	t.Parallel()
 
-	t.Run("should read every built-in set it lists", func(t *testing.T) {
+	t.Run("should read every built in set it lists", func(t *testing.T) {
 		t.Parallel()
 
 		settings := defaultSettings(BuildInfo{})
 
 		names := settings.builtIns()
 		if len(names) == 0 {
-			t.Fatal("the default settings list no built-in sets")
+			t.Fatal("the default settings list no built in sets")
 		}
 
 		for _, name := range names {
 			if _, ok := settings.readBuiltIn(name); !ok {
-				t.Errorf("the built-in set %s is listed but cannot be read", name)
+				t.Errorf("the built in set %s is listed but cannot be read", name)
 			}
 		}
 	})
