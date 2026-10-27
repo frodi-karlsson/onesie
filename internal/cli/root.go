@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"net/http"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -331,11 +332,12 @@ func defaultSettings(info BuildInfo) rootSettings {
 		terminalWidth: widthOf(os.Stdout),
 		credStore:     creds.NewStore(),
 		keychain:      creds.NewKeychain(),
-		readSecret:    readHiddenSecret,
+		readSecret:    func() (string, error) { return readHiddenSecret(os.Stdin) },
 		schemaURL:     schemaURLOf(info),
 		dedupLimit:    limits.MaxDedupRequests,
 		readBuiltIn:   questions.Read,
 		builtIns:      questions.Names,
+		transport:     http.DefaultTransport,
 	}
 }
 
@@ -867,6 +869,7 @@ type rootSettings struct {
 	dedupLimit    int
 	readBuiltIn   func(name string) ([]byte, bool)
 	builtIns      func() []string
+	transport     http.RoundTripper
 }
 
 // Keychain is where profile create and profile update store a key when the OS has one, one item per
@@ -916,8 +919,8 @@ func configEnv(lookupEnv func(string) (string, bool), homeDir func() (string, er
 	}
 }
 
-func readHiddenSecret() (string, error) {
-	secret, err := term.ReadPassword(int(os.Stdin.Fd()))
+func readHiddenSecret(terminal *os.File) (string, error) {
+	secret, err := term.ReadPassword(int(terminal.Fd()))
 	if err != nil {
 		return "", fmt.Errorf("reading the key from the terminal: %w", err)
 	}

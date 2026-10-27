@@ -222,6 +222,30 @@ func TestProfilesLocation(t *testing.T) {
 	}
 }
 
+func TestReadHiddenSecret(t *testing.T) {
+	t.Parallel()
+
+	t.Run("should name the terminal when the file it reads is not one", func(t *testing.T) {
+		t.Parallel()
+
+		file, err := os.CreateTemp(t.TempDir(), "stdin")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		t.Cleanup(func() {
+			if closeErr := file.Close(); closeErr != nil {
+				t.Errorf("closing %s: %v", file.Name(), closeErr)
+			}
+		})
+
+		if _, err := readHiddenSecret(file); err == nil ||
+			!strings.HasPrefix(err.Error(), "reading the key from the terminal: ") {
+			t.Errorf("readHiddenSecret = %v, want the terminal named", err)
+		}
+	})
+}
+
 func TestIsTerminal(t *testing.T) {
 	t.Parallel()
 
