@@ -9,6 +9,20 @@ import (
 	"github.com/frodi-karlsson/onesie-go"
 )
 
+func explain(err error, facts requestFacts) error {
+	helps := longContextHelps(facts.provider, facts.model, facts.longContext)
+
+	return advise(adviseBox(adviseLongContext(err, helps), facts.provider.Name, facts.boxed), facts.model, facts.validated)
+}
+
+type requestFacts struct {
+	provider    onesie.Provider
+	model       string
+	longContext bool
+	boxed       bool
+	validated   bool
+}
+
 func advise(err error, model string, validated bool) error {
 	var api *onesie.APIError
 	if !errors.As(err, &api) {
@@ -96,7 +110,7 @@ func withKeyHint(err error, settings rootSettings) error {
 		return err
 	}
 
-	chosen, resolveErr := runResolution(settings)
+	chosen, resolveErr := settings.holder.resolved()
 	if resolveErr != nil {
 		return err
 	}

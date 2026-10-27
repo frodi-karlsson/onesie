@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"io"
 	"runtime"
 
 	"github.com/spf13/cobra"
@@ -32,13 +33,17 @@ func newVersionCmd(info BuildInfo) *cobra.Command {
 				}
 			}
 
-			for _, entry := range limits.Report() {
-				if _, err := fmt.Fprintf(out, "%s %s\n", entry.Name, entry.Value); err != nil {
-					return err
-				}
-			}
-
-			return nil
+			return writeLimits(out)
 		},
 	}
+}
+
+func writeLimits(w io.Writer) error {
+	for _, entry := range limits.Report() {
+		if _, err := fmt.Fprintf(w, "%s %s\n", entry.Name, entry.Value); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }

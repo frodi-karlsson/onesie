@@ -177,7 +177,7 @@ func TestCachedAnswerer(t *testing.T) {
 			homeDir:   os.UserHomeDir,
 			goos:      runtime.GOOS,
 			now:       time.Now,
-			newClient: func(ctx context.Context, opts ...onesie.Option) (*onesie.Client, error) {
+			newClient: func(ctx context.Context, _ resolution, opts ...onesie.Option) (*onesie.Client, error) {
 				return base(ctx, append(opts, extra...)...)
 			},
 		}

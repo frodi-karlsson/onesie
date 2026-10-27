@@ -2,6 +2,8 @@ package cli
 
 import (
 	"bytes"
+	"context"
+	"errors"
 	"maps"
 	"net/http/httptest"
 	"os"
@@ -13,8 +15,60 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
+	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/limits"
 )
+
+func TestDefaultSettings(t *testing.T) {
+	t.Parallel()
+
+	t.Run("should read every built in set it lists", func(t *testing.T) {
+		t.Parallel()
+
+		settings := defaultSettings(BuildInfo{})
+
+		names := settings.builtIns()
+		if len(names) == 0 {
+			t.Fatal("the default settings list no built in sets")
+		}
+
+		for _, name := range names {
+			if _, ok := settings.readBuiltIn(name); !ok {
+				t.Errorf("the built in set %s is listed but cannot be read", name)
+			}
+		}
+	})
+}
+
+func TestWithClientFactory(t *testing.T) {
+	t.Parallel()
+
+	t.Run("should hand the injected factory the run's options whatever the resolution", func(t *testing.T) {
+		t.Parallel()
+
+		refused := errors.New("the stub builds no client")
+
+		var handed []onesie.Option
+
+		var settings rootSettings
+
+		WithClientFactory(func(_ context.Context, opts ...onesie.Option) (*onesie.Client, error) {
+			handed = opts
+
+			return nil, refused
+		})(&settings)
+
+		_, err := settings.newClient(t.Context(), resolution{provider: onesie.Berget(), profile: "work"},
+			onesie.WithAPIKey("SECRET-TEST"), onesie.WithUserAgent("onesie/test"))
+		if !errors.Is(err, refused) {
+			t.Fatalf("newClient = %v, want the stub's error", err)
+		}
+
+		if len(handed) != 2 {
+			t.Errorf("the factory got %d options, want the 2 the run passed", len(handed))
+		}
+	})
+}
 
 func TestSchemaURLOf(t *testing.T) {
 	t.Parallel()
@@ -166,6 +220,30 @@ func TestProfilesLocation(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestReadHiddenSecret(t *testing.T) {
+	t.Parallel()
+
+	t.Run("should name the terminal when the file it reads is not one", func(t *testing.T) {
+		t.Parallel()
+
+		file, err := os.CreateTemp(t.TempDir(), "stdin")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		t.Cleanup(func() {
+			if closeErr := file.Close(); closeErr != nil {
+				t.Errorf("closing %s: %v", file.Name(), closeErr)
+			}
+		})
+
+		if _, err := readHiddenSecret(file); err == nil ||
+			!strings.HasPrefix(err.Error(), "reading the key from the terminal: ") {
+			t.Errorf("readHiddenSecret = %v, want the terminal named", err)
+		}
+	})
 }
 
 func TestIsTerminal(t *testing.T) {

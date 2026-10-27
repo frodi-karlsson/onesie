@@ -327,7 +327,7 @@ func failureOf(stored any) *output.Failure {
 	}
 
 	if kind, isText := fields["kind"].(string); isText {
-		failure.Kind = kind
+		failure.Kind = output.Kind(kind)
 	}
 
 	if message, isText := fields["message"].(string); isText {

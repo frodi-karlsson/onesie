@@ -14,6 +14,122 @@ import (
 	"github.com/frodi-karlsson/onesie-go"
 )
 
+func TestExplain(t *testing.T) {
+	t.Parallel()
+
+	const (
+		tooMany  = `{"detail":"Too many score levels. Must have at most 10 levels."}`
+		tooLong  = `{"detail":"max_tokens_exceeded"}`
+		invalid  = `{"detail":"Invalid request."}`
+		longNote = ". Pass --long-context to raise the context limit, which is slower and less accurate"
+		boxNote  = " A box question needs a model that serves it, such as -m jev-preview"
+	)
+
+	typesafe := requestFacts{provider: onesie.TypeSafe(), model: onesie.DefaultModel}
+
+	with := func(change func(*requestFacts)) requestFacts {
+		facts := typesafe
+		change(&facts)
+
+		return facts
+	}
+
+	tests := []struct {
+		name   string
+		status int
+		body   string
+		facts  requestFacts
+		want   string
+	}{
+		{
+			name: "should name the model sent and point at --list-models", status: http.StatusBadRequest,
+			body:  `{"detail":"Unknown model: onesie-1.12"}`,
+			facts: with(func(f *requestFacts) { f.model = "onesie-1.12" }),
+			want:  "onesie: model 'onesie-1.12' not found. Try --list-models",
+		},
+		{
+			name: "should say the local check passed when onesie checked the request", status: http.StatusBadRequest,
+			body: tooMany, facts: with(func(f *requestFacts) { f.validated = true }),
+			want: "onesie: 400 Too many score levels. Must have at most 10 levels. onesie's own check passed, " +
+				"so its built in limits may be stale. Run onesie -V",
+		},
+		{
+			name: "should keep the server text when onesie checked nothing", status: http.StatusBadRequest,
+			body: tooMany, facts: typesafe,
+			want: "onesie: 400 Too many score levels. Must have at most 10 levels.",
+		},
+		{
+			name: "should point at --long-context where it would help", status: http.StatusBadRequest,
+			body: tooLong, facts: typesafe, want: "onesie: 400 max_tokens_exceeded" + longNote,
+		},
+		{
+			name: "should not point at --long-context when it is already on", status: http.StatusBadRequest,
+			body: tooLong, facts: with(func(f *requestFacts) { f.longContext = true }),
+			want: "onesie: 400 max_tokens_exceeded",
+		},
+		{
+			name: "should name jev-preview when a box question is refused as invalid", status: http.StatusBadRequest,
+			body: invalid, facts: with(func(f *requestFacts) { f.boxed = true }),
+			want: "onesie: 400 Invalid request." + boxNote,
+		},
+		{
+			name: "should not name jev-preview off TypeSafe", status: http.StatusBadRequest,
+			body: invalid, facts: with(func(f *requestFacts) { f.boxed, f.provider = true, onesie.OpenRouter() }),
+			want: "onesie: 400 Invalid request.",
+		},
+		{
+			name: "should point at the account when it is out of credits", status: http.StatusPaymentRequired,
+			body: `{"detail":"Insufficient credits"}`, facts: typesafe,
+			want: "onesie: 402 Insufficient credits. Add credits to the account this key belongs to",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := explain(listingRefusal(t, tc.status, tc.body), tc.facts)
+			if got == nil || got.Error() != tc.want {
+				t.Errorf("explain = %v, want %q", got, tc.want)
+			}
+		})
+	}
+
+	t.Run("should leave no error as none", func(t *testing.T) {
+		t.Parallel()
+
+		if got := explain(nil, typesafe); got != nil {
+			t.Errorf("explain(nil) = %v, want nil", got)
+		}
+	})
+}
+
+func listingRefusal(t *testing.T, status int, body string) error {
+	t.Helper()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(status)
+
+		if _, err := io.WriteString(w, body); err != nil {
+			t.Errorf("writing the stub response: %v", err)
+		}
+	}))
+	t.Cleanup(srv.Close)
+
+	client, err := onesie.New(onesie.WithAPIKey("SECRET-TEST"), onesie.WithBaseURL(srv.URL))
+	if err != nil {
+		t.Fatalf("onesie.New: %v", err)
+	}
+
+	_, err = client.ListModels(t.Context())
+	if err == nil {
+		t.Fatalf("ListModels answered %d without an error", status)
+	}
+
+	return err
+}
+
 func TestAdvise(t *testing.T) {
 	t.Parallel()
 

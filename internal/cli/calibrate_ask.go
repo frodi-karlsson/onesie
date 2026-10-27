@@ -8,13 +8,11 @@ import (
 	"io"
 	"io/fs"
 	"maps"
-	"net/http"
 	"slices"
 	"strings"
 
 	"github.com/spf13/cobra"
 
-	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/answer"
 	"github.com/frodi-karlsson/onesie/internal/calibrate"
 	"github.com/frodi-karlsson/onesie/internal/engine"
@@ -494,7 +492,7 @@ func casesOf(built *plan.Plan, rec labelledRecord, record output.Record) ([]reco
 		if question.Shape == plan.Noul {
 			value, isNumber := given.Value.(float64)
 			if !isNumber || !unitRange(value) {
-				return nil, unusableAnswer(question.ID, "answered %v, which lies outside [0,1]", given.Value)
+				return nil, unusableAnswerTo(question.ID, "answered %v, which lies outside [0,1]", given.Value)
 			}
 
 			cases[q].yesNo = calibrate.YesNoCase{
@@ -507,11 +505,11 @@ func casesOf(built *plan.Plan, rec labelledRecord, record output.Record) ([]reco
 
 		picked, isName := given.Value.(string)
 		if !isName {
-			return nil, unusableAnswer(question.ID, "picked %v, which is not a name", given.Value)
+			return nil, unusableAnswerTo(question.ID, "picked %v, which is not a name", given.Value)
 		}
 
 		if given.Confidence == nil || !unitRange(*given.Confidence) {
-			return nil, unusableAnswer(question.ID, "answered with a confidence outside [0,1]")
+			return nil, unusableAnswerTo(question.ID, "answered with a confidence outside [0,1]")
 		}
 
 		cases[q].choice = calibrate.ChoiceCase{
@@ -548,15 +546,11 @@ func answerTo(question plan.Question, record output.Record) (*answer.Answer, err
 		}
 	}
 
-	return nil, unusableAnswer(question.ID, "has no answer")
+	return nil, unusableAnswerTo(question.ID, "has no answer")
 }
 
-func unusableAnswer(id, format string, args ...any) error {
-	// A 200 whose body the scorers cannot use, the kind a stream reports as a response failure.
-	return &onesie.ResponseError{
-		Status:  http.StatusOK,
-		Message: fmt.Sprintf("question '%s' ", id) + fmt.Sprintf(format, args...),
-	}
+func unusableAnswerTo(id, format string, args ...any) error {
+	return &unusableAnswer{message: fmt.Sprintf("question '%s' ", id) + fmt.Sprintf(format, args...)}
 }
 
 func unitRange(value float64) bool {

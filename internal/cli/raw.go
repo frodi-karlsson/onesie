@@ -27,7 +27,7 @@ func streamRaw(
 	resume resumePlan,
 ) error {
 	// --print-request needs the resolution too, to print the model a body with none is sent with.
-	chosen, resolveErr := runResolution(settings)
+	chosen, resolveErr := settings.holder.resolved()
 	if resolveErr != nil {
 		return resolveErr
 	}
@@ -39,7 +39,7 @@ func streamRaw(
 
 	// Built only when the run makes a request, so -i request --print-request needs no key.
 	if requests(flags) {
-		built, err := settings.newClient(cmd.Context(), observing(stats)...)
+		built, err := settings.newClient(cmd.Context(), chosen, observing(stats)...)
 		if err != nil {
 			return err
 		}
@@ -52,7 +52,7 @@ func streamRaw(
 	// Every body would be refused, so the run stops before it reads any.
 	if long && requests(flags) {
 		if refusal := provider.Refuse(defaultModel, onesie.Needs{LongContext: true}); refusal != nil {
-			return longContextCause(refusal, settings, flags)
+			return longContextCause(refusal, flags)
 		}
 	}
 
@@ -112,8 +112,9 @@ func streamRaw(
 			if err != nil {
 				// The prepared body names the model onesie sent, and nothing inside it was checked locally,
 				// so no local bound is implicated.
-				advised := advise(adviseBox(adviseLongContext(err,
-					longContextHelps(provider, read.model, long || read.longContext)), provider.Name, read.boxed), read.model, false)
+				advised := explain(err, requestFacts{
+					provider: provider, model: read.model, longContext: long || read.longContext, boxed: read.boxed,
+				})
 
 				stats.recordFailure(advised, true, asked)
 				stats.terminalAttempt(advised)
@@ -160,6 +161,13 @@ func streamRaw(
 
 	// A request body carries no assertion, so no record can have failed one.
 	return streamResult(result, 0, 0)
+}
+
+func requests(flags runConfig) bool {
+	// --print-request is why this is not folded into the early return --print-questions takes. It
+	// includes any state supplied, so it goes through input.Resolve and needs a question only body
+	// when nothing was.
+	return !flags.printQuestions && !flags.printRequest
 }
 
 func checkRawResponse(request, response []byte) (onesie.Usage, error) {

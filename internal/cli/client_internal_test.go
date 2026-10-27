@@ -512,6 +512,47 @@ type sentRequest struct {
 	model string
 }
 
+func TestPooled(t *testing.T) {
+	t.Parallel()
+
+	t.Run("should clone the base transport with a pool of -j connections per host", func(t *testing.T) {
+		t.Parallel()
+
+		base := &http.Transport{MaxIdleConns: 2}
+
+		got, ok := pooled(base, 8).(*http.Transport)
+		if !ok || got == base {
+			t.Fatalf("pooled = %T, want a clone of the base transport", pooled(base, 8))
+		}
+
+		if got.MaxIdleConnsPerHost != 8 || got.MaxConnsPerHost != 8 || got.MaxIdleConns != 8 {
+			t.Errorf("pool = %d idle per host, %d per host, %d idle, want 8 each",
+				got.MaxIdleConnsPerHost, got.MaxConnsPerHost, got.MaxIdleConns)
+		}
+
+		if base.MaxIdleConnsPerHost != 0 {
+			t.Errorf("the base transport changed to %d idle per host, want it left alone", base.MaxIdleConnsPerHost)
+		}
+	})
+
+	t.Run("should size the pool for one job when -j is below one", func(t *testing.T) {
+		t.Parallel()
+
+		got, ok := pooled(&http.Transport{MaxIdleConns: 2}, 0).(*http.Transport)
+		if !ok || got.MaxIdleConnsPerHost != 1 || got.MaxConnsPerHost != 1 || got.MaxIdleConns != 2 {
+			t.Errorf("pooled = %+v, want one connection per host and the base's two idle", got)
+		}
+	})
+
+	t.Run("should leave the client its own transport when the base is not an http.Transport", func(t *testing.T) {
+		t.Parallel()
+
+		if got := pooled(&countingRoundTripper{base: http.DefaultTransport}, 4); got != nil {
+			t.Errorf("pooled = %T, want nil", got)
+		}
+	})
+}
+
 func TestPlainRemote(t *testing.T) {
 	t.Parallel()
 

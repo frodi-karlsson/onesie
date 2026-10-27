@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -23,6 +24,7 @@ import (
 	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/cli"
 	"github.com/frodi-karlsson/onesie/internal/creds"
+	"github.com/frodi-karlsson/onesie/internal/limits"
 	"github.com/frodi-karlsson/onesie/internal/qfile"
 )
 
@@ -2158,6 +2160,43 @@ func TestNewRootCmd(t *testing.T) {
 		}
 	})
 
+	t.Run("should print the limits for -V and for version as limits.Report lists them", func(t *testing.T) {
+		t.Parallel()
+
+		var listed strings.Builder
+
+		for _, entry := range limits.Report() {
+			listed.WriteString(entry.Name + " " + entry.Value + "\n")
+		}
+
+		provenance := fmt.Sprintf("version   1.2.3\ncommit    abc1234\nbuilt     2026-10-27\ngo        %s\nplatform  %s/%s\n",
+			runtime.Version(), runtime.GOOS, runtime.GOARCH)
+
+		for _, pin := range []struct {
+			args []string
+			want string
+		}{
+			{args: []string{"-V"}, want: "onesie 1.2.3\n" + listed.String()},
+			{args: []string{"version"}, want: provenance + listed.String()},
+		} {
+			var out bytes.Buffer
+
+			root := cli.NewRootCmd(cli.BuildInfo{Version: "1.2.3", Commit: "abc1234", Date: "2026-10-27"},
+				cli.WithStdin(strings.NewReader("")), cli.WithStdinTTY(false))
+			root.SetOut(&out)
+			root.SetErr(&out)
+			root.SetArgs(pin.args)
+
+			if code := cli.Execute(t.Context(), root); code != cli.ExitOK {
+				t.Fatalf("onesie %s exit code = %d, output:\n%s", strings.Join(pin.args, " "), code, out.String())
+			}
+
+			if out.String() != pin.want {
+				t.Errorf("onesie %s =\n%s\nwant:\n%s", strings.Join(pin.args, " "), out.String(), pin.want)
+			}
+		}
+	})
+
 	t.Run("should keep the root's defaults after the subcommands register theirs", func(t *testing.T) {
 		t.Parallel()
 
@@ -2639,7 +2678,7 @@ func helpExitCodes(help string) []string {
 	return codes
 }
 
-func TestDefaultClientFactory(t *testing.T) {
+func TestClientBuilder(t *testing.T) {
 	t.Parallel()
 
 	t.Run("should exit 2 naming CLOUDFLARE_ACCOUNT_ID when cloudflare has a token and no account", func(t *testing.T) {

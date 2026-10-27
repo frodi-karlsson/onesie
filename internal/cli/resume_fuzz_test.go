@@ -79,7 +79,7 @@ func writtenRecord(kind, message string, status int, hasStatus bool, outcome uin
 	switch outcome % 4 {
 	case 1:
 		// Every message onesie writes is an error's text, which is never empty.
-		rec.Failure = &output.Failure{Kind: kind, Message: "onesie: " + message}
+		rec.Failure = &output.Failure{Kind: output.Kind(kind), Message: "onesie: " + message}
 		if hasStatus {
 			rec.Failure.Status = &status
 		}

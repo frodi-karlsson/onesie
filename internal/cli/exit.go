@@ -87,141 +87,162 @@ func Classify(err error) int {
 		return ExitOK
 	}
 
+	return classify(err).code
+}
+
+func worthReporting(err error) bool {
+	return !classify(err).quiet
+}
+
+func classify(err error) failure {
+	matched := firstMatch(err)
+	matched.quiet = matched.quiet || canceledOrBrokenPipe(err)
+
+	return matched
+}
+
+func canceledOrBrokenPipe(err error) bool {
+	return errors.Is(err, context.Canceled) || engine.BrokenPipe(err)
+}
+
+func firstMatch(err error) failure {
 	// Order matters. RetryAfterError embeds APIError, so the typed check precedes the sentinels it
 	// would otherwise match, and silentError comes last so a real error joined to one keeps its code.
 
 	var records *recordsError
 	if errors.As(err, &records) {
-		return ExitRecords
+		// The exit code already says a record failed, and the per record lines on stdout carry the
+		// detail.
+		return failure{kind: output.KindInput, code: ExitRecords, quiet: true}
 	}
 
 	var stored *storedFailure
 	if errors.As(err, &stored) {
-		return stored.freshRunCode()
+		return failure{kind: output.KindInput, code: stored.freshRunCode()}
 	}
 
 	var rejected *rejectedError
 	if errors.As(err, &rejected) {
-		return ExitRejected
+		// A rejection is carried by the exit code alone. Under -q nothing is printed at all, and a
+		// false assertion has already printed the record.
+		return failure{kind: output.KindInput, code: ExitRejected, quiet: true}
 	}
 
 	var abstained *abstainError
 	if errors.As(err, &abstained) {
-		return ExitAbstain
+		return failure{kind: output.KindInput, code: ExitAbstain, quiet: true}
 	}
 
 	var stopped *stoppedError
 	if errors.As(err, &stopped) {
-		return ExitRecords
+		return failure{kind: output.KindInput, code: ExitRecords, quiet: true}
 	}
 
 	var bad *input.LineError
 	if errors.As(err, &bad) {
-		return ExitUsage
+		return failure{kind: output.KindInput, code: ExitUsage}
 	}
 
 	if errors.Is(err, context.Canceled) {
-		return ExitInterrupt
+		return failure{kind: output.KindInput, code: ExitInterrupt}
 	}
 
 	// A deadline reaching here unwrapped is still a timeout, and a timeout is transport shaped.
 	// Without this it would fall through to the usage default.
 	if errors.Is(err, context.DeadlineExceeded) {
-		return ExitTransport
+		return failure{kind: output.KindTransport, code: ExitTransport}
 	}
 
 	var overCap *onesie.RetryAfterError
 	if errors.As(err, &overCap) {
-		return ExitUnavailable
+		status := overCap.Status
+
+		return failure{kind: output.KindHTTP, status: &status, code: ExitUnavailable}
 	}
 
-	// A 2xx body onesie cannot use is a server fault, not a usage error, and retrying it is
-	// reasonable, which is what exit 4 means.
+	// A 2xx body onesie cannot use is a server fault, not a usage error, so it exits 4 and is never
+	// retried. Its kind is response, since http would name a status worth retrying and transport a
+	// connection blip that never happened.
 	var unusable *onesie.ResponseError
 	if errors.As(err, &unusable) {
-		return ExitUnavailable
+		status := unusable.Status
+
+		return failure{kind: output.KindResponse, status: &status, code: ExitUnavailable}
 	}
 
-	if errors.Is(err, onesie.ErrAuthentication) || errors.Is(err, onesie.ErrPermissionDenied) ||
-		errors.Is(err, onesie.ErrPaymentRequired) {
-		return ExitAuth
+	var cannotUse *unusableAnswer
+	if errors.As(err, &cannotUse) {
+		status := http.StatusOK
+
+		return failure{kind: output.KindResponse, status: &status, code: ExitUnavailable}
+	}
+
+	var api *onesie.APIError
+
+	answered := errors.As(err, &api)
+
+	if answered && (errors.Is(err, onesie.ErrAuthentication) || errors.Is(err, onesie.ErrPermissionDenied) ||
+		errors.Is(err, onesie.ErrPaymentRequired)) {
+		status := api.Status
+
+		return failure{kind: output.KindHTTP, status: &status, code: ExitAuth}
 	}
 
 	// A key file anyone else can reach is an authentication failure rather than a usage one.
 	var readable *creds.ReadableError
 	if errors.As(err, &readable) {
-		return ExitAuth
+		return failure{kind: output.KindInput, code: ExitAuth}
 	}
 
 	var keychain *creds.KeychainError
 	if errors.As(err, &keychain) {
-		return ExitAuth
+		return failure{kind: output.KindInput, code: ExitAuth}
 	}
 
-	var api *onesie.APIError
-	if errors.As(err, &api) {
-		return classifyStatus(api.Status)
+	if answered {
+		status := api.Status
+
+		return failure{kind: output.KindHTTP, status: &status, code: classifyStatus(api.Status)}
 	}
 
+	// A connection that broke with EPIPE exits as the transport failure it is, and stays quiet as
+	// every broken pipe does.
 	if errors.Is(err, onesie.ErrConnection) || errors.Is(err, onesie.ErrTimeout) {
-		return ExitTransport
+		return failure{kind: output.KindTransport, code: ExitTransport}
 	}
 
-	// After the transport checks, so a socket write that failed with EPIPE is still reported as the
-	// transport failure it is. What reaches here is onesie's own stdout, and no exit code means the
-	// consumer stopped reading.
+	// After the transport checks, so a socket write that failed with EPIPE keeps the transport exit
+	// code. What reaches here is onesie's own stdout, and no exit code means the consumer stopped
+	// reading. A line about it would go to a stderr the same consumer is often reading.
 	if engine.BrokenPipe(err) {
-		return ExitOK
-	}
-
-	var silent *silentError
-	if errors.As(err, &silent) {
-		return silent.code
-	}
-
-	return ExitUsage
-}
-
-func worthReporting(err error) bool {
-	if errors.Is(err, context.Canceled) {
-		return false
-	}
-
-	if engine.BrokenPipe(err) {
-		// The consumer closed the pipe onesie was writing to, and a line about it would go to a
-		// stderr the same consumer is often reading.
-		return false
-	}
-
-	var rejected *rejectedError
-	if errors.As(err, &rejected) {
-		// A rejection is carried by the exit code alone. Under -q nothing is printed at all, and
-		// a false assertion has already printed the record.
-		return false
-	}
-
-	var abstained *abstainError
-	if errors.As(err, &abstained) {
-		// Carried by the exit code alone, like a rejection.
-		return false
+		return failure{kind: output.KindInput, code: ExitOK}
 	}
 
 	var silent *silentError
 	if errors.As(err, &silent) {
 		// The command already wrote the whole result to stdout, so a stderr line would repeat it.
-		//
-		// Every branch here returns false, so a silentError joined to a real error would hide the
-		// real message. That is why the type is only ever returned on its own.
-		return false
+		return failure{kind: output.KindInput, code: silent.code, quiet: true}
 	}
 
-	var records *recordsError
+	// No status arrived and the network did not fail, so the record never became a request, as with
+	// a line onesie could not read. Calling it transport would blame the network, and exit 5 where a
+	// fresh run exits 2.
+	return failure{kind: output.KindInput, code: ExitUsage}
+}
 
-	var stopped *stoppedError
+type failure struct {
+	kind   output.Kind
+	status *int
+	code   int
+	quiet  bool
+}
 
-	// The exit code already says a record failed, and the per record lines on stdout carry the
-	// detail.
-	return !errors.As(err, &records) && !errors.As(err, &stopped)
+type unusableAnswer struct {
+	message string
+}
+
+func (e *unusableAnswer) Error() string {
+	return e.message
 }
 
 type silentError struct {
@@ -245,13 +266,13 @@ func (e *storedFailure) Error() string {
 
 func (e *storedFailure) freshRunCode() int {
 	switch e.failure.Kind {
-	case "input":
+	case output.KindInput:
 		return ExitRecords
-	case "response":
+	case output.KindResponse:
 		return ExitUnavailable
-	case "transport":
+	case output.KindTransport:
 		return ExitTransport
-	case "http":
+	case output.KindHTTP:
 		return storedStatus(e.failure.Status)
 	default:
 		return ExitRecords

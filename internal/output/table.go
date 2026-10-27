@@ -48,7 +48,7 @@ func WriteTable(w io.Writer, rec Record, columns int) error {
 		}
 
 		if _, err := fmt.Fprintf(w, "error  %s  status %s  %s\n",
-			Printable(rec.Failure.Kind), status, Printable(rec.Failure.Message)); err != nil {
+			Printable(string(rec.Failure.Kind)), status, Printable(rec.Failure.Message)); err != nil {
 			return err
 		}
 	}

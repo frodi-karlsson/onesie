@@ -25,18 +25,7 @@ const (
 		"network unencrypted"
 )
 
-func defaultClientFactory(settings rootSettings, build resolvedClientFactory) clientFactory {
-	return func(ctx context.Context, extra ...onesie.Option) (*onesie.Client, error) {
-		chosen, err := runResolution(settings)
-		if err != nil {
-			return nil, err
-		}
-
-		return build(ctx, chosen, extra...)
-	}
-}
-
-func clientBuilder(info BuildInfo, flags *runFlags, settings rootSettings) resolvedClientFactory {
+func clientBuilder(info BuildInfo, flags *runFlags, settings rootSettings) clientFactory {
 	var warned, doubled sync.Once
 
 	return func(_ context.Context, chosen resolution, extra ...onesie.Option) (*onesie.Client, error) {
@@ -52,7 +41,7 @@ func clientBuilder(info BuildInfo, flags *runFlags, settings rootSettings) resol
 			onesie.WithEnv(chosen.env(settings.lookupEnv)),
 		}
 
-		if transport := pooled(flags.jobs); transport != nil {
+		if transport := pooled(settings.transport, flags.jobs); transport != nil {
 			opts = append(opts, onesie.WithHTTPClient(&http.Client{Transport: transport}))
 		}
 
@@ -151,12 +140,6 @@ func refuseUnclearBaseURL(baseURL string) error {
 	return nil
 }
 
-func ignoringResolution(newClient clientFactory) resolvedClientFactory {
-	return func(ctx context.Context, _ resolution, extra ...onesie.Option) (*onesie.Client, error) {
-		return newClient(ctx, extra...)
-	}
-}
-
 func keyOptions(settings rootSettings, flags *runFlags, chosen resolution) ([]onesie.Option, error) {
 	key := chosen.key
 
@@ -189,7 +172,7 @@ func explained(settings rootSettings, flags *runFlags, chosen resolution, err er
 
 	// Read only here, so a run that names its provider and has its key never opens the file. An
 	// error reading it leaves the hint out, since the missing key is the failure to report.
-	opened, openErr := openedProfiles(settings)
+	opened, openErr := settings.holder.opened()
 	if openErr != nil {
 		return err
 	}
@@ -221,12 +204,12 @@ func plainRemote(baseURL string) bool {
 	return ip == nil || !ip.IsLoopback()
 }
 
-func pooled(jobs int) http.RoundTripper {
+func pooled(base http.RoundTripper, jobs int) http.RoundTripper {
 	if jobs < 1 {
 		jobs = 1
 	}
 
-	base, ok := http.DefaultTransport.(*http.Transport)
+	defaults, ok := base.(*http.Transport)
 	if !ok {
 		// Something replaced the default. Building one here would drop whatever proxy and dialer
 		// settings that replacement carries, so the client keeps its own default instead.
@@ -236,7 +219,7 @@ func pooled(jobs int) http.RoundTripper {
 	// Cloned rather than built from scratch, so proxy support, the dial timeouts and HTTP/2 come
 	// along. The default of two idle connections per host means most of a -j run pays for a fresh
 	// handshake on a request the server answers in a fraction of that time.
-	transport := base.Clone()
+	transport := defaults.Clone()
 	transport.MaxIdleConnsPerHost = jobs
 
 	// The idle limit alone does not bound the pool. A request that finds no idle connection
@@ -251,12 +234,10 @@ func pooled(jobs int) http.RoundTripper {
 	return transport
 }
 
-type clientFactory func(ctx context.Context, opts ...onesie.Option) (*onesie.Client, error)
-
-type resolvedClientFactory func(ctx context.Context, chosen resolution, opts ...onesie.Option) (*onesie.Client, error)
+type clientFactory func(ctx context.Context, chosen resolution, opts ...onesie.Option) (*onesie.Client, error)
 
 func resolveModel(settings rootSettings, model string) (string, error) {
-	chosen, err := runResolution(settings)
+	chosen, err := settings.holder.resolved()
 	if err != nil {
 		return "", err
 	}

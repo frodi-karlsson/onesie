@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"net/http"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -75,33 +76,7 @@ var groupFlagHelp = map[string]string{
 func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 	flags := &runFlags{}
 
-	settings := rootSettings{
-		stdin:         os.Stdin,
-		stdinTTY:      isTerminal(os.Stdin),
-		stdoutTTY:     isTerminal(os.Stdout),
-		readFile:      os.ReadFile,
-		readDir:       os.ReadDir,
-		stat:          os.Stat,
-		getwd:         os.Getwd,
-		openFile:      os.OpenFile,
-		rename:        os.Rename,
-		remove:        os.Remove,
-		resolve:       filepath.EvalSymlinks,
-		readlink:      os.Readlink,
-		goos:          runtime.GOOS,
-		lock:          newLocker(runtime.GOOS).lockAnswers,
-		lookupEnv:     os.LookupEnv,
-		homeDir:       os.UserHomeDir,
-		now:           time.Now,
-		terminalWidth: widthOf(os.Stdout),
-		credStore:     creds.NewStore(),
-		keychain:      creds.NewKeychain(),
-		readSecret:    readHiddenSecret,
-		schemaURL:     schemaURLOf(info),
-		dedupLimit:    limits.MaxDedupRequests,
-		readBuiltIn:   questions.Read,
-		builtIns:      questions.Names,
-	}
+	settings := defaultSettings(info)
 
 	for _, opt := range opts {
 		opt(&settings)
@@ -127,10 +102,7 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 
 	// Installed only when absent, so an injected factory wins, for profile test too.
 	if settings.newClient == nil {
-		settings.clientFor = clientBuilder(info, flags, settings)
-		settings.newClient = defaultClientFactory(settings, settings.clientFor)
-	} else {
-		settings.clientFor = ignoringResolution(settings.newClient)
+		settings.newClient = clientBuilder(info, flags, settings)
 	}
 
 	recorder := argv.New()
@@ -204,7 +176,7 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 				if refused := checkChoice(flags, settings.lookupEnv); refused != nil {
 					return refused
 				}
-			} else if _, resolveErr := runResolution(settings); resolveErr != nil {
+			} else if _, resolveErr := settings.holder.resolved(); resolveErr != nil {
 				return resolveErr
 			}
 
@@ -336,6 +308,37 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 	asksNothing(root.Flags(), "help")
 
 	return root
+}
+
+func defaultSettings(info BuildInfo) rootSettings {
+	return rootSettings{
+		stdin:         os.Stdin,
+		stdinTTY:      isTerminal(os.Stdin),
+		stdoutTTY:     isTerminal(os.Stdout),
+		readFile:      os.ReadFile,
+		readDir:       os.ReadDir,
+		stat:          os.Stat,
+		getwd:         os.Getwd,
+		openFile:      os.OpenFile,
+		rename:        os.Rename,
+		remove:        os.Remove,
+		resolve:       filepath.EvalSymlinks,
+		readlink:      os.Readlink,
+		goos:          runtime.GOOS,
+		lock:          newLocker(runtime.GOOS).lockAnswers,
+		lookupEnv:     os.LookupEnv,
+		homeDir:       os.UserHomeDir,
+		now:           time.Now,
+		terminalWidth: widthOf(os.Stdout),
+		credStore:     creds.NewStore(),
+		keychain:      creds.NewKeychain(),
+		readSecret:    func() (string, error) { return readHiddenSecret(os.Stdin) },
+		schemaURL:     schemaURLOf(info),
+		dedupLimit:    limits.MaxDedupRequests,
+		readBuiltIn:   questions.Read,
+		builtIns:      questions.Names,
+		transport:     http.DefaultTransport,
+	}
 }
 
 func addRunFlags(set *pflag.FlagSet, flags *runFlags, help runFlagHelp) {
@@ -559,9 +562,11 @@ func groupFlag(recorder *argv.Recorder, name string) pflag.Value {
 }
 
 func printVersion(cmd *cobra.Command, info BuildInfo) error {
-	_, err := fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n%s", cmd.Name(), info.Version, limitsBlock())
+	if _, err := fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", cmd.Name(), info.Version); err != nil {
+		return err
+	}
 
-	return err
+	return writeLimits(cmd.OutOrStdout())
 }
 
 func rootArgs(flags *runFlags) cobra.PositionalArgs {
@@ -683,7 +688,9 @@ func WithClientFactory(
 	newClient func(ctx context.Context, opts ...onesie.Option) (*onesie.Client, error),
 ) RootOption {
 	return func(s *rootSettings) {
-		s.newClient = newClient
+		s.newClient = func(ctx context.Context, _ resolution, opts ...onesie.Option) (*onesie.Client, error) {
+			return newClient(ctx, opts...)
+		}
 	}
 }
 
@@ -833,7 +840,6 @@ type rootSettings struct {
 	args          []string
 	holder        *holder
 	newClient     clientFactory
-	clientFor     resolvedClientFactory
 	stdin         io.Reader
 	stdinTTY      bool
 	stdoutTTY     bool
@@ -863,6 +869,7 @@ type rootSettings struct {
 	dedupLimit    int
 	readBuiltIn   func(name string) ([]byte, bool)
 	builtIns      func() []string
+	transport     http.RoundTripper
 }
 
 // Keychain is where profile create and profile update store a key when the OS has one, one item per
@@ -871,19 +878,6 @@ type Keychain interface {
 	Get(account string) (string, error)
 	Set(account, key string) error
 	Delete(account string) error
-}
-
-func limitsBlock() string {
-	var out strings.Builder
-
-	for _, entry := range limits.Report() {
-		out.WriteString(entry.Name)
-		out.WriteString(" ")
-		out.WriteString(entry.Value)
-		out.WriteString("\n")
-	}
-
-	return out.String()
 }
 
 func widthOf(f *os.File) func() (int, bool) {
@@ -925,8 +919,8 @@ func configEnv(lookupEnv func(string) (string, bool), homeDir func() (string, er
 	}
 }
 
-func readHiddenSecret() (string, error) {
-	secret, err := term.ReadPassword(int(os.Stdin.Fd()))
+func readHiddenSecret(terminal *os.File) (string, error) {
+	secret, err := term.ReadPassword(int(terminal.Fd()))
 	if err != nil {
 		return "", fmt.Errorf("reading the key from the terminal: %w", err)
 	}

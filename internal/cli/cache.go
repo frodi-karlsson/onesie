@@ -27,7 +27,7 @@ func answersFor(
 	model string,
 ) (answererFactory, error) {
 	if flags.mockPath != "" {
-		chosen, err := runResolution(settings)
+		chosen, err := settings.holder.resolved()
 		if err != nil {
 			return nil, err
 		}
@@ -44,7 +44,7 @@ func answersFor(
 		return wrapped(settings, liveAnswers(settings, flags)), nil
 	}
 
-	chosen, err := runResolution(settings)
+	chosen, err := settings.holder.resolved()
 	if err != nil {
 		return nil, err
 	}
@@ -80,7 +80,12 @@ func cachedAnswers(
 	warn func(error),
 ) answererFactory {
 	return func(ctx context.Context, stats *collector) (answerer, error) {
-		client, err := settings.newClient(ctx, observing(stats)...)
+		chosen, err := settings.holder.resolved()
+		if err != nil {
+			return nil, err
+		}
+
+		client, err := settings.newClient(ctx, chosen, observing(stats)...)
 		if err != nil {
 			return nil, noKeyForCache(settings, err)
 		}
@@ -102,7 +107,7 @@ func noKeyForCache(settings rootSettings, err error) error {
 		return err
 	}
 
-	chosen, resolveErr := runResolution(settings)
+	chosen, resolveErr := settings.holder.resolved()
 	if resolveErr != nil || chosen.keyFrom != sourceNone {
 		return err
 	}

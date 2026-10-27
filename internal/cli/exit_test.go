@@ -22,7 +22,7 @@ func TestClassify(t *testing.T) {
 		return &onesie.APIError{Status: status}
 	}
 
-	stored := func(kind string, status *int) error {
+	stored := func(kind output.Kind, status *int) error {
 		return &storedFailure{failure: output.Failure{Kind: kind, Status: status, Message: "onesie: stored"}}
 	}
 
@@ -152,6 +152,11 @@ func TestClassify(t *testing.T) {
 			want: ExitUnavailable,
 		},
 		{
+			name: "should report unavailable for an answer onesie cannot use",
+			err:  &unusableAnswer{message: "question 'urgent' has no answer"},
+			want: ExitUnavailable,
+		},
+		{
 			name: "should report unavailable for an unusable 200 body",
 			err: &onesie.ResponseError{
 				Status: http.StatusOK, Err: errors.New("invalid character 'n'"),
@@ -237,6 +242,49 @@ func TestClassify(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("should give each error the kind a record is written with and whether it is quiet", func(t *testing.T) {
+		t.Parallel()
+
+		pins := []struct {
+			err   error
+			kind  output.Kind
+			quiet bool
+		}{
+			{err: &recordsError{}, kind: output.KindInput, quiet: true},
+			{err: &stoppedError{cause: &input.LineError{Line: 2, Err: errors.New("not json")}}, kind: output.KindInput, quiet: true},
+			{err: &rejectedError{}, kind: output.KindInput, quiet: true},
+			{err: &abstainError{}, kind: output.KindInput, quiet: true},
+			{err: &input.LineError{Line: 1, Err: errors.New("not json")}, kind: output.KindInput},
+			{err: context.Canceled, kind: output.KindInput, quiet: true},
+			{err: context.DeadlineExceeded, kind: output.KindTransport},
+			{err: apiError(http.StatusUnauthorized), kind: output.KindHTTP},
+			{err: apiError(http.StatusBadRequest), kind: output.KindHTTP},
+			{err: &onesie.ResponseError{Status: http.StatusOK}, kind: output.KindResponse},
+			{err: &unusableAnswer{message: "question 'urgent' has no answer"}, kind: output.KindResponse},
+			{err: &onesie.ConnectionError{Err: errors.New("refused")}, kind: output.KindTransport},
+			{err: &onesie.ConnectionError{Err: syscall.EPIPE}, kind: output.KindTransport, quiet: true},
+			{err: &fs.PathError{Op: "write", Path: "/dev/stdout", Err: syscall.EPIPE}, kind: output.KindInput, quiet: true},
+			{err: &silentError{code: ExitAuth}, kind: output.KindInput, quiet: true},
+			{err: errors.New("boom"), kind: output.KindInput},
+			{
+				err:  errors.Join(&storedFailure{failure: output.Failure{Kind: "input", Message: "bad"}}, context.Canceled),
+				kind: output.KindInput, quiet: true,
+			},
+			{
+				err: errors.Join(&onesie.APIError{Status: http.StatusBadGateway},
+					&fs.PathError{Op: "write", Path: "/dev/stdout", Err: syscall.EPIPE}),
+				kind: output.KindHTTP, quiet: true,
+			},
+		}
+
+		for _, pin := range pins {
+			if got := classify(pin.err); got.kind != pin.kind || got.quiet != pin.quiet {
+				t.Errorf("classify(%v) = kind %s, quiet %t, want kind %s, quiet %t",
+					pin.err, got.kind, got.quiet, pin.kind, pin.quiet)
+			}
+		}
+	})
 }
 
 func TestWorthReporting(t *testing.T) {
@@ -255,6 +303,31 @@ func TestWorthReporting(t *testing.T) {
 		{
 			name: "should stay quiet when the consumer stopped reading",
 			err:  &fs.PathError{Op: "write", Path: "/dev/stdout", Err: syscall.EPIPE},
+		},
+		{name: "should stay quiet for a record --stop-on-error stopped at", err: &stoppedError{cause: errors.New("bad")}},
+		{name: "should stay quiet for a command that printed its whole result", err: &silentError{code: ExitAuth}},
+		{name: "should stay quiet for an interrupt inside a wrapped error", err: fmt.Errorf("waiting: %w", context.Canceled)},
+		{
+			name: "should stay quiet for failed records joined to a failure closing the answers file",
+			err:  errors.Join(&recordsError{}, errors.New("closing the answers file")),
+		},
+		{
+			name: "should report a stored failure a resume stopped at",
+			err:  &storedFailure{failure: output.Failure{Kind: "input", Message: "bad"}, record: 2},
+			want: true,
+		},
+		{name: "should report a line onesie could not read", err: &input.LineError{Line: 1, Err: errors.New("x")}, want: true},
+		{name: "should report a server error", err: &onesie.APIError{Status: http.StatusBadGateway}, want: true},
+		{name: "should report a connection error", err: &onesie.ConnectionError{Err: errors.New("refused")}, want: true},
+		{name: "should stay quiet for a connection that broke with EPIPE", err: &onesie.ConnectionError{Err: syscall.EPIPE}},
+		{
+			name: "should stay quiet for a stored failure joined to an interrupt",
+			err:  errors.Join(&storedFailure{failure: output.Failure{Kind: "input", Message: "bad"}}, context.Canceled),
+		},
+		{
+			name: "should stay quiet for a server error joined to a broken stdout",
+			err: errors.Join(&onesie.APIError{Status: http.StatusBadGateway},
+				&fs.PathError{Op: "write", Path: "/dev/stdout", Err: syscall.EPIPE}),
 		},
 	}
 

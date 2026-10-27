@@ -11,7 +11,12 @@ import (
 )
 
 func listModels(cmd *cobra.Command, settings rootSettings, stats *collector) error {
-	client, err := settings.newClient(cmd.Context(), observing(stats)...)
+	chosen, err := settings.holder.resolved()
+	if err != nil {
+		return err
+	}
+
+	client, err := settings.newClient(cmd.Context(), chosen, observing(stats)...)
 	if err != nil {
 		return err
 	}
