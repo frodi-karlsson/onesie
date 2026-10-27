@@ -315,6 +315,50 @@ func TestCachedAnswerer(t *testing.T) {
 		}
 	})
 
+	t.Run("should ask again past a stored answer that no longer fits its question", func(t *testing.T) {
+		t.Parallel()
+
+		stub := newAnswerStub(t)
+		factory, _ := build(t, stub, nil)
+
+		asker, err := factory(t.Context(), &collector{})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		cached, isCached := asker.(*cachedAnswerer)
+		if !isCached {
+			t.Fatalf("answerer = %T, want *cachedAnswerer", asker)
+		}
+
+		store, err := cached.open()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		id, err := requestKey(onesie.Request{
+			State: request.State, Model: cached.model, Questions: request.Questions,
+		}, cached.origin)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// Stored before the answer checks, so it reads back now as one they refuse.
+		stale := &onesie.Result{Model: "m", Answers: map[string]onesie.Answer{"u": &onesie.NoulAnswer{Noul: 1.5}}}
+		if putErr := cached.put(store, cache.Key(id), stale); putErr != nil {
+			t.Fatal(putErr)
+		}
+
+		got, err := asker.answer(t.Context(), key, request)
+		if err != nil || got.cached {
+			t.Fatalf("answer = %+v, %v, want a fresh answer past the stale entry", got, err)
+		}
+
+		if requests := stub.requests.Load(); requests != 1 {
+			t.Errorf("%d requests, want 1", requests)
+		}
+	})
+
 	t.Run("should say the cache needs the key when the client has none", func(t *testing.T) {
 		t.Parallel()
 
