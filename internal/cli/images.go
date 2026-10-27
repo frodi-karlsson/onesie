@@ -244,12 +244,15 @@ func refuseNeeds(provider onesie.Provider, model string, needs onesie.Needs) err
 		return nil
 	}
 
-	// The same order onesie-go refuses in, since a Box question is an image question too.
+	// The same order onesie-go refuses in, since a Box question is an image question too. The
+	// message names only what the run needs, and the providers that take all of it.
 	missing, wanted := "long context", onesie.Needs{LongContext: true}
 
 	switch {
-	case (needs.Images || needs.Box) && provider.Refuse(model, onesie.Needs{Images: true}) != nil:
-		missing, wanted = "images or box questions", onesie.Needs{Images: true, Box: needs.Box}
+	case needs.Images && needs.Box && provider.Refuse(model, onesie.Needs{Images: true}) != nil:
+		missing, wanted = "images or box questions", onesie.Needs{Images: true, Box: true}
+	case needs.Images && provider.Refuse(model, onesie.Needs{Images: true}) != nil:
+		missing, wanted = "images", onesie.Needs{Images: true}
 	case needs.Box && provider.Refuse(model, onesie.Needs{Images: true, Box: true}) != nil:
 		missing, wanted = "box questions", onesie.Needs{Images: true, Box: true}
 	}

@@ -231,7 +231,7 @@ func TestRun(t *testing.T) {
 	cloudflare := map[string]string{"ONESIE_PROVIDER": "cloudflare"}
 	openrouter := map[string]string{"ONESIE_PROVIDER": "openrouter"}
 	mockFile := writeImage(t, dir, "mock.json", []byte(`{"answer":0.9}`))
-	refused := "onesie: the levanto provider takes no images or box questions"
+	refused := "onesie: the levanto provider takes no images"
 	longBody := writeImage(t, dir, "long.json",
 		[]byte(`{"state":"s","questions":{"red":{"type":"noul","instructions":"q"}},"long_context":true}`))
 	shortBody := writeImage(t, dir, "short.json",
@@ -375,7 +375,7 @@ func TestRun(t *testing.T) {
 			env:      levanto,
 			stdin:    `{"state":{"p":"r"},"model":"m","questions":{"answer":{"type":"noul","instructions":"q"}},"assets":{"r":{"type":"image","format":"png","data_base64":"AQ=="}}}` + "\n",
 			wantCode: ExitRecords,
-			wantOut:  "takes no images or box questions. The typesafe, openrouter and cloudflare providers do",
+			wantOut:  "takes no images. The typesafe, openrouter and cloudflare providers do",
 		},
 		{
 			name:     "should refuse --long-context on cloudflare before any request",
@@ -436,7 +436,14 @@ func TestRun(t *testing.T) {
 			args:     []string{"--ask", "mug=the mug", "--box", "--state", "s"},
 			env:      levanto,
 			wantCode: ExitUsage,
-			wantErr:  refused + ". The typesafe and openrouter providers do\n",
+			wantErr:  "onesie: the levanto provider takes no box questions. The typesafe and openrouter providers do\n",
+		},
+		{
+			name:     "should refuse an image and a box question on levanto, naming who takes both",
+			args:     []string{"--image", "photo=" + square, "--ask", "mug=the mug in `photo`", "--box"},
+			env:      levanto,
+			wantCode: ExitUsage,
+			wantErr:  refused + " or box questions. The typesafe and openrouter providers do\n",
 		},
 		{
 			name:     "should refuse a levanto stream once with no error lines",

@@ -97,8 +97,7 @@ Exit 3 also covers these:
 | `each side must be`, `an image must be PNG or JPEG` or `an image is at most` | onesie refused an `--image` file before any request, naming the limit `onesie -V` lists. Resize it to at most 1568 pixels a side, or convert it to PNG or a smaller JPEG. An `--image-field` file is an error line instead |
 | `needs an image in the request` | a `--box` question was asked with no `--image` or `--image-field` to look in |
 | `long_context` and `must be true or false` | a request body's `long_context` is not a boolean |
-| `takes no images or box questions` | the provider, Levanto or Berget, reads neither. Ask with `--provider typesafe`, `--provider openrouter`, or for images alone `--provider cloudflare` |
-| `takes no box questions` or `takes no long context` | the provider's model reads images but not that. Ask with `--provider typesafe` |
+| `takes no images`, `takes no box questions` or `takes no long context` | the provider cannot take what the run asks for. The message names the providers that can, so ask with one of them through `--provider` |
 | `no cloudflare account id` | cloudflare has a token and no account. Set `CLOUDFLARE_ACCOUNT_ID`, or store one in the profile with `onesie profile update NAME --account-id ACCOUNT_ID` |
 | `is plain http to a host other than this machine` | the base URL from `--base-url`, `TYPESAFE_BASE_URL` or a profile's `base_url` is `http://` to a host other than `localhost`, `127.0.0.0/8`, also in IPv4-mapped form, or `::1`, so the key would travel unencrypted. Use https, or pass `--allow-http` to send it anyway. A profile stored with an http `base_url` needs `--allow-http` on every run |
 | `must be a plain URL with no credentials` | the base URL from `--base-url`, `TYPESAFE_BASE_URL` or a profile's `base_url` holds credentials, `@`, `?` or `#`. Pass the API root alone, and keep the key in a profile or the provider's key variable |
