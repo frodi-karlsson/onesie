@@ -228,12 +228,12 @@ func TestNoArguments(t *testing.T) {
 		want  string
 	}{
 		{name: "should accept no argument", args: nil, want: ""},
-		{name: "should refuse an argument in a plain sentence", args: []string{"a", "b"}, want: "onesie: leaf takes no argument, got 'a'"},
+		{name: "should refuse an argument in a plain sentence", args: []string{"a", "b"}, want: "leaf takes no argument, got 'a'"},
 		{
 			name:  "should name the subcommands of a command that has them",
 			child: true,
 			args:  []string{"a"},
-			want:  "onesie: leaf has no subcommand 'a'. Its subcommands: child",
+			want:  "leaf has no subcommand 'a'. Its subcommands: child",
 		},
 	}
 

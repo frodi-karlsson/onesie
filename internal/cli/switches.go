@@ -57,7 +57,7 @@ func envSwitch(lookupEnv func(string) (string, bool), name, flag string) (bool, 
 
 	on, err := strconv.ParseBool(value)
 	if err != nil {
-		return false, fmt.Errorf("onesie: %s=%s is not a value --%s takes. Use 1 or 0", name, value, flag)
+		return false, fmt.Errorf("%s=%s is not a value --%s takes. Use 1 or 0", name, value, flag)
 	}
 
 	return on, nil
@@ -71,7 +71,7 @@ func aliasTTL(lookupEnv func(string) (string, bool)) (time.Duration, error) {
 
 	ttl, err := time.ParseDuration(value)
 	if err != nil || ttl < 0 {
-		return 0, fmt.Errorf("onesie: %s=%s is not a duration of zero or more, such as 90m or 72h", envCacheTTL, value)
+		return 0, fmt.Errorf("%s=%s is not a duration of zero or more, such as 90m or 72h", envCacheTTL, value)
 	}
 
 	if ttl == 0 {

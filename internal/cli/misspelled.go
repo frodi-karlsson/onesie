@@ -22,7 +22,7 @@ func refuseMisspelledSubcommand(cmd *cobra.Command, args []string, events []argv
 		return nil
 	}
 
-	return fmt.Errorf("onesie: %s is not a subcommand. The closest is %s. "+
+	return fmt.Errorf("%s is not a subcommand. The closest is %s. "+
 		"To ask it as a question, put it after --, as in onesie -- %s",
 		args[0], strings.Join(near, " or "), args[0])
 }

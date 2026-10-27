@@ -84,7 +84,7 @@ func build(
 	// Every mode except --list-models and -i request needs a question, and reporting that here
 	// rather than from Assemble keeps the message the same whichever source was missing.
 	if positional == "" && len(events) == 0 && flags.file == "" {
-		return nil, nil, errors.New("onesie: no question given. Pass a question, --ask, or -f")
+		return nil, nil, errors.New("no question given. Pass a question, --ask, or -f")
 	}
 
 	var (
@@ -245,17 +245,17 @@ func gateExpr(source, named string, built *plan.Plan) (*assert.Expr, error) {
 	expr, err := assert.Parse(source)
 	if err != nil {
 		if hint := assert.BracketHint(source, questionIDs(built.Questions)); hint != "" {
-			return nil, fmt.Errorf("onesie: %s: %w. %s", named, err, hint)
+			return nil, fmt.Errorf("%s: %w. %s", named, err, hint)
 		}
 
-		return nil, fmt.Errorf("onesie: %s: %w", named, err)
+		return nil, fmt.Errorf("%s: %w", named, err)
 	}
 
 	// Each source is checked on its own rather than the combined gate, so a message names the one
 	// that carried the mistake. Every source is a boolean in its own right, so a combination adds
 	// nothing for the checker to reject.
 	if checkErr := assert.Check(expr, built); checkErr != nil {
-		return nil, fmt.Errorf("onesie: %s: %w", named, checkErr)
+		return nil, fmt.Errorf("%s: %w", named, checkErr)
 	}
 
 	return expr, nil
@@ -277,7 +277,7 @@ func exprOf(given bool, flag, source string) (*jq.Expr, error) {
 
 	expr, err := jq.Compile(source)
 	if err != nil {
-		return nil, fmt.Errorf("onesie: %s: %w", flag, err)
+		return nil, fmt.Errorf("%s: %w", flag, err)
 	}
 
 	return expr, nil

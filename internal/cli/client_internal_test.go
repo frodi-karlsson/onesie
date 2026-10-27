@@ -558,7 +558,7 @@ func TestPlainHTTPCheck(t *testing.T) {
 	}{
 		{
 			name: "should refuse plain http to another host, naming the source and --allow-http", baseURL: "http://proxy.example",
-			wantRefusal: "onesie: TYPESAFE_BASE_URL http://proxy.example is plain http to a host other than this " +
+			wantRefusal: "TYPESAFE_BASE_URL http://proxy.example is plain http to a host other than this " +
 				"machine, so the API key would cross the network unencrypted. Use https, or pass --allow-http to send it anyway",
 		},
 		{

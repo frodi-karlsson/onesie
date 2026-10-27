@@ -36,7 +36,7 @@ func mockAnswers(
 ) (answererFactory, error) {
 	data, err := settings.readFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("onesie: %s: %w", spelled, err)
+		return nil, fmt.Errorf("%s: %w", spelled, err)
 	}
 
 	asked := make([]string, 0, len(built.Questions))

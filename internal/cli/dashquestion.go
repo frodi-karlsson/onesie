@@ -16,7 +16,7 @@ func atMostOneQuestion(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	got := fmt.Sprintf("onesie: expected one question, got %d arguments", len(args))
+	got := fmt.Sprintf("expected one question, got %d arguments", len(args))
 
 	dash := cmd.ArgsLenAtDash()
 	if dash < 0 || len(args)-dash < 2 || !anyFlagLike(args[dash+1:]) {
