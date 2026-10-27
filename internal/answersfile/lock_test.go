@@ -94,7 +94,7 @@ func TestLocker_Lock(t *testing.T) {
 
 			var openedAnswers bool
 
-			l := NewLocker(Options{GOOS: goos})
+			l := newLocker(Options{GOOS: goos})
 			l.openFile = func(name string, flag int, perm os.FileMode) (*os.File, error) {
 				if name == path {
 					openedAnswers = true
@@ -107,7 +107,7 @@ func TestLocker_Lock(t *testing.T) {
 				return os.OpenFile(name, flag, perm)
 			}
 
-			release, err := l.Lock(path)
+			release, err := l.lock(path)
 			if tc.wantErr != nil {
 				if !errors.Is(err, tc.wantErr) {
 					t.Fatalf("lock error = %v, want %v", err, tc.wantErr)
@@ -124,7 +124,7 @@ func TestLocker_Lock(t *testing.T) {
 				t.Fatalf("first lock: %v", err)
 			}
 
-			_, secondErr := l.Lock(path)
+			_, secondErr := l.lock(path)
 			if errors.Is(secondErr, errLocked) != tc.wantLocked {
 				t.Fatalf("second lock error = %v, want locked %v", secondErr, tc.wantLocked)
 			}
@@ -133,7 +133,7 @@ func TestLocker_Lock(t *testing.T) {
 				t.Fatalf("release: %v", releaseErr)
 			}
 
-			again, err := l.Lock(path)
+			again, err := l.lock(path)
 			if err != nil {
 				t.Fatalf("lock after the release: %v", err)
 			}
@@ -160,14 +160,14 @@ func TestLocker_Lock(t *testing.T) {
 
 		var removed []string
 
-		l := NewLocker(Options{GOOS: runtime.GOOS})
+		l := newLocker(Options{GOOS: runtime.GOOS})
 		l.remove = func(name string) error {
 			removed = append(removed, name)
 
 			return refused
 		}
 
-		release, err := l.Lock(path)
+		release, err := l.lock(path)
 		if err != nil {
 			t.Fatalf("lock: %v", err)
 		}
@@ -246,7 +246,7 @@ func TestLocker_LockAt(t *testing.T) {
 
 			var opens, stats int
 
-			l := NewLocker(Options{GOOS: runtime.GOOS})
+			l := newLocker(Options{GOOS: runtime.GOOS})
 			l.openFile = func(name string, flag int, perm os.FileMode) (*os.File, error) {
 				opens++
 

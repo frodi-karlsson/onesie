@@ -1600,13 +1600,13 @@ func runResumeCases(t *testing.T, tests []resumeCase) {
 			}
 
 			if tc.held {
-				release, err := answersfile.NewLocker(answersfile.Options{GOOS: runtime.GOOS}).Lock(path)
+				held, err := lockAnswers(path)
 				if err != nil {
 					t.Fatalf("holding the lock: %v", err)
 				}
 
 				t.Cleanup(func() {
-					if err := release(); err != nil {
+					if err := held.Release(); err != nil {
 						t.Errorf("releasing the held lock: %v", err)
 					}
 				})
@@ -1873,18 +1873,24 @@ func assertMode(t *testing.T, path string, want os.FileMode) {
 func assertUnlocked(t *testing.T, path string) {
 	t.Helper()
 
-	release, err := answersfile.NewLocker(answersfile.Options{GOOS: runtime.GOOS}).Lock(path)
+	held, err := lockAnswers(path)
 	if err != nil {
 		t.Fatalf("the run left %s locked: %v", filepath.Base(path), err)
 	}
 
-	if err := release(); err != nil {
+	if err := held.Release(); err != nil {
 		t.Fatalf("releasing the lock: %v", err)
 	}
 
 	if _, err := os.Stat(path + ".onesie.lock"); !os.IsNotExist(err) {
 		t.Errorf("lock file left behind: %v", err)
 	}
+}
+
+func lockAnswers(path string) (*answersfile.File, error) {
+	held, _, err := answersfile.Open(answersfile.Options{}, answersfile.Config{Path: path})
+
+	return held, err
 }
 
 func rejectedLines(from, to int) string {

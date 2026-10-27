@@ -61,7 +61,7 @@ func Open(opts Options, config Config) (*File, Resume, error) {
 
 	opts = opts.withDefaults()
 	if opts.Lock == nil {
-		opts.Lock = NewLocker(opts).Lock
+		opts.Lock = newLocker(opts).lock
 	}
 
 	out := &File{

@@ -13,23 +13,20 @@ const (
 
 var errLocked = errors.New("held by another process")
 
-// NewLocker builds a Locker over the filesystem functions and GOOS in opts.
-func NewLocker(opts Options) *Locker {
+func newLocker(opts Options) *locker {
 	opts = opts.withDefaults()
 
-	return &Locker{openFile: opts.OpenFile, stat: opts.Stat, remove: opts.Remove, goos: opts.GOOS}
+	return &locker{openFile: opts.OpenFile, stat: opts.Stat, remove: opts.Remove, goos: opts.GOOS}
 }
 
-// Locker takes the OS lock that keeps two runs out of one answers file.
-type Locker struct {
+type locker struct {
 	openFile func(name string, flag int, perm os.FileMode) (*os.File, error)
 	stat     func(name string) (os.FileInfo, error)
 	remove   func(name string) error
 	goos     string
 }
 
-// Lock takes the lock for the answers file, and release lets go of it.
-func (l *Locker) Lock(answers string) (release func() error, err error) {
+func (l *locker) lock(answers string) (release func() error, err error) {
 	// An OS lock rather than a file created with O_EXCL, since the kernel lets go of an OS lock when
 	// the process dies, and a second Ctrl-C or a kill would otherwise leave a lock that refuses
 	// every later resume.
@@ -55,7 +52,7 @@ func (l *Locker) Lock(answers string) (release func() error, err error) {
 	return release, err
 }
 
-func (l *Locker) locksAnswersFile() bool {
+func (l *locker) locksAnswersFile() bool {
 	// Only where the lock is a flock. Windows keeps a file it has open from being renamed over, so
 	// locking the answers file would refuse the compaction. An fcntl lock is let go of when the run
 	// closes any handle on the file, and a run opens and closes the answers file as it reads it.
@@ -67,7 +64,7 @@ func (l *Locker) locksAnswersFile() bool {
 	}
 }
 
-func (l *Locker) refusedLockFile(lockFile string, err error) error {
+func (l *locker) refusedLockFile(lockFile string, err error) error {
 	if l.goos != "windows" {
 		return err
 	}
@@ -81,7 +78,7 @@ func (l *Locker) refusedLockFile(lockFile string, err error) error {
 	return err
 }
 
-func (l *Locker) lockAt(path string, flag int, owned bool) (func() error, error) {
+func (l *locker) lockAt(path string, flag int, owned bool) (func() error, error) {
 	for range lockAttempts {
 		file, err := l.openFile(path, flag, 0o600)
 		if err != nil {
@@ -111,7 +108,7 @@ func (l *Locker) lockAt(path string, flag int, owned bool) (func() error, error)
 	return nil, errLocked
 }
 
-func (l *Locker) stillAt(file *os.File, path string) (bool, error) {
+func (l *locker) stillAt(file *os.File, path string) (bool, error) {
 	held, err := file.Stat()
 	if err != nil {
 		return false, err
