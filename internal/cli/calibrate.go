@@ -458,7 +458,7 @@ func scopeOf(built *plan.Plan, specs []string) (calibrateScope, error) {
 	for _, spec := range specs {
 		id, source, err := calibrate.SplitLabel(spec, ids)
 		if err != nil {
-			return calibrateScope{}, fmt.Errorf("%w", err)
+			return calibrateScope{}, err
 		}
 
 		index := slices.Index(ids, id)

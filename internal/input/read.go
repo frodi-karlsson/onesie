@@ -219,7 +219,7 @@ type Resolved struct {
 }
 
 // CheckState rejects a state the API would refuse or the model cannot answer, so a caller holding a
-// state that never passed through Resolve can still check it. Its message carries no onesie prefix.
+// state that never passed through Resolve can still check it.
 func CheckState(value any) error {
 	// Rejected locally, since the API refuses the wrong types and the model cannot answer an empty one.
 	switch typed := value.(type) {

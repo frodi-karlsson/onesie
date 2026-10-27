@@ -118,7 +118,7 @@ func profileCreate(
 	}
 
 	if invalid := creds.ValidName(name); invalid != nil {
-		return fmt.Errorf("%w", invalid)
+		return invalid
 	}
 
 	provider := strings.TrimSpace(fields.provider)
@@ -987,7 +987,7 @@ func checkProfile(profiles creds.Profiles, name string, profile creds.Profile) e
 	}
 
 	if broken := withProfile(profiles, name, profile).Validate(); broken != nil {
-		return fmt.Errorf("%w", broken)
+		return broken
 	}
 
 	return nil

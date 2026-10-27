@@ -185,13 +185,13 @@ func run(
 	if resolved.Source != input.SourceNone {
 		sent, err = mapped(cmd.Context(), mapper, resolved.State, resolved.Wire)
 		if err != nil {
-			return fmt.Errorf("%w", err)
+			return err
 		}
 	}
 
 	sent, assets, err := inv.images.attach(sentOrNil(resolved, sent))
 	if err != nil {
-		return fmt.Errorf("%w", err)
+		return err
 	}
 
 	if len(flags.images) > 0 {
@@ -312,7 +312,7 @@ func resolveState(
 		}
 
 		if err := input.CheckState(resolved.State); err != nil {
-			return input.Resolved{}, fmt.Errorf("%w", err)
+			return input.Resolved{}, err
 		}
 
 		return resolved, nil

@@ -112,6 +112,15 @@ func TestExecute(t *testing.T) {
 				"onesie: 'work' is the default profile, since it is the first\n",
 		},
 		{
+			name:    "should print a mode warning as its own line without a prefix",
+			args:    []string{"profile", "create", "work", "--provider", "typesafe", "--file"},
+			stdin:   key16 + "\n",
+			env:     map[string]string{"ONESIE_CONFIG_DIR": "{dir}"},
+			prepare: failingChmodStore,
+			want: "warning: could not set mode 600 on {dir}{/}profiles.json. The key is not protected by the filesystem\n" +
+				"onesie: 'work' is the default profile, since it is the first\n",
+		},
+		{
 			name:    "should print a conversion warning with one onesie prefix",
 			args:    []string{"profile", "list"},
 			env:     map[string]string{"ONESIE_CONFIG_DIR": "{dir}"},
@@ -258,6 +267,12 @@ func interruptedRun(t *testing.T, args []string, opts ...RootOption) int {
 func fullDisk(*testing.T, string) []RootOption {
 	return []RootOption{WithCredentialStore(creds.NewStore(creds.WithCreateTemp(func(string, string) (*os.File, error) {
 		return nil, errors.New("the disk is full")
+	})))}
+}
+
+func failingChmodStore(*testing.T, string) []RootOption {
+	return []RootOption{WithCredentialStore(creds.NewStore(creds.WithChmod(func(string, os.FileMode) error {
+		return errors.New("the test chmod failed")
 	})))}
 }
 
