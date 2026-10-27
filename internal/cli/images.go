@@ -229,14 +229,14 @@ func checkProviderNeeds(settings rootSettings, flags runConfig, built *plan.Plan
 		Images:      sendsAssets(images),
 		Box:         asksBox(built),
 		LongContext: built.LongContext,
-	}), settings, flags)
+	}), flags)
 }
 
-func longContextCause(refusal error, settings rootSettings, flags runConfig) error {
+func longContextCause(refusal error, flags runConfig) error {
 	// The variable is easy to forget once it is exported, so a refusal it caused says so.
 	var lacking *onesie.CapabilityError
 	if !errors.As(refusal, &lacking) || !lacking.Missing.LongContext || flags.longContextSet ||
-		!longContext(settings, flags) {
+		!longContext(flags) {
 		return refusal
 	}
 

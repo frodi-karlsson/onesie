@@ -52,7 +52,7 @@ func streamRaw(
 	// Every body would be refused, so the run stops before it reads any.
 	if long && requests(flags) {
 		if refusal := provider.Refuse(defaultModel, onesie.Needs{LongContext: true}); refusal != nil {
-			return longContextCause(refusal, settings, flags)
+			return longContextCause(refusal, flags)
 		}
 	}
 
@@ -161,6 +161,13 @@ func streamRaw(
 
 	// A request body carries no assertion, so no record can have failed one.
 	return streamResult(result, 0, 0)
+}
+
+func requests(flags runConfig) bool {
+	// --print-request is why this is not folded into the early return --print-questions takes. It
+	// includes any state supplied, so it goes through input.Resolve and needs a question only body
+	// when nothing was.
+	return !flags.printQuestions && !flags.printRequest
 }
 
 func checkRawResponse(request, response []byte) (onesie.Usage, error) {

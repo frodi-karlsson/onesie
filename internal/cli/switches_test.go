@@ -86,3 +86,25 @@ func TestReadSwitches(t *testing.T) {
 		})
 	}
 }
+
+func TestLongContext(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		on   bool
+	}{
+		{name: "should report long context on when the switches turned it on", on: true},
+		{name: "should report long context off when the switches left it off"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := longContext(runConfig{env: switches{longContext: tc.on}}); got != tc.on {
+				t.Errorf("longContext = %t, want %t", got, tc.on)
+			}
+		})
+	}
+}

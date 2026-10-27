@@ -81,6 +81,6 @@ func aliasTTL(lookupEnv func(string) (string, bool)) (time.Duration, error) {
 	return ttl, nil
 }
 
-func longContext(_ rootSettings, flags runConfig) bool {
+func longContext(flags runConfig) bool {
 	return flags.env.longContext
 }
