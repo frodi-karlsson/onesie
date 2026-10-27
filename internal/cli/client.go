@@ -80,7 +80,8 @@ func clientBuilder(info BuildInfo, flags *runFlags, settings rootSettings) resol
 
 		client, err := onesie.New(opts...)
 		if err != nil {
-			return nil, explained(settings, flags, chosen, readableBaseURL(withoutCredentials(err)))
+			return nil, explained(settings, flags, chosen,
+				readableBaseURL(withoutCredentials(err), chosen.baseURLGiven(flags.baseURL, settings.lookupEnv)))
 		}
 
 		// After New, since only the client knows which of the flag, the variable and the profile chose
@@ -137,12 +138,13 @@ func validBaseURL(baseURL string) error {
 		return refused
 	}
 
-	return readableBaseURL(onesie.ValidateBaseURL(baseURL))
+	return readableBaseURL(onesie.ValidateBaseURL(baseURL), baseURL)
 }
 
-func readableBaseURL(err error) error {
+func readableBaseURL(err error, given string) error {
 	// onesie-go calls every refused base URL not absolute and echoes it with a trailing slash
-	// trimmed, which reads wrong for one that has a scheme but no host, or that does not parse.
+	// trimmed, which reads wrong for one that has a scheme but no host, or that does not parse. The
+	// URL as the user gave it is echoed instead, since credentials were refused before this point.
 	const prefix = "base URL must be an absolute http or https URL, got "
 
 	var invalid *onesie.ValidationError
@@ -150,7 +152,9 @@ func readableBaseURL(err error) error {
 		return err
 	}
 
-	given := strings.TrimPrefix(invalid.Message, prefix)
+	if given == "" {
+		given = strings.TrimPrefix(invalid.Message, prefix)
+	}
 
 	parsed, parseErr := url.Parse(given)
 
@@ -162,7 +166,7 @@ func readableBaseURL(err error) error {
 			"base URL %s does not parse: %s", given, malformed.Err)}
 	case parseErr == nil && (parsed.Scheme == "http" || parsed.Scheme == "https") && parsed.Host == "":
 		return &onesie.ValidationError{Question: invalid.Question, Message: fmt.Sprintf(
-			"base URL %s:// names no host. Write it as %s://HOST", parsed.Scheme, parsed.Scheme)}
+			"base URL %s names no host. Write it as %s://HOST", given, parsed.Scheme)}
 	default:
 		return err
 	}

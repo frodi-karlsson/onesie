@@ -248,6 +248,19 @@ func (r resolution) env(lookupEnv func(string) (string, bool)) func(string) (str
 	}
 }
 
+func (r resolution) baseURLGiven(baseURLFlag string, lookupEnv func(string) (string, bool)) string {
+	switch {
+	case strings.TrimSpace(baseURLFlag) != "":
+		return strings.TrimSpace(baseURLFlag)
+	case r.baseURL != "":
+		return r.baseURL
+	case r.provider.EnvBaseURL != "":
+		return setVariable(lookupEnv, r.provider.EnvBaseURL)
+	}
+
+	return ""
+}
+
 func (r resolution) baseURLSource(baseURLFlag string, lookupEnv func(string) (string, bool)) string {
 	switch {
 	case strings.TrimSpace(baseURLFlag) != "":

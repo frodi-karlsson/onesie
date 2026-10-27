@@ -617,6 +617,16 @@ func TestReadableBaseURL(t *testing.T) {
 			want: "onesie: base URL https:// names no host. Write it as https://HOST\n",
 		},
 		{
+			name: "should echo a base URL with a path and no host as given",
+			args: []string{"--base-url", "https:///v1"},
+			want: "onesie: base URL https:///v1 names no host. Write it as https://HOST\n",
+		},
+		{
+			name: "should echo a base URL with a query and no host as given",
+			args: []string{"--base-url", "https://?x"},
+			want: "onesie: base URL https://?x names no host. Write it as https://HOST\n",
+		},
+		{
 			name: "should say a base URL that does not parse does not parse",
 			args: []string{"--base-url", "https://x.invalid/%zz"},
 			want: `onesie: base URL https://x.invalid/%zz does not parse: invalid URL escape "%zz"` + "\n",
