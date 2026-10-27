@@ -556,9 +556,11 @@ func groupFlag(recorder *argv.Recorder, name string) pflag.Value {
 }
 
 func printVersion(cmd *cobra.Command, info BuildInfo) error {
-	_, err := fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n%s", cmd.Name(), info.Version, limitsBlock())
+	if _, err := fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", cmd.Name(), info.Version); err != nil {
+		return err
+	}
 
-	return err
+	return writeLimits(cmd.OutOrStdout())
 }
 
 func rootArgs(flags *runFlags) cobra.PositionalArgs {
@@ -869,19 +871,6 @@ type Keychain interface {
 	Get(account string) (string, error)
 	Set(account, key string) error
 	Delete(account string) error
-}
-
-func limitsBlock() string {
-	var out strings.Builder
-
-	for _, entry := range limits.Report() {
-		out.WriteString(entry.Name)
-		out.WriteString(" ")
-		out.WriteString(entry.Value)
-		out.WriteString("\n")
-	}
-
-	return out.String()
 }
 
 func widthOf(f *os.File) func() (int, bool) {
