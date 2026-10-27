@@ -71,3 +71,8 @@ type runConfig struct {
 	maxRetryAfterSet bool
 	longContextSet   bool
 }
+
+type runFacts struct {
+	assert    string
+	abstainIf string
+}

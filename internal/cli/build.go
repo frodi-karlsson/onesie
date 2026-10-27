@@ -12,12 +12,12 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/qfile"
 )
 
-func configOf(flags runConfig) plan.Config {
-	return plan.Config{
+func configOf(flags runConfig, facts runFacts) plan.Config {
+	cfg := plan.Config{
 		Raw:            flags.raw,
 		Quiet:          flags.quiet,
-		HasAssert:      len(flags.assert) > 0,
-		HasAbstainIf:   len(flags.abstainIf) > 0,
+		HasAssert:      len(flags.assert) > 0 || facts.assert != "",
+		HasAbstainIf:   len(flags.abstainIf) > 0 || facts.abstainIf != "",
 		Output:         flags.output,
 		HasState:       flags.hasState,
 		HasStateFile:   flags.hasStateFile,
@@ -64,11 +64,19 @@ func configOf(flags runConfig) plan.Config {
 		MaxRetryAfter:    flags.maxRetryAfter,
 		MaxRetryAfterSet: flags.maxRetryAfterSet,
 	}
+
+	if facts.assert != "" && len(flags.assert) == 0 {
+		cfg.AssertName = plan.Spelling(plan.OriginFile, "--assert")
+	}
+
+	if facts.abstainIf != "" && len(flags.abstainIf) == 0 {
+		cfg.AbstainIfName = plan.Spelling(plan.OriginFile, "--abstain-if")
+	}
+
+	return cfg
 }
 
-func build(
-	settings rootSettings, cfg plan.Config, flags runConfig, ignoreFileJudgment bool,
-) (*invocation, []string, error) {
+func build(settings rootSettings, flags runConfig, ignoreFileJudgment bool) (*invocation, []string, error) {
 	events, positional := flags.events, flags.positional
 
 	// Every mode except --list-models and -i request needs a question, and reporting that here
@@ -80,6 +88,7 @@ func build(
 	var (
 		loaded   *qfile.File
 		setAside fileGate
+		facts    runFacts
 	)
 
 	fileName := flags.file
@@ -104,20 +113,7 @@ func build(
 			withoutJudgment(loaded)
 		}
 
-		// The file's assertion is the same gate --assert is, so it answers the -q rule the same
-		// way. The config is built before the file is read, which is why this is not up there with
-		// the flags.
-		if loaded.Assert != "" && !cfg.HasAssert {
-			cfg.AssertName = plan.Spelling(plan.OriginFile, "--assert")
-		}
-
-		cfg.HasAssert = cfg.HasAssert || loaded.Assert != ""
-
-		if loaded.AbstainIf != "" && !cfg.HasAbstainIf {
-			cfg.AbstainIfName = plan.Spelling(plan.OriginFile, "--abstain-if")
-		}
-
-		cfg.HasAbstainIf = cfg.HasAbstainIf || loaded.AbstainIf != ""
+		facts = runFacts{assert: loaded.Assert, abstainIf: loaded.AbstainIf}
 	}
 
 	source := plan.Source{
@@ -144,25 +140,20 @@ func build(
 
 	built.LongContext = flags.env.longContext || (loaded != nil && loaded.LongContext)
 
-	warnings, err := plan.Validate(built, cfg)
+	warnings, err := plan.Validate(built, configOf(flags, facts))
 	if err != nil {
 		return nil, warnings, err
-	}
-
-	var fileAssert, fileAbstain string
-	if loaded != nil {
-		fileAssert, fileAbstain = loaded.Assert, loaded.AbstainIf
 	}
 
 	// After validation, since the checker reads a plan the run has accepted, and before any mode
 	// dispatches, since the assertion is checked against the plan and every check runs before any
 	// network call.
-	gate, err := gateOf("--assert", fileAssert, flags.assert, built)
+	gate, err := gateOf("--assert", facts.assert, flags.assert, built)
 	if err != nil {
 		return nil, warnings, err
 	}
 
-	abstain, err := gateOf("--abstain-if", fileAbstain, flags.abstainIf, built)
+	abstain, err := gateOf("--abstain-if", facts.abstainIf, flags.abstainIf, built)
 	if err != nil {
 		return nil, warnings, err
 	}
@@ -190,7 +181,7 @@ func build(
 
 	return &invocation{
 		plan: built, gate: gate, abstain: abstain, mapper: mapper, namer: namer, loaded: loaded,
-		fileGate: setAside, images: images,
+		fileGate: setAside, facts: facts, images: images,
 	}, warnings, nil
 }
 
@@ -282,6 +273,7 @@ type invocation struct {
 	namer    *jq.Expr
 	loaded   *qfile.File
 	fileGate fileGate
+	facts    runFacts
 	images   *imaging
 }
 

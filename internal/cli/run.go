@@ -40,14 +40,13 @@ func run(
 		return err
 	}
 
-	cfg := configOf(flags)
 	inputMode := flags.inputMode
 
 	// Both branches sit ahead of the plan, since neither has a question and failing for want of one
 	// would send the user to the wrong flag. --list-models comes first, so it names itself rather
 	// than the mode it was combined with.
 	if flags.listModels {
-		if checkErr := checkFlags(cfg); checkErr != nil {
+		if checkErr := checkFlags(configOf(flags, runFacts{})); checkErr != nil {
 			return checkErr
 		}
 
@@ -59,7 +58,7 @@ func run(
 	}
 
 	if inputMode == input.Request {
-		if checkErr := checkFlags(cfg); checkErr != nil {
+		if checkErr := checkFlags(configOf(flags, runFacts{})); checkErr != nil {
 			return checkErr
 		}
 
@@ -76,7 +75,7 @@ func run(
 		})
 	}
 
-	inv, warnings, err := build(settings, cfg, flags, false)
+	inv, warnings, err := build(settings, flags, false)
 
 	// Warnings print whether or not validation succeeded, so a run that fails for one reason still
 	// reports the others.

@@ -242,7 +242,7 @@ func runCalibrate(
 
 	// A file's gate and policy are ignored, since calibrate reports every cut and a gated file is
 	// the one a user calibrates.
-	inv, warnings, err := build(settings, configOf(flags), flags, true)
+	inv, warnings, err := build(settings, flags, true)
 
 	for _, warning := range warnings {
 		if _, printErr := fmt.Fprintln(cmd.ErrOrStderr(), warning); printErr != nil {
