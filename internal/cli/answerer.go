@@ -2,17 +2,12 @@ package cli
 
 import (
 	"context"
-	"fmt"
-	"strconv"
 	"time"
 
 	"github.com/frodi-karlsson/onesie-go"
 )
 
-const (
-	envLongContext      = "ONESIE_LONG_CONTEXT"
-	imageAttemptTimeout = 60 * time.Second
-)
+const imageAttemptTimeout = 60 * time.Second
 
 type answerer interface {
 	answer(ctx context.Context, key recordKey, req onesie.Request) (reply, error)
@@ -50,37 +45,6 @@ func liveAnswers(settings rootSettings, flags *runFlags) answererFactory {
 
 func newLiveAnswerer(client *onesie.Client, provider onesie.Provider, flags *runFlags) liveAnswerer {
 	return liveAnswerer{client: client, provider: provider, timeoutSet: flags.timeoutSet}
-}
-
-func longContext(settings rootSettings, flags *runFlags) bool {
-	if flags.longContextSet {
-		return flags.longContext
-	}
-
-	value, _ := settings.lookupEnv(envLongContext)
-	on, err := strconv.ParseBool(value)
-
-	return err == nil && on
-}
-
-func checkSwitches(lookupEnv func(string) (string, bool)) error {
-	for _, variable := range []struct{ name, flag string }{
-		{envCache, "--" + flagCache},
-		{envLongContext, "--long-context"},
-	} {
-		value, found := lookupEnv(variable.name)
-		if !found || value == "" {
-			continue
-		}
-
-		if _, err := strconv.ParseBool(value); err != nil {
-			return fmt.Errorf("onesie: %s=%s is not a value %s takes. Use 1 or 0", variable.name, value, variable.flag)
-		}
-	}
-
-	_, err := aliasTTL(lookupEnv)
-
-	return err
 }
 
 func (a liveAnswerer) answer(ctx context.Context, _ recordKey, req onesie.Request) (reply, error) {

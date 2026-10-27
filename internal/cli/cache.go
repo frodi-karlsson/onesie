@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -19,10 +18,8 @@ import (
 )
 
 const (
-	envCache    = "ONESIE_CACHE"
-	envCacheTTL = "ONESIE_CACHE_TTL"
-	flagCache   = "cache"
-	cacheHelp   = "store responses on disk and answer a repeated request from them. Also ONESIE_CACHE=1"
+	flagCache = "cache"
+	cacheHelp = "store responses on disk and answer a repeated request from them. Also ONESIE_CACHE=1"
 )
 
 func answersFor(
@@ -43,12 +40,7 @@ func answersFor(
 		return wrapped(settings, answers), nil
 	}
 
-	on, err := caching(cmd, settings, flags)
-	if err != nil {
-		return nil, err
-	}
-
-	if !on {
+	if !caching(settings, flags) {
 		return wrapped(settings, liveAnswers(settings, flags)), nil
 	}
 
@@ -73,28 +65,14 @@ func answersFor(
 	return wrapped(settings, cachedAnswers(settings, flags, chosen.provider, model, built.Questions, warn)), nil
 }
 
-func caching(cmd *cobra.Command, settings rootSettings, flags *runFlags) (bool, error) {
+func caching(settings rootSettings, flags *runFlags) bool {
 	// A mock replaces the answerer the cache would wrap, and a dry run builds none, so skipping the
 	// cache there costs nothing and needs no word.
 	if path, _ := mockSource(settings, flags); path != "" || flags.printRequest {
-		return false, nil
+		return false
 	}
 
-	if cmd.Flags().Changed(flagCache) {
-		return flags.cache, nil
-	}
-
-	value, found := settings.lookupEnv(envCache)
-	if !found || value == "" {
-		return false, nil
-	}
-
-	on, err := strconv.ParseBool(value)
-	if err != nil {
-		return false, fmt.Errorf("onesie: %s=%s is not a value --cache takes. Use 1 or 0", envCache, value)
-	}
-
-	return on, nil
+	return flags.env.cache
 }
 
 func cachedAnswers(
@@ -109,7 +87,7 @@ func cachedAnswers(
 
 		return &cachedAnswerer{
 			next:      newLiveAnswerer(client, provider, flags),
-			open:      sync.OnceValues(func() (*cache.Store, error) { return openCache(settings) }),
+			open:      sync.OnceValues(func() (*cache.Store, error) { return openCache(settings, flags.env.aliasTTL) }),
 			model:     model,
 			provider:  provider.Name,
 			origin:    provider.Name + "\x00" + client.BaseURL(),
@@ -132,19 +110,14 @@ func noKeyForCache(settings rootSettings, err error) error {
 	return fmt.Errorf("%w. The cache needs the key too, to find the API address it keys answers by", err)
 }
 
-func openCache(settings rootSettings) (*cache.Store, error) {
+func openCache(settings rootSettings, ttl time.Duration) (*cache.Store, error) {
 	dir, err := cache.Dir(configEnv(settings.lookupEnv, settings.homeDir, settings.goos))
 	if err != nil {
 		return nil, err
 	}
 
-	// A cache others can read, a directory that may not be onesie's, or a lifetime onesie cannot read
-	// is something the user asked for and has to fix, so each ends the run. Any other failure only turns the cache off.
-	ttl, err := aliasTTL(settings.lookupEnv)
-	if err != nil {
-		return nil, &cacheRefusedError{err: err}
-	}
-
+	// A cache others can read, or a directory that may not be onesie's, is something the user asked
+	// for and has to fix, so each ends the run. Any other failure only turns the cache off.
 	store, err := cache.Open(dir, cache.Options{Now: settings.now, GOOS: settings.goos, AliasTTL: ttl})
 
 	var (
@@ -156,24 +129,6 @@ func openCache(settings rootSettings) (*cache.Store, error) {
 	}
 
 	return store, err
-}
-
-func aliasTTL(lookupEnv func(string) (string, bool)) (time.Duration, error) {
-	value, found := lookupEnv(envCacheTTL)
-	if !found || value == "" {
-		return 0, nil
-	}
-
-	ttl, err := time.ParseDuration(value)
-	if err != nil || ttl < 0 {
-		return 0, fmt.Errorf("onesie: %s=%s is not a duration of zero or more, such as 90m or 72h", envCacheTTL, value)
-	}
-
-	if ttl == 0 {
-		return cache.NoAliasTTL, nil
-	}
-
-	return ttl, nil
 }
 
 func (a *cachedAnswerer) answer(ctx context.Context, key recordKey, req onesie.Request) (reply, error) {

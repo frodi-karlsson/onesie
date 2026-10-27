@@ -231,9 +231,12 @@ func runCalibrate(
 	cmd *cobra.Command, settings rootSettings, flags *runFlags, calib calibrateFlags,
 	events []argv.Event, positional string,
 ) error {
-	if err := checkSwitches(settings.lookupEnv); err != nil {
+	env, err := readSwitches(cmd, settings.lookupEnv, flags)
+	if err != nil {
 		return err
 	}
+
+	flags.env = env
 
 	cfg, inputMode, err := configOf(cmd, events, positional, flags)
 	if err != nil {

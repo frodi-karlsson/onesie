@@ -49,7 +49,7 @@ func streamRaw(
 		client = built
 	}
 
-	long := longContext(settings, flags)
+	long := flags.env.longContext
 
 	// Every body would be refused, so the run stops before it reads any.
 	if long && requests(flags) {

@@ -152,7 +152,7 @@ func build(
 		built.Model = loaded.Model
 	}
 
-	built.LongContext = longContext(settings, flags) || (loaded != nil && loaded.LongContext)
+	built.LongContext = flags.env.longContext || (loaded != nil && loaded.LongContext)
 
 	warnings, err := plan.Validate(built, cfg)
 	if err != nil {

@@ -37,9 +37,12 @@ func run(
 ) error {
 	flags.timeoutSet = cmd.Flags().Changed(flagTimeout)
 
-	if err := checkSwitches(settings.lookupEnv); err != nil {
+	env, err := readSwitches(cmd, settings.lookupEnv, flags)
+	if err != nil {
 		return err
 	}
+
+	flags.env = env
 
 	cfg, inputMode, err := configOf(cmd, events, positional, flags)
 	if err != nil {
@@ -72,7 +75,7 @@ func run(
 		// Each body names its own model or takes the run's, and the fingerprint holds no model, as
 		// it holds nothing else a body carries.
 		if bindErr := bindOut(out, settings, flags, nil, fingerprintInputs{
-			input: inputMode.String(), longContext: longContext(settings, flags),
+			input: inputMode.String(), longContext: flags.env.longContext,
 		}); bindErr != nil {
 			return bindErr
 		}
@@ -1422,4 +1425,5 @@ type runFlags struct {
 	timeoutSet     bool
 	longContext    bool
 	longContextSet bool
+	env            switches
 }
