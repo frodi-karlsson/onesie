@@ -896,7 +896,9 @@ table, and `onesie calibrate --help` lists the codes calibrate uses.
   turns it off for one run under `ONESIE_LONG_CONTEXT=1`, as `--cache=false` does for the cache.
   It does not turn off a body's `long_context: true`, from `-f` or under `-i request`, since the
   body asks for it itself. Set that key to `false` in the body, or remove it, to run without it.
-  It is experimental on TypeSafe's side.
+  `-i request` follows the same order for each body it replays, and under `--print-request` it
+  writes `"long_context":true` into a body the flag or the variable turns it on for. It is
+  experimental on TypeSafe's side.
 - `onesie --help` lists every flag, and `onesie -V` prints the built in limits. A flag onesie does
   not know exits 2, naming the closest one when one is near. `-V` takes no
   question, so a word beside it exits 2. `onesie help

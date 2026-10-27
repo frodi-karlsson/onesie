@@ -1393,3 +1393,29 @@ func compareLines(got, want []string) string {
 
 	return ""
 }
+
+func TestWithLongContext(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		body string
+		want string
+	}{
+		{name: "should add the key to a body without it", body: `{"state":"x"}`, want: `{"state":"x","long_context":true}`},
+		{name: "should fill an empty object", body: `{ }`, want: `{"long_context":true}`},
+		{name: "should turn a false on", body: `{"long_context":false,"s":1}`, want: `{"long_context":true,"s":1}`},
+		{name: "should keep a true", body: `{"long_context":true}`, want: `{"long_context":true}`},
+		{name: "should leave a body that is not an object", body: `[1]`, want: `[1]`},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := string(withLongContext([]byte(tc.body))); got != tc.want {
+				t.Errorf("withLongContext(%s) = %s, want %s", tc.body, got, tc.want)
+			}
+		})
+	}
+}

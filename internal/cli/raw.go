@@ -88,6 +88,10 @@ func streamRaw(
 			// same predicate decides this and the client above, so the two cannot disagree and leave
 			// a nil client.
 			if !requests(flags) {
+				if long {
+					return withLongContext(body), nil
+				}
+
 				return body, nil
 			}
 
@@ -188,7 +192,7 @@ func withModel(body []byte, model string) []byte {
 	// The body is otherwise sent as written, so the model goes in place or in front rather than
 	// through a decode and encode that would reorder the keys and reformat the numbers. Every empty
 	// model key is filled, since a server may read the first or the last of them.
-	spans := modelValues(object)
+	spans := keyValues(object, "model")
 	if len(spans) == 0 {
 		filled := append([]byte(`{"model":`), name...)
 		if rest := bytes.TrimSpace(object[1:]); bytes.HasPrefix(rest, []byte("}")) {
@@ -216,10 +220,10 @@ func withModel(body []byte, model string) []byte {
 	return append(filled, object[at:]...)
 }
 
-func modelValues(object []byte) [][2]int {
+func keyValues(object []byte, name string) [][2]int {
 	// A scan of a body json.Valid passed, rather than a decode, so the assets a body carries are
-	// walked past and never copied. Only the exact key model counts, since encoding/json would match
-	// Model too and the API reads only model.
+	// walked past and never copied. Only the exact key counts, since encoding/json would match
+	// Model for model too and the API reads only the exact one.
 	var spans [][2]int
 
 	for i := 1; i < len(object); {
@@ -239,7 +243,7 @@ func modelValues(object []byte) [][2]int {
 		valueStart := skipSpace(object, skipSpace(object, keyEnd)+1)
 		valueEnd := jsonValueEnd(object, valueStart)
 
-		if isModelKey(key) {
+		if isKey(key, name) {
 			spans = append(spans, [2]int{valueStart, valueEnd})
 		}
 
@@ -300,14 +304,42 @@ func jsonValueEnd(b []byte, i int) int {
 	}
 }
 
-func isModelKey(key []byte) bool {
+func isKey(key []byte, name string) bool {
 	if !bytes.Contains(key, []byte(`\`)) {
-		return string(key) == `"model"`
+		return string(key) == `"`+name+`"`
 	}
 
 	var decoded string
 
-	return json.Unmarshal(key, &decoded) == nil && decoded == "model"
+	return json.Unmarshal(key, &decoded) == nil && decoded == name
+}
+
+func withLongContext(body []byte) []byte {
+	// A printed body carries long context as -f prints it, so a replay keeps what this run sends,
+	// and a body's own false does not turn off the flag or the variable.
+	object := bytes.TrimSpace(body)
+	if !bytes.HasPrefix(object, []byte("{")) || !json.Valid(object) {
+		return body
+	}
+
+	spans := keyValues(object, "long_context")
+	if len(spans) == 0 {
+		inner := bytes.TrimSpace(object[1 : len(object)-1])
+		if len(inner) == 0 {
+			return []byte(`{"long_context":true}`)
+		}
+
+		return slices.Concat(object[:len(object)-1], []byte(`,"long_context":true}`))
+	}
+
+	filled, at := []byte{}, 0
+
+	for _, span := range spans {
+		filled = slices.Concat(filled, object[at:span[0]], []byte("true"))
+		at = span[1]
+	}
+
+	return append(filled, object[at:]...)
 }
 
 func blankModel(value []byte) bool {
