@@ -14,8 +14,8 @@ import (
 )
 
 const (
-	envMock  = plan.MockVariable
-	flagMock = plan.MockFlag
+	envMock  = "ONESIE_MOCK"
+	flagMock = "--mock"
 )
 
 func mockSource(lookupEnv func(string) (string, bool), flag string) (path, spelled string) {

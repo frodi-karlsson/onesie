@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/frodi-karlsson/onesie-go"
@@ -12,77 +11,13 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/qfile"
 )
 
-func configOf(flags runConfig, facts runFacts) plan.Config {
-	cfg := plan.Config{
-		Raw:            flags.raw,
-		Quiet:          flags.quiet,
-		HasAssert:      len(flags.assert) > 0 || facts.assert != "",
-		HasAbstainIf:   len(flags.abstainIf) > 0 || facts.abstainIf != "",
-		Output:         flags.output,
-		HasState:       flags.hasState,
-		HasStateFile:   flags.hasStateFile,
-		HasImage:       len(flags.images) > 0,
-		ImageFields:    flags.imageFields,
-		LinesInput:     flags.inputMode == input.Lines,
-		HasMap:         flags.hasMap,
-		HasID:          flags.hasID,
-		Replace:        flags.replace,
-		FileName:       flags.file,
-		HasAsk:         asked(flags.events),
-		GroupFlags:     eventNames(flags.events),
-		HasPositional:  flags.positional != "",
-		HasModel:       flags.hasModel,
-		Usage:          flags.usage,
-		PrintQuestions: flags.printQuestions,
-		PrintRequest:   flags.printRequest,
-		Stats:          flags.stats,
-		Streaming:      flags.inputMode.Streaming(),
-		RequestMode:    flags.inputMode == input.Request,
-		ListModels:     flags.listModels,
-		InputName:      inputName(flags.input),
-		HasInput:       flags.hasInput,
-		Unordered:      flags.unordered,
-		StopOnError:    flags.stopOnError,
-		NoDedup:        flags.noDedup,
-		Cache:          flags.cache,
-		Out:            flags.out,
-		Resume:         flags.resume,
-		Prune:          flags.prune,
-		StopOnAssert:   flags.stopOnAssert,
-		SkipBlank:      flags.skipBlank,
-		Merge:          merging(flags),
-		MergeName:      mergeName(flags),
-		HasMergeKey:    flags.mergeKey != "",
-		Jobs:           flags.jobs,
-		JobsSet:        flags.jobsSet,
-		Mock:           flags.mockSpelled,
-
-		Timeout:          flags.timeout,
-		TimeoutSet:       flags.timeoutSet,
-		Retries:          flags.retries,
-		RetriesSet:       flags.retriesSet,
-		MaxRetryAfter:    flags.maxRetryAfter,
-		MaxRetryAfterSet: flags.maxRetryAfterSet,
-	}
-
-	if facts.assert != "" && len(flags.assert) == 0 {
-		cfg.AssertName = plan.Spelling(plan.OriginFile, "--assert")
-	}
-
-	if facts.abstainIf != "" && len(flags.abstainIf) == 0 {
-		cfg.AbstainIfName = plan.Spelling(plan.OriginFile, "--abstain-if")
-	}
-
-	return cfg
-}
-
 func build(settings rootSettings, flags runConfig, ignoreFileJudgment bool) (*invocation, []string, error) {
 	events, positional := flags.events, flags.positional
 
 	// Every mode except --list-models and -i request needs a question, and reporting that here
 	// rather than from Assemble keeps the message the same whichever source was missing.
 	if positional == "" && len(events) == 0 && flags.file == "" {
-		return nil, nil, errors.New("no question given. Pass a question, --ask, or -f")
+		return nil, nil, errNoQuestion
 	}
 
 	var (
@@ -140,7 +75,7 @@ func build(settings rootSettings, flags runConfig, ignoreFileJudgment bool) (*in
 
 	built.LongContext = flags.env.longContext || (loaded != nil && loaded.LongContext)
 
-	warnings, err := plan.Validate(built, configOf(flags, facts))
+	warnings, err := validatePlan(built, flags, facts)
 	if err != nil {
 		return nil, warnings, err
 	}

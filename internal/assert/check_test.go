@@ -854,7 +854,7 @@ func assembledPlan(t *testing.T) *plan.Plan {
 		t.Fatalf("Assemble error = %v, want no error", err)
 	}
 
-	if _, err := plan.Validate(built, plan.Config{}); err != nil {
+	if _, err := plan.Validate(built, ""); err != nil {
 		t.Fatalf("Validate error = %v, want no error", err)
 	}
 

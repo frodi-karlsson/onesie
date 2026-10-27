@@ -325,20 +325,21 @@ func checkCalibrate(cmd *cobra.Command, flags runConfig, calib calibrateFlags) (
 		}
 	}
 
-	// A dry run is left to plan, whose message drops --resume rather than asking for an --id it
-	// would then refuse as well.
+	// A dry run is left to the flag rules, whose message drops --resume rather than asking for an
+	// --id it would then refuse as well.
 	if flags.resume && !flags.hasID && !flags.printRequest {
 		return nil, errors.New(
 			"calibrate resumes by id, since which records are asked follows the labels. Pass --id")
 	}
 
-	// A resume is left to plan, whose message names --resume as the flag with nothing to do.
+	// A resume is left to the flag rules, whose message names --resume as the flag with nothing to
+	// do.
 	if flags.printRequest && flags.out != "" && !flags.resume {
 		return nil, errors.New("--print-request writes request bodies to stdout, " +
 			"so --out has no answers to hold. Drop --out")
 	}
 
-	// A dry run is left to plan, whose message names --print-request as the reason.
+	// A dry run is left to the flag rules, whose message names --print-request as the reason.
 	if flags.usage && !flags.printRequest && flags.out == "" && calib.report != "json" {
 		return nil, errors.New("--usage adds token counts to the answers file or the json report, " +
 			"and this run writes neither")

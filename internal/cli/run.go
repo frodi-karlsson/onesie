@@ -46,7 +46,8 @@ func run(
 	// would send the user to the wrong flag. --list-models comes first, so it names itself rather
 	// than the mode it was combined with.
 	if flags.listModels {
-		if checkErr := checkFlags(configOf(flags, runFacts{})); checkErr != nil {
+		// The only hint is -j on one record, which --list-models refuses and -i request never is.
+		if _, checkErr := checkFlags(flags, runFacts{}); checkErr != nil {
 			return checkErr
 		}
 
@@ -58,7 +59,7 @@ func run(
 	}
 
 	if inputMode == input.Request {
-		if checkErr := checkFlags(configOf(flags, runFacts{})); checkErr != nil {
+		if _, checkErr := checkFlags(flags, runFacts{}); checkErr != nil {
 			return checkErr
 		}
 
@@ -392,13 +393,6 @@ func delimitedInput(name string) bool {
 	return err == nil && mode.Delimited()
 }
 
-func checkFlags(cfg plan.Config) error {
-	// The only warning is -j on one record, which --list-models refuses and -i request never is.
-	_, err := plan.CheckFlags(cfg)
-
-	return err
-}
-
 func asked(events []argv.Event) bool {
 	for _, event := range events {
 		if event.Name == "ask" {
@@ -407,15 +401,6 @@ func asked(events []argv.Event) bool {
 	}
 
 	return false
-}
-
-func eventNames(events []argv.Event) []string {
-	names := make([]string, 0, len(events))
-	for _, event := range events {
-		names = append(names, event.Name)
-	}
-
-	return names
 }
 
 func inputName(flag string) string {
