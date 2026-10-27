@@ -41,7 +41,7 @@ func TestProfileManagerCreate(t *testing.T) {
 			backend: newItemBackend(nil),
 			wantNotices: []creds.Notice{
 				{Kind: creds.KeyInKeychain, Account: "work@{hash}"},
-				{Kind: creds.FirstDefault, Name: "work"},
+				{Kind: creds.FirstDefault},
 			},
 			wantFile: &creds.Profiles{Default: "work", Profiles: map[string]creds.Profile{"work": {
 				Provider: "typesafe", Store: creds.StoreKeychain, Account: "work@{hash}", KeyEnd: "6789",
@@ -65,8 +65,7 @@ func TestProfileManagerCreate(t *testing.T) {
 			profiles: homeOnly(),
 			backend:  &itemBackend{items: map[string]string{}, setErrs: []error{locked}},
 			wantNotices: []creds.Notice{{
-				Kind: creds.KeyInFile, Path: "{path}",
-				Err: &creds.KeychainError{Op: "store the key in", Err: locked},
+				Kind: creds.KeyInFile, Err: &creds.KeychainError{Op: "store the key in", Err: locked},
 			}},
 			wantFile: &creds.Profiles{Default: "home", Profiles: map[string]creds.Profile{
 				"home": {Provider: "typesafe", APIKey: "SECRET-HOME"},
@@ -298,7 +297,7 @@ func TestProfileManagerDelete(t *testing.T) {
 			profiles:    two,
 			deleted:     "work",
 			backend:     newItemBackend(map[string]string{"work@{hash}": "SECRET-WORK"}),
-			wantNotices: []creds.Notice{{Kind: creds.DefaultDeleted, Name: "work"}},
+			wantNotices: []creds.Notice{{Kind: creds.DefaultDeleted}},
 			wantFile: &creds.Profiles{Profiles: map[string]creds.Profile{
 				"home": {Provider: "typesafe", APIKey: "SECRET-HOME"},
 			}},
@@ -330,7 +329,7 @@ func TestProfileManagerDelete(t *testing.T) {
 			deleted:  "work",
 			backend:  &itemBackend{items: map[string]string{"work@{hash}": "SECRET-WORK"}, deleteErr: locked},
 			wantNotices: []creds.Notice{
-				{Kind: creds.DefaultDeleted, Name: "work"},
+				{Kind: creds.DefaultDeleted},
 				{
 					Kind: creds.ItemLeftBehind, Account: "work@{hash}",
 					Err: &creds.KeychainError{Op: "remove the key from", Err: locked},
@@ -365,7 +364,9 @@ func TestProfileManagerDelete(t *testing.T) {
 
 			tc.backend.fill(fill)
 
-			notices, err := newManager(tc.backend, tc.failWrite).Delete(path, profiles, tc.deleted)
+			notices, err := newManager(tc.backend, tc.failWrite).Delete(creds.Change{
+				Path: path, Profiles: profiles, Name: tc.deleted,
+			})
 
 			want := changeWant{
 				err: tc.wantErr, notices: tc.wantNotices, file: tc.wantFile, items: tc.wantItems, backend: tc.backend,
@@ -448,7 +449,7 @@ func checkChange(
 
 	wantNotices := make([]creds.Notice, 0, len(want.notices))
 	for _, notice := range want.notices {
-		notice.Account, notice.Path = fill(notice.Account), fill(notice.Path)
+		notice.Account = fill(notice.Account)
 		wantNotices = append(wantNotices, notice)
 	}
 
@@ -487,7 +488,7 @@ func shown(notices []creds.Notice) []shownNotice {
 	lines := make([]shownNotice, 0, len(notices))
 	for _, notice := range notices {
 		lines = append(lines, shownNotice{
-			kind: notice.Kind, name: notice.Name, account: notice.Account, path: notice.Path, err: errText(notice.Err),
+			kind: notice.Kind, account: notice.Account, err: errText(notice.Err),
 		})
 	}
 
@@ -495,8 +496,8 @@ func shown(notices []creds.Notice) []shownNotice {
 }
 
 type shownNotice struct {
-	kind                     creds.NoticeKind
-	name, account, path, err string
+	kind         creds.NoticeKind
+	account, err string
 }
 
 func errText(err error) string {

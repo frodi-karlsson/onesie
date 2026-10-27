@@ -14,11 +14,11 @@ const (
 	SaveWarning NoticeKind = iota + 1
 	// KeyInKeychain means the key went into the keychain item Account.
 	KeyInKeychain
-	// KeyInFile means the keychain refused the key with Err, so it went into the file at Path.
+	// KeyInFile means the keychain refused the key with Err, so it went into the profiles file.
 	KeyInFile
-	// FirstDefault means profile Name became the default, as the first profile.
+	// FirstDefault means the profile created became the default, as the first profile.
 	FirstDefault
-	// DefaultDeleted means profile Name was the default, so no profile is the default now.
+	// DefaultDeleted means the profile deleted was the default, so no profile is the default now.
 	DefaultDeleted
 	// ItemLeftBehind means the keychain item Account could not be removed, for Err.
 	ItemLeftBehind
@@ -57,7 +57,7 @@ func (m *ProfileManager) Create(change Change) ([]Notice, error) {
 		return nil, err
 	}
 
-	stored, notices, err := m.storeKey(change.Profile, key, account, change.Path, change.ToFile)
+	stored, notices, err := m.storeKey(change.Profile, key, account, change.ToFile)
 	if err != nil {
 		return nil, err
 	}
@@ -66,7 +66,7 @@ func (m *ProfileManager) Create(change Change) ([]Notice, error) {
 
 	if len(change.Profiles.Profiles) == 0 {
 		profiles.Default = change.Name
-		notices = append(notices, Notice{Kind: FirstDefault, Name: change.Name})
+		notices = append(notices, Notice{Kind: FirstDefault})
 	}
 
 	warnings, err := m.save(change.Path, profiles)
@@ -106,7 +106,7 @@ func (m *ProfileManager) Update(change Change) ([]Notice, error) {
 		return nil, err
 	}
 
-	stored, notices, err := m.storeKey(change.Profile, key, account, change.Path, change.ToFile)
+	stored, notices, err := m.storeKey(change.Profile, key, account, change.ToFile)
 	if err != nil {
 		return nil, err
 	}
@@ -132,9 +132,10 @@ func (m *ProfileManager) Update(change Change) ([]Notice, error) {
 	return notices, nil
 }
 
-// Delete removes profile name from the profiles file at path, which holds profiles now, then its
-// keychain item unless another profile names it. Deleting the last profile removes the file.
-func (m *ProfileManager) Delete(path string, profiles Profiles, name string) ([]Notice, error) {
+// Delete removes the named profile, then its keychain item unless another profile names it. Deleting
+// the last profile removes the file.
+func (m *ProfileManager) Delete(change Change) ([]Notice, error) {
+	path, profiles, name := change.Path, change.Profiles, change.Name
 	rest := profiles.without(name)
 
 	var notices []Notice
@@ -158,7 +159,7 @@ func (m *ProfileManager) Delete(path string, profiles Profiles, name string) ([]
 	}
 
 	if profiles.Default == name && len(rest.Profiles) > 0 {
-		notices = append(notices, Notice{Kind: DefaultDeleted, Name: name})
+		notices = append(notices, Notice{Kind: DefaultDeleted})
 	}
 
 	// The file names the item until the save, so the delete waits for it. A hand written file can name
@@ -172,8 +173,8 @@ func (m *ProfileManager) Delete(path string, profiles Profiles, name string) ([]
 	return notices, nil
 }
 
-// Change is one profile to write into the profiles file at Path, which holds Profiles now. ReadKey
-// reads the new key, and Update keeps the key as it is when ReadKey is nil.
+// Change names one profile in the profiles file at Path, which holds Profiles now. ReadKey reads the
+// new key, Update keeps the key when ReadKey is nil, and Delete needs no Profile, ToFile or ReadKey.
 type Change struct {
 	Path     string
 	Profiles Profiles
@@ -183,13 +184,11 @@ type Change struct {
 	ReadKey  func() (string, error)
 }
 
-// Notice is one thing a profile change tells the user beside its outcome. Kind says what, and Name,
-// Account, Path and Err fill it in.
+// Notice is one thing a profile change tells the user beside its outcome. Kind says what, and
+// Account and Err fill it in.
 type Notice struct {
 	Kind    NoticeKind
-	Name    string
 	Account string
-	Path    string
 	Err     error
 }
 
@@ -228,7 +227,7 @@ func keychainItem(profile Profile) string {
 }
 
 func (m *ProfileManager) storeKey(
-	profile Profile, key, account, path string, toFile bool,
+	profile Profile, key, account string, toFile bool,
 ) (stored Profile, notices []Notice, err error) {
 	profile.APIKey, profile.Store, profile.Account, profile.KeyEnd = "", "", "", ""
 
@@ -253,7 +252,7 @@ func (m *ProfileManager) storeKey(
 
 	profile.APIKey = key
 
-	return profile, []Notice{{Kind: KeyInFile, Path: path, Err: err}}, nil
+	return profile, []Notice{{Kind: KeyInFile, Err: err}}, nil
 }
 
 func (m *ProfileManager) save(path string, profiles Profiles) ([]Notice, error) {

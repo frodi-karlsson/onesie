@@ -155,12 +155,13 @@ func profileCreate(
 		return refused
 	}
 
-	notices, err := creds.NewProfileManager(settings.credStore, settings.keychain).Create(creds.Change{
+	change := creds.Change{
 		Path: path, Profiles: opened.Profiles, Name: name, Profile: profile, ToFile: fields.toFile,
 		ReadKey: func() (string, error) { return readKey(cmd, settings, "profile create") },
-	})
+	}
+	notices, err := creds.NewProfileManager(settings.credStore, settings.keychain).Create(change)
 
-	return reported(cmd, notices, err)
+	return reported(cmd, change, notices, err)
 }
 
 func newProfileUpdateCmd(settings rootSettings, flags *runFlags) *cobra.Command {
@@ -250,7 +251,7 @@ func profileUpdate(
 
 	notices, err := creds.NewProfileManager(settings.credStore, settings.keychain).Update(change)
 
-	return reported(cmd, notices, err)
+	return reported(cmd, change, notices, err)
 }
 
 func refuseUpdate(fields profileFlags, changed func(string) bool) error {
@@ -317,9 +318,10 @@ func profileDelete(cmd *cobra.Command, settings rootSettings, flags *runFlags, n
 		return noProfileNamed(name, opened.Profiles)
 	}
 
-	notices, err := creds.NewProfileManager(settings.credStore, settings.keychain).Delete(path, opened.Profiles, name)
+	change := creds.Change{Path: path, Profiles: opened.Profiles, Name: name}
+	notices, err := creds.NewProfileManager(settings.credStore, settings.keychain).Delete(change)
 
-	return reported(cmd, notices, err)
+	return reported(cmd, change, notices, err)
 }
 
 func newProfileUseCmd(settings rootSettings, flags *runFlags) *cobra.Command {
@@ -833,10 +835,10 @@ func saveProfiles(cmd *cobra.Command, settings rootSettings, path string, profil
 	return notify(cmd, warningLines(warnings)...)
 }
 
-func reported(cmd *cobra.Command, notices []creds.Notice, err error) error {
+func reported(cmd *cobra.Command, change creds.Change, notices []creds.Notice, err error) error {
 	lines := make([]string, 0, len(notices))
 	for _, notice := range notices {
-		lines = append(lines, noticeLine(notice))
+		lines = append(lines, noticeLine(notice, change))
 	}
 
 	if err == nil {
@@ -853,18 +855,18 @@ func reported(cmd *cobra.Command, notices []creds.Notice, err error) error {
 	return err
 }
 
-func noticeLine(notice creds.Notice) string {
+func noticeLine(notice creds.Notice, change creds.Change) string {
 	switch notice.Kind {
 	case creds.SaveWarning:
 		return warningLine(notice.Err)
 	case creds.KeyInKeychain:
 		return "stored the key in the OS keychain as " + notice.Account
 	case creds.KeyInFile:
-		return "warning: " + notice.Err.Error() + ". The key is in " + notice.Path + " instead"
+		return "warning: " + notice.Err.Error() + ". The key is in " + change.Path + " instead"
 	case creds.FirstDefault:
-		return "onesie: " + quotedName(notice.Name) + " is the default profile, since it is the first"
+		return "onesie: " + quotedName(change.Name) + " is the default profile, since it is the first"
 	case creds.DefaultDeleted:
-		return "onesie: " + quotedName(notice.Name) + " was the default, so no profile is the default now. " +
+		return "onesie: " + quotedName(change.Name) + " was the default, so no profile is the default now. " +
 			"Run onesie profile use NAME to choose one"
 	case creds.ItemLeftBehind:
 		return "warning: " + notice.Err.Error() + ". The keychain item " + notice.Account + " is left behind"
