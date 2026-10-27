@@ -33,6 +33,7 @@ func TestProfileManagerCreate(t *testing.T) {
 		wantErr     error
 		wantNotices []creds.Notice
 		wantFile    *creds.Profiles
+		wantNoFile  bool
 		wantItems   map[string]string
 		wantNoRead  bool
 	}{
@@ -102,10 +103,11 @@ func TestProfileManagerCreate(t *testing.T) {
 			wantItems: map[string]string{"work@{hash}": key},
 		},
 		{
-			name:      "should fail without the file when the keychain times out",
-			backend:   &itemBackend{items: map[string]string{}, setErrs: []error{creds.ErrKeychainTimeout}},
-			wantErr:   creds.ErrKeychainTimeout,
-			wantItems: map[string]string{},
+			name:       "should fail without the file when the keychain times out",
+			backend:    &itemBackend{items: map[string]string{}, setErrs: []error{creds.ErrKeychainTimeout}},
+			wantErr:    creds.ErrKeychainTimeout,
+			wantNoFile: true,
+			wantItems:  map[string]string{},
 		},
 	}
 
@@ -131,6 +133,10 @@ func TestProfileManagerCreate(t *testing.T) {
 
 			if read == tc.wantNoRead {
 				t.Errorf("read the key = %v, want %v", read, !tc.wantNoRead)
+			}
+
+			if _, statErr := os.Stat(path); tc.wantNoFile && !errors.Is(statErr, os.ErrNotExist) {
+				t.Errorf("profiles.json is there, stat error = %v", statErr)
 			}
 		})
 	}
