@@ -873,9 +873,10 @@ table, and `onesie calibrate --help` lists the codes calibrate uses.
   waiting. Under `--state -` it prints `onesie: waiting for text on stdin. Close stdin when the text
   is complete.` instead. A stream never prints it, since a slow producer is normal there and
   `--state` does not apply to a stream.
-- `-f` also takes a request body, as `--print-request` writes it. For one record, a body that holds
-  a `state` sends that state, and onesie then never reads stdin, since it cannot tell a pipe that
-  holds text from one that is still open without waiting on it. `--state` or `--state-file` beside
+- `-f` also takes a request body, as `--print-request` writes it, a positional question's body
+  keyed `answer` included. For one record, a body that holds a `state` sends that state, and
+  onesie then never reads stdin, since it cannot tell a pipe that holds text from one that is
+  still open without waiting on it. `--state` or `--state-file` beside
   such a body exits 2, naming both. `-i request` refuses both flags the same way, since each body
   there holds its own state. A stream and `calibrate` read their records from stdin as usual and
   send each one as its state, so they use the body only for its questions, and say on stderr that

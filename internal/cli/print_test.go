@@ -1489,6 +1489,45 @@ func TestPrintRequest(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("should load a printed body back through -f", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name  string
+			args  []string
+			stdin string
+		}{
+			{name: "should load a positional question under --state", args: []string{"is this urgent", "--state", "hi"}},
+			{name: "should load a positional pick under --state", args: []string{"who", "--pick", "a,b", "--state", "hi"}},
+			{name: "should load a positional question printed from a stream", args: []string{"is this urgent", "-i", "lines"}, stdin: "hi\n"},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				printed, errOut, code := runOfflineStdin(t, append(slices.Clone(tc.args), "--print-request"), tc.stdin)
+				if code != ExitOK {
+					t.Fatalf("printing exit code = %d\nstderr:\n%s", code, errOut)
+				}
+
+				body := filepath.Join(t.TempDir(), "body.json")
+				if err := os.WriteFile(body, []byte(strings.Split(printed, "\n")[0]), 0o600); err != nil {
+					t.Fatal(err)
+				}
+
+				reloaded, errOut, code := runOfflineStdin(t, []string{"-f", body, "--print-request"}, "")
+				if code != ExitOK {
+					t.Fatalf("reloading exit code = %d\nstderr:\n%s", code, errOut)
+				}
+
+				if reloaded != strings.Split(printed, "\n")[0]+"\n" {
+					t.Errorf("reloaded:\n%s\nprinted:\n%s", reloaded, printed)
+				}
+			})
+		}
+	})
 }
 
 func runRecorded(t *testing.T, args []string, stdin string) (string, string, int) {

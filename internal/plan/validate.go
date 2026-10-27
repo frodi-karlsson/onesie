@@ -867,8 +867,9 @@ func checkDuplicateIDs(p *Plan) error {
 
 func checkQuestion(q *Question) (string, error) {
 	// The positional question is keyed answer by design, so the reserved list only applies to an
-	// id the user chose.
-	if q.Origin.Chosen() && (reserved(q.ID) || q.ID == PositionalID) {
+	// id the user chose. A request body may carry answer, since --print-request writes a positional
+	// question under it and -f reads that body back.
+	if q.Origin.Chosen() && (reserved(q.ID) || (q.ID == PositionalID && q.Origin != OriginBody)) {
 		return "", fmt.Errorf("onesie: question id '%s' is reserved", q.ID)
 	}
 
