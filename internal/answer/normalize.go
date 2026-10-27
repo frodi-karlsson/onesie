@@ -123,10 +123,11 @@ func checkChoice(q plan.Question, raw *onesie.ChoiceAnswer) error {
 }
 
 func checkScore(q plan.Question, raw *onesie.ScoreAnswer) error {
-	top := len(q.Levels) - 1
-	if top < 0 {
-		top = len(raw.Probabilities) - 1
+	if len(q.Levels) == 0 {
+		return unusable("question '%s' has no levels to score against", q.ID)
 	}
+
+	top := len(q.Levels) - 1
 
 	if math.IsNaN(raw.Score) || raw.Score < 0 || raw.Score > float64(top) {
 		return unusable("question '%s' has score %s, which lies outside [0,%d]", q.ID, num.Format(raw.Score), top)
@@ -241,17 +242,12 @@ func normalizeScore(q plan.Question, raw *onesie.ScoreAnswer) *Answer {
 	indexes := sortedIndexes(raw.Probabilities)
 	winner := modal(indexes, raw.Probabilities)
 
-	levels := len(q.Levels)
-	if levels == 0 {
-		levels = len(indexes)
-	}
-
 	score := raw.Score
 	confidence := raw.Confidence
 
 	norm := 0.0
-	if levels > 1 {
-		norm = num.Rounded(score / float64(levels-1))
+	if top := len(q.Levels) - 1; top > 0 {
+		norm = num.Rounded(score / float64(top))
 	}
 
 	out := &Answer{

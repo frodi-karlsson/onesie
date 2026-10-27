@@ -244,6 +244,11 @@ func TestNormalize(t *testing.T) {
 				want: "question 'severity' has no p for level 2",
 			},
 			{
+				name: "should refuse a score to a question with no levels", question: plan.Question{ID: "bare", Shape: plan.Rate},
+				raw:  score(0, 1, map[string]float64{}),
+				want: "question 'bare' has no levels to score against",
+			},
+			{
 				name: "should refuse a score confidence below 0", question: severity,
 				raw:  score(1, -0.5, levels),
 				want: "question 'severity' has confidence -0.5, which lies outside [0,1]",
