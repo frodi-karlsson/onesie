@@ -358,7 +358,7 @@ func runInputs(settings rootSettings, flags runConfig, inputs answersfile.Finger
 		return answersfile.FingerprintInputs{}, err
 	}
 
-	inputs.Provider = chosen.provider.Name
+	inputs.Provider = chosen.provider.Name()
 	inputs.MapSource = flags.mapSource
 	inputs.IDSource = flags.idSource
 

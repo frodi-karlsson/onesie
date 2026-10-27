@@ -27,17 +27,17 @@ func TestClientBuilder(t *testing.T) {
 		{
 			name: "should refuse a --base-url whose password holds a question mark",
 			args: []string{"is this urgent", "--state", "hello", "-o", "json", "--base-url", "https://u:1?SECRET-x@proxy.example"},
-			env:  map[string]string{onesie.EnvAPIKey: "SECRET-ENV"},
+			env:  map[string]string{onesie.TypeSafe().EnvAPIKey(): "SECRET-ENV"},
 		},
 		{
 			name: "should refuse a --base-url with a query before any request",
 			args: []string{"--list-models", "--base-url", "{url}/?SECRET-x"},
-			env:  map[string]string{onesie.EnvAPIKey: "SECRET-ENV"},
+			env:  map[string]string{onesie.TypeSafe().EnvAPIKey(): "SECRET-ENV"},
 		},
 		{
 			name: "should refuse a base url variable with a fragment before any request",
 			args: []string{"is this urgent", "--state", "hello", "-o", "json"},
-			env:  map[string]string{onesie.EnvAPIKey: "SECRET-ENV", onesie.EnvBaseURL: "{url}/#SECRET-x"},
+			env:  map[string]string{onesie.TypeSafe().EnvAPIKey(): "SECRET-ENV", onesie.TypeSafe().EnvBaseURL(): "{url}/#SECRET-x"},
 		},
 		{
 			name: "should refuse a profile's base url with a query before profile test sends a request",
@@ -63,7 +63,7 @@ func TestClientBuilder(t *testing.T) {
 		}{
 			name: "should refuse a --base-url " + unclear.name + " before any request",
 			args: []string{"--list-models", "--base-url", strings.ReplaceAll(unclear.url, "proxy.example", "{host}")},
-			env:  map[string]string{onesie.EnvAPIKey: "SECRET-ENV"},
+			env:  map[string]string{onesie.TypeSafe().EnvAPIKey(): "SECRET-ENV"},
 		})
 	}
 
@@ -130,17 +130,17 @@ func TestClientBuilder(t *testing.T) {
 			{
 				name: "should say a --base-url with a scheme and no host names no host",
 				args: []string{"--base-url", "https://"},
-				want: "onesie: base URL https:// names no host. Write it as https://HOST\n",
+				want: "onesie: base URL https:// names no host\n",
 			},
 			{
 				name: "should say a --base-url with no scheme is not http or https",
 				args: []string{"--base-url", "proxy.example"},
-				want: "onesie: base URL proxy.example is not an http or https URL\n",
+				want: "onesie: the base URL is not an http or https URL\n",
 			},
 			{
 				name: "should word profile create the same way",
 				args: []string{"profile", "create", "w", "--provider", "typesafe", "--base-url", "https://"},
-				want: "onesie: base URL https:// names no host. Write it as https://HOST\n",
+				want: "onesie: base URL https:// names no host\n",
 			},
 		}
 
@@ -154,7 +154,7 @@ func TestClientBuilder(t *testing.T) {
 				}
 
 				_, errOut, code := runInConfig(t, t.TempDir(), args, "SECRET-NEW-0123456789\n",
-					map[string]string{onesie.EnvAPIKey: "SECRET-TEST"})
+					map[string]string{onesie.TypeSafe().EnvAPIKey(): "SECRET-TEST"})
 				if code != ExitUsage || errOut != tc.want {
 					t.Errorf("exit code = %d, stderr = %q, want %d and %q", code, errOut, ExitUsage, tc.want)
 				}
@@ -189,15 +189,15 @@ func TestClientBuilder(t *testing.T) {
 	}{
 		{
 			name: "should send the profile's key and not the provider's variable", profiles: fileWork,
-			args: asking(), env: map[string]string{onesie.EnvAPIKey: "SECRET-ENV", onesie.EnvBaseURL: "{other}"},
-			wantAuth: "Bearer SECRET-WORK", wantModel: onesie.DefaultModel,
+			args: asking(), env: map[string]string{onesie.TypeSafe().EnvAPIKey(): "SECRET-ENV", onesie.TypeSafe().EnvBaseURL(): "{other}"},
+			wantAuth: "Bearer SECRET-WORK", wantModel: onesie.TypeSafe().DefaultModel(),
 		},
 		{
 			name: "should send the key the profile's keychain item holds",
 			profiles: `{"default":"work","profiles":{"work":{"provider":"typesafe","store":"keychain",` +
 				`"account":"work@abc","base_url":"{url}"}}}`,
 			args: asking(), items: map[string]string{"work@abc": "SECRET-KC"},
-			wantAuth: "Bearer SECRET-KC", wantModel: onesie.DefaultModel,
+			wantAuth: "Bearer SECRET-KC", wantModel: onesie.TypeSafe().DefaultModel(),
 		},
 		{
 			name: "should send the profile's model", profiles: pinnedWork, args: asking(),
@@ -209,12 +209,12 @@ func TestClientBuilder(t *testing.T) {
 		},
 		{
 			name: "should let the profile's model beat TYPESAFE_DEFAULT_MODEL", profiles: pinnedWork, args: asking(),
-			env:      map[string]string{onesie.EnvDefaultModel: "env-model"},
+			env:      map[string]string{onesie.TypeSafe().EnvDefaultModel(): "env-model"},
 			wantAuth: "Bearer SECRET-WORK", wantModel: "jev-1.13.0",
 		},
 		{
 			name: "should take TYPESAFE_DEFAULT_MODEL when the profile names no model", profiles: fileWork,
-			args: asking(), env: map[string]string{onesie.EnvDefaultModel: "env-model"},
+			args: asking(), env: map[string]string{onesie.TypeSafe().EnvDefaultModel(): "env-model"},
 			wantAuth: "Bearer SECRET-WORK", wantModel: "env-model",
 		},
 		{
@@ -238,15 +238,15 @@ func TestClientBuilder(t *testing.T) {
 		},
 		{
 			name: "should keep the profile's base_url ahead of TYPESAFE_BASE_URL", profiles: fileWork, args: asking(),
-			env:      map[string]string{onesie.EnvBaseURL: "{other}"},
-			wantAuth: "Bearer SECRET-WORK", wantModel: onesie.DefaultModel,
+			env:      map[string]string{onesie.TypeSafe().EnvBaseURL(): "{other}"},
+			wantAuth: "Bearer SECRET-WORK", wantModel: onesie.TypeSafe().DefaultModel(),
 		},
 		{
 			name: "should keep --base-url ahead of the profile's base_url",
 			profiles: `{"default":"work","profiles":{"work":{"provider":"typesafe","api_key":"SECRET-WORK",` +
 				`"base_url":"{other}"}}}`,
 			args:     asking("--base-url", "{url}"),
-			wantAuth: "Bearer SECRET-WORK", wantModel: onesie.DefaultModel,
+			wantAuth: "Bearer SECRET-WORK", wantModel: onesie.TypeSafe().DefaultModel(),
 		},
 		{
 			name: "should name the profile's base_url when it ends in /v1",
@@ -254,7 +254,7 @@ func TestClientBuilder(t *testing.T) {
 				`"base_url":"{url}/v1"}}}`,
 			args:     asking(),
 			wantErr:  []string{"warning: the profile's base_url ends in /v1 and onesie adds the API path itself"},
-			wantAuth: "Bearer SECRET-WORK", wantModel: onesie.DefaultModel,
+			wantAuth: "Bearer SECRET-WORK", wantModel: onesie.TypeSafe().DefaultModel(),
 		},
 		{
 			name:     "should name profile update for a cloudflare profile with no account",
@@ -337,7 +337,7 @@ func TestClientBuilder(t *testing.T) {
 		{
 			name:     "should refuse a plain http --base-url to another host",
 			args:     []string{"--list-models", "--base-url", "http://proxy.example"},
-			env:      map[string]string{onesie.EnvAPIKey: "SECRET-ENV"},
+			env:      map[string]string{onesie.TypeSafe().EnvAPIKey(): "SECRET-ENV"},
 			wantCode: ExitUsage,
 			wantErr: []string{"onesie: --base-url http://proxy.example is plain http to a host other than this " +
 				"machine, so the API key would cross the network unencrypted. Use https, or pass --allow-http"},
@@ -345,7 +345,7 @@ func TestClientBuilder(t *testing.T) {
 		{
 			name:     "should refuse a plain http TYPESAFE_BASE_URL to another host",
 			args:     asking(),
-			env:      map[string]string{onesie.EnvAPIKey: "SECRET-ENV", onesie.EnvBaseURL: "http://proxy.example"},
+			env:      map[string]string{onesie.TypeSafe().EnvAPIKey(): "SECRET-ENV", onesie.TypeSafe().EnvBaseURL(): "http://proxy.example"},
 			wantCode: ExitUsage,
 			wantErr:  []string{"onesie: TYPESAFE_BASE_URL http://proxy.example is plain http", "--allow-http"},
 		},
@@ -368,21 +368,21 @@ func TestClientBuilder(t *testing.T) {
 		{
 			name:     "should refuse a plain http --base-url from calibrate",
 			args:     []string{"calibrate", "--ask", "u=is this urgent", "-i", "jsonl", "--map", ".body", "--label", "u=.u", "--base-url", "http://proxy.example"},
-			env:      map[string]string{onesie.EnvAPIKey: "SECRET-ENV"},
+			env:      map[string]string{onesie.TypeSafe().EnvAPIKey(): "SECRET-ENV"},
 			wantCode: ExitUsage,
 			wantErr:  []string{"is plain http", "--allow-http"},
 		},
 		{
 			name:     "should send to a plain http server on this machine without --allow-http",
 			args:     []string{"--list-models", "--base-url", "{url}"},
-			env:      map[string]string{onesie.EnvAPIKey: "SECRET-ENV"},
+			env:      map[string]string{onesie.TypeSafe().EnvAPIKey(): "SECRET-ENV"},
 			wantCode: ExitOK,
 			notErr:   "plain http",
 		},
 		{
 			name:     "should send to this machine under --allow-http without a warning",
 			args:     []string{"--list-models", "--base-url", "{url}", "--allow-http"},
-			env:      map[string]string{onesie.EnvAPIKey: "SECRET-ENV"},
+			env:      map[string]string{onesie.TypeSafe().EnvAPIKey(): "SECRET-ENV"},
 			wantCode: ExitOK,
 			notErr:   "plain http",
 		},
@@ -615,7 +615,7 @@ func TestPlainHTTPCheck(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			warning, refused := plainHTTPCheck(tc.baseURL, onesie.EnvBaseURL, tc.allowHTTP)
+			warning, refused := plainHTTPCheck(tc.baseURL, onesie.TypeSafe().EnvBaseURL(), tc.allowHTTP)
 
 			if warning != tc.wantWarning {
 				t.Errorf("warning = %q, want %q", warning, tc.wantWarning)
@@ -639,10 +639,10 @@ func TestEndsInVersion(t *testing.T) {
 		baseURL string
 		want    bool
 	}{
-		{name: "should not warn for the typesafe default", baseURL: onesie.TypeSafe().BaseURL},
-		{name: "should not warn for the openrouter default", baseURL: onesie.OpenRouter().BaseURL},
-		{name: "should not warn for the berget default", baseURL: onesie.Berget().BaseURL},
-		{name: "should not warn for the levanto default", baseURL: onesie.Levanto().BaseURL},
+		{name: "should not warn for the typesafe default", baseURL: onesie.TypeSafe().DefaultBaseURL()},
+		{name: "should not warn for the openrouter default", baseURL: onesie.OpenRouter().DefaultBaseURL()},
+		{name: "should not warn for the berget default", baseURL: onesie.Berget().DefaultBaseURL()},
+		{name: "should not warn for the levanto default", baseURL: onesie.Levanto().DefaultBaseURL()},
 		{name: "should not warn for a /v1 that is not the last segment", baseURL: "https://proxy.example/v1/proxy"},
 		{name: "should not warn for a segment that only ends in v1", baseURL: "https://proxy.example/apiv1"},
 		{name: "should warn for a path ending in /v1", baseURL: "https://proxy.example/v1", want: true},
@@ -669,10 +669,10 @@ func TestValidBaseURL(t *testing.T) {
 		want string
 	}{
 		{name: "should take an https URL", url: "https://proxy.example/v1"},
-		{name: "should say a base URL with a scheme and no host names no host", url: "https://", want: "onesie: base URL https:// names no host. Write it as https://HOST"},
-		{name: "should echo a base URL with a path and no host as given", url: "https:///v1", want: "onesie: base URL https:///v1 names no host. Write it as https://HOST"},
-		{name: "should say a base URL that does not parse does not parse", url: "https://x.invalid/%zz", want: `onesie: base URL https://x.invalid/%zz does not parse: invalid URL escape "%zz"`},
-		{name: "should say a base URL with no scheme is not http or https", url: "proxy.example", want: "onesie: base URL proxy.example is not an http or https URL"},
+		{name: "should say a base URL with a scheme and no host names no host", url: "https://", want: "onesie: base URL https:// names no host"},
+		{name: "should show only the scheme of a base URL with a path and no host", url: "https:///v1", want: "onesie: base URL https:// names no host"},
+		{name: "should say a base URL that does not parse does not parse", url: "https://x.invalid/%zz", want: "onesie: the base URL does not parse"},
+		{name: "should say a base URL with no scheme is not http or https", url: "proxy.example", want: "onesie: the base URL is not an http or https URL"},
 		{name: "should refuse a base URL with a query and no host as unclear", url: "https://?x", want: "onesie: " + refusedBaseURL},
 		{name: "should refuse a base URL with userinfo and no scheme as unclear", url: "u:SECRET-pw@proxy.example", want: "onesie: " + refusedBaseURL},
 	}

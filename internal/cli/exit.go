@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/frodi-karlsson/onesie-go"
+	"github.com/frodi-karlsson/onesie/internal/answer"
 	"github.com/frodi-karlsson/onesie/internal/creds"
 	"github.com/frodi-karlsson/onesie/internal/engine"
 	"github.com/frodi-karlsson/onesie/internal/input"
@@ -170,7 +171,7 @@ func firstMatch(err error) failure {
 		return failure{kind: output.KindResponse, status: &status, code: ExitUnavailable}
 	}
 
-	var cannotUse *unusableAnswer
+	var cannotUse *answer.UnusableError
 	if errors.As(err, &cannotUse) {
 		status := http.StatusOK
 
@@ -235,14 +236,6 @@ type failure struct {
 	status *int
 	code   int
 	quiet  bool
-}
-
-type unusableAnswer struct {
-	message string
-}
-
-func (e *unusableAnswer) Error() string {
-	return e.message
 }
 
 type silentError struct {

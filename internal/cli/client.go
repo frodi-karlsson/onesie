@@ -39,6 +39,8 @@ func clientBuilder(info BuildInfo, flags *runFlags, settings rootSettings) clien
 			onesie.WithProvider(chosen.provider),
 			onesie.WithUserAgent("onesie/" + info.Version),
 			onesie.WithEnv(chosen.env(settings.lookupEnv)),
+			// plainHTTPCheck decides plain http below, in the words of the source that set it.
+			onesie.WithInsecureHTTP(),
 		}
 
 		if transport := pooled(settings.transport, flags.jobs); transport != nil {

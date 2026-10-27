@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"maps"
 	"math"
-	"net/http"
 	"slices"
 	"strconv"
 	"strings"
@@ -131,7 +130,7 @@ func writtenFailure(failure map[string]any, refused error) (*Entry, error) {
 		return connectionEntry(), nil
 	case "response":
 		return &Entry{
-			err: &onesie.ResponseError{Status: http.StatusOK, Message: "onesie: mock response onesie could not use"},
+			err: &answer.UnusableError{Message: "mock response onesie could not use"},
 			key: "error response",
 		}, nil
 	case "input":
@@ -153,7 +152,7 @@ func errorStatus(number json.Number) (int, bool) {
 
 func statusEntry(status int) *Entry {
 	return &Entry{
-		err: onesie.NewAPIError(status, fmt.Sprintf("onesie: mock status %d", status)),
+		err: onesie.NewAPIError(status, fmt.Sprintf("mock status %d", status)),
 		key: fmt.Sprintf("error http %d", status),
 	}
 }

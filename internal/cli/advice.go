@@ -13,7 +13,7 @@ import (
 func explain(err error, facts requestFacts) error {
 	helps := longContextHelps(facts.provider, facts.model, facts.longContext)
 
-	return advise(adviseBox(adviseLongContext(err, helps), facts.provider.Name, facts.boxed), facts.model, facts.validated)
+	return advise(adviseBox(adviseLongContext(err, helps), facts.provider.Name(), facts.boxed), facts.model, facts.validated)
 }
 
 type requestFacts struct {
@@ -55,13 +55,13 @@ func advise(err error, model string, validated bool) error {
 		return err
 	}
 
-	if _, isText := api.Body.(string); isText && api.BodyJSON {
+	if _, isText := api.Body.(string); isText {
 		return &advisedError{cause: err, message: messageLine(err.Error())}
 	}
 
 	// Only a missing path or method points at the base URL. An outage, a rate limit or a refused key
 	// arrives from the right server too.
-	if !api.BodyJSON && len(api.RawBody) > 0 &&
+	if api.Body == nil && len(api.RawBody) > 0 &&
 		(api.Status == http.StatusNotFound || api.Status == http.StatusMethodNotAllowed) {
 		return &advisedError{cause: err, message: withNote(err.Error(), "Check that the base URL points at the System One API")}
 	}
@@ -93,7 +93,7 @@ func longContextHelps(provider onesie.Provider, model string, on bool) bool {
 
 func adviseBox(err error, provider string, boxed bool) error {
 	var api *onesie.APIError
-	if !boxed || provider != onesie.TypeSafe().Name || !errors.As(err, &api) ||
+	if !boxed || provider != onesie.TypeSafe().Name() || !errors.As(err, &api) ||
 		api.Status != http.StatusBadRequest || !strings.Contains(strings.ToLower(api.Error()), "invalid request") {
 		return err
 	}
@@ -124,7 +124,7 @@ func keyHint(err error, chosen resolution) error {
 		return err
 	}
 
-	note := "The key came from " + chosen.provider.EnvAPIKey
+	note := "The key came from " + chosen.provider.EnvAPIKey()
 	if chosen.profile != "" {
 		note = "Replace the key with onesie profile update " + creds.QuotedName(chosen.profile) + " --key"
 	}

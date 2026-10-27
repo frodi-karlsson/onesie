@@ -433,12 +433,12 @@ func TestRun(t *testing.T) {
 			wantErr:  "takes no long context",
 		},
 		{
-			name:     "should print -i request bodies under --long-context on cloudflare",
+			name:     "should refuse --print-request under --long-context on cloudflare before reading a body",
 			args:     []string{"-i", "request", "--long-context", "--print-request"},
 			stdin:    `{"state":"s","questions":{"q":{"type":"noul","instructions":"q"}}}` + "\n",
 			env:      cloudflare,
-			wantCode: ExitOK,
-			wantOut:  `"state":"s"`,
+			wantCode: ExitUsage,
+			wantErr:  "onesie: the cloudflare provider takes no long context. The typesafe, openrouter, berget and levanto providers do\n",
 		},
 		{
 			name:     "should refuse --image on levanto before any request",

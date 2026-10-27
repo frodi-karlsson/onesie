@@ -971,7 +971,7 @@ func TestMockAnswerer_Answer(t *testing.T) {
 		a, stats := asker(t, `{"answer":0.9}`, onesie.Levanto())
 
 		_, err = a.answer(t.Context(), recordKey{position: 1}, onesie.Request{
-			Model: onesie.LevantoDefaultModel, State: map[string]any{"photo": "img"}, Questions: questions,
+			Model: onesie.Levanto().DefaultModel(), State: map[string]any{"photo": "img"}, Questions: questions,
 			Assets: onesie.Assets{"img": img},
 		})
 		if err == nil || !strings.Contains(err.Error(), "takes no images") {

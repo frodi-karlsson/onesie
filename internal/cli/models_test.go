@@ -320,7 +320,7 @@ func runRealFactory(t *testing.T, args []string) (string, string, int) {
 		WithStdinTTY(false),
 		WithStdoutTTY(false),
 		WithLookupEnv(lookupFrom(map[string]string{
-			onesie.EnvAPIKey: "test", "BERGET_API_KEY": "test", "LEVANTO_API_KEY": "test",
+			onesie.TypeSafe().EnvAPIKey(): "test", "BERGET_API_KEY": "test", "LEVANTO_API_KEY": "test",
 		})),
 	)
 

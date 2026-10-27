@@ -297,7 +297,7 @@ func TestResolveProfile(t *testing.T) {
 		},
 		{
 			name: "should run typesafe without a profile when there is no file", profiles: creds.Profiles{},
-			env:          map[string]string{onesie.EnvAPIKey: "SECRET-ENV"},
+			env:          map[string]string{onesie.TypeSafe().EnvAPIKey(): "SECRET-ENV"},
 			wantProvider: "typesafe", wantBy: "nothing", wantKeyFrom: sourceEnv,
 		},
 		{
@@ -324,10 +324,10 @@ func TestResolveProfile(t *testing.T) {
 				t.Fatalf("resolveProfile returned an error: %v", err)
 			}
 
-			if got.profile != tc.wantProfile || got.provider.Name != tc.wantProvider || got.by != tc.wantBy ||
+			if got.profile != tc.wantProfile || got.provider.Name() != tc.wantProvider || got.by != tc.wantBy ||
 				got.keyFrom != tc.wantKeyFrom {
 				t.Errorf("resolution = profile %q, provider %q, by %q, key from %q, want %q, %q, %q, %q",
-					got.profile, got.provider.Name, got.by, got.keyFrom,
+					got.profile, got.provider.Name(), got.by, got.keyFrom,
 					tc.wantProfile, tc.wantProvider, tc.wantBy, tc.wantKeyFrom)
 			}
 		})
@@ -433,14 +433,14 @@ func TestResolutionModelFor(t *testing.T) {
 		{name: "should take the profile's model over a blank explicit one", run: pinned, explicit: "  ", want: "jev-1.13.0"},
 		{
 			name: "should let the profile's model beat TYPESAFE_DEFAULT_MODEL", run: pinned,
-			env: map[string]string{onesie.EnvDefaultModel: "env-model"}, want: "jev-1.13.0",
+			env: map[string]string{onesie.TypeSafe().EnvDefaultModel(): "env-model"}, want: "jev-1.13.0",
 		},
 		{
 			name: "should take TYPESAFE_DEFAULT_MODEL when the profile names none", run: unpinned,
-			env: map[string]string{onesie.EnvDefaultModel: "env-model"}, want: "env-model",
+			env: map[string]string{onesie.TypeSafe().EnvDefaultModel(): "env-model"}, want: "env-model",
 		},
-		{name: "should fall back to the built in default", run: unpinned, want: onesie.DefaultModel},
-		{name: "should fall back to the provider's own default", run: berget, want: onesie.BergetDefaultModel},
+		{name: "should fall back to the built in default", run: unpinned, want: onesie.TypeSafe().DefaultModel()},
+		{name: "should fall back to the provider's own default", run: berget, want: onesie.Berget().DefaultModel()},
 	}
 
 	for _, tc := range tests {
@@ -487,12 +487,12 @@ func TestResolutionOptions(t *testing.T) {
 		{
 			name: "should keep the profile's base_url ahead of TYPESAFE_BASE_URL",
 			run:  profileOf(creds.Profile{Provider: "typesafe", APIKey: "SECRET-P", BaseURL: "https://profile.example"}),
-			env:  map[string]string{onesie.EnvBaseURL: "https://env.example"}, want: "https://profile.example",
+			env:  map[string]string{onesie.TypeSafe().EnvBaseURL(): "https://env.example"}, want: "https://profile.example",
 		},
 		{
 			name: "should take TYPESAFE_BASE_URL when the profile has no base_url",
 			run:  profileOf(creds.Profile{Provider: "typesafe", APIKey: "SECRET-P"}),
-			env:  map[string]string{onesie.EnvBaseURL: "https://env.example"}, want: "https://env.example",
+			env:  map[string]string{onesie.TypeSafe().EnvBaseURL(): "https://env.example"}, want: "https://env.example",
 		},
 		{
 			name: "should keep the profile's account_id ahead of CLOUDFLARE_ACCOUNT_ID",
@@ -512,7 +512,7 @@ func TestResolutionOptions(t *testing.T) {
 		{
 			name: "should fall back to the built in URL",
 			run:  profileOf(creds.Profile{Provider: "openrouter", APIKey: "SECRET-P"}),
-			want: onesie.OpenRouter().BaseURL,
+			want: onesie.OpenRouter().DefaultBaseURL(),
 		},
 	}
 
@@ -602,8 +602,8 @@ func TestResolutionEnv(t *testing.T) {
 		opts := []onesie.Option{onesie.WithProvider(run.provider), onesie.WithEnv(run.env(lookupWithKey))}
 
 		_, err = onesie.New(append(opts, run.options("", "  ", lookupWithKey)...)...)
-		if !errors.Is(err, onesie.ErrValidation) || !strings.Contains(err.Error(), "no API key") {
-			t.Errorf("error = %v, want onesie-go's missing key error", err)
+		if !errors.Is(err, onesie.ErrNoAPIKey) {
+			t.Errorf("error = %v, want onesie.ErrNoAPIKey", err)
 		}
 	})
 
@@ -697,7 +697,7 @@ func TestResolutionBaseURLSource(t *testing.T) {
 		{
 			name: "should name the profile's base_url",
 			run:  profileOf(creds.Profile{Provider: "typesafe", APIKey: "SECRET-P", BaseURL: "https://p.example"}),
-			env:  map[string]string{onesie.EnvBaseURL: "https://env.example"}, want: "the profile's base_url",
+			env:  map[string]string{onesie.TypeSafe().EnvBaseURL(): "https://env.example"}, want: "the profile's base_url",
 		},
 		{
 			name: "should name the profile's account_id",
@@ -706,7 +706,7 @@ func TestResolutionBaseURLSource(t *testing.T) {
 		},
 		{
 			name: "should name TYPESAFE_BASE_URL", run: bare,
-			env: map[string]string{onesie.EnvBaseURL: "https://env.example"}, want: onesie.EnvBaseURL,
+			env: map[string]string{onesie.TypeSafe().EnvBaseURL(): "https://env.example"}, want: onesie.TypeSafe().EnvBaseURL(),
 		},
 		{
 			name: "should name CLOUDFLARE_ACCOUNT_ID",

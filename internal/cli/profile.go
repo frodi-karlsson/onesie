@@ -271,7 +271,7 @@ func updated(old creds.Profile, fields profileFlags, changed func(string) bool) 
 	if changed(flagProvider) {
 		profile.Provider = strings.TrimSpace(fields.provider)
 
-		if provider, err := onesie.ProviderNamed(profile.Provider); err == nil && provider.EnvAccountID == "" {
+		if provider, err := onesie.ProviderNamed(profile.Provider); err == nil && provider.EnvAccountID() == "" {
 			profile.AccountID = ""
 		}
 	}
@@ -447,7 +447,7 @@ func inactiveReason(active resolution, err error) string {
 	case err != nil:
 		return "active: none, since " + strings.TrimPrefix(err.Error(), "onesie: ")
 	case active.profile == "":
-		return "active: " + active.by + "=" + active.provider.Name + ", no profile"
+		return "active: " + active.by + "=" + active.provider.Name() + ", no profile"
 	}
 
 	return ""
@@ -479,8 +479,9 @@ func profileShow(cmd *cobra.Command, settings rootSettings, flags *runFlags, arg
 		return err
 	}
 
-	// A hand edited profiles.json skips create's checks, and credentials in its base URL would print whole.
-	if refused := refuseUnclearBaseURL(shown.baseURL); refused != nil {
+	// A hand edited profiles.json and the provider's base URL variable skip create's checks, and
+	// credentials in either would print whole.
+	if refused := refuseUnclearBaseURL(shown.baseURLGiven("", settings.lookupEnv)); refused != nil {
 		return refused
 	}
 
@@ -494,11 +495,6 @@ func profileShow(cmd *cobra.Command, settings rootSettings, flags *runFlags, arg
 		return invalid
 	}
 
-	// Again for what the variables chose, since TYPESAFE_BASE_URL skips create's checks too.
-	if refused := refuseUnclearBaseURL(baseURL); found && refused != nil {
-		return refused
-	}
-
 	baseURLLine := sourceNone
 	if found {
 		baseURLLine = output.Printable(baseURL) + ", " + baseURLOrigin(shown, settings.lookupEnv)
@@ -506,7 +502,7 @@ func profileShow(cmd *cobra.Command, settings rootSettings, flags *runFlags, arg
 
 	lines := []string{
 		"profile: " + cmp.Or(shown.profile, noProfile),
-		"provider: " + shown.provider.Name,
+		"provider: " + shown.provider.Name(),
 		"chosen by: " + shown.by,
 		"key: " + shown.keyLine(),
 		"model: " + output.Printable(shown.modelFor("", settings.lookupEnv)) + ", " +
@@ -538,6 +534,7 @@ func effectiveBaseURL(shown resolution, lookupEnv func(string) (string, bool)) (
 	// order the URL is chosen in is the run's own.
 	opts := []onesie.Option{
 		onesie.WithProvider(shown.provider), onesie.WithEnv(shown.env(lookupEnv)), onesie.WithAPIKey(keyPlaceholder),
+		onesie.WithInsecureHTTP(),
 	}
 
 	if shown.baseURL != "" {
@@ -556,12 +553,12 @@ func baseURLOrigin(shown resolution, lookupEnv func(string) (string, bool)) stri
 	switch {
 	case shown.baseURL != "":
 		return fromProfile
-	case shown.provider.EnvBaseURL != "" && setVariable(lookupEnv, shown.provider.EnvBaseURL) != "":
-		return sourceEnv + " " + shown.provider.EnvBaseURL
+	case shown.provider.EnvBaseURL() != "" && setVariable(lookupEnv, shown.provider.EnvBaseURL()) != "":
+		return sourceEnv + " " + shown.provider.EnvBaseURL()
 	case shown.accountID != "":
 		return "account_id"
-	case shown.provider.EnvAccountID != "" && setVariable(lookupEnv, shown.provider.EnvAccountID) != "":
-		return sourceEnv + " " + shown.provider.EnvAccountID
+	case shown.provider.EnvAccountID() != "" && setVariable(lookupEnv, shown.provider.EnvAccountID()) != "":
+		return sourceEnv + " " + shown.provider.EnvAccountID()
 	}
 
 	return providersOwn
@@ -571,8 +568,8 @@ func modelOrigin(shown resolution, lookupEnv func(string) (string, bool)) string
 	switch {
 	case strings.TrimSpace(shown.model) != "":
 		return fromProfile
-	case shown.provider.EnvDefaultModel != "" && setVariable(lookupEnv, shown.provider.EnvDefaultModel) != "":
-		return sourceEnv + " " + shown.provider.EnvDefaultModel
+	case shown.provider.EnvDefaultModel() != "" && setVariable(lookupEnv, shown.provider.EnvDefaultModel()) != "":
+		return sourceEnv + " " + shown.provider.EnvDefaultModel()
 	}
 
 	return providersOwn
@@ -620,13 +617,13 @@ func profileTest(cmd *cobra.Command, settings rootSettings, flags *runFlags, arg
 	}
 
 	_, printErr := fmt.Fprintf(cmd.OutOrStdout(), "profile: %s\nprovider: %s\nkey: %s\nmodels: %d\n",
-		cmp.Or(tested.profile, noProfile), tested.provider.Name, tested.keyLine(), len(models))
+		cmp.Or(tested.profile, noProfile), tested.provider.Name(), tested.keyLine(), len(models))
 
 	return printErr
 }
 
 func noKeyToTest(settings rootSettings, tested resolution) error {
-	missing := &onesie.ValidationError{Message: "no API key. Set " + tested.provider.EnvAPIKey}
+	missing := &onesie.ValidationError{Message: "no API key. Set " + tested.provider.EnvAPIKey()}
 
 	// A file that cannot be read names no profile, and the missing key is the failure to report.
 	opened, err := settings.holder.opened()
@@ -765,7 +762,7 @@ func noProfileNamed(name string, profiles creds.Profiles) error {
 
 func checkGiven(profile creds.Profile, changed func(string) bool, providerGiven bool) error {
 	provider, err := onesie.ProviderNamed(profile.Provider)
-	if providerGiven && (err != nil || provider.Name != profile.Provider) {
+	if providerGiven && (err != nil || provider.Name() != profile.Provider) {
 		return fmt.Errorf("--%s names %s, which is not typesafe, openrouter, berget, levanto or cloudflare",
 			flagProvider, creds.QuotedName(profile.Provider))
 	}
@@ -774,7 +771,7 @@ func checkGiven(profile creds.Profile, changed func(string) bool, providerGiven 
 	baseURLGiven := changed(flagBaseURL) && profile.BaseURL != ""
 
 	switch {
-	case accountGiven && provider.EnvAccountID == "":
+	case accountGiven && provider.EnvAccountID() == "":
 		return fmt.Errorf("--%s applies only to cloudflare, and this profile is on %s",
 			flagAccountID, profile.Provider)
 	case accountGiven && !creds.ValidAccountID(profile.AccountID):

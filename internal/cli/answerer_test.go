@@ -65,7 +65,7 @@ func TestLiveAnswerer(t *testing.T) {
 			t.Cleanup(srv.Close)
 
 			_, errOut, code := runInConfig(t, t.TempDir(), []string{"q", "--state", "x", "--retries", "0", "-r"}, "",
-				map[string]string{onesie.EnvAPIKey: "SECRET-TEST", onesie.EnvBaseURL: srv.URL})
+				map[string]string{onesie.TypeSafe().EnvAPIKey(): "SECRET-TEST", onesie.TypeSafe().EnvBaseURL(): srv.URL})
 
 			if code != ExitUnavailable || errOut != prefix+tc.want+"\n" {
 				t.Errorf("exit code = %d, stderr = %q, want %d and %q", code, errOut, ExitUnavailable, prefix+tc.want)

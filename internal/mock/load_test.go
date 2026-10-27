@@ -218,7 +218,7 @@ func TestLoad(t *testing.T) {
 				{position: 4, sentinel: onesie.ErrConnection},
 				{position: 5, sentinel: onesie.ErrRateLimit, status: 429},
 				{position: 6, sentinel: onesie.ErrConnection},
-				{position: 7, sentinel: onesie.ErrResponse},
+				{position: 7, unusable: true},
 				{position: 8, missing: true},
 			},
 		},
@@ -414,6 +414,15 @@ func checkLookup(t *testing.T, answers *Answers, questions []plan.Question, look
 	}
 
 	result, err := entry.Result()
+	if look.unusable {
+		var unusable *answer.UnusableError
+		if !errors.As(err, &unusable) {
+			t.Errorf("position %d error %v, want *answer.UnusableError", look.position, err)
+		}
+
+		return
+	}
+
 	if look.sentinel != nil {
 		if !errors.Is(err, look.sentinel) {
 			t.Errorf("position %d error %v, want %v", look.position, err, look.sentinel)
@@ -469,6 +478,7 @@ type lookup struct {
 	confidence map[string]float64
 	missing    bool
 	sentinel   error
+	unusable   bool
 	status     int
 	message    string
 	absent     []string

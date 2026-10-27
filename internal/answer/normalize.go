@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"maps"
 	"math"
-	"net/http"
 	"slices"
 	"sort"
 	"strconv"
@@ -88,7 +87,18 @@ func unusable(format string, args ...any) error {
 // Unusable is a 200 response onesie could not use. It has kind response in a stream and exits 4 in a
 // single shot run, since the same request would only get it again.
 func Unusable(reason string) error {
-	return &onesie.ResponseError{Status: http.StatusOK, Message: "onesie: 200 response could not be used: " + reason}
+	return &UnusableError{Message: "200 response could not be used: " + reason}
+}
+
+// UnusableError is an answer that came back but cannot be used. A record gets kind response and a
+// single shot run exits 4.
+type UnusableError struct {
+	Message string
+}
+
+// Error returns Message.
+func (e *UnusableError) Error() string {
+	return e.Message
 }
 
 func unit(value float64) bool {

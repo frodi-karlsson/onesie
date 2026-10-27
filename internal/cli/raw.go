@@ -51,7 +51,7 @@ func streamRaw(
 	long := flags.env.longContext
 
 	// Every body would be refused, so the run stops before it reads any.
-	if long && requests(flags) {
+	if long {
 		if refusal := provider.Refuse(defaultModel, onesie.Needs{LongContext: true}); refusal != nil {
 			return longContextCause(refusal, flags)
 		}
@@ -85,10 +85,15 @@ func streamRaw(
 			// same predicate decides this and the client above, so the two cannot disagree and leave
 			// a nil client.
 			if !requests(flags) {
-				return onesie.PrepareRawBody(json.RawMessage(rec.Raw), defaultModel, long), nil
+				return printedBody(provider, rec.Raw, defaultModel, long)
 			}
 
-			body := onesie.PrepareRawBody(json.RawMessage(rec.Raw), defaultModel, false)
+			body, prepareErr := client.PrepareRaw(json.RawMessage(rec.Raw))
+			if prepareErr != nil {
+				stats.recordFailure(prepareErr, false, 0)
+
+				return errorLine(prepareErr), prepareErr
+			}
 
 			// From the request rather than the response. A failed record has no answers but did
 			// carry questions, and counting the response would report zero for exactly the records
@@ -162,6 +167,20 @@ func streamRaw(
 
 	// A request body carries no assertion, so no record can have failed one.
 	return streamResult(result, 0, 0)
+}
+
+func printedBody(provider onesie.Provider, raw, defaultModel string, long bool) ([]byte, error) {
+	var opts []onesie.RequestOption
+	if long {
+		opts = append(opts, onesie.WithLongContext())
+	}
+
+	body, err := provider.PrepareRaw(json.RawMessage(raw), defaultModel, opts...)
+	if err != nil {
+		return errorLine(err), err
+	}
+
+	return body, nil
 }
 
 func requests(flags runConfig) bool {

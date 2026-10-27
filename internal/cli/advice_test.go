@@ -25,7 +25,7 @@ func TestExplain(t *testing.T) {
 		boxNote  = " A box question needs a model that serves it, such as -m jev-preview"
 	)
 
-	typesafe := requestFacts{provider: onesie.TypeSafe(), model: onesie.DefaultModel}
+	typesafe := requestFacts{provider: onesie.TypeSafe(), model: onesie.TypeSafe().DefaultModel()}
 
 	with := func(change func(*requestFacts)) requestFacts {
 		facts := typesafe
@@ -166,7 +166,7 @@ func TestAdvise(t *testing.T) {
 				name:     "should name the model the environment supplied",
 				args:     []string{"is this urgent"},
 				stdin:    "a ticket",
-				env:      map[string]string{onesie.EnvDefaultModel: "onesie-9.9"},
+				env:      map[string]string{onesie.TypeSafe().EnvDefaultModel(): "onesie-9.9"},
 				status:   http.StatusBadRequest,
 				response: `{"detail":"Unknown model: onesie-9.9"}`,
 				wantCode: ExitUsage,
@@ -251,7 +251,7 @@ func TestAdvise(t *testing.T) {
 			{
 				name:     "should keep the server text for a listing, which sends no model",
 				args:     []string{"--list-models"},
-				env:      map[string]string{onesie.EnvDefaultModel: "onesie-9.9"},
+				env:      map[string]string{onesie.TypeSafe().EnvDefaultModel(): "onesie-9.9"},
 				status:   http.StatusBadRequest,
 				response: `{"detail":"Unknown model: onesie-9.9"}`,
 				wantCode: ExitUsage,
@@ -789,7 +789,7 @@ func TestWithKeyHint(t *testing.T) {
 				"calibrate", "--ask", "u=is this urgent", "-i", "jsonl", "--map", ".body", "--label", "u=.u",
 				"--base-url", "{url}",
 			},
-			env:      map[string]string{onesie.EnvAPIKey: "SECRET-TS"},
+			env:      map[string]string{onesie.TypeSafe().EnvAPIKey(): "SECRET-TS"},
 			status:   http.StatusUnauthorized,
 			wantCode: ExitAuth,
 			wantErr:  "The key came from TYPESAFE_API_KEY",

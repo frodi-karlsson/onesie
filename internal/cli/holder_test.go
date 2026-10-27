@@ -332,7 +332,7 @@ func TestResolveRun(t *testing.T) {
 		for _, naming := range namings {
 			srv, auths := recordingServer(t, 0)
 
-			env := map[string]string{onesie.EnvAPIKey: "SECRET-ENV"}
+			env := map[string]string{onesie.TypeSafe().EnvAPIKey(): "SECRET-ENV"}
 			maps.Copy(env, naming.env)
 
 			args := append(append([]string{}, naming.args...),
@@ -431,10 +431,10 @@ func TestResolveRun(t *testing.T) {
 					t.Fatalf("resolveRun returned an error: %v", err)
 				}
 
-				if got.profile != tc.wantProfile || got.provider.Name != tc.wantProvider || got.by != tc.wantBy ||
+				if got.profile != tc.wantProfile || got.provider.Name() != tc.wantProvider || got.by != tc.wantBy ||
 					got.keyFrom != tc.wantKeyFrom {
 					t.Errorf("resolution = profile %q, provider %q, by %q, key from %q, want %q, %q, %q, %q",
-						got.profile, got.provider.Name, got.by, got.keyFrom,
+						got.profile, got.provider.Name(), got.by, got.keyFrom,
 						tc.wantProfile, tc.wantProvider, tc.wantBy, tc.wantKeyFrom)
 				}
 			})

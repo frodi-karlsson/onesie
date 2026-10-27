@@ -632,7 +632,7 @@ func TestStreamRaw(t *testing.T) {
 			},
 			{
 				name:  "should send the default model variable with no profile",
-				env:   map[string]string{onesie.EnvAPIKey: "SECRET-ENV", onesie.EnvBaseURL: "{url}", onesie.EnvDefaultModel: "jev-env"},
+				env:   map[string]string{onesie.TypeSafe().EnvAPIKey(): "SECRET-ENV", onesie.TypeSafe().EnvBaseURL(): "{url}", onesie.TypeSafe().EnvDefaultModel(): "jev-env"},
 				args:  []string{"-i", "request"},
 				stdin: bare,
 				want:  `{"model":"jev-env","state":"x","questions":{"q":{"type":"noul","instructions":"q"}}}`,
@@ -734,7 +734,7 @@ func TestStreamRaw(t *testing.T) {
 			},
 			{
 				name:     "should send under the default model variable on typesafe, which takes long context",
-				env:      map[string]string{onesie.EnvAPIKey: "SECRET-ENV", onesie.EnvBaseURL: "{url}", onesie.EnvDefaultModel: "jev-env"},
+				env:      map[string]string{onesie.TypeSafe().EnvAPIKey(): "SECRET-ENV", onesie.TypeSafe().EnvBaseURL(): "{url}", onesie.TypeSafe().EnvDefaultModel(): "jev-env"},
 				wantCode: ExitOK,
 				wantSent: 1,
 			},

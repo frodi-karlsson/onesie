@@ -86,7 +86,7 @@ func resolveProfile(
 	}
 
 	if name == "" {
-		return providerRun(onesie.TypeSafe().Name, byNothing, lookupEnv)
+		return providerRun(onesie.TypeSafe().Name(), byNothing, lookupEnv)
 	}
 
 	profile, found := profiles.Profiles[name]
@@ -136,7 +136,7 @@ func providerRun(name, by string, lookupEnv func(string) (string, bool)) (resolu
 	}
 
 	bare := resolution{provider: provider, by: by, keyFrom: sourceNone}
-	if setVariable(lookupEnv, provider.EnvAPIKey) != "" {
+	if setVariable(lookupEnv, provider.EnvAPIKey()) != "" {
 		bare.keyFrom = sourceEnv
 	}
 
@@ -206,9 +206,9 @@ func (r resolution) env(lookupEnv func(string) (string, bool)) func(string) (str
 	return func(name string) (string, bool) {
 		switch {
 		// onesie-go falls back to this variable for a blank key, and a profile run takes its key from the profile alone.
-		case name == r.provider.EnvAPIKey:
+		case name == r.provider.EnvAPIKey():
 			return "", false
-		case name == r.provider.EnvAccountID && r.accountID != "":
+		case name == r.provider.EnvAccountID() && r.accountID != "":
 			return r.accountID, true
 		}
 
@@ -222,8 +222,8 @@ func (r resolution) baseURLGiven(baseURLFlag string, lookupEnv func(string) (str
 		return strings.TrimSpace(baseURLFlag)
 	case r.baseURL != "":
 		return r.baseURL
-	case r.provider.EnvBaseURL != "":
-		return setVariable(lookupEnv, r.provider.EnvBaseURL)
+	case r.provider.EnvBaseURL() != "":
+		return setVariable(lookupEnv, r.provider.EnvBaseURL())
 	}
 
 	return ""
@@ -239,7 +239,7 @@ func (r resolution) baseURLSource(baseURLFlag string, lookupEnv func(string) (st
 		return "the profile's account_id"
 	}
 
-	for _, name := range []string{r.provider.EnvBaseURL, r.provider.EnvAccountID} {
+	for _, name := range []string{r.provider.EnvBaseURL(), r.provider.EnvAccountID()} {
 		if name != "" && setVariable(lookupEnv, name) != "" {
 			return name
 		}
@@ -255,7 +255,7 @@ func (r resolution) GoString() string {
 
 func (r resolution) String() string {
 	// Here so a stray %v prints where the key lives, never the key.
-	return "profile " + cmp.Or(r.profile, sourceNone) + ", provider " + r.provider.Name + ", key " + r.keyLine()
+	return "profile " + cmp.Or(r.profile, sourceNone) + ", provider " + r.provider.Name() + ", key " + r.keyLine()
 }
 
 func (r resolution) keyLine() string {
@@ -267,7 +267,7 @@ func (r resolution) keyLine() string {
 
 		return r.keyFrom + ", ends in " + r.keyEnd
 	case sourceEnv:
-		return sourceEnv + " " + r.provider.EnvAPIKey
+		return sourceEnv + " " + r.provider.EnvAPIKey()
 	}
 
 	return sourceNone
@@ -280,15 +280,15 @@ func missingKeyHint(err error, bare resolution, profiles creds.Profiles) error {
 		return err
 	}
 
-	name := firstProfileOf(bare.provider.Name, profiles)
+	name := firstProfileOf(bare.provider.Name(), profiles)
 	if name == "" && bare.by == envProvider {
 		// A profile created now would still go unused while the variable chooses the run.
 		return fmt.Errorf("%w. %s is set, so a stored profile is not used. To use one instead, unset %s "+
-			"and run onesie profile create NAME --provider %s", err, envProvider, envProvider, bare.provider.Name)
+			"and run onesie profile create NAME --provider %s", err, envProvider, envProvider, bare.provider.Name())
 	}
 
 	if name == "" {
-		return fmt.Errorf("%w, or store one with onesie profile create NAME --provider %s", err, bare.provider.Name)
+		return fmt.Errorf("%w, or store one with onesie profile create NAME --provider %s", err, bare.provider.Name())
 	}
 
 	if bare.by == envProvider {
@@ -327,14 +327,14 @@ func accountNote(
 
 func (r resolution) accountSource(lookupEnv func(string) (string, bool)) string {
 	switch {
-	case r.provider.EnvAccountID == "":
+	case r.provider.EnvAccountID() == "":
 		return ""
 	case r.accountID != "":
 		return "account_id"
 	case r.baseURL != "":
 		return "base_url"
-	case setVariable(lookupEnv, r.provider.EnvAccountID) != "":
-		return r.provider.EnvAccountID
+	case setVariable(lookupEnv, r.provider.EnvAccountID()) != "":
+		return r.provider.EnvAccountID()
 	}
 
 	return sourceNone

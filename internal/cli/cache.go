@@ -94,8 +94,8 @@ func cachedAnswers(
 			next:      newLiveAnswerer(client, provider, flags),
 			open:      sync.OnceValues(func() (*cache.Store, error) { return openCache(settings, flags.env.aliasTTL) }),
 			model:     model,
-			provider:  provider.Name,
-			origin:    provider.Name + "\x00" + client.BaseURL(),
+			provider:  provider.Name(),
+			origin:    provider.Name() + "\x00" + client.BaseURL(),
 			questions: questions,
 			warn:      warn,
 		}, nil

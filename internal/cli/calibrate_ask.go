@@ -547,7 +547,7 @@ func answerTo(question plan.Question, record output.Record) (*answer.Answer, err
 }
 
 func unusableAnswerTo(id, format string, args ...any) error {
-	return &unusableAnswer{message: fmt.Sprintf("question '%s' ", id) + fmt.Sprintf(format, args...)}
+	return &answer.UnusableError{Message: fmt.Sprintf("question '%s' ", id) + fmt.Sprintf(format, args...)}
 }
 
 func unitRange(value float64) bool {

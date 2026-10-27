@@ -217,11 +217,11 @@ func TestDescribe(t *testing.T) {
 		}{
 			{cause: &input.LineError{Line: 2, Err: errors.New("not json")}, kind: "input", message: "line 2: not json"},
 			{
-				cause: &onesie.ResponseError{Status: http.StatusOK, Message: "onesie: wrong shape"},
-				kind:  "response", status: statusOf(http.StatusOK), message: "wrong shape",
+				cause: &onesie.ResponseError{Status: http.StatusOK, Err: errors.New("wrong shape")},
+				kind:  "response", status: statusOf(http.StatusOK), message: "200 response could not be used: wrong shape",
 			},
 			{
-				cause: &unusableAnswer{message: "question 'urgent' has no answer"},
+				cause: &answer.UnusableError{Message: "question 'urgent' has no answer"},
 				kind:  output.KindResponse, status: statusOf(http.StatusOK), message: "question 'urgent' has no answer",
 			},
 			{

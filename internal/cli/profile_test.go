@@ -363,7 +363,7 @@ func TestProfileCreate(t *testing.T) {
 			args:        []string{"profile", "create", "work", "--provider", "typesafe", "--base-url", "proxy.example"},
 			stdinUnread: true,
 			wantCode:    ExitUsage,
-			wantErr:     []string{"onesie: base URL proxy.example is not an http or https URL"},
+			wantErr:     []string{"onesie: the base URL is not an http or https URL"},
 			wantNoFile:  true,
 		},
 		{
@@ -1481,7 +1481,7 @@ func TestProfileShow(t *testing.T) {
 			"model: typesafe/jev, profile\n" + openRouterOwn
 		cfShown = "profile: cf\nprovider: cloudflare\nchosen by: not active\nkey: file, ends in 6789\n" +
 			"model: typesafe/jev, the provider's default\n"
-		typesafeOwn = "base_url: " + onesie.DefaultBaseURL + ", the provider's default\n"
+		typesafeOwn = "base_url: https://api.typesafe.ai, the provider's default\n"
 		tsFile      = `{"default":"ts","profiles":{"ts":{"provider":"typesafe","api_key":"SECRET-TS-0123456789"}}}`
 		tsShown     = "profile: ts\nprovider: typesafe\nchosen by: the default\nkey: file, ends in 6789\n"
 	)
@@ -1681,7 +1681,7 @@ func TestProfileTest(t *testing.T) {
 			name:     "should list the models with the named profile's key",
 			profiles: fileWork,
 			args:     []string{"profile", "test", "work"},
-			env:      map[string]string{onesie.EnvAPIKey: "SECRET-ENV"},
+			env:      map[string]string{onesie.TypeSafe().EnvAPIKey(): "SECRET-ENV"},
 			wantOut:  "profile: work\nprovider: typesafe\nkey: file, ends in 6789\nmodels: 2\n",
 			wantAuth: "Bearer " + fileKey,
 		},
@@ -1704,7 +1704,7 @@ func TestProfileTest(t *testing.T) {
 			name: "should test the environment key of a run without a profile",
 			args: []string{"profile", "test"},
 			env: map[string]string{
-				"ONESIE_PROVIDER": "typesafe", onesie.EnvAPIKey: "SECRET-ENV", onesie.EnvBaseURL: "{url}",
+				"ONESIE_PROVIDER": "typesafe", onesie.TypeSafe().EnvAPIKey(): "SECRET-ENV", onesie.TypeSafe().EnvBaseURL(): "{url}",
 			},
 			wantOut:  "profile: none\nprovider: typesafe\nkey: env TYPESAFE_API_KEY\nmodels: 2\n",
 			wantAuth: "Bearer SECRET-ENV",
@@ -1720,7 +1720,7 @@ func TestProfileTest(t *testing.T) {
 		{
 			name:     "should name the key variable when the server refuses an environment key",
 			args:     []string{"profile", "test"},
-			env:      map[string]string{"ONESIE_PROVIDER": "typesafe", onesie.EnvAPIKey: "SECRET-ENV", onesie.EnvBaseURL: "{url}"},
+			env:      map[string]string{"ONESIE_PROVIDER": "typesafe", onesie.TypeSafe().EnvAPIKey(): "SECRET-ENV", onesie.TypeSafe().EnvBaseURL(): "{url}"},
 			status:   http.StatusUnauthorized,
 			wantCode: ExitAuth,
 			wantErr:  "onesie: 401 the key was refused. The key came from TYPESAFE_API_KEY",
@@ -1778,7 +1778,7 @@ func TestProfileTest(t *testing.T) {
 			name:     "should exit 3 for an empty keychain item rather than read the variable",
 			profiles: keychainWork,
 			args:     []string{"profile", "test"},
-			env:      map[string]string{onesie.EnvAPIKey: "SECRET-ENV"},
+			env:      map[string]string{onesie.TypeSafe().EnvAPIKey(): "SECRET-ENV"},
 			items:    map[string]string{"work@abc": ""},
 			wantCode: ExitAuth,
 			wantErr:  "the keychain holds no key",
