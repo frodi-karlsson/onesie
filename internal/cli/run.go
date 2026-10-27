@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"slices"
-	"strings"
 	"sync/atomic"
 
 	"github.com/spf13/cobra"
@@ -55,7 +54,7 @@ func run(
 		out.BindWithoutFingerprint()
 
 		return withStats(cmd, settings.now, flags, func(stats *collector) error {
-			return listModels(cmd, settings, stats)
+			return listModels(cmd, settings, flags, stats)
 		})
 	}
 
@@ -358,7 +357,7 @@ func runInputs(settings rootSettings, flags runConfig, inputs answersfile.Finger
 		return answersfile.FingerprintInputs{}, err
 	}
 
-	inputs.Provider = chosen.provider.Name
+	inputs.Provider = chosen.provider.Name()
 	inputs.MapSource = flags.mapSource
 	inputs.IDSource = flags.idSource
 
@@ -1146,10 +1145,6 @@ func evaluate(
 	withUsage bool,
 	stats *collector,
 ) (output.Record, error) {
-	if len(assets) > 0 {
-		stats.imaged()
-	}
-
 	record, usage, cached, err := answered(ctx, asker, key, built, model, questions, state, assets, withUsage)
 	if halting(err) {
 		// No request stood behind it, so it is a record and not a request, and no attempt ended.
@@ -1267,9 +1262,7 @@ func failureRecord(built *plan.Plan, cause error) output.Record {
 func describe(cause error) *output.Failure {
 	found := classify(cause)
 
-	// The prefix names the program on stderr. On an output line it would say nothing, and a line
-	// error carries none.
-	return &output.Failure{Kind: found.kind, Status: found.status, Message: strings.TrimPrefix(cause.Error(), "onesie: ")}
+	return &output.Failure{Kind: found.kind, Status: found.status, Message: text(cause)}
 }
 
 func quietResult(question plan.Question, a *answer.Answer) error {

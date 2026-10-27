@@ -297,7 +297,7 @@ func TestResolveProfile(t *testing.T) {
 		},
 		{
 			name: "should run typesafe without a profile when there is no file", profiles: creds.Profiles{},
-			env:          map[string]string{onesie.EnvAPIKey: "SECRET-ENV"},
+			env:          map[string]string{onesie.TypeSafe().EnvAPIKey(): "SECRET-ENV"},
 			wantProvider: "typesafe", wantBy: "nothing", wantKeyFrom: sourceEnv,
 		},
 		{
@@ -324,10 +324,10 @@ func TestResolveProfile(t *testing.T) {
 				t.Fatalf("resolveProfile returned an error: %v", err)
 			}
 
-			if got.profile != tc.wantProfile || got.provider.Name != tc.wantProvider || got.by != tc.wantBy ||
+			if got.profile != tc.wantProfile || got.provider.Name() != tc.wantProvider || got.by != tc.wantBy ||
 				got.keyFrom != tc.wantKeyFrom {
 				t.Errorf("resolution = profile %q, provider %q, by %q, key from %q, want %q, %q, %q, %q",
-					got.profile, got.provider.Name, got.by, got.keyFrom,
+					got.profile, got.provider.Name(), got.by, got.keyFrom,
 					tc.wantProfile, tc.wantProvider, tc.wantBy, tc.wantKeyFrom)
 			}
 		})
@@ -433,14 +433,14 @@ func TestResolutionModelFor(t *testing.T) {
 		{name: "should take the profile's model over a blank explicit one", run: pinned, explicit: "  ", want: "jev-1.13.0"},
 		{
 			name: "should let the profile's model beat TYPESAFE_DEFAULT_MODEL", run: pinned,
-			env: map[string]string{onesie.EnvDefaultModel: "env-model"}, want: "jev-1.13.0",
+			env: map[string]string{onesie.TypeSafe().EnvDefaultModel(): "env-model"}, want: "jev-1.13.0",
 		},
 		{
 			name: "should take TYPESAFE_DEFAULT_MODEL when the profile names none", run: unpinned,
-			env: map[string]string{onesie.EnvDefaultModel: "env-model"}, want: "env-model",
+			env: map[string]string{onesie.TypeSafe().EnvDefaultModel(): "env-model"}, want: "env-model",
 		},
-		{name: "should fall back to the built in default", run: unpinned, want: onesie.DefaultModel},
-		{name: "should fall back to the provider's own default", run: berget, want: onesie.BergetDefaultModel},
+		{name: "should fall back to the built in default", run: unpinned, want: onesie.TypeSafe().DefaultModel()},
+		{name: "should fall back to the provider's own default", run: berget, want: onesie.Berget().DefaultModel()},
 	}
 
 	for _, tc := range tests {
@@ -487,12 +487,12 @@ func TestResolutionOptions(t *testing.T) {
 		{
 			name: "should keep the profile's base_url ahead of TYPESAFE_BASE_URL",
 			run:  profileOf(creds.Profile{Provider: "typesafe", APIKey: "SECRET-P", BaseURL: "https://profile.example"}),
-			env:  map[string]string{onesie.EnvBaseURL: "https://env.example"}, want: "https://profile.example",
+			env:  map[string]string{onesie.TypeSafe().EnvBaseURL(): "https://env.example"}, want: "https://profile.example",
 		},
 		{
 			name: "should take TYPESAFE_BASE_URL when the profile has no base_url",
 			run:  profileOf(creds.Profile{Provider: "typesafe", APIKey: "SECRET-P"}),
-			env:  map[string]string{onesie.EnvBaseURL: "https://env.example"}, want: "https://env.example",
+			env:  map[string]string{onesie.TypeSafe().EnvBaseURL(): "https://env.example"}, want: "https://env.example",
 		},
 		{
 			name: "should keep the profile's account_id ahead of CLOUDFLARE_ACCOUNT_ID",
@@ -512,7 +512,7 @@ func TestResolutionOptions(t *testing.T) {
 		{
 			name: "should fall back to the built in URL",
 			run:  profileOf(creds.Profile{Provider: "openrouter", APIKey: "SECRET-P"}),
-			want: onesie.OpenRouter().BaseURL,
+			want: onesie.OpenRouter().DefaultBaseURL(),
 		},
 	}
 
@@ -523,12 +523,12 @@ func TestResolutionOptions(t *testing.T) {
 			lookup := lookupFrom(tc.env)
 
 			// The options clientBuilder adds ahead of these, so the order is the one a real run builds.
-			opts := []onesie.Option{onesie.WithProvider(tc.run.provider), onesie.WithEnv(tc.run.env(lookup))}
+			opts := []onesie.Option{onesie.WithProvider(tc.run.provider), onesie.WithEnv(lookup)}
 			if tc.flag != "" {
 				opts = append(opts, onesie.WithBaseURL(tc.flag))
 			}
 
-			client, err := onesie.New(append(opts, tc.run.options(tc.flag, "SECRET-KEY", lookup)...)...)
+			client, err := onesie.New(append(opts, tc.run.options(tc.flag, staticKey("SECRET-KEY"), lookup)...)...)
 			if err != nil {
 				t.Fatalf("building the client: %v", err)
 			}
@@ -547,78 +547,29 @@ func TestResolutionOptions(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if got := bare.options("", "", lookupFrom(nil)); len(got) != 0 {
+		if got := bare.options("", staticKey(""), lookupFrom(nil)); len(got) != 0 {
 			t.Errorf("options = %d, want none", len(got))
+		}
+	})
+
+	t.Run("should keep a profile run with an empty key off the provider's key variable", func(t *testing.T) {
+		t.Parallel()
+
+		run := profileOf(creds.Profile{Provider: "openrouter", APIKey: "SECRET-OR"})
+		lookup := lookupFrom(map[string]string{"OPENROUTER_API_KEY": "SECRET-ENV"})
+
+		_, err := onesie.New(append([]onesie.Option{onesie.WithProvider(run.provider), onesie.WithEnv(lookup)},
+			run.options("", staticKey(""), lookup)...)...)
+		if !errors.Is(err, onesie.ErrNoAPIKey) {
+			t.Errorf("error = %v, want onesie.ErrNoAPIKey", err)
 		}
 	})
 }
 
-func TestResolutionEnv(t *testing.T) {
-	t.Parallel()
-
-	lookup := lookupFrom(map[string]string{"CLOUDFLARE_ACCOUNT_ID": "env-account", "OTHER": "kept"})
-
-	t.Run("should answer the account variable with the profile's account_id", func(t *testing.T) {
-		t.Parallel()
-
-		run, err := profileRun("cf", creds.Profile{Provider: "cloudflare", APIKey: "SECRET-CF", AccountID: testAccountID}, "--profile")
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		env := run.env(lookup)
-
-		if got, _ := env("CLOUDFLARE_ACCOUNT_ID"); got != testAccountID {
-			t.Errorf("CLOUDFLARE_ACCOUNT_ID = %q, want the profile's", got)
-		}
-
-		if got, _ := env("OTHER"); got != "kept" {
-			t.Errorf("OTHER = %q, want the process environment's", got)
-		}
-	})
-
-	t.Run("should pass the environment through without an account_id", func(t *testing.T) {
-		t.Parallel()
-
-		run, err := profileRun("cf", creds.Profile{Provider: "cloudflare", APIKey: "SECRET-CF"}, "--profile")
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		if got, _ := run.env(lookup)("CLOUDFLARE_ACCOUNT_ID"); got != "env-account" {
-			t.Errorf("CLOUDFLARE_ACCOUNT_ID = %q, want the environment's", got)
-		}
-	})
-
-	t.Run("should keep a profile run with a blank key off the provider's key variable", func(t *testing.T) {
-		t.Parallel()
-
-		run, err := profileRun("or", creds.Profile{Provider: "openrouter", APIKey: "SECRET-OR"}, "--profile")
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		lookupWithKey := lookupFrom(map[string]string{"OPENROUTER_API_KEY": "SECRET-ENV"})
-		opts := []onesie.Option{onesie.WithProvider(run.provider), onesie.WithEnv(run.env(lookupWithKey))}
-
-		_, err = onesie.New(append(opts, run.options("", "  ", lookupWithKey)...)...)
-		if !errors.Is(err, onesie.ErrValidation) || !strings.Contains(err.Error(), "no API key") {
-			t.Errorf("error = %v, want onesie-go's missing key error", err)
-		}
-	})
-
-	t.Run("should pass the provider's key variable through on a run without a profile", func(t *testing.T) {
-		t.Parallel()
-
-		bare, err := providerRun("openrouter", "--provider", lookupFrom(nil))
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		if got, _ := bare.env(lookupFrom(map[string]string{"OPENROUTER_API_KEY": "SECRET-ENV"}))("OPENROUTER_API_KEY"); got != "SECRET-ENV" {
-			t.Error("the provider's key variable did not reach a run without a profile")
-		}
-	})
+func staticKey(key string) func() (string, error) {
+	return func() (string, error) {
+		return key, nil
+	}
 }
 
 func TestFirstProfileOf(t *testing.T) {
@@ -660,68 +611,6 @@ func TestFirstProfileOf(t *testing.T) {
 
 			if got := firstProfileOf(tc.provider, tc.profiles); got != tc.want {
 				t.Errorf("firstProfileOf = %q, want %q", got, tc.want)
-			}
-		})
-	}
-}
-
-func TestResolutionBaseURLSource(t *testing.T) {
-	t.Parallel()
-
-	profileOf := func(profile creds.Profile) resolution {
-		run, err := profileRun("p", profile, "--profile")
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		return run
-	}
-
-	bare, err := providerRun("typesafe", "nothing", lookupFrom(nil))
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	tests := []struct {
-		name string
-		run  resolution
-		flag string
-		env  map[string]string
-		want string
-	}{
-		{
-			name: "should name --base-url first",
-			run:  profileOf(creds.Profile{Provider: "typesafe", APIKey: "SECRET-P", BaseURL: "https://p.example"}),
-			flag: "https://flag.example", want: "--base-url",
-		},
-		{
-			name: "should name the profile's base_url",
-			run:  profileOf(creds.Profile{Provider: "typesafe", APIKey: "SECRET-P", BaseURL: "https://p.example"}),
-			env:  map[string]string{onesie.EnvBaseURL: "https://env.example"}, want: "the profile's base_url",
-		},
-		{
-			name: "should name the profile's account_id",
-			run:  profileOf(creds.Profile{Provider: "cloudflare", APIKey: "SECRET-P", AccountID: testAccountID}),
-			want: "the profile's account_id",
-		},
-		{
-			name: "should name TYPESAFE_BASE_URL", run: bare,
-			env: map[string]string{onesie.EnvBaseURL: "https://env.example"}, want: onesie.EnvBaseURL,
-		},
-		{
-			name: "should name CLOUDFLARE_ACCOUNT_ID",
-			run:  profileOf(creds.Profile{Provider: "cloudflare", APIKey: "SECRET-P"}),
-			env:  map[string]string{"CLOUDFLARE_ACCOUNT_ID": testAccountID}, want: "CLOUDFLARE_ACCOUNT_ID",
-		},
-		{name: "should name the provider's base URL last", run: bare, want: "the provider's base URL"},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			if got := tc.run.baseURLSource(tc.flag, lookupFrom(tc.env)); got != tc.want {
-				t.Errorf("baseURLSource = %q, want %q", got, tc.want)
 			}
 		})
 	}
@@ -771,13 +660,19 @@ func TestResolutionAccountSource(t *testing.T) {
 			env: map[string]string{"CLOUDFLARE_ACCOUNT_ID": testAccountID}, want: "CLOUDFLARE_ACCOUNT_ID",
 		},
 		{name: "should name none", run: resolution{provider: onesie.Cloudflare()}, want: "none"},
+		{
+			name: "should name CLOUDFLARE_ACCOUNT_ID when it is malformed", run: resolution{provider: onesie.Cloudflare()},
+			env: map[string]string{"CLOUDFLARE_ACCOUNT_ID": "not-hex"}, want: "CLOUDFLARE_ACCOUNT_ID",
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			if got := tc.run.accountSource(lookupFrom(tc.env)); got != tc.want {
+			_, source, resolveErr := tc.run.provider.ResolveBaseURL(tc.run.baseURL, tc.run.accountID, lookupFrom(tc.env))
+
+			if got := tc.run.accountSource(source, resolveErr); got != tc.want {
 				t.Errorf("accountSource = %q, want %q", got, tc.want)
 			}
 		})
@@ -822,8 +717,10 @@ func TestResolutionGoString(t *testing.T) {
 func TestMissingKeyHint(t *testing.T) {
 	t.Parallel()
 
-	missing := func(variable string) error {
-		return &onesie.ValidationError{Message: "no API key. Set " + variable}
+	missing := func(provider onesie.Provider) error {
+		_, err := onesie.New(onesie.WithProvider(provider), onesie.WithEnv(lookupFrom(nil)))
+
+		return err
 	}
 
 	profiles := creds.Profiles{Profiles: map[string]creds.Profile{
@@ -849,42 +746,42 @@ func TestMissingKeyHint(t *testing.T) {
 	}{
 		{
 			name: "should name the first profile with the provider under ONESIE_PROVIDER",
-			err:  missing("OPENROUTER_API_KEY"), run: bareOf("openrouter", "ONESIE_PROVIDER", nil),
-			want: "onesie: no API key. Set OPENROUTER_API_KEY, or unset ONESIE_PROVIDER and run " +
+			err:  missing(onesie.OpenRouter()), run: bareOf("openrouter", "ONESIE_PROVIDER", nil),
+			want: "no API key. Set OPENROUTER_API_KEY, or unset ONESIE_PROVIDER and run " +
 				"onesie profile use 'personal', or run with --profile 'personal'",
 		},
 		{
 			name: "should say a stored profile is not used under ONESIE_PROVIDER when none has the provider",
-			err:  missing("LEVANTO_API_KEY"), run: bareOf("levanto", "ONESIE_PROVIDER", nil),
-			want: "onesie: no API key. Set LEVANTO_API_KEY. ONESIE_PROVIDER is set, so a stored profile is not " +
+			err:  missing(onesie.Levanto()), run: bareOf("levanto", "ONESIE_PROVIDER", nil),
+			want: "no API key. Set LEVANTO_API_KEY. ONESIE_PROVIDER is set, so a stored profile is not " +
 				"used. To use one instead, unset ONESIE_PROVIDER and run onesie profile create NAME --provider levanto",
 		},
 		{
 			name: "should say to drop --provider under --provider",
-			err:  missing("TYPESAFE_API_KEY"), run: bareOf("typesafe", "--provider", nil),
-			want: "onesie: no API key. Set TYPESAFE_API_KEY, or drop --provider and pass --profile 'ts'",
+			err:  missing(onesie.TypeSafe()), run: bareOf("typesafe", "--provider", nil),
+			want: "no API key. Set TYPESAFE_API_KEY, or drop --provider and pass --profile 'ts'",
 		},
 		{
 			name: "should name profile create when no profile has the provider",
-			err:  missing("BERGET_API_KEY"), run: bareOf("berget", "--provider", nil),
-			want: "onesie: no API key. Set BERGET_API_KEY, or store one with onesie profile create NAME --provider berget",
+			err:  missing(onesie.Berget()), run: bareOf("berget", "--provider", nil),
+			want: "no API key. Set BERGET_API_KEY, or store one with onesie profile create NAME --provider berget",
 		},
 		{
 			name: "should leave the error alone when the variable holds a key",
-			err:  missing("OPENROUTER_API_KEY"),
+			err:  missing(onesie.OpenRouter()),
 			run:  bareOf("openrouter", "--provider", map[string]string{"OPENROUTER_API_KEY": "SECRET-OR"}),
-			want: "onesie: no API key. Set OPENROUTER_API_KEY",
+			want: "no API key. Set OPENROUTER_API_KEY",
 		},
 		{
 			name: "should leave an unrelated validation error alone",
 			err:  &onesie.ValidationError{Message: "base URL must be an absolute http or https URL, got proxy.example"},
 			run:  bareOf("openrouter", "ONESIE_PROVIDER", nil),
-			want: "onesie: base URL must be an absolute http or https URL, got proxy.example",
+			want: "base URL must be an absolute http or https URL, got proxy.example",
 		},
 		{
 			name: "should leave an error that is not a validation error alone",
-			err:  errors.New("onesie: the server is down"), run: bareOf("openrouter", "--provider", nil),
-			want: "onesie: the server is down",
+			err:  errors.New("the server is down"), run: bareOf("openrouter", "--provider", nil),
+			want: "the server is down",
 		},
 	}
 
@@ -893,8 +790,8 @@ func TestMissingKeyHint(t *testing.T) {
 			t.Parallel()
 
 			got := missingKeyHint(tc.err, tc.run, profiles)
-			if got.Error() != tc.want {
-				t.Errorf("error = %q, want %q", got.Error(), tc.want)
+			if text(got) != tc.want {
+				t.Errorf("error = %q, want %q", text(got), tc.want)
 			}
 
 			if !errors.Is(got, tc.err) {
@@ -911,8 +808,8 @@ func TestMissingKeyHint(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if got := missingKeyHint(missing("OPENROUTER_API_KEY"), run, profiles); got.Error() != "onesie: no API key. Set OPENROUTER_API_KEY" {
-			t.Errorf("error = %q, want it unchanged", got.Error())
+		if got := missingKeyHint(missing(onesie.OpenRouter()), run, profiles); text(got) != "no API key. Set OPENROUTER_API_KEY" {
+			t.Errorf("error = %q, want it unchanged", text(got))
 		}
 	})
 }
@@ -920,7 +817,11 @@ func TestMissingKeyHint(t *testing.T) {
 func TestAccountNote(t *testing.T) {
 	t.Parallel()
 
-	noAccount := &onesie.ValidationError{Message: "no cloudflare account id. Set CLOUDFLARE_ACCOUNT_ID"}
+	_, noAccount := onesie.New(
+		onesie.WithProvider(onesie.Cloudflare()), onesie.WithAPIKey("SECRET-CF"), onesie.WithEnv(lookupFrom(nil)))
+	if !errors.Is(noAccount, onesie.ErrNoAccountID) {
+		t.Fatalf("New = %v, want onesie.ErrNoAccountID", noAccount)
+	}
 
 	cf, err := profileRun("cf", creds.Profile{Provider: "cloudflare", APIKey: "SECRET-CF"}, "the default")
 	if err != nil {
@@ -934,28 +835,19 @@ func TestAccountNote(t *testing.T) {
 
 	tests := []struct {
 		name string
+		err  error
 		run  resolution
-		flag string
-		env  map[string]string
 		want string
 	}{
 		{
-			name: "should name profile update for a cloudflare profile with no account", run: cf,
-			want: "onesie: no cloudflare account id. Set CLOUDFLARE_ACCOUNT_ID, " +
+			name: "should name profile update for a cloudflare profile with no account", err: noAccount, run: cf,
+			want: "no cloudflare account id. Set CLOUDFLARE_ACCOUNT_ID, " +
 				"or run onesie profile update 'cf' --account-id ACCOUNT_ID",
 		},
 		{
-			name: "should leave the error alone when CLOUDFLARE_ACCOUNT_ID is set", run: cf,
-			env:  map[string]string{"CLOUDFLARE_ACCOUNT_ID": testAccountID},
-			want: "onesie: no cloudflare account id. Set CLOUDFLARE_ACCOUNT_ID",
-		},
-		{
-			name: "should leave the error alone beside --base-url", run: cf, flag: "https://proxy.example",
-			want: "onesie: no cloudflare account id. Set CLOUDFLARE_ACCOUNT_ID",
-		},
-		{
-			name: "should leave a run without a profile alone", run: bare,
-			want: "onesie: no cloudflare account id. Set CLOUDFLARE_ACCOUNT_ID",
+			name: "should name profile create for a run without a profile", err: noAccount, run: bare,
+			want: "no cloudflare account id. Set CLOUDFLARE_ACCOUNT_ID, " +
+				"or store it with onesie profile create NAME --provider cloudflare --account-id ACCOUNT_ID",
 		},
 	}
 
@@ -963,19 +855,14 @@ func TestAccountNote(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			if got := accountNote(noAccount, tc.run, tc.flag, lookupFrom(tc.env)); got.Error() != tc.want {
-				t.Errorf("error = %q, want %q", got.Error(), tc.want)
+			got := accountNote(tc.err, tc.run)
+			if text(got) != tc.want {
+				t.Errorf("error = %q, want %q", text(got), tc.want)
+			}
+
+			if !errors.Is(got, tc.err) {
+				t.Error("the note lost the error it wraps")
 			}
 		})
 	}
-
-	t.Run("should leave an unrelated validation error alone", func(t *testing.T) {
-		t.Parallel()
-
-		other := &onesie.ValidationError{Message: "base URL must be an absolute http or https URL, got proxy.example"}
-
-		if got := accountNote(other, cf, "", lookupFrom(nil)); got.Error() != other.Error() {
-			t.Errorf("error = %q, want it unchanged", got.Error())
-		}
-	})
 }

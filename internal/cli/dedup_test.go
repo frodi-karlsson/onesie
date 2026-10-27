@@ -354,7 +354,7 @@ func TestAskOnce(t *testing.T) {
 				}
 			}
 
-			got := stats.snapshot(time.Second, time.Second)
+			got := stats.snapshot(time.Second)
 
 			if asked.Load() != tc.wantAsked || got.Dedups != tc.wantDedups || got.Records != tc.wantRecords {
 				t.Errorf("asked, dedups, records = %d, %d, %d, want %d, %d, %d",

@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -115,7 +116,7 @@ func printRequest(
 ) error {
 	req := onesie.Request{Model: model, Questions: wireAll(questions), LongContext: longContext}
 
-	encode := onesie.MarshalQuestionsBody
+	encode := marshalQuestionsBody
 	if source != input.SourceNone {
 		req.State = state
 		req.Assets = assets
@@ -134,6 +135,15 @@ func printRequest(
 	_, err = fmt.Fprintln(w, string(body))
 
 	return written(err)
+}
+
+func marshalQuestionsBody(req onesie.Request) ([]byte, error) {
+	// MarshalBody writes a null state, which is a legitimate state, so a body without one leaves the key out.
+	return json.Marshal(struct {
+		Model       string           `json:"model"`
+		Questions   onesie.Questions `json:"questions"`
+		LongContext bool             `json:"long_context,omitempty"`
+	}{Model: req.Model, Questions: req.Questions, LongContext: req.LongContext})
 }
 
 func streamRequests(
@@ -198,7 +208,7 @@ func streamRequests(
 				State: sent, Model: model, Questions: questions, Assets: assets, LongContext: built.LongContext,
 			}
 			if validErr := onesie.ValidateRequest(req); validErr != nil {
-				bad := &input.LineError{Line: rec.Line, Err: unprefixed(validErr)}
+				bad := &input.LineError{Line: rec.Line, Err: embed("", validErr)}
 
 				return errorLine(bad), bad
 			}
@@ -228,7 +238,7 @@ func streamRequests(
 func requestLine(number int, req onesie.Request) ([]byte, error) {
 	body, err := onesie.MarshalBody(req)
 	if err != nil {
-		bad := &input.LineError{Line: number, Err: fmt.Errorf("encoding the request: %w", err)}
+		bad := &input.LineError{Line: number, Err: embed("encoding the request", err)}
 
 		return errorLine(bad), bad
 	}

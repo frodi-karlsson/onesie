@@ -971,14 +971,14 @@ func TestMockAnswerer_Answer(t *testing.T) {
 		a, stats := asker(t, `{"answer":0.9}`, onesie.Levanto())
 
 		_, err = a.answer(t.Context(), recordKey{position: 1}, onesie.Request{
-			Model: onesie.LevantoDefaultModel, State: map[string]any{"photo": "img"}, Questions: questions,
+			Model: onesie.Levanto().DefaultModel(), State: map[string]any{"photo": "img"}, Questions: questions,
 			Assets: onesie.Assets{"img": img},
 		})
 		if err == nil || !strings.Contains(err.Error(), "takes no images") {
 			t.Fatalf("error = %v, want levanto's refusal", err)
 		}
 
-		if got := stats.snapshot(0, 0).Attempts; got != 0 {
+		if got := stats.snapshot(0).Attempts; got != 0 {
 			t.Errorf("attempts = %d, want 0", got)
 		}
 	})
@@ -996,7 +996,7 @@ func TestMockAnswerer_Answer(t *testing.T) {
 			t.Fatalf("error = %v, want ValidateRequest's refusal", err)
 		}
 
-		if got := stats.snapshot(0, 0).Attempts; got != 0 {
+		if got := stats.snapshot(0).Attempts; got != 0 {
 			t.Errorf("attempts = %d, want 0", got)
 		}
 	})
@@ -1017,7 +1017,7 @@ func TestMockAnswerer_Answer(t *testing.T) {
 			t.Errorf("model = %q, want other", got.result.Model)
 		}
 
-		if attempts := stats.snapshot(0, 0).Attempts; attempts != 1 {
+		if attempts := stats.snapshot(0).Attempts; attempts != 1 {
 			t.Errorf("attempts = %d, want 1", attempts)
 		}
 	})

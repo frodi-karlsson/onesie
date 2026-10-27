@@ -180,7 +180,7 @@ func TestDelimited(t *testing.T) {
 		}
 
 		fingerprint := fingerprintWith(t, plan.Source{Positional: "is this urgent"}, answersfile.FingerprintInputs{
-			Provider: "typesafe", Model: onesie.DefaultModel, Output: "csv", Input: "csv", MergeKey: "answers",
+			Provider: "typesafe", Model: onesie.TypeSafe().DefaultModel(), Output: "csv", Input: "csv", MergeKey: "answers",
 		}) + "\n"
 		if err := os.WriteFile(path+".onesie", []byte(fingerprint), 0o600); err != nil {
 			t.Fatalf("writing the existing fingerprint: %v", err)

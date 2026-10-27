@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"math"
-	"net/http"
 	"sort"
 	"testing"
 
@@ -165,7 +164,7 @@ func TestNormalize(t *testing.T) {
 	t.Run("should refuse an answer that does not fit the question asked", func(t *testing.T) {
 		t.Parallel()
 
-		const prefix = "onesie: 200 response could not be used: "
+		const prefix = "200 response could not be used: "
 
 		team := plan.Question{
 			ID: "team", Shape: plan.Pick,
@@ -264,9 +263,9 @@ func TestNormalize(t *testing.T) {
 					t.Fatalf("error = %v, want %q", err, prefix+tc.want)
 				}
 
-				var unusable *onesie.ResponseError
-				if !errors.As(err, &unusable) || unusable.Status != http.StatusOK {
-					t.Errorf("error = %T, want a 200 *onesie.ResponseError", err)
+				var unusable *answer.UnusableError
+				if !errors.As(err, &unusable) {
+					t.Errorf("error = %T, want *answer.UnusableError", err)
 				}
 			})
 		}
@@ -306,7 +305,7 @@ func TestNormalize(t *testing.T) {
 				name:     "should reject a choice answer to a yes/no question",
 				question: plan.Question{ID: "urgent", Shape: plan.Noul},
 				raw:      &onesie.ChoiceAnswer{Choice: "x", Confidence: 0.5},
-				wantErr:  "onesie: 200 response could not be used: question 'urgent' expects a noul answer, got choice",
+				wantErr:  "200 response could not be used: question 'urgent' expects a noul answer, got choice",
 			},
 			{
 				name: "should reject a noul answer to a pick question",
@@ -316,7 +315,7 @@ func TestNormalize(t *testing.T) {
 					Options: []plan.Option{{Name: "billing"}, {Name: "technical"}},
 				},
 				raw:     &onesie.NoulAnswer{Noul: 0.4},
-				wantErr: "onesie: 200 response could not be used: question 'team' expects a choice answer, got noul",
+				wantErr: "200 response could not be used: question 'team' expects a choice answer, got noul",
 			},
 			{
 				name: "should reject a choice answer to a rate question",
@@ -326,7 +325,7 @@ func TestNormalize(t *testing.T) {
 					Levels: []plan.Level{{Label: "low"}, {Label: "high"}},
 				},
 				raw:     &onesie.ChoiceAnswer{Choice: "low", Confidence: 0.5},
-				wantErr: "onesie: 200 response could not be used: question 'severity' expects a score answer, got choice",
+				wantErr: "200 response could not be used: question 'severity' expects a score answer, got choice",
 			},
 		}
 
@@ -346,13 +345,9 @@ func TestNormalize(t *testing.T) {
 				// A shape the question did not ask for is deterministic, so it is a 200 whose body
 				// onesie could not use. Left untyped it took the transport kind and exit 5, which tells
 				// a pipeline to retry something that will never change.
-				var unusable *onesie.ResponseError
+				var unusable *answer.UnusableError
 				if !errors.As(err, &unusable) {
-					t.Fatalf("error = %T, want *onesie.ResponseError", err)
-				}
-
-				if unusable.Status != http.StatusOK {
-					t.Errorf("status = %d, want %d", unusable.Status, http.StatusOK)
+					t.Fatalf("error = %T, want *answer.UnusableError", err)
 				}
 			})
 		}
@@ -392,9 +387,9 @@ func TestNormalize(t *testing.T) {
 
 			_, err := answer.Normalize(plan.Question{ID: "mug", Shape: plan.Box}, &onesie.BoxAnswer{Edges: bad.edges, Confidence: 0.5})
 
-			var unusable *onesie.ResponseError
+			var unusable *answer.UnusableError
 			if !errors.As(err, &unusable) {
-				t.Fatalf("error = %v, want a ResponseError", err)
+				t.Fatalf("error = %v, want *answer.UnusableError", err)
 			}
 		})
 	}
@@ -476,7 +471,7 @@ func TestNormalizeAll(t *testing.T) {
 		result := &onesie.Result{Answers: map[string]onesie.Answer{"a": &onesie.NoulAnswer{Noul: 0.9}}}
 
 		if _, err := answer.NormalizeAll(questions, result); err == nil || err.Error() !=
-			"onesie: 200 response could not be used: question 'b' has no answer" {
+			"200 response could not be used: question 'b' has no answer" {
 			t.Errorf("NormalizeAll = %v, want the missing answer to b", err)
 		}
 	})
@@ -519,7 +514,7 @@ func TestUnusable(t *testing.T) {
 	}{
 		{
 			name: "should name a 200 onesie could not use", reason: "the response is not JSON",
-			want: "onesie: 200 response could not be used: the response is not JSON",
+			want: "200 response could not be used: the response is not JSON",
 		},
 	}
 
@@ -529,9 +524,9 @@ func TestUnusable(t *testing.T) {
 
 			err := answer.Unusable(tc.reason)
 
-			var response *onesie.ResponseError
-			if !errors.As(err, &response) || response.Status != http.StatusOK || err.Error() != tc.want {
-				t.Errorf("Unusable = %v, want a 200 ResponseError %q", err, tc.want)
+			var unusable *answer.UnusableError
+			if !errors.As(err, &unusable) || err.Error() != tc.want {
+				t.Errorf("Unusable = %v, want *answer.UnusableError %q", err, tc.want)
 			}
 		})
 	}

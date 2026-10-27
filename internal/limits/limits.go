@@ -13,14 +13,16 @@ const (
 	// MinChoiceOptions is onesie's own floor. A one option choice has nothing to decide.
 	MinChoiceOptions = 2
 	// MaxChoiceOptions is the API's ceiling on options per choice question.
-	MaxChoiceOptions = 255
+	MaxChoiceOptions = onesie.MaxChoiceOptions
 	// MinScoreLevels is onesie's own floor. A one level score has nothing to rank.
 	MinScoreLevels = 2
 	// MaxScoreLevels is the API's ceiling on levels per score question.
-	MaxScoreLevels = 10
+	MaxScoreLevels = onesie.MaxScoreLevels
 
 	// DefaultAttemptTimeout bounds one HTTP attempt, not the whole call.
 	DefaultAttemptTimeout = onesie.DefaultAttemptTimeout
+	// AssetAttemptTimeout bounds one HTTP attempt of a request that carries images.
+	AssetAttemptTimeout = onesie.AssetAttemptTimeout
 	// DefaultRetries is how many times a retryable failure is retried.
 	DefaultRetries = onesie.DefaultRetries
 	// DefaultMaxRetryAfter is the longest server requested delay onesie will wait out.
@@ -75,6 +77,7 @@ func Report() []Entry {
 		{Name: "min-score-levels", Value: strconv.Itoa(MinScoreLevels)},
 		{Name: "max-score-levels", Value: strconv.Itoa(MaxScoreLevels)},
 		{Name: "attempt-timeout", Value: DefaultAttemptTimeout.String()},
+		{Name: "asset-attempt-timeout", Value: AssetAttemptTimeout.String()},
 		{Name: "retries", Value: strconv.Itoa(DefaultRetries)},
 		{Name: "max-retries", Value: strconv.Itoa(MaxRetries)},
 		{Name: "max-jobs", Value: strconv.Itoa(MaxJobs)},

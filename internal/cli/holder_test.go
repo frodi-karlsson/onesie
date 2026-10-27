@@ -332,7 +332,7 @@ func TestResolveRun(t *testing.T) {
 		for _, naming := range namings {
 			srv, auths := recordingServer(t, 0)
 
-			env := map[string]string{onesie.EnvAPIKey: "SECRET-ENV"}
+			env := map[string]string{onesie.TypeSafe().EnvAPIKey(): "SECRET-ENV"}
 			maps.Copy(env, naming.env)
 
 			args := append(append([]string{}, naming.args...),
@@ -356,7 +356,7 @@ func TestResolveRun(t *testing.T) {
 	t.Run("should resolve what the flags and variables choose", func(t *testing.T) {
 		t.Parallel()
 
-		const unknownWork = "onesie: unknown provider work. Use typesafe, openrouter, berget, levanto or cloudflare"
+		const unknownWork = "unknown provider work. Use typesafe, openrouter, berget, levanto or cloudflare"
 
 		profiles := creds.Profiles{Default: "work", Profiles: map[string]creds.Profile{
 			"work": {Provider: "openrouter", APIKey: "SECRET-WORK"},
@@ -397,7 +397,7 @@ func TestResolveRun(t *testing.T) {
 			},
 			{
 				name: "should refuse an unknown provider", flags: runFlags{provider: "bogus", providerSet: true},
-				wantErr: "onesie: unknown provider bogus. Use typesafe, openrouter, berget, levanto or cloudflare",
+				wantErr: "unknown provider bogus. Use typesafe, openrouter, berget, levanto or cloudflare",
 			},
 			{
 				name:    "should point --provider at --profile when it names a profile",
@@ -420,7 +420,7 @@ func TestResolveRun(t *testing.T) {
 
 				got, err := resolveRun(&tc.flags, lookupFrom(tc.env), open)
 				if tc.wantErr != "" {
-					if err == nil || err.Error() != tc.wantErr {
+					if err == nil || text(err) != tc.wantErr {
 						t.Errorf("error = %v, want %q", err, tc.wantErr)
 					}
 
@@ -431,10 +431,10 @@ func TestResolveRun(t *testing.T) {
 					t.Fatalf("resolveRun returned an error: %v", err)
 				}
 
-				if got.profile != tc.wantProfile || got.provider.Name != tc.wantProvider || got.by != tc.wantBy ||
+				if got.profile != tc.wantProfile || got.provider.Name() != tc.wantProvider || got.by != tc.wantBy ||
 					got.keyFrom != tc.wantKeyFrom {
 					t.Errorf("resolution = profile %q, provider %q, by %q, key from %q, want %q, %q, %q, %q",
-						got.profile, got.provider.Name, got.by, got.keyFrom,
+						got.profile, got.provider.Name(), got.by, got.keyFrom,
 						tc.wantProfile, tc.wantProvider, tc.wantBy, tc.wantKeyFrom)
 				}
 			})

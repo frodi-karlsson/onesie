@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"maps"
+	"net/url"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -147,11 +148,11 @@ func profileCreate(
 		return refused
 	}
 
-	if refused := refusePlainBaseURL(flags, profile.BaseURL); refused != nil {
+	if refused := checkProfile(opened.Profiles, name, profile, "--"+flagBaseURL); refused != nil {
 		return refused
 	}
 
-	if refused := checkProfile(opened.Profiles, name, profile); refused != nil {
+	if refused := refusePlainHTTP(flags, profile.BaseURL); refused != nil {
 		return refused
 	}
 
@@ -234,14 +235,19 @@ func profileUpdate(
 		return refused
 	}
 
+	baseURLSource := profileBaseURL
 	if changed(flagBaseURL) {
-		if refused := refusePlainBaseURL(flags, profile.BaseURL); refused != nil {
-			return refused
-		}
+		baseURLSource = "--" + flagBaseURL
 	}
 
-	if refused := checkProfile(opened.Profiles, name, profile); refused != nil {
+	if refused := checkProfile(opened.Profiles, name, profile, baseURLSource); refused != nil {
 		return refused
+	}
+
+	if changed(flagBaseURL) {
+		if refused := refusePlainHTTP(flags, profile.BaseURL); refused != nil {
+			return refused
+		}
 	}
 
 	change := creds.Change{Path: path, Profiles: opened.Profiles, Name: name, Profile: profile, ToFile: fields.toFile}
@@ -271,7 +277,7 @@ func updated(old creds.Profile, fields profileFlags, changed func(string) bool) 
 	if changed(flagProvider) {
 		profile.Provider = strings.TrimSpace(fields.provider)
 
-		if provider, err := onesie.ProviderNamed(profile.Provider); err == nil && provider.EnvAccountID == "" {
+		if provider, err := onesie.ProviderNamed(profile.Provider); err == nil && provider.EnvAccountID() == "" {
 			profile.AccountID = ""
 		}
 	}
@@ -445,9 +451,9 @@ func writeProfiles(w io.Writer, profiles creds.Profiles, active string) error {
 func inactiveReason(active resolution, err error) string {
 	switch {
 	case err != nil:
-		return "active: none, since " + strings.TrimPrefix(err.Error(), "onesie: ")
+		return "active: none, since " + text(err)
 	case active.profile == "":
-		return "active: " + active.by + "=" + active.provider.Name + ", no profile"
+		return "active: " + active.by + "=" + active.provider.Name() + ", no profile"
 	}
 
 	return ""
@@ -460,8 +466,10 @@ func newProfileShowCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 		Long: "With a name, report that profile. Without one, report what a run would use now, profile or " +
 			"not, as --profile, --provider and their variables choose. It prints profile, provider, chosen " +
 			"by, key, model and base_url lines, and an account line on cloudflare. The model and base_url " +
-			"lines give the value a run would use and where it comes from: profile, an env variable such as " +
-			"TYPESAFE_DEFAULT_MODEL, account_id, or the provider's default. An allow_http line says a run needs " +
+			"lines give the value a run would use and where it comes from. The model comes from profile, an env " +
+			"variable such as TYPESAFE_DEFAULT_MODEL, or the provider's default. The base_url comes from the " +
+			"profile's base_url, a variable such as TYPESAFE_BASE_URL, the profile's account_id, " +
+			"CLOUDFLARE_ACCOUNT_ID, or the provider's default. An allow_http line says a run needs " +
 			"--allow-http, when base_url is plain http to another host. It never reads the keychain or " +
 			"prints a key.\n\n" +
 			"It exits 2 when key or account is none, or the account is not 32 hexadecimal characters, " +
@@ -479,34 +487,32 @@ func profileShow(cmd *cobra.Command, settings rootSettings, flags *runFlags, arg
 		return err
 	}
 
-	// A hand edited profiles.json skips create's checks, and credentials in its base URL would print whole.
-	if refused := refuseUnclearBaseURL(shown.baseURL); refused != nil {
-		return refused
+	// Resolved as a run resolves it, which checks a hand edited profiles.json and the provider's base
+	// URL variable too, since neither passed through create.
+	baseURL, source, invalid := shown.provider.ResolveBaseURL(shown.baseURL, shown.accountID, settings.lookupEnv)
+	sourceName, given := baseURLFrom(source, "", shown, settings.lookupEnv)
+
+	var refused *onesie.BaseURLError
+	if errors.As(invalid, &refused) {
+		return baseURLRefusal(refused, sourceName, given)
 	}
-
-	baseURL, found, invalid := effectiveBaseURL(shown, settings.lookupEnv)
-
-	account := shown.accountSource(settings.lookupEnv)
 
 	// A run refuses a malformed account, so show refuses it too. A missing account prints as none
 	// and exits 2 below.
-	if invalid != nil && account != sourceNone && account != "" {
+	if invalid != nil && !errors.Is(invalid, onesie.ErrNoAccountID) {
 		return invalid
 	}
 
-	// Again for what the variables chose, since TYPESAFE_BASE_URL skips create's checks too.
-	if refused := refuseUnclearBaseURL(baseURL); found && refused != nil {
-		return refused
-	}
+	account := shown.accountSource(source, invalid)
 
 	baseURLLine := sourceNone
-	if found {
-		baseURLLine = output.Printable(baseURL) + ", " + baseURLOrigin(shown, settings.lookupEnv)
+	if invalid == nil {
+		baseURLLine = output.Printable(baseURL) + ", " + sourceName
 	}
 
 	lines := []string{
 		"profile: " + cmp.Or(shown.profile, noProfile),
-		"provider: " + shown.provider.Name,
+		"provider: " + shown.provider.Name(),
 		"chosen by: " + shown.by,
 		"key: " + shown.keyLine(),
 		"model: " + output.Printable(shown.modelFor("", settings.lookupEnv)) + ", " +
@@ -514,7 +520,7 @@ func profileShow(cmd *cobra.Command, settings rootSettings, flags *runFlags, arg
 		"base_url: " + baseURLLine,
 	}
 
-	if found && plainRemote(baseURL) {
+	if invalid == nil && onesie.InsecureBaseURL(baseURL) {
 		lines = append(lines, "allow_http: needed, since base_url is plain http to another host")
 	}
 
@@ -533,46 +539,12 @@ func profileShow(cmd *cobra.Command, settings rootSettings, flags *runFlags, arg
 	return nil
 }
 
-func effectiveBaseURL(shown resolution, lookupEnv func(string) (string, bool)) (string, bool, error) {
-	// Built the way a run builds its client, with a stand in for the key show never reads, so the
-	// order the URL is chosen in is the run's own.
-	opts := []onesie.Option{
-		onesie.WithProvider(shown.provider), onesie.WithEnv(shown.env(lookupEnv)), onesie.WithAPIKey(keyPlaceholder),
-	}
-
-	if shown.baseURL != "" {
-		opts = append(opts, onesie.WithBaseURL(shown.baseURL))
-	}
-
-	client, err := onesie.New(opts...)
-	if err != nil {
-		return "", false, err
-	}
-
-	return client.BaseURL(), true, nil
-}
-
-func baseURLOrigin(shown resolution, lookupEnv func(string) (string, bool)) string {
-	switch {
-	case shown.baseURL != "":
-		return fromProfile
-	case shown.provider.EnvBaseURL != "" && setVariable(lookupEnv, shown.provider.EnvBaseURL) != "":
-		return sourceEnv + " " + shown.provider.EnvBaseURL
-	case shown.accountID != "":
-		return "account_id"
-	case shown.provider.EnvAccountID != "" && setVariable(lookupEnv, shown.provider.EnvAccountID) != "":
-		return sourceEnv + " " + shown.provider.EnvAccountID
-	}
-
-	return providersOwn
-}
-
 func modelOrigin(shown resolution, lookupEnv func(string) (string, bool)) string {
 	switch {
 	case strings.TrimSpace(shown.model) != "":
 		return fromProfile
-	case shown.provider.EnvDefaultModel != "" && setVariable(lookupEnv, shown.provider.EnvDefaultModel) != "":
-		return sourceEnv + " " + shown.provider.EnvDefaultModel
+	case shown.provider.EnvDefaultModel() != "" && setVariable(lookupEnv, shown.provider.EnvDefaultModel()) != "":
+		return sourceEnv + " " + shown.provider.EnvDefaultModel()
 	}
 
 	return providersOwn
@@ -616,17 +588,17 @@ func profileTest(cmd *cobra.Command, settings rootSettings, flags *runFlags, arg
 
 	models, err := client.VerifyKey(cmd.Context())
 	if err != nil {
-		return keyHint(advise(err, "", false), tested)
+		return keyHint(advise(err, ""), tested)
 	}
 
 	_, printErr := fmt.Fprintf(cmd.OutOrStdout(), "profile: %s\nprovider: %s\nkey: %s\nmodels: %d\n",
-		cmp.Or(tested.profile, noProfile), tested.provider.Name, tested.keyLine(), len(models))
+		cmp.Or(tested.profile, noProfile), tested.provider.Name(), tested.keyLine(), len(models))
 
 	return printErr
 }
 
 func noKeyToTest(settings rootSettings, tested resolution) error {
-	missing := &onesie.ValidationError{Message: "no API key. Set " + tested.provider.EnvAPIKey}
+	missing := &noKeyError{provider: tested.provider}
 
 	// A file that cannot be read names no profile, and the missing key is the failure to report.
 	opened, err := settings.holder.opened()
@@ -635,6 +607,18 @@ func noKeyToTest(settings rootSettings, tested resolution) error {
 	}
 
 	return missingKeyHint(missing, tested, opened.Profiles)
+}
+
+type noKeyError struct {
+	provider onesie.Provider
+}
+
+func (e *noKeyError) Error() string {
+	return "no API key. Set " + e.provider.EnvAPIKey()
+}
+
+func (e *noKeyError) Is(target error) bool {
+	return target == onesie.ErrNoAPIKey || target == onesie.ErrValidation
 }
 
 func shownResolution(settings rootSettings, flags *runFlags, args []string, command string) (resolution, error) {
@@ -765,7 +749,7 @@ func noProfileNamed(name string, profiles creds.Profiles) error {
 
 func checkGiven(profile creds.Profile, changed func(string) bool, providerGiven bool) error {
 	provider, err := onesie.ProviderNamed(profile.Provider)
-	if providerGiven && (err != nil || provider.Name != profile.Provider) {
+	if providerGiven && (err != nil || provider.Name() != profile.Provider) {
 		return fmt.Errorf("--%s names %s, which is not typesafe, openrouter, berget, levanto or cloudflare",
 			flagProvider, creds.QuotedName(profile.Provider))
 	}
@@ -774,7 +758,7 @@ func checkGiven(profile creds.Profile, changed func(string) bool, providerGiven 
 	baseURLGiven := changed(flagBaseURL) && profile.BaseURL != ""
 
 	switch {
-	case accountGiven && provider.EnvAccountID == "":
+	case accountGiven && provider.EnvAccountID() == "":
 		return fmt.Errorf("--%s applies only to cloudflare, and this profile is on %s",
 			flagAccountID, profile.Provider)
 	case accountGiven && !creds.ValidAccountID(profile.AccountID):
@@ -792,25 +776,26 @@ func checkGiven(profile creds.Profile, changed func(string) bool, providerGiven 
 	return nil
 }
 
-func refusePlainBaseURL(flags *runFlags, baseURL string) error {
-	if flags.allowHTTP || !plainRemote(baseURL) {
+func refusePlainHTTP(flags *runFlags, baseURL string) error {
+	if flags.allowHTTP || !onesie.InsecureBaseURL(baseURL) {
 		return nil
 	}
 
-	// Ahead of the message, which quotes the URL.
-	if refused := refuseUnclearBaseURL(baseURL); refused != nil {
-		return refused
+	parsed, err := url.Parse(baseURL)
+	if err != nil {
+		return err
 	}
 
-	return errors.New("--" + flagBaseURL + " " + output.Printable(baseURL) + plainHTTPReason +
+	return errors.New("--" + flagBaseURL + " " + output.Printable(parsed.Scheme+"://"+parsed.Host) +
+		" is plain http to a host other than this machine" + plainHTTPReason +
 		". Use https, or pass --" + flagAllowHTTP + " to store it, and every run on the profile then needs --" +
 		flagAllowHTTP + " too")
 }
 
-func checkProfile(profiles creds.Profiles, name string, profile creds.Profile) error {
+func checkProfile(profiles creds.Profiles, name string, profile creds.Profile, baseURLSource string) error {
 	if profile.BaseURL != "" {
-		if invalid := validBaseURL(profile.BaseURL); invalid != nil {
-			return invalid
+		if refused := checkBaseURL(profile.BaseURL, baseURLSource); refused != nil {
+			return refused
 		}
 	}
 
@@ -821,6 +806,15 @@ func checkProfile(profiles creds.Profiles, name string, profile creds.Profile) e
 
 	if broken := profiles.With(name, profile).Validate(); broken != nil {
 		return broken
+	}
+
+	return nil
+}
+
+func checkBaseURL(baseURL, source string) error {
+	var refused *onesie.BaseURLError
+	if errors.As(onesie.ValidateBaseURL(baseURL), &refused) {
+		return baseURLRefusal(refused, source, baseURL)
 	}
 
 	return nil

@@ -329,6 +329,17 @@ func TestStreamRaw(t *testing.T) {
 		}
 	})
 
+	t.Run("should count the tokens of a 200 whose answers cannot be read", func(t *testing.T) {
+		t.Parallel()
+
+		_, out, errOut, code := runRequestMode(t, []string{"-i", "request", "--stats"},
+			`{"state":"x","model":"m","questions":{"u":{"type":"noul","instructions":"q"}}}`+"\n", 0,
+			`{"model":"m","answers":[],"usage":{"input_tokens":3,"output_tokens":1}}`)
+		if code != ExitRecords || !strings.Contains(errOut, "3 in / 1 out tokens") {
+			t.Errorf("exit code = %d, stderr = %q, want %d and the tokens counted\nstdout:\n%s", code, errOut, ExitRecords, out)
+		}
+	})
+
 	t.Run("should keep multiple requests in flight under -j", func(t *testing.T) {
 		t.Parallel()
 
@@ -632,7 +643,7 @@ func TestStreamRaw(t *testing.T) {
 			},
 			{
 				name:  "should send the default model variable with no profile",
-				env:   map[string]string{onesie.EnvAPIKey: "SECRET-ENV", onesie.EnvBaseURL: "{url}", onesie.EnvDefaultModel: "jev-env"},
+				env:   map[string]string{onesie.TypeSafe().EnvAPIKey(): "SECRET-ENV", onesie.TypeSafe().EnvBaseURL(): "{url}", onesie.TypeSafe().EnvDefaultModel(): "jev-env"},
 				args:  []string{"-i", "request"},
 				stdin: bare,
 				want:  `{"model":"jev-env","state":"x","questions":{"q":{"type":"noul","instructions":"q"}}}`,
@@ -734,7 +745,7 @@ func TestStreamRaw(t *testing.T) {
 			},
 			{
 				name:     "should send under the default model variable on typesafe, which takes long context",
-				env:      map[string]string{onesie.EnvAPIKey: "SECRET-ENV", onesie.EnvBaseURL: "{url}", onesie.EnvDefaultModel: "jev-env"},
+				env:      map[string]string{onesie.TypeSafe().EnvAPIKey(): "SECRET-ENV", onesie.TypeSafe().EnvBaseURL(): "{url}", onesie.TypeSafe().EnvDefaultModel(): "jev-env"},
 				wantCode: ExitOK,
 				wantSent: 1,
 			},

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 
 	"github.com/spf13/cobra"
 
@@ -40,7 +41,7 @@ func streamRaw(
 
 	// Built only when the run makes a request, so -i request --print-request needs no key.
 	if requests(flags) {
-		built, err := settings.newClient(cmd.Context(), chosen, observing(stats)...)
+		built, err := settings.newClient(cmd.Context(), chosen, runOptions(flags, stats)...)
 		if err != nil {
 			return err
 		}
@@ -51,7 +52,7 @@ func streamRaw(
 	long := flags.env.longContext
 
 	// Every body would be refused, so the run stops before it reads any.
-	if long && requests(flags) {
+	if long {
 		if refusal := provider.Refuse(defaultModel, onesie.Needs{LongContext: true}); refusal != nil {
 			return longContextCause(refusal, flags)
 		}
@@ -85,53 +86,43 @@ func streamRaw(
 			// same predicate decides this and the client above, so the two cannot disagree and leave
 			// a nil client.
 			if !requests(flags) {
-				return onesie.PrepareRawBody(json.RawMessage(rec.Raw), defaultModel, long), nil
+				return printedBody(provider, rec.Raw, defaultModel, long)
 			}
 
-			body := onesie.PrepareRawBody(json.RawMessage(rec.Raw), defaultModel, false)
+			body, prepareErr := client.PrepareRaw(json.RawMessage(rec.Raw), longContextOptions(long)...)
+			if prepareErr != nil {
+				stats.recordFailure(prepareErr, false, 0)
+
+				return errorLine(prepareErr), prepareErr
+			}
 
 			// From the request rather than the response. A failed record has no answers but did
 			// carry questions, and counting the response would report zero for exactly the records
 			// a user turned --stats on to understand.
 			read := readRawRequest(body)
-			asked := read.questions
 
-			var opts []onesie.RequestOption
-			if read.needsImages {
-				stats.imaged()
-
-				if !flags.timeoutSet {
-					opts = append(opts, onesie.WithRequestAttemptTimeout(imageAttemptTimeout))
-				}
-			}
-
-			if long {
-				opts = append(opts, onesie.WithLongContext())
-			}
-
-			response, err := client.SystemOneRaw(ctx, body, opts...)
+			response, err := client.SystemOneRaw(ctx, body)
 			if err != nil {
-				// The prepared body names the model onesie sent, and nothing inside it was checked locally,
-				// so no local bound is implicated.
+				// The prepared body names the model onesie sent.
 				advised := explain(err, requestFacts{
-					provider: provider, model: read.model, longContext: long || read.longContext, boxed: read.boxed,
+					provider: provider, model: read.model, longContext: read.longContext, boxed: read.boxed,
 				})
 
-				stats.recordFailure(advised, true, asked)
+				stats.recordFailure(advised, true, read.questions)
 				stats.terminalAttempt(advised)
 
 				return errorLine(advised), advised
 			}
 
-			if usage, checkErr := checkRawResponse(body, response); checkErr != nil {
-				stats.spend(usage)
-				stats.recordFailure(checkErr, true, asked)
+			result, checkErr := checkRawResponse(read.asked, response)
+			if checkErr != nil {
+				stats.spend(result.Usage)
+				stats.recordFailure(checkErr, true, read.questions)
 
 				return errorLine(checkErr), checkErr
 			}
 
-			model, usage := rawSummary(response)
-			stats.record(model, usage, asked)
+			stats.record(result.Model, result.Usage, read.questions)
 
 			return oneLine(response), nil
 		},
@@ -164,6 +155,23 @@ func streamRaw(
 	return streamResult(result, 0, 0)
 }
 
+func printedBody(provider onesie.Provider, raw, defaultModel string, long bool) ([]byte, error) {
+	body, err := provider.PrepareRaw(json.RawMessage(raw), defaultModel, longContextOptions(long)...)
+	if err != nil {
+		return errorLine(err), err
+	}
+
+	return body, nil
+}
+
+func longContextOptions(on bool) []onesie.RequestOption {
+	if !on {
+		return nil
+	}
+
+	return []onesie.RequestOption{onesie.WithLongContext()}
+}
+
 func requests(flags runConfig) bool {
 	// --print-request is why this is not folded into the early return --print-questions takes. It
 	// includes any state supplied, so it goes through input.Resolve and needs a question only body
@@ -171,54 +179,48 @@ func requests(flags runConfig) bool {
 	return !flags.printQuestions && !flags.printRequest
 }
 
-func checkRawResponse(request, response []byte) (onesie.Usage, error) {
-	// The usage is read apart from the answers, so a 200 whose answers onesie cannot read still
-	// reports what it cost.
-	var probe struct {
-		Answers json.RawMessage `json:"answers"`
-		Usage   onesie.Usage    `json:"usage"`
-	}
+func checkRawResponse(asked []plan.Question, response []byte) (onesie.Result, error) {
+	// One decode reads the model, the usage and the answers. A 200 whose answers onesie cannot read
+	// leaves the usage unset, so the usage is read again alone to report what the request cost.
+	var result onesie.Result
 
-	var (
-		syntax *json.SyntaxError
-		result onesie.Result
-	)
+	err := json.Unmarshal(response, &result)
 
-	probeErr := json.Unmarshal(response, &probe)
-	resultErr := json.Unmarshal(response, &result)
+	var syntax *json.SyntaxError
 
 	switch {
-	case errors.As(probeErr, &syntax):
-		return onesie.Usage{}, answer.Unusable("the response is not JSON")
-	case probeErr != nil:
-		// The result holds the same usage, so it fails too, and onesie-go words the failure.
-		return onesie.Usage{}, &onesie.ResponseError{Status: http.StatusOK, Err: resultErr}
-	case !bytes.HasPrefix(bytes.TrimSpace(probe.Answers), []byte("{")):
-		return probe.Usage, answer.Unusable("the response is not a System One result, since it has no answers")
-	case resultErr != nil:
-		return probe.Usage, &onesie.ResponseError{Status: http.StatusOK, Err: resultErr}
+	case errors.As(err, &syntax):
+		return result, answer.Unusable("the response is not JSON")
+	case err != nil:
+		result.Usage = billedUsage(response)
+
+		return result, &onesie.ResponseError{Status: http.StatusOK, Err: err}
+	case len(result.Answers) == 0 && !holdsAnswers(response):
+		return result, answer.Unusable("the response is not a System One result, since it has no answers")
 	}
 
-	// Only a body whose questions onesie can read, as -f reads one, says what each answer must fit.
-	return probe.Usage, answer.CheckAll(requestQuestions(request), &result)
+	return result, answer.CheckAll(asked, &result)
 }
 
-func requestQuestions(request []byte) []plan.Question {
-	// qfile.Load reads a body with no questions key as a bare question map, so the key is looked for first.
-	var probe struct {
-		Questions json.RawMessage `json:"questions"`
+func billedUsage(response []byte) onesie.Usage {
+	var billed struct {
+		Usage onesie.Usage `json:"usage"`
 	}
 
-	if json.Unmarshal(request, &probe) != nil || probe.Questions == nil {
-		return nil
+	if json.Unmarshal(response, &billed) != nil {
+		return onesie.Usage{}
 	}
 
-	loaded, err := qfile.Load(request)
-	if err != nil {
-		return nil
-	}
+	return billed.Usage
+}
 
-	return loaded.Questions
+func holdsAnswers(response []byte) bool {
+	// Result reads a missing answers object as an empty one, which is also the answer to a body
+	// that asks nothing, so only an empty result is read again to tell the two apart.
+	var members map[string]json.RawMessage
+
+	return json.Unmarshal(response, &members) == nil &&
+		bytes.HasPrefix(bytes.TrimSpace(members["answers"]), []byte("{"))
 }
 
 func oneLine(body []byte) []byte {
@@ -235,49 +237,39 @@ func oneLine(body []byte) []byte {
 	return bytes.ReplaceAll(bytes.TrimRight(body, "\n"), []byte("\n"), []byte(" "))
 }
 
-func rawSummary(response []byte) (string, onesie.Usage) {
-	var probe struct {
-		Model string       `json:"model"`
-		Usage onesie.Usage `json:"usage"`
-	}
-
-	// A body onesie cannot read still counts as a request. Only the model and the token numbers are
-	// lost, and reporting nothing for them beats failing a record the server answered.
-	if err := json.Unmarshal(response, &probe); err != nil {
-		return "", onesie.Usage{}
-	}
-
-	return probe.Model, probe.Usage
-}
-
-func readRawRequest(request []byte) rawRequest {
-	// Empty structs for the assets, so the base64 of every asset is scanned but never copied.
-	var probe struct {
-		Model       string                     `json:"model"`
-		Assets      map[string]struct{}        `json:"assets"`
-		Questions   map[string]json.RawMessage `json:"questions"`
-		LongContext bool                       `json:"long_context"`
-	}
-
-	// A type error still fills every field it did not reach, so a body with one odd field keeps
-	// its model and question count, as the separate probes this replaces did.
-	var typeErr *json.UnmarshalTypeError
-	if err := json.Unmarshal(request, &probe); err != nil && !errors.As(err, &typeErr) {
+func readRawRequest(prepared []byte) rawRequest {
+	// The prepared body holds one member per key, so a decode into members reads exactly what is
+	// sent, by the exact key.
+	var members map[string]borrowed
+	if json.Unmarshal(prepared, &members) != nil {
 		return rawRequest{}
 	}
 
-	read := rawRequest{
-		model: probe.Model, questions: len(probe.Questions), needsImages: len(probe.Assets) > 0,
-		longContext: probe.LongContext,
+	read := rawRequest{model: member[string](members, "model"), longContext: member[bool](members, "long_context")}
+
+	questions, found := members["questions"]
+	if !found {
+		return read
 	}
 
-	for _, raw := range probe.Questions {
-		var question struct {
-			Type string `json:"type"`
-		}
+	if asked := requestQuestions(questions); asked != nil {
+		read.asked, read.questions = asked, len(asked)
+		read.boxed = slices.ContainsFunc(asked, func(q plan.Question) bool { return q.Shape == plan.Box })
 
-		if json.Unmarshal(raw, &question) == nil && question.Type == "box" {
-			read.needsImages = true
+		return read
+	}
+
+	// The questions do not load, so they are counted and their types read one by one.
+	var each map[string]borrowed
+	if json.Unmarshal(questions, &each) != nil {
+		return read
+	}
+
+	read.questions = len(each)
+
+	for _, raw := range each {
+		var question map[string]borrowed
+		if json.Unmarshal(raw, &question) == nil && member[string](question, "type") == "box" {
 			read.boxed = true
 		}
 	}
@@ -288,7 +280,44 @@ func readRawRequest(request []byte) rawRequest {
 type rawRequest struct {
 	model       string
 	questions   int
-	needsImages bool
 	boxed       bool
 	longContext bool
+	asked       []plan.Question
+}
+
+func member[T any](members map[string]borrowed, name string) T {
+	var value T
+
+	raw, found := members[name]
+	if !found || json.Unmarshal(raw, &value) != nil {
+		var zero T
+
+		return zero
+	}
+
+	return value
+}
+
+func requestQuestions(questions borrowed) []plan.Question {
+	// qfile.Load reads a mapping with no questions key as a question file, so the member goes back
+	// under its key to be read as a body's questions.
+	body := make([]byte, 0, len(questions)+len(`{"questions":}`))
+	body = append(append(append(body, `{"questions":`...), questions...), '}')
+
+	loaded, err := qfile.Load(body)
+	if err != nil {
+		return nil
+	}
+
+	return loaded.Questions
+}
+
+type borrowed []byte
+
+func (b *borrowed) UnmarshalJSON(data []byte) error {
+	// json.Unmarshal hands each member a slice of its own input, so keeping it copies nothing. The
+	// input is a body this package holds and never writes, so the slice stays valid while it is read.
+	*b = data
+
+	return nil
 }

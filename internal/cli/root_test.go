@@ -2041,10 +2041,10 @@ func TestNewRootCmd(t *testing.T) {
 				t.Cleanup(srv.Close)
 
 				env := map[string]string{
-					"ONESIE_CONFIG_DIR": t.TempDir(),
-					"ONESIE_CACHE_DIR":  filepath.Join(t.TempDir(), "cache"),
-					onesie.EnvAPIKey:    "SECRET-TEST",
-					onesie.EnvBaseURL:   srv.URL,
+					"ONESIE_CONFIG_DIR":            t.TempDir(),
+					"ONESIE_CACHE_DIR":             filepath.Join(t.TempDir(), "cache"),
+					onesie.TypeSafe().EnvAPIKey():  "SECRET-TEST",
+					onesie.TypeSafe().EnvBaseURL(): srv.URL,
 				}
 
 				run := func(stdin string, args ...string) (string, string, int) {
@@ -2506,9 +2506,9 @@ func TestNewRootCmd(t *testing.T) {
 
 				home := t.TempDir()
 				env := map[string]string{
-					onesie.EnvAPIKey:    "k",
-					"ONESIE_CONFIG_DIR": filepath.Join(home, "config"),
-					"ONESIE_CACHE_DIR":  filepath.Join(home, "cache"),
+					onesie.TypeSafe().EnvAPIKey(): "k",
+					"ONESIE_CONFIG_DIR":           filepath.Join(home, "config"),
+					"ONESIE_CACHE_DIR":            filepath.Join(home, "cache"),
 				}
 
 				for name, value := range tc.env {
@@ -2832,7 +2832,7 @@ func TestClientBuilder(t *testing.T) {
 				name: "should refuse rather than warn for a base url with credentials", flag: "/v1",
 				userinfo: "user:SECRET-pw@", refused: true,
 			},
-			{name: "should warn for TYPESAFE_BASE_URL ending in /v1", env: "/v1", spelled: onesie.EnvBaseURL, wantWarn: true},
+			{name: "should warn for TYPESAFE_BASE_URL ending in /v1", env: "/v1", spelled: onesie.TypeSafe().EnvBaseURL(), wantWarn: true},
 			{
 				name: "should name the profile's base_url when it ends in /v1", stored: "/v1",
 				spelled: "the profile's base_url", wantWarn: true,
@@ -2853,11 +2853,11 @@ func TestClientBuilder(t *testing.T) {
 				defer srv.Close()
 
 				config := t.TempDir()
-				env := map[string]string{onesie.EnvAPIKey: "test", "ONESIE_CONFIG_DIR": config}
+				env := map[string]string{onesie.TypeSafe().EnvAPIKey(): "test", "ONESIE_CONFIG_DIR": config}
 				args := []string{"is this urgent", "-i", "lines", "-o", "values", "--retries", "0"}
 
 				if tc.stored != "" {
-					delete(env, onesie.EnvAPIKey)
+					delete(env, onesie.TypeSafe().EnvAPIKey())
 
 					stored := `{"default":"proxy","profiles":{"proxy":{"provider":"typesafe","api_key":"test",` +
 						`"base_url":"` + srv.URL + tc.stored + `"}}}`
@@ -2871,7 +2871,7 @@ func TestClientBuilder(t *testing.T) {
 				}
 
 				if tc.env != "" {
-					env[onesie.EnvBaseURL] = srv.URL + tc.env
+					env[onesie.TypeSafe().EnvBaseURL()] = srv.URL + tc.env
 				}
 
 				var out, errOut bytes.Buffer
@@ -2940,8 +2940,8 @@ func TestClientBuilder(t *testing.T) {
 			defer srv.Close()
 
 			env := map[string]string{
-				onesie.EnvAPIKey:  "from-env",
-				onesie.EnvBaseURL: srv.URL,
+				onesie.TypeSafe().EnvAPIKey():  "from-env",
+				onesie.TypeSafe().EnvBaseURL(): srv.URL,
 			}
 
 			out, code := runWithEnv(t, env, []string{"is this urgent", "-r"})
@@ -2967,8 +2967,8 @@ func TestClientBuilder(t *testing.T) {
 			defer fromEnv.Close()
 
 			env := map[string]string{
-				onesie.EnvAPIKey:  "from-env",
-				onesie.EnvBaseURL: fromEnv.URL,
+				onesie.TypeSafe().EnvAPIKey():  "from-env",
+				onesie.TypeSafe().EnvBaseURL(): fromEnv.URL,
 			}
 
 			out, code := runWithEnv(t, env,
@@ -3204,7 +3204,7 @@ func runWithEnv(t *testing.T, env map[string]string, args []string) (string, int
 
 func apiKeyEnv(key string) func(string) (string, bool) {
 	return func(name string) (string, bool) {
-		if name == onesie.EnvAPIKey {
+		if name == onesie.TypeSafe().EnvAPIKey() {
 			return key, true
 		}
 

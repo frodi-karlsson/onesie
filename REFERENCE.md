@@ -51,11 +51,11 @@ prints the built in limits.
 - `--box` makes a question a box, answered with `left`, `top`, `right` and `bottom`, each a fraction
   of the image from its top left corner, and a `confidence`. It needs an image, as in Images below,
   and a provider that takes it, TypeSafe or OpenRouter, as on `typesafe/jev-1.14`. Cloudflare,
-  Levanto and Berget refuse it before any request. On TypeSafe the model must serve it too: one that
-  does not answers 400 `Invalid request`, and onesie then names `-m jev-preview`, which does. It
-  takes no value and no `--desc`, `--threshold`, `--min-confidence` or `--fallback`. `-r` prints the
-  four edges in that order, and `-o csv` writes them as four columns, `ID_left`, `ID_top`,
-  `ID_right` and `ID_bottom`.
+  Levanto and Berget refuse it before any request. On TypeSafe and OpenRouter the model must serve it
+  too: one that does not answers 400 `Invalid request`, and onesie then names `-m jev-preview`, which
+  does. It takes no value and no `--desc`, `--threshold`, `--min-confidence` or `--fallback`. `-r`
+  prints the four edges in that order, and `-o csv` writes them as four columns, `ID_left`,
+  `ID_top`, `ID_right` and `ID_bottom`.
   A box always returns a box, even when the target is not there, so pair it with a yes or no
   question that asks whether it is.
 
@@ -373,7 +373,8 @@ ls photos/*.jpg | onesie -i lines --image-field photo 'is there a dog in `photo`
   rotation, so rotate a phone photo upright first.
 - The cache, deduplication and `--resume` see the same image file as the same record.
 - A request with an image waits up to 60 seconds per attempt, unless `--timeout` says otherwise.
-  Lower `-j` for large images, since each record in flight holds its image bytes.
+  `onesie -V` lists it as `asset-attempt-timeout`, beside `attempt-timeout`. Lower `-j` for large
+  images, since each record in flight holds its image bytes.
 - `--map` runs before the images are attached, so it sees the text state and the paths, never the
   references. With `--image` and no text there is nothing to map.
 - In a stream, `--merge` writes the input record as it was read, so an `--image-field` holds its
@@ -385,8 +386,12 @@ ls photos/*.jpg | onesie -i lines --image-field photo 'is there a dog in `photo`
   through `-i request`.
 - A printed body names its model, the provider's default unless `-m` gave one, so it replays on a
   provider that serves that model. To print for another provider, pass `-m`.
-- Under `-i request` onesie does not check the body it sends, apart from filling a blank `model`,
-  but it checks each 200 that comes back before printing it. A response that is not JSON, that is
+- Under `-i request` onesie fills a blank `model` and checks each body as a send would, before it
+  sends anything: the provider must take what the body asks for, each image must pass the image
+  limits, `long_context` must be true or false, and no question may pass `max-choice-options` or
+  `max-score-levels`. A body that fails is an error line of kind `input`, and nothing is sent for
+  it. `--print-request` refuses the same bodies with the same error lines. It also checks each 200
+  that comes back before printing it. A response that is not JSON, that is
   not a System One result with an `answers` object, or whose answers do not decode, is an error
   line of kind `response` with `200 response could not be used:`, and the run exits 6. When the
   body's `questions` read as a `-f` body's would, each answer is also checked against its question
@@ -548,14 +553,15 @@ on the provider's key variable alone.
   `onesie profile update NAME --key`. `chosen by:` is `--profile`, `ONESIE_PROFILE`, `the default`,
   `--provider`, `ONESIE_PROVIDER` or `nothing`, and `not active` for a named profile a run would not
   use. `model:` and `base_url:` give the value a run would use, in the order a run picks it, then
-  where it comes from: `profile`, `env TYPESAFE_DEFAULT_MODEL`, `env TYPESAFE_BASE_URL`,
-  `account_id`, `env CLOUDFLARE_ACCOUNT_ID` or `the provider's default`, as in
-  `model: jev-latest, the provider's default`. `base_url:` is `none` on cloudflare with no
-  account. An `allow_http: needed` line follows it when the base URL is plain http to another host,
-  since every run then needs `--allow-http`. `account:` names `account_id`, `base_url`,
-  `CLOUDFLARE_ACCOUNT_ID` or `none`. `show` exits 2 when `key` or `account` is `none`, as a real
-  run would, and exits 2 with the run's message when `CLOUDFLARE_ACCOUNT_ID` is not 32
-  hexadecimal characters.
+  where it comes from. The model comes from `profile`, `env TYPESAFE_DEFAULT_MODEL` or `the
+  provider's default`, as in `model: jev-latest, the provider's default`. The base URL comes from
+  `the profile's base_url`, `TYPESAFE_BASE_URL`, `the profile's account_id`, `CLOUDFLARE_ACCOUNT_ID`
+  or `the provider's default`, the words a run's messages use. `base_url:` is `none` on cloudflare
+  with no account, and a base URL a run would refuse exits 2 with the run's message. An
+  `allow_http: needed` line follows it when the base URL is plain http to another host, since every
+  run then needs `--allow-http`. `account:` names `account_id`, `base_url`, `CLOUDFLARE_ACCOUNT_ID`
+  or `none`. `show` exits 2 when `key` or `account` is `none`, as a real run would, and exits 2
+  with the run's message when `CLOUDFLARE_ACCOUNT_ID` is not 32 hexadecimal characters.
 - A key the server refuses with 401 or 403 exits 3, on a run or on `test`. On a profile the message
   names `onesie profile update NAME --key`, and without one it names the provider's key variable. A
   run with no key and no profile for its provider names
@@ -609,9 +615,11 @@ on the provider's key variable alone.
   leaves a single `model` key. onesie writes that model into the body, so `--print-request` shows
   it too.
 - On cloudflare the account counts only when no base URL is chosen, since a Cloudflare base URL
-  holds the account. A cloudflare run with no account exits 2 and names `CLOUDFLARE_ACCOUNT_ID` and
-  the base URL `https://api.cloudflare.com/client/v4/accounts/<account_id>/ai`. On a profile it also
-  names `onesie profile update NAME --account-id ACCOUNT_ID`.
+  holds the account. A profile's `account_id` comes right after `--base-url` and the profile's
+  `base_url`, so it beats every variable, and `CLOUDFLARE_ACCOUNT_ID` comes after them. A cloudflare
+  run with no account exits 2 and names `CLOUDFLARE_ACCOUNT_ID`. On a profile it also names
+  `onesie profile update NAME --account-id ACCOUNT_ID`, and without one
+  `onesie profile create NAME --provider cloudflare --account-id ACCOUNT_ID`.
 - A run that `--provider` or `ONESIE_PROVIDER` chooses, and that succeeds, never opens
   `profiles.json`, so CI that names its provider does not depend on any file on the machine. Only a
   run that then fails for a missing key or an unknown provider reads it, to name a profile in the
@@ -807,11 +815,15 @@ table, and `onesie calibrate --help` lists the codes calibrate uses.
   path, prints its status and says the body is not JSON, as in
   `onesie: 405 Method Not Allowed, with a response body that is not JSON. Check that the base URL points at the System One API`.
   A page is left out, and only the first line of a plain text body is kept. Only a 404 or a 405
-  adds the hint to check the base URL. A body sent as JSON that holds only a string prints the
-  first line of that string after the status.
+  adds the hint to check the base URL. A body sent as JSON that holds only a string is read as a
+  plain text body is: its first line is kept, a page is left out, and an empty one prints the
+  status text.
 - A base URL that holds a user or a password, or any `@`, `?` or `#`, or that does not parse, exits 2
   before any request, whether it comes from `--base-url`, `TYPESAFE_BASE_URL` or a profile, so a key
-  never travels in a URL or reaches a message. `profile create` and `profile update` refuse one too,
+  never travels in a URL or reaches a message. So does one with no host or with a scheme other than
+  http or https. The message names where the URL came from, `--base-url`, `TYPESAFE_BASE_URL` or
+  `the profile's base_url`, and shows at most its scheme and host, as in
+  `onesie: --base-url https:// names no host`. `profile create` and `profile update` refuse one too,
   and `profile show` refuses a profile that holds one. `--print-request` sends nothing and does not
   check it.
 - `-f VALUE` reads VALUE as a file when one exists at that path. Otherwise a bare name loads
@@ -863,8 +875,8 @@ table, and `onesie calibrate --help` lists the codes calibrate uses.
   body asks for it itself. Set that key to `false` in the body, or remove it, to run without it.
   `-i request` follows the same order for each body it replays, and under `--print-request` it
   writes `"long_context":true` into a body the flag or the variable turns it on for. A provider
-  that takes no long context refuses the run with exit 2, and when `ONESIE_LONG_CONTEXT` turned it
-  on, the message says so. It is experimental.
+  that takes no long context refuses the run with exit 2, `--print-request` included, and when
+  `ONESIE_LONG_CONTEXT` turned it on, the message says so. It is experimental.
 - `onesie --help` lists every flag, and `onesie -V` prints the built in limits. A flag onesie does
   not know exits 2, naming the closest one when one is near. A flag that belongs to a run, given to
   a subcommand, says so. `-V` takes no question, so a word beside it exits 2. `onesie help

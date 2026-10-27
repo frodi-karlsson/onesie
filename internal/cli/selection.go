@@ -86,7 +86,7 @@ func resolveProfile(
 	}
 
 	if name == "" {
-		return providerRun(onesie.TypeSafe().Name, byNothing, lookupEnv)
+		return providerRun(onesie.TypeSafe().Name(), byNothing, lookupEnv)
 	}
 
 	profile, found := profiles.Profiles[name]
@@ -103,13 +103,14 @@ func providerIsProfileHint(err error, chosen choice, profiles creds.Profiles) er
 		return err
 	}
 
+	note := fmt.Sprintf("%s is a profile, so pass --profile %s in place of --provider",
+		creds.QuotedName(chosen.provider), creds.QuotedName(chosen.provider))
 	if chosen.by == envProvider {
-		return fmt.Errorf("%w. %s is a profile, so set %s=%s in place of %s",
-			err, creds.QuotedName(chosen.provider), envProfile, creds.QuotedName(chosen.provider), envProvider)
+		note = fmt.Sprintf("%s is a profile, so set %s=%s in place of %s",
+			creds.QuotedName(chosen.provider), envProfile, creds.QuotedName(chosen.provider), envProvider)
 	}
 
-	return fmt.Errorf("%w. %s is a profile, so pass --profile %s in place of --provider",
-		err, creds.QuotedName(chosen.provider), creds.QuotedName(chosen.provider))
+	return &advisedError{cause: err, message: text(err) + ". " + note}
 }
 
 func knownProfiles(profiles creds.Profiles) string {
@@ -136,7 +137,7 @@ func providerRun(name, by string, lookupEnv func(string) (string, bool)) (resolu
 	}
 
 	bare := resolution{provider: provider, by: by, keyFrom: sourceNone}
-	if setVariable(lookupEnv, provider.EnvAPIKey) != "" {
+	if setVariable(lookupEnv, provider.EnvAPIKey()) != "" {
 		bare.keyFrom = sourceEnv
 	}
 
@@ -175,16 +176,22 @@ type resolution struct {
 	accountID string
 }
 
-func (r resolution) options(baseURLFlag, key string, lookupEnv func(string) (string, bool)) []onesie.Option {
+func (r resolution) options(
+	baseURLFlag string, key func() (string, error), lookupEnv func(string) (string, bool),
+) []onesie.Option {
 	if r.profile == "" {
 		return nil
 	}
 
-	opts := []onesie.Option{onesie.WithAPIKey(key), onesie.WithDefaultModel(r.modelFor("", lookupEnv))}
+	opts := []onesie.Option{onesie.WithAPIKeyFunc(key), onesie.WithDefaultModel(r.modelFor("", lookupEnv))}
 
 	// The factory adds --base-url ahead of these, and a later WithBaseURL would replace it.
 	if strings.TrimSpace(baseURLFlag) == "" && r.baseURL != "" {
 		opts = append(opts, onesie.WithBaseURL(r.baseURL))
+	}
+
+	if r.accountID != "" {
+		opts = append(opts, onesie.WithAccountID(r.accountID))
 	}
 
 	return opts
@@ -198,56 +205,6 @@ func (r resolution) modelFor(explicit string, lookupEnv func(string) (string, bo
 	return r.provider.ResolveModel(explicit, lookupEnv)
 }
 
-func (r resolution) env(lookupEnv func(string) (string, bool)) func(string) (string, bool) {
-	if r.profile == "" {
-		return lookupEnv
-	}
-
-	return func(name string) (string, bool) {
-		switch {
-		// onesie-go falls back to this variable for a blank key, and a profile run takes its key from the profile alone.
-		case name == r.provider.EnvAPIKey:
-			return "", false
-		case name == r.provider.EnvAccountID && r.accountID != "":
-			return r.accountID, true
-		}
-
-		return lookupEnv(name)
-	}
-}
-
-func (r resolution) baseURLGiven(baseURLFlag string, lookupEnv func(string) (string, bool)) string {
-	switch {
-	case strings.TrimSpace(baseURLFlag) != "":
-		return strings.TrimSpace(baseURLFlag)
-	case r.baseURL != "":
-		return r.baseURL
-	case r.provider.EnvBaseURL != "":
-		return setVariable(lookupEnv, r.provider.EnvBaseURL)
-	}
-
-	return ""
-}
-
-func (r resolution) baseURLSource(baseURLFlag string, lookupEnv func(string) (string, bool)) string {
-	switch {
-	case strings.TrimSpace(baseURLFlag) != "":
-		return "--base-url"
-	case r.baseURL != "":
-		return "the profile's base_url"
-	case r.accountID != "":
-		return "the profile's account_id"
-	}
-
-	for _, name := range []string{r.provider.EnvBaseURL, r.provider.EnvAccountID} {
-		if name != "" && setVariable(lookupEnv, name) != "" {
-			return name
-		}
-	}
-
-	return "the provider's base URL"
-}
-
 func (r resolution) GoString() string {
 	// The %#v verb prints every field, and key holds a file profile's key in plain text.
 	return r.String()
@@ -255,7 +212,7 @@ func (r resolution) GoString() string {
 
 func (r resolution) String() string {
 	// Here so a stray %v prints where the key lives, never the key.
-	return "profile " + cmp.Or(r.profile, sourceNone) + ", provider " + r.provider.Name + ", key " + r.keyLine()
+	return "profile " + cmp.Or(r.profile, sourceNone) + ", provider " + r.provider.Name() + ", key " + r.keyLine()
 }
 
 func (r resolution) keyLine() string {
@@ -267,36 +224,38 @@ func (r resolution) keyLine() string {
 
 		return r.keyFrom + ", ends in " + r.keyEnd
 	case sourceEnv:
-		return sourceEnv + " " + r.provider.EnvAPIKey
+		return sourceEnv + " " + r.provider.EnvAPIKey()
 	}
 
 	return sourceNone
 }
 
 func missingKeyHint(err error, bare resolution, profiles creds.Profiles) error {
-	// onesie-go gives the missing key no sentinel of its own, so its message is what marks it.
-	if bare.profile != "" || bare.keyFrom != sourceNone || !errors.Is(err, onesie.ErrValidation) ||
-		!strings.Contains(err.Error(), "no API key") {
+	if bare.profile != "" || bare.keyFrom != sourceNone || !errors.Is(err, onesie.ErrNoAPIKey) {
 		return err
 	}
 
-	name := firstProfileOf(bare.provider.Name, profiles)
+	return &advisedError{cause: err, message: text(err) + storeKeyHint(bare, profiles)}
+}
+
+func storeKeyHint(bare resolution, profiles creds.Profiles) string {
+	name := firstProfileOf(bare.provider.Name(), profiles)
 	if name == "" && bare.by == envProvider {
 		// A profile created now would still go unused while the variable chooses the run.
-		return fmt.Errorf("%w. %s is set, so a stored profile is not used. To use one instead, unset %s "+
-			"and run onesie profile create NAME --provider %s", err, envProvider, envProvider, bare.provider.Name)
+		return fmt.Sprintf(". %s is set, so a stored profile is not used. To use one instead, unset %s "+
+			"and run onesie profile create NAME --provider %s", envProvider, envProvider, bare.provider.Name())
 	}
 
 	if name == "" {
-		return fmt.Errorf("%w, or store one with onesie profile create NAME --provider %s", err, bare.provider.Name)
+		return ", or store one with onesie profile create NAME --provider " + bare.provider.Name()
 	}
 
 	if bare.by == envProvider {
-		return fmt.Errorf("%w, or unset %s and run onesie profile use %s, or run with --profile %s",
-			err, envProvider, creds.QuotedName(name), creds.QuotedName(name))
+		return fmt.Sprintf(", or unset %s and run onesie profile use %s, or run with --profile %s",
+			envProvider, creds.QuotedName(name), creds.QuotedName(name))
 	}
 
-	return fmt.Errorf("%w, or drop --provider and pass --profile %s", err, creds.QuotedName(name))
+	return ", or drop --provider and pass --profile " + creds.QuotedName(name)
 }
 
 func firstProfileOf(provider string, profiles creds.Profiles) string {
@@ -313,31 +272,31 @@ func firstProfileOf(provider string, profiles creds.Profiles) string {
 	return ""
 }
 
-func accountNote(
-	err error, chosen resolution, baseURLFlag string, lookupEnv func(string) (string, bool),
-) error {
-	// onesie-go gives the missing account no sentinel of its own, so its message is what marks it.
-	if chosen.profile == "" || !errors.Is(err, onesie.ErrValidation) || strings.TrimSpace(baseURLFlag) != "" ||
-		chosen.accountSource(lookupEnv) != sourceNone || !strings.Contains(err.Error(), "account id") {
-		return err
+func accountNote(err error, chosen resolution) error {
+	missing := fmt.Sprintf("no %s account id. Set %s", chosen.provider.Name(), chosen.provider.EnvAccountID())
+	if chosen.profile == "" {
+		return &advisedError{cause: err, message: fmt.Sprintf(
+			"%s, or store it with onesie profile create NAME --provider %s --%s ACCOUNT_ID",
+			missing, chosen.provider.Name(), flagAccountID)}
 	}
 
-	return fmt.Errorf("%w, or run onesie profile update %s --account-id ACCOUNT_ID", err, creds.QuotedName(chosen.profile))
+	return &advisedError{cause: err, message: fmt.Sprintf("%s, or run onesie profile update %s --%s ACCOUNT_ID",
+		missing, creds.QuotedName(chosen.profile), flagAccountID)}
 }
 
-func (r resolution) accountSource(lookupEnv func(string) (string, bool)) string {
+func (r resolution) accountSource(source onesie.BaseURLSource, resolveErr error) string {
 	switch {
-	case r.provider.EnvAccountID == "":
+	case r.provider.EnvAccountID() == "":
 		return ""
+	case errors.Is(resolveErr, onesie.ErrNoAccountID):
+		return sourceNone
+	case source != onesie.BaseURLFromAccount:
+		return "base_url"
 	case r.accountID != "":
 		return "account_id"
-	case r.baseURL != "":
-		return "base_url"
-	case setVariable(lookupEnv, r.provider.EnvAccountID) != "":
-		return r.provider.EnvAccountID
 	}
 
-	return sourceNone
+	return r.provider.EnvAccountID()
 }
 
 func setVariable(lookupEnv func(string) (string, bool), name string) string {

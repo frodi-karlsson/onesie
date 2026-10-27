@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/frodi-karlsson/onesie-go"
+	"github.com/frodi-karlsson/onesie/internal/answer"
 	"github.com/frodi-karlsson/onesie/internal/creds"
 	"github.com/frodi-karlsson/onesie/internal/engine"
 	"github.com/frodi-karlsson/onesie/internal/input"
@@ -170,7 +171,7 @@ func firstMatch(err error) failure {
 		return failure{kind: output.KindResponse, status: &status, code: ExitUnavailable}
 	}
 
-	var cannotUse *unusableAnswer
+	var cannotUse *answer.UnusableError
 	if errors.As(err, &cannotUse) {
 		status := http.StatusOK
 
@@ -235,14 +236,6 @@ type failure struct {
 	status *int
 	code   int
 	quiet  bool
-}
-
-type unusableAnswer struct {
-	message string
-}
-
-func (e *unusableAnswer) Error() string {
-	return e.message
 }
 
 type silentError struct {
@@ -310,10 +303,10 @@ type sourceError struct {
 
 func (e *sourceError) Error() string {
 	if e.failed == 0 {
-		return e.cause.Error()
+		return text(e.cause)
 	}
 
-	return fmt.Sprintf("%v, after %s failed", e.cause, plural(e.failed, "record"))
+	return fmt.Sprintf("%s, after %s failed", text(e.cause), plural(e.failed, "record"))
 }
 
 func (e *sourceError) Unwrap() error {
@@ -325,7 +318,7 @@ type abortError struct {
 }
 
 func (e *abortError) Error() string {
-	return e.cause.Error()
+	return text(e.cause)
 }
 
 func (e *abortError) Unwrap() error {
@@ -337,7 +330,7 @@ type stoppedError struct {
 }
 
 func (e *stoppedError) Error() string {
-	return e.cause.Error()
+	return text(e.cause)
 }
 
 func (e *stoppedError) Unwrap() error {

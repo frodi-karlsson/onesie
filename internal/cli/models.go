@@ -10,23 +10,22 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/output"
 )
 
-func listModels(cmd *cobra.Command, settings rootSettings, stats *collector) error {
+func listModels(cmd *cobra.Command, settings rootSettings, flags runConfig, stats *collector) error {
 	chosen, err := settings.holder.resolved()
 	if err != nil {
 		return err
 	}
 
-	client, err := settings.newClient(cmd.Context(), chosen, observing(stats)...)
+	client, err := settings.newClient(cmd.Context(), chosen, runOptions(flags, stats)...)
 	if err != nil {
 		return err
 	}
 
 	models, err := client.ListModels(cmd.Context())
 	if err != nil {
-		// A listing carries no model of its own, so there is none to name in a remedy, and it
-		// sends no questions, so no local bound was checked. It is advised all the same, so every
-		// call that reaches the API answers the same way.
-		advised := advise(err, "", false)
+		// A listing carries no model of its own, so there is none to name in a remedy. It is advised
+		// all the same, so every call that reaches the API answers the same way.
+		advised := advise(err, "")
 
 		stats.recordFailure(advised, true, 0)
 		stats.terminalAttempt(advised)

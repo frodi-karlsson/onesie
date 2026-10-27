@@ -16,12 +16,14 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"sync"
 	"testing"
 
 	"github.com/frodi-karlsson/onesie-go"
+	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
 func TestImagingAttach(t *testing.T) {
@@ -433,12 +435,12 @@ func TestRun(t *testing.T) {
 			wantErr:  "takes no long context",
 		},
 		{
-			name:     "should print -i request bodies under --long-context on cloudflare",
+			name:     "should refuse --print-request under --long-context on cloudflare before reading a body",
 			args:     []string{"-i", "request", "--long-context", "--print-request"},
 			stdin:    `{"state":"s","questions":{"q":{"type":"noul","instructions":"q"}}}` + "\n",
 			env:      cloudflare,
-			wantCode: ExitOK,
-			wantOut:  `"state":"s"`,
+			wantCode: ExitUsage,
+			wantErr:  "onesie: the cloudflare provider takes no long context. The typesafe, openrouter, berget and levanto providers do\n",
 		},
 		{
 			name:     "should refuse --image on levanto before any request",
@@ -786,6 +788,10 @@ func TestRun(t *testing.T) {
 				t.Errorf("stderr = %q, want it to contain %q", run.stderr, tc.wantErr)
 			}
 
+			if strings.Contains(run.stderr, "onesie: onesie: ") {
+				t.Errorf("stderr = %q, want the onesie prefix once", run.stderr)
+			}
+
 			if tc.wantOut != "" && !strings.Contains(run.stdout, tc.wantOut) {
 				t.Errorf("stdout = %q, want it to contain %q", run.stdout, tc.wantOut)
 			}
@@ -913,6 +919,8 @@ func TestRun(t *testing.T) {
 func TestReadRawRequest(t *testing.T) {
 	t.Parallel()
 
+	urgent := []plan.Question{{ID: "u", Shape: plan.Noul, Instructions: "is it urgent", Origin: plan.OriginBody}}
+
 	tests := []struct {
 		name string
 		body string
@@ -924,19 +932,35 @@ func TestReadRawRequest(t *testing.T) {
 			want: rawRequest{model: "m", questions: 2},
 		},
 		{
-			name: "should need images for a body with assets",
-			body: `{"state":"s","questions":{"q":{"type":"noul"}},"assets":{"r":{"format":"png","data_base64":"AQ=="}}}`,
-			want: rawRequest{questions: 1, needsImages: true},
+			name: "should read the questions a response must answer",
+			body: `{"state":"s","model":"m","questions":{"u":{"type":"noul","instructions":"is it urgent"}}}`,
+			want: rawRequest{model: "m", questions: 1, asked: urgent},
 		},
 		{
-			name: "should need images for a box question",
+			name: "should mark a box question",
 			body: `{"state":"s","questions":{"m":{"type":"box"}}}`,
-			want: rawRequest{questions: 1, needsImages: true, boxed: true},
+			want: rawRequest{questions: 1, boxed: true},
 		},
 		{
 			name: "should read a body's long_context",
 			body: `{"model":"m","questions":{"q":{"type":"noul"}},"long_context":true}`,
 			want: rawRequest{model: "m", questions: 1, longContext: true},
+		},
+		{
+			name: "should read the model by its exact key",
+			body: `{"model":"m","questions":{"q":{"type":"noul"}},"Model":"ignored"}`,
+			want: rawRequest{model: "m", questions: 1},
+		},
+		{
+			name: "should mark a box question the body loads",
+			body: `{"state":"s","questions":{"where":{"type":"box","instructions":"where is the cat"}},` +
+				`"assets":{"image-1":"aGVsbG8="}}`,
+			want: rawRequest{questions: 1, boxed: true},
+		},
+		{
+			name: "should read past the assets",
+			body: `{"model":"m","assets":{"image-1":"aGVsbG8="},"questions":{"u":{"type":"noul","instructions":"is it urgent"}}}`,
+			want: rawRequest{model: "m", questions: 1, asked: urgent},
 		},
 		{name: "should read nothing from a body it cannot parse", body: `not json`},
 		{
@@ -944,46 +968,21 @@ func TestReadRawRequest(t *testing.T) {
 			body: `{"model":"m","questions":{"q":"text"}}`,
 			want: rawRequest{model: "m", questions: 1},
 		},
-		{
-			name: "should keep the model past assets that are not an object",
-			body: `{"model":"m","questions":{"q":{"type":"noul"}},"assets":"x"}`,
-			want: rawRequest{model: "m", questions: 1},
-		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			if got := readRawRequest([]byte(tc.body)); got != tc.want {
+			got := readRawRequest([]byte(tc.body))
+
+			if got.model != tc.want.model || got.questions != tc.want.questions || got.boxed != tc.want.boxed ||
+				got.longContext != tc.want.longContext {
 				t.Errorf("readRawRequest = %+v, want %+v", got, tc.want)
 			}
-		})
-	}
-}
 
-func TestRequestOptions(t *testing.T) {
-	t.Parallel()
-
-	withImage := onesie.Request{Assets: onesie.Assets{"r": {}}}
-
-	tests := []struct {
-		name       string
-		req        onesie.Request
-		timeoutSet bool
-		want       int
-	}{
-		{name: "should raise the attempt timeout for a request with an image", req: withImage, want: 1},
-		{name: "should leave an explicit --timeout alone", req: withImage, timeoutSet: true},
-		{name: "should add nothing to a text request", req: onesie.Request{}},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			if got := requestOptions(tc.req, tc.timeoutSet); len(got) != tc.want {
-				t.Errorf("options = %d, want %d", len(got), tc.want)
+			if tc.want.asked != nil && !reflect.DeepEqual(got.asked, tc.want.asked) {
+				t.Errorf("asked = %+v, want %+v", got.asked, tc.want.asked)
 			}
 		})
 	}
@@ -1209,4 +1208,37 @@ func noisePNG(t *testing.T, side, names int) []byte {
 	}
 
 	return buf.Bytes()
+}
+
+func TestLongContextCause(t *testing.T) {
+	t.Parallel()
+
+	const refused = "the cloudflare provider takes no long context. The typesafe, openrouter, berget and levanto providers do"
+
+	refusal := onesie.Cloudflare().Refuse(onesie.Cloudflare().DefaultModel(), onesie.Needs{LongContext: true})
+
+	tests := []struct {
+		name  string
+		flags runConfig
+		want  string
+	}{
+		{
+			name: "should name ONESIE_LONG_CONTEXT when it turned long context on", flags: runConfig{env: switches{longContext: true}},
+			want: refused + ". ONESIE_LONG_CONTEXT turned it on, so unset it or pass --long-context=false",
+		},
+		{
+			name:  "should leave a refusal --long-context caused alone",
+			flags: runConfig{env: switches{longContext: true}, longContextSet: true}, want: refused,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := text(longContextCause(refusal, tc.flags)); got != tc.want {
+				t.Errorf("text = %q, want %q", got, tc.want)
+			}
+		})
+	}
 }

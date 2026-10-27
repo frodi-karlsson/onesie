@@ -9,7 +9,6 @@ import (
 	"io/fs"
 	"maps"
 	"slices"
-	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -51,7 +50,7 @@ func calibrateRun(
 	out, _, err := openOut(settings, flags.runFlags, calib.offline)
 
 	defer func() {
-		err = errors.Join(err, prefixed(out.Release()))
+		err = alsoFailed(err, out.Release())
 	}()
 
 	if err != nil {
@@ -83,7 +82,7 @@ func calibrateRun(
 		return runErr
 	}
 
-	return errors.Join(runErr, prefixed(out.Finish(runErr)))
+	return alsoFailed(runErr, out.Finish(runErr))
 }
 
 func askedPlan(
@@ -547,7 +546,7 @@ func answerTo(question plan.Question, record output.Record) (*answer.Answer, err
 }
 
 func unusableAnswerTo(id, format string, args ...any) error {
-	return &unusableAnswer{message: fmt.Sprintf("question '%s' ", id) + fmt.Sprintf(format, args...)}
+	return &answer.UnusableError{Message: fmt.Sprintf("question '%s' ", id) + fmt.Sprintf(format, args...)}
 }
 
 func unitRange(value float64) bool {
@@ -577,8 +576,7 @@ func writeCauses(w io.Writer, set labelledSet, outcomes []output.Record) error {
 
 		listed++
 
-		cause := strings.TrimPrefix(failure.Message, "onesie: ")
-		if _, err := fmt.Fprintf(w, "onesie: %s: %s\n", rec.name(), cause); err != nil {
+		if _, err := fmt.Fprintf(w, "onesie: %s: %s\n", rec.name(), failure.Message); err != nil {
 			return err
 		}
 	}

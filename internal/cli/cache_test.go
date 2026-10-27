@@ -189,7 +189,7 @@ func TestCachedAnswerer(t *testing.T) {
 			warn = func(err error) { t.Errorf("unexpected cache warning: %v", err) }
 		}
 
-		return cachedAnswers(settings, runConfig{}, onesie.TypeSafe(), onesie.DefaultModel, questions, warn), dir
+		return cachedAnswers(settings, runConfig{}, onesie.TypeSafe().DefaultModel(), questions, warn), dir
 	}
 
 	t.Run("should ask on a miss, store the answer and answer the next call from it", func(t *testing.T) {
@@ -491,7 +491,7 @@ func TestCachedAnswers(t *testing.T) {
 		// cacheEnv carries a key, so the variable points at a local server and no run leaves the
 		// machine, even one that ignores the profile.
 		env := cacheEnv(t)
-		env[onesie.EnvBaseURL] = stray.URL
+		env[onesie.TypeSafe().EnvBaseURL()] = stray.URL
 		args := []string{"is this urgent", "-r", "--cache", "--state", "the server is down"}
 
 		profileAt := func(base string) {
@@ -722,7 +722,7 @@ func TestAsk(t *testing.T) {
 		args := append(slicesOf(base), "--base-url", stub.url)
 
 		runCached(t, env, args, "")
-		delete(env, onesie.EnvAPIKey)
+		delete(env, onesie.TypeSafe().EnvAPIKey())
 
 		_, errOut, code := runCached(t, env, args, "")
 		if code != ExitUsage || !strings.Contains(errOut, "onesie: no API key") || !strings.Contains(errOut, noKeyCacheSentence) {
@@ -1016,13 +1016,13 @@ func cacheEnv(t *testing.T) map[string]string {
 	home := t.TempDir()
 
 	return map[string]string{
-		"HOME":               home,
-		"ONESIE_CONFIG_DIR":  filepath.Join(home, "config"),
-		"ONESIE_CACHE_DIR":   filepath.Join(home, "cache"),
-		onesie.EnvAPIKey:     "k",
-		"OPENROUTER_API_KEY": "k",
-		"BERGET_API_KEY":     "k",
-		"LEVANTO_API_KEY":    "k",
+		"HOME":                        home,
+		"ONESIE_CONFIG_DIR":           filepath.Join(home, "config"),
+		"ONESIE_CACHE_DIR":            filepath.Join(home, "cache"),
+		onesie.TypeSafe().EnvAPIKey(): "k",
+		"OPENROUTER_API_KEY":          "k",
+		"BERGET_API_KEY":              "k",
+		"LEVANTO_API_KEY":             "k",
 	}
 }
 

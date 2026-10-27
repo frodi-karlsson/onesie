@@ -112,7 +112,7 @@ type dashQuestionError struct {
 func (e *dashQuestionError) Error() string {
 	return fmt.Sprintf("%s. %s was read as flags. A question that starts with - needs -- before it, "+
 		"with the flags placed first, as in onesie -- %s",
-		strings.TrimSuffix(e.cause.Error(), "."), shellQuote(e.question), shellQuote(e.question))
+		strings.TrimSuffix(text(e.cause), "."), shellQuote(e.question), shellQuote(e.question))
 }
 
 func (e *dashQuestionError) Unwrap() error {

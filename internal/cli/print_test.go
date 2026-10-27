@@ -1417,21 +1417,21 @@ func TestPrintRequest(t *testing.T) {
 		{
 			name:     "should ignore TYPESAFE_DEFAULT_MODEL under openrouter",
 			args:     []string{"--provider", "openrouter", "--ask", "urgent=is this urgent", "--print-request"},
-			env:      map[string]string{onesie.EnvDefaultModel: "onesie-1.2.0"},
+			env:      map[string]string{onesie.TypeSafe().EnvDefaultModel(): "onesie-1.2.0"},
 			wantCode: ExitOK,
 			want:     `"model":"jev-latest"`,
 		},
 		{
 			name:     "should fill the Berget default model and ignore TYPESAFE_DEFAULT_MODEL under berget",
 			args:     []string{"--ask", "urgent=is this urgent", "--print-request"},
-			env:      map[string]string{"ONESIE_PROVIDER": "berget", onesie.EnvDefaultModel: "onesie-1.2.0"},
+			env:      map[string]string{"ONESIE_PROVIDER": "berget", onesie.TypeSafe().EnvDefaultModel(): "onesie-1.2.0"},
 			wantCode: ExitOK,
 			want:     `"model":"systemone"`,
 		},
 		{
 			name:     "should fill the Levanto default model and ignore TYPESAFE_DEFAULT_MODEL under levanto",
 			args:     []string{"--ask", "urgent=is this urgent", "--print-request"},
-			env:      map[string]string{"ONESIE_PROVIDER": "levanto", onesie.EnvDefaultModel: "onesie-1.2.0"},
+			env:      map[string]string{"ONESIE_PROVIDER": "levanto", onesie.TypeSafe().EnvDefaultModel(): "onesie-1.2.0"},
 			wantCode: ExitOK,
 			want:     `"model":"sage-latest"`,
 		},
@@ -1450,7 +1450,7 @@ func TestPrintRequest(t *testing.T) {
 		{
 			name:     "should keep TYPESAFE_DEFAULT_MODEL under typesafe",
 			args:     []string{"--ask", "urgent=is this urgent", "--print-request"},
-			env:      map[string]string{onesie.EnvDefaultModel: "onesie-1.2.0"},
+			env:      map[string]string{onesie.TypeSafe().EnvDefaultModel(): "onesie-1.2.0"},
 			wantCode: ExitOK,
 			want:     `"model":"onesie-1.2.0"`,
 		},

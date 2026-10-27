@@ -44,11 +44,6 @@ func answersFor(
 		return wrapped(settings, liveAnswers(settings, flags)), nil
 	}
 
-	chosen, err := settings.holder.resolved()
-	if err != nil {
-		return nil, err
-	}
-
 	var warned atomic.Bool
 
 	warn := func(err error) {
@@ -62,7 +57,7 @@ func answersFor(
 		}
 	}
 
-	return wrapped(settings, cachedAnswers(settings, flags, chosen.provider, model, built.Questions, warn)), nil
+	return wrapped(settings, cachedAnswers(settings, flags, model, built.Questions, warn)), nil
 }
 
 func caching(flags runConfig) bool {
@@ -76,8 +71,7 @@ func caching(flags runConfig) bool {
 }
 
 func cachedAnswers(
-	settings rootSettings, flags runConfig, provider onesie.Provider, model string, questions []plan.Question,
-	warn func(error),
+	settings rootSettings, flags runConfig, model string, questions []plan.Question, warn func(error),
 ) answererFactory {
 	return func(ctx context.Context, stats *collector) (answerer, error) {
 		chosen, err := settings.holder.resolved()
@@ -85,17 +79,17 @@ func cachedAnswers(
 			return nil, err
 		}
 
-		client, err := settings.newClient(ctx, chosen, observing(stats)...)
+		client, err := settings.newClient(ctx, chosen, runOptions(flags, stats)...)
 		if err != nil {
 			return nil, noKeyForCache(settings, err)
 		}
 
 		return &cachedAnswerer{
-			next:      newLiveAnswerer(client, provider, flags),
+			next:      newLiveAnswerer(client),
 			open:      sync.OnceValues(func() (*cache.Store, error) { return openCache(settings, flags.env.aliasTTL) }),
 			model:     model,
-			provider:  provider.Name,
-			origin:    provider.Name + "\x00" + client.BaseURL(),
+			provider:  client.Provider().Name(),
+			origin:    client.Provider().Name() + "\x00" + client.BaseURL(),
 			questions: questions,
 			warn:      warn,
 		}, nil
@@ -112,7 +106,9 @@ func noKeyForCache(settings rootSettings, err error) error {
 		return err
 	}
 
-	return fmt.Errorf("%w. The cache needs the key too, to find the API address it keys answers by", err)
+	return &advisedError{
+		cause: err, message: text(err) + ". The cache needs the key too, to find the API address it keys answers by",
+	}
 }
 
 func openCache(settings rootSettings, ttl time.Duration) (*cache.Store, error) {

@@ -78,7 +78,7 @@ func TestJudge(t *testing.T) {
 				t.Errorf("Abstained = %v, want %v", got.Abstained, tc.wantAbstained)
 			}
 
-			snapshot := stats.snapshot(0, 0)
+			snapshot := stats.snapshot(0)
 
 			if want := count(tc.wantFailed); snapshot.FalseAsserts != want {
 				t.Errorf("FalseAsserts = %d, want %d", snapshot.FalseAsserts, want)
@@ -163,7 +163,7 @@ func TestDescribe(t *testing.T) {
 		{name: "should agree with a fresh run on a bad request", cause: apiError(http.StatusBadRequest)},
 		{name: "should agree with a fresh run on an unauthorized status", cause: apiError(http.StatusUnauthorized)},
 		{name: "should agree with a fresh run on a payment required status", cause: &advisedError{
-			cause: apiError(http.StatusPaymentRequired), message: "onesie: 402. Add credits",
+			cause: apiError(http.StatusPaymentRequired), message: "402. Add credits",
 		}},
 		{name: "should agree with a fresh run on a forbidden status", cause: apiError(http.StatusForbidden)},
 		{name: "should agree with a fresh run on a not found status", cause: apiError(http.StatusNotFound)},
@@ -217,11 +217,11 @@ func TestDescribe(t *testing.T) {
 		}{
 			{cause: &input.LineError{Line: 2, Err: errors.New("not json")}, kind: "input", message: "line 2: not json"},
 			{
-				cause: &onesie.ResponseError{Status: http.StatusOK, Message: "onesie: wrong shape"},
-				kind:  "response", status: statusOf(http.StatusOK), message: "wrong shape",
+				cause: &onesie.ResponseError{Status: http.StatusOK, Err: errors.New("wrong shape")},
+				kind:  "response", status: statusOf(http.StatusOK), message: "200 response could not be used: wrong shape",
 			},
 			{
-				cause: &unusableAnswer{message: "question 'urgent' has no answer"},
+				cause: &answer.UnusableError{Message: "question 'urgent' has no answer"},
 				kind:  output.KindResponse, status: statusOf(http.StatusOK), message: "question 'urgent' has no answer",
 			},
 			{
@@ -229,7 +229,7 @@ func TestDescribe(t *testing.T) {
 				kind:  "http", status: statusOf(http.StatusBadRequest),
 			},
 			{
-				cause: &advisedError{cause: &onesie.APIError{Status: http.StatusPaymentRequired}, message: "onesie: 402. Add credits"},
+				cause: &advisedError{cause: &onesie.APIError{Status: http.StatusPaymentRequired}, message: "402. Add credits"},
 				kind:  "http", status: statusOf(http.StatusPaymentRequired), message: "402. Add credits",
 			},
 			{

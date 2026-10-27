@@ -236,7 +236,7 @@ func (p Profile) validate(subject string) error {
 	}
 
 	provider, err := onesie.ProviderNamed(p.Provider)
-	if err != nil || provider.Name != p.Provider {
+	if err != nil || provider.Name() != p.Provider {
 		return fmt.Errorf(
 			"%s names provider %s, which is not typesafe, openrouter, berget, levanto or cloudflare",
 			subject, QuotedName(p.Provider))
@@ -259,7 +259,7 @@ func (p Profile) validate(subject string) error {
 		return nil
 	}
 
-	if provider.EnvAccountID == "" {
+	if provider.EnvAccountID() == "" {
 		return fmt.Errorf("%s has account_id, which only cloudflare takes", subject)
 	}
 

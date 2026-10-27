@@ -27,7 +27,7 @@ func TestResumeLedger(t *testing.T) {
 
 	printed := func(input, idSource, output, mergeKey string) string {
 		return fingerprintWith(t, plan.Source{Positional: "is this urgent"}, answersfile.FingerprintInputs{
-			Provider: "typesafe", Model: onesie.DefaultModel, IDSource: idSource, Output: output,
+			Provider: "typesafe", Model: onesie.TypeSafe().DefaultModel(), IDSource: idSource, Output: output,
 			Input: input, MergeKey: mergeKey,
 		})
 	}
@@ -38,14 +38,14 @@ func TestResumeLedger(t *testing.T) {
 	byItselfInLines := printed("lines", ".", "values", "answers")
 	byPositionInLines := printed("lines", "", "values", "")
 	byPositionInLinesSkippingBlanks := fingerprintWith(t, plan.Source{Positional: "is this urgent"}, answersfile.FingerprintInputs{
-		Provider: "typesafe", Model: onesie.DefaultModel, Output: "values", Input: "lines", SkipBlank: true,
+		Provider: "typesafe", Model: onesie.TypeSafe().DefaultModel(), Output: "values", Input: "lines", SkipBlank: true,
 	})
 	byStateKey := printed("jsonl", ".state", "values", "answers")
 	byIDInTSV := printed("jsonl", ".id", "tsv", "")
 	byIDInCSV := printed("jsonl", ".id", "csv", "")
 	byIDMergedInCSV := printed("csv", ".id", "csv", "answers")
 	abstaining := answersfile.FingerprintInputs{
-		Provider: "typesafe", Model: onesie.DefaultModel, IDSource: ".id", Output: "values", Input: "jsonl",
+		Provider: "typesafe", Model: onesie.TypeSafe().DefaultModel(), IDSource: ".id", Output: "values", Input: "jsonl",
 		Assert: "answer.value > 0.9", AbstainIf: "answer.value > 0.4",
 	}
 	byIDAbstaining := fingerprintWith(t, plan.Source{Positional: "is this urgent"}, abstaining)
@@ -1150,12 +1150,12 @@ func TestResumed(t *testing.T) {
 	}
 
 	byPositionAbstaining := fingerprintWith(t, plan.Source{Positional: "is this urgent"}, answersfile.FingerprintInputs{
-		Provider: "typesafe", Model: onesie.DefaultModel, Output: "values", Input: "jsonl",
+		Provider: "typesafe", Model: onesie.TypeSafe().DefaultModel(), Output: "values", Input: "jsonl",
 		Assert: "answer.value > 0.9", AbstainIf: "answer.value > 0.4",
 	})
 	stored := "{\"abstain\":true,\"answer\":0.5}\n{\"assert\":false,\"answer\":0.5}\n"
 	byPositionRejecting := fingerprintWith(t, plan.Source{Positional: "is this urgent"}, answersfile.FingerprintInputs{
-		Provider: "typesafe", Model: onesie.DefaultModel, Output: "values", Input: "jsonl",
+		Provider: "typesafe", Model: onesie.TypeSafe().DefaultModel(), Output: "values", Input: "jsonl",
 		Assert: "answer.value > 0.9", AbstainIf: "answer.value > 0.6",
 	})
 
