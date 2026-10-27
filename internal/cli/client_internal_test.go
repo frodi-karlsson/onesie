@@ -45,6 +45,12 @@ func TestClientBuilder(t *testing.T) {
 				`"base_url":"{url}/?SECRET-x"}}}`,
 			args: []string{"profile", "test"},
 		},
+		{
+			name: "should refuse a keychain profile's base url with an @ in its path before reading the keychain",
+			profiles: `{"default":"work","profiles":{"work":{"provider":"typesafe","store":"keychain",` +
+				`"account":"work@abc","base_url":"{url}/a@b"}}}`,
+			args: []string{"is this urgent", "--state", "hello", "-o", "json"},
+		},
 	}
 
 	for _, unclear := range unclearBaseURLs() {
@@ -89,9 +95,15 @@ func TestClientBuilder(t *testing.T) {
 				dir = configWith(t, withURL(tc.profiles))
 			}
 
-			out, errOut, code := runInConfig(t, dir, args, "", env)
+			chain := workingKeychain(map[string]string{"work@abc": "SECRET-KC"})
+
+			out, errOut, code := runInConfig(t, dir, args, "", env, WithKeychain(chain))
 
 			assertNoSecret(t, out, errOut)
+
+			if chain.calls() != 0 {
+				t.Errorf("keychain calls = %d, want none", chain.calls())
+			}
 
 			if code != ExitUsage {
 				t.Errorf("exit code = %d, want %d", code, ExitUsage)
