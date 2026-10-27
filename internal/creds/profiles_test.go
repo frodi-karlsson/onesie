@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/creds"
 )
 
@@ -948,6 +949,39 @@ func TestQuotedName(t *testing.T) {
 
 			if got := creds.QuotedName(tc.given); got != tc.want {
 				t.Errorf("QuotedName(%q) = %q, want %q", tc.given, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestValidAccountID(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		id   string
+		want bool
+	}{
+		{name: "should take 32 lowercase hexadecimal characters", id: cloudflareAccount, want: true},
+		{name: "should take 32 uppercase hexadecimal characters", id: strings.ToUpper(cloudflareAccount), want: true},
+		{name: "should refuse 31 characters", id: cloudflareAccount[:31]},
+		{name: "should refuse 33 characters", id: cloudflareAccount + "0"},
+		{name: "should refuse a character that is not hexadecimal", id: "g" + cloudflareAccount[1:]},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := creds.ValidAccountID(tc.id); got != tc.want {
+				t.Errorf("ValidAccountID(%q) = %v, want %v", tc.id, got, tc.want)
+			}
+
+			// A run passes the account to onesie-go, which checks the same rule, so the two must agree.
+			_, err := onesie.New(
+				onesie.WithProvider(onesie.Cloudflare()), onesie.WithAPIKey("SECRET-K"), onesie.WithAccountID(tc.id))
+			if (err == nil) != tc.want {
+				t.Errorf("onesie-go took %q with error %v, want it taken %v", tc.id, err, tc.want)
 			}
 		})
 	}

@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/limits"
 )
 
@@ -52,4 +53,28 @@ func TestReport(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestMaxChoiceOptions(t *testing.T) {
+	t.Parallel()
+
+	t.Run("should be the ceiling onesie-go enforces", func(t *testing.T) {
+		t.Parallel()
+
+		if limits.MaxChoiceOptions != onesie.MaxChoiceOptions {
+			t.Errorf("MaxChoiceOptions = %d, want onesie-go's %d", limits.MaxChoiceOptions, onesie.MaxChoiceOptions)
+		}
+	})
+}
+
+func TestMaxScoreLevels(t *testing.T) {
+	t.Parallel()
+
+	t.Run("should be the ceiling onesie-go enforces", func(t *testing.T) {
+		t.Parallel()
+
+		if limits.MaxScoreLevels != onesie.MaxScoreLevels {
+			t.Errorf("MaxScoreLevels = %d, want onesie-go's %d", limits.MaxScoreLevels, onesie.MaxScoreLevels)
+		}
+	})
 }

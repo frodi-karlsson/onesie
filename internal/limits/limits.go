@@ -13,11 +13,11 @@ const (
 	// MinChoiceOptions is onesie's own floor. A one option choice has nothing to decide.
 	MinChoiceOptions = 2
 	// MaxChoiceOptions is the API's ceiling on options per choice question.
-	MaxChoiceOptions = 255
+	MaxChoiceOptions = onesie.MaxChoiceOptions
 	// MinScoreLevels is onesie's own floor. A one level score has nothing to rank.
 	MinScoreLevels = 2
 	// MaxScoreLevels is the API's ceiling on levels per score question.
-	MaxScoreLevels = 10
+	MaxScoreLevels = onesie.MaxScoreLevels
 
 	// DefaultAttemptTimeout bounds one HTTP attempt, not the whole call.
 	DefaultAttemptTimeout = onesie.DefaultAttemptTimeout
