@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"math"
 	"net/http"
 	"slices"
@@ -340,7 +341,8 @@ func averaged(names []string, p map[string]float64, index int) float64 {
 		total += p[name]
 	}
 
-	// A written p need not add up to 1, so the average is taken over what it holds.
+	// A written p adds up to 1 only within the rounding SumFits allows, so the average is taken over
+	// what it holds.
 	if total == 0 {
 		return float64(index)
 	}
@@ -463,6 +465,11 @@ func replayed(given any, names []string, value string, firstWins bool) (map[stri
 		}
 
 		probabilities[name] = probability
+	}
+
+	// The same rule the answer check applies at run time, so a mock it would refuse exits 2 here.
+	if sum, fits := answer.SumFits(slices.Collect(maps.Values(probabilities))); !fits {
+		return nil, fmt.Errorf("has p that adds up to %s, not 1", answer.Number(sum))
 	}
 
 	for i, name := range names {

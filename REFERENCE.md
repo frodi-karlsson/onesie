@@ -132,8 +132,9 @@ ONESIE_MOCK=answers.json ./gate.sh
   `abstain` are ignored, since the gate runs again. Inside an answer, `decision`, `fallback` and
   `legend` are ignored. A rate's `score` and `norm` are replayed, a `norm` written exactly or
   rounded to four places alike, and so is a pick or rate's `p`, whose keys must be exactly the
-  options or levels, whose values lie between 0 and 1, and whose most likely entry is the value. So
-  a replay prints the answers the real run printed, and a gate that reads `p` decides the same way.
+  options or levels, whose values lie between 0 and 1 and add up to 1 within the rounding a live
+  answer may carry, and whose most likely entry is the value. So a replay prints the answers the
+  real run printed, and a gate that reads `p` decides the same way.
   The `model` it prints is the one the mock run resolved, not the one the record holds, so an alias
   such as `jev-latest` stays an alias.
 - An entry answers every question the run asks. The file is checked against the questions before

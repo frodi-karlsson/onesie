@@ -267,6 +267,29 @@ func TestNormalize(t *testing.T) {
 		}
 	})
 
+	t.Run("should hold the sum tolerance at its edges", func(t *testing.T) {
+		t.Parallel()
+
+		three := plan.Question{
+			ID: "team", Shape: plan.Pick, Options: []plan.Option{{Name: "a"}, {Name: "b"}, {Name: "c"}},
+		}
+		two := plan.Question{ID: "team", Shape: plan.Pick, Options: []plan.Option{{Name: "a"}, {Name: "b"}}}
+
+		accepted := &onesie.ChoiceAnswer{
+			Choice: "a", Confidence: 0.5, Probabilities: map[string]float64{"a": 0.335, "b": 0.325, "c": 0.325},
+		}
+		if _, err := answer.Normalize(three, accepted); err != nil {
+			t.Errorf("three options summing to 0.985: %v, want no error", err)
+		}
+
+		refused := &onesie.ChoiceAnswer{
+			Choice: "a", Confidence: 0.5, Probabilities: map[string]float64{"a": 0.5, "b": 0.48},
+		}
+		if _, err := answer.Normalize(two, refused); err == nil {
+			t.Error("two options summing to 0.98: no error, want one")
+		}
+	})
+
 	t.Run("should accept p that two place rounding leaves just off 1", func(t *testing.T) {
 		t.Parallel()
 

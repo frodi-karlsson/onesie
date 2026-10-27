@@ -129,7 +129,7 @@ func checkScore(q plan.Question, raw *onesie.ScoreAnswer) error {
 }
 
 func checkSpread(id string, keys []string, probabilities map[string]float64, confidence float64) error {
-	sum := 0.0
+	values := make([]float64, 0, len(keys))
 
 	for _, key := range keys {
 		value := probabilities[key]
@@ -137,13 +137,11 @@ func checkSpread(id string, keys []string, probabilities map[string]float64, con
 			return unusable("question '%s' has p for '%s' of %s, which lies outside [0,1]", id, key, Number(value))
 		}
 
-		sum += value
+		values = append(values, value)
 	}
 
-	// A provider that rounds each entry to two places can land a little off 1, by up to half a
-	// hundredth per entry.
-	if tolerance := max(0.01, 0.005*float64(len(keys))); math.Abs(sum-1) > tolerance+1e-9 {
-		return unusable("question '%s' has p that adds up to %s, not 1", id, Number(Rounded(sum)))
+	if sum, fits := SumFits(values); !fits {
+		return unusable("question '%s' has p that adds up to %s, not 1", id, Number(sum))
 	}
 
 	if !unit(confidence) {
@@ -306,6 +304,19 @@ func (e Edges) String() string {
 
 func edgeText(value float64) string {
 	return Number(value)
+}
+
+// SumFits reports a distribution's sum, rounded to four places, and whether it is 1 within the
+// rounding a provider that writes two places per entry can leave, half a hundredth each, at least 0.01.
+func SumFits(probabilities []float64) (float64, bool) {
+	sum := 0.0
+	for _, value := range probabilities {
+		sum += value
+	}
+
+	tolerance := max(0.01, 0.005*float64(len(probabilities)))
+
+	return Rounded(sum), math.Abs(sum-1) <= tolerance+1e-9
 }
 
 // Rounded rounds a number onesie computes itself to four places, so a gate, -o json and the table
