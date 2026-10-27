@@ -107,8 +107,6 @@ func (c *Catalog) DryRunArgs(tokens []string) (args []string, reason string, err
 	return final, "", nil
 }
 
-// pairingProblem names the first pairing rule of --out, --resume, --offline and --prune that the
-// tokenized command breaks, which the dry run would hide by stripping them. It is empty when none is.
 func (c *Catalog) pairingProblem(tokens []string) string {
 	has := func(long string) bool { return c.hasFlag(tokens[1:], long) }
 

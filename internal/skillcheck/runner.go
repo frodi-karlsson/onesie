@@ -129,8 +129,6 @@ func (r *Runner) prepare(command string) (tokens, args []string, reason string, 
 	return tokens, args, reason, err
 }
 
-// answerFileProblem checks the flags the dry run strips from command before it can hide an error:
-// each must be in the --help of the command it follows, and each must come with the flags it needs.
 func (r *Runner) answerFileProblem(ctx context.Context, command string, tokens []string) (string, error) {
 	if !r.catalog.hasAnswerFileFlag(tokens) {
 		return "", nil
