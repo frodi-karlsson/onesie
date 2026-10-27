@@ -248,11 +248,10 @@ onesie calibrate -f prompt-injection -i jsonl --map .text --id .id \
   for 2 of 3 caught. Each rate, interval end, `auc` and mean distance is rounded to four places
   when it is computed, so a requirement compares the number the `-o json` report prints. A rate,
   interval end or `auc` that is not exactly 0 or 1 never rounds to 0 or 1, so 29999 of 30000 is
-  `0.9999`. The table report shows each rate and interval end as a whole percent, and adds one or
-  two places to a share when whole percents would show a share that is not exactly 0 or 1 as 0 or
-  100, or two different numbers as the same, so `1/1000` reads `0.10% 0.02-0.56%`. It shows `auc`
-  to 2 places, so it can read a little apart from the number compared. `auc` has `"interval":null`, a pick or rate measure `"cut":null`, and a measure
-  over no records `"value":null` with a `reason`.
+  `0.9999`. The table report shows each rate and interval end as a whole percent between 1 and
+  99, so `1/1000` reads `1% 1-1%` and `4/4` reads `99% 51-99%`. It shows `auc` to 2 places, so it
+  can read a little apart from the number compared. `auc` has `"interval":null`, a pick or rate
+  measure `"cut":null`, and a measure over no records `"value":null` with a `reason`.
 - `--print-request` checks each requirement and its cut, then prints the requests as usual.
 
 ### Offline

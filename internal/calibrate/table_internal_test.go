@@ -2,28 +2,28 @@ package calibrate
 
 import "testing"
 
-func TestShareTexts(t *testing.T) {
+func TestWholePercent(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name            string
-		share           Share
-		rate, low, high string
+		name     string
+		fraction float64
+		want     string
 	}{
-		{name: "should round 113 of 200 half up to whole percents", share: Wilson(113, 200), rate: "57", low: "50", high: "63"},
-		{name: "should show a share just under all with the places that keep it under 100", share: Wilson(29999, 30000), rate: "99.99", low: "99.98", high: "99.99"},
-		{name: "should show a share just over none with the places that keep it over 0", share: Wilson(1, 30000), rate: "0.01", low: "0.01", high: "0.02"},
-		{name: "should add a place when an interval would read 99-99", share: Wilson(990, 1000), rate: "99.0", low: "98.2", high: "99.5"},
-		{name: "should print all and none as whole numbers", share: Wilson(4, 4), rate: "100", low: "51", high: "100"},
+		{name: "should round half up to a whole percent", fraction: 0.565, want: "57"},
+		{name: "should round down below the half", fraction: 0.5049, want: "50"},
+		{name: "should show none as 1", fraction: 0, want: "1"},
+		{name: "should show a share just over none as 1", fraction: 0.0001, want: "1"},
+		{name: "should show all as 99", fraction: 1, want: "99"},
+		{name: "should show a share just under all as 99", fraction: 0.9999, want: "99"},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			rate, low, high := shareTexts(tc.share)
-			if rate != tc.rate || low != tc.low || high != tc.high {
-				t.Errorf("shareTexts(%+v) = %s, %s, %s, want %s, %s, %s", tc.share, rate, low, high, tc.rate, tc.low, tc.high)
+			if got := wholePercent(tc.fraction); got != tc.want {
+				t.Errorf("wholePercent(%v) = %s, want %s", tc.fraction, got, tc.want)
 			}
 		})
 	}

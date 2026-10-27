@@ -383,20 +383,22 @@ func (r Result) String() string {
 	case r.HasInterval:
 		// The four place numbers the requirement compared, not the table's percents, so a miss by
 		// less than a percent still shows.
-		measured = fmt.Sprintf("%d/%d is %s, interval %s to %s,", r.Hits, r.Of,
+		measured = fmt.Sprintf("%d/%d is %s, interval %s to %s", r.Hits, r.Of,
 			num.Format(r.Value), num.Format(r.Low), num.Format(r.High))
 	default:
 		measured = "AUC " + num.Format(r.Value)
 	}
 
 	line := fmt.Sprintf("'%s' %s: %s", r.Source, verdict, measured)
-	if r.HasCut {
-		line += " at cut " + cutText(r.Cut)
+	if !r.HasCut {
+		return line
 	}
 
-	line = strings.TrimSuffix(line, ",")
+	if r.HasValue && r.HasInterval {
+		line += ","
+	}
 
-	return line
+	return line + " at cut " + cutText(r.Cut)
 }
 
 // Measure names what a requirement reads from a question's score.
