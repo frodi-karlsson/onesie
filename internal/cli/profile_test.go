@@ -31,6 +31,9 @@ const (
 	keychainUnreadable   = "unreadable"
 	keychainUndeletable  = "undeletable"
 	keychainUnrestorable = "unrestorable"
+
+	unsafeBaseURL = " must not hold @, ? or #"
+	keyElsewhere  = ". Put the API key in a profile or the provider's key variable instead"
 )
 
 func TestNewProfileCmd(t *testing.T) {
@@ -363,7 +366,7 @@ func TestProfileCreate(t *testing.T) {
 			args:        []string{"profile", "create", "work", "--provider", "typesafe", "--base-url", "proxy.example"},
 			stdinUnread: true,
 			wantCode:    ExitUsage,
-			wantErr:     []string{"onesie: the base URL is not an http or https URL"},
+			wantErr:     []string{"onesie: --base-url is not an http or https URL"},
 			wantNoFile:  true,
 		},
 		{
@@ -371,7 +374,7 @@ func TestProfileCreate(t *testing.T) {
 			args:        []string{"profile", "create", "work", "--provider", "typesafe", "--base-url", "ftp://u:SECRET-pw@proxy.example"},
 			stdinUnread: true,
 			wantCode:    ExitUsage,
-			wantErr:     []string{"onesie: " + refusedBaseURL},
+			wantErr:     []string{"onesie: --base-url" + unsafeBaseURL + keyElsewhere},
 			wantNoFile:  true,
 		},
 		{
@@ -603,7 +606,7 @@ func TestProfileCreate(t *testing.T) {
 			args:        []string{"profile", "create", "work", "--provider", "typesafe", "--base-url", unclear.url},
 			stdinUnread: true,
 			wantCode:    ExitUsage,
-			wantErr:     []string{"onesie: " + refusedBaseURL},
+			wantErr:     []string{"onesie: --base-url" + unsafeBaseURL + keyElsewhere},
 			wantNoFile:  true,
 		})
 	}
@@ -1101,7 +1104,7 @@ func TestProfileUpdate(t *testing.T) {
 			args:        []string{"profile", "update", "work", "--base-url", "https://proxy.example/v1#SECRET-x", "--key"},
 			stdinUnread: true,
 			wantCode:    ExitUsage,
-			wantErr:     []string{"onesie: " + refusedBaseURL},
+			wantErr:     []string{"onesie: --base-url" + unsafeBaseURL},
 			wantFile:    work,
 			wantItems:   workItems,
 		},
@@ -1527,14 +1530,14 @@ func TestProfileShow(t *testing.T) {
 			file:    shown,
 			env:     map[string]string{"CLOUDFLARE_ACCOUNT_ID": testAccountID},
 			args:    []string{"profile", "show", "cf"},
-			wantOut: cfShown + "base_url: " + accountURL + ", env CLOUDFLARE_ACCOUNT_ID\naccount: CLOUDFLARE_ACCOUNT_ID\n",
+			wantOut: cfShown + "base_url: " + accountURL + ", CLOUDFLARE_ACCOUNT_ID\naccount: CLOUDFLARE_ACCOUNT_ID\n",
 		},
 		{
 			name: "should name account_id as the account",
 			file: shown,
 			args: []string{"profile", "show", "cfa"},
 			wantOut: "profile: cfa\nprovider: cloudflare\nchosen by: not active\nkey: file, ends in 6789\n" +
-				"model: typesafe/jev, the provider's default\nbase_url: " + accountURL + ", account_id\naccount: account_id\n",
+				"model: typesafe/jev, the provider's default\nbase_url: " + accountURL + ", the profile's account_id\naccount: account_id\n",
 		},
 		{
 			name: "should show a run under --provider with an environment key",
@@ -1556,7 +1559,7 @@ func TestProfileShow(t *testing.T) {
 			file:    tsFile,
 			env:     map[string]string{"TYPESAFE_DEFAULT_MODEL": "jev-env", "TYPESAFE_BASE_URL": "https://env.example/"},
 			args:    []string{"profile", "show"},
-			wantOut: tsShown + "model: jev-env, env TYPESAFE_DEFAULT_MODEL\nbase_url: https://env.example, env TYPESAFE_BASE_URL\n",
+			wantOut: tsShown + "model: jev-env, env TYPESAFE_DEFAULT_MODEL\nbase_url: https://env.example, TYPESAFE_BASE_URL\n",
 		},
 		{
 			name: "should keep the profile's model and base_url ahead of the variables",
@@ -1564,7 +1567,7 @@ func TestProfileShow(t *testing.T) {
 				`"model":"jev-1.13.0","base_url":"https://proxy.example"}}}`,
 			env:     map[string]string{"TYPESAFE_DEFAULT_MODEL": "jev-env", "TYPESAFE_BASE_URL": "https://env.example"},
 			args:    []string{"profile", "show"},
-			wantOut: tsShown + "model: jev-1.13.0, profile\nbase_url: https://proxy.example, profile\n",
+			wantOut: tsShown + "model: jev-1.13.0, profile\nbase_url: https://proxy.example, the profile's base_url\n",
 		},
 		{
 			name: "should report the variables on a run without a profile",
@@ -1573,14 +1576,14 @@ func TestProfileShow(t *testing.T) {
 			},
 			args: []string{"profile", "show"},
 			wantOut: "profile: none\nprovider: typesafe\nchosen by: nothing\nkey: env TYPESAFE_API_KEY\n" +
-				"model: jev-env, env TYPESAFE_DEFAULT_MODEL\nbase_url: https://env.example, env TYPESAFE_BASE_URL\n",
+				"model: jev-env, env TYPESAFE_DEFAULT_MODEL\nbase_url: https://env.example, TYPESAFE_BASE_URL\n",
 		},
 		{
 			name: "should say a run needs --allow-http for a plain http base_url to another host",
 			file: `{"default":"ts","profiles":{"ts":{"provider":"typesafe","api_key":"SECRET-TS-0123456789",` +
 				`"base_url":"http://proxy.example"}}}`,
 			args: []string{"profile", "show"},
-			wantOut: tsShown + "model: jev-latest, the provider's default\nbase_url: http://proxy.example, profile\n" +
+			wantOut: tsShown + "model: jev-latest, the provider's default\nbase_url: http://proxy.example, the profile's base_url\n" +
 				"allow_http: needed, since base_url is plain http to another host\n",
 		},
 		{
@@ -1589,7 +1592,7 @@ func TestProfileShow(t *testing.T) {
 			env:  map[string]string{"TYPESAFE_BASE_URL": "http://127.0.0.1:8080"},
 			args: []string{"profile", "show"},
 			wantOut: tsShown + "model: jev-latest, the provider's default\n" +
-				"base_url: http://127.0.0.1:8080, env TYPESAFE_BASE_URL\n",
+				"base_url: http://127.0.0.1:8080, TYPESAFE_BASE_URL\n",
 		},
 		{
 			name:     "should refuse a TYPESAFE_BASE_URL that holds credentials rather than print it",
@@ -1597,7 +1600,15 @@ func TestProfileShow(t *testing.T) {
 			env:      map[string]string{"TYPESAFE_BASE_URL": "https://u:SECRET-pw@env.example"},
 			args:     []string{"profile", "show"},
 			wantCode: ExitUsage,
-			wantErr:  []string{"onesie: " + refusedBaseURL},
+			wantErr:  []string{"onesie: TYPESAFE_BASE_URL" + unsafeBaseURL + keyElsewhere},
+		},
+		{
+			name: "should refuse a base_url with no host as a run does",
+			file: `{"default":"ts","profiles":{"ts":{"provider":"typesafe","api_key":"SECRET-TS-0123456789",` +
+				`"base_url":"https://"}}}`,
+			args:     []string{"profile", "show"},
+			wantCode: ExitUsage,
+			wantErr:  []string{"onesie: the profile's base_url https:// names no host"},
 		},
 		{
 			name:     "should exit 2 when there are profiles and no default",
@@ -1618,7 +1629,7 @@ func TestProfileShow(t *testing.T) {
 			file: `{"default":"ts","profiles":{"ts":{"provider":"typesafe","api_key":"SECRET-TS-0123456789",` +
 				`"base_url":"https://proxy.example/a%40b"}}}`,
 			args:    []string{"profile", "show"},
-			wantOut: tsShown + "model: jev-latest, the provider's default\nbase_url: https://proxy.example/a%40b, profile\n",
+			wantOut: tsShown + "model: jev-latest, the provider's default\nbase_url: https://proxy.example/a%40b, the profile's base_url\n",
 		},
 		{
 			name:     "should refuse a missing profile",
@@ -1636,7 +1647,7 @@ func TestProfileShow(t *testing.T) {
 				`"base_url":"` + unclear.url + `"}}}`,
 			args:     []string{"profile", "show"},
 			wantCode: ExitUsage,
-			wantErr:  []string{"onesie: " + refusedBaseURL},
+			wantErr:  []string{"onesie: the profile's base_url" + unsafeBaseURL + keyElsewhere},
 		})
 	}
 
@@ -1789,7 +1800,7 @@ func TestProfileTest(t *testing.T) {
 				`","base_url":"ftp://u:SECRET-pw@proxy.example"}}}`,
 			args:     []string{"profile", "test"},
 			wantCode: ExitUsage,
-			wantErr:  "onesie: " + refusedBaseURL + "\n",
+			wantErr:  "onesie: the profile's base_url" + unsafeBaseURL + keyElsewhere + "\n",
 		},
 		{
 			name:     "should exit 2 with no key and name profile create",

@@ -205,38 +205,6 @@ func (r resolution) modelFor(explicit string, lookupEnv func(string) (string, bo
 	return r.provider.ResolveModel(explicit, lookupEnv)
 }
 
-func (r resolution) baseURLGiven(baseURLFlag string, lookupEnv func(string) (string, bool)) string {
-	switch {
-	case strings.TrimSpace(baseURLFlag) != "":
-		return strings.TrimSpace(baseURLFlag)
-	case r.baseURL != "":
-		return r.baseURL
-	case r.provider.EnvBaseURL() != "":
-		return setVariable(lookupEnv, r.provider.EnvBaseURL())
-	}
-
-	return ""
-}
-
-func (r resolution) baseURLSource(baseURLFlag string, lookupEnv func(string) (string, bool)) string {
-	switch {
-	case strings.TrimSpace(baseURLFlag) != "":
-		return "--base-url"
-	case r.baseURL != "":
-		return "the profile's base_url"
-	case r.accountID != "":
-		return "the profile's account_id"
-	}
-
-	for _, name := range []string{r.provider.EnvBaseURL(), r.provider.EnvAccountID()} {
-		if name != "" && setVariable(lookupEnv, name) != "" {
-			return name
-		}
-	}
-
-	return "the provider's base URL"
-}
-
 func (r resolution) GoString() string {
 	// The %#v verb prints every field, and key holds a file profile's key in plain text.
 	return r.String()

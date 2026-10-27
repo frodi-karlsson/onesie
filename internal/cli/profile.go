@@ -151,7 +151,7 @@ func profileCreate(
 		return refused
 	}
 
-	if refused := checkProfile(opened.Profiles, name, profile); refused != nil {
+	if refused := checkProfile(opened.Profiles, name, profile, "--"+flagBaseURL); refused != nil {
 		return refused
 	}
 
@@ -240,7 +240,12 @@ func profileUpdate(
 		}
 	}
 
-	if refused := checkProfile(opened.Profiles, name, profile); refused != nil {
+	baseURLSource := profileBaseURL
+	if changed(flagBaseURL) {
+		baseURLSource = "--" + flagBaseURL
+	}
+
+	if refused := checkProfile(opened.Profiles, name, profile, baseURLSource); refused != nil {
 		return refused
 	}
 
@@ -460,8 +465,10 @@ func newProfileShowCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 		Long: "With a name, report that profile. Without one, report what a run would use now, profile or " +
 			"not, as --profile, --provider and their variables choose. It prints profile, provider, chosen " +
 			"by, key, model and base_url lines, and an account line on cloudflare. The model and base_url " +
-			"lines give the value a run would use and where it comes from: profile, an env variable such as " +
-			"TYPESAFE_DEFAULT_MODEL, account_id, or the provider's default. An allow_http line says a run needs " +
+			"lines give the value a run would use and where it comes from. The model comes from profile, an env " +
+			"variable such as TYPESAFE_DEFAULT_MODEL, or the provider's default. The base_url comes from the " +
+			"profile's base_url, a variable such as TYPESAFE_BASE_URL, the profile's account_id, " +
+			"CLOUDFLARE_ACCOUNT_ID, or the provider's default. An allow_http line says a run needs " +
 			"--allow-http, when base_url is plain http to another host. It never reads the keychain or " +
 			"prints a key.\n\n" +
 			"It exits 2 when key or account is none, or the account is not 32 hexadecimal characters, " +
@@ -479,13 +486,15 @@ func profileShow(cmd *cobra.Command, settings rootSettings, flags *runFlags, arg
 		return err
 	}
 
-	// A hand edited profiles.json and the provider's base URL variable skip create's checks, and
-	// credentials in either would print whole.
-	if refused := refuseUnclearBaseURL(shown.baseURLGiven("", settings.lookupEnv)); refused != nil {
-		return refused
-	}
+	// Resolved as a run resolves it, which checks a hand edited profiles.json and the provider's base
+	// URL variable too, since neither passed through create.
+	baseURL, source, invalid := shown.provider.ResolveBaseURL(shown.baseURL, shown.accountID, settings.lookupEnv)
+	sourceName, given := baseURLFrom(source, "", shown, settings.lookupEnv)
 
-	baseURL, found, invalid := effectiveBaseURL(shown, settings.lookupEnv)
+	var refused *onesie.BaseURLError
+	if errors.As(invalid, &refused) {
+		return baseURLRefusal(refused, sourceName, given)
+	}
 
 	account := shown.accountSource(settings.lookupEnv)
 
@@ -496,8 +505,8 @@ func profileShow(cmd *cobra.Command, settings rootSettings, flags *runFlags, arg
 	}
 
 	baseURLLine := sourceNone
-	if found {
-		baseURLLine = output.Printable(baseURL) + ", " + baseURLOrigin(shown, settings.lookupEnv)
+	if invalid == nil {
+		baseURLLine = output.Printable(baseURL) + ", " + sourceName
 	}
 
 	lines := []string{
@@ -510,7 +519,7 @@ func profileShow(cmd *cobra.Command, settings rootSettings, flags *runFlags, arg
 		"base_url: " + baseURLLine,
 	}
 
-	if found && plainRemote(baseURL) {
+	if invalid == nil && onesie.InsecureBaseURL(baseURL) {
 		lines = append(lines, "allow_http: needed, since base_url is plain http to another host")
 	}
 
@@ -527,45 +536,6 @@ func profileShow(cmd *cobra.Command, settings rootSettings, flags *runFlags, arg
 	}
 
 	return nil
-}
-
-func effectiveBaseURL(shown resolution, lookupEnv func(string) (string, bool)) (string, bool, error) {
-	// Built the way a run builds its client, with a stand in for the key show never reads, so the
-	// order the URL is chosen in is the run's own.
-	opts := []onesie.Option{
-		onesie.WithProvider(shown.provider), onesie.WithEnv(lookupEnv), onesie.WithAPIKey(keyPlaceholder),
-		onesie.WithInsecureHTTP(),
-	}
-
-	if shown.accountID != "" {
-		opts = append(opts, onesie.WithAccountID(shown.accountID))
-	}
-
-	if shown.baseURL != "" {
-		opts = append(opts, onesie.WithBaseURL(shown.baseURL))
-	}
-
-	client, err := onesie.New(opts...)
-	if err != nil {
-		return "", false, err
-	}
-
-	return client.BaseURL(), true, nil
-}
-
-func baseURLOrigin(shown resolution, lookupEnv func(string) (string, bool)) string {
-	switch {
-	case shown.baseURL != "":
-		return fromProfile
-	case shown.provider.EnvBaseURL() != "" && setVariable(lookupEnv, shown.provider.EnvBaseURL()) != "":
-		return sourceEnv + " " + shown.provider.EnvBaseURL()
-	case shown.accountID != "":
-		return "account_id"
-	case shown.provider.EnvAccountID() != "" && setVariable(lookupEnv, shown.provider.EnvAccountID()) != "":
-		return sourceEnv + " " + shown.provider.EnvAccountID()
-	}
-
-	return providersOwn
 }
 
 func modelOrigin(shown resolution, lookupEnv func(string) (string, bool)) string {
@@ -806,24 +776,29 @@ func checkGiven(profile creds.Profile, changed func(string) bool, providerGiven 
 }
 
 func refusePlainBaseURL(flags *runFlags, baseURL string) error {
-	if flags.allowHTTP || !plainRemote(baseURL) {
+	if baseURL == "" {
 		return nil
 	}
 
 	// Ahead of the message, which quotes the URL.
-	if refused := refuseUnclearBaseURL(baseURL); refused != nil {
+	if refused := checkBaseURL(baseURL, "--"+flagBaseURL); refused != nil {
 		return refused
 	}
 
-	return errors.New("--" + flagBaseURL + " " + output.Printable(baseURL) + plainHTTPReason +
+	if flags.allowHTTP || !onesie.InsecureBaseURL(baseURL) {
+		return nil
+	}
+
+	return errors.New("--" + flagBaseURL + " " + output.Printable(baseURL) + " is plain http to a host other " +
+		"than this machine" + plainHTTPReason +
 		". Use https, or pass --" + flagAllowHTTP + " to store it, and every run on the profile then needs --" +
 		flagAllowHTTP + " too")
 }
 
-func checkProfile(profiles creds.Profiles, name string, profile creds.Profile) error {
+func checkProfile(profiles creds.Profiles, name string, profile creds.Profile, baseURLSource string) error {
 	if profile.BaseURL != "" {
-		if invalid := validBaseURL(profile.BaseURL); invalid != nil {
-			return invalid
+		if refused := checkBaseURL(profile.BaseURL, baseURLSource); refused != nil {
+			return refused
 		}
 	}
 
@@ -834,6 +809,15 @@ func checkProfile(profiles creds.Profiles, name string, profile creds.Profile) e
 
 	if broken := profiles.With(name, profile).Validate(); broken != nil {
 		return broken
+	}
+
+	return nil
+}
+
+func checkBaseURL(baseURL, source string) error {
+	var refused *onesie.BaseURLError
+	if errors.As(onesie.ValidateBaseURL(baseURL), &refused) {
+		return baseURLRefusal(refused, source, baseURL)
 	}
 
 	return nil

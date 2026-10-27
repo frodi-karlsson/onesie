@@ -18,40 +18,44 @@ import (
 func TestClientBuilder(t *testing.T) {
 	t.Parallel()
 
-	refused := "onesie: " + refusedBaseURL
-
 	tests := []struct {
 		name     string
 		profiles string
 		args     []string
 		env      map[string]string
+		want     string
 	}{
 		{
 			name: "should refuse a --base-url whose password holds a question mark",
 			args: []string{"is this urgent", "--state", "hello", "-o", "json", "--base-url", "https://u:1?SECRET-x@proxy.example"},
 			env:  map[string]string{onesie.TypeSafe().EnvAPIKey(): "SECRET-ENV"},
+			want: "onesie: --base-url" + unsafeBaseURL + keyElsewhere,
 		},
 		{
 			name: "should refuse a --base-url with a query before any request",
 			args: []string{"--list-models", "--base-url", "{url}/?SECRET-x"},
 			env:  map[string]string{onesie.TypeSafe().EnvAPIKey(): "SECRET-ENV"},
+			want: "onesie: --base-url" + unsafeBaseURL,
 		},
 		{
 			name: "should refuse a base url variable with a fragment before any request",
 			args: []string{"is this urgent", "--state", "hello", "-o", "json"},
 			env:  map[string]string{onesie.TypeSafe().EnvAPIKey(): "SECRET-ENV", onesie.TypeSafe().EnvBaseURL(): "{url}/#SECRET-x"},
+			want: "onesie: TYPESAFE_BASE_URL" + unsafeBaseURL,
 		},
 		{
 			name: "should refuse a profile's base url with a query before profile test sends a request",
 			profiles: `{"default":"ts","profiles":{"ts":{"provider":"typesafe","api_key":"SECRET-TS",` +
 				`"base_url":"{url}/?SECRET-x"}}}`,
 			args: []string{"profile", "test"},
+			want: "onesie: the profile's base_url" + unsafeBaseURL,
 		},
 		{
 			name: "should refuse a keychain profile's base url with an @ in its path before reading the keychain",
 			profiles: `{"default":"work","profiles":{"work":{"provider":"typesafe","store":"keychain",` +
 				`"account":"work@abc","base_url":"{url}/a@b"}}}`,
 			args: []string{"is this urgent", "--state", "hello", "-o", "json"},
+			want: "onesie: the profile's base_url" + unsafeBaseURL + keyElsewhere,
 		},
 	}
 
@@ -62,10 +66,12 @@ func TestClientBuilder(t *testing.T) {
 			profiles string
 			args     []string
 			env      map[string]string
+			want     string
 		}{
 			name: "should refuse a --base-url " + unclear.name + " before any request",
 			args: []string{"--list-models", "--base-url", strings.ReplaceAll(unclear.url, "proxy.example", "{host}")},
 			env:  map[string]string{onesie.TypeSafe().EnvAPIKey(): "SECRET-ENV"},
+			want: "onesie: --base-url" + unsafeBaseURL + keyElsewhere,
 		})
 	}
 
@@ -111,8 +117,8 @@ func TestClientBuilder(t *testing.T) {
 				t.Errorf("exit code = %d, want %d", code, ExitUsage)
 			}
 
-			if !strings.Contains(out+errOut, refused) {
-				t.Errorf("stdout and stderr carry no %q", refused)
+			if !strings.Contains(out+errOut, tc.want) {
+				t.Errorf("stdout = %q, stderr = %q, want either to carry %q", out, errOut, tc.want)
 			}
 
 			if got := requests.Load(); got != 0 {
@@ -146,17 +152,17 @@ func TestClientBuilder(t *testing.T) {
 			{
 				name: "should say a --base-url with a scheme and no host names no host",
 				args: []string{"--base-url", "https://"},
-				want: "onesie: base URL https:// names no host\n",
+				want: "onesie: --base-url https:// names no host\n",
 			},
 			{
 				name: "should say a --base-url with no scheme is not http or https",
 				args: []string{"--base-url", "proxy.example"},
-				want: "onesie: the base URL is not an http or https URL\n",
+				want: "onesie: --base-url is not an http or https URL\n",
 			},
 			{
 				name: "should word profile create the same way",
 				args: []string{"profile", "create", "w", "--provider", "typesafe", "--base-url", "https://"},
-				want: "onesie: base URL https:// names no host\n",
+				want: "onesie: --base-url https:// names no host\n",
 			},
 		}
 
@@ -569,84 +575,6 @@ func TestPooled(t *testing.T) {
 	})
 }
 
-func TestPlainRemote(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name    string
-		baseURL string
-		want    bool
-	}{
-		{name: "should pass https to any host", baseURL: "https://proxy.example"},
-		{name: "should pass plain http to localhost", baseURL: "http://localhost:8080"},
-		{name: "should pass plain http to 127.0.0.1", baseURL: "http://127.0.0.1:8080"},
-		{name: "should pass plain http to any address in 127.0.0.0/8", baseURL: "http://127.1.2.3"},
-		{name: "should pass plain http to ::1", baseURL: "http://[::1]:8080"},
-		{name: "should pass plain http to localhost in another case", baseURL: "http://LocalHost:8080"},
-		{name: "should pass plain http to an IPv4-mapped loopback address", baseURL: "http://[::ffff:127.0.0.1]:8080"},
-		{name: "should flag plain http to localhost with a trailing dot", baseURL: "http://localhost.", want: true},
-		{name: "should flag plain http to an IPv4-mapped private address", baseURL: "http://[::ffff:10.0.0.1]", want: true},
-		{name: "should flag plain http to a named host", baseURL: "http://proxy.example", want: true},
-		{name: "should flag plain http to a private address", baseURL: "http://10.0.0.1", want: true},
-		{name: "should flag plain http to a name under localhost", baseURL: "http://api.localhost", want: true},
-		{name: "should flag plain http to an address that only starts like loopback", baseURL: "http://128.0.0.1", want: true},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			if got := plainRemote(tc.baseURL); got != tc.want {
-				t.Errorf("plainRemote(%q) = %v, want %v", tc.baseURL, got, tc.want)
-			}
-		})
-	}
-}
-
-func TestPlainHTTPCheck(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name        string
-		baseURL     string
-		allowHTTP   bool
-		wantWarning string
-		wantRefusal string
-	}{
-		{
-			name: "should refuse plain http to another host, naming the source and --allow-http", baseURL: "http://proxy.example",
-			wantRefusal: "TYPESAFE_BASE_URL http://proxy.example is plain http to a host other than this " +
-				"machine, so the API key would cross the network unencrypted. Use https, or pass --allow-http to send it anyway",
-		},
-		{
-			name: "should warn rather than refuse under --allow-http", baseURL: "http://proxy.example", allowHTTP: true,
-			wantWarning: "warning: http://proxy.example is plain http, so the API key crosses the network unencrypted",
-		},
-		{name: "should pass https to another host", baseURL: "https://proxy.example"},
-		{name: "should pass plain http to this machine", baseURL: "http://127.0.0.1:8080"},
-		{name: "should pass plain http to this machine under --allow-http", baseURL: "http://[::1]:8080", allowHTTP: true},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			warning, refused := plainHTTPCheck(tc.baseURL, onesie.TypeSafe().EnvBaseURL(), tc.allowHTTP)
-
-			if warning != tc.wantWarning {
-				t.Errorf("warning = %q, want %q", warning, tc.wantWarning)
-			}
-
-			switch {
-			case tc.wantRefusal == "" && refused != nil:
-				t.Errorf("refused with %v, want no refusal", refused)
-			case tc.wantRefusal != "" && (refused == nil || refused.Error() != tc.wantRefusal):
-				t.Errorf("refusal = %v, want %q", refused, tc.wantRefusal)
-			}
-		})
-	}
-}
-
 func TestEndsInVersion(t *testing.T) {
 	t.Parallel()
 
@@ -730,36 +658,128 @@ func TestProfileKey(t *testing.T) {
 	}
 }
 
-func TestValidBaseURL(t *testing.T) {
+func TestBaseURLFrom(t *testing.T) {
 	t.Parallel()
 
+	profileOf := func(profile creds.Profile) resolution {
+		run, err := profileRun("p", profile, "--profile")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		return run
+	}
+
+	bare, err := providerRun("typesafe", "nothing", lookupFrom(nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cloudflare, err := providerRun("cloudflare", "--provider", lookupFrom(nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	tests := []struct {
-		name string
-		url  string
-		want string
+		name      string
+		source    onesie.BaseURLSource
+		run       resolution
+		flag      string
+		env       map[string]string
+		want      string
+		wantGiven string
 	}{
-		{name: "should take an https URL", url: "https://proxy.example/v1"},
-		{name: "should say a base URL with a scheme and no host names no host", url: "https://", want: "onesie: base URL https:// names no host"},
-		{name: "should show only the scheme of a base URL with a path and no host", url: "https:///v1", want: "onesie: base URL https:// names no host"},
-		{name: "should say a base URL that does not parse does not parse", url: "https://x.invalid/%zz", want: "onesie: the base URL does not parse"},
-		{name: "should say a base URL with no scheme is not http or https", url: "proxy.example", want: "onesie: the base URL is not an http or https URL"},
-		{name: "should refuse a base URL with a query and no host as unclear", url: "https://?x", want: "onesie: " + refusedBaseURL},
-		{name: "should refuse a base URL with userinfo and no scheme as unclear", url: "u:SECRET-pw@proxy.example", want: "onesie: " + refusedBaseURL},
+		{
+			name: "should name --base-url when the flag was given", source: onesie.BaseURLFromOption,
+			run:  profileOf(creds.Profile{Provider: "typesafe", APIKey: "SECRET-P", BaseURL: "https://p.example"}),
+			flag: " https://flag.example ", want: "--base-url", wantGiven: "https://flag.example",
+		},
+		{
+			name: "should name the profile's base_url without the flag", source: onesie.BaseURLFromOption,
+			run:  profileOf(creds.Profile{Provider: "typesafe", APIKey: "SECRET-P", BaseURL: "https://p.example"}),
+			want: "the profile's base_url", wantGiven: "https://p.example",
+		},
+		{
+			name: "should name the base URL variable", source: onesie.BaseURLFromEnv, run: bare,
+			env:  map[string]string{onesie.TypeSafe().EnvBaseURL(): "https://env.example"},
+			want: onesie.TypeSafe().EnvBaseURL(), wantGiven: "https://env.example",
+		},
+		{
+			name: "should name the profile's account_id when the profile has one", source: onesie.BaseURLFromAccount,
+			run:  profileOf(creds.Profile{Provider: "cloudflare", APIKey: "SECRET-P", AccountID: testAccountID}),
+			want: "the profile's account_id",
+		},
+		{
+			name: "should name the account variable otherwise", source: onesie.BaseURLFromAccount, run: cloudflare,
+			want: "CLOUDFLARE_ACCOUNT_ID",
+		},
+		{name: "should name the provider's default", source: onesie.BaseURLFromDefault, run: bare, want: "the provider's default"},
+		{name: "should name a base URL of unknown source plainly", source: onesie.BaseURLSourceUnknown, run: bare, want: "the base URL"},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			err := validBaseURL(tc.url)
+			name, given := baseURLFrom(tc.source, tc.flag, tc.run, lookupFrom(tc.env))
+			if name != tc.want || given != tc.wantGiven {
+				t.Errorf("baseURLFrom = %q, %q, want %q, %q", name, given, tc.want, tc.wantGiven)
+			}
+		})
+	}
+}
 
-			got := ""
-			if err != nil {
-				got = err.Error()
+func TestBaseURLRefusal(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		raw   string
+		given string
+		want  string
+	}{
+		{
+			name: "should name the source, the shown URL and the rule", raw: "https://", given: "https://",
+			want: "--base-url https:// names no host",
+		},
+		{
+			name: "should leave out a URL it cannot show", raw: "proxy.example", given: "proxy.example",
+			want: "--base-url is not an http or https URL",
+		},
+		{
+			name: "should point the key elsewhere for a URL holding an @", raw: "https://u:SECRET-pw@proxy.example",
+			given: "https://u:SECRET-pw@proxy.example",
+			want:  "--base-url must not hold @, ? or #. Put the API key in a profile or the provider's key variable instead",
+		},
+		{
+			name: "should add no key hint for a URL holding only a query", raw: "https://proxy.example/?x",
+			given: "https://proxy.example/?x", want: "--base-url must not hold @, ? or #",
+		},
+		{
+			name: "should name --allow-http for plain http to another host", raw: "http://proxy.example/v1",
+			want: "--base-url http://proxy.example is plain http to a host other than this machine, so the API key " +
+				"would cross the network unencrypted. Use https, or pass --allow-http to send it anyway",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := onesie.New(onesie.WithAPIKey("SECRET-K"), onesie.WithBaseURL(tc.raw))
+
+			var refused *onesie.BaseURLError
+			if !errors.As(err, &refused) {
+				t.Fatalf("New = %v, want a *onesie.BaseURLError", err)
 			}
 
-			if got != tc.want {
-				t.Errorf("validBaseURL(%q) = %q, want %q", tc.url, got, tc.want)
+			got := baseURLRefusal(refused, "--base-url", tc.given)
+			if got.Error() != tc.want {
+				t.Errorf("Error = %q, want %q", got.Error(), tc.want)
+			}
+
+			if !errors.Is(got, onesie.ErrValidation) {
+				t.Error("the refusal lost the library's error, so it would not exit 2")
 			}
 		})
 	}

@@ -616,68 +616,6 @@ func TestFirstProfileOf(t *testing.T) {
 	}
 }
 
-func TestResolutionBaseURLSource(t *testing.T) {
-	t.Parallel()
-
-	profileOf := func(profile creds.Profile) resolution {
-		run, err := profileRun("p", profile, "--profile")
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		return run
-	}
-
-	bare, err := providerRun("typesafe", "nothing", lookupFrom(nil))
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	tests := []struct {
-		name string
-		run  resolution
-		flag string
-		env  map[string]string
-		want string
-	}{
-		{
-			name: "should name --base-url first",
-			run:  profileOf(creds.Profile{Provider: "typesafe", APIKey: "SECRET-P", BaseURL: "https://p.example"}),
-			flag: "https://flag.example", want: "--base-url",
-		},
-		{
-			name: "should name the profile's base_url",
-			run:  profileOf(creds.Profile{Provider: "typesafe", APIKey: "SECRET-P", BaseURL: "https://p.example"}),
-			env:  map[string]string{onesie.TypeSafe().EnvBaseURL(): "https://env.example"}, want: "the profile's base_url",
-		},
-		{
-			name: "should name the profile's account_id",
-			run:  profileOf(creds.Profile{Provider: "cloudflare", APIKey: "SECRET-P", AccountID: testAccountID}),
-			want: "the profile's account_id",
-		},
-		{
-			name: "should name TYPESAFE_BASE_URL", run: bare,
-			env: map[string]string{onesie.TypeSafe().EnvBaseURL(): "https://env.example"}, want: onesie.TypeSafe().EnvBaseURL(),
-		},
-		{
-			name: "should name CLOUDFLARE_ACCOUNT_ID",
-			run:  profileOf(creds.Profile{Provider: "cloudflare", APIKey: "SECRET-P"}),
-			env:  map[string]string{"CLOUDFLARE_ACCOUNT_ID": testAccountID}, want: "CLOUDFLARE_ACCOUNT_ID",
-		},
-		{name: "should name the provider's base URL last", run: bare, want: "the provider's base URL"},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			if got := tc.run.baseURLSource(tc.flag, lookupFrom(tc.env)); got != tc.want {
-				t.Errorf("baseURLSource = %q, want %q", got, tc.want)
-			}
-		})
-	}
-}
-
 func TestResolutionKeyLine(t *testing.T) {
 	t.Parallel()
 
