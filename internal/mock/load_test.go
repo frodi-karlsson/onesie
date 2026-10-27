@@ -50,14 +50,14 @@ func TestLoad(t *testing.T) {
 			name:  "should refuse an entry missing an asked question",
 			file:  `{"t":"billing","r":"curt"}` + "\n",
 			asked: []string{"u"},
-			wantErr: "onesie: --mock: the entry has no answer for question 'u'. " +
+			wantErr: "--mock: the entry has no answer for question 'u'. " +
 				"Every entry answers every question the run asks",
 		},
 		{
 			name:    "should still refuse a key that names no question",
 			file:    `{"u":0.4,"mood":"calm"}` + "\n",
 			asked:   []string{"u"},
-			wantErr: "onesie: --mock: 'mood' is not a question. Questions: u, t, r",
+			wantErr: "--mock: 'mood' is not a question. Questions: u, t, r",
 		},
 		{
 			name: "should answer every position from one object",
@@ -245,124 +245,124 @@ func TestLoad(t *testing.T) {
 			name:    "should name the variable the file came from",
 			file:    `{"u":1.2,"t":"billing","r":"curt"}`,
 			spelled: "ONESIE_MOCK",
-			wantErr: "onesie: ONESIE_MOCK: question 'u' answered 1.2, which lies outside [0,1]",
+			wantErr: "ONESIE_MOCK: question 'u' answered 1.2, which lies outside [0,1]",
 		},
 		{
 			name: "should refuse one object over several lines that carries an id",
 			file: "{\n  \"id\": \"T-1\",\n  " + full + "\n}\n",
-			wantErr: "onesie: --mock: the file is one object over several lines that carries 'id', " +
+			wantErr: "--mock: the file is one object over several lines that carries 'id', " +
 				"which -o json writes on an answers line. Write each answers line on a line of its own, " +
 				"or drop 'id' to answer every record",
 		},
 		{
 			name: "should refuse one object over several lines that carries a model",
 			file: "{\n  \"model\": \"mock\",\n  " + full + "\n}\n",
-			wantErr: "onesie: --mock: the file is one object over several lines that carries 'model', " +
+			wantErr: "--mock: the file is one object over several lines that carries 'model', " +
 				"which -o json writes on an answers line. Write each answers line on a line of its own, " +
 				"or drop 'model' to answer every record",
 		},
 		{
 			name:    "should refuse an unknown question id",
 			file:    "{" + full + "}\n" + `{` + full + `,"x":0.2}`,
-			wantErr: "onesie: --mock line 2: 'x' is not a question. Questions: u, t, r",
+			wantErr: "--mock line 2: 'x' is not a question. Questions: u, t, r",
 		},
 		{
 			name: "should refuse an entry that leaves a question out",
 			file: `{"u":0.9,"t":"billing"}`,
-			wantErr: "onesie: --mock: the entry has no answer for question 'r'. " +
+			wantErr: "--mock: the entry has no answer for question 'r'. " +
 				"Every entry answers every question the run asks",
 		},
 		{
 			name:    "should refuse a probability above 1",
 			file:    `{"u":1.2,"t":"billing","r":"curt"}`,
-			wantErr: "onesie: --mock: question 'u' answered 1.2, which lies outside [0,1]",
+			wantErr: "--mock: question 'u' answered 1.2, which lies outside [0,1]",
 		},
 		{
 			name:    "should refuse a yes/no answer that is not a number",
 			file:    `{"u":"yes","t":"billing","r":"curt"}`,
-			wantErr: `onesie: --mock: question 'u' answered "yes", which is not a probability`,
+			wantErr: `--mock: question 'u' answered "yes", which is not a probability`,
 		},
 		{
 			name:    "should refuse a written p that does not add up to 1, naming the line",
 			file:    "{" + full + "}\n" + `{"u":0.9,"t":{"value":"billing","p":{"billing":0.5,"platform":0.2}},"r":"curt"}`,
-			wantErr: "onesie: --mock line 2: question 't' has p that adds up to 0.7, not 1",
+			wantErr: "--mock line 2: question 't' has p that adds up to 0.7, not 1",
 		},
 		{
 			name:    "should refuse a number that names no option",
 			file:    `{"u":0.9,"t":7,"r":"curt"}`,
-			wantErr: "onesie: --mock: question 't' picked '7', which is not an option. Options: billing, platform",
+			wantErr: "--mock: question 't' picked '7', which is not an option. Options: billing, platform",
 		},
 		{
 			name:    "should refuse a name in another case",
 			file:    "{" + full + "}\n" + `{"u":0.9,"t":"Billing","r":"curt"}`,
-			wantErr: "onesie: --mock line 2: question 't' picked 'Billing', which is not an option. Options: billing, platform",
+			wantErr: "--mock line 2: question 't' picked 'Billing', which is not an option. Options: billing, platform",
 		},
 		{
 			name:    "should refuse a level that is not one",
 			file:    `{"u":0.9,"t":"billing","r":"loud"}`,
-			wantErr: "onesie: --mock: question 'r' rated 'loud', which is not a level. Levels: calm, curt, rude",
+			wantErr: "--mock: question 'r' rated 'loud', which is not a level. Levels: calm, curt, rude",
 		},
 		{
 			name:    "should refuse a confidence of 2",
 			file:    `{"u":0.9,"t":{"value":"billing","confidence":2},"r":"curt"}`,
-			wantErr: "onesie: --mock: question 't' has confidence 2, which lies outside [0,1]",
+			wantErr: "--mock: question 't' has confidence 2, which lies outside [0,1]",
 		},
 		{
 			name:    "should refuse an unknown answer key",
 			file:    `{"u":0.9,"t":{"value":"billing","weight":2},"r":"curt"}`,
-			wantErr: "onesie: --mock: question 't' carries the key 'weight', which a mock answer does not take",
+			wantErr: "--mock: question 't' carries the key 'weight', which a mock answer does not take",
 		},
 		{
 			name:    "should refuse a confidence on a yes/no answer",
 			file:    `{"u":{"value":0.9,"confidence":0.5},"t":"billing","r":"curt"}`,
-			wantErr: "onesie: --mock: question 'u' carries the key 'confidence', which a mock answer does not take",
+			wantErr: "--mock: question 'u' carries the key 'confidence', which a mock answer does not take",
 		},
 		{
 			name:    "should refuse an error status that is not an error",
 			file:    `{"error":200}`,
-			wantErr: "onesie: --mock: error 200 is not one onesie can replay. Use a status from 400 to 599, timeout or connection",
+			wantErr: "--mock: error 200 is not one onesie can replay. Use a status from 400 to 599, timeout or connection",
 		},
 		{
 			name:    "should refuse an error word it does not know",
 			file:    `{"error":"slow"}`,
-			wantErr: `onesie: --mock: error "slow" is not one onesie can replay. Use a status from 400 to 599, timeout or connection`,
+			wantErr: `--mock: error "slow" is not one onesie can replay. Use a status from 400 to 599, timeout or connection`,
 		},
 		{
 			name:    "should refuse a line with no id under byID",
 			file:    `{"id":"T-1",` + full + "}\n" + "{" + full + "}\n",
 			byID:    true,
-			wantErr: "onesie: --mock line 2 has no id, and --id matches the file by id",
+			wantErr: "--mock line 2 has no id, and --id matches the file by id",
 		},
 		{
 			name:    "should refuse a repeated id",
 			file:    `{"id":"T-1",` + full + "}\n" + `{"id":"T-2",` + full + "}\n" + `{"id":"T-1",` + full + "}\n",
 			byID:    true,
-			wantErr: "onesie: --mock line 3: id 'T-1' is also the id of line 1",
+			wantErr: "--mock line 3: id 'T-1' is also the id of line 1",
 		},
 		{
 			name:    "should refuse a line that is not an object",
 			file:    "{" + full + "}\n[1]\n",
-			wantErr: "onesie: --mock line 2 is not a JSON object",
+			wantErr: "--mock line 2 is not a JSON object",
 		},
 		{
 			name:    "should refuse a blank line",
 			file:    "{" + full + "}\n\n{" + full + "}\n",
-			wantErr: "onesie: --mock line 2 is blank",
+			wantErr: "--mock line 2 is blank",
 		},
 		{
 			name:    "should refuse an empty file",
 			file:    "",
-			wantErr: "onesie: --mock: the file is empty",
+			wantErr: "--mock: the file is empty",
 		},
 		{
 			name:    "should refuse a file of blank lines as empty",
 			file:    "\n \n",
-			wantErr: "onesie: --mock: the file is empty",
+			wantErr: "--mock: the file is empty",
 		},
 		{
 			name:    "should refuse a line longer than the cap",
 			file:    `{"u":0.9,"pad":"` + strings.Repeat("a", limits.MaxLineBytes) + `"}`,
-			wantErr: "onesie: --mock line 1 is longer than 8388608 bytes, the max-line-bytes cap -V lists",
+			wantErr: "--mock line 1 is longer than 8388608 bytes, the max-line-bytes cap -V lists",
 		},
 	}
 
@@ -511,14 +511,14 @@ func TestAnswersMissing(t *testing.T) {
 			file:     "{" + full + "}\n{" + full + "}\n",
 			position: 3,
 			line:     5,
-			want:     "onesie: --mock has no line 3, so input line 5 has no answer. Add one",
+			want:     "--mock has no line 3, so input line 5 has no answer. Add one",
 		},
 		{
 			name:     "should name a mock line that answers nothing and the input line",
 			file:     "{" + full + "}\n" + unread + "\n",
 			position: 2,
 			line:     2,
-			want: "onesie: --mock line 2 replays a line onesie could not read, so input line 2 " +
+			want: "--mock line 2 replays a line onesie could not read, so input line 2 " +
 				"has no answer. Give it answers",
 		},
 		{
@@ -526,7 +526,7 @@ func TestAnswersMissing(t *testing.T) {
 			file:     `{"abstain":true,` + full + "}\n",
 			position: 2,
 			line:     2,
-			want: "onesie: --mock has no line 2, so input line 2 has no answer. The file was read as -o json " +
+			want: "--mock has no line 2, so input line 2 has no answer. The file was read as -o json " +
 				"lines, since its one line carries abstain. Add a line per record, or drop abstain to answer " +
 				"every record",
 		},
@@ -536,7 +536,7 @@ func TestAnswersMissing(t *testing.T) {
 			byID: true,
 			id:   "b",
 			line: 3,
-			want: "onesie: --mock has no line with id 'b', so input line 3 has no answer. The file was read as " +
+			want: "--mock has no line with id 'b', so input line 3 has no answer. The file was read as " +
 				"-o json lines, since its one line carries id. Add a line per record, or drop id to answer " +
 				"every record",
 		},
@@ -546,7 +546,7 @@ func TestAnswersMissing(t *testing.T) {
 			byID: true,
 			id:   "b",
 			line: 4,
-			want: "onesie: --mock has no line with id 'b', so input line 4 has no answer. Add one",
+			want: "--mock has no line with id 'b', so input line 4 has no answer. Add one",
 		},
 		{
 			name: "should name the mock line of an id that answers nothing",
@@ -554,7 +554,7 @@ func TestAnswersMissing(t *testing.T) {
 			byID: true,
 			id:   "b",
 			line: 4,
-			want: "onesie: --mock line 2 replays a line onesie could not read, so input line 4 " +
+			want: "--mock line 2 replays a line onesie could not read, so input line 4 " +
 				"has no answer. Give it answers",
 		},
 		{
@@ -562,7 +562,7 @@ func TestAnswersMissing(t *testing.T) {
 			file:     unread,
 			position: 1,
 			line:     1,
-			want: "onesie: --mock line 1 replays a line onesie could not read, so input line 1 " +
+			want: "--mock line 1 replays a line onesie could not read, so input line 1 " +
 				"has no answer. Give it answers",
 		},
 	}

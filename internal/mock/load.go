@@ -29,7 +29,7 @@ func Load(r io.Reader, questions []plan.Question, opts Options) (*Answers, error
 		opts.Spelled = Flag
 	}
 
-	parse := parser{questions: questions, opts: opts, prefix: "onesie: " + opts.Spelled}
+	parse := parser{questions: questions, opts: opts}
 
 	lines, err := parse.readLines(r)
 	if err != nil {
@@ -37,7 +37,7 @@ func Load(r io.Reader, questions []plan.Question, opts Options) (*Answers, error
 	}
 
 	if len(lines) == 0 {
-		return nil, errors.New(parse.prefix + ": the file is empty")
+		return nil, errors.New(opts.Spelled + ": the file is empty")
 	}
 
 	whole, replayKey, err := parse.oneObject(lines)
@@ -46,7 +46,7 @@ func Load(r io.Reader, questions []plan.Question, opts Options) (*Answers, error
 	}
 
 	if whole != nil {
-		entry, entryErr := parse.entry(whole, parse.prefix)
+		entry, entryErr := parse.entry(whole, opts.Spelled)
 		if entryErr != nil {
 			return nil, entryErr
 		}
@@ -73,11 +73,11 @@ func (p parser) readLines(r io.Reader) ([][]byte, error) {
 		line, err := readLine(reader)
 		if errors.Is(err, errTooLong) {
 			return nil, fmt.Errorf("%s line %d is longer than %d bytes, the max-line-bytes cap -V lists",
-				p.prefix, number, limits.MaxLineBytes)
+				p.opts.Spelled, number, limits.MaxLineBytes)
 		}
 
 		if err != nil && !errors.Is(err, io.EOF) {
-			return nil, fmt.Errorf("%s: %w", p.prefix, err)
+			return nil, fmt.Errorf("%s: %w", p.opts.Spelled, err)
 		}
 
 		if errors.Is(err, io.EOF) && line == nil {
@@ -146,7 +146,7 @@ func (p parser) oneObject(lines [][]byte) (map[string]any, string, error) {
 
 	return nil, "", fmt.Errorf("%s: the file is one object over several lines that carries '%s', "+
 		"which -o json writes on an answers line. Write each answers line on a line of its own, "+
-		"or drop '%s' to answer every record", p.prefix, key, key)
+		"or drop '%s' to answer every record", p.opts.Spelled, key, key)
 }
 
 func (p parser) lineLevelKey(fields map[string]any) (string, bool) {
@@ -209,7 +209,7 @@ func (p parser) lines(lines [][]byte) (*Answers, error) {
 
 	for i, raw := range lines {
 		number := i + 1
-		where := fmt.Sprintf("%s line %d", p.prefix, number)
+		where := fmt.Sprintf("%s line %d", p.opts.Spelled, number)
 
 		if len(bytes.TrimSpace(raw)) == 0 {
 			return nil, fmt.Errorf("%s is blank", where)
@@ -249,7 +249,6 @@ func (p parser) lines(lines [][]byte) (*Answers, error) {
 type parser struct {
 	questions []plan.Question
 	opts      Options
-	prefix    string
 }
 
 // Lookup returns the entry for the record at a position counted from one, or for an id when the
@@ -267,18 +266,17 @@ func (a *Answers) Lookup(position int, id any) (Entry, bool) {
 // line.
 func (a *Answers) Missing(position int, id any, line int) string {
 	found, exists := a.find(position, id)
-	prefix := "onesie: " + a.spelled
 
 	switch {
 	case exists:
 		return fmt.Sprintf("%s line %d replays a line onesie could not read, so input line %d has no answer. "+
-			"Give it answers", prefix, found.line, line)
+			"Give it answers", a.spelled, found.line, line)
 	case a.byID:
 		return fmt.Sprintf("%s has no line with id '%s', so input line %d has no answer. %s",
-			prefix, jq.IDText(id), line, a.addLine())
+			a.spelled, jq.IDText(id), line, a.addLine())
 	default:
 		return fmt.Sprintf("%s has no line %d, so input line %d has no answer. %s",
-			prefix, position, line, a.addLine())
+			a.spelled, position, line, a.addLine())
 	}
 }
 
