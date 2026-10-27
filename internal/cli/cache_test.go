@@ -21,8 +21,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/spf13/cobra"
+
 	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/cache"
+	"github.com/frodi-karlsson/onesie/internal/input"
+	"github.com/frodi-karlsson/onesie/internal/output"
 	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
@@ -849,6 +853,56 @@ func TestAsk(t *testing.T) {
 			t.Errorf("cache dir holds %d files, %v, want only the foreign one", len(entries), err)
 		}
 	})
+
+	direct := []struct {
+		name     string
+		flags    runFlags
+		noul     float64
+		wantOut  string
+		wantFail bool
+	}{
+		{name: "should write the record the answerer gives", flags: runFlags{output: "values"}, noul: 0.9, wantOut: "{\"answer\":0.9}\n"},
+		{name: "should write nothing under -q and reject a no", flags: runFlags{quiet: true}, noul: 0.2, wantFail: true},
+	}
+
+	for _, tc := range direct {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var out strings.Builder
+
+			cmd := &cobra.Command{}
+			cmd.SetOut(&out)
+			cmd.SetContext(t.Context())
+
+			settings := rootSettings{
+				lookupEnv: lookupFrom(nil),
+				holder: &holder{resolved: func() (resolution, error) {
+					return resolution{provider: onesie.TypeSafe()}, nil
+				}},
+			}
+
+			inv := &invocation{plan: &plan.Plan{Questions: []plan.Question{{ID: "answer", Shape: plan.Noul}}}}
+			asker := resultAnswerer{result: func() *onesie.Result {
+				return &onesie.Result{Model: "m", Answers: map[string]onesie.Answer{"answer": &onesie.NoulAnswer{Noul: tc.noul}}}
+			}}
+
+			err := ask(cmd, settings, runConfig{runFlags: tc.flags}, inv,
+				singleState{resolved: input.Resolved{Source: input.SourceState, State: "x"}, sent: "x"},
+				output.Values, &collector{}, func(context.Context, *collector) (answerer, error) {
+					return asker, nil
+				})
+
+			var rejected *rejectedError
+			if errors.As(err, &rejected) != tc.wantFail || (err != nil && !tc.wantFail) {
+				t.Fatalf("ask = %v, want a rejection %v", err, tc.wantFail)
+			}
+
+			if out.String() != tc.wantOut {
+				t.Errorf("stdout = %q, want %q", out.String(), tc.wantOut)
+			}
+		})
+	}
 }
 
 func newAnswerStub(t *testing.T) *answerStub {

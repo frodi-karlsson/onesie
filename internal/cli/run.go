@@ -92,8 +92,6 @@ func run(
 	built := inv.plan
 	gate := inv.gate
 	abstain := inv.abstain
-	mapper := inv.mapper
-	namer := inv.namer
 	loaded := inv.loaded
 
 	if bodyErr := checkBodyState(flags, loaded); bodyErr != nil {
@@ -150,9 +148,7 @@ func run(
 		}
 
 		return withStats(cmd, settings.now, flags, func(stats *collector) error {
-			return stream(
-				cmd, settings, built, mapper, namer, inv.images, inputMode, outputMode, flags, gate, abstain,
-				stats, out, resume, answers)
+			return stream(cmd, settings, flags, inv, outputMode, stats, out, resume, answers)
 		})
 	}
 
@@ -172,7 +168,7 @@ func run(
 
 	sent := resolved.Wire
 	if resolved.Source != input.SourceNone {
-		sent, err = mapped(cmd.Context(), mapper, resolved.State, resolved.Wire)
+		sent, err = mapped(cmd.Context(), inv.mapper, resolved.State, resolved.Wire)
 		if err != nil {
 			return err
 		}
@@ -208,7 +204,8 @@ func run(
 	}
 
 	return withStats(cmd, settings.now, flags, func(stats *collector) error {
-		return ask(cmd, settings, built, resolved, sent, assets, outputMode, flags, gate, abstain, stats, answers)
+		return ask(cmd, settings, flags, inv, singleState{resolved: resolved, sent: sent, assets: assets},
+			outputMode, stats, answers)
 	})
 }
 
@@ -434,23 +431,20 @@ func inputName(flag string) string {
 func stream(
 	cmd *cobra.Command,
 	settings rootSettings,
-	built *plan.Plan,
-	mapper *jq.Expr,
-	namer *jq.Expr,
-	images *imaging,
-	inputMode input.Mode,
-	outputMode output.Mode,
 	flags runConfig,
-	gate *assert.Expr,
-	abstain *assert.Expr,
+	inv *invocation,
+	outputMode output.Mode,
 	stats *collector,
 	answers *outFile,
 	resume resumePlan,
 	answerers answererFactory,
 ) error {
 	if flags.printRequest {
-		return streamRequests(cmd, settings, built, mapper, namer, images, inputMode, flags, resume)
+		return streamRequests(cmd, settings, flags, inv, resume)
 	}
+
+	built, mapper, namer, images := inv.plan, inv.mapper, inv.namer, inv.images
+	gate, abstain, inputMode := inv.gate, inv.abstain, flags.inputMode
 
 	asker, err := answerers(cmd.Context(), stats)
 	if err != nil {
@@ -921,14 +915,10 @@ func stoppedAtInput(cause error) bool {
 func ask(
 	cmd *cobra.Command,
 	settings rootSettings,
-	built *plan.Plan,
-	resolved input.Resolved,
-	sent any,
-	assets onesie.Assets,
-	outputMode output.Mode,
 	flags runConfig,
-	gate *assert.Expr,
-	abstain *assert.Expr,
+	inv *invocation,
+	state singleState,
+	outputMode output.Mode,
 	stats *collector,
 	answerers answererFactory,
 ) error {
@@ -936,6 +926,8 @@ func ask(
 	if err != nil {
 		return err
 	}
+
+	built, gate, abstain := inv.plan, inv.gate, inv.abstain
 
 	questions := wireAll(built.Questions)
 
@@ -945,7 +937,8 @@ func ask(
 	}
 
 	record, err := evaluate(
-		cmd.Context(), asker, recordKey{position: 1, line: 1}, built, model, questions, sent, assets, flags.usage, stats)
+		cmd.Context(), asker, recordKey{position: 1, line: 1}, built, model, questions, state.sent, state.assets,
+		flags.usage, stats)
 	if halting(err) {
 		return err
 	}
@@ -955,8 +948,7 @@ func ask(
 		// for, so a shell guard reads a decision. An interrupt is skipped, since a transport record
 		// written into the pipe the caller was closing reports a fault that never happened.
 		if !errors.Is(err, context.Canceled) {
-			if writeErr := writeFailure(
-				cmd, settings, outputMode, flags, built, resolved, record, gate, abstain); writeErr != nil {
+			if writeErr := writeFailure(cmd, settings, outputMode, flags, inv, state.resolved, record); writeErr != nil {
 				return writeErr
 			}
 		}
@@ -979,11 +971,17 @@ func ask(
 	}
 
 	// The record prints whatever the assertion said, and the exit code follows it.
-	if writeErr := writeRecord(cmd, settings, outputMode, flags, built, resolved, record, gate, abstain); writeErr != nil {
+	if writeErr := writeRecord(cmd, settings, outputMode, flags, inv, state.resolved, record); writeErr != nil {
 		return writeErr
 	}
 
 	return assertResult(record)
+}
+
+type singleState struct {
+	resolved input.Resolved
+	sent     any
+	assets   onesie.Assets
 }
 
 func assertResult(record output.Record) error {
@@ -1025,18 +1023,16 @@ func writeFailure(
 	settings rootSettings,
 	mode output.Mode,
 	flags runConfig,
-	built *plan.Plan,
+	inv *invocation,
 	resolved input.Resolved,
 	record output.Record,
-	gate *assert.Expr,
-	abstain *assert.Expr,
 ) error {
 	// -q suppresses output entirely, so the exit code carries the whole result.
 	if flags.quiet {
 		return nil
 	}
 
-	return writeRecord(cmd, settings, mode, flags, built, resolved, record, gate, abstain)
+	return writeRecord(cmd, settings, mode, flags, inv, resolved, record)
 }
 
 func writeRecord(
@@ -1044,18 +1040,16 @@ func writeRecord(
 	settings rootSettings,
 	mode output.Mode,
 	flags runConfig,
-	built *plan.Plan,
+	inv *invocation,
 	resolved input.Resolved,
 	record output.Record,
-	gate *assert.Expr,
-	abstain *assert.Expr,
 ) error {
 	if mode == output.Markdown {
-		return output.WriteMarkdown(cmd.OutOrStdout(), record, markdownOptions(gate, abstain))
+		return output.WriteMarkdown(cmd.OutOrStdout(), record, markdownOptions(inv.gate, inv.abstain))
 	}
 
 	if mode == output.CSV || mode == output.TSV {
-		return delimited(cmd.OutOrStdout(), mode, built, gate != nil, false, false).Write(record, nil, nil)
+		return delimited(cmd.OutOrStdout(), mode, inv.plan, inv.gate != nil, false, false).Write(record, nil, nil)
 	}
 
 	if merging(flags) {
