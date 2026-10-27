@@ -23,16 +23,16 @@ const (
 )
 
 func answersFor(
-	cmd *cobra.Command, settings rootSettings, flags *runFlags, built *plan.Plan, known []plan.Question,
+	cmd *cobra.Command, settings rootSettings, flags runConfig, built *plan.Plan, known []plan.Question,
 	model string,
 ) (answererFactory, error) {
-	if path, spelled := mockSource(settings, flags); path != "" {
+	if flags.mockPath != "" {
 		chosen, err := runResolution(settings)
 		if err != nil {
 			return nil, err
 		}
 
-		answers, err := mockAnswers(settings, flags, chosen.provider, path, spelled, built, known)
+		answers, err := mockAnswers(settings, flags, chosen.provider, built, known)
 		if err != nil {
 			return nil, err
 		}
@@ -40,7 +40,7 @@ func answersFor(
 		return wrapped(settings, answers), nil
 	}
 
-	if !caching(settings, flags) {
+	if !caching(flags) {
 		return wrapped(settings, liveAnswers(settings, flags)), nil
 	}
 
@@ -65,10 +65,10 @@ func answersFor(
 	return wrapped(settings, cachedAnswers(settings, flags, chosen.provider, model, built.Questions, warn)), nil
 }
 
-func caching(settings rootSettings, flags *runFlags) bool {
+func caching(flags runConfig) bool {
 	// A mock replaces the answerer the cache would wrap, and a dry run builds none, so skipping the
 	// cache there costs nothing and needs no word.
-	if path, _ := mockSource(settings, flags); path != "" || flags.printRequest {
+	if flags.mockPath != "" || flags.printRequest {
 		return false
 	}
 
@@ -76,7 +76,7 @@ func caching(settings rootSettings, flags *runFlags) bool {
 }
 
 func cachedAnswers(
-	settings rootSettings, flags *runFlags, provider onesie.Provider, model string, questions []plan.Question,
+	settings rootSettings, flags runConfig, provider onesie.Provider, model string, questions []plan.Question,
 	warn func(error),
 ) answererFactory {
 	return func(ctx context.Context, stats *collector) (answerer, error) {

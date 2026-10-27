@@ -209,7 +209,7 @@ func (m *imaging) load(path string) (string, onesie.Image, error) {
 	return imageRef(data), img, nil
 }
 
-func checkProviderNeeds(settings rootSettings, flags *runFlags, built *plan.Plan, images *imaging) error {
+func checkProviderNeeds(settings rootSettings, flags runConfig, built *plan.Plan, images *imaging) error {
 	// A dry run sends nothing, and the body it prints is the provider neutral one.
 	if flags.printRequest {
 		return nil
@@ -232,7 +232,7 @@ func checkProviderNeeds(settings rootSettings, flags *runFlags, built *plan.Plan
 	}), settings, flags)
 }
 
-func longContextCause(refusal error, settings rootSettings, flags *runFlags) error {
+func longContextCause(refusal error, settings rootSettings, flags runConfig) error {
 	// The variable is easy to forget once it is exported, so a refusal it caused says so.
 	var lacking *onesie.CapabilityError
 	if !errors.As(refusal, &lacking) || !lacking.Missing.LongContext || flags.longContextSet ||

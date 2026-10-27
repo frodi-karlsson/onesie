@@ -35,22 +35,30 @@ func TestCaching(t *testing.T) {
 
 	tests := []struct {
 		name  string
-		env   map[string]string
-		flags runFlags
+		flags runConfig
 		want  bool
 	}{
-		{name: "should be on when the switches turn it on", flags: runFlags{env: switches{cache: true}}, want: true},
+		{name: "should be on when the switches turn it on", flags: runConfig{env: switches{cache: true}}, want: true},
 		{name: "should be off when the switches leave it off"},
-		{name: "should be off under --mock", flags: runFlags{mock: "m.json", env: switches{cache: true}}},
-		{name: "should be off under ONESIE_MOCK", env: map[string]string{envMock: "m.json"}, flags: runFlags{env: switches{cache: true}}},
-		{name: "should be off under --print-request", flags: runFlags{printRequest: true, env: switches{cache: true}}},
+		{
+			name:  "should be off under --mock",
+			flags: runConfig{mockPath: "m.json", mockSpelled: flagMock, env: switches{cache: true}},
+		},
+		{
+			name:  "should be off under ONESIE_MOCK",
+			flags: runConfig{mockPath: "m.json", mockSpelled: envMock, env: switches{cache: true}},
+		},
+		{
+			name:  "should be off under --print-request",
+			flags: runConfig{runFlags: runFlags{printRequest: true}, env: switches{cache: true}},
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			if got := caching(rootSettings{lookupEnv: lookupFrom(tc.env)}, &tc.flags); got != tc.want {
+			if got := caching(tc.flags); got != tc.want {
 				t.Errorf("caching = %v, want %v", got, tc.want)
 			}
 		})
@@ -177,7 +185,7 @@ func TestCachedAnswerer(t *testing.T) {
 			warn = func(err error) { t.Errorf("unexpected cache warning: %v", err) }
 		}
 
-		return cachedAnswers(settings, flags, onesie.TypeSafe(), onesie.DefaultModel, questions, warn), dir
+		return cachedAnswers(settings, runConfig{}, onesie.TypeSafe(), onesie.DefaultModel, questions, warn), dir
 	}
 
 	t.Run("should ask on a miss, store the answer and answer the next call from it", func(t *testing.T) {

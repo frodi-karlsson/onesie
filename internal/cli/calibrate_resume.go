@@ -17,7 +17,7 @@ import (
 )
 
 func resumeLabelled(
-	ctx context.Context, out *outFile, flags *runFlags, namer *jq.Expr, built *plan.Plan, set labelledSet,
+	ctx context.Context, out *outFile, flags runConfig, namer *jq.Expr, built *plan.Plan, set labelledSet,
 ) (resumedSet, error) {
 	resumed := resumedSet{pending: set.records, answered: make([]output.Record, len(set.records))}
 

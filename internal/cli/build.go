@@ -4,10 +4,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/spf13/cobra"
-
 	"github.com/frodi-karlsson/onesie-go"
-	"github.com/frodi-karlsson/onesie/internal/argv"
 	"github.com/frodi-karlsson/onesie/internal/assert"
 	"github.com/frodi-karlsson/onesie/internal/input"
 	"github.com/frodi-karlsson/onesie/internal/jq"
@@ -15,46 +12,39 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/qfile"
 )
 
-func configOf(
-	cmd *cobra.Command, events []argv.Event, positional string, flags *runFlags,
-) (plan.Config, input.Mode, error) {
-	inputMode, err := input.ParseMode(flags.input)
-	if err != nil {
-		return plan.Config{}, 0, err
-	}
-
-	cfg := plan.Config{
+func configOf(flags runConfig) plan.Config {
+	return plan.Config{
 		Raw:            flags.raw,
 		Quiet:          flags.quiet,
 		HasAssert:      len(flags.assert) > 0,
 		HasAbstainIf:   len(flags.abstainIf) > 0,
 		Output:         flags.output,
-		HasState:       cmd.Flags().Changed(flagState),
-		HasStateFile:   cmd.Flags().Changed(flagStateFile),
+		HasState:       flags.hasState,
+		HasStateFile:   flags.hasStateFile,
 		HasImage:       len(flags.images) > 0,
 		ImageFields:    flags.imageFields,
-		LinesInput:     inputMode == input.Lines,
-		HasMap:         cmd.Flags().Changed(flagMap),
-		HasID:          cmd.Flags().Changed(flagID),
+		LinesInput:     flags.inputMode == input.Lines,
+		HasMap:         flags.hasMap,
+		HasID:          flags.hasID,
 		Replace:        flags.replace,
 		FileName:       flags.file,
-		HasAsk:         asked(events),
-		GroupFlags:     eventNames(events),
-		HasPositional:  positional != "",
-		HasModel:       cmd.Flags().Changed(flagModel),
+		HasAsk:         asked(flags.events),
+		GroupFlags:     eventNames(flags.events),
+		HasPositional:  flags.positional != "",
+		HasModel:       flags.hasModel,
 		Usage:          flags.usage,
 		PrintQuestions: flags.printQuestions,
 		PrintRequest:   flags.printRequest,
 		Stats:          flags.stats,
-		Streaming:      inputMode.Streaming(),
-		RequestMode:    inputMode == input.Request,
+		Streaming:      flags.inputMode.Streaming(),
+		RequestMode:    flags.inputMode == input.Request,
 		ListModels:     flags.listModels,
 		InputName:      inputName(flags.input),
-		HasInput:       cmd.Flags().Changed(flagInput),
+		HasInput:       flags.hasInput,
 		Unordered:      flags.unordered,
 		StopOnError:    flags.stopOnError,
 		NoDedup:        flags.noDedup,
-		Cache:          flags.cache && cmd.Flags().Changed(flagCache),
+		Cache:          flags.cache,
 		Out:            flags.out,
 		Resume:         flags.resume,
 		Prune:          flags.prune,
@@ -64,23 +54,23 @@ func configOf(
 		MergeName:      mergeName(flags),
 		HasMergeKey:    flags.mergeKey != "",
 		Jobs:           flags.jobs,
-		JobsSet:        cmd.Flags().Changed(flagJobs),
+		JobsSet:        flags.jobsSet,
+		Mock:           flags.mockSpelled,
 
 		Timeout:          flags.timeout,
-		TimeoutSet:       cmd.Flags().Changed(flagTimeout),
+		TimeoutSet:       flags.timeoutSet,
 		Retries:          flags.retries,
-		RetriesSet:       cmd.Flags().Changed(flagRetries),
+		RetriesSet:       flags.retriesSet,
 		MaxRetryAfter:    flags.maxRetryAfter,
-		MaxRetryAfterSet: cmd.Flags().Changed(flagMaxRetryAfter),
+		MaxRetryAfterSet: flags.maxRetryAfterSet,
 	}
-
-	return cfg, inputMode, nil
 }
 
 func build(
-	settings rootSettings, cfg plan.Config, events []argv.Event, positional string,
-	flags *runFlags, ignoreFileJudgment bool,
+	settings rootSettings, cfg plan.Config, flags runConfig, ignoreFileJudgment bool,
 ) (*invocation, []string, error) {
+	events, positional := flags.events, flags.positional
+
 	// Every mode except --list-models and -i request needs a question, and reporting that here
 	// rather than from Assemble keeps the message the same whichever source was missing.
 	if positional == "" && len(events) == 0 && flags.file == "" {
@@ -177,12 +167,12 @@ func build(
 		return nil, warnings, err
 	}
 
-	mapper, err := exprOf(cfg.HasMap, "--map", flags.mapSource)
+	mapper, err := exprOf(flags.hasMap, "--map", flags.mapSource)
 	if err != nil {
 		return nil, warnings, err
 	}
 
-	namer, err := exprOf(cfg.HasID, "--id", flags.idSource)
+	namer, err := exprOf(flags.hasID, "--id", flags.idSource)
 	if err != nil {
 		return nil, warnings, err
 	}
@@ -192,7 +182,8 @@ func build(
 		bodyAssets = loaded.Assets
 	}
 
-	images, err := newImaging(flags.images, flags.imageFields, cfg.LinesInput, settings.readFile, bodyAssets)
+	images, err := newImaging(
+		flags.images, flags.imageFields, flags.inputMode == input.Lines, settings.readFile, bodyAssets)
 	if err != nil {
 		return nil, warnings, err
 	}

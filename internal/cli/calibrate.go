@@ -119,9 +119,6 @@ func newCalibrateCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 				return cmd.Help()
 			}
 
-			flags.timeoutSet = cmd.Flags().Changed(flagTimeout)
-			flags.longContextSet = cmd.Flags().Changed(flagLongContext)
-
 			return runCalibrate(cmd, settings, flags, *calib, recorder.Events(), positional)
 		},
 	}
@@ -228,32 +225,24 @@ func hide(cmd *cobra.Command, name string) {
 }
 
 func runCalibrate(
-	cmd *cobra.Command, settings rootSettings, flags *runFlags, calib calibrateFlags,
+	cmd *cobra.Command, settings rootSettings, parsed *runFlags, calib calibrateFlags,
 	events []argv.Event, positional string,
 ) error {
-	env, err := readSwitches(cmd, settings.lookupEnv, flags)
+	flags, err := newRunConfig(cmd, settings.lookupEnv, *parsed, events, positional)
 	if err != nil {
 		return err
 	}
 
-	flags.env = env
+	inputMode := flags.inputMode
 
-	cfg, inputMode, err := configOf(cmd, events, positional, flags)
-	if err != nil {
-		return err
-	}
-
-	_, mockSpelled := mockSource(settings, flags)
-	cfg.Mock = mockSpelled
-
-	reqs, err := checkCalibrate(cmd, cfg, inputMode, calib, events)
+	reqs, err := checkCalibrate(cmd, flags, calib)
 	if err != nil {
 		return err
 	}
 
 	// A file's gate and policy are ignored, since calibrate reports every cut and a gated file is
 	// the one a user calibrates.
-	inv, warnings, err := build(settings, cfg, events, positional, flags, true)
+	inv, warnings, err := build(settings, configOf(flags), flags, true)
 
 	for _, warning := range warnings {
 		if _, printErr := fmt.Fprintln(cmd.ErrOrStderr(), warning); printErr != nil {
@@ -266,7 +255,7 @@ func runCalibrate(
 	}
 
 	if warnErr := warnIgnoredBodyState(
-		cmd.ErrOrStderr(), cfg, inv.loaded, "calibrate", inv.images, wireAll(inv.plan.Questions)); warnErr != nil {
+		cmd.ErrOrStderr(), flags, inv.loaded, "calibrate", inv.images, wireAll(inv.plan.Questions)); warnErr != nil {
 		return warnErr
 	}
 
@@ -302,22 +291,20 @@ func runCalibrate(
 	return calibrateRun(cmd, settings, flags, calib, inputMode, inv, scope, bound)
 }
 
-func checkCalibrate(
-	cmd *cobra.Command, cfg plan.Config, inputMode input.Mode, calib calibrateFlags, events []argv.Event,
-) ([]calibrate.Requirement, error) {
-	if err := checkRefused(cmd, events); err != nil {
+func checkCalibrate(cmd *cobra.Command, flags runConfig, calib calibrateFlags) ([]calibrate.Requirement, error) {
+	if err := checkRefused(cmd, flags.events); err != nil {
 		return nil, err
 	}
 
-	if err := checkCalibrateInput(cfg, inputMode); err != nil {
+	if err := checkCalibrateInput(flags); err != nil {
 		return nil, err
 	}
 
-	if err := checkOffline(cfg, calib); err != nil {
+	if err := checkOffline(flags, calib); err != nil {
 		return nil, err
 	}
 
-	if !cfg.HasMap {
+	if !flags.hasMap {
 		return nil, errors.New("calibrate needs --map. Without it the whole record, label included, " +
 			"would be the state, and the report would flatter the question")
 	}
@@ -328,7 +315,7 @@ func checkCalibrate(
 		return nil, fmt.Errorf("calibrate -o takes table, json or auto, got %s", calib.report)
 	}
 
-	if cfg.PrintRequest && cmd.Flags().Changed("output") {
+	if flags.printRequest && cmd.Flags().Changed("output") {
 		return nil, errors.New("-o does not apply to --print-request, which writes a request body")
 	}
 
@@ -340,19 +327,19 @@ func checkCalibrate(
 
 	// A dry run is left to plan, whose message drops --resume rather than asking for an --id it
 	// would then refuse as well.
-	if cfg.Resume && !cfg.HasID && !cfg.PrintRequest {
+	if flags.resume && !flags.hasID && !flags.printRequest {
 		return nil, errors.New(
 			"calibrate resumes by id, since which records are asked follows the labels. Pass --id")
 	}
 
 	// A resume is left to plan, whose message names --resume as the flag with nothing to do.
-	if cfg.PrintRequest && cfg.Out != "" && !cfg.Resume {
+	if flags.printRequest && flags.out != "" && !flags.resume {
 		return nil, errors.New("--print-request writes request bodies to stdout, " +
 			"so --out has no answers to hold. Drop --out")
 	}
 
 	// A dry run is left to plan, whose message names --print-request as the reason.
-	if cfg.Usage && !cfg.PrintRequest && cfg.Out == "" && calib.report != "json" {
+	if flags.usage && !flags.printRequest && flags.out == "" && calib.report != "json" {
 		return nil, errors.New("--usage adds token counts to the answers file or the json report, " +
 			"and this run writes neither")
 	}
@@ -360,20 +347,20 @@ func checkCalibrate(
 	return parseRequirements(calib.requires)
 }
 
-func checkOffline(cfg plan.Config, calib calibrateFlags) error {
+func checkOffline(flags runConfig, calib calibrateFlags) error {
 	switch {
 	case !calib.offline:
 		return nil
-	case cfg.Mock != "":
+	case flags.mockSpelled != "":
 		return fmt.Errorf("--offline reads every answer from --out, and %s answers from a file of "+
-			"its own. Drop one", cfg.Mock)
-	case cfg.PrintRequest:
+			"its own. Drop one", flags.mockSpelled)
+	case flags.printRequest:
 		return errors.New("--offline reads answers, and --print-request sends no request. Drop one")
-	case cfg.Out == "":
+	case flags.out == "":
 		return errors.New("--offline reads every answer from --out. Pass --out FILE --resume")
-	case !cfg.Resume:
+	case !flags.resume:
 		return errors.New("--offline needs --resume, since it reads the answers --out already holds")
-	case cfg.Prune:
+	case flags.prune:
 		return errors.New("--offline never rewrites --out, so --prune has nothing to drop. Drop one")
 	}
 
@@ -407,17 +394,17 @@ func refusal(reason, spelled string) error {
 	return fmt.Errorf("%s, so %s does not apply. Drop it", reason, spelled)
 }
 
-func checkCalibrateInput(cfg plan.Config, inputMode input.Mode) error {
-	if !cfg.HasInput {
+func checkCalibrateInput(flags runConfig) error {
+	if !flags.hasInput {
 		return errors.New("calibrate needs -i jsonl, csv or tsv, since only a record has fields to label")
 	}
 
-	switch inputMode {
+	switch flags.inputMode {
 	case input.JSONL, input.CSV, input.TSV:
 		return nil
 	default:
 		return fmt.Errorf("calibrate needs -i jsonl, csv or tsv. -i %s carries no field to label",
-			cfg.InputName)
+			inputName(flags.input))
 	}
 }
 

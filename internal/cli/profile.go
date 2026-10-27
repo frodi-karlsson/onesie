@@ -65,7 +65,7 @@ func newProfileCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 }
 
 func refuseMock(settings rootSettings, flags *runFlags) error {
-	_, spelled := mockSource(settings, flags)
+	_, spelled := mockSource(settings.lookupEnv, flags.mock)
 	if spelled == "" {
 		return nil
 	}

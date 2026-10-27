@@ -27,7 +27,7 @@ import (
 const maxCauses = 5
 
 func calibrateRun(
-	cmd *cobra.Command, settings rootSettings, flags *runFlags, calib calibrateFlags, inputMode input.Mode,
+	cmd *cobra.Command, settings rootSettings, flags runConfig, calib calibrateFlags, inputMode input.Mode,
 	inv *invocation, scope calibrateScope, bound []boundRequirement,
 ) (err error) {
 	model, err := resolveModel(settings, scope.scored.Model)
@@ -49,7 +49,7 @@ func calibrateRun(
 		}
 	}
 
-	out, _, err := openOutFile(settings, flags, calib.offline)
+	out, _, err := openOutFile(settings, flags.runFlags, calib.offline)
 	if err != nil {
 		return err
 	}
@@ -87,7 +87,7 @@ func calibrateRun(
 }
 
 func askedPlan(
-	settings rootSettings, flags *runFlags, out *outFile, scope calibrateScope, inputs fingerprintInputs,
+	settings rootSettings, flags runConfig, out *outFile, scope calibrateScope, inputs fingerprintInputs,
 ) (*plan.Plan, error) {
 	if out == nil || !out.resume || len(scope.skipped) == 0 {
 		return scope.scored, nil
@@ -128,7 +128,7 @@ type calibrateAsk struct {
 }
 
 func calibrateAnswers(
-	cmd *cobra.Command, settings rootSettings, flags *runFlags, calib calibrateFlags, inputMode input.Mode,
+	cmd *cobra.Command, settings rootSettings, flags runConfig, calib calibrateFlags, inputMode input.Mode,
 	inv *invocation, run calibrateAsk,
 ) error {
 	scored, out := run.scope.scored, run.out
@@ -201,8 +201,7 @@ func calibrateAnswers(
 		report := reportOf(scored, set, outcomes, run.cuts)
 		report.Asked = result.Records
 		report.Stored = resumed.stored
-		mockPath, _ := mockSource(settings, flags)
-		report.Mocked = mockPath != ""
+		report.Mocked = flags.mockPath != ""
 		report.Require = measureRequirements(report, run.bound)
 
 		if flags.usage {
@@ -275,7 +274,7 @@ func writeCost(w io.Writer, set labelledSet, resumed resumedSet, answers string,
 }
 
 func askLabelled(
-	cmd *cobra.Command, flags *runFlags, run calibrateAsk, resumed resumedSet, stats *collector, offline bool,
+	cmd *cobra.Command, flags runConfig, run calibrateAsk, resumed resumedSet, stats *collector, offline bool,
 ) ([]output.Record, engine.Result, error) {
 	asker, err := answererWhenPending(cmd.Context(), resumed.pending, run.answers, stats)
 	if err != nil {

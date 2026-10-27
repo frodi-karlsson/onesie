@@ -144,7 +144,7 @@ func streamRequests(
 	namer *jq.Expr,
 	images *imaging,
 	inputMode input.Mode,
-	flags *runFlags,
+	flags runConfig,
 	resume resumePlan,
 ) error {
 	questions := wireAll(built.Questions)

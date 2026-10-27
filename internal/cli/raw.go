@@ -21,7 +21,7 @@ import (
 func streamRaw(
 	cmd *cobra.Command,
 	settings rootSettings,
-	flags *runFlags,
+	flags runConfig,
 	stats *collector,
 	answers *outFile,
 	resume resumePlan,

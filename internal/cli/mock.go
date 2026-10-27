@@ -18,12 +18,12 @@ const (
 	flagMock = plan.MockFlag
 )
 
-func mockSource(settings rootSettings, flags *runFlags) (path, spelled string) {
-	if flags.mock != "" {
-		return flags.mock, flagMock
+func mockSource(lookupEnv func(string) (string, bool), flag string) (path, spelled string) {
+	if flag != "" {
+		return flag, flagMock
 	}
 
-	if value, found := settings.lookupEnv(envMock); found && value != "" {
+	if value, found := lookupEnv(envMock); found && value != "" {
 		return value, envMock
 	}
 
@@ -31,12 +31,11 @@ func mockSource(settings rootSettings, flags *runFlags) (path, spelled string) {
 }
 
 func mockAnswers(
-	settings rootSettings, flags *runFlags, provider onesie.Provider, path, spelled string, built *plan.Plan,
-	known []plan.Question,
+	settings rootSettings, flags runConfig, provider onesie.Provider, built *plan.Plan, known []plan.Question,
 ) (answererFactory, error) {
-	data, err := settings.readFile(path)
+	data, err := settings.readFile(flags.mockPath)
 	if err != nil {
-		return nil, fmt.Errorf("%s: %w", spelled, err)
+		return nil, fmt.Errorf("%s: %w", flags.mockSpelled, err)
 	}
 
 	asked := make([]string, 0, len(built.Questions))
@@ -45,7 +44,7 @@ func mockAnswers(
 	}
 
 	answers, err := mock.Load(bytes.NewReader(data), known, mock.Options{
-		ByID: flags.idSource != "", Spelled: spelled, Timeout: time.Duration(flags.timeout) * time.Second,
+		ByID: flags.idSource != "", Spelled: flags.mockSpelled, Timeout: time.Duration(flags.timeout) * time.Second,
 		Asked: asked,
 	})
 	if err != nil {

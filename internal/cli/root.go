@@ -167,8 +167,6 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 				err = withKeyHint(withDashQuestionHint(err, cmd.Flags(), settings.args, args), settings)
 			}()
 
-			flags.longContextSet = cmd.Flags().Changed(flagLongContext)
-
 			// Not cobra's own version flag, which prints before any argument is checked.
 			if flags.version {
 				return printVersion(cmd, info)
@@ -210,7 +208,7 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 				return resolveErr
 			}
 
-			out, resume, err := openOut(settings, flags)
+			out, resume, err := openOut(settings, *flags)
 			if err != nil {
 				return err
 			}
