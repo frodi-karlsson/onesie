@@ -18,43 +18,80 @@ import (
 func TestOpen(t *testing.T) {
 	t.Parallel()
 
+	failed := errors.New("operation not permitted")
+
 	tests := []struct {
 		name   string
 		path   func(t *testing.T) string
 		resume bool
-		check  func(t *testing.T, path string, err error)
+		hold   bool
+		remove func(name string) error
+		check  func(t *testing.T, path string, out *File, err error)
 	}{
 		{
 			name:   "should refuse to resume from a file that is not regular, naming it and no flag",
 			path:   func(*testing.T) string { return "/dev/null" },
 			resume: true,
-			check: func(t *testing.T, path string, err error) {
+			check: func(t *testing.T, path string, out *File, err error) {
 				t.Helper()
 
 				var notRegular *NotRegularError
-				if !errors.As(err, &notRegular) || notRegular.Path != path || err.Error() != path+" is not a regular file" {
-					t.Errorf("error = %v, want a NotRegularError naming %s", err, path)
+				if out != nil || !errors.As(err, &notRegular) || notRegular.Path != path ||
+					err.Error() != path+" is not a regular file" {
+					t.Errorf("Open = %v, %v, want no file and a NotRegularError naming %s", out, err, path)
 				}
 			},
 		},
 		{
 			name: "should refuse a directory, naming its target and no flag",
-			path: func(t *testing.T) string {
-				t.Helper()
-
-				dir, err := filepath.EvalSymlinks(t.TempDir())
-				if err != nil {
-					t.Fatal(err)
-				}
-
-				return dir
-			},
-			check: func(t *testing.T, path string, err error) {
+			path: resolvedTempDir,
+			check: func(t *testing.T, path string, out *File, err error) {
 				t.Helper()
 
 				var directory *DirectoryError
-				if !errors.As(err, &directory) || directory.Path != path || err.Error() != path+" is a directory" {
-					t.Errorf("error = %v, want a DirectoryError naming %s", err, path)
+				if out != nil || !errors.As(err, &directory) || directory.Path != path ||
+					err.Error() != path+" is a directory" {
+					t.Errorf("Open = %v, %v, want no file and a DirectoryError naming %s", out, err, path)
+				}
+			},
+		},
+		{
+			name:   "should return the file still locked after a failed resume, for Release to free",
+			path:   answersIn,
+			resume: true,
+			remove: func(name string) error {
+				if strings.HasSuffix(name, compactSuffix) {
+					return failed
+				}
+
+				return os.Remove(name)
+			},
+			check: func(t *testing.T, path string, out *File, err error) {
+				t.Helper()
+
+				if out == nil || !errors.Is(err, failed) {
+					t.Fatalf("Open = %v, %v, want the file and the failed resume", out, err)
+				}
+
+				assertLocked(t, path, true)
+
+				if releaseErr := out.Release(); releaseErr != nil {
+					t.Fatalf("releasing: %v", releaseErr)
+				}
+
+				assertLocked(t, path, false)
+			},
+		},
+		{
+			name:   "should return no file and hold nothing when the lock is taken",
+			path:   answersIn,
+			resume: true,
+			hold:   true,
+			check: func(t *testing.T, path string, out *File, err error) {
+				t.Helper()
+
+				if out != nil || err == nil || !strings.Contains(err.Error(), "is in use by another onesie run") {
+					t.Fatalf("Open = %v, %v, want no file and the lock refused", out, err)
 				}
 			},
 		},
@@ -69,13 +106,62 @@ func TestOpen(t *testing.T) {
 				t.Skip("windows has no /dev")
 			}
 
-			out, _, err := Open(Options{}, Config{Path: path, Resume: tc.resume})
-			if out != nil {
-				t.Errorf("file = %v, want none", out)
+			var release func() error
+
+			if tc.hold {
+				held, err := newLocker(Options{}).lock(path)
+				if err != nil {
+					t.Fatalf("holding the lock: %v", err)
+				}
+
+				release = held
 			}
 
-			tc.check(t, path, err)
+			out, _, err := Open(Options{Remove: tc.remove}, Config{Path: path, Resume: tc.resume})
+			tc.check(t, path, out, err)
+
+			if release == nil {
+				return
+			}
+
+			if err := release(); err != nil {
+				t.Fatalf("releasing the held lock: %v", err)
+			}
+
+			assertLocked(t, path, false)
 		})
+	}
+}
+
+func resolvedTempDir(t *testing.T) string {
+	t.Helper()
+
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	return dir
+}
+
+func answersIn(t *testing.T) string {
+	t.Helper()
+
+	return filepath.Join(resolvedTempDir(t), "answers.jsonl")
+}
+
+func assertLocked(t *testing.T, path string, want bool) {
+	t.Helper()
+
+	release, err := newLocker(Options{}).lock(path)
+	if locked := errors.Is(err, errLocked); locked != want {
+		t.Fatalf("locked = %v, want %v, err %v", locked, want, err)
+	}
+
+	if err == nil {
+		if releaseErr := release(); releaseErr != nil {
+			t.Fatalf("releasing the probe lock: %v", releaseErr)
+		}
 	}
 }
 
