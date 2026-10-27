@@ -158,7 +158,7 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 			"first, as in onesie -o json -- '-is this urgent'. So does a one word question close to " +
 			"a subcommand name, since onesie questoins exits 2 and names questions as the closest.\n\n" +
 			exitCodesSection(rootExitCodes),
-		Args: atMostOneQuestion,
+		Args: rootArgs(flags),
 		// Cobra otherwise buries every returned error under the full help text. Execute owns the
 		// reporting instead.
 		SilenceUsage:  true,
@@ -172,7 +172,7 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 
 			// Not cobra's own version flag, which prints before any argument is checked.
 			if flags.version {
-				return printVersion(cmd, info, args)
+				return printVersion(cmd, info)
 			}
 
 			positional := ""
@@ -633,18 +633,21 @@ func groupFlag(recorder *argv.Recorder, name string) pflag.Value {
 	return recorder.Flag(name)
 }
 
-func printVersion(cmd *cobra.Command, info BuildInfo, args []string) error {
-	if len(args) > 0 {
-		return versionRefusal(args)
-	}
-
+func printVersion(cmd *cobra.Command, info BuildInfo) error {
 	_, err := fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n%s", cmd.Name(), info.Version, limitsBlock())
 
 	return err
 }
 
-func versionRefusal(args []string) error {
-	return fmt.Errorf("onesie: -V takes no question, got '%s'", strings.Join(args, " "))
+func rootArgs(flags *runFlags) cobra.PositionalArgs {
+	return func(cmd *cobra.Command, args []string) error {
+		// -V answers before any question is read, so its own message names what it refuses.
+		if flags.version && len(args) > 0 {
+			return fmt.Errorf("onesie: -V takes no question, got '%s'", strings.Join(args, " "))
+		}
+
+		return atMostOneQuestion(cmd, args)
+	}
 }
 
 func refuseUnknownHelpTopics(root *cobra.Command) {
