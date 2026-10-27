@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/frodi-karlsson/onesie/internal/answer"
+	"github.com/frodi-karlsson/onesie/internal/num"
 	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
@@ -217,7 +217,7 @@ func cell(value any) string {
 	case string:
 		return typed
 	case float64:
-		return answer.Number(typed)
+		return num.Format(typed)
 	case bool:
 		return strconv.FormatBool(typed)
 	default:

@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/frodi-karlsson/onesie/internal/answer"
+	"github.com/frodi-karlsson/onesie/internal/num"
 )
 
 const (
@@ -79,7 +79,7 @@ func widestProbability(rec Record) int {
 		}
 
 		for _, value := range named.Answer.P.Values {
-			widest = max(widest, len(answer.Number(value)))
+			widest = max(widest, len(num.Format(value)))
 		}
 	}
 
@@ -124,7 +124,7 @@ func writeBlock(w io.Writer, named Named, bars int) error {
 	// A question with a distribution puts its numbers in the rows below instead. The decision is
 	// what the exit code follows, and the probability beside it is how close the call was.
 	if probability, ok := a.Value.(float64); ok && a.P == nil {
-		formatted := answer.Number(probability)
+		formatted := num.Format(probability)
 
 		headline = formatted
 		if a.Decided {
@@ -137,13 +137,13 @@ func writeBlock(w io.Writer, named Named, bars int) error {
 	}
 
 	if a.Confidence != nil {
-		if _, err := fmt.Fprintf(w, "  confidence %s\n", answer.Number(*a.Confidence)); err != nil {
+		if _, err := fmt.Fprintf(w, "  confidence %s\n", num.Format(*a.Confidence)); err != nil {
 			return err
 		}
 	}
 
 	if a.Score != nil && a.Norm != nil {
-		if _, err := fmt.Fprintf(w, "  score %s  norm %s\n", answer.Number(*a.Score), answer.Number(*a.Norm)); err != nil {
+		if _, err := fmt.Fprintf(w, "  score %s  norm %s\n", num.Format(*a.Score), num.Format(*a.Norm)); err != nil {
 			return err
 		}
 	}
@@ -163,7 +163,7 @@ func writeBlock(w io.Writer, named Named, bars int) error {
 		value := a.P.Values[key]
 
 		if _, err := fmt.Fprintf(w, "  %-*s %s %s\n",
-			labelWidth, truncate(Printable(label)), bar(value, bars), answer.Number(value)); err != nil {
+			labelWidth, truncate(Printable(label)), bar(value, bars), num.Format(value)); err != nil {
 			return err
 		}
 	}

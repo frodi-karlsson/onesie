@@ -4,8 +4,8 @@ import (
 	"math"
 	"testing"
 
-	"github.com/frodi-karlsson/onesie/internal/answer"
 	"github.com/frodi-karlsson/onesie/internal/calibrate"
+	"github.com/frodi-karlsson/onesie/internal/num"
 )
 
 const z95 = 1.959963984540054
@@ -37,14 +37,14 @@ func TestWilson(t *testing.T) {
 			wantLow, wantHigh := tc.wantLow, tc.wantHigh
 			if tc.closedForm {
 				wantLow, wantHigh = closedForm(tc.hits, tc.of)
-				wantLow, wantHigh = answer.Rounded(wantLow), answer.Rounded(wantHigh)
+				wantLow, wantHigh = num.Rounded(wantLow), num.Rounded(wantHigh)
 			}
 
 			if !got.Defined || got.Hits != tc.hits || got.Of != tc.of {
 				t.Fatalf("Wilson(%d, %d) = %+v, want a defined share of %d of %d", tc.hits, tc.of, got, tc.hits, tc.of)
 			}
 
-			if want := answer.Rounded(float64(tc.hits) / float64(tc.of)); got.Rate != want {
+			if want := num.Rounded(float64(tc.hits) / float64(tc.of)); got.Rate != want {
 				t.Errorf("Rate = %v, want %v", got.Rate, want)
 			}
 

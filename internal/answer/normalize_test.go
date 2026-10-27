@@ -443,37 +443,6 @@ func TestProbabilitiesMarshalJSON(t *testing.T) {
 	}
 }
 
-func TestNumber(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name  string
-		value float64
-	}{
-		{name: "should write two places as two places", value: 0.7},
-		{name: "should write three places as three places", value: 0.977},
-		{name: "should keep every place a raw float carries", value: 0.41015625},
-		{name: "should write zero and one bare", value: 1},
-		{name: "should write a tiny number as encoding/json does", value: 0.0000001},
-		{name: "should write a small number in plain form as encoding/json does", value: 0.00005},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			want, err := json.Marshal(tc.value)
-			if err != nil {
-				t.Fatal(err)
-			}
-
-			if got := answer.Number(tc.value); got != string(want) {
-				t.Errorf("Number(%v) = %q, want %q", tc.value, got, want)
-			}
-		})
-	}
-}
-
 func TestNormalizeAll(t *testing.T) {
 	t.Parallel()
 

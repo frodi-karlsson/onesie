@@ -15,6 +15,7 @@ import (
 
 	"github.com/frodi-karlsson/onesie-go"
 
+	"github.com/frodi-karlsson/onesie/internal/num"
 	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
@@ -57,7 +58,7 @@ func Normalize(q plan.Question, raw onesie.Answer) (*Answer, error) {
 	switch typed := raw.(type) {
 	case *onesie.NoulAnswer:
 		if !unit(typed.Noul) {
-			return nil, unusable("question '%s' answered %s, which lies outside [0,1]", q.ID, Number(typed.Noul))
+			return nil, unusable("question '%s' answered %s, which lies outside [0,1]", q.ID, num.Format(typed.Noul))
 		}
 
 		return &Answer{Value: typed.Noul}, nil
@@ -128,7 +129,7 @@ func checkScore(q plan.Question, raw *onesie.ScoreAnswer) error {
 	}
 
 	if math.IsNaN(raw.Score) || raw.Score < 0 || raw.Score > float64(top) {
-		return unusable("question '%s' has score %s, which lies outside [0,%d]", q.ID, Number(raw.Score), top)
+		return unusable("question '%s' has score %s, which lies outside [0,%d]", q.ID, num.Format(raw.Score), top)
 	}
 
 	indexes := make([]string, 0, top+1)
@@ -157,18 +158,18 @@ func checkSpread(id string, keys []string, probabilities map[string]float64, con
 	for _, key := range keys {
 		value := probabilities[key]
 		if !unit(value) {
-			return unusable("question '%s' has p for '%s' of %s, which lies outside [0,1]", id, key, Number(value))
+			return unusable("question '%s' has p for '%s' of %s, which lies outside [0,1]", id, key, num.Format(value))
 		}
 
 		values = append(values, value)
 	}
 
 	if sum, fits := SumFits(values); !fits {
-		return unusable("question '%s' has p that adds up to %s, not 1", id, Number(sum))
+		return unusable("question '%s' has p that adds up to %s, not 1", id, num.Format(sum))
 	}
 
 	if !unit(confidence) {
-		return unusable("question '%s' has confidence %s, which lies outside [0,1]", id, Number(confidence))
+		return unusable("question '%s' has confidence %s, which lies outside [0,1]", id, num.Format(confidence))
 	}
 
 	return nil
@@ -250,7 +251,7 @@ func normalizeScore(q plan.Question, raw *onesie.ScoreAnswer) *Answer {
 
 	norm := 0.0
 	if levels > 1 {
-		norm = Rounded(score / float64(levels-1))
+		norm = num.Rounded(score / float64(levels-1))
 	}
 
 	out := &Answer{
@@ -322,11 +323,7 @@ type Edges struct {
 // String writes the edges for a person, as the table does.
 func (e Edges) String() string {
 	return fmt.Sprintf("left %s  top %s  right %s  bottom %s",
-		edgeText(e.Left), edgeText(e.Top), edgeText(e.Right), edgeText(e.Bottom))
-}
-
-func edgeText(value float64) string {
-	return Number(value)
+		num.Format(e.Left), num.Format(e.Top), num.Format(e.Right), num.Format(e.Bottom))
 }
 
 // SumFits reports a distribution's sum, rounded to four places, and whether it is 1 within 0.02.
@@ -339,24 +336,7 @@ func SumFits(probabilities []float64) (float64, bool) {
 	// A provider that writes two places per entry leaves the sum a hundredth or two off 1.
 	const tolerance = 0.02
 
-	return Rounded(sum), math.Abs(sum-1) <= tolerance+1e-9
-}
-
-// Rounded rounds a number onesie computes itself to four places, so a gate, -o json and the table
-// all see the same value rather than float noise.
-func Rounded(value float64) float64 {
-	return math.Round(value*1e4) / 1e4
-}
-
-// Number writes a number of an answer as -o json does, in the shortest form that reads back as the
-// same number and never rounded, so every output mode shows the number a gate compares.
-func Number(value float64) string {
-	encoded, err := json.Marshal(value)
-	if err != nil {
-		return strconv.FormatFloat(value, 'g', -1, 64)
-	}
-
-	return string(encoded)
+	return num.Rounded(sum), math.Abs(sum-1) <= tolerance+1e-9
 }
 
 // Answer is the normalized shape for one question. Absent fields are omitted, which is what makes
@@ -423,7 +403,7 @@ func (p Probabilities) MarshalJSON() ([]byte, error) {
 
 		buf = append(buf, name...)
 		buf = append(buf, ':')
-		buf = append(buf, Number(value)...)
+		buf = append(buf, num.Format(value)...)
 	}
 
 	return append(buf, '}'), nil

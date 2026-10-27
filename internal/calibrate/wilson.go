@@ -3,7 +3,7 @@ package calibrate
 import (
 	"math"
 
-	"github.com/frodi-karlsson/onesie/internal/answer"
+	"github.com/frodi-karlsson/onesie/internal/num"
 )
 
 const z95 = 1.959963984540054
@@ -47,7 +47,7 @@ type Share struct {
 func roundedInside(fraction float64) float64 {
 	// A share that is not all or none must not print as one, or 29999 of 30000 would read as every
 	// record and pass a requirement of 1.
-	rounded := answer.Rounded(fraction)
+	rounded := num.Rounded(fraction)
 
 	switch {
 	case fraction > 0 && rounded <= 0:

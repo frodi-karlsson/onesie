@@ -6,6 +6,7 @@ import (
 	"io"
 
 	"github.com/frodi-karlsson/onesie/internal/answer"
+	"github.com/frodi-karlsson/onesie/internal/num"
 )
 
 func writeRaw(w io.Writer, rec Record) error {
@@ -27,12 +28,12 @@ func writeRaw(w io.Writer, rec Record) error {
 
 		return err
 	case float64:
-		_, err := fmt.Fprintln(w, answer.Number(typed))
+		_, err := fmt.Fprintln(w, num.Format(typed))
 
 		return err
 	case answer.Edges:
-		_, err := fmt.Fprintln(w, answer.Number(typed.Left), answer.Number(typed.Top),
-			answer.Number(typed.Right), answer.Number(typed.Bottom))
+		_, err := fmt.Fprintln(w, num.Format(typed.Left), num.Format(typed.Top),
+			num.Format(typed.Right), num.Format(typed.Bottom))
 
 		return err
 	default:

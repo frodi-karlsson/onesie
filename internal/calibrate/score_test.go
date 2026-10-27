@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/frodi-karlsson/onesie/internal/answer"
 	"github.com/frodi-karlsson/onesie/internal/calibrate"
+	"github.com/frodi-karlsson/onesie/internal/num"
 )
 
 func TestAUC(t *testing.T) {
@@ -140,7 +140,7 @@ func TestAUC(t *testing.T) {
 		got, defined := calibrate.AUC(cases)
 		elapsed := time.Since(start)
 
-		if want := answer.Rounded(wins / (yesTotal * noTotal)); !defined || got != want {
+		if want := num.Rounded(wins / (yesTotal * noTotal)); !defined || got != want {
 			t.Errorf("AUC = %v, %v, want %v, true", got, defined, want)
 		}
 

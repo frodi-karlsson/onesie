@@ -8,7 +8,7 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/frodi-karlsson/onesie/internal/answer"
+	"github.com/frodi-karlsson/onesie/internal/num"
 )
 
 const (
@@ -384,9 +384,9 @@ func (r Result) String() string {
 		// The four place numbers the requirement compared, not the table's percents, so a miss by
 		// less than a percent still shows.
 		measured = fmt.Sprintf("%d/%d is %s, interval %s to %s,", r.Hits, r.Of,
-			answer.Number(r.Value), answer.Number(r.Low), answer.Number(r.High))
+			num.Format(r.Value), num.Format(r.Low), num.Format(r.High))
 	default:
-		measured = "AUC " + answer.Number(r.Value)
+		measured = "AUC " + num.Format(r.Value)
 	}
 
 	line := fmt.Sprintf("'%s' %s: %s", r.Source, verdict, measured)

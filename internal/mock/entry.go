@@ -14,6 +14,7 @@ import (
 
 	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/answer"
+	"github.com/frodi-karlsson/onesie/internal/num"
 	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
@@ -313,7 +314,7 @@ func rateAnswer(question plan.Question, parts answerParts) (onesie.Answer, error
 
 		norm, isNumber := finiteNumber(parts.norm)
 		// A norm replays whether it is exact or rounded to four places, the form onesie prints.
-		if !isNumber || (math.Abs(norm-want) > normTolerance && norm != answer.Rounded(want)) {
+		if !isNumber || (math.Abs(norm-want) > normTolerance && norm != num.Rounded(want)) {
 			return nil, fmt.Errorf("has norm %s, but score %s on %d levels gives %s",
 				shown(parts.norm), strconv.FormatFloat(score, 'g', -1, 64), len(names),
 				strconv.FormatFloat(want, 'g', -1, 64))
@@ -347,7 +348,7 @@ func averaged(names []string, p map[string]float64, index int) float64 {
 		return float64(index)
 	}
 
-	return answer.Rounded(weighted / total)
+	return num.Rounded(weighted / total)
 }
 
 func synthesized(names []string, value string, confidence float64) map[string]float64 {
@@ -469,7 +470,7 @@ func replayed(given any, names []string, value string, firstWins bool) (map[stri
 
 	// The same rule the answer check applies at run time, so a mock it would refuse exits 2 here.
 	if sum, fits := answer.SumFits(slices.Collect(maps.Values(probabilities))); !fits {
-		return nil, fmt.Errorf("has p that adds up to %s, not 1", answer.Number(sum))
+		return nil, fmt.Errorf("has p that adds up to %s, not 1", num.Format(sum))
 	}
 
 	for i, name := range names {

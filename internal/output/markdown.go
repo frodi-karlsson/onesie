@@ -10,8 +10,8 @@ import (
 	"unicode"
 
 	"github.com/frodi-karlsson/onesie-go"
-	"github.com/frodi-karlsson/onesie/internal/answer"
 	"github.com/frodi-karlsson/onesie/internal/jq"
+	"github.com/frodi-karlsson/onesie/internal/num"
 )
 
 // WriteMarkdown writes one record as a GitHub flavoured markdown table under an alert for its
@@ -384,7 +384,7 @@ func decisionText(decision any) string {
 }
 
 func probabilityText(probability float64) string {
-	return answer.Number(probability)
+	return num.Format(probability)
 }
 
 func confidenceText(a *Answer) string {
@@ -393,7 +393,7 @@ func confidenceText(a *Answer) string {
 		return ""
 	}
 
-	return answer.Number(*a.Confidence)
+	return num.Format(*a.Confidence)
 }
 
 func footerOf(models []string, usage *onesie.Usage) string {

@@ -5,7 +5,7 @@ import (
 	"math"
 	"slices"
 
-	"github.com/frodi-karlsson/onesie/internal/answer"
+	"github.com/frodi-karlsson/onesie/internal/num"
 )
 
 const (
@@ -189,7 +189,7 @@ func ScoreRate(cases []ChoiceCase, levels []string, failed int, cuts []float64) 
 
 	score.WithinOne = Wilson(within, len(cases))
 	if len(cases) > 0 {
-		score.MeanDistance = answer.Rounded(float64(total) / float64(len(cases)))
+		score.MeanDistance = num.Rounded(float64(total) / float64(len(cases)))
 		score.HasMeanDistance = true
 	}
 
