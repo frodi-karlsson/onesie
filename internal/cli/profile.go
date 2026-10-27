@@ -613,7 +613,7 @@ func profileTest(cmd *cobra.Command, settings rootSettings, flags *runFlags, arg
 
 	models, err := client.VerifyKey(cmd.Context())
 	if err != nil {
-		return keyHint(advise(err, "", false), tested)
+		return keyHint(advise(err, ""), tested)
 	}
 
 	_, printErr := fmt.Fprintf(cmd.OutOrStdout(), "profile: %s\nprovider: %s\nkey: %s\nmodels: %d\n",

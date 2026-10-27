@@ -116,8 +116,7 @@ func streamRaw(
 
 			response, err := client.SystemOneRaw(ctx, body, opts...)
 			if err != nil {
-				// The prepared body names the model onesie sent, and nothing inside it was checked locally,
-				// so no local bound is implicated.
+				// The prepared body names the model onesie sent.
 				advised := explain(err, requestFacts{
 					provider: provider, model: read.model, longContext: long || read.longContext, boxed: read.boxed,
 				})

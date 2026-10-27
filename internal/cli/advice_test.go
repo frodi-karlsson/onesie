@@ -48,15 +48,15 @@ func TestExplain(t *testing.T) {
 			want:  "model 'onesie-1.12' not found. Try --list-models",
 		},
 		{
-			name: "should say the local check passed when onesie checked the request", status: http.StatusBadRequest,
-			body: tooMany, facts: with(func(f *requestFacts) { f.validated = true }),
+			name: "should say the local check passed when the server refuses a count", status: http.StatusBadRequest,
+			body: tooMany, facts: typesafe,
 			want: "400 Too many score levels. Must have at most 10 levels. onesie's own check passed, " +
 				"so its built in limits may be stale. Run onesie -V",
 		},
 		{
-			name: "should keep the server text when onesie checked nothing", status: http.StatusBadRequest,
-			body: tooMany, facts: typesafe,
-			want: "400 Too many score levels. Must have at most 10 levels.",
+			name: "should keep the server text for a 400 that names no count", status: http.StatusBadRequest,
+			body: `{"detail":"state must be an object"}`, facts: typesafe,
+			want: "400 state must be an object",
 		},
 		{
 			name: "should point at --long-context where it would help", status: http.StatusBadRequest,
@@ -73,8 +73,8 @@ func TestExplain(t *testing.T) {
 			want: "400 Invalid request." + boxNote,
 		},
 		{
-			name: "should not name jev-preview off TypeSafe", status: http.StatusBadRequest,
-			body: invalid, facts: with(func(f *requestFacts) { f.boxed, f.provider = true, onesie.OpenRouter() }),
+			name: "should not name jev-preview for an invalid request without a box", status: http.StatusBadRequest,
+			body: invalid, facts: typesafe,
 			want: "400 Invalid request.",
 		},
 		{
@@ -88,7 +88,7 @@ func TestExplain(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := explain(listingRefusal(t, tc.status, tc.body), tc.facts)
+			got := explain(requestRefusal(t, tc.status, tc.body, tc.facts.boxed), tc.facts)
 			if got == nil || text(got) != tc.want {
 				t.Errorf("explain = %v, want %q", got, tc.want)
 			}
@@ -104,7 +104,7 @@ func TestExplain(t *testing.T) {
 	})
 }
 
-func listingRefusal(t *testing.T, status int, body string) error {
+func requestRefusal(t *testing.T, status int, body string, boxed bool) error {
 	t.Helper()
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -122,9 +122,27 @@ func listingRefusal(t *testing.T, status int, body string) error {
 		t.Fatalf("onesie.New: %v", err)
 	}
 
-	_, err = client.ListModels(t.Context())
+	req := onesie.Request{
+		State:     "a ticket",
+		Questions: onesie.Questions{{ID: "urgent", Question: onesie.Noul{Instructions: "is this urgent"}}},
+	}
+
+	if boxed {
+		img, imageErr := onesie.NewImage(squarePNG(t))
+		if imageErr != nil {
+			t.Fatal(imageErr)
+		}
+
+		req = onesie.Request{
+			State:     map[string]any{"photo": "ref"},
+			Assets:    onesie.Assets{"ref": img},
+			Questions: onesie.Questions{{ID: "mug", Question: onesie.Box{Instructions: "the mug in ref"}}},
+		}
+	}
+
+	_, err = client.SystemOne(t.Context(), req)
 	if err == nil {
-		t.Fatalf("ListModels answered %d without an error", status)
+		t.Fatalf("SystemOne answered %d without an error", status)
 	}
 
 	return err
@@ -156,10 +174,11 @@ func TestAdvise(t *testing.T) {
 				name:     "should name a clef model workers ai does not serve",
 				args:     []string{"is this urgent", "-m", "clef-nope"},
 				stdin:    "a ticket",
+				provider: "cloudflare",
 				status:   http.StatusBadRequest,
 				response: `{"errors":[{"message":"AiError: No such model: No such model @cf/cloudflare/clef-nope or task (x)","code":5007}],"success":false}`,
 				wantCode: ExitUsage,
-				wantSent: `"model":"clef-nope"`,
+				wantSent: `"model":"@cf/cloudflare/clef-nope"`,
 				wantErr:  "onesie: model 'clef-nope' not found. Try --list-models\n",
 			},
 			{
@@ -209,10 +228,11 @@ func TestAdvise(t *testing.T) {
 					`"message":"model 'onesie-1.12' not found. Try --list-models"}`},
 			},
 			{
-				name:   "should name the model on the 404 Berget sends for an unknown model",
-				args:   []string{"is this urgent", "-m", "jev-latest"},
-				stdin:  "a ticket",
-				status: http.StatusNotFound,
+				name:     "should name the model on the 404 Berget sends for an unknown model",
+				args:     []string{"is this urgent", "-m", "jev-latest"},
+				stdin:    "a ticket",
+				provider: "berget",
+				status:   http.StatusNotFound,
 				response: `{"error":{"message":"Model not found: jev-latest","type":"invalid_request_error",` +
 					`"code":"model_not_found"}}`,
 				wantCode: ExitUsage,
@@ -220,15 +240,26 @@ func TestAdvise(t *testing.T) {
 				wantErr:  "onesie: model 'jev-latest' not found. Try --list-models\n",
 			},
 			{
-				name:   "should name the model on the 422 Levanto sends for an unknown model",
-				args:   []string{"is this urgent", "-m", "jev-latest"},
-				stdin:  "a ticket",
-				status: http.StatusUnprocessableEntity,
+				name:     "should name the model on the 422 Levanto sends for an unknown model",
+				args:     []string{"is this urgent", "-m", "jev-latest"},
+				stdin:    "a ticket",
+				provider: "levanto",
+				status:   http.StatusUnprocessableEntity,
 				response: `{"detail":[{"loc":["body","model"],"msg":"unknown model 'jev-latest'; GET /v1/models ` +
 					`lists the accepted names (levanto-sage-v1.4, sage-latest)","type":"value_error"}]}`,
 				wantCode: ExitUsage,
 				wantSent: `"model":"jev-latest"`,
 				wantErr:  "onesie: model 'jev-latest' not found. Try --list-models\n",
+			},
+			{
+				name:   "should keep the server text when another provider's wording comes from typesafe",
+				args:   []string{"is this urgent", "-m", "jev-latest"},
+				stdin:  "a ticket",
+				status: http.StatusNotFound,
+				response: `{"error":{"message":"Model not found: jev-latest","type":"invalid_request_error",` +
+					`"code":"model_not_found"}}`,
+				wantCode: ExitUsage,
+				wantErr:  "onesie: 404 Model not found: jev-latest\n",
 			},
 			{
 				name:     "should leave a 404 about anything else unchanged",
@@ -315,7 +346,7 @@ func TestAdvise(t *testing.T) {
 					note + "\n",
 			},
 			{
-				name:     "should leave the same rejection alone under -i request, which never checked",
+				name:     "should say the same under -i request, whose body onesie checks too",
 				args:     []string{"-i", "request"},
 				stdin:    frozen + "\n",
 				status:   http.StatusBadRequest,
@@ -323,7 +354,7 @@ func TestAdvise(t *testing.T) {
 				wantCode: ExitRecords,
 				wantErr:  "",
 				wantOut: []string{`{"error":{"kind":"http","status":400,` +
-					`"message":"` + strings.TrimPrefix(rejected, "onesie: ") + `"}}`},
+					`"message":"` + strings.TrimPrefix(rejected, "onesie: ") + note + `"}}`},
 			},
 			{
 				name:     "should say the same for an image the server refuses",
@@ -562,14 +593,14 @@ func TestAdvise(t *testing.T) {
 				wantErr:  "onesie: 400 Invalid request." + boxNote + "\n",
 			},
 			{
-				name:     "should not name jev-preview on openrouter",
+				name:     "should name jev-preview on openrouter, which forwards the same refusal",
 				args:     boxed,
 				files:    square,
-				env:      map[string]string{"ONESIE_PROVIDER": "openrouter"},
+				provider: "openrouter",
 				status:   http.StatusBadRequest,
 				response: invalid,
 				wantCode: ExitUsage,
-				wantErr:  "onesie: 400 Invalid request.\n",
+				wantErr:  "onesie: 400 Invalid request." + boxNote + "\n",
 			},
 			{
 				name:     "should name jev-preview for a replayed box body too",
@@ -593,7 +624,7 @@ func TestAdvise(t *testing.T) {
 				name:     "should leave max_tokens_exceeded alone on cloudflare, which takes no long context",
 				args:     []string{"is this urgent"},
 				stdin:    "a ticket",
-				env:      map[string]string{"ONESIE_PROVIDER": "cloudflare"},
+				provider: "cloudflare",
 				status:   http.StatusBadRequest,
 				response: tooLong,
 				wantCode: ExitUsage,
@@ -694,9 +725,18 @@ func runAdvised(t *testing.T, tc adviceCase) ([]string, string, string, int) {
 	defer srv.Close()
 
 	lookup := func(name string) (string, bool) {
+		if name == envProvider && tc.provider != "" {
+			return tc.provider, true
+		}
+
 		value, ok := tc.env[name]
 
 		return value, ok
+	}
+
+	provider, err := onesie.ProviderNamed(tc.provider)
+	if err != nil {
+		t.Fatal(err)
 	}
 
 	var out, errOut bytes.Buffer
@@ -706,6 +746,7 @@ func runAdvised(t *testing.T, tc adviceCase) ([]string, string, string, int) {
 		withKeychain(noKeychain()),
 		WithClientFactory(func(_ context.Context, opts ...onesie.Option) (*onesie.Client, error) {
 			return onesie.New(append([]onesie.Option{
+				onesie.WithProvider(provider),
 				onesie.WithAPIKey("k"),
 				onesie.WithBaseURL(srv.URL),
 				onesie.WithEnv(lookup),
@@ -741,6 +782,7 @@ type adviceCase struct {
 	name        string
 	args        []string
 	stdin       string
+	provider    string
 	env         map[string]string
 	files       map[string]string
 	status      int
