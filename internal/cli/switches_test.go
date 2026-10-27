@@ -37,23 +37,23 @@ func TestReadSwitches(t *testing.T) {
 		{
 			name:    "should refuse an ONESIE_LONG_CONTEXT the flag would not take",
 			env:     map[string]string{envLongContext: "garbage"},
-			wantErr: "onesie: ONESIE_LONG_CONTEXT=garbage is not a value --long-context takes. Use 1 or 0",
+			wantErr: "ONESIE_LONG_CONTEXT=garbage is not a value --long-context takes. Use 1 or 0",
 		},
 		{
 			name:    "should refuse an ONESIE_CACHE the flag would not take, even beside the flag",
 			env:     map[string]string{envCache: "yes"},
 			args:    []string{"--cache"},
-			wantErr: "onesie: ONESIE_CACHE=yes is not a value --cache takes. Use 1 or 0",
+			wantErr: "ONESIE_CACHE=yes is not a value --cache takes. Use 1 or 0",
 		},
 		{
 			name:    "should refuse a negative ONESIE_CACHE_TTL",
 			env:     map[string]string{envCacheTTL: "-1h"},
-			wantErr: "onesie: ONESIE_CACHE_TTL=-1h is not a duration of zero or more, such as 90m or 72h",
+			wantErr: "ONESIE_CACHE_TTL=-1h is not a duration of zero or more, such as 90m or 72h",
 		},
 		{
 			name:    "should refuse an ONESIE_CACHE_TTL that is no duration",
 			env:     map[string]string{envCacheTTL: "soon"},
-			wantErr: "onesie: ONESIE_CACHE_TTL=soon is not a duration of zero or more, such as 90m or 72h",
+			wantErr: "ONESIE_CACHE_TTL=soon is not a duration of zero or more, such as 90m or 72h",
 		},
 	}
 

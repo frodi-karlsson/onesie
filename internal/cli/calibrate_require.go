@@ -18,7 +18,7 @@ func parseRequirements(texts []string) ([]calibrate.Requirement, error) {
 	for _, text := range texts {
 		req, err := calibrate.ParseRequirement(text)
 		if err != nil {
-			return nil, fmt.Errorf("onesie: --require '%s' %w", text, err)
+			return nil, fmt.Errorf("--require '%s' %w", text, err)
 		}
 
 		reqs = append(reqs, req)
@@ -32,13 +32,13 @@ func resolveRequirements(scope calibrateScope, gate fileGate, reqs []calibrate.R
 
 	for _, req := range reqs {
 		if slices.Contains(scope.skipped, req.ID) {
-			return nil, fmt.Errorf("onesie: --require '%s' reads '%s', which has no --label, so the report "+
+			return nil, fmt.Errorf("--require '%s' reads '%s', which has no --label, so the report "+
 				"skips it. Pass --label %s=EXPR", req.Source, req.ID, req.ID)
 		}
 
 		resolved, reason := resolveRequirement(scope.scored, gate, req)
 		if reason != "" {
-			return nil, fmt.Errorf("onesie: --require '%s' %s", req.Source, reason)
+			return nil, fmt.Errorf("--require '%s' %s", req.Source, reason)
 		}
 
 		bound = append(bound, resolved)

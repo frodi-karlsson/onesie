@@ -35,7 +35,7 @@ func newQuestionsCmd(settings rootSettings) *cobra.Command {
 				return nil
 			}
 
-			return errors.New("onesie: questions takes no argument. To ask it as a question, put it after --")
+			return errors.New("questions takes no argument. To ask it as a question, put it after --")
 		},
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return listQuestions(cmd.OutOrStdout(), settings, format)
@@ -52,7 +52,7 @@ func listQuestions(w io.Writer, settings rootSettings, format string) error {
 	switch format {
 	case "", "auto", "table", "json":
 	default:
-		return fmt.Errorf("onesie: questions -o takes table, json or auto, got %s", format)
+		return fmt.Errorf("questions -o takes table, json or auto, got %s", format)
 	}
 
 	env, err := findEnv(settings)
@@ -110,7 +110,7 @@ type savedRow struct {
 func writeSavedJSON(w io.Writer, rows []savedRow) error {
 	encoded, err := json.Marshal(rows)
 	if err != nil {
-		return fmt.Errorf("onesie: encoding the question list: %w", err)
+		return fmt.Errorf("encoding the question list: %w", err)
 	}
 
 	_, err = fmt.Fprintf(w, "%s\n", encoded)

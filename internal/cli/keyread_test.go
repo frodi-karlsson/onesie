@@ -25,19 +25,19 @@ func TestFirstLine(t *testing.T) {
 		{
 			name:    "should report the read failure for one line over the cap",
 			stdin:   strings.Repeat("A", overCap),
-			wantErr: "onesie: reading the key from stdin: bufio.Scanner: token too long",
+			wantErr: "reading the key from stdin: bufio.Scanner: token too long",
 		},
 		{
 			// The tail past the cap is blank, so nothing here is a second line, and the read
 			// failure is the only thing to report.
 			name:    "should report the read failure when blank lines follow the long one",
 			stdin:   strings.Repeat("A", overCap) + "\n\n   \n",
-			wantErr: "onesie: reading the key from stdin: bufio.Scanner: token too long",
+			wantErr: "reading the key from stdin: bufio.Scanner: token too long",
 		},
 		{
 			name:  "should name the command when stdin carries a second line",
 			stdin: "SECRET-STDIN\nlogin: someone\n",
-			wantErr: "onesie: profile create: stdin carries more than one line, and it must hold the key alone. " +
+			wantErr: "profile create: stdin carries more than one line, and it must hold the key alone. " +
 				"Pipe a password manager entry through head -n 1",
 		},
 	}

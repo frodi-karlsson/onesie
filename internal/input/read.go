@@ -31,7 +31,7 @@ func Resolve(ctx context.Context, req Query) (Resolved, error) {
 	case req.HasStateFile:
 		body, err := req.ReadFile(req.StateFile)
 		if err != nil {
-			return Resolved{}, fmt.Errorf("onesie: reading %s: %w", req.StateFile, patherr.Inner(err))
+			return Resolved{}, fmt.Errorf("reading %s: %w", req.StateFile, patherr.Inner(err))
 		}
 
 		label := fmt.Sprintf("--state-file '%s'", req.StateFile)
@@ -60,7 +60,7 @@ func fromStdin(ctx context.Context, req Query) (Resolved, error) {
 	}
 
 	if err != nil {
-		return Resolved{}, fmt.Errorf("onesie: reading stdin: %w", err)
+		return Resolved{}, fmt.Errorf("reading stdin: %w", err)
 	}
 
 	// Zero bytes is not an empty state. Under cron or CI stdin may be an empty pipe, and sending
@@ -177,7 +177,7 @@ func (systemClock) Sleep(ctx context.Context, d time.Duration) error {
 
 func fromText(source Source, label, text string, mode Mode, stripNewline bool) (Resolved, error) {
 	if !utf8.ValidString(text) {
-		return Resolved{}, fmt.Errorf("onesie: %s is not valid UTF-8", label)
+		return Resolved{}, fmt.Errorf("%s is not valid UTF-8", label)
 	}
 
 	if mode == Text {
@@ -186,7 +186,7 @@ func fromText(source Source, label, text string, mode Mode, stripNewline bool) (
 		}
 
 		if strings.TrimSpace(text) == "" {
-			return Resolved{}, fmt.Errorf("onesie: %s is blank, %w", label, ErrEmptyState)
+			return Resolved{}, fmt.Errorf("%s is blank, %w", label, ErrEmptyState)
 		}
 
 		return Resolved{Source: source, State: text, Raw: text, Wire: text}, nil
@@ -194,11 +194,11 @@ func fromText(source Source, label, text string, mode Mode, stripNewline bool) (
 
 	var value any
 	if err := json.Unmarshal([]byte(text), &value); err != nil {
-		return Resolved{}, fmt.Errorf("onesie: %s is not valid JSON: %w", label, err)
+		return Resolved{}, fmt.Errorf("%s is not valid JSON: %w", label, err)
 	}
 
 	if err := CheckState(value); err != nil {
-		return Resolved{}, fmt.Errorf("onesie: %w", err)
+		return Resolved{}, err
 	}
 
 	return Resolved{
@@ -219,7 +219,7 @@ type Resolved struct {
 }
 
 // CheckState rejects a state the API would refuse or the model cannot answer, so a caller holding a
-// state that never passed through Resolve can still check it. Its message carries no onesie prefix.
+// state that never passed through Resolve can still check it.
 func CheckState(value any) error {
 	// Rejected locally, since the API refuses the wrong types and the model cannot answer an empty one.
 	switch typed := value.(type) {

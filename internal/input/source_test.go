@@ -152,7 +152,7 @@ func TestResolve(t *testing.T) {
 				Stdin: strings.NewReader("null"),
 			},
 			wantErr:     true,
-			wantMessage: "onesie: state must be a string, object or array, got null",
+			wantMessage: "state must be a string, object or array, got null",
 		},
 		{
 			name: "should reject an empty json string on --state",
@@ -162,7 +162,7 @@ func TestResolve(t *testing.T) {
 				HasState: true,
 			},
 			wantErr:     true,
-			wantMessage: "onesie: empty string, an empty state is a request the model cannot answer",
+			wantMessage: "empty string, an empty state is a request the model cannot answer",
 		},
 		{
 			name: "should reject a json string of spaces on stdin",
@@ -171,7 +171,7 @@ func TestResolve(t *testing.T) {
 				Stdin: strings.NewReader(`"  "` + "\n"),
 			},
 			wantErr:     true,
-			wantMessage: "onesie: empty string, an empty state is a request the model cannot answer",
+			wantMessage: "empty string, an empty state is a request the model cannot answer",
 		},
 		{
 			name: "should reject an empty object under json",
@@ -180,7 +180,7 @@ func TestResolve(t *testing.T) {
 				Stdin: strings.NewReader("{}"),
 			},
 			wantErr:     true,
-			wantMessage: "onesie: empty object, an empty state is a request the model cannot answer",
+			wantMessage: "empty object, an empty state is a request the model cannot answer",
 		},
 		{
 			name: "should reject an empty array in a state file under json",
@@ -193,7 +193,7 @@ func TestResolve(t *testing.T) {
 				},
 			},
 			wantErr:     true,
-			wantMessage: "onesie: empty array, an empty state is a request the model cannot answer",
+			wantMessage: "empty array, an empty state is a request the model cannot answer",
 		},
 		{
 			name: "should reject a boolean under json",
@@ -229,7 +229,7 @@ func TestResolve(t *testing.T) {
 				HasState: true,
 			},
 			wantErr:     true,
-			wantMessage: "onesie: --state is blank, an empty state is a request the model cannot answer",
+			wantMessage: "--state is blank, an empty state is a request the model cannot answer",
 		},
 		{
 			name: "should reject a --state of spaces under text",
@@ -239,7 +239,7 @@ func TestResolve(t *testing.T) {
 				HasState: true,
 			},
 			wantErr:     true,
-			wantMessage: "onesie: --state is blank, an empty state is a request the model cannot answer",
+			wantMessage: "--state is blank, an empty state is a request the model cannot answer",
 		},
 		{
 			name: "should reject an empty state file under text",
@@ -252,7 +252,7 @@ func TestResolve(t *testing.T) {
 				},
 			},
 			wantErr: true,
-			wantMessage: "onesie: --state-file 'empty.txt' is blank, " +
+			wantMessage: "--state-file 'empty.txt' is blank, " +
 				"an empty state is a request the model cannot answer",
 		},
 		{
@@ -262,7 +262,7 @@ func TestResolve(t *testing.T) {
 				Stdin: strings.NewReader("\n"),
 			},
 			wantErr:     true,
-			wantMessage: "onesie: stdin is blank, an empty state is a request the model cannot answer",
+			wantMessage: "stdin is blank, an empty state is a request the model cannot answer",
 		},
 		{
 			name: "should reject invalid utf8 under text",
@@ -694,7 +694,7 @@ func TestParseMode(t *testing.T) {
 		{
 			name:    "should reject an unknown mode",
 			flag:    "yaml",
-			wantErr: "onesie: -i takes text, json, jsonl, lines, csv, tsv or request, got 'yaml'",
+			wantErr: "-i takes text, json, jsonl, lines, csv, tsv or request, got 'yaml'",
 		},
 	}
 

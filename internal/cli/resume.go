@@ -99,7 +99,7 @@ func readAnswers(ctx context.Context, answers *outFile, read func(r io.Reader) e
 	}
 
 	if err != nil {
-		return fmt.Errorf("onesie: reading %s to resume: %w", answers.path, err)
+		return fmt.Errorf("reading %s to resume: %w", answers.path, err)
 	}
 
 	defer func() {
@@ -109,7 +109,7 @@ func readAnswers(ctx context.Context, answers *outFile, read func(r io.Reader) e
 	// Only up to the last complete line, since the partial one after it is trimmed before anything
 	// is appended.
 	if readErr := read(io.LimitReader(file, answers.keep)); readErr != nil {
-		return fmt.Errorf("onesie: reading %s to resume: %w", answers.path, readErr)
+		return fmt.Errorf("reading %s to resume: %w", answers.path, readErr)
 	}
 
 	return ctx.Err()

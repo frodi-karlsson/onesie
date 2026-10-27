@@ -147,7 +147,7 @@ func (s Store) Load(path string) (file File, found bool, err error) {
 		// An empty or absent api_key is the same failure as a malformed file. Returning it as
 		// found would convert a file holding nothing into a profile with no key.
 		return File{}, false, fmt.Errorf(
-			"onesie: credential file %s is not a JSON object with a 'providers' map of 'api_key' strings or keychain entries",
+			"credential file %s is not a JSON object with a 'providers' map of 'api_key' strings or keychain entries",
 			path)
 	}
 
@@ -182,7 +182,7 @@ func (s Store) read(path, kind string) (data []byte, found bool, err error) {
 			}
 		}
 
-		return nil, false, fmt.Errorf("onesie: reading %s: %w", path, patherr.Inner(err))
+		return nil, false, fmt.Errorf("reading %s: %w", path, patherr.Inner(err))
 	}
 
 	// Joined into the named return rather than discarded. An empty branch would trip staticcheck
@@ -193,13 +193,13 @@ func (s Store) read(path, kind string) (data []byte, found bool, err error) {
 
 	info, err := handle.Stat()
 	if err != nil {
-		return nil, false, fmt.Errorf("onesie: reading %s: %w", path, patherr.Inner(err))
+		return nil, false, fmt.Errorf("reading %s: %w", path, patherr.Inner(err))
 	}
 
 	// Ahead of the mode check, since a directory or a device node is not a config file at a bad
 	// mode, and no chmod 600 would fix it.
 	if !info.Mode().IsRegular() {
-		return nil, false, fmt.Errorf("onesie: %s %s is not a regular file", kind, path)
+		return nil, false, fmt.Errorf("%s %s is not a regular file", kind, path)
 	}
 
 	if modeErr := s.checkMode(path, kind, info.Mode()); modeErr != nil {
@@ -211,12 +211,12 @@ func (s Store) read(path, kind string) (data []byte, found bool, err error) {
 	// hand back half a credential as if it were whole.
 	data, err = io.ReadAll(io.LimitReader(handle, maxCredentialBytes+1))
 	if err != nil {
-		return nil, false, fmt.Errorf("onesie: reading %s: %w", path, patherr.Inner(err))
+		return nil, false, fmt.Errorf("reading %s: %w", path, patherr.Inner(err))
 	}
 
 	if len(data) > maxCredentialBytes {
 		return nil, false, fmt.Errorf(
-			"onesie: %s %s is larger than %d bytes", kind, path, maxCredentialBytes)
+			"%s %s is larger than %d bytes", kind, path, maxCredentialBytes)
 	}
 
 	return data, true, nil
@@ -227,7 +227,7 @@ func (s Store) write(path string, data []byte, pattern string) (*ModeWarning, er
 	// that path. Whoever can replace the directory already owns the config location.
 	dir := filepath.Dir(path)
 	if err := s.mkdirAll(dir, 0o700); err != nil {
-		return nil, fmt.Errorf("onesie: creating %s: %w", dir, err)
+		return nil, fmt.Errorf("creating %s: %w", dir, err)
 	}
 
 	// Created beside the target, because a rename across filesystems is not atomic and os.TempDir
@@ -235,7 +235,7 @@ func (s Store) write(path string, data []byte, pattern string) (*ModeWarning, er
 	// planted symlink from redirecting the key.
 	temp, err := s.createTemp(dir, pattern)
 	if err != nil {
-		return nil, fmt.Errorf("onesie: creating a temporary file in %s: %w", dir, err)
+		return nil, fmt.Errorf("creating a temporary file in %s: %w", dir, err)
 	}
 
 	// Named now so every later failure can remove it. A temporary file holding a key must not
@@ -255,7 +255,7 @@ func (s Store) write(path string, data []byte, pattern string) (*ModeWarning, er
 	}
 
 	if renameErr := s.rename(name, path); renameErr != nil {
-		return nil, errors.Join(fmt.Errorf("onesie: renaming %s to %s: %w", name, path, renameErr),
+		return nil, errors.Join(fmt.Errorf("renaming %s to %s: %w", name, path, renameErr),
 			s.remove(name))
 	}
 
@@ -267,18 +267,18 @@ func (s Store) write(path string, data []byte, pattern string) (*ModeWarning, er
 
 func (s Store) writeAndClose(file *os.File, data []byte) error {
 	if _, err := file.Write(data); err != nil {
-		return errors.Join(fmt.Errorf("onesie: writing %s: %w", file.Name(), patherr.Inner(err)), file.Close())
+		return errors.Join(fmt.Errorf("writing %s: %w", file.Name(), patherr.Inner(err)), file.Close())
 	}
 
 	// Ahead of the close and the rename, so a power loss cannot leave a renamed file whose contents
 	// never reached the disk. That file would come back zero length and read as corrupt rather than
 	// absent.
 	if err := s.sync(file); err != nil {
-		return errors.Join(fmt.Errorf("onesie: flushing %s: %w", file.Name(), err), file.Close())
+		return errors.Join(fmt.Errorf("flushing %s: %w", file.Name(), err), file.Close())
 	}
 
 	if err := file.Close(); err != nil {
-		return fmt.Errorf("onesie: closing %s: %w", file.Name(), patherr.Inner(err))
+		return fmt.Errorf("closing %s: %w", file.Name(), patherr.Inner(err))
 	}
 
 	return nil
@@ -324,11 +324,11 @@ func (s Store) clear(path, kind string) error {
 	// Only a directory is refused, so clear is deliberately laxer than Load. profile delete is asked
 	// to leave nothing at the path, even something onesie itself will not read.
 	if info, statErr := s.lstat(path); statErr == nil && info.IsDir() {
-		return fmt.Errorf("onesie: %s %s is not a regular file", kind, path)
+		return fmt.Errorf("%s %s is not a regular file", kind, path)
 	}
 
 	if err := s.remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
-		return fmt.Errorf("onesie: removing %s: %w", path, patherr.Inner(err))
+		return fmt.Errorf("removing %s: %w", path, patherr.Inner(err))
 	}
 
 	return nil
@@ -392,5 +392,5 @@ type ReadableError struct {
 // Error names the path and the mode, never the contents.
 func (e *ReadableError) Error() string {
 	return fmt.Sprintf(
-		"onesie: %s %s is readable or writable by its group or others, mode %o. Run chmod 600 on it", e.Kind, e.Path, e.Mode)
+		"%s %s is readable or writable by its group or others, mode %o. Run chmod 600 on it", e.Kind, e.Path, e.Mode)
 }

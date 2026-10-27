@@ -120,11 +120,7 @@ func conversionLines(opened creds.Opened, lookupEnv func(string) (string, bool))
 		}
 	}
 
-	for _, warning := range opened.Warnings {
-		lines = append(lines, warning.Error())
-	}
-
-	return lines
+	return append(lines, warningLines(opened.Warnings)...)
 }
 
 func namedProfiles(names []string) string {

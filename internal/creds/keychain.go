@@ -158,7 +158,7 @@ type KeychainError struct {
 
 // Error names what onesie tried and why the keychain refused.
 func (e *KeychainError) Error() string {
-	return fmt.Sprintf("onesie: could not %s the OS keychain: %v", e.Op, e.Err)
+	return fmt.Sprintf("could not %s the OS keychain: %v", e.Op, e.Err)
 }
 
 // Unwrap returns the keychain's reason.

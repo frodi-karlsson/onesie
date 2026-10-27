@@ -75,7 +75,7 @@ func refuseMock(settings rootSettings, flags *runFlags) error {
 		advice = "Drop it"
 	}
 
-	return fmt.Errorf("onesie: profile reads and writes real configuration, so it does not run under %s. %s",
+	return fmt.Errorf("profile reads and writes real configuration, so it does not run under %s. %s",
 		spelled, advice)
 }
 
@@ -118,13 +118,13 @@ func profileCreate(
 	}
 
 	if invalid := creds.ValidName(name); invalid != nil {
-		return fmt.Errorf("onesie: %w", invalid)
+		return invalid
 	}
 
 	provider := strings.TrimSpace(fields.provider)
 	if provider == "" {
 		return errors.New(
-			"onesie: profile create needs --provider: typesafe, openrouter, berget, levanto or cloudflare")
+			"profile create needs --provider: typesafe, openrouter, berget, levanto or cloudflare")
 	}
 
 	path, opened, err := profilesToWrite(settings)
@@ -133,7 +133,7 @@ func profileCreate(
 	}
 
 	if _, taken := opened.Profiles.Profiles[name]; taken {
-		return fmt.Errorf("onesie: profile %s exists. Change it with onesie profile update %s, "+
+		return fmt.Errorf("profile %s exists. Change it with onesie profile update %s, "+
 			"or delete it and create it again", quotedName(name), quotedName(name))
 	}
 
@@ -250,7 +250,7 @@ func profileUpdate(
 		}
 
 		return fmt.Errorf(
-			"onesie: profile update %s changes nothing. Pass --model, --base-url, --account-id or --key",
+			"profile update %s changes nothing. Pass --model, --base-url, --account-id or --key",
 			quotedName(name))
 	}
 
@@ -284,9 +284,9 @@ func profileUpdate(
 func refuseUpdate(fields profileFlags, changed func(string) bool) error {
 	switch {
 	case fields.toFile && !fields.key:
-		return errors.New("onesie: profile update: --file applies to a new key, so it needs --key")
+		return errors.New("profile update: --file applies to a new key, so it needs --key")
 	case changed(flagProvider) && !fields.key:
-		return errors.New("onesie: profile update: --provider needs --key, since a key belongs to one provider")
+		return errors.New("profile update: --provider needs --key, since a key belongs to one provider")
 	}
 
 	return nil
@@ -397,7 +397,7 @@ func (k keptKey) undo(keychain Keychain, account string) string {
 	}
 
 	if err := keychain.Set(account, k.key); err != nil {
-		return "warning: " + strings.TrimPrefix(err.Error(), "onesie: ") + ". The keychain item " + account +
+		return "warning: " + err.Error() + ". The keychain item " + account +
 			" now holds the new key, and its old key could not be put back"
 	}
 
@@ -881,13 +881,13 @@ func profileNames(command string, least, most int) cobra.PositionalArgs {
 		case len(args) >= least && len(args) <= most:
 			return nil
 		case most == 0:
-			return fmt.Errorf("onesie: profile %s takes no argument", command)
+			return fmt.Errorf("profile %s takes no argument", command)
 		case least == most:
-			return fmt.Errorf("onesie: profile %s takes one profile name, as in onesie profile %s work",
+			return fmt.Errorf("profile %s takes one profile name, as in onesie profile %s work",
 				command, command)
 		}
 
-		return fmt.Errorf("onesie: profile %s takes at most one profile name", command)
+		return fmt.Errorf("profile %s takes at most one profile name", command)
 	}
 }
 
@@ -902,11 +902,11 @@ type profileFlags struct {
 
 func refuseChosen(flags *runFlags, command string, provider bool) error {
 	if flags.profileSet {
-		return fmt.Errorf("onesie: --profile does not apply to profile %s", command)
+		return fmt.Errorf("--profile does not apply to profile %s", command)
 	}
 
 	if provider && flags.providerSet {
-		return fmt.Errorf("onesie: --provider does not apply to profile %s", command)
+		return fmt.Errorf("--provider does not apply to profile %s", command)
 	}
 
 	return nil
@@ -927,13 +927,13 @@ func profilesToWrite(settings rootSettings) (string, creds.Opened, error) {
 }
 
 func noProfileNamed(name string, profiles creds.Profiles) error {
-	return fmt.Errorf("onesie: there is no profile named %s. %s", quotedName(name), knownProfiles(profiles))
+	return fmt.Errorf("there is no profile named %s. %s", quotedName(name), knownProfiles(profiles))
 }
 
 func checkGiven(profile creds.Profile, changed func(string) bool, providerGiven bool) error {
 	provider, err := onesie.ProviderNamed(profile.Provider)
 	if providerGiven && (err != nil || provider.Name != profile.Provider) {
-		return fmt.Errorf("onesie: --%s names '%s', which is not typesafe, openrouter, berget, levanto or cloudflare",
+		return fmt.Errorf("--%s names '%s', which is not typesafe, openrouter, berget, levanto or cloudflare",
 			flagProvider, profile.Provider)
 	}
 
@@ -942,17 +942,17 @@ func checkGiven(profile creds.Profile, changed func(string) bool, providerGiven 
 
 	switch {
 	case accountGiven && provider.EnvAccountID == "":
-		return fmt.Errorf("onesie: --%s applies only to cloudflare, and this profile is on %s",
+		return fmt.Errorf("--%s applies only to cloudflare, and this profile is on %s",
 			flagAccountID, profile.Provider)
 	case accountGiven && !creds.ValidAccountID(profile.AccountID):
-		return fmt.Errorf("onesie: --%s must be 32 hexadecimal characters", flagAccountID)
+		return fmt.Errorf("--%s must be 32 hexadecimal characters", flagAccountID)
 	case accountGiven && baseURLGiven:
-		return fmt.Errorf("onesie: --%s and --%s both name the account. Pass one", flagBaseURL, flagAccountID)
+		return fmt.Errorf("--%s and --%s both name the account. Pass one", flagBaseURL, flagAccountID)
 	case accountGiven && profile.BaseURL != "":
-		return fmt.Errorf("onesie: --%s cannot join the profile's base_url, since each names the account. "+
+		return fmt.Errorf("--%s cannot join the profile's base_url, since each names the account. "+
 			`Clear it with --%s "" in the same update`, flagAccountID, flagBaseURL)
 	case baseURLGiven && profile.AccountID != "":
-		return fmt.Errorf("onesie: --%s cannot join the profile's account_id, since each names the account. "+
+		return fmt.Errorf("--%s cannot join the profile's account_id, since each names the account. "+
 			`Clear it with --%s "" in the same update`, flagBaseURL, flagAccountID)
 	}
 
@@ -969,7 +969,7 @@ func refusePlainBaseURL(flags *runFlags, baseURL string) error {
 		return refused
 	}
 
-	return errors.New("onesie: --" + flagBaseURL + " " + output.Printable(baseURL) + plainHTTPReason +
+	return errors.New("--" + flagBaseURL + " " + output.Printable(baseURL) + plainHTTPReason +
 		". Use https, or pass --" + flagAllowHTTP + " to store it, and every run on the profile then needs --" +
 		flagAllowHTTP + " too")
 }
@@ -987,7 +987,7 @@ func checkProfile(profiles creds.Profiles, name string, profile creds.Profile) e
 	}
 
 	if broken := withProfile(profiles, name, profile).Validate(); broken != nil {
-		return fmt.Errorf("onesie: %w", broken)
+		return broken
 	}
 
 	return nil
@@ -1030,7 +1030,7 @@ func storeProfileKey(
 
 	profile.APIKey = key
 
-	return profile, "warning: " + strings.TrimPrefix(err.Error(), "onesie: ") + ". The key is in " + path + " instead", nil
+	return profile, "warning: " + err.Error() + ". The key is in " + path + " instead", nil
 }
 
 func saveProfiles(cmd *cobra.Command, settings rootSettings, path string, profiles creds.Profiles) error {
@@ -1045,10 +1045,19 @@ func saveProfiles(cmd *cobra.Command, settings rootSettings, path string, profil
 func warningLines(warnings []error) []string {
 	lines := make([]string, 0, len(warnings))
 	for _, warning := range warnings {
-		lines = append(lines, warning.Error())
+		lines = append(lines, warningLine(warning))
 	}
 
 	return lines
+}
+
+func warningLine(warning error) string {
+	var unprotected *creds.ModeWarning
+	if errors.As(warning, &unprotected) {
+		return warning.Error()
+	}
+
+	return "onesie: " + warning.Error()
 }
 
 func keychainItem(profile creds.Profile) string {
@@ -1065,7 +1074,7 @@ func refuseTakenItem(profiles creds.Profiles, name, account string, toFile bool)
 		return nil
 	}
 
-	return fmt.Errorf("onesie: profile %s already uses the keychain item %s. Delete or update it first",
+	return fmt.Errorf("profile %s already uses the keychain item %s. Delete or update it first",
 		quotedName(owner), account)
 }
 
@@ -1084,7 +1093,7 @@ func itemOwner(profiles creds.Profiles, except, account string) string {
 }
 
 func leftBehind(err error, account string) string {
-	return "warning: " + strings.TrimPrefix(err.Error(), "onesie: ") + ". The keychain item " + account +
+	return "warning: " + err.Error() + ". The keychain item " + account +
 		" is left behind"
 }
 

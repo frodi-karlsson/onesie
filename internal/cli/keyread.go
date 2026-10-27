@@ -19,7 +19,7 @@ func readKey(cmd *cobra.Command, settings rootSettings, command string) (string,
 	}
 
 	if key == "" {
-		return "", fmt.Errorf("onesie: %s: the key is empty", command)
+		return "", fmt.Errorf("%s: the key is empty", command)
 	}
 
 	return key, nil
@@ -67,7 +67,7 @@ func firstLine(r io.Reader, command string) (string, error) {
 	} else if err := scanner.Err(); err != nil {
 		// Without this a key over the scanner's 64KiB cap leaves the first Scan empty and the loop
 		// below hands back the remainder, which reads as a second line and is rejected as one.
-		return "", fmt.Errorf("onesie: reading the key from stdin: %w", err)
+		return "", fmt.Errorf("reading the key from stdin: %w", err)
 	}
 
 	// pass show and its siblings print the secret first and metadata after it, so a second non
@@ -75,13 +75,13 @@ func firstLine(r io.Reader, command string) (string, error) {
 	// of the key and truncating it in silence would hide the mistake.
 	for scanner.Scan() {
 		if strings.TrimSpace(scanner.Text()) != "" {
-			return "", errors.New("onesie: " + command + ": stdin carries more than one line, and it must " +
+			return "", errors.New(command + ": stdin carries more than one line, and it must " +
 				"hold the key alone. Pipe a password manager entry through head -n 1")
 		}
 	}
 
 	if err := scanner.Err(); err != nil {
-		return "", fmt.Errorf("onesie: reading the key from stdin: %w", err)
+		return "", fmt.Errorf("reading the key from stdin: %w", err)
 	}
 
 	return key, nil

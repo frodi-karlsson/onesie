@@ -74,7 +74,7 @@ func openOutFile(settings rootSettings, flags *runFlags, readOnly bool) (*outFil
 	if special {
 		if flags.resume {
 			return nil, resumePlan{}, fmt.Errorf(
-				"onesie: --resume needs --out to name a regular file, and %s is not one", flags.out)
+				"--resume needs --out to name a regular file, and %s is not one", flags.out)
 		}
 
 		return out, resumePlan{}, nil
@@ -92,7 +92,7 @@ func openOutFile(settings rootSettings, flags *runFlags, readOnly bool) (*outFil
 
 	resume, resumeErr := resumeOut(out, settings, flags)
 	if resumeErr != nil {
-		return nil, resumePlan{}, errors.Join(resumeErr, out.release())
+		return nil, resumePlan{}, errors.Join(resumeErr, prefixed(out.release()))
 	}
 
 	return out, resume, nil
@@ -159,7 +159,7 @@ func specialFile(target, goos string, stat func(string) (fs.FileInfo, error)) (b
 	// A path that cannot be stated is left to the write probe, which names the real failure.
 	info, statErr := stat(target)
 	if statErr == nil && info.IsDir() {
-		return false, fmt.Errorf("onesie: --out %s is a directory", target)
+		return false, fmt.Errorf("--out %s is a directory", target)
 	}
 
 	return statErr == nil && !info.Mode().IsRegular(), nil
@@ -179,7 +179,7 @@ func resolveTarget(
 		}
 
 		if !errors.Is(err, os.ErrNotExist) {
-			return "", fmt.Errorf("onesie: resolving %s: %w", path, err)
+			return "", fmt.Errorf("resolving %s: %w", path, err)
 		}
 
 		// A link to a file not written yet is followed by hand, since the resolver refuses it, and
@@ -196,7 +196,7 @@ func resolveTarget(
 		at = link
 	}
 
-	return "", fmt.Errorf("onesie: resolving %s: %w", path, errLinkLoop)
+	return "", fmt.Errorf("resolving %s: %w", path, errLinkLoop)
 }
 
 func linkAt(path string, readlink func(name string) (string, error)) (string, bool) {
@@ -236,7 +236,7 @@ type rewrite struct {
 func (o *outFile) lock(take func(answers string) (func() error, error), resume bool) error {
 	unlock, err := take(o.target)
 	if errors.Is(err, errLocked) {
-		return fmt.Errorf("onesie: %s is in use by another onesie run. Wait for it to finish, "+
+		return fmt.Errorf("%s is in use by another onesie run. Wait for it to finish, "+
 			"then run again", o.path)
 	}
 
@@ -247,7 +247,7 @@ func (o *outFile) lock(take func(answers string) (func() error, error), resume b
 	}
 
 	if err != nil {
-		return fmt.Errorf("onesie: locking %s: %w", o.path, err)
+		return fmt.Errorf("locking %s: %w", o.path, err)
 	}
 
 	o.unlock = unlock
@@ -264,7 +264,7 @@ func (o *outFile) release() error {
 	o.unlock = nil
 
 	if err := unlock(); err != nil {
-		return fmt.Errorf("onesie: unlocking %s: %w", o.path, err)
+		return fmt.Errorf("unlocking %s: %w", o.path, err)
 	}
 
 	return nil
@@ -283,7 +283,7 @@ func (o *outFile) removeStalePart() error {
 
 	part := o.target + compactSuffix
 	if err := o.remove(part); err != nil && !errors.Is(err, os.ErrNotExist) {
-		return fmt.Errorf("onesie: removing %s, which an interrupted run left behind: %w", part, err)
+		return fmt.Errorf("removing %s, which an interrupted run left behind: %w", part, err)
 	}
 
 	return nil
@@ -334,7 +334,7 @@ func (o *outFile) finish(runErr error) error {
 	o.file = nil
 
 	if err := file.Close(); err != nil {
-		return fmt.Errorf("onesie: closing %s: %w", o.path, patherr.Inner(err))
+		return fmt.Errorf("closing %s: %w", o.path, patherr.Inner(err))
 	}
 
 	if o.rewrite == nil {
@@ -366,7 +366,7 @@ func (o *outFile) compact() error {
 		removeErr = nil
 	}
 
-	return errors.Join(fmt.Errorf("onesie: compacting %s: %w", o.path, err), removeErr)
+	return errors.Join(fmt.Errorf("compacting %s: %w", o.path, err), removeErr)
 }
 
 func (o *outFile) writeCompacted(temporary string) (err error) {
@@ -532,7 +532,7 @@ func (o *outFile) probe() error {
 	}
 
 	if err := o.probeAnswers(); err != nil {
-		return fmt.Errorf("onesie: opening %s: %w", o.path, patherr.Inner(err))
+		return fmt.Errorf("opening %s: %w", o.path, patherr.Inner(err))
 	}
 
 	if o.fingerprint == "" || o.matched {
@@ -543,7 +543,7 @@ func (o *outFile) probe() error {
 
 	file, err := o.open(temporary, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
 	if err != nil {
-		return fmt.Errorf("onesie: opening %s: %w", temporary, patherr.Inner(err))
+		return fmt.Errorf("opening %s: %w", temporary, patherr.Inner(err))
 	}
 
 	return errors.Join(file.Close(), o.remove(temporary))
@@ -590,7 +590,7 @@ func (o *outFile) checkFingerprint(fingerprint string) (matched bool, err error)
 
 	if !found {
 		return false, staleAnswers("it has no fingerprint beside it",
-			"onesie: %s has no fingerprint beside it, so onesie cannot tell which run wrote it. "+
+			"%s has no fingerprint beside it, so onesie cannot tell which run wrote it. "+
 				"Drop --resume to start over", o.path)
 	}
 
@@ -599,23 +599,23 @@ func (o *outFile) checkFingerprint(fingerprint string) (matched bool, err error)
 	switch {
 	case !ok:
 		return false, staleAnswers("onesie did not write its fingerprint",
-			"onesie: %s does not hold a fingerprint onesie wrote, so onesie cannot tell which run "+
+			"%s does not hold a fingerprint onesie wrote, so onesie cannot tell which run "+
 				"wrote %s. Drop --resume to start over", sidecar, o.path)
 	case version < fingerprintVersion:
 		return false, staleAnswers("an older onesie wrote its fingerprint",
-			"onesie: an older onesie wrote %s, so this one cannot tell which run wrote %s. "+
+			"an older onesie wrote %s, so this one cannot tell which run wrote %s. "+
 				"Drop --resume to start over", sidecar, o.path)
 	case version > fingerprintVersion:
 		return false, staleAnswers("a newer onesie wrote its fingerprint",
-			"onesie: a newer onesie wrote %s, so this one cannot tell which run wrote %s. "+
+			"a newer onesie wrote %s, so this one cannot tell which run wrote %s. "+
 				"Drop --resume to start over", sidecar, o.path)
 	case o.olderColumns != "" && stored == o.olderColumns:
 		return false, staleAnswers("an older onesie wrote its columns",
-			"onesie: %s was written by an older onesie, without the fallback columns this run adds. "+
+			"%s was written by an older onesie, without the fallback columns this run adds. "+
 				"Regenerate it without --resume, or write to a new --out", o.path)
 	case stored != fingerprint:
 		return false, staleAnswers("the questions, model or flags changed since it was written",
-			"onesie: the questions, flags or gate changed since %s was written. "+
+			"the questions, flags or gate changed since %s was written. "+
 				"Drop --resume to start over", o.path)
 	}
 
@@ -671,7 +671,7 @@ func (o *outFile) holdsAnswers() (written bool, err error) {
 	}
 
 	if err != nil {
-		return false, fmt.Errorf("onesie: reading %s to resume: %w", o.path, err)
+		return false, fmt.Errorf("reading %s to resume: %w", o.path, err)
 	}
 
 	defer func() {
@@ -680,7 +680,7 @@ func (o *outFile) holdsAnswers() (written bool, err error) {
 
 	info, err := file.Stat()
 	if err != nil {
-		return false, fmt.Errorf("onesie: reading %s to resume: %w", o.path, err)
+		return false, fmt.Errorf("reading %s to resume: %w", o.path, err)
 	}
 
 	return info.Size() > 0, nil
@@ -695,7 +695,7 @@ func (o *outFile) readFingerprint() (stored string, found bool, err error) {
 	}
 
 	if err != nil {
-		return "", false, fmt.Errorf("onesie: reading %s: %w", path, patherr.Inner(err))
+		return "", false, fmt.Errorf("reading %s: %w", path, patherr.Inner(err))
 	}
 
 	defer func() {
@@ -704,7 +704,7 @@ func (o *outFile) readFingerprint() (stored string, found bool, err error) {
 
 	data, err := io.ReadAll(io.LimitReader(file, 1024))
 	if err != nil {
-		return "", false, fmt.Errorf("onesie: reading %s: %w", path, patherr.Inner(err))
+		return "", false, fmt.Errorf("reading %s: %w", path, patherr.Inner(err))
 	}
 
 	return string(bytes.TrimSpace(data)), true, nil
@@ -712,7 +712,7 @@ func (o *outFile) readFingerprint() (stored string, found bool, err error) {
 
 func (o *outFile) create() error {
 	if o.resume && !o.bound {
-		return fmt.Errorf("onesie: resuming %s, which was never checked against its fingerprint", o.path)
+		return fmt.Errorf("resuming %s, which was never checked against its fingerprint", o.path)
 	}
 
 	if err := o.openAnswers(); err != nil {
@@ -739,7 +739,7 @@ func (o *outFile) openAnswers() error {
 
 		file, err := o.open(o.path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
 		if err != nil {
-			return fmt.Errorf("onesie: opening %s: %w", o.path, patherr.Inner(err))
+			return fmt.Errorf("opening %s: %w", o.path, patherr.Inner(err))
 		}
 
 		o.file = file
@@ -749,16 +749,16 @@ func (o *outFile) openAnswers() error {
 
 	file, err := o.open(o.path, os.O_WRONLY|os.O_CREATE, 0o600)
 	if err != nil {
-		return fmt.Errorf("onesie: opening %s: %w", o.path, patherr.Inner(err))
+		return fmt.Errorf("opening %s: %w", o.path, patherr.Inner(err))
 	}
 
 	// Drops a line the earlier run was cut off in the middle of, so the next answer starts clean.
 	if err := file.Truncate(o.keep); err != nil {
-		return errors.Join(fmt.Errorf("onesie: trimming %s: %w", o.path, patherr.Inner(err)), file.Close())
+		return errors.Join(fmt.Errorf("trimming %s: %w", o.path, patherr.Inner(err)), file.Close())
 	}
 
 	if _, err := file.Seek(0, io.SeekEnd); err != nil {
-		return errors.Join(fmt.Errorf("onesie: seeking in %s: %w", o.path, patherr.Inner(err)), file.Close())
+		return errors.Join(fmt.Errorf("seeking in %s: %w", o.path, patherr.Inner(err)), file.Close())
 	}
 
 	o.file = file
@@ -776,7 +776,7 @@ func (o *outFile) writeFingerprint() error {
 
 	if o.fingerprint == "" {
 		if err := o.remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
-			return fmt.Errorf("onesie: removing %s: %w", path, patherr.Inner(err))
+			return fmt.Errorf("removing %s: %w", path, patherr.Inner(err))
 		}
 
 		return nil
@@ -792,7 +792,7 @@ func (o *outFile) writeFingerprint() error {
 
 	file, err := o.open(temporary, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
 	if err != nil {
-		return fmt.Errorf("onesie: opening %s: %w", temporary, patherr.Inner(err))
+		return fmt.Errorf("opening %s: %w", temporary, patherr.Inner(err))
 	}
 
 	_, err = io.WriteString(file, o.fingerprint+"\n")
@@ -806,7 +806,7 @@ func (o *outFile) writeFingerprint() error {
 	}
 
 	if err != nil {
-		return errors.Join(fmt.Errorf("onesie: writing %s: %w", path, err), o.remove(temporary))
+		return errors.Join(fmt.Errorf("writing %s: %w", path, err), o.remove(temporary))
 	}
 
 	return nil
@@ -854,7 +854,7 @@ func fingerprintOf(questions []plan.Question, inputs fingerprintInputs) (string,
 		Mock:            inputs.mock,
 	})
 	if err != nil {
-		return "", fmt.Errorf("onesie: fingerprinting the run: %w", err)
+		return "", fmt.Errorf("fingerprinting the run: %w", err)
 	}
 
 	sum := sha256.Sum256(encoded)
@@ -928,7 +928,7 @@ func completeRows(settings rootSettings, path string, quoted bool) (rows int, le
 	}
 
 	if err != nil {
-		return 0, 0, fmt.Errorf("onesie: reading %s to resume: %w", path, err)
+		return 0, 0, fmt.Errorf("reading %s to resume: %w", path, err)
 	}
 
 	defer func() {
@@ -965,7 +965,7 @@ func completeLines(settings rootSettings, path string) (lines int, length int64,
 	}
 
 	if err != nil {
-		return 0, 0, fmt.Errorf("onesie: reading %s to resume: %w", path, err)
+		return 0, 0, fmt.Errorf("reading %s to resume: %w", path, err)
 	}
 
 	defer func() {
@@ -995,6 +995,6 @@ func completeLines(settings rootSettings, path string) (lines int, length int64,
 			return lines, length, nil
 		}
 
-		return 0, 0, fmt.Errorf("onesie: reading %s to resume: %w", path, readErr)
+		return 0, 0, fmt.Errorf("reading %s to resume: %w", path, readErr)
 	}
 }

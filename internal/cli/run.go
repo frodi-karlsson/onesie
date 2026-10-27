@@ -178,20 +178,20 @@ func run(
 
 	if requests(flags) && resolved.Source == input.SourceNone && len(flags.images) == 0 {
 		return errors.New(
-			"onesie: no state given. Pipe one to stdin, or pass --state or --state-file")
+			"no state given. Pipe one to stdin, or pass --state or --state-file")
 	}
 
 	sent := resolved.Wire
 	if resolved.Source != input.SourceNone {
 		sent, err = mapped(cmd.Context(), mapper, resolved.State, resolved.Wire)
 		if err != nil {
-			return fmt.Errorf("onesie: %w", err)
+			return err
 		}
 	}
 
 	sent, assets, err := inv.images.attach(sentOrNil(resolved, sent))
 	if err != nil {
-		return fmt.Errorf("onesie: %w", err)
+		return err
 	}
 
 	if len(flags.images) > 0 {
@@ -214,7 +214,7 @@ func run(
 	// Checked here rather than at write time, so a taken key costs no request.
 	if merging(flags) && hasKey(resolved.State, mergeKey(flags)) {
 		return fmt.Errorf(
-			"onesie: --merge would overwrite the input's '%s' key. Pass --merge-key",
+			"--merge would overwrite the input's '%s' key. Pass --merge-key",
 			mergeKey(flags))
 	}
 
@@ -234,12 +234,12 @@ func sentOrNil(resolved input.Resolved, sent any) any {
 func imagedState(sent any) (input.Resolved, error) {
 	encoded, isRaw := sent.(json.RawMessage)
 	if !isRaw {
-		return input.Resolved{}, errors.New("onesie: the state beside --image is not encoded")
+		return input.Resolved{}, errors.New("the state beside --image is not encoded")
 	}
 
 	var state any
 	if err := json.Unmarshal(encoded, &state); err != nil {
-		return input.Resolved{}, fmt.Errorf("onesie: reading the state: %w", err)
+		return input.Resolved{}, fmt.Errorf("reading the state: %w", err)
 	}
 
 	return input.Resolved{Source: input.SourceImages, State: state, Raw: string(encoded), Wire: sent}, nil
@@ -263,7 +263,7 @@ func checkBodyState(cfg plan.Config, loaded *qfile.File) error {
 		return nil
 	}
 
-	return fmt.Errorf("onesie: %s and the state in %s both give a state. Drop one", flag, cfg.FileName)
+	return fmt.Errorf("%s and the state in %s both give a state. Drop one", flag, cfg.FileName)
 }
 
 func warnIgnoredBodyState(
@@ -312,7 +312,7 @@ func resolveState(
 		}
 
 		if err := input.CheckState(resolved.State); err != nil {
-			return input.Resolved{}, fmt.Errorf("onesie: %w", err)
+			return input.Resolved{}, err
 		}
 
 		return resolved, nil

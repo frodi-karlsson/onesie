@@ -26,7 +26,7 @@ func printSchema(w io.Writer) error {
 
 func refuseBesideSchema(set *pflag.FlagSet, args []string) error {
 	if len(args) > 0 {
-		return errors.New("onesie: --print-schema asks no question. Drop the question argument")
+		return errors.New("--print-schema asks no question. Drop the question argument")
 	}
 
 	var other string
@@ -38,7 +38,7 @@ func refuseBesideSchema(set *pflag.FlagSet, args []string) error {
 	})
 
 	if other != "" {
-		return fmt.Errorf("onesie: --print-schema takes no other flag. Drop --%s", other)
+		return fmt.Errorf("--print-schema takes no other flag. Drop --%s", other)
 	}
 
 	return nil

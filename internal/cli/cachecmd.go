@@ -28,7 +28,7 @@ func newCacheCmd(settings rootSettings) *cobra.Command {
 				return nil
 			}
 
-			return fmt.Errorf("onesie: cache takes no argument, and its one subcommand is clear, not %s. "+
+			return fmt.Errorf("cache takes no argument, and its one subcommand is clear, not %s. "+
 				"To ask it as a question, put it after --", args[0])
 		},
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -62,7 +62,7 @@ func newCacheCmd(settings rootSettings) *cobra.Command {
 				return nil
 			}
 
-			return errors.New("onesie: cache clear takes no argument")
+			return errors.New("cache clear takes no argument")
 		},
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			dir, err := checkedCacheDir(settings)
@@ -98,7 +98,7 @@ func warnReadable(w io.Writer, settings rootSettings, dir string) error {
 	// carries no such modes.
 	info, err := settings.stat(dir)
 	if err == nil && settings.goos != "windows" && info.Mode().Perm()&0o077 != 0 {
-		_, printErr := fmt.Fprintln(w, (&cache.ModeError{Dir: dir, Mode: info.Mode().Perm()}).Error())
+		_, printErr := fmt.Fprintln(w, "onesie: "+(&cache.ModeError{Dir: dir, Mode: info.Mode().Perm()}).Error())
 
 		return printErr
 	}

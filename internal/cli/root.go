@@ -216,7 +216,7 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 			}
 
 			defer func() {
-				err = errors.Join(err, out.release())
+				err = errors.Join(err, prefixed(out.release()))
 			}()
 
 			if out == nil {
@@ -227,7 +227,7 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 
 			runErr := run(cmd, settings, recorder.Events(), positional, flags, out, resume)
 
-			return errors.Join(runErr, out.finish(runErr))
+			return errors.Join(runErr, prefixed(out.finish(runErr)))
 		},
 	}
 
@@ -383,13 +383,13 @@ func plainFlagError(cmd *cobra.Command, err error) error {
 	case errors.As(err, &unknown):
 		return &plainError{cause: err, message: unknownFlag(cmd, unknown)}
 	case errors.As(err, &invalid) && errors.Is(err, errEmptyValue):
-		return &plainError{cause: err, message: fmt.Sprintf("onesie: --%s is empty. Name one, or leave the flag out",
+		return &plainError{cause: err, message: fmt.Sprintf("--%s is empty. Name one, or leave the flag out",
 			invalid.GetFlag().Name)}
 	case errors.As(err, &invalid):
-		return &plainError{cause: err, message: fmt.Sprintf("onesie: --%s takes %s, got '%s'",
+		return &plainError{cause: err, message: fmt.Sprintf("--%s takes %s, got '%s'",
 			invalid.GetFlag().Name, valueKind(invalid.GetFlag()), invalid.GetValue())}
 	case errors.As(err, &required):
-		return &plainError{cause: err, message: fmt.Sprintf("onesie: --%s needs a value", required.GetFlag().Name)}
+		return &plainError{cause: err, message: fmt.Sprintf("--%s needs a value", required.GetFlag().Name)}
 	default:
 		return err
 	}
@@ -412,10 +412,10 @@ func unknownFlag(cmd *cobra.Command, unknown *pflag.NotExistError) string {
 
 func noSuchFlag(cmd *cobra.Command, spelled string) string {
 	if !cmd.HasParent() {
-		return "onesie: there is no flag " + spelled
+		return "there is no flag " + spelled
 	}
 
-	return fmt.Sprintf("onesie: %s has no flag %s", strings.TrimPrefix(cmd.CommandPath(), cmd.Root().Name()+" "), spelled)
+	return fmt.Sprintf("%s has no flag %s", strings.TrimPrefix(cmd.CommandPath(), cmd.Root().Name()+" "), spelled)
 }
 
 func closestFlag(cmd *cobra.Command, name string) string {
@@ -512,11 +512,11 @@ func noArguments(cmd *cobra.Command, args []string) error {
 	}
 
 	if len(subcommands) > 0 {
-		return fmt.Errorf("onesie: %s has no subcommand '%s'. Its subcommands: %s",
+		return fmt.Errorf("%s has no subcommand '%s'. Its subcommands: %s",
 			name, args[0], strings.Join(subcommands, ", "))
 	}
 
-	return fmt.Errorf("onesie: %s takes no argument, got '%s'", name, args[0])
+	return fmt.Errorf("%s takes no argument, got '%s'", name, args[0])
 }
 
 func groupFlag(recorder *argv.Recorder, name string) pflag.Value {
@@ -540,7 +540,7 @@ func rootArgs(flags *runFlags) cobra.PositionalArgs {
 	return func(cmd *cobra.Command, args []string) error {
 		// -V answers before any question is read, so its own message names what it refuses.
 		if flags.version && len(args) > 0 {
-			return fmt.Errorf("onesie: -V takes no question, got '%s'", strings.Join(args, " "))
+			return fmt.Errorf("-V takes no question, got '%s'", strings.Join(args, " "))
 		}
 
 		return atMostOneQuestion(cmd, args)
@@ -561,7 +561,7 @@ func refuseUnknownHelpTopics(root *cobra.Command) {
 		sub.RunE = func(help *cobra.Command, args []string) error {
 			topic, rest, err := root.Find(args)
 			if err != nil || len(rest) > 0 {
-				return fmt.Errorf("onesie: unknown help topic '%s'. Run onesie --help to see the subcommands",
+				return fmt.Errorf("unknown help topic '%s'. Run onesie --help to see the subcommands",
 					strings.Join(args, " "))
 			}
 
@@ -627,8 +627,8 @@ func Execute(ctx context.Context, root *cobra.Command) int {
 	if worthReporting(err) {
 		// Stripped, since a message can quote the server or the input to a terminal.
 		message := output.Printable(err.Error())
-		// Cobra's own parse errors are the only ones that do not already carry the prefix, and a
-		// consumer filtering stderr should not have to know which layer produced a line.
+		// Library errors carry the prefix and the CLI's own errors do not, and a consumer filtering
+		// stderr should not have to know which layer produced a line.
 		if !strings.HasPrefix(message, "onesie: ") {
 			message = "onesie: " + message
 		}
@@ -639,6 +639,14 @@ func Execute(ctx context.Context, root *cobra.Command) int {
 	}
 
 	return Classify(err)
+}
+
+func prefixed(err error) error {
+	if err == nil {
+		return nil
+	}
+
+	return fmt.Errorf("onesie: %w", err)
 }
 
 // WithClientFactory replaces how commands build their API client, so a test can point one at a
@@ -892,7 +900,7 @@ func configEnv(lookupEnv func(string) (string, bool), homeDir func() (string, er
 func readHiddenSecret() (string, error) {
 	secret, err := term.ReadPassword(int(os.Stdin.Fd()))
 	if err != nil {
-		return "", fmt.Errorf("onesie: reading the key from the terminal: %w", err)
+		return "", fmt.Errorf("reading the key from the terminal: %w", err)
 	}
 
 	return string(secret), nil

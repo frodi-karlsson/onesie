@@ -120,8 +120,8 @@ func TestDir(t *testing.T) {
 			})
 
 			if tc.wantErr != "" {
-				if err == nil || !strings.Contains(err.Error(), tc.wantErr) || !strings.HasPrefix(err.Error(), "onesie: ") {
-					t.Fatalf("Dir = %q, %v, want an onesie error containing %q", got, err, tc.wantErr)
+				if err == nil || !strings.Contains(err.Error(), tc.wantErr) || strings.HasPrefix(err.Error(), "onesie: ") {
+					t.Fatalf("Dir = %q, %v, want an error containing %q and no onesie prefix", got, err, tc.wantErr)
 				}
 
 				if tc.homeErr != nil && !errors.Is(err, tc.homeErr) {

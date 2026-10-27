@@ -31,11 +31,11 @@ func Dir(env creds.Env) (string, error) {
 
 	home, err := env.Home()
 	if err != nil {
-		return "", fmt.Errorf("onesie: finding the home directory for the cache dir: %w", err)
+		return "", fmt.Errorf("finding the home directory for the cache dir: %w", err)
 	}
 
 	if home == "" {
-		return "", errors.New("onesie: cannot find a home directory for the cache dir. Set ONESIE_CACHE_DIR")
+		return "", errors.New("cannot find a home directory for the cache dir. Set ONESIE_CACHE_DIR")
 	}
 
 	switch env.GOOS {

@@ -125,7 +125,7 @@ func plainHTTPCheck(baseURL, source string, allowHTTP bool) (warning string, ref
 	case !plainRemote(baseURL):
 		return "", nil
 	case !allowHTTP:
-		return "", errors.New("onesie: " + source + " " + output.Printable(baseURL) + plainHTTPReason +
+		return "", errors.New(source + " " + output.Printable(baseURL) + plainHTTPReason +
 			". Use https, or pass --" + flagAllowHTTP + " to send it anyway")
 	}
 

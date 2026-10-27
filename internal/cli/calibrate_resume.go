@@ -138,7 +138,7 @@ func storedAnswers(ctx context.Context, out *outFile, lines []storedLine, built 
 
 	file, err := out.open(out.path, os.O_RDONLY, 0)
 	if err != nil {
-		return fmt.Errorf("onesie: reading %s to resume: %w", out.path, err)
+		return fmt.Errorf("reading %s to resume: %w", out.path, err)
 	}
 
 	defer func() {
@@ -164,7 +164,7 @@ func storedAnswers(ctx context.Context, out *outFile, lines []storedLine, built 
 
 		text = slices.Grow(text[:0], int(stored.at.end-stored.at.start))[:stored.at.end-stored.at.start]
 		if _, readErr := file.ReadAt(text, stored.at.start); readErr != nil {
-			return fmt.Errorf("onesie: reading %s to resume: %w", out.path, readErr)
+			return fmt.Errorf("reading %s to resume: %w", out.path, readErr)
 		}
 
 		stored.record = storedRecord(built, text)

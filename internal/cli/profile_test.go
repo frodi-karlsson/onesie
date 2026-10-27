@@ -969,7 +969,8 @@ func TestProfileUpdate(t *testing.T) {
 			wantCode: ExitUsage,
 			wantErr: []string{
 				"the disk is full",
-				"The keychain item work@{hash} now holds the new key, and its old key could not be put back",
+				"warning: could not store the key in the OS keychain: the keychain is locked. " +
+					"The keychain item work@{hash} now holds the new key, and its old key could not be put back",
 			},
 			notErr:    []string{"left behind"},
 			wantFile:  work,
@@ -1126,7 +1127,8 @@ func TestProfileDelete(t *testing.T) {
 			file:     two,
 			keychain: keychainNone,
 			args:     []string{"profile", "delete", "work"},
-			wantErr:  []string{"The keychain item work@{hash} is left behind"},
+			wantErr: []string{"warning: could not remove the key from the OS keychain: no keychain in tests. " +
+				"The keychain item work@{hash} is left behind"},
 			wantFile: homeOnly,
 		},
 		{

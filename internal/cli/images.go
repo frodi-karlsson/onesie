@@ -30,7 +30,7 @@ func newImaging(
 	for _, spec := range specs {
 		name, path, ok := strings.Cut(spec, "=")
 		if !ok || name == "" || path == "" {
-			return nil, fmt.Errorf("onesie: --image takes NAME=PATH, got '%s'", spec)
+			return nil, fmt.Errorf("--image takes NAME=PATH, got '%s'", spec)
 		}
 
 		if err := checkImageName("--image "+name, name); err != nil {
@@ -38,12 +38,12 @@ func newImaging(
 		}
 
 		if _, taken := m.fixed[name]; taken {
-			return nil, fmt.Errorf("onesie: --image %s is given twice", name)
+			return nil, fmt.Errorf("--image %s is given twice", name)
 		}
 
 		ref, img, err := m.load(path)
 		if err != nil {
-			return nil, fmt.Errorf("onesie: --image %s: %w", name, err)
+			return nil, fmt.Errorf("--image %s: %w", name, err)
 		}
 
 		m.fixed[name] = ref
@@ -265,7 +265,7 @@ func imageRef(data []byte) string {
 
 func checkImageName(flag, name string) error {
 	if strings.ContainsAny(name, ".[]`") {
-		return fmt.Errorf("onesie: %s: a name holds no '.', '[', ']' or backtick, "+
+		return fmt.Errorf("%s: a name holds no '.', '[', ']' or backtick, "+
 			"so a backtick path in a question can reach it", flag)
 	}
 

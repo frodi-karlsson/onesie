@@ -16,7 +16,7 @@ func readQuestionFile(settings rootSettings, value string) (data []byte, path, h
 	}
 
 	if !qfile.IsName(value) || !lookupPast(settings, value, err) {
-		return nil, "", "", fmt.Errorf("onesie: reading %s: %w", value, patherr.Inner(err))
+		return nil, "", "", fmt.Errorf("reading %s: %w", value, patherr.Inner(err))
 	}
 
 	env, err := findEnv(settings)
@@ -32,7 +32,7 @@ func readQuestionFile(settings rootSettings, value string) (data []byte, path, h
 	if source.BuiltIn != "" {
 		builtIn, ok := settings.readBuiltIn(source.BuiltIn)
 		if !ok {
-			return nil, "", "", fmt.Errorf("onesie: the built-in set %s could not be read", source.BuiltIn)
+			return nil, "", "", fmt.Errorf("the built-in set %s could not be read", source.BuiltIn)
 		}
 
 		return builtIn, "built-in " + source.BuiltIn, "", nil
@@ -40,7 +40,7 @@ func readQuestionFile(settings rootSettings, value string) (data []byte, path, h
 
 	data, err = settings.readFile(source.Path)
 	if err != nil {
-		return nil, "", "", fmt.Errorf("onesie: reading %s: %w", source.Path, patherr.Inner(err))
+		return nil, "", "", fmt.Errorf("reading %s: %w", source.Path, patherr.Inner(err))
 	}
 
 	if settings.readBuiltIn != nil {
@@ -68,7 +68,7 @@ func lookupPast(settings rootSettings, value string, readErr error) bool {
 func findEnv(settings rootSettings) (qfile.FindEnv, error) {
 	workDir, err := settings.getwd()
 	if err != nil {
-		return qfile.FindEnv{}, fmt.Errorf("onesie: finding the working directory to look up a question file: %w", err)
+		return qfile.FindEnv{}, fmt.Errorf("finding the working directory to look up a question file: %w", err)
 	}
 
 	env := qfile.FindEnv{
@@ -93,7 +93,7 @@ func findEnv(settings rootSettings) (qfile.FindEnv, error) {
 func loadQuestionFile(data []byte, path, hides string, alone bool) (*qfile.File, error) {
 	loaded, err := qfile.Load(data)
 	if err != nil {
-		return nil, fmt.Errorf("onesie: %s: %w", path, err)
+		return nil, fmt.Errorf("%s: %w", path, err)
 	}
 
 	// A file with no question beside --ask only adds nothing, unless it hides the built-in set the
@@ -103,9 +103,9 @@ func loadQuestionFile(data []byte, path, hides string, alone bool) (*qfile.File,
 	}
 
 	if hides != "" {
-		return nil, fmt.Errorf("onesie: the question file %s holds no questions. Remove it, and -f %s takes "+
+		return nil, fmt.Errorf("the question file %s holds no questions. Remove it, and -f %s takes "+
 			"the built-in set again", path, hides)
 	}
 
-	return nil, fmt.Errorf("onesie: the question file %s holds no questions", path)
+	return nil, fmt.Errorf("the question file %s holds no questions", path)
 }

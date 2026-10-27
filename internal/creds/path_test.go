@@ -147,10 +147,8 @@ func TestProfilesPath(t *testing.T) {
 					t.Fatalf("ProfilesPath error = %v, want it to contain %s", err, tc.wantErr)
 				}
 
-				// Every user facing error in this repo opens with the prefix, and a consumer
-				// filtering stderr should not have to know which package produced a line.
-				if !strings.HasPrefix(err.Error(), "onesie: ") {
-					t.Errorf("ProfilesPath error = %v, want it to start with the onesie prefix", err)
+				if strings.HasPrefix(err.Error(), "onesie: ") {
+					t.Errorf("ProfilesPath error = %v, want no onesie prefix, which Execute adds", err)
 				}
 
 				if tc.wantIs != nil && !errors.Is(err, tc.wantIs) {
@@ -245,7 +243,7 @@ func TestDir(t *testing.T) {
 		{
 			name:    "should name the config dir when no home directory is found",
 			goos:    "linux",
-			wantErr: "onesie: cannot find a home directory for the config dir, where the profiles file lives",
+			wantErr: "cannot find a home directory for the config dir, where the profiles file lives",
 		},
 	}
 

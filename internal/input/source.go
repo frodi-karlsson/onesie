@@ -59,7 +59,7 @@ func ParseMode(name string) (Mode, error) {
 		return TSV, nil
 	default:
 		return Text, fmt.Errorf(
-			"onesie: -i takes text, json, jsonl, lines, csv, tsv or request, got '%s'", name)
+			"-i takes text, json, jsonl, lines, csv, tsv or request, got '%s'", name)
 	}
 }
 

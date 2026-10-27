@@ -172,7 +172,7 @@ func (s Store) SaveProfiles(path string, profiles Profiles) (*ModeWarning, error
 	// reachable, and its error embeds the offending value, so such a field must keep the key out.
 	data, err := json.Marshal(profiles)
 	if err != nil {
-		return nil, fmt.Errorf("onesie: encoding the profiles file: %w", err)
+		return nil, fmt.Errorf("encoding the profiles file: %w", err)
 	}
 
 	return s.write(path, data, ".profiles-*")
@@ -302,5 +302,5 @@ type InvalidProfilesError struct {
 
 // Error names the file and the rule.
 func (e *InvalidProfilesError) Error() string {
-	return "onesie: " + e.Kind + " " + e.Path + " " + e.Reason
+	return e.Kind + " " + e.Path + " " + e.Reason
 }

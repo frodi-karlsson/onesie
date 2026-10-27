@@ -123,7 +123,7 @@ func (r *resumed) freshRunAbort() error {
 	}
 
 	if r.table != "" {
-		return fmt.Errorf("onesie: the stored failure for record %d is followed by more rows, so a run "+
+		return fmt.Errorf("the stored failure for record %d is followed by more rows, so a run "+
 			"without --stop-on-error wrote it, and a %s row keeps only its message, not the code to stop "+
 			"with. Pass --id or drop --stop-on-error to carry on", r.stoppedAtRecord, r.table)
 	}

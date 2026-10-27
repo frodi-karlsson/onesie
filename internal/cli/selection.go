@@ -52,7 +52,7 @@ func checkChoice(flags *runFlags, lookupEnv func(string) (string, bool)) error {
 
 func choose(flags *runFlags, lookupEnv func(string) (string, bool)) (choice, error) {
 	if flags.profileSet && flags.providerSet {
-		return choice{}, errors.New("onesie: --profile and --provider both choose what the run uses. Pass one")
+		return choice{}, errors.New("--profile and --provider both choose what the run uses. Pass one")
 	}
 
 	switch {
@@ -67,7 +67,7 @@ func choose(flags *runFlags, lookupEnv func(string) (string, bool)) (choice, err
 	switch {
 	case profile != "" && provider != "":
 		return choice{}, fmt.Errorf(
-			"onesie: %s and %s are both set, and each chooses what the run uses. Unset one", envProfile, envProvider)
+			"%s and %s are both set, and each chooses what the run uses. Unset one", envProfile, envProvider)
 	case profile != "":
 		return choice{profile: profile, by: envProfile}, nil
 	case provider != "":
@@ -101,7 +101,7 @@ func resolveChoice(
 	}
 
 	if name == "" && len(profiles.Profiles) > 0 {
-		return resolution{}, errors.New("onesie: no profile is the default and nothing chose one. " +
+		return resolution{}, errors.New("no profile is the default and nothing chose one. " +
 			"Run onesie profile use NAME, or pass --profile NAME or --provider NAME")
 	}
 
@@ -111,7 +111,7 @@ func resolveChoice(
 
 	profile, found := profiles.Profiles[name]
 	if !found {
-		return resolution{}, fmt.Errorf("onesie: %s names profile %s, which does not exist. %s",
+		return resolution{}, fmt.Errorf("%s names profile %s, which does not exist. %s",
 			by, quotedName(name), knownProfiles(profiles))
 	}
 

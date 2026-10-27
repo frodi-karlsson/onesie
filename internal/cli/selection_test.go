@@ -82,12 +82,12 @@ func TestChoose(t *testing.T) {
 		{
 			name:    "should refuse --profile beside --provider",
 			flags:   runFlags{profile: "work", profileSet: true, provider: "typesafe", providerSet: true},
-			wantErr: "onesie: --profile and --provider both choose what the run uses. Pass one",
+			wantErr: "--profile and --provider both choose what the run uses. Pass one",
 		},
 		{
 			name: "should refuse ONESIE_PROFILE beside ONESIE_PROVIDER",
 			env:  map[string]string{"ONESIE_PROFILE": "work", "ONESIE_PROVIDER": "berget"},
-			wantErr: "onesie: ONESIE_PROFILE and ONESIE_PROVIDER are both set, and each chooses what the run uses. " +
+			wantErr: "ONESIE_PROFILE and ONESIE_PROVIDER are both set, and each chooses what the run uses. " +
 				"Unset one",
 		},
 		{
@@ -315,12 +315,12 @@ func TestResolveChoice(t *testing.T) {
 		{
 			name: "should name the profiles there are for a missing one", profiles: withDefault,
 			chosen:  choice{profile: "nope", by: "ONESIE_PROFILE"},
-			wantErr: "onesie: ONESIE_PROFILE names profile 'nope', which does not exist. The profiles are 'cf', 'work'",
+			wantErr: "ONESIE_PROFILE names profile 'nope', which does not exist. The profiles are 'cf', 'work'",
 		},
 		{
 			name: "should say there are no profiles for a missing one", profiles: empty,
 			chosen: choice{profile: "nope", by: "--profile"},
-			wantErr: "onesie: --profile names profile 'nope', which does not exist. There are no profiles. " +
+			wantErr: "--profile names profile 'nope', which does not exist. There are no profiles. " +
 				"Run onesie profile create NAME --provider PROVIDER to make one",
 		},
 		{
@@ -334,7 +334,7 @@ func TestResolveChoice(t *testing.T) {
 		},
 		{
 			name: "should name the fixes when there are profiles and no default", profiles: noDefault,
-			wantErr: "onesie: no profile is the default and nothing chose one. " +
+			wantErr: "no profile is the default and nothing chose one. " +
 				"Run onesie profile use NAME, or pass --profile NAME or --provider NAME",
 		},
 		{

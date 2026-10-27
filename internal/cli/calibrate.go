@@ -318,23 +318,23 @@ func checkCalibrate(
 	}
 
 	if !cfg.HasMap {
-		return nil, errors.New("onesie: calibrate needs --map. Without it the whole record, label included, " +
+		return nil, errors.New("calibrate needs --map. Without it the whole record, label included, " +
 			"would be the state, and the report would flatter the question")
 	}
 
 	switch calib.report {
 	case "", "auto", "table", "json":
 	default:
-		return nil, fmt.Errorf("onesie: calibrate -o takes table, json or auto, got %s", calib.report)
+		return nil, fmt.Errorf("calibrate -o takes table, json or auto, got %s", calib.report)
 	}
 
 	if cfg.PrintRequest && cmd.Flags().Changed("output") {
-		return nil, errors.New("onesie: -o does not apply to --print-request, which writes a request body")
+		return nil, errors.New("-o does not apply to --print-request, which writes a request body")
 	}
 
 	if cmd.Flags().Changed(flagCuts) {
 		if _, err := calibrate.ParseCuts(calib.cuts); err != nil {
-			return nil, fmt.Errorf("onesie: --cuts %w", err)
+			return nil, fmt.Errorf("--cuts %w", err)
 		}
 	}
 
@@ -342,18 +342,18 @@ func checkCalibrate(
 	// would then refuse as well.
 	if cfg.Resume && !cfg.HasID && !cfg.PrintRequest {
 		return nil, errors.New(
-			"onesie: calibrate resumes by id, since which records are asked follows the labels. Pass --id")
+			"calibrate resumes by id, since which records are asked follows the labels. Pass --id")
 	}
 
 	// A resume is left to plan, whose message names --resume as the flag with nothing to do.
 	if cfg.PrintRequest && cfg.Out != "" && !cfg.Resume {
-		return nil, errors.New("onesie: --print-request writes request bodies to stdout, " +
+		return nil, errors.New("--print-request writes request bodies to stdout, " +
 			"so --out has no answers to hold. Drop --out")
 	}
 
 	// A dry run is left to plan, whose message names --print-request as the reason.
 	if cfg.Usage && !cfg.PrintRequest && cfg.Out == "" && calib.report != "json" {
-		return nil, errors.New("onesie: --usage adds token counts to the answers file or the json report, " +
+		return nil, errors.New("--usage adds token counts to the answers file or the json report, " +
 			"and this run writes neither")
 	}
 
@@ -365,16 +365,16 @@ func checkOffline(cfg plan.Config, calib calibrateFlags) error {
 	case !calib.offline:
 		return nil
 	case cfg.Mock != "":
-		return fmt.Errorf("onesie: --offline reads every answer from --out, and %s answers from a file of "+
+		return fmt.Errorf("--offline reads every answer from --out, and %s answers from a file of "+
 			"its own. Drop one", cfg.Mock)
 	case cfg.PrintRequest:
-		return errors.New("onesie: --offline reads answers, and --print-request sends no request. Drop one")
+		return errors.New("--offline reads answers, and --print-request sends no request. Drop one")
 	case cfg.Out == "":
-		return errors.New("onesie: --offline reads every answer from --out. Pass --out FILE --resume")
+		return errors.New("--offline reads every answer from --out. Pass --out FILE --resume")
 	case !cfg.Resume:
-		return errors.New("onesie: --offline needs --resume, since it reads the answers --out already holds")
+		return errors.New("--offline needs --resume, since it reads the answers --out already holds")
 	case cfg.Prune:
-		return errors.New("onesie: --offline never rewrites --out, so --prune has nothing to drop. Drop one")
+		return errors.New("--offline never rewrites --out, so --prune has nothing to drop. Drop one")
 	}
 
 	return nil
@@ -404,19 +404,19 @@ func checkRefused(cmd *cobra.Command, events []argv.Event) error {
 }
 
 func refusal(reason, spelled string) error {
-	return fmt.Errorf("onesie: %s, so %s does not apply. Drop it", reason, spelled)
+	return fmt.Errorf("%s, so %s does not apply. Drop it", reason, spelled)
 }
 
 func checkCalibrateInput(cfg plan.Config, inputMode input.Mode) error {
 	if !cfg.HasInput {
-		return errors.New("onesie: calibrate needs -i jsonl, csv or tsv, since only a record has fields to label")
+		return errors.New("calibrate needs -i jsonl, csv or tsv, since only a record has fields to label")
 	}
 
 	switch inputMode {
 	case input.JSONL, input.CSV, input.TSV:
 		return nil
 	default:
-		return fmt.Errorf("onesie: calibrate needs -i jsonl, csv or tsv. -i %s carries no field to label",
+		return fmt.Errorf("calibrate needs -i jsonl, csv or tsv. -i %s carries no field to label",
 			cfg.InputName)
 	}
 }
@@ -439,7 +439,7 @@ func refuseUnlabelledBody(settings rootSettings, name string, scored *plan.Plan)
 	for _, question := range loaded.Questions {
 		labelled := slices.ContainsFunc(scored.Questions, func(q plan.Question) bool { return q.ID == question.ID })
 		if labelled && question.Shape == plan.Rate && !question.Labelled {
-			return fmt.Errorf("onesie: question '%s' from a request body has no level names to label with",
+			return fmt.Errorf("question '%s' from a request body has no level names to label with",
 				question.ID)
 		}
 	}
@@ -458,12 +458,12 @@ func scopeOf(built *plan.Plan, specs []string) (calibrateScope, error) {
 	for _, spec := range specs {
 		id, source, err := calibrate.SplitLabel(spec, ids)
 		if err != nil {
-			return calibrateScope{}, fmt.Errorf("onesie: %w", err)
+			return calibrateScope{}, err
 		}
 
 		index := slices.Index(ids, id)
 		if exprs[index] != nil {
-			return calibrateScope{}, fmt.Errorf("onesie: --label is given twice for question '%s'", id)
+			return calibrateScope{}, fmt.Errorf("--label is given twice for question '%s'", id)
 		}
 
 		exprs[index], err = exprOf(true, "--label "+id, source)
@@ -486,7 +486,7 @@ func scopeOf(built *plan.Plan, specs []string) (calibrateScope, error) {
 
 		if question.Shape == plan.Box {
 			return calibrateScope{}, fmt.Errorf(
-				"onesie: question '%s' is a box, and a box cannot be calibrated. Drop its --label", question.ID)
+				"question '%s' is a box, and a box cannot be calibrated. Drop its --label", question.ID)
 		}
 
 		scored.Questions = append(scored.Questions, question)
@@ -496,7 +496,7 @@ func scopeOf(built *plan.Plan, specs []string) (calibrateScope, error) {
 	}
 
 	if len(scope.labels) == 0 {
-		return calibrateScope{}, fmt.Errorf("onesie: question '%s' has no --label, so asking it would cost "+
+		return calibrateScope{}, fmt.Errorf("question '%s' has no --label, so asking it would cost "+
 			"requests and report nothing. Pass --label %s=EXPR", ids[0], ids[0])
 	}
 
