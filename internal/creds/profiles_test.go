@@ -253,6 +253,21 @@ func TestStoreLoadProfiles(t *testing.T) {
 			invalid:  true,
 		},
 		{
+			name:     "should read a member spelled in another case as the member it folds to",
+			contents: `{"Default":"work","PROFILES":{"work":{"Provider":"typesafe","API_KEY":"k"}}}`,
+			mode:     0o600,
+			want: creds.Profiles{Default: "work", Profiles: map[string]creds.Profile{
+				"work": {Provider: "typesafe", APIKey: "k"},
+			}},
+		},
+		{
+			name:     "should refuse a profile that is not an object",
+			contents: `{"profiles":{"work":3}}`,
+			mode:     0o600,
+			wantErr:  "is invalid. Profile 'work' has a  that is a number, not an object",
+			invalid:  true,
+		},
+		{
 			name:     "should refuse a member of the wrong type, naming the profile and the member",
 			contents: `{"profiles":{"work":{"provider":3,"api_key":"k"}}}`,
 			mode:     0o600,

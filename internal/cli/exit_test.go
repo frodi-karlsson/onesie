@@ -256,6 +256,21 @@ func TestWorthReporting(t *testing.T) {
 			name: "should stay quiet when the consumer stopped reading",
 			err:  &fs.PathError{Op: "write", Path: "/dev/stdout", Err: syscall.EPIPE},
 		},
+		{name: "should stay quiet for a record --stop-on-error stopped at", err: &stoppedError{cause: errors.New("bad")}},
+		{name: "should stay quiet for a command that printed its whole result", err: &silentError{code: ExitAuth}},
+		{name: "should stay quiet for an interrupt inside a wrapped error", err: fmt.Errorf("waiting: %w", context.Canceled)},
+		{
+			name: "should stay quiet for failed records joined to a failure closing the answers file",
+			err:  errors.Join(&recordsError{}, errors.New("closing the answers file")),
+		},
+		{
+			name: "should report a stored failure a resume stopped at",
+			err:  &storedFailure{failure: output.Failure{Kind: "input", Message: "bad"}, record: 2},
+			want: true,
+		},
+		{name: "should report a line onesie could not read", err: &input.LineError{Line: 1, Err: errors.New("x")}, want: true},
+		{name: "should report a server error", err: &onesie.APIError{Status: http.StatusBadGateway}, want: true},
+		{name: "should report a connection error", err: &onesie.ConnectionError{Err: errors.New("refused")}, want: true},
 	}
 
 	for _, tc := range tests {

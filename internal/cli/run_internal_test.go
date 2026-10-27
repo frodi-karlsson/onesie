@@ -201,6 +201,72 @@ func TestDescribe(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("should keep the kind, status and message each failure is written with", func(t *testing.T) {
+		t.Parallel()
+
+		statusOf := func(status int) *int {
+			return &status
+		}
+
+		pins := []struct {
+			cause   error
+			kind    string
+			status  *int
+			message string
+		}{
+			{cause: &input.LineError{Line: 2, Err: errors.New("not json")}, kind: "input", message: "line 2: not json"},
+			{
+				cause: &onesie.ResponseError{Status: http.StatusOK, Message: "onesie: wrong shape"},
+				kind:  "response", status: statusOf(http.StatusOK), message: "wrong shape",
+			},
+			{
+				cause: &onesie.APIError{Status: http.StatusBadRequest},
+				kind:  "http", status: statusOf(http.StatusBadRequest),
+			},
+			{
+				cause: &advisedError{cause: &onesie.APIError{Status: http.StatusPaymentRequired}, message: "onesie: 402. Add credits"},
+				kind:  "http", status: statusOf(http.StatusPaymentRequired), message: "402. Add credits",
+			},
+			{
+				cause: &onesie.RetryAfterError{APIError: onesie.APIError{Status: http.StatusServiceUnavailable}},
+				kind:  "http", status: statusOf(http.StatusServiceUnavailable),
+				message: "status 503, the server asked to retry after 0s, above the 0s cap",
+			},
+			{
+				cause: &onesie.ConnectionError{Err: errors.New("refused")},
+				kind:  "transport", message: "connection error: refused",
+			},
+			{
+				cause: &onesie.TimeoutError{Timeout: time.Second},
+				kind:  "transport", message: "request timed out after 1s",
+			},
+			{cause: context.DeadlineExceeded, kind: "transport", message: "context deadline exceeded"},
+			{cause: context.Canceled, kind: "input", message: "context canceled"},
+			{
+				cause: &onesie.ValidationError{Message: "question too long"},
+				kind:  "input", message: "question too long",
+			},
+			{cause: errors.New("boom"), kind: "input", message: "boom"},
+		}
+
+		for _, pin := range pins {
+			got := describe(pin.cause)
+
+			if got.Kind != pin.kind || !sameStatus(got.Status, pin.status) || got.Message != pin.message {
+				t.Errorf("describe(%v) = %s %v %q, want %s %v %q",
+					pin.cause, got.Kind, got.Status, got.Message, pin.kind, pin.status, pin.message)
+			}
+		}
+	})
+}
+
+func sameStatus(got, want *int) bool {
+	if got == nil || want == nil {
+		return got == want
+	}
+
+	return *got == *want
 }
 
 func TestAnswered(t *testing.T) {
