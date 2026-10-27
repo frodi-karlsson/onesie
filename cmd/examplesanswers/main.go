@@ -15,6 +15,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/frodi-karlsson/onesie/examples"
+	"github.com/frodi-karlsson/onesie/internal/answersfile"
 	"github.com/frodi-karlsson/onesie/internal/cli"
 )
 
@@ -105,7 +106,7 @@ func answer(ctx context.Context, set examples.Set, opts options, env map[string]
 	// file that does not is started afresh, and any other is resumed.
 	probe := command(opts.root, env, home, records, append(slices.Clone(args), "--resume", "--offline"),
 		io.Discard, io.Discard)
-	if probeErr := probe.ExecuteContext(ctx); !errors.Is(probeErr, cli.ErrStaleAnswers) {
+	if probeErr := probe.ExecuteContext(ctx); !errors.Is(probeErr, answersfile.ErrStaleAnswers) {
 		args = append(args, "--resume")
 	}
 

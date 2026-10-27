@@ -22,6 +22,7 @@ import (
 
 	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/examples/questions"
+	"github.com/frodi-karlsson/onesie/internal/answersfile"
 	"github.com/frodi-karlsson/onesie/internal/argv"
 	"github.com/frodi-karlsson/onesie/internal/creds"
 	"github.com/frodi-karlsson/onesie/internal/input"
@@ -183,7 +184,7 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 			out, resume, err := openOut(settings, *flags, false)
 
 			defer func() {
-				err = errors.Join(err, prefixed(out.release()))
+				err = errors.Join(err, prefixed(out.Release()))
 			}()
 
 			if err != nil {
@@ -198,7 +199,7 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 
 			runErr := run(cmd, settings, recorder.Events(), positional, flags, out, resume)
 
-			return errors.Join(runErr, prefixed(out.finish(runErr)))
+			return errors.Join(runErr, prefixed(out.Finish(runErr)))
 		},
 	}
 
@@ -311,22 +312,22 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 	return root
 }
 
-func openOut(settings rootSettings, flags runFlags, readOnly bool) (*outFile, resumePlan, error) {
-	return openOutFile(outOptions{
-		openFile: settings.openFile,
-		stat:     settings.stat,
-		rename:   settings.rename,
-		remove:   settings.remove,
-		resolve:  settings.resolve,
-		readlink: settings.readlink,
-		lock:     settings.lock,
-		goos:     settings.goos,
-	}, outConfig{
-		path:     flags.out,
-		resume:   flags.resume,
-		output:   flags.output,
-		byID:     resumesByID(flags),
-		readOnly: readOnly,
+func openOut(settings rootSettings, flags runFlags, readOnly bool) (*answersfile.File, answersfile.Resume, error) {
+	return answersfile.Open(answersfile.Options{
+		OpenFile: settings.openFile,
+		Stat:     settings.stat,
+		Rename:   settings.rename,
+		Remove:   settings.remove,
+		Resolve:  settings.resolve,
+		Readlink: settings.readlink,
+		Lock:     settings.lock,
+		GOOS:     settings.goos,
+	}, answersfile.Config{
+		Path:     flags.out,
+		Resume:   flags.resume,
+		Output:   flags.output,
+		ByID:     resumesByID(flags),
+		ReadOnly: readOnly,
 	})
 }
 

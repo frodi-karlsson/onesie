@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/frodi-karlsson/onesie/internal/answersfile"
 	"github.com/frodi-karlsson/onesie/internal/engine"
 	"github.com/frodi-karlsson/onesie/internal/input"
 	"github.com/frodi-karlsson/onesie/internal/jq"
@@ -19,8 +20,8 @@ func records(
 	inputMode input.Mode,
 	flags runConfig,
 	namer *jq.Expr,
-	book *ledger,
-	resume resumePlan,
+	book *answersfile.Ledger,
+	resume answersfile.Resume,
 	outputMode output.Mode,
 ) *naming {
 	stream := input.NewStream(settings.stdin, inputMode, flags.skipBlank)
@@ -33,7 +34,7 @@ func records(
 		ctx:  ctx,
 		stop: stop,
 		source: &resumed{
-			source: stream, left: resume.skip, stored: resume.stored,
+			source: stream, left: resume.Skip, stored: resume.Stored,
 			haltOnAssert: flags.stopOnAssert, haltOnError: flags.stopOnError, table: tableName(outputMode, flags),
 		},
 		namer: namer,
@@ -48,8 +49,8 @@ type resumed struct {
 	mu              sync.Mutex
 	source          engine.Source[input.Record]
 	left            int
-	stored          []verdict
-	skips           tally
+	stored          []answersfile.Verdict
+	skips           answersfile.Tally
 	haltOnAssert    bool
 	haltOnError     bool
 	halted          bool
@@ -77,11 +78,11 @@ func (r *resumed) Next() (input.Record, bool, error) {
 		// A fresh run under --stop-on-assert or --stop-on-error would have stopped at this record,
 		// so nothing after it is read.
 		judged := r.count()
-		stopsOnError := judged.failure != nil && r.haltOnError
-		r.halted = (judged.rejected && r.haltOnAssert) || stopsOnError
+		stopsOnError := judged.Failure != nil && r.haltOnError
+		r.halted = (judged.Rejected && r.haltOnAssert) || stopsOnError
 
 		if stopsOnError {
-			r.stop(judged.failure)
+			r.stop(judged.Failure)
 		}
 	}
 
@@ -92,16 +93,16 @@ func (r *resumed) Next() (input.Record, bool, error) {
 	return r.source.Next()
 }
 
-func (r *resumed) count() verdict {
+func (r *resumed) count() answersfile.Verdict {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	var judged verdict
-	if at := r.skips.records; at < len(r.stored) {
+	var judged answersfile.Verdict
+	if at := r.skips.Records; at < len(r.stored) {
 		judged = r.stored[at]
 	}
 
-	r.skips.count(judged)
+	r.skips.Count(judged)
 
 	return judged
 }
@@ -111,7 +112,7 @@ func (r *resumed) stop(failure *output.Failure) {
 	defer r.mu.Unlock()
 
 	r.stoppedBy = failure
-	r.stoppedAtRecord = r.skips.records
+	r.stoppedAtRecord = r.skips.Records
 }
 
 func (r *resumed) freshRunAbort() error {
@@ -131,7 +132,7 @@ func (r *resumed) freshRunAbort() error {
 	return &storedFailure{failure: *r.stoppedBy, record: r.stoppedAtRecord}
 }
 
-func (r *resumed) skipped() tally {
+func (r *resumed) skipped() answersfile.Tally {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -150,7 +151,7 @@ type naming struct {
 	stop   context.CancelFunc
 	source *resumed
 	namer  *jq.Expr
-	book   *ledger
+	book   *answersfile.Ledger
 	mode   output.Mode
 	seen   map[[sha256.Size]byte]int
 	halt   bool
@@ -162,7 +163,7 @@ func (n *naming) Next() (namedRecord, bool, error) {
 		rec, ok, err := n.source.Next()
 		if err != nil || !ok {
 			if err == nil && n.book != nil {
-				n.book.end()
+				n.book.End()
 			}
 
 			return namedRecord{Record: rec}, ok, err
@@ -175,7 +176,7 @@ func (n *naming) Next() (namedRecord, bool, error) {
 		}
 
 		// Skipped here, as the record is read, so an answered record is never evaluated or sent.
-		slot, judged, answered := n.book.admit(named.id)
+		slot, judged, answered := n.book.Admit(named.id)
 		named.slot = slot
 
 		if !answered {
@@ -183,15 +184,15 @@ func (n *naming) Next() (namedRecord, bool, error) {
 		}
 
 		// The ledger is left unended, so a stopped run is not compacted, as a fresh one is not.
-		n.halted = judged.rejected && n.halt
+		n.halted = judged.Rejected && n.halt
 	}
 
 	return namedRecord{}, false, nil
 }
 
-func (n *naming) skipped() tally {
+func (n *naming) skipped() answersfile.Tally {
 	if n.book != nil {
-		return n.book.skipped()
+		return n.book.Skipped()
 	}
 
 	return n.source.skipped()

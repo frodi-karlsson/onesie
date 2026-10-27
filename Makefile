@@ -46,7 +46,7 @@ FUZZ_TARGETS := \
 	./internal/jq/:FuzzID \
 	./internal/cli/:FuzzPrintQuestions \
 	./internal/cli/:FuzzPrintQuestionsJSON \
-	./internal/cli/:FuzzLineVerdict \
+	./internal/answersfile/:FuzzLineVerdict \
 	./internal/release/:FuzzParseTag \
 	./internal/mock/:FuzzLoad \
 	./internal/cache/:FuzzDecodeEntry

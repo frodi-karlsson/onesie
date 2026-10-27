@@ -1,6 +1,6 @@
 //go:build !(darwin || linux || freebsd || netbsd || openbsd || dragonfly || windows || aix || solaris)
 
-package cli
+package answersfile
 
 import (
 	"errors"

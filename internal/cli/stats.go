@@ -14,6 +14,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/frodi-karlsson/onesie-go"
+	"github.com/frodi-karlsson/onesie/internal/answersfile"
 	"github.com/frodi-karlsson/onesie/internal/output"
 )
 
@@ -265,14 +266,14 @@ func (c *collector) sentImages() bool {
 	return c.images
 }
 
-func (c *collector) skip(skips tally) {
+func (c *collector) skip(skips answersfile.Tally) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	c.skipped += skips.records
-	c.failed += skips.failed
-	c.falseAsserts += skips.rejected
-	c.abstainCount += skips.abstained
+	c.skipped += skips.Records
+	c.failed += skips.Failed
+	c.falseAsserts += skips.Rejected
+	c.abstainCount += skips.Abstained
 }
 
 func (c *collector) assertFailed() {

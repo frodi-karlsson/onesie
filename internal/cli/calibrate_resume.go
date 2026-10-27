@@ -6,18 +6,19 @@ import (
 
 	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/answer"
+	"github.com/frodi-karlsson/onesie/internal/answersfile"
 	"github.com/frodi-karlsson/onesie/internal/jq"
 	"github.com/frodi-karlsson/onesie/internal/output"
 	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
 func resumeLabelled(
-	ctx context.Context, out *outFile, flags runConfig, namer *jq.Expr, built *plan.Plan, set labelledSet,
+	ctx context.Context, out *answersfile.File, flags runConfig, namer *jq.Expr, built *plan.Plan, set labelledSet,
 ) (resumedSet, error) {
 	resumed := resumedSet{pending: set.records, answered: make([]output.Record, len(set.records))}
 
-	book, err := resumeLedger(ctx, out, answersFormat{
-		mode: output.JSON, merge: merging(flags), mergeKey: mergeKey(flags), namer: namer,
+	book, err := answersfile.ResumeLedger(ctx, out, answersfile.Format{
+		Mode: output.JSON, Merge: merging(flags), MergeKey: mergeKey(flags), Namer: namer,
 	})
 	if err != nil || book == nil {
 		return resumed, err
@@ -26,7 +27,7 @@ func resumeLabelled(
 	var found []storedLine
 
 	for i, rec := range set.records {
-		if at, ok := book.storedAt(rec.id); ok {
+		if at, ok := book.StoredAt(rec.id); ok {
 			found = append(found, storedLine{index: i, at: at})
 		}
 	}
@@ -42,7 +43,7 @@ func resumeLabelled(
 		// A line the scorers cannot use answers nothing, so its record is asked again, as a stored
 		// error line is, and the report and the exit code count only the new outcome.
 		if _, caseErr := casesOf(built, rec, stored.record); caseErr != nil {
-			book.forget(rec.id)
+			book.Forget(rec.id)
 
 			continue
 		}
@@ -55,13 +56,13 @@ func resumeLabelled(
 
 	for _, entry := range set.inputs {
 		if entry.record < 0 {
-			book.keep(entry.id)
+			book.Keep(entry.id)
 
 			continue
 		}
 
 		rec := &set.records[entry.record]
-		slot, _, known := book.admit(rec.id)
+		slot, _, known := book.Admit(rec.id)
 		rec.slot = slot
 
 		if known {
@@ -71,13 +72,13 @@ func resumeLabelled(
 		}
 	}
 
-	book.end()
+	book.End()
 
 	return resumed, nil
 }
 
 type resumedSet struct {
-	book     *ledger
+	book     *answersfile.Ledger
 	pending  []labelledRecord
 	answered []output.Record
 	stored   int
@@ -85,17 +86,17 @@ type resumedSet struct {
 
 type storedLine struct {
 	index  int
-	at     span
+	at     answersfile.Span
 	record output.Record
 }
 
-func storedAnswers(ctx context.Context, out *outFile, lines []storedLine, built *plan.Plan) error {
-	spans := make([]span, len(lines))
+func storedAnswers(ctx context.Context, out *answersfile.File, lines []storedLine, built *plan.Plan) error {
+	spans := make([]answersfile.Span, len(lines))
 	for i, stored := range lines {
 		spans[i] = stored.at
 	}
 
-	return out.readSpans(ctx, spans, func(i int, text []byte) {
+	return out.ReadSpans(ctx, spans, func(i int, text []byte) {
 		lines[i].record = storedRecord(built, text)
 	})
 }

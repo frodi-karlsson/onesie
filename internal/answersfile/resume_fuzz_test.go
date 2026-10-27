@@ -1,4 +1,4 @@
-package cli
+package answersfile
 
 import (
 	"bytes"
@@ -19,7 +19,7 @@ func FuzzLineVerdict(f *testing.F) {
 
 	f.Fuzz(func(t *testing.T, kind, message string, status int, hasStatus bool, outcome uint8, id string, line []byte) {
 		rec := writtenRecord(kind, message, status, hasStatus, outcome, id)
-		want := verdict{rejected: rec.AssertFailed, abstained: rec.Abstained, failure: rec.Failure}
+		want := Verdict{Rejected: rec.AssertFailed, Abstained: rec.Abstained, Failure: rec.Failure}
 
 		for _, mode := range []output.Mode{output.JSON, output.Values} {
 			var written bytes.Buffer
@@ -27,7 +27,7 @@ func FuzzLineVerdict(f *testing.F) {
 				t.Fatalf("writing %+v: %v", rec, err)
 			}
 
-			got := onlyVerdict(t, answersFormat{mode: output.JSON, gated: true}, written.Bytes())
+			got := onlyVerdict(t, Format{Mode: output.JSON, Gated: true}, written.Bytes())
 			if !sameVerdict(got, want, true) {
 				t.Fatalf("-o %v line %q reads back as %+v, want %+v", mode, written.Bytes(), got, want)
 			}
@@ -43,7 +43,7 @@ func FuzzLineVerdict(f *testing.F) {
 				t.Fatalf("writing %+v: %v", rec, err)
 			}
 
-			got := onlyVerdict(t, answersFormat{mode: mode, gated: true}, written.Bytes())
+			got := onlyVerdict(t, Format{Mode: mode, Gated: true}, written.Bytes())
 			if !sameVerdict(got, want, false) {
 				t.Fatalf("-o %v rows %q read back as %+v, want %+v", mode, written.Bytes(), got, want)
 			}
@@ -62,8 +62,8 @@ func FuzzLineVerdict(f *testing.F) {
 				line, got, output.EncodeFailure(got))
 		}
 
-		answersFormat{mode: output.JSON, gated: true}.lineVerdict(line)
-		answersFormat{mode: output.JSON, gated: true, merge: true, mergeKey: "answers"}.lineVerdict(line)
+		Format{Mode: output.JSON, Gated: true}.lineVerdict(line)
+		Format{Mode: output.JSON, Gated: true, Merge: true, MergeKey: "answers"}.lineVerdict(line)
 	})
 }
 
@@ -92,12 +92,12 @@ func writtenRecord(kind, message string, status int, hasStatus bool, outcome uin
 	return rec
 }
 
-func onlyVerdict(t *testing.T, format answersFormat, written []byte) verdict {
+func onlyVerdict(t *testing.T, format Format, written []byte) Verdict {
 	t.Helper()
 
-	var judged []verdict
+	var judged []Verdict
 
-	if err := format.eachVerdict(bytes.NewReader(written), func(_ span, stored verdict) {
+	if err := format.eachVerdict(bytes.NewReader(written), func(_ Span, stored Verdict) {
 		judged = append(judged, stored)
 	}); err != nil {
 		t.Fatalf("reading %q back: %v", written, err)
@@ -110,13 +110,13 @@ func onlyVerdict(t *testing.T, format answersFormat, written []byte) verdict {
 	return judged[0]
 }
 
-func sameVerdict(got, want verdict, whole bool) bool {
-	if got.rejected != want.rejected || got.abstained != want.abstained || (got.failure == nil) != (want.failure == nil) {
+func sameVerdict(got, want Verdict, whole bool) bool {
+	if got.Rejected != want.Rejected || got.Abstained != want.Abstained || (got.Failure == nil) != (want.Failure == nil) {
 		return false
 	}
 
 	// A row keeps only the message of a failure, so only a line is held to all of it.
-	return !whole || got.failure == nil || sameFailure(got.failure, want.failure)
+	return !whole || got.Failure == nil || sameFailure(got.Failure, want.Failure)
 }
 
 func sameFailure(got, want *output.Failure) bool {

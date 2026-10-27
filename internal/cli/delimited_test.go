@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/frodi-karlsson/onesie-go"
+	"github.com/frodi-karlsson/onesie/internal/answersfile"
 	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
@@ -178,8 +179,8 @@ func TestDelimited(t *testing.T) {
 			t.Fatalf("writing the existing file: %v", err)
 		}
 
-		fingerprint := fingerprintWith(t, plan.Source{Positional: "is this urgent"}, fingerprintInputs{
-			provider: "typesafe", model: onesie.DefaultModel, output: "csv", input: "csv", mergeKey: "answers",
+		fingerprint := fingerprintWith(t, plan.Source{Positional: "is this urgent"}, answersfile.FingerprintInputs{
+			Provider: "typesafe", Model: onesie.DefaultModel, Output: "csv", Input: "csv", MergeKey: "answers",
 		}) + "\n"
 		if err := os.WriteFile(path+".onesie", []byte(fingerprint), 0o600); err != nil {
 			t.Fatalf("writing the existing fingerprint: %v", err)
