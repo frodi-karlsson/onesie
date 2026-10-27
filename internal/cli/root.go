@@ -313,7 +313,7 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 }
 
 func openOut(settings rootSettings, flags runFlags, readOnly bool) (*answersfile.File, answersfile.Resume, error) {
-	return answersfile.Open(answersfile.Options{
+	out, resume, err := answersfile.Open(answersfile.Options{
 		OpenFile: settings.openFile,
 		Stat:     settings.stat,
 		Rename:   settings.rename,
@@ -329,6 +329,30 @@ func openOut(settings rootSettings, flags runFlags, readOnly bool) (*answersfile
 		ByID:     resumesByID(flags),
 		ReadOnly: readOnly,
 	})
+
+	return out, resume, wordAnswersError(err)
+}
+
+func wordAnswersError(err error) error {
+	var (
+		notRegular *answersfile.NotRegularError
+		directory  *answersfile.DirectoryError
+		stale      *answersfile.StaleAnswersError
+	)
+
+	switch {
+	case errors.As(err, &notRegular):
+		return &plainError{cause: err, message: fmt.Sprintf(
+			"--resume needs --out to name a regular file, and %s is not one", notRegular.Path)}
+	case errors.As(err, &directory):
+		return &plainError{cause: err, message: fmt.Sprintf("--out %s is a directory", directory.Path)}
+	case errors.As(err, &stale) && stale.Reason == answersfile.OlderColumns:
+		return &plainError{cause: err, message: err.Error() + ". Regenerate it without --resume, or write to a new --out"}
+	case errors.As(err, &stale), errors.Is(err, answersfile.ErrNoLock):
+		return &plainError{cause: err, message: err.Error() + ". Drop --resume to start over"}
+	default:
+		return err
+	}
 }
 
 func defaultSettings(info BuildInfo) rootSettings {

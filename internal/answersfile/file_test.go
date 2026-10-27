@@ -15,6 +15,70 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/output"
 )
 
+func TestOpen(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		path   func(t *testing.T) string
+		resume bool
+		check  func(t *testing.T, path string, err error)
+	}{
+		{
+			name:   "should refuse to resume from a file that is not regular, naming it and no flag",
+			path:   func(*testing.T) string { return "/dev/null" },
+			resume: true,
+			check: func(t *testing.T, path string, err error) {
+				t.Helper()
+
+				var notRegular *NotRegularError
+				if !errors.As(err, &notRegular) || notRegular.Path != path || err.Error() != path+" is not a regular file" {
+					t.Errorf("error = %v, want a NotRegularError naming %s", err, path)
+				}
+			},
+		},
+		{
+			name: "should refuse a directory, naming its target and no flag",
+			path: func(t *testing.T) string {
+				t.Helper()
+
+				dir, err := filepath.EvalSymlinks(t.TempDir())
+				if err != nil {
+					t.Fatal(err)
+				}
+
+				return dir
+			},
+			check: func(t *testing.T, path string, err error) {
+				t.Helper()
+
+				var directory *DirectoryError
+				if !errors.As(err, &directory) || directory.Path != path || err.Error() != path+" is a directory" {
+					t.Errorf("error = %v, want a DirectoryError naming %s", err, path)
+				}
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			path := tc.path(t)
+			if runtime.GOOS == "windows" && strings.HasPrefix(path, "/dev/") {
+				t.Skip("windows has no /dev")
+			}
+
+			out, _, err := Open(Options{}, Config{Path: path, Resume: tc.resume})
+			if out != nil {
+				t.Errorf("file = %v, want none", out)
+			}
+
+			tc.check(t, path, err)
+		})
+	}
+}
+
 func TestResolveTarget(t *testing.T) {
 	t.Parallel()
 
@@ -141,6 +205,12 @@ func TestFile_Lock(t *testing.T) {
 			lockErr: refused,
 			wantErr: "operation not supported",
 		},
+		{
+			name:    "should refuse a resume on a platform with no file lock, naming no flag",
+			resume:  true,
+			lockErr: ErrNoLock,
+			wantErr: "locking link.jsonl: onesie has no file lock on this platform, so it cannot keep another run out of the file",
+		},
 	}
 
 	for _, tc := range tests {
@@ -161,6 +231,10 @@ func TestFile_Lock(t *testing.T) {
 			}, tc.resume)
 			if !strings.Contains(fmt.Sprint(err), tc.wantErr) || (tc.wantErr == "") != (err == nil) {
 				t.Fatalf("error = %v, want %q", err, tc.wantErr)
+			}
+
+			if strings.Contains(fmt.Sprint(err), "--") {
+				t.Errorf("error = %v, want one naming no flag", err)
 			}
 
 			if took != "answers.jsonl" {
@@ -470,7 +544,7 @@ func TestSpecialFile(t *testing.T) {
 		goos    string
 		stat    func(string) (fs.FileInfo, error)
 		want    bool
-		wantErr bool
+		wantDir string
 	}{
 		{name: "should treat a regular file as regular", target: "answers.jsonl", goos: "linux", stat: regular},
 		{name: "should treat a file not written yet as regular", target: "answers.jsonl", goos: "linux", stat: missing},
@@ -478,7 +552,7 @@ func TestSpecialFile(t *testing.T) {
 			name:   "should treat a descriptor under /dev as special when it stats as a regular file",
 			target: "/dev/fd/1", goos: "darwin", stat: regular, want: true,
 		},
-		{name: "should refuse a directory", target: "out", goos: "linux", stat: directory, wantErr: true},
+		{name: "should refuse a directory, naming it and no flag", target: "out", goos: "linux", stat: directory, wantDir: "out"},
 	}
 
 	for _, tc := range tests {
@@ -486,8 +560,14 @@ func TestSpecialFile(t *testing.T) {
 			t.Parallel()
 
 			got, err := specialFile(tc.target, tc.goos, tc.stat)
-			if (err != nil) != tc.wantErr {
-				t.Fatalf("error = %v, want an error %v", err, tc.wantErr)
+
+			var directory *DirectoryError
+			if errors.As(err, &directory) != (tc.wantDir != "") || (err != nil) != (tc.wantDir != "") {
+				t.Fatalf("error = %v, want a DirectoryError %v", err, tc.wantDir != "")
+			}
+
+			if directory != nil && (directory.Path != tc.wantDir || err.Error() != tc.wantDir+" is a directory") {
+				t.Errorf("error = %q naming %q, want %q naming %q", err, directory.Path, tc.wantDir+" is a directory", tc.wantDir)
 			}
 
 			if got != tc.want {
@@ -503,16 +583,39 @@ func TestFile_CheckFingerprint(t *testing.T) {
 	current := "v2:" + strings.Repeat("ab", 32)
 
 	tests := []struct {
-		name     string
-		sidecar  *string
-		checking string
-		wantErr  string
+		name       string
+		sidecar    *string
+		older      string
+		checking   string
+		wantReason StaleReason
+		wantErr    string
 	}{
-		{name: "should refuse a file with no sidecar", checking: current, wantErr: "has no fingerprint beside it"},
-		{name: "should refuse a sidecar onesie did not write", sidecar: new("hello"), checking: current, wantErr: "does not hold a fingerprint onesie wrote"},
-		{name: "should refuse an older version", sidecar: new("v1:abc"), checking: current, wantErr: "an older onesie wrote"},
-		{name: "should refuse a newer version", sidecar: new("v3:abc"), checking: current, wantErr: "a newer onesie wrote"},
-		{name: "should refuse a changed fingerprint", sidecar: new(current), checking: "v2:" + strings.Repeat("cd", 32), wantErr: "changed since"},
+		{
+			name: "should refuse a file with no sidecar", checking: current, wantReason: NoFingerprint,
+			wantErr: "A has no fingerprint beside it, so onesie cannot tell which run wrote it",
+		},
+		{
+			name: "should refuse a sidecar onesie did not write", sidecar: new("hello"), checking: current,
+			wantReason: ForeignFingerprint,
+			wantErr:    "A.onesie does not hold a fingerprint onesie wrote, so onesie cannot tell which run wrote A",
+		},
+		{
+			name: "should refuse an older version", sidecar: new("v1:abc"), checking: current, wantReason: OlderFingerprint,
+			wantErr: "an older onesie wrote A.onesie, so this one cannot tell which run wrote A",
+		},
+		{
+			name: "should refuse a newer version", sidecar: new("v3:abc"), checking: current, wantReason: NewerFingerprint,
+			wantErr: "a newer onesie wrote A.onesie, so this one cannot tell which run wrote A",
+		},
+		{
+			name: "should refuse a file written without the fallback columns", sidecar: new(current),
+			older: current, checking: "v2:" + strings.Repeat("cd", 32), wantReason: OlderColumns,
+			wantErr: "A was written by an older onesie, without the fallback columns this run adds",
+		},
+		{
+			name: "should refuse a changed fingerprint", sidecar: new(current), checking: "v2:" + strings.Repeat("cd", 32),
+			wantReason: ChangedRun, wantErr: "the questions, flags or gate changed since A was written",
+		},
 		{name: "should accept the same fingerprint", sidecar: new(current), checking: current},
 	}
 
@@ -531,7 +634,7 @@ func TestFile_CheckFingerprint(t *testing.T) {
 				}
 			}
 
-			out := &File{path: path, target: path, open: os.OpenFile}
+			out := &File{path: path, target: path, open: os.OpenFile, olderColumns: tc.older}
 
 			matched, err := out.checkFingerprint(tc.checking)
 			if tc.wantErr == "" {
@@ -542,12 +645,17 @@ func TestFile_CheckFingerprint(t *testing.T) {
 				return
 			}
 
-			if err == nil || !strings.Contains(err.Error(), tc.wantErr) || !errors.Is(err, ErrStaleAnswers) {
-				t.Fatalf("checkFingerprint error = %v, want one containing %q that is ErrStaleAnswers", err, tc.wantErr)
+			var stale *StaleAnswersError
+			if !errors.As(err, &stale) || !errors.Is(err, ErrStaleAnswers) {
+				t.Fatalf("checkFingerprint error = %v, want a StaleAnswersError that is ErrStaleAnswers", err)
 			}
 
-			if strings.Contains(err.Error(), ErrStaleAnswers.Error()) {
-				t.Errorf("error = %q, want today's wording without the sentinel's text", err)
+			if want := strings.ReplaceAll(tc.wantErr, "A", path); err.Error() != want {
+				t.Errorf("error = %q, want %q", err, want)
+			}
+
+			if stale.Reason != tc.wantReason || stale.Path != path || stale.Sidecar != path+fingerprintSuffix {
+				t.Errorf("stale = %+v, want reason %v for %s", stale, tc.wantReason, path)
 			}
 		})
 	}

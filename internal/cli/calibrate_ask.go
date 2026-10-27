@@ -146,11 +146,8 @@ func calibrateAnswers(
 
 	bindErr := bindOut(out, settings, flags, run.asked.Questions, run.inputs)
 	if stale := (*answersfile.StaleAnswersError)(nil); calib.offline && errors.As(bindErr, &stale) {
-		return &answersfile.StaleAnswersError{
-			Message: fmt.Sprintf("%s does not match this run, since %s, so "+
-				"--offline cannot read it. Rerun without --offline and --resume to regenerate it", flags.out, stale.Cause),
-			Cause: stale.Cause,
-		}
+		return &plainError{cause: bindErr, message: fmt.Sprintf("%s does not match this run, since %s, so "+
+			"--offline cannot read it. Rerun without --offline and --resume to regenerate it", flags.out, stale.Cause())}
 	}
 
 	if bindErr != nil {

@@ -338,7 +338,7 @@ func bindOut(
 		return err
 	}
 
-	return out.Bind(questions, wireAll(questions), inputs)
+	return wordAnswersError(out.Bind(questions, wireAll(questions), inputs))
 }
 
 func outFingerprint(

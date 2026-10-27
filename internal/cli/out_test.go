@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -1111,4 +1112,99 @@ func TestBindOut(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestWordAnswersError(t *testing.T) {
+	t.Parallel()
+
+	stale := func(reason answersfile.StaleReason) error {
+		return &answersfile.StaleAnswersError{Path: "a.jsonl", Sidecar: "a.jsonl.onesie", Reason: reason}
+	}
+	other := errors.New("reading a.jsonl to resume: input/output error")
+
+	tests := []struct {
+		name string
+		err  error
+		want string
+	}{
+		{
+			name: "should name --resume and --out for a file that is not regular",
+			err:  &answersfile.NotRegularError{Path: "/dev/null"},
+			want: "--resume needs --out to name a regular file, and /dev/null is not one",
+		},
+		{
+			name: "should name --out for a directory",
+			err:  &answersfile.DirectoryError{Path: "/tmp/out"},
+			want: "--out /tmp/out is a directory",
+		},
+		{
+			name: "should advise dropping --resume for a file with no fingerprint",
+			err:  stale(answersfile.NoFingerprint),
+			want: "a.jsonl has no fingerprint beside it, so onesie cannot tell which run wrote it. " +
+				"Drop --resume to start over",
+		},
+		{
+			name: "should advise dropping --resume for a fingerprint onesie did not write",
+			err:  stale(answersfile.ForeignFingerprint),
+			want: "a.jsonl.onesie does not hold a fingerprint onesie wrote, so onesie cannot tell which run " +
+				"wrote a.jsonl. Drop --resume to start over",
+		},
+		{
+			name: "should advise dropping --resume for an older fingerprint",
+			err:  stale(answersfile.OlderFingerprint),
+			want: "an older onesie wrote a.jsonl.onesie, so this one cannot tell which run wrote a.jsonl. " +
+				"Drop --resume to start over",
+		},
+		{
+			name: "should advise dropping --resume for a newer fingerprint",
+			err:  stale(answersfile.NewerFingerprint),
+			want: "a newer onesie wrote a.jsonl.onesie, so this one cannot tell which run wrote a.jsonl. " +
+				"Drop --resume to start over",
+		},
+		{
+			name: "should advise regenerating a file written without the fallback columns",
+			err:  stale(answersfile.OlderColumns),
+			want: "a.jsonl was written by an older onesie, without the fallback columns this run adds. " +
+				"Regenerate it without --resume, or write to a new --out",
+		},
+		{
+			name: "should advise dropping --resume for a changed run",
+			err:  stale(answersfile.ChangedRun),
+			want: "the questions, flags or gate changed since a.jsonl was written. Drop --resume to start over",
+		},
+		{
+			name: "should advise dropping --resume on a platform with no file lock",
+			err:  fmt.Errorf("locking a.jsonl: %w", answersfile.ErrNoLock),
+			want: "locking a.jsonl: onesie has no file lock on this platform, so it cannot keep another run " +
+				"out of the file. Drop --resume to start over",
+		},
+		{
+			name: "should keep any other error as it is",
+			err:  other,
+			want: other.Error(),
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := wordAnswersError(tc.err)
+			if got.Error() != tc.want {
+				t.Errorf("error = %q, want %q", got, tc.want)
+			}
+
+			if !errors.Is(got, tc.err) {
+				t.Errorf("error = %v, want one wrapping %v", got, tc.err)
+			}
+		})
+	}
+
+	t.Run("should keep no error as none", func(t *testing.T) {
+		t.Parallel()
+
+		if got := wordAnswersError(nil); got != nil {
+			t.Errorf("error = %v, want nil", got)
+		}
+	})
 }

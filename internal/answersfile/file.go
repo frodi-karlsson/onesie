@@ -1,4 +1,4 @@
-// Package answersfile opens, locks, resumes and compacts the answers file a run writes with --out.
+// Package answersfile opens, locks, resumes and compacts the file a run writes its answers to.
 package answersfile
 
 import (
@@ -32,11 +32,24 @@ const (
 	maxLinks           = 40
 )
 
+// The reasons a StaleAnswersError gives for refusing a file.
+const (
+	NoFingerprint StaleReason = iota
+	ForeignFingerprint
+	OlderFingerprint
+	NewerFingerprint
+	OlderColumns
+	ChangedRun
+)
+
 var (
 	errLinkLoop = errors.New("too many levels of symbolic links")
-	// ErrStaleAnswers matches the refusal of an --out file whose fingerprint does not match the run,
-	// so a caller of the root command can tell it apart without reading the message.
+	// ErrStaleAnswers matches every StaleAnswersError, so a caller tells a stale file apart without
+	// reading the message.
 	ErrStaleAnswers = errors.New("stale answers")
+	// ErrNoLock refuses a resume on a platform with no file lock.
+	ErrNoLock = errors.New("onesie has no file lock on this platform, so it cannot keep another run " +
+		"out of the file")
 )
 
 // Open resolves and locks the answers file at config.Path and reads what a resume skips. When an
@@ -79,8 +92,7 @@ func Open(opts Options, config Config) (*File, Resume, error) {
 	// A device or a pipe has no answers another run could lose, so it takes no lock.
 	if special {
 		if config.Resume {
-			return nil, Resume{}, fmt.Errorf(
-				"--resume needs --out to name a regular file, and %s is not one", config.Path)
+			return nil, Resume{}, &NotRegularError{Path: config.Path}
 		}
 
 		return out, Resume{}, nil
@@ -207,6 +219,16 @@ type Resume struct {
 	Stored []Verdict
 }
 
+// NotRegularError refuses to resume from a device or a pipe, which holds no answers to read back.
+type NotRegularError struct {
+	Path string
+}
+
+// Error names the file.
+func (e *NotRegularError) Error() string {
+	return e.Path + " is not a regular file"
+}
+
 func specialFile(target, goos string, stat func(string) (fs.FileInfo, error)) (bool, error) {
 	// macOS resolves /dev/stdout to /dev/fd/1, which stats as the regular file stdout was redirected
 	// to, and nothing can be written beside it.
@@ -217,10 +239,20 @@ func specialFile(target, goos string, stat func(string) (fs.FileInfo, error)) (b
 	// A path that cannot be stated is left to the write probe, which names the real failure.
 	info, statErr := stat(target)
 	if statErr == nil && info.IsDir() {
-		return false, fmt.Errorf("--out %s is a directory", target)
+		return false, &DirectoryError{Path: target}
 	}
 
 	return statErr == nil && !info.Mode().IsRegular(), nil
+}
+
+// DirectoryError refuses a path that names a directory.
+type DirectoryError struct {
+	Path string
+}
+
+// Error names the directory.
+func (e *DirectoryError) Error() string {
+	return e.Path + " is a directory"
 }
 
 func resolveTarget(
@@ -675,37 +707,9 @@ func (o *File) checkFingerprint(fingerprint string) (matched bool, err error) {
 		return false, err
 	}
 
-	sidecar := o.target + fingerprintSuffix
-
-	if !found {
-		return false, staleAnswers("it has no fingerprint beside it",
-			"%s has no fingerprint beside it, so onesie cannot tell which run wrote it. "+
-				"Drop --resume to start over", o.path)
-	}
-
-	version, ok := fingerprintVersionOf(stored)
-
-	switch {
-	case !ok:
-		return false, staleAnswers("onesie did not write its fingerprint",
-			"%s does not hold a fingerprint onesie wrote, so onesie cannot tell which run "+
-				"wrote %s. Drop --resume to start over", sidecar, o.path)
-	case version < fingerprintVersion:
-		return false, staleAnswers("an older onesie wrote its fingerprint",
-			"an older onesie wrote %s, so this one cannot tell which run wrote %s. "+
-				"Drop --resume to start over", sidecar, o.path)
-	case version > fingerprintVersion:
-		return false, staleAnswers("a newer onesie wrote its fingerprint",
-			"a newer onesie wrote %s, so this one cannot tell which run wrote %s. "+
-				"Drop --resume to start over", sidecar, o.path)
-	case o.olderColumns != "" && stored == o.olderColumns:
-		return false, staleAnswers("an older onesie wrote its columns",
-			"%s was written by an older onesie, without the fallback columns this run adds. "+
-				"Regenerate it without --resume, or write to a new --out", o.path)
-	case stored != fingerprint:
-		return false, staleAnswers("the questions, model or flags changed since it was written",
-			"the questions, flags or gate changed since %s was written. "+
-				"Drop --resume to start over", o.path)
+	reason, stale := staleReason(stored, found, fingerprint, o.olderColumns)
+	if stale {
+		return false, &StaleAnswersError{Path: o.path, Sidecar: o.target + fingerprintSuffix, Reason: reason}
 	}
 
 	return true, nil
@@ -722,20 +726,74 @@ func (o *File) StoredFingerprint() (stored string, found bool, err error) {
 	return o.readFingerprint()
 }
 
-func staleAnswers(cause, format string, args ...any) error {
-	// Not %w, which would add the sentinel's own text to a message people already read.
-	return &StaleAnswersError{Message: fmt.Sprintf(format, args...), Cause: cause}
+func staleReason(stored string, found bool, fingerprint, olderColumns string) (StaleReason, bool) {
+	if !found {
+		return NoFingerprint, true
+	}
+
+	version, ok := fingerprintVersionOf(stored)
+
+	switch {
+	case !ok:
+		return ForeignFingerprint, true
+	case version < fingerprintVersion:
+		return OlderFingerprint, true
+	case version > fingerprintVersion:
+		return NewerFingerprint, true
+	case olderColumns != "" && stored == olderColumns:
+		return OlderColumns, true
+	case stored != fingerprint:
+		return ChangedRun, true
+	}
+
+	return 0, false
 }
 
-// StaleAnswersError refuses a file whose fingerprint does not match the run. Cause says why, in words
-// that follow since.
+// StaleAnswersError refuses a file whose fingerprint does not match the run. Sidecar is the file the
+// fingerprint is kept in.
 type StaleAnswersError struct {
-	Message, Cause string
+	Path, Sidecar string
+	Reason        StaleReason
 }
 
-// Error is the message people read.
+// StaleReason says why a file's fingerprint does not match the run.
+type StaleReason int
+
+// Error says why the file does not match, without the sentinel's own text.
 func (e *StaleAnswersError) Error() string {
-	return e.Message
+	switch e.Reason {
+	case NoFingerprint:
+		return e.Path + " has no fingerprint beside it, so onesie cannot tell which run wrote it"
+	case ForeignFingerprint:
+		return fmt.Sprintf("%s does not hold a fingerprint onesie wrote, so onesie cannot tell which run "+
+			"wrote %s", e.Sidecar, e.Path)
+	case OlderFingerprint:
+		return fmt.Sprintf("an older onesie wrote %s, so this one cannot tell which run wrote %s", e.Sidecar, e.Path)
+	case NewerFingerprint:
+		return fmt.Sprintf("a newer onesie wrote %s, so this one cannot tell which run wrote %s", e.Sidecar, e.Path)
+	case OlderColumns:
+		return e.Path + " was written by an older onesie, without the fallback columns this run adds"
+	default:
+		return "the questions, flags or gate changed since " + e.Path + " was written"
+	}
+}
+
+// Cause says why the file does not match, in words that follow since.
+func (e *StaleAnswersError) Cause() string {
+	switch e.Reason {
+	case NoFingerprint:
+		return "it has no fingerprint beside it"
+	case ForeignFingerprint:
+		return "onesie did not write its fingerprint"
+	case OlderFingerprint:
+		return "an older onesie wrote its fingerprint"
+	case NewerFingerprint:
+		return "a newer onesie wrote its fingerprint"
+	case OlderColumns:
+		return "an older onesie wrote its columns"
+	default:
+		return "the questions, model or flags changed since it was written"
+	}
 }
 
 // Is matches ErrStaleAnswers.

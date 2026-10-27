@@ -7,11 +7,8 @@ import (
 	"os"
 )
 
-var errNoLock = errors.New("onesie has no file lock on this platform, so it cannot keep another run " +
-	"out of the file. Drop --resume to start over")
-
 func lockHandle(_ *os.File) error {
-	return errNoLock
+	return ErrNoLock
 }
 
 func unlockHandle(file *os.File, path string, owned bool, remove func(string) error) error {
