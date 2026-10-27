@@ -53,10 +53,9 @@ prints the built in limits.
   and a provider that takes it, TypeSafe or OpenRouter, as on `typesafe/jev-1.14`. Cloudflare,
   Levanto and Berget refuse it before any request. On TypeSafe and OpenRouter the model must serve it
   too: one that does not answers 400 `Invalid request`, and onesie then names `-m jev-preview`, which
-  does. It
-  takes no value and no `--desc`, `--threshold`, `--min-confidence` or `--fallback`. `-r` prints the
-  four edges in that order, and `-o csv` writes them as four columns, `ID_left`, `ID_top`,
-  `ID_right` and `ID_bottom`.
+  does. It takes no value and no `--desc`, `--threshold`, `--min-confidence` or `--fallback`. `-r`
+  prints the four edges in that order, and `-o csv` writes them as four columns, `ID_left`,
+  `ID_top`, `ID_right` and `ID_bottom`.
   A box always returns a box, even when the target is not there, so pair it with a yes or no
   question that asks whether it is.
 
@@ -558,11 +557,11 @@ on the provider's key variable alone.
   provider's default`, as in `model: jev-latest, the provider's default`. The base URL comes from
   `the profile's base_url`, `TYPESAFE_BASE_URL`, `the profile's account_id`, `CLOUDFLARE_ACCOUNT_ID`
   or `the provider's default`, the words a run's messages use. `base_url:` is `none` on cloudflare
-  with no account, and a base URL a run would refuse exits 2 with the run's message. An `allow_http: needed` line follows it when the base URL is plain http to another host,
-  since every run then needs `--allow-http`. `account:` names `account_id`, `base_url`,
-  `CLOUDFLARE_ACCOUNT_ID` or `none`. `show` exits 2 when `key` or `account` is `none`, as a real
-  run would, and exits 2 with the run's message when `CLOUDFLARE_ACCOUNT_ID` is not 32
-  hexadecimal characters.
+  with no account, and a base URL a run would refuse exits 2 with the run's message. An
+  `allow_http: needed` line follows it when the base URL is plain http to another host, since every
+  run then needs `--allow-http`. `account:` names `account_id`, `base_url`, `CLOUDFLARE_ACCOUNT_ID`
+  or `none`. `show` exits 2 when `key` or `account` is `none`, as a real run would, and exits 2
+  with the run's message when `CLOUDFLARE_ACCOUNT_ID` is not 32 hexadecimal characters.
 - A key the server refuses with 401 or 403 exits 3, on a run or on `test`. On a profile the message
   names `onesie profile update NAME --key`, and without one it names the provider's key variable. A
   run with no key and no profile for its provider names
