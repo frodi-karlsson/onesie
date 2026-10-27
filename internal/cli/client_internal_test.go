@@ -1,8 +1,10 @@
 package cli
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"slices"
@@ -56,6 +58,21 @@ func TestClientBuilder(t *testing.T) {
 				`"account":"work@abc","base_url":"{url}/a@b"}}}`,
 			args: []string{"is this urgent", "--state", "hello", "-o", "json"},
 			want: "onesie: the profile's base_url" + unsafeBaseURL + keyElsewhere,
+		},
+		{
+			name: "should refuse a cloudflare keychain profile with no account before reading the keychain",
+			profiles: `{"default":"cf","profiles":{"cf":{"provider":"cloudflare","store":"keychain",` +
+				`"account":"work@abc"}}}`,
+			args: []string{"is this urgent", "--state", "hello", "-o", "json"},
+			want: "onesie: no cloudflare account id",
+		},
+		{
+			name: "should refuse a cloudflare keychain profile with a malformed account variable before reading the keychain",
+			profiles: `{"default":"cf","profiles":{"cf":{"provider":"cloudflare","store":"keychain",` +
+				`"account":"work@abc"}}}`,
+			args: []string{"is this urgent", "--state", "hello", "-o", "json"},
+			env:  map[string]string{onesie.Cloudflare().EnvAccountID(): "not-hex"},
+			want: "CLOUDFLARE_ACCOUNT_ID must be 32 hexadecimal characters",
 		},
 	}
 
@@ -484,6 +501,35 @@ func TestClientBuilder(t *testing.T) {
 			t.Error("the two openrouter profiles did not each send their own key")
 		}
 	})
+
+	t.Run("should warn that --allow-http sends the key over plain http", func(t *testing.T) {
+		t.Parallel()
+
+		var host atomic.Value
+
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			host.Store(r.Host)
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"models":[]}`))
+		}))
+		defer srv.Close()
+
+		out, errOut, code := runInConfig(t, t.TempDir(),
+			[]string{"--list-models", "--allow-http", "--base-url", "http://proxy.example"}, "",
+			map[string]string{onesie.TypeSafe().EnvAPIKey(): "SECRET-ENV"}, withDialTo(srv.Listener.Addr().String()))
+
+		assertNoSecret(t, out, errOut)
+
+		const want = "warning: http://proxy.example is plain http, so the API key crosses the network unencrypted\n"
+
+		if code != ExitOK || !strings.Contains(errOut, want) {
+			t.Errorf("exit code = %d, stderr = %q, want %d and %q", code, errOut, ExitOK, want)
+		}
+
+		if got, _ := host.Load().(string); got != "proxy.example" {
+			t.Errorf("the local server saw host %q, want proxy.example", got)
+		}
+	})
 }
 
 func modelServer(t *testing.T) (*httptest.Server, func() []sentRequest) {
@@ -532,6 +578,18 @@ func modelServer(t *testing.T) (*httptest.Server, func() []sentRequest) {
 type sentRequest struct {
 	auth  string
 	model string
+}
+
+func withDialTo(addr string) RootOption {
+	// Every connection goes to addr, whatever host the request names, so a remote base URL stays on
+	// this machine. Proxy is left unset, so no proxy the environment names is used.
+	return func(s *rootSettings) {
+		s.transport = &http.Transport{
+			DialContext: func(ctx context.Context, network, _ string) (net.Conn, error) {
+				return (&net.Dialer{}).DialContext(ctx, network, addr)
+			},
+		}
+	}
 }
 
 func TestPooled(t *testing.T) {
