@@ -283,7 +283,7 @@ func TestStreamRaw(t *testing.T) {
 			},
 			{
 				name: "should refuse an answer that carries only its type", stdin: asked,
-				response: `{"answers":{"u":{"type":"noul"}}}`, want: `answer \"u\": the noul answer has no noul`,
+				response: `{"answers":{"u":{"type":"noul"}}}`, want: "answer 'u' has no noul, or it is null",
 			},
 			{
 				name: "should refuse an answer the request did not get", stdin: asked,

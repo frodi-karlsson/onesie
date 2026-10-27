@@ -188,14 +188,14 @@ func checkRawResponse(request, response []byte) (onesie.Usage, error) {
 	case errors.As(err, &syntax):
 		return onesie.Usage{}, answer.Unusable("the response is not JSON")
 	case err != nil:
-		return onesie.Usage{}, readableResponse(&onesie.ResponseError{Status: http.StatusOK, Err: err})
+		probe.Usage = onesie.Usage{}
 	case !bytes.HasPrefix(bytes.TrimSpace(probe.Answers), []byte("{")):
 		return probe.Usage, answer.Unusable("the response is not a System One result, since it has no answers")
 	}
 
 	var result onesie.Result
 	if err := json.Unmarshal(response, &result); err != nil {
-		return probe.Usage, readableResponse(&onesie.ResponseError{Status: http.StatusOK, Err: err})
+		return probe.Usage, &onesie.ResponseError{Status: http.StatusOK, Err: err}
 	}
 
 	// Only a body whose questions onesie can read, as -f reads one, says what each answer must fit.

@@ -1,15 +1,10 @@
 package cli
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
-	"mime"
 	"net/http"
-	"reflect"
-	"strconv"
 	"strings"
-	"unicode"
 
 	"github.com/frodi-karlsson/onesie-go"
 )
@@ -41,74 +36,28 @@ func advise(err error, model string, validated bool) error {
 	}
 
 	var advised *advisedError
-	if text, isText := api.Body.(string); isText && !errors.As(err, &advised) {
-		return &advisedError{cause: err, message: textBody(api, text)}
+	if errors.As(err, &advised) {
+		return err
+	}
+
+	if _, isText := api.Body.(string); isText && api.BodyJSON {
+		return &advisedError{cause: err, message: messageLine(err.Error())}
+	}
+
+	// Only a missing path or method points at the base URL. An outage, a rate limit or a refused key
+	// arrives from the right server too.
+	if !api.BodyJSON && len(api.RawBody) > 0 &&
+		(api.Status == http.StatusNotFound || api.Status == http.StatusMethodNotAllowed) {
+		return &advisedError{cause: err, message: withNote(err.Error(), "Check that the base URL points at the System One API")}
 	}
 
 	return err
 }
 
-func textBody(api *onesie.APIError, body string) string {
-	line := bodyLine(body)
+func messageLine(message string) string {
+	line, _, _ := strings.Cut(message, "\n")
 
-	// onesie-go decodes a JSON string body and a body that is not JSON alike, so only the content
-	// type tells a server's quoted message from a page a proxy sent.
-	if jsonContent(api.Header.Get("Content-Type")) && !strings.HasPrefix(line, "<") {
-		if line == "" {
-			line = http.StatusText(api.Status)
-		}
-
-		return fmt.Sprintf("onesie: %d %s", api.Status, line)
-	}
-
-	message := fmt.Sprintf("onesie: %d %s, with a response body that is not JSON", api.Status, http.StatusText(api.Status))
-
-	// An HTML page from a proxy or a web server says nothing a terminal line can show, while a one
-	// line text body may name the cause.
-	if line != "" && !strings.HasPrefix(line, "<") && !repeatsStatus(line, api.Status) {
-		message += ": " + line
-	}
-
-	// Only a missing path or method points at the base URL. An outage, a rate limit or a refused key
-	// arrives from the right server too.
-	if api.Status != http.StatusNotFound && api.Status != http.StatusMethodNotAllowed {
-		return message
-	}
-
-	return withNote(message, "Check that the base URL points at the System One API")
-}
-
-func repeatsStatus(line string, status int) bool {
-	// A body of only Unauthorized, or of 401 Unauthorized, adds nothing to the status already named.
-	text := strings.TrimSuffix(line, ".")
-	text = strings.TrimSpace(strings.TrimPrefix(text, strconv.Itoa(status)))
-
-	return strings.EqualFold(text, http.StatusText(status))
-}
-
-func jsonContent(contentType string) bool {
-	media, _, err := mime.ParseMediaType(contentType)
-
-	return err == nil && (media == "application/json" || strings.HasSuffix(media, "+json"))
-}
-
-func bodyLine(body string) string {
-	line, _, _ := strings.Cut(strings.TrimSpace(body), "\n")
-	line = strings.TrimSpace(strings.Map(func(r rune) rune {
-		if unicode.IsControl(r) {
-			return -1
-		}
-
-		return r
-	}, line))
-
-	const most = 120
-
-	if runes := []rune(line); len(runes) > most {
-		return string(runes[:most]) + "..."
-	}
-
-	return line
+	return strings.TrimSpace(line)
 }
 
 func adviseLongContext(err error, helps bool) error {
@@ -250,95 +199,4 @@ func withNote(message, note string) string {
 	}
 
 	return message + ". " + note
-}
-
-func readableResponse(err error) error {
-	// onesie-go reports a body that did not decode with the decoder's own sentence, which names Go
-	// types. The fields it names are the wire's, so they are said again in the response's terms.
-	var (
-		unusable *onesie.ResponseError
-		mistyped *json.UnmarshalTypeError
-	)
-
-	if !errors.As(err, &unusable) || unusable.Message != "" || !errors.As(err, &mistyped) {
-		return err
-	}
-
-	translated := *unusable
-	translated.Message = "onesie: " + strconv.Itoa(unusable.Status) + " response could not be used: " +
-		mistypedSentence(unusable.Err, mistyped)
-
-	return &translated
-}
-
-func mistypedSentence(cause error, mistyped *json.UnmarshalTypeError) string {
-	field := strings.TrimPrefix(mistyped.Field, ".")
-	want := wantedKind(mistyped.Type)
-
-	name, isAnswer := answerName(cause)
-	if !isAnswer {
-		if field == "" {
-			return "the response is not a System One result"
-		}
-
-		return fmt.Sprintf("the response is not a System One result, since its %s %s not %s",
-			field, verbFor(field), want)
-	}
-
-	if field == "" {
-		return fmt.Sprintf("answer '%s' is not an object", name)
-	}
-
-	switch {
-	case strings.HasPrefix(field, "probabilities."):
-		field = fmt.Sprintf("probability for '%s'", strings.TrimPrefix(field, "probabilities."))
-	case strings.HasPrefix(field, "box."):
-		field = fmt.Sprintf("box %s edge", strings.TrimPrefix(field, "box."))
-	}
-
-	return fmt.Sprintf("answer '%s' has a %s that is not %s", name, field, want)
-}
-
-func answerName(cause error) (string, bool) {
-	// onesie-go names the answer as answer "x": ahead of the decoder's sentence.
-	rest, found := strings.CutPrefix(cause.Error(), "answer ")
-	if !found {
-		return "", false
-	}
-
-	quoted, err := strconv.QuotedPrefix(rest)
-	if err != nil {
-		return "", false
-	}
-
-	name, err := strconv.Unquote(quoted)
-
-	return name, err == nil
-}
-
-func wantedKind(wanted reflect.Type) string {
-	if wanted == nil {
-		return "the right type"
-	}
-
-	switch wanted.Kind() {
-	case reflect.Float32, reflect.Float64, reflect.Int, reflect.Int64:
-		return "a number"
-	case reflect.String:
-		return "a string"
-	case reflect.Bool:
-		return "true or false"
-	case reflect.Slice, reflect.Array:
-		return "an array"
-	default:
-		return "an object"
-	}
-}
-
-func verbFor(field string) string {
-	if strings.HasSuffix(field, "s") {
-		return "are"
-	}
-
-	return "is"
 }
