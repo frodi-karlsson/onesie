@@ -248,6 +248,70 @@ func TestFilterIntegration(t *testing.T) {
 		}
 	})
 
+	t.Run("should normalize a pick and a rate on every provider", func(t *testing.T) {
+		for _, provider := range []struct {
+			name string
+			args []string
+			keys []string
+		}{
+			{name: "openrouter", args: []string{"--provider", "openrouter"}, keys: []string{"OPENROUTER_API_KEY"}},
+			{name: "levanto", args: []string{"--provider", "levanto"}, keys: []string{"LEVANTO_API_KEY"}},
+			{
+				name: "cloudflare jev", args: []string{"--provider", "cloudflare"},
+				keys: []string{"CLOUDFLARE_API_TOKEN", "CLOUDFLARE_ACCOUNT_ID"},
+			},
+			{
+				name: "cloudflare clef", args: []string{"--provider", "cloudflare", "-m", "clef"},
+				keys: []string{"CLOUDFLARE_API_TOKEN", "CLOUDFLARE_ACCOUNT_ID"},
+			},
+			{
+				name: "cloudflare clef-flash", args: []string{"--provider", "cloudflare", "-m", "clef-flash"},
+				keys: []string{"CLOUDFLARE_API_TOKEN", "CLOUDFLARE_ACCOUNT_ID"},
+			},
+		} {
+			for _, question := range []struct {
+				shape string
+				args  []string
+				names []string
+			}{
+				{shape: "pick", args: []string{"who should handle this", "--pick", "billing,shipping,technical"}, names: []string{"billing", "shipping", "technical"}},
+				{shape: "rate", args: []string{"how frustrated is the customer", "--rate", "calm,annoyed,furious"}, names: []string{"calm", "annoyed", "furious"}},
+			} {
+				t.Run("should normalize a "+question.shape+" through "+provider.name, func(t *testing.T) {
+					for _, key := range provider.keys {
+						if strings.TrimSpace(os.Getenv(key)) == "" {
+							t.Skip(key + " is not set, skipping the " + provider.name + " case")
+						}
+					}
+
+					args := append(append(slices.Clone(provider.args), question.args...), "-o", "json")
+
+					out, errOut, code := runLive(t, args, "I was charged twice for my order and nobody answers my emails.")
+					if code != cli.ExitOK {
+						t.Fatalf("exit code = %d, stderr:\n%s", code, errOut)
+					}
+
+					var answer struct {
+						Value string             `json:"value"`
+						P     map[string]float64 `json:"p"`
+					}
+
+					if err := json.Unmarshal(decodeRecord(t, out)["answer"], &answer); err != nil {
+						t.Fatalf("decoding the answer: %v\n%s", err, out)
+					}
+
+					if !slices.Contains(question.names, answer.Value) {
+						t.Errorf("value = %q, want one of %v", answer.Value, question.names)
+					}
+
+					if got := keysOf(answer.P); !slices.Equal(slices.Sorted(slices.Values(got)), slices.Sorted(slices.Values(question.names))) {
+						t.Errorf("p keys = %v, want %v", got, question.names)
+					}
+				})
+			}
+		}
+	})
+
 	t.Run("should see the red square through --image", func(t *testing.T) {
 		out, errOut, code := runLive(t, []string{
 			"--image", "square=" + liveImage(t, true), "--image", "empty=" + liveImage(t, false),
