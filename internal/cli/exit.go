@@ -95,6 +95,17 @@ func worthReporting(err error) bool {
 }
 
 func classify(err error) failure {
+	matched := firstMatch(err)
+	matched.quiet = matched.quiet || canceledOrBrokenPipe(err)
+
+	return matched
+}
+
+func canceledOrBrokenPipe(err error) bool {
+	return errors.Is(err, context.Canceled) || engine.BrokenPipe(err)
+}
+
+func firstMatch(err error) failure {
 	// Order matters. RetryAfterError embeds APIError, so the typed check precedes the sentinels it
 	// would otherwise match, and silentError comes last so a real error joined to one keeps its code.
 
@@ -133,7 +144,7 @@ func classify(err error) failure {
 	}
 
 	if errors.Is(err, context.Canceled) {
-		return failure{kind: output.KindInput, code: ExitInterrupt, quiet: true}
+		return failure{kind: output.KindInput, code: ExitInterrupt}
 	}
 
 	// A deadline reaching here unwrapped is still a timeout, and a timeout is transport shaped.
@@ -197,7 +208,7 @@ func classify(err error) failure {
 	// A connection that broke with EPIPE exits as the transport failure it is, and stays quiet as
 	// every broken pipe does.
 	if errors.Is(err, onesie.ErrConnection) || errors.Is(err, onesie.ErrTimeout) {
-		return failure{kind: output.KindTransport, code: ExitTransport, quiet: engine.BrokenPipe(err)}
+		return failure{kind: output.KindTransport, code: ExitTransport}
 	}
 
 	// After the transport checks, so a socket write that failed with EPIPE keeps the transport exit
@@ -205,7 +216,7 @@ func classify(err error) failure {
 	// consumer stopped reading. A line about it would go to a stderr the same consumer is often
 	// reading.
 	if engine.BrokenPipe(err) {
-		return failure{kind: output.KindInput, code: ExitOK, quiet: true}
+		return failure{kind: output.KindInput, code: ExitOK}
 	}
 
 	var silent *silentError
