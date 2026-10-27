@@ -59,8 +59,8 @@ prints the built in limits.
   rate needs every level described, or none.
 - `--box` makes a question a box, answered with `left`, `top`, `right` and `bottom`, each a fraction
   of the image from its top left corner, and a `confidence`. It needs an image, as in Images below,
-  and a provider and model that serve it: `jev-preview` on TypeSafe until `jev-latest` moves, or
-  `typesafe/jev-1.14` on OpenRouter. Levanto and Berget refuse it. It takes no value and no
+  and a provider that serves it: TypeSafe on `jev-latest` or any other model, or OpenRouter, as on
+  `typesafe/jev-1.14`. Cloudflare, Levanto and Berget refuse it. It takes no value and no
   `--desc`, `--threshold`, `--min-confidence` or `--fallback`. `-r` prints the four edges in that
   order, and `-o csv` writes them as four columns, `ID_left`, `ID_top`, `ID_right` and `ID_bottom`.
   A box always returns a box, even when the target is not there, so pair it with a yes or no
@@ -371,7 +371,7 @@ onesie calibrate -f shell-safety -i jsonl --map .command --id .id \
 
 ```sh
 onesie --image photo=examples/images/square.png 'is there a red square in `photo`'
-onesie --image photo=examples/images/square.png --ask where='the red square in `photo`' --box -m jev-preview -r
+onesie --image photo=examples/images/square.png --ask where='the red square in `photo`' --box -r
 ls photos/*.jpg | onesie -i lines --image-field photo 'is there a dog in `photo`' -o values
 ```
 
@@ -794,7 +794,7 @@ onesie --profile cf -f shell-safety -q --state "$cmd"
 | 1 | a false `--assert`, or under `-q` alone the policy did not accept the answer |
 | 2 | usage or validation error, including a missing key, or a plain http base URL to another host without `--allow-http` |
 | 3 | the key was refused, the account is out of credits, the keychain failed, or `profiles.json` or `credentials.json` is exposed |
-| 4 | the server did not answer after retries |
+| 4 | the server did not answer after retries, or it answered 200 with a response onesie could not use, which is never retried |
 | 5 | transport error or timeout |
 | 6 | a stream finished with one or more failed records, or `--stop-on-error` stopped it at a record that never became a request |
 | 7 | the gate could not decide: the assertion failed and `--abstain-if` held |

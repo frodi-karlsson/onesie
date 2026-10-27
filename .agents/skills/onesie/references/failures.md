@@ -6,7 +6,7 @@
 | 1 | The answer was a no: `-q` rejected it, or an assertion was false on the record or on any record of a stream |
 | 2 | A usage or validation error, a missing key, a refused resume, or a 4xx from the server other than 401, 402, 403, 408 and 429 |
 | 3 | Authentication, permission or payment failed, or the credential store could not be used |
-| 4 | The server did not answer after retries: a 429, a 5xx, or a 2xx body onesie cannot use |
+| 4 | The server did not answer after retries, a 429 or a 5xx, or it answered 2xx with a body or an answer onesie cannot use, which is never retried. The message says `response could not be used` and names the question and the value |
 | 5 | A transport error or a timeout, including a 408 |
 | 6 | A stream finished with one or more failed records, or `--stop-on-error` stopped it at a record that never became a request |
 | 7 | The gate could not decide: the assertion did not hold and `--abstain-if` did |
