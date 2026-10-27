@@ -40,6 +40,12 @@ func clientBuilder(info BuildInfo, flags *runFlags, settings rootSettings) resol
 	var warned, doubled sync.Once
 
 	return func(_ context.Context, chosen resolution, extra ...onesie.Option) (*onesie.Client, error) {
+		// Ahead of the keychain and of New, so a base URL that carries a key is refused in onesie's
+		// words and nothing is sent.
+		if refused := refuseUnclearBaseURL(chosen.baseURLGiven(flags.baseURL, settings.lookupEnv)); refused != nil {
+			return nil, refused
+		}
+
 		opts := []onesie.Option{
 			onesie.WithProvider(chosen.provider),
 			onesie.WithUserAgent("onesie/" + info.Version),
@@ -80,12 +86,10 @@ func clientBuilder(info BuildInfo, flags *runFlags, settings rootSettings) resol
 
 		client, err := onesie.New(opts...)
 		if err != nil {
-			return nil, explained(settings, flags, chosen,
-				readableBaseURL(withoutCredentials(err), chosen.baseURLGiven(flags.baseURL, settings.lookupEnv)))
+			return nil, explained(settings, flags, chosen, err)
 		}
 
-		// After New, since only the client knows which of the flag, the variable and the profile chose
-		// the base URL.
+		// Again on the client's own, which a Cloudflare account builds when no base URL was given.
 		if refused := refuseUnclearBaseURL(client.BaseURL()); refused != nil {
 			return nil, refused
 		}
@@ -138,61 +142,18 @@ func validBaseURL(baseURL string) error {
 		return refused
 	}
 
-	return readableBaseURL(onesie.ValidateBaseURL(baseURL), baseURL)
-}
-
-func readableBaseURL(err error, given string) error {
-	// onesie-go calls every refused base URL not absolute and echoes it with a trailing slash
-	// trimmed, which reads wrong for one that has a scheme but no host, or that does not parse. The
-	// URL as the user gave it is echoed instead, since credentials were refused before this point.
-	const prefix = "base URL must be an absolute http or https URL, got "
-
-	var invalid *onesie.ValidationError
-	if !errors.As(err, &invalid) || !strings.HasPrefix(invalid.Message, prefix) {
-		return err
-	}
-
-	if given == "" {
-		given = strings.TrimPrefix(invalid.Message, prefix)
-	}
-
-	parsed, parseErr := url.Parse(given)
-
-	var malformed *url.Error
-
-	switch {
-	case errors.As(parseErr, &malformed):
-		return &onesie.ValidationError{Question: invalid.Question, Message: fmt.Sprintf(
-			"base URL %s does not parse: %s", given, malformed.Err)}
-	case parseErr == nil && (parsed.Scheme == "http" || parsed.Scheme == "https") && parsed.Host == "":
-		return &onesie.ValidationError{Question: invalid.Question, Message: fmt.Sprintf(
-			"base URL %s names no host. Write it as %s://HOST", given, parsed.Scheme)}
-	default:
-		return err
-	}
+	return onesie.ValidateBaseURL(baseURL)
 }
 
 func refuseUnclearBaseURL(baseURL string) error {
 	// Any literal @, ? or #, since a password holding a /, a ? or a # parses cleanly as a host with
 	// the rest of the password in the path, query or fragment. A provider takes its key from the
 	// profile, so a base URL has no use for credentials.
-	parsed, err := url.Parse(baseURL)
-	if err != nil || strings.ContainsAny(baseURL, "@?#") || parsed.User != nil {
+	if strings.ContainsAny(baseURL, "@?#") {
 		return &onesie.ValidationError{Message: refusedBaseURL}
 	}
 
 	return nil
-}
-
-func withoutCredentials(err error) error {
-	// onesie-go's own check runs inside New, ahead of onesie's, and its message ends with the URL as
-	// given, credentials and all.
-	var invalid *onesie.ValidationError
-	if errors.As(err, &invalid) && strings.Contains(invalid.Message, "@") {
-		return &onesie.ValidationError{Question: invalid.Question, Message: refusedBaseURL}
-	}
-
-	return err
 }
 
 func ignoringResolution(newClient clientFactory) resolvedClientFactory {

@@ -363,7 +363,7 @@ func TestProfileCreate(t *testing.T) {
 			args:        []string{"profile", "create", "work", "--provider", "typesafe", "--base-url", "proxy.example"},
 			stdinUnread: true,
 			wantCode:    ExitUsage,
-			wantErr:     []string{"base URL must be an absolute http or https URL, got proxy.example"},
+			wantErr:     []string{"onesie: base URL proxy.example is not an http or https URL"},
 			wantNoFile:  true,
 		},
 		{
