@@ -352,6 +352,13 @@ func TestNewRootCmd(t *testing.T) {
 			contains: []string{"onesie: -o is empty. Name one, or leave the flag out"},
 		},
 		{
+			name:     "should name the question argument when it clashes with a file's id",
+			args:     []string{"is it", "-f", "ab.json", "--state", "x", "--print-request"},
+			files:    map[string]string{"ab.json": `{"questions":{"answer":{"type":"noul","instructions":"q"}}}`},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: 'answer' is defined in ab.json and by the question argument. Pass --replace to override\n"},
+		},
+		{
 			name:     "should print help when given no arguments",
 			args:     []string{},
 			wantCode: cli.ExitOK,

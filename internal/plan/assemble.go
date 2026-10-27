@@ -149,9 +149,14 @@ func merge(built *Plan, fromFile map[string]int, question Question, replace bool
 			name = unnamedFile
 		}
 
+		source := "--ask"
+		if question.Origin == OriginPositional {
+			source = "the question argument"
+		}
+
 		return fmt.Errorf(
-			"onesie: '%s' is defined in %s and by --ask. Pass --replace to override",
-			question.ID, name)
+			"onesie: '%s' is defined in %s and by %s. Pass --replace to override",
+			question.ID, name, source)
 	}
 
 	// The replacement keeps the file's position, so output order is stable whether or not a
