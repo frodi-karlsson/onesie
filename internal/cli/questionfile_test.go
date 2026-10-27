@@ -103,17 +103,10 @@ func TestReadQuestionFile(t *testing.T) {
 			noLookup: true,
 		},
 		{
-			name:     "should refuse an empty file at a path, naming it",
-			value:    "triage.yaml",
-			files:    map[string]string{"/repo/sub/triage.yaml": " \n"},
-			wantErr:  []string{"onesie: the question file triage.yaml is empty"},
-			noLookup: true,
-		},
-		{
-			name:    "should refuse an empty file a name finds, naming it",
-			value:   "triage",
-			files:   map[string]string{"/repo/.onesie/questions/triage.yaml": ""},
-			wantErr: []string{"onesie: the question file " + filepath.Join(repoDir, "triage.yaml") + " is empty"},
+			name:     "should read an empty file a name finds",
+			value:    "triage",
+			files:    map[string]string{"/repo/.onesie/questions/triage.yaml": ""},
+			wantPath: filepath.Join(repoDir, "triage.yaml"),
 		},
 		{
 			name:  "should name every directory searched for a missing name",
@@ -157,7 +150,7 @@ func TestReadQuestionFile(t *testing.T) {
 				}
 			}
 
-			data, path, err := readQuestionFile(settings, tc.value)
+			data, path, _, err := readQuestionFile(settings, tc.value)
 
 			if len(tc.wantErr) > 0 {
 				if err == nil {
@@ -362,7 +355,7 @@ func TestReadQuestionFile(t *testing.T) {
 				_, errOut, code := runTree(t, emptied, []RootOption{realBuiltIns()}, args...)
 
 				want := "onesie: the question file " + filepath.Join(repoDir, "shell-safety.yaml") +
-					" is empty. Remove it, and -f shell-safety takes the built-in set again\n"
+					" holds no questions. Remove it, and -f shell-safety takes the built-in set again\n"
 				if code != ExitUsage || errOut != want {
 					t.Errorf("%v: exit code = %d, want %d\nstderr:\n%s\nwant:\n%s", args, code, ExitUsage, errOut, want)
 				}
@@ -501,7 +494,7 @@ func TestReadQuestionFile(t *testing.T) {
 		settings := newFakeTree(nil, workDir, configDir).settings(rootSettings{})
 		settings.getwd = func() (string, error) { return "", gone }
 
-		if _, _, err := readQuestionFile(settings, "triage"); !errors.Is(err, gone) {
+		if _, _, _, err := readQuestionFile(settings, "triage"); !errors.Is(err, gone) {
 			t.Errorf("error = %v, want it to wrap %v", err, gone)
 		}
 	})
@@ -776,34 +769,40 @@ func TestLoadQuestionFile(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name string
-		data string
-		want string
+		name  string
+		data  string
+		hides string
+		alone bool
+		want  string
 	}{
-		{name: "should name a file of only comments as holding no questions", data: "# a note\n", want: "onesie: the question file q.yaml holds no questions"},
-		{name: "should name an empty mapping as holding no questions", data: "{}\n", want: "onesie: the question file q.yaml holds no questions"},
-		{name: "should name a body with no questions", data: `{"questions":{}}`, want: "onesie: the question file q.yaml holds no questions"},
+		{name: "should take an empty file beside --ask", data: ""},
+		{name: "should take a file of only comments beside --ask", data: "# a note\n"},
+		{name: "should take an empty mapping beside --ask", data: "{}\n"},
+		{name: "should name an empty file", data: " \n", alone: true, want: "onesie: the question file q.yaml holds no questions"},
+		{name: "should name a file of only comments", data: "# a note\n", alone: true, want: "onesie: the question file q.yaml holds no questions"},
+		{name: "should name an empty mapping", data: "{}\n", alone: true, want: "onesie: the question file q.yaml holds no questions"},
+		{name: "should name a body with no questions", data: `{"questions":{}}`, alone: true, want: "onesie: the question file q.yaml holds no questions"},
+		{
+			name: "should point an empty file beside --ask at the built-in set it hides", data: "", hides: "triage",
+			want: "onesie: the question file q.yaml holds no questions. Remove it, and -f triage takes the built-in set again",
+		},
 		{name: "should name the file in a load error", data: "a:\n  bogus: 1\n", want: "onesie: q.yaml: question 'a' has no 'ask'"},
 		{name: "should name the file when it is not a mapping", data: "- a\n", want: "onesie: q.yaml: a question file is a mapping of question id to definition"},
 	}
-
-	t.Run("should take an empty file beside --ask", func(t *testing.T) {
-		t.Parallel()
-
-		for _, data := range []string{"{}\n", "# a note\n"} {
-			if _, err := loadQuestionFile([]byte(data), "q.yaml", false); err != nil {
-				t.Errorf("loadQuestionFile(%q) = %v, want no error", data, err)
-			}
-		}
-	})
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			_, err := loadQuestionFile([]byte(tc.data), "q.yaml", true)
-			if err == nil || err.Error() != tc.want {
-				t.Errorf("loadQuestionFile = %v, want %q", err, tc.want)
+			_, err := loadQuestionFile([]byte(tc.data), "q.yaml", tc.hides, tc.alone)
+
+			got := ""
+			if err != nil {
+				got = err.Error()
+			}
+
+			if got != tc.want {
+				t.Errorf("loadQuestionFile = %q, want %q", got, tc.want)
 			}
 		})
 	}

@@ -39,12 +39,12 @@ func TestLoad(t *testing.T) {
 		{
 			name:    "should reject a $schema that is a number",
 			doc:     "$schema: 3\nurgent: is this urgent\n",
-			wantErr: "onesie: '$schema' must be a string, got '3'",
+			wantErr: "'$schema' must be a string, got '3'",
 		},
 		{
 			name:    "should reject a $schema that is a mapping",
 			doc:     `{"$schema": {"url": "x"}, "urgent": "is this urgent"}`,
-			wantErr: "onesie: '$schema' must be a string, got a mapping",
+			wantErr: "'$schema' must be a string, got a mapping",
 		},
 		{
 			name: "should leave a request body as it is beside a $schema",
@@ -87,6 +87,17 @@ func TestLoad(t *testing.T) {
 		})
 	}
 
+	t.Run("should load a null document as a file with no questions", func(t *testing.T) {
+		t.Parallel()
+
+		for _, doc := range []string{"", " \n", "# a note\n", "null\n"} {
+			file, err := qfile.Load([]byte(doc))
+			if err != nil || len(file.Questions) != 0 {
+				t.Errorf("Load(%q) = %+v, %v, want an empty file", doc, file, err)
+			}
+		}
+	})
+
 	t.Run("should load and refuse box questions", func(t *testing.T) {
 		t.Parallel()
 
@@ -97,10 +108,10 @@ func TestLoad(t *testing.T) {
 		}{
 			{name: "should load a box question", file: "mug:\n  ask: the mug in photo\n  box: true\n"},
 			{name: "should load a box question from a request body", file: `{"questions":{"mug":{"type":"box","instructions":"x"}}}`},
-			{name: "should refuse box false", file: "mug:\n  ask: x\n  box: false\n", wantErr: "onesie: 'box' in question 'mug' takes true"},
+			{name: "should refuse box false", file: "mug:\n  ask: x\n  box: false\n", wantErr: "'box' in question 'mug' takes true"},
 			{name: "should refuse a box with pick", file: "mug:\n  ask: x\n  box: true\n  pick: [a, b]\n", wantErr: "A question is one of pick, rate or box"},
 			{name: "should refuse a box with yes_means", file: "mug:\n  ask: x\n  box: true\n  yes_means: y\n", wantErr: "has both 'yes_means' and 'box'"},
-			{name: "should refuse a body box with criteria", file: `{"questions":{"mug":{"type":"box","instructions":"x","criteria":{}}}}`, wantErr: "onesie: box question 'mug' in a request body takes no criteria"},
+			{name: "should refuse a body box with criteria", file: `{"questions":{"mug":{"type":"box","instructions":"x","criteria":{}}}}`, wantErr: "box question 'mug' in a request body takes no criteria"},
 		}
 
 		for _, tc := range tests {
@@ -131,7 +142,7 @@ func TestLoad(t *testing.T) {
 func TestDecodeOrdered(t *testing.T) {
 	t.Parallel()
 
-	const separated = "onesie: a question file is one document, " +
+	const separated = "a question file is one document, " +
 		"found a second after a --- separator"
 
 	tests := []struct {
@@ -182,7 +193,7 @@ func TestDecodeOrdered(t *testing.T) {
 			doc:     "a: q1\n---\nb: q2\n---\nc: q3\n",
 			wantErr: separated,
 		},
-		{name: "should reject malformed yaml", doc: "a:\n  - b\n c: broken\n", wantErr: "onesie: "},
+		{name: "should reject malformed yaml", doc: "a:\n  - b\n c: broken\n", wantErr: "value is not allowed in this context"},
 		{name: "should reject a key json repeats", doc: `{"a": "x", "a": "y"}`, wantErr: `mapping key "a" already defined`},
 		{name: "should reject a key yaml repeats", doc: "a: x\na: y\n", wantErr: `mapping key "a" already defined`},
 		{
@@ -194,7 +205,7 @@ func TestDecodeOrdered(t *testing.T) {
 				"e: &e [*d, *d, *d, *d, *d, *d, *d, *d, *d, *d]\n" +
 				"f: &f [*e, *e, *e, *e, *e, *e, *e, *e, *e, *e]\n" +
 				"g: [*f, *f, *f, *f, *f, *f, *f, *f, *f, *f]\n",
-			wantErr: "onesie: a question file cannot use a YAML alias, since onesie does not expand one. " +
+			wantErr: "a question file cannot use a YAML alias, since onesie does not expand one. " +
 				"Write the value out in full",
 		},
 		{
@@ -206,7 +217,7 @@ func TestDecodeOrdered(t *testing.T) {
 		{
 			name:    "should reject a file over the size cap",
 			doc:     "a: \"" + strings.Repeat("x", limits.MaxQuestionFileBytes) + "\"\n",
-			wantErr: "onesie: a question file is at most 33554432 bytes",
+			wantErr: "a question file is at most 33554432 bytes",
 		},
 	}
 

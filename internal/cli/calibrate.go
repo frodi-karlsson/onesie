@@ -426,12 +426,12 @@ func refuseUnlabelledBody(settings rootSettings, name string, scored *plan.Plan)
 		return nil
 	}
 
-	data, path, err := readQuestionFile(settings, name)
+	data, path, hides, err := readQuestionFile(settings, name)
 	if err != nil {
 		return err
 	}
 
-	loaded, err := loadQuestionFile(data, path, false)
+	loaded, err := loadQuestionFile(data, path, hides, false)
 	if err != nil {
 		return err
 	}

@@ -45,7 +45,7 @@ func TestLoadBody(t *testing.T) {
 		{
 			name:    "should refuse a long_context that is not true or false",
 			doc:     `{"questions":{"q":{"type":"noul","instructions":"x"}},"long_context":"yes"}`,
-			wantErr: "onesie: 'long_context' in a request body must be true or false",
+			wantErr: "'long_context' in a request body must be true or false",
 		},
 		{
 			name: "should keep a body's assets",
@@ -62,7 +62,7 @@ func TestLoadBody(t *testing.T) {
 		{
 			name:    "should refuse an asset that is not base64",
 			doc:     `{"questions":{"q":{"type":"noul","instructions":"x"}},"assets":{"img":{"format":"png","data_base64":"%%"}}}`,
-			wantErr: "onesie: asset 'img' in a request body",
+			wantErr: "asset 'img' in a request body",
 		},
 		{
 			name: "should report itself as a body",
@@ -226,12 +226,12 @@ func TestLoadBody(t *testing.T) {
 		{
 			name:    "should reject a body question with no instructions",
 			doc:     `{"questions":{"a":{"type":"noul"}}}`,
-			wantErr: "onesie: question 'a' in a request body has no 'instructions'",
+			wantErr: "question 'a' in a request body has no 'instructions'",
 		},
 		{
 			name: "should say a body question uses instructions rather than ask",
 			doc:  `{"questions":{"a":{"type":"noul","ask":"is it urgent"}}}`,
-			wantErr: "onesie: question 'a' in a request body has 'ask', but a request body names its question " +
+			wantErr: "question 'a' in a request body has 'ask', but a request body names its question " +
 				"'instructions'",
 		},
 		{
@@ -278,12 +278,12 @@ func TestLoadBody(t *testing.T) {
 		{
 			name:    "should reject a top level assert in a request body",
 			doc:     `{"assert":"a.value > 0.5","questions":{"a":{"type":"noul"}}}`,
-			wantErr: "onesie: a request body carries no 'assert'. Pass --assert on the command line",
+			wantErr: "a request body carries no 'assert'. Pass --assert on the command line",
 		},
 		{
 			name:    "should reject a top level abstain_if in a request body",
 			doc:     `{"abstain_if":"a.value > 0.5","questions":{"a":{"type":"noul"}}}`,
-			wantErr: "onesie: a request body carries no 'abstain_if'. Pass --abstain-if on the command line",
+			wantErr: "a request body carries no 'abstain_if'. Pass --abstain-if on the command line",
 		},
 		{
 			name:    "should name the kind of a structured model",

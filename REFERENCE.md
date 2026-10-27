@@ -866,11 +866,11 @@ table, and `onesie calibrate --help` lists the codes calibrate uses.
   the file before onesie runs, and `-f` then finds that empty file ahead of the built-in set.
   `onesie questions` lists every name `-f` finds, with a built-in set shown as `built in` and an
   empty saved file marked `empty`, or `"empty":true` under `-o json`. A
-  question file is refused with exit 2 when it is empty, when it uses a YAML alias or when it is
-  larger than `max-question-file-bytes`, and every error in a file names its path. A file that
-  holds no question, such as `{}` or only comments, adds nothing beside `--ask`, and on its own it
-  exits 2, naming the file. An empty one is named, with how to reach the built-in set
-  it hides.
+  question file is refused with exit 2 when it uses a YAML alias or when it is larger than
+  `max-question-file-bytes`, and every error in a file names its path. A file that holds no
+  question, such as an empty one, `{}` or only comments, adds nothing beside `--ask`, and on its
+  own it exits 2, naming the file. One that hides a built-in set always exits 2, naming how to
+  reach the set.
 - For one record, onesie reads the state from stdin when stdin is not a terminal and no other
   source gave one. When nothing arrives there for 2 seconds, it prints
   `onesie: waiting for text on stdin. Pass --state, or close stdin.` to stderr once and keeps

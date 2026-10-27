@@ -95,7 +95,7 @@ func build(
 	fileName := flags.file
 
 	if flags.file != "" {
-		data, path, readErr := readQuestionFile(settings, flags.file)
+		data, path, hides, readErr := readQuestionFile(settings, flags.file)
 		if readErr != nil {
 			return nil, nil, readErr
 		}
@@ -104,7 +104,7 @@ func build(
 
 		var loadErr error
 
-		loaded, loadErr = loadQuestionFile(data, path, positional == "" && !asked(events))
+		loaded, loadErr = loadQuestionFile(data, path, hides, positional == "" && !asked(events))
 		if loadErr != nil {
 			return nil, nil, loadErr
 		}

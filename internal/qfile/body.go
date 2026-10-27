@@ -22,7 +22,7 @@ func loadBody(top yaml.MapSlice) (*File, error) {
 	} {
 		if _, found := lookup(top, gate.key); found {
 			return nil, fmt.Errorf(
-				"onesie: a request body carries no '%s'. Pass %s on the command line",
+				"a request body carries no '%s'. Pass %s on the command line",
 				gate.key, gate.flag)
 		}
 	}
@@ -31,7 +31,7 @@ func loadBody(top yaml.MapSlice) (*File, error) {
 		name, ok := value.(string)
 		if !ok {
 			return nil, fmt.Errorf(
-				"onesie: 'model' in a request body must be a string, got %s", describe(value))
+				"'model' in a request body must be a string, got %s", describe(value))
 		}
 
 		file.Model = name
@@ -40,7 +40,7 @@ func loadBody(top yaml.MapSlice) (*File, error) {
 	if value, found := lookup(top, "long_context"); found {
 		on, isBool := value.(bool)
 		if !isBool {
-			return nil, errors.New("onesie: 'long_context' in a request body must be true or false")
+			return nil, errors.New("'long_context' in a request body must be true or false")
 		}
 
 		file.LongContext = on
@@ -75,7 +75,7 @@ func loadBody(top yaml.MapSlice) (*File, error) {
 
 	questions, ok := mapping(raw)
 	if !ok {
-		return nil, fmt.Errorf("onesie: 'questions' in a request body must be a mapping")
+		return nil, fmt.Errorf("'questions' in a request body must be a mapping")
 	}
 
 	for _, item := range questions {
@@ -95,7 +95,7 @@ func loadBody(top yaml.MapSlice) (*File, error) {
 func readAssets(value any) (onesie.Assets, error) {
 	entries, ok := mapping(value)
 	if !ok {
-		return nil, errors.New("onesie: 'assets' in a request body must be a mapping")
+		return nil, errors.New("'assets' in a request body must be a mapping")
 	}
 
 	assets := make(onesie.Assets, len(entries))
@@ -105,14 +105,14 @@ func readAssets(value any) (onesie.Assets, error) {
 
 		fields, ok := mapping(entry.Value)
 		if !ok {
-			return nil, fmt.Errorf("onesie: asset '%s' in a request body must be a mapping", ref)
+			return nil, fmt.Errorf("asset '%s' in a request body must be a mapping", ref)
 		}
 
 		format, _ := lookup(fields, "format")
 
 		formatText, isFormat := format.(string)
 		if !isFormat {
-			return nil, fmt.Errorf("onesie: asset '%s' in a request body needs a format, png or jpg", ref)
+			return nil, fmt.Errorf("asset '%s' in a request body needs a format, png or jpg", ref)
 		}
 
 		encoded, _ := lookup(fields, "data_base64")
@@ -122,7 +122,7 @@ func readAssets(value any) (onesie.Assets, error) {
 		data, err := base64.StdEncoding.DecodeString(text)
 		if !isText || err != nil {
 			return nil, fmt.Errorf(
-				"onesie: asset '%s' in a request body needs data_base64 as standard base64", ref)
+				"asset '%s' in a request body needs data_base64 as standard base64", ref)
 		}
 
 		assets[ref] = onesie.Image{Format: formatText, Data: data}
@@ -136,19 +136,19 @@ func buildBodyQuestion(id string, value any) (plan.Question, error) {
 
 	fields, ok := mapping(value)
 	if !ok {
-		return question, fmt.Errorf("onesie: question '%s' in a request body must be a mapping", id)
+		return question, fmt.Errorf("question '%s' in a request body must be a mapping", id)
 	}
 
 	kind, found := lookup(fields, "type")
 	if !found {
-		return question, fmt.Errorf("onesie: question '%s' in a request body has no 'type'", id)
+		return question, fmt.Errorf("question '%s' in a request body has no 'type'", id)
 	}
 
 	if instructions, found := lookup(fields, "instructions"); found {
 		wired, err := wireValue(instructions)
 		if err != nil {
 			return question, fmt.Errorf(
-				"onesie: 'instructions' in question '%s' cannot be sent: %w", id, err)
+				"'instructions' in question '%s' cannot be sent: %w", id, err)
 		}
 
 		question.Instructions = wired
@@ -168,14 +168,14 @@ func buildBodyQuestion(id string, value any) (plan.Question, error) {
 	case "box":
 		if hasCriteria {
 			return question, fmt.Errorf(
-				"onesie: box question '%s' in a request body takes no criteria", id)
+				"box question '%s' in a request body takes no criteria", id)
 		}
 
 		question.Shape = plan.Box
 		question.Boxed = true
 	default:
 		return question, fmt.Errorf(
-			"onesie: question '%s' in a request body has an unknown type '%v'", id, kind)
+			"question '%s' in a request body has an unknown type '%v'", id, kind)
 	}
 
 	if err != nil {
@@ -193,11 +193,11 @@ func checkBodyInstructions(id string, fields yaml.MapSlice) error {
 	// A question file names its question ask, so a body carrying one was written as the wrong
 	// format, and the ask would otherwise be dropped in silence.
 	if _, found := lookup(fields, "ask"); found {
-		return fmt.Errorf("onesie: question '%s' in a request body has 'ask', but a request body "+
+		return fmt.Errorf("question '%s' in a request body has 'ask', but a request body "+
 			"names its question 'instructions'", id)
 	}
 
-	return fmt.Errorf("onesie: question '%s' in a request body has no 'instructions'", id)
+	return fmt.Errorf("question '%s' in a request body has no 'instructions'", id)
 }
 
 func buildBodyNoul(question plan.Question, criteria any, present bool) (plan.Question, error) {
@@ -211,7 +211,7 @@ func buildBodyNoul(question plan.Question, criteria any, present bool) (plan.Que
 	items, ok := mapping(criteria)
 	if !ok {
 		return question, fmt.Errorf(
-			"onesie: question '%s' is a noul and needs a criteria mapping", question.ID)
+			"question '%s' is a noul and needs a criteria mapping", question.ID)
 	}
 
 	if err := checkNoulCriteriaKeys(question.ID, items); err != nil {
@@ -247,7 +247,7 @@ func checkNoulCriteriaKeys(id string, items yaml.MapSlice) error {
 		// A noul rubric is the two keys and nothing else. Dropping the rest in silence would
 		// leave the user believing they reached the API.
 		return fmt.Errorf(
-			"onesie: question '%s' in a request body has an unknown criteria key '%s'", id, name)
+			"question '%s' in a request body has an unknown criteria key '%s'", id, name)
 	}
 
 	return nil
@@ -257,7 +257,7 @@ func buildBodyChoice(question plan.Question, criteria any) (plan.Question, error
 	items, ok := mapping(criteria)
 	if !ok {
 		return question, fmt.Errorf(
-			"onesie: question '%s' is a choice and needs a criteria mapping", question.ID)
+			"question '%s' is a choice and needs a criteria mapping", question.ID)
 	}
 
 	question.Shape = plan.Pick
@@ -268,7 +268,7 @@ func buildBodyChoice(question plan.Question, criteria any) (plan.Question, error
 		desc, err := wireValue(item.Value)
 		if err != nil {
 			return question, fmt.Errorf(
-				"onesie: criteria '%s' in question '%s' cannot be sent: %w", name, question.ID, err)
+				"criteria '%s' in question '%s' cannot be sent: %w", name, question.ID, err)
 		}
 
 		question.Options = append(question.Options, plan.Option{
@@ -284,7 +284,7 @@ func buildBodyScore(question plan.Question, criteria any) (plan.Question, error)
 	entries, ok := criteria.([]any)
 	if !ok {
 		return question, fmt.Errorf(
-			"onesie: question '%s' is a score and needs a criteria sequence", question.ID)
+			"question '%s' is a score and needs a criteria sequence", question.ID)
 	}
 
 	question.Shape = plan.Rate
@@ -293,7 +293,7 @@ func buildBodyScore(question plan.Question, criteria any) (plan.Question, error)
 		desc, err := wireValue(entry)
 		if err != nil {
 			return question, fmt.Errorf(
-				"onesie: criteria %d in question '%s' cannot be sent: %w", index, question.ID, err)
+				"criteria %d in question '%s' cannot be sent: %w", index, question.ID, err)
 		}
 
 		// Labelled stays false and Label stays empty. A body's criteria is a bare array with no
