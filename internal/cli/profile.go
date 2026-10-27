@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"maps"
+	"net/url"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -147,11 +148,11 @@ func profileCreate(
 		return refused
 	}
 
-	if refused := refusePlainBaseURL(flags, profile.BaseURL); refused != nil {
+	if refused := checkProfile(opened.Profiles, name, profile, "--"+flagBaseURL); refused != nil {
 		return refused
 	}
 
-	if refused := checkProfile(opened.Profiles, name, profile, "--"+flagBaseURL); refused != nil {
+	if refused := refusePlainHTTP(flags, profile.BaseURL); refused != nil {
 		return refused
 	}
 
@@ -234,12 +235,6 @@ func profileUpdate(
 		return refused
 	}
 
-	if changed(flagBaseURL) {
-		if refused := refusePlainBaseURL(flags, profile.BaseURL); refused != nil {
-			return refused
-		}
-	}
-
 	baseURLSource := profileBaseURL
 	if changed(flagBaseURL) {
 		baseURLSource = "--" + flagBaseURL
@@ -247,6 +242,12 @@ func profileUpdate(
 
 	if refused := checkProfile(opened.Profiles, name, profile, baseURLSource); refused != nil {
 		return refused
+	}
+
+	if changed(flagBaseURL) {
+		if refused := refusePlainHTTP(flags, profile.BaseURL); refused != nil {
+			return refused
+		}
 	}
 
 	change := creds.Change{Path: path, Profiles: opened.Profiles, Name: name, Profile: profile, ToFile: fields.toFile}
@@ -775,22 +776,18 @@ func checkGiven(profile creds.Profile, changed func(string) bool, providerGiven 
 	return nil
 }
 
-func refusePlainBaseURL(flags *runFlags, baseURL string) error {
-	if baseURL == "" {
-		return nil
-	}
-
-	// Ahead of the message, which quotes the URL.
-	if refused := checkBaseURL(baseURL, "--"+flagBaseURL); refused != nil {
-		return refused
-	}
-
+func refusePlainHTTP(flags *runFlags, baseURL string) error {
 	if flags.allowHTTP || !onesie.InsecureBaseURL(baseURL) {
 		return nil
 	}
 
-	return errors.New("--" + flagBaseURL + " " + output.Printable(baseURL) + " is plain http to a host other " +
-		"than this machine" + plainHTTPReason +
+	parsed, err := url.Parse(baseURL)
+	if err != nil {
+		return err
+	}
+
+	return errors.New("--" + flagBaseURL + " " + output.Printable(parsed.Scheme+"://"+parsed.Host) +
+		" is plain http to a host other than this machine" + plainHTTPReason +
 		". Use https, or pass --" + flagAllowHTTP + " to store it, and every run on the profile then needs --" +
 		flagAllowHTTP + " too")
 }

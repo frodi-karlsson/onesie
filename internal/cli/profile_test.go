@@ -378,13 +378,16 @@ func TestProfileCreate(t *testing.T) {
 			wantNoFile:  true,
 		},
 		{
-			name:        "should refuse a plain http base url to another host before reading the key",
-			args:        []string{"profile", "create", "work", "--provider", "typesafe", "--base-url", "http://proxy.example"},
+			name: "should refuse a plain http base url to another host before reading the key",
+			args: []string{
+				"profile", "create", "work", "--provider", "typesafe", "--base-url", "http://proxy.example/gateway",
+			},
 			stdinUnread: true,
 			wantCode:    ExitUsage,
 			wantErr: []string{"onesie: --base-url http://proxy.example is plain http to a host other than this machine, " +
 				"so the API key would cross the network unencrypted. Use https, or pass --allow-http to store it, " +
 				"and every run on the profile then needs --allow-http too"},
+			notErr:     []string{"/gateway"},
 			wantNoFile: true,
 		},
 		{
@@ -715,9 +718,10 @@ func TestProfileUpdate(t *testing.T) {
 		{
 			name:     "should refuse a plain http base url to another host",
 			file:     work,
-			args:     []string{"profile", "update", "work", "--base-url", "http://proxy.example"},
+			args:     []string{"profile", "update", "work", "--base-url", "http://proxy.example/gateway"},
 			wantCode: ExitUsage,
 			wantErr:  []string{"onesie: --base-url http://proxy.example is plain http", "pass --allow-http to store it"},
+			notErr:   []string{"/gateway"},
 			wantFile: work,
 		},
 		{
