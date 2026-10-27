@@ -782,11 +782,36 @@ func TestNewRootCmd(t *testing.T) {
 			absent:   []string{"not a profile name"},
 		},
 		{
-			name:     "should read a dashed word after a profile name as flags beside the subcommand hint",
+			name:     "should read a dashed word after a profile name as flags beside the run flag note",
 			args:     []string{"profile", "update", "work", "-fz"},
 			wantCode: cli.ExitUsage,
-			contains: []string{"onesie: profile update has no flag -f in -fz. 'profile' is a subcommand"},
+			contains: []string{"onesie: profile update has no flag -f in -fz. -f belongs to a run, not to profile update\n"},
 			absent:   []string{"not a profile name"},
+		},
+		{
+			name:     "should say a run flag does not belong to profile create",
+			args:     []string{"profile", "create", "z", "--provider", "typesafe", "--state", "x"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: profile create has no flag --state. --state belongs to a run, not to profile create\n"},
+		},
+		{
+			name:     "should say a run flag does not belong to profile show",
+			args:     []string{"profile", "show", "--base-url", "https://x.example"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: profile show has no flag --base-url. --base-url belongs to a run, not to profile show\n"},
+		},
+		{
+			name:     "should name the run flag and the question form on a bare subcommand",
+			args:     []string{"cache", "--model", "x"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: cache has no flag --model. --model belongs to a run, not to cache. " +
+				"To ask 'cache' as a question, put it after --\n"},
+		},
+		{
+			name:     "should leave out the question form when a subcommand also got a word",
+			args:     []string{"questions", "extra", "--stats"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: questions has no flag --stats. --stats belongs to a run, not to questions\n"},
 		},
 		{
 			name:     "should give the name rule for a dashed word after a flag value",
@@ -2196,7 +2221,7 @@ func TestNewRootCmd(t *testing.T) {
 	t.Run("should hint that a subcommand rejected a flag the root knows", func(t *testing.T) {
 		t.Parallel()
 
-		const hint = "is a subcommand. To ask it as a question, put it after --"
+		const hint = "as a question, put it after --"
 
 		tests := []struct {
 			name   string
@@ -2207,27 +2232,31 @@ func TestNewRootCmd(t *testing.T) {
 			{
 				name: "should hint for version",
 				args: []string{"--print-request", "version"},
-				want: "onesie: version has no flag --print-request. 'version' " + hint,
+				want: "onesie: version has no flag --print-request. --print-request belongs to a run, not to version. " +
+					"To ask 'version' " + hint + "\n",
 			},
 			{
 				name: "should hint for profile",
 				args: []string{"profile", "--print-request"},
-				want: "onesie: profile has no flag --print-request. 'profile' " + hint,
+				want: "onesie: profile has no flag --print-request. --print-request belongs to a run, not to profile. " +
+					"To ask 'profile' " + hint + "\n",
 			},
 			{
 				name: "should hint for completion",
 				args: []string{"completion", "--print-request"},
-				want: "onesie: completion has no flag --print-request. 'completion' " + hint,
+				want: "onesie: completion has no flag --print-request. --print-request belongs to a run, not to completion. " +
+					"To ask 'completion' " + hint + "\n",
 			},
 			{
 				name: "should hint for cache",
 				args: []string{"cache", "--state", "x"},
-				want: "onesie: cache has no flag --state. 'cache' " + hint,
+				want: "onesie: cache has no flag --state. --state belongs to a run, not to cache. To ask 'cache' " + hint + "\n",
 			},
 			{
-				name: "should hint for cache clear",
-				args: []string{"cache", "clear", "--state", "x"},
-				want: "onesie: cache clear has no flag --state. 'cache' " + hint,
+				name:   "should say a run flag does not belong to cache clear, which no question names",
+				args:   []string{"cache", "clear", "--state", "x"},
+				want:   "onesie: cache clear has no flag --state. --state belongs to a run, not to cache clear\n",
+				absent: true,
 			},
 			{
 				name:   "should refuse --state on calibrate with its own reason in place of the hint",
@@ -2238,7 +2267,7 @@ func TestNewRootCmd(t *testing.T) {
 			{
 				name: "should hint for a shorthand the root knows",
 				args: []string{"version", "-o", "json"},
-				want: "'version' " + hint,
+				want: "-o belongs to a run, not to version. To ask 'version' " + hint,
 			},
 			{
 				name:   "should not hint for -V, which takes no question",

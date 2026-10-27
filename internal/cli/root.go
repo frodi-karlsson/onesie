@@ -350,7 +350,7 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 
 	// Cobra hands every subcommand the nearest parent's flag error function, so one hook covers the
 	// subcommands cobra adds itself, such as completion.
-	hint := subcommandHint(root)
+	hint := subcommandHint(root, settings.args)
 	root.SetFlagErrorFunc(func(cmd *cobra.Command, err error) error {
 		return withDashQuestionHint(hint(cmd, plainFlagError(cmd, err, settings.args)), cmd.Flags(), settings.args, nil)
 	})
@@ -458,15 +458,18 @@ func unknownFlag(cmd *cobra.Command, unknown *pflag.NotExistError, args []string
 }
 
 func positionalBefore(cmd *cobra.Command, args []string, word string) bool {
+	// With no word, it reports whether the command line holds any positional at all. A flag the
+	// subcommand does not know may still be the root's, which takes the next word as its value.
 	path := strings.Fields(strings.TrimPrefix(cmd.CommandPath(), cmd.Root().Name()))
 
 	for i, arg := range args {
 		switch {
-		case arg == word || arg == "--":
+		case (word != "" && arg == word) || arg == "--":
 			return false
 		case len(path) > 0 && arg == path[0]:
 			path = path[1:]
-		case strings.HasPrefix(arg, "-") || (i > 0 && takesNextAsValue(cmd.Flags(), args[i-1])):
+		case strings.HasPrefix(arg, "-") ||
+			(i > 0 && (takesNextAsValue(cmd.Flags(), args[i-1]) || takesNextAsValue(cmd.Root().Flags(), args[i-1]))):
 		default:
 			return true
 		}
@@ -674,7 +677,7 @@ func refuseUnknownHelpTopics(root *cobra.Command) {
 	}
 }
 
-func subcommandHint(root *cobra.Command) func(*cobra.Command, error) error {
+func subcommandHint(root *cobra.Command, args []string) func(*cobra.Command, error) error {
 	return func(cmd *cobra.Command, err error) error {
 		var unknown *pflag.NotExistError
 		if cmd == root || !errors.As(err, &unknown) {
@@ -691,12 +694,21 @@ func subcommandHint(root *cobra.Command) func(*cobra.Command, error) error {
 			return err
 		}
 
-		top := cmd
-		for top.HasParent() && top.Parent() != root {
-			top = top.Parent()
+		spelled := "--" + known.Name
+		if unknown.GetSpecifiedShortnames() != "" {
+			spelled = "-" + known.Shorthand
 		}
 
-		return fmt.Errorf("%w. '%s' is a subcommand. To ask it as a question, put it after --", err, top.Name())
+		name := strings.TrimPrefix(cmd.CommandPath(), root.Name()+" ")
+		hinted := fmt.Errorf("%w. %s belongs to a run, not to %s", err, spelled, name)
+
+		// Only a bare subcommand name could have been meant as a one word question. A deeper
+		// subcommand, or one given a word of its own, was meant as that subcommand.
+		if cmd.Parent() != root || positionalBefore(cmd, args, "") {
+			return hinted
+		}
+
+		return fmt.Errorf("%w. To ask '%s' as a question, put it after --", hinted, cmd.Name())
 	}
 }
 
