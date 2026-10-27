@@ -622,6 +622,15 @@ func (o *outFile) checkFingerprint(fingerprint string) (matched bool, err error)
 	return true, nil
 }
 
+func (o *outFile) storedFingerprint() (stored string, found bool, err error) {
+	written, err := o.holdsAnswers()
+	if err != nil || !written {
+		return "", false, err
+	}
+
+	return o.readFingerprint()
+}
+
 func staleAnswers(cause, format string, args ...any) error {
 	// Not %w, which would add the sentinel's own text to a message people already read.
 	return &staleAnswersError{message: fmt.Sprintf(format, args...), cause: cause}

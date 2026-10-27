@@ -91,12 +91,7 @@ func askedPlan(
 		return scope.scored, nil
 	}
 
-	written, err := out.holdsAnswers()
-	if err != nil || !written {
-		return scope.scored, err
-	}
-
-	stored, found, err := out.readFingerprint()
+	stored, found, err := out.storedFingerprint()
 	if err != nil || !found {
 		return scope.scored, err
 	}

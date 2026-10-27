@@ -1906,8 +1906,7 @@ func TestLedger_TakeOrder(t *testing.T) {
 			book.note("1", span{start: 10, end: 20}, verdict{})
 
 			for _, id := range []string{"1", "2"} {
-				rec := &namedRecord{id: id}
-				book.admit(rec)
+				book.admit(id)
 			}
 
 			first := &book.lines[0]

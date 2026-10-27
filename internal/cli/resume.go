@@ -115,6 +115,50 @@ func readAnswers(ctx context.Context, answers *outFile, read func(r io.Reader) e
 	return ctx.Err()
 }
 
+func (o *outFile) readSpans(ctx context.Context, spans []span, read func(i int, text []byte)) (err error) {
+	if len(spans) == 0 {
+		return nil
+	}
+
+	file, err := o.open(o.path, os.O_RDONLY, 0)
+	if err != nil {
+		return fmt.Errorf("reading %s to resume: %w", o.path, err)
+	}
+
+	defer func() {
+		err = errors.Join(err, file.Close())
+	}()
+
+	// In file order, so the reads move forward through the file.
+	order := make([]int, len(spans))
+	for i := range order {
+		order[i] = i
+	}
+
+	slices.SortFunc(order, func(a, b int) int {
+		return cmp.Compare(spans[a].start, spans[b].start)
+	})
+
+	var text []byte
+
+	for _, i := range order {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return ctxErr
+		}
+
+		at := spans[i]
+
+		text = slices.Grow(text[:0], int(at.end-at.start))[:at.end-at.start]
+		if _, readErr := file.ReadAt(text, at.start); readErr != nil {
+			return fmt.Errorf("reading %s to resume: %w", o.path, readErr)
+		}
+
+		read(i, text)
+	}
+
+	return nil
+}
+
 type answersFormat struct {
 	mode      output.Mode
 	merge     bool
@@ -432,27 +476,65 @@ func keyOf(id string) ledgerKey {
 	return ledgerKey(sum[:16])
 }
 
-func (l *ledger) admit(rec *namedRecord) (verdict, bool) {
+func (l *ledger) admit(id any) (slot int, judged verdict, answered bool) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	rec.slot = len(l.lines)
+	slot = len(l.lines)
 
-	if rec.id != nil {
-		key := keyOf(jq.IDText(rec.id))
+	if id != nil {
+		key := keyOf(jq.IDText(id))
 		if stored, found := l.answered[key]; found {
 			delete(l.answered, key)
 			l.lines = append(l.lines, stored.at)
 			l.skips.count(stored.judged)
 
-			return stored.judged, true
+			return slot, stored.judged, true
 		}
 	}
 
 	l.lines = append(l.lines, span{})
 	l.pending++
 
-	return verdict{}, false
+	return slot, verdict{}, false
+}
+
+func (l *ledger) storedAt(id any) (span, bool) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	if id == nil {
+		return span{}, false
+	}
+
+	stored, found := l.answered[keyOf(jq.IDText(id))]
+
+	return stored.at, found
+}
+
+func (l *ledger) keep(id any) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	if id == nil {
+		return
+	}
+
+	key := keyOf(jq.IDText(id))
+
+	// Kept in its place and nothing more. The record is not asked, so it is neither pending nor
+	// skipped.
+	if stored, found := l.answered[key]; found {
+		delete(l.answered, key)
+		l.lines = append(l.lines, stored.at)
+	}
+}
+
+func (l *ledger) forget(id any) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	delete(l.answered, keyOf(jq.IDText(id)))
 }
 
 func (l *ledger) wrote(slot int, at span) {

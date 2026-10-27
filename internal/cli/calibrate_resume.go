@@ -1,13 +1,8 @@
 package cli
 
 import (
-	"cmp"
 	"context"
 	"encoding/json"
-	"errors"
-	"fmt"
-	"os"
-	"slices"
 
 	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/answer"
@@ -64,9 +59,8 @@ func resumeLabelled(
 		}
 
 		rec := &set.records[entry.record]
-		named := namedRecord{id: rec.id}
-		_, known := book.admit(&named)
-		rec.slot = named.slot
+		slot, _, known := book.admit(rec.id)
+		rec.slot = slot
 
 		if known {
 			resumed.stored++
@@ -93,84 +87,15 @@ type storedLine struct {
 	record output.Record
 }
 
-func (l *ledger) storedAt(id any) (span, bool) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-
-	if id == nil {
-		return span{}, false
+func storedAnswers(ctx context.Context, out *outFile, lines []storedLine, built *plan.Plan) error {
+	spans := make([]span, len(lines))
+	for i, stored := range lines {
+		spans[i] = stored.at
 	}
 
-	stored, found := l.answered[keyOf(jq.IDText(id))]
-
-	return stored.at, found
-}
-
-func (l *ledger) keep(id any) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-
-	if id == nil {
-		return
-	}
-
-	key := keyOf(jq.IDText(id))
-
-	// Kept in its place and nothing more. The record is not asked, so it is neither pending nor
-	// skipped.
-	if stored, found := l.answered[key]; found {
-		delete(l.answered, key)
-		l.lines = append(l.lines, stored.at)
-	}
-}
-
-func (l *ledger) forget(id any) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-
-	delete(l.answered, keyOf(jq.IDText(id)))
-}
-
-func storedAnswers(ctx context.Context, out *outFile, lines []storedLine, built *plan.Plan) (err error) {
-	if len(lines) == 0 {
-		return nil
-	}
-
-	file, err := out.open(out.path, os.O_RDONLY, 0)
-	if err != nil {
-		return fmt.Errorf("reading %s to resume: %w", out.path, err)
-	}
-
-	defer func() {
-		err = errors.Join(err, file.Close())
-	}()
-
-	// In file order, so the reads move forward through the file.
-	order := make([]*storedLine, len(lines))
-	for i := range lines {
-		order[i] = &lines[i]
-	}
-
-	slices.SortFunc(order, func(a, b *storedLine) int {
-		return cmp.Compare(a.at.start, b.at.start)
+	return out.readSpans(ctx, spans, func(i int, text []byte) {
+		lines[i].record = storedRecord(built, text)
 	})
-
-	var text []byte
-
-	for _, stored := range order {
-		if ctxErr := ctx.Err(); ctxErr != nil {
-			return ctxErr
-		}
-
-		text = slices.Grow(text[:0], int(stored.at.end-stored.at.start))[:stored.at.end-stored.at.start]
-		if _, readErr := file.ReadAt(text, stored.at.start); readErr != nil {
-			return fmt.Errorf("reading %s to resume: %w", out.path, readErr)
-		}
-
-		stored.record = storedRecord(built, text)
-	}
-
-	return nil
 }
 
 func storedRecord(built *plan.Plan, text []byte) output.Record {

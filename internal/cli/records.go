@@ -175,7 +175,9 @@ func (n *naming) Next() (namedRecord, bool, error) {
 		}
 
 		// Skipped here, as the record is read, so an answered record is never evaluated or sent.
-		judged, answered := n.book.admit(&named)
+		slot, judged, answered := n.book.admit(named.id)
+		named.slot = slot
+
 		if !answered {
 			return named, true, nil
 		}
