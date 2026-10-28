@@ -177,6 +177,17 @@ func TestPreflight(t *testing.T) {
 			want: badTTL + "\n" + goodVerdict,
 		},
 		{
+			name: "should pass on a variable every run refuses and still report a missing key after its hint",
+			show: "profile: none\nprovider: typesafe\nchosen by: nothing\nkey: none\n" +
+				"model: jev-latest, the provider's default\nbase_url: https://api.typesafe.ai, the provider's default\n" +
+				"onesie: no API key. Set TYPESAFE_API_KEY, or store one with onesie profile create NAME --provider typesafe\n" +
+				badTTL + "\n",
+			code: 2,
+			want: badTTL + "\nonesie is on PATH, but no API key resolves for provider typesafe. Only --print-request, " +
+				"--print-questions, --print-schema and --mock work until the user runs onesie profile create NAME " +
+				"--provider typesafe or sets TYPESAFE_API_KEY. The onesie-setup skill walks them through it.\n",
+		},
+		{
 			name: "should pass on a removed link and still report the key",
 			show: removedLink + "\n" + goodReport,
 			want: removedLink + "\n" + goodVerdict,

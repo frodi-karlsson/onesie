@@ -479,7 +479,7 @@ func newProfileShowCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 			providers.AccountVariables() + ", or the provider's default. An allow_http line says a run needs " +
 			"--allow-http, when base_url is plain http to another host. It never reads the keychain or " +
 			"prints a key.\n\n" +
-			"It exits 2 when key or account is none, printing the hint a run gives, when the account is not " +
+			"It exits 2 when key or account is none, printing the hint a run gives for each, when the account is not " +
 			"32 hexadecimal characters, or when ONESIE_CACHE, ONESIE_LONG_CONTEXT or ONESIE_CACHE_TTL holds " +
 			"a value a run refuses, as a real run does.",
 		Args: profileNames("show", 0, 1),
@@ -540,22 +540,54 @@ func profileShow(cmd *cobra.Command, settings rootSettings, flags *runFlags, arg
 		return printErr
 	}
 
-	// Checked as a run checks them, after the report, so a reader of the key line still finds it.
-	if _, switchErr := envSwitches(settings.lookupEnv); switchErr != nil {
-		return switchErr
-	}
-
-	if shown.keyFrom == sourceNone || account == sourceNone {
-		return missingHint(cmd, settings, shown)
-	}
-
-	return nil
+	return showRefusals(cmd, settings, shown, invalid, account)
 }
 
-func missingHint(cmd *cobra.Command, settings rootSettings, shown resolution) error {
-	// The client is never used. Building it is how a run finds the missing key or account and words
-	// its hint, and a plain http base URL is let through, since the report already names it.
-	if _, err := settings.newClient(cmd.Context(), shown, onesie.WithInsecureHTTP()); err != nil {
+func showRefusals(cmd *cobra.Command, settings rootSettings, shown resolution, accountErr error, account string) error {
+	var refusals []error
+
+	if shown.keyFrom == sourceNone {
+		refusals = append(refusals, missingKey(cmd, settings, shown, account))
+	}
+
+	if account == sourceNone {
+		refusals = append(refusals, accountNote(accountErr, shown))
+	}
+
+	// Checked as a run checks them, after the report, so a reader of the key line still finds it.
+	if _, switchErr := envSwitches(settings.lookupEnv); switchErr != nil {
+		refusals = append(refusals, switchErr)
+	}
+
+	if len(refusals) == 0 {
+		return nil
+	}
+
+	last := len(refusals) - 1
+	for _, refusal := range refusals[:last] {
+		if !worthReporting(refusal) {
+			continue
+		}
+
+		if err := output.Notice(cmd.ErrOrStderr(), output.Printable(text(refusal))); err != nil {
+			return err
+		}
+	}
+
+	return refusals[last]
+}
+
+func missingKey(cmd *cobra.Command, settings rootSettings, shown resolution, account string) error {
+	// The client is never used. Building it is how a run finds the missing key and words its hint,
+	// and a plain http base URL is let through, since the report already names it.
+	opts := []onesie.Option{onesie.WithInsecureHTTP()}
+	if account == sourceNone {
+		// A stand in account gets the build past the account check to the key, since the account
+		// has its own hint.
+		opts = append(opts, onesie.WithAccountID(strings.Repeat("0", 32)))
+	}
+
+	if _, err := settings.newClient(cmd.Context(), shown, opts...); err != nil {
 		return err
 	}
 

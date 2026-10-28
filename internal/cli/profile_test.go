@@ -1509,6 +1509,10 @@ func TestProfileShow(t *testing.T) {
 		typesafeOwn = "base_url: https://api.typesafe.ai, the provider's default\n"
 		tsFile      = `{"default":"ts","profiles":{"ts":{"provider":"typesafe","api_key":"SECRET-TS-0123456789"}}}`
 		tsShown     = "profile: ts\nprovider: typesafe\nchosen by: the default\nkey: file, ends in 6789\n"
+		cfNoKey     = "onesie: no API key. Set CLOUDFLARE_API_TOKEN, or store one with " +
+			"onesie profile create NAME --provider cloudflare\n"
+		cfNoAccount = "onesie: no cloudflare account id. Set CLOUDFLARE_ACCOUNT_ID, or store it with " +
+			"onesie profile create NAME --provider cloudflare --account-id ACCOUNT_ID\n"
 	)
 
 	tests := []profileCase{
@@ -1619,14 +1623,32 @@ func TestProfileShow(t *testing.T) {
 			wantStderr: "onesie: ONESIE_LONG_CONTEXT=maybe is not a value --long-context takes. Use 1 or 0\n",
 		},
 		{
-			name: "should report a switch a run refuses ahead of a missing key, as a run does",
+			name: "should print the missing key hint, then the switch a run refuses",
 			env:  map[string]string{"ONESIE_CACHE_TTL": "abc"},
 			args: []string{"profile", "show"},
 			wantOut: "profile: none\nprovider: typesafe\nchosen by: nothing\nkey: none\n" +
 				"model: jev-latest, the provider's default\n" + typesafeOwn,
 			wantCode: ExitUsage,
-			wantStderr: "onesie: ONESIE_CACHE_TTL=abc is not a duration of zero or more, " +
-				"such as 90m or 72h\n",
+			wantStderr: "onesie: no API key. Set TYPESAFE_API_KEY, or store one with " +
+				"onesie profile create NAME --provider typesafe\n" +
+				"onesie: ONESIE_CACHE_TTL=abc is not a duration of zero or more, such as 90m or 72h\n",
+		},
+		{
+			name: "should print the key hint and the account hint when cloudflare has neither",
+			args: []string{"--provider", "cloudflare", "profile", "show"},
+			wantOut: "profile: none\nprovider: cloudflare\nchosen by: --provider\nkey: none\n" +
+				"model: typesafe/jev, the provider's default\nbase_url: none\naccount: none\n",
+			wantCode:   ExitUsage,
+			wantStderr: cfNoKey + cfNoAccount,
+		},
+		{
+			name: "should print every hint that applies, then the switch a run refuses",
+			env:  map[string]string{"ONESIE_CACHE": "maybe"},
+			args: []string{"--provider", "cloudflare", "profile", "show"},
+			wantOut: "profile: none\nprovider: cloudflare\nchosen by: --provider\nkey: none\n" +
+				"model: typesafe/jev, the provider's default\nbase_url: none\naccount: none\n",
+			wantCode:   ExitUsage,
+			wantStderr: cfNoKey + cfNoAccount + "onesie: ONESIE_CACHE=maybe is not a value --cache takes. Use 1 or 0\n",
 		},
 		{
 			name:    "should report TYPESAFE_DEFAULT_MODEL and TYPESAFE_BASE_URL when the profile sets neither",
