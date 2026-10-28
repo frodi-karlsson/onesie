@@ -230,11 +230,13 @@ func TestMockAnswers(t *testing.T) {
 			wantCode: ExitUnavailable,
 		},
 		{
-			name:     "should exit 3 for one record the file refuses with 401",
+			name:     "should exit 3 for one record the file refuses with 401, naming no key",
 			args:     with("--state", "x"),
 			mock:     `{"error":401}`,
 			stderr:   []string{"onesie: 401 status code, no body"},
 			wantCode: ExitAuth,
+
+			stderrAbsent: []string{"The key came from"},
 		},
 		{
 			name:     "should exit 4 for one record the file fails with 503",
@@ -308,6 +310,8 @@ func TestMockAnswers(t *testing.T) {
 			mock:     lines(mockAll, `{"error":401}`, mockAll),
 			stderr:   []string{"onesie: 401 status code, no body"},
 			wantCode: ExitAuth,
+
+			stderrAbsent: []string{"The key came from"},
 		},
 		{
 			name:    "should stop at the first record the file does not cover, naming its line",

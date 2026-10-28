@@ -180,7 +180,7 @@ func runRoot(
 	recorder *argv.Recorder,
 ) (err error) {
 	defer func() {
-		err = withKeyHint(withDashQuestionHint(err, cmd.Flags(), settings.args, args), settings)
+		err = withKeyHint(withDashQuestionHint(err, cmd.Flags(), settings.args, args), settings, flags.mock)
 	}()
 
 	// Not cobra's own version flag, which prints before any argument is checked.

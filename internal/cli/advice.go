@@ -90,8 +90,9 @@ func adviseBox(err error, boxed bool, boxModel string) error {
 	return &advisedError{cause: err, message: withNote(text(err), note)}
 }
 
-func withKeyHint(err error, settings rootSettings) error {
-	if !keyRefused(err) {
+func withKeyHint(err error, settings rootSettings, mockFlag string) error {
+	// A mock run sends no key, so naming where one came from would send the reader to the wrong place.
+	if path, _ := mockSource(settings.lookupEnv, mockFlag); !keyRefused(err) || path != "" {
 		return err
 	}
 
