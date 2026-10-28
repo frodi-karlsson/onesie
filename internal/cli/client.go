@@ -149,9 +149,7 @@ func baseURLFrom(
 ) (name, given string) {
 	switch source {
 	case onesie.BaseURLFromOption:
-		given, source := chosen.givenBaseURL(baseURLFlag)
-
-		return source, given
+		return chosen.givenBaseURL(baseURLFlag)
 	case onesie.BaseURLFromEnv:
 		return chosen.provider.EnvBaseURL(), setVariable(lookupEnv, chosen.provider.EnvBaseURL())
 	case onesie.BaseURLFromAccount:

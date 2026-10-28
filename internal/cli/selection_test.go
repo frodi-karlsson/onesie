@@ -604,9 +604,9 @@ func TestResolutionGivenBaseURL(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			url, source := tc.run.givenBaseURL(tc.flag)
-			if url != tc.wantURL || source != tc.wantSource {
-				t.Errorf("givenBaseURL = %q, %q, want %q, %q", url, source, tc.wantURL, tc.wantSource)
+			source, url := tc.run.givenBaseURL(tc.flag)
+			if source != tc.wantSource || url != tc.wantURL {
+				t.Errorf("givenBaseURL = %q, %q, want %q, %q", source, url, tc.wantSource, tc.wantURL)
 			}
 		})
 	}

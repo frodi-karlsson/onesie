@@ -181,7 +181,7 @@ func (r resolution) options(
 ) []onesie.Option {
 	var opts []onesie.Option
 
-	if baseURL, _ := r.givenBaseURL(baseURLFlag); baseURL != "" {
+	if _, baseURL := r.givenBaseURL(baseURLFlag); baseURL != "" {
 		opts = append(opts, onesie.WithBaseURL(baseURL))
 	}
 
@@ -198,12 +198,12 @@ func (r resolution) options(
 	return opts
 }
 
-func (r resolution) givenBaseURL(baseURLFlag string) (baseURL, source string) {
+func (r resolution) givenBaseURL(baseURLFlag string) (name, given string) {
 	if flag := strings.TrimSpace(baseURLFlag); flag != "" {
-		return flag, "--" + flagBaseURL
+		return "--" + flagBaseURL, flag
 	}
 
-	return r.baseURL, profileBaseURL
+	return profileBaseURL, r.baseURL
 }
 
 func (r resolution) modelFor(explicit string, lookupEnv func(string) (string, bool)) string {
