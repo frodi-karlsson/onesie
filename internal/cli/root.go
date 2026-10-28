@@ -76,7 +76,7 @@ var groupFlagHelp = map[string]string{
 }
 
 // NewRootCmd builds a fresh command tree that reads and writes no global state.
-func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
+func NewRootCmd(info BuildInfo, opts ...RootOption) *Root {
 	flags := &runFlags{}
 
 	settings := defaultSettings(info)
@@ -151,7 +151,7 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 	root.InitDefaultHelpFlag()
 	asksNothing(root.Flags(), "help")
 
-	return root
+	return &Root{Command: root, cleanups: settings.cleanups}
 }
 
 func rootLong() string {
@@ -228,7 +228,7 @@ func runRoot(
 	out, resume, err := openOut(settings, *flags, false)
 
 	defer func() {
-		err = cleanupsIn(cmd.Context()).after(err, out.Release())
+		err = settings.cleanups.after(err, out.Release())
 	}()
 
 	if err != nil {
@@ -243,7 +243,7 @@ func runRoot(
 
 	runErr := run(cmd, settings, recorder.Events(), positional, flags, out, resume)
 
-	return cleanupsIn(cmd.Context()).after(runErr, out.Finish(runErr))
+	return settings.cleanups.after(runErr, out.Finish(runErr))
 }
 
 func addRootFlags(root *cobra.Command, flags *runFlags, recorder *argv.Recorder) {
@@ -403,6 +403,7 @@ func defaultSettings(info BuildInfo) rootSettings {
 		readBuiltIn:   questions.Read,
 		builtIns:      questions.Names,
 		transport:     http.DefaultTransport,
+		cleanups:      &cleanupLog{},
 	}
 }
 
@@ -754,18 +755,38 @@ func asksNothing(set *pflag.FlagSet, name string) {
 	flag.Annotations[annotationAsksNothing] = nil
 }
 
-// Execute runs a built command tree and returns the process exit code, so main never has to
-// classify an error itself.
-func Execute(ctx context.Context, root *cobra.Command) int {
-	ended := execute(ctx, root)
+// Root is a command tree with the log of the cleanup failures its runs record, which cobra's one
+// returned error has no room for.
+type Root struct {
+	*cobra.Command
+
+	cleanups *cleanupLog
+}
+
+// Execute runs the tree and returns the process exit code, so main never has to classify an error
+// itself. The cleanup failures that followed the run's failure print after it.
+func (r *Root) Execute(ctx context.Context) int {
+	ended := r.run(ctx)
 
 	for _, line := range ended.report() {
 		// Stripped, since a message can quote the server or the input to a terminal.
 		//nolint:errcheck // A stderr that cannot take the message leaves the exit code to name the failure.
-		_ = output.Notice(root.ErrOrStderr(), output.Printable(line))
+		_ = output.Notice(r.ErrOrStderr(), output.Printable(line))
 	}
 
 	return Classify(ended.failure)
+}
+
+// ExecuteContext runs the tree and returns its failure joined with the cleanup failures that
+// followed it, for a caller that inspects the error instead of exiting with it.
+func (r *Root) ExecuteContext(ctx context.Context) error {
+	ended := r.run(ctx)
+
+	if len(ended.cleanups) == 0 {
+		return ended.failure
+	}
+
+	return errors.Join(append([]error{ended.failure}, ended.cleanups...)...)
 }
 
 // WithClientFactory replaces how commands build their API client, so a test can point one at a
@@ -948,6 +969,7 @@ type rootSettings struct {
 	readBuiltIn   func(name string) ([]byte, bool)
 	builtIns      func() []string
 	transport     http.RoundTripper
+	cleanups      *cleanupLog
 }
 
 func widthOf(f *os.File) func() (int, bool) {

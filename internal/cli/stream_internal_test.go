@@ -762,7 +762,7 @@ func runStub(
 	root.SetErr(&errOut)
 	root.SetArgs(args)
 
-	code := Execute(ctx, root)
+	code := root.Execute(ctx)
 
 	return out.String(), errOut.String(), code
 }

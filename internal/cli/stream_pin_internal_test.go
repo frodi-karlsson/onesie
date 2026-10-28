@@ -567,7 +567,7 @@ func runPinned(t *testing.T, step pinnedStep, out string) (string, string, int) 
 	root.SetErr(&stderr)
 	root.SetArgs(args)
 
-	code := Execute(ctx, root)
+	code := root.Execute(ctx)
 
 	return stdout.String(), stderr.String(), code
 }

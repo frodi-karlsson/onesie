@@ -22,7 +22,7 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/creds"
 )
 
-func TestExecute(t *testing.T) {
+func TestRootExecute(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -75,7 +75,7 @@ func TestExecute(t *testing.T) {
 			root.SetErr(stderr)
 			root.SetArgs([]string{"--base-url", srv.URL, "--retries", "0", "--state", "x", "is it urgent"})
 
-			if code := Execute(t.Context(), root); code != ExitUnavailable {
+			if code := root.Execute(t.Context()); code != ExitUnavailable {
 				t.Errorf("exit code with stderr %T = %d, want %d", stderr, code, ExitUnavailable)
 			}
 		}
@@ -148,29 +148,36 @@ func TestExecute(t *testing.T) {
 
 				var errOut bytes.Buffer
 
-				root := &cobra.Command{
-					Use:           "onesie",
-					SilenceErrors: true,
-					SilenceUsage:  true,
-					RunE: func(cmd *cobra.Command, _ []string) error {
-						cleanups := cleanupsIn(cmd.Context())
+				root := failingCleanups(&errOut, func(int) ([]error, error) { return tc.cleanups, tc.failure })
 
-						err := tc.failure
-						for _, cleanup := range tc.cleanups {
-							err = cleanups.after(err, cleanup)
-						}
-
-						return err
-					},
-				}
-
-				root.SetErr(&errOut)
-				root.SetArgs([]string{})
-
-				if code := Execute(t.Context(), root); code != tc.wantCode || errOut.String() != tc.wantStderr {
+				if code := root.Execute(t.Context()); code != tc.wantCode || errOut.String() != tc.wantStderr {
 					t.Errorf("exit %d, stderr %q, want exit %d and %q", code, errOut.String(), tc.wantCode, tc.wantStderr)
 				}
 			})
+		}
+	})
+
+	t.Run("should start a second run with none of the first run's cleanup failures", func(t *testing.T) {
+		t.Parallel()
+
+		var errOut bytes.Buffer
+
+		root := failingCleanups(&errOut, func(run int) ([]error, error) {
+			if run == 1 {
+				return []error{errors.New("stderr is gone")}, errors.New("saving profiles.json: the disk is full")
+			}
+
+			return nil, nil
+		})
+
+		if code := root.Execute(t.Context()); code != ExitUsage {
+			t.Fatalf("first run exit %d, want %d", code, ExitUsage)
+		}
+
+		errOut.Reset()
+
+		if code := root.Execute(t.Context()); code != ExitOK || errOut.Len() != 0 {
+			t.Errorf("second run exit %d, stderr %q, want exit 0 and nothing", code, errOut.String())
 		}
 	})
 
@@ -522,6 +529,92 @@ func TestExecute(t *testing.T) {
 	}
 }
 
+func TestRootExecuteContext(t *testing.T) {
+	t.Parallel()
+
+	failure := errors.New("saving profiles.json: the disk is full")
+	release := errors.New("unlocking answers.jsonl: busy")
+
+	tests := []struct {
+		name     string
+		failure  error
+		cleanups []error
+		wantIs   []error
+	}{
+		{name: "should return nil when nothing failed"},
+		{name: "should return the failure alone when no cleanup failed", failure: failure, wantIs: []error{failure}},
+		{
+			name: "should return the failure joined with the cleanup failures that followed it", failure: failure,
+			cleanups: []error{release}, wantIs: []error{failure, release},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			root := failingCleanups(io.Discard, func(int) ([]error, error) { return tc.cleanups, tc.failure })
+
+			err := root.ExecuteContext(t.Context())
+			if (err == nil) != (len(tc.wantIs) == 0) {
+				t.Fatalf("error = %v, want one matching %v", err, tc.wantIs)
+			}
+
+			for _, want := range tc.wantIs {
+				if !errors.Is(err, want) {
+					t.Errorf("error = %v, want one matching %v", err, want)
+				}
+			}
+		})
+	}
+
+	t.Run("should start a second run with none of the first run's cleanup failures", func(t *testing.T) {
+		t.Parallel()
+
+		root := failingCleanups(io.Discard, func(run int) ([]error, error) {
+			if run == 1 {
+				return []error{release}, failure
+			}
+
+			return nil, failure
+		})
+
+		if err := root.ExecuteContext(t.Context()); !errors.Is(err, release) {
+			t.Fatalf("first run error = %v, want one matching %v", err, release)
+		}
+
+		if err := root.ExecuteContext(t.Context()); !errors.Is(err, failure) || errors.Is(err, release) {
+			t.Errorf("second run error = %v, want %v alone", err, failure)
+		}
+	})
+}
+
+func failingCleanups(stderr io.Writer, script func(run int) (cleanups []error, failure error)) *Root {
+	cleanups := &cleanupLog{}
+	runs := 0
+
+	root := &Root{Command: &cobra.Command{
+		Use:           "onesie",
+		SilenceErrors: true,
+		SilenceUsage:  true,
+		RunE: func(*cobra.Command, []string) error {
+			runs++
+
+			failed, err := script(runs)
+			for _, cleanup := range failed {
+				err = cleanups.after(err, cleanup)
+			}
+
+			return err
+		},
+	}, cleanups: cleanups}
+
+	root.SetErr(stderr)
+	root.SetArgs([]string{})
+
+	return root
+}
+
 func interruptedRun(t *testing.T, args []string, opts ...RootOption) int {
 	t.Helper()
 
@@ -538,7 +631,7 @@ func interruptedRun(t *testing.T, args []string, opts ...RootOption) int {
 	done := make(chan int, 1)
 
 	go func() {
-		done <- Execute(ctx, root)
+		done <- root.Execute(ctx)
 	}()
 
 	select {

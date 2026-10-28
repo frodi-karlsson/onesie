@@ -882,7 +882,7 @@ func runAgainst(
 	root.SetErr(&errOut)
 	root.SetArgs(args)
 
-	code := Execute(t.Context(), root)
+	code := root.Execute(t.Context())
 
 	return out.String(), errOut.String(), code
 }

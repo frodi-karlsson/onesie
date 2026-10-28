@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/goccy/go-yaml"
-	"github.com/spf13/cobra"
 
 	"github.com/frodi-karlsson/onesie/internal/cli"
 	"github.com/frodi-karlsson/onesie/internal/skillcheck"
@@ -139,7 +138,7 @@ func TestReadme(t *testing.T) {
 
 		exited := make(chan int, 1)
 
-		go func() { exited <- cli.Execute(t.Context(), root) }()
+		go func() { exited <- root.Execute(t.Context()) }()
 
 		for _, record := range []string{`{"id":"t1","body":"the site is down"}`, `{"id":"t2","body":"thanks"}`} {
 			if _, err := io.WriteString(feed, record+"\n"); err != nil {
@@ -480,12 +479,12 @@ func runReadme(t *testing.T, stdin string, args ...string) (string, string, int)
 	root.SetErr(&errOut)
 	root.SetArgs(args)
 
-	code := cli.Execute(t.Context(), root)
+	code := root.Execute(t.Context())
 
 	return out.String(), errOut.String(), code
 }
 
-func readmeRoot(t *testing.T, stdin io.Reader) *cobra.Command {
+func readmeRoot(t *testing.T, stdin io.Reader) *cli.Root {
 	t.Helper()
 
 	dir := t.TempDir()

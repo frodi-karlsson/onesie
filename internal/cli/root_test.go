@@ -1776,7 +1776,7 @@ func TestNewRootCmd(t *testing.T) {
 			root.SetOut(&out)
 			root.SetErr(&out)
 
-			code := cli.Execute(t.Context(), root)
+			code := root.Execute(t.Context())
 
 			if code != tc.wantCode {
 				t.Errorf("exit code = %d, want %d\noutput:\n%s", code, tc.wantCode, out.String())
@@ -1966,7 +1966,7 @@ func TestNewRootCmd(t *testing.T) {
 				root.SetErr(&out)
 				root.SetArgs(args)
 
-				if code := cli.Execute(t.Context(), root); code != tc.code {
+				if code := root.Execute(t.Context()); code != tc.code {
 					t.Errorf("exit code = %d, want %d. output:\n%s", code, tc.code, out.String())
 				}
 
@@ -2095,7 +2095,7 @@ func TestNewRootCmd(t *testing.T) {
 					root.SetErr(&errOut)
 					root.SetArgs(append(slices.Clone(tc.question), append(args, "--retries", "0")...))
 
-					code := cli.Execute(t.Context(), root)
+					code := root.Execute(t.Context())
 
 					return out.String(), errOut.String(), code
 				}
@@ -2146,7 +2146,7 @@ func TestNewRootCmd(t *testing.T) {
 		root.SetErr(&out)
 		root.SetArgs([]string{"--help"})
 
-		if code := cli.Execute(t.Context(), root); code != cli.ExitOK {
+		if code := root.Execute(t.Context()); code != cli.ExitOK {
 			t.Fatalf("exit code = %d, output:\n%s", code, out.String())
 		}
 
@@ -2178,7 +2178,7 @@ func TestNewRootCmd(t *testing.T) {
 			root.SetErr(&out)
 			root.SetArgs(pin.args)
 
-			if code := cli.Execute(t.Context(), root); code != cli.ExitOK {
+			if code := root.Execute(t.Context()); code != cli.ExitOK {
 				t.Fatalf("onesie %s exit code = %d, output:\n%s", strings.Join(pin.args, " "), code, out.String())
 			}
 
@@ -2205,7 +2205,7 @@ func TestNewRootCmd(t *testing.T) {
 			root.SetErr(&out)
 			root.SetArgs(args)
 
-			if code := cli.Execute(t.Context(), root); code != cli.ExitOK {
+			if code := root.Execute(t.Context()); code != cli.ExitOK {
 				t.Fatalf("onesie %s exit code = %d, output:\n%s", strings.Join(args, " "), code, out.String())
 			}
 
@@ -2241,7 +2241,7 @@ func TestNewRootCmd(t *testing.T) {
 			root.SetErr(&errOut)
 			root.SetArgs(strings.Fields(args))
 
-			if code := cli.Execute(t.Context(), root); code != cli.ExitUsage || errOut.String() != want || out.Len() != 0 {
+			if code := root.Execute(t.Context()); code != cli.ExitUsage || errOut.String() != want || out.Len() != 0 {
 				t.Errorf("onesie %s = exit %d, stdout %q, stderr %q, want exit 2 and %q", args, code, out.String(), errOut.String(), want)
 			}
 		}
@@ -2259,7 +2259,7 @@ func TestNewRootCmd(t *testing.T) {
 			root.SetErr(&errOut)
 			root.SetArgs(args)
 
-			code := cli.Execute(t.Context(), root)
+			code := root.Execute(t.Context())
 			want := "onesie: --output is empty. Name one, or leave the flag out\n"
 			if code != cli.ExitUsage || errOut.String() != want || out.Len() != 0 {
 				t.Errorf("onesie %q = exit %d, stdout %q, stderr %q, want exit 2 and %q",
@@ -2295,7 +2295,7 @@ func TestNewRootCmd(t *testing.T) {
 			root.SetErr(&out)
 			root.SetArgs(pin.args)
 
-			if code := cli.Execute(t.Context(), root); code != cli.ExitOK {
+			if code := root.Execute(t.Context()); code != cli.ExitOK {
 				t.Fatalf("onesie %s exit code = %d, output:\n%s", strings.Join(pin.args, " "), code, out.String())
 			}
 
@@ -2312,7 +2312,7 @@ func TestNewRootCmd(t *testing.T) {
 			cli.WithStdin(strings.NewReader("")), cli.WithStdinTTY(false))
 
 		calibrate, _, err := root.Find([]string{"calibrate"})
-		if err != nil || calibrate == root {
+		if err != nil || calibrate == root.Command {
 			t.Fatalf("finding calibrate: %v", err)
 		}
 
@@ -2420,7 +2420,7 @@ func TestNewRootCmd(t *testing.T) {
 				root.SetErr(&errOut)
 				root.SetArgs(tc.args)
 
-				if code := cli.Execute(t.Context(), root); code != tc.wantCode {
+				if code := root.Execute(t.Context()); code != tc.wantCode {
 					t.Errorf("exit code = %d, want %d\nstderr:\n%s", code, tc.wantCode, errOut.String())
 				}
 
@@ -2557,7 +2557,7 @@ func TestNewRootCmd(t *testing.T) {
 				root.SetErr(&errOut)
 				root.SetArgs(tc.args)
 
-				if code := cli.Execute(t.Context(), root); code != cli.ExitUsage {
+				if code := root.Execute(t.Context()); code != cli.ExitUsage {
 					t.Errorf("exit code = %d, want %d\nstderr:\n%s", code, cli.ExitUsage, errOut.String())
 				}
 
@@ -2642,7 +2642,7 @@ func TestNewRootCmd(t *testing.T) {
 				root.SetErr(&errOut)
 				root.SetArgs(append(tc.args, "--base-url", srv.URL))
 
-				if code := cli.Execute(t.Context(), root); code != tc.wantCode {
+				if code := root.Execute(t.Context()); code != tc.wantCode {
 					t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, tc.wantCode, errOut.String())
 				}
 
@@ -2665,7 +2665,7 @@ func TestNewRootCmd(t *testing.T) {
 			root.SetErr(&out)
 			root.SetArgs(args)
 
-			if code := cli.Execute(t.Context(), root); code != cli.ExitOK {
+			if code := root.Execute(t.Context()); code != cli.ExitOK {
 				t.Fatalf("%v exit code = %d\n%s", args, code, out.String())
 			}
 
@@ -2718,7 +2718,7 @@ func TestNewRootCmd(t *testing.T) {
 				root.SetErr(&out)
 				root.SetArgs(tc.args)
 
-				if code := cli.Execute(t.Context(), root); code != cli.ExitOK {
+				if code := root.Execute(t.Context()); code != cli.ExitOK {
 					t.Fatalf("exit code = %d\n%s", code, out.String())
 				}
 
@@ -2826,7 +2826,7 @@ func TestClientBuilder(t *testing.T) {
 		root.SetErr(&out)
 		root.SetArgs([]string{"is this urgent"})
 
-		if code := cli.Execute(t.Context(), root); code != cli.ExitUsage || !strings.Contains(out.String(), "CLOUDFLARE_ACCOUNT_ID") {
+		if code := root.Execute(t.Context()); code != cli.ExitUsage || !strings.Contains(out.String(), "CLOUDFLARE_ACCOUNT_ID") {
 			t.Fatalf("exit code = %d, output:\n%s\nwant 2 naming CLOUDFLARE_ACCOUNT_ID", code, out.String())
 		}
 	})
@@ -2867,7 +2867,7 @@ func TestClientBuilder(t *testing.T) {
 				"is this urgent", "-r", "--base-url", srv.URL,
 			})
 
-			if code := cli.Execute(t.Context(), root); code != cli.ExitOK {
+			if code := root.Execute(t.Context()); code != cli.ExitOK {
 				t.Fatalf("exit code = %d, output:\n%s", code, out.String())
 			}
 
@@ -2917,7 +2917,7 @@ func TestClientBuilder(t *testing.T) {
 					"--timeout", "1",
 				})
 
-				cli.Execute(t.Context(), root)
+				root.Execute(t.Context())
 
 				if strings.Contains(errOut.String(), "SECRET-") {
 					t.Error("stderr carries the base URL's password")
@@ -3016,7 +3016,7 @@ func TestClientBuilder(t *testing.T) {
 				root.SetErr(&errOut)
 				root.SetArgs(args)
 
-				cli.Execute(t.Context(), root)
+				root.Execute(t.Context())
 
 				if strings.Contains(errOut.String(), "SECRET-") {
 					t.Error("stderr carries the base URL's password")
@@ -3167,7 +3167,7 @@ func TestClientBuilder(t *testing.T) {
 				root.SetErr(&out)
 				root.SetArgs(args)
 
-				if code := cli.Execute(t.Context(), root); code == cli.ExitOK {
+				if code := root.Execute(t.Context()); code == cli.ExitOK {
 					t.Fatalf("exit code = %d, want a failure. output:\n%s", code, out.String())
 				}
 
@@ -3235,7 +3235,7 @@ func TestClientBuilder(t *testing.T) {
 				root.SetErr(&out)
 				root.SetArgs(args)
 
-				if code := cli.Execute(t.Context(), root); code == cli.ExitOK {
+				if code := root.Execute(t.Context()); code == cli.ExitOK {
 					t.Fatalf("exit code = %d, want a failure. output:\n%s", code, out.String())
 				}
 
@@ -3283,7 +3283,7 @@ func TestClientBuilder(t *testing.T) {
 				"--timeout", "1", "--retries", "0",
 			})
 
-			if code := cli.Execute(t.Context(), root); code != cli.ExitTransport {
+			if code := root.Execute(t.Context()); code != cli.ExitTransport {
 				t.Fatalf("exit code = %d, want %d. output:\n%s", code, cli.ExitTransport, out.String())
 			}
 
@@ -3320,7 +3320,7 @@ func runWithEnv(t *testing.T, env map[string]string, args []string) (string, int
 	root.SetErr(&out)
 	root.SetArgs(args)
 
-	code := cli.Execute(t.Context(), root)
+	code := root.Execute(t.Context())
 
 	return out.String(), code
 }
@@ -3394,7 +3394,7 @@ func TestWireAll(t *testing.T) {
 			root.SetErr(&out)
 			root.SetArgs(append(tc.args, "-o", "json"))
 
-			if code := cli.Execute(t.Context(), root); code != cli.ExitOK {
+			if code := root.Execute(t.Context()); code != cli.ExitOK {
 				t.Fatalf("exit code = %d, want %d\noutput:\n%s", code, cli.ExitOK, out.String())
 			}
 

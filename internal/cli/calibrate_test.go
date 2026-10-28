@@ -584,7 +584,7 @@ func TestNewCalibrateCmd(t *testing.T) {
 			"--label", "urgent=.is_urgent |",
 		})
 
-		code := Execute(t.Context(), root)
+		code := root.Execute(t.Context())
 		if code != ExitUsage {
 			t.Errorf("exit code = %d, want %d\nstderr:\n%s", code, ExitUsage, errOut.String())
 		}
@@ -944,7 +944,7 @@ func TestCalibrateRequests(t *testing.T) {
 			root.SetArgs(args)
 
 			done := make(chan int, 1)
-			go func() { done <- Execute(ctx, root) }()
+			go func() { done <- root.Execute(ctx) }()
 
 			var code int
 			select {
@@ -2584,7 +2584,7 @@ func executeCalibrate(
 	root.SetErr(stderr)
 	root.SetArgs(args)
 
-	return Execute(ctx, root)
+	return root.Execute(ctx)
 }
 
 func newCalibrateStub(t *testing.T) *calibrateStub {
@@ -3219,7 +3219,7 @@ func calibrateWithEnv(t *testing.T, env map[string]string, args []string, stdin,
 	root.SetErr(&errOut)
 	root.SetArgs(args)
 
-	code := Execute(t.Context(), root)
+	code := root.Execute(t.Context())
 
 	return out.String(), errOut.String(), code
 }

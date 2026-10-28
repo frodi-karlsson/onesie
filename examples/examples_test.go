@@ -307,7 +307,7 @@ func run(t *testing.T, stdin io.Reader, args ...string) (string, string, int) {
 	root.SetErr(&stderr)
 	root.SetArgs(args)
 
-	code := cli.Execute(t.Context(), root)
+	code := root.Execute(t.Context())
 
 	return stdout.String(), stderr.String(), code
 }

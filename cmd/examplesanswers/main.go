@@ -12,8 +12,6 @@ import (
 	"os/signal"
 	"slices"
 
-	"github.com/spf13/cobra"
-
 	"github.com/frodi-karlsson/onesie/examples"
 	"github.com/frodi-karlsson/onesie/internal/answersfile"
 	"github.com/frodi-karlsson/onesie/internal/cli"
@@ -110,7 +108,7 @@ func answer(ctx context.Context, set examples.Set, opts options, env map[string]
 		args = append(args, "--resume")
 	}
 
-	return cli.Execute(ctx, command(opts.root, env, home, records, args, opts.stdout, opts.stderr)), nil
+	return command(opts.root, env, home, records, args, opts.stdout, opts.stderr).Execute(ctx), nil
 }
 
 func calibrateArgs(set examples.Set, dir string) []string {
@@ -121,7 +119,7 @@ func calibrateArgs(set examples.Set, dir string) []string {
 func command(
 	extra []cli.RootOption, env map[string]string, home string, records []byte, args []string,
 	stdout, stderr io.Writer,
-) *cobra.Command {
+) *cli.Root {
 	root := cli.NewRootCmd(
 		cli.BuildInfo{Version: "examplesanswers"},
 		append([]cli.RootOption{

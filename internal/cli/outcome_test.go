@@ -109,17 +109,9 @@ func TestCleanupLogAfter(t *testing.T) {
 				t.Errorf("after = %v, want %v", got, tc.want)
 			}
 
-			if got := log.recorded(); !slices.Equal(got, tc.wantRecorded) {
-				t.Errorf("recorded = %v, want %v", got, tc.wantRecorded)
+			if got := log.drain(); !slices.Equal(got, tc.wantRecorded) {
+				t.Errorf("drained = %v, want %v", got, tc.wantRecorded)
 			}
 		})
 	}
-
-	t.Run("should keep the failure when the context carries no log", func(t *testing.T) {
-		t.Parallel()
-
-		if got := cleanupsIn(context.Background()).after(run, release); !errors.Is(got, run) {
-			t.Errorf("after = %v, want %v", got, run)
-		}
-	})
 }

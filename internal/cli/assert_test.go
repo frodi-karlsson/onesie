@@ -452,7 +452,7 @@ func TestAsk(t *testing.T) {
 			root.SetErr(&errOut)
 			root.SetArgs([]string{"is this urgent", "-o", "values"})
 
-			if code := cli.Execute(ctx, root); code != cli.ExitInterrupt {
+			if code := root.Execute(ctx); code != cli.ExitInterrupt {
 				t.Errorf("exit code = %d, want %d", code, cli.ExitInterrupt)
 			}
 
@@ -816,7 +816,7 @@ func runAsserted(
 	root.SetErr(&errOut)
 	root.SetArgs(args)
 
-	if code := cli.Execute(t.Context(), root); code != wantCode {
+	if code := root.Execute(t.Context()); code != wantCode {
 		t.Errorf("exit code = %d, want %d\nstdout:\n%s\nstderr:\n%s",
 			code, wantCode, out.String(), errOut.String())
 	}
@@ -877,7 +877,7 @@ func runAssertedStream(t *testing.T, args []string, stdin string, wantCode int) 
 	root.SetErr(&errOut)
 	root.SetArgs(args)
 
-	if code := cli.Execute(t.Context(), root); code != wantCode {
+	if code := root.Execute(t.Context()); code != wantCode {
 		t.Errorf("exit code = %d, want %d\nstdout:\n%s\nstderr:\n%s",
 			code, wantCode, out.String(), errOut.String())
 	}
@@ -974,7 +974,7 @@ func runStoppedStream(t *testing.T) string {
 		"--assert", "answer.value < 0.5", "--stop-on-assert", "--stats",
 	})
 
-	if code := cli.Execute(t.Context(), root); code != cli.ExitRejected {
+	if code := root.Execute(t.Context()); code != cli.ExitRejected {
 		t.Errorf("exit code = %d, want %d\nstdout:\n%s\nstderr:\n%s",
 			code, cli.ExitRejected, out.String(), errOut.String())
 	}

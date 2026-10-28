@@ -210,7 +210,7 @@ func TestProfilesLocation(t *testing.T) {
 			root.SetErr(&errOut)
 			root.SetArgs([]string{"profile", "list"})
 
-			if code := Execute(t.Context(), root); code != ExitOK {
+			if code := root.Execute(t.Context()); code != ExitOK {
 				t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, ExitOK, errOut.String())
 			}
 

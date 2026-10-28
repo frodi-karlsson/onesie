@@ -1037,7 +1037,7 @@ func TestPrintRequest(t *testing.T) {
 		root.SetErr(&errOut)
 		root.SetArgs([]string{"-f", path, "--print-request"})
 
-		if code := Execute(t.Context(), root); code != ExitOK {
+		if code := root.Execute(t.Context()); code != ExitOK {
 			t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, ExitOK, errOut.String())
 		}
 
@@ -1120,7 +1120,7 @@ func TestPrintRequest(t *testing.T) {
 		root.SetErr(errOut)
 		root.SetArgs([]string{"--ask", "urgent=is this urgent", "--print-request"})
 
-		if code := Execute(t.Context(), root); code != ExitOK {
+		if code := root.Execute(t.Context()); code != ExitOK {
 			t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, ExitOK, errOut.String())
 		}
 
@@ -1548,7 +1548,7 @@ func TestPrintRequest(t *testing.T) {
 			root.SetErr(&errOut)
 			root.SetArgs(tc.args)
 
-			if code := Execute(t.Context(), root); code != tc.wantCode {
+			if code := root.Execute(t.Context()); code != tc.wantCode {
 				t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, tc.wantCode, errOut.String())
 			}
 
@@ -1653,7 +1653,7 @@ func runRecorded(t *testing.T, args []string, stdin string) (string, string, int
 	root.SetErr(&errOut)
 	root.SetArgs(args)
 
-	code := Execute(t.Context(), root)
+	code := root.Execute(t.Context())
 
 	mu.Lock()
 	defer mu.Unlock()
@@ -2041,7 +2041,7 @@ func runClosed(t *testing.T, args []string, stdin, baseURL string) (string, int)
 	root.SetErr(&errOut)
 	root.SetArgs(args)
 
-	code := Execute(t.Context(), root)
+	code := root.Execute(t.Context())
 
 	return errOut.String(), code
 }
@@ -2126,7 +2126,7 @@ func runOfflineStdin(t *testing.T, args []string, stdin string) (string, string,
 	root.SetErr(&errOut)
 	root.SetArgs(args)
 
-	code := Execute(t.Context(), root)
+	code := root.Execute(t.Context())
 
 	return out.String(), errOut.String(), code
 }

@@ -261,7 +261,7 @@ func TestReadQuestionFile(t *testing.T) {
 				root.SetErr(&errOut)
 				root.SetArgs(tc.args)
 
-				if code := Execute(t.Context(), root); code != tc.wantCode {
+				if code := root.Execute(t.Context()); code != tc.wantCode {
 					t.Errorf("exit code = %d, want %d\nstdout:\n%s\nstderr:\n%s", code, tc.wantCode, &out, &errOut)
 				}
 
@@ -521,7 +521,7 @@ func runTree(t *testing.T, tree fakeTree, extra []RootOption, args ...string) (s
 	root.SetErr(&errOut)
 	root.SetArgs(args)
 
-	code := Execute(t.Context(), root)
+	code := root.Execute(t.Context())
 
 	return out.String(), errOut.String(), code
 }
@@ -544,7 +544,7 @@ func runInDir(t *testing.T, dir, stdin string, args ...string) (string, string, 
 	root.SetErr(&errOut)
 	root.SetArgs(args)
 
-	code := Execute(t.Context(), root)
+	code := root.Execute(t.Context())
 
 	return out.String(), errOut.String(), code
 }

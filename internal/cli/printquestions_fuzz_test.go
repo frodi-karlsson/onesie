@@ -289,7 +289,7 @@ func runPrintQuestions(t *testing.T, name string, data []byte, flags ...string) 
 	root.SetErr(&errOut)
 	root.SetArgs(append([]string{"-f", name, "--print-questions"}, flags...))
 
-	code := Execute(t.Context(), root)
+	code := root.Execute(t.Context())
 
 	return out.String(), errOut.String(), code
 }

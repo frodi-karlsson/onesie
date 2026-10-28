@@ -1694,7 +1694,7 @@ func runResume(t *testing.T, label, path, stdin string, run resumeRun) {
 
 	root.SetArgs(append(append(question, "--out", path), run.args...))
 
-	if code := Execute(ctx, root); code != run.wantCode {
+	if code := root.Execute(ctx); code != run.wantCode {
 		t.Fatalf("%s: exit code = %d, want %d\nstderr:\n%s", label, code, run.wantCode, errOut.String())
 	}
 

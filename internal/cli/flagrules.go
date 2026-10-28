@@ -26,7 +26,7 @@ func DryRunRules() (root *cobra.Command, always, questionsOnly []string) {
 		flagInput, flagJobs, flagModel, flagState, flagStateFile, "unordered", "stop-on-error", "skip-blank",
 	}
 
-	return NewRootCmd(BuildInfo{}), always, questionsOnly
+	return NewRootCmd(BuildInfo{}).Command, always, questionsOnly
 }
 
 func validatePlan(built *plan.Plan, config runConfig, facts runFacts) ([]string, error) {

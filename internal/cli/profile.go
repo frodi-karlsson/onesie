@@ -161,7 +161,7 @@ func profileCreate(
 	}
 	notices, err := creds.NewProfileManager(settings.credStore, settings.keychain).Create(change)
 
-	return reported(cmd, change, notices, err)
+	return reported(cmd, settings, change, notices, err)
 }
 
 func newProfileUpdateCmd(settings rootSettings, flags *runFlags) *cobra.Command {
@@ -254,7 +254,7 @@ func profileUpdate(
 
 	notices, err := creds.NewProfileManager(settings.credStore, settings.keychain).Update(change)
 
-	return reported(cmd, change, notices, err)
+	return reported(cmd, settings, change, notices, err)
 }
 
 func refuseUpdate(fields profileFlags, changed func(string) bool) error {
@@ -324,7 +324,7 @@ func profileDelete(cmd *cobra.Command, settings rootSettings, flags *runFlags, n
 	change := creds.Change{Path: path, Profiles: opened.Profiles, Name: name}
 	notices, err := creds.NewProfileManager(settings.credStore, settings.keychain).Delete(change)
 
-	return reported(cmd, change, notices, err)
+	return reported(cmd, settings, change, notices, err)
 }
 
 func newProfileUseCmd(settings rootSettings, flags *runFlags) *cobra.Command {
@@ -848,7 +848,7 @@ func saveProfiles(cmd *cobra.Command, settings rootSettings, path string, profil
 	return notify(cmd.ErrOrStderr(), warningLines(warnings)...)
 }
 
-func reported(cmd *cobra.Command, change creds.Change, notices []creds.Notice, err error) error {
+func reported(cmd *cobra.Command, settings rootSettings, change creds.Change, notices []creds.Notice, err error) error {
 	lines := make([]notice, 0, len(notices))
 	for _, each := range notices {
 		lines = append(lines, noticeLine(each, change))
@@ -862,7 +862,7 @@ func reported(cmd *cobra.Command, change creds.Change, notices []creds.Notice, e
 		err = fmt.Errorf("%w. Answer the keychain prompt, or run the command again with --file", err)
 	}
 
-	return cleanupsIn(cmd.Context()).after(err, notify(cmd.ErrOrStderr(), lines...))
+	return settings.cleanups.after(err, notify(cmd.ErrOrStderr(), lines...))
 }
 
 func noticeLine(each creds.Notice, change creds.Change) notice {

@@ -1013,7 +1013,7 @@ func runImaged(t *testing.T, args []string, stdin, answers string, env map[strin
 	root.SetErr(&errOut)
 	root.SetArgs(args)
 
-	run.code = Execute(t.Context(), root)
+	run.code = root.Execute(t.Context())
 
 	mu.Lock()
 	defer mu.Unlock()

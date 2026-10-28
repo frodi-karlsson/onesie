@@ -1122,7 +1122,7 @@ func runMocked(
 	root.SetErr(&errOut)
 	root.SetArgs(args)
 
-	code := Execute(ctx, root)
+	code := root.Execute(ctx)
 
 	return out.String(), errOut.String(), code
 }
@@ -1146,7 +1146,7 @@ func runReal(t *testing.T, args []string, stdin, base string) (string, string, i
 	root.SetErr(&errOut)
 	root.SetArgs(args)
 
-	code := Execute(t.Context(), root)
+	code := root.Execute(t.Context())
 
 	return out.String(), errOut.String(), code
 }

@@ -3,18 +3,12 @@ package cli
 import (
 	"context"
 	"sync"
-
-	"github.com/spf13/cobra"
 )
 
-func execute(ctx context.Context, root *cobra.Command) outcome {
-	cleanups := &cleanupLog{}
+func (r *Root) run(ctx context.Context) outcome {
+	failure := r.Command.ExecuteContext(ctx)
 
-	// Cobra hands back one error, so the cleanup failures that followed it travel in the context
-	// every command reads.
-	failure := root.ExecuteContext(withCleanups(ctx, cleanups))
-
-	return outcome{failure: failure, cleanups: cleanups.recorded()}
+	return outcome{failure: failure, cleanups: r.cleanups.drain()}
 }
 
 type outcome struct {
@@ -34,20 +28,6 @@ func (o outcome) report() []string {
 	return lines
 }
 
-func withCleanups(ctx context.Context, cleanups *cleanupLog) context.Context {
-	return context.WithValue(ctx, cleanupsKey{}, cleanups)
-}
-
-func cleanupsIn(ctx context.Context) *cleanupLog {
-	if cleanups, found := ctx.Value(cleanupsKey{}).(*cleanupLog); found {
-		return cleanups
-	}
-
-	return nil
-}
-
-type cleanupsKey struct{}
-
 type cleanupLog struct {
 	mu       sync.Mutex
 	failures []error
@@ -62,11 +42,6 @@ func (l *cleanupLog) after(failure, cleanup error) error {
 		return cleanup
 	}
 
-	// Without a log the run was not started through Execute, and its caller reads the failure alone.
-	if l == nil {
-		return failure
-	}
-
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
@@ -75,9 +50,12 @@ func (l *cleanupLog) after(failure, cleanup error) error {
 	return failure
 }
 
-func (l *cleanupLog) recorded() []error {
+func (l *cleanupLog) drain() []error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	return append([]error(nil), l.failures...)
+	drained := l.failures
+	l.failures = nil
+
+	return drained
 }

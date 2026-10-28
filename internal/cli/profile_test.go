@@ -19,8 +19,6 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/spf13/cobra"
-
 	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/creds"
 )
@@ -637,7 +635,7 @@ func TestProfileCreate(t *testing.T) {
 
 		root := failedSave(t, failingWrite, closedPipe{})
 
-		if code := Execute(t.Context(), root); code != ExitUsage {
+		if code := root.Execute(t.Context()); code != ExitUsage {
 			t.Errorf("exit code = %d, want %d", code, ExitUsage)
 		}
 	})
@@ -645,7 +643,7 @@ func TestProfileCreate(t *testing.T) {
 	t.Run("should keep the notice stderr refused beside a failed save and keep exit 2", func(t *testing.T) {
 		t.Parallel()
 
-		ended := execute(t.Context(), failedSave(t, failingWrite, brokenWriter{}))
+		ended := failedSave(t, failingWrite, brokenWriter{}).run(t.Context())
 
 		if got := ended.report(); len(got) != 2 || got[1] != errBroken.Error() {
 			t.Errorf("report = %q, want the failed save and then the refused notice", got)
@@ -679,7 +677,7 @@ func TestProfileCreate(t *testing.T) {
 	})
 }
 
-func failedSave(t *testing.T, store []creds.StoreOption, stderr io.Writer) *cobra.Command {
+func failedSave(t *testing.T, store []creds.StoreOption, stderr io.Writer) *Root {
 	t.Helper()
 
 	root := NewRootCmd(BuildInfo{Version: "1.2.3"},
@@ -2260,7 +2258,7 @@ func runInConfig(
 	root.SetErr(&errOut)
 	root.SetArgs(args)
 
-	code := Execute(t.Context(), root)
+	code := root.Execute(t.Context())
 
 	return out.String(), errOut.String(), code
 }

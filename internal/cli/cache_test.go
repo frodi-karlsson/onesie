@@ -1048,7 +1048,7 @@ func runCached(t *testing.T, env map[string]string, args []string, stdin string,
 	root.SetErr(&errOut)
 	root.SetArgs(args)
 
-	code := Execute(t.Context(), root)
+	code := root.Execute(t.Context())
 
 	return out.String(), errOut.String(), code
 }

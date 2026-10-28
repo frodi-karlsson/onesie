@@ -213,7 +213,7 @@ func TestNewQuestionsCmd(t *testing.T) {
 			root.SetErr(&errOut)
 			root.SetArgs(tc.args)
 
-			if code := Execute(t.Context(), root); code != tc.wantCode {
+			if code := root.Execute(t.Context()); code != tc.wantCode {
 				t.Errorf("exit code = %d, want %d\nstdout:\n%s\nstderr:\n%s", code, tc.wantCode, &out, &errOut)
 			}
 
