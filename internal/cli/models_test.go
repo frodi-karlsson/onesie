@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/frodi-karlsson/onesie-go"
 )
@@ -330,6 +331,7 @@ func runRealFactory(t *testing.T, args []string) (string, string, int) {
 		WithLookupEnv(lookupFrom(map[string]string{
 			onesie.TypeSafe().EnvAPIKey(): "test", "BERGET_API_KEY": "test", "LEVANTO_API_KEY": "test",
 		})),
+		WithClock(instantClock{now: time.Now}),
 	)
 
 	root.Command.SetOut(&out)

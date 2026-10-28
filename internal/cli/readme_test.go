@@ -9,7 +9,6 @@ import (
 	"slices"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/goccy/go-yaml"
 
@@ -145,11 +144,7 @@ func TestReadme(t *testing.T) {
 				t.Fatalf("feeding stdin: %v", err)
 			}
 
-			select {
-			case <-out.lines:
-			case <-time.After(5 * time.Second):
-				t.Fatalf("no answer for %s while stdin stayed open\nstderr:\n%s", record, errOut.String())
-			}
+			<-out.lines
 		}
 
 		feed.Close()

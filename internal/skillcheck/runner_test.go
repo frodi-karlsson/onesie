@@ -3,6 +3,7 @@ package skillcheck
 import (
 	"context"
 	"os"
+	"os/signal"
 	"slices"
 	"strings"
 	"testing"
@@ -14,7 +15,10 @@ func TestMain(m *testing.M) {
 	// deadline logic see a real hang.
 	switch os.Getenv("SKILLCHECK_WANT_HELPER_PROCESS") {
 	case "1":
-		time.Sleep(10 * time.Second)
+		// Waits on a signal nobody sends, so only the deadline's kill ends it.
+		never := make(chan os.Signal, 1)
+		signal.Notify(never, os.Interrupt)
+		<-never
 
 		return
 	case "mock":

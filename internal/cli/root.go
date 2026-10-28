@@ -398,6 +398,7 @@ func defaultSettings(info BuildInfo) rootSettings {
 		readBuiltIn:   questions.Read,
 		builtIns:      questions.Names,
 		transport:     http.DefaultTransport,
+		clock:         systemClock{},
 		mockTransport: func(provider onesie.Provider) http.RoundTripper { return mock.NewTransport(provider) },
 		laterFailures: &failureLog{},
 	}
@@ -793,6 +794,13 @@ func WithStdoutTTY(tty bool) RootOption {
 	}
 }
 
+// WithClock replaces the clock a live client reads the time from and waits out a retry on.
+func WithClock(clock onesie.Clock) RootOption {
+	return func(s *rootSettings) {
+		s.clock = clock
+	}
+}
+
 // WithReadFile replaces how @FILE references, -f and --state-file are resolved.
 func WithReadFile(read func(string) ([]byte, error)) RootOption {
 	return func(s *rootSettings) {
@@ -922,6 +930,7 @@ type rootSettings struct {
 	readBuiltIn   func(name string) ([]byte, bool)
 	builtIns      func() []string
 	transport     http.RoundTripper
+	clock         onesie.Clock
 	mockTransport func(onesie.Provider) http.RoundTripper
 	laterFailures *failureLog
 }

@@ -214,8 +214,6 @@ func TestRunUnordered(t *testing.T) {
 			go func() {
 				defer close(done)
 
-				// Nothing is asserted in here. Logging to a test that has already failed its timeout
-				// panics, which would mask the hang with an unrelated failure.
 				result, runErr = engine.Run(t.Context(), engine.Config[input.Record, string]{
 					Source: &counting{total: 500},
 					Evaluate: func(_ context.Context, rec input.Record) (string, error) {
@@ -234,11 +232,7 @@ func TestRunUnordered(t *testing.T) {
 				})
 			}()
 
-			select {
-			case <-done:
-			case <-time.After(5 * time.Second):
-				t.Fatal("Run did not return, a worker is blocked on the completion channel")
-			}
+			<-done
 
 			if runErr != nil {
 				t.Errorf("a closed pipe is not an error, got %v", runErr)

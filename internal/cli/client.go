@@ -42,7 +42,7 @@ func clientBuilder(info BuildInfo, flags *runFlags, settings rootSettings) clien
 
 		opts = append(opts, chosen.options(flags.baseURL, profileKey(settings, chosen), settings.lookupEnv)...)
 
-		opts = append(opts, onesie.WithRetry(retryPolicy(*flags)))
+		opts = append(opts, onesie.WithRetry(retryPolicy(*flags)), onesie.WithClock(settings.clock))
 
 		// Last, so a caller that needs the attempt observer or any other per run option wins over
 		// what the flags asked for.
@@ -214,6 +214,24 @@ func pooled(base http.RoundTripper, jobs int) http.RoundTripper {
 
 	return transport
 }
+
+func (systemClock) Now() time.Time {
+	return time.Now()
+}
+
+func (systemClock) Sleep(ctx context.Context, d time.Duration) error {
+	timer := time.NewTimer(d)
+	defer timer.Stop()
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
+}
+
+type systemClock struct{}
 
 type clientFactory func(ctx context.Context, chosen resolution, opts ...onesie.Option) (*onesie.Client, error)
 

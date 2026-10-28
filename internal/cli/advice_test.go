@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/frodi-karlsson/onesie-go"
 )
@@ -791,6 +792,7 @@ func runAdvised(t *testing.T, tc adviceCase) ([]string, string, string, int) {
 				onesie.WithAPIKey("k"),
 				onesie.WithBaseURL(srv.URL),
 				onesie.WithEnv(lookup),
+				onesie.WithClock(instantClock{now: time.Now}),
 			}, opts...)...)
 		}),
 		WithStdin(strings.NewReader(tc.stdin)),

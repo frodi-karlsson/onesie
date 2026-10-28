@@ -405,11 +405,7 @@ func TestStreamRaw(t *testing.T) {
 
 					mu.Unlock()
 
-					select {
-					case <-gate:
-					case <-time.After(3 * time.Second):
-						t.Errorf("only %d requests were in flight, want %d", arrived, tc.flight)
-					}
+					<-gate
 
 					w.Header().Set("Content-Type", "application/json")
 
@@ -471,11 +467,7 @@ func TestStreamRaw(t *testing.T) {
 
 					if bytes.Contains(body, []byte(`"state":0}`)) {
 						for range 2 {
-							select {
-							case <-stdout.written:
-							case <-time.After(3 * time.Second):
-								t.Errorf("the later records were never written")
-							}
+							<-stdout.written
 						}
 					}
 
@@ -882,6 +874,7 @@ func runAgainstTo(
 					onesie.WithAPIKey("k"),
 					onesie.WithBaseURL(baseURL),
 					onesie.WithEnv(func(string) (string, bool) { return "", false }),
+					onesie.WithClock(instantClock{now: time.Now}),
 				}, opts...)...)
 			}),
 			WithStdin(strings.NewReader(stdin)),

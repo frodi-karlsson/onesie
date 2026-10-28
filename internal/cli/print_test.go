@@ -2085,10 +2085,7 @@ type heldReader struct {
 }
 
 func (r *heldReader) Read(p []byte) (int, error) {
-	select {
-	case <-r.until:
-	case <-time.After(5 * time.Second):
-	}
+	<-r.until
 
 	return r.data.Read(p)
 }

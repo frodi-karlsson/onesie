@@ -945,12 +945,7 @@ func TestCalibrateRequests(t *testing.T) {
 			done := make(chan int, 1)
 			go func() { done <- root.Execute(ctx) }()
 
-			var code int
-			select {
-			case code = <-done:
-			case <-time.After(10 * time.Second):
-				t.Fatal("the command did not end after the interrupt")
-			}
+			code := <-done
 
 			if code != ExitInterrupt {
 				t.Errorf("exit code = %d, want %d\nstdout:\n%s\nstderr:\n%s", code, ExitInterrupt, out.String(),
@@ -1477,11 +1472,7 @@ func TestCalibrateRun(t *testing.T) {
 				urgentSet+`{"id":"T-7","u":true,"body":{"block":true}}`+"\n", stub.url, false)
 		}()
 
-		select {
-		case <-done:
-		case <-time.After(10 * time.Second):
-			t.Fatal("the command did not end after the interrupt")
-		}
+		<-done
 
 		if code != ExitInterrupt {
 			t.Errorf("exit code = %d, want %d\nstderr:\n%s", code, ExitInterrupt, errOut)
@@ -2031,13 +2022,8 @@ func TestCalibrateRun(t *testing.T) {
 			done <- code
 		}()
 
-		select {
-		case code := <-done:
-			if code != ExitInterrupt {
-				t.Fatalf("interrupted run exit code = %d, want %d", code, ExitInterrupt)
-			}
-		case <-time.After(10 * time.Second):
-			t.Fatal("the command did not end after the interrupt")
+		if code := <-done; code != ExitInterrupt {
+			t.Fatalf("interrupted run exit code = %d, want %d", code, ExitInterrupt)
 		}
 
 		if ids := lineIDs(t, answerLines(t, answers)); !slices.Equal(ids, []string{"T-1", "T-2"}) {
@@ -2659,10 +2645,7 @@ func (s *calibrateStub) serve(w http.ResponseWriter, r *http.Request) {
 			s.onBlock()
 		}
 
-		select {
-		case <-r.Context().Done():
-		case <-time.After(10 * time.Second):
-		}
+		<-r.Context().Done()
 
 		return
 	}

@@ -316,7 +316,7 @@ func TestCachedAnswerer(t *testing.T) {
 	}{
 		{name: "should not store a 503", setup: func(s *answerStub) { s.status.Store(http.StatusServiceUnavailable) }},
 		{
-			name: "should not store a timeout", setup: func(s *answerStub) { s.delay.Store(int64(time.Second)) },
+			name: "should not store a timeout", setup: func(s *answerStub) { s.stall.Store(true) },
 			opts: []onesie.Option{onesie.WithAttemptTimeout(50 * time.Millisecond)},
 		},
 		{name: "should not store a 200 missing a question", setup: func(s *answerStub) { s.missing.Store(true) }},
@@ -932,12 +932,10 @@ func newAnswerStub(t *testing.T) *answerStub {
 			return
 		}
 
-		if delay := stub.delay.Load(); delay != 0 {
-			select {
-			case <-time.After(time.Duration(delay)):
-			case <-r.Context().Done():
-				return
-			}
+		if stub.stall.Load() {
+			<-r.Context().Done()
+
+			return
 		}
 
 		if _, err := w.Write(stub.response(t, body)); err != nil {
@@ -1006,7 +1004,7 @@ type answerStub struct {
 	url       string
 	requests  atomic.Int32
 	status    atomic.Int32
-	delay     atomic.Int64
+	stall     atomic.Bool
 	missing   atomic.Bool
 	wrongType atomic.Bool
 	cost      atomic.Bool

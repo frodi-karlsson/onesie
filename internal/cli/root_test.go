@@ -20,6 +20,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/spf13/pflag"
 
@@ -1755,7 +1756,7 @@ func TestNewRootCmd(t *testing.T) {
 				cli.WithKeychain(offKeychain()),
 				cli.WithClientFactory(func(_ context.Context, opts ...onesie.Option) (*onesie.Client, error) {
 					return onesie.New(append([]onesie.Option{
-						onesie.WithAPIKey("k"), onesie.WithBaseURL(srv.URL),
+						onesie.WithAPIKey("k"), onesie.WithBaseURL(srv.URL), onesie.WithClock(&recordingClock{}),
 					}, opts...)...)
 				}),
 				cli.WithStdin(strings.NewReader(tc.stdin)),
@@ -3137,6 +3138,8 @@ func TestClientBuilder(t *testing.T) {
 
 				var attempts atomic.Int64
 
+				clock := &recordingClock{}
+
 				srv := httptest.NewServer(http.HandlerFunc(
 					func(w http.ResponseWriter, _ *http.Request) {
 						attempts.Add(1)
@@ -3161,6 +3164,7 @@ func TestClientBuilder(t *testing.T) {
 					cli.WithStdinTTY(false),
 					cli.WithStdoutTTY(false),
 					cli.WithLookupEnv(apiKeyEnv("test")),
+					cli.WithClock(clock),
 				)
 
 				root.Command.SetOut(&out)
@@ -3174,6 +3178,10 @@ func TestClientBuilder(t *testing.T) {
 				if got := attempts.Load(); got != int64(tc.attempts) {
 					t.Errorf("attempts = %d, want %d", got, tc.attempts)
 				}
+
+				if waits := clock.waits(); len(waits) != tc.attempts-1 {
+					t.Errorf("waits = %v, want one before each of the %d retries", waits, tc.attempts-1)
+				}
 			})
 		}
 	})
@@ -3185,6 +3193,7 @@ func TestClientBuilder(t *testing.T) {
 			name     string
 			args     []string
 			attempts int
+			waits    []time.Duration
 		}{
 			{
 				name:     "should stop at the first attempt when Retry-After is above the cap",
@@ -3195,6 +3204,7 @@ func TestClientBuilder(t *testing.T) {
 				name:     "should retry when Retry-After is below the default cap",
 				args:     []string{"--retries", "1"},
 				attempts: 2,
+				waits:    []time.Duration{2 * time.Second},
 			},
 		}
 
@@ -3203,6 +3213,8 @@ func TestClientBuilder(t *testing.T) {
 				t.Parallel()
 
 				var attempts atomic.Int64
+
+				clock := &recordingClock{}
 
 				srv := httptest.NewServer(http.HandlerFunc(
 					func(w http.ResponseWriter, _ *http.Request) {
@@ -3229,6 +3241,7 @@ func TestClientBuilder(t *testing.T) {
 					cli.WithStdinTTY(false),
 					cli.WithStdoutTTY(false),
 					cli.WithLookupEnv(apiKeyEnv("test")),
+					cli.WithClock(clock),
 				)
 
 				root.Command.SetOut(&out)
@@ -3241,6 +3254,19 @@ func TestClientBuilder(t *testing.T) {
 
 				if got := attempts.Load(); got != int64(tc.attempts) {
 					t.Errorf("attempts = %d, want %d", got, tc.attempts)
+				}
+
+				// Jitter shortens each wait by up to BackoffJitter of it, so a wait is checked as a band.
+				waits := clock.waits()
+				if len(waits) != len(tc.waits) {
+					t.Fatalf("waits = %v, want %v less up to the jitter", waits, tc.waits)
+				}
+
+				for i, want := range tc.waits {
+					shortest := time.Duration(float64(want) * (1 - onesie.DefaultRetryPolicy().BackoffJitter))
+					if waits[i] > want || waits[i] < shortest {
+						t.Errorf("waits = %v, want %v less up to the jitter", waits, tc.waits)
+					}
 				}
 			})
 		}
@@ -3323,6 +3349,31 @@ func runWithEnv(t *testing.T, env map[string]string, args []string) (string, int
 	code := root.Execute(t.Context())
 
 	return out.String(), code
+}
+
+func (c *recordingClock) Now() time.Time {
+	return time.Unix(0, 0)
+}
+
+func (c *recordingClock) Sleep(ctx context.Context, d time.Duration) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.slept = append(c.slept, d)
+
+	return ctx.Err()
+}
+
+func (c *recordingClock) waits() []time.Duration {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	return slices.Clone(c.slept)
+}
+
+type recordingClock struct {
+	mu    sync.Mutex
+	slept []time.Duration
 }
 
 func apiKeyEnv(key string) func(string) (string, bool) {

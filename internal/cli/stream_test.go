@@ -15,7 +15,6 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
-	"time"
 
 	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/cli"
@@ -1223,11 +1222,7 @@ func TestStream(t *testing.T) {
 				}
 
 				for range 2 {
-					select {
-					case <-out.lines:
-					case <-time.After(5 * time.Second):
-						t.Fatal("the records fed before the interrupt were never written")
-					}
+					<-out.lines
 				}
 
 				interrupt()
@@ -1236,14 +1231,8 @@ func TestStream(t *testing.T) {
 					go io.WriteString(feed, "three\n")
 				}
 
-				select {
-				case code := <-exited:
-					if code != cli.ExitInterrupt {
-						t.Errorf("exit code = %d, want %d\nstderr:\n%s",
-							code, cli.ExitInterrupt, errOut.String())
-					}
-				case <-time.After(5 * time.Second):
-					t.Fatal("the stream ignored the interrupt while waiting on stdin")
+				if code := <-exited; code != cli.ExitInterrupt {
+					t.Errorf("exit code = %d, want %d\nstderr:\n%s", code, cli.ExitInterrupt, errOut.String())
 				}
 			})
 		}
@@ -1329,14 +1318,8 @@ func TestStream(t *testing.T) {
 
 				go func() { exited <- root.Execute(ctx) }()
 
-				select {
-				case code := <-exited:
-					if code != cli.ExitInterrupt {
-						t.Errorf("exit code = %d, want %d\nstderr:\n%s",
-							code, cli.ExitInterrupt, errOut.String())
-					}
-				case <-time.After(5 * time.Second):
-					t.Fatal("the expression ignored the interrupt")
+				if code := <-exited; code != cli.ExitInterrupt {
+					t.Errorf("exit code = %d, want %d\nstderr:\n%s", code, cli.ExitInterrupt, errOut.String())
 				}
 
 				if errOut.String() != "" {

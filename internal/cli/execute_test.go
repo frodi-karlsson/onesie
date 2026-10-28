@@ -15,7 +15,6 @@ import (
 	"strings"
 	"syscall"
 	"testing"
-	"time"
 
 	"github.com/spf13/cobra"
 
@@ -630,14 +629,7 @@ func interruptedRun(t *testing.T, args []string, opts ...RootOption) int {
 		done <- root.Execute(ctx)
 	}()
 
-	select {
-	case code := <-done:
-		return code
-	case <-time.After(10 * time.Second):
-		t.Fatalf("the run was still waiting on stdin after the interrupt\nstderr:\n%s", errOut.String())
-
-		return 0
-	}
+	return <-done
 }
 
 func fullDisk(*testing.T, string) []RootOption {
