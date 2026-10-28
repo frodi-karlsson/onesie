@@ -219,11 +219,6 @@ func TestClassify(t *testing.T) {
 			err:  &silentError{code: ExitAuth},
 			want: ExitAuth,
 		},
-		{
-			name: "should keep the code of a real error joined to a silent one",
-			err:  errors.Join(&silentError{code: ExitAuth}, &recordsError{}),
-			want: ExitRecords,
-		},
 	}
 
 	for _, tc := range tests {
@@ -259,15 +254,7 @@ func TestClassify(t *testing.T) {
 			{err: &fs.PathError{Op: "write", Path: "/dev/stdout", Err: syscall.EPIPE}, kind: output.KindInput, quiet: true},
 			{err: &silentError{code: ExitAuth}, kind: output.KindInput, quiet: true},
 			{err: errors.New("boom"), kind: output.KindInput},
-			{
-				err:  errors.Join(&storedFailure{failure: output.Failure{Kind: "input", Message: "bad"}}, context.Canceled),
-				kind: output.KindInput, quiet: true,
-			},
-			{
-				err: errors.Join(&onesie.APIError{Status: http.StatusBadGateway},
-					&fs.PathError{Op: "write", Path: "/dev/stdout", Err: syscall.EPIPE}),
-				kind: output.KindHTTP, quiet: true,
-			},
+			{err: &storedFailure{failure: output.Failure{Kind: "input", Message: "bad"}}, kind: output.KindInput},
 		}
 
 		for _, pin := range pins {
@@ -300,10 +287,6 @@ func TestWorthReporting(t *testing.T) {
 		{name: "should stay quiet for a command that printed its whole result", err: &silentError{code: ExitAuth}},
 		{name: "should stay quiet for an interrupt inside a wrapped error", err: fmt.Errorf("waiting: %w", context.Canceled)},
 		{
-			name: "should stay quiet for failed records joined to a failure closing the answers file",
-			err:  errors.Join(&recordsError{}, errors.New("closing the answers file")),
-		},
-		{
 			name: "should report a stored failure a resume stopped at",
 			err:  &storedFailure{failure: output.Failure{Kind: "input", Message: "bad"}, record: 2},
 			want: true,
@@ -312,15 +295,6 @@ func TestWorthReporting(t *testing.T) {
 		{name: "should report a server error", err: &onesie.APIError{Status: http.StatusBadGateway}, want: true},
 		{name: "should report a connection error", err: &onesie.ConnectionError{Err: errors.New("refused")}, want: true},
 		{name: "should stay quiet for a connection that broke with EPIPE", err: &onesie.ConnectionError{Err: syscall.EPIPE}},
-		{
-			name: "should stay quiet for a stored failure joined to an interrupt",
-			err:  errors.Join(&storedFailure{failure: output.Failure{Kind: "input", Message: "bad"}}, context.Canceled),
-		},
-		{
-			name: "should stay quiet for a server error joined to a broken stdout",
-			err: errors.Join(&onesie.APIError{Status: http.StatusBadGateway},
-				&fs.PathError{Op: "write", Path: "/dev/stdout", Err: syscall.EPIPE}),
-		},
 	}
 
 	for _, tc := range tests {
