@@ -137,18 +137,9 @@ func streamRaw(
 		Abort:       aborting,
 	})
 
-	skips := source.skipped()
-	stats.skip(skips)
-
-	// A stored failure a resume skipped fails the run as it failed the one that wrote it.
-	result.Failed += skips.Failed
-
-	if freshAbort := source.freshRunAbort(); freshAbort != nil {
-		return freshAbort
-	}
-
+	result, err = finishStream(source, stats, result, err)
 	if err != nil {
-		return &sourceError{cause: err, failed: result.Failed}
+		return err
 	}
 
 	// A request body carries no assertion, so no record can have failed one.

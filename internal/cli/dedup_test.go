@@ -27,7 +27,11 @@ func TestDedup_Share(t *testing.T) {
 	t.Run("should run ask once for one key and hand every caller the record", func(t *testing.T) {
 		t.Parallel()
 
-		shared := newDedup(10, func() { t.Error("the notice ran below the limit") })
+		shared := newDedup(10, func() error {
+			t.Error("the notice ran below the limit")
+
+			return nil
+		})
 
 		var asked atomic.Int32
 
@@ -51,7 +55,7 @@ func TestDedup_Share(t *testing.T) {
 	t.Run("should make a caller wait for the request in flight and give it that result", func(t *testing.T) {
 		t.Parallel()
 
-		shared := newDedup(10, func() {})
+		shared := newDedup(10, func() error { return nil })
 		release := make(chan struct{})
 		started := make(chan struct{})
 
@@ -114,7 +118,7 @@ func TestDedup_Share(t *testing.T) {
 	t.Run("should share a failed result with every caller, later ones included", func(t *testing.T) {
 		t.Parallel()
 
-		shared := newDedup(10, func() {})
+		shared := newDedup(10, func() error { return nil })
 
 		var asked atomic.Int32
 
@@ -143,7 +147,7 @@ func TestDedup_Share(t *testing.T) {
 	t.Run("should return the context's error to a waiter whose context ends", func(t *testing.T) {
 		t.Parallel()
 
-		shared := newDedup(10, func() {})
+		shared := newDedup(10, func() error { return nil })
 		release := make(chan struct{})
 		started := make(chan struct{})
 
@@ -185,7 +189,11 @@ func TestDedup_Share(t *testing.T) {
 
 		var notices atomic.Int32
 
-		shared := newDedup(1, func() { notices.Add(1) })
+		shared := newDedup(1, func() error {
+			notices.Add(1)
+
+			return nil
+		})
 
 		var askedOld, askedNew atomic.Int32
 
@@ -237,16 +245,18 @@ func TestDedup_Share(t *testing.T) {
 
 		var noticed atomic.Bool
 
-		shared = newDedup(1, func() {
+		shared = newDedup(1, func() error {
 			noticed.Store(true)
 
 			if !shared.mu.TryLock() {
 				t.Error("the notice ran while the group was locked")
 
-				return
+				return nil
 			}
 
 			shared.mu.Unlock()
+
+			return nil
 		})
 
 		for _, name := range []string{"held", "new"} {
@@ -290,6 +300,48 @@ func TestDedup_Share(t *testing.T) {
 	})
 }
 
+func TestDedup_NoticeError(t *testing.T) {
+	t.Parallel()
+
+	errPrint := errors.New("stderr is closed")
+	keyOf := func(name string) [sha256.Size]byte { return sha256.Sum256([]byte(name)) }
+
+	tests := []struct {
+		name   string
+		shared *dedup
+		keys   []string
+		want   error
+	}{
+		{name: "should hold nothing for a run without dedup"},
+		{
+			name:   "should hold nothing below the limit",
+			shared: newDedup(2, func() error { return errPrint }), keys: []string{"a", "b"},
+		},
+		{
+			name:   "should hold the notice's print error past the limit",
+			shared: newDedup(1, func() error { return errPrint }), keys: []string{"a", "b"}, want: errPrint,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			for _, name := range tc.keys {
+				if _, _, _, err := tc.shared.share(t.Context(), keyOf(name), func() (output.Record, error) {
+					return output.Record{}, nil
+				}); err != nil {
+					t.Fatalf("share: %v", err)
+				}
+			}
+
+			if got := tc.shared.noticeError(); !errors.Is(got, tc.want) {
+				t.Errorf("noticeError = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestAskOnce(t *testing.T) {
 	t.Parallel()
 
@@ -330,7 +382,7 @@ func TestAskOnce(t *testing.T) {
 
 			var shared *dedup
 			if tc.group {
-				shared = newDedup(10, func() {})
+				shared = newDedup(10, func() error { return nil })
 			}
 
 			var (
