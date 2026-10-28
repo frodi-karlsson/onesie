@@ -29,19 +29,9 @@ Run `onesie profile show` to see what a run would use, then `onesie profile test
 against the server. `profile show` only names where the key lives. It never reads the keychain, so
 a keychain item that is gone shows up in `profile test` or a real run, not in `profile show`.
 
-A run uses one profile, or none. The choice comes from, strongest first:
-
-1. `--profile NAME` or `--provider NAME`.
-2. `ONESIE_PROFILE` or `ONESIE_PROVIDER`.
-3. The default in `profiles.json`, which `onesie profile use NAME` sets.
-
-Two choices of the same strength exit 2, unless a stronger one is given. With no choice and no profiles, a run uses typesafe. A
-profile's key comes from the profile alone, in the OS keychain or in `profiles.json`, which lives
-in `$ONESIE_CONFIG_DIR`, then `$XDG_CONFIG_HOME/onesie`, then, on Windows, `%APPDATA%\onesie`, and
-otherwise `~/.config/onesie`. `--provider` or `ONESIE_PROVIDER` runs without a profile, and the key
-comes from the provider's variable alone: `TYPESAFE_API_KEY` for typesafe, `OPENROUTER_API_KEY` for
-openrouter, `BERGET_API_KEY` for berget, `LEVANTO_API_KEY` for levanto, `CLOUDFLARE_API_TOKEN` for
-cloudflare. No provider falls back to another's key.
+A run uses one profile, or none. [Choosing a profile][choosing] gives the order a run picks it in,
+[What a run uses][uses] where the key, the model and the base URL come from, and
+[profiles.json][file] where the file lives. No provider falls back to another's key.
 
 Exit 3 also covers these:
 
@@ -54,8 +44,9 @@ Exit 3 also covers these:
   usually because a prompt is waiting. Answer the prompt, or store the key again with
   `onesie profile update NAME --key`, adding `--file` to skip the keychain.
 
-`--base-url` outranks a profile's `base_url`, and a profile's `base_url` outranks
-`TYPESAFE_BASE_URL`.
+[choosing]: https://github.com/frodi-karlsson/onesie/blob/main/REFERENCE.md#choosing-a-profile
+[uses]: https://github.com/frodi-karlsson/onesie/blob/main/REFERENCE.md#what-a-run-uses
+[file]: https://github.com/frodi-karlsson/onesie/blob/main/REFERENCE.md#profilesjson
 
 ## On exit 2
 
@@ -70,7 +61,7 @@ Exit 3 also covers these:
 | `an empty state is a request the model cannot answer` | `--state`, `--state-file`, stdin, the `state` of a `-f` file, a stream line or `--map` gave an empty or all whitespace string, an empty object or an empty array. In a stream it is an error line instead, and `--skip-blank` does not drop it. An `-i request` body is forwarded as it is and not checked |
 | `an empty question is one the model cannot answer` | the positional question, an `--ask`, a question file's `ask` or a `-f` body's `instructions` is empty, all whitespace or null |
 | `has no 'instructions'` or `names its question 'instructions'` | a `-f` request body question has no `instructions`, or carries a question file's `ask` in its place |
-| `no API key` | nothing resolved for the provider, see the order above. A real run and `profile test` exit 2 here. `profile show` exits 2 too, after printing `key: none`. Under `--provider` or `ONESIE_PROVIDER` the message names a profile with that provider when there is one, and otherwise `onesie profile create NAME --provider PROVIDER` |
+| `no API key` | nothing resolved for the provider, in the order [Choosing a profile][choosing] gives. A real run and `profile test` exit 2 here. `profile show` exits 2 too, after printing `key: none`. Under `--provider` or `ONESIE_PROVIDER` the message names a profile with that provider when there is one, and otherwise `onesie profile create NAME --provider PROVIDER` |
 | `no profile is the default` | there are profiles, none is the default and nothing chose one. Run `onesie profile use NAME`, or pass `--profile` or `--provider` |
 | `which does not exist` | `--profile` or `ONESIE_PROFILE` names a profile that is not in `profiles.json`. The message lists the profiles there are |
 | `is in use by another onesie run` | another run holds the lock beside the `--out` file |
