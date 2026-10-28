@@ -113,98 +113,139 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 	root = &cobra.Command{
 		Use:   "onesie [question]",
 		Short: "Ask a System One model typed questions about state on stdin",
-		Long: "onesie is a Unix filter over the System One API, served by " + providers.Names() + ".\n\n" +
-			"State arrives on stdin, typed answers leave on stdout, and the exit status is " +
-			"usable in a conditional.\n\n" +
-			"A run uses a profile from profiles.json in the config dir: the one --profile or ONESIE_PROFILE " +
-			"names, or the default one. A profile holds the provider, its key, in the OS keychain or the " +
-			"file, and optionally a model and a base URL or " + providers.WithAccounts() + " account. " +
-			"onesie profile create stores one, and onesie profile use makes it the default. --provider or " +
-			"ONESIE_PROVIDER runs without a profile, with the key from the provider's variable, " +
-			providers.KeyVariables() + ", and so does a run on typesafe when there are no profiles. On " +
-			providers.WithAccounts() + " a run also needs an account, from the profile, " +
-			providers.AccountVariables() + " or a base URL that holds it.\n\n" +
-			"--mock FILE, or ONESIE_MOCK=FILE, answers from a file instead of the API, with no key and no " +
-			"network, so a gate script can be tested for free.\n\n" +
-			"--cache, or ONESIE_CACHE=1, stores each successful response on disk and answers a repeated " +
-			"request from it. onesie cache reports what it holds, and onesie cache clear empties it.\n\n" +
-			"A question that begins with a dash needs -- before it, with any flags placed " +
-			"first, as in onesie -o json -- '-is this urgent'. So does a one word question close to " +
-			"a subcommand name, since onesie questoins exits 2 and names questions as the closest.\n\n" +
-			exitCodesSection(rootExitCodes),
-		Args: rootArgs(flags),
+		Long:  rootLong(),
+		Args:  rootArgs(flags),
 		// Cobra otherwise buries every returned error under the full help text. Execute owns the
 		// reporting instead.
 		SilenceUsage:  true,
 		SilenceErrors: true,
-		RunE: func(cmd *cobra.Command, args []string) (err error) {
-			defer func() {
-				err = withKeyHint(withDashQuestionHint(err, cmd.Flags(), settings.args, args), settings)
-			}()
-
-			// Not cobra's own version flag, which prints before any argument is checked.
-			if flags.version {
-				return printVersion(cmd, info)
-			}
-
-			positional := ""
-			if len(args) == 1 {
-				positional = args[0]
-			}
-
-			// A bare onesie is a request for help. Anything else is a real invocation, and help on
-			// stdout would corrupt the caller's pipe. Whether it needs a question at all is left
-			// to run, since -i request carries its own.
-			if cmd.Flags().NFlag() == 0 && len(args) == 0 {
-				return cmd.Help()
-			}
-
-			if refused := refuseMisspelledSubcommand(cmd, args, recorder.Events()); refused != nil {
-				return refused
-			}
-
-			// Ahead of the provider, since the schema is the same for every provider and a bad
-			// ONESIE_PROVIDER should not stand between an editor and it.
-			if flags.printSchema {
-				if refused := refuseBesideSchema(cmd.Flags(), args); refused != nil {
-					return refused
-				}
-
-				return printSchema(cmd.OutOrStdout())
-			}
-
-			// Ahead of run, since a dry run builds no client and would otherwise never look at it.
-			// --print-questions prints no provider and no model, so it checks the choice without the file.
-			if flags.printQuestions {
-				if refused := checkChoice(flags, settings.lookupEnv); refused != nil {
-					return refused
-				}
-			} else if _, resolveErr := settings.holder.resolved(); resolveErr != nil {
-				return resolveErr
-			}
-
-			out, resume, err := openOut(settings, *flags, false)
-
-			defer func() {
-				err = alsoFailed(err, out.Release())
-			}()
-
-			if err != nil {
-				return err
-			}
-
-			if out == nil {
-				return run(cmd, settings, recorder.Events(), positional, flags, nil, resume)
-			}
-
-			cmd.SetOut(out)
-
-			runErr := run(cmd, settings, recorder.Events(), positional, flags, out, resume)
-
-			return alsoFailed(runErr, out.Finish(runErr))
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runRoot(cmd, args, info, settings, flags, recorder)
 		},
 	}
 
+	addRootFlags(root, flags, recorder)
+
+	root.AddCommand(newVersionCmd(info))
+	root.AddCommand(newProfileCmd(settings, flags))
+	calibrate := newCalibrateCmd(settings, flags)
+	root.AddCommand(calibrate)
+	root.AddCommand(newQuestionsCmd(settings))
+	root.AddCommand(newCacheCmd(settings))
+	refuseUnknownHelpTopics(root)
+
+	// Cobra hands every subcommand the nearest parent's flag error function, so one hook covers the
+	// subcommands cobra adds itself, such as completion.
+	explain := flagError(root, calibrate)
+	root.SetFlagErrorFunc(func(cmd *cobra.Command, err error) error {
+		return withDashQuestionHint(explain(cmd, err), cmd.Flags(), settings.args, nil)
+	})
+	addCompletionTakingNoArguments(root)
+
+	if settings.args != nil {
+		root.SetArgs(settings.args)
+	}
+
+	// Cobra adds its help flag when the tree runs. Adding it now lets it be marked like the others.
+	root.InitDefaultHelpFlag()
+	asksNothing(root.Flags(), "help")
+
+	return root
+}
+
+func rootLong() string {
+	return "onesie is a Unix filter over the System One API, served by " + providers.Names() + ".\n\n" +
+		"State arrives on stdin, typed answers leave on stdout, and the exit status is " +
+		"usable in a conditional.\n\n" +
+		"A run uses a profile from profiles.json in the config dir: the one --profile or ONESIE_PROFILE " +
+		"names, or the default one. A profile holds the provider, its key, in the OS keychain or the " +
+		"file, and optionally a model and a base URL or " + providers.WithAccounts() + " account. " +
+		"onesie profile create stores one, and onesie profile use makes it the default. --provider or " +
+		"ONESIE_PROVIDER runs without a profile, with the key from the provider's variable, " +
+		providers.KeyVariables() + ", and so does a run on typesafe when there are no profiles. On " +
+		providers.WithAccounts() + " a run also needs an account, from the profile, " +
+		providers.AccountVariables() + " or a base URL that holds it.\n\n" +
+		"--mock FILE, or ONESIE_MOCK=FILE, answers from a file instead of the API, with no key and no " +
+		"network, so a gate script can be tested for free.\n\n" +
+		"--cache, or ONESIE_CACHE=1, stores each successful response on disk and answers a repeated " +
+		"request from it. onesie cache reports what it holds, and onesie cache clear empties it.\n\n" +
+		"A question that begins with a dash needs -- before it, with any flags placed " +
+		"first, as in onesie -o json -- '-is this urgent'. So does a one word question close to " +
+		"a subcommand name, since onesie questoins exits 2 and names questions as the closest.\n\n" +
+		exitCodesSection(rootExitCodes)
+}
+
+func runRoot(
+	cmd *cobra.Command, args []string, info BuildInfo, settings rootSettings, flags *runFlags,
+	recorder *argv.Recorder,
+) (err error) {
+	defer func() {
+		err = withKeyHint(withDashQuestionHint(err, cmd.Flags(), settings.args, args), settings)
+	}()
+
+	// Not cobra's own version flag, which prints before any argument is checked.
+	if flags.version {
+		return printVersion(cmd, info)
+	}
+
+	positional := ""
+	if len(args) == 1 {
+		positional = args[0]
+	}
+
+	// A bare onesie is a request for help. Anything else is a real invocation, and help on
+	// stdout would corrupt the caller's pipe. Whether it needs a question at all is left
+	// to run, since -i request carries its own.
+	if cmd.Flags().NFlag() == 0 && len(args) == 0 {
+		return cmd.Help()
+	}
+
+	if refused := refuseMisspelledSubcommand(cmd, args, recorder.Events()); refused != nil {
+		return refused
+	}
+
+	// Ahead of the provider, since the schema is the same for every provider and a bad
+	// ONESIE_PROVIDER should not stand between an editor and it.
+	if flags.printSchema {
+		if refused := refuseBesideSchema(cmd.Flags(), args); refused != nil {
+			return refused
+		}
+
+		return printSchema(cmd.OutOrStdout())
+	}
+
+	// Ahead of run, since a dry run builds no client and would otherwise never look at it.
+	// --print-questions prints no provider and no model, so it checks the choice without the file.
+	if flags.printQuestions {
+		if refused := checkChoice(flags, settings.lookupEnv); refused != nil {
+			return refused
+		}
+	} else if _, resolveErr := settings.holder.resolved(); resolveErr != nil {
+		return resolveErr
+	}
+
+	out, resume, err := openOut(settings, *flags, false)
+
+	defer func() {
+		err = alsoFailed(err, out.Release())
+	}()
+
+	if err != nil {
+		return err
+	}
+
+	if out == nil {
+		return run(cmd, settings, recorder.Events(), positional, flags, nil, resume)
+	}
+
+	cmd.SetOut(out)
+
+	runErr := run(cmd, settings, recorder.Events(), positional, flags, out, resume)
+
+	return alsoFailed(runErr, out.Finish(runErr))
+}
+
+func addRootFlags(root *cobra.Command, flags *runFlags, recorder *argv.Recorder) {
 	// Cobra would claim the lowercase -v for --version, and onesie spells it -V. Registering it
 	// here takes the name before cobra reaches for a shorthand of its own.
 	root.Flags().BoolVarP(&flags.version, "version", "V", false, "print the version and the built in limits")
@@ -265,7 +306,11 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 		"where the answers land in the merged record, implies --merge")
 	refuseEmpty(root.Flags(), "merge-key")
 
-	addRunFlags(root.Flags(), flags, runFlagHelp{
+	addRunFlags(root.Flags(), flags, rootRunFlagHelp())
+}
+
+func rootRunFlagHelp() runFlagHelp {
+	return runFlagHelp{
 		image: "NAME=PATH, repeatable, puts a PNG or JPEG in the state under NAME, experimental on TypeSafe's side. " +
 			"For one record stdin is read beside it only through --state -, so text joins it from --state, " +
 			"--state-file or --state -. A stream reads its records from stdin and adds the image to each",
@@ -284,33 +329,7 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 		prune:     "with --resume and --id, drop the answered ids the input no longer has",
 		skipBlank: "streaming only, drop blank lines with no output line",
 		usage:     "add the api usage object to json output",
-	})
-
-	root.AddCommand(newVersionCmd(info))
-	root.AddCommand(newProfileCmd(settings, flags))
-	calibrate := newCalibrateCmd(settings, flags)
-	root.AddCommand(calibrate)
-	root.AddCommand(newQuestionsCmd(settings))
-	root.AddCommand(newCacheCmd(settings))
-	refuseUnknownHelpTopics(root)
-
-	// Cobra hands every subcommand the nearest parent's flag error function, so one hook covers the
-	// subcommands cobra adds itself, such as completion.
-	explain := flagError(root, calibrate)
-	root.SetFlagErrorFunc(func(cmd *cobra.Command, err error) error {
-		return withDashQuestionHint(explain(cmd, err), cmd.Flags(), settings.args, nil)
-	})
-	addCompletionTakingNoArguments(root)
-
-	if settings.args != nil {
-		root.SetArgs(settings.args)
 	}
-
-	// Cobra adds its help flag when the tree runs. Adding it now lets it be marked like the others.
-	root.InitDefaultHelpFlag()
-	asksNothing(root.Flags(), "help")
-
-	return root
 }
 
 func openOut(settings rootSettings, flags runFlags, readOnly bool) (*answersfile.File, answersfile.Resume, error) {
