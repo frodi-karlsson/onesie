@@ -180,7 +180,7 @@ func runCalibrate(
 	}
 
 	if warnErr := warnIgnoredBodyState(
-		cmd.ErrOrStderr(), flags, inv.loaded, "calibrate", inv.images, wireAll(inv.plan.Questions)); warnErr != nil {
+		cmd.ErrOrStderr(), flags, inv.loaded, "calibrate", inv.images, plan.WireAll(inv.plan.Questions)); warnErr != nil {
 		return warnErr
 	}
 

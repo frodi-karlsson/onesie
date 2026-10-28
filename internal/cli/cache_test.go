@@ -170,7 +170,7 @@ func TestCachedAnswerer(t *testing.T) {
 	t.Parallel()
 
 	request := onesie.Request{
-		State: json.RawMessage(`"site down"`), Questions: wireAll([]plan.Question{{ID: "u", Shape: plan.Noul}}),
+		State: json.RawMessage(`"site down"`), Questions: plan.WireAll([]plan.Question{{ID: "u", Shape: plan.Noul}}),
 	}
 	key := recordKey{position: 1, line: 1}
 

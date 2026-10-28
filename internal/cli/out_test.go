@@ -1052,7 +1052,7 @@ func printWith(t *testing.T, source plan.Source, inputs answersfile.FingerprintI
 		t.Fatalf("assembling %q: %v", source.Positional, err)
 	}
 
-	fingerprint, err := answersfile.Fingerprint(built.Questions, wireAll(built.Questions), inputs)
+	fingerprint, err := answersfile.Fingerprint(built.Questions, plan.WireAll(built.Questions), inputs)
 	if err != nil {
 		t.Fatalf("fingerprinting %q: %v", source.Positional, err)
 	}

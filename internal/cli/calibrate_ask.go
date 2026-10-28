@@ -291,7 +291,7 @@ func askLabelled(
 
 	book := resumed.book
 	labelled := &labelledRun{
-		run: run, asker: asker, questions: wireAll(run.asked.Questions), usage: flags.usage, stats: stats,
+		run: run, asker: asker, questions: plan.WireAll(run.asked.Questions), usage: flags.usage, stats: stats,
 		outcomes: slices.Clone(resumed.answered), book: book,
 	}
 
