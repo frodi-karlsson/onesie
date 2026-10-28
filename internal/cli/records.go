@@ -165,7 +165,7 @@ type naming struct {
 	seen    map[[sha256.Size]byte]int
 	halt    bool
 	halted  bool
-	nullID  atomic.Bool
+	misread atomic.Bool
 	otherID atomic.Bool
 }
 
@@ -215,12 +215,11 @@ func (n *naming) freshRunAbort() error {
 
 func (n *naming) idHint() string {
 	// Atomic, since the goroutine that reads ahead may still be naming a record after the run.
-	hint := delimiterHint(n.input)
-	if hint == "" || !n.nullID.Load() || n.otherID.Load() {
+	if !n.misread.Load() || n.otherID.Load() {
 		return ""
 	}
 
-	return "every record's --id was null. " + hint
+	return "every record's --id was null. " + delimiterHint(n.input)
 }
 
 func delimiterHint(mode input.Mode) string {
@@ -248,7 +247,9 @@ func (n *naming) named(rec input.Record) namedRecord {
 func (n *naming) name(rec input.Record) namedRecord {
 	id, err := idOf(n.ctx, n.namer, rec)
 	if errors.Is(err, jq.ErrNullID) {
-		n.nullID.Store(true)
+		if misreadDelimiter(n.input, rec.Header) {
+			n.misread.Store(true)
+		}
 	} else {
 		n.otherID.Store(true)
 	}
@@ -274,6 +275,21 @@ func (n *naming) name(rec input.Record) namedRecord {
 	n.seen[key] = rec.Line
 
 	return namedRecord{Record: rec, id: id}
+}
+
+func misreadDelimiter(mode input.Mode, header []string) bool {
+	if len(header) != 1 {
+		return false
+	}
+
+	switch mode {
+	case input.CSV:
+		return strings.Contains(header[0], "\t")
+	case input.TSV:
+		return strings.Contains(header[0], ",")
+	default:
+		return false
+	}
 }
 
 func unwritableID(mode output.Mode, text string) error {

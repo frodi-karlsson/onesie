@@ -114,7 +114,7 @@ func readLabelled(
 				return labelledSet{}, ctxErr
 			}
 
-			return labelledSet{}, firstIDHint(err, set.total, inputMode)
+			return labelledSet{}, firstIDHint(err, set.total, inputMode, rec.Header)
 		}
 
 		if !found {
@@ -130,15 +130,14 @@ func readLabelled(
 	}
 }
 
-func firstIDHint(err error, read int, inputMode input.Mode) error {
+func firstIDHint(err error, read int, inputMode input.Mode, header []string) error {
 	// calibrate stops at the first record it cannot read, so a null id on the first record is every
 	// record read.
-	hint := delimiterHint(inputMode)
-	if read != 1 || hint == "" || !errors.Is(err, jq.ErrNullID) {
+	if read != 1 || !misreadDelimiter(inputMode, header) || !errors.Is(err, jq.ErrNullID) {
 		return err
 	}
 
-	return &advisedError{cause: err, message: text(err) + ". " + hint}
+	return &advisedError{cause: err, message: text(err) + ". " + delimiterHint(inputMode)}
 }
 
 func readAhead(ctx context.Context, stream *input.Stream) <-chan pulledRecord {

@@ -285,6 +285,18 @@ func TestFinishStream(t *testing.T) {
 			wantErr:  tsvHint,
 		},
 		{
+			name:     "should give no hint when a mistyped --id finds nothing in a tab separated file",
+			args:     []string{"is this urgent", "-i", "tsv", "--id", ".idx"},
+			stdin:    tabs,
+			wantCode: ExitRecords,
+		},
+		{
+			name:     "should give no hint when a mistyped --id finds nothing in a comma separated file",
+			args:     []string{"is this urgent", "-i", "csv", "--id", ".idx"},
+			stdin:    commas,
+			wantCode: ExitRecords,
+		},
+		{
 			name:     "should give no hint when one record's --id was found",
 			args:     []string{"is this urgent", "-i", "tsv", "--id", `if .id == "1" then null else .id end`},
 			stdin:    tabs,
@@ -348,6 +360,16 @@ func TestFirstIDHint(t *testing.T) {
 			name:  "should hint at the delimiter when calibrate's first record has a null --id under -i csv",
 			input: "csv", stdin: tabs,
 			wantErr: "onesie: " + null + ". -i csv splits each line on commas, so if the file is tab separated, pass -i tsv\n",
+		},
+		{
+			name:  "should give no hint when a mistyped --id finds nothing in calibrate's first tab separated record",
+			input: "tsv", id: ".idx", stdin: tabs,
+			wantErr: "onesie: " + null + "\n",
+		},
+		{
+			name:  "should give no hint when a mistyped --id finds nothing in calibrate's first comma separated record",
+			input: "csv", id: ".idx", stdin: commas,
+			wantErr: "onesie: " + null + "\n",
 		},
 		{
 			name:  "should give no hint when a later record's --id is null",

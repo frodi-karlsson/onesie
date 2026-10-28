@@ -71,7 +71,7 @@ Exit 3 also covers these:
 | `--resume needs output that keeps each record's outcome` | `-o raw` and `-r` keep no id, failure or gate outcome, so a resume refuses them. Use `-o values` or `-o json` |
 | `is followed by more rows` | a resume without `--id` under `--stop-on-error` reached a stored csv or tsv error row with more rows after it, and a row keeps only the message, not the code to stop with. Pass `--id` or drop `--stop-on-error` |
 | `the header` | the csv or tsv header is not valid, or has a blank or repeated column name |
-| `every record's --id was null` | `-i csv` read a tab separated file, or `-i tsv` a comma separated one, so the header is one column and `--id` finds nothing. Pass the other `-i` |
+| `every record's --id was null` | `-i csv` read a tab separated file, or `-i tsv` a comma separated one, so the header is one column and `--id` finds nothing. Pass the other `-i`. A mistyped `--id` also gives null ids, but then each record fails with `got null` and no hint. Check that `--id` names a header column |
 | `a row is longer than the limit`, with no error line | a csv row over `max-line-bytes` from `onesie -V`. It stops the run, since csv cannot find the next row after it. In tsv it is an error line instead |
 | `--usage does not apply to` | `-o values`, `-o raw` and `-r` write only the answers, so the message says to use `-o json`. `-o csv` and `-o tsv` have no column for it, and `-q` suppresses output |
 | `--merge-key does not apply to` | `-o csv` and `-o tsv` put the answers in columns, so they refuse `--merge-key` even beside `--merge` |
