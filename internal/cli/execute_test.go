@@ -5,14 +5,18 @@ import (
 	"context"
 	"errors"
 	"io"
+	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
+
+	"github.com/spf13/cobra"
 
 	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/creds"
@@ -74,6 +78,99 @@ func TestExecute(t *testing.T) {
 			if code := Execute(t.Context(), root); code != ExitUnavailable {
 				t.Errorf("exit code with stderr %T = %d, want %d", stderr, code, ExitUnavailable)
 			}
+		}
+	})
+
+	t.Run("should take the exit code from the failure alone and print each cleanup failure worth reporting", func(t *testing.T) {
+		t.Parallel()
+
+		stdoutGone := &fs.PathError{Op: "write", Path: "/dev/stdout", Err: syscall.EPIPE}
+		release := errors.New("unlocking answers.jsonl: busy")
+
+		cases := []struct {
+			name       string
+			failure    error
+			cleanups   []error
+			wantCode   int
+			wantStderr string
+		}{
+			{
+				name:       "should exit 2 for a failed save and print the notice stderr refused after it",
+				failure:    errors.New("saving profiles.json: the disk is full"),
+				cleanups:   []error{errors.New("stderr is gone")},
+				wantCode:   ExitUsage,
+				wantStderr: "onesie: saving profiles.json: the disk is full\nonesie: stderr is gone\n",
+			},
+			{
+				name:       "should exit 5 for a timeout and leave out an interrupted finish ahead of a release failure",
+				failure:    context.DeadlineExceeded,
+				cleanups:   []error{context.Canceled, release},
+				wantCode:   ExitTransport,
+				wantStderr: "onesie: context deadline exceeded\nonesie: unlocking answers.jsonl: busy\n",
+			},
+			{
+				name:     "should exit 130 and stay quiet for an interrupt followed by a broken pipe",
+				failure:  context.Canceled,
+				cleanups: []error{syscall.EPIPE},
+				wantCode: ExitInterrupt,
+			},
+			{
+				name:       "should exit 0 for a broken stdout and print the release failure that followed it",
+				failure:    stdoutGone,
+				cleanups:   []error{release},
+				wantCode:   ExitOK,
+				wantStderr: "onesie: unlocking answers.jsonl: busy\n",
+			},
+			{
+				name:       "should exit 6 for failed records and print only what followed them",
+				failure:    &recordsError{},
+				cleanups:   []error{errors.New("compacting answers.jsonl: the disk is full"), release},
+				wantCode:   ExitRecords,
+				wantStderr: "onesie: compacting answers.jsonl: the disk is full\nonesie: unlocking answers.jsonl: busy\n",
+			},
+			{
+				name:     "should exit 6 and stay quiet for failed records followed by a broken pipe and an interrupt",
+				failure:  &recordsError{},
+				cleanups: []error{syscall.EPIPE, context.Canceled},
+				wantCode: ExitRecords,
+			},
+			{
+				name:       "should take the code of a cleanup failure when nothing else failed",
+				cleanups:   []error{release},
+				wantCode:   ExitUsage,
+				wantStderr: "onesie: unlocking answers.jsonl: busy\n",
+			},
+		}
+
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				var errOut bytes.Buffer
+
+				root := &cobra.Command{
+					Use:           "onesie",
+					SilenceErrors: true,
+					SilenceUsage:  true,
+					RunE: func(cmd *cobra.Command, _ []string) error {
+						cleanups := cleanupsIn(cmd.Context())
+
+						err := tc.failure
+						for _, cleanup := range tc.cleanups {
+							err = cleanups.after(err, cleanup)
+						}
+
+						return err
+					},
+				}
+
+				root.SetErr(&errOut)
+				root.SetArgs([]string{})
+
+				if code := Execute(t.Context(), root); code != tc.wantCode || errOut.String() != tc.wantStderr {
+					t.Errorf("exit %d, stderr %q, want exit %d and %q", code, errOut.String(), tc.wantCode, tc.wantStderr)
+				}
+			})
 		}
 	})
 
@@ -212,7 +309,7 @@ func TestExecute(t *testing.T) {
 			want:     "onesie: --mock has no line 3, so input line 3 has no answer. Add one\n",
 		},
 		{
-			name: "should prefix both lines of a run failure joined with a release failure",
+			name: "should prefix both lines of a run failure followed by a release failure",
 			args: []string{
 				"--mock", "{dir}{/}empty.jsonl", "--out", "{dir}{/}answers.jsonl", "--state", "x", "is it urgent",
 			},
@@ -223,7 +320,7 @@ func TestExecute(t *testing.T) {
 				"onesie: unlocking {dir}{/}answers.jsonl: the test release failed\n",
 		},
 		{
-			name: "should prefix both lines of a resume failure joined with a release failure",
+			name: "should prefix both lines of a resume failure followed by a release failure",
 			args: []string{
 				"--mock", "{dir}{/}m.json", "--out", "{dir}{/}answers.jsonl", "--resume", "--state", "x", "is it urgent",
 			},
