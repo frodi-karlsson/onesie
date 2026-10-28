@@ -230,6 +230,32 @@ func TestClassify(t *testing.T) {
 			err:  alsoFailed(errors.New("saving profiles.json: the disk is full"), io.ErrClosedPipe),
 			want: ExitUsage,
 		},
+		{
+			name: "should take the code of the innermost first failure when a release failure joins a finish failure",
+			err: alsoFailed(alsoFailed(apiError(http.StatusServiceUnavailable), context.Canceled),
+				errors.New("unlocking answers.jsonl: busy")),
+			want: ExitUnavailable,
+		},
+		{
+			name: "should take the code of the first failure through a wrapper that carries no code",
+			err:  fmt.Errorf("while asking: %w", alsoFailed(apiError(http.StatusServiceUnavailable), context.Canceled)),
+			want: ExitUnavailable,
+		},
+		{
+			name: "should keep the code of a wrapper that carries one over the join it wraps",
+			err:  &stoppedError{cause: alsoFailed(apiError(http.StatusServiceUnavailable), errors.New("x"))},
+			want: ExitRecords,
+		},
+		{
+			name: "should exit 130 for an interrupt joined to a broken pipe",
+			err:  alsoFailed(context.Canceled, syscall.EPIPE),
+			want: ExitInterrupt,
+		},
+		{
+			name: "should exit 0 for a broken pipe joined to a second failure",
+			err:  alsoFailed(syscall.EPIPE, errors.New("x")),
+			want: ExitOK,
+		},
 	}
 
 	for _, tc := range tests {
@@ -273,6 +299,12 @@ func TestClassify(t *testing.T) {
 				err: errors.Join(&onesie.APIError{Status: http.StatusBadGateway},
 					&fs.PathError{Op: "write", Path: "/dev/stdout", Err: syscall.EPIPE}),
 				kind: output.KindHTTP, quiet: true,
+			},
+			{err: alsoFailed(context.Canceled, syscall.EPIPE), kind: output.KindInput, quiet: true},
+			{err: alsoFailed(syscall.EPIPE, errors.New("x")), kind: output.KindInput, quiet: true},
+			{
+				err:  alsoFailed(alsoFailed(&recordsError{}, apiError(http.StatusBadGateway)), errors.New("x")),
+				kind: output.KindInput, quiet: true,
 			},
 		}
 
@@ -327,6 +359,34 @@ func TestWorthReporting(t *testing.T) {
 			err: errors.Join(&onesie.APIError{Status: http.StatusBadGateway},
 				&fs.PathError{Op: "write", Path: "/dev/stdout", Err: syscall.EPIPE}),
 		},
+		{
+			name: "should report a server error joined to a broken pipe",
+			err: alsoFailed(&onesie.APIError{Status: http.StatusBadGateway},
+				&fs.PathError{Op: "write", Path: "/dev/stderr", Err: syscall.EPIPE}),
+			want: true,
+		},
+		{
+			name: "should stay quiet for an interrupt joined to a broken pipe",
+			err:  alsoFailed(context.Canceled, syscall.EPIPE),
+		},
+		{
+			name: "should report a failure that follows failed records",
+			err:  alsoFailed(&recordsError{}, errors.New("compacting answers.jsonl: the disk is full")),
+			want: true,
+		},
+		{
+			name: "should report a release failure that follows a quiet finish failure after failed records",
+			err:  alsoFailed(alsoFailed(&recordsError{}, context.Canceled), errors.New("unlocking answers.jsonl: busy")),
+			want: true,
+		},
+		{
+			name: "should stay quiet for failed records joined to a broken pipe",
+			err:  alsoFailed(&recordsError{}, syscall.EPIPE),
+		},
+		{
+			name: "should stay quiet for failed records joined to an interrupt",
+			err:  alsoFailed(&recordsError{}, context.Canceled),
+		},
 	}
 
 	for _, tc := range tests {
@@ -335,6 +395,48 @@ func TestWorthReporting(t *testing.T) {
 
 			if got := worthReporting(tc.err); got != tc.want {
 				t.Errorf("worthReporting(%v) = %t, want %t", tc.err, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestReport(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		err  error
+		want string
+	}{
+		{
+			name: "should report a failure and the one that followed it",
+			err:  alsoFailed(errors.New("saving profiles.json: the disk is full"), errors.New("stderr is gone")),
+			want: "saving profiles.json: the disk is full\nonesie: stderr is gone",
+		},
+		{
+			name: "should report only what followed failed records",
+			err:  alsoFailed(&recordsError{}, errors.New("compacting answers.jsonl: the disk is full")),
+			want: "compacting answers.jsonl: the disk is full",
+		},
+		{
+			name: "should report a finish failure and a release failure that both followed failed records",
+			err: alsoFailed(alsoFailed(&recordsError{}, errors.New("compacting answers.jsonl: the disk is full")),
+				errors.New("unlocking answers.jsonl: busy")),
+			want: "compacting answers.jsonl: the disk is full\nonesie: unlocking answers.jsonl: busy",
+		},
+		{
+			name: "should leave out an interrupt that followed failed records",
+			err:  alsoFailed(alsoFailed(&recordsError{}, context.Canceled), errors.New("unlocking answers.jsonl: busy")),
+			want: "unlocking answers.jsonl: busy",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := report(tc.err); got != tc.want {
+				t.Errorf("report = %q, want %q", got, tc.want)
 			}
 		})
 	}

@@ -208,6 +208,39 @@ func TestExecute(t *testing.T) {
 				"onesie: unlocking {dir}{/}answers.jsonl: the test release failed\n",
 		},
 		{
+			name: "should print a release failure that follows failed records and keep exit 6",
+			args: []string{
+				"--mock", "{dir}{/}m.jsonl", "-i", "lines", "--out", "{dir}{/}answers.jsonl", "--ask", "q=is it urgent",
+			},
+			stdin:    "a\n",
+			files:    map[string]string{"m.jsonl": "{\"error\":503}\n"},
+			prepare:  failingRelease,
+			wantCode: ExitRecords,
+			want:     "onesie: unlocking {dir}{/}answers.jsonl: the test release failed\n",
+		},
+		{
+			name: "should print a compaction failure that follows failed records and keep exit 6",
+			args: []string{
+				"--mock", "{dir}{/}m.jsonl", "-i", "jsonl", "--id", ".id", "--out", "{dir}{/}answers.jsonl", "--resume",
+				"--ask", "q=is it urgent",
+			},
+			stdin:    "{\"id\":1}\n{\"id\":2}\n",
+			files:    map[string]string{"m.jsonl": "{\"id\":1,\"error\":503}\n{\"id\":2,\"q\":0.9}\n"},
+			prepare:  failingCompaction,
+			wantCode: ExitRecords,
+			want:     "onesie: compacting {dir}{/}answers.jsonl: the test rename failed\n",
+		},
+		{
+			name: "should stay quiet for a release interrupted after failed records",
+			args: []string{
+				"--mock", "{dir}{/}m.jsonl", "-i", "lines", "--out", "{dir}{/}answers.jsonl", "--ask", "q=is it urgent",
+			},
+			stdin:    "a\n",
+			files:    map[string]string{"m.jsonl": "{\"error\":503}\n"},
+			prepare:  interruptedRelease,
+			wantCode: ExitRecords,
+		},
+		{
 			name:     "should print a command error with one onesie prefix",
 			args:     []string{"cache", "clear", "extra"},
 			wantCode: ExitUsage,
@@ -419,6 +452,26 @@ func failingRelease(*testing.T, string) []RootOption {
 	return []RootOption{func(s *rootSettings) {
 		s.lock = func(string) (func() error, error) {
 			return func() error { return errors.New("the test release failed") }, nil
+		}
+	}}
+}
+
+func failingCompaction(*testing.T, string) []RootOption {
+	return []RootOption{func(s *rootSettings) {
+		s.rename = func(oldpath, newpath string) error {
+			if strings.HasSuffix(oldpath, ".onesie.part") {
+				return errors.New("the test rename failed")
+			}
+
+			return os.Rename(oldpath, newpath)
+		}
+	}}
+}
+
+func interruptedRelease(*testing.T, string) []RootOption {
+	return []RootOption{func(s *rootSettings) {
+		s.lock = func(string) (func() error, error) {
+			return func() error { return context.Canceled }, nil
 		}
 	}}
 }

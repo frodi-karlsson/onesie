@@ -91,21 +91,65 @@ func Classify(err error) int {
 }
 
 func worthReporting(err error) bool {
-	return !classify(err).quiet
+	if !classify(err).quiet {
+		return true
+	}
+
+	both, joined := joinAhead(err)
+
+	return joined && (worthReporting(both.first) || worthReporting(both.second))
+}
+
+func report(err error) string {
+	both, joined := joinAhead(err)
+	if !joined || !classify(err).quiet {
+		return text(err)
+	}
+
+	lines := make([]string, 0, 2)
+
+	for _, part := range []error{both.first, both.second} {
+		if worthReporting(part) {
+			lines = append(lines, report(part))
+		}
+	}
+
+	return strings.Join(lines, "\n"+output.Prefix)
 }
 
 func classify(err error) failure {
-	// The second failure only adds a line, so a stderr that could not take a notice never turns the
-	// failure it was reporting into a broken pipe.
-	var both *bothFailed
-	if errors.As(err, &both) {
+	// A join pairs the failure that ended the run with one that followed it: a notice stderr
+	// refused, or Finish or Release failing on the way out. What followed never changes the code a
+	// script branches on, so the innermost first failure decides it, unless a wrapper that carries
+	// a code of its own holds the join.
+	first := firstFailure(err)
+
+	matched := firstMatch(first)
+	matched.quiet = matched.quiet || canceledOrBrokenPipe(first)
+
+	return matched
+}
+
+func firstFailure(err error) error {
+	for both, joined := joinAhead(err); joined; both, joined = joinAhead(err) {
 		err = both.first
 	}
 
-	matched := firstMatch(err)
-	matched.quiet = matched.quiet || canceledOrBrokenPipe(err)
+	return err
+}
 
-	return matched
+func joinAhead(err error) (*bothFailed, bool) {
+	for next := err; next != nil; next = errors.Unwrap(next) {
+		//nolint:errorlint // errors.As would look past a wrapper that carries a code of its own.
+		switch node := next.(type) {
+		case *bothFailed:
+			return node, true
+		case *stoppedError, *input.LineError, *creds.KeychainError, *onesie.RetryAfterError, *onesie.ResponseError:
+			return nil, false
+		}
+	}
+
+	return nil, false
 }
 
 func canceledOrBrokenPipe(err error) bool {

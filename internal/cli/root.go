@@ -764,7 +764,7 @@ func Execute(ctx context.Context, root *cobra.Command) int {
 
 	if worthReporting(err) {
 		// Stripped, since a message can quote the server or the input to a terminal.
-		if printErr := output.Notice(root.ErrOrStderr(), output.Printable(text(err))); printErr != nil {
+		if printErr := output.Notice(root.ErrOrStderr(), output.Printable(report(err))); printErr != nil {
 			return ExitUsage
 		}
 	}
