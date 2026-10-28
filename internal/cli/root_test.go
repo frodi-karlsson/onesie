@@ -2247,6 +2247,27 @@ func TestNewRootCmd(t *testing.T) {
 		}
 	})
 
+	t.Run("should refuse an empty output mode beside -V and on version", func(t *testing.T) {
+		t.Parallel()
+
+		for _, args := range [][]string{{"-V", "-o", ""}, {"version", "-o", ""}, {"version", "--output", ""}} {
+			var out, errOut bytes.Buffer
+
+			root := cli.NewRootCmd(cli.BuildInfo{Version: "1.2.3"},
+				cli.WithStdin(strings.NewReader("")), cli.WithStdinTTY(false))
+			root.SetOut(&out)
+			root.SetErr(&errOut)
+			root.SetArgs(args)
+
+			code := cli.Execute(t.Context(), root)
+			want := "onesie: --output is empty. Name one, or leave the flag out\n"
+			if code != cli.ExitUsage || errOut.String() != want || out.Len() != 0 {
+				t.Errorf("onesie %q = exit %d, stdout %q, stderr %q, want exit 2 and %q",
+					args, code, out.String(), errOut.String(), want)
+			}
+		}
+	})
+
 	t.Run("should print the limits for -V and for version as limits.Report lists them", func(t *testing.T) {
 		t.Parallel()
 
