@@ -83,7 +83,7 @@ onesie --ask urgent='is this urgent' --threshold 0.9 -i jsonl --map '.body' --id
 onesie calibrate --ask urgent='is this urgent' -i jsonl --map '.body' --label urgent='.is_urgent' --id '.id' --cuts 0.5,0.7,0.9 --out answers.jsonl --resume
 ```
 
-### Gate the calibration with --require, using lower() or upper() on a small sample.
+### Gate the calibration with --require, using `lower` or `upper` on a small sample.
 
 `--require` turns the report into a check. The report still prints, each requirement that did not hold is named on stderr, and the run exits 1. A requirement reads `[lower|upper](ID.MEASURE) OP NUMBER [at CUT]`. The measures are `catches`, `false_alarms`, `right_when_flagged` and `auc` for a yes or no question, `agreement` for pick and rate, and `within_one` for rate. NUMBER is a fraction, so `95` exits 2. On a few records the plain value passes on luck, since 16 of 16 is a value of 1. `lower()` compares the low end of the 95 percent interval instead, 81 percent for 16 of 16, so `lower(urgent.catches) >= 0.9` fails until there are enough labelled records to back it. `lower` takes `>=` or `>`, `upper` takes `<=` or `<`, as in `upper(urgent.false_alarms) <= 0.1 at 0.9`, and `auc` has no interval. Without `at`, the cut comes from the `-f` file's `assert` when it compares `ID.value < X` or `ID.value >= X`, and `at abstain` takes it from the file's `abstain_if`. A missing cut exits 2 before any request.
 

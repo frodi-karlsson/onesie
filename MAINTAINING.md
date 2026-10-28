@@ -62,7 +62,7 @@ cmd/examplesimage/    writes examples/images/square.png, for make examples-image
 cmd/formulagen/       writes the Homebrew formula for a release from its checksums.txt
 cmd/proseblocks/      writes the Go and Markdown prose a diff adds as JSON lines, for the history lessons check
 cmd/releaseprep/      checks a release tag and bumps the plugin manifests, for scripts/release.sh
-cmd/skillcheck/       dry runs every example in every skill against the built binary, and checks the prose flags
+cmd/skillcheck/       dry runs every example in every skill against the built binary, and checks the prose flags and punctuation
 cmd/skilleval/        dry runs every onesie command an agent wrote in a plugin eval run
 cmd/skillgen/         generates the per client skill files from skills/
 internal/answer/      normalizes an answer and applies the question's policy
@@ -87,7 +87,7 @@ internal/plan/        folds a recorded command line into a validated invocation
 internal/proseblocks/ splits Go comments and Markdown into blocks of prose, one per comment group, paragraph or list item
 internal/qfile/       loads and writes a question file or a raw request body
 internal/release/     orders release tags by semver and edits the plugin manifests in place
-internal/skillcheck/  dry runs each skill rule's bad and good example, and checks the flags the prose names against --help
+internal/skillcheck/  dry runs each skill rule's bad and good example, and checks the prose flags against --help and the punctuation of the docs
 internal/skilleval/   extracts and grades the commands of a plugin eval run
 internal/skillgen/    decodes and validates skill.json and renders the skill files
 examples/             describes the starter question sets, and tests their gates against the committed answers
@@ -281,7 +281,7 @@ The certificate expires on 17 September 2031. To replace it:
 1. Make a certificate signing request with Keychain Access, under Certificate
    Assistant, and save it to disk.
 2. In the Apple Developer account, create a Developer ID Application
-   certificate on the G2 Sub-CA from that request.
+   certificate on the `G2 Sub-CA` from that request.
 3. Import the `.cer` into the login keychain, where the request left its
    private key. On macOS 26 the Keychain Access window lists no keychains, so
    use `security import FILE.cer -k ~/Library/Keychains/login.keychain-db`.

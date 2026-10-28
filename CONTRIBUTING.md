@@ -28,7 +28,7 @@ can go straight to a pull request.
 
 A pull request needs:
 
-- a one-line title in the form `type: what it does`, such as `fix: ...`, `feat: ...` or `docs: ...`.
+- a one line title in the form `type: what it does`, such as `fix: ...`, `feat: ...` or `docs: ...`.
   Pull requests are squash merged, and the title becomes the commit message.
 - tests for what it changes. A fix comes with a test that fails without it.
 - the docs a user reads, updated in the same pull request: `README.md`, `REFERENCE.md`, and the

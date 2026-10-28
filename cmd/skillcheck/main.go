@@ -1,5 +1,5 @@
-// Command skillcheck dry runs every rule's bad and good example under skills/, and checks the flags
-// and commands the prose names against onesie --help.
+// Command skillcheck dry runs every rule's bad and good example under skills/, checks the flags
+// and commands the prose names against onesie --help, and checks the punctuation of the docs.
 package main
 
 import (
@@ -64,6 +64,13 @@ func run() int {
 		return 1
 	}
 
+	writing, err := skillcheck.CheckWriting(root)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+
+		return 1
+	}
+
 	fmt.Printf("onesie: checked %d examples across %d skills, skipped %d\n",
 		report.Checked, report.Skills, len(report.Skipped))
 
@@ -73,8 +80,9 @@ func run() int {
 	}
 
 	fmt.Printf("onesie: checked %d flag and command mentions in the prose\n", prose.Checked)
+	fmt.Printf("onesie: checked the punctuation of %d texts\n", writing.Checked)
 
-	failures := append(report.Failures, prose.Failures...)
+	failures := append(append(report.Failures, prose.Failures...), writing.Failures...)
 	if len(failures) == 0 {
 		return 0
 	}

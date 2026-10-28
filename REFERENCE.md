@@ -829,17 +829,17 @@ table, and `onesie calibrate --help` lists the codes calibrate uses.
 - `-f VALUE` reads VALUE as a file when one exists at that path. Otherwise a bare name loads
   `NAME.yaml`, `NAME.yml` or `NAME.json` from the nearest `.onesie/questions`, then from `questions`
   in the config dir, and last takes a starter set built into onesie: `moderation`, `personal-data`,
-  `prompt-injection` or `shell-safety`. A saved file wins over a built-in set of the same name, so
+  `prompt-injection` or `shell-safety`. A saved file wins over a built in set of the same name, so
   a copy to edit is printed elsewhere first, as in
   `onesie -f shell-safety --print-questions > shell-safety.yaml`, then moved with
   `mv shell-safety.yaml .onesie/questions/`. A redirect straight into `.onesie/questions` empties
-  the file before onesie runs, and `-f` then finds that empty file ahead of the built-in set.
-  `onesie questions` lists every name `-f` finds, with a built-in set shown as `built in` and an
+  the file before onesie runs, and `-f` then finds that empty file ahead of the built in set.
+  `onesie questions` lists every name `-f` finds, with a built in set shown as `built in` and an
   empty saved file marked `empty`, or `"empty":true` under `-o json`. A
   question file is refused with exit 2 when it uses a YAML alias or when it is larger than
   `max-question-file-bytes`, and every error in a file names its path. A file that holds no
   question, such as an empty one, `{}` or only comments, adds nothing beside `--ask`, and on its
-  own it exits 2, naming the file. One that hides a built-in set always exits 2, naming how to
+  own it exits 2, naming the file. One that hides a built in set always exits 2, naming how to
   reach the set.
 - For one record, onesie reads the state from stdin when stdin is not a terminal and no other
   source gave one. When nothing arrives there for 2 seconds, it prints
