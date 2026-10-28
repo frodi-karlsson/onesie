@@ -408,13 +408,13 @@ ls photos/*.jpg | onesie -i lines --image-field photo 'is there a dog in `photo`
   limits, `long_context` must be true or false, and no question may pass `max-choice-options` or
   `max-score-levels`. A body that fails is an error line of kind `input`, and nothing is sent for
   it. `--print-request` refuses the same bodies with the same error lines. It also checks each 200
-  that comes back before printing it. A response that is not JSON, that is
-  not a System One result with an `answers` object, or whose answers do not decode, is an error
-  line of kind `response` with `200 response could not be used:`, and the run exits 6. When the
-  body's `questions` read as a `-f` body's would, each answer is also checked against its question
-  as on any other run, so a missing answer or a value out of its range fails the same way. A
-  body whose questions onesie cannot read, such as one past `max-question-file-bytes`, gets only
-  the first checks. The tokens of a refused response still count toward `--stats`.
+  that comes back before printing it. A response that is not JSON, that is not a System One result
+  with an `answers` object, or whose answers do not decode, is an error line of kind `response`
+  with `200 response could not be used:`, and the run exits 6. A response that is not JSON also
+  names the base URL to check. When the body's `questions` read, each answer is also checked
+  against its question's type, options and levels as on any other run, so a missing answer or a
+  value out of its range fails the same way. A body whose questions do not read gets only the
+  first checks. The tokens of a refused response still count toward `--stats`.
 - A malformed image body, such as one whose asset nothing references, is refused before any
   request on every provider, with the same message.
 - Providers read images differently:
