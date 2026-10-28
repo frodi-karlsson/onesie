@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/frodi-karlsson/onesie-go"
@@ -287,43 +288,32 @@ func TestListModels(t *testing.T) {
 		t.Run("should abandon a listing the server never answers", func(t *testing.T) {
 			t.Parallel()
 
-			blocked := make(chan struct{})
+			synctest.Test(t, func(t *testing.T) {
+				out, errOut, code := runRealFactory(t, []string{
+					"--list-models", "--base-url", "https://stub.invalid", "--timeout", "1", "--retries", "0",
+				}, stalling)
 
-			srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
-				<-blocked
-			}))
+				if code != ExitTransport {
+					t.Fatalf("exit code = %d, want %d\nstdout:\n%s\nstderr:\n%s",
+						code, ExitTransport, out, errOut)
+				}
 
-			// Both through Cleanup rather than defer, and in this order, so the handler is released
-			// before Close waits on it.
-			t.Cleanup(srv.Close)
-			t.Cleanup(func() { close(blocked) })
-
-			out, errOut, code := runRealFactory(t, []string{
-				"--list-models", "--base-url", srv.URL,
-				"--timeout", "1", "--retries", "0",
+				// The duration is part of the claim. Without the flag on the client the attempt runs to
+				// the ten second default, which the stalled transport outlasts.
+				if !strings.Contains(errOut, "timed out after 1s") {
+					t.Errorf("stderr = %q, want it to name the one second timeout", errOut)
+				}
 			})
-
-			if code != ExitTransport {
-				t.Fatalf("exit code = %d, want %d\nstdout:\n%s\nstderr:\n%s",
-					code, ExitTransport, out, errOut)
-			}
-
-			// The duration is part of the claim. Without the flag on the client the attempt runs to
-			// the ten second default, which this handler outlasts.
-			if !strings.Contains(errOut, "timed out after 1s") {
-				t.Errorf("stderr = %q, want it to name the one second timeout", errOut)
-			}
 		})
 	})
 }
 
-func runRealFactory(t *testing.T, args []string) (string, string, int) {
+func runRealFactory(t *testing.T, args []string, extra ...RootOption) (string, string, int) {
 	t.Helper()
 
 	var out, errOut bytes.Buffer
 
-	root := NewRootCmd(
-		BuildInfo{Version: "1.2.3"},
+	root := NewRootCmd(BuildInfo{Version: "1.2.3"}, append([]RootOption{
 		withKeychain(noKeychain()),
 		WithStdin(strings.NewReader("")),
 		WithStdinTTY(false),
@@ -332,7 +322,7 @@ func runRealFactory(t *testing.T, args []string) (string, string, int) {
 			onesie.TypeSafe().EnvAPIKey(): "test", "BERGET_API_KEY": "test", "LEVANTO_API_KEY": "test",
 		})),
 		WithClock(instantClock{now: time.Now}),
-	)
+	}, extra...)...)
 
 	root.Command.SetOut(&out)
 	root.Command.SetErr(&errOut)

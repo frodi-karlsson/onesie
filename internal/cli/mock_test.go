@@ -14,6 +14,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/frodi-karlsson/onesie-go"
@@ -1117,24 +1118,27 @@ func TestMockAnswerer_Answer(t *testing.T) {
 	t.Run("should retry a retried entry as a live one is, without waiting", func(t *testing.T) {
 		t.Parallel()
 
-		a, stats := asker(t, `{"error":503}`, onesie.TypeSafe(), 2)
+		// The bubble's clock moves only when something waits on it, so any backoff shows as time passed.
+		synctest.Test(t, func(t *testing.T) {
+			a, stats := asker(t, `{"error":503}`, onesie.TypeSafe(), 2)
 
-		started := time.Now()
+			started := time.Now()
 
-		_, err := a.answer(t.Context(), recordKey{position: 1}, onesie.Request{
-			Model: "m", State: "s", Questions: questions,
+			_, err := a.answer(t.Context(), recordKey{position: 1}, onesie.Request{
+				Model: "m", State: "s", Questions: questions,
+			})
+			if err == nil || !strings.Contains(err.Error(), "503 status code, no body") {
+				t.Fatalf("error = %v, want the mocked 503", err)
+			}
+
+			if got := stats.snapshot(0); got.Attempts != 3 || got.Retries[http.StatusServiceUnavailable] != 3 {
+				t.Errorf("attempts = %d, failed 503 attempts = %v, want 3 and 3", got.Attempts, got.Retries)
+			}
+
+			if waited := time.Since(started); waited != 0 {
+				t.Errorf("the retries waited %s, want no wait", waited)
+			}
 		})
-		if err == nil || !strings.Contains(err.Error(), "503 status code, no body") {
-			t.Fatalf("error = %v, want the mocked 503", err)
-		}
-
-		if got := stats.snapshot(0); got.Attempts != 3 || got.Retries[http.StatusServiceUnavailable] != 3 {
-			t.Errorf("attempts = %d, failed 503 attempts = %v, want 3 and 3", got.Attempts, got.Retries)
-		}
-
-		if waited := time.Since(started); waited > time.Second {
-			t.Errorf("the retries took %s, want no wait", waited)
-		}
 	})
 
 	t.Run("should pass an error entry's error on", func(t *testing.T) {

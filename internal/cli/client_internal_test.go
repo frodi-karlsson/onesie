@@ -15,6 +15,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 
 	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/creds"
@@ -578,6 +579,27 @@ func TestClientBuilder(t *testing.T) {
 			t.Errorf("recorded = %v, want write 2 failed", got)
 		}
 	})
+
+	t.Run("should abandon an attempt past --timeout", func(t *testing.T) {
+		t.Parallel()
+
+		synctest.Test(t, func(t *testing.T) {
+			out, errOut, code := runRealFactory(t, []string{
+				"is this urgent", "--state", "the server is quiet", "--base-url", "https://stub.invalid",
+				"--timeout", "1", "--retries", "0",
+			}, stalling)
+
+			if code != ExitTransport {
+				t.Fatalf("exit code = %d, want %d\nstdout:\n%s\nstderr:\n%s", code, ExitTransport, out, errOut)
+			}
+
+			// The duration is part of the claim. Without the flag on the client the attempt runs to
+			// the ten second default, which the stalled transport outlasts.
+			if !strings.Contains(errOut, "timed out after 1s") {
+				t.Errorf("stderr = %q, want it to name the one second timeout", errOut)
+			}
+		})
+	})
 }
 
 type failingWrites struct {
@@ -682,11 +704,12 @@ func TestPooled(t *testing.T) {
 		}
 	})
 
-	t.Run("should leave the client its own transport when the base is not an http.Transport", func(t *testing.T) {
+	t.Run("should use a base that is not an http.Transport as it is", func(t *testing.T) {
 		t.Parallel()
 
-		if got := pooled(&countingRoundTripper{base: http.DefaultTransport}, 4); got != nil {
-			t.Errorf("pooled = %T, want nil", got)
+		base := &countingRoundTripper{base: http.DefaultTransport}
+		if got := pooled(base, 4); got != base {
+			t.Errorf("pooled = %T, want the base itself", got)
 		}
 	})
 }

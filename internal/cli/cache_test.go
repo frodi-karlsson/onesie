@@ -19,6 +19,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -312,13 +313,8 @@ func TestCachedAnswerer(t *testing.T) {
 	failures := []struct {
 		name  string
 		setup func(stub *answerStub)
-		opts  []onesie.Option
 	}{
 		{name: "should not store a 503", setup: func(s *answerStub) { s.status.Store(http.StatusServiceUnavailable) }},
-		{
-			name: "should not store a timeout", setup: func(s *answerStub) { s.stall.Store(true) },
-			opts: []onesie.Option{onesie.WithAttemptTimeout(50 * time.Millisecond)},
-		},
 		{name: "should not store a 200 missing a question", setup: func(s *answerStub) { s.missing.Store(true) }},
 		{name: "should not store a 200 of the wrong answer type", setup: func(s *answerStub) { s.wrongType.Store(true) }},
 	}
@@ -333,8 +329,7 @@ func TestCachedAnswerer(t *testing.T) {
 			transport := &countingRoundTripper{base: baseTransport}
 			t.Cleanup(baseTransport.CloseIdleConnections)
 
-			opts := append(tc.opts, onesie.WithHTTPClient(&http.Client{Transport: transport}))
-			factory, dir := build(t, stub, nil, opts...)
+			factory, dir := build(t, stub, nil, onesie.WithHTTPClient(&http.Client{Transport: transport}))
 
 			asker, err := factory(t.Context(), &collector{})
 			if err != nil {
@@ -356,6 +351,35 @@ func TestCachedAnswerer(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("should not store a timeout", func(t *testing.T) {
+		t.Parallel()
+
+		synctest.Test(t, func(t *testing.T) {
+			transport := &countingRoundTripper{base: stallingTransport{}}
+			factory, dir := build(t, &answerStub{url: "https://stub.invalid"}, nil,
+				onesie.WithHTTPClient(&http.Client{Transport: transport}), onesie.WithAttemptTimeout(time.Second))
+
+			asker, err := factory(t.Context(), &collector{})
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			for range 2 {
+				if got, answerErr := asker.answer(t.Context(), key, request); got.cached || !errors.Is(answerErr, onesie.ErrTimeout) {
+					t.Fatalf("answer = %+v, %v, want a timeout and no cached answer", got, answerErr)
+				}
+			}
+
+			if summary, _ := cache.Summarize(dir, nil); summary.Entries != 0 {
+				t.Errorf("Summarize = %+v, want nothing stored", summary)
+			}
+
+			if got := transport.requests.Load(); got != 2 {
+				t.Errorf("%d client requests, want 2, since nothing was stored", got)
+			}
+		})
+	})
 
 	t.Run("should warn once and ask the API when the cache cannot open", func(t *testing.T) {
 		t.Parallel()
@@ -932,12 +956,6 @@ func newAnswerStub(t *testing.T) *answerStub {
 			return
 		}
 
-		if stub.stall.Load() {
-			<-r.Context().Done()
-
-			return
-		}
-
 		if _, err := w.Write(stub.response(t, body)); err != nil {
 			t.Errorf("writing stub response: %v", err)
 		}
@@ -1004,7 +1022,6 @@ type answerStub struct {
 	url       string
 	requests  atomic.Int32
 	status    atomic.Int32
-	stall     atomic.Bool
 	missing   atomic.Bool
 	wrongType atomic.Bool
 	cost      atomic.Bool

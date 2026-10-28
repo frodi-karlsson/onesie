@@ -36,9 +36,7 @@ func clientBuilder(info BuildInfo, flags *runFlags, settings rootSettings) clien
 			opts = append(opts, onesie.WithInsecureHTTP())
 		}
 
-		if transport := pooled(settings.transport, flags.jobs); transport != nil {
-			opts = append(opts, onesie.WithHTTPClient(&http.Client{Transport: transport}))
-		}
+		opts = append(opts, onesie.WithHTTPClient(&http.Client{Transport: pooled(settings.transport, flags.jobs)}))
 
 		opts = append(opts, chosen.options(flags.baseURL, profileKey(settings, chosen), settings.lookupEnv)...)
 
@@ -193,8 +191,8 @@ func pooled(base http.RoundTripper, jobs int) http.RoundTripper {
 	defaults, ok := base.(*http.Transport)
 	if !ok {
 		// Something replaced the default. Building one here would drop whatever proxy and dialer
-		// settings that replacement carries, so the client keeps its own default instead.
-		return nil
+		// settings that replacement carries, so it is used as it is.
+		return base
 	}
 
 	// Cloned rather than built from scratch, so proxy support, the dial timeouts and HTTP/2 come

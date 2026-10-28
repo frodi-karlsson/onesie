@@ -3352,55 +3352,6 @@ func TestClientBuilder(t *testing.T) {
 			})
 		}
 	})
-
-	t.Run("should wire --timeout onto the client", func(t *testing.T) {
-		t.Parallel()
-
-		t.Run("should abandon an attempt the server never answers", func(t *testing.T) {
-			t.Parallel()
-
-			blocked := make(chan struct{})
-
-			srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
-				<-blocked
-			}))
-
-			// Both through Cleanup rather than defer, and in this order, so the handler is released
-			// before Close waits on it. A deferred Close would block on the handler it is waiting for.
-			t.Cleanup(srv.Close)
-			t.Cleanup(func() { close(blocked) })
-
-			var out, errOut bytes.Buffer
-
-			// No WithClientFactory, since the flag reaches the client through the real factory and a
-			// stub one would never see it.
-			root := cli.NewRootCmd(
-				cli.BuildInfo{Version: "1.2.3"},
-				cli.WithKeychain(offKeychain()),
-				cli.WithStdin(strings.NewReader("the server is quiet")),
-				cli.WithStdinTTY(false),
-				cli.WithStdoutTTY(false),
-				cli.WithLookupEnv(apiKeyEnv("test")),
-			)
-
-			root.Command.SetOut(&out)
-			root.Command.SetErr(&errOut)
-			root.Command.SetArgs([]string{
-				"is this urgent", "--base-url", srv.URL,
-				"--timeout", "1", "--retries", "0",
-			})
-
-			if code := root.Execute(t.Context()); code != cli.ExitTransport {
-				t.Fatalf("exit code = %d, want %d. output:\n%s", code, cli.ExitTransport, out.String())
-			}
-
-			// The duration is part of the claim. Without the flag on the client the attempt runs to
-			// the ten second default, which this handler outlasts.
-			if !strings.Contains(errOut.String(), "timed out after 1s") {
-				t.Errorf("stderr = %q, want it to name the one second timeout", errOut.String())
-			}
-		})
-	})
 }
 
 func runWithEnv(t *testing.T, env map[string]string, args []string) (string, int) {

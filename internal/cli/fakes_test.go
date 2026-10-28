@@ -185,3 +185,22 @@ func (timingOutKeychain) Set(string, string, string) error {
 func (timingOutKeychain) Delete(string, string) error {
 	return creds.ErrKeychainTimeout
 }
+
+func stalling(s *rootSettings) {
+	s.transport = stallingTransport{}
+}
+
+func (stallingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	<-req.Context().Done()
+
+	// A GET, such as the model listing, carries no body.
+	if req.Body != nil {
+		if err := req.Body.Close(); err != nil {
+			return nil, err
+		}
+	}
+
+	return nil, req.Context().Err()
+}
+
+type stallingTransport struct{}
