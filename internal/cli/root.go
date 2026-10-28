@@ -928,7 +928,7 @@ type rootSettings struct {
 	credStore     creds.Store
 	keychain      *creds.Keychain
 	readSecret    func() (string, error)
-	wrapAnswerer  func(answerer) answerer
+	answerers     func(answererFactory) answererFactory
 	schemaURL     string
 	dedupLimit    int
 	readBuiltIn   func(name string) ([]byte, bool)

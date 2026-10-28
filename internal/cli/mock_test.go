@@ -612,7 +612,7 @@ func TestMockUncovered(t *testing.T) {
 		t.Parallel()
 
 		out, errOut, code := runMocked(t, t.Context(), append(values, "--mock", writeMock(t, answers)), eight, nil, nil,
-			delaying(3, 300*time.Millisecond))
+			delaying(3, 5))
 
 		checkMocked(t, out, errOut, code, ExitUsage, fileOf(yes+"\n"+yes+"\n"), nil, nil, []string{"input line 3"})
 	})
@@ -620,11 +620,15 @@ func TestMockUncovered(t *testing.T) {
 	t.Run("should keep the lines that arrived before an uncovered record under --unordered", func(t *testing.T) {
 		t.Parallel()
 
-		out, errOut, code := runMocked(t, t.Context(),
-			append(values, "--unordered", "--mock", writeMock(t, answers)), eight, nil, nil,
-			delaying(3, 300*time.Millisecond))
+		// Held on the lines written, not the records answered, since under --unordered a record's line
+		// is written after its answer returns and would race the uncovered record's error.
+		out := &signalledLines{written: make(chan struct{}, 8)}
 
-		checkMocked(t, out, errOut, code, ExitUsage, fileOf(strings.Repeat(yes+"\n", 7)), nil, nil,
+		errOut, code := runMockedTo(t, t.Context(), out,
+			append(values, "--unordered", "--mock", writeMock(t, answers)), eight, nil, nil,
+			holding(3, 7, out.written, nil))
+
+		checkMocked(t, out.String(), errOut, code, ExitUsage, fileOf(strings.Repeat(yes+"\n", 7)), nil, nil,
 			[]string{"input line 3"})
 	})
 
@@ -651,7 +655,7 @@ func TestMockUncovered(t *testing.T) {
 		}
 
 		_, errOut, code := runMocked(t, t.Context(), append(args, "--mock", writeMock(t, partial.String())),
-			stdin.String(), nil, nil, delaying(3, 300*time.Millisecond))
+			stdin.String(), nil, nil, delaying(3, 5))
 		if code != ExitUsage || !strings.Contains(errOut, "no line with id 'c'") {
 			t.Fatalf("first run exit %d\n%s", code, errOut)
 		}
@@ -1092,6 +1096,19 @@ func runMocked(
 ) (string, string, int) {
 	t.Helper()
 
+	var out bytes.Buffer
+
+	errOut, code := runMockedTo(t, ctx, &out, args, stdin, env, reader, extra...)
+
+	return out.String(), errOut, code
+}
+
+func runMockedTo(
+	t *testing.T, ctx context.Context, out io.Writer, args []string, stdin string, env map[string]string,
+	reader io.Reader, extra ...RootOption,
+) (string, int) {
+	t.Helper()
+
 	lookup := map[string]string{"ONESIE_CONFIG_DIR": t.TempDir()}
 	for name, value := range env {
 		lookup[name] = value
@@ -1101,7 +1118,7 @@ func runMocked(
 		reader = strings.NewReader(stdin)
 	}
 
-	var out, errOut bytes.Buffer
+	var errOut bytes.Buffer
 
 	opts := []RootOption{
 		withKeychain(noKeychain()),
@@ -1118,13 +1135,13 @@ func runMocked(
 
 	root := NewRootCmd(BuildInfo{Version: "1.2.3"}, append(opts, extra...)...)
 
-	root.Command.SetOut(&out)
+	root.Command.SetOut(out)
 	root.Command.SetErr(&errOut)
 	root.Command.SetArgs(args)
 
 	code := root.Execute(ctx)
 
-	return out.String(), errOut.String(), code
+	return errOut.String(), code
 }
 
 func runReal(t *testing.T, args []string, stdin, base string) (string, string, int) {
@@ -1242,32 +1259,83 @@ type cancellingReader struct {
 	ready  func() bool
 }
 
-func delaying(position int, delay time.Duration) RootOption {
+func delaying(position, others int) RootOption {
+	answered := make(chan struct{}, 64)
+
+	return holding(position, others, answered, answered)
+}
+
+func holding(position, others int, released <-chan struct{}, answered chan<- struct{}) RootOption {
 	return func(s *rootSettings) {
-		s.wrapAnswerer = func(inner answerer) answerer {
-			return delayedAnswerer{inner: inner, position: position, delay: delay}
+		s.answerers = func(next answererFactory) answererFactory {
+			return func(ctx context.Context, stats *collector) (answerer, error) {
+				inner, err := next(ctx, stats)
+				if err != nil {
+					return nil, err
+				}
+
+				return heldAnswerer{
+					inner: inner, position: position, others: others, released: released, answered: answered,
+				}, nil
+			}
 		}
 	}
 }
 
-func (d delayedAnswerer) answer(ctx context.Context, key recordKey, req onesie.Request) (reply, error) {
-	if key.position == d.position {
+func (h heldAnswerer) answer(ctx context.Context, key recordKey, req onesie.Request) (reply, error) {
+	if key.position != h.position {
+		got, err := h.inner.answer(ctx, key, req)
+		if h.answered != nil {
+			h.answered <- struct{}{}
+		}
+
+		return got, err
+	}
+
+	for range h.others {
 		select {
-		case <-time.After(d.delay):
+		case <-h.released:
 		case <-ctx.Done():
 			return reply{}, ctx.Err()
 		}
 	}
 
-	return d.inner.answer(ctx, key, req)
+	return h.inner.answer(ctx, key, req)
 }
 
-func (d delayedAnswerer) salt(key recordKey) (string, bool) {
-	return d.inner.salt(key)
+func (h heldAnswerer) salt(key recordKey) (string, bool) {
+	return h.inner.salt(key)
 }
 
-type delayedAnswerer struct {
+type heldAnswerer struct {
 	inner    answerer
 	position int
-	delay    time.Duration
+	others   int
+	released <-chan struct{}
+	answered chan<- struct{}
+}
+
+func (w *signalledLines) Write(p []byte) (int, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	n, err := w.out.Write(p)
+	for range bytes.Count(p[:n], []byte("\n")) {
+		w.written <- struct{}{}
+	}
+
+	return n, err
+}
+
+func (w *signalledLines) String() string {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	return w.out.String()
+}
+
+type signalledLines struct {
+	mu      sync.Mutex
+	out     bytes.Buffer
+	written chan struct{}
 }

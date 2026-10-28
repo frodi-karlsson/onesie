@@ -59,18 +59,11 @@ func mockAnswers(
 }
 
 func wrapped(settings rootSettings, answers answererFactory) answererFactory {
-	if settings.wrapAnswerer == nil {
+	if settings.answerers == nil {
 		return answers
 	}
 
-	return func(ctx context.Context, stats *collector) (answerer, error) {
-		inner, err := answers(ctx, stats)
-		if err != nil {
-			return nil, err
-		}
-
-		return settings.wrapAnswerer(inner), nil
-	}
+	return settings.answerers(answers)
 }
 
 func (a mockAnswerer) answer(ctx context.Context, key recordKey, req onesie.Request) (reply, error) {
