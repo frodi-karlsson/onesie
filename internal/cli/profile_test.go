@@ -1405,14 +1405,14 @@ func TestProfileList(t *testing.T) {
 			env:     map[string]string{"ONESIE_PROVIDER": "openrouter"},
 			args:    []string{"profile", "list"},
 			wantOut: unmarked,
-			wantErr: []string{"active: ONESIE_PROVIDER=openrouter, no profile"},
+			wantErr: []string{"onesie: active: ONESIE_PROVIDER=openrouter, no profile"},
 		},
 		{
 			name:    "should mark nothing and say why when no profile is the default",
 			file:    noDefault,
 			args:    []string{"profile", "list"},
 			wantOut: unmarked,
-			wantErr: []string{"active: none, since no profile is the default and nothing chose one"},
+			wantErr: []string{"onesie: active: none, since no profile is the default and nothing chose one"},
 		},
 		{
 			name:    "should mark nothing when both variables choose",
@@ -1420,7 +1420,7 @@ func TestProfileList(t *testing.T) {
 			env:     map[string]string{"ONESIE_PROFILE": "work", "ONESIE_PROVIDER": "openrouter"},
 			args:    []string{"profile", "list"},
 			wantOut: unmarked,
-			wantErr: []string{"active: none, since ONESIE_PROFILE and ONESIE_PROVIDER are both set"},
+			wantErr: []string{"onesie: active: none, since ONESIE_PROFILE and ONESIE_PROVIDER are both set"},
 		},
 		{
 			name:    "should mark nothing when ONESIE_PROFILE names a missing profile",
@@ -1428,7 +1428,7 @@ func TestProfileList(t *testing.T) {
 			env:     map[string]string{"ONESIE_PROFILE": "nope"},
 			args:    []string{"profile", "list"},
 			wantOut: unmarked,
-			wantErr: []string{"active: none, since ONESIE_PROFILE names profile 'nope', which does not exist"},
+			wantErr: []string{"onesie: active: none, since ONESIE_PROFILE names profile 'nope', which does not exist"},
 		},
 		{
 			name:     "should refuse a profiles file others can reach",

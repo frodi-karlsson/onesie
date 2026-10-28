@@ -270,7 +270,7 @@ func TestRootExecute(t *testing.T) {
 				"No profile is the default, so run onesie profile use NAME to choose one\n" +
 				"onesie: could not write {dir}{/}profiles.json, so {dir}{/}credentials.json is converted for this " +
 				"run only: creating a temporary file in {dir}: the disk is full\n" +
-				"active: none, since no profile is the default and nothing chose one. " +
+				"onesie: active: none, since no profile is the default and nothing chose one. " +
 				"Run onesie profile use NAME, or pass --profile NAME or --provider NAME\n",
 		},
 		{

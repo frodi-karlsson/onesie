@@ -276,9 +276,7 @@ func writeCost(
 		line += fmt.Sprintf(", %d answered in %s", resumed.stored, answers)
 	}
 
-	_, err := fmt.Fprintln(w, line)
-
-	return err
+	return output.Notice(w, line)
 }
 
 func askLabelled(

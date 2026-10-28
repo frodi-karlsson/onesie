@@ -395,9 +395,7 @@ func profileList(cmd *cobra.Command, settings rootSettings, flags *runFlags) err
 		return nil
 	}
 
-	_, err = fmt.Fprintln(cmd.ErrOrStderr(), reason)
-
-	return err
+	return output.Notice(cmd.ErrOrStderr(), reason)
 }
 
 func writeProfiles(w io.Writer, profiles creds.Profiles, active string) error {

@@ -1282,7 +1282,7 @@ func TestCalibrateRun(t *testing.T) {
 			check: func(t *testing.T, _, errOut string) {
 				t.Helper()
 
-				if !strings.Contains(errOut, "asking 6 of 6 records, 1 question each, 1 unlabelled skipped\n") {
+				if !strings.Contains(errOut, "onesie: asking 6 of 6 records, 1 question each, 1 unlabelled skipped\n") {
 					t.Errorf("stderr = %q, want the cost line to count the unlabelled record", errOut)
 				}
 			},
@@ -1369,7 +1369,7 @@ func TestCalibrateRun(t *testing.T) {
 
 		stub := newCalibrateStub(t)
 		stub.onRequest = func() {
-			if !strings.Contains(errOut.String(), "asking 6 of 6 records, 1 question each\n") {
+			if !strings.Contains(errOut.String(), "onesie: asking 6 of 6 records, 1 question each\n") {
 				t.Errorf("stderr at the first request = %q, want the cost line", errOut.String())
 			}
 		}
@@ -1574,7 +1574,7 @@ func TestCalibrateRun(t *testing.T) {
 			t.Errorf("no fingerprint beside the answers file: %v", err)
 		}
 
-		if !strings.Contains(errOut, "asking 6 of 6 records, 1 question each, 0 answered in "+answers+"\n") {
+		if !strings.Contains(errOut, "onesie: asking 6 of 6 records, 1 question each, 0 answered in "+answers+"\n") {
 			t.Errorf("stderr =\n%s\nwant the cost line to name the answers file", errOut)
 		}
 	})
@@ -1630,7 +1630,7 @@ func TestCalibrateRun(t *testing.T) {
 			t.Errorf("the resume printed\n%s\nthe first run printed\n%s", second, first)
 		}
 
-		if !strings.Contains(errOut, "asking 0 of 6 records, 1 question each, 6 answered in "+answers+"\n") {
+		if !strings.Contains(errOut, "onesie: asking 0 of 6 records, 1 question each, 6 answered in "+answers+"\n") {
 			t.Errorf("stderr =\n%s\nwant the cost line to count the stored answers", errOut)
 		}
 	})
@@ -3286,7 +3286,7 @@ func TestScopeOf(t *testing.T) {
 			noStdout:  []string{"team,", "tone,"},
 			stderr: []string{
 				"onesie: skipping 'team' and 'tone', which have no --label\n",
-				"asking 4 of 4 records, 1 question each\n",
+				"onesie: asking 4 of 4 records, 1 question each\n",
 			},
 		},
 		{
@@ -3304,7 +3304,7 @@ func TestScopeOf(t *testing.T) {
 			wantCode:  ExitOK,
 			wantAsked: []string{"team", "tone", "urgent"},
 			stdout:    []string{"urgent, yes/no", "team, pick", "tone, rate"},
-			stderr:    []string{"asking 4 of 4 records, 3 questions each\n"},
+			stderr:    []string{"onesie: asking 4 of 4 records, 3 questions each\n"},
 			noStderr:  []string{"skipping"},
 		},
 		{
@@ -3462,7 +3462,7 @@ func TestAskedPlan(t *testing.T) {
 			asks:       1,
 			stderr: []string{
 				"but asking them of each record",
-				"asking 1 of 4 records, 3 questions each, 3 answered in",
+				"onesie: asking 1 of 4 records, 3 questions each, 3 answered in",
 			},
 			readableWithEveryLabel: true,
 		},
@@ -3475,7 +3475,7 @@ func TestAskedPlan(t *testing.T) {
 			wantCode:   ExitOK,
 			stderr: []string{
 				"onesie: skipping 'team' and 'tone' in the report, since they have no --label\n",
-				"reading 4 records from ",
+				"onesie: reading 4 records from ",
 			},
 			noStderr:               []string{"but asking"},
 			readableWithEveryLabel: true,
@@ -3488,7 +3488,7 @@ func TestAskedPlan(t *testing.T) {
 			wantCode:   ExitOK,
 			stderr: []string{
 				"onesie: skipping 'team' and 'tone' in the report, since they have no --label\n",
-				"asking 0 of 4 records, 3 questions each, 4 answered in",
+				"onesie: asking 0 of 4 records, 3 questions each, 4 answered in",
 			},
 			noStderr:               []string{"but asking"},
 			readableWithEveryLabel: true,
@@ -3510,7 +3510,7 @@ func TestAskedPlan(t *testing.T) {
 			second:     one,
 			offline:    true,
 			wantCode:   ExitOK,
-			stderr:     []string{"reading 4 records from "},
+			stderr:     []string{"onesie: reading 4 records from "},
 		},
 		{
 			name:       "should refuse a file written with one label under --offline with every label",
@@ -3674,14 +3674,14 @@ func TestWriteCost(t *testing.T) {
 			name:    "should count the records it asks and the questions each",
 			set:     four,
 			resumed: resumedSet{pending: make([]labelledRecord, 4)},
-			want:    "asking 4 of 4 records, 1 question each\n",
+			want:    "onesie: asking 4 of 4 records, 1 question each\n",
 		},
 		{
 			name:    "should count the records an answers file already holds",
 			set:     four,
 			resumed: resumedSet{pending: make([]labelledRecord, 1), stored: 3},
 			answers: "answers.jsonl",
-			want:    "asking 1 of 4 records, 1 question each, 3 answered in answers.jsonl\n",
+			want:    "onesie: asking 1 of 4 records, 1 question each, 3 answered in answers.jsonl\n",
 		},
 		{
 			name:    "should say it reads the records from the file under --offline",
@@ -3689,7 +3689,7 @@ func TestWriteCost(t *testing.T) {
 			resumed: resumedSet{stored: 4},
 			answers: "answers.jsonl",
 			offline: true,
-			want:    "reading 4 records from answers.jsonl\n",
+			want:    "onesie: reading 4 records from answers.jsonl\n",
 		},
 		{
 			name:    "should keep the unlabelled count under --offline",
@@ -3697,7 +3697,7 @@ func TestWriteCost(t *testing.T) {
 			resumed: resumedSet{stored: 4},
 			answers: "answers.jsonl",
 			offline: true,
-			want:    "reading 4 records from answers.jsonl, 2 unlabelled skipped\n",
+			want:    "onesie: reading 4 records from answers.jsonl, 2 unlabelled skipped\n",
 		},
 	}
 

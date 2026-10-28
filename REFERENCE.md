@@ -275,8 +275,8 @@ onesie calibrate -f shell-safety -i jsonl --map .command --id .id \
     < examples/data/shell-safety.jsonl
 ```
 
-- The line on stderr reads `reading N records from FILE`, where a run that asks reads
-  `asking N of M records`.
+- The line on stderr reads `onesie: reading N records from FILE`, where a run that asks reads
+  `onesie: asking N of M records`.
 - A record the file does not answer exits 2, naming it. So does a stored error line, which a run
   without `--offline` would ask again.
 - A missing answers file exits 2, naming it, and nothing is created.
@@ -572,7 +572,7 @@ on the provider's key variable alone.
 | `profile update NAME [--provider P] [--model M] [--base-url U] [--account-id A] [--key] [--file]` | changes only the members named, and an empty value clears one, as in `--model ""`. `--key` reads a new key. `--provider` needs `--key`, since a key belongs to one provider, and `--file` needs `--key` too |
 | `profile delete NAME` | removes the profile and its keychain item. Deleting the default leaves no default, and deleting the last profile removes `profiles.json` |
 | `profile use NAME` | makes the profile the default |
-| `profile list` | lists each profile's provider, key store and model, with `*` on the one a run would use now. When a run would use none, a stderr line says why, as in `active: ONESIE_PROVIDER=openrouter, no profile` |
+| `profile list` | lists each profile's provider, key store and model, with `*` on the one a run would use now. When a run would use none, a stderr line says why, as in `onesie: active: ONESIE_PROVIDER=openrouter, no profile` |
 | `profile show [NAME]` | prints what a run would use now, or what the named profile holds, never the key |
 | `profile test [NAME]` | lists the provider's models with the key, which costs no tokens, and prints `profile`, `provider`, `key` and `models` lines |
 
@@ -846,8 +846,7 @@ table, and `onesie calibrate --help` lists the codes calibrate uses.
   are summed over the requests, and the per attempt timeout is left out of a run that made no
   attempt.
 - A notice onesie writes to stderr starts with `onesie: `, and a warning with `onesie: warning: `.
-  The `--stats` summary, calibrate's progress lines, the `active: ` line `profile list` writes and
-  the `API key: ` prompt keep their own form.
+  The `--stats` summary and the `API key: ` prompt keep their own form.
 - `--list-models` shows what the account can ask, and `-m` picks one. Each line holds a model, its
   description and its release date as `YYYY-MM-DD`, which is blank when the provider gives none.
 - `--base-url` points onesie at any server that speaks the System One API. A redirect is refused

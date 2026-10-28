@@ -762,7 +762,7 @@ func TestMockAnswers(t *testing.T) {
 
 			_, errOut, code = runMocked(t, t.Context(), append(args, "--mock", writeMock(t, full.String())),
 				stdin.String(), nil, nil)
-			if code != ExitOK || !strings.Contains(errOut, "asking 4 of 6 records") {
+			if code != ExitOK || !strings.Contains(errOut, "onesie: asking 4 of 6 records") {
 				t.Errorf("second run exit %d\n%s", code, errOut)
 			}
 		})

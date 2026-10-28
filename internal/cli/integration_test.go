@@ -994,7 +994,7 @@ func TestCalibrateIntegration(t *testing.T) {
 				t.Fatalf("exit code = %d, stderr:\n%s", code, errOut)
 			}
 
-			if !strings.Contains(errOut, "asking 6 of 6 records, 1 question each") {
+			if !strings.Contains(errOut, "onesie: asking 6 of 6 records, 1 question each") {
 				t.Errorf("stderr = %q, want the cost line", errOut)
 			}
 
