@@ -548,7 +548,7 @@ func runPinned(t *testing.T, step pinnedStep, out string) (string, string, int) 
 		WithStdinTTY(false),
 		WithStdoutTTY(false),
 		WithLookupEnv(lookupFrom(map[string]string{"ONESIE_CONFIG_DIR": t.TempDir()})),
-		WithNow(func() time.Time { return time.Unix(0, 0) }),
+		withNow(func() time.Time { return time.Unix(0, 0) }),
 		WithClientFactory(pinnedFactory(t, step)),
 	}
 
@@ -563,11 +563,11 @@ func runPinned(t *testing.T, step pinnedStep, out string) (string, string, int) 
 	var stdout, stderr bytes.Buffer
 
 	root := NewRootCmd(BuildInfo{Version: "1.2.3"}, opts...)
-	root.SetOut(&stdout)
-	root.SetErr(&stderr)
-	root.SetArgs(args)
+	root.Command.SetOut(&stdout)
+	root.Command.SetErr(&stderr)
+	root.Command.SetArgs(args)
 
-	code := Execute(ctx, root)
+	code := root.Execute(ctx)
 
 	return stdout.String(), stderr.String(), code
 }

@@ -161,7 +161,7 @@ func profileCreate(
 	}
 	notices, err := creds.NewProfileManager(settings.credStore, settings.keychain).Create(change)
 
-	return reported(cmd, change, notices, err)
+	return reported(cmd, settings.laterFailures, change, notices, err)
 }
 
 func newProfileUpdateCmd(settings rootSettings, flags *runFlags) *cobra.Command {
@@ -254,7 +254,7 @@ func profileUpdate(
 
 	notices, err := creds.NewProfileManager(settings.credStore, settings.keychain).Update(change)
 
-	return reported(cmd, change, notices, err)
+	return reported(cmd, settings.laterFailures, change, notices, err)
 }
 
 func refuseUpdate(fields profileFlags, changed func(string) bool) error {
@@ -324,7 +324,7 @@ func profileDelete(cmd *cobra.Command, settings rootSettings, flags *runFlags, n
 	change := creds.Change{Path: path, Profiles: opened.Profiles, Name: name}
 	notices, err := creds.NewProfileManager(settings.credStore, settings.keychain).Delete(change)
 
-	return reported(cmd, change, notices, err)
+	return reported(cmd, settings.laterFailures, change, notices, err)
 }
 
 func newProfileUseCmd(settings rootSettings, flags *runFlags) *cobra.Command {
@@ -501,7 +501,7 @@ func profileShow(cmd *cobra.Command, settings rootSettings, flags *runFlags, arg
 
 	var refused *onesie.BaseURLError
 	if errors.As(invalid, &refused) {
-		return baseURLRefusal(refused, sourceName)
+		return baseURLRefusal(refused, sourceName, sendPlainHTTP)
 	}
 
 	// A run refuses a malformed account, so show refuses it too. A missing account prints as none
@@ -797,22 +797,18 @@ func checkGiven(profile creds.Profile, changed func(string) bool, providerGiven 
 }
 
 func refusePlainHTTP(flags *runFlags, baseURL string) error {
-	if flags.allowHTTP {
+	// An empty base URL means none is stored.
+	if flags.allowHTTP || baseURL == "" {
 		return nil
 	}
 
-	err := onesie.RefuseInsecureBaseURL(baseURL)
-
-	// checkProfile already refused any other broken base URL, and an empty one means none is stored.
+	// checkProfile already refused any other broken base URL, so only plain http is left to refuse.
 	var refused *onesie.BaseURLError
-	if !errors.Is(err, onesie.ErrInsecureBaseURL) || !errors.As(err, &refused) {
+	if !errors.As(onesie.RefuseInsecureBaseURL(baseURL), &refused) {
 		return nil
 	}
 
-	return errors.New("--" + flagBaseURL + " " + output.Printable(refused.Shown) + " " + refused.Rule() +
-		plainHTTPReason +
-		". Use https, or pass --" + flagAllowHTTP + " to store it, and every run on the profile then needs --" +
-		flagAllowHTTP + " too")
+	return baseURLRefusal(refused, "--"+flagBaseURL, storePlainHTTP)
 }
 
 func checkProfile(profiles creds.Profiles, name string, profile creds.Profile, baseURLSource string) error {
@@ -837,7 +833,7 @@ func checkProfile(profiles creds.Profiles, name string, profile creds.Profile, b
 func checkBaseURL(baseURL, source string) error {
 	var refused *onesie.BaseURLError
 	if errors.As(onesie.ValidateBaseURL(baseURL), &refused) {
-		return baseURLRefusal(refused, source)
+		return baseURLRefusal(refused, source, sendPlainHTTP)
 	}
 
 	return nil
@@ -852,7 +848,9 @@ func saveProfiles(cmd *cobra.Command, settings rootSettings, path string, profil
 	return notify(cmd.ErrOrStderr(), warningLines(warnings)...)
 }
 
-func reported(cmd *cobra.Command, change creds.Change, notices []creds.Notice, err error) error {
+func reported(
+	cmd *cobra.Command, laterFailures *failureLog, change creds.Change, notices []creds.Notice, err error,
+) error {
 	lines := make([]notice, 0, len(notices))
 	for _, each := range notices {
 		lines = append(lines, noticeLine(each, change))
@@ -866,10 +864,7 @@ func reported(cmd *cobra.Command, change creds.Change, notices []creds.Notice, e
 		err = fmt.Errorf("%w. Answer the keychain prompt, or run the command again with --file", err)
 	}
 
-	//nolint:errcheck // The error carries the exit code, and a stderr that cannot take the notices must not replace it.
-	_ = notify(cmd.ErrOrStderr(), lines...)
-
-	return err
+	return laterFailures.keepFirst(err, notify(cmd.ErrOrStderr(), lines...))
 }
 
 func noticeLine(each creds.Notice, change creds.Change) notice {

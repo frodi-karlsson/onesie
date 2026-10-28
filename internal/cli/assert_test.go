@@ -448,11 +448,11 @@ func TestAsk(t *testing.T) {
 				cli.WithLookupEnv(func(string) (string, bool) { return "", false }),
 			)
 
-			root.SetOut(&out)
-			root.SetErr(&errOut)
-			root.SetArgs([]string{"is this urgent", "-o", "values"})
+			root.Command.SetOut(&out)
+			root.Command.SetErr(&errOut)
+			root.Command.SetArgs([]string{"is this urgent", "-o", "values"})
 
-			if code := cli.Execute(ctx, root); code != cli.ExitInterrupt {
+			if code := root.Execute(ctx); code != cli.ExitInterrupt {
 				t.Errorf("exit code = %d, want %d", code, cli.ExitInterrupt)
 			}
 
@@ -812,11 +812,11 @@ func runAsserted(
 
 	root := cli.NewRootCmd(cli.BuildInfo{Version: "1.2.3"}, append(options, extra...)...)
 
-	root.SetOut(&out)
-	root.SetErr(&errOut)
-	root.SetArgs(args)
+	root.Command.SetOut(&out)
+	root.Command.SetErr(&errOut)
+	root.Command.SetArgs(args)
 
-	if code := cli.Execute(t.Context(), root); code != wantCode {
+	if code := root.Execute(t.Context()); code != wantCode {
 		t.Errorf("exit code = %d, want %d\nstdout:\n%s\nstderr:\n%s",
 			code, wantCode, out.String(), errOut.String())
 	}
@@ -873,11 +873,11 @@ func runAssertedStream(t *testing.T, args []string, stdin string, wantCode int) 
 		cli.WithLookupEnv(func(string) (string, bool) { return "", false }),
 	)
 
-	root.SetOut(&out)
-	root.SetErr(&errOut)
-	root.SetArgs(args)
+	root.Command.SetOut(&out)
+	root.Command.SetErr(&errOut)
+	root.Command.SetArgs(args)
 
-	if code := cli.Execute(t.Context(), root); code != wantCode {
+	if code := root.Execute(t.Context()); code != wantCode {
 		t.Errorf("exit code = %d, want %d\nstdout:\n%s\nstderr:\n%s",
 			code, wantCode, out.String(), errOut.String())
 	}
@@ -967,14 +967,14 @@ func runStoppedStream(t *testing.T) string {
 		cli.WithLookupEnv(func(string) (string, bool) { return "", false }),
 	)
 
-	root.SetOut(&out)
-	root.SetErr(&errOut)
-	root.SetArgs([]string{
+	root.Command.SetOut(&out)
+	root.Command.SetErr(&errOut)
+	root.Command.SetArgs([]string{
 		"is this urgent", "-i", "lines", "-j", "2",
 		"--assert", "answer.value < 0.5", "--stop-on-assert", "--stats",
 	})
 
-	if code := cli.Execute(t.Context(), root); code != cli.ExitRejected {
+	if code := root.Execute(t.Context()); code != cli.ExitRejected {
 		t.Errorf("exit code = %d, want %d\nstdout:\n%s\nstderr:\n%s",
 			code, cli.ExitRejected, out.String(), errOut.String())
 	}

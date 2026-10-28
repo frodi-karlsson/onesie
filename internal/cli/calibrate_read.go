@@ -10,7 +10,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/calibrate"
 	"github.com/frodi-karlsson/onesie/internal/input"
 	"github.com/frodi-karlsson/onesie/internal/jq"
@@ -32,6 +31,7 @@ func calibrateRequests(
 		return err
 	}
 
+	model := chosen.modelFor(scope.scored.Model, settings.lookupEnv)
 	questions := wireAll(scope.scored.Questions)
 
 	for _, rec := range set.records {
@@ -44,10 +44,7 @@ func calibrateRequests(
 			return &input.LineError{Line: rec.line, Err: imageErr}
 		}
 
-		req := onesie.Request{
-			State: sent, Model: chosen.modelFor(scope.scored.Model, settings.lookupEnv), Questions: questions,
-			Assets: assets, LongContext: scope.scored.LongContext,
-		}
+		req := requestFor(scope.scored, model, questions, sent, assets)
 		if checkErr := chosen.provider.Check(req); checkErr != nil {
 			return &input.LineError{Line: rec.line, Err: embed("", checkErr)}
 		}

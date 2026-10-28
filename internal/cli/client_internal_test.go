@@ -1,9 +1,12 @@
 package cli
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -553,6 +556,38 @@ func TestClientBuilder(t *testing.T) {
 			t.Errorf("the local server saw host %q, want proxy.example", got)
 		}
 	})
+
+	t.Run("should keep both failed warning writes", func(t *testing.T) {
+		t.Parallel()
+
+		stderr := &failingWrites{}
+
+		settings := defaultSettings(BuildInfo{})
+		settings.lookupEnv = lookupFrom(map[string]string{onesie.TypeSafe().EnvAPIKey(): "SECRET-ENV"})
+		settings.holder = &holder{stderr: func() io.Writer { return stderr }}
+
+		build := clientBuilder(BuildInfo{}, &runFlags{allowHTTP: true, baseURL: "http://proxy.example/v1"}, settings)
+
+		_, err := build(t.Context(), resolution{provider: onesie.TypeSafe()})
+
+		if err == nil || err.Error() != "write 1 failed" {
+			t.Errorf("error = %v, want write 1 failed", err)
+		}
+
+		if got := settings.laterFailures.drain(); len(got) != 1 || got[0].Error() != "write 2 failed" {
+			t.Errorf("recorded = %v, want write 2 failed", got)
+		}
+	})
+}
+
+type failingWrites struct {
+	writes int
+}
+
+func (w *failingWrites) Write([]byte) (int, error) {
+	w.writes++
+
+	return 0, fmt.Errorf("write %d failed", w.writes)
 }
 
 func modelServer(t *testing.T) (*httptest.Server, func() []sentRequest) {
@@ -694,7 +729,8 @@ func TestProfileKey(t *testing.T) {
 			t.Parallel()
 
 			chain := workingKeychain(tc.items)
-			settings := rootSettings{keychain: creds.NewKeychain(creds.WithBackend(chain))}
+			settings := defaultSettings(BuildInfo{})
+			settings.keychain = creds.NewKeychain(creds.WithBackend(chain))
 
 			got, err := profileKey(settings, tc.run)()
 
@@ -781,9 +817,10 @@ func TestBaseURLRefusal(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name string
-		raw  string
-		want string
+		name   string
+		raw    string
+		advice string
+		want   string
 	}{
 		{
 			name: "should name the source, the shown URL and the rule", raw: "https://",
@@ -810,6 +847,13 @@ func TestBaseURLRefusal(t *testing.T) {
 			want: "--base-url http://proxy.example is plain http to a host other than this machine, so the API key " +
 				"would cross the network unencrypted. Use https, or pass --allow-http to send it anyway",
 		},
+		{
+			name: "should end plain http with the advice it is given", raw: "http://proxy.example/v1",
+			advice: storePlainHTTP,
+			want: "--base-url http://proxy.example is plain http to a host other than this machine, so the API key " +
+				"would cross the network unencrypted. Use https, or pass --allow-http to store it, and every run " +
+				"on the profile then needs --allow-http too",
+		},
 	}
 
 	for _, tc := range tests {
@@ -823,7 +867,7 @@ func TestBaseURLRefusal(t *testing.T) {
 				t.Fatalf("New = %v, want a *onesie.BaseURLError", err)
 			}
 
-			got := baseURLRefusal(refused, "--base-url")
+			got := baseURLRefusal(refused, "--base-url", cmp.Or(tc.advice, sendPlainHTTP))
 			if got.Error() != tc.want {
 				t.Errorf("Error = %q, want %q", got.Error(), tc.want)
 			}

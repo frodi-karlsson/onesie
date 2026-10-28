@@ -1009,11 +1009,11 @@ func runImaged(t *testing.T, args []string, stdin, answers string, env map[strin
 		WithLookupEnv(lookupFrom(env)),
 	)
 
-	root.SetOut(&out)
-	root.SetErr(&errOut)
-	root.SetArgs(args)
+	root.Command.SetOut(&out)
+	root.Command.SetErr(&errOut)
+	root.Command.SetArgs(args)
 
-	run.code = Execute(t.Context(), root)
+	run.code = root.Execute(t.Context())
 
 	mu.Lock()
 	defer mu.Unlock()

@@ -107,7 +107,7 @@ func canceledOrBrokenPipe(err error) bool {
 
 func firstMatch(err error) failure {
 	// Order matters. A failure the run decided, from a verdict to an interrupt, wins over the request
-	// error it wraps, and silentError comes last so a real error joined to one keeps its code.
+	// error it wraps.
 	if found, matched := runFailure(err); matched {
 		return found
 	}

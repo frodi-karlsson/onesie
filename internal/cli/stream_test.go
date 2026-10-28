@@ -379,11 +379,11 @@ func TestStream(t *testing.T) {
 				cli.WithLookupEnv(func(string) (string, bool) { return "", false }),
 			)
 
-			root.SetOut(&out)
-			root.SetErr(&errOut)
-			root.SetArgs(tc.args)
+			root.Command.SetOut(&out)
+			root.Command.SetErr(&errOut)
+			root.Command.SetArgs(tc.args)
 
-			code := cli.Execute(t.Context(), root)
+			code := root.Execute(t.Context())
 
 			if code != tc.wantCode {
 				t.Errorf("exit code = %d, want %d\nstdout:\n%s\nstderr:\n%s",
@@ -785,11 +785,11 @@ func TestStream(t *testing.T) {
 					cli.WithLookupEnv(func(string) (string, bool) { return "", false }),
 				)
 
-				root.SetOut(&out)
-				root.SetErr(&errOut)
-				root.SetArgs(tc.args)
+				root.Command.SetOut(&out)
+				root.Command.SetErr(&errOut)
+				root.Command.SetArgs(tc.args)
 
-				if code := cli.Execute(t.Context(), root); code != cli.ExitOK {
+				if code := root.Execute(t.Context()); code != cli.ExitOK {
 					t.Fatalf("exit code = %d\nstdout:\n%s\nstderr:\n%s",
 						code, out.String(), errOut.String())
 				}
@@ -997,11 +997,11 @@ func TestStream(t *testing.T) {
 					cli.WithLookupEnv(func(string) (string, bool) { return "", false }),
 				)
 
-				root.SetOut(&out)
-				root.SetErr(&errOut)
-				root.SetArgs(tc.args)
+				root.Command.SetOut(&out)
+				root.Command.SetErr(&errOut)
+				root.Command.SetArgs(tc.args)
 
-				if code := cli.Execute(t.Context(), root); code != tc.wantCode {
+				if code := root.Execute(t.Context()); code != tc.wantCode {
 					t.Errorf("exit code = %d, want %d\nstderr:\n%s", code, tc.wantCode, errOut.String())
 				}
 
@@ -1068,11 +1068,11 @@ func TestStream(t *testing.T) {
 					cli.WithLookupEnv(func(string) (string, bool) { return "", false }),
 				)
 
-				root.SetOut(&out)
-				root.SetErr(&errOut)
-				root.SetArgs([]string{"is this urgent", "-i", "jsonl", tc.flag, tc.source})
+				root.Command.SetOut(&out)
+				root.Command.SetErr(&errOut)
+				root.Command.SetArgs([]string{"is this urgent", "-i", "jsonl", tc.flag, tc.source})
 
-				if code := cli.Execute(t.Context(), root); code != cli.ExitUsage {
+				if code := root.Execute(t.Context()); code != cli.ExitUsage {
 					t.Errorf("exit code = %d, want %d", code, cli.ExitUsage)
 				}
 
@@ -1129,11 +1129,11 @@ func TestStream(t *testing.T) {
 				cli.WithLookupEnv(func(string) (string, bool) { return "", false }),
 			)
 
-			root.SetOut(&out)
-			root.SetErr(&errOut)
-			root.SetArgs([]string{"x", "-i", "lines", "-j", "1"})
+			root.Command.SetOut(&out)
+			root.Command.SetErr(&errOut)
+			root.Command.SetArgs([]string{"x", "-i", "lines", "-j", "1"})
 
-			if code := cli.Execute(t.Context(), root); code != cli.ExitUsage {
+			if code := root.Execute(t.Context()); code != cli.ExitUsage {
 				t.Errorf("exit code = %d, want %d\nstderr:\n%s", code, cli.ExitUsage, errOut.String())
 			}
 
@@ -1209,16 +1209,16 @@ func TestStream(t *testing.T) {
 					cli.WithLookupEnv(func(string) (string, bool) { return "", false }),
 				)
 
-				root.SetOut(out)
-				root.SetErr(&errOut)
-				root.SetArgs(tc.args)
+				root.Command.SetOut(out)
+				root.Command.SetErr(&errOut)
+				root.Command.SetArgs(tc.args)
 
 				ctx, interrupt := context.WithCancel(t.Context())
 				defer interrupt()
 
 				exited := make(chan int, 1)
 
-				go func() { exited <- cli.Execute(ctx, root) }()
+				go func() { exited <- root.Execute(ctx) }()
 
 				if _, err := io.WriteString(feed, "one\ntwo\n"); err != nil {
 					t.Fatalf("feeding stdin: %v", err)
@@ -1318,9 +1318,9 @@ func TestStream(t *testing.T) {
 					cli.WithLookupEnv(func(string) (string, bool) { return "", false }),
 				)
 
-				root.SetOut(&out)
-				root.SetErr(&errOut)
-				root.SetArgs(tc.args)
+				root.Command.SetOut(&out)
+				root.Command.SetErr(&errOut)
+				root.Command.SetArgs(tc.args)
 
 				ctx, interrupt := context.WithCancel(t.Context())
 				defer interrupt()
@@ -1328,7 +1328,7 @@ func TestStream(t *testing.T) {
 				exited := make(chan int, 1)
 				labels := pprof.Labels("test", t.Name())
 
-				go pprof.Do(ctx, labels, func(ctx context.Context) { exited <- cli.Execute(ctx, root) })
+				go pprof.Do(ctx, labels, func(ctx context.Context) { exited <- root.Execute(ctx) })
 
 				awaitRunningMap(t, labels)
 				interrupt()
@@ -1425,13 +1425,13 @@ func TestStream(t *testing.T) {
 					cli.WithLookupEnv(func(string) (string, bool) { return "", false }),
 				)
 
-				root.SetOut(out)
-				root.SetErr(&errOut)
-				root.SetArgs(tc.args)
+				root.Command.SetOut(out)
+				root.Command.SetErr(&errOut)
+				root.Command.SetArgs(tc.args)
 
 				exited := make(chan int, 1)
 
-				go pprof.Do(t.Context(), labels, func(ctx context.Context) { exited <- cli.Execute(ctx, root) })
+				go pprof.Do(t.Context(), labels, func(ctx context.Context) { exited <- root.Execute(ctx) })
 
 				select {
 				case code := <-exited:
@@ -1594,11 +1594,11 @@ func TestStream(t *testing.T) {
 					cli.WithLookupEnv(func(string) (string, bool) { return "", false }),
 				)
 
-				root.SetOut(&stdout)
-				root.SetErr(&errOut)
-				root.SetArgs(tc.args)
+				root.Command.SetOut(&stdout)
+				root.Command.SetErr(&errOut)
+				root.Command.SetArgs(tc.args)
 
-				if code := cli.Execute(t.Context(), root); code != tc.wantCode {
+				if code := root.Execute(t.Context()); code != tc.wantCode {
 					t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, tc.wantCode, errOut.String())
 				}
 
@@ -1665,11 +1665,11 @@ func TestStream(t *testing.T) {
 				cli.WithLookupEnv(func(string) (string, bool) { return "", false }),
 			)
 
-			root.SetOut(closing)
-			root.SetErr(&errOut)
-			root.SetArgs([]string{"is this urgent", "-i", "jsonl", "-o", "markdown"})
+			root.Command.SetOut(closing)
+			root.Command.SetErr(&errOut)
+			root.Command.SetArgs([]string{"is this urgent", "-i", "jsonl", "-o", "markdown"})
 
-			if code := cli.Execute(t.Context(), root); code != cli.ExitRecords {
+			if code := root.Execute(t.Context()); code != cli.ExitRecords {
 				t.Errorf("exit code = %d, want %d\nstderr:\n%s", code, cli.ExitRecords, errOut.String())
 			}
 		})
@@ -1699,11 +1699,11 @@ func TestStream(t *testing.T) {
 			cli.WithLookupEnv(func(string) (string, bool) { return "", false }),
 		)
 
-		root.SetOut(&out)
-		root.SetErr(&errOut)
-		root.SetArgs(append(command[1:], "--mock", answers))
+		root.Command.SetOut(&out)
+		root.Command.SetErr(&errOut)
+		root.Command.SetArgs(append(command[1:], "--mock", answers))
 
-		if code := cli.Execute(t.Context(), root); code != cli.ExitRecords {
+		if code := root.Execute(t.Context()); code != cli.ExitRecords {
 			t.Fatalf("exit code = %d, want %d for the failed record\nstderr:\n%s", code, cli.ExitRecords, errOut.String())
 		}
 
@@ -1777,11 +1777,11 @@ func TestWriteMerged(t *testing.T) {
 				cli.WithLookupEnv(func(string) (string, bool) { return "", false }),
 			)
 
-			root.SetOut(&out)
-			root.SetErr(&out)
-			root.SetArgs([]string{"is this urgent", "-i", "json", "--merge"})
+			root.Command.SetOut(&out)
+			root.Command.SetErr(&out)
+			root.Command.SetArgs([]string{"is this urgent", "-i", "json", "--merge"})
 
-			if code := cli.Execute(t.Context(), root); code != cli.ExitOK {
+			if code := root.Execute(t.Context()); code != cli.ExitOK {
 				t.Fatalf("exit code = %d, output:\n%s", code, out.String())
 			}
 
@@ -1865,11 +1865,11 @@ func TestWriteMerged(t *testing.T) {
 					cli.WithLookupEnv(func(string) (string, bool) { return "", false }),
 				)
 
-				root.SetOut(&out)
-				root.SetErr(&errOut)
-				root.SetArgs(tc.args)
+				root.Command.SetOut(&out)
+				root.Command.SetErr(&errOut)
+				root.Command.SetArgs(tc.args)
 
-				if code := cli.Execute(t.Context(), root); code != tc.wantCode {
+				if code := root.Execute(t.Context()); code != tc.wantCode {
 					t.Fatalf("exit code = %d, want %d\nstdout:\n%s\nstderr:\n%s",
 						code, tc.wantCode, out.String(), errOut.String())
 				}

@@ -5,18 +5,25 @@ import (
 	"context"
 	"errors"
 	"io"
+	"io/fs"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
+
+	"github.com/spf13/cobra"
 
 	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/creds"
 )
 
-func TestExecute(t *testing.T) {
+func TestRootExecute(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -48,6 +55,132 @@ func TestExecute(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("should exit 4 for a server error whether or not stderr takes the message", func(t *testing.T) {
+		t.Parallel()
+
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			http.Error(w, `{"error":{"message":"boom"}}`, http.StatusInternalServerError)
+		}))
+		t.Cleanup(srv.Close)
+
+		for _, stderr := range []io.Writer{&bytes.Buffer{}, brokenWriter{}} {
+			root := NewRootCmd(BuildInfo{Version: "1.2.3"},
+				WithStdin(strings.NewReader("")),
+				WithStdinTTY(false),
+				WithStdoutTTY(false),
+				WithLookupEnv(lookupFrom(map[string]string{"TYPESAFE_API_KEY": "k", "ONESIE_CONFIG_DIR": t.TempDir()})),
+				withKeychain(noKeychain()))
+
+			root.Command.SetOut(io.Discard)
+			root.Command.SetErr(stderr)
+			root.Command.SetArgs([]string{"--base-url", srv.URL, "--retries", "0", "--state", "x", "is it urgent"})
+
+			if code := root.Execute(t.Context()); code != ExitUnavailable {
+				t.Errorf("exit code with stderr %T = %d, want %d", stderr, code, ExitUnavailable)
+			}
+		}
+	})
+
+	t.Run("should take the exit code from the failure alone and print each later failure worth reporting", func(t *testing.T) {
+		t.Parallel()
+
+		stdoutGone := &fs.PathError{Op: "write", Path: "/dev/stdout", Err: syscall.EPIPE}
+		release := errors.New("unlocking answers.jsonl: busy")
+
+		cases := []struct {
+			name       string
+			failure    error
+			later      []error
+			wantCode   int
+			wantStderr string
+		}{
+			{
+				name:       "should exit 2 for a failed save and print the notice stderr refused after it",
+				failure:    errors.New("saving profiles.json: the disk is full"),
+				later:      []error{errors.New("stderr is gone")},
+				wantCode:   ExitUsage,
+				wantStderr: "onesie: saving profiles.json: the disk is full\nonesie: stderr is gone\n",
+			},
+			{
+				name:       "should exit 5 for a timeout and leave out an interrupted finish ahead of a release failure",
+				failure:    context.DeadlineExceeded,
+				later:      []error{context.Canceled, release},
+				wantCode:   ExitTransport,
+				wantStderr: "onesie: context deadline exceeded\nonesie: unlocking answers.jsonl: busy\n",
+			},
+			{
+				name:     "should exit 130 and stay quiet for an interrupt followed by a broken pipe",
+				failure:  context.Canceled,
+				later:    []error{syscall.EPIPE},
+				wantCode: ExitInterrupt,
+			},
+			{
+				name:       "should exit 0 for a broken stdout and print the release failure that followed it",
+				failure:    stdoutGone,
+				later:      []error{release},
+				wantCode:   ExitOK,
+				wantStderr: "onesie: unlocking answers.jsonl: busy\n",
+			},
+			{
+				name:       "should exit 6 for failed records and print only what followed them",
+				failure:    &recordsError{},
+				later:      []error{errors.New("compacting answers.jsonl: the disk is full"), release},
+				wantCode:   ExitRecords,
+				wantStderr: "onesie: compacting answers.jsonl: the disk is full\nonesie: unlocking answers.jsonl: busy\n",
+			},
+			{
+				name:     "should exit 6 and stay quiet for failed records followed by a broken pipe and an interrupt",
+				failure:  &recordsError{},
+				later:    []error{syscall.EPIPE, context.Canceled},
+				wantCode: ExitRecords,
+			},
+			{
+				name:       "should take the code of a later failure when nothing else failed",
+				later:      []error{release},
+				wantCode:   ExitUsage,
+				wantStderr: "onesie: unlocking answers.jsonl: busy\n",
+			},
+		}
+
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				var errOut bytes.Buffer
+
+				root := failingLater(&errOut, func(int) ([]error, error) { return tc.later, tc.failure })
+
+				if code := root.Execute(t.Context()); code != tc.wantCode || errOut.String() != tc.wantStderr {
+					t.Errorf("exit %d, stderr %q, want exit %d and %q", code, errOut.String(), tc.wantCode, tc.wantStderr)
+				}
+			})
+		}
+	})
+
+	t.Run("should start a second run with none of the first run's later failures", func(t *testing.T) {
+		t.Parallel()
+
+		var errOut bytes.Buffer
+
+		root := failingLater(&errOut, func(run int) ([]error, error) {
+			if run == 1 {
+				return []error{errors.New("stderr is gone")}, errors.New("saving profiles.json: the disk is full")
+			}
+
+			return nil, nil
+		})
+
+		if code := root.Execute(t.Context()); code != ExitUsage {
+			t.Fatalf("first run exit %d, want %d", code, ExitUsage)
+		}
+
+		errOut.Reset()
+
+		if code := root.Execute(t.Context()); code != ExitOK || errOut.Len() != 0 {
+			t.Errorf("second run exit %d, stderr %q, want exit 0 and nothing", code, errOut.String())
+		}
+	})
 
 	pins := []struct {
 		name     string
@@ -184,7 +317,7 @@ func TestExecute(t *testing.T) {
 			want:     "onesie: --mock has no line 3, so input line 3 has no answer. Add one\n",
 		},
 		{
-			name: "should prefix both lines of a run failure joined with a release failure",
+			name: "should prefix both lines of a run failure followed by a release failure",
 			args: []string{
 				"--mock", "{dir}{/}empty.jsonl", "--out", "{dir}{/}answers.jsonl", "--state", "x", "is it urgent",
 			},
@@ -195,7 +328,7 @@ func TestExecute(t *testing.T) {
 				"onesie: unlocking {dir}{/}answers.jsonl: the test release failed\n",
 		},
 		{
-			name: "should prefix both lines of a resume failure joined with a release failure",
+			name: "should prefix both lines of a resume failure followed by a release failure",
 			args: []string{
 				"--mock", "{dir}{/}m.json", "--out", "{dir}{/}answers.jsonl", "--resume", "--state", "x", "is it urgent",
 			},
@@ -206,6 +339,39 @@ func TestExecute(t *testing.T) {
 			want: "onesie: removing {dir}{/}answers.jsonl.onesie.part, which an interrupted run left behind: " +
 				"remove {dir}{/}answers.jsonl.onesie.part: directory not empty\n" +
 				"onesie: unlocking {dir}{/}answers.jsonl: the test release failed\n",
+		},
+		{
+			name: "should print a release failure that follows failed records and keep exit 6",
+			args: []string{
+				"--mock", "{dir}{/}m.jsonl", "-i", "lines", "--out", "{dir}{/}answers.jsonl", "--ask", "q=is it urgent",
+			},
+			stdin:    "a\n",
+			files:    map[string]string{"m.jsonl": "{\"error\":503}\n"},
+			prepare:  failingRelease,
+			wantCode: ExitRecords,
+			want:     "onesie: unlocking {dir}{/}answers.jsonl: the test release failed\n",
+		},
+		{
+			name: "should print a compaction failure that follows failed records and keep exit 6",
+			args: []string{
+				"--mock", "{dir}{/}m.jsonl", "-i", "jsonl", "--id", ".id", "--out", "{dir}{/}answers.jsonl", "--resume",
+				"--ask", "q=is it urgent",
+			},
+			stdin:    "{\"id\":1}\n{\"id\":2}\n",
+			files:    map[string]string{"m.jsonl": "{\"id\":1,\"error\":503}\n{\"id\":2,\"q\":0.9}\n"},
+			prepare:  failingCompaction,
+			wantCode: ExitRecords,
+			want:     "onesie: compacting {dir}{/}answers.jsonl: the test rename failed\n",
+		},
+		{
+			name: "should stay quiet for a release interrupted after failed records",
+			args: []string{
+				"--mock", "{dir}{/}m.jsonl", "-i", "lines", "--out", "{dir}{/}answers.jsonl", "--ask", "q=is it urgent",
+			},
+			stdin:    "a\n",
+			files:    map[string]string{"m.jsonl": "{\"error\":503}\n"},
+			prepare:  interruptedRelease,
+			wantCode: ExitRecords,
 		},
 		{
 			name:     "should print a command error with one onesie prefix",
@@ -364,6 +530,87 @@ func TestExecute(t *testing.T) {
 	}
 }
 
+func TestRootRun(t *testing.T) {
+	t.Parallel()
+
+	failure := errors.New("saving profiles.json: the disk is full")
+	release := errors.New("unlocking answers.jsonl: busy")
+
+	tests := []struct {
+		name      string
+		failure   error
+		later     []error
+		wantLater []error
+	}{
+		{name: "should return no failure and no later failures when nothing failed"},
+		{name: "should return the failure alone when nothing failed after it", failure: failure},
+		{
+			name: "should return the failure apart from the later failures that followed it", failure: failure,
+			later: []error{release}, wantLater: []error{release},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			root := failingLater(io.Discard, func(int) ([]error, error) { return tc.later, tc.failure })
+
+			ended := root.Run(t.Context())
+			apart := !errors.Is(ended.Failure, release)
+			if !errors.Is(ended.Failure, tc.failure) || !apart || !slices.Equal(ended.Later, tc.wantLater) {
+				t.Errorf("run = %v and %v, want %v and %v", ended.Failure, ended.Later, tc.failure, tc.wantLater)
+			}
+		})
+	}
+
+	t.Run("should start a second run with none of the first run's later failures", func(t *testing.T) {
+		t.Parallel()
+
+		root := failingLater(io.Discard, func(run int) ([]error, error) {
+			if run == 1 {
+				return []error{release}, failure
+			}
+
+			return nil, failure
+		})
+
+		if ended := root.Run(t.Context()); !slices.Equal(ended.Later, []error{release}) {
+			t.Fatalf("first run later failures = %v, want %v", ended.Later, release)
+		}
+
+		if ended := root.Run(t.Context()); !errors.Is(ended.Failure, failure) || len(ended.Later) != 0 {
+			t.Errorf("second run = %v and %v, want %v alone", ended.Failure, ended.Later, failure)
+		}
+	})
+}
+
+func failingLater(stderr io.Writer, script func(run int) (later []error, failure error)) *Root {
+	laterFailures := &failureLog{}
+	runs := 0
+
+	root := &Root{Command: &cobra.Command{
+		Use:           "onesie",
+		SilenceErrors: true,
+		SilenceUsage:  true,
+		RunE: func(*cobra.Command, []string) error {
+			runs++
+
+			failed, err := script(runs)
+			for _, later := range failed {
+				err = laterFailures.keepFirst(err, later)
+			}
+
+			return err
+		},
+	}, laterFailures: laterFailures}
+
+	root.Command.SetErr(stderr)
+	root.Command.SetArgs([]string{})
+
+	return root
+}
+
 func interruptedRun(t *testing.T, args []string, opts ...RootOption) int {
 	t.Helper()
 
@@ -373,14 +620,14 @@ func interruptedRun(t *testing.T, args []string, opts ...RootOption) int {
 	var out, errOut bytes.Buffer
 
 	root := NewRootCmd(BuildInfo{Version: "1.2.3"}, opts...)
-	root.SetOut(&out)
-	root.SetErr(&errOut)
-	root.SetArgs(args)
+	root.Command.SetOut(&out)
+	root.Command.SetErr(&errOut)
+	root.Command.SetArgs(args)
 
 	done := make(chan int, 1)
 
 	go func() {
-		done <- Execute(ctx, root)
+		done <- root.Execute(ctx)
 	}()
 
 	select {
@@ -394,13 +641,13 @@ func interruptedRun(t *testing.T, args []string, opts ...RootOption) int {
 }
 
 func fullDisk(*testing.T, string) []RootOption {
-	return []RootOption{WithCredentialStore(creds.NewStore(creds.WithCreateTemp(func(string, string) (*os.File, error) {
+	return []RootOption{withCredentialStore(creds.NewStore(creds.WithCreateTemp(func(string, string) (*os.File, error) {
 		return nil, errors.New("the disk is full")
 	})))}
 }
 
 func failingChmodStore(*testing.T, string) []RootOption {
-	return []RootOption{WithCredentialStore(creds.NewStore(creds.WithChmod(func(string, os.FileMode) error {
+	return []RootOption{withCredentialStore(creds.NewStore(creds.WithChmod(func(string, os.FileMode) error {
 		return errors.New("the test chmod failed")
 	})))}
 }
@@ -419,6 +666,26 @@ func failingRelease(*testing.T, string) []RootOption {
 	return []RootOption{func(s *rootSettings) {
 		s.lock = func(string) (func() error, error) {
 			return func() error { return errors.New("the test release failed") }, nil
+		}
+	}}
+}
+
+func failingCompaction(*testing.T, string) []RootOption {
+	return []RootOption{func(s *rootSettings) {
+		s.rename = func(oldpath, newpath string) error {
+			if strings.HasSuffix(oldpath, ".onesie.part") {
+				return errors.New("the test rename failed")
+			}
+
+			return os.Rename(oldpath, newpath)
+		}
+	}}
+}
+
+func interruptedRelease(*testing.T, string) []RootOption {
+	return []RootOption{func(s *rootSettings) {
+		s.lock = func(string) (func() error, error) {
+			return func() error { return context.Canceled }, nil
 		}
 	}}
 }

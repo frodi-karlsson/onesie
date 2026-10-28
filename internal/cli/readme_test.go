@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/goccy/go-yaml"
-	"github.com/spf13/cobra"
 
 	"github.com/frodi-karlsson/onesie/internal/cli"
 	"github.com/frodi-karlsson/onesie/internal/skillcheck"
@@ -133,13 +132,13 @@ func TestReadme(t *testing.T) {
 		var errOut bytes.Buffer
 
 		root := readmeRoot(t, stdin)
-		root.SetOut(out)
-		root.SetErr(&errOut)
-		root.SetArgs(append(command[1:], "--mock", mock))
+		root.Command.SetOut(out)
+		root.Command.SetErr(&errOut)
+		root.Command.SetArgs(append(command[1:], "--mock", mock))
 
 		exited := make(chan int, 1)
 
-		go func() { exited <- cli.Execute(t.Context(), root) }()
+		go func() { exited <- root.Execute(t.Context()) }()
 
 		for _, record := range []string{`{"id":"t1","body":"the site is down"}`, `{"id":"t2","body":"thanks"}`} {
 			if _, err := io.WriteString(feed, record+"\n"); err != nil {
@@ -476,16 +475,16 @@ func runReadme(t *testing.T, stdin string, args ...string) (string, string, int)
 	var out, errOut bytes.Buffer
 
 	root := readmeRoot(t, strings.NewReader(stdin))
-	root.SetOut(&out)
-	root.SetErr(&errOut)
-	root.SetArgs(args)
+	root.Command.SetOut(&out)
+	root.Command.SetErr(&errOut)
+	root.Command.SetArgs(args)
 
-	code := cli.Execute(t.Context(), root)
+	code := root.Execute(t.Context())
 
 	return out.String(), errOut.String(), code
 }
 
-func readmeRoot(t *testing.T, stdin io.Reader) *cobra.Command {
+func readmeRoot(t *testing.T, stdin io.Reader) *cli.Root {
 	t.Helper()
 
 	dir := t.TempDir()

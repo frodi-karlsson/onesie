@@ -79,6 +79,8 @@ func newRawRun(cmd *cobra.Command, settings rootSettings, flags runConfig, stats
 		if err != nil {
 			return nil, err
 		}
+
+		run.defaultModel = run.client.DefaultModel()
 	}
 
 	// Every body would be refused, so the run stops before it reads any.
@@ -109,18 +111,18 @@ func (r *rawRun) evaluate(ctx context.Context, rec input.Record) ([]byte, error)
 		return errorLine(rec.Err), rec.Err
 	}
 
-	// --print-request prints the body as it would be sent, with exit 0 and no network. The
-	// same predicate decides this and the client above, so the two cannot disagree and leave
-	// a nil client.
-	if !requests(r.flags) {
-		return printedBody(r.provider, rec.Raw, r.defaultModel, r.long)
-	}
-
-	body, err := r.provider.PrepareRaw(json.RawMessage(rec.Raw), r.client.DefaultModel(), longContextOptions(r.long)...)
+	body, err := r.provider.PrepareRaw(json.RawMessage(rec.Raw), r.defaultModel, longContextOptions(r.long)...)
 	if err != nil {
 		r.stats.recordFailure(err, false, 0)
 
 		return errorLine(err), err
+	}
+
+	// --print-request prints the body as it would be sent, with exit 0 and no network. The
+	// same predicate decides this and the client above, so the two cannot disagree and leave
+	// a nil client.
+	if !requests(r.flags) {
+		return body.Bytes(), nil
 	}
 
 	return r.send(ctx, body)
@@ -169,15 +171,6 @@ func writeBodies(out io.Writer) func([]byte) error {
 	}
 }
 
-func printedBody(provider onesie.Provider, raw, defaultModel string, long bool) ([]byte, error) {
-	body, err := provider.PrepareRaw(json.RawMessage(raw), defaultModel, longContextOptions(long)...)
-	if err != nil {
-		return errorLine(err), err
-	}
-
-	return body.Bytes(), nil
-}
-
 func longContextOptions(on bool) []onesie.RequestOption {
 	if !on {
 		return nil
@@ -187,9 +180,6 @@ func longContextOptions(on bool) []onesie.RequestOption {
 }
 
 func requests(flags runConfig) bool {
-	// --print-request is why this is not folded into the early return --print-questions takes. It
-	// includes any state supplied, so it goes through input.Resolve and needs a question only body
-	// when nothing was.
 	return !flags.printQuestions && !flags.printRequest
 }
 

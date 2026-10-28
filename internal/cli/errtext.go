@@ -1,32 +1,5 @@
 package cli
 
-import "github.com/frodi-karlsson/onesie/internal/output"
-
-func alsoFailed(first, second error) error {
-	switch {
-	case second == nil:
-		return first
-	case first == nil:
-		return second
-	}
-
-	return &bothFailed{first: first, second: second}
-}
-
-type bothFailed struct {
-	first  error
-	second error
-}
-
-func (e *bothFailed) Error() string {
-	// Execute prefixes only the first line, so the second carries its own.
-	return text(e.first) + "\n" + output.Prefix + text(e.second)
-}
-
-func (e *bothFailed) Unwrap() []error {
-	return []error{e.first, e.second}
-}
-
 func embed(context string, err error) error {
 	return &embeddedError{context: context, cause: err}
 }

@@ -443,7 +443,7 @@ func TestWithStats(t *testing.T) {
 				stdin:   "the server is down",
 				handler: func() http.HandlerFunc { return answerHandler(answered) },
 				opts: []RootOption{
-					WithNow(ticking(time.Date(2026, 9, 24, 12, 0, 0, 0, time.UTC), 2*time.Second)),
+					withNow(ticking(time.Date(2026, 9, 24, 12, 0, 0, 0, time.UTC), 2*time.Second)),
 				},
 				wantCode: ExitOK,
 				wantErr: []string{

@@ -33,9 +33,9 @@ prints the built in limits.
   rate's `score` lies between 0 and its top level index, the keys of `p` are exactly the options,
   or the level indexes from 0 for a rate, and `p` adds up to 1 within 0.02. An answer of the wrong
   type fails too. Any of these exits 4 with `200 response could not be used:` and names the
-  question and the value, as in `question 'urgent' answered 1.5, which lies outside [0,1]`. In a stream the record is an error
-  line of kind `response`. Its tokens still count toward `--usage` and `--stats`, it is never
-  stored in the cache, and it is not retried.
+  question and the value, as in `question 'urgent' answered 1.5, which lies outside [0,1]`. In a
+  stream the record is an error line of kind `response`. Its tokens still count toward `--usage`
+  and `--stats`, it is never stored in the cache, and it is not retried.
 - A rate answer also carries `score` and `norm`. `score` is the level index averaged over `p`, with
   0 for the lowest level, so it can land between levels. `norm` is `score` over the top index, from
   0 to 1, so `2.02` on four levels is a `norm` of `0.67`.
@@ -846,11 +846,12 @@ table, and `onesie calibrate --help` lists the codes calibrate uses.
   a `--base-url` unless given `--allow-http`, and the file does not record that choice, so every
   run on the profile needs `--allow-http` as well, and `profile show` prints `allow_http: needed`.
   There is no variable for it.
-- onesie adds the API path itself, such as `/v1/systemone`, so a base URL whose last segment is
-  the first segment of that path, such as `/v1`, prints one warning naming where it came from, the
-  segment and the URL questions go to. `--list-models` calls its own path, which the warning does
-  not name. cloudflare's path is `/run`, so a cloudflare base URL ending in `/v1` does not warn. It
-  is not refused, since a proxy may use that prefix.
+- onesie adds the API path itself, such as `/v1/systemone`, so a base URL that already ends in the
+  start of that path, such as `/v1`, prints one warning naming where it came from, the segment and
+  the URL questions go to. `--list-models` calls its own path, which the warning does not name. It
+  is not refused, since a proxy may use that prefix. On cloudflare the path starts with `/run`
+  instead, so a cloudflare base URL ending in `/v1` prints no warning, and one ending in `/run`
+  does.
 - A request that never reaches the server exits 5 and names the host and the innermost cause, as
   in `onesie: could not reach api.example.com: no such host`. The host keeps its port, and the
   message never holds a URL, a query or a proxy address.

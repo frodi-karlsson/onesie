@@ -801,11 +801,11 @@ func runAdvised(t *testing.T, tc adviceCase) ([]string, string, string, int) {
 		}),
 	)
 
-	root.SetOut(&out)
-	root.SetErr(&errOut)
-	root.SetArgs(tc.args)
+	root.Command.SetOut(&out)
+	root.Command.SetErr(&errOut)
+	root.Command.SetArgs(tc.args)
 
-	code := Execute(t.Context(), root)
+	code := root.Execute(t.Context())
 
 	mu.Lock()
 	defer mu.Unlock()

@@ -111,11 +111,11 @@ func TestDelimited(t *testing.T) {
 				WithClientFactory(stubFactory(srv.URL)),
 			)
 
-			root.SetOut(&out)
-			root.SetErr(&errOut)
-			root.SetArgs(tc.args)
+			root.Command.SetOut(&out)
+			root.Command.SetErr(&errOut)
+			root.Command.SetArgs(tc.args)
 
-			if code := Execute(t.Context(), root); code != tc.wantCode {
+			if code := root.Execute(t.Context()); code != tc.wantCode {
 				t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, tc.wantCode, errOut.String())
 			}
 
@@ -148,11 +148,11 @@ func TestDelimited(t *testing.T) {
 			WithClientFactory(stubFactory(srv.URL)),
 		)
 
-		root.SetOut(&out)
-		root.SetErr(&errOut)
-		root.SetArgs([]string{"--ask", "a=q", "--fallback", "no", "--ask", "a_fallback=q2", "-o", "csv"})
+		root.Command.SetOut(&out)
+		root.Command.SetErr(&errOut)
+		root.Command.SetArgs([]string{"--ask", "a=q", "--fallback", "no", "--ask", "a_fallback=q2", "-o", "csv"})
 
-		if code := Execute(t.Context(), root); code != ExitUsage {
+		if code := root.Execute(t.Context()); code != ExitUsage {
 			t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, ExitUsage, errOut.String())
 		}
 
@@ -198,13 +198,13 @@ func TestDelimited(t *testing.T) {
 			WithClientFactory(stubFactory(srv.URL)),
 		)
 
-		root.SetOut(&out)
-		root.SetErr(&errOut)
-		root.SetArgs([]string{
+		root.Command.SetOut(&out)
+		root.Command.SetErr(&errOut)
+		root.Command.SetArgs([]string{
 			"is this urgent", "-i", "csv", "-o", "csv", "--merge", "--out", path, "--resume",
 		})
 
-		if code := Execute(t.Context(), root); code != ExitOK {
+		if code := root.Execute(t.Context()); code != ExitOK {
 			t.Fatalf("exit code = %d, stderr:\n%s", code, errOut.String())
 		}
 

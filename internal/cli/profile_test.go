@@ -633,21 +633,23 @@ func TestProfileCreate(t *testing.T) {
 	t.Run("should keep exit 2 for a failed save when stderr is a closed pipe", func(t *testing.T) {
 		t.Parallel()
 
-		dir := t.TempDir()
+		root := failedSave(t, failingWrite, closedPipe{})
 
-		root := NewRootCmd(BuildInfo{Version: "1.2.3"},
-			WithStdin(strings.NewReader(key16+"\n")),
-			WithStdinTTY(false),
-			WithStdoutTTY(false),
-			WithLookupEnv(lookupFrom(map[string]string{"ONESIE_CONFIG_DIR": dir})),
-			withKeychain(undeletableKeychain{workingKeychain(nil)}),
-			WithCredentialStore(creds.NewStore(failingWrite...)))
+		if code := root.Execute(t.Context()); code != ExitUsage {
+			t.Errorf("exit code = %d, want %d", code, ExitUsage)
+		}
+	})
 
-		root.SetOut(io.Discard)
-		root.SetErr(closedPipe{})
-		root.SetArgs([]string{"profile", "create", "work", "--provider", "typesafe"})
+	t.Run("should keep the notice stderr refused beside a failed save and keep exit 2", func(t *testing.T) {
+		t.Parallel()
 
-		if code := Execute(t.Context(), root); code != ExitUsage {
+		ended := failedSave(t, failingWrite, brokenWriter{}).Run(t.Context())
+
+		if got := ended.Report(); len(got) != 2 || got[1] != errBroken.Error() {
+			t.Errorf("report = %q, want the failed save and then the refused notice", got)
+		}
+
+		if code := Classify(ended.Failure); code != ExitUsage {
 			t.Errorf("exit code = %d, want %d", code, ExitUsage)
 		}
 	})
@@ -673,6 +675,24 @@ func TestProfileCreate(t *testing.T) {
 			t.Errorf("profiles.json was written, stat error = %v", err)
 		}
 	})
+}
+
+func failedSave(t *testing.T, store []creds.StoreOption, stderr io.Writer) *Root {
+	t.Helper()
+
+	root := NewRootCmd(BuildInfo{Version: "1.2.3"},
+		WithStdin(strings.NewReader(key16+"\n")),
+		WithStdinTTY(false),
+		WithStdoutTTY(false),
+		WithLookupEnv(lookupFrom(map[string]string{"ONESIE_CONFIG_DIR": t.TempDir()})),
+		withKeychain(undeletableKeychain{workingKeychain(nil)}),
+		withCredentialStore(creds.NewStore(store...)))
+
+	root.Command.SetOut(io.Discard)
+	root.Command.SetErr(stderr)
+	root.Command.SetArgs([]string{"profile", "create", "work", "--provider", "typesafe"})
+
+	return root
 }
 
 func TestProfileUpdate(t *testing.T) {
@@ -2132,7 +2152,7 @@ func runProfileCase(t *testing.T, tc profileCase) {
 	opts := []RootOption{
 		withKeychain(chain),
 		WithStdinTTY(tc.tty),
-		WithSecretReader(func() (string, error) { return tc.secret, nil }),
+		withSecretReader(func() (string, error) { return tc.secret, nil }),
 	}
 
 	switch tc.keychain {
@@ -2151,7 +2171,7 @@ func runProfileCase(t *testing.T, tc profileCase) {
 	}
 
 	if tc.store != nil {
-		opts = append(opts, WithCredentialStore(creds.NewStore(tc.store...)))
+		opts = append(opts, withCredentialStore(creds.NewStore(tc.store...)))
 	}
 
 	if tc.stdinUnread {
@@ -2234,11 +2254,11 @@ func runInConfig(
 		withKeychain(noKeychain()),
 	}, opts...)...)
 
-	root.SetOut(&out)
-	root.SetErr(&errOut)
-	root.SetArgs(args)
+	root.Command.SetOut(&out)
+	root.Command.SetErr(&errOut)
+	root.Command.SetArgs(args)
 
-	code := Execute(t.Context(), root)
+	code := root.Execute(t.Context())
 
 	return out.String(), errOut.String(), code
 }

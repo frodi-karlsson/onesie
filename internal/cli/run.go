@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"slices"
 	"sync/atomic"
 
 	"github.com/spf13/cobra"
@@ -223,10 +222,8 @@ func runOne(
 			return err
 		}
 
-		req := onesie.Request{
-			State: sent, Model: chosen.modelFor(built.Model, settings.lookupEnv), Questions: wireAll(built.Questions),
-			Assets: assets, LongContext: built.LongContext,
-		}
+		model := chosen.modelFor(built.Model, settings.lookupEnv)
+		req := requestFor(built, model, wireAll(built.Questions), sent, assets)
 
 		return printRequest(cmd.OutOrStdout(), chosen.provider, req, resolved.Source != input.SourceNone)
 	}
@@ -941,11 +938,7 @@ func answered(
 	assets onesie.Assets,
 	withUsage bool,
 ) (output.Record, onesie.Usage, bool, error) {
-	req := onesie.Request{
-		State: state, Model: model, Questions: questions, Assets: assets, LongContext: built.LongContext,
-	}
-
-	got, err := asker.answer(ctx, key, req)
+	got, err := asker.answer(ctx, key, requestFor(built, model, questions, state, assets))
 	if halting(err) {
 		return failureRecord(built, err), onesie.Usage{}, false, err
 	}
@@ -986,12 +979,12 @@ func answered(
 	return record, result.Usage, got.cached, nil
 }
 
-func hasBox(questions onesie.Questions) bool {
-	return slices.ContainsFunc(questions, func(named onesie.NamedQuestion) bool {
-		_, isBox := named.Question.(onesie.Box)
-
-		return isBox
-	})
+func requestFor(
+	built *plan.Plan, model string, questions onesie.Questions, state any, assets onesie.Assets,
+) onesie.Request {
+	return onesie.Request{
+		State: state, Model: model, Questions: questions, Assets: assets, LongContext: built.LongContext,
+	}
 }
 
 func spent(failed output.Record, usage *onesie.Usage) output.Record {

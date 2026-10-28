@@ -40,7 +40,7 @@ func run() int {
 		Version: version, Commit: commit, Date: date, Tag: releaseTag(tag, moduleVersion()),
 	}, cli.WithArgs(os.Args[1:]))
 
-	return cli.Execute(ctx, root)
+	return root.Execute(ctx)
 }
 
 func moduleVersion() string {

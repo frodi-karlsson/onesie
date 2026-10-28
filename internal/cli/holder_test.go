@@ -60,11 +60,10 @@ func TestOpenProfiles(t *testing.T) {
 
 			var out bytes.Buffer
 
-			settings := rootSettings{
-				profilesPath: fixedPath(filepath.Join(dir, "profiles.json")),
-				credStore:    creds.NewStore(),
-				lookupEnv:    lookupFrom(tc.env),
-			}
+			settings := defaultSettings(BuildInfo{})
+			settings.profilesPath = fixedPath(filepath.Join(dir, "profiles.json"))
+			settings.credStore = creds.NewStore()
+			settings.lookupEnv = lookupFrom(tc.env)
 
 			if _, err := openProfiles(settings, &out); err != nil {
 				t.Fatalf("openProfiles returned an error: %v", err)
@@ -84,13 +83,12 @@ func TestOpenProfiles(t *testing.T) {
 
 		var out bytes.Buffer
 
-		settings := rootSettings{
-			profilesPath: fixedPath(filepath.Join(dir, "profiles.json")),
-			credStore: creds.NewStore(creds.WithCreateTemp(func(string, string) (*os.File, error) {
-				return nil, errors.New("the disk is full")
-			})),
-			lookupEnv: lookupFrom(nil),
-		}
+		settings := defaultSettings(BuildInfo{})
+		settings.profilesPath = fixedPath(filepath.Join(dir, "profiles.json"))
+		settings.credStore = creds.NewStore(creds.WithCreateTemp(func(string, string) (*os.File, error) {
+			return nil, errors.New("the disk is full")
+		}))
+		settings.lookupEnv = lookupFrom(nil)
 
 		opened, err := openProfiles(settings, &out)
 		if err != nil {
@@ -113,11 +111,10 @@ func TestOpenProfiles(t *testing.T) {
 	t.Run("should find no profiles when the config dir cannot be resolved", func(t *testing.T) {
 		t.Parallel()
 
-		settings := rootSettings{
-			profilesPath: func() (string, error) { return "", errors.New("onesie: cannot find a home directory") },
-			credStore:    creds.NewStore(),
-			lookupEnv:    lookupFrom(nil),
-		}
+		settings := defaultSettings(BuildInfo{})
+		settings.profilesPath = func() (string, error) { return "", errors.New("onesie: cannot find a home directory") }
+		settings.credStore = creds.NewStore()
+		settings.lookupEnv = lookupFrom(nil)
 
 		opened, err := openProfiles(settings, io.Discard)
 		if err != nil || opened.Found || len(opened.Profiles.Profiles) != 0 {
@@ -338,7 +335,7 @@ func TestResolveRun(t *testing.T) {
 			args := append(append([]string{}, naming.args...),
 				"is this urgent", "-r", "--state", "the server is down", "--base-url", srv.URL)
 
-			out, errOut, code := runInConfig(t, t.TempDir(), args, "", env, WithCredentialStore(refusing))
+			out, errOut, code := runInConfig(t, t.TempDir(), args, "", env, withCredentialStore(refusing))
 
 			assertNoSecret(t, out, errOut)
 

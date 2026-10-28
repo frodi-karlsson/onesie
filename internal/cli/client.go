@@ -16,13 +16,16 @@ const (
 	allowHTTPHelp = "send the API key over a plain http base URL to a host other than this machine. " +
 		"Without it such a base URL exits 2 before any request"
 	plainHTTPReason = ", so the API key would cross the network unencrypted"
-	profileBaseURL  = "the profile's base_url"
+	sendPlainHTTP   = ". Use https, or pass --" + flagAllowHTTP + " to send it anyway"
+	storePlainHTTP  = ". Use https, or pass --" + flagAllowHTTP + " to store it, and every run on the profile " +
+		"then needs --" + flagAllowHTTP + " too"
+	profileBaseURL = "the profile's base_url"
 )
 
 func clientBuilder(info BuildInfo, flags *runFlags, settings rootSettings) clientFactory {
 	var warned, doubled sync.Once
 
-	return func(_ context.Context, chosen resolution, extra ...onesie.Option) (*onesie.Client, error) {
+	return func(ctx context.Context, chosen resolution, extra ...onesie.Option) (*onesie.Client, error) {
 		opts := []onesie.Option{
 			onesie.WithProvider(chosen.provider),
 			onesie.WithUserAgent("onesie/" + info.Version),
@@ -69,8 +72,10 @@ func clientBuilder(info BuildInfo, flags *runFlags, settings rootSettings) clien
 			source := baseURLFrom(client.BaseURLSource(), flags.baseURL, chosen)
 
 			doubled.Do(func() {
-				printErr = output.Warning(settings.holder.stderr(), source+" ends in /"+segment+
-					" and onesie adds the API path itself, so questions go to "+output.Printable(client.SystemOneURL()))
+				warning := source + " ends in /" + segment + " and onesie adds the API path itself, so questions go to " +
+					output.Printable(client.SystemOneURL())
+
+				printErr = settings.laterFailures.keepFirst(printErr, output.Warning(settings.holder.stderr(), warning))
 			})
 		}
 
@@ -118,7 +123,7 @@ func profileKey(settings rootSettings, chosen resolution) func() (string, error)
 func explained(settings rootSettings, baseURLFlag string, chosen resolution, err error) error {
 	var refused *onesie.BaseURLError
 	if errors.As(err, &refused) {
-		return baseURLRefusal(refused, baseURLFrom(refused.Source, baseURLFlag, chosen))
+		return baseURLRefusal(refused, baseURLFrom(refused.Source, baseURLFlag, chosen), sendPlainHTTP)
 	}
 
 	if errors.Is(err, onesie.ErrNoAccountID) {
@@ -160,7 +165,7 @@ func baseURLFrom(source onesie.BaseURLSource, baseURLFlag string, chosen resolut
 	return "the base URL"
 }
 
-func baseURLRefusal(refused *onesie.BaseURLError, source string) error {
+func baseURLRefusal(refused *onesie.BaseURLError, source, plainHTTPAdvice string) error {
 	message := source + " " + refused.Rule()
 	if refused.Shown != "" {
 		message = source + " " + output.Printable(refused.Shown) + " " + refused.Rule()
@@ -168,7 +173,7 @@ func baseURLRefusal(refused *onesie.BaseURLError, source string) error {
 
 	switch {
 	case errors.Is(refused, onesie.ErrInsecureBaseURL):
-		message += plainHTTPReason + ". Use https, or pass --" + flagAllowHTTP + " to send it anyway"
+		message += plainHTTPReason + plainHTTPAdvice
 	case errors.Is(refused, onesie.ErrBaseURLUserInfo):
 		message += ". Put the API key in a profile or the provider's key variable instead"
 	}

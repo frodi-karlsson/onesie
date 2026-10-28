@@ -50,7 +50,7 @@ func TestWithClientFactory(t *testing.T) {
 
 		var handed []onesie.Option
 
-		var settings rootSettings
+		settings := defaultSettings(BuildInfo{})
 
 		WithClientFactory(func(_ context.Context, opts ...onesie.Option) (*onesie.Client, error) {
 			handed = opts
@@ -142,7 +142,7 @@ func TestWithTerminalWidth(t *testing.T) {
 				[]string{"--ask", "team=who owns this", "--pick", "x,y", "-o", "table"},
 				"the server is down", srv.URL,
 				WithLookupEnv(lookupFrom(tc.env)),
-				WithTerminalWidth(func() (int, bool) { return tc.columns, tc.known }))
+				withTerminalWidth(func() (int, bool) { return tc.columns, tc.known }))
 
 			if code != ExitOK {
 				t.Fatalf("exit code = %d, want %d\nstdout:\n%s\nstderr:\n%s",
@@ -206,11 +206,11 @@ func TestProfilesLocation(t *testing.T) {
 				WithLookupEnv(lookupFrom(env)),
 				WithHomeDir(func() (string, error) { return dir, nil }),
 				withKeychain(noKeychain()))
-			root.SetOut(&out)
-			root.SetErr(&errOut)
-			root.SetArgs([]string{"profile", "list"})
+			root.Command.SetOut(&out)
+			root.Command.SetErr(&errOut)
+			root.Command.SetArgs([]string{"profile", "list"})
 
-			if code := Execute(t.Context(), root); code != ExitOK {
+			if code := root.Execute(t.Context()); code != ExitOK {
 				t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, ExitOK, errOut.String())
 			}
 

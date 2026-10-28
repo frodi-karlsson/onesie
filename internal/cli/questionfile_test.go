@@ -257,11 +257,11 @@ func TestReadQuestionFile(t *testing.T) {
 				}, newFakeTree(tc.files, workDir, configDir).options()...)
 
 				root := NewRootCmd(BuildInfo{Version: "1.2.3"}, opts...)
-				root.SetOut(&out)
-				root.SetErr(&errOut)
-				root.SetArgs(tc.args)
+				root.Command.SetOut(&out)
+				root.Command.SetErr(&errOut)
+				root.Command.SetArgs(tc.args)
 
-				if code := Execute(t.Context(), root); code != tc.wantCode {
+				if code := root.Execute(t.Context()); code != tc.wantCode {
 					t.Errorf("exit code = %d, want %d\nstdout:\n%s\nstderr:\n%s", code, tc.wantCode, &out, &errOut)
 				}
 
@@ -517,11 +517,11 @@ func runTree(t *testing.T, tree fakeTree, extra []RootOption, args ...string) (s
 	}, tree.options()...)
 
 	root := NewRootCmd(BuildInfo{Version: "1.2.3"}, append(opts, extra...)...)
-	root.SetOut(&out)
-	root.SetErr(&errOut)
-	root.SetArgs(args)
+	root.Command.SetOut(&out)
+	root.Command.SetErr(&errOut)
+	root.Command.SetArgs(args)
 
-	code := Execute(t.Context(), root)
+	code := root.Execute(t.Context())
 
 	return out.String(), errOut.String(), code
 }
@@ -540,11 +540,11 @@ func runInDir(t *testing.T, dir, stdin string, args ...string) (string, string, 
 		WithHomeDir(func() (string, error) { return dir, nil }),
 		WithLookupEnv(lookupFrom(map[string]string{"ONESIE_CONFIG_DIR": filepath.Join(dir, "config")})),
 	)
-	root.SetOut(&out)
-	root.SetErr(&errOut)
-	root.SetArgs(args)
+	root.Command.SetOut(&out)
+	root.Command.SetErr(&errOut)
+	root.Command.SetArgs(args)
 
-	code := Execute(t.Context(), root)
+	code := root.Execute(t.Context())
 
 	return out.String(), errOut.String(), code
 }
@@ -711,7 +711,7 @@ func (f fakeTree) options() []RootOption {
 		func(s *rootSettings) { *s = f.links(*s) },
 		withBuiltIns(nil),
 		WithWorkingDir(func() (string, error) { return f.workDir, nil }),
-		WithReadDir(func(dir string) ([]fs.DirEntry, error) { return fs.ReadDir(f.tree, f.path(dir)) }),
+		withReadDir(func(dir string) ([]fs.DirEntry, error) { return fs.ReadDir(f.tree, f.path(dir)) }),
 		WithReadFile(func(name string) ([]byte, error) { return fs.ReadFile(f.tree, f.path(name)) }),
 		WithLookupEnv(lookupFrom(map[string]string{"ONESIE_CONFIG_DIR": f.configDir})),
 	}

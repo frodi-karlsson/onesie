@@ -79,7 +79,13 @@ func TestOpenCache(t *testing.T) {
 		all := map[string]string{"ONESIE_CACHE_DIR": dir}
 		maps.Copy(all, env)
 
-		return rootSettings{lookupEnv: lookupFrom(all), homeDir: os.UserHomeDir, goos: goos, now: now}, dir
+		settings := defaultSettings(BuildInfo{})
+		settings.lookupEnv = lookupFrom(all)
+		settings.homeDir = os.UserHomeDir
+		settings.goos = goos
+		settings.now = now
+
+		return settings, dir
 	}
 
 	t.Run("should pass settings.goos to cache.Open", func(t *testing.T) {
@@ -173,14 +179,13 @@ func TestCachedAnswerer(t *testing.T) {
 
 		dir := filepath.Join(t.TempDir(), "cache")
 		base := stubFactory(stub.url)
-		settings := rootSettings{
-			lookupEnv: lookupFrom(map[string]string{"ONESIE_CACHE_DIR": dir}),
-			homeDir:   os.UserHomeDir,
-			goos:      runtime.GOOS,
-			now:       time.Now,
-			newClient: func(ctx context.Context, _ resolution, opts ...onesie.Option) (*onesie.Client, error) {
-				return base(ctx, append(opts, extra...)...)
-			},
+		settings := defaultSettings(BuildInfo{})
+		settings.lookupEnv = lookupFrom(map[string]string{"ONESIE_CACHE_DIR": dir})
+		settings.homeDir = os.UserHomeDir
+		settings.goos = runtime.GOOS
+		settings.now = time.Now
+		settings.newClient = func(ctx context.Context, _ resolution, opts ...onesie.Option) (*onesie.Client, error) {
+			return base(ctx, append(opts, extra...)...)
 		}
 
 		flags := &runFlags{}
@@ -696,11 +701,11 @@ func TestAsk(t *testing.T) {
 			maps.Copy(env, tc.env)
 			args := append(append(slicesOf(base), "--base-url", stub.url), tc.extra...)
 
-			if _, errOut, code := runCached(t, env, args, "", WithNow(fixedNow(cacheEpoch))); code != ExitOK {
+			if _, errOut, code := runCached(t, env, args, "", withNow(fixedNow(cacheEpoch))); code != ExitOK {
 				t.Fatalf("first run exit %d\n%s", code, errOut)
 			}
 
-			if _, errOut, code := runCached(t, env, args, "", WithNow(fixedNow(cacheEpoch.Add(tc.after)))); code != ExitOK {
+			if _, errOut, code := runCached(t, env, args, "", withNow(fixedNow(cacheEpoch.Add(tc.after)))); code != ExitOK {
 				t.Fatalf("second run exit %d\n%s", code, errOut)
 			}
 
@@ -876,12 +881,11 @@ func TestAsk(t *testing.T) {
 			cmd.SetOut(&out)
 			cmd.SetContext(t.Context())
 
-			settings := rootSettings{
-				lookupEnv: lookupFrom(nil),
-				holder: &holder{resolved: func() (resolution, error) {
-					return resolution{provider: onesie.TypeSafe()}, nil
-				}},
-			}
+			settings := defaultSettings(BuildInfo{})
+			settings.lookupEnv = lookupFrom(nil)
+			settings.holder = &holder{resolved: func() (resolution, error) {
+				return resolution{provider: onesie.TypeSafe()}, nil
+			}}
 
 			inv := &invocation{plan: &plan.Plan{Questions: []plan.Question{{ID: "answer", Shape: plan.Noul}}}}
 			asker := resultAnswerer{result: func() *onesie.Result {
@@ -1041,14 +1045,14 @@ func runCached(t *testing.T, env map[string]string, args []string, stdin string,
 		WithStdoutTTY(false),
 		WithLookupEnv(lookupFrom(maps.Clone(env))),
 		WithHomeDir(func() (string, error) { return env["HOME"], nil }),
-		WithTerminalWidth(func() (int, bool) { return 100, true }),
+		withTerminalWidth(func() (int, bool) { return 100, true }),
 	}, extra...)...)
 
-	root.SetOut(&out)
-	root.SetErr(&errOut)
-	root.SetArgs(args)
+	root.Command.SetOut(&out)
+	root.Command.SetErr(&errOut)
+	root.Command.SetArgs(args)
 
-	code := Execute(t.Context(), root)
+	code := root.Execute(t.Context())
 
 	return out.String(), errOut.String(), code
 }

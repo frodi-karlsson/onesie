@@ -285,11 +285,11 @@ func runPrintQuestions(t *testing.T, name string, data []byte, flags ...string) 
 		WithLookupEnv(lookupFrom(map[string]string{"ONESIE_CONFIG_DIR": filepath.Join("no", "config")})),
 	)
 
-	root.SetOut(&out)
-	root.SetErr(&errOut)
-	root.SetArgs(append([]string{"-f", name, "--print-questions"}, flags...))
+	root.Command.SetOut(&out)
+	root.Command.SetErr(&errOut)
+	root.Command.SetArgs(append([]string{"-f", name, "--print-questions"}, flags...))
 
-	code := Execute(t.Context(), root)
+	code := root.Execute(t.Context())
 
 	return out.String(), errOut.String(), code
 }
