@@ -24,9 +24,8 @@ var (
 	ErrKeychainTimeout = errors.New("the keychain did not answer in time")
 )
 
-// KeychainAccount names the keychain item for a profile's key in the profiles file at path. The
-// path is part of the name, so two config dirs never share, overwrite or delete one item.
-func KeychainAccount(name, path string) string {
+func keychainAccount(name, path string) string {
+	// The path is part of the name, so two config dirs never share, overwrite or delete one item.
 	if absolute, err := filepath.Abs(path); err == nil {
 		path = absolute
 	}

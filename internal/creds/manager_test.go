@@ -1,6 +1,8 @@
 package creds_test
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"maps"
@@ -425,9 +427,10 @@ func profilesPath(t *testing.T) (string, func(string) string) {
 	t.Helper()
 
 	path := filepath.Join(t.TempDir(), "profiles.json")
+	sum := sha256.Sum256([]byte(path))
 
 	return path, strings.NewReplacer(
-		"{hash}", strings.TrimPrefix(creds.KeychainAccount("x", path), "x@"),
+		"{hash}", hex.EncodeToString(sum[:6]),
 		"{path}", path,
 	).Replace
 }
