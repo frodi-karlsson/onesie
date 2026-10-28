@@ -332,8 +332,7 @@ func staleReason(stored string, found bool, current Print) (StaleReason, []strin
 type StaleAnswersError struct {
 	Path, Sidecar string
 	Reason        StaleReason
-	// Changed names each part of a changed run that differs, and is empty for a version 2 sidecar,
-	// whose single sum cannot tell the parts apart.
+	// Changed is empty when the sidecar holds a single sum, which cannot tell the parts apart.
 	Changed []string
 }
 

@@ -311,10 +311,9 @@ onesie calibrate -f shell-safety -i jsonl --map .command --id .id \
   `--abstain-if`. `--skip-blank` counts too when a resume counts lines, which is without `--id` on
   any input but csv and tsv. The refusal names each of them that changed, as in
   `the model and -o changed since answers.jsonl was written`.
-- The fingerprint keeps one sum for each of them. A version 2 fingerprint, which an earlier onesie
-  wrote as a single sum, still resumes when nothing changed, and the run writes its own in its
-  place. A change there reads `the questions, model or flags changed`, since a single sum cannot
-  tell which. A file written by any other onesie version is refused the same way.
+- The fingerprint keeps one sum for each of them. A fingerprint that holds a single sum resumes
+  when nothing changed, and the run writes one sum for each part in its place. A change there
+  reads `the questions, model or flags changed`, since a single sum cannot tell which. A file written by any other onesie version is refused the same way.
   `-j`, `--timeout`, `--retries`, `--cache` and `--unordered` can change between runs.
 - `--resume` with `--id` skips answered records and asks the rest, failed ones included. A finished
   run rewrites the file in input order and keeps answered ids missing from the input, unless
