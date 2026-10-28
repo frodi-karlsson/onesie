@@ -28,7 +28,6 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/creds"
 	"github.com/frodi-karlsson/onesie/internal/input"
 	"github.com/frodi-karlsson/onesie/internal/limits"
-	"github.com/frodi-karlsson/onesie/internal/output"
 	"github.com/frodi-karlsson/onesie/internal/providers"
 	"github.com/frodi-karlsson/onesie/internal/release"
 )
@@ -753,28 +752,6 @@ func asksNothing(set *pflag.FlagSet, name string) {
 	}
 
 	flag.Annotations[annotationAsksNothing] = nil
-}
-
-// Root is a command tree with the log of the failures that follow a run's failure, which cobra's one
-// returned error has no room for. Command is the tree itself, for a caller to configure.
-type Root struct {
-	Command *cobra.Command
-
-	laterFailures *failureLog
-}
-
-// Execute runs the tree and returns the process exit code, so main never has to classify an error
-// itself. The failures that followed the run's failure print after it.
-func (r *Root) Execute(ctx context.Context) int {
-	ended := r.Run(ctx)
-
-	for _, line := range ended.report() {
-		// Stripped, since a message can quote the server or the input to a terminal.
-		//nolint:errcheck // A stderr that cannot take the message leaves the exit code to name the failure.
-		_ = output.Notice(r.Command.ErrOrStderr(), output.Printable(line))
-	}
-
-	return Classify(ended.Failure)
 }
 
 // WithClientFactory replaces how commands build their API client, so a test can point one at a

@@ -3,7 +3,33 @@ package cli
 import (
 	"context"
 	"sync"
+
+	"github.com/spf13/cobra"
+
+	"github.com/frodi-karlsson/onesie/internal/output"
 )
+
+// Root is a command tree with the log of the failures that follow a run's failure, which cobra's one
+// returned error has no room for. Command is the tree itself, for a caller to configure.
+type Root struct {
+	Command *cobra.Command
+
+	laterFailures *failureLog
+}
+
+// Execute runs the tree and returns the process exit code, so main never has to classify an error
+// itself. The failures that followed the run's failure print after it.
+func (r *Root) Execute(ctx context.Context) int {
+	ended := r.Run(ctx)
+
+	for _, line := range ended.report() {
+		// Stripped, since a message can quote the server or the input to a terminal.
+		//nolint:errcheck // A stderr that cannot take the message leaves the exit code to name the failure.
+		_ = output.Notice(r.Command.ErrOrStderr(), output.Printable(line))
+	}
+
+	return Classify(ended.Failure)
+}
 
 // Run runs the tree once and returns its failure apart from the failures that followed it,
 // for a caller that inspects the errors instead of exiting with them.
