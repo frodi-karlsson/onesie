@@ -58,7 +58,6 @@ func FuzzParse(f *testing.F) {
 			return
 		}
 
-		// The combined source is documented to parse back to the combined tree.
 		combined := Combine(expr, expr)
 
 		again, err := Parse(combined.Source())

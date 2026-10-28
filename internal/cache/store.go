@@ -27,9 +27,7 @@ const (
 	tempPrefix   = ".onesie-tmp-"
 	pinnedSuffix = ".json"
 	aliasSuffix  = ".alias.json"
-	// tempMaxAge is how old a temporary file must be before a walk takes it for a crashed write
-	// rather than one another run is still making.
-	tempMaxAge = time.Hour
+	tempMaxAge   = time.Hour
 
 	tagContent = "Signature: 8a477f597d28d172789f06886806bc55\n" +
 		"# This file is a cache directory tag created by onesie.\n" +

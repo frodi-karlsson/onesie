@@ -119,7 +119,6 @@ func (o *File) ReadSpans(ctx context.Context, spans []Span, read func(i int, tex
 		err = errors.Join(err, file.Close())
 	}()
 
-	// In file order, so the reads move forward through the file.
 	order := make([]int, len(spans))
 	for i := range order {
 		order[i] = i

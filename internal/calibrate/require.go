@@ -79,8 +79,7 @@ const (
 )
 
 // At is the cut a yes or no requirement reads, named by a number or taken from the file's
-// abstain_if.
-// Value is set only for AtNumber.
+// abstain_if. Value is set only for AtNumber.
 type At struct {
 	Kind  AtKind
 	Value float64

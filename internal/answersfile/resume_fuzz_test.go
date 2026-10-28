@@ -56,7 +56,6 @@ func FuzzLineVerdict(f *testing.F) {
 			}
 		}
 
-		// Only a line onesie itself would write is taken as its own error line.
 		if got := ownFailure(line); got != nil && !bytes.Equal(output.EncodeFailure(got), bytes.TrimSuffix(line, []byte("\n"))) {
 			t.Fatalf("forwarded line %q was taken as onesie's error %+v, which onesie writes as %q",
 				line, got, output.EncodeFailure(got))
