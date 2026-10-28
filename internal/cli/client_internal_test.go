@@ -568,11 +568,16 @@ func TestClientBuilder(t *testing.T) {
 
 		build := clientBuilder(BuildInfo{}, &runFlags{allowHTTP: true, baseURL: "http://proxy.example/v1"}, settings)
 
-		_, err := build(t.Context(), resolution{provider: onesie.TypeSafe()})
+		cleanups := &cleanupLog{}
 
-		const want = "write 1 failed\nonesie: write 2 failed"
-		if err == nil || err.Error() != want {
-			t.Errorf("error = %v, want %q", err, want)
+		_, err := build(withCleanups(t.Context(), cleanups), resolution{provider: onesie.TypeSafe()})
+
+		if err == nil || err.Error() != "write 1 failed" {
+			t.Errorf("error = %v, want write 1 failed", err)
+		}
+
+		if got := cleanups.recorded(); len(got) != 1 || got[0].Error() != "write 2 failed" {
+			t.Errorf("recorded = %v, want write 2 failed", got)
 		}
 	})
 }

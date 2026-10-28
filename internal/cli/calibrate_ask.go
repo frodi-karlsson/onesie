@@ -52,7 +52,7 @@ func calibrateRun(
 	out, _, err := openOut(settings, flags.runFlags, calib.offline)
 
 	defer func() {
-		err = alsoFailed(err, out.Release())
+		err = cleanupsIn(cmd.Context()).after(err, out.Release())
 	}()
 
 	if err != nil {
@@ -84,7 +84,7 @@ func calibrateRun(
 		return runErr
 	}
 
-	return alsoFailed(runErr, out.Finish(runErr))
+	return cleanupsIn(cmd.Context()).after(runErr, out.Finish(runErr))
 }
 
 func askedPlan(

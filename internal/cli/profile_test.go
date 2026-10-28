@@ -23,7 +23,6 @@ import (
 
 	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/creds"
-	"github.com/frodi-karlsson/onesie/internal/output"
 )
 
 const (
@@ -643,16 +642,16 @@ func TestProfileCreate(t *testing.T) {
 		}
 	})
 
-	t.Run("should join the notice stderr refused to a failed save and keep exit 2", func(t *testing.T) {
+	t.Run("should keep the notice stderr refused beside a failed save and keep exit 2", func(t *testing.T) {
 		t.Parallel()
 
-		err := failedSave(t, failingWrite, brokenWriter{}).ExecuteContext(t.Context())
+		ended := execute(t.Context(), failedSave(t, failingWrite, brokenWriter{}))
 
-		if !strings.Contains(text(err), "\n"+output.Prefix) {
-			t.Errorf("error = %q, want the refused notice on a second prefixed line", text(err))
+		if got := ended.report(); len(got) != 2 || got[1] != errBroken.Error() {
+			t.Errorf("report = %q, want the failed save and then the refused notice", got)
 		}
 
-		if code := Classify(err); code != ExitUsage {
+		if code := Classify(ended.failure); code != ExitUsage {
 			t.Errorf("exit code = %d, want %d", code, ExitUsage)
 		}
 	})

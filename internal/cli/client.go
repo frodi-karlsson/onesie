@@ -25,7 +25,7 @@ const (
 func clientBuilder(info BuildInfo, flags *runFlags, settings rootSettings) clientFactory {
 	var warned, doubled sync.Once
 
-	return func(_ context.Context, chosen resolution, extra ...onesie.Option) (*onesie.Client, error) {
+	return func(ctx context.Context, chosen resolution, extra ...onesie.Option) (*onesie.Client, error) {
 		opts := []onesie.Option{
 			onesie.WithProvider(chosen.provider),
 			onesie.WithUserAgent("onesie/" + info.Version),
@@ -75,7 +75,7 @@ func clientBuilder(info BuildInfo, flags *runFlags, settings rootSettings) clien
 				warning := source + " ends in /" + segment + " and onesie adds the API path itself, so questions go to " +
 					output.Printable(client.SystemOneURL())
 
-				printErr = alsoFailed(printErr, output.Warning(settings.holder.stderr(), warning))
+				printErr = cleanupsIn(ctx).after(printErr, output.Warning(settings.holder.stderr(), warning))
 			})
 		}
 

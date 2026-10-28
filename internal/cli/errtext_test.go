@@ -7,52 +7,6 @@ import (
 	"github.com/frodi-karlsson/onesie-go"
 )
 
-func TestAlsoFailed(t *testing.T) {
-	t.Parallel()
-
-	run := &onesie.ValidationError{Message: "question too long"}
-	release := errors.New("unlocking answers.jsonl: busy")
-
-	tests := []struct {
-		name   string
-		first  error
-		second error
-		want   string
-	}{
-		{name: "should keep the first failure alone when the second is nil", first: run, want: "question too long"},
-		{name: "should keep the second failure alone when the first is nil", second: release, want: "unlocking answers.jsonl: busy"},
-		{
-			name: "should put the second failure on its own prefixed line", first: run, second: release,
-			want: "question too long\nonesie: unlocking answers.jsonl: busy",
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			got := alsoFailed(tc.first, tc.second)
-			if text(got) != tc.want {
-				t.Errorf("text = %q, want %q", text(got), tc.want)
-			}
-
-			for _, part := range []error{tc.first, tc.second} {
-				if part != nil && !errors.Is(got, part) {
-					t.Errorf("the joined error lost %v", part)
-				}
-			}
-		})
-	}
-
-	t.Run("should return nil when neither failed", func(t *testing.T) {
-		t.Parallel()
-
-		if got := alsoFailed(nil, nil); got != nil {
-			t.Errorf("alsoFailed = %v, want nil", got)
-		}
-	})
-}
-
 func TestEmbed(t *testing.T) {
 	t.Parallel()
 

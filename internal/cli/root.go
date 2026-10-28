@@ -228,7 +228,7 @@ func runRoot(
 	out, resume, err := openOut(settings, *flags, false)
 
 	defer func() {
-		err = alsoFailed(err, out.Release())
+		err = cleanupsIn(cmd.Context()).after(err, out.Release())
 	}()
 
 	if err != nil {
@@ -243,7 +243,7 @@ func runRoot(
 
 	runErr := run(cmd, settings, recorder.Events(), positional, flags, out, resume)
 
-	return alsoFailed(runErr, out.Finish(runErr))
+	return cleanupsIn(cmd.Context()).after(runErr, out.Finish(runErr))
 }
 
 func addRootFlags(root *cobra.Command, flags *runFlags, recorder *argv.Recorder) {
@@ -757,18 +757,15 @@ func asksNothing(set *pflag.FlagSet, name string) {
 // Execute runs a built command tree and returns the process exit code, so main never has to
 // classify an error itself.
 func Execute(ctx context.Context, root *cobra.Command) int {
-	err := root.ExecuteContext(ctx)
-	if err == nil {
-		return ExitOK
-	}
+	ended := execute(ctx, root)
 
-	if worthReporting(err) {
+	for _, line := range ended.report() {
 		// Stripped, since a message can quote the server or the input to a terminal.
 		//nolint:errcheck // A stderr that cannot take the message leaves the exit code to name the failure.
-		_ = output.Notice(root.ErrOrStderr(), output.Printable(report(err)))
+		_ = output.Notice(root.ErrOrStderr(), output.Printable(line))
 	}
 
-	return Classify(err)
+	return Classify(ended.failure)
 }
 
 // WithClientFactory replaces how commands build their API client, so a test can point one at a
