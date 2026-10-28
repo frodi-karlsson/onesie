@@ -224,10 +224,13 @@ func TestMockAnswers(t *testing.T) {
 			stderrAbsent: []string{"request", "$"},
 		},
 		{
-			name:     "should count the retries of a mocked 503 under --stats",
-			args:     with("-o", "values", "--state", "x", "--stats"),
-			mock:     `{"error":503}`,
-			stderr:   []string{"1 failed, 3 questions asked, 0 in / 0 out tokens, 3 attempts (2 retries: 503×2), 10s/attempt, "},
+			name: "should count the retries of a mocked 503 under --stats",
+			args: with("-o", "values", "--state", "x", "--stats"),
+			mock: `{"error":503}`,
+			stderr: []string{
+				"1 record, 1 failed, 0 answered from the mock, 3 questions asked, 0 in / 0 out tokens, " +
+					"3 attempts (2 retries: 503×2), 10s/attempt, ",
+			},
 			wantCode: ExitUnavailable,
 		},
 		{

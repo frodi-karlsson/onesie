@@ -211,6 +211,15 @@ func TestStatsString(t *testing.T) {
 				"3 attempts (2 retries: 503×2), 10s/attempt, 1s",
 		},
 		{
+			name: "should count no record the mock failed as answered from it",
+			stats: cli.Stats{
+				Mocked: true, Records: 2, Requests: 2, Failed: 1, FailedRequests: 1, Questions: 2,
+				Models: []string{"jev-latest"}, Attempts: 2, AttemptTimeout: 10 * time.Second, Elapsed: time.Second,
+			},
+			want: "2 records, 1 failed, 1 answered from the mock, 2 questions asked, 0 in / 0 out tokens, " +
+				"model jev-latest, 2 attempts, 10s/attempt, 1s",
+		},
+		{
 			name: "should count a mock run's records apart when a line never reached the mock",
 			stats: cli.Stats{
 				Mocked: true, Records: 3, Requests: 2, Failed: 2, Skipped: 1, FalseAsserts: 1,

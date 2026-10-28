@@ -67,6 +67,7 @@ type collector struct {
 	cached         int
 	requests       int
 	failed         int
+	failedRequests int
 	falseAsserts   int
 	abstainCount   int
 	questions      int
@@ -222,6 +223,7 @@ func (c *collector) recordFailure(cause error, reached bool, questions int) {
 	// as a request would report one that was never sent.
 	if reached {
 		c.requests++
+		c.failedRequests++
 	}
 }
 
@@ -300,7 +302,7 @@ func (c *collector) snapshot(elapsed time.Duration) Stats {
 	return Stats{
 		Mocked:  c.mocked,
 		Records: c.records, Skipped: c.skipped, Dedups: c.dedups, Cached: c.cached, Requests: c.requests,
-		Failed:       c.failed,
+		Failed: c.failed, FailedRequests: c.failedRequests,
 		FalseAsserts: c.falseAsserts, Abstains: c.abstainCount, Questions: c.questions,
 		InputTokens: c.inputTokens, OutputTokens: c.outputTokens, Cost: c.cost,
 		Models: slices.Sorted(maps.Keys(c.models)), Attempts: c.attempts, Retries: retries,
@@ -325,6 +327,9 @@ type Stats struct {
 	Cached   int
 	Requests int
 	Failed   int
+	// FailedRequests counts the failed records that reached the client, a part of both Failed and
+	// Requests, so a mock run never counts one as answered.
+	FailedRequests int
 	// FalseAsserts counts the records whose assertion did not hold, a resume's skipped ones
 	// included, apart from Failed, since a false assertion judges a complete record.
 	FalseAsserts int
@@ -353,7 +358,7 @@ func (s Stats) String() string {
 	// a part of that whole. A mock run says how many the mock answered in the same clause when that
 	// is all of them.
 	total := s.Records + s.Skipped
-	split := total > s.Requests || (!s.Mocked && total != 1)
+	split := total > s.Requests || (!s.Mocked && total != 1) || (s.Mocked && s.FailedRequests > 0)
 
 	switch {
 	case split:
@@ -416,7 +421,7 @@ func (s Stats) String() string {
 
 func (s Stats) requestClause() string {
 	if s.Mocked {
-		return fmt.Sprintf("%d answered from the mock", s.Requests)
+		return fmt.Sprintf("%d answered from the mock", s.Requests-s.FailedRequests)
 	}
 
 	return plural(s.Requests, "request")
