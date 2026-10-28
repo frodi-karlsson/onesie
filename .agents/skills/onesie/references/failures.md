@@ -1,16 +1,7 @@
 ## Exit codes
 
-| Code | Meaning |
-| --- | --- |
-| 0 | The question was answered |
-| 1 | The answer was a no: `-q` rejected it, or an assertion was false on the record or on any record of a stream |
-| 2 | A usage or validation error, a missing key, a refused resume, or a 4xx from the server other than 401, 402, 403, 408 and 429 |
-| 3 | Authentication, permission or payment failed, or the credential store could not be used |
-| 4 | The server did not answer after retries, a 429 or a 5xx, or it answered 2xx with a body or an answer onesie cannot use, which is never retried. The message says `response could not be used` and names the question and the value |
-| 5 | A transport error or a timeout, including a 408 |
-| 6 | A stream finished with one or more failed records, or `--stop-on-error` stopped it at a record that never became a request |
-| 7 | The gate could not decide: the assertion did not hold and `--abstain-if` did |
-| 130 | The run was interrupted by a signal |
+The [exit code table](https://github.com/frodi-karlsson/onesie/blob/main/REFERENCE.md#exit-codes)
+gives each code by outcome, and `onesie --help` lists the same table.
 
 Only exit 1 means the policy said no. Exits 2 through 5 mean no answer arrived at all. Exit 6
 means a stream finished and only the lines carrying an error failed, the rest answered normally.
@@ -38,35 +29,24 @@ Run `onesie profile show` to see what a run would use, then `onesie profile test
 against the server. `profile show` only names where the key lives. It never reads the keychain, so
 a keychain item that is gone shows up in `profile test` or a real run, not in `profile show`.
 
-A run uses one profile, or none. The choice comes from, strongest first:
-
-1. `--profile NAME` or `--provider NAME`.
-2. `ONESIE_PROFILE` or `ONESIE_PROVIDER`.
-3. The default in `profiles.json`, which `onesie profile use NAME` sets.
-
-Two choices of the same strength exit 2, unless a stronger one is given. With no choice and no profiles, a run uses typesafe. A
-profile's key comes from the profile alone, in the OS keychain or in `profiles.json`, which lives
-in `$ONESIE_CONFIG_DIR`, then `$XDG_CONFIG_HOME/onesie`, then, on Windows, `%APPDATA%\onesie`, and
-otherwise `~/.config/onesie`. `--provider` or `ONESIE_PROVIDER` runs without a profile, and the key
-comes from the provider's variable alone: `TYPESAFE_API_KEY` for typesafe, `OPENROUTER_API_KEY` for
-openrouter, `BERGET_API_KEY` for berget, `LEVANTO_API_KEY` for levanto, `CLOUDFLARE_API_TOKEN` for
-cloudflare. No provider falls back to another's key.
+A run uses one profile, or none. [Choosing a profile][choosing] gives the order a run picks it in,
+[What a run uses][uses] where the key, the model and the base URL come from, and
+[profiles.json][file] where the file lives. No provider falls back to another's key.
 
 Exit 3 also covers these:
 
-- A 401 or a 403, where the message names `onesie profile update NAME --key` on a profile run, and
+- A refused key, where the message names `onesie profile update NAME --key` on a profile run, and
   the provider's key variable on a run without a profile.
-- A 402. OpenRouter sends 402 when the account is out of credits, Berget when
-  the key has no subscription, and Levanto when the period's included usage is used up, and Cloudflare when AI Gateway has no
-  credits left for Jev.
+- An account out of credits.
 - A `profiles.json` that others can reach. The message names the file and its mode. Run
   `chmod 600` on it.
 - A keychain that refuses, holds no item for the profile, or does not answer within 10 seconds,
   usually because a prompt is waiting. Answer the prompt, or store the key again with
   `onesie profile update NAME --key`, adding `--file` to skip the keychain.
 
-`--base-url` outranks a profile's `base_url`, and a profile's `base_url` outranks
-`TYPESAFE_BASE_URL`.
+[choosing]: https://github.com/frodi-karlsson/onesie/blob/main/REFERENCE.md#choosing-a-profile
+[uses]: https://github.com/frodi-karlsson/onesie/blob/main/REFERENCE.md#what-a-run-uses
+[file]: https://github.com/frodi-karlsson/onesie/blob/main/REFERENCE.md#profilesjson
 
 ## On exit 2
 
@@ -81,7 +61,7 @@ Exit 3 also covers these:
 | `an empty state is a request the model cannot answer` | `--state`, `--state-file`, stdin, the `state` of a `-f` file, a stream line or `--map` gave an empty or all whitespace string, an empty object or an empty array. In a stream it is an error line instead, and `--skip-blank` does not drop it. An `-i request` body is forwarded as it is and not checked |
 | `an empty question is one the model cannot answer` | the positional question, an `--ask`, a question file's `ask` or a `-f` body's `instructions` is empty, all whitespace or null |
 | `has no 'instructions'` or `names its question 'instructions'` | a `-f` request body question has no `instructions`, or carries a question file's `ask` in its place |
-| `no API key` | nothing resolved for the provider, see the order above. A real run and `profile test` exit 2 here. `profile show` exits 2 too, after printing `key: none`. Under `--provider` or `ONESIE_PROVIDER` the message names a profile with that provider when there is one, and otherwise `onesie profile create NAME --provider PROVIDER` |
+| `no API key` | nothing resolved for the provider, in the order [Choosing a profile][choosing] gives. A real run and `profile test` exit 2 here. `profile show` exits 2 too, after printing `key: none`. Under `--provider` or `ONESIE_PROVIDER` the message names a profile with that provider when there is one, and otherwise `onesie profile create NAME --provider PROVIDER` |
 | `no profile is the default` | there are profiles, none is the default and nothing chose one. Run `onesie profile use NAME`, or pass `--profile` or `--provider` |
 | `which does not exist` | `--profile` or `ONESIE_PROFILE` names a profile that is not in `profiles.json`. The message lists the profiles there are |
 | `is in use by another onesie run` | another run holds the lock beside the `--out` file |
@@ -100,7 +80,7 @@ Exit 3 also covers these:
 | `and at most` and `are allowed` | an `-i request` body holds a choice question with more options, or a score question with more levels, than `onesie -V` lists. It is an error line of kind `input`, and nothing is sent for it |
 | `takes no images`, `takes no box questions` or `takes no long context` | the provider cannot take what the run asks for. The message names the providers that can, so ask with one of them through `--provider` |
 | `no cloudflare account id` | cloudflare has a token and no account. Set `CLOUDFLARE_ACCOUNT_ID`, or store one in the profile with `onesie profile update NAME --account-id ACCOUNT_ID`, or in a new one with `onesie profile create NAME --provider cloudflare --account-id ACCOUNT_ID` |
-| `is plain http to a host other than this machine` | the base URL the message names, `--base-url`, `TYPESAFE_BASE_URL` or `the profile's base_url`, is `http://` to a host other than `localhost`, `127.0.0.0/8`, also in IPv4-mapped form, or `::1`, so the key would travel unencrypted. Use https, or pass `--allow-http` to send it anyway. A profile stored with an http `base_url` needs `--allow-http` on every run |
+| `is plain http to a host other than this machine` | the base URL the message names, `--base-url`, `TYPESAFE_BASE_URL` or `the profile's base_url`, is `http://` to a host other than this machine, so the key would travel unencrypted. Use https, or pass `--allow-http` to send it anyway. A profile stored with an http `base_url` needs `--allow-http` on every run |
 | `must not hold @, ? or #` | the base URL the message names holds `@`, `?` or `#`, as credentials, a query or a fragment do. Pass the API root alone, and keep the key in a profile or the provider's key variable |
 | `names no host`, `is not an http or https URL` or `does not parse` | the base URL the message names is not an absolute http or https URL with a host. Write it as `https://HOST`, with a path after it when the server needs one |
 | `Insufficient balance` | Cloudflare's AI Gateway has no credits for Jev. Add credits, or ask Clef with `-m clef-flash`, which runs on the free allowance |

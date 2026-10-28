@@ -15,7 +15,7 @@ The sets are built into onesie, so `-f` loads one by name with no copy step:
 onesie -f shell-safety -q --state 'rm -rf ./build'
 ```
 
-To edit a set, save a copy into `.onesie/questions/`. A saved file wins over the built-in set of the
+To edit a set, save a copy into `.onesie/questions/`. A saved file wins over the built in set of the
 same name, so print the copy elsewhere and move it in. A redirect straight into
 `.onesie/questions/` would empty the file before `-f` read it:
 

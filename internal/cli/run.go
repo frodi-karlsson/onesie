@@ -291,7 +291,7 @@ func resolveState(
 			Source: input.SourceBody,
 			State:  loaded.State,
 			Raw:    string(loaded.StateWire),
-			// The ordered bytes the loader kept, rather than a re-marshalled Go map, so the body
+			// The ordered bytes the loader kept, not a Go map marshalled again, so the body
 			// reaches the wire in the order it was written.
 			Wire: loaded.StateWire,
 		}
@@ -1267,7 +1267,7 @@ func describe(cause error) *output.Failure {
 
 func quietResult(question plan.Question, a *answer.Answer) error {
 	if question.Shape == plan.Noul {
-		// The threshold defaults to a half, so a yes/no question is meaningful under -q with no
+		// The threshold defaults to a half, so a yes or no question is meaningful under -q with no
 		// policy at all, unlike a pick question which has nothing to compare.
 		threshold := 0.5
 		if question.Policy.Threshold != nil {

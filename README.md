@@ -131,8 +131,7 @@ tail -f tickets.jsonl | onesie 'is this urgent' -i jsonl --map .body --id .id -o
 ```
 
 **Wire the gate into a script.** Exit 0 runs the command, 1 blocks it and 7 asks a person. Any
-other exit code means there was no answer. Exit 4 includes a 200 whose answer did not fit the
-question, which onesie never retries.
+other exit code means there was no answer, as the [exit code table](REFERENCE.md#exit-codes) says.
 
 ```sh
 onesie -f shell-safety -q --state "$cmd"
@@ -172,7 +171,7 @@ In GitHub Actions, a failing gate fails the step only under pipefail, so name `s
 `$GITHUB_STEP_SUMMARY` instead.
 
 **Rank records by several questions.** One `--ask` per dimension scores every record, and `jq`
-weighs the answers and sorts by the sum. `.value` is the yes/no probability, and `.norm` is the
+weighs the answers and sorts by the sum. `.value` is the yes or no probability, and `.norm` is the
 rate's position between 0 and 1. The weighting lives in `jq`, since `--assert` has no arithmetic,
 and `select(has("error") | not)` drops the records that failed.
 

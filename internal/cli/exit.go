@@ -21,7 +21,7 @@ const (
 	ExitOK = 0
 	// ExitRejected means an assertion was false, or -q ran and the policy did not accept the answer.
 	ExitRejected = 1
-	// ExitUsage means a usage or validation error, including a server 422.
+	// ExitUsage means a usage or validation error, or a 4xx response no other exit code claims.
 	ExitUsage = 2
 	// ExitAuth means authentication, permission or payment failed.
 	ExitAuth = 3

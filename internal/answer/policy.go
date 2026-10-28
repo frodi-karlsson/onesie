@@ -44,7 +44,7 @@ func Failed(q plan.Question) *Answer {
 
 	out := &Answer{Fallback: "error", Decided: true}
 
-	// A yes/no decision stays boolean whether it came from a threshold or from a fallback, so a
+	// A yes or no decision stays boolean whether it came from a threshold or from a fallback, so a
 	// consumer can branch on the JSON type without knowing which produced it.
 	if q.Shape == plan.Noul {
 		out.Decision = q.Policy.Fallback.Boolean

@@ -32,7 +32,7 @@ func TestCheckRule(t *testing.T) {
 				"the argv and onesie's own stderr",
 			kind:     "good",
 			exitCode: 2,
-			stderr:   "onesie: --fallback on a yes/no question takes true, false, yes or no, got 'x'",
+			stderr:   "onesie: --fallback on a yes or no question takes true, false, yes or no, got 'x'",
 			wantPass: true,
 			wantFail: true,
 			wantChecks: func(t *testing.T, failure string) {
@@ -40,7 +40,7 @@ func TestCheckRule(t *testing.T) {
 
 				for _, want := range []string{
 					"demo-skill", "r1", "ran: onesie --print-request --ask a=x",
-					"--fallback on a yes/no question",
+					"--fallback on a yes or no question",
 				} {
 					if !strings.Contains(failure, want) {
 						t.Errorf("failure = %q, want it to contain %q", failure, want)

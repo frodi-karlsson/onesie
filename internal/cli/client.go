@@ -16,8 +16,8 @@ import (
 )
 
 const (
-	allowHTTPHelp = "send the API key over a plain http base URL to a host other than localhost, " +
-		"127.0.0.0/8, also in IPv4-mapped form, or ::1. Without it such a base URL exits 2 before any request"
+	allowHTTPHelp = "send the API key over a plain http base URL to a host other than this machine. " +
+		"Without it such a base URL exits 2 before any request"
 	plainHTTPReason = ", so the API key would cross the network unencrypted"
 	profileBaseURL  = "the profile's base_url"
 )

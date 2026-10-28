@@ -9,7 +9,7 @@ import (
 )
 
 // WriteJSON renders the report as one json object on one line. It holds every row the table shows,
-// plus a yes/no row at every distinct value, the whole grid and every miss.
+// plus a yes or no row at every distinct value, the whole grid and every miss.
 func WriteJSON(w io.Writer, r Report) error {
 	doc := jsonReport{
 		Models:     r.Models,

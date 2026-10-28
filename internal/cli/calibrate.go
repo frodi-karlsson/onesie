@@ -49,7 +49,7 @@ func newCalibrateCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 			"tables to pick a gate from. It never picks the cut.\n\n" +
 			"Map only the text a person would read, since a --map that selects the label flatters " +
 			"the question.\n\n" +
-			"Labels: a yes/no label is true, false, yes, no, 1 or 0 in any case. A pick or rate label " +
+			"Labels: a yes or no label is true, false, yes, no, 1 or 0 in any case. A pick or rate label " +
 			"is an option or level name exactly as declared, or a number whose text is one, so 4 " +
 			"matches --rate 1,2,3,4,5. null, no result or an empty string leaves a record unlabelled " +
 			"for that question, and a record no question labels is not asked. A jsonl record reads " +
@@ -59,7 +59,7 @@ func newCalibrateCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 			"on stderr. At least one question needs a --label, a --label naming no question exits 2, and " +
 			"so does a --require that reads a skipped question. A --resume into an --out file that " +
 			"answers every question still asks the skipped ones, so the file stays whole.\n\n" +
-			"A yes/no cut row flags a record when its value is at least the cut, so the cut goes into " +
+			"A yes or no cut row flags a record when its value is at least the cut, so the cut goes into " +
 			"a gate as written. A question file's assert, abstain_if, threshold, min_confidence and " +
 			"fallback are ignored, since calibrate reports every cut. The same flags are refused.\n\n" +
 			"A pick or rate table has a row per name. found is the share of the records labelled with a " +
@@ -70,10 +70,10 @@ func newCalibrateCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 			"A plain stream run can resume the file too, given the same questions, model, -i, --map " +
 			"and --id, with -o json and no gate or merge.\n\n" +
 			"--require turns the report into a check. Each one reads [lower|upper](ID.MEASURE) OP NUMBER " +
-			"[at CUT], where MEASURE is catches, false_alarms, right_when_flagged or auc for yes/no, " +
+			"[at CUT], where MEASURE is catches, false_alarms, right_when_flagged or auc for yes or no, " +
 			"agreement for pick and rate, and within_one for rate. OP is >=, >, <= or <, and NUMBER is a " +
 			"fraction between 0 and 1. lower and upper compare an end of the 95 percent interval instead " +
-			"of the value, so 16 of 16 fails lower(x.catches) >= 0.9. A yes/no measure other than auc is " +
+			"of the value, so 16 of 16 fails lower(x.catches) >= 0.9. A yes or no measure other than auc is " +
 			"read at one cut: at CUT names it, at abstain takes it from the -f file's abstain_if, and " +
 			"otherwise the file's assert gives it when it compares ID.value < X or ID.value >= X. The " +
 			"report still prints, and each requirement that did not hold is named on stderr.\n\n" +

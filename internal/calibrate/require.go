@@ -78,7 +78,8 @@ const (
 	Upper
 )
 
-// At is the cut a yes/no requirement reads, named by a number or taken from the file's abstain_if.
+// At is the cut a yes or no requirement reads, named by a number or taken from the file's
+// abstain_if.
 // Value is set only for AtNumber.
 type At struct {
 	Kind  AtKind
@@ -255,7 +256,7 @@ func (r *Requirement) checkCombination() error {
 	return nil
 }
 
-// Check measures the requirement against one question's score, reading a yes/no measure at cut.
+// Check measures the requirement against one question's score, reading a yes or no measure at cut.
 // A measure over no records, or at a cut the score has no row for, does not hold.
 func (r Requirement) Check(q QuestionReport, cut float64) Result {
 	result := Result{Requirement: r}
@@ -404,8 +405,8 @@ func (r Result) String() string {
 // Measure names what a requirement reads from a question's score.
 type Measure int
 
-// The measures a requirement can read. The first four are yes/no measures, agreement is pick and
-// rate, and within_one is rate.
+// The measures a requirement can read. The first four are yes or no measures, agreement is pick
+// and rate, and within_one is rate.
 const (
 	Catches Measure = iota
 	FalseAlarms
@@ -438,12 +439,13 @@ func (m Measure) String() string {
 	return measureNames[m]
 }
 
-// YesNo reports whether the measure reads a yes/no question.
+// YesNo reports whether the measure reads a yes or no question.
 func (m Measure) YesNo() bool {
 	return m <= AreaUnderCurve
 }
 
-// NeedsCut reports whether the measure is read at one cut, which every yes/no measure but auc is.
+// NeedsCut reports whether the measure is read at one cut, which every yes or no measure but auc
+// is.
 func (m Measure) NeedsCut() bool {
 	return m < AreaUnderCurve
 }

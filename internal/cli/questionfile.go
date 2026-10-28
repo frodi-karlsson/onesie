@@ -32,10 +32,10 @@ func readQuestionFile(settings rootSettings, value string) (data []byte, path, h
 	if source.BuiltIn != "" {
 		builtIn, ok := settings.readBuiltIn(source.BuiltIn)
 		if !ok {
-			return nil, "", "", fmt.Errorf("the built-in set %s could not be read", source.BuiltIn)
+			return nil, "", "", fmt.Errorf("the built in set %s could not be read", source.BuiltIn)
 		}
 
-		return builtIn, "built-in " + source.BuiltIn, "", nil
+		return builtIn, "built in " + source.BuiltIn, "", nil
 	}
 
 	data, err = settings.readFile(source.Path)
@@ -89,7 +89,7 @@ func loadQuestionFile(data []byte, path, hides string, alone bool) (*qfile.File,
 		return nil, fmt.Errorf("%s: %w", path, err)
 	}
 
-	// A file with no question beside --ask only adds nothing, unless it hides the built-in set the
+	// A file with no question beside --ask only adds nothing, unless it hides the built in set the
 	// user meant to add.
 	if len(loaded.Questions) > 0 || (!alone && hides == "") {
 		return loaded, nil
@@ -97,7 +97,7 @@ func loadQuestionFile(data []byte, path, hides string, alone bool) (*qfile.File,
 
 	if hides != "" {
 		return nil, fmt.Errorf("the question file %s holds no questions. Remove it, and -f %s takes "+
-			"the built-in set again", path, hides)
+			"the built in set again", path, hides)
 	}
 
 	return nil, fmt.Errorf("the question file %s holds no questions", path)

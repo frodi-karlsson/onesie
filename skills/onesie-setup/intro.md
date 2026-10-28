@@ -1,6 +1,10 @@
-onesie is a command line tool that asks System One models typed questions about text. It needs the `onesie` binary on PATH and an API key, from TypeSafe, OpenRouter, Berget, Levanto or Cloudflare. This skill walks a user from nothing to a working first command.
+onesie is a command line tool that asks System One models typed questions about text. It needs the
+`onesie` binary on PATH and an API key, from TypeSafe, OpenRouter, Berget, Levanto or Cloudflare.
+This skill walks a user from nothing to a working first command.
 
-There are two ways in. A user who installs onesie first can add the plugin afterwards. A user who installs the plugin first gets a session start line saying onesie is missing or has no key, and this skill takes it from there.
+There are two ways in. A user who installs onesie first can add the plugin afterwards. A user who
+installs the plugin first gets a session start line saying onesie is missing or has no key, and this
+skill takes it from there.
 
 The steps, in order:
 
@@ -10,4 +14,5 @@ The steps, in order:
 4. Have the user store the key in a profile, outside the conversation.
 5. Run `onesie profile test` and confirm it reports the provider and a model count.
 
-For a flag this skill does not cover, run `onesie --help`, `onesie profile --help` or `onesie calibrate --help`, and `onesie -V` for the version and the built in limits.
+For a flag this skill does not cover, run `onesie --help`, `onesie profile --help` or
+`onesie calibrate --help`, and `onesie -V` for the version and the built in limits.

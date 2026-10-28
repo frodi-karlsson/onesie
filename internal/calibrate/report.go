@@ -34,7 +34,7 @@ type QuestionReport struct {
 	Rate  *RateScore
 }
 
-// ShapeName is a shape as a report names it, yes/no for a plain question.
+// ShapeName is a shape as the header of a report names it.
 func ShapeName(shape plan.Shape) string {
 	if shape == plan.Noul {
 		return "yes/no"

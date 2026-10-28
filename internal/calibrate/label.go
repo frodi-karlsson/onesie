@@ -63,7 +63,7 @@ func ParseLabel(shape plan.Shape, names []string, value any) (Label, bool, error
 	if shape == plan.Noul {
 		yes, ok := yesNo(value)
 		if !ok {
-			return Label{}, false, fmt.Errorf("%s is not a yes/no label. Use true, false, yes, no, 1 or 0",
+			return Label{}, false, fmt.Errorf("%s is not a yes or no label. Use true, false, yes, no, 1 or 0",
 				shown(value))
 		}
 
@@ -78,8 +78,8 @@ func ParseLabel(shape plan.Shape, names []string, value any) (Label, bool, error
 	return Label{Name: text}, true, nil
 }
 
-// Label is one record's right answer for one question. Yes holds a yes/no label and Name holds a
-// pick or rate label.
+// Label is one record's right answer for one question. Yes holds a yes or no label and Name holds
+// a pick or rate label.
 type Label struct {
 	Yes  bool
 	Name string

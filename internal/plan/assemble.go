@@ -239,7 +239,7 @@ func applyEvents(question *Question, events []argv.Event, readFile func(string) 
 	question.DescOrder = append(question.DescOrder, descOrder...)
 	attach(question, descriptions)
 
-	// The shape is only final once the loop ends, and a yes/no fallback has to be a boolean by
+	// The shape is only final once the loop ends, and a yes or no fallback has to be a boolean by
 	// the time anything reads it, whether or not validation ran. Unparseable text is reported by
 	// checkPolicy, which owns the user facing message.
 	if question.Shape == Noul && question.Policy.Fallback != nil {

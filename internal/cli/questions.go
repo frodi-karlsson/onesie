@@ -24,7 +24,7 @@ func newQuestionsCmd(settings rootSettings) *cobra.Command {
 			"-f NAME looks in the nearest .onesie/questions at or above the working directory, then in " +
 			"questions under the config dir that holds profiles.json, and tries NAME.yaml, NAME.yml and NAME.json. " +
 			"Last it takes the starter sets built into onesie, which list as built in. A name in more than " +
-			"one place lists only the first, which is the one -f uses, so a saved copy of a built-in set " +
+			"one place lists only the first, which is the one -f uses, so a saved copy of a built in set " +
 			"wins. A name with two files in one directory is listed once per file and marked as a clash, " +
 			"which -f refuses.",
 		Example: "  mkdir -p .onesie/questions\n" +
@@ -98,7 +98,7 @@ func savedRows(listed []qfile.Found, readFile func(string) ([]byte, error)) []sa
 
 type savedRow struct {
 	Name string `json:"name"`
-	// Path is nil for a built-in, which has no file.
+	// Path is nil for a built in set, which has no file.
 	Path    *string `json:"path"`
 	Clash   bool    `json:"clash,omitempty"`
 	Empty   bool    `json:"empty,omitempty"`

@@ -33,7 +33,8 @@ terminal parses the same way.
 
 On a non zero exit or a key error, read `references/failures.md`.
 
-For a flag this skill does not cover, run `onesie --help` or `onesie calibrate --help`, and `onesie -V` for the version and the built in limits.
+For a flag this skill does not cover, run `onesie --help` or `onesie calibrate --help`, and
+`onesie -V` for the version and the built in limits.
 
 ## Rules
 
@@ -179,7 +180,7 @@ onesie 'is this urgent' --state 'the server is down' --stats --usage -o json
 
 ### Turn on --cache for a script or loop that asks the same thing again.
 
-`--cache`, or `ONESIE_CACHE=1` in the environment of every run, stores each successful response on disk and answers a repeated request from it, with no request and zero tokens. A change to the state, the questions, the model, the provider or the base URL asks again, while `--timeout`, `--retries`, `--assert` and the output flags do not. On the `typesafe` provider a model name ending in a version, such as `jev-1.13.0`, is pinned and its answers live until they are evicted. Every other model is an alias, such as `jev-latest`, and so is every model on OpenRouter or Berget, so its answers expire after 24 hours, or after `ONESIE_CACHE_TTL`. `--cache=false` turns it off for one run under `ONESIE_CACHE=1`, so that run asks the API again. Cached answers stay on disk until they expire, are evicted or `onesie cache clear` removes them.
+`--cache`, or `ONESIE_CACHE=1` in the environment of every run, stores each successful response on disk and answers a repeated request from it, with no request and zero tokens. A change to the state, the questions, the model, the provider or the base URL asks again, while `--timeout`, `--retries`, `--assert` and the output flags do not. On the `typesafe` provider a model name ending in a version, such as `jev-1.13.0`, is pinned and its answers live until they are evicted. Every other model is an alias, such as `jev-latest`, and so is every model on any other provider, as [Caching](https://github.com/frodi-karlsson/onesie/blob/main/REFERENCE.md#caching) lists, so its answers expire after 24 hours, or after `ONESIE_CACHE_TTL`. `--cache=false` turns it off for one run under `ONESIE_CACHE=1`, so that run asks the API again. Cached answers stay on disk until they expire, are evicted or `onesie cache clear` removes them.
 
 **Good:**
 
@@ -199,7 +200,7 @@ onesie --ask urgent='is this urgent' --ask team='which team owns this' --pick bi
 
 ### Pick the connection with --profile or the default profile, or --provider, and pin models per provider.
 
-A profile, stored with `onesie profile create NAME --provider PROVIDER`, holds a provider, its key and optionally a model. A run uses the profile `--profile NAME` or `ONESIE_PROFILE` names, or the default one, which `onesie profile use NAME` sets, and a profile's key and model beat the provider's variables. `--provider` or `ONESIE_PROVIDER` runs without a profile on that provider. typesafe is the default provider and reads `TYPESAFE_API_KEY`, plus `TYPESAFE_BASE_URL` and `TYPESAFE_DEFAULT_MODEL` when they are set. openrouter reads `OPENROUTER_API_KEY` alone, and never falls back to the TypeSafe key or those two variables. `jev-latest` works on both, but a pinned model id does not carry over: TypeSafe pins `jev-1.13.0`, OpenRouter pins `typesafe/jev-1.13`. berget reads `BERGET_API_KEY` alone and serves its own models, not `jev-latest`: its default is the `systemone` alias, and `--list-models` names the rest. levanto reads `LEVANTO_API_KEY` alone and serves its Sage models, not `jev-latest`: its default is the `sage-latest` alias. cloudflare reads `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`, defaults to `typesafe/jev` through AI Gateway, which needs credits, and serves `clef`, `clef-flash` and `clef-omni`. It takes images but no Box or long context. `onesie profile show` names the profile, the provider and where the key lives.
+A profile, stored with `onesie profile create NAME --provider PROVIDER`, holds a provider, its key and optionally a model. A run picks its profile in the order [Choosing a profile](https://github.com/frodi-karlsson/onesie/blob/main/REFERENCE.md#choosing-a-profile) gives, and a profile's key and model beat the provider's variables. `--provider` or `ONESIE_PROVIDER` runs without a profile on that provider. typesafe is the default provider and reads `TYPESAFE_API_KEY`, plus `TYPESAFE_BASE_URL` and `TYPESAFE_DEFAULT_MODEL` when they are set. openrouter reads `OPENROUTER_API_KEY` alone, and never falls back to the TypeSafe key or those two variables. `jev-latest` works on both, but a pinned model id does not carry over: TypeSafe pins `jev-1.13.0`, OpenRouter pins `typesafe/jev-1.13`. berget reads `BERGET_API_KEY` alone and serves its own models, not `jev-latest`: its default is the `systemone` alias, and `--list-models` names the rest. levanto reads `LEVANTO_API_KEY` alone and serves its Sage models, not `jev-latest`: its default is the `sage-latest` alias. cloudflare reads `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`, defaults to `typesafe/jev` through AI Gateway, which needs credits, and serves `clef`, `clef-flash` and `clef-omni`. It takes images but no Box or long context. `onesie profile show` names the profile, the provider and where the key lives.
 
 **Good:**
 

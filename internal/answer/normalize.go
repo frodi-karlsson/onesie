@@ -346,7 +346,7 @@ func SumFits(probabilities []float64) (float64, bool) {
 }
 
 // Answer is the normalized shape for one question. Absent fields are omitted, which is what makes
-// a yes/no answer a bare value rather than a mostly empty object.
+// a yes or no answer a bare value, not a mostly empty object.
 type Answer struct {
 	Value      any               `json:"value,omitempty"`
 	Score      *float64          `json:"score,omitempty"`

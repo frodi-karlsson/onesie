@@ -59,14 +59,14 @@ func Find(name string, env FindEnv) (Source, error) {
 
 // Source is where a name resolved to: a file, or a set built into onesie.
 type Source struct {
-	// Path is the file the name resolved to, empty for a built-in.
+	// Path is the file the name resolved to, empty for a built in set.
 	Path string
-	// BuiltIn is the name of the built-in set, empty for a file.
+	// BuiltIn is the name of the built in set, empty for a file.
 	BuiltIn string
 }
 
 // List reports every name Find would resolve, the repository set first, then the config dir's,
-// then the built-in sets, each sorted by name. A name more than one place holds is listed once,
+// then the built in sets, each sorted by name. A name more than one place holds is listed once,
 // from the first, since Find never reaches the others.
 func List(env FindEnv) ([]Found, error) {
 	repo, repoEntries, err := repoSet(env)
@@ -102,8 +102,8 @@ func List(env FindEnv) ([]Found, error) {
 	return listed, nil
 }
 
-// Found is one name List reports. More than one path is a clash, which Find refuses. A built-in
-// has no path.
+// Found is one name List reports. More than one path is a clash, which Find refuses. A built in
+// set has no path.
 type Found struct {
 	Name  string
 	Paths []string
@@ -126,7 +126,7 @@ type FindEnv struct {
 	Resolve func(string) (string, error)
 	// BuiltIn reports whether onesie has a set built in under a name. Nil means none.
 	BuiltIn func(name string) bool
-	// BuiltIns lists the built-in sets. Nil means none.
+	// BuiltIns lists the built in sets. Nil means none.
 	BuiltIns func() []string
 }
 

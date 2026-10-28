@@ -122,7 +122,7 @@ type Policy struct {
 type Fallback struct {
 	// Text is the flag value as written, used for a pick or rate question.
 	Text string
-	// Boolean is the parsed value for a yes/no question, where decision stays boolean.
+	// Boolean is the parsed value for a yes or no question, where decision stays boolean.
 	Boolean bool
 }
 

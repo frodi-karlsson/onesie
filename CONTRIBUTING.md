@@ -28,7 +28,7 @@ can go straight to a pull request.
 
 A pull request needs:
 
-- a one-line title in the form `type: what it does`, such as `fix: ...`, `feat: ...` or `docs: ...`.
+- a one line title in the form `type: what it does`, such as `fix: ...`, `feat: ...` or `docs: ...`.
   Pull requests are squash merged, and the title becomes the commit message.
 - tests for what it changes. A fix comes with a test that fails without it.
 - the docs a user reads, updated in the same pull request: `README.md`, `REFERENCE.md`, and the
@@ -46,5 +46,5 @@ advice. The History lessons check needs a key, so it skips on a pull request fro
 ## Development
 
 `go.mod` names the Go version, `make` lists every target, and `golangci-lint` is expected on `PATH`
-at the version `.github/workflows/ci.yml` pins. [MAINTAINING.md](MAINTAINING.md) covers the layout, the live suite, the calibrated gates and
-releases.
+at the version `.github/workflows/ci.yml` pins. [MAINTAINING.md](MAINTAINING.md) covers the layout,
+the live suite, the calibrated gates and releases.

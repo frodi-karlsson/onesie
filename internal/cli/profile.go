@@ -657,8 +657,8 @@ func addMemberFlags(cmd *cobra.Command, fields *profileFlags, flags *runFlags) {
 	cmd.Flags().StringVar(&fields.model, flagModel, "", "the model a run uses when it names none")
 	cmd.Flags().StringVar(&fields.baseURL, flagBaseURL, "", "the api root the profile's runs use")
 	cmd.Flags().BoolVar(&flags.allowHTTP, flagAllowHTTP, false,
-		"store a plain http --base-url to a host other than localhost, 127.0.0.0/8, also in IPv4-mapped "+
-			"form, or ::1. Every run on the profile then needs --allow-http too")
+		"store a plain http --base-url to a host other than this machine. Every run on the profile then "+
+			"needs --allow-http too")
 	cmd.Flags().StringVar(&fields.accountID, flagAccountID, "",
 		"cloudflare only, the account id, 32 hexadecimal characters")
 }

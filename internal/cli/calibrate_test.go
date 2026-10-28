@@ -457,7 +457,7 @@ func TestNewCalibrateCmd(t *testing.T) {
 			args:     []string{"calibrate", "--help"},
 			wantCode: ExitOK,
 			contains: []string{
-				"Labels: a yes/no label is true, false, yes, no, 1 or 0 in any case",
+				"Labels: a yes or no label is true, false, yes, no, 1 or 0 in any case",
 				"null, no result or an empty string leaves a record unlabelled",
 				`{"id":"T-1","body":"the site is down","is_urgent":true}`,
 				"T-1,the site is down,yes",
@@ -694,7 +694,7 @@ func TestReadLabelled(t *testing.T) {
 			stdin:    "{\"id\":\"T-1\",\"body\":\"a\",\"u\":true}\n{\"id\":\"T-7\",\"body\":\"b\",\"u\":\"maybe\"}\n",
 			wantCode: ExitUsage,
 			contains: []string{
-				`onesie: --label urgent: record T-7: "maybe" is not a yes/no label. Use true, false, yes, no, 1 or 0`,
+				`onesie: --label urgent: record T-7: "maybe" is not a yes or no label. Use true, false, yes, no, 1 or 0`,
 			},
 		},
 		{
@@ -702,7 +702,7 @@ func TestReadLabelled(t *testing.T) {
 			args:     jsonl(),
 			stdin:    "{\"body\":\"a\",\"u\":true}\n{\"body\":\"b\",\"u\":\"maybe\"}\n",
 			wantCode: ExitUsage,
-			contains: []string{`onesie: --label urgent: line 2: "maybe" is not a yes/no label`},
+			contains: []string{`onesie: --label urgent: line 2: "maybe" is not a yes or no label`},
 		},
 		{
 			name:     "should quote a pick label that differs from the option in case",
@@ -3109,7 +3109,7 @@ func TestResolveRequirements(t *testing.T) {
 		{name: "should refuse a cut with no file", require: "u.catches >= 0.5", wantErr: "no gate"},
 		{name: "should refuse at abstain with no abstain_if", file: file("assert.yaml", "assert: u.value < 0.5\n"), require: "u.catches >= 0.5 at abstain", wantErr: "abstain_if"},
 		{name: "should refuse an unknown id", file: file("plain.yaml", ""), require: "x.catches >= 0.5 at 0.5", wantErr: "unknown question 'x'"},
-		{name: "should refuse agreement on a yes/no question", file: file("plain2.yaml", ""), require: "u.agreement >= 0.5", wantErr: "'u' is a yes/no question"},
+		{name: "should refuse agreement on a yes/no question", file: file("plain2.yaml", ""), require: "u.agreement >= 0.5", wantErr: "'u' is a yes or no question"},
 		{name: "should refuse catches on a pick question", file: file("plain3.yaml", ""), require: "t.catches >= 0.5 at 0.5", wantErr: "'t' is a pick question"},
 		{name: "should refuse within_one on a pick question", file: file("plain4.yaml", ""), require: "t.within_one >= 0.5", wantErr: "'t' is a pick question"},
 		{name: "should refuse a requirement that does not parse", file: file("plain5.yaml", ""), require: "u.catches >= 95", wantErr: "write 0.95, not 95"},

@@ -7,9 +7,13 @@ license: MIT
 allowed-tools: Bash(onesie:*)
 ---
 
-onesie is a command line tool that asks System One models typed questions about text. It needs the `onesie` binary on PATH and an API key, from TypeSafe, OpenRouter, Berget, Levanto or Cloudflare. This skill walks a user from nothing to a working first command.
+onesie is a command line tool that asks System One models typed questions about text. It needs the
+`onesie` binary on PATH and an API key, from TypeSafe, OpenRouter, Berget, Levanto or Cloudflare.
+This skill walks a user from nothing to a working first command.
 
-There are two ways in. A user who installs onesie first can add the plugin afterwards. A user who installs the plugin first gets a session start line saying onesie is missing or has no key, and this skill takes it from there.
+There are two ways in. A user who installs onesie first can add the plugin afterwards. A user who
+installs the plugin first gets a session start line saying onesie is missing or has no key, and this
+skill takes it from there.
 
 The steps, in order:
 
@@ -19,7 +23,8 @@ The steps, in order:
 4. Have the user store the key in a profile, outside the conversation.
 5. Run `onesie profile test` and confirm it reports the provider and a model count.
 
-For a flag this skill does not cover, run `onesie --help`, `onesie profile --help` or `onesie calibrate --help`, and `onesie -V` for the version and the built in limits.
+For a flag this skill does not cover, run `onesie --help`, `onesie profile --help` or
+`onesie calibrate --help`, and `onesie -V` for the version and the built in limits.
 
 ## Rules
 
@@ -40,10 +45,18 @@ A profile names its provider, so `onesie profile create work --provider openrout
 Three ways work. Prefer Homebrew when the user has it.
 
 - The Homebrew formula, `brew install frodi-karlsson/tap/onesie`.
-- The install script, `curl -fsSL https://raw.githubusercontent.com/frodi-karlsson/onesie/main/install.sh | sh`. It checks the sha256 of the download, installs to `~/.local/bin` or to `$ONESIE_INSTALL_DIR`, and warns when that directory is not on PATH.
-- A Go toolchain, at the version `go.mod` names or newer, with `go install github.com/frodi-karlsson/onesie/cmd/onesie@latest`. It writes the binary to `$GOBIN`, or to `$(go env GOPATH)/bin` when that is unset, which is often not on PATH. If `command -v onesie` still finds nothing, have the user add that directory to PATH in their shell profile and open a new shell.
+- The install script,
+  `curl -fsSL https://raw.githubusercontent.com/frodi-karlsson/onesie/main/install.sh | sh`. It
+  checks the sha256 of the download, installs to `~/.local/bin` or to `$ONESIE_INSTALL_DIR`, and
+  warns when that directory is not on PATH.
+- A Go toolchain, at the version `go.mod` names or newer, with
+  `go install github.com/frodi-karlsson/onesie/cmd/onesie@latest`. It writes the binary to `$GOBIN`,
+  or to `$(go env GOPATH)/bin` when that is unset, which is often not on PATH. If
+  `command -v onesie` still finds nothing, have the user add that directory to PATH in their shell
+  profile and open a new shell.
 
-Prefer these three to a download from the releases page, which leaves the user to unpack the archive and put the binary on PATH by hand.
+Prefer these three to a download from the releases page, which leaves the user to unpack the archive
+and put the binary on PATH by hand.
 
 Confirm the install with `onesie -V`, which prints the version and the built in limits.
 
@@ -57,9 +70,22 @@ Confirm the install with `onesie -V`, which prints the version and the built in 
 | levanto | `onesie profile create work --provider levanto` | `LEVANTO_API_KEY` |
 | cloudflare | `onesie profile create work --provider cloudflare --account-id ACCOUNT_ID` | `CLOUDFLARE_API_TOKEN`, with `CLOUDFLARE_ACCOUNT_ID` |
 
-A name in place of `work` is 1 to 64 lowercase letters, digits, `-` or `_`, does not start with `-`, and is not `none`. A profile holds the provider, its key, and optionally `--model`, the model a run uses when it names none, and `--base-url`, or `--account-id` on cloudflare. The first profile becomes the default, and `onesie profile use NAME` changes it. A run uses the default unless `--profile NAME` or `ONESIE_PROFILE` names another. `--provider` or `ONESIE_PROVIDER` runs without a profile and reads only the provider's env var, which suits CI.
+A name in place of `work` is 1 to 64 lowercase letters, digits, `-` or `_`, does not start with `-`,
+and is not `none`. A profile holds the provider, its key, and optionally `--model`, the model a run
+uses when it names none, and `--base-url`, or `--account-id` on cloudflare. The first profile
+becomes the default, and `onesie profile use NAME` changes it. [Choosing a profile][choosing] gives
+the order a run picks a profile in. `--provider` or `ONESIE_PROVIDER` runs without a profile and
+reads only the provider's env var, which suits CI.
 
-Profiles live in `profiles.json`, in `$ONESIE_CONFIG_DIR`, then `$XDG_CONFIG_HOME/onesie`, then, on Windows, `%APPDATA%\onesie`, and otherwise `~/.config/onesie`. The file is written at mode 600, and a directory it creates at mode 700. When there is an OS keychain the key goes there, under the service `onesie`, and the profile only names the item. `--file` keeps the key in the file itself. An older `credentials.json` there is converted into profiles the first time onesie reads it. `onesie profile list` lists the profiles, `onesie profile update NAME --key` stores a new key, and `onesie profile delete NAME` removes a profile and its keychain item.
+Profiles live in `profiles.json`, in the config dir [profiles.json][file] names. The file is written
+at mode 600, and a directory it creates at mode 700. When there is an OS keychain the key goes
+there, under the service `onesie`, and the profile only names the item. `--file` keeps the key in
+the file itself. An older `credentials.json` there is converted into profiles the first time onesie
+reads it. `onesie profile list` lists the profiles, `onesie profile update NAME --key` stores a new
+key, and `onesie profile delete NAME` removes a profile and its keychain item.
+
+[choosing]: https://github.com/frodi-karlsson/onesie/blob/main/REFERENCE.md#choosing-a-profile
+[file]: https://github.com/frodi-karlsson/onesie/blob/main/REFERENCE.md#profilesjson
 
 `profile create` writes only to stderr, never the key:
 
@@ -82,4 +108,6 @@ In Claude Code:
 /plugin install onesie@onesie
 ```
 
-The plugin adds the onesie skills and a session start line that reports whether onesie is on PATH, whether a key resolves, whether `onesie --version` differs from the release the skills describe, and which question files `-f` finds. It never blocks a command.
+The plugin adds the onesie skills and a session start line that reports whether onesie is on PATH,
+whether a key resolves, whether `onesie --version` differs from the release the skills describe, and
+which question files `-f` finds. It never blocks a command.

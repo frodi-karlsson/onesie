@@ -67,7 +67,7 @@ var groupFlagHelp = map[string]string{
 		"level index averaged over p, from 0, and norm is score over the top index, from 0 to 1",
 	"desc":           "KEY=TEXT, describing one option, level, yes or no",
 	"sep":            "separator for --pick and --rate that follow it",
-	"threshold":      "yes/no only, cut the probability at this value",
+	"threshold":      "yes or no only, cut the probability at this value",
 	"min-confidence": "pick or rate only, requires --fallback. Confidence is about 1 when p sits on one answer",
 	"fallback":       "value substituted on low confidence and on error",
 	"box": "making this a box question, answered with the left, top, right and bottom edges of what it " +
@@ -403,7 +403,7 @@ func addRunFlags(set *pflag.FlagSet, flags *runFlags, help runFlagHelp) {
 			"Experimental on TypeSafe's side")
 	set.StringVarP(&flags.file, "file", "f", "",
 		"question file or request body, or the name of one saved in .onesie/questions or the config dir, "+
-			"or of a built-in starter set")
+			"or of a built in starter set")
 	refuseEmpty(set, "file")
 	set.BoolVar(&flags.replace, "replace", false, "--ask overrides an id from -f")
 	set.IntVarP(&flags.jobs, flagJobs, "j", 1, "records in flight at once")

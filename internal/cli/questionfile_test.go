@@ -355,7 +355,7 @@ func TestReadQuestionFile(t *testing.T) {
 				_, errOut, code := runTree(t, emptied, []RootOption{realBuiltIns()}, args...)
 
 				want := "onesie: the question file " + filepath.Join(repoDir, "shell-safety.yaml") +
-					" holds no questions. Remove it, and -f shell-safety takes the built-in set again\n"
+					" holds no questions. Remove it, and -f shell-safety takes the built in set again\n"
 				if code != ExitUsage || errOut != want {
 					t.Errorf("%v: exit code = %d, want %d\nstderr:\n%s\nwant:\n%s", args, code, ExitUsage, errOut, want)
 				}
@@ -389,7 +389,7 @@ func TestReadQuestionFile(t *testing.T) {
 					t.Parallel()
 
 					_, errOut, code := runTree(t, newFakeTree(nil, workDir, configDir), []RootOption{injected}, tc.args...)
-					if code != ExitUsage || !strings.Contains(errOut, "'destroys' is defined in built-in shell-safety") {
+					if code != ExitUsage || !strings.Contains(errOut, "'destroys' is defined in built in shell-safety") {
 						t.Errorf("exit code = %d, want %d and the built-in named\nstderr:\n%s", code, ExitUsage, errOut)
 					}
 				})
@@ -708,7 +708,7 @@ func (f fakeTree) settings(settings rootSettings) rootSettings {
 }
 
 // options wires the tree through the public options where they exist, so the command tree resolves
-// the config dir from the environment as it does in production. It turns the built-in sets off, so
+// the config dir from the environment as it does in production. It turns the built in sets off, so
 // a test sees only the files it names.
 func (f fakeTree) options() []RootOption {
 	return []RootOption{
@@ -788,7 +788,7 @@ func TestLoadQuestionFile(t *testing.T) {
 		{name: "should name a body with no questions", data: `{"questions":{}}`, alone: true, want: "the question file q.yaml holds no questions"},
 		{
 			name: "should point an empty file beside --ask at the built-in set it hides", data: "", hides: "triage",
-			want: "the question file q.yaml holds no questions. Remove it, and -f triage takes the built-in set again",
+			want: "the question file q.yaml holds no questions. Remove it, and -f triage takes the built in set again",
 		},
 		{name: "should name the file in a load error", data: "a:\n  bogus: 1\n", want: "q.yaml: question 'a' has no 'ask'"},
 		{name: "should name the file when it is not a mapping", data: "- a\n", want: "q.yaml: a question file is a mapping of question id to definition"},

@@ -119,17 +119,17 @@ func TestCheck(t *testing.T) {
 		{
 			name:    "should reject confidence on a yes/no question",
 			input:   `urgent.confidence > 0.5`,
-			wantErr: "'urgent' is a yes/no question and has no 'confidence'",
+			wantErr: "'urgent' is a yes or no question and has no 'confidence'",
 		},
 		{
 			name:    "should reject a score on a yes/no question",
 			input:   `urgent.score > 1`,
-			wantErr: "'urgent' is a yes/no question and has no 'score'",
+			wantErr: "'urgent' is a yes or no question and has no 'score'",
 		},
 		{
 			name:    "should reject a probability on a yes/no question",
 			input:   `urgent.p["yes"] > 0.5`,
-			wantErr: "'urgent' is a yes/no question and has no 'p'",
+			wantErr: "'urgent' is a yes or no question and has no 'p'",
 		},
 		{
 			name:    "should reject a score on a pick question",
@@ -544,7 +544,7 @@ func TestCheck(t *testing.T) {
 			},
 		}
 
-		// Both sides of the min-confidence branch in answer.Apply, so a decision is read back whether
+		// Both sides of the min_confidence branch in answer.Apply, so a decision is read back whether
 		// the model's answer stood or the fallback replaced it.
 		records := []pathRecord{
 			{name: "a confident record", record: fullRecord(t, built, 0.9)},
@@ -741,7 +741,7 @@ func TestCheck(t *testing.T) {
 			{name: "should refuse value on a box", source: "mug.value > 0", wantErr: "'mug' is a box question and has no 'value'"},
 			{name: "should refuse decision on a box", source: `mug.decision == "x"`, wantErr: "'mug' is a box question and has no 'decision'"},
 			{name: "should refuse p on a box", source: "mug.p.a > 0", wantErr: "'mug' is a box question and has no 'p'"},
-			{name: "should refuse an edge on a yes or no", source: "there.left > 0", wantErr: "'there' is a yes/no question and has no 'left'"},
+			{name: "should refuse an edge on a yes or no", source: "there.left > 0", wantErr: "'there' is a yes or no question and has no 'left'"},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()

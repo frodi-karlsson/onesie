@@ -2583,17 +2583,18 @@ func TestNewRootCmd(t *testing.T) {
 		reference := readRepoFile(t, "REFERENCE.md")
 
 		tests := []struct {
-			name  string
-			args  []string
-			codes []string
+			name      string
+			args      []string
+			want      []string
+			codesOnly bool
 		}{
 			{
-				name: "should list every exit code REFERENCE lists in the root help", args: []string{"--help"},
-				codes: referenceExitCodes(t, reference),
+				name: "should list every exit code REFERENCE lists in the root help, each with its meaning",
+				args: []string{"--help"}, want: referenceExitCodes(t, reference),
 			},
 			{
 				name: "should list every exit code REFERENCE gives calibrate in the calibrate help",
-				args: []string{"calibrate", "--help"}, codes: referenceCalibrateCodes(t, reference),
+				args: []string{"calibrate", "--help"}, want: referenceCalibrateCodes(t, reference), codesOnly: true,
 			},
 		}
 
@@ -2614,8 +2615,12 @@ func TestNewRootCmd(t *testing.T) {
 				}
 
 				listed := helpExitCodes(out.String())
-				if !slices.Equal(listed, tc.codes) {
-					t.Errorf("help lists exit codes %v, REFERENCE lists %v\n%s", listed, tc.codes, out.String())
+				if tc.codesOnly {
+					listed = exitCodesOnly(listed)
+				}
+
+				if !slices.Equal(listed, tc.want) {
+					t.Errorf("help lists exit codes %q, REFERENCE lists %q\n%s", listed, tc.want, out.String())
 				}
 			})
 		}
@@ -2627,8 +2632,8 @@ func referenceExitCodes(t *testing.T, reference string) []string {
 
 	var codes []string
 
-	for _, match := range regexp.MustCompile(`(?m)^\| ([0-9]+) \|`).FindAllStringSubmatch(reference, -1) {
-		codes = append(codes, match[1])
+	for _, match := range regexp.MustCompile(`(?m)^\| ([0-9]+) \| (.+) \|$`).FindAllStringSubmatch(reference, -1) {
+		codes = append(codes, match[1]+" "+strings.ReplaceAll(match[2], "`", ""))
 	}
 
 	if len(codes) == 0 {
@@ -2667,12 +2672,22 @@ func helpExitCodes(help string) []string {
 	var codes []string
 
 	for _, line := range strings.Split(section, "\n") {
-		match := regexp.MustCompile(`^  ([0-9]+) {2,}\S`).FindStringSubmatch(line)
+		match := regexp.MustCompile(`^  ([0-9]+) {2,}(\S.*)$`).FindStringSubmatch(line)
 		if match == nil {
 			break
 		}
 
-		codes = append(codes, match[1])
+		codes = append(codes, match[1]+" "+match[2])
+	}
+
+	return codes
+}
+
+func exitCodesOnly(lines []string) []string {
+	codes := make([]string, len(lines))
+
+	for i, line := range lines {
+		codes[i], _, _ = strings.Cut(line, " ")
 	}
 
 	return codes
