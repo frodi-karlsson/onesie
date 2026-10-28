@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"maps"
 	"math"
-	"sort"
+	"slices"
 	"strconv"
 
 	"github.com/frodi-karlsson/onesie-go"
@@ -111,7 +111,7 @@ func normalizeScore(q plan.Question, raw *onesie.ScoreAnswer) *Answer {
 
 	if !q.Labelled {
 		// Result.Check proved the keys are exactly the level indexes.
-		indexes := sortedIndexes(raw.Probabilities)
+		indexes := onesie.NumericOrder(slices.Collect(maps.Keys(raw.Probabilities)))
 
 		out.Value = modal(indexes, raw.Probabilities)
 		out.Legend = raw.Legend
@@ -237,28 +237,6 @@ func (p Probabilities) MarshalJSON() ([]byte, error) {
 	}
 
 	return append(buf, '}'), nil
-}
-
-func sortedIndexes(probabilities map[string]float64) []string {
-	keys := make([]string, 0, len(probabilities))
-	for key := range probabilities {
-		keys = append(keys, key)
-	}
-
-	// Numeric order, not lexical. Map iteration is randomized, and an unsorted or lexically sorted
-	// scan would break the lowest index tie break in modal.
-	sort.Slice(keys, func(i, j int) bool {
-		left, leftErr := strconv.Atoi(keys[i])
-		right, rightErr := strconv.Atoi(keys[j])
-
-		if leftErr != nil || rightErr != nil {
-			return keys[i] < keys[j]
-		}
-
-		return left < right
-	})
-
-	return keys
 }
 
 func modal(levels []string, probabilities map[string]float64) string {

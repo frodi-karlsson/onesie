@@ -243,7 +243,7 @@ func encoded(t *testing.T, value any) []byte {
 func asSent(t *testing.T, questions []plan.Question) []any {
 	t.Helper()
 
-	sent, err := marshalQuestionsBody(onesie.Request{Questions: wireAll(questions)})
+	sent, err := onesie.MarshalQuestionsBody(onesie.Request{Questions: wireAll(questions)})
 	if err != nil {
 		t.Fatalf("encoding the questions: %v", err)
 	}
