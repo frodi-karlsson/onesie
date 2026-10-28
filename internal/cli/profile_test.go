@@ -19,8 +19,11 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/spf13/cobra"
+
 	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/creds"
+	"github.com/frodi-karlsson/onesie/internal/output"
 )
 
 const (
@@ -633,21 +636,23 @@ func TestProfileCreate(t *testing.T) {
 	t.Run("should keep exit 2 for a failed save when stderr is a closed pipe", func(t *testing.T) {
 		t.Parallel()
 
-		dir := t.TempDir()
-
-		root := NewRootCmd(BuildInfo{Version: "1.2.3"},
-			WithStdin(strings.NewReader(key16+"\n")),
-			WithStdinTTY(false),
-			WithStdoutTTY(false),
-			WithLookupEnv(lookupFrom(map[string]string{"ONESIE_CONFIG_DIR": dir})),
-			withKeychain(undeletableKeychain{workingKeychain(nil)}),
-			withCredentialStore(creds.NewStore(failingWrite...)))
-
-		root.SetOut(io.Discard)
-		root.SetErr(closedPipe{})
-		root.SetArgs([]string{"profile", "create", "work", "--provider", "typesafe"})
+		root := failedSave(t, failingWrite, closedPipe{})
 
 		if code := Execute(t.Context(), root); code != ExitUsage {
+			t.Errorf("exit code = %d, want %d", code, ExitUsage)
+		}
+	})
+
+	t.Run("should join the notice stderr refused to a failed save and keep exit 2", func(t *testing.T) {
+		t.Parallel()
+
+		err := failedSave(t, failingWrite, brokenWriter{}).ExecuteContext(t.Context())
+
+		if !strings.Contains(text(err), "\n"+output.Prefix) {
+			t.Errorf("error = %q, want the refused notice on a second prefixed line", text(err))
+		}
+
+		if code := Classify(err); code != ExitUsage {
 			t.Errorf("exit code = %d, want %d", code, ExitUsage)
 		}
 	})
@@ -673,6 +678,24 @@ func TestProfileCreate(t *testing.T) {
 			t.Errorf("profiles.json was written, stat error = %v", err)
 		}
 	})
+}
+
+func failedSave(t *testing.T, store []creds.StoreOption, stderr io.Writer) *cobra.Command {
+	t.Helper()
+
+	root := NewRootCmd(BuildInfo{Version: "1.2.3"},
+		WithStdin(strings.NewReader(key16+"\n")),
+		WithStdinTTY(false),
+		WithStdoutTTY(false),
+		WithLookupEnv(lookupFrom(map[string]string{"ONESIE_CONFIG_DIR": t.TempDir()})),
+		withKeychain(undeletableKeychain{workingKeychain(nil)}),
+		withCredentialStore(creds.NewStore(store...)))
+
+	root.SetOut(io.Discard)
+	root.SetErr(stderr)
+	root.SetArgs([]string{"profile", "create", "work", "--provider", "typesafe"})
+
+	return root
 }
 
 func TestProfileUpdate(t *testing.T) {
