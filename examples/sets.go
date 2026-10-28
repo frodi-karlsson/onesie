@@ -53,16 +53,6 @@ type Set struct {
 	TextField string
 }
 
-// Questions is the path of the set's question file under dir.
-func (s Set) Questions(dir string) string {
-	return filepath.Join(dir, "questions", s.Name+".yaml")
-}
-
-// Data is the path of the set's labelled records under dir.
-func (s Set) Data(dir string) string {
-	return filepath.Join(dir, "data", s.Name+".jsonl")
-}
-
 // Answers is the path of the set's committed answers file under dir.
 func (s Set) Answers(dir string) string {
 	return filepath.Join(dir, "data", s.Name+".answers.jsonl")
@@ -79,6 +69,11 @@ func (s Set) CalibrateArgs(dir string) []string {
 	}
 
 	return args
+}
+
+// Questions is the path of the set's question file under dir.
+func (s Set) Questions(dir string) string {
+	return filepath.Join(dir, "questions", s.Name+".yaml")
 }
 
 func readSet(dir, name string) (Set, error) {
@@ -99,6 +94,11 @@ func readSet(dir, name string) (Set, error) {
 	set.TextField = field
 
 	return set, nil
+}
+
+// Data is the path of the set's labelled records under dir.
+func (s Set) Data(dir string) string {
+	return filepath.Join(dir, "data", s.Name+".jsonl")
 }
 
 func questionIDs(path string) ([]string, error) {

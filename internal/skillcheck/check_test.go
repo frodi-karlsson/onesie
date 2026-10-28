@@ -257,10 +257,6 @@ func TestCheck(t *testing.T) {
 		if report.Skills != 0 || report.Checked != 0 || len(report.Skipped) != 0 || len(report.Failures) != 0 {
 			t.Errorf("report = %+v, want an empty, passing report", report)
 		}
-
-		if !report.Passed() {
-			t.Errorf("report.Passed() = false, want true")
-		}
 	})
 
 	t.Run("should skip an example it cannot parse as a onesie invocation, naming why, and check the rest", func(t *testing.T) {

@@ -14,12 +14,6 @@ import (
 
 var extensions = []string{".yaml", ".yml", ".json"}
 
-// IsName reports whether an -f value is a bare name to look up rather than a path. A value holding a
-// path separator or a dot is always a path.
-func IsName(value string) bool {
-	return value != "" && !strings.ContainsAny(value, `/\.`)
-}
-
 // Find resolves a bare name, never a path, to its question file in the nearest .onesie/questions
 // at or above the working directory, then in the config dir's questions, then in onesie's own set.
 func Find(name string, env FindEnv) (Source, error) {
@@ -54,6 +48,12 @@ func Find(name string, env FindEnv) (Source, error) {
 	}
 
 	return Source{}, notFound(name, env, repo, config)
+}
+
+// IsName reports whether an -f value is a bare name to look up rather than a path. A value holding a
+// path separator or a dot is always a path.
+func IsName(value string) bool {
+	return value != "" && !strings.ContainsAny(value, `/\.`)
 }
 
 // Source is where a name resolved to: a file, or a set built into onesie.

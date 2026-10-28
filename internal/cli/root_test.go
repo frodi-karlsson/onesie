@@ -2734,6 +2734,87 @@ func TestNewRootCmd(t *testing.T) {
 			})
 		}
 	})
+
+	t.Run("should send the question ids in the order --ask gave them", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name  string
+			args  []string
+			order []string
+		}{
+			{
+				name: "should send question ids in argv order",
+				args: []string{
+					"--ask", "zebra=one", "--ask", "mike=two", "--ask", "alpha=three",
+				},
+				order: []string{`"zebra"`, `"mike"`, `"alpha"`},
+			},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				var sent string
+
+				srv := stubAnswering(t,
+					`{"model":"onesie-1.13.0","answers":{"zebra":{"type":"noul","noul":0.1},`+
+						`"mike":{"type":"noul","noul":0.2},`+
+						`"alpha":{"type":"noul","noul":0.3}}}`,
+					func(r *http.Request) {
+						body, err := io.ReadAll(r.Body)
+						if err != nil {
+							t.Errorf("reading the request body: %v", err)
+
+							return
+						}
+
+						sent = string(body)
+					})
+				defer srv.Close()
+
+				var out bytes.Buffer
+
+				root := cli.NewRootCmd(
+					cli.BuildInfo{Version: "1.2.3", Commit: "abc1234", Date: "2026-01-01"},
+					cli.WithKeychain(offKeychain()),
+					cli.WithClientFactory(func(_ context.Context, opts ...onesie.Option) (*onesie.Client, error) {
+						return onesie.New(append([]onesie.Option{
+							onesie.WithAPIKey("k"), onesie.WithBaseURL(srv.URL),
+						}, opts...)...)
+					}),
+					cli.WithStdin(strings.NewReader("the server is down")),
+					cli.WithStdinTTY(false),
+					cli.WithStdoutTTY(false),
+					cli.WithLookupEnv(func(string) (string, bool) { return "", false }),
+				)
+
+				root.Command.SetOut(&out)
+				root.Command.SetErr(&out)
+				root.Command.SetArgs(append(tc.args, "-o", "json"))
+
+				if code := root.Execute(t.Context()); code != cli.ExitOK {
+					t.Fatalf("exit code = %d, want %d\noutput:\n%s", code, cli.ExitOK, out.String())
+				}
+
+				at := make([]int, 0, len(tc.order))
+
+				for _, id := range tc.order {
+					found := strings.Index(sent, id)
+					if found < 0 {
+						t.Fatalf("id %s absent from %s", id, sent)
+					}
+
+					at = append(at, found)
+				}
+
+				if !slices.IsSorted(at) {
+					t.Errorf("ids out of order in %s, positions %v", sent, at)
+				}
+			})
+		}
+	})
 }
 
 func referenceExitCodes(t *testing.T, reference string) []string {
@@ -3383,87 +3464,6 @@ func apiKeyEnv(key string) func(string) (string, bool) {
 		}
 
 		return "", false
-	}
-}
-
-func TestWireAll(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name  string
-		args  []string
-		order []string
-	}{
-		{
-			name: "should send question ids in argv order",
-			args: []string{
-				"--ask", "zebra=one", "--ask", "mike=two", "--ask", "alpha=three",
-			},
-			order: []string{`"zebra"`, `"mike"`, `"alpha"`},
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			var sent string
-
-			srv := stubAnswering(t,
-				`{"model":"onesie-1.13.0","answers":{"zebra":{"type":"noul","noul":0.1},`+
-					`"mike":{"type":"noul","noul":0.2},`+
-					`"alpha":{"type":"noul","noul":0.3}}}`,
-				func(r *http.Request) {
-					body, err := io.ReadAll(r.Body)
-					if err != nil {
-						t.Errorf("reading the request body: %v", err)
-
-						return
-					}
-
-					sent = string(body)
-				})
-			defer srv.Close()
-
-			var out bytes.Buffer
-
-			root := cli.NewRootCmd(
-				cli.BuildInfo{Version: "1.2.3", Commit: "abc1234", Date: "2026-01-01"},
-				cli.WithKeychain(offKeychain()),
-				cli.WithClientFactory(func(_ context.Context, opts ...onesie.Option) (*onesie.Client, error) {
-					return onesie.New(append([]onesie.Option{
-						onesie.WithAPIKey("k"), onesie.WithBaseURL(srv.URL),
-					}, opts...)...)
-				}),
-				cli.WithStdin(strings.NewReader("the server is down")),
-				cli.WithStdinTTY(false),
-				cli.WithStdoutTTY(false),
-				cli.WithLookupEnv(func(string) (string, bool) { return "", false }),
-			)
-
-			root.Command.SetOut(&out)
-			root.Command.SetErr(&out)
-			root.Command.SetArgs(append(tc.args, "-o", "json"))
-
-			if code := root.Execute(t.Context()); code != cli.ExitOK {
-				t.Fatalf("exit code = %d, want %d\noutput:\n%s", code, cli.ExitOK, out.String())
-			}
-
-			at := make([]int, 0, len(tc.order))
-
-			for _, id := range tc.order {
-				found := strings.Index(sent, id)
-				if found < 0 {
-					t.Fatalf("id %s absent from %s", id, sent)
-				}
-
-				at = append(at, found)
-			}
-
-			if !slices.IsSorted(at) {
-				t.Errorf("ids out of order in %s, positions %v", sent, at)
-			}
-		})
 	}
 }
 

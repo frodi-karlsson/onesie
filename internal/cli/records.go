@@ -147,13 +147,6 @@ func (r *resumed) skipped() answersfile.Tally {
 	return r.skips
 }
 
-type namedRecord struct {
-	input.Record
-	id    any
-	idErr error
-	slot  int
-}
-
 type naming struct {
 	ctx     context.Context
 	stop    context.CancelFunc
@@ -205,6 +198,13 @@ func (n *naming) Next() (namedRecord, bool, error) {
 	}
 
 	return namedRecord{}, false, nil
+}
+
+type namedRecord struct {
+	input.Record
+	id    any
+	idErr error
+	slot  int
 }
 
 func (n *naming) skipped() answersfile.Tally {

@@ -242,9 +242,6 @@ func (e *ForeignError) Error() string {
 		e.Dir, e.File, tagName)
 }
 
-// Key names one cached response, a sha256 of everything that decides it.
-type Key [sha256.Size]byte
-
 // Store is a cache directory, safe for concurrent use and shared with other runs.
 type Store struct {
 	dir  string
@@ -305,6 +302,9 @@ func (s *Store) Get(key Key, model string, pinned bool) ([]byte, bool, error) {
 
 	return stored.Value, true, nil
 }
+
+// Key names one cached response, a sha256 of everything that decides it.
+type Key [sha256.Size]byte
 
 func (s *Store) markUsed(path string, now time.Time) {
 	// A failed mark only makes the entry look older to eviction, so the hit stands and the error goes

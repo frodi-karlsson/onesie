@@ -593,6 +593,47 @@ func TestNewCalibrateCmd(t *testing.T) {
 			t.Errorf("stderr = %q, want it to name the label", errOut.String())
 		}
 	})
+
+	t.Run("should calibrate from a mock file", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("should print a report from the file with no request made", func(t *testing.T) {
+			t.Parallel()
+
+			mockFile := writeMock(t, "{\"id\":\"a\",\"u\":0.9}\n{\"id\":\"b\",\"u\":0.1}\n{\"id\":\"c\",\"u\":0.8}\n")
+			args := []string{
+				"calibrate", "--ask", "u=is it urgent", "-i", "jsonl", "--map", ".body", "--id", ".id",
+				"--label", "u=.u", "-o", "json", "--mock", mockFile,
+			}
+			stdin := "{\"id\":\"a\",\"body\":\"x\",\"u\":true}\n{\"id\":\"b\",\"body\":\"y\",\"u\":false}\n" +
+				"{\"id\":\"c\",\"body\":\"z\",\"u\":false}\n"
+
+			out, errOut, code := runMocked(t, t.Context(), args, stdin, nil, nil)
+			if code != ExitOK {
+				t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, out, errOut)
+			}
+
+			for _, want := range []string{`"models":["jev-latest"]`, `"mocked":true`, `"labelled":3`} {
+				if !strings.Contains(out, want) {
+					t.Errorf("report missing %s\n%s", want, out)
+				}
+			}
+		})
+
+		t.Run("should refuse calibrate --print-request under --mock", func(t *testing.T) {
+			t.Parallel()
+
+			args := []string{
+				"calibrate", "--ask", "u=is it urgent", "-i", "jsonl", "--map", ".body", "--label", "u=.u",
+				"--print-request", "--mock", writeMock(t, `{"u":0.9}`),
+			}
+
+			_, errOut, code := runMocked(t, t.Context(), args, "{\"body\":\"x\",\"u\":true}\n", nil, nil)
+			if code != ExitUsage || !strings.Contains(errOut, "--mock answers requests, and --print-request sends none") {
+				t.Errorf("exit %d\n%s", code, errOut)
+			}
+		})
+	})
 }
 
 func writeCalibrateFile(t *testing.T, dir, name, content string) string {
@@ -2700,24 +2741,6 @@ func criteriaKeys(criteria json.RawMessage) []string {
 	return keys
 }
 
-func spread(keys []string, picked string, p any) map[string]any {
-	value, _ := p.(float64)
-	rest := 0.0
-
-	if len(keys) > 1 {
-		rest = (1 - value) / float64(len(keys)-1)
-	}
-
-	probabilities := map[string]any{}
-	for _, key := range keys {
-		probabilities[key] = rest
-	}
-
-	probabilities[picked] = p
-
-	return probabilities
-}
-
 func stubAnswer(t *testing.T, kind string, keys []string, raw json.RawMessage, verbatim bool) map[string]any {
 	t.Helper()
 
@@ -2754,18 +2777,29 @@ func stubAnswer(t *testing.T, kind string, keys []string, raw json.RawMessage, v
 	}
 }
 
+func spread(keys []string, picked string, p any) map[string]any {
+	value, _ := p.(float64)
+	rest := 0.0
+
+	if len(keys) > 1 {
+		rest = (1 - value) / float64(len(keys)-1)
+	}
+
+	probabilities := map[string]any{}
+	for _, key := range keys {
+		probabilities[key] = rest
+	}
+
+	probabilities[picked] = p
+
+	return probabilities
+}
+
 func (s *calibrateStub) count() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	return s.requests
-}
-
-func (s *calibrateStub) asked() [][]string {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	return slices.Clone(s.questions)
 }
 
 func (s *calibrateStub) sent() []string {
@@ -3690,6 +3724,13 @@ func checkAsked(t *testing.T, stub *calibrateStub, want []string, requests int) 
 			t.Errorf("request %d asked %v, want %v", i+1, got, want)
 		}
 	}
+}
+
+func (s *calibrateStub) asked() [][]string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return slices.Clone(s.questions)
 }
 
 const (

@@ -170,17 +170,6 @@ func decodedNumbers(data []byte) (any, bool) {
 	return value, decoder.Decode(&value) == nil
 }
 
-func hugeExponent(numbers ...json.Number) bool {
-	for _, number := range numbers {
-		_, exponent, _ := strings.Cut(strings.ToLower(number.String()), "e")
-		if value, err := strconv.Atoi(exponent); exponent != "" && (err != nil || value > 1000 || value < -1000) {
-			return true
-		}
-	}
-
-	return false
-}
-
 func sameValue(a, b any) bool {
 	switch left := a.(type) {
 	case map[string]any:
@@ -227,6 +216,17 @@ func sameValue(a, b any) bool {
 	default:
 		return a == b
 	}
+}
+
+func hugeExponent(numbers ...json.Number) bool {
+	for _, number := range numbers {
+		_, exponent, _ := strings.Cut(strings.ToLower(number.String()), "e")
+		if value, err := strconv.Atoi(exponent); exponent != "" && (err != nil || value > 1000 || value < -1000) {
+			return true
+		}
+	}
+
+	return false
 }
 
 func encoded(t *testing.T, value any) []byte {

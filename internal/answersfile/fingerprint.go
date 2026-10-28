@@ -180,67 +180,6 @@ func (p Print) Matches(stored string) bool {
 	return !stale
 }
 
-func (p Print) changedFrom(stored map[string]string) []string {
-	var changed []string
-
-	seen := make(map[string]bool, len(p.parts))
-
-	for _, part := range p.parts {
-		seen[part.name] = true
-
-		if stored[part.name] != part.sum {
-			changed = append(changed, partLabel(part.name))
-		}
-	}
-
-	for _, name := range slices.Sorted(maps.Keys(stored)) {
-		if !seen[name] {
-			changed = append(changed, partLabel(name))
-		}
-	}
-
-	return changed
-}
-
-func partLabel(name string) string {
-	switch name {
-	case "questions":
-		return "the questions"
-	case "policies":
-		return "the policy flags"
-	case "provider":
-		return "the provider"
-	case "model":
-		return "the model"
-	case "map":
-		return "--map"
-	case "id":
-		return "--id"
-	case "output":
-		return "-o"
-	case "input":
-		return "-i"
-	case "merge_key":
-		return "the merge key"
-	case "assert":
-		return "--assert"
-	case "abstain_if":
-		return "--abstain-if"
-	case "skip_blank":
-		return "--skip-blank"
-	case "images":
-		return "the images"
-	case "long_context":
-		return "--long-context"
-	case "fallback_columns":
-		return "the fallback columns"
-	case "mock":
-		return "--mock"
-	default:
-		return ""
-	}
-}
-
 func delimitedOutput(name string) bool {
 	return name == output.CSV.String() || name == output.TSV.String()
 }
@@ -325,6 +264,67 @@ func staleReason(stored string, found bool, current Print) (StaleReason, []strin
 	}
 
 	return 0, nil, false
+}
+
+func (p Print) changedFrom(stored map[string]string) []string {
+	var changed []string
+
+	seen := make(map[string]bool, len(p.parts))
+
+	for _, part := range p.parts {
+		seen[part.name] = true
+
+		if stored[part.name] != part.sum {
+			changed = append(changed, partLabel(part.name))
+		}
+	}
+
+	for _, name := range slices.Sorted(maps.Keys(stored)) {
+		if !seen[name] {
+			changed = append(changed, partLabel(name))
+		}
+	}
+
+	return changed
+}
+
+func partLabel(name string) string {
+	switch name {
+	case "questions":
+		return "the questions"
+	case "policies":
+		return "the policy flags"
+	case "provider":
+		return "the provider"
+	case "model":
+		return "the model"
+	case "map":
+		return "--map"
+	case "id":
+		return "--id"
+	case "output":
+		return "-o"
+	case "input":
+		return "-i"
+	case "merge_key":
+		return "the merge key"
+	case "assert":
+		return "--assert"
+	case "abstain_if":
+		return "--abstain-if"
+	case "skip_blank":
+		return "--skip-blank"
+	case "images":
+		return "the images"
+	case "long_context":
+		return "--long-context"
+	case "fallback_columns":
+		return "the fallback columns"
+	case "mock":
+		return "--mock"
+	default:
+		return ""
+	}
 }
 
 // StaleAnswersError refuses a file whose fingerprint does not match the run. Sidecar is the file the

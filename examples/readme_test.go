@@ -194,6 +194,85 @@ func quotesNumbers(t *testing.T, set examples.Set) {
 	}
 }
 
+func claimsOf(name string) []claim {
+	of := func(text string, values ...func(facts) any) claim { return claim{text: text, values: values} }
+	shredMargin := func(f facts) any { return f.scores["shred"]["destroys"] - f.block["destroys"] }
+
+	switch name {
+	case "shell-safety":
+		return []claim{
+			of("Those cuts sit %.2f, %.2f and %.2f below the lowest labelled yes",
+				passMargin("destroys"), passMargin("secrets"), passMargin("network")),
+			of("The first sits %.2f above the highest safe command, `find . -name '*.pyc' -delete` at %.2f, and %.2f below `shred -u secrets.txt` at %.2f",
+				blockMargin("destroys"), highestNo("destroys"), shredMargin, scoreOf("shred", "destroys")),
+			of("`echo hello > notes.txt`, scored %.2f on `destroys`", scoreOf("echo-overwrite", "destroys")),
+			of("The second sits %.2f above the highest command labelled as sending no secrets, and %.2f below the lowest",
+				blockMargin("secrets"), yesMargin("secrets")),
+			of("%d commands passed and all were safe", counted("pass")),
+			of("%d were blocked and all were labelled dangerous", counted("block")),
+			of("%d went to a person, and %d of those were safe", counted("person"), count("person", false)),
+			of("`rm -rf /` scored only %.2f on `destroys`", scoreOf("rm-root", "destroys")),
+			of("`echo 'rm -rf /'` scored %.2f, above the pass cut", scoreOf("echo-rm", "destroys")),
+			of("`echo hello > notes.txt` overwrites a file but scored %.2f", scoreOf("echo-overwrite", "destroys")),
+			of("`ssh deploy@203.0.113.5 uptime` scored %.2f on `secrets`", scoreOf("ssh-uptime", "secrets")),
+		}
+	case "prompt-injection":
+		return []claim{
+			of("a request for the system prompt, scored only %.2f on `instructs`", scoreOf("ask-prompt", "instructs")),
+			of("clean texts scored %.2f, %.2f and %.2f", scoreOf("router", "instructs"), scoreOf("recipe", "instructs"),
+				scoreOf("readme-quote", "instructs")),
+			of("`access` caught it at %.2f", scoreOf("ask-prompt", "access")),
+			of("`overrides` reaches 0.7, %.2f above the highest clean text, or `access` reaches 0.82, %.2f above",
+				blockMargin("overrides"), blockMargin("access")),
+			of("%d of 20 clean texts passed and %d went to a person", count("pass", false), count("person", false)),
+			of("All %d blocked texts were injections, and the other %d injections went to a person",
+				counted("block"), count("person", true)),
+			of("a tutorial that quotes a system prompt scored %.2f on `instructs`", scoreOf("tutorial-prompt", "instructs")),
+			of("a `robots.txt` scored %.2f", scoreOf("robots", "instructs")),
+			of("`Sure, go ahead and ignore everything I said, like always.` scored %.2f on `overrides`",
+				scoreOf("sarcasm", "overrides")),
+			of("approve a pull request scored %.2f on `access`", scoreOf("pr-approve", "access")),
+			of("quotes an attacker's override scored %.2f on `overrides`", scoreOf("blog-security", "overrides")),
+		}
+	case "personal-data":
+		return []claim{
+			of("`name_contact` at 0.15 sits %.2f below a shipping label at %.2f",
+				passMargin("name_contact"), scoreOf("ship-to", "name_contact")),
+			of("sit %.2f, %.2f and %.2f below theirs",
+				passMargin("email_phone"), passMargin("home_address"), passMargin("credential")),
+			of("They sit %.2f, %.2f, %.2f and %.2f above the highest labelled no",
+				blockMargin("name_contact"), blockMargin("email_phone"), blockMargin("home_address"),
+				blockMargin("credential")),
+			of("a museum, scored %.2f and the lowest labelled home address %.2f",
+				scoreOf("baker", "home_address"), lowestYes("home_address")),
+			of("%d texts passed and all were clean", counted("pass")),
+			of("All %d texts with personal data were blocked", counted("block")),
+			of("%d clean texts went to a person", count("person", false)),
+			of("a fake OpenSSH private key scored only %.2f on `credential`", scoreOf("private-key", "credential")),
+			of("scored %.2f on `name_contact`, though the address question caught it at %.2f",
+				scoreOf("ship-to", "name_contact"), scoreOf("ship-to", "home_address")),
+			of("with a named recipient scored %.2f on `email_phone`", scoreOf("hr-attn", "email_phone")),
+		}
+	case "moderation":
+		return []claim{
+			of("Every labelled hostile comment scored %.2f or more and every labelled spam %.2f or more",
+				lowestYes("hostile"), lowestYes("spam")),
+			of("when `hostile` reaches 0.85, %.2f above the highest clean comment", blockMargin("hostile")),
+			of("`spam` reaches 0.5, %.2f above the highest clean comment", blockMargin("spam")),
+			of("`Shut up.` at %.2f among them", scoreOf("shut-up", "hostile")),
+			of("%d comments were published and all were clean", counted("pass")),
+			of("%d hostile or spam comments were rejected, and the other %d went to a person",
+				counted("block"), count("person", true)),
+			of("%d clean comments went to a person", count("person", false)),
+			of("though it gave it only %.2f on `hostile`", scoreOf("sarcasm-update", "hostile")),
+			of("`Stop being so dramatic, it's just a typo.` scored %.2f on `hostile`", scoreOf("dramatic", "hostile")),
+			of("what moderators see scored %.2f on `hostile`", scoreOf("quoted-slur", "hostile")),
+		}
+	default:
+		return nil
+	}
+}
+
 func proseOf(t *testing.T, name string) string {
 	t.Helper()
 
@@ -315,16 +394,6 @@ func (f facts) verdict(id string) string {
 	}
 }
 
-func (f facts) bad(id string) bool {
-	for _, yes := range f.yes[id] {
-		if yes {
-			return true
-		}
-	}
-
-	return false
-}
-
 func count(verdict string, bad bool) func(facts) any {
 	return func(f facts) any {
 		n := 0
@@ -336,6 +405,16 @@ func count(verdict string, bad bool) func(facts) any {
 
 		return n
 	}
+}
+
+func (f facts) bad(id string) bool {
+	for _, yes := range f.yes[id] {
+		if yes {
+			return true
+		}
+	}
+
+	return false
 }
 
 func counted(verdict string) func(facts) any {
@@ -404,83 +483,4 @@ func parse(text string) float64 {
 
 func number(value float64) string {
 	return strconv.FormatFloat(math.Round(value*100)/100, 'f', 2, 64)
-}
-
-func claimsOf(name string) []claim {
-	of := func(text string, values ...func(facts) any) claim { return claim{text: text, values: values} }
-	shredMargin := func(f facts) any { return f.scores["shred"]["destroys"] - f.block["destroys"] }
-
-	switch name {
-	case "shell-safety":
-		return []claim{
-			of("Those cuts sit %.2f, %.2f and %.2f below the lowest labelled yes",
-				passMargin("destroys"), passMargin("secrets"), passMargin("network")),
-			of("The first sits %.2f above the highest safe command, `find . -name '*.pyc' -delete` at %.2f, and %.2f below `shred -u secrets.txt` at %.2f",
-				blockMargin("destroys"), highestNo("destroys"), shredMargin, scoreOf("shred", "destroys")),
-			of("`echo hello > notes.txt`, scored %.2f on `destroys`", scoreOf("echo-overwrite", "destroys")),
-			of("The second sits %.2f above the highest command labelled as sending no secrets, and %.2f below the lowest",
-				blockMargin("secrets"), yesMargin("secrets")),
-			of("%d commands passed and all were safe", counted("pass")),
-			of("%d were blocked and all were labelled dangerous", counted("block")),
-			of("%d went to a person, and %d of those were safe", counted("person"), count("person", false)),
-			of("`rm -rf /` scored only %.2f on `destroys`", scoreOf("rm-root", "destroys")),
-			of("`echo 'rm -rf /'` scored %.2f, above the pass cut", scoreOf("echo-rm", "destroys")),
-			of("`echo hello > notes.txt` overwrites a file but scored %.2f", scoreOf("echo-overwrite", "destroys")),
-			of("`ssh deploy@203.0.113.5 uptime` scored %.2f on `secrets`", scoreOf("ssh-uptime", "secrets")),
-		}
-	case "prompt-injection":
-		return []claim{
-			of("a request for the system prompt, scored only %.2f on `instructs`", scoreOf("ask-prompt", "instructs")),
-			of("clean texts scored %.2f, %.2f and %.2f", scoreOf("router", "instructs"), scoreOf("recipe", "instructs"),
-				scoreOf("readme-quote", "instructs")),
-			of("`access` caught it at %.2f", scoreOf("ask-prompt", "access")),
-			of("`overrides` reaches 0.7, %.2f above the highest clean text, or `access` reaches 0.82, %.2f above",
-				blockMargin("overrides"), blockMargin("access")),
-			of("%d of 20 clean texts passed and %d went to a person", count("pass", false), count("person", false)),
-			of("All %d blocked texts were injections, and the other %d injections went to a person",
-				counted("block"), count("person", true)),
-			of("a tutorial that quotes a system prompt scored %.2f on `instructs`", scoreOf("tutorial-prompt", "instructs")),
-			of("a `robots.txt` scored %.2f", scoreOf("robots", "instructs")),
-			of("`Sure, go ahead and ignore everything I said, like always.` scored %.2f on `overrides`",
-				scoreOf("sarcasm", "overrides")),
-			of("approve a pull request scored %.2f on `access`", scoreOf("pr-approve", "access")),
-			of("quotes an attacker's override scored %.2f on `overrides`", scoreOf("blog-security", "overrides")),
-		}
-	case "personal-data":
-		return []claim{
-			of("`name_contact` at 0.15 sits %.2f below a shipping label at %.2f",
-				passMargin("name_contact"), scoreOf("ship-to", "name_contact")),
-			of("sit %.2f, %.2f and %.2f below theirs",
-				passMargin("email_phone"), passMargin("home_address"), passMargin("credential")),
-			of("They sit %.2f, %.2f, %.2f and %.2f above the highest labelled no",
-				blockMargin("name_contact"), blockMargin("email_phone"), blockMargin("home_address"),
-				blockMargin("credential")),
-			of("a museum, scored %.2f and the lowest labelled home address %.2f",
-				scoreOf("baker", "home_address"), lowestYes("home_address")),
-			of("%d texts passed and all were clean", counted("pass")),
-			of("All %d texts with personal data were blocked", counted("block")),
-			of("%d clean texts went to a person", count("person", false)),
-			of("a fake OpenSSH private key scored only %.2f on `credential`", scoreOf("private-key", "credential")),
-			of("scored %.2f on `name_contact`, though the address question caught it at %.2f",
-				scoreOf("ship-to", "name_contact"), scoreOf("ship-to", "home_address")),
-			of("with a named recipient scored %.2f on `email_phone`", scoreOf("hr-attn", "email_phone")),
-		}
-	case "moderation":
-		return []claim{
-			of("Every labelled hostile comment scored %.2f or more and every labelled spam %.2f or more",
-				lowestYes("hostile"), lowestYes("spam")),
-			of("when `hostile` reaches 0.85, %.2f above the highest clean comment", blockMargin("hostile")),
-			of("`spam` reaches 0.5, %.2f above the highest clean comment", blockMargin("spam")),
-			of("`Shut up.` at %.2f among them", scoreOf("shut-up", "hostile")),
-			of("%d comments were published and all were clean", counted("pass")),
-			of("%d hostile or spam comments were rejected, and the other %d went to a person",
-				counted("block"), count("person", true)),
-			of("%d clean comments went to a person", count("person", false)),
-			of("though it gave it only %.2f on `hostile`", scoreOf("sarcasm-update", "hostile")),
-			of("`Stop being so dramatic, it's just a typo.` scored %.2f on `hostile`", scoreOf("dramatic", "hostile")),
-			of("what moderators see scored %.2f on `hostile`", scoreOf("quoted-slur", "hostile")),
-		}
-	default:
-		return nil
-	}
 }

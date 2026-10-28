@@ -297,11 +297,6 @@ func readmeSection(t *testing.T, title string) string {
 	return section
 }
 
-type codeBlock struct {
-	lang  string
-	lines []string
-}
-
 func codeBlocks(text string) []codeBlock {
 	var (
 		blocks  []codeBlock
@@ -323,6 +318,11 @@ func codeBlocks(text string) []codeBlock {
 	}
 
 	return blocks
+}
+
+type codeBlock struct {
+	lang  string
+	lines []string
 }
 
 func readmeCommand(t *testing.T, lines []string) []string {
