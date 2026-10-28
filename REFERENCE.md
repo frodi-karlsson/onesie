@@ -297,7 +297,9 @@ onesie calibrate -f shell-safety -i jsonl --map .command --id .id \
 - The `error` object holds `kind`, `status` and `message`. Its `kind` is `input` for a record that
   never became a request, `transport` for a connection that failed or timed out, `response` for a
   2xx response onesie could not use, `auth` for a key or account the provider refused, and `http`
-  for any other status outside 2xx. An `auth` failure ends the run with exit 3.
+  for any other status outside 2xx. An `auth` failure a run meets ends the run with exit 3, and so
+  does a stored one a `--stop-on-error` resume stops at. A resume by line count without
+  `--stop-on-error` skips a stored `auth` line as it skips any failed one, so it exits 6.
 - A run `--stop-on-error` ends exits with the failed record's own code, as in
   [Exit codes](#exit-codes). A record that never became a request, such as a line onesie could not
   read or an empty state, has no code of its own, so it exits 6 as it does without the flag, and its
