@@ -170,7 +170,7 @@ func TestResumeLedger(t *testing.T) {
 					failFrom: 3,
 					wantCode: ExitAuth,
 					wantFile: idLines(4, 4) + idLines(1, 2) +
-						`{"id":3,"error":{"kind":"http","status":401,"message":"401 bad key"}}` + "\n",
+						`{"id":3,"error":{"kind":"auth","status":401,"message":"401 bad key"}}` + "\n",
 					wantSent: []string{`{"id":1}`, `{"id":2}`, `{"id":3}`},
 				},
 				{
@@ -191,7 +191,7 @@ func TestResumeLedger(t *testing.T) {
 				failFrom: 3,
 				wantCode: ExitAuth,
 				wantFile: idLines(4, 4) + idLines(1, 2) +
-					`{"id":3,"error":{"kind":"http","status":401,"message":"401 bad key"}}` + "\n",
+					`{"id":3,"error":{"kind":"auth","status":401,"message":"401 bad key"}}` + "\n",
 				wantSent: []string{`{"id":1}`, `{"id":2}`, `{"id":3}`},
 			}},
 		},

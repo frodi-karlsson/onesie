@@ -197,6 +197,11 @@ func TestDescribe(t *testing.T) {
 			cause: apiError(http.StatusPaymentRequired), message: "402. Add credits",
 		}},
 		{name: "should agree with a fresh run on a forbidden status", cause: apiError(http.StatusForbidden)},
+		{
+			name: "should agree with a fresh run on a cloudflare 400 that refuses the token",
+			cause: onesie.NewAPIError(onesie.Cloudflare(), "", onesie.Needs{}, http.StatusBadRequest,
+				[]byte(`{"success":false,"errors":[{"code":9106,"message":"Authentication failed (status: 400)"}]}`)),
+		},
 		{name: "should agree with a fresh run on a not found status", cause: apiError(http.StatusNotFound)},
 		{name: "should agree with a fresh run on a request timeout status", cause: apiError(http.StatusRequestTimeout)},
 		{name: "should agree with a fresh run on a rate limit", cause: apiError(http.StatusTooManyRequests)},
@@ -256,7 +261,7 @@ func TestDescribe(t *testing.T) {
 			},
 			{
 				cause: &advisedError{cause: &onesie.APIError{Status: http.StatusPaymentRequired}, message: "402. Add credits"},
-				kind:  "http", status: statusOf(http.StatusPaymentRequired), message: "402. Add credits",
+				kind:  "auth", status: statusOf(http.StatusPaymentRequired), message: "402. Add credits",
 			},
 			{
 				cause: &onesie.RetryAfterError{APIError: onesie.APIError{Status: http.StatusServiceUnavailable}},

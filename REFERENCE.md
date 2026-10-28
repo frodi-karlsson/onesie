@@ -142,7 +142,7 @@ ONESIE_MOCK=answers.json ./gate.sh
   error object as `-o json` writes it replays by its `kind`, and a `response` one is a 200 with no
   answers, which fails as
   `200 response could not be used: the response is not a System One result, since it has no answers`.
-  An `http` one may carry the JSON `body` the server sends, as in
+  An `http` or `auth` one may carry the JSON `body` the server sends, as in
   `{"error": {"kind": "http", "status": 400, "body": {"detail": "Unknown model: jev-latest"}}}`,
   and then fails and advises as a live response with that body does. A string `body` is the raw
   response text, so `"body": "<html>nope</html>"` reads as a live HTML page does, with the advice
@@ -288,8 +288,12 @@ onesie calibrate -f shell-safety -i jsonl --map .command --id .id \
 
 ## Streams
 
-- A record that fails still prints a line with an `error` key, and the run exits 6.
-  `--stop-on-error` ends at the first failure, and `--unordered` trades input order for throughput.
+- A record that fails prints a line with an `error` key, and the run exits 6. `--stop-on-error`
+  ends at the first failure, and `--unordered` trades input order for throughput.
+- The `error` object holds `kind`, `status` and `message`. Its `kind` is `input` for a record that
+  never became a request, `transport` for a connection that failed or timed out, `response` for a
+  2xx response onesie could not use, `auth` for a key or account the provider refused, and `http`
+  for any other status outside 2xx. An `auth` failure ends the run with exit 3.
 - A run `--stop-on-error` ends exits with the failed record's own code, as in
   [Exit codes](#exit-codes). A record that never became a request, such as a line onesie could not
   read or an empty state, has no code of its own, so it exits 6 as it does without the flag, and its

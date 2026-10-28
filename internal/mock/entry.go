@@ -114,7 +114,7 @@ func (p parser) failure(failure any, where string) (*Entry, error) {
 
 func writtenFailure(failure map[string]any, refused error) (*Entry, error) {
 	switch failure["kind"] {
-	case "http":
+	case "http", "auth":
 		number, isNumber := failure["status"].(json.Number)
 		if !isNumber {
 			return nil, refused

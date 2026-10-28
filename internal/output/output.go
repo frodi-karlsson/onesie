@@ -14,8 +14,10 @@ import (
 const (
 	// KindResponse is a 2xx response onesie could not use.
 	KindResponse Kind = "response"
-	// KindHTTP is a response with a status outside 2xx.
+	// KindHTTP is a response with a status outside 2xx, apart from an auth one.
 	KindHTTP Kind = "http"
+	// KindAuth is a response that refused the key or the account behind it.
+	KindAuth Kind = "auth"
 	// KindTransport is a connection that failed or timed out.
 	KindTransport Kind = "transport"
 	// KindInput is a record that never became a request.

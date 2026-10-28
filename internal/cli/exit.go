@@ -210,7 +210,7 @@ func requestFailure(err error) (failure, bool) {
 	if answered && authFailure(err) {
 		status := api.Status
 
-		return failure{kind: output.KindHTTP, status: &status, code: ExitAuth}, true
+		return failure{kind: output.KindAuth, status: &status, code: ExitAuth}, true
 	}
 
 	var readable *creds.ReadableError
@@ -277,6 +277,8 @@ func (e *storedFailure) freshRunCode() int {
 		return ExitUnavailable
 	case output.KindTransport:
 		return ExitTransport
+	case output.KindAuth:
+		return ExitAuth
 	case output.KindHTTP:
 		return storedStatus(e.failure.Status)
 	default:

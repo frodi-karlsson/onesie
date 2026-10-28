@@ -854,6 +854,55 @@ func TestMockResume(t *testing.T) {
 		`{"id":2,"model":"jev-latest","answer":{"value":0.2}}` + "\n" +
 		`{"id":3,"model":"jev-latest","answer":{"value":0.3}}` + "\n"
 
+	t.Run("should stop a resume at a stored refused key with the code the refusal exits with", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name     string
+			provider string
+			refusal  string
+		}{
+			{name: "should exit 3 for a stored 401", provider: "typesafe", refusal: `{"error":401}`},
+			{
+				name: "should exit 3 for a stored cloudflare 400 that refuses the token", provider: "cloudflare",
+				refusal: `{"error":{"kind":"http","status":400,"body":{"success":false,` +
+					`"errors":[{"code":9106,"message":"Authentication failed (status: 400)"}]}}}`,
+			},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				out := filepath.Join(t.TempDir(), "answers.jsonl")
+				answers := writeMock(t, tc.refusal+"\n{\"answer\":0.2}\n{\"answer\":0.3}\n")
+				args := []string{
+					"is it urgent", "-o", "json", "-i", "jsonl", "--provider", tc.provider, "-j", "2",
+					"--out", out, "--resume", "--mock", answers,
+				}
+				env := map[string]string{"CLOUDFLARE_ACCOUNT_ID": "acct"}
+
+				// The refused record is held until the one after it is answered, so the aborted run
+				// writes that answer past the refusal, as a run whose workers finished first does.
+				_, errOut, code := runMocked(t, t.Context(), args, "\"one\"\n\"two\"\n\"three\"\n", env, nil,
+					delaying(`"one"`, 1))
+				if code != ExitAuth {
+					t.Fatalf("first run exit %d, want %d\n%s", code, ExitAuth, errOut)
+				}
+
+				if lines := strings.Count(readText(t, out), "\n"); lines != 2 {
+					t.Fatalf("the first run wrote %d lines, want the refusal and the answer after it", lines)
+				}
+
+				_, errOut, code = runMocked(t, t.Context(), append(args, "--stop-on-error"),
+					"\"one\"\n\"two\"\n\"three\"\n", env, nil)
+				if code != ExitAuth {
+					t.Errorf("resume exit %d, want %d as the live refusal exits\n%s", code, ExitAuth, errOut)
+				}
+			})
+		}
+	})
+
 	t.Run("should keep the lines before an uncovered record and ask the rest on resume", func(t *testing.T) {
 		t.Parallel()
 

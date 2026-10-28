@@ -250,7 +250,7 @@ func TestStreamRaw(t *testing.T) {
 				response:  `{"error":{"message":"invalid api key"}}`,
 				wantSent:  1,
 				wantLines: 1,
-				wantOut:   []string{`{"error":{"kind":"http"`, `"status":401`},
+				wantOut:   []string{`{"error":{"kind":"auth"`, `"status":401`},
 				wantErr:   "onesie:",
 				wantCode:  ExitAuth,
 			},

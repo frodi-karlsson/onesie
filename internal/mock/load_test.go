@@ -239,6 +239,14 @@ func TestLoad(t *testing.T) {
 			}},
 		},
 		{
+			name: "should replay a written auth error as its status",
+			file: `{"error":{"kind":"auth","status":401,"message":"401 the key was refused"}}` + "\n",
+			lookups: []lookup{
+				{position: 1, sentinel: onesie.ErrAuthentication, status: 401},
+				{position: 2, missing: true},
+			},
+		},
+		{
 			name: "should fail an http entry with a string body as a live body of that text",
 			file: `{"error":{"kind":"http","status":503,"body":"<html>nope</html>"}}`,
 			lookups: []lookup{{
