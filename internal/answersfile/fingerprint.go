@@ -175,7 +175,9 @@ func (p Print) String() string {
 // Matches reports whether stored is this run's fingerprint, written by this version or as the
 // single sum version 2 kept.
 func (p Print) Matches(stored string) bool {
-	return stored == p.String() || stored == p.older
+	_, _, stale := staleReason(stored, true, p)
+
+	return !stale
 }
 
 func (p Print) changedFrom(stored map[string]string) []string {
@@ -235,7 +237,7 @@ func partLabel(name string) string {
 	case "mock":
 		return "--mock"
 	default:
-		return name
+		return ""
 	}
 }
 
@@ -310,9 +312,9 @@ func staleReason(stored string, found bool, current Print) (StaleReason, []strin
 		return OlderFingerprint, nil, true
 	case version > fingerprintVersion:
 		return NewerFingerprint, nil, true
-	case version == olderVersion && stored == current.older:
+	case version == olderVersion && strings.EqualFold(stored, current.older):
 		return 0, nil, false
-	case version == olderVersion && current.olderColumns != "" && stored == current.olderColumns:
+	case version == olderVersion && current.olderColumns != "" && strings.EqualFold(stored, current.olderColumns):
 		return OlderColumns, nil, true
 	case version == olderVersion:
 		return ChangedRun, nil, true
@@ -425,7 +427,7 @@ func parseSums(written string) (map[string]string, bool) {
 		name, sum, found := strings.Cut(part, "=")
 		decoded, err := hex.DecodeString(sum)
 
-		if !found || name == "" || err != nil || len(decoded) != partSumLength {
+		if !found || partLabel(name) == "" || err != nil || len(decoded) != partSumLength {
 			return nil, false
 		}
 
@@ -433,7 +435,7 @@ func parseSums(written string) (map[string]string, bool) {
 			return nil, false
 		}
 
-		sums[name] = sum
+		sums[name] = strings.ToLower(sum)
 	}
 
 	return sums, true

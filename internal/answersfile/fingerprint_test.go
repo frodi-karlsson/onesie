@@ -106,6 +106,19 @@ func TestStaleReason(t *testing.T) {
 			want:   ForeignFingerprint, wantStale: true,
 		},
 		{
+			name: "should refuse a version 3 fingerprint that names a part onesie does not write", found: true,
+			stored: "v3:questions=" + strings.Repeat("ab", 8) + ",colour=" + strings.Repeat("cd", 8),
+			want:   ForeignFingerprint, wantStale: true,
+		},
+		{
+			name: "should accept the run's own fingerprint written in uppercase hex", found: true,
+			stored: "v3:questions=" + strings.Repeat("AB", 8) + ",model=" + strings.Repeat("CD", 8),
+		},
+		{
+			name: "should accept the single sum version 2 kept written in uppercase hex", found: true,
+			stored: "v2:" + strings.Repeat("AB", 32),
+		},
+		{
 			name: "should refuse an older version", stored: "v1:" + strings.Repeat("ab", 32), found: true,
 			want: OlderFingerprint, wantStale: true,
 		},
@@ -137,6 +150,40 @@ func TestStaleReason(t *testing.T) {
 			got, changed, stale := staleReason(tc.stored, tc.found, current)
 			if got != tc.want || stale != tc.wantStale || strings.Join(changed, ", ") != strings.Join(tc.wantChanged, ", ") {
 				t.Errorf("staleReason = %v, %v, %v, want %v, %v, %v", got, changed, stale, tc.want, tc.wantChanged, tc.wantStale)
+			}
+		})
+	}
+}
+
+func TestPrint_Matches(t *testing.T) {
+	t.Parallel()
+
+	current := Print{
+		parts: []partSum{{name: "questions", sum: strings.Repeat("ab", 8)}, {name: "model", sum: strings.Repeat("cd", 8)}},
+		older: "v2:" + strings.Repeat("ab", 32),
+	}
+
+	tests := []struct {
+		name   string
+		stored string
+		want   bool
+	}{
+		{name: "should match the run's own fingerprint", stored: current.String(), want: true},
+		{name: "should match the single sum version 2 kept", stored: current.older, want: true},
+		{
+			name:   "should match the run's own fingerprint written in uppercase hex",
+			stored: "v3:questions=" + strings.Repeat("AB", 8) + ",model=" + strings.Repeat("CD", 8), want: true,
+		},
+		{name: "should not match a run whose model changed", stored: "v3:questions=" + strings.Repeat("ab", 8) + ",model=" + strings.Repeat("00", 8)},
+		{name: "should not match a fingerprint onesie did not write", stored: "not a fingerprint"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := current.Matches(tc.stored); got != tc.want {
+				t.Errorf("Matches(%q) = %v, want %v", tc.stored, got, tc.want)
 			}
 		})
 	}
