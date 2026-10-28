@@ -1,6 +1,7 @@
 package answersfile
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -13,6 +14,7 @@ import (
 	"testing"
 
 	"github.com/frodi-karlsson/onesie/internal/output"
+	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
 func TestOpen(t *testing.T) {
@@ -742,6 +744,71 @@ func TestFile_CheckFingerprint(t *testing.T) {
 
 			if stale.Reason != tc.wantReason || stale.Path != path || stale.Sidecar != path+fingerprintSuffix {
 				t.Errorf("stale = %+v, want reason %v for %s", stale, tc.wantReason, path)
+			}
+		})
+	}
+}
+
+func TestFile_Bind(t *testing.T) {
+	t.Parallel()
+
+	questions := []plan.Question{{ID: "urgent", Policy: plan.Policy{Fallback: &plan.Fallback{Text: "no"}}}}
+	wired := json.RawMessage(`[]`)
+	inputs := FingerprintInputs{Provider: "typesafe", Model: "m", Output: "csv", Input: "lines"}
+	older := inputs
+	older.withoutFallbackColumns = true
+	changed := older
+	changed.Model = "n"
+
+	tests := []struct {
+		name       string
+		written    FingerprintInputs
+		wantReason StaleReason
+	}{
+		{
+			name:       "should say an older onesie wrote the file when only the fallback columns are new",
+			written:    older,
+			wantReason: OlderColumns,
+		},
+		{
+			name:       "should report any other difference as a changed run",
+			written:    changed,
+			wantReason: ChangedRun,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			path := filepath.Join(t.TempDir(), "answers.csv")
+			if err := os.WriteFile(path, []byte("urgent,error\n0.5,\n"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+
+			written, err := Fingerprint(questions, wired, tc.written)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if writeErr := os.WriteFile(path+fingerprintSuffix, []byte(written+"\n"), 0o600); writeErr != nil {
+				t.Fatal(writeErr)
+			}
+
+			out, _, err := Open(Options{}, Config{Path: path, Resume: true, Output: "csv"})
+			if err != nil {
+				t.Fatalf("Open = %v, want a file to bind", err)
+			}
+
+			t.Cleanup(func() {
+				if releaseErr := out.Release(); releaseErr != nil {
+					t.Errorf("Release = %v", releaseErr)
+				}
+			})
+
+			var stale *StaleAnswersError
+			if bindErr := out.Bind(questions, wired, inputs); !errors.As(bindErr, &stale) || stale.Reason != tc.wantReason {
+				t.Errorf("Bind = %v, want a StaleAnswersError with reason %v", bindErr, tc.wantReason)
 			}
 		})
 	}

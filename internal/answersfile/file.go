@@ -609,7 +609,7 @@ func (o *File) Bind(questions []plan.Question, wired json.Marshaler, inputs Fing
 
 	if delimitedOutput(inputs.Output) && hasFallback(questions) {
 		older := inputs
-		older.WithoutFallbackColumns = true
+		older.withoutFallbackColumns = true
 
 		if o.olderColumns, err = Fingerprint(questions, wired, older); err != nil {
 			return err
@@ -1013,7 +1013,7 @@ func Fingerprint(questions []plan.Question, wired json.Marshaler, inputs Fingerp
 
 		LongContext: inputs.LongContext,
 
-		FallbackColumns: !inputs.WithoutFallbackColumns && delimitedOutput(inputs.Output) && hasFallback(questions),
+		FallbackColumns: !inputs.withoutFallbackColumns && delimitedOutput(inputs.Output) && hasFallback(questions),
 		Mock:            inputs.Mock,
 	})
 	if err != nil {
@@ -1052,7 +1052,7 @@ type FingerprintInputs struct {
 	LongContext bool
 	Mock        bool
 
-	WithoutFallbackColumns bool
+	withoutFallbackColumns bool
 }
 
 func policiesOf(questions []plan.Question) []policyPrint {

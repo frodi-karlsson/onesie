@@ -1036,14 +1036,8 @@ func TestBindOut(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		legacy  bool
 		wantErr string
 	}{
-		{
-			name:    "should say an older onesie wrote the columns when only the fallback column is new",
-			legacy:  true,
-			wantErr: "was written by an older onesie, without the fallback columns",
-		},
 		{
 			name:    "should keep the changed flags message for any other difference",
 			wantErr: "the questions, flags or gate changed",
@@ -1063,16 +1057,10 @@ func TestBindOut(t *testing.T) {
 				t.Fatalf("writing the existing file: %v", err)
 			}
 
-			source := plan.Source{Events: []argv.Event{
-				{Name: "ask", Value: "urgent=is this urgent"}, {Name: "fallback", Value: "no"},
-			}}
-			if !tc.legacy {
-				source = plan.Source{Events: []argv.Event{{Name: "ask", Value: "urgent=is it urgent"}}}
-			}
+			source := plan.Source{Events: []argv.Event{{Name: "ask", Value: "urgent=is it urgent"}}}
 
 			fingerprint := fingerprintWith(t, source, answersfile.FingerprintInputs{
 				Provider: "typesafe", Model: onesie.TypeSafe().DefaultModel(), Output: "csv", Input: "lines",
-				WithoutFallbackColumns: true,
 			}) + "\n"
 			if err := os.WriteFile(path+".onesie", []byte(fingerprint), 0o600); err != nil {
 				t.Fatalf("writing the existing fingerprint: %v", err)
