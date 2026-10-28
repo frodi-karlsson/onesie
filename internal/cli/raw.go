@@ -185,9 +185,7 @@ func oneLine(response []byte) []byte {
 	// A server that newline terminates or pretty prints its JSON would otherwise turn one record
 	// into several output lines, where this mode promises one line per record.
 	var flat bytes.Buffer
-	if err := json.Compact(&flat, response); err != nil {
-		return response
-	}
+	_ = json.Compact(&flat, response) //nolint:errcheck // SendPrepared returns only a body that decoded as JSON.
 
 	return flat.Bytes()
 }
