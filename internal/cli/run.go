@@ -802,8 +802,7 @@ func compact(raw string) []byte {
 func aborting(err error) bool {
 	// Every later record would fail the same way, and a bad key should be reported once rather
 	// than once per line.
-	return errors.Is(err, onesie.ErrAuthentication) || errors.Is(err, onesie.ErrPermissionDenied) ||
-		errors.Is(err, onesie.ErrPaymentRequired) || halting(err)
+	return authFailure(err) || halting(err)
 }
 
 func stopping(flags runConfig) func(line) bool {

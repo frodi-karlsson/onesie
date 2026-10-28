@@ -182,8 +182,7 @@ func firstMatch(err error) failure {
 
 	answered := errors.As(err, &api)
 
-	if answered && (errors.Is(err, onesie.ErrAuthentication) || errors.Is(err, onesie.ErrPermissionDenied) ||
-		errors.Is(err, onesie.ErrPaymentRequired)) {
+	if answered && authFailure(err) {
 		status := api.Status
 
 		return failure{kind: output.KindHTTP, status: &status, code: ExitAuth}
@@ -228,6 +227,11 @@ func firstMatch(err error) failure {
 	// a line onesie could not read. Calling it transport would blame the network, and exit 5 where a
 	// fresh run exits 2.
 	return failure{kind: output.KindInput, code: ExitUsage}
+}
+
+func authFailure(err error) bool {
+	return errors.Is(err, onesie.ErrAuthentication) || errors.Is(err, onesie.ErrPermissionDenied) ||
+		errors.Is(err, onesie.ErrPaymentRequired)
 }
 
 type failure struct {
