@@ -1044,9 +1044,9 @@ func runCached(t *testing.T, env map[string]string, args []string, stdin string,
 		withTerminalWidth(func() (int, bool) { return 100, true }),
 	}, extra...)...)
 
-	root.SetOut(&out)
-	root.SetErr(&errOut)
-	root.SetArgs(args)
+	root.Command.SetOut(&out)
+	root.Command.SetErr(&errOut)
+	root.Command.SetArgs(args)
 
 	code := root.Execute(t.Context())
 

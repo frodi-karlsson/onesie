@@ -1685,14 +1685,14 @@ func runResume(t *testing.T, label, path, stdin string, run resumeRun) {
 		WithClientFactory(stubFactory(srv.URL)),
 	)
 
-	root.SetOut(&out)
-	root.SetErr(&errOut)
+	root.Command.SetOut(&out)
+	root.Command.SetErr(&errOut)
 	question := []string{"is this urgent"}
 	if run.bare {
 		question = nil
 	}
 
-	root.SetArgs(append(append(question, "--out", path), run.args...))
+	root.Command.SetArgs(append(append(question, "--out", path), run.args...))
 
 	if code := root.Execute(ctx); code != run.wantCode {
 		t.Fatalf("%s: exit code = %d, want %d\nstderr:\n%s", label, code, run.wantCode, errOut.String())

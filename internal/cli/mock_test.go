@@ -1118,9 +1118,9 @@ func runMocked(
 
 	root := NewRootCmd(BuildInfo{Version: "1.2.3"}, append(opts, extra...)...)
 
-	root.SetOut(&out)
-	root.SetErr(&errOut)
-	root.SetArgs(args)
+	root.Command.SetOut(&out)
+	root.Command.SetErr(&errOut)
+	root.Command.SetArgs(args)
 
 	code := root.Execute(ctx)
 
@@ -1142,9 +1142,9 @@ func runReal(t *testing.T, args []string, stdin, base string) (string, string, i
 		WithClientFactory(stubFactory(base)),
 	)
 
-	root.SetOut(&out)
-	root.SetErr(&errOut)
-	root.SetArgs(args)
+	root.Command.SetOut(&out)
+	root.Command.SetErr(&errOut)
+	root.Command.SetArgs(args)
 
 	code := root.Execute(t.Context())
 

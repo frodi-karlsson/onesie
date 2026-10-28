@@ -188,9 +188,9 @@ func TestFilterIntegration(t *testing.T) {
 				cli.WithLookupEnv(liveLookup(os.LookupEnv)),
 			)
 
-			root.SetOut(&out)
-			root.SetErr(&out)
-			root.SetArgs(tc.args)
+			root.Command.SetOut(&out)
+			root.Command.SetErr(&out)
+			root.Command.SetArgs(tc.args)
 
 			if code := root.Execute(t.Context()); code != cli.ExitOK {
 				t.Fatalf("exit code = %d, output:\n%s", code, out.String())
@@ -599,9 +599,9 @@ func TestFileIntegration(t *testing.T) {
 				cli.WithLookupEnv(liveLookup(os.LookupEnv)),
 			)
 
-			root.SetOut(&out)
-			root.SetErr(&out)
-			root.SetArgs(tc.args)
+			root.Command.SetOut(&out)
+			root.Command.SetErr(&out)
+			root.Command.SetArgs(tc.args)
 
 			if code := root.Execute(t.Context()); code != cli.ExitOK {
 				t.Fatalf("exit code = %d, output:\n%s", code, out.String())
@@ -802,9 +802,9 @@ not json at all
 				cli.WithLookupEnv(liveLookup(os.LookupEnv)),
 			)
 
-			root.SetOut(&out)
-			root.SetErr(&out)
-			root.SetArgs(tc.args)
+			root.Command.SetOut(&out)
+			root.Command.SetErr(&out)
+			root.Command.SetArgs(tc.args)
 
 			code := root.Execute(t.Context())
 
@@ -1197,9 +1197,9 @@ func runLive(t *testing.T, args []string, stdin string) (string, string, int) {
 		cli.WithLookupEnv(liveLookup(os.LookupEnv)),
 	)
 
-	root.SetOut(&out)
-	root.SetErr(&errOut)
-	root.SetArgs(args)
+	root.Command.SetOut(&out)
+	root.Command.SetErr(&errOut)
+	root.Command.SetArgs(args)
 
 	// Execute is called on its own line. In a return statement the two String calls are evaluated
 	// before it and would report empty buffers.
@@ -1225,9 +1225,9 @@ func runStored(t *testing.T, path string, args []string, stdin string) (string, 
 		cli.WithKeychain(offKeychain()),
 	)
 
-	root.SetOut(&out)
-	root.SetErr(&errOut)
-	root.SetArgs(args)
+	root.Command.SetOut(&out)
+	root.Command.SetErr(&errOut)
+	root.Command.SetArgs(args)
 
 	// Execute is called on its own line. In a return statement the two String calls are evaluated
 	// before it and would report empty buffers.

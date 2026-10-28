@@ -751,8 +751,8 @@ func TestOpenOut(t *testing.T) {
 				WithClientFactory(stubFactory(baseFor(srv.URL, tc.unreached))),
 			)
 
-			root.SetOut(&out)
-			root.SetErr(&errOut)
+			root.Command.SetOut(&out)
+			root.Command.SetErr(&errOut)
 			global := []string{"--out", path, "-o", "values"}
 			if tc.bare {
 				global = global[:2]
@@ -768,7 +768,7 @@ func TestOpenOut(t *testing.T) {
 				args = append(slices.Clone(args), "-f", questions)
 			}
 
-			root.SetArgs(append(global, args...))
+			root.Command.SetArgs(append(global, args...))
 
 			if code := root.Execute(t.Context()); code != tc.wantCode {
 				t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, tc.wantCode, errOut.String())
@@ -877,9 +877,9 @@ func TestOpenOut(t *testing.T) {
 				WithClientFactory(stubFactory(srv.URL)),
 			)
 
-			root.SetOut(&out)
-			root.SetErr(&errOut)
-			root.SetArgs(append([]string{"--out", tc.path(t), "-o", "values"}, tc.args...))
+			root.Command.SetOut(&out)
+			root.Command.SetErr(&errOut)
+			root.Command.SetArgs(append([]string{"--out", tc.path(t), "-o", "values"}, tc.args...))
 
 			if code := root.Execute(t.Context()); code != tc.wantCode {
 				t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, tc.wantCode, errOut.String())
@@ -1124,9 +1124,9 @@ func TestBindOut(t *testing.T) {
 				WithClientFactory(stubFactory(srv.URL)),
 			)
 
-			root.SetOut(&out)
-			root.SetErr(&errOut)
-			root.SetArgs([]string{
+			root.Command.SetOut(&out)
+			root.Command.SetErr(&errOut)
+			root.Command.SetArgs([]string{
 				"--ask", "urgent=is this urgent", "--fallback", "no", "-i", "lines", "-o", "csv",
 				"--out", path, "--resume",
 			})

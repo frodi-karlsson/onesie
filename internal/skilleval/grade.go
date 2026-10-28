@@ -34,7 +34,7 @@ func NewGrader(runner DryRunner) *Grader {
 	return &Grader{
 		runner:   runner,
 		readFile: os.ReadFile,
-		flags:    cli.NewRootCmd(cli.BuildInfo{}).Flags(),
+		flags:    cli.NewRootCmd(cli.BuildInfo{}).Command.Flags(),
 	}
 }
 

@@ -5,21 +5,25 @@ import (
 	"sync"
 )
 
-func (r *Root) run(ctx context.Context) outcome {
+// Run runs the tree once and returns its failure apart from the cleanup failures that followed it,
+// for a caller that inspects the errors instead of exiting with them.
+func (r *Root) Run(ctx context.Context) Outcome {
 	failure := r.Command.ExecuteContext(ctx)
 
-	return outcome{failure: failure, cleanups: r.cleanups.drain()}
+	return Outcome{Failure: failure, Cleanups: r.cleanups.drain()}
 }
 
-type outcome struct {
-	failure  error
-	cleanups []error
+// Outcome is one run's failure and the cleanup failures that followed it. Cleanups never decide the
+// exit code while Failure is set, so errors.Is on Failure alone tells what the run did.
+type Outcome struct {
+	Failure  error
+	Cleanups []error
 }
 
-func (o outcome) report() []string {
+func (o Outcome) report() []string {
 	var lines []string
 
-	for _, err := range append([]error{o.failure}, o.cleanups...) {
+	for _, err := range append([]error{o.Failure}, o.Cleanups...) {
 		if err != nil && worthReporting(err) {
 			lines = append(lines, text(err))
 		}

@@ -18,50 +18,50 @@ func TestOutcomeReport(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		outcome outcome
+		outcome Outcome
 		want    []string
 	}{
 		{name: "should report nothing when nothing failed"},
 		{
 			name: "should report a failure and the cleanup failure that followed it",
-			outcome: outcome{
-				failure: errors.New("saving profiles.json: the disk is full"), cleanups: []error{errors.New("stderr is gone")},
+			outcome: Outcome{
+				Failure: errors.New("saving profiles.json: the disk is full"), Cleanups: []error{errors.New("stderr is gone")},
 			},
 			want: []string{"saving profiles.json: the disk is full", "stderr is gone"},
 		},
 		{
 			name:    "should report only what followed failed records",
-			outcome: outcome{failure: &recordsError{}, cleanups: []error{errors.New("compacting answers.jsonl: the disk is full")}},
+			outcome: Outcome{Failure: &recordsError{}, Cleanups: []error{errors.New("compacting answers.jsonl: the disk is full")}},
 			want:    []string{"compacting answers.jsonl: the disk is full"},
 		},
 		{
 			name: "should report a finish failure and a release failure that both followed failed records",
-			outcome: outcome{
-				failure: &recordsError{}, cleanups: []error{errors.New("compacting answers.jsonl: the disk is full"), release},
+			outcome: Outcome{
+				Failure: &recordsError{}, Cleanups: []error{errors.New("compacting answers.jsonl: the disk is full"), release},
 			},
 			want: []string{"compacting answers.jsonl: the disk is full", "unlocking answers.jsonl: busy"},
 		},
 		{
 			name:    "should leave out an interrupt among the cleanup failures",
-			outcome: outcome{failure: &recordsError{}, cleanups: []error{context.Canceled, release}},
+			outcome: Outcome{Failure: &recordsError{}, Cleanups: []error{context.Canceled, release}},
 			want:    []string{"unlocking answers.jsonl: busy"},
 		},
 		{
 			name:    "should leave out a broken pipe among the cleanup failures",
-			outcome: outcome{failure: &recordsError{}, cleanups: []error{stderrGone}},
+			outcome: Outcome{Failure: &recordsError{}, Cleanups: []error{stderrGone}},
 		},
 		{
 			name:    "should report a server error and leave out the broken stderr that followed it",
-			outcome: outcome{failure: errors.New("502 bad gateway"), cleanups: []error{stderrGone}},
+			outcome: Outcome{Failure: errors.New("502 bad gateway"), Cleanups: []error{stderrGone}},
 			want:    []string{"502 bad gateway"},
 		},
 		{
 			name:    "should stay quiet for an interrupt followed by a broken pipe",
-			outcome: outcome{failure: context.Canceled, cleanups: []error{syscall.EPIPE}},
+			outcome: Outcome{Failure: context.Canceled, Cleanups: []error{syscall.EPIPE}},
 		},
 		{
 			name:    "should report a release failure that followed a broken stdout",
-			outcome: outcome{failure: stdoutGone, cleanups: []error{release}},
+			outcome: Outcome{Failure: stdoutGone, Cleanups: []error{release}},
 			want:    []string{"unlocking answers.jsonl: busy"},
 		},
 	}

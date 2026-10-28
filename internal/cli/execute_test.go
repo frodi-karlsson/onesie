@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"syscall"
 	"testing"
@@ -71,9 +72,9 @@ func TestRootExecute(t *testing.T) {
 				WithLookupEnv(lookupFrom(map[string]string{"TYPESAFE_API_KEY": "k", "ONESIE_CONFIG_DIR": t.TempDir()})),
 				withKeychain(noKeychain()))
 
-			root.SetOut(io.Discard)
-			root.SetErr(stderr)
-			root.SetArgs([]string{"--base-url", srv.URL, "--retries", "0", "--state", "x", "is it urgent"})
+			root.Command.SetOut(io.Discard)
+			root.Command.SetErr(stderr)
+			root.Command.SetArgs([]string{"--base-url", srv.URL, "--retries", "0", "--state", "x", "is it urgent"})
 
 			if code := root.Execute(t.Context()); code != ExitUnavailable {
 				t.Errorf("exit code with stderr %T = %d, want %d", stderr, code, ExitUnavailable)
@@ -529,23 +530,23 @@ func TestRootExecute(t *testing.T) {
 	}
 }
 
-func TestRootExecuteContext(t *testing.T) {
+func TestRootRun(t *testing.T) {
 	t.Parallel()
 
 	failure := errors.New("saving profiles.json: the disk is full")
 	release := errors.New("unlocking answers.jsonl: busy")
 
 	tests := []struct {
-		name     string
-		failure  error
-		cleanups []error
-		wantIs   []error
+		name         string
+		failure      error
+		cleanups     []error
+		wantCleanups []error
 	}{
-		{name: "should return nil when nothing failed"},
-		{name: "should return the failure alone when no cleanup failed", failure: failure, wantIs: []error{failure}},
+		{name: "should return no failure and no cleanup failures when nothing failed"},
+		{name: "should return the failure alone when no cleanup failed", failure: failure},
 		{
-			name: "should return the failure joined with the cleanup failures that followed it", failure: failure,
-			cleanups: []error{release}, wantIs: []error{failure, release},
+			name: "should return the failure apart from the cleanup failures that followed it", failure: failure,
+			cleanups: []error{release}, wantCleanups: []error{release},
 		},
 	}
 
@@ -555,15 +556,10 @@ func TestRootExecuteContext(t *testing.T) {
 
 			root := failingCleanups(io.Discard, func(int) ([]error, error) { return tc.cleanups, tc.failure })
 
-			err := root.ExecuteContext(t.Context())
-			if (err == nil) != (len(tc.wantIs) == 0) {
-				t.Fatalf("error = %v, want one matching %v", err, tc.wantIs)
-			}
-
-			for _, want := range tc.wantIs {
-				if !errors.Is(err, want) {
-					t.Errorf("error = %v, want one matching %v", err, want)
-				}
+			ended := root.Run(t.Context())
+			apart := !errors.Is(ended.Failure, release)
+			if !errors.Is(ended.Failure, tc.failure) || !apart || !slices.Equal(ended.Cleanups, tc.wantCleanups) {
+				t.Errorf("run = %v and %v, want %v and %v", ended.Failure, ended.Cleanups, tc.failure, tc.wantCleanups)
 			}
 		})
 	}
@@ -579,12 +575,12 @@ func TestRootExecuteContext(t *testing.T) {
 			return nil, failure
 		})
 
-		if err := root.ExecuteContext(t.Context()); !errors.Is(err, release) {
-			t.Fatalf("first run error = %v, want one matching %v", err, release)
+		if ended := root.Run(t.Context()); !slices.Equal(ended.Cleanups, []error{release}) {
+			t.Fatalf("first run cleanups = %v, want %v", ended.Cleanups, release)
 		}
 
-		if err := root.ExecuteContext(t.Context()); !errors.Is(err, failure) || errors.Is(err, release) {
-			t.Errorf("second run error = %v, want %v alone", err, failure)
+		if ended := root.Run(t.Context()); !errors.Is(ended.Failure, failure) || len(ended.Cleanups) != 0 {
+			t.Errorf("second run = %v and %v, want %v alone", ended.Failure, ended.Cleanups, failure)
 		}
 	})
 }
@@ -609,8 +605,8 @@ func failingCleanups(stderr io.Writer, script func(run int) (cleanups []error, f
 		},
 	}, cleanups: cleanups}
 
-	root.SetErr(stderr)
-	root.SetArgs([]string{})
+	root.Command.SetErr(stderr)
+	root.Command.SetArgs([]string{})
 
 	return root
 }
@@ -624,9 +620,9 @@ func interruptedRun(t *testing.T, args []string, opts ...RootOption) int {
 	var out, errOut bytes.Buffer
 
 	root := NewRootCmd(BuildInfo{Version: "1.2.3"}, opts...)
-	root.SetOut(&out)
-	root.SetErr(&errOut)
-	root.SetArgs(args)
+	root.Command.SetOut(&out)
+	root.Command.SetErr(&errOut)
+	root.Command.SetArgs(args)
 
 	done := make(chan int, 1)
 

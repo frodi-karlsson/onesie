@@ -5,7 +5,7 @@ import "testing"
 func TestTakesNextAsValue(t *testing.T) {
 	t.Parallel()
 
-	flags := NewRootCmd(BuildInfo{Version: "1.2.3"}).Flags()
+	flags := NewRootCmd(BuildInfo{Version: "1.2.3"}).Command.Flags()
 
 	tests := []struct {
 		name string

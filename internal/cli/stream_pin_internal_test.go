@@ -563,9 +563,9 @@ func runPinned(t *testing.T, step pinnedStep, out string) (string, string, int) 
 	var stdout, stderr bytes.Buffer
 
 	root := NewRootCmd(BuildInfo{Version: "1.2.3"}, opts...)
-	root.SetOut(&stdout)
-	root.SetErr(&stderr)
-	root.SetArgs(args)
+	root.Command.SetOut(&stdout)
+	root.Command.SetErr(&stderr)
+	root.Command.SetArgs(args)
 
 	code := root.Execute(ctx)
 

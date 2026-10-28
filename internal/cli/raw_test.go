@@ -878,9 +878,9 @@ func runAgainst(
 		}, extra...)...,
 	)
 
-	root.SetOut(&out)
-	root.SetErr(&errOut)
-	root.SetArgs(args)
+	root.Command.SetOut(&out)
+	root.Command.SetErr(&errOut)
+	root.Command.SetArgs(args)
 
 	code := root.Execute(t.Context())
 

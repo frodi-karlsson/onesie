@@ -257,9 +257,9 @@ func TestReadQuestionFile(t *testing.T) {
 				}, newFakeTree(tc.files, workDir, configDir).options()...)
 
 				root := NewRootCmd(BuildInfo{Version: "1.2.3"}, opts...)
-				root.SetOut(&out)
-				root.SetErr(&errOut)
-				root.SetArgs(tc.args)
+				root.Command.SetOut(&out)
+				root.Command.SetErr(&errOut)
+				root.Command.SetArgs(tc.args)
 
 				if code := root.Execute(t.Context()); code != tc.wantCode {
 					t.Errorf("exit code = %d, want %d\nstdout:\n%s\nstderr:\n%s", code, tc.wantCode, &out, &errOut)
@@ -517,9 +517,9 @@ func runTree(t *testing.T, tree fakeTree, extra []RootOption, args ...string) (s
 	}, tree.options()...)
 
 	root := NewRootCmd(BuildInfo{Version: "1.2.3"}, append(opts, extra...)...)
-	root.SetOut(&out)
-	root.SetErr(&errOut)
-	root.SetArgs(args)
+	root.Command.SetOut(&out)
+	root.Command.SetErr(&errOut)
+	root.Command.SetArgs(args)
 
 	code := root.Execute(t.Context())
 
@@ -540,9 +540,9 @@ func runInDir(t *testing.T, dir, stdin string, args ...string) (string, string, 
 		WithHomeDir(func() (string, error) { return dir, nil }),
 		WithLookupEnv(lookupFrom(map[string]string{"ONESIE_CONFIG_DIR": filepath.Join(dir, "config")})),
 	)
-	root.SetOut(&out)
-	root.SetErr(&errOut)
-	root.SetArgs(args)
+	root.Command.SetOut(&out)
+	root.Command.SetErr(&errOut)
+	root.Command.SetArgs(args)
 
 	code := root.Execute(t.Context())
 

@@ -132,9 +132,9 @@ func TestReadme(t *testing.T) {
 		var errOut bytes.Buffer
 
 		root := readmeRoot(t, stdin)
-		root.SetOut(out)
-		root.SetErr(&errOut)
-		root.SetArgs(append(command[1:], "--mock", mock))
+		root.Command.SetOut(out)
+		root.Command.SetErr(&errOut)
+		root.Command.SetArgs(append(command[1:], "--mock", mock))
 
 		exited := make(chan int, 1)
 
@@ -475,9 +475,9 @@ func runReadme(t *testing.T, stdin string, args ...string) (string, string, int)
 	var out, errOut bytes.Buffer
 
 	root := readmeRoot(t, strings.NewReader(stdin))
-	root.SetOut(&out)
-	root.SetErr(&errOut)
-	root.SetArgs(args)
+	root.Command.SetOut(&out)
+	root.Command.SetErr(&errOut)
+	root.Command.SetArgs(args)
 
 	code := root.Execute(t.Context())
 

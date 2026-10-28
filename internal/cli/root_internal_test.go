@@ -206,9 +206,9 @@ func TestProfilesLocation(t *testing.T) {
 				WithLookupEnv(lookupFrom(env)),
 				WithHomeDir(func() (string, error) { return dir, nil }),
 				withKeychain(noKeychain()))
-			root.SetOut(&out)
-			root.SetErr(&errOut)
-			root.SetArgs([]string{"profile", "list"})
+			root.Command.SetOut(&out)
+			root.Command.SetErr(&errOut)
+			root.Command.SetArgs([]string{"profile", "list"})
 
 			if code := root.Execute(t.Context()); code != ExitOK {
 				t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, ExitOK, errOut.String())

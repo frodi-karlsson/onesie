@@ -756,9 +756,9 @@ func asksNothing(set *pflag.FlagSet, name string) {
 }
 
 // Root is a command tree with the log of the cleanup failures its runs record, which cobra's one
-// returned error has no room for.
+// returned error has no room for. Command is the tree itself, for a caller to configure.
 type Root struct {
-	*cobra.Command
+	Command *cobra.Command
 
 	cleanups *cleanupLog
 }
@@ -766,27 +766,15 @@ type Root struct {
 // Execute runs the tree and returns the process exit code, so main never has to classify an error
 // itself. The cleanup failures that followed the run's failure print after it.
 func (r *Root) Execute(ctx context.Context) int {
-	ended := r.run(ctx)
+	ended := r.Run(ctx)
 
 	for _, line := range ended.report() {
 		// Stripped, since a message can quote the server or the input to a terminal.
 		//nolint:errcheck // A stderr that cannot take the message leaves the exit code to name the failure.
-		_ = output.Notice(r.ErrOrStderr(), output.Printable(line))
+		_ = output.Notice(r.Command.ErrOrStderr(), output.Printable(line))
 	}
 
-	return Classify(ended.failure)
-}
-
-// ExecuteContext runs the tree and returns its failure joined with the cleanup failures that
-// followed it, for a caller that inspects the error instead of exiting with it.
-func (r *Root) ExecuteContext(ctx context.Context) error {
-	ended := r.run(ctx)
-
-	if len(ended.cleanups) == 0 {
-		return ended.failure
-	}
-
-	return errors.Join(append([]error{ended.failure}, ended.cleanups...)...)
+	return Classify(ended.Failure)
 }
 
 // WithClientFactory replaces how commands build their API client, so a test can point one at a

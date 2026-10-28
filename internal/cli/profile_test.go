@@ -643,13 +643,13 @@ func TestProfileCreate(t *testing.T) {
 	t.Run("should keep the notice stderr refused beside a failed save and keep exit 2", func(t *testing.T) {
 		t.Parallel()
 
-		ended := failedSave(t, failingWrite, brokenWriter{}).run(t.Context())
+		ended := failedSave(t, failingWrite, brokenWriter{}).Run(t.Context())
 
 		if got := ended.report(); len(got) != 2 || got[1] != errBroken.Error() {
 			t.Errorf("report = %q, want the failed save and then the refused notice", got)
 		}
 
-		if code := Classify(ended.failure); code != ExitUsage {
+		if code := Classify(ended.Failure); code != ExitUsage {
 			t.Errorf("exit code = %d, want %d", code, ExitUsage)
 		}
 	})
@@ -688,9 +688,9 @@ func failedSave(t *testing.T, store []creds.StoreOption, stderr io.Writer) *Root
 		withKeychain(undeletableKeychain{workingKeychain(nil)}),
 		withCredentialStore(creds.NewStore(store...)))
 
-	root.SetOut(io.Discard)
-	root.SetErr(stderr)
-	root.SetArgs([]string{"profile", "create", "work", "--provider", "typesafe"})
+	root.Command.SetOut(io.Discard)
+	root.Command.SetErr(stderr)
+	root.Command.SetArgs([]string{"profile", "create", "work", "--provider", "typesafe"})
 
 	return root
 }
@@ -2254,9 +2254,9 @@ func runInConfig(
 		withKeychain(noKeychain()),
 	}, opts...)...)
 
-	root.SetOut(&out)
-	root.SetErr(&errOut)
-	root.SetArgs(args)
+	root.Command.SetOut(&out)
+	root.Command.SetErr(&errOut)
+	root.Command.SetArgs(args)
 
 	code := root.Execute(t.Context())
 

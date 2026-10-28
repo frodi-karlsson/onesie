@@ -758,9 +758,9 @@ func runStub(
 
 	root := NewRootCmd(BuildInfo{Version: "1.2.3"}, append(opts, extra...)...)
 
-	root.SetOut(&out)
-	root.SetErr(&errOut)
-	root.SetArgs(args)
+	root.Command.SetOut(&out)
+	root.Command.SetErr(&errOut)
+	root.Command.SetArgs(args)
 
 	code := root.Execute(ctx)
 

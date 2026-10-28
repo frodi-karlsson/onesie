@@ -577,9 +577,9 @@ func TestNewCalibrateCmd(t *testing.T) {
 			WithLookupEnv(lookupFrom(map[string]string{"ONESIE_CONFIG_DIR": t.TempDir()})),
 		)
 
-		root.SetOut(&out)
-		root.SetErr(&errOut)
-		root.SetArgs([]string{
+		root.Command.SetOut(&out)
+		root.Command.SetErr(&errOut)
+		root.Command.SetArgs([]string{
 			"calibrate", "--ask", "urgent=is this urgent", "-i", "jsonl", "--map", ".body",
 			"--label", "urgent=.is_urgent |",
 		})
@@ -935,13 +935,13 @@ func TestCalibrateRequests(t *testing.T) {
 			)
 
 			if tc.stdout != nil {
-				root.SetOut(tc.stdout(cancel, &out))
+				root.Command.SetOut(tc.stdout(cancel, &out))
 			} else {
-				root.SetOut(&out)
+				root.Command.SetOut(&out)
 			}
 
-			root.SetErr(&errOut)
-			root.SetArgs(args)
+			root.Command.SetErr(&errOut)
+			root.Command.SetArgs(args)
 
 			done := make(chan int, 1)
 			go func() { done <- root.Execute(ctx) }()
@@ -1773,12 +1773,12 @@ func TestCalibrateRun(t *testing.T) {
 			WithStdoutTTY(false),
 			WithLookupEnv(lookupFrom(map[string]string{"ONESIE_CONFIG_DIR": t.TempDir()})),
 		)
-		root.SetOut(io.Discard)
-		root.SetErr(io.Discard)
-		root.SetArgs(calibrating(answers, "--resume", "--offline"))
+		root.Command.SetOut(io.Discard)
+		root.Command.SetErr(io.Discard)
+		root.Command.SetArgs(calibrating(answers, "--resume", "--offline"))
 
-		if err := root.ExecuteContext(t.Context()); !errors.Is(err, answersfile.ErrStaleAnswers) {
-			t.Errorf("error = %v, want one matching ErrStaleAnswers", err)
+		if ended := root.Run(t.Context()); !errors.Is(ended.Failure, answersfile.ErrStaleAnswers) {
+			t.Errorf("failure = %v, want one matching ErrStaleAnswers", ended.Failure)
 		}
 	})
 
@@ -2580,9 +2580,9 @@ func executeCalibrate(
 		WithLookupEnv(lookupFrom(map[string]string{"ONESIE_CONFIG_DIR": t.TempDir()})),
 	)
 
-	root.SetOut(stdout)
-	root.SetErr(stderr)
-	root.SetArgs(args)
+	root.Command.SetOut(stdout)
+	root.Command.SetErr(stderr)
+	root.Command.SetArgs(args)
 
 	return root.Execute(ctx)
 }
@@ -3215,9 +3215,9 @@ func calibrateWithEnv(t *testing.T, env map[string]string, args []string, stdin,
 		WithLookupEnv(lookupFrom(maps.Clone(env))),
 	)
 
-	root.SetOut(&out)
-	root.SetErr(&errOut)
-	root.SetArgs(args)
+	root.Command.SetOut(&out)
+	root.Command.SetErr(&errOut)
+	root.Command.SetArgs(args)
 
 	code := root.Execute(t.Context())
 

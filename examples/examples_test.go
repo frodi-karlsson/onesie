@@ -303,9 +303,9 @@ func run(t *testing.T, stdin io.Reader, args ...string) (string, string, int) {
 		cli.WithLookupEnv(func(string) (string, bool) { return "", false }),
 	)
 
-	root.SetOut(&stdout)
-	root.SetErr(&stderr)
-	root.SetArgs(args)
+	root.Command.SetOut(&stdout)
+	root.Command.SetErr(&stderr)
+	root.Command.SetArgs(args)
 
 	code := root.Execute(t.Context())
 

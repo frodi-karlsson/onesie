@@ -1033,9 +1033,9 @@ func TestPrintRequest(t *testing.T) {
 			WithLookupEnv(lookupFrom(map[string]string{"ONESIE_CONFIG_DIR": t.TempDir()})),
 		)
 
-		root.SetOut(&out)
-		root.SetErr(&errOut)
-		root.SetArgs([]string{"-f", path, "--print-request"})
+		root.Command.SetOut(&out)
+		root.Command.SetErr(&errOut)
+		root.Command.SetArgs([]string{"-f", path, "--print-request"})
 
 		if code := root.Execute(t.Context()); code != ExitOK {
 			t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, ExitOK, errOut.String())
@@ -1116,9 +1116,9 @@ func TestPrintRequest(t *testing.T) {
 			WithLookupEnv(lookupFrom(map[string]string{"ONESIE_CONFIG_DIR": t.TempDir()})),
 		)
 
-		root.SetOut(&out)
-		root.SetErr(errOut)
-		root.SetArgs([]string{"--ask", "urgent=is this urgent", "--print-request"})
+		root.Command.SetOut(&out)
+		root.Command.SetErr(errOut)
+		root.Command.SetArgs([]string{"--ask", "urgent=is this urgent", "--print-request"})
 
 		if code := root.Execute(t.Context()); code != ExitOK {
 			t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, ExitOK, errOut.String())
@@ -1544,9 +1544,9 @@ func TestPrintRequest(t *testing.T) {
 				WithLookupEnv(lookupFrom(env)),
 			)
 
-			root.SetOut(&out)
-			root.SetErr(&errOut)
-			root.SetArgs(tc.args)
+			root.Command.SetOut(&out)
+			root.Command.SetErr(&errOut)
+			root.Command.SetArgs(tc.args)
 
 			if code := root.Execute(t.Context()); code != tc.wantCode {
 				t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, tc.wantCode, errOut.String())
@@ -1649,9 +1649,9 @@ func runRecorded(t *testing.T, args []string, stdin string) (string, string, int
 		WithLookupEnv(func(string) (string, bool) { return "", false }),
 	)
 
-	root.SetOut(&out)
-	root.SetErr(&errOut)
-	root.SetArgs(args)
+	root.Command.SetOut(&out)
+	root.Command.SetErr(&errOut)
+	root.Command.SetArgs(args)
 
 	code := root.Execute(t.Context())
 
@@ -2037,9 +2037,9 @@ func runClosed(t *testing.T, args []string, stdin, baseURL string) (string, int)
 
 	root := NewRootCmd(BuildInfo{Version: "1.2.3"}, append(opts, withKeychain(noKeychain()))...)
 
-	root.SetOut(closedConsumer{})
-	root.SetErr(&errOut)
-	root.SetArgs(args)
+	root.Command.SetOut(closedConsumer{})
+	root.Command.SetErr(&errOut)
+	root.Command.SetArgs(args)
 
 	code := root.Execute(t.Context())
 
@@ -2122,9 +2122,9 @@ func runOfflineStdin(t *testing.T, args []string, stdin string) (string, string,
 		WithLookupEnv(lookupFrom(map[string]string{"ONESIE_CONFIG_DIR": t.TempDir()})),
 	)
 
-	root.SetOut(&out)
-	root.SetErr(&errOut)
-	root.SetArgs(args)
+	root.Command.SetOut(&out)
+	root.Command.SetErr(&errOut)
+	root.Command.SetArgs(args)
 
 	code := root.Execute(t.Context())
 

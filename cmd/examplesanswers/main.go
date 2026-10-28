@@ -104,11 +104,26 @@ func answer(ctx context.Context, set examples.Set, opts options, env map[string]
 	// file that does not is started afresh, and any other is resumed.
 	probe := command(opts.root, env, home, records, append(slices.Clone(args), "--resume", "--offline"),
 		io.Discard, io.Discard)
-	if probeErr := probe.ExecuteContext(ctx); !errors.Is(probeErr, answersfile.ErrStaleAnswers) {
+	probed := probe.Run(ctx)
+	if err := reportCleanups(opts.stderr, set.Name, probed.Cleanups); err != nil {
+		return cli.ExitUsage, err
+	}
+
+	if !errors.Is(probed.Failure, answersfile.ErrStaleAnswers) {
 		args = append(args, "--resume")
 	}
 
 	return command(opts.root, env, home, records, args, opts.stdout, opts.stderr).Execute(ctx), nil
+}
+
+func reportCleanups(stderr io.Writer, set string, cleanups []error) error {
+	for _, cleanup := range cleanups {
+		if _, err := fmt.Fprintf(stderr, "examplesanswers: probing %s: %v\n", set, cleanup); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func calibrateArgs(set examples.Set, dir string) []string {
@@ -136,9 +151,9 @@ func command(
 		}, extra...)...,
 	)
 
-	root.SetOut(stdout)
-	root.SetErr(stderr)
-	root.SetArgs(args)
+	root.Command.SetOut(stdout)
+	root.Command.SetErr(stderr)
+	root.Command.SetArgs(args)
 
 	return root
 }

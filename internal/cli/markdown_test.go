@@ -97,9 +97,9 @@ func TestWriteRecord(t *testing.T) {
 				WithClientFactory(stubFactory(srv.URL)),
 			)
 
-			root.SetOut(&out)
-			root.SetErr(&errOut)
-			root.SetArgs(tc.args)
+			root.Command.SetOut(&out)
+			root.Command.SetErr(&errOut)
+			root.Command.SetArgs(tc.args)
 
 			if code := root.Execute(t.Context()); code != tc.wantCode {
 				t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, tc.wantCode, errOut.String())

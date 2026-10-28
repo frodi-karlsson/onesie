@@ -1773,8 +1773,8 @@ func TestNewRootCmd(t *testing.T) {
 				}),
 			)
 
-			root.SetOut(&out)
-			root.SetErr(&out)
+			root.Command.SetOut(&out)
+			root.Command.SetErr(&out)
 
 			code := root.Execute(t.Context())
 
@@ -1962,9 +1962,9 @@ func TestNewRootCmd(t *testing.T) {
 					cli.WithLookupEnv(apiKeyEnv("test")),
 				)
 
-				root.SetOut(&out)
-				root.SetErr(&out)
-				root.SetArgs(args)
+				root.Command.SetOut(&out)
+				root.Command.SetErr(&out)
+				root.Command.SetArgs(args)
 
 				if code := root.Execute(t.Context()); code != tc.code {
 					t.Errorf("exit code = %d, want %d. output:\n%s", code, tc.code, out.String())
@@ -2091,9 +2091,9 @@ func TestNewRootCmd(t *testing.T) {
 						}),
 					)
 
-					root.SetOut(&out)
-					root.SetErr(&errOut)
-					root.SetArgs(append(slices.Clone(tc.question), append(args, "--retries", "0")...))
+					root.Command.SetOut(&out)
+					root.Command.SetErr(&errOut)
+					root.Command.SetArgs(append(slices.Clone(tc.question), append(args, "--retries", "0")...))
 
 					code := root.Execute(t.Context())
 
@@ -2142,9 +2142,9 @@ func TestNewRootCmd(t *testing.T) {
 
 		root := cli.NewRootCmd(cli.BuildInfo{Version: "1.2.3"},
 			cli.WithStdin(strings.NewReader("")), cli.WithStdinTTY(false))
-		root.SetOut(&out)
-		root.SetErr(&out)
-		root.SetArgs([]string{"--help"})
+		root.Command.SetOut(&out)
+		root.Command.SetErr(&out)
+		root.Command.SetArgs([]string{"--help"})
 
 		if code := root.Execute(t.Context()); code != cli.ExitOK {
 			t.Fatalf("exit code = %d, output:\n%s", code, out.String())
@@ -2174,9 +2174,9 @@ func TestNewRootCmd(t *testing.T) {
 
 			root := cli.NewRootCmd(cli.BuildInfo{Version: "1.2.3"},
 				cli.WithStdin(strings.NewReader("")), cli.WithStdinTTY(false))
-			root.SetOut(&out)
-			root.SetErr(&out)
-			root.SetArgs(pin.args)
+			root.Command.SetOut(&out)
+			root.Command.SetErr(&out)
+			root.Command.SetArgs(pin.args)
 
 			if code := root.Execute(t.Context()); code != cli.ExitOK {
 				t.Fatalf("onesie %s exit code = %d, output:\n%s", strings.Join(pin.args, " "), code, out.String())
@@ -2201,9 +2201,9 @@ func TestNewRootCmd(t *testing.T) {
 
 			root := cli.NewRootCmd(cli.BuildInfo{Version: "1.2.3", Commit: "abc1234", Date: "2026-10-27"},
 				cli.WithStdin(strings.NewReader("")), cli.WithStdinTTY(false))
-			root.SetOut(&out)
-			root.SetErr(&out)
-			root.SetArgs(args)
+			root.Command.SetOut(&out)
+			root.Command.SetErr(&out)
+			root.Command.SetArgs(args)
 
 			if code := root.Execute(t.Context()); code != cli.ExitOK {
 				t.Fatalf("onesie %s exit code = %d, output:\n%s", strings.Join(args, " "), code, out.String())
@@ -2237,9 +2237,9 @@ func TestNewRootCmd(t *testing.T) {
 
 			root := cli.NewRootCmd(cli.BuildInfo{Version: "1.2.3"},
 				cli.WithStdin(strings.NewReader("")), cli.WithStdinTTY(false))
-			root.SetOut(&out)
-			root.SetErr(&errOut)
-			root.SetArgs(strings.Fields(args))
+			root.Command.SetOut(&out)
+			root.Command.SetErr(&errOut)
+			root.Command.SetArgs(strings.Fields(args))
 
 			if code := root.Execute(t.Context()); code != cli.ExitUsage || errOut.String() != want || out.Len() != 0 {
 				t.Errorf("onesie %s = exit %d, stdout %q, stderr %q, want exit 2 and %q", args, code, out.String(), errOut.String(), want)
@@ -2255,9 +2255,9 @@ func TestNewRootCmd(t *testing.T) {
 
 			root := cli.NewRootCmd(cli.BuildInfo{Version: "1.2.3"},
 				cli.WithStdin(strings.NewReader("")), cli.WithStdinTTY(false))
-			root.SetOut(&out)
-			root.SetErr(&errOut)
-			root.SetArgs(args)
+			root.Command.SetOut(&out)
+			root.Command.SetErr(&errOut)
+			root.Command.SetArgs(args)
 
 			code := root.Execute(t.Context())
 			want := "onesie: --output is empty. Name one, or leave the flag out\n"
@@ -2291,9 +2291,9 @@ func TestNewRootCmd(t *testing.T) {
 
 			root := cli.NewRootCmd(cli.BuildInfo{Version: "1.2.3", Commit: "abc1234", Date: "2026-10-27"},
 				cli.WithStdin(strings.NewReader("")), cli.WithStdinTTY(false))
-			root.SetOut(&out)
-			root.SetErr(&out)
-			root.SetArgs(pin.args)
+			root.Command.SetOut(&out)
+			root.Command.SetErr(&out)
+			root.Command.SetArgs(pin.args)
 
 			if code := root.Execute(t.Context()); code != cli.ExitOK {
 				t.Fatalf("onesie %s exit code = %d, output:\n%s", strings.Join(pin.args, " "), code, out.String())
@@ -2311,7 +2311,7 @@ func TestNewRootCmd(t *testing.T) {
 		root := cli.NewRootCmd(cli.BuildInfo{Version: "1.2.3"},
 			cli.WithStdin(strings.NewReader("")), cli.WithStdinTTY(false))
 
-		calibrate, _, err := root.Find([]string{"calibrate"})
+		calibrate, _, err := root.Command.Find([]string{"calibrate"})
 		if err != nil || calibrate == root.Command {
 			t.Fatalf("finding calibrate: %v", err)
 		}
@@ -2319,7 +2319,7 @@ func TestNewRootCmd(t *testing.T) {
 		shared := 0
 
 		calibrate.LocalFlags().VisitAll(func(flag *pflag.Flag) {
-			rootFlag := root.Flags().Lookup(flag.Name)
+			rootFlag := root.Command.Flags().Lookup(flag.Name)
 			if rootFlag == nil {
 				return
 			}
@@ -2416,9 +2416,9 @@ func TestNewRootCmd(t *testing.T) {
 					}),
 				)
 
-				root.SetOut(&out)
-				root.SetErr(&errOut)
-				root.SetArgs(tc.args)
+				root.Command.SetOut(&out)
+				root.Command.SetErr(&errOut)
+				root.Command.SetArgs(tc.args)
 
 				if code := root.Execute(t.Context()); code != tc.wantCode {
 					t.Errorf("exit code = %d, want %d\nstderr:\n%s", code, tc.wantCode, errOut.String())
@@ -2553,9 +2553,9 @@ func TestNewRootCmd(t *testing.T) {
 					cli.WithLookupEnv(func(string) (string, bool) { return "", false }),
 				)
 
-				root.SetOut(&out)
-				root.SetErr(&errOut)
-				root.SetArgs(tc.args)
+				root.Command.SetOut(&out)
+				root.Command.SetErr(&errOut)
+				root.Command.SetArgs(tc.args)
 
 				if code := root.Execute(t.Context()); code != cli.ExitUsage {
 					t.Errorf("exit code = %d, want %d\nstderr:\n%s", code, cli.ExitUsage, errOut.String())
@@ -2638,9 +2638,9 @@ func TestNewRootCmd(t *testing.T) {
 					}),
 				)
 
-				root.SetOut(&out)
-				root.SetErr(&errOut)
-				root.SetArgs(append(tc.args, "--base-url", srv.URL))
+				root.Command.SetOut(&out)
+				root.Command.SetErr(&errOut)
+				root.Command.SetArgs(append(tc.args, "--base-url", srv.URL))
 
 				if code := root.Execute(t.Context()); code != tc.wantCode {
 					t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, tc.wantCode, errOut.String())
@@ -2661,9 +2661,9 @@ func TestNewRootCmd(t *testing.T) {
 
 			root := cli.NewRootCmd(cli.BuildInfo{Version: "1.2.3"}, cli.WithKeychain(offKeychain()),
 				cli.WithLookupEnv(func(string) (string, bool) { return "", false }))
-			root.SetOut(&out)
-			root.SetErr(&out)
-			root.SetArgs(args)
+			root.Command.SetOut(&out)
+			root.Command.SetErr(&out)
+			root.Command.SetArgs(args)
 
 			if code := root.Execute(t.Context()); code != cli.ExitOK {
 				t.Fatalf("%v exit code = %d\n%s", args, code, out.String())
@@ -2714,9 +2714,9 @@ func TestNewRootCmd(t *testing.T) {
 
 				root := cli.NewRootCmd(cli.BuildInfo{Version: "1.2.3"}, cli.WithKeychain(offKeychain()),
 					cli.WithLookupEnv(func(string) (string, bool) { return "", false }))
-				root.SetOut(&out)
-				root.SetErr(&out)
-				root.SetArgs(tc.args)
+				root.Command.SetOut(&out)
+				root.Command.SetErr(&out)
+				root.Command.SetArgs(tc.args)
 
 				if code := root.Execute(t.Context()); code != cli.ExitOK {
 					t.Fatalf("exit code = %d\n%s", code, out.String())
@@ -2822,9 +2822,9 @@ func TestClientBuilder(t *testing.T) {
 			}),
 		)
 
-		root.SetOut(&out)
-		root.SetErr(&out)
-		root.SetArgs([]string{"is this urgent"})
+		root.Command.SetOut(&out)
+		root.Command.SetErr(&out)
+		root.Command.SetArgs([]string{"is this urgent"})
 
 		if code := root.Execute(t.Context()); code != cli.ExitUsage || !strings.Contains(out.String(), "CLOUDFLARE_ACCOUNT_ID") {
 			t.Fatalf("exit code = %d, output:\n%s\nwant 2 naming CLOUDFLARE_ACCOUNT_ID", code, out.String())
@@ -2861,9 +2861,9 @@ func TestClientBuilder(t *testing.T) {
 				cli.WithLookupEnv(apiKeyEnv("test")),
 			)
 
-			root.SetOut(&out)
-			root.SetErr(&out)
-			root.SetArgs([]string{
+			root.Command.SetOut(&out)
+			root.Command.SetErr(&out)
+			root.Command.SetArgs([]string{
 				"is this urgent", "-r", "--base-url", srv.URL,
 			})
 
@@ -2910,9 +2910,9 @@ func TestClientBuilder(t *testing.T) {
 					cli.WithLookupEnv(apiKeyEnv("test")),
 				)
 
-				root.SetOut(&out)
-				root.SetErr(&errOut)
-				root.SetArgs([]string{
+				root.Command.SetOut(&out)
+				root.Command.SetErr(&errOut)
+				root.Command.SetArgs([]string{
 					"--list-models", "--base-url", tc.baseURL, "--allow-http", "--retries", "0",
 					"--timeout", "1",
 				})
@@ -3012,9 +3012,9 @@ func TestClientBuilder(t *testing.T) {
 					}),
 				)
 
-				root.SetOut(&out)
-				root.SetErr(&errOut)
-				root.SetArgs(args)
+				root.Command.SetOut(&out)
+				root.Command.SetErr(&errOut)
+				root.Command.SetArgs(args)
 
 				root.Execute(t.Context())
 
@@ -3163,9 +3163,9 @@ func TestClientBuilder(t *testing.T) {
 					cli.WithLookupEnv(apiKeyEnv("test")),
 				)
 
-				root.SetOut(&out)
-				root.SetErr(&out)
-				root.SetArgs(args)
+				root.Command.SetOut(&out)
+				root.Command.SetErr(&out)
+				root.Command.SetArgs(args)
 
 				if code := root.Execute(t.Context()); code == cli.ExitOK {
 					t.Fatalf("exit code = %d, want a failure. output:\n%s", code, out.String())
@@ -3231,9 +3231,9 @@ func TestClientBuilder(t *testing.T) {
 					cli.WithLookupEnv(apiKeyEnv("test")),
 				)
 
-				root.SetOut(&out)
-				root.SetErr(&out)
-				root.SetArgs(args)
+				root.Command.SetOut(&out)
+				root.Command.SetErr(&out)
+				root.Command.SetArgs(args)
 
 				if code := root.Execute(t.Context()); code == cli.ExitOK {
 					t.Fatalf("exit code = %d, want a failure. output:\n%s", code, out.String())
@@ -3276,9 +3276,9 @@ func TestClientBuilder(t *testing.T) {
 				cli.WithLookupEnv(apiKeyEnv("test")),
 			)
 
-			root.SetOut(&out)
-			root.SetErr(&errOut)
-			root.SetArgs([]string{
+			root.Command.SetOut(&out)
+			root.Command.SetErr(&errOut)
+			root.Command.SetArgs([]string{
 				"is this urgent", "--base-url", srv.URL,
 				"--timeout", "1", "--retries", "0",
 			})
@@ -3316,9 +3316,9 @@ func runWithEnv(t *testing.T, env map[string]string, args []string) (string, int
 		}),
 	)
 
-	root.SetOut(&out)
-	root.SetErr(&out)
-	root.SetArgs(args)
+	root.Command.SetOut(&out)
+	root.Command.SetErr(&out)
+	root.Command.SetArgs(args)
 
 	code := root.Execute(t.Context())
 
@@ -3390,9 +3390,9 @@ func TestWireAll(t *testing.T) {
 				cli.WithLookupEnv(func(string) (string, bool) { return "", false }),
 			)
 
-			root.SetOut(&out)
-			root.SetErr(&out)
-			root.SetArgs(append(tc.args, "-o", "json"))
+			root.Command.SetOut(&out)
+			root.Command.SetErr(&out)
+			root.Command.SetArgs(append(tc.args, "-o", "json"))
 
 			if code := root.Execute(t.Context()); code != cli.ExitOK {
 				t.Fatalf("exit code = %d, want %d\noutput:\n%s", code, cli.ExitOK, out.String())
