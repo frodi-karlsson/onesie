@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"slices"
 	"sync/atomic"
 
 	"github.com/spf13/cobra"
@@ -986,14 +985,6 @@ func requestFor(
 	return onesie.Request{
 		State: state, Model: model, Questions: questions, Assets: assets, LongContext: built.LongContext,
 	}
-}
-
-func hasBox(questions onesie.Questions) bool {
-	return slices.ContainsFunc(questions, func(named onesie.NamedQuestion) bool {
-		_, isBox := named.Question.(onesie.Box)
-
-		return isBox
-	})
 }
 
 func spent(failed output.Record, usage *onesie.Usage) output.Record {

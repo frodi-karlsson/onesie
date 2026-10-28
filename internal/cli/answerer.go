@@ -48,7 +48,7 @@ func (a liveAnswerer) answer(ctx context.Context, _ recordKey, req onesie.Reques
 	result, err := a.client.SystemOne(ctx, req)
 
 	return reply{result: result}, explain(err, requestFacts{
-		provider: a.client.Provider(), model: req.Model, longContext: req.LongContext, boxed: hasBox(req.Questions),
+		provider: a.client.Provider(), model: req.Model, longContext: req.LongContext, boxed: req.Needs().Box,
 	})
 }
 
