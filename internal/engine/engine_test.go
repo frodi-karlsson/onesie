@@ -10,6 +10,7 @@ import (
 	"sync/atomic"
 	"syscall"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/frodi-karlsson/onesie/internal/engine"
@@ -156,48 +157,50 @@ func TestRun(t *testing.T) {
 		t.Run("should write in input order when later records finish first", func(t *testing.T) {
 			t.Parallel()
 
-			// Record zero is the slowest, so a pipeline that wrote on completion rather than on
-			// position would put it last. Every other record has to wait for it.
-			var (
-				mu      sync.Mutex
-				written []string
-			)
+			synctest.Test(t, func(t *testing.T) {
+				// Record zero is the slowest, so a pipeline that wrote on completion rather than on
+				// position would put it last. Every other record has to wait for it.
+				var (
+					mu      sync.Mutex
+					written []string
+				)
 
-			result, err := engine.Run(t.Context(), engine.Config[input.Record, string]{
-				Source: &counting{total: 12},
-				Evaluate: func(_ context.Context, rec input.Record) (string, error) {
-					if rec.Index == 0 {
-						time.Sleep(60 * time.Millisecond)
-					}
+				result, err := engine.Run(t.Context(), engine.Config[input.Record, string]{
+					Source: &counting{total: 12},
+					Evaluate: func(_ context.Context, rec input.Record) (string, error) {
+						if rec.Index == 0 {
+							synctest.Wait()
+						}
 
-					return strconv.Itoa(rec.Index), nil
-				},
-				Write: func(line string) error {
-					mu.Lock()
-					defer mu.Unlock()
+						return strconv.Itoa(rec.Index), nil
+					},
+					Write: func(line string) error {
+						mu.Lock()
+						defer mu.Unlock()
 
-					written = append(written, line)
+						written = append(written, line)
 
-					return nil
-				},
-				Jobs: 8,
-			})
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
-
-			if result.Records != 12 {
-				t.Errorf("records = %d, want 12", result.Records)
-			}
-
-			mu.Lock()
-			defer mu.Unlock()
-
-			for i, line := range written {
-				if line != strconv.Itoa(i) {
-					t.Fatalf("line %d = %q, want %q. Written: %v", i, line, strconv.Itoa(i), written)
+						return nil
+					},
+					Jobs: 8,
+				})
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
 				}
-			}
+
+				if result.Records != 12 {
+					t.Errorf("records = %d, want 12", result.Records)
+				}
+
+				mu.Lock()
+				defer mu.Unlock()
+
+				for i, line := range written {
+					if line != strconv.Itoa(i) {
+						t.Fatalf("line %d = %q, want %q. Written: %v", i, line, strconv.Itoa(i), written)
+					}
+				}
+			})
 		})
 	})
 
@@ -207,44 +210,46 @@ func TestRun(t *testing.T) {
 		t.Run("should never exceed the job count in flight", func(t *testing.T) {
 			t.Parallel()
 
-			var (
-				live atomic.Int64
-				peak atomic.Int64
-			)
+			synctest.Test(t, func(t *testing.T) {
+				var (
+					live atomic.Int64
+					peak atomic.Int64
+				)
 
-			const jobs = 4
+				const jobs = 4
 
-			_, err := engine.Run(t.Context(), engine.Config[input.Record, string]{
-				Source: &counting{total: 200},
-				Evaluate: func(_ context.Context, rec input.Record) (string, error) {
-					current := live.Add(1)
-					defer live.Add(-1)
+				_, err := engine.Run(t.Context(), engine.Config[input.Record, string]{
+					Source: &counting{total: 200},
+					Evaluate: func(_ context.Context, rec input.Record) (string, error) {
+						current := live.Add(1)
+						defer live.Add(-1)
 
-					for {
-						best := peak.Load()
-						if current <= best || peak.CompareAndSwap(best, current) {
-							break
+						for {
+							best := peak.Load()
+							if current <= best || peak.CompareAndSwap(best, current) {
+								break
+							}
 						}
-					}
 
-					time.Sleep(time.Millisecond)
+						time.Sleep(time.Millisecond)
 
-					return strconv.Itoa(rec.Index), nil
-				},
-				Write: func(string) error { return nil },
-				Jobs:  jobs,
+						return strconv.Itoa(rec.Index), nil
+					},
+					Write: func(string) error { return nil },
+					Jobs:  jobs,
+				})
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+
+				if got := peak.Load(); got > jobs {
+					t.Errorf("peak in flight = %d, want at most %d", got, jobs)
+				}
+
+				if got := peak.Load(); got < 2 {
+					t.Errorf("peak in flight = %d, the test never exercised concurrency", got)
+				}
 			})
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
-
-			if got := peak.Load(); got > jobs {
-				t.Errorf("peak in flight = %d, want at most %d", got, jobs)
-			}
-
-			if got := peak.Load(); got < 2 {
-				t.Errorf("peak in flight = %d, the test never exercised concurrency", got)
-			}
 		})
 	})
 
@@ -338,17 +343,18 @@ func TestRun(t *testing.T) {
 				t.Parallel()
 
 				var (
-					mu       sync.Mutex
-					written  []string
-					finished atomic.Int32
+					mu      sync.Mutex
+					written []string
 				)
+
+				finished := make(chan struct{}, 20)
 
 				result, err := engine.Run(t.Context(), engine.Config[input.Record, string]{
 					Source: &counting{total: 20},
 					Evaluate: func(_ context.Context, rec input.Record) (string, error) {
 						if rec.Index != 3 {
 							if rec.Index > 3 {
-								finished.Add(1)
+								finished <- struct{}{}
 							}
 
 							return strconv.Itoa(rec.Index), nil
@@ -356,9 +362,8 @@ func TestRun(t *testing.T) {
 
 						// The stopping record ends only once the four behind it have finished, so they
 						// are waiting to be written when it arrives.
-						deadline := time.Now().Add(5 * time.Second)
-						for finished.Load() < 4 && time.Now().Before(deadline) {
-							time.Sleep(time.Millisecond)
+						for range 4 {
+							<-finished
 						}
 
 						if tc.stopOnError {
@@ -401,10 +406,10 @@ func TestRun(t *testing.T) {
 	t.Run("should stop the run on an abort worthy failure", func(t *testing.T) {
 		t.Parallel()
 
-		t.Run("should stop at an abort worthy failure and write no cancellation records",
-			func(t *testing.T) {
-				t.Parallel()
+		t.Run("should stop at an abort worthy failure and write no cancellation records", func(t *testing.T) {
+			t.Parallel()
 
+			synctest.Test(t, func(t *testing.T) {
 				fatal := errors.New("unauthorized")
 
 				var (
@@ -470,6 +475,7 @@ func TestRun(t *testing.T) {
 					t.Error("the abort wrote every record, so it did not abort")
 				}
 			})
+		})
 	})
 
 	t.Run("should end an interrupted stream", func(t *testing.T) {
@@ -611,47 +617,51 @@ func (s *stalling) Next() (input.Record, bool, error) {
 func readAhead(t *testing.T, jobs int, unordered bool) int64 {
 	t.Helper()
 
-	var (
-		reads   atomic.Int64
-		started sync.WaitGroup
-	)
+	var got int64
 
-	busy := make(chan struct{})
-	started.Add(jobs)
+	synctest.Test(t, func(t *testing.T) {
+		var (
+			reads   atomic.Int64
+			started sync.WaitGroup
+		)
 
-	finished := make(chan error, 1)
+		busy := make(chan struct{})
+		started.Add(jobs)
 
-	go func() {
-		_, err := engine.Run(t.Context(), engine.Config[input.Record, string]{
-			Source: &countingReads{total: 100, reads: &reads},
-			Evaluate: func(_ context.Context, rec input.Record) (string, error) {
-				if rec.Index < jobs {
-					started.Done()
-					<-busy
-				}
+		finished := make(chan error, 1)
 
-				return strconv.Itoa(rec.Index), nil
-			},
-			Write:     func(string) error { return nil },
-			Jobs:      jobs,
-			Unordered: unordered,
-		})
-		finished <- err
-	}()
+		go func() {
+			_, err := engine.Run(t.Context(), engine.Config[input.Record, string]{
+				Source: &countingReads{total: 100, reads: &reads},
+				Evaluate: func(_ context.Context, rec input.Record) (string, error) {
+					if rec.Index < jobs {
+						started.Done()
+						<-busy
+					}
 
-	started.Wait()
+					return strconv.Itoa(rec.Index), nil
+				},
+				Write:     func(string) error { return nil },
+				Jobs:      jobs,
+				Unordered: unordered,
+			})
+			finished <- err
+		}()
 
-	// Nothing signals that the dispatcher has stopped reading, so the pause gives an engine that
-	// reads too far ahead the time to show it. A correct engine passes however long it waits.
-	time.Sleep(50 * time.Millisecond)
+		started.Wait()
 
-	got := reads.Load()
+		// Every goroutine is blocked once the dispatcher has stopped reading, so an engine that reads
+		// too far ahead has shown it by the time this returns.
+		synctest.Wait()
 
-	close(busy)
+		got = reads.Load()
 
-	if err := <-finished; err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+		close(busy)
+
+		if err := <-finished; err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
 
 	return got
 }
