@@ -72,8 +72,10 @@ func clientBuilder(info BuildInfo, flags *runFlags, settings rootSettings) clien
 			source := baseURLFrom(client.BaseURLSource(), flags.baseURL, chosen)
 
 			doubled.Do(func() {
-				printErr = output.Warning(settings.holder.stderr(), source+" ends in /"+segment+
-					" and onesie adds the API path itself, so questions go to "+output.Printable(client.SystemOneURL()))
+				warning := source + " ends in /" + segment + " and onesie adds the API path itself, so questions go to " +
+					output.Printable(client.SystemOneURL())
+
+				printErr = alsoFailed(printErr, output.Warning(settings.holder.stderr(), warning))
 			})
 		}
 

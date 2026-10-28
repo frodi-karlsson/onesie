@@ -5,6 +5,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -554,6 +556,35 @@ func TestClientBuilder(t *testing.T) {
 			t.Errorf("the local server saw host %q, want proxy.example", got)
 		}
 	})
+
+	t.Run("should keep both failed warning writes", func(t *testing.T) {
+		t.Parallel()
+
+		stderr := &failingWrites{}
+
+		settings := defaultSettings(BuildInfo{})
+		settings.lookupEnv = lookupFrom(map[string]string{onesie.TypeSafe().EnvAPIKey(): "SECRET-ENV"})
+		settings.holder = &holder{stderr: func() io.Writer { return stderr }}
+
+		build := clientBuilder(BuildInfo{}, &runFlags{allowHTTP: true, baseURL: "http://proxy.example/v1"}, settings)
+
+		_, err := build(t.Context(), resolution{provider: onesie.TypeSafe()})
+
+		const want = "write 1 failed\nonesie: write 2 failed"
+		if err == nil || err.Error() != want {
+			t.Errorf("error = %v, want %q", err, want)
+		}
+	})
+}
+
+type failingWrites struct {
+	writes int
+}
+
+func (w *failingWrites) Write([]byte) (int, error) {
+	w.writes++
+
+	return 0, fmt.Errorf("write %d failed", w.writes)
 }
 
 func modelServer(t *testing.T) (*httptest.Server, func() []sentRequest) {
