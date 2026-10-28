@@ -546,8 +546,8 @@ func profileShow(cmd *cobra.Command, settings rootSettings, flags *runFlags, arg
 func showRefusals(cmd *cobra.Command, settings rootSettings, shown resolution, accountErr error, account string) error {
 	var refusals []error
 
-	if shown.keyFrom == sourceNone {
-		refusals = append(refusals, missingKey(cmd, settings, shown, account))
+	if shown.profile == "" && shown.keyFrom == sourceNone {
+		refusals = append(refusals, missingKey(settings, shown))
 	}
 
 	if account == sourceNone {
@@ -577,21 +577,15 @@ func showRefusals(cmd *cobra.Command, settings rootSettings, shown resolution, a
 	return refusals[last]
 }
 
-func missingKey(cmd *cobra.Command, settings rootSettings, shown resolution, account string) error {
-	// The client is never used. Building it is how a run finds the missing key and words its hint,
-	// and a plain http base URL is let through, since the report already names it.
-	opts := []onesie.Option{onesie.WithInsecureHTTP()}
-	if account == sourceNone {
-		// A stand in account gets the build past the account check to the key, since the account
-		// has its own hint.
-		opts = append(opts, onesie.WithAccountID(strings.Repeat("0", 32)))
+func missingKey(settings rootSettings, shown resolution) error {
+	noKey := fmt.Errorf("%w. Set %s", onesie.ErrNoAPIKey, shown.provider.EnvAPIKey())
+
+	opened, err := settings.holder.opened()
+	if err != nil {
+		return noKey
 	}
 
-	if _, err := settings.newClient(cmd.Context(), shown, opts...); err != nil {
-		return err
-	}
-
-	return &silentError{code: ExitUsage}
+	return missingKeyHint(noKey, shown, opened.Profiles)
 }
 
 func modelOrigin(shown resolution, lookupEnv func(string) (string, bool)) string {
