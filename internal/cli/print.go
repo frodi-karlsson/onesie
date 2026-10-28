@@ -207,9 +207,7 @@ func (r *requestRun) evaluate(ctx context.Context, rec namedRecord) ([]byte, err
 		return badLine(rec, imageErr)
 	}
 
-	req := onesie.Request{
-		State: sent, Model: r.model, Questions: r.questions, Assets: assets, LongContext: r.built.LongContext,
-	}
+	req := requestFor(r.built, r.model, r.questions, sent, assets)
 	if checkErr := r.provider.Check(req); checkErr != nil {
 		return badLine(rec, embed("", checkErr))
 	}

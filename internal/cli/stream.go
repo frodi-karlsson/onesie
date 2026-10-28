@@ -222,10 +222,9 @@ func (r *streamRun) ask(ctx context.Context, rec namedRecord, sent any, assets o
 		group = nil
 	}
 
-	record, call, err := askOnce(ctx, group, r.stats,
-		onesie.Request{
-			State: sent, Model: r.model, Questions: r.questions, Assets: assets, LongContext: r.built.LongContext,
-		}, salt,
+	req := requestFor(r.built, r.model, r.questions, sent, assets)
+
+	record, call, err := askOnce(ctx, group, r.stats, req, salt,
 		func() (output.Record, error) {
 			return askAndRecord(ctx, r.asker, key, r.built, r.model, r.questions, sent, assets, r.flags.usage, r.stats)
 		})
