@@ -39,7 +39,7 @@ reads only the provider's env var, which suits CI.
 Profiles live in `profiles.json`, in the config dir [profiles.json][file] names. The file is written
 at mode 600, and a directory it creates at mode 700. When there is an OS keychain the key goes
 there, under the service `onesie`, and the profile only names the item. `--file` keeps the key in
-the file itself. An older `credentials.json` there is converted into profiles the first time onesie
+the file itself. A `credentials.json` there is converted into profiles the first time onesie
 reads it. `onesie profile list` lists the profiles, `onesie profile update NAME --key` stores a new
 key, and `onesie profile delete NAME` removes a profile and its keychain item.
 
