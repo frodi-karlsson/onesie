@@ -584,10 +584,6 @@ func profileTest(cmd *cobra.Command, settings rootSettings, flags *runFlags, arg
 		return err
 	}
 
-	if tested.keyFrom == sourceNone {
-		return noKeyToTest(settings, tested)
-	}
-
 	client, err := settings.newClient(cmd.Context(), tested)
 	if err != nil {
 		return err
@@ -602,30 +598,6 @@ func profileTest(cmd *cobra.Command, settings rootSettings, flags *runFlags, arg
 		cmp.Or(tested.profile, noProfile), tested.provider.Name(), tested.keyLine(), len(models))
 
 	return printErr
-}
-
-func noKeyToTest(settings rootSettings, tested resolution) error {
-	missing := &noKeyError{provider: tested.provider}
-
-	// A file that cannot be read names no profile, and the missing key is the failure to report.
-	opened, err := settings.holder.opened()
-	if err != nil {
-		opened = creds.Opened{}
-	}
-
-	return missingKeyHint(missing, tested, opened.Profiles)
-}
-
-type noKeyError struct {
-	provider onesie.Provider
-}
-
-func (e *noKeyError) Error() string {
-	return "no API key. Set " + e.provider.EnvAPIKey()
-}
-
-func (e *noKeyError) Is(target error) bool {
-	return target == onesie.ErrNoAPIKey || target == onesie.ErrValidation
 }
 
 func shownResolution(settings rootSettings, flags *runFlags, args []string, command string) (resolution, error) {

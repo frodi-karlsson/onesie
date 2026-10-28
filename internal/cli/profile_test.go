@@ -1822,6 +1822,15 @@ func TestProfileTest(t *testing.T) {
 				"or store one with onesie profile create NAME --provider typesafe",
 		},
 		{
+			name:     "should report a bad base URL variable ahead of the missing key",
+			args:     []string{"profile", "test"},
+			env:      map[string]string{onesie.TypeSafe().EnvBaseURL(): "http://proxy.example"},
+			wantCode: ExitUsage,
+			wantErr: "onesie: TYPESAFE_BASE_URL http://proxy.example is plain http to a host other than this " +
+				"machine, so the API key would cross the network unencrypted. Use https, or pass --allow-http " +
+				"to send it anyway\n",
+		},
+		{
 			name:     "should name the profile that holds a key under ONESIE_PROVIDER",
 			profiles: `{"default":"work","profiles":{"work":{"provider":"openrouter","api_key":"` + fileKey + `"}}}`,
 			args:     []string{"profile", "test"},
@@ -2297,36 +2306,4 @@ func unclearBaseURLs() []unclearBaseURL {
 type unclearBaseURL struct {
 	name string
 	url  string
-}
-
-func TestNoKeyError(t *testing.T) {
-	t.Parallel()
-
-	missing := &noKeyError{provider: onesie.OpenRouter()}
-
-	tests := []struct {
-		name   string
-		target error
-	}{
-		{name: "should match the library's missing key sentinel", target: onesie.ErrNoAPIKey},
-		{name: "should match the validation sentinel, so it exits 2", target: onesie.ErrValidation},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			if !errors.Is(missing, tc.target) {
-				t.Errorf("errors.Is(%v, %v) = false, want true", missing, tc.target)
-			}
-		})
-	}
-
-	t.Run("should name the provider's key variable", func(t *testing.T) {
-		t.Parallel()
-
-		if got := missing.Error(); got != "no API key. Set OPENROUTER_API_KEY" {
-			t.Errorf("Error = %q, want the key variable named", got)
-		}
-	})
 }
