@@ -78,10 +78,17 @@ func loadBody(top yaml.MapSlice) (*File, error) {
 		return nil, fmt.Errorf("'questions' in a request body must be a mapping")
 	}
 
-	for _, item := range questions {
-		id := fmt.Sprintf("%v", item.Key)
+	read, err := readQuestions(questions)
+	if err != nil {
+		return nil, err
+	}
 
-		question, err := buildBodyQuestion(id, item.Value)
+	for _, named := range read {
+		// readQuestions proved every question is a mapping.
+		value, _ := lookup(questions, named.ID)
+		fields, _ := mapping(value)
+
+		question, err := buildBodyQuestion(named, fields)
 		if err != nil {
 			return nil, err
 		}
@@ -90,6 +97,31 @@ func loadBody(top yaml.MapSlice) (*File, error) {
 	}
 
 	return file, nil
+}
+
+func readQuestions(questions yaml.MapSlice) (onesie.Questions, error) {
+	for _, item := range questions {
+		if _, err := marshalOrdered(item.Value); err != nil {
+			return nil, fmt.Errorf("question '%v' in a request body cannot be sent: %w", item.Key, err)
+		}
+	}
+
+	encoded, err := marshalOrdered(questions)
+	if err != nil {
+		return nil, err
+	}
+
+	var read onesie.Questions
+	if err := read.UnmarshalJSON(encoded); err != nil {
+		var refused *onesie.ValidationError
+		if errors.As(err, &refused) {
+			return nil, errors.New(refused.Reason())
+		}
+
+		return nil, err
+	}
+
+	return read, nil
 }
 
 func readAssets(value any) (onesie.Assets, error) {
@@ -131,58 +163,40 @@ func readAssets(value any) (onesie.Assets, error) {
 	return assets, nil
 }
 
-func buildBodyQuestion(id string, value any) (plan.Question, error) {
-	question := plan.Question{ID: id, Origin: plan.OriginBody}
+func buildBodyQuestion(named onesie.NamedQuestion, fields yaml.MapSlice) (plan.Question, error) {
+	question := plan.Question{ID: named.ID, Origin: plan.OriginBody}
 
-	fields, ok := mapping(value)
-	if !ok {
-		return question, fmt.Errorf("question '%s' in a request body must be a mapping", id)
-	}
-
-	kind, found := lookup(fields, "type")
-	if !found {
-		return question, fmt.Errorf("question '%s' in a request body has no 'type'", id)
-	}
-
-	if instructions, found := lookup(fields, "instructions"); found {
-		wired, err := wireValue(instructions)
+	switch typed := named.Question.(type) {
+	case onesie.Noul:
+		criteria, err := bodyRubric(named.ID, typed.Criteria, fields)
 		if err != nil {
-			return question, fmt.Errorf(
-				"'instructions' in question '%s' cannot be sent: %w", id, err)
+			return question, err
 		}
 
-		question.Instructions = wired
-	}
+		question.Instructions, question.Criteria = typed.Instructions, criteria
+	case onesie.Choice:
+		question.Instructions, question.Shape = typed.Instructions, plan.Pick
 
-	criteria, hasCriteria := lookup(fields, "criteria")
+		for _, option := range typed.Criteria {
+			question.Options = append(question.Options, plan.Option{Name: option.Name, Desc: option.Desc})
+		}
+	case onesie.Score:
+		question.Instructions, question.Shape = typed.Instructions, plan.Rate
 
-	var err error
-
-	switch fmt.Sprintf("%v", kind) {
-	case "noul":
-		question, err = buildBodyNoul(question, criteria, hasCriteria)
-	case "choice":
-		question, err = buildBodyChoice(question, criteria)
-	case "score":
-		question, err = buildBodyScore(question, criteria)
-	case "box":
-		if hasCriteria {
-			return question, fmt.Errorf(
-				"box question '%s' in a request body takes no criteria", id)
+		// Labelled stays false and Label stays empty. A body's criteria is a bare array with no
+		// names, which is the case the index keyed normalization exists for.
+		for _, level := range typed.Criteria {
+			question.Levels = append(question.Levels, plan.Level{Desc: level})
+		}
+	case onesie.Box:
+		if _, found := lookup(fields, "criteria"); found {
+			return question, fmt.Errorf("box question '%s' in a request body takes no criteria", named.ID)
 		}
 
-		question.Shape = plan.Box
-		question.Boxed = true
-	default:
-		return question, fmt.Errorf(
-			"question '%s' in a request body has an unknown type '%v'", id, kind)
+		question.Instructions, question.Shape, question.Boxed = typed.Instructions, plan.Box, true
 	}
 
-	if err != nil {
-		return question, err
-	}
-
-	return question, checkBodyInstructions(id, fields)
+	return question, checkBodyInstructions(named.ID, fields)
 }
 
 func checkBodyInstructions(id string, fields yaml.MapSlice) error {
@@ -200,39 +214,23 @@ func checkBodyInstructions(id string, fields yaml.MapSlice) error {
 	return fmt.Errorf("question '%s' in a request body has no 'instructions'", id)
 }
 
-func buildBodyNoul(question plan.Question, criteria any, present bool) (plan.Question, error) {
-	// A noul rubric is optional, so an absent key is not a mistake. An explicit null is treated the
-	// same way, since the wire field is omitted when empty and a body carrying one replays as a
-	// bare question.
-	if !present || criteria == nil {
-		return question, nil
+func bodyRubric(id string, rubric *onesie.NoulCriteria, fields yaml.MapSlice) (*plan.YesNoCriteria, error) {
+	criteria, _ := lookup(fields, "criteria")
+	items, _ := mapping(criteria)
+
+	if err := checkNoulCriteriaKeys(id, items); err != nil {
+		return nil, err
 	}
 
-	items, ok := mapping(criteria)
-	if !ok {
-		return question, fmt.Errorf(
-			"question '%s' is a noul and needs a criteria mapping", question.ID)
+	// A rubric that names neither key replays as a bare question, as an absent or null one does.
+	_, hasYes := lookup(items, "true")
+	_, hasNo := lookup(items, "false")
+
+	if rubric == nil || (!hasYes && !hasNo) {
+		return nil, nil
 	}
 
-	if err := checkNoulCriteriaKeys(question.ID, items); err != nil {
-		return question, err
-	}
-
-	yes, hasYes := lookup(items, "true")
-	no, hasNo := lookup(items, "false")
-
-	if !hasYes && !hasNo {
-		return question, nil
-	}
-
-	rubric, err := readYesNo(question.ID, "true", "false", yes, no)
-	if err != nil {
-		return question, err
-	}
-
-	question.Criteria = rubric
-
-	return question, nil
+	return &plan.YesNoCriteria{Yes: rubric.True, No: rubric.False}, nil
 }
 
 func checkNoulCriteriaKeys(id string, items yaml.MapSlice) error {
@@ -251,55 +249,4 @@ func checkNoulCriteriaKeys(id string, items yaml.MapSlice) error {
 	}
 
 	return nil
-}
-
-func buildBodyChoice(question plan.Question, criteria any) (plan.Question, error) {
-	items, ok := mapping(criteria)
-	if !ok {
-		return question, fmt.Errorf(
-			"question '%s' is a choice and needs a criteria mapping", question.ID)
-	}
-
-	question.Shape = plan.Pick
-
-	for _, item := range items {
-		name := fmt.Sprintf("%v", item.Key)
-
-		desc, err := wireValue(item.Value)
-		if err != nil {
-			return question, fmt.Errorf(
-				"criteria '%s' in question '%s' cannot be sent: %w", name, question.ID, err)
-		}
-
-		question.Options = append(question.Options, plan.Option{
-			Name: name,
-			Desc: desc,
-		})
-	}
-
-	return question, nil
-}
-
-func buildBodyScore(question plan.Question, criteria any) (plan.Question, error) {
-	entries, ok := criteria.([]any)
-	if !ok {
-		return question, fmt.Errorf(
-			"question '%s' is a score and needs a criteria sequence", question.ID)
-	}
-
-	question.Shape = plan.Rate
-
-	for index, entry := range entries {
-		desc, err := wireValue(entry)
-		if err != nil {
-			return question, fmt.Errorf(
-				"criteria %d in question '%s' cannot be sent: %w", index, question.ID, err)
-		}
-
-		// Labelled stays false and Label stays empty. A body's criteria is a bare array with no
-		// names, which is the case the index keyed normalization exists for.
-		question.Levels = append(question.Levels, plan.Level{Desc: desc})
-	}
-
-	return question, nil
 }
