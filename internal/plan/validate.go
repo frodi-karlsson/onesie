@@ -11,10 +11,7 @@ import (
 	"strings"
 
 	"github.com/frodi-karlsson/onesie/internal/limits"
-	"github.com/frodi-karlsson/onesie/internal/spelling"
 )
-
-const nearMissLength = 4 // A shorter label has many real words one edit away, such as low and law.
 
 var reservedIDs = []string{
 	"$schema", "abstain", "abstain_if", "answers", "assert", "error", "id", "model", "usage",
@@ -501,64 +498,7 @@ func checkPolicy(q *Question, yesNo bool) error {
 		}
 	}
 
-	if !yesNo && policy.Fallback != nil {
-		if label, near := NearMiss(*q, policy.Fallback.Text); near {
-			return fmt.Errorf("%s '%s' is close to %s", fallback, policy.Fallback.Text, CloseLabel(*q, label))
-		}
-	}
-
 	return nil
-}
-
-// NearMiss returns the option or level label a pick or rate fallback differs from only in case, or
-// by one edit when both hold at least 4 characters. An exact match is no miss.
-func NearMiss(q Question, fallback string) (string, bool) {
-	labels := fallbackLabels(q)
-	if slices.Contains(labels, fallback) {
-		return "", false
-	}
-
-	for _, label := range labels {
-		if strings.EqualFold(label, fallback) {
-			return label, true
-		}
-	}
-
-	for _, label := range labels {
-		if len(label) >= nearMissLength && len(fallback) >= nearMissLength &&
-			spelling.Distance(strings.ToLower(fallback), strings.ToLower(label)) == 1 {
-			return label, true
-		}
-	}
-
-	return "", false
-}
-
-func fallbackLabels(q Question) []string {
-	var labels []string
-
-	switch {
-	case q.Shape == Pick:
-		for _, option := range q.Options {
-			labels = append(labels, option.Name)
-		}
-	case q.Shape == Rate && q.Labelled:
-		for _, level := range q.Levels {
-			labels = append(labels, level.Label)
-		}
-	}
-
-	return labels
-}
-
-// CloseLabel words the label NearMiss found and the fix, to end a message that names the fallback.
-func CloseLabel(q Question, label string) string {
-	noun := "option"
-	if q.Shape == Rate {
-		noun = "level"
-	}
-
-	return fmt.Sprintf("the %s '%s'. Write it exactly, or pick a value further from every %s", noun, label, noun)
 }
 
 func outsideUnit(value float64) bool {

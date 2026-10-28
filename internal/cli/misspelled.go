@@ -8,7 +8,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/frodi-karlsson/onesie/internal/argv"
-	"github.com/frodi-karlsson/onesie/internal/spelling"
 )
 
 var bareWord = regexp.MustCompile(`^[A-Za-z]+$`)
@@ -52,7 +51,7 @@ func nearSubcommands(cmd *cobra.Command, word string) []string {
 }
 
 func nearMiss(word, name string) bool {
-	distance := spelling.Distance(word, name)
+	distance := editDistance(word, name)
 
 	// Real words crowd around a short name, such as heap and hell around help, and around version,
 	// such as person and vision two edits away. So the allowance grows with the name.
@@ -76,4 +75,34 @@ func swapsTwoLetters(word, name string) bool {
 	}
 
 	return false
+}
+
+func editDistance(a, b string) int {
+	rows := make([][]int, len(a)+1)
+	for i := range rows {
+		rows[i] = make([]int, len(b)+1)
+		rows[i][0] = i
+	}
+
+	for j := range rows[0] {
+		rows[0][j] = j
+	}
+
+	for i := 1; i <= len(a); i++ {
+		for j := 1; j <= len(b); j++ {
+			cost := 1
+			if a[i-1] == b[j-1] {
+				cost = 0
+			}
+
+			rows[i][j] = min(rows[i-1][j]+1, rows[i][j-1]+1, rows[i-1][j-1]+cost)
+
+			// A swap of two neighbouring letters counts as one edit, so questoins is one from questions.
+			if i > 1 && j > 1 && a[i-1] == b[j-2] && a[i-2] == b[j-1] {
+				rows[i][j] = min(rows[i][j], rows[i-2][j-2]+1)
+			}
+		}
+	}
+
+	return rows[len(a)][len(b)]
 }

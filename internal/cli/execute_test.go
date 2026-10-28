@@ -273,21 +273,6 @@ func TestExecute(t *testing.T) {
 			want:     "onesie: {dir}{/}unknown.yaml: question 'urgent' has an unknown key 'bogus'\n",
 		},
 		{
-			name:     "should name the file and the question of a fallback close to an option",
-			args:     []string{"-f", "{dir}{/}team.yaml", "--state", "s"},
-			files:    map[string]string{"team.yaml": "team:\n  ask: which team\n  pick: [billing, sales]\n  min_confidence: 0.7\n  fallback: billin\n"},
-			wantCode: ExitUsage,
-			want: "onesie: {dir}{/}team.yaml: 'fallback' 'billin' in question 'team' is close to the option 'billing'. " +
-				"Write it exactly, or pick a value further from every option\n",
-		},
-		{
-			name:     "should refuse a --fallback close to an option",
-			args:     []string{"--ask", "team=which team", "--pick", "billing,sales", "--min-confidence", "0.7", "--fallback", "Sales", "--state", "s"},
-			wantCode: ExitUsage,
-			want: "onesie: --fallback 'Sales' is close to the option 'sales'. " +
-				"Write it exactly, or pick a value further from every option\n",
-		},
-		{
 			name:     "should refuse -q over two questions",
 			args:     []string{"-q", "--ask", "a=x", "--ask", "b=y", "--state", "s"},
 			wantCode: ExitUsage,

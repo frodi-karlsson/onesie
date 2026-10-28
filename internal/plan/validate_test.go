@@ -324,28 +324,6 @@ func TestValidate(t *testing.T) {
 			wantFallback: pointerTo(true),
 		},
 		{
-			name: "should refuse a pick fallback one edit from an option",
-			events: []argv.Event{
-				{Name: "ask", Value: "team=first"},
-				{Name: "pick", Value: "billing,sales"},
-				{Name: "min-confidence", Value: "0.7"},
-				{Name: "fallback", Value: "billin"},
-			},
-			wantExact: "--fallback 'billin' is close to the option 'billing'. Write it exactly, " +
-				"or pick a value further from every option",
-		},
-		{
-			name: "should refuse a rate fallback that differs from a level only in case",
-			events: []argv.Event{
-				{Name: "ask", Value: "tone=first"},
-				{Name: "rate", Value: "calm,cross"},
-				{Name: "min-confidence", Value: "0.7"},
-				{Name: "fallback", Value: "Calm"},
-			},
-			wantExact: "--fallback 'Calm' is close to the level 'calm'. Write it exactly, " +
-				"or pick a value further from every level",
-		},
-		{
 			name: "should accept a pick fallback that is none of the options",
 			events: []argv.Event{
 				{Name: "ask", Value: "team=first"},
@@ -355,12 +333,12 @@ func TestValidate(t *testing.T) {
 			},
 		},
 		{
-			name: "should accept a short fallback one edit from a short option",
+			name: "should accept a pick fallback one edit from an option",
 			events: []argv.Event{
-				{Name: "ask", Value: "level=first"},
-				{Name: "pick", Value: "low,high"},
+				{Name: "ask", Value: "team=first"},
+				{Name: "pick", Value: "billing,sales"},
 				{Name: "min-confidence", Value: "0.7"},
-				{Name: "fallback", Value: "law"},
+				{Name: "fallback", Value: "billin"},
 			},
 		},
 		{
@@ -806,47 +784,4 @@ func bodyQuestions(n int) []plan.Question {
 	}
 
 	return questions
-}
-
-func TestNearMiss(t *testing.T) {
-	t.Parallel()
-
-	pick := plan.Question{ID: "team", Shape: plan.Pick, Options: []plan.Option{{Name: "billing"}, {Name: "sales"}}}
-	near := plan.Question{ID: "time", Shape: plan.Pick, Options: []plan.Option{{Name: "high"}, {Name: "nigh"}}}
-	short := plan.Question{ID: "level", Shape: plan.Pick, Options: []plan.Option{{Name: "low"}, {Name: "high"}}}
-	labelled := plan.Question{
-		ID: "tone", Shape: plan.Rate, Labelled: true, Levels: []plan.Level{{Label: "calm"}, {Label: "cross"}},
-	}
-	unlabelled := plan.Question{ID: "tone", Shape: plan.Rate, Levels: []plan.Level{{}, {}}}
-
-	tests := []struct {
-		name      string
-		question  plan.Question
-		fallback  string
-		wantLabel string
-		wantNear  bool
-	}{
-		{name: "should find an option the fallback misses by one letter", question: pick, fallback: "billin", wantLabel: "billing", wantNear: true},
-		{name: "should find an option the fallback misses by a swap", question: pick, fallback: "slaes", wantLabel: "sales", wantNear: true},
-		{name: "should find an option the fallback misses only in case", question: pick, fallback: "SALES", wantLabel: "sales", wantNear: true},
-		{name: "should find a level the fallback misses by one letter", question: labelled, fallback: "cros", wantLabel: "cross", wantNear: true},
-		{name: "should leave an exact option alone", question: pick, fallback: "billing"},
-		{name: "should leave an option alone that is one letter from another", question: near, fallback: "nigh"},
-		{name: "should leave a value two edits from every option alone", question: pick, fallback: "bill"},
-		{name: "should leave a value one edit from an option under 4 characters alone", question: short, fallback: "law"},
-		{name: "should find a short option the fallback misses only in case", question: short, fallback: "LOW", wantLabel: "low", wantNear: true},
-		{name: "should leave an unlabelled level alone, which has no label to miss", question: unlabelled, fallback: ""},
-		{name: "should leave a yes or no question alone", question: plan.Question{ID: "u"}, fallback: "yse"},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			label, near := plan.NearMiss(tc.question, tc.fallback)
-			if label != tc.wantLabel || near != tc.wantNear {
-				t.Errorf("NearMiss = %q, %v, want %q, %v", label, near, tc.wantLabel, tc.wantNear)
-			}
-		})
-	}
 }
