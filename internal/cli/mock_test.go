@@ -466,11 +466,11 @@ func TestMockAnswers(t *testing.T) {
 			wantCode: ExitUsage,
 		},
 		{
-			name: "should refuse profile test under --mock",
+			name: "should refuse --mock on profile test, which takes no such flag",
 			args: []string{"profile", "test"},
 			mock: mockAll,
 			stderr: []string{
-				"onesie: profile reads and writes real configuration, so it does not run under --mock. Drop it",
+				"onesie: profile test has no flag --mock. --mock belongs to a run, not to profile test",
 			},
 			wantCode: ExitUsage,
 		},

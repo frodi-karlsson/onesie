@@ -620,6 +620,20 @@ func TestNewCalibrateCmd(t *testing.T) {
 			}
 		})
 
+		t.Run("should take --mock given before the calibrate subcommand", func(t *testing.T) {
+			t.Parallel()
+
+			args := []string{
+				"--mock", writeMock(t, `{"u":0.9}`), "calibrate", "--ask", "u=is it urgent", "-i", "jsonl",
+				"--map", ".body", "--label", "u=.u", "-o", "json",
+			}
+
+			out, errOut, code := runMocked(t, t.Context(), args, "{\"body\":\"x\",\"u\":true}\n", nil, nil)
+			if code != ExitOK || !strings.Contains(out, `"mocked":true`) {
+				t.Errorf("exit %d\nstdout:\n%s\nstderr:\n%s", code, out, errOut)
+			}
+		})
+
 		t.Run("should refuse calibrate --print-request under --mock", func(t *testing.T) {
 			t.Parallel()
 

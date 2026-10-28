@@ -200,16 +200,27 @@ func TestNewCacheCmd(t *testing.T) {
 		}
 	})
 
-	t.Run("should ignore --mock and ONESIE_CACHE", func(t *testing.T) {
+	t.Run("should ignore ONESIE_MOCK and ONESIE_CACHE", func(t *testing.T) {
 		t.Parallel()
 
 		env := cacheEnv(t)
 		env[envCache] = "yes"
 		env[envMock] = "absent.json"
 
-		for _, args := range [][]string{{"cache", "--mock", "absent.json"}, {"cache", "clear", "--mock", "absent.json"}} {
+		for _, args := range [][]string{{"cache"}, {"cache", "clear"}} {
 			if out, errOut, code := runCached(t, env, args, ""); code != ExitOK {
 				t.Errorf("%v exit %d, stdout %q, stderr %q, want 0", args, code, out, errOut)
+			}
+		}
+	})
+
+	t.Run("should refuse --mock, which cache does not take", func(t *testing.T) {
+		t.Parallel()
+
+		for _, args := range [][]string{{"cache", "--mock", "absent.json"}, {"cache", "clear", "--mock", "absent.json"}} {
+			_, errOut, code := runCached(t, cacheEnv(t), args, "")
+			if want := "has no flag --mock. --mock belongs to a run"; code != ExitUsage || !strings.Contains(errOut, want) {
+				t.Errorf("%v exit %d, stderr %q, want exit 2 containing %q", args, code, errOut, want)
 			}
 		}
 	})

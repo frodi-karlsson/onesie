@@ -276,11 +276,6 @@ func addRootFlags(root *cobra.Command, flags *runFlags, recorder *argv.Recorder)
 	root.PersistentFlags().Var(choiceValue{value: &flags.profile, set: &flags.profileSet}, flagProfile,
 		"the profile a run uses, from profiles.json in the config dir. Also ONESIE_PROFILE, and otherwise "+
 			"the default profile, which onesie profile use sets")
-	root.PersistentFlags().StringVar(&flags.mock, "mock", "",
-		"answer from this file instead of the API. Also ONESIE_MOCK. The file is an object keyed by question id, "+
-			`as {"answer":0.9,"team":"billing"}, or one line per record in the shape -o json writes. `+
-			"A lone line that carries id, line, model, usage, assert, abstain or an error object is one record")
-	refuseEmpty(root.PersistentFlags(), "mock")
 	root.Flags().BoolVar(&flags.printQuestions, "print-questions", false,
 		"write a question file to stdout and exit, its first line naming the schema --print-schema prints")
 	root.Flags().BoolVar(&flags.printSchema, "print-schema", false,
@@ -440,6 +435,11 @@ func addRunFlags(set *pflag.FlagSet, flags *runFlags, help runFlagHelp) {
 	set.BoolVar(&flags.usage, "usage", false, help.usage)
 	set.BoolVar(&flags.printRequest, "print-request", false, "write api shaped request bodies to stdout and exit")
 	set.BoolVar(&flags.cache, flagCache, false, cacheHelp)
+	set.StringVar(&flags.mock, "mock", "",
+		"answer from this file instead of the API. Also ONESIE_MOCK. The file is an object keyed by question id, "+
+			`as {"answer":0.9,"team":"billing"}, or one line per record in the shape -o json writes. `+
+			"A lone line that carries id, line, model, usage, assert, abstain or an error object is one record")
+	refuseEmpty(set, "mock")
 }
 
 type runFlagHelp struct {

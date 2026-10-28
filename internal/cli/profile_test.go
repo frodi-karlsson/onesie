@@ -116,9 +116,9 @@ func TestNewProfileCmd(t *testing.T) {
 			wantCode: ExitUsage,
 		},
 		{
-			name:     "should refuse to run under --mock",
+			name:     "should refuse --mock, which profile does not take",
 			args:     []string{"profile", "list", "--mock", "answers.json"},
-			wantErr:  "onesie: profile reads and writes real configuration, so it does not run under --mock. Drop it",
+			wantErr:  "onesie: profile list has no flag --mock. --mock belongs to a run, not to profile list",
 			wantCode: ExitUsage,
 		},
 		{

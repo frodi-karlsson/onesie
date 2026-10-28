@@ -521,8 +521,9 @@ again.
   `onesie cache clear` removes every entry, keeps the directory and its `CACHEDIR.TAG`, and prints
   how many it removed, or `no cache in DIR, so nothing was removed` when the directory does not
   exist. It refuses a directory with no `CACHEDIR.TAG` with exit 2, so a mistyped
-  `ONESIE_CACHE_DIR` never empties a directory onesie did not make. Both ignore `--mock` and
-  `ONESIE_CACHE`. A one word question `cache` needs `--ask`, or `--` before it.
+  `ONESIE_CACHE_DIR` never empties a directory onesie did not make. Both ignore `ONESIE_MOCK` and
+  `ONESIE_CACHE`, and neither takes `--mock`. A one word question `cache` needs `--ask`, or `--`
+  before it.
 - Cached answers sit on disk until they expire, are evicted or are cleared. An entry holds the
   answers and the model, never the state. Its name is a sha256 of the request, so anyone who can
   read the directory and guess a request can confirm it was asked.
@@ -613,7 +614,7 @@ on the provider's key variable alone.
 - `--profile` exits 2 beside `create`, `update`, `delete`, `use` and `list`, and beside `show` or
   `test` given a name. So does `--provider`, apart from `create` and `update`, where it is the
   profile's own provider. `show` and `test` with no name take both as a run does. Every `profile`
-  command refuses `--mock` and `ONESIE_MOCK`.
+  command refuses `ONESIE_MOCK` and takes no `--mock`.
 - `profile` is a subcommand name, so a one word question `profile` needs `--ask`, or `--` before it.
 
 ### Choosing a profile
