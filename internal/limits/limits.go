@@ -26,8 +26,8 @@ const (
 	DefaultRetries = onesie.DefaultRetries
 	// DefaultMaxRetryAfter is the longest server requested delay onesie will wait out.
 	DefaultMaxRetryAfter = onesie.DefaultMaxRetryAfter
-	// MaxRetries is the ceiling on --retries. Each retry waits out a backoff of up to 5 s, so a
-	// hundred bounds the wait at minutes rather than days.
+	// MaxRetries is the ceiling on --retries. Each retry waits out a backoff, so a hundred bounds
+	// the wait at minutes rather than days.
 	MaxRetries = 100
 	// MaxJobs is the ceiling on -j. Every job is a goroutine and a pooled connection started up
 	// front, and far past this the API rate limits the run long before it goes any faster.
