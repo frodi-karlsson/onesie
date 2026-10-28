@@ -343,6 +343,11 @@ func TestLoad(t *testing.T) {
 			wantErr: "--mock line 2: question 'u' answered 1.5, which lies outside [0,1]",
 		},
 		{
+			name:    "should name a rate's p outside [0,1] when the score it gives lies outside the levels",
+			file:    `{"u":0.9,"t":"billing","r":{"value":"calm","p":{"calm":1.5,"curt":-0.25,"rude":-0.25}}}`,
+			wantErr: "--mock: question 'r' has p for '0' of 1.5, which lies outside [0,1]",
+		},
+		{
 			name:    "should name a rate's p by its level index",
 			file:    `{"u":0.9,"t":"billing","r":{"value":"curt","p":{"calm":0,"curt":1.5,"rude":0}}}`,
 			wantErr: "--mock: question 'r' has p for '1' of 1.5, which lies outside [0,1]",

@@ -337,6 +337,13 @@ func rateAnswer(question plan.Question, parts answerParts) (onesie.Answer, error
 }
 
 func averaged(names []string, p map[string]float64, index int) float64 {
+	// A p outside [0,1] would derive a score Result.Check refuses first, hiding the p it names.
+	for _, name := range names {
+		if p[name] < 0 || p[name] > 1 {
+			return float64(index)
+		}
+	}
+
 	weighted, total := 0.0, 0.0
 	for i, name := range names {
 		weighted += float64(i) * p[name]
