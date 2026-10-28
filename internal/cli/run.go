@@ -40,40 +40,15 @@ func run(
 		return err
 	}
 
-	inputMode := flags.inputMode
-
 	// Both branches sit ahead of the plan, since neither has a question and failing for want of one
 	// would send the user to the wrong flag. --list-models comes first, so it names itself rather
 	// than the mode it was combined with.
 	if flags.listModels {
-		// The only hint is -j on one record, which --list-models refuses and -i request never is.
-		if _, checkErr := checkFlags(flags, runFacts{}); checkErr != nil {
-			return checkErr
-		}
-
-		out.BindWithoutFingerprint()
-
-		return withStats(cmd, settings.now, flags, func(stats *collector) error {
-			return listModels(cmd, settings, flags, stats)
-		})
+		return runListModels(cmd, settings, flags, out)
 	}
 
-	if inputMode == input.Request {
-		if _, checkErr := checkFlags(flags, runFacts{}); checkErr != nil {
-			return checkErr
-		}
-
-		// Each body names its own model or takes the run's, and the fingerprint holds no model, as
-		// it holds nothing else a body carries.
-		if bindErr := bindOut(out, settings, flags, nil, answersfile.FingerprintInputs{
-			Input: inputMode.String(), LongContext: flags.env.longContext,
-		}); bindErr != nil {
-			return bindErr
-		}
-
-		return withStats(cmd, settings.now, flags, func(stats *collector) error {
-			return streamRaw(cmd, settings, flags, stats, out, resume)
-		})
+	if flags.inputMode == input.Request {
+		return runRequestBodies(cmd, settings, flags, out, resume)
 	}
 
 	inv, warnings, err := build(settings, flags, false)
@@ -88,12 +63,7 @@ func run(
 		return err
 	}
 
-	built := inv.plan
-	gate := inv.gate
-	abstain := inv.abstain
-	loaded := inv.loaded
-
-	if bodyErr := checkBodyState(flags, loaded); bodyErr != nil {
+	if bodyErr := checkBodyState(flags, inv.loaded); bodyErr != nil {
 		return bodyErr
 	}
 
@@ -104,9 +74,55 @@ func run(
 		out.BindWithoutFingerprint()
 
 		return printQuestions(
-			cmd.OutOrStdout(), cmd.ErrOrStderr(), built.Questions, gate.Source(),
-			abstain.Source(), loaded, settings.schemaURL)
+			cmd.OutOrStdout(), cmd.ErrOrStderr(), inv.plan.Questions, inv.gate.Source(),
+			inv.abstain.Source(), inv.loaded, settings.schemaURL)
 	}
+
+	return runPlan(cmd, settings, flags, inv, out, resume)
+}
+
+func runListModels(cmd *cobra.Command, settings rootSettings, flags runConfig, out *answersfile.File) error {
+	// The only hint is -j on one record, which --list-models refuses and -i request never is.
+	if _, checkErr := checkFlags(flags, runFacts{}); checkErr != nil {
+		return checkErr
+	}
+
+	out.BindWithoutFingerprint()
+
+	return withStats(cmd, settings.now, flags, func(stats *collector) error {
+		return listModels(cmd, settings, flags, stats)
+	})
+}
+
+func runRequestBodies(
+	cmd *cobra.Command, settings rootSettings, flags runConfig, out *answersfile.File, resume answersfile.Resume,
+) error {
+	if _, checkErr := checkFlags(flags, runFacts{}); checkErr != nil {
+		return checkErr
+	}
+
+	// Each body names its own model or takes the run's, and the fingerprint holds no model, as
+	// it holds nothing else a body carries.
+	if bindErr := bindOut(out, settings, flags, nil, answersfile.FingerprintInputs{
+		Input: flags.inputMode.String(), LongContext: flags.env.longContext,
+	}); bindErr != nil {
+		return bindErr
+	}
+
+	return withStats(cmd, settings.now, flags, func(stats *collector) error {
+		return streamRaw(cmd, settings, flags, stats, out, resume)
+	})
+}
+
+func runPlan(
+	cmd *cobra.Command,
+	settings rootSettings,
+	flags runConfig,
+	inv *invocation,
+	out *answersfile.File,
+	resume answersfile.Resume,
+) error {
+	built, gate, abstain, inputMode := inv.plan, inv.gate, inv.abstain, flags.inputMode
 
 	model, err := resolveModel(settings, built.Model)
 	if err != nil {
@@ -138,7 +154,7 @@ func run(
 
 	if inputMode.Streaming() {
 		if warnErr := warnIgnoredBodyState(
-			cmd.ErrOrStderr(), flags, loaded, "a stream", inv.images, wireAll(built.Questions)); warnErr != nil {
+			cmd.ErrOrStderr(), flags, inv.loaded, "a stream", inv.images, wireAll(built.Questions)); warnErr != nil {
 			return warnErr
 		}
 
@@ -155,7 +171,20 @@ func run(
 		return refuseErr
 	}
 
-	resolved, err := resolveState(cmd.Context(), settings, flags, loaded, cmd.ErrOrStderr())
+	return runOne(cmd, settings, flags, inv, outputMode, answers)
+}
+
+func runOne(
+	cmd *cobra.Command,
+	settings rootSettings,
+	flags runConfig,
+	inv *invocation,
+	outputMode output.Mode,
+	answers answererFactory,
+) error {
+	built := inv.plan
+
+	resolved, err := resolveState(cmd.Context(), settings, flags, inv.loaded, cmd.ErrOrStderr())
 	if err != nil {
 		return err
 	}
