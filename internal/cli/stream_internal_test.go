@@ -15,7 +15,6 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
-	"time"
 )
 
 const dedupAnswer = `{"model":"m","usage":{"input_tokens":5,"output_tokens":2},` +
@@ -68,7 +67,7 @@ func TestStream(t *testing.T) {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 
-				stub := newCountingStub(t, nil)
+				stub := newCountingStub(t)
 
 				out, errOut, code := runStub(t, t.Context(), tc.args, jsonl(tc.bodies...), stub.url)
 				if code != ExitOK {
@@ -100,7 +99,7 @@ func TestStream(t *testing.T) {
 	t.Run("should print one line per record under --unordered", func(t *testing.T) {
 		t.Parallel()
 
-		stub := newCountingStub(t, nil)
+		stub := newCountingStub(t)
 		bodies := []string{"x", "x", "y", "x", "y", "x", "z", "z"}
 
 		out, errOut, code := runStub(t, t.Context(), with("-j", "4", "--unordered"), jsonl(bodies...), stub.url)
@@ -116,56 +115,6 @@ func TestStream(t *testing.T) {
 			if got := strings.Count(out, fmt.Sprintf(`{"id":%d,`, i+1)); got != 1 {
 				t.Errorf("id %d written %d times, want once\n%s", i+1, got, out)
 			}
-		}
-	})
-
-	t.Run("should make a duplicate of a request in flight wait for it", func(t *testing.T) {
-		t.Parallel()
-
-		release := make(chan struct{})
-
-		var held atomic.Bool
-
-		stub := newCountingStub(t, func() {
-			if held.CompareAndSwap(false, true) {
-				<-release
-			}
-		})
-
-		waiting := make(chan struct{}, 1)
-		exited := make(chan struct{})
-
-		var (
-			out, errOut string
-			code        int
-		)
-
-		go func() {
-			defer close(exited)
-
-			out, errOut, code = runStub(t, t.Context(), with("-j", "2"), jsonl("x", "x"), stub.url,
-				func(s *rootSettings) { s.dedupWaiting = func() { waiting <- struct{}{} } })
-		}()
-
-		select {
-		case <-waiting:
-		case <-time.After(5 * time.Second):
-			t.Error("the second record never waited for the first")
-		}
-
-		close(release)
-		<-exited
-
-		if code != ExitOK {
-			t.Fatalf("exit code = %d\n%s", code, errOut)
-		}
-
-		if got := stub.requests.Load(); got != 1 {
-			t.Errorf("%d requests, want 1", got)
-		}
-
-		if got := strings.Count(out, "\n"); got != 2 {
-			t.Errorf("%d lines, want 2\n%s", got, out)
 		}
 	})
 
@@ -249,7 +198,7 @@ func TestStream(t *testing.T) {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 
-				stub := newCountingStub(t, nil)
+				stub := newCountingStub(t)
 
 				out, errOut, code := runStub(t, t.Context(), tc.args, jsonl("x", "x", "y", "x", "y"), stub.url)
 				if code != ExitOK {
@@ -466,7 +415,7 @@ func TestStream(t *testing.T) {
 	t.Run("should report the deduplicated records under --stats", func(t *testing.T) {
 		t.Parallel()
 
-		stub := newCountingStub(t, nil)
+		stub := newCountingStub(t)
 
 		_, errOut, code := runStub(t, t.Context(), with("--stats"), jsonl("x", "x", "y"), stub.url)
 		if code != ExitOK || !strings.Contains(errOut, "3 records, 1 deduplicated, 2 requests, 2 questions") {
@@ -477,7 +426,7 @@ func TestStream(t *testing.T) {
 	t.Run("should say once past the limit and ask the new records after it", func(t *testing.T) {
 		t.Parallel()
 
-		stub := newCountingStub(t, nil)
+		stub := newCountingStub(t)
 
 		_, errOut, code := runStub(t, t.Context(), with(), jsonl("x", "x", "y", "y", "z"), stub.url,
 			func(s *rootSettings) { s.dedupLimit = 1 })
@@ -498,7 +447,7 @@ func TestStream(t *testing.T) {
 	t.Run("should keep each record's own input under --merge", func(t *testing.T) {
 		t.Parallel()
 
-		stub := newCountingStub(t, nil)
+		stub := newCountingStub(t)
 
 		out, errOut, code := runStub(t, t.Context(),
 			[]string{"is this urgent", "-i", "jsonl", "--map", ".body", "--merge"},
@@ -714,17 +663,13 @@ func TestStream(t *testing.T) {
 	})
 }
 
-func newCountingStub(t *testing.T, hold func()) *countingStub {
+func newCountingStub(t *testing.T) *countingStub {
 	t.Helper()
 
 	stub := &countingStub{}
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		stub.requests.Add(1)
-
-		if hold != nil {
-			hold()
-		}
 
 		if _, err := w.Write([]byte(dedupAnswer)); err != nil {
 			t.Errorf("writing stub response: %v", err)

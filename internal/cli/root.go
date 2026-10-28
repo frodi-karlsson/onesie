@@ -399,7 +399,6 @@ func defaultSettings(info BuildInfo) rootSettings {
 		readSecret:    func() (string, error) { return readHiddenSecret(os.Stdin) },
 		schemaURL:     schemaURLOf(info),
 		dedupLimit:    limits.MaxDedupRequests,
-		dedupWaiting:  func() {},
 		exprRuns:      func() func() { return func() {} },
 		readBuiltIn:   questions.Read,
 		builtIns:      questions.Names,
@@ -935,7 +934,6 @@ type rootSettings struct {
 	answersOut    func(io.Writer) io.Writer
 	schemaURL     string
 	dedupLimit    int
-	dedupWaiting  func()
 	exprRuns      func() (ended func())
 	readBuiltIn   func(name string) ([]byte, bool)
 	builtIns      func() []string

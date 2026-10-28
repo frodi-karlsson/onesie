@@ -35,10 +35,8 @@ func askOnce(
 	return record, call, err
 }
 
-func newDedup(limit int, notice func() error, waiting func()) *dedup {
-	return &dedup{
-		limit: limit, notice: notice, waiting: waiting, calls: make(map[[sha256.Size]byte]*sharedCall),
-	}
+func newDedup(limit int, notice func() error) *dedup {
+	return &dedup{limit: limit, notice: notice, calls: make(map[[sha256.Size]byte]*sharedCall)}
 }
 
 func (d *dedup) share(
@@ -56,7 +54,6 @@ func (d *dedup) share(
 
 	if call, held := d.calls[key]; held {
 		d.mu.Unlock()
-		d.waiting()
 
 		select {
 		case <-call.done:
@@ -117,7 +114,6 @@ type dedup struct {
 	full      bool
 	notice    func() error
 	noticeErr error
-	waiting   func()
 }
 
 type sharedCall struct {
