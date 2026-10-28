@@ -468,8 +468,10 @@ again.
 - Its files are mode `600` in directories of mode `700`. `--cache` refuses a cache directory others
   can reach with exit 2, before any request, apart from on Windows. onesie writes a `CACHEDIR.TAG`
   file, so backup tools skip the cache. `--cache` refuses an existing directory with no
-  `CACHEDIR.TAG` that holds anything else with exit 2, before any request. onesie counts, evicts
-  and clears only its own entries, and parallel runs can share one cache.
+  `CACHEDIR.TAG` that holds anything else with exit 2, before any request, and names the file it
+  found. The files a desktop leaves in a folder, `.DS_Store`, `Thumbs.db`, `desktop.ini` and any
+  starting with `._`, do not count. onesie counts, evicts and clears only its own entries, and
+  parallel runs can share one cache.
 - The cache holds about `max-cache-bytes`, 100 MB, which `onesie -V` lists beside `cache-ttl`. Past
   that it evicts the least recently used answers first, and a hit counts as a use.
 - `--mock` answers from its file and never reads or fills the cache. `--print-request` sends
@@ -490,11 +492,12 @@ again.
   `calibrate --cache` works too.
 - `onesie cache` prints how many entries the cache holds, how many of them expire since their model
   is an alias, their size and the directory, or `0 entries in DIR` when there is none. It creates
-  nothing, and names a directory others can reach on stderr. `onesie cache clear` removes every
-  entry, keeps the directory and its `CACHEDIR.TAG`, and prints how many it removed. It refuses a
-  directory with no `CACHEDIR.TAG` with exit 2, so a mistyped `ONESIE_CACHE_DIR` never empties a
-  directory onesie did not make. Both ignore `--mock` and `ONESIE_CACHE`. A one word question
-  `cache` needs `--ask`, or `--` before it.
+  nothing, and names on stderr a directory `--cache` refuses, with the reason `--cache` gives.
+  `onesie cache clear` removes every entry, keeps the directory and its `CACHEDIR.TAG`, and prints
+  how many it removed, or `no cache in DIR, so nothing was removed` when the directory does not
+  exist. It refuses a directory with no `CACHEDIR.TAG` with exit 2, so a mistyped
+  `ONESIE_CACHE_DIR` never empties a directory onesie did not make. Both ignore `--mock` and
+  `ONESIE_CACHE`. A one word question `cache` needs `--ask`, or `--` before it.
 - Cached answers sit on disk until they expire, are evicted or are cleared. An entry holds the
   answers and the model, never the state. Its name is a sha256 of the request, so anyone who can
   read the directory and guess a request can confirm it was asked.

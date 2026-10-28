@@ -83,6 +83,70 @@ func TestNewCacheCmd(t *testing.T) {
 		}
 	})
 
+	t.Run("should name a file --cache refuses on stderr, tag nothing and still exit 0", func(t *testing.T) {
+		t.Parallel()
+
+		env := cacheEnv(t)
+		dir := env["ONESIE_CACHE_DIR"]
+
+		if err := os.MkdirAll(dir, 0o700); err != nil {
+			t.Fatal(err)
+		}
+
+		if err := os.WriteFile(filepath.Join(dir, "notes.txt"), []byte("x"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+
+		out, errOut, code := runCached(t, env, []string{"cache"}, "")
+		want := "onesie: the cache dir " + dir + " holds 'notes.txt', which onesie did not write, and no " +
+			"CACHEDIR.TAG, so onesie will not store answers there. Point ONESIE_CACHE_DIR at a new or empty directory\n"
+
+		if code != ExitOK || out != "0 entries in "+dir+"\n" || errOut != want {
+			t.Errorf("exit %d, stdout %q, stderr %q, want 0 entries and %q", code, out, errOut, want)
+		}
+
+		if _, err := os.Stat(filepath.Join(dir, "CACHEDIR.TAG")); !errors.Is(err, os.ErrNotExist) {
+			t.Errorf("onesie cache tagged %s: %v", dir, err)
+		}
+	})
+
+	t.Run("should fill a directory that holds only .DS_Store", func(t *testing.T) {
+		t.Parallel()
+
+		env := cacheEnv(t)
+		dir := env["ONESIE_CACHE_DIR"]
+
+		if err := os.MkdirAll(dir, 0o700); err != nil {
+			t.Fatal(err)
+		}
+
+		if err := os.WriteFile(filepath.Join(dir, ".DS_Store"), []byte("x"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+
+		fill(t, env)
+
+		if out, errOut, code := runCached(t, env, []string{"cache"}, ""); code != ExitOK || !strings.HasPrefix(out, "3 entries") || errOut != "" {
+			t.Errorf("exit %d, stdout %q, stderr %q, want 3 entries and no notice", code, out, errOut)
+		}
+	})
+
+	t.Run("should say a missing directory holds no cache under cache clear and create nothing", func(t *testing.T) {
+		t.Parallel()
+
+		env := cacheEnv(t)
+		dir := env["ONESIE_CACHE_DIR"]
+
+		out, errOut, code := runCached(t, env, []string{"cache", "clear"}, "")
+		if code != ExitOK || out != "no cache in "+dir+", so nothing was removed\n" || errOut != "" {
+			t.Errorf("exit %d, stdout %q, stderr %q, want the note that there is no cache", code, out, errOut)
+		}
+
+		if _, err := os.Stat(dir); !errors.Is(err, os.ErrNotExist) {
+			t.Errorf("cache clear created %s: %v", dir, err)
+		}
+	})
+
 	t.Run("should remove every entry with cache clear and then report none", func(t *testing.T) {
 		t.Parallel()
 

@@ -121,16 +121,20 @@ func openCache(settings rootSettings, ttl time.Duration) (*cache.Store, error) {
 	// A cache others can read, or a directory that may not be onesie's, is something the user asked
 	// for and has to fix, so each ends the run. Any other failure only turns the cache off.
 	store, err := cache.Open(dir, cache.Options{Now: settings.now, GOOS: settings.goos, AliasTTL: ttl})
-
-	var (
-		readable *cache.ModeError
-		foreign  *cache.ForeignError
-	)
-	if errors.As(err, &readable) || errors.As(err, &foreign) {
+	if cacheRefused(err) {
 		return nil, &cacheRefusedError{err: err}
 	}
 
 	return store, err
+}
+
+func cacheRefused(err error) bool {
+	var (
+		readable *cache.ModeError
+		foreign  *cache.ForeignError
+	)
+
+	return errors.As(err, &readable) || errors.As(err, &foreign)
 }
 
 func (a *cachedAnswerer) answer(ctx context.Context, key recordKey, req onesie.Request) (reply, error) {

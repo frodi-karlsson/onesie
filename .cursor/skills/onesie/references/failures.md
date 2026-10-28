@@ -66,6 +66,7 @@ Exit 3 also covers these:
 | `which does not exist` | `--profile` or `ONESIE_PROFILE` names a profile that is not in `profiles.json`. The message lists the profiles there are, and says to pass `--provider` when the name is a provider |
 | `is not valid JSON` | `profiles.json` or `credentials.json` is cut short or holds a syntax error. `is not a JSON object of profiles` means valid JSON of another shape |
 | `is in use by another onesie run` | another run holds the lock beside the `--out` file |
+| `which onesie did not write, and no CACHEDIR.TAG` | `--cache` found the file the message names in a cache directory onesie did not make. Point `ONESIE_CACHE_DIR` at a new or empty directory. `onesie cache` prints the same line and exits 0 |
 | `Drop --resume to start over` | the `--out` file was written by a different run, or has no fingerprint. `changed since` names what differs, such as `the model` or `--map` |
 | `--resume needs output that keeps each record's outcome` | `-o raw` and `-r` keep no id, failure or gate outcome, so a resume refuses them. Use `-o values` or `-o json` |
 | `is followed by more rows` | a resume without `--id` under `--stop-on-error` reached a stored csv or tsv error row with more rows after it, and a row keeps only the message, not the code to stop with. Pass `--id` or drop `--stop-on-error` |

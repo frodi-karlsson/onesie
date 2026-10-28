@@ -41,13 +41,19 @@ func TestOpen(t *testing.T) {
 		name    string
 		content []string
 		want    bool
-		refused bool
+		foreign string
 	}{
 		{name: "should tag an existing empty directory", want: true},
 		{name: "should tag a directory holding only fan out directories and temporary files", content: []string{"ab/", "cd/", ".onesie-tmp-1"}, want: true},
-		{name: "should refuse and not tag a directory holding a foreign file", content: []string{"ab/", "notes.txt"}, refused: true},
-		{name: "should refuse and not tag a directory holding a foreign directory", content: []string{"zz/"}, refused: true},
+		{name: "should refuse and not tag a directory holding a foreign file, naming it", content: []string{"ab/", "notes.txt"}, foreign: "notes.txt"},
+		{name: "should refuse and not tag a directory holding a foreign directory, naming it", content: []string{"zz/"}, foreign: "zz"},
 		{name: "should accept a tagged directory holding a foreign file", content: []string{"CACHEDIR.TAG", "notes.txt"}, want: true},
+		{name: "should tag a directory holding only .DS_Store", content: []string{".DS_Store"}, want: true},
+		{
+			name: "should tag a directory holding only the files macOS and Windows leave", want: true,
+			content: []string{".DS_Store", "._ab", "Thumbs.db", "desktop.ini", "ab/"},
+		},
+		{name: "should refuse a directory named like a file the system leaves", content: []string{".DS_Store/"}, foreign: ".DS_Store"},
 	}
 
 	for _, tc := range tagged {
@@ -68,9 +74,9 @@ func TestOpen(t *testing.T) {
 			_, err := cache.Open(dir, cache.Options{Now: fixed(t0)})
 
 			var foreign *cache.ForeignError
-			if tc.refused {
-				want := "the cache dir " + dir + " holds files onesie did not write and no CACHEDIR.TAG, " +
-					"so onesie will not store answers there. Point ONESIE_CACHE_DIR at a new or empty directory"
+			if tc.foreign != "" {
+				want := "the cache dir " + dir + " holds '" + tc.foreign + "', which onesie did not write, and no " +
+					"CACHEDIR.TAG, so onesie will not store answers there. Point ONESIE_CACHE_DIR at a new or empty directory"
 				if !errors.As(err, &foreign) || err.Error() != want {
 					t.Fatalf("Open error = %v, want %q", err, want)
 				}
@@ -690,6 +696,58 @@ func TestSummarize(t *testing.T) {
 			t.Errorf("Summarize created %s: %v", dir, err)
 		}
 	})
+}
+
+func TestCheck(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		mode    os.FileMode
+		content []string
+		missing bool
+		goos    string
+		wantErr string
+	}{
+		{name: "should accept a missing directory and not create it", missing: true},
+		{name: "should accept an untagged empty directory and not tag it", mode: 0o700},
+		{name: "should accept a directory holding only .DS_Store and not tag it", mode: 0o700, content: []string{".DS_Store"}},
+		{name: "should refuse a directory holding a foreign file, naming it", mode: 0o700, content: []string{"notes.txt"}, wantErr: "holds 'notes.txt'"},
+		{name: "should refuse a directory others can reach", mode: 0o755, goos: "linux", wantErr: "has mode 755"},
+		{name: "should accept any mode on windows", mode: 0o755, goos: "windows"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if runtime.GOOS == "windows" && tc.goos == "linux" {
+				t.Skip("windows carries no unix permission bits, so the mode check does not apply")
+			}
+
+			dir := filepath.Join(t.TempDir(), "onesie")
+			if !tc.missing {
+				mustMkdir(t, dir, tc.mode)
+			}
+
+			for _, name := range tc.content {
+				mustWrite(t, filepath.Join(dir, name), "x")
+			}
+
+			err := cache.Check(dir, cache.Options{GOOS: tc.goos})
+			if tc.wantErr == "" && err != nil || tc.wantErr != "" && (err == nil || !strings.Contains(err.Error(), tc.wantErr)) {
+				t.Fatalf("Check = %v, want %q", err, tc.wantErr)
+			}
+
+			if _, statErr := os.Stat(filepath.Join(dir, "CACHEDIR.TAG")); !errors.Is(statErr, os.ErrNotExist) {
+				t.Errorf("Check wrote a CACHEDIR.TAG: %v", statErr)
+			}
+
+			if _, statErr := os.Stat(dir); tc.missing && !errors.Is(statErr, os.ErrNotExist) {
+				t.Errorf("Check created %s: %v", dir, statErr)
+			}
+		})
+	}
 }
 
 func TestClear(t *testing.T) {

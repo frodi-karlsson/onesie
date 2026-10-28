@@ -43,27 +43,23 @@ const NoAliasTTL time.Duration = -1
 // refuses a directory others can reach, except on windows, and an untagged one holding foreign files.
 func Open(dir string, opts Options) (*Store, error) {
 	opts = opts.withDefaults()
-	fsys := opts.FS
 
-	info, statErr := fsys.Stat(dir)
+	state, err := inspect(opts.FS, dir, opts.GOOS)
+	if err != nil {
+		return nil, err
+	}
 
-	switch {
-	case errors.Is(statErr, fs.ErrNotExist):
-		if err := fsys.MkdirAll(dir, 0o700); err != nil {
+	switch state {
+	case missingDir:
+		if err := opts.FS.MkdirAll(dir, 0o700); err != nil {
 			return nil, fmt.Errorf("creating the cache dir %s: %w", dir, err)
 		}
 
-		if err := writeTag(fsys, dir); err != nil {
+		if err := writeTag(opts.FS, dir); err != nil {
 			return nil, err
 		}
-	case statErr != nil:
-		return nil, fmt.Errorf("reading the cache dir %s: %w", dir, patherr.Inner(statErr))
-	case !info.IsDir():
-		return nil, fmt.Errorf("the cache dir %s is not a directory", dir)
-	case opts.GOOS != "windows" && info.Mode().Perm()&0o077 != 0:
-		return nil, &ModeError{Dir: dir, Mode: info.Mode().Perm()}
-	default:
-		if err := tagUntagged(fsys, dir); err != nil {
+	case untaggedDir:
+		if err := writeTag(opts.FS, dir); err != nil {
 			return nil, err
 		}
 	}
@@ -71,28 +67,72 @@ func Open(dir string, opts Options) (*Store, error) {
 	return &Store{dir: dir, opts: opts}, nil
 }
 
-func tagUntagged(fsys FS, dir string) error {
+// Check reports why Open would refuse dir, deciding as Open does but creating and tagging nothing.
+func Check(dir string, opts Options) error {
+	opts = opts.withDefaults()
+
+	_, err := inspect(opts.FS, dir, opts.GOOS)
+
+	return err
+}
+
+func inspect(fsys FS, dir, goos string) (dirState, error) {
+	info, err := fsys.Stat(dir)
+
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		return missingDir, nil
+	case err != nil:
+		return 0, fmt.Errorf("reading the cache dir %s: %w", dir, patherr.Inner(err))
+	case !info.IsDir():
+		return 0, fmt.Errorf("the cache dir %s is not a directory", dir)
+	case goos != "windows" && info.Mode().Perm()&0o077 != 0:
+		return 0, &ModeError{Dir: dir, Mode: info.Mode().Perm()}
+	}
+
+	return tagState(fsys, dir)
+}
+
+type dirState int
+
+const (
+	taggedDir dirState = iota
+	untaggedDir
+	missingDir
+)
+
+func tagState(fsys FS, dir string) (dirState, error) {
 	// A directory holding nothing but what onesie writes gets its tag, so clear can empty it later.
 	// One holding anything else may not be onesie's. A tag there would hide the foreign files from
 	// backup tools, and storing without one would leave entries clear refuses to remove.
 	if _, err := fsys.Stat(filepath.Join(dir, tagName)); !errors.Is(err, fs.ErrNotExist) {
-		return nil
+		return taggedDir, nil
 	}
 
 	names, err := fsys.ReadDir(dir)
 	if err != nil {
-		return fmt.Errorf("reading the cache dir %s: %w", dir, patherr.Inner(err))
+		return 0, fmt.Errorf("reading the cache dir %s: %w", dir, patherr.Inner(err))
 	}
 
 	for _, named := range names {
 		ours := (named.IsDir() && isFanout(named.Name())) ||
-			(named.Type().IsRegular() && strings.HasPrefix(named.Name(), tempPrefix))
+			(named.Type().IsRegular() && (strings.HasPrefix(named.Name(), tempPrefix) || systemFile(named.Name())))
 		if !ours {
-			return &ForeignError{Dir: dir}
+			return 0, &ForeignError{Dir: dir, File: named.Name()}
 		}
 	}
 
-	return writeTag(fsys, dir)
+	return untaggedDir, nil
+}
+
+func systemFile(name string) bool {
+	// What macOS Finder and Windows Explorer leave in a folder that is only looked at.
+	switch name {
+	case ".DS_Store", "Thumbs.db", "desktop.ini":
+		return true
+	}
+
+	return strings.HasPrefix(name, "._")
 }
 
 func writeTag(fsys FS, dir string) error {
@@ -189,15 +229,17 @@ func (e *ModeError) Error() string {
 }
 
 // ForeignError means the cache directory holds files onesie did not write and no CACHEDIR.TAG, so it
-// may not be onesie's to fill.
+// may not be onesie's to fill. File is the first such file found.
 type ForeignError struct {
-	Dir string
+	Dir  string
+	File string
 }
 
-// Error names the directory and the fix.
+// Error names the directory, the file found in it and the fix.
 func (e *ForeignError) Error() string {
-	return fmt.Sprintf("the cache dir %s holds files onesie did not write and no %s, "+
-		"so onesie will not store answers there. Point ONESIE_CACHE_DIR at a new or empty directory", e.Dir, tagName)
+	return fmt.Sprintf("the cache dir %s holds '%s', which onesie did not write, and no %s, "+
+		"so onesie will not store answers there. Point ONESIE_CACHE_DIR at a new or empty directory",
+		e.Dir, e.File, tagName)
 }
 
 // Key names one cached response, a sha256 of everything that decides it.
