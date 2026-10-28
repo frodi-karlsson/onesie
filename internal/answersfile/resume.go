@@ -119,7 +119,6 @@ func (o *File) ReadSpans(ctx context.Context, spans []Span, read func(i int, tex
 		err = errors.Join(err, file.Close())
 	}()
 
-	// In file order, so the reads move forward through the file.
 	order := make([]int, len(spans))
 	for i := range order {
 		order[i] = i
@@ -591,7 +590,8 @@ func (l *Ledger) Skipped() Tally {
 	return l.skips
 }
 
-// Tally counts records and their outcomes.
+// Tally counts records, and among them the failed, rejected and abstained ones, which a gate
+// reads to choose its exit code.
 type Tally struct {
 	Records   int
 	Failed    int

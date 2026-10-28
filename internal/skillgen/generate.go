@@ -14,9 +14,9 @@ const skillsDir = "skills"
 var (
 	// The optional frontmatter each skill loader accepts. allowed-tools is a field of the Agent
 	// Skills spec, so every loader takes it, and RenderSkill writes it as a plain string, the only
-	// form Codex accepts. argument-hint is Claude Code only and not in the spec, so no loader of
-	// the shared SKILL.md is marked for it, and a field reaches a SKILL.md only once every loader
-	// that reads that file is.
+	// form Codex accepts. argument-hint is Claude Code only and outside the spec, so no loader of the
+	// shared SKILL.md is marked for it. A field reaches a SKILL.md when every loader of that file
+	// accepts it.
 	claudeCode = Frontmatter{AllowedTools: true}
 	codex      = Frontmatter{AllowedTools: true}
 	cursor     = Frontmatter{AllowedTools: true}

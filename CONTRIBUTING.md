@@ -48,3 +48,28 @@ advice. The History lessons check needs a key, so it skips on a pull request fro
 `go.mod` names the Go version, `make` lists every target, and `golangci-lint` is expected on `PATH`
 at the version `.github/workflows/ci.yml` pins. [MAINTAINING.md](MAINTAINING.md) covers the layout,
 the live suite, the calibrated gates and releases.
+
+## The skills check
+
+`make skills-check` dry runs every example in `skills/` it can run without a shell. It skips an
+example with a pipe, a redirection or anything else only a shell resolves, such as a variable or a
+glob, though a trailing redirection to `/dev/null` is dropped and the example runs. It also checks
+each flag and subcommand the skills name outside their examples against the `--help` output.
+It reads each skill's description, compatibility, intro, sections and references, and each rule's
+short and why.
+
+Three kinds of mention count, so the flags of other tools are never read as onesie's:
+
+- A onesie command in a code span or on a line of a fenced block. It may follow a pipe, a chain or
+  env assignments, as in `ONESIE_MOCK=x onesie ...`, or sit inside `$(...)`. Its flags are checked
+  against the help of the command they follow: the root before any subcommand, and after
+  `onesie calibrate` or `onesie profile create`, that subcommand's own. A bare word where a
+  subcommand can stand must be one. The command ends at a pipe, a chain, a redirection, a closing
+  parenthesis or a lone `--`, so `onesie ... | jq -c --unbuffered` checks nothing of jq.
+- A code span whose first word is a flag, such as `--ask NAME=@FILE`. Only that flag counts.
+- A flag in plain prose, outside any code.
+
+A code span with no onesie command in it, such as `jq --unbuffered`, `git push --force` or
+`curl -fsSL`, is ignored. The last two kinds name no command, so they pass when the root help lists
+the flag, or the help of a subcommand the same skill runs in its prose or its examples.
+`completion` and a command that only asks for `--help` never count, and short flags are not checked.

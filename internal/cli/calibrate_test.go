@@ -2711,7 +2711,6 @@ func criteriaKeys(criteria json.RawMessage) []string {
 }
 
 func spread(keys []string, picked string, p any) map[string]any {
-	// The picked key takes p and the rest share what is left, so the distribution adds up to 1.
 	value, _ := p.(float64)
 	rest := 0.0
 

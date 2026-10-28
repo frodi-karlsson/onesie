@@ -178,8 +178,7 @@ func TestProfilesLocation(t *testing.T) {
 	tests := []struct {
 		name     string
 		variable string
-		// nested names the directories the config dir sits under in the one the variable holds.
-		nested []string
+		nested   []string
 	}{
 		{name: "should find profiles.json under the home directory", nested: []string{".config", "onesie"}},
 		{name: "should find profiles.json in ONESIE_CONFIG_DIR", variable: "ONESIE_CONFIG_DIR"},

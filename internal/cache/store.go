@@ -27,8 +27,8 @@ const (
 	tempPrefix   = ".onesie-tmp-"
 	pinnedSuffix = ".json"
 	aliasSuffix  = ".alias.json"
-	// tempMaxAge is how old a temporary file must be before a walk takes it for a crashed write
-	// rather than one another run is still making.
+	// An hour is far longer than any write takes, so a walk never removes the file of a write
+	// another run has in progress. The cost is that a crashed write leaves its file that long.
 	tempMaxAge = time.Hour
 
 	tagContent = "Signature: 8a477f597d28d172789f06886806bc55\n" +

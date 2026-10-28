@@ -65,7 +65,7 @@ func ParseTag(text string) (Tag, error) {
 	return tag, nil
 }
 
-// Tag is a parsed release tag.
+// Tag holds a version and its prerelease identifiers, ordered by semver 2.0 precedence.
 type Tag struct {
 	Major, Minor, Patch int
 	Pre                 []string

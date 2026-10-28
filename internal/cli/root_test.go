@@ -3112,8 +3112,8 @@ func TestClientBuilder(t *testing.T) {
 
 				var out bytes.Buffer
 
-				// No WithClientFactory, since the flag is wired onto the client by the real factory
-				// and a stub one would never see it.
+				// No WithClientFactory, since the flag reaches the client through the real factory and
+				// a stub one would never see it.
 				root := cli.NewRootCmd(
 					cli.BuildInfo{Version: "1.2.3"},
 					cli.WithKeychain(offKeychain()),
@@ -3157,7 +3157,7 @@ func TestClientBuilder(t *testing.T) {
 
 			var out, errOut bytes.Buffer
 
-			// No WithClientFactory, since the flag is wired onto the client by the real factory and a
+			// No WithClientFactory, since the flag reaches the client through the real factory and a
 			// stub one would never see it.
 			root := cli.NewRootCmd(
 				cli.BuildInfo{Version: "1.2.3"},

@@ -35,8 +35,7 @@ type markdownParser struct {
 	last   int
 	text   []string
 	inItem bool
-	// listOpen is true from a list item until a paragraph outside the list, so an indented
-	// paragraph under an item reads as prose and not as an indented code block.
+	// Markdown reads an indented paragraph under a list item as prose, not as indented code.
 	listOpen bool
 
 	fence       string

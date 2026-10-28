@@ -424,7 +424,6 @@ func TestCheck(t *testing.T) {
 		}
 	})
 
-	// Plan's rule, held for assertion messages.
 	t.Run("should spell the offending thing the way the question was written", func(t *testing.T) {
 		t.Parallel()
 
@@ -510,7 +509,6 @@ func TestCheck(t *testing.T) {
 		}
 	})
 
-	// Check types each path and Eval reads it, so the promise holds end to end.
 	t.Run("should accept every path an assertion allows and reject the rest", func(t *testing.T) {
 		t.Parallel()
 

@@ -854,8 +854,6 @@ func TestAssertIntegration(t *testing.T) {
 			wantKeys: []string{"urgent"},
 		},
 		{
-			// The record is still written. The gate closes and the record shows the caller why,
-			// which is the whole reason the assert key exists rather than a bare exit code.
 			name: "should close the gate and still print the record",
 			args: []string{
 				"--ask", "urgent=does this convey urgency",
@@ -1067,8 +1065,6 @@ func TestRequestRoundTripIntegration(t *testing.T) {
 			t.Fatalf("--print-request exit code = %d, stderr:\n%s", code, errOut)
 		}
 
-		// The --print-request round trip crosses two runs, so the body is fed back in as the second
-		// one's stdin exactly as it was printed.
 		out, errOut, code := runLive(t, []string{"-i", "request"}, body)
 
 		if code != cli.ExitOK {

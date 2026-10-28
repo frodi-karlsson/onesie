@@ -6,10 +6,9 @@ import (
 	"time"
 )
 
-// The windows error codes a file another run holds open or is renaming onto comes back with. They are
-// named here rather than taken from golang.org/x/sys/windows, which builds only for windows, so the
-// retries are tested on every platform.
 const (
+	// The windows codes for a file another run holds. golang.org/x/sys/windows builds only for
+	// windows, so they are syscall.Errno values here and the retries build and run on every platform.
 	errorFileNotFound     syscall.Errno = 2
 	errorAccessDenied     syscall.Errno = 5
 	errorSharingViolation syscall.Errno = 32

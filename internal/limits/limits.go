@@ -49,8 +49,8 @@ const (
 	// memory before asking, so the input has to end somewhere.
 	MaxCalibrateRecords = 100000
 	// MaxQuestionFileBytes is the largest question file or request body -f reads. It is the API's
-	// body limit, since the cap applies before onesie knows which of the two a file is, and a body
-	// with images routinely passes 8 MiB.
+	// body limit, since -f caps a file before onesie knows which of the two the file is, and a
+	// body with images routinely passes 8 MiB.
 	MaxQuestionFileBytes = onesie.MaxBodyBytes
 	// MaxRequestLineBytes is the longest -i request line, the API's body limit, so a body
 	// --print-request wrote with images can be replayed.

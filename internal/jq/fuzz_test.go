@@ -110,7 +110,6 @@ func checkAgainstRat(t *testing.T, text string, got any, err error) {
 		t.Fatalf("ID(%s) error = %v, want the fraction nearest %v", text, err, nearest)
 	}
 
-	// The same record whether the fraction arrived as a literal or as a computed float.
 	if computed, computedErr := ID(nearest); computedErr != nil || computed != got {
 		t.Fatalf("ID(%s) = %v, but ID(%v) = %v, %v", text, got, nearest, computed, computedErr)
 	}

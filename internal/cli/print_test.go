@@ -22,11 +22,15 @@ import (
 	"time"
 
 	"github.com/goccy/go-yaml"
+	"github.com/goccy/go-yaml/lexer"
+	"github.com/goccy/go-yaml/token"
 	"github.com/santhosh-tekuri/jsonschema/v6"
 
 	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/qfile"
 )
+
+var plainExponentValue = regexp.MustCompile(`^[-+]?(\.[0-9]+|[0-9]+(\.[0-9]*)?)[eE][-+]?[0-9]+$`)
 
 func TestPrintSchema(t *testing.T) {
 	t.Parallel()
@@ -243,8 +247,6 @@ func TestPrintQuestions(t *testing.T) {
 				}
 			}
 
-			// A case that names nothing on a stream expects that stream to stay empty. The
-			// documented redirection promises the file lands on stdout and nothing else does.
 			if len(tc.stdout) == 0 && out != "" {
 				t.Errorf("stdout should be empty, got:\n%s", out)
 			}
@@ -312,12 +314,11 @@ func TestPrintQuestions(t *testing.T) {
 	})
 }
 
-// The schema sees the tree the loader decodes, not what an editor's own YAML parser reads, so a
-// difference between the two parsers is out of reach of this check.
 func checkSchemaAgreement(t *testing.T, fixtures []schemaFixture) {
 	t.Helper()
 
 	schema := compiledSchema(t)
+	twins := jsonTwins(fixtures)
 	refused := 0
 
 	for _, fixture := range fixtures {
@@ -328,6 +329,16 @@ func checkSchemaAgreement(t *testing.T, fixtures []schemaFixture) {
 
 		if len(fixture.flags) > 0 && !loaderAccepts {
 			t.Errorf("the fixture does not run beside %v\n%s\nstderr:\n%s", fixture.flags, doc, errOut)
+		}
+
+		// goccy reads a plain scalar such as 1e-7 as a string, where the loader reads a float, so a
+		// fixture holding one is left to its JSON twin.
+		if plainExponent(doc) {
+			if !twins[twinKey(fixture.flags, exponentsAsFloats(doc))] {
+				t.Errorf("a fixture with a plain exponent needs a JSON twin for the schema to check\n%s", doc)
+			}
+
+			continue
 		}
 
 		instance, isBody, ok := schemaInstance(doc)
@@ -461,8 +472,6 @@ func validationDocs() []schemaFixture {
 		{typo: "a rate mapping with one level", doc: "severity:\n  ask: q\n  rate:\n    low: calm\n"},
 	}
 
-	// Each file that runs beside a flag is also checked alone, where the loader refuses it for a
-	// reason the flag supplies.
 	for _, fixture := range beside {
 		alone = append(alone, schemaFixture{doc: fixture.doc})
 	}
@@ -499,28 +508,91 @@ func fixtureName(doc string) string {
 	return "fixture.yaml"
 }
 
-func schemaInstance(doc string) (any, bool, bool) {
-	decoded, err := qfile.DecodeOrdered([]byte(doc))
-	if err != nil {
-		return nil, false, false
+func jsonTwins(fixtures []schemaFixture) map[string]bool {
+	twins := map[string]bool{}
+
+	for _, fixture := range fixtures {
+		if !json.Valid([]byte(fixture.doc)) {
+			continue
+		}
+
+		var decoded any
+		if err := json.Unmarshal([]byte(fixture.doc), &decoded); err != nil {
+			continue
+		}
+
+		twins[twinKey(fixture.flags, decoded)] = true
 	}
 
-	if items, isMapping := decoded.(yaml.MapSlice); isMapping {
-		for _, item := range items {
-			if item.Key == "questions" {
-				return nil, true, true
-			}
+	return twins
+}
+
+func twinKey(flags []string, decoded any) string {
+	encoded, err := json.Marshal(decoded)
+	if err != nil {
+		return ""
+	}
+
+	return strings.Join(flags, "\x00") + "\n" + string(encoded)
+}
+
+func exponentsAsFloats(doc string) any {
+	var decoded any
+	if err := yaml.Unmarshal([]byte(doc), &decoded); err != nil {
+		return nil
+	}
+
+	return withFloats(decoded)
+}
+
+func withFloats(value any) any {
+	switch typed := value.(type) {
+	case map[string]any:
+		for key, item := range typed {
+			typed[key] = withFloats(item)
+		}
+	case []any:
+		for i, item := range typed {
+			typed[i] = withFloats(item)
+		}
+	case string:
+		if number, err := strconv.ParseFloat(typed, 64); err == nil && plainExponentValue.MatchString(typed) {
+			return number
 		}
 	}
 
-	encoded, err := qfile.MarshalOrdered(decoded)
-	if err != nil {
-		return nil, false, false
+	return value
+}
+
+func plainExponent(doc string) bool {
+	return slices.ContainsFunc(lexer.Tokenize(doc), func(tk *token.Token) bool {
+		return tk.Type == token.StringType && plainExponentValue.MatchString(tk.Value)
+	})
+}
+
+func schemaInstance(doc string) (any, bool, bool) {
+	encoded := []byte(doc)
+	if !json.Valid(encoded) {
+		var decoded any
+		if err := yaml.Unmarshal(encoded, &decoded); err != nil {
+			return nil, false, false
+		}
+
+		var err error
+		if encoded, err = json.Marshal(decoded); err != nil {
+			return nil, false, false
+		}
 	}
 
 	instance, err := jsonschema.UnmarshalJSON(bytes.NewReader(encoded))
 	if err != nil {
 		return nil, false, false
+	}
+
+	if fields, isMapping := instance.(map[string]any); isMapping {
+		if _, isBody := fields["questions"]; isBody {
+			return nil, true, true
+		}
 	}
 
 	return instance, false, true
@@ -884,8 +956,6 @@ func TestPrintRequest(t *testing.T) {
 				}
 			}
 
-			// The body belongs on stdout, so a case that names nothing on a stream expects that
-			// stream to stay empty rather than to carry the body it forgot to ask for.
 			if len(tc.stdout) == 0 && out != "" {
 				t.Errorf("stdout should be empty, got:\n%s", out)
 			}
@@ -1250,7 +1320,6 @@ func TestPrintRequest(t *testing.T) {
 						code, ExitUsage, out, errOut)
 				}
 
-				// Nothing on stdout, which is the point of rejecting before the body is written.
 				if out != "" {
 					t.Errorf("stdout should be empty, got:\n%s", out)
 				}
@@ -1344,7 +1413,6 @@ func TestPrintRequest(t *testing.T) {
 						code, ExitUsage, out, errOut)
 				}
 
-				// Nothing on stdout, which is what tells a rejected dry run from an honoured one.
 				if out != "" {
 					t.Errorf("stdout should be empty, got:\n%s", out)
 				}

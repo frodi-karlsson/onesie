@@ -1078,8 +1078,6 @@ func (f *heldFS) refuse(left *int) bool {
 	}
 }
 
-// heldFS refuses the first renames, reads and removes with a windows error, as windows does while
-// another run holds the file. A negative count refuses every call.
 type heldFS struct {
 	failingFS
 
@@ -1090,7 +1088,7 @@ type heldFS struct {
 	err     syscall.Errno
 }
 
-// The windows error codes heldFS returns, as syscall.Errno values so they build on every platform.
+// The windows codes heldFS returns, as syscall.Errno values so the test builds on every platform.
 const (
 	errFileNotFound     syscall.Errno = 2
 	errAccessDenied     syscall.Errno = 5

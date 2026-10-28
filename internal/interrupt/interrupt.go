@@ -3,8 +3,8 @@ package interrupt
 
 import "context"
 
-// Wait runs read on its own goroutine and returns ctx.Err() once ctx ends first. A read under way
-// cannot be stopped, so its goroutine outlives Wait until the read returns.
+// Wait runs read on its own goroutine and returns the error of ctx once ctx ends first. A read
+// under way cannot be stopped, so its goroutine outlives Wait until the read returns.
 func Wait[T any](ctx context.Context, read func() (T, error)) (T, error) {
 	if err := ctx.Err(); err != nil {
 		var zero T

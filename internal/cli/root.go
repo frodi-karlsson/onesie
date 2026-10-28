@@ -39,8 +39,8 @@ var (
 	errEmptyValue = errors.New("empty value")
 )
 
-// Changed reports false for a name pflag does not know, and reports no error, so a name that has
-// to survive a rename is spelled once. A flag nothing passes to Changed needs no constant.
+// pflag's Changed reports false for a name it does not know, with no error, so a name that has to
+// survive a rename is spelled once here. A flag nothing passes to Changed needs no constant.
 const (
 	flagState         = "state"
 	flagStateFile     = "state-file"
@@ -777,7 +777,7 @@ func WithWorkingDir(getwd func() (string, error)) RootOption {
 	}
 }
 
-// WithLookupEnv replaces the environment lookup.
+// WithLookupEnv replaces the environment lookup, so a test decides every variable a run reads.
 func WithLookupEnv(lookup func(string) (string, bool)) RootOption {
 	return func(s *rootSettings) {
 		s.lookupEnv = lookup

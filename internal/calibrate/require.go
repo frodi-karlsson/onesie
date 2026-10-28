@@ -79,8 +79,7 @@ const (
 )
 
 // At is the cut a yes or no requirement reads, named by a number or taken from the file's
-// abstain_if.
-// Value is set only for AtNumber.
+// abstain_if. Value is set only for AtNumber.
 type At struct {
 	Kind  AtKind
 	Value float64
@@ -450,7 +449,7 @@ func (m Measure) NeedsCut() bool {
 	return m < AreaUnderCurve
 }
 
-// Op is a requirement's comparison.
+// Op is how a requirement compares its measured bound with its Threshold.
 type Op int
 
 // The comparisons a requirement can make.

@@ -46,7 +46,7 @@ type ProfileManager struct {
 // Create stores a new profile and its key, in the keychain unless ToFile says the file. The first
 // profile becomes the default.
 func (m *ProfileManager) Create(change Change) ([]Notice, error) {
-	account := KeychainAccount(change.Name, change.Path)
+	account := keychainAccount(change.Name, change.Path)
 
 	if refused := refuseTakenItem(change.Profiles, change.Name, account, change.ToFile); refused != nil {
 		return nil, refused
@@ -88,7 +88,7 @@ func (m *ProfileManager) Update(change Change) ([]Notice, error) {
 		return m.save(change.Path, change.Profiles.With(change.Name, change.Profile))
 	}
 
-	account := KeychainAccount(change.Name, change.Path)
+	account := keychainAccount(change.Name, change.Path)
 
 	if refused := refuseTakenItem(change.Profiles, change.Name, account, change.ToFile); refused != nil {
 		return nil, refused

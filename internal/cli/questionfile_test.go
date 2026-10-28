@@ -689,8 +689,7 @@ type fakeTree struct {
 	tree      fstest.MapFS
 	workDir   string
 	configDir string
-	// dangling are symlinks whose target is gone, named as the -f value spells them.
-	dangling []string
+	dangling  []string
 }
 
 func (f fakeTree) settings(settings rootSettings) rootSettings {
@@ -707,9 +706,6 @@ func (f fakeTree) settings(settings rootSettings) rootSettings {
 	return settings
 }
 
-// options wires the tree through the public options where they exist, so the command tree resolves
-// the config dir from the environment as it does in production. It turns the built in sets off, so
-// a test sees only the files it names.
 func (f fakeTree) options() []RootOption {
 	return []RootOption{
 		func(s *rootSettings) { *s = f.links(*s) },

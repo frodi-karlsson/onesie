@@ -38,7 +38,7 @@ func ScoreYesNo(cases []YesNoCase, failed int, cuts []float64) YesNoScore {
 		Values:   []CutRow{},
 		Misses:   []YesNoCase{},
 	}
-	score.AUC, score.HasAUC = AUC(cases)
+	score.AUC, score.HasAUC = auc(cases)
 
 	for _, cut := range cuts {
 		score.Cuts = append(score.Cuts, cutRow(cut, yes, no))
@@ -79,9 +79,9 @@ func cutRow(cut float64, sortedYes, sortedNo []float64) CutRow {
 	return CutRow{
 		Cut:              cut,
 		Flagged:          flagged,
-		Catches:          Wilson(caught, len(sortedYes)),
-		FalseAlarms:      Wilson(alarmed, len(sortedNo)),
-		RightWhenFlagged: Wilson(caught, flagged),
+		Catches:          wilson(caught, len(sortedYes)),
+		FalseAlarms:      wilson(alarmed, len(sortedNo)),
+		RightWhenFlagged: wilson(caught, flagged),
 	}
 }
 
@@ -116,9 +116,7 @@ func gap(c YesNoCase) float64 {
 	return math.Round(miss*gapPrecision) / gapPrecision
 }
 
-// AUC is the chance a random yes case outranks a random no case, a tie counting half, rounded as a
-// share is. It is undefined unless both labels occur.
-func AUC(cases []YesNoCase) (float64, bool) {
+func auc(cases []YesNoCase) (float64, bool) {
 	order := make([]int, len(cases))
 	for i := range order {
 		order[i] = i
@@ -187,7 +185,7 @@ func ScoreRate(cases []ChoiceCase, levels []string, failed int, cuts []float64) 
 		}
 	}
 
-	score.WithinOne = Wilson(within, len(cases))
+	score.WithinOne = wilson(within, len(cases))
 	if len(cases) > 0 {
 		score.MeanDistance = num.Rounded(float64(total) / float64(len(cases)))
 		score.HasMeanDistance = true
@@ -292,12 +290,12 @@ func ScorePick(cases []ChoiceCase, names []string, failed int, cuts []float64) P
 			Name:            name,
 			Labelled:        labelled[i],
 			Picked:          picked[i],
-			Found:           Wilson(right, labelled[i]),
-			RightWhenPicked: Wilson(right, picked[i]),
+			Found:           wilson(right, labelled[i]),
+			RightWhenPicked: wilson(right, picked[i]),
 		})
 	}
 
-	score.Agreement = Wilson(agreed(cases, math.Inf(-1)), len(cases))
+	score.Agreement = wilson(agreed(cases, math.Inf(-1)), len(cases))
 
 	for _, cut := range cuts {
 		score.Confidence = append(score.Confidence, confidenceRow(cases, cut))
@@ -346,8 +344,8 @@ func confidenceRow(cases []ChoiceCase, cut float64) ConfidenceRow {
 
 	return ConfidenceRow{
 		Cut:       cut,
-		Answered:  Wilson(answered, len(cases)),
-		Agreement: Wilson(agreed(cases, cut), answered),
+		Answered:  wilson(answered, len(cases)),
+		Agreement: wilson(agreed(cases, cut), answered),
 	}
 }
 

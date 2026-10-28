@@ -342,9 +342,8 @@ func TestNormalize(t *testing.T) {
 					t.Errorf("error = %q, want %q", err.Error(), tc.wantErr)
 				}
 
-				// A shape the question did not ask for is deterministic, so it is a 200 whose body
-				// onesie could not use. Left untyped it took the transport kind and exit 5, which tells
-				// a pipeline to retry something that will never change.
+				// A shape the question did not ask for comes back on every retry, so it is a 200
+				// onesie could not use and not a transport error a pipeline retries.
 				var unusable *answer.UnusableError
 				if !errors.As(err, &unusable) {
 					t.Fatalf("error = %T, want *answer.UnusableError", err)

@@ -341,7 +341,7 @@ func checkPrintFlags(config runConfig, facts runFacts) error {
 	}
 
 	// A flag that would quietly do nothing is rejected, and a dry run accepts none of these. In a
-	// fixed order, for the same reason checkListModels is. The rules gated on printQuestions are
+	// fixed order, for the same reason checkRequestMode is. The rules gated on printQuestions are
 	// the ones --print-request genuinely consumes.
 	for _, rule := range []struct {
 		given   bool
@@ -703,7 +703,7 @@ func checkLineField(built *plan.Plan, config runConfig) error {
 
 func checkSingle(built *plan.Plan, config runConfig, facts runFacts) error {
 	// Both spellings of the raw mode take a single question. Only the -r spelling is exclusive
-	// with -o, which is why the two are still distinguished above.
+	// with -o, so the two stay separate fields.
 	raw := config.raw || config.output == "raw"
 
 	// Beside an assertion -q only silences the output, since the assertion is the gate.

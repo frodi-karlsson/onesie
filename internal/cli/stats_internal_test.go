@@ -89,13 +89,10 @@ func TestCollectorSnapshot(t *testing.T) {
 					defer wg.Done()
 
 					for range tc.each {
-						// A record that was rate limited once and then answered.
 						c.observe(onesie.Attempt{Index: 0, Status: http.StatusTooManyRequests})
 						c.observe(onesie.Attempt{Index: 1, Status: http.StatusOK})
 						c.record("onesie-1.13.0", onesie.Usage{InputTokens: 2, OutputTokens: 1}, 1)
 
-						// A record the server refused outright, which is a failed attempt that
-						// caused no retry.
 						c.observe(onesie.Attempt{Index: 0, Status: http.StatusBadRequest})
 						c.terminalAttempt(&onesie.APIError{Status: http.StatusBadRequest})
 						c.recordFailure(&onesie.APIError{Status: http.StatusBadRequest}, true, 1)
@@ -125,8 +122,6 @@ func TestCollectorSnapshot(t *testing.T) {
 					got.Retries[http.StatusTooManyRequests], each)
 			}
 
-			// The status that ended its record every time it was seen was never retried, and
-			// naming it in the breakdown would report a retry that cannot have happened.
 			if _, named := got.Retries[http.StatusBadRequest]; named {
 				t.Errorf("Retries names 400, which was never retried: %v", got.Retries)
 			}
@@ -589,8 +584,6 @@ func TestWithStats(t *testing.T) {
 				wantErr:  []string{"1 request, 1 failed, 1 question asked, 7 in / 3 out tokens"},
 			},
 			{
-				// A stream that carried nothing still ran, so 0 records is the measurement rather
-				// than a summary of a run that never started.
 				name: "should report an empty stream as zero records",
 				args: []string{
 					"--ask", "urgent=is this urgent", "-i", "jsonl", "-o", "json", "--stats",
@@ -736,8 +729,6 @@ func TestWithStats(t *testing.T) {
 			absent string
 		}{
 			{
-				// A line of zeros beside the error reads as a run that was made and came back with
-				// nothing, which is the one thing --stats must never say.
 				name:   "should suppress the summary when the client could not be built",
 				args:   []string{"--ask", "urgent=is this urgent", "--stats"},
 				stdin:  "the server is down",

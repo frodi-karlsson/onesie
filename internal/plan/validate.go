@@ -141,7 +141,7 @@ func checkSources(p *Plan) error {
 	named, positional := 0, 0
 
 	for _, question := range p.Questions {
-		if question.Origin.Chosen() {
+		if question.Origin.chosen() {
 			named++
 
 			continue
@@ -187,7 +187,7 @@ func checkQuestion(q *Question) (string, error) {
 	// The positional question is keyed answer by design, so the reserved list only applies to an
 	// id the user chose. A request body may carry answer, since --print-request writes a positional
 	// question under it and -f reads that body back.
-	if q.Origin.Chosen() && (reserved(q.ID) || (q.ID == PositionalID && q.Origin != OriginBody)) {
+	if q.Origin.chosen() && (reserved(q.ID) || (q.ID == PositionalID && q.Origin != OriginBody)) {
 		return "", fmt.Errorf("question id '%s' is reserved", q.ID)
 	}
 

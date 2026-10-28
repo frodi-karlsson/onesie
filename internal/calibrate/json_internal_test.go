@@ -1,4 +1,4 @@
-package calibrate_test
+package calibrate
 
 import (
 	"bytes"
@@ -8,13 +8,12 @@ import (
 	"testing"
 
 	"github.com/frodi-karlsson/onesie-go"
-	"github.com/frodi-karlsson/onesie/internal/calibrate"
 )
 
 func TestWriteJSON(t *testing.T) {
 	t.Parallel()
 
-	full := calibrate.Report{
+	full := Report{
 		Models:     []string{"model-a", "model-b"},
 		Records:    14,
 		Labelled:   12,
@@ -22,7 +21,7 @@ func TestWriteJSON(t *testing.T) {
 		Asked:      9,
 		Stored:     3,
 		Failed:     3,
-		Questions: []calibrate.QuestionReport{
+		Questions: []QuestionReport{
 			urgentReport([]float64{0.5, 0.7}),
 			teamReport(),
 			starsReport(),
@@ -122,7 +121,7 @@ func TestWriteJSON(t *testing.T) {
 	t.Run("should list every yes/no miss rather than five", func(t *testing.T) {
 		t.Parallel()
 
-		report := calibrate.Report{Questions: []calibrate.QuestionReport{yesNoReport("urgent", calibrate.ScoreYesNo(
+		report := Report{Questions: []QuestionReport{yesNoReport("urgent", ScoreYesNo(
 			namedYesNo("yes", 0.2, "yes", 0.2, "yes", 0.2, "yes", 0.2, "no", 0.8, "no", 0.8, "no", 0.8, "yes", 0.9),
 			0, []float64{0.5},
 		))}}
@@ -146,10 +145,10 @@ func TestWriteJSON(t *testing.T) {
 			t.Errorf("row = %v", row)
 		}
 
-		for key, share := range map[string]calibrate.Share{
-			"catches":            calibrate.Wilson(2, 3),
-			"false_alarms":       calibrate.Wilson(1, 3),
-			"right_when_flagged": calibrate.Wilson(2, 3),
+		for key, share := range map[string]Share{
+			"catches":            wilson(2, 3),
+			"false_alarms":       wilson(1, 3),
+			"right_when_flagged": wilson(2, 3),
 		} {
 			want, _ := json.Marshal(share)
 			if string(row[key]) != string(want) {
@@ -216,7 +215,7 @@ func TestWriteJSON(t *testing.T) {
 	t.Run("should add the other column only when an answer falls outside the options", func(t *testing.T) {
 		t.Parallel()
 
-		report := calibrate.Report{Questions: []calibrate.QuestionReport{pickReport("team", calibrate.ScorePick(
+		report := Report{Questions: []QuestionReport{pickReport("team", ScorePick(
 			namedChoice("billing", "billing", 0.9, "billing", "refunds", 0.8),
 			[]string{"billing", "shipping"}, 0, []float64{0.5},
 		))}}
@@ -238,9 +237,9 @@ func TestWriteJSON(t *testing.T) {
 	t.Run("should give null for an undefined AUC and mean distance", func(t *testing.T) {
 		t.Parallel()
 
-		report := calibrate.Report{Questions: []calibrate.QuestionReport{
+		report := Report{Questions: []QuestionReport{
 			failedReport("urgent"),
-			rateReport("stars", calibrate.ScoreRate(nil, []string{"low", "high"}, 2, []float64{0.5})),
+			rateReport("stars", ScoreRate(nil, []string{"low", "high"}, 2, []float64{0.5})),
 		}}
 		questions := questionsOf(t, writeJSON(t, report))
 
@@ -256,12 +255,12 @@ func TestWriteJSON(t *testing.T) {
 	t.Run("should name a miss by its id under --id and by its line otherwise", func(t *testing.T) {
 		t.Parallel()
 
-		report := calibrate.Report{Questions: []calibrate.QuestionReport{
-			yesNoReport("urgent", calibrate.ScoreYesNo([]calibrate.YesNoCase{
+		report := Report{Questions: []QuestionReport{
+			yesNoReport("urgent", ScoreYesNo([]YesNoCase{
 				{Name: "7", ID: 7.0, Line: 2, Yes: true, Value: 0.1},
 				{Line: 12, Yes: false, Value: 0.8},
 			}, 0, []float64{0.5})),
-			pickReport("team", calibrate.ScorePick([]calibrate.ChoiceCase{
+			pickReport("team", ScorePick([]ChoiceCase{
 				{Line: 4, Label: "a", Picked: "b", Confidence: 0.9},
 			}, []string{"a", "b"}, 0, []float64{0.5})),
 		}}
@@ -287,11 +286,11 @@ func TestWriteJSON(t *testing.T) {
 	t.Run("should give each miss the start of its text", func(t *testing.T) {
 		t.Parallel()
 
-		report := calibrate.Report{Questions: []calibrate.QuestionReport{
-			yesNoReport("urgent", calibrate.ScoreYesNo([]calibrate.YesNoCase{
+		report := Report{Questions: []QuestionReport{
+			yesNoReport("urgent", ScoreYesNo([]YesNoCase{
 				{Line: 2, Yes: true, Value: 0.1, Text: "the site is down"},
 			}, 0, []float64{0.5})),
-			pickReport("team", calibrate.ScorePick([]calibrate.ChoiceCase{
+			pickReport("team", ScorePick([]ChoiceCase{
 				{Line: 4, Label: "a", Picked: "b", Confidence: 0.9, Text: "a refund please"},
 			}, []string{"a", "b"}, 0, []float64{0.5})),
 		}}
@@ -314,7 +313,7 @@ func TestWriteJSON(t *testing.T) {
 
 		cost := 0.25
 		with := full
-		with.Usage = &calibrate.Usage{Usage: onesie.Usage{InputTokens: 10, OutputTokens: 4, Cost: &cost}, Records: 3}
+		with.Usage = &Usage{Usage: onesie.Usage{InputTokens: 10, OutputTokens: 4, Cost: &cost}, Records: 3}
 
 		want := []string{"models", "records", "labelled", "unlabelled", "asked", "stored", "failed", "usage", "questions"}
 		if got := keysOf(t, writeJSON(t, with)); !slices.Equal(got, want) {
@@ -333,13 +332,13 @@ func TestWriteJSON(t *testing.T) {
 		t.Parallel()
 
 		with := full
-		with.Require = []calibrate.Result{
+		with.Require = []Result{
 			{
-				Requirement: calibrate.Requirement{Source: "instructs.catches >= 0.95"},
+				Requirement: Requirement{Source: "instructs.catches >= 0.95"},
 				Value:       0.65, Low: 0.43, High: 0.82, HasValue: true, HasInterval: true, HasCut: true, Cut: 0.25,
 			},
-			{Requirement: calibrate.Requirement{Source: "urgent.auc >= 0.9"}, Held: true, Value: 0.93, HasValue: true},
-			{Requirement: calibrate.Requirement{Source: "tone.agreement >= 0.8"}, Reason: "no record is labelled"},
+			{Requirement: Requirement{Source: "urgent.auc >= 0.9"}, Held: true, Value: 0.93, HasValue: true},
+			{Requirement: Requirement{Source: "tone.agreement >= 0.8"}, Reason: "no record is labelled"},
 		}
 
 		want := []string{"models", "records", "labelled", "unlabelled", "asked", "stored", "failed", "questions", "require"}
@@ -366,7 +365,7 @@ func TestWriteJSON(t *testing.T) {
 		t.Parallel()
 
 		var decoded map[string]json.RawMessage
-		decode(t, writeJSON(t, calibrate.Report{}), &decoded)
+		decode(t, writeJSON(t, Report{}), &decoded)
 
 		if string(decoded["models"]) != "[]" || string(decoded["questions"]) != "[]" {
 			t.Errorf("models = %s, questions = %s, want [] for both", decoded["models"], decoded["questions"])
@@ -377,7 +376,7 @@ func TestWriteJSON(t *testing.T) {
 		t.Parallel()
 
 		var out bytes.Buffer
-		if err := calibrate.WriteJSON(&out, full); err != nil {
+		if err := WriteJSON(&out, full); err != nil {
 			t.Fatalf("WriteJSON: %v", err)
 		}
 
@@ -394,7 +393,7 @@ func TestShareMarshalJSON(t *testing.T) {
 	t.Run("should encode a share with its counts, rate and interval", func(t *testing.T) {
 		t.Parallel()
 
-		share := calibrate.Wilson(45, 47)
+		share := wilson(45, 47)
 
 		got, err := json.Marshal(share)
 		if err != nil {
@@ -417,7 +416,7 @@ func TestShareMarshalJSON(t *testing.T) {
 	t.Run("should encode an undefined share with null values", func(t *testing.T) {
 		t.Parallel()
 
-		got, err := json.Marshal(calibrate.Wilson(0, 0))
+		got, err := json.Marshal(wilson(0, 0))
 		if err != nil {
 			t.Fatalf("Marshal: %v", err)
 		}
@@ -428,11 +427,11 @@ func TestShareMarshalJSON(t *testing.T) {
 	})
 }
 
-func writeJSON(t *testing.T, r calibrate.Report) []byte {
+func writeJSON(t *testing.T, r Report) []byte {
 	t.Helper()
 
 	var out bytes.Buffer
-	if err := calibrate.WriteJSON(&out, r); err != nil {
+	if err := WriteJSON(&out, r); err != nil {
 		t.Fatalf("WriteJSON: %v", err)
 	}
 

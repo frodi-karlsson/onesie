@@ -92,9 +92,7 @@ const (
 	OriginBody
 )
 
-// Chosen reports whether the user picked the question's id, which is every origin but the
-// positional one.
-func (o Origin) Chosen() bool {
+func (o Origin) chosen() bool {
 	return o != OriginPositional
 }
 

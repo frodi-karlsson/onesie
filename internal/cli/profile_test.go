@@ -2,6 +2,8 @@ package cli
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"io"
@@ -1872,7 +1874,6 @@ func TestProfileTest(t *testing.T) {
 			opts := []RootOption{withKeychain(workingKeychain(tc.items))}
 
 			if tc.unreached {
-				// Closed before the run, so the connection is refused rather than answered.
 				srv.Close()
 
 				// A stub with no retries, since a refused connection is retried with backoff by default.
@@ -2008,8 +2009,9 @@ func runProfileCase(t *testing.T, tc profileCase) {
 
 	dir := t.TempDir()
 	path := filepath.Join(dir, "profiles.json")
+	sum := sha256.Sum256([]byte(path))
 	fill := strings.NewReplacer(
-		"{hash}", strings.TrimPrefix(creds.KeychainAccount("x", path), "x@"),
+		"{hash}", hex.EncodeToString(sum[:6]),
 		"{path}", path,
 		"{dir}", dir,
 	).Replace

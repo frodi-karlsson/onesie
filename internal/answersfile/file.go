@@ -397,8 +397,8 @@ func (o *File) CompactInto(lines []Span, mode output.Mode) {
 
 // Write appends to the file, opening it on the first write.
 func (o *File) Write(p []byte) (int, error) {
-	// Opened on the first write, so a command rejected before it writes leaves the file, and the
-	// answers a resume needs, untouched.
+	// A command rejected before its first write leaves the file untouched, and with it the answers
+	// a resume needs.
 	if o.file == nil {
 		if err := o.create(); err != nil {
 			return 0, err
@@ -609,7 +609,7 @@ func (o *File) Bind(questions []plan.Question, wired json.Marshaler, inputs Fing
 
 	if delimitedOutput(inputs.Output) && hasFallback(questions) {
 		older := inputs
-		older.WithoutFallbackColumns = true
+		older.withoutFallbackColumns = true
 
 		if o.olderColumns, err = Fingerprint(questions, wired, older); err != nil {
 			return err
@@ -1013,7 +1013,7 @@ func Fingerprint(questions []plan.Question, wired json.Marshaler, inputs Fingerp
 
 		LongContext: inputs.LongContext,
 
-		FallbackColumns: !inputs.WithoutFallbackColumns && delimitedOutput(inputs.Output) && hasFallback(questions),
+		FallbackColumns: !inputs.withoutFallbackColumns && delimitedOutput(inputs.Output) && hasFallback(questions),
 		Mock:            inputs.Mock,
 	})
 	if err != nil {
@@ -1052,7 +1052,7 @@ type FingerprintInputs struct {
 	LongContext bool
 	Mock        bool
 
-	WithoutFallbackColumns bool
+	withoutFallbackColumns bool
 }
 
 func policiesOf(questions []plan.Question) []policyPrint {

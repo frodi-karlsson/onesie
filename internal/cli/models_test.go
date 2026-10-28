@@ -20,8 +20,7 @@ func TestListModels(t *testing.T) {
 		status   int
 		wantCode int
 		wantOut  string
-		// wantErr, when set, is a fragment stderr must hold.
-		wantErr string
+		wantErr  string
 	}{
 		{
 			name: "should print one line per model in the order the api returned them",
@@ -123,8 +122,6 @@ func TestListModels(t *testing.T) {
 				wantErr:  "1 request, 0 questions asked, 0 in / 0 out tokens, 1 attempt, 10s/attempt,",
 			},
 			{
-				// A rejected key ends the request rather than causing a retry, so the attempt it
-				// spent belongs in the attempt count and nowhere in the breakdown.
 				name:     "should count a rejected listing as a failed request and not as a retry",
 				status:   http.StatusUnauthorized,
 				response: `{"error":{"message":"invalid api key"}}`,
@@ -149,8 +146,6 @@ func TestListModels(t *testing.T) {
 					t.Errorf("stderr missing %q\ngot:\n%s", tc.wantErr, errOut)
 				}
 
-				// The ids in a listing are the models an account may ask, not the model that answered
-				// anything, so a model clause here would name one that never ran.
 				if strings.Contains(errOut, "model ") {
 					t.Errorf("stderr should carry no model clause, got:\n%s", errOut)
 				}

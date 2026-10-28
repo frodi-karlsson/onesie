@@ -208,8 +208,7 @@ func writePolicy(policy plan.Policy) yaml.MapSlice {
 	}
 
 	if policy.MinConfidence != nil {
-		// Underscore, matching the key readPolicy looks up. The flag is spelled with a dash and
-		// the file key is not.
+		// Underscore, matching the key readPolicy looks up. The flag is spelled with a dash.
 		out = append(out, yaml.MapItem{Key: "min_confidence", Value: *policy.MinConfidence})
 	}
 
@@ -229,7 +228,7 @@ func yamlValue(value any) (any, error) {
 	// Back through the ordered decoder, so a structured description written to a file comes out as
 	// a mapping in its original order rather than as the byte sequence goccy renders a
 	// json.RawMessage as.
-	decoded, err := DecodeOrdered(raw)
+	decoded, err := decodeOrdered(raw)
 	if err != nil {
 		return nil, err
 	}
@@ -468,7 +467,7 @@ func survivesUnquoted(text string, at probe) bool {
 
 	var out printer.Printer
 
-	read, err := DecodeOrdered(out.PrintNode(node))
+	read, err := decodeOrdered(out.PrintNode(node))
 	if err != nil {
 		return false
 	}

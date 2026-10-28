@@ -4,7 +4,7 @@ package argv
 
 import "github.com/spf13/pflag"
 
-// New returns an empty recorder.
+// New returns a Recorder for one flag set, so its log holds the flags of one parse.
 func New() *Recorder {
 	return &Recorder{}
 }
