@@ -197,7 +197,6 @@ func flagOccurrences(args []string, specs []flagSpec) []occurrence {
 	protected := false
 
 	for i, arg := range args {
-		// A value the flag before consumed is never an occurrence, however it is spelled.
 		if protected {
 			protected = false
 

@@ -21,24 +21,7 @@ var (
 )
 
 // CheckProse checks every flag and subcommand the skills name outside their examples against the
-// --help output of runner's binary. It reads the description, the compatibility, each rule's short
-// and why, the intro, the sections and the references.
-//
-// It counts three kinds of mention, so the flags of other tools are never read as onesie's:
-//
-//   - A onesie command in a code span or on a line of a fenced block. It may follow a pipe, a chain
-//     or env assignments, as in `ONESIE_MOCK=x onesie ...`, or sit inside `$(...)`. Its flags are
-//     checked against the help of the command they follow, the root before any subcommand and,
-//     after `onesie calibrate` or `onesie profile create`, that subcommand's own. A bare word where a
-//     subcommand can stand must be one. The command ends at a pipe, a chain, a redirection, a
-//     closing parenthesis or a lone --, so `onesie ... | jq -c --unbuffered` checks nothing of jq.
-//   - A code span whose first word is a --flag, such as `--ask NAME=@FILE`. Only that flag counts.
-//   - A --flag in plain prose, outside any code.
-//
-// A code span with no onesie command in it, such as `jq --unbuffered`, `git push --force` or
-// `curl -fsSL`, is ignored. The last two kinds name no command, so they pass when the root help
-// lists the flag, or the help of a subcommand the same skill runs in its prose or its examples.
-// completion and a command that only asks for --help never count, and short flags are not checked.
+// --help output of runner's binary. CONTRIBUTING.md says what counts as a mention.
 func CheckProse(ctx context.Context, root string, runner *Runner) (ProseReport, error) {
 	found, err := skillgen.Skills(root)
 	if err != nil {

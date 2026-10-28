@@ -205,8 +205,6 @@ func TestDryRunArgs(t *testing.T) {
 			wantReason: "is not a onesie invocation",
 		},
 		{
-			// With the mode flag leading, nothing is appended after --assert, so a bare --assert
-			// parses and is left with no value, which pflag refuses to run.
 			name:   "should dry run a bare --assert, since nothing is appended after it",
 			tokens: []string{"onesie", "--ask", "a=x", "--assert"},
 			want:   []string{"--print-questions", "--ask", "a=x", "--assert"},
@@ -286,8 +284,6 @@ func TestDryRunArgs(t *testing.T) {
 		}
 	})
 
-	// At the end, a trailing --fallback took the mode flag as its value and the dry run became a
-	// live call.
 	t.Run("should place the mode flag where nothing can consume it", func(t *testing.T) {
 		t.Parallel()
 
