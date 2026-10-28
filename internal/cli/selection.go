@@ -179,22 +179,31 @@ type resolution struct {
 func (r resolution) options(
 	baseURLFlag string, key func() (string, error), lookupEnv func(string) (string, bool),
 ) []onesie.Option {
+	var opts []onesie.Option
+
+	if baseURL, _ := r.givenBaseURL(baseURLFlag); baseURL != "" {
+		opts = append(opts, onesie.WithBaseURL(baseURL))
+	}
+
 	if r.profile == "" {
-		return nil
+		return opts
 	}
 
-	opts := []onesie.Option{onesie.WithAPIKeyFunc(key), onesie.WithDefaultModel(r.modelFor("", lookupEnv))}
-
-	// The factory adds --base-url ahead of these, and a later WithBaseURL would replace it.
-	if strings.TrimSpace(baseURLFlag) == "" && r.baseURL != "" {
-		opts = append(opts, onesie.WithBaseURL(r.baseURL))
-	}
+	opts = append(opts, onesie.WithAPIKeyFunc(key), onesie.WithDefaultModel(r.modelFor("", lookupEnv)))
 
 	if r.accountID != "" {
 		opts = append(opts, onesie.WithAccountID(r.accountID))
 	}
 
 	return opts
+}
+
+func (r resolution) givenBaseURL(baseURLFlag string) (baseURL, source string) {
+	if flag := strings.TrimSpace(baseURLFlag); flag != "" {
+		return flag, "--" + flagBaseURL
+	}
+
+	return r.baseURL, profileBaseURL
 }
 
 func (r resolution) modelFor(explicit string, lookupEnv func(string) (string, bool)) string {

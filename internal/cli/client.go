@@ -39,10 +39,6 @@ func clientBuilder(info BuildInfo, flags *runFlags, settings rootSettings) clien
 			opts = append(opts, onesie.WithHTTPClient(&http.Client{Transport: transport}))
 		}
 
-		if baseURL := strings.TrimSpace(flags.baseURL); baseURL != "" {
-			opts = append(opts, onesie.WithBaseURL(baseURL))
-		}
-
 		opts = append(opts, chosen.options(flags.baseURL, profileKey(settings, chosen), settings.lookupEnv)...)
 
 		// Started from the default rather than a zero value, because a Go struct cannot tell an
@@ -153,11 +149,9 @@ func baseURLFrom(
 ) (name, given string) {
 	switch source {
 	case onesie.BaseURLFromOption:
-		if flag := strings.TrimSpace(baseURLFlag); flag != "" {
-			return "--" + flagBaseURL, flag
-		}
+		given, source := chosen.givenBaseURL(baseURLFlag)
 
-		return profileBaseURL, chosen.baseURL
+		return source, given
 	case onesie.BaseURLFromEnv:
 		return chosen.provider.EnvBaseURL(), setVariable(lookupEnv, chosen.provider.EnvBaseURL())
 	case onesie.BaseURLFromAccount:
