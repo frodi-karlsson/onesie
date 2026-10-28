@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -635,8 +636,15 @@ func TestMockAnswers(t *testing.T) {
 	t.Run("should stop at a record the file does not answer", func(t *testing.T) {
 		t.Parallel()
 
-		values := []string{"is it urgent", "-o", "values", "-i", "jsonl", "-j", "4"}
+		const jobs = 4
+
+		values := []string{"is it urgent", "-o", "values", "-i", "jsonl", "-j", strconv.Itoa(jobs)}
 		yes := `{"answer":0.9}`
+
+		// The ordered engine lets -j records wait behind the one the writer holds and lets the writer
+		// hold one more, so while it waits on record 2 the dispatched records are 1 to jobs + 1. Of
+		// those, record 2 is held and record 3 fails before any request, which leaves jobs - 1 to answer.
+		others := jobs - 1
 
 		t.Run("should drop the records the engine flushes after an uncovered one", func(t *testing.T) {
 			t.Parallel()
@@ -644,11 +652,10 @@ func TestMockAnswers(t *testing.T) {
 			eight := "\"item-1\"\n\"item-2\"\n\"item-3\"\n\"item-4\"\n\"item-5\"\n\"item-6\"\n\"item-7\"\n\"item-8\"\n"
 			answers := strings.Join([]string{yes, yes, mockUnread, yes, yes, yes, yes, yes}, "\n") + "\n"
 
-			// Record 2 is held until records 1, 4 and 5 are answered, which is every record -j 4 lets in
-			// flight while the writer waits on it. Record 3 fails at once, so the engine holds answers
-			// past it when the writer reaches it.
+			// Record 2 is held until every other record in flight is answered. Record 3 fails at once,
+			// so the engine holds answers past it when the writer reaches it.
 			out, errOut, code := runMocked(t, t.Context(), append(values, "--mock", writeMock(t, answers)), eight, nil, nil,
-				delaying("item-2", 3))
+				delaying("item-2", others))
 
 			checkMocked(t, out, errOut, code, ExitUsage, fileOf(yes+"\n"+yes+"\n"), nil, nil, []string{"input line 3"})
 		})
@@ -663,7 +670,7 @@ func TestMockAnswers(t *testing.T) {
 			out := &signalledLines{written: make(chan struct{}, 8)}
 			stdin := &gatedLines{
 				lines:   []string{`"a"`, `"b"`, `"c"`, `"d"`, `"e"`, `"f"`, `"g"`, `"h"`},
-				gatedAt: 7, waits: 7, gate: out.written,
+				gatedAt: 7, waits: 7, gate: out.written, done: beforeDeadline(t).Done(),
 			}
 
 			errOut, code := runMockedTo(t, t.Context(), out,
@@ -671,6 +678,53 @@ func TestMockAnswers(t *testing.T) {
 
 			checkMocked(t, out.String(), errOut, code, ExitUsage, fileOf(strings.Repeat(yes+"\n", 7)), nil, nil,
 				[]string{"input line 8"})
+		})
+
+		t.Run("should keep the lines of records after an uncovered one that finished first under --unordered", func(t *testing.T) {
+			t.Parallel()
+
+			dir := t.TempDir()
+			square := squarePNG(t)
+			paths := make([]string, 8)
+
+			for i := range paths {
+				paths[i] = writeImage(t, dir, strconv.Itoa(i+1)+".png", square)
+			}
+
+			answers := strings.Join([]string{yes, yes, mockUnread, yes, yes, yes, yes, yes}, "\n") + "\n"
+			out := &signalledLines{written: make(chan struct{}, 8)}
+			done := beforeDeadline(t).Done()
+
+			// Under --unordered every other record runs past the one held, so record 3 reads its image
+			// only once the other seven lines are written, and its error lands after all of them.
+			read := WithReadFile(func(path string) ([]byte, error) {
+				if path == paths[2] {
+					for range len(paths) - 1 {
+						select {
+						case <-out.written:
+						case <-done:
+							return nil, errors.New("the other records were never written")
+						}
+					}
+				}
+
+				return os.ReadFile(path)
+			})
+
+			args := []string{
+				"is it urgent", "-o", "values", "-i", "lines", "--image-field", "photo", "-j", strconv.Itoa(jobs),
+				"--unordered", "--mock", writeMock(t, answers),
+			}
+
+			errOut, code := runMockedTo(t, t.Context(), out, args, strings.Join(paths, "\n")+"\n", nil, nil, read)
+
+			var want strings.Builder
+			for _, line := range []int{1, 2, 4, 5, 6, 7, 8} {
+				fmt.Fprintf(&want, "{\"line\":%d,\"answer\":0.9}\n", line)
+			}
+
+			checkMocked(t, sortedLines(out.String()), errOut, code, ExitUsage, fileOf(want.String()), nil, nil,
+				[]string{"input line 3"})
 		})
 
 		t.Run("should keep calibrate's answers file to the records before an uncovered one", func(t *testing.T) {
@@ -696,7 +750,7 @@ func TestMockAnswers(t *testing.T) {
 			}
 
 			_, errOut, code := runMocked(t, t.Context(), append(args, "--mock", writeMock(t, partial.String())),
-				stdin.String(), nil, nil, delaying("item-b", 3))
+				stdin.String(), nil, nil, delaying("item-b", others))
 			if code != ExitUsage || !strings.Contains(errOut, "no line with id 'c'") {
 				t.Fatalf("first run exit %d\n%s", code, errOut)
 			}
@@ -1381,7 +1435,11 @@ func (r *gatedLines) Read(p []byte) (int, error) {
 
 	if r.next == r.gatedAt {
 		for range r.waits {
-			<-r.gate
+			select {
+			case <-r.gate:
+			case <-r.done:
+				return 0, errors.New("the gate never opened")
+			}
 		}
 	}
 
@@ -1397,6 +1455,23 @@ type gatedLines struct {
 	gatedAt int
 	waits   int
 	gate    <-chan struct{}
+	done    <-chan struct{}
+}
+
+func beforeDeadline(t *testing.T) context.Context {
+	t.Helper()
+
+	// A test that waits on the run fails a little before go test would kill the binary, so the
+	// failure names the test.
+	deadline, set := t.Deadline()
+	if !set {
+		return t.Context()
+	}
+
+	ctx, cancel := context.WithDeadline(t.Context(), deadline.Add(-10*time.Second))
+	t.Cleanup(cancel)
+
+	return ctx
 }
 
 func (w *signalledLines) Write(p []byte) (int, error) {
