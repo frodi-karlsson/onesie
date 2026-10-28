@@ -78,12 +78,7 @@ func (a mockAnswerer) answer(ctx context.Context, key recordKey, req onesie.Requ
 		return reply{}, err
 	}
 
-	// The checks a real run makes before it sends, so a mock refuses what the provider would.
-	if err := onesie.ValidateRequest(req); err != nil {
-		return reply{}, err
-	}
-
-	if _, err := a.provider.Encode(req); err != nil {
+	if err := a.provider.Check(req); err != nil {
 		return reply{}, err
 	}
 

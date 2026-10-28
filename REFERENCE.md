@@ -403,6 +403,9 @@ ls photos/*.jpg | onesie -i lines --image-field photo 'is there a dog in `photo`
   through `-i request`.
 - A printed body names its model, the provider's default unless `-m` gave one, so it replays on a
   provider that serves that model. To print for another provider, pass `-m`.
+- `--print-request` refuses what a send to the run's provider refuses before it prints anything,
+  such as an image or a Box question on a provider that takes none. A body printed with no state
+  holds only the questions, and is not checked.
 - Under `-i request` onesie fills a blank `model` and checks each body as a send would, before it
   sends anything: the provider must take what the body asks for, each image must pass the image
   limits, `long_context` must be true or false, and no question may pass `max-choice-options` or
