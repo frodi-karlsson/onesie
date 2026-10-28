@@ -862,7 +862,7 @@ func reported(cmd *cobra.Command, settings rootSettings, change creds.Change, no
 		err = fmt.Errorf("%w. Answer the keychain prompt, or run the command again with --file", err)
 	}
 
-	return settings.cleanups.after(err, notify(cmd.ErrOrStderr(), lines...))
+	return settings.laterFailures.keepFirst(err, notify(cmd.ErrOrStderr(), lines...))
 }
 
 func noticeLine(each creds.Notice, change creds.Change) notice {

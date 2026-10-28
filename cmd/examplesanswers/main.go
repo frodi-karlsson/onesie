@@ -105,7 +105,7 @@ func answer(ctx context.Context, set examples.Set, opts options, env map[string]
 	probe := command(opts.root, env, home, records, append(slices.Clone(args), "--resume", "--offline"),
 		io.Discard, io.Discard)
 	probed := probe.Run(ctx)
-	if err := reportCleanups(opts.stderr, set.Name, probed.Cleanups); err != nil {
+	if err := reportLater(opts.stderr, set.Name, probed.Later); err != nil {
 		return cli.ExitUsage, err
 	}
 
@@ -116,9 +116,9 @@ func answer(ctx context.Context, set examples.Set, opts options, env map[string]
 	return command(opts.root, env, home, records, args, opts.stdout, opts.stderr).Execute(ctx), nil
 }
 
-func reportCleanups(stderr io.Writer, set string, cleanups []error) error {
-	for _, cleanup := range cleanups {
-		if _, err := fmt.Fprintf(stderr, "examplesanswers: probing %s: %v\n", set, cleanup); err != nil {
+func reportLater(stderr io.Writer, set string, later []error) error {
+	for _, each := range later {
+		if _, err := fmt.Fprintf(stderr, "examplesanswers: probing %s: %v\n", set, each); err != nil {
 			return err
 		}
 	}

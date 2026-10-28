@@ -82,7 +82,7 @@ func TestRootExecute(t *testing.T) {
 		}
 	})
 
-	t.Run("should take the exit code from the failure alone and print each cleanup failure worth reporting", func(t *testing.T) {
+	t.Run("should take the exit code from the failure alone and print each later failure worth reporting", func(t *testing.T) {
 		t.Parallel()
 
 		stdoutGone := &fs.PathError{Op: "write", Path: "/dev/stdout", Err: syscall.EPIPE}
@@ -91,53 +91,53 @@ func TestRootExecute(t *testing.T) {
 		cases := []struct {
 			name       string
 			failure    error
-			cleanups   []error
+			later      []error
 			wantCode   int
 			wantStderr string
 		}{
 			{
 				name:       "should exit 2 for a failed save and print the notice stderr refused after it",
 				failure:    errors.New("saving profiles.json: the disk is full"),
-				cleanups:   []error{errors.New("stderr is gone")},
+				later:      []error{errors.New("stderr is gone")},
 				wantCode:   ExitUsage,
 				wantStderr: "onesie: saving profiles.json: the disk is full\nonesie: stderr is gone\n",
 			},
 			{
 				name:       "should exit 5 for a timeout and leave out an interrupted finish ahead of a release failure",
 				failure:    context.DeadlineExceeded,
-				cleanups:   []error{context.Canceled, release},
+				later:      []error{context.Canceled, release},
 				wantCode:   ExitTransport,
 				wantStderr: "onesie: context deadline exceeded\nonesie: unlocking answers.jsonl: busy\n",
 			},
 			{
 				name:     "should exit 130 and stay quiet for an interrupt followed by a broken pipe",
 				failure:  context.Canceled,
-				cleanups: []error{syscall.EPIPE},
+				later:    []error{syscall.EPIPE},
 				wantCode: ExitInterrupt,
 			},
 			{
 				name:       "should exit 0 for a broken stdout and print the release failure that followed it",
 				failure:    stdoutGone,
-				cleanups:   []error{release},
+				later:      []error{release},
 				wantCode:   ExitOK,
 				wantStderr: "onesie: unlocking answers.jsonl: busy\n",
 			},
 			{
 				name:       "should exit 6 for failed records and print only what followed them",
 				failure:    &recordsError{},
-				cleanups:   []error{errors.New("compacting answers.jsonl: the disk is full"), release},
+				later:      []error{errors.New("compacting answers.jsonl: the disk is full"), release},
 				wantCode:   ExitRecords,
 				wantStderr: "onesie: compacting answers.jsonl: the disk is full\nonesie: unlocking answers.jsonl: busy\n",
 			},
 			{
 				name:     "should exit 6 and stay quiet for failed records followed by a broken pipe and an interrupt",
 				failure:  &recordsError{},
-				cleanups: []error{syscall.EPIPE, context.Canceled},
+				later:    []error{syscall.EPIPE, context.Canceled},
 				wantCode: ExitRecords,
 			},
 			{
-				name:       "should take the code of a cleanup failure when nothing else failed",
-				cleanups:   []error{release},
+				name:       "should take the code of a later failure when nothing else failed",
+				later:      []error{release},
 				wantCode:   ExitUsage,
 				wantStderr: "onesie: unlocking answers.jsonl: busy\n",
 			},
@@ -149,7 +149,7 @@ func TestRootExecute(t *testing.T) {
 
 				var errOut bytes.Buffer
 
-				root := failingCleanups(&errOut, func(int) ([]error, error) { return tc.cleanups, tc.failure })
+				root := failingLater(&errOut, func(int) ([]error, error) { return tc.later, tc.failure })
 
 				if code := root.Execute(t.Context()); code != tc.wantCode || errOut.String() != tc.wantStderr {
 					t.Errorf("exit %d, stderr %q, want exit %d and %q", code, errOut.String(), tc.wantCode, tc.wantStderr)
@@ -158,12 +158,12 @@ func TestRootExecute(t *testing.T) {
 		}
 	})
 
-	t.Run("should start a second run with none of the first run's cleanup failures", func(t *testing.T) {
+	t.Run("should start a second run with none of the first run's later failures", func(t *testing.T) {
 		t.Parallel()
 
 		var errOut bytes.Buffer
 
-		root := failingCleanups(&errOut, func(run int) ([]error, error) {
+		root := failingLater(&errOut, func(run int) ([]error, error) {
 			if run == 1 {
 				return []error{errors.New("stderr is gone")}, errors.New("saving profiles.json: the disk is full")
 			}
@@ -537,16 +537,16 @@ func TestRootRun(t *testing.T) {
 	release := errors.New("unlocking answers.jsonl: busy")
 
 	tests := []struct {
-		name         string
-		failure      error
-		cleanups     []error
-		wantCleanups []error
+		name      string
+		failure   error
+		later     []error
+		wantLater []error
 	}{
-		{name: "should return no failure and no cleanup failures when nothing failed"},
-		{name: "should return the failure alone when no cleanup failed", failure: failure},
+		{name: "should return no failure and no later failures when nothing failed"},
+		{name: "should return the failure alone when nothing failed after it", failure: failure},
 		{
-			name: "should return the failure apart from the cleanup failures that followed it", failure: failure,
-			cleanups: []error{release}, wantCleanups: []error{release},
+			name: "should return the failure apart from the later failures that followed it", failure: failure,
+			later: []error{release}, wantLater: []error{release},
 		},
 	}
 
@@ -554,20 +554,20 @@ func TestRootRun(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			root := failingCleanups(io.Discard, func(int) ([]error, error) { return tc.cleanups, tc.failure })
+			root := failingLater(io.Discard, func(int) ([]error, error) { return tc.later, tc.failure })
 
 			ended := root.Run(t.Context())
 			apart := !errors.Is(ended.Failure, release)
-			if !errors.Is(ended.Failure, tc.failure) || !apart || !slices.Equal(ended.Cleanups, tc.wantCleanups) {
-				t.Errorf("run = %v and %v, want %v and %v", ended.Failure, ended.Cleanups, tc.failure, tc.wantCleanups)
+			if !errors.Is(ended.Failure, tc.failure) || !apart || !slices.Equal(ended.Later, tc.wantLater) {
+				t.Errorf("run = %v and %v, want %v and %v", ended.Failure, ended.Later, tc.failure, tc.wantLater)
 			}
 		})
 	}
 
-	t.Run("should start a second run with none of the first run's cleanup failures", func(t *testing.T) {
+	t.Run("should start a second run with none of the first run's later failures", func(t *testing.T) {
 		t.Parallel()
 
-		root := failingCleanups(io.Discard, func(run int) ([]error, error) {
+		root := failingLater(io.Discard, func(run int) ([]error, error) {
 			if run == 1 {
 				return []error{release}, failure
 			}
@@ -575,18 +575,18 @@ func TestRootRun(t *testing.T) {
 			return nil, failure
 		})
 
-		if ended := root.Run(t.Context()); !slices.Equal(ended.Cleanups, []error{release}) {
-			t.Fatalf("first run cleanups = %v, want %v", ended.Cleanups, release)
+		if ended := root.Run(t.Context()); !slices.Equal(ended.Later, []error{release}) {
+			t.Fatalf("first run later failures = %v, want %v", ended.Later, release)
 		}
 
-		if ended := root.Run(t.Context()); !errors.Is(ended.Failure, failure) || len(ended.Cleanups) != 0 {
-			t.Errorf("second run = %v and %v, want %v alone", ended.Failure, ended.Cleanups, failure)
+		if ended := root.Run(t.Context()); !errors.Is(ended.Failure, failure) || len(ended.Later) != 0 {
+			t.Errorf("second run = %v and %v, want %v alone", ended.Failure, ended.Later, failure)
 		}
 	})
 }
 
-func failingCleanups(stderr io.Writer, script func(run int) (cleanups []error, failure error)) *Root {
-	cleanups := &cleanupLog{}
+func failingLater(stderr io.Writer, script func(run int) (later []error, failure error)) *Root {
+	laterFailures := &failureLog{}
 	runs := 0
 
 	root := &Root{Command: &cobra.Command{
@@ -597,13 +597,13 @@ func failingCleanups(stderr io.Writer, script func(run int) (cleanups []error, f
 			runs++
 
 			failed, err := script(runs)
-			for _, cleanup := range failed {
-				err = cleanups.after(err, cleanup)
+			for _, later := range failed {
+				err = laterFailures.keepFirst(err, later)
 			}
 
 			return err
 		},
-	}, cleanups: cleanups}
+	}, laterFailures: laterFailures}
 
 	root.Command.SetErr(stderr)
 	root.Command.SetArgs([]string{})

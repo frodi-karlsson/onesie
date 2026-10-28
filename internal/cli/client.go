@@ -75,7 +75,7 @@ func clientBuilder(info BuildInfo, flags *runFlags, settings rootSettings) clien
 				warning := source + " ends in /" + segment + " and onesie adds the API path itself, so questions go to " +
 					output.Printable(client.SystemOneURL())
 
-				printErr = settings.cleanups.after(printErr, output.Warning(settings.holder.stderr(), warning))
+				printErr = settings.laterFailures.keepFirst(printErr, output.Warning(settings.holder.stderr(), warning))
 			})
 		}
 

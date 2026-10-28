@@ -574,7 +574,7 @@ func TestClientBuilder(t *testing.T) {
 			t.Errorf("error = %v, want write 1 failed", err)
 		}
 
-		if got := settings.cleanups.drain(); len(got) != 1 || got[0].Error() != "write 2 failed" {
+		if got := settings.laterFailures.drain(); len(got) != 1 || got[0].Error() != "write 2 failed" {
 			t.Errorf("recorded = %v, want write 2 failed", got)
 		}
 	})

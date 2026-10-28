@@ -151,7 +151,7 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *Root {
 	root.InitDefaultHelpFlag()
 	asksNothing(root.Flags(), "help")
 
-	return &Root{Command: root, cleanups: settings.cleanups}
+	return &Root{Command: root, laterFailures: settings.laterFailures}
 }
 
 func rootLong() string {
@@ -228,7 +228,7 @@ func runRoot(
 	out, resume, err := openOut(settings, *flags, false)
 
 	defer func() {
-		err = settings.cleanups.after(err, out.Release())
+		err = settings.laterFailures.keepFirst(err, out.Release())
 	}()
 
 	if err != nil {
@@ -243,7 +243,7 @@ func runRoot(
 
 	runErr := run(cmd, settings, recorder.Events(), positional, flags, out, resume)
 
-	return settings.cleanups.after(runErr, out.Finish(runErr))
+	return settings.laterFailures.keepFirst(runErr, out.Finish(runErr))
 }
 
 func addRootFlags(root *cobra.Command, flags *runFlags, recorder *argv.Recorder) {
@@ -403,7 +403,7 @@ func defaultSettings(info BuildInfo) rootSettings {
 		readBuiltIn:   questions.Read,
 		builtIns:      questions.Names,
 		transport:     http.DefaultTransport,
-		cleanups:      &cleanupLog{},
+		laterFailures: &failureLog{},
 	}
 }
 
@@ -755,16 +755,16 @@ func asksNothing(set *pflag.FlagSet, name string) {
 	flag.Annotations[annotationAsksNothing] = nil
 }
 
-// Root is a command tree with the log of the cleanup failures its runs record, which cobra's one
+// Root is a command tree with the log of the failures that follow a run's failure, which cobra's one
 // returned error has no room for. Command is the tree itself, for a caller to configure.
 type Root struct {
 	Command *cobra.Command
 
-	cleanups *cleanupLog
+	laterFailures *failureLog
 }
 
 // Execute runs the tree and returns the process exit code, so main never has to classify an error
-// itself. The cleanup failures that followed the run's failure print after it.
+// itself. The failures that followed the run's failure print after it.
 func (r *Root) Execute(ctx context.Context) int {
 	ended := r.Run(ctx)
 
@@ -957,7 +957,7 @@ type rootSettings struct {
 	readBuiltIn   func(name string) ([]byte, bool)
 	builtIns      func() []string
 	transport     http.RoundTripper
-	cleanups      *cleanupLog
+	laterFailures *failureLog
 }
 
 func widthOf(f *os.File) func() (int, bool) {
