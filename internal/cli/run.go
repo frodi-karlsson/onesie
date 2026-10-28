@@ -303,8 +303,7 @@ func resolveState(
 		return resolved, nil
 	}
 
-	// --image is a state source, so stdin is read only when --state - asks for it. Whether a pipe
-	// holds text cannot be known without a read that may block.
+	// --image is a state source, so stdin is read only when --state asks for stdin.
 	stdinTTY := settings.stdinTTY || len(flags.images) > 0
 
 	return input.Resolve(ctx, input.Query{
@@ -486,7 +485,6 @@ func stream(
 			return rowLine(failureRecord(built, bad), rec), bad
 		}
 
-		// -o csv puts the answers in columns, so there is no merge key to overwrite.
 		if merge && table == nil && hasKey(rec.State, mergeKey(flags)) {
 			stats.recordFailure(nil, false, 0)
 
@@ -553,8 +551,6 @@ func stream(
 				return evaluate(ctx, asker, key, built, model, questions, sent, assets, flags.usage, stats)
 			})
 		if evalErr != nil {
-			// Returned before the gate is asked. A failed record reads as all zeros, so a gate such
-			// as answer.value < 0.5 would hold for a request that never happened.
 			failed := rowLine(record, rec)
 			failed.halted = halting(evalErr)
 			failed.call = call
@@ -799,7 +795,6 @@ func compact(raw string) []byte {
 	var flat bytes.Buffer
 
 	if err := json.Compact(&flat, []byte(raw)); err != nil {
-		// Unreachable for a line that parsed, which is the only way this is called.
 		return []byte(raw)
 	}
 
@@ -947,7 +942,6 @@ func ask(
 		return assertResult(record)
 	}
 
-	// The record prints whatever the assertion said, and the exit code follows it.
 	if writeErr := writeRecord(cmd, settings, outputMode, flags, inv, state.resolved, record); writeErr != nil {
 		return writeErr
 	}
@@ -1004,7 +998,6 @@ func writeFailure(
 	resolved input.Resolved,
 	record output.Record,
 ) error {
-	// -q suppresses output entirely, so the exit code carries the whole result.
 	if flags.quiet {
 		return nil
 	}

@@ -75,8 +75,6 @@ func streamRaw(
 		Source: source,
 		Evaluate: func(ctx context.Context, rec input.Record) ([]byte, error) {
 			if rec.Err != nil {
-				// A value alongside the error, because the engine writes every outcome. Returning
-				// nil here would print a blank line rather than the record.
 				stats.recordFailure(rec.Err, false, 0)
 
 				return errorLine(rec.Err), rec.Err

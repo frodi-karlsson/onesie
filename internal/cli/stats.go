@@ -321,9 +321,8 @@ type Stats struct {
 	// Mocked says the answers came from a mock file, so nothing was sent and Requests counts the
 	// records the file answered.
 	Mocked bool
-	// Records is every input record a resume did not skip. Requests is the subset that reached the
-	// client, which is smaller whenever a line failed to parse, the cache answered or a request was
-	// shared.
+	// Records is every input record a resume did not skip. Requests, its subset that reached the
+	// client, is smaller when a line failed to parse, the cache answered or a request was shared.
 	Records int
 	// Skipped counts the records a resume left alone, since the file already answered them.
 	Skipped int
@@ -335,8 +334,7 @@ type Stats struct {
 	Requests int
 	Failed   int
 	// FalseAsserts counts the records whose assertion did not hold, a resume's skipped ones
-	// included. They are counted apart from Failed, since a false assertion judges a complete
-	// record.
+	// included, apart from Failed, since a false assertion judges a complete record.
 	FalseAsserts int
 	// Abstains counts the records whose assertion did not hold and whose abstain expression did, a
 	// resume's skipped ones included.

@@ -36,7 +36,6 @@ func advise(err error, model string) error {
 		}
 	}
 
-	// A call carrying no model has nothing to name, so it keeps the server's text.
 	if model != "" && errors.Is(err, onesie.ErrUnknownModel) {
 		return &advisedError{
 			cause:   err,
