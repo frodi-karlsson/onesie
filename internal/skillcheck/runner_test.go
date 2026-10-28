@@ -10,7 +10,7 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	// TestRunProcess re-execs the test binary into this, since only a real process lets the
+	// TestRunProcess runs the test binary again as this, since only a real process lets the
 	// deadline logic see a real hang.
 	switch os.Getenv("SKILLCHECK_WANT_HELPER_PROCESS") {
 	case "1":

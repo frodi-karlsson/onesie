@@ -13,7 +13,7 @@ import (
 //go:embed *.yaml
 var files embed.FS
 
-// Names lists the built-in sets in name order.
+// Names lists the built in sets in name order.
 func Names() []string {
 	entries, err := fs.ReadDir(files, ".")
 	if err != nil {
@@ -30,7 +30,7 @@ func Names() []string {
 	return names
 }
 
-// Read returns the built-in set a name gives, and false when there is none.
+// Read returns the built in set a name gives, and false when there is none.
 func Read(name string) ([]byte, bool) {
 	data, err := files.ReadFile(name + ".yaml")
 

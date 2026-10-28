@@ -617,8 +617,8 @@ func firstDuplicate(names []string) (string, bool) {
 	return "", false
 }
 
-// ParseFallback reads a yes/no fallback value. The second result is false when the text is not one
-// of true, yes, false or no, which validation reports.
+// ParseFallback reads a yes or no fallback value. The second result is false when the text is not
+// one of true, yes, false or no, which validation reports.
 func ParseFallback(text string) (bool, bool) {
 	switch strings.ToLower(text) {
 	case "true", "yes":

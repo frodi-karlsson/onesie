@@ -78,8 +78,8 @@ func ParseLabel(shape plan.Shape, names []string, value any) (Label, bool, error
 	return Label{Name: text}, true, nil
 }
 
-// Label is one record's right answer for one question. Yes holds a yes/no label and Name holds a
-// pick or rate label.
+// Label is one record's right answer for one question. Yes holds a yes or no label and Name holds
+// a pick or rate label.
 type Label struct {
 	Yes  bool
 	Name string

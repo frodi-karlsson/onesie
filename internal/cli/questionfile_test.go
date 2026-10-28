@@ -708,7 +708,7 @@ func (f fakeTree) settings(settings rootSettings) rootSettings {
 }
 
 // options wires the tree through the public options where they exist, so the command tree resolves
-// the config dir from the environment as it does in production. It turns the built-in sets off, so
+// the config dir from the environment as it does in production. It turns the built in sets off, so
 // a test sees only the files it names.
 func (f fakeTree) options() []RootOption {
 	return []RootOption{

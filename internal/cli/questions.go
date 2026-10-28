@@ -98,7 +98,7 @@ func savedRows(listed []qfile.Found, readFile func(string) ([]byte, error)) []sa
 
 type savedRow struct {
 	Name string `json:"name"`
-	// Path is nil for a built-in, which has no file.
+	// Path is nil for a built in set, which has no file.
 	Path    *string `json:"path"`
 	Clash   bool    `json:"clash,omitempty"`
 	Empty   bool    `json:"empty,omitempty"`

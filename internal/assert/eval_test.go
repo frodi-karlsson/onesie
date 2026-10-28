@@ -14,7 +14,7 @@ func TestEval(t *testing.T) {
 
 	built := evalPlan()
 
-	// Both sides of the min-confidence branch in answer.Apply on 'team', where decision names the
+	// Both sides of the min_confidence branch in answer.Apply on 'team', where decision names the
 	// fallback exactly when it fired and fallback says why.
 	accepted := evalRecord(t, built, 0.8)
 	refused := evalRecord(t, built, 0.5)

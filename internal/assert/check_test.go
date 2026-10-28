@@ -544,7 +544,7 @@ func TestCheck(t *testing.T) {
 			},
 		}
 
-		// Both sides of the min-confidence branch in answer.Apply, so a decision is read back whether
+		// Both sides of the min_confidence branch in answer.Apply, so a decision is read back whether
 		// the model's answer stood or the fallback replaced it.
 		records := []pathRecord{
 			{name: "a confident record", record: fullRecord(t, built, 0.9)},

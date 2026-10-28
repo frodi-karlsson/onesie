@@ -13,8 +13,8 @@ const (
 	missGap      = 0.5
 )
 
-// ScoreYesNo scores yes/no answers, whose values lie in [0,1], against their labels. A record is
-// flagged at a cut when its value is at or above the cut, and failed counts failed requests.
+// ScoreYesNo scores yes or no answers, whose values lie in [0,1], against their labels. A record
+// is flagged at a cut when its value is at or above the cut, and failed counts failed requests.
 func ScoreYesNo(cases []YesNoCase, failed int, cuts []float64) YesNoScore {
 	yes, no := []float64{}, []float64{}
 
@@ -61,8 +61,8 @@ func ScoreYesNo(cases []YesNoCase, failed int, cuts []float64) YesNoScore {
 	return score
 }
 
-// YesNoScore is how well a yes/no question's answers agree with its labels. Values holds a row at
-// every distinct value answered, and Misses every case past the middle, widest gap first.
+// YesNoScore is how well a yes or no question's answers agree with its labels. Values holds a row
+// at every distinct value answered, and Misses every case past the middle, widest gap first.
 type YesNoScore struct {
 	Labelled, Yes, No, Failed int
 	AUC                       float64
@@ -158,7 +158,7 @@ func AUC(cases []YesNoCase) (float64, bool) {
 	return roundedInside((yesRanks - y*(y+1)/2) / (y * float64(noCount))), true
 }
 
-// YesNoCase is one answered record of a yes/no question, with its label and the value answered.
+// YesNoCase is one answered record of a yes or no question, with its label and the value answered.
 // ID is nil when the run has no --id, and Line is the record's input line.
 type YesNoCase struct {
 	Name  string

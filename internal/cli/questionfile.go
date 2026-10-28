@@ -89,7 +89,7 @@ func loadQuestionFile(data []byte, path, hides string, alone bool) (*qfile.File,
 		return nil, fmt.Errorf("%s: %w", path, err)
 	}
 
-	// A file with no question beside --ask only adds nothing, unless it hides the built-in set the
+	// A file with no question beside --ask only adds nothing, unless it hides the built in set the
 	// user meant to add.
 	if len(loaded.Questions) > 0 || (!alone && hides == "") {
 		return loaded, nil

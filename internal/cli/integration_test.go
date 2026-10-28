@@ -128,7 +128,7 @@ func TestFilterIntegration(t *testing.T) {
 				}
 
 				// The probabilities must come back keyed by the labels this invocation supplied,
-				// not by the API's own index strings. That re-keying is the whole reason labels
+				// not by the API's own index strings. Keying by label is the whole reason labels
 				// exist and no stub can prove it.
 				for _, label := range []string{"calm", "annoyed", "furious"} {
 					if _, ok := answer.P[label]; !ok {
@@ -531,7 +531,7 @@ func TestFileIntegration(t *testing.T) {
 					t.Fatalf("decoding frustration: %v", err)
 				}
 
-				// A labelled question re-keys the probabilities to its own labels and drops the
+				// A labelled question keys the probabilities by its own labels and drops the
 				// legend, which is the opposite of the body case below.
 				for _, label := range []string{"calm", "annoyed", "furious"} {
 					if _, ok := frustration.P[label]; !ok {
