@@ -31,6 +31,8 @@ var (
 	ErrTooLarge = errors.New("result encodes to more than the limit")
 	// ErrNotID means a value is neither a string nor a finite number, so it cannot name a record.
 	ErrNotID = errors.New("id must be a string or a finite number")
+	// ErrNullID is the ErrNotID of an id that is null, as a column a misread delimiter leaves out is.
+	ErrNullID = fmt.Errorf("%w, got null", ErrNotID)
 	// ErrIDTooLong means a string id is longer than limits.MaxIDBytes.
 	ErrIDTooLong = fmt.Errorf("id is longer than %d bytes", limits.MaxIDBytes)
 	// ErrIDOutOfRange means a number id writes out longer than limits.MaxIDBytes, or a fraction
@@ -124,7 +126,7 @@ func ID(value any) (any, error) {
 	case json.Number:
 		return numberID(v)
 	case nil:
-		return nil, fmt.Errorf("%w, got null", ErrNotID)
+		return nil, ErrNullID
 	case bool:
 		return nil, fmt.Errorf("%w, got boolean", ErrNotID)
 	case []any:

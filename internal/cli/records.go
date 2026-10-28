@@ -3,9 +3,11 @@ package cli
 import (
 	"context"
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"github.com/frodi-karlsson/onesie/internal/answersfile"
 	"github.com/frodi-karlsson/onesie/internal/engine"
@@ -41,6 +43,7 @@ func records(
 		halt:  flags.stopOnAssert,
 		book:  book,
 		mode:  outputMode,
+		input: inputMode,
 		seen:  map[[sha256.Size]byte]int{},
 	}
 }
@@ -115,6 +118,10 @@ func (r *resumed) stop(failure *output.Failure) {
 	r.stoppedAtRecord = r.skips.Records
 }
 
+func (r *resumed) idHint() string {
+	return ""
+}
+
 func (r *resumed) freshRunAbort() error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -147,15 +154,18 @@ type namedRecord struct {
 }
 
 type naming struct {
-	ctx    context.Context
-	stop   context.CancelFunc
-	source *resumed
-	namer  *jq.Expr
-	book   *answersfile.Ledger
-	mode   output.Mode
-	seen   map[[sha256.Size]byte]int
-	halt   bool
-	halted bool
+	ctx     context.Context
+	stop    context.CancelFunc
+	source  *resumed
+	namer   *jq.Expr
+	book    *answersfile.Ledger
+	mode    output.Mode
+	input   input.Mode
+	seen    map[[sha256.Size]byte]int
+	halt    bool
+	halted  bool
+	nullID  atomic.Bool
+	otherID atomic.Bool
 }
 
 func (n *naming) Next() (namedRecord, bool, error) {
@@ -202,6 +212,27 @@ func (n *naming) freshRunAbort() error {
 	return n.source.freshRunAbort()
 }
 
+func (n *naming) idHint() string {
+	// Atomic, since the goroutine that reads ahead may still be naming a record after the run.
+	hint := delimiterHint(n.input)
+	if hint == "" || !n.nullID.Load() || n.otherID.Load() {
+		return ""
+	}
+
+	return "every record's --id was null. " + hint
+}
+
+func delimiterHint(mode input.Mode) string {
+	switch mode {
+	case input.CSV:
+		return "-i csv splits each line on commas, so if the file is tab separated, pass -i tsv"
+	case input.TSV:
+		return "-i tsv splits each line on tabs, so if the file is comma separated, pass -i csv"
+	default:
+		return ""
+	}
+}
+
 func (n *naming) named(rec input.Record) namedRecord {
 	if n.namer == nil || rec.Err != nil {
 		return namedRecord{Record: rec}
@@ -215,6 +246,12 @@ func (n *naming) named(rec input.Record) namedRecord {
 
 func (n *naming) name(rec input.Record) namedRecord {
 	id, err := idOf(n.ctx, n.namer, rec)
+	if errors.Is(err, jq.ErrNullID) {
+		n.nullID.Store(true)
+	} else {
+		n.otherID.Store(true)
+	}
+
 	if err != nil {
 		return namedRecord{Record: rec, idErr: err}
 	}

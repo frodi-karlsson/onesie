@@ -294,6 +294,9 @@ onesie calibrate -f shell-safety -i jsonl --map .command --id .id \
   number it was answered at, as it keeps its answer.
 - `--id` names each record on every output line. It runs one record at a time, so keep it a cheap
   lookup. Ids match by their text, so `7`, `7.0` and `"7"` are one id in jsonl.
+- Under `-i csv` or `-i tsv`, a run where every record's `--id` was null says on stderr after the
+  run that the delimiter may not match the file, since `-i tsv` reads a comma separated file as one
+  column. `calibrate` says so beside the first record's error.
 - `--out` writes to a file with a fingerprint beside it, and a lock so two runs cannot share it.
 - `--resume` refuses with exit 2 when a change would alter what a record is asked or what its line
   holds: the questions or their policy flags, the provider, the model, the images, long context,

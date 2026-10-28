@@ -260,6 +260,7 @@ func TestID(t *testing.T) {
 		{name: "should write a computed fraction in its shortest form", value: 0.25, want: json.Number("0.25")},
 		{name: "should write a tiny fraction with an exponent", value: 1.5e-7, want: json.Number("1.5e-7")},
 		{name: "should reject null", value: nil, wantIs: ErrNotID, wantErr: "id must be a string or a finite number, got null"},
+		{name: "should reject null as a null id", value: nil, wantIs: ErrNullID, wantErr: "id must be a string or a finite number, got null"},
 		{name: "should reject a boolean", value: true, wantIs: ErrNotID, wantErr: "id must be a string or a finite number, got boolean"},
 		{name: "should reject an array", value: []any{"a"}, wantIs: ErrNotID, wantErr: "id must be a string or a finite number, got array"},
 		{name: "should reject an object", value: map[string]any{"a": "b"}, wantIs: ErrNotID, wantErr: "id must be a string or a finite number, got object"},

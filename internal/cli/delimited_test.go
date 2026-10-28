@@ -245,3 +245,140 @@ func answeringServer(t *testing.T, calls *atomic.Int32) *httptest.Server {
 
 	return srv
 }
+
+func TestFinishStream(t *testing.T) {
+	t.Parallel()
+
+	const (
+		commas  = "id,body\n1,the site is down\n2,the bill is wrong\n"
+		tabs    = "id\tbody\n1\tthe site is down\n2\tthe bill is wrong\n"
+		tsvHint = "onesie: every record's --id was null. -i tsv splits each line on tabs, so if the file is comma separated, pass -i csv\n"
+		csvHint = "onesie: every record's --id was null. -i csv splits each line on commas, so if the file is tab separated, pass -i tsv\n"
+	)
+
+	tests := []struct {
+		name     string
+		args     []string
+		stdin    string
+		wantCode int
+		wantErr  string
+	}{
+		{
+			name:     "should hint at the delimiter when -i tsv reads a comma separated file",
+			args:     []string{"is this urgent", "-i", "tsv", "--id", ".id"},
+			stdin:    commas,
+			wantCode: ExitRecords,
+			wantErr:  tsvHint,
+		},
+		{
+			name:     "should hint at the delimiter when -i csv reads a tab separated file",
+			args:     []string{"is this urgent", "-i", "csv", "--id", ".id"},
+			stdin:    tabs,
+			wantCode: ExitRecords,
+			wantErr:  csvHint,
+		},
+		{
+			name:     "should hint at the delimiter after the one record --stop-on-error read",
+			args:     []string{"is this urgent", "-i", "tsv", "--id", ".id", "--stop-on-error"},
+			stdin:    commas,
+			wantCode: ExitRecords,
+			wantErr:  tsvHint,
+		},
+		{
+			name:     "should give no hint when one record's --id was found",
+			args:     []string{"is this urgent", "-i", "tsv", "--id", `if .id == "1" then null else .id end`},
+			stdin:    tabs,
+			wantCode: ExitRecords,
+		},
+		{
+			name:     "should give no hint for null ids in jsonl, which has no delimiter",
+			args:     []string{"is this urgent", "-i", "jsonl", "--id", ".id"},
+			stdin:    "{\"body\":\"the site is down\"}\n",
+			wantCode: ExitRecords,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			mock := filepath.Join(t.TempDir(), "answers.json")
+			if err := os.WriteFile(mock, []byte(`{"answer":0.5}`), 0o600); err != nil {
+				t.Fatal(err)
+			}
+
+			_, errOut, code := runMocked(t, t.Context(), append(tc.args, "--mock", mock), tc.stdin, nil, nil)
+			if code != tc.wantCode {
+				t.Errorf("exit code = %d, want %d\nstderr:\n%s", code, tc.wantCode, errOut)
+			}
+
+			if hinted := strings.Contains(errOut, "--id was null"); hinted != (tc.wantErr != "") {
+				t.Errorf("stderr = %q, want the hint %q", errOut, tc.wantErr)
+			}
+
+			if tc.wantErr != "" && !strings.Contains(errOut, tc.wantErr) {
+				t.Errorf("stderr = %q, want it to contain %q", errOut, tc.wantErr)
+			}
+		})
+	}
+}
+
+func TestFirstIDHint(t *testing.T) {
+	t.Parallel()
+
+	const (
+		commas = "id,body,label\n1,the site is down,true\n2,the bill is wrong,false\n"
+		tabs   = "id\tbody\tlabel\n1\tthe site is down\ttrue\n2\tthe bill is wrong\tfalse\n"
+		null   = "line 2: --id: id must be a string or a finite number, got null"
+	)
+
+	tests := []struct {
+		name    string
+		input   string
+		id      string
+		stdin   string
+		wantErr string
+	}{
+		{
+			name:  "should hint at the delimiter when calibrate's first record has a null --id under -i tsv",
+			input: "tsv", stdin: commas,
+			wantErr: "onesie: " + null + ". -i tsv splits each line on tabs, so if the file is comma separated, pass -i csv\n",
+		},
+		{
+			name:  "should hint at the delimiter when calibrate's first record has a null --id under -i csv",
+			input: "csv", stdin: tabs,
+			wantErr: "onesie: " + null + ". -i csv splits each line on commas, so if the file is tab separated, pass -i tsv\n",
+		},
+		{
+			name:  "should give no hint when a later record's --id is null",
+			input: "csv", id: `if .id == "2" then null else .id end`, stdin: commas,
+			wantErr: "onesie: line 3: --id: id must be a string or a finite number, got null\n",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			mock := filepath.Join(t.TempDir(), "answers.json")
+			if err := os.WriteFile(mock, []byte(`{"answer":0.5}`), 0o600); err != nil {
+				t.Fatal(err)
+			}
+
+			id := tc.id
+			if id == "" {
+				id = ".id"
+			}
+
+			args := []string{
+				"calibrate", "is this urgent", "-i", tc.input, "--id", id, "--map", ".body", "--label", ".label",
+				"--mock", mock,
+			}
+
+			_, errOut, code := runMocked(t, t.Context(), args, tc.stdin, nil, nil)
+			if code != ExitUsage || errOut != tc.wantErr {
+				t.Errorf("exit code = %d, stderr = %q, want %d and %q", code, errOut, ExitUsage, tc.wantErr)
+			}
+		})
+	}
+}
