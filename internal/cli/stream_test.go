@@ -1302,7 +1302,8 @@ func TestStream(t *testing.T) {
 
 				var out, errOut lockedBuffer
 
-				runs := newExprRuns(1)
+				ctx, interrupt := context.WithCancel(t.Context())
+				defer interrupt()
 
 				root := cli.NewRootCmd(
 					cli.BuildInfo{Version: "1.2.3"},
@@ -1312,29 +1313,21 @@ func TestStream(t *testing.T) {
 							onesie.WithAPIKey("k"), onesie.WithBaseURL(srv.URL),
 						}, opts...)...)
 					}),
-					cli.WithStdin(strings.NewReader(tc.stdin)),
+					// The interrupt lands as the record is handed over, so the expression runs on it after
+					// the context has ended.
+					cli.WithStdin(&interruptingReader{data: tc.stdin, interrupt: interrupt}),
 					cli.WithStdinTTY(false),
 					cli.WithStdoutTTY(false),
 					cli.WithLookupEnv(func(string) (string, bool) { return "", false }),
-					cli.WithExprRuns(runs.run),
 				)
 
 				root.Command.SetOut(&out)
 				root.Command.SetErr(&errOut)
 				root.Command.SetArgs(tc.args)
 
-				ctx, interrupt := context.WithCancel(t.Context())
-				defer interrupt()
-
 				exited := make(chan int, 1)
 
 				go func() { exited <- root.Execute(ctx) }()
-
-				if !reached(runs.started) {
-					t.Fatal("the expression never started running")
-				}
-
-				interrupt()
 
 				select {
 				case code := <-exited:
@@ -1356,104 +1349,6 @@ func TestStream(t *testing.T) {
 
 				if got := requests.Load(); got != 0 {
 					t.Errorf("requests = %d, want 0", got)
-				}
-			})
-		}
-	})
-
-	t.Run("should stop a runaway --id once the stream ends early", func(t *testing.T) {
-		t.Parallel()
-
-		const runaway = `if .id == "b" then until(false; .) else .id end`
-
-		tests := []struct {
-			name     string
-			args     []string
-			status   int
-			breaks   bool
-			wantCode int
-		}{
-			{
-				name:     "should stop it when an authentication failure aborts the stream",
-				args:     []string{"x", "-i", "jsonl", "--id", runaway, "-j", "1"},
-				status:   http.StatusUnauthorized,
-				wantCode: cli.ExitAuth,
-			},
-			{
-				name:     "should stop it when the output pipe closes under --print-request",
-				args:     []string{"x", "-i", "jsonl", "--id", runaway, "--print-request", "-m", "m1"},
-				breaks:   true,
-				wantCode: cli.ExitOK,
-			},
-		}
-
-		for _, tc := range tests {
-			t.Run(tc.name, func(t *testing.T) {
-				t.Parallel()
-
-				// The second record's --id is the runaway, so it is running once two runs have started.
-				runs := newExprRuns(2)
-
-				srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-					if !reached(runs.started) {
-						t.Error("the --id expression never started running")
-					}
-
-					w.WriteHeader(tc.status)
-
-					if _, err := w.Write([]byte(`{"error":{"message":"bad key"}}`)); err != nil {
-						t.Errorf("writing stub response: %v", err)
-					}
-				}))
-				defer srv.Close()
-
-				var errOut lockedBuffer
-
-				var out io.Writer = &lockedBuffer{}
-				if tc.breaks {
-					out = writerFunc(func([]byte) (int, error) {
-						if !reached(runs.started) {
-							t.Error("the --id expression never started running")
-						}
-
-						return 0, io.ErrClosedPipe
-					})
-				}
-
-				root := cli.NewRootCmd(
-					cli.BuildInfo{Version: "1.2.3"},
-					cli.WithKeychain(offKeychain()),
-					cli.WithClientFactory(func(_ context.Context, opts ...onesie.Option) (*onesie.Client, error) {
-						return onesie.New(append([]onesie.Option{
-							onesie.WithAPIKey("k"), onesie.WithBaseURL(srv.URL),
-						}, opts...)...)
-					}),
-					cli.WithStdin(strings.NewReader("{\"id\":\"a\"}\n{\"id\":\"b\"}\n")),
-					cli.WithStdinTTY(false),
-					cli.WithStdoutTTY(false),
-					cli.WithLookupEnv(func(string) (string, bool) { return "", false }),
-					cli.WithExprRuns(runs.run),
-				)
-
-				root.Command.SetOut(out)
-				root.Command.SetErr(&errOut)
-				root.Command.SetArgs(tc.args)
-
-				exited := make(chan int, 1)
-
-				go func() { exited <- root.Execute(t.Context()) }()
-
-				select {
-				case code := <-exited:
-					if code != tc.wantCode {
-						t.Errorf("exit code = %d, want %d\nstderr:\n%s", code, tc.wantCode, errOut.String())
-					}
-				case <-time.After(5 * time.Second):
-					t.Fatal("the stream never ended")
-				}
-
-				if !reached(runs.ended) {
-					t.Error("the --id expression kept running after the stream ended")
 				}
 			})
 		}
@@ -1957,48 +1852,23 @@ func (b *lockedBuffer) String() string {
 	return b.buf.String()
 }
 
-func newExprRuns(want int) *exprRuns {
-	return &exprRuns{want: want, started: make(chan struct{}), ended: make(chan struct{})}
-}
-
-func (r *exprRuns) run() func() {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	r.starts++
-	if r.starts == r.want {
-		close(r.started)
+func (r *interruptingReader) Read(p []byte) (int, error) {
+	if r.handed {
+		return 0, io.EOF
 	}
 
-	return r.end
+	r.handed = true
+	n := copy(p, r.data)
+
+	r.interrupt()
+
+	return n, nil
 }
 
-func (r *exprRuns) end() {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	r.ends++
-	if r.ends == r.want {
-		close(r.ended)
-	}
-}
-
-type exprRuns struct {
-	mu      sync.Mutex
-	want    int
-	starts  int
-	ends    int
-	started chan struct{}
-	ended   chan struct{}
-}
-
-func reached(signal <-chan struct{}) bool {
-	select {
-	case <-signal:
-		return true
-	case <-time.After(5 * time.Second):
-		return false
-	}
+type interruptingReader struct {
+	data      string
+	interrupt context.CancelFunc
+	handed    bool
 }
 
 type writerFunc func([]byte) (int, error)

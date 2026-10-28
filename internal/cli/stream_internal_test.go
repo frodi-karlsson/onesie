@@ -12,9 +12,11 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 )
 
 const dedupAnswer = `{"model":"m","usage":{"input_tokens":5,"output_tokens":2},` +
@@ -115,6 +117,74 @@ func TestStream(t *testing.T) {
 			if got := strings.Count(out, fmt.Sprintf(`{"id":%d,`, i+1)); got != 1 {
 				t.Errorf("id %d written %d times, want once\n%s", i+1, got, out)
 			}
+		}
+	})
+
+	t.Run("should stop a runaway --id once the stream ends early", func(t *testing.T) {
+		t.Parallel()
+
+		const runaway = `if .id == "b" then until(false; .) else .id end`
+
+		tests := []struct {
+			name     string
+			args     []string
+			breaks   bool
+			wantCode int
+		}{
+			{
+				name:     "should stop it when an authentication failure aborts the stream",
+				args:     []string{"x", "-i", "jsonl", "--id", runaway, "-j", "1"},
+				wantCode: ExitAuth,
+			},
+			{
+				name:     "should stop it when the output pipe closes under --print-request",
+				args:     []string{"x", "-i", "jsonl", "--id", runaway, "--print-request", "-m", "m1"},
+				breaks:   true,
+				wantCode: ExitOK,
+			},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				args := tc.args
+				if !tc.breaks {
+					args = append(slices.Clone(args), "--mock", writeMock(t, `{"id":"a","error":401}`))
+				}
+
+				// synctest.Test returns only once every goroutine the run started has ended, so a
+				// runaway left spinning on the second record fails the test by never returning.
+				synctest.Test(t, func(t *testing.T) {
+					stdin := &handingLines{data: "{\"id\":\"a\"}\n{\"id\":\"b\"}\n", at: 2, handed: make(chan struct{})}
+
+					var out io.Writer = &bytes.Buffer{}
+					if tc.breaks {
+						out = closingPipe{after: stdin.handed}
+					}
+
+					var errOut bytes.Buffer
+
+					// The first record's outcome waits for the second record to be read, so its --id
+					// starts before the stream ends.
+					root := NewRootCmd(BuildInfo{Version: "1.2.3"},
+						withKeychain(noKeychain()),
+						WithStdin(stdin),
+						WithStdinTTY(false),
+						WithStdoutTTY(false),
+						WithLookupEnv(lookupFrom(map[string]string{"ONESIE_CONFIG_DIR": t.TempDir()})),
+						holding(1, 1, stdin.handed, nil),
+					)
+
+					root.Command.SetOut(out)
+					root.Command.SetErr(&errOut)
+					root.Command.SetArgs(args)
+
+					if code := root.Execute(t.Context()); code != tc.wantCode {
+						t.Errorf("exit code = %d, want %d\nstderr:\n%s", code, tc.wantCode, errOut.String())
+					}
+				})
+			})
 		}
 	})
 
@@ -712,4 +782,39 @@ func runStub(
 	code := root.Execute(ctx)
 
 	return out.String(), errOut.String(), code
+}
+
+func (r *handingLines) Read(p []byte) (int, error) {
+	end := strings.IndexByte(r.data[r.offset:], '\n')
+	if end < 0 {
+		return 0, io.EOF
+	}
+
+	n := copy(p, r.data[r.offset:r.offset+end+1])
+	r.offset += n
+	r.lines++
+
+	if r.lines == r.at {
+		close(r.handed)
+	}
+
+	return n, nil
+}
+
+type handingLines struct {
+	data   string
+	offset int
+	lines  int
+	at     int
+	handed chan struct{}
+}
+
+func (w closingPipe) Write([]byte) (int, error) {
+	<-w.after
+
+	return 0, io.ErrClosedPipe
+}
+
+type closingPipe struct {
+	after <-chan struct{}
 }
