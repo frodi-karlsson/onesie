@@ -171,7 +171,7 @@ In GitHub Actions, a failing gate fails the step only under pipefail, so name `s
 `$GITHUB_STEP_SUMMARY` instead.
 
 **Rank records by several questions.** One `--ask` per dimension scores every record, and `jq`
-weighs the answers and sorts by the sum. `.value` is the yes/no probability, and `.norm` is the
+weighs the answers and sorts by the sum. `.value` is the yes or no probability, and `.norm` is the
 rate's position between 0 and 1. The weighting lives in `jq`, since `--assert` has no arithmetic,
 and `select(has("error") | not)` drops the records that failed.
 

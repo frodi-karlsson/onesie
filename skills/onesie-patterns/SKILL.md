@@ -14,7 +14,8 @@ person, and every independent question in one call.
 A second call pays for itself only when the first answer decides what the next call asks, its
 options or its state. Everything else belongs in one call.
 
-For a flag this skill does not cover, run `onesie --help` or `onesie calibrate --help`, and `onesie -V` for the version and the built in limits.
+For a flag this skill does not cover, run `onesie --help` or `onesie calibrate --help`, and
+`onesie -V` for the version and the built in limits.
 
 ## Rules
 

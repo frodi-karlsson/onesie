@@ -31,7 +31,8 @@ The built in starter sets come calibrated already. `-f shell-safety` and the oth
 `onesie questions` lists as `built in` ship with cuts measured on labelled records, so use one
 as it stands before you write and calibrate a gate of your own.
 
-For a flag this skill does not cover, run `onesie --help` or `onesie calibrate --help`, and `onesie -V` for the version and the built in limits.
+For a flag this skill does not cover, run `onesie --help` or `onesie calibrate --help`, and
+`onesie -V` for the version and the built in limits.
 
 ## Rules
 

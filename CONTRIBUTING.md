@@ -46,5 +46,5 @@ advice. The History lessons check needs a key, so it skips on a pull request fro
 ## Development
 
 `go.mod` names the Go version, `make` lists every target, and `golangci-lint` is expected on `PATH`
-at the version `.github/workflows/ci.yml` pins. [MAINTAINING.md](MAINTAINING.md) covers the layout, the live suite, the calibrated gates and
-releases.
+at the version `.github/workflows/ci.yml` pins. [MAINTAINING.md](MAINTAINING.md) covers the layout,
+the live suite, the calibrated gates and releases.
