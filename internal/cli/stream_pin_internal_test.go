@@ -399,7 +399,7 @@ func pinnedStreamRuns() []pinnedRun {
 			name: "should abort the run at a refused key",
 			steps: []pinnedStep{{
 				args: byID("-o", "json"), stdin: pinnedRecords, status: http.StatusUnauthorized,
-				stdout: "{\"id\":1,\"error\":{\"kind\":\"http\",\"status\":401,\"message\":\"401 the key was refused\"}}\n",
+				stdout: "{\"id\":1,\"error\":{\"kind\":\"auth\",\"status\":401,\"message\":\"401 the key was refused\"}}\n",
 				stderr: "onesie: 401 the key was refused. The key came from TYPESAFE_API_KEY\n",
 				code:   ExitAuth,
 			}},

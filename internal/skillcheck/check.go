@@ -88,11 +88,6 @@ type Report struct {
 	Failures []string
 }
 
-// Passed reports whether every checked example behaved as its rule declared.
-func (r Report) Passed() bool {
-	return len(r.Failures) == 0
-}
-
 // Skip records one example Check declined to run, and why, so a skill drifting to examples the
 // checker cannot verify is visible rather than only countable.
 type Skip struct {

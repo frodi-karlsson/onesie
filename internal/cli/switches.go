@@ -16,12 +16,6 @@ const (
 	envLongContext = "ONESIE_LONG_CONTEXT"
 )
 
-type switches struct {
-	cache       bool
-	longContext bool
-	aliasTTL    time.Duration
-}
-
 func readSwitches(cmd *cobra.Command, lookupEnv func(string) (string, bool), flags runFlags) (switches, error) {
 	read, err := envSwitches(lookupEnv)
 	if err != nil {
@@ -37,6 +31,12 @@ func readSwitches(cmd *cobra.Command, lookupEnv func(string) (string, bool), fla
 	}
 
 	return read, nil
+}
+
+type switches struct {
+	cache       bool
+	longContext bool
+	aliasTTL    time.Duration
 }
 
 func envSwitches(lookupEnv func(string) (string, bool)) (switches, error) {

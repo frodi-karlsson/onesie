@@ -76,11 +76,6 @@ func (t Tag) Newer(other Tag) bool {
 	return t.compare(other) > 0
 }
 
-// Prerelease reports whether t carries a -PRERELEASE part.
-func (t Tag) Prerelease() bool {
-	return len(t.Pre) > 0
-}
-
 // String prints t as the tag it was parsed from.
 func (t Tag) String() string {
 	text := fmt.Sprintf("v%d.%d.%d", t.Major, t.Minor, t.Patch)
@@ -114,6 +109,11 @@ func (t Tag) compare(other Tag) int {
 	}
 
 	return cmp.Compare(len(t.Pre), len(other.Pre))
+}
+
+// Prerelease reports whether t carries a -PRERELEASE part.
+func (t Tag) Prerelease() bool {
+	return len(t.Pre) > 0
 }
 
 func latestOf(existing []string) (Tag, bool) {

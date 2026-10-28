@@ -52,6 +52,7 @@ Flags:
       --long-context              raise the context limits to 262k tokens, slower and less accurate. Also ONESIE_LONG_CONTEXT=1. Experimental on TypeSafe's side
       --map string                jq expression run on each record, whose result is the state sent. Map only the text a person would read
       --max-retry-after int       most seconds to wait out a server Retry-After (default 60)
+      --mock string               answer from this file instead of the API. Also ONESIE_MOCK. The file is an object keyed by question id, as {"answer":0.9,"team":"billing"}, or one line per record in the shape -o json writes. A lone line that carries id, line, model, usage, assert, abstain or an error object is one record
   -m, --model string              model override
       --offline                   with --out and --resume, read every answer from the file and ask nothing, needing no key
       --out string                write the answers to this file as -o json lines
@@ -71,6 +72,5 @@ Flags:
       --usage                     add the api usage object to the answers file and the json report
 
 Global Flags:
-      --mock string       answer from this file instead of the API. Also ONESIE_MOCK. The file is an object keyed by question id, as {"answer":0.9,"team":"billing"}, or one line per record in the shape -o json writes. A lone line that carries id, line, model, usage, assert, abstain or an error object is one record
       --profile string    the profile a run uses, from profiles.json in the config dir. Also ONESIE_PROFILE, and otherwise the default profile, which onesie profile use sets
       --provider string   run on this provider without a profile, typesafe, openrouter, berget, levanto or cloudflare. Overrides ONESIE_PROVIDER

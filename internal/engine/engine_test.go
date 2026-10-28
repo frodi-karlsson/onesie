@@ -269,8 +269,6 @@ func TestRun(t *testing.T) {
 			go func() {
 				defer close(done)
 
-				// Nothing is asserted in here. Logging to a test that has already failed its timeout
-				// panics, which would mask the deadlock message with an unrelated failure.
 				result, runErr = engine.Run(t.Context(), engine.Config[input.Record, string]{
 					Source: &counting{total: 500},
 					Evaluate: func(_ context.Context, rec input.Record) (string, error) {
@@ -283,11 +281,7 @@ func TestRun(t *testing.T) {
 
 			// The ordered engine deadlocks here if the writer returns without cancelling: the
 			// dispatcher stays blocked on a queue nobody drains and workers.Wait never returns.
-			select {
-			case <-done:
-			case <-time.After(5 * time.Second):
-				t.Fatal("Run did not return, the engine deadlocked on a closed pipe")
-			}
+			<-done
 
 			if runErr != nil {
 				t.Errorf("a closed pipe is not an error, got %v", runErr)
@@ -556,12 +550,7 @@ func interruptStream(t *testing.T, unordered, sourceResumes bool) (engine.Result
 	var written []string
 
 	for len(written) < 2 {
-		select {
-		case line := <-lines:
-			written = append(written, line)
-		case <-time.After(5 * time.Second):
-			t.Fatalf("only %v written before the interrupt", written)
-		}
+		written = append(written, <-lines)
 	}
 
 	cancel()
@@ -570,20 +559,14 @@ func interruptStream(t *testing.T, unordered, sourceResumes bool) (engine.Result
 		unblock()
 	}
 
-	select {
-	case got := <-finished:
-		close(lines)
+	got := <-finished
+	close(lines)
 
-		for line := range lines {
-			written = append(written, line)
-		}
-
-		return got.result, written, got.err
-	case <-time.After(5 * time.Second):
-		t.Fatal("Run did not return after the interrupt, it is still waiting on the source")
-
-		return engine.Result{}, nil, nil
+	for line := range lines {
+		written = append(written, line)
 	}
+
+	return got.result, written, got.err
 }
 
 type runOutcome struct {

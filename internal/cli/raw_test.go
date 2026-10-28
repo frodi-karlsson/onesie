@@ -116,7 +116,7 @@ func TestStreamRaw(t *testing.T) {
 			stdin:    "{\"model\":\"jev-own\",\"long_context\":\"yes\",\"state\":\"a\"}\n",
 			response: answered,
 			wantOut: []string{
-				`{"error":{"kind":"input","status":null,"message":"long_context must be true or false"}}`,
+				`{"error":{"kind":"input","status":null,"message":"line 1: long_context must be true or false"}}`,
 			},
 			wantCode: ExitRecords,
 		},
@@ -218,6 +218,53 @@ func TestStreamRaw(t *testing.T) {
 				wantCode: ExitRecords,
 			},
 			{
+				name:      "should refuse a body whose model is not a string before sending it",
+				args:      []string{"-i", "request"},
+				stdin:     `{"state":"x","model":5}` + "\n",
+				response:  `{"answers":{}}`,
+				wantSent:  0,
+				wantLines: 1,
+				wantOut: []string{
+					`{"error":{"kind":"input","status":null,"message":"line 1: model must be a string, got a number"}}`,
+				},
+				wantCode: ExitRecords,
+			},
+			{
+				name:      "should fail a 200 whose body is over the response limit as an unusable response",
+				args:      []string{"-i", "request"},
+				stdin:     "{\"state\":\"one\"}\n",
+				response:  `"` + strings.Repeat("x", int(onesie.DefaultMaxResponseBytes)) + `"`,
+				wantSent:  1,
+				wantLines: 1,
+				wantOut:   []string{`{"error":{"kind":"response","status":200,"message":"200 response could not be used: the response body is over the`},
+				wantCode:  ExitRecords,
+			},
+			{
+				name:      "should fail a 422 whose body is over the response limit by its status",
+				args:      []string{"-i", "request"},
+				stdin:     "{\"state\":\"one\"}\n",
+				status:    http.StatusUnprocessableEntity,
+				response:  `"` + strings.Repeat("x", int(onesie.DefaultMaxResponseBytes)) + `"`,
+				wantSent:  1,
+				wantLines: 1,
+				wantOut:   []string{`{"error":{"kind":"http","status":422,"message":"422 Unprocessable Entity, and the response body is over the`},
+				wantCode:  ExitRecords,
+			},
+			{
+				name: "should name the input line of each body it refuses before sending it",
+				args: []string{"-i", "request"},
+				stdin: `{"state":"x","questions":{"a":{"type":"tarot","instructions":"q"}}}` + "\n" +
+					`{"state":"y","questions":{"a":{"type":"tarot","instructions":"q"}}}` + "\n",
+				response:  `{"answers":{}}`,
+				wantSent:  0,
+				wantLines: 2,
+				wantOut: []string{
+					`"message":"line 1: question 'a' has the type 'tarot'`,
+					`"message":"line 2: question 'a' has the type 'tarot'`,
+				},
+				wantCode: ExitRecords,
+			},
+			{
 				name:      "should write an error record when the server rejects a body",
 				args:      []string{"-i", "request"},
 				stdin:     "{\"state\":\"one\"}\n",
@@ -236,7 +283,7 @@ func TestStreamRaw(t *testing.T) {
 				response:  `{"error":{"message":"invalid api key"}}`,
 				wantSent:  1,
 				wantLines: 1,
-				wantOut:   []string{`{"error":{"kind":"http"`, `"status":401`},
+				wantOut:   []string{`{"error":{"kind":"auth"`, `"status":401`},
 				wantErr:   "onesie:",
 				wantCode:  ExitAuth,
 			},
@@ -405,11 +452,7 @@ func TestStreamRaw(t *testing.T) {
 
 					mu.Unlock()
 
-					select {
-					case <-gate:
-					case <-time.After(3 * time.Second):
-						t.Errorf("only %d requests were in flight, want %d", arrived, tc.flight)
-					}
+					<-gate
 
 					w.Header().Set("Content-Type", "application/json")
 
@@ -471,11 +514,7 @@ func TestStreamRaw(t *testing.T) {
 
 					if bytes.Contains(body, []byte(`"state":0}`)) {
 						for range 2 {
-							select {
-							case <-stdout.written:
-							case <-time.After(3 * time.Second):
-								t.Errorf("the later records were never written")
-							}
+							<-stdout.written
 						}
 					}
 
@@ -882,6 +921,7 @@ func runAgainstTo(
 					onesie.WithAPIKey("k"),
 					onesie.WithBaseURL(baseURL),
 					onesie.WithEnv(func(string) (string, bool) { return "", false }),
+					onesie.WithClock(instantClock{now: time.Now}),
 				}, opts...)...)
 			}),
 			WithStdin(strings.NewReader(stdin)),

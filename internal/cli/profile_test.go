@@ -116,9 +116,9 @@ func TestNewProfileCmd(t *testing.T) {
 			wantCode: ExitUsage,
 		},
 		{
-			name:     "should refuse to run under --mock",
+			name:     "should refuse --mock, which profile does not take",
 			args:     []string{"profile", "list", "--mock", "answers.json"},
-			wantErr:  "onesie: profile reads and writes real configuration, so it does not run under --mock. Drop it",
+			wantErr:  "onesie: profile list has no flag --mock. --mock belongs to a run, not to profile list",
 			wantCode: ExitUsage,
 		},
 		{
@@ -1405,14 +1405,14 @@ func TestProfileList(t *testing.T) {
 			env:     map[string]string{"ONESIE_PROVIDER": "openrouter"},
 			args:    []string{"profile", "list"},
 			wantOut: unmarked,
-			wantErr: []string{"active: ONESIE_PROVIDER=openrouter, no profile"},
+			wantErr: []string{"onesie: active: ONESIE_PROVIDER=openrouter, no profile"},
 		},
 		{
 			name:    "should mark nothing and say why when no profile is the default",
 			file:    noDefault,
 			args:    []string{"profile", "list"},
 			wantOut: unmarked,
-			wantErr: []string{"active: none, since no profile is the default and nothing chose one"},
+			wantErr: []string{"onesie: active: none, since no profile is the default and nothing chose one"},
 		},
 		{
 			name:    "should mark nothing when both variables choose",
@@ -1420,7 +1420,7 @@ func TestProfileList(t *testing.T) {
 			env:     map[string]string{"ONESIE_PROFILE": "work", "ONESIE_PROVIDER": "openrouter"},
 			args:    []string{"profile", "list"},
 			wantOut: unmarked,
-			wantErr: []string{"active: none, since ONESIE_PROFILE and ONESIE_PROVIDER are both set"},
+			wantErr: []string{"onesie: active: none, since ONESIE_PROFILE and ONESIE_PROVIDER are both set"},
 		},
 		{
 			name:    "should mark nothing when ONESIE_PROFILE names a missing profile",
@@ -1428,7 +1428,7 @@ func TestProfileList(t *testing.T) {
 			env:     map[string]string{"ONESIE_PROFILE": "nope"},
 			args:    []string{"profile", "list"},
 			wantOut: unmarked,
-			wantErr: []string{"active: none, since ONESIE_PROFILE names profile 'nope', which does not exist"},
+			wantErr: []string{"onesie: active: none, since ONESIE_PROFILE names profile 'nope', which does not exist"},
 		},
 		{
 			name:     "should refuse a profiles file others can reach",

@@ -66,6 +66,10 @@ func TestClassify(t *testing.T) {
 			err:  stored("http", statusOf(http.StatusPaymentRequired)), want: ExitAuth,
 		},
 		{
+			name: "should report auth for a stored auth failure whatever its status",
+			err:  stored("auth", statusOf(http.StatusBadRequest)), want: ExitAuth,
+		},
+		{
 			name: "should report unavailable for a stored rate limit",
 			err:  stored("http", statusOf(http.StatusTooManyRequests)), want: ExitUnavailable,
 		},
@@ -246,7 +250,7 @@ func TestClassify(t *testing.T) {
 			{err: &input.LineError{Line: 1, Err: errors.New("not json")}, kind: output.KindInput},
 			{err: context.Canceled, kind: output.KindInput, quiet: true},
 			{err: context.DeadlineExceeded, kind: output.KindTransport},
-			{err: apiError(http.StatusUnauthorized), kind: output.KindHTTP},
+			{err: apiError(http.StatusUnauthorized), kind: output.KindAuth},
 			{err: apiError(http.StatusBadRequest), kind: output.KindHTTP},
 			{err: &onesie.ResponseError{Status: http.StatusOK}, kind: output.KindResponse},
 			{err: &onesie.ConnectionError{Err: errors.New("refused")}, kind: output.KindTransport},

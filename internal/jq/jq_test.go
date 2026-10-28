@@ -9,6 +9,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -160,11 +161,11 @@ func TestExpr_One(t *testing.T) {
 		t.Parallel()
 
 		tests := []struct {
-			name  string
-			after time.Duration
+			name    string
+			running bool
 		}{
 			{name: "should stop when the context is already cancelled"},
-			{name: "should stop when the context is cancelled as it runs", after: 20 * time.Millisecond},
+			{name: "should stop when the context is cancelled as it runs", running: true},
 		}
 
 		for _, tc := range tests {
@@ -177,34 +178,53 @@ func TestExpr_One(t *testing.T) {
 				}
 
 				ctx, cancel := context.WithCancel(t.Context())
-				if tc.after == 0 {
+				defer cancel()
+
+				polled := &polledContext{Context: ctx, at: 100, reached: make(chan struct{})}
+
+				if !tc.running {
 					cancel()
-				} else {
-					time.AfterFunc(tc.after, cancel)
 				}
 
 				returned := make(chan error, 1)
 
 				go func() {
-					_, runErr := expr.One(ctx, "x")
+					_, runErr := expr.One(polled, "x")
 					returned <- runErr
 				}()
 
-				select {
-				case runErr := <-returned:
-					if !errors.Is(runErr, context.Canceled) {
-						t.Errorf("One() error = %v, want %v", runErr, context.Canceled)
-					}
+				if tc.running {
+					<-polled.reached
+					cancel()
+				}
 
-					if errors.Is(runErr, ErrRun) {
-						t.Errorf("One() error = %v, want an interrupt rather than a failed run", runErr)
-					}
-				case <-time.After(5 * time.Second):
-					t.Fatal("One() ignored the cancelled context")
+				runErr := <-returned
+				if !errors.Is(runErr, context.Canceled) {
+					t.Errorf("One() error = %v, want %v", runErr, context.Canceled)
+				}
+
+				if errors.Is(runErr, ErrRun) {
+					t.Errorf("One() error = %v, want an interrupt and not a failed run", runErr)
 				}
 			})
 		}
 	})
+}
+
+func (c *polledContext) Done() <-chan struct{} {
+	if c.polls.Add(1) == c.at {
+		close(c.reached)
+	}
+
+	return c.Context.Done()
+}
+
+type polledContext struct {
+	context.Context
+
+	polls   atomic.Int64
+	at      int64
+	reached chan struct{}
 }
 
 func TestID(t *testing.T) {

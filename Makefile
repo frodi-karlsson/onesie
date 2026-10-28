@@ -11,7 +11,7 @@ LDFLAGS := -s -w \
 	-X main.date=$(DATE) \
 	-X main.tag=$(EXACT_TAG)
 
-.PHONY: help build run install test test-race cover bench lint lint-fix fmt tidy vuln check tools clean skills skills-check skills-eval fuzz fuzz-check release examples-answers examples-image schema
+.PHONY: help build run install test test-race test-integration cover bench lint lint-fix fmt tidy vuln check tools clean skills skills-check skills-eval fuzz fuzz-check release examples-answers examples-image schema
 
 build: ## Build the onesie binary into bin/
 	@mkdir -p bin

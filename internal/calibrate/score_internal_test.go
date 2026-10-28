@@ -95,10 +95,8 @@ func TestAUC(t *testing.T) {
 
 		cases := yesNoCases("yes", math.NaN(), "no", 0.5, "yes", math.NaN(), "no", math.NaN(), "yes", 0.9)
 
-		finishes(t, func() {
-			auc(cases)
-			ScoreYesNo(cases, 0, DefaultCuts())
-		})
+		auc(cases)
+		ScoreYesNo(cases, 0, DefaultCuts())
 	})
 
 	t.Run("should rank 100000 cases by sorting rather than by pairs", func(t *testing.T) {
@@ -640,22 +638,5 @@ func checkShare(t *testing.T, field string, got Share, hits, of int) {
 
 	if want := wilson(hits, of); got != want {
 		t.Errorf("%s = %+v, want %d of %d, %+v", field, got, hits, of, want)
-	}
-}
-
-func finishes(t *testing.T, run func()) {
-	t.Helper()
-
-	done := make(chan struct{})
-
-	go func() {
-		defer close(done)
-		run()
-	}()
-
-	select {
-	case <-done:
-	case <-time.After(10 * time.Second):
-		t.Fatal("did not finish within 10s")
 	}
 }

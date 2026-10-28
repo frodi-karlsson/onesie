@@ -122,17 +122,16 @@ func readQuestions(questions yaml.MapSlice) (onesie.Questions, error) {
 		return nil, err
 	}
 
-	// UnmarshalJSON returns nil or a *ValidationError, so no other error can reach past this.
-	var (
-		read    onesie.Questions
-		refused *onesie.ValidationError
-	)
+	var read onesie.Questions
 
-	if errors.As(read.UnmarshalJSON(encoded), &refused) {
+	err = read.UnmarshalJSON(encoded)
+
+	var refused *onesie.ValidationError
+	if errors.As(err, &refused) {
 		return nil, errors.New(refused.Reason())
 	}
 
-	return read, nil
+	return read, err
 }
 
 func readAssets(value any) (onesie.Assets, error) {

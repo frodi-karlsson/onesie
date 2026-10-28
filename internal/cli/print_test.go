@@ -313,6 +313,63 @@ func TestPrintQuestions(t *testing.T) {
 			t.Errorf("stderr should be empty, got:\n%s", errOut)
 		}
 	})
+
+	t.Run("should send the request body a printed question file was read from", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name string
+			body string
+		}{
+			{
+				name: "should keep a score with string criteria on the wire",
+				body: "questions:\n  tone:\n    type: score\n    instructions: how formal\n" +
+					"    criteria:\n    - very casual\n    - neutral\n    - very formal\n",
+			},
+			{
+				name: "should keep a score with structured criteria on the wire",
+				body: "questions:\n  tone:\n    type: score\n    instructions: how formal\n" +
+					"    criteria:\n    - zebra: z\n      alpha: a\n    - mike: m\n",
+			},
+			{
+				name: "should keep a choice on the wire",
+				body: "questions:\n  team:\n    type: choice\n    instructions: who owns this\n" +
+					"    criteria:\n      billing: money\n      platform: systems\n",
+			},
+			{
+				name: "should keep a noul with a rubric on the wire",
+				body: "questions:\n  spam:\n    type: noul\n    instructions: is this spam\n" +
+					"    criteria:\n      true: bulk or bot sent\n      false: written by a person\n",
+			},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				path := filepath.Join(t.TempDir(), "body.yaml")
+				if err := os.WriteFile(path, []byte(tc.body), 0o600); err != nil {
+					t.Fatalf("writing the body: %v", err)
+				}
+
+				printed, errOut, code := runOffline(t, []string{"-f", path, "--print-questions"})
+				if code != ExitOK {
+					t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, ExitOK, errOut)
+				}
+
+				// Compared as wire bodies, not as plans, because a body's levels have no labels
+				// and the file gives them index ones by design, so the two plans differ where the two
+				// requests must not.
+				before := wireBody(t, []byte(tc.body))
+				after := wireBody(t, []byte(printed))
+
+				if before != after {
+					t.Errorf("the printed file changed the request body\nbefore %s\nafter  %s\n"+
+						"file was\n%s", before, after, printed)
+				}
+			})
+		}
+	})
 }
 
 func checkSchemaAgreement(t *testing.T, fixtures []schemaFixture) {
@@ -632,107 +689,6 @@ func loaderOnlyRule(stderr string) (string, bool) {
 	}
 
 	return "", false
-}
-
-func TestWire(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name string
-		body string
-	}{
-		{
-			name: "should keep a score with string criteria on the wire",
-			body: "questions:\n  tone:\n    type: score\n    instructions: how formal\n" +
-				"    criteria:\n    - very casual\n    - neutral\n    - very formal\n",
-		},
-		{
-			name: "should keep a score with structured criteria on the wire",
-			body: "questions:\n  tone:\n    type: score\n    instructions: how formal\n" +
-				"    criteria:\n    - zebra: z\n      alpha: a\n    - mike: m\n",
-		},
-		{
-			name: "should keep a choice on the wire",
-			body: "questions:\n  team:\n    type: choice\n    instructions: who owns this\n" +
-				"    criteria:\n      billing: money\n      platform: systems\n",
-		},
-		{
-			name: "should keep a noul with a rubric on the wire",
-			body: "questions:\n  spam:\n    type: noul\n    instructions: is this spam\n" +
-				"    criteria:\n      true: bulk or bot sent\n      false: written by a person\n",
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			path := filepath.Join(t.TempDir(), "body.yaml")
-			if err := os.WriteFile(path, []byte(tc.body), 0o600); err != nil {
-				t.Fatalf("writing the body: %v", err)
-			}
-
-			printed, errOut, code := runOffline(t, []string{"-f", path, "--print-questions"})
-			if code != ExitOK {
-				t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, ExitOK, errOut)
-			}
-
-			// Compared as wire bodies rather than as plans, because a body's levels have no labels
-			// and the file gives them index ones by design, so the two plans differ where the two
-			// requests must not.
-			before := wireBody(t, []byte(tc.body))
-			after := wireBody(t, []byte(printed))
-
-			if before != after {
-				t.Errorf("the printed file changed the request body\nbefore %s\nafter  %s\n"+
-					"file was\n%s", before, after, printed)
-			}
-		})
-	}
-
-	criteria := []struct {
-		name string
-		args []string
-		want string
-	}{
-		{
-			name: "should send an empty no when only yes is described",
-			args: []string{"--desc", "yes=bulk or bot sent"},
-			want: `"criteria":{"true":"bulk or bot sent","false":""}`,
-		},
-		{
-			name: "should send an empty yes when only no is described",
-			args: []string{"--desc", "no=written by a person"},
-			want: `"criteria":{"true":"","false":"written by a person"}`,
-		},
-		{
-			name: "should send both descriptions unchanged when both are given",
-			args: []string{"--desc", "yes=bulk or bot sent", "--desc", "no=written by a person"},
-			want: `"criteria":{"true":"bulk or bot sent","false":"written by a person"}`,
-		},
-		{
-			name: "should send no criteria when neither is described",
-			want: `"questions":{"spam":{"type":"noul","instructions":"is this spam"}}`,
-		},
-	}
-
-	for _, tc := range criteria {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			args := append([]string{"--ask", "spam=is this spam"}, tc.args...)
-			args = append(args, "--state", "hello", "--print-request")
-
-			printed, errOut, code := runOffline(t, args)
-			if code != ExitOK {
-				t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, ExitOK, errOut)
-			}
-
-			if !strings.Contains(printed, tc.want) {
-				t.Errorf("request body = %s, want it to contain %s", printed, tc.want)
-			}
-		})
-	}
 }
 
 func wireBody(t *testing.T, data []byte) string {
@@ -1596,6 +1552,54 @@ func TestPrintRequest(t *testing.T) {
 			})
 		}
 	})
+
+	t.Run("should send a yes or no question's descriptions as its criteria", func(t *testing.T) {
+		t.Parallel()
+
+		criteria := []struct {
+			name string
+			args []string
+			want string
+		}{
+			{
+				name: "should send an empty no when only yes is described",
+				args: []string{"--desc", "yes=bulk or bot sent"},
+				want: `"criteria":{"true":"bulk or bot sent","false":""}`,
+			},
+			{
+				name: "should send an empty yes when only no is described",
+				args: []string{"--desc", "no=written by a person"},
+				want: `"criteria":{"true":"","false":"written by a person"}`,
+			},
+			{
+				name: "should send both descriptions unchanged when both are given",
+				args: []string{"--desc", "yes=bulk or bot sent", "--desc", "no=written by a person"},
+				want: `"criteria":{"true":"bulk or bot sent","false":"written by a person"}`,
+			},
+			{
+				name: "should send no criteria when neither is described",
+				want: `"questions":{"spam":{"type":"noul","instructions":"is this spam"}}`,
+			},
+		}
+
+		for _, tc := range criteria {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				args := append([]string{"--ask", "spam=is this spam"}, tc.args...)
+				args = append(args, "--state", "hello", "--print-request")
+
+				printed, errOut, code := runOffline(t, args)
+				if code != ExitOK {
+					t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, ExitOK, errOut)
+				}
+
+				if !strings.Contains(printed, tc.want) {
+					t.Errorf("request body = %s, want it to contain %s", printed, tc.want)
+				}
+			})
+		}
+	})
 }
 
 func runRecorded(t *testing.T, args []string, stdin string) (string, string, int) {
@@ -2085,10 +2089,7 @@ type heldReader struct {
 }
 
 func (r *heldReader) Read(p []byte) (int, error) {
-	select {
-	case <-r.until:
-	case <-time.After(5 * time.Second):
-	}
+	<-r.until
 
 	return r.data.Read(p)
 }

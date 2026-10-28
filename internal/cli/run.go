@@ -562,12 +562,6 @@ func compact(raw string) []byte {
 	return flat.Bytes()
 }
 
-func aborting(err error) bool {
-	// Every later record would fail the same way, and a bad key should be reported once rather
-	// than once per line.
-	return authFailure(err) || halting(err)
-}
-
 func stopping(flags runConfig) func(line) bool {
 	if !flags.stopOnAssert {
 		// Nil rather than a predicate that always says no, so the engine asks nothing of a run
@@ -642,6 +636,12 @@ func stoppedAtInput(cause error) bool {
 	// --stop-on-error ended the run at a record that never became a request. The exit code table
 	// has no code of its own for that, so it exits 6 as the same record does without the flag.
 	return !aborting(cause) && !errors.Is(cause, context.Canceled) && classify(cause).kind == output.KindInput
+}
+
+func aborting(err error) bool {
+	// Every later record would fail the same way, so a bad key is reported on one line for the
+	// whole run.
+	return authFailure(err) || halting(err)
 }
 
 func ask(

@@ -28,6 +28,7 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/creds"
 	"github.com/frodi-karlsson/onesie/internal/input"
 	"github.com/frodi-karlsson/onesie/internal/limits"
+	"github.com/frodi-karlsson/onesie/internal/mock"
 	"github.com/frodi-karlsson/onesie/internal/providers"
 	"github.com/frodi-karlsson/onesie/internal/release"
 )
@@ -86,13 +87,8 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *Root {
 
 	// Installed after the options, since they read the environment lookup and home directory a test
 	// may have replaced, and before the holder and the factory, which resolve the files through them.
-	if settings.profilesPath == nil {
-		settings.profilesPath = profilesLocation(settings.lookupEnv, settings.homeDir, settings.goos)
-	}
-
-	if settings.configDir == nil {
-		settings.configDir = configDir(settings.lookupEnv, settings.homeDir, settings.goos)
-	}
+	settings.profilesPath = profilesLocation(settings.lookupEnv, settings.homeDir, settings.goos)
+	settings.configDir = configDir(settings.lookupEnv, settings.homeDir, settings.goos)
 
 	// The holder and the factory read flags, which are parsed after this returns, so both close over
 	// the pointer. The holder comes first, since the factory reads through it.
@@ -280,11 +276,6 @@ func addRootFlags(root *cobra.Command, flags *runFlags, recorder *argv.Recorder)
 	root.PersistentFlags().Var(choiceValue{value: &flags.profile, set: &flags.profileSet}, flagProfile,
 		"the profile a run uses, from profiles.json in the config dir. Also ONESIE_PROFILE, and otherwise "+
 			"the default profile, which onesie profile use sets")
-	root.PersistentFlags().StringVar(&flags.mock, "mock", "",
-		"answer from this file instead of the API. Also ONESIE_MOCK. The file is an object keyed by question id, "+
-			`as {"answer":0.9,"team":"billing"}, or one line per record in the shape -o json writes. `+
-			"A lone line that carries id, line, model, usage, assert, abstain or an error object is one record")
-	refuseEmpty(root.PersistentFlags(), "mock")
 	root.Flags().BoolVar(&flags.printQuestions, "print-questions", false,
 		"write a question file to stdout and exit, its first line naming the schema --print-schema prints")
 	root.Flags().BoolVar(&flags.printSchema, "print-schema", false,
@@ -399,10 +390,11 @@ func defaultSettings(info BuildInfo) rootSettings {
 		readSecret:    func() (string, error) { return readHiddenSecret(os.Stdin) },
 		schemaURL:     schemaURLOf(info),
 		dedupLimit:    limits.MaxDedupRequests,
-		answerers:     func(answers answererFactory) answererFactory { return answers },
 		readBuiltIn:   questions.Read,
 		builtIns:      questions.Names,
 		transport:     http.DefaultTransport,
+		clock:         onesie.SystemClock(),
+		mockTransport: func(provider onesie.Provider) http.RoundTripper { return mock.NewTransport(provider) },
 		laterFailures: &failureLog{},
 	}
 }
@@ -443,6 +435,11 @@ func addRunFlags(set *pflag.FlagSet, flags *runFlags, help runFlagHelp) {
 	set.BoolVar(&flags.usage, "usage", false, help.usage)
 	set.BoolVar(&flags.printRequest, "print-request", false, "write api shaped request bodies to stdout and exit")
 	set.BoolVar(&flags.cache, flagCache, false, cacheHelp)
+	set.StringVar(&flags.mock, "mock", "",
+		"answer from this file instead of the API. Also ONESIE_MOCK. The file is an object keyed by question id, "+
+			`as {"answer":0.9,"team":"billing"}, or one line per record in the shape -o json writes. `+
+			"A lone line that carries id, line, model, usage, assert, abstain or an error object is one record")
+	refuseEmpty(set, "mock")
 }
 
 type runFlagHelp struct {
@@ -797,6 +794,13 @@ func WithStdoutTTY(tty bool) RootOption {
 	}
 }
 
+// WithClock replaces the clock a live client reads the time from and waits out a retry on.
+func WithClock(clock onesie.Clock) RootOption {
+	return func(s *rootSettings) {
+		s.clock = clock
+	}
+}
+
 // WithReadFile replaces how @FILE references, -f and --state-file are resolved.
 func WithReadFile(read func(string) ([]byte, error)) RootOption {
 	return func(s *rootSettings) {
@@ -847,14 +851,6 @@ func withNow(now func() time.Time) RootOption {
 func withTerminalWidth(width func() (int, bool)) RootOption {
 	return func(s *rootSettings) {
 		s.terminalWidth = width
-	}
-}
-
-// WithProfilesPath replaces how the profiles file's location is resolved, so a test needs no real
-// home directory. Its directory also holds the credentials.json a first read converts.
-func WithProfilesPath(path func() (string, error)) RootOption {
-	return func(s *rootSettings) {
-		s.profilesPath = path
 	}
 }
 
@@ -929,12 +925,13 @@ type rootSettings struct {
 	credStore     creds.Store
 	keychain      *creds.Keychain
 	readSecret    func() (string, error)
-	answerers     func(answererFactory) answererFactory
 	schemaURL     string
 	dedupLimit    int
 	readBuiltIn   func(name string) ([]byte, bool)
 	builtIns      func() []string
 	transport     http.RoundTripper
+	clock         onesie.Clock
+	mockTransport func(onesie.Provider) http.RoundTripper
 	laterFailures *failureLog
 }
 

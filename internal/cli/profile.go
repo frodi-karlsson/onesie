@@ -48,7 +48,7 @@ func newProfileCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 			return cmd.Help()
 		},
 		PersistentPreRunE: func(*cobra.Command, []string) error {
-			return refuseMock(settings, flags)
+			return refuseMock(settings.lookupEnv)
 		},
 	}
 
@@ -65,19 +65,13 @@ func newProfileCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 	return cmd
 }
 
-func refuseMock(settings rootSettings, flags *runFlags) error {
-	_, spelled := mockSource(settings.lookupEnv, flags.mock)
-	if spelled == "" {
+func refuseMock(lookupEnv func(string) (string, bool)) error {
+	if value, found := lookupEnv(envMock); !found || value == "" {
 		return nil
 	}
 
-	advice := "Unset it"
-	if spelled == flagMock {
-		advice = "Drop it"
-	}
-
-	return fmt.Errorf("profile reads and writes real configuration, so it does not run under %s. %s",
-		spelled, advice)
+	return fmt.Errorf("profile reads and writes real configuration, so it does not run under %s. Unset it",
+		envMock)
 }
 
 func newProfileCreateCmd(settings rootSettings, flags *runFlags) *cobra.Command {
@@ -401,9 +395,7 @@ func profileList(cmd *cobra.Command, settings rootSettings, flags *runFlags) err
 		return nil
 	}
 
-	_, err = fmt.Fprintln(cmd.ErrOrStderr(), reason)
-
-	return err
+	return output.Notice(cmd.ErrOrStderr(), reason)
 }
 
 func writeProfiles(w io.Writer, profiles creds.Profiles, active string) error {

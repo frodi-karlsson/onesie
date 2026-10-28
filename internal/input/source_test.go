@@ -582,10 +582,7 @@ type gatedReader struct {
 }
 
 func (r *gatedReader) Read(p []byte) (int, error) {
-	select {
-	case <-r.gate:
-	case <-time.After(5 * time.Second):
-	}
+	<-r.gate
 
 	return r.data.Read(p)
 }

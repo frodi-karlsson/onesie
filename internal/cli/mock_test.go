@@ -10,9 +10,12 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/frodi-karlsson/onesie-go"
@@ -223,11 +226,22 @@ func TestMockAnswers(t *testing.T) {
 			stderrAbsent: []string{"request", "$"},
 		},
 		{
-			name:     "should count the retries of a mocked 503 under --stats",
-			args:     with("-o", "values", "--state", "x", "--stats"),
-			mock:     `{"error":503}`,
-			stderr:   []string{"1 failed, 3 questions asked, 0 in / 0 out tokens, 3 attempts (2 retries: 503×2), 10s/attempt, "},
+			name: "should count the retries of a mocked 503 under --stats",
+			args: with("-o", "values", "--state", "x", "--stats"),
+			mock: `{"error":503}`,
+			stderr: []string{
+				"1 record, 1 failed, 0 answered from the mock, 3 questions asked, 0 in / 0 out tokens, " +
+					"3 attempts (2 retries: 503×2), 10s/attempt, ",
+			},
 			wantCode: ExitUnavailable,
+		},
+		{
+			name:     "should replay a stored cloudflare auth row as the refusal it was, with kind auth and exit 3",
+			args:     with("-i", "lines", "-o", "json", "--provider", "cloudflare"),
+			stdin:    "a\n",
+			mock:     `{"error":{"kind":"auth","status":400,"message":"400 Authentication error"}}` + "\n",
+			contains: []string{`"error":{"kind":"auth","status":400,"message":"400 Authentication error"}`},
+			wantCode: ExitAuth,
 		},
 		{
 			name:     "should exit 3 for one record the file refuses with 401, naming no key",
@@ -462,11 +476,11 @@ func TestMockAnswers(t *testing.T) {
 			wantCode: ExitUsage,
 		},
 		{
-			name: "should refuse profile test under --mock",
+			name: "should refuse --mock on profile test, which takes no such flag",
 			args: []string{"profile", "test"},
 			mock: mockAll,
 			stderr: []string{
-				"onesie: profile reads and writes real configuration, so it does not run under --mock. Drop it",
+				"onesie: profile test has no flag --mock. --mock belongs to a run, not to profile test",
 			},
 			wantCode: ExitUsage,
 		},
@@ -477,7 +491,7 @@ func TestMockAnswers(t *testing.T) {
 			mock:     threeMock,
 			contains: []string{"urgent, yes/no: labelled 4, 2 yes, 2 no, 0 failed"},
 			absent:   []string{"team,", "tone,"},
-			stderr:   []string{"skipping 'team' and 'tone', which have no --label\n"},
+			stderr:   []string{"onesie: skipping 'team' and 'tone', which have no --label\n"},
 			wantCode: ExitOK,
 		},
 		{
@@ -618,116 +632,348 @@ func TestMockAnswers(t *testing.T) {
 		checkMocked(t, out, errOut, code, ExitUsage, nil, nil, nil,
 			[]string{"onesie: --profile names profile 'nope', which does not exist. The profiles are 'lv'"})
 	})
-}
 
-func TestMockUncovered(t *testing.T) {
-	t.Parallel()
-
-	eight := "\"a\"\n\"b\"\n\"c\"\n\"d\"\n\"e\"\n\"f\"\n\"g\"\n\"h\"\n"
-	values := []string{"is it urgent", "-o", "values", "-i", "jsonl", "-j", "4"}
-	yes := `{"answer":0.9}`
-	answers := strings.Join([]string{yes, yes, mockUnread, yes, yes, yes, yes, yes}, "\n") + "\n"
-
-	t.Run("should drop the records the engine flushes after a slow uncovered one", func(t *testing.T) {
+	t.Run("should stop at a record the file does not answer", func(t *testing.T) {
 		t.Parallel()
 
-		out, errOut, code := runMocked(t, t.Context(), append(values, "--mock", writeMock(t, answers)), eight, nil, nil,
-			delaying(3, 5))
+		const jobs = 4
 
-		checkMocked(t, out, errOut, code, ExitUsage, fileOf(yes+"\n"+yes+"\n"), nil, nil, []string{"input line 3"})
+		values := []string{"is it urgent", "-o", "values", "-i", "jsonl", "-j", strconv.Itoa(jobs)}
+		yes := `{"answer":0.9}`
+
+		// The ordered engine lets -j records wait behind the one the writer holds and lets the writer
+		// hold one more, so while it waits on record 2 the dispatched records are 1 to jobs + 1. Of
+		// those, record 2 is held and record 3 fails before any request, which leaves jobs - 1 to answer.
+		others := jobs - 1
+
+		t.Run("should drop the records the engine flushes after an uncovered one", func(t *testing.T) {
+			t.Parallel()
+
+			eight := "\"item-1\"\n\"item-2\"\n\"item-3\"\n\"item-4\"\n\"item-5\"\n\"item-6\"\n\"item-7\"\n\"item-8\"\n"
+			answers := strings.Join([]string{yes, yes, mockUnread, yes, yes, yes, yes, yes}, "\n") + "\n"
+
+			// Record 2 is held until every other record in flight is answered. Record 3 fails at once,
+			// so the engine holds answers past it when the writer reaches it.
+			out, errOut, code := runMocked(t, t.Context(), append(values, "--mock", writeMock(t, answers)), eight, nil, nil,
+				delaying("item-2", others))
+
+			checkMocked(t, out, errOut, code, ExitUsage, fileOf(yes+"\n"+yes+"\n"), nil, nil, []string{"input line 3"})
+		})
+
+		t.Run("should keep the lines that arrived before an uncovered record under --unordered", func(t *testing.T) {
+			t.Parallel()
+
+			answers := strings.Repeat(yes+"\n", 7) + mockUnread + "\n"
+
+			// The uncovered record is read only once the seven before it are written, so its error
+			// cannot race their lines.
+			out := &signalledLines{written: make(chan struct{}, 8)}
+			stdin := &gatedLines{
+				lines:   []string{`"a"`, `"b"`, `"c"`, `"d"`, `"e"`, `"f"`, `"g"`, `"h"`},
+				gatedAt: 7, waits: 7, gate: out.written, done: beforeDeadline(t).Done(),
+			}
+
+			errOut, code := runMockedTo(t, t.Context(), out,
+				append(values, "--unordered", "--mock", writeMock(t, answers)), "", nil, stdin)
+
+			checkMocked(t, out.String(), errOut, code, ExitUsage, fileOf(strings.Repeat(yes+"\n", 7)), nil, nil,
+				[]string{"input line 8"})
+		})
+
+		t.Run("should keep the lines of records after an uncovered one that finished first under --unordered", func(t *testing.T) {
+			t.Parallel()
+
+			dir := t.TempDir()
+			square := squarePNG(t)
+			paths := make([]string, 8)
+
+			for i := range paths {
+				paths[i] = writeImage(t, dir, strconv.Itoa(i+1)+".png", square)
+			}
+
+			answers := strings.Join([]string{yes, yes, mockUnread, yes, yes, yes, yes, yes}, "\n") + "\n"
+			out := &signalledLines{written: make(chan struct{}, 8)}
+			done := beforeDeadline(t).Done()
+
+			// Under --unordered every other record runs past the one held, so record 3 reads its image
+			// only once the other seven lines are written, and its error lands after all of them.
+			read := WithReadFile(func(path string) ([]byte, error) {
+				if path == paths[2] {
+					for range len(paths) - 1 {
+						select {
+						case <-out.written:
+						case <-done:
+							return nil, errors.New("the other records were never written")
+						}
+					}
+				}
+
+				return os.ReadFile(path)
+			})
+
+			args := []string{
+				"is it urgent", "-o", "values", "-i", "lines", "--image-field", "photo", "-j", strconv.Itoa(jobs),
+				"--unordered", "--mock", writeMock(t, answers),
+			}
+
+			errOut, code := runMockedTo(t, t.Context(), out, args, strings.Join(paths, "\n")+"\n", nil, nil, read)
+
+			var want strings.Builder
+			for _, line := range []int{1, 2, 4, 5, 6, 7, 8} {
+				fmt.Fprintf(&want, "{\"line\":%d,\"answer\":0.9}\n", line)
+			}
+
+			checkMocked(t, sortedLines(out.String()), errOut, code, ExitUsage, fileOf(want.String()), nil, nil,
+				[]string{"input line 3"})
+		})
+
+		t.Run("should keep calibrate's answers file to the records before an uncovered one", func(t *testing.T) {
+			t.Parallel()
+
+			ids := []string{"a", "b", "c", "d", "e", "f"}
+
+			var stdin, partial, full strings.Builder
+
+			for _, id := range ids {
+				fmt.Fprintf(&stdin, "{\"id\":%q,\"body\":\"item-%s\",\"u\":true}\n", id, id)
+				fmt.Fprintf(&full, "{\"id\":%q,\"u\":0.9}\n", id)
+
+				if id != "c" {
+					fmt.Fprintf(&partial, "{\"id\":%q,\"u\":0.9}\n", id)
+				}
+			}
+
+			out := filepath.Join(t.TempDir(), "answers.jsonl")
+			args := []string{
+				"calibrate", "--ask", "u=is it urgent", "-i", "jsonl", "--map", ".body", "--id", ".id",
+				"--label", "u=.u", "-j", "4", "--out", out, "--resume",
+			}
+
+			_, errOut, code := runMocked(t, t.Context(), append(args, "--mock", writeMock(t, partial.String())),
+				stdin.String(), nil, nil, delaying("item-b", others))
+			if code != ExitUsage || !strings.Contains(errOut, "no line with id 'c'") {
+				t.Fatalf("first run exit %d\n%s", code, errOut)
+			}
+
+			want := `{"id":"a","model":"jev-latest","u":{"value":0.9}}` + "\n" + `{"id":"b","model":"jev-latest","u":{"value":0.9}}` + "\n"
+			if got := readText(t, out); got != want {
+				t.Errorf("file = %q, want %q", got, want)
+			}
+
+			_, errOut, code = runMocked(t, t.Context(), append(args, "--mock", writeMock(t, full.String())),
+				stdin.String(), nil, nil)
+			if code != ExitOK || !strings.Contains(errOut, "onesie: asking 4 of 6 records") {
+				t.Errorf("second run exit %d\n%s", code, errOut)
+			}
+		})
 	})
 
-	t.Run("should keep the lines that arrived before an uncovered record under --unordered", func(t *testing.T) {
+	t.Run("should replay the lines a real run wrote", func(t *testing.T) {
 		t.Parallel()
 
-		// Held on the lines written, not the records answered, since under --unordered a record's line
-		// is written after its answer returns and would race the uncovered record's error.
-		out := &signalledLines{written: make(chan struct{}, 8)}
+		t.Run("should give a replayed gated line the verdict the real run gave", func(t *testing.T) {
+			t.Parallel()
 
-		errOut, code := runMockedTo(t, t.Context(), out,
-			append(values, "--unordered", "--mock", writeMock(t, answers)), eight, nil, nil,
-			holding(3, 7, out.written, nil))
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				body := `{"model":"m","answers":{"r":{"type":"score","score":1.3,"confidence":0.8,` +
+					`"legend":{"0":"calm","1":"curt","2":"rude"},"probabilities":{"0":0.1,"1":0.5,"2":0.4}}},"usage":{}}`
+				if _, err := io.WriteString(w, body); err != nil {
+					t.Errorf("writing the stub response: %v", err)
+				}
+			}))
+			t.Cleanup(srv.Close)
 
-		checkMocked(t, out.String(), errOut, code, ExitUsage, fileOf(strings.Repeat(yes+"\n", 7)), nil, nil,
-			[]string{"input line 3"})
+			args := []string{
+				"--ask", "r=how rude", "--rate", "calm,curt,rude", "-i", "jsonl", "-o", "json",
+				"--assert", "r.p.rude < 0.3",
+			}
+			stdin := "{\"a\":1}\n"
+			out := filepath.Join(t.TempDir(), "answers.jsonl")
+
+			if _, errOut, code := runReal(t, append(args, "--out", out), stdin, srv.URL); code != ExitRejected {
+				t.Fatalf("real run exit %d, want 1\n%s", code, errOut)
+			}
+
+			replay, errOut, code := runMocked(t, t.Context(), append(args, "--mock", out), stdin, nil, nil)
+			if code != ExitRejected {
+				t.Errorf("replay exit %d, want 1\n%s\n%s", code, replay, errOut)
+			}
+
+			for _, want := range []string{`"score":1.3`, `"norm":0.65`, `"p":{"calm":0.1,"curt":0.5,"rude":0.4}`} {
+				if !strings.Contains(replay, want) {
+					t.Errorf("replay missing %s\n%s", want, replay)
+				}
+			}
+		})
 	})
 
-	t.Run("should keep calibrate's answers file to the records before an uncovered one", func(t *testing.T) {
+	t.Run("should resume a run from the file", func(t *testing.T) {
 		t.Parallel()
 
-		ids := []string{"a", "b", "c", "d", "e", "f"}
+		question := []string{"is it urgent", "-o", "json", "-i", "jsonl", "--id", ".id"}
+		input := "{\"id\":1}\n{\"id\":2}\n{\"id\":3}\n"
+		full := "{\"id\":1,\"answer\":0.1}\n{\"id\":2,\"answer\":0.2}\n{\"id\":3,\"answer\":0.3}\n"
+		wantFile := `{"id":1,"model":"jev-latest","answer":{"value":0.1}}` + "\n" +
+			`{"id":2,"model":"jev-latest","answer":{"value":0.2}}` + "\n" +
+			`{"id":3,"model":"jev-latest","answer":{"value":0.3}}` + "\n"
 
-		var stdin, partial, full strings.Builder
+		t.Run("should stop a resume at a stored refused key with the code the refusal exits with", func(t *testing.T) {
+			t.Parallel()
 
-		for _, id := range ids {
-			fmt.Fprintf(&stdin, "{\"id\":%q,\"body\":\"x\",\"u\":true}\n", id)
-			fmt.Fprintf(&full, "{\"id\":%q,\"u\":0.9}\n", id)
-
-			if id != "c" {
-				fmt.Fprintf(&partial, "{\"id\":%q,\"u\":0.9}\n", id)
+			tests := []struct {
+				name     string
+				provider string
+				row      string
+			}{
+				{
+					name: "should exit 3 for a stored 401", provider: "typesafe",
+					row: `{"error":{"kind":"auth","status":401,"message":"401 the key was refused"}}`,
+				},
+				{
+					name: "should exit 3 for a stored 401 written with kind http", provider: "typesafe",
+					row: `{"error":{"kind":"http","status":401,"message":"401 the key was refused"}}`,
+				},
+				{
+					name: "should exit 3 for a stored cloudflare 400 that refused the token", provider: "cloudflare",
+					row: `{"error":{"kind":"auth","status":400,"message":"400 Authentication failed (status: 400)"}}`,
+				},
 			}
-		}
 
-		out := filepath.Join(t.TempDir(), "answers.jsonl")
-		args := []string{
-			"calibrate", "--ask", "u=is it urgent", "-i", "jsonl", "--map", ".body", "--id", ".id",
-			"--label", "u=.u", "-j", "4", "--out", out, "--resume",
-		}
+			for _, tc := range tests {
+				t.Run(tc.name, func(t *testing.T) {
+					t.Parallel()
 
-		_, errOut, code := runMocked(t, t.Context(), append(args, "--mock", writeMock(t, partial.String())),
-			stdin.String(), nil, nil, delaying(3, 5))
-		if code != ExitUsage || !strings.Contains(errOut, "no line with id 'c'") {
-			t.Fatalf("first run exit %d\n%s", code, errOut)
-		}
+					out := filepath.Join(t.TempDir(), "answers.jsonl")
+					args := []string{
+						"is it urgent", "-o", "json", "-i", "jsonl", "--provider", tc.provider, "--out", out, "--resume",
+						"--mock", writeMock(t, "{\"answer\":0.2}\n{\"answer\":0.3}\n{\"answer\":0.4}\n"),
+					}
+					env := map[string]string{"CLOUDFLARE_ACCOUNT_ID": "acct"}
+					stdin := "\"one\"\n\"two\"\n\"three\"\n"
 
-		want := `{"id":"a","model":"jev-latest","u":{"value":0.9}}` + "\n" + `{"id":"b","model":"jev-latest","u":{"value":0.9}}` + "\n"
-		if got := readText(t, out); got != want {
-			t.Errorf("file = %q, want %q", got, want)
-		}
+					// A clean run writes the fingerprint. The file then holds the refusal followed by an
+					// answer, the shape a run the refusal aborts leaves when a later record finishes first.
+					if _, errOut, code := runMocked(t, t.Context(), args, stdin, env, nil); code != ExitOK {
+						t.Fatalf("clean run exit %d\n%s", code, errOut)
+					}
 
-		_, errOut, code = runMocked(t, t.Context(), append(args, "--mock", writeMock(t, full.String())),
-			stdin.String(), nil, nil)
-		if code != ExitOK || !strings.Contains(errOut, "asking 4 of 6 records") {
-			t.Errorf("second run exit %d\n%s", code, errOut)
-		}
-	})
-}
+					answered := strings.SplitAfter(readText(t, out), "\n")[1]
+					if err := os.WriteFile(out, []byte(tc.row+"\n"+answered), 0o600); err != nil {
+						t.Fatal(err)
+					}
 
-func TestMockReplay(t *testing.T) {
-	t.Parallel()
+					_, errOut, code := runMocked(t, t.Context(), append(args, "--stop-on-error"), stdin, env, nil)
+					if code != ExitAuth {
+						t.Errorf("resume exit %d, want %d as the live refusal exits\n%s", code, ExitAuth, errOut)
+					}
 
-	t.Run("should give a replayed gated line the verdict the real run gave", func(t *testing.T) {
-		t.Parallel()
-
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			body := `{"model":"m","answers":{"r":{"type":"score","score":1.3,"confidence":0.8,` +
-				`"legend":{"0":"calm","1":"curt","2":"rude"},"probabilities":{"0":0.1,"1":0.5,"2":0.4}}},"usage":{}}`
-			if _, err := io.WriteString(w, body); err != nil {
-				t.Errorf("writing the stub response: %v", err)
+					// Without the flag the stored refusal is skipped as any failed line is, and counts as failed.
+					_, errOut, code = runMocked(t, t.Context(), args, stdin, env, nil)
+					if code != ExitRecords {
+						t.Errorf("resume without --stop-on-error exit %d, want %d\n%s", code, ExitRecords, errOut)
+					}
+				})
 			}
-		}))
-		t.Cleanup(srv.Close)
+		})
 
-		args := []string{
-			"--ask", "r=how rude", "--rate", "calm,curt,rude", "-i", "jsonl", "-o", "json",
-			"--assert", "r.p.rude < 0.3",
-		}
-		stdin := "{\"a\":1}\n"
-		out := filepath.Join(t.TempDir(), "answers.jsonl")
+		t.Run("should keep the lines before an uncovered record and ask the rest on resume", func(t *testing.T) {
+			t.Parallel()
 
-		if _, errOut, code := runReal(t, append(args, "--out", out), stdin, srv.URL); code != ExitRejected {
-			t.Fatalf("real run exit %d, want 1\n%s", code, errOut)
-		}
+			out := filepath.Join(t.TempDir(), "answers.jsonl")
+			partial := writeMock(t, "{\"id\":1,\"answer\":0.1}\n{\"id\":3,\"answer\":0.3}\n")
+			args := append(append([]string{}, question...), "--out", out, "--resume")
 
-		replay, errOut, code := runMocked(t, t.Context(), append(args, "--mock", out), stdin, nil, nil)
-		if code != ExitRejected {
-			t.Errorf("replay exit %d, want 1\n%s\n%s", code, replay, errOut)
-		}
-
-		for _, want := range []string{`"score":1.3`, `"norm":0.65`, `"p":{"calm":0.1,"curt":0.5,"rude":0.4}`} {
-			if !strings.Contains(replay, want) {
-				t.Errorf("replay missing %s\n%s", want, replay)
+			_, errOut, code := runMocked(t, t.Context(), append(args, "--mock", partial), input, nil, nil)
+			if code != ExitUsage {
+				t.Fatalf("first run exit %d, want 2\n%s", code, errOut)
 			}
+
+			if got := readText(t, out); got != `{"id":1,"model":"jev-latest","answer":{"value":0.1}}`+"\n" {
+				t.Errorf("after the first run the file holds %q", got)
+			}
+
+			_, errOut, code = runMocked(t, t.Context(), append(args, "--mock", writeMock(t, full), "--stats"), input, nil, nil)
+			if code != ExitOK {
+				t.Fatalf("second run exit %d, want 0\n%s", code, errOut)
+			}
+
+			if !strings.Contains(errOut, "3 records, 1 skipped by --resume, 2 answered from the mock") {
+				t.Errorf("the second run did not ask exactly the last two records: %s", errOut)
+			}
+
+			if got := readText(t, out); got != wantFile {
+				t.Errorf("file = %q, want %q", got, wantFile)
+			}
+		})
+
+		t.Run("should carry on after an interrupt", func(t *testing.T) {
+			t.Parallel()
+
+			out := filepath.Join(t.TempDir(), "answers.jsonl")
+			mockFile := writeMock(t, full)
+			args := append(append([]string{}, question...), "--out", out, "--resume", "--mock", mockFile, "-j", "1")
+
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+
+			_, errOut, code := runMocked(t, ctx, args, input, nil, nil, interruptingAt(2, cancel))
+			if code != ExitInterrupt {
+				t.Fatalf("first run exit %d, want 130\n%s", code, errOut)
+			}
+
+			if got := readText(t, out); !strings.HasPrefix(wantFile, got) {
+				t.Errorf("the interrupted file %q is not a prefix of %q", got, wantFile)
+			}
+
+			_, errOut, code = runMocked(t, t.Context(), append(args, "--stats"), input, nil, nil)
+			if code != ExitOK {
+				t.Fatalf("second run exit %d, want 0\n%s", code, errOut)
+			}
+
+			if !strings.Contains(errOut, " skipped") {
+				t.Errorf("the second run skipped no record: %s", errOut)
+			}
+
+			if got := readText(t, out); got != wantFile {
+				t.Errorf("file = %q, want %q", got, wantFile)
+			}
+		})
+
+		for _, tc := range []struct {
+			name        string
+			firstMocked bool
+		}{
+			{name: "should refuse to resume a mock run's file with a real run", firstMocked: true},
+			{name: "should refuse to resume a real run's file with a mock run", firstMocked: false},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					if _, err := io.WriteString(w, `{"model":"m","answers":{"answer":{"type":"noul","noul":0.5}},"usage":{}}`); err != nil {
+						t.Errorf("writing the stub response: %v", err)
+					}
+				}))
+				t.Cleanup(srv.Close)
+
+				out := filepath.Join(t.TempDir(), "answers.jsonl")
+				args := append(append([]string{}, question...), "--out", out, "--resume")
+				mocked := append(append([]string{}, args...), "--mock", writeMock(t, full))
+
+				first, second := mocked, args
+				if !tc.firstMocked {
+					first, second = args, mocked
+				}
+
+				if _, errOut, code := runReal(t, first, input, srv.URL); code != ExitOK {
+					t.Fatalf("first run exit %d\n%s", code, errOut)
+				}
+
+				_, errOut, code := runReal(t, second, input, srv.URL)
+				if code != ExitUsage || !strings.Contains(errOut, "changed since") {
+					t.Errorf("second run exit %d, want 2 with the changed message\n%s", code, errOut)
+				}
+			})
 		}
 	})
 }
@@ -834,158 +1080,6 @@ func TestMockSource(t *testing.T) {
 	}
 }
 
-func TestMockResume(t *testing.T) {
-	t.Parallel()
-
-	question := []string{"is it urgent", "-o", "json", "-i", "jsonl", "--id", ".id"}
-	input := "{\"id\":1}\n{\"id\":2}\n{\"id\":3}\n"
-	full := "{\"id\":1,\"answer\":0.1}\n{\"id\":2,\"answer\":0.2}\n{\"id\":3,\"answer\":0.3}\n"
-	wantFile := `{"id":1,"model":"jev-latest","answer":{"value":0.1}}` + "\n" +
-		`{"id":2,"model":"jev-latest","answer":{"value":0.2}}` + "\n" +
-		`{"id":3,"model":"jev-latest","answer":{"value":0.3}}` + "\n"
-
-	t.Run("should keep the lines before an uncovered record and ask the rest on resume", func(t *testing.T) {
-		t.Parallel()
-
-		out := filepath.Join(t.TempDir(), "answers.jsonl")
-		partial := writeMock(t, "{\"id\":1,\"answer\":0.1}\n{\"id\":3,\"answer\":0.3}\n")
-		args := append(append([]string{}, question...), "--out", out, "--resume")
-
-		_, errOut, code := runMocked(t, t.Context(), append(args, "--mock", partial), input, nil, nil)
-		if code != ExitUsage {
-			t.Fatalf("first run exit %d, want 2\n%s", code, errOut)
-		}
-
-		if got := readText(t, out); got != `{"id":1,"model":"jev-latest","answer":{"value":0.1}}`+"\n" {
-			t.Errorf("after the first run the file holds %q", got)
-		}
-
-		_, errOut, code = runMocked(t, t.Context(), append(args, "--mock", writeMock(t, full), "--stats"), input, nil, nil)
-		if code != ExitOK {
-			t.Fatalf("second run exit %d, want 0\n%s", code, errOut)
-		}
-
-		if !strings.Contains(errOut, "3 records, 1 skipped by --resume, 2 answered from the mock") {
-			t.Errorf("the second run did not ask exactly the last two records: %s", errOut)
-		}
-
-		if got := readText(t, out); got != wantFile {
-			t.Errorf("file = %q, want %q", got, wantFile)
-		}
-	})
-
-	t.Run("should carry on after an interrupt", func(t *testing.T) {
-		t.Parallel()
-
-		out := filepath.Join(t.TempDir(), "answers.jsonl")
-		mockFile := writeMock(t, full)
-		args := append(append([]string{}, question...), "--out", out, "--resume", "--mock", mockFile, "-j", "1")
-
-		ctx, cancel := context.WithCancel(t.Context())
-		defer cancel()
-
-		_, errOut, code := runMocked(t, ctx, args, input, nil, nil, interruptingAt(2, cancel))
-		if code != ExitInterrupt {
-			t.Fatalf("first run exit %d, want 130\n%s", code, errOut)
-		}
-
-		if got := readText(t, out); !strings.HasPrefix(wantFile, got) {
-			t.Errorf("the interrupted file %q is not a prefix of %q", got, wantFile)
-		}
-
-		_, errOut, code = runMocked(t, t.Context(), append(args, "--stats"), input, nil, nil)
-		if code != ExitOK {
-			t.Fatalf("second run exit %d, want 0\n%s", code, errOut)
-		}
-
-		if !strings.Contains(errOut, " skipped") {
-			t.Errorf("the second run skipped no record: %s", errOut)
-		}
-
-		if got := readText(t, out); got != wantFile {
-			t.Errorf("file = %q, want %q", got, wantFile)
-		}
-	})
-
-	for _, tc := range []struct {
-		name        string
-		firstMocked bool
-	}{
-		{name: "should refuse to resume a mock run's file with a real run", firstMocked: true},
-		{name: "should refuse to resume a real run's file with a mock run", firstMocked: false},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-				if _, err := io.WriteString(w, `{"model":"m","answers":{"answer":{"type":"noul","noul":0.5}},"usage":{}}`); err != nil {
-					t.Errorf("writing the stub response: %v", err)
-				}
-			}))
-			t.Cleanup(srv.Close)
-
-			out := filepath.Join(t.TempDir(), "answers.jsonl")
-			args := append(append([]string{}, question...), "--out", out, "--resume")
-			mocked := append(append([]string{}, args...), "--mock", writeMock(t, full))
-
-			first, second := mocked, args
-			if !tc.firstMocked {
-				first, second = args, mocked
-			}
-
-			if _, errOut, code := runReal(t, first, input, srv.URL); code != ExitOK {
-				t.Fatalf("first run exit %d\n%s", code, errOut)
-			}
-
-			_, errOut, code := runReal(t, second, input, srv.URL)
-			if code != ExitUsage || !strings.Contains(errOut, "changed since") {
-				t.Errorf("second run exit %d, want 2 with the changed message\n%s", code, errOut)
-			}
-		})
-	}
-}
-
-func TestCalibrateMock(t *testing.T) {
-	t.Parallel()
-
-	t.Run("should print a report from the file with no request made", func(t *testing.T) {
-		t.Parallel()
-
-		mockFile := writeMock(t, "{\"id\":\"a\",\"u\":0.9}\n{\"id\":\"b\",\"u\":0.1}\n{\"id\":\"c\",\"u\":0.8}\n")
-		args := []string{
-			"calibrate", "--ask", "u=is it urgent", "-i", "jsonl", "--map", ".body", "--id", ".id",
-			"--label", "u=.u", "-o", "json", "--mock", mockFile,
-		}
-		stdin := "{\"id\":\"a\",\"body\":\"x\",\"u\":true}\n{\"id\":\"b\",\"body\":\"y\",\"u\":false}\n" +
-			"{\"id\":\"c\",\"body\":\"z\",\"u\":false}\n"
-
-		out, errOut, code := runMocked(t, t.Context(), args, stdin, nil, nil)
-		if code != ExitOK {
-			t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, out, errOut)
-		}
-
-		for _, want := range []string{`"models":["jev-latest"]`, `"mocked":true`, `"labelled":3`} {
-			if !strings.Contains(out, want) {
-				t.Errorf("report missing %s\n%s", want, out)
-			}
-		}
-	})
-
-	t.Run("should refuse calibrate --print-request under --mock", func(t *testing.T) {
-		t.Parallel()
-
-		args := []string{
-			"calibrate", "--ask", "u=is it urgent", "-i", "jsonl", "--map", ".body", "--label", "u=.u",
-			"--print-request", "--mock", writeMock(t, `{"u":0.9}`),
-		}
-
-		_, errOut, code := runMocked(t, t.Context(), args, "{\"body\":\"x\",\"u\":true}\n", nil, nil)
-		if code != ExitUsage || !strings.Contains(errOut, "--mock answers requests, and --print-request sends none") {
-			t.Errorf("exit %d\n%s", code, errOut)
-		}
-	})
-}
-
 func TestMockAnswerer_Answer(t *testing.T) {
 	t.Parallel()
 
@@ -1001,7 +1095,8 @@ func TestMockAnswerer_Answer(t *testing.T) {
 		}
 
 		stats := &collector{}
-		settings := rootSettings{lookupEnv: lookupFrom(map[string]string{}), now: time.Now}
+		settings := defaultSettings(BuildInfo{})
+		settings.lookupEnv = lookupFrom(map[string]string{})
 
 		client, err := mockClient(settings, runConfig{runFlags: runFlags{retries: retries}}, provider, stats)
 		if err != nil {
@@ -1095,24 +1190,27 @@ func TestMockAnswerer_Answer(t *testing.T) {
 	t.Run("should retry a retried entry as a live one is, without waiting", func(t *testing.T) {
 		t.Parallel()
 
-		a, stats := asker(t, `{"error":503}`, onesie.TypeSafe(), 2)
+		// The bubble's clock moves only when something waits on it, so any backoff shows as time passed.
+		synctest.Test(t, func(t *testing.T) {
+			a, stats := asker(t, `{"error":503}`, onesie.TypeSafe(), 2)
 
-		started := time.Now()
+			started := time.Now()
 
-		_, err := a.answer(t.Context(), recordKey{position: 1}, onesie.Request{
-			Model: "m", State: "s", Questions: questions,
+			_, err := a.answer(t.Context(), recordKey{position: 1}, onesie.Request{
+				Model: "m", State: "s", Questions: questions,
+			})
+			if err == nil || !strings.Contains(err.Error(), "503 status code, no body") {
+				t.Fatalf("error = %v, want the mocked 503", err)
+			}
+
+			if got := stats.snapshot(0); got.Attempts != 3 || got.Retries[http.StatusServiceUnavailable] != 3 {
+				t.Errorf("attempts = %d, failed 503 attempts = %v, want 3 and 3", got.Attempts, got.Retries)
+			}
+
+			if waited := time.Since(started); waited != 0 {
+				t.Errorf("the retries waited %s, want no wait", waited)
+			}
 		})
-		if err == nil || !strings.Contains(err.Error(), "503 status code, no body") {
-			t.Fatalf("error = %v, want the mocked 503", err)
-		}
-
-		if got := stats.snapshot(0); got.Attempts != 3 || got.Retries[http.StatusServiceUnavailable] != 3 {
-			t.Errorf("attempts = %d, failed 503 attempts = %v, want 3 and 3", got.Attempts, got.Retries)
-		}
-
-		if waited := time.Since(started); waited > time.Second {
-			t.Errorf("the retries took %s, want no wait", waited)
-		}
 	})
 
 	t.Run("should pass an error entry's error on", func(t *testing.T) {
@@ -1265,97 +1363,121 @@ func readText(t *testing.T, path string) string {
 	return string(data)
 }
 
-func interruptingAt(position int, interrupt context.CancelFunc) RootOption {
-	return func(s *rootSettings) {
-		s.answerers = func(next answererFactory) answererFactory {
-			return func(ctx context.Context, stats *collector) (answerer, error) {
-				inner, err := next(ctx, stats)
-				if err != nil {
-					return nil, err
-				}
+func interruptingAt(request int, interrupt context.CancelFunc) RootOption {
+	var arrived atomic.Int32
 
-				return interruptingAnswerer{inner: inner, position: position, interrupt: interrupt}, nil
+	return wrappingMock(func(next http.RoundTripper) http.RoundTripper {
+		return roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			if int(arrived.Add(1)) != request {
+				return next.RoundTrip(req)
 			}
-		}
-	}
+
+			// Under -j 1 the engine asks a record only once the record before it is written, so an
+			// interrupt as this request arrives leaves exactly the lines before it.
+			interrupt()
+
+			return nil, errors.Join(req.Body.Close(), req.Context().Err())
+		})
+	})
 }
 
-func (a interruptingAnswerer) answer(ctx context.Context, key recordKey, req onesie.Request) (reply, error) {
-	if key.position != a.position {
-		return a.inner.answer(ctx, key, req)
-	}
-
-	// Under -j 1 the engine asks a record only once the record before it is written, so an
-	// interrupt as this record is asked leaves exactly the lines before it.
-	a.interrupt()
-
-	return reply{}, ctx.Err()
-}
-
-func (a interruptingAnswerer) salt(key recordKey) (string, bool) {
-	return a.inner.salt(key)
-}
-
-type interruptingAnswerer struct {
-	inner     answerer
-	position  int
-	interrupt context.CancelFunc
-}
-
-func delaying(position, others int) RootOption {
+func delaying(marker string, others int) RootOption {
 	answered := make(chan struct{}, 64)
 
-	return holding(position, others, answered, answered)
+	return holding(marker, others, answered, answered)
 }
 
-func holding(position, others int, released <-chan struct{}, answered chan<- struct{}) RootOption {
-	return func(s *rootSettings) {
-		s.answerers = func(next answererFactory) answererFactory {
-			return func(ctx context.Context, stats *collector) (answerer, error) {
-				inner, err := next(ctx, stats)
-				if err != nil {
-					return nil, err
+func holding(marker string, others int, released <-chan struct{}, answered chan<- struct{}) RootOption {
+	return wrappingMock(func(next http.RoundTripper) http.RoundTripper {
+		return roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			body, err := io.ReadAll(req.Body)
+			if err = errors.Join(err, req.Body.Close()); err != nil {
+				return nil, err
+			}
+
+			req.Body = io.NopCloser(bytes.NewReader(body))
+
+			if !bytes.Contains(body, []byte(marker)) {
+				got, err := next.RoundTrip(req)
+				if answered != nil {
+					answered <- struct{}{}
 				}
 
-				return heldAnswerer{
-					inner: inner, position: position, others: others, released: released, answered: answered,
-				}, nil
+				return got, err
+			}
+
+			for range others {
+				select {
+				case <-released:
+				case <-req.Context().Done():
+					return nil, req.Context().Err()
+				}
+			}
+
+			return next.RoundTrip(req)
+		})
+	})
+}
+
+func wrappingMock(wrap func(http.RoundTripper) http.RoundTripper) RootOption {
+	return func(s *rootSettings) {
+		next := s.mockTransport
+		s.mockTransport = func(provider onesie.Provider) http.RoundTripper {
+			return wrap(next(provider))
+		}
+	}
+}
+
+func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
+}
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (r *gatedLines) Read(p []byte) (int, error) {
+	if r.next >= len(r.lines) {
+		return 0, io.EOF
+	}
+
+	if r.next == r.gatedAt {
+		for range r.waits {
+			select {
+			case <-r.gate:
+			case <-r.done:
+				return 0, errors.New("the gate never opened")
 			}
 		}
 	}
+
+	n := copy(p, r.lines[r.next]+"\n")
+	r.next++
+
+	return n, nil
 }
 
-func (h heldAnswerer) answer(ctx context.Context, key recordKey, req onesie.Request) (reply, error) {
-	if key.position != h.position {
-		got, err := h.inner.answer(ctx, key, req)
-		if h.answered != nil {
-			h.answered <- struct{}{}
-		}
+type gatedLines struct {
+	lines   []string
+	next    int
+	gatedAt int
+	waits   int
+	gate    <-chan struct{}
+	done    <-chan struct{}
+}
 
-		return got, err
+func beforeDeadline(t *testing.T) context.Context {
+	t.Helper()
+
+	// A test that waits on the run fails a little before go test would kill the binary, so the
+	// failure names the test.
+	deadline, set := t.Deadline()
+	if !set {
+		return t.Context()
 	}
 
-	for range h.others {
-		select {
-		case <-h.released:
-		case <-ctx.Done():
-			return reply{}, ctx.Err()
-		}
-	}
+	ctx, cancel := context.WithDeadline(t.Context(), deadline.Add(-10*time.Second))
+	t.Cleanup(cancel)
 
-	return h.inner.answer(ctx, key, req)
-}
-
-func (h heldAnswerer) salt(key recordKey) (string, bool) {
-	return h.inner.salt(key)
-}
-
-type heldAnswerer struct {
-	inner    answerer
-	position int
-	others   int
-	released <-chan struct{}
-	answered chan<- struct{}
+	return ctx
 }
 
 func (w *signalledLines) Write(p []byte) (int, error) {

@@ -6,24 +6,6 @@ import (
 	"github.com/frodi-karlsson/onesie-go"
 )
 
-type answerer interface {
-	answer(ctx context.Context, key recordKey, req onesie.Request) (reply, error)
-	salt(key recordKey) (string, bool)
-}
-
-type reply struct {
-	result *onesie.Result
-	cached bool
-}
-
-type recordKey struct {
-	position int
-	line     int
-	id       any
-}
-
-type answererFactory func(ctx context.Context, stats *collector) (answerer, error)
-
 func liveAnswers(settings rootSettings, flags runConfig) answererFactory {
 	return func(ctx context.Context, stats *collector) (answerer, error) {
 		chosen, err := settings.holder.resolved()
@@ -38,6 +20,24 @@ func liveAnswers(settings rootSettings, flags runConfig) answererFactory {
 
 		return newLiveAnswerer(client), nil
 	}
+}
+
+type answererFactory func(ctx context.Context, stats *collector) (answerer, error)
+
+type answerer interface {
+	answer(ctx context.Context, key recordKey, req onesie.Request) (reply, error)
+	salt(key recordKey) (string, bool)
+}
+
+type reply struct {
+	result *onesie.Result
+	cached bool
+}
+
+type recordKey struct {
+	position int
+	line     int
+	id       any
 }
 
 func newLiveAnswerer(client *onesie.Client) liveAnswerer {

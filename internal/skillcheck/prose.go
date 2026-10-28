@@ -74,11 +74,6 @@ type ProseReport struct {
 	Failures []string
 }
 
-type proseText struct {
-	label string
-	body  string
-}
-
 func proseTexts(dir string, skill skillgen.Skill) ([]proseText, error) {
 	texts := []proseText{
 		{label: "description", body: skill.Description},
@@ -106,6 +101,11 @@ func proseTexts(dir string, skill skillgen.Skill) ([]proseText, error) {
 	}
 
 	return texts, nil
+}
+
+type proseText struct {
+	label string
+	body  string
 }
 
 func exampleCommands(skill skillgen.Skill) [][]word {

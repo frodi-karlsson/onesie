@@ -46,7 +46,7 @@ func mockAnswers(
 	}
 
 	answers, err := mock.Load(bytes.NewReader(data), known, mock.Options{
-		ByID: flags.idSource != "", Spelled: flags.mockSpelled, Asked: asked,
+		ByID: flags.idSource != "", Spelled: flags.mockSpelled, Asked: asked, Provider: provider,
 	})
 	if err != nil {
 		return nil, err
@@ -72,7 +72,7 @@ func mockClient(
 		onesie.WithEnv(settings.lookupEnv),
 		onesie.WithAPIKey(mockKey),
 		onesie.WithBaseURL(mockBaseURL),
-		onesie.WithHTTPClient(&http.Client{Transport: mock.NewTransport(provider)}),
+		onesie.WithHTTPClient(&http.Client{Transport: settings.mockTransport(provider)}),
 		onesie.WithClock(instantClock{now: settings.now}),
 		onesie.WithRetry(retryPolicy(flags.runFlags)),
 	}

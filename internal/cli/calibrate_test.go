@@ -320,7 +320,7 @@ func TestNewCalibrateCmd(t *testing.T) {
 			name:     "should skip a question with no --label when another has one",
 			args:     with("--ask", "team=which team", "--pick", "billing,shipping"),
 			wantCode: ExitUsage,
-			contains: []string{"skipping 'team', which has no --label\n", nothing},
+			contains: []string{"onesie: skipping 'team', which has no --label\n", nothing},
 		},
 		{
 			name: "should refuse a run where no question has a --label",
@@ -416,7 +416,7 @@ func TestNewCalibrateCmd(t *testing.T) {
 				"calibrate", "-f", mixedBodyFile, "-i", "jsonl", "--map", ".body", "--label", "urgent=.u",
 			},
 			wantCode: ExitUsage,
-			contains: []string{"skipping 'mood', which has no --label\n", nothing},
+			contains: []string{"onesie: skipping 'mood', which has no --label\n", nothing},
 		},
 		{
 			name: "should refuse a request body with an unlabelled rate question",
@@ -592,6 +592,61 @@ func TestNewCalibrateCmd(t *testing.T) {
 		if !strings.Contains(errOut.String(), "onesie: --label urgent:") {
 			t.Errorf("stderr = %q, want it to name the label", errOut.String())
 		}
+	})
+
+	t.Run("should calibrate from a mock file", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("should print a report from the file with no request made", func(t *testing.T) {
+			t.Parallel()
+
+			mockFile := writeMock(t, "{\"id\":\"a\",\"u\":0.9}\n{\"id\":\"b\",\"u\":0.1}\n{\"id\":\"c\",\"u\":0.8}\n")
+			args := []string{
+				"calibrate", "--ask", "u=is it urgent", "-i", "jsonl", "--map", ".body", "--id", ".id",
+				"--label", "u=.u", "-o", "json", "--mock", mockFile,
+			}
+			stdin := "{\"id\":\"a\",\"body\":\"x\",\"u\":true}\n{\"id\":\"b\",\"body\":\"y\",\"u\":false}\n" +
+				"{\"id\":\"c\",\"body\":\"z\",\"u\":false}\n"
+
+			out, errOut, code := runMocked(t, t.Context(), args, stdin, nil, nil)
+			if code != ExitOK {
+				t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, out, errOut)
+			}
+
+			for _, want := range []string{`"models":["jev-latest"]`, `"mocked":true`, `"labelled":3`} {
+				if !strings.Contains(out, want) {
+					t.Errorf("report missing %s\n%s", want, out)
+				}
+			}
+		})
+
+		t.Run("should take --mock given before the calibrate subcommand", func(t *testing.T) {
+			t.Parallel()
+
+			args := []string{
+				"--mock", writeMock(t, `{"u":0.9}`), "calibrate", "--ask", "u=is it urgent", "-i", "jsonl",
+				"--map", ".body", "--label", "u=.u", "-o", "json",
+			}
+
+			out, errOut, code := runMocked(t, t.Context(), args, "{\"body\":\"x\",\"u\":true}\n", nil, nil)
+			if code != ExitOK || !strings.Contains(out, `"mocked":true`) {
+				t.Errorf("exit %d\nstdout:\n%s\nstderr:\n%s", code, out, errOut)
+			}
+		})
+
+		t.Run("should refuse calibrate --print-request under --mock", func(t *testing.T) {
+			t.Parallel()
+
+			args := []string{
+				"calibrate", "--ask", "u=is it urgent", "-i", "jsonl", "--map", ".body", "--label", "u=.u",
+				"--print-request", "--mock", writeMock(t, `{"u":0.9}`),
+			}
+
+			_, errOut, code := runMocked(t, t.Context(), args, "{\"body\":\"x\",\"u\":true}\n", nil, nil)
+			if code != ExitUsage || !strings.Contains(errOut, "--mock answers requests, and --print-request sends none") {
+				t.Errorf("exit %d\n%s", code, errOut)
+			}
+		})
 	})
 }
 
@@ -945,12 +1000,7 @@ func TestCalibrateRequests(t *testing.T) {
 			done := make(chan int, 1)
 			go func() { done <- root.Execute(ctx) }()
 
-			var code int
-			select {
-			case code = <-done:
-			case <-time.After(10 * time.Second):
-				t.Fatal("the command did not end after the interrupt")
-			}
+			code := <-done
 
 			if code != ExitInterrupt {
 				t.Errorf("exit code = %d, want %d\nstdout:\n%s\nstderr:\n%s", code, ExitInterrupt, out.String(),
@@ -1232,7 +1282,7 @@ func TestCalibrateRun(t *testing.T) {
 			check: func(t *testing.T, _, errOut string) {
 				t.Helper()
 
-				if !strings.Contains(errOut, "asking 6 of 6 records, 1 question each, 1 unlabelled skipped\n") {
+				if !strings.Contains(errOut, "onesie: asking 6 of 6 records, 1 question each, 1 unlabelled skipped\n") {
 					t.Errorf("stderr = %q, want the cost line to count the unlabelled record", errOut)
 				}
 			},
@@ -1319,7 +1369,7 @@ func TestCalibrateRun(t *testing.T) {
 
 		stub := newCalibrateStub(t)
 		stub.onRequest = func() {
-			if !strings.Contains(errOut.String(), "asking 6 of 6 records, 1 question each\n") {
+			if !strings.Contains(errOut.String(), "onesie: asking 6 of 6 records, 1 question each\n") {
 				t.Errorf("stderr at the first request = %q, want the cost line", errOut.String())
 			}
 		}
@@ -1477,11 +1527,7 @@ func TestCalibrateRun(t *testing.T) {
 				urgentSet+`{"id":"T-7","u":true,"body":{"block":true}}`+"\n", stub.url, false)
 		}()
 
-		select {
-		case <-done:
-		case <-time.After(10 * time.Second):
-			t.Fatal("the command did not end after the interrupt")
-		}
+		<-done
 
 		if code != ExitInterrupt {
 			t.Errorf("exit code = %d, want %d\nstderr:\n%s", code, ExitInterrupt, errOut)
@@ -1528,7 +1574,7 @@ func TestCalibrateRun(t *testing.T) {
 			t.Errorf("no fingerprint beside the answers file: %v", err)
 		}
 
-		if !strings.Contains(errOut, "asking 6 of 6 records, 1 question each, 0 answered in "+answers+"\n") {
+		if !strings.Contains(errOut, "onesie: asking 6 of 6 records, 1 question each, 0 answered in "+answers+"\n") {
 			t.Errorf("stderr =\n%s\nwant the cost line to name the answers file", errOut)
 		}
 	})
@@ -1584,7 +1630,7 @@ func TestCalibrateRun(t *testing.T) {
 			t.Errorf("the resume printed\n%s\nthe first run printed\n%s", second, first)
 		}
 
-		if !strings.Contains(errOut, "asking 0 of 6 records, 1 question each, 6 answered in "+answers+"\n") {
+		if !strings.Contains(errOut, "onesie: asking 0 of 6 records, 1 question each, 6 answered in "+answers+"\n") {
 			t.Errorf("stderr =\n%s\nwant the cost line to count the stored answers", errOut)
 		}
 	})
@@ -2031,13 +2077,8 @@ func TestCalibrateRun(t *testing.T) {
 			done <- code
 		}()
 
-		select {
-		case code := <-done:
-			if code != ExitInterrupt {
-				t.Fatalf("interrupted run exit code = %d, want %d", code, ExitInterrupt)
-			}
-		case <-time.After(10 * time.Second):
-			t.Fatal("the command did not end after the interrupt")
+		if code := <-done; code != ExitInterrupt {
+			t.Fatalf("interrupted run exit code = %d, want %d", code, ExitInterrupt)
 		}
 
 		if ids := lineIDs(t, answerLines(t, answers)); !slices.Equal(ids, []string{"T-1", "T-2"}) {
@@ -2659,10 +2700,7 @@ func (s *calibrateStub) serve(w http.ResponseWriter, r *http.Request) {
 			s.onBlock()
 		}
 
-		select {
-		case <-r.Context().Done():
-		case <-time.After(10 * time.Second):
-		}
+		<-r.Context().Done()
 
 		return
 	}
@@ -2717,24 +2755,6 @@ func criteriaKeys(criteria json.RawMessage) []string {
 	return keys
 }
 
-func spread(keys []string, picked string, p any) map[string]any {
-	value, _ := p.(float64)
-	rest := 0.0
-
-	if len(keys) > 1 {
-		rest = (1 - value) / float64(len(keys)-1)
-	}
-
-	probabilities := map[string]any{}
-	for _, key := range keys {
-		probabilities[key] = rest
-	}
-
-	probabilities[picked] = p
-
-	return probabilities
-}
-
 func stubAnswer(t *testing.T, kind string, keys []string, raw json.RawMessage, verbatim bool) map[string]any {
 	t.Helper()
 
@@ -2771,18 +2791,29 @@ func stubAnswer(t *testing.T, kind string, keys []string, raw json.RawMessage, v
 	}
 }
 
+func spread(keys []string, picked string, p any) map[string]any {
+	value, _ := p.(float64)
+	rest := 0.0
+
+	if len(keys) > 1 {
+		rest = (1 - value) / float64(len(keys)-1)
+	}
+
+	probabilities := map[string]any{}
+	for _, key := range keys {
+		probabilities[key] = rest
+	}
+
+	probabilities[picked] = p
+
+	return probabilities
+}
+
 func (s *calibrateStub) count() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	return s.requests
-}
-
-func (s *calibrateStub) asked() [][]string {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	return slices.Clone(s.questions)
 }
 
 func (s *calibrateStub) sent() []string {
@@ -3254,8 +3285,8 @@ func TestScopeOf(t *testing.T) {
 			stdout:    []string{"urgent, yes/no: labelled 4"},
 			noStdout:  []string{"team,", "tone,"},
 			stderr: []string{
-				"skipping 'team' and 'tone', which have no --label\n",
-				"asking 4 of 4 records, 1 question each\n",
+				"onesie: skipping 'team' and 'tone', which have no --label\n",
+				"onesie: asking 4 of 4 records, 1 question each\n",
 			},
 		},
 		{
@@ -3265,7 +3296,7 @@ func TestScopeOf(t *testing.T) {
 			wantAsked: []string{"tone", "urgent"},
 			stdout:    []string{"urgent, yes/no", "tone, rate"},
 			noStdout:  []string{"team,"},
-			stderr:    []string{"skipping 'team', which has no --label\n"},
+			stderr:    []string{"onesie: skipping 'team', which has no --label\n"},
 		},
 		{
 			name:      "should ask every question and skip none when every question has a --label",
@@ -3273,7 +3304,7 @@ func TestScopeOf(t *testing.T) {
 			wantCode:  ExitOK,
 			wantAsked: []string{"team", "tone", "urgent"},
 			stdout:    []string{"urgent, yes/no", "team, pick", "tone, rate"},
-			stderr:    []string{"asking 4 of 4 records, 3 questions each\n"},
+			stderr:    []string{"onesie: asking 4 of 4 records, 3 questions each\n"},
 			noStderr:  []string{"skipping"},
 		},
 		{
@@ -3303,7 +3334,7 @@ func TestScopeOf(t *testing.T) {
 			args:      run("--label", "urgent=.u", "--require", "urgent.catches >= 0.5"),
 			wantCode:  ExitOK,
 			stdout:    []string{"urgent, yes/no"},
-			stderr:    []string{"skipping 'team' and 'tone', which have no --label\n"},
+			stderr:    []string{"onesie: skipping 'team' and 'tone', which have no --label\n"},
 			wantAsked: []string{"urgent"},
 		},
 		{
@@ -3312,7 +3343,7 @@ func TestScopeOf(t *testing.T) {
 			wantCode: ExitOK,
 			stdout:   []string{`"questions":{"urgent":{"type":"noul","instructions":"is this urgent"}}}`},
 			noStdout: []string{`"team":{`, `"tone":{`},
-			stderr:   []string{"skipping 'team' and 'tone', which have no --label\n"},
+			stderr:   []string{"onesie: skipping 'team' and 'tone', which have no --label\n"},
 		},
 	}
 
@@ -3372,7 +3403,7 @@ func TestScopeOf(t *testing.T) {
 
 			run := runImaged(t, base, stdin, noulAnswer("red"), nil)
 
-			if run.code != ExitOK || !strings.Contains(run.stderr, "skipping 'mug'") {
+			if run.code != ExitOK || !strings.Contains(run.stderr, "onesie: skipping 'mug'") {
 				t.Fatalf("exit code = %d, stderr = %q, want 0 and mug skipped", run.code, run.stderr)
 			}
 		})
@@ -3431,7 +3462,7 @@ func TestAskedPlan(t *testing.T) {
 			asks:       1,
 			stderr: []string{
 				"but asking them of each record",
-				"asking 1 of 4 records, 3 questions each, 3 answered in",
+				"onesie: asking 1 of 4 records, 3 questions each, 3 answered in",
 			},
 			readableWithEveryLabel: true,
 		},
@@ -3443,8 +3474,8 @@ func TestAskedPlan(t *testing.T) {
 			offline:    true,
 			wantCode:   ExitOK,
 			stderr: []string{
-				"skipping 'team' and 'tone' in the report, since they have no --label\n",
-				"reading 4 records from ",
+				"onesie: skipping 'team' and 'tone' in the report, since they have no --label\n",
+				"onesie: reading 4 records from ",
 			},
 			noStderr:               []string{"but asking"},
 			readableWithEveryLabel: true,
@@ -3456,8 +3487,8 @@ func TestAskedPlan(t *testing.T) {
 			second:     one,
 			wantCode:   ExitOK,
 			stderr: []string{
-				"skipping 'team' and 'tone' in the report, since they have no --label\n",
-				"asking 0 of 4 records, 3 questions each, 4 answered in",
+				"onesie: skipping 'team' and 'tone' in the report, since they have no --label\n",
+				"onesie: asking 0 of 4 records, 3 questions each, 4 answered in",
 			},
 			noStderr:               []string{"but asking"},
 			readableWithEveryLabel: true,
@@ -3470,7 +3501,7 @@ func TestAskedPlan(t *testing.T) {
 			wantCode:   ExitOK,
 			wantAsked:  []string{"urgent"},
 			asks:       1,
-			stderr:     []string{"skipping 'team' and 'tone', which have no --label\n"},
+			stderr:     []string{"onesie: skipping 'team' and 'tone', which have no --label\n"},
 		},
 		{
 			name:       "should read a file written with one label under --offline with the same label",
@@ -3479,7 +3510,7 @@ func TestAskedPlan(t *testing.T) {
 			second:     one,
 			offline:    true,
 			wantCode:   ExitOK,
-			stderr:     []string{"reading 4 records from "},
+			stderr:     []string{"onesie: reading 4 records from "},
 		},
 		{
 			name:       "should refuse a file written with one label under --offline with every label",
@@ -3567,36 +3598,36 @@ func TestWriteSkipped(t *testing.T) {
 		{
 			name:    "should name one skipped question in the singular",
 			skipped: []string{"team"},
-			want:    "skipping 'team', which has no --label\n",
+			want:    "onesie: skipping 'team', which has no --label\n",
 		},
 		{
 			name:    "should name two skipped questions in the plural",
 			skipped: []string{"team", "tone"},
-			want:    "skipping 'team' and 'tone', which have no --label\n",
+			want:    "onesie: skipping 'team' and 'tone', which have no --label\n",
 		},
 		{
 			name:    "should list three skipped questions with commas and a last and",
 			skipped: []string{"team", "tone", "topic"},
-			want:    "skipping 'team', 'tone' and 'topic', which have no --label\n",
+			want:    "onesie: skipping 'team', 'tone' and 'topic', which have no --label\n",
 		},
 		{
 			name:     "should say only that the report skips one question of a file kept whole",
 			skipped:  []string{"team"},
 			inReport: true,
-			want:     "skipping 'team' in the report, since it has no --label\n",
+			want:     "onesie: skipping 'team' in the report, since it has no --label\n",
 		},
 		{
 			name:     "should say only that the report skips two questions of a file kept whole",
 			skipped:  []string{"team", "tone"},
 			inReport: true,
-			want:     "skipping 'team' and 'tone' in the report, since they have no --label\n",
+			want:     "onesie: skipping 'team' and 'tone' in the report, since they have no --label\n",
 		},
 		{
 			name:     "should say one skipped question is still asked of the records the file lacks",
 			skipped:  []string{"team"},
 			inReport: true,
 			askedOf:  "answers.jsonl",
-			want: "skipping 'team' in the report, since it has no --label, but asking it of each " +
+			want: "onesie: skipping 'team' in the report, since it has no --label, but asking it of each " +
 				"record answers.jsonl lacks, so the file keeps answering every question\n",
 		},
 		{
@@ -3604,7 +3635,7 @@ func TestWriteSkipped(t *testing.T) {
 			skipped:  []string{"team", "tone"},
 			inReport: true,
 			askedOf:  "answers.jsonl",
-			want: "skipping 'team' and 'tone' in the report, since they have no --label, but asking " +
+			want: "onesie: skipping 'team' and 'tone' in the report, since they have no --label, but asking " +
 				"them of each record answers.jsonl lacks, so the file keeps answering every question\n",
 		},
 	}
@@ -3643,14 +3674,14 @@ func TestWriteCost(t *testing.T) {
 			name:    "should count the records it asks and the questions each",
 			set:     four,
 			resumed: resumedSet{pending: make([]labelledRecord, 4)},
-			want:    "asking 4 of 4 records, 1 question each\n",
+			want:    "onesie: asking 4 of 4 records, 1 question each\n",
 		},
 		{
 			name:    "should count the records an answers file already holds",
 			set:     four,
 			resumed: resumedSet{pending: make([]labelledRecord, 1), stored: 3},
 			answers: "answers.jsonl",
-			want:    "asking 1 of 4 records, 1 question each, 3 answered in answers.jsonl\n",
+			want:    "onesie: asking 1 of 4 records, 1 question each, 3 answered in answers.jsonl\n",
 		},
 		{
 			name:    "should say it reads the records from the file under --offline",
@@ -3658,7 +3689,7 @@ func TestWriteCost(t *testing.T) {
 			resumed: resumedSet{stored: 4},
 			answers: "answers.jsonl",
 			offline: true,
-			want:    "reading 4 records from answers.jsonl\n",
+			want:    "onesie: reading 4 records from answers.jsonl\n",
 		},
 		{
 			name:    "should keep the unlabelled count under --offline",
@@ -3666,7 +3697,7 @@ func TestWriteCost(t *testing.T) {
 			resumed: resumedSet{stored: 4},
 			answers: "answers.jsonl",
 			offline: true,
-			want:    "reading 4 records from answers.jsonl, 2 unlabelled skipped\n",
+			want:    "onesie: reading 4 records from answers.jsonl, 2 unlabelled skipped\n",
 		},
 	}
 
@@ -3707,6 +3738,13 @@ func checkAsked(t *testing.T, stub *calibrateStub, want []string, requests int) 
 			t.Errorf("request %d asked %v, want %v", i+1, got, want)
 		}
 	}
+}
+
+func (s *calibrateStub) asked() [][]string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return slices.Clone(s.questions)
 }
 
 const (

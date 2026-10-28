@@ -66,7 +66,7 @@ func isolate(dir string) error {
 	return nil
 }
 
-func TestIsolate(t *testing.T) {
+func TestRunIsolated(t *testing.T) {
 	t.Run("should run every test under one temporary home and config dir", func(t *testing.T) {
 		home, err := os.UserHomeDir()
 		if err != nil {

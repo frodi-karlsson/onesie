@@ -362,7 +362,7 @@ func TestAddRunFlags(t *testing.T) {
 			"retries":         strconv.Itoa(limits.DefaultRetries),
 			"max-retry-after": strconv.Itoa(int(limits.DefaultMaxRetryAfter.Seconds())),
 			"out":             "", "resume": "false", "prune": "false", "skip-blank": "false", "stats": "false",
-			"usage": "false", "print-request": "false", "cache": "false",
+			"usage": "false", "print-request": "false", "cache": "false", "mock": "",
 		}
 
 		got := map[string]string{}

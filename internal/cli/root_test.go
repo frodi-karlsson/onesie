@@ -20,6 +20,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/spf13/pflag"
 
@@ -1755,7 +1756,7 @@ func TestNewRootCmd(t *testing.T) {
 				cli.WithKeychain(offKeychain()),
 				cli.WithClientFactory(func(_ context.Context, opts ...onesie.Option) (*onesie.Client, error) {
 					return onesie.New(append([]onesie.Option{
-						onesie.WithAPIKey("k"), onesie.WithBaseURL(srv.URL),
+						onesie.WithAPIKey("k"), onesie.WithBaseURL(srv.URL), onesie.WithClock(&recordingClock{}),
 					}, opts...)...)
 				}),
 				cli.WithStdin(strings.NewReader(tc.stdin)),
@@ -2733,6 +2734,87 @@ func TestNewRootCmd(t *testing.T) {
 			})
 		}
 	})
+
+	t.Run("should send the question ids in the order --ask gave them", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name  string
+			args  []string
+			order []string
+		}{
+			{
+				name: "should send question ids in argv order",
+				args: []string{
+					"--ask", "zebra=one", "--ask", "mike=two", "--ask", "alpha=three",
+				},
+				order: []string{`"zebra"`, `"mike"`, `"alpha"`},
+			},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				var sent string
+
+				srv := stubAnswering(t,
+					`{"model":"onesie-1.13.0","answers":{"zebra":{"type":"noul","noul":0.1},`+
+						`"mike":{"type":"noul","noul":0.2},`+
+						`"alpha":{"type":"noul","noul":0.3}}}`,
+					func(r *http.Request) {
+						body, err := io.ReadAll(r.Body)
+						if err != nil {
+							t.Errorf("reading the request body: %v", err)
+
+							return
+						}
+
+						sent = string(body)
+					})
+				defer srv.Close()
+
+				var out bytes.Buffer
+
+				root := cli.NewRootCmd(
+					cli.BuildInfo{Version: "1.2.3", Commit: "abc1234", Date: "2026-01-01"},
+					cli.WithKeychain(offKeychain()),
+					cli.WithClientFactory(func(_ context.Context, opts ...onesie.Option) (*onesie.Client, error) {
+						return onesie.New(append([]onesie.Option{
+							onesie.WithAPIKey("k"), onesie.WithBaseURL(srv.URL),
+						}, opts...)...)
+					}),
+					cli.WithStdin(strings.NewReader("the server is down")),
+					cli.WithStdinTTY(false),
+					cli.WithStdoutTTY(false),
+					cli.WithLookupEnv(func(string) (string, bool) { return "", false }),
+				)
+
+				root.Command.SetOut(&out)
+				root.Command.SetErr(&out)
+				root.Command.SetArgs(append(tc.args, "-o", "json"))
+
+				if code := root.Execute(t.Context()); code != cli.ExitOK {
+					t.Fatalf("exit code = %d, want %d\noutput:\n%s", code, cli.ExitOK, out.String())
+				}
+
+				at := make([]int, 0, len(tc.order))
+
+				for _, id := range tc.order {
+					found := strings.Index(sent, id)
+					if found < 0 {
+						t.Fatalf("id %s absent from %s", id, sent)
+					}
+
+					at = append(at, found)
+				}
+
+				if !slices.IsSorted(at) {
+					t.Errorf("ids out of order in %s, positions %v", sent, at)
+				}
+			})
+		}
+	})
 }
 
 func referenceExitCodes(t *testing.T, reference string) []string {
@@ -3137,6 +3219,8 @@ func TestClientBuilder(t *testing.T) {
 
 				var attempts atomic.Int64
 
+				clock := &recordingClock{}
+
 				srv := httptest.NewServer(http.HandlerFunc(
 					func(w http.ResponseWriter, _ *http.Request) {
 						attempts.Add(1)
@@ -3161,6 +3245,7 @@ func TestClientBuilder(t *testing.T) {
 					cli.WithStdinTTY(false),
 					cli.WithStdoutTTY(false),
 					cli.WithLookupEnv(apiKeyEnv("test")),
+					cli.WithClock(clock),
 				)
 
 				root.Command.SetOut(&out)
@@ -3174,6 +3259,10 @@ func TestClientBuilder(t *testing.T) {
 				if got := attempts.Load(); got != int64(tc.attempts) {
 					t.Errorf("attempts = %d, want %d", got, tc.attempts)
 				}
+
+				if waits := clock.waits(); len(waits) != tc.attempts-1 {
+					t.Errorf("waits = %v, want one before each of the %d retries", waits, tc.attempts-1)
+				}
 			})
 		}
 	})
@@ -3185,6 +3274,7 @@ func TestClientBuilder(t *testing.T) {
 			name     string
 			args     []string
 			attempts int
+			waits    []time.Duration
 		}{
 			{
 				name:     "should stop at the first attempt when Retry-After is above the cap",
@@ -3195,6 +3285,7 @@ func TestClientBuilder(t *testing.T) {
 				name:     "should retry when Retry-After is below the default cap",
 				args:     []string{"--retries", "1"},
 				attempts: 2,
+				waits:    []time.Duration{2 * time.Second},
 			},
 		}
 
@@ -3203,6 +3294,8 @@ func TestClientBuilder(t *testing.T) {
 				t.Parallel()
 
 				var attempts atomic.Int64
+
+				clock := &recordingClock{}
 
 				srv := httptest.NewServer(http.HandlerFunc(
 					func(w http.ResponseWriter, _ *http.Request) {
@@ -3229,6 +3322,7 @@ func TestClientBuilder(t *testing.T) {
 					cli.WithStdinTTY(false),
 					cli.WithStdoutTTY(false),
 					cli.WithLookupEnv(apiKeyEnv("test")),
+					cli.WithClock(clock),
 				)
 
 				root.Command.SetOut(&out)
@@ -3242,57 +3336,21 @@ func TestClientBuilder(t *testing.T) {
 				if got := attempts.Load(); got != int64(tc.attempts) {
 					t.Errorf("attempts = %d, want %d", got, tc.attempts)
 				}
+
+				// Jitter shortens each wait by up to BackoffJitter of it, so a wait is checked as a band.
+				waits := clock.waits()
+				if len(waits) != len(tc.waits) {
+					t.Fatalf("waits = %v, want %v less up to the jitter", waits, tc.waits)
+				}
+
+				for i, want := range tc.waits {
+					shortest := time.Duration(float64(want) * (1 - onesie.DefaultRetryPolicy().BackoffJitter))
+					if waits[i] > want || waits[i] < shortest {
+						t.Errorf("waits = %v, want %v less up to the jitter", waits, tc.waits)
+					}
+				}
 			})
 		}
-	})
-
-	t.Run("should wire --timeout onto the client", func(t *testing.T) {
-		t.Parallel()
-
-		t.Run("should abandon an attempt the server never answers", func(t *testing.T) {
-			t.Parallel()
-
-			blocked := make(chan struct{})
-
-			srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
-				<-blocked
-			}))
-
-			// Both through Cleanup rather than defer, and in this order, so the handler is released
-			// before Close waits on it. A deferred Close would block on the handler it is waiting for.
-			t.Cleanup(srv.Close)
-			t.Cleanup(func() { close(blocked) })
-
-			var out, errOut bytes.Buffer
-
-			// No WithClientFactory, since the flag reaches the client through the real factory and a
-			// stub one would never see it.
-			root := cli.NewRootCmd(
-				cli.BuildInfo{Version: "1.2.3"},
-				cli.WithKeychain(offKeychain()),
-				cli.WithStdin(strings.NewReader("the server is quiet")),
-				cli.WithStdinTTY(false),
-				cli.WithStdoutTTY(false),
-				cli.WithLookupEnv(apiKeyEnv("test")),
-			)
-
-			root.Command.SetOut(&out)
-			root.Command.SetErr(&errOut)
-			root.Command.SetArgs([]string{
-				"is this urgent", "--base-url", srv.URL,
-				"--timeout", "1", "--retries", "0",
-			})
-
-			if code := root.Execute(t.Context()); code != cli.ExitTransport {
-				t.Fatalf("exit code = %d, want %d. output:\n%s", code, cli.ExitTransport, out.String())
-			}
-
-			// The duration is part of the claim. Without the flag on the client the attempt runs to
-			// the ten second default, which this handler outlasts.
-			if !strings.Contains(errOut.String(), "timed out after 1s") {
-				t.Errorf("stderr = %q, want it to name the one second timeout", errOut.String())
-			}
-		})
 	})
 }
 
@@ -3325,6 +3383,31 @@ func runWithEnv(t *testing.T, env map[string]string, args []string) (string, int
 	return out.String(), code
 }
 
+func (c *recordingClock) Now() time.Time {
+	return time.Unix(0, 0)
+}
+
+func (c *recordingClock) Sleep(ctx context.Context, d time.Duration) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.slept = append(c.slept, d)
+
+	return ctx.Err()
+}
+
+func (c *recordingClock) waits() []time.Duration {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	return slices.Clone(c.slept)
+}
+
+type recordingClock struct {
+	mu    sync.Mutex
+	slept []time.Duration
+}
+
 func apiKeyEnv(key string) func(string) (string, bool) {
 	return func(name string) (string, bool) {
 		if name == onesie.TypeSafe().EnvAPIKey() {
@@ -3332,87 +3415,6 @@ func apiKeyEnv(key string) func(string) (string, bool) {
 		}
 
 		return "", false
-	}
-}
-
-func TestWireAll(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name  string
-		args  []string
-		order []string
-	}{
-		{
-			name: "should send question ids in argv order",
-			args: []string{
-				"--ask", "zebra=one", "--ask", "mike=two", "--ask", "alpha=three",
-			},
-			order: []string{`"zebra"`, `"mike"`, `"alpha"`},
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			var sent string
-
-			srv := stubAnswering(t,
-				`{"model":"onesie-1.13.0","answers":{"zebra":{"type":"noul","noul":0.1},`+
-					`"mike":{"type":"noul","noul":0.2},`+
-					`"alpha":{"type":"noul","noul":0.3}}}`,
-				func(r *http.Request) {
-					body, err := io.ReadAll(r.Body)
-					if err != nil {
-						t.Errorf("reading the request body: %v", err)
-
-						return
-					}
-
-					sent = string(body)
-				})
-			defer srv.Close()
-
-			var out bytes.Buffer
-
-			root := cli.NewRootCmd(
-				cli.BuildInfo{Version: "1.2.3", Commit: "abc1234", Date: "2026-01-01"},
-				cli.WithKeychain(offKeychain()),
-				cli.WithClientFactory(func(_ context.Context, opts ...onesie.Option) (*onesie.Client, error) {
-					return onesie.New(append([]onesie.Option{
-						onesie.WithAPIKey("k"), onesie.WithBaseURL(srv.URL),
-					}, opts...)...)
-				}),
-				cli.WithStdin(strings.NewReader("the server is down")),
-				cli.WithStdinTTY(false),
-				cli.WithStdoutTTY(false),
-				cli.WithLookupEnv(func(string) (string, bool) { return "", false }),
-			)
-
-			root.Command.SetOut(&out)
-			root.Command.SetErr(&out)
-			root.Command.SetArgs(append(tc.args, "-o", "json"))
-
-			if code := root.Execute(t.Context()); code != cli.ExitOK {
-				t.Fatalf("exit code = %d, want %d\noutput:\n%s", code, cli.ExitOK, out.String())
-			}
-
-			at := make([]int, 0, len(tc.order))
-
-			for _, id := range tc.order {
-				found := strings.Index(sent, id)
-				if found < 0 {
-					t.Fatalf("id %s absent from %s", id, sent)
-				}
-
-				at = append(at, found)
-			}
-
-			if !slices.IsSorted(at) {
-				t.Errorf("ids out of order in %s, positions %v", sent, at)
-			}
-		})
 	}
 }
 

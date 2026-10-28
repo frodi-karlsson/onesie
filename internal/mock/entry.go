@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"net/http"
 	"slices"
 	"strconv"
 	"strings"
@@ -106,14 +107,16 @@ func (p parser) failure(failure any, where string) (*Entry, error) {
 			return connectionEntry(), nil
 		}
 	case map[string]any:
-		return writtenFailure(typed, refused)
+		return p.writtenFailure(typed, refused, where)
 	}
 
 	return nil, refused
 }
 
-func writtenFailure(failure map[string]any, refused error) (*Entry, error) {
+func (p parser) writtenFailure(failure map[string]any, refused error, where string) (*Entry, error) {
 	switch failure["kind"] {
+	case "auth":
+		return p.authEntry(failure, refused, where)
 	case "http":
 		number, isNumber := failure["status"].(json.Number)
 		if !isNumber {
@@ -136,6 +139,26 @@ func writtenFailure(failure map[string]any, refused error) (*Entry, error) {
 	}
 
 	return nil, refused
+}
+
+func (p parser) authEntry(failure map[string]any, refused error, where string) (*Entry, error) {
+	number, isNumber := failure["status"].(json.Number)
+	if !isNumber {
+		return nil, refused
+	}
+
+	status, isStatus := errorStatus(number)
+
+	switch {
+	case !isStatus || status > http.StatusForbidden:
+		return nil, fmt.Errorf("%s: error %s is an auth failure with a status no refusal of a key has. "+
+			"Use 400, 401, 402 or 403", where, shown(failure))
+	case status == http.StatusBadRequest && p.opts.Provider.Name() != onesie.Cloudflare().Name():
+		return nil, fmt.Errorf("%s: error %s is an auth failure with status 400, which only cloudflare sends, "+
+			"so it does not replay on %s", where, shown(failure), p.opts.Provider.Name())
+	}
+
+	return &Entry{status: status, auth: true, key: fmt.Sprintf("error auth %d", status)}, nil
 }
 
 func errorStatus(number json.Number) (int, bool) {
@@ -550,6 +573,7 @@ type Entry struct {
 	answers map[string]onesie.Answer
 	status  int
 	body    []byte
+	auth    bool
 	fault   error
 	key     string
 }

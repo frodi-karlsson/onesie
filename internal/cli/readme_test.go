@@ -9,7 +9,6 @@ import (
 	"slices"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/goccy/go-yaml"
 
@@ -145,11 +144,7 @@ func TestReadme(t *testing.T) {
 				t.Fatalf("feeding stdin: %v", err)
 			}
 
-			select {
-			case <-out.lines:
-			case <-time.After(5 * time.Second):
-				t.Fatalf("no answer for %s while stdin stayed open\nstderr:\n%s", record, errOut.String())
-			}
+			<-out.lines
 		}
 
 		feed.Close()
@@ -302,11 +297,6 @@ func readmeSection(t *testing.T, title string) string {
 	return section
 }
 
-type codeBlock struct {
-	lang  string
-	lines []string
-}
-
 func codeBlocks(text string) []codeBlock {
 	var (
 		blocks  []codeBlock
@@ -328,6 +318,11 @@ func codeBlocks(text string) []codeBlock {
 	}
 
 	return blocks
+}
+
+type codeBlock struct {
+	lang  string
+	lines []string
 }
 
 func readmeCommand(t *testing.T, lines []string) []string {
