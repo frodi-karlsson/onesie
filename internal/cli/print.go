@@ -14,6 +14,7 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/answersfile"
 	"github.com/frodi-karlsson/onesie/internal/engine"
 	"github.com/frodi-karlsson/onesie/internal/input"
+	"github.com/frodi-karlsson/onesie/internal/jq"
 	"github.com/frodi-karlsson/onesie/internal/output"
 	"github.com/frodi-karlsson/onesie/internal/plan"
 	"github.com/frodi-karlsson/onesie/internal/qfile"
@@ -78,17 +79,16 @@ func warnUncarried(w io.Writer, loaded *qfile.File) error {
 	}
 
 	if loaded.Model != "" {
-		_, err := fmt.Fprintf(w,
-			"warning: --print-questions does not carry the body's model '%s'. "+
-				"Pass -m when you reload\n", loaded.Model)
+		err := output.Warning(w, fmt.Sprintf(
+			"--print-questions does not carry the body's model '%s'. Pass -m when you reload", loaded.Model))
 		if err != nil {
 			return err
 		}
 	}
 
 	if loaded.LongContext {
-		if _, err := fmt.Fprintln(w,
-			"warning: --print-questions does not carry the body's long_context. "+
+		if err := output.Warning(w,
+			"--print-questions does not carry the body's long_context. "+
 				"Pass --long-context when you reload"); err != nil {
 			return err
 		}
@@ -98,11 +98,7 @@ func warnUncarried(w io.Writer, loaded *qfile.File) error {
 		return nil
 	}
 
-	_, err := fmt.Fprintln(w,
-		"warning: --print-questions does not carry the body's state. "+
-			"Pass --state when you reload")
-
-	return err
+	return output.Warning(w, "--print-questions does not carry the body's state. Pass --state when you reload")
 }
 
 func printRequest(
@@ -153,73 +149,20 @@ func streamRequests(
 	inv *invocation,
 	resume answersfile.Resume,
 ) error {
-	built, mapper, namer, images, inputMode := inv.plan, inv.mapper, inv.namer, inv.images, flags.inputMode
-
-	questions := wireAll(built.Questions)
-
-	model, err := resolveModel(settings, built.Model)
+	model, err := resolveModel(settings, inv.plan.Model)
 	if err != nil {
 		return err
 	}
 
-	out := cmd.OutOrStdout()
-	source := records(cmd.Context(), settings, inputMode, flags, namer, nil, resume, output.JSON)
+	run := &requestRun{
+		built: inv.plan, mapper: inv.mapper, images: inv.images, model: model, questions: wireAll(inv.plan.Questions),
+	}
+	source := records(cmd.Context(), settings, flags.inputMode, flags, inv.namer, nil, resume, output.JSON)
 
 	result, err := engine.Run(cmd.Context(), engine.Config[namedRecord, []byte]{
-		Source: source,
-		Evaluate: func(ctx context.Context, rec namedRecord) ([]byte, error) {
-			if rec.Err != nil {
-				// A value alongside the error, because the engine writes every outcome. Returning
-				// nil here would print a blank line rather than the record.
-				return errorLine(rec.Err), rec.Err
-			}
-
-			if interrupted(ctx) {
-				return nil, ctx.Err()
-			}
-
-			if rec.idErr != nil {
-				bad := &input.LineError{Line: rec.Line, Err: rec.idErr}
-
-				return errorLine(bad), bad
-			}
-
-			state, wire := images.wrapLine(rec.State, rec.Wire)
-
-			sent, mapErr := mapped(ctx, mapper, state, wire)
-			if interrupted(ctx) {
-				return nil, ctx.Err()
-			}
-
-			if mapErr != nil {
-				bad := &input.LineError{Line: rec.Line, Err: mapErr}
-
-				return errorLine(bad), bad
-			}
-
-			sent, assets, imageErr := images.attach(sent)
-			if imageErr != nil {
-				bad := &input.LineError{Line: rec.Line, Err: imageErr}
-
-				return errorLine(bad), bad
-			}
-
-			req := onesie.Request{
-				State: sent, Model: model, Questions: questions, Assets: assets, LongContext: built.LongContext,
-			}
-			if validErr := onesie.ValidateRequest(req); validErr != nil {
-				bad := &input.LineError{Line: rec.Line, Err: embed("", validErr)}
-
-				return errorLine(bad), bad
-			}
-
-			return requestLine(rec.Line, req)
-		},
-		Write: func(body []byte) error {
-			_, writeErr := fmt.Fprintln(out, string(body))
-
-			return writeErr
-		},
+		Source:      source,
+		Evaluate:    run.evaluate,
+		Write:       writeBodies(cmd.OutOrStdout()),
 		Jobs:        flags.jobs,
 		Unordered:   flags.unordered,
 		StopOnError: flags.stopOnError,
@@ -233,6 +176,61 @@ func streamRequests(
 
 	// A dry run asks no question, so no record can have carried an assertion.
 	return streamResult(result, 0, 0)
+}
+
+type requestRun struct {
+	built     *plan.Plan
+	mapper    *jq.Expr
+	images    *imaging
+	model     string
+	questions onesie.Questions
+}
+
+func (r *requestRun) evaluate(ctx context.Context, rec namedRecord) ([]byte, error) {
+	if rec.Err != nil {
+		// A value alongside the error, because the engine writes every outcome. Returning
+		// nil here would print a blank line rather than the record.
+		return errorLine(rec.Err), rec.Err
+	}
+
+	if interrupted(ctx) {
+		return nil, ctx.Err()
+	}
+
+	if rec.idErr != nil {
+		return badLine(rec, rec.idErr)
+	}
+
+	state, wire := r.images.wrapLine(rec.State, rec.Wire)
+
+	sent, mapErr := mapped(ctx, r.mapper, state, wire)
+	if interrupted(ctx) {
+		return nil, ctx.Err()
+	}
+
+	if mapErr != nil {
+		return badLine(rec, mapErr)
+	}
+
+	sent, assets, imageErr := r.images.attach(sent)
+	if imageErr != nil {
+		return badLine(rec, imageErr)
+	}
+
+	req := onesie.Request{
+		State: sent, Model: r.model, Questions: r.questions, Assets: assets, LongContext: r.built.LongContext,
+	}
+	if validErr := onesie.ValidateRequest(req); validErr != nil {
+		return badLine(rec, embed("", validErr))
+	}
+
+	return requestLine(rec.Line, req)
+}
+
+func badLine(rec namedRecord, cause error) ([]byte, error) {
+	bad := &input.LineError{Line: rec.Line, Err: cause}
+
+	return errorLine(bad), bad
 }
 
 func requestLine(number int, req onesie.Request) ([]byte, error) {

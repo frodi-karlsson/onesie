@@ -12,13 +12,14 @@ import (
 	"unicode/utf8"
 
 	"github.com/frodi-karlsson/onesie/internal/interrupt"
+	"github.com/frodi-karlsson/onesie/internal/output"
 	"github.com/frodi-karlsson/onesie/internal/patherr"
 )
 
 const (
 	stdinHintDelay = 2 * time.Second
-	stdinHint      = "onesie: waiting for text on stdin. Pass --state, or close stdin."
-	stdinDashHint  = "onesie: waiting for text on stdin. Close stdin when the text is complete."
+	stdinHint      = "waiting for text on stdin. Pass --state, or close stdin."
+	stdinDashHint  = "waiting for text on stdin. Close stdin when the text is complete."
 )
 
 // ErrEmptyState reports a state that is empty or only whitespace, which the model cannot answer.
@@ -102,7 +103,7 @@ func hintUnlessArrived(ctx context.Context, watched *arrivalReader, hint io.Writ
 		return
 	}
 
-	if _, err := fmt.Fprintln(hint, text); err != nil {
+	if err := output.Notice(hint, text); err != nil {
 		return
 	}
 }

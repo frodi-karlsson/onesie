@@ -9,6 +9,7 @@ import (
 	"slices"
 
 	"github.com/frodi-karlsson/onesie-go"
+	"github.com/frodi-karlsson/onesie/internal/providers"
 )
 
 const convertedDefault = "typesafe"
@@ -157,8 +158,7 @@ func (p Profiles) validateEntries() error {
 	// An entry is named after its provider, so an unknown provider is an entry name, not a profile.
 	for _, name := range slices.Sorted(maps.Keys(p.Profiles)) {
 		if provider, err := onesie.ProviderNamed(name); err != nil || provider.Name() != name {
-			return fmt.Errorf(
-				"its entry %s is not a provider. Use typesafe, openrouter, berget, levanto or cloudflare", QuotedName(name))
+			return fmt.Errorf("its entry %s is not a provider. Use %s", QuotedName(name), providers.Names())
 		}
 	}
 

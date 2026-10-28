@@ -1,5 +1,7 @@
 package cli
 
+import "github.com/frodi-karlsson/onesie/internal/output"
+
 func alsoFailed(first, second error) error {
 	switch {
 	case second == nil:
@@ -18,7 +20,7 @@ type bothFailed struct {
 
 func (e *bothFailed) Error() string {
 	// Execute prefixes only the first line, so the second carries its own.
-	return text(e.first) + "\nonesie: " + text(e.second)
+	return text(e.first) + "\n" + output.Prefix + text(e.second)
 }
 
 func (e *bothFailed) Unwrap() []error {

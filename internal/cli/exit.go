@@ -107,108 +107,14 @@ func canceledOrBrokenPipe(err error) bool {
 }
 
 func firstMatch(err error) failure {
-	// Order matters. RetryAfterError embeds APIError, so the typed check precedes the sentinels it
-	// would otherwise match, and silentError comes last so a real error joined to one keeps its code.
-
-	var records *recordsError
-	if errors.As(err, &records) {
-		// The exit code already says a record failed, and the per record lines on stdout carry the
-		// detail.
-		return failure{kind: output.KindInput, code: ExitRecords, quiet: true}
+	// Order matters. A failure the run decided, from a verdict to an interrupt, wins over the request
+	// error it wraps, and silentError comes last so a real error joined to one keeps its code.
+	if found, matched := runFailure(err); matched {
+		return found
 	}
 
-	var stored *storedFailure
-	if errors.As(err, &stored) {
-		return failure{kind: output.KindInput, code: stored.freshRunCode()}
-	}
-
-	var rejected *rejectedError
-	if errors.As(err, &rejected) {
-		// A rejection is carried by the exit code alone. Under -q nothing is printed at all, and a
-		// false assertion has already printed the record.
-		return failure{kind: output.KindInput, code: ExitRejected, quiet: true}
-	}
-
-	var abstained *abstainError
-	if errors.As(err, &abstained) {
-		return failure{kind: output.KindInput, code: ExitAbstain, quiet: true}
-	}
-
-	var stopped *stoppedError
-	if errors.As(err, &stopped) {
-		return failure{kind: output.KindInput, code: ExitRecords, quiet: true}
-	}
-
-	var bad *input.LineError
-	if errors.As(err, &bad) {
-		return failure{kind: output.KindInput, code: ExitUsage}
-	}
-
-	if errors.Is(err, context.Canceled) {
-		return failure{kind: output.KindInput, code: ExitInterrupt}
-	}
-
-	// A deadline reaching here unwrapped is still a timeout, and a timeout is transport shaped.
-	// Without this it would fall through to the usage default.
-	if errors.Is(err, context.DeadlineExceeded) {
-		return failure{kind: output.KindTransport, code: ExitTransport}
-	}
-
-	var overCap *onesie.RetryAfterError
-	if errors.As(err, &overCap) {
-		status := overCap.Status
-
-		return failure{kind: output.KindHTTP, status: &status, code: ExitUnavailable}
-	}
-
-	// A 2xx body onesie cannot use is a server fault, not a usage error, so it exits 4 and is never
-	// retried. Its kind is response, since http would name a status worth retrying and transport a
-	// connection blip that never happened.
-	var unusable *onesie.ResponseError
-	if errors.As(err, &unusable) {
-		status := unusable.Status
-
-		return failure{kind: output.KindResponse, status: &status, code: ExitUnavailable}
-	}
-
-	var cannotUse *answer.UnusableError
-	if errors.As(err, &cannotUse) {
-		status := http.StatusOK
-
-		return failure{kind: output.KindResponse, status: &status, code: ExitUnavailable}
-	}
-
-	var api *onesie.APIError
-
-	answered := errors.As(err, &api)
-
-	if answered && (errors.Is(err, onesie.ErrAuthentication) || errors.Is(err, onesie.ErrPermissionDenied) ||
-		errors.Is(err, onesie.ErrPaymentRequired)) {
-		status := api.Status
-
-		return failure{kind: output.KindHTTP, status: &status, code: ExitAuth}
-	}
-
-	var readable *creds.ReadableError
-	if errors.As(err, &readable) {
-		return failure{kind: output.KindInput, code: ExitAuth}
-	}
-
-	var keychain *creds.KeychainError
-	if errors.As(err, &keychain) {
-		return failure{kind: output.KindInput, code: ExitAuth}
-	}
-
-	if answered {
-		status := api.Status
-
-		return failure{kind: output.KindHTTP, status: &status, code: classifyStatus(api.Status)}
-	}
-
-	// A connection that broke with EPIPE exits as the transport failure it is, and stays quiet as
-	// every broken pipe does.
-	if errors.Is(err, onesie.ErrConnection) || errors.Is(err, onesie.ErrTimeout) {
-		return failure{kind: output.KindTransport, code: ExitTransport}
+	if found, matched := requestFailure(err); matched {
+		return found
 	}
 
 	// After the transport checks, so a socket write that failed with EPIPE keeps the transport exit
@@ -228,6 +134,121 @@ func firstMatch(err error) failure {
 	// a line onesie could not read. Calling it transport would blame the network, and exit 5 where a
 	// fresh run exits 2.
 	return failure{kind: output.KindInput, code: ExitUsage}
+}
+
+func runFailure(err error) (failure, bool) {
+	var records *recordsError
+	if errors.As(err, &records) {
+		// The exit code already says a record failed, and the per record lines on stdout carry the
+		// detail.
+		return failure{kind: output.KindInput, code: ExitRecords, quiet: true}, true
+	}
+
+	var stored *storedFailure
+	if errors.As(err, &stored) {
+		return failure{kind: output.KindInput, code: stored.freshRunCode()}, true
+	}
+
+	var rejected *rejectedError
+	if errors.As(err, &rejected) {
+		// A rejection is carried by the exit code alone. Under -q nothing is printed at all, and a
+		// false assertion has already printed the record.
+		return failure{kind: output.KindInput, code: ExitRejected, quiet: true}, true
+	}
+
+	var abstained *abstainError
+	if errors.As(err, &abstained) {
+		return failure{kind: output.KindInput, code: ExitAbstain, quiet: true}, true
+	}
+
+	var stopped *stoppedError
+	if errors.As(err, &stopped) {
+		return failure{kind: output.KindInput, code: ExitRecords, quiet: true}, true
+	}
+
+	var bad *input.LineError
+	if errors.As(err, &bad) {
+		return failure{kind: output.KindInput, code: ExitUsage}, true
+	}
+
+	if errors.Is(err, context.Canceled) {
+		return failure{kind: output.KindInput, code: ExitInterrupt}, true
+	}
+
+	// A deadline reaching here unwrapped is still a timeout, and a timeout is transport shaped.
+	// Without this it would fall through to the usage default.
+	if errors.Is(err, context.DeadlineExceeded) {
+		return failure{kind: output.KindTransport, code: ExitTransport}, true
+	}
+
+	return failure{}, false
+}
+
+func requestFailure(err error) (failure, bool) {
+	// Order matters. RetryAfterError embeds APIError, so the typed check precedes the sentinels it
+	// would otherwise match.
+	var overCap *onesie.RetryAfterError
+	if errors.As(err, &overCap) {
+		status := overCap.Status
+
+		return failure{kind: output.KindHTTP, status: &status, code: ExitUnavailable}, true
+	}
+
+	// A 2xx body onesie cannot use is a server fault, not a usage error, so it exits 4 and is never
+	// retried. Its kind is response, since http would name a status worth retrying and transport a
+	// connection blip that never happened.
+	var unusable *onesie.ResponseError
+	if errors.As(err, &unusable) {
+		status := unusable.Status
+
+		return failure{kind: output.KindResponse, status: &status, code: ExitUnavailable}, true
+	}
+
+	var cannotUse *answer.UnusableError
+	if errors.As(err, &cannotUse) {
+		status := http.StatusOK
+
+		return failure{kind: output.KindResponse, status: &status, code: ExitUnavailable}, true
+	}
+
+	var api *onesie.APIError
+
+	answered := errors.As(err, &api)
+
+	if answered && authFailure(err) {
+		status := api.Status
+
+		return failure{kind: output.KindHTTP, status: &status, code: ExitAuth}, true
+	}
+
+	var readable *creds.ReadableError
+	if errors.As(err, &readable) {
+		return failure{kind: output.KindInput, code: ExitAuth}, true
+	}
+
+	var keychain *creds.KeychainError
+	if errors.As(err, &keychain) {
+		return failure{kind: output.KindInput, code: ExitAuth}, true
+	}
+
+	if answered {
+		status := api.Status
+
+		return failure{kind: output.KindHTTP, status: &status, code: classifyStatus(api.Status)}, true
+	}
+
+	// A connection that broke with EPIPE exits as the transport failure it is, and stays quiet as
+	// every broken pipe does.
+	if errors.Is(err, onesie.ErrConnection) || errors.Is(err, onesie.ErrTimeout) {
+		return failure{kind: output.KindTransport, code: ExitTransport}, true
+	}
+
+	return failure{}, false
+}
+
+func authFailure(err error) bool {
+	return errors.Is(err, onesie.ErrAuthentication) || errors.Is(err, onesie.ErrPermissionDenied) ||
+		errors.Is(err, onesie.ErrPaymentRequired)
 }
 
 type failure struct {

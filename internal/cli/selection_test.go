@@ -472,6 +472,11 @@ func TestResolutionOptions(t *testing.T) {
 
 	const otherAccount = "0123456789abcdef0123456789abcdef"
 
+	bareRun, err := providerRun("typesafe", "nothing", lookupFrom(nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	tests := []struct {
 		name string
 		run  resolution
@@ -514,6 +519,13 @@ func TestResolutionOptions(t *testing.T) {
 			run:  profileOf(creds.Profile{Provider: "openrouter", APIKey: "SECRET-P"}),
 			want: onesie.OpenRouter().DefaultBaseURL(),
 		},
+		{
+			name: "should take --base-url on a run without a profile",
+			run:  bareRun,
+			flag: "https://flag.example",
+			env:  map[string]string{onesie.TypeSafe().EnvAPIKey(): "SECRET-ENV"},
+			want: "https://flag.example",
+		},
 	}
 
 	for _, tc := range tests {
@@ -524,9 +536,6 @@ func TestResolutionOptions(t *testing.T) {
 
 			// The options clientBuilder adds ahead of these, so the order is the one a real run builds.
 			opts := []onesie.Option{onesie.WithProvider(tc.run.provider), onesie.WithEnv(lookup)}
-			if tc.flag != "" {
-				opts = append(opts, onesie.WithBaseURL(tc.flag))
-			}
 
 			client, err := onesie.New(append(opts, tc.run.options(tc.flag, staticKey("SECRET-KEY"), lookup)...)...)
 			if err != nil {
@@ -539,15 +548,10 @@ func TestResolutionOptions(t *testing.T) {
 		})
 	}
 
-	t.Run("should add nothing for a run without a profile", func(t *testing.T) {
+	t.Run("should add nothing for a run without a profile or --base-url", func(t *testing.T) {
 		t.Parallel()
 
-		bare, err := providerRun("typesafe", "nothing", lookupFrom(nil))
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		if got := bare.options("", staticKey(""), lookupFrom(nil)); len(got) != 0 {
+		if got := bareRun.options("", staticKey(""), lookupFrom(nil)); len(got) != 0 {
 			t.Errorf("options = %d, want none", len(got))
 		}
 	})
@@ -564,6 +568,48 @@ func TestResolutionOptions(t *testing.T) {
 			t.Errorf("error = %v, want onesie.ErrNoAPIKey", err)
 		}
 	})
+}
+
+func TestResolutionGivenBaseURL(t *testing.T) {
+	t.Parallel()
+
+	profile := resolution{profile: "work", baseURL: "https://profile.example"}
+
+	tests := []struct {
+		name       string
+		run        resolution
+		flag       string
+		wantURL    string
+		wantSource string
+	}{
+		{
+			name: "should take --base-url ahead of the profile's base_url", run: profile,
+			flag: "https://flag.example", wantURL: "https://flag.example", wantSource: "--base-url",
+		},
+		{
+			name: "should trim the space around --base-url", run: profile,
+			flag: "  https://flag.example ", wantURL: "https://flag.example", wantSource: "--base-url",
+		},
+		{
+			name: "should take the profile's base_url when --base-url is blank", run: profile,
+			flag: " ", wantURL: "https://profile.example", wantSource: "the profile's base_url",
+		},
+		{
+			name: "should give no URL when neither is set", run: resolution{profile: "work"},
+			wantSource: "the profile's base_url",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			source, url := tc.run.givenBaseURL(tc.flag)
+			if source != tc.wantSource || url != tc.wantURL {
+				t.Errorf("givenBaseURL = %q, %q, want %q, %q", source, url, tc.wantSource, tc.wantURL)
+			}
+		})
+	}
 }
 
 func staticKey(key string) func() (string, error) {

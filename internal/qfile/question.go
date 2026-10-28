@@ -92,35 +92,53 @@ func buildQuestion(id string, value any) (plan.Question, error) {
 		question.Criteria = criteria
 	}
 
+	if err := readShape(&question, fields, yesKey, noKey); err != nil {
+		return question, err
+	}
+
+	if err := readPolicy(&question, fields); err != nil {
+		return question, err
+	}
+
+	if err := checkKeys(id, fields); err != nil {
+		return question, err
+	}
+
+	return question, nil
+}
+
+func readShape(question *plan.Question, fields yaml.MapSlice, yesKey, noKey string) error {
+	id := question.ID
+
 	pickValue, hasPick := lookup(fields, "pick")
 	rateValue, hasRate := lookup(fields, "rate")
 
 	boxValue, hasBox := lookup(fields, "box")
 	if hasBox {
 		if on, isBool := boxValue.(bool); !isBool || !on {
-			return question, fmt.Errorf("'box' in question '%s' takes true", id)
+			return fmt.Errorf("'box' in question '%s' takes true", id)
 		}
 	}
 
 	if hasBox && (hasPick || hasRate) {
-		return question, fmt.Errorf(
+		return fmt.Errorf(
 			"question '%s' has more than one of 'pick', 'rate' and 'box'. "+
 				"A question is one of pick, rate or box", id)
 	}
 
 	if hasPick && hasRate {
-		return question, fmt.Errorf(
+		return fmt.Errorf(
 			"question '%s' has both 'pick' and 'rate'. A question is one or the other", id)
 	}
 
 	if err := checkShapeAndRubric(id, shapeKey(hasPick, hasRate, hasBox), yesKey, noKey); err != nil {
-		return question, err
+		return err
 	}
 
 	if hasPick {
 		options, err := readPick(id, pickValue)
 		if err != nil {
-			return question, err
+			return err
 		}
 
 		question.Shape = plan.Pick
@@ -130,7 +148,7 @@ func buildQuestion(id string, value any) (plan.Question, error) {
 	if hasRate {
 		levels, err := readRate(id, rateValue)
 		if err != nil {
-			return question, err
+			return err
 		}
 
 		question.Shape = plan.Rate
@@ -143,15 +161,7 @@ func buildQuestion(id string, value any) (plan.Question, error) {
 		question.Boxed = true
 	}
 
-	if err := readPolicy(&question, fields); err != nil {
-		return question, err
-	}
-
-	if err := checkKeys(id, fields); err != nil {
-		return question, err
-	}
-
-	return question, nil
+	return nil
 }
 
 func readYesNo(id, yesKey, noKey string, yes, no any) (*plan.YesNoCriteria, error) {

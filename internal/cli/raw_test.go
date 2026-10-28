@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -786,6 +787,12 @@ func TestStreamRaw(t *testing.T) {
 			})
 		}
 	})
+
+	t.Run("should keep the stdout, stderr, exit code and --out file of each pinned run", func(t *testing.T) {
+		t.Parallel()
+
+		checkPinnedRuns(t, pinnedRawRuns())
+	})
 }
 
 func runRequestMode(
@@ -906,4 +913,47 @@ func TestRequests(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestWriteBodies(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		bodies []string
+		want   string
+	}{
+		{
+			name:   "should write each body on its own line",
+			bodies: []string{`{"a":1}`, `{"b":2}`}, want: "{\"a\":1}\n{\"b\":2}\n",
+		},
+		{name: "should write an empty body as an empty line", bodies: []string{""}, want: "\n"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var out bytes.Buffer
+
+			write := writeBodies(&out)
+			for _, body := range tc.bodies {
+				if err := write([]byte(body)); err != nil {
+					t.Fatalf("write: %v", err)
+				}
+			}
+
+			if out.String() != tc.want {
+				t.Errorf("wrote %q, want %q", out.String(), tc.want)
+			}
+		})
+	}
+
+	t.Run("should return the writer's error", func(t *testing.T) {
+		t.Parallel()
+
+		if err := writeBodies(brokenWriter{})([]byte("{}")); !errors.Is(err, errBroken) {
+			t.Errorf("write = %v, want %v", err, errBroken)
+		}
+	})
 }

@@ -17,7 +17,7 @@ const (
 	unwritten = "onesie: could not write /home/u/.config/onesie/profiles.json, so " +
 		"/home/u/.config/onesie/credentials.json is converted for this run only: creating a temporary file in " +
 		"/home/u/.config/onesie: permission denied"
-	modeWarning = "warning: could not set mode 600 on /home/u/.config/onesie/profiles.json. The key is not " +
+	modeWarning = "onesie: warning: could not set mode 600 on /home/u/.config/onesie/profiles.json. The key is not " +
 		"protected by the filesystem"
 	removedLink = "onesie: removed the link /home/u/.config/onesie/credentials.json, but " +
 		"/home/u/secrets/credentials.json still holds the key"

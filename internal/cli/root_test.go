@@ -1882,7 +1882,7 @@ func TestNewRootCmd(t *testing.T) {
 				name:     "should print the warnings when validation fails",
 				args:     []string{"-j", "8", "--pick", "billing"},
 				code:     cli.ExitUsage,
-				contains: "warning: -j 8 ignored. -i text reads one record",
+				contains: "onesie: warning: -j 8 ignored. -i text reads one record",
 			},
 			{
 				name: "should reach the request with every flag in range",
@@ -2918,7 +2918,7 @@ func TestClientBuilder(t *testing.T) {
 					t.Errorf("stderr = %q, want the refusal %v", errOut.String(), tc.refused)
 				}
 
-				want := "warning: " + tc.spelled + " ends in /v1 and onesie adds the API path itself, " +
+				want := "onesie: warning: " + tc.spelled + " ends in /v1 and onesie adds the API path itself, " +
 					"so requests go to " + srv.URL + "/v1/v1/systemone\n"
 				if !tc.wantWarn {
 					if strings.Contains(errOut.String(), "ends in /v1") {

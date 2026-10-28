@@ -274,9 +274,9 @@ func TestPrintQuestions(t *testing.T) {
 		}
 
 		for _, want := range []string{
-			"warning: --print-questions does not carry the body's model 'onesie-1.13.0'. " +
+			"onesie: warning: --print-questions does not carry the body's model 'onesie-1.13.0'. " +
 				"Pass -m when you reload",
-			"warning: --print-questions does not carry the body's state. " +
+			"onesie: warning: --print-questions does not carry the body's state. " +
 				"Pass --state when you reload",
 		} {
 			if !strings.Contains(errOut, want) {
@@ -1055,7 +1055,7 @@ func TestPrintRequest(t *testing.T) {
 			t.Fatalf("writing the body: %v", err)
 		}
 
-		const warning = "warning: ignoring the state in %s, since %s sends each record as its state\n"
+		const warning = "onesie: warning: ignoring the state in %s, since %s sends each record as its state\n"
 
 		tests := []struct {
 			name   string

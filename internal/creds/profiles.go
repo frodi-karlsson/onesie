@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/frodi-karlsson/onesie-go"
+	"github.com/frodi-karlsson/onesie/internal/providers"
 )
 
 const (
@@ -237,9 +238,7 @@ func (p Profile) validate(subject string) error {
 
 	provider, err := onesie.ProviderNamed(p.Provider)
 	if err != nil || provider.Name() != p.Provider {
-		return fmt.Errorf(
-			"%s names provider %s, which is not typesafe, openrouter, berget, levanto or cloudflare",
-			subject, QuotedName(p.Provider))
+		return fmt.Errorf("%s names provider %s, which is not %s", subject, QuotedName(p.Provider), providers.Names())
 	}
 
 	inFile := strings.TrimSpace(p.APIKey) != "" && p.Store == "" && p.Account == ""
@@ -260,7 +259,7 @@ func (p Profile) validate(subject string) error {
 	}
 
 	if provider.EnvAccountID() == "" {
-		return fmt.Errorf("%s has account_id, which only cloudflare takes", subject)
+		return fmt.Errorf("%s has account_id, which only %s takes", subject, providers.WithAccounts())
 	}
 
 	if !ValidAccountID(p.AccountID) {

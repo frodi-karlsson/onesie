@@ -1,8 +1,8 @@
-onesie is a Unix filter over the System One API, served by TypeSafe, OpenRouter, Berget, Levanto or Cloudflare.
+onesie is a Unix filter over the System One API, served by typesafe, openrouter, berget, levanto or cloudflare.
 
 State arrives on stdin, typed answers leave on stdout, and the exit status is usable in a conditional.
 
-A run uses a profile from profiles.json in the config dir: the one --profile or ONESIE_PROFILE names, or the default one. A profile holds the provider, its key, in the OS keychain or the file, and optionally a model and a base URL or Cloudflare account. onesie profile create stores one, and onesie profile use makes it the default. --provider or ONESIE_PROVIDER runs without a profile, with the key from the provider's variable, TYPESAFE_API_KEY, OPENROUTER_API_KEY, BERGET_API_KEY, LEVANTO_API_KEY or CLOUDFLARE_API_TOKEN, and so does a run on typesafe when there are no profiles. Cloudflare also needs an account, from the profile, CLOUDFLARE_ACCOUNT_ID or a base URL that holds it.
+A run uses a profile from profiles.json in the config dir: the one --profile or ONESIE_PROFILE names, or the default one. A profile holds the provider, its key, in the OS keychain or the file, and optionally a model and a base URL or cloudflare account. onesie profile create stores one, and onesie profile use makes it the default. --provider or ONESIE_PROVIDER runs without a profile, with the key from the provider's variable, TYPESAFE_API_KEY, OPENROUTER_API_KEY, BERGET_API_KEY, LEVANTO_API_KEY or CLOUDFLARE_API_TOKEN, and so does a run on typesafe when there are no profiles. On cloudflare a run also needs an account, from the profile, CLOUDFLARE_ACCOUNT_ID or a base URL that holds it.
 
 --mock FILE, or ONESIE_MOCK=FILE, answers from a file instead of the API, with no key and no network, so a gate script can be tested for free.
 

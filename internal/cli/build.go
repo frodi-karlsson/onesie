@@ -2,11 +2,13 @@ package cli
 
 import (
 	"fmt"
+	"io"
 
 	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/assert"
 	"github.com/frodi-karlsson/onesie/internal/input"
 	"github.com/frodi-karlsson/onesie/internal/jq"
+	"github.com/frodi-karlsson/onesie/internal/output"
 	"github.com/frodi-karlsson/onesie/internal/plan"
 	"github.com/frodi-karlsson/onesie/internal/qfile"
 )
@@ -20,47 +22,21 @@ func build(settings rootSettings, flags runConfig, ignoreFileJudgment bool) (*in
 		return nil, nil, errNoQuestion
 	}
 
-	var (
-		loaded   *qfile.File
-		setAside fileGate
-		facts    runFacts
-	)
-
-	fileName := flags.file
-
-	if flags.file != "" {
-		data, path, hides, readErr := readQuestionFile(settings, flags.file)
-		if readErr != nil {
-			return nil, nil, readErr
-		}
-
-		fileName = path
-
-		var loadErr error
-
-		loaded, loadErr = loadQuestionFile(data, path, hides, positional == "" && !asked(events))
-		if loadErr != nil {
-			return nil, nil, loadErr
-		}
-
-		if ignoreFileJudgment {
-			setAside = fileGate{assert: loaded.Assert, abstainIf: loaded.AbstainIf}
-			withoutJudgment(loaded)
-		}
-
-		facts = runFacts{assert: loaded.Assert, abstainIf: loaded.AbstainIf}
+	file, err := readBuildFile(settings, flags, ignoreFileJudgment)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	source := plan.Source{
 		Events:     events,
 		Positional: positional,
-		FileName:   fileName,
+		FileName:   file.name,
 		Replace:    flags.replace,
 		ReadFile:   settings.readFile,
 	}
 
-	if loaded != nil {
-		source.File = loaded.Questions
+	if file.loaded != nil {
+		source.File = file.loaded.Questions
 	}
 
 	built, err := plan.Assemble(source)
@@ -69,55 +45,106 @@ func build(settings rootSettings, flags runConfig, ignoreFileJudgment bool) (*in
 	}
 
 	built.Model = flags.model
-	if built.Model == "" && loaded != nil {
-		built.Model = loaded.Model
+	if built.Model == "" && file.loaded != nil {
+		built.Model = file.loaded.Model
 	}
 
-	built.LongContext = flags.env.longContext || (loaded != nil && loaded.LongContext)
+	built.LongContext = flags.env.longContext || (file.loaded != nil && file.loaded.LongContext)
 
-	warnings, err := validatePlan(built, flags, facts)
+	warnings, err := validatePlan(built, flags, file.facts)
 	if err != nil {
 		return nil, warnings, err
 	}
 
+	inv, err := invocationOf(settings, flags, built, file)
+
+	return inv, warnings, err
+}
+
+func readBuildFile(settings rootSettings, flags runConfig, ignoreFileJudgment bool) (buildFile, error) {
+	file := buildFile{name: flags.file}
+	if flags.file == "" {
+		return file, nil
+	}
+
+	data, path, hides, err := readQuestionFile(settings, flags.file)
+	if err != nil {
+		return buildFile{}, err
+	}
+
+	file.name = path
+
+	file.loaded, err = loadQuestionFile(data, path, hides, flags.positional == "" && !asked(flags.events))
+	if err != nil {
+		return buildFile{}, err
+	}
+
+	if ignoreFileJudgment {
+		file.setAside = fileGate{assert: file.loaded.Assert, abstainIf: file.loaded.AbstainIf}
+		withoutJudgment(file.loaded)
+	}
+
+	file.facts = runFacts{assert: file.loaded.Assert, abstainIf: file.loaded.AbstainIf}
+
+	return file, nil
+}
+
+type buildFile struct {
+	loaded   *qfile.File
+	setAside fileGate
+	facts    runFacts
+	name     string
+}
+
+func invocationOf(settings rootSettings, flags runConfig, built *plan.Plan, file buildFile) (*invocation, error) {
 	// After validation, since the checker reads a plan the run has accepted, and before any mode
 	// dispatches, since the assertion is checked against the plan and every check runs before any
 	// network call.
-	gate, err := gateOf("--assert", facts.assert, flags.assert, built)
+	gate, err := gateOf("--assert", file.facts.assert, flags.assert, built)
 	if err != nil {
-		return nil, warnings, err
+		return nil, err
 	}
 
-	abstain, err := gateOf("--abstain-if", facts.abstainIf, flags.abstainIf, built)
+	abstain, err := gateOf("--abstain-if", file.facts.abstainIf, flags.abstainIf, built)
 	if err != nil {
-		return nil, warnings, err
+		return nil, err
 	}
 
 	mapper, err := exprOf(flags.hasMap, "--map", flags.mapSource)
 	if err != nil {
-		return nil, warnings, err
+		return nil, err
 	}
 
 	namer, err := exprOf(flags.hasID, "--id", flags.idSource)
 	if err != nil {
-		return nil, warnings, err
+		return nil, err
 	}
 
 	var bodyAssets onesie.Assets
-	if loaded != nil {
-		bodyAssets = loaded.Assets
+	if file.loaded != nil {
+		bodyAssets = file.loaded.Assets
 	}
 
 	images, err := newImaging(
 		flags.images, flags.imageFields, flags.inputMode == input.Lines, settings.readFile, bodyAssets)
 	if err != nil {
-		return nil, warnings, err
+		return nil, err
 	}
 
 	return &invocation{
-		plan: built, gate: gate, abstain: abstain, mapper: mapper, namer: namer, loaded: loaded,
-		fileGate: setAside, images: images,
-	}, warnings, nil
+		plan: built, gate: gate, abstain: abstain, mapper: mapper, namer: namer, loaded: file.loaded,
+		fileGate: file.setAside, images: images,
+	}, nil
+}
+
+func warnAll(w io.Writer, warnings []string) error {
+	for _, warning := range warnings {
+		if err := output.Warning(w, warning); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func withoutJudgment(loaded *qfile.File) {

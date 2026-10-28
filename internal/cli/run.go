@@ -40,62 +40,30 @@ func run(
 		return err
 	}
 
-	inputMode := flags.inputMode
-
 	// Both branches sit ahead of the plan, since neither has a question and failing for want of one
 	// would send the user to the wrong flag. --list-models comes first, so it names itself rather
 	// than the mode it was combined with.
 	if flags.listModels {
-		// The only hint is -j on one record, which --list-models refuses and -i request never is.
-		if _, checkErr := checkFlags(flags, runFacts{}); checkErr != nil {
-			return checkErr
-		}
-
-		out.BindWithoutFingerprint()
-
-		return withStats(cmd, settings.now, flags, func(stats *collector) error {
-			return listModels(cmd, settings, flags, stats)
-		})
+		return runListModels(cmd, settings, flags, out)
 	}
 
-	if inputMode == input.Request {
-		if _, checkErr := checkFlags(flags, runFacts{}); checkErr != nil {
-			return checkErr
-		}
-
-		// Each body names its own model or takes the run's, and the fingerprint holds no model, as
-		// it holds nothing else a body carries.
-		if bindErr := bindOut(out, settings, flags, nil, answersfile.FingerprintInputs{
-			Input: inputMode.String(), LongContext: flags.env.longContext,
-		}); bindErr != nil {
-			return bindErr
-		}
-
-		return withStats(cmd, settings.now, flags, func(stats *collector) error {
-			return streamRaw(cmd, settings, flags, stats, out, resume)
-		})
+	if flags.inputMode == input.Request {
+		return runRequestBodies(cmd, settings, flags, out, resume)
 	}
 
 	inv, warnings, err := build(settings, flags, false)
 
 	// Warnings print whether or not validation succeeded, so a run that fails for one reason still
 	// reports the others.
-	for _, warning := range warnings {
-		if _, printErr := fmt.Fprintln(cmd.ErrOrStderr(), warning); printErr != nil {
-			return printErr
-		}
+	if warnErr := warnAll(cmd.ErrOrStderr(), warnings); warnErr != nil {
+		return warnErr
 	}
 
 	if err != nil {
 		return err
 	}
 
-	built := inv.plan
-	gate := inv.gate
-	abstain := inv.abstain
-	loaded := inv.loaded
-
-	if bodyErr := checkBodyState(flags, loaded); bodyErr != nil {
+	if bodyErr := checkBodyState(flags, inv.loaded); bodyErr != nil {
 		return bodyErr
 	}
 
@@ -106,9 +74,55 @@ func run(
 		out.BindWithoutFingerprint()
 
 		return printQuestions(
-			cmd.OutOrStdout(), cmd.ErrOrStderr(), built.Questions, gate.Source(),
-			abstain.Source(), loaded, settings.schemaURL)
+			cmd.OutOrStdout(), cmd.ErrOrStderr(), inv.plan.Questions, inv.gate.Source(),
+			inv.abstain.Source(), inv.loaded, settings.schemaURL)
 	}
+
+	return runPlan(cmd, settings, flags, inv, out, resume)
+}
+
+func runListModels(cmd *cobra.Command, settings rootSettings, flags runConfig, out *answersfile.File) error {
+	// The only hint is -j on one record, which --list-models refuses and -i request never is.
+	if _, checkErr := checkFlags(flags, runFacts{}); checkErr != nil {
+		return checkErr
+	}
+
+	out.BindWithoutFingerprint()
+
+	return withStats(cmd, settings.now, flags, func(stats *collector) error {
+		return listModels(cmd, settings, flags, stats)
+	})
+}
+
+func runRequestBodies(
+	cmd *cobra.Command, settings rootSettings, flags runConfig, out *answersfile.File, resume answersfile.Resume,
+) error {
+	if _, checkErr := checkFlags(flags, runFacts{}); checkErr != nil {
+		return checkErr
+	}
+
+	// Each body names its own model or takes the run's, and the fingerprint holds no model, as
+	// it holds nothing else a body carries.
+	if bindErr := bindOut(out, settings, flags, nil, answersfile.FingerprintInputs{
+		Input: flags.inputMode.String(), LongContext: flags.env.longContext,
+	}); bindErr != nil {
+		return bindErr
+	}
+
+	return withStats(cmd, settings.now, flags, func(stats *collector) error {
+		return streamRaw(cmd, settings, flags, stats, out, resume)
+	})
+}
+
+func runPlan(
+	cmd *cobra.Command,
+	settings rootSettings,
+	flags runConfig,
+	inv *invocation,
+	out *answersfile.File,
+	resume answersfile.Resume,
+) error {
+	built, gate, abstain, inputMode := inv.plan, inv.gate, inv.abstain, flags.inputMode
 
 	model, err := resolveModel(settings, built.Model)
 	if err != nil {
@@ -140,7 +154,7 @@ func run(
 
 	if inputMode.Streaming() {
 		if warnErr := warnIgnoredBodyState(
-			cmd.ErrOrStderr(), flags, loaded, "a stream", inv.images, wireAll(built.Questions)); warnErr != nil {
+			cmd.ErrOrStderr(), flags, inv.loaded, "a stream", inv.images, wireAll(built.Questions)); warnErr != nil {
 			return warnErr
 		}
 
@@ -149,7 +163,10 @@ func run(
 		}
 
 		return withStats(cmd, settings.now, flags, func(stats *collector) error {
-			return stream(cmd, settings, flags, inv, outputMode, stats, out, resume, answers)
+			return stream(cmd, streamInputs{
+				settings: settings, flags: flags, inv: inv, outputMode: outputMode, stats: stats, answers: out,
+				resume: resume, answerers: answers,
+			})
 		})
 	}
 
@@ -157,7 +174,20 @@ func run(
 		return refuseErr
 	}
 
-	resolved, err := resolveState(cmd.Context(), settings, flags, loaded, cmd.ErrOrStderr())
+	return runOne(cmd, settings, flags, inv, outputMode, answers)
+}
+
+func runOne(
+	cmd *cobra.Command,
+	settings rootSettings,
+	flags runConfig,
+	inv *invocation,
+	outputMode output.Mode,
+	answers answererFactory,
+) error {
+	built := inv.plan
+
+	resolved, err := resolveState(cmd.Context(), settings, flags, inv.loaded, cmd.ErrOrStderr())
 	if err != nil {
 		return err
 	}
@@ -270,11 +300,8 @@ func warnIgnoredBodyState(
 		note = fmt.Sprintf(" and its %s", plural(dropped, "asset"))
 	}
 
-	_, err = fmt.Fprintf(w,
-		"warning: ignoring the state in %s%s, since %s sends each record as its state\n",
-		flags.file, note, sender)
-
-	return err
+	return output.Warning(w, fmt.Sprintf(
+		"ignoring the state in %s%s, since %s sends each record as its state", flags.file, note, sender))
 }
 
 func resolveState(
@@ -400,284 +427,6 @@ func inputName(flag string) string {
 	}
 
 	return flag
-}
-
-func stream(
-	cmd *cobra.Command,
-	settings rootSettings,
-	flags runConfig,
-	inv *invocation,
-	outputMode output.Mode,
-	stats *collector,
-	answers *answersfile.File,
-	resume answersfile.Resume,
-	answerers answererFactory,
-) error {
-	if flags.printRequest {
-		return streamRequests(cmd, settings, flags, inv, resume)
-	}
-
-	built, mapper, namer, images := inv.plan, inv.mapper, inv.namer, inv.images
-	gate, abstain, inputMode := inv.gate, inv.abstain, flags.inputMode
-
-	asker, err := answerers(cmd.Context(), stats)
-	if err != nil {
-		return err
-	}
-
-	questions := wireAll(built.Questions)
-
-	model, err := resolveModel(settings, built.Model)
-	if err != nil {
-		return err
-	}
-
-	format := answersfile.Format{
-		Mode: outputMode, Merge: merging(flags), MergeKey: mergeKey(flags), Namer: namer, Gated: gate != nil,
-	}
-
-	book, err := answersfile.ResumeLedger(cmd.Context(), answers, format)
-	if err != nil {
-		return err
-	}
-
-	resume, err = answersfile.ResumedVerdicts(cmd.Context(), answers, format, flags.stopOnError, resume)
-	if err != nil {
-		return err
-	}
-
-	source := records(cmd.Context(), settings, inputMode, flags, namer, book, resume, outputMode)
-	out := cmd.OutOrStdout()
-	merge := merging(flags)
-	table := delimited(out, outputMode, built, gate != nil, namer != nil && !merge, resume.Header)
-	md := markdown(out, outputMode, built, gate != nil, namer != nil)
-
-	var (
-		shared    *dedup
-		noticeErr error
-	)
-
-	if !flags.noDedup {
-		shared = newDedup(settings.dedupLimit, func() {
-			_, noticeErr = fmt.Fprintf(cmd.ErrOrStderr(),
-				"%d distinct requests held, so later records are deduplicated only against those\n",
-				settings.dedupLimit)
-		})
-	}
-
-	evaluateOne := func(ctx context.Context, rec namedRecord) (line, error) {
-		if rec.Err != nil {
-			// A line onesie could not read is a record that never became a request, and it
-			// carried no questions to the wire either.
-			stats.recordFailure(rec.Err, false, 0)
-
-			return line{record: failureRecord(built, rec.Err), raw: rec.Raw, header: rec.Header}, rec.Err
-		}
-
-		if interrupted(ctx) {
-			return line{}, ctx.Err()
-		}
-
-		if rec.idErr != nil {
-			bad := &input.LineError{Line: rec.Line, Err: rec.idErr}
-			stats.recordFailure(bad, false, 0)
-
-			return rowLine(failureRecord(built, bad), rec), bad
-		}
-
-		if merge && table == nil && hasKey(rec.State, mergeKey(flags)) {
-			stats.recordFailure(nil, false, 0)
-
-			// Detected here rather than inside Write, since the engine counts a failure from
-			// the evaluator's error and a rewrite inside Write would count as a success.
-			//
-			// A LineError gets kind input rather than the transport default from describe, so
-			// --stop-on-error reaches the row, and the line number comes along without a onesie
-			// prefix inside the JSON.
-			taken := &input.LineError{
-				Line: rec.Line,
-				Err: fmt.Errorf(
-					"--merge would overwrite the input's '%s' key, pass --merge-key",
-					mergeKey(flags)),
-			}
-
-			return line{
-				record: failureRecord(built, taken),
-				// raw is deliberately left empty, which is what sends merge down the wrapper
-				// path rather than the splice. The object goes under state as raw JSON rather
-				// than a Go map, so its key order survives.
-				state: json.RawMessage(compact(rec.Raw)),
-			}, taken
-		}
-
-		state, wire := images.wrapLine(rec.State, rec.Wire)
-
-		sent, mapErr := mapped(ctx, mapper, state, wire)
-		if interrupted(ctx) {
-			return line{}, ctx.Err()
-		}
-
-		if mapErr != nil {
-			bad := &input.LineError{Line: rec.Line, Err: mapErr}
-			stats.recordFailure(bad, false, 0)
-
-			return rowLine(failureRecord(built, bad), rec), bad
-		}
-
-		// In the worker rather than the reader, so at most -j records hold image bytes at once.
-		sent, assets, imageErr := images.attach(sent)
-		if imageErr != nil {
-			bad := &input.LineError{Line: rec.Line, Err: imageErr}
-			stats.recordFailure(bad, false, 0)
-
-			return rowLine(failureRecord(built, bad), rec), bad
-		}
-
-		key := recordKey{position: rec.Index + 1, line: rec.Line, id: rec.id}
-
-		// A record the mock file does not answer shares with nothing, so its error names its own line.
-		group := shared
-
-		salt, shares := asker.salt(key)
-		if !shares {
-			group = nil
-		}
-
-		record, call, evalErr := askOnce(ctx, group, stats,
-			onesie.Request{
-				State: sent, Model: model, Questions: questions, Assets: assets, LongContext: built.LongContext,
-			}, salt,
-			func() (output.Record, error) {
-				return evaluate(ctx, asker, key, built, model, questions, sent, assets, flags.usage, stats)
-			})
-		if evalErr != nil {
-			// Returned before the gate is asked. A failed record reads as all zeros, so a gate such
-			// as answer.value < 0.5 would hold for a request that never happened.
-			failed := rowLine(record, rec)
-			failed.halted = halting(evalErr)
-			failed.call = call
-
-			return failed, evalErr
-		}
-
-		// A false assertion or an abstain is not an engine failure: the record succeeded and the
-		// answer is complete, so the outcome is carried on the line rather than returned as an
-		// error the engine would count against result.Failed.
-		record = judge(gate, abstain, record, stats)
-
-		answeredLine := rowLine(record, rec)
-		answeredLine.call = call
-
-		return answeredLine, nil
-	}
-
-	write := func(l line) error {
-		if md != nil {
-			return md.Write(l.record)
-		}
-
-		if table != nil {
-			if !merge {
-				return table.Write(l.record, nil, nil)
-			}
-
-			return table.Write(l.record, l.header, l.fields)
-		}
-
-		if !merge {
-			return output.Write(out, outputMode, l.record)
-		}
-
-		return output.WriteMerged(out, outputMode, l.record, l.raw, l.state, mergeKey(flags))
-	}
-
-	var stopped atomic.Bool
-
-	// Set by the first record that halts the run, such as one a mock file does not answer. Every line
-	// after it is dropped too, so the output holds only the records before it and a resume asks the rest.
-	var stoppedAtHalt bool
-
-	result, err := engine.Run(cmd.Context(), engine.Config[namedRecord, line]{
-		Source: source,
-		Evaluate: func(ctx context.Context, rec namedRecord) (line, error) {
-			l, evalErr := evaluateOne(ctx, rec)
-			l.slot = rec.slot
-
-			if inputMode == input.Lines {
-				l.record.Line = rec.Line
-			}
-
-			return l, evalErr
-		},
-		Write: func(l line) error {
-			if stoppedAtHalt || l.halted {
-				stoppedAtHalt = true
-
-				return nil
-			}
-
-			if flags.usage {
-				billOnce(&l)
-			}
-
-			if book == nil {
-				return write(l)
-			}
-
-			start := answers.Offset()
-			writeErr := write(l)
-			book.Wrote(l.slot, answersfile.Span{Start: start, End: answers.Offset()})
-
-			return writeErr
-		},
-		Jobs:        flags.jobs,
-		Unordered:   flags.unordered,
-		StopOnError: flags.stopOnError,
-		Abort:       aborting,
-		Stop:        watched(stopping(flags), &stopped),
-	})
-	source.stop()
-
-	if md != nil && !result.Broken {
-		whole := err == nil && !result.Aborted && !stopped.Load() && !interrupted(cmd.Context())
-
-		// A consumer that stopped reading before the summary leaves the records' exit code to stand.
-		finishErr := md.Finish(whole)
-		if finishErr != nil && !engine.BrokenPipe(finishErr) && err == nil && !result.Aborted {
-			return finishErr
-		}
-	}
-
-	skips := source.skipped()
-	stats.skip(skips)
-
-	// A stored failure a resume skipped fails the run as it failed the one that wrote it.
-	result.Failed += skips.Failed
-
-	if freshAbort := source.freshRunAbort(); freshAbort != nil {
-		return freshAbort
-	}
-
-	if err != nil {
-		// The source stopping the run is the worse outcome and takes the exit code, since a
-		// truncated stream is not something a caller can tell from a complete one. The records
-		// that had already failed are named in the message rather than dropped.
-		return &sourceError{cause: err, failed: result.Failed}
-	}
-
-	// Only a run that read and wrote every record rewrites the file. Anything short of that leaves
-	// the appended lines as they are, for the next resume to finish.
-	if book != nil && !result.Aborted && !result.Broken && !stopped.Load() && book.Complete() {
-		answers.CompactInto(book.TakeOrder(flags.prune), outputMode)
-	}
-
-	// The records' own outcome wins, since a note that failed to print is the smaller loss.
-	outcome := streamResult(result, stats.falseAssertions(), stats.abstains())
-	if outcome == nil && noticeErr != nil {
-		return noticeErr
-	}
-
-	return outcome
 }
 
 func watched(stop func(line) bool, stopped *atomic.Bool) func(line) bool {
@@ -807,8 +556,7 @@ func compact(raw string) []byte {
 func aborting(err error) bool {
 	// Every later record would fail the same way, and a bad key should be reported once rather
 	// than once per line.
-	return errors.Is(err, onesie.ErrAuthentication) || errors.Is(err, onesie.ErrPermissionDenied) ||
-		errors.Is(err, onesie.ErrPaymentRequired) || halting(err)
+	return authFailure(err) || halting(err)
 }
 
 func stopping(flags runConfig) func(line) bool {
@@ -911,7 +659,7 @@ func ask(
 		return err
 	}
 
-	record, err := evaluate(
+	record, err := askAndRecord(
 		cmd.Context(), asker, recordKey{position: 1, line: 1}, built, model, questions, state.sent, state.assets,
 		flags.usage, stats)
 	if halting(err) {
@@ -1129,7 +877,7 @@ func mergeKey(flags runConfig) string {
 	return "answers"
 }
 
-func evaluate(
+func askAndRecord(
 	ctx context.Context,
 	asker answerer,
 	key recordKey,

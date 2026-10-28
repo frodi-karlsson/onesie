@@ -115,7 +115,7 @@ main() {
 	case ":$PATH:" in
 	*":$install_dir:"*) ;;
 	*)
-		echo "warning: $install_dir is not on PATH. Add it in your shell profile, then open a new shell:" >&2
+		echo "onesie install: warning: $install_dir is not on PATH. Add it in your shell profile, then open a new shell:" >&2
 		echo "  export PATH=\"$install_dir:\$PATH\"" >&2
 		;;
 	esac

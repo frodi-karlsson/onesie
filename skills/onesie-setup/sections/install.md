@@ -51,7 +51,7 @@ key, and `onesie profile delete NAME` removes a profile and its keychain item.
 | --- | --- |
 | `stored the key in the OS keychain as NAME@...` | the key is in the keychain, and the profile names the item |
 | `NAME is the default profile, since it is the first` | the first profile became the default |
-| `warning: ... The key is in PATH instead` | the keychain refused, so the key went into the file |
+| `onesie: warning: ... The key is in PATH instead` | the keychain refused, so the key went into the file |
 | `the keychain did not answer in time` | a keychain prompt waited over 10 seconds, and the file was not written. Have the user answer the prompt and run the command again, or pass `--file` |
 | `stdin carries more than one line` | the piped input held more than the key. Pipe it through `head -n 1` |
 | `is readable or writable by its group or others` | the existing `profiles.json` is readable or writable by its group or others. Have the user run `chmod 600` on it |

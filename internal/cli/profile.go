@@ -17,6 +17,7 @@ import (
 	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/creds"
 	"github.com/frodi-karlsson/onesie/internal/output"
+	"github.com/frodi-karlsson/onesie/internal/providers"
 )
 
 const (
@@ -101,7 +102,7 @@ func newProfileCreateCmd(settings rootSettings, flags *runFlags) *cobra.Command 
 	}
 
 	cmd.Flags().StringVar(&fields.provider, flagProvider, "",
-		"the profile's provider, typesafe, openrouter, berget, levanto or cloudflare. Required")
+		"the profile's provider, "+providers.Names()+". Required")
 	addMemberFlags(cmd, fields, flags)
 	refuseEmpty(cmd.Flags(), flagModel)
 	refuseEmpty(cmd.Flags(), flagBaseURL)
@@ -124,8 +125,7 @@ func profileCreate(
 
 	provider := strings.TrimSpace(fields.provider)
 	if provider == "" {
-		return errors.New(
-			"profile create needs --provider: typesafe, openrouter, berget, levanto or cloudflare")
+		return errors.New("profile create needs --provider: " + providers.Names())
 	}
 
 	path, opened, err := profilesToWrite(settings)
@@ -219,10 +219,8 @@ func profileUpdate(
 	profile := updated(old, fields, changed)
 	if profile == old && !fields.key {
 		if already := alreadySet(old, changed); already != "" {
-			_, printErr := fmt.Fprintf(cmd.ErrOrStderr(), "onesie: profile %s is unchanged, since %s\n",
-				creds.QuotedName(name), already)
-
-			return printErr
+			return output.Notice(cmd.ErrOrStderr(),
+				fmt.Sprintf("profile %s is unchanged, since %s", creds.QuotedName(name), already))
 		}
 
 		return fmt.Errorf(
@@ -389,7 +387,8 @@ func profileList(cmd *cobra.Command, settings rootSettings, flags *runFlags) err
 	}
 
 	if len(opened.Profiles.Profiles) == 0 {
-		return notify(cmd, "onesie: no profiles. Run onesie profile create NAME --provider PROVIDER to store one")
+		return output.Notice(cmd.ErrOrStderr(),
+			"no profiles. Run onesie profile create NAME --provider PROVIDER to store one")
 	}
 
 	active, err := settings.holder.resolved()
@@ -398,7 +397,14 @@ func profileList(cmd *cobra.Command, settings rootSettings, flags *runFlags) err
 		return writeErr
 	}
 
-	return notify(cmd, inactiveReason(active, err))
+	reason := inactiveReason(active, err)
+	if reason == "" {
+		return nil
+	}
+
+	_, err = fmt.Fprintln(cmd.ErrOrStderr(), reason)
+
+	return err
 }
 
 func writeProfiles(w io.Writer, profiles creds.Profiles, active string) error {
@@ -465,11 +471,12 @@ func newProfileShowCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 		Short: "Report a profile, or what a run would use, never the key",
 		Long: "With a name, report that profile. Without one, report what a run would use now, profile or " +
 			"not, as --profile, --provider and their variables choose. It prints profile, provider, chosen " +
-			"by, key, model and base_url lines, and an account line on cloudflare. The model and base_url " +
-			"lines give the value a run would use and where it comes from. The model comes from profile, an env " +
+			"by, key, model and base_url lines, and an account line on " + providers.WithAccounts() + ". The " +
+			"model and base_url lines give the value a run would use and where it comes from. The model comes " +
+			"from profile, an env " +
 			"variable such as TYPESAFE_DEFAULT_MODEL, or the provider's default. The base_url comes from the " +
 			"profile's base_url, a variable such as TYPESAFE_BASE_URL, the profile's account_id, " +
-			"CLOUDFLARE_ACCOUNT_ID, or the provider's default. An allow_http line says a run needs " +
+			providers.AccountVariables() + ", or the provider's default. An allow_http line says a run needs " +
 			"--allow-http, when base_url is plain http to another host. It never reads the keychain or " +
 			"prints a key.\n\n" +
 			"It exits 2 when key or account is none, or the account is not 32 hexadecimal characters, " +
@@ -577,10 +584,6 @@ func profileTest(cmd *cobra.Command, settings rootSettings, flags *runFlags, arg
 		return err
 	}
 
-	if tested.keyFrom == sourceNone {
-		return noKeyToTest(settings, tested)
-	}
-
 	client, err := settings.newClient(cmd.Context(), tested)
 	if err != nil {
 		return err
@@ -595,30 +598,6 @@ func profileTest(cmd *cobra.Command, settings rootSettings, flags *runFlags, arg
 		cmp.Or(tested.profile, noProfile), tested.provider.Name(), tested.keyLine(), len(models))
 
 	return printErr
-}
-
-func noKeyToTest(settings rootSettings, tested resolution) error {
-	missing := &noKeyError{provider: tested.provider}
-
-	// A file that cannot be read names no profile, and the missing key is the failure to report.
-	opened, err := settings.holder.opened()
-	if err != nil {
-		opened = creds.Opened{}
-	}
-
-	return missingKeyHint(missing, tested, opened.Profiles)
-}
-
-type noKeyError struct {
-	provider onesie.Provider
-}
-
-func (e *noKeyError) Error() string {
-	return "no API key. Set " + e.provider.EnvAPIKey()
-}
-
-func (e *noKeyError) Is(target error) bool {
-	return target == onesie.ErrNoAPIKey || target == onesie.ErrValidation
 }
 
 func shownResolution(settings rootSettings, flags *runFlags, args []string, command string) (resolution, error) {
@@ -660,7 +639,7 @@ func addMemberFlags(cmd *cobra.Command, fields *profileFlags, flags *runFlags) {
 		"store a plain http --base-url to a host other than this machine. Every run on the profile then "+
 			"needs --allow-http too")
 	cmd.Flags().StringVar(&fields.accountID, flagAccountID, "",
-		"cloudflare only, the account id, 32 hexadecimal characters")
+		providers.WithAccounts()+" only, the account id, 32 hexadecimal characters")
 }
 
 func alreadySet(profile creds.Profile, changed func(string) bool) string {
@@ -750,8 +729,8 @@ func noProfileNamed(name string, profiles creds.Profiles) error {
 func checkGiven(profile creds.Profile, changed func(string) bool, providerGiven bool) error {
 	provider, err := onesie.ProviderNamed(profile.Provider)
 	if providerGiven && (err != nil || provider.Name() != profile.Provider) {
-		return fmt.Errorf("--%s names %s, which is not typesafe, openrouter, berget, levanto or cloudflare",
-			flagProvider, creds.QuotedName(profile.Provider))
+		return fmt.Errorf("--%s names %s, which is not %s",
+			flagProvider, creds.QuotedName(profile.Provider), providers.Names())
 	}
 
 	accountGiven := changed(flagAccountID) && profile.AccountID != ""
@@ -759,8 +738,8 @@ func checkGiven(profile creds.Profile, changed func(string) bool, providerGiven 
 
 	switch {
 	case accountGiven && provider.EnvAccountID() == "":
-		return fmt.Errorf("--%s applies only to cloudflare, and this profile is on %s",
-			flagAccountID, profile.Provider)
+		return fmt.Errorf("--%s applies only to %s, and this profile is on %s",
+			flagAccountID, providers.WithAccounts(), profile.Provider)
 	case accountGiven && !creds.ValidAccountID(profile.AccountID):
 		return fmt.Errorf("--%s must be 32 hexadecimal characters", flagAccountID)
 	case accountGiven && baseURLGiven:
@@ -826,17 +805,17 @@ func saveProfiles(cmd *cobra.Command, settings rootSettings, path string, profil
 		return err
 	}
 
-	return notify(cmd, warningLines(warnings)...)
+	return notify(cmd.ErrOrStderr(), warningLines(warnings)...)
 }
 
 func reported(cmd *cobra.Command, change creds.Change, notices []creds.Notice, err error) error {
-	lines := make([]string, 0, len(notices))
-	for _, notice := range notices {
-		lines = append(lines, noticeLine(notice, change))
+	lines := make([]notice, 0, len(notices))
+	for _, each := range notices {
+		lines = append(lines, noticeLine(each, change))
 	}
 
 	if err == nil {
-		return notify(cmd, lines...)
+		return notify(cmd.ErrOrStderr(), lines...)
 	}
 
 	if errors.Is(err, creds.ErrKeychainTimeout) {
@@ -844,39 +823,46 @@ func reported(cmd *cobra.Command, change creds.Change, notices []creds.Notice, e
 	}
 
 	//nolint:errcheck // The error carries the exit code, and a stderr that cannot take the notices must not replace it.
-	_ = notify(cmd, lines...)
+	_ = notify(cmd.ErrOrStderr(), lines...)
 
 	return err
 }
 
-func noticeLine(notice creds.Notice, change creds.Change) string {
-	switch notice.Kind {
+func noticeLine(each creds.Notice, change creds.Change) notice {
+	switch each.Kind {
 	case creds.SaveWarning:
-		return warningLine(notice.Err)
+		return warningLine(each.Err)
 	case creds.KeyInKeychain:
-		return "stored the key in the OS keychain as " + notice.Account
+		return notice{text: "stored the key in the OS keychain as " + each.Account}
 	case creds.KeyInFile:
-		return "warning: " + notice.Err.Error() + ". The key is in " + change.Path + " instead"
+		return notice{text: each.Err.Error() + ". The key is in " + change.Path + " instead", warning: true}
 	case creds.FirstDefault:
-		return "onesie: " + creds.QuotedName(change.Name) + " is the default profile, since it is the first"
+		return notice{text: creds.QuotedName(change.Name) + " is the default profile, since it is the first"}
 	case creds.DefaultDeleted:
-		return "onesie: " + creds.QuotedName(change.Name) + " was the default, so no profile is the default now. " +
-			"Run onesie profile use NAME to choose one"
+		return notice{text: creds.QuotedName(change.Name) + " was the default, so no profile is the default now. " +
+			"Run onesie profile use NAME to choose one"}
 	case creds.ItemLeftBehind:
-		return "warning: " + notice.Err.Error() + ". The keychain item " + notice.Account + " is left behind"
+		return notice{
+			text: each.Err.Error() + ". The keychain item " + each.Account + " is left behind", warning: true,
+		}
 	case creds.OldKeyUnread:
-		return "warning: the keychain item " + notice.Account + " now holds the new key, and its old key " +
-			"could not be read to put back"
+		return notice{text: "the keychain item " + each.Account + " now holds the new key, and its old key " +
+			"could not be read to put back", warning: true}
 	case creds.OldKeyLost:
-		return "warning: " + notice.Err.Error() + ". The keychain item " + notice.Account +
-			" now holds the new key, and its old key could not be put back"
+		return notice{text: each.Err.Error() + ". The keychain item " + each.Account +
+			" now holds the new key, and its old key could not be put back", warning: true}
 	}
 
-	return ""
+	return notice{}
 }
 
-func warningLines(warnings []error) []string {
-	lines := make([]string, 0, len(warnings))
+type notice struct {
+	text    string
+	warning bool
+}
+
+func warningLines(warnings []error) []notice {
+	lines := make([]notice, 0, len(warnings))
 	for _, warning := range warnings {
 		lines = append(lines, warningLine(warning))
 	}
@@ -884,23 +870,25 @@ func warningLines(warnings []error) []string {
 	return lines
 }
 
-func warningLine(warning error) string {
+func warningLine(warning error) notice {
 	var unprotected *creds.ModeWarning
-	if errors.As(warning, &unprotected) {
-		return warning.Error()
-	}
 
-	return "onesie: " + warning.Error()
+	return notice{text: warning.Error(), warning: errors.As(warning, &unprotected)}
 }
 
-func notify(cmd *cobra.Command, lines ...string) error {
-	for _, line := range lines {
-		if line == "" {
+func notify(w io.Writer, notices ...notice) error {
+	for _, each := range notices {
+		if each.text == "" {
 			continue
 		}
 
+		write := output.Notice
+		if each.warning {
+			write = output.Warning
+		}
+
 		// stderr rather than stdout. These are notices, and a redirected stdout stays empty.
-		if _, err := fmt.Fprintln(cmd.ErrOrStderr(), line); err != nil {
+		if err := write(w, each.text); err != nil {
 			return err
 		}
 	}

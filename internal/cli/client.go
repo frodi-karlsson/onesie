@@ -3,7 +3,6 @@ package cli
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
@@ -40,10 +39,6 @@ func clientBuilder(info BuildInfo, flags *runFlags, settings rootSettings) clien
 			opts = append(opts, onesie.WithHTTPClient(&http.Client{Transport: transport}))
 		}
 
-		if baseURL := strings.TrimSpace(flags.baseURL); baseURL != "" {
-			opts = append(opts, onesie.WithBaseURL(baseURL))
-		}
-
 		opts = append(opts, chosen.options(flags.baseURL, profileKey(settings, chosen), settings.lookupEnv)...)
 
 		// Started from the default rather than a zero value, because a Go struct cannot tell an
@@ -67,7 +62,7 @@ func clientBuilder(info BuildInfo, flags *runFlags, settings rootSettings) clien
 
 		if onesie.InsecureBaseURL(client.BaseURL()) {
 			warned.Do(func() {
-				_, printErr = fmt.Fprintln(settings.holder.stderr(), "warning: "+output.Printable(client.BaseURL())+
+				printErr = output.Warning(settings.holder.stderr(), output.Printable(client.BaseURL())+
 					" is plain http, so the API key crosses the network unencrypted")
 			})
 		}
@@ -76,7 +71,7 @@ func clientBuilder(info BuildInfo, flags *runFlags, settings rootSettings) clien
 			source, _ := baseURLFrom(client.BaseURLSource(), flags.baseURL, chosen, settings.lookupEnv)
 
 			doubled.Do(func() {
-				_, printErr = fmt.Fprintln(settings.holder.stderr(), "warning: "+source+
+				printErr = output.Warning(settings.holder.stderr(), source+
 					" ends in /v1 and onesie adds the API path itself, so requests go to "+
 					output.Printable(client.SystemOneURL()))
 			})
@@ -154,11 +149,7 @@ func baseURLFrom(
 ) (name, given string) {
 	switch source {
 	case onesie.BaseURLFromOption:
-		if flag := strings.TrimSpace(baseURLFlag); flag != "" {
-			return "--" + flagBaseURL, flag
-		}
-
-		return profileBaseURL, chosen.baseURL
+		return chosen.givenBaseURL(baseURLFlag)
 	case onesie.BaseURLFromEnv:
 		return chosen.provider.EnvBaseURL(), setVariable(lookupEnv, chosen.provider.EnvBaseURL())
 	case onesie.BaseURLFromAccount:

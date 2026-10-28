@@ -292,7 +292,7 @@ func TestClientBuilder(t *testing.T) {
 			profiles: `{"default":"work","profiles":{"work":{"provider":"typesafe","api_key":"SECRET-WORK",` +
 				`"base_url":"{url}/v1"}}}`,
 			args:     asking(),
-			wantErr:  []string{"warning: the profile's base_url ends in /v1 and onesie adds the API path itself"},
+			wantErr:  []string{"onesie: warning: the profile's base_url ends in /v1 and onesie adds the API path itself"},
 			wantAuth: "Bearer SECRET-WORK", wantModel: onesie.TypeSafe().DefaultModel(),
 		},
 		{
@@ -520,7 +520,7 @@ func TestClientBuilder(t *testing.T) {
 
 		assertNoSecret(t, out, errOut)
 
-		const want = "warning: http://proxy.example is plain http, so the API key crosses the network unencrypted\n"
+		const want = "onesie: warning: http://proxy.example is plain http, so the API key crosses the network unencrypted\n"
 
 		if code != ExitOK || !strings.Contains(errOut, want) {
 			t.Errorf("exit code = %d, stderr = %q, want %d and %q", code, errOut, ExitOK, want)

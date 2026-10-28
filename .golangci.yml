@@ -28,7 +28,12 @@ linters:
     - unconvert      # redundant type conversions
     - unparam        # always identical or unused function parameters
     - wastedassign
+    - funlen         # a function over 80 lines, comments aside, tests exempt
   settings:
+    funlen:
+      lines: 80
+      statements: -1
+      ignore-comments: true
     errcheck:
       check-type-assertions: true
       check-blank: true
@@ -50,11 +55,12 @@ linters:
   exclusions:
     generated: lax
     rules:
-      # Tests are allowed to be blunt about errors, response bodies, request contexts and parameters.
+      # Tests are allowed to be blunt about errors, response bodies, request contexts, parameters and length.
       - path: _test\.go$
         linters:
           - bodyclose
           - errcheck
+          - funlen
           - noctx
           - unparam
 

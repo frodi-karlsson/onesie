@@ -9,6 +9,7 @@ import (
 
 	"github.com/frodi-karlsson/onesie/internal/assert"
 	"github.com/frodi-karlsson/onesie/internal/calibrate"
+	"github.com/frodi-karlsson/onesie/internal/output"
 	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
@@ -184,7 +185,7 @@ func writeUnmet(w io.Writer, results []calibrate.Result) (bool, error) {
 
 		unmet = true
 
-		if _, err := fmt.Fprintln(w, "onesie: "+result.String()); err != nil {
+		if err := output.Notice(w, result.String()); err != nil {
 			return unmet, err
 		}
 	}
