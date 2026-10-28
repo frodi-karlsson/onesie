@@ -708,7 +708,7 @@ func TestStream(t *testing.T) {
 	t.Run("should keep the stdout, stderr, exit code and --out file of each pinned run", func(t *testing.T) {
 		t.Parallel()
 
-		checkPinnedRuns(t)
+		checkPinnedRuns(t, pinnedStreamRuns())
 	})
 }
 

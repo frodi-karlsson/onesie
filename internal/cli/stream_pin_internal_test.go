@@ -20,27 +20,23 @@ const (
 	pinnedOut      = "OUT"
 	pinnedAnswered = `{"model":"m","usage":{"input_tokens":5,"output_tokens":2},` +
 		`"answers":{"answer":{"type":"noul","noul":0.9}}}`
-	pinnedRefused = `{"error":{"message":"the key was refused"}}`
-	pinnedByID    = "{\"id\":1,\"answer\":0.1}\n{\"id\":2,\"answer\":0.8}\n{\"id\":3,\"answer\":0.3}\n" +
+	pinnedRefused     = `{"error":{"message":"the key was refused"}}`
+	pinnedServerFault = `{"error":{"message":"the server failed"}}`
+	pinnedByID        = "{\"id\":1,\"answer\":0.1}\n{\"id\":2,\"answer\":0.8}\n{\"id\":3,\"answer\":0.3}\n" +
 		"{\"id\":4,\"answer\":0.9}\n"
 	pinnedRecords = "{\"id\":1,\"body\":\"a\"}\n{\"id\":2,\"body\":\"b\"}\n{\"id\":3,\"body\":\"c\"}\n" +
 		"{\"id\":4,\"body\":\"d\"}\n"
 )
 
-func checkPinnedRuns(t *testing.T) {
-	t.Helper()
-
+func pinnedStreamRuns() []pinnedRun {
 	byID := func(extra ...string) []string {
 		return append([]string{"is it urgent", "-i", "jsonl", "--map", ".body", "--id", ".id"}, extra...)
 	}
 	lines := func(extra ...string) []string {
 		return append([]string{"is it urgent", "-i", "lines"}, extra...)
 	}
-	request := `{"questions":{"answer":{"type":"noul","question":"is it urgent"}},"state":"a"}` + "\n" +
-		"not json\n" +
-		`{"questions":{"answer":{"type":"noul","question":"is it urgent"}},"state":"b"}` + "\n"
 
-	tests := []pinnedRun{
+	return []pinnedRun{
 		{
 			name: "should keep input order under -j 1",
 			steps: []pinnedStep{{
@@ -375,10 +371,10 @@ func checkPinnedRuns(t *testing.T) {
 			name: "should write a failed request and exit 6",
 			steps: []pinnedStep{{
 				args: byID("-o", "json", "--stats"), stdin: pinnedRecords, status: http.StatusInternalServerError,
-				stdout: "{\"id\":1,\"error\":{\"kind\":\"http\",\"status\":500,\"message\":\"500 the key was refused\"}}\n" +
-					"{\"id\":2,\"error\":{\"kind\":\"http\",\"status\":500,\"message\":\"500 the key was refused\"}}\n" +
-					"{\"id\":3,\"error\":{\"kind\":\"http\",\"status\":500,\"message\":\"500 the key was refused\"}}\n" +
-					"{\"id\":4,\"error\":{\"kind\":\"http\",\"status\":500,\"message\":\"500 the key was refused\"}}\n",
+				stdout: "{\"id\":1,\"error\":{\"kind\":\"http\",\"status\":500,\"message\":\"500 the server failed\"}}\n" +
+					"{\"id\":2,\"error\":{\"kind\":\"http\",\"status\":500,\"message\":\"500 the server failed\"}}\n" +
+					"{\"id\":3,\"error\":{\"kind\":\"http\",\"status\":500,\"message\":\"500 the server failed\"}}\n" +
+					"{\"id\":4,\"error\":{\"kind\":\"http\",\"status\":500,\"message\":\"500 the server failed\"}}\n",
 				stderr: "4 records, 4 failed, 4 requests, 4 questions asked, 0 in / 0 out tokens, 4 attempts, 10s/attempt, 0s\n",
 				code:   ExitRecords,
 			}},
@@ -389,8 +385,8 @@ func checkPinnedRuns(t *testing.T) {
 				args:   byID("-o", "json", "--stop-on-error"),
 				stdin:  pinnedRecords,
 				status: http.StatusInternalServerError,
-				stdout: "{\"id\":1,\"error\":{\"kind\":\"http\",\"status\":500,\"message\":\"500 the key was refused\"}}\n",
-				stderr: "onesie: 500 the key was refused\n",
+				stdout: "{\"id\":1,\"error\":{\"kind\":\"http\",\"status\":500,\"message\":\"500 the server failed\"}}\n",
+				stderr: "onesie: 500 the server failed\n",
 				code:   ExitUnavailable,
 			}},
 		},
@@ -415,6 +411,15 @@ func checkPinnedRuns(t *testing.T) {
 				code: ExitRecords,
 			}},
 		},
+	}
+}
+
+func pinnedRawRuns() []pinnedRun {
+	request := `{"questions":{"answer":{"type":"noul","question":"is it urgent"}},"state":"a"}` + "\n" +
+		"not json\n" +
+		`{"questions":{"answer":{"type":"noul","question":"is it urgent"}},"state":"b"}` + "\n"
+
+	return []pinnedRun{
 		{
 			name: "should send each raw request body under -i request",
 			steps: []pinnedStep{{
@@ -443,9 +448,9 @@ func checkPinnedRuns(t *testing.T) {
 				},
 			},
 			file: true,
-			wantFile: "{\"error\":{\"kind\":\"http\",\"status\":500,\"message\":\"500 the key was refused\"}}\n" +
+			wantFile: "{\"error\":{\"kind\":\"http\",\"status\":500,\"message\":\"500 the server failed\"}}\n" +
 				"{\"error\":{\"kind\":\"input\",\"status\":null,\"message\":\"line 2: line is not one complete JSON value: invalid character 'o' in literal null (expecting 'u')\"}}\n" +
-				"{\"error\":{\"kind\":\"http\",\"status\":500,\"message\":\"500 the key was refused\"}}\n" +
+				"{\"error\":{\"kind\":\"http\",\"status\":500,\"message\":\"500 the server failed\"}}\n" +
 				"{\"model\":\"m\",\"usage\":{\"input_tokens\":5,\"output_tokens\":2},\"answers\":{\"answer\":{\"type\":\"noul\",\"noul\":0.9}}}\n",
 		},
 		{
@@ -459,6 +464,10 @@ func checkPinnedRuns(t *testing.T) {
 			}},
 		},
 	}
+}
+
+func checkPinnedRuns(t *testing.T, tests []pinnedRun) {
+	t.Helper()
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -579,7 +588,10 @@ func pinnedFactory(t *testing.T, step pinnedStep) func(context.Context, ...onesi
 		if step.status != 0 {
 			w.WriteHeader(step.status)
 
-			body = pinnedRefused
+			body = pinnedServerFault
+			if step.status == http.StatusUnauthorized {
+				body = pinnedRefused
+			}
 		}
 
 		if _, err := io.WriteString(w, body); err != nil {
