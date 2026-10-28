@@ -134,13 +134,17 @@ ONESIE_MOCK=answers.json ./gate.sh
 - An entry answers every question the run asks. The file is checked against the questions before
   any record, and an unknown question id, a missing answer, a value of the wrong shape or a name
   that is not an option exits 2, naming the line.
-- `{"error": N}` with a status from 400 to 599 fails the record as that status does,
-  `{"error": "timeout"}` as a timeout after `--timeout`, and `{"error": "connection"}` as a
-  transport failure. An error object as `-o json` writes it replays by its `kind`, and a `response`
-  one fails as `200 response could not be used: mock response onesie could not use`. For one
-  record, a 401, 402 or 403 exits 3, a 5xx or a `response` exits 4 and a timeout exits 5. In a
-  stream a failed record is an error line and the run exits 6, apart from a 401, 402 or 403, which
-  ends it with exit 3.
+- `{"error": N}` with a status from 400 to 599 fails the record as that status does with no body,
+  as in `onesie: 503 status code, no body`, `{"error": "timeout"}` as a timeout after `--timeout`,
+  and `{"error": "connection"}` as a transport failure, as in
+  `onesie: could not reach mock.invalid: mock connection error`. An error object as `-o json`
+  writes it replays by its `kind`, and a `response` one fails as
+  `200 response could not be used: mock response onesie could not use`. An `http` one may carry
+  the JSON `body` the server sends, as in
+  `{"error": {"kind": "http", "status": 400, "body": {"detail": "Unknown model: jev-latest"}}}`,
+  and then fails and advises as a live response with that body does. For one record, a 401, 402 or
+  403 exits 3, a 5xx or a `response` exits 4 and a timeout exits 5. In a stream a failed record is
+  an error line and the run exits 6, apart from a 401, 402 or 403, which ends it with exit 3.
 - A record the file does not answer exits 2 when the run reaches it, naming its input line and the
   missing entry. A replayed `kind: input` line answers nothing, so it counts as missing too. Output
   stops at that record, so it holds only the lines before it in input order, or under `--unordered`

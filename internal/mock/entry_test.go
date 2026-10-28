@@ -213,7 +213,7 @@ func TestEntryResult(t *testing.T) {
 
 			entry, _ := answers.Lookup(1, nil)
 
-			result, err := entry.Result()
+			result, err := entry.Result(onesie.TypeSafe(), "", onesie.Needs{})
 			if err != nil {
 				t.Fatalf("Result: %v", err)
 			}
@@ -305,7 +305,7 @@ func TestEntryResult(t *testing.T) {
 
 		entry, _ := answers.Lookup(1, nil)
 
-		result, err := entry.Result()
+		result, err := entry.Result(onesie.TypeSafe(), "", onesie.Needs{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -329,7 +329,8 @@ func TestEntryKey(t *testing.T) {
 		`{"id":"d","u":0.3,"t":{"value":"billing","confidence":0.5},"r":"curt"}` + "\n" +
 		`{"id":"e","error":503}` + "\n" +
 		`{"id":"f","error":{"kind":"http","status":503,"message":"503 busy"}}` + "\n" +
-		`{"id":"g","error":401}` + "\n"
+		`{"id":"g","error":401}` + "\n" +
+		`{"id":"h","error":{"kind":"http","status":503,"body":{"error":"busy"}}}` + "\n"
 
 	answers, err := Load(strings.NewReader(file), threeQuestions(), Options{ByID: true})
 	if err != nil {
@@ -361,7 +362,7 @@ func TestEntryKey(t *testing.T) {
 		t.Parallel()
 
 		keys := map[string]string{}
-		for _, id := range []string{"a", "c", "d", "e", "g"} {
+		for _, id := range []string{"a", "c", "d", "e", "g", "h"} {
 			if other, taken := keys[key(id)]; taken {
 				t.Errorf("%s and %s share the key %s", id, other, key(id))
 			}
@@ -477,7 +478,7 @@ func loadNormalized(t *testing.T, question plan.Question, file string) *answer.A
 
 	entry, _ := answers.Lookup(1, nil)
 
-	result, err := entry.Result()
+	result, err := entry.Result(onesie.TypeSafe(), "", onesie.Needs{})
 	if err != nil {
 		t.Fatalf("Result: %v", err)
 	}

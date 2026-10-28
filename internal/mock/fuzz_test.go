@@ -3,6 +3,8 @@ package mock
 import (
 	"bytes"
 	"testing"
+
+	"github.com/frodi-karlsson/onesie-go"
 )
 
 func FuzzLoad(f *testing.F) {
@@ -26,7 +28,7 @@ func FuzzLoad(f *testing.F) {
 				continue
 			}
 
-			result, resultErr := entry.Result()
+			result, resultErr := entry.Result(onesie.TypeSafe(), "", onesie.Needs{})
 			if resultErr != nil {
 				continue
 			}

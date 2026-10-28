@@ -7,6 +7,7 @@ import (
 	"maps"
 	"math"
 	"net/http"
+	"net/url"
 	"slices"
 	"strconv"
 	"strings"
@@ -98,7 +99,7 @@ func (p parser) failure(failure any, where string) (*Entry, error) {
 			return nil, refused
 		}
 
-		return statusEntry(status), nil
+		return statusEntry(status, nil), nil
 	case string:
 		switch typed {
 		case "timeout":
@@ -126,7 +127,7 @@ func writtenFailure(failure map[string]any, refused error) (*Entry, error) {
 			return nil, refused
 		}
 
-		return statusEntry(status), nil
+		return httpEntry(status, failure)
 	case "transport":
 		return connectionEntry(), nil
 	case "response":
@@ -151,11 +152,27 @@ func errorStatus(number json.Number) (int, bool) {
 	return status, true
 }
 
-func statusEntry(status int) *Entry {
-	return &Entry{
-		err: onesie.NewAPIError(onesie.Provider{}, "", onesie.Needs{}, status, nil),
-		key: fmt.Sprintf("error http %d", status),
+func httpEntry(status int, failure map[string]any) (*Entry, error) {
+	given, found := failure["body"]
+	if !found {
+		return statusEntry(status, nil), nil
 	}
+
+	body, err := json.Marshal(given)
+	if err != nil {
+		return nil, err
+	}
+
+	return statusEntry(status, body), nil
+}
+
+func statusEntry(status int, body []byte) *Entry {
+	key := fmt.Sprintf("error http %d", status)
+	if body != nil {
+		key += " " + string(body)
+	}
+
+	return &Entry{status: status, body: body, key: key}
 }
 
 func timeoutEntry(timeout time.Duration) *Entry {
@@ -169,7 +186,9 @@ func timeoutEntry(timeout time.Duration) *Entry {
 
 func connectionEntry() *Entry {
 	return &Entry{
-		err: &onesie.ConnectionError{Err: errors.New("mock connection error")},
+		err: &onesie.ConnectionError{
+			Err: &url.Error{Op: "Post", URL: "https://mock.invalid", Err: errors.New("mock connection error")},
+		},
 		key: "error connection",
 	}
 }
@@ -549,8 +568,12 @@ type answerParts struct {
 }
 
 // Result returns the response the API would have sent, or the error the request would have failed
-// with.
-func (e Entry) Result() (*onesie.Result, error) {
+// with. An http entry fails as a live response with its status and body does from p's route for model.
+func (e Entry) Result(p onesie.Provider, model string, needs onesie.Needs) (*onesie.Result, error) {
+	if e.status != 0 {
+		return nil, onesie.NewAPIError(p, model, needs, e.status, e.body)
+	}
+
 	if e.err != nil {
 		return nil, e.err
 	}
@@ -570,5 +593,7 @@ func (e Entry) Key() string {
 type Entry struct {
 	result *onesie.Result
 	err    error
+	status int
+	body   []byte
 	key    string
 }

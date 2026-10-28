@@ -87,11 +87,15 @@ func (a mockAnswerer) answer(ctx context.Context, key recordKey, req onesie.Requ
 		return reply{}, &uncoveredError{message: a.answers.Missing(key.position, key.id, key.line)}
 	}
 
-	result, err := entry.Result()
+	needs := onesie.Needs{Images: len(req.Assets) > 0, Box: hasBox(req.Questions), LongContext: req.LongContext}
+
+	result, err := entry.Result(a.provider, req.Model, needs)
 	a.stats.observe(mockAttempt(err))
 
 	if err != nil {
-		return reply{}, err
+		return reply{}, explain(err, requestFacts{
+			provider: a.provider, model: req.Model, longContext: req.LongContext, boxed: needs.Box,
+		})
 	}
 
 	if fault := result.Check(req.Questions); fault != nil {

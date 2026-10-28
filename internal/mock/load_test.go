@@ -213,15 +213,25 @@ func TestLoad(t *testing.T) {
 				`{"error":{"kind":"response","status":200,"message":"question 'u' has no answer"}}` + "\n" +
 				`{"error":{"kind":"input","status":null,"message":"line 8: not json"}}` + "\n",
 			lookups: []lookup{
-				{position: 1, sentinel: onesie.ErrAuthentication, status: 401},
+				{position: 1, sentinel: onesie.ErrAuthentication, status: 401, message: "onesie: 401 status code, no body"},
 				{position: 2, sentinel: onesie.ErrServer, status: 503},
 				{position: 3, sentinel: onesie.ErrTimeout},
-				{position: 4, sentinel: onesie.ErrConnection},
+				{
+					position: 4, sentinel: onesie.ErrConnection,
+					message: "onesie: could not reach mock.invalid: mock connection error",
+				},
 				{position: 5, sentinel: onesie.ErrRateLimit, status: 429},
 				{position: 6, sentinel: onesie.ErrConnection},
 				{position: 7, unusable: true},
 				{position: 8, missing: true},
 			},
+		},
+		{
+			name: "should fail an http entry with a body as the provider reads that body",
+			file: `{"error":{"kind":"http","status":400,"body":{"detail":"Unknown model: m"}}}`,
+			lookups: []lookup{{
+				position: 1, sentinel: onesie.ErrUnknownModel, status: 400, message: "onesie: 400 Unknown model: m",
+			}},
 		},
 		{
 			name:    "should read an error in the object shape for every record",
@@ -414,7 +424,7 @@ func checkLookup(t *testing.T, answers *Answers, questions []plan.Question, look
 		t.Fatalf("position %d id %v found no entry", look.position, look.id)
 	}
 
-	result, err := entry.Result()
+	result, err := entry.Result(onesie.TypeSafe(), "", onesie.Needs{})
 	if look.unusable {
 		var unusable *onesie.ResponseError
 		if !errors.As(err, &unusable) || unusable.Status != http.StatusOK ||
