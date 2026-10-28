@@ -182,6 +182,12 @@ func (n *naming) Next() (namedRecord, bool, error) {
 
 		named := n.named(rec)
 
+		// An interrupt can end the naming context before the engine's, so an --id it cut short ends
+		// the source and does not become a failed record.
+		if err := n.ctx.Err(); err != nil {
+			return namedRecord{Record: rec}, false, err
+		}
+
 		if n.book == nil {
 			return named, true, nil
 		}
