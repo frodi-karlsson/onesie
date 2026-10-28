@@ -5,6 +5,8 @@ import (
 	"context"
 	"errors"
 	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -48,6 +50,32 @@ func TestExecute(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("should exit 4 for a server error whether or not stderr takes the message", func(t *testing.T) {
+		t.Parallel()
+
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			http.Error(w, `{"error":{"message":"boom"}}`, http.StatusInternalServerError)
+		}))
+		t.Cleanup(srv.Close)
+
+		for _, stderr := range []io.Writer{&bytes.Buffer{}, brokenWriter{}} {
+			root := NewRootCmd(BuildInfo{Version: "1.2.3"},
+				WithStdin(strings.NewReader("")),
+				WithStdinTTY(false),
+				WithStdoutTTY(false),
+				WithLookupEnv(lookupFrom(map[string]string{"TYPESAFE_API_KEY": "k", "ONESIE_CONFIG_DIR": t.TempDir()})),
+				withKeychain(noKeychain()))
+
+			root.SetOut(io.Discard)
+			root.SetErr(stderr)
+			root.SetArgs([]string{"--base-url", srv.URL, "--retries", "0", "--state", "x", "is it urgent"})
+
+			if code := Execute(t.Context(), root); code != ExitUnavailable {
+				t.Errorf("exit code with stderr %T = %d, want %d", stderr, code, ExitUnavailable)
+			}
+		}
+	})
 
 	pins := []struct {
 		name     string
