@@ -862,10 +862,7 @@ func reported(cmd *cobra.Command, change creds.Change, notices []creds.Notice, e
 		err = fmt.Errorf("%w. Answer the keychain prompt, or run the command again with --file", err)
 	}
 
-	//nolint:errcheck // The error carries the exit code, and a stderr that cannot take the notices must not replace it.
-	_ = notify(cmd.ErrOrStderr(), lines...)
-
-	return err
+	return alsoFailed(err, notify(cmd.ErrOrStderr(), lines...))
 }
 
 func noticeLine(each creds.Notice, change creds.Change) notice {

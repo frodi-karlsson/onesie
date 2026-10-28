@@ -95,6 +95,13 @@ func worthReporting(err error) bool {
 }
 
 func classify(err error) failure {
+	// The second failure only adds a line, so a stderr that could not take a notice never turns the
+	// failure it was reporting into a broken pipe.
+	var both *bothFailed
+	if errors.As(err, &both) {
+		err = both.first
+	}
+
 	matched := firstMatch(err)
 	matched.quiet = matched.quiet || canceledOrBrokenPipe(err)
 

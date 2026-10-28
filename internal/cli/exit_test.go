@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"net/http"
 	"syscall"
@@ -223,6 +224,11 @@ func TestClassify(t *testing.T) {
 			name: "should keep the code of a real error joined to a silent one",
 			err:  errors.Join(&silentError{code: ExitAuth}, &recordsError{}),
 			want: ExitRecords,
+		},
+		{
+			name: "should take the code of the first of two failures when stderr refused the second",
+			err:  alsoFailed(errors.New("saving profiles.json: the disk is full"), io.ErrClosedPipe),
+			want: ExitUsage,
 		},
 	}
 
