@@ -112,9 +112,10 @@ func (r *rawRun) evaluate(ctx context.Context, rec input.Record) ([]byte, error)
 
 	body, err := r.provider.PrepareRaw(json.RawMessage(rec.Raw), r.defaultModel, longContextOptions(r.long)...)
 	if err != nil {
-		r.stats.recordFailure(err, false, 0)
+		refused := &input.LineError{Line: rec.Line, Err: embed("", err)}
+		r.stats.recordFailure(refused, false, 0)
 
-		return errorLine(err), err
+		return errorLine(refused), refused
 	}
 
 	// --print-request prints the body as it would be sent, with exit 0 and no network. The

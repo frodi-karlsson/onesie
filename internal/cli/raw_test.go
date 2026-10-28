@@ -116,7 +116,7 @@ func TestStreamRaw(t *testing.T) {
 			stdin:    "{\"model\":\"jev-own\",\"long_context\":\"yes\",\"state\":\"a\"}\n",
 			response: answered,
 			wantOut: []string{
-				`{"error":{"kind":"input","status":null,"message":"long_context must be true or false"}}`,
+				`{"error":{"kind":"input","status":null,"message":"line 1: long_context must be true or false"}}`,
 			},
 			wantCode: ExitRecords,
 		},
@@ -214,6 +214,20 @@ func TestStreamRaw(t *testing.T) {
 				wantOut: []string{
 					`{"error":{"kind":"input"`,
 					"question 'a' has the type 'tarot', which is not noul, choice, score or box",
+				},
+				wantCode: ExitRecords,
+			},
+			{
+				name: "should name the input line of each body it refuses before sending it",
+				args: []string{"-i", "request"},
+				stdin: `{"state":"x","questions":{"a":{"type":"tarot","instructions":"q"}}}` + "\n" +
+					`{"state":"y","questions":{"a":{"type":"tarot","instructions":"q"}}}` + "\n",
+				response:  `{"answers":{}}`,
+				wantSent:  0,
+				wantLines: 2,
+				wantOut: []string{
+					`"message":"line 1: question 'a' has the type 'tarot'`,
+					`"message":"line 2: question 'a' has the type 'tarot'`,
 				},
 				wantCode: ExitRecords,
 			},
