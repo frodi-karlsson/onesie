@@ -100,7 +100,18 @@ func loadBody(top yaml.MapSlice) (*File, error) {
 }
 
 func readQuestions(questions yaml.MapSlice) (onesie.Questions, error) {
+	seen := make(map[string]bool, len(questions))
+
 	for _, item := range questions {
+		// Two keys YAML tells apart, such as 0x1 and "1", send as one id, and the request would keep
+		// only the last of them.
+		id := fmt.Sprintf("%v", item.Key)
+		if seen[id] {
+			return nil, fmt.Errorf("question '%s' is given twice in a request body", id)
+		}
+
+		seen[id] = true
+
 		if _, err := marshalOrdered(item.Value); err != nil {
 			return nil, fmt.Errorf("question '%v' in a request body cannot be sent: %w", item.Key, err)
 		}

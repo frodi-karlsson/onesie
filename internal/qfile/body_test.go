@@ -270,6 +270,17 @@ func TestLoadBody(t *testing.T) {
 			wantErr: "question 'a' in a request body cannot be sent: json: unsupported value: NaN",
 		},
 		{
+			name:    "should reject a question key YAML spells twice",
+			doc:     "questions:\n  1: {type: noul, instructions: a}\n  \"1\": {type: box, instructions: b}\n",
+			wantErr: `mapping key "1" already defined`,
+		},
+		{
+			name: "should reject two question keys that name the same question",
+			doc: "questions:\n  0x1: {type: noul, instructions: a}\n" +
+				"  \"1\": {type: box, instructions: b, criteria: {x: y}}\n",
+			wantErr: "question '1' is given twice in a request body",
+		},
+		{
 			name:    "should reject a question that is not a mapping",
 			doc:     `{"questions":{"a":"is it urgent"}}`,
 			wantErr: "question 'a' is not an object",
