@@ -50,7 +50,7 @@ func Find(name string, env FindEnv) (Source, error) {
 	return Source{}, notFound(name, env, repo, config)
 }
 
-// IsName reports whether an -f value is a bare name to look up rather than a path. A value holding a
+// IsName reports whether an -f value is a bare name to look up, not a path. A value holding a
 // path separator or a dot is always a path.
 func IsName(value string) bool {
 	return value != "" && !strings.ContainsAny(value, `/\.`)

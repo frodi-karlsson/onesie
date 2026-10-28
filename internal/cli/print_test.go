@@ -357,7 +357,7 @@ func TestPrintQuestions(t *testing.T) {
 					t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, ExitOK, errOut)
 				}
 
-				// Compared as wire bodies rather than as plans, because a body's levels have no labels
+				// Compared as wire bodies, not as plans, because a body's levels have no labels
 				// and the file gives them index ones by design, so the two plans differ where the two
 				// requests must not.
 				before := wireBody(t, []byte(tc.body))
