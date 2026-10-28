@@ -205,6 +205,19 @@ func TestStreamRaw(t *testing.T) {
 				wantCode:  ExitRecords,
 			},
 			{
+				name:      "should refuse a body with an unknown question type before sending it",
+				args:      []string{"-i", "request"},
+				stdin:     `{"state":"x","questions":{"a":{"type":"tarot","instructions":"q"}}}` + "\n",
+				response:  `{"answers":{}}`,
+				wantSent:  0,
+				wantLines: 1,
+				wantOut: []string{
+					`{"error":{"kind":"input"`,
+					"question 'a' has the type 'tarot', which is not noul, choice, score or box",
+				},
+				wantCode: ExitRecords,
+			},
+			{
 				name:      "should write an error record when the server rejects a body",
 				args:      []string{"-i", "request"},
 				stdin:     "{\"state\":\"one\"}\n",
