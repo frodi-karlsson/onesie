@@ -168,10 +168,8 @@ func runCalibrate(
 	// the one a user calibrates.
 	inv, warnings, err := build(settings, flags, true)
 
-	for _, warning := range warnings {
-		if _, printErr := fmt.Fprintln(cmd.ErrOrStderr(), warning); printErr != nil {
-			return printErr
-		}
+	if warnErr := warnAll(cmd.ErrOrStderr(), warnings); warnErr != nil {
+		return warnErr
 	}
 
 	if err != nil {

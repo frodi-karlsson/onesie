@@ -314,7 +314,7 @@ type ModeWarning struct {
 // Error names the path so the caller can tell the user where the unprotected file is.
 func (e *ModeWarning) Error() string {
 	return fmt.Sprintf(
-		"warning: could not set mode 600 on %s. The key is not protected by the filesystem", e.Path)
+		"could not set mode 600 on %s. The key is not protected by the filesystem", e.Path)
 }
 
 func (s Store) clear(path, kind string) error {

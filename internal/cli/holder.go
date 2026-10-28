@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"fmt"
 	"io"
 	"path/filepath"
 	"sync"
@@ -74,10 +73,8 @@ func openProfiles(settings rootSettings, stderr io.Writer) (creds.Opened, error)
 		return creds.Opened{}, err
 	}
 
-	for _, line := range conversionLines(opened, settings.lookupEnv) {
-		if _, printErr := fmt.Fprintln(stderr, line); printErr != nil {
-			return creds.Opened{}, printErr
-		}
+	if printErr := notify(stderr, conversionLines(opened, settings.lookupEnv)...); printErr != nil {
+		return creds.Opened{}, printErr
 	}
 
 	return opened, nil
@@ -93,8 +90,8 @@ func profilesDir(settings rootSettings) (string, bool) {
 	return filepath.Dir(path), err == nil
 }
 
-func conversionLines(opened creds.Opened, lookupEnv func(string) (string, bool)) []string {
-	var lines []string
+func conversionLines(opened creds.Opened, lookupEnv func(string) (string, bool)) []notice {
+	var lines []notice
 
 	if len(opened.Converted) > 0 {
 		where := "into profiles.json"
@@ -102,13 +99,13 @@ func conversionLines(opened creds.Opened, lookupEnv func(string) (string, bool))
 			where = "for this run"
 		}
 
-		lines = append(lines, "onesie: converted credentials.json "+where+", with "+
-			namedProfiles(opened.Converted)+". "+defaultSentence(opened.Profiles.Default))
+		lines = append(lines, notice{text: "converted credentials.json " + where + ", with " +
+			namedProfiles(opened.Converted) + ". " + defaultSentence(opened.Profiles.Default)})
 
 		if setVariable(lookupEnv, envProvider) != "" {
-			lines = append(lines, "onesie: "+envProvider+" is set, so a run uses no profile and reads only the "+
-				"provider's key variable. To use a stored key, unset it and run onesie profile use NAME, "+
-				"or pass --profile NAME")
+			lines = append(lines, notice{text: envProvider + " is set, so a run uses no profile and reads only " +
+				"the provider's key variable. To use a stored key, unset it and run onesie profile use NAME, " +
+				"or pass --profile NAME"})
 		}
 	}
 

@@ -2,11 +2,13 @@ package cli
 
 import (
 	"fmt"
+	"io"
 
 	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/assert"
 	"github.com/frodi-karlsson/onesie/internal/input"
 	"github.com/frodi-karlsson/onesie/internal/jq"
+	"github.com/frodi-karlsson/onesie/internal/output"
 	"github.com/frodi-karlsson/onesie/internal/plan"
 	"github.com/frodi-karlsson/onesie/internal/qfile"
 )
@@ -118,6 +120,16 @@ func build(settings rootSettings, flags runConfig, ignoreFileJudgment bool) (*in
 		plan: built, gate: gate, abstain: abstain, mapper: mapper, namer: namer, loaded: loaded,
 		fileGate: setAside, images: images,
 	}, warnings, nil
+}
+
+func warnAll(w io.Writer, warnings []string) error {
+	for _, warning := range warnings {
+		if err := output.Warning(w, warning); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func withoutJudgment(loaded *qfile.File) {

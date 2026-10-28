@@ -367,7 +367,7 @@ func checkPinnedRuns(t *testing.T) {
 				stdout: "{\"id\":1,\"model\":\"m\",\"answer\":{\"value\":0.9}}\n" +
 					"{\"id\":2,\"model\":\"m\",\"answer\":{\"value\":0.9}}\n" +
 					"{\"id\":3,\"model\":\"m\",\"answer\":{\"value\":0.9}}\n",
-				stderr: "1 distinct requests held, so later records are deduplicated only against those\n" +
+				stderr: "onesie: 1 distinct requests held, so later records are deduplicated only against those\n" +
 					"3 records, 1 deduplicated, 2 requests, 2 questions asked, 10 in / 4 out tokens, model m, 2 attempts, 10s/attempt, 0s\n",
 			}},
 		},

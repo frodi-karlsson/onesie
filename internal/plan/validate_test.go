@@ -349,7 +349,7 @@ func TestValidate(t *testing.T) {
 				{Name: "desc", Value: "billing=payments"},
 				{Name: "desc", Value: "technical=bugs"},
 			},
-			wantWarning: "warning: 'answer' describes billing, technical but not sales",
+			wantWarning: "'answer' describes billing, technical but not sales",
 		},
 		{
 			name:       "should accept a plain positional question",

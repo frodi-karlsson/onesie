@@ -795,6 +795,8 @@ table, and `onesie calibrate --help` lists the codes calibrate uses.
   are those the requests asked, so a cache hit asks none. The tokens and the cost OpenRouter reports
   are summed over the requests, and the per attempt timeout is left out of a run that made no
   attempt.
+- A notice onesie writes to stderr starts with `onesie: `, and a warning with `onesie: warning: `.
+  The `--stats` summary, calibrate's progress lines and the `API key: ` prompt keep their own form.
 - `--list-models` shows what the account can ask, and `-m` picks one.
 - `--base-url` points onesie at any server that speaks the System One API. A redirect is refused
   rather than followed with the key.

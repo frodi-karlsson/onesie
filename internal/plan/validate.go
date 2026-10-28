@@ -564,7 +564,7 @@ func describedHint(q *Question, names, have []string) string {
 		return ""
 	}
 
-	return fmt.Sprintf("warning: '%s' describes %s but not %s",
+	return fmt.Sprintf("'%s' describes %s but not %s",
 		q.ID, strings.Join(have, ", "), strings.Join(missing(names, have), ", "))
 }
 

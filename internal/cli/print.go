@@ -78,17 +78,16 @@ func warnUncarried(w io.Writer, loaded *qfile.File) error {
 	}
 
 	if loaded.Model != "" {
-		_, err := fmt.Fprintf(w,
-			"warning: --print-questions does not carry the body's model '%s'. "+
-				"Pass -m when you reload\n", loaded.Model)
+		err := output.Warning(w, fmt.Sprintf(
+			"--print-questions does not carry the body's model '%s'. Pass -m when you reload", loaded.Model))
 		if err != nil {
 			return err
 		}
 	}
 
 	if loaded.LongContext {
-		if _, err := fmt.Fprintln(w,
-			"warning: --print-questions does not carry the body's long_context. "+
+		if err := output.Warning(w,
+			"--print-questions does not carry the body's long_context. "+
 				"Pass --long-context when you reload"); err != nil {
 			return err
 		}
@@ -98,11 +97,7 @@ func warnUncarried(w io.Writer, loaded *qfile.File) error {
 		return nil
 	}
 
-	_, err := fmt.Fprintln(w,
-		"warning: --print-questions does not carry the body's state. "+
-			"Pass --state when you reload")
-
-	return err
+	return output.Warning(w, "--print-questions does not carry the body's state. Pass --state when you reload")
 }
 
 func printRequest(

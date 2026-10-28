@@ -646,7 +646,7 @@ func checkSingleRecord(config runConfig) (string, error) {
 		// A resource hint rather than a semantic one, and it may reasonably come from a shared
 		// alias, so it warns and proceeds rather than failing.
 		return fmt.Sprintf(
-			"warning: -j %d ignored. -i %s reads one record", config.jobs, inputName(config.input)), nil
+			"-j %d ignored. -i %s reads one record", config.jobs, inputName(config.input)), nil
 	}
 
 	return "", nil

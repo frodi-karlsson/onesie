@@ -219,10 +219,8 @@ func profileUpdate(
 	profile := updated(old, fields, changed)
 	if profile == old && !fields.key {
 		if already := alreadySet(old, changed); already != "" {
-			_, printErr := fmt.Fprintf(cmd.ErrOrStderr(), "onesie: profile %s is unchanged, since %s\n",
-				creds.QuotedName(name), already)
-
-			return printErr
+			return output.Notice(cmd.ErrOrStderr(),
+				fmt.Sprintf("profile %s is unchanged, since %s", creds.QuotedName(name), already))
 		}
 
 		return fmt.Errorf(
@@ -389,7 +387,8 @@ func profileList(cmd *cobra.Command, settings rootSettings, flags *runFlags) err
 	}
 
 	if len(opened.Profiles.Profiles) == 0 {
-		return notify(cmd, "onesie: no profiles. Run onesie profile create NAME --provider PROVIDER to store one")
+		return output.Notice(cmd.ErrOrStderr(),
+			"no profiles. Run onesie profile create NAME --provider PROVIDER to store one")
 	}
 
 	active, err := settings.holder.resolved()
@@ -398,7 +397,14 @@ func profileList(cmd *cobra.Command, settings rootSettings, flags *runFlags) err
 		return writeErr
 	}
 
-	return notify(cmd, inactiveReason(active, err))
+	reason := inactiveReason(active, err)
+	if reason == "" {
+		return nil
+	}
+
+	_, err = fmt.Fprintln(cmd.ErrOrStderr(), reason)
+
+	return err
 }
 
 func writeProfiles(w io.Writer, profiles creds.Profiles, active string) error {
@@ -826,17 +832,17 @@ func saveProfiles(cmd *cobra.Command, settings rootSettings, path string, profil
 		return err
 	}
 
-	return notify(cmd, warningLines(warnings)...)
+	return notify(cmd.ErrOrStderr(), warningLines(warnings)...)
 }
 
 func reported(cmd *cobra.Command, change creds.Change, notices []creds.Notice, err error) error {
-	lines := make([]string, 0, len(notices))
-	for _, notice := range notices {
-		lines = append(lines, noticeLine(notice, change))
+	lines := make([]notice, 0, len(notices))
+	for _, each := range notices {
+		lines = append(lines, noticeLine(each, change))
 	}
 
 	if err == nil {
-		return notify(cmd, lines...)
+		return notify(cmd.ErrOrStderr(), lines...)
 	}
 
 	if errors.Is(err, creds.ErrKeychainTimeout) {
@@ -844,39 +850,46 @@ func reported(cmd *cobra.Command, change creds.Change, notices []creds.Notice, e
 	}
 
 	//nolint:errcheck // The error carries the exit code, and a stderr that cannot take the notices must not replace it.
-	_ = notify(cmd, lines...)
+	_ = notify(cmd.ErrOrStderr(), lines...)
 
 	return err
 }
 
-func noticeLine(notice creds.Notice, change creds.Change) string {
-	switch notice.Kind {
+func noticeLine(each creds.Notice, change creds.Change) notice {
+	switch each.Kind {
 	case creds.SaveWarning:
-		return warningLine(notice.Err)
+		return warningLine(each.Err)
 	case creds.KeyInKeychain:
-		return "stored the key in the OS keychain as " + notice.Account
+		return notice{text: "stored the key in the OS keychain as " + each.Account}
 	case creds.KeyInFile:
-		return "warning: " + notice.Err.Error() + ". The key is in " + change.Path + " instead"
+		return notice{text: each.Err.Error() + ". The key is in " + change.Path + " instead", warning: true}
 	case creds.FirstDefault:
-		return "onesie: " + creds.QuotedName(change.Name) + " is the default profile, since it is the first"
+		return notice{text: creds.QuotedName(change.Name) + " is the default profile, since it is the first"}
 	case creds.DefaultDeleted:
-		return "onesie: " + creds.QuotedName(change.Name) + " was the default, so no profile is the default now. " +
-			"Run onesie profile use NAME to choose one"
+		return notice{text: creds.QuotedName(change.Name) + " was the default, so no profile is the default now. " +
+			"Run onesie profile use NAME to choose one"}
 	case creds.ItemLeftBehind:
-		return "warning: " + notice.Err.Error() + ". The keychain item " + notice.Account + " is left behind"
+		return notice{
+			text: each.Err.Error() + ". The keychain item " + each.Account + " is left behind", warning: true,
+		}
 	case creds.OldKeyUnread:
-		return "warning: the keychain item " + notice.Account + " now holds the new key, and its old key " +
-			"could not be read to put back"
+		return notice{text: "the keychain item " + each.Account + " now holds the new key, and its old key " +
+			"could not be read to put back", warning: true}
 	case creds.OldKeyLost:
-		return "warning: " + notice.Err.Error() + ". The keychain item " + notice.Account +
-			" now holds the new key, and its old key could not be put back"
+		return notice{text: each.Err.Error() + ". The keychain item " + each.Account +
+			" now holds the new key, and its old key could not be put back", warning: true}
 	}
 
-	return ""
+	return notice{}
 }
 
-func warningLines(warnings []error) []string {
-	lines := make([]string, 0, len(warnings))
+type notice struct {
+	text    string
+	warning bool
+}
+
+func warningLines(warnings []error) []notice {
+	lines := make([]notice, 0, len(warnings))
 	for _, warning := range warnings {
 		lines = append(lines, warningLine(warning))
 	}
@@ -884,23 +897,25 @@ func warningLines(warnings []error) []string {
 	return lines
 }
 
-func warningLine(warning error) string {
+func warningLine(warning error) notice {
 	var unprotected *creds.ModeWarning
-	if errors.As(warning, &unprotected) {
-		return warning.Error()
-	}
 
-	return "onesie: " + warning.Error()
+	return notice{text: warning.Error(), warning: errors.As(warning, &unprotected)}
 }
 
-func notify(cmd *cobra.Command, lines ...string) error {
-	for _, line := range lines {
-		if line == "" {
+func notify(w io.Writer, notices ...notice) error {
+	for _, each := range notices {
+		if each.text == "" {
 			continue
 		}
 
+		write := output.Notice
+		if each.warning {
+			write = output.Warning
+		}
+
 		// stderr rather than stdout. These are notices, and a redirected stdout stays empty.
-		if _, err := fmt.Fprintln(cmd.ErrOrStderr(), line); err != nil {
+		if err := write(w, each.text); err != nil {
 			return err
 		}
 	}

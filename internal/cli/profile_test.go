@@ -252,7 +252,7 @@ func TestProfileCreate(t *testing.T) {
 			args:  []string{"profile", "create", "work", "--provider", "openrouter"},
 			stdin: key16 + "\n",
 			wantErr: []string{
-				"stored the key in the OS keychain as work@{hash}",
+				"onesie: stored the key in the OS keychain as work@{hash}",
 				"onesie: 'work' is the default profile, since it is the first",
 			},
 			wantFile: `{"default":"work","profiles":{"work":{"provider":"openrouter","store":"keychain",` +
@@ -311,7 +311,7 @@ func TestProfileCreate(t *testing.T) {
 			keychain: keychainNone,
 			args:     []string{"profile", "create", "work", "--provider", "typesafe"},
 			stdin:    key16 + "\n",
-			wantErr: []string{"warning: could not store the key in the OS keychain: no keychain in tests. " +
+			wantErr: []string{"onesie: warning: could not store the key in the OS keychain: no keychain in tests. " +
 				"The key is in {path} instead"},
 			wantFile: `{"default":"work","profiles":{"work":{"provider":"typesafe","api_key":"` + key16 + `"}}}`,
 		},
@@ -586,7 +586,7 @@ func TestProfileCreate(t *testing.T) {
 			store:    failingChmod,
 			args:     []string{"profile", "create", "work", "--provider", "typesafe", "--file"},
 			stdin:    key16 + "\n",
-			wantErr:  []string{"warning: could not set mode 600 on {path}. The key is not protected by the filesystem"},
+			wantErr:  []string{"onesie: warning: could not set mode 600 on {path}. The key is not protected by the filesystem"},
 			wantFile: `{"default":"work","profiles":{"work":{"provider":"typesafe","api_key":"` + key16 + `"}}}`,
 		},
 		{
@@ -594,8 +594,8 @@ func TestProfileCreate(t *testing.T) {
 			store: failingChmod,
 			args:  []string{"profile", "create", "work", "--provider", "typesafe"},
 			stdin: key16 + "\n",
-			wantStderr: "warning: could not set mode 600 on {path}. The key is not protected by the filesystem\n" +
-				"stored the key in the OS keychain as work@{hash}\n" +
+			wantStderr: "onesie: warning: could not set mode 600 on {path}. The key is not protected by the filesystem\n" +
+				"onesie: stored the key in the OS keychain as work@{hash}\n" +
 				"onesie: 'work' is the default profile, since it is the first\n",
 		},
 		{
@@ -605,7 +605,7 @@ func TestProfileCreate(t *testing.T) {
 			args:     []string{"profile", "create", "work", "--provider", "typesafe"},
 			stdin:    key16 + "\n",
 			wantCode: ExitUsage,
-			wantStderr: "warning: could not remove the key from the OS keychain: the keychain is locked. " +
+			wantStderr: "onesie: warning: could not remove the key from the OS keychain: the keychain is locked. " +
 				"The keychain item work@{hash} is left behind\n" +
 				"onesie: creating a temporary file in {dir}: the disk is full\n",
 		},
@@ -870,7 +870,7 @@ func TestProfileUpdate(t *testing.T) {
 			args:     []string{"profile", "update", "work", "--key"},
 			stdin:    newKey + "\n",
 			wantErr: []string{
-				"warning: could not store the key in the OS keychain: no keychain in tests. The key is in {path} instead",
+				"onesie: warning: could not store the key in the OS keychain: no keychain in tests. The key is in {path} instead",
 				"The keychain item work@{hash} is left behind",
 			},
 			wantFile: `{"default":"work","profiles":{"work":{"provider":"openrouter","api_key":"` + newKey +
@@ -1007,7 +1007,7 @@ func TestProfileUpdate(t *testing.T) {
 			wantCode: ExitUsage,
 			wantErr: []string{
 				"the disk is full",
-				"warning: could not store the key in the OS keychain: the keychain is locked. " +
+				"onesie: warning: could not store the key in the OS keychain: the keychain is locked. " +
 					"The keychain item work@{hash} now holds the new key, and its old key could not be put back",
 			},
 			notErr:    []string{"left behind"},
@@ -1023,7 +1023,7 @@ func TestProfileUpdate(t *testing.T) {
 			args:     []string{"profile", "update", "work", "--key"},
 			stdin:    newKey + "\n",
 			wantCode: ExitUsage,
-			wantStderr: "warning: could not store the key in the OS keychain: the keychain is locked. " +
+			wantStderr: "onesie: warning: could not store the key in the OS keychain: the keychain is locked. " +
 				"The keychain item work@{hash} now holds the new key, and its old key could not be put back\n" +
 				"onesie: creating a temporary file in {dir}: the disk is full\n",
 		},
@@ -1035,9 +1035,9 @@ func TestProfileUpdate(t *testing.T) {
 			store:    failingChmod,
 			args:     []string{"profile", "update", "work", "--key"},
 			stdin:    newKey + "\n",
-			wantStderr: "warning: could not set mode 600 on {path}. The key is not protected by the filesystem\n" +
-				"stored the key in the OS keychain as work@{hash}\n" +
-				"warning: could not remove the key from the OS keychain: the keychain is locked. " +
+			wantStderr: "onesie: warning: could not set mode 600 on {path}. The key is not protected by the filesystem\n" +
+				"onesie: stored the key in the OS keychain as work@{hash}\n" +
+				"onesie: warning: could not remove the key from the OS keychain: the keychain is locked. " +
 				"The keychain item old is left behind\n",
 		},
 		{
@@ -1086,7 +1086,7 @@ func TestProfileUpdate(t *testing.T) {
 			wantCode: ExitUsage,
 			wantErr: []string{
 				"the disk is full",
-				"warning: the keychain item work@{hash} now holds the new key, and its old key could not be read",
+				"onesie: warning: the keychain item work@{hash} now holds the new key, and its old key could not be read",
 			},
 			wantFile:  work,
 			wantItems: map[string]string{"work@{hash}": newKey},
@@ -1194,7 +1194,7 @@ func TestProfileDelete(t *testing.T) {
 			file:     two,
 			keychain: keychainNone,
 			args:     []string{"profile", "delete", "work"},
-			wantErr: []string{"warning: could not remove the key from the OS keychain: no keychain in tests. " +
+			wantErr: []string{"onesie: warning: could not remove the key from the OS keychain: no keychain in tests. " +
 				"The keychain item work@{hash} is left behind"},
 			wantFile: homeOnly,
 		},
@@ -1239,10 +1239,10 @@ func TestProfileDelete(t *testing.T) {
 			keychain: keychainUndeletable,
 			store:    failingChmod,
 			args:     []string{"profile", "delete", "work"},
-			wantStderr: "warning: could not set mode 600 on {path}. The key is not protected by the filesystem\n" +
+			wantStderr: "onesie: warning: could not set mode 600 on {path}. The key is not protected by the filesystem\n" +
 				"onesie: 'work' was the default, so no profile is the default now. " +
 				"Run onesie profile use NAME to choose one\n" +
-				"warning: could not remove the key from the OS keychain: the keychain is locked. " +
+				"onesie: warning: could not remove the key from the OS keychain: the keychain is locked. " +
 				"The keychain item work@{hash} is left behind\n",
 		},
 		{

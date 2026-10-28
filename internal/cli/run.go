@@ -80,10 +80,8 @@ func run(
 
 	// Warnings print whether or not validation succeeded, so a run that fails for one reason still
 	// reports the others.
-	for _, warning := range warnings {
-		if _, printErr := fmt.Fprintln(cmd.ErrOrStderr(), warning); printErr != nil {
-			return printErr
-		}
+	if warnErr := warnAll(cmd.ErrOrStderr(), warnings); warnErr != nil {
+		return warnErr
 	}
 
 	if err != nil {
@@ -270,11 +268,8 @@ func warnIgnoredBodyState(
 		note = fmt.Sprintf(" and its %s", plural(dropped, "asset"))
 	}
 
-	_, err = fmt.Fprintf(w,
-		"warning: ignoring the state in %s%s, since %s sends each record as its state\n",
-		flags.file, note, sender)
-
-	return err
+	return output.Warning(w, fmt.Sprintf(
+		"ignoring the state in %s%s, since %s sends each record as its state", flags.file, note, sender))
 }
 
 func resolveState(
@@ -459,9 +454,9 @@ func stream(
 
 	if !flags.noDedup {
 		shared = newDedup(settings.dedupLimit, func() {
-			_, noticeErr = fmt.Fprintf(cmd.ErrOrStderr(),
-				"%d distinct requests held, so later records are deduplicated only against those\n",
-				settings.dedupLimit)
+			noticeErr = output.Notice(cmd.ErrOrStderr(), fmt.Sprintf(
+				"%d distinct requests held, so later records are deduplicated only against those",
+				settings.dedupLimit))
 		})
 	}
 

@@ -532,7 +532,7 @@ func TestRun(t *testing.T) {
 			name:     "should warn that --print-questions drops a body's long context",
 			args:     []string{"-f", longBody, "--print-questions"},
 			wantCode: ExitOK,
-			wantErr:  "warning: --print-questions does not carry the body's long_context. Pass --long-context when you reload",
+			wantErr:  "onesie: warning: --print-questions does not carry the body's long_context. Pass --long-context when you reload",
 		},
 		{
 			name:         "should send long context from a body with no flag, and not the key",

@@ -14,6 +14,7 @@ import (
 	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/answer"
 	"github.com/frodi-karlsson/onesie/internal/cache"
+	"github.com/frodi-karlsson/onesie/internal/output"
 	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
@@ -52,7 +53,7 @@ func answersFor(
 		}
 
 		// The answer is already in hand, so a warning that cannot print fails nothing.
-		if _, printErr := fmt.Fprintln(cmd.ErrOrStderr(), "warning: "+err.Error()); printErr != nil {
+		if printErr := output.Warning(cmd.ErrOrStderr(), err.Error()); printErr != nil {
 			return
 		}
 	}

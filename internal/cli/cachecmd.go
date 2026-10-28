@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/frodi-karlsson/onesie/internal/cache"
+	"github.com/frodi-karlsson/onesie/internal/output"
 )
 
 func newCacheCmd(settings rootSettings) *cobra.Command {
@@ -98,9 +99,7 @@ func warnReadable(w io.Writer, settings rootSettings, dir string) error {
 	// carries no such modes.
 	info, err := settings.stat(dir)
 	if err == nil && settings.goos != "windows" && info.Mode().Perm()&0o077 != 0 {
-		_, printErr := fmt.Fprintln(w, "onesie: "+(&cache.ModeError{Dir: dir, Mode: info.Mode().Perm()}).Error())
-
-		return printErr
+		return output.Notice(w, (&cache.ModeError{Dir: dir, Mode: info.Mode().Perm()}).Error())
 	}
 
 	return nil

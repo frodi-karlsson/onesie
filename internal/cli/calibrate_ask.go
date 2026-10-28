@@ -576,7 +576,7 @@ func writeCauses(w io.Writer, set labelledSet, outcomes []output.Record) error {
 
 		listed++
 
-		if _, err := fmt.Fprintf(w, "onesie: %s: %s\n", rec.name(), failure.Message); err != nil {
+		if err := output.Notice(w, rec.name()+": "+failure.Message); err != nil {
 			return err
 		}
 	}
@@ -585,9 +585,7 @@ func writeCauses(w io.Writer, set labelledSet, outcomes []output.Record) error {
 		return nil
 	}
 
-	_, err := fmt.Fprintf(w, "onesie: and %s\n", plural(more, "more failed record"))
-
-	return err
+	return output.Notice(w, "and "+plural(more, "more failed record"))
 }
 
 func writeReport(w io.Writer, format string, report calibrate.Report) error {

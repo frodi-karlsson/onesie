@@ -3,7 +3,6 @@ package cli
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
@@ -67,7 +66,7 @@ func clientBuilder(info BuildInfo, flags *runFlags, settings rootSettings) clien
 
 		if onesie.InsecureBaseURL(client.BaseURL()) {
 			warned.Do(func() {
-				_, printErr = fmt.Fprintln(settings.holder.stderr(), "warning: "+output.Printable(client.BaseURL())+
+				printErr = output.Warning(settings.holder.stderr(), output.Printable(client.BaseURL())+
 					" is plain http, so the API key crosses the network unencrypted")
 			})
 		}
@@ -76,7 +75,7 @@ func clientBuilder(info BuildInfo, flags *runFlags, settings rootSettings) clien
 			source, _ := baseURLFrom(client.BaseURLSource(), flags.baseURL, chosen, settings.lookupEnv)
 
 			doubled.Do(func() {
-				_, printErr = fmt.Fprintln(settings.holder.stderr(), "warning: "+source+
+				printErr = output.Warning(settings.holder.stderr(), source+
 					" ends in /v1 and onesie adds the API path itself, so requests go to "+
 					output.Printable(client.SystemOneURL()))
 			})

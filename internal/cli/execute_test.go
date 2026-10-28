@@ -107,7 +107,7 @@ func TestExecute(t *testing.T) {
 			args:  []string{"profile", "create", "work", "--provider", "typesafe"},
 			stdin: key16 + "\n",
 			env:   map[string]string{"ONESIE_CONFIG_DIR": "{dir}"},
-			want: "warning: could not store the key in the OS keychain: no keychain in tests. " +
+			want: "onesie: warning: could not store the key in the OS keychain: no keychain in tests. " +
 				"The key is in {dir}{/}profiles.json instead\n" +
 				"onesie: 'work' is the default profile, since it is the first\n",
 		},
@@ -117,7 +117,7 @@ func TestExecute(t *testing.T) {
 			stdin:   key16 + "\n",
 			env:     map[string]string{"ONESIE_CONFIG_DIR": "{dir}"},
 			prepare: failingChmodStore,
-			want: "warning: could not set mode 600 on {dir}{/}profiles.json. The key is not protected by the filesystem\n" +
+			want: "onesie: warning: could not set mode 600 on {dir}{/}profiles.json. The key is not protected by the filesystem\n" +
 				"onesie: 'work' is the default profile, since it is the first\n",
 		},
 		{
@@ -138,7 +138,7 @@ func TestExecute(t *testing.T) {
 			args:  []string{"--cache", "--base-url", "{url}", "--state", "x", "is it urgent"},
 			env:   map[string]string{"ONESIE_CACHE_DIR": "{dir}{/}notdir"},
 			files: map[string]string{"notdir": "x"},
-			want: "warning: the cache could not open, so onesie asks the API for the rest of this run: " +
+			want: "onesie: warning: the cache could not open, so onesie asks the API for the rest of this run: " +
 				"the cache dir {dir}{/}notdir is not a directory\n",
 		},
 		{
@@ -292,7 +292,7 @@ func TestExecute(t *testing.T) {
 		{
 			name: "should warn that -j is ignored for one record",
 			args: []string{"-j", "4", "--print-request", "--state", "s", "is it urgent"},
-			want: "warning: -j 4 ignored. -i text reads one record\n",
+			want: "onesie: warning: -j 4 ignored. -i text reads one record\n",
 		},
 		{
 			name: "should refuse --offline beside --mock in calibrate",

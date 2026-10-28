@@ -1233,7 +1233,7 @@ func TestCheckFlags(t *testing.T) {
 			{
 				name: "should print a flag warning once for a mode that builds a plan",
 				args: []string{"is this urgent", "-j", "4"},
-				want: "warning: -j 4 ignored. -i text reads one record",
+				want: "-j 4 ignored. -i text reads one record",
 			},
 		}
 

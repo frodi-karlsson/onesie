@@ -348,9 +348,9 @@ func wordAnswersError(err error) error {
 	case errors.As(err, &directory):
 		return &plainError{cause: err, message: fmt.Sprintf("--out %s is a directory", directory.Path)}
 	case errors.As(err, &stale) && stale.Reason == answersfile.OlderColumns:
-		return &plainError{cause: err, message: err.Error() + ". Regenerate it without --resume, or write to a new --out"}
+		return &plainError{cause: err, message: text(err) + ". Regenerate it without --resume, or write to a new --out"}
 	case errors.As(err, &stale), errors.Is(err, answersfile.ErrNoLock):
-		return &plainError{cause: err, message: err.Error() + ". Drop --resume to start over"}
+		return &plainError{cause: err, message: text(err) + ". Drop --resume to start over"}
 	default:
 		return err
 	}
@@ -706,7 +706,7 @@ func Execute(ctx context.Context, root *cobra.Command) int {
 
 	if worthReporting(err) {
 		// Stripped, since a message can quote the server or the input to a terminal.
-		if _, printErr := fmt.Fprintln(root.ErrOrStderr(), "onesie: "+output.Printable(text(err))); printErr != nil {
+		if printErr := output.Notice(root.ErrOrStderr(), output.Printable(text(err))); printErr != nil {
 			return ExitUsage
 		}
 	}
