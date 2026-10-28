@@ -251,7 +251,7 @@ func TestValidate(t *testing.T) {
 				{Name: "ask", Value: "urgent=first"},
 				{Name: "desc", Value: "maybe=unclear"},
 			},
-			wantErr: "--desc on a yes/no question takes 'yes' or 'no', got 'maybe'",
+			wantErr: "--desc on a yes or no question takes 'yes' or 'no', got 'maybe'",
 		},
 		{
 			name: "should reject min-confidence on a yes/no question",
@@ -260,7 +260,7 @@ func TestValidate(t *testing.T) {
 				{Name: "min-confidence", Value: "0.7"},
 				{Name: "fallback", Value: "true"},
 			},
-			wantErr: "--min-confidence needs a confidence value. 'urgent' is a yes/no question",
+			wantErr: "--min-confidence needs a confidence value. 'urgent' is a yes or no question",
 		},
 		{
 			name: "should reject threshold on a pick question",
@@ -269,7 +269,7 @@ func TestValidate(t *testing.T) {
 				{Name: "pick", Value: "x,y"},
 				{Name: "threshold", Value: "0.5"},
 			},
-			wantErr: "--threshold cuts a yes/no probability. 'team' has options",
+			wantErr: "--threshold cuts a yes or no probability. 'team' has options",
 		},
 		{
 			name: "should reject threshold on a rate question",
@@ -278,7 +278,7 @@ func TestValidate(t *testing.T) {
 				{Name: "rate", Value: "low,high"},
 				{Name: "threshold", Value: "0.5"},
 			},
-			wantErr: "--threshold cuts a yes/no probability. 'severity' has levels",
+			wantErr: "--threshold cuts a yes or no probability. 'severity' has levels",
 		},
 		{
 			name: "should reject min-confidence with no fallback",
@@ -313,7 +313,7 @@ func TestValidate(t *testing.T) {
 				{Name: "ask", Value: "urgent=first"},
 				{Name: "fallback", Value: "human"},
 			},
-			wantErr: "--fallback on a yes/no question takes true, false, yes or no, got 'human'",
+			wantErr: "--fallback on a yes or no question takes true, false, yes or no, got 'human'",
 		},
 		{
 			name: "should accept yes as a boolean fallback",
@@ -568,7 +568,7 @@ func TestValidate(t *testing.T) {
 			file: withPolicy(filePick("billing", "technical"), plan.Policy{
 				Threshold: pointerTo(0.8),
 			}),
-			wantExact: "'threshold' cuts a yes/no probability. 'team' has options, " +
+			wantExact: "'threshold' cuts a yes or no probability. 'team' has options, " +
 				"use 'min_confidence' with 'fallback'",
 		},
 		{
@@ -577,7 +577,7 @@ func TestValidate(t *testing.T) {
 				ID: "urgent", Shape: plan.Noul, Instructions: "q", Origin: plan.OriginFile,
 				Policy: plan.Policy{MinConfidence: pointerTo(0.7)},
 			}},
-			wantExact: "'min_confidence' needs a confidence value. 'urgent' is a yes/no " +
+			wantExact: "'min_confidence' needs a confidence value. 'urgent' is a yes or no " +
 				"question, use 'threshold', or add 'pick' or 'rate'",
 		},
 		{
@@ -620,7 +620,7 @@ func TestValidate(t *testing.T) {
 				ID: "urgent", Shape: plan.Noul, Instructions: "q", Origin: plan.OriginFile,
 				Policy: plan.Policy{Fallback: &plan.Fallback{Text: "human"}},
 			}},
-			wantExact: "'fallback' on a yes/no question takes true, false, yes or no, " +
+			wantExact: "'fallback' on a yes or no question takes true, false, yes or no, " +
 				"got 'human'",
 		},
 	}

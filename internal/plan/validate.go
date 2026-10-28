@@ -404,7 +404,7 @@ func checkNoul(q *Question) error {
 	for _, key := range q.DescOrder {
 		if key != "yes" && key != "no" {
 			return fmt.Errorf(
-				"--desc on a yes/no question takes 'yes' or 'no', got '%s'", key)
+				"--desc on a yes or no question takes 'yes' or 'no', got '%s'", key)
 		}
 	}
 
@@ -460,7 +460,7 @@ func checkPolicy(q *Question, yesNo bool) error {
 			}
 
 			return fmt.Errorf(
-				"%s cuts a yes/no probability. '%s' has %s, use %s with %s",
+				"%s cuts a yes or no probability. '%s' has %s, use %s with %s",
 				threshold, q.ID, noun, confidence, fallback)
 		}
 
@@ -473,7 +473,7 @@ func checkPolicy(q *Question, yesNo bool) error {
 	if policy.MinConfidence != nil {
 		if yesNo {
 			return fmt.Errorf(
-				"%s needs a confidence value. '%s' is a yes/no question, "+
+				"%s needs a confidence value. '%s' is a yes or no question, "+
 					"use %s, or add %s or %s",
 				confidence, q.ID, threshold,
 				Spelling(q.Origin, "--pick"), Spelling(q.Origin, "--rate"))
@@ -493,7 +493,7 @@ func checkPolicy(q *Question, yesNo bool) error {
 	if yesNo && policy.Fallback != nil {
 		if _, ok := ParseFallback(policy.Fallback.Text); !ok {
 			return fmt.Errorf(
-				"%s on a yes/no question takes true, false, yes or no, got '%s'",
+				"%s on a yes or no question takes true, false, yes or no, got '%s'",
 				fallback, policy.Fallback.Text)
 		}
 	}
