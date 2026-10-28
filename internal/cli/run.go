@@ -375,10 +375,10 @@ func bindOut(
 
 func outFingerprint(
 	settings rootSettings, flags runConfig, questions []plan.Question, inputs answersfile.FingerprintInputs,
-) (string, error) {
+) (answersfile.Print, error) {
 	inputs, err := runInputs(settings, flags, inputs)
 	if err != nil {
-		return "", err
+		return answersfile.Print{}, err
 	}
 
 	return answersfile.Fingerprint(questions, wireAll(questions), inputs)

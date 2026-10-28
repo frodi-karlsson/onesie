@@ -1717,8 +1717,8 @@ func TestCalibrateRun(t *testing.T) {
 		{name: "an older version", sidecar: new("v1:abc"), wording: "an older onesie wrote", cause: "an older onesie wrote its fingerprint"},
 		{name: "a newer version", sidecar: new("v9:abc"), wording: "a newer onesie wrote", cause: "a newer onesie wrote its fingerprint"},
 		{
-			name: "a changed question", ask: "urgent=is this urgent now", wording: "changed since",
-			cause: "the questions, model or flags changed since it was written",
+			name: "a changed question", ask: "urgent=is this urgent now", wording: "the questions changed since",
+			cause: "the questions changed since it was written",
 		},
 	} {
 		t.Run("should advise regenerating a file with "+stale.name+" under --offline, and not without it", func(t *testing.T) {
@@ -2152,16 +2152,23 @@ func TestCalibrateRun(t *testing.T) {
 		changedQuestion := calibrating(answers, "--resume")
 		changedQuestion[2] = "urgent=is this really urgent"
 
-		for _, args := range [][]string{changedQuestion, calibrating(answers, "--resume", "-m", "another-model")} {
+		for _, refused := range []struct {
+			args    []string
+			changed string
+		}{
+			{args: changedQuestion, changed: "the questions changed since"},
+			{args: calibrating(answers, "--resume", "-m", "another-model"), changed: "the model changed since"},
+		} {
 			stub := newCalibrateStub(t)
 
-			out, errOut, code := runCalibrateAgainst(t.Context(), t, args, urgentSet, stub.url, false)
+			out, errOut, code := runCalibrateAgainst(t.Context(), t, refused.args, urgentSet, stub.url, false)
 			if code != ExitUsage {
-				t.Errorf("%v: exit code = %d, want %d", args, code, ExitUsage)
+				t.Errorf("%v: exit code = %d, want %d", refused.args, code, ExitUsage)
 			}
 
-			if !strings.Contains(errOut, "the questions, flags or gate changed") || out != "" || stub.count() != 0 {
-				t.Errorf("%v: stdout %q, stderr %q, %d requests, want the changed run refused", args, out, errOut, stub.count())
+			if !strings.Contains(errOut, refused.changed) || out != "" || stub.count() != 0 {
+				t.Errorf("%v: stdout %q, stderr %q, %d requests, want the changed run refused",
+					refused.args, out, errOut, stub.count())
 			}
 
 			after, err := os.ReadFile(answers)
@@ -2170,7 +2177,7 @@ func TestCalibrateRun(t *testing.T) {
 			}
 
 			if string(after) != string(before) {
-				t.Errorf("%v: the answers file changed", args)
+				t.Errorf("%v: the answers file changed", refused.args)
 			}
 		}
 	})
@@ -3487,7 +3494,7 @@ func TestAskedPlan(t *testing.T) {
 			firstStdin: firstThree,
 			second:     all,
 			wantCode:   ExitUsage,
-			stderr:     []string{"the questions, flags or gate changed since", "Drop --resume to start over"},
+			stderr:     []string{"the questions and the policy flags changed since", "Drop --resume to start over"},
 		},
 	}
 

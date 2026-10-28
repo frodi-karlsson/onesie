@@ -103,7 +103,7 @@ func askedPlan(
 		return nil, err
 	}
 
-	if stored == whole {
+	if whole.Matches(stored) {
 		return scope.full, nil
 	}
 

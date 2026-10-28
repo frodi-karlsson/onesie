@@ -1144,10 +1144,12 @@ func TestResumed(t *testing.T) {
 	answeredBody := `{"model":"m","answers":{"answer":{"type":"noul","noul":0.5}},"usage":{}}` + "\n"
 	failedBody := `{"error":{"kind":"http","status":400,"message":"400 bad key"}}` + "\n"
 	unavailableBody := `{"error":{"kind":"http","status":503,"message":"503 bad key"}}` + "\n"
-	forwarded, err := answersfile.Fingerprint(nil, wireAll(nil), answersfile.FingerprintInputs{Provider: "typesafe", Input: "request"})
+	forwardedPrint, err := answersfile.Fingerprint(nil, wireAll(nil), answersfile.FingerprintInputs{Provider: "typesafe", Input: "request"})
 	if err != nil {
 		t.Fatalf("fingerprinting -i request: %v", err)
 	}
+
+	forwarded := forwardedPrint.String()
 
 	byPositionAbstaining := fingerprintWith(t, plan.Source{Positional: "is this urgent"}, answersfile.FingerprintInputs{
 		Provider: "typesafe", Model: onesie.TypeSafe().DefaultModel(), Output: "values", Input: "jsonl",

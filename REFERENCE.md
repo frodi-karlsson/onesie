@@ -260,8 +260,8 @@ onesie calibrate -f shell-safety -i jsonl --map .command --id .id \
 - A missing answers file exits 2, naming it, and nothing is created.
 - A file that answers every question reads under any set of labels, so one committed answers file
   checks each question of a starter set on its own.
-- A file whose fingerprint does not match this run exits 2, naming the cause, such as changed
-  questions, model or flags, or a fingerprint a newer onesie wrote. To regenerate the file, run
+- A file whose fingerprint does not match this run exits 2, naming the cause, such as the parts of
+  the run that changed, or a fingerprint a newer onesie wrote. To regenerate the file, run
   again without `--offline` and `--resume`. The model and provider are part of the match, so pin
   both with `-m` and `--provider`.
 - `--offline` is refused beside `--mock`, `--print-request` and `--prune`.
@@ -299,7 +299,12 @@ onesie calibrate -f shell-safety -i jsonl --map .command --id .id \
   holds: the questions or their policy flags, the provider, the model, the images, long context,
   `--mock`, the input or output format, `--map`, `--id`, `--merge-key`, `--assert` or
   `--abstain-if`. `--skip-blank` counts too when a resume counts lines, which is without `--id` on
-  any input but csv and tsv. A file written by another onesie version is refused the same way.
+  any input but csv and tsv. The refusal names each of them that changed, as in
+  `the model and -o changed since answers.jsonl was written`.
+- The fingerprint keeps one sum for each of them. A version 2 fingerprint, which an earlier onesie
+  wrote as a single sum, still resumes when nothing changed, and the run writes its own in its
+  place. A change there reads `the questions, model or flags changed`, since a single sum cannot
+  tell which. A file written by any other onesie version is refused the same way.
   `-j`, `--timeout`, `--retries`, `--cache` and `--unordered` can change between runs.
 - `--resume` with `--id` skips answered records and asks the rest, failed ones included. A finished
   run rewrites the file in input order and keeps answered ids missing from the input, unless

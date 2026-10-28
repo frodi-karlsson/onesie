@@ -293,11 +293,10 @@ type File struct {
 	matched  bool
 	readOnly bool
 
-	fingerprint  string
-	olderColumns string
-	file         *os.File
-	size         int64
-	rewrite      *rewrite
+	fingerprint *Print
+	file        *os.File
+	size        int64
+	rewrite     *rewrite
 }
 
 type rewrite struct {
@@ -589,19 +588,10 @@ func (o *File) Bind(questions []plan.Question, wired json.Marshaler, inputs Fing
 		return err
 	}
 
-	if delimitedOutput(inputs.Output) && hasFallback(questions) {
-		older := inputs
-		older.withoutFallbackColumns = true
-
-		if o.olderColumns, err = Fingerprint(questions, wired, older); err != nil {
-			return err
-		}
-	}
-
 	return o.bindFingerprint(fingerprint)
 }
 
-func (o *File) bindFingerprint(fingerprint string) error {
+func (o *File) bindFingerprint(fingerprint Print) error {
 	if o.resume {
 		matched, err := o.checkFingerprint(fingerprint)
 		if err != nil {
@@ -611,7 +601,7 @@ func (o *File) bindFingerprint(fingerprint string) error {
 		o.matched = matched
 	}
 
-	o.fingerprint = fingerprint
+	o.fingerprint = &fingerprint
 	o.bound = true
 
 	if o.readOnly {
@@ -632,7 +622,7 @@ func (o *File) probe() error {
 		return fmt.Errorf("opening %s: %w", o.path, patherr.Inner(err))
 	}
 
-	if o.fingerprint == "" || o.matched {
+	if o.fingerprint == nil || o.matched {
 		return nil
 	}
 
@@ -678,7 +668,7 @@ func (o *File) Resuming() bool {
 	return o.resume
 }
 
-func (o *File) checkFingerprint(fingerprint string) (matched bool, err error) {
+func (o *File) checkFingerprint(fingerprint Print) (matched bool, err error) {
 	written, err := o.holdsAnswers()
 	if err != nil || !written {
 		return false, err
@@ -689,12 +679,15 @@ func (o *File) checkFingerprint(fingerprint string) (matched bool, err error) {
 		return false, err
 	}
 
-	reason, stale := staleReason(stored, found, fingerprint, o.olderColumns)
+	reason, changed, stale := staleReason(stored, found, fingerprint)
 	if stale {
-		return false, &StaleAnswersError{Path: o.path, Sidecar: o.target + fingerprintSuffix, Reason: reason}
+		return false, &StaleAnswersError{
+			Path: o.path, Sidecar: o.target + fingerprintSuffix, Reason: reason, Changed: changed,
+		}
 	}
 
-	return true, nil
+	// A version 2 sidecar that matches is not this version's, so the run writes its own in its place.
+	return stored == fingerprint.String(), nil
 }
 
 // StoredFingerprint reads the fingerprint beside a file that holds answers. found is false when
@@ -818,7 +811,7 @@ func (o *File) writeFingerprint() error {
 
 	path := o.target + fingerprintSuffix
 
-	if o.fingerprint == "" {
+	if o.fingerprint == nil {
 		if err := o.remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return fmt.Errorf("removing %s: %w", path, patherr.Inner(err))
 		}
@@ -839,7 +832,7 @@ func (o *File) writeFingerprint() error {
 		return fmt.Errorf("opening %s: %w", temporary, patherr.Inner(err))
 	}
 
-	_, err = io.WriteString(file, o.fingerprint+"\n")
+	_, err = io.WriteString(file, o.fingerprint.String()+"\n")
 	if err == nil {
 		err = file.Sync()
 	}
