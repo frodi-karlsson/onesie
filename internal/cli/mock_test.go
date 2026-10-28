@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -623,16 +624,20 @@ func TestMockAnswers(t *testing.T) {
 func TestMockUncovered(t *testing.T) {
 	t.Parallel()
 
-	eight := "\"a\"\n\"b\"\n\"c\"\n\"d\"\n\"e\"\n\"f\"\n\"g\"\n\"h\"\n"
 	values := []string{"is it urgent", "-o", "values", "-i", "jsonl", "-j", "4"}
 	yes := `{"answer":0.9}`
-	answers := strings.Join([]string{yes, yes, mockUnread, yes, yes, yes, yes, yes}, "\n") + "\n"
 
-	t.Run("should drop the records the engine flushes after a slow uncovered one", func(t *testing.T) {
+	t.Run("should drop the records the engine flushes after an uncovered one", func(t *testing.T) {
 		t.Parallel()
 
+		eight := "\"item-1\"\n\"item-2\"\n\"item-3\"\n\"item-4\"\n\"item-5\"\n\"item-6\"\n\"item-7\"\n\"item-8\"\n"
+		answers := strings.Join([]string{yes, yes, mockUnread, yes, yes, yes, yes, yes}, "\n") + "\n"
+
+		// Record 2 is held until records 1, 4 and 5 are answered, which is every record -j 4 lets in
+		// flight while the writer waits on it. Record 3 fails at once, so the engine holds answers
+		// past it when the writer reaches it.
 		out, errOut, code := runMocked(t, t.Context(), append(values, "--mock", writeMock(t, answers)), eight, nil, nil,
-			delaying(3, 5))
+			delaying("item-2", 3))
 
 		checkMocked(t, out, errOut, code, ExitUsage, fileOf(yes+"\n"+yes+"\n"), nil, nil, []string{"input line 3"})
 	})
@@ -640,16 +645,21 @@ func TestMockUncovered(t *testing.T) {
 	t.Run("should keep the lines that arrived before an uncovered record under --unordered", func(t *testing.T) {
 		t.Parallel()
 
-		// Held on the lines written, not the records answered, since under --unordered a record's line
-		// is written after its answer returns and would race the uncovered record's error.
+		answers := strings.Repeat(yes+"\n", 7) + mockUnread + "\n"
+
+		// The uncovered record is read only once the seven before it are written, so its error
+		// cannot race their lines.
 		out := &signalledLines{written: make(chan struct{}, 8)}
+		stdin := &gatedLines{
+			lines:   []string{`"a"`, `"b"`, `"c"`, `"d"`, `"e"`, `"f"`, `"g"`, `"h"`},
+			gatedAt: 7, waits: 7, gate: out.written,
+		}
 
 		errOut, code := runMockedTo(t, t.Context(), out,
-			append(values, "--unordered", "--mock", writeMock(t, answers)), eight, nil, nil,
-			holding(3, 7, out.written, nil))
+			append(values, "--unordered", "--mock", writeMock(t, answers)), "", nil, stdin)
 
 		checkMocked(t, out.String(), errOut, code, ExitUsage, fileOf(strings.Repeat(yes+"\n", 7)), nil, nil,
-			[]string{"input line 3"})
+			[]string{"input line 8"})
 	})
 
 	t.Run("should keep calibrate's answers file to the records before an uncovered one", func(t *testing.T) {
@@ -660,7 +670,7 @@ func TestMockUncovered(t *testing.T) {
 		var stdin, partial, full strings.Builder
 
 		for _, id := range ids {
-			fmt.Fprintf(&stdin, "{\"id\":%q,\"body\":\"x\",\"u\":true}\n", id)
+			fmt.Fprintf(&stdin, "{\"id\":%q,\"body\":\"item-%s\",\"u\":true}\n", id, id)
 			fmt.Fprintf(&full, "{\"id\":%q,\"u\":0.9}\n", id)
 
 			if id != "c" {
@@ -675,7 +685,7 @@ func TestMockUncovered(t *testing.T) {
 		}
 
 		_, errOut, code := runMocked(t, t.Context(), append(args, "--mock", writeMock(t, partial.String())),
-			stdin.String(), nil, nil, delaying(3, 5))
+			stdin.String(), nil, nil, delaying("item-b", 3))
 		if code != ExitUsage || !strings.Contains(errOut, "no line with id 'c'") {
 			t.Fatalf("first run exit %d\n%s", code, errOut)
 		}
@@ -1001,7 +1011,8 @@ func TestMockAnswerer_Answer(t *testing.T) {
 		}
 
 		stats := &collector{}
-		settings := rootSettings{lookupEnv: lookupFrom(map[string]string{}), now: time.Now}
+		settings := defaultSettings(BuildInfo{})
+		settings.lookupEnv = lookupFrom(map[string]string{})
 
 		client, err := mockClient(settings, runConfig{runFlags: runFlags{retries: retries}}, provider, stats)
 		if err != nil {
@@ -1265,97 +1276,100 @@ func readText(t *testing.T, path string) string {
 	return string(data)
 }
 
-func interruptingAt(position int, interrupt context.CancelFunc) RootOption {
-	return func(s *rootSettings) {
-		s.answerers = func(next answererFactory) answererFactory {
-			return func(ctx context.Context, stats *collector) (answerer, error) {
-				inner, err := next(ctx, stats)
-				if err != nil {
-					return nil, err
-				}
+func interruptingAt(request int, interrupt context.CancelFunc) RootOption {
+	var arrived atomic.Int32
 
-				return interruptingAnswerer{inner: inner, position: position, interrupt: interrupt}, nil
+	return wrappingMock(func(next http.RoundTripper) http.RoundTripper {
+		return roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			if int(arrived.Add(1)) != request {
+				return next.RoundTrip(req)
 			}
-		}
-	}
+
+			// Under -j 1 the engine asks a record only once the record before it is written, so an
+			// interrupt as this request arrives leaves exactly the lines before it.
+			interrupt()
+
+			return nil, errors.Join(req.Body.Close(), req.Context().Err())
+		})
+	})
 }
 
-func (a interruptingAnswerer) answer(ctx context.Context, key recordKey, req onesie.Request) (reply, error) {
-	if key.position != a.position {
-		return a.inner.answer(ctx, key, req)
-	}
-
-	// Under -j 1 the engine asks a record only once the record before it is written, so an
-	// interrupt as this record is asked leaves exactly the lines before it.
-	a.interrupt()
-
-	return reply{}, ctx.Err()
-}
-
-func (a interruptingAnswerer) salt(key recordKey) (string, bool) {
-	return a.inner.salt(key)
-}
-
-type interruptingAnswerer struct {
-	inner     answerer
-	position  int
-	interrupt context.CancelFunc
-}
-
-func delaying(position, others int) RootOption {
+func delaying(marker string, others int) RootOption {
 	answered := make(chan struct{}, 64)
 
-	return holding(position, others, answered, answered)
+	return holding(marker, others, answered, answered)
 }
 
-func holding(position, others int, released <-chan struct{}, answered chan<- struct{}) RootOption {
-	return func(s *rootSettings) {
-		s.answerers = func(next answererFactory) answererFactory {
-			return func(ctx context.Context, stats *collector) (answerer, error) {
-				inner, err := next(ctx, stats)
-				if err != nil {
-					return nil, err
+func holding(marker string, others int, released <-chan struct{}, answered chan<- struct{}) RootOption {
+	return wrappingMock(func(next http.RoundTripper) http.RoundTripper {
+		return roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			body, err := io.ReadAll(req.Body)
+			if err = errors.Join(err, req.Body.Close()); err != nil {
+				return nil, err
+			}
+
+			req.Body = io.NopCloser(bytes.NewReader(body))
+
+			if !bytes.Contains(body, []byte(marker)) {
+				got, err := next.RoundTrip(req)
+				if answered != nil {
+					answered <- struct{}{}
 				}
 
-				return heldAnswerer{
-					inner: inner, position: position, others: others, released: released, answered: answered,
-				}, nil
+				return got, err
 			}
+
+			for range others {
+				select {
+				case <-released:
+				case <-req.Context().Done():
+					return nil, req.Context().Err()
+				}
+			}
+
+			return next.RoundTrip(req)
+		})
+	})
+}
+
+func wrappingMock(wrap func(http.RoundTripper) http.RoundTripper) RootOption {
+	return func(s *rootSettings) {
+		next := s.mockTransport
+		s.mockTransport = func(provider onesie.Provider) http.RoundTripper {
+			return wrap(next(provider))
 		}
 	}
 }
 
-func (h heldAnswerer) answer(ctx context.Context, key recordKey, req onesie.Request) (reply, error) {
-	if key.position != h.position {
-		got, err := h.inner.answer(ctx, key, req)
-		if h.answered != nil {
-			h.answered <- struct{}{}
-		}
-
-		return got, err
-	}
-
-	for range h.others {
-		select {
-		case <-h.released:
-		case <-ctx.Done():
-			return reply{}, ctx.Err()
-		}
-	}
-
-	return h.inner.answer(ctx, key, req)
+func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
 }
 
-func (h heldAnswerer) salt(key recordKey) (string, bool) {
-	return h.inner.salt(key)
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (r *gatedLines) Read(p []byte) (int, error) {
+	if r.next >= len(r.lines) {
+		return 0, io.EOF
+	}
+
+	if r.next == r.gatedAt {
+		for range r.waits {
+			<-r.gate
+		}
+	}
+
+	n := copy(p, r.lines[r.next]+"\n")
+	r.next++
+
+	return n, nil
 }
 
-type heldAnswerer struct {
-	inner    answerer
-	position int
-	others   int
-	released <-chan struct{}
-	answered chan<- struct{}
+type gatedLines struct {
+	lines   []string
+	next    int
+	gatedAt int
+	waits   int
+	gate    <-chan struct{}
 }
 
 func (w *signalledLines) Write(p []byte) (int, error) {

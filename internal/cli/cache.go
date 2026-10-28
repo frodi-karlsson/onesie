@@ -32,16 +32,11 @@ func answersFor(
 			return nil, err
 		}
 
-		answers, err := mockAnswers(settings, flags, chosen.provider, built, known)
-		if err != nil {
-			return nil, err
-		}
-
-		return settings.answerers(answers), nil
+		return mockAnswers(settings, flags, chosen.provider, built, known)
 	}
 
 	if !caching(flags) {
-		return settings.answerers(liveAnswers(settings, flags)), nil
+		return liveAnswers(settings, flags), nil
 	}
 
 	var warned atomic.Bool
@@ -57,7 +52,7 @@ func answersFor(
 		}
 	}
 
-	return settings.answerers(cachedAnswers(settings, flags, model, warn)), nil
+	return cachedAnswers(settings, flags, model, warn), nil
 }
 
 func caching(flags runConfig) bool {

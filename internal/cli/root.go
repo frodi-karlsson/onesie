@@ -28,6 +28,7 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/creds"
 	"github.com/frodi-karlsson/onesie/internal/input"
 	"github.com/frodi-karlsson/onesie/internal/limits"
+	"github.com/frodi-karlsson/onesie/internal/mock"
 	"github.com/frodi-karlsson/onesie/internal/providers"
 	"github.com/frodi-karlsson/onesie/internal/release"
 )
@@ -399,10 +400,10 @@ func defaultSettings(info BuildInfo) rootSettings {
 		readSecret:    func() (string, error) { return readHiddenSecret(os.Stdin) },
 		schemaURL:     schemaURLOf(info),
 		dedupLimit:    limits.MaxDedupRequests,
-		answerers:     func(answers answererFactory) answererFactory { return answers },
 		readBuiltIn:   questions.Read,
 		builtIns:      questions.Names,
 		transport:     http.DefaultTransport,
+		mockTransport: func(provider onesie.Provider) http.RoundTripper { return mock.NewTransport(provider) },
 		laterFailures: &failureLog{},
 	}
 }
@@ -929,12 +930,12 @@ type rootSettings struct {
 	credStore     creds.Store
 	keychain      *creds.Keychain
 	readSecret    func() (string, error)
-	answerers     func(answererFactory) answererFactory
 	schemaURL     string
 	dedupLimit    int
 	readBuiltIn   func(name string) ([]byte, bool)
 	builtIns      func() []string
 	transport     http.RoundTripper
+	mockTransport func(onesie.Provider) http.RoundTripper
 	laterFailures *failureLog
 }
 

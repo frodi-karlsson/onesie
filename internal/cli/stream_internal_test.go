@@ -173,7 +173,7 @@ func TestStream(t *testing.T) {
 						WithStdinTTY(false),
 						WithStdoutTTY(false),
 						WithLookupEnv(lookupFrom(map[string]string{"ONESIE_CONFIG_DIR": t.TempDir()})),
-						holding(1, 1, stdin.handed, nil),
+						holding(`"id":"a"`, 1, stdin.handed, nil),
 					)
 
 					root.Command.SetOut(out)
