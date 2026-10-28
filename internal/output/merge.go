@@ -99,7 +99,6 @@ func splice(raw string, key string, name, answers []byte) (string, error) {
 
 func stateFor(state any, raw string) any {
 	if state != nil {
-		// A record onesie could not read has no parsed state, so the line itself stands in.
 		return state
 	}
 

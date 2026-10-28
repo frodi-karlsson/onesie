@@ -115,23 +115,18 @@ func TestWriteMerged(t *testing.T) {
 				`"urgent":{"value":0.92}}}`,
 		},
 		{
-			name: "should keep a numeric looking text line a string",
-			mode: output.JSON,
-			raw:  "42",
-			// Under -i lines the record's state is the string "42", and the merged record must say
-			// so. Probing the raw line as JSON instead would emit the number 42 and change the
-			// type the caller sent.
+			name:  "should keep a numeric looking text line a string",
+			mode:  output.JSON,
+			raw:   "42",
 			state: "42",
 			key:   "answers",
 			rec:   simple,
 			want:  `{"state":"42","answers":{"model":"onesie-1.13.0","urgent":{"value":0.92}}}`,
 		},
 		{
-			name: "should wrap a line that looks like an object but does not parse",
-			mode: output.JSON,
-			raw:  "{oops",
-			// An input error record has no state at all. Falling through to the wrapper keeps the
-			// line parseable rather than failing the whole run on a single malformed input.
+			name:  "should wrap a line that looks like an object but does not parse",
+			mode:  output.JSON,
+			raw:   "{oops",
 			state: nil,
 			key:   "answers",
 			rec: output.Record{Failure: &output.Failure{
@@ -159,11 +154,9 @@ func TestWriteMerged(t *testing.T) {
 			want:  `{"answers":"mine","onesie":{"model":"onesie-1.13.0","urgent":{"value":0.92}}}`,
 		},
 		{
-			name: "should wrap an object looking text line under state",
-			mode: output.JSON,
-			raw:  `{"a":1}`,
-			// Under -i lines this was sent as a string, so folding it as an object would claim a
-			// shape the API never received.
+			name:  "should wrap an object looking text line under state",
+			mode:  output.JSON,
+			raw:   `{"a":1}`,
 			state: `{"a":1}`,
 			key:   "answers",
 			rec:   simple,
@@ -193,11 +186,9 @@ func TestWriteMerged(t *testing.T) {
 				`"urgent":{"value":0.92}}}`,
 		},
 		{
-			name: "should wrap a raw json object when there is no line to fold into",
-			mode: output.JSON,
-			raw:  "",
-			// The merge key was already taken, so the record failed and its object goes under
-			// state rather than being folded into a line that is not there.
+			name:  "should wrap a raw json object when there is no line to fold into",
+			mode:  output.JSON,
+			raw:   "",
 			state: json.RawMessage(`{"answers":"mine"}`),
 			key:   "answers",
 			rec: output.Record{Failure: &output.Failure{
