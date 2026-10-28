@@ -31,10 +31,9 @@ prints the built in limits.
   plain run, in a stream, under `-q` and `--assert`, in `calibrate` and when the cache is read. A
   yes or no value, each `p` and each `confidence` lies in [0,1], a pick names one of its options, a
   rate's `score` lies between 0 and its top level index, the keys of `p` are exactly the options,
-  or the level indexes from 0 for a rate, and `p` adds up to 1 within half a hundredth per entry,
-  and at least a hundredth. An answer of the wrong type fails too. Any of these exits 4 with
-  `200 response could not be used:` and names the question and the value, as in
-  `question 'urgent' answered 1.5, which lies outside [0,1]`. In a stream the record is an error
+  or the level indexes from 0 for a rate, and `p` adds up to 1 within 0.02. An answer of the wrong
+  type fails too. Any of these exits 4 with `200 response could not be used:` and names the
+  question and the value, as in `question 'urgent' answered 1.5, which lies outside [0,1]`. In a stream the record is an error
   line of kind `response`. Its tokens still count toward `--usage` and `--stats`, it is never
   stored in the cache, and it is not retried.
 - A rate answer also carries `score` and `norm`. `score` is the level index averaged over `p`, with
@@ -411,7 +410,7 @@ ls photos/*.jpg | onesie -i lines --image-field photo 'is there a dog in `photo`
   provider that serves that model. To print for another provider, pass `-m`.
 - `--print-request` refuses what a send to the run's provider refuses before it prints anything,
   such as an image or a Box question on a provider that takes none. A body printed with no state
-  holds only the questions, and is not checked.
+  holds only the questions, and gets only that provider refusal.
 - Under `-i request` onesie fills a blank `model` and checks each body as a send would, before it
   sends anything: the provider must take what the body asks for, each image must pass the image
   limits, `long_context` must be true or false, and no question may pass `max-choice-options` or
