@@ -7,9 +7,7 @@ import (
 
 const previewRunes = 40
 
-// Preview shortens a record's text to one line of about 40 characters for a worst miss, with its
-// line breaks folded into spaces and its control characters dropped.
-func Preview(text string) string {
+func preview(text string) string {
 	var line strings.Builder
 
 	space := false

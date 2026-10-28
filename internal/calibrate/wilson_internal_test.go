@@ -1,14 +1,11 @@
-package calibrate_test
+package calibrate
 
 import (
 	"math"
 	"testing"
 
-	"github.com/frodi-karlsson/onesie/internal/calibrate"
 	"github.com/frodi-karlsson/onesie/internal/num"
 )
-
-const z95 = 1.959963984540054
 
 func TestWilson(t *testing.T) {
 	t.Parallel()
@@ -32,7 +29,7 @@ func TestWilson(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := calibrate.Wilson(tc.hits, tc.of)
+			got := wilson(tc.hits, tc.of)
 
 			wantLow, wantHigh := tc.wantLow, tc.wantHigh
 			if tc.closedForm {
@@ -41,7 +38,7 @@ func TestWilson(t *testing.T) {
 			}
 
 			if !got.Defined || got.Hits != tc.hits || got.Of != tc.of {
-				t.Fatalf("Wilson(%d, %d) = %+v, want a defined share of %d of %d", tc.hits, tc.of, got, tc.hits, tc.of)
+				t.Fatalf("wilson(%d, %d) = %+v, want a defined share of %d of %d", tc.hits, tc.of, got, tc.hits, tc.of)
 			}
 
 			if want := num.Rounded(float64(tc.hits) / float64(tc.of)); got.Rate != want {
@@ -57,23 +54,23 @@ func TestWilson(t *testing.T) {
 	t.Run("should never round a rate or interval end that is not 0 or 1 to 0 or 1", func(t *testing.T) {
 		t.Parallel()
 
-		near := calibrate.Wilson(29999, 30000)
+		near := wilson(29999, 30000)
 		if near.Rate != 0.9999 || near.High != 0.9999 {
-			t.Errorf("Wilson(29999, 30000) = %+v, want a rate and high of 0.9999", near)
+			t.Errorf("wilson(29999, 30000) = %+v, want a rate and high of 0.9999", near)
 		}
 
-		far := calibrate.Wilson(1, 30000)
+		far := wilson(1, 30000)
 		if far.Rate != 0.0001 || far.Low != 0.0001 {
-			t.Errorf("Wilson(1, 30000) = %+v, want a rate and low of 0.0001", far)
+			t.Errorf("wilson(1, 30000) = %+v, want a rate and low of 0.0001", far)
 		}
 	})
 
 	t.Run("should leave 0 of 0 undefined", func(t *testing.T) {
 		t.Parallel()
 
-		got := calibrate.Wilson(0, 0)
+		got := wilson(0, 0)
 		if got.Defined {
-			t.Errorf("Wilson(0, 0) = %+v, want Defined false", got)
+			t.Errorf("wilson(0, 0) = %+v, want Defined false", got)
 		}
 	})
 
@@ -81,12 +78,12 @@ func TestWilson(t *testing.T) {
 		t.Parallel()
 
 		for of := 1; of <= 500; of++ {
-			if low := calibrate.Wilson(0, of).Low; low != 0 {
-				t.Errorf("Wilson(0, %d).Low = %v, want exactly 0", of, low)
+			if low := wilson(0, of).Low; low != 0 {
+				t.Errorf("wilson(0, %d).Low = %v, want exactly 0", of, low)
 			}
 
-			if high := calibrate.Wilson(of, of).High; high != 1 {
-				t.Errorf("Wilson(%d, %d).High = %v, want exactly 1", of, of, high)
+			if high := wilson(of, of).High; high != 1 {
+				t.Errorf("wilson(%d, %d).High = %v, want exactly 1", of, of, high)
 			}
 		}
 	})
@@ -96,9 +93,9 @@ func TestWilson(t *testing.T) {
 
 		for of := 1; of <= 200; of++ {
 			for hits := 0; hits <= of; hits++ {
-				got := calibrate.Wilson(hits, of)
+				got := wilson(hits, of)
 				if got.Low < 0 || got.High > 1 || got.Low > got.Rate || got.High < got.Rate {
-					t.Fatalf("Wilson(%d, %d) = %+v, want 0 <= low <= rate <= high <= 1", hits, of, got)
+					t.Fatalf("wilson(%d, %d) = %+v, want 0 <= low <= rate <= high <= 1", hits, of, got)
 				}
 			}
 		}

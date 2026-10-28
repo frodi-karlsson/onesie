@@ -8,9 +8,7 @@ import (
 
 const z95 = 1.959963984540054
 
-// Wilson returns hits of of as a share with its 95 percent Wilson score interval, each rounded to
-// four places and never to 0 or 1 unless it is exactly that. A share of nothing is not Defined.
-func Wilson(hits, of int) Share {
+func wilson(hits, of int) Share {
 	if of <= 0 {
 		return Share{Hits: hits, Of: of}
 	}

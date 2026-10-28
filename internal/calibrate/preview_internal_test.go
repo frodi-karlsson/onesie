@@ -1,10 +1,8 @@
-package calibrate_test
+package calibrate
 
 import (
 	"strings"
 	"testing"
-
-	"github.com/frodi-karlsson/onesie/internal/calibrate"
 )
 
 func TestPreview(t *testing.T) {
@@ -32,8 +30,8 @@ func TestPreview(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			if got := calibrate.Preview(tc.text); got != tc.want {
-				t.Errorf("Preview(%q) = %q, want %q", tc.text, got, tc.want)
+			if got := preview(tc.text); got != tc.want {
+				t.Errorf("preview(%q) = %q, want %q", tc.text, got, tc.want)
 			}
 		})
 	}

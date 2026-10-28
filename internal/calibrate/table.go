@@ -96,7 +96,7 @@ func writeYesNo(b *strings.Builder, id string, s YesNoScore) {
 
 	for _, c := range misses {
 		names = append(names, missName(c.Name, c.Line))
-		texts = append(texts, Preview(c.Text))
+		texts = append(texts, preview(c.Text))
 		labels = append(labels, "labelled "+yesNoText(c.Yes))
 		answers = append(answers, "answered "+cutText(c.Value))
 	}
@@ -234,7 +234,7 @@ func writeChoiceMisses(b *strings.Builder, all []ChoiceCase) {
 
 	for _, c := range misses {
 		names = append(names, missName(c.Name, c.Line))
-		texts = append(texts, Preview(c.Text))
+		texts = append(texts, preview(c.Text))
 		labels = append(labels, "labelled "+printable(c.Label))
 		picked = append(picked, "picked "+printable(c.Picked))
 		confidence = append(confidence, "confidence "+cutText(c.Confidence))

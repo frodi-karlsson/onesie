@@ -117,7 +117,7 @@ func jsonQuestion(q QuestionReport) (any, error) {
 func yesNoJSON(id string, s YesNoScore) jsonYesNo {
 	misses := make([]jsonYesNoMiss, 0, len(s.Misses))
 	for _, c := range s.Misses {
-		misses = append(misses, jsonYesNoMiss{jsonRecord: recordJSON(c.ID, c.Line), Label: yesNoText(c.Yes), Value: c.Value, Text: Preview(c.Text)})
+		misses = append(misses, jsonYesNoMiss{jsonRecord: recordJSON(c.ID, c.Line), Label: yesNoText(c.Yes), Value: c.Value, Text: preview(c.Text)})
 	}
 
 	return jsonYesNo{
@@ -228,7 +228,7 @@ func choiceMissesJSON(cases []ChoiceCase) []jsonChoiceMiss {
 	for _, c := range cases {
 		out = append(out, jsonChoiceMiss{
 			jsonRecord: recordJSON(c.ID, c.Line), Label: c.Label, Picked: c.Picked, Confidence: c.Confidence,
-			Text: Preview(c.Text),
+			Text: preview(c.Text),
 		})
 	}
 
