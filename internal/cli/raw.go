@@ -144,9 +144,21 @@ func (r *rawRun) send(ctx context.Context, body *onesie.PreparedBody) ([]byte, e
 		return errorLine(advised), advised
 	}
 
-	r.stats.record(result.Model, result.Usage, body.QuestionCount())
+	return r.answered(result, response, body.QuestionCount())
+}
 
-	return oneLine(response), nil
+func (r *rawRun) answered(result *onesie.Result, response []byte, questions int) ([]byte, error) {
+	line, err := oneLine(response)
+	if err != nil {
+		r.stats.spend(result.Usage)
+		r.stats.recordFailure(err, true, questions)
+
+		return errorLine(err), err
+	}
+
+	r.stats.record(result.Model, result.Usage, questions)
+
+	return line, nil
 }
 
 func writeBodies(out io.Writer) func([]byte) error {
@@ -181,11 +193,13 @@ func requests(flags runConfig) bool {
 	return !flags.printQuestions && !flags.printRequest
 }
 
-func oneLine(response []byte) []byte {
+func oneLine(response []byte) ([]byte, error) {
 	// A server that newline terminates or pretty prints its JSON would otherwise turn one record
 	// into several output lines, where this mode promises one line per record.
 	var flat bytes.Buffer
-	_ = json.Compact(&flat, response) //nolint:errcheck // SendPrepared returns only a body that decoded as JSON.
+	if err := json.Compact(&flat, response); err != nil {
+		return nil, embed("compacting the response", err)
+	}
 
-	return flat.Bytes()
+	return flat.Bytes(), nil
 }
