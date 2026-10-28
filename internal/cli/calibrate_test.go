@@ -3435,7 +3435,7 @@ func TestAskedPlan(t *testing.T) {
 			wantCode:   ExitOK,
 			stderr: []string{
 				"skipping 'team' and 'tone' in the report, since they have no --label\n",
-				"asking 0 of 4 records, 1 question each, 4 answered in",
+				"reading 4 records from ",
 			},
 			noStderr:               []string{"but asking"},
 			readableWithEveryLabel: true,
@@ -3470,7 +3470,7 @@ func TestAskedPlan(t *testing.T) {
 			second:     one,
 			offline:    true,
 			wantCode:   ExitOK,
-			stderr:     []string{"asking 0 of 4 records, 1 question each, 4 answered in"},
+			stderr:     []string{"reading 4 records from "},
 		},
 		{
 			name:       "should refuse a file written with one label under --offline with every label",
@@ -3606,6 +3606,67 @@ func TestWriteSkipped(t *testing.T) {
 
 			var got bytes.Buffer
 			if err := writeSkipped(&got, tc.skipped, tc.inReport, tc.askedOf); err != nil {
+				t.Fatal(err)
+			}
+
+			if got.String() != tc.want {
+				t.Errorf("wrote\n%q\nwant\n%q", got.String(), tc.want)
+			}
+		})
+	}
+}
+
+func TestWriteCost(t *testing.T) {
+	t.Parallel()
+
+	four := labelledSet{records: make([]labelledRecord, 4)}
+	someUnlabelled := labelledSet{records: make([]labelledRecord, 4), unlabelled: 2}
+
+	tests := []struct {
+		name    string
+		set     labelledSet
+		resumed resumedSet
+		answers string
+		offline bool
+		want    string
+	}{
+		{
+			name:    "should count the records it asks and the questions each",
+			set:     four,
+			resumed: resumedSet{pending: make([]labelledRecord, 4)},
+			want:    "asking 4 of 4 records, 1 question each\n",
+		},
+		{
+			name:    "should count the records an answers file already holds",
+			set:     four,
+			resumed: resumedSet{pending: make([]labelledRecord, 1), stored: 3},
+			answers: "answers.jsonl",
+			want:    "asking 1 of 4 records, 1 question each, 3 answered in answers.jsonl\n",
+		},
+		{
+			name:    "should say it reads the records from the file under --offline",
+			set:     four,
+			resumed: resumedSet{stored: 4},
+			answers: "answers.jsonl",
+			offline: true,
+			want:    "reading 4 records from answers.jsonl\n",
+		},
+		{
+			name:    "should keep the unlabelled count under --offline",
+			set:     someUnlabelled,
+			resumed: resumedSet{stored: 4},
+			answers: "answers.jsonl",
+			offline: true,
+			want:    "reading 4 records from answers.jsonl, 2 unlabelled skipped\n",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var got bytes.Buffer
+			if err := writeCost(&got, tc.set, tc.resumed, tc.answers, 1, tc.offline); err != nil {
 				t.Fatal(err)
 			}
 

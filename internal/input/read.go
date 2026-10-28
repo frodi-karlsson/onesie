@@ -67,7 +67,7 @@ func fromStdin(ctx context.Context, req Query) (Resolved, error) {
 	// Zero bytes is not an empty state. Under cron or CI stdin may be an empty pipe, and sending
 	// state "" would pay for a request the model cannot answer.
 	if len(data) == 0 {
-		return Resolved{Source: SourceNone}, nil
+		return Resolved{Source: SourceNone, EmptyStdin: true}, nil
 	}
 
 	return fromText(SourceStdin, "stdin", string(data), req.Mode, true)
@@ -213,6 +213,9 @@ type Resolved struct {
 	Source Source
 	State  any
 	Raw    string
+
+	// EmptyStdin is set when stdin was read and held nothing, which leaves Source at SourceNone.
+	EmptyStdin bool
 
 	// Wire is what reaches the API. It is the raw bytes for a JSON mode, keeping large integers and
 	// key order, and the parsed value for a text mode.

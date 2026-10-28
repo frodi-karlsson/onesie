@@ -45,7 +45,7 @@ func TestBuild(t *testing.T) {
 			quiet:        true,
 			events:       twoAsks,
 			ignoreJudged: true,
-			wantErr:      "-q needs a single question",
+			wantErr:      "-q needs a single question, or --assert to gate several",
 		},
 		{
 			name:         "should set the file's gate aside and build no gate when judgment is ignored",

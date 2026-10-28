@@ -328,7 +328,18 @@ func TestWriteTable(t *testing.T) {
 				}}},
 			},
 			columns:  80,
-			contains: []string{"\nurgent  true  0.92\n"},
+			contains: []string{"\nurgent  yes  0.92\n"},
+		},
+		{
+			name: "should write a decided no as no, as markdown does",
+			rec: output.Record{
+				Model: "onesie-1.13.0",
+				Answers: []output.Named{{ID: "urgent", Answer: &answer.Answer{
+					Value: 0.12, Decided: true, Decision: false,
+				}}},
+			},
+			columns:  80,
+			contains: []string{"\nurgent  no  0.12\n"},
 		},
 		{
 			name: "should print the bare probability for an undecided yes/no answer",

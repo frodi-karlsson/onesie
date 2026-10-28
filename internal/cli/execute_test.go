@@ -268,7 +268,7 @@ func TestExecute(t *testing.T) {
 			name:     "should refuse -q over two questions",
 			args:     []string{"-q", "--ask", "a=x", "--ask", "b=y", "--state", "s"},
 			wantCode: ExitUsage,
-			want:     "onesie: -q needs a single question. 'a', 'b' were asked\n",
+			want:     "onesie: -q needs a single question, or --assert to gate several. 'a', 'b' were asked\n",
 		},
 		{
 			name:     "should report the line field ahead of a fault in the question",

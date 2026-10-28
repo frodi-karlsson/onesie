@@ -7,7 +7,8 @@ prints the built in limits.
 
 - A yes or no question answers with how likely the yes is. `-r` prints only the answer. Without it,
   the table for a pick or a rate also shows the model's confidence and the probability of each
-  option or level.
+  option or level. Under `--threshold`, `-o table` and `-o markdown` write the decision as `yes`
+  or `no` beside the probability.
 - Every output format writes each number of an answer as `-o json` does. A number the provider
   sent prints as sent, never rounded. A number onesie computes itself, such as `norm` or a mock's
   `p` and `score`, is rounded to four places. A printed number is the one a gate compares.
@@ -252,6 +253,8 @@ onesie calibrate -f shell-safety -i jsonl --map .command --id .id \
     < examples/data/shell-safety.jsonl
 ```
 
+- The line on stderr reads `reading N records from FILE`, where a run that asks reads
+  `asking N of M records`.
 - A record the file does not answer exits 2, naming it. So does a stored error line, which a run
   without `--offline` would ask again.
 - A missing answers file exits 2, naming it, and nothing is created.

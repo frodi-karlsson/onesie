@@ -1044,10 +1044,18 @@ func TestNewRootCmd(t *testing.T) {
 			wantCode: cli.ExitRejected,
 		},
 		{
-			name:     "should reject a state-less invocation",
+			name:     "should reject a state-less invocation, saying the stdin it read was empty",
 			args:     []string{"is this urgent"},
 			wantCode: cli.ExitUsage,
-			contains: []string{"onesie: no state given. Pipe one to stdin, or pass --state or --state-file"},
+			contains: []string{
+				"onesie: no state given, since stdin was empty. Pipe one to stdin, or pass --state or --state-file",
+			},
+		},
+		{
+			name:     "should say stdin was empty under --state -",
+			args:     []string{"is this urgent", "--state", "-"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: no state given, since stdin was empty"},
 		},
 		{
 			name:     "should reject a flagged invocation that carries no question",

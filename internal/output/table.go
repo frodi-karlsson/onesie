@@ -128,7 +128,7 @@ func writeBlock(w io.Writer, named Named, bars int) error {
 
 		headline = formatted
 		if a.Decided {
-			headline = fmt.Sprintf("%v  %s", a.Decision, formatted)
+			headline = decisionWord(a.Decision) + "  " + formatted
 		}
 	}
 
@@ -169,6 +169,18 @@ func writeBlock(w io.Writer, named Named, bars int) error {
 	}
 
 	return nil
+}
+
+func decisionWord(decision any) string {
+	if yes, isBool := decision.(bool); isBool {
+		if yes {
+			return "yes"
+		}
+
+		return "no"
+	}
+
+	return fmt.Sprint(decision)
 }
 
 func bar(probability float64, width int) string {

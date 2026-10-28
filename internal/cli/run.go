@@ -193,8 +193,7 @@ func runOne(
 	}
 
 	if requests(flags) && resolved.Source == input.SourceNone && len(flags.images) == 0 {
-		return errors.New(
-			"no state given. Pipe one to stdin, or pass --state or --state-file")
+		return noState(resolved)
 	}
 
 	sent := resolved.Wire
@@ -238,6 +237,14 @@ func runOne(
 		return ask(cmd, settings, flags, inv, singleState{resolved: resolved, sent: sent, assets: assets},
 			outputMode, stats, answers)
 	})
+}
+
+func noState(resolved input.Resolved) error {
+	if resolved.EmptyStdin {
+		return errors.New("no state given, since stdin was empty. Pipe one to stdin, or pass --state or --state-file")
+	}
+
+	return errors.New("no state given. Pipe one to stdin, or pass --state or --state-file")
 }
 
 func sentOrNil(resolved input.Resolved, sent any) any {
