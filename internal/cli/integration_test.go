@@ -531,8 +531,7 @@ func TestFileIntegration(t *testing.T) {
 					t.Fatalf("decoding frustration: %v", err)
 				}
 
-				// A labelled question keys the probabilities by its own labels and drops the
-				// legend, which is the opposite of the body case below.
+				// A labelled question keys the probabilities by its labels and carries no legend.
 				for _, label := range []string{"calm", "annoyed", "furious"} {
 					if _, ok := frustration.P[label]; !ok {
 						t.Errorf("p is missing the label %q, got %v", label, frustration.P)
