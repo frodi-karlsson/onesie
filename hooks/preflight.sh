@@ -11,15 +11,17 @@ fi
 # onesie profile show exits 2 when no key or no account resolves, which is an answer rather than a
 # failure, so the key line decides and the exit code is ignored. The first read of the config dir can
 # convert credentials.json, and the lines it prints about that and the warnings that follow are passed
-# on, kept apart from the report.
+# on, kept apart from the report. So is a refused ONESIE_CACHE, ONESIE_LONG_CONTEXT or
+# ONESIE_CACHE_TTL, which show reports after the key line and every run exits 2 on.
 status=$(onesie profile show </dev/null 2>&1)
 converted='^onesie: converted '
 unprofiled='^onesie: ONESIE_PROVIDER is set, so a run uses no profile'
 unwritten='^onesie: could not write '
 unlinked='^onesie: removed the link '
 warned='^onesie: warning: '
-notices=$(printf '%s\n' "$status" | grep -e "$converted" -e "$unprofiled" -e "$unwritten" -e "$unlinked" -e "$warned")
-report=$(printf '%s\n' "$status" | grep -v -e "$converted" -e "$unprofiled" -e "$unwritten" -e "$unlinked" -e "$warned")
+switched='^onesie: ONESIE_[A-Z_]*='
+notices=$(printf '%s\n' "$status" | grep -e "$converted" -e "$unprofiled" -e "$unwritten" -e "$unlinked" -e "$warned" -e "$switched")
+report=$(printf '%s\n' "$status" | grep -v -e "$converted" -e "$unprofiled" -e "$unwritten" -e "$unlinked" -e "$warned" -e "$switched")
 profile=$(printf '%s\n' "$report" | sed -n 's/^profile: //p')
 provider=$(printf '%s\n' "$report" | sed -n 's/^provider: //p')
 chosen=$(printf '%s\n' "$report" | sed -n 's/^chosen by: //p')

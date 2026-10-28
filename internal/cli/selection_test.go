@@ -286,6 +286,23 @@ func TestResolveProfile(t *testing.T) {
 			wantErr: "ONESIE_PROFILE names profile 'nope', which does not exist. The profiles are 'cf', 'work'",
 		},
 		{
+			name: "should hint --provider for a --profile that names a provider", profiles: withDefault,
+			chosen: choice{profile: "levanto", by: "--profile"},
+			wantErr: "--profile names profile 'levanto', which does not exist. The profiles are 'cf', 'work'. " +
+				"'levanto' is a provider, so pass --provider levanto in place of --profile",
+		},
+		{
+			name: "should hint ONESIE_PROVIDER for an ONESIE_PROFILE that names a provider", profiles: withDefault,
+			chosen: choice{profile: "berget", by: "ONESIE_PROFILE"},
+			wantErr: "ONESIE_PROFILE names profile 'berget', which does not exist. The profiles are 'cf', 'work'. " +
+				"'berget' is a provider, so set ONESIE_PROVIDER=berget in place of ONESIE_PROFILE",
+		},
+		{
+			name: "should give no provider hint for a name that differs from one only in case", profiles: withDefault,
+			chosen:  choice{profile: "Levanto", by: "--profile"},
+			wantErr: "--profile names profile 'Levanto', which does not exist. The profiles are 'cf', 'work'",
+		},
+		{
 			name: "should say there are no profiles for a missing one", profiles: empty,
 			chosen: choice{profile: "nope", by: "--profile"},
 			wantErr: "--profile names profile 'nope', which does not exist. There are no profiles. " +

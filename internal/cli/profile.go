@@ -353,7 +353,7 @@ func profileUse(cmd *cobra.Command, settings rootSettings, flags *runFlags, name
 
 	profile, found := opened.Profiles.Profiles[name]
 	if !found {
-		return noProfileNamed(name, opened.Profiles)
+		return providerNameHint(noProfileNamed(name, opened.Profiles), name, "use")
 	}
 
 	profiles := opened.Profiles.With(name, profile)
@@ -479,8 +479,9 @@ func newProfileShowCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 			providers.AccountVariables() + ", or the provider's default. An allow_http line says a run needs " +
 			"--allow-http, when base_url is plain http to another host. It never reads the keychain or " +
 			"prints a key.\n\n" +
-			"It exits 2 when key or account is none, or the account is not 32 hexadecimal characters, " +
-			"as a real run does.",
+			"It exits 2 when key or account is none, printing the hint a run gives, when the account is not " +
+			"32 hexadecimal characters, or when ONESIE_CACHE, ONESIE_LONG_CONTEXT or ONESIE_CACHE_TTL holds " +
+			"a value a run refuses, as a real run does.",
 		Args: profileNames("show", 0, 1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return profileShow(cmd, settings, flags, args)
@@ -539,11 +540,26 @@ func profileShow(cmd *cobra.Command, settings rootSettings, flags *runFlags, arg
 		return printErr
 	}
 
+	// Checked as a run checks them, after the report, so a reader of the key line still finds it.
+	if _, switchErr := envSwitches(settings.lookupEnv); switchErr != nil {
+		return switchErr
+	}
+
 	if shown.keyFrom == sourceNone || account == sourceNone {
-		return &silentError{code: ExitUsage}
+		return missingHint(cmd, settings, shown)
 	}
 
 	return nil
+}
+
+func missingHint(cmd *cobra.Command, settings rootSettings, shown resolution) error {
+	// The client is never used. Building it is how a run finds the missing key or account and words
+	// its hint, and a plain http base URL is let through, since the report already names it.
+	if _, err := settings.newClient(cmd.Context(), shown, onesie.WithInsecureHTTP()); err != nil {
+		return err
+	}
+
+	return &silentError{code: ExitUsage}
 }
 
 func modelOrigin(shown resolution, lookupEnv func(string) (string, bool)) string {
@@ -620,7 +636,7 @@ func shownResolution(settings rootSettings, flags *runFlags, args []string, comm
 
 	profile, found := opened.Profiles.Profiles[name]
 	if !found {
-		return resolution{}, noProfileNamed(name, opened.Profiles)
+		return resolution{}, providerNameHint(noProfileNamed(name, opened.Profiles), name, command)
 	}
 
 	by := notActive

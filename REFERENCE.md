@@ -563,8 +563,10 @@ on the provider's key variable alone.
   with no account, and a base URL a run would refuse exits 2 with the run's message. An
   `allow_http: needed` line follows it when the base URL is plain http to another host, since every
   run then needs `--allow-http`. `account:` names `account_id`, `base_url`, `CLOUDFLARE_ACCOUNT_ID`
-  or `none`. `show` exits 2 when `key` or `account` is `none`, as a real run would, and exits 2
-  with the run's message when `CLOUDFLARE_ACCOUNT_ID` is not 32 hexadecimal characters.
+  or `none`. `show` exits 2 when `key` or `account` is `none`, as a real run would, and prints the
+  hint a run prints on stderr. It exits 2 with the run's message when `CLOUDFLARE_ACCOUNT_ID` is
+  not 32 hexadecimal characters, and after the report lines when `ONESIE_CACHE`,
+  `ONESIE_LONG_CONTEXT` or `ONESIE_CACHE_TTL` holds a value a run refuses.
 - A key the server refuses exits 3, on a run or on `test`. On a profile the message names
   `onesie profile update NAME --key`, and without one it names the provider's key variable. A run
   with no key and no profile for its provider names
@@ -597,7 +599,9 @@ on the provider's key variable alone.
 - With no choice, and profiles but no default, a run exits 2 and names `onesie profile use NAME`,
   `--profile NAME` and `--provider NAME`.
 - A profile that does not exist exits 2, naming the profiles there are. A `--provider` that names a
-  profile rather than a provider exits 2 with a hint to pass `--profile`.
+  profile rather than a provider exits 2 with a hint to pass `--profile`. A `--profile`,
+  `ONESIE_PROFILE` or `profile show`, `test` or `use` name that is a provider and no profile exits 2
+  with a hint to pass `--provider`.
 
 ### What a run uses
 
@@ -672,6 +676,9 @@ The format is stable, and the file may be written by hand. It lives in the confi
 | `model` | the model a run uses when it names none |
 
 - A file that does not parse or breaks a rule exits 2, naming the rule and the profile, never a key.
+  A file cut short or holding a syntax error is `not valid JSON`, and valid JSON of another shape
+  is `not a JSON object of profiles`. A `credentials.json` waiting to be converted is checked the
+  same way.
   Each key is held in exactly one place, a non empty `api_key` or `store` set to `keychain` with an
   `account`. An unknown member, such as a misspelled `modle`, is refused, not dropped. `account_id`
   appears only on cloudflare, and a profile holds `base_url` or `account_id`, not both. `default`

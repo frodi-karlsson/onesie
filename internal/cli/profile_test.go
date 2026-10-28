@@ -1329,6 +1329,16 @@ func TestProfileUse(t *testing.T) {
 			wantErr:  []string{"onesie: there is no profile named 'nope'"},
 			wantFile: two,
 		},
+		{
+			name:     "should say a provider name is no profile and how a run chooses it",
+			file:     two,
+			args:     []string{"profile", "use", "berget"},
+			wantCode: ExitUsage,
+			wantErr: []string{"onesie: there is no profile named 'berget'. The profiles are 'home', 'work'. " +
+				"'berget' is a provider, which a run chooses with --provider berget, and profile use takes only " +
+				"a profile"},
+			wantFile: two,
+		},
 	}
 
 	for _, tc := range tests {
@@ -1560,11 +1570,63 @@ func TestProfileShow(t *testing.T) {
 				"model: jev-latest, the provider's default\n" + openRouterOwn,
 		},
 		{
-			name: "should print key: none and exit 2 when nothing holds a key",
+			name: "should print key: none and the hint a run gives, and exit 2, when nothing holds a key",
 			args: []string{"profile", "show"},
 			wantOut: "profile: none\nprovider: typesafe\nchosen by: nothing\nkey: none\n" +
 				"model: jev-latest, the provider's default\n" + typesafeOwn,
 			wantCode: ExitUsage,
+			wantStderr: "onesie: no API key. Set TYPESAFE_API_KEY, or store one with " +
+				"onesie profile create NAME --provider typesafe\n",
+		},
+		{
+			name: "should give the account hint a run gives, without reading the keychain",
+			file: `{"default":"cfk","profiles":{"cfk":{"provider":"cloudflare","store":"keychain",` +
+				`"account":"cfk@{hash}"}}}`,
+			args: []string{"profile", "show"},
+			wantOut: "profile: cfk\nprovider: cloudflare\nchosen by: the default\nkey: keychain\n" +
+				"model: typesafe/jev, the provider's default\nbase_url: none\naccount: none\n",
+			wantCode: ExitUsage,
+			wantStderr: "onesie: no cloudflare account id. Set CLOUDFLARE_ACCOUNT_ID, " +
+				"or run onesie profile update 'cfk' --account-id ACCOUNT_ID\n",
+			noKeychainCalls: true,
+		},
+		{
+			name:     "should exit 2 after the report for an ONESIE_CACHE_TTL a run refuses",
+			file:     tsFile,
+			env:      map[string]string{"ONESIE_CACHE_TTL": "abc"},
+			args:     []string{"profile", "show"},
+			wantOut:  tsShown + "model: jev-latest, the provider's default\n" + typesafeOwn,
+			wantCode: ExitUsage,
+			wantStderr: "onesie: ONESIE_CACHE_TTL=abc is not a duration of zero or more, " +
+				"such as 90m or 72h\n",
+		},
+		{
+			name:       "should exit 2 after the report for an ONESIE_CACHE a run refuses",
+			file:       tsFile,
+			env:        map[string]string{"ONESIE_CACHE": "maybe"},
+			args:       []string{"profile", "show"},
+			wantOut:    tsShown + "model: jev-latest, the provider's default\n" + typesafeOwn,
+			wantCode:   ExitUsage,
+			wantStderr: "onesie: ONESIE_CACHE=maybe is not a value --cache takes. Use 1 or 0\n",
+		},
+		{
+			name:       "should exit 2 after the report for an ONESIE_LONG_CONTEXT a run refuses",
+			file:       tsFile,
+			env:        map[string]string{"ONESIE_LONG_CONTEXT": "maybe"},
+			args:       []string{"profile", "show"},
+			wantOut:    tsShown + "model: jev-latest, the provider's default\n" + typesafeOwn,
+			wantCode:   ExitUsage,
+			wantStderr: "onesie: ONESIE_LONG_CONTEXT=maybe is not a value --long-context takes. Use 1 or 0\n",
+		},
+		{
+			name: "should report a switch a run refuses ahead of a missing key, as a run does",
+			env:  map[string]string{"ONESIE_CACHE_TTL": "abc"},
+			args: []string{"profile", "show"},
+			wantOut: "profile: none\nprovider: typesafe\nchosen by: nothing\nkey: none\n" +
+				"model: jev-latest, the provider's default\n" + typesafeOwn,
+			wantCode: ExitUsage,
+			wantStderr: "onesie: ONESIE_CACHE_TTL=abc is not a duration of zero or more, " +
+				"such as 90m or 72h\n",
 		},
 		{
 			name:    "should report TYPESAFE_DEFAULT_MODEL and TYPESAFE_BASE_URL when the profile sets neither",
@@ -1649,6 +1711,14 @@ func TestProfileShow(t *testing.T) {
 			args:     []string{"profile", "show", "nope"},
 			wantCode: ExitUsage,
 			wantErr:  []string{"onesie: there is no profile named 'nope'. The profiles are 'cf', 'cfa', 'personal', 'work'"},
+		},
+		{
+			name:     "should hint --provider for a provider name that is no profile",
+			file:     shown,
+			args:     []string{"profile", "show", "levanto"},
+			wantCode: ExitUsage,
+			wantStderr: "onesie: there is no profile named 'levanto'. The profiles are 'cf', 'cfa', 'personal', " +
+				"'work'. 'levanto' is a provider, so run onesie profile show --provider levanto\n",
 		},
 	}
 
@@ -1813,6 +1883,14 @@ func TestProfileTest(t *testing.T) {
 			args:     []string{"profile", "test"},
 			wantCode: ExitUsage,
 			wantErr:  "onesie: the profile's base_url" + unsafeBaseURL + keyElsewhere + "\n",
+		},
+		{
+			name:     "should hint --provider for a provider name that is no profile",
+			profiles: fileWork,
+			args:     []string{"profile", "test", "openrouter"},
+			wantCode: ExitUsage,
+			wantErr: "onesie: there is no profile named 'openrouter'. The profiles are 'work'. " +
+				"'openrouter' is a provider, so run onesie profile test --provider openrouter\n",
 		},
 		{
 			name:     "should exit 2 with no key and name profile create",
