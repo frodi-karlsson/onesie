@@ -66,13 +66,10 @@ func (p parser) entry(fields map[string]any, where string) (*Entry, error) {
 
 	result := &onesie.Result{Answers: answers}
 
-	if err := result.Check(plan.WireAll(p.asked)); err != nil {
-		var fault *onesie.AnswerFault
-		if errors.As(err, &fault) {
-			return nil, fmt.Errorf("%s: %s", where, fault.Reason())
-		}
-
-		return nil, fmt.Errorf("%s: %w", where, err)
+	// Check returns nil or an *AnswerFault, so no other error can reach past this.
+	var fault *onesie.AnswerFault
+	if errors.As(result.Check(plan.WireAll(p.asked)), &fault) {
+		return nil, fmt.Errorf("%s: %s", where, fault.Reason())
 	}
 
 	return &Entry{answers: answers, key: "answers " + string(encoded)}, nil

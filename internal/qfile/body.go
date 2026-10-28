@@ -111,14 +111,14 @@ func readQuestions(questions yaml.MapSlice) (onesie.Questions, error) {
 		return nil, err
 	}
 
-	var read onesie.Questions
-	if err := read.UnmarshalJSON(encoded); err != nil {
-		var refused *onesie.ValidationError
-		if errors.As(err, &refused) {
-			return nil, errors.New(refused.Reason())
-		}
+	// UnmarshalJSON returns nil or a *ValidationError, so no other error can reach past this.
+	var (
+		read    onesie.Questions
+		refused *onesie.ValidationError
+	)
 
-		return nil, err
+	if errors.As(read.UnmarshalJSON(encoded), &refused) {
+		return nil, errors.New(refused.Reason())
 	}
 
 	return read, nil
