@@ -143,6 +143,10 @@ func (s Store) Load(path string) (file File, found bool, err error) {
 		return File{}, false, err
 	}
 
+	if !json.Valid(data) {
+		return File{}, false, fmt.Errorf("credential file %s is not valid JSON", path)
+	}
+
 	if decodeErr := json.Unmarshal(data, &file); decodeErr != nil || !file.complete() {
 		// An empty or absent api_key is the same failure as a malformed file. Returning it as
 		// found would convert a file holding nothing into a profile with no key.

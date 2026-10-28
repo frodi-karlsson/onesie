@@ -173,10 +173,16 @@ func TestStoreLoad(t *testing.T) {
 			wantErr:  "is not a JSON object",
 		},
 		{
-			name:     "should refuse a file that is not JSON",
+			name:     "should say a file that is not JSON is not valid JSON",
 			contents: `not json`,
 			mode:     0o600,
-			wantErr:  "is not a JSON object",
+			wantErr:  "credentials.json is not valid JSON",
+		},
+		{
+			name:     "should say a truncated file is not valid JSON",
+			contents: `{"providers":{"typesafe":`,
+			mode:     0o600,
+			wantErr:  "credentials.json is not valid JSON",
 		},
 		{
 			name:     "should refuse a file whose key is not a string",

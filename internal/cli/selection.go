@@ -91,11 +91,40 @@ func resolveProfile(
 
 	profile, found := profiles.Profiles[name]
 	if !found {
-		return resolution{}, fmt.Errorf("%s names profile %s, which does not exist. %s",
-			by, creds.QuotedName(name), knownProfiles(profiles))
+		return resolution{}, providerNameHint(fmt.Errorf("%s names profile %s, which does not exist. %s",
+			by, creds.QuotedName(name), knownProfiles(profiles)), name, by)
 	}
 
 	return profileRun(name, profile, by)
+}
+
+func providerNameHint(err error, name, by string) error {
+	isProvider := slices.ContainsFunc(onesie.Providers(), func(provider onesie.Provider) bool {
+		return provider.Name() == name
+	})
+	if !isProvider {
+		return err
+	}
+
+	var note string
+
+	switch by {
+	case "--" + flagProfile:
+		note = fmt.Sprintf("so pass --%s %s in place of --%s", flagProvider, name, flagProfile)
+	case envProfile:
+		note = fmt.Sprintf("so set %s=%s in place of %s", envProvider, name, envProfile)
+	case "show", "test":
+		note = fmt.Sprintf("so run onesie profile %s --%s %s", by, flagProvider, name)
+	case "use":
+		note = fmt.Sprintf("which a run chooses with --%s %s, and profile use takes only a profile",
+			flagProvider, name)
+	default:
+		return err
+	}
+
+	return &advisedError{
+		cause: err, message: fmt.Sprintf("%s. %s is a provider, %s", text(err), creds.QuotedName(name), note),
+	}
 }
 
 func providerIsProfileHint(err error, chosen choice, profiles creds.Profiles) error {

@@ -45,12 +45,17 @@ func loadQuestions(top yaml.MapSlice) (*File, error) {
 }
 
 func readGate(key string, value any) (string, error) {
-	expression, ok := value.(string)
-	if !ok {
-		return "", fmt.Errorf("'%s' must be a string, got %s", key, describe(value))
+	switch typed := value.(type) {
+	case string:
+		return typed, nil
+	case bool:
+		// An unquoted 'assert: true' reaches the loader as a Go bool, and it is the constant true.
+		if key != "$schema" {
+			return strconv.FormatBool(typed), nil
+		}
 	}
 
-	return expression, nil
+	return "", fmt.Errorf("'%s' must be a string, got %s", key, describe(value))
 }
 
 func buildQuestion(id string, value any) (plan.Question, error) {

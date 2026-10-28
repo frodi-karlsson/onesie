@@ -625,6 +625,19 @@ func TestReadGate(t *testing.T) {
 			wantQuestions: []string{"urgent"},
 		},
 		{
+			name:          "should read an unquoted true as the constant assert",
+			doc:           "assert: true\nurgent: q\n",
+			wantAssert:    "true",
+			wantQuestions: []string{"urgent"},
+		},
+		{
+			name:          "should read an unquoted false as the constant abstain_if",
+			doc:           "assert: 'urgent.value < 0.5'\nabstain_if: false\nurgent: q\n",
+			wantAssert:    "urgent.value < 0.5",
+			wantAbstainIf: "false",
+			wantQuestions: []string{"urgent"},
+		},
+		{
 			name:    "should reject a mapping assert",
 			doc:     "assert:\n  value: 1\nurgent: q\n",
 			wantErr: "'assert' must be a string, got a mapping",

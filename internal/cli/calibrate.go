@@ -74,8 +74,7 @@ func newCalibrateCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 		cmd.Flags().Var(groupFlag(recorder, name), name, groupFlagHelp[name])
 	}
 
-	// A recorded flag is a string, so without this --box would take the next argument as its value.
-	cmd.Flags().Lookup("box").NoOptDefVal = "true"
+	cmd.Flags().Lookup("box").NoOptDefVal = argv.Bare
 
 	cmd.Flags().Var(nonEmptyList{values: &calib.labels}, "label",
 		"[ID=]EXPR, a jq expression run on the record, not on the mapped state, whose result is the "+

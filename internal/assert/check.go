@@ -237,6 +237,12 @@ func (c *checker) question(n *pathNode) *plan.Question {
 		return nil
 	}
 
+	if dashed, found := dashedID(id, ids); found {
+		c.fail("unknown question '%s'. %s", id, bracketAdvice(dashed))
+
+		return nil
+	}
+
 	// Naming a plan with no question at all would print the separator and nothing after it, which
 	// is the reason tooFew in plan splits the same message in two.
 	if len(ids) == 0 {
@@ -248,6 +254,17 @@ func (c *checker) question(n *pathNode) *plan.Question {
 	c.fail("unknown question '%s'. Questions: %s", id, strings.Join(ids, ", "))
 
 	return nil
+}
+
+func dashedID(id string, ids []string) (string, bool) {
+	// A bare name cannot hold a dash, so an id written with _ in place of - is a likely miss.
+	for _, candidate := range ids {
+		if candidate != id && strings.ReplaceAll(candidate, "-", "_") == id {
+			return candidate, true
+		}
+	}
+
+	return "", false
 }
 
 func dottedID(n *pathNode, ids []string) (string, bool) {

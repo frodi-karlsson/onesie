@@ -727,6 +727,11 @@ func checkSingle(built *plan.Plan, config runConfig, facts runFacts) error {
 		flag = "-o raw"
 	}
 
+	if len(built.Questions) != 1 && quietGate {
+		return fmt.Errorf("-q needs a single question, or --assert to gate several. %s were asked",
+			strings.Join(names, ", "))
+	}
+
 	if len(built.Questions) != 1 {
 		return fmt.Errorf("%s needs a single question. %s were asked",
 			flag, strings.Join(names, ", "))

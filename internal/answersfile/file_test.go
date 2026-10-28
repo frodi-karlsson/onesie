@@ -355,7 +355,7 @@ func TestFile_Write(t *testing.T) {
 			name:        "should write the fingerprint through a temporary file and a rename",
 			bind:        true,
 			wantFile:    "answer\n",
-			wantSidecar: "v1:" + strings.Repeat("a", 64) + "\n",
+			wantSidecar: testPrint().String() + "\n",
 			wantRenames: []string{"answers.jsonl.onesie.tmp answers.jsonl.onesie"},
 		},
 		{
@@ -416,7 +416,7 @@ func TestFile_Write(t *testing.T) {
 			}
 
 			if tc.bind {
-				if err := out.bindFingerprint("v1:" + strings.Repeat("a", 64)); err != nil {
+				if err := out.bindFingerprint(testPrint()); err != nil {
 					t.Fatalf("bind: %v", err)
 				}
 			}
@@ -580,7 +580,7 @@ func TestFile_Finish(t *testing.T) {
 				goos:   goos,
 				resume: true,
 			}
-			if err := out.bindFingerprint("v1:" + strings.Repeat("a", 64)); err != nil {
+			if err := out.bindFingerprint(testPrint()); err != nil {
 				t.Fatalf("bind: %v", err)
 			}
 
@@ -668,15 +668,19 @@ func TestSpecialFile(t *testing.T) {
 func TestFile_CheckFingerprint(t *testing.T) {
 	t.Parallel()
 
-	current := "v2:" + strings.Repeat("ab", 32)
+	current := testPrint()
+	current.older = "v2:" + strings.Repeat("ab", 32)
+	withColumns := current
+	withColumns.olderColumns = "v2:" + strings.Repeat("cd", 32)
+	changed := "v3:questions=" + strings.Repeat("00", 8)
 
 	tests := []struct {
-		name       string
-		sidecar    *string
-		older      string
-		checking   string
-		wantReason StaleReason
-		wantErr    string
+		name        string
+		sidecar     *string
+		checking    Print
+		wantReason  StaleReason
+		wantErr     string
+		wantMatched bool
 	}{
 		{
 			name: "should refuse a file with no sidecar", checking: current, wantReason: NoFingerprint,
@@ -692,19 +696,28 @@ func TestFile_CheckFingerprint(t *testing.T) {
 			wantErr: "an older onesie wrote A.onesie, so this one cannot tell which run wrote A",
 		},
 		{
-			name: "should refuse a newer version", sidecar: new("v3:abc"), checking: current, wantReason: NewerFingerprint,
+			name: "should refuse a newer version", sidecar: new("v4:abc"), checking: current, wantReason: NewerFingerprint,
 			wantErr: "a newer onesie wrote A.onesie, so this one cannot tell which run wrote A",
 		},
 		{
-			name: "should refuse a file written without the fallback columns", sidecar: new(current),
-			older: current, checking: "v2:" + strings.Repeat("cd", 32), wantReason: OlderColumns,
+			name: "should refuse a file written without the fallback columns", sidecar: new(withColumns.olderColumns),
+			checking: withColumns, wantReason: OlderColumns,
 			wantErr: "A was written by an older onesie, without the fallback columns this run adds",
 		},
 		{
-			name: "should refuse a changed fingerprint", sidecar: new(current), checking: "v2:" + strings.Repeat("cd", 32),
-			wantReason: ChangedRun, wantErr: "the questions, flags or gate changed since A was written",
+			name: "should refuse another version 2 sum with the cause it gave", sidecar: new("v2:" + strings.Repeat("ef", 32)),
+			checking: current, wantReason: ChangedRun,
+			wantErr: "the questions, model or flags changed since A was written",
 		},
-		{name: "should accept the same fingerprint", sidecar: new(current), checking: current},
+		{
+			name: "should name the part that changed", sidecar: new(changed), checking: current,
+			wantReason: ChangedRun, wantErr: "the questions changed since A was written",
+		},
+		{
+			name: "should accept the same fingerprint", sidecar: new(current.String()), checking: current,
+			wantMatched: true,
+		},
+		{name: "should accept a version 2 sum and leave its sidecar to be rewritten", sidecar: new(current.older), checking: current},
 	}
 
 	for _, tc := range tests {
@@ -722,12 +735,12 @@ func TestFile_CheckFingerprint(t *testing.T) {
 				}
 			}
 
-			out := &File{path: path, target: path, open: os.OpenFile, olderColumns: tc.older}
+			out := &File{path: path, target: path, open: os.OpenFile}
 
 			matched, err := out.checkFingerprint(tc.checking)
 			if tc.wantErr == "" {
-				if err != nil || !matched {
-					t.Fatalf("checkFingerprint = %v, %v, want a match", matched, err)
+				if err != nil || matched != tc.wantMatched {
+					t.Fatalf("checkFingerprint = %v, %v, want %v and no error", matched, err, tc.wantMatched)
 				}
 
 				return
@@ -761,19 +774,38 @@ func TestFile_Bind(t *testing.T) {
 	changed.Model = "n"
 
 	tests := []struct {
-		name       string
-		written    FingerprintInputs
-		wantReason StaleReason
+		name        string
+		written     FingerprintInputs
+		version2    bool
+		wantReason  StaleReason
+		wantChanged string
+		wantErr     bool
 	}{
 		{
 			name:       "should say an older onesie wrote the file when only the fallback columns are new",
 			written:    older,
+			version2:   true,
 			wantReason: OlderColumns,
+			wantErr:    true,
 		},
 		{
-			name:       "should report any other difference as a changed run",
+			name:       "should report any other difference from a version 2 sum as a changed run",
 			written:    changed,
+			version2:   true,
 			wantReason: ChangedRun,
+			wantErr:    true,
+		},
+		{
+			name:        "should name each part that differs from a version 3 sidecar",
+			written:     changed,
+			wantReason:  ChangedRun,
+			wantChanged: "the model and the fallback columns",
+			wantErr:     true,
+		},
+		{
+			name:     "should resume a file whose version 2 sum matches",
+			written:  inputs,
+			version2: true,
 		},
 	}
 
@@ -791,7 +823,12 @@ func TestFile_Bind(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			if writeErr := os.WriteFile(path+fingerprintSuffix, []byte(written+"\n"), 0o600); writeErr != nil {
+			sidecar := written.String()
+			if tc.version2 {
+				sidecar = written.older
+			}
+
+			if writeErr := os.WriteFile(path+fingerprintSuffix, []byte(sidecar+"\n"), 0o600); writeErr != nil {
 				t.Fatal(writeErr)
 			}
 
@@ -806,9 +843,22 @@ func TestFile_Bind(t *testing.T) {
 				}
 			})
 
+			bindErr := out.Bind(questions, wired, inputs)
+			if !tc.wantErr {
+				if bindErr != nil || out.matched {
+					t.Errorf("Bind = %v, matched = %v, want no error and a sidecar left to rewrite", bindErr, out.matched)
+				}
+
+				return
+			}
+
 			var stale *StaleAnswersError
-			if bindErr := out.Bind(questions, wired, inputs); !errors.As(bindErr, &stale) || stale.Reason != tc.wantReason {
-				t.Errorf("Bind = %v, want a StaleAnswersError with reason %v", bindErr, tc.wantReason)
+			if !errors.As(bindErr, &stale) || stale.Reason != tc.wantReason {
+				t.Fatalf("Bind = %v, want a StaleAnswersError with reason %v", bindErr, tc.wantReason)
+			}
+
+			if got := stale.changed(); tc.wantChanged != "" && got != tc.wantChanged {
+				t.Errorf("changed = %q, want %q", got, tc.wantChanged)
 			}
 		})
 	}
@@ -838,4 +888,8 @@ func assertMode(t *testing.T, path string, want os.FileMode) {
 	if got := info.Mode().Perm(); got != want {
 		t.Errorf("%s mode = %o, want %o", filepath.Base(path), got, want)
 	}
+}
+
+func testPrint() Print {
+	return Print{parts: []partSum{{name: "questions", sum: strings.Repeat("a", 2*partSumLength)}}}
 }

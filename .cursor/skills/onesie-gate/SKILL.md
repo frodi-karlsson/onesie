@@ -83,7 +83,7 @@ onesie --ask d='does this destroy data' --ask c='does this send credentials' --a
 
 ### -q on its own gates one question on one record. Add --assert for several questions, and use --assert alone for a stream.
 
-Without an assertion, `-q` is the gate over one question, and onesie rejects it when more than one question was asked, naming them, since one exit code cannot carry several answers. On a yes or no question it exits 0 when the probability is at least `--threshold`, 0.5 by default, and 1 otherwise. On a pick or rate question it needs `--min-confidence` and `--fallback`, and exits 1 when the confidence falls below, 0 otherwise. A request that fails exits with its own code either way. Beside `--assert`, `-q` is allowed over any number of questions, because the assertion is the gate. `-q` is rejected under every streaming input mode, since a stream prints one record per input. A gate over a stream uses `--assert`, which prints every record and exits 1 when any assertion was false.
+Without an assertion, `-q` is the gate over one question, and onesie rejects it when more than one question was asked, naming them and `--assert`, since one exit code cannot carry several answers. On a yes or no question it exits 0 when the probability is at least `--threshold`, 0.5 by default, and 1 otherwise. On a pick or rate question it needs `--min-confidence` and `--fallback`, and exits 1 when the confidence falls below, 0 otherwise. A request that fails exits with its own code either way. Beside `--assert`, `-q` is allowed over any number of questions, because the assertion is the gate. `-q` is rejected under every streaming input mode, since a stream prints one record per input. A gate over a stream uses `--assert`, which prints every record and exits 1 when any assertion was false.
 
 **Bad:**
 
@@ -99,7 +99,7 @@ onesie --ask a='destroys data' --ask b='sends credentials' --assert 'a.value < 0
 
 ### Gate a pick or rate on --min-confidence and give --fallback a human routed value.
 
-`--min-confidence` needs `--fallback`. Below the threshold `.decision` becomes the fallback text instead of the model's pick, and `.fallback` reads `low_confidence`, so a consumer routes on that field rather than trusting a low confidence guess. Above it `.decision` is the pick and `.fallback` is absent, which an assertion reads as the empty string. When the request fails, the record still carries `.decision` set to the fallback, with `.fallback` reading `error` and an `.error` beside it, and the exit code is the failure's. Under `-q` the record is not printed: a low confidence answer exits 1 and a confident one exits 0. In an assertion, `team.fallback == ""` holds only for a confident answer that arrived.
+`--min-confidence` needs `--fallback`, which may be any value, so low confidence can route outside the options, as `human` does. Below the threshold `.decision` becomes the fallback text instead of the model's pick, and `.fallback` reads `low_confidence`, so a consumer routes on that field rather than trusting a low confidence guess. Above it `.decision` is the pick and `.fallback` is absent, which an assertion reads as the empty string. When the request fails, the record still carries `.decision` set to the fallback, with `.fallback` reading `error` and an `.error` beside it, and the exit code is the failure's. Under `-q` the record is not printed: a low confidence answer exits 1 and a confident one exits 0. In an assertion, `team.fallback == ""` holds only for a confident answer that arrived.
 
 **Bad:**
 

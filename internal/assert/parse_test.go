@@ -243,6 +243,26 @@ func TestParse(t *testing.T) {
 			wantErr: "parse error at column 16, a list needs at least one value",
 		},
 		{
+			name:  "should parse true as a constant expression",
+			input: `true`,
+			want:  `true`,
+		},
+		{
+			name:  "should parse false as a constant beside a comparison",
+			input: `false or a.value < 1`,
+			want:  `(or false (< a.value 1))`,
+		},
+		{
+			name:  "should parse not before a constant",
+			input: `not true`,
+			want:  `(not true)`,
+		},
+		{
+			name:  "should still compare a boolean value with true",
+			input: `team.decision == true`,
+			want:  `(== team.decision true)`,
+		},
+		{
 			name:    "should reject a bare path as a whole expression",
 			input:   `urgent.value`,
 			wantErr: "parse error at column 13, expected a comparison",
@@ -542,4 +562,43 @@ func TestExprSource(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestExpr_Constant(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		input string
+		want  bool
+	}{
+		{name: "should call true a constant", input: `true`, want: true},
+		{name: "should call a combination of constants a constant", input: `not false and true`, want: true},
+		{name: "should not call a comparison a constant", input: `urgent.value < 0.5`},
+		{name: "should not call a constant beside a comparison a constant", input: `true or urgent.value < 0.5`},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			expr, err := Parse(tc.input)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if got := expr.Constant(); got != tc.want {
+				t.Errorf("Constant(%q) = %v, want %v", tc.input, got, tc.want)
+			}
+		})
+	}
+
+	t.Run("should not call a nil expression a constant", func(t *testing.T) {
+		t.Parallel()
+
+		var expr *Expr
+		if expr.Constant() {
+			t.Error("Constant() on nil = true, want false")
+		}
+	})
 }

@@ -54,7 +54,7 @@ func TestResumeLedger(t *testing.T) {
 	byIDRejecting := fingerprintWith(t, plan.Source{Positional: "is this urgent"}, abstaining)
 
 	values := []string{"-i", "jsonl", "-o", "values", "--id", ".id", "--resume"}
-	csvCR := "id,answer,error\n,,\"line 1: --id: \"\"a\\rb\"\" holds a carriage return, which -o csv cannot read back\"\n" +
+	csvCR := "id,answer,error\n,,\"line 1: --id: 'a\\rb' holds a carriage return, which -o csv cannot read back\"\n" +
 		"\"a\nb\",0.5,\n"
 	dupError := `{"error":{"kind":"input","status":null,"message":"line 2: --id: '1' is also the id of line 1"}}`
 
@@ -468,13 +468,13 @@ func TestResumeLedger(t *testing.T) {
 					args:     []string{"-i", "jsonl", "-o", "tsv", "--id", ".id", "--resume"},
 					input:    "{\"id\":\"a\\tb\"}\n",
 					wantCode: ExitRecords,
-					wantFile: "id\tanswer\terror\n\t\tline 1: --id: \"a\\tb\" holds a tab, carriage return or newline, which -o tsv cannot write\n",
+					wantFile: "id\tanswer\terror\n\t\tline 1: --id: 'a\\tb' holds a tab, carriage return or newline, which -o tsv cannot write\n",
 				},
 				{
 					args:     []string{"-i", "jsonl", "-o", "tsv", "--id", ".id", "--resume"},
 					input:    "{\"id\":\"a\\tb\"}\n{\"id\":\"a b\"}\n",
 					wantCode: ExitRecords,
-					wantFile: "id\tanswer\terror\n\t\tline 1: --id: \"a\\tb\" holds a tab, carriage return or newline, which -o tsv cannot write\n" + "a b\t0.5\t\n",
+					wantFile: "id\tanswer\terror\n\t\tline 1: --id: 'a\\tb' holds a tab, carriage return or newline, which -o tsv cannot write\n" + "a b\t0.5\t\n",
 					wantSent: []string{`{"id":"a b"}`},
 				},
 			},
@@ -486,8 +486,8 @@ func TestResumeLedger(t *testing.T) {
 			runs: []resumeRun{{
 				args:     []string{"-i", "jsonl", "-o", "tsv", "--id", ".id", "--resume"},
 				wantCode: ExitRecords,
-				wantFile: "id\tanswer\terror\n\t\tline 1: --id: \"a\\rb\" holds a tab, carriage return or newline, which -o tsv cannot write\n" +
-					"\t\tline 2: --id: \"a\\nb\" holds a tab, carriage return or newline, which -o tsv cannot write\n",
+				wantFile: "id\tanswer\terror\n\t\tline 1: --id: 'a\\rb' holds a tab, carriage return or newline, which -o tsv cannot write\n" +
+					"\t\tline 2: --id: 'a\\nb' holds a tab, carriage return or newline, which -o tsv cannot write\n",
 			}},
 		},
 		{
@@ -1144,10 +1144,12 @@ func TestResumed(t *testing.T) {
 	answeredBody := `{"model":"m","answers":{"answer":{"type":"noul","noul":0.5}},"usage":{}}` + "\n"
 	failedBody := `{"error":{"kind":"http","status":400,"message":"400 bad key"}}` + "\n"
 	unavailableBody := `{"error":{"kind":"http","status":503,"message":"503 bad key"}}` + "\n"
-	forwarded, err := answersfile.Fingerprint(nil, wireAll(nil), answersfile.FingerprintInputs{Provider: "typesafe", Input: "request"})
+	forwardedPrint, err := answersfile.Fingerprint(nil, wireAll(nil), answersfile.FingerprintInputs{Provider: "typesafe", Input: "request"})
 	if err != nil {
 		t.Fatalf("fingerprinting -i request: %v", err)
 	}
+
+	forwarded := forwardedPrint.String()
 
 	byPositionAbstaining := fingerprintWith(t, plan.Source{Positional: "is this urgent"}, answersfile.FingerprintInputs{
 		Provider: "typesafe", Model: onesie.TypeSafe().DefaultModel(), Output: "values", Input: "jsonl",

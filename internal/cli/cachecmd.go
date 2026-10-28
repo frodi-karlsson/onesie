@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 
 	"github.com/spf13/cobra"
 
@@ -38,7 +39,7 @@ func newCacheCmd(settings rootSettings) *cobra.Command {
 				return err
 			}
 
-			if warnErr := warnReadable(cmd.ErrOrStderr(), settings, dir); warnErr != nil {
+			if warnErr := warnRefused(cmd.ErrOrStderr(), settings, dir); warnErr != nil {
 				return warnErr
 			}
 
@@ -57,7 +58,8 @@ func newCacheCmd(settings rootSettings) *cobra.Command {
 		Use:   "clear",
 		Short: "Remove every answer from the response cache",
 		Long: "clear removes every cached answer, and keeps the directory and its CACHEDIR.TAG. It refuses a " +
-			"directory with no CACHEDIR.TAG, so it never empties a directory onesie did not make.",
+			"directory with no CACHEDIR.TAG, so it never empties a directory onesie did not make, and says so " +
+			"when the directory does not exist.",
 		Args: func(_ *cobra.Command, args []string) error {
 			if len(args) == 0 {
 				return nil
@@ -68,6 +70,12 @@ func newCacheCmd(settings rootSettings) *cobra.Command {
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			dir, err := checkedCacheDir(settings)
 			if err != nil {
+				return err
+			}
+
+			if _, statErr := settings.stat(dir); errors.Is(statErr, fs.ErrNotExist) {
+				_, err = fmt.Fprintf(cmd.OutOrStdout(), "no cache in %s, so nothing was removed\n", dir)
+
 				return err
 			}
 
@@ -94,12 +102,10 @@ func checkedCacheDir(settings rootSettings) (string, error) {
 	return cache.Dir(configEnv(settings.lookupEnv, settings.homeDir, settings.goos))
 }
 
-func warnReadable(w io.Writer, settings rootSettings, dir string) error {
-	// A directory that is missing or cannot be read is left to the summary that follows, and windows
-	// carries no such modes.
-	info, err := settings.stat(dir)
-	if err == nil && settings.goos != "windows" && info.Mode().Perm()&0o077 != 0 {
-		return output.Notice(w, (&cache.ModeError{Dir: dir, Mode: info.Mode().Perm()}).Error())
+func warnRefused(w io.Writer, settings rootSettings, dir string) error {
+	// Any other failure to read the directory is left to the summary that follows.
+	if err := cache.Check(dir, cache.Options{GOOS: settings.goos}); cacheRefused(err) {
+		return output.Notice(w, err.Error())
 	}
 
 	return nil

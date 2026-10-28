@@ -2,7 +2,18 @@
 // groups in a command line can be reconstructed after parsing.
 package argv
 
-import "github.com/spf13/pflag"
+import (
+	"errors"
+
+	"github.com/spf13/pflag"
+)
+
+// Bare is the NoOptDefVal a switch takes, so its Set tells --box from --box=true, which pflag hands
+// it alike. No argument holds it, since an argument ends at its first zero byte.
+const Bare = "\x00"
+
+// ErrSwitchValue is what a switch's Set returns for a value written after it, as in --box=true.
+var ErrSwitchValue = errors.New("takes no value")
 
 // New returns a Recorder for one flag set, so its log holds the flags of one parse.
 func New() *Recorder {
@@ -14,7 +25,8 @@ func (r *Recorder) Flag(name string) pflag.Value {
 	return &recorded{recorder: r, name: name}
 }
 
-// Switch returns a pflag value like Flag's for a flag that takes no value, so the help shows none.
+// Switch returns a pflag value like Flag's for a flag that takes no value, so the help shows none. It
+// records true for Bare and refuses any other value.
 func (r *Recorder) Switch(name string) pflag.Value {
 	return &recorded{recorder: r, name: name, switched: true}
 }
@@ -37,6 +49,14 @@ func (r *Recorder) Events() []Event {
 }
 
 func (v *recorded) Set(value string) error {
+	if v.switched && value != Bare {
+		return ErrSwitchValue
+	}
+
+	if v.switched {
+		value = "true"
+	}
+
 	v.recorder.events = append(v.recorder.events, Event{Name: v.name, Value: value})
 
 	return nil

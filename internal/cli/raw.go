@@ -57,7 +57,7 @@ func streamRaw(
 		Abort:       aborting,
 	})
 
-	result, err = finishStream(source, stats, result, err)
+	result, err = finishStream(cmd.ErrOrStderr(), source, stats, result, err)
 	if err != nil {
 		return err
 	}

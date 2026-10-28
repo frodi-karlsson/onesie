@@ -24,7 +24,7 @@ func IsName(value string) bool {
 // at or above the working directory, then in the config dir's questions, then in onesie's own set.
 func Find(name string, env FindEnv) (Source, error) {
 	if !IsName(name) {
-		return Source{}, fmt.Errorf("%q is not a question file name to look up", name)
+		return Source{}, fmt.Errorf("'%s' is not a question file name to look up", name)
 	}
 
 	repo, entries, err := repoSet(env)

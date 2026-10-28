@@ -23,6 +23,23 @@ type switches struct {
 }
 
 func readSwitches(cmd *cobra.Command, lookupEnv func(string) (string, bool), flags runFlags) (switches, error) {
+	read, err := envSwitches(lookupEnv)
+	if err != nil {
+		return switches{}, err
+	}
+
+	if cmd.Flags().Changed(flagCache) {
+		read.cache = flags.cache
+	}
+
+	if cmd.Flags().Changed(flagLongContext) {
+		read.longContext = flags.longContext
+	}
+
+	return read, nil
+}
+
+func envSwitches(lookupEnv func(string) (string, bool)) (switches, error) {
 	cached, err := envSwitch(lookupEnv, envCache, flagCache)
 	if err != nil {
 		return switches{}, err
@@ -36,14 +53,6 @@ func readSwitches(cmd *cobra.Command, lookupEnv func(string) (string, bool), fla
 	ttl, err := aliasTTL(lookupEnv)
 	if err != nil {
 		return switches{}, err
-	}
-
-	if cmd.Flags().Changed(flagCache) {
-		cached = flags.cache
-	}
-
-	if cmd.Flags().Changed(flagLongContext) {
-		long = flags.longContext
 	}
 
 	return switches{cache: cached, longContext: long, aliasTTL: ttl}, nil

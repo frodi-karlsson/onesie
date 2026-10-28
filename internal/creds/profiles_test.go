@@ -297,10 +297,10 @@ func TestStoreLoadProfiles(t *testing.T) {
 			invalid:  true,
 		},
 		{
-			name:     "should refuse a file that is not JSON",
+			name:     "should say a file that is not JSON is not valid JSON",
 			contents: `not json`,
 			mode:     0o600,
-			wantErr:  "is not a JSON object of profiles",
+			wantErr:  "is not valid JSON",
 			invalid:  true,
 		},
 		{
@@ -318,10 +318,17 @@ func TestStoreLoadProfiles(t *testing.T) {
 			invalid:  true,
 		},
 		{
-			name:     "should refuse a second value after the object",
+			name:     "should say a second value after the object is not valid JSON",
 			contents: `{"profiles":{}} {}`,
 			mode:     0o600,
-			wantErr:  "is not a JSON object of profiles",
+			wantErr:  "is not valid JSON",
+			invalid:  true,
+		},
+		{
+			name:     "should say a truncated file is not valid JSON",
+			contents: `{"default":"work","profiles":{`,
+			mode:     0o600,
+			wantErr:  "is not valid JSON",
 			invalid:  true,
 		},
 		{
@@ -341,7 +348,7 @@ func TestStoreLoadProfiles(t *testing.T) {
 			name:     "should refuse a syntax error without quoting the file",
 			contents: `{"profiles":{"w":{"api_key":sk-secret}}}`,
 			mode:     0o600,
-			wantErr:  "is not a JSON object of profiles",
+			wantErr:  "is not valid JSON",
 			invalid:  true,
 		},
 		{

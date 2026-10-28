@@ -100,6 +100,14 @@ func TestExecute(t *testing.T) {
 			env:      map[string]string{"ONESIE_CONFIG_DIR": "{dir}"},
 			files:    map[string]string{"profiles.json": `{"profiles":`},
 			wantCode: ExitUsage,
+			want:     "onesie: profiles file {dir}{/}profiles.json is not valid JSON\n",
+		},
+		{
+			name:     "should print a profiles file of the wrong shape as not a JSON object of profiles",
+			args:     []string{"profile", "list"},
+			env:      map[string]string{"ONESIE_CONFIG_DIR": "{dir}"},
+			files:    map[string]string{"profiles.json": `[]`},
+			wantCode: ExitUsage,
 			want:     "onesie: profiles file {dir}{/}profiles.json is not a JSON object of profiles\n",
 		},
 		{
@@ -268,7 +276,7 @@ func TestExecute(t *testing.T) {
 			name:     "should refuse -q over two questions",
 			args:     []string{"-q", "--ask", "a=x", "--ask", "b=y", "--state", "s"},
 			wantCode: ExitUsage,
-			want:     "onesie: -q needs a single question. 'a', 'b' were asked\n",
+			want:     "onesie: -q needs a single question, or --assert to gate several. 'a', 'b' were asked\n",
 		},
 		{
 			name:     "should report the line field ahead of a fault in the question",

@@ -324,6 +324,24 @@ func TestValidate(t *testing.T) {
 			wantFallback: pointerTo(true),
 		},
 		{
+			name: "should accept a pick fallback that is none of the options",
+			events: []argv.Event{
+				{Name: "ask", Value: "team=first"},
+				{Name: "pick", Value: "billing,sales"},
+				{Name: "min-confidence", Value: "0.7"},
+				{Name: "fallback", Value: "human"},
+			},
+		},
+		{
+			name: "should accept a pick fallback one edit from an option",
+			events: []argv.Event{
+				{Name: "ask", Value: "team=first"},
+				{Name: "pick", Value: "billing,sales"},
+				{Name: "min-confidence", Value: "0.7"},
+				{Name: "fallback", Value: "billin"},
+			},
+		},
+		{
 			name: "should reject a shape flag with no ask to bind to",
 			events: []argv.Event{
 				{Name: "pick", Value: "x,y"},

@@ -56,7 +56,6 @@ func TestOpenOut(t *testing.T) {
 			Assert: assert, AbstainIf: abstainIf,
 		})
 	}
-	changed := "the questions, flags or gate changed since"
 	malformed := "does not hold a fingerprint onesie wrote"
 
 	tests := []struct {
@@ -202,7 +201,7 @@ func TestOpenOut(t *testing.T) {
 			wantCode:    ExitUsage,
 			wantFile:    "keep me\n",
 			wantSidecar: valuesFor("is this critical", "typesafe", onesie.TypeSafe().DefaultModel(), "", ""),
-			wantErr:     changed,
+			wantErr:     "the questions changed since",
 		},
 		{
 			name:        "should refuse to resume when the model changed",
@@ -213,7 +212,7 @@ func TestOpenOut(t *testing.T) {
 			wantCode:    ExitUsage,
 			wantFile:    "keep me\n",
 			wantSidecar: valuesFor("is this urgent", "typesafe", "a", "", ""),
-			wantErr:     changed,
+			wantErr:     "the model changed since",
 		},
 		{
 			name:        "should refuse to resume when --map changed",
@@ -224,7 +223,7 @@ func TestOpenOut(t *testing.T) {
 			wantCode:    ExitUsage,
 			wantFile:    "keep me\n",
 			wantSidecar: matching,
-			wantErr:     changed,
+			wantErr:     "--map changed since",
 		},
 		{
 			name:        "should refuse to resume when --id changed",
@@ -235,7 +234,7 @@ func TestOpenOut(t *testing.T) {
 			wantCode:    ExitUsage,
 			wantFile:    "keep me\n",
 			wantSidecar: matching,
-			wantErr:     changed,
+			wantErr:     "--id changed since",
 		},
 		{
 			name:        "should refuse to resume when the output mode changed",
@@ -246,7 +245,7 @@ func TestOpenOut(t *testing.T) {
 			wantCode:    ExitUsage,
 			wantFile:    "keep me\n",
 			wantSidecar: matching,
-			wantErr:     changed,
+			wantErr:     "-o changed since",
 		},
 		{
 			name:        "should refuse to resume when the input mode changed",
@@ -257,7 +256,7 @@ func TestOpenOut(t *testing.T) {
 			wantCode:    ExitUsage,
 			wantFile:    "keep me\n",
 			wantSidecar: fromLines,
-			wantErr:     changed,
+			wantErr:     "-i changed since",
 		},
 		{
 			name:        "should refuse to resume by line count when --skip-blank was added",
@@ -268,7 +267,7 @@ func TestOpenOut(t *testing.T) {
 			wantCode:    ExitUsage,
 			wantFile:    "{\"answer\":0.5}\n{\"error\":\"blank line\"}\n",
 			wantSidecar: fromLines,
-			wantErr:     changed,
+			wantErr:     "--skip-blank changed since",
 		},
 		{
 			name:     "should refuse to resume by line count when --skip-blank was dropped",
@@ -285,7 +284,7 @@ func TestOpenOut(t *testing.T) {
 				Provider: "typesafe", Model: onesie.TypeSafe().DefaultModel(), Output: "values", Input: "lines",
 				SkipBlank: true,
 			}),
-			wantErr: changed,
+			wantErr: "--skip-blank changed since",
 		},
 		{
 			name:     "should resume csv by row count when --skip-blank changed",
@@ -322,7 +321,7 @@ func TestOpenOut(t *testing.T) {
 			wantCode:    ExitUsage,
 			wantFile:    "keep me\n",
 			wantSidecar: matching,
-			wantErr:     changed,
+			wantErr:     "the merge key changed since",
 		},
 		{
 			name:        "should refuse to resume when --merge-key changed",
@@ -333,7 +332,7 @@ func TestOpenOut(t *testing.T) {
 			wantCode:    ExitUsage,
 			wantFile:    "keep me\n",
 			wantSidecar: matching,
-			wantErr:     changed,
+			wantErr:     "the merge key changed since",
 		},
 		{
 			name:        "should refuse to resume when --threshold changed",
@@ -344,7 +343,7 @@ func TestOpenOut(t *testing.T) {
 			wantCode:    ExitUsage,
 			wantFile:    "keep me\n",
 			wantSidecar: matching,
-			wantErr:     changed,
+			wantErr:     "the policy flags changed since",
 		},
 		{
 			name:     "should refuse to resume when --min-confidence changed",
@@ -358,7 +357,7 @@ func TestOpenOut(t *testing.T) {
 			wantCode:    ExitUsage,
 			wantFile:    "keep me\n",
 			wantSidecar: picking,
-			wantErr:     changed,
+			wantErr:     "the policy flags changed since",
 		},
 		{
 			name:        "should resume when -o auto resolves to the json mode a stream wrote",
@@ -390,7 +389,7 @@ func TestOpenOut(t *testing.T) {
 			wantCode:    ExitUsage,
 			wantFile:    "keep me\n",
 			wantSidecar: matching,
-			wantErr:     changed,
+			wantErr:     "the policy flags changed since",
 		},
 		{
 			name:        "should refuse to resume when --assert changed",
@@ -401,7 +400,7 @@ func TestOpenOut(t *testing.T) {
 			wantCode:    ExitUsage,
 			wantFile:    "keep me\n",
 			wantSidecar: matching,
-			wantErr:     changed,
+			wantErr:     "--assert changed since",
 		},
 		{
 			name:        "should refuse to resume when --abstain-if changed",
@@ -412,7 +411,7 @@ func TestOpenOut(t *testing.T) {
 			wantCode:    ExitUsage,
 			wantFile:    "keep me\n",
 			wantSidecar: matching,
-			wantErr:     changed,
+			wantErr:     "--assert and --abstain-if changed since",
 		},
 		{
 			name:        "should resume when a question file's assert is the one the file was written under",
@@ -435,7 +434,7 @@ func TestOpenOut(t *testing.T) {
 			stdin:       input,
 			wantCode:    ExitUsage,
 			wantFile:    "keep me\n",
-			wantErr:     changed,
+			wantErr:     "--assert changed since",
 		},
 		{
 			name:        "should refuse to resume when a question file's abstain_if changed",
@@ -447,7 +446,7 @@ func TestOpenOut(t *testing.T) {
 			stdin:       input,
 			wantCode:    ExitUsage,
 			wantFile:    "keep me\n",
-			wantErr:     changed,
+			wantErr:     "--abstain-if changed since",
 		},
 		{
 			name:     "should refuse to resume a file with no fingerprint beside it",
@@ -476,7 +475,7 @@ func TestOpenOut(t *testing.T) {
 			wantCode:    ExitUsage,
 			wantFile:    "keep me\n",
 			wantSidecar: matching,
-			wantErr:     changed,
+			wantErr:     "the provider changed since",
 		},
 		{
 			name:        "should refuse to resume when the provider changed to berget",
@@ -487,7 +486,7 @@ func TestOpenOut(t *testing.T) {
 			wantCode:    ExitUsage,
 			wantFile:    "keep me\n",
 			wantSidecar: matching,
-			wantErr:     changed,
+			wantErr:     "the provider and the model changed since",
 		},
 		{
 			name:        "should refuse to resume when the provider changed to levanto",
@@ -498,7 +497,7 @@ func TestOpenOut(t *testing.T) {
 			wantCode:    ExitUsage,
 			wantFile:    "keep me\n",
 			wantSidecar: matching,
-			wantErr:     changed,
+			wantErr:     "the provider and the model changed since",
 		},
 		{
 			name:        "should refuse to resume when --image-field was added",
@@ -509,7 +508,7 @@ func TestOpenOut(t *testing.T) {
 			wantCode:    ExitUsage,
 			wantFile:    "keep me\n",
 			wantSidecar: matching,
-			wantErr:     changed,
+			wantErr:     "the images changed since",
 		},
 		{
 			name:        "should refuse to resume when the default model changed",
@@ -521,7 +520,7 @@ func TestOpenOut(t *testing.T) {
 			wantCode:    ExitUsage,
 			wantFile:    "keep me\n",
 			wantSidecar: matching,
-			wantErr:     changed,
+			wantErr:     "the model changed since",
 		},
 		{
 			name:        "should resume when -m names the default model a plain run used",
@@ -646,13 +645,34 @@ func TestOpenOut(t *testing.T) {
 		{
 			name:        "should say a newer onesie wrote a fingerprint of a later version",
 			existing:    "keep me\n",
-			sidecar:     "v3:" + strings.Repeat("0", 64),
+			sidecar:     "v4:" + strings.Repeat("0", 64),
 			args:        []string{"is this urgent", "-i", "jsonl", "--resume"},
 			stdin:       input,
 			wantCode:    ExitUsage,
 			wantFile:    "keep me\n",
-			wantSidecar: "v3:" + strings.Repeat("0", 64),
+			wantSidecar: "v4:" + strings.Repeat("0", 64),
 			wantErr:     "a newer onesie wrote",
+		},
+		{
+			name:        "should resume beside a version 2 fingerprint of the same run and rewrite it as version 3",
+			existing:    "old one\nold two\n",
+			sidecar:     "v2:c6cb0ce75715a88e73cbd80422caef95045da2d35c37adb56f9cb26083e08d60",
+			wantSidecar: matching,
+			args:        []string{"is this urgent", "-i", "jsonl", "--resume"},
+			stdin:       input,
+			wantFile:    "old one\nold two\n" + strings.Repeat("{\"answer\":0.5}\n", 2),
+			wantCalls:   2,
+		},
+		{
+			name:        "should refuse a version 2 fingerprint of another run with the cause it gave",
+			existing:    "keep me\n",
+			sidecar:     "v2:" + strings.Repeat("0", 64),
+			args:        []string{"is this urgent", "-i", "jsonl", "--resume"},
+			stdin:       input,
+			wantCode:    ExitUsage,
+			wantFile:    "keep me\n",
+			wantSidecar: "v2:" + strings.Repeat("0", 64),
+			wantErr:     "the questions, model or flags changed since",
 		},
 		{
 			name:     "should write no fingerprint beside a question file",
@@ -884,6 +904,7 @@ func TestFingerprint(t *testing.T) {
 		source plan.Source
 		inputs answersfile.FingerprintInputs
 		want   string
+		older  string
 	}{
 		{
 			name: "should change a csv fingerprint once a fallback adds its column",
@@ -906,7 +927,12 @@ func TestFingerprint(t *testing.T) {
 				Assert:    "answer.p.billing > 0.5",
 				AbstainIf: "answer.p.billing > 0.2",
 			},
-			want: "v2:6503a1da7f53909577dcdf301457dd5133c7ab408d885c408b7d02af578ef5d8",
+			want: "v3:questions=4f579ab51a6fa46b,policies=ec9e72eadbbaf292," +
+				"provider=6a454e47a7eb49a1,model=93d926fb5a12ad7d,map=26404ed58953e2d4," +
+				"id=5152f15b7c76274f,output=82cacb7d3298441d,input=fd309d2a6fbf0a72," +
+				"merge_key=e1f273b2f00df9f2,assert=9147762d071485b5," +
+				"abstain_if=7fce507bbb6ae556,fallback_columns=b5bea41b6c623f7c",
+			older: "v2:6503a1da7f53909577dcdf301457dd5133c7ab408d885c408b7d02af578ef5d8",
 		},
 		{
 			name: "should keep a json fingerprint for a question that has a fallback",
@@ -921,13 +947,23 @@ func TestFingerprint(t *testing.T) {
 			inputs: answersfile.FingerprintInputs{
 				Provider: "typesafe", Model: "jev-latest", Output: "json", Input: "jsonl", MergeKey: "answers",
 			},
-			want: "v2:92623101f8f774431ea1d792b28932b5a8e345d66688be20209169aa31dc94e4",
+			want: "v3:questions=4f579ab51a6fa46b,policies=ec9e72eadbbaf292," +
+				"provider=6a454e47a7eb49a1,model=93d926fb5a12ad7d,map=12ae32cb1ec02d01," +
+				"id=12ae32cb1ec02d01,output=4e23b392048439ac,input=fd309d2a6fbf0a72," +
+				"merge_key=e1f273b2f00df9f2,assert=12ae32cb1ec02d01," +
+				"abstain_if=12ae32cb1ec02d01",
+			older: "v2:92623101f8f774431ea1d792b28932b5a8e345d66688be20209169aa31dc94e4",
 		},
 		{
 			name:   "should keep a csv fingerprint with no fallback",
 			source: plan.Source{Positional: "is this urgent"},
 			inputs: answersfile.FingerprintInputs{Provider: "typesafe", Model: "jev-latest", Output: "csv", Input: "csv"},
-			want:   "v2:b960f50ff4f87b31d39fe0889f79ab00daf3e178256a20470f092b0f356c2ae6",
+			want: "v3:questions=f842cc73c9dd84a0,policies=f99b13fd4eeef9c6," +
+				"provider=6a454e47a7eb49a1,model=93d926fb5a12ad7d,map=12ae32cb1ec02d01," +
+				"id=12ae32cb1ec02d01,output=82cacb7d3298441d,input=82cacb7d3298441d," +
+				"merge_key=12ae32cb1ec02d01,assert=12ae32cb1ec02d01," +
+				"abstain_if=12ae32cb1ec02d01",
+			older: "v2:b960f50ff4f87b31d39fe0889f79ab00daf3e178256a20470f092b0f356c2ae6",
 		},
 	}
 
@@ -935,9 +971,13 @@ func TestFingerprint(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := fingerprintWith(t, tc.source, tc.inputs)
-			if got != tc.want {
+			got := printWith(t, tc.source, tc.inputs)
+			if got.String() != tc.want {
 				t.Errorf("fingerprint = %q, want %q", got, tc.want)
+			}
+
+			if !got.Matches(tc.older) {
+				t.Errorf("fingerprint %q does not match the version 2 sum %q", got, tc.older)
 			}
 		})
 	}
@@ -1001,6 +1041,12 @@ func fingerprintFor(t *testing.T, question, provider, model, mapSource, idSource
 func fingerprintWith(t *testing.T, source plan.Source, inputs answersfile.FingerprintInputs) string {
 	t.Helper()
 
+	return printWith(t, source, inputs).String()
+}
+
+func printWith(t *testing.T, source plan.Source, inputs answersfile.FingerprintInputs) answersfile.Print {
+	t.Helper()
+
 	built, err := plan.Assemble(source)
 	if err != nil {
 		t.Fatalf("assembling %q: %v", source.Positional, err)
@@ -1039,8 +1085,8 @@ func TestBindOut(t *testing.T) {
 		wantErr string
 	}{
 		{
-			name:    "should keep the changed flags message for any other difference",
-			wantErr: "the questions, flags or gate changed",
+			name:    "should name the parts that differ",
+			wantErr: "the questions, the policy flags and the fallback columns changed since",
 		},
 	}
 
@@ -1154,9 +1200,17 @@ func TestWordAnswersError(t *testing.T) {
 				"Regenerate it without --resume, or write to a new --out",
 		},
 		{
-			name: "should advise dropping --resume for a changed run",
+			name: "should advise dropping --resume for a run changed since a version 2 sidecar",
 			err:  stale(answersfile.ChangedRun),
-			want: "the questions, flags or gate changed since a.jsonl was written. Drop --resume to start over",
+			want: "the questions, model or flags changed since a.jsonl was written. Drop --resume to start over",
+		},
+		{
+			name: "should advise dropping --resume for a changed run, naming what changed",
+			err: &answersfile.StaleAnswersError{
+				Path: "a.jsonl", Sidecar: "a.jsonl.onesie", Reason: answersfile.ChangedRun,
+				Changed: []string{"the model", "-o"},
+			},
+			want: "the model and -o changed since a.jsonl was written. Drop --resume to start over",
 		},
 		{
 			name: "should advise dropping --resume on a platform with no file lock",

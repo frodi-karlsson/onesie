@@ -114,6 +114,37 @@ func count(counted bool) int {
 	return 0
 }
 
+func TestNoState(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		resolved input.Resolved
+		want     string
+	}{
+		{
+			name:     "should ask for a state when nothing was read",
+			resolved: input.Resolved{Source: input.SourceNone},
+			want:     "no state given. Pipe one to stdin, or pass --state or --state-file",
+		},
+		{
+			name:     "should say stdin was empty when it was read and held nothing",
+			resolved: input.Resolved{Source: input.SourceNone, EmptyStdin: true},
+			want:     "no state given, since stdin was empty. Pipe one to stdin, or pass --state or --state-file",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := noState(tc.resolved); got == nil || got.Error() != tc.want {
+				t.Errorf("noState = %v, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestStreamResult(t *testing.T) {
 	t.Parallel()
 

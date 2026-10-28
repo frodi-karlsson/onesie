@@ -86,7 +86,7 @@ func newStreamRun(cmd *cobra.Command, in streamInputs) (*streamRun, error) {
 		flags: in.flags, built: inv.plan, mapper: inv.mapper, images: inv.images, gate: inv.gate,
 		abstain: inv.abstain, asker: asker, model: model, questions: wireAll(inv.plan.Questions), stats: in.stats,
 		source: records(cmd.Context(), in.settings, in.flags.inputMode, in.flags, inv.namer, book, resume, in.outputMode),
-		book:   book, answers: in.answers, out: out, outputMode: in.outputMode,
+		book:   book, answers: in.answers, out: out, errOut: cmd.ErrOrStderr(), outputMode: in.outputMode,
 		table: delimited(
 			out, in.outputMode, inv.plan, inv.gate != nil, inv.namer != nil && !merging(in.flags), resume.Header),
 		md: markdown(out, in.outputMode, inv.plan, inv.gate != nil, inv.namer != nil),
@@ -121,6 +121,7 @@ type streamRun struct {
 	book       *answersfile.Ledger
 	answers    *answersfile.File
 	out        io.Writer
+	errOut     io.Writer
 	outputMode output.Mode
 	table      *output.Delimited
 	md         *output.MarkdownTable
@@ -297,7 +298,7 @@ func (r *streamRun) finish(ctx context.Context, result engine.Result, err error)
 		return finishErr
 	}
 
-	result, err = finishStream(r.source, r.stats, result, err)
+	result, err = finishStream(r.errOut, r.source, r.stats, result, err)
 	if err != nil {
 		return err
 	}
@@ -333,9 +334,17 @@ func (r *streamRun) finishMarkdown(ctx context.Context, result engine.Result, er
 	return nil
 }
 
-func finishStream(source resumable, stats *collector, result engine.Result, err error) (engine.Result, error) {
+func finishStream(
+	w io.Writer, source resumable, stats *collector, result engine.Result, err error,
+) (engine.Result, error) {
 	skips := source.skipped()
 	stats.skip(skips)
+
+	if hint := source.idHint(); hint != "" {
+		if noticeErr := output.Notice(w, hint); noticeErr != nil {
+			return result, noticeErr
+		}
+	}
 
 	// A stored failure a resume skipped fails the run as it failed the one that wrote it.
 	result.Failed += skips.Failed
@@ -357,4 +366,5 @@ func finishStream(source resumable, stats *collector, result engine.Result, err 
 type resumable interface {
 	skipped() answersfile.Tally
 	freshRunAbort() error
+	idHint() string
 }

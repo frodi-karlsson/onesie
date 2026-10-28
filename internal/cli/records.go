@@ -3,9 +3,12 @@ package cli
 import (
 	"context"
 	"crypto/sha256"
+	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"github.com/frodi-karlsson/onesie/internal/answersfile"
 	"github.com/frodi-karlsson/onesie/internal/engine"
@@ -41,6 +44,7 @@ func records(
 		halt:  flags.stopOnAssert,
 		book:  book,
 		mode:  outputMode,
+		input: inputMode,
 		seen:  map[[sha256.Size]byte]int{},
 	}
 }
@@ -115,6 +119,10 @@ func (r *resumed) stop(failure *output.Failure) {
 	r.stoppedAtRecord = r.skips.Records
 }
 
+func (r *resumed) idHint() string {
+	return ""
+}
+
 func (r *resumed) freshRunAbort() error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -147,15 +155,18 @@ type namedRecord struct {
 }
 
 type naming struct {
-	ctx    context.Context
-	stop   context.CancelFunc
-	source *resumed
-	namer  *jq.Expr
-	book   *answersfile.Ledger
-	mode   output.Mode
-	seen   map[[sha256.Size]byte]int
-	halt   bool
-	halted bool
+	ctx     context.Context
+	stop    context.CancelFunc
+	source  *resumed
+	namer   *jq.Expr
+	book    *answersfile.Ledger
+	mode    output.Mode
+	input   input.Mode
+	seen    map[[sha256.Size]byte]int
+	halt    bool
+	halted  bool
+	misread atomic.Bool
+	otherID atomic.Bool
 }
 
 func (n *naming) Next() (namedRecord, bool, error) {
@@ -202,6 +213,26 @@ func (n *naming) freshRunAbort() error {
 	return n.source.freshRunAbort()
 }
 
+func (n *naming) idHint() string {
+	// Atomic, since the goroutine that reads ahead may still be naming a record after the run.
+	if !n.misread.Load() || n.otherID.Load() {
+		return ""
+	}
+
+	return "every record's --id was null. " + delimiterHint(n.input)
+}
+
+func delimiterHint(mode input.Mode) string {
+	switch mode {
+	case input.CSV:
+		return "-i csv splits each line on commas, so if the file is tab separated, pass -i tsv"
+	case input.TSV:
+		return "-i tsv splits each line on tabs, so if the file is comma separated, pass -i csv"
+	default:
+		return ""
+	}
+}
+
 func (n *naming) named(rec input.Record) namedRecord {
 	if n.namer == nil || rec.Err != nil {
 		return namedRecord{Record: rec}
@@ -215,6 +246,14 @@ func (n *naming) named(rec input.Record) namedRecord {
 
 func (n *naming) name(rec input.Record) namedRecord {
 	id, err := idOf(n.ctx, n.namer, rec)
+	if errors.Is(err, jq.ErrNullID) {
+		if misreadDelimiter(n.input, rec.Header) {
+			n.misread.Store(true)
+		}
+	} else {
+		n.otherID.Store(true)
+	}
+
 	if err != nil {
 		return namedRecord{Record: rec, idErr: err}
 	}
@@ -238,15 +277,39 @@ func (n *naming) name(rec input.Record) namedRecord {
 	return namedRecord{Record: rec, id: id}
 }
 
+func misreadDelimiter(mode input.Mode, header []string) bool {
+	if len(header) != 1 {
+		return false
+	}
+
+	switch mode {
+	case input.CSV:
+		return strings.Contains(header[0], "\t")
+	case input.TSV:
+		return strings.Contains(header[0], ",")
+	default:
+		return false
+	}
+}
+
 func unwritableID(mode output.Mode, text string) error {
 	switch {
 	case mode == output.TSV && strings.ContainsAny(text, "\t\r\n"):
-		return fmt.Errorf("--id: %q holds a tab, carriage return or newline, which -o tsv cannot write", text)
+		return fmt.Errorf("--id: '%s' holds a tab, carriage return or newline, which -o tsv cannot write", escaped(text))
 	case mode == output.CSV && strings.ContainsRune(text, '\r'):
-		return fmt.Errorf("--id: %q holds a carriage return, which -o csv cannot read back", text)
+		return fmt.Errorf("--id: '%s' holds a carriage return, which -o csv cannot read back", escaped(text))
 	default:
 		return nil
 	}
+}
+
+func escaped(text string) string {
+	// The escapes show the tab or the line break the message is about, inside the single quotes every
+	// other message uses. Go quotes with double quotes, so its escaped double quote is swapped for an
+	// escaped single quote.
+	quoted := strconv.Quote(text)
+
+	return strings.NewReplacer(`\"`, `"`, `'`, `\'`).Replace(quoted[1 : len(quoted)-1])
 }
 
 func idOf(ctx context.Context, namer *jq.Expr, rec input.Record) (any, error) {

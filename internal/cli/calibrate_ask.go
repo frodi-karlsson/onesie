@@ -103,7 +103,7 @@ func askedPlan(
 		return nil, err
 	}
 
-	if stored == whole {
+	if whole.Matches(stored) {
 		return scope.full, nil
 	}
 
@@ -174,12 +174,8 @@ func calibrateAnswers(
 		}
 	}
 
-	perRecord := len(run.asked.Questions)
-	if calib.offline {
-		perRecord = len(scored.Questions)
-	}
-
-	if costErr := writeCost(cmd.ErrOrStderr(), set, resumed, flags.out, perRecord); costErr != nil {
+	costErr := writeCost(cmd.ErrOrStderr(), set, resumed, flags.out, len(run.asked.Questions), calib.offline)
+	if costErr != nil {
 		return costErr
 	}
 
@@ -263,15 +259,20 @@ func cutsOf(cmd *cobra.Command, calib calibrateFlags) ([]float64, error) {
 	return cuts, nil
 }
 
-func writeCost(w io.Writer, set labelledSet, resumed resumedSet, answers string, questions int) error {
+func writeCost(
+	w io.Writer, set labelledSet, resumed resumedSet, answers string, questions int, offline bool,
+) error {
 	line := fmt.Sprintf("asking %d of %s, %s each",
 		len(resumed.pending), plural(len(set.records), "record"), plural(questions, "question"))
+	if offline {
+		line = fmt.Sprintf("reading %s from %s", plural(len(set.records), "record"), answers)
+	}
 
 	if set.unlabelled > 0 {
 		line += fmt.Sprintf(", %d unlabelled skipped", set.unlabelled)
 	}
 
-	if answers != "" {
+	if answers != "" && !offline {
 		line += fmt.Sprintf(", %d answered in %s", resumed.stored, answers)
 	}
 

@@ -42,6 +42,8 @@ func (s Store) LoadProfiles(path string) (profiles Profiles, found bool, err err
 	switch {
 	case errors.As(err, &misfit):
 		return Profiles{}, false, invalidFile(path, profilesKind, "is invalid", misfit.Error())
+	case err != nil && !json.Valid(data):
+		return Profiles{}, false, &InvalidProfilesError{Path: path, Kind: profilesKind, Reason: "is not valid JSON"}
 	case err != nil:
 		return Profiles{}, false, &InvalidProfilesError{
 			Path: path, Kind: profilesKind, Reason: "is not a JSON object of profiles",

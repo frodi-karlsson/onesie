@@ -58,7 +58,8 @@ Three ways work. Prefer Homebrew when the user has it.
 Prefer these three to a download from the releases page, which leaves the user to unpack the archive
 and put the binary on PATH by hand.
 
-Confirm the install with `onesie -V`, which prints the version and the built in limits.
+Confirm the install with `onesie -V`, which prints the version, the commit, the build date and the
+built in limits.
 
 ## Storing the key
 

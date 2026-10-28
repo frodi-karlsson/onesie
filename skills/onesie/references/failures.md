@@ -56,19 +56,22 @@ Exit 3 also covers these:
 | `is not a subcommand. The closest is` | a one word question is close to a subcommand name, such as `questoins`. Fix the typo, or put the word after `--` to ask it |
 | a complaint about a flag you never typed, or `was read as flags` | a question beginning with a dash was read as flags. Put the flags first, then `--`, then the question |
 | `flags go before --` | a flag was typed after `--`, where every word is the question. Move it before `--` |
-| `no state given` | nothing arrived on stdin and neither `--state` nor `--state-file` was passed |
+| `no state given` | nothing arrived on stdin and neither `--state` nor `--state-file` was passed. `since stdin was empty` means stdin, or `--state -`, was read and held nothing |
 | `both give a state` | `--state` or `--state-file` was passed beside a `-f` request body that holds its own `state`. Drop one |
 | `an empty state is a request the model cannot answer` | `--state`, `--state-file`, stdin, the `state` of a `-f` file, a stream line or `--map` gave an empty or all whitespace string, an empty object or an empty array. In a stream it is an error line instead, and `--skip-blank` does not drop it. An `-i request` body is forwarded as it is and not checked |
 | `an empty question is one the model cannot answer` | the positional question, an `--ask`, a question file's `ask` or a `-f` body's `instructions` is empty, all whitespace or null |
 | `has no 'instructions'` or `names its question 'instructions'` | a `-f` request body question has no `instructions`, or carries a question file's `ask` in its place |
-| `no API key` | nothing resolved for the provider, in the order [Choosing a profile][choosing] gives. A real run and `profile test` exit 2 here. `profile show` exits 2 too, after printing `key: none`. Under `--provider` or `ONESIE_PROVIDER` the message names a profile with that provider when there is one, and otherwise `onesie profile create NAME --provider PROVIDER` |
+| `no API key` | nothing resolved for the provider, in the order [Choosing a profile][choosing] gives. A real run and `profile test` exit 2 here. `profile show` exits 2 too, after printing `key: none`, with the same message on stderr. Under `--provider` or `ONESIE_PROVIDER` the message names a profile with that provider when there is one, and otherwise `onesie profile create NAME --provider PROVIDER` |
 | `no profile is the default` | there are profiles, none is the default and nothing chose one. Run `onesie profile use NAME`, or pass `--profile` or `--provider` |
-| `which does not exist` | `--profile` or `ONESIE_PROFILE` names a profile that is not in `profiles.json`. The message lists the profiles there are |
+| `which does not exist` | `--profile` or `ONESIE_PROFILE` names a profile that is not in `profiles.json`. The message lists the profiles there are, and says to pass `--provider` when the name is a provider |
+| `is not valid JSON` | `profiles.json` or `credentials.json` is cut short or holds a syntax error. `is not a JSON object of profiles` means valid JSON of another shape |
 | `is in use by another onesie run` | another run holds the lock beside the `--out` file |
-| `Drop --resume to start over` | the `--out` file was written by a different run, or has no fingerprint |
+| `which onesie did not write, and no CACHEDIR.TAG` | `--cache` found the file the message names in a cache directory onesie did not make. Point `ONESIE_CACHE_DIR` at a new or empty directory. `onesie cache` prints the same line and exits 0 |
+| `Drop --resume to start over` | the `--out` file was written by a different run, or has no fingerprint. `changed since` names what differs, such as `the model` or `--map` |
 | `--resume needs output that keeps each record's outcome` | `-o raw` and `-r` keep no id, failure or gate outcome, so a resume refuses them. Use `-o values` or `-o json` |
 | `is followed by more rows` | a resume without `--id` under `--stop-on-error` reached a stored csv or tsv error row with more rows after it, and a row keeps only the message, not the code to stop with. Pass `--id` or drop `--stop-on-error` |
 | `the header` | the csv or tsv header is not valid, or has a blank or repeated column name |
+| `every record's --id was null` | `-i csv` read a tab separated file, or `-i tsv` a comma separated one, so the header is one column and `--id` finds nothing. Pass the other `-i`. A mistyped `--id` also gives null ids, but then each record fails with `got null` and no hint. Check that `--id` names a header column |
 | `a row is longer than the limit`, with no error line | a csv row over `max-line-bytes` from `onesie -V`. It stops the run, since csv cannot find the next row after it. In tsv it is an error line instead |
 | `--usage does not apply to` | `-o values`, `-o raw` and `-r` write only the answers, so the message says to use `-o json`. `-o csv` and `-o tsv` have no column for it, and `-q` suppresses output |
 | `--merge-key does not apply to` | `-o csv` and `-o tsv` put the answers in columns, so they refuse `--merge-key` even beside `--merge` |

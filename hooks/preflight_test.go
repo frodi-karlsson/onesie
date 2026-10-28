@@ -24,6 +24,7 @@ const (
 	goodReport = "profile: work\nprovider: openrouter\nchosen by: the default\nkey: file, ends in cdef\n" +
 		"model: jev-latest, the provider's default\nbase_url: https://openrouter.ai/api, the provider's default\n"
 	goodVerdict = "onesie is on PATH and a key resolves, profile: work, provider: openrouter, key: file.\n"
+	badTTL      = "onesie: ONESIE_CACHE_TTL=abc is not a duration of zero or more, such as 90m or 72h"
 )
 
 func TestPreflight(t *testing.T) {
@@ -168,6 +169,23 @@ func TestPreflight(t *testing.T) {
 			name: "should pass on a mode warning and still report the key",
 			show: modeWarning + "\n" + goodReport,
 			want: modeWarning + "\n" + goodVerdict,
+		},
+		{
+			name: "should pass on a variable every run refuses and still report the key",
+			show: goodReport + badTTL + "\n",
+			code: 2,
+			want: badTTL + "\n" + goodVerdict,
+		},
+		{
+			name: "should pass on a variable every run refuses and still report a missing key after its hint",
+			show: "profile: none\nprovider: typesafe\nchosen by: nothing\nkey: none\n" +
+				"model: jev-latest, the provider's default\nbase_url: https://api.typesafe.ai, the provider's default\n" +
+				"onesie: no API key. Set TYPESAFE_API_KEY, or store one with onesie profile create NAME --provider typesafe\n" +
+				badTTL + "\n",
+			code: 2,
+			want: badTTL + "\nonesie is on PATH, but no API key resolves for provider typesafe. Only --print-request, " +
+				"--print-questions, --print-schema and --mock work until the user runs onesie profile create NAME " +
+				"--provider typesafe or sets TYPESAFE_API_KEY. The onesie-setup skill walks them through it.\n",
 		},
 		{
 			name: "should pass on a removed link and still report the key",

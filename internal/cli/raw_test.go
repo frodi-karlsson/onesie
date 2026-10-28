@@ -111,6 +111,16 @@ func TestStreamRaw(t *testing.T) {
 			wantCode: ExitOK,
 		},
 		{
+			name:     "should refuse a long_context that is not a boolean under --long-context with --print-request",
+			args:     []string{"-i", "request", "--print-request", "--long-context"},
+			stdin:    "{\"model\":\"jev-own\",\"long_context\":\"yes\",\"state\":\"a\"}\n",
+			response: answered,
+			wantOut: []string{
+				`{"error":{"kind":"input","status":null,"message":"long_context must be true or false"}}`,
+			},
+			wantCode: ExitRecords,
+		},
+		{
 			name:     "should write nothing for an empty stream",
 			args:     []string{"-i", "request"},
 			stdin:    "",

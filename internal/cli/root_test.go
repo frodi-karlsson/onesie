@@ -3,9 +3,11 @@ package cli_test
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -722,14 +724,32 @@ func TestNewRootCmd(t *testing.T) {
 			args:     []string{"--help"},
 			wantCode: cli.ExitOK,
 			contains: []string{"      --box      "},
-			absent:   []string{"--box string"},
+			absent:   []string{"--box string", "--box[="},
 		},
 		{
 			name:     "should show --box in the calibrate help as a switch that takes no value",
 			args:     []string{"calibrate", "--help"},
 			wantCode: cli.ExitOK,
 			contains: []string{"      --box      "},
-			absent:   []string{"--box string"},
+			absent:   []string{"--box string", "--box[="},
+		},
+		{
+			name:     "should refuse true written after --box, since it takes no value",
+			args:     []string{"--ask", "mug=the mug", "--box=true", "--print-request", "--state", "s"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: --box takes no value, got 'true'\n"},
+		},
+		{
+			name:     "should refuse any other value written after --box",
+			args:     []string{"--ask", "mug=the mug", "--box=1", "--print-request", "--state", "s"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: --box takes no value, got '1'\n"},
+		},
+		{
+			name:     "should refuse true written after --box on calibrate",
+			args:     []string{"calibrate", "--ask", "mug=the mug", "--box=true", "--print-request", "--label", ".l"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: --box takes no value, got 'true'\n"},
 		},
 		{
 			name:     "should list --mock in the calibrate help",
@@ -1044,10 +1064,18 @@ func TestNewRootCmd(t *testing.T) {
 			wantCode: cli.ExitRejected,
 		},
 		{
-			name:     "should reject a state-less invocation",
+			name:     "should reject a state-less invocation, saying the stdin it read was empty",
 			args:     []string{"is this urgent"},
 			wantCode: cli.ExitUsage,
-			contains: []string{"onesie: no state given. Pipe one to stdin, or pass --state or --state-file"},
+			contains: []string{
+				"onesie: no state given, since stdin was empty. Pipe one to stdin, or pass --state or --state-file",
+			},
+		},
+		{
+			name:     "should say stdin was empty under --state -",
+			args:     []string{"is this urgent", "--state", "-"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: no state given, since stdin was empty"},
 		},
 		{
 			name:     "should reject a flagged invocation that carries no question",
@@ -2160,6 +2188,86 @@ func TestNewRootCmd(t *testing.T) {
 		}
 	})
 
+	t.Run("should print the same JSON object for -V -o json and version -o json", func(t *testing.T) {
+		t.Parallel()
+
+		limited := map[string]string{}
+		for _, entry := range limits.Report() {
+			limited[entry.Name] = entry.Value
+		}
+
+		for _, args := range [][]string{{"-V", "-o", "json"}, {"version", "-o", "json"}, {"version", "--output", "json"}} {
+			var out bytes.Buffer
+
+			root := cli.NewRootCmd(cli.BuildInfo{Version: "1.2.3", Commit: "abc1234", Date: "2026-10-27"},
+				cli.WithStdin(strings.NewReader("")), cli.WithStdinTTY(false))
+			root.SetOut(&out)
+			root.SetErr(&out)
+			root.SetArgs(args)
+
+			if code := cli.Execute(t.Context(), root); code != cli.ExitOK {
+				t.Fatalf("onesie %s exit code = %d, output:\n%s", strings.Join(args, " "), code, out.String())
+			}
+
+			var got struct {
+				Version, Commit, Date, Go, Platform string
+				Limits                              map[string]string
+			}
+			if err := json.Unmarshal(out.Bytes(), &got); err != nil || strings.Count(out.String(), "\n") != 1 {
+				t.Fatalf("onesie %s = %q, want one JSON line: %v", strings.Join(args, " "), out.String(), err)
+			}
+
+			if got.Version != "1.2.3" || got.Commit != "abc1234" || got.Date != "2026-10-27" ||
+				got.Go != runtime.Version() || got.Platform != runtime.GOOS+"/"+runtime.GOARCH ||
+				!maps.Equal(got.Limits, limited) {
+				t.Errorf("onesie %s = %+v, want the build info and every limit as -V prints it", strings.Join(args, " "), got)
+			}
+		}
+	})
+
+	t.Run("should refuse an output mode other than json beside -V and on version", func(t *testing.T) {
+		t.Parallel()
+
+		for args, want := range map[string]string{
+			"-V -o table":        "onesie: -V prints text, or JSON under -o json, so -o table does not apply\n",
+			"version -o csv":     "onesie: version prints text, or JSON under -o json, so -o csv does not apply\n",
+			"version --output x": "onesie: version prints text, or JSON under -o json, so -o x does not apply\n",
+		} {
+			var out, errOut bytes.Buffer
+
+			root := cli.NewRootCmd(cli.BuildInfo{Version: "1.2.3"},
+				cli.WithStdin(strings.NewReader("")), cli.WithStdinTTY(false))
+			root.SetOut(&out)
+			root.SetErr(&errOut)
+			root.SetArgs(strings.Fields(args))
+
+			if code := cli.Execute(t.Context(), root); code != cli.ExitUsage || errOut.String() != want || out.Len() != 0 {
+				t.Errorf("onesie %s = exit %d, stdout %q, stderr %q, want exit 2 and %q", args, code, out.String(), errOut.String(), want)
+			}
+		}
+	})
+
+	t.Run("should refuse an empty output mode beside -V and on version", func(t *testing.T) {
+		t.Parallel()
+
+		for _, args := range [][]string{{"-V", "-o", ""}, {"version", "-o", ""}, {"version", "--output", ""}} {
+			var out, errOut bytes.Buffer
+
+			root := cli.NewRootCmd(cli.BuildInfo{Version: "1.2.3"},
+				cli.WithStdin(strings.NewReader("")), cli.WithStdinTTY(false))
+			root.SetOut(&out)
+			root.SetErr(&errOut)
+			root.SetArgs(args)
+
+			code := cli.Execute(t.Context(), root)
+			want := "onesie: --output is empty. Name one, or leave the flag out\n"
+			if code != cli.ExitUsage || errOut.String() != want || out.Len() != 0 {
+				t.Errorf("onesie %q = exit %d, stdout %q, stderr %q, want exit 2 and %q",
+					args, code, out.String(), errOut.String(), want)
+			}
+		}
+	})
+
 	t.Run("should print the limits for -V and for version as limits.Report lists them", func(t *testing.T) {
 		t.Parallel()
 
@@ -2176,7 +2284,7 @@ func TestNewRootCmd(t *testing.T) {
 			args []string
 			want string
 		}{
-			{args: []string{"-V"}, want: "onesie 1.2.3\n" + listed.String()},
+			{args: []string{"-V"}, want: "onesie 1.2.3\ncommit abc1234\nbuilt 2026-10-27\n" + listed.String()},
 			{args: []string{"version"}, want: provenance + listed.String()},
 		} {
 			var out bytes.Buffer
@@ -2403,8 +2511,8 @@ func TestNewRootCmd(t *testing.T) {
 			},
 			{
 				name: "should hint for a shorthand the root knows",
-				args: []string{"version", "-o", "json"},
-				want: "--output belongs to a run, not to version\n",
+				args: []string{"version", "-q"},
+				want: "--quiet belongs to a run, not to version\n",
 			},
 			{
 				name:   "should not hint for -V, which takes no question",

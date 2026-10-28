@@ -37,7 +37,7 @@ Flags:
       --allow-http                send the API key over a plain http base URL to a host other than this machine. Without it such a base URL exits 2 before any request
       --ask string                NAME=QUESTION, repeatable, opens a question group
       --base-url string           api root override
-      --box                       making this a box question, answered with the left, top, right and bottom edges of what it finds in an image, each from 0 to 1. Takes no value. Experimental on TypeSafe's side
+      --box                       make this a box question, answered with the left, top, right and bottom edges of what it finds in an image, each from 0 to 1. Takes no value. Experimental on TypeSafe's side
       --cache                     store responses on disk and answer a repeated request from them. Also ONESIE_CACHE=1
       --cuts string               comma separated cuts between 0 and 1. Defaults to 0.05 to 0.95 in steps of 0.05
       --desc string               KEY=TEXT, describing one option, level, yes or no

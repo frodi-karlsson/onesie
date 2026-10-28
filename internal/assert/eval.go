@@ -31,10 +31,12 @@ func (e *evaluator) boolean(n node) bool {
 		return e.comparison(typed)
 	case *inNode:
 		return e.membership(typed)
+	case *boolNode:
+		return typed.value
 	}
 
-	// parseComparison ends every leaf in a comparison or an in, so nothing else reaches a boolean
-	// position and there is no answer to give for one.
+	// parseComparison ends every other leaf in a comparison or an in, so nothing else reaches a
+	// boolean position and there is no answer to give for one.
 	return false
 }
 

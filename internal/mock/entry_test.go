@@ -143,6 +143,18 @@ func TestEntryResult(t *testing.T) {
 			wantErr:  "--mock: question 't' has p that adds up to 0.7, not 1",
 		},
 		{
+			name:     "should refuse p that does not add up to 1 beside a confidence of 1",
+			file:     `{"t":{"value":"platform","confidence":1,"p":{"billing":0.1,"platform":0.5,"sales":0.1}}}`,
+			question: three,
+			wantErr:  "--mock: question 't' has p that adds up to 0.7, not 1",
+		},
+		{
+			name:     "should refuse p that does not add up to 1 beside a confidence below 1",
+			file:     `{"t":{"value":"platform","confidence":0.6,"p":{"billing":0.1,"platform":0.5,"sales":0.1}}}`,
+			question: three,
+			wantErr:  "--mock: question 't' has p that adds up to 0.7, not 1",
+		},
+		{
 			name:     "should refuse p that is not an object",
 			file:     `{"t":{"value":"platform","p":[1]}}`,
 			question: three,

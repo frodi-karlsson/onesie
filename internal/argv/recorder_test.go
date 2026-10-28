@@ -1,6 +1,8 @@
 package argv_test
 
 import (
+	"errors"
+	"io"
 	"testing"
 
 	"github.com/spf13/pflag"
@@ -88,7 +90,7 @@ func TestRecorder(t *testing.T) {
 			}
 
 			set.Var(recorder.Switch("box"), "box", "recorded")
-			set.Lookup("box").NoOptDefVal = "true"
+			set.Lookup("box").NoOptDefVal = argv.Bare
 
 			if err := set.Parse(tc.args); err != nil {
 				t.Fatalf("parsing %v: %v", tc.args, err)
@@ -111,7 +113,36 @@ func TestRecorder(t *testing.T) {
 func TestRecorder_Switch(t *testing.T) {
 	t.Parallel()
 
-	t.Run("should show no value in the usage line", func(t *testing.T) {
+	refusals := []struct {
+		name string
+		args []string
+	}{
+		{name: "should refuse true written after the switch, which pflag hands Set as it hands a bare one", args: []string{"--box=true"}},
+		{name: "should refuse false written after the switch", args: []string{"--box=false"}},
+		{name: "should refuse an empty value written after the switch", args: []string{"--box="}},
+	}
+
+	for _, tc := range refusals {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			recorder := argv.New()
+			set := pflag.NewFlagSet("onesie", pflag.ContinueOnError)
+			set.SetOutput(io.Discard)
+			set.Var(recorder.Switch("box"), "box", "a switch")
+			set.Lookup("box").NoOptDefVal = argv.Bare
+
+			if err := set.Parse(tc.args); !errors.Is(err, argv.ErrSwitchValue) {
+				t.Errorf("parsing %v = %v, want %v", tc.args, err, argv.ErrSwitchValue)
+			}
+
+			if events := recorder.Events(); len(events) != 0 {
+				t.Errorf("events = %v, want none", events)
+			}
+		})
+	}
+
+	t.Run("should show no value in the usage line once its NoOptDefVal reads true", func(t *testing.T) {
 		t.Parallel()
 
 		set := pflag.NewFlagSet("onesie", pflag.ContinueOnError)

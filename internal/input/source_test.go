@@ -18,12 +18,13 @@ func TestResolve(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name        string
-		req         input.Query
-		wantSource  input.Source
-		wantState   any
-		wantErr     bool
-		wantMessage string
+		name           string
+		req            input.Query
+		wantSource     input.Source
+		wantState      any
+		wantEmptyStdin bool
+		wantErr        bool
+		wantMessage    string
 	}{
 		{
 			name: "should read stdin when it is a pipe",
@@ -54,12 +55,24 @@ func TestResolve(t *testing.T) {
 			wantState:  "a ticket body",
 		},
 		{
-			name: "should report no state for an empty pipe",
+			name: "should report no state for an empty pipe, and that stdin was empty",
 			req: input.Query{
 				Mode:  input.Text,
 				Stdin: strings.NewReader(""),
 			},
-			wantSource: input.SourceNone,
+			wantSource:     input.SourceNone,
+			wantEmptyStdin: true,
+		},
+		{
+			name: "should report that stdin was empty when state is a dash",
+			req: input.Query{
+				Mode:     input.Text,
+				Stdin:    strings.NewReader(""),
+				State:    "-",
+				HasState: true,
+			},
+			wantSource:     input.SourceNone,
+			wantEmptyStdin: true,
 		},
 		{
 			name: "should report no state for a terminal",
@@ -298,6 +311,10 @@ func TestResolve(t *testing.T) {
 
 			if got.Source != tc.wantSource {
 				t.Errorf("source = %v, want %v", got.Source, tc.wantSource)
+			}
+
+			if got.EmptyStdin != tc.wantEmptyStdin {
+				t.Errorf("empty stdin = %v, want %v", got.EmptyStdin, tc.wantEmptyStdin)
 			}
 
 			if tc.wantState == nil {

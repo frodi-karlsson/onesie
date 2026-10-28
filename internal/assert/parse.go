@@ -69,6 +69,25 @@ type Expr struct {
 	source string
 }
 
+// Constant reports whether the expression names no question, as true or not false does, so it
+// holds for every record or for none.
+func (e *Expr) Constant() bool {
+	return e != nil && !namesQuestion(e.root)
+}
+
+func namesQuestion(n node) bool {
+	switch typed := n.(type) {
+	case *binaryNode:
+		return namesQuestion(typed.left) || namesQuestion(typed.right)
+	case *notNode:
+		return namesQuestion(typed.operand)
+	case *boolNode:
+		return false
+	}
+
+	return true
+}
+
 // Source is the expression as it was written. A combined expression is its parts parenthesised and
 // joined by and, which parses back to the same tree, and a nil expression has no source.
 func (e *Expr) Source() string {
@@ -180,6 +199,11 @@ func (p *parser) parseComparison() (node, error) {
 	if op.kind == kindIn {
 		return p.parseIn(left, op.col)
 	}
+
+	if _, constant := left.(*boolNode); constant && !comparisonOp(op.kind) {
+		return left, nil
+	}
+
 	if !comparisonOp(op.kind) {
 		return nil, parseError(op.col, "expected a comparison")
 	}
