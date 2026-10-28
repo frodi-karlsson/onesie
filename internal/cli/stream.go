@@ -19,22 +19,12 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
-func stream(
-	cmd *cobra.Command,
-	settings rootSettings,
-	flags runConfig,
-	inv *invocation,
-	outputMode output.Mode,
-	stats *collector,
-	answers *answersfile.File,
-	resume answersfile.Resume,
-	answerers answererFactory,
-) error {
-	if flags.printRequest {
-		return streamRequests(cmd, settings, flags, inv, resume)
+func stream(cmd *cobra.Command, in streamInputs) error {
+	if in.flags.printRequest {
+		return streamRequests(cmd, in.settings, in.flags, in.inv, in.resume)
 	}
 
-	run, err := newStreamRun(cmd, settings, flags, inv, outputMode, stats, answers, resume, answerers)
+	run, err := newStreamRun(cmd, in)
 	if err != nil {
 		return err
 	}
@@ -43,9 +33,9 @@ func stream(
 		Source:      run.source,
 		Evaluate:    run.evaluate,
 		Write:       run.write,
-		Jobs:        flags.jobs,
-		Unordered:   flags.unordered,
-		StopOnError: flags.stopOnError,
+		Jobs:        in.flags.jobs,
+		Unordered:   in.flags.unordered,
+		StopOnError: in.flags.stopOnError,
 		Abort:       aborting,
 		Stop:        run.stop,
 	})
@@ -53,60 +43,64 @@ func stream(
 	return run.finish(cmd.Context(), result, err)
 }
 
-func newStreamRun(
-	cmd *cobra.Command,
-	settings rootSettings,
-	flags runConfig,
-	inv *invocation,
-	outputMode output.Mode,
-	stats *collector,
-	answers *answersfile.File,
-	resume answersfile.Resume,
-	answerers answererFactory,
-) (*streamRun, error) {
-	asker, err := answerers(cmd.Context(), stats)
+type streamInputs struct {
+	settings   rootSettings
+	flags      runConfig
+	inv        *invocation
+	outputMode output.Mode
+	stats      *collector
+	answers    *answersfile.File
+	resume     answersfile.Resume
+	answerers  answererFactory
+}
+
+func newStreamRun(cmd *cobra.Command, in streamInputs) (*streamRun, error) {
+	inv := in.inv
+
+	asker, err := in.answerers(cmd.Context(), in.stats)
 	if err != nil {
 		return nil, err
 	}
 
-	model, err := resolveModel(settings, inv.plan.Model)
+	model, err := resolveModel(in.settings, inv.plan.Model)
 	if err != nil {
 		return nil, err
 	}
 
 	format := answersfile.Format{
-		Mode: outputMode, Merge: merging(flags), MergeKey: mergeKey(flags), Namer: inv.namer, Gated: inv.gate != nil,
+		Mode: in.outputMode, Merge: merging(in.flags), MergeKey: mergeKey(in.flags), Namer: inv.namer, Gated: inv.gate != nil,
 	}
 
-	book, err := answersfile.ResumeLedger(cmd.Context(), answers, format)
+	book, err := answersfile.ResumeLedger(cmd.Context(), in.answers, format)
 	if err != nil {
 		return nil, err
 	}
 
-	resume, err = answersfile.ResumedVerdicts(cmd.Context(), answers, format, flags.stopOnError, resume)
+	resume, err := answersfile.ResumedVerdicts(cmd.Context(), in.answers, format, in.flags.stopOnError, in.resume)
 	if err != nil {
 		return nil, err
 	}
 
 	out := cmd.OutOrStdout()
 	run := &streamRun{
-		flags: flags, built: inv.plan, mapper: inv.mapper, images: inv.images, gate: inv.gate,
-		abstain: inv.abstain, asker: asker, model: model, questions: wireAll(inv.plan.Questions), stats: stats,
-		source: records(cmd.Context(), settings, flags.inputMode, flags, inv.namer, book, resume, outputMode),
-		book:   book, answers: answers, out: out, outputMode: outputMode,
-		table: delimited(out, outputMode, inv.plan, inv.gate != nil, inv.namer != nil && !merging(flags), resume.Header),
-		md:    markdown(out, outputMode, inv.plan, inv.gate != nil, inv.namer != nil),
+		flags: in.flags, built: inv.plan, mapper: inv.mapper, images: inv.images, gate: inv.gate,
+		abstain: inv.abstain, asker: asker, model: model, questions: wireAll(inv.plan.Questions), stats: in.stats,
+		source: records(cmd.Context(), in.settings, in.flags.inputMode, in.flags, inv.namer, book, resume, in.outputMode),
+		book:   book, answers: in.answers, out: out, outputMode: in.outputMode,
+		table: delimited(
+			out, in.outputMode, inv.plan, inv.gate != nil, inv.namer != nil && !merging(in.flags), resume.Header),
+		md: markdown(out, in.outputMode, inv.plan, inv.gate != nil, inv.namer != nil),
 	}
 
-	if !flags.noDedup {
-		run.shared = newDedup(settings.dedupLimit, func() error {
+	if !in.flags.noDedup {
+		run.shared = newDedup(in.settings.dedupLimit, func() error {
 			return output.Notice(cmd.ErrOrStderr(), fmt.Sprintf(
 				"%d distinct requests held, so later records are deduplicated only against those",
-				settings.dedupLimit))
+				in.settings.dedupLimit))
 		})
 	}
 
-	run.stop = watched(stopping(flags), &run.stopped)
+	run.stop = watched(stopping(in.flags), &run.stopped)
 
 	return run, nil
 }

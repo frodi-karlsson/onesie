@@ -163,7 +163,10 @@ func runPlan(
 		}
 
 		return withStats(cmd, settings.now, flags, func(stats *collector) error {
-			return stream(cmd, settings, flags, inv, outputMode, stats, out, resume, answers)
+			return stream(cmd, streamInputs{
+				settings: settings, flags: flags, inv: inv, outputMode: outputMode, stats: stats, answers: out,
+				resume: resume, answerers: answers,
+			})
 		})
 	}
 
