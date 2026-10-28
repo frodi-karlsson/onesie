@@ -63,7 +63,7 @@ func ParseMode(name string) (Mode, error) {
 	}
 }
 
-// Mode is the input mode.
+// Mode is how -i reads the input, as one value or one record per line.
 type Mode int
 
 // Streaming reports whether the mode reads one record per line.

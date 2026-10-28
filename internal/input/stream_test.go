@@ -346,8 +346,6 @@ func TestStream(t *testing.T) {
 		t.Run("should count lines past a skipped blank", func(t *testing.T) {
 			t.Parallel()
 
-			// Index and Line diverge as soon as a line is dropped, and Line is the one a message
-			// must quote, since it is what the user can find in their file.
 			stream := input.NewStream(strings.NewReader("first\n\nthird\n"), input.Lines, true)
 
 			var lines, indexes []int
@@ -451,8 +449,6 @@ func TestStream(t *testing.T) {
 				t.Errorf("line = %d, want 0", lineErr.Line)
 			}
 
-			// Named once. A wrap that added a spelling of its own would have the user read
-			// onesie: stdin: reading stdin: disk fell over.
 			if got := lineErr.Error(); got != "stdin: disk fell over" {
 				t.Errorf("message = %q, want %q", got, "stdin: disk fell over")
 			}

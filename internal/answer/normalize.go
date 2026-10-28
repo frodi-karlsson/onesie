@@ -48,8 +48,6 @@ func Normalize(q plan.Question, raw onesie.Answer) (*Answer, error) {
 		return nil, unusable("question '%s' has no answer", q.ID)
 	}
 
-	// Checked once here rather than per branch, since every branch below reads labels the
-	// question only has for its own shape.
 	if want := wireKind(q.Shape); want != raw.Kind() {
 		return nil, unusable("question '%s' expects a %s answer, got %s", q.ID, want, raw.Kind())
 	}
@@ -442,7 +440,6 @@ func modal(indexes []string, probabilities map[string]float64) string {
 	highest := -1.0
 
 	for _, index := range indexes {
-		// Strict greater than, so a tie keeps the lowest index rather than the last one seen.
 		if probabilities[index] > highest {
 			best = index
 			highest = probabilities[index]
