@@ -353,7 +353,7 @@ func (r *labelledRun) evaluate(ctx context.Context, rec labelledRecord) (askedLi
 		return askedLine{index: rec.index, slot: rec.slot, record: failed}, bad
 	}
 
-	record, err := evaluate(ctx, r.asker, key, asked, r.run.model, r.questions, sent, assets, r.usage, r.stats)
+	record, err := askAndRecord(ctx, r.asker, key, asked, r.run.model, r.questions, sent, assets, r.usage, r.stats)
 	if err == nil {
 		if _, err = casesOf(r.run.scope.scored, rec, record); err != nil {
 			// The tokens were spent, so the failed line carries them into the usage total.

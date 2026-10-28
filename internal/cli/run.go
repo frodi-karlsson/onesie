@@ -656,7 +656,7 @@ func ask(
 		return err
 	}
 
-	record, err := evaluate(
+	record, err := askAndRecord(
 		cmd.Context(), asker, recordKey{position: 1, line: 1}, built, model, questions, state.sent, state.assets,
 		flags.usage, stats)
 	if halting(err) {
@@ -874,7 +874,7 @@ func mergeKey(flags runConfig) string {
 	return "answers"
 }
 
-func evaluate(
+func askAndRecord(
 	ctx context.Context,
 	asker answerer,
 	key recordKey,

@@ -232,7 +232,7 @@ func (r *streamRun) ask(ctx context.Context, rec namedRecord, sent any, assets o
 			State: sent, Model: r.model, Questions: r.questions, Assets: assets, LongContext: r.built.LongContext,
 		}, salt,
 		func() (output.Record, error) {
-			return evaluate(ctx, r.asker, key, r.built, r.model, r.questions, sent, assets, r.flags.usage, r.stats)
+			return askAndRecord(ctx, r.asker, key, r.built, r.model, r.questions, sent, assets, r.flags.usage, r.stats)
 		})
 	if err != nil {
 		// Returned before the gate is asked. A failed record reads as all zeros, so a gate such as
