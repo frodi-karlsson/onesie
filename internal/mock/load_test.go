@@ -234,6 +234,21 @@ func TestLoad(t *testing.T) {
 			}},
 		},
 		{
+			name: "should fail an http entry with a null body as one with no body",
+			file: `{"error":{"kind":"http","status":401,"body":null}}`,
+			lookups: []lookup{{
+				position: 1, sentinel: onesie.ErrAuthentication, status: 401, message: "onesie: 401 status code, no body",
+			}},
+		},
+		{
+			name: "should fail an http entry with a string body as a live body of that text",
+			file: `{"error":{"kind":"http","status":503,"body":"<html>nope</html>"}}`,
+			lookups: []lookup{{
+				position: 1, sentinel: onesie.ErrServer, status: 503,
+				message: "onesie: 503 Service Unavailable, with a response body that is not JSON",
+			}},
+		},
+		{
 			name:    "should read an error in the object shape for every record",
 			file:    `{"error":503}`,
 			lookups: []lookup{{position: 4, sentinel: onesie.ErrServer, status: 503}},

@@ -153,17 +153,19 @@ func errorStatus(number json.Number) (int, bool) {
 }
 
 func httpEntry(status int, failure map[string]any) (*Entry, error) {
-	given, found := failure["body"]
-	if !found {
+	switch given := failure["body"].(type) {
+	case nil:
 		return statusEntry(status, nil), nil
-	}
+	case string:
+		return statusEntry(status, []byte(given)), nil
+	default:
+		body, err := json.Marshal(given)
+		if err != nil {
+			return nil, err
+		}
 
-	body, err := json.Marshal(given)
-	if err != nil {
-		return nil, err
+		return statusEntry(status, body), nil
 	}
-
-	return statusEntry(status, body), nil
 }
 
 func statusEntry(status int, body []byte) *Entry {

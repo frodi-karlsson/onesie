@@ -257,6 +257,21 @@ func TestMockAnswers(t *testing.T) {
 			wantCode: ExitUsage,
 		},
 		{
+			name: "should give a mocked html body the not JSON advice a live one gets",
+			args: with("--state", "x"),
+			mock: `{"error":{"kind":"http","status":405,"body":"<html>nope</html>"}}`,
+			stderr: []string{"onesie: 405 Method Not Allowed, with a response body that is not JSON. " +
+				"Check that the base URL points at the System One API"},
+			wantCode: ExitUsage,
+		},
+		{
+			name:     "should fail a mocked null body as a mocked status with no body",
+			args:     with("--state", "x"),
+			mock:     `{"error":{"kind":"http","status":402,"body":null}}`,
+			stderr:   []string{"onesie: 402 status code, no body. Add credits to the account this key belongs to"},
+			wantCode: ExitAuth,
+		},
+		{
 			name:     "should fail a mocked connection as a live one reads",
 			args:     with("--state", "x"),
 			mock:     `{"error":"connection"}`,

@@ -141,9 +141,11 @@ ONESIE_MOCK=answers.json ./gate.sh
   `200 response could not be used: mock response onesie could not use`. An `http` one may carry
   the JSON `body` the server sends, as in
   `{"error": {"kind": "http", "status": 400, "body": {"detail": "Unknown model: jev-latest"}}}`,
-  and then fails and advises as a live response with that body does. For one record, a 401, 402 or
-  403 exits 3, a 5xx or a `response` exits 4 and a timeout exits 5. In a stream a failed record is
-  an error line and the run exits 6, apart from a 401, 402 or 403, which ends it with exit 3.
+  and then fails and advises as a live response with that body does. A string `body` is the raw
+  response text, so `"body": "<html>nope</html>"` reads as a live HTML page does, with the advice
+  for a body that is not JSON. A `null` one is no body. For one record, a 401, 402 or 403 exits 3,
+  a 5xx or a `response` exits 4 and a timeout exits 5. In a stream a failed record is an error line
+  and the run exits 6, apart from a 401, 402 or 403, which ends it with exit 3.
 - A record the file does not answer exits 2 when the run reaches it, naming its input line and the
   missing entry. A replayed `kind: input` line answers nothing, so it counts as missing too. Output
   stops at that record, so it holds only the lines before it in input order, or under `--unordered`
