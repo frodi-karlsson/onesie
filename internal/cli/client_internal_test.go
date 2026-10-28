@@ -172,6 +172,11 @@ func TestClientBuilder(t *testing.T) {
 				want: "onesie: --base-url https:// names no host\n",
 			},
 			{
+				name: "should say a plain http --base-url with no host names no host",
+				args: []string{"--base-url", "http://"},
+				want: "onesie: --base-url http:// names no host\n",
+			},
+			{
 				name: "should say a --base-url with no scheme is not http or https",
 				args: []string{"--base-url", "proxy.example"},
 				want: "onesie: --base-url is not an http or https URL\n",
