@@ -761,13 +761,19 @@ func TestMockAnswers(t *testing.T) {
 			tests := []struct {
 				name     string
 				provider string
-				refusal  string
+				row      string
 			}{
-				{name: "should exit 3 for a stored 401", provider: "typesafe", refusal: `{"error":401}`},
 				{
-					name: "should exit 3 for a stored cloudflare 400 that refuses the token", provider: "cloudflare",
-					refusal: `{"error":{"kind":"http","status":400,"body":{"success":false,` +
-						`"errors":[{"code":9106,"message":"Authentication failed (status: 400)"}]}}}`,
+					name: "should exit 3 for a stored 401", provider: "typesafe",
+					row: `{"error":{"kind":"auth","status":401,"message":"401 the key was refused"}}`,
+				},
+				{
+					name: "should exit 3 for a stored 401 written with kind http", provider: "typesafe",
+					row: `{"error":{"kind":"http","status":401,"message":"401 the key was refused"}}`,
+				},
+				{
+					name: "should exit 3 for a stored cloudflare 400 that refused the token", provider: "cloudflare",
+					row: `{"error":{"kind":"auth","status":400,"message":"400 Authentication failed (status: 400)"}}`,
 				},
 			}
 
@@ -776,27 +782,25 @@ func TestMockAnswers(t *testing.T) {
 					t.Parallel()
 
 					out := filepath.Join(t.TempDir(), "answers.jsonl")
-					answers := writeMock(t, tc.refusal+"\n{\"answer\":0.2}\n{\"answer\":0.3}\n")
 					args := []string{
-						"is it urgent", "-o", "json", "-i", "jsonl", "--provider", tc.provider, "-j", "2",
-						"--out", out, "--resume", "--mock", answers,
+						"is it urgent", "-o", "json", "-i", "jsonl", "--provider", tc.provider, "--out", out, "--resume",
+						"--mock", writeMock(t, "{\"answer\":0.2}\n{\"answer\":0.3}\n{\"answer\":0.4}\n"),
 					}
 					env := map[string]string{"CLOUDFLARE_ACCOUNT_ID": "acct"}
+					stdin := "\"one\"\n\"two\"\n\"three\"\n"
 
-					// The refused record is held until the one after it is answered, so the aborted run
-					// writes that answer past the refusal, as a run whose workers finished first does.
-					_, errOut, code := runMocked(t, t.Context(), args, "\"one\"\n\"two\"\n\"three\"\n", env, nil,
-						delaying(`"one"`, 1))
-					if code != ExitAuth {
-						t.Fatalf("first run exit %d, want %d\n%s", code, ExitAuth, errOut)
+					// A clean run writes the fingerprint. The file is then rewritten as a run aborted by
+					// the refusal leaves it when a later record finished first: the refusal, then an answer.
+					if _, errOut, code := runMocked(t, t.Context(), args, stdin, env, nil); code != ExitOK {
+						t.Fatalf("clean run exit %d\n%s", code, errOut)
 					}
 
-					if lines := strings.Count(readText(t, out), "\n"); lines != 2 {
-						t.Fatalf("the first run wrote %d lines, want the refusal and the answer after it", lines)
+					answered := strings.SplitAfter(readText(t, out), "\n")[1]
+					if err := os.WriteFile(out, []byte(tc.row+"\n"+answered), 0o600); err != nil {
+						t.Fatal(err)
 					}
 
-					_, errOut, code = runMocked(t, t.Context(), append(args, "--stop-on-error"),
-						"\"one\"\n\"two\"\n\"three\"\n", env, nil)
+					_, errOut, code := runMocked(t, t.Context(), append(args, "--stop-on-error"), stdin, env, nil)
 					if code != ExitAuth {
 						t.Errorf("resume exit %d, want %d as the live refusal exits\n%s", code, ExitAuth, errOut)
 					}
