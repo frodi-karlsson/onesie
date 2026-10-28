@@ -318,6 +318,7 @@ func checkSchemaAgreement(t *testing.T, fixtures []schemaFixture) {
 	t.Helper()
 
 	schema := compiledSchema(t)
+	twins := jsonTwins(fixtures)
 	refused := 0
 
 	for _, fixture := range fixtures {
@@ -333,6 +334,10 @@ func checkSchemaAgreement(t *testing.T, fixtures []schemaFixture) {
 		// goccy reads a plain scalar such as 1e-7 as a string, where the loader reads a float, so a
 		// fixture holding one is left to its JSON twin.
 		if plainExponent(doc) {
+			if !twins[twinKey(fixture.flags, exponentsAsFloats(doc))] {
+				t.Errorf("a fixture with a plain exponent needs a JSON twin for the schema to check\n%s", doc)
+			}
+
 			continue
 		}
 
@@ -501,6 +506,62 @@ func fixtureName(doc string) string {
 	}
 
 	return "fixture.yaml"
+}
+
+func jsonTwins(fixtures []schemaFixture) map[string]bool {
+	twins := map[string]bool{}
+
+	for _, fixture := range fixtures {
+		if !json.Valid([]byte(fixture.doc)) {
+			continue
+		}
+
+		var decoded any
+		if err := json.Unmarshal([]byte(fixture.doc), &decoded); err != nil {
+			continue
+		}
+
+		twins[twinKey(fixture.flags, decoded)] = true
+	}
+
+	return twins
+}
+
+func twinKey(flags []string, decoded any) string {
+	encoded, err := json.Marshal(decoded)
+	if err != nil {
+		return ""
+	}
+
+	return strings.Join(flags, "\x00") + "\n" + string(encoded)
+}
+
+func exponentsAsFloats(doc string) any {
+	var decoded any
+	if err := yaml.Unmarshal([]byte(doc), &decoded); err != nil {
+		return nil
+	}
+
+	return withFloats(decoded)
+}
+
+func withFloats(value any) any {
+	switch typed := value.(type) {
+	case map[string]any:
+		for key, item := range typed {
+			typed[key] = withFloats(item)
+		}
+	case []any:
+		for i, item := range typed {
+			typed[i] = withFloats(item)
+		}
+	case string:
+		if number, err := strconv.ParseFloat(typed, 64); err == nil && plainExponentValue.MatchString(typed) {
+			return number
+		}
+	}
+
+	return value
 }
 
 func plainExponent(doc string) bool {
