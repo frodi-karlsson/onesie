@@ -1218,10 +1218,9 @@ func runStored(t *testing.T, path string, args []string, stdin string) (string, 
 		cli.WithStdin(strings.NewReader(stdin)),
 		cli.WithStdinTTY(false),
 		cli.WithStdoutTTY(false),
-		cli.WithProfilesPath(func() (string, error) { return path, nil }),
-		// The live key is in the environment of whoever runs this suite, and hiding it proves the
-		// stored key is the one sent.
-		cli.WithLookupEnv(func(string) (string, bool) { return "", false }),
+		// The live key is in the environment of whoever runs this suite, and hiding all but the config
+		// dir proves the stored key is the one sent.
+		cli.WithLookupEnv(lookupOnly(map[string]string{"ONESIE_CONFIG_DIR": filepath.Dir(path)})),
 		cli.WithKeychain(offKeychain()),
 	)
 

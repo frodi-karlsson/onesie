@@ -87,13 +87,8 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *Root {
 
 	// Installed after the options, since they read the environment lookup and home directory a test
 	// may have replaced, and before the holder and the factory, which resolve the files through them.
-	if settings.profilesPath == nil {
-		settings.profilesPath = profilesLocation(settings.lookupEnv, settings.homeDir, settings.goos)
-	}
-
-	if settings.configDir == nil {
-		settings.configDir = configDir(settings.lookupEnv, settings.homeDir, settings.goos)
-	}
+	settings.profilesPath = profilesLocation(settings.lookupEnv, settings.homeDir, settings.goos)
+	settings.configDir = configDir(settings.lookupEnv, settings.homeDir, settings.goos)
 
 	// The holder and the factory read flags, which are parsed after this returns, so both close over
 	// the pointer. The holder comes first, since the factory reads through it.
@@ -848,14 +843,6 @@ func withNow(now func() time.Time) RootOption {
 func withTerminalWidth(width func() (int, bool)) RootOption {
 	return func(s *rootSettings) {
 		s.terminalWidth = width
-	}
-}
-
-// WithProfilesPath replaces how the profiles file's location is resolved, so a test needs no real
-// home directory. Its directory also holds the credentials.json a first read converts.
-func WithProfilesPath(path func() (string, error)) RootOption {
-	return func(s *rootSettings) {
-		s.profilesPath = path
 	}
 }
 
