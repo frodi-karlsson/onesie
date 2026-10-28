@@ -11,6 +11,7 @@ import (
 	"io"
 	"slices"
 
+	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/jq"
 	"github.com/frodi-karlsson/onesie/internal/limits"
 	"github.com/frodi-karlsson/onesie/internal/plan"
@@ -28,7 +29,8 @@ func Load(r io.Reader, questions []plan.Question, opts Options) (*Answers, error
 		opts.Spelled = Flag
 	}
 
-	parse := parser{questions: questions, asked: asked(questions, opts.Asked), opts: opts}
+	chosen := asked(questions, opts.Asked)
+	parse := parser{questions: questions, asked: chosen, wired: plan.WireAll(chosen), opts: opts}
 
 	lines, err := parse.readLines(r)
 	if err != nil {
@@ -258,6 +260,7 @@ func (p parser) lines(lines [][]byte) (*Answers, error) {
 type parser struct {
 	questions []plan.Question
 	asked     []plan.Question
+	wired     onesie.Questions
 	opts      Options
 }
 

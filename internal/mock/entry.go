@@ -68,7 +68,7 @@ func (p parser) entry(fields map[string]any, where string) (*Entry, error) {
 
 	// Check returns nil or an *AnswerFault, so no other error can reach past this.
 	var fault *onesie.AnswerFault
-	if errors.As(result.Check(plan.WireAll(p.asked)), &fault) {
+	if errors.As(result.Check(p.wired), &fault) {
 		return nil, fmt.Errorf("%s: %s", where, fault.Reason())
 	}
 
