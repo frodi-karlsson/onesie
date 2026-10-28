@@ -25,7 +25,7 @@ var plainFloat = regexp.MustCompile(`^[-+]?(\.[0-9]+|[0-9]+(\.[0-9]*)?)[eE][-+]?
 // Load reads a question file or a raw API request body. A top level questions key selects the
 // body form.
 func Load(data []byte) (*File, error) {
-	raw, err := DecodeOrdered(data)
+	raw, err := decodeOrdered(data)
 	if err != nil {
 		return nil, err
 	}
@@ -76,9 +76,7 @@ type File struct {
 	Assets onesie.Assets
 }
 
-// DecodeOrdered parses YAML or JSON keeping every mapping as an ordered yaml.MapSlice and a JSON
-// number as its json.Number, so the loader reads order and numbers as the file wrote them.
-func DecodeOrdered(data []byte) (any, error) {
+func decodeOrdered(data []byte) (any, error) {
 	if len(data) > limits.MaxQuestionFileBytes {
 		return nil, fmt.Errorf("a question file is at most %d bytes, and this one is %d",
 			limits.MaxQuestionFileBytes, len(data))

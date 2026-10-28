@@ -36,7 +36,7 @@ func wireValue(value any) (any, error) {
 	// produces.
 	switch value.(type) {
 	case yaml.MapSlice, []any:
-		encoded, err := MarshalOrdered(value)
+		encoded, err := marshalOrdered(value)
 		if err != nil {
 			return nil, err
 		}
@@ -54,9 +54,7 @@ func wireValue(value any) (any, error) {
 	}
 }
 
-// MarshalOrdered encodes a decoded tree as JSON, keeping every mapping in its written order. Use it
-// for the wire, where a body is replayed as given, and plain for a Go consumer.
-func MarshalOrdered(value any) ([]byte, error) {
+func marshalOrdered(value any) ([]byte, error) {
 	switch typed := value.(type) {
 	case yaml.MapSlice:
 		buf := []byte{'{'}
@@ -76,7 +74,7 @@ func MarshalOrdered(value any) ([]byte, error) {
 			buf = append(buf, key...)
 			buf = append(buf, ':')
 
-			encoded, err := MarshalOrdered(item.Value)
+			encoded, err := marshalOrdered(item.Value)
 			if err != nil {
 				return nil, err
 			}
@@ -93,7 +91,7 @@ func MarshalOrdered(value any) ([]byte, error) {
 				buf = append(buf, ',')
 			}
 
-			encoded, err := MarshalOrdered(item)
+			encoded, err := marshalOrdered(item)
 			if err != nil {
 				return nil, err
 			}

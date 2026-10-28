@@ -22,11 +22,15 @@ import (
 	"time"
 
 	"github.com/goccy/go-yaml"
+	"github.com/goccy/go-yaml/lexer"
+	"github.com/goccy/go-yaml/token"
 	"github.com/santhosh-tekuri/jsonschema/v6"
 
 	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/qfile"
 )
+
+var plainExponentValue = regexp.MustCompile(`^[-+]?(\.[0-9]+|[0-9]+(\.[0-9]*)?)[eE][-+]?[0-9]+$`)
 
 func TestPrintSchema(t *testing.T) {
 	t.Parallel()
@@ -326,6 +330,12 @@ func checkSchemaAgreement(t *testing.T, fixtures []schemaFixture) {
 			t.Errorf("the fixture does not run beside %v\n%s\nstderr:\n%s", fixture.flags, doc, errOut)
 		}
 
+		// goccy reads a plain scalar such as 1e-7 as a string, where the loader reads a float, so a
+		// fixture holding one is left to its JSON twin.
+		if plainExponent(doc) {
+			continue
+		}
+
 		instance, isBody, ok := schemaInstance(doc)
 		if !ok {
 			if loaderAccepts {
@@ -493,28 +503,35 @@ func fixtureName(doc string) string {
 	return "fixture.yaml"
 }
 
+func plainExponent(doc string) bool {
+	return slices.ContainsFunc(lexer.Tokenize(doc), func(tk *token.Token) bool {
+		return tk.Type == token.StringType && plainExponentValue.MatchString(tk.Value)
+	})
+}
+
 func schemaInstance(doc string) (any, bool, bool) {
-	decoded, err := qfile.DecodeOrdered([]byte(doc))
-	if err != nil {
-		return nil, false, false
-	}
-
-	if items, isMapping := decoded.(yaml.MapSlice); isMapping {
-		for _, item := range items {
-			if item.Key == "questions" {
-				return nil, true, true
-			}
+	encoded := []byte(doc)
+	if !json.Valid(encoded) {
+		var decoded any
+		if err := yaml.Unmarshal(encoded, &decoded); err != nil {
+			return nil, false, false
 		}
-	}
 
-	encoded, err := qfile.MarshalOrdered(decoded)
-	if err != nil {
-		return nil, false, false
+		var err error
+		if encoded, err = json.Marshal(decoded); err != nil {
+			return nil, false, false
+		}
 	}
 
 	instance, err := jsonschema.UnmarshalJSON(bytes.NewReader(encoded))
 	if err != nil {
 		return nil, false, false
+	}
+
+	if fields, isMapping := instance.(map[string]any); isMapping {
+		if _, isBody := fields["questions"]; isBody {
+			return nil, true, true
+		}
 	}
 
 	return instance, false, true

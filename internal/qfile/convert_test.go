@@ -34,7 +34,7 @@ func TestPlain(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			raw, err := DecodeOrdered([]byte(tc.doc))
+			raw, err := decodeOrdered([]byte(tc.doc))
 			if err != nil {
 				t.Fatalf("decoding: %v", err)
 			}
@@ -95,12 +95,12 @@ func TestMarshalOrdered(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			raw, err := DecodeOrdered([]byte(tc.doc))
+			raw, err := decodeOrdered([]byte(tc.doc))
 			if err != nil {
 				t.Fatalf("decoding: %v", err)
 			}
 
-			got, err := MarshalOrdered(raw)
+			got, err := marshalOrdered(raw)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}

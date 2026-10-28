@@ -227,7 +227,7 @@ func yamlValue(value any) (any, error) {
 	// Back through the ordered decoder, so a structured description written to a file comes out as
 	// a mapping in its original order rather than as the byte sequence goccy renders a
 	// json.RawMessage as.
-	decoded, err := DecodeOrdered(raw)
+	decoded, err := decodeOrdered(raw)
 	if err != nil {
 		return nil, err
 	}
@@ -466,7 +466,7 @@ func survivesUnquoted(text string, at probe) bool {
 
 	var out printer.Printer
 
-	read, err := DecodeOrdered(out.PrintNode(node))
+	read, err := decodeOrdered(out.PrintNode(node))
 	if err != nil {
 		return false
 	}
