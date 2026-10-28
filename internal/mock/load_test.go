@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/answer"
@@ -26,7 +25,6 @@ func TestLoad(t *testing.T) {
 		questions []plan.Question
 		byID      bool
 		spelled   string
-		timeout   time.Duration
 		asked     []string
 		lookups   []lookup
 		wantErr   string
@@ -262,10 +260,11 @@ func TestLoad(t *testing.T) {
 			},
 		},
 		{
-			name:    "should time out after the run's own timeout",
-			file:    `{"error":"timeout"}`,
-			timeout: 7 * time.Second,
-			lookups: []lookup{{position: 1, sentinel: onesie.ErrTimeout, message: "onesie: request timed out after 7s"}},
+			name: "should time out as a transport that reports a timeout does",
+			file: `{"error":"timeout"}`,
+			lookups: []lookup{{
+				position: 1, sentinel: onesie.ErrTimeout, message: "onesie: request to mock.invalid:443 timed out",
+			}},
 		},
 		{
 			name:    "should name the variable the file came from",
@@ -339,6 +338,44 @@ func TestLoad(t *testing.T) {
 			wantErr: "--mock: question 't' carries the key 'weight', which a mock answer does not take",
 		},
 		{
+			name:    "should name the line of an answer Result.Check refuses, with no second prefix",
+			file:    "{" + full + "}\n" + `{"u":1.5,"t":"billing","r":"curt"}`,
+			wantErr: "--mock line 2: question 'u' answered 1.5, which lies outside [0,1]",
+		},
+		{
+			name:    "should name a rate's p outside [0,1] when the score it gives lies outside the levels",
+			file:    `{"u":0.9,"t":"billing","r":{"value":"calm","p":{"calm":1.5,"curt":-0.25,"rude":-0.25}}}`,
+			wantErr: "--mock: question 'r' has p for '0' of 1.5, which lies outside [0,1]",
+		},
+		{
+			name:    "should name a rate's p by its level index",
+			file:    `{"u":0.9,"t":"billing","r":{"value":"curt","p":{"calm":0,"curt":1.5,"rude":0}}}`,
+			wantErr: "--mock: question 'r' has p for '1' of 1.5, which lies outside [0,1]",
+		},
+		{
+			name:    "should refuse a p that is not a number",
+			file:    `{"u":0.9,"t":{"value":"billing","p":{"billing":"most","platform":0}},"r":"curt"}`,
+			wantErr: `--mock: question 't' has p for 'billing' of "most", which is not a number`,
+		},
+		{
+			name:    "should refuse a confidence that is not a number",
+			file:    `{"u":0.9,"t":{"value":"billing","confidence":"high"},"r":"curt"}`,
+			wantErr: `--mock: question 't' has confidence "high", which is not a number`,
+		},
+		{
+			name:      "should refuse a box edge outside [0,1]",
+			file:      `{"b":{"left":0.1,"top":0.1,"right":1.5,"bottom":0.2}}`,
+			questions: []plan.Question{{ID: "b", Shape: plan.Box}},
+			wantErr:   "--mock: box question 'b' has an edge or a confidence outside [0,1]",
+		},
+		{
+			name:      "should refuse a box whose edges are out of order",
+			file:      `{"b":{"left":0.5,"top":0.1,"right":0.2,"bottom":0.2}}`,
+			questions: []plan.Question{{ID: "b", Shape: plan.Box}},
+			wantErr: "--mock: box question 'b' has a left edge not left of its right edge, " +
+				"or a top edge not above its bottom edge",
+		},
+		{
 			name:    "should refuse a confidence on a yes/no answer",
 			file:    `{"u":{"value":0.9,"confidence":0.5},"t":"billing","r":"curt"}`,
 			wantErr: "--mock: question 'u' carries the key 'confidence', which a mock answer does not take",
@@ -402,7 +439,7 @@ func TestLoad(t *testing.T) {
 			}
 
 			answers, err := Load(strings.NewReader(tc.file), asked, Options{
-				ByID: tc.byID, Spelled: tc.spelled, Timeout: tc.timeout, Asked: tc.asked,
+				ByID: tc.byID, Spelled: tc.spelled, Asked: tc.asked,
 			})
 			if tc.wantErr != "" {
 				if err == nil || err.Error() != tc.wantErr {
@@ -439,11 +476,12 @@ func checkLookup(t *testing.T, answers *Answers, questions []plan.Question, look
 		t.Fatalf("position %d id %v found no entry", look.position, look.id)
 	}
 
-	result, err := entry.Result(onesie.TypeSafe(), "", onesie.Needs{})
 	if look.unusable {
+		_, err := sendThrough(t, onesie.TypeSafe(), entry)
+
 		var unusable *onesie.ResponseError
-		if !errors.As(err, &unusable) || unusable.Status != http.StatusOK ||
-			err.Error() != "onesie: 200 response could not be used: mock response onesie could not use" {
+		if !errors.As(err, &unusable) || unusable.Status != http.StatusOK || err.Error() != "onesie: 200 response "+
+			"could not be used: the response is not a System One result, since it has no answers" {
 			t.Errorf("position %d error %v, want a 200 ResponseError", look.position, err)
 		}
 
@@ -451,6 +489,8 @@ func checkLookup(t *testing.T, answers *Answers, questions []plan.Question, look
 	}
 
 	if look.sentinel != nil {
+		_, err := sendThrough(t, onesie.TypeSafe(), entry)
+
 		if !errors.Is(err, look.sentinel) {
 			t.Errorf("position %d error %v, want %v", look.position, err, look.sentinel)
 		}
@@ -467,9 +507,7 @@ func checkLookup(t *testing.T, answers *Answers, questions []plan.Question, look
 		return
 	}
 
-	if err != nil {
-		t.Fatalf("position %d Result: %v", look.position, err)
-	}
+	result := resultOf(entry)
 
 	for _, id := range look.absent {
 		if _, held := result.Answers[id]; held {

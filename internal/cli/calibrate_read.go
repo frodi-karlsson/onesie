@@ -15,6 +15,7 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/jq"
 	"github.com/frodi-karlsson/onesie/internal/limits"
 	"github.com/frodi-karlsson/onesie/internal/output"
+	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
 func calibrateRequests(
@@ -32,7 +33,7 @@ func calibrateRequests(
 	}
 
 	model := chosen.modelFor(scope.scored.Model, settings.lookupEnv)
-	questions := wireAll(scope.scored.Questions)
+	questions := plan.WireAll(scope.scored.Questions)
 
 	for _, rec := range set.records {
 		if ctxErr := cmd.Context().Err(); ctxErr != nil {

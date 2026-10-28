@@ -5,14 +5,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"math"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"runtime/pprof"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -1304,6 +1302,9 @@ func TestStream(t *testing.T) {
 
 				var out, errOut lockedBuffer
 
+				ctx, interrupt := context.WithCancel(t.Context())
+				defer interrupt()
+
 				root := cli.NewRootCmd(
 					cli.BuildInfo{Version: "1.2.3"},
 					cli.WithKeychain(offKeychain()),
@@ -1312,7 +1313,9 @@ func TestStream(t *testing.T) {
 							onesie.WithAPIKey("k"), onesie.WithBaseURL(srv.URL),
 						}, opts...)...)
 					}),
-					cli.WithStdin(strings.NewReader(tc.stdin)),
+					// The interrupt lands as the record is handed over, so the expression runs on it after
+					// the context has ended.
+					cli.WithStdin(&interruptingReader{data: tc.stdin, interrupt: interrupt}),
 					cli.WithStdinTTY(false),
 					cli.WithStdoutTTY(false),
 					cli.WithLookupEnv(func(string) (string, bool) { return "", false }),
@@ -1322,16 +1325,9 @@ func TestStream(t *testing.T) {
 				root.Command.SetErr(&errOut)
 				root.Command.SetArgs(tc.args)
 
-				ctx, interrupt := context.WithCancel(t.Context())
-				defer interrupt()
-
 				exited := make(chan int, 1)
-				labels := pprof.Labels("test", t.Name())
 
-				go pprof.Do(ctx, labels, func(ctx context.Context) { exited <- root.Execute(ctx) })
-
-				awaitRunningMap(t, labels)
-				interrupt()
+				go func() { exited <- root.Execute(ctx) }()
 
 				select {
 				case code := <-exited:
@@ -1353,97 +1349,6 @@ func TestStream(t *testing.T) {
 
 				if got := requests.Load(); got != 0 {
 					t.Errorf("requests = %d, want 0", got)
-				}
-			})
-		}
-	})
-
-	t.Run("should stop a runaway --id once the stream ends early", func(t *testing.T) {
-		t.Parallel()
-
-		const runaway = `if .id == "b" then until(false; .) else .id end`
-
-		tests := []struct {
-			name     string
-			args     []string
-			status   int
-			breaks   bool
-			wantCode int
-		}{
-			{
-				name:     "should stop it when an authentication failure aborts the stream",
-				args:     []string{"x", "-i", "jsonl", "--id", runaway, "-j", "1"},
-				status:   http.StatusUnauthorized,
-				wantCode: cli.ExitAuth,
-			},
-			{
-				name:     "should stop it when the output pipe closes under --print-request",
-				args:     []string{"x", "-i", "jsonl", "--id", runaway, "--print-request", "-m", "m1"},
-				breaks:   true,
-				wantCode: cli.ExitOK,
-			},
-		}
-
-		for _, tc := range tests {
-			t.Run(tc.name, func(t *testing.T) {
-				t.Parallel()
-
-				labels := pprof.Labels("test", t.Name())
-
-				srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-					waitForExpr(t, labels, true)
-					w.WriteHeader(tc.status)
-
-					if _, err := w.Write([]byte(`{"error":{"message":"bad key"}}`)); err != nil {
-						t.Errorf("writing stub response: %v", err)
-					}
-				}))
-				defer srv.Close()
-
-				var errOut lockedBuffer
-
-				var out io.Writer = &lockedBuffer{}
-				if tc.breaks {
-					out = writerFunc(func([]byte) (int, error) {
-						waitForExpr(t, labels, true)
-
-						return 0, io.ErrClosedPipe
-					})
-				}
-
-				root := cli.NewRootCmd(
-					cli.BuildInfo{Version: "1.2.3"},
-					cli.WithKeychain(offKeychain()),
-					cli.WithClientFactory(func(_ context.Context, opts ...onesie.Option) (*onesie.Client, error) {
-						return onesie.New(append([]onesie.Option{
-							onesie.WithAPIKey("k"), onesie.WithBaseURL(srv.URL),
-						}, opts...)...)
-					}),
-					cli.WithStdin(strings.NewReader("{\"id\":\"a\"}\n{\"id\":\"b\"}\n")),
-					cli.WithStdinTTY(false),
-					cli.WithStdoutTTY(false),
-					cli.WithLookupEnv(func(string) (string, bool) { return "", false }),
-				)
-
-				root.Command.SetOut(out)
-				root.Command.SetErr(&errOut)
-				root.Command.SetArgs(tc.args)
-
-				exited := make(chan int, 1)
-
-				go pprof.Do(t.Context(), labels, func(ctx context.Context) { exited <- root.Execute(ctx) })
-
-				select {
-				case code := <-exited:
-					if code != tc.wantCode {
-						t.Errorf("exit code = %d, want %d\nstderr:\n%s", code, tc.wantCode, errOut.String())
-					}
-				case <-time.After(5 * time.Second):
-					t.Fatal("the stream never ended")
-				}
-
-				if !waitForExpr(t, labels, false) {
-					t.Error("the --id expression kept running after the stream ended")
 				}
 			})
 		}
@@ -1947,57 +1852,23 @@ func (b *lockedBuffer) String() string {
 	return b.buf.String()
 }
 
-func awaitRunningMap(t *testing.T, labels pprof.LabelSet) {
-	t.Helper()
-
-	if !waitForExpr(t, labels, true) {
-		t.Fatal("the --map expression never started running")
+func (r *interruptingReader) Read(p []byte) (int, error) {
+	if r.handed {
+		return 0, io.EOF
 	}
+
+	r.handed = true
+	n := copy(p, r.data)
+
+	r.interrupt()
+
+	return n, nil
 }
 
-func waitForExpr(t *testing.T, labels pprof.LabelSet, running bool) bool {
-	t.Helper()
-
-	// A goroutine inherits the labels of the one that started it, so a stack carrying them and
-	// the gojq interpreter is this test's expression running, not another test's.
-	var want string
-
-	pprof.ForLabels(pprof.WithLabels(context.Background(), labels), func(key, value string) bool {
-		want = fmt.Sprintf("# labels: {%q:%q}", key, value)
-
-		return true
-	})
-
-	deadline := time.Now().Add(5 * time.Second)
-
-	for time.Now().Before(deadline) {
-		if exprRunning(t, want) == running {
-			return true
-		}
-
-		time.Sleep(time.Millisecond)
-	}
-
-	return false
-}
-
-func exprRunning(t *testing.T, labelLine string) bool {
-	t.Helper()
-
-	var profile strings.Builder
-	if err := pprof.Lookup("goroutine").WriteTo(&profile, 1); err != nil {
-		t.Errorf("writing the goroutine profile: %v", err)
-
-		return false
-	}
-
-	for _, stack := range strings.Split(profile.String(), "\n\n") {
-		if strings.Contains(stack, labelLine) && strings.Contains(stack, "github.com/itchyny/gojq.(*env).Next") {
-			return true
-		}
-	}
-
-	return false
+type interruptingReader struct {
+	data      string
+	interrupt context.CancelFunc
+	handed    bool
 }
 
 type writerFunc func([]byte) (int, error)

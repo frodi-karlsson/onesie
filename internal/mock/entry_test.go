@@ -3,9 +3,7 @@ package mock
 import (
 	"encoding/json"
 	"fmt"
-	"maps"
 	"math"
-	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -16,7 +14,7 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
-func TestEntryResult(t *testing.T) {
+func TestEntry(t *testing.T) {
 	t.Parallel()
 
 	five := rateQuestion("r", "1", "2", "3", "4", "5")
@@ -213,12 +211,7 @@ func TestEntryResult(t *testing.T) {
 
 			entry, _ := answers.Lookup(1, nil)
 
-			result, err := entry.Result(onesie.TypeSafe(), "", onesie.Needs{})
-			if err != nil {
-				t.Fatalf("Result: %v", err)
-			}
-
-			normalized := answer.Normalize(tc.question, result.Answers[tc.question.ID])
+			normalized := answer.Normalize(tc.question, resultOf(entry).Answers[tc.question.ID])
 
 			if normalized.Value != tc.value {
 				t.Errorf("value %v, want %v", normalized.Value, tc.value)
@@ -294,30 +287,6 @@ func TestEntryResult(t *testing.T) {
 			t.Errorf("Load(%s) = nil, want a norm the score does not give refused", file)
 		}
 	})
-
-	t.Run("should name no model and bill nothing", func(t *testing.T) {
-		t.Parallel()
-
-		answers, err := Load(strings.NewReader(`{"u":0.3}`), []plan.Question{{ID: "u", Shape: plan.Noul}}, Options{})
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		entry, _ := answers.Lookup(1, nil)
-
-		result, err := entry.Result(onesie.TypeSafe(), "", onesie.Needs{})
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		if result.Model != "" {
-			t.Errorf("model %q, want none, since the run fills it", result.Model)
-		}
-
-		if result.Usage != (onesie.Usage{}) {
-			t.Errorf("usage %+v, want zero", result.Usage)
-		}
-	})
 }
 
 func TestEntryKey(t *testing.T) {
@@ -391,7 +360,7 @@ func TestBoxAnswer(t *testing.T) {
 		{name: "should refuse a bare number for a box", given: n("0.5"), wantErr: "which is not a box"},
 		{name: "should refuse a box missing an edge", given: map[string]any{"left": n("0.1"), "top": n("0.1"), "right": n("0.2")}, wantErr: "has no 'bottom'"},
 		{name: "should refuse a box with value", given: map[string]any{"value": n("1"), "left": n("0.1"), "top": n("0.1"), "right": n("0.2"), "bottom": n("0.2")}, wantErr: "carries the key 'value'"},
-		{name: "should refuse a box whose left is right of its right", given: edges("0.5", "0.1", "0.2", "0.2"), wantErr: "left below right"},
+		{name: "should refuse a box edge that is not a number", given: map[string]any{"left": "x", "top": n("0.1"), "right": n("0.2"), "bottom": n("0.2")}, wantErr: `has left "x", which is not a number`},
 	}
 
 	for _, tc := range tests {
@@ -447,10 +416,6 @@ func assertRoundTrip(t *testing.T, question plan.Question, value string, confide
 		}
 	}
 
-	if sum, fits := answer.SumFits(slices.Collect(maps.Values(first.P.Values))); !fits {
-		t.Errorf("%s: p sums to %v, want 1 within the sum check", file, sum)
-	}
-
 	printed, err := json.Marshal(first)
 	if err != nil {
 		t.Fatal(err)
@@ -478,12 +443,7 @@ func loadNormalized(t *testing.T, question plan.Question, file string) *answer.A
 
 	entry, _ := answers.Lookup(1, nil)
 
-	result, err := entry.Result(onesie.TypeSafe(), "", onesie.Needs{})
-	if err != nil {
-		t.Fatalf("Result: %v", err)
-	}
-
-	normalized := answer.Normalize(question, result.Answers[question.ID])
+	normalized := answer.Normalize(question, resultOf(entry).Answers[question.ID])
 
 	return normalized
 }

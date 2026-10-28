@@ -8,7 +8,6 @@ import (
 	"io"
 	"io/fs"
 	"maps"
-	"net/http"
 	"slices"
 
 	"github.com/spf13/cobra"
@@ -292,7 +291,7 @@ func askLabelled(
 
 	book := resumed.book
 	labelled := &labelledRun{
-		run: run, asker: asker, questions: wireAll(run.asked.Questions), usage: flags.usage, stats: stats,
+		run: run, asker: asker, questions: plan.WireAll(run.asked.Questions), usage: flags.usage, stats: stats,
 		outcomes: slices.Clone(resumed.answered), book: book,
 	}
 
@@ -508,7 +507,7 @@ func casesOf(built *plan.Plan, rec labelledRecord, record output.Record) ([]reco
 		if question.Shape == plan.Noul {
 			value, isNumber := given.Value.(float64)
 			if !isNumber || !unitRange(value) {
-				return nil, unusableAnswerTo(question.ID, "answered %v, which lies outside [0,1]", given.Value)
+				return nil, fmt.Errorf("question '%s' answered %v, which lies outside [0,1]", question.ID, given.Value)
 			}
 
 			cases[q].yesNo = calibrate.YesNoCase{
@@ -521,11 +520,11 @@ func casesOf(built *plan.Plan, rec labelledRecord, record output.Record) ([]reco
 
 		picked, isName := given.Value.(string)
 		if !isName {
-			return nil, unusableAnswerTo(question.ID, "picked %v, which is not a name", given.Value)
+			return nil, fmt.Errorf("question '%s' picked %v, which is not a name", question.ID, given.Value)
 		}
 
 		if given.Confidence == nil || !unitRange(*given.Confidence) {
-			return nil, unusableAnswerTo(question.ID, "answered with a confidence outside [0,1]")
+			return nil, fmt.Errorf("question '%s' answered with a confidence outside [0,1]", question.ID)
 		}
 
 		cases[q].choice = calibrate.ChoiceCase{
@@ -562,13 +561,7 @@ func answerTo(question plan.Question, record output.Record) (*answer.Answer, err
 		}
 	}
 
-	return nil, unusableAnswerTo(question.ID, "has no answer")
-}
-
-func unusableAnswerTo(id, format string, args ...any) error {
-	return &onesie.ResponseError{
-		Status: http.StatusOK, Err: fmt.Errorf("question '%s' %s", id, fmt.Sprintf(format, args...)),
-	}
+	return nil, fmt.Errorf("question '%s' has no answer", question.ID)
 }
 
 func unitRange(value float64) bool {

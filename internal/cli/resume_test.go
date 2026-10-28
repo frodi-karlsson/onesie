@@ -1144,7 +1144,7 @@ func TestResumed(t *testing.T) {
 	answeredBody := `{"model":"m","answers":{"answer":{"type":"noul","noul":0.5}},"usage":{}}` + "\n"
 	failedBody := `{"error":{"kind":"http","status":400,"message":"400 bad key"}}` + "\n"
 	unavailableBody := `{"error":{"kind":"http","status":503,"message":"503 bad key"}}` + "\n"
-	forwardedPrint, err := answersfile.Fingerprint(nil, wireAll(nil), answersfile.FingerprintInputs{Provider: "typesafe", Input: "request"})
+	forwardedPrint, err := answersfile.Fingerprint(nil, plan.WireAll(nil), answersfile.FingerprintInputs{Provider: "typesafe", Input: "request"})
 	if err != nil {
 		t.Fatalf("fingerprinting -i request: %v", err)
 	}

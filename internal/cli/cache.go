@@ -37,11 +37,11 @@ func answersFor(
 			return nil, err
 		}
 
-		return wrapped(settings, answers), nil
+		return settings.answerers(answers), nil
 	}
 
 	if !caching(flags) {
-		return wrapped(settings, liveAnswers(settings, flags)), nil
+		return settings.answerers(liveAnswers(settings, flags)), nil
 	}
 
 	var warned atomic.Bool
@@ -57,7 +57,7 @@ func answersFor(
 		}
 	}
 
-	return wrapped(settings, cachedAnswers(settings, flags, model, warn)), nil
+	return settings.answerers(cachedAnswers(settings, flags, model, warn)), nil
 }
 
 func caching(flags runConfig) bool {

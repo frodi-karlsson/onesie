@@ -73,6 +73,12 @@ func TestExplain(t *testing.T) {
 			want: "400 Invalid request." + boxNote,
 		},
 		{
+			name:   "should name no model for a box when the provider knows none that answers one",
+			status: http.StatusBadRequest, body: invalid,
+			facts: with(func(f *requestFacts) { f.provider, f.boxed = onesie.Levanto(), true }),
+			want:  "400 Invalid request. A box question needs a model that serves it",
+		},
+		{
 			name: "should not name jev-preview for an invalid request without a box", status: http.StatusBadRequest,
 			body: invalid, facts: typesafe,
 			want: "400 Invalid request.",

@@ -12,11 +12,11 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"runtime/pprof"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
-	"time"
+	"testing/synctest"
 )
 
 const dedupAnswer = `{"model":"m","usage":{"input_tokens":5,"output_tokens":2},` +
@@ -69,7 +69,7 @@ func TestStream(t *testing.T) {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 
-				stub := newCountingStub(t, nil)
+				stub := newCountingStub(t)
 
 				out, errOut, code := runStub(t, t.Context(), tc.args, jsonl(tc.bodies...), stub.url)
 				if code != ExitOK {
@@ -101,7 +101,7 @@ func TestStream(t *testing.T) {
 	t.Run("should print one line per record under --unordered", func(t *testing.T) {
 		t.Parallel()
 
-		stub := newCountingStub(t, nil)
+		stub := newCountingStub(t)
 		bodies := []string{"x", "x", "y", "x", "y", "x", "z", "z"}
 
 		out, errOut, code := runStub(t, t.Context(), with("-j", "4", "--unordered"), jsonl(bodies...), stub.url)
@@ -120,50 +120,71 @@ func TestStream(t *testing.T) {
 		}
 	})
 
-	t.Run("should make a duplicate of a request in flight wait for it", func(t *testing.T) {
+	t.Run("should stop a runaway --id once the stream ends early", func(t *testing.T) {
 		t.Parallel()
 
-		release := make(chan struct{})
+		const runaway = `if .id == "b" then until(false; .) else .id end`
 
-		var held atomic.Bool
-
-		stub := newCountingStub(t, func() {
-			if held.CompareAndSwap(false, true) {
-				<-release
-			}
-		})
-
-		labels := pprof.Labels("dedup", t.Name())
-		exited := make(chan struct{})
-
-		var (
-			out, errOut string
-			code        int
-		)
-
-		go pprof.Do(t.Context(), labels, func(ctx context.Context) {
-			defer close(exited)
-
-			out, errOut, code = runStub(t, ctx, with("-j", "2"), jsonl("x", "x"), stub.url)
-		})
-
-		if !awaitWaiter(t, labels) {
-			t.Error("the second record never waited for the first")
+		tests := []struct {
+			name     string
+			args     []string
+			breaks   bool
+			wantCode int
+		}{
+			{
+				name:     "should stop it when an authentication failure aborts the stream",
+				args:     []string{"x", "-i", "jsonl", "--id", runaway, "-j", "1"},
+				wantCode: ExitAuth,
+			},
+			{
+				name:     "should stop it when the output pipe closes under --print-request",
+				args:     []string{"x", "-i", "jsonl", "--id", runaway, "--print-request", "-m", "m1"},
+				breaks:   true,
+				wantCode: ExitOK,
+			},
 		}
 
-		close(release)
-		<-exited
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
 
-		if code != ExitOK {
-			t.Fatalf("exit code = %d\n%s", code, errOut)
-		}
+				args := tc.args
+				if !tc.breaks {
+					args = append(slices.Clone(args), "--mock", writeMock(t, `{"id":"a","error":401}`))
+				}
 
-		if got := stub.requests.Load(); got != 1 {
-			t.Errorf("%d requests, want 1", got)
-		}
+				// synctest.Test returns only once every goroutine the run started has ended, so a
+				// runaway left spinning on the second record fails the test by never returning.
+				synctest.Test(t, func(t *testing.T) {
+					stdin := &handingLines{data: "{\"id\":\"a\"}\n{\"id\":\"b\"}\n", at: 2, handed: make(chan struct{})}
 
-		if got := strings.Count(out, "\n"); got != 2 {
-			t.Errorf("%d lines, want 2\n%s", got, out)
+					var out io.Writer = &bytes.Buffer{}
+					if tc.breaks {
+						out = closingPipe{after: stdin.handed}
+					}
+
+					var errOut bytes.Buffer
+
+					// The first record's outcome waits for the second record to be read, so its --id
+					// starts before the stream ends.
+					root := NewRootCmd(BuildInfo{Version: "1.2.3"},
+						withKeychain(noKeychain()),
+						WithStdin(stdin),
+						WithStdinTTY(false),
+						WithStdoutTTY(false),
+						WithLookupEnv(lookupFrom(map[string]string{"ONESIE_CONFIG_DIR": t.TempDir()})),
+						holding(1, 1, stdin.handed, nil),
+					)
+
+					root.Command.SetOut(out)
+					root.Command.SetErr(&errOut)
+					root.Command.SetArgs(args)
+
+					if code := root.Execute(t.Context()); code != tc.wantCode {
+						t.Errorf("exit code = %d, want %d\nstderr:\n%s", code, tc.wantCode, errOut.String())
+					}
+				})
+			})
 		}
 	})
 
@@ -247,7 +268,7 @@ func TestStream(t *testing.T) {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 
-				stub := newCountingStub(t, nil)
+				stub := newCountingStub(t)
 
 				out, errOut, code := runStub(t, t.Context(), tc.args, jsonl("x", "x", "y", "x", "y"), stub.url)
 				if code != ExitOK {
@@ -464,7 +485,7 @@ func TestStream(t *testing.T) {
 	t.Run("should report the deduplicated records under --stats", func(t *testing.T) {
 		t.Parallel()
 
-		stub := newCountingStub(t, nil)
+		stub := newCountingStub(t)
 
 		_, errOut, code := runStub(t, t.Context(), with("--stats"), jsonl("x", "x", "y"), stub.url)
 		if code != ExitOK || !strings.Contains(errOut, "3 records, 1 deduplicated, 2 requests, 2 questions") {
@@ -475,7 +496,7 @@ func TestStream(t *testing.T) {
 	t.Run("should say once past the limit and ask the new records after it", func(t *testing.T) {
 		t.Parallel()
 
-		stub := newCountingStub(t, nil)
+		stub := newCountingStub(t)
 
 		_, errOut, code := runStub(t, t.Context(), with(), jsonl("x", "x", "y", "y", "z"), stub.url,
 			func(s *rootSettings) { s.dedupLimit = 1 })
@@ -496,7 +517,7 @@ func TestStream(t *testing.T) {
 	t.Run("should keep each record's own input under --merge", func(t *testing.T) {
 		t.Parallel()
 
-		stub := newCountingStub(t, nil)
+		stub := newCountingStub(t)
 
 		out, errOut, code := runStub(t, t.Context(),
 			[]string{"is this urgent", "-i", "jsonl", "--map", ".body", "--merge"},
@@ -712,17 +733,13 @@ func TestStream(t *testing.T) {
 	})
 }
 
-func newCountingStub(t *testing.T, hold func()) *countingStub {
+func newCountingStub(t *testing.T) *countingStub {
 	t.Helper()
 
 	stub := &countingStub{}
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		stub.requests.Add(1)
-
-		if hold != nil {
-			hold()
-		}
 
 		if _, err := w.Write([]byte(dedupAnswer)); err != nil {
 			t.Errorf("writing stub response: %v", err)
@@ -767,47 +784,37 @@ func runStub(
 	return out.String(), errOut.String(), code
 }
 
-func awaitWaiter(t *testing.T, labels pprof.LabelSet) bool {
-	t.Helper()
-
-	var want string
-
-	pprof.ForLabels(pprof.WithLabels(context.Background(), labels), func(key, value string) bool {
-		want = fmt.Sprintf("# labels: {%q:%q}", key, value)
-
-		return true
-	})
-
-	deadline := time.Now().Add(5 * time.Second)
-
-	for time.Now().Before(deadline) {
-		if waiting(t, want) {
-			return true
-		}
-
-		time.Sleep(time.Millisecond)
+func (r *handingLines) Read(p []byte) (int, error) {
+	end := strings.IndexByte(r.data[r.offset:], '\n')
+	if end < 0 {
+		return 0, io.EOF
 	}
 
-	return false
+	n := copy(p, r.data[r.offset:r.offset+end+1])
+	r.offset += n
+	r.lines++
+
+	if r.lines == r.at {
+		close(r.handed)
+	}
+
+	return n, nil
 }
 
-func waiting(t *testing.T, labelLine string) bool {
-	t.Helper()
+type handingLines struct {
+	data   string
+	offset int
+	lines  int
+	at     int
+	handed chan struct{}
+}
 
-	var profile strings.Builder
-	if err := pprof.Lookup("goroutine").WriteTo(&profile, 1); err != nil {
-		t.Errorf("writing the goroutine profile: %v", err)
+func (w closingPipe) Write([]byte) (int, error) {
+	<-w.after
 
-		return false
-	}
+	return 0, io.ErrClosedPipe
+}
 
-	// A waiter sits in share with no request of its own below it.
-	for _, stack := range strings.Split(profile.String(), "\n\n") {
-		if strings.Contains(stack, labelLine) && strings.Contains(stack, "cli.(*dedup).share") &&
-			!strings.Contains(stack, "cli.evaluate") {
-			return true
-		}
-	}
-
-	return false
+type closingPipe struct {
+	after <-chan struct{}
 }

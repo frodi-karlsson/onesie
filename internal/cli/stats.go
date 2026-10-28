@@ -310,8 +310,8 @@ func (c *collector) snapshot(elapsed time.Duration) Stats {
 
 // Stats is a finished summary, ready to render. It is a snapshot, so it needs no locking.
 type Stats struct {
-	// Mocked says the answers came from a mock file, so nothing was sent and Requests counts the
-	// records the file answered.
+	// Mocked says a mock file served the requests, so Requests counts the records it answered and
+	// the tokens are zero.
 	Mocked bool
 	// Records is every input record a resume did not skip. Requests, its subset that reached the
 	// client, is smaller when a line failed to parse, the cache answered or a request was shared.
@@ -388,12 +388,8 @@ func (s Stats) String() string {
 		parts = append(parts, plural(s.Abstains, "abstain"))
 	}
 
-	if s.Mocked {
-		return s.mockedTail(parts, split)
-	}
-
 	if split {
-		parts = append(parts, plural(s.Requests, "request"))
+		parts = append(parts, s.requestClause())
 	}
 
 	parts = append(parts,
@@ -418,14 +414,12 @@ func (s Stats) String() string {
 	return strings.Join(append(parts, roundElapsed(s.Elapsed)), ", ")
 }
 
-func (s Stats) mockedTail(parts []string, split bool) string {
-	// Nothing was sent, so the tokens, the model and the attempts would describe traffic that
-	// never happened.
-	if split {
-		parts = append(parts, fmt.Sprintf("%d answered from the mock", s.Requests))
+func (s Stats) requestClause() string {
+	if s.Mocked {
+		return fmt.Sprintf("%d answered from the mock", s.Requests)
 	}
 
-	return strings.Join(append(parts, plural(s.Questions, "question")+" answered", roundElapsed(s.Elapsed)), ", ")
+	return plural(s.Requests, "request")
 }
 
 func roundElapsed(d time.Duration) string {

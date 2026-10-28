@@ -212,21 +212,31 @@ func TestMockAnswers(t *testing.T) {
 			wantCode: ExitOK,
 		},
 		{
-			name:     "should say the records were answered from the mock under --stats",
-			args:     with("-o", "values", "-i", "lines", "--stats"),
-			stdin:    "a\nb\n",
-			mock:     mockAll,
-			stderr:   []string{"2 records answered from the mock, 6 questions answered, "},
+			name:  "should say the records were answered from the mock under --stats",
+			args:  with("-o", "values", "-i", "lines", "--stats"),
+			stdin: "a\nb\n",
+			mock:  mockAll,
+			stderr: []string{"2 records answered from the mock, 6 questions asked, 0 in / 0 out tokens, " +
+				"model jev-latest, 2 attempts, 10s/attempt, "},
 			wantCode: ExitOK,
 
-			stderrAbsent: []string{"request", "attempt", "in / "},
+			stderrAbsent: []string{"request", "$"},
 		},
 		{
-			name:     "should exit 3 for one record the file refuses with 401",
+			name:     "should count the retries of a mocked 503 under --stats",
+			args:     with("-o", "values", "--state", "x", "--stats"),
+			mock:     `{"error":503}`,
+			stderr:   []string{"1 failed, 3 questions asked, 0 in / 0 out tokens, 3 attempts (2 retries: 503×2), 10s/attempt, "},
+			wantCode: ExitUnavailable,
+		},
+		{
+			name:     "should exit 3 for one record the file refuses with 401, naming no key",
 			args:     with("--state", "x"),
 			mock:     `{"error":401}`,
 			stderr:   []string{"onesie: 401 status code, no body"},
 			wantCode: ExitAuth,
+
+			stderrAbsent: []string{"The key came from"},
 		},
 		{
 			name:     "should exit 4 for one record the file fails with 503",
@@ -236,11 +246,18 @@ func TestMockAnswers(t *testing.T) {
 			wantCode: ExitUnavailable,
 		},
 		{
-			name:     "should exit 5 for one record the file times out, after the run's timeout",
+			name:     "should exit 5 for one record the file times out, as a timed out connection reads",
 			args:     with("--state", "x", "--timeout", "4"),
 			mock:     `{"error":"timeout"}`,
-			stderr:   []string{"onesie: request timed out after 4s"},
+			stderr:   []string{"onesie: request to mock.invalid:443 timed out"},
 			wantCode: ExitTransport,
+		},
+		{
+			name:     "should exit 4 for a response entry, as a live 200 with no answers reads",
+			args:     with("--state", "x"),
+			mock:     `{"error":{"kind":"response","status":200,"message":"x"}}`,
+			stderr:   []string{"onesie: 200 response could not be used: the response is not a System One result, since it has no answers"},
+			wantCode: ExitUnavailable,
 		},
 		{
 			name:     "should give a mocked 402 the credit advice a live one gets",
@@ -293,6 +310,8 @@ func TestMockAnswers(t *testing.T) {
 			mock:     lines(mockAll, `{"error":401}`, mockAll),
 			stderr:   []string{"onesie: 401 status code, no body"},
 			wantCode: ExitAuth,
+
+			stderrAbsent: []string{"The key came from"},
 		},
 		{
 			name:    "should stop at the first record the file does not cover, naming its line",
@@ -323,11 +342,12 @@ func TestMockAnswers(t *testing.T) {
 			wantCode: ExitUsage,
 		},
 		{
-			name:     "should count an uncovered record as a record and not a request",
-			args:     with("-o", "values", "-i", "lines", "--stats"),
-			stdin:    "a\nb\n",
-			mock:     lines(mockAll, mockUnread),
-			stderr:   []string{"2 records, 1 failed, 1 answered from the mock, 3 questions answered, "},
+			name:  "should count an uncovered record as a record and not a request",
+			args:  with("-o", "values", "-i", "lines", "--stats"),
+			stdin: "a\nb\n",
+			mock:  lines(mockAll, mockUnread),
+			stderr: []string{"2 records, 1 failed, 1 answered from the mock, 3 questions asked, 0 in / 0 out tokens, " +
+				"model jev-latest, 1 attempt, 10s/attempt, "},
 			wantCode: ExitUsage,
 		},
 		{
@@ -612,7 +632,7 @@ func TestMockUncovered(t *testing.T) {
 		t.Parallel()
 
 		out, errOut, code := runMocked(t, t.Context(), append(values, "--mock", writeMock(t, answers)), eight, nil, nil,
-			delaying(3, 300*time.Millisecond))
+			delaying(3, 5))
 
 		checkMocked(t, out, errOut, code, ExitUsage, fileOf(yes+"\n"+yes+"\n"), nil, nil, []string{"input line 3"})
 	})
@@ -620,11 +640,15 @@ func TestMockUncovered(t *testing.T) {
 	t.Run("should keep the lines that arrived before an uncovered record under --unordered", func(t *testing.T) {
 		t.Parallel()
 
-		out, errOut, code := runMocked(t, t.Context(),
-			append(values, "--unordered", "--mock", writeMock(t, answers)), eight, nil, nil,
-			delaying(3, 300*time.Millisecond))
+		// Held on the lines written, not the records answered, since under --unordered a record's line
+		// is written after its answer returns and would race the uncovered record's error.
+		out := &signalledLines{written: make(chan struct{}, 8)}
 
-		checkMocked(t, out, errOut, code, ExitUsage, fileOf(strings.Repeat(yes+"\n", 7)), nil, nil,
+		errOut, code := runMockedTo(t, t.Context(), out,
+			append(values, "--unordered", "--mock", writeMock(t, answers)), eight, nil, nil,
+			holding(3, 7, out.written, nil))
+
+		checkMocked(t, out.String(), errOut, code, ExitUsage, fileOf(strings.Repeat(yes+"\n", 7)), nil, nil,
 			[]string{"input line 3"})
 	})
 
@@ -651,7 +675,7 @@ func TestMockUncovered(t *testing.T) {
 		}
 
 		_, errOut, code := runMocked(t, t.Context(), append(args, "--mock", writeMock(t, partial.String())),
-			stdin.String(), nil, nil, delaying(3, 300*time.Millisecond))
+			stdin.String(), nil, nil, delaying(3, 5))
 		if code != ExitUsage || !strings.Contains(errOut, "no line with id 'c'") {
 			t.Fatalf("first run exit %d\n%s", code, errOut)
 		}
@@ -855,18 +879,12 @@ func TestMockResume(t *testing.T) {
 
 		out := filepath.Join(t.TempDir(), "answers.jsonl")
 		mockFile := writeMock(t, full)
-		args := append(append([]string{}, question...), "--out", out, "--resume", "--mock", mockFile)
+		args := append(append([]string{}, question...), "--out", out, "--resume", "--mock", mockFile, "-j", "1")
 
 		ctx, cancel := context.WithCancel(t.Context())
 		defer cancel()
 
-		interrupting := &cancellingReader{data: input, after: 2, cancel: cancel, ready: func() bool {
-			data, err := os.ReadFile(out)
-
-			return err == nil && bytes.Count(data, []byte("\n")) >= 1
-		}}
-
-		_, errOut, code := runMocked(t, ctx, args, "", nil, interrupting)
+		_, errOut, code := runMocked(t, ctx, args, input, nil, nil, interruptingAt(2, cancel))
 		if code != ExitInterrupt {
 			t.Fatalf("first run exit %d, want 130\n%s", code, errOut)
 		}
@@ -974,7 +992,7 @@ func TestMockAnswerer_Answer(t *testing.T) {
 	questions := onesie.Questions{{ID: "answer", Question: onesie.Noul{Instructions: "q"}}}
 	known := []plan.Question{{ID: "answer", Shape: plan.Noul}}
 
-	asker := func(t *testing.T, file string, provider onesie.Provider) (mockAnswerer, *collector) {
+	asker := func(t *testing.T, file string, provider onesie.Provider, retries int) (mockAnswerer, *collector) {
 		t.Helper()
 
 		answers, err := mock.Load(strings.NewReader(file), known, mock.Options{})
@@ -983,8 +1001,14 @@ func TestMockAnswerer_Answer(t *testing.T) {
 		}
 
 		stats := &collector{}
+		settings := rootSettings{lookupEnv: lookupFrom(map[string]string{}), now: time.Now}
 
-		return mockAnswerer{answers: answers, stats: stats, provider: provider}, stats
+		client, err := mockClient(settings, runConfig{runFlags: runFlags{retries: retries}}, provider, stats)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		return mockAnswerer{answers: answers, provider: provider, live: newLiveAnswerer(client)}, stats
 	}
 
 	t.Run("should count no attempt for a request the provider refuses", func(t *testing.T) {
@@ -995,7 +1019,7 @@ func TestMockAnswerer_Answer(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		a, stats := asker(t, `{"answer":0.9}`, onesie.Levanto())
+		a, stats := asker(t, `{"answer":0.9}`, onesie.Levanto(), 0)
 
 		_, err = a.answer(t.Context(), recordKey{position: 1}, onesie.Request{
 			Model: onesie.Levanto().DefaultModel(), State: map[string]any{"photo": "img"}, Questions: questions,
@@ -1013,7 +1037,7 @@ func TestMockAnswerer_Answer(t *testing.T) {
 	t.Run("should refuse an entry that leaves a question the request asks unanswered", func(t *testing.T) {
 		t.Parallel()
 
-		a, _ := asker(t, `{"answer":0.9}`, onesie.TypeSafe())
+		a, _ := asker(t, `{"answer":0.9}`, onesie.TypeSafe(), 0)
 
 		_, err := a.answer(t.Context(), recordKey{position: 1}, onesie.Request{
 			Model: "m", State: "s", Questions: onesie.Questions{
@@ -1032,7 +1056,7 @@ func TestMockAnswerer_Answer(t *testing.T) {
 	t.Run("should refuse a request ValidateRequest refuses before the provider sees it", func(t *testing.T) {
 		t.Parallel()
 
-		a, stats := asker(t, `{"answer":0.9}`, onesie.Cloudflare())
+		a, stats := asker(t, `{"answer":0.9}`, onesie.Cloudflare(), 0)
 
 		_, err := a.answer(t.Context(), recordKey{position: 1}, onesie.Request{
 			Model: "m", State: "s",
@@ -1050,7 +1074,7 @@ func TestMockAnswerer_Answer(t *testing.T) {
 	t.Run("should answer with the request's model", func(t *testing.T) {
 		t.Parallel()
 
-		a, stats := asker(t, `{"answer":0.9}`, onesie.TypeSafe())
+		a, stats := asker(t, `{"answer":0.9}`, onesie.TypeSafe(), 0)
 
 		got, err := a.answer(t.Context(), recordKey{position: 1}, onesie.Request{
 			Model: "other", State: "s", Questions: questions,
@@ -1068,10 +1092,33 @@ func TestMockAnswerer_Answer(t *testing.T) {
 		}
 	})
 
+	t.Run("should retry a retried entry as a live one is, without waiting", func(t *testing.T) {
+		t.Parallel()
+
+		a, stats := asker(t, `{"error":503}`, onesie.TypeSafe(), 2)
+
+		started := time.Now()
+
+		_, err := a.answer(t.Context(), recordKey{position: 1}, onesie.Request{
+			Model: "m", State: "s", Questions: questions,
+		})
+		if err == nil || !strings.Contains(err.Error(), "503 status code, no body") {
+			t.Fatalf("error = %v, want the mocked 503", err)
+		}
+
+		if got := stats.snapshot(0); got.Attempts != 3 || got.Retries[http.StatusServiceUnavailable] != 3 {
+			t.Errorf("attempts = %d, failed 503 attempts = %v, want 3 and 3", got.Attempts, got.Retries)
+		}
+
+		if waited := time.Since(started); waited > time.Second {
+			t.Errorf("the retries took %s, want no wait", waited)
+		}
+	})
+
 	t.Run("should pass an error entry's error on", func(t *testing.T) {
 		t.Parallel()
 
-		a, _ := asker(t, `{"error":402}`, onesie.TypeSafe())
+		a, _ := asker(t, `{"error":402}`, onesie.TypeSafe(), 0)
 
 		got, err := a.answer(t.Context(), recordKey{position: 1}, onesie.Request{
 			Model: "m", State: "s", Questions: questions,
@@ -1092,6 +1139,19 @@ func runMocked(
 ) (string, string, int) {
 	t.Helper()
 
+	var out bytes.Buffer
+
+	errOut, code := runMockedTo(t, ctx, &out, args, stdin, env, reader, extra...)
+
+	return out.String(), errOut, code
+}
+
+func runMockedTo(
+	t *testing.T, ctx context.Context, out io.Writer, args []string, stdin string, env map[string]string,
+	reader io.Reader, extra ...RootOption,
+) (string, int) {
+	t.Helper()
+
 	lookup := map[string]string{"ONESIE_CONFIG_DIR": t.TempDir()}
 	for name, value := range env {
 		lookup[name] = value
@@ -1101,7 +1161,7 @@ func runMocked(
 		reader = strings.NewReader(stdin)
 	}
 
-	var out, errOut bytes.Buffer
+	var errOut bytes.Buffer
 
 	opts := []RootOption{
 		withKeychain(noKeychain()),
@@ -1118,13 +1178,13 @@ func runMocked(
 
 	root := NewRootCmd(BuildInfo{Version: "1.2.3"}, append(opts, extra...)...)
 
-	root.Command.SetOut(&out)
+	root.Command.SetOut(out)
 	root.Command.SetErr(&errOut)
 	root.Command.SetArgs(args)
 
 	code := root.Execute(ctx)
 
-	return out.String(), errOut.String(), code
+	return errOut.String(), code
 }
 
 func runReal(t *testing.T, args []string, stdin, base string) (string, string, int) {
@@ -1205,69 +1265,120 @@ func readText(t *testing.T, path string) string {
 	return string(data)
 }
 
-func (r *cancellingReader) Read(p []byte) (int, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	if r.lines == r.after {
-		// Held until a line is on disk, so the run the interrupt ends has something to resume from.
-		for deadline := time.Now().Add(5 * time.Second); !r.ready() && time.Now().Before(deadline); {
-			time.Sleep(5 * time.Millisecond)
-		}
-
-		r.cancel()
-
-		return 0, context.Canceled
-	}
-
-	end := strings.IndexByte(r.data[r.offset:], '\n')
-	if end < 0 {
-		return 0, io.EOF
-	}
-
-	n := copy(p, r.data[r.offset:r.offset+end+1])
-	r.offset += n
-	r.lines++
-
-	return n, nil
-}
-
-type cancellingReader struct {
-	mu     sync.Mutex
-	data   string
-	offset int
-	lines  int
-	after  int
-	cancel context.CancelFunc
-	ready  func() bool
-}
-
-func delaying(position int, delay time.Duration) RootOption {
+func interruptingAt(position int, interrupt context.CancelFunc) RootOption {
 	return func(s *rootSettings) {
-		s.wrapAnswerer = func(inner answerer) answerer {
-			return delayedAnswerer{inner: inner, position: position, delay: delay}
+		s.answerers = func(next answererFactory) answererFactory {
+			return func(ctx context.Context, stats *collector) (answerer, error) {
+				inner, err := next(ctx, stats)
+				if err != nil {
+					return nil, err
+				}
+
+				return interruptingAnswerer{inner: inner, position: position, interrupt: interrupt}, nil
+			}
 		}
 	}
 }
 
-func (d delayedAnswerer) answer(ctx context.Context, key recordKey, req onesie.Request) (reply, error) {
-	if key.position == d.position {
+func (a interruptingAnswerer) answer(ctx context.Context, key recordKey, req onesie.Request) (reply, error) {
+	if key.position != a.position {
+		return a.inner.answer(ctx, key, req)
+	}
+
+	// Under -j 1 the engine asks a record only once the record before it is written, so an
+	// interrupt as this record is asked leaves exactly the lines before it.
+	a.interrupt()
+
+	return reply{}, ctx.Err()
+}
+
+func (a interruptingAnswerer) salt(key recordKey) (string, bool) {
+	return a.inner.salt(key)
+}
+
+type interruptingAnswerer struct {
+	inner     answerer
+	position  int
+	interrupt context.CancelFunc
+}
+
+func delaying(position, others int) RootOption {
+	answered := make(chan struct{}, 64)
+
+	return holding(position, others, answered, answered)
+}
+
+func holding(position, others int, released <-chan struct{}, answered chan<- struct{}) RootOption {
+	return func(s *rootSettings) {
+		s.answerers = func(next answererFactory) answererFactory {
+			return func(ctx context.Context, stats *collector) (answerer, error) {
+				inner, err := next(ctx, stats)
+				if err != nil {
+					return nil, err
+				}
+
+				return heldAnswerer{
+					inner: inner, position: position, others: others, released: released, answered: answered,
+				}, nil
+			}
+		}
+	}
+}
+
+func (h heldAnswerer) answer(ctx context.Context, key recordKey, req onesie.Request) (reply, error) {
+	if key.position != h.position {
+		got, err := h.inner.answer(ctx, key, req)
+		if h.answered != nil {
+			h.answered <- struct{}{}
+		}
+
+		return got, err
+	}
+
+	for range h.others {
 		select {
-		case <-time.After(d.delay):
+		case <-h.released:
 		case <-ctx.Done():
 			return reply{}, ctx.Err()
 		}
 	}
 
-	return d.inner.answer(ctx, key, req)
+	return h.inner.answer(ctx, key, req)
 }
 
-func (d delayedAnswerer) salt(key recordKey) (string, bool) {
-	return d.inner.salt(key)
+func (h heldAnswerer) salt(key recordKey) (string, bool) {
+	return h.inner.salt(key)
 }
 
-type delayedAnswerer struct {
+type heldAnswerer struct {
 	inner    answerer
 	position int
-	delay    time.Duration
+	others   int
+	released <-chan struct{}
+	answered chan<- struct{}
+}
+
+func (w *signalledLines) Write(p []byte) (int, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	n, err := w.out.Write(p)
+	for range bytes.Count(p[:n], []byte("\n")) {
+		w.written <- struct{}{}
+	}
+
+	return n, err
+}
+
+func (w *signalledLines) String() string {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	return w.out.String()
+}
+
+type signalledLines struct {
+	mu      sync.Mutex
+	out     bytes.Buffer
+	written chan struct{}
 }

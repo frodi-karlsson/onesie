@@ -27,6 +27,7 @@ import (
 	"github.com/santhosh-tekuri/jsonschema/v6"
 
 	"github.com/frodi-karlsson/onesie-go"
+	"github.com/frodi-karlsson/onesie/internal/plan"
 	"github.com/frodi-karlsson/onesie/internal/qfile"
 )
 
@@ -742,12 +743,7 @@ func wireBody(t *testing.T, data []byte) string {
 		t.Fatalf("Load: %v\nfile was\n%s", err, data)
 	}
 
-	questions := make(onesie.Questions, 0, len(file.Questions))
-	for _, question := range file.Questions {
-		questions = append(questions, onesie.NamedQuestion{ID: question.ID, Question: wire(question)})
-	}
-
-	encoded, err := json.Marshal(questions)
+	encoded, err := json.Marshal(plan.WireAll(file.Questions))
 	if err != nil {
 		t.Fatalf("marshalling the wire body: %v", err)
 	}

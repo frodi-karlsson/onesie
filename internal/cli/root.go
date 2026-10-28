@@ -180,7 +180,7 @@ func runRoot(
 	recorder *argv.Recorder,
 ) (err error) {
 	defer func() {
-		err = withKeyHint(withDashQuestionHint(err, cmd.Flags(), settings.args, args), settings)
+		err = withKeyHint(withDashQuestionHint(err, cmd.Flags(), settings.args, args), settings, flags.mock)
 	}()
 
 	// Not cobra's own version flag, which prints before any argument is checked.
@@ -399,6 +399,7 @@ func defaultSettings(info BuildInfo) rootSettings {
 		readSecret:    func() (string, error) { return readHiddenSecret(os.Stdin) },
 		schemaURL:     schemaURLOf(info),
 		dedupLimit:    limits.MaxDedupRequests,
+		answerers:     func(answers answererFactory) answererFactory { return answers },
 		readBuiltIn:   questions.Read,
 		builtIns:      questions.Names,
 		transport:     http.DefaultTransport,
@@ -928,7 +929,7 @@ type rootSettings struct {
 	credStore     creds.Store
 	keychain      *creds.Keychain
 	readSecret    func() (string, error)
-	wrapAnswerer  func(answerer) answerer
+	answerers     func(answererFactory) answererFactory
 	schemaURL     string
 	dedupLimit    int
 	readBuiltIn   func(name string) ([]byte, bool)

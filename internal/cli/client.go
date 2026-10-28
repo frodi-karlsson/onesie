@@ -42,13 +42,7 @@ func clientBuilder(info BuildInfo, flags *runFlags, settings rootSettings) clien
 
 		opts = append(opts, chosen.options(flags.baseURL, profileKey(settings, chosen), settings.lookupEnv)...)
 
-		// Started from the default rather than a zero value, because a Go struct cannot tell an
-		// unset field from a zero one and the policy carries seven fields this run does not touch.
-		policy := onesie.DefaultRetryPolicy()
-		policy.MaxRetries = flags.retries
-		policy.MaxRetryAfter = time.Duration(flags.maxRetryAfter) * time.Second
-
-		opts = append(opts, onesie.WithRetry(policy))
+		opts = append(opts, onesie.WithRetry(retryPolicy(*flags)))
 
 		// Last, so a caller that needs the attempt observer or any other per run option wins over
 		// what the flags asked for.
@@ -85,6 +79,16 @@ func clientBuilder(info BuildInfo, flags *runFlags, settings rootSettings) clien
 
 		return client, nil
 	}
+}
+
+func retryPolicy(flags runFlags) onesie.RetryPolicy {
+	// Started from the default, because a Go struct cannot tell an unset field from a zero one and
+	// the policy carries seven fields this run does not touch.
+	policy := onesie.DefaultRetryPolicy()
+	policy.MaxRetries = flags.retries
+	policy.MaxRetryAfter = time.Duration(flags.maxRetryAfter) * time.Second
+
+	return policy
 }
 
 func runOptions(flags runConfig, stats *collector) []onesie.Option {

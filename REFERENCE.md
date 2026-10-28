@@ -133,13 +133,16 @@ ONESIE_MOCK=answers.json ./gate.sh
 - An entry answers every question the run asks. The file is checked against the questions before
   any record, and an unknown question id, a missing answer, a value of the wrong shape or a name
   that is not an option exits 2, naming the line.
-- `{"error": N}` with a status from 400 to 599 fails the record as that status does with no body,
-  as in `onesie: 503 status code, no body`, `{"error": "timeout"}` as a timeout after `--timeout`,
-  and `{"error": "connection"}` as a transport failure, as in
-  `onesie: could not reach mock.invalid: mock connection error`. An error object as `-o json`
-  writes it replays by its `kind`, and a `response` one fails as
-  `200 response could not be used: mock response onesie could not use`. An `http` one may carry
-  the JSON `body` the server sends, as in
+- Each entry is what the server sends, and onesie's own client reads it, so a 408, 429 or 5xx
+  status, a timeout and a dropped connection are retried as a live one is, at once, with no wait.
+  `{"error": N}` with a status from 400 to 599 fails the record as that status does with no body,
+  as in `onesie: 503 status code, no body`, `{"error": "timeout"}` as a timeout the connection
+  reports, as in `onesie: request to mock.invalid:443 timed out`, and `{"error": "connection"}` as
+  a transport failure, as in `onesie: could not reach mock.invalid: mock connection error`. An
+  error object as `-o json` writes it replays by its `kind`, and a `response` one is a 200 with no
+  answers, which fails as
+  `200 response could not be used: the response is not a System One result, since it has no answers`.
+  An `http` one may carry the JSON `body` the server sends, as in
   `{"error": {"kind": "http", "status": 400, "body": {"detail": "Unknown model: jev-latest"}}}`,
   and then fails and advises as a live response with that body does. A string `body` is the raw
   response text, so `"body": "<html>nope</html>"` reads as a live HTML page does, with the advice
@@ -159,8 +162,8 @@ ONESIE_MOCK=answers.json ./gate.sh
   whose profile holds a dummy `api_key`, since every profile must hold a key. A mock run uses no
   key, opens no network, and ignores `--base-url` and the cloudflare account. It prints the model
   the run resolved wherever a model is shown, and `--usage` reports zero tokens. `--stats` counts
-  no requests, tokens or attempts, as in
-  `2 records answered from the mock, 2 questions answered, 0s`.
+  the attempts and retries as a live run does, with zero tokens and no cost, as in
+  `2 records answered from the mock, 2 questions asked, 0 in / 0 out tokens, model jev-latest, 2 attempts, 10s/attempt, 0s`.
 - The `--out` fingerprint marks the run as a mock, so a real run refuses to resume a mock run's
   file and the other way round. The mock file's content is not part of it.
 - `calibrate --mock` works, so a calibration can be tested too. Its `-o json` report carries

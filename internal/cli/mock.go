@@ -14,8 +14,10 @@ import (
 )
 
 const (
-	envMock  = "ONESIE_MOCK"
-	flagMock = "--mock"
+	envMock     = "ONESIE_MOCK"
+	flagMock    = "--mock"
+	mockKey     = "mock-key"
+	mockBaseURL = "https://mock.invalid"
 )
 
 func mockSource(lookupEnv func(string) (string, bool), flag string) (path, spelled string) {
@@ -44,8 +46,7 @@ func mockAnswers(
 	}
 
 	answers, err := mock.Load(bytes.NewReader(data), known, mock.Options{
-		ByID: flags.idSource != "", Spelled: flags.mockSpelled, Timeout: time.Duration(flags.timeout) * time.Second,
-		Asked: asked,
+		ByID: flags.idSource != "", Spelled: flags.mockSpelled, Asked: asked,
 	})
 	if err != nil {
 		return nil, err
@@ -54,23 +55,41 @@ func mockAnswers(
 	return func(_ context.Context, stats *collector) (answerer, error) {
 		stats.answerFromMock()
 
-		return mockAnswerer{answers: answers, stats: stats, provider: provider}, nil
-	}, nil
-}
-
-func wrapped(settings rootSettings, answers answererFactory) answererFactory {
-	if settings.wrapAnswerer == nil {
-		return answers
-	}
-
-	return func(ctx context.Context, stats *collector) (answerer, error) {
-		inner, err := answers(ctx, stats)
+		client, err := mockClient(settings, flags, provider, stats)
 		if err != nil {
 			return nil, err
 		}
 
-		return settings.wrapAnswerer(inner), nil
+		return mockAnswerer{answers: answers, provider: provider, live: newLiveAnswerer(client)}, nil
+	}, nil
+}
+
+func mockClient(
+	settings rootSettings, flags runConfig, provider onesie.Provider, stats *collector,
+) (*onesie.Client, error) {
+	opts := []onesie.Option{
+		onesie.WithProvider(provider),
+		onesie.WithEnv(settings.lookupEnv),
+		onesie.WithAPIKey(mockKey),
+		onesie.WithBaseURL(mockBaseURL),
+		onesie.WithHTTPClient(&http.Client{Transport: mock.NewTransport(provider)}),
+		onesie.WithClock(instantClock{now: settings.now}),
+		onesie.WithRetry(retryPolicy(flags.runFlags)),
 	}
+
+	return onesie.New(append(opts, runOptions(flags, stats)...)...)
+}
+
+func (c instantClock) Now() time.Time {
+	return c.now()
+}
+
+func (instantClock) Sleep(ctx context.Context, _ time.Duration) error {
+	return ctx.Err()
+}
+
+type instantClock struct {
+	now func() time.Time
 }
 
 func (a mockAnswerer) answer(ctx context.Context, key recordKey, req onesie.Request) (reply, error) {
@@ -87,24 +106,7 @@ func (a mockAnswerer) answer(ctx context.Context, key recordKey, req onesie.Requ
 		return reply{}, &uncoveredError{message: a.answers.Missing(key.position, key.id, key.line)}
 	}
 
-	needs := req.Needs()
-
-	result, err := entry.Result(a.provider, req.Model, needs)
-	a.stats.observe(mockAttempt(err))
-
-	if err != nil {
-		return reply{}, explain(err, requestFacts{
-			provider: a.provider, model: req.Model, longContext: req.LongContext, boxed: needs.Box,
-		})
-	}
-
-	if fault := result.Check(req.Questions); fault != nil {
-		return reply{}, &onesie.ResponseError{Status: http.StatusOK, Err: fault}
-	}
-
-	result.Model = req.Model
-
-	return reply{result: result}, nil
+	return a.live.answer(mock.WithEntry(ctx, entry, req.Model), key, req)
 }
 
 func (a mockAnswerer) salt(key recordKey) (string, bool) {
@@ -118,24 +120,10 @@ func (a mockAnswerer) salt(key recordKey) (string, bool) {
 	return entry.Key(), true
 }
 
-func mockAttempt(err error) onesie.Attempt {
-	var api *onesie.APIError
-	if errors.As(err, &api) {
-		return onesie.Attempt{Status: api.Status, Err: err}
-	}
-
-	var connection *onesie.ConnectionError
-	if errors.As(err, &connection) {
-		return onesie.Attempt{Err: err}
-	}
-
-	return onesie.Attempt{Status: http.StatusOK}
-}
-
 type mockAnswerer struct {
 	answers  *mock.Answers
-	stats    *collector
 	provider onesie.Provider
+	live     liveAnswerer
 }
 
 func (e *uncoveredError) Error() string {

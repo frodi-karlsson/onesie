@@ -2,7 +2,6 @@ package cli
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -102,7 +101,7 @@ func warnUncarried(w io.Writer, loaded *qfile.File) error {
 }
 
 func printRequest(w io.Writer, provider onesie.Provider, req onesie.Request, stated bool) error {
-	encode := marshalQuestionsBody
+	encode := onesie.MarshalQuestionsBody
 	if stated {
 		encode = onesie.MarshalBody
 
@@ -121,15 +120,6 @@ func printRequest(w io.Writer, provider onesie.Provider, req onesie.Request, sta
 	return written(err)
 }
 
-func marshalQuestionsBody(req onesie.Request) ([]byte, error) {
-	// MarshalBody writes a null state, which is a legitimate state, so a body without one leaves the key out.
-	return json.Marshal(struct {
-		Model       string           `json:"model"`
-		Questions   onesie.Questions `json:"questions"`
-		LongContext bool             `json:"long_context,omitempty"`
-	}{Model: req.Model, Questions: req.Questions, LongContext: req.LongContext})
-}
-
 func streamRequests(
 	cmd *cobra.Command,
 	settings rootSettings,
@@ -144,7 +134,7 @@ func streamRequests(
 
 	run := &requestRun{
 		built: inv.plan, mapper: inv.mapper, images: inv.images, provider: chosen.provider,
-		model: chosen.modelFor(inv.plan.Model, settings.lookupEnv), questions: wireAll(inv.plan.Questions),
+		model: chosen.modelFor(inv.plan.Model, settings.lookupEnv), questions: plan.WireAll(inv.plan.Questions),
 	}
 	source := records(cmd.Context(), settings, flags.inputMode, flags, inv.namer, nil, resume, output.JSON)
 

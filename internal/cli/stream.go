@@ -84,7 +84,7 @@ func newStreamRun(cmd *cobra.Command, in streamInputs) (*streamRun, error) {
 	out := cmd.OutOrStdout()
 	run := &streamRun{
 		flags: in.flags, built: inv.plan, mapper: inv.mapper, images: inv.images, gate: inv.gate,
-		abstain: inv.abstain, asker: asker, model: model, questions: wireAll(inv.plan.Questions), stats: in.stats,
+		abstain: inv.abstain, asker: asker, model: model, questions: plan.WireAll(inv.plan.Questions), stats: in.stats,
 		source: records(cmd.Context(), in.settings, in.flags.inputMode, in.flags, inv.namer, book, resume, in.outputMode),
 		book:   book, answers: in.answers, out: out, errOut: cmd.ErrOrStderr(), outputMode: in.outputMode,
 		table: delimited(

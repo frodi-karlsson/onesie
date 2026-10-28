@@ -3,8 +3,6 @@ package mock
 import (
 	"bytes"
 	"testing"
-
-	"github.com/frodi-karlsson/onesie-go"
 )
 
 func FuzzLoad(f *testing.F) {
@@ -28,12 +26,11 @@ func FuzzLoad(f *testing.F) {
 				continue
 			}
 
-			result, resultErr := entry.Result(onesie.TypeSafe(), "", onesie.Needs{})
-			if resultErr != nil {
+			if entry.answers == nil {
 				continue
 			}
 
-			answer, err := result.Noul("u")
+			answer, err := resultOf(entry).Noul("u")
 			if err != nil {
 				t.Fatalf("a loaded entry has no yes/no answer: %v", err)
 			}

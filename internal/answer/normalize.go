@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"maps"
 	"math"
-	"sort"
+	"slices"
 	"strconv"
 
 	"github.com/frodi-karlsson/onesie-go"
@@ -111,7 +111,7 @@ func normalizeScore(q plan.Question, raw *onesie.ScoreAnswer) *Answer {
 
 	if !q.Labelled {
 		// Result.Check proved the keys are exactly the level indexes.
-		indexes := sortedIndexes(raw.Probabilities)
+		indexes := onesie.NumericOrder(slices.Collect(maps.Keys(raw.Probabilities)))
 
 		out.Value = modal(indexes, raw.Probabilities)
 		out.Legend = raw.Legend
@@ -165,19 +165,6 @@ type Edges struct {
 func (e Edges) String() string {
 	return fmt.Sprintf("left %s  top %s  right %s  bottom %s",
 		num.Format(e.Left), num.Format(e.Top), num.Format(e.Right), num.Format(e.Bottom))
-}
-
-// SumFits reports a distribution's sum, rounded to four places, and whether it is 1 within 0.02.
-func SumFits(probabilities []float64) (float64, bool) {
-	sum := 0.0
-	for _, value := range probabilities {
-		sum += value
-	}
-
-	// A provider that writes two places per entry leaves the sum a hundredth or two off 1.
-	const tolerance = 0.02
-
-	return num.Rounded(sum), math.Abs(sum-1) <= tolerance+1e-9
 }
 
 // Answer is the normalized shape for one question. Absent fields are omitted, which is what makes
@@ -237,28 +224,6 @@ func (p Probabilities) MarshalJSON() ([]byte, error) {
 	}
 
 	return append(buf, '}'), nil
-}
-
-func sortedIndexes(probabilities map[string]float64) []string {
-	keys := make([]string, 0, len(probabilities))
-	for key := range probabilities {
-		keys = append(keys, key)
-	}
-
-	// Numeric order, not lexical. Map iteration is randomized, and an unsorted or lexically sorted
-	// scan would break the lowest index tie break in modal.
-	sort.Slice(keys, func(i, j int) bool {
-		left, leftErr := strconv.Atoi(keys[i])
-		right, rightErr := strconv.Atoi(keys[j])
-
-		if leftErr != nil || rightErr != nil {
-			return keys[i] < keys[j]
-		}
-
-		return left < right
-	})
-
-	return keys
 }
 
 func modal(levels []string, probabilities map[string]float64) string {

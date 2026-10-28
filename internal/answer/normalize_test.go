@@ -254,35 +254,3 @@ func TestNormalizeAll(t *testing.T) {
 		}
 	})
 }
-
-func TestSumFits(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name    string
-		options int
-		sum     float64
-		fits    bool
-	}{
-		{name: "should accept two options summing to 0.98", options: 2, sum: 0.98, fits: true},
-		{name: "should accept two options summing to 1.02", options: 2, sum: 1.02, fits: true},
-		{name: "should refuse two options summing to 0.97", options: 2, sum: 0.97},
-		{name: "should refuse twenty options summing to 0.9", options: 20, sum: 0.9},
-		{name: "should refuse twenty options summing to 1.05", options: 20, sum: 1.05},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			probabilities := make([]float64, tc.options)
-			for i := range probabilities {
-				probabilities[i] = tc.sum / float64(tc.options)
-			}
-
-			if _, fits := answer.SumFits(probabilities); fits != tc.fits {
-				t.Errorf("SumFits = %v, want %v", fits, tc.fits)
-			}
-		})
-	}
-}

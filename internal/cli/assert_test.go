@@ -10,7 +10,6 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
-	"time"
 
 	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/cli"
@@ -415,17 +414,19 @@ func TestAsk(t *testing.T) {
 			var once sync.Once
 
 			started := make(chan struct{})
+			ended := make(chan struct{})
 
 			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				once.Do(func() { close(started) })
 
-				// Bounded rather than waiting on the request context. A net/http server only notices
-				// a client that hung up when it next reads the connection, so a handler blocked on
-				// Done would hold Close open past the test's deadline.
-				time.Sleep(200 * time.Millisecond)
+				// Held until the run has ended, not until the request context ends. A net/http server
+				// only notices a client that hung up when it next reads the connection, so a handler
+				// blocked on Done would hold Close open past the test's deadline.
+				<-ended
 				w.WriteHeader(http.StatusInternalServerError)
 			}))
 			defer srv.Close()
+			defer close(ended)
 
 			go func() {
 				<-started

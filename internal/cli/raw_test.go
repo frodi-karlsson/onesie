@@ -205,6 +205,19 @@ func TestStreamRaw(t *testing.T) {
 				wantCode:  ExitRecords,
 			},
 			{
+				name:      "should refuse a body with an unknown question type before sending it",
+				args:      []string{"-i", "request"},
+				stdin:     `{"state":"x","questions":{"a":{"type":"tarot","instructions":"q"}}}` + "\n",
+				response:  `{"answers":{}}`,
+				wantSent:  0,
+				wantLines: 1,
+				wantOut: []string{
+					`{"error":{"kind":"input"`,
+					"question 'a' has the type 'tarot', which is not noul, choice, score or box",
+				},
+				wantCode: ExitRecords,
+			},
+			{
 				name:      "should write an error record when the server rejects a body",
 				args:      []string{"-i", "request"},
 				stdin:     "{\"state\":\"one\"}\n",
@@ -445,15 +458,10 @@ func TestStreamRaw(t *testing.T) {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 
-				// The first record is held until the two behind it have been answered, so input order
+				// The first record is held until the two behind it have been written, so input order
 				// and completion order disagree and only a run that writes on completion can put the
 				// first record last.
-				var (
-					mu   sync.Mutex
-					done int
-				)
-
-				others := make(chan struct{})
+				stdout := &signalledLines{written: make(chan struct{}, 3)}
 
 				srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					body, err := io.ReadAll(r.Body)
@@ -462,15 +470,13 @@ func TestStreamRaw(t *testing.T) {
 					}
 
 					if bytes.Contains(body, []byte(`"state":0}`)) {
-						select {
-						case <-others:
-						case <-time.After(3 * time.Second):
-							t.Errorf("the later records never completed")
+						for range 2 {
+							select {
+							case <-stdout.written:
+							case <-time.After(3 * time.Second):
+								t.Errorf("the later records were never written")
+							}
 						}
-
-						// The gate says the two responses were written, not that the client has read
-						// them. A settle is the only thing that separates the two.
-						time.Sleep(200 * time.Millisecond)
 					}
 
 					w.Header().Set("Content-Type", "application/json")
@@ -478,21 +484,13 @@ func TestStreamRaw(t *testing.T) {
 					if _, err := w.Write(body); err != nil {
 						t.Errorf("writing the stub response: %v", err)
 					}
-
-					mu.Lock()
-					done++
-
-					if done == 2 {
-						close(others)
-					}
-
-					mu.Unlock()
 				}))
 				defer srv.Close()
 
-				out, errOut, code := runAgainst(
-					t, tc.args, "{\"model\":\"m\",\"answers\":{},\"state\":0}\n{\"model\":\"m\",\"answers\":{},\"state\":1}\n"+
+				errOut, code := runAgainstTo(
+					t, stdout, tc.args, "{\"model\":\"m\",\"answers\":{},\"state\":0}\n{\"model\":\"m\",\"answers\":{},\"state\":1}\n"+
 						"{\"model\":\"m\",\"answers\":{},\"state\":2}\n", srv.URL)
+				out := stdout.String()
 
 				if code != ExitOK {
 					t.Fatalf("exit code = %d, want %d\nstdout:\n%s\nstderr:\n%s",
@@ -857,7 +855,23 @@ func runAgainst(
 ) (string, string, int) {
 	t.Helper()
 
-	var out, errOut bytes.Buffer
+	var out bytes.Buffer
+
+	errOut, code := runAgainstTo(t, &out, args, stdin, baseURL, extra...)
+
+	return out.String(), errOut, code
+}
+
+func runAgainstTo(
+	t *testing.T,
+	out io.Writer,
+	args []string,
+	stdin, baseURL string,
+	extra ...RootOption,
+) (string, int) {
+	t.Helper()
+
+	var errOut bytes.Buffer
 
 	root := NewRootCmd(
 		BuildInfo{Version: "1.2.3"},
@@ -878,13 +892,13 @@ func runAgainst(
 		}, extra...)...,
 	)
 
-	root.Command.SetOut(&out)
+	root.Command.SetOut(out)
 	root.Command.SetErr(&errOut)
 	root.Command.SetArgs(args)
 
 	code := root.Execute(t.Context())
 
-	return out.String(), errOut.String(), code
+	return errOut.String(), code
 }
 
 func compareLines(got, want []string) string {
@@ -1049,53 +1063,6 @@ func TestRawRun_Send(t *testing.T) {
 			if got := stats.snapshot(0); got.InputTokens != tc.wantTokens || got.Questions != 1 {
 				t.Errorf("stats = %d input tokens over %d questions, want %d over 1",
 					got.InputTokens, got.Questions, tc.wantTokens)
-			}
-		})
-	}
-}
-
-func TestRawRun_Answered(t *testing.T) {
-	t.Parallel()
-
-	result := &onesie.Result{Model: "m", Usage: onesie.Usage{InputTokens: 3, OutputTokens: 1}}
-
-	tests := []struct {
-		name     string
-		response string
-		wantLine string
-		wantErr  bool
-		wantFail int
-	}{
-		{
-			name:     "should write a JSON response on one line",
-			response: "{\"model\":\"m\",\n\"answers\":{}}\n",
-			wantLine: `{"model":"m","answers":{}}`,
-		},
-		{
-			name:     "should write an error record for a response that is not JSON",
-			response: "not json",
-			wantLine: "compacting the response",
-			wantErr:  true,
-			wantFail: 1,
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			stats := &collector{}
-			run := &rawRun{stats: stats}
-
-			line, err := run.answered(result, []byte(tc.response), 1)
-			if (err != nil) != tc.wantErr || !strings.Contains(string(line), tc.wantLine) {
-				t.Errorf("answered = %s, %v, want a line holding %q", line, err, tc.wantLine)
-			}
-
-			got := stats.snapshot(0)
-			if got.Failed != tc.wantFail || got.Records != 1 || got.InputTokens != 3 {
-				t.Errorf("stats = %d failed of %d records with %d input tokens, want %d of 1 with 3",
-					got.Failed, got.Records, got.InputTokens, tc.wantFail)
 			}
 		})
 	}

@@ -75,8 +75,9 @@ func pinnedStreamRuns() []pinnedRun {
 				stdout: "{\"line\":1,\"answer\":0.4}\n" +
 					"{\"line\":2,\"error\":{\"kind\":\"input\",\"status\":null,\"message\":\"line 2: blank line, an empty state is a request the model cannot answer. Pass --skip-blank to drop blank lines\"}}\n" +
 					"{\"line\":3,\"answer\":0.4}\n",
-				stderr: "3 records, 1 failed, 2 answered from the mock, 2 questions answered, 0s\n",
-				code:   ExitRecords,
+				stderr: "3 records, 1 failed, 2 answered from the mock, 2 questions asked, 0 in / 0 out tokens, " +
+					"model jev-latest, 2 attempts, 10s/attempt, 0s\n",
+				code: ExitRecords,
 			}},
 		},
 		{
@@ -181,8 +182,9 @@ func pinnedStreamRuns() []pinnedRun {
 					"{\"id\":2,\"assert\":false,\"model\":\"jev-latest\",\"answer\":{\"value\":0.8}}\n" +
 					"{\"id\":3,\"model\":\"jev-latest\",\"answer\":{\"value\":0.3}}\n" +
 					"{\"id\":4,\"assert\":false,\"model\":\"jev-latest\",\"answer\":{\"value\":0.9}}\n",
-				stderr: "4 records answered from the mock, 2 false assertions, 4 questions answered, 0s\n",
-				code:   ExitRejected,
+				stderr: "4 records answered from the mock, 2 false assertions, 4 questions asked, 0 in / 0 out tokens, " +
+					"model jev-latest, 4 attempts, 10s/attempt, 0s\n",
+				code: ExitRejected,
 			}},
 		},
 		{
@@ -248,7 +250,8 @@ func pinnedStreamRuns() []pinnedRun {
 				{
 					args:  byID("-o", "json", "--out", pinnedOut, "--resume", "--stats"),
 					stdin: pinnedRecords, mock: pinnedByID,
-					stderr: "4 records, 2 skipped by --resume, 2 answered from the mock, 2 questions answered, 0s\n",
+					stderr: "4 records, 2 skipped by --resume, 2 answered from the mock, 2 questions asked, " +
+						"0 in / 0 out tokens, model jev-latest, 2 attempts, 10s/attempt, 0s\n",
 				},
 			},
 			file: true,
@@ -283,8 +286,9 @@ func pinnedStreamRuns() []pinnedRun {
 				{
 					args:  lines("-o", "json", "--out", pinnedOut, "--resume", "--stats"),
 					stdin: "a\n\nc\nd\n", mock: `{"answer":0.4}`,
-					stderr: "4 records, 3 skipped by --resume, 1 failed, 1 answered from the mock, 1 question answered, 0s\n",
-					code:   ExitRecords,
+					stderr: "4 records, 3 skipped by --resume, 1 failed, 1 answered from the mock, 1 question asked, " +
+						"0 in / 0 out tokens, model jev-latest, 1 attempt, 10s/attempt, 0s\n",
+					code: ExitRecords,
 				},
 			},
 			file: true,
@@ -324,7 +328,8 @@ func pinnedStreamRuns() []pinnedRun {
 				{
 					args:  byID("-o", "json", "--out", pinnedOut, "--resume", "--stats"),
 					stdin: pinnedRecords, mock: pinnedByID,
-					stderr: "4 records, 1 skipped by --resume, 3 answered from the mock, 3 questions answered, 0s\n",
+					stderr: "4 records, 1 skipped by --resume, 3 answered from the mock, 3 questions asked, " +
+						"0 in / 0 out tokens, model jev-latest, 3 attempts, 10s/attempt, 0s\n",
 				},
 			},
 			file: true,
@@ -533,18 +538,9 @@ func runPinned(t *testing.T, step pinnedStep, out string) (string, string, int) 
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
-	var stdin io.Reader = strings.NewReader(step.stdin)
-	if step.interruptAfter > 0 {
-		stdin = &cancellingReader{data: step.stdin, after: step.interruptAfter, cancel: cancel, ready: func() bool {
-			data, err := os.ReadFile(out)
-
-			return err == nil && bytes.Count(data, []byte("\n")) >= step.interruptAfter
-		}}
-	}
-
 	opts := []RootOption{
 		withKeychain(noKeychain()),
-		WithStdin(stdin),
+		WithStdin(strings.NewReader(step.stdin)),
 		WithStdinTTY(false),
 		WithStdoutTTY(false),
 		WithLookupEnv(lookupFrom(map[string]string{"ONESIE_CONFIG_DIR": t.TempDir()})),
@@ -554,6 +550,11 @@ func runPinned(t *testing.T, step pinnedStep, out string) (string, string, int) 
 
 	if step.mock != "" {
 		args = append(args, "--mock", writeMock(t, step.mock))
+	}
+
+	if step.interruptAfter > 0 {
+		args = append(args, "-j", "1")
+		opts = append(opts, interruptingAt(step.interruptAfter+1, cancel))
 	}
 
 	if step.dedupLimit > 0 {

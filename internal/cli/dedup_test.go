@@ -9,6 +9,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/frodi-karlsson/onesie-go"
@@ -55,64 +56,63 @@ func TestDedup_Share(t *testing.T) {
 	t.Run("should make a caller wait for the request in flight and give it that result", func(t *testing.T) {
 		t.Parallel()
 
-		shared := newDedup(10, func() error { return nil })
-		release := make(chan struct{})
-		started := make(chan struct{})
+		synctest.Test(t, func(t *testing.T) {
+			shared := newDedup(10, func() error { return nil })
+			release := make(chan struct{})
 
-		var asked atomic.Int32
+			var asked atomic.Int32
 
-		ownerDone := make(chan error, 1)
-
-		go func() {
-			_, _, _, err := shared.share(t.Context(), keyOf("a"), func() (output.Record, error) {
-				asked.Add(1)
-				close(started)
-				<-release
-
-				return answered, nil
-			})
-			ownerDone <- err
-		}()
-
-		<-started
-
-		var waiting sync.WaitGroup
-
-		results := make(chan sharedResult, dedupWorkers)
-
-		for range dedupWorkers {
-			waiting.Add(1)
+			ownerDone := make(chan error, 1)
 
 			go func() {
-				defer waiting.Done()
-
-				record, _, duplicate, err := shared.share(t.Context(), keyOf("a"), func() (output.Record, error) {
+				_, _, _, err := shared.share(t.Context(), keyOf("a"), func() (output.Record, error) {
 					asked.Add(1)
+					<-release
 
-					return output.Record{}, errors.New("a waiter asked")
+					return answered, nil
 				})
-				results <- sharedResult{record: record, duplicate: duplicate, err: err}
+				ownerDone <- err
 			}()
-		}
 
-		close(release)
-		waiting.Wait()
-		close(results)
+			synctest.Wait()
 
-		if err := <-ownerDone; err != nil {
-			t.Errorf("the owner got %v", err)
-		}
+			results := make(chan sharedResult, dedupWorkers)
 
-		if got := asked.Load(); got != 1 {
-			t.Errorf("ask ran %d times, want 1", got)
-		}
+			for range dedupWorkers {
+				go func() {
+					record, _, duplicate, err := shared.share(t.Context(), keyOf("a"), func() (output.Record, error) {
+						asked.Add(1)
 
-		var collected []sharedResult
-		for result := range results {
-			collected = append(collected, result)
-		}
+						return output.Record{}, errors.New("a waiter asked")
+					})
+					results <- sharedResult{record: record, duplicate: duplicate, err: err}
+				}()
+			}
 
-		checkShared(t, collected, answered, nil, dedupWorkers)
+			// Every waiter is blocked on the call in flight before the owner is released.
+			synctest.Wait()
+
+			if got := len(results); got != 0 {
+				t.Errorf("%d callers returned before the owner did, want 0", got)
+			}
+
+			close(release)
+
+			if err := <-ownerDone; err != nil {
+				t.Errorf("the owner got %v", err)
+			}
+
+			collected := make([]sharedResult, 0, dedupWorkers)
+			for range dedupWorkers {
+				collected = append(collected, <-results)
+			}
+
+			if got := asked.Load(); got != 1 {
+				t.Errorf("ask ran %d times, want 1", got)
+			}
+
+			checkShared(t, collected, answered, nil, dedupWorkers)
+		})
 	})
 
 	t.Run("should share a failed result with every caller, later ones included", func(t *testing.T) {

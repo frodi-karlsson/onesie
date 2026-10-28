@@ -153,7 +153,7 @@ func runPlan(
 
 	if inputMode.Streaming() {
 		if warnErr := warnIgnoredBodyState(
-			cmd.ErrOrStderr(), flags, inv.loaded, "a stream", inv.images, wireAll(built.Questions)); warnErr != nil {
+			cmd.ErrOrStderr(), flags, inv.loaded, "a stream", inv.images, plan.WireAll(built.Questions)); warnErr != nil {
 			return warnErr
 		}
 
@@ -223,7 +223,7 @@ func runOne(
 		}
 
 		model := chosen.modelFor(built.Model, settings.lookupEnv)
-		req := requestFor(built, model, wireAll(built.Questions), sent, assets)
+		req := requestFor(built, model, plan.WireAll(built.Questions), sent, assets)
 
 		return printRequest(cmd.OutOrStdout(), chosen.provider, req, resolved.Source != input.SourceNone)
 	}
@@ -372,7 +372,7 @@ func bindOut(
 		return err
 	}
 
-	return wordAnswersError(out.Bind(questions, wireAll(questions), inputs))
+	return wordAnswersError(out.Bind(questions, plan.WireAll(questions), inputs))
 }
 
 func outFingerprint(
@@ -383,7 +383,7 @@ func outFingerprint(
 		return answersfile.Print{}, err
 	}
 
-	return answersfile.Fingerprint(questions, wireAll(questions), inputs)
+	return answersfile.Fingerprint(questions, plan.WireAll(questions), inputs)
 }
 
 func runInputs(settings rootSettings, flags runConfig, inputs answersfile.FingerprintInputs) (answersfile.FingerprintInputs, error) {
@@ -661,7 +661,7 @@ func ask(
 
 	built, gate, abstain := inv.plan, inv.gate, inv.abstain
 
-	questions := wireAll(built.Questions)
+	questions := plan.WireAll(built.Questions)
 
 	model, err := resolveModel(settings, built.Model)
 	if err != nil {

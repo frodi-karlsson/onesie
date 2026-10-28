@@ -54,7 +54,7 @@ func newCalibrateCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) (err error) {
 			defer func() {
-				err = withKeyHint(withDashQuestionHint(err, cmd.Flags(), settings.args, args), settings)
+				err = withKeyHint(withDashQuestionHint(err, cmd.Flags(), settings.args, args), settings, flags.mock)
 			}()
 
 			positional := ""
@@ -180,7 +180,7 @@ func runCalibrate(
 	}
 
 	if warnErr := warnIgnoredBodyState(
-		cmd.ErrOrStderr(), flags, inv.loaded, "calibrate", inv.images, wireAll(inv.plan.Questions)); warnErr != nil {
+		cmd.ErrOrStderr(), flags, inv.loaded, "calibrate", inv.images, plan.WireAll(inv.plan.Questions)); warnErr != nil {
 		return warnErr
 	}
 

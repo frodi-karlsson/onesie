@@ -10,6 +10,7 @@ import (
 	"sync/atomic"
 	"syscall"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/frodi-karlsson/onesie/internal/engine"
@@ -71,174 +72,182 @@ func TestRunUnordered(t *testing.T) {
 	t.Run("should let a later record overtake a slow one", func(t *testing.T) {
 		t.Parallel()
 
-		// Record zero is slow, so seeing anything before it is the only assertion that tells the
-		// two modes apart. Without it an --unordered that behaved as ordered would pass every case.
-		var (
-			mu      sync.Mutex
-			written []string
-		)
+		synctest.Test(t, func(t *testing.T) {
+			// Record zero is slow, so seeing anything before it is the only assertion that tells the
+			// two modes apart. Without it an --unordered that behaved as ordered would pass every case.
+			var (
+				mu      sync.Mutex
+				written []string
+			)
 
-		if _, err := engine.Run(t.Context(), engine.Config[input.Record, string]{
-			Source: &counting{total: 20},
-			Evaluate: func(_ context.Context, rec input.Record) (string, error) {
-				if rec.Index == 0 {
-					time.Sleep(80 * time.Millisecond)
-				}
+			if _, err := engine.Run(t.Context(), engine.Config[input.Record, string]{
+				Source: &counting{total: 20},
+				Evaluate: func(_ context.Context, rec input.Record) (string, error) {
+					if rec.Index == 0 {
+						synctest.Wait()
+					}
 
-				return strconv.Itoa(rec.Index), nil
-			},
-			Write: func(line string) error {
-				mu.Lock()
-				defer mu.Unlock()
+					return strconv.Itoa(rec.Index), nil
+				},
+				Write: func(line string) error {
+					mu.Lock()
+					defer mu.Unlock()
 
-				written = append(written, line)
+					written = append(written, line)
 
-				return nil
-			},
-			Jobs:      8,
-			Unordered: true,
-		}); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+					return nil
+				},
+				Jobs:      8,
+				Unordered: true,
+			}); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
 
-		mu.Lock()
-		defer mu.Unlock()
+			mu.Lock()
+			defer mu.Unlock()
 
-		if len(written) == 0 || written[0] == "0" {
-			t.Errorf("record zero was slowest and still came first, so nothing overtook it: %v",
-				written)
-		}
+			if len(written) == 0 || written[0] == "0" {
+				t.Errorf("record zero was slowest and still came first, so nothing overtook it: %v",
+					written)
+			}
+		})
 	})
 
 	t.Run("should never exceed the job count in flight", func(t *testing.T) {
 		t.Parallel()
 
-		var (
-			live atomic.Int64
-			peak atomic.Int64
-		)
+		synctest.Test(t, func(t *testing.T) {
+			var (
+				live atomic.Int64
+				peak atomic.Int64
+			)
 
-		const jobs = 4
+			const jobs = 4
 
-		if _, err := engine.Run(t.Context(), engine.Config[input.Record, string]{
-			Source: &counting{total: 200},
-			Evaluate: func(_ context.Context, rec input.Record) (string, error) {
-				current := live.Add(1)
-				defer live.Add(-1)
+			if _, err := engine.Run(t.Context(), engine.Config[input.Record, string]{
+				Source: &counting{total: 200},
+				Evaluate: func(_ context.Context, rec input.Record) (string, error) {
+					current := live.Add(1)
+					defer live.Add(-1)
 
-				for {
-					best := peak.Load()
-					if current <= best || peak.CompareAndSwap(best, current) {
-						break
+					for {
+						best := peak.Load()
+						if current <= best || peak.CompareAndSwap(best, current) {
+							break
+						}
 					}
-				}
 
-				time.Sleep(time.Millisecond)
+					time.Sleep(time.Millisecond)
 
-				return strconv.Itoa(rec.Index), nil
-			},
-			Write:     func(string) error { return nil },
-			Jobs:      jobs,
-			Unordered: true,
-		}); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+					return strconv.Itoa(rec.Index), nil
+				},
+				Write:     func(string) error { return nil },
+				Jobs:      jobs,
+				Unordered: true,
+			}); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
 
-		if got := peak.Load(); got > jobs {
-			t.Errorf("peak in flight = %d, want at most %d", got, jobs)
-		}
+			if got := peak.Load(); got > jobs {
+				t.Errorf("peak in flight = %d, want at most %d", got, jobs)
+			}
+		})
 	})
 
 	t.Run("should stop at an abort worthy failure", func(t *testing.T) {
 		t.Parallel()
 
-		fatal := errors.New("unauthorized")
+		synctest.Test(t, func(t *testing.T) {
+			fatal := errors.New("unauthorized")
 
-		var written atomic.Int64
+			var written atomic.Int64
 
-		result, err := engine.Run(t.Context(), engine.Config[input.Record, string]{
-			Source: &counting{total: 300},
-			Evaluate: func(ctx context.Context, rec input.Record) (string, error) {
-				if rec.Index == 10 {
-					return strconv.Itoa(rec.Index), fatal
-				}
+			result, err := engine.Run(t.Context(), engine.Config[input.Record, string]{
+				Source: &counting{total: 300},
+				Evaluate: func(ctx context.Context, rec input.Record) (string, error) {
+					if rec.Index == 10 {
+						return strconv.Itoa(rec.Index), fatal
+					}
 
-				time.Sleep(2 * time.Millisecond)
+					time.Sleep(2 * time.Millisecond)
 
-				if ctx.Err() != nil {
-					return "", ctx.Err()
-				}
+					if ctx.Err() != nil {
+						return "", ctx.Err()
+					}
 
-				return strconv.Itoa(rec.Index), nil
-			},
-			Write: func(string) error {
-				written.Add(1)
+					return strconv.Itoa(rec.Index), nil
+				},
+				Write: func(string) error {
+					written.Add(1)
 
-				return nil
-			},
-			Jobs:      8,
-			Unordered: true,
-			Abort:     func(err error) bool { return errors.Is(err, fatal) },
+					return nil
+				},
+				Jobs:      8,
+				Unordered: true,
+				Abort:     func(err error) bool { return errors.Is(err, fatal) },
+			})
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if !result.Aborted {
+				t.Error("an abort worthy failure must set Aborted")
+			}
+
+			if got := written.Load(); got == 300 {
+				t.Error("the abort wrote every record, so it did not abort")
+			}
 		})
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-
-		if !result.Aborted {
-			t.Error("an abort worthy failure must set Aborted")
-		}
-
-		if got := written.Load(); got == 300 {
-			t.Error("the abort wrote every record, so it did not abort")
-		}
 	})
 
 	t.Run("should treat a closed pipe as success and not hang", func(t *testing.T) {
 		t.Parallel()
 
-		done := make(chan struct{})
+		synctest.Test(t, func(t *testing.T) {
+			done := make(chan struct{})
 
-		var (
-			result engine.Result
-			runErr error
-		)
+			var (
+				result engine.Result
+				runErr error
+			)
 
-		go func() {
-			defer close(done)
+			go func() {
+				defer close(done)
 
-			// Nothing is asserted in here. Logging to a test that has already failed its timeout
-			// panics, which would mask the hang with an unrelated failure.
-			result, runErr = engine.Run(t.Context(), engine.Config[input.Record, string]{
-				Source: &counting{total: 500},
-				Evaluate: func(_ context.Context, rec input.Record) (string, error) {
-					return strconv.Itoa(rec.Index), nil
-				},
-				Write: func(string) error {
-					// The pause makes this a real guard. Drain stops at the first write and without
-					// the pause usually returns before the workers fill the completion channel, so
-					// a missing select would go unnoticed.
-					time.Sleep(50 * time.Millisecond)
+				// Nothing is asserted in here. Logging to a test that has already failed its timeout
+				// panics, which would mask the hang with an unrelated failure.
+				result, runErr = engine.Run(t.Context(), engine.Config[input.Record, string]{
+					Source: &counting{total: 500},
+					Evaluate: func(_ context.Context, rec input.Record) (string, error) {
+						return strconv.Itoa(rec.Index), nil
+					},
+					Write: func(string) error {
+						// Waiting for every worker to block makes this a real guard. Drain stops at the
+						// first write and would otherwise usually return before the workers fill the
+						// completion channel, so a missing select would go unnoticed.
+						synctest.Wait()
 
-					return syscall.EPIPE
-				},
-				Jobs:      4,
-				Unordered: true,
-			})
-		}()
+						return syscall.EPIPE
+					},
+					Jobs:      4,
+					Unordered: true,
+				})
+			}()
 
-		select {
-		case <-done:
-		case <-time.After(5 * time.Second):
-			t.Fatal("Run did not return, a worker is blocked on the completion channel")
-		}
+			select {
+			case <-done:
+			case <-time.After(5 * time.Second):
+				t.Fatal("Run did not return, a worker is blocked on the completion channel")
+			}
 
-		if runErr != nil {
-			t.Errorf("a closed pipe is not an error, got %v", runErr)
-		}
+			if runErr != nil {
+				t.Errorf("a closed pipe is not an error, got %v", runErr)
+			}
 
-		if !result.Broken {
-			t.Error("a closed pipe must set Broken")
-		}
+			if !result.Broken {
+				t.Error("a closed pipe must set Broken")
+			}
+		})
 	})
 
 	t.Run("should end an interrupted stream", func(t *testing.T) {

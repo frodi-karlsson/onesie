@@ -242,12 +242,48 @@ func TestLoadBody(t *testing.T) {
 		{
 			name:    "should reject a noul criteria that is not a mapping",
 			doc:     `{"questions":{"a":{"type":"noul","criteria":"shouting"}}}`,
-			wantErr: "question 'a' is a noul and needs a criteria mapping",
+			wantErr: "noul question 'a' needs criteria as an object, or none",
 		},
 		{
 			name:    "should reject a noul criteria sequence",
 			doc:     `{"questions":{"a":{"type":"noul","criteria":["y","n"]}}}`,
-			wantErr: "question 'a' is a noul and needs a criteria mapping",
+			wantErr: "noul question 'a' needs criteria as an object, or none",
+		},
+		{
+			name:    "should reject a choice criteria sequence",
+			doc:     `{"questions":{"a":{"type":"choice","instructions":"q","criteria":["y","n"]}}}`,
+			wantErr: "choice question 'a' needs criteria as an object",
+		},
+		{
+			name:    "should reject a score criteria mapping",
+			doc:     `{"questions":{"a":{"type":"score","instructions":"q","criteria":{"y":"n"}}}}`,
+			wantErr: "score question 'a' needs criteria as an array",
+		},
+		{
+			name:    "should reject a box question with criteria",
+			doc:     `{"questions":{"a":{"type":"box","instructions":"q","criteria":{"y":"n"}}}}`,
+			wantErr: "box question 'a' in a request body takes no criteria",
+		},
+		{
+			name:    "should name the question that holds a value JSON cannot carry",
+			doc:     "questions: {a: {type: noul, instructions: .nan}}",
+			wantErr: "question 'a' in a request body cannot be sent: json: unsupported value: NaN",
+		},
+		{
+			name:    "should reject a question key YAML spells twice",
+			doc:     "questions:\n  1: {type: noul, instructions: a}\n  \"1\": {type: box, instructions: b}\n",
+			wantErr: `mapping key "1" already defined`,
+		},
+		{
+			name: "should reject two question keys that name the same question",
+			doc: "questions:\n  0x1: {type: noul, instructions: a}\n" +
+				"  \"1\": {type: box, instructions: b, criteria: {x: y}}\n",
+			wantErr: "question '1' is given twice in a request body",
+		},
+		{
+			name:    "should reject a question that is not a mapping",
+			doc:     `{"questions":{"a":"is it urgent"}}`,
+			wantErr: "question 'a' is not an object",
 		},
 		{
 			name: "should treat a null noul criteria as absent",

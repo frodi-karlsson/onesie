@@ -3738,14 +3738,14 @@ func TestCasesOf(t *testing.T) {
 		want   string
 	}{
 		{
-			name:   "should refuse a record with no answer to a labelled question as a 200 onesie could not use",
+			name:   "should refuse a record with no answer to a labelled question",
 			record: output.Record{},
-			want:   "200 response could not be used: question 'urgent' has no answer",
+			want:   "question 'urgent' has no answer",
 		},
 		{
-			name:   "should refuse a yes or no answer outside [0,1] as a 200 onesie could not use",
+			name:   "should refuse a yes or no answer outside [0,1]",
 			record: output.Record{Answers: []output.Named{{ID: "urgent", Answer: &answer.Answer{Value: 1.5}}}},
-			want:   "200 response could not be used: question 'urgent' answered 1.5, which lies outside [0,1]",
+			want:   "question 'urgent' answered 1.5, which lies outside [0,1]",
 		},
 	}
 
@@ -3756,8 +3756,8 @@ func TestCasesOf(t *testing.T) {
 			_, err := casesOf(built, rec, tc.record)
 
 			var unusable *onesie.ResponseError
-			if !errors.As(err, &unusable) || unusable.Status != http.StatusOK || text(err) != tc.want {
-				t.Errorf("casesOf error = %v, want a 200 ResponseError reading %q", err, tc.want)
+			if err == nil || errors.As(err, &unusable) || err.Error() != tc.want {
+				t.Errorf("casesOf error = %v, want a plain error reading %q", err, tc.want)
 			}
 		})
 	}

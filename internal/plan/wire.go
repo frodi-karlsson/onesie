@@ -1,29 +1,28 @@
-package cli
+package plan
 
-import (
-	"github.com/frodi-karlsson/onesie-go"
-	"github.com/frodi-karlsson/onesie/internal/plan"
-)
+import "github.com/frodi-karlsson/onesie-go"
 
-func wireAll(questions []plan.Question) onesie.Questions {
+// WireAll builds the questions a request sends, in the order given, for a request or a Result.Check.
+func WireAll(questions []Question) onesie.Questions {
 	wired := make(onesie.Questions, 0, len(questions))
 	for _, question := range questions {
-		wired = append(wired, onesie.NamedQuestion{ID: question.ID, Question: wire(question)})
+		wired = append(wired, onesie.NamedQuestion{ID: question.ID, Question: Wire(question)})
 	}
 
 	return wired
 }
 
-func wire(q plan.Question) onesie.Question {
+// Wire builds the question a request sends. An undescribed level of a labelled rate sends its label.
+func Wire(q Question) onesie.Question {
 	switch q.Shape {
-	case plan.Pick:
+	case Pick:
 		criteria := make(onesie.Criteria, 0, len(q.Options))
 		for _, option := range q.Options {
 			criteria = append(criteria, onesie.NamedCriterion{Name: option.Name, Desc: option.Desc})
 		}
 
 		return onesie.Choice{Instructions: q.Instructions, Criteria: criteria}
-	case plan.Rate:
+	case Rate:
 		criteria := make([]any, 0, len(q.Levels))
 
 		for _, level := range q.Levels {
@@ -40,7 +39,7 @@ func wire(q plan.Question) onesie.Question {
 		}
 
 		return onesie.Score{Instructions: q.Instructions, Criteria: criteria}
-	case plan.Box:
+	case Box:
 		return onesie.Box{Instructions: q.Instructions}
 	default:
 		if q.Criteria == nil {
