@@ -610,7 +610,7 @@ func loaderOnlyRule(stderr string) (string, bool) {
 		{name: "YAML syntax", pattern: regexp.MustCompile(`^onesie: \[\d+:\d+\] `)},
 		{name: "a YAML alias", pattern: regexp.MustCompile(`^onesie: a question file cannot use a YAML alias`)},
 		{name: "a second document", pattern: regexp.MustCompile(`^onesie: a question file is one document`)},
-		{name: "a repeated key", pattern: regexp.MustCompile(`^onesie: (\[\d+:\d+\] )?mapping key ".*" already defined`)},
+		{name: "a repeated key", pattern: regexp.MustCompile(`^onesie: (\[\d+:\d+\] )?mapping key (".*"|'.*') already defined`)},
 		{name: "the size cap", pattern: regexp.MustCompile(`^onesie: a question file is at most \d+ bytes`)},
 		{name: "a level named twice", pattern: regexp.MustCompile(`^onesie: 'rate' label '.*' is listed twice in question `)},
 		{name: "a file with no question, which --ask completes", pattern: regexp.MustCompile(`^onesie: no question given\. `)},

@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -278,12 +279,20 @@ func (n *naming) name(rec input.Record) namedRecord {
 func unwritableID(mode output.Mode, text string) error {
 	switch {
 	case mode == output.TSV && strings.ContainsAny(text, "\t\r\n"):
-		return fmt.Errorf("--id: %q holds a tab, carriage return or newline, which -o tsv cannot write", text)
+		return fmt.Errorf("--id: '%s' holds a tab, carriage return or newline, which -o tsv cannot write", escaped(text))
 	case mode == output.CSV && strings.ContainsRune(text, '\r'):
-		return fmt.Errorf("--id: %q holds a carriage return, which -o csv cannot read back", text)
+		return fmt.Errorf("--id: '%s' holds a carriage return, which -o csv cannot read back", escaped(text))
 	default:
 		return nil
 	}
+}
+
+func escaped(text string) string {
+	// The escapes show the tab or the line break the message is about, inside the single quotes every
+	// other message uses.
+	quoted := strconv.Quote(text)
+
+	return quoted[1 : len(quoted)-1]
 }
 
 func idOf(ctx context.Context, namer *jq.Expr, rec input.Record) (any, error) {

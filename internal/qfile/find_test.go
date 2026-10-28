@@ -359,8 +359,8 @@ func TestFind(t *testing.T) {
 
 		for _, value := range []string{"two.parts", ""} {
 			got, err := qfile.Find(value, env)
-			if err == nil || !strings.Contains(err.Error(), "is not a question file name") {
-				t.Errorf("Find(%q) = %+v, %v, want an error saying it is not a name", value, got, err)
+			if want := "'" + value + "' is not a question file name to look up"; err == nil || err.Error() != want {
+				t.Errorf("Find(%q) = %+v, %v, want %q", value, got, err, want)
 			}
 		}
 	})

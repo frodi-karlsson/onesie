@@ -159,7 +159,7 @@ func decodeJSONValue(decoder *json.Decoder) (any, error) {
 			}
 
 			if _, repeated := lookup(items, key); repeated {
-				return nil, fmt.Errorf("mapping key %q already defined", key)
+				return nil, fmt.Errorf("mapping key '%s' already defined", key)
 			}
 
 			value, valueErr := decodeJSONValue(decoder)
