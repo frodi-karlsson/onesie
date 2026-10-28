@@ -362,6 +362,11 @@ func readPolicy(question *plan.Question, fields yaml.MapSlice) error {
 
 		question.Policy.Fallback = &plan.Fallback{Text: text}
 
+		if label, near := plan.NearMiss(*question, text); near {
+			return fmt.Errorf("'fallback' '%s' in question '%s' is close to %s",
+				text, question.ID, plan.CloseLabel(*question, label))
+		}
+
 		// Resolved here rather than during validation, so nothing downstream depends on the order
 		// the two ran in. Unparseable text is still reported by validation.
 		if question.Shape == plan.Noul {

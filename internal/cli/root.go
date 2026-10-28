@@ -31,6 +31,7 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/output"
 	"github.com/frodi-karlsson/onesie/internal/providers"
 	"github.com/frodi-karlsson/onesie/internal/release"
+	"github.com/frodi-karlsson/onesie/internal/spelling"
 )
 
 const annotationAsksNothing = "onesie-asks-nothing"
@@ -537,7 +538,7 @@ func nearFlag(cmd *cobra.Command, name string) string {
 	best := allowance
 
 	cmd.Flags().VisitAll(func(flag *pflag.Flag) {
-		distance := editDistance(strings.ToLower(name), flag.Name)
+		distance := spelling.Distance(strings.ToLower(name), flag.Name)
 
 		switch {
 		case flag.Hidden || distance > best:

@@ -543,6 +543,18 @@ func TestReadPolicy(t *testing.T) {
 			wantErr: "'fallback' in question 'team' must be a string, got a sequence",
 		},
 		{
+			name: "should refuse a pick fallback one edit from an option, naming the question",
+			doc:  "team:\n  ask: q\n  pick: [billing, sales]\n  min_confidence: 0.7\n  fallback: billin\n",
+			wantErr: "'fallback' 'billin' in question 'team' is close to the option 'billing'. Write it exactly, " +
+				"or pick a value further from every option",
+		},
+		{
+			name: "should refuse a rate fallback that differs from a level only in case",
+			doc:  "tone:\n  ask: q\n  rate: [calm, cross]\n  min_confidence: 0.7\n  fallback: Cross\n",
+			wantErr: "'fallback' 'Cross' in question 'tone' is close to the level 'cross'. Write it exactly, " +
+				"or pick a value further from every level",
+		},
+		{
 			name:    "should name an empty fallback as null",
 			doc:     "team:\n  ask: q\n  pick: [a, b]\n  fallback:\n",
 			wantErr: "'fallback' in question 'team' must be a string, got null",

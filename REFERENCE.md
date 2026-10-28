@@ -85,6 +85,11 @@ onesie --ask urgent='is this urgent' --assert 'urgnet.value < 0.5'
   question file, and each exits 2 without one.
 - A box is gated on its edges or its confidence, as in `mug.confidence >= 0.6`, since it carries no
   policy. `-q` on a box needs `--assert`.
+- `--fallback` on a pick or rate may be any value, so low confidence can route to a value outside
+  the options, such as `human`. One that differs from an option or level only in case, or by one
+  edit when both are at least 4 characters, exits 2 as a likely typo, as in
+  `--fallback 'billin' is close to the option 'billing'`. A question file's `fallback` is checked
+  the same way, and its message names the file and the question.
 - `min`, `max`, `sum` and `avg` take numbers and nest. `==` rarely matches a `sum` or `avg`, so use
   `>=` or `<=`. There are no arithmetic operators, so weighting answers is a job for `jq`.
 - A question file carries the same expressions as `assert` and `abstain_if`. `--print-request`

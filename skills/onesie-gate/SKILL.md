@@ -99,7 +99,7 @@ onesie --ask a='destroys data' --ask b='sends credentials' --assert 'a.value < 0
 
 ### Gate a pick or rate on --min-confidence and give --fallback a human routed value.
 
-`--min-confidence` needs `--fallback`. Below the threshold `.decision` becomes the fallback text instead of the model's pick, and `.fallback` reads `low_confidence`, so a consumer routes on that field rather than trusting a low confidence guess. Above it `.decision` is the pick and `.fallback` is absent, which an assertion reads as the empty string. When the request fails, the record still carries `.decision` set to the fallback, with `.fallback` reading `error` and an `.error` beside it, and the exit code is the failure's. Under `-q` the record is not printed: a low confidence answer exits 1 and a confident one exits 0. In an assertion, `team.fallback == ""` holds only for a confident answer that arrived.
+`--min-confidence` needs `--fallback`, which may be any value, while one a typo away from an option or level exits 2. Below the threshold `.decision` becomes the fallback text instead of the model's pick, and `.fallback` reads `low_confidence`, so a consumer routes on that field rather than trusting a low confidence guess. Above it `.decision` is the pick and `.fallback` is absent, which an assertion reads as the empty string. When the request fails, the record still carries `.decision` set to the fallback, with `.fallback` reading `error` and an `.error` beside it, and the exit code is the failure's. Under `-q` the record is not printed: a low confidence answer exits 1 and a confident one exits 0. In an assertion, `team.fallback == ""` holds only for a confident answer that arrived.
 
 **Bad:**
 
