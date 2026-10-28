@@ -2,6 +2,7 @@ package answersfile
 
 import (
 	"encoding/json"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -36,6 +37,31 @@ func TestFingerprint(t *testing.T) {
 		want := "questions policies provider model map id output input merge_key assert abstain_if fallback_columns"
 		if strings.Join(names, " ") != want {
 			t.Errorf("parts = %v, want %s", names, want)
+		}
+	})
+
+	t.Run("should fit a fingerprint with every part set in the bytes the sidecar read takes", func(t *testing.T) {
+		t.Parallel()
+
+		every := FingerprintInputs{
+			Provider: "typesafe", Model: "m", MapSource: ".body", IDSource: ".id", Output: "csv", Input: "csv",
+			MergeKey: "onesie", Assert: "urgent", AbstainIf: "urgent > 0.5", SkipBlank: true,
+			Images: []string{"square.png"}, LongContext: true, Mock: true,
+		}
+
+		got, err := Fingerprint(questions, wired, every)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		written := got.String() + "\n"
+		if parts := strings.Count(written, "="); parts != reflect.TypeFor[runPrint]().NumField() {
+			t.Errorf("fingerprint %q has %d parts, want every part of the run set", written, parts)
+		}
+
+		if len(written) >= maxSidecarBytes {
+			t.Errorf("fingerprint %q is %d bytes, want fewer than the %d the sidecar read takes",
+				written, len(written), maxSidecarBytes)
 		}
 	})
 

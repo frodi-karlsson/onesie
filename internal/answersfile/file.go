@@ -25,6 +25,7 @@ const (
 	compactSuffix     = ".onesie.part"
 	forwardGap        = 64 << 10
 	maxLinks          = 40
+	maxSidecarBytes   = 1024
 )
 
 var (
@@ -739,7 +740,7 @@ func (o *File) readFingerprint() (stored string, found bool, err error) {
 		err = errors.Join(err, file.Close())
 	}()
 
-	data, err := io.ReadAll(io.LimitReader(file, 1024))
+	data, err := io.ReadAll(io.LimitReader(file, maxSidecarBytes))
 	if err != nil {
 		return "", false, fmt.Errorf("reading %s: %w", path, patherr.Inner(err))
 	}
