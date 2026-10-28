@@ -260,10 +260,9 @@ func (s *Store) Dir() string {
 	return s.dir
 }
 
-// Get returns the value stored under key, or a miss when there is none, it expired, or it cannot be
-// read as an entry. A hit counts as a use for eviction.
-func (s *Store) Get(key Key, provider, model string) ([]byte, bool, error) {
-	pinned := Pinned(provider, model)
+// Get returns the value stored under key for model, or a miss when there is none, it expired, or it
+// cannot be read as an entry. A pinned entry never expires, and a hit counts as a use for eviction.
+func (s *Store) Get(key Key, model string, pinned bool) ([]byte, bool, error) {
 	if !pinned && s.opts.AliasTTL < 0 {
 		return nil, false, nil
 	}
@@ -334,8 +333,7 @@ func (s *Store) absent(path string, readErr error) bool {
 
 // Put stores value, which must be JSON, under key. It writes a temporary file and renames it over the
 // entry, so a reader sees the old entry or the new one and never half of one.
-func (s *Store) Put(key Key, provider, model string, value []byte) error {
-	pinned := Pinned(provider, model)
+func (s *Store) Put(key Key, model string, pinned bool, value []byte) error {
 	if !pinned && s.opts.AliasTTL < 0 {
 		return nil
 	}

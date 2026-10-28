@@ -89,7 +89,7 @@ func cachedAnswers(
 			next:      newLiveAnswerer(client),
 			open:      sync.OnceValues(func() (*cache.Store, error) { return openCache(settings, flags.env.aliasTTL) }),
 			model:     model,
-			provider:  client.Provider().Name(),
+			pinned:    client.Provider().Pinned(model),
 			origin:    client.Provider().Name() + "\x00" + client.BaseURL(),
 			questions: questions,
 			warn:      warn,
@@ -160,7 +160,7 @@ func (a *cachedAnswerer) answer(ctx context.Context, key recordKey, req onesie.R
 		return a.next.answer(ctx, key, req)
 	}
 
-	value, hit, err := store.Get(cache.Key(id), a.provider, a.model)
+	value, hit, err := store.Get(cache.Key(id), a.model, a.pinned)
 	if err != nil {
 		a.fail(failed(store, err))
 
@@ -218,7 +218,7 @@ func (a *cachedAnswerer) put(store *cache.Store, id cache.Key, result *onesie.Re
 		return err
 	}
 
-	return store.Put(id, a.provider, a.model, value)
+	return store.Put(id, a.model, a.pinned, value)
 }
 
 func failed(store *cache.Store, err error) error {
@@ -238,7 +238,7 @@ type cachedAnswerer struct {
 	next      answerer
 	open      func() (*cache.Store, error)
 	model     string
-	provider  string
+	pinned    bool
 	origin    string
 	questions []plan.Question
 	warn      func(error)

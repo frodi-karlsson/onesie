@@ -129,13 +129,13 @@ func TestOpenCache(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if err := store.Put(cache.Key{1}, "typesafe", "jev-latest", []byte(`1`)); err != nil {
+		if err := store.Put(cache.Key{1}, "jev-latest", false, []byte(`1`)); err != nil {
 			t.Fatal(err)
 		}
 
 		clock = cacheEpoch.Add(91 * time.Minute)
 
-		if _, hit, err := store.Get(cache.Key{1}, "typesafe", "jev-latest"); hit || err != nil {
+		if _, hit, err := store.Get(cache.Key{1}, "jev-latest", false); hit || err != nil {
 			t.Errorf("Get at 91 minutes = %v, %v, want a miss", hit, err)
 		}
 	})
@@ -150,7 +150,7 @@ func TestOpenCache(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if err := store.Put(cache.Key{1}, "typesafe", "jev-latest", []byte(`1`)); err != nil {
+		if err := store.Put(cache.Key{1}, "jev-latest", false, []byte(`1`)); err != nil {
 			t.Fatal(err)
 		}
 
