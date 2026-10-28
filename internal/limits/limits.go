@@ -1,5 +1,4 @@
-// Package limits holds every API limit onesie enforces locally and every constant it defaults to, so
-// a binary built against stale numbers is diagnosable through --version.
+// Package limits holds the constants --version reports.
 package limits
 
 import (

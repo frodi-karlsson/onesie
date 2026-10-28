@@ -78,7 +78,7 @@ internal/formula/     renders the Homebrew formula for a release from its checks
 internal/input/       resolves where the state comes from and reads it
 internal/interrupt/   stops waiting on a read that has no deadline when the run is interrupted
 internal/jq/          compiles and runs the jq expressions --map and --id take
-internal/limits/      the API limits onesie enforces locally
+internal/limits/      the constants --version reports
 internal/mock/        reads a file of canned answers and checks it against the questions a run asks
 internal/num/         writes and rounds the numbers onesie prints, the same in every output mode
 internal/output/      encodes a normalized record in each output mode
