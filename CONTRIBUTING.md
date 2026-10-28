@@ -51,9 +51,12 @@ the live suite, the calibrated gates and releases.
 
 ## The skills check
 
-`make skills-check` dry runs every example in `skills/`, and checks each flag and subcommand the
-skills name outside their examples against the `--help` output. It reads each skill's description,
-compatibility, intro, sections and references, and each rule's short and why.
+`make skills-check` dry runs every example in `skills/` it can run without a shell. It skips an
+example with a pipe, a redirection or anything else only a shell resolves, such as a variable or a
+glob, though a trailing redirection to `/dev/null` is dropped and the example runs. It also checks
+each flag and subcommand the skills name outside their examples against the `--help` output.
+It reads each skill's description, compatibility, intro, sections and references, and each rule's
+short and why.
 
 Three kinds of mention count, so the flags of other tools are never read as onesie's:
 
