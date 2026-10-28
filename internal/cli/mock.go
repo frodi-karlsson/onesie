@@ -94,6 +94,10 @@ func (a mockAnswerer) answer(ctx context.Context, key recordKey, req onesie.Requ
 		return reply{}, err
 	}
 
+	if fault := result.Check(req.Questions); fault != nil {
+		return reply{}, &onesie.ResponseError{Status: http.StatusOK, Err: fault}
+	}
+
 	result.Model = req.Model
 
 	return reply{result: result}, nil

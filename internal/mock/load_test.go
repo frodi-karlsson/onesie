@@ -3,6 +3,7 @@ package mock
 import (
 	"encoding/json"
 	"errors"
+	"net/http"
 	"strings"
 	"testing"
 	"time"
@@ -415,9 +416,10 @@ func checkLookup(t *testing.T, answers *Answers, questions []plan.Question, look
 
 	result, err := entry.Result()
 	if look.unusable {
-		var unusable *answer.UnusableError
-		if !errors.As(err, &unusable) {
-			t.Errorf("position %d error %v, want *answer.UnusableError", look.position, err)
+		var unusable *onesie.ResponseError
+		if !errors.As(err, &unusable) || unusable.Status != http.StatusOK ||
+			err.Error() != "onesie: 200 response could not be used: mock response onesie could not use" {
+			t.Errorf("position %d error %v, want a 200 ResponseError", look.position, err)
 		}
 
 		return
@@ -456,10 +458,7 @@ func checkLookup(t *testing.T, answers *Answers, questions []plan.Question, look
 			continue
 		}
 
-		normalized, normErr := answer.Normalize(question, result.Answers[question.ID])
-		if normErr != nil {
-			t.Fatalf("question %s: %v", question.ID, normErr)
-		}
+		normalized := answer.Normalize(question, result.Answers[question.ID])
 
 		if normalized.Value != want {
 			t.Errorf("position %d question %s value %v, want %v", look.position, question.ID, normalized.Value, want)

@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -978,6 +979,25 @@ func TestMockAnswerer_Answer(t *testing.T) {
 
 		if got := stats.snapshot(0).Attempts; got != 0 {
 			t.Errorf("attempts = %d, want 0", got)
+		}
+	})
+
+	t.Run("should refuse an entry that leaves a question the request asks unanswered", func(t *testing.T) {
+		t.Parallel()
+
+		a, _ := asker(t, `{"answer":0.9}`, onesie.TypeSafe())
+
+		_, err := a.answer(t.Context(), recordKey{position: 1}, onesie.Request{
+			Model: "m", State: "s", Questions: onesie.Questions{
+				{ID: "answer", Question: onesie.Noul{Instructions: "q"}},
+				{ID: "other", Question: onesie.Noul{Instructions: "q"}},
+			},
+		})
+
+		var unusable *onesie.ResponseError
+		if !errors.As(err, &unusable) || unusable.Status != http.StatusOK ||
+			text(err) != "200 response could not be used: question 'other' has no answer" {
+			t.Errorf("error = %v, want a 200 ResponseError naming the unanswered question", err)
 		}
 	})
 

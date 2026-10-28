@@ -8,6 +8,7 @@ import (
 	"io"
 	"io/fs"
 	"maps"
+	"net/http"
 	"slices"
 
 	"github.com/spf13/cobra"
@@ -574,7 +575,9 @@ func answerTo(question plan.Question, record output.Record) (*answer.Answer, err
 }
 
 func unusableAnswerTo(id, format string, args ...any) error {
-	return &answer.UnusableError{Message: fmt.Sprintf("question '%s' ", id) + fmt.Sprintf(format, args...)}
+	return &onesie.ResponseError{
+		Status: http.StatusOK, Err: fmt.Errorf("question '%s' %s", id, fmt.Sprintf(format, args...)),
+	}
 }
 
 func unitRange(value float64) bool {

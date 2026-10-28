@@ -288,10 +288,7 @@ func evalRecord(t *testing.T, built *plan.Plan, confidence float64) output.Recor
 	record := output.Record{Model: built.Model}
 
 	for _, q := range built.Questions {
-		normalized, err := answer.Normalize(q, evalRaw(q, confidence))
-		if err != nil {
-			t.Fatalf("Normalize(%q) error = %v, want no error", q.ID, err)
-		}
+		normalized := answer.Normalize(q, evalRaw(q, confidence))
 
 		answer.Apply(q, normalized)
 		record.Answers = append(record.Answers, output.Named{ID: q.ID, Answer: normalized})
@@ -306,10 +303,7 @@ func zeroedRecord(t *testing.T, built *plan.Plan) output.Record {
 	record := output.Record{Model: built.Model}
 
 	for _, q := range built.Questions {
-		normalized, err := answer.Normalize(q, evalZeroed(q))
-		if err != nil {
-			t.Fatalf("Normalize(%q) error = %v, want no error", q.ID, err)
-		}
+		normalized := answer.Normalize(q, evalZeroed(q))
 
 		record.Answers = append(record.Answers, output.Named{ID: q.ID, Answer: normalized})
 	}

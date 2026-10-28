@@ -21,6 +21,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/answer"
 	"github.com/frodi-karlsson/onesie/internal/answersfile"
 	"github.com/frodi-karlsson/onesie/internal/calibrate"
@@ -3725,3 +3726,40 @@ const (
 {"id":"d","u":false,"t":"billing","r":"calm","body":{"urgent":0.1,"team":["billing",0.9],"tone":[0,0.9]}}
 `
 )
+
+func TestCasesOf(t *testing.T) {
+	t.Parallel()
+
+	built := &plan.Plan{Questions: []plan.Question{{ID: "urgent", Shape: plan.Noul}}}
+	rec := labelledRecord{line: 1, labels: []*calibrate.Label{{Yes: true}}}
+
+	tests := []struct {
+		name   string
+		record output.Record
+		want   string
+	}{
+		{
+			name:   "should refuse a record with no answer to a labelled question as a 200 onesie could not use",
+			record: output.Record{},
+			want:   "200 response could not be used: question 'urgent' has no answer",
+		},
+		{
+			name:   "should refuse a yes or no answer outside [0,1] as a 200 onesie could not use",
+			record: output.Record{Answers: []output.Named{{ID: "urgent", Answer: &answer.Answer{Value: 1.5}}}},
+			want:   "200 response could not be used: question 'urgent' answered 1.5, which lies outside [0,1]",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := casesOf(built, rec, tc.record)
+
+			var unusable *onesie.ResponseError
+			if !errors.As(err, &unusable) || unusable.Status != http.StatusOK || text(err) != tc.want {
+				t.Errorf("casesOf error = %v, want a 200 ResponseError reading %q", err, tc.want)
+			}
+		})
+	}
+}

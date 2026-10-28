@@ -953,10 +953,7 @@ func fullRecord(t *testing.T, built *plan.Plan, confidence float64) output.Recor
 	rec := output.Record{Model: "onesie-1.13.0"}
 
 	for _, q := range built.Questions {
-		normalized, err := answer.Normalize(q, rawAnswer(q, confidence))
-		if err != nil {
-			t.Fatalf("Normalize(%q) error = %v, want no error", q.ID, err)
-		}
+		normalized := answer.Normalize(q, rawAnswer(q, confidence))
 
 		answer.Apply(q, normalized)
 		rec.Answers = append(rec.Answers, output.Named{ID: q.ID, Answer: normalized})

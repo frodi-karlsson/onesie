@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"maps"
 	"math"
+	"net/http"
 	"slices"
 	"strconv"
 	"strings"
@@ -130,7 +131,7 @@ func writtenFailure(failure map[string]any, refused error) (*Entry, error) {
 		return connectionEntry(), nil
 	case "response":
 		return &Entry{
-			err: &answer.UnusableError{Message: "mock response onesie could not use"},
+			err: &onesie.ResponseError{Status: http.StatusOK, Err: errors.New("mock response onesie could not use")},
 			key: "error response",
 		}, nil
 	case "input":

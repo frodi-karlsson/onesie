@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/frodi-karlsson/onesie-go"
-	"github.com/frodi-karlsson/onesie/internal/answer"
 	"github.com/frodi-karlsson/onesie/internal/creds"
 	"github.com/frodi-karlsson/onesie/internal/engine"
 	"github.com/frodi-karlsson/onesie/internal/input"
@@ -200,13 +199,6 @@ func requestFailure(err error) (failure, bool) {
 	var unusable *onesie.ResponseError
 	if errors.As(err, &unusable) {
 		status := unusable.Status
-
-		return failure{kind: output.KindResponse, status: &status, code: ExitUnavailable}, true
-	}
-
-	var cannotUse *answer.UnusableError
-	if errors.As(err, &cannotUse) {
-		status := http.StatusOK
 
 		return failure{kind: output.KindResponse, status: &status, code: ExitUnavailable}, true
 	}

@@ -974,10 +974,7 @@ func answered(
 		record.Usage = &usage
 	}
 
-	normalized, normErr := answer.NormalizeAll(built.Questions, result)
-	if normErr != nil {
-		return spent(failureRecord(built, normErr), record.Usage), result.Usage, got.cached, normErr
-	}
+	normalized := answer.NormalizeAll(built.Questions, result)
 
 	for i, question := range built.Questions {
 		answer.Apply(question, normalized[i])

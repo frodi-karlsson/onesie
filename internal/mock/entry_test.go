@@ -218,10 +218,7 @@ func TestEntryResult(t *testing.T) {
 				t.Fatalf("Result: %v", err)
 			}
 
-			normalized, err := answer.Normalize(tc.question, result.Answers[tc.question.ID])
-			if err != nil {
-				t.Fatalf("Normalize: %v", err)
-			}
+			normalized := answer.Normalize(tc.question, result.Answers[tc.question.ID])
 
 			if normalized.Value != tc.value {
 				t.Errorf("value %v, want %v", normalized.Value, tc.value)
@@ -485,10 +482,7 @@ func loadNormalized(t *testing.T, question plan.Question, file string) *answer.A
 		t.Fatalf("Result: %v", err)
 	}
 
-	normalized, err := answer.Normalize(question, result.Answers[question.ID])
-	if err != nil {
-		t.Fatalf("Normalize: %v", err)
-	}
+	normalized := answer.Normalize(question, result.Answers[question.ID])
 
 	return normalized
 }
