@@ -70,7 +70,7 @@ func resolveRequirement(built *plan.Plan, gate fileGate, req calibrate.Requireme
 	question := built.Questions[index]
 	if needs := shapeNeeded(req.Measure, question.Shape); needs != "" {
 		return boundRequirement{}, fmt.Sprintf("reads %s, which needs %s, and '%s' is a %s question",
-			req.Measure, needs, question.ID, calibrate.ShapeName(question.Shape))
+			req.Measure, needs, question.ID, shapeWords(question.Shape))
 	}
 
 	resolved := boundRequirement{Requirement: req, question: index}
@@ -190,4 +190,12 @@ func writeUnmet(w io.Writer, results []calibrate.Result) (bool, error) {
 	}
 
 	return unmet, nil
+}
+
+func shapeWords(shape plan.Shape) string {
+	if shape == plan.Noul {
+		return "yes or no"
+	}
+
+	return shape.String()
 }

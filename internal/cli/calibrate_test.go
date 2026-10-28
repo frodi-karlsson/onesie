@@ -3109,7 +3109,7 @@ func TestResolveRequirements(t *testing.T) {
 		{name: "should refuse a cut with no file", require: "u.catches >= 0.5", wantErr: "no gate"},
 		{name: "should refuse at abstain with no abstain_if", file: file("assert.yaml", "assert: u.value < 0.5\n"), require: "u.catches >= 0.5 at abstain", wantErr: "abstain_if"},
 		{name: "should refuse an unknown id", file: file("plain.yaml", ""), require: "x.catches >= 0.5 at 0.5", wantErr: "unknown question 'x'"},
-		{name: "should refuse agreement on a yes/no question", file: file("plain2.yaml", ""), require: "u.agreement >= 0.5", wantErr: "'u' is a yes/no question"},
+		{name: "should refuse agreement on a yes/no question", file: file("plain2.yaml", ""), require: "u.agreement >= 0.5", wantErr: "'u' is a yes or no question"},
 		{name: "should refuse catches on a pick question", file: file("plain3.yaml", ""), require: "t.catches >= 0.5 at 0.5", wantErr: "'t' is a pick question"},
 		{name: "should refuse within_one on a pick question", file: file("plain4.yaml", ""), require: "t.within_one >= 0.5", wantErr: "'t' is a pick question"},
 		{name: "should refuse a requirement that does not parse", file: file("plain5.yaml", ""), require: "u.catches >= 95", wantErr: "write 0.95, not 95"},
