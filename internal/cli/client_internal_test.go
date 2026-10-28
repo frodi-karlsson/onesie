@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -781,9 +782,10 @@ func TestBaseURLRefusal(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name string
-		raw  string
-		want string
+		name   string
+		raw    string
+		advice string
+		want   string
 	}{
 		{
 			name: "should name the source, the shown URL and the rule", raw: "https://",
@@ -810,6 +812,13 @@ func TestBaseURLRefusal(t *testing.T) {
 			want: "--base-url http://proxy.example is plain http to a host other than this machine, so the API key " +
 				"would cross the network unencrypted. Use https, or pass --allow-http to send it anyway",
 		},
+		{
+			name: "should end plain http with the advice it is given", raw: "http://proxy.example/v1",
+			advice: storePlainHTTP,
+			want: "--base-url http://proxy.example is plain http to a host other than this machine, so the API key " +
+				"would cross the network unencrypted. Use https, or pass --allow-http to store it, and every run " +
+				"on the profile then needs --allow-http too",
+		},
 	}
 
 	for _, tc := range tests {
@@ -823,7 +832,7 @@ func TestBaseURLRefusal(t *testing.T) {
 				t.Fatalf("New = %v, want a *onesie.BaseURLError", err)
 			}
 
-			got := baseURLRefusal(refused, "--base-url")
+			got := baseURLRefusal(refused, "--base-url", cmp.Or(tc.advice, sendPlainHTTP))
 			if got.Error() != tc.want {
 				t.Errorf("Error = %q, want %q", got.Error(), tc.want)
 			}

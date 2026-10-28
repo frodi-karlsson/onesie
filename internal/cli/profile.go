@@ -501,7 +501,7 @@ func profileShow(cmd *cobra.Command, settings rootSettings, flags *runFlags, arg
 
 	var refused *onesie.BaseURLError
 	if errors.As(invalid, &refused) {
-		return baseURLRefusal(refused, sourceName)
+		return baseURLRefusal(refused, sourceName, sendPlainHTTP)
 	}
 
 	// A run refuses a malformed account, so show refuses it too. A missing account prints as none
@@ -797,22 +797,18 @@ func checkGiven(profile creds.Profile, changed func(string) bool, providerGiven 
 }
 
 func refusePlainHTTP(flags *runFlags, baseURL string) error {
-	if flags.allowHTTP {
+	// An empty base URL means none is stored.
+	if flags.allowHTTP || baseURL == "" {
 		return nil
 	}
 
-	err := onesie.RefuseInsecureBaseURL(baseURL)
-
-	// checkProfile already refused any other broken base URL, and an empty one means none is stored.
+	// checkProfile already refused any other broken base URL, so only plain http is left to refuse.
 	var refused *onesie.BaseURLError
-	if !errors.Is(err, onesie.ErrInsecureBaseURL) || !errors.As(err, &refused) {
+	if !errors.As(onesie.RefuseInsecureBaseURL(baseURL), &refused) {
 		return nil
 	}
 
-	return errors.New("--" + flagBaseURL + " " + output.Printable(refused.Shown) + " " + refused.Rule() +
-		plainHTTPReason +
-		". Use https, or pass --" + flagAllowHTTP + " to store it, and every run on the profile then needs --" +
-		flagAllowHTTP + " too")
+	return baseURLRefusal(refused, "--"+flagBaseURL, storePlainHTTP)
 }
 
 func checkProfile(profiles creds.Profiles, name string, profile creds.Profile, baseURLSource string) error {
@@ -837,7 +833,7 @@ func checkProfile(profiles creds.Profiles, name string, profile creds.Profile, b
 func checkBaseURL(baseURL, source string) error {
 	var refused *onesie.BaseURLError
 	if errors.As(onesie.ValidateBaseURL(baseURL), &refused) {
-		return baseURLRefusal(refused, source)
+		return baseURLRefusal(refused, source, sendPlainHTTP)
 	}
 
 	return nil
