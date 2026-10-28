@@ -162,8 +162,8 @@ ONESIE_MOCK=answers.json ./gate.sh
   whose profile holds a dummy `api_key`, since every profile must hold a key. A mock run uses no
   key, opens no network, and ignores `--base-url` and the cloudflare account. It prints the model
   the run resolved wherever a model is shown, and `--usage` reports zero tokens. `--stats` counts
-  no requests, tokens or attempts, as in
-  `2 records answered from the mock, 2 questions answered, 0s`.
+  the attempts and retries as a live run does, with zero tokens and no cost, as in
+  `2 records answered from the mock, 2 questions asked, 0 in / 0 out tokens, model jev-latest, 2 attempts, 10s/attempt, 0s`.
 - The `--out` fingerprint marks the run as a mock, so a real run refuses to resume a mock run's
   file and the other way round. The mock file's content is not part of it.
 - `calibrate --mock` works, so a calibration can be tested too. Its `-o json` report carries

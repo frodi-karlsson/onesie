@@ -212,14 +212,22 @@ func TestMockAnswers(t *testing.T) {
 			wantCode: ExitOK,
 		},
 		{
-			name:     "should say the records were answered from the mock under --stats",
-			args:     with("-o", "values", "-i", "lines", "--stats"),
-			stdin:    "a\nb\n",
-			mock:     mockAll,
-			stderr:   []string{"2 records answered from the mock, 6 questions answered, "},
+			name:  "should say the records were answered from the mock under --stats",
+			args:  with("-o", "values", "-i", "lines", "--stats"),
+			stdin: "a\nb\n",
+			mock:  mockAll,
+			stderr: []string{"2 records answered from the mock, 6 questions asked, 0 in / 0 out tokens, " +
+				"model jev-latest, 2 attempts, 10s/attempt, "},
 			wantCode: ExitOK,
 
-			stderrAbsent: []string{"request", "attempt", "in / "},
+			stderrAbsent: []string{"request", "$"},
+		},
+		{
+			name:     "should count the retries of a mocked 503 under --stats",
+			args:     with("-o", "values", "--state", "x", "--stats"),
+			mock:     `{"error":503}`,
+			stderr:   []string{"1 failed, 3 questions asked, 0 in / 0 out tokens, 3 attempts (2 retries: 503×2), 10s/attempt, "},
+			wantCode: ExitUnavailable,
 		},
 		{
 			name:     "should exit 3 for one record the file refuses with 401",
@@ -330,11 +338,12 @@ func TestMockAnswers(t *testing.T) {
 			wantCode: ExitUsage,
 		},
 		{
-			name:     "should count an uncovered record as a record and not a request",
-			args:     with("-o", "values", "-i", "lines", "--stats"),
-			stdin:    "a\nb\n",
-			mock:     lines(mockAll, mockUnread),
-			stderr:   []string{"2 records, 1 failed, 1 answered from the mock, 3 questions answered, "},
+			name:  "should count an uncovered record as a record and not a request",
+			args:  with("-o", "values", "-i", "lines", "--stats"),
+			stdin: "a\nb\n",
+			mock:  lines(mockAll, mockUnread),
+			stderr: []string{"2 records, 1 failed, 1 answered from the mock, 3 questions asked, 0 in / 0 out tokens, " +
+				"model jev-latest, 1 attempt, 10s/attempt, "},
 			wantCode: ExitUsage,
 		},
 		{

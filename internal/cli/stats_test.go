@@ -193,30 +193,32 @@ func TestStatsString(t *testing.T) {
 				"1 attempt, 10s/attempt, 1s",
 		},
 		{
-			name: "should say the answers came from the mock and count no requests or attempts",
+			name: "should say the answers came from the mock and count its attempts and no tokens",
 			stats: cli.Stats{
-				Mocked: true, Requests: 2, Questions: 2, Models: []string{"jev-latest"},
+				Mocked: true, Requests: 2, Questions: 2, Models: []string{"jev-latest"}, Attempts: 2,
 				AttemptTimeout: 10 * time.Second, Elapsed: 0,
 			},
-			want: "2 records answered from the mock, 2 questions answered, 0s",
+			want: "2 records answered from the mock, 2 questions asked, 0 in / 0 out tokens, model jev-latest, " +
+				"2 attempts, 10s/attempt, 0s",
 		},
 		{
 			name: "should say one record came from the mock",
 			stats: cli.Stats{
-				Mocked: true, Requests: 1, Questions: 3, Models: []string{"jev-latest"},
-				AttemptTimeout: 10 * time.Second, Elapsed: time.Second,
+				Mocked: true, Requests: 1, Questions: 3, Models: []string{"jev-latest"}, Attempts: 3,
+				Retries: map[int]int{503: 2}, AttemptTimeout: 10 * time.Second, Elapsed: time.Second,
 			},
-			want: "1 record answered from the mock, 3 questions answered, 1s",
+			want: "1 record answered from the mock, 3 questions asked, 0 in / 0 out tokens, model jev-latest, " +
+				"3 attempts (2 retries: 503×2), 10s/attempt, 1s",
 		},
 		{
 			name: "should count a mock run's records apart when a line never reached the mock",
 			stats: cli.Stats{
 				Mocked: true, Records: 3, Requests: 2, Failed: 2, Skipped: 1, FalseAsserts: 1,
-				Questions: 2, Models: []string{"jev-latest"}, AttemptTimeout: 10 * time.Second,
+				Questions: 2, Models: []string{"jev-latest"}, Attempts: 2, AttemptTimeout: 10 * time.Second,
 				Elapsed: time.Second,
 			},
 			want: "4 records, 1 skipped by --resume, 2 failed, 1 false assertion, 2 answered from the mock, " +
-				"2 questions answered, 1s",
+				"2 questions asked, 0 in / 0 out tokens, model jev-latest, 2 attempts, 10s/attempt, 1s",
 		},
 	}
 
