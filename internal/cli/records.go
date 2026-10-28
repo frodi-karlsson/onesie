@@ -305,10 +305,11 @@ func unwritableID(mode output.Mode, text string) error {
 
 func escaped(text string) string {
 	// The escapes show the tab or the line break the message is about, inside the single quotes every
-	// other message uses.
+	// other message uses. Go quotes with double quotes, so its escaped double quote is swapped for an
+	// escaped single quote.
 	quoted := strconv.Quote(text)
 
-	return quoted[1 : len(quoted)-1]
+	return strings.NewReplacer(`\"`, `"`, `'`, `\'`).Replace(quoted[1 : len(quoted)-1])
 }
 
 func idOf(ctx context.Context, namer *jq.Expr, rec input.Record) (any, error) {
