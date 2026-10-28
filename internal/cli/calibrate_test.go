@@ -853,9 +853,8 @@ func TestReadLabelled(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		settings := rootSettings{
-			stdin: strings.NewReader("{\"body\":\"a\",\"u\":true}\n{\"body\":\"b\"}\n\n{\"body\":\"c\",\"u\":1}\n"),
-		}
+		settings := defaultSettings(BuildInfo{})
+		settings.stdin = strings.NewReader("{\"body\":\"a\",\"u\":true}\n{\"body\":\"b\"}\n\n{\"body\":\"c\",\"u\":1}\n")
 		flags := runConfig{runFlags: runFlags{skipBlank: true}}
 		labels := []questionLabel{{id: "u", shape: plan.Noul, expr: label}}
 

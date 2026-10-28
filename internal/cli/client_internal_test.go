@@ -729,7 +729,8 @@ func TestProfileKey(t *testing.T) {
 			t.Parallel()
 
 			chain := workingKeychain(tc.items)
-			settings := rootSettings{keychain: creds.NewKeychain(creds.WithBackend(chain))}
+			settings := defaultSettings(BuildInfo{})
+			settings.keychain = creds.NewKeychain(creds.WithBackend(chain))
 
 			got, err := profileKey(settings, tc.run)()
 

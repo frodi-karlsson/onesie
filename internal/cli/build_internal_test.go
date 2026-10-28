@@ -59,7 +59,8 @@ func TestBuild(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			settings := rootSettings{readFile: func(string) ([]byte, error) { return []byte(tc.file), nil }}
+			settings := defaultSettings(BuildInfo{})
+			settings.readFile = func(string) ([]byte, error) { return []byte(tc.file), nil }
 			flags := runConfig{
 				runFlags: runFlags{file: "gated.yaml", input: "text", jobs: 1, quiet: tc.quiet},
 				events:   tc.events,

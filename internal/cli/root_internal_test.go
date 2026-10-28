@@ -50,7 +50,7 @@ func TestWithClientFactory(t *testing.T) {
 
 		var handed []onesie.Option
 
-		var settings rootSettings
+		settings := defaultSettings(BuildInfo{})
 
 		WithClientFactory(func(_ context.Context, opts ...onesie.Option) (*onesie.Client, error) {
 			handed = opts
