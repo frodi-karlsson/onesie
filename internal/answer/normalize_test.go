@@ -155,6 +155,19 @@ func TestNormalize(t *testing.T) {
 		})
 	}
 
+	t.Run("should panic on an answer that never passed Result.Check", func(t *testing.T) {
+		t.Parallel()
+
+		defer func() {
+			want := "answer: question 'urgent' has a <nil> answer, so Result.Check did not run before Normalize"
+			if got := recover(); got != want {
+				t.Errorf("panic = %v, want %q", got, want)
+			}
+		}()
+
+		answer.Normalize(plan.Question{ID: "urgent", Shape: plan.Noul}, nil)
+	})
+
 	t.Run("should flatten a box into its four edges and confidence", func(t *testing.T) {
 		t.Parallel()
 

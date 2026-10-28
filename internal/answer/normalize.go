@@ -27,8 +27,8 @@ func NormalizeAll(questions []plan.Question, result *onesie.Result) []*Answer {
 	return normalized
 }
 
-// Normalize turns one answer that passed Result.Check into the printed shape, keeping the API's own
-// keys when the question carries no labels.
+// Normalize turns one answer that passed Result.Check into the printed shape, and panics on one that
+// did not. A question with no labels keeps the API's own keys.
 func Normalize(q plan.Question, raw onesie.Answer) *Answer {
 	switch typed := raw.(type) {
 	case *onesie.NoulAnswer:
@@ -40,7 +40,8 @@ func Normalize(q plan.Question, raw onesie.Answer) *Answer {
 	case *onesie.BoxAnswer:
 		return normalizeBox(typed)
 	default:
-		return &Answer{}
+		panic(fmt.Sprintf(
+			"answer: question '%s' has a %T answer, so Result.Check did not run before Normalize", q.ID, raw))
 	}
 }
 
