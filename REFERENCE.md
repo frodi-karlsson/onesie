@@ -845,9 +845,10 @@ table, and `onesie calibrate --help` lists the codes calibrate uses.
   a `--base-url` unless given `--allow-http`, and the file does not record that choice, so every
   run on the profile needs `--allow-http` as well, and `profile show` prints `allow_http: needed`.
   There is no variable for it.
-- onesie adds `/v1/systemone` itself, so a base URL whose path ends in `/v1`, from
-  `--base-url`, `TYPESAFE_BASE_URL` or a profile's `base_url`, prints one warning naming where it
-  came from and the URL requests go to. It is not refused, since a proxy may use that prefix.
+- onesie adds the API path itself, such as `/v1/systemone`, so a base URL whose last segment is
+  the first segment of that path, such as `/v1`, prints one warning naming where it came from, the
+  segment and the URL requests go to. cloudflare's path is `/run`, so a cloudflare base URL ending
+  in `/v1` does not warn. It is not refused, since a proxy may use that prefix.
 - A request that never reaches the server exits 5 and names the host and the innermost cause, as
   in `onesie: could not reach api.example.com: no such host`. The host keeps its port, and the
   message never holds a URL, a query or a proxy address.

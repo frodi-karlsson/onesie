@@ -498,11 +498,11 @@ func profileShow(cmd *cobra.Command, settings rootSettings, flags *runFlags, arg
 	// Resolved as a run resolves it, which checks a hand edited profiles.json and the provider's base
 	// URL variable too, since neither passed through create.
 	baseURL, source, invalid := shown.provider.ResolveBaseURL(shown.baseURL, shown.accountID, settings.lookupEnv)
-	sourceName, given := baseURLFrom(source, "", shown, settings.lookupEnv)
+	sourceName := baseURLFrom(source, "", shown)
 
 	var refused *onesie.BaseURLError
 	if errors.As(invalid, &refused) {
-		return baseURLRefusal(refused, sourceName, given)
+		return baseURLRefusal(refused, sourceName)
 	}
 
 	// A run refuses a malformed account, so show refuses it too. A missing account prints as none
@@ -835,7 +835,7 @@ func checkProfile(profiles creds.Profiles, name string, profile creds.Profile, b
 func checkBaseURL(baseURL, source string) error {
 	var refused *onesie.BaseURLError
 	if errors.As(onesie.ValidateBaseURL(baseURL), &refused) {
-		return baseURLRefusal(refused, source, baseURL)
+		return baseURLRefusal(refused, source)
 	}
 
 	return nil
