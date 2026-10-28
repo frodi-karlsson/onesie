@@ -29,6 +29,7 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/input"
 	"github.com/frodi-karlsson/onesie/internal/limits"
 	"github.com/frodi-karlsson/onesie/internal/output"
+	"github.com/frodi-karlsson/onesie/internal/providers"
 	"github.com/frodi-karlsson/onesie/internal/release"
 )
 
@@ -112,17 +113,17 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 	root = &cobra.Command{
 		Use:   "onesie [question]",
 		Short: "Ask a System One model typed questions about state on stdin",
-		Long: "onesie is a Unix filter over the System One API, served by TypeSafe, OpenRouter, Berget, Levanto or Cloudflare.\n\n" +
+		Long: "onesie is a Unix filter over the System One API, served by " + providers.Names() + ".\n\n" +
 			"State arrives on stdin, typed answers leave on stdout, and the exit status is " +
 			"usable in a conditional.\n\n" +
 			"A run uses a profile from profiles.json in the config dir: the one --profile or ONESIE_PROFILE " +
 			"names, or the default one. A profile holds the provider, its key, in the OS keychain or the " +
-			"file, and optionally a model and a base URL or Cloudflare account. onesie profile create stores " +
-			"one, and onesie profile use makes it the default. --provider or ONESIE_PROVIDER runs without a " +
-			"profile, with the key from the provider's variable, TYPESAFE_API_KEY, OPENROUTER_API_KEY, " +
-			"BERGET_API_KEY, LEVANTO_API_KEY or CLOUDFLARE_API_TOKEN, and so does a run on typesafe when " +
-			"there are no profiles. Cloudflare also needs an account, from the profile, CLOUDFLARE_ACCOUNT_ID " +
-			"or a base URL that holds it.\n\n" +
+			"file, and optionally a model and a base URL or " + providers.WithAccounts() + " account. " +
+			"onesie profile create stores one, and onesie profile use makes it the default. --provider or " +
+			"ONESIE_PROVIDER runs without a profile, with the key from the provider's variable, " +
+			providers.KeyVariables() + ", and so does a run on typesafe when there are no profiles. On " +
+			providers.WithAccounts() + " a run also needs an account, from the profile, " +
+			providers.AccountVariables() + " or a base URL that holds it.\n\n" +
 			"--mock FILE, or ONESIE_MOCK=FILE, answers from a file instead of the API, with no key and no " +
 			"network, so a gate script can be tested for free.\n\n" +
 			"--cache, or ONESIE_CACHE=1, stores each successful response on disk and answers a repeated " +
@@ -234,8 +235,7 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 	root.Flags().StringVar(&flags.stateFile, flagStateFile, "", "read the state from this file")
 	refuseEmpty(root.Flags(), flagStateFile)
 	root.PersistentFlags().Var(choiceValue{value: &flags.provider, set: &flags.providerSet}, flagProvider,
-		"run on this provider without a profile, typesafe, openrouter, berget, levanto or cloudflare. "+
-			"Overrides ONESIE_PROVIDER")
+		"run on this provider without a profile, "+providers.Names()+". Overrides ONESIE_PROVIDER")
 	root.PersistentFlags().Var(choiceValue{value: &flags.profile, set: &flags.profileSet}, flagProfile,
 		"the profile a run uses, from profiles.json in the config dir. Also ONESIE_PROFILE, and otherwise "+
 			"the default profile, which onesie profile use sets")

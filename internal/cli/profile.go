@@ -17,6 +17,7 @@ import (
 	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/creds"
 	"github.com/frodi-karlsson/onesie/internal/output"
+	"github.com/frodi-karlsson/onesie/internal/providers"
 )
 
 const (
@@ -101,7 +102,7 @@ func newProfileCreateCmd(settings rootSettings, flags *runFlags) *cobra.Command 
 	}
 
 	cmd.Flags().StringVar(&fields.provider, flagProvider, "",
-		"the profile's provider, typesafe, openrouter, berget, levanto or cloudflare. Required")
+		"the profile's provider, "+providers.Names()+". Required")
 	addMemberFlags(cmd, fields, flags)
 	refuseEmpty(cmd.Flags(), flagModel)
 	refuseEmpty(cmd.Flags(), flagBaseURL)
@@ -124,8 +125,7 @@ func profileCreate(
 
 	provider := strings.TrimSpace(fields.provider)
 	if provider == "" {
-		return errors.New(
-			"profile create needs --provider: typesafe, openrouter, berget, levanto or cloudflare")
+		return errors.New("profile create needs --provider: " + providers.Names())
 	}
 
 	path, opened, err := profilesToWrite(settings)
@@ -471,11 +471,12 @@ func newProfileShowCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 		Short: "Report a profile, or what a run would use, never the key",
 		Long: "With a name, report that profile. Without one, report what a run would use now, profile or " +
 			"not, as --profile, --provider and their variables choose. It prints profile, provider, chosen " +
-			"by, key, model and base_url lines, and an account line on cloudflare. The model and base_url " +
-			"lines give the value a run would use and where it comes from. The model comes from profile, an env " +
+			"by, key, model and base_url lines, and an account line on " + providers.WithAccounts() + ". The " +
+			"model and base_url lines give the value a run would use and where it comes from. The model comes " +
+			"from profile, an env " +
 			"variable such as TYPESAFE_DEFAULT_MODEL, or the provider's default. The base_url comes from the " +
 			"profile's base_url, a variable such as TYPESAFE_BASE_URL, the profile's account_id, " +
-			"CLOUDFLARE_ACCOUNT_ID, or the provider's default. An allow_http line says a run needs " +
+			providers.AccountVariables() + ", or the provider's default. An allow_http line says a run needs " +
 			"--allow-http, when base_url is plain http to another host. It never reads the keychain or " +
 			"prints a key.\n\n" +
 			"It exits 2 when key or account is none, or the account is not 32 hexadecimal characters, " +
@@ -666,7 +667,7 @@ func addMemberFlags(cmd *cobra.Command, fields *profileFlags, flags *runFlags) {
 		"store a plain http --base-url to a host other than this machine. Every run on the profile then "+
 			"needs --allow-http too")
 	cmd.Flags().StringVar(&fields.accountID, flagAccountID, "",
-		"cloudflare only, the account id, 32 hexadecimal characters")
+		providers.WithAccounts()+" only, the account id, 32 hexadecimal characters")
 }
 
 func alreadySet(profile creds.Profile, changed func(string) bool) string {
@@ -756,8 +757,8 @@ func noProfileNamed(name string, profiles creds.Profiles) error {
 func checkGiven(profile creds.Profile, changed func(string) bool, providerGiven bool) error {
 	provider, err := onesie.ProviderNamed(profile.Provider)
 	if providerGiven && (err != nil || provider.Name() != profile.Provider) {
-		return fmt.Errorf("--%s names %s, which is not typesafe, openrouter, berget, levanto or cloudflare",
-			flagProvider, creds.QuotedName(profile.Provider))
+		return fmt.Errorf("--%s names %s, which is not %s",
+			flagProvider, creds.QuotedName(profile.Provider), providers.Names())
 	}
 
 	accountGiven := changed(flagAccountID) && profile.AccountID != ""
@@ -765,8 +766,8 @@ func checkGiven(profile creds.Profile, changed func(string) bool, providerGiven 
 
 	switch {
 	case accountGiven && provider.EnvAccountID() == "":
-		return fmt.Errorf("--%s applies only to cloudflare, and this profile is on %s",
-			flagAccountID, profile.Provider)
+		return fmt.Errorf("--%s applies only to %s, and this profile is on %s",
+			flagAccountID, providers.WithAccounts(), profile.Provider)
 	case accountGiven && !creds.ValidAccountID(profile.AccountID):
 		return fmt.Errorf("--%s must be 32 hexadecimal characters", flagAccountID)
 	case accountGiven && baseURLGiven:
