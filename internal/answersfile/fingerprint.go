@@ -47,8 +47,8 @@ func Fingerprint(questions []plan.Question, wired json.Marshaler, inputs Fingerp
 		SkipBlank   bool           `json:"skip_blank,omitempty"`
 		Images      []string       `json:"images,omitempty"`
 		LongContext bool           `json:"long_context,omitempty"`
-		// A csv or tsv file written before the fallback columns existed has fewer columns, so a
-		// resume into it is refused rather than appending longer rows.
+		// A csv or tsv file without the fallback columns has shorter rows than the run writes, so
+		// a resume into it is refused.
 		FallbackColumns bool `json:"fallback_columns,omitempty"`
 		// A mock run and a real run never resume each other's file.
 		Mock bool `json:"mock,omitempty"`
