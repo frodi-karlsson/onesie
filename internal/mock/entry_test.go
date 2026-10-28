@@ -14,7 +14,7 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
-func TestEntryResult(t *testing.T) {
+func TestEntry(t *testing.T) {
 	t.Parallel()
 
 	five := rateQuestion("r", "1", "2", "3", "4", "5")
@@ -211,12 +211,7 @@ func TestEntryResult(t *testing.T) {
 
 			entry, _ := answers.Lookup(1, nil)
 
-			result, err := entry.Result(onesie.TypeSafe(), "", onesie.Needs{})
-			if err != nil {
-				t.Fatalf("Result: %v", err)
-			}
-
-			normalized := answer.Normalize(tc.question, result.Answers[tc.question.ID])
+			normalized := answer.Normalize(tc.question, resultOf(entry).Answers[tc.question.ID])
 
 			if normalized.Value != tc.value {
 				t.Errorf("value %v, want %v", normalized.Value, tc.value)
@@ -290,30 +285,6 @@ func TestEntryResult(t *testing.T) {
 		file := `{"q":{"value":"b","score":1,"norm":0.334}}`
 		if _, err := Load(strings.NewReader(file), []plan.Question{four}, Options{}); err == nil {
 			t.Errorf("Load(%s) = nil, want a norm the score does not give refused", file)
-		}
-	})
-
-	t.Run("should name no model and bill nothing", func(t *testing.T) {
-		t.Parallel()
-
-		answers, err := Load(strings.NewReader(`{"u":0.3}`), []plan.Question{{ID: "u", Shape: plan.Noul}}, Options{})
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		entry, _ := answers.Lookup(1, nil)
-
-		result, err := entry.Result(onesie.TypeSafe(), "", onesie.Needs{})
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		if result.Model != "" {
-			t.Errorf("model %q, want none, since the run fills it", result.Model)
-		}
-
-		if result.Usage != (onesie.Usage{}) {
-			t.Errorf("usage %+v, want zero", result.Usage)
 		}
 	})
 }
@@ -472,12 +443,7 @@ func loadNormalized(t *testing.T, question plan.Question, file string) *answer.A
 
 	entry, _ := answers.Lookup(1, nil)
 
-	result, err := entry.Result(onesie.TypeSafe(), "", onesie.Needs{})
-	if err != nil {
-		t.Fatalf("Result: %v", err)
-	}
-
-	normalized := answer.Normalize(question, result.Answers[question.ID])
+	normalized := answer.Normalize(question, resultOf(entry).Answers[question.ID])
 
 	return normalized
 }

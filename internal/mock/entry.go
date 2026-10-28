@@ -1,16 +1,14 @@
 package mock
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
-	"net/http"
-	"net/url"
 	"slices"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/num"
@@ -77,7 +75,7 @@ func (p parser) entry(fields map[string]any, where string) (*Entry, error) {
 		return nil, fmt.Errorf("%s: %w", where, err)
 	}
 
-	return &Entry{result: result, key: "answers " + string(encoded)}, nil
+	return &Entry{answers: answers, key: "answers " + string(encoded)}, nil
 }
 
 func sortedKeys(fields map[string]any) []string {
@@ -106,7 +104,7 @@ func (p parser) failure(failure any, where string) (*Entry, error) {
 	case string:
 		switch typed {
 		case "timeout":
-			return timeoutEntry(p.opts.Timeout), nil
+			return &Entry{fault: context.DeadlineExceeded, key: "error timeout"}, nil
 		case "connection":
 			return connectionEntry(), nil
 		}
@@ -134,10 +132,7 @@ func writtenFailure(failure map[string]any, refused error) (*Entry, error) {
 	case "transport":
 		return connectionEntry(), nil
 	case "response":
-		return &Entry{
-			err: &onesie.ResponseError{Status: http.StatusOK, Err: errors.New("mock response onesie could not use")},
-			key: "error response",
-		}, nil
+		return &Entry{key: "error response"}, nil
 	case "input":
 		// A line onesie could not read never became a request, so it has no answer to replay.
 		return nil, nil
@@ -180,22 +175,8 @@ func statusEntry(status int, body []byte) *Entry {
 	return &Entry{status: status, body: body, key: key}
 }
 
-func timeoutEntry(timeout time.Duration) *Entry {
-	return &Entry{
-		err: &onesie.TimeoutError{
-			ConnectionError: onesie.ConnectionError{Err: errors.New("mock timeout")}, Timeout: timeout,
-		},
-		key: "error timeout",
-	}
-}
-
 func connectionEntry() *Entry {
-	return &Entry{
-		err: &onesie.ConnectionError{
-			Err: &url.Error{Op: "Post", URL: "https://mock.invalid", Err: errors.New("mock connection error")},
-		},
-		key: "error connection",
-	}
+	return &Entry{fault: errors.New("mock connection error"), key: "error connection"}
 }
 
 func parseAnswer(question plan.Question, given any) (onesie.Answer, error) {
@@ -554,33 +535,17 @@ type answerParts struct {
 	p          any
 }
 
-// Result returns the response the API would have sent, or the error the request would have failed
-// with. An http entry fails as a live response with its status and body does from p's route for model.
-func (e Entry) Result(p onesie.Provider, model string, needs onesie.Needs) (*onesie.Result, error) {
-	if e.status != 0 {
-		return nil, onesie.NewAPIError(p, model, needs, e.status, e.body)
-	}
-
-	if e.err != nil {
-		return nil, e.err
-	}
-
-	// A copy, since one entry of the object shape answers every record and a caller may change it.
-	result := *e.result
-
-	return &result, nil
-}
-
 // Key names what the entry answers, so two entries with the same answers share a key.
 func (e Entry) Key() string {
 	return e.key
 }
 
-// Entry is one checked answer, either an answer to every question or a failure.
+// Entry is one checked answer, either an answer to every question or a failure, which Transport
+// turns into what a server sends.
 type Entry struct {
-	result *onesie.Result
-	err    error
-	status int
-	body   []byte
-	key    string
+	answers map[string]onesie.Answer
+	status  int
+	body    []byte
+	fault   error
+	key     string
 }

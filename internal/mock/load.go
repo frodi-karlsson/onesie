@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"io"
 	"slices"
-	"time"
 
 	"github.com/frodi-karlsson/onesie/internal/jq"
 	"github.com/frodi-karlsson/onesie/internal/limits"
@@ -338,8 +337,6 @@ type Options struct {
 	ByID bool
 	// Spelled names where the file came from in every message, --mock unless set.
 	Spelled string
-	// Timeout is the attempt timeout a timeout entry reports.
-	Timeout time.Duration
 	// Asked names the questions a run asks, which every entry must answer and each result holds.
 	// Nil means every question. An entry may also answer the other questions, which go unread.
 	Asked []string

@@ -236,11 +236,18 @@ func TestMockAnswers(t *testing.T) {
 			wantCode: ExitUnavailable,
 		},
 		{
-			name:     "should exit 5 for one record the file times out, after the run's timeout",
+			name:     "should exit 5 for one record the file times out, as a timed out connection reads",
 			args:     with("--state", "x", "--timeout", "4"),
 			mock:     `{"error":"timeout"}`,
-			stderr:   []string{"onesie: request timed out after 4s"},
+			stderr:   []string{"onesie: request to mock.invalid:443 timed out"},
 			wantCode: ExitTransport,
+		},
+		{
+			name:     "should exit 4 for a response entry, as a live 200 with no answers reads",
+			args:     with("--state", "x"),
+			mock:     `{"error":{"kind":"response","status":200,"message":"x"}}`,
+			stderr:   []string{"onesie: 200 response could not be used: the response is not a System One result, since it has no answers"},
+			wantCode: ExitUnavailable,
 		},
 		{
 			name:     "should give a mocked 402 the credit advice a live one gets",
@@ -978,7 +985,7 @@ func TestMockAnswerer_Answer(t *testing.T) {
 	questions := onesie.Questions{{ID: "answer", Question: onesie.Noul{Instructions: "q"}}}
 	known := []plan.Question{{ID: "answer", Shape: plan.Noul}}
 
-	asker := func(t *testing.T, file string, provider onesie.Provider) (mockAnswerer, *collector) {
+	asker := func(t *testing.T, file string, provider onesie.Provider, retries int) (mockAnswerer, *collector) {
 		t.Helper()
 
 		answers, err := mock.Load(strings.NewReader(file), known, mock.Options{})
@@ -987,8 +994,14 @@ func TestMockAnswerer_Answer(t *testing.T) {
 		}
 
 		stats := &collector{}
+		settings := rootSettings{lookupEnv: lookupFrom(map[string]string{}), now: time.Now}
 
-		return mockAnswerer{answers: answers, stats: stats, provider: provider}, stats
+		client, err := mockClient(settings, runConfig{runFlags: runFlags{retries: retries}}, provider, stats)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		return mockAnswerer{answers: answers, provider: provider, live: newLiveAnswerer(client)}, stats
 	}
 
 	t.Run("should count no attempt for a request the provider refuses", func(t *testing.T) {
@@ -999,7 +1012,7 @@ func TestMockAnswerer_Answer(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		a, stats := asker(t, `{"answer":0.9}`, onesie.Levanto())
+		a, stats := asker(t, `{"answer":0.9}`, onesie.Levanto(), 0)
 
 		_, err = a.answer(t.Context(), recordKey{position: 1}, onesie.Request{
 			Model: onesie.Levanto().DefaultModel(), State: map[string]any{"photo": "img"}, Questions: questions,
@@ -1017,7 +1030,7 @@ func TestMockAnswerer_Answer(t *testing.T) {
 	t.Run("should refuse an entry that leaves a question the request asks unanswered", func(t *testing.T) {
 		t.Parallel()
 
-		a, _ := asker(t, `{"answer":0.9}`, onesie.TypeSafe())
+		a, _ := asker(t, `{"answer":0.9}`, onesie.TypeSafe(), 0)
 
 		_, err := a.answer(t.Context(), recordKey{position: 1}, onesie.Request{
 			Model: "m", State: "s", Questions: onesie.Questions{
@@ -1036,7 +1049,7 @@ func TestMockAnswerer_Answer(t *testing.T) {
 	t.Run("should refuse a request ValidateRequest refuses before the provider sees it", func(t *testing.T) {
 		t.Parallel()
 
-		a, stats := asker(t, `{"answer":0.9}`, onesie.Cloudflare())
+		a, stats := asker(t, `{"answer":0.9}`, onesie.Cloudflare(), 0)
 
 		_, err := a.answer(t.Context(), recordKey{position: 1}, onesie.Request{
 			Model: "m", State: "s",
@@ -1054,7 +1067,7 @@ func TestMockAnswerer_Answer(t *testing.T) {
 	t.Run("should answer with the request's model", func(t *testing.T) {
 		t.Parallel()
 
-		a, stats := asker(t, `{"answer":0.9}`, onesie.TypeSafe())
+		a, stats := asker(t, `{"answer":0.9}`, onesie.TypeSafe(), 0)
 
 		got, err := a.answer(t.Context(), recordKey{position: 1}, onesie.Request{
 			Model: "other", State: "s", Questions: questions,
@@ -1072,10 +1085,33 @@ func TestMockAnswerer_Answer(t *testing.T) {
 		}
 	})
 
+	t.Run("should retry a retried entry as a live one is, without waiting", func(t *testing.T) {
+		t.Parallel()
+
+		a, stats := asker(t, `{"error":503}`, onesie.TypeSafe(), 2)
+
+		started := time.Now()
+
+		_, err := a.answer(t.Context(), recordKey{position: 1}, onesie.Request{
+			Model: "m", State: "s", Questions: questions,
+		})
+		if err == nil || !strings.Contains(err.Error(), "503 status code, no body") {
+			t.Fatalf("error = %v, want the mocked 503", err)
+		}
+
+		if got := stats.snapshot(0); got.Attempts != 3 || got.Retries[http.StatusServiceUnavailable] != 3 {
+			t.Errorf("attempts = %d, failed 503 attempts = %v, want 3 and 3", got.Attempts, got.Retries)
+		}
+
+		if waited := time.Since(started); waited > time.Second {
+			t.Errorf("the retries took %s, want no wait", waited)
+		}
+	})
+
 	t.Run("should pass an error entry's error on", func(t *testing.T) {
 		t.Parallel()
 
-		a, _ := asker(t, `{"error":402}`, onesie.TypeSafe())
+		a, _ := asker(t, `{"error":402}`, onesie.TypeSafe(), 0)
 
 		got, err := a.answer(t.Context(), recordKey{position: 1}, onesie.Request{
 			Model: "m", State: "s", Questions: questions,

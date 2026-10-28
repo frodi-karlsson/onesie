@@ -133,13 +133,16 @@ ONESIE_MOCK=answers.json ./gate.sh
 - An entry answers every question the run asks. The file is checked against the questions before
   any record, and an unknown question id, a missing answer, a value of the wrong shape or a name
   that is not an option exits 2, naming the line.
-- `{"error": N}` with a status from 400 to 599 fails the record as that status does with no body,
-  as in `onesie: 503 status code, no body`, `{"error": "timeout"}` as a timeout after `--timeout`,
-  and `{"error": "connection"}` as a transport failure, as in
-  `onesie: could not reach mock.invalid: mock connection error`. An error object as `-o json`
-  writes it replays by its `kind`, and a `response` one fails as
-  `200 response could not be used: mock response onesie could not use`. An `http` one may carry
-  the JSON `body` the server sends, as in
+- Each entry is what the server sends, and onesie's own client reads it, so a 408, 429 or 5xx
+  status, a timeout and a dropped connection are retried as a live one is, at once, with no wait.
+  `{"error": N}` with a status from 400 to 599 fails the record as that status does with no body,
+  as in `onesie: 503 status code, no body`, `{"error": "timeout"}` as a timeout the connection
+  reports, as in `onesie: request to mock.invalid:443 timed out`, and `{"error": "connection"}` as
+  a transport failure, as in `onesie: could not reach mock.invalid: mock connection error`. An
+  error object as `-o json` writes it replays by its `kind`, and a `response` one is a 200 with no
+  answers, which fails as
+  `200 response could not be used: the response is not a System One result, since it has no answers`.
+  An `http` one may carry the JSON `body` the server sends, as in
   `{"error": {"kind": "http", "status": 400, "body": {"detail": "Unknown model: jev-latest"}}}`,
   and then fails and advises as a live response with that body does. A string `body` is the raw
   response text, so `"body": "<html>nope</html>"` reads as a live HTML page does, with the advice
