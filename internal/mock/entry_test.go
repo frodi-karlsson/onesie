@@ -3,9 +3,7 @@ package mock
 import (
 	"encoding/json"
 	"fmt"
-	"maps"
 	"math"
-	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -391,7 +389,7 @@ func TestBoxAnswer(t *testing.T) {
 		{name: "should refuse a bare number for a box", given: n("0.5"), wantErr: "which is not a box"},
 		{name: "should refuse a box missing an edge", given: map[string]any{"left": n("0.1"), "top": n("0.1"), "right": n("0.2")}, wantErr: "has no 'bottom'"},
 		{name: "should refuse a box with value", given: map[string]any{"value": n("1"), "left": n("0.1"), "top": n("0.1"), "right": n("0.2"), "bottom": n("0.2")}, wantErr: "carries the key 'value'"},
-		{name: "should refuse a box whose left is right of its right", given: edges("0.5", "0.1", "0.2", "0.2"), wantErr: "left below right"},
+		{name: "should refuse a box edge that is not a number", given: map[string]any{"left": "x", "top": n("0.1"), "right": n("0.2"), "bottom": n("0.2")}, wantErr: `has left "x", which is not a number`},
 	}
 
 	for _, tc := range tests {
@@ -445,10 +443,6 @@ func assertRoundTrip(t *testing.T, question plan.Question, value string, confide
 		if key != value && share >= first.P.Values[value] {
 			t.Errorf("%s: p[%s] = %v, want it below the value's %v", file, key, share, first.P.Values[value])
 		}
-	}
-
-	if sum, fits := answer.SumFits(slices.Collect(maps.Values(first.P.Values))); !fits {
-		t.Errorf("%s: p sums to %v, want 1 within the sum check", file, sum)
 	}
 
 	printed, err := json.Marshal(first)

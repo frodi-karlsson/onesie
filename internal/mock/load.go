@@ -29,7 +29,7 @@ func Load(r io.Reader, questions []plan.Question, opts Options) (*Answers, error
 		opts.Spelled = Flag
 	}
 
-	parse := parser{questions: questions, opts: opts}
+	parse := parser{questions: questions, asked: asked(questions, opts.Asked), opts: opts}
 
 	lines, err := parse.readLines(r)
 	if err != nil {
@@ -62,6 +62,16 @@ func Load(r io.Reader, questions []plan.Question, opts Options) (*Answers, error
 	answers.replayKey = replayKey
 
 	return answers, nil
+}
+
+func asked(questions []plan.Question, ids []string) []plan.Question {
+	if ids == nil {
+		return questions
+	}
+
+	return slices.DeleteFunc(slices.Clone(questions), func(question plan.Question) bool {
+		return !slices.Contains(ids, question.ID)
+	})
 }
 
 func (p parser) readLines(r io.Reader) ([][]byte, error) {
@@ -248,6 +258,7 @@ func (p parser) lines(lines [][]byte) (*Answers, error) {
 
 type parser struct {
 	questions []plan.Question
+	asked     []plan.Question
 	opts      Options
 }
 

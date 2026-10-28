@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"maps"
 	"math"
 	"net/http"
 	"net/url"
@@ -14,7 +13,6 @@ import (
 	"time"
 
 	"github.com/frodi-karlsson/onesie-go"
-	"github.com/frodi-karlsson/onesie/internal/answer"
 	"github.com/frodi-karlsson/onesie/internal/num"
 	"github.com/frodi-karlsson/onesie/internal/plan"
 )
@@ -45,13 +43,9 @@ func (p parser) entry(fields map[string]any, where string) (*Entry, error) {
 		return p.failure(failure, where)
 	}
 
-	answers := make(map[string]onesie.Answer, len(p.questions))
+	answers := make(map[string]onesie.Answer, len(p.asked))
 
-	for _, question := range p.questions {
-		if p.opts.Asked != nil && !slices.Contains(p.opts.Asked, question.ID) {
-			continue
-		}
-
+	for _, question := range p.asked {
 		given, found := fields[question.ID]
 		if !found {
 			return nil, fmt.Errorf("%s: the entry has no answer for question '%s'. "+
@@ -73,6 +67,15 @@ func (p parser) entry(fields map[string]any, where string) (*Entry, error) {
 	}
 
 	result := &onesie.Result{Answers: answers}
+
+	if err := result.Check(plan.WireAll(p.asked)); err != nil {
+		var fault *onesie.AnswerFault
+		if errors.As(err, &fault) {
+			return nil, fmt.Errorf("%s: %s", where, fault.Reason())
+		}
+
+		return nil, fmt.Errorf("%s: %w", where, err)
+	}
 
 	return &Entry{result: result, key: "answers " + string(encoded)}, nil
 }
@@ -242,9 +245,9 @@ func partsOf(question plan.Question, given any) (answerParts, error) {
 	parts.p = object["p"]
 
 	if given, found := object["confidence"]; found {
-		confidence, isUnit := unitNumber(given)
-		if !isUnit {
-			return parts, fmt.Errorf("has confidence %s, which lies outside [0,1]", shown(given))
+		confidence, isNumber := finiteNumber(given)
+		if !isNumber {
+			return parts, fmt.Errorf("has confidence %s, which is not a number", shown(given))
 		}
 
 		parts.confidence = confidence
@@ -254,13 +257,9 @@ func partsOf(question plan.Question, given any) (answerParts, error) {
 }
 
 func yesNoAnswer(given any) (onesie.Answer, error) {
-	if _, isNumber := given.(json.Number); !isNumber {
+	probability, isNumber := finiteNumber(given)
+	if !isNumber {
 		return nil, fmt.Errorf("answered %s, which is not a probability", shown(given))
-	}
-
-	probability, isUnit := unitNumber(given)
-	if !isUnit {
-		return nil, fmt.Errorf("answered %s, which lies outside [0,1]", shown(given))
 	}
 
 	return &onesie.NoulAnswer{Noul: probability}, nil
@@ -320,8 +319,8 @@ func rateAnswer(question plan.Question, parts answerParts) (onesie.Answer, error
 
 	if parts.score != nil {
 		replayed, isNumber := finiteNumber(parts.score)
-		if !isNumber || replayed < 0 || replayed > top {
-			return nil, fmt.Errorf("has score %s, which lies outside [0,%s]", shown(parts.score), strconv.Itoa(len(names)-1))
+		if !isNumber {
+			return nil, fmt.Errorf("has score %s, which is not a number", shown(parts.score))
 		}
 
 		score = replayed
@@ -363,8 +362,8 @@ func averaged(names []string, p map[string]float64, index int) float64 {
 		total += p[name]
 	}
 
-	// A written p adds up to 1 only within the rounding SumFits allows, so the average is taken over
-	// what it holds.
+	// A written p adds up to 1 only within the rounding Result.Check allows, so the average is taken
+	// over what it holds.
 	if total == 0 {
 		return float64(index)
 	}
@@ -376,8 +375,9 @@ func synthesized(names []string, value string, confidence float64) map[string]fl
 	// At least twice what each other name takes keeps the value the strict mode, which replayed
 	// demands of a written p, since a rate reads its value from the first of equal modes. Rounded up
 	// to four places, so the value's p is never below its confidence. The small allowance keeps
-	// float noise, as in 0.6 times 10000, from rounding up a whole step.
-	share := math.Ceil(max(confidence, 2/float64(len(names)+1))*1e4-1e-6) / 1e4
+	// float noise, as in 0.6 times 10000, from rounding up a whole step. Capped at 1, so a confidence
+	// above 1 reaches Result.Check as the confidence it is and not as a p above 1.
+	share := math.Ceil(max(min(confidence, 1), 2/float64(len(names)+1))*1e4-1e-6) / 1e4
 	rest := num.Rounded((1 - share) / float64(len(names)-1))
 
 	probabilities := make(map[string]float64, len(names))
@@ -411,24 +411,20 @@ func boxAnswer(given any) (onesie.Answer, error) {
 			return nil, fmt.Errorf("has no '%s'. A box answer has all four edges", name)
 		}
 
-		edge, isUnit := unitNumber(value)
-		if !isUnit {
-			return nil, fmt.Errorf("has %s %s, which lies outside [0,1]", name, shown(value))
+		edge, isNumber := finiteNumber(value)
+		if !isNumber {
+			return nil, fmt.Errorf("has %s %s, which is not a number", name, shown(value))
 		}
 
 		edges[name] = edge
 	}
 
-	if edges["left"] >= edges["right"] || edges["top"] >= edges["bottom"] {
-		return nil, errors.New("has edges out of order. A box keeps left below right and top below bottom")
-	}
-
 	confidence := 1.0
 
 	if value, found := object["confidence"]; found {
-		parsed, isUnit := unitNumber(value)
-		if !isUnit {
-			return nil, fmt.Errorf("has confidence %s, which lies outside [0,1]", shown(value))
+		parsed, isNumber := finiteNumber(value)
+		if !isNumber {
+			return nil, fmt.Errorf("has confidence %s, which is not a number", shown(value))
 		}
 
 		confidence = parsed
@@ -466,17 +462,12 @@ func replayed(given any, names []string, value string, firstWins bool) (map[stri
 			return nil, fmt.Errorf("has p with no entry for '%s'", name)
 		}
 
-		probability, isUnit := unitNumber(raw)
-		if !isUnit {
-			return nil, fmt.Errorf("has p for '%s' of %s, which lies outside [0,1]", name, shown(raw))
+		probability, isNumber := finiteNumber(raw)
+		if !isNumber {
+			return nil, fmt.Errorf("has p for '%s' of %s, which is not a number", name, shown(raw))
 		}
 
 		probabilities[name] = probability
-	}
-
-	// The same rule the answer check applies at run time, so a mock it would refuse exits 2 here.
-	if sum, fits := answer.SumFits(slices.Collect(maps.Values(probabilities))); !fits {
-		return nil, fmt.Errorf("has p that adds up to %s, not 1", num.Format(sum))
 	}
 
 	for i, name := range names {
@@ -530,12 +521,6 @@ func nameOf(given any, what string) (string, error) {
 	}
 
 	return "", fmt.Errorf("answered %s, which is not the name of %s", shown(given), what)
-}
-
-func unitNumber(given any) (float64, bool) {
-	value, isNumber := finiteNumber(given)
-
-	return value, isNumber && value >= 0 && value <= 1
 }
 
 func finiteNumber(given any) (float64, bool) {

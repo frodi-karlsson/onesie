@@ -167,19 +167,6 @@ func (e Edges) String() string {
 		num.Format(e.Left), num.Format(e.Top), num.Format(e.Right), num.Format(e.Bottom))
 }
 
-// SumFits reports a distribution's sum, rounded to four places, and whether it is 1 within 0.02.
-func SumFits(probabilities []float64) (float64, bool) {
-	sum := 0.0
-	for _, value := range probabilities {
-		sum += value
-	}
-
-	// A provider that writes two places per entry leaves the sum a hundredth or two off 1.
-	const tolerance = 0.02
-
-	return num.Rounded(sum), math.Abs(sum-1) <= tolerance+1e-9
-}
-
 // Answer is the normalized shape for one question. Absent fields are omitted, which is what makes
 // a yes or no answer a bare value, not a mostly empty object.
 type Answer struct {

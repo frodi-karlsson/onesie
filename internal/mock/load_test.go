@@ -339,6 +339,39 @@ func TestLoad(t *testing.T) {
 			wantErr: "--mock: question 't' carries the key 'weight', which a mock answer does not take",
 		},
 		{
+			name:    "should name the line of an answer Result.Check refuses, with no second prefix",
+			file:    "{" + full + "}\n" + `{"u":1.5,"t":"billing","r":"curt"}`,
+			wantErr: "--mock line 2: question 'u' answered 1.5, which lies outside [0,1]",
+		},
+		{
+			name:    "should name a rate's p by its level index",
+			file:    `{"u":0.9,"t":"billing","r":{"value":"curt","p":{"calm":0,"curt":1.5,"rude":0}}}`,
+			wantErr: "--mock: question 'r' has p for '1' of 1.5, which lies outside [0,1]",
+		},
+		{
+			name:    "should refuse a p that is not a number",
+			file:    `{"u":0.9,"t":{"value":"billing","p":{"billing":"most","platform":0}},"r":"curt"}`,
+			wantErr: `--mock: question 't' has p for 'billing' of "most", which is not a number`,
+		},
+		{
+			name:    "should refuse a confidence that is not a number",
+			file:    `{"u":0.9,"t":{"value":"billing","confidence":"high"},"r":"curt"}`,
+			wantErr: `--mock: question 't' has confidence "high", which is not a number`,
+		},
+		{
+			name:      "should refuse a box edge outside [0,1]",
+			file:      `{"b":{"left":0.1,"top":0.1,"right":1.5,"bottom":0.2}}`,
+			questions: []plan.Question{{ID: "b", Shape: plan.Box}},
+			wantErr:   "--mock: box question 'b' has an edge or a confidence outside [0,1]",
+		},
+		{
+			name:      "should refuse a box whose edges are out of order",
+			file:      `{"b":{"left":0.5,"top":0.1,"right":0.2,"bottom":0.2}}`,
+			questions: []plan.Question{{ID: "b", Shape: plan.Box}},
+			wantErr: "--mock: box question 'b' has a left edge not left of its right edge, " +
+				"or a top edge not above its bottom edge",
+		},
+		{
 			name:    "should refuse a confidence on a yes/no answer",
 			file:    `{"u":{"value":0.9,"confidence":0.5},"t":"billing","r":"curt"}`,
 			wantErr: "--mock: question 'u' carries the key 'confidence', which a mock answer does not take",
