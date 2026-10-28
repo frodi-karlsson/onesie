@@ -72,7 +72,7 @@ var groupFlagHelp = map[string]string{
 	"threshold":      "yes or no only, cut the probability at this value",
 	"min-confidence": "pick or rate only, requires --fallback. Confidence is about 1 when p sits on one answer",
 	"fallback":       "value substituted on low confidence and on error",
-	"box": "making this a box question, answered with the left, top, right and bottom edges of what it " +
+	"box": "make this a box question, answered with the left, top, right and bottom edges of what it " +
 		"finds in an image, each from 0 to 1. Takes no value. Experimental on TypeSafe's side",
 }
 
@@ -134,6 +134,7 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *cobra.Command {
 	root.AddCommand(newQuestionsCmd(settings))
 	root.AddCommand(newCacheCmd(settings))
 	refuseUnknownHelpTopics(root)
+	helpShowsSwitches(root)
 
 	// Cobra hands every subcommand the nearest parent's flag error function, so one hook covers the
 	// subcommands cobra adds itself, such as completion.
@@ -186,7 +187,7 @@ func runRoot(
 
 	// Not cobra's own version flag, which prints before any argument is checked.
 	if flags.version {
-		return printVersion(cmd, info)
+		return printVersion(cmd, info, flags.output)
 	}
 
 	positional := ""
@@ -249,15 +250,15 @@ func runRoot(
 func addRootFlags(root *cobra.Command, flags *runFlags, recorder *argv.Recorder) {
 	// Cobra would claim the lowercase -v for --version, and onesie spells it -V. Registering it
 	// here takes the name before cobra reaches for a shorthand of its own.
-	root.Flags().BoolVarP(&flags.version, "version", "V", false, "print the version and the built in limits")
+	root.Flags().BoolVarP(&flags.version, "version", "V", false,
+		"print the version, commit, build date and the built in limits, as one JSON object under -o json")
 	asksNothing(root.Flags(), "version")
 
 	for name, help := range groupFlagHelp {
 		root.Flags().Var(groupFlag(recorder, name), name, help)
 	}
 
-	// A recorded flag is a string, so without this --box would take the next argument as its value.
-	root.Flags().Lookup("box").NoOptDefVal = "true"
+	root.Flags().Lookup("box").NoOptDefVal = argv.Bare
 
 	root.Flags().StringVarP(&flags.output, "output", "o", "", "auto, json, values, table, raw, csv, tsv or markdown")
 	refuseEmpty(root.Flags(), "output")
@@ -480,6 +481,9 @@ func plainFlagError(cmd *cobra.Command, err error) error {
 	switch {
 	case errors.As(err, &unknown):
 		return &plainError{cause: err, message: unknownFlag(cmd, unknown)}
+	case errors.As(err, &invalid) && errors.Is(err, argv.ErrSwitchValue):
+		return &plainError{cause: err, message: fmt.Sprintf("--%s takes no value, got '%s'",
+			invalid.GetFlag().Name, invalid.GetValue())}
 	case errors.As(err, &invalid) && errors.Is(err, errEmptyValue):
 		return &plainError{cause: err, message: fmt.Sprintf("--%s is empty. Name one, or leave the flag out",
 			invalid.GetFlag().Name)}
@@ -628,8 +632,19 @@ func groupFlag(recorder *argv.Recorder, name string) pflag.Value {
 	return recorder.Flag(name)
 }
 
-func printVersion(cmd *cobra.Command, info BuildInfo) error {
-	if _, err := fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", cmd.Name(), info.Version); err != nil {
+func printVersion(cmd *cobra.Command, info BuildInfo, format string) error {
+	asJSON, err := versionFormat("-V", format)
+	if err != nil {
+		return err
+	}
+
+	if asJSON {
+		return writeVersionJSON(cmd.OutOrStdout(), info)
+	}
+
+	// The first line stays the name and the version alone, since the session hook reads it.
+	if _, err := fmt.Fprintf(cmd.OutOrStdout(), "%s %s\ncommit %s\nbuilt %s\n",
+		cmd.Name(), info.Version, info.Commit, info.Date); err != nil {
 		return err
 	}
 
@@ -675,6 +690,30 @@ func refuseUnknownHelpTopics(root *cobra.Command) {
 			return topic.Help()
 		}
 	}
+}
+
+func helpShowsSwitches(root *cobra.Command) {
+	help := root.HelpFunc()
+
+	root.SetHelpFunc(func(cmd *cobra.Command, args []string) {
+		// pflag prints a NoOptDefVal other than true after the flag's name, and argv.Bare is one.
+		var switches []*pflag.Flag
+
+		cmd.Flags().VisitAll(func(flag *pflag.Flag) {
+			if flag.NoOptDefVal == argv.Bare {
+				flag.NoOptDefVal = "true"
+				switches = append(switches, flag)
+			}
+		})
+
+		defer func() {
+			for _, flag := range switches {
+				flag.NoOptDefVal = argv.Bare
+			}
+		}()
+
+		help(cmd, args)
+	})
 }
 
 func subcommandHint(root *cobra.Command) func(*cobra.Command, error) error {

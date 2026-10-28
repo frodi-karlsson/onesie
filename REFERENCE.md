@@ -54,7 +54,8 @@ prints the built in limits.
   and a provider that takes it, TypeSafe or OpenRouter, as on `typesafe/jev-1.14`. Cloudflare,
   Levanto and Berget refuse it before any request. On TypeSafe and OpenRouter the model must serve
   it too: one that does not answers 400 `Invalid request`, and onesie then names `-m jev-preview`,
-  which does. It takes no value and no `--desc`, `--threshold`, `--min-confidence` or `--fallback`.
+  which does. It takes no value, so `--box=true` exits 2 as `--box=1` does, and no `--desc`,
+  `--threshold`, `--min-confidence` or `--fallback`.
   `-r` prints the four edges in that order, and `-o csv` writes them as four columns, `ID_left`,
   `ID_top`, `ID_right` and `ID_bottom`.
   A box always returns a box, even when the target is not there, so pair it with a yes or no
@@ -903,7 +904,9 @@ table, and `onesie calibrate --help` lists the codes calibrate uses.
   writes `"long_context":true` into a body the flag or the variable turns it on for. A provider
   that takes no long context refuses the run with exit 2, `--print-request` included, and when
   `ONESIE_LONG_CONTEXT` turned it on, the message says so. It is experimental.
-- `onesie --help` lists every flag, and `onesie -V` prints the built in limits. A flag onesie does
-  not know exits 2, naming the closest one when one is near. A flag that belongs to a run, given to
-  a subcommand, says so. `-V` takes no question, so a word beside it exits 2. `onesie help
-  calibrate` prints a subcommand's help, and a topic that names no subcommand exits 2.
+- `onesie --help` lists every flag, and `onesie -V` prints the version, the commit, the build date
+  and the built in limits. `onesie -V -o json` and `onesie version -o json` print them as one JSON
+  object, each limit a string as `-V` prints it. Any other `-o` beside either exits 2.
+- A flag onesie does not know exits 2, naming the closest one when one is near. A flag that belongs
+  to a run, given to a subcommand, says so. `-V` takes no question, so a word beside it exits 2.
+  `onesie help calibrate` prints a subcommand's help, and a topic that names no subcommand exits 2.
