@@ -268,11 +268,10 @@ onesie calibrate -f shell-safety -i jsonl --map .command --id .id \
 
 - A record that fails still prints a line with an `error` key, and the run exits 6.
   `--stop-on-error` ends at the first failure, and `--unordered` trades input order for throughput.
-- A run `--stop-on-error` ends exits with the failed record's own code, as in the exit code table:
-  3 for a 401, 402 or 403, 4 for a 429, a 5xx or a response onesie cannot use, 5 for a 408, a
-  timeout or a transport error, and 2 for any other 4xx. A record that never became a request, such as a line
-  onesie could not read or an empty state, has no code of its own, so it exits 6 as it does without
-  the flag, and its error line is the only report.
+- A run `--stop-on-error` ends exits with the failed record's own code, as in
+  [Exit codes](#exit-codes). A record that never became a request, such as a line onesie could not
+  read or an empty state, has no code of its own, so it exits 6 as it does without the flag, and its
+  error line is the only report.
 - Use `--map` to drop the fields that do not bear on the question, such as timestamps and ids,
   since they add noise to the answer. `--map 'del(.ts, .order_id)'` sends the rest of a record.
 - `--map` is a jq expression whose result is the state. An object it builds has its keys sorted.
@@ -562,9 +561,9 @@ on the provider's key variable alone.
   run then needs `--allow-http`. `account:` names `account_id`, `base_url`, `CLOUDFLARE_ACCOUNT_ID`
   or `none`. `show` exits 2 when `key` or `account` is `none`, as a real run would, and exits 2
   with the run's message when `CLOUDFLARE_ACCOUNT_ID` is not 32 hexadecimal characters.
-- A key the server refuses with 401 or 403 exits 3, on a run or on `test`. On a profile the message
-  names `onesie profile update NAME --key`, and without one it names the provider's key variable. A
-  run with no key and no profile for its provider names
+- A key the server refuses exits 3, on a run or on `test`. On a profile the message names
+  `onesie profile update NAME --key`, and without one it names the provider's key variable. A run
+  with no key and no profile for its provider names
   `onesie profile create NAME --provider PROVIDER`.
 - `test` proves the key on every provider. On berget it also asks one tiny question with the
   profile's model, which spends a few tokens. On openrouter it also reads `/v1/key` under the base

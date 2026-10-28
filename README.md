@@ -131,8 +131,7 @@ tail -f tickets.jsonl | onesie 'is this urgent' -i jsonl --map .body --id .id -o
 ```
 
 **Wire the gate into a script.** Exit 0 runs the command, 1 blocks it and 7 asks a person. Any
-other exit code means there was no answer. Exit 4 includes a 200 whose answer did not fit the
-question, which onesie never retries.
+other exit code means there was no answer, as the [exit code table](REFERENCE.md#exit-codes) says.
 
 ```sh
 onesie -f shell-safety -q --state "$cmd"
