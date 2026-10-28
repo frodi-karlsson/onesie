@@ -27,6 +27,10 @@ func TestEval(t *testing.T) {
 		want    bool
 	}{
 		{name: "should compare a number", input: `urgent.value > 0.5`, want: true},
+		{name: "should hold for the constant true", input: `true`, want: true},
+		{name: "should fail for the constant false", input: `false`, want: false},
+		{name: "should negate a constant", input: `not false`, want: true},
+		{name: "should combine a constant with a comparison", input: `false or urgent.value > 0.5`, want: true},
 		{name: "should compare a number the other way", input: `urgent.value < 0.5`, want: false},
 		{name: "should compare equal numbers", input: `urgent.value == 0.9`, want: true},
 		{name: "should compare unequal numbers", input: `urgent.value != 0.9`, want: false},

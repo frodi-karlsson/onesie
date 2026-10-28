@@ -42,8 +42,12 @@ func questionFileSchema() node {
 				ErrorMessage: "This question id is reserved.",
 			},
 			Properties: properties{
-				{name: "assert", schema: node{Type: "string", Description: "A gate over every answer, as --assert takes it."}},
-				{name: "abstain_if", schema: node{Type: "string", Description: "An abstain expression, as --abstain-if takes it."}},
+				{name: "assert", schema: node{
+					Type: []string{"string", "boolean"}, Description: "A gate over every answer, as --assert takes it.",
+				}},
+				{name: "abstain_if", schema: node{
+					Type: []string{"string", "boolean"}, Description: "An abstain expression, as --abstain-if takes it.",
+				}},
 				{name: "$schema", schema: node{Type: "string", Description: "The schema an editor checks this file against. onesie ignores it."}},
 			},
 			AdditionalProperties: node{Ref: "#/definitions/question"},

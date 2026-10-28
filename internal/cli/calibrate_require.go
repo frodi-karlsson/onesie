@@ -132,6 +132,9 @@ func cutFromGate(name, source, id string) (float64, string) {
 	cut, found := assert.Cuts(expr)[id]
 
 	switch {
+	case expr.Constant():
+		return 0, fmt.Sprintf("needs at CUT, since the file's %s is the constant %s, which gives no cut",
+			name, source)
 	case !found:
 		return 0, fmt.Sprintf("needs at CUT, since the file's %s never names '%s'", name, id)
 	case !cut.Readable:

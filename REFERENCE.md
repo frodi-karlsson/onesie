@@ -77,7 +77,11 @@ onesie --ask urgent='is this urgent' --assert 'urgnet.value < 0.5'
   `true` and `false`. Write any other id in brackets and double quotes, as in
   `["needs review"].value` or `["a-b"].value`, and an option or level the same way after `p`, as in
   `team.p["on call"]`. An id written bare that only the bracket form reaches exits 2 and shows the
-  bracket form.
+  bracket form. So does `a_b.value` written for the id `a-b`.
+- `true` and `false` are expressions of their own, so `--assert true` always holds and
+  `--abstain-if false` never does. A question file's `assert: true` reads the same. A constant gate
+  gives `calibrate` no cut, so a `--require` that reads its cut from one says so and needs
+  `at CUT`.
 - A false assertion exits 1 and still prints the record with `"assert": false`. `-q` prints nothing
   and leaves the exit code to the assertion. Repeated flags combine with `and`.
 - `--abstain-if` is checked only when the assertion fails. When it holds, the record is an unsure:

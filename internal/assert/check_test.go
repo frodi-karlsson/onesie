@@ -39,10 +39,11 @@ func TestCheck(t *testing.T) {
 			{ID: "gated", Shape: plan.Noul, Policy: plan.Policy{Threshold: ptr(0.6)}},
 			{ID: "indexed", Shape: plan.Rate, Levels: []plan.Level{{}, {}, {}}},
 			{ID: "a.b", Shape: plan.Noul},
+			{ID: "needs-review", Shape: plan.Noul},
 		},
 	}
 
-	questions := "urgent, severity, team, decided, unsure, gated, indexed, a.b"
+	questions := "urgent, severity, team, decided, unsure, gated, indexed, a.b, needs-review"
 
 	tests := []struct {
 		name      string
@@ -54,6 +55,19 @@ func TestCheck(t *testing.T) {
 		{
 			name:  "should accept a yes/no value against a number",
 			input: `urgent.value < 0.5`,
+		},
+		{
+			name:  "should accept the constant true",
+			input: `true`,
+		},
+		{
+			name:  "should accept a constant beside a comparison",
+			input: `false or urgent.value < 0.5`,
+		},
+		{
+			name:    "should advise the bracket form for an id written with _ in place of -",
+			input:   `needs_review.value > 0.5`,
+			wantErr: `unknown question 'needs_review'. Write the id 'needs-review' in brackets, as in ["needs-review"].value`,
 		},
 		{
 			name:  "should accept a pick value against a string",

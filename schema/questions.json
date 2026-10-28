@@ -37,11 +37,17 @@
     "properties": {
       "assert": {
         "description": "A gate over every answer, as --assert takes it.",
-        "type": "string"
+        "type": [
+          "string",
+          "boolean"
+        ]
       },
       "abstain_if": {
         "description": "An abstain expression, as --abstain-if takes it.",
-        "type": "string"
+        "type": [
+          "string",
+          "boolean"
+        ]
       },
       "$schema": {
         "description": "The schema an editor checks this file against. onesie ignores it.",

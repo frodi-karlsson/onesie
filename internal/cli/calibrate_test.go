@@ -3113,6 +3113,8 @@ func TestResolveRequirements(t *testing.T) {
 		{name: "should refuse a gate that compares with greater", file: file("gt.yaml", "assert: u.value > 0.5\n"), require: "u.catches >= 0.5", wantErr: "with >"},
 		{name: "should refuse a gate that tests with in", file: file("in.yaml", `assert: t.value in ["ops"] and u.value in [0.5]`+"\n"), require: "u.catches >= 0.5", wantErr: "with in"},
 		{name: "should refuse a cut with no file", require: "u.catches >= 0.5", wantErr: "no gate"},
+		{name: "should say a constant gate gives no cut", file: file("constant.yaml", "assert: true\n"), require: "u.catches >= 0.5", wantErr: "needs at CUT, since the file's assert is the constant true, which gives no cut"},
+		{name: "should say a constant abstain_if gives no cut", file: file("constant2.yaml", "assert: u.value < 0.5\nabstain_if: 'false'\n"), require: "u.catches >= 0.5 at abstain", wantErr: "the file's abstain_if is the constant false, which gives no cut"},
 		{name: "should refuse at abstain with no abstain_if", file: file("assert.yaml", "assert: u.value < 0.5\n"), require: "u.catches >= 0.5 at abstain", wantErr: "abstain_if"},
 		{name: "should refuse an unknown id", file: file("plain.yaml", ""), require: "x.catches >= 0.5 at 0.5", wantErr: "unknown question 'x'"},
 		{name: "should refuse agreement on a yes/no question", file: file("plain2.yaml", ""), require: "u.agreement >= 0.5", wantErr: "'u' is a yes or no question"},
