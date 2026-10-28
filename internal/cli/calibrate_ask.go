@@ -12,6 +12,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/answer"
 	"github.com/frodi-karlsson/onesie/internal/answersfile"
 	"github.com/frodi-karlsson/onesie/internal/calibrate"
@@ -183,48 +184,60 @@ func calibrateAnswers(
 	}
 
 	return withStats(cmd, settings.now, flags, func(stats *collector) error {
-		if resumed.book != nil {
-			stats.skip(resumed.book.Skipped())
-		}
-
-		outcomes, result, askErr := askLabelled(cmd, flags, run, resumed, stats, calib.offline)
-		if askErr != nil {
-			return askErr
-		}
-
-		report := reportOf(scored, set, outcomes, run.cuts)
-		report.Asked = result.Records
-		report.Stored = resumed.stored
-		report.Mocked = flags.mockPath != ""
-		report.Require = measureRequirements(report, run.bound)
-
-		if flags.usage {
-			report.Usage = usageOf(outcomes)
-		}
-
-		if writeErr := writeReport(cmd.OutOrStdout(), calib.report, report); writeErr != nil {
-			return written(writeErr)
-		}
-
-		unmet, unmetErr := writeUnmet(cmd.ErrOrStderr(), report.Require)
-		if unmetErr != nil {
-			return unmetErr
-		}
-
-		if result.Failed > 0 {
-			if causeErr := writeCauses(cmd.ErrOrStderr(), set, outcomes); causeErr != nil {
-				return causeErr
-			}
-
-			return &recordsError{}
-		}
-
-		if unmet {
-			return &rejectedError{}
-		}
-
-		return nil
+		return reportLabelled(cmd, flags, calib, run, set, resumed, stats)
 	})
+}
+
+func reportLabelled(
+	cmd *cobra.Command,
+	flags runConfig,
+	calib calibrateFlags,
+	run calibrateAsk,
+	set labelledSet,
+	resumed resumedSet,
+	stats *collector,
+) error {
+	if resumed.book != nil {
+		stats.skip(resumed.book.Skipped())
+	}
+
+	outcomes, result, err := askLabelled(cmd, flags, run, resumed, stats, calib.offline)
+	if err != nil {
+		return err
+	}
+
+	report := reportOf(run.scope.scored, set, outcomes, run.cuts)
+	report.Asked = result.Records
+	report.Stored = resumed.stored
+	report.Mocked = flags.mockPath != ""
+	report.Require = measureRequirements(report, run.bound)
+
+	if flags.usage {
+		report.Usage = usageOf(outcomes)
+	}
+
+	if writeErr := writeReport(cmd.OutOrStdout(), calib.report, report); writeErr != nil {
+		return written(writeErr)
+	}
+
+	unmet, err := writeUnmet(cmd.ErrOrStderr(), report.Require)
+	if err != nil {
+		return err
+	}
+
+	if result.Failed > 0 {
+		if causeErr := writeCauses(cmd.ErrOrStderr(), set, outcomes); causeErr != nil {
+			return causeErr
+		}
+
+		return &recordsError{}
+	}
+
+	if unmet {
+		return &rejectedError{}
+	}
+
+	return nil
 }
 
 func unansweredOffline(answers string, pending []labelledRecord) error {
@@ -275,74 +288,18 @@ func askLabelled(
 		return nil, engine.Result{}, err
 	}
 
-	asked, scored, out := run.asked, run.scope.scored, run.out
-	questions := wireAll(asked.Questions)
-	outcomes := slices.Clone(resumed.answered)
 	book := resumed.book
-
-	var stoppedAtHalt bool
+	labelled := &labelledRun{
+		run: run, asker: asker, questions: wireAll(run.asked.Questions), usage: flags.usage, stats: stats,
+		outcomes: slices.Clone(resumed.answered), book: book,
+	}
 
 	result, err := engine.Run(cmd.Context(), engine.Config[labelledRecord, askedLine]{
-		Source: &labelledSource{records: resumed.pending},
-		Evaluate: func(ctx context.Context, rec labelledRecord) (askedLine, error) {
-			key := recordKey{position: rec.position, line: rec.line, id: rec.id}
-
-			// At ask time rather than read time, since calibrate reads every record ahead and would
-			// otherwise hold every image at once. rec.sent keeps the paths, which is what the worst
-			// misses print.
-			sent, assets, imageErr := run.images.attach(rec.sent)
-			if imageErr != nil {
-				bad := &input.LineError{Line: rec.line, Err: imageErr}
-				stats.recordFailure(bad, false, 0)
-
-				failed := failureRecord(asked, bad)
-				failed.ID = rec.id
-
-				return askedLine{index: rec.index, slot: rec.slot, record: failed}, bad
-			}
-
-			record, evalErr := evaluate(ctx, asker, key, asked, run.model, questions, sent, assets, flags.usage, stats)
-			if evalErr == nil {
-				if _, evalErr = casesOf(scored, rec, record); evalErr != nil {
-					// The tokens were spent, so the failed line carries them into the usage total.
-					record = spent(failureRecord(asked, evalErr), record.Usage)
-
-					stats.unusable()
-				}
-			}
-
-			record.ID = rec.id
-
-			return askedLine{
-				index: rec.index, slot: rec.slot, record: record, halted: halting(evalErr),
-			}, evalErr
-		},
-		Write: func(l askedLine) error {
-			// Nothing from the first record a mock file does not answer on reaches the file or the
-			// ledger, so the file holds only the records before it and a resume asks the rest.
-			if stoppedAtHalt || l.halted {
-				stoppedAtHalt = true
-
-				return nil
-			}
-
-			outcomes[l.index] = l.record
-
-			if out == nil {
-				return nil
-			}
-
-			start := out.Offset()
-			writeErr := output.Write(out, output.JSON, l.record)
-
-			if book != nil {
-				book.Wrote(l.slot, answersfile.Span{Start: start, End: out.Offset()})
-			}
-
-			return writeErr
-		},
-		Jobs:  flags.jobs,
-		Abort: aborting,
+		Source:   &labelledSource{records: resumed.pending},
+		Evaluate: labelled.evaluate,
+		Write:    labelled.write,
+		Jobs:     flags.jobs,
+		Abort:    aborting,
 	})
 
 	if result.Aborted {
@@ -361,10 +318,80 @@ func askLabelled(
 	// Only a run that asked every record rewrites the file. An interrupted one leaves the appended
 	// lines as they are, for the next resume to finish.
 	if book != nil && book.Complete() && !offline {
-		out.CompactInto(book.TakeOrder(flags.prune), output.JSON)
+		run.out.CompactInto(book.TakeOrder(flags.prune), output.JSON)
 	}
 
-	return outcomes, result, nil
+	return labelled.outcomes, result, nil
+}
+
+type labelledRun struct {
+	run       calibrateAsk
+	asker     answerer
+	questions onesie.Questions
+	usage     bool
+	stats     *collector
+	outcomes  []output.Record
+	book      *answersfile.Ledger
+	halted    bool
+}
+
+func (r *labelledRun) evaluate(ctx context.Context, rec labelledRecord) (askedLine, error) {
+	asked := r.run.asked
+	key := recordKey{position: rec.position, line: rec.line, id: rec.id}
+
+	// At ask time rather than read time, since calibrate reads every record ahead and would
+	// otherwise hold every image at once. rec.sent keeps the paths, which is what the worst
+	// misses print.
+	sent, assets, imageErr := r.run.images.attach(rec.sent)
+	if imageErr != nil {
+		bad := &input.LineError{Line: rec.line, Err: imageErr}
+		r.stats.recordFailure(bad, false, 0)
+
+		failed := failureRecord(asked, bad)
+		failed.ID = rec.id
+
+		return askedLine{index: rec.index, slot: rec.slot, record: failed}, bad
+	}
+
+	record, err := evaluate(ctx, r.asker, key, asked, r.run.model, r.questions, sent, assets, r.usage, r.stats)
+	if err == nil {
+		if _, err = casesOf(r.run.scope.scored, rec, record); err != nil {
+			// The tokens were spent, so the failed line carries them into the usage total.
+			record = spent(failureRecord(asked, err), record.Usage)
+
+			r.stats.unusable()
+		}
+	}
+
+	record.ID = rec.id
+
+	return askedLine{index: rec.index, slot: rec.slot, record: record, halted: halting(err)}, err
+}
+
+func (r *labelledRun) write(l askedLine) error {
+	// Nothing from the first record a mock file does not answer on reaches the file or the
+	// ledger, so the file holds only the records before it and a resume asks the rest.
+	if r.halted || l.halted {
+		r.halted = true
+
+		return nil
+	}
+
+	r.outcomes[l.index] = l.record
+
+	out := r.run.out
+	if out == nil {
+		return nil
+	}
+
+	start := out.Offset()
+	err := output.Write(out, output.JSON, l.record)
+
+	if r.book != nil {
+		r.book.Wrote(l.slot, answersfile.Span{Start: start, End: out.Offset()})
+	}
+
+	return err
 }
 
 func answererWhenPending(

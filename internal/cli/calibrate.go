@@ -44,43 +44,7 @@ func newCalibrateCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "calibrate [question]",
 		Short: "Score questions against records whose answers are known",
-		Long: "calibrate asks the model about labelled records, compares each answer with the label a " +
-			"--label jq expression takes from the record, and prints cut, agreement and confusion " +
-			"tables to pick a gate from. It never picks the cut.\n\n" +
-			"Map only the text a person would read, since a --map that selects the label flatters " +
-			"the question.\n\n" +
-			"Labels: a yes or no label is true, false, yes, no, 1 or 0 in any case. A pick or rate label " +
-			"is an option or level name exactly as declared, or a number whose text is one, so 4 " +
-			"matches --rate 1,2,3,4,5. null, no result or an empty string leaves a record unlabelled " +
-			"for that question, and a record no question labels is not asked. A jsonl record reads " +
-			"{\"id\":\"T-1\",\"body\":\"the site is down\",\"is_urgent\":true}, and a csv one " +
-			"has the header id,body,is_urgent and the row T-1,the site is down,yes.\n\n" +
-			"A question with no --label is skipped, left out of the requests and the report, and named " +
-			"on stderr. At least one question needs a --label, a --label naming no question exits 2, and " +
-			"so does a --require that reads a skipped question. A --resume into an --out file that " +
-			"answers every question still asks the skipped ones, so the file stays whole.\n\n" +
-			"A yes or no cut row flags a record when its value is at least the cut, so the cut goes into " +
-			"a gate as written. A question file's assert, abstain_if, threshold, min_confidence and " +
-			"fallback are ignored, since calibrate reports every cut. The same flags are refused.\n\n" +
-			"A pick or rate table has a row per name. found is the share of the records labelled with a " +
-			"name that were picked as it, and right when picked the share of the records picked as a name " +
-			"that carry it as their label.\n\n" +
-			"--out keeps the answers as -o json lines, and --resume, which needs --id, asks only the " +
-			"records the file does not answer. Changing a label or --cuts reuses every stored answer. " +
-			"A plain stream run can resume the file too, given the same questions, model, -i, --map " +
-			"and --id, with -o json and no gate or merge.\n\n" +
-			"--require turns the report into a check. Each one reads [lower|upper](ID.MEASURE) OP NUMBER " +
-			"[at CUT], where MEASURE is catches, false_alarms, right_when_flagged or auc for yes or no, " +
-			"agreement for pick and rate, and within_one for rate. OP is >=, >, <= or <, and NUMBER is a " +
-			"fraction between 0 and 1. lower and upper compare an end of the 95 percent interval instead " +
-			"of the value, so 16 of 16 fails lower(x.catches) >= 0.9. A yes or no measure other than auc is " +
-			"read at one cut: at CUT names it, at abstain takes it from the -f file's abstain_if, and " +
-			"otherwise the file's assert gives it when it compares ID.value < X or ID.value >= X. The " +
-			"report still prints, and each requirement that did not hold is named on stderr.\n\n" +
-			"--offline, with --out and --resume, reads every answer from the file and asks nothing, so it " +
-			"needs no key and never rewrites the file. A record the file does not answer, a missing file " +
-			"or a file whose fingerprint differs exits 2.\n\n" +
-			exitCodesSection(calibrateExitCodes),
+		Long:  calibrateLong(),
 		Example: "  onesie calibrate --ask urgent='is this urgent' -i jsonl --map '.body' \\\n" +
 			"      --label urgent='.is_urgent' --id '.id' --out answers.jsonl --resume < labelled.jsonl\n" +
 			"  onesie calibrate -f triage -i jsonl --map '.body' --label urgent='.is_urgent' --id '.id' \\\n" +
@@ -143,6 +107,46 @@ func newCalibrateCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 	})
 
 	return cmd
+}
+
+func calibrateLong() string {
+	return "calibrate asks the model about labelled records, compares each answer with the label a " +
+		"--label jq expression takes from the record, and prints cut, agreement and confusion " +
+		"tables to pick a gate from. It never picks the cut.\n\n" +
+		"Map only the text a person would read, since a --map that selects the label flatters " +
+		"the question.\n\n" +
+		"Labels: a yes or no label is true, false, yes, no, 1 or 0 in any case. A pick or rate label " +
+		"is an option or level name exactly as declared, or a number whose text is one, so 4 " +
+		"matches --rate 1,2,3,4,5. null, no result or an empty string leaves a record unlabelled " +
+		"for that question, and a record no question labels is not asked. A jsonl record reads " +
+		"{\"id\":\"T-1\",\"body\":\"the site is down\",\"is_urgent\":true}, and a csv one " +
+		"has the header id,body,is_urgent and the row T-1,the site is down,yes.\n\n" +
+		"A question with no --label is skipped, left out of the requests and the report, and named " +
+		"on stderr. At least one question needs a --label, a --label naming no question exits 2, and " +
+		"so does a --require that reads a skipped question. A --resume into an --out file that " +
+		"answers every question still asks the skipped ones, so the file stays whole.\n\n" +
+		"A yes or no cut row flags a record when its value is at least the cut, so the cut goes into " +
+		"a gate as written. A question file's assert, abstain_if, threshold, min_confidence and " +
+		"fallback are ignored, since calibrate reports every cut. The same flags are refused.\n\n" +
+		"A pick or rate table has a row per name. found is the share of the records labelled with a " +
+		"name that were picked as it, and right when picked the share of the records picked as a name " +
+		"that carry it as their label.\n\n" +
+		"--out keeps the answers as -o json lines, and --resume, which needs --id, asks only the " +
+		"records the file does not answer. Changing a label or --cuts reuses every stored answer. " +
+		"A plain stream run can resume the file too, given the same questions, model, -i, --map " +
+		"and --id, with -o json and no gate or merge.\n\n" +
+		"--require turns the report into a check. Each one reads [lower|upper](ID.MEASURE) OP NUMBER " +
+		"[at CUT], where MEASURE is catches, false_alarms, right_when_flagged or auc for yes or no, " +
+		"agreement for pick and rate, and within_one for rate. OP is >=, >, <= or <, and NUMBER is a " +
+		"fraction between 0 and 1. lower and upper compare an end of the 95 percent interval instead " +
+		"of the value, so 16 of 16 fails lower(x.catches) >= 0.9. A yes or no measure other than auc is " +
+		"read at one cut: at CUT names it, at abstain takes it from the -f file's abstain_if, and " +
+		"otherwise the file's assert gives it when it compares ID.value < X or ID.value >= X. The " +
+		"report still prints, and each requirement that did not hold is named on stderr.\n\n" +
+		"--offline, with --out and --resume, reads every answer from the file and asks nothing, so it " +
+		"needs no key and never rewrites the file. A record the file does not answer, a missing file " +
+		"or a file whose fingerprint differs exits 2.\n\n" +
+		exitCodesSection(calibrateExitCodes)
 }
 
 func runCalibrate(
