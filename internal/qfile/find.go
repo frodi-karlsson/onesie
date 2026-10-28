@@ -50,12 +50,6 @@ func Find(name string, env FindEnv) (Source, error) {
 	return Source{}, notFound(name, env, repo, config)
 }
 
-// IsName reports whether an -f value is a bare name to look up, not a path. A value holding a
-// path separator or a dot is always a path.
-func IsName(value string) bool {
-	return value != "" && !strings.ContainsAny(value, `/\.`)
-}
-
 // Source is where a name resolved to: a file, or a set built into onesie.
 type Source struct {
 	// Path is the file the name resolved to, empty for a built in set.
@@ -228,6 +222,12 @@ func namesIn(dir string, entries []fs.DirEntry, inRepo bool) []Found {
 	}
 
 	return listed
+}
+
+// IsName reports whether an -f value is a bare name to look up, not a path. A value holding a
+// path separator or a dot is always a path.
+func IsName(value string) bool {
+	return value != "" && !strings.ContainsAny(value, `/\.`)
 }
 
 func matchOne(name, dir string, entries []fs.DirEntry) (string, error) {

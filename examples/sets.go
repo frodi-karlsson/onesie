@@ -71,11 +71,6 @@ func (s Set) CalibrateArgs(dir string) []string {
 	return args
 }
 
-// Questions is the path of the set's question file under dir.
-func (s Set) Questions(dir string) string {
-	return filepath.Join(dir, "questions", s.Name+".yaml")
-}
-
 func readSet(dir, name string) (Set, error) {
 	set := Set{Name: name}
 
@@ -94,6 +89,11 @@ func readSet(dir, name string) (Set, error) {
 	set.TextField = field
 
 	return set, nil
+}
+
+// Questions is the path of the set's question file under dir.
+func (s Set) Questions(dir string) string {
+	return filepath.Join(dir, "questions", s.Name+".yaml")
 }
 
 // Data is the path of the set's labelled records under dir.

@@ -86,11 +86,6 @@ func (t Tag) String() string {
 	return text
 }
 
-// Prerelease reports whether t carries a -PRERELEASE part.
-func (t Tag) Prerelease() bool {
-	return len(t.Pre) > 0
-}
-
 func (t Tag) compare(other Tag) int {
 	for _, pair := range [][2]int{{t.Major, other.Major}, {t.Minor, other.Minor}, {t.Patch, other.Patch}} {
 		if pair[0] != pair[1] {
@@ -114,6 +109,11 @@ func (t Tag) compare(other Tag) int {
 	}
 
 	return cmp.Compare(len(t.Pre), len(other.Pre))
+}
+
+// Prerelease reports whether t carries a -PRERELEASE part.
+func (t Tag) Prerelease() bool {
+	return len(t.Pre) > 0
 }
 
 func latestOf(existing []string) (Tag, bool) {
