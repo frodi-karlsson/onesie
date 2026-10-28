@@ -109,51 +109,62 @@ func canceledOrBrokenPipe(err error) bool {
 func firstMatch(err error) failure {
 	// Order matters. RetryAfterError embeds APIError, so the typed check precedes the sentinels it
 	// would otherwise match, and silentError comes last so a real error joined to one keeps its code.
+	if found, matched := outcomeMatch(err); matched {
+		return found
+	}
 
+	return causeMatch(err)
+}
+
+func outcomeMatch(err error) (failure, bool) {
 	var records *recordsError
 	if errors.As(err, &records) {
 		// The exit code already says a record failed, and the per record lines on stdout carry the
 		// detail.
-		return failure{kind: output.KindInput, code: ExitRecords, quiet: true}
+		return failure{kind: output.KindInput, code: ExitRecords, quiet: true}, true
 	}
 
 	var stored *storedFailure
 	if errors.As(err, &stored) {
-		return failure{kind: output.KindInput, code: stored.freshRunCode()}
+		return failure{kind: output.KindInput, code: stored.freshRunCode()}, true
 	}
 
 	var rejected *rejectedError
 	if errors.As(err, &rejected) {
 		// A rejection is carried by the exit code alone. Under -q nothing is printed at all, and a
 		// false assertion has already printed the record.
-		return failure{kind: output.KindInput, code: ExitRejected, quiet: true}
+		return failure{kind: output.KindInput, code: ExitRejected, quiet: true}, true
 	}
 
 	var abstained *abstainError
 	if errors.As(err, &abstained) {
-		return failure{kind: output.KindInput, code: ExitAbstain, quiet: true}
+		return failure{kind: output.KindInput, code: ExitAbstain, quiet: true}, true
 	}
 
 	var stopped *stoppedError
 	if errors.As(err, &stopped) {
-		return failure{kind: output.KindInput, code: ExitRecords, quiet: true}
+		return failure{kind: output.KindInput, code: ExitRecords, quiet: true}, true
 	}
 
 	var bad *input.LineError
 	if errors.As(err, &bad) {
-		return failure{kind: output.KindInput, code: ExitUsage}
+		return failure{kind: output.KindInput, code: ExitUsage}, true
 	}
 
 	if errors.Is(err, context.Canceled) {
-		return failure{kind: output.KindInput, code: ExitInterrupt}
+		return failure{kind: output.KindInput, code: ExitInterrupt}, true
 	}
 
 	// A deadline reaching here unwrapped is still a timeout, and a timeout is transport shaped.
 	// Without this it would fall through to the usage default.
 	if errors.Is(err, context.DeadlineExceeded) {
-		return failure{kind: output.KindTransport, code: ExitTransport}
+		return failure{kind: output.KindTransport, code: ExitTransport}, true
 	}
 
+	return failure{}, false
+}
+
+func causeMatch(err error) failure {
 	var overCap *onesie.RetryAfterError
 	if errors.As(err, &overCap) {
 		status := overCap.Status
