@@ -235,6 +235,14 @@ func TestMockAnswers(t *testing.T) {
 			wantCode: ExitUnavailable,
 		},
 		{
+			name:     "should replay a stored cloudflare auth row as the refusal it was, with kind auth and exit 3",
+			args:     with("-i", "lines", "-o", "json", "--provider", "cloudflare"),
+			stdin:    "a\n",
+			mock:     `{"error":{"kind":"auth","status":400,"message":"400 Authentication error"}}` + "\n",
+			contains: []string{`"error":{"kind":"auth","status":400,"message":"400 Authentication error"}`},
+			wantCode: ExitAuth,
+		},
+		{
 			name:     "should exit 3 for one record the file refuses with 401, naming no key",
 			args:     with("--state", "x"),
 			mock:     `{"error":401}`,

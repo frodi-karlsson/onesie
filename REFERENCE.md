@@ -142,13 +142,16 @@ ONESIE_MOCK=answers.json ./gate.sh
   error object as `-o json` writes it replays by its `kind`, and a `response` one is a 200 with no
   answers, which fails as
   `200 response could not be used: the response is not a System One result, since it has no answers`.
-  An `http` or `auth` one may carry the JSON `body` the server sends, as in
+  An `http` one may carry the JSON `body` the server sends, as in
   `{"error": {"kind": "http", "status": 400, "body": {"detail": "Unknown model: jev-latest"}}}`,
   and then fails and advises as a live response with that body does. A string `body` is the raw
   response text, so `"body": "<html>nope</html>"` reads as a live HTML page does, with the advice
-  for a body that is not JSON. A `null` one is no body. For one record, a 401, 402 or 403 exits 3,
-  a 5xx or a `response` exits 4 and a timeout exits 5. In a stream a failed record is an error line
-  and the run exits 6, apart from a 401, 402 or 403, which ends it with exit 3.
+  for a body that is not JSON. A `null` one is no body. An `auth` one fails as the provider's own
+  refusal of the key: a 401, 402 or 403 on any provider, or a 400 on cloudflare, which names a
+  refused token by its code. Any other status in an `auth` one, or a 400 on another provider, exits
+  2 when the file loads. For one record, a 401, 402, 403 or `auth` exits 3, a 5xx or a `response`
+  exits 4 and a timeout exits 5. In a stream a failed record is an error line and the run exits 6,
+  apart from a 401, 402, 403 or `auth`, which ends it with exit 3.
 - A record the file does not answer exits 2 when the run reaches it, naming its input line and the
   missing entry. A replayed `kind: input` line answers nothing, so it counts as missing too. Output
   stops at that record, so it holds only the lines before it in input order, or under `--unordered`

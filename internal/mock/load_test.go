@@ -466,6 +466,70 @@ func TestLoad(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("should replay an auth failure as the provider's own refusal of the key", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name     string
+			provider onesie.Provider
+			file     string
+			status   int
+			wantErr  string
+		}{
+			{
+				name: "should fail a stored 401 as a refused key", provider: onesie.TypeSafe(),
+				file: `{"error":{"kind":"auth","status":401,"message":"401 the key was refused"}}`, status: 401,
+			},
+			{
+				name: "should fail a stored 402 as an account out of credits", provider: onesie.OpenRouter(),
+				file: `{"error":{"kind":"auth","status":402,"message":"402 add credits"}}`, status: 402,
+			},
+			{
+				name: "should fail a stored cloudflare 400 as the token refusal cloudflare sends", provider: onesie.Cloudflare(),
+				file: `{"error":{"kind":"auth","status":400,"message":"400 Authentication failed"}}`, status: 400,
+			},
+			{
+				name: "should refuse a stored 400 auth failure on a provider that never sends one", provider: onesie.TypeSafe(),
+				file: `{"error":{"kind":"auth","status":400,"message":"400 Authentication failed"}}`,
+				wantErr: `--mock line 1: error {"kind":"auth","message":"400 Authentication failed","status":400} is an auth ` +
+					"failure with status 400, which only cloudflare sends, so it does not replay on typesafe",
+			},
+			{
+				name: "should refuse an auth failure with a status no refusal of a key has", provider: onesie.TypeSafe(),
+				file: `{"error":{"kind":"auth","status":503,"message":"503 busy"}}`,
+				wantErr: `--mock line 1: error {"kind":"auth","message":"503 busy","status":503} is an auth failure with a ` +
+					"status no refusal of a key has. Use 400, 401, 402 or 403",
+			},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				answers, err := Load(strings.NewReader(tc.file), threeQuestions(), Options{Provider: tc.provider})
+				if tc.wantErr != "" {
+					if err == nil || err.Error() != tc.wantErr {
+						t.Fatalf("error\n got: %v\nwant: %s", err, tc.wantErr)
+					}
+
+					return
+				}
+
+				if err != nil {
+					t.Fatalf("Load: %v", err)
+				}
+
+				entry, _ := answers.Lookup(1, nil)
+				_, err = sendThrough(t, tc.provider, entry)
+
+				var refused *onesie.APIError
+				if !errors.As(err, &refused) || refused.Status != tc.status || !authRefusal(err) {
+					t.Errorf("error = %v, want an auth refusal with status %d", err, tc.status)
+				}
+			})
+		}
+	})
 }
 
 func checkLookup(t *testing.T, answers *Answers, questions []plan.Question, look lookup) {
@@ -661,4 +725,8 @@ func TestAnswersMissing(t *testing.T) {
 			}
 		})
 	}
+}
+
+func authRefusal(err error) bool {
+	return errors.Is(err, onesie.ErrAuthentication) || errors.Is(err, onesie.ErrPaymentRequired)
 }

@@ -40,6 +40,8 @@ func (t Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	switch {
 	case entry.fault != nil:
 		return nil, entry.fault
+	case entry.auth:
+		return response(req, entry.status, t.refusal()), nil
 	case entry.status != 0:
 		return response(req, entry.status, entry.body), nil
 	}
@@ -51,6 +53,17 @@ func (t Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	}
 
 	return response(req, http.StatusOK, body), nil
+}
+
+func (t Transport) refusal() []byte {
+	// Cloudflare names a refused token by its code, under a 400 too, where every other provider
+	// refuses a key by its status alone.
+	if t.provider.Name() == onesie.Cloudflare().Name() {
+		return []byte(`{"success":false,"errors":[{"code":10000,"message":"Authentication error"}],` +
+			`"messages":[],"result":null}`)
+	}
+
+	return nil
 }
 
 func response(req *http.Request, status int, body []byte) *http.Response {

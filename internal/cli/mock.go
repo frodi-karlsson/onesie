@@ -46,7 +46,7 @@ func mockAnswers(
 	}
 
 	answers, err := mock.Load(bytes.NewReader(data), known, mock.Options{
-		ByID: flags.idSource != "", Spelled: flags.mockSpelled, Asked: asked,
+		ByID: flags.idSource != "", Spelled: flags.mockSpelled, Asked: asked, Provider: provider,
 	})
 	if err != nil {
 		return nil, err
