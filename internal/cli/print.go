@@ -101,25 +101,13 @@ func warnUncarried(w io.Writer, loaded *qfile.File) error {
 	return output.Warning(w, "--print-questions does not carry the body's state. Pass --state when you reload")
 }
 
-func printRequest(
-	w io.Writer,
-	questions []plan.Question,
-	source input.Source,
-	state any,
-	assets onesie.Assets,
-	longContext bool,
-	model string,
-) error {
-	req := onesie.Request{Model: model, Questions: wireAll(questions), LongContext: longContext}
-
+func printRequest(w io.Writer, provider onesie.Provider, req onesie.Request, stated bool) error {
 	encode := marshalQuestionsBody
-	if source != input.SourceNone {
-		req.State = state
-		req.Assets = assets
+	if stated {
 		encode = onesie.MarshalBody
 
-		if validErr := onesie.ValidateRequest(req); validErr != nil {
-			return validErr
+		if err := provider.Check(req); err != nil {
+			return err
 		}
 	}
 
@@ -149,13 +137,14 @@ func streamRequests(
 	inv *invocation,
 	resume answersfile.Resume,
 ) error {
-	model, err := resolveModel(settings, inv.plan.Model)
+	chosen, err := settings.holder.resolved()
 	if err != nil {
 		return err
 	}
 
 	run := &requestRun{
-		built: inv.plan, mapper: inv.mapper, images: inv.images, model: model, questions: wireAll(inv.plan.Questions),
+		built: inv.plan, mapper: inv.mapper, images: inv.images, provider: chosen.provider,
+		model: chosen.modelFor(inv.plan.Model, settings.lookupEnv), questions: wireAll(inv.plan.Questions),
 	}
 	source := records(cmd.Context(), settings, flags.inputMode, flags, inv.namer, nil, resume, output.JSON)
 
@@ -182,6 +171,7 @@ type requestRun struct {
 	built     *plan.Plan
 	mapper    *jq.Expr
 	images    *imaging
+	provider  onesie.Provider
 	model     string
 	questions onesie.Questions
 }
@@ -220,8 +210,8 @@ func (r *requestRun) evaluate(ctx context.Context, rec namedRecord) ([]byte, err
 	req := onesie.Request{
 		State: sent, Model: r.model, Questions: r.questions, Assets: assets, LongContext: r.built.LongContext,
 	}
-	if validErr := onesie.ValidateRequest(req); validErr != nil {
-		return badLine(rec, embed("", validErr))
+	if checkErr := r.provider.Check(req); checkErr != nil {
+		return badLine(rec, embed("", checkErr))
 	}
 
 	return requestLine(rec.Line, req)

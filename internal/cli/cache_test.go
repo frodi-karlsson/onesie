@@ -129,13 +129,13 @@ func TestOpenCache(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if err := store.Put(cache.Key{1}, "typesafe", "jev-latest", []byte(`1`)); err != nil {
+		if err := store.Put(cache.Key{1}, "jev-latest", false, []byte(`1`)); err != nil {
 			t.Fatal(err)
 		}
 
 		clock = cacheEpoch.Add(91 * time.Minute)
 
-		if _, hit, err := store.Get(cache.Key{1}, "typesafe", "jev-latest"); hit || err != nil {
+		if _, hit, err := store.Get(cache.Key{1}, "jev-latest", false); hit || err != nil {
 			t.Errorf("Get at 91 minutes = %v, %v, want a miss", hit, err)
 		}
 	})
@@ -150,7 +150,7 @@ func TestOpenCache(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if err := store.Put(cache.Key{1}, "typesafe", "jev-latest", []byte(`1`)); err != nil {
+		if err := store.Put(cache.Key{1}, "jev-latest", false, []byte(`1`)); err != nil {
 			t.Fatal(err)
 		}
 
@@ -163,8 +163,9 @@ func TestOpenCache(t *testing.T) {
 func TestCachedAnswerer(t *testing.T) {
 	t.Parallel()
 
-	questions := []plan.Question{{ID: "u", Shape: plan.Noul}}
-	request := onesie.Request{State: json.RawMessage(`"site down"`), Questions: wireAll(questions)}
+	request := onesie.Request{
+		State: json.RawMessage(`"site down"`), Questions: wireAll([]plan.Question{{ID: "u", Shape: plan.Noul}}),
+	}
 	key := recordKey{position: 1, line: 1}
 
 	build := func(t *testing.T, stub *answerStub, warn func(error), extra ...onesie.Option) (answererFactory, string) {
@@ -189,7 +190,7 @@ func TestCachedAnswerer(t *testing.T) {
 			warn = func(err error) { t.Errorf("unexpected cache warning: %v", err) }
 		}
 
-		return cachedAnswers(settings, runConfig{}, onesie.TypeSafe().DefaultModel(), questions, warn), dir
+		return cachedAnswers(settings, runConfig{}, onesie.TypeSafe().DefaultModel(), warn), dir
 	}
 
 	t.Run("should ask on a miss, store the answer and answer the next call from it", func(t *testing.T) {

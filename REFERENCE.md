@@ -31,10 +31,9 @@ prints the built in limits.
   plain run, in a stream, under `-q` and `--assert`, in `calibrate` and when the cache is read. A
   yes or no value, each `p` and each `confidence` lies in [0,1], a pick names one of its options, a
   rate's `score` lies between 0 and its top level index, the keys of `p` are exactly the options,
-  or the level indexes from 0 for a rate, and `p` adds up to 1 within half a hundredth per entry,
-  and at least a hundredth. An answer of the wrong type fails too. Any of these exits 4 with
-  `200 response could not be used:` and names the question and the value, as in
-  `question 'urgent' answered 1.5, which lies outside [0,1]`. In a stream the record is an error
+  or the level indexes from 0 for a rate, and `p` adds up to 1 within 0.02. An answer of the wrong
+  type fails too. Any of these exits 4 with `200 response could not be used:` and names the
+  question and the value, as in `question 'urgent' answered 1.5, which lies outside [0,1]`. In a stream the record is an error
   line of kind `response`. Its tokens still count toward `--usage` and `--stats`, it is never
   stored in the cache, and it is not retried.
 - A rate answer also carries `score` and `norm`. `score` is the level index averaged over `p`, with
@@ -134,11 +133,19 @@ ONESIE_MOCK=answers.json ./gate.sh
 - An entry answers every question the run asks. The file is checked against the questions before
   any record, and an unknown question id, a missing answer, a value of the wrong shape or a name
   that is not an option exits 2, naming the line.
-- `{"error": N}` with a status from 400 to 599 fails the record as that status does,
-  `{"error": "timeout"}` as a timeout after `--timeout`, and `{"error": "connection"}` as a
-  transport failure. An error object as `-o json` writes it replays by its `kind`. For one record, a
-  401, 402 or 403 exits 3, a 5xx exits 4 and a timeout exits 5. In a stream a failed record is an
-  error line and the run exits 6, apart from a 401, 402 or 403, which ends it with exit 3.
+- `{"error": N}` with a status from 400 to 599 fails the record as that status does with no body,
+  as in `onesie: 503 status code, no body`, `{"error": "timeout"}` as a timeout after `--timeout`,
+  and `{"error": "connection"}` as a transport failure, as in
+  `onesie: could not reach mock.invalid: mock connection error`. An error object as `-o json`
+  writes it replays by its `kind`, and a `response` one fails as
+  `200 response could not be used: mock response onesie could not use`. An `http` one may carry
+  the JSON `body` the server sends, as in
+  `{"error": {"kind": "http", "status": 400, "body": {"detail": "Unknown model: jev-latest"}}}`,
+  and then fails and advises as a live response with that body does. A string `body` is the raw
+  response text, so `"body": "<html>nope</html>"` reads as a live HTML page does, with the advice
+  for a body that is not JSON. A `null` one is no body. For one record, a 401, 402 or 403 exits 3,
+  a 5xx or a `response` exits 4 and a timeout exits 5. In a stream a failed record is an error line
+  and the run exits 6, apart from a 401, 402 or 403, which ends it with exit 3.
 - A record the file does not answer exits 2 when the run reaches it, naming its input line and the
   missing entry. A replayed `kind: input` line answers nothing, so it counts as missing too. Output
   stops at that record, so it holds only the lines before it in input order, or under `--unordered`
@@ -403,18 +410,21 @@ ls photos/*.jpg | onesie -i lines --image-field photo 'is there a dog in `photo`
   through `-i request`.
 - A printed body names its model, the provider's default unless `-m` gave one, so it replays on a
   provider that serves that model. To print for another provider, pass `-m`.
+- `--print-request` refuses what a send to the run's provider refuses before it prints anything,
+  such as an image or a Box question on a provider that takes none. A body printed with no state
+  holds only the questions, and gets only that provider refusal.
 - Under `-i request` onesie fills a blank `model` and checks each body as a send would, before it
   sends anything: the provider must take what the body asks for, each image must pass the image
   limits, `long_context` must be true or false, and no question may pass `max-choice-options` or
   `max-score-levels`. A body that fails is an error line of kind `input`, and nothing is sent for
   it. `--print-request` refuses the same bodies with the same error lines. It also checks each 200
-  that comes back before printing it. A response that is not JSON, that is
-  not a System One result with an `answers` object, or whose answers do not decode, is an error
-  line of kind `response` with `200 response could not be used:`, and the run exits 6. When the
-  body's `questions` read as a `-f` body's would, each answer is also checked against its question
-  as on any other run, so a missing answer or a value out of its range fails the same way. A
-  body whose questions onesie cannot read, such as one past `max-question-file-bytes`, gets only
-  the first checks. The tokens of a refused response still count toward `--stats`.
+  that comes back before printing it. A response that is not JSON, that is not a System One result
+  with an `answers` object, or whose answers do not decode, is an error line of kind `response`
+  with `200 response could not be used:`, and the run exits 6. A response that is not JSON also
+  names the base URL to check. When the body's `questions` read, each answer is also checked
+  against its question's type, options and levels as on any other run, so a missing answer or a
+  value out of its range fails the same way. A body whose questions do not read gets only the
+  first checks. The tokens of a refused response still count toward `--stats`.
 - A malformed image body, such as one whose asset nothing references, is refused before any
   request on every provider, with the same message.
 - Providers read images differently:
@@ -825,7 +835,8 @@ table, and `onesie calibrate --help` lists the codes calibrate uses.
 - A notice onesie writes to stderr starts with `onesie: `, and a warning with `onesie: warning: `.
   The `--stats` summary, calibrate's progress lines, the `active: ` line `profile list` writes and
   the `API key: ` prompt keep their own form.
-- `--list-models` shows what the account can ask, and `-m` picks one.
+- `--list-models` shows what the account can ask, and `-m` picks one. Each line holds a model, its
+  description and its release date as `YYYY-MM-DD`, which is blank when the provider gives none.
 - `--base-url` points onesie at any server that speaks the System One API. A redirect is refused
   rather than followed with the key.
 - A plain `http://` base URL to a host other than this machine exits 2 before any request, since
@@ -835,9 +846,14 @@ table, and `onesie calibrate --help` lists the codes calibrate uses.
   a `--base-url` unless given `--allow-http`, and the file does not record that choice, so every
   run on the profile needs `--allow-http` as well, and `profile show` prints `allow_http: needed`.
   There is no variable for it.
-- onesie adds `/v1/systemone` itself, so a base URL whose path ends in `/v1`, from
-  `--base-url`, `TYPESAFE_BASE_URL` or a profile's `base_url`, prints one warning naming where it
-  came from and the URL requests go to. It is not refused, since a proxy may use that prefix.
+- onesie adds the API path itself, such as `/v1/systemone`, so a base URL whose last segment is
+  the first segment of that path, such as `/v1`, prints one warning naming where it came from, the
+  segment and the URL questions go to. `--list-models` calls its own path, which the warning does
+  not name. cloudflare's path is `/run`, so a cloudflare base URL ending in `/v1` does not warn. It
+  is not refused, since a proxy may use that prefix.
+- A request that never reaches the server exits 5 and names the host and the innermost cause, as
+  in `onesie: could not reach api.example.com: no such host`. The host keeps its port, and the
+  message never holds a URL, a query or a proxy address.
 - An error response whose body is not JSON, such as the HTML page a web server sends for a wrong
   path, prints its status and says the body is not JSON, as in
   `onesie: 405 Method Not Allowed, with a response body that is not JSON. Check that the base URL points at the System One API`.

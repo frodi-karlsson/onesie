@@ -12,7 +12,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/frodi-karlsson/onesie-go"
-	"github.com/frodi-karlsson/onesie/internal/answer"
 	"github.com/frodi-karlsson/onesie/internal/cache"
 	"github.com/frodi-karlsson/onesie/internal/output"
 	"github.com/frodi-karlsson/onesie/internal/plan"
@@ -58,7 +57,7 @@ func answersFor(
 		}
 	}
 
-	return wrapped(settings, cachedAnswers(settings, flags, model, built.Questions, warn)), nil
+	return wrapped(settings, cachedAnswers(settings, flags, model, warn)), nil
 }
 
 func caching(flags runConfig) bool {
@@ -71,9 +70,7 @@ func caching(flags runConfig) bool {
 	return flags.env.cache
 }
 
-func cachedAnswers(
-	settings rootSettings, flags runConfig, model string, questions []plan.Question, warn func(error),
-) answererFactory {
+func cachedAnswers(settings rootSettings, flags runConfig, model string, warn func(error)) answererFactory {
 	return func(ctx context.Context, stats *collector) (answerer, error) {
 		chosen, err := settings.holder.resolved()
 		if err != nil {
@@ -86,13 +83,12 @@ func cachedAnswers(
 		}
 
 		return &cachedAnswerer{
-			next:      newLiveAnswerer(client),
-			open:      sync.OnceValues(func() (*cache.Store, error) { return openCache(settings, flags.env.aliasTTL) }),
-			model:     model,
-			provider:  client.Provider().Name(),
-			origin:    client.Provider().Name() + "\x00" + client.BaseURL(),
-			questions: questions,
-			warn:      warn,
+			next:   newLiveAnswerer(client),
+			open:   sync.OnceValues(func() (*cache.Store, error) { return openCache(settings, flags.env.aliasTTL) }),
+			model:  model,
+			pinned: client.Provider().Pinned(model),
+			origin: client.Provider().Name() + "\x00" + client.BaseURL(),
+			warn:   warn,
 		}, nil
 	}
 }
@@ -160,7 +156,7 @@ func (a *cachedAnswerer) answer(ctx context.Context, key recordKey, req onesie.R
 		return a.next.answer(ctx, key, req)
 	}
 
-	value, hit, err := store.Get(cache.Key(id), a.provider, a.model)
+	value, hit, err := store.Get(cache.Key(id), a.model, a.pinned)
 	if err != nil {
 		a.fail(failed(store, err))
 
@@ -170,13 +166,13 @@ func (a *cachedAnswerer) answer(ctx context.Context, key recordKey, req onesie.R
 	// An entry that fails the answer checks would fail every run until it expires, so it is passed
 	// over and replaced by a fresh answer.
 	if hit {
-		if result, decoded := decodeCached(value, req.Questions); decoded && a.usable(result) {
+		if result, usable := decodeCached(value, req.Questions); usable {
 			return reply{result: result, cached: true}, nil
 		}
 	}
 
 	fresh, err := a.next.answer(ctx, key, req)
-	if err != nil || !a.usable(fresh.result) {
+	if err != nil {
 		return fresh, err
 	}
 
@@ -189,24 +185,14 @@ func (a *cachedAnswerer) answer(ctx context.Context, key recordKey, req onesie.R
 
 func decodeCached(value []byte, questions onesie.Questions) (*onesie.Result, bool) {
 	var result onesie.Result
-	if err := json.Unmarshal(value, &result); err != nil {
+	if json.Unmarshal(value, &result) != nil || result.Check(questions) != nil {
 		return nil, false
-	}
-
-	for _, named := range questions {
-		if _, found := result.Answers[named.ID]; !found {
-			return nil, false
-		}
 	}
 
 	// A hit cost nothing, and a sum over the output stays true.
 	result.Usage = onesie.Usage{}
 
 	return &result, true
-}
-
-func (a *cachedAnswerer) usable(result *onesie.Result) bool {
-	return answer.CheckAll(a.questions, result) == nil
 }
 
 func (a *cachedAnswerer) put(store *cache.Store, id cache.Key, result *onesie.Result) error {
@@ -218,7 +204,7 @@ func (a *cachedAnswerer) put(store *cache.Store, id cache.Key, result *onesie.Re
 		return err
 	}
 
-	return store.Put(id, a.provider, a.model, value)
+	return store.Put(id, a.model, a.pinned, value)
 }
 
 func failed(store *cache.Store, err error) error {
@@ -235,14 +221,13 @@ func (a *cachedAnswerer) salt(key recordKey) (string, bool) {
 }
 
 type cachedAnswerer struct {
-	next      answerer
-	open      func() (*cache.Store, error)
-	model     string
-	provider  string
-	origin    string
-	questions []plan.Question
-	warn      func(error)
-	off       atomic.Bool
+	next   answerer
+	open   func() (*cache.Store, error)
+	model  string
+	pinned bool
+	origin string
+	warn   func(error)
+	off    atomic.Bool
 }
 
 func (e *cacheRefusedError) Error() string {

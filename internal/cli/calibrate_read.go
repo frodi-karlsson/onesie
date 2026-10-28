@@ -22,7 +22,7 @@ func calibrateRequests(
 	cmd *cobra.Command, settings rootSettings, flags runConfig, inputMode input.Mode, inv *invocation,
 	scope calibrateScope,
 ) error {
-	model, err := resolveModel(settings, scope.scored.Model)
+	chosen, err := settings.holder.resolved()
 	if err != nil {
 		return err
 	}
@@ -45,10 +45,11 @@ func calibrateRequests(
 		}
 
 		req := onesie.Request{
-			State: sent, Model: model, Questions: questions, Assets: assets, LongContext: scope.scored.LongContext,
+			State: sent, Model: chosen.modelFor(scope.scored.Model, settings.lookupEnv), Questions: questions,
+			Assets: assets, LongContext: scope.scored.LongContext,
 		}
-		if validErr := onesie.ValidateRequest(req); validErr != nil {
-			return &input.LineError{Line: rec.line, Err: embed("", validErr)}
+		if checkErr := chosen.provider.Check(req); checkErr != nil {
+			return &input.LineError{Line: rec.line, Err: embed("", checkErr)}
 		}
 
 		body, bodyErr := requestLine(rec.line, req)

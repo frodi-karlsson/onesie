@@ -690,7 +690,7 @@ func TestOpenOut(t *testing.T) {
 			sidecar:   matching,
 			bare:      true,
 			args:      []string{"--list-models"},
-			wantFile:  "jev-latest  d  r\n",
+			wantFile:  "jev-latest  d  2026-08-01\n",
 			wantCalls: 1,
 		},
 	}
@@ -711,7 +711,7 @@ func TestOpenOut(t *testing.T) {
 
 				body := `{"model":"m","answers":{"answer":{"type":"noul","noul":0.5}},"usage":{}}`
 				if r.URL.Path == "/v1/models" {
-					body = `{"models":[{"name":"jev-latest","description":"d","release_date":"r"}]}`
+					body = `{"models":[{"name":"jev-latest","description":"d","release_date":"2026-08-01"}]}`
 				}
 
 				if _, err := io.WriteString(w, body); err != nil {

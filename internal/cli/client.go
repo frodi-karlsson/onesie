@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"net/url"
-	"strings"
 	"sync"
 	"time"
 
@@ -67,13 +65,12 @@ func clientBuilder(info BuildInfo, flags *runFlags, settings rootSettings) clien
 			})
 		}
 
-		if endsInVersion(client.BaseURL()) {
-			source, _ := baseURLFrom(client.BaseURLSource(), flags.baseURL, chosen, settings.lookupEnv)
+		if segment, repeats := client.BaseURLRepeatsPath(); repeats {
+			source := baseURLFrom(client.BaseURLSource(), flags.baseURL, chosen)
 
 			doubled.Do(func() {
-				printErr = output.Warning(settings.holder.stderr(), source+
-					" ends in /v1 and onesie adds the API path itself, so requests go to "+
-					output.Printable(client.SystemOneURL()))
+				printErr = output.Warning(settings.holder.stderr(), source+" ends in /"+segment+
+					" and onesie adds the API path itself, so questions go to "+output.Printable(client.SystemOneURL()))
 			})
 		}
 
@@ -121,9 +118,7 @@ func profileKey(settings rootSettings, chosen resolution) func() (string, error)
 func explained(settings rootSettings, baseURLFlag string, chosen resolution, err error) error {
 	var refused *onesie.BaseURLError
 	if errors.As(err, &refused) {
-		source, given := baseURLFrom(refused.Source, baseURLFlag, chosen, settings.lookupEnv)
-
-		return baseURLRefusal(refused, source, given)
+		return baseURLRefusal(refused, baseURLFrom(refused.Source, baseURLFlag, chosen))
 	}
 
 	if errors.Is(err, onesie.ErrNoAccountID) {
@@ -144,28 +139,28 @@ func explained(settings rootSettings, baseURLFlag string, chosen resolution, err
 	return missingKeyHint(err, chosen, opened.Profiles)
 }
 
-func baseURLFrom(
-	source onesie.BaseURLSource, baseURLFlag string, chosen resolution, lookupEnv func(string) (string, bool),
-) (name, given string) {
+func baseURLFrom(source onesie.BaseURLSource, baseURLFlag string, chosen resolution) string {
 	switch source {
 	case onesie.BaseURLFromOption:
-		return chosen.givenBaseURL(baseURLFlag)
+		name, _ := chosen.givenBaseURL(baseURLFlag)
+
+		return name
 	case onesie.BaseURLFromEnv:
-		return chosen.provider.EnvBaseURL(), setVariable(lookupEnv, chosen.provider.EnvBaseURL())
+		return chosen.provider.EnvBaseURL()
 	case onesie.BaseURLFromAccount:
 		if chosen.accountID != "" {
-			return "the profile's account_id", ""
+			return "the profile's account_id"
 		}
 
-		return chosen.provider.EnvAccountID(), ""
+		return chosen.provider.EnvAccountID()
 	case onesie.BaseURLFromDefault:
-		return providersOwn, ""
+		return providersOwn
 	}
 
-	return "the base URL", ""
+	return "the base URL"
 }
 
-func baseURLRefusal(refused *onesie.BaseURLError, source, given string) error {
+func baseURLRefusal(refused *onesie.BaseURLError, source string) error {
 	message := source + " " + refused.Rule()
 	if refused.Shown != "" {
 		message = source + " " + output.Printable(refused.Shown) + " " + refused.Rule()
@@ -174,17 +169,11 @@ func baseURLRefusal(refused *onesie.BaseURLError, source, given string) error {
 	switch {
 	case errors.Is(refused, onesie.ErrInsecureBaseURL):
 		message += plainHTTPReason + ". Use https, or pass --" + flagAllowHTTP + " to send it anyway"
-	case strings.Contains(given, "@"):
+	case errors.Is(refused, onesie.ErrBaseURLUserInfo):
 		message += ". Put the API key in a profile or the provider's key variable instead"
 	}
 
 	return &advisedError{cause: refused, message: message}
-}
-
-func endsInVersion(baseURL string) bool {
-	parsed, err := url.Parse(baseURL)
-
-	return err == nil && strings.HasSuffix(strings.TrimRight(parsed.Path, "/"), "/v1")
 }
 
 func pooled(base http.RoundTripper, jobs int) http.RoundTripper {

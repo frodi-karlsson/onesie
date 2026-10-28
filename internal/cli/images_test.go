@@ -16,14 +16,12 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"reflect"
 	"slices"
 	"strings"
 	"sync"
 	"testing"
 
 	"github.com/frodi-karlsson/onesie-go"
-	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
 func TestImagingAttach(t *testing.T) {
@@ -485,11 +483,21 @@ func TestRun(t *testing.T) {
 			wantErr:  refused,
 		},
 		{
-			name:     "should print a levanto request with images, since a dry run sends nothing",
+			name:     "should refuse a levanto request with images under --print-request, as a send does",
 			args:     []string{"--image", "photo=" + square, "q", "--print-request"},
 			env:      levanto,
-			wantCode: ExitOK,
-			wantOut:  `"assets":{"` + ref + `"`,
+			wantCode: ExitUsage,
+			wantErr:  refused + ". The typesafe, openrouter and cloudflare providers do\n",
+			emptyOut: true,
+		},
+		{
+			name:     "should refuse a cloudflare stream under --long-context with --print-request before reading input",
+			args:     []string{"-i", "lines", "--long-context", "q", "--print-request"},
+			env:      cloudflare,
+			stdin:    "a\nb\n",
+			wantCode: ExitUsage,
+			wantErr:  "onesie: the cloudflare provider takes no long context. The typesafe, openrouter, berget and levanto providers do\n",
+			emptyOut: true,
 		},
 		{
 			name:     "should refuse a mock run with images under levanto, as the real run does",
@@ -914,78 +922,6 @@ func TestRun(t *testing.T) {
 			})
 		}
 	})
-}
-
-func TestReadRawRequest(t *testing.T) {
-	t.Parallel()
-
-	urgent := []plan.Question{{ID: "u", Shape: plan.Noul, Instructions: "is it urgent", Origin: plan.OriginBody}}
-
-	tests := []struct {
-		name string
-		body string
-		want rawRequest
-	}{
-		{
-			name: "should read the model and count the questions",
-			body: `{"state":"s","model":"m","questions":{"a":{"type":"noul"},"b":{"type":"choice"}}}`,
-			want: rawRequest{model: "m", questions: 2},
-		},
-		{
-			name: "should read the questions a response must answer",
-			body: `{"state":"s","model":"m","questions":{"u":{"type":"noul","instructions":"is it urgent"}}}`,
-			want: rawRequest{model: "m", questions: 1, asked: urgent},
-		},
-		{
-			name: "should mark a box question",
-			body: `{"state":"s","questions":{"m":{"type":"box"}}}`,
-			want: rawRequest{questions: 1, boxed: true},
-		},
-		{
-			name: "should read a body's long_context",
-			body: `{"model":"m","questions":{"q":{"type":"noul"}},"long_context":true}`,
-			want: rawRequest{model: "m", questions: 1, longContext: true},
-		},
-		{
-			name: "should read the model by its exact key",
-			body: `{"model":"m","questions":{"q":{"type":"noul"}},"Model":"ignored"}`,
-			want: rawRequest{model: "m", questions: 1},
-		},
-		{
-			name: "should mark a box question the body loads",
-			body: `{"state":"s","questions":{"where":{"type":"box","instructions":"where is the cat"}},` +
-				`"assets":{"image-1":"aGVsbG8="}}`,
-			want: rawRequest{questions: 1, boxed: true},
-		},
-		{
-			name: "should read past the assets",
-			body: `{"model":"m","assets":{"image-1":"aGVsbG8="},"questions":{"u":{"type":"noul","instructions":"is it urgent"}}}`,
-			want: rawRequest{model: "m", questions: 1, asked: urgent},
-		},
-		{name: "should read nothing from a body it cannot parse", body: `not json`},
-		{
-			name: "should keep the model and count past a question that is not an object",
-			body: `{"model":"m","questions":{"q":"text"}}`,
-			want: rawRequest{model: "m", questions: 1},
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			got := readRawRequest([]byte(tc.body))
-
-			if got.model != tc.want.model || got.questions != tc.want.questions || got.boxed != tc.want.boxed ||
-				got.longContext != tc.want.longContext {
-				t.Errorf("readRawRequest = %+v, want %+v", got, tc.want)
-			}
-
-			if tc.want.asked != nil && !reflect.DeepEqual(got.asked, tc.want.asked) {
-				t.Errorf("asked = %+v, want %+v", got.asked, tc.want.asked)
-			}
-		})
-	}
 }
 
 func TestAskLabelled(t *testing.T) {

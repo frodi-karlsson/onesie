@@ -210,11 +210,6 @@ func (m *imaging) load(path string) (string, onesie.Image, error) {
 }
 
 func checkProviderNeeds(settings rootSettings, flags runConfig, built *plan.Plan, images *imaging) error {
-	// A dry run sends nothing, and the body it prints is the provider neutral one.
-	if flags.printRequest {
-		return nil
-	}
-
 	chosen, err := settings.holder.resolved()
 	if err != nil {
 		return err

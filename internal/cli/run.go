@@ -218,12 +218,17 @@ func runOne(
 
 	// After the state is resolved, so the body carries the state a real run would send.
 	if flags.printRequest {
-		model, err := resolveModel(settings, built.Model)
+		chosen, err := settings.holder.resolved()
 		if err != nil {
 			return err
 		}
 
-		return printRequest(cmd.OutOrStdout(), built.Questions, resolved.Source, sent, assets, built.LongContext, model)
+		req := onesie.Request{
+			State: sent, Model: chosen.modelFor(built.Model, settings.lookupEnv), Questions: wireAll(built.Questions),
+			Assets: assets, LongContext: built.LongContext,
+		}
+
+		return printRequest(cmd.OutOrStdout(), chosen.provider, req, resolved.Source != input.SourceNone)
 	}
 
 	// Checked here rather than at write time, so a taken key costs no request.
@@ -969,10 +974,7 @@ func answered(
 		record.Usage = &usage
 	}
 
-	normalized, normErr := answer.NormalizeAll(built.Questions, result)
-	if normErr != nil {
-		return spent(failureRecord(built, normErr), record.Usage), result.Usage, got.cached, normErr
-	}
+	normalized := answer.NormalizeAll(built.Questions, result)
 
 	for i, question := range built.Questions {
 		answer.Apply(question, normalized[i])

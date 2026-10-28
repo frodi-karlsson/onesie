@@ -149,12 +149,12 @@ func TestCheckChoice(t *testing.T) {
 		{
 			name:    "should refuse an unknown provider",
 			flags:   runFlags{provider: "nope", providerSet: true},
-			wantErr: "onesie: unknown provider nope",
+			wantErr: "onesie: unknown provider 'nope'",
 		},
 		{
 			name:    "should refuse an unknown provider from ONESIE_PROVIDER",
 			env:     map[string]string{"ONESIE_PROVIDER": "nope"},
-			wantErr: "onesie: unknown provider nope",
+			wantErr: "onesie: unknown provider 'nope'",
 		},
 		{
 			name:    "should refuse two choices of the same strength",
@@ -212,7 +212,7 @@ func TestCheckChoice(t *testing.T) {
 			},
 			{
 				name: "should refuse an unknown provider", args: printing("--provider", "bogus"),
-				wantCode: ExitUsage, wantErr: "onesie: unknown provider bogus",
+				wantCode: ExitUsage, wantErr: "onesie: unknown provider 'bogus'",
 			},
 		}
 

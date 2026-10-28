@@ -417,6 +417,24 @@ func TestClientBuilder(t *testing.T) {
 			wantErr:  []string{"is plain http", "--allow-http"},
 		},
 		{
+			name:     "should not warn for a cloudflare --base-url ending in /v1, since its API path is /run",
+			args:     []string{"--list-models", "--provider", "cloudflare", "--base-url", "{url}/v1"},
+			env:      map[string]string{onesie.Cloudflare().EnvAPIKey(): "SECRET-CF"},
+			wantCode: ExitUnavailable,
+			notErr:   "ends in /",
+		},
+		{
+			name:     "should name the segment a cloudflare --base-url repeats and the URL only questions go to",
+			args:     []string{"--list-models", "--provider", "cloudflare", "--base-url", "{url}/run"},
+			env:      map[string]string{onesie.Cloudflare().EnvAPIKey(): "SECRET-CF"},
+			wantCode: ExitUnavailable,
+			wantErr: []string{
+				"onesie: warning: --base-url ends in /run and onesie adds the API path itself, so questions go to ",
+				"/run/run",
+			},
+			notErr: "requests go to",
+		},
+		{
 			name:     "should send to a plain http server on this machine without --allow-http",
 			args:     []string{"--list-models", "--base-url", "{url}"},
 			env:      map[string]string{onesie.TypeSafe().EnvAPIKey(): "SECRET-ENV"},
@@ -638,35 +656,6 @@ func TestPooled(t *testing.T) {
 	})
 }
 
-func TestEndsInVersion(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name    string
-		baseURL string
-		want    bool
-	}{
-		{name: "should not warn for the typesafe default", baseURL: onesie.TypeSafe().DefaultBaseURL()},
-		{name: "should not warn for the openrouter default", baseURL: onesie.OpenRouter().DefaultBaseURL()},
-		{name: "should not warn for the berget default", baseURL: onesie.Berget().DefaultBaseURL()},
-		{name: "should not warn for the levanto default", baseURL: onesie.Levanto().DefaultBaseURL()},
-		{name: "should not warn for a /v1 that is not the last segment", baseURL: "https://proxy.example/v1/proxy"},
-		{name: "should not warn for a segment that only ends in v1", baseURL: "https://proxy.example/apiv1"},
-		{name: "should warn for a path ending in /v1", baseURL: "https://proxy.example/v1", want: true},
-		{name: "should warn for a path ending in /v1/", baseURL: "https://proxy.example/v1/", want: true},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			if got := endsInVersion(tc.baseURL); got != tc.want {
-				t.Errorf("endsInVersion(%q) = %v, want %v", tc.baseURL, got, tc.want)
-			}
-		})
-	}
-}
-
 func TestProfileKey(t *testing.T) {
 	t.Parallel()
 
@@ -744,28 +733,25 @@ func TestBaseURLFrom(t *testing.T) {
 	}
 
 	tests := []struct {
-		name      string
-		source    onesie.BaseURLSource
-		run       resolution
-		flag      string
-		env       map[string]string
-		want      string
-		wantGiven string
+		name   string
+		source onesie.BaseURLSource
+		run    resolution
+		flag   string
+		want   string
 	}{
 		{
 			name: "should name --base-url when the flag was given", source: onesie.BaseURLFromOption,
 			run:  profileOf(creds.Profile{Provider: "typesafe", APIKey: "SECRET-P", BaseURL: "https://p.example"}),
-			flag: " https://flag.example ", want: "--base-url", wantGiven: "https://flag.example",
+			flag: " https://flag.example ", want: "--base-url",
 		},
 		{
 			name: "should name the profile's base_url without the flag", source: onesie.BaseURLFromOption,
 			run:  profileOf(creds.Profile{Provider: "typesafe", APIKey: "SECRET-P", BaseURL: "https://p.example"}),
-			want: "the profile's base_url", wantGiven: "https://p.example",
+			want: "the profile's base_url",
 		},
 		{
 			name: "should name the base URL variable", source: onesie.BaseURLFromEnv, run: bare,
-			env:  map[string]string{onesie.TypeSafe().EnvBaseURL(): "https://env.example"},
-			want: onesie.TypeSafe().EnvBaseURL(), wantGiven: "https://env.example",
+			want: onesie.TypeSafe().EnvBaseURL(),
 		},
 		{
 			name: "should name the profile's account_id when the profile has one", source: onesie.BaseURLFromAccount,
@@ -784,9 +770,8 @@ func TestBaseURLFrom(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			name, given := baseURLFrom(tc.source, tc.flag, tc.run, lookupFrom(tc.env))
-			if name != tc.want || given != tc.wantGiven {
-				t.Errorf("baseURLFrom = %q, %q, want %q, %q", name, given, tc.want, tc.wantGiven)
+			if got := baseURLFrom(tc.source, tc.flag, tc.run); got != tc.want {
+				t.Errorf("baseURLFrom = %q, want %q", got, tc.want)
 			}
 		})
 	}
@@ -796,27 +781,29 @@ func TestBaseURLRefusal(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name  string
-		raw   string
-		given string
-		want  string
+		name string
+		raw  string
+		want string
 	}{
 		{
-			name: "should name the source, the shown URL and the rule", raw: "https://", given: "https://",
+			name: "should name the source, the shown URL and the rule", raw: "https://",
 			want: "--base-url https:// names no host",
 		},
 		{
-			name: "should leave out a URL it cannot show", raw: "proxy.example", given: "proxy.example",
+			name: "should leave out a URL it cannot show", raw: "proxy.example",
 			want: "--base-url is not an http or https URL",
 		},
 		{
 			name: "should point the key elsewhere for a URL holding an @", raw: "https://u:SECRET-pw@proxy.example",
-			given: "https://u:SECRET-pw@proxy.example",
-			want:  "--base-url must not hold @, ? or #. Put the API key in a profile or the provider's key variable instead",
+			want: "--base-url must not hold @, ? or #. Put the API key in a profile or the provider's key variable instead",
+		},
+		{
+			name: "should point the key elsewhere for an @ after a query", raw: "https://proxy.example/?k=SECRET@x",
+			want: "--base-url must not hold @, ? or #. Put the API key in a profile or the provider's key variable instead",
 		},
 		{
 			name: "should add no key hint for a URL holding only a query", raw: "https://proxy.example/?x",
-			given: "https://proxy.example/?x", want: "--base-url must not hold @, ? or #",
+			want: "--base-url must not hold @, ? or #",
 		},
 		{
 			name: "should name --allow-http for plain http to another host", raw: "http://proxy.example/v1",
@@ -836,7 +823,7 @@ func TestBaseURLRefusal(t *testing.T) {
 				t.Fatalf("New = %v, want a *onesie.BaseURLError", err)
 			}
 
-			got := baseURLRefusal(refused, "--base-url", tc.given)
+			got := baseURLRefusal(refused, "--base-url")
 			if got.Error() != tc.want {
 				t.Errorf("Error = %q, want %q", got.Error(), tc.want)
 			}

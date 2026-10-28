@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"maps"
-	"net/url"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -498,11 +497,11 @@ func profileShow(cmd *cobra.Command, settings rootSettings, flags *runFlags, arg
 	// Resolved as a run resolves it, which checks a hand edited profiles.json and the provider's base
 	// URL variable too, since neither passed through create.
 	baseURL, source, invalid := shown.provider.ResolveBaseURL(shown.baseURL, shown.accountID, settings.lookupEnv)
-	sourceName, given := baseURLFrom(source, "", shown, settings.lookupEnv)
+	sourceName := baseURLFrom(source, "", shown)
 
 	var refused *onesie.BaseURLError
 	if errors.As(invalid, &refused) {
-		return baseURLRefusal(refused, sourceName, given)
+		return baseURLRefusal(refused, sourceName)
 	}
 
 	// A run refuses a malformed account, so show refuses it too. A missing account prints as none
@@ -798,17 +797,20 @@ func checkGiven(profile creds.Profile, changed func(string) bool, providerGiven 
 }
 
 func refusePlainHTTP(flags *runFlags, baseURL string) error {
-	if flags.allowHTTP || !onesie.InsecureBaseURL(baseURL) {
+	if flags.allowHTTP {
 		return nil
 	}
 
-	parsed, err := url.Parse(baseURL)
-	if err != nil {
-		return err
+	err := onesie.RefuseInsecureBaseURL(baseURL)
+
+	// checkProfile already refused any other broken base URL, and an empty one means none is stored.
+	var refused *onesie.BaseURLError
+	if !errors.Is(err, onesie.ErrInsecureBaseURL) || !errors.As(err, &refused) {
+		return nil
 	}
 
-	return errors.New("--" + flagBaseURL + " " + output.Printable(parsed.Scheme+"://"+parsed.Host) +
-		" is plain http to a host other than this machine" + plainHTTPReason +
+	return errors.New("--" + flagBaseURL + " " + output.Printable(refused.Shown) + " " + refused.Rule() +
+		plainHTTPReason +
 		". Use https, or pass --" + flagAllowHTTP + " to store it, and every run on the profile then needs --" +
 		flagAllowHTTP + " too")
 }
@@ -835,7 +837,7 @@ func checkProfile(profiles creds.Profiles, name string, profile creds.Profile, b
 func checkBaseURL(baseURL, source string) error {
 	var refused *onesie.BaseURLError
 	if errors.As(onesie.ValidateBaseURL(baseURL), &refused) {
-		return baseURLRefusal(refused, source, baseURL)
+		return baseURLRefusal(refused, source)
 	}
 
 	return nil

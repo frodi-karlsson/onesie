@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -224,7 +225,7 @@ func TestMockAnswers(t *testing.T) {
 			name:     "should exit 3 for one record the file refuses with 401",
 			args:     with("--state", "x"),
 			mock:     `{"error":401}`,
-			stderr:   []string{"onesie: mock status 401"},
+			stderr:   []string{"onesie: 401 status code, no body"},
 			wantCode: ExitAuth,
 		},
 		{
@@ -242,12 +243,40 @@ func TestMockAnswers(t *testing.T) {
 			wantCode: ExitTransport,
 		},
 		{
-			name:         "should give no credit advice for a mocked 402",
-			args:         with("--state", "x"),
-			mock:         `{"error":402}`,
-			stderr:       []string{"onesie: mock status 402"},
-			stderrAbsent: []string{"credits"},
-			wantCode:     ExitAuth,
+			name:     "should give a mocked 402 the credit advice a live one gets",
+			args:     with("--state", "x"),
+			mock:     `{"error":402}`,
+			stderr:   []string{"onesie: 402 status code, no body. Add credits to the account this key belongs to"},
+			wantCode: ExitAuth,
+		},
+		{
+			name:     "should give a mocked unknown model the advice a live one gets",
+			args:     with("--state", "x"),
+			mock:     `{"error":{"kind":"http","status":400,"body":{"detail":"Unknown model: jev-latest"}}}`,
+			stderr:   []string{"onesie: model 'jev-latest' not found. Try --list-models"},
+			wantCode: ExitUsage,
+		},
+		{
+			name: "should give a mocked html body the not JSON advice a live one gets",
+			args: with("--state", "x"),
+			mock: `{"error":{"kind":"http","status":405,"body":"<html>nope</html>"}}`,
+			stderr: []string{"onesie: 405 Method Not Allowed, with a response body that is not JSON. " +
+				"Check that the base URL points at the System One API"},
+			wantCode: ExitUsage,
+		},
+		{
+			name:     "should fail a mocked null body as a mocked status with no body",
+			args:     with("--state", "x"),
+			mock:     `{"error":{"kind":"http","status":402,"body":null}}`,
+			stderr:   []string{"onesie: 402 status code, no body. Add credits to the account this key belongs to"},
+			wantCode: ExitAuth,
+		},
+		{
+			name:     "should fail a mocked connection as a live one reads",
+			args:     with("--state", "x"),
+			mock:     `{"error":"connection"}`,
+			stderr:   []string{"onesie: could not reach mock.invalid: mock connection error"},
+			wantCode: ExitTransport,
 		},
 		{
 			name:     "should exit 6 for a stream with one 503 line",
@@ -262,7 +291,7 @@ func TestMockAnswers(t *testing.T) {
 			args:     with("-o", "values", "-i", "lines"),
 			stdin:    "a\nb\nc\n",
 			mock:     lines(mockAll, `{"error":401}`, mockAll),
-			stderr:   []string{"onesie: mock status 401"},
+			stderr:   []string{"onesie: 401 status code, no body"},
 			wantCode: ExitAuth,
 		},
 		{
@@ -357,7 +386,7 @@ func TestMockAnswers(t *testing.T) {
 			name:     "should refuse a misspelled --provider",
 			args:     with("--state", "x", "--provider", "bogus"),
 			mock:     mockAll,
-			stderr:   []string{"onesie: unknown provider bogus"},
+			stderr:   []string{"onesie: unknown provider 'bogus'"},
 			wantCode: ExitUsage,
 		},
 		{
@@ -365,7 +394,7 @@ func TestMockAnswers(t *testing.T) {
 			args:     with("-o", "values", "--state", "x"),
 			env:      map[string]string{"ONESIE_PROVIDER": "bogus"},
 			mock:     mockAll,
-			stderr:   []string{"onesie: unknown provider bogus"},
+			stderr:   []string{"onesie: unknown provider 'bogus'"},
 			wantCode: ExitUsage,
 		},
 		{
@@ -401,7 +430,7 @@ func TestMockAnswers(t *testing.T) {
 			args:     []string{"-i", "request"},
 			env:      map[string]string{"ONESIE_PROVIDER": "bogus"},
 			mock:     mockAll,
-			stderr:   []string{"onesie: unknown provider bogus"},
+			stderr:   []string{"onesie: unknown provider 'bogus'"},
 			wantCode: ExitUsage,
 		},
 		{
@@ -409,7 +438,7 @@ func TestMockAnswers(t *testing.T) {
 			args:     []string{"--list-models"},
 			env:      map[string]string{"ONESIE_PROVIDER": "bogus"},
 			mock:     mockAll,
-			stderr:   []string{"onesie: unknown provider bogus"},
+			stderr:   []string{"onesie: unknown provider 'bogus'"},
 			wantCode: ExitUsage,
 		},
 		{
@@ -981,6 +1010,25 @@ func TestMockAnswerer_Answer(t *testing.T) {
 		}
 	})
 
+	t.Run("should refuse an entry that leaves a question the request asks unanswered", func(t *testing.T) {
+		t.Parallel()
+
+		a, _ := asker(t, `{"answer":0.9}`, onesie.TypeSafe())
+
+		_, err := a.answer(t.Context(), recordKey{position: 1}, onesie.Request{
+			Model: "m", State: "s", Questions: onesie.Questions{
+				{ID: "answer", Question: onesie.Noul{Instructions: "q"}},
+				{ID: "other", Question: onesie.Noul{Instructions: "q"}},
+			},
+		})
+
+		var unusable *onesie.ResponseError
+		if !errors.As(err, &unusable) || unusable.Status != http.StatusOK ||
+			text(err) != "200 response could not be used: question 'other' has no answer" {
+			t.Errorf("error = %v, want a 200 ResponseError naming the unanswered question", err)
+		}
+	})
+
 	t.Run("should refuse a request ValidateRequest refuses before the provider sees it", func(t *testing.T) {
 		t.Parallel()
 
@@ -1028,7 +1076,7 @@ func TestMockAnswerer_Answer(t *testing.T) {
 		got, err := a.answer(t.Context(), recordKey{position: 1}, onesie.Request{
 			Model: "m", State: "s", Questions: questions,
 		})
-		if err == nil || !strings.Contains(err.Error(), "mock status 402") {
+		if err == nil || !strings.Contains(err.Error(), "402 status code, no body") {
 			t.Fatalf("error = %v, want the mocked 402", err)
 		}
 

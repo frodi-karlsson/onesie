@@ -967,3 +967,136 @@ func TestWriteBodies(t *testing.T) {
 		}
 	})
 }
+
+func TestRawRun_Send(t *testing.T) {
+	t.Parallel()
+
+	const asked = `{"state":"x","model":"m","questions":{"u":{"type":"noul","instructions":"q"}}}`
+
+	tests := []struct {
+		name       string
+		response   string
+		wantLine   string
+		wantErr    bool
+		wantTokens int
+	}{
+		{
+			name:       "should write the response to the prepared body on one line",
+			response:   "{\"model\":\"m\",\n\"answers\":{\"u\":{\"type\":\"noul\",\"noul\":0.4}},\"usage\":{\"input_tokens\":3,\"output_tokens\":1}}\n",
+			wantLine:   `{"model":"m","answers":{"u":{"type":"noul","noul":0.4}},"usage":{"input_tokens":3,"output_tokens":1}}`,
+			wantTokens: 3,
+		},
+		{
+			name:     "should keep the base URL hint for a 200 that is not JSON",
+			response: "garbage",
+			wantLine: "200 response could not be used: the response is not JSON, check the base URL",
+			wantErr:  true,
+		},
+		{
+			name:       "should count the tokens of a 200 with no answers",
+			response:   `{"model":"m","usage":{"input_tokens":4,"output_tokens":2}}`,
+			wantLine:   "the response is not a System One result, since it has no answers",
+			wantErr:    true,
+			wantTokens: 4,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var sent []byte
+
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				body, err := io.ReadAll(r.Body)
+				if err != nil {
+					t.Errorf("reading the request body: %v", err)
+				}
+
+				sent = body
+
+				w.Header().Set("Content-Type", "application/json")
+
+				if _, err := io.WriteString(w, tc.response); err != nil {
+					t.Errorf("writing the stub response: %v", err)
+				}
+			}))
+			defer srv.Close()
+
+			client, err := onesie.New(onesie.WithAPIKey("k"), onesie.WithBaseURL(srv.URL), onesie.WithInsecureHTTP(),
+				onesie.WithEnv(func(string) (string, bool) { return "", false }))
+			if err != nil {
+				t.Fatalf("onesie.New: %v", err)
+			}
+
+			body, err := onesie.TypeSafe().PrepareRaw([]byte(asked), client.DefaultModel())
+			if err != nil {
+				t.Fatalf("PrepareRaw: %v", err)
+			}
+
+			stats := &collector{}
+			run := &rawRun{stats: stats, provider: onesie.TypeSafe(), client: client}
+
+			line, err := run.send(t.Context(), body)
+			if (err != nil) != tc.wantErr || !strings.Contains(string(line), tc.wantLine) {
+				t.Errorf("send = %s, %v, want a line holding %q", line, err, tc.wantLine)
+			}
+
+			if string(sent) != string(body.Bytes()) {
+				t.Errorf("sent %s, want the prepared body %s", sent, body.Bytes())
+			}
+
+			if got := stats.snapshot(0); got.InputTokens != tc.wantTokens || got.Questions != 1 {
+				t.Errorf("stats = %d input tokens over %d questions, want %d over 1",
+					got.InputTokens, got.Questions, tc.wantTokens)
+			}
+		})
+	}
+}
+
+func TestRawRun_Answered(t *testing.T) {
+	t.Parallel()
+
+	result := &onesie.Result{Model: "m", Usage: onesie.Usage{InputTokens: 3, OutputTokens: 1}}
+
+	tests := []struct {
+		name     string
+		response string
+		wantLine string
+		wantErr  bool
+		wantFail int
+	}{
+		{
+			name:     "should write a JSON response on one line",
+			response: "{\"model\":\"m\",\n\"answers\":{}}\n",
+			wantLine: `{"model":"m","answers":{}}`,
+		},
+		{
+			name:     "should write an error record for a response that is not JSON",
+			response: "not json",
+			wantLine: "compacting the response",
+			wantErr:  true,
+			wantFail: 1,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			stats := &collector{}
+			run := &rawRun{stats: stats}
+
+			line, err := run.answered(result, []byte(tc.response), 1)
+			if (err != nil) != tc.wantErr || !strings.Contains(string(line), tc.wantLine) {
+				t.Errorf("answered = %s, %v, want a line holding %q", line, err, tc.wantLine)
+			}
+
+			got := stats.snapshot(0)
+			if got.Failed != tc.wantFail || got.Records != 1 || got.InputTokens != 3 {
+				t.Errorf("stats = %d failed of %d records with %d input tokens, want %d of 1 with 3",
+					got.Failed, got.Records, got.InputTokens, tc.wantFail)
+			}
+		})
+	}
+}

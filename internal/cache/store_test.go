@@ -154,14 +154,14 @@ func TestGet(t *testing.T) {
 		store, _ := openAt(t, fixed(t0), cache.Options{})
 		value := []byte(`{"a": [1, 2.50],  "b":"x"}`)
 
-		mustPut(t, store, key(0xab, 1), "typesafe", "jev-1.13.0", value)
+		mustPut(t, store, key(0xab, 1), "jev-1.13.0", true, value)
 
-		got, hit, err := store.Get(key(0xab, 1), "typesafe", "jev-1.13.0")
+		got, hit, err := store.Get(key(0xab, 1), "jev-1.13.0", true)
 		if err != nil || !hit || !bytes.Equal(got, value) {
 			t.Fatalf("Get = %q, %v, %v, want %q", got, hit, err, value)
 		}
 
-		if _, hit, err := store.Get(key(0xab, 2), "typesafe", "jev-1.13.0"); hit || err != nil {
+		if _, hit, err := store.Get(key(0xab, 2), "jev-1.13.0", true); hit || err != nil {
 			t.Errorf("Get of another key = %v, %v, want a miss", hit, err)
 		}
 	})
@@ -172,10 +172,10 @@ func TestGet(t *testing.T) {
 		clock := newClock(t0)
 		store, dir := openAt(t, clock.now, cache.Options{})
 
-		mustPut(t, store, key(0xab, 1), "typesafe", "jev-latest", []byte(`1`))
+		mustPut(t, store, key(0xab, 1), "jev-latest", false, []byte(`1`))
 		clock.set(t0.Add(3 * time.Hour))
 
-		if _, hit, err := store.Get(key(0xab, 1), "typesafe", "jev-latest"); !hit || err != nil {
+		if _, hit, err := store.Get(key(0xab, 1), "jev-latest", false); !hit || err != nil {
 			t.Fatalf("Get = %v, %v, want a hit", hit, err)
 		}
 
@@ -185,18 +185,21 @@ func TestGet(t *testing.T) {
 	})
 
 	lifetimes := []struct {
-		name  string
-		model string
-		ttl   time.Duration
-		age   time.Duration
-		hit   bool
+		name   string
+		model  string
+		pinned bool
+		ttl    time.Duration
+		age    time.Duration
+		hit    bool
 	}{
-		{name: "should hit a pinned entry a year after it was stored", model: "jev-1.13.0", age: 365 * 24 * time.Hour, hit: true},
+		{name: "should hit a pinned entry a year after it was stored", model: "jev-1.13.0", pinned: true, age: 365 * 24 * time.Hour, hit: true},
 		{name: "should hit an alias entry at 23 hours", model: "jev-latest", age: 23 * time.Hour, hit: true},
 		{name: "should miss an alias entry at 25 hours and leave it for the next Put", model: "jev-latest", age: 25 * time.Hour},
 		{name: "should hit an alias entry at 89 minutes under a 90 minute TTL", model: "jev-latest", ttl: 90 * time.Minute, age: 89 * time.Minute, hit: true},
 		{name: "should miss an alias entry at 91 minutes under a 90 minute TTL", model: "jev-latest", ttl: 90 * time.Minute, age: 91 * time.Minute},
-		{name: "should hit a pinned entry a year on under a 90 minute TTL", model: "jev-1.13.0", ttl: 90 * time.Minute, age: 365 * 24 * time.Hour, hit: true},
+		{name: "should hit a pinned entry a year on under a 90 minute TTL", model: "jev-1.13.0", pinned: true, ttl: 90 * time.Minute, age: 365 * 24 * time.Hour, hit: true},
+		{name: "should hit an entry the caller pins a year on, whatever its name", model: "sage-latest", pinned: true, age: 365 * 24 * time.Hour, hit: true},
+		{name: "should miss a versioned name the caller does not pin at 25 hours", model: "jev-1.13.0", age: 25 * time.Hour},
 	}
 
 	for _, tc := range lifetimes {
@@ -206,15 +209,15 @@ func TestGet(t *testing.T) {
 			clock := newClock(t0)
 			store, dir := openAt(t, clock.now, cache.Options{AliasTTL: tc.ttl})
 
-			mustPut(t, store, key(0xcd, 1), "typesafe", tc.model, []byte(`{"x":1}`))
+			mustPut(t, store, key(0xcd, 1), tc.model, tc.pinned, []byte(`{"x":1}`))
 			clock.set(t0.Add(tc.age))
 
-			_, hit, err := store.Get(key(0xcd, 1), "typesafe", tc.model)
+			_, hit, err := store.Get(key(0xcd, 1), tc.model, tc.pinned)
 			if err != nil || hit != tc.hit {
 				t.Fatalf("Get = %v, %v, want hit %v", hit, err, tc.hit)
 			}
 
-			if _, statErr := os.Stat(entryPath(dir, key(0xcd, 1), !cache.Pinned("typesafe", tc.model))); statErr != nil {
+			if _, statErr := os.Stat(entryPath(dir, key(0xcd, 1), !tc.pinned)); statErr != nil {
 				t.Errorf("the Get removed the entry: %v", statErr)
 			}
 		})
@@ -225,32 +228,32 @@ func TestGet(t *testing.T) {
 
 		store, dir := openAt(t, fixed(t0), cache.Options{AliasTTL: cache.NoAliasTTL})
 
-		mustPut(t, store, key(0xab, 1), "typesafe", "jev-latest", []byte(`1`))
-		mustPut(t, store, key(0xab, 2), "typesafe", "jev-1.13.0", []byte(`2`))
+		mustPut(t, store, key(0xab, 1), "jev-latest", false, []byte(`1`))
+		mustPut(t, store, key(0xab, 2), "jev-1.13.0", true, []byte(`2`))
 
 		if _, err := os.Stat(entryPath(dir, key(0xab, 1), true)); !errors.Is(err, os.ErrNotExist) {
 			t.Errorf("alias entry stat = %v, want it absent", err)
 		}
 
-		if _, hit, err := store.Get(key(0xab, 1), "typesafe", "jev-latest"); hit || err != nil {
+		if _, hit, err := store.Get(key(0xab, 1), "jev-latest", false); hit || err != nil {
 			t.Errorf("alias Get = %v, %v, want a miss", hit, err)
 		}
 
-		if _, hit, err := store.Get(key(0xab, 2), "typesafe", "jev-1.13.0"); !hit || err != nil {
+		if _, hit, err := store.Get(key(0xab, 2), "jev-1.13.0", true); !hit || err != nil {
 			t.Errorf("pinned Get = %v, %v, want a hit", hit, err)
 		}
 	})
 
-	for _, model := range []string{"jev-latest", "jev-1.13.0"} {
-		t.Run("should miss a "+model+" entry stored in the future", func(t *testing.T) {
+	for _, pinned := range []bool{false, true} {
+		t.Run(fmt.Sprintf("should miss an entry stored in the future when pinned is %v", pinned), func(t *testing.T) {
 			t.Parallel()
 
 			clock := newClock(t0.Add(time.Hour))
 			store, _ := openAt(t, clock.now, cache.Options{})
-			mustPut(t, store, key(0xab, 1), "typesafe", model, []byte(`1`))
+			mustPut(t, store, key(0xab, 1), "jev-1.13.0", pinned, []byte(`1`))
 			clock.set(t0)
 
-			if _, hit, err := store.Get(key(0xab, 1), "typesafe", model); hit || err != nil {
+			if _, hit, err := store.Get(key(0xab, 1), "jev-1.13.0", pinned); hit || err != nil {
 				t.Errorf("Get = %v, %v, want a miss", hit, err)
 			}
 		})
@@ -260,14 +263,14 @@ func TestGet(t *testing.T) {
 		t.Parallel()
 
 		seed, dir := openAt(t, fixed(t0), cache.Options{})
-		mustPut(t, seed, key(0xab, 1), "typesafe", "jev-1.13.0", []byte(`"v"`))
+		mustPut(t, seed, key(0xab, 1), "jev-1.13.0", true, []byte(`"v"`))
 
 		store, err := cache.Open(dir, cache.Options{Now: fixed(t0), FS: failingFS{failOn: "Chtimes"}})
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		if got, hit, err := store.Get(key(0xab, 1), "typesafe", "jev-1.13.0"); !hit || err != nil || string(got) != `"v"` {
+		if got, hit, err := store.Get(key(0xab, 1), "jev-1.13.0", true); !hit || err != nil || string(got) != `"v"` {
 			t.Errorf("Get = %q, %v, %v, want a hit", got, hit, err)
 		}
 	})
@@ -308,7 +311,7 @@ func TestGet(t *testing.T) {
 			}
 
 			seed, dir := openAt(t, fixed(t0), cache.Options{})
-			mustPut(t, seed, key(0xab, 1), "typesafe", "jev-1.13.0", []byte(`"v"`))
+			mustPut(t, seed, key(0xab, 1), "jev-1.13.0", true, []byte(`"v"`))
 
 			sleeper := &sleeper{}
 			fsys := &heldFS{reads: tc.refusals, err: errSharingViolation}
@@ -318,7 +321,7 @@ func TestGet(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			_, hit, err := store.Get(key(0xab, 1), "typesafe", "jev-1.13.0")
+			_, hit, err := store.Get(key(0xab, 1), "jev-1.13.0", true)
 			if hit != tc.hit || (err != nil) != tc.wantErr {
 				t.Errorf("Get = %v, %v, want hit %v and an error %v", hit, err, tc.hit, tc.wantErr)
 			}
@@ -336,7 +339,7 @@ func TestGet(t *testing.T) {
 			mustMkdir(t, filepath.Dir(path), 0o700)
 			tc.plant(t, path)
 
-			if _, hit, err := store.Get(key(0xab, 1), "typesafe", "jev-1.13.0"); hit || err != nil {
+			if _, hit, err := store.Get(key(0xab, 1), "jev-1.13.0", true); hit || err != nil {
 				t.Errorf("Get = %v, %v, want a miss with no error", hit, err)
 			}
 		})
@@ -350,8 +353,8 @@ func TestPut(t *testing.T) {
 		t.Parallel()
 
 		store, dir := openAt(t, fixed(t0), cache.Options{})
-		mustPut(t, store, key(0xab, 1), "typesafe", "jev-1.13.0", []byte(`1`))
-		mustPut(t, store, key(0xab, 2), "openrouter", "jev-1.13.0", []byte(`2`))
+		mustPut(t, store, key(0xab, 1), "jev-1.13.0", true, []byte(`1`))
+		mustPut(t, store, key(0xab, 2), "jev-1.13.0", false, []byte(`2`))
 
 		for _, path := range []string{entryPath(dir, key(0xab, 1), false), entryPath(dir, key(0xab, 2), true)} {
 			info, err := os.Stat(path)
@@ -383,18 +386,18 @@ func TestPut(t *testing.T) {
 			t.Parallel()
 
 			store, dir := openAt(t, fixed(t0), cache.Options{})
-			mustPut(t, store, key(0xab, 1), "typesafe", "jev-1.13.0", []byte(`"old"`))
+			mustPut(t, store, key(0xab, 1), "jev-1.13.0", true, []byte(`"old"`))
 
 			failing, err := cache.Open(dir, cache.Options{Now: fixed(t0), FS: failingFS{failOn: failOn}})
 			if err != nil {
 				t.Fatal(err)
 			}
 
-			if putErr := failing.Put(key(0xab, 1), "typesafe", "jev-1.13.0", []byte(`"new"`)); putErr == nil {
+			if putErr := failing.Put(key(0xab, 1), "jev-1.13.0", true, []byte(`"new"`)); putErr == nil {
 				t.Fatalf("Put succeeded, want the %s error", failOn)
 			}
 
-			got, hit, err := store.Get(key(0xab, 1), "typesafe", "jev-1.13.0")
+			got, hit, err := store.Get(key(0xab, 1), "jev-1.13.0", true)
 			if err != nil || !hit || string(got) != `"old"` {
 				t.Errorf("Get after the failed Put = %q, %v, %v, want the old entry", got, hit, err)
 			}
@@ -411,7 +414,7 @@ func TestPut(t *testing.T) {
 		mustMkdir(t, path, 0o700)
 		mustWrite(t, filepath.Join(path, "inside"), "x")
 
-		if err := store.Put(key(0xab, 1), "typesafe", "jev-1.13.0", []byte(`1`)); err == nil {
+		if err := store.Put(key(0xab, 1), "jev-1.13.0", true, []byte(`1`)); err == nil {
 			t.Fatal("Put succeeded over a directory, want the rename error")
 		}
 
@@ -446,7 +449,7 @@ func TestPut(t *testing.T) {
 			sleeper := &sleeper{}
 			store, dir := openAt(t, fixed(t0), cache.Options{GOOS: tc.goos, FS: fsys, Sleep: sleeper.sleep, Random: half})
 
-			err := store.Put(key(0xab, 1), "typesafe", "jev-1.13.0", []byte(`1`))
+			err := store.Put(key(0xab, 1), "jev-1.13.0", true, []byte(`1`))
 			if gotErr := err != nil; gotErr != tc.wantErr {
 				t.Fatalf("Put error = %v, want an error %v", err, tc.wantErr)
 			}
@@ -473,7 +476,7 @@ func TestPut(t *testing.T) {
 		store, dir := openAt(t, fixed(t0), cache.Options{GOOS: "windows", FS: fsys, Sleep: sleeper.sleep, Random: half})
 		mustMkdir(t, entryPath(dir, key(0xab, 1), false), 0o700)
 
-		if err := store.Put(key(0xab, 1), "typesafe", "jev-1.13.0", []byte(`1`)); err == nil {
+		if err := store.Put(key(0xab, 1), "jev-1.13.0", true, []byte(`1`)); err == nil {
 			t.Fatal("Put succeeded over a directory, want the rename error")
 		}
 
@@ -495,11 +498,11 @@ func TestPut(t *testing.T) {
 			wg.Go(func() {
 				for i := range 20 {
 					k := (g + i) % 4
-					if err := store.Put(key(0xab, byte(k)), "typesafe", "jev-1.13.0", valueOf(k)); err != nil {
+					if err := store.Put(key(0xab, byte(k)), "jev-1.13.0", true, valueOf(k)); err != nil {
 						t.Errorf("Put: %v", err)
 					}
 
-					got, hit, err := store.Get(key(0xab, byte((k+1)%4)), "typesafe", "jev-1.13.0")
+					got, hit, err := store.Get(key(0xab, byte((k+1)%4)), "jev-1.13.0", true)
 					if err != nil {
 						t.Errorf("Get: %v", err)
 					}
@@ -524,17 +527,17 @@ func TestPut(t *testing.T) {
 
 		for i, k := range []byte{1, 2, 3} {
 			clock.set(t0.Add(time.Duration(i) * time.Minute))
-			mustPut(t, store, key(0xab, k), "typesafe", "jev-1.13.0", sizedValue())
+			mustPut(t, store, key(0xab, k), "jev-1.13.0", true, sizedValue())
 		}
 
 		clock.set(t0.Add(10 * time.Minute))
 
-		if _, hit, err := store.Get(key(0xab, 1), "typesafe", "jev-1.13.0"); !hit || err != nil {
+		if _, hit, err := store.Get(key(0xab, 1), "jev-1.13.0", true); !hit || err != nil {
 			t.Fatalf("Get = %v, %v, want a hit", hit, err)
 		}
 
 		clock.set(t0.Add(20 * time.Minute))
-		mustPut(t, store, key(0xab, 4), "typesafe", "jev-1.13.0", sizedValue())
+		mustPut(t, store, key(0xab, 4), "jev-1.13.0", true, sizedValue())
 
 		for k, want := range map[byte]bool{1: true, 2: false, 3: true, 4: true} {
 			_, err := os.Stat(entryPath(dir, key(0xab, k), false))
@@ -549,8 +552,8 @@ func TestPut(t *testing.T) {
 
 		clock := newClock(t0)
 		seed, dir := openAt(t, clock.now, cache.Options{})
-		mustPut(t, seed, key(0xab, 1), "typesafe", "jev-latest", []byte(`1`))
-		mustPut(t, seed, key(0xab, 2), "typesafe", "jev-1.13.0", []byte(`2`))
+		mustPut(t, seed, key(0xab, 1), "jev-latest", false, []byte(`1`))
+		mustPut(t, seed, key(0xab, 2), "jev-1.13.0", true, []byte(`2`))
 
 		later := t0.Add(48 * time.Hour)
 		oldTemp := filepath.Join(dir, "ab", ".onesie-tmp-111")
@@ -565,7 +568,7 @@ func TestPut(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		mustPut(t, store, key(0xcd, 1), "typesafe", "jev-1.13.0", []byte(`3`))
+		mustPut(t, store, key(0xcd, 1), "jev-1.13.0", true, []byte(`3`))
 
 		for path, want := range map[string]bool{
 			entryPath(dir, key(0xab, 1), true):  false,
@@ -597,14 +600,14 @@ func TestPut(t *testing.T) {
 			t.Parallel()
 
 			seed, dir := openAt(t, fixed(t0), cache.Options{})
-			mustPut(t, seed, key(0xab, 1), "typesafe", "jev-latest", []byte(`1`))
+			mustPut(t, seed, key(0xab, 1), "jev-latest", false, []byte(`1`))
 
 			store, err := cache.Open(dir, cache.Options{Now: fixed(t0.Add(tc.age)), AliasTTL: tc.ttl})
 			if err != nil {
 				t.Fatal(err)
 			}
 
-			mustPut(t, store, key(0xcd, 1), "typesafe", "jev-1.13.0", []byte(`2`))
+			mustPut(t, store, key(0xcd, 1), "jev-1.13.0", true, []byte(`2`))
 
 			_, statErr := os.Stat(entryPath(dir, key(0xab, 1), true))
 			if kept := statErr == nil; kept != tc.keeps {
@@ -623,7 +626,7 @@ func TestPut(t *testing.T) {
 
 		for i, k := range []byte{1, 2} {
 			clock.set(t0.Add(time.Duration(i) * time.Minute))
-			mustPut(t, store, key(0xab, k), "typesafe", "jev-1.13.0", sizedValue())
+			mustPut(t, store, key(0xab, k), "jev-1.13.0", true, sizedValue())
 		}
 
 		for _, k := range []byte{1, 2} {
@@ -634,7 +637,7 @@ func TestPut(t *testing.T) {
 
 		for i, k := range []byte{3, 4, 5, 6} {
 			clock.set(t0.Add(time.Duration(i+2) * time.Minute))
-			mustPut(t, store, key(0xab, k), "typesafe", "jev-1.13.0", sizedValue())
+			mustPut(t, store, key(0xab, k), "jev-1.13.0", true, sizedValue())
 		}
 
 		for _, path := range foreign {
@@ -652,9 +655,9 @@ func TestSummarize(t *testing.T) {
 		t.Parallel()
 
 		store, dir := openAt(t, fixed(t0), cache.Options{})
-		mustPut(t, store, key(0xab, 1), "typesafe", "jev-1.13.0", []byte(`1`))
-		mustPut(t, store, key(0xcd, 2), "typesafe", "jev-1.13.0", []byte(`22`))
-		mustPut(t, store, key(0xcd, 3), "typesafe", "jev-latest", []byte(`333`))
+		mustPut(t, store, key(0xab, 1), "jev-1.13.0", true, []byte(`1`))
+		mustPut(t, store, key(0xcd, 2), "jev-1.13.0", true, []byte(`22`))
+		mustPut(t, store, key(0xcd, 3), "jev-latest", false, []byte(`333`))
 		mustWrite(t, filepath.Join(dir, "ab", ".onesie-tmp-1"), "partial")
 		plantForeign(t, dir, 100)
 
@@ -757,9 +760,9 @@ func TestClear(t *testing.T) {
 		t.Helper()
 
 		store, dir := openAt(t, fixed(t0), cache.Options{})
-		mustPut(t, store, key(0xab, 1), "typesafe", "jev-1.13.0", []byte(`1`))
-		mustPut(t, store, key(0xab, 2), "typesafe", "jev-latest", []byte(`2`))
-		mustPut(t, store, key(0xcd, 3), "typesafe", "jev-1.13.0", []byte(`3`))
+		mustPut(t, store, key(0xab, 1), "jev-1.13.0", true, []byte(`1`))
+		mustPut(t, store, key(0xab, 2), "jev-latest", false, []byte(`2`))
+		mustPut(t, store, key(0xcd, 3), "jev-1.13.0", true, []byte(`3`))
 		mustWrite(t, filepath.Join(dir, "cd", ".onesie-tmp-1"), "partial")
 
 		return dir, plantForeign(t, dir, 10)
@@ -875,7 +878,7 @@ func entrySize(t *testing.T) int64 {
 	t.Helper()
 
 	store, dir := openAt(t, fixed(t0), cache.Options{})
-	mustPut(t, store, key(0xab, 1), "typesafe", "jev-1.13.0", sizedValue())
+	mustPut(t, store, key(0xab, 1), "jev-1.13.0", true, sizedValue())
 
 	info, err := os.Stat(entryPath(dir, key(0xab, 1), false))
 	if err != nil {
@@ -938,10 +941,10 @@ func assertNoTemp(t *testing.T, dir string) {
 	}
 }
 
-func mustPut(t *testing.T, store *cache.Store, k cache.Key, provider, model string, value []byte) {
+func mustPut(t *testing.T, store *cache.Store, k cache.Key, model string, pinned bool, value []byte) {
 	t.Helper()
 
-	if err := store.Put(k, provider, model, value); err != nil {
+	if err := store.Put(k, model, pinned, value); err != nil {
 		t.Fatalf("Put: %v", err)
 	}
 }

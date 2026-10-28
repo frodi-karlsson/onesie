@@ -78,12 +78,7 @@ func (a mockAnswerer) answer(ctx context.Context, key recordKey, req onesie.Requ
 		return reply{}, err
 	}
 
-	// The checks a real run makes before it sends, so a mock refuses what the provider would.
-	if err := onesie.ValidateRequest(req); err != nil {
-		return reply{}, err
-	}
-
-	if _, err := a.provider.Encode(req); err != nil {
+	if err := a.provider.Check(req); err != nil {
 		return reply{}, err
 	}
 
@@ -92,11 +87,19 @@ func (a mockAnswerer) answer(ctx context.Context, key recordKey, req onesie.Requ
 		return reply{}, &uncoveredError{message: a.answers.Missing(key.position, key.id, key.line)}
 	}
 
-	result, err := entry.Result()
+	needs := req.Needs()
+
+	result, err := entry.Result(a.provider, req.Model, needs)
 	a.stats.observe(mockAttempt(err))
 
 	if err != nil {
-		return reply{}, err
+		return reply{}, explain(err, requestFacts{
+			provider: a.provider, model: req.Model, longContext: req.LongContext, boxed: needs.Box,
+		})
+	}
+
+	if fault := result.Check(req.Questions); fault != nil {
+		return reply{}, &onesie.ResponseError{Status: http.StatusOK, Err: fault}
 	}
 
 	result.Model = req.Model
