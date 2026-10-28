@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"maps"
-	"net/url"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -798,17 +797,20 @@ func checkGiven(profile creds.Profile, changed func(string) bool, providerGiven 
 }
 
 func refusePlainHTTP(flags *runFlags, baseURL string) error {
-	if flags.allowHTTP || !onesie.InsecureBaseURL(baseURL) {
+	if flags.allowHTTP {
 		return nil
 	}
 
-	parsed, err := url.Parse(baseURL)
-	if err != nil {
-		return err
+	err := onesie.RefuseInsecureBaseURL(baseURL)
+
+	// checkProfile already refused any other broken base URL, and an empty one means none is stored.
+	var refused *onesie.BaseURLError
+	if !errors.Is(err, onesie.ErrInsecureBaseURL) || !errors.As(err, &refused) {
+		return nil
 	}
 
-	return errors.New("--" + flagBaseURL + " " + output.Printable(parsed.Scheme+"://"+parsed.Host) +
-		" is plain http to a host other than this machine" + plainHTTPReason +
+	return errors.New("--" + flagBaseURL + " " + output.Printable(refused.Shown) + " " + refused.Rule() +
+		plainHTTPReason +
 		". Use https, or pass --" + flagAllowHTTP + " to store it, and every run on the profile then needs --" +
 		flagAllowHTTP + " too")
 }
