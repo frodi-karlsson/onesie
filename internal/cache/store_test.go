@@ -1088,6 +1088,7 @@ type heldFS struct {
 	err     syscall.Errno
 }
 
+// The windows codes heldFS returns, as syscall.Errno values so the test builds on every platform.
 const (
 	errFileNotFound     syscall.Errno = 2
 	errAccessDenied     syscall.Errno = 5

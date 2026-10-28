@@ -551,6 +551,8 @@ func stream(
 				return evaluate(ctx, asker, key, built, model, questions, sent, assets, flags.usage, stats)
 			})
 		if evalErr != nil {
+			// Returned before the gate is asked. A failed record reads as all zeros, so a gate such
+			// as answer.value < 0.5 would hold for a request that never happened.
 			failed := rowLine(record, rec)
 			failed.halted = halting(evalErr)
 			failed.call = call
@@ -795,6 +797,7 @@ func compact(raw string) []byte {
 	var flat bytes.Buffer
 
 	if err := json.Compact(&flat, []byte(raw)); err != nil {
+		// Unreachable for a line that parsed, the only kind compact is called with.
 		return []byte(raw)
 	}
 

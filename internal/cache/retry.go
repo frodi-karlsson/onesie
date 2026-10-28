@@ -7,6 +7,8 @@ import (
 )
 
 const (
+	// The windows codes for a file another run holds. golang.org/x/sys/windows builds only for
+	// windows, so they are syscall.Errno values here and the retries build and run on every platform.
 	errorFileNotFound     syscall.Errno = 2
 	errorAccessDenied     syscall.Errno = 5
 	errorSharingViolation syscall.Errno = 32

@@ -208,6 +208,7 @@ func writePolicy(policy plan.Policy) yaml.MapSlice {
 	}
 
 	if policy.MinConfidence != nil {
+		// Underscore, matching the key readPolicy looks up. The flag is spelled with a dash.
 		out = append(out, yaml.MapItem{Key: "min_confidence", Value: *policy.MinConfidence})
 	}
 

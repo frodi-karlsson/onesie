@@ -107,8 +107,8 @@ func canceledOrBrokenPipe(err error) bool {
 }
 
 func firstMatch(err error) failure {
-	// Order matters. The typed checks precede the general ones they would otherwise match, and
-	// silentError comes last so a real error joined to one keeps its code.
+	// Order matters. RetryAfterError embeds APIError, so the typed check precedes the sentinels it
+	// would otherwise match, and silentError comes last so a real error joined to one keeps its code.
 
 	var records *recordsError
 	if errors.As(err, &records) {
@@ -220,6 +220,7 @@ func firstMatch(err error) failure {
 
 	var silent *silentError
 	if errors.As(err, &silent) {
+		// The command wrote the whole result to stdout, so a stderr line would repeat it.
 		return failure{kind: output.KindInput, code: silent.code, quiet: true}
 	}
 

@@ -1229,6 +1229,8 @@ func runStored(t *testing.T, path string, args []string, stdin string) (string, 
 	root.SetErr(&errOut)
 	root.SetArgs(args)
 
+	// Execute is called on its own line. In a return statement the two String calls are evaluated
+	// before it and would report empty buffers.
 	code := cli.Execute(t.Context(), root)
 
 	return out.String(), errOut.String(), code

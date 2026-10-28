@@ -39,6 +39,8 @@ var (
 	errEmptyValue = errors.New("empty value")
 )
 
+// pflag's Changed reports false for a name it does not know, with no error, so a name that has to
+// survive a rename is spelled once here. A flag nothing passes to Changed needs no constant.
 const (
 	flagState         = "state"
 	flagStateFile     = "state-file"

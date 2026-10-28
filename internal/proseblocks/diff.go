@@ -11,6 +11,7 @@ import (
 
 var hunkHeader = regexp.MustCompile(`^@@ -\d+(?:,(\d+))? \+(\d+)(?:,(\d+))? @@`)
 
+// A diff line is a line of a source file plus one marker, so this bounds a file line too.
 const maxDiffLine = 16 << 20
 
 // ParseDiff reads a unified diff as git writes it and returns, for each file it adds lines to, the

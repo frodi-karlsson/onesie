@@ -13,7 +13,7 @@ const (
 	fallbackWidth = 80
 	maxWidth      = 1000
 	labelWidth    = 16
-	rowPadding    = 4
+	rowPadding    = 4 // Two leading spaces, the space after the label and the space before the number.
 	minBarWidth   = 8
 )
 

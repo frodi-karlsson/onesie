@@ -702,6 +702,8 @@ func checkLineField(built *plan.Plan, config runConfig) error {
 }
 
 func checkSingle(built *plan.Plan, config runConfig, facts runFacts) error {
+	// Both spellings of the raw mode take a single question. Only the -r spelling is exclusive
+	// with -o, so the two stay separate fields.
 	raw := config.raw || config.output == "raw"
 
 	// Beside an assertion -q only silences the output, since the assertion is the gate.

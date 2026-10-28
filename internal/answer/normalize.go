@@ -440,6 +440,7 @@ func modal(indexes []string, probabilities map[string]float64) string {
 	highest := -1.0
 
 	for _, index := range indexes {
+		// Strictly greater, so a tie keeps the lowest index.
 		if probabilities[index] > highest {
 			best = index
 			highest = probabilities[index]
