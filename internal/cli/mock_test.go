@@ -875,15 +875,12 @@ func TestMockResume(t *testing.T) {
 
 		out := filepath.Join(t.TempDir(), "answers.jsonl")
 		mockFile := writeMock(t, full)
-		args := append(append([]string{}, question...), "--out", out, "--resume", "--mock", mockFile)
+		args := append(append([]string{}, question...), "--out", out, "--resume", "--mock", mockFile, "-j", "1")
 
 		ctx, cancel := context.WithCancel(t.Context())
 		defer cancel()
 
-		written := make(chan struct{}, 64)
-		interrupting := &cancellingReader{data: input, after: 2, cancel: cancel, written: written, wait: 1}
-
-		_, errOut, code := runMocked(t, ctx, args, "", nil, interrupting, signallingAnswers(written))
+		_, errOut, code := runMocked(t, ctx, args, input, nil, nil, interruptingAt(2, cancel))
 		if code != ExitInterrupt {
 			t.Fatalf("first run exit %d, want 130\n%s", code, errOut)
 		}
@@ -1264,70 +1261,41 @@ func readText(t *testing.T, path string) string {
 	return string(data)
 }
 
-func (r *cancellingReader) Read(p []byte) (int, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+func interruptingAt(position int, interrupt context.CancelFunc) RootOption {
+	return func(s *rootSettings) {
+		s.answerers = func(next answererFactory) answererFactory {
+			return func(ctx context.Context, stats *collector) (answerer, error) {
+				inner, err := next(ctx, stats)
+				if err != nil {
+					return nil, err
+				}
 
-	if r.lines == r.after {
-		// Held until lines are on disk, so the run the interrupt ends has something to resume from.
-		for range r.wait {
-			select {
-			case <-r.written:
-			case <-time.After(5 * time.Second):
-				r.cancel()
-
-				return 0, errors.New("the answers file never received the lines the interrupt waits for")
+				return interruptingAnswerer{inner: inner, position: position, interrupt: interrupt}, nil
 			}
 		}
-
-		r.cancel()
-
-		return 0, context.Canceled
-	}
-
-	end := strings.IndexByte(r.data[r.offset:], '\n')
-	if end < 0 {
-		return 0, io.EOF
-	}
-
-	n := copy(p, r.data[r.offset:r.offset+end+1])
-	r.offset += n
-	r.lines++
-
-	return n, nil
-}
-
-type cancellingReader struct {
-	mu      sync.Mutex
-	data    string
-	offset  int
-	lines   int
-	after   int
-	cancel  context.CancelFunc
-	written <-chan struct{}
-	wait    int
-}
-
-func signallingAnswers(written chan<- struct{}) RootOption {
-	return func(s *rootSettings) {
-		s.answersOut = func(out io.Writer) io.Writer {
-			return lineSignals{out: out, written: written}
-		}
 	}
 }
 
-func (w lineSignals) Write(p []byte) (int, error) {
-	n, err := w.out.Write(p)
-	for range bytes.Count(p[:n], []byte("\n")) {
-		w.written <- struct{}{}
+func (a interruptingAnswerer) answer(ctx context.Context, key recordKey, req onesie.Request) (reply, error) {
+	if key.position != a.position {
+		return a.inner.answer(ctx, key, req)
 	}
 
-	return n, err
+	// Under -j 1 the engine asks a record only once the record before it is written, so an
+	// interrupt as this record is asked leaves exactly the lines before it.
+	a.interrupt()
+
+	return reply{}, ctx.Err()
 }
 
-type lineSignals struct {
-	out     io.Writer
-	written chan<- struct{}
+func (a interruptingAnswerer) salt(key recordKey) (string, bool) {
+	return a.inner.salt(key)
+}
+
+type interruptingAnswerer struct {
+	inner     answerer
+	position  int
+	interrupt context.CancelFunc
 }
 
 func delaying(position, others int) RootOption {

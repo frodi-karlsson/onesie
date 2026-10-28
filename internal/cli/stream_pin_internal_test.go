@@ -538,22 +538,9 @@ func runPinned(t *testing.T, step pinnedStep, out string) (string, string, int) 
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
-	var (
-		stdin     io.Reader = strings.NewReader(step.stdin)
-		signalled []RootOption
-	)
-
-	if step.interruptAfter > 0 {
-		written := make(chan struct{}, 64)
-		stdin = &cancellingReader{
-			data: step.stdin, after: step.interruptAfter, cancel: cancel, written: written, wait: step.interruptAfter,
-		}
-		signalled = append(signalled, signallingAnswers(written))
-	}
-
 	opts := []RootOption{
 		withKeychain(noKeychain()),
-		WithStdin(stdin),
+		WithStdin(strings.NewReader(step.stdin)),
 		WithStdinTTY(false),
 		WithStdoutTTY(false),
 		WithLookupEnv(lookupFrom(map[string]string{"ONESIE_CONFIG_DIR": t.TempDir()})),
@@ -565,7 +552,10 @@ func runPinned(t *testing.T, step pinnedStep, out string) (string, string, int) 
 		args = append(args, "--mock", writeMock(t, step.mock))
 	}
 
-	opts = append(opts, signalled...)
+	if step.interruptAfter > 0 {
+		args = append(args, "-j", "1")
+		opts = append(opts, interruptingAt(step.interruptAfter+1, cancel))
+	}
 
 	if step.dedupLimit > 0 {
 		opts = append(opts, func(s *rootSettings) { s.dedupLimit = step.dedupLimit })
