@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -146,21 +145,9 @@ func (r *rawRun) send(ctx context.Context, body *onesie.PreparedBody) ([]byte, e
 		return errorLine(advised), advised
 	}
 
-	return r.answered(result, response, body.QuestionCount())
-}
+	r.stats.record(result.Model, result.Usage, body.QuestionCount())
 
-func (r *rawRun) answered(result *onesie.Result, response []byte, questions int) ([]byte, error) {
-	line, err := oneLine(response)
-	if err != nil {
-		r.stats.spend(result.Usage)
-		r.stats.recordFailure(err, true, questions)
-
-		return errorLine(err), err
-	}
-
-	r.stats.record(result.Model, result.Usage, questions)
-
-	return line, nil
+	return response, nil
 }
 
 func writeBodies(out io.Writer) func([]byte) error {
@@ -181,15 +168,4 @@ func longContextOptions(on bool) []onesie.RequestOption {
 
 func requests(flags runConfig) bool {
 	return !flags.printQuestions && !flags.printRequest
-}
-
-func oneLine(response []byte) ([]byte, error) {
-	// A server that newline terminates or pretty prints its JSON would otherwise turn one record
-	// into several output lines, where this mode promises one line per record.
-	var flat bytes.Buffer
-	if err := json.Compact(&flat, response); err != nil {
-		return nil, embed("compacting the response", err)
-	}
-
-	return flat.Bytes(), nil
 }
