@@ -95,9 +95,6 @@ func normalizeChoice(q plan.Question, raw *onesie.ChoiceAnswer) *Answer {
 }
 
 func normalizeScore(q plan.Question, raw *onesie.ScoreAnswer) *Answer {
-	indexes := sortedIndexes(raw.Probabilities)
-	winner := modal(indexes, raw.Probabilities)
-
 	score := raw.Score
 	confidence := raw.Confidence
 
@@ -113,9 +110,12 @@ func normalizeScore(q plan.Question, raw *onesie.ScoreAnswer) *Answer {
 	}
 
 	if !q.Labelled {
-		out.Value = winner
+		// Result.Check proved the keys are exactly the level indexes.
+		indexes := sortedIndexes(raw.Probabilities)
+
+		out.Value = modal(indexes, raw.Probabilities)
 		out.Legend = raw.Legend
-		out.P = byIndex(q, raw.Probabilities)
+		out.P = &Probabilities{Keys: indexes, Values: maps.Clone(raw.Probabilities)}
 
 		return out
 	}
@@ -128,7 +128,7 @@ func normalizeScore(q plan.Question, raw *onesie.ScoreAnswer) *Answer {
 		values[level.Label] = raw.Probabilities[strconv.Itoa(i)]
 	}
 
-	out.Value = labelAt(q, winner)
+	out.Value = modal(labels, values)
 	out.P = &Probabilities{Keys: labels, Values: values}
 
 	return out
@@ -201,17 +201,6 @@ type Answer struct {
 	Decided  bool `json:"-"`
 }
 
-func byIndex(q plan.Question, probabilities map[string]float64) *Probabilities {
-	values := make(map[string]float64, len(q.Levels)+len(probabilities))
-	for i := range q.Levels {
-		values[strconv.Itoa(i)] = 0
-	}
-
-	maps.Copy(values, probabilities)
-
-	return &Probabilities{Keys: sortedIndexes(values), Values: values}
-}
-
 // Probabilities marshals in a fixed key order. A plain map would not, because encoding/json sorts
 // map keys and the output must follow the order the question defined.
 type Probabilities struct {
@@ -272,26 +261,17 @@ func sortedIndexes(probabilities map[string]float64) []string {
 	return keys
 }
 
-func modal(indexes []string, probabilities map[string]float64) string {
+func modal(levels []string, probabilities map[string]float64) string {
 	best := ""
 	highest := -1.0
 
-	for _, index := range indexes {
-		// Strictly greater, so a tie keeps the lowest index.
-		if probabilities[index] > highest {
-			best = index
-			highest = probabilities[index]
+	for _, level := range levels {
+		// Strictly greater, so a tie keeps the lowest level.
+		if probabilities[level] > highest {
+			best = level
+			highest = probabilities[level]
 		}
 	}
 
 	return best
-}
-
-func labelAt(q plan.Question, index string) string {
-	position, err := strconv.Atoi(index)
-	if err != nil || position < 0 || position >= len(q.Levels) {
-		return index
-	}
-
-	return q.Levels[position].Label
 }
