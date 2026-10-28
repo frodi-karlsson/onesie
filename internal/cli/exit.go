@@ -107,16 +107,36 @@ func canceledOrBrokenPipe(err error) bool {
 }
 
 func firstMatch(err error) failure {
-	// Order matters. RetryAfterError embeds APIError, so the typed check precedes the sentinels it
-	// would otherwise match, and silentError comes last so a real error joined to one keeps its code.
-	if found, matched := outcomeMatch(err); matched {
+	// Order matters. A failure the run decided, from a verdict to an interrupt, wins over the request
+	// error it wraps, and silentError comes last so a real error joined to one keeps its code.
+	if found, matched := runFailure(err); matched {
 		return found
 	}
 
-	return causeMatch(err)
+	if found, matched := requestFailure(err); matched {
+		return found
+	}
+
+	// After the transport checks, so a socket write that failed with EPIPE keeps the transport exit
+	// code. What reaches here is onesie's own stdout, and no exit code means the consumer stopped
+	// reading. A line about it would go to a stderr the same consumer is often reading.
+	if engine.BrokenPipe(err) {
+		return failure{kind: output.KindInput, code: ExitOK}
+	}
+
+	var silent *silentError
+	if errors.As(err, &silent) {
+		// The command wrote the whole result to stdout, so a stderr line would repeat it.
+		return failure{kind: output.KindInput, code: silent.code, quiet: true}
+	}
+
+	// No status arrived and the network did not fail, so the record never became a request, as with
+	// a line onesie could not read. Calling it transport would blame the network, and exit 5 where a
+	// fresh run exits 2.
+	return failure{kind: output.KindInput, code: ExitUsage}
 }
 
-func outcomeMatch(err error) (failure, bool) {
+func runFailure(err error) (failure, bool) {
 	var records *recordsError
 	if errors.As(err, &records) {
 		// The exit code already says a record failed, and the per record lines on stdout carry the
@@ -164,12 +184,14 @@ func outcomeMatch(err error) (failure, bool) {
 	return failure{}, false
 }
 
-func causeMatch(err error) failure {
+func requestFailure(err error) (failure, bool) {
+	// Order matters. RetryAfterError embeds APIError, so the typed check precedes the sentinels it
+	// would otherwise match.
 	var overCap *onesie.RetryAfterError
 	if errors.As(err, &overCap) {
 		status := overCap.Status
 
-		return failure{kind: output.KindHTTP, status: &status, code: ExitUnavailable}
+		return failure{kind: output.KindHTTP, status: &status, code: ExitUnavailable}, true
 	}
 
 	// A 2xx body onesie cannot use is a server fault, not a usage error, so it exits 4 and is never
@@ -179,14 +201,14 @@ func causeMatch(err error) failure {
 	if errors.As(err, &unusable) {
 		status := unusable.Status
 
-		return failure{kind: output.KindResponse, status: &status, code: ExitUnavailable}
+		return failure{kind: output.KindResponse, status: &status, code: ExitUnavailable}, true
 	}
 
 	var cannotUse *answer.UnusableError
 	if errors.As(err, &cannotUse) {
 		status := http.StatusOK
 
-		return failure{kind: output.KindResponse, status: &status, code: ExitUnavailable}
+		return failure{kind: output.KindResponse, status: &status, code: ExitUnavailable}, true
 	}
 
 	var api *onesie.APIError
@@ -196,48 +218,32 @@ func causeMatch(err error) failure {
 	if answered && authFailure(err) {
 		status := api.Status
 
-		return failure{kind: output.KindHTTP, status: &status, code: ExitAuth}
+		return failure{kind: output.KindHTTP, status: &status, code: ExitAuth}, true
 	}
 
 	var readable *creds.ReadableError
 	if errors.As(err, &readable) {
-		return failure{kind: output.KindInput, code: ExitAuth}
+		return failure{kind: output.KindInput, code: ExitAuth}, true
 	}
 
 	var keychain *creds.KeychainError
 	if errors.As(err, &keychain) {
-		return failure{kind: output.KindInput, code: ExitAuth}
+		return failure{kind: output.KindInput, code: ExitAuth}, true
 	}
 
 	if answered {
 		status := api.Status
 
-		return failure{kind: output.KindHTTP, status: &status, code: classifyStatus(api.Status)}
+		return failure{kind: output.KindHTTP, status: &status, code: classifyStatus(api.Status)}, true
 	}
 
 	// A connection that broke with EPIPE exits as the transport failure it is, and stays quiet as
 	// every broken pipe does.
 	if errors.Is(err, onesie.ErrConnection) || errors.Is(err, onesie.ErrTimeout) {
-		return failure{kind: output.KindTransport, code: ExitTransport}
+		return failure{kind: output.KindTransport, code: ExitTransport}, true
 	}
 
-	// After the transport checks, so a socket write that failed with EPIPE keeps the transport exit
-	// code. What reaches here is onesie's own stdout, and no exit code means the consumer stopped
-	// reading. A line about it would go to a stderr the same consumer is often reading.
-	if engine.BrokenPipe(err) {
-		return failure{kind: output.KindInput, code: ExitOK}
-	}
-
-	var silent *silentError
-	if errors.As(err, &silent) {
-		// The command wrote the whole result to stdout, so a stderr line would repeat it.
-		return failure{kind: output.KindInput, code: silent.code, quiet: true}
-	}
-
-	// No status arrived and the network did not fail, so the record never became a request, as with
-	// a line onesie could not read. Calling it transport would blame the network, and exit 5 where a
-	// fresh run exits 2.
-	return failure{kind: output.KindInput, code: ExitUsage}
+	return failure{}, false
 }
 
 func authFailure(err error) bool {
