@@ -13,7 +13,9 @@ import (
 func explain(err error, facts requestFacts) error {
 	helps := longContextHelps(facts.provider, facts.model, facts.longContext)
 
-	return advise(adviseLimits(adviseBox(adviseLongContext(err, helps), facts.boxed)), facts.model)
+	boxed := adviseBox(adviseLongContext(err, helps), facts.boxed, facts.provider.BoxModel())
+
+	return advise(adviseLimits(boxed), facts.model)
 }
 
 type requestFacts struct {
@@ -73,17 +75,19 @@ func longContextHelps(provider onesie.Provider, model string, on bool) bool {
 	return !on && provider.Refuse(model, onesie.Needs{LongContext: true}) == nil
 }
 
-func adviseBox(err error, boxed bool) error {
+func adviseBox(err error, boxed bool, boxModel string) error {
 	// Only the server's refusal, since a local one already names the providers that take a box.
 	var api *onesie.APIError
 	if !boxed || !errors.As(err, &api) || !errors.Is(err, onesie.ErrNotServed) {
 		return err
 	}
 
-	return &advisedError{
-		cause:   err,
-		message: withNote(text(err), "A box question needs a model that serves it, such as -m jev-preview"),
+	note := "A box question needs a model that serves it"
+	if boxModel != "" {
+		note += ", such as -m " + boxModel
 	}
+
+	return &advisedError{cause: err, message: withNote(text(err), note)}
 }
 
 func withKeyHint(err error, settings rootSettings) error {
