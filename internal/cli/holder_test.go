@@ -210,7 +210,7 @@ func TestResolveRun(t *testing.T) {
 		{
 			name: "should point --provider at --profile when it names a profile", file: openrouterWork,
 			args: asking("--print-request", "--provider", "work"), wantCode: ExitUsage,
-			wantErr: []string{"onesie: unknown provider work", "'work' is a profile, so pass --profile 'work' in place of --provider"},
+			wantErr: []string{"onesie: unknown provider 'work'", "'work' is a profile, so pass --profile 'work' in place of --provider"},
 		},
 		{
 			name: "should point ONESIE_PROVIDER at ONESIE_PROFILE when it names a profile", file: openrouterWork,
@@ -220,7 +220,7 @@ func TestResolveRun(t *testing.T) {
 		{
 			name: "should keep the unknown provider error when profiles.json cannot be read for the hint",
 			file: openrouterWork, mode: 0o644, unixOnly: true, args: asking("--print-request", "--provider", "work"),
-			wantCode: ExitUsage, wantErr: []string{"onesie: unknown provider work"},
+			wantCode: ExitUsage, wantErr: []string{"onesie: unknown provider 'work'"},
 			notErr: []string{"is a profile", "is readable or writable by its group or others"},
 		},
 		{
@@ -356,7 +356,7 @@ func TestResolveRun(t *testing.T) {
 	t.Run("should resolve what the flags and variables choose", func(t *testing.T) {
 		t.Parallel()
 
-		const unknownWork = "unknown provider work. Use typesafe, openrouter, berget, levanto or cloudflare"
+		const unknownWork = "unknown provider 'work'. Use typesafe, openrouter, berget, levanto or cloudflare"
 
 		profiles := creds.Profiles{Default: "work", Profiles: map[string]creds.Profile{
 			"work": {Provider: "openrouter", APIKey: "SECRET-WORK"},
@@ -397,7 +397,7 @@ func TestResolveRun(t *testing.T) {
 			},
 			{
 				name: "should refuse an unknown provider", flags: runFlags{provider: "bogus", providerSet: true},
-				wantErr: "unknown provider bogus. Use typesafe, openrouter, berget, levanto or cloudflare",
+				wantErr: "unknown provider 'bogus'. Use typesafe, openrouter, berget, levanto or cloudflare",
 			},
 			{
 				name:    "should point --provider at --profile when it names a profile",

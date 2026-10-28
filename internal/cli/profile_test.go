@@ -1872,7 +1872,7 @@ func TestProfileTest(t *testing.T) {
 			args:      []string{"profile", "test", "work"},
 			unreached: true,
 			wantCode:  ExitTransport,
-			wantErr:   "onesie: connection error",
+			wantErr:   "onesie: could not reach 127.0.0.1:",
 		},
 		{
 			name: "should only list the models on levanto, whose list needs the key",

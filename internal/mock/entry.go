@@ -152,7 +152,7 @@ func errorStatus(number json.Number) (int, bool) {
 
 func statusEntry(status int) *Entry {
 	return &Entry{
-		err: onesie.NewAPIError(status, fmt.Sprintf("mock status %d", status)),
+		err: onesie.NewAPIError(onesie.Provider{}, "", onesie.Needs{}, status, nil),
 		key: fmt.Sprintf("error http %d", status),
 	}
 }

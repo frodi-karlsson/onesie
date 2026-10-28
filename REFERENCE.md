@@ -825,7 +825,8 @@ table, and `onesie calibrate --help` lists the codes calibrate uses.
 - A notice onesie writes to stderr starts with `onesie: `, and a warning with `onesie: warning: `.
   The `--stats` summary, calibrate's progress lines, the `active: ` line `profile list` writes and
   the `API key: ` prompt keep their own form.
-- `--list-models` shows what the account can ask, and `-m` picks one.
+- `--list-models` shows what the account can ask, and `-m` picks one. Each line holds a model, its
+  description and its release date as `YYYY-MM-DD`, which is blank when the provider gives none.
 - `--base-url` points onesie at any server that speaks the System One API. A redirect is refused
   rather than followed with the key.
 - A plain `http://` base URL to a host other than this machine exits 2 before any request, since
@@ -838,6 +839,9 @@ table, and `onesie calibrate --help` lists the codes calibrate uses.
 - onesie adds `/v1/systemone` itself, so a base URL whose path ends in `/v1`, from
   `--base-url`, `TYPESAFE_BASE_URL` or a profile's `base_url`, prints one warning naming where it
   came from and the URL requests go to. It is not refused, since a proxy may use that prefix.
+- A request that never reaches the server exits 5 and names the host and the innermost cause, as
+  in `onesie: could not reach api.example.com: no such host`. The host keeps its port, and the
+  message never holds a URL, a query or a proxy address.
 - An error response whose body is not JSON, such as the HTML page a web server sends for a wrong
   path, prints its status and says the body is not JSON, as in
   `onesie: 405 Method Not Allowed, with a response body that is not JSON. Check that the base URL points at the System One API`.

@@ -224,7 +224,7 @@ func TestMockAnswers(t *testing.T) {
 			name:     "should exit 3 for one record the file refuses with 401",
 			args:     with("--state", "x"),
 			mock:     `{"error":401}`,
-			stderr:   []string{"onesie: mock status 401"},
+			stderr:   []string{"onesie: 401 status code, no body"},
 			wantCode: ExitAuth,
 		},
 		{
@@ -245,7 +245,7 @@ func TestMockAnswers(t *testing.T) {
 			name:         "should give no credit advice for a mocked 402",
 			args:         with("--state", "x"),
 			mock:         `{"error":402}`,
-			stderr:       []string{"onesie: mock status 402"},
+			stderr:       []string{"onesie: 402 status code, no body"},
 			stderrAbsent: []string{"credits"},
 			wantCode:     ExitAuth,
 		},
@@ -262,7 +262,7 @@ func TestMockAnswers(t *testing.T) {
 			args:     with("-o", "values", "-i", "lines"),
 			stdin:    "a\nb\nc\n",
 			mock:     lines(mockAll, `{"error":401}`, mockAll),
-			stderr:   []string{"onesie: mock status 401"},
+			stderr:   []string{"onesie: 401 status code, no body"},
 			wantCode: ExitAuth,
 		},
 		{
@@ -357,7 +357,7 @@ func TestMockAnswers(t *testing.T) {
 			name:     "should refuse a misspelled --provider",
 			args:     with("--state", "x", "--provider", "bogus"),
 			mock:     mockAll,
-			stderr:   []string{"onesie: unknown provider bogus"},
+			stderr:   []string{"onesie: unknown provider 'bogus'"},
 			wantCode: ExitUsage,
 		},
 		{
@@ -365,7 +365,7 @@ func TestMockAnswers(t *testing.T) {
 			args:     with("-o", "values", "--state", "x"),
 			env:      map[string]string{"ONESIE_PROVIDER": "bogus"},
 			mock:     mockAll,
-			stderr:   []string{"onesie: unknown provider bogus"},
+			stderr:   []string{"onesie: unknown provider 'bogus'"},
 			wantCode: ExitUsage,
 		},
 		{
@@ -401,7 +401,7 @@ func TestMockAnswers(t *testing.T) {
 			args:     []string{"-i", "request"},
 			env:      map[string]string{"ONESIE_PROVIDER": "bogus"},
 			mock:     mockAll,
-			stderr:   []string{"onesie: unknown provider bogus"},
+			stderr:   []string{"onesie: unknown provider 'bogus'"},
 			wantCode: ExitUsage,
 		},
 		{
@@ -409,7 +409,7 @@ func TestMockAnswers(t *testing.T) {
 			args:     []string{"--list-models"},
 			env:      map[string]string{"ONESIE_PROVIDER": "bogus"},
 			mock:     mockAll,
-			stderr:   []string{"onesie: unknown provider bogus"},
+			stderr:   []string{"onesie: unknown provider 'bogus'"},
 			wantCode: ExitUsage,
 		},
 		{
@@ -1028,7 +1028,7 @@ func TestMockAnswerer_Answer(t *testing.T) {
 		got, err := a.answer(t.Context(), recordKey{position: 1}, onesie.Request{
 			Model: "m", State: "s", Questions: questions,
 		})
-		if err == nil || !strings.Contains(err.Error(), "mock status 402") {
+		if err == nil || !strings.Contains(err.Error(), "402 status code, no body") {
 			t.Fatalf("error = %v, want the mocked 402", err)
 		}
 

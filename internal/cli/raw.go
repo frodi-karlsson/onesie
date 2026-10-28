@@ -121,14 +121,14 @@ func (r *rawRun) evaluate(ctx context.Context, rec input.Record) ([]byte, error)
 		return printedBody(r.provider, rec.Raw, r.defaultModel, r.long)
 	}
 
-	body, err := r.client.PrepareRaw(json.RawMessage(rec.Raw), longContextOptions(r.long)...)
+	body, err := r.provider.PrepareRaw(json.RawMessage(rec.Raw), r.client.DefaultModel(), longContextOptions(r.long)...)
 	if err != nil {
 		r.stats.recordFailure(err, false, 0)
 
 		return errorLine(err), err
 	}
 
-	return r.send(ctx, body)
+	return r.send(ctx, body.Bytes())
 }
 
 func (r *rawRun) send(ctx context.Context, body json.RawMessage) ([]byte, error) {
@@ -177,7 +177,7 @@ func printedBody(provider onesie.Provider, raw, defaultModel string, long bool) 
 		return errorLine(err), err
 	}
 
-	return body, nil
+	return body.Bytes(), nil
 }
 
 func longContextOptions(on bool) []onesie.RequestOption {
