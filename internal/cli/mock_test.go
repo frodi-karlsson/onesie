@@ -478,7 +478,7 @@ func TestMockAnswers(t *testing.T) {
 			mock:     threeMock,
 			contains: []string{"urgent, yes/no: labelled 4, 2 yes, 2 no, 0 failed"},
 			absent:   []string{"team,", "tone,"},
-			stderr:   []string{"skipping 'team' and 'tone', which have no --label\n"},
+			stderr:   []string{"onesie: skipping 'team' and 'tone', which have no --label\n"},
 			wantCode: ExitOK,
 		},
 		{

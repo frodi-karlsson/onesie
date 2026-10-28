@@ -14,6 +14,7 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/calibrate"
 	"github.com/frodi-karlsson/onesie/internal/input"
 	"github.com/frodi-karlsson/onesie/internal/jq"
+	"github.com/frodi-karlsson/onesie/internal/output"
 	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
@@ -445,9 +446,7 @@ func writeSkipped(w io.Writer, skipped []string, inReport bool, askedOf string) 
 		line = fmt.Sprintf("skipping %s in the report, since %s no --label", names, subject)
 	}
 
-	_, err := fmt.Fprintln(w, line)
-
-	return err
+	return output.Notice(w, line)
 }
 
 func namesOf(question plan.Question) []string {
