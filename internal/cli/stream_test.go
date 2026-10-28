@@ -5,14 +5,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"math"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"runtime/pprof"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -1304,6 +1302,8 @@ func TestStream(t *testing.T) {
 
 				var out, errOut lockedBuffer
 
+				runs := newExprRuns(1)
+
 				root := cli.NewRootCmd(
 					cli.BuildInfo{Version: "1.2.3"},
 					cli.WithKeychain(offKeychain()),
@@ -1316,6 +1316,7 @@ func TestStream(t *testing.T) {
 					cli.WithStdinTTY(false),
 					cli.WithStdoutTTY(false),
 					cli.WithLookupEnv(func(string) (string, bool) { return "", false }),
+					cli.WithExprRuns(runs.run),
 				)
 
 				root.Command.SetOut(&out)
@@ -1326,11 +1327,13 @@ func TestStream(t *testing.T) {
 				defer interrupt()
 
 				exited := make(chan int, 1)
-				labels := pprof.Labels("test", t.Name())
 
-				go pprof.Do(ctx, labels, func(ctx context.Context) { exited <- root.Execute(ctx) })
+				go func() { exited <- root.Execute(ctx) }()
 
-				awaitRunningMap(t, labels)
+				if !reached(runs.started) {
+					t.Fatal("the expression never started running")
+				}
+
 				interrupt()
 
 				select {
@@ -1388,10 +1391,14 @@ func TestStream(t *testing.T) {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 
-				labels := pprof.Labels("test", t.Name())
+				// The second record's --id is the runaway, so it is running once two runs have started.
+				runs := newExprRuns(2)
 
 				srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-					waitForExpr(t, labels, true)
+					if !reached(runs.started) {
+						t.Error("the --id expression never started running")
+					}
+
 					w.WriteHeader(tc.status)
 
 					if _, err := w.Write([]byte(`{"error":{"message":"bad key"}}`)); err != nil {
@@ -1405,7 +1412,9 @@ func TestStream(t *testing.T) {
 				var out io.Writer = &lockedBuffer{}
 				if tc.breaks {
 					out = writerFunc(func([]byte) (int, error) {
-						waitForExpr(t, labels, true)
+						if !reached(runs.started) {
+							t.Error("the --id expression never started running")
+						}
 
 						return 0, io.ErrClosedPipe
 					})
@@ -1423,6 +1432,7 @@ func TestStream(t *testing.T) {
 					cli.WithStdinTTY(false),
 					cli.WithStdoutTTY(false),
 					cli.WithLookupEnv(func(string) (string, bool) { return "", false }),
+					cli.WithExprRuns(runs.run),
 				)
 
 				root.Command.SetOut(out)
@@ -1431,7 +1441,7 @@ func TestStream(t *testing.T) {
 
 				exited := make(chan int, 1)
 
-				go pprof.Do(t.Context(), labels, func(ctx context.Context) { exited <- root.Execute(ctx) })
+				go func() { exited <- root.Execute(t.Context()) }()
 
 				select {
 				case code := <-exited:
@@ -1442,7 +1452,7 @@ func TestStream(t *testing.T) {
 					t.Fatal("the stream never ended")
 				}
 
-				if !waitForExpr(t, labels, false) {
+				if !reached(runs.ended) {
 					t.Error("the --id expression kept running after the stream ended")
 				}
 			})
@@ -1947,57 +1957,48 @@ func (b *lockedBuffer) String() string {
 	return b.buf.String()
 }
 
-func awaitRunningMap(t *testing.T, labels pprof.LabelSet) {
-	t.Helper()
+func newExprRuns(want int) *exprRuns {
+	return &exprRuns{want: want, started: make(chan struct{}), ended: make(chan struct{})}
+}
 
-	if !waitForExpr(t, labels, true) {
-		t.Fatal("the --map expression never started running")
+func (r *exprRuns) run() func() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.starts++
+	if r.starts == r.want {
+		close(r.started)
+	}
+
+	return r.end
+}
+
+func (r *exprRuns) end() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.ends++
+	if r.ends == r.want {
+		close(r.ended)
 	}
 }
 
-func waitForExpr(t *testing.T, labels pprof.LabelSet, running bool) bool {
-	t.Helper()
+type exprRuns struct {
+	mu      sync.Mutex
+	want    int
+	starts  int
+	ends    int
+	started chan struct{}
+	ended   chan struct{}
+}
 
-	// A goroutine inherits the labels of the one that started it, so a stack carrying them and
-	// the gojq interpreter is this test's expression running, not another test's.
-	var want string
-
-	pprof.ForLabels(pprof.WithLabels(context.Background(), labels), func(key, value string) bool {
-		want = fmt.Sprintf("# labels: {%q:%q}", key, value)
-
+func reached(signal <-chan struct{}) bool {
+	select {
+	case <-signal:
 		return true
-	})
-
-	deadline := time.Now().Add(5 * time.Second)
-
-	for time.Now().Before(deadline) {
-		if exprRunning(t, want) == running {
-			return true
-		}
-
-		time.Sleep(time.Millisecond)
-	}
-
-	return false
-}
-
-func exprRunning(t *testing.T, labelLine string) bool {
-	t.Helper()
-
-	var profile strings.Builder
-	if err := pprof.Lookup("goroutine").WriteTo(&profile, 1); err != nil {
-		t.Errorf("writing the goroutine profile: %v", err)
-
+	case <-time.After(5 * time.Second):
 		return false
 	}
-
-	for _, stack := range strings.Split(profile.String(), "\n\n") {
-		if strings.Contains(stack, labelLine) && strings.Contains(stack, "github.com/itchyny/gojq.(*env).Next") {
-			return true
-		}
-	}
-
-	return false
 }
 
 type writerFunc func([]byte) (int, error)

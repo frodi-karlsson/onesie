@@ -110,12 +110,12 @@ func invocationOf(settings rootSettings, flags runConfig, built *plan.Plan, file
 		return nil, err
 	}
 
-	mapper, err := exprOf(flags.hasMap, "--map", flags.mapSource)
+	mapper, err := exprOf(flags.hasMap, "--map", flags.mapSource, jq.WithRuns(settings.exprRuns))
 	if err != nil {
 		return nil, err
 	}
 
-	namer, err := exprOf(flags.hasID, "--id", flags.idSource)
+	namer, err := exprOf(flags.hasID, "--id", flags.idSource, jq.WithRuns(settings.exprRuns))
 	if err != nil {
 		return nil, err
 	}
@@ -214,12 +214,12 @@ func questionIDs(questions []plan.Question) []string {
 	return ids
 }
 
-func exprOf(given bool, flag, source string) (*jq.Expr, error) {
+func exprOf(given bool, flag, source string, opts ...jq.Option) (*jq.Expr, error) {
 	if !given {
 		return nil, nil
 	}
 
-	expr, err := jq.Compile(source)
+	expr, err := jq.Compile(source, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", flag, err)
 	}

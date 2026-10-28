@@ -880,13 +880,10 @@ func TestMockResume(t *testing.T) {
 		ctx, cancel := context.WithCancel(t.Context())
 		defer cancel()
 
-		interrupting := &cancellingReader{data: input, after: 2, cancel: cancel, ready: func() bool {
-			data, err := os.ReadFile(out)
+		written := make(chan struct{}, 64)
+		interrupting := &cancellingReader{data: input, after: 2, cancel: cancel, written: written, wait: 1}
 
-			return err == nil && bytes.Count(data, []byte("\n")) >= 1
-		}}
-
-		_, errOut, code := runMocked(t, ctx, args, "", nil, interrupting)
+		_, errOut, code := runMocked(t, ctx, args, "", nil, interrupting, signallingAnswers(written))
 		if code != ExitInterrupt {
 			t.Fatalf("first run exit %d, want 130\n%s", code, errOut)
 		}
@@ -1272,9 +1269,15 @@ func (r *cancellingReader) Read(p []byte) (int, error) {
 	defer r.mu.Unlock()
 
 	if r.lines == r.after {
-		// Held until a line is on disk, so the run the interrupt ends has something to resume from.
-		for deadline := time.Now().Add(5 * time.Second); !r.ready() && time.Now().Before(deadline); {
-			time.Sleep(5 * time.Millisecond)
+		// Held until lines are on disk, so the run the interrupt ends has something to resume from.
+		for range r.wait {
+			select {
+			case <-r.written:
+			case <-time.After(5 * time.Second):
+				r.cancel()
+
+				return 0, errors.New("the answers file never received the lines the interrupt waits for")
+			}
 		}
 
 		r.cancel()
@@ -1295,13 +1298,36 @@ func (r *cancellingReader) Read(p []byte) (int, error) {
 }
 
 type cancellingReader struct {
-	mu     sync.Mutex
-	data   string
-	offset int
-	lines  int
-	after  int
-	cancel context.CancelFunc
-	ready  func() bool
+	mu      sync.Mutex
+	data    string
+	offset  int
+	lines   int
+	after   int
+	cancel  context.CancelFunc
+	written <-chan struct{}
+	wait    int
+}
+
+func signallingAnswers(written chan<- struct{}) RootOption {
+	return func(s *rootSettings) {
+		s.answersOut = func(out io.Writer) io.Writer {
+			return lineSignals{out: out, written: written}
+		}
+	}
+}
+
+func (w lineSignals) Write(p []byte) (int, error) {
+	n, err := w.out.Write(p)
+	for range bytes.Count(p[:n], []byte("\n")) {
+		w.written <- struct{}{}
+	}
+
+	return n, err
+}
+
+type lineSignals struct {
+	out     io.Writer
+	written chan<- struct{}
 }
 
 func delaying(position, others int) RootOption {

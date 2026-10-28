@@ -43,7 +43,7 @@ var (
 const shownNumberBytes = 64
 
 // Compile parses and compiles a jq expression. A syntax error names the column it was found at.
-func Compile(source string) (*Expr, error) {
+func Compile(source string, opts ...Option) (*Expr, error) {
 	query, err := gojq.Parse(source)
 	if err != nil {
 		return nil, parseError(source, err)
@@ -54,17 +54,36 @@ func Compile(source string) (*Expr, error) {
 		return nil, err
 	}
 
-	return &Expr{code: code}, nil
+	expr := &Expr{code: code, runs: func() func() { return func() {} }}
+	for _, opt := range opts {
+		opt(expr)
+	}
+
+	return expr, nil
+}
+
+// Option configures an expression Compile returns.
+type Option func(*Expr)
+
+// WithRuns calls runs as each run of the expression starts, and the function it returns as that run ends.
+func WithRuns(runs func() (ended func())) Option {
+	return func(e *Expr) {
+		e.runs = runs
+	}
 }
 
 // Expr is a compiled jq expression. It is safe to run from many goroutines at once.
 type Expr struct {
 	code *gojq.Code
+	runs func() (ended func())
 }
 
 // One runs the expression on value until ctx ends and demands exactly one result. A recursive builtin
 // can still overflow on a value the expression nested millions deep, as in jq.
 func (e *Expr) One(ctx context.Context, value any) (any, error) {
+	ended := e.runs()
+	defer ended()
+
 	results := e.code.RunWithContext(ctx, value)
 
 	first, ok := results.Next()

@@ -238,7 +238,7 @@ func runRoot(
 		return run(cmd, settings, recorder.Events(), positional, flags, nil, resume)
 	}
 
-	cmd.SetOut(out)
+	cmd.SetOut(settings.answersOut(out))
 
 	runErr := run(cmd, settings, recorder.Events(), positional, flags, out, resume)
 
@@ -399,9 +399,12 @@ func defaultSettings(info BuildInfo) rootSettings {
 		readSecret:    func() (string, error) { return readHiddenSecret(os.Stdin) },
 		schemaURL:     schemaURLOf(info),
 		dedupLimit:    limits.MaxDedupRequests,
+		dedupWaiting:  func() {},
+		exprRuns:      func() func() { return func() {} },
 		readBuiltIn:   questions.Read,
 		builtIns:      questions.Names,
 		transport:     http.DefaultTransport,
+		answersOut:    func(out io.Writer) io.Writer { return out },
 		laterFailures: &failureLog{},
 	}
 }
@@ -929,8 +932,11 @@ type rootSettings struct {
 	keychain      *creds.Keychain
 	readSecret    func() (string, error)
 	answerers     func(answererFactory) answererFactory
+	answersOut    func(io.Writer) io.Writer
 	schemaURL     string
 	dedupLimit    int
+	dedupWaiting  func()
+	exprRuns      func() (ended func())
 	readBuiltIn   func(name string) ([]byte, bool)
 	builtIns      func() []string
 	transport     http.RoundTripper

@@ -97,7 +97,7 @@ func newStreamRun(cmd *cobra.Command, in streamInputs) (*streamRun, error) {
 			return output.Notice(cmd.ErrOrStderr(), fmt.Sprintf(
 				"%d distinct requests held, so later records are deduplicated only against those",
 				in.settings.dedupLimit))
-		})
+		}, in.settings.dedupWaiting)
 	}
 
 	run.stop = watched(stopping(in.flags), &run.stopped)

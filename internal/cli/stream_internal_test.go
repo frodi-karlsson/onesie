@@ -12,7 +12,6 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"runtime/pprof"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -133,7 +132,7 @@ func TestStream(t *testing.T) {
 			}
 		})
 
-		labels := pprof.Labels("dedup", t.Name())
+		waiting := make(chan struct{}, 1)
 		exited := make(chan struct{})
 
 		var (
@@ -141,13 +140,16 @@ func TestStream(t *testing.T) {
 			code        int
 		)
 
-		go pprof.Do(t.Context(), labels, func(ctx context.Context) {
+		go func() {
 			defer close(exited)
 
-			out, errOut, code = runStub(t, ctx, with("-j", "2"), jsonl("x", "x"), stub.url)
-		})
+			out, errOut, code = runStub(t, t.Context(), with("-j", "2"), jsonl("x", "x"), stub.url,
+				func(s *rootSettings) { s.dedupWaiting = func() { waiting <- struct{}{} } })
+		}()
 
-		if !awaitWaiter(t, labels) {
+		select {
+		case <-waiting:
+		case <-time.After(5 * time.Second):
 			t.Error("the second record never waited for the first")
 		}
 
@@ -765,49 +767,4 @@ func runStub(
 	code := root.Execute(ctx)
 
 	return out.String(), errOut.String(), code
-}
-
-func awaitWaiter(t *testing.T, labels pprof.LabelSet) bool {
-	t.Helper()
-
-	var want string
-
-	pprof.ForLabels(pprof.WithLabels(context.Background(), labels), func(key, value string) bool {
-		want = fmt.Sprintf("# labels: {%q:%q}", key, value)
-
-		return true
-	})
-
-	deadline := time.Now().Add(5 * time.Second)
-
-	for time.Now().Before(deadline) {
-		if waiting(t, want) {
-			return true
-		}
-
-		time.Sleep(time.Millisecond)
-	}
-
-	return false
-}
-
-func waiting(t *testing.T, labelLine string) bool {
-	t.Helper()
-
-	var profile strings.Builder
-	if err := pprof.Lookup("goroutine").WriteTo(&profile, 1); err != nil {
-		t.Errorf("writing the goroutine profile: %v", err)
-
-		return false
-	}
-
-	// A waiter sits in share with no request of its own below it.
-	for _, stack := range strings.Split(profile.String(), "\n\n") {
-		if strings.Contains(stack, labelLine) && strings.Contains(stack, "cli.(*dedup).share") &&
-			!strings.Contains(stack, "cli.evaluate") {
-			return true
-		}
-	}
-
-	return false
 }

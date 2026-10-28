@@ -156,6 +156,29 @@ func TestExpr_One(t *testing.T) {
 		}
 	})
 
+	t.Run("should report each run as it starts and as it ends", func(t *testing.T) {
+		t.Parallel()
+
+		var events []string
+
+		expr, err := Compile(".id", WithRuns(func() func() {
+			events = append(events, "started")
+
+			return func() { events = append(events, "ended") }
+		}))
+		if err != nil {
+			t.Fatalf("Compile(): %v", err)
+		}
+
+		if _, err := expr.One(t.Context(), map[string]any{"id": "a"}); err != nil {
+			t.Fatalf("One(): %v", err)
+		}
+
+		if want := []string{"started", "ended"}; !reflect.DeepEqual(events, want) {
+			t.Errorf("events = %v, want %v", events, want)
+		}
+	})
+
 	t.Run("should stop an expression that never ends once the context is cancelled", func(t *testing.T) {
 		t.Parallel()
 

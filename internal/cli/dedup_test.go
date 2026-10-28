@@ -31,7 +31,7 @@ func TestDedup_Share(t *testing.T) {
 			t.Error("the notice ran below the limit")
 
 			return nil
-		})
+		}, func() {})
 
 		var asked atomic.Int32
 
@@ -55,7 +55,7 @@ func TestDedup_Share(t *testing.T) {
 	t.Run("should make a caller wait for the request in flight and give it that result", func(t *testing.T) {
 		t.Parallel()
 
-		shared := newDedup(10, func() error { return nil })
+		shared := newDedup(10, func() error { return nil }, func() {})
 		release := make(chan struct{})
 		started := make(chan struct{})
 
@@ -118,7 +118,7 @@ func TestDedup_Share(t *testing.T) {
 	t.Run("should share a failed result with every caller, later ones included", func(t *testing.T) {
 		t.Parallel()
 
-		shared := newDedup(10, func() error { return nil })
+		shared := newDedup(10, func() error { return nil }, func() {})
 
 		var asked atomic.Int32
 
@@ -147,7 +147,7 @@ func TestDedup_Share(t *testing.T) {
 	t.Run("should return the context's error to a waiter whose context ends", func(t *testing.T) {
 		t.Parallel()
 
-		shared := newDedup(10, func() error { return nil })
+		shared := newDedup(10, func() error { return nil }, func() {})
 		release := make(chan struct{})
 		started := make(chan struct{})
 
@@ -193,7 +193,7 @@ func TestDedup_Share(t *testing.T) {
 			notices.Add(1)
 
 			return nil
-		})
+		}, func() {})
 
 		var askedOld, askedNew atomic.Int32
 
@@ -257,7 +257,7 @@ func TestDedup_Share(t *testing.T) {
 			shared.mu.Unlock()
 
 			return nil
-		})
+		}, func() {})
 
 		for _, name := range []string{"held", "new"} {
 			if _, _, _, err := shared.share(t.Context(), keyOf(name), func() (output.Record, error) {
@@ -315,11 +315,11 @@ func TestDedup_NoticeError(t *testing.T) {
 		{name: "should hold nothing for a run without dedup"},
 		{
 			name:   "should hold nothing below the limit",
-			shared: newDedup(2, func() error { return errPrint }), keys: []string{"a", "b"},
+			shared: newDedup(2, func() error { return errPrint }, func() {}), keys: []string{"a", "b"},
 		},
 		{
 			name:   "should hold the notice's print error past the limit",
-			shared: newDedup(1, func() error { return errPrint }), keys: []string{"a", "b"}, want: errPrint,
+			shared: newDedup(1, func() error { return errPrint }, func() {}), keys: []string{"a", "b"}, want: errPrint,
 		},
 	}
 
@@ -382,7 +382,7 @@ func TestAskOnce(t *testing.T) {
 
 			var shared *dedup
 			if tc.group {
-				shared = newDedup(10, func() error { return nil })
+				shared = newDedup(10, func() error { return nil }, func() {})
 			}
 
 			var (

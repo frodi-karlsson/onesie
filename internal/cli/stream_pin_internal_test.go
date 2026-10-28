@@ -538,13 +538,17 @@ func runPinned(t *testing.T, step pinnedStep, out string) (string, string, int) 
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
-	var stdin io.Reader = strings.NewReader(step.stdin)
-	if step.interruptAfter > 0 {
-		stdin = &cancellingReader{data: step.stdin, after: step.interruptAfter, cancel: cancel, ready: func() bool {
-			data, err := os.ReadFile(out)
+	var (
+		stdin     io.Reader = strings.NewReader(step.stdin)
+		signalled []RootOption
+	)
 
-			return err == nil && bytes.Count(data, []byte("\n")) >= step.interruptAfter
-		}}
+	if step.interruptAfter > 0 {
+		written := make(chan struct{}, 64)
+		stdin = &cancellingReader{
+			data: step.stdin, after: step.interruptAfter, cancel: cancel, written: written, wait: step.interruptAfter,
+		}
+		signalled = append(signalled, signallingAnswers(written))
 	}
 
 	opts := []RootOption{
@@ -560,6 +564,8 @@ func runPinned(t *testing.T, step pinnedStep, out string) (string, string, int) 
 	if step.mock != "" {
 		args = append(args, "--mock", writeMock(t, step.mock))
 	}
+
+	opts = append(opts, signalled...)
 
 	if step.dedupLimit > 0 {
 		opts = append(opts, func(s *rootSettings) { s.dedupLimit = step.dedupLimit })
