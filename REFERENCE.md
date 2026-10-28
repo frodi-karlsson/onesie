@@ -529,7 +529,7 @@ on the provider's key variable alone.
 | `profile delete NAME` | removes the profile and its keychain item. Deleting the default leaves no default, and deleting the last profile removes `profiles.json` |
 | `profile use NAME` | makes the profile the default |
 | `profile list` | lists each profile's provider, key store and model, with `*` on the one a run would use now. When a run would use none, a stderr line says why, as in `active: ONESIE_PROVIDER=openrouter, no profile` |
-| `profile show [NAME]` | prints `profile`, `provider`, `chosen by`, `key`, `model` and `base_url` lines, an `allow_http` line for a plain http base URL to another host, and an `account` line on cloudflare, for the named profile or for what a run would use now |
+| `profile show [NAME]` | prints what a run would use now, or what the named profile holds, never the key |
 | `profile test [NAME]` | lists the provider's models with the key, which costs no tokens, and prints `profile`, `provider`, `key` and `models` lines |
 
 - A name is 1 to 64 lowercase letters, digits, `-` or `_`, does not start with `-`, and is not
@@ -606,13 +606,7 @@ on the provider's key variable alone.
 
 - A flag beats the profile, the profile beats the environment, and the environment beats the built
   in default. No provider falls back to another's key.
-- A question file carries no model, since `model` is a reserved question id there. Only a request
-  body, as `--print-request` writes it, names one. Under `-i request` each body sends the model it
-  names, and a body that names none, or an empty, all whitespace or null one, takes the profile's
-  `model`, then the order above. Only the key `model` spelled in that case counts, so a body that
-  holds only `Model` names none. Of several `model` keys the last one counts, and a blank last one
-  leaves a single `model` key. onesie writes that model into the body, so `--print-request` shows
-  it too.
+- A request body that names no model takes the profile's `model`, then the order above.
 - On cloudflare the account counts only when no base URL is chosen, since a Cloudflare base URL
   holds the account. A profile's `account_id` comes right after `--base-url` and the profile's
   `base_url`, so it beats every variable, and `CLOUDFLARE_ACCOUNT_ID` comes after them. A cloudflare
@@ -624,9 +618,13 @@ on the provider's key variable alone.
   run that then fails for a missing key or an unknown provider reads it, to name a profile in the
   hint. Under `ONESIE_PROVIDER` with no profile for that provider, the hint names the key variable
   and says a stored profile is not used while the variable is set.
-- Every other run reads it, `--print-request` and `--mock` included, so a `profiles.json` others can
-  reach exits 3 there too. `--print-questions` and `--print-schema` never read it. `profile show`,
-  `profile list` and `profile test` always read it, whatever chooses.
+
+| Run | Reads `profiles.json` |
+|-----|-----------------------|
+| `profile show`, `profile list` and `profile test` | always, whatever chooses |
+| `--print-questions` and `--print-schema` | never |
+| any other run, `--print-request` and `--mock` included | yes, so a `profiles.json` others can reach exits 3 there too |
+
 - Reading `profiles.json` never opens the keychain. Only a run that sends a request reads a keychain
   key.
 
