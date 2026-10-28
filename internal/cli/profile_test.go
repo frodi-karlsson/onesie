@@ -645,7 +645,7 @@ func TestProfileCreate(t *testing.T) {
 
 		ended := failedSave(t, failingWrite, brokenWriter{}).Run(t.Context())
 
-		if got := ended.report(); len(got) != 2 || got[1] != errBroken.Error() {
+		if got := ended.Report(); len(got) != 2 || got[1] != errBroken.Error() {
 			t.Errorf("report = %q, want the failed save and then the refused notice", got)
 		}
 

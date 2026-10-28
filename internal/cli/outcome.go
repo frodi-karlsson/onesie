@@ -22,10 +22,9 @@ type Root struct {
 func (r *Root) Execute(ctx context.Context) int {
 	ended := r.Run(ctx)
 
-	for _, line := range ended.report() {
-		// Stripped, since a message can quote the server or the input to a terminal.
+	for _, line := range ended.Report() {
 		//nolint:errcheck // A stderr that cannot take the message leaves the exit code to name the failure.
-		_ = output.Notice(r.Command.ErrOrStderr(), output.Printable(line))
+		_ = output.Notice(r.Command.ErrOrStderr(), line)
 	}
 
 	return Classify(ended.Failure)
@@ -46,12 +45,15 @@ type Outcome struct {
 	Later   []error
 }
 
-func (o Outcome) report() []string {
+// Report returns the messages Execute prints, leaving out a quiet failure such as an interrupt or a
+// broken pipe, so a caller that inspects the outcome reports by the same rule.
+func (o Outcome) Report() []string {
 	var lines []string
 
 	for _, err := range append([]error{o.Failure}, o.Later...) {
 		if err != nil && worthReporting(err) {
-			lines = append(lines, text(err))
+			// Stripped, since a message can quote the server or the input to a terminal.
+			lines = append(lines, output.Printable(text(err)))
 		}
 	}
 

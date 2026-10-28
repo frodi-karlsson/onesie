@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -25,23 +26,23 @@ func TestRun(t *testing.T) {
 	t.Run("should refuse to run under ONESIE_MOCK", func(t *testing.T) {
 		t.Parallel()
 
-		code, err := run(t.Context(), options{
+		code, ended := run(t.Context(), options{
 			lookup: envOf(map[string]string{"ONESIE_MOCK": "m.json", keyName: "k"}), dir: t.TempDir(),
 			stdout: &bytes.Buffer{}, stderr: &bytes.Buffer{},
 		})
-		if code != cli.ExitUsage || err == nil || !strings.Contains(err.Error(), "ONESIE_MOCK") {
-			t.Errorf("run = %d, %v, want exit 2 naming ONESIE_MOCK", code, err)
+		if code != cli.ExitUsage || ended.Failure == nil || !strings.Contains(ended.Failure.Error(), "ONESIE_MOCK") {
+			t.Errorf("run = %d, %v, want exit 2 naming ONESIE_MOCK", code, ended.Failure)
 		}
 	})
 
 	t.Run("should refuse to run without a key", func(t *testing.T) {
 		t.Parallel()
 
-		code, err := run(t.Context(), options{
+		code, ended := run(t.Context(), options{
 			lookup: envOf(nil), dir: t.TempDir(), stdout: &bytes.Buffer{}, stderr: &bytes.Buffer{},
 		})
-		if code != cli.ExitUsage || err == nil || !strings.Contains(err.Error(), keyName) {
-			t.Errorf("run = %d, %v, want exit 2 naming %s", code, err, keyName)
+		if code != cli.ExitUsage || ended.Failure == nil || !strings.Contains(ended.Failure.Error(), keyName) {
+			t.Errorf("run = %d, %v, want exit 2 naming %s", code, ended.Failure, keyName)
 		}
 	})
 
@@ -65,9 +66,9 @@ func TestRun(t *testing.T) {
 			})(name)
 		}
 
-		code, err := runStubbed(t, dir, stub, lookup)
-		if code != cli.ExitOK || err != nil {
-			t.Fatalf("run = %d, %v", code, err)
+		code, ended := runStubbed(t, dir, stub, lookup)
+		if code != cli.ExitOK || ended.Report() != nil {
+			t.Fatalf("run = %d, %v", code, ended.Report())
 		}
 
 		slices.Sort(asked)
@@ -83,8 +84,8 @@ func TestRun(t *testing.T) {
 		stub := newStub(t)
 		lookup := envOf(map[string]string{keyName: "k"})
 
-		if code, err := runStubbed(t, dir, stub, lookup); code != cli.ExitOK || err != nil {
-			t.Fatalf("first run = %d, %v", code, err)
+		if code, ended := runStubbed(t, dir, stub, lookup); code != cli.ExitOK || ended.Report() != nil {
+			t.Fatalf("first run = %d, %v", code, ended.Report())
 		}
 
 		if got := stub.requests.Load(); got != 4 {
@@ -98,8 +99,8 @@ func TestRun(t *testing.T) {
 
 		stub.requests.Store(0)
 
-		if code, err := runStubbed(t, dir, stub, lookup); code != cli.ExitOK || err != nil {
-			t.Fatalf("second run = %d, %v", code, err)
+		if code, ended := runStubbed(t, dir, stub, lookup); code != cli.ExitOK || ended.Report() != nil {
+			t.Fatalf("second run = %d, %v", code, ended.Report())
 		}
 
 		if got := stub.requests.Load(); got != 2 {
@@ -111,6 +112,38 @@ func TestRun(t *testing.T) {
 			t.Errorf("alpha answers = %q, %v, want 2 lines", answers, err)
 		}
 	})
+}
+
+func TestSettled(t *testing.T) {
+	t.Parallel()
+
+	failure := errors.New("alpha exited 6")
+	removal := errors.New("removing the scratch dir: busy")
+
+	tests := []struct {
+		name    string
+		failure error
+		removal error
+		want    []string
+	}{
+		{name: "should report nothing when the run and the removal succeeded"},
+		{name: "should report the run's failure alone when the removal succeeded", failure: failure, want: []string{"alpha exited 6"}},
+		{name: "should make the removal failure the failure when the run succeeded", removal: removal, want: []string{"removing the scratch dir: busy"}},
+		{
+			name: "should report a removal failure apart from the run's failure, after it", failure: failure, removal: removal,
+			want: []string{"alpha exited 6", "removing the scratch dir: busy"},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := settled(tc.failure, tc.removal).Report(); !slices.Equal(got, tc.want) {
+				t.Errorf("settled reports %q, want %q", got, tc.want)
+			}
+		})
+	}
 }
 
 func TestCalibrateArgs(t *testing.T) {
@@ -145,12 +178,12 @@ func TestNoKeychain(t *testing.T) {
 	})
 }
 
-func runStubbed(t *testing.T, dir string, stub *stubAPI, lookup func(string) (string, bool)) (int, error) {
+func runStubbed(t *testing.T, dir string, stub *stubAPI, lookup func(string) (string, bool)) (int, cli.Outcome) {
 	t.Helper()
 
 	var stdout, stderr bytes.Buffer
 
-	code, err := run(t.Context(), options{
+	code, ended := run(t.Context(), options{
 		lookup: lookup, dir: dir, stdout: &stdout, stderr: &stderr,
 		root: []cli.RootOption{cli.WithClientFactory(stub.factory)},
 	})
@@ -158,7 +191,7 @@ func runStubbed(t *testing.T, dir string, stub *stubAPI, lookup func(string) (st
 		t.Logf("stdout:\n%s\nstderr:\n%s", stdout.String(), stderr.String())
 	}
 
-	return code, err
+	return code, ended
 }
 
 func starterDir(t *testing.T) string {

@@ -64,14 +64,19 @@ func TestOutcomeReport(t *testing.T) {
 			outcome: Outcome{Failure: stdoutGone, Later: []error{release}},
 			want:    []string{"unlocking answers.jsonl: busy"},
 		},
+		{
+			name:    "should strip the terminal controls a later failure quotes",
+			outcome: Outcome{Failure: &recordsError{}, Later: []error{errors.New("502 \x1b[2Jbad gateway")}},
+			want:    []string{"502 [2Jbad gateway"},
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			if got := tc.outcome.report(); !slices.Equal(got, tc.want) {
-				t.Errorf("report = %q, want %q", got, tc.want)
+			if got := tc.outcome.Report(); !slices.Equal(got, tc.want) {
+				t.Errorf("Report = %q, want %q", got, tc.want)
 			}
 		})
 	}
