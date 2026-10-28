@@ -848,8 +848,9 @@ table, and `onesie calibrate --help` lists the codes calibrate uses.
   There is no variable for it.
 - onesie adds the API path itself, such as `/v1/systemone`, so a base URL whose last segment is
   the first segment of that path, such as `/v1`, prints one warning naming where it came from, the
-  segment and the URL requests go to. cloudflare's path is `/run`, so a cloudflare base URL ending
-  in `/v1` does not warn. It is not refused, since a proxy may use that prefix.
+  segment and the URL questions go to. `--list-models` calls its own path, which the warning does
+  not name. cloudflare's path is `/run`, so a cloudflare base URL ending in `/v1` does not warn. It
+  is not refused, since a proxy may use that prefix.
 - A request that never reaches the server exits 5 and names the host and the innermost cause, as
   in `onesie: could not reach api.example.com: no such host`. The host keeps its port, and the
   message never holds a URL, a query or a proxy address.

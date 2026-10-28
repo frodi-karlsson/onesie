@@ -70,7 +70,7 @@ func clientBuilder(info BuildInfo, flags *runFlags, settings rootSettings) clien
 
 			doubled.Do(func() {
 				printErr = output.Warning(settings.holder.stderr(), source+" ends in /"+segment+
-					" and onesie adds the API path itself, so requests go to "+output.Printable(client.SystemOneURL()))
+					" and onesie adds the API path itself, so questions go to "+output.Printable(client.SystemOneURL()))
 			})
 		}
 

@@ -424,11 +424,15 @@ func TestClientBuilder(t *testing.T) {
 			notErr:   "ends in /",
 		},
 		{
-			name:     "should name the segment a cloudflare --base-url repeats",
+			name:     "should name the segment a cloudflare --base-url repeats and the URL only questions go to",
 			args:     []string{"--list-models", "--provider", "cloudflare", "--base-url", "{url}/run"},
 			env:      map[string]string{onesie.Cloudflare().EnvAPIKey(): "SECRET-CF"},
 			wantCode: ExitUnavailable,
-			wantErr:  []string{"onesie: warning: --base-url ends in /run and onesie adds the API path itself"},
+			wantErr: []string{
+				"onesie: warning: --base-url ends in /run and onesie adds the API path itself, so questions go to ",
+				"/run/run",
+			},
+			notErr: "requests go to",
 		},
 		{
 			name:     "should send to a plain http server on this machine without --allow-http",

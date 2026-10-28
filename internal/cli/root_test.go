@@ -3027,7 +3027,7 @@ func TestClientBuilder(t *testing.T) {
 				}
 
 				want := "onesie: warning: " + tc.spelled + " ends in /v1 and onesie adds the API path itself, " +
-					"so requests go to " + srv.URL + "/v1/v1/systemone\n"
+					"so questions go to " + srv.URL + "/v1/v1/systemone\n"
 				if !tc.wantWarn {
 					if strings.Contains(errOut.String(), "ends in /v1") {
 						t.Errorf("stderr = %q, want no /v1 warning", errOut.String())
