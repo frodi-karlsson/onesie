@@ -215,24 +215,6 @@ func pooled(base http.RoundTripper, jobs int) http.RoundTripper {
 	return transport
 }
 
-func (systemClock) Now() time.Time {
-	return time.Now()
-}
-
-func (systemClock) Sleep(ctx context.Context, d time.Duration) error {
-	timer := time.NewTimer(d)
-	defer timer.Stop()
-
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-timer.C:
-		return nil
-	}
-}
-
-type systemClock struct{}
-
 type clientFactory func(ctx context.Context, chosen resolution, opts ...onesie.Option) (*onesie.Client, error)
 
 func resolveModel(settings rootSettings, model string) (string, error) {

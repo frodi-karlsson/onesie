@@ -393,7 +393,7 @@ func defaultSettings(info BuildInfo) rootSettings {
 		readBuiltIn:   questions.Read,
 		builtIns:      questions.Names,
 		transport:     http.DefaultTransport,
-		clock:         systemClock{},
+		clock:         onesie.SystemClock(),
 		mockTransport: func(provider onesie.Provider) http.RoundTripper { return mock.NewTransport(provider) },
 		laterFailures: &failureLog{},
 	}
