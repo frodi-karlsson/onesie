@@ -436,7 +436,7 @@ func shapeWord(shape plan.Shape) string {
 	case plan.Box:
 		return "box"
 	default:
-		return "yes/no"
+		return "yes or no"
 	}
 }
 

@@ -457,7 +457,7 @@ func TestNewCalibrateCmd(t *testing.T) {
 			args:     []string{"calibrate", "--help"},
 			wantCode: ExitOK,
 			contains: []string{
-				"Labels: a yes/no label is true, false, yes, no, 1 or 0 in any case",
+				"Labels: a yes or no label is true, false, yes, no, 1 or 0 in any case",
 				"null, no result or an empty string leaves a record unlabelled",
 				`{"id":"T-1","body":"the site is down","is_urgent":true}`,
 				"T-1,the site is down,yes",
@@ -694,7 +694,7 @@ func TestReadLabelled(t *testing.T) {
 			stdin:    "{\"id\":\"T-1\",\"body\":\"a\",\"u\":true}\n{\"id\":\"T-7\",\"body\":\"b\",\"u\":\"maybe\"}\n",
 			wantCode: ExitUsage,
 			contains: []string{
-				`onesie: --label urgent: record T-7: "maybe" is not a yes/no label. Use true, false, yes, no, 1 or 0`,
+				`onesie: --label urgent: record T-7: "maybe" is not a yes or no label. Use true, false, yes, no, 1 or 0`,
 			},
 		},
 		{
@@ -702,7 +702,7 @@ func TestReadLabelled(t *testing.T) {
 			args:     jsonl(),
 			stdin:    "{\"body\":\"a\",\"u\":true}\n{\"body\":\"b\",\"u\":\"maybe\"}\n",
 			wantCode: ExitUsage,
-			contains: []string{`onesie: --label urgent: line 2: "maybe" is not a yes/no label`},
+			contains: []string{`onesie: --label urgent: line 2: "maybe" is not a yes or no label`},
 		},
 		{
 			name:     "should quote a pick label that differs from the option in case",

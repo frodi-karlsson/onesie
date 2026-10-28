@@ -44,7 +44,7 @@ Flags:
       --cache                     store responses on disk and answer a repeated request from them. Also ONESIE_CACHE=1
       --desc string               KEY=TEXT, describing one option, level, yes or no
       --fallback string           value substituted on low confidence and on error
-  -f, --file string               question file or request body, or the name of one saved in .onesie/questions or the config dir, or of a built-in starter set
+  -f, --file string               question file or request body, or the name of one saved in .onesie/questions or the config dir, or of a built in starter set
   -h, --help                      help for onesie
       --id string                 streaming only, jq expression run on each record, whose string or number result names it on every output line. It runs one record at a time as the input is read, so keep it cheap, such as a field lookup, and -V lists the cap on its length
       --image stringArray         NAME=PATH, repeatable, puts a PNG or JPEG in the state under NAME, experimental on TypeSafe's side. For one record stdin is read beside it only through --state -, so text joins it from --state, --state-file or --state -. A stream reads its records from stdin and adds the image to each
@@ -83,7 +83,7 @@ Flags:
       --stats                     write a one line summary of the run to stderr at exit
       --stop-on-assert            streaming only, end the run at the first false assertion
       --stop-on-error             streaming only, end the run at the first failure, with its exit code, or 6 for a line onesie could not read
-      --threshold string          yes/no only, cut the probability at this value
+      --threshold string          yes or no only, cut the probability at this value
       --timeout int               seconds per attempt, 60 for a request with images unless given (default 10)
       --unordered                 streaming only, emit records as they complete
       --usage                     add the api usage object to json output

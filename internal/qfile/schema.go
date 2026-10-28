@@ -110,7 +110,7 @@ func fieldsSchema() node {
 				Description: "Makes this a box question, answered with the edges of what it finds in an image.",
 			}},
 			{name: "threshold", schema: described(
-				"The yes probability a yes/no answer must reach, between 0 and 1.", "#/definitions/probability")},
+				"The yes probability a yes or no answer must reach, between 0 and 1.", "#/definitions/probability")},
 			{name: "min_confidence", schema: described(
 				"The confidence a pick or rate answer must reach, between 0 and 1, or the fallback stands in.",
 				"#/definitions/probability")},
@@ -137,7 +137,7 @@ func fieldsSchema() node {
 				Else: &node{
 					Properties: properties{
 						{name: "fallback", schema: node{
-							Description: "A yes/no question falls back to true, false, yes or no.",
+							Description: "A yes or no question falls back to true, false, yes or no.",
 							Examples:    []any{true, false, "yes", "no"},
 						}},
 					},

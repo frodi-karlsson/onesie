@@ -124,7 +124,7 @@
           "const": true
         },
         "threshold": {
-          "description": "The yes probability a yes/no answer must reach, between 0 and 1.",
+          "description": "The yes probability a yes or no answer must reach, between 0 and 1.",
           "allOf": [
             {
               "$ref": "#/definitions/probability"
@@ -229,7 +229,7 @@
           "else": {
             "properties": {
               "fallback": {
-                "description": "A yes/no question falls back to true, false, yes or no.",
+                "description": "A yes or no question falls back to true, false, yes or no.",
                 "examples": [
                   true,
                   false,

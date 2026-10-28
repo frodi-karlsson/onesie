@@ -91,7 +91,7 @@ func resolveRequirement(built *plan.Plan, gate fileGate, req calibrate.Requireme
 func shapeNeeded(measure calibrate.Measure, shape plan.Shape) string {
 	switch {
 	case measure.YesNo() && shape != plan.Noul:
-		return "a yes/no question"
+		return "a yes or no question"
 	case measure == calibrate.WithinOne && shape != plan.Rate:
 		return "a rate question"
 	case !measure.YesNo() && shape == plan.Noul:
