@@ -36,6 +36,12 @@ const (
 		"# For information about cache directory tags, see https://bford.info/cachedir/\n"
 )
 
+const (
+	taggedDir dirState = iota
+	untaggedDir
+	missingDir
+)
+
 // NoAliasTTL as Options.AliasTTL means an entry for a model alias is neither read nor stored.
 const NoAliasTTL time.Duration = -1
 
@@ -94,12 +100,6 @@ func inspect(fsys FS, dir, goos string) (dirState, error) {
 }
 
 type dirState int
-
-const (
-	taggedDir dirState = iota
-	untaggedDir
-	missingDir
-)
 
 func tagState(fsys FS, dir string) (dirState, error) {
 	// A directory holding nothing but what onesie writes gets its tag, so clear can empty it later.
