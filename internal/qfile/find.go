@@ -20,9 +20,8 @@ func IsName(value string) bool {
 	return value != "" && !strings.ContainsAny(value, `/\.`)
 }
 
-// Find resolves a bare name, and refuses a path, to the question file it names in the nearest
-// .onesie/questions at or above the working directory, then in the config dir's questions, then
-// to a set built into onesie.
+// Find resolves a bare name to its question file in the nearest .onesie/questions at or above the
+// working directory, then in the config dir's questions, then to a set built into onesie.
 func Find(name string, env FindEnv) (Source, error) {
 	if !IsName(name) {
 		return Source{}, fmt.Errorf("%q is not a question file name to look up", name)
@@ -66,8 +65,7 @@ type Source struct {
 }
 
 // List reports every name Find would resolve, the repository set first, then the config dir's,
-// then the built in sets, each sorted by name. A name more than one place holds is listed once,
-// from the first, since Find never reaches the others.
+// then the built in sets, each sorted by name. A name held twice is listed once, from the first.
 func List(env FindEnv) ([]Found, error) {
 	repo, repoEntries, err := repoSet(env)
 	if err != nil {

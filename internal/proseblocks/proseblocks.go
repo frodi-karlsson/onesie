@@ -13,7 +13,6 @@ import (
 	"strings"
 )
 
-// A block with fewer words than this is a label or a fragment, and says nothing about history.
 const minWords = 4
 
 // Extract returns the prose blocks of every changed .go and .md file that hold an added line, sorted

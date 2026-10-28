@@ -12,7 +12,6 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/cli"
 )
 
-// Overwritten at link time by the ldflags in the Makefile and .goreleaser.yml.
 var (
 	version = "dev"
 	commit  = "none"

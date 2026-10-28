@@ -46,8 +46,7 @@ type options struct {
 	lookup         func(string) (string, bool)
 	dir            string
 	stdout, stderr io.Writer
-	// Added to every command built, which lets a test answer from a stub API.
-	root []cli.RootOption
+	root           []cli.RootOption
 }
 
 func run(ctx context.Context, opts options) (code int, err error) {
