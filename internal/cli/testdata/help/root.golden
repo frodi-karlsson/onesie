@@ -36,7 +36,7 @@ Available Commands:
 
 Flags:
       --abstain-if stringArray    boolean expression that turns a no into an unsure, repeatable, needs --assert
-      --allow-http                send the API key over a plain http base URL to a host other than localhost, 127.0.0.0/8, also in IPv4-mapped form, or ::1. Without it such a base URL exits 2 before any request
+      --allow-http                send the API key over a plain http base URL to a host other than this machine. Without it such a base URL exits 2 before any request
       --ask string                NAME=QUESTION, repeatable, opens a question group
       --assert stringArray        boolean expression over the record, repeatable, combined with and
       --base-url string           api root override

@@ -745,11 +745,11 @@ onesie --profile cf -f shell-safety -q --state "$cmd"
   `typesafe/jev-1.13` on OpenRouter. Berget serves its own models and not `jev-latest`. Its default
   is the `systemone` alias, and `--list-models` there lists only the System One models, each with
   its aliases. Levanto also serves its own models and not `jev-latest`. Its default is the
-  `sage-latest` alias, and an unknown model there is a 422 rather than a 400. On OpenRouter,
-  `--usage` also reports the cost, which the `-o table` header and `--stats` show too. A 200 whose
-  answers onesie cannot use still spent its tokens, so under `--usage` its json error record carries
-  them too, and `--stats` counts them. `-o values`, `-o raw`, `-r`, `-o csv` and `-o tsv` have no
-  place for `--usage`, and `-q` writes nothing, so they all refuse it with exit 2.
+  `sage-latest` alias. On OpenRouter, `--usage` also reports the cost, which the `-o table` header
+  and `--stats` show too. A 200 whose answers onesie cannot use still spent its tokens, so under
+  `--usage` its json error record carries them too, and `--stats` counts them. `-o values`,
+  `-o raw`, `-r`, `-o csv` and `-o tsv` have no place for `--usage`, and `-q` writes nothing, so
+  they all refuse it with exit 2.
 
 ## Exit codes
 
@@ -799,14 +799,13 @@ table, and `onesie calibrate --help` lists the codes calibrate uses.
 - `--list-models` shows what the account can ask, and `-m` picks one.
 - `--base-url` points onesie at any server that speaks the System One API. A redirect is refused
   rather than followed with the key.
-- A plain `http://` base URL to a host other than `localhost` in any case, `127.0.0.0/8`, also in
-  IPv4-mapped form, or `::1` exits 2 before any request, since the key would cross the network
-  unencrypted. `--allow-http` sends it anyway, with a warning. The rule holds whether the URL comes
-  from `--base-url`, `TYPESAFE_BASE_URL` or a profile's `base_url`, and `profile test` follows it
-  too. `profile create` and `profile update` refuse such a `--base-url` unless given
-  `--allow-http`, and the file does not record that choice, so every run on the profile needs
-  `--allow-http` as well, and `profile show` prints `allow_http: needed`. There is no variable for
-  it.
+- A plain `http://` base URL to a host other than this machine exits 2 before any request, since
+  the key would cross the network unencrypted. `--allow-http` sends it anyway, with a warning. The
+  rule holds whether the URL comes from `--base-url`, `TYPESAFE_BASE_URL` or a profile's
+  `base_url`, and `profile test` follows it too. `profile create` and `profile update` refuse such
+  a `--base-url` unless given `--allow-http`, and the file does not record that choice, so every
+  run on the profile needs `--allow-http` as well, and `profile show` prints `allow_http: needed`.
+  There is no variable for it.
 - onesie adds `/v1/systemone` itself, so a base URL whose path ends in `/v1`, from
   `--base-url`, `TYPESAFE_BASE_URL` or a profile's `base_url`, prints one warning naming where it
   came from and the URL requests go to. It is not refused, since a proxy may use that prefix.

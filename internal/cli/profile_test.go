@@ -78,6 +78,12 @@ func TestNewProfileCmd(t *testing.T) {
 			wantCode: ExitOK,
 		},
 		{
+			name:     "should say in the create help that --allow-http covers a host other than this machine",
+			args:     []string{"profile", "create", "--help"},
+			wantOut:  "store a plain http --base-url to a host other than this machine",
+			wantCode: ExitOK,
+		},
+		{
 			name:     "should say in the test help that openrouter also reads /v1/key",
 			args:     []string{"profile", "test", "--help"},
 			wantOut:  "On openrouter profile test also reads /v1/key under the base URL",

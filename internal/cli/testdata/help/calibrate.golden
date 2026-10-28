@@ -34,7 +34,7 @@ Examples:
       --out answers.jsonl --resume --offline --require 'urgent.catches >= 0.95' < labelled.jsonl
 
 Flags:
-      --allow-http                send the API key over a plain http base URL to a host other than localhost, 127.0.0.0/8, also in IPv4-mapped form, or ::1. Without it such a base URL exits 2 before any request
+      --allow-http                send the API key over a plain http base URL to a host other than this machine. Without it such a base URL exits 2 before any request
       --ask string                NAME=QUESTION, repeatable, opens a question group
       --base-url string           api root override
       --box                       making this a box question, answered with the left, top, right and bottom edges of what it finds in an image, each from 0 to 1. Takes no value. Experimental on TypeSafe's side
