@@ -641,7 +641,7 @@ func TestProfileCreate(t *testing.T) {
 			WithStdoutTTY(false),
 			WithLookupEnv(lookupFrom(map[string]string{"ONESIE_CONFIG_DIR": dir})),
 			withKeychain(undeletableKeychain{workingKeychain(nil)}),
-			WithCredentialStore(creds.NewStore(failingWrite...)))
+			withCredentialStore(creds.NewStore(failingWrite...)))
 
 		root.SetOut(io.Discard)
 		root.SetErr(closedPipe{})
@@ -2132,7 +2132,7 @@ func runProfileCase(t *testing.T, tc profileCase) {
 	opts := []RootOption{
 		withKeychain(chain),
 		WithStdinTTY(tc.tty),
-		WithSecretReader(func() (string, error) { return tc.secret, nil }),
+		withSecretReader(func() (string, error) { return tc.secret, nil }),
 	}
 
 	switch tc.keychain {
@@ -2151,7 +2151,7 @@ func runProfileCase(t *testing.T, tc profileCase) {
 	}
 
 	if tc.store != nil {
-		opts = append(opts, WithCredentialStore(creds.NewStore(tc.store...)))
+		opts = append(opts, withCredentialStore(creds.NewStore(tc.store...)))
 	}
 
 	if tc.stdinUnread {

@@ -696,11 +696,11 @@ func TestAsk(t *testing.T) {
 			maps.Copy(env, tc.env)
 			args := append(append(slicesOf(base), "--base-url", stub.url), tc.extra...)
 
-			if _, errOut, code := runCached(t, env, args, "", WithNow(fixedNow(cacheEpoch))); code != ExitOK {
+			if _, errOut, code := runCached(t, env, args, "", withNow(fixedNow(cacheEpoch))); code != ExitOK {
 				t.Fatalf("first run exit %d\n%s", code, errOut)
 			}
 
-			if _, errOut, code := runCached(t, env, args, "", WithNow(fixedNow(cacheEpoch.Add(tc.after)))); code != ExitOK {
+			if _, errOut, code := runCached(t, env, args, "", withNow(fixedNow(cacheEpoch.Add(tc.after)))); code != ExitOK {
 				t.Fatalf("second run exit %d\n%s", code, errOut)
 			}
 
@@ -1041,7 +1041,7 @@ func runCached(t *testing.T, env map[string]string, args []string, stdin string,
 		WithStdoutTTY(false),
 		WithLookupEnv(lookupFrom(maps.Clone(env))),
 		WithHomeDir(func() (string, error) { return env["HOME"], nil }),
-		WithTerminalWidth(func() (int, bool) { return 100, true }),
+		withTerminalWidth(func() (int, bool) { return 100, true }),
 	}, extra...)...)
 
 	root.SetOut(&out)

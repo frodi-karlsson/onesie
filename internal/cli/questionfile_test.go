@@ -711,7 +711,7 @@ func (f fakeTree) options() []RootOption {
 		func(s *rootSettings) { *s = f.links(*s) },
 		withBuiltIns(nil),
 		WithWorkingDir(func() (string, error) { return f.workDir, nil }),
-		WithReadDir(func(dir string) ([]fs.DirEntry, error) { return fs.ReadDir(f.tree, f.path(dir)) }),
+		withReadDir(func(dir string) ([]fs.DirEntry, error) { return fs.ReadDir(f.tree, f.path(dir)) }),
 		WithReadFile(func(name string) ([]byte, error) { return fs.ReadFile(f.tree, f.path(name)) }),
 		WithLookupEnv(lookupFrom(map[string]string{"ONESIE_CONFIG_DIR": f.configDir})),
 	}

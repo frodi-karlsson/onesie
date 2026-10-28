@@ -1112,7 +1112,7 @@ func TestPrintRequest(t *testing.T) {
 			WithStdin(&heldReader{data: strings.NewReader("late text"), until: written}),
 			WithStdinTTY(false),
 			WithStdoutTTY(false),
-			WithStdinClock(firingClock{}),
+			withStdinClock(firingClock{}),
 			WithLookupEnv(lookupFrom(map[string]string{"ONESIE_CONFIG_DIR": t.TempDir()})),
 		)
 

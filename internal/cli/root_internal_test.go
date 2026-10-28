@@ -142,7 +142,7 @@ func TestWithTerminalWidth(t *testing.T) {
 				[]string{"--ask", "team=who owns this", "--pick", "x,y", "-o", "table"},
 				"the server is down", srv.URL,
 				WithLookupEnv(lookupFrom(tc.env)),
-				WithTerminalWidth(func() (int, bool) { return tc.columns, tc.known }))
+				withTerminalWidth(func() (int, bool) { return tc.columns, tc.known }))
 
 			if code != ExitOK {
 				t.Fatalf("exit code = %d, want %d\nstdout:\n%s\nstderr:\n%s",

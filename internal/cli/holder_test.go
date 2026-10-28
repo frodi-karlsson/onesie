@@ -338,7 +338,7 @@ func TestResolveRun(t *testing.T) {
 			args := append(append([]string{}, naming.args...),
 				"is this urgent", "-r", "--state", "the server is down", "--base-url", srv.URL)
 
-			out, errOut, code := runInConfig(t, t.TempDir(), args, "", env, WithCredentialStore(refusing))
+			out, errOut, code := runInConfig(t, t.TempDir(), args, "", env, withCredentialStore(refusing))
 
 			assertNoSecret(t, out, errOut)
 

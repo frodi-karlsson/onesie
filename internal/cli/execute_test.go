@@ -394,13 +394,13 @@ func interruptedRun(t *testing.T, args []string, opts ...RootOption) int {
 }
 
 func fullDisk(*testing.T, string) []RootOption {
-	return []RootOption{WithCredentialStore(creds.NewStore(creds.WithCreateTemp(func(string, string) (*os.File, error) {
+	return []RootOption{withCredentialStore(creds.NewStore(creds.WithCreateTemp(func(string, string) (*os.File, error) {
 		return nil, errors.New("the disk is full")
 	})))}
 }
 
 func failingChmodStore(*testing.T, string) []RootOption {
-	return []RootOption{WithCredentialStore(creds.NewStore(creds.WithChmod(func(string, os.FileMode) error {
+	return []RootOption{withCredentialStore(creds.NewStore(creds.WithChmod(func(string, os.FileMode) error {
 		return errors.New("the test chmod failed")
 	})))}
 }

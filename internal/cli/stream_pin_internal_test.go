@@ -548,7 +548,7 @@ func runPinned(t *testing.T, step pinnedStep, out string) (string, string, int) 
 		WithStdinTTY(false),
 		WithStdoutTTY(false),
 		WithLookupEnv(lookupFrom(map[string]string{"ONESIE_CONFIG_DIR": t.TempDir()})),
-		WithNow(func() time.Time { return time.Unix(0, 0) }),
+		withNow(func() time.Time { return time.Unix(0, 0) }),
 		WithClientFactory(pinnedFactory(t, step)),
 	}
 

@@ -821,8 +821,7 @@ func WithReadFile(read func(string) ([]byte, error)) RootOption {
 	}
 }
 
-// WithReadDir replaces how the directories an -f name is looked up in are listed.
-func WithReadDir(read func(string) ([]fs.DirEntry, error)) RootOption {
+func withReadDir(read func(string) ([]fs.DirEntry, error)) RootOption {
 	return func(s *rootSettings) {
 		s.readDir = read
 	}
@@ -850,23 +849,19 @@ func WithHomeDir(home func() (string, error)) RootOption {
 	}
 }
 
-// WithStdinClock replaces the clock that times the hint printed while stdin stays silent.
-func WithStdinClock(clock input.Clock) RootOption {
+func withStdinClock(clock input.Clock) RootOption {
 	return func(s *rootSettings) {
 		s.stdinClock = clock
 	}
 }
 
-// WithNow replaces the clock the --stats line measures elapsed time with.
-func WithNow(now func() time.Time) RootOption {
+func withNow(now func() time.Time) RootOption {
 	return func(s *rootSettings) {
 		s.now = now
 	}
 }
 
-// WithTerminalWidth replaces how table output learns the terminal's width, which a test cannot
-// otherwise control.
-func WithTerminalWidth(width func() (int, bool)) RootOption {
+func withTerminalWidth(width func() (int, bool)) RootOption {
 	return func(s *rootSettings) {
 		s.terminalWidth = width
 	}
@@ -880,9 +875,7 @@ func WithProfilesPath(path func() (string, error)) RootOption {
 	}
 }
 
-// WithCredentialStore sets the store that reads and writes profiles.json and converts a
-// credentials.json.
-func WithCredentialStore(store creds.Store) RootOption {
+func withCredentialStore(store creds.Store) RootOption {
 	return func(s *rootSettings) {
 		s.credStore = store
 	}
@@ -895,8 +888,7 @@ func WithKeychain(keychain *creds.Keychain) RootOption {
 	}
 }
 
-// WithSecretReader replaces the hidden prompt, which needs a real terminal a test does not have.
-func WithSecretReader(read func() (string, error)) RootOption {
+func withSecretReader(read func() (string, error)) RootOption {
 	return func(s *rootSettings) {
 		s.readSecret = read
 	}
