@@ -390,8 +390,6 @@ func TestStream(t *testing.T) {
 					code, tc.wantCode, out.String(), errOut.String())
 			}
 
-			// The exit code already says a record failed and the per record lines carry the
-			// detail, so a failing stream reports nothing on stderr.
 			if tc.wantCode == cli.ExitRecords && errOut.String() != "" {
 				t.Errorf("stderr = %q, want nothing", errOut.String())
 			}
@@ -1135,8 +1133,6 @@ func TestStream(t *testing.T) {
 			root.SetErr(&errOut)
 			root.SetArgs([]string{"x", "-i", "lines", "-j", "1"})
 
-			// The read failure ends the stream, which a caller cannot tell from a complete one, so it
-			// takes the exit code. The record that had already failed is named rather than dropped.
 			if code := cli.Execute(t.Context(), root); code != cli.ExitUsage {
 				t.Errorf("exit code = %d, want %d\nstderr:\n%s", code, cli.ExitUsage, errOut.String())
 			}

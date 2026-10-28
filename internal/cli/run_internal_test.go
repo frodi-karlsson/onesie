@@ -195,7 +195,6 @@ func TestDescribe(t *testing.T) {
 				t.Errorf("stored %+v exits %d, want %d as a fresh run under --stop-on-error does", stored.failure, got, want)
 			}
 
-			// A line error carries no prefix, so no other kind does either.
 			if strings.HasPrefix(stored.failure.Message, "onesie: ") {
 				t.Errorf("message = %q, want no onesie prefix, as a line error has none", stored.failure.Message)
 			}

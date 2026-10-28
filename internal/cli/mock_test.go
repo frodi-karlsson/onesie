@@ -20,11 +20,9 @@ import (
 )
 
 const (
-	mockUsage = `{"input_tokens":0,"output_tokens":0}`
-	mockAll   = `{"u":0.9,"t":"billing","r":"curt"}`
-	// A line onesie could not read, which answers nothing.
-	mockUnread = `{"error":{"kind":"input","status":null,"message":"x"}}`
-	// The answers onesie prints for mockAll, as -o json writes them.
+	mockUsage   = `{"input_tokens":0,"output_tokens":0}`
+	mockAll     = `{"u":0.9,"t":"billing","r":"curt"}`
+	mockUnread  = `{"error":{"kind":"input","status":null,"message":"x"}}`
 	mockAllJSON = `"u":{"value":0.9},"t":{"value":"billing","confidence":1,"p":{"billing":1,"platform":0}},` +
 		`"r":{"value":"curt","score":1,"norm":0.5,"confidence":1,"p":{"calm":0,"curt":1,"rude":0}}`
 )

@@ -436,8 +436,6 @@ func TestAdvise(t *testing.T) {
 				wantErr:  "onesie: model 'onesie-1.12' not found. Try --list-models\n",
 			},
 			{
-				// A listing sends no questions, so no local bound was checked and the note would name
-				// a check that never ran. This pins the one remaining call site.
 				name:     "should leave a listing untouched, since it sends no questions",
 				args:     []string{"--list-models"},
 				status:   http.StatusBadRequest,

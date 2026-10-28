@@ -1872,7 +1872,6 @@ func TestProfileTest(t *testing.T) {
 			opts := []RootOption{withKeychain(workingKeychain(tc.items))}
 
 			if tc.unreached {
-				// Closed before the run, so the connection is refused rather than answered.
 				srv.Close()
 
 				// A stub with no retries, since a refused connection is retried with backoff by default.

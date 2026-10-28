@@ -74,14 +74,12 @@ func TestOpenOut(t *testing.T) {
 		unreached   bool
 		env         map[string]string
 		bare        bool
-		// questions, when set, is written to a question file passed with -f.
-		questions string
+		questions   string
 
-		emptySidecar bool
-		sidecarDir   bool
-		readOnlyDir  bool
-		readOnlyFile bool
-		// wantMode, when set, is the mode a file this run created must have.
+		emptySidecar     bool
+		sidecarDir       bool
+		readOnlyDir      bool
+		readOnlyFile     bool
 		wantMode         os.FileMode
 		wantEmptySidecar bool
 	}{

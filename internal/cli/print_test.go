@@ -243,8 +243,6 @@ func TestPrintQuestions(t *testing.T) {
 				}
 			}
 
-			// A case that names nothing on a stream expects that stream to stay empty. The
-			// documented redirection promises the file lands on stdout and nothing else does.
 			if len(tc.stdout) == 0 && out != "" {
 				t.Errorf("stdout should be empty, got:\n%s", out)
 			}
@@ -312,8 +310,6 @@ func TestPrintQuestions(t *testing.T) {
 	})
 }
 
-// The schema sees the tree the loader decodes, not what an editor's own YAML parser reads, so a
-// difference between the two parsers is out of reach of this check.
 func checkSchemaAgreement(t *testing.T, fixtures []schemaFixture) {
 	t.Helper()
 
@@ -461,8 +457,6 @@ func validationDocs() []schemaFixture {
 		{typo: "a rate mapping with one level", doc: "severity:\n  ask: q\n  rate:\n    low: calm\n"},
 	}
 
-	// Each file that runs beside a flag is also checked alone, where the loader refuses it for a
-	// reason the flag supplies.
 	for _, fixture := range beside {
 		alone = append(alone, schemaFixture{doc: fixture.doc})
 	}
@@ -884,8 +878,6 @@ func TestPrintRequest(t *testing.T) {
 				}
 			}
 
-			// The body belongs on stdout, so a case that names nothing on a stream expects that
-			// stream to stay empty rather than to carry the body it forgot to ask for.
 			if len(tc.stdout) == 0 && out != "" {
 				t.Errorf("stdout should be empty, got:\n%s", out)
 			}
@@ -1250,7 +1242,6 @@ func TestPrintRequest(t *testing.T) {
 						code, ExitUsage, out, errOut)
 				}
 
-				// Nothing on stdout, which is the point of rejecting before the body is written.
 				if out != "" {
 					t.Errorf("stdout should be empty, got:\n%s", out)
 				}
@@ -1344,7 +1335,6 @@ func TestPrintRequest(t *testing.T) {
 						code, ExitUsage, out, errOut)
 				}
 
-				// Nothing on stdout, which is what tells a rejected dry run from an honoured one.
 				if out != "" {
 					t.Errorf("stdout should be empty, got:\n%s", out)
 				}
