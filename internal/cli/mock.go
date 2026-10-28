@@ -87,7 +87,7 @@ func (a mockAnswerer) answer(ctx context.Context, key recordKey, req onesie.Requ
 		return reply{}, &uncoveredError{message: a.answers.Missing(key.position, key.id, key.line)}
 	}
 
-	needs := onesie.Needs{Images: len(req.Assets) > 0, Box: hasBox(req.Questions), LongContext: req.LongContext}
+	needs := req.Needs()
 
 	result, err := entry.Result(a.provider, req.Model, needs)
 	a.stats.observe(mockAttempt(err))
