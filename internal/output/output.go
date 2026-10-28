@@ -83,7 +83,7 @@ func ParseMode(name string, tty, streaming, merge bool) (Mode, error) {
 	}
 }
 
-// Mode is the output mode from -o.
+// Mode is the form Write prints a record in. ParseMode resolves -o auto from the terminal.
 type Mode int
 
 const (

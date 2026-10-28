@@ -67,7 +67,7 @@ func WithAfter(after func(time.Duration) <-chan time.Time) KeychainOption {
 	}
 }
 
-// KeychainOption customises a Keychain.
+// KeychainOption replaces one of NewKeychain's defaults, so a test needs no real keychain.
 type KeychainOption func(*Keychain)
 
 // Keychain stores keys in the OS keychain under the onesie service, one item per account.
@@ -160,7 +160,7 @@ func (e *KeychainError) Error() string {
 	return fmt.Sprintf("could not %s the OS keychain: %v", e.Op, e.Err)
 }
 
-// Unwrap returns the keychain's reason.
+// Unwrap returns the keychain's reason, so errors.Is reaches ErrKeychainTimeout.
 func (e *KeychainError) Unwrap() error {
 	return e.Err
 }

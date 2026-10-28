@@ -60,7 +60,7 @@ func isolated(environ []string, configDir string) []string {
 
 // Runner runs one onesie invocation and reports its exit code and its stderr.
 type Runner struct {
-	// Binary is the onesie executable to run.
+	// Binary is the onesie executable, a path or a name looked up on PATH.
 	Binary string
 
 	catalog *Catalog

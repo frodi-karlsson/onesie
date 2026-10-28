@@ -449,7 +449,7 @@ func (m Measure) NeedsCut() bool {
 	return m < AreaUnderCurve
 }
 
-// Op is a requirement's comparison.
+// Op is how a requirement compares its measured bound with its Threshold.
 type Op int
 
 // The comparisons a requirement can make.

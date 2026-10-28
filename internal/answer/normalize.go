@@ -94,7 +94,7 @@ type UnusableError struct {
 	Message string
 }
 
-// Error returns Message.
+// Error returns Message with no prefix, so whoever builds the error writes the whole text.
 func (e *UnusableError) Error() string {
 	return e.Message
 }

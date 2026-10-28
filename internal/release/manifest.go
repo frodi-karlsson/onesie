@@ -126,7 +126,7 @@ func replaceOnce(data []byte, file, key, value string) ([]byte, Change, error) {
 // OSFiles is the Files that reads and writes the real filesystem.
 type OSFiles struct{}
 
-// ReadFile reads the named file.
+// ReadFile returns the named file's content from disk, for Bump to edit.
 func (OSFiles) ReadFile(name string) ([]byte, error) {
 	return os.ReadFile(name)
 }

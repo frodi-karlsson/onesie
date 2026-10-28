@@ -590,7 +590,8 @@ func (l *Ledger) Skipped() Tally {
 	return l.skips
 }
 
-// Tally counts records and their outcomes.
+// Tally counts records, and among them the failed, rejected and abstained ones, which a gate
+// reads to choose its exit code.
 type Tally struct {
 	Records   int
 	Failed    int

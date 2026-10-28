@@ -225,7 +225,8 @@ func (v validator) rules(rules []Rule) error {
 	return nil
 }
 
-// Rule is one entry in a skill's rules list.
+// Rule is an instruction with its reason and a bad and a good example. skills-check dry runs
+// each example and checks it fails or passes as the rule marks it.
 type Rule struct {
 	ID               string `json:"id"`
 	Short            string `json:"short"`
