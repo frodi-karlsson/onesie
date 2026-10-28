@@ -92,14 +92,6 @@ type instantClock struct {
 	now func() time.Time
 }
 
-func wrapped(settings rootSettings, answers answererFactory) answererFactory {
-	if settings.answerers == nil {
-		return answers
-	}
-
-	return settings.answerers(answers)
-}
-
 func (a mockAnswerer) answer(ctx context.Context, key recordKey, req onesie.Request) (reply, error) {
 	if err := ctx.Err(); err != nil {
 		return reply{}, err
