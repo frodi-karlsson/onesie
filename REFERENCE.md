@@ -295,14 +295,13 @@ onesie calibrate -f shell-safety -i jsonl --map .command --id .id \
   error line is the only report.
 - Use `--map` to drop the fields that do not bear on the question, such as timestamps and ids,
   since they add noise to the answer. `--map 'del(.ts, .order_id)'` sends the rest of a record.
-- `--map` is a jq expression whose result is the state. An object it builds has its keys sorted.
-  The result may nest `max-map-depth` levels deep and encode to `max-line-bytes`, both of which
-  `onesie -V` lists. An empty or all whitespace string, an empty object and
-  an empty array are refused as state before any request, whether they came from `--state`,
-  `--state-file`, stdin, the `state` of a `-f` file, a stream line or `--map`. For one record it
-  exits 2. In a stream each is an error line and the run goes on. `--skip-blank` drops blank lines,
-  but a `{}`, `[]` or `""` line stays an error line. Under `-i request` a body is forwarded as it
-  is, so its state is not checked.
+- `--map` is a jq expression whose result is the state. An object it builds has its keys sorted. The
+  result may nest `max-map-depth` levels deep and encode to `max-line-bytes`, both of which
+  `onesie -V` lists. An empty or all whitespace string, an empty object and an empty array are
+  refused as state before any request, whether they came from `--state`, `--state-file`, stdin, the
+  `state` of a `-f` file, a stream line or `--map`. For one record it exits 2. In a stream each is
+  an error line and the run goes on. `--skip-blank` drops blank lines, but a `{}`, `[]` or `""` line
+  stays an error line. Under `-i request` a body is forwarded as it is, so its state is not checked.
 - Under `-i lines`, each `-o json` and `-o values` line carries `line`, the record's input line
   number from 1. A blank line `--skip-blank` drops still counts, so the numbers match the file.
   Under `--merge` it sits in the answers object, beside `model`. `-o csv`, `-o tsv`, `-o markdown`
@@ -321,18 +320,21 @@ onesie calibrate -f shell-safety -i jsonl --map .command --id .id \
   `--abstain-if`. `--skip-blank` counts too when a resume counts lines, which is without `--id` on
   any input but csv and tsv. The refusal names each of them that changed, as in
   `the model and -o changed since answers.jsonl was written`.
-- The fingerprint keeps one sum for each of them. A fingerprint that holds a single sum resumes
-  when nothing changed, and the run writes one sum for each part in its place. A change there
-  reads `the questions, model or flags changed`, since a single sum cannot tell which. A file written by any other onesie version is refused the same way.
-  `-j`, `--timeout`, `--retries`, `--cache` and `--unordered` can change between runs.
+- The fingerprint keeps one sum for each of them. A fingerprint that holds a single sum resumes when
+  nothing changed, and the run writes one sum for each part in its place. A change there reads
+  `the questions, model or flags changed`, since a single sum cannot tell which. A fingerprint in
+  the format of an older or a newer onesie is refused with exit 2, as
+  `an older onesie wrote answers.jsonl.onesie, so this one cannot tell which run wrote answers.jsonl`.
+  A file another onesie version wrote resumes when its fingerprint is in a format this one reads,
+  apart from a csv or tsv file without the fallback columns, below. `-j`, `--timeout`, `--retries`,
+  `--cache` and `--unordered` can change between runs.
 - `--resume` with `--id` skips answered records and asks the rest, failed ones included. A finished
   run rewrites the file in input order and keeps answered ids missing from the input, unless
   `--prune` drops them. A record whose content changed but whose id did not keeps its old answer.
-  Without `--id`, it carries on by line count. It does
-  not ask a failed record again, apart from the `--stop-on-error` case below, so a skipped error
-  line still counts as failed toward exit 6 and `--stats`, under `-i request` too. Either way, a
-  skipped record keeps its stored `--assert` outcome, so it counts toward the exit code and
-  `--stats` as if it were judged again.
+  Without `--id`, it carries on by line count. It does not ask a failed record again, apart from the
+  `--stop-on-error` case below, so a skipped error line counts as failed toward exit 6 and
+  `--stats`, under `-i request` too. Either way, a skipped record keeps its stored `--assert`
+  outcome, so it counts toward the exit code and `--stats` as if it were judged again.
 - Under `--stop-on-assert`, a skipped false assertion ends the run where a fresh run would stop.
   Under `--stop-on-error`, a resume by line count whose last line is an error line drops that line,
   asks its record again and carries on. A run stopped by `--stop-on-error` leaves exactly that, so
@@ -396,8 +398,7 @@ ls photos/*.jpg | onesie -i lines --image-field photo 'is there a dog in `photo`
 - onesie checks the format, the file size and the sides of each image before any request, and
   `onesie -V` lists the limits as `max-image-bytes`, `image-side`, `image-pixels` and
   `max-body-bytes`. An `--image` refused there exits 2 and names the limit, and an `--image-field`
-  one is an input error line. The API ignores EXIF
-  rotation, so rotate a phone photo upright first.
+  one is an input error line. The API ignores EXIF rotation, so rotate a phone photo upright first.
 - The cache, deduplication and `--resume` see the same image file as the same record.
 - A request with an image waits up to 60 seconds per attempt, unless `--timeout` says otherwise.
   `onesie -V` lists it as `asset-attempt-timeout`, beside `attempt-timeout`. Lower `-j` for large
@@ -408,9 +409,8 @@ ls photos/*.jpg | onesie -i lines --image-field photo 'is there a dog in `photo`
   path. For one record whose state was built from images, it writes that state, references included.
 - `--print-request` writes onesie's request format: the System One body plus the settings that
   change the answer, each image as base64 under `assets`. `-i request` reads lines up to
-  `max-request-line-bytes`, so a printed body replays. A
-  printed body holding `long_context` is refused by TypeSafe if sent to it directly, rather than
-  through `-i request`.
+  `max-request-line-bytes`, so a printed body replays. A printed body holding `long_context` is
+  refused by TypeSafe when sent to it directly, outside `-i request`.
 - A printed body names its model, the provider's default unless `-m` gave one, so it replays on a
   provider that serves that model. To print for another provider, pass `-m`.
 - `--print-request` refuses what a send to the run's provider refuses before it prints anything,
@@ -876,32 +876,31 @@ table, and `onesie calibrate --help` lists the codes calibrate uses.
 - `-f VALUE` reads VALUE as a file when one exists at that path. Otherwise a bare name loads
   `NAME.yaml`, `NAME.yml` or `NAME.json` from the nearest `.onesie/questions`, then from `questions`
   in the config dir, and last takes a starter set built into onesie: `moderation`, `personal-data`,
-  `prompt-injection` or `shell-safety`. A saved file wins over a built in set of the same name, so
-  a copy to edit is printed elsewhere first, as in
+  `prompt-injection` or `shell-safety`. A saved file wins over a built in set of the same name, so a
+  copy to edit is printed elsewhere first, as in
   `onesie -f shell-safety --print-questions > shell-safety.yaml`, then moved with
   `mv shell-safety.yaml .onesie/questions/`. A redirect straight into `.onesie/questions` empties
   the file before onesie runs, and `-f` then finds that empty file ahead of the built in set.
   `onesie questions` lists every name `-f` finds, with a built in set shown as `built in` and an
-  empty saved file marked `empty`, or `"empty":true` under `-o json`. A
-  question file is refused with exit 2 when it uses a YAML alias or when it is larger than
-  `max-question-file-bytes`, and every error in a file names its path. A file that holds no
-  question, such as an empty one, `{}` or only comments, adds nothing beside `--ask`, and on its
-  own it exits 2, naming the file. One that hides a built in set always exits 2, naming how to
-  reach the set.
+  empty saved file marked `empty`, or `"empty":true` under `-o json`. A question file is refused
+  with exit 2 when it uses a YAML alias or when it is larger than `max-question-file-bytes`, and
+  every error in a file names its path. A file that holds no question, such as an empty one, `{}` or
+  only comments, adds nothing beside `--ask`, and on its own it exits 2, naming the file. One that
+  hides a built in set always exits 2, naming how to reach the set.
 - For one record, onesie reads the state from stdin when stdin is not a terminal and no other
   source gave one. When nothing arrives there for 2 seconds, it prints
   `onesie: waiting for text on stdin. Pass --state, or close stdin.` to stderr once and keeps
   waiting. Under `--state -` it prints `onesie: waiting for text on stdin. Close stdin when the text
   is complete.` instead. A stream never prints it, since a slow producer is normal there and
   `--state` does not apply to a stream.
-- `-f` also takes a request body, as `--print-request` writes it, a positional question's body
-  keyed `answer` included. For one record, a body that holds a `state` sends that state, and
-  onesie then never reads stdin. `--state` or `--state-file` beside
-  such a body exits 2, naming both. `-i request` refuses both flags the same way, since each body
-  there holds its own state. A stream and `calibrate` read their records from stdin as usual and
-  send each one as its state, so they use the body only for its questions, and say on stderr that
-  its state is ignored. A body's `assets` are sent with it. When its state is ignored, an asset only
-  that state named is dropped, and the warning counts it.
+- `-f` also takes a request body, as `--print-request` writes it, a positional question's body keyed
+  `answer` included. For one record, a body that holds a `state` sends that state, and onesie then
+  never reads stdin. `--state` or `--state-file` beside such a body exits 2, naming both.
+  `-i request` refuses both flags the same way, since each body there holds its own state. A stream
+  and `calibrate` read their records from stdin as usual and send each one as its state, so they use
+  the body only for its questions, and say on stderr that its state is ignored. A body's `assets`
+  are sent with it. When its state is ignored, an asset only that state named is dropped, and the
+  warning counts it.
 - `--print-schema` prints the JSON Schema for a question file. The first line `--print-questions`
   writes is `# yaml-language-server: $schema=URL`, which an editor running the YAML language server
   reads, such as VS Code with the Red Hat YAML extension, to check each key and value as you type.
