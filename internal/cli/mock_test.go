@@ -851,8 +851,8 @@ func TestMockAnswers(t *testing.T) {
 					env := map[string]string{"CLOUDFLARE_ACCOUNT_ID": "acct"}
 					stdin := "\"one\"\n\"two\"\n\"three\"\n"
 
-					// A clean run writes the fingerprint. The file is then rewritten as a run aborted by
-					// the refusal leaves it when a later record finished first: the refusal, then an answer.
+					// A clean run writes the fingerprint. The file then holds the refusal followed by an
+					// answer, the shape a run the refusal aborts leaves when a later record finishes first.
 					if _, errOut, code := runMocked(t, t.Context(), args, stdin, env, nil); code != ExitOK {
 						t.Fatalf("clean run exit %d\n%s", code, errOut)
 					}

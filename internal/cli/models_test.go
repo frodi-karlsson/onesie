@@ -298,8 +298,8 @@ func TestListModels(t *testing.T) {
 						code, ExitTransport, out, errOut)
 				}
 
-				// The duration is part of the claim. Without the flag on the client the attempt runs to
-				// the ten second default, which the stalled transport outlasts.
+				// The duration is part of the claim. The default attempt timeout is ten seconds, which
+				// the stalled transport outlasts, so one second shows the flag reached the client.
 				if !strings.Contains(errOut, "timed out after 1s") {
 					t.Errorf("stderr = %q, want it to name the one second timeout", errOut)
 				}

@@ -190,8 +190,7 @@ func pooled(base http.RoundTripper, jobs int) http.RoundTripper {
 
 	defaults, ok := base.(*http.Transport)
 	if !ok {
-		// Something replaced the default. Building one here would drop whatever proxy and dialer
-		// settings that replacement carries, so it is used as it is.
+		// A replaced default carries its own proxy and dialer settings, so it is used as it is.
 		return base
 	}
 

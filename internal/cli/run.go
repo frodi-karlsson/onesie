@@ -639,8 +639,8 @@ func stoppedAtInput(cause error) bool {
 }
 
 func aborting(err error) bool {
-	// Every later record would fail the same way, and a bad key should be reported once rather
-	// than once per line.
+	// Every later record would fail the same way, so a bad key is reported on one line for the
+	// whole run.
 	return authFailure(err) || halting(err)
 }
 

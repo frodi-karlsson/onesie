@@ -275,7 +275,7 @@ onesie calibrate -f shell-safety -i jsonl --map .command --id .id \
     < examples/data/shell-safety.jsonl
 ```
 
-- The line on stderr reads `onesie: reading N records from FILE`, where a run that asks reads
+- The line on stderr reads `onesie: reading N records from FILE`. A run that asks writes
   `onesie: asking N of M records`.
 - A record the file does not answer exits 2, naming it. So does a stored error line, which a run
   without `--offline` would ask again.
@@ -332,7 +332,7 @@ onesie calibrate -f shell-safety -i jsonl --map .command --id .id \
   any input but csv and tsv. The refusal names each of them that changed, as in
   `the model and -o changed since answers.jsonl was written`.
 - The fingerprint keeps one sum for each of them. A fingerprint that holds a single sum resumes when
-  nothing changed, and the run writes one sum for each part in its place. A change there reads
+  nothing changed, and the run then writes one sum for each part. A change there reads
   `the questions, model or flags changed`, since a single sum cannot tell which. A fingerprint in
   the format of an older or a newer onesie is refused with exit 2, as
   `an older onesie wrote answers.jsonl.onesie, so this one cannot tell which run wrote answers.jsonl`.
