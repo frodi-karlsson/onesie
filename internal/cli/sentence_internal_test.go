@@ -94,7 +94,8 @@ func TestSentence(t *testing.T) {
 		{
 			name:  "should say the server redirected a 302 with a location",
 			cause: served(t, http.Header{"Location": {"https://elsewhere.invalid/v1/system-one"}}, http.StatusFound, ""),
-			want:  "the server redirected the request, status 302",
+			want: "the server redirected the request, status 302. Redirect to https://elsewhere.invalid, which onesie " +
+				"does not follow, since the request carries the API key. Point the base URL at where the API is",
 		},
 		{
 			name:  "should say the server timed out waiting for a 408",
