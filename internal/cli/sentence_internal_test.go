@@ -92,6 +92,11 @@ func TestSentence(t *testing.T) {
 			want:  "the server refused the request, status 405. Check that the base URL points at the System One API",
 		},
 		{
+			name:  "should say the server redirected a 302 with a location",
+			cause: served(t, http.Header{"Location": {"https://elsewhere.invalid/v1/system-one"}}, http.StatusFound, ""),
+			want:  "the server redirected the request, status 302",
+		},
+		{
 			name:  "should say the server timed out waiting for a 408",
 			cause: refusal(typesafe, http.StatusRequestTimeout, ""),
 			want:  "the server timed out waiting for the request, status 408",
@@ -120,7 +125,7 @@ func TestSentence(t *testing.T) {
 		},
 		{
 			name:  "should say an oversized 502 is over the limit",
-			cause: served(t, http.StatusBadGateway, strings.Repeat("x", 1<<20+1)),
+			cause: served(t, nil, http.StatusBadGateway, strings.Repeat("x", 1<<20+1)),
 			want:  "the server failed, status 502. The response body is over the 1 MiB limit",
 		},
 		{
@@ -140,12 +145,12 @@ func TestSentence(t *testing.T) {
 		},
 		{
 			name:  "should say the answer could not be used for a 200 with no answers",
-			cause: served(t, http.StatusOK, `{}`),
+			cause: served(t, nil, http.StatusOK, `{}`),
 			want:  "the answer could not be used, status 200. The response is not a System One result, since it has no answers",
 		},
 		{
 			name:  "should say an oversized 200 is over the limit",
-			cause: served(t, http.StatusOK, strings.Repeat("x", 1<<20+1)),
+			cause: served(t, nil, http.StatusOK, strings.Repeat("x", 1<<20+1)),
 			want:  "the answer could not be used, status 200. The response body is over the 1 MiB limit",
 		},
 		{
@@ -166,10 +171,14 @@ func TestSentence(t *testing.T) {
 	}
 }
 
-func served(t *testing.T, status int, body string) error {
+func served(t *testing.T, header http.Header, status int, body string) error {
 	t.Helper()
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		for name, values := range header {
+			w.Header()[name] = values
+		}
+
 		w.WriteHeader(status)
 
 		if _, err := io.WriteString(w, body); err != nil {

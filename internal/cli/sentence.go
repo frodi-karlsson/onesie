@@ -18,7 +18,7 @@ func sentence(cause error) string {
 			return joined(fmt.Sprintf("%s, status %d", replacement, api.Status), notes)
 		}
 
-		lead := fmt.Sprintf("%s, status %d", apiLead(cause, api.Status), api.Status)
+		lead := fmt.Sprintf("%s, status %d", apiLead(cause, api), api.Status)
 
 		return joined(lead, append([]string{apiDetail(cause, api)}, notes...))
 	}
@@ -60,8 +60,12 @@ func joined(lead string, parts []string) string {
 	return line
 }
 
-func apiLead(cause error, status int) string {
+func apiLead(cause error, api *onesie.APIError) string {
+	status := api.Status
+
 	switch {
+	case redirected(api):
+		return "the server redirected the request"
 	case status == http.StatusPaymentRequired:
 		return "the account is out of credits"
 	case authFailure(cause):
@@ -75,6 +79,10 @@ func apiLead(cause error, status int) string {
 	default:
 		return "the server refused the request"
 	}
+}
+
+func redirected(api *onesie.APIError) bool {
+	return api.Status >= http.StatusMultipleChoices && api.Status < http.StatusBadRequest && api.Header.Get("Location") != ""
 }
 
 func apiDetail(cause error, api *onesie.APIError) string {
