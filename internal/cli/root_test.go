@@ -1015,7 +1015,7 @@ func TestNewRootCmd(t *testing.T) {
 			stdin:    "the server is down",
 			response: costed,
 			wantCode: cli.ExitOK,
-			contains: []string{"10 in / 2 out  $0.000012\n"},
+			contains: []string{"10 in / 2 out, $0.000012\n"},
 		},
 		{
 			name:     "should add the cost to --stats when the response carries one",

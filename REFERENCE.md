@@ -7,8 +7,10 @@ prints the built in limits.
 
 - A yes or no question answers with how likely the yes is. `-r` prints only the answer. Without it,
   the table for a pick or a rate also shows the model's confidence and the probability of each
-  option or level. Under `--threshold`, `-o table` and `-o markdown` write the decision as `yes`
-  or `no` beside the probability.
+  option or level. Each answer in the table opens with its id and a colon, as in `answer: 0.93`.
+  Under `--threshold` the table writes the decision with the probability after it, as in
+  `answer: yes (0.93)`, and `-o markdown` writes the decision as `yes` or `no` beside the
+  probability. An answer a fallback replaced reads `answer: false (fallback)` in the table.
 - Every output format writes each number of an answer as `-o json` does. A number the provider
   sent prints as sent, never rounded. A number onesie computes itself, such as `norm` or a mock's
   `p` and `score`, is rounded to four places. A printed number is the one a gate compares.

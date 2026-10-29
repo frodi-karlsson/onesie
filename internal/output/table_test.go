@@ -73,6 +73,7 @@ func TestWriteTable(t *testing.T) {
 	t.Parallel()
 
 	confidence := 0.81
+	low := 0.4
 	sharp := 0.977
 	cost := 0.0000123
 	score := 1.0
@@ -82,14 +83,15 @@ func TestWriteTable(t *testing.T) {
 		name     string
 		rec      output.Record
 		columns  int
+		want     string
 		contains []string
 		absent   []string
 	}{
 		{
-			name:     "should write a box's edges and confidence",
-			columns:  80,
-			rec:      output.Record{Model: "m", Answers: []output.Named{{ID: "mug", Box: true, Answer: boxAnswer()}}},
-			contains: []string{"mug  left 0.44  top 0.25  right 0.84  bottom 0.82", "confidence 0.92"},
+			name:    "should write a box's edges and confidence",
+			columns: 80,
+			rec:     output.Record{Model: "m", Answers: []output.Named{{ID: "mug", Box: true, Answer: boxAnswer()}}},
+			want:    "model: m\n\nmug: left 0.44  top 0.25  right 0.84  bottom 0.82\n  confidence: 0.92\n",
 		},
 		{
 			name:    "should put the model in the header",
@@ -100,8 +102,46 @@ func TestWriteTable(t *testing.T) {
 					{ID: "urgent", Answer: &answer.Answer{Value: 0.92}},
 				},
 			},
-			contains: []string{"model onesie-1.13.0", "urgent", "0.92"},
-			absent:   []string{"0.9200"},
+			want: "model: onesie-1.13.0\n\nurgent: 0.92\n",
+		},
+		{
+			name:    "should open an answer block with its name and a colon",
+			columns: 80,
+			rec: output.Record{
+				Answers: []output.Named{
+					{ID: "team", Answer: &answer.Answer{Value: "billing"}},
+					{ID: "urgent", Answer: &answer.Answer{Value: 0.92}},
+				},
+			},
+			want: "\nteam: billing\n\nurgent: 0.92\n",
+		},
+		{
+			name:    "should mark an answer a fallback replaced after an error",
+			columns: 80,
+			rec: output.Record{
+				Answers: []output.Named{
+					{ID: "answer", Answer: &answer.Answer{Fallback: "error", Decided: true, Decision: false}},
+				},
+			},
+			want: "\nanswer: false (fallback)\n",
+		},
+		{
+			name:    "should mark an answer a fallback replaced for low confidence",
+			columns: 40,
+			rec: output.Record{
+				Answers: []output.Named{
+					{ID: "team", Answer: &answer.Answer{
+						Value: "billing", Confidence: &low, Decided: true, Decision: "human", Fallback: "low_confidence",
+						P: &answer.Probabilities{
+							Keys:   []string{"billing", "sales"},
+							Values: map[string]float64{"billing": 0.5, "sales": 0.5},
+						},
+					}},
+				},
+			},
+			want: "\nteam: human (fallback)\n  confidence: 0.4\n" +
+				"  billing          █████████         0.5\n" +
+				"  sales            █████████         0.5\n",
 		},
 		{
 			name:    "should strip terminal controls from the text it prints",
@@ -113,7 +153,7 @@ func TestWriteTable(t *testing.T) {
 					{ID: "team", Answer: &answer.Answer{Value: "bil\x1bling"}},
 				},
 			},
-			contains: []string{"model m[2J1", "bad news", "team  billing"},
+			contains: []string{"model: m[2J1", "bad news", "team: billing"},
 			absent:   []string{"\x1b", "\x07", "\r", "\u009b"},
 		},
 		{
@@ -126,7 +166,7 @@ func TestWriteTable(t *testing.T) {
 				},
 				AssertFailed: true,
 			},
-			contains: []string{"model onesie-1.13.0\nassert false\n"},
+			want: "model: onesie-1.13.0\nassert: false\n\nurgent: 0.92\n",
 		},
 		{
 			name:    "should print no assert line when the assertion held",
@@ -149,8 +189,7 @@ func TestWriteTable(t *testing.T) {
 				},
 				Abstained: true,
 			},
-			contains: []string{"model onesie-1.13.0\nabstain\n"},
-			absent:   []string{"assert"},
+			want: "model: onesie-1.13.0\nabstain\n\nurgent: 0.92\n",
 		},
 		{
 			name:    "should print a false assertion with no model in the header",
@@ -161,8 +200,7 @@ func TestWriteTable(t *testing.T) {
 				},
 				AssertFailed: true,
 			},
-			contains: []string{"assert false"},
-			absent:   []string{"model"},
+			want: "assert: false\n\nurgent: 0.92\n",
 		},
 		{
 			name:    "should add usage to the header when present",
@@ -174,8 +212,7 @@ func TestWriteTable(t *testing.T) {
 					{ID: "urgent", Answer: &answer.Answer{Value: 0.92}},
 				},
 			},
-			contains: []string{"2841 in", "71 out"},
-			absent:   []string{"$"},
+			want: "model: onesie-1.13.0, 2841 in / 71 out\n\nurgent: 0.92\n",
 		},
 		{
 			name:    "should add the cost to the usage in the header",
@@ -187,7 +224,7 @@ func TestWriteTable(t *testing.T) {
 					{ID: "urgent", Answer: &answer.Answer{Value: 0.92}},
 				},
 			},
-			contains: []string{"model onesie-1.13.0  2841 in / 71 out  $0.0000123\n"},
+			want: "model: onesie-1.13.0, 2841 in / 71 out, $0.0000123\n\nurgent: 0.92\n",
 		},
 		{
 			name:    "should draw a bar per option",
@@ -207,7 +244,9 @@ func TestWriteTable(t *testing.T) {
 					}},
 				},
 			},
-			contains: []string{"team", "technical", "billing", "█", "confidence 0.81"},
+			want: "model: onesie-1.13.0\n\nteam: technical\n  confidence: 0.81\n" +
+				"  billing          ██████                                                   0.1\n" +
+				"  technical        █████████████████████████████████████████████████        0.88\n",
 		},
 		{
 			name:    "should keep probability rows in key order",
@@ -239,7 +278,9 @@ func TestWriteTable(t *testing.T) {
 					}},
 				},
 			},
-			contains: []string{"score 1  norm 0.5\n"},
+			want: "\nmood: furious\n  confidence: 0.81\n  score: 1, norm: 0.5\n" +
+				"  calm             ████████████████████                                     0.36\n" +
+				"  furious          ████████████████████████████████████                     0.64\n",
 		},
 		{
 			name:    "should omit the score and the norm of a yes/no answer",
@@ -327,8 +368,8 @@ func TestWriteTable(t *testing.T) {
 					Value: 0.92, Decided: true, Decision: true,
 				}}},
 			},
-			columns:  80,
-			contains: []string{"\nurgent  yes  0.92\n"},
+			columns: 80,
+			want:    "model: onesie-1.13.0\n\nurgent: yes (0.92)\n",
 		},
 		{
 			name: "should write a decided no as no, as markdown does",
@@ -338,8 +379,8 @@ func TestWriteTable(t *testing.T) {
 					Value: 0.12, Decided: true, Decision: false,
 				}}},
 			},
-			columns:  80,
-			contains: []string{"\nurgent  no  0.12\n"},
+			columns: 80,
+			want:    "model: onesie-1.13.0\n\nurgent: no (0.12)\n",
 		},
 		{
 			name: "should print the bare probability for an undecided yes/no answer",
@@ -347,8 +388,8 @@ func TestWriteTable(t *testing.T) {
 				Model:   "onesie-1.13.0",
 				Answers: []output.Named{{ID: "urgent", Answer: &answer.Answer{Value: 0.92}}},
 			},
-			columns:  80,
-			contains: []string{"urgent  0.92\n"},
+			columns: 80,
+			want:    "model: onesie-1.13.0\n\nurgent: 0.92\n",
 		},
 		{
 			name: "should print a yes/no probability as -o json writes it",
@@ -357,7 +398,7 @@ func TestWriteTable(t *testing.T) {
 				Answers: []output.Named{{ID: "urgent", Answer: &answer.Answer{Value: 0.1}}},
 			},
 			columns:  80,
-			contains: []string{"urgent  0.1\n"},
+			contains: []string{"urgent: 0.1\n"},
 		},
 		{
 			name: "should print a zero probability as -o json writes it",
@@ -366,7 +407,7 @@ func TestWriteTable(t *testing.T) {
 				Answers: []output.Named{{ID: "urgent", Answer: &answer.Answer{Value: 0.0}}},
 			},
 			columns:  80,
-			contains: []string{"urgent  0\n"},
+			contains: []string{"urgent: 0\n"},
 		},
 		{
 			name: "should print a certain probability as -o json writes it",
@@ -375,7 +416,7 @@ func TestWriteTable(t *testing.T) {
 				Answers: []output.Named{{ID: "urgent", Answer: &answer.Answer{Value: 1.0}}},
 			},
 			columns:  80,
-			contains: []string{"urgent  1\n"},
+			contains: []string{"urgent: 1\n"},
 		},
 		{
 			name: "should keep every decimal a yes/no probability carries",
@@ -384,7 +425,7 @@ func TestWriteTable(t *testing.T) {
 				Answers: []output.Named{{ID: "urgent", Answer: &answer.Answer{Value: 0.795}}},
 			},
 			columns:  80,
-			contains: []string{"urgent  0.795\n"},
+			contains: []string{"urgent: 0.795\n"},
 		},
 		{
 			name: "should print a confidence and p unrounded, as -o json writes them",
@@ -398,7 +439,7 @@ func TestWriteTable(t *testing.T) {
 				}}},
 			},
 			columns:  80,
-			contains: []string{"  confidence 0.977\n", " 0.58984375\n", " 0.41015625\n"},
+			contains: []string{"  confidence: 0.977\n", " 0.58984375\n", " 0.41015625\n"},
 		},
 		{
 			name: "should fit a long probability inside the width",
@@ -426,8 +467,9 @@ func TestWriteTable(t *testing.T) {
 					},
 				}}},
 			},
-			columns:  80,
-			contains: []string{"\nteam  human\n"},
+			columns: 80,
+			want: "model: onesie-1.13.0\n\nteam: human\n" +
+				"  billing          ███████████████████████                                  0.41\n",
 		},
 	}
 
@@ -439,6 +481,10 @@ func TestWriteTable(t *testing.T) {
 
 			if err := output.WriteTable(&buf, tc.rec, tc.columns); err != nil {
 				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if tc.want != "" && buf.String() != tc.want {
+				t.Errorf("output\n got: %q\nwant: %q", buf.String(), tc.want)
 			}
 
 			for _, want := range tc.contains {
