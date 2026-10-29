@@ -54,6 +54,7 @@ func TestMockAnswers(t *testing.T) {
 	fallback := []string{
 		"--ask", "t=which team", "--pick", "billing,platform", "--min-confidence", "0.5", "--fallback", "billing",
 	}
+	onTerminal := []RootOption{WithStdoutTTY(true), withSharedTTY(true)}
 
 	tests := []struct {
 		name     string
@@ -61,6 +62,7 @@ func TestMockAnswers(t *testing.T) {
 		stdin    string
 		mock     string
 		env      map[string]string
+		opts     []RootOption
 		wantCode int
 		wantOut  *string
 		contains []string
@@ -251,6 +253,68 @@ func TestMockAnswers(t *testing.T) {
 			wantCode: ExitAuth,
 
 			stderrAbsent: []string{"The key came from"},
+		},
+		{
+			name:     "should write one record's failure as one sentence in the table",
+			args:     with("-o", "table", "--state", "x"),
+			mock:     `{"error":401}`,
+			wantOut:  fileOf("error: the key was rejected, status 401\n"),
+			stderr:   []string{"onesie: 401 status code, no body"},
+			wantCode: ExitAuth,
+		},
+		{
+			name:         "should not repeat on stderr a failure the terminal row shows",
+			args:         with("--state", "x"),
+			mock:         `{"error":401}`,
+			opts:         onTerminal,
+			wantOut:      fileOf("error: the key was rejected, status 401\n"),
+			wantCode:     ExitAuth,
+			stderrAbsent: []string{"onesie: "},
+		},
+		{
+			name:     "should keep the stderr line when stderr is not the terminal",
+			args:     with("--state", "x"),
+			mock:     `{"error":401}`,
+			opts:     []RootOption{WithStdoutTTY(true), withSharedTTY(false)},
+			wantOut:  fileOf("error: the key was rejected, status 401\n"),
+			stderr:   []string{"onesie: 401 status code, no body"},
+			wantCode: ExitAuth,
+		},
+		{
+			name:     "should keep the stderr line when stdout is not a terminal",
+			args:     with("--state", "x", "-o", "table"),
+			mock:     `{"error":401}`,
+			opts:     []RootOption{WithStdoutTTY(false), withSharedTTY(true)},
+			wantOut:  fileOf("error: the key was rejected, status 401\n"),
+			stderr:   []string{"onesie: 401 status code, no body"},
+			wantCode: ExitAuth,
+		},
+		{
+			name:     "should keep the stderr line under -q",
+			args:     []string{"is it urgent", "--state", "x", "-q"},
+			mock:     `{"error":401}`,
+			opts:     onTerminal,
+			wantOut:  fileOf(""),
+			stderr:   []string{"onesie: 401 status code, no body"},
+			wantCode: ExitAuth,
+		},
+		{
+			name:     "should keep the stderr line under -o json",
+			args:     with("--state", "x", "-o", "json"),
+			mock:     `{"error":401}`,
+			opts:     onTerminal,
+			contains: []string{`{"error":{"kind":"auth","status":401,"message":"401 status code, no body"}`},
+			stderr:   []string{"onesie: 401 status code, no body"},
+			wantCode: ExitAuth,
+		},
+		{
+			name:     "should keep the stderr line when a stream aborts",
+			args:     with("-i", "lines"),
+			stdin:    "a\nb\n",
+			mock:     lines(mockAll, `{"error":401}`),
+			opts:     onTerminal,
+			stderr:   []string{"onesie: 401 status code, no body"},
+			wantCode: ExitAuth,
 		},
 		{
 			name:     "should exit 4 for one record the file fails with 503",
@@ -545,7 +609,7 @@ func TestMockAnswers(t *testing.T) {
 
 			args := append(append([]string{}, tc.args...), "--mock", path)
 
-			out, errOut, code := runMocked(t, t.Context(), args, tc.stdin, tc.env, nil)
+			out, errOut, code := runMocked(t, t.Context(), args, tc.stdin, tc.env, nil, tc.opts...)
 
 			checkMocked(t, out, errOut, code, tc.wantCode, tc.wantOut, tc.contains, tc.absent, tc.stderr)
 
@@ -572,6 +636,22 @@ func TestMockAnswers(t *testing.T) {
 			if !strings.Contains(line, `"urgent":`) || strings.Contains(line, `"team"`) || strings.Contains(line, `"tone"`) {
 				t.Errorf("answers line %s, want the urgent answer alone", line)
 			}
+		}
+	})
+
+	t.Run("should keep the stderr line when --out takes the terminal row", func(t *testing.T) {
+		t.Parallel()
+
+		answers := filepath.Join(t.TempDir(), "answers.txt")
+		args := with("--state", "x", "--out", answers, "--mock", writeMock(t, `{"error":401}`))
+
+		_, errOut, code := runMocked(t, t.Context(), args, "", nil, nil, onTerminal...)
+		if code != ExitAuth || !strings.Contains(errOut, "onesie: 401 status code, no body") {
+			t.Errorf("exit %d and stderr %q, want exit %d and the stderr line", code, errOut, ExitAuth)
+		}
+
+		if got := readText(t, answers); got != "error: the key was rejected, status 401\n" {
+			t.Errorf("--out holds %q, want the terminal row", got)
 		}
 	})
 

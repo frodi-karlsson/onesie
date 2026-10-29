@@ -32,17 +32,11 @@ func advise(err error, model string) error {
 	}
 
 	if api.Status == http.StatusPaymentRequired {
-		return &advisedError{
-			cause:   err,
-			message: withNote(text(err), "Add credits to the account this key belongs to"),
-		}
+		return &advisedError{cause: err, note: "Add credits to the account this key belongs to"}
 	}
 
 	if model != "" && errors.Is(err, onesie.ErrUnknownModel) {
-		return &advisedError{
-			cause:   err,
-			message: fmt.Sprintf("model '%s' not found. Try --list-models", model),
-		}
+		return &advisedError{cause: err, message: fmt.Sprintf("model '%s' not found", model), note: "Try --list-models"}
 	}
 
 	var advised *advisedError
@@ -54,7 +48,7 @@ func advise(err error, model string) error {
 	// arrives from the right server too.
 	if api.Body == nil && len(api.RawBody) > 0 &&
 		(api.Status == http.StatusNotFound || api.Status == http.StatusMethodNotAllowed) {
-		return &advisedError{cause: err, message: withNote(text(err), "Check that the base URL points at the System One API")}
+		return &advisedError{cause: err, note: "Check that the base URL points at the System One API"}
 	}
 
 	return err
@@ -66,8 +60,8 @@ func adviseLongContext(err error, helps bool) error {
 	}
 
 	return &advisedError{
-		cause:   err,
-		message: withNote(text(err), "Pass --long-context to raise the context limit, which is slower and less accurate"),
+		cause: err,
+		note:  "Pass --long-context to raise the context limit, which is slower and less accurate",
 	}
 }
 
@@ -87,7 +81,7 @@ func adviseBox(err error, boxed bool, boxModel string) error {
 		note += ", such as -m " + boxModel
 	}
 
-	return &advisedError{cause: err, message: withNote(text(err), note)}
+	return &advisedError{cause: err, note: note}
 }
 
 func withKeyHint(err error, settings rootSettings, mockFlag string) error {
@@ -114,7 +108,7 @@ func keyHint(err error, chosen resolution) error {
 		note = "Replace the key with onesie profile update " + creds.QuotedName(chosen.profile) + " --key"
 	}
 
-	return &advisedError{cause: err, message: withNote(text(err), note)}
+	return &advisedError{cause: err, note: note}
 }
 
 func keyRefused(err error) bool {
@@ -124,10 +118,20 @@ func keyRefused(err error) bool {
 type advisedError struct {
 	cause   error
 	message string
+	note    string
 }
 
 func (e *advisedError) Error() string {
-	return e.message
+	message := e.message
+	if message == "" {
+		message = text(e.cause)
+	}
+
+	if e.note == "" {
+		return message
+	}
+
+	return withNote(message, e.note)
 }
 
 func (e *advisedError) Unwrap() error {
@@ -140,8 +144,8 @@ func adviseLimits(err error) error {
 	}
 
 	return &advisedError{
-		cause:   err,
-		message: withNote(text(err), "onesie's own check passed, so its built in limits may be stale. Run onesie -V"),
+		cause: err,
+		note:  "onesie's own check passed, so its built in limits may be stale. Run onesie -V",
 	}
 }
 

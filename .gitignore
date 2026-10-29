@@ -4,6 +4,17 @@
 /Formula/
 /completions/
 
+# What go build ./cmd/NAME leaves at the root
+/examplesanswers
+/examplesimage
+/formulagen
+/onesie
+/proseblocks
+/releaseprep
+/skillcheck
+/skilleval
+/skillgen
+
 # Test & profiling output
 *.out
 *.test

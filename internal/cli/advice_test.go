@@ -599,6 +599,19 @@ func TestAdvise(t *testing.T) {
 				wantCode:    ExitUsage,
 				wantErr:     "onesie: 405 Method Not Allowed, with a response body that is not JSON" + check + "\n",
 			},
+			{
+				name:        "should word an oversized response without an option name",
+				args:        []string{"is this urgent", "--retries", "0"},
+				stdin:       "a ticket",
+				status:      http.StatusBadGateway,
+				response:    strings.Repeat("x", int(onesie.DefaultMaxResponseBytes)+1),
+				contentType: "text/plain",
+				wantCode:    ExitUnavailable,
+				wantErr:     "onesie: 502 Bad Gateway, and the response body is over the 8 MiB limit\n",
+				wantOut: []string{
+					`"message":"502 Bad Gateway, and the response body is over the 8 MiB limit"`,
+				},
+			},
 		}
 
 		for _, tc := range tests {
@@ -850,6 +863,7 @@ func TestWithKeyHint(t *testing.T) {
 		wantCode int
 		wantErr  string
 		notErr   string
+		wantOut  string
 	}{
 		{
 			name: "should name profile update --key when the server refuses a profile's key",
@@ -859,6 +873,17 @@ func TestWithKeyHint(t *testing.T) {
 			status:   http.StatusUnauthorized,
 			wantCode: ExitAuth,
 			wantErr:  "onesie: 401 the key was refused. Replace the key with onesie profile update 'work' --key",
+		},
+		{
+			name: "should show the key hint in the terminal row",
+			profiles: `{"default":"work","profiles":{"work":{"provider":"typesafe","api_key":"SECRET-WORK",` +
+				`"base_url":"{url}"}}}`,
+			args:     []string{"is this urgent", "--state", "x", "-o", "table"},
+			status:   http.StatusUnauthorized,
+			wantCode: ExitAuth,
+			wantErr:  "onesie: 401 the key was refused. Replace the key with onesie profile update 'work' --key",
+			wantOut: "error: the key was rejected, status 401. the key was refused. " +
+				"Replace the key with onesie profile update 'work' --key\n",
 		},
 		{
 			name:     "should name the key variable when the server refuses a key from the environment",
@@ -921,6 +946,10 @@ func TestWithKeyHint(t *testing.T) {
 
 			if tc.notErr != "" && strings.Contains(errOut, tc.notErr) {
 				t.Errorf("stderr = %q, want no %q", errOut, tc.notErr)
+			}
+
+			if !strings.Contains(out, tc.wantOut) {
+				t.Errorf("stdout = %q, want it to contain %q", out, tc.wantOut)
 			}
 		})
 	}

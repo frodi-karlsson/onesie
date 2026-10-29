@@ -680,8 +680,14 @@ func ask(
 		// for, so a shell guard reads a decision. An interrupt is skipped, since a transport record
 		// written into the pipe the caller was closing reports a fault that never happened.
 		if !errors.Is(err, context.Canceled) {
+			record.Failure.Sentence = sentence(withKeyHint(err, settings, flags.mock))
+
 			if writeErr := writeFailure(cmd, settings, outputMode, flags, inv, state.resolved, record); writeErr != nil {
 				return writeErr
+			}
+
+			if rowShowsFailure(settings, flags, outputMode) {
+				return &shownError{cause: err}
 			}
 		}
 
@@ -763,6 +769,11 @@ func writeFailure(
 	}
 
 	return writeRecord(cmd, settings, mode, flags, inv, resolved, record)
+}
+
+func rowShowsFailure(settings rootSettings, flags runConfig, mode output.Mode) bool {
+	// Under --out the row goes to a file, so the terminal shows only the stderr line.
+	return mode == output.Table && !flags.quiet && flags.out == "" && settings.stdoutTTY && settings.sharedTTY
 }
 
 func writeRecord(

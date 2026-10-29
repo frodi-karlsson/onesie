@@ -257,6 +257,7 @@ func TestClassify(t *testing.T) {
 			{err: &onesie.ConnectionError{Err: syscall.EPIPE}, kind: output.KindTransport, quiet: true},
 			{err: &fs.PathError{Op: "write", Path: "/dev/stdout", Err: syscall.EPIPE}, kind: output.KindInput, quiet: true},
 			{err: &silentError{code: ExitAuth}, kind: output.KindInput, quiet: true},
+			{err: &shownError{cause: apiError(http.StatusUnauthorized)}, kind: output.KindAuth, quiet: true},
 			{err: errors.New("boom"), kind: output.KindInput},
 			{err: &storedFailure{failure: output.Failure{Kind: "input", Message: "bad"}}, kind: output.KindInput},
 		}

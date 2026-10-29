@@ -96,13 +96,19 @@ func worthReporting(err error) bool {
 
 func classify(err error) failure {
 	matched := firstMatch(err)
-	matched.quiet = matched.quiet || canceledOrBrokenPipe(err)
+	matched.quiet = matched.quiet || canceledOrBrokenPipe(err) || shownInRow(err)
 
 	return matched
 }
 
 func canceledOrBrokenPipe(err error) bool {
 	return errors.Is(err, context.Canceled) || engine.BrokenPipe(err)
+}
+
+func shownInRow(err error) bool {
+	var shown *shownError
+
+	return errors.As(err, &shown)
 }
 
 func firstMatch(err error) failure {
@@ -256,6 +262,18 @@ type silentError struct {
 
 func (e *silentError) Error() string {
 	return fmt.Sprintf("exit %d with nothing left to report", e.code)
+}
+
+type shownError struct {
+	cause error
+}
+
+func (e *shownError) Error() string {
+	return text(e.cause)
+}
+
+func (e *shownError) Unwrap() error {
+	return e.cause
 }
 
 type storedFailure struct {

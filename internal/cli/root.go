@@ -371,6 +371,7 @@ func defaultSettings(info BuildInfo) rootSettings {
 		stdin:         os.Stdin,
 		stdinTTY:      isTerminal(os.Stdin),
 		stdoutTTY:     isTerminal(os.Stdout),
+		sharedTTY:     sharedTerminal(os.Stdout, os.Stderr),
 		readFile:      os.ReadFile,
 		readDir:       os.ReadDir,
 		stat:          os.Stat,
@@ -854,6 +855,12 @@ func withTerminalWidth(width func() (int, bool)) RootOption {
 	}
 }
 
+func withSharedTTY(shared bool) RootOption {
+	return func(s *rootSettings) {
+		s.sharedTTY = shared
+	}
+}
+
 func withCredentialStore(store creds.Store) RootOption {
 	return func(s *rootSettings) {
 		s.credStore = store
@@ -904,6 +911,7 @@ type rootSettings struct {
 	stdin         io.Reader
 	stdinTTY      bool
 	stdoutTTY     bool
+	sharedTTY     bool
 	readFile      func(string) ([]byte, error)
 	readDir       func(string) ([]fs.DirEntry, error)
 	stat          func(string) (fs.FileInfo, error)
@@ -981,6 +989,19 @@ func readHiddenSecret(terminal *os.File) (string, error) {
 	}
 
 	return string(secret), nil
+}
+
+func sharedTerminal(stdout, stderr *os.File) bool {
+	if !isTerminal(stdout) || !isTerminal(stderr) {
+		return false
+	}
+
+	// On Windows a console handle has no file id, so SameFile holds for any two consoles. A process
+	// has one console, so two terminals are the same one there.
+	out, outErr := stdout.Stat()
+	diagnostics, diagnosticsErr := stderr.Stat()
+
+	return outErr == nil && diagnosticsErr == nil && os.SameFile(out, diagnostics)
 }
 
 func isTerminal(f *os.File) bool {

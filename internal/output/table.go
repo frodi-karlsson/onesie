@@ -42,13 +42,7 @@ func WriteTable(w io.Writer, rec Record, columns int) error {
 	}
 
 	if rec.Failure != nil {
-		status := "none"
-		if rec.Failure.Status != nil {
-			status = strconv.Itoa(*rec.Failure.Status)
-		}
-
-		if _, err := fmt.Fprintf(w, "error  %s  status %s  %s\n",
-			Printable(string(rec.Failure.Kind)), status, Printable(rec.Failure.Message)); err != nil {
+		if _, err := fmt.Fprintln(w, "error: "+Printable(failureText(rec.Failure))); err != nil {
 			return err
 		}
 	}
@@ -70,6 +64,14 @@ func WriteTable(w io.Writer, rec Record, columns int) error {
 	return nil
 }
 
+func failureText(failure *Failure) string {
+	if failure.Sentence == "" {
+		return failure.Message
+	}
+
+	return failure.Sentence
+}
+
 func widestProbability(rec Record) int {
 	widest := 0
 
@@ -88,12 +90,12 @@ func widestProbability(rec Record) int {
 
 func writeHeader(w io.Writer, rec Record) error {
 	if rec.Model != "" {
-		line := "model " + Printable(rec.Model)
+		line := "model: " + Printable(rec.Model)
 		if rec.Usage != nil {
-			line += fmt.Sprintf("  %d in / %d out", rec.Usage.InputTokens, rec.Usage.OutputTokens)
+			line += fmt.Sprintf(", %d in / %d out", rec.Usage.InputTokens, rec.Usage.OutputTokens)
 
 			if rec.Usage.Cost != nil {
-				line += "  " + Cost(*rec.Usage.Cost)
+				line += ", " + Cost(*rec.Usage.Cost)
 			}
 		}
 
@@ -104,7 +106,7 @@ func writeHeader(w io.Writer, rec Record) error {
 
 	switch {
 	case rec.AssertFailed:
-		_, err := fmt.Fprintln(w, "assert false")
+		_, err := fmt.Fprintln(w, "assert: false")
 
 		return err
 	case rec.Abstained:
@@ -119,31 +121,18 @@ func writeHeader(w io.Writer, rec Record) error {
 func writeBlock(w io.Writer, named Named, bars int) error {
 	a := named.Answer
 
-	headline := Printable(fmt.Sprintf("%v", scalar(a)))
-
-	// A question with a distribution puts its numbers in the rows below instead. The decision is
-	// what the exit code follows, and the probability beside it is how close the call was.
-	if probability, ok := a.Value.(float64); ok && a.P == nil {
-		formatted := num.Format(probability)
-
-		headline = formatted
-		if a.Decided {
-			headline = decisionWord(a.Decision) + "  " + formatted
-		}
-	}
-
-	if _, err := fmt.Fprintf(w, "\n%s  %s\n", Printable(named.ID), headline); err != nil {
+	if _, err := fmt.Fprintf(w, "\n%s: %s\n", Printable(named.ID), headline(a)); err != nil {
 		return err
 	}
 
 	if a.Confidence != nil {
-		if _, err := fmt.Fprintf(w, "  confidence %s\n", num.Format(*a.Confidence)); err != nil {
+		if _, err := fmt.Fprintf(w, "  confidence: %s\n", num.Format(*a.Confidence)); err != nil {
 			return err
 		}
 	}
 
 	if a.Score != nil && a.Norm != nil {
-		if _, err := fmt.Fprintf(w, "  score %s  norm %s\n", num.Format(*a.Score), num.Format(*a.Norm)); err != nil {
+		if _, err := fmt.Fprintf(w, "  score: %s, norm: %s\n", num.Format(*a.Score), num.Format(*a.Norm)); err != nil {
 			return err
 		}
 	}
@@ -169,6 +158,25 @@ func writeBlock(w io.Writer, named Named, bars int) error {
 	}
 
 	return nil
+}
+
+func headline(a *Answer) string {
+	// A question with a distribution puts its numbers in the rows below instead. The decision is
+	// what the exit code follows, and the probability after it is how close the call was.
+	if probability, ok := a.Value.(float64); ok && a.P == nil {
+		if a.Decided {
+			return decisionWord(a.Decision) + " (" + num.Format(probability) + ")"
+		}
+
+		return num.Format(probability)
+	}
+
+	// Without the mark the line reads as the model's answer.
+	if a.Fallback != "" {
+		return Printable(decisionWord(a.Decision)) + " (fallback)"
+	}
+
+	return Printable(fmt.Sprintf("%v", scalar(a)))
 }
 
 func decisionWord(decision any) string {

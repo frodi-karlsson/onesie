@@ -300,6 +300,107 @@ func TestIsTerminal(t *testing.T) {
 	}
 }
 
+func TestSharedTerminal(t *testing.T) {
+	t.Parallel()
+
+	file := func(t *testing.T) *os.File {
+		t.Helper()
+
+		f, err := os.Create(filepath.Join(t.TempDir(), "out"))
+		if err != nil {
+			t.Fatalf("creating the file: %v", err)
+		}
+
+		t.Cleanup(func() { _ = f.Close() })
+
+		return f
+	}
+
+	terminal := func(t *testing.T, path string) *os.File {
+		t.Helper()
+
+		f, err := os.OpenFile(path, os.O_RDWR, 0)
+		if err != nil {
+			t.Fatalf("opening the terminal: %v", err)
+		}
+
+		t.Cleanup(func() { _ = f.Close() })
+
+		return f
+	}
+
+	tests := []struct {
+		name  string
+		files func(t *testing.T) (*os.File, *os.File)
+		want  bool
+	}{
+		{
+			name: "should share one terminal opened twice",
+			files: func(t *testing.T) (*os.File, *os.File) {
+				t.Helper()
+
+				path := pseudoTerminal(t)
+
+				return terminal(t, path), terminal(t, path)
+			},
+			want: true,
+		},
+		{
+			name: "should not share two terminals",
+			files: func(t *testing.T) (*os.File, *os.File) {
+				t.Helper()
+
+				return terminal(t, pseudoTerminal(t)), terminal(t, pseudoTerminal(t))
+			},
+		},
+		{
+			name: "should not share a pipe",
+			files: func(t *testing.T) (*os.File, *os.File) {
+				t.Helper()
+
+				r, w, err := os.Pipe()
+				if err != nil {
+					t.Fatalf("opening the pipe: %v", err)
+				}
+
+				t.Cleanup(func() { _ = r.Close(); _ = w.Close() })
+
+				return w, w
+			},
+		},
+		{
+			name: "should not share two files",
+			files: func(t *testing.T) (*os.File, *os.File) {
+				t.Helper()
+
+				return file(t), file(t)
+			},
+		},
+		{
+			name: "should not share one file that is not a terminal",
+			files: func(t *testing.T) (*os.File, *os.File) {
+				t.Helper()
+
+				f := file(t)
+
+				return f, f
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			stdout, stderr := tc.files(t)
+
+			if got := sharedTerminal(stdout, stderr); got != tc.want {
+				t.Errorf("sharedTerminal(%s, %s) = %t, want %t", stdout.Name(), stderr.Name(), got, tc.want)
+			}
+		})
+	}
+}
+
 func TestNoArguments(t *testing.T) {
 	t.Parallel()
 
