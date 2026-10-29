@@ -131,38 +131,13 @@ git diff -U0 --no-color --no-ext-diff --src-prefix=a/ --dst-prefix=b/ main -- '*
     -i jsonl --map .text --id .id --cache -o markdown'
 ```
 
-Two files hold labelled records. Each record holds an `id`, the `text` and a `history` label, true
-for a history lesson.
+`.onesie/data/history-lesson.jsonl` holds the labelled records, and the gate is checked against
+it. Each record holds an `id`, the `text` and a `history` label, true for a history lesson. It holds
+written examples and real blocks, and a real block carries a `source` that names the commit and the
+line that hold it. Most real blocks are prose the check asks about on pull requests, weighted toward
+reasons, comparisons and notes on files of other versions, which draw the most false alarms.
 
-- `.onesie/data/history-lesson.jsonl` is the calibration set, and the gate is checked against it.
-  It holds written examples and real blocks. A real block carries a `source` that names the commit
-  and the line that hold it. Its history lessons tell how the code or the docs used to be. The rest
-  are blocks from the work tree, and blocks the check flags although they describe the present,
-  such as a reason ordered with after, an option that replaces a dependency, a comparison or a note
-  on files an older onesie wrote.
-- `.onesie/data/history-lesson-real.jsonl` is held out, and nothing is calibrated on it. It holds
-  the blocks of 59 pull request runs of the check, 1015 in all, each with a `source`. Only 8 are
-  labelled history lessons, and `debatable` marks the 7 compatibility notes among them that a
-  reader may take either way. A `category` such as `comparison`, `counterfactual`, `compat` or
-  `option-doc` groups the rest. It shows how often a wording flags the prose this repo really
-  writes, which the calibration set is too small to show.
-
-Compare a new wording on the held out set and on the calibration set's real blocks before you adopt
-it. Save it to a file of its own, then read the false alarms at the cuts you would pick:
-
-```sh
-bash -c 'set -a; . ./.env; set +a; exec bin/onesie calibrate -f new-history-lesson.yaml -i jsonl --map .text \
-    --id .id -m jev-1.13.0 --provider typesafe --label history=.history' < .onesie/data/history-lesson-real.jsonl
-jq -c 'select(.source)' .onesie/data/history-lesson.jsonl | bash -c 'set -a; . ./.env; set +a; exec bin/onesie \
-    calibrate -f new-history-lesson.yaml -i jsonl --map .text --id .id -m jev-1.13.0 --provider typesafe \
-    --label history=.history'
-```
-
-The committed question flags at most 2 of the 1007 held out blocks that describe the present at its
-`abstain_if` cut, and lists about 2 in 100 as unsure.
-
-To recalibrate, add labelled records to the calibration set, a real one with its `source`. Then ask
-for the answers the answers file lacks:
+To recalibrate, add labelled records, then ask for the answers the answers file lacks:
 
 ```sh
 bash -c 'set -a; . ./.env; set +a; exec bin/onesie calibrate -f history-lesson -i jsonl --map .text --id .id \
@@ -171,14 +146,13 @@ bash -c 'set -a; . ./.env; set +a; exec bin/onesie calibrate -f history-lesson -
 ```
 
 Pick the `assert` and `abstain_if` cuts from the table it prints. Take the highest cuts that meet
-the requirements `TestProjectSets` lists, not the lowest cut with no false alarms. A cut that only
-clears the written examples sits too close to the prose the benchmark holds. The model is not
-deterministic, so a cut that meets a requirement by a single record can miss it on the next run.
-Leave a record to spare where the table allows it. Commit the answers file with its `.onesie`
-fingerprint. A change to the question makes the answers file stale, so delete both
-files and run the command again. `TestProjectSets` in `examples/` checks the gate against the
-committed answers offline with the requirements it lists, so `make check` fails when the gate and
-the answers disagree.
+the requirements `TestProjectSets` lists, not the lowest cut with no false alarms. The model is not
+deterministic, so leave a record to spare where the table allows it. The `abstain_if` cut of 0.77
+holds one record over its requirement, and two history lessons score exactly 0.77, so a fresh run
+can miss it. Commit the answers file with its `.onesie` fingerprint. A change to the question makes
+the answers file stale, so delete both files and run the command again. `TestProjectSets` in
+`examples/` checks the gate against the committed answers offline with the requirements it lists,
+so `make check` fails when the gate and the answers disagree.
 
 ## Releasing
 

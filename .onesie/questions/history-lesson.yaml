@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/frodi-karlsson/onesie/main/schema/questions.json
-assert: history.value < 0.5
-abstain_if: history.value < 0.72
+assert: history.value < 0.55
+abstain_if: history.value < 0.77
 history:
   ask: does this text report something about this project's own earlier code, docs or behaviour, in the past tense or with words such as used to, no longer, previously or was removed
   yes_means: it reports a past state or a past event of the project itself, such as what the code used to do, what was removed, renamed, added or moved, or why something was changed
