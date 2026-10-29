@@ -156,11 +156,12 @@ type Named struct {
 }
 
 // Failure is the reserved error key. Status is nil for a transport or input failure, where no HTTP
-// status was ever received.
+// status was ever received. Sentence is how the table words the failure, and no other mode writes it.
 type Failure struct {
-	Kind    Kind   `json:"kind"`
-	Status  *int   `json:"status"`
-	Message string `json:"message"`
+	Kind     Kind   `json:"kind"`
+	Status   *int   `json:"status"`
+	Message  string `json:"message"`
+	Sentence string `json:"-"`
 }
 
 // Kind names what failed, so a consumer can tell a retry worth making from a record to fix.

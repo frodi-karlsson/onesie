@@ -253,6 +253,14 @@ func TestMockAnswers(t *testing.T) {
 			stderrAbsent: []string{"The key came from"},
 		},
 		{
+			name:     "should write one record's failure as one sentence in the table",
+			args:     with("-o", "table", "--state", "x"),
+			mock:     `{"error":401}`,
+			wantOut:  fileOf("error: the key was rejected, status 401\n"),
+			stderr:   []string{"onesie: 401 status code, no body"},
+			wantCode: ExitAuth,
+		},
+		{
 			name:     "should exit 4 for one record the file fails with 503",
 			args:     with("--state", "x", "-o", "json"),
 			mock:     `{"error":503}`,

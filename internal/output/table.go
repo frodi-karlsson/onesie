@@ -42,13 +42,7 @@ func WriteTable(w io.Writer, rec Record, columns int) error {
 	}
 
 	if rec.Failure != nil {
-		status := "none"
-		if rec.Failure.Status != nil {
-			status = strconv.Itoa(*rec.Failure.Status)
-		}
-
-		if _, err := fmt.Fprintf(w, "error  %s  status %s  %s\n",
-			Printable(string(rec.Failure.Kind)), status, Printable(rec.Failure.Message)); err != nil {
+		if _, err := fmt.Fprintln(w, "error: "+Printable(failureText(rec.Failure))); err != nil {
 			return err
 		}
 	}
@@ -68,6 +62,14 @@ func WriteTable(w io.Writer, rec Record, columns int) error {
 	}
 
 	return nil
+}
+
+func failureText(failure *Failure) string {
+	if failure.Sentence == "" {
+		return failure.Message
+	}
+
+	return failure.Sentence
 }
 
 func widestProbability(rec Record) int {

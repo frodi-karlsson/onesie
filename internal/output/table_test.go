@@ -74,6 +74,8 @@ func TestWriteTable(t *testing.T) {
 
 	confidence := 0.81
 	low := 0.4
+	unauthorized := 401
+	unavailable := 503
 	sharp := 0.977
 	cost := 0.0000123
 	score := 1.0
@@ -153,8 +155,7 @@ func TestWriteTable(t *testing.T) {
 					{ID: "team", Answer: &answer.Answer{Value: "bil\x1bling"}},
 				},
 			},
-			contains: []string{"model: m[2J1", "bad news", "team: billing"},
-			absent:   []string{"\x1b", "\x07", "\r", "\u009b"},
+			want: "error: bad news\nmodel: m[2J1\n\nteam: billing\n",
 		},
 		{
 			name:    "should print a false assertion beside the model in the header",
@@ -296,9 +297,44 @@ func TestWriteTable(t *testing.T) {
 			name:    "should report the failure instead of answers",
 			columns: 80,
 			rec: output.Record{
-				Failure: &output.Failure{Kind: "transport", Message: "connection refused"},
+				Failure: &output.Failure{
+					Kind: "transport", Message: "could not reach api.example: connection refused",
+					Sentence: "could not reach api.example: connection refused",
+				},
 			},
-			contains: []string{"error", "transport", "connection refused"},
+			want: "error: could not reach api.example: connection refused\n",
+		},
+		{
+			name:    "should write a failure as one sentence",
+			columns: 80,
+			rec: output.Record{
+				Failure: &output.Failure{
+					Kind: "auth", Status: &unauthorized, Message: "401 status code, no body",
+					Sentence: "the key was rejected, status 401",
+				},
+				Answers: []output.Named{
+					{ID: "answer", Answer: &answer.Answer{Fallback: "error", Decided: true, Decision: false}},
+				},
+			},
+			want: "error: the key was rejected, status 401\n\nanswer: false (fallback)\n",
+		},
+		{
+			name:    "should leave out the status when none arrived",
+			columns: 80,
+			rec: output.Record{
+				Failure: &output.Failure{
+					Kind: "transport", Message: "request timed out after 10s", Sentence: "request timed out after 10s",
+				},
+			},
+			want: "error: request timed out after 10s\n",
+		},
+		{
+			name:    "should fall back to the message when there is no sentence",
+			columns: 80,
+			rec: output.Record{
+				Failure: &output.Failure{Kind: "http", Status: &unavailable, Message: "503 status code, no body"},
+			},
+			want: "error: 503 status code, no body\n",
 		},
 		{
 			name:    "should omit a confidence line when there is none",

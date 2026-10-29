@@ -863,6 +863,7 @@ func TestWithKeyHint(t *testing.T) {
 		wantCode int
 		wantErr  string
 		notErr   string
+		wantOut  string
 	}{
 		{
 			name: "should name profile update --key when the server refuses a profile's key",
@@ -872,6 +873,17 @@ func TestWithKeyHint(t *testing.T) {
 			status:   http.StatusUnauthorized,
 			wantCode: ExitAuth,
 			wantErr:  "onesie: 401 the key was refused. Replace the key with onesie profile update 'work' --key",
+		},
+		{
+			name: "should show the key hint in the terminal row",
+			profiles: `{"default":"work","profiles":{"work":{"provider":"typesafe","api_key":"SECRET-WORK",` +
+				`"base_url":"{url}"}}}`,
+			args:     []string{"is this urgent", "--state", "x", "-o", "table"},
+			status:   http.StatusUnauthorized,
+			wantCode: ExitAuth,
+			wantErr:  "onesie: 401 the key was refused. Replace the key with onesie profile update 'work' --key",
+			wantOut: "error: the key was rejected, status 401. the key was refused. " +
+				"Replace the key with onesie profile update 'work' --key\n",
 		},
 		{
 			name:     "should name the key variable when the server refuses a key from the environment",
@@ -934,6 +946,10 @@ func TestWithKeyHint(t *testing.T) {
 
 			if tc.notErr != "" && strings.Contains(errOut, tc.notErr) {
 				t.Errorf("stderr = %q, want no %q", errOut, tc.notErr)
+			}
+
+			if !strings.Contains(out, tc.wantOut) {
+				t.Errorf("stdout = %q, want it to contain %q", out, tc.wantOut)
 			}
 		})
 	}

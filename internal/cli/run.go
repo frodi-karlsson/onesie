@@ -680,6 +680,8 @@ func ask(
 		// for, so a shell guard reads a decision. An interrupt is skipped, since a transport record
 		// written into the pipe the caller was closing reports a fault that never happened.
 		if !errors.Is(err, context.Canceled) {
+			record.Failure.Sentence = sentence(withKeyHint(err, settings, flags.mock))
+
 			if writeErr := writeFailure(cmd, settings, outputMode, flags, inv, state.resolved, record); writeErr != nil {
 				return writeErr
 			}
