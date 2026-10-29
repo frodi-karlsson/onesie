@@ -849,6 +849,12 @@ table, and `onesie calibrate --help` lists the codes calibrate uses.
   attempt.
 - A notice onesie writes to stderr starts with `onesie: `, and a warning with `onesie: warning: `.
   The `--stats` summary and the `API key: ` prompt keep their own form.
+- In the table a failed answer reads as one sentence, as in
+  `error: the key was rejected, status 401`. What the response said follows the status, and then
+  any advice, such as where a refused key came from. When stdout and stderr are the same terminal,
+  the `onesie: ` line for that failure is left out, since the row shows it. The line stays when
+  either goes to a file or a pipe, under `--out`, `-q`, `-r` and every other `-o`, and when a
+  stream stops early. A failure after the answer, such as one writing `--out`, still prints.
 - `--list-models` shows what the account can ask, and `-m` picks one. Each line holds a model, its
   description and its release date as `YYYY-MM-DD`, which is blank when the provider gives none.
 - `--base-url` points onesie at any server that speaks the System One API. A redirect is refused

@@ -29,7 +29,8 @@ every `--assert` path.
 
 With no `-o`, output is a table when stdout is a terminal and one json line otherwise, and always
 json for a stream or under `--merge`. Pass `-o json` or `-o values` in a script, so a run in a
-terminal parses the same way.
+terminal parses the same way. On a terminal a failed answer shows once, as one sentence in the
+table, and its `onesie: ` line on stderr is left out. Every other output keeps that line.
 
 On a non zero exit or a key error, read `references/failures.md`.
 

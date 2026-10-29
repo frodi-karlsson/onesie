@@ -2249,6 +2249,7 @@ func runInConfig(
 		WithStdin(strings.NewReader(stdin)),
 		WithStdinTTY(false),
 		WithStdoutTTY(false),
+		withSharedTerminal(false),
 		WithLookupEnv(lookupFrom(lookup)),
 		// Never the real keychain. A case that wants one working passes its own.
 		withKeychain(noKeychain()),

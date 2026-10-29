@@ -685,6 +685,10 @@ func ask(
 			if writeErr := writeFailure(cmd, settings, outputMode, flags, inv, state.resolved, record); writeErr != nil {
 				return writeErr
 			}
+
+			if rowShowsFailure(settings, flags, outputMode) {
+				return &shownError{cause: err}
+			}
 		}
 
 		return err
@@ -765,6 +769,11 @@ func writeFailure(
 	}
 
 	return writeRecord(cmd, settings, mode, flags, inv, resolved, record)
+}
+
+func rowShowsFailure(settings rootSettings, flags runConfig, mode output.Mode) bool {
+	// Under --out the row goes to a file, so the terminal shows only the stderr line.
+	return mode == output.Table && !flags.quiet && flags.out == "" && settings.sharedTerminal
 }
 
 func writeRecord(

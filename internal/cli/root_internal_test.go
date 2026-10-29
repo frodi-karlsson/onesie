@@ -300,6 +300,74 @@ func TestIsTerminal(t *testing.T) {
 	}
 }
 
+func TestSharedTerminal(t *testing.T) {
+	t.Parallel()
+
+	file := func(t *testing.T) *os.File {
+		t.Helper()
+
+		f, err := os.Create(filepath.Join(t.TempDir(), "out"))
+		if err != nil {
+			t.Fatalf("creating the file: %v", err)
+		}
+
+		t.Cleanup(func() { _ = f.Close() })
+
+		return f
+	}
+
+	tests := []struct {
+		name  string
+		files func(t *testing.T) (*os.File, *os.File)
+	}{
+		{
+			name: "should not share a pipe",
+			files: func(t *testing.T) (*os.File, *os.File) {
+				t.Helper()
+
+				r, w, err := os.Pipe()
+				if err != nil {
+					t.Fatalf("opening the pipe: %v", err)
+				}
+
+				t.Cleanup(func() { _ = r.Close(); _ = w.Close() })
+
+				return w, w
+			},
+		},
+		{
+			name: "should not share two files",
+			files: func(t *testing.T) (*os.File, *os.File) {
+				t.Helper()
+
+				return file(t), file(t)
+			},
+		},
+		{
+			name: "should not share one file that is not a terminal",
+			files: func(t *testing.T) (*os.File, *os.File) {
+				t.Helper()
+
+				f := file(t)
+
+				return f, f
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			stdout, stderr := tc.files(t)
+
+			if sharedTerminal(stdout, stderr) {
+				t.Errorf("sharedTerminal(%s, %s) = true, want false", stdout.Name(), stderr.Name())
+			}
+		})
+	}
+}
+
 func TestNoArguments(t *testing.T) {
 	t.Parallel()
 
