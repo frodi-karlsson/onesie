@@ -163,7 +163,7 @@ type Edges struct {
 
 // String writes the edges for a person, as the table does.
 func (e Edges) String() string {
-	return fmt.Sprintf("left %s  top %s  right %s  bottom %s",
+	return fmt.Sprintf("left %s, top %s, right %s, bottom %s",
 		num.Format(e.Left), num.Format(e.Top), num.Format(e.Right), num.Format(e.Bottom))
 }
 

@@ -171,14 +171,12 @@ func headline(a *Answer) string {
 		return num.Format(probability)
 	}
 
-	shown := Printable(fmt.Sprintf("%v", scalar(a)))
-
 	// Without the mark the line reads as the model's answer.
 	if a.Fallback != "" {
-		return shown + " (fallback)"
+		return Printable(decisionWord(a.Decision)) + " (fallback)"
 	}
 
-	return shown
+	return Printable(fmt.Sprintf("%v", scalar(a)))
 }
 
 func decisionWord(decision any) string {

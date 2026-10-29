@@ -93,7 +93,7 @@ func TestWriteTable(t *testing.T) {
 			name:    "should write a box's edges and confidence",
 			columns: 80,
 			rec:     output.Record{Model: "m", Answers: []output.Named{{ID: "mug", Box: true, Answer: boxAnswer()}}},
-			want:    "model: m\n\nmug: left 0.44  top 0.25  right 0.84  bottom 0.82\n  confidence: 0.92\n",
+			want:    "model: m\n\nmug: left 0.44, top 0.25, right 0.84, bottom 0.82\n  confidence: 0.92\n",
 		},
 		{
 			name:    "should put the model in the header",
@@ -125,7 +125,17 @@ func TestWriteTable(t *testing.T) {
 					{ID: "answer", Answer: &answer.Answer{Fallback: "error", Decided: true, Decision: false}},
 				},
 			},
-			want: "\nanswer: false (fallback)\n",
+			want: "\nanswer: no (fallback)\n",
+		},
+		{
+			name:    "should word a yes fallback as the decision",
+			columns: 80,
+			rec: output.Record{
+				Answers: []output.Named{
+					{ID: "ok", Answer: &answer.Answer{Fallback: "low_confidence", Decided: true, Decision: true}},
+				},
+			},
+			want: "\nok: yes (fallback)\n",
 		},
 		{
 			name:    "should mark an answer a fallback replaced for low confidence",
@@ -316,7 +326,18 @@ func TestWriteTable(t *testing.T) {
 					{ID: "answer", Answer: &answer.Answer{Fallback: "error", Decided: true, Decision: false}},
 				},
 			},
-			want: "error: the key was rejected, status 401\n\nanswer: false (fallback)\n",
+			want: "error: the key was rejected, status 401\n\nanswer: no (fallback)\n",
+		},
+		{
+			name:    "should strip terminal escapes from the sentence",
+			columns: 80,
+			rec: output.Record{
+				Failure: &output.Failure{
+					Kind: "http", Status: &unavailable, Message: "503 status code, no body",
+					Sentence: "the server failed, status 503. \x1b[2Jgone\x07\r\u009bnow",
+				},
+			},
+			want: "error: the server failed, status 503. [2Jgonenow\n",
 		},
 		{
 			name:    "should leave out the status when none arrived",
