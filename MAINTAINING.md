@@ -108,8 +108,9 @@ something outside this module needs them.
 ## History lessons check
 
 The `History lessons` workflow asks onesie whether each comment and doc paragraph a change adds or
-edits describes an earlier version of the code or docs. It runs on every pull request and on every
-push to `main`. No ruleset requires it, so its red X is advice and blocks nothing.
+edits reports the project's own past, such as what the code used to do or what was removed. It runs
+on every pull request and on every push to `main`. No ruleset requires it, so its red X is advice
+and blocks nothing.
 
 `cmd/proseblocks` reads the change as a unified diff on stdin and writes one JSON line per comment
 group, paragraph or list item that overlaps a line the diff adds. It reads each block from the work
@@ -130,15 +131,33 @@ git diff -U0 --no-color --no-ext-diff --src-prefix=a/ --dst-prefix=b/ main -- '*
     -i jsonl --map .text --id .id --cache -o markdown'
 ```
 
-Two files hold labelled records. Each record holds an `id`, the `text` and a `history` label, true
+Three files hold labelled records. Each record holds an `id`, the `text` and a `history` label, true
 for a history lesson.
 
 - `.onesie/data/history-lesson-real.jsonl` holds only real blocks, each with a `source` that names
-  where it came from. The history lessons are prose that commits removed because it described the
-  past. The rest are blocks from the work tree that describe the present. Compare a new wording on
-  this set before you adopt it.
+  the commit and the line that hold it. Its history lessons tell how the code or the docs used to
+  be. The rest are blocks from the work tree, and blocks the check flags although they describe the
+  present, such as a reason ordered with after, an option that replaces a dependency, a comparison
+  or a note on files an older onesie wrote.
 - `.onesie/data/history-lesson.jsonl` is the calibration set. It holds written examples and a copy
   of every record in the real set, and the gate is checked against it.
+- `.onesie/data/history-lesson-stream.jsonl` is the benchmark. It holds the blocks of 59 pull
+  request runs of the check, 1015 in all, each with a `source`. Only 8 are labelled history
+  lessons, and `debatable` marks the 7 compatibility notes among them that a reader may take either
+  way. A `category` such as `comparison`, `counterfactual`, `compat` or `option-doc` groups the
+  rest. It shows how often a wording flags the prose this repo really writes, which the calibration
+  set is too small to show.
+
+Compare a new wording on the real set and the benchmark before you adopt it. Save it to a file of
+its own, then read the false alarms at the cuts you would pick:
+
+```sh
+bash -c 'set -a; . ./.env; set +a; exec bin/onesie calibrate -f new-history-lesson.yaml -i jsonl --map .text \
+    --id .id -m jev-1.13.0 --provider typesafe --label history=.history' < .onesie/data/history-lesson-stream.jsonl
+```
+
+The committed question flags at most 2 of the 1007 blocks that describe the present at its
+`abstain_if` cut, and lists about 2 in 100 as unsure.
 
 To recalibrate, add labelled records to the calibration set, and real ones to both files. Then ask
 for the answers the answers file lacks:
@@ -149,8 +168,12 @@ bash -c 'set -a; . ./.env; set +a; exec bin/onesie calibrate -f history-lesson -
     --out .onesie/data/history-lesson.answers.jsonl --resume' < .onesie/data/history-lesson.jsonl
 ```
 
-Pick the `assert` and `abstain_if` cuts from the table it prints, and commit the answers file with
-its `.onesie` fingerprint. A change to the question makes the answers file stale, so delete both
+Pick the `assert` and `abstain_if` cuts from the table it prints. Take the highest cuts that meet
+the requirements `TestProjectSets` lists, not the lowest cut with no false alarms. A cut that only
+clears the written examples sits too close to the prose the benchmark holds. The model is not
+deterministic, so a cut that meets a requirement by a single record can miss it on the next run.
+Leave a record to spare where the table allows it. Commit the answers file with its `.onesie`
+fingerprint. A change to the question makes the answers file stale, so delete both
 files and run the command again. `TestProjectSets` in `examples/` checks the gate against the
 committed answers offline with the requirements it lists, so `make check` fails when the gate and
 the answers disagree.
