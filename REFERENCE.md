@@ -144,6 +144,8 @@ ONESIE_MOCK=answers.json ./gate.sh
   error object as `-o json` writes it replays by its `kind`, and a `response` one is a 200 with no
   answers, which fails as
   `200 response could not be used: the response is not a System One result, since it has no answers`.
+  In the table on a terminal that stdout and stderr share, the row's sentence stands in for that
+  line, as in `error: the server failed, status 503`. More, below, says when the line is left out.
   An `http` one may carry the JSON `body` the server sends, as in
   `{"error": {"kind": "http", "status": 400, "body": {"detail": "Unknown model: jev-latest"}}}`,
   and then fails and advises as a live response with that body does. A string `body` is the raw
