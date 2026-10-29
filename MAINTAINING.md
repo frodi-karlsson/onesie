@@ -108,8 +108,9 @@ something outside this module needs them.
 ## History lessons check
 
 The `History lessons` workflow asks onesie whether each comment and doc paragraph a change adds or
-edits describes an earlier version of the code or docs. It runs on every pull request and on every
-push to `main`. No ruleset requires it, so its red X is advice and blocks nothing.
+edits reports the project's own past, such as what the code used to do or what was removed. It runs
+on every pull request and on every push to `main`. No ruleset requires it, so its red X is advice
+and blocks nothing.
 
 `cmd/proseblocks` reads the change as a unified diff on stdin and writes one JSON line per comment
 group, paragraph or list item that overlaps a line the diff adds. It reads each block from the work
@@ -130,18 +131,13 @@ git diff -U0 --no-color --no-ext-diff --src-prefix=a/ --dst-prefix=b/ main -- '*
     -i jsonl --map .text --id .id --cache -o markdown'
 ```
 
-Two files hold labelled records. Each record holds an `id`, the `text` and a `history` label, true
-for a history lesson.
+`.onesie/data/history-lesson.jsonl` holds the labelled records, and the gate is checked against
+it. Each record holds an `id`, the `text` and a `history` label, true for a history lesson. It holds
+written examples and real blocks, and a real block carries a `source` that names the commit and the
+line that hold it. Most real blocks are prose the check asks about on pull requests, weighted toward
+reasons, comparisons and notes on files of other versions, which draw the most false alarms.
 
-- `.onesie/data/history-lesson-real.jsonl` holds only real blocks, each with a `source` that names
-  where it came from. The history lessons are prose that commits removed because it described the
-  past. The rest are blocks from the work tree that describe the present. Compare a new wording on
-  this set before you adopt it.
-- `.onesie/data/history-lesson.jsonl` is the calibration set. It holds written examples and a copy
-  of every record in the real set, and the gate is checked against it.
-
-To recalibrate, add labelled records to the calibration set, and real ones to both files. Then ask
-for the answers the answers file lacks:
+To recalibrate, add labelled records, then ask for the answers the answers file lacks:
 
 ```sh
 bash -c 'set -a; . ./.env; set +a; exec bin/onesie calibrate -f history-lesson -i jsonl --map .text --id .id \
@@ -149,11 +145,14 @@ bash -c 'set -a; . ./.env; set +a; exec bin/onesie calibrate -f history-lesson -
     --out .onesie/data/history-lesson.answers.jsonl --resume' < .onesie/data/history-lesson.jsonl
 ```
 
-Pick the `assert` and `abstain_if` cuts from the table it prints, and commit the answers file with
-its `.onesie` fingerprint. A change to the question makes the answers file stale, so delete both
-files and run the command again. `TestProjectSets` in `examples/` checks the gate against the
-committed answers offline with the requirements it lists, so `make check` fails when the gate and
-the answers disagree.
+Pick the `assert` and `abstain_if` cuts from the table it prints. Take the highest cuts that meet
+the requirements `TestProjectSets` lists, not the lowest cut with no false alarms. The model is not
+deterministic, so leave a record to spare where the table allows it. The `abstain_if` cut of 0.77
+holds one record over its requirement, and two history lessons score exactly 0.77, so a fresh run
+can miss it. Commit the answers file with its `.onesie` fingerprint. A change to the question makes
+the answers file stale, so delete both files and run the command again. `TestProjectSets` in
+`examples/` checks the gate against the committed answers offline with the requirements it lists,
+so `make check` fails when the gate and the answers disagree.
 
 ## Releasing
 

@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/frodi-karlsson/onesie/main/schema/questions.json
-assert: history.value < 0.4
-abstain_if: history.value < 0.6
+assert: history.value < 0.55
+abstain_if: history.value < 0.77
 history:
-  ask: does this text describe an earlier version of the code or docs
-  yes_means: it tells how something used to be, or what changed between versions
-  no_means: it describes only how things are now
+  ask: does this text report something about this project's own earlier code, docs or behaviour, in the past tense or with words such as used to, no longer, previously or was removed
+  yes_means: it reports a past state or a past event of the project itself, such as what the code used to do, what was removed, renamed, added or moved, or why something was changed
+  no_means: it reports nothing about the project's past. Present tense rules, comparisons, conditions, what would happen otherwise and the order of steps are not the project's past. Neither is a comment that opens with a participle naming what the code beside it does, such as Removed while or Stored before, nor the past tense about a run, such as what a function already checked, what a request returned or a file that an earlier run or another version wrote
