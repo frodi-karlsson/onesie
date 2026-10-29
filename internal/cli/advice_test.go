@@ -599,6 +599,19 @@ func TestAdvise(t *testing.T) {
 				wantCode:    ExitUsage,
 				wantErr:     "onesie: 405 Method Not Allowed, with a response body that is not JSON" + check + "\n",
 			},
+			{
+				name:        "should word an oversized response without an option name",
+				args:        []string{"is this urgent", "--retries", "0"},
+				stdin:       "a ticket",
+				status:      http.StatusBadGateway,
+				response:    strings.Repeat("x", int(onesie.DefaultMaxResponseBytes)+1),
+				contentType: "text/plain",
+				wantCode:    ExitUnavailable,
+				wantErr:     "onesie: 502 Bad Gateway, and the response body is over the 8 MiB limit\n",
+				wantOut: []string{
+					`"message":"502 Bad Gateway, and the response body is over the 8 MiB limit"`,
+				},
+			},
 		}
 
 		for _, tc := range tests {
