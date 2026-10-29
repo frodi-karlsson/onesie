@@ -773,7 +773,7 @@ func writeFailure(
 
 func rowShowsFailure(settings rootSettings, flags runConfig, mode output.Mode) bool {
 	// Under --out the row goes to a file, so the terminal shows only the stderr line.
-	return mode == output.Table && !flags.quiet && flags.out == "" && settings.sharedTerminal
+	return mode == output.Table && !flags.quiet && flags.out == "" && settings.stdoutTTY && settings.sharedTTY
 }
 
 func writeRecord(

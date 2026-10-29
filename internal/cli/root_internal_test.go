@@ -316,10 +316,43 @@ func TestSharedTerminal(t *testing.T) {
 		return f
 	}
 
+	terminal := func(t *testing.T, path string) *os.File {
+		t.Helper()
+
+		f, err := os.OpenFile(path, os.O_RDWR, 0)
+		if err != nil {
+			t.Fatalf("opening the terminal: %v", err)
+		}
+
+		t.Cleanup(func() { _ = f.Close() })
+
+		return f
+	}
+
 	tests := []struct {
 		name  string
 		files func(t *testing.T) (*os.File, *os.File)
+		want  bool
 	}{
+		{
+			name: "should share one terminal opened twice",
+			files: func(t *testing.T) (*os.File, *os.File) {
+				t.Helper()
+
+				path := pseudoTerminal(t)
+
+				return terminal(t, path), terminal(t, path)
+			},
+			want: true,
+		},
+		{
+			name: "should not share two terminals",
+			files: func(t *testing.T) (*os.File, *os.File) {
+				t.Helper()
+
+				return terminal(t, pseudoTerminal(t)), terminal(t, pseudoTerminal(t))
+			},
+		},
 		{
 			name: "should not share a pipe",
 			files: func(t *testing.T) (*os.File, *os.File) {
@@ -361,8 +394,8 @@ func TestSharedTerminal(t *testing.T) {
 
 			stdout, stderr := tc.files(t)
 
-			if sharedTerminal(stdout, stderr) {
-				t.Errorf("sharedTerminal(%s, %s) = true, want false", stdout.Name(), stderr.Name())
+			if got := sharedTerminal(stdout, stderr); got != tc.want {
+				t.Errorf("sharedTerminal(%s, %s) = %t, want %t", stdout.Name(), stderr.Name(), got, tc.want)
 			}
 		})
 	}

@@ -54,7 +54,7 @@ func TestMockAnswers(t *testing.T) {
 	fallback := []string{
 		"--ask", "t=which team", "--pick", "billing,platform", "--min-confidence", "0.5", "--fallback", "billing",
 	}
-	onTerminal := []RootOption{WithStdoutTTY(true), withSharedTerminal(true)}
+	onTerminal := []RootOption{WithStdoutTTY(true), withSharedTTY(true)}
 
 	tests := []struct {
 		name     string
@@ -275,7 +275,16 @@ func TestMockAnswers(t *testing.T) {
 			name:     "should keep the stderr line when stderr is not the terminal",
 			args:     with("--state", "x"),
 			mock:     `{"error":401}`,
-			opts:     []RootOption{WithStdoutTTY(true), withSharedTerminal(false)},
+			opts:     []RootOption{WithStdoutTTY(true), withSharedTTY(false)},
+			wantOut:  fileOf("error: the key was rejected, status 401\n"),
+			stderr:   []string{"onesie: 401 status code, no body"},
+			wantCode: ExitAuth,
+		},
+		{
+			name:     "should keep the stderr line when stdout is not a terminal",
+			args:     with("--state", "x", "-o", "table"),
+			mock:     `{"error":401}`,
+			opts:     []RootOption{WithStdoutTTY(false), withSharedTTY(true)},
 			wantOut:  fileOf("error: the key was rejected, status 401\n"),
 			stderr:   []string{"onesie: 401 status code, no body"},
 			wantCode: ExitAuth,
@@ -1337,7 +1346,6 @@ func runMockedTo(
 		WithStdin(reader),
 		WithStdinTTY(false),
 		WithStdoutTTY(false),
-		withSharedTerminal(false),
 		WithLookupEnv(lookupFrom(lookup)),
 		WithClientFactory(func(context.Context, ...onesie.Option) (*onesie.Client, error) {
 			t.Error("a mock run built an API client")

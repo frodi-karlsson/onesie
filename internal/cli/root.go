@@ -368,35 +368,35 @@ func wordAnswersError(err error) error {
 
 func defaultSettings(info BuildInfo) rootSettings {
 	return rootSettings{
-		stdin:          os.Stdin,
-		stdinTTY:       isTerminal(os.Stdin),
-		stdoutTTY:      isTerminal(os.Stdout),
-		sharedTerminal: sharedTerminal(os.Stdout, os.Stderr),
-		readFile:       os.ReadFile,
-		readDir:        os.ReadDir,
-		stat:           os.Stat,
-		getwd:          os.Getwd,
-		openFile:       os.OpenFile,
-		rename:         os.Rename,
-		remove:         os.Remove,
-		resolve:        filepath.EvalSymlinks,
-		readlink:       os.Readlink,
-		goos:           runtime.GOOS,
-		lookupEnv:      os.LookupEnv,
-		homeDir:        os.UserHomeDir,
-		now:            time.Now,
-		terminalWidth:  widthOf(os.Stdout),
-		credStore:      creds.NewStore(),
-		keychain:       creds.NewKeychain(),
-		readSecret:     func() (string, error) { return readHiddenSecret(os.Stdin) },
-		schemaURL:      schemaURLOf(info),
-		dedupLimit:     limits.MaxDedupRequests,
-		readBuiltIn:    questions.Read,
-		builtIns:       questions.Names,
-		transport:      http.DefaultTransport,
-		clock:          onesie.SystemClock(),
-		mockTransport:  func(provider onesie.Provider) http.RoundTripper { return mock.NewTransport(provider) },
-		laterFailures:  &failureLog{},
+		stdin:         os.Stdin,
+		stdinTTY:      isTerminal(os.Stdin),
+		stdoutTTY:     isTerminal(os.Stdout),
+		sharedTTY:     sharedTerminal(os.Stdout, os.Stderr),
+		readFile:      os.ReadFile,
+		readDir:       os.ReadDir,
+		stat:          os.Stat,
+		getwd:         os.Getwd,
+		openFile:      os.OpenFile,
+		rename:        os.Rename,
+		remove:        os.Remove,
+		resolve:       filepath.EvalSymlinks,
+		readlink:      os.Readlink,
+		goos:          runtime.GOOS,
+		lookupEnv:     os.LookupEnv,
+		homeDir:       os.UserHomeDir,
+		now:           time.Now,
+		terminalWidth: widthOf(os.Stdout),
+		credStore:     creds.NewStore(),
+		keychain:      creds.NewKeychain(),
+		readSecret:    func() (string, error) { return readHiddenSecret(os.Stdin) },
+		schemaURL:     schemaURLOf(info),
+		dedupLimit:    limits.MaxDedupRequests,
+		readBuiltIn:   questions.Read,
+		builtIns:      questions.Names,
+		transport:     http.DefaultTransport,
+		clock:         onesie.SystemClock(),
+		mockTransport: func(provider onesie.Provider) http.RoundTripper { return mock.NewTransport(provider) },
+		laterFailures: &failureLog{},
 	}
 }
 
@@ -855,9 +855,9 @@ func withTerminalWidth(width func() (int, bool)) RootOption {
 	}
 }
 
-func withSharedTerminal(shared bool) RootOption {
+func withSharedTTY(shared bool) RootOption {
 	return func(s *rootSettings) {
-		s.sharedTerminal = shared
+		s.sharedTTY = shared
 	}
 }
 
@@ -905,42 +905,42 @@ func schemaURLOf(info BuildInfo) string {
 }
 
 type rootSettings struct {
-	args           []string
-	holder         *holder
-	newClient      clientFactory
-	stdin          io.Reader
-	stdinTTY       bool
-	stdoutTTY      bool
-	sharedTerminal bool
-	readFile       func(string) ([]byte, error)
-	readDir        func(string) ([]fs.DirEntry, error)
-	stat           func(string) (fs.FileInfo, error)
-	getwd          func() (string, error)
-	configDir      func() (string, error)
-	openFile       func(name string, flag int, perm os.FileMode) (*os.File, error)
-	rename         func(oldpath, newpath string) error
-	remove         func(name string) error
-	resolve        func(path string) (string, error)
-	readlink       func(name string) (string, error)
-	goos           string
-	lock           func(answers string) (release func() error, err error)
-	lookupEnv      func(string) (string, bool)
-	homeDir        func() (string, error)
-	now            func() time.Time
-	stdinClock     input.Clock
-	terminalWidth  func() (int, bool)
-	profilesPath   func() (string, error)
-	credStore      creds.Store
-	keychain       *creds.Keychain
-	readSecret     func() (string, error)
-	schemaURL      string
-	dedupLimit     int
-	readBuiltIn    func(name string) ([]byte, bool)
-	builtIns       func() []string
-	transport      http.RoundTripper
-	clock          onesie.Clock
-	mockTransport  func(onesie.Provider) http.RoundTripper
-	laterFailures  *failureLog
+	args          []string
+	holder        *holder
+	newClient     clientFactory
+	stdin         io.Reader
+	stdinTTY      bool
+	stdoutTTY     bool
+	sharedTTY     bool
+	readFile      func(string) ([]byte, error)
+	readDir       func(string) ([]fs.DirEntry, error)
+	stat          func(string) (fs.FileInfo, error)
+	getwd         func() (string, error)
+	configDir     func() (string, error)
+	openFile      func(name string, flag int, perm os.FileMode) (*os.File, error)
+	rename        func(oldpath, newpath string) error
+	remove        func(name string) error
+	resolve       func(path string) (string, error)
+	readlink      func(name string) (string, error)
+	goos          string
+	lock          func(answers string) (release func() error, err error)
+	lookupEnv     func(string) (string, bool)
+	homeDir       func() (string, error)
+	now           func() time.Time
+	stdinClock    input.Clock
+	terminalWidth func() (int, bool)
+	profilesPath  func() (string, error)
+	credStore     creds.Store
+	keychain      *creds.Keychain
+	readSecret    func() (string, error)
+	schemaURL     string
+	dedupLimit    int
+	readBuiltIn   func(name string) ([]byte, bool)
+	builtIns      func() []string
+	transport     http.RoundTripper
+	clock         onesie.Clock
+	mockTransport func(onesie.Provider) http.RoundTripper
+	laterFailures *failureLog
 }
 
 func widthOf(f *os.File) func() (int, bool) {
