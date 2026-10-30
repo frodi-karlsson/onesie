@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/frodi-karlsson/onesie-go"
+	"github.com/frodi-karlsson/onesie/internal/runner"
 )
 
 func TestStreamRaw(t *testing.T) {
@@ -1088,7 +1089,7 @@ func TestRawRun_Send(t *testing.T) {
 				t.Fatalf("PrepareRaw: %v", err)
 			}
 
-			stats := &Collector{}
+			stats := &runner.Collector{}
 			run := &rawRun{stats: stats, provider: onesie.TypeSafe(), client: client}
 
 			line, err := run.send(t.Context(), body)

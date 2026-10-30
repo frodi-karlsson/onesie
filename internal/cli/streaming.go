@@ -9,6 +9,7 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/answersfile"
 	"github.com/frodi-karlsson/onesie/internal/output"
 	"github.com/frodi-karlsson/onesie/internal/plan"
+	"github.com/frodi-karlsson/onesie/internal/runner"
 )
 
 func stream(cmd *cobra.Command, in streamInputs) error {
@@ -21,7 +22,7 @@ func stream(cmd *cobra.Command, in streamInputs) error {
 		return err
 	}
 
-	outcome, err := Stream(cmd.Context(), streamConfig(cmd, in, model))
+	outcome, err := runner.Stream(cmd.Context(), streamConfig(cmd, in, model))
 	if err != nil {
 		return err
 	}
@@ -39,23 +40,23 @@ type streamInputs struct {
 	flags      runConfig
 	inv        *invocation
 	outputMode output.Mode
-	stats      *Collector
+	stats      *runner.Collector
 	answers    *answersfile.File
 	resume     answersfile.Resume
-	answerers  AnswererFactory
+	answerers  runner.AnswererFactory
 }
 
-func streamConfig(cmd *cobra.Command, in streamInputs, model string) StreamConfig {
+func streamConfig(cmd *cobra.Command, in streamInputs, model string) runner.StreamConfig {
 	inv, flags := in.inv, in.flags
 
-	return StreamConfig{
+	return runner.StreamConfig{
 		Input:      in.settings.stdin,
 		InputMode:  flags.inputMode,
 		SkipBlank:  flags.skipBlank,
 		Out:        cmd.OutOrStdout(),
 		ErrOut:     cmd.ErrOrStderr(),
 		OutputMode: in.outputMode,
-		Ask: Ask{
+		Ask: runner.Ask{
 			Plan: inv.plan, Model: model, Questions: plan.WireAll(inv.plan.Questions), Usage: flags.usage,
 			Message: text,
 		},
@@ -85,9 +86,9 @@ func withStats(
 	cmd *cobra.Command,
 	now func() time.Time,
 	flags runConfig,
-	body func(*Collector) error,
+	body func(*runner.Collector) error,
 ) error {
-	stats := &Collector{}
+	stats := &runner.Collector{}
 	started := now()
 
 	err := body(stats)

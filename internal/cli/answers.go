@@ -12,6 +12,7 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/cache"
 	"github.com/frodi-karlsson/onesie/internal/output"
 	"github.com/frodi-karlsson/onesie/internal/plan"
+	"github.com/frodi-karlsson/onesie/internal/runner"
 )
 
 const (
@@ -22,7 +23,7 @@ const (
 func answersFor(
 	cmd *cobra.Command, settings rootSettings, flags runConfig, built *plan.Plan, known []plan.Question,
 	model string,
-) (AnswererFactory, error) {
+) (runner.AnswererFactory, error) {
 	if flags.mockPath != "" {
 		chosen, err := settings.holder.resolved()
 		if err != nil {
@@ -62,8 +63,8 @@ func caching(flags runConfig) bool {
 	return flags.env.cache
 }
 
-func liveAnswers(settings rootSettings, flags runConfig) AnswererFactory {
-	return func(ctx context.Context, stats *Collector) (Answerer, error) {
+func liveAnswers(settings rootSettings, flags runConfig) runner.AnswererFactory {
+	return func(ctx context.Context, stats *runner.Collector) (runner.Answerer, error) {
 		chosen, err := settings.holder.resolved()
 		if err != nil {
 			return nil, err
@@ -78,8 +79,8 @@ func liveAnswers(settings rootSettings, flags runConfig) AnswererFactory {
 	}
 }
 
-func cachedAnswers(settings rootSettings, flags runConfig, model string, warn func(error)) AnswererFactory {
-	return func(ctx context.Context, stats *Collector) (Answerer, error) {
+func cachedAnswers(settings rootSettings, flags runConfig, model string, warn func(error)) runner.AnswererFactory {
+	return func(ctx context.Context, stats *runner.Collector) (runner.Answerer, error) {
 		chosen, err := settings.holder.resolved()
 		if err != nil {
 			return nil, err
@@ -92,14 +93,14 @@ func cachedAnswers(settings rootSettings, flags runConfig, model string, warn fu
 
 		open := func() (*cache.Store, error) { return openCache(settings, flags.env.aliasTTL) }
 
-		return NewCachedAnswerer(explainedAnswerer(client), open, client, model, warn), nil
+		return runner.NewCachedAnswerer(explainedAnswerer(client), open, client, model, warn), nil
 	}
 }
 
-func explainedAnswerer(client *onesie.Client) LiveAnswerer {
+func explainedAnswerer(client *onesie.Client) runner.LiveAnswerer {
 	provider := client.Provider()
 
-	return NewLiveAnswerer(client, func(err error, req onesie.Request) error {
+	return runner.NewLiveAnswerer(client, func(err error, req onesie.Request) error {
 		return explain(err, requestFacts{
 			provider: provider, model: req.Model, longContext: req.LongContext, boxed: req.Needs().Box,
 		})
@@ -127,5 +128,5 @@ func openCache(settings rootSettings, ttl time.Duration) (*cache.Store, error) {
 		return nil, err
 	}
 
-	return OpenCache(dir, cache.Options{Now: settings.now, GOOS: settings.goos, AliasTTL: ttl})
+	return runner.OpenCache(dir, cache.Options{Now: settings.now, GOOS: settings.goos, AliasTTL: ttl})
 }

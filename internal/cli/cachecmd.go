@@ -10,6 +10,7 @@ import (
 
 	"github.com/frodi-karlsson/onesie/internal/cache"
 	"github.com/frodi-karlsson/onesie/internal/output"
+	"github.com/frodi-karlsson/onesie/internal/runner"
 )
 
 func newCacheCmd(settings rootSettings) *cobra.Command {
@@ -104,7 +105,7 @@ func checkedCacheDir(settings rootSettings) (string, error) {
 
 func warnRefused(w io.Writer, settings rootSettings, dir string) error {
 	// Any other failure to read the directory is left to the summary that follows.
-	if err := cache.Check(dir, cache.Options{GOOS: settings.goos}); CacheRefused(err) {
+	if err := cache.Check(dir, cache.Options{GOOS: settings.goos}); runner.CacheRefused(err) {
 		return output.Notice(w, err.Error())
 	}
 

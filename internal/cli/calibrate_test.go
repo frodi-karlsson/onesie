@@ -29,6 +29,7 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/limits"
 	"github.com/frodi-karlsson/onesie/internal/output"
 	"github.com/frodi-karlsson/onesie/internal/plan"
+	"github.com/frodi-karlsson/onesie/internal/runner"
 )
 
 func TestNewCalibrateCmd(t *testing.T) {
@@ -2518,7 +2519,7 @@ func TestReportOf(t *testing.T) {
 		{name: "should fail a pick that is not a string", record: answeredWith(0.5, 3, confidence(0.5)), wantFailed: 1},
 		{
 			name:       "should fail a record whose request failed",
-			record:     Ask{Plan: built, Message: text}.Failure(errors.New("boom")),
+			record:     runner.Ask{Plan: built, Message: text}.Failure(errors.New("boom")),
 			wantFailed: 1,
 		},
 	}

@@ -21,6 +21,7 @@ import (
 	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/mock"
 	"github.com/frodi-karlsson/onesie/internal/plan"
+	"github.com/frodi-karlsson/onesie/internal/runner"
 )
 
 const (
@@ -1166,7 +1167,7 @@ func TestMockAnswerer_Answer(t *testing.T) {
 	questions := onesie.Questions{{ID: "answer", Question: onesie.Noul{Instructions: "q"}}}
 	known := []plan.Question{{ID: "answer", Shape: plan.Noul}}
 
-	asker := func(t *testing.T, file string, provider onesie.Provider, retries int) (mockAnswerer, *Collector) {
+	asker := func(t *testing.T, file string, provider onesie.Provider, retries int) (mockAnswerer, *runner.Collector) {
 		t.Helper()
 
 		answers, err := mock.Load(strings.NewReader(file), known, mock.Options{})
@@ -1174,7 +1175,7 @@ func TestMockAnswerer_Answer(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		stats := &Collector{}
+		stats := &runner.Collector{}
 		settings := defaultSettings(BuildInfo{})
 		settings.lookupEnv = lookupFrom(map[string]string{})
 
@@ -1196,7 +1197,7 @@ func TestMockAnswerer_Answer(t *testing.T) {
 
 		a, stats := asker(t, `{"answer":0.9}`, onesie.Levanto(), 0)
 
-		_, err = a.Answer(t.Context(), RecordKey{Position: 1}, onesie.Request{
+		_, err = a.Answer(t.Context(), runner.RecordKey{Position: 1}, onesie.Request{
 			Model: onesie.Levanto().DefaultModel(), State: map[string]any{"photo": "img"}, Questions: questions,
 			Assets: onesie.Assets{"img": img},
 		})
@@ -1214,7 +1215,7 @@ func TestMockAnswerer_Answer(t *testing.T) {
 
 		a, _ := asker(t, `{"answer":0.9}`, onesie.TypeSafe(), 0)
 
-		_, err := a.Answer(t.Context(), RecordKey{Position: 1}, onesie.Request{
+		_, err := a.Answer(t.Context(), runner.RecordKey{Position: 1}, onesie.Request{
 			Model: "m", State: "s", Questions: onesie.Questions{
 				{ID: "answer", Question: onesie.Noul{Instructions: "q"}},
 				{ID: "other", Question: onesie.Noul{Instructions: "q"}},
@@ -1233,7 +1234,7 @@ func TestMockAnswerer_Answer(t *testing.T) {
 
 		a, stats := asker(t, `{"answer":0.9}`, onesie.Cloudflare(), 0)
 
-		_, err := a.Answer(t.Context(), RecordKey{Position: 1}, onesie.Request{
+		_, err := a.Answer(t.Context(), runner.RecordKey{Position: 1}, onesie.Request{
 			Model: "m", State: "s",
 			Questions: onesie.Questions{{ID: "answer", Question: onesie.Box{Instructions: "q"}}},
 		})
@@ -1251,7 +1252,7 @@ func TestMockAnswerer_Answer(t *testing.T) {
 
 		a, stats := asker(t, `{"answer":0.9}`, onesie.TypeSafe(), 0)
 
-		got, err := a.Answer(t.Context(), RecordKey{Position: 1}, onesie.Request{
+		got, err := a.Answer(t.Context(), runner.RecordKey{Position: 1}, onesie.Request{
 			Model: "other", State: "s", Questions: questions,
 		})
 		if err != nil {
@@ -1276,7 +1277,7 @@ func TestMockAnswerer_Answer(t *testing.T) {
 
 			started := time.Now()
 
-			_, err := a.Answer(t.Context(), RecordKey{Position: 1}, onesie.Request{
+			_, err := a.Answer(t.Context(), runner.RecordKey{Position: 1}, onesie.Request{
 				Model: "m", State: "s", Questions: questions,
 			})
 			if err == nil || !strings.Contains(err.Error(), "503 status code, no body") {
@@ -1298,7 +1299,7 @@ func TestMockAnswerer_Answer(t *testing.T) {
 
 		a, _ := asker(t, `{"error":402}`, onesie.TypeSafe(), 0)
 
-		got, err := a.Answer(t.Context(), RecordKey{Position: 1}, onesie.Request{
+		got, err := a.Answer(t.Context(), runner.RecordKey{Position: 1}, onesie.Request{
 			Model: "m", State: "s", Questions: questions,
 		})
 		if err == nil || !strings.Contains(err.Error(), "402 status code, no body") {

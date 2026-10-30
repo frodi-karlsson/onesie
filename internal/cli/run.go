@@ -19,6 +19,7 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/output"
 	"github.com/frodi-karlsson/onesie/internal/plan"
 	"github.com/frodi-karlsson/onesie/internal/qfile"
+	"github.com/frodi-karlsson/onesie/internal/runner"
 )
 
 func run(
@@ -84,7 +85,7 @@ func runListModels(cmd *cobra.Command, settings rootSettings, flags runConfig, o
 
 	out.BindWithoutFingerprint()
 
-	return withStats(cmd, settings.now, flags, func(stats *Collector) error {
+	return withStats(cmd, settings.now, flags, func(stats *runner.Collector) error {
 		return listModels(cmd, settings, flags, stats)
 	})
 }
@@ -104,7 +105,7 @@ func runRequestBodies(
 		return bindErr
 	}
 
-	return withStats(cmd, settings.now, flags, func(stats *Collector) error {
+	return withStats(cmd, settings.now, flags, func(stats *runner.Collector) error {
 		return streamRaw(cmd, settings, flags, stats, out, resume)
 	})
 }
@@ -157,7 +158,7 @@ func runPlan(
 			return refuseErr
 		}
 
-		return withStats(cmd, settings.now, flags, func(stats *Collector) error {
+		return withStats(cmd, settings.now, flags, func(stats *runner.Collector) error {
 			return stream(cmd, streamInputs{
 				settings: settings, flags: flags, inv: inv, outputMode: outputMode, stats: stats, answers: out,
 				resume: resume, answerers: answers,
@@ -178,7 +179,7 @@ func runOne(
 	flags runConfig,
 	inv *invocation,
 	outputMode output.Mode,
-	answers AnswererFactory,
+	answers runner.AnswererFactory,
 ) error {
 	built := inv.plan
 
@@ -193,7 +194,7 @@ func runOne(
 
 	sent := resolved.Wire
 	if resolved.Source != input.SourceNone {
-		sent, err = Mapped(cmd.Context(), inv.mapper, resolved.State, resolved.Wire, plan.Flags)
+		sent, err = runner.Mapped(cmd.Context(), inv.mapper, resolved.State, resolved.Wire, plan.Flags)
 		if err != nil {
 			return err
 		}
@@ -219,19 +220,19 @@ func runOne(
 		}
 
 		model := chosen.modelFor(built.Model, settings.lookupEnv)
-		req := Ask{Plan: built, Model: model, Questions: plan.WireAll(built.Questions)}.Request(sent, assets)
+		req := runner.Ask{Plan: built, Model: model, Questions: plan.WireAll(built.Questions)}.Request(sent, assets)
 
 		return printRequest(cmd.OutOrStdout(), chosen.provider, req, resolved.Source != input.SourceNone)
 	}
 
 	// Checked here rather than at write time, so a taken key costs no request.
-	if merging(flags) && HasKey(resolved.State, mergeKey(flags)) {
+	if merging(flags) && runner.HasKey(resolved.State, mergeKey(flags)) {
 		return fmt.Errorf(
 			"--merge would overwrite the input's '%s' key. Pass --merge-key",
 			mergeKey(flags))
 	}
 
-	return withStats(cmd, settings.now, flags, func(stats *Collector) error {
+	return withStats(cmd, settings.now, flags, func(stats *runner.Collector) error {
 		return ask(cmd, settings, flags, inv, singleState{resolved: resolved, sent: sent, assets: assets},
 			outputMode, stats, answers)
 	})
@@ -500,7 +501,7 @@ func streamResult(result engine.Result, falseAsserts, abstains int) error {
 func stoppedAtInput(cause error) bool {
 	// --stop-on-error ended the run at a record that never became a request. The exit code table
 	// has no code of its own for that, so it exits 6 as the same record does without the flag.
-	return !Aborting(cause) && !errors.Is(cause, context.Canceled) && classify(cause).kind == output.KindInput
+	return !runner.Aborting(cause) && !errors.Is(cause, context.Canceled) && classify(cause).kind == output.KindInput
 }
 
 func ask(
@@ -510,8 +511,8 @@ func ask(
 	inv *invocation,
 	state singleState,
 	outputMode output.Mode,
-	stats *Collector,
-	answerers AnswererFactory,
+	stats *runner.Collector,
+	answerers runner.AnswererFactory,
 ) error {
 	asker, err := answerers(cmd.Context(), stats)
 	if err != nil {
@@ -525,12 +526,12 @@ func ask(
 		return err
 	}
 
-	asking := Ask{
+	asking := runner.Ask{
 		Plan: built, Model: model, Questions: plan.WireAll(built.Questions), Usage: flags.usage, Message: text,
 	}
 
-	record, err := asking.Record(cmd.Context(), asker, RecordKey{Position: 1, Line: 1}, state.sent, state.assets, stats)
-	if Halting(err) {
+	record, err := asking.Record(cmd.Context(), asker, runner.RecordKey{Position: 1, Line: 1}, state.sent, state.assets, stats)
+	if runner.Halting(err) {
 		return err
 	}
 
@@ -555,7 +556,7 @@ func ask(
 
 	// Only a record that arrived is evaluated. A failed request would read as all zeros, so a gate
 	// such as answer.value < 0.5 would hold for a request that never happened.
-	record = Judge(gate, abstain, record, stats)
+	record = runner.Judge(gate, abstain, record, stats)
 
 	if flags.quiet {
 		// Beside an assertion -q only silences the output. A gate of its own on top would make a
@@ -629,7 +630,7 @@ func writeRecord(
 	}
 
 	if mode == output.CSV || mode == output.TSV {
-		return DelimitedFor(cmd.OutOrStdout(), mode, inv.plan, inv.gate != nil, false, false).Write(record, nil, nil)
+		return runner.DelimitedFor(cmd.OutOrStdout(), mode, inv.plan, inv.gate != nil, false, false).Write(record, nil, nil)
 	}
 
 	if merging(flags) {

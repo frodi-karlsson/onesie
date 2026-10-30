@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/frodi-karlsson/onesie-go"
+	"github.com/frodi-karlsson/onesie/internal/runner"
 )
 
 func TestExplainedAnswerer(t *testing.T) {
@@ -102,7 +103,7 @@ func TestExplainedAnswerer(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			_, err = explainedAnswerer(client).Answer(t.Context(), RecordKey{}, onesie.Request{
+			_, err = explainedAnswerer(client).Answer(t.Context(), runner.RecordKey{}, onesie.Request{
 				State: "a ticket", Model: client.DefaultModel(),
 				Questions: onesie.Questions{{ID: "u", Question: onesie.Noul{Instructions: "is it urgent"}}},
 			})

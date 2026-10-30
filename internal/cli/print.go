@@ -17,6 +17,7 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/output"
 	"github.com/frodi-karlsson/onesie/internal/plan"
 	"github.com/frodi-karlsson/onesie/internal/qfile"
+	"github.com/frodi-karlsson/onesie/internal/runner"
 )
 
 func printSchema(w io.Writer) error {
@@ -134,32 +135,32 @@ func streamRequests(
 
 	run := &requestRun{
 		mapper: inv.mapper, images: inv.images, provider: chosen.provider,
-		ask: Ask{
+		ask: runner.Ask{
 			Plan: inv.plan, Model: chosen.modelFor(inv.plan.Model, settings.lookupEnv),
 			Questions: plan.WireAll(inv.plan.Questions),
 		},
 	}
-	source := NewNaming(cmd.Context(), RecordsConfig{
-		ResumedConfig: ResumedConfig{
+	source := runner.NewNaming(cmd.Context(), runner.RecordsConfig{
+		ResumedConfig: runner.ResumedConfig{
 			Resume: resume, OutputMode: output.JSON, StopOnAssert: flags.stopOnAssert, StopOnError: flags.stopOnError,
 			Speller: plan.Flags,
 		},
 		Input: settings.stdin, InputMode: flags.inputMode, SkipBlank: flags.skipBlank, Namer: inv.namer,
 	})
 
-	result, err := engine.Run(cmd.Context(), engine.Config[NamedRecord, []byte]{
+	result, err := engine.Run(cmd.Context(), engine.Config[runner.NamedRecord, []byte]{
 		Source:      source,
 		Evaluate:    run.evaluate,
 		Write:       writeBodies(cmd.OutOrStdout()),
 		Jobs:        flags.jobs,
 		Unordered:   flags.unordered,
 		StopOnError: flags.stopOnError,
-		Abort:       Aborting,
+		Abort:       runner.Aborting,
 	})
 	source.Stop()
 
 	if err != nil {
-		return &SourceError{Err: err, Failed: result.Failed}
+		return &runner.SourceError{Err: err, Failed: result.Failed}
 	}
 
 	// A dry run asks no question, so no record can have carried an assertion.
@@ -167,13 +168,13 @@ func streamRequests(
 }
 
 type requestRun struct {
-	ask      Ask
+	ask      runner.Ask
 	mapper   *jq.Expr
 	images   *imaging
 	provider onesie.Provider
 }
 
-func (r *requestRun) evaluate(ctx context.Context, rec NamedRecord) ([]byte, error) {
+func (r *requestRun) evaluate(ctx context.Context, rec runner.NamedRecord) ([]byte, error) {
 	if rec.Err != nil {
 		// A value alongside the error, because the engine writes every outcome. Returning
 		// nil here would print a blank line rather than the record.
@@ -190,7 +191,7 @@ func (r *requestRun) evaluate(ctx context.Context, rec NamedRecord) ([]byte, err
 
 	state, wire := r.images.WrapLine(rec.State, rec.Wire)
 
-	sent, mapErr := Mapped(ctx, r.mapper, state, wire, plan.Flags)
+	sent, mapErr := runner.Mapped(ctx, r.mapper, state, wire, plan.Flags)
 	if interrupted(ctx) {
 		return nil, ctx.Err()
 	}
@@ -212,7 +213,7 @@ func (r *requestRun) evaluate(ctx context.Context, rec NamedRecord) ([]byte, err
 	return requestLine(rec.Line, req)
 }
 
-func badLine(rec NamedRecord, cause error) ([]byte, error) {
+func badLine(rec runner.NamedRecord, cause error) ([]byte, error) {
 	bad := &input.LineError{Line: rec.Line, Err: cause}
 
 	return errorLine(bad), bad
@@ -230,7 +231,7 @@ func requestLine(number int, req onesie.Request) ([]byte, error) {
 }
 
 func errorLine(cause error) []byte {
-	return output.EncodeFailure(Describe(cause, text))
+	return output.EncodeFailure(runner.Describe(cause, text))
 }
 
 func written(err error) error {

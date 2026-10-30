@@ -1,10 +1,10 @@
-package cli_test
+package runner_test
 
 import (
 	"testing"
 	"time"
 
-	"github.com/frodi-karlsson/onesie/internal/cli"
+	"github.com/frodi-karlsson/onesie/internal/runner"
 )
 
 func TestStatsString(t *testing.T) {
@@ -14,12 +14,12 @@ func TestStatsString(t *testing.T) {
 
 	tests := []struct {
 		name  string
-		stats cli.Stats
+		stats runner.Stats
 		want  string
 	}{
 		{
 			name: "should render a single request",
-			stats: cli.Stats{
+			stats: runner.Stats{
 				Records: 1, Requests: 1, Questions: 3, InputTokens: 2841, OutputTokens: 71,
 				Models: []string{"onesie-1.13.0"}, Attempts: 3,
 				Retries: map[int]int{429: 2}, AttemptTimeout: 10 * time.Second,
@@ -30,7 +30,7 @@ func TestStatsString(t *testing.T) {
 		},
 		{
 			name: "should render a stream with failures and two models",
-			stats: cli.Stats{
+			stats: runner.Stats{
 				Records: 40, Requests: 40, Failed: 2, Questions: 80,
 				InputTokens: 10000, OutputTokens: 400,
 				Models: []string{"onesie-1.13.0", "onesie-1.14.0"}, Attempts: 41,
@@ -43,7 +43,7 @@ func TestStatsString(t *testing.T) {
 		},
 		{
 			name: "should lead a stream with its records when each became a request",
-			stats: cli.Stats{
+			stats: runner.Stats{
 				Records: 4, Requests: 4, Questions: 4,
 				Models: []string{"onesie-1.13.0"}, Attempts: 4,
 				AttemptTimeout: 10 * time.Second, Elapsed: time.Second,
@@ -53,12 +53,12 @@ func TestStatsString(t *testing.T) {
 		},
 		{
 			name:  "should lead an empty stream with its records",
-			stats: cli.Stats{AttemptTimeout: 10 * time.Second, Elapsed: time.Second},
+			stats: runner.Stats{AttemptTimeout: 10 * time.Second, Elapsed: time.Second},
 			want:  "0 records, 0 requests, 0 questions asked, 0 in / 0 out tokens, 0 attempts, 1s",
 		},
 		{
 			name: "should count the records a stream deduplicated apart from its requests",
-			stats: cli.Stats{
+			stats: runner.Stats{
 				Records: 12, Dedups: 3, Requests: 9, Questions: 9,
 				Models: []string{"onesie-1.13.0"}, Attempts: 9,
 				AttemptTimeout: 10 * time.Second, Elapsed: time.Second,
@@ -68,7 +68,7 @@ func TestStatsString(t *testing.T) {
 		},
 		{
 			name: "should count the records the cache answered after the deduplicated ones",
-			stats: cli.Stats{
+			stats: runner.Stats{
 				Records: 12, Dedups: 3, Cached: 4, Requests: 5, Questions: 5,
 				Models: []string{"onesie-1.13.0"}, Attempts: 5,
 				AttemptTimeout: 10 * time.Second, Elapsed: time.Second,
@@ -78,7 +78,7 @@ func TestStatsString(t *testing.T) {
 		},
 		{
 			name: "should render the cost the provider reported after the tokens",
-			stats: cli.Stats{
+			stats: runner.Stats{
 				Records: 1, Requests: 1, Questions: 1, InputTokens: 10, OutputTokens: 2, Cost: &cost,
 				Models: []string{"typesafe/jev"}, Attempts: 1,
 				AttemptTimeout: 10 * time.Second, Elapsed: time.Second,
@@ -88,7 +88,7 @@ func TestStatsString(t *testing.T) {
 		},
 		{
 			name: "should render a one record run the cache answered",
-			stats: cli.Stats{
+			stats: runner.Stats{
 				Records: 1, Cached: 1, Models: []string{"onesie-1.13.0"},
 				AttemptTimeout: 10 * time.Second, Elapsed: time.Second,
 			},
@@ -97,7 +97,7 @@ func TestStatsString(t *testing.T) {
 		},
 		{
 			name: "should report the records a resume skipped",
-			stats: cli.Stats{
+			stats: runner.Stats{
 				Requests: 2, Records: 2, Skipped: 18, Questions: 2,
 				Models: []string{"onesie-1.13.0"}, Attempts: 2,
 				AttemptTimeout: 10 * time.Second, Elapsed: time.Second,
@@ -107,7 +107,7 @@ func TestStatsString(t *testing.T) {
 		},
 		{
 			name: "should count abstains beside false assertions",
-			stats: cli.Stats{
+			stats: runner.Stats{
 				Requests: 3, Records: 3, FalseAsserts: 1, Abstains: 1, Questions: 3,
 				Models: []string{"onesie-1.13.0"}, Attempts: 3,
 				AttemptTimeout: 10 * time.Second, Elapsed: time.Second,
@@ -117,7 +117,7 @@ func TestStatsString(t *testing.T) {
 		},
 		{
 			name: "should name a statusless retry transport",
-			stats: cli.Stats{
+			stats: runner.Stats{
 				Requests: 1, Records: 1, Questions: 1,
 				Models: []string{"onesie-1.13.0"}, Attempts: 3,
 				Retries: map[int]int{0: 1, 429: 1}, AttemptTimeout: 10 * time.Second,
@@ -128,7 +128,7 @@ func TestStatsString(t *testing.T) {
 		},
 		{
 			name: "should count a record that never reached the client",
-			stats: cli.Stats{
+			stats: runner.Stats{
 				Requests: 2, Records: 3, Failed: 1, Questions: 2,
 				Models: []string{"onesie-1.13.0"}, Attempts: 3,
 				Retries: map[int]int{429: 1}, AttemptTimeout: 10 * time.Second,
@@ -139,7 +139,7 @@ func TestStatsString(t *testing.T) {
 		},
 		{
 			name: "should round a sub second elapsed to milliseconds",
-			stats: cli.Stats{
+			stats: runner.Stats{
 				Records: 1, Requests: 1, Questions: 1, Attempts: 1,
 				AttemptTimeout: 10 * time.Second, Elapsed: 3040959 * time.Nanosecond,
 			},
@@ -147,7 +147,7 @@ func TestStatsString(t *testing.T) {
 		},
 		{
 			name: "should round elapsed to a tenth of a second above one second",
-			stats: cli.Stats{
+			stats: runner.Stats{
 				Records: 1, Requests: 1, Questions: 1, Attempts: 1,
 				AttemptTimeout: 10 * time.Second, Elapsed: 11432123456 * time.Nanosecond,
 			},
@@ -155,7 +155,7 @@ func TestStatsString(t *testing.T) {
 		},
 		{
 			name: "should omit the retry clause when nothing was retried",
-			stats: cli.Stats{
+			stats: runner.Stats{
 				Records: 1, Requests: 1, Questions: 1, Models: []string{"onesie-1.13.0"},
 				Attempts: 1, AttemptTimeout: 10 * time.Second, Elapsed: time.Second,
 			},
@@ -164,7 +164,7 @@ func TestStatsString(t *testing.T) {
 		},
 		{
 			name: "should render a false assertion count beside the failed count",
-			stats: cli.Stats{
+			stats: runner.Stats{
 				Records: 40, Requests: 40, Failed: 2, FalseAsserts: 1, Questions: 80,
 				InputTokens: 10000, OutputTokens: 400,
 				Models: []string{"onesie-1.13.0"}, Attempts: 40,
@@ -175,7 +175,7 @@ func TestStatsString(t *testing.T) {
 		},
 		{
 			name: "should omit the false assertion clause when every assertion held",
-			stats: cli.Stats{
+			stats: runner.Stats{
 				Records: 40, Requests: 40, Questions: 80, InputTokens: 10000, OutputTokens: 400,
 				Models: []string{"onesie-1.13.0"}, Attempts: 40,
 				AttemptTimeout: 10 * time.Second, Elapsed: 30 * time.Second,
@@ -185,7 +185,7 @@ func TestStatsString(t *testing.T) {
 		},
 		{
 			name: "should omit the model clause when no model was seen",
-			stats: cli.Stats{
+			stats: runner.Stats{
 				Records: 1, Requests: 1, Failed: 1, Questions: 1, Attempts: 1,
 				AttemptTimeout: 10 * time.Second, Elapsed: time.Second,
 			},
@@ -194,7 +194,7 @@ func TestStatsString(t *testing.T) {
 		},
 		{
 			name: "should say the answers came from the mock and count its attempts and no tokens",
-			stats: cli.Stats{
+			stats: runner.Stats{
 				Mocked: true, Requests: 2, Questions: 2, Models: []string{"jev-latest"}, Attempts: 2,
 				AttemptTimeout: 10 * time.Second, Elapsed: 0,
 			},
@@ -203,7 +203,7 @@ func TestStatsString(t *testing.T) {
 		},
 		{
 			name: "should say one record came from the mock",
-			stats: cli.Stats{
+			stats: runner.Stats{
 				Mocked: true, Requests: 1, Questions: 3, Models: []string{"jev-latest"}, Attempts: 3,
 				Retries: map[int]int{503: 2}, AttemptTimeout: 10 * time.Second, Elapsed: time.Second,
 			},
@@ -212,7 +212,7 @@ func TestStatsString(t *testing.T) {
 		},
 		{
 			name: "should count no record the mock failed as answered from it",
-			stats: cli.Stats{
+			stats: runner.Stats{
 				Mocked: true, Records: 2, Requests: 2, Failed: 1, FailedRequests: 1, Questions: 2,
 				Models: []string{"jev-latest"}, Attempts: 2, AttemptTimeout: 10 * time.Second, Elapsed: time.Second,
 			},
@@ -221,7 +221,7 @@ func TestStatsString(t *testing.T) {
 		},
 		{
 			name: "should count a mock run's records apart when a line never reached the mock",
-			stats: cli.Stats{
+			stats: runner.Stats{
 				Mocked: true, Records: 3, Requests: 2, Failed: 2, Skipped: 1, FalseAsserts: 1,
 				Questions: 2, Models: []string{"jev-latest"}, Attempts: 2, AttemptTimeout: 10 * time.Second,
 				Elapsed: time.Second,

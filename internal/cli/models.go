@@ -8,9 +8,10 @@ import (
 
 	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/output"
+	"github.com/frodi-karlsson/onesie/internal/runner"
 )
 
-func listModels(cmd *cobra.Command, settings rootSettings, flags runConfig, stats *Collector) error {
+func listModels(cmd *cobra.Command, settings rootSettings, flags runConfig, stats *runner.Collector) error {
 	chosen, err := settings.holder.resolved()
 	if err != nil {
 		return err

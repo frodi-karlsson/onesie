@@ -10,6 +10,7 @@ import (
 	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/creds"
 	"github.com/frodi-karlsson/onesie/internal/output"
+	"github.com/frodi-karlsson/onesie/internal/runner"
 )
 
 const (
@@ -89,8 +90,8 @@ func retryPolicy(flags runFlags) onesie.RetryPolicy {
 	return policy
 }
 
-func runOptions(flags runConfig, stats *Collector) []onesie.Option {
-	opts := Observing(stats)
+func runOptions(flags runConfig, stats *runner.Collector) []onesie.Option {
+	opts := runner.Observing(stats)
 
 	// Only when given, so onesie-go keeps its longer default for a request with images.
 	if flags.timeoutSet {

@@ -12,6 +12,7 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/engine"
 	"github.com/frodi-karlsson/onesie/internal/input"
 	"github.com/frodi-karlsson/onesie/internal/output"
+	"github.com/frodi-karlsson/onesie/internal/runner"
 )
 
 // Exit codes. A driver script branches on these, so they are part of the interface.
@@ -118,7 +119,7 @@ func firstMatch(err error) failure {
 		return found
 	}
 
-	kind, status := Kind(err)
+	kind, status := runner.Kind(err)
 
 	return failure{kind: kind, status: status, code: exitCodeOf(err, kind, status)}
 }
@@ -131,7 +132,7 @@ func runFailure(err error) (failure, bool) {
 		return failure{kind: output.KindInput, code: ExitRecords, quiet: true}, true
 	}
 
-	var stored *StoredFailure
+	var stored *runner.StoredFailure
 	if errors.As(err, &stored) {
 		return failure{kind: output.KindInput, code: storedRunCode(stored)}, true
 	}
@@ -241,7 +242,7 @@ func (e *shownError) Unwrap() error {
 	return e.cause
 }
 
-func storedRunCode(stored *StoredFailure) int {
+func storedRunCode(stored *runner.StoredFailure) int {
 	switch stored.Failure.Kind {
 	case output.KindInput:
 		return ExitRecords

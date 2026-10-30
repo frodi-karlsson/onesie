@@ -1,4 +1,6 @@
-package cli
+// Package runner asks every record of an input and writes each answer, the run loop onesie and
+// onesie-mcp share.
+package runner
 
 import (
 	"bytes"

@@ -14,13 +14,14 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/engine"
 	"github.com/frodi-karlsson/onesie/internal/input"
 	"github.com/frodi-karlsson/onesie/internal/plan"
+	"github.com/frodi-karlsson/onesie/internal/runner"
 )
 
 func streamRaw(
 	cmd *cobra.Command,
 	settings rootSettings,
 	flags runConfig,
-	stats *Collector,
+	stats *runner.Collector,
 	answers *answersfile.File,
 	resume answersfile.Resume,
 ) error {
@@ -35,9 +36,9 @@ func streamRaw(
 	}
 
 	// --stop-on-assert is refused under -i request, whose bodies carry no assertion.
-	source := NewResumed(
+	source := runner.NewResumed(
 		input.NewStream(settings.stdin, input.Request, input.StreamOptions{SkipBlank: flags.skipBlank}),
-		ResumedConfig{Resume: resume, StopOnError: flags.stopOnError, Speller: plan.Flags},
+		runner.ResumedConfig{Resume: resume, StopOnError: flags.stopOnError, Speller: plan.Flags},
 	)
 
 	result, err := engine.Run(cmd.Context(), engine.Config[input.Record, []byte]{
@@ -47,10 +48,10 @@ func streamRaw(
 		Jobs:        flags.jobs,
 		Unordered:   flags.unordered,
 		StopOnError: flags.stopOnError,
-		Abort:       Aborting,
+		Abort:       runner.Aborting,
 	})
 
-	result, err = FinishStream(cmd.ErrOrStderr(), source, stats, result, err)
+	result, err = runner.FinishStream(cmd.ErrOrStderr(), source, stats, result, err)
 	if err != nil {
 		return err
 	}
@@ -59,7 +60,7 @@ func streamRaw(
 	return streamResult(result, 0, 0)
 }
 
-func newRawRun(cmd *cobra.Command, settings rootSettings, flags runConfig, stats *Collector) (*rawRun, error) {
+func newRawRun(cmd *cobra.Command, settings rootSettings, flags runConfig, stats *runner.Collector) (*rawRun, error) {
 	// --print-request needs the resolution too, to print the model a body with none is sent with.
 	chosen, err := settings.holder.resolved()
 	if err != nil {
@@ -93,7 +94,7 @@ func newRawRun(cmd *cobra.Command, settings rootSettings, flags runConfig, stats
 
 type rawRun struct {
 	flags        runConfig
-	stats        *Collector
+	stats        *runner.Collector
 	provider     onesie.Provider
 	defaultModel string
 	long         bool
