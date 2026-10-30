@@ -49,6 +49,7 @@ func TestFind(t *testing.T) {
 	configDir := filepath.Join(string(filepath.Separator)+"home", ".config", "onesie")
 	configQuestions := filepath.Join(configDir, "questions")
 	workDir := filepath.Join(string(filepath.Separator)+"repo", "sub", "deeper")
+	setsDir := filepath.Join(string(filepath.Separator) + "sets")
 
 	errNoHome := errors.New("cannot find a home directory for the config dir, where the profiles file lives")
 
@@ -56,6 +57,7 @@ func TestFind(t *testing.T) {
 		name        string
 		files       []string
 		configErr   error
+		setsDir     string
 		builtIns    []string
 		want        string
 		wantBuiltIn string
@@ -230,6 +232,43 @@ func TestFind(t *testing.T) {
 			wantIs: errNoHome,
 		},
 		{
+			name: "should read only the sets dir when one is fixed",
+			files: []string{
+				"/repo/.onesie/questions/triage.yaml",
+				"/sets/triage.yml",
+			},
+			setsDir: setsDir,
+			want:    filepath.Join(setsDir, "triage.yml"),
+		},
+		{
+			name: "should fall back from the sets dir to a built-in, never to the repository",
+			files: []string{
+				"/repo/.onesie/questions/triage.yaml",
+				"/home/.config/onesie/questions/triage.yaml",
+				"/sets/other.yaml",
+			},
+			setsDir:     setsDir,
+			builtIns:    []string{"triage"},
+			wantBuiltIn: "triage",
+		},
+		{
+			name:      "should not need the config dir when the sets dir is fixed",
+			files:     []string{"/sets/triage.json"},
+			configErr: errNoHome,
+			setsDir:   setsDir,
+			want:      filepath.Join(setsDir, "triage.json"),
+		},
+		{
+			name:     "should name only the sets dir when nothing has the name",
+			files:    []string{"/repo/.onesie/questions/triage.yaml"},
+			setsDir:  setsDir,
+			builtIns: []string{"support"},
+			wantErr: []string{
+				"no file or question file named triage. Looked for triage.yaml, triage.yml and triage.json in " +
+					setsDir + ". Built in: support",
+			},
+		},
+		{
 			name:      "should say nothing was searched when neither set exists",
 			configErr: errNoHome,
 			wantErr: []string{
@@ -245,6 +284,7 @@ func TestFind(t *testing.T) {
 			t.Parallel()
 
 			env := fakeEnv(tc.files, workDir, configDir, tc.configErr)
+			env.SetsDir = tc.setsDir
 			withBuiltIns(&env, tc.builtIns)
 
 			got, err := qfile.Find("triage", env)
@@ -429,6 +469,7 @@ func TestList(t *testing.T) {
 	configDir := filepath.Join(string(filepath.Separator)+"home", ".config", "onesie")
 	configQuestions := filepath.Join(configDir, "questions")
 	workDir := filepath.Join(string(filepath.Separator)+"repo", "sub")
+	setsDir := filepath.Join(string(filepath.Separator) + "sets")
 
 	errNoHome := errors.New("cannot find a home directory for the config dir, where the profiles file lives")
 
@@ -436,6 +477,7 @@ func TestList(t *testing.T) {
 		name      string
 		files     []string
 		configErr error
+		setsDir   string
 		builtIns  []string
 		want      []qfile.Found
 	}{
@@ -503,6 +545,21 @@ func TestList(t *testing.T) {
 			},
 		},
 		{
+			name: "should list only the sets dir before the built-ins when one is fixed",
+			files: []string{
+				"/repo/.onesie/questions/triage.yaml",
+				"/home/.config/onesie/questions/support.yml",
+				"/sets/billing.yaml",
+			},
+			setsDir:  setsDir,
+			builtIns: []string{"triage", "moderation"},
+			want: []qfile.Found{
+				{Name: "billing", Paths: []string{filepath.Join(setsDir, "billing.yaml")}},
+				{Name: "moderation", BuiltIn: true},
+				{Name: "triage", BuiltIn: true},
+			},
+		},
+		{
 			name:      "should list the repository set when the config dir cannot be resolved",
 			files:     []string{"/repo/.onesie/questions/triage.yaml"},
 			configErr: errNoHome,
@@ -517,6 +574,7 @@ func TestList(t *testing.T) {
 			t.Parallel()
 
 			env := fakeEnv(tc.files, workDir, configDir, tc.configErr)
+			env.SetsDir = tc.setsDir
 			withBuiltIns(&env, tc.builtIns)
 
 			got, err := qfile.List(env)
