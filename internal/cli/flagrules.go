@@ -54,7 +54,7 @@ func validatePlan(built *plan.Plan, config runConfig, facts runFacts) ([]string,
 		return warnings, err
 	}
 
-	questionWarnings, err := plan.Validate(built, config.file)
+	questionWarnings, err := plan.Validate(built, config.file, plan.Flags)
 	warnings = append(warnings, questionWarnings...)
 
 	if err != nil {
@@ -445,7 +445,7 @@ func hasAbstainIf(config runConfig, facts runFacts) bool {
 
 func assertFlag(config runConfig, facts runFacts) string {
 	if len(config.assert) == 0 && facts.assert != "" {
-		return plan.Spelling(plan.OriginFile, "--assert")
+		return plan.Keys.Spell("--assert")
 	}
 
 	return "--assert"
@@ -453,7 +453,7 @@ func assertFlag(config runConfig, facts runFacts) string {
 
 func abstainFlag(config runConfig, facts runFacts) string {
 	if len(config.abstainIf) == 0 && facts.abstainIf != "" {
-		return plan.Spelling(plan.OriginFile, "--abstain-if")
+		return plan.Keys.Spell("--abstain-if")
 	}
 
 	return "--abstain-if"
@@ -738,16 +738,18 @@ func checkSingle(built *plan.Plan, config runConfig, facts runFacts) error {
 	}
 
 	only := built.Questions[0]
+	question := plan.Flags.For(only.Origin)
+
 	if quietGate && only.Shape == plan.Box {
 		return fmt.Errorf(
 			"-q on '%s' needs %s. A box has no policy that could fail it",
-			only.ID, plan.Spelling(only.Origin, "--assert"))
+			only.ID, question.Spell("--assert"))
 	}
 
 	if quietGate && only.Shape != plan.Noul && only.Policy.MinConfidence == nil {
 		return fmt.Errorf(
 			"-q on '%s' needs %s and %s, or --assert. Without one the exit code is always 0",
-			only.ID, plan.Spelling(only.Origin, "--min-confidence"), plan.Spelling(only.Origin, "--fallback"))
+			only.ID, question.Spell("--min-confidence"), question.Spell("--fallback"))
 	}
 
 	return nil

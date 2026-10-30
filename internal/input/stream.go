@@ -12,17 +12,18 @@ import (
 	"unicode/utf8"
 
 	"github.com/frodi-karlsson/onesie/internal/limits"
+	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
 var errRowTooLong = errors.New("a row is longer than the limit")
 
-// NewStream reads one record per line. skipBlank drops blank lines entirely rather than reporting
-// them, which breaks the one line per line alignment and is therefore opt in.
-func NewStream(r io.Reader, mode Mode, skipBlank bool) *Stream {
+// NewStream reads one record per line, as opts says.
+func NewStream(r io.Reader, mode Mode, opts StreamOptions) *Stream {
 	stream := &Stream{
 		reader:    bufio.NewReaderSize(r, 64*1024),
 		mode:      mode,
-		skipBlank: skipBlank,
+		skipBlank: opts.SkipBlank,
+		speller:   opts.Speller,
 		lineCap:   lineCapOf(mode),
 	}
 
@@ -38,6 +39,15 @@ func NewStream(r io.Reader, mode Mode, skipBlank bool) *Stream {
 	return stream
 }
 
+// StreamOptions holds how a Stream reads its lines.
+type StreamOptions struct {
+	// SkipBlank drops blank lines entirely rather than reporting them, which breaks the one line per
+	// line alignment and is therefore opt in.
+	SkipBlank bool
+	// Speller names the blank line setting in a refusal.
+	Speller plan.Speller
+}
+
 func lineCapOf(mode Mode) int {
 	if mode == Request {
 		return limits.MaxRequestLineBytes
@@ -51,6 +61,7 @@ type Stream struct {
 	reader    *bufio.Reader
 	mode      Mode
 	skipBlank bool
+	speller   plan.Speller
 	lineCap   int
 	index     int
 	line      int
@@ -93,7 +104,8 @@ func (s *Stream) Next() (Record, bool, error) {
 				continue
 			}
 
-			return s.fail(text, fmt.Errorf("blank line, %w. Pass --skip-blank to drop blank lines", ErrEmptyState)), true, nil
+			return s.fail(text, fmt.Errorf("blank line, %w. Pass %s to drop blank lines",
+				ErrEmptyState, s.speller.Spell("--skip-blank"))), true, nil
 		}
 
 		return s.record(text), true, nil

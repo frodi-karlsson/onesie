@@ -10,8 +10,8 @@ import (
 )
 
 // Check validates an expression against the plan it will run over, before any network call. An
-// expression that passes cannot fail to evaluate on a successful record.
-func Check(expr *Expr, built *plan.Plan) error {
+// expression that passes cannot fail to evaluate on a successful record. speller names each setting.
+func Check(expr *Expr, built *plan.Plan, speller plan.Speller) error {
 	if expr == nil {
 		return nil
 	}
@@ -19,15 +19,16 @@ func Check(expr *Expr, built *plan.Plan) error {
 	// The walk visits nodes in source order, so the error it keeps is the leftmost. Keeping the
 	// lowest column would misorder a combined expression, whose columns are relative to each part's
 	// own source.
-	c := &checker{built: built}
+	c := &checker{built: built, speller: speller}
 	c.walk(expr.root)
 
 	return c.err
 }
 
 type checker struct {
-	built *plan.Plan
-	err   error
+	built   *plan.Plan
+	speller plan.Speller
+	err     error
 }
 
 func (c *checker) walk(n node) {
@@ -110,7 +111,7 @@ func (c *checker) knownName(path, literal node) {
 		return
 	}
 
-	keys := keysOf(*q)
+	keys := keysOf(*q, c.speller)
 	if !slices.Contains(keys.names, name.value) {
 		c.unknownKey(*q, keys, name.value)
 	}
@@ -308,14 +309,15 @@ func (c *checker) fieldType(q plan.Question, n *pathNode) (valueType, int, bool)
 func (c *checker) unavailable(q plan.Question, f field) (valueType, int, bool) {
 	switch f.reason {
 	case reasonDecision:
-		c.fail("'%s.decision' needs %s on '%s'", q.ID, decisionNeeds(q), q.ID)
+		c.fail("'%s.decision' needs %s on '%s'", q.ID, decisionNeeds(q, c.speller), q.ID)
 
 		return typeString, 0, false
 	case reasonFallback:
+		question := c.speller.For(q.Origin)
 		c.fail("'%s.fallback' needs %s, %s or %s on '%s'", q.ID,
-			plan.Spelling(q.Origin, "--threshold"),
-			plan.Spelling(q.Origin, "--min-confidence"),
-			plan.Spelling(q.Origin, "--fallback"), q.ID)
+			question.Spell("--threshold"),
+			question.Spell("--min-confidence"),
+			question.Spell("--fallback"), q.ID)
 
 		return typeString, 0, false
 	default:
@@ -330,7 +332,7 @@ func (c *checker) absent(q plan.Question, name string) (valueType, int, bool) {
 }
 
 func (c *checker) probability(q plan.Question, n *pathNode, f field) (valueType, int, bool) {
-	keys := keysOf(q)
+	keys := keysOf(q, c.speller)
 
 	if len(n.segments) < 3 {
 		c.fail("'%s.p' needs %s", q.ID, keys.want)
@@ -351,16 +353,17 @@ func (c *checker) unknownKey(q plan.Question, keys keyset, key string) {
 	c.fail("'%s' has no %s '%s'. %s", q.ID, keys.noun, key, keys.has)
 }
 
-func decisionNeeds(q plan.Question) string {
+func decisionNeeds(q plan.Question, speller plan.Speller) string {
+	question := speller.For(q.Origin)
+
 	// answer.Apply needs something to put in the decision's place, so a pick or rate question
 	// carrying min confidence is short the fallback rather than either flag the other message
 	// names.
 	if q.Shape != plan.Noul && q.Policy.MinConfidence != nil {
-		return plan.Spelling(q.Origin, "--fallback")
+		return question.Spell("--fallback")
 	}
 
-	return plan.Spelling(q.Origin, "--threshold") + " or " +
-		plan.Spelling(q.Origin, "--min-confidence")
+	return question.Spell("--threshold") + " or " + question.Spell("--min-confidence")
 }
 
 // BracketHint advises the bracket form for the first id in ids that source writes bare, although
@@ -393,7 +396,7 @@ func (c *checker) fail(format string, args ...any) {
 	c.err = fmt.Errorf(format, args...)
 }
 
-func keysOf(q plan.Question) keyset {
+func keysOf(q plan.Question, speller plan.Speller) keyset {
 	if q.Shape == plan.Pick {
 		names := make([]string, 0, len(q.Options))
 		for _, option := range q.Options {
@@ -404,7 +407,7 @@ func keysOf(q plan.Question) keyset {
 			names: names,
 			noun:  "option",
 			want:  "an option name",
-			has:   plan.ShapeName(&q, "--pick") + " has: " + strings.Join(names, ", "),
+			has:   speller.Shape(&q, "--pick") + " has: " + strings.Join(names, ", "),
 		}
 	}
 
@@ -418,7 +421,7 @@ func keysOf(q plan.Question) keyset {
 			names: labels,
 			noun:  "level",
 			want:  "a level name",
-			has:   plan.ShapeName(&q, "--rate") + " has: " + strings.Join(labels, ", "),
+			has:   speller.Shape(&q, "--rate") + " has: " + strings.Join(labels, ", "),
 		}
 	}
 

@@ -6,6 +6,7 @@ import (
 	"io/fs"
 
 	"github.com/frodi-karlsson/onesie/internal/patherr"
+	"github.com/frodi-karlsson/onesie/internal/plan"
 	"github.com/frodi-karlsson/onesie/internal/qfile"
 )
 
@@ -84,7 +85,7 @@ func findEnv(settings rootSettings) (qfile.FindEnv, error) {
 }
 
 func loadQuestionFile(data []byte, path, hides string, alone bool) (*qfile.File, error) {
-	loaded, err := qfile.Load(data)
+	loaded, err := qfile.Load(data, plan.Flags)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", path, err)
 	}

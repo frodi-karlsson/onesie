@@ -53,6 +53,7 @@ func Open(opts Options, config Config) (*File, Resume, error) {
 		rename:   opts.Rename,
 		remove:   opts.Remove,
 		goos:     opts.GOOS,
+		speller:  opts.Speller,
 		readOnly: config.ReadOnly,
 	}
 
@@ -110,6 +111,8 @@ type Options struct {
 	Readlink func(name string) (string, error)
 	Lock     func(answers string) (release func() error, err error)
 	GOOS     string
+	// Speller names a changed setting in a stale file refusal. The zero value spells flags.
+	Speller plan.Speller
 }
 
 func (o Options) withDefaults() Options {
@@ -286,6 +289,7 @@ type File struct {
 	rename   func(oldpath, newpath string) error
 	remove   func(name string) error
 	goos     string
+	speller  plan.Speller
 	unlock   func() error
 	special  bool
 	resume   bool
@@ -680,7 +684,7 @@ func (o *File) checkFingerprint(fingerprint Print) (matched bool, err error) {
 		return false, err
 	}
 
-	reason, changed, stale := staleReason(stored, found, fingerprint)
+	reason, changed, stale := staleReason(stored, found, fingerprint, o.speller)
 	if stale {
 		return false, &StaleAnswersError{
 			Path: o.path, Sidecar: o.target + fingerprintSuffix, Reason: reason, Changed: changed,

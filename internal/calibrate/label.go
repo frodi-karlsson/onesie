@@ -18,8 +18,8 @@ import (
 var identifier = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_-]*$`)
 
 // SplitLabel splits a --label value into the question id it names and its jq source. A bare
-// expression belongs to the only question asked.
-func SplitLabel(spec string, ids []string) (id, source string, err error) {
+// expression belongs to the only question asked. speller names the label setting in a refusal.
+func SplitLabel(spec string, ids []string, speller plan.Speller) (id, source string, err error) {
 	if id, source, found := longestID(spec, ids); found {
 		return id, source, nil
 	}
@@ -28,13 +28,13 @@ func SplitLabel(spec string, ids []string) (id, source string, err error) {
 	named := found && !strings.HasPrefix(rest, "=")
 
 	if named && identifier.MatchString(prefix) {
-		return "", "", fmt.Errorf("--label names an unknown question '%s'. Questions: %s",
-			prefix, strings.Join(ids, ", "))
+		return "", "", fmt.Errorf("%s names an unknown question '%s'. Questions: %s",
+			speller.Spell("--label"), prefix, strings.Join(ids, ", "))
 	}
 
 	if len(ids) != 1 {
-		return "", "", fmt.Errorf("--label needs ID=EXPR when more than one question is asked. Questions: %s",
-			strings.Join(ids, ", "))
+		return "", "", fmt.Errorf("%s needs ID=EXPR when more than one question is asked. Questions: %s",
+			speller.Spell("--label"), strings.Join(ids, ", "))
 	}
 
 	return ids[0], spec, nil

@@ -17,9 +17,11 @@ func TestSplitLabel(t *testing.T) {
 		name       string
 		spec       string
 		ids        []string
+		speller    plan.Speller
 		wantID     string
 		wantSource string
 		wantErr    []string
+		wantExact  string
 	}{
 		{
 			name:       "should take the text before the first equals sign as a known id",
@@ -89,13 +91,28 @@ func TestSplitLabel(t *testing.T) {
 			ids:     []string{"urgent", "team"},
 			wantErr: []string{"--label names an unknown question 'tema'. Questions: urgent, team"},
 		},
+		{
+			name:      "should name the setting as a tool argument for that speller",
+			spec:      "tema=.x",
+			ids:       []string{"urgent", "team"},
+			speller:   plan.Arguments,
+			wantExact: "label names an unknown question 'tema'. Questions: urgent, team",
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			id, source, err := calibrate.SplitLabel(tc.spec, tc.ids)
+			id, source, err := calibrate.SplitLabel(tc.spec, tc.ids, tc.speller)
+
+			if tc.wantExact != "" {
+				if err == nil || err.Error() != tc.wantExact {
+					t.Fatalf("SplitLabel(%q) = %q, %q, %v, want the error %q", tc.spec, id, source, err, tc.wantExact)
+				}
+
+				return
+			}
 
 			if len(tc.wantErr) > 0 {
 				if err == nil {

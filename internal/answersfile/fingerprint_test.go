@@ -111,6 +111,7 @@ func TestStaleReason(t *testing.T) {
 		name        string
 		stored      string
 		found       bool
+		speller     plan.Speller
 		want        StaleReason
 		wantChanged []string
 		wantStale   bool
@@ -167,13 +168,19 @@ func TestStaleReason(t *testing.T) {
 			stored: "v3:questions=" + strings.Repeat("00", 8) + ",mock=" + strings.Repeat("00", 8),
 			want:   ChangedRun, wantChanged: []string{"the questions", "the model", "--mock"}, wantStale: true,
 		},
+		{
+			name: "should name a changed setting as a tool argument for that speller", found: true,
+			stored: "v3:questions=" + strings.Repeat("ab", 8) + ",model=" + strings.Repeat("cd", 8) +
+				",mock=" + strings.Repeat("00", 8),
+			speller: plan.Arguments, want: ChangedRun, wantChanged: []string{"mock"}, wantStale: true,
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, changed, stale := staleReason(tc.stored, tc.found, current)
+			got, changed, stale := staleReason(tc.stored, tc.found, current, tc.speller)
 			if got != tc.want || stale != tc.wantStale || strings.Join(changed, ", ") != strings.Join(tc.wantChanged, ", ") {
 				t.Errorf("staleReason = %v, %v, %v, want %v, %v, %v", got, changed, stale, tc.want, tc.wantChanged, tc.wantStale)
 			}

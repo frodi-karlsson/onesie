@@ -19,8 +19,8 @@ var reservedIDs = []string{
 }
 
 // Validate checks the questions of a plan and returns the non fatal warnings plus the first fatal
-// error. fileName is the -f value a body policy refusal names.
-func Validate(p *Plan, fileName string) ([]string, error) {
+// error. fileName is the -f value a body policy refusal names, and speller names each setting.
+func Validate(p *Plan, fileName string, speller Speller) ([]string, error) {
 	if err := checkBodyPolicy(p, fileName); err != nil {
 		return nil, err
 	}
@@ -40,7 +40,7 @@ func Validate(p *Plan, fileName string) ([]string, error) {
 	var warnings []string
 
 	for i := range p.Questions {
-		hint, err := checkQuestion(&p.Questions[i])
+		hint, err := checkQuestion(&p.Questions[i], speller)
 		if err != nil {
 			return warnings, err
 		}
@@ -183,7 +183,7 @@ func checkDuplicateIDs(p *Plan) error {
 	return nil
 }
 
-func checkQuestion(q *Question) (string, error) {
+func checkQuestion(q *Question, speller Speller) (string, error) {
 	// The positional question is keyed answer by design, so the reserved list only applies to an
 	// id the user chose. A request body may carry answer, since --print-request writes a positional
 	// question under it and -f reads that body back.
@@ -207,13 +207,13 @@ func checkQuestion(q *Question) (string, error) {
 
 	switch q.Shape {
 	case Pick:
-		return checkPick(q)
+		return checkPick(q, speller)
 	case Rate:
-		return "", checkRate(q)
+		return "", checkRate(q, speller)
 	case Box:
-		return "", checkBox(q)
+		return "", checkBox(q, speller)
 	default:
-		return "", checkNoul(q)
+		return "", checkNoul(q, speller)
 	}
 }
 
@@ -264,13 +264,13 @@ func notText(origin Origin) string {
 	return "an 'ask' that is not text or a mapping"
 }
 
-func checkPick(q *Question) (string, error) {
+func checkPick(q *Question, speller Speller) (string, error) {
 	names := make([]string, 0, len(q.Options))
 	for _, option := range q.Options {
 		names = append(names, option.Name)
 	}
 
-	pick := ShapeName(q, "--pick")
+	pick := speller.Shape(q, "--pick")
 
 	switch {
 	case len(q.Options) < limits.MinChoiceOptions:
@@ -288,11 +288,11 @@ func checkPick(q *Question) (string, error) {
 			"%s option '%s' is listed twice in question '%s'", pick, dupe, q.ID)
 	}
 
-	if err := checkUnknownDesc(q, names, pick); err != nil {
+	if err := checkUnknownDesc(q, names, pick, speller); err != nil {
 		return "", err
 	}
 
-	if err := checkPolicy(q, false); err != nil {
+	if err := checkPolicy(q, false, speller); err != nil {
 		return "", err
 	}
 
@@ -305,7 +305,7 @@ func checkPick(q *Question) (string, error) {
 	return describedHint(q, names, described(q)), nil
 }
 
-func checkRate(q *Question) error {
+func checkRate(q *Question, speller Speller) error {
 	var labels []string
 
 	// A body's levels carry no labels at all, so every rule written around them is skipped and
@@ -317,7 +317,7 @@ func checkRate(q *Question) error {
 		}
 	}
 
-	rate := ShapeName(q, "--rate")
+	rate := speller.Shape(q, "--rate")
 
 	switch {
 	case len(q.Levels) < limits.MinScoreLevels:
@@ -327,12 +327,12 @@ func checkRate(q *Question) error {
 	}
 
 	if q.Labelled {
-		if err := checkRubric(q, rate, labels); err != nil {
+		if err := checkRubric(q, rate, labels, speller); err != nil {
 			return err
 		}
 	}
 
-	return checkPolicy(q, false)
+	return checkPolicy(q, false, speller)
 }
 
 func checkBlankNames(q *Question, shape, noun string, names []string) error {
@@ -363,7 +363,7 @@ func tooMany(q *Question, name, noun string, limit, count int) error {
 		name, limit, noun, questionClause(q), count)
 }
 
-func checkRubric(q *Question, rate string, labels []string) error {
+func checkRubric(q *Question, rate string, labels []string, speller Speller) error {
 	if err := checkBlankNames(q, rate, "level", labels); err != nil {
 		return err
 	}
@@ -372,7 +372,7 @@ func checkRubric(q *Question, rate string, labels []string) error {
 		return fmt.Errorf("%s label '%s' is listed twice in question '%s'", rate, dupe, q.ID)
 	}
 
-	if err := checkUnknownDesc(q, labels, rate); err != nil {
+	if err := checkUnknownDesc(q, labels, rate, speller); err != nil {
 		return err
 	}
 
@@ -400,22 +400,24 @@ func questionClause(q *Question) string {
 	return " in question '" + q.ID + "'"
 }
 
-func checkNoul(q *Question) error {
+func checkNoul(q *Question, speller Speller) error {
 	for _, key := range q.DescOrder {
 		if key != "yes" && key != "no" {
 			return fmt.Errorf(
-				"--desc on a yes or no question takes 'yes' or 'no', got '%s'", key)
+				"%s on a yes or no question takes 'yes' or 'no', got '%s'", speller.Spell("--desc"), key)
 		}
 	}
 
-	return checkPolicy(q, true)
+	return checkPolicy(q, true, speller)
 }
 
-func checkBox(q *Question) error {
+func checkBox(q *Question, speller Speller) error {
 	if len(q.DescOrder) > 0 {
 		return fmt.Errorf(
-			"--desc does not apply to box question '%s', which has no options", q.ID)
+			"%s does not apply to box question '%s', which has no options", speller.Spell("--desc"), q.ID)
 	}
+
+	question := speller.For(q.Origin)
 
 	for _, flag := range []struct {
 		name string
@@ -427,7 +429,7 @@ func checkBox(q *Question) error {
 	} {
 		if flag.set {
 			return fmt.Errorf("%s does not apply to box question '%s'. Gate a box with %s",
-				Spelling(q.Origin, flag.name), q.ID, Spelling(q.Origin, "--assert"))
+				question.Spell(flag.name), q.ID, question.Spell("--assert"))
 		}
 	}
 
@@ -446,11 +448,12 @@ func countTrue(conditions ...bool) int {
 	return count
 }
 
-func checkPolicy(q *Question, yesNo bool) error {
+func checkPolicy(q *Question, yesNo bool, speller Speller) error {
 	policy := q.Policy
-	threshold := Spelling(q.Origin, "--threshold")
-	confidence := Spelling(q.Origin, "--min-confidence")
-	fallback := Spelling(q.Origin, "--fallback")
+	question := speller.For(q.Origin)
+	threshold := question.Spell("--threshold")
+	confidence := question.Spell("--min-confidence")
+	fallback := question.Spell("--fallback")
 
 	if policy.Threshold != nil {
 		if !yesNo {
@@ -476,7 +479,7 @@ func checkPolicy(q *Question, yesNo bool) error {
 				"%s needs a confidence value. '%s' is a yes or no question, "+
 					"use %s, or add %s or %s",
 				confidence, q.ID, threshold,
-				Spelling(q.Origin, "--pick"), Spelling(q.Origin, "--rate"))
+				question.Spell("--pick"), question.Spell("--rate"))
 		}
 
 		if outsideUnit(*policy.MinConfidence) {
@@ -505,7 +508,7 @@ func outsideUnit(value float64) bool {
 	return math.IsNaN(value) || value < 0 || value > 1
 }
 
-func checkUnknownDesc(q *Question, vocabulary []string, shape string) error {
+func checkUnknownDesc(q *Question, vocabulary []string, shape string, speller Speller) error {
 	for _, key := range q.DescOrder {
 		if _, unknown := q.UnknownDesc[key]; !unknown {
 			continue
@@ -513,50 +516,11 @@ func checkUnknownDesc(q *Question, vocabulary []string, shape string) error {
 
 		// The key itself always comes from --desc, since a file has no way to name one. Only the
 		// vocabulary it missed is spelled the way the question was written.
-		return fmt.Errorf("--desc names an unknown key '%s' in question '%s'. %s has: %s",
-			key, q.ID, shape, strings.Join(vocabulary, ", "))
+		return fmt.Errorf("%s names an unknown key '%s' in question '%s'. %s has: %s",
+			speller.Spell("--desc"), key, q.ID, shape, strings.Join(vocabulary, ", "))
 	}
 
 	return nil
-}
-
-// ShapeName spells a question's shape flag the way its origin wrote it, so a message points at the
-// thing the reader typed. It is exported because assert checks an assertion against the same plan.
-func ShapeName(q *Question, flag string) string {
-	// A body has neither flags nor file keys. Its options and levels are the entries of a single
-	// criteria key, which is the only thing a message can point the reader at.
-	if q.Origin == OriginBody {
-		return "'criteria'"
-	}
-
-	return Spelling(q.Origin, flag)
-}
-
-// Spelling renders a flag the way the origin spells it. A file says 'min_confidence' where the
-// command line says --min-confidence. It is exported for the same reason ShapeName is.
-func Spelling(origin Origin, flag string) string {
-	if origin != OriginFile {
-		return flag
-	}
-
-	switch flag {
-	case "--pick":
-		return "'pick'"
-	case "--rate":
-		return "'rate'"
-	case "--threshold":
-		return "'threshold'"
-	case "--min-confidence":
-		return "'min_confidence'"
-	case "--fallback":
-		return "'fallback'"
-	case "--assert":
-		return "'assert'"
-	case "--abstain-if":
-		return "'abstain_if'"
-	default:
-		return flag
-	}
 }
 
 func describedHint(q *Question, names, have []string) string {

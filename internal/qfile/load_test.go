@@ -62,7 +62,7 @@ func TestLoad(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := qfile.Load([]byte(tc.doc))
+			got, err := qfile.Load([]byte(tc.doc), plan.Flags)
 
 			if tc.wantErr != "" {
 				if err == nil {
@@ -80,7 +80,7 @@ func TestLoad(t *testing.T) {
 				t.Fatalf("unexpected error: %v", err)
 			}
 
-			want, err := qfile.Load([]byte(tc.same))
+			want, err := qfile.Load([]byte(tc.same), plan.Flags)
 			if err != nil {
 				t.Fatalf("loading the file without $schema: %v", err)
 			}
@@ -95,7 +95,7 @@ func TestLoad(t *testing.T) {
 		t.Parallel()
 
 		for _, doc := range []string{"", " \n", "# a note\n", "null\n"} {
-			file, err := qfile.Load([]byte(doc))
+			file, err := qfile.Load([]byte(doc), plan.Flags)
 			if err != nil || len(file.Questions) != 0 {
 				t.Errorf("Load(%q) = %+v, %v, want an empty file", doc, file, err)
 			}
@@ -122,7 +122,7 @@ func TestLoad(t *testing.T) {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 
-				file, err := qfile.Load([]byte(tc.file))
+				file, err := qfile.Load([]byte(tc.file), plan.Flags)
 				if tc.wantErr != "" {
 					if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
 						t.Fatalf("error = %v, want %q", err, tc.wantErr)
@@ -167,7 +167,7 @@ func TestCheckSingleDocument(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			file, err := qfile.Load([]byte(tc.doc))
+			file, err := qfile.Load([]byte(tc.doc), plan.Flags)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}

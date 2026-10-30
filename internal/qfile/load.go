@@ -23,8 +23,8 @@ import (
 var plainFloat = regexp.MustCompile(`^[-+]?(\.[0-9]+|[0-9]+(\.[0-9]*)?)[eE][-+]?[0-9]+$`)
 
 // Load reads a question file or a raw API request body. A top level questions key selects the
-// body form.
-func Load(data []byte) (*File, error) {
+// body form. speller names a setting in a refusal.
+func Load(data []byte, speller plan.Speller) (*File, error) {
 	raw, err := decodeOrdered(data)
 	if err != nil {
 		return nil, err
@@ -42,7 +42,7 @@ func Load(data []byte) (*File, error) {
 	}
 
 	if _, isBody := lookup(top, "questions"); isBody {
-		return loadBody(top)
+		return loadBody(top, speller)
 	}
 
 	return loadQuestions(top)

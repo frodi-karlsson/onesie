@@ -47,7 +47,7 @@ func FuzzPrintQuestionsJSON(f *testing.F) {
 			return
 		}
 
-		loaded, err := qfile.Load(data)
+		loaded, err := qfile.Load(data, plan.Flags)
 		if err != nil {
 			return
 		}
@@ -109,7 +109,7 @@ func checkAgainstJSON(t *testing.T, data []byte, loaded *qfile.File) {
 func checkPrintRoundTrip(t *testing.T, data []byte) {
 	t.Helper()
 
-	loaded, err := qfile.Load(data)
+	loaded, err := qfile.Load(data, plan.Flags)
 	if err != nil {
 		return
 	}
@@ -128,7 +128,7 @@ func checkPrintRoundTrip(t *testing.T, data []byte) {
 		t.Fatalf("--print-questions changed its own file\nfirst\n%s\nsecond\n%s", printed, reprinted)
 	}
 
-	reloaded, err := qfile.Load(printed)
+	reloaded, err := qfile.Load(printed, plan.Flags)
 	if err != nil {
 		t.Fatalf("Load refused the printed file: %v\n%s", err, printed)
 	}

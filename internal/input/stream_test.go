@@ -9,6 +9,7 @@ import (
 
 	"github.com/frodi-karlsson/onesie/internal/input"
 	"github.com/frodi-karlsson/onesie/internal/limits"
+	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
 func TestStream(t *testing.T) {
@@ -179,7 +180,7 @@ func TestStream(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			stream := input.NewStream(strings.NewReader(tc.in), tc.mode, tc.skipBlank)
+			stream := input.NewStream(strings.NewReader(tc.in), tc.mode, input.StreamOptions{SkipBlank: tc.skipBlank})
 
 			var got []want
 
@@ -247,7 +248,7 @@ func TestStream(t *testing.T) {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 
-				record, ok, err := input.NewStream(strings.NewReader(tc.in+"\n"), input.JSONL, false).Next()
+				record, ok, err := input.NewStream(strings.NewReader(tc.in+"\n"), input.JSONL, input.StreamOptions{}).Next()
 				if err != nil || !ok {
 					t.Fatalf("Next = %v, %v, want one record", ok, err)
 				}
@@ -306,7 +307,7 @@ func TestStream(t *testing.T) {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 
-				stream := input.NewStream(strings.NewReader(tc.in+"\n"), input.Request, false)
+				stream := input.NewStream(strings.NewReader(tc.in+"\n"), input.Request, input.StreamOptions{})
 
 				record, ok, err := stream.Next()
 				if err != nil {
@@ -340,13 +341,28 @@ func TestStream(t *testing.T) {
 		}
 	})
 
+	t.Run("should name the blank line setting the way the speller does", func(t *testing.T) {
+		t.Parallel()
+
+		stream := input.NewStream(strings.NewReader("\n"), input.Lines, input.StreamOptions{Speller: plan.Arguments})
+
+		record, ok, err := stream.Next()
+		if err != nil || !ok {
+			t.Fatalf("Next = %v, %v, want a record", ok, err)
+		}
+
+		if record.Err == nil || !strings.HasSuffix(record.Err.Error(), "Pass skip_blank to drop blank lines") {
+			t.Errorf("error = %v, want it to name skip_blank", record.Err)
+		}
+	})
+
 	t.Run("should count line numbers separately from the record index", func(t *testing.T) {
 		t.Parallel()
 
 		t.Run("should count lines past a skipped blank", func(t *testing.T) {
 			t.Parallel()
 
-			stream := input.NewStream(strings.NewReader("first\n\nthird\n"), input.Lines, true)
+			stream := input.NewStream(strings.NewReader("first\n\nthird\n"), input.Lines, input.StreamOptions{SkipBlank: true})
 
 			var lines, indexes []int
 
@@ -387,7 +403,7 @@ func TestStream(t *testing.T) {
 			// bufio.Scanner would stop the whole batch on a line this long, which is why Stream
 			// reads through bufio.Reader.ReadLine instead.
 			in := "first\n" + strings.Repeat("x", 9<<20) + "\nthird\n"
-			stream := input.NewStream(strings.NewReader(in), input.Lines, false)
+			stream := input.NewStream(strings.NewReader(in), input.Lines, input.StreamOptions{})
 
 			var got []string
 
@@ -429,7 +445,7 @@ func TestStream(t *testing.T) {
 		t.Run("should report a failing reader against stdin rather than a line", func(t *testing.T) {
 			t.Parallel()
 
-			stream := input.NewStream(failingReader{}, input.Lines, false)
+			stream := input.NewStream(failingReader{}, input.Lines, input.StreamOptions{})
 
 			record, ok, err := stream.Next()
 			if err == nil {
@@ -490,7 +506,7 @@ func TestStream(t *testing.T) {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 
-				stream := input.NewStream(strings.NewReader(tc.line+"\n"), tc.mode, false)
+				stream := input.NewStream(strings.NewReader(tc.line+"\n"), tc.mode, input.StreamOptions{})
 
 				record, ok, err := stream.Next()
 				if err != nil || !ok {
@@ -511,7 +527,7 @@ func TestStream(t *testing.T) {
 	t.Run("should keep the header order on the wire", func(t *testing.T) {
 		t.Parallel()
 
-		stream := input.NewStream(strings.NewReader("zebra,alpha\nz,a\n"), input.CSV, false)
+		stream := input.NewStream(strings.NewReader("zebra,alpha\nz,a\n"), input.CSV, input.StreamOptions{})
 
 		record, ok, err := stream.Next()
 		if err != nil || !ok {
@@ -531,7 +547,7 @@ func TestStream(t *testing.T) {
 	t.Run("should report the line a failing row starts on", func(t *testing.T) {
 		t.Parallel()
 
-		stream := input.NewStream(strings.NewReader("id,body\n1,\"two\nlines\"\n3\n"), input.CSV, false)
+		stream := input.NewStream(strings.NewReader("id,body\n1,\"two\nlines\"\n3\n"), input.CSV, input.StreamOptions{})
 
 		for range 2 {
 			record, _, err := stream.Next()
@@ -553,7 +569,7 @@ func TestStream(t *testing.T) {
 		t.Run("should refuse a header with a blank or repeated name: "+strings.TrimSpace(header), func(t *testing.T) {
 			t.Parallel()
 
-			_, _, err := input.NewStream(strings.NewReader(header+"1,2,3\n"), input.CSV, false).Next()
+			_, _, err := input.NewStream(strings.NewReader(header+"1,2,3\n"), input.CSV, input.StreamOptions{}).Next()
 
 			var lineErr *input.LineError
 			if !errors.As(err, &lineErr) || lineErr.Line != 1 {
@@ -567,7 +583,7 @@ func TestStream(t *testing.T) {
 
 		body := "id,body\n1,\"" + strings.Repeat("x", 9<<20)
 
-		stream := input.NewStream(strings.NewReader(body), input.CSV, false)
+		stream := input.NewStream(strings.NewReader(body), input.CSV, input.StreamOptions{})
 
 		_, _, err := stream.Next()
 
@@ -581,7 +597,7 @@ func TestStream(t *testing.T) {
 		t.Parallel()
 
 		long := `{"state":"` + strings.Repeat("a", limits.MaxLineBytes) + `","questions":{}}`
-		stream := input.NewStream(strings.NewReader(long+"\n"), input.Request, false)
+		stream := input.NewStream(strings.NewReader(long+"\n"), input.Request, input.StreamOptions{})
 
 		rec, ok, err := stream.Next()
 		if err != nil || !ok {
@@ -597,7 +613,7 @@ func TestStream(t *testing.T) {
 		t.Parallel()
 
 		long := `"` + strings.Repeat("a", limits.MaxLineBytes) + `"`
-		stream := input.NewStream(strings.NewReader(long+"\n"), input.JSONL, false)
+		stream := input.NewStream(strings.NewReader(long+"\n"), input.JSONL, input.StreamOptions{})
 
 		rec, _, err := stream.Next()
 		if err != nil {

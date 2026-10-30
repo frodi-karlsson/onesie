@@ -27,7 +27,7 @@ func records(
 	resume answersfile.Resume,
 	outputMode output.Mode,
 ) *naming {
-	stream := input.NewStream(settings.stdin, inputMode, flags.skipBlank)
+	stream := input.NewStream(settings.stdin, inputMode, input.StreamOptions{SkipBlank: flags.skipBlank})
 
 	// A context of its own, since the read ahead goroutine outlives an engine that stops early, and
 	// a runaway --id on it would otherwise keep running until the command's context ends.

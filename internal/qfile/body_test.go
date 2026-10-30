@@ -28,6 +28,7 @@ func TestLoadBody(t *testing.T) {
 	tests := []struct {
 		name    string
 		doc     string
+		speller plan.Speller
 		wantErr string
 		check   func(t *testing.T, f *qfile.File)
 	}{
@@ -322,6 +323,12 @@ func TestLoadBody(t *testing.T) {
 			wantErr: "a request body carries no 'abstain_if'. Pass --abstain-if on the command line",
 		},
 		{
+			name:    "should name the gate setting as a tool argument for that speller",
+			doc:     `{"abstain_if":"a.value > 0.5","questions":{"a":{"type":"noul"}}}`,
+			speller: plan.Arguments,
+			wantErr: "a request body carries no 'abstain_if'. Pass abstain_if on the command line",
+		},
+		{
 			name:    "should name the kind of a structured model",
 			doc:     `{"model":{"name":"onesie"},"questions":{"a":{"type":"noul"}}}`,
 			wantErr: "'model' in a request body must be a string, got a mapping",
@@ -332,7 +339,7 @@ func TestLoadBody(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := qfile.Load([]byte(tc.doc))
+			got, err := qfile.Load([]byte(tc.doc), tc.speller)
 
 			if tc.wantErr != "" {
 				if err == nil {
@@ -363,7 +370,7 @@ func TestLoadBody(t *testing.T) {
 			const doc = `{"questions":{"u":{"type":"noul","instructions":` +
 				`{"n":8e13,"big":123456789012345678901234567890,"f":1.50}}},"state":{"n":8e13}}`
 
-			f, err := qfile.Load([]byte(doc))
+			f, err := qfile.Load([]byte(doc), plan.Flags)
 			if err != nil {
 				t.Fatalf("loading: %v", err)
 			}
@@ -388,7 +395,7 @@ func TestLoadBody(t *testing.T) {
 			const doc = `{"questions":{"a":{"type":"noul","instructions":` +
 				`{"what":"is this urgent","examples":["call me now"]}}}}`
 
-			f, err := qfile.Load([]byte(doc))
+			f, err := qfile.Load([]byte(doc), plan.Flags)
 			if err != nil {
 				t.Fatalf("loading: %v", err)
 			}

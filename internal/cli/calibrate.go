@@ -362,7 +362,7 @@ func scopeOf(built *plan.Plan, specs []string) (calibrateScope, error) {
 	exprs := make([]*jq.Expr, len(ids))
 
 	for _, spec := range specs {
-		id, source, err := calibrate.SplitLabel(spec, ids)
+		id, source, err := calibrate.SplitLabel(spec, ids, plan.Flags)
 		if err != nil {
 			return calibrateScope{}, err
 		}

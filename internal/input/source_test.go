@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/frodi-karlsson/onesie/internal/input"
+	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
 func TestResolve(t *testing.T) {
@@ -266,6 +267,21 @@ func TestResolve(t *testing.T) {
 			},
 			wantErr: true,
 			wantMessage: "--state-file 'empty.txt' is blank, " +
+				"an empty state is a request the model cannot answer",
+		},
+		{
+			name: "should name the state file setting as a tool argument for that speller",
+			req: input.Query{
+				Mode:         input.Text,
+				StateFile:    "empty.txt",
+				HasStateFile: true,
+				ReadFile: func(string) ([]byte, error) {
+					return nil, nil
+				},
+				Speller: plan.Arguments,
+			},
+			wantErr: true,
+			wantMessage: "state_file 'empty.txt' is blank, " +
 				"an empty state is a request the model cannot answer",
 		},
 		{

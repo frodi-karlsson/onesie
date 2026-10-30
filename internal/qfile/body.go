@@ -11,7 +11,7 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
-func loadBody(top yaml.MapSlice) (*File, error) {
+func loadBody(top yaml.MapSlice, speller plan.Speller) (*File, error) {
 	file := &File{IsBody: true}
 
 	// A body is the wire format, and the API has no assertion, so a key here would promise a gate
@@ -23,7 +23,7 @@ func loadBody(top yaml.MapSlice) (*File, error) {
 		if _, found := lookup(top, gate.key); found {
 			return nil, fmt.Errorf(
 				"a request body carries no '%s'. Pass %s on the command line",
-				gate.key, gate.flag)
+				gate.key, speller.Spell(gate.flag))
 		}
 	}
 

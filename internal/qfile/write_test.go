@@ -17,6 +17,7 @@ func TestWrite(t *testing.T) {
 		questions []plan.Question
 		assertion string
 		abstainIf string
+		speller   plan.Speller
 		want      string
 		wantErr   string
 	}{
@@ -261,6 +262,14 @@ func TestWrite(t *testing.T) {
 			wantErr: "--print-questions needs a named question. Use --ask NAME=QUESTION",
 		},
 		{
+			name: "should name the settings as tool arguments for that speller",
+			questions: []plan.Question{
+				{ID: "answer", Shape: plan.Noul, Instructions: "q"},
+			},
+			speller: plan.Arguments,
+			wantErr: "print_questions needs a named question. Use ask NAME=QUESTION",
+		},
+		{
 			name: "should reject a rubric on a pick question",
 			questions: []plan.Question{
 				{
@@ -290,7 +299,7 @@ func TestWrite(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := qfile.Write(tc.questions, tc.assertion, tc.abstainIf)
+			got, err := qfile.Write(tc.questions, tc.assertion, tc.abstainIf, tc.speller)
 			if tc.wantErr != "" {
 				if err == nil || err.Error() != tc.wantErr {
 					t.Fatalf("Write error = %v, want %s", err, tc.wantErr)
@@ -598,12 +607,12 @@ func TestWrite(t *testing.T) {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 
-				written, err := qfile.Write(tc.questions, tc.assertion, tc.abstainIf)
+				written, err := qfile.Write(tc.questions, tc.assertion, tc.abstainIf, plan.Flags)
 				if err != nil {
 					t.Fatalf("Write: %v", err)
 				}
 
-				reloaded, err := qfile.Load(written)
+				reloaded, err := qfile.Load(written, plan.Flags)
 				if err != nil {
 					t.Fatalf("Load: %v\nfile was\n%s", err, written)
 				}
@@ -626,7 +635,7 @@ func TestWrite(t *testing.T) {
 						want, got, written)
 				}
 
-				rewritten, err := qfile.Write(reloaded.Questions, reloaded.Assert, reloaded.AbstainIf)
+				rewritten, err := qfile.Write(reloaded.Questions, reloaded.Assert, reloaded.AbstainIf, plan.Flags)
 				if err != nil {
 					t.Fatalf("Write after Load: %v", err)
 				}

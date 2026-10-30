@@ -56,7 +56,7 @@ func printQuestions(
 		return err
 	}
 
-	file, err := qfile.Write(questions, assertion, abstainIf)
+	file, err := qfile.Write(questions, assertion, abstainIf, plan.Flags)
 	if err != nil {
 		return err
 	}

@@ -165,7 +165,7 @@ func gateOf(flag, fileSource string, sources []string, built *plan.Plan) (*asser
 	if fileSource != "" {
 		// Spelled the way the file spells it, which is the rule plan holds every other message to
 		// that names where a setting came from.
-		expr, err := gateExpr(fileSource, plan.Spelling(plan.OriginFile, flag), built)
+		expr, err := gateExpr(fileSource, plan.Keys.Spell(flag), built)
 		if err != nil {
 			return nil, err
 		}
@@ -198,7 +198,7 @@ func gateExpr(source, named string, built *plan.Plan) (*assert.Expr, error) {
 	// Each source is checked on its own rather than the combined gate, so a message names the one
 	// that carried the mistake. Every source is a boolean in its own right, so a combination adds
 	// nothing for the checker to reject.
-	if checkErr := assert.Check(expr, built); checkErr != nil {
+	if checkErr := assert.Check(expr, built, plan.Flags); checkErr != nil {
 		return nil, fmt.Errorf("%s: %w", named, checkErr)
 	}
 

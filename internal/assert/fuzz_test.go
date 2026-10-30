@@ -70,7 +70,7 @@ func FuzzParse(f *testing.F) {
 				combined.Source(), again.root.render(), combined.root.render())
 		}
 
-		if Check(expr, built) != nil {
+		if Check(expr, built, plan.Flags) != nil {
 			return
 		}
 

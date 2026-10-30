@@ -3,7 +3,6 @@ package qfile
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"math"
 	"math/big"
@@ -20,8 +19,9 @@ import (
 )
 
 // Write renders questions, an assertion and an abstain expression as a question file that reloads
-// through Load to the same plan. An empty expression writes no key.
-func Write(questions []plan.Question, assertion, abstainIf string) ([]byte, error) {
+// through Load to the same plan. An empty expression writes no key, and speller names a setting in a
+// refusal.
+func Write(questions []plan.Question, assertion, abstainIf string, speller plan.Speller) ([]byte, error) {
 	doc := make(yaml.MapSlice, 0, len(questions)+2)
 
 	// Both gate keys go above the questions, because each gate reads all of them and every other
@@ -36,8 +36,8 @@ func Write(questions []plan.Question, assertion, abstainIf string) ([]byte, erro
 
 	for _, question := range questions {
 		if question.ID == plan.PositionalID {
-			return nil, errors.New(
-				"--print-questions needs a named question. Use --ask NAME=QUESTION")
+			return nil, fmt.Errorf("%s needs a named question. Use %s NAME=QUESTION",
+				speller.Spell("--print-questions"), speller.Spell("--ask"))
 		}
 
 		body, err := writeQuestion(question)

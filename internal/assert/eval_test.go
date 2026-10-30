@@ -134,7 +134,7 @@ func TestEval(t *testing.T) {
 
 			// Eval promises nothing about an expression Check rejects, so every case here is one
 			// Check accepts against the plan the record came from.
-			if checked := Check(expr, built); checked != nil {
+			if checked := Check(expr, built, plan.Flags); checked != nil {
 				t.Fatalf("Check(%q) error = %v, want no error", expr.source, checked)
 			}
 
@@ -251,7 +251,7 @@ func TestEval(t *testing.T) {
 				t.Fatalf("Parse(%q) error = %v, want no error", source, err)
 			}
 
-			if checked := Check(expr, boxed); checked != nil {
+			if checked := Check(expr, boxed, plan.Flags); checked != nil {
 				t.Fatalf("Check(%q) error = %v, want no error", source, checked)
 			}
 

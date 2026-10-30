@@ -34,7 +34,7 @@ func FuzzSplitLabel(f *testing.F) {
 	f.Fuzz(func(t *testing.T, spec, joined string) {
 		ids := distinct(strings.Split(joined, "\x00"))
 
-		id, source, err := calibrate.SplitLabel(spec, ids)
+		id, source, err := calibrate.SplitLabel(spec, ids, plan.Flags)
 		if err != nil {
 			if id != "" || source != "" {
 				t.Fatalf("SplitLabel(%q, %q) = %q, %q beside the error %v", spec, ids, id, source, err)

@@ -71,7 +71,7 @@ func readLabelled(
 	ctx, stop := context.WithCancel(ctx)
 	defer stop()
 
-	next := readAhead(ctx, input.NewStream(settings.stdin, inputMode, flags.skipBlank))
+	next := readAhead(ctx, input.NewStream(settings.stdin, inputMode, input.StreamOptions{SkipBlank: flags.skipBlank}))
 	reader := &labelReader{mapper: mapper, namer: namer, labels: labels, seen: map[[sha256.Size]byte]int{}}
 
 	var set labelledSet
