@@ -29,6 +29,7 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/input"
 	"github.com/frodi-karlsson/onesie/internal/output"
 	"github.com/frodi-karlsson/onesie/internal/plan"
+	"github.com/frodi-karlsson/onesie/internal/planbuild"
 	"github.com/frodi-karlsson/onesie/internal/runner"
 )
 
@@ -869,7 +870,8 @@ func TestAsk(t *testing.T) {
 				return resolution{provider: onesie.TypeSafe()}, nil
 			}}
 
-			inv := &invocation{plan: &plan.Plan{Questions: []plan.Question{{ID: "answer", Shape: plan.Noul}}}}
+			built := &plan.Plan{Questions: []plan.Question{{ID: "answer", Shape: plan.Noul}}}
+			inv := &invocation{Built: &planbuild.Built{Plan: built}}
 			asker := resultAnswerer{result: func() *onesie.Result {
 				return &onesie.Result{Model: "m", Answers: map[string]onesie.Answer{"answer": &onesie.NoulAnswer{Noul: tc.noul}}}
 			}}

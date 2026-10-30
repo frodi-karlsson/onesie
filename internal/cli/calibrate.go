@@ -181,17 +181,17 @@ func runCalibrate(
 	}
 
 	if warnErr := warnIgnoredBodyState(
-		cmd.ErrOrStderr(), flags, inv.loaded, "calibrate", inv.images, plan.WireAll(inv.plan.Questions)); warnErr != nil {
+		cmd.ErrOrStderr(), flags, inv.loaded, "calibrate", inv.images, plan.WireAll(inv.Plan.Questions)); warnErr != nil {
 		return warnErr
 	}
 
 	if !calib.offline {
-		if refuseErr := checkProviderNeeds(settings, flags, inv.plan, inv.images); refuseErr != nil {
+		if refuseErr := checkProviderNeeds(settings, flags, inv.Plan, inv.images); refuseErr != nil {
 			return refuseErr
 		}
 	}
 
-	scope, err := scopeOf(inv.plan, calib.labels)
+	scope, err := scopeOf(inv.Plan, calib.labels)
 	if err != nil {
 		return err
 	}

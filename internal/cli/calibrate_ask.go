@@ -62,7 +62,7 @@ func calibrateRun(
 	// with -o json and the same questions reads the file as its own.
 	inputs := answersfile.FingerprintInputs{
 		Model: model, Output: output.JSON.String(), Input: inputMode.String(), Images: inv.images.fingerprint(),
-		LongContext: inv.plan.LongContext,
+		LongContext: inv.Plan.LongContext,
 	}
 
 	asked, err := askedPlan(settings, flags, out, scope, inputs)
@@ -135,7 +135,7 @@ func calibrateAnswers(
 		}
 	}
 
-	set, err := readLabelled(cmd.Context(), settings, inputMode, flags, inv.mapper, inv.namer, run.scope.labels)
+	set, err := readLabelled(cmd.Context(), settings, inputMode, flags, inv.Mapper, inv.Namer, run.scope.labels)
 	if err != nil {
 		return err
 	}
@@ -154,7 +154,7 @@ func calibrateAnswers(
 		return bindErr
 	}
 
-	resumed, err := resumeLabelled(cmd.Context(), out, flags, inv.namer, scored, set)
+	resumed, err := resumeLabelled(cmd.Context(), out, flags, inv.Namer, scored, set)
 	if err != nil {
 		return err
 	}

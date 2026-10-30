@@ -28,7 +28,7 @@ func calibrateRequests(
 		return err
 	}
 
-	set, err := readLabelled(cmd.Context(), settings, inputMode, flags, inv.mapper, inv.namer, scope.labels)
+	set, err := readLabelled(cmd.Context(), settings, inputMode, flags, inv.Mapper, inv.Namer, scope.labels)
 	if err != nil {
 		return err
 	}

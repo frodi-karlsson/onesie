@@ -17,7 +17,7 @@ func stream(cmd *cobra.Command, in streamInputs) error {
 		return streamRequests(cmd, in.settings, in.flags, in.inv, in.resume)
 	}
 
-	model, err := resolveModel(in.settings, in.inv.plan.Model)
+	model, err := resolveModel(in.settings, in.inv.Plan.Model)
 	if err != nil {
 		return err
 	}
@@ -57,13 +57,13 @@ func streamConfig(cmd *cobra.Command, in streamInputs, model string) runner.Stre
 		ErrOut:     cmd.ErrOrStderr(),
 		OutputMode: in.outputMode,
 		Ask: runner.Ask{
-			Plan: inv.plan, Model: model, Questions: plan.WireAll(inv.plan.Questions), Usage: flags.usage,
+			Plan: inv.Plan, Model: model, Questions: plan.WireAll(inv.Plan.Questions), Usage: flags.usage,
 			Message: text,
 		},
-		Gate:         inv.gate,
-		Abstain:      inv.abstain,
-		Mapper:       inv.mapper,
-		Namer:        inv.namer,
+		Gate:         inv.Gate,
+		Abstain:      inv.Abstain,
+		Mapper:       inv.Mapper,
+		Namer:        inv.Namer,
 		Images:       inv.images,
 		Answerers:    in.answerers,
 		Stats:        in.stats,

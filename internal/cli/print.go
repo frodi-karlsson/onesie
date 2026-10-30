@@ -134,10 +134,10 @@ func streamRequests(
 	}
 
 	run := &requestRun{
-		mapper: inv.mapper, images: inv.images, provider: chosen.provider,
+		mapper: inv.Mapper, images: inv.images, provider: chosen.provider,
 		ask: runner.Ask{
-			Plan: inv.plan, Model: chosen.modelFor(inv.plan.Model, settings.lookupEnv),
-			Questions: plan.WireAll(inv.plan.Questions),
+			Plan: inv.Plan, Model: chosen.modelFor(inv.Plan.Model, settings.lookupEnv),
+			Questions: plan.WireAll(inv.Plan.Questions),
 		},
 	}
 	source := runner.NewNaming(cmd.Context(), runner.RecordsConfig{
@@ -145,7 +145,7 @@ func streamRequests(
 			Resume: resume, OutputMode: output.JSON, StopOnAssert: flags.stopOnAssert, StopOnError: flags.stopOnError,
 			Speller: plan.Flags,
 		},
-		Input: settings.stdin, InputMode: flags.inputMode, SkipBlank: flags.skipBlank, Namer: inv.namer,
+		Input: settings.stdin, InputMode: flags.inputMode, SkipBlank: flags.skipBlank, Namer: inv.Namer,
 	})
 
 	result, err := engine.Run(cmd.Context(), engine.Config[runner.NamedRecord, []byte]{

@@ -70,8 +70,8 @@ func run(
 		out.BindWithoutFingerprint()
 
 		return printQuestions(
-			cmd.OutOrStdout(), cmd.ErrOrStderr(), inv.plan.Questions, inv.gate.Source(),
-			inv.abstain.Source(), inv.loaded, settings.schemaURL)
+			cmd.OutOrStdout(), cmd.ErrOrStderr(), inv.Plan.Questions, inv.Gate.Source(),
+			inv.Abstain.Source(), inv.loaded, settings.schemaURL)
 	}
 
 	return runPlan(cmd, settings, flags, inv, out, resume)
@@ -118,7 +118,7 @@ func runPlan(
 	out *answersfile.File,
 	resume answersfile.Resume,
 ) error {
-	built, gate, abstain, inputMode := inv.plan, inv.gate, inv.abstain, flags.inputMode
+	built, gate, abstain, inputMode := inv.Plan, inv.Gate, inv.Abstain, flags.inputMode
 
 	model, err := resolveModel(settings, built.Model)
 	if err != nil {
@@ -181,7 +181,7 @@ func runOne(
 	outputMode output.Mode,
 	answers runner.AnswererFactory,
 ) error {
-	built := inv.plan
+	built := inv.Plan
 
 	resolved, err := resolveState(cmd.Context(), settings, flags, inv.loaded, cmd.ErrOrStderr())
 	if err != nil {
@@ -194,7 +194,7 @@ func runOne(
 
 	sent := resolved.Wire
 	if resolved.Source != input.SourceNone {
-		sent, err = runner.Mapped(cmd.Context(), inv.mapper, resolved.State, resolved.Wire, plan.Flags)
+		sent, err = runner.Mapped(cmd.Context(), inv.Mapper, resolved.State, resolved.Wire, plan.Flags)
 		if err != nil {
 			return err
 		}
@@ -519,7 +519,7 @@ func ask(
 		return err
 	}
 
-	built, gate, abstain := inv.plan, inv.gate, inv.abstain
+	built, gate, abstain := inv.Plan, inv.Gate, inv.Abstain
 
 	model, err := resolveModel(settings, built.Model)
 	if err != nil {
@@ -626,11 +626,11 @@ func writeRecord(
 	record output.Record,
 ) error {
 	if mode == output.Markdown {
-		return output.WriteMarkdown(cmd.OutOrStdout(), record, markdownOptions(inv.gate, inv.abstain))
+		return output.WriteMarkdown(cmd.OutOrStdout(), record, markdownOptions(inv.Gate, inv.Abstain))
 	}
 
 	if mode == output.CSV || mode == output.TSV {
-		return runner.DelimitedFor(cmd.OutOrStdout(), mode, inv.plan, inv.gate != nil, false, false).Write(record, nil, nil)
+		return runner.DelimitedFor(cmd.OutOrStdout(), mode, inv.Plan, inv.Gate != nil, false, false).Write(record, nil, nil)
 	}
 
 	if merging(flags) {
