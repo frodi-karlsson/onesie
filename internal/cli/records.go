@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
+	"io"
 	"strconv"
 	"strings"
 	"sync"
@@ -15,63 +16,79 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/input"
 	"github.com/frodi-karlsson/onesie/internal/jq"
 	"github.com/frodi-karlsson/onesie/internal/output"
+	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
-func records(
-	ctx context.Context,
-	settings rootSettings,
-	inputMode input.Mode,
-	flags runConfig,
-	namer *jq.Expr,
-	book *answersfile.Ledger,
-	resume answersfile.Resume,
-	outputMode output.Mode,
-) *naming {
-	stream := input.NewStream(settings.stdin, inputMode, input.StreamOptions{SkipBlank: flags.skipBlank})
+// NewNaming reads the records of a run, skips the ones a resume already answered and names each
+// by its id. Stop ends the context its ids are computed under.
+func NewNaming(ctx context.Context, config RecordsConfig) *Naming {
+	stream := input.NewStream(config.Input, config.InputMode, input.StreamOptions{
+		SkipBlank: config.SkipBlank, Speller: config.Speller,
+	})
 
 	// A context of its own, since the read ahead goroutine outlives an engine that stops early, and
 	// a runaway --id on it would otherwise keep running until the command's context ends.
-	ctx, stop := context.WithCancel(ctx)
+	ctx, cancel := context.WithCancel(ctx)
 
-	return &naming{
-		ctx:  ctx,
-		stop: stop,
-		source: &resumed{
-			source: stream, left: resume.Skip, stored: resume.Stored,
-			haltOnAssert: flags.stopOnAssert, haltOnError: flags.stopOnError, table: tableName(outputMode, flags),
-		},
-		namer: namer,
-		halt:  flags.stopOnAssert,
-		book:  book,
-		mode:  outputMode,
-		input: inputMode,
-		seen:  map[[sha256.Size]byte]int{},
+	return &Naming{
+		ctx:     ctx,
+		cancel:  cancel,
+		source:  NewResumed(stream, config.ResumedConfig),
+		namer:   config.Namer,
+		halt:    config.StopOnAssert,
+		book:    config.Book,
+		mode:    config.OutputMode,
+		input:   config.InputMode,
+		speller: config.Speller,
+		seen:    map[[sha256.Size]byte]int{},
 	}
 }
 
-type resumed struct {
-	mu              sync.Mutex
-	source          engine.Source[input.Record]
-	left            int
-	stored          []answersfile.Verdict
-	skips           answersfile.Tally
-	haltOnAssert    bool
-	haltOnError     bool
-	halted          bool
-	table           string
-	stoppedBy       *output.Failure
-	stoppedAtRecord int
+// RecordsConfig is what NewNaming reads its records from and how it names and skips them.
+type RecordsConfig struct {
+	ResumedConfig
+
+	Input     io.Reader
+	InputMode input.Mode
+	SkipBlank bool
+	Namer     *jq.Expr
+	Book      *answersfile.Ledger
 }
 
-func tableName(mode output.Mode, flags runConfig) string {
+// ResumedConfig is the resume a source skips and the stop flags a fresh run would have honoured.
+type ResumedConfig struct {
+	Resume answersfile.Resume
+	// OutputMode names the table a stored failure is refused against, for csv and tsv only.
+	OutputMode   output.Mode
+	StopOnAssert bool
+	StopOnError  bool
+	Speller      plan.Speller
+}
+
+// NewResumed skips the records a resume already answered, and stops where a fresh run under its
+// stop flags would have stopped.
+func NewResumed(source engine.Source[input.Record], config ResumedConfig) *Resumed {
+	return &Resumed{
+		source:       source,
+		left:         config.Resume.Skip,
+		stored:       config.Resume.Stored,
+		haltOnAssert: config.StopOnAssert,
+		haltOnError:  config.StopOnError,
+		table:        tableName(config.OutputMode),
+		speller:      config.Speller,
+	}
+}
+
+func tableName(mode output.Mode) string {
 	if mode != output.CSV && mode != output.TSV {
 		return ""
 	}
 
-	return flags.output
+	return mode.String()
 }
 
-func (r *resumed) Next() (input.Record, bool, error) {
+// Next reads the next record past the skipped ones.
+func (r *Resumed) Next() (input.Record, bool, error) {
 	for r.left > 0 && !r.halted {
 		r.left--
 
@@ -97,7 +114,7 @@ func (r *resumed) Next() (input.Record, bool, error) {
 	return r.source.Next()
 }
 
-func (r *resumed) count() answersfile.Verdict {
+func (r *Resumed) count() answersfile.Verdict {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -111,7 +128,7 @@ func (r *resumed) count() answersfile.Verdict {
 	return judged
 }
 
-func (r *resumed) stop(failure *output.Failure) {
+func (r *Resumed) stop(failure *output.Failure) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -119,11 +136,13 @@ func (r *resumed) stop(failure *output.Failure) {
 	r.stoppedAtRecord = r.skips.Records
 }
 
-func (r *resumed) idHint() string {
+// IDHint is empty, since a source that names nothing has no id to hint at.
+func (r *Resumed) IDHint() string {
 	return ""
 }
 
-func (r *resumed) freshRunAbort() error {
+// FreshRunAbort is the stored failure a fresh run would have stopped at, or nil.
+func (r *Resumed) FreshRunAbort() error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -133,36 +152,62 @@ func (r *resumed) freshRunAbort() error {
 
 	if r.table != "" {
 		return fmt.Errorf("the stored failure for record %d is followed by more rows, so a run "+
-			"without --stop-on-error wrote it, and a %s row keeps only its message, not the code to stop "+
-			"with. Pass --id or drop --stop-on-error to carry on", r.stoppedAtRecord, r.table)
+			"without %s wrote it, and a %s row keeps only its message, not the code to stop "+
+			"with. Pass %s or drop %s to carry on", r.stoppedAtRecord, r.speller.Spell("--stop-on-error"),
+			r.table, r.speller.Spell("--id"), r.speller.Spell("--stop-on-error"))
 	}
 
-	return &storedFailure{failure: *r.stoppedBy, record: r.stoppedAtRecord}
+	return &StoredFailure{Failure: *r.stoppedBy, Record: r.stoppedAtRecord, speller: r.speller}
 }
 
-func (r *resumed) skipped() answersfile.Tally {
+// Skipped counts the records the resume skipped.
+func (r *Resumed) Skipped() answersfile.Tally {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	return r.skips
 }
 
-type naming struct {
-	ctx     context.Context
-	stop    context.CancelFunc
-	source  *resumed
-	namer   *jq.Expr
-	book    *answersfile.Ledger
-	mode    output.Mode
-	input   input.Mode
-	seen    map[[sha256.Size]byte]int
-	halt    bool
-	halted  bool
-	misread atomic.Bool
-	otherID atomic.Bool
+// Resumed is a record source past the records a resume already answered.
+type Resumed struct {
+	mu              sync.Mutex
+	source          engine.Source[input.Record]
+	left            int
+	stored          []answersfile.Verdict
+	skips           answersfile.Tally
+	haltOnAssert    bool
+	haltOnError     bool
+	halted          bool
+	table           string
+	speller         plan.Speller
+	stoppedBy       *output.Failure
+	stoppedAtRecord int
 }
 
-func (n *naming) Next() (namedRecord, bool, error) {
+// Resumable is a record source a resume skipped through, read once the run ends.
+type Resumable interface {
+	Skipped() answersfile.Tally
+	FreshRunAbort() error
+	IDHint() string
+}
+
+// Error names the stored failure and the flags that carry a resume past it.
+func (e *StoredFailure) Error() string {
+	return fmt.Sprintf("%s. The stored failure for record %d is followed by more lines, so a run without "+
+		"%s wrote it. Pass %s or drop %s to carry on",
+		strings.TrimSuffix(e.Failure.Message, "."), e.Record, e.speller.Spell("--stop-on-error"),
+		e.speller.Spell("--id"), e.speller.Spell("--stop-on-error"))
+}
+
+// StoredFailure is the stored failure a resume stopped at, where a fresh run would have stopped.
+type StoredFailure struct {
+	Failure output.Failure
+	Record  int
+	speller plan.Speller
+}
+
+// Next reads the next named record the resume did not answer.
+func (n *Naming) Next() (NamedRecord, bool, error) {
 	for !n.halted {
 		rec, ok, err := n.source.Next()
 		if err != nil || !ok {
@@ -170,7 +215,7 @@ func (n *naming) Next() (namedRecord, bool, error) {
 				n.book.End()
 			}
 
-			return namedRecord{Record: rec}, ok, err
+			return NamedRecord{Record: rec}, ok, err
 		}
 
 		named := n.named(rec)
@@ -178,7 +223,7 @@ func (n *naming) Next() (namedRecord, bool, error) {
 		// An interrupt can end the naming context before the engine's, so an --id it cut short ends
 		// the source and does not become a failed record.
 		if err := n.ctx.Err(); err != nil {
-			return namedRecord{Record: rec}, false, err
+			return NamedRecord{Record: rec}, false, err
 		}
 
 		if n.book == nil {
@@ -186,8 +231,8 @@ func (n *naming) Next() (namedRecord, bool, error) {
 		}
 
 		// Skipped here, as the record is read, so an answered record is never evaluated or sent.
-		slot, judged, answered := n.book.Admit(named.id)
-		named.slot = slot
+		slot, judged, answered := n.book.Admit(named.ID)
+		named.Slot = slot
 
 		if !answered {
 			return named, true, nil
@@ -197,51 +242,83 @@ func (n *naming) Next() (namedRecord, bool, error) {
 		n.halted = judged.Rejected && n.halt
 	}
 
-	return namedRecord{}, false, nil
+	return NamedRecord{}, false, nil
 }
 
-type namedRecord struct {
+// Stop ends the context the ids are computed under.
+func (n *Naming) Stop() {
+	n.cancel()
+}
+
+// NamedRecord is a record with its id, the error naming it gave, and its slot in the answers file.
+type NamedRecord struct {
 	input.Record
-	id    any
-	idErr error
-	slot  int
+
+	ID    any
+	IDErr error
+	Slot  int
 }
 
-func (n *naming) skipped() answersfile.Tally {
+// Skipped counts the records the resume skipped.
+func (n *Naming) Skipped() answersfile.Tally {
 	if n.book != nil {
 		return n.book.Skipped()
 	}
 
-	return n.source.skipped()
+	return n.source.Skipped()
 }
 
-func (n *naming) freshRunAbort() error {
-	return n.source.freshRunAbort()
+// FreshRunAbort is the stored failure a fresh run would have stopped at, or nil.
+func (n *Naming) FreshRunAbort() error {
+	return n.source.FreshRunAbort()
 }
 
-func (n *naming) idHint() string {
+// IDHint is the hint for a run whose every id was null, which a misread delimiter explains.
+func (n *Naming) IDHint() string {
 	// Atomic, since the goroutine that reads ahead may still be naming a record after the run.
 	if !n.misread.Load() || n.otherID.Load() {
 		return ""
 	}
 
-	return "every record's --id was null. " + delimiterHint(n.input)
+	return "every record's " + n.speller.Spell("--id") + " was null. " + DelimiterHint(n.input, n.speller)
 }
 
-func delimiterHint(mode input.Mode) string {
+// Naming reads records and names each by its id.
+type Naming struct {
+	ctx     context.Context
+	cancel  context.CancelFunc
+	source  *Resumed
+	namer   *jq.Expr
+	book    *answersfile.Ledger
+	mode    output.Mode
+	input   input.Mode
+	speller plan.Speller
+	seen    map[[sha256.Size]byte]int
+	halt    bool
+	halted  bool
+	misread atomic.Bool
+	otherID atomic.Bool
+}
+
+// DelimiterHint suggests the input mode that splits on the other delimiter.
+func DelimiterHint(mode input.Mode, speller plan.Speller) string {
+	inputFlag := speller.Spell("-i")
+
 	switch mode {
 	case input.CSV:
-		return "-i csv splits each line on commas, so if the file is tab separated, pass -i tsv"
+		return fmt.Sprintf("%s csv splits each line on commas, so if the file is tab separated, pass %s tsv",
+			inputFlag, inputFlag)
 	case input.TSV:
-		return "-i tsv splits each line on tabs, so if the file is comma separated, pass -i csv"
+		return fmt.Sprintf("%s tsv splits each line on tabs, so if the file is comma separated, pass %s csv",
+			inputFlag, inputFlag)
 	default:
 		return ""
 	}
 }
 
-func (n *naming) named(rec input.Record) namedRecord {
+func (n *Naming) named(rec input.Record) NamedRecord {
 	if n.namer == nil || rec.Err != nil {
-		return namedRecord{Record: rec}
+		return NamedRecord{Record: rec}
 	}
 
 	// Named as the records are read rather than as they are evaluated, so which of two records
@@ -250,10 +327,10 @@ func (n *naming) named(rec input.Record) namedRecord {
 	return n.name(rec)
 }
 
-func (n *naming) name(rec input.Record) namedRecord {
-	id, err := idOf(n.ctx, n.namer, rec)
+func (n *Naming) name(rec input.Record) NamedRecord {
+	id, err := IDOf(n.ctx, n.namer, rec, n.speller)
 	if errors.Is(err, jq.ErrNullID) {
-		if misreadDelimiter(n.input, rec.Header) {
+		if MisreadDelimiter(n.input, rec.Header) {
 			n.misread.Store(true)
 		}
 	} else {
@@ -261,29 +338,30 @@ func (n *naming) name(rec input.Record) namedRecord {
 	}
 
 	if err != nil {
-		return namedRecord{Record: rec, idErr: err}
+		return NamedRecord{Record: rec, IDErr: err}
 	}
 
 	text := jq.IDText(id)
 
-	if unwritable := unwritableID(n.mode, text); unwritable != nil {
-		return namedRecord{Record: rec, idErr: unwritable}
+	if unwritable := UnwritableID(n.mode, text, n.speller); unwritable != nil {
+		return NamedRecord{Record: rec, IDErr: unwritable}
 	}
 
 	key := sha256.Sum256([]byte(text))
 	if first, taken := n.seen[key]; taken {
-		return namedRecord{
+		return NamedRecord{
 			Record: rec,
-			idErr:  fmt.Errorf("--id: '%s' is also the id of line %d", text, first),
+			IDErr:  fmt.Errorf("%s: '%s' is also the id of line %d", n.speller.Spell("--id"), text, first),
 		}
 	}
 
 	n.seen[key] = rec.Line
 
-	return namedRecord{Record: rec, id: id}
+	return NamedRecord{Record: rec, ID: id}
 }
 
-func misreadDelimiter(mode input.Mode, header []string) bool {
+// MisreadDelimiter reports whether a one column header holds the other mode's delimiter.
+func MisreadDelimiter(mode input.Mode, header []string) bool {
 	if len(header) != 1 {
 		return false
 	}
@@ -298,12 +376,16 @@ func misreadDelimiter(mode input.Mode, header []string) bool {
 	}
 }
 
-func unwritableID(mode output.Mode, text string) error {
+// UnwritableID refuses an id the output mode cannot write, or cannot read back on a resume.
+func UnwritableID(mode output.Mode, text string, speller plan.Speller) error {
+	id, out := speller.Spell("--id"), speller.Spell("-o")
+
 	switch {
 	case mode == output.TSV && strings.ContainsAny(text, "\t\r\n"):
-		return fmt.Errorf("--id: '%s' holds a tab, carriage return or newline, which -o tsv cannot write", escaped(text))
+		return fmt.Errorf("%s: '%s' holds a tab, carriage return or newline, which %s tsv cannot write",
+			id, escaped(text), out)
 	case mode == output.CSV && strings.ContainsRune(text, '\r'):
-		return fmt.Errorf("--id: '%s' holds a carriage return, which -o csv cannot read back", escaped(text))
+		return fmt.Errorf("%s: '%s' holds a carriage return, which %s csv cannot read back", id, escaped(text), out)
 	default:
 		return nil
 	}
@@ -318,15 +400,16 @@ func escaped(text string) string {
 	return strings.NewReplacer(`\"`, `"`, `'`, `\'`).Replace(quoted[1 : len(quoted)-1])
 }
 
-func idOf(ctx context.Context, namer *jq.Expr, rec input.Record) (any, error) {
-	value, err := namer.One(ctx, jqValue(rec.State, rec.Wire))
+// IDOf computes a record's id with namer.
+func IDOf(ctx context.Context, namer *jq.Expr, rec input.Record, speller plan.Speller) (any, error) {
+	value, err := namer.One(ctx, JQValue(rec.State, rec.Wire))
 	if err != nil {
-		return nil, fmt.Errorf("--id %w", err)
+		return nil, fmt.Errorf("%s %w", speller.Spell("--id"), err)
 	}
 
 	id, err := jq.ID(value)
 	if err != nil {
-		return nil, fmt.Errorf("--id: %w", err)
+		return nil, fmt.Errorf("%s: %w", speller.Spell("--id"), err)
 	}
 
 	return id, nil

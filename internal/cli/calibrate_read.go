@@ -32,20 +32,23 @@ func calibrateRequests(
 		return err
 	}
 
-	model := chosen.modelFor(scope.scored.Model, settings.lookupEnv)
-	questions := plan.WireAll(scope.scored.Questions)
+	ask := Ask{
+		Plan:      scope.scored,
+		Model:     chosen.modelFor(scope.scored.Model, settings.lookupEnv),
+		Questions: plan.WireAll(scope.scored.Questions),
+	}
 
 	for _, rec := range set.records {
 		if ctxErr := cmd.Context().Err(); ctxErr != nil {
 			return ctxErr
 		}
 
-		sent, assets, imageErr := inv.images.attach(rec.sent)
+		sent, assets, imageErr := inv.images.Attach(rec.sent)
 		if imageErr != nil {
 			return &input.LineError{Line: rec.line, Err: imageErr}
 		}
 
-		req := requestFor(scope.scored, model, questions, sent, assets)
+		req := ask.Request(sent, assets)
 		if checkErr := chosen.provider.Check(req); checkErr != nil {
 			return &input.LineError{Line: rec.line, Err: embed("", checkErr)}
 		}
@@ -132,11 +135,11 @@ func readLabelled(
 func firstIDHint(err error, read int, inputMode input.Mode, header []string) error {
 	// calibrate stops at the first record it cannot read, so a null id on the first record is every
 	// record read.
-	if read != 1 || !misreadDelimiter(inputMode, header) || !errors.Is(err, jq.ErrNullID) {
+	if read != 1 || !MisreadDelimiter(inputMode, header) || !errors.Is(err, jq.ErrNullID) {
 		return err
 	}
 
-	return &advisedError{cause: err, message: text(err) + ". " + delimiterHint(inputMode)}
+	return &advisedError{cause: err, message: text(err) + ". " + DelimiterHint(inputMode, plan.Flags)}
 }
 
 func readAhead(ctx context.Context, stream *input.Stream) <-chan pulledRecord {
@@ -179,7 +182,7 @@ func (r *labelReader) read(ctx context.Context, rec input.Record) (labelledRecor
 		labelled.id = id
 	}
 
-	value := jqValue(rec.State, rec.Wire)
+	value := JQValue(rec.State, rec.Wire)
 	labelled.labels = make([]*calibrate.Label, len(r.labels))
 	found := false
 
@@ -193,7 +196,7 @@ func (r *labelReader) read(ctx context.Context, rec input.Record) (labelledRecor
 		found = found || parsed != nil
 	}
 
-	sent, err := mapped(ctx, r.mapper, rec.State, rec.Wire)
+	sent, err := Mapped(ctx, r.mapper, rec.State, rec.Wire, plan.Flags)
 	if err != nil {
 		return labelledRecord{}, false, &input.LineError{Line: rec.Line, Err: err}
 	}
@@ -210,14 +213,14 @@ func (r *labelReader) read(ctx context.Context, rec input.Record) (labelledRecor
 }
 
 func (r *labelReader) uniqueID(ctx context.Context, rec input.Record) (any, error) {
-	id, err := idOf(ctx, r.namer, rec)
+	id, err := IDOf(ctx, r.namer, rec, plan.Flags)
 	if err != nil {
 		return nil, err
 	}
 
 	text := jq.IDText(id)
 
-	if unwritable := unwritableID(output.JSON, text); unwritable != nil {
+	if unwritable := UnwritableID(output.JSON, text, plan.Flags); unwritable != nil {
 		return nil, unwritable
 	}
 

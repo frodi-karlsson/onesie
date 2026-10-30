@@ -78,7 +78,7 @@ func TestCollectorSnapshot(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			var c collector
+			var c Collector
 
 			var wg sync.WaitGroup
 
@@ -91,18 +91,18 @@ func TestCollectorSnapshot(t *testing.T) {
 					for range tc.each {
 						c.observe(onesie.Attempt{Index: 0, Status: http.StatusTooManyRequests})
 						c.observe(onesie.Attempt{Index: 1, Status: http.StatusOK})
-						c.record("onesie-1.13.0", onesie.Usage{InputTokens: 2, OutputTokens: 1}, 1)
+						c.Record("onesie-1.13.0", onesie.Usage{InputTokens: 2, OutputTokens: 1}, 1)
 
 						c.observe(onesie.Attempt{Index: 0, Status: http.StatusBadRequest})
-						c.terminalAttempt(&onesie.APIError{Status: http.StatusBadRequest})
-						c.recordFailure(&onesie.APIError{Status: http.StatusBadRequest}, true, 1)
+						c.TerminalAttempt(&onesie.APIError{Status: http.StatusBadRequest})
+						c.RecordFailure(&onesie.APIError{Status: http.StatusBadRequest}, true, 1)
 					}
 				}()
 			}
 
 			wg.Wait()
 
-			got := c.snapshot(time.Second)
+			got := c.Snapshot(time.Second)
 			each := tc.workers * tc.each
 
 			if got.Attempts != 3*each {
@@ -162,13 +162,13 @@ func TestCollectorObserve(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			var c collector
+			var c Collector
 
 			for _, attempt := range tc.attempts {
 				c.observe(attempt)
 			}
 
-			if got := c.snapshot(time.Second).AttemptTimeout; got != tc.want {
+			if got := c.Snapshot(time.Second).AttemptTimeout; got != tc.want {
 				t.Errorf("AttemptTimeout = %v, want %v", got, tc.want)
 			}
 		})
@@ -181,13 +181,13 @@ func TestCollectorCachedRecord(t *testing.T) {
 	t.Run("should count a cached answer as a record and not a request, question or attempt", func(t *testing.T) {
 		t.Parallel()
 
-		var c collector
+		var c Collector
 
 		c.cachedRecord("onesie-1.13.0")
 		c.cachedRecord("onesie-1.14.0")
-		c.record("onesie-1.13.0", onesie.Usage{InputTokens: 3, OutputTokens: 1}, 2)
+		c.Record("onesie-1.13.0", onesie.Usage{InputTokens: 3, OutputTokens: 1}, 2)
 
-		got := c.snapshot(time.Second)
+		got := c.Snapshot(time.Second)
 
 		if got.Records != 3 || got.Cached != 2 || got.Requests != 1 || got.Questions != 2 || got.Attempts != 0 {
 			t.Errorf("snapshot = %+v, want 3 records, 2 cached, 1 request, 2 questions, 0 attempts", got)
@@ -226,11 +226,11 @@ func TestCollectorRecordFailure(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			var c collector
+			var c Collector
 
-			c.recordFailure(tc.cause, true, 1)
+			c.RecordFailure(tc.cause, true, 1)
 
-			got := c.snapshot(time.Second)
+			got := c.Snapshot(time.Second)
 
 			if got.Records != tc.wantRecords {
 				t.Errorf("Records = %d, want %d", got.Records, tc.wantRecords)
@@ -273,11 +273,11 @@ func TestCollectorDeduplicated(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			var c collector
+			var c Collector
 
 			c.deduplicated(tc.cause)
 
-			got := c.snapshot(time.Second)
+			got := c.Snapshot(time.Second)
 
 			if got.Records != tc.wantRecords || got.Dedups != tc.wantDedups || got.Failed != tc.wantFailed {
 				t.Errorf("records, dedups, failed = %d, %d, %d, want %d, %d, %d",
@@ -404,8 +404,8 @@ func TestWithStats(t *testing.T) {
 
 			now := ticking(time.Date(2026, 9, 24, 12, 0, 0, 0, time.UTC), tc.elapsed)
 
-			got := withStats(cmd, now, runConfig{runFlags: runFlags{stats: true, timeout: 10}}, func(c *collector) error {
-				c.record("onesie-1.13.0", onesie.Usage{}, 1)
+			got := withStats(cmd, now, runConfig{runFlags: runFlags{stats: true, timeout: 10}}, func(c *Collector) error {
+				c.Record("onesie-1.13.0", onesie.Usage{}, 1)
 
 				return tc.run
 			})

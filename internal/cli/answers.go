@@ -63,7 +63,7 @@ func caching(flags runConfig) bool {
 }
 
 func liveAnswers(settings rootSettings, flags runConfig) AnswererFactory {
-	return func(ctx context.Context, stats *collector) (Answerer, error) {
+	return func(ctx context.Context, stats *Collector) (Answerer, error) {
 		chosen, err := settings.holder.resolved()
 		if err != nil {
 			return nil, err
@@ -79,7 +79,7 @@ func liveAnswers(settings rootSettings, flags runConfig) AnswererFactory {
 }
 
 func cachedAnswers(settings rootSettings, flags runConfig, model string, warn func(error)) AnswererFactory {
-	return func(ctx context.Context, stats *collector) (Answerer, error) {
+	return func(ctx context.Context, stats *Collector) (Answerer, error) {
 		chosen, err := settings.holder.resolved()
 		if err != nil {
 			return nil, err

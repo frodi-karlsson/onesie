@@ -10,7 +10,7 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/output"
 )
 
-func listModels(cmd *cobra.Command, settings rootSettings, flags runConfig, stats *collector) error {
+func listModels(cmd *cobra.Command, settings rootSettings, flags runConfig, stats *Collector) error {
 	chosen, err := settings.holder.resolved()
 	if err != nil {
 		return err
@@ -27,15 +27,15 @@ func listModels(cmd *cobra.Command, settings rootSettings, flags runConfig, stat
 		// all the same, so every call that reaches the API answers the same way.
 		advised := advise(err, "")
 
-		stats.recordFailure(advised, true, 0)
-		stats.terminalAttempt(advised)
+		stats.RecordFailure(advised, true, 0)
+		stats.TerminalAttempt(advised)
 
 		return advised
 	}
 
 	// No usage, no questions, and no model of its own. The ids in the listing are what the account
 	// may ask, not what answered anything, so naming one here would report a model that never ran.
-	stats.record("", onesie.Usage{}, 0)
+	stats.Record("", onesie.Usage{}, 0)
 
 	return writeModels(cmd.OutOrStdout(), models)
 }

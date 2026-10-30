@@ -386,7 +386,7 @@ func TestAskOnce(t *testing.T) {
 			}
 
 			var (
-				stats collector
+				stats Collector
 				asked atomic.Int32
 			)
 
@@ -406,7 +406,7 @@ func TestAskOnce(t *testing.T) {
 				}
 			}
 
-			got := stats.snapshot(time.Second)
+			got := stats.Snapshot(time.Second)
 
 			if asked.Load() != tc.wantAsked || got.Dedups != tc.wantDedups || got.Records != tc.wantRecords {
 				t.Errorf("asked, dedups, records = %d, %d, %d, want %d, %d, %d",

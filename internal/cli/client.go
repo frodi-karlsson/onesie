@@ -89,8 +89,8 @@ func retryPolicy(flags runFlags) onesie.RetryPolicy {
 	return policy
 }
 
-func runOptions(flags runConfig, stats *collector) []onesie.Option {
-	opts := observing(stats)
+func runOptions(flags runConfig, stats *Collector) []onesie.Option {
+	opts := Observing(stats)
 
 	// Only when given, so onesie-go keeps its longer default for a request with images.
 	if flags.timeoutSet {

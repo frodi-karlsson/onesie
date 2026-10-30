@@ -68,7 +68,7 @@ func apiLead(cause error, api *onesie.APIError) string {
 		return "the server redirected the request"
 	case status == http.StatusPaymentRequired:
 		return "the account is out of credits"
-	case authFailure(cause):
+	case AuthFailure(cause):
 		return "the key was rejected"
 	case status == http.StatusRequestTimeout:
 		return "the server timed out waiting for the request"

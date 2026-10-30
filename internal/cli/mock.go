@@ -52,8 +52,8 @@ func mockAnswers(
 		return nil, err
 	}
 
-	return func(_ context.Context, stats *collector) (Answerer, error) {
-		stats.answerFromMock()
+	return func(_ context.Context, stats *Collector) (Answerer, error) {
+		stats.AnswerFromMock()
 
 		client, err := mockClient(settings, flags, provider, stats)
 		if err != nil {
@@ -65,7 +65,7 @@ func mockAnswers(
 }
 
 func mockClient(
-	settings rootSettings, flags runConfig, provider onesie.Provider, stats *collector,
+	settings rootSettings, flags runConfig, provider onesie.Provider, stats *Collector,
 ) (*onesie.Client, error) {
 	opts := []onesie.Option{
 		onesie.WithProvider(provider),

@@ -66,9 +66,9 @@ func TestJudge(t *testing.T) {
 				{ID: "answer", Answer: &answer.Answer{Value: 0.9}},
 			}}
 
-			stats := &collector{}
+			stats := &Collector{}
 
-			got := judge(parsed(t, tc.gate), parsed(t, tc.abstain), record, stats)
+			got := Judge(parsed(t, tc.gate), parsed(t, tc.abstain), record, stats)
 
 			if got.AssertFailed != tc.wantFailed {
 				t.Errorf("AssertFailed = %v, want %v", got.AssertFailed, tc.wantFailed)
@@ -78,7 +78,7 @@ func TestJudge(t *testing.T) {
 				t.Errorf("Abstained = %v, want %v", got.Abstained, tc.wantAbstained)
 			}
 
-			snapshot := stats.snapshot(0)
+			snapshot := stats.Snapshot(0)
 
 			if want := count(tc.wantFailed); snapshot.FalseAsserts != want {
 				t.Errorf("FalseAsserts = %d, want %d", snapshot.FalseAsserts, want)
@@ -224,15 +224,15 @@ func TestDescribe(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			stored := &storedFailure{failure: *describe(tc.cause)}
+			stored := &StoredFailure{Failure: *Describe(tc.cause, text)}
 			stopped := streamResult(engine.Result{Aborted: true, Cause: tc.cause}, 0, 0)
 
-			if got, want := stored.freshRunCode(), Classify(stopped); got != want {
-				t.Errorf("stored %+v exits %d, want %d as a fresh run under --stop-on-error does", stored.failure, got, want)
+			if got, want := storedRunCode(stored), Classify(stopped); got != want {
+				t.Errorf("stored %+v exits %d, want %d as a fresh run under --stop-on-error does", stored.Failure, got, want)
 			}
 
-			if strings.HasPrefix(stored.failure.Message, "onesie: ") {
-				t.Errorf("message = %q, want no onesie prefix, as a line error has none", stored.failure.Message)
+			if strings.HasPrefix(stored.Failure.Message, "onesie: ") {
+				t.Errorf("message = %q, want no onesie prefix, as a line error has none", stored.Failure.Message)
 			}
 		})
 	}
@@ -286,7 +286,7 @@ func TestDescribe(t *testing.T) {
 		}
 
 		for _, pin := range pins {
-			got := describe(pin.cause)
+			got := Describe(pin.cause, text)
 
 			if got.Kind != pin.kind || !sameStatus(got.Status, pin.status) || got.Message != pin.message {
 				t.Errorf("describe(%v) = %s %v %q, want %s %v %q",
@@ -324,8 +324,9 @@ func TestAnswered(t *testing.T) {
 			return result
 		}}
 
-		record, _, _, err := answered(t.Context(), asker, RecordKey{Position: 1, Line: 1}, built, "m",
-			plan.WireAll(built.Questions), "x", nil, true)
+		ask := Ask{Plan: built, Model: "m", Questions: plan.WireAll(built.Questions), Usage: true, Message: text}
+
+		record, _, _, err := ask.answered(t.Context(), asker, RecordKey{Position: 1, Line: 1}, "x", nil)
 		if err != nil {
 			t.Fatalf("answered: %v", err)
 		}

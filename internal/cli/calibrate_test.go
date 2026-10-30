@@ -2518,7 +2518,7 @@ func TestReportOf(t *testing.T) {
 		{name: "should fail a pick that is not a string", record: answeredWith(0.5, 3, confidence(0.5)), wantFailed: 1},
 		{
 			name:       "should fail a record whose request failed",
-			record:     failureRecord(built, errors.New("boom")),
+			record:     Ask{Plan: built, Message: text}.Failure(errors.New("boom")),
 			wantFailed: 1,
 		},
 	}

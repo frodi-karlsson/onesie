@@ -23,7 +23,7 @@ func TestClassify(t *testing.T) {
 	}
 
 	stored := func(kind output.Kind, status *int) error {
-		return &storedFailure{failure: output.Failure{Kind: kind, Status: status, Message: "onesie: stored"}}
+		return &StoredFailure{Failure: output.Failure{Kind: kind, Status: status, Message: "onesie: stored"}}
 	}
 
 	statusOf := func(status int) *int {
@@ -50,7 +50,7 @@ func TestClassify(t *testing.T) {
 		},
 		{
 			name: "should report usage for a bad input header that ended the source",
-			err:  &sourceError{cause: &input.LineError{Line: 1, Err: errors.New("the header is not valid csv")}},
+			err:  &SourceError{Err: &input.LineError{Line: 1, Err: errors.New("the header is not valid csv")}},
 			want: ExitUsage,
 		},
 		{
@@ -259,7 +259,7 @@ func TestClassify(t *testing.T) {
 			{err: &silentError{code: ExitAuth}, kind: output.KindInput, quiet: true},
 			{err: &shownError{cause: apiError(http.StatusUnauthorized)}, kind: output.KindAuth, quiet: true},
 			{err: errors.New("boom"), kind: output.KindInput},
-			{err: &storedFailure{failure: output.Failure{Kind: "input", Message: "bad"}}, kind: output.KindInput},
+			{err: &StoredFailure{Failure: output.Failure{Kind: "input", Message: "bad"}}, kind: output.KindInput},
 		}
 
 		for _, pin := range pins {
@@ -303,7 +303,7 @@ func TestWorthReporting(t *testing.T) {
 		{name: "should stay quiet for an interrupt inside a wrapped error", err: fmt.Errorf("waiting: %w", context.Canceled)},
 		{
 			name: "should report a stored failure a resume stopped at",
-			err:  &storedFailure{failure: output.Failure{Kind: "input", Message: "bad"}, record: 2},
+			err:  &StoredFailure{Failure: output.Failure{Kind: "input", Message: "bad"}, Record: 2},
 			want: true,
 		},
 		{name: "should report a line onesie could not read", err: &input.LineError{Line: 1, Err: errors.New("x")}, want: true},
@@ -342,7 +342,7 @@ func TestAborting(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			if got := aborting(&onesie.APIError{Status: tc.status}); got != tc.want {
+			if got := Aborting(&onesie.APIError{Status: tc.status}); got != tc.want {
 				t.Errorf("aborting(%d) = %v, want %v", tc.status, got, tc.want)
 			}
 		})
@@ -376,7 +376,7 @@ func TestAuthFailure(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			if got := authFailure(tc.err); got != tc.want {
+			if got := AuthFailure(tc.err); got != tc.want {
 				t.Errorf("authFailure(%v) = %v, want %v", tc.err, got, tc.want)
 			}
 		})

@@ -8,7 +8,7 @@ import (
 )
 
 // AnswererFactory builds the answerer a run asks through, once the run's statistics exist.
-type AnswererFactory func(ctx context.Context, stats *collector) (Answerer, error)
+type AnswererFactory func(ctx context.Context, stats *Collector) (Answerer, error)
 
 // Answerer answers the request of one record. Salt keys the answer a record may share with an
 // identical one, and false means the record shares with none.

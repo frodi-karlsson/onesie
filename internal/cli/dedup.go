@@ -14,7 +14,7 @@ import (
 func askOnce(
 	ctx context.Context,
 	shared *dedup,
-	stats *collector,
+	stats *Collector,
 	req onesie.Request,
 	salt string,
 	ask func() (output.Record, error),

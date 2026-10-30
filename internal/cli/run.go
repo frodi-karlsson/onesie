@@ -1,13 +1,11 @@
 package cli
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"sync/atomic"
 
 	"github.com/spf13/cobra"
 
@@ -18,8 +16,6 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/assert"
 	"github.com/frodi-karlsson/onesie/internal/engine"
 	"github.com/frodi-karlsson/onesie/internal/input"
-	"github.com/frodi-karlsson/onesie/internal/jq"
-	"github.com/frodi-karlsson/onesie/internal/limits"
 	"github.com/frodi-karlsson/onesie/internal/output"
 	"github.com/frodi-karlsson/onesie/internal/plan"
 	"github.com/frodi-karlsson/onesie/internal/qfile"
@@ -88,7 +84,7 @@ func runListModels(cmd *cobra.Command, settings rootSettings, flags runConfig, o
 
 	out.BindWithoutFingerprint()
 
-	return withStats(cmd, settings.now, flags, func(stats *collector) error {
+	return withStats(cmd, settings.now, flags, func(stats *Collector) error {
 		return listModels(cmd, settings, flags, stats)
 	})
 }
@@ -108,7 +104,7 @@ func runRequestBodies(
 		return bindErr
 	}
 
-	return withStats(cmd, settings.now, flags, func(stats *collector) error {
+	return withStats(cmd, settings.now, flags, func(stats *Collector) error {
 		return streamRaw(cmd, settings, flags, stats, out, resume)
 	})
 }
@@ -161,7 +157,7 @@ func runPlan(
 			return refuseErr
 		}
 
-		return withStats(cmd, settings.now, flags, func(stats *collector) error {
+		return withStats(cmd, settings.now, flags, func(stats *Collector) error {
 			return stream(cmd, streamInputs{
 				settings: settings, flags: flags, inv: inv, outputMode: outputMode, stats: stats, answers: out,
 				resume: resume, answerers: answers,
@@ -197,13 +193,13 @@ func runOne(
 
 	sent := resolved.Wire
 	if resolved.Source != input.SourceNone {
-		sent, err = mapped(cmd.Context(), inv.mapper, resolved.State, resolved.Wire)
+		sent, err = Mapped(cmd.Context(), inv.mapper, resolved.State, resolved.Wire, plan.Flags)
 		if err != nil {
 			return err
 		}
 	}
 
-	sent, assets, err := inv.images.attach(sentOrNil(resolved, sent))
+	sent, assets, err := inv.images.Attach(sentOrNil(resolved, sent))
 	if err != nil {
 		return err
 	}
@@ -223,19 +219,19 @@ func runOne(
 		}
 
 		model := chosen.modelFor(built.Model, settings.lookupEnv)
-		req := requestFor(built, model, plan.WireAll(built.Questions), sent, assets)
+		req := Ask{Plan: built, Model: model, Questions: plan.WireAll(built.Questions)}.Request(sent, assets)
 
 		return printRequest(cmd.OutOrStdout(), chosen.provider, req, resolved.Source != input.SourceNone)
 	}
 
 	// Checked here rather than at write time, so a taken key costs no request.
-	if merging(flags) && hasKey(resolved.State, mergeKey(flags)) {
+	if merging(flags) && HasKey(resolved.State, mergeKey(flags)) {
 		return fmt.Errorf(
 			"--merge would overwrite the input's '%s' key. Pass --merge-key",
 			mergeKey(flags))
 	}
 
-	return withStats(cmd, settings.now, flags, func(stats *collector) error {
+	return withStats(cmd, settings.now, flags, func(stats *Collector) error {
 		return ask(cmd, settings, flags, inv, singleState{resolved: resolved, sent: sent, assets: assets},
 			outputMode, stats, answers)
 	})
@@ -438,83 +434,8 @@ func inputName(flag string) string {
 	return flag
 }
 
-func watched(stop func(line) bool, stopped *atomic.Bool) func(line) bool {
-	if stop == nil {
-		return nil
-	}
-
-	return func(l line) bool {
-		if !stop(l) {
-			return false
-		}
-
-		stopped.Store(true)
-
-		return true
-	}
-}
-
-func billOnce(l *line) {
-	if l.call == nil {
-		return
-	}
-
-	if !l.call.billed {
-		l.call.billed = true
-
-		return
-	}
-
-	// A group made one request, so only its first written line reports the tokens, and a sum over
-	// the output stays true. An error line that carried no usage keeps carrying none.
-	if l.record.Usage != nil {
-		l.record.Usage = &onesie.Usage{}
-	}
-}
-
-func mapped(ctx context.Context, mapper *jq.Expr, state, wire any) (any, error) {
-	if mapper == nil {
-		return wire, nil
-	}
-
-	value, err := mapper.One(ctx, jqValue(state, wire))
-	if err != nil {
-		return nil, fmt.Errorf("--map %w", err)
-	}
-
-	if checkErr := input.CheckState(value); checkErr != nil {
-		return nil, fmt.Errorf("--map: %w", checkErr)
-	}
-
-	encoded, err := jq.Marshal(value, limits.MaxLineBytes)
-	if err != nil {
-		return nil, fmt.Errorf("--map: %w", err)
-	}
-
-	return json.RawMessage(encoded), nil
-}
-
 func interrupted(ctx context.Context) bool {
 	return ctx.Err() != nil
-}
-
-func jqValue(state, wire any) any {
-	raw, isJSON := wire.(json.RawMessage)
-	if !isJSON {
-		return state
-	}
-
-	// Decoded again with numbers kept as written, since the parsed state holds float64 and a
-	// large id would lose digits on its way through the expression.
-	decoder := json.NewDecoder(bytes.NewReader(raw))
-	decoder.UseNumber()
-
-	var value any
-	if err := decoder.Decode(&value); err != nil {
-		return state
-	}
-
-	return value
 }
 
 func plural(count int, noun string) string {
@@ -527,62 +448,6 @@ func plural(count int, noun string) string {
 	}
 
 	return fmt.Sprintf("%d %ss", count, noun)
-}
-
-func rowLine(record output.Record, rec namedRecord) line {
-	var fields map[string]any
-	if object, ok := rec.State.(map[string]any); ok {
-		fields = object
-	}
-
-	record.ID = rec.id
-
-	return line{record: record, raw: rec.Raw, state: rec.Wire, header: rec.Header, fields: fields}
-}
-
-func hasKey(state any, key string) bool {
-	object, ok := state.(map[string]any)
-	if !ok {
-		return false
-	}
-
-	_, exists := object[key]
-
-	return exists
-}
-
-func compact(raw string) []byte {
-	var flat bytes.Buffer
-
-	if err := json.Compact(&flat, []byte(raw)); err != nil {
-		// Unreachable for a line that parsed, the only kind compact is called with.
-		return []byte(raw)
-	}
-
-	return flat.Bytes()
-}
-
-func stopping(flags runConfig) func(line) bool {
-	if !flags.stopOnAssert {
-		// Nil rather than a predicate that always says no, so the engine asks nothing of a run
-		// that did not pass the flag.
-		return nil
-	}
-
-	return func(l line) bool {
-		return l.record.AssertFailed
-	}
-}
-
-type line struct {
-	record output.Record
-	raw    string
-	state  any // The record as read, before --map, so --merge keeps a text line's type and a JSON line's digits.
-	header []string
-	fields map[string]any
-	slot   int
-	halted bool
-	call   *sharedCall
 }
 
 func mergeName(flags runConfig) string {
@@ -635,13 +500,7 @@ func streamResult(result engine.Result, falseAsserts, abstains int) error {
 func stoppedAtInput(cause error) bool {
 	// --stop-on-error ended the run at a record that never became a request. The exit code table
 	// has no code of its own for that, so it exits 6 as the same record does without the flag.
-	return !aborting(cause) && !errors.Is(cause, context.Canceled) && classify(cause).kind == output.KindInput
-}
-
-func aborting(err error) bool {
-	// Every later record would fail the same way, so a bad key is reported on one line for the
-	// whole run.
-	return authFailure(err) || Halting(err)
+	return !Aborting(cause) && !errors.Is(cause, context.Canceled) && classify(cause).kind == output.KindInput
 }
 
 func ask(
@@ -651,7 +510,7 @@ func ask(
 	inv *invocation,
 	state singleState,
 	outputMode output.Mode,
-	stats *collector,
+	stats *Collector,
 	answerers AnswererFactory,
 ) error {
 	asker, err := answerers(cmd.Context(), stats)
@@ -661,16 +520,16 @@ func ask(
 
 	built, gate, abstain := inv.plan, inv.gate, inv.abstain
 
-	questions := plan.WireAll(built.Questions)
-
 	model, err := resolveModel(settings, built.Model)
 	if err != nil {
 		return err
 	}
 
-	record, err := askAndRecord(
-		cmd.Context(), asker, RecordKey{Position: 1, Line: 1}, built, model, questions, state.sent, state.assets,
-		flags.usage, stats)
+	asking := Ask{
+		Plan: built, Model: model, Questions: plan.WireAll(built.Questions), Usage: flags.usage, Message: text,
+	}
+
+	record, err := asking.Record(cmd.Context(), asker, RecordKey{Position: 1, Line: 1}, state.sent, state.assets, stats)
 	if Halting(err) {
 		return err
 	}
@@ -696,7 +555,7 @@ func ask(
 
 	// Only a record that arrived is evaluated. A failed request would read as all zeros, so a gate
 	// such as answer.value < 0.5 would hold for a request that never happened.
-	record = judge(gate, abstain, record, stats)
+	record = Judge(gate, abstain, record, stats)
 
 	if flags.quiet {
 		// Beside an assertion -q only silences the output. A gate of its own on top would make a
@@ -735,26 +594,6 @@ func assertResult(record output.Record) error {
 	return nil
 }
 
-func judge(gate, abstain *assert.Expr, record output.Record, stats *collector) output.Record {
-	if assert.Eval(gate, record) {
-		return record
-	}
-
-	// Eval holds for a nil expression, which is right for a missing gate and wrong here, where a
-	// missing abstain expression leaves every false assertion a no.
-	if abstain != nil && assert.Eval(abstain, record) {
-		record.Abstained = true
-		stats.abstained()
-
-		return record
-	}
-
-	record.AssertFailed = true
-	stats.assertFailed()
-
-	return record
-}
-
 func writeFailure(
 	cmd *cobra.Command,
 	settings rootSettings,
@@ -790,7 +629,7 @@ func writeRecord(
 	}
 
 	if mode == output.CSV || mode == output.TSV {
-		return delimited(cmd.OutOrStdout(), mode, inv.plan, inv.gate != nil, false, false).Write(record, nil, nil)
+		return DelimitedFor(cmd.OutOrStdout(), mode, inv.plan, inv.gate != nil, false, false).Write(record, nil, nil)
 	}
 
 	if merging(flags) {
@@ -807,72 +646,6 @@ func writeRecord(
 
 func markdownOptions(gate, abstain *assert.Expr) output.MarkdownOptions {
 	return output.MarkdownOptions{Assert: gate.Source(), Abstain: abstain.Source()}
-}
-
-func markdown(
-	out io.Writer,
-	mode output.Mode,
-	built *plan.Plan,
-	withGate bool,
-	withID bool,
-) *output.MarkdownTable {
-	if mode != output.Markdown {
-		return nil
-	}
-
-	ids := make([]string, 0, len(built.Questions))
-	for _, question := range built.Questions {
-		ids = append(ids, question.ID)
-	}
-
-	return output.NewMarkdownTable(out, output.MarkdownTableOptions{IDs: ids, ID: withID, Gate: withGate})
-}
-
-func delimited(
-	out io.Writer,
-	mode output.Mode,
-	built *plan.Plan,
-	withAssert bool,
-	withID bool,
-	headerWritten bool,
-) *output.Delimited {
-	if mode != output.CSV && mode != output.TSV {
-		return nil
-	}
-
-	ids := make([]string, 0, len(built.Questions))
-	for _, question := range built.Questions {
-		ids = append(ids, question.ID)
-	}
-
-	return output.NewDelimited(out, mode, output.DelimitedOptions{
-		IDs: ids, Boxes: boxIDs(built.Questions), Fallbacks: fallbackIDs(built.Questions), ID: withID,
-		Assert: withAssert, Header: !headerWritten,
-	})
-}
-
-func boxIDs(questions []plan.Question) []string {
-	var ids []string
-
-	for _, question := range questions {
-		if question.Shape == plan.Box {
-			ids = append(ids, question.ID)
-		}
-	}
-
-	return ids
-}
-
-func fallbackIDs(questions []plan.Question) []string {
-	var ids []string
-
-	for _, question := range questions {
-		if question.Policy.Fallback != nil {
-			ids = append(ids, question.ID)
-		}
-	}
-
-	return ids
 }
 
 func merging(flags runConfig) bool {
@@ -895,131 +668,6 @@ func mergeKey(flags runConfig) string {
 	}
 
 	return "answers"
-}
-
-func askAndRecord(
-	ctx context.Context,
-	asker Answerer,
-	key RecordKey,
-	built *plan.Plan,
-	model string,
-	questions onesie.Questions,
-	state any,
-	assets onesie.Assets,
-	withUsage bool,
-	stats *collector,
-) (output.Record, error) {
-	record, usage, cached, err := answered(ctx, asker, key, built, model, questions, state, assets, withUsage)
-	if Halting(err) {
-		// No request stood behind it, so it is a record and not a request, and no attempt ended.
-		stats.recordFailure(err, false, 0)
-
-		return record, err
-	}
-
-	if err != nil {
-		// The request was made whatever went wrong afterwards, and the questions went with it, so a
-		// failed record still carries them into the count --stats reports.
-		stats.recordFailure(err, true, len(questions))
-		stats.terminalAttempt(err)
-		stats.spend(usage)
-
-		return record, err
-	}
-
-	if cached {
-		stats.cachedRecord(record.Model)
-
-		return record, nil
-	}
-
-	stats.record(record.Model, usage, len(questions))
-
-	return record, nil
-}
-
-func answered(
-	ctx context.Context,
-	asker Answerer,
-	key RecordKey,
-	built *plan.Plan,
-	model string,
-	questions onesie.Questions,
-	state any,
-	assets onesie.Assets,
-	withUsage bool,
-) (output.Record, onesie.Usage, bool, error) {
-	got, err := asker.Answer(ctx, key, requestFor(built, model, questions, state, assets))
-	if Halting(err) {
-		return failureRecord(built, err), onesie.Usage{}, false, err
-	}
-
-	if err != nil {
-		failed := failureRecord(built, err)
-
-		var unusable *onesie.ResponseError
-		if !errors.As(err, &unusable) || unusable.Usage == nil {
-			return failed, onesie.Usage{}, false, err
-		}
-
-		if withUsage {
-			failed = spent(failed, unusable.Usage)
-		}
-
-		return failed, *unusable.Usage, false, err
-	}
-
-	result := got.Result
-	record := output.Record{Model: result.Model}
-	if withUsage {
-		// A copy, since a pointer into the result would keep the whole response alive for as long
-		// as the record is held, and a stream holds one per distinct request.
-		usage := result.Usage
-		record.Usage = &usage
-	}
-
-	normalized := answer.NormalizeAll(built.Questions, result)
-
-	for i, question := range built.Questions {
-		answer.Apply(question, normalized[i])
-
-		record.Answers = append(record.Answers,
-			output.Named{ID: question.ID, Answer: normalized[i], Box: question.Shape == plan.Box})
-	}
-
-	return record, result.Usage, got.Cached, nil
-}
-
-func requestFor(
-	built *plan.Plan, model string, questions onesie.Questions, state any, assets onesie.Assets,
-) onesie.Request {
-	return onesie.Request{
-		State: state, Model: model, Questions: questions, Assets: assets, LongContext: built.LongContext,
-	}
-}
-
-func spent(failed output.Record, usage *onesie.Usage) output.Record {
-	// A 200 onesie could not use still cost its tokens, so --usage reports them on the error line.
-	failed.Usage = usage
-
-	return failed
-}
-
-func failureRecord(built *plan.Plan, cause error) output.Record {
-	record := output.Record{Failure: describe(cause)}
-
-	for _, question := range built.Questions {
-		record.Answers = append(record.Answers,
-			output.Named{ID: question.ID, Answer: answer.Failed(question), Box: question.Shape == plan.Box})
-	}
-
-	return record
-}
-
-func describe(cause error) *output.Failure {
-	found := classify(cause)
-
-	return &output.Failure{Kind: found.kind, Status: found.status, Message: text(cause)}
 }
 
 func quietResult(question plan.Question, a *answer.Answer) error {

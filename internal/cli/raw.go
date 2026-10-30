@@ -13,13 +13,14 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/answersfile"
 	"github.com/frodi-karlsson/onesie/internal/engine"
 	"github.com/frodi-karlsson/onesie/internal/input"
+	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
 func streamRaw(
 	cmd *cobra.Command,
 	settings rootSettings,
 	flags runConfig,
-	stats *collector,
+	stats *Collector,
 	answers *answersfile.File,
 	resume answersfile.Resume,
 ) error {
@@ -33,13 +34,11 @@ func streamRaw(
 		return err
 	}
 
-	source := &resumed{
-		source: input.NewStream(settings.stdin, input.Request, input.StreamOptions{SkipBlank: flags.skipBlank}),
-		left:   resume.Skip,
-		stored: resume.Stored,
-		// --stop-on-assert is refused under -i request, whose bodies carry no assertion.
-		haltOnError: flags.stopOnError,
-	}
+	// --stop-on-assert is refused under -i request, whose bodies carry no assertion.
+	source := NewResumed(
+		input.NewStream(settings.stdin, input.Request, input.StreamOptions{SkipBlank: flags.skipBlank}),
+		ResumedConfig{Resume: resume, StopOnError: flags.stopOnError, Speller: plan.Flags},
+	)
 
 	result, err := engine.Run(cmd.Context(), engine.Config[input.Record, []byte]{
 		Source:      source,
@@ -48,10 +47,10 @@ func streamRaw(
 		Jobs:        flags.jobs,
 		Unordered:   flags.unordered,
 		StopOnError: flags.stopOnError,
-		Abort:       aborting,
+		Abort:       Aborting,
 	})
 
-	result, err = finishStream(cmd.ErrOrStderr(), source, stats, result, err)
+	result, err = FinishStream(cmd.ErrOrStderr(), source, stats, result, err)
 	if err != nil {
 		return err
 	}
@@ -60,7 +59,7 @@ func streamRaw(
 	return streamResult(result, 0, 0)
 }
 
-func newRawRun(cmd *cobra.Command, settings rootSettings, flags runConfig, stats *collector) (*rawRun, error) {
+func newRawRun(cmd *cobra.Command, settings rootSettings, flags runConfig, stats *Collector) (*rawRun, error) {
 	// --print-request needs the resolution too, to print the model a body with none is sent with.
 	chosen, err := settings.holder.resolved()
 	if err != nil {
@@ -94,7 +93,7 @@ func newRawRun(cmd *cobra.Command, settings rootSettings, flags runConfig, stats
 
 type rawRun struct {
 	flags        runConfig
-	stats        *collector
+	stats        *Collector
 	provider     onesie.Provider
 	defaultModel string
 	long         bool
@@ -105,7 +104,7 @@ func (r *rawRun) evaluate(ctx context.Context, rec input.Record) ([]byte, error)
 	if rec.Err != nil {
 		// A value alongside the error, because the engine writes every outcome. A nil value
 		// would print a blank line in place of the record.
-		r.stats.recordFailure(rec.Err, false, 0)
+		r.stats.RecordFailure(rec.Err, false, 0)
 
 		return errorLine(rec.Err), rec.Err
 	}
@@ -113,7 +112,7 @@ func (r *rawRun) evaluate(ctx context.Context, rec input.Record) ([]byte, error)
 	body, err := r.provider.PrepareRaw(json.RawMessage(rec.Raw), r.defaultModel, longContextOptions(r.long)...)
 	if err != nil {
 		refused := &input.LineError{Line: rec.Line, Err: embed("", err)}
-		r.stats.recordFailure(refused, false, 0)
+		r.stats.RecordFailure(refused, false, 0)
 
 		return errorLine(refused), refused
 	}
@@ -137,16 +136,16 @@ func (r *rawRun) send(ctx context.Context, body *onesie.PreparedBody) ([]byte, e
 
 		var unusable *onesie.ResponseError
 		if errors.As(err, &unusable) && unusable.Usage != nil {
-			r.stats.spend(*unusable.Usage)
+			r.stats.Spend(*unusable.Usage)
 		}
 
-		r.stats.recordFailure(advised, true, body.QuestionCount())
-		r.stats.terminalAttempt(advised)
+		r.stats.RecordFailure(advised, true, body.QuestionCount())
+		r.stats.TerminalAttempt(advised)
 
 		return errorLine(advised), advised
 	}
 
-	r.stats.record(result.Model, result.Usage, body.QuestionCount())
+	r.stats.Record(result.Model, result.Usage, body.QuestionCount())
 
 	return response, nil
 }

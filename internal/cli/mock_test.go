@@ -1166,7 +1166,7 @@ func TestMockAnswerer_Answer(t *testing.T) {
 	questions := onesie.Questions{{ID: "answer", Question: onesie.Noul{Instructions: "q"}}}
 	known := []plan.Question{{ID: "answer", Shape: plan.Noul}}
 
-	asker := func(t *testing.T, file string, provider onesie.Provider, retries int) (mockAnswerer, *collector) {
+	asker := func(t *testing.T, file string, provider onesie.Provider, retries int) (mockAnswerer, *Collector) {
 		t.Helper()
 
 		answers, err := mock.Load(strings.NewReader(file), known, mock.Options{})
@@ -1174,7 +1174,7 @@ func TestMockAnswerer_Answer(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		stats := &collector{}
+		stats := &Collector{}
 		settings := defaultSettings(BuildInfo{})
 		settings.lookupEnv = lookupFrom(map[string]string{})
 
@@ -1204,7 +1204,7 @@ func TestMockAnswerer_Answer(t *testing.T) {
 			t.Fatalf("error = %v, want levanto's refusal", err)
 		}
 
-		if got := stats.snapshot(0).Attempts; got != 0 {
+		if got := stats.Snapshot(0).Attempts; got != 0 {
 			t.Errorf("attempts = %d, want 0", got)
 		}
 	})
@@ -1241,7 +1241,7 @@ func TestMockAnswerer_Answer(t *testing.T) {
 			t.Fatalf("error = %v, want ValidateRequest's refusal", err)
 		}
 
-		if got := stats.snapshot(0).Attempts; got != 0 {
+		if got := stats.Snapshot(0).Attempts; got != 0 {
 			t.Errorf("attempts = %d, want 0", got)
 		}
 	})
@@ -1262,7 +1262,7 @@ func TestMockAnswerer_Answer(t *testing.T) {
 			t.Errorf("model = %q, want other", got.Result.Model)
 		}
 
-		if attempts := stats.snapshot(0).Attempts; attempts != 1 {
+		if attempts := stats.Snapshot(0).Attempts; attempts != 1 {
 			t.Errorf("attempts = %d, want 1", attempts)
 		}
 	})
@@ -1283,7 +1283,7 @@ func TestMockAnswerer_Answer(t *testing.T) {
 				t.Fatalf("error = %v, want the mocked 503", err)
 			}
 
-			if got := stats.snapshot(0); got.Attempts != 3 || got.Retries[http.StatusServiceUnavailable] != 3 {
+			if got := stats.Snapshot(0); got.Attempts != 3 || got.Retries[http.StatusServiceUnavailable] != 3 {
 				t.Errorf("attempts = %d, failed 503 attempts = %v, want 3 and 3", got.Attempts, got.Retries)
 			}
 

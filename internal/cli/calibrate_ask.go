@@ -12,7 +12,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/answer"
 	"github.com/frodi-karlsson/onesie/internal/answersfile"
 	"github.com/frodi-karlsson/onesie/internal/calibrate"
@@ -179,7 +178,7 @@ func calibrateAnswers(
 		return costErr
 	}
 
-	return withStats(cmd, settings.now, flags, func(stats *collector) error {
+	return withStats(cmd, settings.now, flags, func(stats *Collector) error {
 		return reportLabelled(cmd, flags, calib, run, set, resumed, stats)
 	})
 }
@@ -191,10 +190,10 @@ func reportLabelled(
 	run calibrateAsk,
 	set labelledSet,
 	resumed resumedSet,
-	stats *collector,
+	stats *Collector,
 ) error {
 	if resumed.book != nil {
-		stats.skip(resumed.book.Skipped())
+		stats.Skip(resumed.book.Skipped())
 	}
 
 	outcomes, result, err := askLabelled(cmd, flags, run, resumed, stats, calib.offline)
@@ -280,7 +279,7 @@ func writeCost(
 }
 
 func askLabelled(
-	cmd *cobra.Command, flags runConfig, run calibrateAsk, resumed resumedSet, stats *collector, offline bool,
+	cmd *cobra.Command, flags runConfig, run calibrateAsk, resumed resumedSet, stats *Collector, offline bool,
 ) ([]output.Record, engine.Result, error) {
 	asker, err := answererWhenPending(cmd.Context(), resumed.pending, run.answers, stats)
 	if err != nil {
@@ -289,8 +288,11 @@ func askLabelled(
 
 	book := resumed.book
 	labelled := &labelledRun{
-		run: run, asker: asker, questions: plan.WireAll(run.asked.Questions), usage: flags.usage, stats: stats,
-		outcomes: slices.Clone(resumed.answered), book: book,
+		run: run, asker: asker, stats: stats, outcomes: slices.Clone(resumed.answered), book: book,
+		ask: Ask{
+			Plan: run.asked, Model: run.model, Questions: plan.WireAll(run.asked.Questions), Usage: flags.usage,
+			Message: text,
+		},
 	}
 
 	result, err := engine.Run(cmd.Context(), engine.Config[labelledRecord, askedLine]{
@@ -298,7 +300,7 @@ func askLabelled(
 		Evaluate: labelled.evaluate,
 		Write:    labelled.write,
 		Jobs:     flags.jobs,
-		Abort:    aborting,
+		Abort:    Aborting,
 	})
 
 	if result.Aborted {
@@ -324,35 +326,33 @@ func askLabelled(
 }
 
 type labelledRun struct {
-	run       calibrateAsk
-	asker     Answerer
-	questions onesie.Questions
-	usage     bool
-	stats     *collector
-	outcomes  []output.Record
-	book      *answersfile.Ledger
-	halted    bool
+	run      calibrateAsk
+	asker    Answerer
+	ask      Ask
+	stats    *Collector
+	outcomes []output.Record
+	book     *answersfile.Ledger
+	halted   bool
 }
 
 func (r *labelledRun) evaluate(ctx context.Context, rec labelledRecord) (askedLine, error) {
-	asked := r.run.asked
 	key := RecordKey{Position: rec.position, Line: rec.line, ID: rec.id}
 
 	// At ask time rather than read time, since calibrate reads every record ahead and would
 	// otherwise hold every image at once. rec.sent keeps the paths, which is what the worst
 	// misses print.
-	sent, assets, imageErr := r.run.images.attach(rec.sent)
+	sent, assets, imageErr := r.run.images.Attach(rec.sent)
 	if imageErr != nil {
 		bad := &input.LineError{Line: rec.line, Err: imageErr}
-		r.stats.recordFailure(bad, false, 0)
+		r.stats.RecordFailure(bad, false, 0)
 
-		failed := failureRecord(asked, bad)
+		failed := r.ask.Failure(bad)
 		failed.ID = rec.id
 
 		return askedLine{index: rec.index, slot: rec.slot, record: failed}, bad
 	}
 
-	record, err := askAndRecord(ctx, r.asker, key, asked, r.run.model, r.questions, sent, assets, r.usage, r.stats)
+	record, err := r.ask.Record(ctx, r.asker, key, sent, assets, r.stats)
 	record.ID = rec.id
 
 	return askedLine{index: rec.index, slot: rec.slot, record: record, halted: Halting(err)}, err
@@ -385,7 +385,7 @@ func (r *labelledRun) write(l askedLine) error {
 }
 
 func answererWhenPending(
-	ctx context.Context, pending []labelledRecord, answerers AnswererFactory, stats *collector,
+	ctx context.Context, pending []labelledRecord, answerers AnswererFactory, stats *Collector,
 ) (Answerer, error) {
 	if len(pending) == 0 {
 		return nil, nil

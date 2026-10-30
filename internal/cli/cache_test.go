@@ -205,7 +205,7 @@ func TestCachedAnswerer(t *testing.T) {
 		stub := newAnswerStub(t)
 		factory, _ := build(t, stub, nil)
 
-		asker, err := factory(t.Context(), &collector{})
+		asker, err := factory(t.Context(), &Collector{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -239,7 +239,7 @@ func TestCachedAnswerer(t *testing.T) {
 		stub := newAnswerStub(t)
 		factory, _ := build(t, stub, nil)
 
-		asker, err := factory(t.Context(), &collector{})
+		asker, err := factory(t.Context(), &Collector{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -281,7 +281,7 @@ func TestCachedAnswerer(t *testing.T) {
 
 		factory, _ := build(t, newAnswerStub(t), nil, onesie.WithAPIKey(""))
 
-		_, err := factory(t.Context(), &collector{})
+		_, err := factory(t.Context(), &Collector{})
 		if err == nil || !strings.Contains(err.Error(), "The cache needs the key too") {
 			t.Errorf("error = %v, want it to say the cache needs the key", err)
 		}
@@ -293,7 +293,7 @@ func TestCachedAnswerer(t *testing.T) {
 		stub := newAnswerStub(t)
 		factory, dir := build(t, stub, nil)
 
-		asker, err := factory(t.Context(), &collector{})
+		asker, err := factory(t.Context(), &Collector{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -331,7 +331,7 @@ func TestCachedAnswerer(t *testing.T) {
 
 			factory, dir := build(t, stub, nil, onesie.WithHTTPClient(&http.Client{Transport: transport}))
 
-			asker, err := factory(t.Context(), &collector{})
+			asker, err := factory(t.Context(), &Collector{})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -360,7 +360,7 @@ func TestCachedAnswerer(t *testing.T) {
 			factory, dir := build(t, &answerStub{url: "https://stub.invalid"}, nil,
 				onesie.WithHTTPClient(&http.Client{Transport: transport}), onesie.WithAttemptTimeout(time.Second))
 
-			asker, err := factory(t.Context(), &collector{})
+			asker, err := factory(t.Context(), &Collector{})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -402,7 +402,7 @@ func TestCachedAnswerer(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		asker, err := factory(t.Context(), &collector{})
+		asker, err := factory(t.Context(), &Collector{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -427,7 +427,7 @@ func TestCachedAnswerer(t *testing.T) {
 		stub := newAnswerStub(t)
 		factory, dir := build(t, stub, nil)
 
-		if _, err := factory(t.Context(), &collector{}); err != nil {
+		if _, err := factory(t.Context(), &Collector{}); err != nil {
 			t.Fatal(err)
 		}
 
@@ -453,7 +453,7 @@ func TestCachedAnswerer(t *testing.T) {
 			warnings = append(warnings, err.Error())
 		})
 
-		asker, factoryErr := factory(t.Context(), &collector{})
+		asker, factoryErr := factory(t.Context(), &Collector{})
 		if factoryErr != nil {
 			t.Fatal(factoryErr)
 		}
@@ -918,7 +918,7 @@ func TestAsk(t *testing.T) {
 
 			err := ask(cmd, settings, runConfig{runFlags: tc.flags}, inv,
 				singleState{resolved: input.Resolved{Source: input.SourceState, State: "x"}, sent: "x"},
-				output.Values, &collector{}, func(context.Context, *collector) (Answerer, error) {
+				output.Values, &Collector{}, func(context.Context, *Collector) (Answerer, error) {
 					return asker, nil
 				})
 
