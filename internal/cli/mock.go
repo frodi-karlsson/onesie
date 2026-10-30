@@ -75,7 +75,7 @@ func mockClient(
 		onesie.WithBaseURL(mockBaseURL),
 		onesie.WithHTTPClient(&http.Client{Transport: settings.mockTransport(provider)}),
 		onesie.WithClock(instantClock{now: settings.now}),
-		onesie.WithRetry(retryPolicy(flags.runFlags)),
+		onesie.WithRetry(retryPolicyOf(flags.runFlags)),
 	}
 
 	return onesie.New(append(opts, runOptions(flags, stats)...)...)

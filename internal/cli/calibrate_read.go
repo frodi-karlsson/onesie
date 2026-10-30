@@ -35,7 +35,7 @@ func calibrateRequests(
 
 	ask := runner.Ask{
 		Plan:      scope.scored,
-		Model:     chosen.modelFor(scope.scored.Model, settings.lookupEnv),
+		Model:     chosen.ModelFor(scope.scored.Model, settings.lookupEnv),
 		Questions: plan.WireAll(scope.scored.Questions),
 	}
 
@@ -50,7 +50,7 @@ func calibrateRequests(
 		}
 
 		req := ask.Request(sent, assets)
-		if checkErr := chosen.provider.Check(req); checkErr != nil {
+		if checkErr := chosen.Provider.Check(req); checkErr != nil {
 			return &input.LineError{Line: rec.line, Err: embed("", checkErr)}
 		}
 

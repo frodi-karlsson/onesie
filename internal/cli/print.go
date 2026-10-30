@@ -134,9 +134,9 @@ func streamRequests(
 	}
 
 	run := &requestRun{
-		mapper: inv.Mapper, images: inv.images, provider: chosen.provider,
+		mapper: inv.Mapper, images: inv.images, provider: chosen.Provider,
 		ask: runner.Ask{
-			Plan: inv.Plan, Model: chosen.modelFor(inv.Plan.Model, settings.lookupEnv),
+			Plan: inv.Plan, Model: chosen.ModelFor(inv.Plan.Model, settings.lookupEnv),
 			Questions: plan.WireAll(inv.Plan.Questions),
 		},
 	}

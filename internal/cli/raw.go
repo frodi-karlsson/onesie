@@ -68,8 +68,8 @@ func newRawRun(cmd *cobra.Command, settings rootSettings, flags runConfig, stats
 	}
 
 	run := &rawRun{
-		flags: flags, stats: stats, provider: chosen.provider,
-		defaultModel: chosen.modelFor("", settings.lookupEnv), long: flags.env.longContext,
+		flags: flags, stats: stats, provider: chosen.Provider,
+		defaultModel: chosen.ModelFor("", settings.lookupEnv), long: flags.env.longContext,
 	}
 
 	// Built only when the run makes a request, so -i request --print-request needs no key.

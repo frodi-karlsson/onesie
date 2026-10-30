@@ -14,6 +14,7 @@ import (
 
 	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/creds"
+	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
 func TestOpenProfiles(t *testing.T) {
@@ -124,7 +125,7 @@ func TestOpenProfiles(t *testing.T) {
 	})
 }
 
-func TestResolveRun(t *testing.T) {
+func TestNewHolder(t *testing.T) {
 	t.Parallel()
 
 	const (
@@ -349,135 +350,122 @@ func TestResolveRun(t *testing.T) {
 			}
 		}
 	})
+}
 
-	t.Run("should resolve what the flags and variables choose", func(t *testing.T) {
-		t.Parallel()
+func TestResolver_Resolved(t *testing.T) {
+	t.Parallel()
 
-		const unknownWork = "unknown provider 'work'. Use typesafe, openrouter, berget, levanto or cloudflare"
+	profiles := creds.Profiles{Default: "work", Profiles: map[string]creds.Profile{
+		"work": {Provider: "openrouter", APIKey: "SECRET-WORK"},
+	}}
+	unreadable := errors.New("profiles.json is readable by others")
+	refusedChoice := errors.New("the settings could not be read")
 
-		profiles := creds.Profiles{Default: "work", Profiles: map[string]creds.Profile{
-			"work": {Provider: "openrouter", APIKey: "SECRET-WORK"},
-		}}
+	tests := []struct {
+		name         string
+		given        Given
+		givenErr     error
+		env          map[string]string
+		openErr      error
+		neverOpen    bool
+		wantProfile  string
+		wantProvider string
+		wantBy       string
+		wantKeyFrom  string
+		wantErr      string
+		wantIs       error
+		wantRefused  *Chosen
+	}{
+		{
+			name: "should take the default profile when nothing chose", wantProfile: "work",
+			wantProvider: "openrouter", wantBy: "the default", wantKeyFrom: KeyFromFile,
+		},
+		{
+			name: "should take the profile --profile names", given: Given{Profile: "work", ProfileSet: true},
+			wantProfile: "work", wantProvider: "openrouter", wantBy: "--profile", wantKeyFrom: KeyFromFile,
+		},
+		{
+			name:    "should pass a refused choice on",
+			given:   Given{Profile: "work", ProfileSet: true, Provider: "berget", ProviderSet: true},
+			wantErr: "--profile and --provider both choose what the run uses. Pass one",
+		},
+		{
+			name:     "should pass on the error the given choice failed with",
+			givenErr: refusedChoice, neverOpen: true,
+			wantErr: refusedChoice.Error(), wantIs: refusedChoice,
+		},
+		{
+			name:  "should run without a profile under --provider and ignore the profile's key",
+			given: Given{Provider: "openrouter", ProviderSet: true}, wantProvider: "openrouter",
+			wantBy: "--provider", wantKeyFrom: KeyFromNone, neverOpen: true,
+		},
+		{
+			name:         "should take the key from the provider's variable under ONESIE_PROVIDER",
+			env:          map[string]string{"ONESIE_PROVIDER": "openrouter", "OPENROUTER_API_KEY": "SECRET-OR"},
+			wantProvider: "openrouter", wantBy: "ONESIE_PROVIDER", wantKeyFrom: KeyFromEnv, neverOpen: true,
+		},
+		{
+			name: "should refuse an unknown provider", given: Given{Provider: "bogus", ProviderSet: true},
+			wantErr:   "onesie: unknown provider 'bogus'. Use typesafe, openrouter, berget, levanto or cloudflare",
+			neverOpen: true,
+		},
+		{
+			name:  "should return a ProviderError carrying the given choice without opening the file",
+			given: Given{Provider: "work", ProviderSet: true}, neverOpen: true,
+			wantErr:     "onesie: unknown provider 'work'. Use typesafe, openrouter, berget, levanto or cloudflare",
+			wantRefused: &Chosen{Provider: "work", By: "--provider"},
+		},
+		{
+			name: "should return the error opening the file for a run that needs a profile", openErr: unreadable,
+			wantErr: unreadable.Error(), wantIs: unreadable,
+		},
+	}
 
-		cases := []struct {
-			name         string
-			flags        runFlags
-			env          map[string]string
-			wantProfile  string
-			wantProvider string
-			wantBy       string
-			wantKeyFrom  string
-			wantErr      string
-		}{
-			{
-				name: "should take the default profile when nothing chose", wantProfile: "work",
-				wantProvider: "openrouter", wantBy: "the default", wantKeyFrom: sourceFile,
-			},
-			{
-				name: "should take the profile --profile names", flags: runFlags{profile: "work", profileSet: true},
-				wantProfile: "work", wantProvider: "openrouter", wantBy: "--profile", wantKeyFrom: sourceFile,
-			},
-			{
-				name:    "should pass a refused choice on",
-				flags:   runFlags{profile: "work", profileSet: true, provider: "berget", providerSet: true},
-				wantErr: "--profile and --provider both choose what the run uses. Pass one",
-			},
-			{
-				name:  "should run without a profile under --provider and ignore the profile's key",
-				flags: runFlags{provider: "openrouter", providerSet: true}, wantProvider: "openrouter",
-				wantBy: "--provider", wantKeyFrom: sourceNone,
-			},
-			{
-				name:         "should take the key from the provider's variable under ONESIE_PROVIDER",
-				env:          map[string]string{"ONESIE_PROVIDER": "openrouter", "OPENROUTER_API_KEY": "SECRET-OR"},
-				wantProvider: "openrouter", wantBy: "ONESIE_PROVIDER", wantKeyFrom: sourceEnv,
-			},
-			{
-				name: "should refuse an unknown provider", flags: runFlags{provider: "bogus", providerSet: true},
-				wantErr: "unknown provider 'bogus'. Use typesafe, openrouter, berget, levanto or cloudflare",
-			},
-			{
-				name:    "should point --provider at --profile when it names a profile",
-				flags:   runFlags{provider: "work", providerSet: true},
-				wantErr: unknownWork + ". 'work' is a profile, so pass --profile 'work' in place of --provider",
-			},
-			{
-				name: "should point ONESIE_PROVIDER at ONESIE_PROFILE when it names a profile",
-				env:  map[string]string{"ONESIE_PROVIDER": "work"},
-				wantErr: unknownWork + ". 'work' is a profile, so set ONESIE_PROFILE='work' in place of " +
-					"ONESIE_PROVIDER",
-			},
-		}
-
-		for _, tc := range cases {
-			t.Run(tc.name, func(t *testing.T) {
-				t.Parallel()
-
-				open := func() (creds.Opened, error) { return creds.Opened{Profiles: profiles}, nil }
-
-				got, err := resolveRun(&tc.flags, lookupFrom(tc.env), open)
-				if tc.wantErr != "" {
-					if err == nil || text(err) != tc.wantErr {
-						t.Errorf("error = %v, want %q", err, tc.wantErr)
-					}
-
-					return
-				}
-
-				if err != nil {
-					t.Fatalf("resolveRun returned an error: %v", err)
-				}
-
-				if got.profile != tc.wantProfile || got.provider.Name() != tc.wantProvider || got.by != tc.wantBy ||
-					got.keyFrom != tc.wantKeyFrom {
-					t.Errorf("resolution = profile %q, provider %q, by %q, key from %q, want %q, %q, %q, %q",
-						got.profile, got.provider.Name(), got.by, got.keyFrom,
-						tc.wantProfile, tc.wantProvider, tc.wantBy, tc.wantKeyFrom)
-				}
-			})
-		}
-	})
-
-	t.Run("should open the profiles file only when it needs it", func(t *testing.T) {
-		t.Parallel()
-
-		unreadable := errors.New("profiles.json is readable by others")
-
-		t.Run("should not open the file for a provider that resolves", func(t *testing.T) {
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
 			open := func() (creds.Opened, error) {
-				t.Error("resolveRun opened the profiles file")
+				if tc.neverOpen {
+					t.Error("the resolver opened the profiles file")
+				}
 
-				return creds.Opened{}, nil
+				return creds.Opened{Profiles: profiles}, tc.openErr
+			}
+			given := func() (Given, error) { return tc.given, tc.givenErr }
+
+			got, err := NewResolver(given, open, lookupFrom(tc.env), plan.Flags).Resolved()
+			if tc.wantErr != "" {
+				assertRefusal(t, err, tc.wantErr, tc.wantIs, tc.wantRefused)
+
+				return
 			}
 
-			if _, err := resolveRun(&runFlags{provider: "berget", providerSet: true}, lookupFrom(nil), open); err != nil {
-				t.Errorf("resolveRun returned an error: %v", err)
+			if err != nil {
+				t.Fatalf("Resolved returned an error: %v", err)
 			}
-		})
 
-		t.Run("should keep the provider's error when the file cannot be opened for the hint", func(t *testing.T) {
-			t.Parallel()
-
-			open := func() (creds.Opened, error) { return creds.Opened{}, unreadable }
-
-			_, err := resolveRun(&runFlags{provider: "work", providerSet: true}, lookupFrom(nil), open)
-			if err == nil || errors.Is(err, unreadable) || strings.Contains(err.Error(), "is a profile") {
-				t.Errorf("error = %v, want the unknown provider error alone", err)
-			}
-		})
-
-		t.Run("should return the error opening the file for a run that needs a profile", func(t *testing.T) {
-			t.Parallel()
-
-			open := func() (creds.Opened, error) { return creds.Opened{}, unreadable }
-
-			if _, err := resolveRun(&runFlags{}, lookupFrom(nil), open); !errors.Is(err, unreadable) {
-				t.Errorf("error = %v, want %v", err, unreadable)
+			if got.Profile != tc.wantProfile || got.Provider.Name() != tc.wantProvider || got.By != tc.wantBy ||
+				got.KeyFrom != tc.wantKeyFrom {
+				t.Errorf("resolution = profile %q, provider %q, by %q, key from %q, want %q, %q, %q, %q",
+					got.Profile, got.Provider.Name(), got.By, got.KeyFrom,
+					tc.wantProfile, tc.wantProvider, tc.wantBy, tc.wantKeyFrom)
 			}
 		})
-	})
+	}
+}
+
+func assertRefusal(t *testing.T, err error, want string, is error, refused *Chosen) {
+	t.Helper()
+
+	if err == nil || err.Error() != want || (is != nil && !errors.Is(err, is)) {
+		t.Errorf("error = %v, want %q", err, want)
+	}
+
+	var provider *ProviderError
+	if refused != nil && (!errors.As(err, &provider) || provider.Given != *refused) {
+		t.Errorf("error = %#v, want a ProviderError carrying %+v", err, *refused)
+	}
 }
 
 func linesOf(text string) []string {

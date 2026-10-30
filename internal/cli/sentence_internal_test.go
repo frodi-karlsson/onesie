@@ -20,7 +20,7 @@ func TestSentence(t *testing.T) {
 		return onesie.NewAPIError(p, "", onesie.Needs{}, status, []byte(body))
 	}
 	typesafe := onesie.TypeSafe()
-	fromEnv := resolution{provider: typesafe}
+	fromEnv := Resolution{Provider: typesafe}
 	unreachable := &url.Error{Op: "Post", URL: "https://mock.invalid/v1/system-one", Err: errors.New("mock connection error")}
 	timedOut := &url.Error{Op: "Post", URL: "https://mock.invalid/v1/system-one", Err: errors.New("i/o timeout")}
 
@@ -45,7 +45,7 @@ func TestSentence(t *testing.T) {
 			name: "should name the profile command for a refused profile key",
 			cause: keyHint(refusal(onesie.OpenRouter(), http.StatusUnauthorized,
 				`{"error":{"message":"No auth credentials found","code":401}}`),
-				resolution{provider: onesie.OpenRouter(), profile: "work"}),
+				Resolution{Provider: onesie.OpenRouter(), Profile: "work"}),
 			want: "the key was rejected, status 401. No auth credentials found. " +
 				"Replace the key with onesie profile update 'work' --key",
 		},

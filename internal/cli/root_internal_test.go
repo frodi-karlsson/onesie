@@ -58,7 +58,7 @@ func TestWithClientFactory(t *testing.T) {
 			return nil, refused
 		})(&settings)
 
-		_, err := settings.newClient(t.Context(), resolution{provider: onesie.Berget(), profile: "work"},
+		_, err := settings.newClient(t.Context(), Resolution{Provider: onesie.Berget(), Profile: "work"},
 			onesie.WithAPIKey("SECRET-TEST"), onesie.WithUserAgent("onesie/test"))
 		if !errors.Is(err, refused) {
 			t.Fatalf("newClient = %v, want the stub's error", err)

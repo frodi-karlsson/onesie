@@ -219,10 +219,10 @@ func runOne(
 			return err
 		}
 
-		model := chosen.modelFor(built.Model, settings.lookupEnv)
+		model := chosen.ModelFor(built.Model, settings.lookupEnv)
 		req := runner.Ask{Plan: built, Model: model, Questions: plan.WireAll(built.Questions)}.Request(sent, assets)
 
-		return printRequest(cmd.OutOrStdout(), chosen.provider, req, resolved.Source != input.SourceNone)
+		return printRequest(cmd.OutOrStdout(), chosen.Provider, req, resolved.Source != input.SourceNone)
 	}
 
 	// Checked here rather than at write time, so a taken key costs no request.
@@ -389,7 +389,7 @@ func runInputs(settings rootSettings, flags runConfig, inputs answersfile.Finger
 		return answersfile.FingerprintInputs{}, err
 	}
 
-	inputs.Provider = chosen.provider.Name()
+	inputs.Provider = chosen.Provider.Name()
 	inputs.MapSource = flags.mapSource
 	inputs.IDSource = flags.idSource
 

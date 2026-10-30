@@ -215,9 +215,9 @@ func checkProviderNeeds(settings rootSettings, flags runConfig, built *plan.Plan
 		return err
 	}
 
-	model := chosen.modelFor(built.Model, settings.lookupEnv)
+	model := chosen.ModelFor(built.Model, settings.lookupEnv)
 
-	return longContextCause(chosen.provider.Refuse(model, onesie.Needs{
+	return longContextCause(chosen.Provider.Refuse(model, onesie.Needs{
 		Images:      sendsAssets(images),
 		Box:         asksBox(built),
 		LongContext: built.LongContext,

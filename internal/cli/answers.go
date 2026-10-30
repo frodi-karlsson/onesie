@@ -30,7 +30,7 @@ func answersFor(
 			return nil, err
 		}
 
-		return mockAnswers(settings, flags, chosen.provider, built, known)
+		return mockAnswers(settings, flags, chosen.Provider, built, known)
 	}
 
 	if !caching(flags) {
@@ -113,7 +113,7 @@ func noKeyForCache(settings rootSettings, err error) error {
 	}
 
 	chosen, resolveErr := settings.holder.resolved()
-	if resolveErr != nil || chosen.keyFrom != sourceNone {
+	if resolveErr != nil || chosen.KeyFrom != KeyFromNone {
 		return err
 	}
 

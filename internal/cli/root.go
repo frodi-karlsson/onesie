@@ -759,7 +759,7 @@ func WithClientFactory(
 	newClient func(ctx context.Context, opts ...onesie.Option) (*onesie.Client, error),
 ) RootOption {
 	return func(s *rootSettings) {
-		s.newClient = func(ctx context.Context, _ resolution, opts ...onesie.Option) (*onesie.Client, error) {
+		s.newClient = func(ctx context.Context, _ Resolution, opts ...onesie.Option) (*onesie.Client, error) {
 			return newClient(ctx, opts...)
 		}
 	}

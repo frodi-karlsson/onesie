@@ -26,28 +26,18 @@ const (
 func clientBuilder(info BuildInfo, flags *runFlags, settings rootSettings) clientFactory {
 	var warned, doubled sync.Once
 
-	return func(ctx context.Context, chosen resolution, extra ...onesie.Option) (*onesie.Client, error) {
-		opts := []onesie.Option{
-			onesie.WithProvider(chosen.provider),
-			onesie.WithUserAgent("onesie/" + info.Version),
-			onesie.WithEnv(settings.lookupEnv),
-		}
-
-		if flags.allowHTTP {
-			opts = append(opts, onesie.WithInsecureHTTP())
-		}
-
-		opts = append(opts, onesie.WithHTTPClient(&http.Client{Transport: pooled(settings.transport, flags.jobs)}))
-
-		opts = append(opts, chosen.options(flags.baseURL, profileKey(settings, chosen), settings.lookupEnv)...)
-
-		opts = append(opts, onesie.WithRetry(retryPolicy(*flags)), onesie.WithClock(settings.clock))
-
-		// Last, so a caller that needs the attempt observer or any other per run option wins over
-		// what the flags asked for.
-		opts = append(opts, extra...)
-
-		client, err := onesie.New(opts...)
+	return func(_ context.Context, chosen Resolution, extra ...onesie.Option) (*onesie.Client, error) {
+		client, err := NewClient(chosen, ClientConfig{
+			UserAgent: "onesie/" + info.Version,
+			LookupEnv: settings.lookupEnv,
+			AllowHTTP: flags.allowHTTP,
+			Transport: settings.transport,
+			Jobs:      flags.jobs,
+			BaseURL:   flags.baseURL,
+			Retry:     retryPolicyOf(*flags),
+			Clock:     settings.clock,
+			Keychain:  settings.keychain,
+		}, extra...)
 		if err != nil {
 			return nil, explained(settings, flags.baseURL, chosen, err)
 		}
@@ -80,12 +70,54 @@ func clientBuilder(info BuildInfo, flags *runFlags, settings rootSettings) clien
 	}
 }
 
-func retryPolicy(flags runFlags) onesie.RetryPolicy {
+// NewClient builds the client a resolution asks through. extra goes last, so a caller's own options,
+// such as the attempt observer, win over the config's.
+func NewClient(chosen Resolution, config ClientConfig, extra ...onesie.Option) (*onesie.Client, error) {
+	opts := []onesie.Option{
+		onesie.WithProvider(chosen.Provider),
+		onesie.WithUserAgent(config.UserAgent),
+		onesie.WithEnv(config.LookupEnv),
+	}
+
+	if config.AllowHTTP {
+		opts = append(opts, onesie.WithInsecureHTTP())
+	}
+
+	opts = append(opts, onesie.WithHTTPClient(&http.Client{Transport: Pooled(config.Transport, config.Jobs)}))
+	opts = append(opts, chosen.Options(config.BaseURL, ProfileKey(chosen, config.Keychain), config.LookupEnv)...)
+	opts = append(opts, onesie.WithRetry(config.Retry), onesie.WithClock(config.Clock))
+	opts = append(opts, extra...)
+
+	return onesie.New(opts...)
+}
+
+// ClientConfig is what NewClient builds a client with. BaseURL is the base URL the caller was given,
+// empty for none.
+type ClientConfig struct {
+	UserAgent string
+	LookupEnv func(string) (string, bool)
+	AllowHTTP bool
+	Transport http.RoundTripper
+	Jobs      int
+	BaseURL   string
+	Retry     onesie.RetryPolicy
+	Clock     onesie.Clock
+	Keychain  interface {
+		Get(account string) (string, error)
+	}
+}
+
+func retryPolicyOf(flags runFlags) onesie.RetryPolicy {
+	return RetryPolicy(flags.retries, time.Duration(flags.maxRetryAfter)*time.Second)
+}
+
+// RetryPolicy is the default retry policy with its retries and its cap on a server's retry after.
+func RetryPolicy(retries int, maxRetryAfter time.Duration) onesie.RetryPolicy {
 	// Started from the default, because a Go struct cannot tell an unset field from a zero one and
 	// the policy carries seven fields this run does not touch.
 	policy := onesie.DefaultRetryPolicy()
-	policy.MaxRetries = flags.retries
-	policy.MaxRetryAfter = time.Duration(flags.maxRetryAfter) * time.Second
+	policy.MaxRetries = retries
+	policy.MaxRetryAfter = maxRetryAfter
 
 	return policy
 }
@@ -101,15 +133,16 @@ func runOptions(flags runConfig, stats *runner.Collector) []onesie.Option {
 	return opts
 }
 
-func profileKey(settings rootSettings, chosen resolution) func() (string, error) {
+// ProfileKey reads the key of a profile, from the keychain when the profile keeps it there.
+func ProfileKey(chosen Resolution, keychain interface{ Get(string) (string, error) }) func() (string, error) {
 	// New calls it only after every other check passed, so a run refused for anything else never
 	// reads the keychain.
 	return func() (string, error) {
-		if chosen.keyFrom != sourceKeychain {
+		if chosen.KeyFrom != KeyFromKeychain {
 			return chosen.key, nil
 		}
 
-		read, err := settings.keychain.Get(chosen.account)
+		read, err := keychain.Get(chosen.Account)
 		if err != nil {
 			return "", err
 		}
@@ -123,7 +156,7 @@ func profileKey(settings rootSettings, chosen resolution) func() (string, error)
 	}
 }
 
-func explained(settings rootSettings, baseURLFlag string, chosen resolution, err error) error {
+func explained(settings rootSettings, baseURLFlag string, chosen Resolution, err error) error {
 	var refused *onesie.BaseURLError
 	if errors.As(err, &refused) {
 		return baseURLRefusal(refused, baseURLFrom(refused.Source, baseURLFlag, chosen), sendPlainHTTP)
@@ -133,7 +166,7 @@ func explained(settings rootSettings, baseURLFlag string, chosen resolution, err
 		return accountNote(err, chosen)
 	}
 
-	if chosen.profile != "" || chosen.keyFrom != sourceNone {
+	if chosen.Profile != "" || chosen.KeyFrom != KeyFromNone {
 		return err
 	}
 
@@ -147,20 +180,20 @@ func explained(settings rootSettings, baseURLFlag string, chosen resolution, err
 	return missingKeyHint(err, chosen, opened.Profiles)
 }
 
-func baseURLFrom(source onesie.BaseURLSource, baseURLFlag string, chosen resolution) string {
+func baseURLFrom(source onesie.BaseURLSource, baseURLFlag string, chosen Resolution) string {
 	switch source {
 	case onesie.BaseURLFromOption:
-		name, _ := chosen.givenBaseURL(baseURLFlag)
+		name, _ := chosen.GivenBaseURL(baseURLFlag)
 
 		return name
 	case onesie.BaseURLFromEnv:
-		return chosen.provider.EnvBaseURL()
+		return chosen.Provider.EnvBaseURL()
 	case onesie.BaseURLFromAccount:
-		if chosen.accountID != "" {
+		if chosen.AccountID != "" {
 			return "the profile's account_id"
 		}
 
-		return chosen.provider.EnvAccountID()
+		return chosen.Provider.EnvAccountID()
 	case onesie.BaseURLFromDefault:
 		return providersOwn
 	}
@@ -184,7 +217,8 @@ func baseURLRefusal(refused *onesie.BaseURLError, source, plainHTTPAdvice string
 	return &advisedError{cause: refused, message: message}
 }
 
-func pooled(base http.RoundTripper, jobs int) http.RoundTripper {
+// Pooled is base with a connection pool sized for jobs requests at once.
+func Pooled(base http.RoundTripper, jobs int) http.RoundTripper {
 	if jobs < 1 {
 		jobs = 1
 	}
@@ -213,7 +247,7 @@ func pooled(base http.RoundTripper, jobs int) http.RoundTripper {
 	return transport
 }
 
-type clientFactory func(ctx context.Context, chosen resolution, opts ...onesie.Option) (*onesie.Client, error)
+type clientFactory func(ctx context.Context, chosen Resolution, opts ...onesie.Option) (*onesie.Client, error)
 
 func resolveModel(settings rootSettings, model string) (string, error) {
 	chosen, err := settings.holder.resolved()
@@ -221,5 +255,5 @@ func resolveModel(settings rootSettings, model string) (string, error) {
 		return "", err
 	}
 
-	return chosen.modelFor(model, settings.lookupEnv), nil
+	return chosen.ModelFor(model, settings.lookupEnv), nil
 }
