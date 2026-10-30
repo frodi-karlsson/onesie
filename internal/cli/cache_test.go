@@ -106,7 +106,7 @@ func TestOpenCache(t *testing.T) {
 	t.Run("should refuse only a readable directory, and pass every other error on", func(t *testing.T) {
 		t.Parallel()
 
-		var refused *cacheRefusedError
+		var refused *HaltError
 
 		settings, dir := settingsAt(t, nil, "linux", time.Now)
 		mustMkdirMode(t, dir, 0o755)
@@ -173,9 +173,9 @@ func TestCachedAnswerer(t *testing.T) {
 	request := onesie.Request{
 		State: json.RawMessage(`"site down"`), Questions: plan.WireAll([]plan.Question{{ID: "u", Shape: plan.Noul}}),
 	}
-	key := recordKey{position: 1, line: 1}
+	key := RecordKey{Position: 1, Line: 1}
 
-	build := func(t *testing.T, stub *answerStub, warn func(error), extra ...onesie.Option) (answererFactory, string) {
+	build := func(t *testing.T, stub *answerStub, warn func(error), extra ...onesie.Option) (AnswererFactory, string) {
 		t.Helper()
 
 		dir := filepath.Join(t.TempDir(), "cache")
@@ -210,13 +210,13 @@ func TestCachedAnswerer(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		first, err := asker.answer(t.Context(), key, request)
-		if err != nil || first.cached {
+		first, err := asker.Answer(t.Context(), key, request)
+		if err != nil || first.Cached {
 			t.Fatalf("first answer = %+v, %v, want a live answer", first, err)
 		}
 
-		second, err := asker.answer(t.Context(), key, request)
-		if err != nil || !second.cached {
+		second, err := asker.Answer(t.Context(), key, request)
+		if err != nil || !second.Cached {
 			t.Fatalf("second answer = %+v, %v, want a cached answer", second, err)
 		}
 
@@ -224,11 +224,11 @@ func TestCachedAnswerer(t *testing.T) {
 			t.Errorf("%d requests, want 1", got)
 		}
 
-		if second.result.Usage != (onesie.Usage{}) || second.result.RequestID != "" {
-			t.Errorf("cached result usage %+v, request id %q, want zero", second.result.Usage, second.result.RequestID)
+		if second.Result.Usage != (onesie.Usage{}) || second.Result.RequestID != "" {
+			t.Errorf("cached result usage %+v, request id %q, want zero", second.Result.Usage, second.Result.RequestID)
 		}
 
-		if _, noulErr := second.result.Noul("u"); noulErr != nil {
+		if _, noulErr := second.Result.Noul("u"); noulErr != nil {
 			t.Errorf("cached result: %v", noulErr)
 		}
 	})
@@ -244,7 +244,7 @@ func TestCachedAnswerer(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		cached, isCached := asker.(*cachedAnswerer)
+		cached, isCached := asker.(*CachedAnswerer)
 		if !isCached {
 			t.Fatalf("answerer = %T, want *cachedAnswerer", asker)
 		}
@@ -266,8 +266,8 @@ func TestCachedAnswerer(t *testing.T) {
 			t.Fatal(putErr)
 		}
 
-		got, err := asker.answer(t.Context(), key, request)
-		if err != nil || got.cached {
+		got, err := asker.Answer(t.Context(), key, request)
+		if err != nil || got.Cached {
 			t.Fatalf("answer = %+v, %v, want a fresh answer past the refused entry", got, err)
 		}
 
@@ -298,7 +298,7 @@ func TestCachedAnswerer(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if _, err := asker.answer(t.Context(), key, request); err != nil {
+		if _, err := asker.Answer(t.Context(), key, request); err != nil {
 			t.Fatal(err)
 		}
 
@@ -337,7 +337,7 @@ func TestCachedAnswerer(t *testing.T) {
 			}
 
 			for range 2 {
-				if got, _ := asker.answer(t.Context(), key, request); got.cached {
+				if got, _ := asker.Answer(t.Context(), key, request); got.Cached {
 					t.Fatalf("answer = %+v, want no cached answer", got)
 				}
 			}
@@ -366,7 +366,7 @@ func TestCachedAnswerer(t *testing.T) {
 			}
 
 			for range 2 {
-				if got, answerErr := asker.answer(t.Context(), key, request); got.cached || !errors.Is(answerErr, onesie.ErrTimeout) {
+				if got, answerErr := asker.Answer(t.Context(), key, request); got.Cached || !errors.Is(answerErr, onesie.ErrTimeout) {
 					t.Fatalf("answer = %+v, %v, want a timeout and no cached answer", got, answerErr)
 				}
 			}
@@ -408,7 +408,7 @@ func TestCachedAnswerer(t *testing.T) {
 		}
 
 		for range 2 {
-			if got, answerErr := asker.answer(t.Context(), key, request); answerErr != nil || got.cached || got.result == nil {
+			if got, answerErr := asker.Answer(t.Context(), key, request); answerErr != nil || got.Cached || got.Result == nil {
 				t.Fatalf("answer = %+v, %v, want a live answer", got, answerErr)
 			}
 		}
@@ -460,7 +460,7 @@ func TestCachedAnswerer(t *testing.T) {
 
 		// The key is only known from the body the first request sends, so a first answer finds it,
 		// and the entry it stored is swapped for a directory the next Put cannot rename over.
-		if _, err := asker.answer(t.Context(), key, request); err != nil {
+		if _, err := asker.Answer(t.Context(), key, request); err != nil {
 			t.Fatal(err)
 		}
 
@@ -478,8 +478,8 @@ func TestCachedAnswerer(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		got, answerErr := asker.answer(t.Context(), key, request)
-		if answerErr != nil || got.result == nil || got.cached {
+		got, answerErr := asker.Answer(t.Context(), key, request)
+		if answerErr != nil || got.Result == nil || got.Cached {
 			t.Fatalf("answer beside the failing Put = %+v, %v, want the live answer", got, answerErr)
 		}
 
@@ -487,7 +487,7 @@ func TestCachedAnswerer(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if _, err := asker.answer(t.Context(), key, request); err != nil {
+		if _, err := asker.Answer(t.Context(), key, request); err != nil {
 			t.Fatal(err)
 		}
 
@@ -918,7 +918,7 @@ func TestAsk(t *testing.T) {
 
 			err := ask(cmd, settings, runConfig{runFlags: tc.flags}, inv,
 				singleState{resolved: input.Resolved{Source: input.SourceState, State: "x"}, sent: "x"},
-				output.Values, &collector{}, func(context.Context, *collector) (answerer, error) {
+				output.Values, &collector{}, func(context.Context, *collector) (Answerer, error) {
 					return asker, nil
 				})
 

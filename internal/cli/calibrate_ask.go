@@ -118,7 +118,7 @@ type calibrateAsk struct {
 	cuts    [][]float64
 	bound   []boundRequirement
 	out     *answersfile.File
-	answers answererFactory
+	answers AnswererFactory
 	images  *imaging
 }
 
@@ -325,7 +325,7 @@ func askLabelled(
 
 type labelledRun struct {
 	run       calibrateAsk
-	asker     answerer
+	asker     Answerer
 	questions onesie.Questions
 	usage     bool
 	stats     *collector
@@ -336,7 +336,7 @@ type labelledRun struct {
 
 func (r *labelledRun) evaluate(ctx context.Context, rec labelledRecord) (askedLine, error) {
 	asked := r.run.asked
-	key := recordKey{position: rec.position, line: rec.line, id: rec.id}
+	key := RecordKey{Position: rec.position, Line: rec.line, ID: rec.id}
 
 	// At ask time rather than read time, since calibrate reads every record ahead and would
 	// otherwise hold every image at once. rec.sent keeps the paths, which is what the worst
@@ -355,7 +355,7 @@ func (r *labelledRun) evaluate(ctx context.Context, rec labelledRecord) (askedLi
 	record, err := askAndRecord(ctx, r.asker, key, asked, r.run.model, r.questions, sent, assets, r.usage, r.stats)
 	record.ID = rec.id
 
-	return askedLine{index: rec.index, slot: rec.slot, record: record, halted: halting(err)}, err
+	return askedLine{index: rec.index, slot: rec.slot, record: record, halted: Halting(err)}, err
 }
 
 func (r *labelledRun) write(l askedLine) error {
@@ -385,8 +385,8 @@ func (r *labelledRun) write(l askedLine) error {
 }
 
 func answererWhenPending(
-	ctx context.Context, pending []labelledRecord, answerers answererFactory, stats *collector,
-) (answerer, error) {
+	ctx context.Context, pending []labelledRecord, answerers AnswererFactory, stats *collector,
+) (Answerer, error) {
 	if len(pending) == 0 {
 		return nil, nil
 	}

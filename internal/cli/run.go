@@ -182,7 +182,7 @@ func runOne(
 	flags runConfig,
 	inv *invocation,
 	outputMode output.Mode,
-	answers answererFactory,
+	answers AnswererFactory,
 ) error {
 	built := inv.plan
 
@@ -641,7 +641,7 @@ func stoppedAtInput(cause error) bool {
 func aborting(err error) bool {
 	// Every later record would fail the same way, so a bad key is reported on one line for the
 	// whole run.
-	return authFailure(err) || halting(err)
+	return authFailure(err) || Halting(err)
 }
 
 func ask(
@@ -652,7 +652,7 @@ func ask(
 	state singleState,
 	outputMode output.Mode,
 	stats *collector,
-	answerers answererFactory,
+	answerers AnswererFactory,
 ) error {
 	asker, err := answerers(cmd.Context(), stats)
 	if err != nil {
@@ -669,9 +669,9 @@ func ask(
 	}
 
 	record, err := askAndRecord(
-		cmd.Context(), asker, recordKey{position: 1, line: 1}, built, model, questions, state.sent, state.assets,
+		cmd.Context(), asker, RecordKey{Position: 1, Line: 1}, built, model, questions, state.sent, state.assets,
 		flags.usage, stats)
-	if halting(err) {
+	if Halting(err) {
 		return err
 	}
 
@@ -899,8 +899,8 @@ func mergeKey(flags runConfig) string {
 
 func askAndRecord(
 	ctx context.Context,
-	asker answerer,
-	key recordKey,
+	asker Answerer,
+	key RecordKey,
 	built *plan.Plan,
 	model string,
 	questions onesie.Questions,
@@ -910,7 +910,7 @@ func askAndRecord(
 	stats *collector,
 ) (output.Record, error) {
 	record, usage, cached, err := answered(ctx, asker, key, built, model, questions, state, assets, withUsage)
-	if halting(err) {
+	if Halting(err) {
 		// No request stood behind it, so it is a record and not a request, and no attempt ended.
 		stats.recordFailure(err, false, 0)
 
@@ -940,8 +940,8 @@ func askAndRecord(
 
 func answered(
 	ctx context.Context,
-	asker answerer,
-	key recordKey,
+	asker Answerer,
+	key RecordKey,
 	built *plan.Plan,
 	model string,
 	questions onesie.Questions,
@@ -949,8 +949,8 @@ func answered(
 	assets onesie.Assets,
 	withUsage bool,
 ) (output.Record, onesie.Usage, bool, error) {
-	got, err := asker.answer(ctx, key, requestFor(built, model, questions, state, assets))
-	if halting(err) {
+	got, err := asker.Answer(ctx, key, requestFor(built, model, questions, state, assets))
+	if Halting(err) {
 		return failureRecord(built, err), onesie.Usage{}, false, err
 	}
 
@@ -969,7 +969,7 @@ func answered(
 		return failed, *unusable.Usage, false, err
 	}
 
-	result := got.result
+	result := got.Result
 	record := output.Record{Model: result.Model}
 	if withUsage {
 		// A copy, since a pointer into the result would keep the whole response alive for as long
@@ -987,7 +987,7 @@ func answered(
 			output.Named{ID: question.ID, Answer: normalized[i], Box: question.Shape == plan.Box})
 	}
 
-	return record, result.Usage, got.cached, nil
+	return record, result.Usage, got.Cached, nil
 }
 
 func requestFor(

@@ -104,7 +104,7 @@ func checkedCacheDir(settings rootSettings) (string, error) {
 
 func warnRefused(w io.Writer, settings rootSettings, dir string) error {
 	// Any other failure to read the directory is left to the summary that follows.
-	if err := cache.Check(dir, cache.Options{GOOS: settings.goos}); cacheRefused(err) {
+	if err := cache.Check(dir, cache.Options{GOOS: settings.goos}); CacheRefused(err) {
 		return output.Notice(w, err.Error())
 	}
 

@@ -51,7 +51,7 @@ type streamInputs struct {
 	stats      *collector
 	answers    *answersfile.File
 	resume     answersfile.Resume
-	answerers  answererFactory
+	answerers  AnswererFactory
 }
 
 func newStreamRun(cmd *cobra.Command, in streamInputs) (*streamRun, error) {
@@ -112,7 +112,7 @@ type streamRun struct {
 	images     *imaging
 	gate       *assert.Expr
 	abstain    *assert.Expr
-	asker      answerer
+	asker      Answerer
 	model      string
 	questions  onesie.Questions
 	stats      *collector
@@ -212,12 +212,12 @@ func (r *streamRun) mergeCollision(rec namedRecord) (line, error) {
 }
 
 func (r *streamRun) ask(ctx context.Context, rec namedRecord, sent any, assets onesie.Assets) (line, error) {
-	key := recordKey{position: rec.Index + 1, line: rec.Line, id: rec.id}
+	key := RecordKey{Position: rec.Index + 1, Line: rec.Line, ID: rec.id}
 
 	// A record the mock file does not answer shares with nothing, so its error names its own line.
 	group := r.shared
 
-	salt, shares := r.asker.salt(key)
+	salt, shares := r.asker.Salt(key)
 	if !shares {
 		group = nil
 	}
@@ -232,7 +232,7 @@ func (r *streamRun) ask(ctx context.Context, rec namedRecord, sent any, assets o
 		// Returned before the gate is asked. A failed record reads as all zeros, so a gate such as
 		// answer.value < 0.5 would hold for a request that never happened.
 		failed := rowLine(record, rec)
-		failed.halted = halting(err)
+		failed.halted = Halting(err)
 		failed.call = call
 
 		return failed, err

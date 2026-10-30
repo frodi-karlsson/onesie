@@ -324,7 +324,7 @@ func TestAnswered(t *testing.T) {
 			return result
 		}}
 
-		record, _, _, err := answered(t.Context(), asker, recordKey{position: 1, line: 1}, built, "m",
+		record, _, _, err := answered(t.Context(), asker, RecordKey{Position: 1, Line: 1}, built, "m",
 			plan.WireAll(built.Questions), "x", nil, true)
 		if err != nil {
 			t.Fatalf("answered: %v", err)
@@ -358,11 +358,11 @@ func released(collected <-chan struct{}) bool {
 	return false
 }
 
-func (a resultAnswerer) answer(context.Context, recordKey, onesie.Request) (reply, error) {
-	return reply{result: a.result()}, nil
+func (a resultAnswerer) Answer(context.Context, RecordKey, onesie.Request) (Reply, error) {
+	return Reply{Result: a.result()}, nil
 }
 
-func (resultAnswerer) salt(recordKey) (string, bool) {
+func (resultAnswerer) Salt(RecordKey) (string, bool) {
 	return "", true
 }
 

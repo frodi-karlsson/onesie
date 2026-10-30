@@ -7,141 +7,42 @@ import (
 	"fmt"
 	"sync"
 	"sync/atomic"
-	"time"
-
-	"github.com/spf13/cobra"
 
 	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/cache"
-	"github.com/frodi-karlsson/onesie/internal/output"
-	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
-const (
-	flagCache = "cache"
-	cacheHelp = "store responses on disk and answer a repeated request from them. Also ONESIE_CACHE=1"
-)
-
-func answersFor(
-	cmd *cobra.Command, settings rootSettings, flags runConfig, built *plan.Plan, known []plan.Question,
-	model string,
-) (answererFactory, error) {
-	if flags.mockPath != "" {
-		chosen, err := settings.holder.resolved()
-		if err != nil {
-			return nil, err
-		}
-
-		return mockAnswers(settings, flags, chosen.provider, built, known)
-	}
-
-	if !caching(flags) {
-		return liveAnswers(settings, flags), nil
-	}
-
-	var warned atomic.Bool
-
-	warn := func(err error) {
-		if !warned.CompareAndSwap(false, true) {
-			return
-		}
-
-		// The answer is already in hand, so a warning that cannot print fails nothing.
-		if printErr := output.Warning(cmd.ErrOrStderr(), err.Error()); printErr != nil {
-			return
-		}
-	}
-
-	return cachedAnswers(settings, flags, model, warn), nil
-}
-
-func caching(flags runConfig) bool {
-	// A mock replaces the answerer the cache would wrap, and a dry run builds none, so skipping the
-	// cache there costs nothing and needs no word.
-	if flags.mockPath != "" || flags.printRequest {
-		return false
-	}
-
-	return flags.env.cache
-}
-
-func cachedAnswers(settings rootSettings, flags runConfig, model string, warn func(error)) answererFactory {
-	return func(ctx context.Context, stats *collector) (answerer, error) {
-		chosen, err := settings.holder.resolved()
-		if err != nil {
-			return nil, err
-		}
-
-		client, err := settings.newClient(ctx, chosen, runOptions(flags, stats)...)
-		if err != nil {
-			return nil, noKeyForCache(settings, err)
-		}
-
-		return &cachedAnswerer{
-			next:   newLiveAnswerer(client),
-			open:   sync.OnceValues(func() (*cache.Store, error) { return openCache(settings, flags.env.aliasTTL) }),
-			model:  model,
-			pinned: client.Provider().Pinned(model),
-			origin: client.Provider().Name() + "\x00" + client.BaseURL(),
-			warn:   warn,
-		}, nil
+// NewCachedAnswerer answers from the cache open opens on first use, and asks next on a miss. client
+// keys each entry by its provider and API address, and says whether model is pinned. warn hears the
+// failure that turns the cache off for the rest of the run.
+func NewCachedAnswerer(
+	next Answerer, open func() (*cache.Store, error), client *onesie.Client, model string, warn func(error),
+) *CachedAnswerer {
+	return &CachedAnswerer{
+		next:   next,
+		open:   sync.OnceValues(open),
+		model:  model,
+		pinned: client.Provider().Pinned(model),
+		origin: client.Provider().Name() + "\x00" + client.BaseURL(),
+		warn:   warn,
 	}
 }
 
-func noKeyForCache(settings rootSettings, err error) error {
-	if !errors.Is(err, onesie.ErrValidation) {
-		return err
-	}
-
-	chosen, resolveErr := settings.holder.resolved()
-	if resolveErr != nil || chosen.keyFrom != sourceNone {
-		return err
-	}
-
-	return &advisedError{
-		cause: err, message: text(err) + ". The cache needs the key too, to find the API address it keys answers by",
-	}
-}
-
-func openCache(settings rootSettings, ttl time.Duration) (*cache.Store, error) {
-	dir, err := cache.Dir(configEnv(settings.lookupEnv, settings.homeDir, settings.goos))
-	if err != nil {
-		return nil, err
-	}
-
-	// A cache others can read, or a directory that may not be onesie's, is something the user asked
-	// for and has to fix, so each ends the run. Any other failure only turns the cache off.
-	store, err := cache.Open(dir, cache.Options{Now: settings.now, GOOS: settings.goos, AliasTTL: ttl})
-	if cacheRefused(err) {
-		return nil, &cacheRefusedError{err: err}
-	}
-
-	return store, err
-}
-
-func cacheRefused(err error) bool {
-	var (
-		readable *cache.ModeError
-		foreign  *cache.ForeignError
-	)
-
-	return errors.As(err, &readable) || errors.As(err, &foreign)
-}
-
-func (a *cachedAnswerer) answer(ctx context.Context, key recordKey, req onesie.Request) (reply, error) {
+// Answer answers from the cache, or asks next and stores the answer.
+func (a *CachedAnswerer) Answer(ctx context.Context, key RecordKey, req onesie.Request) (Reply, error) {
 	if a.off.Load() {
-		return a.next.answer(ctx, key, req)
+		return a.next.Answer(ctx, key, req)
 	}
 
 	store, err := a.open()
-	if halting(err) {
-		return reply{}, err
+	if Halting(err) {
+		return Reply{}, err
 	}
 
 	if err != nil {
 		a.fail(fmt.Errorf("the cache could not open, so onesie asks the API for the rest of this run: %w", err))
 
-		return a.next.answer(ctx, key, req)
+		return a.next.Answer(ctx, key, req)
 	}
 
 	keyed := req
@@ -149,30 +50,30 @@ func (a *cachedAnswerer) answer(ctx context.Context, key recordKey, req onesie.R
 
 	id, err := requestKey(keyed, a.origin)
 	if err != nil {
-		return a.next.answer(ctx, key, req)
+		return a.next.Answer(ctx, key, req)
 	}
 
 	value, hit, err := store.Get(cache.Key(id), a.model, a.pinned)
 	if err != nil {
 		a.fail(failed(store, err))
 
-		return a.next.answer(ctx, key, req)
+		return a.next.Answer(ctx, key, req)
 	}
 
 	// An entry that fails the answer checks would fail every run until it expires, so it is passed
 	// over and replaced by a fresh answer.
 	if hit {
 		if result, usable := decodeCached(value, req.Questions); usable {
-			return reply{result: result, cached: true}, nil
+			return Reply{Result: result, Cached: true}, nil
 		}
 	}
 
-	fresh, err := a.next.answer(ctx, key, req)
+	fresh, err := a.next.Answer(ctx, key, req)
 	if err != nil {
 		return fresh, err
 	}
 
-	if putErr := a.put(store, cache.Key(id), fresh.result); putErr != nil {
+	if putErr := a.put(store, cache.Key(id), fresh.Result); putErr != nil {
 		a.fail(failed(store, putErr))
 	}
 
@@ -191,7 +92,7 @@ func decodeCached(value []byte, questions onesie.Questions) (*onesie.Result, boo
 	return &result, true
 }
 
-func (a *cachedAnswerer) put(store *cache.Store, id cache.Key, result *onesie.Result) error {
+func (a *CachedAnswerer) put(store *cache.Store, id cache.Key, result *onesie.Result) error {
 	stored := *result
 	stored.RequestID = ""
 
@@ -207,17 +108,19 @@ func failed(store *cache.Store, err error) error {
 	return fmt.Errorf("the cache at %s failed, so onesie asks the API for the rest of this run: %w", store.Dir(), err)
 }
 
-func (a *cachedAnswerer) fail(err error) {
+func (a *CachedAnswerer) fail(err error) {
 	a.off.Store(true)
 	a.warn(err)
 }
 
-func (a *cachedAnswerer) salt(key recordKey) (string, bool) {
-	return a.next.salt(key)
+// Salt is the salt of the answerer the cache wraps.
+func (a *CachedAnswerer) Salt(key RecordKey) (string, bool) {
+	return a.next.Salt(key)
 }
 
-type cachedAnswerer struct {
-	next   answerer
+// CachedAnswerer answers a repeated request from the cache, and asks the API for the rest.
+type CachedAnswerer struct {
+	next   Answerer
 	open   func() (*cache.Store, error)
 	model  string
 	pinned bool
@@ -226,22 +129,25 @@ type cachedAnswerer struct {
 	off    atomic.Bool
 }
 
-func (e *cacheRefusedError) Error() string {
-	return e.err.Error()
+// OpenCache opens the cache in dir. A refusal ends the run as a HaltError.
+func OpenCache(dir string, opts cache.Options) (*cache.Store, error) {
+	// A cache others can read, or a directory that may not be onesie's, is something the user asked
+	// for and has to fix, so each ends the run. Any other failure only turns the cache off.
+	store, err := cache.Open(dir, opts)
+	if CacheRefused(err) {
+		return nil, &HaltError{Err: err}
+	}
+
+	return store, err
 }
 
-func (e *cacheRefusedError) Unwrap() error {
-	return e.err
-}
+// CacheRefused reports whether err is a cache onesie will not use, one others can read or a directory
+// that may not be onesie's.
+func CacheRefused(err error) bool {
+	var (
+		readable *cache.ModeError
+		foreign  *cache.ForeignError
+	)
 
-type cacheRefusedError struct {
-	err error
-}
-
-func halting(err error) bool {
-	// A cache the run cannot use ends it before any request, the way a record the mock file does
-	// not answer does, rather than failing one record after another.
-	var refused *cacheRefusedError
-
-	return uncovered(err) || errors.As(err, &refused)
+	return errors.As(err, &readable) || errors.As(err, &foreign)
 }

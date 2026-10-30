@@ -34,7 +34,7 @@ func mockSource(lookupEnv func(string) (string, bool), flag string) (path, spell
 
 func mockAnswers(
 	settings rootSettings, flags runConfig, provider onesie.Provider, built *plan.Plan, known []plan.Question,
-) (answererFactory, error) {
+) (AnswererFactory, error) {
 	data, err := settings.readFile(flags.mockPath)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", flags.mockSpelled, err)
@@ -52,7 +52,7 @@ func mockAnswers(
 		return nil, err
 	}
 
-	return func(_ context.Context, stats *collector) (answerer, error) {
+	return func(_ context.Context, stats *collector) (Answerer, error) {
 		stats.answerFromMock()
 
 		client, err := mockClient(settings, flags, provider, stats)
@@ -60,7 +60,7 @@ func mockAnswers(
 			return nil, err
 		}
 
-		return mockAnswerer{answers: answers, provider: provider, live: newLiveAnswerer(client)}, nil
+		return mockAnswerer{answers: answers, provider: provider, live: explainedAnswerer(client)}, nil
 	}, nil
 }
 
@@ -92,27 +92,27 @@ type instantClock struct {
 	now func() time.Time
 }
 
-func (a mockAnswerer) answer(ctx context.Context, key recordKey, req onesie.Request) (reply, error) {
+func (a mockAnswerer) Answer(ctx context.Context, key RecordKey, req onesie.Request) (Reply, error) {
 	if err := ctx.Err(); err != nil {
-		return reply{}, err
+		return Reply{}, err
 	}
 
 	if err := a.provider.Check(req); err != nil {
-		return reply{}, err
+		return Reply{}, err
 	}
 
-	entry, found := a.answers.Lookup(key.position, key.id)
+	entry, found := a.answers.Lookup(key.Position, key.ID)
 	if !found {
-		return reply{}, &uncoveredError{message: a.answers.Missing(key.position, key.id, key.line)}
+		return Reply{}, &HaltError{Err: errors.New(a.answers.Missing(key.Position, key.ID, key.Line))}
 	}
 
-	return a.live.answer(mock.WithEntry(ctx, entry, req.Model), key, req)
+	return a.live.Answer(mock.WithEntry(ctx, entry, req.Model), key, req)
 }
 
-func (a mockAnswerer) salt(key recordKey) (string, bool) {
+func (a mockAnswerer) Salt(key RecordKey) (string, bool) {
 	// A record the file does not answer is never shared, so its error names its own input line and
 	// no identical record takes an answer the file gave another.
-	entry, found := a.answers.Lookup(key.position, key.id)
+	entry, found := a.answers.Lookup(key.Position, key.ID)
 	if !found {
 		return "", false
 	}
@@ -123,19 +123,5 @@ func (a mockAnswerer) salt(key recordKey) (string, bool) {
 type mockAnswerer struct {
 	answers  *mock.Answers
 	provider onesie.Provider
-	live     liveAnswerer
-}
-
-func (e *uncoveredError) Error() string {
-	return e.message
-}
-
-type uncoveredError struct {
-	message string
-}
-
-func uncovered(err error) bool {
-	var missing *uncoveredError
-
-	return errors.As(err, &missing)
+	live     LiveAnswerer
 }

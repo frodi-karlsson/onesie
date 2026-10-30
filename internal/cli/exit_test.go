@@ -38,7 +38,7 @@ func TestClassify(t *testing.T) {
 		{name: "should report success for no error", err: nil, want: ExitOK},
 		{
 			name: "should report usage for a record a mock file does not answer",
-			err:  &abortError{cause: &uncoveredError{message: "onesie: --mock has no line 3"}}, want: ExitUsage,
+			err:  &abortError{cause: &HaltError{Err: errors.New("onesie: --mock has no line 3")}}, want: ExitUsage,
 		},
 		{
 			name: "should report records for a stored input failure a resume stopped at",
@@ -269,6 +269,16 @@ func TestClassify(t *testing.T) {
 			}
 		}
 	})
+
+	t.Run("should classify a halt as input with exit 2", func(t *testing.T) {
+		t.Parallel()
+
+		halt := &HaltError{Err: errors.New("onesie: --mock has no line 3")}
+
+		if got := classify(halt); got.kind != output.KindInput || got.code != ExitUsage || got.quiet {
+			t.Errorf("classify(%v) = %+v, want kind input, exit %d and not quiet", halt, got, ExitUsage)
+		}
+	})
 }
 
 func TestWorthReporting(t *testing.T) {
@@ -359,7 +369,7 @@ func TestAuthFailure(t *testing.T) {
 		},
 		{name: "should not match a bad request", err: &onesie.APIError{Status: http.StatusBadRequest}},
 		{name: "should not match a missing key", err: onesie.ErrNoAPIKey},
-		{name: "should not match a record the mock does not answer", err: &uncoveredError{message: "x"}},
+		{name: "should not match a record the mock does not answer", err: &HaltError{Err: errors.New("x")}},
 	}
 
 	for _, tc := range tests {
