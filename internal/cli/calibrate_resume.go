@@ -2,14 +2,12 @@ package cli
 
 import (
 	"context"
-	"encoding/json"
 
-	"github.com/frodi-karlsson/onesie-go"
-	"github.com/frodi-karlsson/onesie/internal/answer"
 	"github.com/frodi-karlsson/onesie/internal/answersfile"
 	"github.com/frodi-karlsson/onesie/internal/jq"
 	"github.com/frodi-karlsson/onesie/internal/output"
 	"github.com/frodi-karlsson/onesie/internal/plan"
+	"github.com/frodi-karlsson/onesie/internal/stored"
 )
 
 func resumeLabelled(
@@ -97,44 +95,6 @@ func storedAnswers(ctx context.Context, out *answersfile.File, lines []storedLin
 	}
 
 	return out.ReadSpans(ctx, spans, func(i int, text []byte) {
-		lines[i].record = storedRecord(built, text)
+		lines[i].record = stored.Record(built, text)
 	})
-}
-
-func storedRecord(built *plan.Plan, text []byte) output.Record {
-	var fields map[string]json.RawMessage
-	if err := json.Unmarshal(text, &fields); err != nil {
-		return output.Record{}
-	}
-
-	var record output.Record
-
-	// Each field is decoded on its own, so one that does not decode leaves only itself out. An answer
-	// left out fails the answers check, and the record is asked again.
-	if json.Unmarshal(fields["model"], &record.Model) != nil {
-		record.Model = ""
-	}
-
-	var usage onesie.Usage
-	if json.Unmarshal(fields["usage"], &usage) == nil {
-		record.Usage = &usage
-	}
-
-	for _, question := range built.Questions {
-		var stored struct {
-			Value      any      `json:"value"`
-			Confidence *float64 `json:"confidence"`
-		}
-
-		raw, found := fields[question.ID]
-		if !found || json.Unmarshal(raw, &stored) != nil {
-			continue
-		}
-
-		record.Answers = append(record.Answers, output.Named{
-			ID: question.ID, Answer: &answer.Answer{Value: stored.Value, Confidence: stored.Confidence},
-		})
-	}
-
-	return record
 }
