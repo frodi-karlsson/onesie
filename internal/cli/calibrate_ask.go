@@ -1,23 +1,16 @@
 package cli
 
 import (
-	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"io/fs"
-	"maps"
-	"slices"
 
 	"github.com/spf13/cobra"
 
-	"github.com/frodi-karlsson/onesie/internal/answer"
 	"github.com/frodi-karlsson/onesie/internal/answersfile"
 	"github.com/frodi-karlsson/onesie/internal/calibrate"
-	"github.com/frodi-karlsson/onesie/internal/engine"
 	"github.com/frodi-karlsson/onesie/internal/input"
-	"github.com/frodi-karlsson/onesie/internal/jq"
 	"github.com/frodi-karlsson/onesie/internal/output"
 	"github.com/frodi-karlsson/onesie/internal/plan"
 	"github.com/frodi-karlsson/onesie/internal/runner"
@@ -27,9 +20,9 @@ const maxCauses = 5
 
 func calibrateRun(
 	cmd *cobra.Command, settings rootSettings, flags runConfig, calib calibrateFlags, inputMode input.Mode,
-	inv *invocation, scope calibrateScope, bound []boundRequirement,
+	inv *invocation, scope Scope, bound []BoundRequirement,
 ) (err error) {
-	model, err := resolveModel(settings, scope.scored.Model)
+	model, err := resolveModel(settings, scope.Scored.Model)
 	if err != nil {
 		return err
 	}
@@ -39,7 +32,7 @@ func calibrateRun(
 		return err
 	}
 
-	cuts := cutsFor(base, bound, len(scope.scored.Questions))
+	cuts := CutsFor(base, bound, len(scope.Scored.Questions))
 
 	if calib.offline {
 		if _, statErr := settings.stat(flags.out); errors.Is(statErr, fs.ErrNotExist) {
@@ -70,14 +63,20 @@ func calibrateRun(
 		return err
 	}
 
-	answers, err := answersFor(cmd, settings, flags, asked, scope.full.Questions, model)
+	answers, err := answersFor(cmd, settings, flags, asked, scope.Full.Questions, model)
 	if err != nil {
 		return err
 	}
 
-	runErr := calibrateAnswers(cmd, settings, flags, calib, inputMode, inv, calibrateAsk{
-		scope: scope, asked: asked, model: model, inputs: inputs, cuts: cuts, bound: bound,
-		out: out, answers: answers, images: inv.images,
+	config := calibrateConfig(settings, flags, inputMode, inv)
+	config.Ask = runner.Ask{
+		Plan: asked, Model: model, Questions: plan.WireAll(asked.Questions), Usage: flags.usage, Message: text,
+	}
+	config.Offline = calib.offline
+
+	runErr := calibrateAnswers(cmd, settings, flags, calib, inv, calibrateAsk{
+		scope: scope, asked: asked, inputs: inputs, cuts: cuts, bound: bound, out: out, answers: answers,
+		config: config,
 	})
 	if out == nil || calib.offline {
 		return runErr
@@ -87,60 +86,73 @@ func calibrateRun(
 }
 
 func askedPlan(
-	settings rootSettings, flags runConfig, out *answersfile.File, scope calibrateScope, inputs answersfile.FingerprintInputs,
+	settings rootSettings, flags runConfig, out *answersfile.File, scope Scope, inputs answersfile.FingerprintInputs,
 ) (*plan.Plan, error) {
-	if out == nil || !out.Resuming() || len(scope.skipped) == 0 {
-		return scope.scored, nil
+	if out == nil || !out.Resuming() || len(scope.Skipped) == 0 {
+		return scope.Scored, nil
 	}
 
 	stored, found, err := out.StoredFingerprint()
 	if err != nil || !found {
-		return scope.scored, err
+		return scope.Scored, err
 	}
 
-	whole, err := outFingerprint(settings, flags, scope.full.Questions, inputs)
+	whole, err := outFingerprint(settings, flags, scope.Full.Questions, inputs)
 	if err != nil {
 		return nil, err
 	}
 
 	if whole.Matches(stored) {
-		return scope.full, nil
+		return scope.Full, nil
 	}
 
-	return scope.scored, nil
+	return scope.Scored, nil
 }
 
 type calibrateAsk struct {
-	scope   calibrateScope
+	scope   Scope
 	asked   *plan.Plan
-	model   string
 	inputs  answersfile.FingerprintInputs
 	cuts    [][]float64
-	bound   []boundRequirement
+	bound   []BoundRequirement
 	out     *answersfile.File
 	answers runner.AnswererFactory
-	images  *imaging
+	config  Config
+}
+
+func calibrateConfig(settings rootSettings, flags runConfig, inputMode input.Mode, inv *invocation) Config {
+	return Config{
+		Input:     settings.stdin,
+		InputMode: inputMode,
+		SkipBlank: flags.skipBlank,
+		Mapper:    inv.Mapper,
+		Namer:     inv.Namer,
+		Images:    inv.images,
+		Jobs:      flags.jobs,
+		Prune:     flags.prune,
+		Speller:   plan.Flags,
+	}
 }
 
 func calibrateAnswers(
-	cmd *cobra.Command, settings rootSettings, flags runConfig, calib calibrateFlags, inputMode input.Mode,
-	inv *invocation, run calibrateAsk,
+	cmd *cobra.Command, settings rootSettings, flags runConfig, calib calibrateFlags, inv *invocation,
+	run calibrateAsk,
 ) error {
-	scored, out := run.scope.scored, run.out
+	scored, out := run.scope.Scored, run.out
 
 	keptWhole := len(run.asked.Questions) > len(scored.Questions)
 	if !keptWhole {
-		if noteErr := writeSkipped(cmd.ErrOrStderr(), run.scope.skipped, false, ""); noteErr != nil {
+		if noteErr := writeSkipped(cmd.ErrOrStderr(), run.scope.Skipped, false, ""); noteErr != nil {
 			return noteErr
 		}
 	}
 
-	set, err := readLabelled(cmd.Context(), settings, inputMode, flags, inv.Mapper, inv.Namer, run.scope.labels)
+	set, err := ReadLabelled(cmd.Context(), run.config, run.scope.Labels)
 	if err != nil {
-		return err
+		return firstIDHint(err, run.config.InputMode)
 	}
 
-	if len(set.records) == 0 {
+	if len(set.Records) == 0 {
 		return errors.New("no record carries a label, so there is nothing to calibrate")
 	}
 
@@ -154,22 +166,24 @@ func calibrateAnswers(
 		return bindErr
 	}
 
-	resumed, err := resumeLabelled(cmd.Context(), out, flags, inv.Namer, scored, set)
+	format := answersfile.Format{Mode: output.JSON, Merge: merging(flags), MergeKey: mergeKey(flags), Namer: inv.Namer}
+
+	resumed, err := ResumeLabelled(cmd.Context(), out, format, scored, set)
 	if err != nil {
 		return err
 	}
 
-	if calib.offline && len(resumed.pending) > 0 {
-		return unansweredOffline(flags.out, resumed.pending)
+	if calib.offline && len(resumed.Pending) > 0 {
+		return unansweredOffline(flags.out, resumed.Pending)
 	}
 
 	if keptWhole {
 		askedOf := ""
-		if len(resumed.pending) > 0 {
+		if len(resumed.Pending) > 0 {
 			askedOf = flags.out
 		}
 
-		if noteErr := writeSkipped(cmd.ErrOrStderr(), run.scope.skipped, true, askedOf); noteErr != nil {
+		if noteErr := writeSkipped(cmd.ErrOrStderr(), run.scope.Skipped, true, askedOf); noteErr != nil {
 			return noteErr
 		}
 	}
@@ -189,24 +203,28 @@ func reportLabelled(
 	flags runConfig,
 	calib calibrateFlags,
 	run calibrateAsk,
-	set labelledSet,
-	resumed resumedSet,
+	set LabelledSet,
+	resumed ResumedSet,
 	stats *runner.Collector,
 ) error {
-	if resumed.book != nil {
-		stats.Skip(resumed.book.Skipped())
+	if resumed.Book != nil {
+		stats.Skip(resumed.Book.Skipped())
 	}
 
-	outcomes, result, err := askLabelled(cmd, flags, run, resumed, stats, calib.offline)
+	outcomes, result, err := AskLabelled(cmd.Context(), run.config, run.out, resumed, run.answers, stats)
+	if result.Aborted {
+		return &abortError{cause: result.Cause}
+	}
+
 	if err != nil {
 		return err
 	}
 
-	report := reportOf(run.scope.scored, set, outcomes, run.cuts)
+	report := ReportOf(run.scope.Scored, set, outcomes, run.cuts)
 	report.Asked = result.Records
-	report.Stored = resumed.stored
+	report.Stored = resumed.Stored
 	report.Mocked = flags.mockPath != ""
-	report.Require = measureRequirements(report, run.bound)
+	report.Require = MeasureRequirements(report, run.bound)
 
 	if flags.usage {
 		report.Usage = usageOf(outcomes)
@@ -236,14 +254,14 @@ func reportLabelled(
 	return nil
 }
 
-func unansweredOffline(answers string, pending []labelledRecord) error {
+func unansweredOffline(answers string, pending []LabelledRecord) error {
 	if len(pending) == 1 {
 		return fmt.Errorf("%s does not answer %s, so --offline cannot report it. "+
-			"Rerun without --offline to ask it", answers, pending[0].name())
+			"Rerun without --offline to ask it", answers, pending[0].Name())
 	}
 
 	return fmt.Errorf("%s does not answer %s or %d more, so --offline cannot report them. "+
-		"Rerun without --offline to ask them", answers, pending[0].name(), len(pending)-1)
+		"Rerun without --offline to ask them", answers, pending[0].Name(), len(pending)-1)
 }
 
 func cutsOf(cmd *cobra.Command, calib calibrateFlags) ([]float64, error) {
@@ -260,323 +278,29 @@ func cutsOf(cmd *cobra.Command, calib calibrateFlags) ([]float64, error) {
 }
 
 func writeCost(
-	w io.Writer, set labelledSet, resumed resumedSet, answers string, questions int, offline bool,
+	w io.Writer, set LabelledSet, resumed ResumedSet, answers string, questions int, offline bool,
 ) error {
 	line := fmt.Sprintf("asking %d of %s, %s each",
-		len(resumed.pending), plural(len(set.records), "record"), plural(questions, "question"))
+		len(resumed.Pending), plural(len(set.Records), "record"), plural(questions, "question"))
 	if offline {
-		line = fmt.Sprintf("reading %s from %s", plural(len(set.records), "record"), answers)
+		line = fmt.Sprintf("reading %s from %s", plural(len(set.Records), "record"), answers)
 	}
 
-	if set.unlabelled > 0 {
-		line += fmt.Sprintf(", %d unlabelled skipped", set.unlabelled)
+	if set.Unlabelled > 0 {
+		line += fmt.Sprintf(", %d unlabelled skipped", set.Unlabelled)
 	}
 
 	if answers != "" && !offline {
-		line += fmt.Sprintf(", %d answered in %s", resumed.stored, answers)
+		line += fmt.Sprintf(", %d answered in %s", resumed.Stored, answers)
 	}
 
 	return output.Notice(w, line)
 }
 
-func askLabelled(
-	cmd *cobra.Command, flags runConfig, run calibrateAsk, resumed resumedSet, stats *runner.Collector, offline bool,
-) ([]output.Record, engine.Result, error) {
-	asker, err := answererWhenPending(cmd.Context(), resumed.pending, run.answers, stats)
-	if err != nil {
-		return nil, engine.Result{}, err
-	}
-
-	book := resumed.book
-	labelled := &labelledRun{
-		run: run, asker: asker, stats: stats, outcomes: slices.Clone(resumed.answered), book: book,
-		ask: runner.Ask{
-			Plan: run.asked, Model: run.model, Questions: plan.WireAll(run.asked.Questions), Usage: flags.usage,
-			Message: text,
-		},
-	}
-
-	result, err := engine.Run(cmd.Context(), engine.Config[labelledRecord, askedLine]{
-		Source:   &labelledSource{records: resumed.pending},
-		Evaluate: labelled.evaluate,
-		Write:    labelled.write,
-		Jobs:     flags.jobs,
-		Abort:    runner.Aborting,
-	})
-
-	if result.Aborted {
-		return nil, result, &abortError{cause: result.Cause}
-	}
-
-	if err != nil {
-		return nil, result, err
-	}
-
-	// An interrupt landing as the last answer arrives still ends the run with no report.
-	if ctxErr := cmd.Context().Err(); ctxErr != nil {
-		return nil, result, ctxErr
-	}
-
-	// Only a run that asked every record rewrites the file. An interrupted one leaves the appended
-	// lines as they are, for the next resume to finish.
-	if book != nil && book.Complete() && !offline {
-		run.out.CompactInto(book.TakeOrder(flags.prune), output.JSON)
-	}
-
-	return labelled.outcomes, result, nil
-}
-
-type labelledRun struct {
-	run      calibrateAsk
-	asker    runner.Answerer
-	ask      runner.Ask
-	stats    *runner.Collector
-	outcomes []output.Record
-	book     *answersfile.Ledger
-	halted   bool
-}
-
-func (r *labelledRun) evaluate(ctx context.Context, rec labelledRecord) (askedLine, error) {
-	key := runner.RecordKey{Position: rec.position, Line: rec.line, ID: rec.id}
-
-	// At ask time rather than read time, since calibrate reads every record ahead and would
-	// otherwise hold every image at once. rec.sent keeps the paths, which is what the worst
-	// misses print.
-	sent, assets, imageErr := r.run.images.Attach(rec.sent)
-	if imageErr != nil {
-		bad := &input.LineError{Line: rec.line, Err: imageErr}
-		r.stats.RecordFailure(bad, false, 0)
-
-		failed := r.ask.Failure(bad)
-		failed.ID = rec.id
-
-		return askedLine{index: rec.index, slot: rec.slot, record: failed}, bad
-	}
-
-	record, err := r.ask.Record(ctx, r.asker, key, sent, assets, r.stats)
-	record.ID = rec.id
-
-	return askedLine{index: rec.index, slot: rec.slot, record: record, halted: runner.Halting(err)}, err
-}
-
-func (r *labelledRun) write(l askedLine) error {
-	// Nothing from the first record a mock file does not answer on reaches the file or the
-	// ledger, so the file holds only the records before it and a resume asks the rest.
-	if r.halted || l.halted {
-		r.halted = true
-
-		return nil
-	}
-
-	r.outcomes[l.index] = l.record
-
-	out := r.run.out
-	if out == nil {
-		return nil
-	}
-
-	start := out.Offset()
-	err := output.Write(out, output.JSON, l.record)
-
-	if r.book != nil {
-		r.book.Wrote(l.slot, answersfile.Span{Start: start, End: out.Offset()})
-	}
-
-	return err
-}
-
-func answererWhenPending(
-	ctx context.Context, pending []labelledRecord, answerers runner.AnswererFactory, stats *runner.Collector,
-) (runner.Answerer, error) {
-	if len(pending) == 0 {
-		return nil, nil
-	}
-
-	return answerers(ctx, stats)
-}
-
-func (s *labelledSource) Next() (labelledRecord, bool, error) {
-	if s.next >= len(s.records) {
-		return labelledRecord{}, false, nil
-	}
-
-	rec := s.records[s.next]
-	s.next++
-
-	return rec, true, nil
-}
-
-type labelledSource struct {
-	records []labelledRecord
-	next    int
-}
-
-type askedLine struct {
-	index  int
-	slot   int
-	record output.Record
-	halted bool
-}
-
-func reportOf(built *plan.Plan, set labelledSet, outcomes []output.Record, cuts [][]float64) calibrate.Report {
-	report := calibrate.Report{
-		Records:    set.total,
-		Labelled:   len(set.records),
-		Unlabelled: set.unlabelled,
-	}
-
-	yesNo := make([][]calibrate.YesNoCase, len(built.Questions))
-	choices := make([][]calibrate.ChoiceCase, len(built.Questions))
-	failed := make([]int, len(built.Questions))
-	models := map[string]struct{}{}
-
-	for i, rec := range set.records {
-		cases, err := casesOf(built, rec, outcomes[i])
-		if err != nil {
-			report.Failed++
-
-			for q, label := range rec.labels {
-				if label != nil {
-					failed[q]++
-				}
-			}
-
-			continue
-		}
-
-		models[outcomes[i].Model] = struct{}{}
-
-		for q, c := range cases {
-			switch {
-			case rec.labels[q] == nil:
-			case built.Questions[q].Shape == plan.Noul:
-				yesNo[q] = append(yesNo[q], c.yesNo)
-			default:
-				choices[q] = append(choices[q], c.choice)
-			}
-		}
-	}
-
-	report.Models = slices.Sorted(maps.Keys(models))
-
-	for q, question := range built.Questions {
-		scored := calibrate.QuestionReport{ID: question.ID, Shape: question.Shape}
-
-		switch question.Shape {
-		case plan.Noul:
-			score := calibrate.ScoreYesNo(yesNo[q], failed[q], cuts[q])
-			scored.YesNo = &score
-		case plan.Pick:
-			score := calibrate.ScorePick(choices[q], namesOf(question), failed[q], cuts[q])
-			scored.Pick = &score
-		case plan.Rate:
-			score := calibrate.ScoreRate(choices[q], namesOf(question), failed[q], cuts[q])
-			scored.Rate = &score
-		}
-
-		report.Questions = append(report.Questions, scored)
-	}
-
-	return report
-}
-
-func casesOf(built *plan.Plan, rec labelledRecord, record output.Record) ([]recordCase, error) {
-	if record.Failure != nil {
-		return nil, errors.New(record.Failure.Message)
-	}
-
-	name := ""
-	if rec.id != nil {
-		name = jq.IDText(rec.id)
-	}
-
-	cases := make([]recordCase, len(built.Questions))
-	text := sentText(rec.sent)
-
-	for q, question := range built.Questions {
-		if rec.labels[q] == nil {
-			continue
-		}
-
-		given, err := answerTo(question, record)
-		if err != nil {
-			return nil, err
-		}
-
-		if question.Shape == plan.Noul {
-			value, isNumber := given.Value.(float64)
-			if !isNumber || !unitRange(value) {
-				return nil, fmt.Errorf("question '%s' answered %v, which lies outside [0,1]", question.ID, given.Value)
-			}
-
-			cases[q].yesNo = calibrate.YesNoCase{
-				Name: name, ID: rec.id, Line: rec.line, Yes: rec.labels[q].Yes, Value: value,
-				Text: text,
-			}
-
-			continue
-		}
-
-		picked, isName := given.Value.(string)
-		if !isName {
-			return nil, fmt.Errorf("question '%s' picked %v, which is not a name", question.ID, given.Value)
-		}
-
-		if given.Confidence == nil || !unitRange(*given.Confidence) {
-			return nil, fmt.Errorf("question '%s' answered with a confidence outside [0,1]", question.ID)
-		}
-
-		cases[q].choice = calibrate.ChoiceCase{
-			Name: name, Label: rec.labels[q].Name, Picked: picked, ID: rec.id, Line: rec.line,
-			Confidence: *given.Confidence, Text: text,
-		}
-	}
-
-	return cases, nil
-}
-
-func sentText(sent any) string {
-	raw, isRaw := sent.(json.RawMessage)
-	if !isRaw {
-		if text, isText := sent.(string); isText {
-			return text
-		}
-
-		return ""
-	}
-
-	var text string
-	if json.Unmarshal(raw, &text) == nil {
-		return text
-	}
-
-	return string(raw)
-}
-
-func answerTo(question plan.Question, record output.Record) (*answer.Answer, error) {
-	for _, named := range record.Answers {
-		if named.ID == question.ID && named.Answer != nil {
-			return named.Answer, nil
-		}
-	}
-
-	return nil, fmt.Errorf("question '%s' has no answer", question.ID)
-}
-
-func unitRange(value float64) bool {
-	// NaN fails both comparisons, so it is refused with the values outside the range.
-	return value >= 0 && value <= 1
-}
-
-type recordCase struct {
-	yesNo  calibrate.YesNoCase
-	choice calibrate.ChoiceCase
-}
-
-func writeCauses(w io.Writer, set labelledSet, outcomes []output.Record) error {
+func writeCauses(w io.Writer, set LabelledSet, outcomes []output.Record) error {
 	listed, more := 0, 0
 
-	for i, rec := range set.records {
+	for i, rec := range set.Records {
 		failure := outcomes[i].Failure
 		if failure == nil {
 			continue
@@ -590,7 +314,7 @@ func writeCauses(w io.Writer, set labelledSet, outcomes []output.Record) error {
 
 		listed++
 
-		if err := output.Notice(w, rec.name()+": "+failure.Message); err != nil {
+		if err := output.Notice(w, rec.Name()+": "+failure.Message); err != nil {
 			return err
 		}
 	}

@@ -2,6 +2,9 @@ package cli
 
 import (
 	"bytes"
+	"context"
+	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -13,6 +16,8 @@ import (
 
 	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/answersfile"
+	"github.com/frodi-karlsson/onesie/internal/input"
+	"github.com/frodi-karlsson/onesie/internal/jq"
 	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
@@ -403,4 +408,53 @@ func TestFirstIDHint(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("should read the record a ReadError failed on", func(t *testing.T) {
+		t.Parallel()
+
+		nullID := &input.LineError{Line: 1, Err: fmt.Errorf("--id: %w", jq.ErrNullID)}
+		tabbed := []string{"id\ttext"}
+		interrupted := context.Canceled
+
+		tests := []struct {
+			name     string
+			err      error
+			wantText string
+			wantErr  error
+		}{
+			{
+				name:     "should hint the delimiter for a null first id under a one column header",
+				err:      &ReadError{Err: nullID, Read: 1, Header: tabbed},
+				wantText: text(nullID) + ". -i csv splits each line on commas, so if the file is tab separated, pass -i tsv",
+			},
+			{
+				name:    "should return a read error past the first record as its bare cause",
+				err:     &ReadError{Err: nullID, Read: 2, Header: tabbed},
+				wantErr: nullID,
+			},
+			{
+				name:    "should return a read error under a header of several columns as its bare cause",
+				err:     &ReadError{Err: nullID, Read: 1, Header: []string{"id", "text"}},
+				wantErr: nullID,
+			},
+			{name: "should pass on an error that is no read error", err: interrupted, wantErr: interrupted},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				got := firstIDHint(tc.err, input.CSV)
+
+				var unread *ReadError
+				if tc.wantErr != nil && (!errors.Is(got, tc.wantErr) || errors.As(got, &unread)) {
+					t.Errorf("firstIDHint = %v, want %v with no ReadError around it", got, tc.wantErr)
+				}
+
+				if tc.wantText != "" && (got == nil || text(got) != tc.wantText) {
+					t.Errorf("firstIDHint = %v, want %q", got, tc.wantText)
+				}
+			})
+		}
+	})
 }

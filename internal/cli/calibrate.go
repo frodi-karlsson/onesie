@@ -13,7 +13,6 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/argv"
 	"github.com/frodi-karlsson/onesie/internal/calibrate"
 	"github.com/frodi-karlsson/onesie/internal/input"
-	"github.com/frodi-karlsson/onesie/internal/jq"
 	"github.com/frodi-karlsson/onesie/internal/output"
 	"github.com/frodi-karlsson/onesie/internal/plan"
 )
@@ -191,22 +190,22 @@ func runCalibrate(
 		}
 	}
 
-	scope, err := scopeOf(inv.Plan, calib.labels)
+	scope, err := ScopeOf(inv.Plan, calib.labels, plan.Flags)
 	if err != nil {
 		return err
 	}
 
-	if refuseErr := refuseUnlabelledBody(settings, flags.file, scope.scored); refuseErr != nil {
+	if refuseErr := refuseUnlabelledBody(settings, flags.file, scope.Scored); refuseErr != nil {
 		return refuseErr
 	}
 
-	bound, err := resolveRequirements(scope, inv.fileGate, reqs)
+	bound, err := ResolveRequirements(scope, inv.fileGate.assert, inv.fileGate.abstainIf, reqs, plan.Flags)
 	if err != nil {
 		return err
 	}
 
 	if flags.printRequest {
-		if noteErr := writeSkipped(cmd.ErrOrStderr(), scope.skipped, false, ""); noteErr != nil {
+		if noteErr := writeSkipped(cmd.ErrOrStderr(), scope.Skipped, false, ""); noteErr != nil {
 			return noteErr
 		}
 
@@ -353,69 +352,6 @@ func refuseUnlabelledBody(settings rootSettings, name string, scored *plan.Plan)
 	return nil
 }
 
-func scopeOf(built *plan.Plan, specs []string) (calibrateScope, error) {
-	ids := make([]string, 0, len(built.Questions))
-	for _, question := range built.Questions {
-		ids = append(ids, question.ID)
-	}
-
-	exprs := make([]*jq.Expr, len(ids))
-
-	for _, spec := range specs {
-		id, source, err := calibrate.SplitLabel(spec, ids, plan.Flags)
-		if err != nil {
-			return calibrateScope{}, err
-		}
-
-		index := slices.Index(ids, id)
-		if exprs[index] != nil {
-			return calibrateScope{}, fmt.Errorf("--label is given twice for question '%s'", id)
-		}
-
-		exprs[index], err = exprOf(true, "--label "+id, source)
-		if err != nil {
-			return calibrateScope{}, err
-		}
-	}
-
-	scored := *built
-	scored.Questions = nil
-	scope := calibrateScope{full: built, scored: &scored}
-
-	for index, expr := range exprs {
-		question := built.Questions[index]
-		if expr == nil {
-			scope.skipped = append(scope.skipped, question.ID)
-
-			continue
-		}
-
-		if question.Shape == plan.Box {
-			return calibrateScope{}, fmt.Errorf(
-				"question '%s' is a box, and a box cannot be calibrated. Drop its --label", question.ID)
-		}
-
-		scored.Questions = append(scored.Questions, question)
-		scope.labels = append(scope.labels, questionLabel{
-			id: question.ID, shape: question.Shape, names: namesOf(question), expr: expr,
-		})
-	}
-
-	if len(scope.labels) == 0 {
-		return calibrateScope{}, fmt.Errorf("question '%s' has no --label, so asking it would cost "+
-			"requests and report nothing. Pass --label %s=EXPR", ids[0], ids[0])
-	}
-
-	return scope, nil
-}
-
-type calibrateScope struct {
-	full    *plan.Plan
-	scored  *plan.Plan
-	skipped []string
-	labels  []questionLabel
-}
-
 func writeSkipped(w io.Writer, skipped []string, inReport bool, askedOf string) error {
 	if len(skipped) == 0 {
 		return nil
@@ -449,19 +385,6 @@ func writeSkipped(w io.Writer, skipped []string, inReport bool, askedOf string) 
 	return output.Notice(w, line)
 }
 
-func namesOf(question plan.Question) []string {
-	names := make([]string, 0, len(question.Options)+len(question.Levels))
-	for _, option := range question.Options {
-		names = append(names, option.Name)
-	}
-
-	for _, level := range question.Levels {
-		names = append(names, level.Label)
-	}
-
-	return names
-}
-
 type calibrateFlags struct {
 	labels   []string
 	requires []string
@@ -469,11 +392,4 @@ type calibrateFlags struct {
 	report   string
 	input    string
 	offline  bool
-}
-
-type questionLabel struct {
-	id    string
-	shape plan.Shape
-	names []string
-	expr  *jq.Expr
 }

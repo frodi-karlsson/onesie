@@ -909,18 +909,21 @@ func TestReadLabelled(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		settings := defaultSettings(BuildInfo{})
-		settings.stdin = strings.NewReader("{\"body\":\"a\",\"u\":true}\n{\"body\":\"b\"}\n\n{\"body\":\"c\",\"u\":1}\n")
-		flags := runConfig{runFlags: runFlags{skipBlank: true}}
-		labels := []questionLabel{{id: "u", shape: plan.Noul, expr: label}}
+		config := Config{
+			Input:     strings.NewReader("{\"body\":\"a\",\"u\":true}\n{\"body\":\"b\"}\n\n{\"body\":\"c\",\"u\":1}\n"),
+			InputMode: input.JSONL,
+			SkipBlank: true,
+			Mapper:    mapper,
+		}
+		labels := []QuestionLabel{{ID: "u", Shape: plan.Noul, Expr: label}}
 
-		set, err := readLabelled(t.Context(), settings, input.JSONL, flags, mapper, nil, labels)
+		set, err := ReadLabelled(t.Context(), config, labels)
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		got := make([][2]int, 0, len(set.records))
-		for _, rec := range set.records {
+		got := make([][2]int, 0, len(set.Records))
+		for _, rec := range set.Records {
 			got = append(got, [2]int{rec.position, rec.line})
 		}
 
@@ -2528,12 +2531,12 @@ func TestReportOf(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			set := labelledSet{
-				records: []labelledRecord{{line: 1, id: "T-1", labels: []*calibrate.Label{yes, billing}}},
-				total:   1,
+			set := LabelledSet{
+				Records: []LabelledRecord{{line: 1, id: "T-1", labels: []*calibrate.Label{yes, billing}}},
+				Total:   1,
 			}
 
-			report := reportOf(built, set, []output.Record{tc.record}, cutsFor([]float64{0.5}, nil, len(built.Questions)))
+			report := ReportOf(built, set, []output.Record{tc.record}, CutsFor([]float64{0.5}, nil, len(built.Questions)))
 
 			if report.Failed != tc.wantFailed {
 				t.Errorf("report failed = %d, want %d", report.Failed, tc.wantFailed)
@@ -2568,12 +2571,12 @@ func TestReportOf(t *testing.T) {
 		no := &calibrate.Label{Yes: false}
 		missed := output.Record{Model: "m", Answers: []output.Named{{ID: "urgent", Answer: &answer.Answer{Value: 0.9}}}}
 
-		set := labelledSet{records: []labelledRecord{
+		set := LabelledSet{Records: []LabelledRecord{
 			{line: 1, id: json.Number("7"), labels: []*calibrate.Label{no}},
 			{line: 2, labels: []*calibrate.Label{no}},
-		}, total: 2}
+		}, Total: 2}
 
-		misses := reportOf(noul, set, []output.Record{missed, missed}, cutsFor([]float64{0.5}, nil, len(noul.Questions))).Questions[0].YesNo.Misses
+		misses := ReportOf(noul, set, []output.Record{missed, missed}, CutsFor([]float64{0.5}, nil, len(noul.Questions))).Questions[0].YesNo.Misses
 
 		if len(misses) != 2 {
 			t.Fatalf("misses = %+v, want two", misses)
@@ -3185,15 +3188,15 @@ func TestResolveRequirements(t *testing.T) {
 func TestCutsFor(t *testing.T) {
 	t.Parallel()
 
-	bound := func(texts ...string) []boundRequirement {
+	bound := func(texts ...string) []BoundRequirement {
 		reqs, err := parseRequirements(texts)
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		out := make([]boundRequirement, 0, len(reqs))
+		out := make([]BoundRequirement, 0, len(reqs))
 		for _, req := range reqs {
-			out = append(out, boundRequirement{Requirement: req, question: 0, cut: req.At.Value, hasCut: true})
+			out = append(out, BoundRequirement{Requirement: req, question: 0, cut: req.At.Value, hasCut: true})
 		}
 
 		return out
@@ -3202,7 +3205,7 @@ func TestCutsFor(t *testing.T) {
 	tests := []struct {
 		name  string
 		base  []float64
-		bound []boundRequirement
+		bound []BoundRequirement
 		want  [][]float64
 	}{
 		{
@@ -3223,7 +3226,7 @@ func TestCutsFor(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := cutsFor(tc.base, tc.bound, 2)
+			got := CutsFor(tc.base, tc.bound, 2)
 			if !slices.EqualFunc(got, tc.want, slices.Equal[[]float64]) {
 				t.Errorf("cutsFor = %v, want %v", got, tc.want)
 			}
@@ -3660,13 +3663,13 @@ func TestWriteSkipped(t *testing.T) {
 func TestWriteCost(t *testing.T) {
 	t.Parallel()
 
-	four := labelledSet{records: make([]labelledRecord, 4)}
-	someUnlabelled := labelledSet{records: make([]labelledRecord, 4), unlabelled: 2}
+	four := LabelledSet{Records: make([]LabelledRecord, 4)}
+	someUnlabelled := LabelledSet{Records: make([]LabelledRecord, 4), Unlabelled: 2}
 
 	tests := []struct {
 		name    string
-		set     labelledSet
-		resumed resumedSet
+		set     LabelledSet
+		resumed ResumedSet
 		answers string
 		offline bool
 		want    string
@@ -3674,20 +3677,20 @@ func TestWriteCost(t *testing.T) {
 		{
 			name:    "should count the records it asks and the questions each",
 			set:     four,
-			resumed: resumedSet{pending: make([]labelledRecord, 4)},
+			resumed: ResumedSet{Pending: make([]LabelledRecord, 4)},
 			want:    "onesie: asking 4 of 4 records, 1 question each\n",
 		},
 		{
 			name:    "should count the records an answers file already holds",
 			set:     four,
-			resumed: resumedSet{pending: make([]labelledRecord, 1), stored: 3},
+			resumed: ResumedSet{Pending: make([]LabelledRecord, 1), Stored: 3},
 			answers: "answers.jsonl",
 			want:    "onesie: asking 1 of 4 records, 1 question each, 3 answered in answers.jsonl\n",
 		},
 		{
 			name:    "should say it reads the records from the file under --offline",
 			set:     four,
-			resumed: resumedSet{stored: 4},
+			resumed: ResumedSet{Stored: 4},
 			answers: "answers.jsonl",
 			offline: true,
 			want:    "onesie: reading 4 records from answers.jsonl\n",
@@ -3695,7 +3698,7 @@ func TestWriteCost(t *testing.T) {
 		{
 			name:    "should keep the unlabelled count under --offline",
 			set:     someUnlabelled,
-			resumed: resumedSet{stored: 4},
+			resumed: ResumedSet{Stored: 4},
 			answers: "answers.jsonl",
 			offline: true,
 			want:    "onesie: reading 4 records from answers.jsonl, 2 unlabelled skipped\n",
@@ -3769,7 +3772,7 @@ func TestCasesOf(t *testing.T) {
 	t.Parallel()
 
 	built := &plan.Plan{Questions: []plan.Question{{ID: "urgent", Shape: plan.Noul}}}
-	rec := labelledRecord{line: 1, labels: []*calibrate.Label{{Yes: true}}}
+	rec := LabelledRecord{line: 1, labels: []*calibrate.Label{{Yes: true}}}
 
 	tests := []struct {
 		name   string
