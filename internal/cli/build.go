@@ -5,7 +5,6 @@ import (
 
 	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/input"
-	"github.com/frodi-karlsson/onesie/internal/jq"
 	"github.com/frodi-karlsson/onesie/internal/output"
 	"github.com/frodi-karlsson/onesie/internal/plan"
 	"github.com/frodi-karlsson/onesie/internal/planbuild"
@@ -133,14 +132,6 @@ func questionIDs(questions []plan.Question) []string {
 	}
 
 	return ids
-}
-
-func exprOf(given bool, flag, source string) (*jq.Expr, error) {
-	if !given {
-		return nil, nil
-	}
-
-	return planbuild.Expr(flag, source)
 }
 
 type invocation struct {

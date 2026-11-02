@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"maps"
-	"math"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -21,15 +20,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/frodi-karlsson/onesie-go"
-	"github.com/frodi-karlsson/onesie/internal/answer"
 	"github.com/frodi-karlsson/onesie/internal/answersfile"
 	"github.com/frodi-karlsson/onesie/internal/calibrate"
-	"github.com/frodi-karlsson/onesie/internal/input"
 	"github.com/frodi-karlsson/onesie/internal/limits"
-	"github.com/frodi-karlsson/onesie/internal/output"
-	"github.com/frodi-karlsson/onesie/internal/plan"
-	"github.com/frodi-karlsson/onesie/internal/runner"
 )
 
 func TestNewCalibrateCmd(t *testing.T) {
@@ -896,42 +889,6 @@ func TestReadLabelled(t *testing.T) {
 			}
 		})
 	}
-	t.Run("should give each labelled record its position among the input records", func(t *testing.T) {
-		t.Parallel()
-
-		mapper, err := exprOf(true, "--map", ".body")
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		label, err := exprOf(true, "--label u", ".u")
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		config := Config{
-			Input:     strings.NewReader("{\"body\":\"a\",\"u\":true}\n{\"body\":\"b\"}\n\n{\"body\":\"c\",\"u\":1}\n"),
-			InputMode: input.JSONL,
-			SkipBlank: true,
-			Mapper:    mapper,
-		}
-		labels := []QuestionLabel{{ID: "u", Shape: plan.Noul, Expr: label}}
-
-		set, err := ReadLabelled(t.Context(), config, labels)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		got := make([][2]int, 0, len(set.Records))
-		for _, rec := range set.Records {
-			got = append(got, [2]int{rec.position, rec.line})
-		}
-
-		want := [][2]int{{1, 1}, {3, 4}}
-		if !slices.Equal(got, want) {
-			t.Errorf("position and line = %v, want %v", got, want)
-		}
-	})
 }
 
 func TestCalibrateRequests(t *testing.T) {
@@ -2484,114 +2441,6 @@ func TestCalibrateRun(t *testing.T) {
 	})
 }
 
-func TestReportOf(t *testing.T) {
-	t.Parallel()
-
-	yes := &calibrate.Label{Yes: true}
-	billing := &calibrate.Label{Name: "billing"}
-
-	built := &plan.Plan{Questions: []plan.Question{
-		{ID: "urgent", Shape: plan.Noul},
-		{ID: "team", Shape: plan.Pick, Options: []plan.Option{{Name: "billing"}, {Name: "shipping"}}},
-	}}
-
-	confidence := func(value float64) *float64 {
-		return &value
-	}
-
-	answeredWith := func(value any, picked any, conf *float64) output.Record {
-		return output.Record{Model: "m", Answers: []output.Named{
-			{ID: "urgent", Answer: &answer.Answer{Value: value}},
-			{ID: "team", Answer: &answer.Answer{Value: picked, Confidence: conf}},
-		}}
-	}
-
-	tests := []struct {
-		name       string
-		record     output.Record
-		wantFailed int
-	}{
-		{name: "should score a value and a confidence inside [0,1]", record: answeredWith(0.5, "billing", confidence(0.5))},
-		{name: "should fail a yes/no value that is NaN", record: answeredWith(math.NaN(), "billing", confidence(0.5)), wantFailed: 1},
-		{name: "should fail a yes/no value above 1", record: answeredWith(1.01, "billing", confidence(0.5)), wantFailed: 1},
-		{name: "should fail a yes/no value below 0", record: answeredWith(-0.01, "billing", confidence(0.5)), wantFailed: 1},
-		{name: "should fail a yes/no value that is not a number", record: answeredWith("yes", "billing", confidence(0.5)), wantFailed: 1},
-		{name: "should fail a confidence that is NaN", record: answeredWith(0.5, "billing", confidence(math.NaN())), wantFailed: 1},
-		{name: "should fail a confidence above 1", record: answeredWith(0.5, "billing", confidence(2)), wantFailed: 1},
-		{name: "should fail a missing confidence", record: answeredWith(0.5, "billing", nil), wantFailed: 1},
-		{name: "should fail a pick that is not a string", record: answeredWith(0.5, 3, confidence(0.5)), wantFailed: 1},
-		{
-			name:       "should fail a record whose request failed",
-			record:     runner.Ask{Plan: built, Message: text}.Failure(errors.New("boom")),
-			wantFailed: 1,
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			set := LabelledSet{
-				Records: []LabelledRecord{{line: 1, id: "T-1", labels: []*calibrate.Label{yes, billing}}},
-				Total:   1,
-			}
-
-			report := ReportOf(built, set, []output.Record{tc.record}, CutsFor([]float64{0.5}, nil, len(built.Questions)))
-
-			if report.Failed != tc.wantFailed {
-				t.Errorf("report failed = %d, want %d", report.Failed, tc.wantFailed)
-			}
-
-			urgent, team := report.Questions[0].YesNo, report.Questions[1].Pick
-			if urgent.Failed != tc.wantFailed || team.Failed != tc.wantFailed {
-				t.Errorf("question failed = %d and %d, want %d each", urgent.Failed, team.Failed, tc.wantFailed)
-			}
-
-			if urgent.Labelled != 1-tc.wantFailed || team.Labelled != 1-tc.wantFailed {
-				t.Errorf("question labelled = %d and %d, want %d each", urgent.Labelled, team.Labelled,
-					1-tc.wantFailed)
-			}
-
-			if tc.wantFailed == 0 {
-				if miss := urgent.Cuts[0]; miss.Flagged != 1 {
-					t.Errorf("flagged at 0.5 = %d, want the value 0.5 flagged", miss.Flagged)
-				}
-
-				if !slices.Equal(report.Models, []string{"m"}) {
-					t.Errorf("models = %v, want [m]", report.Models)
-				}
-			}
-		})
-	}
-
-	t.Run("should name a case by its id text with --id and leave the id nil without one", func(t *testing.T) {
-		t.Parallel()
-
-		noul := &plan.Plan{Questions: []plan.Question{{ID: "urgent", Shape: plan.Noul}}}
-		no := &calibrate.Label{Yes: false}
-		missed := output.Record{Model: "m", Answers: []output.Named{{ID: "urgent", Answer: &answer.Answer{Value: 0.9}}}}
-
-		set := LabelledSet{Records: []LabelledRecord{
-			{line: 1, id: json.Number("7"), labels: []*calibrate.Label{no}},
-			{line: 2, labels: []*calibrate.Label{no}},
-		}, Total: 2}
-
-		misses := ReportOf(noul, set, []output.Record{missed, missed}, CutsFor([]float64{0.5}, nil, len(noul.Questions))).Questions[0].YesNo.Misses
-
-		if len(misses) != 2 {
-			t.Fatalf("misses = %+v, want two", misses)
-		}
-
-		if misses[0].Name != "7" || misses[0].ID != json.Number("7") || misses[0].Line != 1 {
-			t.Errorf("first miss = %+v, want name 7, id 7, line 1", misses[0])
-		}
-
-		if misses[1].Name != "" || misses[1].ID != nil || misses[1].Line != 2 {
-			t.Errorf("second miss = %+v, want no name, a nil id and line 2", misses[1])
-		}
-	})
-}
-
 func runCalibrateAgainst(
 	ctx context.Context, t *testing.T, args []string, stdin, baseURL string, shared bool,
 ) (string, string, int) {
@@ -3185,55 +3034,6 @@ func TestResolveRequirements(t *testing.T) {
 	}
 }
 
-func TestCutsFor(t *testing.T) {
-	t.Parallel()
-
-	bound := func(texts ...string) []BoundRequirement {
-		reqs, err := parseRequirements(texts)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		out := make([]BoundRequirement, 0, len(reqs))
-		for _, req := range reqs {
-			out = append(out, BoundRequirement{Requirement: req, question: 0, cut: req.At.Value, hasCut: true})
-		}
-
-		return out
-	}
-
-	tests := []struct {
-		name  string
-		base  []float64
-		bound []BoundRequirement
-		want  [][]float64
-	}{
-		{
-			name:  "should hold a cut once when 0.50, 0.5 and --cuts 0.5 meet",
-			base:  []float64{0.5},
-			bound: bound("u.catches >= 0.5 at 0.50", "u.false_alarms <= 0.5 at 0.5"),
-			want:  [][]float64{{0.5}, {0.5}},
-		},
-		{
-			name:  "should add a new cut in order to its own question only",
-			base:  []float64{0.25, 0.75},
-			bound: bound("u.catches >= 0.5 at 0.5", "u.catches >= 0.5 at 0.5"),
-			want:  [][]float64{{0.25, 0.5, 0.75}, {0.25, 0.75}},
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			got := CutsFor(tc.base, tc.bound, 2)
-			if !slices.EqualFunc(got, tc.want, slices.Equal[[]float64]) {
-				t.Errorf("cutsFor = %v, want %v", got, tc.want)
-			}
-		})
-	}
-}
-
 func calibrateWithEnv(t *testing.T, env map[string]string, args []string, stdin, baseURL string) (string, string, int) {
 	t.Helper()
 
@@ -3663,13 +3463,13 @@ func TestWriteSkipped(t *testing.T) {
 func TestWriteCost(t *testing.T) {
 	t.Parallel()
 
-	four := LabelledSet{Records: make([]LabelledRecord, 4)}
-	someUnlabelled := LabelledSet{Records: make([]LabelledRecord, 4), Unlabelled: 2}
+	four := calibrate.LabelledSet{Records: make([]calibrate.LabelledRecord, 4)}
+	someUnlabelled := calibrate.LabelledSet{Records: make([]calibrate.LabelledRecord, 4), Unlabelled: 2}
 
 	tests := []struct {
 		name    string
-		set     LabelledSet
-		resumed ResumedSet
+		set     calibrate.LabelledSet
+		resumed calibrate.ResumedSet
 		answers string
 		offline bool
 		want    string
@@ -3677,20 +3477,20 @@ func TestWriteCost(t *testing.T) {
 		{
 			name:    "should count the records it asks and the questions each",
 			set:     four,
-			resumed: ResumedSet{Pending: make([]LabelledRecord, 4)},
+			resumed: calibrate.ResumedSet{Pending: make([]calibrate.LabelledRecord, 4)},
 			want:    "onesie: asking 4 of 4 records, 1 question each\n",
 		},
 		{
 			name:    "should count the records an answers file already holds",
 			set:     four,
-			resumed: ResumedSet{Pending: make([]LabelledRecord, 1), Stored: 3},
+			resumed: calibrate.ResumedSet{Pending: make([]calibrate.LabelledRecord, 1), Stored: 3},
 			answers: "answers.jsonl",
 			want:    "onesie: asking 1 of 4 records, 1 question each, 3 answered in answers.jsonl\n",
 		},
 		{
 			name:    "should say it reads the records from the file under --offline",
 			set:     four,
-			resumed: ResumedSet{Stored: 4},
+			resumed: calibrate.ResumedSet{Stored: 4},
 			answers: "answers.jsonl",
 			offline: true,
 			want:    "onesie: reading 4 records from answers.jsonl\n",
@@ -3698,7 +3498,7 @@ func TestWriteCost(t *testing.T) {
 		{
 			name:    "should keep the unlabelled count under --offline",
 			set:     someUnlabelled,
-			resumed: ResumedSet{Stored: 4},
+			resumed: calibrate.ResumedSet{Stored: 4},
 			answers: "answers.jsonl",
 			offline: true,
 			want:    "onesie: reading 4 records from answers.jsonl, 2 unlabelled skipped\n",
@@ -3767,40 +3567,3 @@ const (
 {"id":"d","u":false,"t":"billing","r":"calm","body":{"urgent":0.1,"team":["billing",0.9],"tone":[0,0.9]}}
 `
 )
-
-func TestCasesOf(t *testing.T) {
-	t.Parallel()
-
-	built := &plan.Plan{Questions: []plan.Question{{ID: "urgent", Shape: plan.Noul}}}
-	rec := LabelledRecord{line: 1, labels: []*calibrate.Label{{Yes: true}}}
-
-	tests := []struct {
-		name   string
-		record output.Record
-		want   string
-	}{
-		{
-			name:   "should refuse a record with no answer to a labelled question",
-			record: output.Record{},
-			want:   "question 'urgent' has no answer",
-		},
-		{
-			name:   "should refuse a yes or no answer outside [0,1]",
-			record: output.Record{Answers: []output.Named{{ID: "urgent", Answer: &answer.Answer{Value: 1.5}}}},
-			want:   "question 'urgent' answered 1.5, which lies outside [0,1]",
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			_, err := casesOf(built, rec, tc.record)
-
-			var unusable *onesie.ResponseError
-			if err == nil || errors.As(err, &unusable) || err.Error() != tc.want {
-				t.Errorf("casesOf error = %v, want a plain error reading %q", err, tc.want)
-			}
-		})
-	}
-}

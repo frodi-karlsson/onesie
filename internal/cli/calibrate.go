@@ -190,7 +190,7 @@ func runCalibrate(
 		}
 	}
 
-	scope, err := ScopeOf(inv.Plan, calib.labels, plan.Flags)
+	scope, err := calibrate.ScopeOf(inv.Plan, calib.labels, plan.Flags)
 	if err != nil {
 		return err
 	}
@@ -199,7 +199,7 @@ func runCalibrate(
 		return refuseErr
 	}
 
-	bound, err := ResolveRequirements(scope, inv.fileGate.assert, inv.fileGate.abstainIf, reqs, plan.Flags)
+	bound, err := calibrate.ResolveRequirements(scope, inv.fileGate.assert, inv.fileGate.abstainIf, reqs, plan.Flags)
 	if err != nil {
 		return err
 	}

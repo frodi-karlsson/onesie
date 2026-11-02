@@ -1,4 +1,4 @@
-package cli
+package calibrate
 
 import (
 	"bytes"
@@ -14,7 +14,6 @@ import (
 	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/answer"
 	"github.com/frodi-karlsson/onesie/internal/answersfile"
-	"github.com/frodi-karlsson/onesie/internal/calibrate"
 	"github.com/frodi-karlsson/onesie/internal/engine"
 	"github.com/frodi-karlsson/onesie/internal/input"
 	"github.com/frodi-karlsson/onesie/internal/jq"
@@ -38,7 +37,7 @@ func ScopeOf(built *plan.Plan, specs []string, speller plan.Speller) (Scope, err
 	exprs := make([]*jq.Expr, len(ids))
 
 	for _, spec := range specs {
-		id, source, err := calibrate.SplitLabel(spec, ids, speller)
+		id, source, err := SplitLabel(spec, ids, speller)
 		if err != nil {
 			return Scope{}, err
 		}
@@ -258,7 +257,7 @@ func (r *labelReader) read(ctx context.Context, rec input.Record) (LabelledRecor
 	}
 
 	value := runner.JQValue(rec.State, rec.Wire)
-	labelled.labels = make([]*calibrate.Label, len(r.labels))
+	labelled.labels = make([]*Label, len(r.labels))
 	found := false
 
 	for i, label := range r.labels {
@@ -310,7 +309,7 @@ func (r *labelReader) uniqueID(ctx context.Context, rec input.Record) (any, erro
 	return id, nil
 }
 
-func labelOf(ctx context.Context, label QuestionLabel, value any) (*calibrate.Label, error) {
+func labelOf(ctx context.Context, label QuestionLabel, value any) (*Label, error) {
 	result, err := label.Expr.One(ctx, value)
 	if errors.Is(err, jq.ErrNoValue) {
 		return nil, nil
@@ -320,7 +319,7 @@ func labelOf(ctx context.Context, label QuestionLabel, value any) (*calibrate.La
 		return nil, err
 	}
 
-	parsed, labelled, err := calibrate.ParseLabel(label.Shape, label.Names, result)
+	parsed, labelled, err := ParseLabel(label.Shape, label.Names, result)
 	if err != nil || !labelled {
 		return nil, err
 	}
@@ -364,7 +363,7 @@ type LabelledRecord struct {
 	line     int
 	id       any
 	sent     any
-	labels   []*calibrate.Label
+	labels   []*Label
 }
 
 // Line is the input line the record starts on.
@@ -624,15 +623,15 @@ type askedLine struct {
 }
 
 // ReportOf scores the outcomes of a labelled set against its labels, at the cuts of each question.
-func ReportOf(scored *plan.Plan, set LabelledSet, outcomes []output.Record, cuts [][]float64) calibrate.Report {
-	report := calibrate.Report{
+func ReportOf(scored *plan.Plan, set LabelledSet, outcomes []output.Record, cuts [][]float64) Report {
+	report := Report{
 		Records:    set.Total,
 		Labelled:   len(set.Records),
 		Unlabelled: set.Unlabelled,
 	}
 
-	yesNo := make([][]calibrate.YesNoCase, len(scored.Questions))
-	choices := make([][]calibrate.ChoiceCase, len(scored.Questions))
+	yesNo := make([][]YesNoCase, len(scored.Questions))
+	choices := make([][]ChoiceCase, len(scored.Questions))
 	failed := make([]int, len(scored.Questions))
 	models := map[string]struct{}{}
 
@@ -666,17 +665,17 @@ func ReportOf(scored *plan.Plan, set LabelledSet, outcomes []output.Record, cuts
 	report.Models = slices.Sorted(maps.Keys(models))
 
 	for q, question := range scored.Questions {
-		scoredQuestion := calibrate.QuestionReport{ID: question.ID, Shape: question.Shape}
+		scoredQuestion := QuestionReport{ID: question.ID, Shape: question.Shape}
 
 		switch question.Shape {
 		case plan.Noul:
-			score := calibrate.ScoreYesNo(yesNo[q], failed[q], cuts[q])
+			score := ScoreYesNo(yesNo[q], failed[q], cuts[q])
 			scoredQuestion.YesNo = &score
 		case plan.Pick:
-			score := calibrate.ScorePick(choices[q], namesOf(question), failed[q], cuts[q])
+			score := ScorePick(choices[q], namesOf(question), failed[q], cuts[q])
 			scoredQuestion.Pick = &score
 		case plan.Rate:
-			score := calibrate.ScoreRate(choices[q], namesOf(question), failed[q], cuts[q])
+			score := ScoreRate(choices[q], namesOf(question), failed[q], cuts[q])
 			scoredQuestion.Rate = &score
 		}
 
@@ -715,7 +714,7 @@ func casesOf(built *plan.Plan, rec LabelledRecord, record output.Record) ([]reco
 				return nil, fmt.Errorf("question '%s' answered %v, which lies outside [0,1]", question.ID, given.Value)
 			}
 
-			cases[q].yesNo = calibrate.YesNoCase{
+			cases[q].yesNo = YesNoCase{
 				Name: name, ID: rec.id, Line: rec.line, Yes: rec.labels[q].Yes, Value: value,
 				Text: text,
 			}
@@ -732,7 +731,7 @@ func casesOf(built *plan.Plan, rec LabelledRecord, record output.Record) ([]reco
 			return nil, fmt.Errorf("question '%s' answered with a confidence outside [0,1]", question.ID)
 		}
 
-		cases[q].choice = calibrate.ChoiceCase{
+		cases[q].choice = ChoiceCase{
 			Name: name, Label: rec.labels[q].Name, Picked: picked, ID: rec.id, Line: rec.line,
 			Confidence: *given.Confidence, Text: text,
 		}
@@ -775,6 +774,6 @@ func unitRange(value float64) bool {
 }
 
 type recordCase struct {
-	yesNo  calibrate.YesNoCase
-	choice calibrate.ChoiceCase
+	yesNo  YesNoCase
+	choice ChoiceCase
 }

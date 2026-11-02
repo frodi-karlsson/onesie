@@ -16,6 +16,7 @@ import (
 
 	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/answersfile"
+	"github.com/frodi-karlsson/onesie/internal/calibrate"
 	"github.com/frodi-karlsson/onesie/internal/input"
 	"github.com/frodi-karlsson/onesie/internal/jq"
 	"github.com/frodi-karlsson/onesie/internal/plan"
@@ -424,17 +425,17 @@ func TestFirstIDHint(t *testing.T) {
 		}{
 			{
 				name:     "should hint the delimiter for a null first id under a one column header",
-				err:      &ReadError{Err: nullID, Read: 1, Header: tabbed},
+				err:      &calibrate.ReadError{Err: nullID, Read: 1, Header: tabbed},
 				wantText: text(nullID) + ". -i csv splits each line on commas, so if the file is tab separated, pass -i tsv",
 			},
 			{
 				name:    "should return a read error past the first record as its bare cause",
-				err:     &ReadError{Err: nullID, Read: 2, Header: tabbed},
+				err:     &calibrate.ReadError{Err: nullID, Read: 2, Header: tabbed},
 				wantErr: nullID,
 			},
 			{
 				name:    "should return a read error under a header of several columns as its bare cause",
-				err:     &ReadError{Err: nullID, Read: 1, Header: []string{"id", "text"}},
+				err:     &calibrate.ReadError{Err: nullID, Read: 1, Header: []string{"id", "text"}},
 				wantErr: nullID,
 			},
 			{name: "should pass on an error that is no read error", err: interrupted, wantErr: interrupted},
@@ -446,7 +447,7 @@ func TestFirstIDHint(t *testing.T) {
 
 				got := firstIDHint(tc.err, input.CSV)
 
-				var unread *ReadError
+				var unread *calibrate.ReadError
 				if tc.wantErr != nil && (!errors.Is(got, tc.wantErr) || errors.As(got, &unread)) {
 					t.Errorf("firstIDHint = %v, want %v with no ReadError around it", got, tc.wantErr)
 				}

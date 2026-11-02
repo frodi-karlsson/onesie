@@ -20,7 +20,7 @@ const maxCauses = 5
 
 func calibrateRun(
 	cmd *cobra.Command, settings rootSettings, flags runConfig, calib calibrateFlags, inputMode input.Mode,
-	inv *invocation, scope Scope, bound []BoundRequirement,
+	inv *invocation, scope calibrate.Scope, bound []calibrate.BoundRequirement,
 ) (err error) {
 	model, err := resolveModel(settings, scope.Scored.Model)
 	if err != nil {
@@ -32,7 +32,7 @@ func calibrateRun(
 		return err
 	}
 
-	cuts := CutsFor(base, bound, len(scope.Scored.Questions))
+	cuts := calibrate.CutsFor(base, bound, len(scope.Scored.Questions))
 
 	if calib.offline {
 		if _, statErr := settings.stat(flags.out); errors.Is(statErr, fs.ErrNotExist) {
@@ -86,7 +86,7 @@ func calibrateRun(
 }
 
 func askedPlan(
-	settings rootSettings, flags runConfig, out *answersfile.File, scope Scope, inputs answersfile.FingerprintInputs,
+	settings rootSettings, flags runConfig, out *answersfile.File, scope calibrate.Scope, inputs answersfile.FingerprintInputs,
 ) (*plan.Plan, error) {
 	if out == nil || !out.Resuming() || len(scope.Skipped) == 0 {
 		return scope.Scored, nil
@@ -110,18 +110,18 @@ func askedPlan(
 }
 
 type calibrateAsk struct {
-	scope   Scope
+	scope   calibrate.Scope
 	asked   *plan.Plan
 	inputs  answersfile.FingerprintInputs
 	cuts    [][]float64
-	bound   []BoundRequirement
+	bound   []calibrate.BoundRequirement
 	out     *answersfile.File
 	answers runner.AnswererFactory
-	config  Config
+	config  calibrate.Config
 }
 
-func calibrateConfig(settings rootSettings, flags runConfig, inputMode input.Mode, inv *invocation) Config {
-	return Config{
+func calibrateConfig(settings rootSettings, flags runConfig, inputMode input.Mode, inv *invocation) calibrate.Config {
+	return calibrate.Config{
 		Input:     settings.stdin,
 		InputMode: inputMode,
 		SkipBlank: flags.skipBlank,
@@ -147,7 +147,7 @@ func calibrateAnswers(
 		}
 	}
 
-	set, err := ReadLabelled(cmd.Context(), run.config, run.scope.Labels)
+	set, err := calibrate.ReadLabelled(cmd.Context(), run.config, run.scope.Labels)
 	if err != nil {
 		return firstIDHint(err, run.config.InputMode)
 	}
@@ -168,7 +168,7 @@ func calibrateAnswers(
 
 	format := answersfile.Format{Mode: output.JSON, Merge: merging(flags), MergeKey: mergeKey(flags), Namer: inv.Namer}
 
-	resumed, err := ResumeLabelled(cmd.Context(), out, format, scored, set)
+	resumed, err := calibrate.ResumeLabelled(cmd.Context(), out, format, scored, set)
 	if err != nil {
 		return err
 	}
@@ -203,15 +203,15 @@ func reportLabelled(
 	flags runConfig,
 	calib calibrateFlags,
 	run calibrateAsk,
-	set LabelledSet,
-	resumed ResumedSet,
+	set calibrate.LabelledSet,
+	resumed calibrate.ResumedSet,
 	stats *runner.Collector,
 ) error {
 	if resumed.Book != nil {
 		stats.Skip(resumed.Book.Skipped())
 	}
 
-	outcomes, result, err := AskLabelled(cmd.Context(), run.config, run.out, resumed, run.answers, stats)
+	outcomes, result, err := calibrate.AskLabelled(cmd.Context(), run.config, run.out, resumed, run.answers, stats)
 	if result.Aborted {
 		return &abortError{cause: result.Cause}
 	}
@@ -220,11 +220,11 @@ func reportLabelled(
 		return err
 	}
 
-	report := ReportOf(run.scope.Scored, set, outcomes, run.cuts)
+	report := calibrate.ReportOf(run.scope.Scored, set, outcomes, run.cuts)
 	report.Asked = result.Records
 	report.Stored = resumed.Stored
 	report.Mocked = flags.mockPath != ""
-	report.Require = MeasureRequirements(report, run.bound)
+	report.Require = calibrate.MeasureRequirements(report, run.bound)
 
 	if flags.usage {
 		report.Usage = usageOf(outcomes)
@@ -254,7 +254,7 @@ func reportLabelled(
 	return nil
 }
 
-func unansweredOffline(answers string, pending []LabelledRecord) error {
+func unansweredOffline(answers string, pending []calibrate.LabelledRecord) error {
 	if len(pending) == 1 {
 		return fmt.Errorf("%s does not answer %s, so --offline cannot report it. "+
 			"Rerun without --offline to ask it", answers, pending[0].Name())
@@ -278,7 +278,7 @@ func cutsOf(cmd *cobra.Command, calib calibrateFlags) ([]float64, error) {
 }
 
 func writeCost(
-	w io.Writer, set LabelledSet, resumed ResumedSet, answers string, questions int, offline bool,
+	w io.Writer, set calibrate.LabelledSet, resumed calibrate.ResumedSet, answers string, questions int, offline bool,
 ) error {
 	line := fmt.Sprintf("asking %d of %s, %s each",
 		len(resumed.Pending), plural(len(set.Records), "record"), plural(questions, "question"))
@@ -297,7 +297,7 @@ func writeCost(
 	return output.Notice(w, line)
 }
 
-func writeCauses(w io.Writer, set LabelledSet, outcomes []output.Record) error {
+func writeCauses(w io.Writer, set calibrate.LabelledSet, outcomes []output.Record) error {
 	listed, more := 0, 0
 
 	for i, rec := range set.Records {

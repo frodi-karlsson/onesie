@@ -1,4 +1,4 @@
-package cli
+package calibrate
 
 import (
 	"fmt"
@@ -7,14 +7,13 @@ import (
 	"strings"
 
 	"github.com/frodi-karlsson/onesie/internal/assert"
-	"github.com/frodi-karlsson/onesie/internal/calibrate"
 	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
 // ResolveRequirements binds each requirement to its scored question and to the cut it reads, from
 // the requirement itself or from the file's assert or abstain_if. speller names the settings.
 func ResolveRequirements(
-	scope Scope, assert, abstainIf string, reqs []calibrate.Requirement, speller plan.Speller,
+	scope Scope, assert, abstainIf string, reqs []Requirement, speller plan.Speller,
 ) ([]BoundRequirement, error) {
 	bound := make([]BoundRequirement, 0, len(reqs))
 	gate := fileGates{assert: assert, abstainIf: abstainIf, speller: speller}
@@ -39,7 +38,7 @@ func ResolveRequirements(
 
 // BoundRequirement is a requirement bound to its question and, when it reads one, its cut.
 type BoundRequirement struct {
-	calibrate.Requirement
+	Requirement
 
 	question int
 	cut      float64
@@ -51,7 +50,7 @@ type fileGates struct {
 	speller           plan.Speller
 }
 
-func resolveRequirement(built *plan.Plan, gate fileGates, req calibrate.Requirement) (BoundRequirement, string) {
+func resolveRequirement(built *plan.Plan, gate fileGates, req Requirement) (BoundRequirement, string) {
 	index := slices.IndexFunc(built.Questions, func(q plan.Question) bool { return q.ID == req.ID })
 	if index < 0 {
 		ids := make([]string, 0, len(built.Questions))
@@ -84,11 +83,11 @@ func resolveRequirement(built *plan.Plan, gate fileGates, req calibrate.Requirem
 	return resolved, ""
 }
 
-func shapeNeeded(measure calibrate.Measure, shape plan.Shape) string {
+func shapeNeeded(measure Measure, shape plan.Shape) string {
 	switch {
 	case measure.YesNo() && shape != plan.Noul:
 		return "a yes or no question"
-	case measure == calibrate.WithinOne && shape != plan.Rate:
+	case measure == WithinOne && shape != plan.Rate:
 		return "a rate question"
 	case !measure.YesNo() && shape == plan.Noul:
 		return "a pick or rate question"
@@ -97,11 +96,11 @@ func shapeNeeded(measure calibrate.Measure, shape plan.Shape) string {
 	return ""
 }
 
-func cutOfRequirement(gate fileGates, req calibrate.Requirement) (float64, string) {
+func cutOfRequirement(gate fileGates, req Requirement) (float64, string) {
 	switch req.At.Kind {
-	case calibrate.AtNumber:
+	case AtNumber:
 		return req.At.Value, ""
-	case calibrate.AtAbstain:
+	case AtAbstain:
 		if gate.abstainIf == "" {
 			return 0, fmt.Sprintf("reads at abstain, and there is no abstain_if to read the cut from. "+
 				"Pass %s with a file that has one, or write at CUT", gate.speller.Spell("-f"))
@@ -162,12 +161,12 @@ func CutsFor(base []float64, bound []BoundRequirement, questions int) [][]float6
 }
 
 // MeasureRequirements checks each requirement against the report.
-func MeasureRequirements(report calibrate.Report, bound []BoundRequirement) []calibrate.Result {
+func MeasureRequirements(report Report, bound []BoundRequirement) []Result {
 	if len(bound) == 0 {
 		return nil
 	}
 
-	results := make([]calibrate.Result, 0, len(bound))
+	results := make([]Result, 0, len(bound))
 	for _, req := range bound {
 		results = append(results, req.Check(report.Questions[req.question], req.cut))
 	}

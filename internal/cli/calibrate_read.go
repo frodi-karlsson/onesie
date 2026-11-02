@@ -6,6 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/frodi-karlsson/onesie/internal/calibrate"
 	"github.com/frodi-karlsson/onesie/internal/input"
 	"github.com/frodi-karlsson/onesie/internal/jq"
 	"github.com/frodi-karlsson/onesie/internal/plan"
@@ -14,14 +15,14 @@ import (
 
 func calibrateRequests(
 	cmd *cobra.Command, settings rootSettings, flags runConfig, inputMode input.Mode, inv *invocation,
-	scope Scope,
+	scope calibrate.Scope,
 ) error {
 	chosen, err := settings.holder.resolved()
 	if err != nil {
 		return err
 	}
 
-	set, err := ReadLabelled(cmd.Context(), calibrateConfig(settings, flags, inputMode, inv), scope.Labels)
+	set, err := calibrate.ReadLabelled(cmd.Context(), calibrateConfig(settings, flags, inputMode, inv), scope.Labels)
 	if err != nil {
 		return firstIDHint(err, inputMode)
 	}
@@ -61,7 +62,7 @@ func calibrateRequests(
 }
 
 func firstIDHint(err error, inputMode input.Mode) error {
-	var unread *ReadError
+	var unread *calibrate.ReadError
 	if !errors.As(err, &unread) {
 		return err
 	}
