@@ -8,6 +8,7 @@ import (
 
 	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/creds"
+	"github.com/frodi-karlsson/onesie/internal/resolve"
 )
 
 func explain(err error, facts requestFacts) error {
@@ -98,7 +99,7 @@ func withKeyHint(err error, settings rootSettings, mockFlag string) error {
 	return keyHint(err, chosen)
 }
 
-func keyHint(err error, chosen Resolution) error {
+func keyHint(err error, chosen resolve.Resolution) error {
 	if !keyRefused(err) {
 		return err
 	}

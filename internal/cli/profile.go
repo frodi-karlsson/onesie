@@ -17,6 +17,7 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/creds"
 	"github.com/frodi-karlsson/onesie/internal/output"
 	"github.com/frodi-karlsson/onesie/internal/providers"
+	"github.com/frodi-karlsson/onesie/internal/resolve"
 )
 
 const (
@@ -404,9 +405,9 @@ func writeProfiles(w io.Writer, profiles creds.Profiles, active string) error {
 	for _, name := range slices.Sorted(maps.Keys(profiles.Profiles)) {
 		profile := profiles.Profiles[name]
 
-		key := KeyFromFile
+		key := resolve.KeyFromFile
 		if profile.Store == creds.StoreKeychain {
-			key = KeyFromKeychain
+			key = resolve.KeyFromKeychain
 		}
 
 		rows = append(rows, []string{name, profile.Provider, key, output.Printable(profile.Model)})
@@ -445,7 +446,7 @@ func writeProfiles(w io.Writer, profiles creds.Profiles, active string) error {
 	return nil
 }
 
-func inactiveReason(active Resolution, err error) string {
+func inactiveReason(active resolve.Resolution, err error) string {
 	switch {
 	case err != nil:
 		return "active: none, since " + text(err)
@@ -504,7 +505,7 @@ func profileShow(cmd *cobra.Command, settings rootSettings, flags *runFlags, arg
 
 	account := shown.AccountSource(source, invalid)
 
-	baseURLLine := KeyFromNone
+	baseURLLine := resolve.KeyFromNone
 	if invalid == nil {
 		baseURLLine = output.Printable(baseURL) + ", " + sourceName
 	}
@@ -534,14 +535,14 @@ func profileShow(cmd *cobra.Command, settings rootSettings, flags *runFlags, arg
 	return showRefusals(cmd, settings, shown, invalid, account)
 }
 
-func showRefusals(cmd *cobra.Command, settings rootSettings, shown Resolution, accountErr error, account string) error {
+func showRefusals(cmd *cobra.Command, settings rootSettings, shown resolve.Resolution, accountErr error, account string) error {
 	var refusals []error
 
-	if shown.Profile == "" && shown.KeyFrom == KeyFromNone {
+	if shown.Profile == "" && shown.KeyFrom == resolve.KeyFromNone {
 		refusals = append(refusals, missingKey(settings, shown))
 	}
 
-	if account == KeyFromNone {
+	if account == resolve.KeyFromNone {
 		refusals = append(refusals, accountNote(accountErr, shown))
 	}
 
@@ -568,7 +569,7 @@ func showRefusals(cmd *cobra.Command, settings rootSettings, shown Resolution, a
 	return refusals[last]
 }
 
-func missingKey(settings rootSettings, shown Resolution) error {
+func missingKey(settings rootSettings, shown resolve.Resolution) error {
 	noKey := fmt.Errorf("%w. Set %s", onesie.ErrNoAPIKey, shown.Provider.EnvAPIKey())
 
 	opened, err := settings.holder.opened()
@@ -579,12 +580,12 @@ func missingKey(settings rootSettings, shown Resolution) error {
 	return missingKeyHint(noKey, shown, opened.Profiles)
 }
 
-func modelOrigin(shown Resolution, lookupEnv func(string) (string, bool)) string {
+func modelOrigin(shown resolve.Resolution, lookupEnv func(string) (string, bool)) string {
 	switch {
 	case strings.TrimSpace(shown.Model) != "":
 		return fromProfile
 	case shown.Provider.EnvDefaultModel() != "" && setVariable(lookupEnv, shown.Provider.EnvDefaultModel()) != "":
-		return KeyFromEnv + " " + shown.Provider.EnvDefaultModel()
+		return resolve.KeyFromEnv + " " + shown.Provider.EnvDefaultModel()
 	}
 
 	return providersOwn
@@ -633,16 +634,16 @@ func profileTest(cmd *cobra.Command, settings rootSettings, flags *runFlags, arg
 	return printErr
 }
 
-func shownResolution(settings rootSettings, flags *runFlags, args []string, command string) (Resolution, error) {
+func shownResolution(settings rootSettings, flags *runFlags, args []string, command string) (resolve.Resolution, error) {
 	if len(args) == 1 {
 		if refused := refuseChosen(flags, command, true); refused != nil {
-			return Resolution{}, refused
+			return resolve.Resolution{}, refused
 		}
 	}
 
 	opened, err := settings.holder.opened()
 	if err != nil {
-		return Resolution{}, err
+		return resolve.Resolution{}, err
 	}
 
 	if len(args) == 0 {
@@ -653,7 +654,7 @@ func shownResolution(settings rootSettings, flags *runFlags, args []string, comm
 
 	profile, found := opened.Profiles.Profiles[name]
 	if !found {
-		return Resolution{}, providerNameHint(noProfileNamed(name, opened.Profiles), name, command)
+		return resolve.Resolution{}, providerNameHint(noProfileNamed(name, opened.Profiles), name, command)
 	}
 
 	by := notActive
@@ -662,7 +663,7 @@ func shownResolution(settings rootSettings, flags *runFlags, args []string, comm
 		by = active.By
 	}
 
-	return ProfileRun(name, profile, by)
+	return resolve.ProfileRun(name, profile, by)
 }
 
 func addMemberFlags(cmd *cobra.Command, fields *profileFlags, flags *runFlags) {

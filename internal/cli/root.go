@@ -31,6 +31,7 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/mock"
 	"github.com/frodi-karlsson/onesie/internal/providers"
 	"github.com/frodi-karlsson/onesie/internal/release"
+	"github.com/frodi-karlsson/onesie/internal/resolve"
 )
 
 const annotationAsksNothing = "onesie-asks-nothing"
@@ -759,7 +760,7 @@ func WithClientFactory(
 	newClient func(ctx context.Context, opts ...onesie.Option) (*onesie.Client, error),
 ) RootOption {
 	return func(s *rootSettings) {
-		s.newClient = func(ctx context.Context, _ Resolution, opts ...onesie.Option) (*onesie.Client, error) {
+		s.newClient = func(ctx context.Context, _ resolve.Resolution, opts ...onesie.Option) (*onesie.Client, error) {
 			return newClient(ctx, opts...)
 		}
 	}

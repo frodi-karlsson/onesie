@@ -30,6 +30,7 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/output"
 	"github.com/frodi-karlsson/onesie/internal/plan"
 	"github.com/frodi-karlsson/onesie/internal/planbuild"
+	"github.com/frodi-karlsson/onesie/internal/resolve"
 	"github.com/frodi-karlsson/onesie/internal/runner"
 )
 
@@ -187,7 +188,7 @@ func TestCachedAnswerer(t *testing.T) {
 		settings.homeDir = os.UserHomeDir
 		settings.goos = runtime.GOOS
 		settings.now = time.Now
-		settings.newClient = func(ctx context.Context, _ Resolution, opts ...onesie.Option) (*onesie.Client, error) {
+		settings.newClient = func(ctx context.Context, _ resolve.Resolution, opts ...onesie.Option) (*onesie.Client, error) {
 			return base(ctx, append(opts, extra...)...)
 		}
 
@@ -866,8 +867,8 @@ func TestAsk(t *testing.T) {
 
 			settings := defaultSettings(BuildInfo{})
 			settings.lookupEnv = lookupFrom(nil)
-			settings.holder = &holder{resolved: func() (Resolution, error) {
-				return Resolution{Provider: onesie.TypeSafe()}, nil
+			settings.holder = &holder{resolved: func() (resolve.Resolution, error) {
+				return resolve.Resolution{Provider: onesie.TypeSafe()}, nil
 			}}
 
 			built := &plan.Plan{Questions: []plan.Question{{ID: "answer", Shape: plan.Noul}}}

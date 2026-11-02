@@ -12,6 +12,7 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/cache"
 	"github.com/frodi-karlsson/onesie/internal/output"
 	"github.com/frodi-karlsson/onesie/internal/plan"
+	"github.com/frodi-karlsson/onesie/internal/resolve"
 	"github.com/frodi-karlsson/onesie/internal/runner"
 )
 
@@ -113,7 +114,7 @@ func noKeyForCache(settings rootSettings, err error) error {
 	}
 
 	chosen, resolveErr := settings.holder.resolved()
-	if resolveErr != nil || chosen.KeyFrom != KeyFromNone {
+	if resolveErr != nil || chosen.KeyFrom != resolve.KeyFromNone {
 		return err
 	}
 
