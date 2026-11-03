@@ -120,7 +120,7 @@ func ReadLabelled(ctx context.Context, config Config, labels []QuestionLabel) (L
 	defer stop()
 
 	next := readAhead(ctx, input.NewStream(config.Input, config.InputMode, input.StreamOptions{
-		SkipBlank: config.SkipBlank, Speller: config.Speller,
+		SkipBlank: config.SkipBlank, Speller: config.Speller, Delimiter: config.Delimiter,
 	}))
 	reader := &labelReader{
 		mapper: config.Mapper, namer: config.Namer, labels: labels, speller: config.Speller,
@@ -188,6 +188,7 @@ type Config struct {
 	Input     io.Reader
 	InputMode input.Mode
 	SkipBlank bool
+	Delimiter input.Delimiter
 	Mapper    *jq.Expr
 	Namer     *jq.Expr
 	Images    runner.Images

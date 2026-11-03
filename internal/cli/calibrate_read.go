@@ -76,5 +76,5 @@ func firstIDHint(err error, inputMode input.Mode) error {
 		return cause
 	}
 
-	return &advisedError{cause: cause, message: text(cause) + ". " + runner.DelimiterHint(inputMode, plan.Flags)}
+	return &advisedError{cause: cause, message: text(cause) + ". " + runner.DelimiterHint(inputMode, unread.Header, plan.Flags)}
 }

@@ -1851,6 +1851,76 @@ func TestStream(t *testing.T) {
 			},
 		})
 	})
+
+	t.Run("should split a csv input by --delimiter", func(t *testing.T) {
+		t.Parallel()
+
+		mock := writeMock(t, `{"answer":0.9}`)
+		semicolons := "id;text\n1;refund, please\n2;hello\n"
+		asking := func(extra ...string) []string {
+			return append([]string{"is it urgent", "-i", "csv", "--map", ".text", "--id", ".id", "--mock", mock}, extra...)
+		}
+
+		tests := []struct {
+			name    string
+			args    []string
+			stdin   string
+			wantOut string
+		}{
+			{
+				name: "should merge into semicolons with --delimiter ';'", stdin: semicolons,
+				args:    asking("--delimiter", ";", "-o", "csv", "--merge"),
+				wantOut: "id;text;answer;error\n1;refund, please;0.9;\n2;hello;0.9;\n",
+			},
+			{
+				name: "should keep commas for plain -o csv", stdin: semicolons,
+				args:    asking("--delimiter", ";", "-o", "csv"),
+				wantOut: "id,answer,error\n1,0.9,\n2,0.9,\n",
+			},
+			{
+				name: "should detect a semicolon file under --delimiter auto", stdin: semicolons,
+				args:    asking("--delimiter", "auto", "-o", "csv", "--merge"),
+				wantOut: "id;text;answer;error\n1;refund, please;0.9;\n2;hello;0.9;\n",
+			},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				out, errOut, code := runMocked(t, t.Context(), tc.args, tc.stdin, nil, nil)
+				if code != ExitOK || out != tc.wantOut {
+					t.Errorf("exit %d, stdout %q, want 0 and %q\nstderr:\n%s", code, out, tc.wantOut, errOut)
+				}
+			})
+		}
+
+		t.Run("should resume a semicolon file under --delimiter auto", func(t *testing.T) {
+			t.Parallel()
+
+			answers := filepath.Join(t.TempDir(), "answers.csv")
+			args := asking("--delimiter", "auto", "-o", "csv", "--merge", "--out", answers, "--resume")
+
+			if _, errOut, code := runMocked(t, t.Context(), args, semicolons, nil, nil); code != ExitOK {
+				t.Fatalf("first run exit %d\nstderr:\n%s", code, errOut)
+			}
+
+			_, errOut, code := runMocked(t, t.Context(), append(args, "--stats"), semicolons+"3;late\n", nil, nil)
+			if code != ExitOK || !strings.Contains(errOut, "2 skipped") {
+				t.Fatalf("resume exit %d, want 0 with the two stored records skipped\nstderr:\n%s", code, errOut)
+			}
+
+			written, err := os.ReadFile(answers)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			want := "id;text;answer;error\n1;refund, please;0.9;\n2;hello;0.9;\n3;late;0.9;\n"
+			if string(written) != want {
+				t.Errorf("answers file = %q, want %q", written, want)
+			}
+		})
+	})
 }
 
 func newCountingStub(t *testing.T) *countingStub {

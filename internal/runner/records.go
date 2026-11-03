@@ -23,7 +23,7 @@ import (
 // by its id. Stop ends the context its ids are computed under.
 func NewNaming(ctx context.Context, config RecordsConfig) *Naming {
 	stream := input.NewStream(config.Input, config.InputMode, input.StreamOptions{
-		SkipBlank: config.SkipBlank, Speller: config.Speller,
+		SkipBlank: config.SkipBlank, Speller: config.Speller, Delimiter: config.Delimiter,
 	})
 
 	// A context of its own, since the read ahead goroutine outlives an engine that stops early, and
@@ -34,6 +34,7 @@ func NewNaming(ctx context.Context, config RecordsConfig) *Naming {
 		ctx:     ctx,
 		cancel:  cancel,
 		source:  NewResumed(stream, config.ResumedConfig),
+		stream:  stream,
 		namer:   config.Namer,
 		halt:    config.StopOnAssert,
 		book:    config.Book,
@@ -51,6 +52,7 @@ type RecordsConfig struct {
 	Input     io.Reader
 	InputMode input.Mode
 	SkipBlank bool
+	Delimiter input.Delimiter
 	Namer     *jq.Expr
 	Book      *answersfile.Ledger
 }
@@ -276,11 +278,17 @@ func (n *Naming) FreshRunAbort() error {
 // IDHint is the hint for a run whose every id was null, which a misread delimiter explains.
 func (n *Naming) IDHint() string {
 	// Atomic, since the goroutine that reads ahead may still be naming a record after the run.
-	if !n.misread.Load() || n.otherID.Load() {
+	header := n.misread.Load()
+	if header == nil || n.otherID.Load() {
 		return ""
 	}
 
-	return "every record's " + n.speller.Spell("--id") + " was null. " + DelimiterHint(n.input, n.speller)
+	return "every record's " + n.speller.Spell("--id") + " was null. " + DelimiterHint(n.input, *header, n.speller)
+}
+
+// Comma is the separator the input splits a csv row on, final once the first record is read.
+func (n *Naming) Comma() rune {
+	return n.stream.Comma()
 }
 
 // Naming reads records and names each by its id.
@@ -288,6 +296,7 @@ type Naming struct {
 	ctx     context.Context
 	cancel  context.CancelFunc
 	source  *Resumed
+	stream  *input.Stream
 	namer   *jq.Expr
 	book    *answersfile.Ledger
 	mode    output.Mode
@@ -296,24 +305,33 @@ type Naming struct {
 	seen    map[[sha256.Size]byte]int
 	halt    bool
 	halted  bool
-	misread atomic.Bool
+	misread atomic.Pointer[[]string]
 	otherID atomic.Bool
 }
 
-// DelimiterHint suggests the input mode that splits on the other delimiter.
-func DelimiterHint(mode input.Mode, speller plan.Speller) string {
+// DelimiterHint suggests the setting that splits on the delimiter a one column header holds.
+func DelimiterHint(mode input.Mode, header []string, speller plan.Speller) string {
 	inputFlag := speller.Spell("-i")
 
-	switch mode {
-	case input.CSV:
+	switch {
+	case mode == input.CSV && semicolonHeader(header):
+		delimiter := speller.Spell("--delimiter")
+
+		return fmt.Sprintf("%s csv splits each line on commas, so if the file is semicolon separated, "+
+			"pass %s ';' or %s auto", inputFlag, delimiter, delimiter)
+	case mode == input.CSV:
 		return fmt.Sprintf("%s csv splits each line on commas, so if the file is tab separated, pass %s tsv",
 			inputFlag, inputFlag)
-	case input.TSV:
+	case mode == input.TSV:
 		return fmt.Sprintf("%s tsv splits each line on tabs, so if the file is comma separated, pass %s csv",
 			inputFlag, inputFlag)
 	default:
 		return ""
 	}
+}
+
+func semicolonHeader(header []string) bool {
+	return len(header) == 1 && strings.Contains(header[0], ";") && !strings.Contains(header[0], "\t")
 }
 
 func (n *Naming) named(rec input.Record) NamedRecord {
@@ -331,7 +349,7 @@ func (n *Naming) name(rec input.Record) NamedRecord {
 	id, err := IDOf(n.ctx, n.namer, rec, n.speller)
 	if errors.Is(err, jq.ErrNullID) {
 		if MisreadDelimiter(n.input, rec.Header) {
-			n.misread.Store(true)
+			n.misread.Store(&rec.Header)
 		}
 	} else {
 		n.otherID.Store(true)
@@ -368,7 +386,7 @@ func MisreadDelimiter(mode input.Mode, header []string) bool {
 
 	switch mode {
 	case input.CSV:
-		return strings.Contains(header[0], "\t")
+		return strings.ContainsAny(header[0], "\t;")
 	case input.TSV:
 		return strings.Contains(header[0], ",")
 	default:

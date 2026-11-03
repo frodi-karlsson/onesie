@@ -42,6 +42,7 @@ Flags:
       --base-url string           api root override
       --box                       make this a box question, answered with the left, top, right and bottom edges of what it finds in an image, each from 0 to 1. Takes no value. Experimental on TypeSafe's side
       --cache                     store responses on disk and answer a repeated request from them. Also ONESIE_CACHE=1
+      --delimiter string          field separator for -i csv: auto, or one character. Defaults to a comma
       --desc string               KEY=TEXT, describing one option, level, yes or no
       --fallback string           value substituted on low confidence and on error
   -f, --file string               question file or request body, or the name of one saved in .onesie/questions or the config dir, or of a built in starter set

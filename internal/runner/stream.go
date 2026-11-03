@@ -4,6 +4,7 @@ package runner
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -46,9 +47,11 @@ func Stream(ctx context.Context, config StreamConfig) (StreamOutcome, error) {
 
 // StreamConfig is everything a stream reads, asks with and writes to.
 type StreamConfig struct {
-	Input      io.Reader
-	InputMode  input.Mode
-	SkipBlank  bool
+	Input     io.Reader
+	InputMode input.Mode
+	SkipBlank bool
+	// Delimiter splits a csv input. Under a merge from csv into csv, the output is written with it.
+	Delimiter  input.Delimiter
 	Out        io.Writer
 	ErrOut     io.Writer
 	OutputMode output.Mode
@@ -102,7 +105,7 @@ func newStreamRun(ctx context.Context, config StreamConfig) (*streamRun, error) 
 
 	format := answersfile.Format{
 		Mode: config.OutputMode, Merge: config.Merge, MergeKey: config.MergeKey, Namer: config.Namer,
-		Gated: config.Gate != nil,
+		Gated: config.Gate != nil, Comma: answersComma(config),
 	}
 
 	book, err := answersfile.ResumeLedger(ctx, config.Answers, format)
@@ -115,21 +118,38 @@ func newStreamRun(ctx context.Context, config StreamConfig) (*streamRun, error) 
 		return nil, err
 	}
 
-	built, gated := config.Ask.Plan, config.Gate != nil
 	run := &streamRun{
-		config:   config,
-		answerer: answerer,
-		shared:   dedupFor(config),
-		source:   NewNaming(ctx, recordsConfig(config, book, resume)),
-		book:     book,
-		table: DelimitedFor(
-			config.Out, config.OutputMode, built, gated, config.Namer != nil && !config.Merge, resume.Header),
-		md: MarkdownFor(config.Out, config.OutputMode, built, gated, config.Namer != nil),
+		config:        config,
+		answerer:      answerer,
+		shared:        dedupFor(config),
+		source:        NewNaming(ctx, recordsConfig(config, book, resume)),
+		book:          book,
+		delimited:     config.OutputMode == output.CSV || config.OutputMode == output.TSV,
+		headerWritten: resume.Header,
+		md:            MarkdownFor(config.Out, config.OutputMode, config.Ask.Plan, config.Gate != nil, config.Namer != nil),
 	}
 
 	run.stop = watched(stopping(config.StopOnAssert), &run.stopped)
 
 	return run, nil
+}
+
+func answersComma(config StreamConfig) rune {
+	if !mergesCSV(config) {
+		return ','
+	}
+
+	// Zero has the answers file read the comma from its own header row, which a file written under
+	// a detected comma carries.
+	if config.Delimiter.Detect {
+		return 0
+	}
+
+	return cmp.Or(config.Delimiter.Comma, ',')
+}
+
+func mergesCSV(config StreamConfig) bool {
+	return config.Merge && config.OutputMode == output.CSV && config.InputMode == input.CSV
 }
 
 func dedupFor(config StreamConfig) *dedup {
@@ -160,22 +180,25 @@ func recordsConfig(config StreamConfig, book *answersfile.Ledger, resume answers
 		Input:     config.Input,
 		InputMode: config.InputMode,
 		SkipBlank: config.SkipBlank,
+		Delimiter: config.Delimiter,
 		Namer:     config.Namer,
 		Book:      book,
 	}
 }
 
 type streamRun struct {
-	config   StreamConfig
-	answerer Answerer
-	shared   *dedup
-	source   *Naming
-	book     *answersfile.Ledger
-	table    *output.Delimited
-	md       *output.MarkdownTable
-	stop     func(line) bool
-	stopped  atomic.Bool
-	halted   bool
+	config        StreamConfig
+	answerer      Answerer
+	shared        *dedup
+	source        *Naming
+	book          *answersfile.Ledger
+	delimited     bool
+	headerWritten bool
+	table         *output.Delimited
+	md            *output.MarkdownTable
+	stop          func(line) bool
+	stopped       atomic.Bool
+	halted        bool
 }
 
 func (r *streamRun) evaluate(ctx context.Context, rec NamedRecord) (line, error) {
@@ -206,7 +229,7 @@ func (r *streamRun) lineFor(ctx context.Context, rec NamedRecord) (line, error) 
 		return r.failed(rec, rec.IDErr)
 	}
 
-	if r.config.Merge && r.table == nil && HasKey(rec.State, r.config.MergeKey) {
+	if r.config.Merge && !r.delimited && HasKey(rec.State, r.config.MergeKey) {
 		return r.mergeCollision(rec)
 	}
 
@@ -342,6 +365,12 @@ func (r *streamRun) write(l line) error {
 func (r *streamRun) writeLine(l line) error {
 	merge := r.config.Merge
 
+	// Built on the first line, which follows the first record read, so a detected comma is final.
+	if r.delimited && r.table == nil {
+		r.table = DelimitedFor(r.config.Out, r.config.OutputMode, r.config.Ask.Plan, r.config.Gate != nil,
+			r.config.Namer != nil && !merge, r.headerWritten, r.tableComma())
+	}
+
 	switch {
 	case r.md != nil:
 		return r.md.Write(l.record)
@@ -354,6 +383,14 @@ func (r *streamRun) writeLine(l line) error {
 	default:
 		return output.WriteMerged(r.config.Out, r.config.OutputMode, l.record, l.raw, l.state, r.config.MergeKey)
 	}
+}
+
+func (r *streamRun) tableComma() rune {
+	if !mergesCSV(r.config) {
+		return 0
+	}
+
+	return r.source.Comma()
 }
 
 func (r *streamRun) finish(ctx context.Context, result engine.Result, err error) (StreamOutcome, error) {
@@ -544,7 +581,8 @@ type line struct {
 	call   *sharedCall
 }
 
-// DelimitedFor is the csv or tsv table a run writes, or nil for any other output mode.
+// DelimitedFor is the csv or tsv table a run writes, or nil for any other output mode. comma is the
+// csv separator, zero meaning a comma.
 func DelimitedFor(
 	out io.Writer,
 	mode output.Mode,
@@ -552,6 +590,7 @@ func DelimitedFor(
 	withAssert bool,
 	withID bool,
 	headerWritten bool,
+	comma rune,
 ) *output.Delimited {
 	if mode != output.CSV && mode != output.TSV {
 		return nil
@@ -564,7 +603,7 @@ func DelimitedFor(
 
 	return output.NewDelimited(out, mode, output.DelimitedOptions{
 		IDs: ids, Boxes: boxIDs(built.Questions), Fallbacks: fallbackIDs(built.Questions), ID: withID,
-		Assert: withAssert, Header: !headerWritten,
+		Assert: withAssert, Header: !headerWritten, Comma: comma,
 	})
 }
 

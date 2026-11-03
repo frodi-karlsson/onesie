@@ -78,6 +78,29 @@ func TestReadLabelled(t *testing.T) {
 		}
 	})
 
+	t.Run("should read a semicolon csv under the given delimiter", func(t *testing.T) {
+		t.Parallel()
+
+		mapper, err := planbuild.Expr("--map", ".body")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		config := Config{
+			Input: strings.NewReader("body;u\na,b;yes\n"), InputMode: input.CSV, Mapper: mapper,
+			Delimiter: input.Delimiter{Comma: ';'},
+		}
+
+		set, err := ReadLabelled(t.Context(), config, urgentLabel(t))
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if len(set.Records) != 1 || sentText(set.Records[0].sent) != "a,b" || !set.Records[0].labels[0].Yes {
+			t.Errorf("records = %+v, want one sending a,b labelled yes", set.Records)
+		}
+	})
+
 	t.Run("should name the label setting as a tool argument for that speller", func(t *testing.T) {
 		t.Parallel()
 

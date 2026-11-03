@@ -4,7 +4,6 @@ package answersfile
 import (
 	"bufio"
 	"bytes"
-	"encoding/csv"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -154,6 +153,8 @@ type Config struct {
 	Output   string
 	ByID     bool
 	ReadOnly bool
+	// Comma separates the cells of a csv file. Zero reads it from the file's own header row.
+	Comma rune
 }
 
 func resumeOut(out *File, config Config) (Resume, error) {
@@ -164,7 +165,7 @@ func resumeOut(out *File, config Config) (Resume, error) {
 	var resume Resume
 
 	if config.Output == "csv" || config.Output == "tsv" {
-		rows, length, err := out.completeRows(config.Output == "csv")
+		rows, length, err := out.completeRows(config.Output == "csv", config.Comma)
 		if err != nil {
 			return Resume{}, err
 		}
@@ -854,7 +855,7 @@ func (o *File) writeFingerprint() error {
 	return nil
 }
 
-func (o *File) completeRows(quoted bool) (rows int, length int64, err error) {
+func (o *File) completeRows(quoted bool, comma rune) (rows int, length int64, err error) {
 	// TSV has no quoting, so a row is a line.
 	if !quoted {
 		return o.completeLines()
@@ -873,8 +874,7 @@ func (o *File) completeRows(quoted bool) (rows int, length int64, err error) {
 		err = errors.Join(err, file.Close())
 	}()
 
-	reader := csv.NewReader(bufio.NewReader(file))
-	reader.FieldsPerRecord = -1
+	reader := csvRows(file, comma)
 
 	// A quoted field can hold a newline, so rows are counted as csv rather than as lines. A row
 	// only counts once its closing newline is on disk, which is what tells a finished row from one

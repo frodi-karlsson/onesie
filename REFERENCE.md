@@ -327,13 +327,20 @@ onesie calibrate -f shell-safety -i jsonl --map .command --id .id \
   lookup. Ids match by their text, so `7`, `7.0` and `"7"` are one id in jsonl.
 - Under `-i csv` or `-i tsv`, a run where every record's `--id` was null says on stderr after the
   run that the delimiter may not match the file, since `-i tsv` reads a comma separated file as one
-  column. `calibrate` says so beside the first record's error.
+  column, and `-i csv` a semicolon separated one. `calibrate` says so beside the first record's
+  error.
+- `--delimiter` sets the field separator of `-i csv`: one character, or `auto`, which picks a comma,
+  a semicolon or a tab from the header row, as a spreadsheet export in many locales uses semicolons.
+  Without it `-i csv` splits on commas. Any other `-i` refuses it with exit 2, since tsv is tab
+  separated by definition and the rest have no delimiter. `-o csv --merge` from `-i csv` writes with
+  the input's separator, given or detected, while plain `-o csv` and a merge from `-i tsv` keep
+  commas.
 - `--out` writes to a file with a fingerprint beside it, and a lock so two runs cannot share it.
 - `--resume` refuses with exit 2 when a change would alter what a record is asked or what its line
   holds: the questions or their policy flags, the provider, the model, the images, long context,
-  `--mock`, the input or output format, `--map`, `--id`, `--merge-key`, `--assert` or
-  `--abstain-if`. `--skip-blank` counts too when a resume counts lines, which is without `--id` on
-  any input but csv and tsv. The refusal names each of them that changed, as in
+  `--mock`, the input or output format, `--delimiter`, `--map`, `--id`, `--merge-key`, `--assert`
+  or `--abstain-if`. `--skip-blank` counts too when a resume counts lines, which is without `--id`
+  on any input but csv and tsv. The refusal names each of them that changed, as in
   `the model and -o changed since answers.jsonl was written`.
 - The fingerprint keeps one sum for each of them. A fingerprint with one sum for all three resumes
   when nothing changed, and a change there reads `the questions, model or flags changed`. `-j`,

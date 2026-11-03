@@ -16,6 +16,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -59,6 +60,7 @@ const (
 	flagAllowHTTP     = "allow-http"
 	flagMap           = "map"
 	flagID            = "id"
+	flagDelimiter     = "delimiter"
 )
 
 var groupFlagHelp = map[string]string{
@@ -340,9 +342,28 @@ func openOut(settings rootSettings, flags runFlags, readOnly bool) (*answersfile
 		Output:   flags.output,
 		ByID:     resumesByID(flags),
 		ReadOnly: readOnly,
+		Comma:    answersComma(flags),
 	})
 
 	return out, resume, wordAnswersError(err)
+}
+
+func answersComma(flags runFlags) rune {
+	if !flags.merge && flags.mergeKey == "" || flags.output != "csv" || flags.input != "csv" {
+		return ','
+	}
+
+	switch flags.delimiter {
+	case "":
+		return ','
+	case "auto":
+		// Zero has the answers file read the comma from its own header row.
+		return 0
+	default:
+		comma, _ := utf8.DecodeRuneInString(flags.delimiter)
+
+		return comma
+	}
 }
 
 func wordAnswersError(err error) error {
@@ -433,6 +454,8 @@ func addRunFlags(set *pflag.FlagSet, flags *runFlags, help runFlagHelp) {
 	set.BoolVar(&flags.resume, "resume", false, help.resume)
 	set.BoolVar(&flags.prune, "prune", false, help.prune)
 	set.BoolVar(&flags.skipBlank, "skip-blank", false, help.skipBlank)
+	set.StringVar(&flags.delimiter, flagDelimiter, "",
+		"field separator for -i csv: auto, or one character. Defaults to a comma")
 	set.BoolVar(&flags.stats, "stats", false, "write a one line summary of the run to stderr at exit")
 	set.BoolVar(&flags.usage, "usage", false, help.usage)
 	set.BoolVar(&flags.printRequest, "print-request", false, "write api shaped request bodies to stdout and exit")

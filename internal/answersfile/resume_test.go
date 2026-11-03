@@ -4,10 +4,15 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
+
+	"github.com/frodi-karlsson/onesie/internal/jq"
+	"github.com/frodi-karlsson/onesie/internal/output"
 )
 
 func TestLedger_TakeOrder(t *testing.T) {
@@ -154,4 +159,90 @@ func reversedLines(text string) string {
 	slices.Reverse(lines)
 
 	return strings.Join(lines, "")
+}
+
+func TestResumedVerdicts(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		comma rune
+	}{
+		{name: "should read a semicolon file back with its comma", comma: ';'},
+		{name: "should detect the comma from the file's own header"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			out := openSemicolons(t, "u;error\n0.9;\n;onesie: boom, twice\n", tc.comma)
+
+			resume, err := ResumedVerdicts(t.Context(), out, Format{Mode: output.CSV, Comma: tc.comma}, false, Resume{})
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if len(resume.Stored) != 2 || resume.Stored[0].Failure != nil || resume.Stored[1].Failure == nil ||
+				resume.Stored[1].Failure.Message != "onesie: boom, twice" {
+				t.Errorf("stored = %+v, want an answered row and the failure the second carries", resume.Stored)
+			}
+		})
+	}
+}
+
+func TestResumeLedger(t *testing.T) {
+	t.Parallel()
+
+	namer, err := jq.Compile(".id")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		name  string
+		comma rune
+	}{
+		{name: "should read a semicolon file back with its comma", comma: ';'},
+		{name: "should detect the comma from the file's own header"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			out := openSemicolons(t, "id;u\nA,1;0.9\n", tc.comma)
+
+			book, err := ResumeLedger(t.Context(), out, Format{Mode: output.CSV, Namer: namer, Comma: tc.comma})
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if _, found := book.StoredAt("A,1"); !found {
+				t.Errorf("the ledger holds no answer for A,1, want the row the file stores")
+			}
+		})
+	}
+}
+
+func openSemicolons(t *testing.T, content string, comma rune) *File {
+	t.Helper()
+
+	path := filepath.Join(t.TempDir(), "answers.csv")
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	out, _, err := Open(Options{}, Config{Path: path, Resume: true, Output: "csv", Comma: comma})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Cleanup(func() {
+		if releaseErr := out.Release(); releaseErr != nil {
+			t.Errorf("Release = %v", releaseErr)
+		}
+	})
+
+	return out
 }

@@ -3,6 +3,7 @@ package runner_test
 import (
 	"context"
 	"io"
+	"slices"
 	"strings"
 	"testing"
 
@@ -19,14 +20,38 @@ func TestStream(t *testing.T) {
 	built := &plan.Plan{Questions: []plan.Question{{ID: "answer", Shape: plan.Noul}}}
 
 	tests := []struct {
-		name string
-		in   string
-		want string
+		name       string
+		in         string
+		inputMode  input.Mode
+		outputMode output.Mode
+		merge      bool
+		delimiter  input.Delimiter
+		want       string
 	}{
 		{
-			name: "should ask a record with no images when Images is nil",
-			in:   "a ticket\n",
-			want: `{"line":1,"model":"m","answer":{"value":0.9}}` + "\n",
+			name:      "should ask a record with no images when Images is nil",
+			in:        "a ticket\n",
+			inputMode: input.Lines,
+			want:      `{"line":1,"model":"m","answer":{"value":0.9}}` + "\n",
+		},
+		{
+			name: "should merge into the input's semicolons", in: "id;body\n1;a,b\n",
+			inputMode: input.CSV, outputMode: output.CSV, merge: true, delimiter: input.Delimiter{Detect: true},
+			want: "id;body;answer;error\n1;a,b;0.9;\n",
+		},
+		{
+			name: "should keep commas for -i tsv -o csv --merge", in: "id\tbody\n1\ta;b\n",
+			inputMode: input.TSV, outputMode: output.CSV, merge: true, delimiter: input.Delimiter{Comma: ';'},
+			want: "id,body,answer,error\n1,a;b,0.9,\n",
+		},
+		{
+			name: "should keep commas for a plain -o csv", in: "id;body\n1;a\n",
+			inputMode: input.CSV, outputMode: output.CSV, delimiter: input.Delimiter{Comma: ';'},
+			want: "answer,error\n0.9,\n",
+		},
+		{
+			name: "should build the table on the first write, so an empty input writes nothing", in: "",
+			inputMode: input.CSV, outputMode: output.CSV, merge: true, delimiter: input.Delimiter{Detect: true},
 		},
 	}
 
@@ -39,10 +64,13 @@ func TestStream(t *testing.T) {
 			stub := &requestAnswerer{}
 			outcome, err := runner.Stream(t.Context(), runner.StreamConfig{
 				Input:      strings.NewReader(tc.in),
-				InputMode:  input.Lines,
+				InputMode:  tc.inputMode,
+				Delimiter:  tc.delimiter,
 				Out:        &out,
 				ErrOut:     io.Discard,
-				OutputMode: output.JSON,
+				OutputMode: tc.outputMode,
+				Merge:      tc.merge,
+				MergeKey:   "answers",
 				Ask: runner.Ask{
 					Plan: built, Model: "m", Questions: plan.WireAll(built.Questions), Message: errorMessage,
 				},
@@ -58,8 +86,9 @@ func TestStream(t *testing.T) {
 				t.Errorf("output = %q, want %q", out.String(), tc.want)
 			}
 
-			if len(stub.requests) != 1 || stub.requests[0].Assets != nil {
-				t.Errorf("requests = %+v, want one with no assets", stub.requests)
+			if wantAsked := strings.Count(tc.want, "0.9"); len(stub.requests) != wantAsked || slices.ContainsFunc(
+				stub.requests, func(req onesie.Request) bool { return req.Assets != nil }) {
+				t.Errorf("requests = %+v, want %d with no assets", stub.requests, wantAsked)
 			}
 		})
 	}

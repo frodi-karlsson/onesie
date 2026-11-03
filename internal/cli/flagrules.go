@@ -182,12 +182,25 @@ func flagChecks(config runConfig) []func(runConfig, runFacts) error {
 	// every output facing reason in the request mode table claims. Its own message is the true one
 	// here, so it answers first.
 	if config.printRequest {
-		return []func(runConfig, runFacts) error{checkPrintFlags, checkRequestMode}
+		return []func(runConfig, runFacts) error{checkPrintFlags, checkRequestMode, checkDelimiter}
 	}
 
 	// Otherwise the request mode rules lead, so a flag -i request rejects outright is named by the
 	// message that says so rather than by a general one that happens to fire first.
-	return []func(runConfig, runFacts) error{checkRequestMode, checkPrintFlags}
+	return []func(runConfig, runFacts) error{checkRequestMode, checkPrintFlags, checkDelimiter}
+}
+
+func checkDelimiter(config runConfig, _ runFacts) error {
+	if !config.hasDelimiter || config.inputMode == input.CSV {
+		return nil
+	}
+
+	reason := "has no delimiter"
+	if config.inputMode == input.TSV {
+		reason = "is tab separated by definition"
+	}
+
+	return fmt.Errorf("--%s applies to -i csv. -i %s %s", flagDelimiter, inputName(config.input), reason)
 }
 
 func checkListModels(config runConfig, facts runFacts) error {

@@ -66,6 +66,7 @@ func TestDelimiterHint(t *testing.T) {
 	tests := []struct {
 		name    string
 		mode    input.Mode
+		header  []string
 		speller plan.Speller
 		want    string
 	}{
@@ -80,6 +81,13 @@ func TestDelimiterHint(t *testing.T) {
 			speller: plan.Arguments,
 			want:    "input tsv splits each line on tabs, so if the file is comma separated, pass input csv",
 		},
+		{
+			name:   "should name the delimiter setting for a one column header holding semicolons",
+			mode:   input.CSV,
+			header: []string{"id;text"},
+			want: "-i csv splits each line on commas, so if the file is semicolon separated, " +
+				"pass --delimiter ';' or --delimiter auto",
+		},
 		{name: "should give no hint for a mode with no delimiter", mode: input.JSONL},
 	}
 
@@ -87,7 +95,7 @@ func TestDelimiterHint(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			if got := DelimiterHint(tc.mode, tc.speller); got != tc.want {
+			if got := DelimiterHint(tc.mode, tc.header, tc.speller); got != tc.want {
 				t.Errorf("DelimiterHint = %q, want %q", got, tc.want)
 			}
 		})

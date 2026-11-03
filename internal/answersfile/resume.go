@@ -18,7 +18,9 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/frodi-karlsson/onesie/internal/input"
 	"github.com/frodi-karlsson/onesie/internal/jq"
+	"github.com/frodi-karlsson/onesie/internal/limits"
 	"github.com/frodi-karlsson/onesie/internal/output"
 )
 
@@ -156,6 +158,8 @@ type Format struct {
 	Namer     *jq.Expr
 	Gated     bool
 	Forwarded bool
+	// Comma separates the cells of a csv file. Zero reads it from the file's own header row.
+	Comma rune
 }
 
 func (f Format) eachAnswer(
@@ -214,7 +218,7 @@ func (f Format) eachStored(
 
 	var columns []string
 
-	return eachRow(r, f.Mode == output.CSV, func(at Span, cells []string) bool {
+	return eachRow(r, f.Mode == output.CSV, f.Comma, func(at Span, cells []string) bool {
 		if columns == nil {
 			columns = cells
 
@@ -643,7 +647,7 @@ func eachLine(r io.Reader, visit func(at Span, text []byte) bool) error {
 	}
 }
 
-func eachRow(r io.Reader, quoted bool, visit func(at Span, cells []string) bool) error {
+func eachRow(r io.Reader, quoted bool, comma rune, visit func(at Span, cells []string) bool) error {
 	// TSV has no quoting, so a row is a line.
 	if !quoted {
 		return eachLine(r, func(at Span, text []byte) bool {
@@ -651,8 +655,7 @@ func eachRow(r io.Reader, quoted bool, visit func(at Span, cells []string) bool)
 		})
 	}
 
-	reader := csv.NewReader(bufio.NewReader(r))
-	reader.FieldsPerRecord = -1
+	reader := csvRows(r, comma)
 
 	var start int64
 
@@ -675,10 +678,40 @@ func eachRow(r io.Reader, quoted bool, visit func(at Span, cells []string) bool)
 	}
 }
 
+func csvRows(r io.Reader, comma rune) *csv.Reader {
+	buffered := bufio.NewReaderSize(r, limits.MaxLineBytes)
+	if comma == 0 {
+		comma = headerComma(buffered)
+	}
+
+	reader := csv.NewReader(buffered)
+	reader.Comma = comma
+	reader.FieldsPerRecord = -1
+
+	return reader
+}
+
+func headerComma(r *bufio.Reader) rune {
+	// Peeked, so the header row is still there for the csv reader and every span stays an offset
+	// into the file. A file shorter than the buffer peeks short with io.EOF and still holds its
+	// header. Any other error is left for the csv reader to report.
+	head, err := r.Peek(r.Size())
+	if err != nil && !errors.Is(err, io.EOF) {
+		return ','
+	}
+
+	if line, _, found := bytes.Cut(head, []byte("\n")); found {
+		head = line
+	}
+
+	return input.DetectDelimiter(string(head))
+}
+
 func headerLength(r io.Reader, quoted bool) (int64, error) {
 	var length int64
 
-	err := eachRow(r, quoted, func(at Span, _ []string) bool {
+	// The comma is read from the header row itself, which is the row being measured.
+	err := eachRow(r, quoted, 0, func(at Span, _ []string) bool {
 		length = at.End
 
 		return false

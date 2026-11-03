@@ -320,7 +320,7 @@ func checkCalibrateInput(flags runConfig) error {
 
 	switch flags.inputMode {
 	case input.JSONL, input.CSV, input.TSV:
-		return nil
+		return checkDelimiter(flags, runFacts{})
 	default:
 		return fmt.Errorf("calibrate needs -i jsonl, csv or tsv. -i %s carries no field to label",
 			inputName(flags.input))

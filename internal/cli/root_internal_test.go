@@ -463,7 +463,7 @@ func TestAddRunFlags(t *testing.T) {
 			"timeout":         strconv.Itoa(int(limits.DefaultAttemptTimeout.Seconds())),
 			"retries":         strconv.Itoa(limits.DefaultRetries),
 			"max-retry-after": strconv.Itoa(int(limits.DefaultMaxRetryAfter.Seconds())),
-			"out":             "", "resume": "false", "prune": "false", "skip-blank": "false", "stats": "false",
+			"out":             "", "resume": "false", "prune": "false", "skip-blank": "false", "delimiter": "", "stats": "false",
 			"usage": "false", "print-request": "false", "cache": "false", "mock": "",
 		}
 

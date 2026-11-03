@@ -402,6 +402,10 @@ func runInputs(settings rootSettings, flags runConfig, inputs answersfile.Finger
 	inputs.SkipBlank = flags.skipBlank && !resumesByID(flags.runFlags) && !delimitedInput(inputs.Input)
 	inputs.Mock = flags.mockPath != ""
 
+	if flags.hasDelimiter {
+		inputs.Delimiter = flags.runFlags.delimiter
+	}
+
 	return inputs, nil
 }
 
@@ -630,7 +634,7 @@ func writeRecord(
 	}
 
 	if mode == output.CSV || mode == output.TSV {
-		return runner.DelimitedFor(cmd.OutOrStdout(), mode, inv.Plan, inv.Gate != nil, false, false).Write(record, nil, nil)
+		return runner.DelimitedFor(cmd.OutOrStdout(), mode, inv.Plan, inv.Gate != nil, false, false, 0).Write(record, nil, nil)
 	}
 
 	if merging(flags) {
@@ -749,6 +753,7 @@ type runFlags struct {
 	noDedup       bool
 	merge         bool
 	mergeKey      string
+	delimiter     string
 	mapSource     string
 	idSource      string
 	images        []string

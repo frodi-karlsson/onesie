@@ -40,6 +40,7 @@ Flags:
       --box                       make this a box question, answered with the left, top, right and bottom edges of what it finds in an image, each from 0 to 1. Takes no value. Experimental on TypeSafe's side
       --cache                     store responses on disk and answer a repeated request from them. Also ONESIE_CACHE=1
       --cuts string               comma separated cuts between 0 and 1. Defaults to 0.05 to 0.95 in steps of 0.05
+      --delimiter string          field separator for -i csv: auto, or one character. Defaults to a comma
       --desc string               KEY=TEXT, describing one option, level, yes or no
   -f, --file string               question file or request body, or the name of one saved in .onesie/questions or the config dir, or of a built in starter set
   -h, --help                      help for calibrate

@@ -81,6 +81,7 @@ func printedRun(questions []plan.Question, wired json.Marshaler, inputs Fingerpr
 		AbstainIf: inputs.AbstainIf,
 		SkipBlank: inputs.SkipBlank,
 		Images:    inputs.Images,
+		Delimiter: inputs.Delimiter,
 
 		LongContext: inputs.LongContext,
 
@@ -104,6 +105,7 @@ type runPrint struct {
 	AbstainIf   string         `json:"abstain_if"`
 	SkipBlank   bool           `json:"skip_blank,omitempty"`
 	Images      []string       `json:"images,omitempty"`
+	Delimiter   string         `json:"delimiter,omitempty"`
 	LongContext bool           `json:"long_context,omitempty"`
 	// A csv or tsv file without the fallback columns has shorter rows than the run writes, so
 	// a resume into it is refused.
@@ -203,6 +205,8 @@ type FingerprintInputs struct {
 	AbstainIf string
 	SkipBlank bool
 	Images    []string
+	// Delimiter is the --delimiter given, auto or one character, and empty when none was.
+	Delimiter string
 
 	LongContext bool
 	Mock        bool
@@ -322,6 +326,8 @@ func partLabel(name string, speller plan.Speller) string {
 		return "the fallback columns"
 	case "mock":
 		return speller.Spell("--mock")
+	case "delimiter":
+		return speller.Spell("--delimiter")
 	default:
 		return ""
 	}

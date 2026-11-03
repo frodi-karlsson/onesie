@@ -25,18 +25,31 @@ func NewStream(r io.Reader, mode Mode, opts StreamOptions) *Stream {
 		skipBlank: opts.SkipBlank,
 		speller:   opts.Speller,
 		lineCap:   lineCapOf(mode),
+		comma:     ',',
 	}
 
 	if mode == CSV {
+		if opts.Delimiter.Comma != 0 {
+			stream.comma = opts.Delimiter.Comma
+		}
+
 		// Bounds what one row may pull from stdin, since an unterminated quote would otherwise read
 		// the rest of the input into a single field.
 		stream.budget = &rowBudget{reader: stream.reader}
-		stream.rows = csv.NewReader(stream.budget)
-		// Checked per row instead, so a short row fails that one record rather than the run.
-		stream.rows.FieldsPerRecord = -1
+		stream.rows = csvRows(stream.budget, stream.comma)
+		stream.detect = opts.Delimiter.Detect
 	}
 
 	return stream
+}
+
+func csvRows(r io.Reader, comma rune) *csv.Reader {
+	rows := csv.NewReader(r)
+	rows.Comma = comma
+	// Checked per row instead, so a short row fails that one record rather than the run.
+	rows.FieldsPerRecord = -1
+
+	return rows
 }
 
 // StreamOptions holds how a Stream reads its lines.
@@ -46,6 +59,8 @@ type StreamOptions struct {
 	SkipBlank bool
 	// Speller names the blank line setting in a refusal.
 	Speller plan.Speller
+	// Delimiter splits a CSV row. Every other mode ignores it.
+	Delimiter Delimiter
 }
 
 func lineCapOf(mode Mode) int {
@@ -68,6 +83,8 @@ type Stream struct {
 	rows      *csv.Reader
 	budget    *rowBudget
 	header    []string
+	comma     rune
+	detect    bool
 }
 
 // Next returns the next record. The second result is false at end of input. A record carrying a
@@ -112,7 +129,18 @@ func (s *Stream) Next() (Record, bool, error) {
 	}
 }
 
+// Comma is the separator a CSV stream splits on, final once Next has returned the first record.
+func (s *Stream) Comma() rune {
+	return s.comma
+}
+
 func (s *Stream) nextRow() (Record, bool, error) {
+	if s.detect {
+		if err := s.detectComma(); err != nil {
+			return Record{}, false, err
+		}
+	}
+
 	if s.header == nil {
 		header, err := s.readHeader()
 		if err != nil || header == nil {
@@ -141,6 +169,24 @@ func (s *Stream) nextRow() (Record, bool, error) {
 	}
 
 	return s.row(fields), true, nil
+}
+
+func (s *Stream) detectComma() error {
+	s.detect = false
+
+	// The header line is read here, on the goroutine that calls Next, and then handed back to the
+	// csv reader ahead of the rest of the input.
+	head, err := s.reader.ReadSlice('\n')
+	if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, bufio.ErrBufferFull) {
+		return &LineError{Err: err}
+	}
+
+	held := bytes.Clone(head)
+	s.comma = DetectDelimiter(string(held))
+	s.budget.reader = io.MultiReader(bytes.NewReader(held), s.reader)
+	s.rows = csvRows(s.budget, s.comma)
+
+	return nil
 }
 
 func (s *Stream) readHeader() ([]string, error) {
