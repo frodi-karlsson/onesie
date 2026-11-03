@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"math"
 	"slices"
 	"strings"
@@ -13,6 +14,7 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/answer"
 	"github.com/frodi-karlsson/onesie/internal/input"
 	"github.com/frodi-karlsson/onesie/internal/jq"
+	"github.com/frodi-karlsson/onesie/internal/limits"
 	"github.com/frodi-karlsson/onesie/internal/output"
 	"github.com/frodi-karlsson/onesie/internal/plan"
 	"github.com/frodi-karlsson/onesie/internal/planbuild"
@@ -111,6 +113,21 @@ func TestReadLabelled(t *testing.T) {
 		_, err := ReadLabelled(t.Context(), config, urgentLabel(t))
 		if err == nil || !strings.HasPrefix(err.Error(), "label u: line 1: ") {
 			t.Errorf("ReadLabelled error = %v, want it to name the label setting as label", err)
+		}
+	})
+
+	t.Run("should word the record cap without -V for a tool argument speller", func(t *testing.T) {
+		t.Parallel()
+
+		config := Config{
+			Input:     strings.NewReader(strings.Repeat("{\"u\":true}\n", limits.MaxCalibrateRecords+1)),
+			InputMode: input.JSONL, Speller: plan.Arguments,
+		}
+
+		_, err := ReadLabelled(t.Context(), config, urgentLabel(t))
+		if want := fmt.Sprintf("calibrate reads at most %d records", limits.MaxCalibrateRecords); err == nil ||
+			err.Error() != want {
+			t.Errorf("ReadLabelled error = %v, want %q", err, want)
 		}
 	})
 }

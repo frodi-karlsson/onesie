@@ -155,8 +155,7 @@ func ReadLabelled(ctx context.Context, config Config, labels []QuestionLabel) (L
 
 		set.Total++
 		if set.Total > limits.MaxCalibrateRecords {
-			return LabelledSet{}, fmt.Errorf("calibrate reads at most %d records, and %s lists the cap",
-				limits.MaxCalibrateRecords, config.Speller.Spell("-V"))
+			return LabelledSet{}, tooManyRecords(config.Speller)
 		}
 
 		labelled, found, err := reader.read(ctx, rec)
@@ -181,6 +180,15 @@ func ReadLabelled(ctx context.Context, config Config, labels []QuestionLabel) (L
 		set.inputs = append(set.inputs, inputEntry{id: labelled.id, record: labelled.index})
 		set.Records = append(set.Records, labelled)
 	}
+}
+
+func tooManyRecords(speller plan.Speller) error {
+	// Only the command line lists its caps, through -V.
+	if speller != plan.Flags {
+		return fmt.Errorf("calibrate reads at most %d records", limits.MaxCalibrateRecords)
+	}
+
+	return fmt.Errorf("calibrate reads at most %d records, and -V lists the cap", limits.MaxCalibrateRecords)
 }
 
 // Config is what a calibration reads its records from and asks them with. Ask carries the asked

@@ -48,8 +48,8 @@ func TestParseDelimiter(t *testing.T) {
 		{name: "should take one character past ascii", value: "§", want: input.Delimiter{Comma: '§'}},
 		{name: "should refuse two characters", value: ";;", wantErr: "takes auto or one character, got ';;'"},
 		{name: "should refuse an empty value", value: "", wantErr: "takes auto or one character, got ''"},
-		{name: "should refuse a newline", value: "\n", wantErr: `cannot be a quote or a line break, got "\n"`},
-		{name: "should refuse a quote", value: `"`, wantErr: `cannot be a quote or a line break, got "\""`},
+		{name: "should refuse a newline", value: "\n", wantErr: `cannot be a quote or a line break, got '\n'`},
+		{name: "should refuse a quote", value: `"`, wantErr: `cannot be a quote or a line break, got '"'`},
 	}
 
 	for _, tc := range tests {
