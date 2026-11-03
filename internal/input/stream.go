@@ -174,19 +174,40 @@ func (s *Stream) nextRow() (Record, bool, error) {
 func (s *Stream) detectComma() error {
 	s.detect = false
 
-	// The header line is read here, on the goroutine that calls Next, and then handed back to the
-	// csv reader ahead of the rest of the input.
-	head, err := s.reader.ReadSlice('\n')
-	if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, bufio.ErrBufferFull) {
-		return &LineError{Err: err}
+	// The lines up to the header are read here, on the goroutine that calls Next, and then handed back
+	// to the csv reader ahead of the rest of the input, which keeps its line numbers.
+	held, comma, err := s.leadingLines()
+	if err != nil {
+		return err
 	}
 
-	held := bytes.Clone(head)
-	s.comma = DetectDelimiter(string(held))
+	s.comma = comma
 	s.budget.reader = io.MultiReader(bytes.NewReader(held), s.reader)
 	s.rows = csvRows(s.budget, s.comma)
 
 	return nil
+}
+
+func (s *Stream) leadingLines() (held []byte, comma rune, err error) {
+	for {
+		line, readErr := s.reader.ReadSlice('\n')
+		held = append(held, line...)
+
+		if readErr != nil && !errors.Is(readErr, io.EOF) && !errors.Is(readErr, bufio.ErrBufferFull) {
+			return nil, 0, &LineError{Err: readErr}
+		}
+
+		// The csv reader skips an empty line, so the header is the first line that is not empty. A line
+		// with no newline ends the input or fills the buffer, and the blank lines held are capped as a
+		// row is.
+		if !emptyLine(line) || len(held) >= limits.MaxLineBytes {
+			return held, DetectDelimiter(string(line)), nil
+		}
+	}
+}
+
+func emptyLine(line []byte) bool {
+	return bytes.HasSuffix(line, []byte("\n")) && len(bytes.TrimRight(line, "\r\n")) == 0
 }
 
 func (s *Stream) readHeader() ([]string, error) {

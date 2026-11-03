@@ -362,6 +362,16 @@ func TestStream(t *testing.T) {
 				delimiter: input.Delimiter{Detect: true}, want: map[string]any{"id": "1", "body": "a,b"}, wantComma: ';',
 			},
 			{
+				name: "should detect from the first line that is not blank under auto", mode: input.CSV,
+				in: "\n\nid;text\n1;a\n", delimiter: input.Delimiter{Detect: true},
+				want: map[string]any{"id": "1", "text": "a"}, wantComma: ';',
+			},
+			{
+				name: "should skip blank crlf lines before the header under auto", mode: input.CSV,
+				in: "\r\n\r\nid;text\r\n1;a\r\n", delimiter: input.Delimiter{Detect: true},
+				want: map[string]any{"id": "1", "text": "a"}, wantComma: ';',
+			},
+			{
 				name: "should keep commas when no delimiter is given", mode: input.CSV, in: "id,body\n1,a;b\n",
 				want: map[string]any{"id": "1", "body": "a;b"}, wantComma: ',',
 			},
