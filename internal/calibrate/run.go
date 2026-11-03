@@ -435,7 +435,7 @@ func ResumeLabelled(
 		resumed.Answered[stored.index] = stored.record
 	}
 
-	resumed.Book = book
+	resumed.book = book
 	resumed.Pending = nil
 
 	for _, entry := range set.inputs {
@@ -464,10 +464,20 @@ func ResumeLabelled(
 // ResumedSet is a labelled set after a resume. Answered holds the stored answers by record, Pending
 // the records still to ask, and Stored counts the ones the file answered.
 type ResumedSet struct {
-	Book     *answersfile.Ledger
 	Pending  []LabelledRecord
 	Answered []output.Record
 	Stored   int
+
+	book *answersfile.Ledger
+}
+
+// Skipped counts the records the resume skipped, none when no file was resumed.
+func (s ResumedSet) Skipped() answersfile.Tally {
+	if s.book == nil {
+		return answersfile.Tally{}
+	}
+
+	return s.book.Skipped()
 }
 
 type storedLine struct {
@@ -500,7 +510,7 @@ func AskLabelled(
 
 	labelled := &labelledRun{
 		answerer: answerer, ask: config.Ask, images: config.Images, out: out, stats: stats,
-		outcomes: slices.Clone(set.Answered), book: set.Book,
+		outcomes: slices.Clone(set.Answered), book: set.book,
 	}
 
 	result, err := engine.Run(ctx, engine.Config[LabelledRecord, askedLine]{
@@ -526,8 +536,8 @@ func AskLabelled(
 
 	// Only a run that asked every record rewrites the file. An interrupted one leaves the appended
 	// lines as they are, for the next resume to finish.
-	if set.Book != nil && set.Book.Complete() && !config.Offline {
-		out.CompactInto(set.Book.TakeOrder(config.Prune), output.JSON)
+	if set.book != nil && set.book.Complete() && !config.Offline {
+		out.CompactInto(set.book.TakeOrder(config.Prune), output.JSON)
 	}
 
 	return labelled.outcomes, result, nil

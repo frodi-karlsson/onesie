@@ -6,12 +6,15 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
 
 	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/answer"
+	"github.com/frodi-karlsson/onesie/internal/answersfile"
 	"github.com/frodi-karlsson/onesie/internal/input"
 	"github.com/frodi-karlsson/onesie/internal/jq"
 	"github.com/frodi-karlsson/onesie/internal/limits"
@@ -215,6 +218,64 @@ func TestAskLabelled(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestResumedSet_Skipped(t *testing.T) {
+	t.Parallel()
+
+	t.Run("should count nothing for a set no file resumed", func(t *testing.T) {
+		t.Parallel()
+
+		if got := (ResumedSet{}).Skipped(); got != (answersfile.Tally{}) {
+			t.Errorf("Skipped = %+v, want nothing", got)
+		}
+	})
+
+	t.Run("should count the records the file answered", func(t *testing.T) {
+		t.Parallel()
+
+		built := &plan.Plan{Questions: []plan.Question{{ID: "u", Shape: plan.Noul}}}
+
+		namer, err := planbuild.Expr("--id", ".id")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		path := filepath.Join(t.TempDir(), "answers.jsonl")
+		if writeErr := os.WriteFile(path, []byte(`{"id":"1","model":"m","u":{"value":0.9}}`+"\n"), 0o600); writeErr != nil {
+			t.Fatal(writeErr)
+		}
+
+		out, _, err := answersfile.Open(answersfile.Options{}, answersfile.Config{Path: path, Resume: true, ByID: true})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		t.Cleanup(func() {
+			if releaseErr := out.Release(); releaseErr != nil {
+				t.Errorf("Release = %v", releaseErr)
+			}
+		})
+
+		config := Config{
+			Input:     strings.NewReader(`{"id":"1","u":true}` + "\n" + `{"id":"2","u":false}` + "\n"),
+			InputMode: input.JSONL, Namer: namer,
+		}
+
+		set, err := ReadLabelled(t.Context(), config, urgentLabel(t))
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		resumed, err := ResumeLabelled(t.Context(), out, answersfile.Format{Mode: output.JSON, Namer: namer}, built, set)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if got := resumed.Skipped(); got.Records != 1 {
+			t.Errorf("Skipped = %+v, want the one record the file answered", got)
+		}
+	})
 }
 
 func errorText(err error) string {

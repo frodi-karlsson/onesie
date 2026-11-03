@@ -208,9 +208,7 @@ func reportLabelled(
 	resumed calibrate.ResumedSet,
 	stats *runner.Collector,
 ) error {
-	if resumed.Book != nil {
-		stats.Skip(resumed.Book.Skipped())
-	}
+	stats.Skip(resumed.Skipped())
 
 	outcomes, result, err := calibrate.AskLabelled(cmd.Context(), run.config, run.out, resumed, run.answers, stats)
 	if result.Aborted {
