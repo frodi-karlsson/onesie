@@ -14,9 +14,6 @@ import (
 )
 
 const (
-	envProfile  = "ONESIE_PROFILE"
-	envProvider = "ONESIE_PROVIDER"
-
 	flagProfile  = "profile"
 	flagProvider = "provider"
 )
@@ -76,8 +73,8 @@ func providerNameHint(err error, name, by string) error {
 	switch by {
 	case "--" + flagProfile:
 		note = fmt.Sprintf("so pass --%s %s in place of --%s", flagProvider, name, flagProfile)
-	case envProfile:
-		note = fmt.Sprintf("so set %s=%s in place of %s", envProvider, name, envProfile)
+	case resolve.EnvProfile:
+		note = fmt.Sprintf("so set %s=%s in place of %s", resolve.EnvProvider, name, resolve.EnvProfile)
 	case "show", "test":
 		note = fmt.Sprintf("so run onesie profile %s --%s %s", by, flagProvider, name)
 	case "use":
@@ -99,9 +96,9 @@ func providerIsProfileHint(err error, chosen resolve.Chosen, profiles creds.Prof
 
 	note := fmt.Sprintf("%s is a profile, so pass --profile %s in place of --provider",
 		creds.QuotedName(chosen.Provider), creds.QuotedName(chosen.Provider))
-	if chosen.By == envProvider {
+	if chosen.By == resolve.EnvProvider {
 		note = fmt.Sprintf("%s is a profile, so set %s=%s in place of %s",
-			creds.QuotedName(chosen.Provider), envProfile, creds.QuotedName(chosen.Provider), envProvider)
+			creds.QuotedName(chosen.Provider), resolve.EnvProfile, creds.QuotedName(chosen.Provider), resolve.EnvProvider)
 	}
 
 	return &advisedError{cause: err, message: text(err) + ". " + note}
@@ -134,19 +131,19 @@ func missingKeyHint(err error, bare resolve.Resolution, profiles creds.Profiles)
 
 func storeKeyHint(bare resolve.Resolution, profiles creds.Profiles) string {
 	name := firstProfileOf(bare.Provider.Name(), profiles)
-	if name == "" && bare.By == envProvider {
+	if name == "" && bare.By == resolve.EnvProvider {
 		// A profile created now would still go unused while the variable chooses the run.
 		return fmt.Sprintf(". %s is set, so a stored profile is not used. To use one instead, unset %s "+
-			"and run onesie profile create NAME --provider %s", envProvider, envProvider, bare.Provider.Name())
+			"and run onesie profile create NAME --provider %s", resolve.EnvProvider, resolve.EnvProvider, bare.Provider.Name())
 	}
 
 	if name == "" {
 		return ", or store one with onesie profile create NAME --provider " + bare.Provider.Name()
 	}
 
-	if bare.By == envProvider {
+	if bare.By == resolve.EnvProvider {
 		return fmt.Sprintf(", or unset %s and run onesie profile use %s, or run with --profile %s",
-			envProvider, creds.QuotedName(name), creds.QuotedName(name))
+			resolve.EnvProvider, creds.QuotedName(name), creds.QuotedName(name))
 	}
 
 	return ", or drop --provider and pass --profile " + creds.QuotedName(name)

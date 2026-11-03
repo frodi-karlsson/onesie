@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync"
 	"time"
 
@@ -111,9 +112,11 @@ func explained(settings rootSettings, baseURLFlag string, chosen resolve.Resolut
 func baseURLFrom(source onesie.BaseURLSource, baseURLFlag string, chosen resolve.Resolution) string {
 	switch source {
 	case onesie.BaseURLFromOption:
-		name, _ := chosen.GivenBaseURL(baseURLFlag)
+		if strings.TrimSpace(baseURLFlag) != "" {
+			return "--" + flagBaseURL
+		}
 
-		return name
+		return profileBaseURL
 	case onesie.BaseURLFromEnv:
 		return chosen.Provider.EnvBaseURL()
 	case onesie.BaseURLFromAccount:

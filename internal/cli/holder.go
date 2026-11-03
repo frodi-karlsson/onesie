@@ -77,8 +77,8 @@ func conversionLines(opened creds.Opened, lookupEnv func(string) (string, bool))
 		lines = append(lines, notice{text: "converted credentials.json " + where + ", with " +
 			namedProfiles(opened.Converted) + ". " + defaultSentence(opened.Profiles.Default)})
 
-		if setVariable(lookupEnv, envProvider) != "" {
-			lines = append(lines, notice{text: envProvider + " is set, so a run uses no profile and reads only " +
+		if setVariable(lookupEnv, resolve.EnvProvider) != "" {
+			lines = append(lines, notice{text: resolve.EnvProvider + " is set, so a run uses no profile and reads only " +
 				"the provider's key variable. To use a stored key, unset it and run onesie profile use NAME, " +
 				"or pass --profile NAME"})
 		}

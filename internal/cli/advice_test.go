@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/frodi-karlsson/onesie-go"
+	"github.com/frodi-karlsson/onesie/internal/resolve"
 )
 
 func TestExplain(t *testing.T) {
@@ -780,7 +781,7 @@ func runAdvised(t *testing.T, tc adviceCase) ([]string, string, string, int) {
 	defer srv.Close()
 
 	lookup := func(name string) (string, bool) {
-		if name == envProvider && tc.provider != "" {
+		if name == resolve.EnvProvider && tc.provider != "" {
 			return tc.provider, true
 		}
 

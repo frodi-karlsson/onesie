@@ -7,9 +7,10 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
+// The environment variables that choose the profile or the provider of a run.
 const (
-	envProfile  = "ONESIE_PROFILE"
-	envProvider = "ONESIE_PROVIDER"
+	EnvProfile  = "ONESIE_PROFILE"
+	EnvProvider = "ONESIE_PROVIDER"
 )
 
 // Choose decides the profile or provider a run uses, from what was given and then from the
@@ -29,16 +30,16 @@ func Choose(given Given, lookupEnv func(string) (string, bool), speller plan.Spe
 		return Chosen{Provider: strings.TrimSpace(given.Provider), By: providerSetting}, nil
 	}
 
-	profile, provider := setVariable(lookupEnv, envProfile), setVariable(lookupEnv, envProvider)
+	profile, provider := setVariable(lookupEnv, EnvProfile), setVariable(lookupEnv, EnvProvider)
 
 	switch {
 	case profile != "" && provider != "":
 		return Chosen{}, fmt.Errorf(
-			"%s and %s are both set, and each chooses what the run uses. Unset one", envProfile, envProvider)
+			"%s and %s are both set, and each chooses what the run uses. Unset one", EnvProfile, EnvProvider)
 	case profile != "":
-		return Chosen{Profile: profile, By: envProfile}, nil
+		return Chosen{Profile: profile, By: EnvProfile}, nil
 	case provider != "":
-		return Chosen{Provider: provider, By: envProvider}, nil
+		return Chosen{Provider: provider, By: EnvProvider}, nil
 	}
 
 	return Chosen{}, nil

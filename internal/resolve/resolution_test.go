@@ -349,37 +349,32 @@ func TestResolutionGivenBaseURL(t *testing.T) {
 	profile := Resolution{Profile: "work", BaseURL: "https://profile.example"}
 
 	tests := []struct {
-		name       string
-		run        Resolution
-		flag       string
-		wantURL    string
-		wantSource string
+		name    string
+		run     Resolution
+		flag    string
+		wantURL string
 	}{
 		{
 			name: "should take --base-url ahead of the profile's base_url", run: profile,
-			flag: "https://flag.example", wantURL: "https://flag.example", wantSource: "--base-url",
+			flag: "https://flag.example", wantURL: "https://flag.example",
 		},
 		{
 			name: "should trim the space around --base-url", run: profile,
-			flag: "  https://flag.example ", wantURL: "https://flag.example", wantSource: "--base-url",
+			flag: "  https://flag.example ", wantURL: "https://flag.example",
 		},
 		{
 			name: "should take the profile's base_url when --base-url is blank", run: profile,
-			flag: " ", wantURL: "https://profile.example", wantSource: "the profile's base_url",
+			flag: " ", wantURL: "https://profile.example",
 		},
-		{
-			name: "should give no URL when neither is set", run: Resolution{Profile: "work"},
-			wantSource: "the profile's base_url",
-		},
+		{name: "should give no URL when neither is set", run: Resolution{Profile: "work"}},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			source, url := tc.run.GivenBaseURL(tc.flag)
-			if source != tc.wantSource || url != tc.wantURL {
-				t.Errorf("givenBaseURL = %q, %q, want %q, %q", source, url, tc.wantSource, tc.wantURL)
+			if url := tc.run.GivenBaseURL(tc.flag); url != tc.wantURL {
+				t.Errorf("GivenBaseURL = %q, want %q", url, tc.wantURL)
 			}
 		})
 	}

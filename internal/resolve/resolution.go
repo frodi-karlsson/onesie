@@ -15,9 +15,6 @@ import (
 const (
 	byDefault = "the default"
 	byNothing = "nothing"
-
-	flagBaseURL    = "base-url"
-	profileBaseURL = "the profile's base_url"
 )
 
 // ErrNoDefaultProfile refuses a run that chose no profile, when profiles exist and none is the default.
@@ -140,7 +137,7 @@ func (r Resolution) Options(
 ) []onesie.Option {
 	var opts []onesie.Option
 
-	if _, baseURL := r.GivenBaseURL(baseURLFlag); baseURL != "" {
+	if baseURL := r.GivenBaseURL(baseURLFlag); baseURL != "" {
 		opts = append(opts, onesie.WithBaseURL(baseURL))
 	}
 
@@ -157,14 +154,9 @@ func (r Resolution) Options(
 	return opts
 }
 
-// GivenBaseURL is the base URL given, from the flag or else the profile, and the name of where it
-// came from.
-func (r Resolution) GivenBaseURL(baseURLFlag string) (name, given string) {
-	if flag := strings.TrimSpace(baseURLFlag); flag != "" {
-		return "--" + flagBaseURL, flag
-	}
-
-	return profileBaseURL, r.BaseURL
+// GivenBaseURL is the base URL given, from the flag or else the profile.
+func (r Resolution) GivenBaseURL(baseURLFlag string) string {
+	return cmp.Or(strings.TrimSpace(baseURLFlag), r.BaseURL)
 }
 
 // ModelFor is the model a run asks, explicit first, then the profile's, then the provider's.
