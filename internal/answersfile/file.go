@@ -14,6 +14,7 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/frodi-karlsson/onesie/internal/input"
 	"github.com/frodi-karlsson/onesie/internal/output"
 	"github.com/frodi-karlsson/onesie/internal/patherr"
 	"github.com/frodi-karlsson/onesie/internal/plan"
@@ -47,13 +48,14 @@ func Open(opts Options, config Config) (*File, Resume, error) {
 	}
 
 	out := &File{
-		path:     config.Path,
-		open:     opts.OpenFile,
-		rename:   opts.Rename,
-		remove:   opts.Remove,
-		goos:     opts.GOOS,
-		speller:  opts.Speller,
-		readOnly: config.ReadOnly,
+		path:      config.Path,
+		open:      opts.OpenFile,
+		rename:    opts.Rename,
+		remove:    opts.Remove,
+		goos:      opts.GOOS,
+		speller:   opts.Speller,
+		readOnly:  config.ReadOnly,
+		delimiter: config.Delimiter,
 	}
 
 	// Once, and ahead of the lock, so a run through a symlink and a run into its target take the
@@ -153,8 +155,8 @@ type Config struct {
 	Output   string
 	ByID     bool
 	ReadOnly bool
-	// Comma separates the cells of a csv file. Zero reads it from the file's own header row.
-	Comma rune
+	// Delimiter separates the cells of a csv file, read from the file's own header row under Detect.
+	Delimiter input.Delimiter
 }
 
 func resumeOut(out *File, config Config) (Resume, error) {
@@ -165,7 +167,7 @@ func resumeOut(out *File, config Config) (Resume, error) {
 	var resume Resume
 
 	if config.Output == "csv" || config.Output == "tsv" {
-		rows, length, err := out.completeRows(config.Output == "csv", config.Comma)
+		rows, length, err := out.completeRows(config.Output == "csv", config.Delimiter)
 		if err != nil {
 			return Resume{}, err
 		}
@@ -299,6 +301,7 @@ type File struct {
 	matched  bool
 	readOnly bool
 
+	delimiter   input.Delimiter
 	fingerprint *Print
 	file        *os.File
 	size        int64
@@ -469,7 +472,7 @@ func (o *File) writeCompacted(temporary string) (err error) {
 
 	var header int64
 	if o.rewrite.delimited {
-		header, err = headerLength(io.NewSectionReader(source, 0, o.size), o.rewrite.quoted)
+		header, err = headerLength(io.NewSectionReader(source, 0, o.size), o.rewrite.quoted, o.delimiter)
 		if err != nil {
 			return err
 		}
@@ -855,7 +858,7 @@ func (o *File) writeFingerprint() error {
 	return nil
 }
 
-func (o *File) completeRows(quoted bool, comma rune) (rows int, length int64, err error) {
+func (o *File) completeRows(quoted bool, delimiter input.Delimiter) (rows int, length int64, err error) {
 	// TSV has no quoting, so a row is a line.
 	if !quoted {
 		return o.completeLines()
@@ -874,7 +877,7 @@ func (o *File) completeRows(quoted bool, comma rune) (rows int, length int64, er
 		err = errors.Join(err, file.Close())
 	}()
 
-	reader := csvRows(file, comma)
+	reader := csvRows(file, delimiter)
 
 	// A quoted field can hold a newline, so rows are counted as csv rather than as lines. A row
 	// only counts once its closing newline is on disk, which is what tells a finished row from one

@@ -16,7 +16,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -30,9 +29,11 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/input"
 	"github.com/frodi-karlsson/onesie/internal/limits"
 	"github.com/frodi-karlsson/onesie/internal/mock"
+	"github.com/frodi-karlsson/onesie/internal/output"
 	"github.com/frodi-karlsson/onesie/internal/providers"
 	"github.com/frodi-karlsson/onesie/internal/release"
 	"github.com/frodi-karlsson/onesie/internal/resolve"
+	"github.com/frodi-karlsson/onesie/internal/runner"
 )
 
 const annotationAsksNothing = "onesie-asks-nothing"
@@ -337,33 +338,28 @@ func openOut(settings rootSettings, flags runFlags, readOnly bool) (*answersfile
 		Lock:     settings.lock,
 		GOOS:     settings.goos,
 	}, answersfile.Config{
-		Path:     flags.out,
-		Resume:   flags.resume,
-		Output:   flags.output,
-		ByID:     resumesByID(flags),
-		ReadOnly: readOnly,
-		Comma:    answersComma(flags),
+		Path:      flags.out,
+		Resume:    flags.resume,
+		Output:    flags.output,
+		ByID:      resumesByID(flags),
+		ReadOnly:  readOnly,
+		Delimiter: answersDelimiter(flags),
 	})
 
 	return out, resume, wordAnswersError(err)
 }
 
-func answersComma(flags runFlags) rune {
-	if !flags.merge && flags.mergeKey == "" || flags.output != "csv" || flags.input != "csv" {
-		return ','
+func answersDelimiter(flags runFlags) input.Delimiter {
+	inputMode, inputErr := input.ParseMode(flags.input)
+	outputMode, outputErr := output.ParseMode(flags.output, false, true, true)
+	delimiter, delimiterErr := input.ParseDelimiter(flags.delimiter)
+
+	// Commas, for no --delimiter at all and for a value the run refuses before it writes anything.
+	if errors.Join(inputErr, outputErr, delimiterErr) != nil {
+		return input.Delimiter{}
 	}
 
-	switch flags.delimiter {
-	case "":
-		return ','
-	case "auto":
-		// Zero has the answers file read the comma from its own header row.
-		return 0
-	default:
-		comma, _ := utf8.DecodeRuneInString(flags.delimiter)
-
-		return comma
-	}
+	return runner.AnswersDelimiter(flags.merge || flags.mergeKey != "", outputMode, inputMode, delimiter)
 }
 
 func wordAnswersError(err error) error {

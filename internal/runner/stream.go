@@ -4,7 +4,6 @@ package runner
 
 import (
 	"bytes"
-	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -105,7 +104,8 @@ func newStreamRun(ctx context.Context, config StreamConfig) (*streamRun, error) 
 
 	format := answersfile.Format{
 		Mode: config.OutputMode, Merge: config.Merge, MergeKey: config.MergeKey, Namer: config.Namer,
-		Gated: config.Gate != nil, Comma: answersComma(config),
+		Gated:     config.Gate != nil,
+		Delimiter: AnswersDelimiter(config.Merge, config.OutputMode, config.InputMode, config.Delimiter),
 	}
 
 	book, err := answersfile.ResumeLedger(ctx, config.Answers, format)
@@ -134,22 +134,18 @@ func newStreamRun(ctx context.Context, config StreamConfig) (*streamRun, error) 
 	return run, nil
 }
 
-func answersComma(config StreamConfig) rune {
-	if !mergesCSV(config) {
-		return ','
+// AnswersDelimiter is the delimiter of an answers file's csv rows. Only a merge from csv into csv
+// writes with the input's delimiter, and every other answers file uses commas.
+func AnswersDelimiter(merge bool, out output.Mode, in input.Mode, delimiter input.Delimiter) input.Delimiter {
+	if !mergesCSV(merge, out, in) {
+		return input.Delimiter{}
 	}
 
-	// Zero has the answers file read the comma from its own header row, which a file written under
-	// a detected comma carries.
-	if config.Delimiter.Detect {
-		return 0
-	}
-
-	return cmp.Or(config.Delimiter.Comma, ',')
+	return delimiter
 }
 
-func mergesCSV(config StreamConfig) bool {
-	return config.Merge && config.OutputMode == output.CSV && config.InputMode == input.CSV
+func mergesCSV(merge bool, out output.Mode, in input.Mode) bool {
+	return merge && out == output.CSV && in == input.CSV
 }
 
 func dedupFor(config StreamConfig) *dedup {
@@ -386,7 +382,7 @@ func (r *streamRun) writeLine(l line) error {
 }
 
 func (r *streamRun) tableComma() rune {
-	if !mergesCSV(r.config) {
+	if !mergesCSV(r.config.Merge, r.config.OutputMode, r.config.InputMode) {
 		return 0
 	}
 
