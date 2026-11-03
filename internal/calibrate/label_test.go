@@ -193,8 +193,10 @@ func TestParseLabel(t *testing.T) {
 			name: "should read the float 4 against the levels 1 to 5", shape: plan.Rate, names: levels,
 			value: 4.0, want: calibrate.Label{Name: "4"},
 		},
-		{name: "should read y as yes in any case", shape: plan.Noul, value: "Y", want: yes},
-		{name: "should read y and n as yes and no in any case", shape: plan.Noul, value: "n", want: no},
+		{name: "should read y as yes", shape: plan.Noul, value: "y", want: yes},
+		{name: "should read Y as yes", shape: plan.Noul, value: "Y", want: yes},
+		{name: "should read n as no", shape: plan.Noul, value: "n", want: no},
+		{name: "should read N as no", shape: plan.Noul, value: "N", want: no},
 		{name: "should trim a yes or no label", shape: plan.Noul, value: " yes ", want: yes},
 		{
 			name: "should trim a pick label to its name", shape: plan.Pick, names: options,
