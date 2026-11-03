@@ -10,7 +10,7 @@ import (
 // NewResolver resolves the profile or provider of a run once, from the choice given and then from
 // the environment, and opens the profiles file at most once.
 func NewResolver(
-	given func() (Given, error),
+	given func() Given,
 	open func() (creds.Opened, error),
 	lookupEnv func(string) (string, bool),
 	speller plan.Speller,
@@ -43,17 +43,12 @@ type Resolver struct {
 }
 
 func resolveRun(
-	given func() (Given, error),
+	given func() Given,
 	open func() (creds.Opened, error),
 	lookupEnv func(string) (string, bool),
 	speller plan.Speller,
 ) (Resolution, error) {
-	choice, err := given()
-	if err != nil {
-		return Resolution{}, err
-	}
-
-	chosen, err := Choose(choice, lookupEnv, speller)
+	chosen, err := Choose(given(), lookupEnv, speller)
 	if err != nil {
 		return Resolution{}, err
 	}

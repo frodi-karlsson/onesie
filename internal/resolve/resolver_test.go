@@ -15,12 +15,10 @@ func TestResolver_Resolved(t *testing.T) {
 		"work": {Provider: "openrouter", APIKey: "SECRET-WORK"},
 	}}
 	unreadable := errors.New("profiles.json is readable by others")
-	refusedChoice := errors.New("the settings could not be read")
 
 	tests := []struct {
 		name         string
 		given        Given
-		givenErr     error
 		env          map[string]string
 		openErr      error
 		neverOpen    bool
@@ -44,11 +42,6 @@ func TestResolver_Resolved(t *testing.T) {
 			name:    "should pass a refused choice on",
 			given:   Given{Profile: "work", ProfileSet: true, Provider: "berget", ProviderSet: true},
 			wantErr: "--profile and --provider both choose what the run uses. Pass one",
-		},
-		{
-			name:     "should pass on the error the given choice failed with",
-			givenErr: refusedChoice, neverOpen: true,
-			wantErr: refusedChoice.Error(), wantIs: refusedChoice,
 		},
 		{
 			name:  "should run without a profile under --provider and ignore the profile's key",
@@ -88,7 +81,7 @@ func TestResolver_Resolved(t *testing.T) {
 
 				return creds.Opened{Profiles: profiles}, tc.openErr
 			}
-			given := func() (Given, error) { return tc.given, tc.givenErr }
+			given := func() Given { return tc.given }
 
 			got, err := NewResolver(given, open, lookupFrom(tc.env), plan.Flags).Resolved()
 			if tc.wantErr != "" {

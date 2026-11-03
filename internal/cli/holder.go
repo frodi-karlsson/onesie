@@ -12,7 +12,7 @@ import (
 
 func newHolder(settings rootSettings, flags *runFlags, stderr func() io.Writer) *holder {
 	resolver := resolve.NewResolver(
-		func() (resolve.Given, error) { return givenOf(flags), nil },
+		func() resolve.Given { return givenOf(flags) },
 		func() (creds.Opened, error) { return openProfiles(settings, stderr()) },
 		settings.lookupEnv,
 		plan.Flags,
