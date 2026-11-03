@@ -31,17 +31,18 @@ func NewNaming(ctx context.Context, config RecordsConfig) *Naming {
 	ctx, cancel := context.WithCancel(ctx)
 
 	return &Naming{
-		ctx:     ctx,
-		cancel:  cancel,
-		source:  NewResumed(stream, config.ResumedConfig),
-		stream:  stream,
-		namer:   config.Namer,
-		halt:    config.StopOnAssert,
-		book:    config.Book,
-		mode:    config.OutputMode,
-		input:   config.InputMode,
-		speller: config.Speller,
-		seen:    map[[sha256.Size]byte]int{},
+		ctx:      ctx,
+		cancel:   cancel,
+		source:   NewResumed(stream, config.ResumedConfig),
+		stream:   stream,
+		namer:    config.Namer,
+		halt:     config.StopOnAssert,
+		book:     config.Book,
+		mode:     config.OutputMode,
+		input:    config.InputMode,
+		speller:  config.Speller,
+		appended: config.Appended,
+		seen:     map[[sha256.Size]byte]int{},
 	}
 }
 
@@ -55,6 +56,15 @@ type RecordsConfig struct {
 	Delimiter input.Delimiter
 	Namer     *jq.Expr
 	Book      *answersfile.Ledger
+	// Appended is the csv answers file whose rows a run appends to with the comma it detects in the
+	// input. Nil means the run appends to none.
+	Appended *AppendedCSV
+}
+
+// AppendedCSV is a resumed csv answers file and the comma its rows use.
+type AppendedCSV struct {
+	Path  string
+	Comma rune
 }
 
 // ResumedConfig is the resume a source skips and the stop flags a fresh run would have honoured.
@@ -220,6 +230,10 @@ func (n *Naming) Next() (NamedRecord, bool, error) {
 			return NamedRecord{Record: rec}, ok, err
 		}
 
+		if err := n.matchComma(); err != nil {
+			return NamedRecord{Record: rec}, false, err
+		}
+
 		named := n.named(rec)
 
 		// An interrupt can end the naming context before the engine's, so an --id it cut short ends
@@ -245,6 +259,24 @@ func (n *Naming) Next() (NamedRecord, bool, error) {
 	}
 
 	return NamedRecord{}, false, nil
+}
+
+func (n *Naming) matchComma() error {
+	appended := n.appended
+	if appended == nil {
+		return nil
+	}
+
+	// Checked once, at the first record read, which fixes the detected comma.
+	n.appended = nil
+
+	if comma := n.stream.Comma(); comma != appended.Comma {
+		return fmt.Errorf("%s auto read '%s' from the input, and %s uses '%s'. Drop %s to start over",
+			n.speller.Spell("--delimiter"), escaped(string(comma)), appended.Path, escaped(string(appended.Comma)),
+			n.speller.Spell("--resume"))
+	}
+
+	return nil
 }
 
 // Stop ends the context the ids are computed under.
@@ -293,20 +325,21 @@ func (n *Naming) Comma() rune {
 
 // Naming reads records and names each by its id.
 type Naming struct {
-	ctx     context.Context
-	cancel  context.CancelFunc
-	source  *Resumed
-	stream  *input.Stream
-	namer   *jq.Expr
-	book    *answersfile.Ledger
-	mode    output.Mode
-	input   input.Mode
-	speller plan.Speller
-	seen    map[[sha256.Size]byte]int
-	halt    bool
-	halted  bool
-	misread atomic.Pointer[[]string]
-	otherID atomic.Bool
+	ctx      context.Context
+	cancel   context.CancelFunc
+	source   *Resumed
+	stream   *input.Stream
+	namer    *jq.Expr
+	book     *answersfile.Ledger
+	mode     output.Mode
+	input    input.Mode
+	speller  plan.Speller
+	appended *AppendedCSV
+	seen     map[[sha256.Size]byte]int
+	halt     bool
+	halted   bool
+	misread  atomic.Pointer[[]string]
+	otherID  atomic.Bool
 }
 
 // DelimiterHint suggests the setting that splits on the delimiter a one column header holds.

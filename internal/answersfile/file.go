@@ -167,7 +167,7 @@ func resumeOut(out *File, config Config) (Resume, error) {
 	var resume Resume
 
 	if config.Output == "csv" || config.Output == "tsv" {
-		rows, length, err := out.completeRows(config.Output == "csv", config.Delimiter)
+		rows, length, comma, err := out.completeRows(config.Output == "csv", config.Delimiter)
 		if err != nil {
 			return Resume{}, err
 		}
@@ -177,6 +177,7 @@ func resumeOut(out *File, config Config) (Resume, error) {
 		// The first row is the header, which is written once and answers no record.
 		if rows > 0 {
 			resume.Header = true
+			resume.Comma = comma
 		}
 
 		if rows > 0 && !config.ByID {
@@ -201,10 +202,11 @@ func resumeOut(out *File, config Config) (Resume, error) {
 }
 
 // Resume says how many records a resume by position skips, the verdicts stored for them and whether
-// the file has its header row.
+// the file has its header row. Comma separates the cells of a file with a header row.
 type Resume struct {
 	Skip   int
 	Header bool
+	Comma  rune
 	Stored []Verdict
 }
 
@@ -369,6 +371,11 @@ func (o *File) removeStalePart() error {
 	}
 
 	return nil
+}
+
+// Path is the answers file's path as the caller named it.
+func (o *File) Path() string {
+	return o.path
 }
 
 // Offset is the length of the file as this run has written it.
@@ -858,19 +865,23 @@ func (o *File) writeFingerprint() error {
 	return nil
 }
 
-func (o *File) completeRows(quoted bool, delimiter input.Delimiter) (rows int, length int64, err error) {
+func (o *File) completeRows(
+	quoted bool, delimiter input.Delimiter,
+) (rows int, length int64, comma rune, err error) {
 	// TSV has no quoting, so a row is a line.
 	if !quoted {
-		return o.completeLines()
+		rows, length, err = o.completeLines()
+
+		return rows, length, '\t', err
 	}
 
 	file, err := o.open(o.path, os.O_RDONLY, 0)
 	if errors.Is(err, os.ErrNotExist) {
-		return 0, 0, nil
+		return 0, 0, 0, nil
 	}
 
 	if err != nil {
-		return 0, 0, fmt.Errorf("reading %s to resume: %w", o.path, err)
+		return 0, 0, 0, fmt.Errorf("reading %s to resume: %w", o.path, err)
 	}
 
 	defer func() {
@@ -884,14 +895,14 @@ func (o *File) completeRows(quoted bool, delimiter input.Delimiter) (rows int, l
 	// cut off at a field boundary.
 	for {
 		if _, readErr := reader.Read(); readErr != nil {
-			return rows, length, nil
+			return rows, length, reader.Comma, nil
 		}
 
 		offset := reader.InputOffset()
 
 		last := make([]byte, 1)
 		if _, readErr := file.ReadAt(last, offset-1); readErr != nil || last[0] != '\n' {
-			return rows, length, nil
+			return rows, length, reader.Comma, nil
 		}
 
 		rows++

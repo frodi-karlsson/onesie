@@ -179,7 +179,18 @@ func recordsConfig(config StreamConfig, book *answersfile.Ledger, resume answers
 		Delimiter: config.Delimiter,
 		Namer:     config.Namer,
 		Book:      book,
+		Appended:  appended(config, resume),
 	}
+}
+
+func appended(config StreamConfig, resume answersfile.Resume) *AppendedCSV {
+	// Only a detected comma can differ from the one the file was written with, since a given one
+	// also reads the file back.
+	if !resume.Header || !config.Delimiter.Detect || !mergesCSV(config.Merge, config.OutputMode, config.InputMode) {
+		return nil
+	}
+
+	return &AppendedCSV{Path: config.Answers.Path(), Comma: resume.Comma}
 }
 
 type streamRun struct {

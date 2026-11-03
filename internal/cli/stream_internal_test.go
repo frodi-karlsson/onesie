@@ -1931,6 +1931,57 @@ func TestStream(t *testing.T) {
 				t.Errorf("answers file = %q, want %q", written, want)
 			}
 		})
+
+		t.Run("should refuse an auto resume whose input delimiter differs from the file's", func(t *testing.T) {
+			t.Parallel()
+
+			tests := []struct {
+				name string
+				args []string
+			}{
+				{name: "should refuse it by --id", args: asking()},
+				{
+					name: "should refuse it by position",
+					args: []string{"is it urgent", "-i", "csv", "--map", ".text", "--mock", mock},
+				},
+			}
+
+			for _, tc := range tests {
+				t.Run(tc.name, func(t *testing.T) {
+					t.Parallel()
+
+					answers := filepath.Join(t.TempDir(), "answers.csv")
+					args := append(slices.Clone(tc.args), "--delimiter", "auto", "-o", "csv", "--merge", "--out", answers)
+
+					first := "id;text\n1;a\n2;b\n3;c\n"
+					if _, errOut, code := runMocked(t, t.Context(), args, first, nil, nil); code != ExitOK {
+						t.Fatalf("first run exit %d\nstderr:\n%s", code, errOut)
+					}
+
+					before, err := os.ReadFile(answers)
+					if err != nil {
+						t.Fatal(err)
+					}
+
+					commas := "id,text\n1,a\n2,b\n3,c\n4,d\n"
+					_, errOut, code := runMocked(t, t.Context(), append(args, "--resume"), commas, nil, nil)
+
+					want := "--delimiter auto read ',' from the input, and " + answers + " uses ';'. Drop --resume to start over"
+					if code != ExitUsage || !strings.Contains(errOut, want) {
+						t.Errorf("resume exit %d, want 2 with %q\nstderr:\n%s", code, want, errOut)
+					}
+
+					after, err := os.ReadFile(answers)
+					if err != nil {
+						t.Fatal(err)
+					}
+
+					if string(after) != string(before) {
+						t.Errorf("answers file = %q, want it left as %q", after, before)
+					}
+				})
+			}
+		})
 	})
 }
 
