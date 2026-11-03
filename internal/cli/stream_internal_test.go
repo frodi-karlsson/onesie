@@ -1882,6 +1882,17 @@ func TestStream(t *testing.T) {
 				args:    asking("--delimiter", "auto", "-o", "csv", "--merge"),
 				wantOut: "id;text;answer;error\n1;refund, please;0.9;\n2;hello;0.9;\n",
 			},
+			{
+				name: "should split a --print-request csv by --delimiter", stdin: semicolons,
+				args: []string{
+					"is it urgent", "-i", "csv", "--map", ".text", "--delimiter", ";", "--print-request",
+					"--provider", "typesafe",
+				},
+				wantOut: `{"state":"refund, please","model":"jev-latest","questions":` +
+					`{"answer":{"type":"noul","instructions":"is it urgent"}}}` + "\n" +
+					`{"state":"hello","model":"jev-latest","questions":` +
+					`{"answer":{"type":"noul","instructions":"is it urgent"}}}` + "\n",
+			},
 		}
 
 		for _, tc := range tests {
