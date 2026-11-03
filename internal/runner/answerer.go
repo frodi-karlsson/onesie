@@ -31,9 +31,17 @@ type RecordKey struct {
 }
 
 // NewLiveAnswerer asks the API through client, and passes each error with its request through
-// explain, which returns nil for a nil error.
+// explain, which returns nil for a nil error. A nil explain returns the error unchanged.
 func NewLiveAnswerer(client *onesie.Client, explain func(error, onesie.Request) error) LiveAnswerer {
+	if explain == nil {
+		explain = unexplained
+	}
+
 	return LiveAnswerer{client: client, explain: explain}
+}
+
+func unexplained(err error, _ onesie.Request) error {
+	return err
 }
 
 // Answer asks the API.

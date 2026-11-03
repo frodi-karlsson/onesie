@@ -9,6 +9,7 @@ import (
 
 	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/input"
+	"github.com/frodi-karlsson/onesie/internal/jq"
 	"github.com/frodi-karlsson/onesie/internal/output"
 	"github.com/frodi-karlsson/onesie/internal/plan"
 	"github.com/frodi-karlsson/onesie/internal/runner"
@@ -19,6 +20,11 @@ func TestStream(t *testing.T) {
 
 	built := &plan.Plan{Questions: []plan.Question{{ID: "answer", Shape: plan.Noul}}}
 
+	namer, err := jq.Compile(".id")
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	tests := []struct {
 		name       string
 		in         string
@@ -26,7 +32,10 @@ func TestStream(t *testing.T) {
 		outputMode output.Mode
 		merge      bool
 		delimiter  input.Delimiter
+		namer      *jq.Expr
+		bare       bool
 		want       string
+		wantFailed int
 	}{
 		{
 			name:      "should ask a record with no images when Images is nil",
@@ -53,6 +62,19 @@ func TestStream(t *testing.T) {
 			name: "should build the table on the first write, so an empty input writes nothing", in: "",
 			inputMode: input.CSV, outputMode: output.CSV, merge: true, delimiter: input.Delimiter{Detect: true},
 		},
+		{
+			name: "should word a failure by its error and count it with no Message or Stats", in: "a ticket\n\n",
+			inputMode: input.Lines, bare: true, wantFailed: 1,
+			want: `{"line":1,"model":"m","answer":{"value":0.9}}` + "\n" +
+				`{"line":2,"error":{"kind":"input","status":null,"message":"line 2: blank line, an empty state is ` +
+				`a request the model cannot answer. Pass --skip-blank to drop blank lines"}}` + "\n",
+		},
+		{
+			name: "should drop the id hint with no ErrOut", in: "id\tbody\n1\ta\n", inputMode: input.CSV, namer: namer,
+			bare: true, wantFailed: 1,
+			want: `{"error":{"kind":"input","status":null,"message":"line 2: --id: id must be a string ` +
+				`or a finite number, got null"}}` + "\n",
+		},
 	}
 
 	for _, tc := range tests {
@@ -62,7 +84,7 @@ func TestStream(t *testing.T) {
 			var out strings.Builder
 
 			stub := &requestAnswerer{}
-			outcome, err := runner.Stream(t.Context(), runner.StreamConfig{
+			config := runner.StreamConfig{
 				Input:      strings.NewReader(tc.in),
 				InputMode:  tc.inputMode,
 				Delimiter:  tc.delimiter,
@@ -71,15 +93,22 @@ func TestStream(t *testing.T) {
 				OutputMode: tc.outputMode,
 				Merge:      tc.merge,
 				MergeKey:   "answers",
+				Namer:      tc.namer,
 				Ask: runner.Ask{
 					Plan: built, Model: "m", Questions: plan.WireAll(built.Questions), Message: errorMessage,
 				},
 				Answerers: func(context.Context, *runner.Collector) (runner.Answerer, error) { return stub, nil },
 				Stats:     &runner.Collector{},
 				Jobs:      1,
-			})
-			if err != nil || outcome.Failed != 0 {
-				t.Fatalf("Stream = %+v, %v, want every record answered", outcome, err)
+			}
+
+			if tc.bare {
+				config.ErrOut, config.Ask.Message, config.Stats = nil, nil, nil
+			}
+
+			outcome, err := runner.Stream(t.Context(), config)
+			if err != nil || outcome.Failed != tc.wantFailed {
+				t.Fatalf("Stream = %+v, %v, want %d failed", outcome, err, tc.wantFailed)
 			}
 
 			if out.String() != tc.want {

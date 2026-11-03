@@ -1,16 +1,24 @@
 package resolve
 
 import (
+	"errors"
 	"net/http"
+	"os"
+	"reflect"
 	"time"
 
 	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/creds"
 )
 
+var errNoKeychain = errors.New(
+	"the profile keeps its key in the keychain, and the client has no keychain to read it from")
+
 // NewClient builds the client a resolution asks through. extra goes last, so a caller's own options,
 // such as the attempt observer, win over the config's.
 func NewClient(chosen Resolution, config ClientConfig, extra ...onesie.Option) (*onesie.Client, error) {
+	config = config.withDefaults()
+
 	opts := []onesie.Option{
 		onesie.WithProvider(chosen.Provider),
 		onesie.WithUserAgent(config.UserAgent),
@@ -23,14 +31,19 @@ func NewClient(chosen Resolution, config ClientConfig, extra ...onesie.Option) (
 
 	opts = append(opts, onesie.WithHTTPClient(&http.Client{Transport: Pooled(config.Transport, config.Jobs)}))
 	opts = append(opts, chosen.Options(config.BaseURL, ProfileKey(chosen, config.Keychain), config.LookupEnv)...)
-	opts = append(opts, onesie.WithRetry(config.Retry), onesie.WithClock(config.Clock))
+	opts = append(opts, onesie.WithRetry(config.Retry))
+
+	if config.Clock != nil {
+		opts = append(opts, onesie.WithClock(config.Clock))
+	}
+
 	opts = append(opts, extra...)
 
 	return onesie.New(opts...)
 }
 
-// ClientConfig is what NewClient builds a client with. BaseURL is the base URL the caller was given,
-// empty for none.
+// ClientConfig is what NewClient builds a client with, and BaseURL is empty when none was given. A
+// zero field takes a working default, and a nil Keychain refuses a profile that keeps its key there.
 type ClientConfig struct {
 	UserAgent string
 	LookupEnv func(string) (string, bool)
@@ -43,6 +56,27 @@ type ClientConfig struct {
 	Keychain  interface {
 		Get(account string) (string, error)
 	}
+}
+
+func (c ClientConfig) withDefaults() ClientConfig {
+	if c.UserAgent == "" {
+		c.UserAgent = "onesie"
+	}
+
+	if c.LookupEnv == nil {
+		c.LookupEnv = os.LookupEnv
+	}
+
+	if c.Transport == nil {
+		c.Transport = http.DefaultTransport
+	}
+
+	// Through reflect, since the policy's func field leaves it no == to compare against.
+	if reflect.ValueOf(c.Retry).IsZero() {
+		c.Retry = onesie.DefaultRetryPolicy()
+	}
+
+	return c
 }
 
 // RetryPolicy is the default retry policy with its retries and its cap on a server's retry after.
@@ -63,6 +97,10 @@ func ProfileKey(chosen Resolution, keychain interface{ Get(string) (string, erro
 	return func() (string, error) {
 		if chosen.KeyFrom != KeyFromKeychain {
 			return chosen.key, nil
+		}
+
+		if keychain == nil {
+			return "", errNoKeychain
 		}
 
 		read, err := keychain.Get(chosen.Account)

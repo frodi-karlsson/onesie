@@ -25,6 +25,8 @@ import (
 // Stream asks every record of an input, writes each answer and resumes an answers file. An error is
 // one the run could not carry on past. The records' own outcome comes back in the StreamOutcome.
 func Stream(ctx context.Context, config StreamConfig) (StreamOutcome, error) {
+	config = config.withDefaults()
+
 	run, err := newStreamRun(ctx, config)
 	if err != nil {
 		return StreamOutcome{}, err
@@ -44,7 +46,8 @@ func Stream(ctx context.Context, config StreamConfig) (StreamOutcome, error) {
 	return run.finish(ctx, result, err)
 }
 
-// StreamConfig is everything a stream reads, asks with and writes to.
+// StreamConfig is everything a stream reads, asks with and writes to. A nil Ask.Message words a
+// failure by its error, a nil Stats counts into a fresh Collector and a nil ErrOut drops the notices.
 type StreamConfig struct {
 	Input     io.Reader
 	InputMode input.Mode
@@ -78,6 +81,22 @@ type StreamConfig struct {
 	MergeKey string
 	Prune    bool
 	Speller  plan.Speller
+}
+
+func (c StreamConfig) withDefaults() StreamConfig {
+	if c.Ask.Message == nil {
+		c.Ask.Message = error.Error
+	}
+
+	if c.Stats == nil {
+		c.Stats = &Collector{}
+	}
+
+	if c.ErrOut == nil {
+		c.ErrOut = io.Discard
+	}
+
+	return c
 }
 
 // Images wraps a text line under its image field and attaches the images a record names.
