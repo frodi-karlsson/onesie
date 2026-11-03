@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/frodi-karlsson/onesie/internal/input"
 	"github.com/frodi-karlsson/onesie/internal/output"
 	"github.com/frodi-karlsson/onesie/internal/plan"
 )
@@ -81,12 +82,24 @@ func printedRun(questions []plan.Question, wired json.Marshaler, inputs Fingerpr
 		AbstainIf: inputs.AbstainIf,
 		SkipBlank: inputs.SkipBlank,
 		Images:    inputs.Images,
-		Delimiter: inputs.Delimiter,
+		Delimiter: delimiterSetting(inputs.Delimiter),
 
 		LongContext: inputs.LongContext,
 
 		FallbackColumns: !inputs.withoutFallbackColumns && delimitedOutput(inputs.Output) && hasFallback(questions),
 		Mock:            inputs.Mock,
+	}
+}
+
+func delimiterSetting(delimiter input.Delimiter) string {
+	switch {
+	case delimiter.Detect:
+		return "auto"
+	case delimiter.Comma == 0 || delimiter.Comma == ',':
+		// Empty, as with no delimiter given, so a file either one writes resumes under the other.
+		return ""
+	default:
+		return string(delimiter.Comma)
 	}
 }
 
@@ -205,8 +218,8 @@ type FingerprintInputs struct {
 	AbstainIf string
 	SkipBlank bool
 	Images    []string
-	// Delimiter is the --delimiter given, auto or one character, and empty when none was.
-	Delimiter string
+	// Delimiter splits a csv input. The zero value is a comma.
+	Delimiter input.Delimiter
 
 	LongContext bool
 	Mock        bool

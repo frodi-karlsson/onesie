@@ -402,9 +402,7 @@ func runInputs(settings rootSettings, flags runConfig, inputs answersfile.Finger
 	inputs.SkipBlank = flags.skipBlank && !resumesByID(flags.runFlags) && !delimitedInput(inputs.Input)
 	inputs.Mock = flags.mockPath != ""
 
-	if flags.hasDelimiter {
-		inputs.Delimiter = flags.runFlags.delimiter
-	}
+	inputs.Delimiter = flags.delimiter
 
 	return inputs, nil
 }

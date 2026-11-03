@@ -1932,6 +1932,23 @@ func TestStream(t *testing.T) {
 			}
 		})
 
+		t.Run("should resume a file --delimiter , wrote without the flag", func(t *testing.T) {
+			t.Parallel()
+
+			answers := filepath.Join(t.TempDir(), "answers.csv")
+			args := asking("-o", "csv", "--merge", "--out", answers)
+			commas := "id,text\n1,a\n2,b\n"
+
+			if _, errOut, code := runMocked(t, t.Context(), append(args, "--delimiter", ","), commas, nil, nil); code != ExitOK {
+				t.Fatalf("first run exit %d\nstderr:\n%s", code, errOut)
+			}
+
+			_, errOut, code := runMocked(t, t.Context(), append(args, "--resume", "--stats"), commas+"3,c\n", nil, nil)
+			if code != ExitOK || !strings.Contains(errOut, "2 skipped") {
+				t.Errorf("resume exit %d, want 0 with the two stored records skipped\nstderr:\n%s", code, errOut)
+			}
+		})
+
 		t.Run("should refuse an auto resume whose input delimiter differs from the file's", func(t *testing.T) {
 			t.Parallel()
 
