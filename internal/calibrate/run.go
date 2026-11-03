@@ -119,9 +119,10 @@ func ReadLabelled(ctx context.Context, config Config, labels []QuestionLabel) (L
 	ctx, stop := context.WithCancel(ctx)
 	defer stop()
 
-	next := readAhead(ctx, input.NewStream(config.Input, config.InputMode, input.StreamOptions{
+	stream := input.NewStream(config.Input, config.InputMode, input.StreamOptions{
 		SkipBlank: config.SkipBlank, Speller: config.Speller, Delimiter: config.Delimiter,
-	}))
+	})
+	next := readAhead(ctx, stream)
 	reader := &labelReader{
 		mapper: config.Mapper, namer: config.Namer, labels: labels, speller: config.Speller,
 		seen: map[[sha256.Size]byte]int{},
@@ -166,7 +167,7 @@ func ReadLabelled(ctx context.Context, config Config, labels []QuestionLabel) (L
 				return LabelledSet{}, ctxErr
 			}
 
-			return LabelledSet{}, &ReadError{Err: err, Read: set.Total, Header: rec.Header}
+			return LabelledSet{}, &ReadError{Err: err, Read: set.Total, Header: rec.Header, Comma: stream.Comma()}
 		}
 
 		if !found {
@@ -210,11 +211,12 @@ func (e *ReadError) Unwrap() error {
 }
 
 // ReadError is a record that could not be read, after Read records, with the header of the record it
-// failed on.
+// failed on and the comma it split on.
 type ReadError struct {
 	Err    error
 	Read   int
 	Header []string
+	Comma  rune
 }
 
 func readAhead(ctx context.Context, stream *input.Stream) <-chan pulledRecord {

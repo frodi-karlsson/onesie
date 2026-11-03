@@ -284,6 +284,14 @@ func TestFinishStream(t *testing.T) {
 			wantErr:  csvHint,
 		},
 		{
+			name:     "should name the --delimiter in use when -i csv reads a tab separated file",
+			args:     []string{"is this urgent", "-i", "csv", "--delimiter", ";", "--id", ".id"},
+			stdin:    tabs,
+			wantCode: ExitRecords,
+			wantErr: "onesie: every record's --id was null. -i csv splits each line on semicolons, " +
+				"so if the file is tab separated, pass -i tsv\n",
+		},
+		{
 			name:     "should hint at the delimiter after the one record --stop-on-error read",
 			args:     []string{"is this urgent", "-i", "tsv", "--id", ".id", "--stop-on-error"},
 			stdin:    commas,
@@ -351,11 +359,12 @@ func TestFirstIDHint(t *testing.T) {
 	)
 
 	tests := []struct {
-		name    string
-		input   string
-		id      string
-		stdin   string
-		wantErr string
+		name      string
+		input     string
+		delimiter string
+		id        string
+		stdin     string
+		wantErr   string
 	}{
 		{
 			name:  "should hint at the delimiter when calibrate's first record has a null --id under -i tsv",
@@ -366,6 +375,11 @@ func TestFirstIDHint(t *testing.T) {
 			name:  "should hint at the delimiter when calibrate's first record has a null --id under -i csv",
 			input: "csv", stdin: tabs,
 			wantErr: "onesie: " + null + ". -i csv splits each line on commas, so if the file is tab separated, pass -i tsv\n",
+		},
+		{
+			name:  "should name the --delimiter in use when calibrate's first record has a null --id",
+			input: "csv", delimiter: ";", stdin: tabs,
+			wantErr: "onesie: " + null + ". -i csv splits each line on semicolons, so if the file is tab separated, pass -i tsv\n",
 		},
 		{
 			name:  "should give no hint when a mistyped --id finds nothing in calibrate's first tab separated record",
@@ -401,6 +415,10 @@ func TestFirstIDHint(t *testing.T) {
 			args := []string{
 				"calibrate", "is this urgent", "-i", tc.input, "--id", id, "--map", ".body", "--label", ".label",
 				"--mock", mock,
+			}
+
+			if tc.delimiter != "" {
+				args = append(args, "--delimiter", tc.delimiter)
 			}
 
 			_, errOut, code := runMocked(t, t.Context(), args, tc.stdin, nil, nil)

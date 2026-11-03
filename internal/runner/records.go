@@ -315,7 +315,7 @@ func (n *Naming) IDHint() string {
 		return ""
 	}
 
-	return "every record's " + n.speller.Spell("--id") + " was null. " + DelimiterHint(n.input, *header, n.speller)
+	return "every record's " + n.speller.Spell("--id") + " was null. " + DelimiterHint(n.input, n.stream.Comma(), *header, n.speller)
 }
 
 // Comma is the separator the input splits a csv row on, final once the first record is read.
@@ -342,24 +342,38 @@ type Naming struct {
 	otherID  atomic.Bool
 }
 
-// DelimiterHint suggests the setting that splits on the delimiter a one column header holds.
-func DelimiterHint(mode input.Mode, header []string, speller plan.Speller) string {
+// DelimiterHint suggests the setting that splits on the delimiter a one column header holds. comma is
+// the separator a csv input split on.
+func DelimiterHint(mode input.Mode, comma rune, header []string, speller plan.Speller) string {
 	inputFlag := speller.Spell("-i")
 
 	switch {
 	case mode == input.CSV && semicolonHeader(header):
 		delimiter := speller.Spell("--delimiter")
 
-		return fmt.Sprintf("%s csv splits each line on commas, so if the file is semicolon separated, "+
-			"pass %s ';' or %s auto", inputFlag, delimiter, delimiter)
+		return fmt.Sprintf("%s csv splits each line on %s, so if the file is semicolon separated, "+
+			"pass %s ';' or %s auto", inputFlag, separatorName(comma), delimiter, delimiter)
 	case mode == input.CSV:
-		return fmt.Sprintf("%s csv splits each line on commas, so if the file is tab separated, pass %s tsv",
-			inputFlag, inputFlag)
+		return fmt.Sprintf("%s csv splits each line on %s, so if the file is tab separated, pass %s tsv",
+			inputFlag, separatorName(comma), inputFlag)
 	case mode == input.TSV:
 		return fmt.Sprintf("%s tsv splits each line on tabs, so if the file is comma separated, pass %s csv",
 			inputFlag, inputFlag)
 	default:
 		return ""
+	}
+}
+
+func separatorName(comma rune) string {
+	switch comma {
+	case 0, ',':
+		return "commas"
+	case ';':
+		return "semicolons"
+	case '\t':
+		return "tabs"
+	default:
+		return "'" + escaped(string(comma)) + "'"
 	}
 }
 
