@@ -53,7 +53,7 @@ func streamConfig(cmd *cobra.Command, in streamInputs, model string) runner.Stre
 		Input:      in.settings.stdin,
 		InputMode:  flags.inputMode,
 		SkipBlank:  flags.skipBlank,
-		Delimiter:  flags.delimiter,
+		Delimiter:  flags.parsedDelimiter,
 		Out:        cmd.OutOrStdout(),
 		ErrOut:     cmd.ErrOrStderr(),
 		OutputMode: in.outputMode,

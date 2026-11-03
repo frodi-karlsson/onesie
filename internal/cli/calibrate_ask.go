@@ -125,7 +125,7 @@ func calibrateConfig(settings rootSettings, flags runConfig, inputMode input.Mod
 		Input:     settings.stdin,
 		InputMode: inputMode,
 		SkipBlank: flags.skipBlank,
-		Delimiter: flags.delimiter,
+		Delimiter: flags.parsedDelimiter,
 		Mapper:    inv.Mapper,
 		Namer:     inv.Namer,
 		Images:    inv.images,

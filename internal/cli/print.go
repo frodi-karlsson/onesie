@@ -145,7 +145,7 @@ func streamRequests(
 			Resume: resume, OutputMode: output.JSON, StopOnAssert: flags.stopOnAssert, StopOnError: flags.stopOnError,
 			Speller: plan.Flags,
 		},
-		Input: settings.stdin, InputMode: flags.inputMode, SkipBlank: flags.skipBlank, Delimiter: flags.delimiter,
+		Input: settings.stdin, InputMode: flags.inputMode, SkipBlank: flags.skipBlank, Delimiter: flags.parsedDelimiter,
 		Namer: inv.Namer,
 	})
 

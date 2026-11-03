@@ -57,7 +57,7 @@ func newRunConfig(
 		maxRetryAfterSet: changed(flagMaxRetryAfter),
 		longContextSet:   changed(flagLongContext),
 		hasDelimiter:     changed(flagDelimiter),
-		delimiter:        delimiter,
+		parsedDelimiter:  delimiter,
 	}, nil
 }
 
@@ -83,8 +83,7 @@ type runConfig struct {
 	maxRetryAfterSet bool
 	longContextSet   bool
 	hasDelimiter     bool
-	// delimiter is the parsed --delimiter, which runFlags carries as text.
-	delimiter input.Delimiter
+	parsedDelimiter  input.Delimiter
 }
 
 type runFacts struct {

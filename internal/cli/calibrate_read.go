@@ -67,7 +67,7 @@ func firstIDHint(err error, inputMode input.Mode) error {
 		return err
 	}
 
-	// The cause alone, so a cause with its own reason prints as it did before it was wrapped.
+	// The cause alone, since text reads a Reason only from the top level error.
 	cause := unread.Err
 
 	// calibrate stops at the first record it cannot read, so a null id on the first record is every
