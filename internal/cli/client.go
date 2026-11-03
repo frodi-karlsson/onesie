@@ -27,6 +27,8 @@ func clientBuilder(info BuildInfo, flags *runFlags, settings rootSettings) clien
 	var warned, doubled sync.Once
 
 	return func(_ context.Context, chosen resolve.Resolution, extra ...onesie.Option) (*onesie.Client, error) {
+		retry := retryPolicyOf(*flags)
+
 		client, err := resolve.NewClient(chosen, resolve.ClientConfig{
 			UserAgent: "onesie/" + info.Version,
 			LookupEnv: settings.lookupEnv,
@@ -34,7 +36,7 @@ func clientBuilder(info BuildInfo, flags *runFlags, settings rootSettings) clien
 			Transport: settings.transport,
 			Jobs:      flags.jobs,
 			BaseURL:   flags.baseURL,
-			Retry:     retryPolicyOf(*flags),
+			Retry:     &retry,
 			Clock:     settings.clock,
 			Keychain:  settings.keychain,
 		}, extra...)

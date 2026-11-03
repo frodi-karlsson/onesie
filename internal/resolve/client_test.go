@@ -75,15 +75,15 @@ func TestClientConfig_withDefaults(t *testing.T) {
 			t.Errorf("Transport = %T, want http.DefaultTransport", got.Transport)
 		}
 
-		want := onesie.DefaultRetryPolicy()
-		if got.Retry.RetryStatus == nil {
-			t.Fatal("Retry has no retry status rule, want the default's")
+		if got.Retry == nil || got.Retry.RetryStatus == nil {
+			t.Fatalf("Retry = %+v, want the default policy with its retry status rule", got.Retry)
 		}
 
-		got.Retry.RetryStatus, want.RetryStatus = nil, nil
+		policy, want := *got.Retry, onesie.DefaultRetryPolicy()
+		policy.RetryStatus, want.RetryStatus = nil, nil
 
-		if !reflect.DeepEqual(got.Retry, want) {
-			t.Errorf("Retry = %+v, want %+v", got.Retry, want)
+		if !reflect.DeepEqual(policy, want) {
+			t.Errorf("Retry = %+v, want %+v", policy, want)
 		}
 	})
 
@@ -93,13 +93,13 @@ func TestClientConfig_withDefaults(t *testing.T) {
 		transport := &countingRoundTripper{base: http.DefaultTransport}
 		retry := RetryPolicy(7, time.Minute)
 
-		got := ClientConfig{LookupEnv: lookupFrom(nil), Transport: transport, Retry: retry}.withDefaults()
+		got := ClientConfig{LookupEnv: lookupFrom(nil), Transport: transport, Retry: &retry}.withDefaults()
 
 		if reflect.ValueOf(got.LookupEnv).Pointer() == reflect.ValueOf(os.LookupEnv).Pointer() {
 			t.Error("LookupEnv is os.LookupEnv, want the one given")
 		}
 
-		if got.Transport != transport || got.Retry.MaxRetries != 7 || got.Retry.MaxRetryAfter != time.Minute {
+		if got.Transport != transport || got.Retry != &retry {
 			t.Errorf("config = %+v, want the transport and the retry policy given", got)
 		}
 	})

@@ -4,7 +4,6 @@ import (
 	"errors"
 	"net/http"
 	"os"
-	"reflect"
 	"time"
 
 	"github.com/frodi-karlsson/onesie-go"
@@ -31,7 +30,7 @@ func NewClient(chosen Resolution, config ClientConfig, extra ...onesie.Option) (
 
 	opts = append(opts, onesie.WithHTTPClient(&http.Client{Transport: Pooled(config.Transport, config.Jobs)}))
 	opts = append(opts, chosen.Options(config.BaseURL, ProfileKey(chosen, config.Keychain), config.LookupEnv)...)
-	opts = append(opts, onesie.WithRetry(config.Retry))
+	opts = append(opts, onesie.WithRetry(*config.Retry))
 
 	if config.Clock != nil {
 		opts = append(opts, onesie.WithClock(config.Clock))
@@ -51,7 +50,7 @@ type ClientConfig struct {
 	Transport http.RoundTripper
 	Jobs      int
 	BaseURL   string
-	Retry     onesie.RetryPolicy
+	Retry     *onesie.RetryPolicy
 	Clock     onesie.Clock
 	Keychain  interface {
 		Get(account string) (string, error)
@@ -71,9 +70,9 @@ func (c ClientConfig) withDefaults() ClientConfig {
 		c.Transport = http.DefaultTransport
 	}
 
-	// Through reflect, since the policy's func field leaves it no == to compare against.
-	if reflect.ValueOf(c.Retry).IsZero() {
-		c.Retry = onesie.DefaultRetryPolicy()
+	if c.Retry == nil {
+		policy := onesie.DefaultRetryPolicy()
+		c.Retry = &policy
 	}
 
 	return c
