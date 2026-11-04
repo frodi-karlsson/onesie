@@ -38,7 +38,8 @@ make test-integration
 The live suite and `make skills-check` both run onesie in a temporary config dir, with
 `ONESIE_MOCK`, `ONESIE_PROFILE` and `ONESIE_PROVIDER` hidden. So an exported mock file, profile or
 provider never changes a run, and no test reads or converts your own `profiles.json` or
-`credentials.json`.
+`credentials.json`. `make skills-check` also hides `ONESIE_BASE_URL`, so a server of your own never
+answers a skill check.
 
 ## Repository secrets
 

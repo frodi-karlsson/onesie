@@ -54,11 +54,28 @@ func TestNewCacheCmd(t *testing.T) {
 		fill(t, env)
 
 		out, errOut, code := runCached(t, env, []string{"cache"}, "")
-		want := regexp.MustCompile(`^3 entries, 1 of them expiring since their model is an alias, [0-9.]+ (B|KB|MB) in ` +
-			regexp.QuoteMeta(env["ONESIE_CACHE_DIR"]) + "\n$")
+		want := regexp.MustCompile(`^3 entries, 1 of them expiring, since their model is an alias or their base URL ` +
+			`is custom, [0-9.]+ (B|KB|MB) in ` + regexp.QuoteMeta(env["ONESIE_CACHE_DIR"]) + "\n$")
 
 		if code != ExitOK || !want.MatchString(out) {
 			t.Errorf("exit %d, stdout %q, want it to match %s\n%s", code, out, want, errOut)
+		}
+	})
+
+	t.Run("should count a pinned model's answer from a custom base URL as expiring", func(t *testing.T) {
+		t.Parallel()
+
+		env := cacheEnv(t)
+		stub := newAnswerStub(t)
+
+		args := []string{"--cache", "--base-url", stub.url, "--ask", "u=is it urgent", "-m", "jev-1.13.0", "--state", "one"}
+		if _, errOut, code := runCached(t, env, args, ""); code != ExitOK {
+			t.Fatalf("filling the cache exited %d\n%s", code, errOut)
+		}
+
+		out, errOut, code := runCached(t, env, []string{"cache"}, "")
+		if code != ExitOK || !strings.HasPrefix(out, "1 entry, 1 of them expiring, since their model is an alias or ") {
+			t.Errorf("exit %d, stdout %q, want the entry counted as expiring\n%s", code, out, errOut)
 		}
 	})
 

@@ -470,7 +470,7 @@ ls photos/*.jpg | onesie -i lines --image-field photo 'is there a dog in `photo`
 ```sh
 onesie --cache -f shell-safety --state 'rm -rf /'
 ONESIE_CACHE=1 ./gate.sh   # every run in the script reads and fills the cache
-onesie cache               # 212 entries, 40 of them expiring since their model is an alias, 1.4 MB in DIR
+onesie cache               # 212 entries, 40 of them expiring, since their model is an alias or their base URL is custom, 1.4 MB in DIR
 onesie cache clear
 ```
 
@@ -532,8 +532,8 @@ again.
   line in `--out` carries zero usage like any other hit. Turning the cache on or off never refuses
   a resume, so a file written with the cache resumes without it, and the other way round.
   `calibrate --cache` works too.
-- `onesie cache` prints how many entries the cache holds, how many of them expire since their model
-  is an alias, their size and the directory, or `0 entries in DIR` when there is none. It creates
+- `onesie cache` prints how many entries the cache holds, how many of them expire, since their model
+  is an alias or their base URL is custom, their size and the directory, or `0 entries in DIR` when there is none. It creates
   nothing, and names on stderr a directory `--cache` refuses, with the reason `--cache` gives.
   `onesie cache clear` removes every entry, keeps the directory and its `CACHEDIR.TAG`, and prints
   how many it removed, or `no cache in DIR, so nothing was removed` when the directory does not

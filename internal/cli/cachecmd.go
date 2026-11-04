@@ -16,11 +16,12 @@ func newCacheCmd(settings rootSettings) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "cache",
 		Short: "Report what the response cache holds",
-		Long: "cache prints how many answers --cache holds on disk, how many of them expire since their " +
-			"model is an alias, how much space they take and where they live.\n\n" +
+		Long: "cache prints how many answers --cache holds on disk, how many of them expire, since their " +
+			"model is an alias or their base URL is custom, how much space they take and where they live.\n\n" +
 			"On typesafe a model name that ends in a version, such as jev-1.13.0, is pinned, and its " +
 			"answers stay until they are evicted. Every other model is an alias, whose answers expire " +
-			"after ONESIE_CACHE_TTL, 24h unless set.\n\n" +
+			"after ONESIE_CACHE_TTL, 24h unless set. So does an answer from a base URL other than the " +
+			"provider's own, whatever its model.\n\n" +
 			"The cache lives in ONESIE_CACHE_DIR, or else XDG_CACHE_HOME/onesie, or else the system's own " +
 			"cache directory. cache clear empties it.",
 		Example: "  onesie cache\n" +
@@ -116,7 +117,7 @@ func describeCache(summary cache.Summary, dir string) string {
 		return "0 entries in " + dir
 	}
 
-	return fmt.Sprintf("%s, %d of them expiring since their model is an alias, %s in %s",
+	return fmt.Sprintf("%s, %d of them expiring, since their model is an alias or their base URL is custom, %s in %s",
 		entries(summary.Entries), summary.Aliases, size(summary.Bytes), dir)
 }
 
