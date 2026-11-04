@@ -38,7 +38,11 @@ A profile names its provider, so `onesie profile create work --provider openrout
 
 ### End the setup with onesie profile test, not profile show.
 
-`profile show` only reports what a run would use and where its key lives, and never reads the keychain. `profile test` reads the key and sends it to the provider's model listing, which costs no tokens, then prints `profile:`, `provider:`, `key:` and `models:` with a count. On berget it also asks one tiny question with the profile's model, which spends a few tokens. It exits 2 when no key resolves, 3 when the provider refuses the key or the keychain cannot give it up, and 4 or 5 when the provider cannot be reached. Only a clean `profile test` means the next real command will work.
+`profile show` only reports what a run would use and where its key lives, and never reads the keychain. `profile test` reads the key and sends it to the provider's model listing, which costs no tokens, then prints `profile:`, `provider:`, `key:` and `models:` with a count. On berget it also asks one tiny question with the profile's model, which spends a few tokens. It exits 2 when no key resolves on the provider's own base URL, 3 when the provider refuses the key or the keychain cannot give it up, and 4 or 5 when the provider cannot be reached. Only a clean `profile test` means the next real command will work.
+
+### For a server of the user's own, set ONESIE_BASE_URL and store no key.
+
+A base URL other than the provider's own needs no key, and a run with none sends no `Authorization` header. So for a model served on this machine, such as ollaya on `http://localhost:11435`, `ONESIE_BASE_URL=http://localhost:11435` points every run at it with nothing to store. A profile can hold the same setup: `onesie profile create local --provider typesafe --base-url http://localhost:11435` with the key prompt left empty prints that the profile holds no key. A server that wants a key answers 401, which exits 3 and says no key was sent. `onesie profile show` names where the base URL came from.
 
 ## Installing onesie
 
@@ -77,6 +81,10 @@ uses when it names none, and `--base-url`, or `--account-id` on cloudflare. The 
 becomes the default, and `onesie profile use NAME` changes it. [Choosing a profile][choosing] gives
 the order a run picks a profile in. `--provider` or `ONESIE_PROVIDER` runs without a profile and
 reads only the provider's env var, which suits CI.
+
+A server of the user's own needs no key. With `ONESIE_BASE_URL`, `--base-url` or a profile's
+`base_url` set to anything but the provider's own, a run with no key sends none, and an empty key at
+the `profile create` prompt stores a profile that holds no key.
 
 Profiles live in `profiles.json`, in the config dir [profiles.json][file] names. The file is written
 at mode 600, and a directory it creates at mode 700. When there is an OS keychain the key goes
