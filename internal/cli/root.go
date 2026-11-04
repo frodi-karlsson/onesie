@@ -439,7 +439,7 @@ func addRunFlags(set *pflag.FlagSet, flags *runFlags, help runFlagHelp) {
 	refuseEmpty(set, flagID)
 	set.StringVarP(&flags.model, flagModel, "m", "", "model override")
 	refuseEmpty(set, flagModel)
-	set.StringVar(&flags.baseURL, flagBaseURL, "", "api root override")
+	set.StringVar(&flags.baseURL, flagBaseURL, "", "api root override. Also "+envBaseURL)
 	refuseEmpty(set, flagBaseURL)
 	set.BoolVar(&flags.allowHTTP, flagAllowHTTP, false, allowHTTPHelp)
 	set.BoolVar(&flags.longContext, flagLongContext, false,

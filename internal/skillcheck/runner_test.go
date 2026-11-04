@@ -113,6 +113,15 @@ func TestIsolated(t *testing.T) {
 		}
 	})
 
+	t.Run("should strip ONESIE_BASE_URL", func(t *testing.T) {
+		t.Parallel()
+
+		got := isolated([]string{"PATH=/bin", "ONESIE_BASE_URL=http://localhost:11435"}, "")
+		if want := []string{"PATH=/bin"}; !slices.Equal(got, want) {
+			t.Errorf("isolated = %v, want %v", got, want)
+		}
+	})
+
 	t.Run("should set no config dir when none is given", func(t *testing.T) {
 		t.Parallel()
 

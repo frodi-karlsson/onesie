@@ -466,7 +466,7 @@ func newProfileShowCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 			"model and base_url lines give the value a run would use and where it comes from. The model comes " +
 			"from profile, an env " +
 			"variable such as TYPESAFE_DEFAULT_MODEL, or the provider's default. The base_url comes from the " +
-			"profile's base_url, a variable such as TYPESAFE_BASE_URL, the profile's account_id, " +
+			"profile's base_url, the profile's account_id, " + envBaseURL + ", a variable such as TYPESAFE_BASE_URL, " +
 			providers.AccountVariables() + ", or the provider's default. An allow_http line says a run needs " +
 			"--allow-http, when base_url is plain http to another host. It never reads the keychain or " +
 			"prints a key.\n\n" +
@@ -488,8 +488,9 @@ func profileShow(cmd *cobra.Command, settings rootSettings, flags *runFlags, arg
 
 	// Resolved as a run resolves it, which checks a hand edited profiles.json and the provider's base
 	// URL variable too, since neither passed through create.
-	baseURL, source, invalid := shown.provider.ResolveBaseURL(shown.baseURL, shown.accountID, settings.lookupEnv)
-	sourceName := baseURLFrom(source, "", shown)
+	_, given := shown.givenBaseURL("", settings.lookupEnv)
+	baseURL, source, invalid := shown.provider.ResolveBaseURL(given, shown.accountID, settings.lookupEnv)
+	sourceName := baseURLFrom(source, "", shown, settings.lookupEnv)
 
 	var refused *onesie.BaseURLError
 	if errors.As(invalid, &refused) {

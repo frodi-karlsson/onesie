@@ -537,6 +537,20 @@ func TestResolutionOptions(t *testing.T) {
 			want: onesie.OpenRouter().DefaultBaseURL(),
 		},
 		{
+			name: "should pass ONESIE_BASE_URL as the base URL on a run without a profile",
+			run:  bareRun,
+			env: map[string]string{
+				onesie.TypeSafe().EnvAPIKey(): "SECRET-ENV", envBaseURL: "https://local.example",
+				onesie.TypeSafe().EnvBaseURL(): "https://env.example",
+			},
+			want: "https://local.example",
+		},
+		{
+			name: "should pass ONESIE_BASE_URL as the base URL on a profile",
+			run:  profileOf(creds.Profile{Provider: "typesafe", APIKey: "SECRET-P"}),
+			env:  map[string]string{envBaseURL: "https://local.example"}, want: "https://local.example",
+		},
+		{
 			name: "should take --base-url on a run without a profile",
 			run:  bareRun,
 			flag: "https://flag.example",
@@ -591,14 +605,37 @@ func TestResolutionGivenBaseURL(t *testing.T) {
 	t.Parallel()
 
 	profile := resolution{profile: "work", baseURL: "https://profile.example"}
+	local := map[string]string{envBaseURL: "http://localhost:11435"}
 
 	tests := []struct {
 		name       string
 		run        resolution
 		flag       string
+		env        map[string]string
 		wantURL    string
 		wantSource string
 	}{
+		{
+			name: "should return ONESIE_BASE_URL when nothing else names one", run: resolution{}, env: local,
+			wantURL: "http://localhost:11435", wantSource: envBaseURL,
+		},
+		{
+			name: "should prefer the profile's base_url", run: profile, env: local,
+			wantURL: "https://profile.example", wantSource: "the profile's base_url",
+		},
+		{
+			name: "should prefer --base-url", run: resolution{}, env: local,
+			flag: "https://flag.example", wantURL: "https://flag.example", wantSource: "--base-url",
+		},
+		{
+			name: "should skip it when the profile has an account_id", env: local,
+			run:        resolution{profile: "cf", accountID: "0123456789abcdef0123456789abcdef"},
+			wantSource: "the profile's base_url",
+		},
+		{
+			name: "should ignore a blank value", run: resolution{},
+			env: map[string]string{envBaseURL: "  "}, wantSource: "the profile's base_url",
+		},
 		{
 			name: "should take --base-url ahead of the profile's base_url", run: profile,
 			flag: "https://flag.example", wantURL: "https://flag.example", wantSource: "--base-url",
@@ -621,7 +658,7 @@ func TestResolutionGivenBaseURL(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			source, url := tc.run.givenBaseURL(tc.flag)
+			source, url := tc.run.givenBaseURL(tc.flag, lookupFrom(tc.env))
 			if source != tc.wantSource || url != tc.wantURL {
 				t.Errorf("givenBaseURL = %q, %q, want %q, %q", source, url, tc.wantSource, tc.wantURL)
 			}

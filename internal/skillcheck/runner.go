@@ -44,7 +44,7 @@ func isolated(environ []string, configDir string) []string {
 		name, _, _ := strings.Cut(entry, "=")
 
 		switch name {
-		case "ONESIE_MOCK", "ONESIE_PROFILE", "ONESIE_PROVIDER", "ONESIE_CONFIG_DIR":
+		case "ONESIE_MOCK", "ONESIE_PROFILE", "ONESIE_PROVIDER", "ONESIE_CONFIG_DIR", "ONESIE_BASE_URL":
 			continue
 		}
 

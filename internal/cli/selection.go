@@ -15,6 +15,7 @@ import (
 const (
 	envProfile  = "ONESIE_PROFILE"
 	envProvider = "ONESIE_PROVIDER"
+	envBaseURL  = "ONESIE_BASE_URL"
 
 	flagProfile  = "profile"
 	flagProvider = "provider"
@@ -210,7 +211,7 @@ func (r resolution) options(
 ) []onesie.Option {
 	var opts []onesie.Option
 
-	if _, baseURL := r.givenBaseURL(baseURLFlag); baseURL != "" {
+	if _, baseURL := r.givenBaseURL(baseURLFlag, lookupEnv); baseURL != "" {
 		opts = append(opts, onesie.WithBaseURL(baseURL))
 	}
 
@@ -227,9 +228,17 @@ func (r resolution) options(
 	return opts
 }
 
-func (r resolution) givenBaseURL(baseURLFlag string) (name, given string) {
+func (r resolution) givenBaseURL(baseURLFlag string, lookupEnv func(string) (string, bool)) (name, given string) {
 	if flag := strings.TrimSpace(baseURLFlag); flag != "" {
 		return "--" + flagBaseURL, flag
+	}
+
+	if r.baseURL != "" || r.accountID != "" {
+		return profileBaseURL, r.baseURL
+	}
+
+	if variable := setVariable(lookupEnv, envBaseURL); variable != "" {
+		return envBaseURL, variable
 	}
 
 	return profileBaseURL, r.baseURL

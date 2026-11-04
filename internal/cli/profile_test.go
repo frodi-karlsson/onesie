@@ -1686,6 +1686,16 @@ func TestProfileShow(t *testing.T) {
 			wantOut: tsShown + "model: jev-1.13.0, profile\nbase_url: https://proxy.example, the profile's base_url\n",
 		},
 		{
+			name: "should name ONESIE_BASE_URL as the base_url source",
+			env: map[string]string{
+				"TYPESAFE_API_KEY": "SECRET-TS", "ONESIE_BASE_URL": "https://local.example/",
+				"TYPESAFE_BASE_URL": "https://env.example",
+			},
+			args: []string{"profile", "show"},
+			wantOut: "profile: none\nprovider: typesafe\nchosen by: nothing\nkey: env TYPESAFE_API_KEY\n" +
+				"model: jev-latest, the provider's default\nbase_url: https://local.example, ONESIE_BASE_URL\n",
+		},
+		{
 			name: "should report the variables on a run without a profile",
 			env: map[string]string{
 				"TYPESAFE_API_KEY": "SECRET-TS", "TYPESAFE_DEFAULT_MODEL": "jev-env", "TYPESAFE_BASE_URL": "https://env.example",

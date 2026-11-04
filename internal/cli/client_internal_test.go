@@ -315,6 +315,23 @@ func TestClientBuilder(t *testing.T) {
 			},
 		},
 		{
+			name: "should send to ONESIE_BASE_URL over TYPESAFE_BASE_URL", args: asking(),
+			env: map[string]string{
+				onesie.TypeSafe().EnvAPIKey(): "SECRET-ENV", envBaseURL: "{url}", onesie.TypeSafe().EnvBaseURL(): "{other}",
+			},
+			wantAuth: "Bearer SECRET-ENV", wantModel: onesie.TypeSafe().DefaultModel(),
+		},
+		{
+			name: "should send to ONESIE_BASE_URL over CLOUDFLARE_ACCOUNT_ID on cloudflare",
+			args: asking("--provider", "cloudflare"),
+			env: map[string]string{
+				onesie.Cloudflare().EnvAPIKey(): "SECRET-CF", envBaseURL: "{url}",
+				onesie.Cloudflare().EnvAccountID(): testAccountID,
+			},
+			anyCode:  true,
+			wantAuth: "Bearer SECRET-CF", wantModel: onesie.Cloudflare().DefaultModel(),
+		},
+		{
 			name: "should exit 3 when the profile's keychain item is gone",
 			profiles: `{"default":"work","profiles":{"work":{"provider":"typesafe","store":"keychain",` +
 				`"account":"work@abc","base_url":"{url}"}}}`,
@@ -389,6 +406,13 @@ func TestClientBuilder(t *testing.T) {
 			wantCode: ExitUsage,
 			wantErr: []string{"onesie: --base-url http://proxy.example is plain http to a host other than this " +
 				"machine, so the API key would cross the network unencrypted. Use https, or pass --allow-http"},
+		},
+		{
+			name:     "should name ONESIE_BASE_URL in a plain http refusal",
+			args:     asking(),
+			env:      map[string]string{onesie.TypeSafe().EnvAPIKey(): "SECRET-ENV", envBaseURL: "http://proxy.example"},
+			wantCode: ExitUsage,
+			wantErr:  []string{"onesie: ONESIE_BASE_URL http://proxy.example is plain http", "--allow-http"},
 		},
 		{
 			name:     "should refuse a plain http TYPESAFE_BASE_URL to another host",
@@ -796,8 +820,13 @@ func TestBaseURLFrom(t *testing.T) {
 		source onesie.BaseURLSource
 		run    resolution
 		flag   string
+		env    map[string]string
 		want   string
 	}{
+		{
+			name: "should name ONESIE_BASE_URL", source: onesie.BaseURLFromOption, run: bare,
+			env: map[string]string{envBaseURL: "https://local.example"}, want: envBaseURL,
+		},
 		{
 			name: "should name --base-url when the flag was given", source: onesie.BaseURLFromOption,
 			run:  profileOf(creds.Profile{Provider: "typesafe", APIKey: "SECRET-P", BaseURL: "https://p.example"}),
@@ -829,7 +858,7 @@ func TestBaseURLFrom(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			if got := baseURLFrom(tc.source, tc.flag, tc.run); got != tc.want {
+			if got := baseURLFrom(tc.source, tc.flag, tc.run, lookupFrom(tc.env)); got != tc.want {
 				t.Errorf("baseURLFrom = %q, want %q", got, tc.want)
 			}
 		})

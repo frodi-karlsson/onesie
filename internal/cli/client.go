@@ -61,7 +61,7 @@ func clientBuilder(info BuildInfo, flags *runFlags, settings rootSettings) clien
 		}
 
 		if segment, repeats := client.BaseURLRepeatsPath(); repeats {
-			source := baseURLFrom(client.BaseURLSource(), flags.baseURL, chosen)
+			source := baseURLFrom(client.BaseURLSource(), flags.baseURL, chosen, settings.lookupEnv)
 
 			doubled.Do(func() {
 				warning := source + " ends in /" + segment + " and onesie adds the API path itself, so questions go to " +
@@ -125,7 +125,7 @@ func profileKey(settings rootSettings, chosen resolution) func() (string, error)
 func explained(settings rootSettings, baseURLFlag string, chosen resolution, err error) error {
 	var refused *onesie.BaseURLError
 	if errors.As(err, &refused) {
-		return baseURLRefusal(refused, baseURLFrom(refused.Source, baseURLFlag, chosen), sendPlainHTTP)
+		return baseURLRefusal(refused, baseURLFrom(refused.Source, baseURLFlag, chosen, settings.lookupEnv), sendPlainHTTP)
 	}
 
 	if errors.Is(err, onesie.ErrNoAccountID) {
@@ -146,10 +146,12 @@ func explained(settings rootSettings, baseURLFlag string, chosen resolution, err
 	return missingKeyHint(err, chosen, opened.Profiles)
 }
 
-func baseURLFrom(source onesie.BaseURLSource, baseURLFlag string, chosen resolution) string {
+func baseURLFrom(
+	source onesie.BaseURLSource, baseURLFlag string, chosen resolution, lookupEnv func(string) (string, bool),
+) string {
 	switch source {
 	case onesie.BaseURLFromOption:
-		name, _ := chosen.givenBaseURL(baseURLFlag)
+		name, _ := chosen.givenBaseURL(baseURLFlag, lookupEnv)
 
 		return name
 	case onesie.BaseURLFromEnv:
