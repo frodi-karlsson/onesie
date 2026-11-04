@@ -774,6 +774,16 @@ func TestProfileUpdate(t *testing.T) {
 			wantFile: `{"default":"local","profiles":{"local":{"provider":"typesafe","base_url":"https://openrouter.ai/api"}}}`,
 		},
 		{
+			name:     "should refuse an empty key that would delete the stored key",
+			file:     `{"default":"local","profiles":{"local":{"provider":"typesafe","api_key":"` + key16 + `","base_url":"http://localhost:11435"}}}`,
+			args:     []string{"profile", "update", "local", "--key"},
+			stdin:    "\n",
+			wantCode: ExitUsage,
+			wantStderr: "onesie: profile 'local' holds a key, and an empty key would delete it. To run it with no key, " +
+				"create a new profile with no key\n",
+			wantFile: `{"default":"local","profiles":{"local":{"provider":"typesafe","api_key":"` + key16 + `","base_url":"http://localhost:11435"}}}`,
+		},
+		{
 			name:  "should store a key on a keyless profile with --key",
 			file:  local,
 			args:  []string{"profile", "update", "local", "--key", "--file"},

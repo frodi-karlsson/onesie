@@ -604,7 +604,8 @@ on the provider's key variable alone.
 - An empty key at the prompt or on stdin stores a profile with no key when its `base_url` is not
   the provider's own. `create` and `update --key` then print
   `profile 'NAME' holds no key, since its base URL is custom` and write no keychain item, and
-  `profile list` shows `none` in the KEY column. Any other empty key exits 2. Clearing the base URL
+  `profile list` shows `none` in the KEY column. Any other empty key exits 2, and so does an empty
+  key to `update --key` on a profile that holds a key, since it would delete that key. Clearing the base URL
   of such a profile, or setting the provider's own, needs `--key` in the same update.
 - `create` and `update` check the rules below, the base URL and the account id before they read the
   key, so a typo costs nothing. A bad value from a flag is named by its flag, as in

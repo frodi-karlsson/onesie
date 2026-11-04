@@ -101,6 +101,11 @@ func (m *ProfileManager) Update(change Change) ([]Notice, error) {
 		return nil, err
 	}
 
+	if old := change.Profiles.Profiles[change.Name]; key == "" && (old.APIKey != "" || old.Store != "") {
+		return nil, fmt.Errorf("profile %s holds a key, and an empty key would delete it. To run it with no key, "+
+			"create a new profile with no key", QuotedName(change.Name))
+	}
+
 	oldItem := keychainItem(change.Profiles.Profiles[change.Name])
 
 	kept, err := m.keepKey(oldItem, account, change.ToFile)
