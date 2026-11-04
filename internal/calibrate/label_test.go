@@ -176,25 +176,35 @@ func TestParseLabel(t *testing.T) {
 			name: "should read the float 4 against the levels 1 to 5", shape: plan.Rate, names: levels,
 			value: 4.0, want: calibrate.Label{Name: "4"},
 		},
+		{name: "should read y as yes", shape: plan.Noul, value: "y", want: yes},
+		{name: "should read Y as yes", shape: plan.Noul, value: "Y", want: yes},
+		{name: "should read n as no", shape: plan.Noul, value: "n", want: no},
+		{name: "should read N as no", shape: plan.Noul, value: "N", want: no},
+		{name: "should trim a yes or no label", shape: plan.Noul, value: " yes ", want: yes},
+		{
+			name: "should trim a pick label to its name", shape: plan.Pick, names: options,
+			value: " billing\t", want: calibrate.Label{Name: "billing"},
+		},
+		{name: "should leave a label of only spaces unlabelled", shape: plan.Noul, value: "   ", unlabeled: true},
+		{
+			name: "should name y and n in the refusal", shape: plan.Noul, value: " maybe ",
+			wantErr: []string{`" maybe " is not a yes or no label. Use true, false, yes, no, y, n, 1 or 0`},
+		},
 		{name: "should leave null unlabelled", shape: plan.Noul, value: nil, unlabeled: true},
 		{name: "should leave an empty string unlabelled", shape: plan.Noul, value: "", unlabeled: true},
 		{name: "should leave null unlabelled for a pick", shape: plan.Pick, names: options, value: nil, unlabeled: true},
 		{name: "should leave an empty string unlabelled for a rate", shape: plan.Rate, names: levels, value: "", unlabeled: true},
 		{
 			name: "should refuse maybe", shape: plan.Noul, value: "maybe",
-			wantErr: []string{`"maybe"`, "true, false, yes, no, 1 or 0"},
+			wantErr: []string{`"maybe"`, "true, false, yes, no, y, n, 1 or 0"},
 		},
 		{
 			name: "should refuse a fraction", shape: plan.Noul, value: 0.5,
-			wantErr: []string{"0.5", "true, false, yes, no, 1 or 0"},
-		},
-		{
-			name: "should refuse a yes with a leading space", shape: plan.Noul, value: " yes",
-			wantErr: []string{`" yes"`, "true, false, yes, no, 1 or 0"},
+			wantErr: []string{"0.5", "true, false, yes, no, y, n, 1 or 0"},
 		},
 		{
 			name: "should refuse an array", shape: plan.Noul, value: []any{},
-			wantErr: []string{"[]", "true, false, yes, no, 1 or 0"},
+			wantErr: []string{"[]", "true, false, yes, no, y, n, 1 or 0"},
 		},
 		{
 			name: "should refuse an object", shape: plan.Pick, names: options, value: map[string]any{"a": 1},

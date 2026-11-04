@@ -115,9 +115,10 @@ func calibrateLong() string {
 		"tables to pick a gate from. It never picks the cut.\n\n" +
 		"Map only the text a person would read, since a --map that selects the label flatters " +
 		"the question.\n\n" +
-		"Labels: a yes or no label is true, false, yes, no, 1 or 0 in any case. A pick or rate label " +
-		"is an option or level name exactly as declared, or a number whose text is one, so 4 " +
-		"matches --rate 1,2,3,4,5. null, no result or an empty string leaves a record unlabelled " +
+		"Labels: a yes or no label is true, false, yes, no, y, n, 1 or 0 in any case. A pick or rate " +
+		"label is an option or level name as declared, with spaces around it ignored, or a number whose " +
+		"text is one, so 4 matches --rate 1,2,3,4,5. null, no result or a string of only spaces leaves " +
+		"a record unlabelled " +
 		"for that question, and a record no question labels is not asked. A jsonl record reads " +
 		"{\"id\":\"T-1\",\"body\":\"the site is down\",\"is_urgent\":true}, and a csv one " +
 		"has the header id,body,is_urgent and the row T-1,the site is down,yes.\n\n" +
