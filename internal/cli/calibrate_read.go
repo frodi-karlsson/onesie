@@ -71,7 +71,10 @@ func readLabelled(
 	ctx, stop := context.WithCancel(ctx)
 	defer stop()
 
-	next := readAhead(ctx, input.NewStream(settings.stdin, inputMode, flags.skipBlank))
+	stream := input.NewStream(settings.stdin, inputMode, input.StreamOptions{
+		SkipBlank: flags.skipBlank, Delimiter: flags.parsedDelimiter,
+	})
+	next := readAhead(ctx, stream)
 	reader := &labelReader{mapper: mapper, namer: namer, labels: labels, seen: map[[sha256.Size]byte]int{}}
 
 	var set labelledSet
@@ -113,7 +116,7 @@ func readLabelled(
 				return labelledSet{}, ctxErr
 			}
 
-			return labelledSet{}, firstIDHint(err, set.total, inputMode, rec.Header)
+			return labelledSet{}, firstIDHint(err, set.total, inputMode, stream.Comma(), rec.Header)
 		}
 
 		if !found {
@@ -129,14 +132,14 @@ func readLabelled(
 	}
 }
 
-func firstIDHint(err error, read int, inputMode input.Mode, header []string) error {
+func firstIDHint(err error, read int, inputMode input.Mode, comma rune, header []string) error {
 	// calibrate stops at the first record it cannot read, so a null id on the first record is every
 	// record read.
 	if read != 1 || !misreadDelimiter(inputMode, header) || !errors.Is(err, jq.ErrNullID) {
 		return err
 	}
 
-	return &advisedError{cause: err, message: text(err) + ". " + delimiterHint(inputMode)}
+	return &advisedError{cause: err, message: text(err) + ". " + delimiterHint(inputMode, comma, header)}
 }
 
 func readAhead(ctx context.Context, stream *input.Stream) <-chan pulledRecord {

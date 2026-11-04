@@ -6,6 +6,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/frodi-karlsson/onesie/internal/input"
 	"github.com/frodi-karlsson/onesie/internal/output"
 )
 
@@ -187,4 +188,54 @@ func errorText(err error) string {
 	}
 
 	return err.Error()
+}
+
+func TestDelimiterHint(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		mode   input.Mode
+		comma  rune
+		header []string
+		want   string
+	}{
+		{
+			name: "should suggest -i tsv for a csv input",
+			mode: input.CSV,
+			want: "-i csv splits each line on commas, so if the file is tab separated, pass -i tsv",
+		},
+		{
+			name: "should suggest -i csv for a tsv input",
+			mode: input.TSV,
+			want: "-i tsv splits each line on tabs, so if the file is comma separated, pass -i csv",
+		},
+		{
+			name:   "should name the delimiter flag for a one column header holding semicolons",
+			mode:   input.CSV,
+			header: []string{"id;text"},
+			want: "-i csv splits each line on commas, so if the file is semicolon separated, " +
+				"pass --delimiter ';' or --delimiter auto",
+		},
+		{
+			name: "should name a tab the csv input split on", mode: input.CSV, comma: '\t', header: []string{"id;text"},
+			want: "-i csv splits each line on tabs, so if the file is semicolon separated, " +
+				"pass --delimiter ';' or --delimiter auto",
+		},
+		{
+			name: "should quote a delimiter that has no plural name", mode: input.CSV, comma: '|',
+			want: "-i csv splits each line on '|', so if the file is tab separated, pass -i tsv",
+		},
+		{name: "should give no hint for a mode with no delimiter", mode: input.JSONL},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := delimiterHint(tc.mode, tc.comma, tc.header); got != tc.want {
+				t.Errorf("delimiterHint = %q, want %q", got, tc.want)
+			}
+		})
+	}
 }

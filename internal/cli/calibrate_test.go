@@ -458,8 +458,8 @@ func TestNewCalibrateCmd(t *testing.T) {
 			args:     []string{"calibrate", "--help"},
 			wantCode: ExitOK,
 			contains: []string{
-				"Labels: a yes or no label is true, false, yes, no, 1 or 0 in any case",
-				"null, no result or an empty string leaves a record unlabelled",
+				"Labels: a yes or no label is true, false, yes, no, y, n, 1 or 0 in any case",
+				"null, no result or a string of only spaces leaves a record unlabelled",
 				`{"id":"T-1","body":"the site is down","is_urgent":true}`,
 				"T-1,the site is down,yes",
 				"3    the key was refused, the account is out of credits, the keychain failed, or profiles.json or " +
@@ -710,6 +710,13 @@ func TestReadLabelled(t *testing.T) {
 			wantAsked:  []string{"urgent"},
 		},
 		{
+			name:       "should read a semicolon csv under the given --delimiter",
+			args:       dry("-i", "csv", "--delimiter", ";", "--map", ".body", "--label", "urgent=.u"),
+			stdin:      "body;u\na,b;yes\n",
+			wantStates: []string{`"a,b"`},
+			wantAsked:  []string{"urgent"},
+		},
+		{
 			name:       "should print one body per labelled tsv row",
 			args:       dry("-i", "tsv", "--map", ".body", "--label", "urgent=.u"),
 			stdin:      "body\tu\na\ttrue\nb\tFALSE\n",
@@ -750,7 +757,7 @@ func TestReadLabelled(t *testing.T) {
 			stdin:    "{\"id\":\"T-1\",\"body\":\"a\",\"u\":true}\n{\"id\":\"T-7\",\"body\":\"b\",\"u\":\"maybe\"}\n",
 			wantCode: ExitUsage,
 			contains: []string{
-				`onesie: --label urgent: record T-7: "maybe" is not a yes or no label. Use true, false, yes, no, 1 or 0`,
+				`onesie: --label urgent: record T-7: "maybe" is not a yes or no label. Use true, false, yes, no, y, n, 1 or 0`,
 			},
 		},
 		{
@@ -758,7 +765,9 @@ func TestReadLabelled(t *testing.T) {
 			args:     jsonl(),
 			stdin:    "{\"body\":\"a\",\"u\":true}\n{\"body\":\"b\",\"u\":\"maybe\"}\n",
 			wantCode: ExitUsage,
-			contains: []string{`onesie: --label urgent: line 2: "maybe" is not a yes or no label`},
+			contains: []string{
+				`onesie: --label urgent: line 2: "maybe" is not a yes or no label. Use true, false, yes, no, y, n, 1 or 0`,
+			},
 		},
 		{
 			name:     "should quote a pick label that differs from the option in case",

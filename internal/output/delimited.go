@@ -24,7 +24,12 @@ func NewDelimited(w io.Writer, mode Mode, opts DelimitedOptions) *Delimited {
 		return &Delimited{tabs: w, opts: opts}
 	}
 
-	return &Delimited{rows: csv.NewWriter(w), opts: opts}
+	rows := csv.NewWriter(w)
+	if opts.Comma != 0 {
+		rows.Comma = opts.Comma
+	}
+
+	return &Delimited{rows: rows, opts: opts}
 }
 
 // Delimited writes records as rows under one header row. It is stateful, so one run uses one.
@@ -52,6 +57,8 @@ type DelimitedOptions struct {
 	// Header writes the header row before the first row. A resume into a file that has one leaves
 	// it out.
 	Header bool
+	// Comma separates the csv cells, zero meaning a comma. A tsv row ignores it.
+	Comma rune
 }
 
 // Write writes one record. header and fields are the input row it answers under a merge, and nil

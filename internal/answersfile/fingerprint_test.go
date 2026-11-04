@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/frodi-karlsson/onesie/internal/input"
 	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
@@ -40,13 +41,68 @@ func TestFingerprint(t *testing.T) {
 		}
 	})
 
+	t.Run("should leave a fingerprint with no delimiter as it was", func(t *testing.T) {
+		t.Parallel()
+
+		got, err := Fingerprint(questions, wired, inputs)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if strings.Contains(got.String(), "delimiter=") {
+			t.Errorf("fingerprint %q carries a delimiter part, want none when no delimiter was given", got)
+		}
+	})
+
+	t.Run("should fingerprint a given comma as no delimiter at all", func(t *testing.T) {
+		t.Parallel()
+
+		comma := inputs
+		comma.Delimiter = input.Delimiter{Comma: ','}
+
+		given, err := Fingerprint(questions, wired, comma)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		none, err := Fingerprint(questions, wired, inputs)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if given.String() != none.String() {
+			t.Errorf("fingerprint = %q under a given comma, want %q as with no delimiter", given, none)
+		}
+	})
+
+	t.Run("should change the fingerprint when the delimiter changes", func(t *testing.T) {
+		t.Parallel()
+
+		semicolon, auto := inputs, inputs
+		semicolon.Delimiter, auto.Delimiter = input.Delimiter{Comma: ';'}, input.Delimiter{Detect: true}
+
+		first, err := Fingerprint(questions, wired, semicolon)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		second, err := Fingerprint(questions, wired, auto)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if first.String() == second.String() {
+			t.Errorf("fingerprint %q is the same under ; and auto, want them apart", first)
+		}
+	})
+
 	t.Run("should fit a fingerprint with every part set in the bytes the sidecar read takes", func(t *testing.T) {
 		t.Parallel()
 
 		every := FingerprintInputs{
 			Provider: "typesafe", Model: "m", MapSource: ".body", IDSource: ".id", Output: "csv", Input: "csv",
 			MergeKey: "onesie", Assert: "urgent", AbstainIf: "urgent > 0.5", SkipBlank: true,
-			Images: []string{"square.png"}, LongContext: true, Mock: true,
+			Images: []string{"square.png"}, Delimiter: input.Delimiter{Comma: ';'}, LongContext: true, Mock: true,
 		}
 
 		got, err := Fingerprint(questions, wired, every)

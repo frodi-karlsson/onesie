@@ -3,6 +3,7 @@ package input_test
 import (
 	"encoding/json"
 	"errors"
+	"io"
 	"slices"
 	"strings"
 	"testing"
@@ -179,7 +180,7 @@ func TestStream(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			stream := input.NewStream(strings.NewReader(tc.in), tc.mode, tc.skipBlank)
+			stream := input.NewStream(strings.NewReader(tc.in), tc.mode, input.StreamOptions{SkipBlank: tc.skipBlank})
 
 			var got []want
 
@@ -247,7 +248,7 @@ func TestStream(t *testing.T) {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 
-				record, ok, err := input.NewStream(strings.NewReader(tc.in+"\n"), input.JSONL, false).Next()
+				record, ok, err := input.NewStream(strings.NewReader(tc.in+"\n"), input.JSONL, input.StreamOptions{}).Next()
 				if err != nil || !ok {
 					t.Fatalf("Next = %v, %v, want one record", ok, err)
 				}
@@ -306,7 +307,7 @@ func TestStream(t *testing.T) {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 
-				stream := input.NewStream(strings.NewReader(tc.in+"\n"), input.Request, false)
+				stream := input.NewStream(strings.NewReader(tc.in+"\n"), input.Request, input.StreamOptions{})
 
 				record, ok, err := stream.Next()
 				if err != nil {
@@ -340,13 +341,89 @@ func TestStream(t *testing.T) {
 		}
 	})
 
+	t.Run("should split a csv by its delimiter", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name      string
+			mode      input.Mode
+			in        string
+			delimiter input.Delimiter
+			want      map[string]any
+			wantComma rune
+		}{
+			{
+				name: "should split a csv on a given semicolon", mode: input.CSV, in: "id;body\n1;a,b\n",
+				delimiter: input.Delimiter{Comma: ';'}, want: map[string]any{"id": "1", "body": "a,b"}, wantComma: ';',
+			},
+			{
+				name: "should detect a semicolon under auto", mode: input.CSV, in: "id;body\n1;a,b\n",
+				delimiter: input.Delimiter{Detect: true}, want: map[string]any{"id": "1", "body": "a,b"}, wantComma: ';',
+			},
+			{
+				name: "should detect from the first line that is not blank under auto", mode: input.CSV,
+				in: "\n\nid;text\n1;a\n", delimiter: input.Delimiter{Detect: true},
+				want: map[string]any{"id": "1", "text": "a"}, wantComma: ';',
+			},
+			{
+				name: "should skip blank crlf lines before the header under auto", mode: input.CSV,
+				in: "\r\n\r\nid;text\r\n1;a\r\n", delimiter: input.Delimiter{Detect: true},
+				want: map[string]any{"id": "1", "text": "a"}, wantComma: ';',
+			},
+			{
+				name: "should keep commas when no delimiter is given", mode: input.CSV, in: "id,body\n1,a;b\n",
+				want: map[string]any{"id": "1", "body": "a;b"}, wantComma: ',',
+			},
+			{
+				name: "should ignore a delimiter for tsv", mode: input.TSV, in: "id\tbody\n1\ta;b\n",
+				delimiter: input.Delimiter{Comma: ';'}, want: map[string]any{"id": "1", "body": "a;b"}, wantComma: ',',
+			},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				stream := input.NewStream(strings.NewReader(tc.in), tc.mode, input.StreamOptions{Delimiter: tc.delimiter})
+
+				record, ok, err := stream.Next()
+				if err != nil || !ok || record.Err != nil {
+					t.Fatalf("Next = %+v, %v, %v, want a record", record, ok, err)
+				}
+
+				if !equalJSON(t, record.State, tc.want) {
+					t.Errorf("state = %#v, want %#v", record.State, tc.want)
+				}
+
+				if got := stream.Comma(); got != tc.wantComma {
+					t.Errorf("Comma = %q, want %q", got, tc.wantComma)
+				}
+			})
+		}
+	})
+
+	t.Run("should read nothing until Next is called", func(t *testing.T) {
+		t.Parallel()
+
+		watched := &watchedReader{Reader: strings.NewReader("id;body\n1;a\n")}
+		stream := input.NewStream(watched, input.CSV, input.StreamOptions{Delimiter: input.Delimiter{Detect: true}})
+
+		if watched.reads != 0 {
+			t.Fatalf("NewStream read the input %d times, want none", watched.reads)
+		}
+
+		if _, ok, err := stream.Next(); err != nil || !ok || watched.reads == 0 {
+			t.Errorf("Next = %v, %v after %d reads, want a record read from the input", ok, err, watched.reads)
+		}
+	})
+
 	t.Run("should count line numbers separately from the record index", func(t *testing.T) {
 		t.Parallel()
 
 		t.Run("should count lines past a skipped blank", func(t *testing.T) {
 			t.Parallel()
 
-			stream := input.NewStream(strings.NewReader("first\n\nthird\n"), input.Lines, true)
+			stream := input.NewStream(strings.NewReader("first\n\nthird\n"), input.Lines, input.StreamOptions{SkipBlank: true})
 
 			var lines, indexes []int
 
@@ -387,7 +464,7 @@ func TestStream(t *testing.T) {
 			// bufio.Scanner would stop the whole batch on a line this long, which is why Stream
 			// reads through bufio.Reader.ReadLine instead.
 			in := "first\n" + strings.Repeat("x", 9<<20) + "\nthird\n"
-			stream := input.NewStream(strings.NewReader(in), input.Lines, false)
+			stream := input.NewStream(strings.NewReader(in), input.Lines, input.StreamOptions{})
 
 			var got []string
 
@@ -429,7 +506,7 @@ func TestStream(t *testing.T) {
 		t.Run("should report a failing reader against stdin rather than a line", func(t *testing.T) {
 			t.Parallel()
 
-			stream := input.NewStream(failingReader{}, input.Lines, false)
+			stream := input.NewStream(failingReader{}, input.Lines, input.StreamOptions{})
 
 			record, ok, err := stream.Next()
 			if err == nil {
@@ -490,7 +567,7 @@ func TestStream(t *testing.T) {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 
-				stream := input.NewStream(strings.NewReader(tc.line+"\n"), tc.mode, false)
+				stream := input.NewStream(strings.NewReader(tc.line+"\n"), tc.mode, input.StreamOptions{})
 
 				record, ok, err := stream.Next()
 				if err != nil || !ok {
@@ -511,7 +588,7 @@ func TestStream(t *testing.T) {
 	t.Run("should keep the header order on the wire", func(t *testing.T) {
 		t.Parallel()
 
-		stream := input.NewStream(strings.NewReader("zebra,alpha\nz,a\n"), input.CSV, false)
+		stream := input.NewStream(strings.NewReader("zebra,alpha\nz,a\n"), input.CSV, input.StreamOptions{})
 
 		record, ok, err := stream.Next()
 		if err != nil || !ok {
@@ -531,7 +608,7 @@ func TestStream(t *testing.T) {
 	t.Run("should report the line a failing row starts on", func(t *testing.T) {
 		t.Parallel()
 
-		stream := input.NewStream(strings.NewReader("id,body\n1,\"two\nlines\"\n3\n"), input.CSV, false)
+		stream := input.NewStream(strings.NewReader("id,body\n1,\"two\nlines\"\n3\n"), input.CSV, input.StreamOptions{})
 
 		for range 2 {
 			record, _, err := stream.Next()
@@ -553,7 +630,7 @@ func TestStream(t *testing.T) {
 		t.Run("should refuse a header with a blank or repeated name: "+strings.TrimSpace(header), func(t *testing.T) {
 			t.Parallel()
 
-			_, _, err := input.NewStream(strings.NewReader(header+"1,2,3\n"), input.CSV, false).Next()
+			_, _, err := input.NewStream(strings.NewReader(header+"1,2,3\n"), input.CSV, input.StreamOptions{}).Next()
 
 			var lineErr *input.LineError
 			if !errors.As(err, &lineErr) || lineErr.Line != 1 {
@@ -567,7 +644,7 @@ func TestStream(t *testing.T) {
 
 		body := "id,body\n1,\"" + strings.Repeat("x", 9<<20)
 
-		stream := input.NewStream(strings.NewReader(body), input.CSV, false)
+		stream := input.NewStream(strings.NewReader(body), input.CSV, input.StreamOptions{})
 
 		_, _, err := stream.Next()
 
@@ -581,7 +658,7 @@ func TestStream(t *testing.T) {
 		t.Parallel()
 
 		long := `{"state":"` + strings.Repeat("a", limits.MaxLineBytes) + `","questions":{}}`
-		stream := input.NewStream(strings.NewReader(long+"\n"), input.Request, false)
+		stream := input.NewStream(strings.NewReader(long+"\n"), input.Request, input.StreamOptions{})
 
 		rec, ok, err := stream.Next()
 		if err != nil || !ok {
@@ -597,7 +674,7 @@ func TestStream(t *testing.T) {
 		t.Parallel()
 
 		long := `"` + strings.Repeat("a", limits.MaxLineBytes) + `"`
-		stream := input.NewStream(strings.NewReader(long+"\n"), input.JSONL, false)
+		stream := input.NewStream(strings.NewReader(long+"\n"), input.JSONL, input.StreamOptions{})
 
 		rec, _, err := stream.Next()
 		if err != nil {
@@ -614,4 +691,16 @@ type failingReader struct{}
 
 func (failingReader) Read([]byte) (int, error) {
 	return 0, errors.New("disk fell over")
+}
+
+func (r *watchedReader) Read(p []byte) (int, error) {
+	r.reads++
+
+	return r.Reader.Read(p)
+}
+
+type watchedReader struct {
+	io.Reader
+
+	reads int
 }

@@ -1057,6 +1057,36 @@ func TestCheckFlags(t *testing.T) {
 		})
 	}
 
+	t.Run("should refuse --delimiter beside every input but -i csv", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			input   string
+			wantErr string
+		}{
+			{input: "csv"},
+			{input: "tsv", wantErr: "--delimiter applies to -i csv. -i tsv is tab separated by definition"},
+			{input: "jsonl", wantErr: "--delimiter applies to -i csv. -i jsonl has no delimiter"},
+			{input: "json", wantErr: "--delimiter applies to -i csv. -i json has no delimiter"},
+			{input: "lines", wantErr: "--delimiter applies to -i csv. -i lines has no delimiter"},
+			{input: "text", wantErr: "--delimiter applies to -i csv. -i text has no delimiter"},
+			{input: "request", wantErr: "--delimiter applies to -i csv. -i request has no delimiter"},
+		}
+
+		for _, tc := range tests {
+			t.Run("should answer -i "+tc.input, func(t *testing.T) {
+				t.Parallel()
+
+				flags := runFlags{input: tc.input, delimiter: ";"}
+
+				_, err := checkFlags(testConfig(flags, []string{flagInput, flagDelimiter}, nil, ""), runFacts{})
+				if tc.wantErr == "" && err != nil || tc.wantErr != "" && (err == nil || err.Error() != tc.wantErr) {
+					t.Errorf("checkFlags error = %v, want %q", err, tc.wantErr)
+				}
+			})
+		}
+	})
+
 	t.Run("should refuse each flag -i request does not take through a run", func(t *testing.T) {
 		t.Parallel()
 
@@ -1565,6 +1595,8 @@ func testConfig(flags runFlags, given []string, events []argv.Event, positional 
 			config.retriesSet = true
 		case flagMaxRetryAfter:
 			config.maxRetryAfterSet = true
+		case flagDelimiter:
+			config.hasDelimiter = true
 		}
 	}
 

@@ -16,7 +16,9 @@ import (
 	"github.com/spf13/pflag"
 
 	"github.com/frodi-karlsson/onesie-go"
+	"github.com/frodi-karlsson/onesie/internal/input"
 	"github.com/frodi-karlsson/onesie/internal/limits"
+	"github.com/frodi-karlsson/onesie/internal/output"
 )
 
 func TestDefaultSettings(t *testing.T) {
@@ -462,7 +464,7 @@ func TestAddRunFlags(t *testing.T) {
 			"timeout":         strconv.Itoa(int(limits.DefaultAttemptTimeout.Seconds())),
 			"retries":         strconv.Itoa(limits.DefaultRetries),
 			"max-retry-after": strconv.Itoa(int(limits.DefaultMaxRetryAfter.Seconds())),
-			"out":             "", "resume": "false", "prune": "false", "skip-blank": "false", "stats": "false",
+			"out":             "", "resume": "false", "prune": "false", "skip-blank": "false", "delimiter": "", "stats": "false",
 			"usage": "false", "print-request": "false", "cache": "false", "mock": "",
 		}
 
@@ -477,4 +479,41 @@ func TestAddRunFlags(t *testing.T) {
 			t.Errorf("jobs %d, input %q, output %q, want 1 and -i and -o left alone", flags.jobs, flags.input, flags.output)
 		}
 	})
+}
+
+func TestAnswersFileDelimiter(t *testing.T) {
+	t.Parallel()
+
+	semicolon := input.Delimiter{Comma: ';'}
+
+	tests := []struct {
+		name   string
+		merge  bool
+		out    output.Mode
+		in     input.Mode
+		given  input.Delimiter
+		wanted input.Delimiter
+	}{
+		{
+			name: "should keep the input's delimiter for a merge from csv into csv", merge: true,
+			out: output.CSV, in: input.CSV, given: semicolon, wanted: semicolon,
+		},
+		{
+			name: "should keep detection for a merge from csv into csv", merge: true,
+			out: output.CSV, in: input.CSV, given: input.Delimiter{Detect: true}, wanted: input.Delimiter{Detect: true},
+		},
+		{name: "should use commas for a plain -o csv", out: output.CSV, in: input.CSV, given: semicolon},
+		{name: "should use commas for a merge from tsv", merge: true, out: output.CSV, in: input.TSV, given: semicolon},
+		{name: "should use commas for a merge into json", merge: true, out: output.JSON, in: input.CSV, given: semicolon},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := answersFileDelimiter(tc.merge, tc.out, tc.in, tc.given); got != tc.wanted {
+				t.Errorf("answersFileDelimiter = %+v, want %+v", got, tc.wanted)
+			}
+		})
+	}
 }

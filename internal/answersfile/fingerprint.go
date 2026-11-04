@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/frodi-karlsson/onesie/internal/input"
 	"github.com/frodi-karlsson/onesie/internal/output"
 	"github.com/frodi-karlsson/onesie/internal/plan"
 )
@@ -81,11 +82,24 @@ func printedRun(questions []plan.Question, wired json.Marshaler, inputs Fingerpr
 		AbstainIf: inputs.AbstainIf,
 		SkipBlank: inputs.SkipBlank,
 		Images:    inputs.Images,
+		Delimiter: delimiterSetting(inputs.Delimiter),
 
 		LongContext: inputs.LongContext,
 
 		FallbackColumns: !inputs.withoutFallbackColumns && delimitedOutput(inputs.Output) && hasFallback(questions),
 		Mock:            inputs.Mock,
+	}
+}
+
+func delimiterSetting(delimiter input.Delimiter) string {
+	switch {
+	case delimiter.Detect:
+		return "auto"
+	case delimiter.Comma == 0 || delimiter.Comma == ',':
+		// Empty, as with no delimiter given, so a file either one writes resumes under the other.
+		return ""
+	default:
+		return string(delimiter.Comma)
 	}
 }
 
@@ -104,6 +118,7 @@ type runPrint struct {
 	AbstainIf   string         `json:"abstain_if"`
 	SkipBlank   bool           `json:"skip_blank,omitempty"`
 	Images      []string       `json:"images,omitempty"`
+	Delimiter   string         `json:"delimiter,omitempty"`
 	LongContext bool           `json:"long_context,omitempty"`
 	// A csv or tsv file without the fallback columns has shorter rows than the run writes, so
 	// a resume into it is refused.
@@ -203,6 +218,8 @@ type FingerprintInputs struct {
 	AbstainIf string
 	SkipBlank bool
 	Images    []string
+	// Delimiter splits a csv input. The zero value is a comma.
+	Delimiter input.Delimiter
 
 	LongContext bool
 	Mock        bool
@@ -322,6 +339,8 @@ func partLabel(name string) string {
 		return "the fallback columns"
 	case "mock":
 		return "--mock"
+	case "delimiter":
+		return "--delimiter"
 	default:
 		return ""
 	}

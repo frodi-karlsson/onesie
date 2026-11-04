@@ -85,6 +85,10 @@ func FuzzParseLabel(f *testing.F) {
 		{0, "", 0, "No"},
 		{0, "", 0, "maybe"},
 		{0, "", 0, " yes"},
+		{0, "", 0, " yes "},
+		{0, "", 0, "y"},
+		{0, "", 0, "N"},
+		{0, "", 0, "   "},
 		{0, "", 0, ""},
 		{0, "", 1, "1"},
 		{0, "", 1, "0.5"},
@@ -130,7 +134,7 @@ func FuzzParseLabel(f *testing.F) {
 		}
 
 		if !labelled {
-			if value != nil && value != "" {
+			if text, isText := value.(string); value != nil && (!isText || strings.TrimSpace(text) != "") {
 				t.Fatalf("ParseLabel(%v, %q, %#v) left a value unlabelled", shape, names, value)
 			}
 
@@ -199,10 +203,10 @@ func yesSpelling(value any) (yes, known bool) {
 	case bool:
 		return typed, true
 	case string:
-		switch strings.ToLower(typed) {
-		case "true", "yes", "1":
+		switch strings.ToLower(strings.TrimSpace(typed)) {
+		case "true", "yes", "y", "1":
 			return true, true
-		case "false", "no", "0":
+		case "false", "no", "n", "0":
 			return false, true
 		}
 

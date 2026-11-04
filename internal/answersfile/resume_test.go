@@ -4,10 +4,16 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
+
+	"github.com/frodi-karlsson/onesie/internal/input"
+	"github.com/frodi-karlsson/onesie/internal/jq"
+	"github.com/frodi-karlsson/onesie/internal/output"
 )
 
 func TestLedger_TakeOrder(t *testing.T) {
@@ -154,4 +160,122 @@ func reversedLines(text string) string {
 	slices.Reverse(lines)
 
 	return strings.Join(lines, "")
+}
+
+func TestResumedVerdicts(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		delimiter input.Delimiter
+	}{
+		{name: "should read a semicolon file back with its comma", delimiter: input.Delimiter{Comma: ';'}},
+		{name: "should detect the comma from the file's own header", delimiter: input.Delimiter{Detect: true}},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			out := openSemicolons(t, "u;error\n0.9;\n;onesie: boom, twice\n", tc.delimiter)
+
+			resume, err := ResumedVerdicts(t.Context(), out, Format{Mode: output.CSV, Delimiter: tc.delimiter}, false, Resume{})
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if len(resume.Stored) != 2 || resume.Stored[0].Failure != nil || resume.Stored[1].Failure == nil ||
+				resume.Stored[1].Failure.Message != "onesie: boom, twice" {
+				t.Errorf("stored = %+v, want an answered row and the failure the second carries", resume.Stored)
+			}
+		})
+	}
+}
+
+func TestResumeLedger(t *testing.T) {
+	t.Parallel()
+
+	namer, err := jq.Compile(".id")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		name      string
+		delimiter input.Delimiter
+	}{
+		{name: "should read a semicolon file back with its comma", delimiter: input.Delimiter{Comma: ';'}},
+		{name: "should detect the comma from the file's own header", delimiter: input.Delimiter{Detect: true}},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			out := openSemicolons(t, "id;u\nA,1;0.9\n", tc.delimiter)
+
+			book, err := ResumeLedger(t.Context(), out, Format{Mode: output.CSV, Namer: namer, Delimiter: tc.delimiter})
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if _, found := book.StoredAt("A,1"); !found {
+				t.Errorf("the ledger holds no answer for A,1, want the row the file stores")
+			}
+		})
+	}
+}
+
+func openSemicolons(t *testing.T, content string, delimiter input.Delimiter) *File {
+	t.Helper()
+
+	path := filepath.Join(t.TempDir(), "answers.csv")
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	out, _, err := Open(Options{}, Config{Path: path, Resume: true, Output: "csv", Delimiter: delimiter})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Cleanup(func() {
+		if releaseErr := out.Release(); releaseErr != nil {
+			t.Errorf("Release = %v", releaseErr)
+		}
+	})
+
+	return out
+}
+
+func TestHeaderLength(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		content   string
+		delimiter input.Delimiter
+		want      int64
+	}{
+		{
+			name: "should split the header by a known comma that detection would miss", content: "a,b;\"c\"\n1;2\n",
+			delimiter: input.Delimiter{Comma: ';'}, want: 8,
+		},
+		{
+			name: "should detect the comma under auto", content: "a;\"b,\nc\"\n1;2\n",
+			delimiter: input.Delimiter{Detect: true}, want: 9,
+		},
+		{name: "should split by commas under the zero delimiter", content: "a,b\n1,2\n", want: 4},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := headerLength(strings.NewReader(tc.content), true, tc.delimiter)
+			if err != nil || got != tc.want {
+				t.Errorf("headerLength = %d, %v, want %d", got, err, tc.want)
+			}
+		})
+	}
 }

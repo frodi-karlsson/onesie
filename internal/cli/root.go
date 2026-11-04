@@ -29,6 +29,7 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/input"
 	"github.com/frodi-karlsson/onesie/internal/limits"
 	"github.com/frodi-karlsson/onesie/internal/mock"
+	"github.com/frodi-karlsson/onesie/internal/output"
 	"github.com/frodi-karlsson/onesie/internal/providers"
 	"github.com/frodi-karlsson/onesie/internal/release"
 )
@@ -58,6 +59,7 @@ const (
 	flagAllowHTTP     = "allow-http"
 	flagMap           = "map"
 	flagID            = "id"
+	flagDelimiter     = "delimiter"
 )
 
 var groupFlagHelp = map[string]string{
@@ -334,14 +336,42 @@ func openOut(settings rootSettings, flags runFlags, readOnly bool) (*answersfile
 		Lock:     settings.lock,
 		GOOS:     settings.goos,
 	}, answersfile.Config{
-		Path:     flags.out,
-		Resume:   flags.resume,
-		Output:   flags.output,
-		ByID:     resumesByID(flags),
-		ReadOnly: readOnly,
+		Path:      flags.out,
+		Resume:    flags.resume,
+		Output:    flags.output,
+		ByID:      resumesByID(flags),
+		ReadOnly:  readOnly,
+		Delimiter: answersDelimiter(flags),
 	})
 
 	return out, resume, wordAnswersError(err)
+}
+
+func answersDelimiter(flags runFlags) input.Delimiter {
+	inputMode, inputErr := input.ParseMode(flags.input)
+	outputMode, outputErr := output.ParseMode(flags.output, false, true, true)
+	delimiter, delimiterErr := input.ParseDelimiter(flags.delimiter)
+
+	// Commas, for no --delimiter at all and for a value the run refuses before it writes anything.
+	if errors.Join(inputErr, outputErr, delimiterErr) != nil {
+		return input.Delimiter{}
+	}
+
+	return answersFileDelimiter(flags.merge || flags.mergeKey != "", outputMode, inputMode, delimiter)
+}
+
+func answersFileDelimiter(merge bool, out output.Mode, in input.Mode, delimiter input.Delimiter) input.Delimiter {
+	// Only a merge from csv into csv writes with the input's delimiter, and every other answers file
+	// uses commas.
+	if !mergesCSV(merge, out, in) {
+		return input.Delimiter{}
+	}
+
+	return delimiter
+}
+
+func mergesCSV(merge bool, out output.Mode, in input.Mode) bool {
+	return merge && out == output.CSV && in == input.CSV
 }
 
 func wordAnswersError(err error) error {
@@ -432,6 +462,8 @@ func addRunFlags(set *pflag.FlagSet, flags *runFlags, help runFlagHelp) {
 	set.BoolVar(&flags.resume, "resume", false, help.resume)
 	set.BoolVar(&flags.prune, "prune", false, help.prune)
 	set.BoolVar(&flags.skipBlank, "skip-blank", false, help.skipBlank)
+	set.StringVar(&flags.delimiter, flagDelimiter, "",
+		"field separator for -i csv: auto, or one character. Defaults to a comma")
 	set.BoolVar(&flags.stats, "stats", false, "write a one line summary of the run to stderr at exit")
 	set.BoolVar(&flags.usage, "usage", false, help.usage)
 	set.BoolVar(&flags.printRequest, "print-request", false, "write api shaped request bodies to stdout and exit")
