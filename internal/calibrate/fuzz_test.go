@@ -94,6 +94,7 @@ func FuzzParseLabel(f *testing.F) {
 		{0, "", 1, "0.5"},
 		{0, "", 2, "1"},
 		{0, "", 2, "1.0e0"},
+		{0, "", 2, "1.00000000000000001"},
 		{0, "", 3, "0"},
 		{0, "", 4, "true"},
 		{0, "", 5, "null"},
@@ -219,7 +220,7 @@ func yesSpelling(value any) (yes, known bool) {
 	case float64:
 		number = new(big.Rat).SetFloat64(typed)
 	case json.Number:
-		number, _ = new(big.Rat).SetString(typed.String())
+		number = jsonNumberRat(typed)
 	case *big.Int:
 		number = new(big.Rat).SetInt(typed)
 	}
@@ -234,6 +235,21 @@ func yesSpelling(value any) (yes, known bool) {
 	default:
 		return false, false
 	}
+}
+
+func jsonNumberRat(number json.Number) *big.Rat {
+	exact, ok := new(big.Rat).SetString(number.String())
+	if !ok || exact.IsInt() {
+		return exact
+	}
+
+	// A fraction goes through a float64, as jq reads it, so 1.00000000000000001 is the label 1.
+	approx, err := strconv.ParseFloat(number.String(), 64)
+	if err != nil {
+		return nil
+	}
+
+	return new(big.Rat).SetFloat64(approx)
 }
 
 func distinct(items []string) []string {
