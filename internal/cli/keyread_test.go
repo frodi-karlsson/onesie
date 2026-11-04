@@ -4,7 +4,49 @@ import (
 	"bufio"
 	"strings"
 	"testing"
+
+	"github.com/spf13/cobra"
 )
+
+func TestReadKey(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		stdin      string
+		allowEmpty bool
+		wantKey    string
+		wantErr    string
+	}{
+		{name: "should accept an empty key when allowed", stdin: "  \n", allowEmpty: true},
+		{name: "should refuse an empty key otherwise", stdin: "\n", wantErr: "profile create: the key is empty"},
+		{name: "should return a key as read", stdin: " SECRET-KEY \n", allowEmpty: true, wantKey: "SECRET-KEY"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			settings := defaultSettings(BuildInfo{})
+			settings.stdin, settings.stdinTTY = strings.NewReader(tc.stdin), false
+
+			cmd := &cobra.Command{}
+			cmd.SetContext(t.Context())
+
+			key, err := readKey(cmd, settings, "profile create", tc.allowEmpty)
+
+			gotErr := ""
+			if err != nil {
+				gotErr = err.Error()
+			}
+
+			// Compared, never printed, since it is the key.
+			if key != tc.wantKey || gotErr != tc.wantErr {
+				t.Errorf("error = %q, want %q, and the key read matches %v", gotErr, tc.wantErr, key == tc.wantKey)
+			}
+		})
+	}
+}
 
 func TestFirstLine(t *testing.T) {
 	t.Parallel()

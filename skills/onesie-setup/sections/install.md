@@ -36,6 +36,10 @@ becomes the default, and `onesie profile use NAME` changes it. [Choosing a profi
 the order a run picks a profile in. `--provider` or `ONESIE_PROVIDER` runs without a profile and
 reads only the provider's env var, which suits CI.
 
+A server of the user's own needs no key. With `ONESIE_BASE_URL`, `--base-url` or a profile's
+`base_url` set to anything but the provider's own, a run with no key sends none, and an empty key at
+the `profile create` prompt stores a profile that holds no key.
+
 Profiles live in `profiles.json`, in the config dir [profiles.json][file] names. The file is written
 at mode 600, and a directory it creates at mode 700. When there is an OS keychain the key goes
 there, under the service `onesie`, and the profile only names the item. `--file` keeps the key in

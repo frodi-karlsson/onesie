@@ -5,7 +5,11 @@ import "testing"
 func TestLiveLookup(t *testing.T) {
 	t.Parallel()
 
-	env := map[string]string{"ONESIE_MOCK": "answers.json", "ONESIE_CACHE": "1", "TYPESAFE_API_KEY": "k"}
+	env := map[string]string{
+		"ONESIE_MOCK": "answers.json", "ONESIE_CACHE": "1", "TYPESAFE_API_KEY": "k",
+		"ONESIE_BASE_URL": "http://localhost:11435", "TYPESAFE_BASE_URL": "https://proxy.example",
+		"ONESIE_PROFILE": "work", "ONESIE_PROVIDER": "openrouter",
+	}
 	lookup := liveLookup(func(name string) (string, bool) {
 		value, found := env[name]
 
@@ -19,6 +23,26 @@ func TestLiveLookup(t *testing.T) {
 			t.Errorf("lookup(ONESIE_MOCK) = %q, %v, want nothing", value, found)
 		}
 	})
+
+	hidden := []struct {
+		name     string
+		variable string
+	}{
+		{name: "should hide ONESIE_BASE_URL, so a live run never sends its keys to a developer's own server", variable: "ONESIE_BASE_URL"},
+		{name: "should hide TYPESAFE_BASE_URL, so a live run never sends its keys to a developer's proxy", variable: "TYPESAFE_BASE_URL"},
+		{name: "should hide ONESIE_PROFILE, so a live run never uses a developer's profile", variable: "ONESIE_PROFILE"},
+		{name: "should hide ONESIE_PROVIDER, so a live run never switches to a developer's provider", variable: "ONESIE_PROVIDER"},
+	}
+
+	for _, tc := range hidden {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if value, found := lookup(tc.variable); found || value != "" {
+				t.Errorf("lookup(%s) = %q, %v, want nothing", tc.variable, value, found)
+			}
+		})
+	}
 
 	t.Run("should pin ONESIE_CACHE to 0, so a live run never reads or fills a developer's cache", func(t *testing.T) {
 		t.Parallel()
@@ -39,7 +63,8 @@ func TestLiveLookup(t *testing.T) {
 
 func liveLookup(lookup func(string) (string, bool)) func(string) (string, bool) {
 	return func(name string) (string, bool) {
-		if name == "ONESIE_MOCK" {
+		switch name {
+		case "ONESIE_MOCK", "ONESIE_BASE_URL", "TYPESAFE_BASE_URL", "ONESIE_PROFILE", "ONESIE_PROVIDER":
 			return "", false
 		}
 

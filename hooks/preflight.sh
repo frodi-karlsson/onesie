@@ -28,6 +28,7 @@ chosen=$(printf '%s\n' "$report" | sed -n 's/^chosen by: //p')
 key=$(printf '%s\n' "$report" | sed -n 's/^key: //p')
 account=$(printf '%s\n' "$report" | sed -n 's/^account: //p')
 allow_http=$(printf '%s\n' "$report" | sed -n 's/^allow_http: //p')
+base_url=$(printf '%s\n' "$report" | sed -n 's/^base_url: //p')
 
 if [ -n "$notices" ]; then
   printf '%s\n' "$notices"
@@ -49,9 +50,19 @@ case "$key" in
       printf 'onesie is on PATH, but no API key resolves for provider %s. Only --print-request, --print-questions, --print-schema and --mock work until the user runs onesie profile create NAME --provider %s or sets %s. The onesie-setup skill walks them through it.\n' "$provider" "$provider" "$variable"
     fi
     ;;
+  none,*)
+    printf 'onesie is on PATH and needs no key, since its base URL is custom, profile: %s, provider: %s, base_url: %s.\n' "$profile" "$provider" "${base_url%%, *}"
+    if [ -n "$allow_http" ]; then
+      printf '%s\n' 'Its base URL is plain http to another host, so every run exits 2 unless it passes --allow-http.'
+    fi
+    ;;
   ?*)
     if [ "$account" != none ]; then
       printf 'onesie is on PATH and a key resolves, profile: %s, provider: %s, key: %s.\n' "$profile" "$provider" "${key%%, ends in *}"
+      # A variable left exported sends every run, and its key, to that server.
+      if [ "${base_url#*, }" = ONESIE_BASE_URL ]; then
+        printf 'Its base URL comes from ONESIE_BASE_URL, so the key goes to %s.\n' "${base_url%%, *}"
+      fi
       if [ -n "$allow_http" ]; then
         printf '%s\n' 'Its base URL is plain http to another host, so every run exits 2 unless it passes --allow-http.'
       fi

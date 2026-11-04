@@ -315,6 +315,38 @@ func TestClientBuilder(t *testing.T) {
 			},
 		},
 		{
+			name:     "should build a keyless client for a keyless profile on a custom URL",
+			profiles: `{"default":"local","profiles":{"local":{"provider":"typesafe","base_url":"{url}"}}}`,
+			args:     asking(), env: map[string]string{onesie.TypeSafe().EnvAPIKey(): "SECRET-ENV"},
+			wantAuth: "absent", wantModel: onesie.TypeSafe().DefaultModel(),
+		},
+		{
+			name:     "should refuse a keyless profile on the provider's own URL with the profile update hint",
+			profiles: `{"default":"local","profiles":{"local":{"provider":"typesafe","base_url":"{other}"}}}`,
+			args:     asking("--base-url", "https://api.typesafe.ai"),
+			wantCode: ExitUsage,
+			wantErr: []string{
+				"onesie: profile 'local' holds no key, and the base URL is the provider's own. " +
+					"Run onesie profile update 'local' --key",
+			},
+		},
+		{
+			name: "should send to ONESIE_BASE_URL over TYPESAFE_BASE_URL", args: asking(),
+			env: map[string]string{
+				onesie.TypeSafe().EnvAPIKey(): "SECRET-ENV", envBaseURL: "{url}", onesie.TypeSafe().EnvBaseURL(): "{other}",
+			},
+			wantAuth: "Bearer SECRET-ENV", wantModel: onesie.TypeSafe().DefaultModel(),
+		},
+		{
+			name: "should send to ONESIE_BASE_URL over CLOUDFLARE_ACCOUNT_ID on cloudflare",
+			args: asking("--provider", "cloudflare"),
+			env: map[string]string{
+				onesie.Cloudflare().EnvAPIKey(): "SECRET-CF", envBaseURL: "{url}",
+				onesie.Cloudflare().EnvAccountID(): testAccountID,
+			},
+			wantAuth: "Bearer SECRET-CF", wantModel: onesie.Cloudflare().DefaultModel(),
+		},
+		{
 			name: "should exit 3 when the profile's keychain item is gone",
 			profiles: `{"default":"work","profiles":{"work":{"provider":"typesafe","store":"keychain",` +
 				`"account":"work@abc","base_url":"{url}"}}}`,
@@ -388,7 +420,14 @@ func TestClientBuilder(t *testing.T) {
 			env:      map[string]string{onesie.TypeSafe().EnvAPIKey(): "SECRET-ENV"},
 			wantCode: ExitUsage,
 			wantErr: []string{"onesie: --base-url http://proxy.example is plain http to a host other than this " +
-				"machine, so the API key would cross the network unencrypted. Use https, or pass --allow-http"},
+				"machine, so the request, and any API key, would cross the network unencrypted. Use https, or pass --allow-http"},
+		},
+		{
+			name:     "should name ONESIE_BASE_URL in a plain http refusal",
+			args:     asking(),
+			env:      map[string]string{onesie.TypeSafe().EnvAPIKey(): "SECRET-ENV", envBaseURL: "http://proxy.example"},
+			wantCode: ExitUsage,
+			wantErr:  []string{"onesie: ONESIE_BASE_URL http://proxy.example is plain http", "--allow-http"},
 		},
 		{
 			name:     "should refuse a plain http TYPESAFE_BASE_URL to another host",
@@ -558,6 +597,56 @@ func TestClientBuilder(t *testing.T) {
 		}
 	})
 
+	t.Run("should word the http warning without the key when none is sent", func(t *testing.T) {
+		t.Parallel()
+
+		var auths atomic.Int32
+
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if len(r.Header.Values("Authorization")) != 0 {
+				auths.Add(1)
+			}
+
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"models":[]}`))
+		}))
+		defer srv.Close()
+
+		_, errOut, code := runInConfig(t, t.TempDir(),
+			[]string{"--list-models", "--allow-http", "--base-url", "http://proxy.example"}, "", nil,
+			withDialTo(srv.Listener.Addr().String()))
+
+		const want = "onesie: warning: http://proxy.example is plain http, so the request crosses the network unencrypted\n"
+
+		if code != ExitOK || errOut != want || auths.Load() != 0 {
+			t.Errorf("exit code = %d, stderr = %q, keyed requests = %d, want %d, %q and none",
+				code, errOut, auths.Load(), ExitOK, want)
+		}
+	})
+
+	t.Run("should build a keyless client on a custom URL", func(t *testing.T) {
+		t.Parallel()
+
+		settings := defaultSettings(BuildInfo{})
+		settings.lookupEnv = lookupFrom(nil)
+
+		build := clientBuilder(BuildInfo{}, &runFlags{baseURL: "https://local.example"}, settings)
+
+		client, err := build(t.Context(), resolution{provider: onesie.TypeSafe(), keyFrom: sourceNone})
+		if err != nil || client.SendsKey() {
+			t.Fatalf("error = %v, want a client that sends no key", err)
+		}
+	})
+
+	t.Run("should still refuse a missing key on the provider's own URL", func(t *testing.T) {
+		t.Parallel()
+
+		_, errOut, code := runInConfig(t, t.TempDir(), asking(), "", nil)
+		if code != ExitUsage || !strings.HasPrefix(errOut, "onesie: no API key. Set TYPESAFE_API_KEY") {
+			t.Errorf("exit code = %d, stderr = %q, want %d and the missing key", code, errOut, ExitUsage)
+		}
+	})
+
 	t.Run("should keep both failed warning writes", func(t *testing.T) {
 		t.Parallel()
 
@@ -620,27 +709,46 @@ func modelServer(t *testing.T) (*httptest.Server, func() []sentRequest) {
 	var sent []sentRequest
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Cloudflare carries the System One body under input.
 		var body struct {
 			Model     string                     `json:"model"`
 			Questions map[string]json.RawMessage `json:"questions"`
+			Input     struct {
+				Questions map[string]json.RawMessage `json:"questions"`
+			} `json:"input"`
 		}
 
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 			t.Errorf("decoding the request body: %v", err)
 		}
 
+		auth := r.Header.Get("Authorization")
+		if len(r.Header.Values("Authorization")) == 0 {
+			auth = "absent"
+		}
+
 		mu.Lock()
-		sent = append(sent, sentRequest{auth: r.Header.Get("Authorization"), model: body.Model})
+		sent = append(sent, sentRequest{auth: auth, model: body.Model})
 		mu.Unlock()
 
+		questions := body.Questions
+		if questions == nil {
+			questions = body.Input.Questions
+		}
+
 		answers := map[string]any{}
-		for id := range body.Questions {
+		for id := range questions {
 			answers[id] = map[string]any{"type": "noul", "noul": 0.5}
 		}
 
 		w.Header().Set("Content-Type", "application/json")
 
-		if err := json.NewEncoder(w).Encode(map[string]any{"model": body.Model, "answers": answers}); err != nil {
+		var response any = map[string]any{"model": body.Model, "answers": answers}
+		if strings.HasPrefix(r.URL.Path, "/run") {
+			response = map[string]any{"success": true, "result": response}
+		}
+
+		if err := json.NewEncoder(w).Encode(response); err != nil {
 			t.Errorf("writing the stub response: %v", err)
 		}
 	}))
@@ -728,6 +836,11 @@ func TestProfileKey(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	keyless, err := profileRun("local", creds.Profile{Provider: "typesafe", BaseURL: "http://localhost:11435"}, "--profile")
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	tests := []struct {
 		name         string
 		run          resolution
@@ -745,6 +858,7 @@ func TestProfileKey(t *testing.T) {
 			items: map[string]string{"work@abc": ""}, wantKeychain: true,
 		},
 		{name: "should pass a missing keychain item on as a keychain failure", run: keychained, wantKeychain: true},
+		{name: "should return an empty key for a keyless profile without reading the keychain", run: keyless},
 	}
 
 	for _, tc := range tests {
@@ -762,8 +876,8 @@ func TestProfileKey(t *testing.T) {
 				t.Errorf("key = %q, error = %v, want %q and a keychain failure %v", got, err, tc.want, tc.wantKeychain)
 			}
 
-			if tc.run.keyFrom == sourceFile && chain.calls() != 0 {
-				t.Errorf("keychain calls = %d, want none for a file profile", chain.calls())
+			if tc.run.keyFrom != sourceKeychain && chain.calls() != 0 {
+				t.Errorf("keychain calls = %d, want none for a profile outside the keychain", chain.calls())
 			}
 		})
 	}
@@ -796,8 +910,13 @@ func TestBaseURLFrom(t *testing.T) {
 		source onesie.BaseURLSource
 		run    resolution
 		flag   string
+		env    map[string]string
 		want   string
 	}{
+		{
+			name: "should name ONESIE_BASE_URL", source: onesie.BaseURLFromOption, run: bare,
+			env: map[string]string{envBaseURL: "https://local.example"}, want: envBaseURL,
+		},
 		{
 			name: "should name --base-url when the flag was given", source: onesie.BaseURLFromOption,
 			run:  profileOf(creds.Profile{Provider: "typesafe", APIKey: "SECRET-P", BaseURL: "https://p.example"}),
@@ -829,7 +948,7 @@ func TestBaseURLFrom(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			if got := baseURLFrom(tc.source, tc.flag, tc.run); got != tc.want {
+			if got := baseURLFrom(tc.source, tc.flag, tc.run, lookupFrom(tc.env)); got != tc.want {
 				t.Errorf("baseURLFrom = %q, want %q", got, tc.want)
 			}
 		})
@@ -867,14 +986,14 @@ func TestBaseURLRefusal(t *testing.T) {
 		},
 		{
 			name: "should name --allow-http for plain http to another host", raw: "http://proxy.example/v1",
-			want: "--base-url http://proxy.example is plain http to a host other than this machine, so the API key " +
-				"would cross the network unencrypted. Use https, or pass --allow-http to send it anyway",
+			want: "--base-url http://proxy.example is plain http to a host other than this machine, so the request, " +
+				"and any API key, would cross the network unencrypted. Use https, or pass --allow-http to send it anyway",
 		},
 		{
 			name: "should end plain http with the advice it is given", raw: "http://proxy.example/v1",
 			advice: storePlainHTTP,
-			want: "--base-url http://proxy.example is plain http to a host other than this machine, so the API key " +
-				"would cross the network unencrypted. Use https, or pass --allow-http to store it, and every run " +
+			want: "--base-url http://proxy.example is plain http to a host other than this machine, so the request, " +
+				"and any API key, would cross the network unencrypted. Use https, or pass --allow-http to store it, and every run " +
 				"on the profile then needs --allow-http too",
 		},
 	}

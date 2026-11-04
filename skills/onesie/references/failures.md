@@ -36,7 +36,9 @@ A run uses one profile, or none. [Choosing a profile][choosing] gives the order 
 Exit 3 also covers these:
 
 - A refused key, where the message names `onesie profile update NAME --key` on a profile run, and
-  the provider's key variable on a run without a profile.
+  the provider's key variable on a run without a profile. On a custom base URL with no key it says
+  `No key was sent, since none resolves and the base URL is custom`, so the server wants a key after
+  all.
 - An account out of credits.
 - A `profiles.json` that others can reach. The message names the file and its mode. Run
   `chmod 600` on it.
@@ -61,7 +63,7 @@ Exit 3 also covers these:
 | `an empty state is a request the model cannot answer` | `--state`, `--state-file`, stdin, the `state` of a `-f` file, a stream line or `--map` gave an empty or all whitespace string, an empty object or an empty array. In a stream it is an error line instead, and `--skip-blank` does not drop it. An `-i request` body is forwarded as it is and not checked |
 | `an empty question is one the model cannot answer` | the positional question, an `--ask`, a question file's `ask` or a `-f` body's `instructions` is empty, all whitespace or null |
 | `has no 'instructions'` or `names its question 'instructions'` | a `-f` request body question has no `instructions`, or carries a question file's `ask` in its place |
-| `no API key` | nothing resolved for the provider, in the order [Choosing a profile][choosing] gives. A real run and `profile test` exit 2 here. `profile show` exits 2 too, after printing `key: none`, with the same message on stderr. Under `--provider` or `ONESIE_PROVIDER` the message names a profile with that provider when there is one, and otherwise `onesie profile create NAME --provider PROVIDER` |
+| `no API key` | nothing resolved for the provider, in the order [Choosing a profile][choosing] gives, and the base URL is the provider's own. A custom base URL needs no key. A real run and `profile test` exit 2 here. `profile show` exits 2 too, after printing `key: none`, with the same message on stderr. Under `--provider` or `ONESIE_PROVIDER` the message names a profile with that provider when there is one, and otherwise `onesie profile create NAME --provider PROVIDER` |
 | `no profile is the default` | there are profiles, none is the default and nothing chose one. Run `onesie profile use NAME`, or pass `--profile` or `--provider` |
 | `which does not exist` | `--profile` or `ONESIE_PROFILE` names a profile that is not in `profiles.json`. The message lists the profiles there are, and says to pass `--provider` when the name is a provider |
 | `is not valid JSON` | `profiles.json` or `credentials.json` is cut short or holds a syntax error. `is not a JSON object of profiles` means valid JSON of another shape |
@@ -83,7 +85,7 @@ Exit 3 also covers these:
 | `and at most` and `are allowed` | an `-i request` body holds a choice question with more options, or a score question with more levels, than `onesie -V` lists. It is an error line of kind `input`, and nothing is sent for it |
 | `takes no images`, `takes no box questions` or `takes no long context` | the provider cannot take what the run asks for. The message names the providers that can, so ask with one of them through `--provider` |
 | `no cloudflare account id` | cloudflare has a token and no account. Set `CLOUDFLARE_ACCOUNT_ID`, or store one in the profile with `onesie profile update NAME --account-id ACCOUNT_ID`, or in a new one with `onesie profile create NAME --provider cloudflare --account-id ACCOUNT_ID` |
-| `is plain http to a host other than this machine` | the base URL the message names, `--base-url`, `TYPESAFE_BASE_URL` or `the profile's base_url`, is `http://` to a host other than this machine, so the key would travel unencrypted. Use https, or pass `--allow-http` to send it anyway. A profile stored with an http `base_url` needs `--allow-http` on every run |
+| `is plain http to a host other than this machine` | the base URL the message names, `--base-url`, `ONESIE_BASE_URL`, `TYPESAFE_BASE_URL` or `the profile's base_url`, is `http://` to a host other than this machine, so the request, and any key, would travel unencrypted. Use https, or pass `--allow-http` to send it anyway. A profile stored with an http `base_url` needs `--allow-http` on every run |
 | `must not hold @, ? or #` | the base URL the message names holds `@`, `?` or `#`, as credentials, a query or a fragment do. Pass the API root alone, and keep the key in a profile or the provider's key variable |
 | `names no host`, `is not an http or https URL` or `does not parse` | the base URL the message names is not an absolute http or https URL with a host. Write it as `https://HOST`, with a path after it when the server needs one |
 | `Insufficient balance` | Cloudflare's AI Gateway has no credits for Jev. Add credits, or ask Clef with `-m clef-flash`, which runs on the free allowance |

@@ -174,6 +174,44 @@ func TestProfilesValidate(t *testing.T) {
 			wantErr: "profile 'x' has a key_end longer than 4 characters",
 		},
 		{
+			name: "should accept a keyless profile with a custom base URL",
+			profiles: creds.Profiles{Profiles: map[string]creds.Profile{
+				"x": {Provider: "typesafe", BaseURL: "http://localhost:11435"},
+			}},
+		},
+		{
+			name: "should refuse a keyless profile with the provider's own base URL",
+			profiles: creds.Profiles{Profiles: map[string]creds.Profile{
+				"x": {Provider: "typesafe", BaseURL: "https://api.typesafe.ai/"},
+			}},
+			wantErr: "profile 'x' needs its key in exactly one place",
+		},
+		{
+			name:     "should refuse a keyless profile with no base URL",
+			profiles: creds.Profiles{Profiles: map[string]creds.Profile{"x": {Provider: "openrouter"}}},
+			wantErr:  "profile 'x' needs its key in exactly one place",
+		},
+		{
+			name: "should refuse a profile whose api_key is only spaces",
+			profiles: creds.Profiles{Profiles: map[string]creds.Profile{
+				"x": {Provider: "typesafe", APIKey: "  ", BaseURL: "http://localhost:11435"},
+			}},
+			wantErr: "profile 'x' needs its key in exactly one place",
+		},
+		{
+			name: "should accept a keyless cloudflare profile with a proxy base URL",
+			profiles: creds.Profiles{Profiles: map[string]creds.Profile{
+				"x": {Provider: "cloudflare", BaseURL: "https://proxy.example/ai"},
+			}},
+		},
+		{
+			name: "should refuse a keyless cloudflare profile with an account URL",
+			profiles: creds.Profiles{Profiles: map[string]creds.Profile{
+				"x": {Provider: "cloudflare", BaseURL: "https://api.cloudflare.com/client/v4/accounts/" + cloudflareAccount + "/ai"},
+			}},
+			wantErr: "profile 'x' needs its key in exactly one place",
+		},
+		{
 			name:     "should refuse a default that names no profile",
 			profiles: creds.Profiles{Default: "gone", Profiles: map[string]creds.Profile{"work": keychain}},
 			wantErr:  "default names profile 'gone', which does not exist",

@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"maps"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -699,16 +700,18 @@ func TestAsk(t *testing.T) {
 	})
 
 	lifetimes := []struct {
-		name  string
-		extra []string
-		env   map[string]string
-		after time.Duration
-		hit   bool
+		name            string
+		extra           []string
+		env             map[string]string
+		after           time.Duration
+		providersOwnURL bool
+		hit             bool
 	}{
 		{name: "should hit jev-latest 23 hours later", after: 23 * time.Hour, hit: true},
 		{name: "should ask jev-latest again 24 hours later", after: 24 * time.Hour},
 		{name: "should ask jev-latest again 90 minutes later under ONESIE_CACHE_TTL=90m", after: 90 * time.Minute, env: map[string]string{envCacheTTL: "90m"}},
-		{name: "should hit a pinned jev-1.13.0 on typesafe a year later", extra: []string{"-m", "jev-1.13.0"}, after: 365 * 24 * time.Hour, hit: true},
+		{name: "should hit a pinned jev-1.13.0 on typesafe a year later", extra: []string{"-m", "jev-1.13.0"}, after: 365 * 24 * time.Hour, providersOwnURL: true, hit: true},
+		{name: "should not pin an answer from a custom base URL", extra: []string{"-m", "jev-1.13.0"}, after: 24 * time.Hour},
 		{name: "should ask jev-1.13.0 on openrouter again 24 hours later", extra: []string{"-m", "jev-1.13.0", "--provider", "openrouter"}, after: 24 * time.Hour},
 		{name: "should hit the systemone alias on berget 23 hours later", extra: []string{"--provider", "berget"}, after: 23 * time.Hour, hit: true},
 		{name: "should ask Qwen/Qwen3.5-2B on berget again 24 hours later", extra: []string{"-m", "Qwen/Qwen3.5-2B", "--provider", "berget"}, after: 24 * time.Hour},
@@ -720,16 +723,21 @@ func TestAsk(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			stub := newAnswerStub(t)
+			stub, dial := newAnswerStub(t), RootOption(func(*rootSettings) {})
 			env := cacheEnv(t)
 			maps.Copy(env, tc.env)
 			args := append(append(slicesOf(base), "--base-url", stub.url), tc.extra...)
 
-			if _, errOut, code := runCached(t, env, args, "", withNow(fixedNow(cacheEpoch))); code != ExitOK {
+			if tc.providersOwnURL {
+				stub, dial = newTLSAnswerStub(t)
+				args = append(slicesOf(base), tc.extra...)
+			}
+
+			if _, errOut, code := runCached(t, env, args, "", dial, withNow(fixedNow(cacheEpoch))); code != ExitOK {
 				t.Fatalf("first run exit %d\n%s", code, errOut)
 			}
 
-			if _, errOut, code := runCached(t, env, args, "", withNow(fixedNow(cacheEpoch.Add(tc.after)))); code != ExitOK {
+			if _, errOut, code := runCached(t, env, args, "", dial, withNow(fixedNow(cacheEpoch.Add(tc.after)))); code != ExitOK {
 				t.Fatalf("second run exit %d\n%s", code, errOut)
 			}
 
@@ -754,9 +762,29 @@ func TestAsk(t *testing.T) {
 		runCached(t, env, args, "")
 		delete(env, onesie.TypeSafe().EnvAPIKey())
 
-		_, errOut, code := runCached(t, env, args, "")
+		_, errOut, code := runCached(t, env, slicesOf(base), "")
 		if code != ExitUsage || !strings.Contains(errOut, "onesie: no API key") || !strings.Contains(errOut, noKeyCacheSentence) {
 			t.Errorf("exit %d, stderr %q, want the no key message with the cache sentence", code, errOut)
+		}
+	})
+
+	t.Run("should answer a keyless run on a custom URL from the cache", func(t *testing.T) {
+		t.Parallel()
+
+		stub := newAnswerStub(t)
+		env := cacheEnv(t)
+		delete(env, onesie.TypeSafe().EnvAPIKey())
+
+		args := append(slicesOf(base), "--base-url", stub.url)
+
+		for run := range 2 {
+			if _, errOut, code := runCached(t, env, args, ""); code != ExitOK {
+				t.Fatalf("run %d exit %d\n%s", run, code, errOut)
+			}
+		}
+
+		if got := stub.requests.Load(); got != 1 {
+			t.Errorf("%d requests, want 1", got)
 		}
 	})
 
@@ -938,33 +966,61 @@ func newAnswerStub(t *testing.T) *answerStub {
 	t.Helper()
 
 	stub := &answerStub{}
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(stub.handler(t))
+	t.Cleanup(srv.Close)
+
+	stub.url = srv.URL
+
+	return stub
+}
+
+func newTLSAnswerStub(t *testing.T) (*answerStub, RootOption) {
+	t.Helper()
+
+	stub := &answerStub{}
+	srv := httptest.NewTLSServer(stub.handler(t))
+	t.Cleanup(srv.Close)
+
+	stub.url = srv.URL
+
+	trusting, ok := srv.Client().Transport.(*http.Transport)
+	if !ok {
+		t.Fatalf("the TLS stub's transport is a %T", srv.Client().Transport)
+	}
+
+	// Every connection goes to the stub, which presents the certificate httptest issues for example.com.
+	transport := trusting.Clone()
+	transport.TLSClientConfig.ServerName = "example.com"
+	transport.DialContext = func(ctx context.Context, network, _ string) (net.Conn, error) {
+		return (&net.Dialer{}).DialContext(ctx, network, srv.Listener.Addr().String())
+	}
+
+	return stub, func(s *rootSettings) { s.transport = transport }
+}
+
+func (s *answerStub) handler(t *testing.T) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
 			t.Errorf("stub could not read the request: %v", err)
 		}
 
-		stub.requests.Add(1)
-		stub.mu.Lock()
-		stub.bodies = append(stub.bodies, body)
-		stub.mu.Unlock()
+		s.requests.Add(1)
+		s.mu.Lock()
+		s.bodies = append(s.bodies, body)
+		s.mu.Unlock()
 
-		if status := stub.status.Load(); status != 0 {
+		if status := s.status.Load(); status != 0 {
 			w.WriteHeader(int(status))
 			_, _ = w.Write([]byte(`{"error":{"message":"stub"}}`))
 
 			return
 		}
 
-		if _, err := w.Write(stub.response(t, body)); err != nil {
+		if _, err := w.Write(s.response(t, body)); err != nil {
 			t.Errorf("writing stub response: %v", err)
 		}
-	}))
-	t.Cleanup(srv.Close)
-
-	stub.url = srv.URL
-
-	return stub
+	})
 }
 
 func (s *answerStub) response(t *testing.T, body []byte) []byte {

@@ -192,6 +192,22 @@ onesie --ask impact='does this help many users' \
     jq -s 'map(select(has("error") | not)) | map({id, score: (0.7 * .impact.value + 0.3 * (1 - .effort.norm))}) | sort_by(-.score)'
 ```
 
+**Run against a local server.** onesie talks to any server that speaks a provider's API, such as
+[ollaya](https://github.com/ollaya-dev/ollaya), which serves TypeSafe's System One API on this
+machine. Point `ONESIE_BASE_URL` at it and name a model it serves:
+
+```sh
+ONESIE_BASE_URL=http://localhost:11435 onesie -m winnow:e4b 'is this urgent' < ticket.txt
+```
+
+A base URL other than the provider's own needs no key, and a run with none sends no
+`Authorization` header. `--allow-http` is needed only for plain http to a host other than this
+machine. A server that speaks another provider's API takes that `--provider`. `onesie profile show`
+names where the base URL came from, so a variable left exported is easy to spot. A profile holds the
+same setup, made with
+`onesie profile create local --provider typesafe --base-url http://localhost:11435 --model winnow:e4b`
+and the key prompt left empty.
+
 **Starter gates.** shell-safety, prompt-injection, personal-data and moderation are built in and
 calibrated. `onesie questions` lists them, and [examples/README.md](examples/README.md) has their
 tables.

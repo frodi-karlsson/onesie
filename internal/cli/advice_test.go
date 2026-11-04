@@ -779,19 +779,23 @@ func runAdvised(t *testing.T, tc adviceCase) ([]string, string, string, int) {
 	}))
 	defer srv.Close()
 
+	provider, err := onesie.ProviderNamed(tc.provider)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	lookup := func(name string) (string, bool) {
 		if name == envProvider && tc.provider != "" {
 			return tc.provider, true
 		}
 
 		value, ok := tc.env[name]
+		if !ok && name == provider.EnvAPIKey() {
+			// The key the factory sends, so a refusal is worded as one of a key from the variable.
+			return "k", true
+		}
 
 		return value, ok
-	}
-
-	provider, err := onesie.ProviderNamed(tc.provider)
-	if err != nil {
-		t.Fatal(err)
 	}
 
 	var out, errOut bytes.Buffer
@@ -905,6 +909,14 @@ func TestWithKeyHint(t *testing.T) {
 			wantErr:  "The key came from TYPESAFE_API_KEY",
 		},
 		{
+			name:     "should pass the keyless note through",
+			args:     []string{"is this urgent", "--state", "x", "-r", "--base-url", "{url}"},
+			status:   http.StatusUnauthorized,
+			wantCode: ExitAuth,
+			wantErr: "onesie: 401 the key was refused. No key was sent, since none resolves and the base URL is " +
+				"custom. Set TYPESAFE_API_KEY",
+		},
+		{
 			name: "should leave a 402 without the key hint",
 			profiles: `{"default":"work","profiles":{"work":{"provider":"typesafe","api_key":"SECRET-WORK",` +
 				`"base_url":"{url}"}}}`,
@@ -950,6 +962,57 @@ func TestWithKeyHint(t *testing.T) {
 
 			if !strings.Contains(out, tc.wantOut) {
 				t.Errorf("stdout = %q, want it to contain %q", out, tc.wantOut)
+			}
+		})
+	}
+}
+
+func TestKeyHint(t *testing.T) {
+	t.Parallel()
+
+	refused := fmt.Errorf("401 the key was refused: %w", onesie.ErrAuthentication)
+
+	tests := []struct {
+		name   string
+		err    error
+		chosen resolution
+		want   string
+	}{
+		{
+			name: "should say no key was sent on a keyless 401", err: refused,
+			chosen: resolution{provider: onesie.TypeSafe(), keyFrom: sourceNone},
+			want: refused.Error() + ". No key was sent, since none resolves and the base URL is custom. " +
+				"Set TYPESAFE_API_KEY",
+		},
+		{
+			name: "should say no key was sent for a keyless profile", err: refused,
+			chosen: resolution{provider: onesie.TypeSafe(), profile: "local", keyFrom: sourceNone},
+			want: refused.Error() + ". No key was sent, since none resolves and the base URL is custom. " +
+				"Store one with onesie profile update 'local' --key",
+		},
+		{
+			name: "should name the key variable on a keyed 401", err: refused,
+			chosen: resolution{provider: onesie.OpenRouter(), keyFrom: sourceEnv},
+			want:   refused.Error() + ". The key came from OPENROUTER_API_KEY",
+		},
+		{
+			name: "should name profile update on a profile", err: refused,
+			chosen: resolution{provider: onesie.TypeSafe(), profile: "work", keyFrom: sourceFile},
+			want:   refused.Error() + ". Replace the key with onesie profile update 'work' --key",
+		},
+		{
+			name: "should leave a non auth error alone", err: onesie.ErrNoAPIKey,
+			chosen: resolution{provider: onesie.TypeSafe(), keyFrom: sourceNone},
+			want:   onesie.ErrNoAPIKey.Error(),
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := keyHint(tc.err, tc.chosen).Error(); got != tc.want {
+				t.Errorf("keyHint = %q, want %q", got, tc.want)
 			}
 		})
 	}

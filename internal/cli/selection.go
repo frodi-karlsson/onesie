@@ -15,6 +15,7 @@ import (
 const (
 	envProfile  = "ONESIE_PROFILE"
 	envProvider = "ONESIE_PROVIDER"
+	envBaseURL  = "ONESIE_BASE_URL"
 
 	flagProfile  = "profile"
 	flagProvider = "provider"
@@ -185,11 +186,18 @@ func profileRun(name string, profile creds.Profile, by string) (resolution, erro
 		model: profile.Model, baseURL: profile.BaseURL, accountID: profile.AccountID,
 	}
 
-	if profile.Store == creds.StoreKeychain {
+	switch {
+	case profile.Store == creds.StoreKeychain:
 		kept.keyFrom, kept.key, kept.account, kept.keyEnd = sourceKeychain, "", profile.Account, profile.KeyEnd
+	case holdsNoKey(profile):
+		kept.keyFrom = sourceNone
 	}
 
 	return kept, nil
+}
+
+func holdsNoKey(profile creds.Profile) bool {
+	return profile.APIKey == "" && profile.Store == ""
 }
 
 type resolution struct {
@@ -210,7 +218,7 @@ func (r resolution) options(
 ) []onesie.Option {
 	var opts []onesie.Option
 
-	if _, baseURL := r.givenBaseURL(baseURLFlag); baseURL != "" {
+	if _, baseURL := r.givenBaseURL(baseURLFlag, lookupEnv); baseURL != "" {
 		opts = append(opts, onesie.WithBaseURL(baseURL))
 	}
 
@@ -227,9 +235,17 @@ func (r resolution) options(
 	return opts
 }
 
-func (r resolution) givenBaseURL(baseURLFlag string) (name, given string) {
+func (r resolution) givenBaseURL(baseURLFlag string, lookupEnv func(string) (string, bool)) (name, given string) {
 	if flag := strings.TrimSpace(baseURLFlag); flag != "" {
 		return "--" + flagBaseURL, flag
+	}
+
+	if r.baseURL != "" || r.accountID != "" {
+		return profileBaseURL, r.baseURL
+	}
+
+	if variable := setVariable(lookupEnv, envBaseURL); variable != "" {
+		return envBaseURL, variable
 	}
 
 	return profileBaseURL, r.baseURL
@@ -250,10 +266,10 @@ func (r resolution) GoString() string {
 
 func (r resolution) String() string {
 	// Here so a stray %v prints where the key lives, never the key.
-	return "profile " + cmp.Or(r.profile, sourceNone) + ", provider " + r.provider.Name() + ", key " + r.keyLine()
+	return "profile " + cmp.Or(r.profile, sourceNone) + ", provider " + r.provider.Name() + ", key " + r.keyLine(false)
 }
 
-func (r resolution) keyLine() string {
+func (r resolution) keyLine(custom bool) string {
 	switch r.keyFrom {
 	case sourceKeychain, sourceFile:
 		if r.keyEnd == "" {
@@ -263,6 +279,10 @@ func (r resolution) keyLine() string {
 		return r.keyFrom + ", ends in " + r.keyEnd
 	case sourceEnv:
 		return sourceEnv + " " + r.provider.EnvAPIKey()
+	}
+
+	if custom {
+		return sourceNone + ", not needed for a custom base URL"
 	}
 
 	return sourceNone

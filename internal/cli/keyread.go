@@ -12,13 +12,13 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/interrupt"
 )
 
-func readKey(cmd *cobra.Command, settings rootSettings, command string) (string, error) {
+func readKey(cmd *cobra.Command, settings rootSettings, command string, allowEmpty bool) (string, error) {
 	key, err := readSecretLine(cmd, settings, command)
 	if err != nil {
 		return "", err
 	}
 
-	if key == "" {
+	if key == "" && !allowEmpty {
 		return "", fmt.Errorf("%s: the key is empty", command)
 	}
 

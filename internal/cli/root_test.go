@@ -688,7 +688,7 @@ func TestNewRootCmd(t *testing.T) {
 			name:     "should say which cache entries expire in the cache help",
 			args:     []string{"cache", "--help"},
 			wantCode: cli.ExitOK,
-			contains: []string{"how many of them expire since their model is an alias"},
+			contains: []string{"how many of them expire, since their model is an alias or their base URL is custom"},
 		},
 		{
 			name:     "should show both mock file shapes in the --mock help",

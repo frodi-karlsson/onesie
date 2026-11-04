@@ -393,7 +393,7 @@ func TestProfileCreate(t *testing.T) {
 			stdinUnread: true,
 			wantCode:    ExitUsage,
 			wantErr: []string{"onesie: --base-url http://proxy.example is plain http to a host other than this machine, " +
-				"so the API key would cross the network unencrypted. Use https, or pass --allow-http to store it, " +
+				"so the request, and any API key, would cross the network unencrypted. Use https, or pass --allow-http to store it, " +
 				"and every run on the profile then needs --allow-http too"},
 			notErr:     []string{"/gateway"},
 			wantNoFile: true,
@@ -472,6 +472,25 @@ func TestProfileCreate(t *testing.T) {
 			wantCode:    ExitUsage,
 			wantErr:     []string{"onesie: --model is empty. Name one, or leave the flag out"},
 			wantNoFile:  true,
+		},
+		{
+			name:  "should store a keyless profile on an empty key with a custom base URL",
+			args:  []string{"profile", "create", "local", "--provider", "typesafe", "--base-url", "http://localhost:11435"},
+			stdin: "\n",
+			wantErr: []string{
+				"onesie: profile 'local' holds no key, since its base URL is custom",
+				"onesie: 'local' is the default profile, since it is the first",
+			},
+			wantFile:  `{"default":"local","profiles":{"local":{"provider":"typesafe","base_url":"http://localhost:11435"}}}`,
+			wantItems: map[string]string{},
+		},
+		{
+			name:       "should refuse an empty key without a custom base URL",
+			args:       []string{"profile", "create", "work", "--provider", "typesafe", "--base-url", "https://api.typesafe.ai"},
+			stdin:      "\n",
+			wantCode:   ExitUsage,
+			wantErr:    []string{"onesie: profile create: the key is empty"},
+			wantNoFile: true,
 		},
 		{
 			name:       "should refuse an empty key",
@@ -725,7 +744,60 @@ func TestProfileUpdate(t *testing.T) {
 
 	workItems := map[string]string{"work@{hash}": key16}
 
+	const local = `{"default":"local","profiles":{"local":{"provider":"typesafe","base_url":"http://localhost:11435"}}}`
+
 	tests := []profileCase{
+		{
+			name:     "should refuse clearing the base URL of a keyless profile without --key",
+			file:     local,
+			args:     []string{"profile", "update", "local", "--base-url", ""},
+			wantCode: ExitUsage,
+			wantStderr: "onesie: profile 'local' holds no key, so its base URL must stay custom. " +
+				"Pass --key to store one\n",
+			wantFile: local,
+		},
+		{
+			name:     "should refuse setting the provider's own base URL on a keyless profile without --key",
+			file:     local,
+			args:     []string{"profile", "update", "local", "--base-url", "https://api.typesafe.ai"},
+			wantCode: ExitUsage,
+			wantErr:  []string{"onesie: profile 'local' holds no key, so its base URL must stay custom"},
+			wantFile: local,
+		},
+		{
+			name:     "should refuse moving a keyless profile onto a provider whose own URL is its base_url",
+			file:     `{"default":"local","profiles":{"local":{"provider":"typesafe","base_url":"https://openrouter.ai/api"}}}`,
+			args:     []string{"profile", "update", "local", "--provider", "openrouter", "--key"},
+			stdin:    "\n",
+			wantCode: ExitUsage,
+			wantErr:  []string{"onesie: profile update: the key is empty"},
+			wantFile: `{"default":"local","profiles":{"local":{"provider":"typesafe","base_url":"https://openrouter.ai/api"}}}`,
+		},
+		{
+			name:     "should refuse an empty key that would delete the stored key",
+			file:     `{"default":"local","profiles":{"local":{"provider":"typesafe","api_key":"` + key16 + `","base_url":"http://localhost:11435"}}}`,
+			args:     []string{"profile", "update", "local", "--key"},
+			stdin:    "\n",
+			wantCode: ExitUsage,
+			wantStderr: "onesie: profile 'local' holds a key, and an empty key would delete it. To run it with no key, " +
+				"create a new profile with no key\n",
+			wantFile: `{"default":"local","profiles":{"local":{"provider":"typesafe","api_key":"` + key16 + `","base_url":"http://localhost:11435"}}}`,
+		},
+		{
+			name:  "should store a key on a keyless profile with --key",
+			file:  local,
+			args:  []string{"profile", "update", "local", "--key", "--file"},
+			stdin: key16 + "\n",
+			wantFile: `{"default":"local","profiles":{"local":{"provider":"typesafe","api_key":"` + key16 +
+				`","base_url":"http://localhost:11435"}}}`,
+		},
+		{
+			name: "should keep a keyless profile keyless when only its model changes",
+			file: local,
+			args: []string{"profile", "update", "local", "--model", "winnow:e4b"},
+			wantFile: `{"default":"local","profiles":{"local":{"provider":"typesafe","model":"winnow:e4b",` +
+				`"base_url":"http://localhost:11435"}}}`,
+		},
 		{
 			name:  "should change only the model",
 			file:  work,
@@ -1447,6 +1519,13 @@ func TestProfileList(t *testing.T) {
 				"* ts    typesafe  file  jév-ü\n",
 		},
 		{
+			name: "should show none for a keyless profile",
+			file: `{"default":"local","profiles":{"local":{"provider":"typesafe","base_url":"http://localhost:11435"}}}`,
+			args: []string{"profile", "list"},
+			wantOut: "  NAME   PROVIDER  KEY   MODEL\n" +
+				"* local  typesafe  none\n",
+		},
+		{
 			name:    "should print nothing and name profile create with no profiles",
 			args:    []string{"profile", "list"},
 			wantErr: []string{"onesie: no profiles. Run onesie profile create NAME --provider PROVIDER to store one"},
@@ -1485,13 +1564,21 @@ func TestWriteProfiles(t *testing.T) {
 		{
 			name: "should pad a column by its characters, not its bytes",
 			profiles: creds.Profiles{Profiles: map[string]creds.Profile{
-				"a": {Provider: "typesafé", Model: "m"},
-				"b": {Provider: "openrouter", Model: "m"},
+				"a": {Provider: "typesafé", APIKey: "SECRET-A", Model: "m"},
+				"b": {Provider: "openrouter", APIKey: "SECRET-B", Model: "m"},
 			}},
 			active: "a",
 			want: "  NAME  PROVIDER    KEY   MODEL\n" +
 				"* a     typesafé    file  m\n" +
 				"  b     openrouter  file  m\n",
+		},
+		{
+			name: "should show none for a keyless profile",
+			profiles: creds.Profiles{Profiles: map[string]creds.Profile{
+				"local": {Provider: "typesafe", BaseURL: "http://localhost:11435"},
+			}},
+			want: "  NAME   PROVIDER  KEY   MODEL\n" +
+				"  local  typesafe  none\n",
 		},
 	}
 
@@ -1686,6 +1773,40 @@ func TestProfileShow(t *testing.T) {
 			wantOut: tsShown + "model: jev-1.13.0, profile\nbase_url: https://proxy.example, the profile's base_url\n",
 		},
 		{
+			name: "should print none, not needed for a custom base URL for a keyless profile",
+			file: `{"default":"local","profiles":{"local":{"provider":"typesafe","base_url":"http://localhost:11435"}}}`,
+			args: []string{"profile", "show"},
+			wantOut: "profile: local\nprovider: typesafe\nchosen by: the default\nkey: none, not needed for a custom base URL\n" +
+				"model: jev-latest, the provider's default\nbase_url: http://localhost:11435, the profile's base_url\n",
+		},
+		{
+			name: "should exit 0 with the keyless key line",
+			env:  map[string]string{"ONESIE_BASE_URL": "http://localhost:8080"},
+			args: []string{"profile", "show"},
+			wantOut: "profile: none\nprovider: typesafe\nchosen by: nothing\nkey: none, not needed for a custom base URL\n" +
+				"model: jev-latest, the provider's default\nbase_url: http://localhost:8080, ONESIE_BASE_URL\n",
+		},
+		{
+			name: "should still exit 2 with no key on the default URL",
+			env:  map[string]string{"ONESIE_BASE_URL": "https://api.typesafe.ai/"},
+			args: []string{"profile", "show"},
+			wantOut: "profile: none\nprovider: typesafe\nchosen by: nothing\nkey: none\n" +
+				"model: jev-latest, the provider's default\nbase_url: https://api.typesafe.ai, ONESIE_BASE_URL\n",
+			wantCode: ExitUsage,
+			wantStderr: "onesie: no API key. Set TYPESAFE_API_KEY, or store one with " +
+				"onesie profile create NAME --provider typesafe\n",
+		},
+		{
+			name: "should name ONESIE_BASE_URL as the base_url source",
+			env: map[string]string{
+				"TYPESAFE_API_KEY": "SECRET-TS", "ONESIE_BASE_URL": "https://local.example/",
+				"TYPESAFE_BASE_URL": "https://env.example",
+			},
+			args: []string{"profile", "show"},
+			wantOut: "profile: none\nprovider: typesafe\nchosen by: nothing\nkey: env TYPESAFE_API_KEY\n" +
+				"model: jev-latest, the provider's default\nbase_url: https://local.example, ONESIE_BASE_URL\n",
+		},
+		{
 			name: "should report the variables on a run without a profile",
 			env: map[string]string{
 				"TYPESAFE_API_KEY": "SECRET-TS", "TYPESAFE_DEFAULT_MODEL": "jev-env", "TYPESAFE_BASE_URL": "https://env.example",
@@ -1811,7 +1932,15 @@ func TestProfileTest(t *testing.T) {
 		wantErr   string
 		wantCode  int
 		wantAuth  string
+		keyless   bool
 	}{
+		{
+			name:    "should list models with no key on a custom URL",
+			args:    []string{"profile", "test"},
+			env:     map[string]string{"ONESIE_BASE_URL": "{url}"},
+			wantOut: "profile: none\nprovider: typesafe\nkey: none, not needed for a custom base URL\nmodels: 2\n",
+			keyless: true,
+		},
 		{
 			name:     "should list the models with the named profile's key",
 			profiles: fileWork,
@@ -1947,7 +2076,7 @@ func TestProfileTest(t *testing.T) {
 			env:      map[string]string{onesie.TypeSafe().EnvBaseURL(): "http://proxy.example"},
 			wantCode: ExitUsage,
 			wantErr: "onesie: TYPESAFE_BASE_URL http://proxy.example is plain http to a host other than this " +
-				"machine, so the API key would cross the network unencrypted. Use https, or pass --allow-http " +
+				"machine, so the request, and any API key, would cross the network unencrypted. Use https, or pass --allow-http " +
 				"to send it anyway\n",
 		},
 		{
@@ -2029,7 +2158,7 @@ func TestProfileTest(t *testing.T) {
 				t.Errorf("stderr = %q, want it to contain %q", errOut, tc.wantErr)
 			}
 
-			if tc.wantAuth == "" {
+			if tc.wantAuth == "" && !tc.keyless {
 				return
 			}
 

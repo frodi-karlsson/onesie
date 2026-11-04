@@ -13,9 +13,9 @@ import (
 )
 
 const (
-	allowHTTPHelp = "send the API key over a plain http base URL to a host other than this machine. " +
-		"Without it such a base URL exits 2 before any request"
-	plainHTTPReason = ", so the API key would cross the network unencrypted"
+	allowHTTPHelp = "send the request, and any API key, over a plain http base URL to a host other than this " +
+		"machine. Without it such a base URL exits 2 before any request"
+	plainHTTPReason = ", so the request, and any API key, would cross the network unencrypted"
 	sendPlainHTTP   = ". Use https, or pass --" + flagAllowHTTP + " to send it anyway"
 	storePlainHTTP  = ". Use https, or pass --" + flagAllowHTTP + " to store it, and every run on the profile " +
 		"then needs --" + flagAllowHTTP + " too"
@@ -30,6 +30,7 @@ func clientBuilder(info BuildInfo, flags *runFlags, settings rootSettings) clien
 			onesie.WithProvider(chosen.provider),
 			onesie.WithUserAgent("onesie/" + info.Version),
 			onesie.WithEnv(settings.lookupEnv),
+			onesie.WithOptionalAPIKey(),
 		}
 
 		if flags.allowHTTP {
@@ -56,12 +57,12 @@ func clientBuilder(info BuildInfo, flags *runFlags, settings rootSettings) clien
 		if onesie.InsecureBaseURL(client.BaseURL()) {
 			warned.Do(func() {
 				printErr = output.Warning(settings.holder.stderr(), output.Printable(client.BaseURL())+
-					" is plain http, so the API key crosses the network unencrypted")
+					" is plain http, so "+crossing(client)+" crosses the network unencrypted")
 			})
 		}
 
 		if segment, repeats := client.BaseURLRepeatsPath(); repeats {
-			source := baseURLFrom(client.BaseURLSource(), flags.baseURL, chosen)
+			source := baseURLFrom(client.BaseURLSource(), flags.baseURL, chosen, settings.lookupEnv)
 
 			doubled.Do(func() {
 				warning := source + " ends in /" + segment + " and onesie adds the API path itself, so questions go to " +
@@ -77,6 +78,14 @@ func clientBuilder(info BuildInfo, flags *runFlags, settings rootSettings) clien
 
 		return client, nil
 	}
+}
+
+func crossing(client *onesie.Client) string {
+	if client.SendsKey() {
+		return "the API key"
+	}
+
+	return "the request"
 }
 
 func retryPolicy(flags runFlags) onesie.RetryPolicy {
@@ -125,11 +134,17 @@ func profileKey(settings rootSettings, chosen resolution) func() (string, error)
 func explained(settings rootSettings, baseURLFlag string, chosen resolution, err error) error {
 	var refused *onesie.BaseURLError
 	if errors.As(err, &refused) {
-		return baseURLRefusal(refused, baseURLFrom(refused.Source, baseURLFlag, chosen), sendPlainHTTP)
+		return baseURLRefusal(refused, baseURLFrom(refused.Source, baseURLFlag, chosen, settings.lookupEnv), sendPlainHTTP)
 	}
 
 	if errors.Is(err, onesie.ErrNoAccountID) {
 		return accountNote(err, chosen)
+	}
+
+	if errors.Is(err, onesie.ErrNoAPIKey) && chosen.profile != "" && chosen.keyFrom == sourceNone {
+		return &advisedError{cause: err, message: "profile " + creds.QuotedName(chosen.profile) + " holds no key, " +
+			"and the base URL is the provider's own. Run onesie profile update " + creds.QuotedName(chosen.profile) +
+			" --key"}
 	}
 
 	if chosen.profile != "" || chosen.keyFrom != sourceNone {
@@ -146,10 +161,12 @@ func explained(settings rootSettings, baseURLFlag string, chosen resolution, err
 	return missingKeyHint(err, chosen, opened.Profiles)
 }
 
-func baseURLFrom(source onesie.BaseURLSource, baseURLFlag string, chosen resolution) string {
+func baseURLFrom(
+	source onesie.BaseURLSource, baseURLFlag string, chosen resolution, lookupEnv func(string) (string, bool),
+) string {
 	switch source {
 	case onesie.BaseURLFromOption:
-		name, _ := chosen.givenBaseURL(baseURLFlag)
+		name, _ := chosen.givenBaseURL(baseURLFlag, lookupEnv)
 
 		return name
 	case onesie.BaseURLFromEnv:

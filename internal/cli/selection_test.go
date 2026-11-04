@@ -378,6 +378,11 @@ func TestProfileRun(t *testing.T) {
 			wantKeyFrom: sourceFile, wantKey: "SECRET-01234567",
 		},
 		{
+			name:        "should set the key source to none for a keyless profile",
+			profile:     creds.Profile{Provider: "typesafe", BaseURL: "http://localhost:11435"},
+			wantKeyFrom: sourceNone,
+		},
+		{
 			name:        "should end a padded file key on its last real characters",
 			profile:     creds.Profile{Provider: "typesafe", APIKey: "  SECRET-012345678\n"},
 			wantKeyFrom: sourceFile, wantKey: "  SECRET-012345678\n", wantKeyEnd: "5678",
@@ -537,6 +542,20 @@ func TestResolutionOptions(t *testing.T) {
 			want: onesie.OpenRouter().DefaultBaseURL(),
 		},
 		{
+			name: "should pass ONESIE_BASE_URL as the base URL on a run without a profile",
+			run:  bareRun,
+			env: map[string]string{
+				onesie.TypeSafe().EnvAPIKey(): "SECRET-ENV", envBaseURL: "https://local.example",
+				onesie.TypeSafe().EnvBaseURL(): "https://env.example",
+			},
+			want: "https://local.example",
+		},
+		{
+			name: "should pass ONESIE_BASE_URL as the base URL on a profile",
+			run:  profileOf(creds.Profile{Provider: "typesafe", APIKey: "SECRET-P"}),
+			env:  map[string]string{envBaseURL: "https://local.example"}, want: "https://local.example",
+		},
+		{
 			name: "should take --base-url on a run without a profile",
 			run:  bareRun,
 			flag: "https://flag.example",
@@ -591,14 +610,37 @@ func TestResolutionGivenBaseURL(t *testing.T) {
 	t.Parallel()
 
 	profile := resolution{profile: "work", baseURL: "https://profile.example"}
+	local := map[string]string{envBaseURL: "http://localhost:11435"}
 
 	tests := []struct {
 		name       string
 		run        resolution
 		flag       string
+		env        map[string]string
 		wantURL    string
 		wantSource string
 	}{
+		{
+			name: "should return ONESIE_BASE_URL when nothing else names one", run: resolution{}, env: local,
+			wantURL: "http://localhost:11435", wantSource: envBaseURL,
+		},
+		{
+			name: "should prefer the profile's base_url", run: profile, env: local,
+			wantURL: "https://profile.example", wantSource: "the profile's base_url",
+		},
+		{
+			name: "should prefer --base-url", run: resolution{}, env: local,
+			flag: "https://flag.example", wantURL: "https://flag.example", wantSource: "--base-url",
+		},
+		{
+			name: "should skip it when the profile has an account_id", env: local,
+			run:        resolution{profile: "cf", accountID: "0123456789abcdef0123456789abcdef"},
+			wantSource: "the profile's base_url",
+		},
+		{
+			name: "should ignore a blank value", run: resolution{},
+			env: map[string]string{envBaseURL: "  "}, wantSource: "the profile's base_url",
+		},
 		{
 			name: "should take --base-url ahead of the profile's base_url", run: profile,
 			flag: "https://flag.example", wantURL: "https://flag.example", wantSource: "--base-url",
@@ -621,7 +663,7 @@ func TestResolutionGivenBaseURL(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			source, url := tc.run.givenBaseURL(tc.flag)
+			source, url := tc.run.givenBaseURL(tc.flag, lookupFrom(tc.env))
 			if source != tc.wantSource || url != tc.wantURL {
 				t.Errorf("givenBaseURL = %q, %q, want %q, %q", source, url, tc.wantSource, tc.wantURL)
 			}
@@ -683,9 +725,10 @@ func TestResolutionKeyLine(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name string
-		run  resolution
-		want string
+		name   string
+		run    resolution
+		custom bool
+		want   string
 	}{
 		{name: "should name the keychain and its ending", run: resolution{keyFrom: sourceKeychain, keyEnd: "3f9a"}, want: "keychain, ends in 3f9a"},
 		{name: "should name the keychain alone with no ending", run: resolution{keyFrom: sourceKeychain}, want: "keychain"},
@@ -693,13 +736,21 @@ func TestResolutionKeyLine(t *testing.T) {
 		{name: "should name the file alone for a short key", run: resolution{keyFrom: sourceFile, key: "SECRET-0"}, want: "file"},
 		{name: "should name the provider's variable", run: resolution{keyFrom: sourceEnv, provider: onesie.OpenRouter()}, want: "env OPENROUTER_API_KEY"},
 		{name: "should name none", run: resolution{keyFrom: sourceNone}, want: "none"},
+		{
+			name: "should print none, not needed for a custom base URL", run: resolution{keyFrom: sourceNone},
+			custom: true, want: "none, not needed for a custom base URL",
+		},
+		{
+			name: "should name the provider's variable on a custom base URL",
+			run:  resolution{keyFrom: sourceEnv, provider: onesie.OpenRouter()}, custom: true, want: "env OPENROUTER_API_KEY",
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			if got := tc.run.keyLine(); got != tc.want {
+			if got := tc.run.keyLine(tc.custom); got != tc.want {
 				t.Errorf("keyLine = %q, want %q", got, tc.want)
 			}
 		})

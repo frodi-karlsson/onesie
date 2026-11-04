@@ -84,7 +84,8 @@ func newProfileCreateCmd(settings rootSettings, flags *runFlags) *cobra.Command 
 			"otherwise. The key is never a flag, since a flag lands in shell history.\n\n" +
 			"Stdin must hold the key alone. pass show and its siblings print metadata after the secret, so " +
 			"pipe them through head -n 1.\n\n" +
-			"The key goes to the OS keychain, or to profiles.json with --file. A name is 1 to 64 lowercase " +
+			"The key goes to the OS keychain, or to profiles.json with --file. An empty key stores a profile " +
+			"with no key when --base-url is not the provider's own. A name is 1 to 64 lowercase " +
 			"letters, digits, - or _, does not start with -, and is not none. The first profile becomes the default.",
 		Example: "  pass show openrouter | head -n 1 | onesie profile create work --provider openrouter\n" +
 			"  onesie profile create cf --provider cloudflare --account-id 0123456789abcdef0123456789abcdef",
@@ -141,7 +142,7 @@ func profileCreate(
 		return refused
 	}
 
-	if refused := checkProfile(opened.Profiles, name, profile, "--"+flagBaseURL); refused != nil {
+	if refused := checkProfile(opened.Profiles, name, profile, "--"+flagBaseURL, true); refused != nil {
 		return refused
 	}
 
@@ -151,7 +152,7 @@ func profileCreate(
 
 	change := creds.Change{
 		Path: path, Profiles: opened.Profiles, Name: name, Profile: profile, ToFile: fields.toFile,
-		ReadKey: func() (string, error) { return readKey(cmd, settings, "profile create") },
+		ReadKey: func() (string, error) { return readKey(cmd, settings, "profile create", customProfile(profile)) },
 	}
 	notices, err := creds.NewProfileManager(settings.credStore, settings.keychain).Create(change)
 
@@ -231,7 +232,13 @@ func profileUpdate(
 		baseURLSource = "--" + flagBaseURL
 	}
 
-	if refused := checkProfile(opened.Profiles, name, profile, baseURLSource); refused != nil {
+	// Ahead of checkProfile, whose rules would refuse the profile without saying why.
+	if !fields.key && holdsNoKey(old) && !customProfile(profile) {
+		return fmt.Errorf("profile %s holds no key, so its base URL must stay custom. Pass --%s to store one",
+			creds.QuotedName(name), flagKey)
+	}
+
+	if refused := checkProfile(opened.Profiles, name, profile, baseURLSource, fields.key); refused != nil {
 		return refused
 	}
 
@@ -243,7 +250,7 @@ func profileUpdate(
 
 	change := creds.Change{Path: path, Profiles: opened.Profiles, Name: name, Profile: profile, ToFile: fields.toFile}
 	if fields.key {
-		change.ReadKey = func() (string, error) { return readKey(cmd, settings, "profile update") }
+		change.ReadKey = func() (string, error) { return readKey(cmd, settings, "profile update", customProfile(profile)) }
 	}
 
 	notices, err := creds.NewProfileManager(settings.credStore, settings.keychain).Update(change)
@@ -405,8 +412,11 @@ func writeProfiles(w io.Writer, profiles creds.Profiles, active string) error {
 		profile := profiles.Profiles[name]
 
 		key := sourceFile
-		if profile.Store == creds.StoreKeychain {
+		switch {
+		case profile.Store == creds.StoreKeychain:
 			key = sourceKeychain
+		case holdsNoKey(profile):
+			key = sourceNone
 		}
 
 		rows = append(rows, []string{name, profile.Provider, key, output.Printable(profile.Model)})
@@ -466,12 +476,13 @@ func newProfileShowCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 			"model and base_url lines give the value a run would use and where it comes from. The model comes " +
 			"from profile, an env " +
 			"variable such as TYPESAFE_DEFAULT_MODEL, or the provider's default. The base_url comes from the " +
-			"profile's base_url, a variable such as TYPESAFE_BASE_URL, the profile's account_id, " +
+			"profile's base_url, the profile's account_id, " + envBaseURL + ", a variable such as TYPESAFE_BASE_URL, " +
 			providers.AccountVariables() + ", or the provider's default. An allow_http line says a run needs " +
 			"--allow-http, when base_url is plain http to another host. It never reads the keychain or " +
 			"prints a key.\n\n" +
-			"It exits 2 when key or account is none, printing the hint a run gives for each, when the account is not " +
-			"32 hexadecimal characters, or when ONESIE_CACHE, ONESIE_LONG_CONTEXT or ONESIE_CACHE_TTL holds " +
+			"It exits 2 when key is none on the provider's own base URL, or account is none, printing the " +
+			"hint a run gives for each, when the account is not 32 hexadecimal characters, or when " +
+			"ONESIE_CACHE, ONESIE_LONG_CONTEXT or ONESIE_CACHE_TTL holds " +
 			"a value a run refuses, as a real run does.",
 		Args: profileNames("show", 0, 1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -488,8 +499,9 @@ func profileShow(cmd *cobra.Command, settings rootSettings, flags *runFlags, arg
 
 	// Resolved as a run resolves it, which checks a hand edited profiles.json and the provider's base
 	// URL variable too, since neither passed through create.
-	baseURL, source, invalid := shown.provider.ResolveBaseURL(shown.baseURL, shown.accountID, settings.lookupEnv)
-	sourceName := baseURLFrom(source, "", shown)
+	_, given := shown.givenBaseURL("", settings.lookupEnv)
+	baseURL, source, invalid := shown.provider.ResolveBaseURL(given, shown.accountID, settings.lookupEnv)
+	sourceName := baseURLFrom(source, "", shown, settings.lookupEnv)
 
 	var refused *onesie.BaseURLError
 	if errors.As(invalid, &refused) {
@@ -509,11 +521,13 @@ func profileShow(cmd *cobra.Command, settings rootSettings, flags *runFlags, arg
 		baseURLLine = output.Printable(baseURL) + ", " + sourceName
 	}
 
+	custom := invalid == nil && shown.provider.CustomBaseURL(baseURL)
+
 	lines := []string{
 		"profile: " + cmp.Or(shown.profile, noProfile),
 		"provider: " + shown.provider.Name(),
 		"chosen by: " + shown.by,
-		"key: " + shown.keyLine(),
+		"key: " + shown.keyLine(custom),
 		"model: " + output.Printable(shown.modelFor("", settings.lookupEnv)) + ", " +
 			modelOrigin(shown, settings.lookupEnv),
 		"base_url: " + baseURLLine,
@@ -531,13 +545,15 @@ func profileShow(cmd *cobra.Command, settings rootSettings, flags *runFlags, arg
 		return printErr
 	}
 
-	return showRefusals(cmd, settings, shown, invalid, account)
+	return showRefusals(cmd, settings, shown, invalid, account, custom)
 }
 
-func showRefusals(cmd *cobra.Command, settings rootSettings, shown resolution, accountErr error, account string) error {
+func showRefusals(
+	cmd *cobra.Command, settings rootSettings, shown resolution, accountErr error, account string, custom bool,
+) error {
 	var refusals []error
 
-	if shown.profile == "" && shown.keyFrom == sourceNone {
+	if shown.profile == "" && shown.keyFrom == sourceNone && !custom {
 		refusals = append(refusals, missingKey(settings, shown))
 	}
 
@@ -628,7 +644,7 @@ func profileTest(cmd *cobra.Command, settings rootSettings, flags *runFlags, arg
 	}
 
 	_, printErr := fmt.Fprintf(cmd.OutOrStdout(), "profile: %s\nprovider: %s\nkey: %s\nmodels: %d\n",
-		cmp.Or(tested.profile, noProfile), tested.provider.Name(), tested.keyLine(), len(models))
+		cmp.Or(tested.profile, noProfile), tested.provider.Name(), tested.keyLine(!client.SendsKey()), len(models))
 
 	return printErr
 }
@@ -803,7 +819,9 @@ func refusePlainHTTP(flags *runFlags, baseURL string) error {
 	return baseURLRefusal(refused, "--"+flagBaseURL, storePlainHTTP)
 }
 
-func checkProfile(profiles creds.Profiles, name string, profile creds.Profile, baseURLSource string) error {
+func checkProfile(
+	profiles creds.Profiles, name string, profile creds.Profile, baseURLSource string, readsKey bool,
+) error {
 	if profile.BaseURL != "" {
 		if refused := checkBaseURL(profile.BaseURL, baseURLSource); refused != nil {
 			return refused
@@ -811,7 +829,7 @@ func checkProfile(profiles creds.Profiles, name string, profile creds.Profile, b
 	}
 
 	// The key is read only once the rest passes, so a stand in takes its place for the rules.
-	if profile.APIKey == "" && profile.Store == "" {
+	if readsKey && holdsNoKey(profile) {
 		profile.APIKey = keyPlaceholder
 	}
 
@@ -820,6 +838,12 @@ func checkProfile(profiles creds.Profiles, name string, profile creds.Profile, b
 	}
 
 	return nil
+}
+
+func customProfile(profile creds.Profile) bool {
+	provider, err := onesie.ProviderNamed(profile.Provider)
+
+	return err == nil && profile.BaseURL != "" && provider.CustomBaseURL(profile.BaseURL)
 }
 
 func checkBaseURL(baseURL, source string) error {
@@ -879,6 +903,8 @@ func noticeLine(each creds.Notice, change creds.Change) notice {
 	case creds.OldKeyUnread:
 		return notice{text: "the keychain item " + each.Account + " now holds the new key, and its old key " +
 			"could not be read to put back", warning: true}
+	case creds.KeyNotStored:
+		return notice{text: "profile " + creds.QuotedName(change.Name) + " holds no key, since its base URL is custom"}
 	case creds.OldKeyLost:
 		return notice{text: each.Err.Error() + ". The keychain item " + each.Account +
 			" now holds the new key, and its old key could not be put back", warning: true}

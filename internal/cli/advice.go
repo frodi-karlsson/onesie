@@ -103,12 +103,25 @@ func keyHint(err error, chosen resolution) error {
 		return err
 	}
 
-	note := "The key came from " + chosen.provider.EnvAPIKey()
-	if chosen.profile != "" {
-		note = "Replace the key with onesie profile update " + creds.QuotedName(chosen.profile) + " --key"
+	return &advisedError{cause: err, note: keyNote(chosen)}
+}
+
+func keyNote(chosen resolution) string {
+	// New accepts a missing key only on a custom base URL, so a refusal with none was sent there.
+	if chosen.keyFrom == sourceNone && chosen.profile != "" {
+		return "No key was sent, since none resolves and the base URL is custom. Store one with onesie profile " +
+			"update " + creds.QuotedName(chosen.profile) + " --key"
 	}
 
-	return &advisedError{cause: err, note: note}
+	if chosen.keyFrom == sourceNone {
+		return "No key was sent, since none resolves and the base URL is custom. Set " + chosen.provider.EnvAPIKey()
+	}
+
+	if chosen.profile != "" {
+		return "Replace the key with onesie profile update " + creds.QuotedName(chosen.profile) + " --key"
+	}
+
+	return "The key came from " + chosen.provider.EnvAPIKey()
 }
 
 func keyRefused(err error) bool {

@@ -2,7 +2,7 @@ onesie is a Unix filter over the System One API, served by typesafe, openrouter,
 
 State arrives on stdin, typed answers leave on stdout, and the exit status is usable in a conditional.
 
-A run uses a profile from profiles.json in the config dir: the one --profile or ONESIE_PROFILE names, or the default one. A profile holds the provider, its key, in the OS keychain or the file, and optionally a model and a base URL or cloudflare account. onesie profile create stores one, and onesie profile use makes it the default. --provider or ONESIE_PROVIDER runs without a profile, with the key from the provider's variable, TYPESAFE_API_KEY, OPENROUTER_API_KEY, BERGET_API_KEY, LEVANTO_API_KEY or CLOUDFLARE_API_TOKEN, and so does a run on typesafe when there are no profiles. On cloudflare a run also needs an account, from the profile, CLOUDFLARE_ACCOUNT_ID or a base URL that holds it.
+A run uses a profile from profiles.json in the config dir: the one --profile or ONESIE_PROFILE names, or the default one. A profile holds the provider, its key, in the OS keychain or the file, and optionally a model and a base URL or cloudflare account. onesie profile create stores one, and onesie profile use makes it the default. --provider or ONESIE_PROVIDER runs without a profile, with the key from the provider's variable, TYPESAFE_API_KEY, OPENROUTER_API_KEY, BERGET_API_KEY, LEVANTO_API_KEY or CLOUDFLARE_API_TOKEN, and so does a run on typesafe when there are no profiles. On cloudflare a run also needs an account, from the profile, CLOUDFLARE_ACCOUNT_ID or a base URL that holds it. A run on a base URL other than the provider's own needs no key, and sends none when none resolves.
 
 --mock FILE, or ONESIE_MOCK=FILE, answers from a file instead of the API, with no key and no network, so a gate script can be tested for free.
 
@@ -13,7 +13,7 @@ A question that begins with a dash needs -- before it, with any flags placed fir
 Exit codes:
   0    answered
   1    a false --assert, or under -q alone the policy did not accept the answer
-  2    usage or validation error, including a missing key, or a plain http base URL to another host without --allow-http
+  2    usage or validation error, including a missing key on the provider's own base URL, or a plain http base URL to another host without --allow-http
   3    the key was refused, the account is out of credits, the keychain failed, or profiles.json or credentials.json is exposed
   4    the server did not answer after retries, or it answered 200 with a response onesie could not use, which is never retried
   5    transport error or timeout
@@ -36,10 +36,10 @@ Available Commands:
 
 Flags:
       --abstain-if stringArray    boolean expression that turns a no into an unsure, repeatable, needs --assert
-      --allow-http                send the API key over a plain http base URL to a host other than this machine. Without it such a base URL exits 2 before any request
+      --allow-http                send the request, and any API key, over a plain http base URL to a host other than this machine. Without it such a base URL exits 2 before any request
       --ask string                NAME=QUESTION, repeatable, opens a question group
       --assert stringArray        boolean expression over the record, repeatable, combined with and
-      --base-url string           api root override
+      --base-url string           api root override. Also ONESIE_BASE_URL
       --box                       make this a box question, answered with the left, top, right and bottom edges of what it finds in an image, each from 0 to 1. Takes no value. Experimental on TypeSafe's side
       --cache                     store responses on disk and answer a repeated request from them. Also ONESIE_CACHE=1
       --delimiter string          field separator for -i csv: auto, or one character. Defaults to a comma

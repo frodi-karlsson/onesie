@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -153,6 +154,29 @@ func TestStreamRaw(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("should send a request body with no key on a custom URL", func(t *testing.T) {
+		t.Parallel()
+
+		var keyed atomic.Int32
+
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if len(r.Header.Values("Authorization")) != 0 {
+				keyed.Add(1)
+			}
+
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = io.WriteString(w, answered)
+		}))
+		defer srv.Close()
+
+		out, errOut, code := runInConfig(t, t.TempDir(), []string{"-i", "request", "--base-url", srv.URL},
+			`{"state":"x","questions":{"a":{"type":"noul"}}}`+"\n", nil)
+		if code != ExitOK || strings.TrimSpace(out) != answered || keyed.Load() != 0 {
+			t.Errorf("exit code = %d, stdout = %q, stderr = %q, keyed requests = %d, want %d, the response and none",
+				code, out, errOut, keyed.Load(), ExitOK)
+		}
+	})
 
 	t.Run("should write an error record for a failed line", func(t *testing.T) {
 		t.Parallel()

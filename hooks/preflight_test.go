@@ -56,6 +56,29 @@ func TestPreflight(t *testing.T) {
 				"Its base URL is plain http to another host, so every run exits 2 unless it passes --allow-http.\n",
 		},
 		{
+			name: "should report that no key is needed for a custom base URL",
+			show: "profile: none\nprovider: typesafe\nchosen by: nothing\nkey: none, not needed for a custom base URL\n" +
+				"model: jev-latest, the provider's default\nbase_url: http://localhost:11435, ONESIE_BASE_URL\n",
+			want: "onesie is on PATH and needs no key, since its base URL is custom, profile: none, provider: typesafe, " +
+				"base_url: http://localhost:11435.\n",
+		},
+		{
+			name: "should add the plain http line for a keyless remote http base URL",
+			show: "profile: local\nprovider: typesafe\nchosen by: the default\nkey: none, not needed for a custom base URL\n" +
+				"model: winnow:e4b, profile\nbase_url: http://gpu.example:11435, the profile's base_url\n" +
+				"allow_http: needed, since base_url is plain http to another host\n",
+			want: "onesie is on PATH and needs no key, since its base URL is custom, profile: local, provider: typesafe, " +
+				"base_url: http://gpu.example:11435.\n" +
+				"Its base URL is plain http to another host, so every run exits 2 unless it passes --allow-http.\n",
+		},
+		{
+			name: "should name ONESIE_BASE_URL when a key goes to it",
+			show: "profile: none\nprovider: typesafe\nchosen by: nothing\nkey: env TYPESAFE_API_KEY\n" +
+				"model: jev-latest, the provider's default\nbase_url: http://localhost:11435, ONESIE_BASE_URL\n",
+			want: "onesie is on PATH and a key resolves, profile: none, provider: typesafe, key: env TYPESAFE_API_KEY.\n" +
+				"Its base URL comes from ONESIE_BASE_URL, so the key goes to http://localhost:11435.\n",
+		},
+		{
 			name: "should report a key from the environment for a run without a profile",
 			show: "profile: none\nprovider: typesafe\nchosen by: nothing\nkey: env TYPESAFE_API_KEY\n" +
 				"model: jev-latest, the provider's default\nbase_url: https://api.typesafe.ai, the provider's default\n",
