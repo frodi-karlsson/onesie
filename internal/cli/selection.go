@@ -186,11 +186,18 @@ func profileRun(name string, profile creds.Profile, by string) (resolution, erro
 		model: profile.Model, baseURL: profile.BaseURL, accountID: profile.AccountID,
 	}
 
-	if profile.Store == creds.StoreKeychain {
+	switch {
+	case profile.Store == creds.StoreKeychain:
 		kept.keyFrom, kept.key, kept.account, kept.keyEnd = sourceKeychain, "", profile.Account, profile.KeyEnd
+	case holdsNoKey(profile):
+		kept.keyFrom = sourceNone
 	}
 
 	return kept, nil
+}
+
+func holdsNoKey(profile creds.Profile) bool {
+	return profile.APIKey == "" && profile.Store == ""
 }
 
 type resolution struct {

@@ -378,6 +378,11 @@ func TestProfileRun(t *testing.T) {
 			wantKeyFrom: sourceFile, wantKey: "SECRET-01234567",
 		},
 		{
+			name:        "should set the key source to none for a keyless profile",
+			profile:     creds.Profile{Provider: "typesafe", BaseURL: "http://localhost:11435"},
+			wantKeyFrom: sourceNone,
+		},
+		{
 			name:        "should end a padded file key on its last real characters",
 			profile:     creds.Profile{Provider: "typesafe", APIKey: "  SECRET-012345678\n"},
 			wantKeyFrom: sourceFile, wantKey: "  SECRET-012345678\n", wantKeyEnd: "5678",

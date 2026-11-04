@@ -142,6 +142,24 @@ func TestProfileManagerCreate(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("should store no key, write no keychain item and report KeyNotStored for an empty key", func(t *testing.T) {
+		t.Parallel()
+
+		path, fill := profilesPath(t)
+		backend := newItemBackend(nil)
+		local := creds.Profile{Provider: "typesafe", BaseURL: "http://localhost:11435"}
+
+		notices, err := newManager(backend, false).Create(creds.Change{
+			Path: path, Name: "work", Profile: local, ReadKey: func() (string, error) { return "", nil },
+		})
+
+		checkChange(t, path, fill, notices, err, changeWant{
+			notices: []creds.Notice{{Kind: creds.KeyNotStored}, {Kind: creds.FirstDefault}},
+			file:    &creds.Profiles{Default: "work", Profiles: map[string]creds.Profile{"work": local}},
+			items:   map[string]string{}, backend: backend,
+		})
+	})
 }
 
 func TestProfileManagerUpdate(t *testing.T) {
@@ -273,6 +291,26 @@ func TestProfileManagerUpdate(t *testing.T) {
 			})
 		})
 	}
+
+	t.Run("should delete the old keychain item when the new key is empty", func(t *testing.T) {
+		t.Parallel()
+
+		path, fill := profilesPath(t)
+		profiles := filledProfiles(inKeychain("old"), fill)
+		backend := newItemBackend(map[string]string{"old": "SECRET-OLD"})
+		local := creds.Profile{Provider: "openrouter", BaseURL: "http://localhost:11435"}
+
+		notices, err := newManager(backend, false).Update(creds.Change{
+			Path: path, Profiles: profiles, Name: "work", Profile: local,
+			ReadKey: func() (string, error) { return "", nil },
+		})
+
+		checkChange(t, path, fill, notices, err, changeWant{
+			notices: []creds.Notice{{Kind: creds.KeyNotStored}},
+			file:    &creds.Profiles{Default: "work", Profiles: map[string]creds.Profile{"work": local}},
+			items:   map[string]string{}, backend: backend,
+		})
+	})
 }
 
 func TestProfileManagerDelete(t *testing.T) {

@@ -985,6 +985,12 @@ func TestKeyHint(t *testing.T) {
 				"Set TYPESAFE_API_KEY",
 		},
 		{
+			name: "should say no key was sent for a keyless profile", err: refused,
+			chosen: resolution{provider: onesie.TypeSafe(), profile: "local", keyFrom: sourceNone},
+			want: refused.Error() + ". No key was sent, since none resolves and the base URL is custom. " +
+				"Store one with onesie profile update 'local' --key",
+		},
+		{
 			name: "should name the key variable on a keyed 401", err: refused,
 			chosen: resolution{provider: onesie.OpenRouter(), keyFrom: sourceEnv},
 			want:   refused.Error() + ". The key came from OPENROUTER_API_KEY",

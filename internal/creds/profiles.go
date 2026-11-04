@@ -245,8 +245,10 @@ func (p Profile) validate(subject string) error {
 
 	inFile := strings.TrimSpace(p.APIKey) != "" && p.Store == "" && p.Account == ""
 	inKeychain := p.APIKey == "" && p.Store == StoreKeychain && p.Account != ""
+	keyless := p.APIKey == "" && p.Store == "" && p.Account == "" && p.KeyEnd == "" &&
+		p.BaseURL != "" && provider.CustomBaseURL(p.BaseURL)
 
-	if !inFile && !inKeychain {
+	if !inFile && !inKeychain && !keyless {
 		return fmt.Errorf(
 			"%s needs its key in exactly one place, a non empty api_key or store keychain with an account",
 			subject)

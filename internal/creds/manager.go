@@ -28,6 +28,8 @@ const (
 	// OldKeyLost means Err kept the old key from going back into the keychain item Account, which holds
 	// the new key.
 	OldKeyLost
+	// KeyNotStored means the key was empty and the base URL custom, so the profile holds no key.
+	KeyNotStored
 )
 
 // NewProfileManager builds a ProfileManager that writes profiles through store and keeps their keys
@@ -230,6 +232,10 @@ func (m *ProfileManager) storeKey(
 	profile Profile, key, account string, toFile bool,
 ) (stored Profile, notices []Notice, err error) {
 	profile.APIKey, profile.Store, profile.Account, profile.KeyEnd = "", "", "", ""
+
+	if key == "" {
+		return profile, []Notice{{Kind: KeyNotStored}}, nil
+	}
 
 	if toFile {
 		profile.APIKey = key

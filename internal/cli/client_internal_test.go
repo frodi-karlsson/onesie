@@ -315,6 +315,22 @@ func TestClientBuilder(t *testing.T) {
 			},
 		},
 		{
+			name:     "should build a keyless client for a keyless profile on a custom URL",
+			profiles: `{"default":"local","profiles":{"local":{"provider":"typesafe","base_url":"{url}"}}}`,
+			args:     asking(), env: map[string]string{onesie.TypeSafe().EnvAPIKey(): "SECRET-ENV"},
+			wantAuth: "absent", wantModel: onesie.TypeSafe().DefaultModel(),
+		},
+		{
+			name:     "should refuse a keyless profile on the provider's own URL with the profile update hint",
+			profiles: `{"default":"local","profiles":{"local":{"provider":"typesafe","base_url":"{other}"}}}`,
+			args:     asking("--base-url", "https://api.typesafe.ai"),
+			wantCode: ExitUsage,
+			wantErr: []string{
+				"onesie: profile 'local' holds no key, and the base URL is the provider's own. " +
+					"Run onesie profile update 'local' --key",
+			},
+		},
+		{
 			name: "should send to ONESIE_BASE_URL over TYPESAFE_BASE_URL", args: asking(),
 			env: map[string]string{
 				onesie.TypeSafe().EnvAPIKey(): "SECRET-ENV", envBaseURL: "{url}", onesie.TypeSafe().EnvBaseURL(): "{other}",
@@ -703,8 +719,13 @@ func modelServer(t *testing.T) (*httptest.Server, func() []sentRequest) {
 			t.Errorf("decoding the request body: %v", err)
 		}
 
+		auth := r.Header.Get("Authorization")
+		if len(r.Header.Values("Authorization")) == 0 {
+			auth = "absent"
+		}
+
 		mu.Lock()
-		sent = append(sent, sentRequest{auth: r.Header.Get("Authorization"), model: body.Model})
+		sent = append(sent, sentRequest{auth: auth, model: body.Model})
 		mu.Unlock()
 
 		answers := map[string]any{}
@@ -802,6 +823,11 @@ func TestProfileKey(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	keyless, err := profileRun("local", creds.Profile{Provider: "typesafe", BaseURL: "http://localhost:11435"}, "--profile")
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	tests := []struct {
 		name         string
 		run          resolution
@@ -819,6 +845,7 @@ func TestProfileKey(t *testing.T) {
 			items: map[string]string{"work@abc": ""}, wantKeychain: true,
 		},
 		{name: "should pass a missing keychain item on as a keychain failure", run: keychained, wantKeychain: true},
+		{name: "should return an empty key for a keyless profile without reading the keychain", run: keyless},
 	}
 
 	for _, tc := range tests {
@@ -836,8 +863,8 @@ func TestProfileKey(t *testing.T) {
 				t.Errorf("key = %q, error = %v, want %q and a keychain failure %v", got, err, tc.want, tc.wantKeychain)
 			}
 
-			if tc.run.keyFrom == sourceFile && chain.calls() != 0 {
-				t.Errorf("keychain calls = %d, want none for a file profile", chain.calls())
+			if tc.run.keyFrom != sourceKeychain && chain.calls() != 0 {
+				t.Errorf("keychain calls = %d, want none for a profile outside the keychain", chain.calls())
 			}
 		})
 	}

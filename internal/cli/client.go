@@ -141,6 +141,12 @@ func explained(settings rootSettings, baseURLFlag string, chosen resolution, err
 		return accountNote(err, chosen)
 	}
 
+	if errors.Is(err, onesie.ErrNoAPIKey) && chosen.profile != "" && chosen.keyFrom == sourceNone {
+		return &advisedError{cause: err, message: "profile " + creds.QuotedName(chosen.profile) + " holds no key, " +
+			"and the base URL is the provider's own. Run onesie profile update " + creds.QuotedName(chosen.profile) +
+			" --key"}
+	}
+
 	if chosen.profile != "" || chosen.keyFrom != sourceNone {
 		return err
 	}
