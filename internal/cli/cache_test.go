@@ -700,17 +700,17 @@ func TestAsk(t *testing.T) {
 	})
 
 	lifetimes := []struct {
-		name  string
-		extra []string
-		env   map[string]string
-		after time.Duration
-		own   bool // Asks at the provider's own base URL, dialed to a TLS stub.
-		hit   bool
+		name            string
+		extra           []string
+		env             map[string]string
+		after           time.Duration
+		providersOwnURL bool
+		hit             bool
 	}{
 		{name: "should hit jev-latest 23 hours later", after: 23 * time.Hour, hit: true},
 		{name: "should ask jev-latest again 24 hours later", after: 24 * time.Hour},
 		{name: "should ask jev-latest again 90 minutes later under ONESIE_CACHE_TTL=90m", after: 90 * time.Minute, env: map[string]string{envCacheTTL: "90m"}},
-		{name: "should hit a pinned jev-1.13.0 on typesafe a year later", extra: []string{"-m", "jev-1.13.0"}, after: 365 * 24 * time.Hour, own: true, hit: true},
+		{name: "should hit a pinned jev-1.13.0 on typesafe a year later", extra: []string{"-m", "jev-1.13.0"}, after: 365 * 24 * time.Hour, providersOwnURL: true, hit: true},
 		{name: "should not pin an answer from a custom base URL", extra: []string{"-m", "jev-1.13.0"}, after: 24 * time.Hour},
 		{name: "should ask jev-1.13.0 on openrouter again 24 hours later", extra: []string{"-m", "jev-1.13.0", "--provider", "openrouter"}, after: 24 * time.Hour},
 		{name: "should hit the systemone alias on berget 23 hours later", extra: []string{"--provider", "berget"}, after: 23 * time.Hour, hit: true},
@@ -728,7 +728,7 @@ func TestAsk(t *testing.T) {
 			maps.Copy(env, tc.env)
 			args := append(append(slicesOf(base), "--base-url", stub.url), tc.extra...)
 
-			if tc.own {
+			if tc.providersOwnURL {
 				stub, dial = newTLSAnswerStub(t)
 				args = append(slicesOf(base), tc.extra...)
 			}

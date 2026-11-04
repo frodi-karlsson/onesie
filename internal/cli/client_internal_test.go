@@ -344,7 +344,6 @@ func TestClientBuilder(t *testing.T) {
 				onesie.Cloudflare().EnvAPIKey(): "SECRET-CF", envBaseURL: "{url}",
 				onesie.Cloudflare().EnvAccountID(): testAccountID,
 			},
-			anyCode:  true,
 			wantAuth: "Bearer SECRET-CF", wantModel: onesie.Cloudflare().DefaultModel(),
 		},
 		{
@@ -710,9 +709,13 @@ func modelServer(t *testing.T) (*httptest.Server, func() []sentRequest) {
 	var sent []sentRequest
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Cloudflare carries the System One body under input.
 		var body struct {
 			Model     string                     `json:"model"`
 			Questions map[string]json.RawMessage `json:"questions"`
+			Input     struct {
+				Questions map[string]json.RawMessage `json:"questions"`
+			} `json:"input"`
 		}
 
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
@@ -728,14 +731,24 @@ func modelServer(t *testing.T) (*httptest.Server, func() []sentRequest) {
 		sent = append(sent, sentRequest{auth: auth, model: body.Model})
 		mu.Unlock()
 
+		questions := body.Questions
+		if questions == nil {
+			questions = body.Input.Questions
+		}
+
 		answers := map[string]any{}
-		for id := range body.Questions {
+		for id := range questions {
 			answers[id] = map[string]any{"type": "noul", "noul": 0.5}
 		}
 
 		w.Header().Set("Content-Type", "application/json")
 
-		if err := json.NewEncoder(w).Encode(map[string]any{"model": body.Model, "answers": answers}); err != nil {
+		var response any = map[string]any{"model": body.Model, "answers": answers}
+		if strings.HasPrefix(r.URL.Path, "/run") {
+			response = map[string]any{"success": true, "result": response}
+		}
+
+		if err := json.NewEncoder(w).Encode(response); err != nil {
 			t.Errorf("writing the stub response: %v", err)
 		}
 	}))
