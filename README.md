@@ -43,6 +43,13 @@ With Go:
 go install github.com/frodi-karlsson/onesie/cmd/onesie@latest
 ```
 
+In GitHub Actions, [`setup-onesie`](https://github.com/frodi-karlsson/setup-onesie) installs it with
+the same checksum and provenance checks:
+
+```yaml
+- uses: frodi-karlsson/setup-onesie@v1
+```
+
 Then store a key in a profile with `onesie profile create work --provider typesafe`, which prompts
 for it and keeps it in the OS keychain.
 
