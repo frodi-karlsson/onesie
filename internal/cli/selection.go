@@ -259,10 +259,10 @@ func (r resolution) GoString() string {
 
 func (r resolution) String() string {
 	// Here so a stray %v prints where the key lives, never the key.
-	return "profile " + cmp.Or(r.profile, sourceNone) + ", provider " + r.provider.Name() + ", key " + r.keyLine()
+	return "profile " + cmp.Or(r.profile, sourceNone) + ", provider " + r.provider.Name() + ", key " + r.keyLine(false)
 }
 
-func (r resolution) keyLine() string {
+func (r resolution) keyLine(custom bool) string {
 	switch r.keyFrom {
 	case sourceKeychain, sourceFile:
 		if r.keyEnd == "" {
@@ -272,6 +272,10 @@ func (r resolution) keyLine() string {
 		return r.keyFrom + ", ends in " + r.keyEnd
 	case sourceEnv:
 		return sourceEnv + " " + r.provider.EnvAPIKey()
+	}
+
+	if custom {
+		return sourceNone + ", not needed for a custom base URL"
 	}
 
 	return sourceNone

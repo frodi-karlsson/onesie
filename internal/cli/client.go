@@ -13,9 +13,9 @@ import (
 )
 
 const (
-	allowHTTPHelp = "send the API key over a plain http base URL to a host other than this machine. " +
-		"Without it such a base URL exits 2 before any request"
-	plainHTTPReason = ", so the API key would cross the network unencrypted"
+	allowHTTPHelp = "send the request, and any API key, over a plain http base URL to a host other than this " +
+		"machine. Without it such a base URL exits 2 before any request"
+	plainHTTPReason = ", so the request, and any API key, would cross the network unencrypted"
 	sendPlainHTTP   = ". Use https, or pass --" + flagAllowHTTP + " to send it anyway"
 	storePlainHTTP  = ". Use https, or pass --" + flagAllowHTTP + " to store it, and every run on the profile " +
 		"then needs --" + flagAllowHTTP + " too"
@@ -30,6 +30,7 @@ func clientBuilder(info BuildInfo, flags *runFlags, settings rootSettings) clien
 			onesie.WithProvider(chosen.provider),
 			onesie.WithUserAgent("onesie/" + info.Version),
 			onesie.WithEnv(settings.lookupEnv),
+			onesie.WithOptionalAPIKey(),
 		}
 
 		if flags.allowHTTP {
@@ -56,7 +57,7 @@ func clientBuilder(info BuildInfo, flags *runFlags, settings rootSettings) clien
 		if onesie.InsecureBaseURL(client.BaseURL()) {
 			warned.Do(func() {
 				printErr = output.Warning(settings.holder.stderr(), output.Printable(client.BaseURL())+
-					" is plain http, so the API key crosses the network unencrypted")
+					" is plain http, so "+crossing(client)+" crosses the network unencrypted")
 			})
 		}
 
@@ -77,6 +78,14 @@ func clientBuilder(info BuildInfo, flags *runFlags, settings rootSettings) clien
 
 		return client, nil
 	}
+}
+
+func crossing(client *onesie.Client) string {
+	if client.SendsKey() {
+		return "the API key"
+	}
+
+	return "the request"
 }
 
 func retryPolicy(flags runFlags) onesie.RetryPolicy {

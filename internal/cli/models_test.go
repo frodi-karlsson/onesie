@@ -119,6 +119,28 @@ func TestListModels(t *testing.T) {
 		})
 	}
 
+	t.Run("should list models with no key on a custom URL", func(t *testing.T) {
+		t.Parallel()
+
+		var keyed atomic.Int32
+
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if len(r.Header.Values("Authorization")) != 0 {
+				keyed.Add(1)
+			}
+
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"models":[{"name":"winnow:e4b","description":"local","release_date":"2026-08-01"}]}`))
+		}))
+		defer srv.Close()
+
+		out, errOut, code := runInConfig(t, t.TempDir(), []string{"--list-models", "--base-url", srv.URL}, "", nil)
+		if code != ExitOK || out != "winnow:e4b  local  2026-08-01\n" || keyed.Load() != 0 {
+			t.Errorf("exit code = %d, stdout = %q, stderr = %q, keyed requests = %d, want %d, the listing and none",
+				code, out, errOut, keyed.Load(), ExitOK)
+		}
+	})
+
 	t.Run("should report --stats for a listing", func(t *testing.T) {
 		t.Parallel()
 

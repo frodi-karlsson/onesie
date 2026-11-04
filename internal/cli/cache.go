@@ -81,7 +81,7 @@ func cachedAnswers(settings rootSettings, flags runConfig, model string, warn fu
 			next:   newLiveAnswerer(client),
 			open:   sync.OnceValues(func() (*cache.Store, error) { return openCache(settings, flags.env.aliasTTL) }),
 			model:  model,
-			pinned: client.Provider().Pinned(model),
+			pinned: client.Provider().Pinned(model) && !client.Provider().CustomBaseURL(client.BaseURL()),
 			origin: client.Provider().Name() + "\x00" + client.BaseURL(),
 			warn:   warn,
 		}, nil
@@ -89,7 +89,7 @@ func cachedAnswers(settings rootSettings, flags runConfig, model string, warn fu
 }
 
 func noKeyForCache(settings rootSettings, err error) error {
-	if !errors.Is(err, onesie.ErrValidation) {
+	if !errors.Is(err, onesie.ErrNoAPIKey) {
 		return err
 	}
 

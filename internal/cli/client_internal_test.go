@@ -405,7 +405,7 @@ func TestClientBuilder(t *testing.T) {
 			env:      map[string]string{onesie.TypeSafe().EnvAPIKey(): "SECRET-ENV"},
 			wantCode: ExitUsage,
 			wantErr: []string{"onesie: --base-url http://proxy.example is plain http to a host other than this " +
-				"machine, so the API key would cross the network unencrypted. Use https, or pass --allow-http"},
+				"machine, so the request, and any API key, would cross the network unencrypted. Use https, or pass --allow-http"},
 		},
 		{
 			name:     "should name ONESIE_BASE_URL in a plain http refusal",
@@ -579,6 +579,56 @@ func TestClientBuilder(t *testing.T) {
 
 		if got, _ := host.Load().(string); got != "proxy.example" {
 			t.Errorf("the local server saw host %q, want proxy.example", got)
+		}
+	})
+
+	t.Run("should word the http warning without the key when none is sent", func(t *testing.T) {
+		t.Parallel()
+
+		var auths atomic.Int32
+
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if len(r.Header.Values("Authorization")) != 0 {
+				auths.Add(1)
+			}
+
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"models":[]}`))
+		}))
+		defer srv.Close()
+
+		_, errOut, code := runInConfig(t, t.TempDir(),
+			[]string{"--list-models", "--allow-http", "--base-url", "http://proxy.example"}, "", nil,
+			withDialTo(srv.Listener.Addr().String()))
+
+		const want = "onesie: warning: http://proxy.example is plain http, so the request crosses the network unencrypted\n"
+
+		if code != ExitOK || errOut != want || auths.Load() != 0 {
+			t.Errorf("exit code = %d, stderr = %q, keyed requests = %d, want %d, %q and none",
+				code, errOut, auths.Load(), ExitOK, want)
+		}
+	})
+
+	t.Run("should build a keyless client on a custom URL", func(t *testing.T) {
+		t.Parallel()
+
+		settings := defaultSettings(BuildInfo{})
+		settings.lookupEnv = lookupFrom(nil)
+
+		build := clientBuilder(BuildInfo{}, &runFlags{baseURL: "https://local.example"}, settings)
+
+		client, err := build(t.Context(), resolution{provider: onesie.TypeSafe(), keyFrom: sourceNone})
+		if err != nil || client.SendsKey() {
+			t.Fatalf("error = %v, want a client that sends no key", err)
+		}
+	})
+
+	t.Run("should still refuse a missing key on the provider's own URL", func(t *testing.T) {
+		t.Parallel()
+
+		_, errOut, code := runInConfig(t, t.TempDir(), asking(), "", nil)
+		if code != ExitUsage || !strings.HasPrefix(errOut, "onesie: no API key. Set TYPESAFE_API_KEY") {
+			t.Errorf("exit code = %d, stderr = %q, want %d and the missing key", code, errOut, ExitUsage)
 		}
 	})
 
@@ -896,14 +946,14 @@ func TestBaseURLRefusal(t *testing.T) {
 		},
 		{
 			name: "should name --allow-http for plain http to another host", raw: "http://proxy.example/v1",
-			want: "--base-url http://proxy.example is plain http to a host other than this machine, so the API key " +
-				"would cross the network unencrypted. Use https, or pass --allow-http to send it anyway",
+			want: "--base-url http://proxy.example is plain http to a host other than this machine, so the request, " +
+				"and any API key, would cross the network unencrypted. Use https, or pass --allow-http to send it anyway",
 		},
 		{
 			name: "should end plain http with the advice it is given", raw: "http://proxy.example/v1",
 			advice: storePlainHTTP,
-			want: "--base-url http://proxy.example is plain http to a host other than this machine, so the API key " +
-				"would cross the network unencrypted. Use https, or pass --allow-http to store it, and every run " +
+			want: "--base-url http://proxy.example is plain http to a host other than this machine, so the request, " +
+				"and any API key, would cross the network unencrypted. Use https, or pass --allow-http to store it, and every run " +
 				"on the profile then needs --allow-http too",
 		},
 	}

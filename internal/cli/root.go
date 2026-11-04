@@ -162,7 +162,8 @@ func rootLong() string {
 		"ONESIE_PROVIDER runs without a profile, with the key from the provider's variable, " +
 		providers.KeyVariables() + ", and so does a run on typesafe when there are no profiles. On " +
 		providers.WithAccounts() + " a run also needs an account, from the profile, " +
-		providers.AccountVariables() + " or a base URL that holds it.\n\n" +
+		providers.AccountVariables() + " or a base URL that holds it. A run on a base URL other than the " +
+		"provider's own needs no key, and sends none when none resolves.\n\n" +
 		"--mock FILE, or ONESIE_MOCK=FILE, answers from a file instead of the API, with no key and no " +
 		"network, so a gate script can be tested for free.\n\n" +
 		"--cache, or ONESIE_CACHE=1, stores each successful response on disk and answers a repeated " +

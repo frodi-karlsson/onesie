@@ -16,15 +16,16 @@ func TestNewCacheCmd(t *testing.T) {
 	fill := func(t *testing.T, env map[string]string) {
 		t.Helper()
 
-		stub := newAnswerStub(t)
+		// The provider's own base URL, since an answer from a custom one is never pinned.
+		_, dial := newTLSAnswerStub(t)
 
 		for _, args := range [][]string{
 			{"-m", "jev-1.13.0", "--state", "one"},
 			{"-m", "jev-1.13.0", "--state", "two"},
 			{"--state", "three"},
 		} {
-			args = append([]string{"--cache", "--base-url", stub.url, "--ask", "u=is it urgent"}, args...)
-			if _, errOut, code := runCached(t, env, args, ""); code != ExitOK {
+			args = append([]string{"--cache", "--ask", "u=is it urgent"}, args...)
+			if _, errOut, code := runCached(t, env, args, "", dial); code != ExitOK {
 				t.Fatalf("filling the cache exited %d\n%s", code, errOut)
 			}
 		}

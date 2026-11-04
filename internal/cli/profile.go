@@ -470,8 +470,9 @@ func newProfileShowCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 			providers.AccountVariables() + ", or the provider's default. An allow_http line says a run needs " +
 			"--allow-http, when base_url is plain http to another host. It never reads the keychain or " +
 			"prints a key.\n\n" +
-			"It exits 2 when key or account is none, printing the hint a run gives for each, when the account is not " +
-			"32 hexadecimal characters, or when ONESIE_CACHE, ONESIE_LONG_CONTEXT or ONESIE_CACHE_TTL holds " +
+			"It exits 2 when key is none on the provider's own base URL, or account is none, printing the " +
+			"hint a run gives for each, when the account is not 32 hexadecimal characters, or when " +
+			"ONESIE_CACHE, ONESIE_LONG_CONTEXT or ONESIE_CACHE_TTL holds " +
 			"a value a run refuses, as a real run does.",
 		Args: profileNames("show", 0, 1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -510,11 +511,13 @@ func profileShow(cmd *cobra.Command, settings rootSettings, flags *runFlags, arg
 		baseURLLine = output.Printable(baseURL) + ", " + sourceName
 	}
 
+	custom := invalid == nil && shown.provider.CustomBaseURL(baseURL)
+
 	lines := []string{
 		"profile: " + cmp.Or(shown.profile, noProfile),
 		"provider: " + shown.provider.Name(),
 		"chosen by: " + shown.by,
-		"key: " + shown.keyLine(),
+		"key: " + shown.keyLine(custom),
 		"model: " + output.Printable(shown.modelFor("", settings.lookupEnv)) + ", " +
 			modelOrigin(shown, settings.lookupEnv),
 		"base_url: " + baseURLLine,
@@ -532,13 +535,15 @@ func profileShow(cmd *cobra.Command, settings rootSettings, flags *runFlags, arg
 		return printErr
 	}
 
-	return showRefusals(cmd, settings, shown, invalid, account)
+	return showRefusals(cmd, settings, shown, invalid, account, custom)
 }
 
-func showRefusals(cmd *cobra.Command, settings rootSettings, shown resolution, accountErr error, account string) error {
+func showRefusals(
+	cmd *cobra.Command, settings rootSettings, shown resolution, accountErr error, account string, custom bool,
+) error {
 	var refusals []error
 
-	if shown.profile == "" && shown.keyFrom == sourceNone {
+	if shown.profile == "" && shown.keyFrom == sourceNone && !custom {
 		refusals = append(refusals, missingKey(settings, shown))
 	}
 
@@ -629,7 +634,7 @@ func profileTest(cmd *cobra.Command, settings rootSettings, flags *runFlags, arg
 	}
 
 	_, printErr := fmt.Fprintf(cmd.OutOrStdout(), "profile: %s\nprovider: %s\nkey: %s\nmodels: %d\n",
-		cmp.Or(tested.profile, noProfile), tested.provider.Name(), tested.keyLine(), len(models))
+		cmp.Or(tested.profile, noProfile), tested.provider.Name(), tested.keyLine(!client.SendsKey()), len(models))
 
 	return printErr
 }

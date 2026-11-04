@@ -393,7 +393,7 @@ func TestProfileCreate(t *testing.T) {
 			stdinUnread: true,
 			wantCode:    ExitUsage,
 			wantErr: []string{"onesie: --base-url http://proxy.example is plain http to a host other than this machine, " +
-				"so the API key would cross the network unencrypted. Use https, or pass --allow-http to store it, " +
+				"so the request, and any API key, would cross the network unencrypted. Use https, or pass --allow-http to store it, " +
 				"and every run on the profile then needs --allow-http too"},
 			notErr:     []string{"/gateway"},
 			wantNoFile: true,
@@ -1686,6 +1686,23 @@ func TestProfileShow(t *testing.T) {
 			wantOut: tsShown + "model: jev-1.13.0, profile\nbase_url: https://proxy.example, the profile's base_url\n",
 		},
 		{
+			name: "should exit 0 with the keyless key line",
+			env:  map[string]string{"ONESIE_BASE_URL": "http://localhost:8080"},
+			args: []string{"profile", "show"},
+			wantOut: "profile: none\nprovider: typesafe\nchosen by: nothing\nkey: none, not needed for a custom base URL\n" +
+				"model: jev-latest, the provider's default\nbase_url: http://localhost:8080, ONESIE_BASE_URL\n",
+		},
+		{
+			name: "should still exit 2 with no key on the default URL",
+			env:  map[string]string{"ONESIE_BASE_URL": "https://api.typesafe.ai/"},
+			args: []string{"profile", "show"},
+			wantOut: "profile: none\nprovider: typesafe\nchosen by: nothing\nkey: none\n" +
+				"model: jev-latest, the provider's default\nbase_url: https://api.typesafe.ai, ONESIE_BASE_URL\n",
+			wantCode: ExitUsage,
+			wantStderr: "onesie: no API key. Set TYPESAFE_API_KEY, or store one with " +
+				"onesie profile create NAME --provider typesafe\n",
+		},
+		{
 			name: "should name ONESIE_BASE_URL as the base_url source",
 			env: map[string]string{
 				"TYPESAFE_API_KEY": "SECRET-TS", "ONESIE_BASE_URL": "https://local.example/",
@@ -1821,7 +1838,15 @@ func TestProfileTest(t *testing.T) {
 		wantErr   string
 		wantCode  int
 		wantAuth  string
+		keyless   bool
 	}{
+		{
+			name:    "should list models with no key on a custom URL",
+			args:    []string{"profile", "test"},
+			env:     map[string]string{"ONESIE_BASE_URL": "{url}"},
+			wantOut: "profile: none\nprovider: typesafe\nkey: none, not needed for a custom base URL\nmodels: 2\n",
+			keyless: true,
+		},
 		{
 			name:     "should list the models with the named profile's key",
 			profiles: fileWork,
@@ -1957,7 +1982,7 @@ func TestProfileTest(t *testing.T) {
 			env:      map[string]string{onesie.TypeSafe().EnvBaseURL(): "http://proxy.example"},
 			wantCode: ExitUsage,
 			wantErr: "onesie: TYPESAFE_BASE_URL http://proxy.example is plain http to a host other than this " +
-				"machine, so the API key would cross the network unencrypted. Use https, or pass --allow-http " +
+				"machine, so the request, and any API key, would cross the network unencrypted. Use https, or pass --allow-http " +
 				"to send it anyway\n",
 		},
 		{
@@ -2039,7 +2064,7 @@ func TestProfileTest(t *testing.T) {
 				t.Errorf("stderr = %q, want it to contain %q", errOut, tc.wantErr)
 			}
 
-			if tc.wantAuth == "" {
+			if tc.wantAuth == "" && !tc.keyless {
 				return
 			}
 

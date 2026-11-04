@@ -720,9 +720,10 @@ func TestResolutionKeyLine(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name string
-		run  resolution
-		want string
+		name   string
+		run    resolution
+		custom bool
+		want   string
 	}{
 		{name: "should name the keychain and its ending", run: resolution{keyFrom: sourceKeychain, keyEnd: "3f9a"}, want: "keychain, ends in 3f9a"},
 		{name: "should name the keychain alone with no ending", run: resolution{keyFrom: sourceKeychain}, want: "keychain"},
@@ -730,13 +731,21 @@ func TestResolutionKeyLine(t *testing.T) {
 		{name: "should name the file alone for a short key", run: resolution{keyFrom: sourceFile, key: "SECRET-0"}, want: "file"},
 		{name: "should name the provider's variable", run: resolution{keyFrom: sourceEnv, provider: onesie.OpenRouter()}, want: "env OPENROUTER_API_KEY"},
 		{name: "should name none", run: resolution{keyFrom: sourceNone}, want: "none"},
+		{
+			name: "should print none, not needed for a custom base URL", run: resolution{keyFrom: sourceNone},
+			custom: true, want: "none, not needed for a custom base URL",
+		},
+		{
+			name: "should name the provider's variable on a custom base URL",
+			run:  resolution{keyFrom: sourceEnv, provider: onesie.OpenRouter()}, custom: true, want: "env OPENROUTER_API_KEY",
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			if got := tc.run.keyLine(); got != tc.want {
+			if got := tc.run.keyLine(tc.custom); got != tc.want {
 				t.Errorf("keyLine = %q, want %q", got, tc.want)
 			}
 		})

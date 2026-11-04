@@ -817,7 +817,7 @@ onesie --profile cf -f shell-safety -q --state "$cmd"
 |------|---------|
 | 0 | answered |
 | 1 | a false `--assert`, or under `-q` alone the policy did not accept the answer |
-| 2 | usage or validation error, including a missing key, or a plain http base URL to another host without `--allow-http` |
+| 2 | usage or validation error, including a missing key on the provider's own base URL, or a plain http base URL to another host without `--allow-http` |
 | 3 | the key was refused, the account is out of credits, the keychain failed, or `profiles.json` or `credentials.json` is exposed |
 | 4 | the server did not answer after retries, or it answered 200 with a response onesie could not use, which is never retried |
 | 5 | transport error or timeout |
