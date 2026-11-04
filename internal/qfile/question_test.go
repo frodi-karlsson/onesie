@@ -152,7 +152,7 @@ func TestReadYesNo(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := qfile.Load([]byte(tc.doc))
+			got, err := qfile.Load([]byte(tc.doc), plan.Flags)
 
 			if tc.wantErr {
 				if err == nil {
@@ -265,7 +265,7 @@ func TestReadPick(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := qfile.Load([]byte(tc.doc))
+			got, err := qfile.Load([]byte(tc.doc), plan.Flags)
 
 			if tc.wantErr {
 				if err == nil {
@@ -390,7 +390,7 @@ func TestReadRate(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := qfile.Load([]byte(tc.doc))
+			got, err := qfile.Load([]byte(tc.doc), plan.Flags)
 
 			if tc.wantErr {
 				if err == nil {
@@ -573,7 +573,7 @@ func TestReadPolicy(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := qfile.Load([]byte(tc.doc))
+			got, err := qfile.Load([]byte(tc.doc), plan.Flags)
 
 			if tc.wantErr != "" {
 				if err == nil {
@@ -676,7 +676,7 @@ func TestReadGate(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := qfile.Load([]byte(tc.doc))
+			got, err := qfile.Load([]byte(tc.doc), plan.Flags)
 
 			if tc.wantErr != "" {
 				if err == nil {
@@ -758,7 +758,7 @@ func TestWireValue(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := qfile.Load([]byte(tc.doc))
+			got, err := qfile.Load([]byte(tc.doc), plan.Flags)
 			if err == nil {
 				t.Fatalf("expected an error, got %#v", got)
 			}

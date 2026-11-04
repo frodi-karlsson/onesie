@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"fmt"
+
 	"github.com/spf13/cobra"
 
 	"github.com/frodi-karlsson/onesie/internal/argv"
@@ -27,6 +29,14 @@ func newRunConfig(
 	mockPath, mockSpelled := mockSource(lookupEnv, flags.mock)
 	changed := cmd.Flags().Changed
 
+	var delimiter input.Delimiter
+	if changed(flagDelimiter) {
+		delimiter, err = input.ParseDelimiter(flags.delimiter)
+		if err != nil {
+			return runConfig{}, fmt.Errorf("--%s %w", flagDelimiter, err)
+		}
+	}
+
 	return runConfig{
 		runFlags:         flags,
 		inputMode:        inputMode,
@@ -46,6 +56,8 @@ func newRunConfig(
 		retriesSet:       changed(flagRetries),
 		maxRetryAfterSet: changed(flagMaxRetryAfter),
 		longContextSet:   changed(flagLongContext),
+		hasDelimiter:     changed(flagDelimiter),
+		parsedDelimiter:  delimiter,
 	}, nil
 }
 
@@ -70,6 +82,8 @@ type runConfig struct {
 	retriesSet       bool
 	maxRetryAfterSet bool
 	longContextSet   bool
+	hasDelimiter     bool
+	parsedDelimiter  input.Delimiter
 }
 
 type runFacts struct {

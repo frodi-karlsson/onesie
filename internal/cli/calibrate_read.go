@@ -1,10 +1,6 @@
 package cli
 
 import (
-	"bytes"
-	"context"
-	"crypto/sha256"
-	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -13,44 +9,46 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/calibrate"
 	"github.com/frodi-karlsson/onesie/internal/input"
 	"github.com/frodi-karlsson/onesie/internal/jq"
-	"github.com/frodi-karlsson/onesie/internal/limits"
-	"github.com/frodi-karlsson/onesie/internal/output"
 	"github.com/frodi-karlsson/onesie/internal/plan"
+	"github.com/frodi-karlsson/onesie/internal/runner"
 )
 
 func calibrateRequests(
 	cmd *cobra.Command, settings rootSettings, flags runConfig, inputMode input.Mode, inv *invocation,
-	scope calibrateScope,
+	scope calibrate.Scope,
 ) error {
 	chosen, err := settings.holder.resolved()
 	if err != nil {
 		return err
 	}
 
-	set, err := readLabelled(cmd.Context(), settings, inputMode, flags, inv.mapper, inv.namer, scope.labels)
+	set, err := calibrate.ReadLabelled(cmd.Context(), calibrateConfig(settings, flags, inputMode, inv), scope.Labels)
 	if err != nil {
-		return err
+		return firstIDHint(err, inputMode)
 	}
 
-	model := chosen.modelFor(scope.scored.Model, settings.lookupEnv)
-	questions := plan.WireAll(scope.scored.Questions)
+	ask := runner.Ask{
+		Plan:      scope.Scored,
+		Model:     chosen.ModelFor(scope.Scored.Model, settings.lookupEnv),
+		Questions: plan.WireAll(scope.Scored.Questions),
+	}
 
-	for _, rec := range set.records {
+	for _, rec := range set.Records {
 		if ctxErr := cmd.Context().Err(); ctxErr != nil {
 			return ctxErr
 		}
 
-		sent, assets, imageErr := inv.images.attach(rec.sent)
+		sent, assets, imageErr := inv.images.Attach(rec.Sent())
 		if imageErr != nil {
-			return &input.LineError{Line: rec.line, Err: imageErr}
+			return &input.LineError{Line: rec.Line(), Err: imageErr}
 		}
 
-		req := requestFor(scope.scored, model, questions, sent, assets)
-		if checkErr := chosen.provider.Check(req); checkErr != nil {
-			return &input.LineError{Line: rec.line, Err: embed("", checkErr)}
+		req := ask.Request(sent, assets)
+		if checkErr := chosen.Provider.Check(req); checkErr != nil {
+			return &input.LineError{Line: rec.Line(), Err: embed("", checkErr)}
 		}
 
-		body, bodyErr := requestLine(rec.line, req)
+		body, bodyErr := requestLine(rec.Line(), req)
 		if bodyErr != nil {
 			return bodyErr
 		}
@@ -63,231 +61,20 @@ func calibrateRequests(
 	return nil
 }
 
-func readLabelled(
-	ctx context.Context, settings rootSettings, inputMode input.Mode, flags runConfig,
-	mapper, namer *jq.Expr, labels []questionLabel,
-) (labelledSet, error) {
-	// Ended on every return, so the goroutine reading stdin stops waiting to hand over a record.
-	ctx, stop := context.WithCancel(ctx)
-	defer stop()
-
-	next := readAhead(ctx, input.NewStream(settings.stdin, inputMode, flags.skipBlank))
-	reader := &labelReader{mapper: mapper, namer: namer, labels: labels, seen: map[[sha256.Size]byte]int{}}
-
-	var set labelledSet
-
-	for {
-		var pulled pulledRecord
-
-		select {
-		case pulled = <-next:
-		case <-ctx.Done():
-			return labelledSet{}, ctx.Err()
-		}
-
-		rec, ok, err := pulled.rec, pulled.ok, pulled.err
-		if err != nil {
-			return labelledSet{}, err
-		}
-
-		// An interrupt can land as the input ends, and the set read so far is not the whole input.
-		if !ok {
-			if ctxErr := ctx.Err(); ctxErr != nil {
-				return labelledSet{}, ctxErr
-			}
-
-			return set, nil
-		}
-
-		set.total++
-		if set.total > limits.MaxCalibrateRecords {
-			return labelledSet{}, fmt.Errorf(
-				"calibrate reads at most %d records, and -V lists the cap", limits.MaxCalibrateRecords)
-		}
-
-		labelled, found, err := reader.read(ctx, rec)
-		if err != nil {
-			// An interrupt reaches the expressions as their own failure, and it has to exit 130
-			// rather than as the bad record it would otherwise read as.
-			if ctxErr := ctx.Err(); ctxErr != nil {
-				return labelledSet{}, ctxErr
-			}
-
-			return labelledSet{}, firstIDHint(err, set.total, inputMode, rec.Header)
-		}
-
-		if !found {
-			set.unlabelled++
-			set.inputs = append(set.inputs, inputEntry{id: labelled.id, record: -1})
-
-			continue
-		}
-
-		labelled.index = len(set.records)
-		set.inputs = append(set.inputs, inputEntry{id: labelled.id, record: labelled.index})
-		set.records = append(set.records, labelled)
-	}
-}
-
-func firstIDHint(err error, read int, inputMode input.Mode, header []string) error {
-	// calibrate stops at the first record it cannot read, so a null id on the first record is every
-	// record read.
-	if read != 1 || !misreadDelimiter(inputMode, header) || !errors.Is(err, jq.ErrNullID) {
+func firstIDHint(err error, inputMode input.Mode) error {
+	var unread *calibrate.ReadError
+	if !errors.As(err, &unread) {
 		return err
 	}
 
-	return &advisedError{cause: err, message: text(err) + ". " + delimiterHint(inputMode)}
-}
+	// The cause alone, since text reads a Reason only from the top level error.
+	cause := unread.Err
 
-func readAhead(ctx context.Context, stream *input.Stream) <-chan pulledRecord {
-	next := make(chan pulledRecord)
-
-	// Read on its own goroutine so an interrupt ends a read with no deadline, such as a terminal. A
-	// read under way cannot be interrupted, so this goroutine outlives the read until it returns.
-	go func() {
-		for {
-			rec, ok, err := stream.Next()
-
-			select {
-			case next <- pulledRecord{rec: rec, ok: ok, err: err}:
-			case <-ctx.Done():
-				return
-			}
-
-			if !ok || err != nil {
-				return
-			}
-		}
-	}()
-
-	return next
-}
-
-func (r *labelReader) read(ctx context.Context, rec input.Record) (labelledRecord, bool, error) {
-	if rec.Err != nil {
-		return labelledRecord{}, false, rec.Err
+	// calibrate stops at the first record it cannot read, so a null id on the first record is every
+	// record read.
+	if unread.Read != 1 || !runner.MisreadDelimiter(inputMode, unread.Header) || !errors.Is(cause, jq.ErrNullID) {
+		return cause
 	}
 
-	labelled := labelledRecord{position: rec.Index + 1, line: rec.Line}
-
-	if r.namer != nil {
-		id, err := r.uniqueID(ctx, rec)
-		if err != nil {
-			return labelledRecord{}, false, &input.LineError{Line: rec.Line, Err: err}
-		}
-
-		labelled.id = id
-	}
-
-	value := jqValue(rec.State, rec.Wire)
-	labelled.labels = make([]*calibrate.Label, len(r.labels))
-	found := false
-
-	for i, label := range r.labels {
-		parsed, err := labelOf(ctx, label, value)
-		if err != nil {
-			return labelledRecord{}, false, fmt.Errorf("--label %s: %s: %w", label.id, labelled.name(), err)
-		}
-
-		labelled.labels[i] = parsed
-		found = found || parsed != nil
-	}
-
-	sent, err := mapped(ctx, r.mapper, rec.State, rec.Wire)
-	if err != nil {
-		return labelledRecord{}, false, &input.LineError{Line: rec.Line, Err: err}
-	}
-
-	// Cloned, so the record holds its own bytes and not the slack of the buffer they were encoded in.
-	// calibrate refuses to run without --map, and a mapped state is always encoded.
-	if raw, isRaw := sent.(json.RawMessage); isRaw {
-		sent = json.RawMessage(bytes.Clone(raw))
-	}
-
-	labelled.sent = sent
-
-	return labelled, found, nil
-}
-
-func (r *labelReader) uniqueID(ctx context.Context, rec input.Record) (any, error) {
-	id, err := idOf(ctx, r.namer, rec)
-	if err != nil {
-		return nil, err
-	}
-
-	text := jq.IDText(id)
-
-	if unwritable := unwritableID(output.JSON, text); unwritable != nil {
-		return nil, unwritable
-	}
-
-	key := sha256.Sum256([]byte(text))
-	if first, taken := r.seen[key]; taken {
-		return nil, fmt.Errorf("--id: '%s' is also the id of line %d", text, first)
-	}
-
-	r.seen[key] = rec.Line
-
-	return id, nil
-}
-
-func labelOf(ctx context.Context, label questionLabel, value any) (*calibrate.Label, error) {
-	result, err := label.expr.One(ctx, value)
-	if errors.Is(err, jq.ErrNoValue) {
-		return nil, nil
-	}
-
-	if err != nil {
-		return nil, err
-	}
-
-	parsed, labelled, err := calibrate.ParseLabel(label.shape, label.names, result)
-	if err != nil || !labelled {
-		return nil, err
-	}
-
-	return &parsed, nil
-}
-
-type pulledRecord struct {
-	rec input.Record
-	ok  bool
-	err error
-}
-
-type labelReader struct {
-	mapper *jq.Expr
-	namer  *jq.Expr
-	labels []questionLabel
-	seen   map[[sha256.Size]byte]int
-}
-
-type labelledSet struct {
-	records    []labelledRecord
-	inputs     []inputEntry
-	unlabelled int
-	total      int
-}
-
-type inputEntry struct {
-	id     any
-	record int
-}
-
-type labelledRecord struct {
-	index    int
-	slot     int
-	position int
-	line     int
-	id       any
-	sent     any
-	labels   []*calibrate.Label
-}
-
-func (r labelledRecord) name() string {
-	if r.id == nil {
-		return fmt.Sprintf("line %d", r.line)
-	}
-
-	return "record " + jq.IDText(r.id)
+	return &advisedError{cause: cause, message: text(cause) + ". " + runner.DelimiterHint(inputMode, unread.Comma, unread.Header, plan.Flags)}
 }

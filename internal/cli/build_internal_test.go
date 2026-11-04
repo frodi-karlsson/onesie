@@ -79,8 +79,8 @@ func TestBuild(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			if (inv.gate != nil) != tc.wantGate || (inv.abstain != nil) != tc.wantGate {
-				t.Errorf("gate %v, abstain %v, want both built %v", inv.gate, inv.abstain, tc.wantGate)
+			if (inv.Gate != nil) != tc.wantGate || (inv.Abstain != nil) != tc.wantGate {
+				t.Errorf("gate %v, abstain %v, want both built %v", inv.Gate, inv.Abstain, tc.wantGate)
 			}
 
 			if inv.fileGate != tc.wantSetAside {

@@ -17,6 +17,7 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/output"
 	"github.com/frodi-karlsson/onesie/internal/plan"
 	"github.com/frodi-karlsson/onesie/internal/qfile"
+	"github.com/frodi-karlsson/onesie/internal/runner"
 )
 
 func printSchema(w io.Writer) error {
@@ -56,7 +57,7 @@ func printQuestions(
 		return err
 	}
 
-	file, err := qfile.Write(questions, assertion, abstainIf)
+	file, err := qfile.Write(questions, assertion, abstainIf, plan.Flags)
 	if err != nil {
 		return err
 	}
@@ -133,24 +134,34 @@ func streamRequests(
 	}
 
 	run := &requestRun{
-		built: inv.plan, mapper: inv.mapper, images: inv.images, provider: chosen.provider,
-		model: chosen.modelFor(inv.plan.Model, settings.lookupEnv), questions: plan.WireAll(inv.plan.Questions),
+		mapper: inv.Mapper, images: inv.images, provider: chosen.Provider,
+		ask: runner.Ask{
+			Plan: inv.Plan, Model: chosen.ModelFor(inv.Plan.Model, settings.lookupEnv),
+			Questions: plan.WireAll(inv.Plan.Questions),
+		},
 	}
-	source := records(cmd.Context(), settings, flags.inputMode, flags, inv.namer, nil, resume, output.JSON)
+	source := runner.NewNaming(cmd.Context(), runner.RecordsConfig{
+		ResumedConfig: runner.ResumedConfig{
+			Resume: resume, OutputMode: output.JSON, StopOnAssert: flags.stopOnAssert, StopOnError: flags.stopOnError,
+			Speller: plan.Flags,
+		},
+		Input: settings.stdin, InputMode: flags.inputMode, SkipBlank: flags.skipBlank, Delimiter: flags.parsedDelimiter,
+		Namer: inv.Namer,
+	})
 
-	result, err := engine.Run(cmd.Context(), engine.Config[namedRecord, []byte]{
+	result, err := engine.Run(cmd.Context(), engine.Config[runner.NamedRecord, []byte]{
 		Source:      source,
 		Evaluate:    run.evaluate,
 		Write:       writeBodies(cmd.OutOrStdout()),
 		Jobs:        flags.jobs,
 		Unordered:   flags.unordered,
 		StopOnError: flags.stopOnError,
-		Abort:       aborting,
+		Abort:       runner.Aborting,
 	})
-	source.stop()
+	source.Stop()
 
 	if err != nil {
-		return &sourceError{cause: err, failed: result.Failed}
+		return &runner.SourceError{Err: err, Failed: result.Failed}
 	}
 
 	// A dry run asks no question, so no record can have carried an assertion.
@@ -158,15 +169,13 @@ func streamRequests(
 }
 
 type requestRun struct {
-	built     *plan.Plan
-	mapper    *jq.Expr
-	images    *imaging
-	provider  onesie.Provider
-	model     string
-	questions onesie.Questions
+	ask      runner.Ask
+	mapper   *jq.Expr
+	images   *imaging
+	provider onesie.Provider
 }
 
-func (r *requestRun) evaluate(ctx context.Context, rec namedRecord) ([]byte, error) {
+func (r *requestRun) evaluate(ctx context.Context, rec runner.NamedRecord) ([]byte, error) {
 	if rec.Err != nil {
 		// A value alongside the error, because the engine writes every outcome. Returning
 		// nil here would print a blank line rather than the record.
@@ -177,13 +186,13 @@ func (r *requestRun) evaluate(ctx context.Context, rec namedRecord) ([]byte, err
 		return nil, ctx.Err()
 	}
 
-	if rec.idErr != nil {
-		return badLine(rec, rec.idErr)
+	if rec.IDErr != nil {
+		return badLine(rec, rec.IDErr)
 	}
 
-	state, wire := r.images.wrapLine(rec.State, rec.Wire)
+	state, wire := r.images.WrapLine(rec.State, rec.Wire)
 
-	sent, mapErr := mapped(ctx, r.mapper, state, wire)
+	sent, mapErr := runner.Mapped(ctx, r.mapper, state, wire, plan.Flags)
 	if interrupted(ctx) {
 		return nil, ctx.Err()
 	}
@@ -192,12 +201,12 @@ func (r *requestRun) evaluate(ctx context.Context, rec namedRecord) ([]byte, err
 		return badLine(rec, mapErr)
 	}
 
-	sent, assets, imageErr := r.images.attach(sent)
+	sent, assets, imageErr := r.images.Attach(sent)
 	if imageErr != nil {
 		return badLine(rec, imageErr)
 	}
 
-	req := requestFor(r.built, r.model, r.questions, sent, assets)
+	req := r.ask.Request(sent, assets)
 	if checkErr := r.provider.Check(req); checkErr != nil {
 		return badLine(rec, embed("", checkErr))
 	}
@@ -205,7 +214,7 @@ func (r *requestRun) evaluate(ctx context.Context, rec namedRecord) ([]byte, err
 	return requestLine(rec.Line, req)
 }
 
-func badLine(rec namedRecord, cause error) ([]byte, error) {
+func badLine(rec runner.NamedRecord, cause error) ([]byte, error) {
 	bad := &input.LineError{Line: rec.Line, Err: cause}
 
 	return errorLine(bad), bad
@@ -223,7 +232,7 @@ func requestLine(number int, req onesie.Request) ([]byte, error) {
 }
 
 func errorLine(cause error) []byte {
-	return output.EncodeFailure(describe(cause))
+	return output.EncodeFailure(runner.Describe(cause, text))
 }
 
 func written(err error) error {

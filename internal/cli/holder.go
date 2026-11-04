@@ -6,18 +6,25 @@ import (
 	"sync"
 
 	"github.com/frodi-karlsson/onesie/internal/creds"
+	"github.com/frodi-karlsson/onesie/internal/plan"
+	"github.com/frodi-karlsson/onesie/internal/resolve"
 )
 
 func newHolder(settings rootSettings, flags *runFlags, stderr func() io.Writer) *holder {
-	opened := sync.OnceValues(func() (creds.Opened, error) {
-		return openProfiles(settings, stderr())
-	})
+	resolver := resolve.NewResolver(
+		func() resolve.Given { return givenOf(flags) },
+		func() (creds.Opened, error) { return openProfiles(settings, stderr()) },
+		settings.lookupEnv,
+		plan.Flags,
+	)
 
 	return &holder{
 		stderr: stderr,
-		opened: opened,
-		resolved: sync.OnceValues(func() (resolution, error) {
-			return resolveRun(flags, settings.lookupEnv, opened)
+		opened: resolver.Opened,
+		resolved: sync.OnceValues(func() (resolve.Resolution, error) {
+			chosen, err := resolver.Resolved()
+
+			return chosen, withProfileHints(err, resolver.Opened)
 		}),
 	}
 }
@@ -25,39 +32,7 @@ func newHolder(settings rootSettings, flags *runFlags, stderr func() io.Writer) 
 type holder struct {
 	stderr   func() io.Writer
 	opened   func() (creds.Opened, error)
-	resolved func() (resolution, error)
-}
-
-func resolveRun(
-	flags *runFlags, lookupEnv func(string) (string, bool), open func() (creds.Opened, error),
-) (resolution, error) {
-	chosen, err := choose(flags, lookupEnv)
-	if err != nil {
-		return resolution{}, err
-	}
-
-	// A run that names its provider and succeeds never opens the file, so CI that names one stays
-	// apart from any file on the machine. Only a failure reads it, for the hint.
-	if chosen.provider != "" {
-		bare, bareErr := providerRun(chosen.provider, chosen.by, lookupEnv)
-		if bareErr == nil {
-			return bare, nil
-		}
-
-		opened, openErr := open()
-		if openErr != nil {
-			return resolution{}, bareErr
-		}
-
-		return resolution{}, providerIsProfileHint(bareErr, chosen, opened.Profiles)
-	}
-
-	opened, err := open()
-	if err != nil {
-		return resolution{}, err
-	}
-
-	return resolveProfile(chosen, opened.Profiles, lookupEnv)
+	resolved func() (resolve.Resolution, error)
 }
 
 func openProfiles(settings rootSettings, stderr io.Writer) (creds.Opened, error) {
@@ -102,8 +77,8 @@ func conversionLines(opened creds.Opened, lookupEnv func(string) (string, bool))
 		lines = append(lines, notice{text: "converted credentials.json " + where + ", with " +
 			namedProfiles(opened.Converted) + ". " + defaultSentence(opened.Profiles.Default)})
 
-		if setVariable(lookupEnv, envProvider) != "" {
-			lines = append(lines, notice{text: envProvider + " is set, so a run uses no profile and reads only " +
+		if setVariable(lookupEnv, resolve.EnvProvider) != "" {
+			lines = append(lines, notice{text: resolve.EnvProvider + " is set, so a run uses no profile and reads only " +
 				"the provider's key variable. To use a stored key, unset it and run onesie profile use NAME, " +
 				"or pass --profile NAME"})
 		}

@@ -1,15 +1,13 @@
 package cli
 
 import (
-	"fmt"
 	"io"
 
 	"github.com/frodi-karlsson/onesie-go"
-	"github.com/frodi-karlsson/onesie/internal/assert"
 	"github.com/frodi-karlsson/onesie/internal/input"
-	"github.com/frodi-karlsson/onesie/internal/jq"
 	"github.com/frodi-karlsson/onesie/internal/output"
 	"github.com/frodi-karlsson/onesie/internal/plan"
+	"github.com/frodi-karlsson/onesie/internal/planbuild"
 	"github.com/frodi-karlsson/onesie/internal/qfile"
 )
 
@@ -27,29 +25,26 @@ func build(settings rootSettings, flags runConfig, ignoreFileJudgment bool) (*in
 		return nil, nil, err
 	}
 
-	source := plan.Source{
-		Events:     events,
-		Positional: positional,
-		FileName:   file.name,
-		Replace:    flags.replace,
-		ReadFile:   settings.readFile,
+	source := planbuild.Source{
+		Source: plan.Source{
+			Events:     events,
+			Positional: positional,
+			FileName:   file.name,
+			Replace:    flags.replace,
+			ReadFile:   settings.readFile,
+		},
+		Model:       flags.model,
+		LongContext: flags.env.longContext,
 	}
 
 	if file.loaded != nil {
 		source.File = file.loaded.Questions
 	}
 
-	built, err := plan.Assemble(source)
+	built, err := planbuild.Plan(source, file.loaded)
 	if err != nil {
 		return nil, nil, err
 	}
-
-	built.Model = flags.model
-	if built.Model == "" && file.loaded != nil {
-		built.Model = file.loaded.Model
-	}
-
-	built.LongContext = flags.env.longContext || (file.loaded != nil && file.loaded.LongContext)
 
 	warnings, err := validatePlan(built, flags, file.facts)
 	if err != nil {
@@ -81,7 +76,7 @@ func readBuildFile(settings rootSettings, flags runConfig, ignoreFileJudgment bo
 
 	if ignoreFileJudgment {
 		file.setAside = fileGate{assert: file.loaded.Assert, abstainIf: file.loaded.AbstainIf}
-		withoutJudgment(file.loaded)
+		planbuild.WithoutJudgment(file.loaded)
 	}
 
 	file.facts = runFacts{assert: file.loaded.Assert, abstainIf: file.loaded.AbstainIf}
@@ -97,25 +92,11 @@ type buildFile struct {
 }
 
 func invocationOf(settings rootSettings, flags runConfig, built *plan.Plan, file buildFile) (*invocation, error) {
-	// After validation, since the checker reads a plan the run has accepted, and before any mode
-	// dispatches, since the assertion is checked against the plan and every check runs before any
-	// network call.
-	gate, err := gateOf("--assert", file.facts.assert, flags.assert, built)
-	if err != nil {
-		return nil, err
-	}
-
-	abstain, err := gateOf("--abstain-if", file.facts.abstainIf, flags.abstainIf, built)
-	if err != nil {
-		return nil, err
-	}
-
-	mapper, err := exprOf(flags.hasMap, "--map", flags.mapSource)
-	if err != nil {
-		return nil, err
-	}
-
-	namer, err := exprOf(flags.hasID, "--id", flags.idSource)
+	compiled, err := planbuild.Compile(built, planbuild.Gates{
+		FileAssert: file.facts.assert, FileAbstainIf: file.facts.abstainIf,
+		Assert: flags.assert, AbstainIf: flags.abstainIf,
+		Map: flags.mapSource, ID: flags.idSource, HasMap: flags.hasMap, HasID: flags.hasID,
+	}, plan.Flags)
 	if err != nil {
 		return nil, err
 	}
@@ -131,10 +112,7 @@ func invocationOf(settings rootSettings, flags runConfig, built *plan.Plan, file
 		return nil, err
 	}
 
-	return &invocation{
-		plan: built, gate: gate, abstain: abstain, mapper: mapper, namer: namer, loaded: file.loaded,
-		fileGate: file.setAside, images: images,
-	}, nil
+	return &invocation{Built: compiled, loaded: file.loaded, fileGate: file.setAside, images: images}, nil
 }
 
 func warnAll(w io.Writer, warnings []string) error {
@@ -147,64 +125,6 @@ func warnAll(w io.Writer, warnings []string) error {
 	return nil
 }
 
-func withoutJudgment(loaded *qfile.File) {
-	loaded.Assert, loaded.AbstainIf = "", ""
-
-	for i := range loaded.Questions {
-		loaded.Questions[i].Policy = plan.Policy{}
-	}
-}
-
-func gateOf(flag, fileSource string, sources []string, built *plan.Plan) (*assert.Expr, error) {
-	exprs := make([]*assert.Expr, 0, len(sources)+1)
-
-	// The file leads and the command line follows. The file's expression is the more general one,
-	// and argv puts the flag after the -f that named the file. A file's key and its flag combine by
-	// and, for the abstain expression as for the assertion, and and is commutative, so the order is
-	// a matter of which one an error names first.
-	if fileSource != "" {
-		// Spelled the way the file spells it, which is the rule plan holds every other message to
-		// that names where a setting came from.
-		expr, err := gateExpr(fileSource, plan.Spelling(plan.OriginFile, flag), built)
-		if err != nil {
-			return nil, err
-		}
-
-		exprs = append(exprs, expr)
-	}
-
-	for _, source := range sources {
-		expr, err := gateExpr(source, flag, built)
-		if err != nil {
-			return nil, err
-		}
-
-		exprs = append(exprs, expr)
-	}
-
-	return assert.Combine(exprs...), nil
-}
-
-func gateExpr(source, named string, built *plan.Plan) (*assert.Expr, error) {
-	expr, err := assert.Parse(source)
-	if err != nil {
-		if hint := assert.BracketHint(source, questionIDs(built.Questions)); hint != "" {
-			return nil, fmt.Errorf("%s: %w. %s", named, err, hint)
-		}
-
-		return nil, fmt.Errorf("%s: %w", named, err)
-	}
-
-	// Each source is checked on its own rather than the combined gate, so a message names the one
-	// that carried the mistake. Every source is a boolean in its own right, so a combination adds
-	// nothing for the checker to reject.
-	if checkErr := assert.Check(expr, built); checkErr != nil {
-		return nil, fmt.Errorf("%s: %w", named, checkErr)
-	}
-
-	return expr, nil
-}
-
 func questionIDs(questions []plan.Question) []string {
 	ids := make([]string, 0, len(questions))
 	for _, q := range questions {
@@ -214,25 +134,9 @@ func questionIDs(questions []plan.Question) []string {
 	return ids
 }
 
-func exprOf(given bool, flag, source string) (*jq.Expr, error) {
-	if !given {
-		return nil, nil
-	}
-
-	expr, err := jq.Compile(source)
-	if err != nil {
-		return nil, fmt.Errorf("%s: %w", flag, err)
-	}
-
-	return expr, nil
-}
-
 type invocation struct {
-	plan     *plan.Plan
-	gate     *assert.Expr
-	abstain  *assert.Expr
-	mapper   *jq.Expr
-	namer    *jq.Expr
+	*planbuild.Built
+
 	loaded   *qfile.File
 	fileGate fileGate
 	images   *imaging

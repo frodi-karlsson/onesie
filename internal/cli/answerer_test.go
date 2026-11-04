@@ -8,9 +8,10 @@ import (
 	"testing"
 
 	"github.com/frodi-karlsson/onesie-go"
+	"github.com/frodi-karlsson/onesie/internal/runner"
 )
 
-func TestLiveAnswerer(t *testing.T) {
+func TestExplainedAnswerer(t *testing.T) {
 	t.Parallel()
 
 	const prefix = "onesie: 200 response could not be used: "
@@ -102,7 +103,7 @@ func TestLiveAnswerer(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			_, err = newLiveAnswerer(client).answer(t.Context(), recordKey{}, onesie.Request{
+			_, err = explainedAnswerer(client).Answer(t.Context(), runner.RecordKey{}, onesie.Request{
 				State: "a ticket", Model: client.DefaultModel(),
 				Questions: onesie.Questions{{ID: "u", Question: onesie.Noul{Instructions: "is it urgent"}}},
 			})

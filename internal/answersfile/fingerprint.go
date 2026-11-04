@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/frodi-karlsson/onesie/internal/input"
 	"github.com/frodi-karlsson/onesie/internal/output"
 	"github.com/frodi-karlsson/onesie/internal/plan"
 )
@@ -81,11 +82,24 @@ func printedRun(questions []plan.Question, wired json.Marshaler, inputs Fingerpr
 		AbstainIf: inputs.AbstainIf,
 		SkipBlank: inputs.SkipBlank,
 		Images:    inputs.Images,
+		Delimiter: delimiterSetting(inputs.Delimiter),
 
 		LongContext: inputs.LongContext,
 
 		FallbackColumns: !inputs.withoutFallbackColumns && delimitedOutput(inputs.Output) && hasFallback(questions),
 		Mock:            inputs.Mock,
+	}
+}
+
+func delimiterSetting(delimiter input.Delimiter) string {
+	switch {
+	case delimiter.Detect:
+		return "auto"
+	case delimiter.Comma == 0 || delimiter.Comma == ',':
+		// Empty, as with no delimiter given, so a file either one writes resumes under the other.
+		return ""
+	default:
+		return string(delimiter.Comma)
 	}
 }
 
@@ -104,6 +118,7 @@ type runPrint struct {
 	AbstainIf   string         `json:"abstain_if"`
 	SkipBlank   bool           `json:"skip_blank,omitempty"`
 	Images      []string       `json:"images,omitempty"`
+	Delimiter   string         `json:"delimiter,omitempty"`
 	LongContext bool           `json:"long_context,omitempty"`
 	// A csv or tsv file without the fallback columns has shorter rows than the run writes, so
 	// a resume into it is refused.
@@ -175,7 +190,7 @@ func (p Print) String() string {
 // Matches reports whether stored is this run's fingerprint, written by this version or as the
 // single sum version 2 kept.
 func (p Print) Matches(stored string) bool {
-	_, _, stale := staleReason(stored, true, p)
+	_, _, stale := staleReason(stored, true, p, plan.Flags)
 
 	return !stale
 }
@@ -203,6 +218,8 @@ type FingerprintInputs struct {
 	AbstainIf string
 	SkipBlank bool
 	Images    []string
+	// Delimiter splits a csv input. The zero value is a comma.
+	Delimiter input.Delimiter
 
 	LongContext bool
 	Mock        bool
@@ -237,7 +254,7 @@ type policyPrint struct {
 	Fallback      *string  `json:"fallback"`
 }
 
-func staleReason(stored string, found bool, current Print) (StaleReason, []string, bool) {
+func staleReason(stored string, found bool, current Print, speller plan.Speller) (StaleReason, []string, bool) {
 	if !found {
 		return NoFingerprint, nil, true
 	}
@@ -259,14 +276,14 @@ func staleReason(stored string, found bool, current Print) (StaleReason, []strin
 		return ChangedRun, nil, true
 	}
 
-	if changed := current.changedFrom(sums); len(changed) > 0 {
+	if changed := current.changedFrom(sums, speller); len(changed) > 0 {
 		return ChangedRun, changed, true
 	}
 
 	return 0, nil, false
 }
 
-func (p Print) changedFrom(stored map[string]string) []string {
+func (p Print) changedFrom(stored map[string]string, speller plan.Speller) []string {
 	var changed []string
 
 	seen := make(map[string]bool, len(p.parts))
@@ -275,20 +292,20 @@ func (p Print) changedFrom(stored map[string]string) []string {
 		seen[part.name] = true
 
 		if stored[part.name] != part.sum {
-			changed = append(changed, partLabel(part.name))
+			changed = append(changed, partLabel(part.name, speller))
 		}
 	}
 
 	for _, name := range slices.Sorted(maps.Keys(stored)) {
 		if !seen[name] {
-			changed = append(changed, partLabel(name))
+			changed = append(changed, partLabel(name, speller))
 		}
 	}
 
 	return changed
 }
 
-func partLabel(name string) string {
+func partLabel(name string, speller plan.Speller) string {
 	switch name {
 	case "questions":
 		return "the questions"
@@ -299,29 +316,31 @@ func partLabel(name string) string {
 	case "model":
 		return "the model"
 	case "map":
-		return "--map"
+		return speller.Spell("--map")
 	case "id":
-		return "--id"
+		return speller.Spell("--id")
 	case "output":
-		return "-o"
+		return speller.Spell("-o")
 	case "input":
-		return "-i"
+		return speller.Spell("-i")
 	case "merge_key":
 		return "the merge key"
 	case "assert":
-		return "--assert"
+		return speller.Spell("--assert")
 	case "abstain_if":
-		return "--abstain-if"
+		return speller.Spell("--abstain-if")
 	case "skip_blank":
-		return "--skip-blank"
+		return speller.Spell("--skip-blank")
 	case "images":
 		return "the images"
 	case "long_context":
-		return "--long-context"
+		return speller.Spell("--long-context")
 	case "fallback_columns":
 		return "the fallback columns"
 	case "mock":
-		return "--mock"
+		return speller.Spell("--mock")
+	case "delimiter":
+		return speller.Spell("--delimiter")
 	default:
 		return ""
 	}
@@ -426,7 +445,7 @@ func parseSums(written string) (map[string]string, bool) {
 		name, sum, found := strings.Cut(part, "=")
 		decoded, err := hex.DecodeString(sum)
 
-		if !found || partLabel(name) == "" || err != nil || len(decoded) != partSumLength {
+		if !found || partLabel(name, plan.Flags) == "" || err != nil || len(decoded) != partSumLength {
 			return nil, false
 		}
 

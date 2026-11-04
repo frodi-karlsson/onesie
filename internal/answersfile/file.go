@@ -4,7 +4,6 @@ package answersfile
 import (
 	"bufio"
 	"bytes"
-	"encoding/csv"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -15,6 +14,7 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/frodi-karlsson/onesie/internal/input"
 	"github.com/frodi-karlsson/onesie/internal/output"
 	"github.com/frodi-karlsson/onesie/internal/patherr"
 	"github.com/frodi-karlsson/onesie/internal/plan"
@@ -48,12 +48,14 @@ func Open(opts Options, config Config) (*File, Resume, error) {
 	}
 
 	out := &File{
-		path:     config.Path,
-		open:     opts.OpenFile,
-		rename:   opts.Rename,
-		remove:   opts.Remove,
-		goos:     opts.GOOS,
-		readOnly: config.ReadOnly,
+		path:      config.Path,
+		open:      opts.OpenFile,
+		rename:    opts.Rename,
+		remove:    opts.Remove,
+		goos:      opts.GOOS,
+		speller:   opts.Speller,
+		readOnly:  config.ReadOnly,
+		delimiter: config.Delimiter,
 	}
 
 	// Once, and ahead of the lock, so a run through a symlink and a run into its target take the
@@ -110,6 +112,8 @@ type Options struct {
 	Readlink func(name string) (string, error)
 	Lock     func(answers string) (release func() error, err error)
 	GOOS     string
+	// Speller names a changed setting in a stale file refusal. The zero value spells flags.
+	Speller plan.Speller
 }
 
 func (o Options) withDefaults() Options {
@@ -151,6 +155,8 @@ type Config struct {
 	Output   string
 	ByID     bool
 	ReadOnly bool
+	// Delimiter separates the cells of a csv file, read from the file's own header row under Detect.
+	Delimiter input.Delimiter
 }
 
 func resumeOut(out *File, config Config) (Resume, error) {
@@ -161,7 +167,7 @@ func resumeOut(out *File, config Config) (Resume, error) {
 	var resume Resume
 
 	if config.Output == "csv" || config.Output == "tsv" {
-		rows, length, err := out.completeRows(config.Output == "csv")
+		rows, length, comma, err := out.completeRows(config.Output == "csv", config.Delimiter)
 		if err != nil {
 			return Resume{}, err
 		}
@@ -171,6 +177,7 @@ func resumeOut(out *File, config Config) (Resume, error) {
 		// The first row is the header, which is written once and answers no record.
 		if rows > 0 {
 			resume.Header = true
+			resume.Comma = comma
 		}
 
 		if rows > 0 && !config.ByID {
@@ -195,10 +202,11 @@ func resumeOut(out *File, config Config) (Resume, error) {
 }
 
 // Resume says how many records a resume by position skips, the verdicts stored for them and whether
-// the file has its header row.
+// the file has its header row. Comma separates the cells of a file with a header row.
 type Resume struct {
 	Skip   int
 	Header bool
+	Comma  rune
 	Stored []Verdict
 }
 
@@ -286,6 +294,7 @@ type File struct {
 	rename   func(oldpath, newpath string) error
 	remove   func(name string) error
 	goos     string
+	speller  plan.Speller
 	unlock   func() error
 	special  bool
 	resume   bool
@@ -294,6 +303,7 @@ type File struct {
 	matched  bool
 	readOnly bool
 
+	delimiter   input.Delimiter
 	fingerprint *Print
 	file        *os.File
 	size        int64
@@ -361,6 +371,11 @@ func (o *File) removeStalePart() error {
 	}
 
 	return nil
+}
+
+// Path is the answers file's path as the caller named it.
+func (o *File) Path() string {
+	return o.path
 }
 
 // Offset is the length of the file as this run has written it.
@@ -464,7 +479,7 @@ func (o *File) writeCompacted(temporary string) (err error) {
 
 	var header int64
 	if o.rewrite.delimited {
-		header, err = headerLength(io.NewSectionReader(source, 0, o.size), o.rewrite.quoted)
+		header, err = headerLength(io.NewSectionReader(source, 0, o.size), o.rewrite.quoted, o.delimiter)
 		if err != nil {
 			return err
 		}
@@ -680,7 +695,7 @@ func (o *File) checkFingerprint(fingerprint Print) (matched bool, err error) {
 		return false, err
 	}
 
-	reason, changed, stale := staleReason(stored, found, fingerprint)
+	reason, changed, stale := staleReason(stored, found, fingerprint, o.speller)
 	if stale {
 		return false, &StaleAnswersError{
 			Path: o.path, Sidecar: o.target + fingerprintSuffix, Reason: reason, Changed: changed,
@@ -850,41 +865,44 @@ func (o *File) writeFingerprint() error {
 	return nil
 }
 
-func (o *File) completeRows(quoted bool) (rows int, length int64, err error) {
+func (o *File) completeRows(
+	quoted bool, delimiter input.Delimiter,
+) (rows int, length int64, comma rune, err error) {
 	// TSV has no quoting, so a row is a line.
 	if !quoted {
-		return o.completeLines()
+		rows, length, err = o.completeLines()
+
+		return rows, length, '\t', err
 	}
 
 	file, err := o.open(o.path, os.O_RDONLY, 0)
 	if errors.Is(err, os.ErrNotExist) {
-		return 0, 0, nil
+		return 0, 0, 0, nil
 	}
 
 	if err != nil {
-		return 0, 0, fmt.Errorf("reading %s to resume: %w", o.path, err)
+		return 0, 0, 0, fmt.Errorf("reading %s to resume: %w", o.path, err)
 	}
 
 	defer func() {
 		err = errors.Join(err, file.Close())
 	}()
 
-	reader := csv.NewReader(bufio.NewReader(file))
-	reader.FieldsPerRecord = -1
+	reader := csvRows(file, delimiter)
 
 	// A quoted field can hold a newline, so rows are counted as csv rather than as lines. A row
 	// only counts once its closing newline is on disk, which is what tells a finished row from one
 	// cut off at a field boundary.
 	for {
 		if _, readErr := reader.Read(); readErr != nil {
-			return rows, length, nil
+			return rows, length, reader.Comma, nil
 		}
 
 		offset := reader.InputOffset()
 
 		last := make([]byte, 1)
 		if _, readErr := file.ReadAt(last, offset-1); readErr != nil || last[0] != '\n' {
-			return rows, length, nil
+			return rows, length, reader.Comma, nil
 		}
 
 		rows++

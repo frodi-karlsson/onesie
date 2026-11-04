@@ -21,6 +21,7 @@ import (
 	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/mock"
 	"github.com/frodi-karlsson/onesie/internal/plan"
+	"github.com/frodi-karlsson/onesie/internal/runner"
 )
 
 const (
@@ -1166,7 +1167,7 @@ func TestMockAnswerer_Answer(t *testing.T) {
 	questions := onesie.Questions{{ID: "answer", Question: onesie.Noul{Instructions: "q"}}}
 	known := []plan.Question{{ID: "answer", Shape: plan.Noul}}
 
-	asker := func(t *testing.T, file string, provider onesie.Provider, retries int) (mockAnswerer, *collector) {
+	asker := func(t *testing.T, file string, provider onesie.Provider, retries int) (mockAnswerer, *runner.Collector) {
 		t.Helper()
 
 		answers, err := mock.Load(strings.NewReader(file), known, mock.Options{})
@@ -1174,7 +1175,7 @@ func TestMockAnswerer_Answer(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		stats := &collector{}
+		stats := &runner.Collector{}
 		settings := defaultSettings(BuildInfo{})
 		settings.lookupEnv = lookupFrom(map[string]string{})
 
@@ -1183,7 +1184,7 @@ func TestMockAnswerer_Answer(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		return mockAnswerer{answers: answers, provider: provider, live: newLiveAnswerer(client)}, stats
+		return mockAnswerer{answers: answers, provider: provider, live: explainedAnswerer(client)}, stats
 	}
 
 	t.Run("should count no attempt for a request the provider refuses", func(t *testing.T) {
@@ -1196,7 +1197,7 @@ func TestMockAnswerer_Answer(t *testing.T) {
 
 		a, stats := asker(t, `{"answer":0.9}`, onesie.Levanto(), 0)
 
-		_, err = a.answer(t.Context(), recordKey{position: 1}, onesie.Request{
+		_, err = a.Answer(t.Context(), runner.RecordKey{Position: 1}, onesie.Request{
 			Model: onesie.Levanto().DefaultModel(), State: map[string]any{"photo": "img"}, Questions: questions,
 			Assets: onesie.Assets{"img": img},
 		})
@@ -1204,7 +1205,7 @@ func TestMockAnswerer_Answer(t *testing.T) {
 			t.Fatalf("error = %v, want levanto's refusal", err)
 		}
 
-		if got := stats.snapshot(0).Attempts; got != 0 {
+		if got := stats.Snapshot(0).Attempts; got != 0 {
 			t.Errorf("attempts = %d, want 0", got)
 		}
 	})
@@ -1214,7 +1215,7 @@ func TestMockAnswerer_Answer(t *testing.T) {
 
 		a, _ := asker(t, `{"answer":0.9}`, onesie.TypeSafe(), 0)
 
-		_, err := a.answer(t.Context(), recordKey{position: 1}, onesie.Request{
+		_, err := a.Answer(t.Context(), runner.RecordKey{Position: 1}, onesie.Request{
 			Model: "m", State: "s", Questions: onesie.Questions{
 				{ID: "answer", Question: onesie.Noul{Instructions: "q"}},
 				{ID: "other", Question: onesie.Noul{Instructions: "q"}},
@@ -1233,7 +1234,7 @@ func TestMockAnswerer_Answer(t *testing.T) {
 
 		a, stats := asker(t, `{"answer":0.9}`, onesie.Cloudflare(), 0)
 
-		_, err := a.answer(t.Context(), recordKey{position: 1}, onesie.Request{
+		_, err := a.Answer(t.Context(), runner.RecordKey{Position: 1}, onesie.Request{
 			Model: "m", State: "s",
 			Questions: onesie.Questions{{ID: "answer", Question: onesie.Box{Instructions: "q"}}},
 		})
@@ -1241,7 +1242,7 @@ func TestMockAnswerer_Answer(t *testing.T) {
 			t.Fatalf("error = %v, want ValidateRequest's refusal", err)
 		}
 
-		if got := stats.snapshot(0).Attempts; got != 0 {
+		if got := stats.Snapshot(0).Attempts; got != 0 {
 			t.Errorf("attempts = %d, want 0", got)
 		}
 	})
@@ -1251,18 +1252,18 @@ func TestMockAnswerer_Answer(t *testing.T) {
 
 		a, stats := asker(t, `{"answer":0.9}`, onesie.TypeSafe(), 0)
 
-		got, err := a.answer(t.Context(), recordKey{position: 1}, onesie.Request{
+		got, err := a.Answer(t.Context(), runner.RecordKey{Position: 1}, onesie.Request{
 			Model: "other", State: "s", Questions: questions,
 		})
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		if got.result.Model != "other" {
-			t.Errorf("model = %q, want other", got.result.Model)
+		if got.Result.Model != "other" {
+			t.Errorf("model = %q, want other", got.Result.Model)
 		}
 
-		if attempts := stats.snapshot(0).Attempts; attempts != 1 {
+		if attempts := stats.Snapshot(0).Attempts; attempts != 1 {
 			t.Errorf("attempts = %d, want 1", attempts)
 		}
 	})
@@ -1276,14 +1277,14 @@ func TestMockAnswerer_Answer(t *testing.T) {
 
 			started := time.Now()
 
-			_, err := a.answer(t.Context(), recordKey{position: 1}, onesie.Request{
+			_, err := a.Answer(t.Context(), runner.RecordKey{Position: 1}, onesie.Request{
 				Model: "m", State: "s", Questions: questions,
 			})
 			if err == nil || !strings.Contains(err.Error(), "503 status code, no body") {
 				t.Fatalf("error = %v, want the mocked 503", err)
 			}
 
-			if got := stats.snapshot(0); got.Attempts != 3 || got.Retries[http.StatusServiceUnavailable] != 3 {
+			if got := stats.Snapshot(0); got.Attempts != 3 || got.Retries[http.StatusServiceUnavailable] != 3 {
 				t.Errorf("attempts = %d, failed 503 attempts = %v, want 3 and 3", got.Attempts, got.Retries)
 			}
 
@@ -1298,15 +1299,15 @@ func TestMockAnswerer_Answer(t *testing.T) {
 
 		a, _ := asker(t, `{"error":402}`, onesie.TypeSafe(), 0)
 
-		got, err := a.answer(t.Context(), recordKey{position: 1}, onesie.Request{
+		got, err := a.Answer(t.Context(), runner.RecordKey{Position: 1}, onesie.Request{
 			Model: "m", State: "s", Questions: questions,
 		})
 		if err == nil || !strings.Contains(err.Error(), "402 status code, no body") {
 			t.Fatalf("error = %v, want the mocked 402", err)
 		}
 
-		if got.result != nil {
-			t.Errorf("result = %+v, want none", got.result)
+		if got.Result != nil {
+			t.Errorf("result = %+v, want none", got.Result)
 		}
 	})
 }

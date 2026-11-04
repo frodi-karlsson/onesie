@@ -125,7 +125,7 @@ func TestImagingAttach(t *testing.T) {
 				return
 			}
 
-			state, assets, err := m.attach(tc.state)
+			state, assets, err := m.Attach(tc.state)
 			if tc.wantErr != "" {
 				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
 					t.Fatalf("attach error = %v, want %q", err, tc.wantErr)
@@ -206,7 +206,7 @@ func TestImagingWrapLine(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		state, wire := m.wrapLine("a.jpg", "a.jpg")
+		state, wire := m.WrapLine("a.jpg", "a.jpg")
 
 		want := map[string]any{"photo": "a.jpg"}
 		if !equalJSON(t, state, want) || !equalJSON(t, wire, want) {

@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"cmp"
 	"errors"
 	"fmt"
 	"maps"
@@ -10,92 +9,55 @@ import (
 
 	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/creds"
+	"github.com/frodi-karlsson/onesie/internal/plan"
+	"github.com/frodi-karlsson/onesie/internal/resolve"
 )
 
 const (
-	envProfile  = "ONESIE_PROFILE"
-	envProvider = "ONESIE_PROVIDER"
-
 	flagProfile  = "profile"
 	flagProvider = "provider"
-
-	byDefault = "the default"
-	byNothing = "nothing"
-
-	sourceEnv      = "env"
-	sourceFile     = "file"
-	sourceKeychain = "keychain"
-	sourceNone     = "none"
 )
 
 func checkChoice(flags *runFlags, lookupEnv func(string) (string, bool)) error {
-	chosen, err := choose(flags, lookupEnv)
-	if err != nil || chosen.provider == "" {
+	chosen, err := resolve.Choose(givenOf(flags), lookupEnv, plan.Flags)
+	if err != nil || chosen.Provider == "" {
 		return err
 	}
 
-	_, err = onesie.ProviderNamed(chosen.provider)
+	_, err = onesie.ProviderNamed(chosen.Provider)
 
 	return err
 }
 
-func choose(flags *runFlags, lookupEnv func(string) (string, bool)) (choice, error) {
-	if flags.profileSet && flags.providerSet {
-		return choice{}, errors.New("--profile and --provider both choose what the run uses. Pass one")
+func givenOf(flags *runFlags) resolve.Given {
+	return resolve.Given{
+		Profile: flags.profile, Provider: flags.provider, ProfileSet: flags.profileSet, ProviderSet: flags.providerSet,
 	}
-
-	switch {
-	case flags.profileSet:
-		return choice{profile: strings.TrimSpace(flags.profile), by: "--" + flagProfile}, nil
-	case flags.providerSet:
-		return choice{provider: strings.TrimSpace(flags.provider), by: "--" + flagProvider}, nil
-	}
-
-	profile, provider := setVariable(lookupEnv, envProfile), setVariable(lookupEnv, envProvider)
-
-	switch {
-	case profile != "" && provider != "":
-		return choice{}, fmt.Errorf(
-			"%s and %s are both set, and each chooses what the run uses. Unset one", envProfile, envProvider)
-	case profile != "":
-		return choice{profile: profile, by: envProfile}, nil
-	case provider != "":
-		return choice{provider: provider, by: envProvider}, nil
-	}
-
-	return choice{}, nil
 }
 
-type choice struct {
-	profile  string
-	provider string
-	by       string
-}
+func withProfileHints(err error, opened func() (creds.Opened, error)) error {
+	var (
+		notFound *resolve.ProfileNotFoundError
+		provider *resolve.ProviderError
+	)
 
-func resolveProfile(
-	chosen choice, profiles creds.Profiles, lookupEnv func(string) (string, bool),
-) (resolution, error) {
-	name, by := chosen.profile, chosen.by
-	if name == "" {
-		name, by = profiles.Default, byDefault
+	switch {
+	case errors.Is(err, resolve.ErrNoDefaultProfile):
+		return fmt.Errorf("%w. Run onesie profile use NAME, or pass --profile NAME or --provider NAME", err)
+	case errors.As(err, &notFound):
+		return providerNameHint(fmt.Errorf("%w. %s", err, knownProfiles(notFound.Profiles)), notFound.Name, notFound.By)
+	case errors.As(err, &provider):
+		// Read only when the provider is refused, so a run that names its provider and succeeds
+		// never opens the file, and CI that names one stays apart from any file on the machine.
+		profiles, openErr := opened()
+		if openErr != nil {
+			return provider.Err
+		}
+
+		return providerIsProfileHint(provider.Err, provider.Given, profiles.Profiles)
+	default:
+		return err
 	}
-
-	if name == "" && len(profiles.Profiles) > 0 {
-		return resolution{}, errors.New("no profile is the default and nothing chose one. " +
-			"Run onesie profile use NAME, or pass --profile NAME or --provider NAME")
-	}
-
-	if name == "" {
-		return providerRun(onesie.TypeSafe().Name(), byNothing, lookupEnv)
-	}
-
-	profile, found := profiles.Profiles[name]
-	if !found {
-		return resolution{}, providerNameHint(fmt.Errorf("%s names profile %s, which does not exist. %s",
-			by, creds.QuotedName(name), knownProfiles(profiles)), name, by)
-	}
-
-	return profileRun(name, profile, by)
 }
 
 func providerNameHint(err error, name, by string) error {
@@ -111,8 +73,8 @@ func providerNameHint(err error, name, by string) error {
 	switch by {
 	case "--" + flagProfile:
 		note = fmt.Sprintf("so pass --%s %s in place of --%s", flagProvider, name, flagProfile)
-	case envProfile:
-		note = fmt.Sprintf("so set %s=%s in place of %s", envProvider, name, envProfile)
+	case resolve.EnvProfile:
+		note = fmt.Sprintf("so set %s=%s in place of %s", resolve.EnvProvider, name, resolve.EnvProfile)
 	case "show", "test":
 		note = fmt.Sprintf("so run onesie profile %s --%s %s", by, flagProvider, name)
 	case "use":
@@ -127,16 +89,16 @@ func providerNameHint(err error, name, by string) error {
 	}
 }
 
-func providerIsProfileHint(err error, chosen choice, profiles creds.Profiles) error {
-	if _, isProfile := profiles.Profiles[chosen.provider]; !isProfile {
+func providerIsProfileHint(err error, chosen resolve.Chosen, profiles creds.Profiles) error {
+	if _, isProfile := profiles.Profiles[chosen.Provider]; !isProfile {
 		return err
 	}
 
 	note := fmt.Sprintf("%s is a profile, so pass --profile %s in place of --provider",
-		creds.QuotedName(chosen.provider), creds.QuotedName(chosen.provider))
-	if chosen.by == envProvider {
+		creds.QuotedName(chosen.Provider), creds.QuotedName(chosen.Provider))
+	if chosen.By == resolve.EnvProvider {
 		note = fmt.Sprintf("%s is a profile, so set %s=%s in place of %s",
-			creds.QuotedName(chosen.provider), envProfile, creds.QuotedName(chosen.provider), envProvider)
+			creds.QuotedName(chosen.Provider), resolve.EnvProfile, creds.QuotedName(chosen.Provider), resolve.EnvProvider)
 	}
 
 	return &advisedError{cause: err, message: text(err) + ". " + note}
@@ -159,138 +121,29 @@ func quotedNames(names []string, sep string) string {
 	return strings.Join(quoted, sep)
 }
 
-func providerRun(name, by string, lookupEnv func(string) (string, bool)) (resolution, error) {
-	provider, err := onesie.ProviderNamed(name)
-	if err != nil {
-		return resolution{}, err
-	}
-
-	bare := resolution{provider: provider, by: by, keyFrom: sourceNone}
-	if setVariable(lookupEnv, provider.EnvAPIKey()) != "" {
-		bare.keyFrom = sourceEnv
-	}
-
-	return bare, nil
-}
-
-func profileRun(name string, profile creds.Profile, by string) (resolution, error) {
-	provider, err := onesie.ProviderNamed(profile.Provider)
-	if err != nil {
-		return resolution{}, err
-	}
-
-	kept := resolution{
-		provider: provider, profile: name, by: by,
-		keyFrom: sourceFile, key: profile.APIKey, keyEnd: creds.KeyEnd(strings.TrimSpace(profile.APIKey)),
-		model: profile.Model, baseURL: profile.BaseURL, accountID: profile.AccountID,
-	}
-
-	if profile.Store == creds.StoreKeychain {
-		kept.keyFrom, kept.key, kept.account, kept.keyEnd = sourceKeychain, "", profile.Account, profile.KeyEnd
-	}
-
-	return kept, nil
-}
-
-type resolution struct {
-	provider  onesie.Provider
-	profile   string
-	by        string
-	keyFrom   string
-	key       string
-	account   string
-	keyEnd    string
-	model     string
-	baseURL   string
-	accountID string
-}
-
-func (r resolution) options(
-	baseURLFlag string, key func() (string, error), lookupEnv func(string) (string, bool),
-) []onesie.Option {
-	var opts []onesie.Option
-
-	if _, baseURL := r.givenBaseURL(baseURLFlag); baseURL != "" {
-		opts = append(opts, onesie.WithBaseURL(baseURL))
-	}
-
-	if r.profile == "" {
-		return opts
-	}
-
-	opts = append(opts, onesie.WithAPIKeyFunc(key), onesie.WithDefaultModel(r.modelFor("", lookupEnv)))
-
-	if r.accountID != "" {
-		opts = append(opts, onesie.WithAccountID(r.accountID))
-	}
-
-	return opts
-}
-
-func (r resolution) givenBaseURL(baseURLFlag string) (name, given string) {
-	if flag := strings.TrimSpace(baseURLFlag); flag != "" {
-		return "--" + flagBaseURL, flag
-	}
-
-	return profileBaseURL, r.baseURL
-}
-
-func (r resolution) modelFor(explicit string, lookupEnv func(string) (string, bool)) string {
-	if strings.TrimSpace(explicit) == "" {
-		explicit = r.model
-	}
-
-	return r.provider.ResolveModel(explicit, lookupEnv)
-}
-
-func (r resolution) GoString() string {
-	// The %#v verb prints every field, and key holds a file profile's key in plain text.
-	return r.String()
-}
-
-func (r resolution) String() string {
-	// Here so a stray %v prints where the key lives, never the key.
-	return "profile " + cmp.Or(r.profile, sourceNone) + ", provider " + r.provider.Name() + ", key " + r.keyLine()
-}
-
-func (r resolution) keyLine() string {
-	switch r.keyFrom {
-	case sourceKeychain, sourceFile:
-		if r.keyEnd == "" {
-			return r.keyFrom
-		}
-
-		return r.keyFrom + ", ends in " + r.keyEnd
-	case sourceEnv:
-		return sourceEnv + " " + r.provider.EnvAPIKey()
-	}
-
-	return sourceNone
-}
-
-func missingKeyHint(err error, bare resolution, profiles creds.Profiles) error {
-	if bare.profile != "" || bare.keyFrom != sourceNone || !errors.Is(err, onesie.ErrNoAPIKey) {
+func missingKeyHint(err error, bare resolve.Resolution, profiles creds.Profiles) error {
+	if bare.Profile != "" || bare.KeyFrom != resolve.KeyFromNone || !errors.Is(err, onesie.ErrNoAPIKey) {
 		return err
 	}
 
 	return &advisedError{cause: err, message: text(err) + storeKeyHint(bare, profiles)}
 }
 
-func storeKeyHint(bare resolution, profiles creds.Profiles) string {
-	name := firstProfileOf(bare.provider.Name(), profiles)
-	if name == "" && bare.by == envProvider {
+func storeKeyHint(bare resolve.Resolution, profiles creds.Profiles) string {
+	name := firstProfileOf(bare.Provider.Name(), profiles)
+	if name == "" && bare.By == resolve.EnvProvider {
 		// A profile created now would still go unused while the variable chooses the run.
 		return fmt.Sprintf(". %s is set, so a stored profile is not used. To use one instead, unset %s "+
-			"and run onesie profile create NAME --provider %s", envProvider, envProvider, bare.provider.Name())
+			"and run onesie profile create NAME --provider %s", resolve.EnvProvider, resolve.EnvProvider, bare.Provider.Name())
 	}
 
 	if name == "" {
-		return ", or store one with onesie profile create NAME --provider " + bare.provider.Name()
+		return ", or store one with onesie profile create NAME --provider " + bare.Provider.Name()
 	}
 
-	if bare.by == envProvider {
+	if bare.By == resolve.EnvProvider {
 		return fmt.Sprintf(", or unset %s and run onesie profile use %s, or run with --profile %s",
-			envProvider, creds.QuotedName(name), creds.QuotedName(name))
+			resolve.EnvProvider, creds.QuotedName(name), creds.QuotedName(name))
 	}
 
 	return ", or drop --provider and pass --profile " + creds.QuotedName(name)
@@ -310,31 +163,16 @@ func firstProfileOf(provider string, profiles creds.Profiles) string {
 	return ""
 }
 
-func accountNote(err error, chosen resolution) error {
-	missing := fmt.Sprintf("no %s account id. Set %s", chosen.provider.Name(), chosen.provider.EnvAccountID())
-	if chosen.profile == "" {
+func accountNote(err error, chosen resolve.Resolution) error {
+	missing := fmt.Sprintf("no %s account id. Set %s", chosen.Provider.Name(), chosen.Provider.EnvAccountID())
+	if chosen.Profile == "" {
 		return &advisedError{cause: err, message: fmt.Sprintf(
 			"%s, or store it with onesie profile create NAME --provider %s --%s ACCOUNT_ID",
-			missing, chosen.provider.Name(), flagAccountID)}
+			missing, chosen.Provider.Name(), flagAccountID)}
 	}
 
 	return &advisedError{cause: err, message: fmt.Sprintf("%s, or run onesie profile update %s --%s ACCOUNT_ID",
-		missing, creds.QuotedName(chosen.profile), flagAccountID)}
-}
-
-func (r resolution) accountSource(source onesie.BaseURLSource, resolveErr error) string {
-	switch {
-	case r.provider.EnvAccountID() == "":
-		return ""
-	case errors.Is(resolveErr, onesie.ErrNoAccountID):
-		return sourceNone
-	case source != onesie.BaseURLFromAccount:
-		return "base_url"
-	case r.accountID != "":
-		return "account_id"
-	}
-
-	return r.provider.EnvAccountID()
+		missing, creds.QuotedName(chosen.Profile), flagAccountID)}
 }
 
 func setVariable(lookupEnv func(string) (string, bool), name string) string {

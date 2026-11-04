@@ -18,8 +18,8 @@ import (
 var identifier = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_-]*$`)
 
 // SplitLabel splits a --label value into the question id it names and its jq source. A bare
-// expression belongs to the only question asked.
-func SplitLabel(spec string, ids []string) (id, source string, err error) {
+// expression belongs to the only question asked. speller names the label setting in a refusal.
+func SplitLabel(spec string, ids []string, speller plan.Speller) (id, source string, err error) {
 	if id, source, found := longestID(spec, ids); found {
 		return id, source, nil
 	}
@@ -28,13 +28,13 @@ func SplitLabel(spec string, ids []string) (id, source string, err error) {
 	named := found && !strings.HasPrefix(rest, "=")
 
 	if named && identifier.MatchString(prefix) {
-		return "", "", fmt.Errorf("--label names an unknown question '%s'. Questions: %s",
-			prefix, strings.Join(ids, ", "))
+		return "", "", fmt.Errorf("%s names an unknown question '%s'. Questions: %s",
+			speller.Spell("--label"), prefix, strings.Join(ids, ", "))
 	}
 
 	if len(ids) != 1 {
-		return "", "", fmt.Errorf("--label needs ID=EXPR when more than one question is asked. Questions: %s",
-			strings.Join(ids, ", "))
+		return "", "", fmt.Errorf("%s needs ID=EXPR when more than one question is asked. Questions: %s",
+			speller.Spell("--label"), strings.Join(ids, ", "))
 	}
 
 	return ids[0], spec, nil
@@ -56,6 +56,12 @@ func longestID(spec string, ids []string) (id, source string, found bool) {
 // ParseLabel reads one label result for a question of the given shape, whose option or level names
 // are names. The second result is false when the value leaves the record unlabelled.
 func ParseLabel(shape plan.Shape, names []string, value any) (Label, bool, error) {
+	// The refusal quotes the value as given, so the user sees what is in the file.
+	given := value
+	if text, isText := value.(string); isText {
+		value = strings.TrimSpace(text)
+	}
+
 	if value == nil || value == "" {
 		return Label{}, false, nil
 	}
@@ -63,8 +69,8 @@ func ParseLabel(shape plan.Shape, names []string, value any) (Label, bool, error
 	if shape == plan.Noul {
 		yes, ok := yesNo(value)
 		if !ok {
-			return Label{}, false, fmt.Errorf("%s is not a yes or no label. Use true, false, yes, no, 1 or 0",
-				shown(value))
+			return Label{}, false, fmt.Errorf(
+				"%s is not a yes or no label. Use true, false, yes, no, y, n, 1 or 0", shown(given))
 		}
 
 		return Label{Yes: yes}, true, nil
@@ -72,7 +78,7 @@ func ParseLabel(shape plan.Shape, names []string, value any) (Label, bool, error
 
 	text, ok := nameText(value)
 	if !ok || !slices.Contains(names, text) {
-		return Label{}, false, fmt.Errorf("%s is not a %s label. Use %s", shown(value), shape, oneOf(names))
+		return Label{}, false, fmt.Errorf("%s is not a %s label. Use %s", shown(given), shape, oneOf(names))
 	}
 
 	return Label{Name: text}, true, nil
@@ -100,9 +106,9 @@ func yesNo(value any) (bool, bool) {
 	}
 
 	switch strings.ToLower(text) {
-	case "true", "yes", "1":
+	case "true", "yes", "y", "1":
 		return true, true
-	case "false", "no", "0":
+	case "false", "no", "n", "0":
 		return false, true
 	default:
 		return false, false

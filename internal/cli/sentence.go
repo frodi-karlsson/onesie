@@ -8,6 +8,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/frodi-karlsson/onesie-go"
+	"github.com/frodi-karlsson/onesie/internal/runner"
 )
 
 func sentence(cause error) string {
@@ -68,7 +69,7 @@ func apiLead(cause error, api *onesie.APIError) string {
 		return "the server redirected the request"
 	case status == http.StatusPaymentRequired:
 		return "the account is out of credits"
-	case authFailure(cause):
+	case runner.AuthFailure(cause):
 		return "the key was rejected"
 	case status == http.StatusRequestTimeout:
 		return "the server timed out waiting for the request"

@@ -12,30 +12,55 @@ import (
 	"unicode/utf8"
 
 	"github.com/frodi-karlsson/onesie/internal/limits"
+	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
 var errRowTooLong = errors.New("a row is longer than the limit")
 
-// NewStream reads one record per line. skipBlank drops blank lines entirely rather than reporting
-// them, which breaks the one line per line alignment and is therefore opt in.
-func NewStream(r io.Reader, mode Mode, skipBlank bool) *Stream {
+// NewStream reads one record per line, as opts says.
+func NewStream(r io.Reader, mode Mode, opts StreamOptions) *Stream {
 	stream := &Stream{
 		reader:    bufio.NewReaderSize(r, 64*1024),
 		mode:      mode,
-		skipBlank: skipBlank,
+		skipBlank: opts.SkipBlank,
+		speller:   opts.Speller,
 		lineCap:   lineCapOf(mode),
+		comma:     ',',
 	}
 
 	if mode == CSV {
+		if opts.Delimiter.Comma != 0 {
+			stream.comma = opts.Delimiter.Comma
+		}
+
 		// Bounds what one row may pull from stdin, since an unterminated quote would otherwise read
 		// the rest of the input into a single field.
 		stream.budget = &rowBudget{reader: stream.reader}
-		stream.rows = csv.NewReader(stream.budget)
-		// Checked per row instead, so a short row fails that one record rather than the run.
-		stream.rows.FieldsPerRecord = -1
+		stream.rows = csvRows(stream.budget, stream.comma)
+		stream.detect = opts.Delimiter.Detect
 	}
 
 	return stream
+}
+
+func csvRows(r io.Reader, comma rune) *csv.Reader {
+	rows := csv.NewReader(r)
+	rows.Comma = comma
+	// Checked per row instead, so a short row fails that one record rather than the run.
+	rows.FieldsPerRecord = -1
+
+	return rows
+}
+
+// StreamOptions holds how a Stream reads its lines.
+type StreamOptions struct {
+	// SkipBlank drops blank lines entirely rather than reporting them, which breaks the one line per
+	// line alignment and is therefore opt in.
+	SkipBlank bool
+	// Speller names the blank line setting in a refusal.
+	Speller plan.Speller
+	// Delimiter splits a CSV row. Every other mode ignores it.
+	Delimiter Delimiter
 }
 
 func lineCapOf(mode Mode) int {
@@ -51,12 +76,15 @@ type Stream struct {
 	reader    *bufio.Reader
 	mode      Mode
 	skipBlank bool
+	speller   plan.Speller
 	lineCap   int
 	index     int
 	line      int
 	rows      *csv.Reader
 	budget    *rowBudget
 	header    []string
+	comma     rune
+	detect    bool
 }
 
 // Next returns the next record. The second result is false at end of input. A record carrying a
@@ -93,14 +121,26 @@ func (s *Stream) Next() (Record, bool, error) {
 				continue
 			}
 
-			return s.fail(text, fmt.Errorf("blank line, %w. Pass --skip-blank to drop blank lines", ErrEmptyState)), true, nil
+			return s.fail(text, fmt.Errorf("blank line, %w. Pass %s to drop blank lines",
+				ErrEmptyState, s.speller.Spell("--skip-blank"))), true, nil
 		}
 
 		return s.record(text), true, nil
 	}
 }
 
+// Comma is the separator a CSV stream splits on, final once Next has returned the first record.
+func (s *Stream) Comma() rune {
+	return s.comma
+}
+
 func (s *Stream) nextRow() (Record, bool, error) {
+	if s.detect {
+		if err := s.detectComma(); err != nil {
+			return Record{}, false, err
+		}
+	}
+
 	if s.header == nil {
 		header, err := s.readHeader()
 		if err != nil || header == nil {
@@ -129,6 +169,45 @@ func (s *Stream) nextRow() (Record, bool, error) {
 	}
 
 	return s.row(fields), true, nil
+}
+
+func (s *Stream) detectComma() error {
+	s.detect = false
+
+	// The lines up to the header are read here, on the goroutine that calls Next, and then handed back
+	// to the csv reader ahead of the rest of the input, which keeps its line numbers.
+	held, comma, err := s.leadingLines()
+	if err != nil {
+		return err
+	}
+
+	s.comma = comma
+	s.budget.reader = io.MultiReader(bytes.NewReader(held), s.reader)
+	s.rows = csvRows(s.budget, s.comma)
+
+	return nil
+}
+
+func (s *Stream) leadingLines() (held []byte, comma rune, err error) {
+	for {
+		line, readErr := s.reader.ReadSlice('\n')
+		held = append(held, line...)
+
+		if readErr != nil && !errors.Is(readErr, io.EOF) && !errors.Is(readErr, bufio.ErrBufferFull) {
+			return nil, 0, &LineError{Err: readErr}
+		}
+
+		// The csv reader skips an empty line, so the header is the first line that is not empty. A line
+		// with no newline ends the input or fills the buffer, and the blank lines held are capped as a
+		// row is.
+		if !emptyLine(line) || len(held) >= limits.MaxLineBytes {
+			return held, DetectDelimiter(string(line)), nil
+		}
+	}
+}
+
+func emptyLine(line []byte) bool {
+	return bytes.HasSuffix(line, []byte("\n")) && len(bytes.TrimRight(line, "\r\n")) == 0
 }
 
 func (s *Stream) readHeader() ([]string, error) {

@@ -15,6 +15,7 @@ import (
 	"testing/fstest"
 
 	"github.com/frodi-karlsson/onesie/examples/questions"
+	"github.com/frodi-karlsson/onesie/internal/plan"
 	"github.com/frodi-karlsson/onesie/internal/qfile"
 )
 
@@ -314,12 +315,12 @@ func TestReadQuestionFile(t *testing.T) {
 
 			builtIn, _ := questions.Read("shell-safety")
 
-			want, err := qfile.Load(builtIn)
+			want, err := qfile.Load(builtIn, plan.Flags)
 			if err != nil {
 				t.Fatal(err)
 			}
 
-			got, err := qfile.Load([]byte(copied))
+			got, err := qfile.Load([]byte(copied), plan.Flags)
 			if err != nil {
 				t.Fatal(err)
 			}

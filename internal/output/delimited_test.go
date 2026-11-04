@@ -63,6 +63,15 @@ func TestNewDelimited(t *testing.T) {
 				",,\"onesie: 400 bad, request\"\n",
 		},
 		{
+			name:    "should write with the given comma",
+			mode:    output.CSV,
+			opts:    output.DelimitedOptions{IDs: []string{"urgent", "team"}, Header: true, Comma: ';'},
+			records: []output.Record{answered, failed},
+			want: "urgent;team;error\n" +
+				"0.92;billing;\n" +
+				";;onesie: 400 bad, request\n",
+		},
+		{
 			name:    "should put the input columns first under a merge",
 			mode:    output.CSV,
 			opts:    output.DelimitedOptions{IDs: []string{"urgent", "team"}, Header: true},

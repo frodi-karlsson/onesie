@@ -16,6 +16,7 @@ var extensions = []string{".yaml", ".yml", ".json"}
 
 // Find resolves a bare name, never a path, to its question file in the nearest .onesie/questions
 // at or above the working directory, then in the config dir's questions, then in onesie's own set.
+// A FindEnv with SetsDir reads that directory in place of both.
 func Find(name string, env FindEnv) (Source, error) {
 	if !IsName(name) {
 		return Source{}, fmt.Errorf("'%s' is not a question file name to look up", name)
@@ -120,9 +121,15 @@ type FindEnv struct {
 	BuiltIn func(name string) bool
 	// BuiltIns lists the built in sets. Nil means none.
 	BuiltIns func() []string
+	// SetsDir is a fixed directory read in place of the walk up and the config dir. Empty means none.
+	SetsDir string
 }
 
 func repoSet(env FindEnv) (string, []fs.DirEntry, error) {
+	if env.SetsDir != "" {
+		return "", nil, nil
+	}
+
 	for dir := env.WorkDir; ; {
 		candidate := filepath.Join(dir, ".onesie", "questions")
 
@@ -160,6 +167,10 @@ func configSet(env FindEnv, repo string) (configDir, error) {
 }
 
 func questionsDir(env FindEnv) (string, error) {
+	if env.SetsDir != "" {
+		return env.SetsDir, nil
+	}
+
 	root, err := env.ConfigDir()
 	if err != nil {
 		return "", err
@@ -278,7 +289,7 @@ func notFound(name string, env FindEnv, repo string, config configDir) error {
 		message += " in " + joinAnd(searched)
 	}
 
-	if repo == "" {
+	if repo == "" && env.SetsDir == "" {
 		message += fmt.Sprintf(". Found no .onesie/questions in %s or any parent", env.WorkDir)
 	}
 

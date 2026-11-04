@@ -678,6 +678,7 @@ func TestFile_CheckFingerprint(t *testing.T) {
 		name        string
 		sidecar     *string
 		checking    Print
+		speller     plan.Speller
 		wantReason  StaleReason
 		wantErr     string
 		wantMatched bool
@@ -718,6 +719,11 @@ func TestFile_CheckFingerprint(t *testing.T) {
 			wantMatched: true,
 		},
 		{name: "should accept a version 2 sum and leave its sidecar to be rewritten", sidecar: new(current.older), checking: current},
+		{
+			name:    "should name a changed setting the way the file's speller does",
+			sidecar: new(current.String() + ",mock=" + strings.Repeat("00", 8)), checking: current,
+			speller: plan.Arguments, wantReason: ChangedRun, wantErr: "mock changed since A was written",
+		},
 	}
 
 	for _, tc := range tests {
@@ -735,7 +741,7 @@ func TestFile_CheckFingerprint(t *testing.T) {
 				}
 			}
 
-			out := &File{path: path, target: path, open: os.OpenFile}
+			out := &File{path: path, target: path, open: os.OpenFile, speller: tc.speller}
 
 			matched, err := out.checkFingerprint(tc.checking)
 			if tc.wantErr == "" {

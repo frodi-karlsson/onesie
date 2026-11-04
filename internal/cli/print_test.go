@@ -694,7 +694,7 @@ func loaderOnlyRule(stderr string) (string, bool) {
 func wireBody(t *testing.T, data []byte) string {
 	t.Helper()
 
-	file, err := qfile.Load(data)
+	file, err := qfile.Load(data, plan.Flags)
 	if err != nil {
 		t.Fatalf("Load: %v\nfile was\n%s", err, data)
 	}

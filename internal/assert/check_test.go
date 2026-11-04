@@ -49,6 +49,7 @@ func TestCheck(t *testing.T) {
 		name      string
 		input     string
 		second    string
+		speller   plan.Speller
 		wantErr   string
 		wantParse string
 	}{
@@ -229,6 +230,12 @@ func TestCheck(t *testing.T) {
 			wantErr: "'unsure.decision' needs --fallback on 'unsure'",
 		},
 		{
+			name:    "should name the settings a decision needs as tool arguments for that speller",
+			input:   `team.decision == "billing"`,
+			speller: plan.Arguments,
+			wantErr: "'team.decision' needs threshold or min_confidence on 'team'",
+		},
+		{
 			name:    "should reject fallback without a policy",
 			input:   `team.fallback == ""`,
 			wantErr: "'team.fallback' needs --threshold, --min-confidence or --fallback on 'team'",
@@ -398,7 +405,7 @@ func TestCheck(t *testing.T) {
 				t.Fatalf("Parse(%q) error = %v, want no error", tc.input, err)
 			}
 
-			got := Check(expr, built)
+			got := Check(expr, built, tc.speller)
 			if tc.wantErr == "" {
 				if got != nil {
 					t.Fatalf("Check(%q) error = %v, want no error", expr.source, got)
@@ -419,7 +426,7 @@ func TestCheck(t *testing.T) {
 	t.Run("should accept nothing to check", func(t *testing.T) {
 		t.Parallel()
 
-		if err := Check(nil, built); err != nil {
+		if err := Check(nil, built, plan.Flags); err != nil {
 			t.Errorf("Check(nil) error = %v, want no error", err)
 		}
 	})
@@ -427,7 +434,7 @@ func TestCheck(t *testing.T) {
 	t.Run("should name no questions when the plan carries none", func(t *testing.T) {
 		t.Parallel()
 
-		got := Check(mustParse(t, `x.value > 0`), &plan.Plan{})
+		got := Check(mustParse(t, `x.value > 0`), &plan.Plan{}, plan.Flags)
 		if got == nil {
 			t.Fatal("Check over an empty plan = nil, want an error")
 		}
@@ -511,7 +518,7 @@ func TestCheck(t *testing.T) {
 
 				built := &plan.Plan{Questions: []plan.Question{tc.question}}
 
-				got := Check(mustParse(t, tc.input), built)
+				got := Check(mustParse(t, tc.input), built, plan.Flags)
 				if got == nil {
 					t.Fatalf("Check(%q) = nil, want error %q", tc.input, tc.wantErr)
 				}
@@ -763,7 +770,7 @@ func TestCheck(t *testing.T) {
 					t.Fatalf("Parse: %v", err)
 				}
 
-				got := Check(expr, boxed)
+				got := Check(expr, boxed, plan.Flags)
 				if tc.wantErr == "" {
 					if got != nil {
 						t.Fatalf("Check = %v, want no error", got)
@@ -866,7 +873,7 @@ func assembledPlan(t *testing.T) *plan.Plan {
 		t.Fatalf("Assemble error = %v, want no error", err)
 	}
 
-	if _, err := plan.Validate(built, ""); err != nil {
+	if _, err := plan.Validate(built, "", plan.Flags); err != nil {
 		t.Fatalf("Validate error = %v, want no error", err)
 	}
 
@@ -905,7 +912,7 @@ func probe(t *testing.T, built *plan.Plan, path string) (valueType, bool) {
 	)
 
 	for want, literal := range literals {
-		if Check(mustParse(t, path+" == "+literal), built) == nil {
+		if Check(mustParse(t, path+" == "+literal), built, plan.Flags) == nil {
 			found = want
 			accepted++
 		}

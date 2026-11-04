@@ -17,6 +17,7 @@ import (
 
 	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/limits"
+	"github.com/frodi-karlsson/onesie/internal/resolve"
 )
 
 func TestDefaultSettings(t *testing.T) {
@@ -58,7 +59,7 @@ func TestWithClientFactory(t *testing.T) {
 			return nil, refused
 		})(&settings)
 
-		_, err := settings.newClient(t.Context(), resolution{provider: onesie.Berget(), profile: "work"},
+		_, err := settings.newClient(t.Context(), resolve.Resolution{Provider: onesie.Berget(), Profile: "work"},
 			onesie.WithAPIKey("SECRET-TEST"), onesie.WithUserAgent("onesie/test"))
 		if !errors.Is(err, refused) {
 			t.Fatalf("newClient = %v, want the stub's error", err)
@@ -462,7 +463,7 @@ func TestAddRunFlags(t *testing.T) {
 			"timeout":         strconv.Itoa(int(limits.DefaultAttemptTimeout.Seconds())),
 			"retries":         strconv.Itoa(limits.DefaultRetries),
 			"max-retry-after": strconv.Itoa(int(limits.DefaultMaxRetryAfter.Seconds())),
-			"out":             "", "resume": "false", "prune": "false", "skip-blank": "false", "stats": "false",
+			"out":             "", "resume": "false", "prune": "false", "skip-blank": "false", "delimiter": "", "stats": "false",
 			"usage": "false", "print-request": "false", "cache": "false", "mock": "",
 		}
 

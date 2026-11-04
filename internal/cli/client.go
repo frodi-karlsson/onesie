@@ -3,13 +3,14 @@ package cli
 import (
 	"context"
 	"errors"
-	"net/http"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/frodi-karlsson/onesie-go"
-	"github.com/frodi-karlsson/onesie/internal/creds"
 	"github.com/frodi-karlsson/onesie/internal/output"
+	"github.com/frodi-karlsson/onesie/internal/resolve"
+	"github.com/frodi-karlsson/onesie/internal/runner"
 )
 
 const (
@@ -25,28 +26,20 @@ const (
 func clientBuilder(info BuildInfo, flags *runFlags, settings rootSettings) clientFactory {
 	var warned, doubled sync.Once
 
-	return func(ctx context.Context, chosen resolution, extra ...onesie.Option) (*onesie.Client, error) {
-		opts := []onesie.Option{
-			onesie.WithProvider(chosen.provider),
-			onesie.WithUserAgent("onesie/" + info.Version),
-			onesie.WithEnv(settings.lookupEnv),
-		}
+	return func(_ context.Context, chosen resolve.Resolution, extra ...onesie.Option) (*onesie.Client, error) {
+		retry := retryPolicyOf(*flags)
 
-		if flags.allowHTTP {
-			opts = append(opts, onesie.WithInsecureHTTP())
-		}
-
-		opts = append(opts, onesie.WithHTTPClient(&http.Client{Transport: pooled(settings.transport, flags.jobs)}))
-
-		opts = append(opts, chosen.options(flags.baseURL, profileKey(settings, chosen), settings.lookupEnv)...)
-
-		opts = append(opts, onesie.WithRetry(retryPolicy(*flags)), onesie.WithClock(settings.clock))
-
-		// Last, so a caller that needs the attempt observer or any other per run option wins over
-		// what the flags asked for.
-		opts = append(opts, extra...)
-
-		client, err := onesie.New(opts...)
+		client, err := resolve.NewClient(chosen, resolve.ClientConfig{
+			UserAgent: "onesie/" + info.Version,
+			LookupEnv: settings.lookupEnv,
+			AllowHTTP: flags.allowHTTP,
+			Transport: settings.transport,
+			Jobs:      flags.jobs,
+			BaseURL:   flags.baseURL,
+			Retry:     &retry,
+			Clock:     settings.clock,
+			Keychain:  settings.keychain,
+		}, extra...)
 		if err != nil {
 			return nil, explained(settings, flags.baseURL, chosen, err)
 		}
@@ -79,18 +72,12 @@ func clientBuilder(info BuildInfo, flags *runFlags, settings rootSettings) clien
 	}
 }
 
-func retryPolicy(flags runFlags) onesie.RetryPolicy {
-	// Started from the default, because a Go struct cannot tell an unset field from a zero one and
-	// the policy carries seven fields this run does not touch.
-	policy := onesie.DefaultRetryPolicy()
-	policy.MaxRetries = flags.retries
-	policy.MaxRetryAfter = time.Duration(flags.maxRetryAfter) * time.Second
-
-	return policy
+func retryPolicyOf(flags runFlags) onesie.RetryPolicy {
+	return resolve.RetryPolicy(flags.retries, time.Duration(flags.maxRetryAfter)*time.Second)
 }
 
-func runOptions(flags runConfig, stats *collector) []onesie.Option {
-	opts := observing(stats)
+func runOptions(flags runConfig, stats *runner.Collector) []onesie.Option {
+	opts := runner.Observing(stats)
 
 	// Only when given, so onesie-go keeps its longer default for a request with images.
 	if flags.timeoutSet {
@@ -100,29 +87,7 @@ func runOptions(flags runConfig, stats *collector) []onesie.Option {
 	return opts
 }
 
-func profileKey(settings rootSettings, chosen resolution) func() (string, error) {
-	// New calls it only after every other check passed, so a run refused for anything else never
-	// reads the keychain.
-	return func() (string, error) {
-		if chosen.keyFrom != sourceKeychain {
-			return chosen.key, nil
-		}
-
-		read, err := settings.keychain.Get(chosen.account)
-		if err != nil {
-			return "", err
-		}
-
-		// An empty item is a broken entry, so it exits 3 as every other keychain fault does.
-		if read == "" {
-			return "", &creds.KeychainError{Op: "read the key from", Err: creds.ErrKeychainMissing}
-		}
-
-		return read, nil
-	}
-}
-
-func explained(settings rootSettings, baseURLFlag string, chosen resolution, err error) error {
+func explained(settings rootSettings, baseURLFlag string, chosen resolve.Resolution, err error) error {
 	var refused *onesie.BaseURLError
 	if errors.As(err, &refused) {
 		return baseURLRefusal(refused, baseURLFrom(refused.Source, baseURLFlag, chosen), sendPlainHTTP)
@@ -132,7 +97,7 @@ func explained(settings rootSettings, baseURLFlag string, chosen resolution, err
 		return accountNote(err, chosen)
 	}
 
-	if chosen.profile != "" || chosen.keyFrom != sourceNone {
+	if chosen.Profile != "" || chosen.KeyFrom != resolve.KeyFromNone {
 		return err
 	}
 
@@ -146,20 +111,22 @@ func explained(settings rootSettings, baseURLFlag string, chosen resolution, err
 	return missingKeyHint(err, chosen, opened.Profiles)
 }
 
-func baseURLFrom(source onesie.BaseURLSource, baseURLFlag string, chosen resolution) string {
+func baseURLFrom(source onesie.BaseURLSource, baseURLFlag string, chosen resolve.Resolution) string {
 	switch source {
 	case onesie.BaseURLFromOption:
-		name, _ := chosen.givenBaseURL(baseURLFlag)
+		if strings.TrimSpace(baseURLFlag) != "" {
+			return "--" + flagBaseURL
+		}
 
-		return name
+		return profileBaseURL
 	case onesie.BaseURLFromEnv:
-		return chosen.provider.EnvBaseURL()
+		return chosen.Provider.EnvBaseURL()
 	case onesie.BaseURLFromAccount:
-		if chosen.accountID != "" {
+		if chosen.AccountID != "" {
 			return "the profile's account_id"
 		}
 
-		return chosen.provider.EnvAccountID()
+		return chosen.Provider.EnvAccountID()
 	case onesie.BaseURLFromDefault:
 		return providersOwn
 	}
@@ -183,36 +150,7 @@ func baseURLRefusal(refused *onesie.BaseURLError, source, plainHTTPAdvice string
 	return &advisedError{cause: refused, message: message}
 }
 
-func pooled(base http.RoundTripper, jobs int) http.RoundTripper {
-	if jobs < 1 {
-		jobs = 1
-	}
-
-	defaults, ok := base.(*http.Transport)
-	if !ok {
-		// A replaced default carries its own proxy and dialer settings, so it is used as it is.
-		return base
-	}
-
-	// Cloned rather than built from scratch, so proxy support, the dial timeouts and HTTP/2 come
-	// along. The default of two idle connections per host means most of a -j run pays for a fresh
-	// handshake on a request the server answers in a fraction of that time.
-	transport := defaults.Clone()
-	transport.MaxIdleConnsPerHost = jobs
-
-	// The idle limit alone does not bound the pool. A request that finds no idle connection
-	// starts a dial, and when another job frees one first it takes that and the dial still
-	// completes, so the run opens a connection past -j that the idle limit then closes.
-	transport.MaxConnsPerHost = jobs
-
-	if transport.MaxIdleConns < jobs {
-		transport.MaxIdleConns = jobs
-	}
-
-	return transport
-}
-
-type clientFactory func(ctx context.Context, chosen resolution, opts ...onesie.Option) (*onesie.Client, error)
+type clientFactory func(ctx context.Context, chosen resolve.Resolution, opts ...onesie.Option) (*onesie.Client, error)
 
 func resolveModel(settings rootSettings, model string) (string, error) {
 	chosen, err := settings.holder.resolved()
@@ -220,5 +158,5 @@ func resolveModel(settings rootSettings, model string) (string, error) {
 		return "", err
 	}
 
-	return chosen.modelFor(model, settings.lookupEnv), nil
+	return chosen.ModelFor(model, settings.lookupEnv), nil
 }

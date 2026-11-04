@@ -8,6 +8,7 @@ import (
 
 	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/creds"
+	"github.com/frodi-karlsson/onesie/internal/resolve"
 )
 
 func explain(err error, facts requestFacts) error {
@@ -98,14 +99,14 @@ func withKeyHint(err error, settings rootSettings, mockFlag string) error {
 	return keyHint(err, chosen)
 }
 
-func keyHint(err error, chosen resolution) error {
+func keyHint(err error, chosen resolve.Resolution) error {
 	if !keyRefused(err) {
 		return err
 	}
 
-	note := "The key came from " + chosen.provider.EnvAPIKey()
-	if chosen.profile != "" {
-		note = "Replace the key with onesie profile update " + creds.QuotedName(chosen.profile) + " --key"
+	note := "The key came from " + chosen.Provider.EnvAPIKey()
+	if chosen.Profile != "" {
+		note = "Replace the key with onesie profile update " + creds.QuotedName(chosen.Profile) + " --key"
 	}
 
 	return &advisedError{cause: err, note: note}

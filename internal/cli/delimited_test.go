@@ -2,6 +2,9 @@ package cli
 
 import (
 	"bytes"
+	"context"
+	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -13,6 +16,9 @@ import (
 
 	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/answersfile"
+	"github.com/frodi-karlsson/onesie/internal/calibrate"
+	"github.com/frodi-karlsson/onesie/internal/input"
+	"github.com/frodi-karlsson/onesie/internal/jq"
 	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
@@ -278,6 +284,14 @@ func TestFinishStream(t *testing.T) {
 			wantErr:  csvHint,
 		},
 		{
+			name:     "should name the --delimiter in use when -i csv reads a tab separated file",
+			args:     []string{"is this urgent", "-i", "csv", "--delimiter", ";", "--id", ".id"},
+			stdin:    tabs,
+			wantCode: ExitRecords,
+			wantErr: "onesie: every record's --id was null. -i csv splits each line on semicolons, " +
+				"so if the file is tab separated, pass -i tsv\n",
+		},
+		{
 			name:     "should hint at the delimiter after the one record --stop-on-error read",
 			args:     []string{"is this urgent", "-i", "tsv", "--id", ".id", "--stop-on-error"},
 			stdin:    commas,
@@ -345,11 +359,12 @@ func TestFirstIDHint(t *testing.T) {
 	)
 
 	tests := []struct {
-		name    string
-		input   string
-		id      string
-		stdin   string
-		wantErr string
+		name      string
+		input     string
+		delimiter string
+		id        string
+		stdin     string
+		wantErr   string
 	}{
 		{
 			name:  "should hint at the delimiter when calibrate's first record has a null --id under -i tsv",
@@ -360,6 +375,11 @@ func TestFirstIDHint(t *testing.T) {
 			name:  "should hint at the delimiter when calibrate's first record has a null --id under -i csv",
 			input: "csv", stdin: tabs,
 			wantErr: "onesie: " + null + ". -i csv splits each line on commas, so if the file is tab separated, pass -i tsv\n",
+		},
+		{
+			name:  "should name the --delimiter in use when calibrate's first record has a null --id",
+			input: "csv", delimiter: ";", stdin: tabs,
+			wantErr: "onesie: " + null + ". -i csv splits each line on semicolons, so if the file is tab separated, pass -i tsv\n",
 		},
 		{
 			name:  "should give no hint when a mistyped --id finds nothing in calibrate's first tab separated record",
@@ -397,10 +417,63 @@ func TestFirstIDHint(t *testing.T) {
 				"--mock", mock,
 			}
 
+			if tc.delimiter != "" {
+				args = append(args, "--delimiter", tc.delimiter)
+			}
+
 			_, errOut, code := runMocked(t, t.Context(), args, tc.stdin, nil, nil)
 			if code != ExitUsage || errOut != tc.wantErr {
 				t.Errorf("exit code = %d, stderr = %q, want %d and %q", code, errOut, ExitUsage, tc.wantErr)
 			}
 		})
 	}
+
+	t.Run("should read the record a ReadError failed on", func(t *testing.T) {
+		t.Parallel()
+
+		nullID := &input.LineError{Line: 1, Err: fmt.Errorf("--id: %w", jq.ErrNullID)}
+		tabbed := []string{"id\ttext"}
+		interrupted := context.Canceled
+
+		tests := []struct {
+			name     string
+			err      error
+			wantText string
+			wantErr  error
+		}{
+			{
+				name:     "should hint the delimiter for a null first id under a one column header",
+				err:      &calibrate.ReadError{Err: nullID, Read: 1, Header: tabbed},
+				wantText: text(nullID) + ". -i csv splits each line on commas, so if the file is tab separated, pass -i tsv",
+			},
+			{
+				name:    "should return a read error past the first record as its bare cause",
+				err:     &calibrate.ReadError{Err: nullID, Read: 2, Header: tabbed},
+				wantErr: nullID,
+			},
+			{
+				name:    "should return a read error under a header of several columns as its bare cause",
+				err:     &calibrate.ReadError{Err: nullID, Read: 1, Header: []string{"id", "text"}},
+				wantErr: nullID,
+			},
+			{name: "should pass on an error that is no read error", err: interrupted, wantErr: interrupted},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				got := firstIDHint(tc.err, input.CSV)
+
+				var unread *calibrate.ReadError
+				if tc.wantErr != nil && (!errors.Is(got, tc.wantErr) || errors.As(got, &unread)) {
+					t.Errorf("firstIDHint = %v, want %v with no ReadError around it", got, tc.wantErr)
+				}
+
+				if tc.wantText != "" && (got == nil || text(got) != tc.wantText) {
+					t.Errorf("firstIDHint = %v, want %q", got, tc.wantText)
+				}
+			})
+		}
+	})
 }

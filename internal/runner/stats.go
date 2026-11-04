@@ -1,4 +1,4 @@
-package cli
+package runner
 
 import (
 	"context"
@@ -11,53 +11,18 @@ import (
 	"sync"
 	"time"
 
-	"github.com/spf13/cobra"
-
 	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/answersfile"
 	"github.com/frodi-karlsson/onesie/internal/output"
 )
 
-func withStats(
-	cmd *cobra.Command,
-	now func() time.Time,
-	flags runConfig,
-	body func(*collector) error,
-) error {
-	stats := &collector{}
-	started := now()
-
-	err := body(stats)
-
-	if !flags.stats {
-		return err
-	}
-
-	summary := stats.snapshot(now().Sub(started))
-
-	// A run that failed before it read a record or made an attempt never started, and a line of
-	// zeros beside the error reads as a run that was made and came back empty. An empty stream is
-	// the other case: it succeeded, and 0 records is the measurement. A resume that skipped every
-	// record read them all, so its gate's exit code gets the line that explains it.
-	if err != nil && summary.Records == 0 && summary.Attempts == 0 && summary.Skipped == 0 {
-		return err
-	}
-
-	// Stderr, because stdout carries the answers.
-	//
-	// The run's own error wins, since a summary that failed to print is the smaller loss.
-	if _, printErr := fmt.Fprintln(cmd.ErrOrStderr(), summary); printErr != nil && err == nil {
-		return printErr
-	}
-
-	return err
-}
-
-func observing(c *collector) []onesie.Option {
+// Observing is the client option that counts every attempt into c.
+func Observing(c *Collector) []onesie.Option {
 	return []onesie.Option{onesie.WithAttemptObserver(c.observe)}
 }
 
-type collector struct {
+// Collector counts what a run did, for the statistics line. It is safe for concurrent use.
+type Collector struct {
 	mu sync.Mutex
 
 	mocked         bool
@@ -81,7 +46,7 @@ type collector struct {
 	terminal       map[int]int
 }
 
-func (c *collector) observe(a onesie.Attempt) {
+func (c *Collector) observe(a onesie.Attempt) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -102,14 +67,16 @@ func (c *collector) observe(a onesie.Attempt) {
 	c.failedAttempts[a.Status]++
 }
 
-func (c *collector) answerFromMock() {
+// AnswerFromMock notes that a mock file answers the run.
+func (c *Collector) AnswerFromMock() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	c.mocked = true
 }
 
-func (c *collector) terminalAttempt(err error) {
+// TerminalAttempt notes the failed attempt that ended a request, so the retry breakdown leaves it out.
+func (c *Collector) TerminalAttempt(err error) {
 	status, counted := terminalStatus(err)
 	if !counted {
 		return
@@ -148,7 +115,8 @@ func terminalStatus(err error) (int, bool) {
 	return 0, false
 }
 
-func (c *collector) record(model string, usage onesie.Usage, questions int) {
+// Record counts an answered record and its request.
+func (c *Collector) Record(model string, usage onesie.Usage, questions int) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -166,7 +134,7 @@ func (c *collector) record(model string, usage onesie.Usage, questions int) {
 	}
 }
 
-func (c *collector) cachedRecord(model string) {
+func (c *Collector) cachedRecord(model string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -183,14 +151,15 @@ func (c *collector) cachedRecord(model string) {
 	}
 }
 
-func (c *collector) spend(usage onesie.Usage) {
+// Spend counts the tokens a failed request still cost.
+func (c *Collector) Spend(usage onesie.Usage) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	c.addUsage(usage)
 }
 
-func (c *collector) addUsage(usage onesie.Usage) {
+func (c *Collector) addUsage(usage onesie.Usage) {
 	c.inputTokens += usage.InputTokens
 	c.outputTokens += usage.OutputTokens
 
@@ -204,7 +173,8 @@ func (c *collector) addUsage(usage onesie.Usage) {
 	}
 }
 
-func (c *collector) recordFailure(cause error, reached bool, questions int) {
+// RecordFailure counts a failed record, and its request when reached says one was sent.
+func (c *Collector) RecordFailure(cause error, reached bool, questions int) {
 	// A stop or an interrupt cancels whatever was in flight, and those requests come back
 	// context.Canceled. Nothing about them failed, so counting them reports failed records for a
 	// run in which nothing failed. writeFailure skips the same error for the same reason.
@@ -227,7 +197,7 @@ func (c *collector) recordFailure(cause error, reached bool, questions int) {
 	}
 }
 
-func (c *collector) deduplicated(cause error) {
+func (c *Collector) deduplicated(cause error) {
 	// A duplicate the run cancelled was never answered, as with the request it waited on, which
 	// recordFailure leaves uncounted for the same reason.
 	if errors.Is(cause, context.Canceled) {
@@ -245,7 +215,8 @@ func (c *collector) deduplicated(cause error) {
 	}
 }
 
-func (c *collector) skip(skips answersfile.Tally) {
+// Skip counts the records a resume skipped.
+func (c *Collector) Skip(skips answersfile.Tally) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -255,35 +226,36 @@ func (c *collector) skip(skips answersfile.Tally) {
 	c.abstainCount += skips.Abstained
 }
 
-func (c *collector) assertFailed() {
+func (c *Collector) assertFailed() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	c.falseAsserts++
 }
 
-func (c *collector) falseAssertions() int {
+func (c *Collector) falseAssertions() int {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	return c.falseAsserts
 }
 
-func (c *collector) abstained() {
+func (c *Collector) abstained() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	c.abstainCount++
 }
 
-func (c *collector) abstains() int {
+func (c *Collector) abstains() int {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	return c.abstainCount
 }
 
-func (c *collector) snapshot(elapsed time.Duration) Stats {
+// Snapshot is the statistics so far, for a run that took elapsed.
+func (c *Collector) Snapshot(elapsed time.Duration) Stats {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 

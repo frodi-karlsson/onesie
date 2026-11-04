@@ -67,7 +67,7 @@ type imaging struct {
 	assets   onesie.Assets
 }
 
-func (m *imaging) wrapLine(state, wire any) (any, any) {
+func (m *imaging) WrapLine(state, wire any) (any, any) {
 	if m == nil || !m.lines || len(m.fields) == 0 {
 		return state, wire
 	}
@@ -77,7 +77,7 @@ func (m *imaging) wrapLine(state, wire any) (any, any) {
 	return wrapped, wrapped
 }
 
-func (m *imaging) attach(state any) (any, onesie.Assets, error) {
+func (m *imaging) Attach(state any) (any, onesie.Assets, error) {
 	if m == nil || (len(m.fixed) == 0 && len(m.fields) == 0) {
 		return state, m.bodyAssets(), nil
 	}
@@ -215,9 +215,9 @@ func checkProviderNeeds(settings rootSettings, flags runConfig, built *plan.Plan
 		return err
 	}
 
-	model := chosen.modelFor(built.Model, settings.lookupEnv)
+	model := chosen.ModelFor(built.Model, settings.lookupEnv)
 
-	return longContextCause(chosen.provider.Refuse(model, onesie.Needs{
+	return longContextCause(chosen.Provider.Refuse(model, onesie.Needs{
 		Images:      sendsAssets(images),
 		Box:         asksBox(built),
 		LongContext: built.LongContext,

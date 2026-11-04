@@ -6,13 +6,16 @@ import (
 	"fmt"
 	"io/fs"
 	"net/http"
+	"strings"
 	"syscall"
 	"testing"
 	"time"
 
 	"github.com/frodi-karlsson/onesie-go"
+	"github.com/frodi-karlsson/onesie/internal/engine"
 	"github.com/frodi-karlsson/onesie/internal/input"
 	"github.com/frodi-karlsson/onesie/internal/output"
+	"github.com/frodi-karlsson/onesie/internal/runner"
 )
 
 func TestClassify(t *testing.T) {
@@ -23,7 +26,7 @@ func TestClassify(t *testing.T) {
 	}
 
 	stored := func(kind output.Kind, status *int) error {
-		return &storedFailure{failure: output.Failure{Kind: kind, Status: status, Message: "onesie: stored"}}
+		return &runner.StoredFailure{Failure: output.Failure{Kind: kind, Status: status, Message: "onesie: stored"}}
 	}
 
 	statusOf := func(status int) *int {
@@ -38,7 +41,7 @@ func TestClassify(t *testing.T) {
 		{name: "should report success for no error", err: nil, want: ExitOK},
 		{
 			name: "should report usage for a record a mock file does not answer",
-			err:  &abortError{cause: &uncoveredError{message: "onesie: --mock has no line 3"}}, want: ExitUsage,
+			err:  &abortError{cause: &runner.HaltError{Err: errors.New("onesie: --mock has no line 3")}}, want: ExitUsage,
 		},
 		{
 			name: "should report records for a stored input failure a resume stopped at",
@@ -50,7 +53,7 @@ func TestClassify(t *testing.T) {
 		},
 		{
 			name: "should report usage for a bad input header that ended the source",
-			err:  &sourceError{cause: &input.LineError{Line: 1, Err: errors.New("the header is not valid csv")}},
+			err:  &runner.SourceError{Err: &input.LineError{Line: 1, Err: errors.New("the header is not valid csv")}},
 			want: ExitUsage,
 		},
 		{
@@ -258,8 +261,9 @@ func TestClassify(t *testing.T) {
 			{err: &fs.PathError{Op: "write", Path: "/dev/stdout", Err: syscall.EPIPE}, kind: output.KindInput, quiet: true},
 			{err: &silentError{code: ExitAuth}, kind: output.KindInput, quiet: true},
 			{err: &shownError{cause: apiError(http.StatusUnauthorized)}, kind: output.KindAuth, quiet: true},
+			{err: &advisedError{cause: apiError(http.StatusPaymentRequired)}, kind: output.KindAuth},
 			{err: errors.New("boom"), kind: output.KindInput},
-			{err: &storedFailure{failure: output.Failure{Kind: "input", Message: "bad"}}, kind: output.KindInput},
+			{err: &runner.StoredFailure{Failure: output.Failure{Kind: "input", Message: "bad"}}, kind: output.KindInput},
 		}
 
 		for _, pin := range pins {
@@ -267,6 +271,16 @@ func TestClassify(t *testing.T) {
 				t.Errorf("classify(%v) = kind %s, quiet %t, want kind %s, quiet %t",
 					pin.err, got.kind, got.quiet, pin.kind, pin.quiet)
 			}
+		}
+	})
+
+	t.Run("should classify a halt as input with exit 2", func(t *testing.T) {
+		t.Parallel()
+
+		halt := &runner.HaltError{Err: errors.New("onesie: --mock has no line 3")}
+
+		if got := classify(halt); got.kind != output.KindInput || got.code != ExitUsage || got.quiet {
+			t.Errorf("classify(%v) = %+v, want kind input, exit %d and not quiet", halt, got, ExitUsage)
 		}
 	})
 }
@@ -293,7 +307,7 @@ func TestWorthReporting(t *testing.T) {
 		{name: "should stay quiet for an interrupt inside a wrapped error", err: fmt.Errorf("waiting: %w", context.Canceled)},
 		{
 			name: "should report a stored failure a resume stopped at",
-			err:  &storedFailure{failure: output.Failure{Kind: "input", Message: "bad"}, record: 2},
+			err:  &runner.StoredFailure{Failure: output.Failure{Kind: "input", Message: "bad"}, Record: 2},
 			want: true,
 		},
 		{name: "should report a line onesie could not read", err: &input.LineError{Line: 1, Err: errors.New("x")}, want: true},
@@ -313,61 +327,65 @@ func TestWorthReporting(t *testing.T) {
 	}
 }
 
-func TestAborting(t *testing.T) {
+func TestStoredRunCode(t *testing.T) {
 	t.Parallel()
 
+	apiError := func(status int) error {
+		return &onesie.APIError{Status: status}
+	}
+
 	tests := []struct {
-		name   string
-		status int
-		want   bool
+		name  string
+		cause error
 	}{
-		{name: "should abort on a refused key", status: http.StatusUnauthorized, want: true},
-		{name: "should abort on a forbidden key", status: http.StatusForbidden, want: true},
-		{name: "should abort when the account is out of credits", status: http.StatusPaymentRequired, want: true},
-		{name: "should carry on after a bad request", status: http.StatusBadRequest},
-		{name: "should carry on after a server error", status: http.StatusInternalServerError},
+		{name: "should agree with a fresh run on a line onesie could not read", cause: &input.LineError{
+			Line: 1, Err: errors.New("not valid JSON"),
+		}},
+		{name: "should agree with a fresh run on an unusable response", cause: &onesie.ResponseError{
+			Status: http.StatusOK,
+		}},
+		{name: "should agree with a fresh run on a bad request", cause: apiError(http.StatusBadRequest)},
+		{name: "should agree with a fresh run on an unauthorized status", cause: apiError(http.StatusUnauthorized)},
+		{name: "should agree with a fresh run on a payment required status", cause: &advisedError{
+			cause: apiError(http.StatusPaymentRequired), message: "402. Add credits",
+		}},
+		{name: "should agree with a fresh run on a forbidden status", cause: apiError(http.StatusForbidden)},
+		{
+			name: "should agree with a fresh run on a cloudflare 400 that refuses the token",
+			cause: onesie.NewAPIError(onesie.Cloudflare(), "", onesie.Needs{}, http.StatusBadRequest,
+				[]byte(`{"success":false,"errors":[{"code":9106,"message":"Authentication failed (status: 400)"}]}`)),
+		},
+		{name: "should agree with a fresh run on a not found status", cause: apiError(http.StatusNotFound)},
+		{name: "should agree with a fresh run on a request timeout status", cause: apiError(http.StatusRequestTimeout)},
+		{name: "should agree with a fresh run on a rate limit", cause: apiError(http.StatusTooManyRequests)},
+		{name: "should agree with a fresh run on a server error", cause: apiError(http.StatusBadGateway)},
+		{name: "should agree with a fresh run on a retry after above the cap", cause: &onesie.RetryAfterError{
+			APIError: onesie.APIError{Status: http.StatusServiceUnavailable},
+		}},
+		{name: "should agree with a fresh run on a connection error", cause: &onesie.ConnectionError{
+			Err: errors.New("connection refused"),
+		}},
+		{name: "should agree with a fresh run on a request timeout", cause: &onesie.TimeoutError{}},
+		{name: "should agree with a fresh run on a deadline", cause: context.DeadlineExceeded},
+		{name: "should agree with a fresh run on a request onesie refused to send", cause: &onesie.ValidationError{
+			Message: "question too long",
+		}},
+		{name: "should agree with a fresh run on an unrecognised plain error", cause: errors.New("boom")},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			if got := aborting(&onesie.APIError{Status: tc.status}); got != tc.want {
-				t.Errorf("aborting(%d) = %v, want %v", tc.status, got, tc.want)
+			stored := &runner.StoredFailure{Failure: *runner.Describe(tc.cause, text)}
+			stopped := streamResult(engine.Result{Aborted: true, Cause: tc.cause}, 0, 0)
+
+			if got, want := storedRunCode(stored), Classify(stopped); got != want {
+				t.Errorf("stored %+v exits %d, want %d as a fresh run under --stop-on-error does", stored.Failure, got, want)
 			}
-		})
-	}
-}
 
-func TestAuthFailure(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name string
-		err  error
-		want bool
-	}{
-		{name: "should match a refused key", err: &onesie.APIError{Status: http.StatusUnauthorized}, want: true},
-		{name: "should match a forbidden key", err: &onesie.APIError{Status: http.StatusForbidden}, want: true},
-		{
-			name: "should match an account out of credits",
-			err:  &onesie.APIError{Status: http.StatusPaymentRequired}, want: true,
-		},
-		{
-			name: "should match a refusal wrapped in advice",
-			err:  &advisedError{cause: &onesie.APIError{Status: http.StatusUnauthorized}}, want: true,
-		},
-		{name: "should not match a bad request", err: &onesie.APIError{Status: http.StatusBadRequest}},
-		{name: "should not match a missing key", err: onesie.ErrNoAPIKey},
-		{name: "should not match a record the mock does not answer", err: &uncoveredError{message: "x"}},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			if got := authFailure(tc.err); got != tc.want {
-				t.Errorf("authFailure(%v) = %v, want %v", tc.err, got, tc.want)
+			if strings.HasPrefix(stored.Failure.Message, "onesie: ") {
+				t.Errorf("message = %q, want no onesie prefix, as a line error has none", stored.Failure.Message)
 			}
 		})
 	}

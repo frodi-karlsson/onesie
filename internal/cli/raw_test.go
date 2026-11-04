@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/frodi-karlsson/onesie-go"
+	"github.com/frodi-karlsson/onesie/internal/runner"
 )
 
 func TestStreamRaw(t *testing.T) {
@@ -1088,7 +1089,7 @@ func TestRawRun_Send(t *testing.T) {
 				t.Fatalf("PrepareRaw: %v", err)
 			}
 
-			stats := &collector{}
+			stats := &runner.Collector{}
 			run := &rawRun{stats: stats, provider: onesie.TypeSafe(), client: client}
 
 			line, err := run.send(t.Context(), body)
@@ -1100,7 +1101,7 @@ func TestRawRun_Send(t *testing.T) {
 				t.Errorf("sent %s, want the prepared body %s", sent, body.Bytes())
 			}
 
-			if got := stats.snapshot(0); got.InputTokens != tc.wantTokens || got.Questions != 1 {
+			if got := stats.Snapshot(0); got.InputTokens != tc.wantTokens || got.Questions != 1 {
 				t.Errorf("stats = %d input tokens over %d questions, want %d over 1",
 					got.InputTokens, got.Questions, tc.wantTokens)
 			}

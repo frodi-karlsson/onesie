@@ -22,6 +22,7 @@ func TestValidate(t *testing.T) {
 		file         []plan.Question
 		positional   string
 		fileName     string
+		speller      plan.Speller
 		wantErr      string
 		wantExact    string
 		wantWarning  string
@@ -641,6 +642,24 @@ func TestValidate(t *testing.T) {
 			wantExact: "'fallback' on a yes or no question takes true, false, yes or no, " +
 				"got 'human'",
 		},
+		{
+			name: "should name a setting as a tool argument for that speller",
+			events: []argv.Event{
+				{Name: "ask", Value: "urgent=is it urgent"},
+				{Name: "desc", Value: "maybe=unclear"},
+			},
+			speller:   plan.Arguments,
+			wantExact: "desc on a yes or no question takes 'yes' or 'no', got 'maybe'",
+		},
+		{
+			name: "should name a file question's key whatever the speller",
+			file: []plan.Question{{
+				ID: "urgent", Shape: plan.Noul, Instructions: "q", Origin: plan.OriginFile,
+				Policy: plan.Policy{Threshold: pointerTo(85.0)},
+			}},
+			speller:   plan.Arguments,
+			wantExact: "'threshold' must be between 0 and 1, got 85",
+		},
 	}
 
 	for _, tc := range tests {
@@ -657,7 +676,7 @@ func TestValidate(t *testing.T) {
 				t.Fatalf("assembling: %v", err)
 			}
 
-			warnings, err := plan.Validate(built, tc.fileName)
+			warnings, err := plan.Validate(built, tc.fileName, tc.speller)
 			assertWarning(t, warnings, tc.wantWarning, tc.wantErr != "" || tc.wantExact != "")
 
 			if tc.wantExact != "" {
