@@ -27,7 +27,9 @@ func records(
 	resume answersfile.Resume,
 	outputMode output.Mode,
 ) *naming {
-	stream := input.NewStream(settings.stdin, inputMode, flags.skipBlank)
+	stream := input.NewStream(settings.stdin, inputMode, input.StreamOptions{
+		SkipBlank: flags.skipBlank, Delimiter: flags.parsedDelimiter,
+	})
 
 	// A context of its own, since the read ahead goroutine outlives an engine that stops early, and
 	// a runaway --id on it would otherwise keep running until the command's context ends.
@@ -40,13 +42,30 @@ func records(
 			source: stream, left: resume.Skip, stored: resume.Stored,
 			haltOnAssert: flags.stopOnAssert, haltOnError: flags.stopOnError, table: tableName(outputMode, flags),
 		},
-		namer: namer,
-		halt:  flags.stopOnAssert,
-		book:  book,
-		mode:  outputMode,
-		input: inputMode,
-		seen:  map[[sha256.Size]byte]int{},
+		stream:   stream,
+		namer:    namer,
+		halt:     flags.stopOnAssert,
+		book:     book,
+		mode:     outputMode,
+		input:    inputMode,
+		appended: appendedTo(flags, resume, outputMode),
+		seen:     map[[sha256.Size]byte]int{},
 	}
+}
+
+func appendedTo(flags runConfig, resume answersfile.Resume, outputMode output.Mode) *appendedCSV {
+	// Only a detected comma can differ from the one the file was written with, since a given one
+	// also reads the file back.
+	if !resume.Header || !flags.parsedDelimiter.Detect || !mergesCSV(merging(flags), outputMode, flags.inputMode) {
+		return nil
+	}
+
+	return &appendedCSV{path: flags.out, comma: resume.Comma}
+}
+
+type appendedCSV struct {
+	path  string
+	comma rune
 }
 
 type resumed struct {
@@ -148,18 +167,20 @@ func (r *resumed) skipped() answersfile.Tally {
 }
 
 type naming struct {
-	ctx     context.Context
-	stop    context.CancelFunc
-	source  *resumed
-	namer   *jq.Expr
-	book    *answersfile.Ledger
-	mode    output.Mode
-	input   input.Mode
-	seen    map[[sha256.Size]byte]int
-	halt    bool
-	halted  bool
-	misread atomic.Bool
-	otherID atomic.Bool
+	ctx      context.Context
+	stop     context.CancelFunc
+	source   *resumed
+	stream   *input.Stream
+	namer    *jq.Expr
+	book     *answersfile.Ledger
+	mode     output.Mode
+	input    input.Mode
+	appended *appendedCSV
+	seen     map[[sha256.Size]byte]int
+	halt     bool
+	halted   bool
+	misread  atomic.Pointer[[]string]
+	otherID  atomic.Bool
 }
 
 func (n *naming) Next() (namedRecord, bool, error) {
@@ -171,6 +192,10 @@ func (n *naming) Next() (namedRecord, bool, error) {
 			}
 
 			return namedRecord{Record: rec}, ok, err
+		}
+
+		if err := n.matchComma(); err != nil {
+			return namedRecord{Record: rec}, false, err
 		}
 
 		named := n.named(rec)
@@ -200,6 +225,23 @@ func (n *naming) Next() (namedRecord, bool, error) {
 	return namedRecord{}, false, nil
 }
 
+func (n *naming) matchComma() error {
+	appended := n.appended
+	if appended == nil {
+		return nil
+	}
+
+	// Checked once, at the first record read, which fixes the detected comma.
+	n.appended = nil
+
+	if comma := n.stream.Comma(); comma != appended.comma {
+		return fmt.Errorf("--delimiter auto read '%s' from the input, and %s uses '%s'. Drop --resume to start over",
+			escaped(string(comma)), appended.path, escaped(string(appended.comma)))
+	}
+
+	return nil
+}
+
 type namedRecord struct {
 	input.Record
 	id    any
@@ -221,22 +263,48 @@ func (n *naming) freshRunAbort() error {
 
 func (n *naming) idHint() string {
 	// Atomic, since the goroutine that reads ahead may still be naming a record after the run.
-	if !n.misread.Load() || n.otherID.Load() {
+	header := n.misread.Load()
+	if header == nil || n.otherID.Load() {
 		return ""
 	}
 
-	return "every record's --id was null. " + delimiterHint(n.input)
+	return "every record's --id was null. " + delimiterHint(n.input, n.stream.Comma(), *header)
 }
 
-func delimiterHint(mode input.Mode) string {
-	switch mode {
-	case input.CSV:
-		return "-i csv splits each line on commas, so if the file is tab separated, pass -i tsv"
-	case input.TSV:
+func (n *naming) comma() rune {
+	return n.stream.Comma()
+}
+
+func delimiterHint(mode input.Mode, comma rune, header []string) string {
+	switch {
+	case mode == input.CSV && semicolonHeader(header):
+		return fmt.Sprintf("-i csv splits each line on %s, so if the file is semicolon separated, "+
+			"pass --delimiter ';' or --delimiter auto", separatorName(comma))
+	case mode == input.CSV:
+		return fmt.Sprintf("-i csv splits each line on %s, so if the file is tab separated, pass -i tsv",
+			separatorName(comma))
+	case mode == input.TSV:
 		return "-i tsv splits each line on tabs, so if the file is comma separated, pass -i csv"
 	default:
 		return ""
 	}
+}
+
+func separatorName(comma rune) string {
+	switch comma {
+	case 0, ',':
+		return "commas"
+	case ';':
+		return "semicolons"
+	case '\t':
+		return "tabs"
+	default:
+		return "'" + escaped(string(comma)) + "'"
+	}
+}
+
+func semicolonHeader(header []string) bool {
+	return len(header) == 1 && strings.Contains(header[0], ";") && !strings.Contains(header[0], "\t")
 }
 
 func (n *naming) named(rec input.Record) namedRecord {
@@ -254,7 +322,7 @@ func (n *naming) name(rec input.Record) namedRecord {
 	id, err := idOf(n.ctx, n.namer, rec)
 	if errors.Is(err, jq.ErrNullID) {
 		if misreadDelimiter(n.input, rec.Header) {
-			n.misread.Store(true)
+			n.misread.Store(&rec.Header)
 		}
 	} else {
 		n.otherID.Store(true)
@@ -290,7 +358,7 @@ func misreadDelimiter(mode input.Mode, header []string) bool {
 
 	switch mode {
 	case input.CSV:
-		return strings.Contains(header[0], "\t")
+		return strings.ContainsAny(header[0], "\t;")
 	case input.TSV:
 		return strings.Contains(header[0], ",")
 	default:

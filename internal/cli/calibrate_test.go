@@ -710,6 +710,13 @@ func TestReadLabelled(t *testing.T) {
 			wantAsked:  []string{"urgent"},
 		},
 		{
+			name:       "should read a semicolon csv under the given --delimiter",
+			args:       dry("-i", "csv", "--delimiter", ";", "--map", ".body", "--label", "urgent=.u"),
+			stdin:      "body;u\na,b;yes\n",
+			wantStates: []string{`"a,b"`},
+			wantAsked:  []string{"urgent"},
+		},
+		{
 			name:       "should print one body per labelled tsv row",
 			args:       dry("-i", "tsv", "--map", ".body", "--label", "urgent=.u"),
 			stdin:      "body\tu\na\ttrue\nb\tFALSE\n",

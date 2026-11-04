@@ -69,6 +69,8 @@ func newStreamRun(cmd *cobra.Command, in streamInputs) (*streamRun, error) {
 
 	format := answersfile.Format{
 		Mode: in.outputMode, Merge: merging(in.flags), MergeKey: mergeKey(in.flags), Namer: inv.namer, Gated: inv.gate != nil,
+		Delimiter: answersFileDelimiter(
+			merging(in.flags), in.outputMode, in.flags.inputMode, in.flags.parsedDelimiter),
 	}
 
 	book, err := answersfile.ResumeLedger(cmd.Context(), in.answers, format)
@@ -87,9 +89,9 @@ func newStreamRun(cmd *cobra.Command, in streamInputs) (*streamRun, error) {
 		abstain: inv.abstain, asker: asker, model: model, questions: plan.WireAll(inv.plan.Questions), stats: in.stats,
 		source: records(cmd.Context(), in.settings, in.flags.inputMode, in.flags, inv.namer, book, resume, in.outputMode),
 		book:   book, answers: in.answers, out: out, errOut: cmd.ErrOrStderr(), outputMode: in.outputMode,
-		table: delimited(
-			out, in.outputMode, inv.plan, inv.gate != nil, inv.namer != nil && !merging(in.flags), resume.Header),
-		md: markdown(out, in.outputMode, inv.plan, inv.gate != nil, inv.namer != nil),
+		delimited:     in.outputMode == output.CSV || in.outputMode == output.TSV,
+		headerWritten: resume.Header,
+		md:            markdown(out, in.outputMode, inv.plan, inv.gate != nil, inv.namer != nil),
 	}
 
 	if !in.flags.noDedup {
@@ -106,28 +108,30 @@ func newStreamRun(cmd *cobra.Command, in streamInputs) (*streamRun, error) {
 }
 
 type streamRun struct {
-	flags      runConfig
-	built      *plan.Plan
-	mapper     *jq.Expr
-	images     *imaging
-	gate       *assert.Expr
-	abstain    *assert.Expr
-	asker      answerer
-	model      string
-	questions  onesie.Questions
-	stats      *collector
-	shared     *dedup
-	source     *naming
-	book       *answersfile.Ledger
-	answers    *answersfile.File
-	out        io.Writer
-	errOut     io.Writer
-	outputMode output.Mode
-	table      *output.Delimited
-	md         *output.MarkdownTable
-	stop       func(line) bool
-	stopped    atomic.Bool
-	halted     bool
+	flags         runConfig
+	built         *plan.Plan
+	mapper        *jq.Expr
+	images        *imaging
+	gate          *assert.Expr
+	abstain       *assert.Expr
+	asker         answerer
+	model         string
+	questions     onesie.Questions
+	stats         *collector
+	shared        *dedup
+	source        *naming
+	book          *answersfile.Ledger
+	answers       *answersfile.File
+	out           io.Writer
+	errOut        io.Writer
+	outputMode    output.Mode
+	delimited     bool
+	headerWritten bool
+	table         *output.Delimited
+	md            *output.MarkdownTable
+	stop          func(line) bool
+	stopped       atomic.Bool
+	halted        bool
 }
 
 func (r *streamRun) evaluate(ctx context.Context, rec namedRecord) (line, error) {
@@ -158,7 +162,7 @@ func (r *streamRun) lineFor(ctx context.Context, rec namedRecord) (line, error) 
 		return r.failed(rec, rec.idErr)
 	}
 
-	if merging(r.flags) && r.table == nil && hasKey(rec.State, mergeKey(r.flags)) {
+	if merging(r.flags) && !r.delimited && hasKey(rec.State, mergeKey(r.flags)) {
 		return r.mergeCollision(rec)
 	}
 
@@ -276,6 +280,12 @@ func (r *streamRun) write(l line) error {
 func (r *streamRun) writeLine(l line) error {
 	merge := merging(r.flags)
 
+	// Built on the first line, which follows the first record read, so a detected comma is final.
+	if r.delimited && r.table == nil {
+		r.table = delimited(r.out, r.outputMode, r.built, r.gate != nil, r.source.namer != nil && !merge,
+			r.headerWritten, r.tableComma())
+	}
+
 	switch {
 	case r.md != nil:
 		return r.md.Write(l.record)
@@ -288,6 +298,14 @@ func (r *streamRun) writeLine(l line) error {
 	default:
 		return output.WriteMerged(r.out, r.outputMode, l.record, l.raw, l.state, mergeKey(r.flags))
 	}
+}
+
+func (r *streamRun) tableComma() rune {
+	if !mergesCSV(merging(r.flags), r.outputMode, r.flags.inputMode) {
+		return 0
+	}
+
+	return r.source.comma()
 }
 
 func (r *streamRun) finish(ctx context.Context, result engine.Result, err error) error {

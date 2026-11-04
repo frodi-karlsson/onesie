@@ -34,7 +34,7 @@ func streamRaw(
 	}
 
 	source := &resumed{
-		source: input.NewStream(settings.stdin, input.Request, flags.skipBlank),
+		source: input.NewStream(settings.stdin, input.Request, input.StreamOptions{SkipBlank: flags.skipBlank}),
 		left:   resume.Skip,
 		stored: resume.Stored,
 		// --stop-on-assert is refused under -i request, whose bodies carry no assertion.

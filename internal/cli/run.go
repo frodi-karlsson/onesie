@@ -404,6 +404,7 @@ func runInputs(settings rootSettings, flags runConfig, inputs answersfile.Finger
 	// a line stands for everywhere but csv and tsv, which skip a blank line either way.
 	inputs.SkipBlank = flags.skipBlank && !resumesByID(flags.runFlags) && !delimitedInput(inputs.Input)
 	inputs.Mock = flags.mockPath != ""
+	inputs.Delimiter = flags.parsedDelimiter
 
 	return inputs, nil
 }
@@ -790,7 +791,7 @@ func writeRecord(
 	}
 
 	if mode == output.CSV || mode == output.TSV {
-		return delimited(cmd.OutOrStdout(), mode, inv.plan, inv.gate != nil, false, false).Write(record, nil, nil)
+		return delimited(cmd.OutOrStdout(), mode, inv.plan, inv.gate != nil, false, false, 0).Write(record, nil, nil)
 	}
 
 	if merging(flags) {
@@ -835,6 +836,7 @@ func delimited(
 	withAssert bool,
 	withID bool,
 	headerWritten bool,
+	comma rune,
 ) *output.Delimited {
 	if mode != output.CSV && mode != output.TSV {
 		return nil
@@ -847,7 +849,7 @@ func delimited(
 
 	return output.NewDelimited(out, mode, output.DelimitedOptions{
 		IDs: ids, Boxes: boxIDs(built.Questions), Fallbacks: fallbackIDs(built.Questions), ID: withID,
-		Assert: withAssert, Header: !headerWritten,
+		Assert: withAssert, Header: !headerWritten, Comma: comma,
 	})
 }
 
@@ -1100,6 +1102,7 @@ type runFlags struct {
 	noDedup       bool
 	merge         bool
 	mergeKey      string
+	delimiter     string
 	mapSource     string
 	idSource      string
 	images        []string
