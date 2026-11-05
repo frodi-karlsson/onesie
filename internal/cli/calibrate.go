@@ -135,6 +135,7 @@ func runCalibrate(
 	cmd *cobra.Command, settings rootSettings, parsed *runFlags, calib calibrateFlags, given *setting.Given,
 	events []argv.Event, positional string,
 ) error {
+	// Only the refusal is read for now. From PR 5a the parsed values feed the merge.
 	if _, err := setting.ParseRun(setting.Table(), given, setting.CommandCalibrate); err != nil {
 		return err
 	}

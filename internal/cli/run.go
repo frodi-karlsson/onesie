@@ -34,6 +34,7 @@ var errWrapRepeated = errors.New("--merge wraps an input that is not an object u
 func validated(
 	cmd *cobra.Command, settings rootSettings, events []argv.Event, positional string, parsed *runFlags,
 ) (staged, error) {
+	// Only the refusal is read for now. From PR 5a the parsed values feed the merge.
 	if _, err := setting.ParseRun(setting.Table(), parsed.given, setting.CommandRoot); err != nil {
 		return staged{}, err
 	}

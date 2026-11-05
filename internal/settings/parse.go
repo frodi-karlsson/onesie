@@ -4,8 +4,6 @@ import (
 	"fmt"
 
 	"github.com/spf13/pflag"
-
-	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
 // ParseRun parses the flag of every run scope row command registers through the row's kind and
@@ -70,7 +68,8 @@ func parseFlag(row Row, bound BoundFlag, flag *pflag.Flag) (any, error) {
 
 	value, err := bound.Kind.Parse(flag.Value.String())
 
-	// A number is refused rather than clamped, in every mode, and the row's check words its range.
+	// The row's check words its own refusal, ahead of the kind's, such as a number out of range,
+	// which is refused rather than clamped in every mode.
 	if row.Check != nil && value != nil {
 		if checkErr := row.Check(value); checkErr != nil {
 			return nil, checkErr
@@ -98,20 +97,4 @@ func spelling(bound BoundFlag) string {
 	}
 
 	return "--" + bound.Long
-}
-
-// PolicyNumbers returns the kinds of the threshold and min_confidence rows, which parse and bound a
-// policy number for plan.Assemble and plan.Validate.
-func PolicyNumbers() plan.Numbers {
-	numbers := plan.Numbers{}
-
-	if row, found := Lookup(Threshold.Name()); found {
-		numbers.Threshold = row.Kind
-	}
-
-	if row, found := Lookup(MinConfidence.Name()); found {
-		numbers.MinConfidence = row.Kind
-	}
-
-	return numbers
 }

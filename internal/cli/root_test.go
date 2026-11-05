@@ -55,7 +55,6 @@ func TestNewRootCmd(t *testing.T) {
 
 	markdownOut := filepath.Join(t.TempDir(), "answers.md")
 	missingOut := filepath.Join(t.TempDir(), "missing", "answers.jsonl")
-	directoryOut := t.TempDir()
 
 	tests := []struct {
 		name     string
@@ -92,13 +91,6 @@ func TestNewRootCmd(t *testing.T) {
 			wantCode: cli.ExitUsage,
 			contains: []string{"onesie: -o table reads one record. Drop -i jsonl or use -o json\n"},
 			absent:   []string{"--profile and --provider"},
-		},
-		{
-			name:     "should report a flag clash before --out names a directory",
-			args:     []string{"is this urgent", "-i", "jsonl", "-o", "table", "--out", directoryOut},
-			wantCode: cli.ExitUsage,
-			contains: []string{"onesie: -o table reads one record. Drop -i jsonl or use -o json\n"},
-			absent:   []string{"is a directory"},
 		},
 		{
 			name:     "should report a missing -f file before a bad provider",
@@ -2050,6 +2042,32 @@ func TestNewRootCmd(t *testing.T) {
 				})
 
 				return []string{"--out", path}
+			}},
+			{name: "should report a flag clash before --out names a directory", config: func(t *testing.T, dir string) []string {
+				t.Helper()
+
+				return []string{"--out", t.TempDir()}
+			}},
+			{name: "should report a flag clash before an exposed profiles.json", config: func(t *testing.T, dir string) []string {
+				t.Helper()
+
+				if runtime.GOOS == "windows" {
+					t.Skip("windows has no group or other mode bits to expose the file through")
+				}
+
+				path := filepath.Join(dir, "profiles.json")
+				stored := `{"default":"work","profiles":{"work":{"provider":"typesafe","api_key":"k"}}}`
+
+				if err := os.WriteFile(path, []byte(stored), 0o644); err != nil {
+					t.Fatalf("writing profiles.json: %v", err)
+				}
+
+				// A umask may trim the mode WriteFile asks for.
+				if err := os.Chmod(path, 0o644); err != nil {
+					t.Fatalf("exposing profiles.json: %v", err)
+				}
+
+				return nil
 			}},
 			{name: "should report a flag clash before a broken profiles.json", config: func(t *testing.T, dir string) []string {
 				t.Helper()
