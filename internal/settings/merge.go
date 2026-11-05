@@ -3,6 +3,7 @@ package settings
 import (
 	"reflect"
 	"slices"
+	"strings"
 
 	"github.com/frodi-karlsson/onesie-go"
 
@@ -26,6 +27,8 @@ func Merge(rows []Row, layers []Layer, built *plan.Plan) (*Merged, []Notice) {
 			notices = append(notices, mergeRow(merged, row, ranked)...)
 		}
 	}
+
+	notices = pairKey(merged, ranked, notices)
 
 	if built == nil {
 		return merged, notices
@@ -65,6 +68,69 @@ func mergeRow(merged *Merged, row Row, ranked []Layer) []Notice {
 	}
 
 	return notices
+}
+
+func pairKey(merged *Merged, ranked []Layer, notices []Notice) []Notice {
+	endpoint, holds := merged.values[endpointName].(EndpointValue)
+	if !holds || merged.sources[endpointName] == SourceDefault || ownEndpoint(merged, endpoint) {
+		return notices
+	}
+
+	pairs := keySources(merged.sources[endpointName])
+	if source, held := merged.sources[apiKeyName]; !held || slices.Contains(pairs, source) {
+		return notices
+	}
+
+	row, _ := Lookup(apiKeyName)
+	dropped := merged.Origin(apiKeyName)
+	notice := Notice{Setting: apiKeyName, Winner: merged.Origin(endpointName), Loser: dropped, Verb: VerbPairs}
+
+	delete(merged.values, apiKeyName)
+	delete(merged.sources, apiKeyName)
+	delete(merged.spellings, apiKeyName)
+
+	for _, paired := range holding(ranked, apiKeyName) {
+		if slices.Contains(pairs, paired.layer.Source) {
+			merged.Set(apiKeyName, paired.value, paired.layer.Source)
+			merged.spelled(apiKeyName, originOf(paired.layer, row).Spelled)
+
+			break
+		}
+	}
+
+	kept := slices.DeleteFunc(notices, func(n Notice) bool { return n.Setting == apiKeyName })
+
+	return append(kept, notice)
+}
+
+func ownEndpoint(merged *Merged, endpoint EndpointValue) bool {
+	provider, err := onesie.ProviderNamed(textOf(merged.values[providerName]))
+	if err != nil || endpoint.AccountID != "" || provider.DefaultBaseURL() == "" {
+		return false
+	}
+
+	return strings.TrimRight(strings.TrimSpace(endpoint.BaseURL), "/") == provider.DefaultBaseURL()
+}
+
+func keySources(endpoint Source) []Source {
+	switch endpoint {
+	case SourceEnv:
+		return []Source{SourceEnv}
+	case SourceFlag:
+		// A typed --base-url is meant for this run, so it takes a key chosen for this run or one from
+		// the environment, as a run without a profile always has, and never the default profile's.
+		return []Source{SourceChosenProfile, SourceEnv}
+	default:
+		return []Source{endpoint}
+	}
+}
+
+func textOf(value any) string {
+	if text, isText := value.(string); isText {
+		return text
+	}
+
+	return ""
 }
 
 func holding(ranked []Layer, name Name) []candidate {

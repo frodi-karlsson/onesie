@@ -247,10 +247,11 @@ func TestClientBuilder(t *testing.T) {
 			wantAuth: "Bearer SECRET-WORK", wantModel: onesie.TypeSafe().DefaultModel(),
 		},
 		{
-			name:     "should take the provider key variable over the default profile's key, with a notice",
+			name:     "should send the default profile's key to its own base_url, not the key variable",
 			profiles: fileWork, args: asking(), env: map[string]string{onesie.TypeSafe().EnvAPIKey(): "SECRET-ENV"},
-			wantErr:  []string{"onesie: TYPESAFE_API_KEY overrides the default profile's api_key\n"},
-			wantAuth: "Bearer SECRET-ENV", wantModel: onesie.TypeSafe().DefaultModel(),
+			wantErr: []string{"onesie: the default profile's base_url overrides TYPESAFE_API_KEY, since a key goes " +
+				"only with its own endpoint\n"},
+			wantAuth: "Bearer SECRET-WORK", wantModel: onesie.TypeSafe().DefaultModel(),
 		},
 		{
 			name:     "should send no key variable beside a keyless default profile",
@@ -263,8 +264,12 @@ func TestClientBuilder(t *testing.T) {
 			profiles: `{"default":"work","profiles":{"work":{"provider":"typesafe","api_key":"SECRET-WORK",` +
 				`"base_url":"{other}"}}}`,
 			args: asking(), env: map[string]string{envBaseURL: "{url}"},
-			wantErr:  []string{"onesie: ONESIE_BASE_URL overrides the default profile's base_url\n"},
-			wantAuth: "Bearer SECRET-WORK", wantModel: onesie.TypeSafe().DefaultModel(),
+			wantErr: []string{
+				"onesie: ONESIE_BASE_URL overrides the default profile's base_url\n",
+				"onesie: ONESIE_BASE_URL overrides the default profile's api_key, since a key goes only with its own " +
+					"endpoint\n",
+			},
+			wantAuth: "absent", wantModel: onesie.TypeSafe().DefaultModel(),
 		},
 		{
 			name: "should keep a chosen profile's base_url over ONESIE_BASE_URL", profiles: fileWork,
@@ -332,16 +337,27 @@ func TestClientBuilder(t *testing.T) {
 			name: "should send TYPESAFE_BASE_URL over the default profile's base_url, with a notice",
 			profiles: `{"default":"work","profiles":{"work":{"provider":"typesafe","api_key":"SECRET-WORK",` +
 				`"base_url":"{other}"}}}`,
-			args: asking(), env: map[string]string{onesie.TypeSafe().EnvBaseURL(): "{url}"},
+			args: asking(), env: map[string]string{
+				onesie.TypeSafe().EnvBaseURL(): "{url}", onesie.TypeSafe().EnvAPIKey(): "SECRET-ENV",
+			},
 			wantErr:  []string{"onesie: TYPESAFE_BASE_URL overrides the default profile's base_url\n"},
+			wantAuth: "Bearer SECRET-ENV", wantModel: onesie.TypeSafe().DefaultModel(),
+		},
+		{
+			name: "should keep --base-url ahead of a chosen profile's base_url, with the profile's key",
+			profiles: `{"default":"work","profiles":{"work":{"provider":"typesafe","api_key":"SECRET-WORK",` +
+				`"base_url":"{other}"}}}`,
+			args:     asking("--base-url", "{url}", "--profile", "work"),
 			wantAuth: "Bearer SECRET-WORK", wantModel: onesie.TypeSafe().DefaultModel(),
 		},
 		{
-			name: "should keep --base-url ahead of the profile's base_url",
+			name: "should send no default profile's key to --base-url",
 			profiles: `{"default":"work","profiles":{"work":{"provider":"typesafe","api_key":"SECRET-WORK",` +
 				`"base_url":"{other}"}}}`,
-			args:     asking("--base-url", "{url}"),
-			wantAuth: "Bearer SECRET-WORK", wantModel: onesie.TypeSafe().DefaultModel(),
+			args: asking("--base-url", "{url}"),
+			wantErr: []string{"onesie: --base-url overrides the default profile's api_key, since a key goes only " +
+				"with its own endpoint\n"},
+			wantAuth: "absent", wantModel: onesie.TypeSafe().DefaultModel(),
 		},
 		{
 			name: "should name the profile's base_url when it ends in /v1",

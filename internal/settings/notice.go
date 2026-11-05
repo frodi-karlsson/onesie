@@ -25,6 +25,8 @@ func (n Notice) String() string {
 		return n.Winner.Spelled + " is given twice" + forQuestion + ", " + n.Values[0] + " overrides " + n.Values[1]
 	case VerbRunsWithout:
 		return n.winner() + " runs without the default profile '" + n.Values[1] + "'"
+	case VerbPairs:
+		return n.winner() + " overrides " + n.Loser.String() + forQuestion + ", since a key goes only with its own endpoint"
 	case VerbKeeps:
 		return n.winner() + " keeps " + n.Loser.String() + forQuestion
 	default:
@@ -58,6 +60,9 @@ const (
 	VerbRunsWithout
 	// VerbKeeps is a change that keeps a value the loser holds.
 	VerbKeeps
+	// VerbPairs is an endpoint that sets aside a key from another source, since a key goes only with
+	// its own endpoint.
+	VerbPairs
 )
 
 // Origin is where a value came from, as a notice names it. Spelled is the flag, the variable, the

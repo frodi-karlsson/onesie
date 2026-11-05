@@ -18,6 +18,7 @@ const (
 	profileName  Name = "profile"
 	providerName Name = "provider"
 	apiKeyName   Name = "api_key"
+	endpointName Name = "endpoint"
 )
 
 // Read reads every source of rows into one layer each, the highest first. A file, variable or profile

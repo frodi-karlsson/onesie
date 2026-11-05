@@ -711,7 +711,7 @@ Each setting takes the first source that gives it, in this order:
 
 | Value | Sources, highest first |
 |-------|------------------------|
-| key | the chosen profile's key, then the provider's key variable, then the default profile's key |
+| key | the chosen profile's key, then the provider's key variable, then the default profile's key, each only with its own endpoint |
 | model | `-m`, then the chosen profile's `model`, then the `model` of a `-f` request body, then `TYPESAFE_DEFAULT_MODEL` on typesafe, then the default profile's `model`, then the provider's default |
 | base_url or account | `--base-url`, then the chosen profile's `base_url` or `account_id`, then `ONESIE_BASE_URL`, then `TYPESAFE_BASE_URL` on typesafe, then `CLOUDFLARE_ACCOUNT_ID` on cloudflare, then the default profile's `base_url` or `account_id`, then the provider's own |
 
@@ -724,6 +724,15 @@ Each setting takes the first source that gives it, in this order:
   `onesie: --model overrides the request body's model`. A notice names both sources and never a
   value. Equal values and built in defaults print nothing, and a refused run prints only its
   refusal.
+- A key goes only with its own endpoint. When the base URL or account a run uses is not the
+  provider's own default, the key comes from the source that gave the endpoint: a profile's
+  `base_url` or `account_id` takes that profile's key and no key variable, and `ONESIE_BASE_URL`,
+  `TYPESAFE_BASE_URL` or `CLOUDFLARE_ACCOUNT_ID` takes the provider's key variable and never a
+  profile's key. A typed `--base-url` takes the chosen profile's key or the key variable, never the
+  default profile's. A key set aside this way prints a notice, as in
+  `onesie: ONESIE_BASE_URL overrides the default profile's api_key, since a key goes only with its own endpoint`.
+  With no key left, a custom base URL gets the request without one, and the provider's own refuses
+  it for want of a key. On the provider's own default base URL the key ranks as above.
 - A profile that holds no key reads no key variable, so a key in the environment never reaches the
   server of a keyless profile. No provider falls back to another's key.
 - A request body that names no model, under `-f` or `-i request`, takes the model above.

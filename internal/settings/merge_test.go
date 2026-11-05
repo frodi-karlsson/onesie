@@ -398,6 +398,98 @@ func TestMerge(t *testing.T) {
 			wantSources: map[settings.Name]settings.Source{"api_key": settings.SourceDefaultProfile},
 		},
 		{
+			name: "should keep the default profile's key with its own base_url over the key variable",
+			reading: reading{
+				defaultProfile: "work", keyHeld: true,
+				profile: map[string]string{"provider": "typesafe", "base_url": "https://work.example"},
+				env:     map[string]string{"TYPESAFE_API_KEY": "secret"},
+			},
+			want: values{"api_key": settings.HeldKey{}},
+			wantSources: map[settings.Name]settings.Source{
+				"api_key": settings.SourceDefaultProfile, "endpoint": settings.SourceDefaultProfile,
+			},
+			wantNotices: []string{"the default profile's base_url overrides TYPESAFE_API_KEY, since a key goes " +
+				"only with its own endpoint"},
+		},
+		{
+			name: "should send no held key to ONESIE_BASE_URL",
+			reading: reading{
+				defaultProfile: "work", keyHeld: true, profile: map[string]string{"provider": "typesafe"},
+				env: map[string]string{"ONESIE_BASE_URL": "https://env.example"},
+			},
+			want: values{"api_key": nil},
+			wantNotices: []string{"ONESIE_BASE_URL overrides the default profile's api_key, since a key goes only " +
+				"with its own endpoint"},
+		},
+		{
+			name: "should send the key variable to TYPESAFE_BASE_URL over a chosen profile's key",
+			reading: reading{
+				args: []string{"--profile", "work"}, keyHeld: true, profile: map[string]string{"provider": "typesafe"},
+				env: map[string]string{"TYPESAFE_BASE_URL": "https://env.example", "TYPESAFE_API_KEY": "secret"},
+			},
+			want:        values{"api_key": "secret"},
+			wantSources: map[settings.Name]settings.Source{"api_key": settings.SourceEnv},
+			wantNotices: []string{"TYPESAFE_BASE_URL overrides the profile's api_key, since a key goes only with " +
+				"its own endpoint"},
+		},
+		{
+			name: "should send no held key to the account CLOUDFLARE_ACCOUNT_ID names",
+			reading: reading{
+				defaultProfile: "cf", keyHeld: true, profile: map[string]string{"provider": "cloudflare"},
+				env: map[string]string{"CLOUDFLARE_ACCOUNT_ID": strings.Repeat("b", 32)},
+			},
+			want: values{"api_key": nil},
+			wantNotices: []string{"CLOUDFLARE_ACCOUNT_ID overrides the default profile's api_key, since a key goes " +
+				"only with its own endpoint"},
+		},
+		{
+			name: "should rank the key freely on the provider's own base URL",
+			reading: reading{
+				defaultProfile: "work", keyHeld: true, profile: map[string]string{"provider": "typesafe"},
+				env: map[string]string{"TYPESAFE_API_KEY": "secret", "ONESIE_BASE_URL": "https://api.typesafe.ai/"},
+			},
+			want:        values{"api_key": "secret"},
+			wantNotices: []string{"TYPESAFE_API_KEY overrides the default profile's api_key"},
+		},
+		{
+			name: "should leave a chosen profile with its own base_url and key alone",
+			reading: reading{
+				args: []string{"--profile", "work"}, keyHeld: true,
+				profile: map[string]string{"provider": "typesafe", "base_url": "https://work.example"},
+				env:     map[string]string{"TYPESAFE_API_KEY": "secret", "ONESIE_BASE_URL": "https://env.example"},
+			},
+			want: values{"api_key": settings.HeldKey{}},
+			wantNotices: []string{
+				"the profile's base_url overrides ONESIE_BASE_URL",
+				"the profile's api_key overrides TYPESAFE_API_KEY",
+			},
+		},
+		{
+			name: "should pair --base-url with a chosen profile's key",
+			reading: reading{
+				args: []string{"--profile", "work", "--base-url", "https://flag.example"}, keyHeld: true,
+				profile: map[string]string{"provider": "typesafe"},
+			},
+			want: values{"api_key": settings.HeldKey{}},
+		},
+		{
+			name: "should pair --base-url with the key variable",
+			reading: reading{
+				args: []string{"--base-url", "https://flag.example"}, env: map[string]string{"TYPESAFE_API_KEY": "secret"},
+			},
+			want: values{"api_key": "secret"},
+		},
+		{
+			name: "should send no default profile's key to --base-url",
+			reading: reading{
+				args: []string{"--base-url", "https://flag.example"}, defaultProfile: "work", keyHeld: true,
+				profile: map[string]string{"provider": "typesafe"},
+			},
+			want: values{"api_key": nil},
+			wantNotices: []string{"--base-url overrides the default profile's api_key, since a key goes only with " +
+				"its own endpoint"},
+		},
+		{
 			name:    "should map ONESIE_CACHE_TTL=0 to no alias lifetime",
 			reading: reading{env: map[string]string{"ONESIE_CACHE_TTL": "0"}},
 			check: func(t *testing.T, merged *settings.Merged) {

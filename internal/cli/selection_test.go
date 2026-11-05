@@ -471,11 +471,13 @@ func TestResolution_merged(t *testing.T) {
 			wantModel: onesie.TypeSafe().DefaultModel(), wantKey: "SECRET-KEY",
 		},
 		{
-			name:    "should let TYPESAFE_BASE_URL beat the default profile's base_url",
+			name:    "should let TYPESAFE_BASE_URL beat the default profile's base_url, with its key variable",
 			profile: &creds.Profile{Provider: "typesafe", APIKey: "SECRET-P", BaseURL: "https://profile.example"},
-			env:     map[string]string{onesie.TypeSafe().EnvBaseURL(): "https://env.example"},
+			env: map[string]string{
+				onesie.TypeSafe().EnvBaseURL(): "https://env.example", onesie.TypeSafe().EnvAPIKey(): "SECRET-ENV",
+			},
 			wantURL: "https://env.example", wantFrom: "TYPESAFE_BASE_URL",
-			wantModel: onesie.TypeSafe().DefaultModel(), wantKey: "SECRET-KEY",
+			wantModel: onesie.TypeSafe().DefaultModel(), wantKey: "SECRET-ENV",
 		},
 		{
 			name: "should keep a chosen profile's account_id ahead of CLOUDFLARE_ACCOUNT_ID", chosen: true,
@@ -485,11 +487,11 @@ func TestResolution_merged(t *testing.T) {
 			wantModel: onesie.Cloudflare().DefaultModel(), wantKey: "SECRET-KEY",
 		},
 		{
-			name: "should take CLOUDFLARE_ACCOUNT_ID when the profile has no account", chosen: true,
+			name: "should take CLOUDFLARE_ACCOUNT_ID with its token over the profile's key", chosen: true,
 			profile: &creds.Profile{Provider: "cloudflare", APIKey: "SECRET-P"},
-			env:     map[string]string{"CLOUDFLARE_ACCOUNT_ID": otherAccount},
+			env:     map[string]string{"CLOUDFLARE_ACCOUNT_ID": otherAccount, "CLOUDFLARE_API_TOKEN": "SECRET-ENV"},
 			wantURL: cloudflareURL(otherAccount), wantFrom: "CLOUDFLARE_ACCOUNT_ID",
-			wantModel: onesie.Cloudflare().DefaultModel(), wantKey: "SECRET-KEY",
+			wantModel: onesie.Cloudflare().DefaultModel(), wantKey: "SECRET-ENV",
 		},
 		{
 			name: "should fall back to the built in URL and model", chosen: true,
