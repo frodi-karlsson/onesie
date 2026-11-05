@@ -120,3 +120,31 @@ func TestFailureLogKeepFirst(t *testing.T) {
 		})
 	}
 }
+
+func TestFailureLogNote(t *testing.T) {
+	t.Parallel()
+
+	refused := errors.New("stderr is gone")
+
+	tests := []struct {
+		name  string
+		later error
+		want  []error
+	}{
+		{name: "should record a later failure", later: refused, want: []error{refused}},
+		{name: "should record nothing for nil"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			log := &failureLog{}
+			log.note(tc.later)
+
+			if got := log.drain(); !slices.Equal(got, tc.want) {
+				t.Errorf("drained = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}

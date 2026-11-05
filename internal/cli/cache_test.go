@@ -16,6 +16,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -861,6 +862,46 @@ func TestAsk(t *testing.T) {
 
 		if got := stub.requests.Load(); got != 2 {
 			t.Errorf("%d requests, want 2", got)
+		}
+	})
+
+	t.Run("should keep a cache warning stderr refused as a later failure and still answer", func(t *testing.T) {
+		t.Parallel()
+
+		if runtime.GOOS == "windows" {
+			t.Skip("a read only directory on windows still lets a file be created in it")
+		}
+
+		stub := newAnswerStub(t)
+		env := cacheEnv(t)
+		delete(env, "ONESIE_CACHE_DIR")
+		env[envCache] = "1"
+
+		home := filepath.Join(t.TempDir(), "home")
+		mustMkdirMode(t, home, 0o500)
+		t.Cleanup(func() { _ = os.Chmod(home, 0o700) })
+		env["HOME"] = home
+
+		var out bytes.Buffer
+
+		root := NewRootCmd(BuildInfo{Version: "1.2.3"},
+			withKeychain(noKeychain()),
+			WithStdin(strings.NewReader("one\n")),
+			WithStdinTTY(false),
+			WithStdoutTTY(false),
+			WithLookupEnv(lookupFrom(maps.Clone(env))),
+			WithHomeDir(func() (string, error) { return home, nil }))
+		root.Command.SetOut(&out)
+		root.Command.SetErr(brokenWriter{})
+		root.Command.SetArgs([]string{"is it urgent", "-i", "lines", "--base-url", stub.url})
+
+		ended := root.Run(t.Context())
+		if ended.Failure != nil || strings.Count(out.String(), "\n") != 1 {
+			t.Fatalf("failure %v, stdout %q, want one answer", ended.Failure, out.String())
+		}
+
+		if !slices.ContainsFunc(ended.Later, func(err error) bool { return errors.Is(err, errBroken) }) {
+			t.Errorf("later = %v, want the refused cache warning", ended.Later)
 		}
 	})
 
