@@ -1,0 +1,305 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "fields": {
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "errorMessage": "A question has one of pick, rate or box.",
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "pick",
+                  "rate"
+                ]
+              },
+              {
+                "required": [
+                  "pick",
+                  "box"
+                ]
+              },
+              {
+                "required": [
+                  "rate",
+                  "box"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "else": {
+            "properties": {
+              "fallback": {
+                "examples": [
+                  true,
+                  false,
+                  "yes",
+                  "no"
+                ]
+              }
+            }
+          },
+          "if": {
+            "anyOf": [
+              {
+                "required": [
+                  "pick"
+                ]
+              },
+              {
+                "required": [
+                  "rate"
+                ]
+              },
+              {
+                "required": [
+                  "box"
+                ]
+              }
+            ]
+          },
+          "then": {
+            "errorMessage": "A pick, rate or box question takes no yes_means, no_means, true, false or threshold.",
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "yes_means"
+                  ]
+                },
+                {
+                  "required": [
+                    "no_means"
+                  ]
+                },
+                {
+                  "required": [
+                    "true"
+                  ]
+                },
+                {
+                  "required": [
+                    "false"
+                  ]
+                },
+                {
+                  "required": [
+                    "threshold"
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "box"
+            ]
+          },
+          "then": {
+            "errorMessage": "A box question takes no min_confidence or fallback.",
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "min_confidence"
+                  ]
+                },
+                {
+                  "required": [
+                    "fallback"
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "properties": {
+        "ask": {
+          "anyOf": [
+            {
+              "pattern": "\\S",
+              "patternErrorMessage": "A question needs text, not only spaces.",
+              "type": "string"
+            },
+            {
+              "minProperties": 1,
+              "type": "object"
+            },
+            {
+              "minItems": 1,
+              "type": "array"
+            }
+          ],
+          "errorMessage": "A question needs text the model can answer, not a blank, a number or null."
+        },
+        "box": {
+          "const": true
+        },
+        "fallback": {
+          "type": [
+            "string",
+            "boolean"
+          ]
+        },
+        "false": {},
+        "min_confidence": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/probability"
+            }
+          ]
+        },
+        "no_means": {},
+        "pick": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/pick"
+            }
+          ]
+        },
+        "rate": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/rate"
+            }
+          ]
+        },
+        "threshold": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/probability"
+            }
+          ]
+        },
+        "true": {},
+        "yes_means": {}
+      },
+      "required": [
+        "ask"
+      ],
+      "type": "object"
+    },
+    "pick": {
+      "oneOf": [
+        {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 255,
+          "minItems": 2,
+          "type": "array",
+          "uniqueItems": true
+        },
+        {
+          "maxProperties": 255,
+          "minProperties": 2,
+          "type": "object"
+        }
+      ]
+    },
+    "probability": {
+      "maximum": 1,
+      "minimum": 0,
+      "type": "number"
+    },
+    "question": {
+      "anyOf": [
+        {
+          "pattern": "\\S",
+          "patternErrorMessage": "A question needs text, not only spaces.",
+          "type": "string"
+        },
+        {
+          "$ref": "#/definitions/fields"
+        }
+      ]
+    },
+    "rate": {
+      "oneOf": [
+        {
+          "items": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "maxProperties": 1,
+                "minProperties": 1,
+                "type": "object"
+              }
+            ]
+          },
+          "maxItems": 10,
+          "minItems": 2,
+          "type": "array",
+          "uniqueItems": true
+        },
+        {
+          "maxProperties": 10,
+          "minProperties": 2,
+          "type": "object"
+        }
+      ]
+    }
+  },
+  "else": {
+    "additionalProperties": {
+      "$ref": "#/definitions/question"
+    },
+    "properties": {
+      "$schema": {
+        "type": "string"
+      },
+      "abstain_if": {
+        "type": [
+          "string",
+          "boolean"
+        ]
+      },
+      "assert": {
+        "type": [
+          "string",
+          "boolean"
+        ]
+      }
+    },
+    "propertyNames": {
+      "errorMessage": "This question id is reserved.",
+      "not": {
+        "anyOf": [
+          {
+            "enum": [
+              "answer",
+              "abstain",
+              "answers",
+              "error",
+              "id",
+              "model",
+              "usage",
+              "questions",
+              "state"
+            ]
+          },
+          {
+            "pattern": "^__",
+            "patternErrorMessage": "An id that starts with two underscores is reserved."
+          }
+        ]
+      }
+    }
+  },
+  "if": {
+    "required": [
+      "questions"
+    ]
+  },
+  "then": true,
+  "title": "onesie question file",
+  "type": "object"
+}

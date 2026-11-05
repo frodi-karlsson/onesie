@@ -156,6 +156,20 @@ func TestTable(t *testing.T) {
 			},
 		},
 		{
+			name: "should mark only run rows with a file key as request body keys",
+			check: func(rows []settings.Row) []string {
+				var problems []string
+
+				for _, row := range rows {
+					if row.InBody && (row.FileKey == "" || row.Scope != settings.ScopeRun) {
+						problems = append(problems, fmt.Sprintf("%s is a body key with no file key or on a question", row.Name))
+					}
+				}
+
+				return problems
+			},
+		},
+		{
 			name: "should give every default the type of its kind",
 			check: func(rows []settings.Row) []string {
 				var problems []string

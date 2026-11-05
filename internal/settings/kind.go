@@ -86,6 +86,23 @@ func Endpoint() EndpointKind {
 	return EndpointKind{}
 }
 
+// Options is the setting that takes a pick question's options: comma separated text from a flag, a
+// sequence or a mapping from a question file.
+func Options() Kind {
+	return listKind{definition: "pick"}
+}
+
+// Levels is the setting that takes a rate question's levels: comma separated text from a flag, a
+// sequence or a mapping from a question file.
+func Levels() Kind {
+	return listKind{definition: "rate"}
+}
+
+// TrueOnly is a switch that a flag turns on or off, and that a question file can only set to true.
+func TrueOnly() Kind {
+	return trueOnlyKind{}
+}
+
 type boolKind struct{}
 
 func (boolKind) Parse(raw string) (any, error) {
@@ -270,9 +287,7 @@ func (probabilityKind) Zero() any {
 }
 
 func (probabilityKind) Schema() jsonschema.Node {
-	least, most := 0.0, 1.0
-
-	return jsonschema.Node{Type: "number", Minimum: &least, Maximum: &most}
+	return jsonschema.Node{Ref: definitionRef("probability")}
 }
 
 func (probabilityKind) ValueName() string {
@@ -423,6 +438,55 @@ func (fallbackKind) Schema() jsonschema.Node {
 
 func (fallbackKind) ValueName() string {
 	return "string"
+}
+
+type listKind struct {
+	definition string
+}
+
+func (listKind) Parse(raw string) (any, error) {
+	return textKind{}.Parse(raw)
+}
+
+func (listKind) FromFile(raw any) (any, error) {
+	switch raw.(type) {
+	case []any, map[string]any:
+		return raw, nil
+	default:
+		return nil, errors.New("takes a sequence or a mapping")
+	}
+}
+
+func (listKind) Zero() any {
+	return ""
+}
+
+func (k listKind) Schema() jsonschema.Node {
+	return jsonschema.Node{Ref: definitionRef(k.definition)}
+}
+
+func (listKind) ValueName() string {
+	return "string"
+}
+
+type trueOnlyKind struct {
+	boolKind
+}
+
+func (trueOnlyKind) FromFile(raw any) (any, error) {
+	if on, ok := raw.(bool); !ok || !on {
+		return false, errors.New("takes only true")
+	}
+
+	return true, nil
+}
+
+func (trueOnlyKind) Schema() jsonschema.Node {
+	return jsonschema.Node{Const: true}
+}
+
+func definitionRef(name string) string {
+	return "#/definitions/" + name
 }
 
 // EndpointKind is the kind of the endpoint, whose sources each say which half they give.
