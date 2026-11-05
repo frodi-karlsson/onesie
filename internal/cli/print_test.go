@@ -713,6 +713,9 @@ func TestPrintRequest(t *testing.T) {
 	dir := t.TempDir()
 	square := writeImage(t, dir, "square.png", squarePNG(t))
 	ref := refOf(t, squarePNG(t))
+	longBody := filepath.Join(dir, "long.json")
+	writeTestFile(t, longBody,
+		`{"long_context":true,"questions":{"urgent":{"type":"noul","instructions":"is this urgent"}}}`)
 
 	tests := []struct {
 		name     string
@@ -723,6 +726,19 @@ func TestPrintRequest(t *testing.T) {
 		absent   []string
 		stderr   []string
 	}{
+		{
+			name:     "should print long_context for a body with true",
+			args:     []string{"-f", longBody, "--state", "x", "--print-request"},
+			wantCode: ExitOK,
+			stdout:   []string{`"long_context":true`},
+		},
+		{
+			name:     "should print no long_context for --long-context=false on a body with true",
+			args:     []string{"-f", longBody, "--state", "x", "--long-context=false", "--print-request"},
+			wantCode: ExitOK,
+			stdout:   []string{`"questions":{"urgent":`},
+			absent:   []string{`"long_context"`},
+		},
 		{
 			name:     "should print one request body and exit without a request",
 			args:     []string{"--ask", "urgent=is this urgent", "--print-request"},

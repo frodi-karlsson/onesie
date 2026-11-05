@@ -15,6 +15,9 @@ func TestBuild(t *testing.T) {
 		abstaining = "abstain_if: urgent.value > 0.4\nurgent:\n  ask: is it urgent\n"
 	)
 
+	longBody := `{"long_context":true,"questions":{"urgent":{"type":"noul","instructions":"is it urgent"}}}`
+	off := false
+
 	twoAsks := []argv.Event{{Name: "ask", Value: "a=x"}, {Name: "ask", Value: "b=y"}}
 
 	tests := []struct {
@@ -26,7 +29,19 @@ func TestBuild(t *testing.T) {
 		wantErr      string
 		wantGate     bool
 		wantSetAside fileGate
+		longContext  *bool
+		wantLong     bool
 	}{
+		{
+			name:        "should send no long context when --long-context=false meets a body with true",
+			file:        longBody,
+			longContext: &off,
+		},
+		{
+			name:     "should keep a body's true with no flag",
+			file:     longBody,
+			wantLong: true,
+		},
 		{
 			name:     "should let the file's assert gate -q over several questions",
 			file:     gated,
@@ -66,6 +81,11 @@ func TestBuild(t *testing.T) {
 				events:   tc.events,
 			}
 
+			if tc.longContext != nil {
+				flags.longContext, flags.longContextSet = *tc.longContext, true
+				flags.env.longContext = *tc.longContext
+			}
+
 			inv, _, err := build(settings, flags, tc.ignoreJudged)
 			if tc.wantErr != "" {
 				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
@@ -81,6 +101,10 @@ func TestBuild(t *testing.T) {
 
 			if (inv.gate != nil) != tc.wantGate || (inv.abstain != nil) != tc.wantGate {
 				t.Errorf("gate %v, abstain %v, want both built %v", inv.gate, inv.abstain, tc.wantGate)
+			}
+
+			if inv.plan.LongContext != tc.wantLong {
+				t.Errorf("long context = %v, want %v", inv.plan.LongContext, tc.wantLong)
 			}
 
 			if inv.fileGate != tc.wantSetAside {

@@ -971,11 +971,11 @@ table, and `onesie calibrate --help` lists the codes calibrate uses.
 - `--long-context`, or `ONESIE_LONG_CONTEXT=1`, raises the context limits to 262k tokens, which is
   slower and less accurate. It is written into a printed body as `long_context`, so a replay keeps
   it, and a `-f` body's `long_context: true` turns it on with no flag. A body's `false` does not
-  turn off the flag or the variable. The flag wins over the variable, so `--long-context=false`
-  turns it off for one run under `ONESIE_LONG_CONTEXT=1`, as `--cache=false` does for the cache.
-  It does not turn off a body's `long_context: true`, from `-f` or under `-i request`, since the
-  body asks for it itself. Set that key to `false` in the body, or remove it, to run without it.
-  `-i request` follows the same order for each body it replays, and under `--print-request` it
+  turn off the flag or the variable. The flag wins over the variable and over a `-f` body, so
+  `--long-context=false` turns it off for one run under `ONESIE_LONG_CONTEXT=1` or on a body with
+  `long_context: true`, as `--cache=false` does for the cache. `-i request` forwards each body as
+  it is, so a body's `long_context: true` holds there whatever the flag says. Set that key to
+  `false` in the body, or remove it, to run without it. Under `--print-request`, `-i request`
   writes `"long_context":true` into a body the flag or the variable turns it on for. A provider
   that takes no long context refuses the run with exit 2, `--print-request` included, and when
   `ONESIE_LONG_CONTEXT` turned it on, the message says so. It is experimental.
