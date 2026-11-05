@@ -358,6 +358,10 @@ onesie calibrate -f shell-safety -i jsonl --map .command --id .id \
 - The fingerprint keeps one sum for each of them. A fingerprint with one sum for all three resumes
   when nothing changed, and a change there reads `the questions, model or flags changed`. `-j`,
   `--timeout`, `--retries`, `--cache` and `--unordered` can change between runs.
+- A fingerprint without a sum for the profile, the base URL, the cloudflare account and `--usage`
+  resumes without comparing those four, and a resumed run writes a fingerprint with all of them in
+  its place. A fingerprint with them compares each, so a profile set on one run and not the other
+  counts as a change.
 - A resume needs a fingerprint format this onesie reads. Any other format is refused with exit 2,
   and the message names the fingerprint file. A csv or tsv file also needs the fallback columns,
   below.

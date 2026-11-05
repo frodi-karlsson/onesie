@@ -428,6 +428,25 @@ func TestRunInputs(t *testing.T) {
 			want:   answersfile.FingerprintInputs{Provider: "cloudflare", Profile: "edge", AccountID: other},
 		},
 		{
+			name:   "should fingerprint a whole cloudflare account URL as the base URL",
+			chosen: resolution{provider: onesie.Cloudflare()},
+			flags: runConfig{runFlags: runFlags{
+				baseURL: "https://api.cloudflare.com/client/v4/accounts/" + other + "/ai",
+			}},
+			env: map[string]string{"CLOUDFLARE_ACCOUNT_ID": account},
+			want: answersfile.FingerprintInputs{
+				Provider: "cloudflare", BaseURL: "https://api.cloudflare.com/client/v4/accounts/" + other + "/ai",
+			},
+		},
+		{
+			name:   "should fingerprint --base-url over a profile's base URL",
+			chosen: resolution{provider: onesie.TypeSafe(), profile: "work", baseURL: "https://profile.example.com"},
+			flags:  runConfig{runFlags: runFlags{baseURL: "https://flag.example.com"}},
+			want: answersfile.FingerprintInputs{
+				Provider: "typesafe", Profile: "work", BaseURL: "https://flag.example.com",
+			},
+		},
+		{
 			name:   "should leave out the base URL a mock run ignores",
 			chosen: resolution{provider: onesie.TypeSafe()},
 			flags: runConfig{

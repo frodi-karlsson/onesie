@@ -696,7 +696,7 @@ func TestFile_CheckFingerprint(t *testing.T) {
 			wantErr: "an older onesie wrote A.onesie, so this one cannot tell which run wrote A",
 		},
 		{
-			name: "should refuse a newer version", sidecar: new("v4:abc"), checking: current, wantReason: NewerFingerprint,
+			name: "should refuse a newer version", sidecar: new("v5:abc"), checking: current, wantReason: NewerFingerprint,
 			wantErr: "a newer onesie wrote A.onesie, so this one cannot tell which run wrote A",
 		},
 		{
