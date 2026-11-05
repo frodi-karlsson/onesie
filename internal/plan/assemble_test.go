@@ -456,6 +456,15 @@ func TestAssemble(t *testing.T) {
 		})
 	}
 
+	t.Run("should refuse a zero Numbers, which the caller has to fill", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := plan.Assemble(plan.Source{Positional: "is this urgent", ReadFile: readFile})
+		if !errors.Is(err, plan.ErrNoNumbers) {
+			t.Errorf("Assemble error = %v, want ErrNoNumbers", err)
+		}
+	})
+
 	t.Run("should wrap a file read error", func(t *testing.T) {
 		t.Parallel()
 
@@ -465,6 +474,7 @@ func TestAssemble(t *testing.T) {
 			_, err := plan.Assemble(plan.Source{
 				Events:   []argv.Event{{Name: "ask", Value: "a=@gone.txt"}},
 				ReadFile: func(string) ([]byte, error) { return nil, os.ErrNotExist },
+				Numbers:  settings.PolicyNumbers(),
 			})
 
 			if !errors.Is(err, os.ErrNotExist) {

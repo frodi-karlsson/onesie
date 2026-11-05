@@ -18,8 +18,12 @@ var reservedIDs = []string{
 }
 
 // Validate checks the questions of a plan and returns the non fatal warnings plus the first fatal
-// error. numbers bound the policy numbers.
+// error. numbers bound the policy numbers, and are required.
 func Validate(p *Plan, numbers Numbers) ([]string, error) {
+	if !numbers.complete() {
+		return nil, ErrNoNumbers
+	}
+
 	if err := checkSources(p); err != nil {
 		return nil, err
 	}

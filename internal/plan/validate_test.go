@@ -2,6 +2,7 @@ package plan_test
 
 import (
 	"encoding/json"
+	"errors"
 	"math"
 	"strconv"
 	"strings"
@@ -649,6 +650,16 @@ func TestValidate(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("should refuse a zero Numbers, which the caller has to fill", func(t *testing.T) {
+		t.Parallel()
+
+		built := &plan.Plan{Questions: []plan.Question{{ID: "answer", Instructions: "q", Origin: plan.OriginPositional}}}
+
+		if _, err := plan.Validate(built, plan.Numbers{}); !errors.Is(err, plan.ErrNoNumbers) {
+			t.Errorf("Validate error = %v, want ErrNoNumbers", err)
+		}
+	})
 }
 
 func assertWarning(t *testing.T, warnings []string, want string, failing bool) {

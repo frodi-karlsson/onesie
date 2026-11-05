@@ -1,6 +1,7 @@
 package plan
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -16,8 +17,16 @@ const defaultSeparator = ","
 // UnnamedFile names a question file in a message when no -f value names it.
 const UnnamedFile = "the question file"
 
-// Assemble folds a recorded command line and any file questions into a Plan.
+// ErrNoNumbers is the refusal of a Source or a Validate call whose Numbers the caller left unset.
+var ErrNoNumbers = errors.New("plan: Numbers is unset. Pass what settings.PolicyNumbers returns")
+
+// Assemble folds a recorded command line and any file questions into a Plan. src.Numbers is
+// required.
 func Assemble(src Source) (*Plan, error) {
+	if !src.Numbers.complete() {
+		return nil, ErrNoNumbers
+	}
+
 	groups, orphans := split(src.Events, src.Positional, len(src.File) > 0)
 
 	built := &Plan{Questions: append([]Question(nil), src.File...)}
@@ -72,13 +81,18 @@ type Source struct {
 	Replace  bool
 	// ReadFile resolves @FILE references, injected so tests need nothing on disk.
 	ReadFile func(string) ([]byte, error)
-	// Numbers parse the policy numbers. Only a plan with --threshold or --min-confidence reads them.
+	// Numbers parse the policy numbers, and are required. settings.PolicyNumbers fills them.
 	Numbers Numbers
 }
 
-// Numbers parse and bound a question's policy numbers. The settings rows' kinds fill it.
+// Numbers parse and bound a question's policy numbers. The settings rows' kinds fill it, and the
+// zero value is refused, since plan cannot import settings to supply them.
 type Numbers struct {
 	Threshold, MinConfidence Number
+}
+
+func (n Numbers) complete() bool {
+	return n.Threshold != nil && n.MinConfidence != nil
 }
 
 // Number reads a policy number from flag text, and bounds one a question file gave. Parse returns
