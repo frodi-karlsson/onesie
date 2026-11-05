@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -542,7 +543,7 @@ func TestValidateRun(t *testing.T) {
 			{
 				name:    "should report a missing -f file before calibrate's needs",
 				args:    []string{"calibrate", "-f", missing},
-				wantErr: "onesie: reading " + missing + ": no such file or directory",
+				wantErr: "onesie: reading " + missing + ": " + missingFileText(t, missing),
 			},
 			{
 				name:    "should report a broken -f file before calibrate's needs",
@@ -577,6 +578,19 @@ func TestValidateRun(t *testing.T) {
 			})
 		}
 	})
+}
+
+func missingFileText(t *testing.T, path string) string {
+	t.Helper()
+
+	_, err := os.Open(path)
+
+	var pathErr *os.PathError
+	if !errors.As(err, &pathErr) {
+		t.Fatalf("opening %s gave %v, want a path error", path, err)
+	}
+
+	return pathErr.Err.Error()
 }
 
 func TestViewOf(t *testing.T) {
