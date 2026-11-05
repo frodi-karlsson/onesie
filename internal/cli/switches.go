@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/frodi-karlsson/onesie/internal/cache"
+	setting "github.com/frodi-karlsson/onesie/internal/settings"
 )
 
 const (
@@ -22,8 +23,12 @@ func readSwitches(cmd *cobra.Command, lookupEnv func(string) (string, bool), fla
 		return switches{}, err
 	}
 
+	if value, found := lookupEnv(envCache); found && value != "" {
+		read.cacheFrom = setting.SourceEnv
+	}
+
 	if cmd.Flags().Changed(flagCache) {
-		read.cache = flags.cache
+		read.cache, read.cacheFrom = flags.cache, setting.SourceFlag
 	}
 
 	if cmd.Flags().Changed(flagLongContext) {
@@ -35,6 +40,7 @@ func readSwitches(cmd *cobra.Command, lookupEnv func(string) (string, bool), fla
 
 type switches struct {
 	cache       bool
+	cacheFrom   setting.Source
 	longContext bool
 	aliasTTL    time.Duration
 }

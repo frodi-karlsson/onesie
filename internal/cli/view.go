@@ -50,7 +50,6 @@ func viewOf(config runConfig, facts runFacts, built *plan.Plan) setting.View {
 		{setting.Delimiter.Name(), config.delimiter, config.hasDelimiter},
 		{setting.Stats.Name(), config.stats, config.given.Count(setting.Stats.Name()) > 0},
 		{setting.Usage.Name(), config.usage, config.given.Count(setting.Usage.Name()) > 0},
-		{setting.Cache.Name(), config.cache, config.given.Count(setting.Cache.Name()) > 0},
 		{"assert", config.assert, len(config.assert) > 0},
 		{"abstain_if", config.abstainIf, len(config.abstainIf) > 0},
 		{"image", config.images, len(config.images) > 0},
@@ -60,6 +59,7 @@ func viewOf(config runConfig, facts runFacts, built *plan.Plan) setting.View {
 	}
 
 	merged.Set(setting.Mock.Name(), config.mockPath, mockSourceOf(config.mockSpelled))
+	merged.Set(setting.Cache.Name(), config.env.cache, config.env.cacheFrom)
 
 	viewFacts := setting.Facts{
 		Command: setting.CommandRoot, FileAssert: facts.assert, FileAbstainIf: facts.abstainIf,

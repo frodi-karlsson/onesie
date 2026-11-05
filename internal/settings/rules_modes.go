@@ -147,7 +147,7 @@ func listModelsRefusals() []refusal {
 			return fmt.Sprintf("--list-models asks no question, so %s has nothing to answer. %s",
 				mockSpelled(v), mockAdvice(v, mode))
 		}},
-		{Cache.Name(), on(Cache), says("--list-models asks no question, so --cache has nothing to store. Drop one")},
+		{Cache.Name(), typedOn(Cache), says("--list-models asks no question, so --cache has nothing to store. Drop one")},
 	}
 }
 
@@ -195,7 +195,7 @@ func requestRefusals() []refusal {
 			return fmt.Sprintf("-i request sends each body as written, so %s has nothing to answer. %s",
 				mockSpelled(v), mockAdvice(v, mode))
 		}},
-		{Cache.Name(), on(Cache), says("-i request sends each body as written, so --cache has nothing to store. Drop one")},
+		{Cache.Name(), typedOn(Cache), says("-i request sends each body as written, so --cache has nothing to store. Drop one")},
 	}
 }
 
@@ -268,6 +268,10 @@ func says(message string) func(View) string {
 
 func on(k Key[bool]) func(View) bool {
 	return func(v View) bool { return Get(v.Merged, k) }
+}
+
+func typedOn(k Key[bool]) func(View) bool {
+	return func(v View) bool { return typed(v, k.Name()) && Get(v.Merged, k) }
 }
 
 func filled(k Key[string]) func(View) bool {

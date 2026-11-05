@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/frodi-karlsson/onesie/internal/cache"
+	setting "github.com/frodi-karlsson/onesie/internal/settings"
 )
 
 func TestReadSwitches(t *testing.T) {
@@ -24,12 +25,12 @@ func TestReadSwitches(t *testing.T) {
 		{
 			name: "should read what the flags take",
 			env:  map[string]string{envCache: "true", envLongContext: "1", envCacheTTL: "90m"},
-			want: switches{cache: true, longContext: true, aliasTTL: 90 * time.Minute},
+			want: switches{cache: true, cacheFrom: setting.SourceEnv, longContext: true, aliasTTL: 90 * time.Minute},
 		},
 		{name: "should read ONESIE_CACHE_TTL=0 as no alias lifetime", env: map[string]string{envCacheTTL: "0"}, want: switches{aliasTTL: cache.NoAliasTTL}},
-		{name: "should be on under --cache", args: []string{"--cache"}, want: switches{cache: true}},
-		{name: "should let --cache=false win over ONESIE_CACHE=1", env: map[string]string{envCache: "1"}, args: []string{"--cache=false"}},
-		{name: "should let --cache win over ONESIE_CACHE=0", env: map[string]string{envCache: "0"}, args: []string{"--cache"}, want: switches{cache: true}},
+		{name: "should be on under --cache", args: []string{"--cache"}, want: switches{cache: true, cacheFrom: setting.SourceFlag}},
+		{name: "should let --cache=false win over ONESIE_CACHE=1", env: map[string]string{envCache: "1"}, args: []string{"--cache=false"}, want: switches{cacheFrom: setting.SourceFlag}},
+		{name: "should let --cache win over ONESIE_CACHE=0", env: map[string]string{envCache: "0"}, args: []string{"--cache"}, want: switches{cache: true, cacheFrom: setting.SourceFlag}},
 		{
 			name: "should let --long-context=false win over ONESIE_LONG_CONTEXT=1",
 			env:  map[string]string{envLongContext: "1"}, args: []string{"--long-context=false"},
