@@ -203,6 +203,52 @@ func TestNewRootCmd(t *testing.T) {
 			contains: []string{"onesie: --merge-key is empty. Name one, or leave the flag out"},
 		},
 		{
+			name:     "should refuse --merge-key state on a text state",
+			args:     []string{"is this urgent", "--state", "hi", "--merge-key", "state"},
+			response: answered,
+			wantCode: cli.ExitUsage,
+			contains: []string{
+				"onesie: --merge-key state does not apply to -i text, which wraps every record under a state key",
+			},
+			absent: []string{`"state":"hi"`},
+		},
+		{
+			name:     "should refuse --merge-key state on a json state that is not an object",
+			args:     []string{"is this urgent", "-i", "json", "--state", `"hi"`, "--merge-key", "state"},
+			response: answered,
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: --merge wraps an input that is not an object under 'state', " +
+				"so --merge-key state would repeat that key. Pass another --merge-key"},
+			absent: []string{`"state":"hi"`},
+		},
+		{
+			name:     "should refuse --merge-key state on a jsonl object that has a state key",
+			args:     []string{"is this urgent", "-i", "jsonl", "--merge-key", "state"},
+			stdin:    "{\"state\":1}\n",
+			response: answered,
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: line 1: --merge would overwrite the input's 'state' key, pass --merge-key"},
+			absent:   []string{`{"state":{"state":1}`},
+		},
+		{
+			name:     "should refuse --merge-key state on a jsonl record that is not an object",
+			args:     []string{"is this urgent", "-i", "jsonl", "--merge-key", "state"},
+			stdin:    "{\"a\":1}\n\"hello\"\n",
+			response: answered,
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: line 2: --merge wraps an input that is not an object under 'state', " +
+				"so --merge-key state would repeat that key. Pass another --merge-key"},
+			absent: []string{`"state":"hello"`},
+		},
+		{
+			name:     "should merge --merge-key state into a jsonl object",
+			args:     []string{"is this urgent", "-i", "jsonl", "--merge-key", "state"},
+			stdin:    "{\"a\":1}\n",
+			response: answered,
+			wantCode: cli.ExitOK,
+			contains: []string{`{"a":1,"state":{`},
+		},
+		{
 			name:     "should refuse an empty --map on a stream",
 			args:     []string{"is this urgent", "-i", "jsonl", "--map", ""},
 			stdin:    `{"body":"x"}` + "\n",

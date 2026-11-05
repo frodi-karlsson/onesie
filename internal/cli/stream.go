@@ -162,6 +162,10 @@ func (r *streamRun) lineFor(ctx context.Context, rec namedRecord) (line, error) 
 		return r.failed(rec, rec.idErr)
 	}
 
+	if merging(r.flags) && !r.delimited && wrapsUnderKey(rec.Raw, rec.Wire, mergeKey(r.flags)) {
+		return r.halt(rec, errWrapRepeated)
+	}
+
 	if merging(r.flags) && !r.delimited && hasKey(rec.State, mergeKey(r.flags)) {
 		return r.mergeCollision(rec)
 	}
@@ -193,7 +197,20 @@ func (r *streamRun) failed(rec namedRecord, cause error) (line, error) {
 	return rowLine(failureRecord(r.built, bad), rec), bad
 }
 
+func (r *streamRun) halt(rec namedRecord, cause error) (line, error) {
+	r.stats.recordFailure(nil, false, 0)
+
+	return line{halted: true}, &input.LineError{Line: rec.Line, Err: &repeatedKeyError{cause: cause}}
+}
+
 func (r *streamRun) mergeCollision(rec namedRecord) (line, error) {
+	overwrite := fmt.Errorf("--merge would overwrite the input's '%s' key, pass --merge-key", mergeKey(r.flags))
+
+	// The failure line wraps the record under state, so under that key it would repeat the key too.
+	if mergeKey(r.flags) == wrapKey {
+		return r.halt(rec, overwrite)
+	}
+
 	r.stats.recordFailure(nil, false, 0)
 
 	// Detected here rather than inside Write, since the engine counts a failure from the evaluator's
@@ -201,10 +218,7 @@ func (r *streamRun) mergeCollision(rec namedRecord) (line, error) {
 	//
 	// A LineError gets kind input rather than the transport default from describe, so --stop-on-error
 	// reaches the row, and the line number comes along without a onesie prefix inside the JSON.
-	taken := &input.LineError{
-		Line: rec.Line,
-		Err:  fmt.Errorf("--merge would overwrite the input's '%s' key, pass --merge-key", mergeKey(r.flags)),
-	}
+	taken := &input.LineError{Line: rec.Line, Err: overwrite}
 
 	return line{
 		record: failureRecord(r.built, taken),

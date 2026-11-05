@@ -243,3 +243,31 @@ func TestWriteMerged(t *testing.T) {
 		})
 	}
 }
+
+func TestWraps(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		raw   string
+		state any
+		want  bool
+	}{
+		{name: "should fold into a line sent as an object", raw: `{"a":1}`, state: json.RawMessage(`{"a":1}`)},
+		{name: "should fold into a decoded object", raw: `{"a":1}`, state: map[string]any{"a": 1.0}},
+		{name: "should wrap a line sent as a string", raw: `{"a":1}`, state: `{"a":1}`, want: true},
+		{name: "should wrap a jsonl scalar", raw: `"hello"`, state: json.RawMessage(`"hello"`), want: true},
+		{name: "should wrap an object with no line to fold into", state: map[string]any{"a": 1.0}, want: true},
+		{name: "should wrap a record onesie could not read", raw: `{"a":`, want: true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := output.Wraps(tc.raw, tc.state); got != tc.want {
+				t.Errorf("Wraps(%q, %v) = %v, want %v", tc.raw, tc.state, got, tc.want)
+			}
+		})
+	}
+}

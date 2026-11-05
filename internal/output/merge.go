@@ -39,10 +39,7 @@ func WriteMerged(w io.Writer, mode Mode, rec Record, raw string, state any, key 
 }
 
 func merge(raw string, state any, key string, name, answers []byte) (string, error) {
-	// The shape follows what was sent, not what the line looks like. Under -i lines a line reading
-	// {"a":1} was sent as a string, so it wraps rather than folds. An empty raw has no line to fold
-	// into and always wraps.
-	if raw != "" && sentObject(state) {
+	if !Wraps(raw, state) {
 		return splice(raw, key, name, answers)
 	}
 
@@ -52,6 +49,13 @@ func merge(raw string, state any, key string, name, answers []byte) (string, err
 	}
 
 	return fmt.Sprintf(`{"state":%s,%s:%s}`, encoded, name, answers), nil
+}
+
+// Wraps reports whether a merge puts the input under a state key rather than folding the answers
+// into it. The shape follows what was sent, so a line sent as a string wraps whatever it reads.
+func Wraps(raw string, state any) bool {
+	// An empty raw has no line to fold into.
+	return raw == "" || !sentObject(state)
 }
 
 func sentObject(state any) bool {

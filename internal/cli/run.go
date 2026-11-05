@@ -25,6 +25,9 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/qfile"
 )
 
+var errWrapRepeated = errors.New("--merge wraps an input that is not an object under 'state', " +
+	"so --merge-key state would repeat that key. Pass another --merge-key")
+
 func run(
 	cmd *cobra.Command,
 	settings rootSettings,
@@ -233,6 +236,10 @@ func runOne(
 		return fmt.Errorf(
 			"--merge would overwrite the input's '%s' key. Pass --merge-key",
 			mergeKey(flags))
+	}
+
+	if merging(flags) && wrapsUnderKey(resolved.Raw, resolved.Wire, mergeKey(flags)) {
+		return errWrapRepeated
 	}
 
 	return withStats(cmd, settings.now, flags, func(stats *collector) error {
@@ -541,6 +548,10 @@ func rowLine(record output.Record, rec namedRecord) line {
 	return line{record: record, raw: rec.Raw, state: rec.Wire, header: rec.Header, fields: fields}
 }
 
+func wrapsUnderKey(raw string, wire any, key string) bool {
+	return key == wrapKey && output.Wraps(raw, wire)
+}
+
 func hasKey(state any, key string) bool {
 	object, ok := state.(map[string]any)
 	if !ok {
@@ -642,7 +653,25 @@ func stoppedAtInput(cause error) bool {
 func aborting(err error) bool {
 	// Every later record would fail the same way, so a bad key is reported on one line for the
 	// whole run.
-	return authFailure(err) || halting(err)
+	return authFailure(err) || halting(err) || repeatsKey(err)
+}
+
+func repeatsKey(err error) bool {
+	var repeated *repeatedKeyError
+
+	return errors.As(err, &repeated)
+}
+
+type repeatedKeyError struct {
+	cause error
+}
+
+func (e *repeatedKeyError) Error() string {
+	return e.cause.Error()
+}
+
+func (e *repeatedKeyError) Unwrap() error {
+	return e.cause
 }
 
 func ask(
