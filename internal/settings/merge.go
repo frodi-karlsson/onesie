@@ -110,7 +110,11 @@ func ownEndpoint(merged *Merged, endpoint EndpointValue) bool {
 		return false
 	}
 
-	return endpoint.AccountID != "" || !provider.CustomBaseURL(endpoint.BaseURL)
+	if endpoint.BaseURL != "" {
+		return !provider.CustomBaseURL(endpoint.BaseURL)
+	}
+
+	return endpoint.AccountID != ""
 }
 
 func keySources(endpoint Source) []Source {

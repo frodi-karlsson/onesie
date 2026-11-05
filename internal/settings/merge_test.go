@@ -444,6 +444,20 @@ func TestMerge(t *testing.T) {
 			wantNotices: []string{"CLOUDFLARE_ACCOUNT_ID overrides the default profile's account_id"},
 		},
 		{
+			name: "should pair the key with a custom base URL that comes with an account",
+			layers: []settings.Layer{
+				{Source: settings.SourceEnv, Values: map[settings.Name]any{
+					"endpoint": settings.EndpointValue{BaseURL: "https://proxy.example", AccountID: strings.Repeat("a", 32)},
+				}, Spelled: map[settings.Name]string{"endpoint": "ONESIE_BASE_URL"}},
+				{Source: settings.SourceDefaultProfile, Values: map[settings.Name]any{
+					"api_key": settings.HeldKey{}, "provider": "cloudflare",
+				}, Spelled: map[settings.Name]string{"api_key": "api_key"}},
+			},
+			want: values{"api_key": nil},
+			wantNotices: []string{"ONESIE_BASE_URL overrides the default profile's api_key, since a key goes only " +
+				"with its own endpoint"},
+		},
+		{
 			name: "should keep a default cloudflare profile's token beside an equal CLOUDFLARE_ACCOUNT_ID",
 			reading: reading{
 				defaultProfile: "cf", keyHeld: true,
