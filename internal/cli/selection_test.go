@@ -23,26 +23,26 @@ func TestChoose(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		flags   runFlags
+		args    []string
 		env     map[string]string
 		want    choice
 		wantErr string
 	}{
 		{name: "should choose nothing when nothing is given", want: choice{}},
 		{
-			name:  "should choose the profile --profile names",
-			flags: runFlags{profile: "work", profileSet: true},
-			want:  choice{profile: "work", by: "--profile"},
+			name: "should choose the profile --profile names",
+			args: []string{"--profile", "work"},
+			want: choice{profile: "work", by: "--profile"},
 		},
 		{
-			name:  "should choose the provider --provider names",
-			flags: runFlags{provider: "openrouter", providerSet: true},
-			want:  choice{provider: "openrouter", by: "--provider"},
+			name: "should choose the provider --provider names",
+			args: []string{"--provider", "openrouter"},
+			want: choice{provider: "openrouter", by: "--provider"},
 		},
 		{
-			name:  "should trim the name a flag gives",
-			flags: runFlags{profile: " work ", profileSet: true},
-			want:  choice{profile: "work", by: "--profile"},
+			name: "should trim the name a flag gives",
+			args: []string{"--profile", " work "},
+			want: choice{profile: "work", by: "--profile"},
 		},
 		{
 			name: "should choose the profile ONESIE_PROFILE names",
@@ -55,38 +55,38 @@ func TestChoose(t *testing.T) {
 			want: choice{provider: "berget", by: "ONESIE_PROVIDER"},
 		},
 		{
-			name:  "should let --profile beat ONESIE_PROVIDER",
-			flags: runFlags{profile: "work", profileSet: true},
-			env:   map[string]string{"ONESIE_PROVIDER": "berget"},
-			want:  choice{profile: "work", by: "--profile"},
+			name: "should let --profile beat ONESIE_PROVIDER",
+			args: []string{"--profile", "work"},
+			env:  map[string]string{"ONESIE_PROVIDER": "berget"},
+			want: choice{profile: "work", by: "--profile"},
 		},
 		{
-			name:  "should let --provider beat ONESIE_PROFILE",
-			flags: runFlags{provider: "levanto", providerSet: true},
-			env:   map[string]string{"ONESIE_PROFILE": "work"},
-			want:  choice{provider: "levanto", by: "--provider"},
+			name:    "should refuse --provider with ONESIE_PROFILE",
+			args:    []string{"--provider", "levanto"},
+			env:     map[string]string{"ONESIE_PROFILE": "work"},
+			wantErr: "--provider and ONESIE_PROFILE both choose what the run uses. Drop --provider or unset ONESIE_PROFILE",
 		},
 		{
-			name:  "should let --profile beat ONESIE_PROFILE",
-			flags: runFlags{profile: "home", profileSet: true},
-			env:   map[string]string{"ONESIE_PROFILE": "work"},
-			want:  choice{profile: "home", by: "--profile"},
+			name: "should let --profile beat ONESIE_PROFILE",
+			args: []string{"--profile", "home"},
+			env:  map[string]string{"ONESIE_PROFILE": "work"},
+			want: choice{profile: "home", by: "--profile"},
 		},
 		{
-			name:  "should let --provider beat ONESIE_PROVIDER",
-			flags: runFlags{provider: "typesafe", providerSet: true},
-			env:   map[string]string{"ONESIE_PROVIDER": "berget"},
-			want:  choice{provider: "typesafe", by: "--provider"},
+			name: "should let --provider beat ONESIE_PROVIDER",
+			args: []string{"--provider", "typesafe"},
+			env:  map[string]string{"ONESIE_PROVIDER": "berget"},
+			want: choice{provider: "typesafe", by: "--provider"},
 		},
 		{
-			name:  "should let --profile win over both variables",
-			flags: runFlags{profile: "work", profileSet: true},
-			env:   map[string]string{"ONESIE_PROFILE": "home", "ONESIE_PROVIDER": "berget"},
-			want:  choice{profile: "work", by: "--profile"},
+			name: "should let --profile win over both variables",
+			args: []string{"--profile", "work"},
+			env:  map[string]string{"ONESIE_PROFILE": "home", "ONESIE_PROVIDER": "berget"},
+			want: choice{profile: "work", by: "--profile"},
 		},
 		{
 			name:    "should refuse --profile beside --provider",
-			flags:   runFlags{profile: "work", profileSet: true, provider: "typesafe", providerSet: true},
+			args:    []string{"--profile", "work", "--provider", "typesafe"},
 			wantErr: "--profile and --provider both choose what the run uses. Pass one",
 		},
 		{
@@ -106,9 +106,9 @@ func TestChoose(t *testing.T) {
 			want: choice{},
 		},
 		{
-			name:  "should leave an unknown provider for the resolution to refuse",
-			flags: runFlags{provider: "nope", providerSet: true},
-			want:  choice{provider: "nope", by: "--provider"},
+			name: "should leave an unknown provider for the resolution to refuse",
+			args: []string{"--provider", "nope"},
+			want: choice{provider: "nope", by: "--provider"},
 		},
 	}
 
@@ -116,7 +116,7 @@ func TestChoose(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := choose(&tc.flags, lookupFrom(tc.env))
+			got, err := choose(flagsFrom(t, tc.args...), lookupFrom(tc.env))
 			if tc.wantErr != "" {
 				if err == nil || err.Error() != tc.wantErr {
 					t.Errorf("error = %v, want %q", err, tc.wantErr)
@@ -141,19 +141,19 @@ func TestCheckChoice(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		flags   runFlags
+		args    []string
 		env     map[string]string
 		wantErr string
 	}{
-		{name: "should pass a known provider", flags: runFlags{provider: "berget", providerSet: true}},
+		{name: "should pass a known provider", args: []string{"--provider", "berget"}},
 		{name: "should pass nothing chosen"},
 		{
-			name:  "should pass a profile without checking that it exists",
-			flags: runFlags{profile: "missing", profileSet: true},
+			name: "should pass a profile without checking that it exists",
+			args: []string{"--profile", "missing"},
 		},
 		{
 			name:    "should refuse an unknown provider",
-			flags:   runFlags{provider: "nope", providerSet: true},
+			args:    []string{"--provider", "nope"},
 			wantErr: "onesie: unknown provider 'nope'",
 		},
 		{
@@ -163,7 +163,7 @@ func TestCheckChoice(t *testing.T) {
 		},
 		{
 			name:    "should refuse two choices of the same strength",
-			flags:   runFlags{profile: "x", profileSet: true, provider: "typesafe", providerSet: true},
+			args:    []string{"--profile", "x", "--provider", "typesafe"},
 			wantErr: "both choose what the run uses",
 		},
 	}
@@ -172,7 +172,7 @@ func TestCheckChoice(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			err := checkChoice(&tc.flags, lookupFrom(tc.env))
+			err := checkChoice(flagsFrom(t, tc.args...), lookupFrom(tc.env))
 			if tc.wantErr == "" {
 				if err != nil {
 					t.Errorf("checkChoice returned an error: %v", err)
@@ -591,12 +591,6 @@ func mergedRun(
 ) (resolution, *setting.Merged) {
 	t.Helper()
 
-	flags := &runFlags{}
-	cmd := &cobra.Command{Use: "onesie"}
-	flags.given = setting.Register(cmd.Flags(), cmd.PersistentFlags(), setting.Table(), argv.New(),
-		setting.CommandRoot, runTargets(flags))
-	cmd.Flags().AddFlagSet(cmd.PersistentFlags())
-
 	lookup := maps.Clone(env)
 	if lookup == nil {
 		lookup = map[string]string{}
@@ -612,9 +606,7 @@ func mergedRun(
 		run.by = "--profile"
 	}
 
-	if err := cmd.Flags().Parse(args); err != nil {
-		t.Fatal(err)
-	}
+	flags := flagsFrom(t, args...)
 
 	layers, err := setting.Read(setting.Table(), setting.Sources{
 		Given: flags.given, LookupEnv: lookupFrom(lookup), Profile: run.values(), DefaultProfile: run.fallback,
@@ -632,6 +624,22 @@ func mergedRun(
 	}
 
 	return resolved.merged(merged), merged
+}
+
+func flagsFrom(t *testing.T, args ...string) *runFlags {
+	t.Helper()
+
+	flags := &runFlags{}
+	cmd := &cobra.Command{Use: "onesie"}
+	flags.given = setting.Register(cmd.Flags(), cmd.PersistentFlags(), setting.Table(), argv.New(),
+		setting.CommandRoot, runTargets(flags))
+	cmd.Flags().AddFlagSet(cmd.PersistentFlags())
+
+	if err := cmd.Flags().Parse(args); err != nil {
+		t.Fatal(err)
+	}
+
+	return flags
 }
 
 func TestShownBaseURL(t *testing.T) {

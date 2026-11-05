@@ -309,12 +309,10 @@ func TestResolveRun(t *testing.T) {
 		})
 	}
 
-	t.Run("should never open the file when the provider is named and the run succeeds", func(t *testing.T) {
+	t.Run("should run when the provider is named and the file cannot be read for the notice", func(t *testing.T) {
 		t.Parallel()
 
-		refusing := creds.NewStore(creds.WithOpen(func(path string) (*os.File, error) {
-			t.Errorf("the run opened %s", path)
-
+		refusing := creds.NewStore(creds.WithOpen(func(string) (*os.File, error) {
 			return nil, errors.New("the test store refuses every call")
 		}))
 
@@ -339,8 +337,8 @@ func TestResolveRun(t *testing.T) {
 
 			assertNoSecret(t, out, errOut)
 
-			if code != ExitOK {
-				t.Errorf("exit code = %d, want %d\nstderr:\n%s", code, ExitOK, errOut)
+			if code != ExitOK || errOut != "" {
+				t.Errorf("exit code = %d, want %d and no stderr\nstderr:\n%s", code, ExitOK, errOut)
 			}
 
 			// Compared, never printed, since the header carries the key.
@@ -361,7 +359,7 @@ func TestResolveRun(t *testing.T) {
 
 		cases := []struct {
 			name         string
-			flags        runFlags
+			args         []string
 			env          map[string]string
 			wantProfile  string
 			wantProvider string
@@ -374,17 +372,17 @@ func TestResolveRun(t *testing.T) {
 				wantProvider: "openrouter", wantBy: "the default", wantKeyFrom: sourceFile,
 			},
 			{
-				name: "should take the profile --profile names", flags: runFlags{profile: "work", profileSet: true},
+				name: "should take the profile --profile names", args: []string{"--profile", "work"},
 				wantProfile: "work", wantProvider: "openrouter", wantBy: "--profile", wantKeyFrom: sourceFile,
 			},
 			{
 				name:    "should pass a refused choice on",
-				flags:   runFlags{profile: "work", profileSet: true, provider: "berget", providerSet: true},
+				args:    []string{"--profile", "work", "--provider", "berget"},
 				wantErr: "--profile and --provider both choose what the run uses. Pass one",
 			},
 			{
-				name:  "should run without a profile under --provider and ignore the profile's key",
-				flags: runFlags{provider: "openrouter", providerSet: true}, wantProvider: "openrouter",
+				name: "should run without a profile under --provider and ignore the profile's key",
+				args: []string{"--provider", "openrouter"}, wantProvider: "openrouter",
 				wantBy: "--provider", wantKeyFrom: sourceNone,
 			},
 			{
@@ -393,12 +391,22 @@ func TestResolveRun(t *testing.T) {
 				wantProvider: "openrouter", wantBy: "ONESIE_PROVIDER", wantKeyFrom: sourceEnv,
 			},
 			{
-				name: "should refuse an unknown provider", flags: runFlags{provider: "bogus", providerSet: true},
+				name: "should refuse --provider with ONESIE_PROFILE", args: []string{"--provider", "openrouter"},
+				env:     map[string]string{"ONESIE_PROFILE": "work"},
+				wantErr: "--provider and ONESIE_PROFILE both choose what the run uses. Drop --provider or unset ONESIE_PROFILE",
+			},
+			{
+				name: "should run the profile --profile names beside ONESIE_PROVIDER", args: []string{"--profile", "work"},
+				env:         map[string]string{"ONESIE_PROVIDER": "levanto"},
+				wantProfile: "work", wantProvider: "openrouter", wantBy: "--profile", wantKeyFrom: sourceFile,
+			},
+			{
+				name: "should refuse an unknown provider", args: []string{"--provider", "bogus"},
 				wantErr: "unknown provider 'bogus'. Use typesafe, openrouter, berget, levanto or cloudflare",
 			},
 			{
 				name:    "should point --provider at --profile when it names a profile",
-				flags:   runFlags{provider: "work", providerSet: true},
+				args:    []string{"--provider", "work"},
 				wantErr: unknownWork + ". 'work' is a profile, so pass --profile 'work' in place of --provider",
 			},
 			{
@@ -415,7 +423,7 @@ func TestResolveRun(t *testing.T) {
 
 				open := func() (creds.Opened, error) { return creds.Opened{Profiles: profiles}, nil }
 
-				got, err := loadAndResolve(&tc.flags, lookupFrom(tc.env), open)
+				got, err := loadAndResolve(flagsFrom(t, tc.args...), lookupFrom(tc.env), open)
 				if tc.wantErr != "" {
 					if err == nil || text(err) != tc.wantErr {
 						t.Errorf("error = %v, want %q", err, tc.wantErr)
@@ -452,7 +460,7 @@ func TestResolveRun(t *testing.T) {
 				return creds.Opened{}, nil
 			}
 
-			if _, err := loadAndResolve(&runFlags{provider: "berget", providerSet: true}, lookupFrom(nil), open); err != nil {
+			if _, err := loadAndResolve(flagsFrom(t, "--provider", "berget"), lookupFrom(nil), open); err != nil {
 				t.Errorf("resolveRun returned an error: %v", err)
 			}
 		})
@@ -462,7 +470,7 @@ func TestResolveRun(t *testing.T) {
 
 			open := func() (creds.Opened, error) { return creds.Opened{}, unreadable }
 
-			_, err := loadAndResolve(&runFlags{provider: "work", providerSet: true}, lookupFrom(nil), open)
+			_, err := loadAndResolve(flagsFrom(t, "--provider", "work"), lookupFrom(nil), open)
 			if err == nil || errors.Is(err, unreadable) || strings.Contains(err.Error(), "is a profile") {
 				t.Errorf("error = %v, want the unknown provider error alone", err)
 			}
@@ -473,7 +481,7 @@ func TestResolveRun(t *testing.T) {
 
 			open := func() (creds.Opened, error) { return creds.Opened{}, unreadable }
 
-			if _, err := loadAndResolve(&runFlags{}, lookupFrom(nil), open); !errors.Is(err, unreadable) {
+			if _, err := loadAndResolve(flagsFrom(t), lookupFrom(nil), open); !errors.Is(err, unreadable) {
 				t.Errorf("error = %v, want %v", err, unreadable)
 			}
 		})
@@ -491,7 +499,7 @@ func linesOf(text string) []string {
 func loadAndResolve(
 	flags *runFlags, lookupEnv func(string) (string, bool), open func() (creds.Opened, error),
 ) (resolution, error) {
-	run, err := loadRun(flags, lookupEnv, open)
+	run, err := loadRun(flags, lookupEnv, open, func() string { return "" })
 	if err != nil {
 		return resolution{}, err
 	}

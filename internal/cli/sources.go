@@ -67,13 +67,18 @@ func withoutChoice(rows []setting.Row) []setting.Row {
 }
 
 func loadedFor(settings rootSettings, flags runConfig) (loadedRun, error) {
-	// --print-questions prints no provider, model or key, so it reads no profile and converts no
-	// credentials.json.
-	if flags.printQuestions {
-		return loadedRun{}, nil
+	if !flags.printQuestions {
+		return settings.holder.loaded()
 	}
 
-	return settings.holder.loaded()
+	// --print-questions prints no provider, model or key, so it loads no profile and converts no
+	// credentials.json. A provider choice still names the default it runs without.
+	chosen, err := choose(&flags.runFlags, settings.lookupEnv)
+	if err != nil || chosen.provider == "" {
+		return loadedRun{chosen: chosen}, err
+	}
+
+	return loadedRun{chosen: chosen, fallback: defaultName(settings)}, nil
 }
 
 func fileValues(loaded *qfile.File) *setting.FileValues {
@@ -102,7 +107,7 @@ func announced(notices []setting.Notice) []setting.Notice {
 	var kept []setting.Notice
 
 	for _, notice := range notices {
-		if row, found := setting.Lookup(notice.Setting); found && (row.Flag.Repeat || choosesRun(row.Name)) {
+		if row, found := setting.Lookup(notice.Setting); found && row.Flag.Repeat {
 			continue
 		}
 

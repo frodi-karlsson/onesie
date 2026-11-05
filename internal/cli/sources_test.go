@@ -1,9 +1,13 @@
 package cli
 
 import (
+	"errors"
+	"io/fs"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -119,6 +123,96 @@ func TestNewRootCmd(t *testing.T) {
 			[]string{"--provider", "openrouter", "is it urgent", "-i", "jsonl", "-o", "table"}, "", env)
 		if want := "onesie: -o table reads one record. Drop -i jsonl or use -o json\n"; code != ExitUsage || errOut != want {
 			t.Errorf("exit code = %d, stderr = %q, want %d and the clash %q", code, errOut, ExitUsage, want)
+		}
+	})
+
+	t.Run("should choose the provider and profile in one order, with a notice", func(t *testing.T) {
+		t.Parallel()
+
+		choices := []struct {
+			name    string
+			args    []string
+			env     map[string]string
+			wantErr string
+		}{
+			{
+				name:    "should name the default profile it runs without under --provider",
+				args:    append([]string{"--provider", "openrouter"}, asking...),
+				wantErr: "onesie: --provider openrouter runs without the default profile 'home'\n",
+			},
+			{
+				name: "should name the default profile it runs without under ONESIE_PROVIDER",
+				args: asking, env: map[string]string{"ONESIE_PROVIDER": "openrouter"},
+				wantErr: "onesie: ONESIE_PROVIDER=openrouter runs without the default profile 'home'\n",
+			},
+			{
+				name: "should note --profile over ONESIE_PROVIDER",
+				args: append([]string{"--profile", "work"}, asking...), env: map[string]string{"ONESIE_PROVIDER": "openrouter"},
+				wantErr: "onesie: --profile work overrides ONESIE_PROVIDER\n",
+			},
+			{
+				name: "should note --profile over ONESIE_PROFILE",
+				args: append([]string{"--profile", "work"}, asking...), env: map[string]string{"ONESIE_PROFILE": "home"},
+				wantErr: "onesie: --profile work overrides ONESIE_PROFILE\n",
+			},
+			{
+				name:    "should note --profile over ONESIE_PROVIDER under --print-questions",
+				args:    []string{"--ask", "q=is it urgent", "--print-questions", "--profile", "work"},
+				env:     map[string]string{"ONESIE_PROVIDER": "openrouter"},
+				wantErr: "onesie: --profile work overrides ONESIE_PROVIDER\n",
+			},
+			{
+				name:    "should name the default profile under --provider and --print-questions",
+				args:    []string{"--ask", "q=is it urgent", "--print-questions", "--provider", "berget"},
+				wantErr: "onesie: --provider berget runs without the default profile 'home'\n",
+			},
+		}
+
+		for _, tc := range choices {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				out, errOut, code := runInConfig(t, configWith(t, profiles), tc.args, "", tc.env)
+				assertNoSecret(t, out, errOut)
+
+				if code != ExitOK || errOut != tc.wantErr {
+					t.Errorf("exit code = %d, stderr = %q, want %d and %q", code, errOut, ExitOK, tc.wantErr)
+				}
+			})
+		}
+	})
+
+	t.Run("should drop the notice when profiles.json is exposed under --provider", func(t *testing.T) {
+		t.Parallel()
+
+		if runtime.GOOS == "windows" {
+			t.Skip("windows has no group or other mode bits to expose the file through")
+		}
+
+		dir := t.TempDir()
+		writeConfig(t, dir, "profiles.json", profiles, 0o644)
+
+		_, errOut, code := runInConfig(t, dir, append([]string{"--provider", "openrouter"}, asking...), "", nil)
+		if code != ExitOK || errOut != "" {
+			t.Errorf("exit code = %d, stderr = %q, want %d and none", code, errOut, ExitOK)
+		}
+	})
+
+	t.Run("should not convert credentials.json under --provider", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		writeConfig(t, dir, "credentials.json", `{"providers":{"typesafe":{"api_key":"SECRET-OLD"}}}`, 0)
+
+		out, errOut, code := runInConfig(t, dir, append([]string{"--provider", "openrouter"}, asking...), "", nil)
+		assertNoSecret(t, out, errOut)
+
+		if code != ExitOK || errOut != "" {
+			t.Errorf("exit code = %d, stderr = %q, want %d and none", code, errOut, ExitOK)
+		}
+
+		if _, err := os.Stat(filepath.Join(dir, "profiles.json")); !errors.Is(err, fs.ErrNotExist) {
+			t.Errorf("profiles.json stat error = %v, want it never written", err)
 		}
 	})
 

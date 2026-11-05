@@ -16,7 +16,7 @@ func newHolder(settings rootSettings, flags *runFlags, stderr func() io.Writer) 
 	})
 
 	loaded := sync.OnceValues(func() (loadedRun, error) {
-		return loadRun(flags, settings.lookupEnv, opened)
+		return loadRun(flags, settings.lookupEnv, opened, func() string { return defaultName(settings) })
 	})
 
 	return &holder{
@@ -43,6 +43,7 @@ type holder struct {
 
 func loadRun(
 	flags *runFlags, lookupEnv func(string) (string, bool), open func() (creds.Opened, error),
+	fallback func() string,
 ) (loadedRun, error) {
 	chosen, err := choose(flags, lookupEnv)
 	if err != nil {
@@ -50,9 +51,9 @@ func loadRun(
 	}
 
 	// A run that names its provider never opens the file, so CI that names one stays apart from any
-	// file on the machine.
+	// file on the machine. It only peeks at the default it runs without, for the notice.
 	if chosen.provider != "" {
-		return loadedRun{chosen: chosen}, nil
+		return loadedRun{chosen: chosen, fallback: fallback()}, nil
 	}
 
 	opened, err := open()
@@ -108,6 +109,24 @@ func (r loadedRun) values() *setting.ProfileValues {
 		},
 		KeyHeld: !holdsNoKey(r.profile),
 	}
+}
+
+func defaultName(settings rootSettings) string {
+	if settings.profilesPath == nil {
+		return ""
+	}
+
+	path, err := settings.profilesPath()
+	if err != nil {
+		return ""
+	}
+
+	profiles, found, err := settings.credStore.LoadProfiles(path)
+	if err != nil || !found {
+		return ""
+	}
+
+	return profiles.Default
 }
 
 func openProfiles(settings rootSettings, stderr io.Writer) (creds.Opened, error) {

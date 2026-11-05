@@ -1099,27 +1099,25 @@ func quietResult(question plan.Question, a *answer.Answer) error {
 }
 
 type runFlags struct {
-	version     bool
-	provider    string
-	providerSet bool
-	profile     string
-	profileSet  bool
-	mock        string
-	out         string
-	resume      bool
-	prune       bool
-	output      string
-	raw         bool
-	quiet       bool
-	usage       bool
-	input       string
-	state       string
-	stateFile   string
-	model       string
-	baseURL     string
-	allowHTTP   bool
-	file        string
-	replace     bool
+	version   bool
+	provider  string
+	profile   string
+	mock      string
+	out       string
+	resume    bool
+	prune     bool
+	output    string
+	raw       bool
+	quiet     bool
+	usage     bool
+	input     string
+	state     string
+	stateFile string
+	model     string
+	baseURL   string
+	allowHTTP bool
+	file      string
+	replace   bool
 
 	assert    []string
 	abstainIf []string
@@ -1153,9 +1151,9 @@ type runFlags struct {
 }
 
 func (f *runFlags) providerChosen() bool {
-	return f.providerSet || f.given.Count(setting.Provider.Name()) > 0
+	return f.given.Count(setting.Provider.Name()) > 0
 }
 
 func (f *runFlags) profileChosen() bool {
-	return f.profileSet || f.given.Count(setting.Profile.Name()) > 0
+	return f.given.Count(setting.Profile.Name()) > 0
 }

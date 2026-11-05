@@ -42,30 +42,28 @@ func checkChoice(flags *runFlags, lookupEnv func(string) (string, bool)) error {
 }
 
 func choose(flags *runFlags, lookupEnv func(string) (string, bool)) (choice, error) {
-	if flags.profileChosen() && flags.providerChosen() {
-		return choice{}, errors.New("--profile and --provider both choose what the run uses. Pass one")
-	}
+	chosen, err := setting.Choose(setting.Table(), setting.Sources{
+		Given: flags.given, LookupEnv: lookupEnv, Facts: setting.Facts{Command: setting.CommandRoot},
+	})
 
 	switch {
-	case flags.profileChosen():
-		return choice{profile: strings.TrimSpace(flags.profile), by: "--" + flagProfile}, nil
-	case flags.providerChosen():
-		return choice{provider: strings.TrimSpace(flags.provider), by: "--" + flagProvider}, nil
+	case err != nil:
+		return choice{}, err
+	case chosen.Profile != "":
+		return choice{profile: chosen.Profile, by: chooser(chosen.ProfileBy, flagProfile, envProfile)}, nil
+	case chosen.Provider != "":
+		return choice{provider: chosen.Provider, by: chooser(chosen.ProviderBy, flagProvider, envProvider)}, nil
+	default:
+		return choice{}, nil
+	}
+}
+
+func chooser(by setting.Source, flag, variable string) string {
+	if by == setting.SourceFlag {
+		return "--" + flag
 	}
 
-	profile, provider := setVariable(lookupEnv, envProfile), setVariable(lookupEnv, envProvider)
-
-	switch {
-	case profile != "" && provider != "":
-		return choice{}, fmt.Errorf(
-			"%s and %s are both set, and each chooses what the run uses. Unset one", envProfile, envProvider)
-	case profile != "":
-		return choice{profile: profile, by: envProfile}, nil
-	case provider != "":
-		return choice{provider: provider, by: envProvider}, nil
-	}
-
-	return choice{}, nil
+	return variable
 }
 
 type choice struct {

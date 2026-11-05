@@ -22,7 +22,7 @@ const (
 	providerCF      = "cloudflare"
 	providerEnvHelp = "runs without a profile on this provider when neither `--profile` nor `--provider` is given. " +
 		"Set beside `ONESIE_PROFILE`, it exits 2"
-	profileEnvHelp       = "the profile a run uses when neither `--profile` nor `--provider` is given"
+	profileEnvHelp       = "the profile a run uses when `--profile` is not given. Beside `--provider`, it exits 2"
 	profileModelHelp     = "the model a run uses when it names none"
 	profileBaseURLHelp   = "the api root the profile's runs use"
 	profileAllowHTTPHelp = "store a plain http --base-url to a host other than this machine. Every run on the " +
@@ -423,7 +423,8 @@ func choiceRows() []Row {
 				CommandProfileCreate: {Help: "the profile's provider, " + providers.Names() + ". Required", Kind: Text()},
 				CommandProfileUpdate: {Help: "a new provider for the profile, which needs --key"},
 			}},
-			Help: "run on this provider without a profile, " + providers.Names() + ". Overrides ONESIE_PROVIDER",
+			Help: "run on this provider without a profile, " + providers.Names() + ". Overrides ONESIE_PROVIDER and the " +
+				"default profile. Refused beside --profile or ONESIE_PROFILE",
 		},
 		{
 			Name: "profile", Kind: NonEmptyText(), Modes: choosing(),
@@ -431,8 +432,8 @@ func choiceRows() []Row {
 			Flag: FlagSpec{Long: "profile", Commands: onRoot(), PerCommand: map[Command]CommandFlag{
 				CommandRoot: {Persistent: true},
 			}},
-			Help: "the profile a run uses, from profiles.json in the config dir. Also ONESIE_PROFILE, and otherwise " +
-				"the default profile, which onesie profile use sets",
+			Help: "the profile a run uses, from profiles.json in the config dir. Overrides ONESIE_PROFILE and " +
+				"ONESIE_PROVIDER, and otherwise the default profile runs, which onesie profile use sets",
 		},
 	}, endpointRows()...)
 }

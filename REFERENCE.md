@@ -678,13 +678,18 @@ on the provider's key variable alone.
 | `ONESIE_PROFILE` or `ONESIE_PROVIDER` | environment |
 | the file's `default`, which `profile use` sets | file |
 
-- The strongest choice wins, so a flag beats a variable, and a variable beats the default.
+- The strongest choice wins, so a flag beats a variable, and a variable beats the default. A choice
+  that beats another prints a notice on stderr, as in
+  `onesie: --profile work overrides ONESIE_PROVIDER`.
 - Two choices of the same strength exit 2, naming both. So `--profile` with `--provider` exits 2,
-  and so do `ONESIE_PROFILE` and `ONESIE_PROVIDER` set together.
+  and so do `ONESIE_PROFILE` and `ONESIE_PROVIDER` set together. `--provider` beside
+  `ONESIE_PROFILE` exits 2 too, since a provider would drop the profile the environment names.
+  `--profile` beside `ONESIE_PROVIDER` runs the profile.
 - An empty or whitespace only variable counts as unset. A flag that names a value, such as a file,
   a model or a profile, exits 2 on an empty or whitespace only one, so `--mock "$UNSET"` never
   reaches the API. `profile update` is the exception, where an empty value clears a member.
-- `--provider` or `ONESIE_PROVIDER` runs without a profile.
+- `--provider` or `ONESIE_PROVIDER` runs without a profile, and names a default profile it leaves
+  out, as in `onesie: --provider openrouter runs without the default profile 'work'`.
 - With no choice and no profiles, a run uses no profile and the `typesafe` provider.
 - With no choice, and profiles but no default, a run exits 2 and names `onesie profile use NAME`,
   `--profile NAME` and `--provider NAME`.
@@ -731,16 +736,18 @@ Each setting takes the first source that gives it, in this order:
 - Spaces around a variable's value are trimmed, and a blank one is unset. A variable that has no
   effect in the run's mode is skipped silently, even a value its flag would refuse, as
   `ONESIE_MOCK` is beside `--list-models` and `ONESIE_CACHE` beside `--print-request`.
-- A run that `--provider` or `ONESIE_PROVIDER` chooses, and that succeeds, never opens
-  `profiles.json`, so CI that names its provider does not depend on any file on the machine. Only a
-  run that then fails for a missing key or an unknown provider reads it, to name a profile in the
-  hint. Under `ONESIE_PROVIDER` with no profile for that provider, the hint names the key variable
+- A run that `--provider` or `ONESIE_PROVIDER` chooses reads `profiles.json` only for the name of
+  the default profile it runs without. That read converts nothing, and a missing, unreadable or
+  exposed file only drops the notice, so CI that names its provider does not depend on any file on
+  the machine. A run that then fails for a missing key or an unknown provider reads it again, to
+  name a profile in the hint. Under `ONESIE_PROVIDER` with no profile for that provider, the hint names the key variable
   and says a stored profile is not used while the variable is set.
 
 | Run | Reads `profiles.json` |
 |-----|-----------------------|
 | `profile show`, `profile list` and `profile test` | always, whatever chooses |
-| `--print-questions` and `--print-schema` | never |
+| `--print-schema`, and `--print-questions` with no provider chosen | never |
+| a run that `--provider` or `ONESIE_PROVIDER` chooses | only for the default profile's name, converting nothing, and never fails the run |
 | any other run, `--print-request` and `--mock` included | yes, before any other check of the run's flags, so a `profiles.json` others can reach exits 3 there too |
 
 - Reading `profiles.json` never opens the keychain. Only a run that sends a request reads a keychain
@@ -901,7 +908,7 @@ table, and `onesie calibrate --help` lists the codes calibrate uses.
 | `TYPESAFE_DEFAULT_MODEL` | the model on typesafe when neither `-m`, a chosen profile nor a request body names one. It beats the default profile's `model` |
 | `ONESIE_BASE_URL` | the API root on every provider when neither `--base-url` nor a chosen profile's `base_url` or `account_id` names one. It beats the default profile's |
 | `TYPESAFE_BASE_URL` | the API root on typesafe when neither `--base-url`, a chosen profile nor `ONESIE_BASE_URL` names one, so `ONESIE_BASE_URL` wins. It beats the default profile's |
-| `ONESIE_PROFILE` | the profile a run uses when neither `--profile` nor `--provider` is given |
+| `ONESIE_PROFILE` | the profile a run uses when `--profile` is not given. Beside `--provider`, it exits 2 |
 | `ONESIE_PROVIDER` | runs without a profile on this provider when neither `--profile` nor `--provider` is given. Set beside `ONESIE_PROFILE`, it exits 2 |
 | `ONESIE_CONFIG_DIR` | where `profiles.json` and the saved question files live |
 | `ONESIE_MOCK` | a file to answer from, as `--mock`. Skipped beside `--list-models`, `-i request` and `--print-request` |
