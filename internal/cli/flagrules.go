@@ -8,7 +8,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/frodi-karlsson/onesie/internal/argv"
 	"github.com/frodi-karlsson/onesie/internal/input"
 	"github.com/frodi-karlsson/onesie/internal/limits"
 	"github.com/frodi-karlsson/onesie/internal/plan"
@@ -70,7 +69,7 @@ func validatePlan(built *plan.Plan, config runConfig, facts runFacts) ([]string,
 func checkFlags(config runConfig, facts runFacts) (string, error) {
 	// Ahead of the request mode rules, so a flag both of them reject is reported against
 	// --list-models, which is the flag that made the mode meaningless.
-	if err := checkListModels(config, facts); err != nil {
+	if _, err := validateRun(config, facts, nil, modeRules("list-models-alone")); err != nil {
 		return "", err
 	}
 
@@ -84,10 +83,12 @@ func checkFlags(config runConfig, facts runFacts) (string, error) {
 
 	// Both ahead of the output and streaming rules, so a dry run is rejected before anything it
 	// would have written reaches stdout.
-	for _, check := range flagChecks(config) {
-		if err := check(config, facts); err != nil {
-			return "", err
-		}
+	if _, err := validateRun(config, facts, nil, modeRules("dry-run-and-request")); err != nil {
+		return "", err
+	}
+
+	if err := checkDelimiter(config); err != nil {
+		return "", err
 	}
 
 	if err := checkAbstainNeedsAssert(config, facts); err != nil {
@@ -180,20 +181,7 @@ func checkPrune(config runConfig) error {
 	}
 }
 
-func flagChecks(config runConfig) []func(runConfig, runFacts) error {
-	// A dry run forwards nothing, writes no response body and makes no request, which is what
-	// every output facing reason in the request mode table claims. Its own message is the true one
-	// here, so it answers first.
-	if config.printRequest {
-		return []func(runConfig, runFacts) error{checkPrintFlags, checkRequestMode, checkDelimiter}
-	}
-
-	// Otherwise the request mode rules lead, so a flag -i request rejects outright is named by the
-	// message that says so rather than by a general one that happens to fire first.
-	return []func(runConfig, runFacts) error{checkRequestMode, checkPrintFlags, checkDelimiter}
-}
-
-func checkDelimiter(config runConfig, _ runFacts) error {
+func checkDelimiter(config runConfig) error {
 	if !config.hasDelimiter {
 		return nil
 	}
@@ -227,265 +215,12 @@ func delimiterlessReason(mode input.Mode) string {
 	return "has no delimiter"
 }
 
-func checkListModels(config runConfig, facts runFacts) error {
-	if !config.listModels {
-		return nil
-	}
-
-	if config.positional != "" {
-		return errors.New("--list-models asks no question. Drop the question argument")
-	}
-
-	// Every group flag at once, since a listing has no use for any of them and the only part of
-	// the message that varies is the name the user typed.
-	if len(config.events) > 0 {
-		return fmt.Errorf("--list-models asks no question. Drop --%s", config.events[0].Name)
-	}
-
-	// In a fixed order, for the same reason checkRequestMode is.
-	for _, rule := range []struct {
-		given   bool
-		message string
-	}{
-		{config.file != "", "-f does not apply to --list-models, which asks no question"},
-		{config.replace, "--replace applies to -f, which --list-models does not accept"},
-		{config.hasState, "--state does not apply to --list-models, which reads no state"},
-		{config.hasStateFile, "--state-file does not apply to --list-models, " +
-			"which reads no state"},
-		{config.hasInput, "-i does not apply to --list-models, which reads no input"},
-		{config.hasMap, "--map does not apply to --list-models, which reads no state"},
-		{config.hasID, "--id does not apply to --list-models, which reads no input"},
-		{config.output != "", "-o does not apply to --list-models, " +
-			"which writes a fixed listing"},
-		{config.raw, "-r does not apply to --list-models, which writes a fixed listing"},
-		{config.quiet, "-q suppresses output, which leaves --list-models nothing to write"},
-		{hasAssert(config, facts), "--assert judges an answer, " +
-			"which --list-models does not produce"},
-		{hasAbstainIf(config, facts), "--abstain-if judges an answer, " +
-			"which --list-models does not produce"},
-		{config.usage, "--usage reports the tokens a question cost, " +
-			"which --list-models does not ask"},
-		{merging(config), mergeName(config) + " needs answers to fold in, " +
-			"which --list-models does not produce"},
-		{config.jobsSet, "-j does not apply to --list-models, which makes one request"},
-		{config.hasModel, "-m names a model to ask, which --list-models does not do"},
-		{config.unordered, "--unordered applies to streaming input, " +
-			"which --list-models does not read"},
-		{config.stopOnError, "--stop-on-error applies to streaming input, " +
-			"which --list-models does not read"},
-		{config.stopOnAssert, "--stop-on-assert applies to streaming input, " +
-			"which --list-models does not read"},
-		{config.skipBlank, "--skip-blank applies to streaming input, " +
-			"which --list-models does not read"},
-		{config.printRequest, "--print-request and --list-models each write a different " +
-			"thing to stdout. Pass one"},
-		{config.printQuestions, "--print-questions and --list-models each write a different " +
-			"thing to stdout. Pass one"},
-		{config.mockSpelled != "", fmt.Sprintf("--list-models asks no question, so %s has nothing to answer. %s",
-			config.mockSpelled, mockAdvice(config, "--list-models"))},
-		{config.cache, "--list-models asks no question, so --cache has nothing to store. Drop one"},
-	} {
-		if rule.given {
-			return errors.New(rule.message)
-		}
-	}
-
-	return nil
-}
-
-func checkRequestMode(config runConfig, facts runFacts) error {
-	if config.inputMode != input.Request {
-		return nil
-	}
-
-	// In a fixed order, so a command line with several offenders reports a predictable one rather
-	// than whichever check happened to be written first.
-	for _, rule := range []struct {
-		given   bool
-		message string
-	}{
-		{config.positional != "", "-i request carries its own questions. " +
-			"Drop the question argument"},
-		{asked(config.events), "-i request carries its own questions. Drop --ask"},
-		{config.file != "", "-f does not apply to -i request, " +
-			"which carries its own questions"},
-		{config.replace, "--replace applies to -f, which -i request does not accept"},
-		{given(config, "pick"), "-i request carries its own questions. Drop --pick"},
-		{given(config, "rate"), "-i request carries its own questions. Drop --rate"},
-		{given(config, "box"), "-i request carries its own questions. Drop --box"},
-		{given(config, "desc"), "-i request carries its own questions. Drop --desc"},
-		{given(config, "sep"), "-i request carries its own questions. Drop --sep"},
-		{given(config, "threshold"), "--threshold does not apply to -i request, " +
-			"which carries no policy"},
-		{given(config, "min-confidence"), "--min-confidence does not apply to -i request, " +
-			"which carries no policy"},
-		{given(config, "fallback"), "--fallback does not apply to -i request, " +
-			"which carries no policy"},
-		{config.hasState, "--state does not apply to -i request, " +
-			"whose bodies carry their own state"},
-		{config.hasStateFile, "--state-file does not apply to -i request, " +
-			"whose bodies carry their own state"},
-		{len(config.images) > 0, "--image does not apply to -i request, " +
-			"whose bodies carry their own state"},
-		{len(config.imageFields) > 0, "--image-field does not apply to -i request, " +
-			"whose bodies carry their own state"},
-		{config.hasMap, "--map does not apply to -i request, " +
-			"whose bodies carry their own state"},
-		{config.hasID, "--id does not apply to -i request, which forwards raw responses"},
-		{config.output != "", "-o does not apply to -i request, which forwards raw responses"},
-		{config.raw, "-r does not apply to -i request, which forwards raw responses"},
-		{config.quiet, "-q needs a policy to report, which -i request has none of"},
-		{hasAssert(config, facts), "--assert does not apply to -i request, " +
-			"which forwards raw responses"},
-		{hasAbstainIf(config, facts), "--abstain-if does not apply to -i request, " +
-			"which forwards raw responses"},
-		{config.usage, "--usage does not apply to -i request, " +
-			"whose response bodies already carry usage"},
-		{merging(config), mergeName(config) +
-			" does not apply to -i request, which forwards raw responses"},
-		{config.hasModel, "-m does not apply to -i request, " +
-			"whose bodies carry their own model"},
-		{config.stopOnAssert, "--stop-on-assert does not apply to -i request, " +
-			"whose bodies carry no assertion"},
-		{config.printQuestions, "--print-questions needs questions of its own, " +
-			"which -i request does not build"},
-		{config.mockSpelled != "", fmt.Sprintf("-i request sends each body as written, so %s has nothing "+
-			"to answer. %s", config.mockSpelled, mockAdvice(config, "-i request"))},
-		{config.cache, "-i request sends each body as written, so --cache has nothing to store. Drop one"},
-	} {
-		if rule.given {
-			return errors.New(rule.message)
-		}
-	}
-
-	return nil
-}
-
-func checkPrintFlags(config runConfig, facts runFacts) error {
-	if config.printRequest && config.mockSpelled != "" {
-		return fmt.Errorf("%s answers requests, and --print-request sends none. %s",
-			config.mockSpelled, mockAdvice(config, "--print-request"))
-	}
-
-	if config.printRequest && config.printQuestions {
-		return errors.New("--print-request and --print-questions each write a " +
-			"different thing to stdout. Pass one")
-	}
-
-	name, writes := printFlag(config)
-	if name == "" {
-		return nil
-	}
-
-	// A flag that would quietly do nothing is rejected, and a dry run accepts none of these. In a
-	// fixed order, for the same reason checkRequestMode is. The rules gated on printQuestions are
-	// the ones --print-request genuinely consumes.
-	for _, rule := range []struct {
-		given   bool
-		message string
-	}{
-		{
-			config.printQuestions && config.hasState,
-			"--state does not apply to --print-questions, which reads no state",
-		},
-		{
-			config.printQuestions && config.hasStateFile,
-			"--state-file does not apply to --print-questions, which reads no state",
-		},
-		{
-			config.printQuestions && config.hasInput,
-			"-i does not apply to --print-questions, which reads no input",
-		},
-		{
-			config.printQuestions && config.hasMap,
-			"--map does not apply to --print-questions, which reads no state",
-		},
-		{
-			config.printQuestions && config.hasID,
-			"--id does not apply to --print-questions, which reads no input",
-		},
-		{config.output != "", fmt.Sprintf(
-			"-o does not apply to %s, which writes %s", name, writes)},
-		{config.raw, fmt.Sprintf("-r does not apply to %s, which writes %s", name, writes)},
-		{config.quiet, fmt.Sprintf(
-			"-q suppresses output, which leaves %s nothing to write", name)},
-		// Guarded to --print-request, since --print-questions writes the assertion into the file it
-		// prints and so is the one dry run that carries it. A gate that only the file carries is
-		// ignored, so a gated file can be dry run as it stands.
-		{config.printRequest && len(config.assert) > 0, fmt.Sprintf(
-			"%s judges an answer, which --print-request does not produce",
-			assertFlag(config, facts))},
-		{config.printRequest && len(config.abstainIf) > 0, fmt.Sprintf(
-			"%s judges an answer, which --print-request does not produce",
-			abstainFlag(config, facts))},
-		{config.usage, fmt.Sprintf(
-			"--usage reports the tokens a question cost, which %s does not ask", name)},
-		{merging(config), fmt.Sprintf(
-			"%s needs answers to fold in, which %s does not produce", mergeName(config), name)},
-		{
-			config.printQuestions && config.jobsSet,
-			"-j does not apply to --print-questions, which makes no request",
-		},
-		{
-			config.printQuestions && config.hasModel,
-			"-m names a model to ask, which --print-questions does not do",
-		},
-		// --stop-on-error and --unordered are absent because streamRequests honours both. Only the
-		// assertion is a judgment a dry run never makes, so only its stop condition is rejected.
-		{
-			config.printRequest && config.stopOnAssert,
-			"--stop-on-assert ends a stream on a false assertion, " +
-				"which --print-request does not produce",
-		},
-		{config.stats, fmt.Sprintf(
-			"--stats has nothing to report with %s, which makes no request", name)},
-	} {
-		if rule.given {
-			return errors.New(rule.message)
-		}
-	}
-
-	return nil
-}
-
-func mockAdvice(config runConfig, flag string) string {
-	if config.mockSpelled == flagMock {
-		return "Drop one"
-	}
-
-	return "Unset it or drop " + flag
-}
-
-func printFlag(config runConfig) (string, string) {
-	if config.printRequest {
-		return "--print-request", "a request body"
-	}
-
-	if config.printQuestions {
-		return "--print-questions", "a question file"
-	}
-
-	return "", ""
-}
-
-func given(config runConfig, name string) bool {
-	return slices.ContainsFunc(config.events, func(event argv.Event) bool { return event.Name == name })
-}
-
 func hasAssert(config runConfig, facts runFacts) bool {
 	return len(config.assert) > 0 || facts.assert != ""
 }
 
 func hasAbstainIf(config runConfig, facts runFacts) bool {
 	return len(config.abstainIf) > 0 || facts.abstainIf != ""
-}
-
-func assertFlag(config runConfig, facts runFacts) string {
-	if len(config.assert) == 0 && facts.assert != "" {
-		return plan.Spelling(plan.OriginFile, "--assert")
-	}
-
-	return "--assert"
 }
 
 func abstainFlag(config runConfig, facts runFacts) string {

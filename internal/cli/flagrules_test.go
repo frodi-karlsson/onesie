@@ -437,22 +437,6 @@ func TestCheckFlags(t *testing.T) {
 		wantErr    string
 	}{
 		{
-			name:    "should refuse --image with -i request",
-			flags:   runFlags{images: []string{"photo=photo.png"}, input: "request", jobs: 1},
-			wantErr: "--image does not apply to -i request, whose bodies carry their own state",
-		},
-		{
-			name:    "should refuse --image-field with -i request",
-			flags:   runFlags{input: "request", jobs: 1, imageFields: []string{"photo"}},
-			wantErr: "--image-field does not apply to -i request, whose bodies carry their own state",
-		},
-		{
-			name:    "should refuse --box with -i request",
-			flags:   runFlags{input: "request", jobs: 1},
-			events:  []argv.Event{{Name: "box", Value: "x"}},
-			wantErr: "-i request carries its own questions. Drop --box",
-		},
-		{
 			name:    "should refuse --image-field on one record",
 			flags:   runFlags{input: "text", imageFields: []string{"photo"}, jobs: 1},
 			wantErr: "--image-field applies to streaming input. -i text reads one record",
@@ -675,130 +659,6 @@ func TestCheckFlags(t *testing.T) {
 			wantErr: "--resume applies to streaming input, which --print-questions does not read",
 		},
 		{
-			name:       "should reject a positional question with -i request",
-			flags:      runFlags{input: "request", jobs: 1},
-			positional: "is it urgent",
-			wantErr: "-i request carries its own questions. " +
-				"Drop the question argument",
-		},
-		{
-			name:    "should reject --ask with -i request",
-			flags:   runFlags{input: "request", jobs: 1},
-			events:  []argv.Event{{Name: "ask", Value: "a=x"}},
-			wantErr: "-i request carries its own questions. Drop --ask",
-		},
-		{
-			name:  "should reject -f with -i request",
-			flags: runFlags{input: "request", jobs: 1, file: "q.yaml"},
-			wantErr: "-f does not apply to -i request, " +
-				"which carries its own questions",
-		},
-		{
-			name:    "should reject --replace with -i request",
-			flags:   runFlags{input: "request", jobs: 1, replace: true},
-			wantErr: "--replace applies to -f, which -i request does not accept",
-		},
-		{
-			name:    "should reject --pick with -i request",
-			flags:   runFlags{input: "request", jobs: 1},
-			events:  []argv.Event{{Name: "pick", Value: "x"}},
-			wantErr: "-i request carries its own questions. Drop --pick",
-		},
-		{
-			name:    "should reject --rate with -i request",
-			flags:   runFlags{input: "request", jobs: 1},
-			events:  []argv.Event{{Name: "rate", Value: "x"}},
-			wantErr: "-i request carries its own questions. Drop --rate",
-		},
-		{
-			name:    "should reject --desc with -i request",
-			flags:   runFlags{input: "request", jobs: 1},
-			events:  []argv.Event{{Name: "desc", Value: "x"}},
-			wantErr: "-i request carries its own questions. Drop --desc",
-		},
-		{
-			name:    "should reject --sep with -i request",
-			flags:   runFlags{input: "request", jobs: 1},
-			events:  []argv.Event{{Name: "sep", Value: "x"}},
-			wantErr: "-i request carries its own questions. Drop --sep",
-		},
-		{
-			name:   "should reject --threshold with -i request",
-			flags:  runFlags{input: "request", jobs: 1},
-			events: []argv.Event{{Name: "threshold", Value: "x"}},
-			wantErr: "--threshold does not apply to -i request, " +
-				"which carries no policy",
-		},
-		{
-			name:   "should reject --min-confidence with -i request",
-			flags:  runFlags{input: "request", jobs: 1},
-			events: []argv.Event{{Name: "min-confidence", Value: "x"}},
-			wantErr: "--min-confidence does not apply to -i request, " +
-				"which carries no policy",
-		},
-		{
-			name:   "should reject --fallback with -i request",
-			flags:  runFlags{input: "request", jobs: 1},
-			events: []argv.Event{{Name: "fallback", Value: "x"}},
-			wantErr: "--fallback does not apply to -i request, " +
-				"which carries no policy",
-		},
-		{
-			name:  "should reject --state with -i request",
-			flags: runFlags{input: "request", jobs: 1},
-			given: []string{flagState},
-			wantErr: "--state does not apply to -i request, " +
-				"whose bodies carry their own state",
-		},
-		{
-			name:  "should reject --state-file with -i request",
-			flags: runFlags{input: "request", jobs: 1},
-			given: []string{flagStateFile},
-			wantErr: "--state-file does not apply to -i request, " +
-				"whose bodies carry their own state",
-		},
-		{
-			name:    "should reject --map with -i request",
-			flags:   runFlags{input: "request", jobs: 1},
-			given:   []string{flagMap},
-			wantErr: "--map does not apply to -i request, whose bodies carry their own state",
-		},
-		{
-			name:    "should reject --map with --list-models",
-			flags:   runFlags{listModels: true, input: "text"},
-			given:   []string{flagMap},
-			wantErr: "--map does not apply to --list-models, which reads no state",
-		},
-		{
-			name:    "should reject --map with --print-questions",
-			flags:   runFlags{printQuestions: true, input: "text"},
-			given:   []string{flagMap},
-			wantErr: "--map does not apply to --print-questions, which reads no state",
-		},
-		{
-			name:  "should accept --map with --print-request",
-			flags: runFlags{printRequest: true, input: "jsonl", jobs: 1},
-			given: []string{flagMap},
-		},
-		{
-			name:    "should reject --id with -i request",
-			flags:   runFlags{input: "request", jobs: 1},
-			given:   []string{flagID},
-			wantErr: "--id does not apply to -i request, which forwards raw responses",
-		},
-		{
-			name:    "should reject --id with --list-models",
-			flags:   runFlags{listModels: true, input: "text"},
-			given:   []string{flagID},
-			wantErr: "--id does not apply to --list-models, which reads no input",
-		},
-		{
-			name:    "should reject --id with --print-questions",
-			flags:   runFlags{printQuestions: true, input: "text"},
-			given:   []string{flagID},
-			wantErr: "--id does not apply to --print-questions, which reads no input",
-		},
-		{
 			name:    "should reject --id with -i text",
 			flags:   runFlags{input: "text"},
 			given:   []string{flagID},
@@ -816,59 +676,9 @@ func TestCheckFlags(t *testing.T) {
 			given: []string{flagID},
 		},
 		{
-			name:  "should accept --id with --print-request",
-			flags: runFlags{printRequest: true, input: "csv", jobs: 1},
-			given: []string{flagID},
-		},
-		{
-			name:    "should reject -o with -i request",
-			flags:   runFlags{input: "request", jobs: 1, output: "json"},
-			wantErr: "-o does not apply to -i request, which forwards raw responses",
-		},
-		{
-			name:    "should reject -r with -i request",
-			flags:   runFlags{input: "request", jobs: 1, raw: true},
-			wantErr: "-r does not apply to -i request, which forwards raw responses",
-		},
-		{
 			name:    "should reject -q with -i request",
 			flags:   runFlags{input: "request", jobs: 1, quiet: true},
 			wantErr: "-q needs a policy to report, which -i request has none of",
-		},
-		{
-			name:  "should reject --usage with -i request",
-			flags: runFlags{input: "request", jobs: 1, usage: true},
-			wantErr: "--usage does not apply to -i request, " +
-				"whose response bodies already carry usage",
-		},
-		{
-			name:    "should reject --merge with -i request",
-			flags:   runFlags{merge: true, input: "request", jobs: 1},
-			wantErr: "--merge does not apply to -i request, which forwards raw responses",
-		},
-		{
-			name:  "should name --merge-key when that is the flag given",
-			flags: runFlags{mergeKey: "verdict", input: "request", jobs: 1},
-			wantErr: "--merge-key does not apply to -i request, " +
-				"which forwards raw responses",
-		},
-		{
-			name:  "should reject -m with -i request",
-			flags: runFlags{input: "request", jobs: 1},
-			given: []string{flagModel},
-			wantErr: "-m does not apply to -i request, " +
-				"whose bodies carry their own model",
-		},
-		{
-			name:  "should reject --print-questions with -i request",
-			flags: runFlags{input: "request", jobs: 1, printQuestions: true},
-			wantErr: "--print-questions needs questions of its own, " +
-				"which -i request does not build",
-		},
-		{
-			name:  "should accept the streaming flags with -i request",
-			flags: runFlags{input: "request", jobs: 4, unordered: true, stopOnError: true, skipBlank: true},
-			given: []string{flagJobs},
 		},
 		{
 			name:    "should still reject -j 0 with -i request",
@@ -880,116 +690,6 @@ func TestCheckFlags(t *testing.T) {
 			name:    "should reject -r with -o outside request mode",
 			flags:   runFlags{raw: true, output: "json", input: "text"},
 			wantErr: "-r and -o are mutually exclusive",
-		},
-		{
-			name:  "should reject both print flags at once",
-			flags: runFlags{printRequest: true, printQuestions: true, input: "text"},
-			wantErr: "--print-request and --print-questions each write a different " +
-				"thing to stdout. Pass one",
-		},
-		{
-			name:    "should reject -o with --print-questions",
-			flags:   runFlags{printQuestions: true, output: "json", input: "text"},
-			wantErr: "-o does not apply to --print-questions, which writes a question file",
-		},
-		{
-			name:    "should reject -r with --print-request",
-			flags:   runFlags{printRequest: true, raw: true, input: "text"},
-			wantErr: "-r does not apply to --print-request, which writes a request body",
-		},
-		{
-			name:  "should name --merge-key when that is the spelling given",
-			flags: runFlags{mergeKey: "verdict", printRequest: true, input: "text"},
-			wantErr: "--merge-key needs answers to fold in, " +
-				"which --print-request does not produce",
-		},
-		{
-			name:    "should reject -q with --print-request",
-			flags:   runFlags{printRequest: true, quiet: true, input: "text"},
-			wantErr: "-q suppresses output, which leaves --print-request nothing to write",
-		},
-		{
-			name:  "should reject --stats with --print-questions",
-			flags: runFlags{printQuestions: true, stats: true, input: "text"},
-			wantErr: "--stats has nothing to report with --print-questions, " +
-				"which makes no request",
-		},
-		{
-			name:  "should reject --stats with --print-request under -i request",
-			flags: runFlags{input: "request", jobs: 1, printRequest: true, stats: true},
-			wantErr: "--stats has nothing to report with --print-request, " +
-				"which makes no request",
-		},
-		{
-			name:  "should accept --stats on its own under -i request",
-			flags: runFlags{input: "request", jobs: 1, stats: true},
-		},
-		{
-			// The request mode reason is untrue once --print-request is set, since nothing is
-			// forwarded and no request is made.
-			name:    "should blame the dry run rather than the mode for -o under -i request",
-			flags:   runFlags{input: "request", jobs: 1, printRequest: true, output: "json"},
-			wantErr: "-o does not apply to --print-request, which writes a request body",
-		},
-		{
-			// Same, and there is no response body to carry a usage object either.
-			name:  "should blame the dry run rather than the mode for --usage under -i request",
-			flags: runFlags{input: "request", jobs: 1, printRequest: true, usage: true},
-			wantErr: "--usage reports the tokens a question cost, " +
-				"which --print-request does not ask",
-		},
-		{
-			name:    "should keep the request mode reason for a flag the dry run has no rule for",
-			flags:   runFlags{input: "request", jobs: 1, printRequest: true},
-			events:  []argv.Event{{Name: "ask", Value: "a=x"}},
-			wantErr: "-i request carries its own questions. Drop --ask",
-		},
-		{
-			name:  "should reject --assert with -i request",
-			flags: runFlags{assert: []string{"answer.value > 0.5"}, input: "request", jobs: 1},
-			wantErr: "--assert does not apply to -i request, " +
-				"which forwards raw responses",
-		},
-		{
-			name:    "should reject --assert with --list-models",
-			flags:   runFlags{assert: []string{"answer.value > 0.5"}, listModels: true, input: "text"},
-			wantErr: "--assert judges an answer, which --list-models does not produce",
-		},
-		{
-			name:    "should reject --assert with --print-request",
-			flags:   runFlags{assert: []string{"answer.value > 0.5"}, printRequest: true, input: "text"},
-			wantErr: "--assert judges an answer, which --print-request does not produce",
-		},
-		{
-			name:  "should ignore a file's assertion with --print-request",
-			flags: runFlags{printRequest: true, file: "q.yaml", input: "text"},
-			facts: runFacts{assert: "answer.value > 0.5"},
-		},
-		{
-			name:  "should ignore a file's two gates with --print-request",
-			flags: runFlags{printRequest: true, file: "q.yaml", input: "text"},
-			facts: runFacts{assert: "answer.value > 0.5", abstainIf: "answer.value > 0.4"},
-		},
-		{
-			name:    "should reject --assert typed beside a file's assertion with --print-request",
-			flags:   runFlags{assert: []string{"answer.value > 0.5"}, printRequest: true, file: "q.yaml", input: "text"},
-			wantErr: "--assert judges an answer, which --print-request does not produce",
-		},
-		{
-			name:    "should reject --abstain-if typed beside a file's gates with --print-request",
-			flags:   runFlags{abstainIf: []string{"answer.value > 0.4"}, printRequest: true, file: "q.yaml", input: "text"},
-			facts:   runFacts{assert: "answer.value > 0.5"},
-			wantErr: "--abstain-if judges an answer, which --print-request does not produce",
-		},
-		{
-			name:  "should accept --assert with --print-questions",
-			flags: runFlags{assert: []string{"answer.value > 0.5"}, printQuestions: true, input: "text"},
-		},
-		{
-			name:  "should reject --stop-on-assert with --print-request",
-			flags: runFlags{printRequest: true, stopOnAssert: true, input: "lines"},
-			wantErr: "--stop-on-assert ends a stream on a false assertion, " +
-				"which --print-request does not produce",
 		},
 		{
 			name:    "should reject --abstain-if without an assertion",
@@ -1016,35 +716,6 @@ func TestCheckFlags(t *testing.T) {
 			name:  "should accept --stop-on-assert when the only assertion comes from the file",
 			flags: runFlags{stopOnAssert: true, file: "q.yaml", input: "jsonl"},
 			facts: runFacts{assert: "answer.value > 0.5"},
-		},
-		{
-			name:    "should reject --abstain-if with --list-models",
-			flags:   runFlags{abstainIf: []string{"answer.value > 0.4"}, listModels: true, input: "text"},
-			wantErr: "--abstain-if judges an answer, which --list-models does not produce",
-		},
-		{
-			name:  "should reject --abstain-if with -i request",
-			flags: runFlags{abstainIf: []string{"answer.value > 0.4"}, input: "request", jobs: 1},
-			wantErr: "--abstain-if does not apply to -i request, " +
-				"which forwards raw responses",
-		},
-		{
-			name:    "should name --assert first when --print-request is given both gates",
-			flags:   runFlags{assert: []string{"answer.value > 0.5"}, abstainIf: []string{"answer.value > 0.4"}, printRequest: true, input: "text"},
-			wantErr: "--assert judges an answer, which --print-request does not produce",
-		},
-		{
-			name:    "should reject --abstain-if with --print-request",
-			flags:   runFlags{abstainIf: []string{"answer.value > 0.4"}, printRequest: true, input: "text"},
-			wantErr: "--abstain-if judges an answer, which --print-request does not produce",
-		},
-		{
-			name:  "should accept --abstain-if with --print-questions",
-			flags: runFlags{assert: []string{"answer.value > 0.5"}, abstainIf: []string{"answer.value > 0.4"}, printQuestions: true, input: "text"},
-		},
-		{
-			name:  "should accept --stop-on-error with --print-request",
-			flags: runFlags{printRequest: true, stopOnError: true, input: "lines"},
 		},
 	}
 
