@@ -3,7 +3,6 @@ package settings
 import (
 	"reflect"
 	"slices"
-	"strings"
 
 	"github.com/frodi-karlsson/onesie-go"
 
@@ -104,12 +103,13 @@ func pairKey(merged *Merged, ranked []Layer, notices []Notice) []Notice {
 }
 
 func ownEndpoint(merged *Merged, endpoint EndpointValue) bool {
+	// An endpoint on a provider with accounts names an account, so it always pairs with its key.
 	provider, err := onesie.ProviderNamed(textOf(merged.values[providerName]))
-	if err != nil || endpoint.AccountID != "" || provider.DefaultBaseURL() == "" {
+	if err != nil || endpoint.AccountID != "" || provider.EnvAccountID() != "" {
 		return false
 	}
 
-	return strings.TrimRight(strings.TrimSpace(endpoint.BaseURL), "/") == provider.DefaultBaseURL()
+	return !provider.CustomBaseURL(endpoint.BaseURL)
 }
 
 func keySources(endpoint Source) []Source {

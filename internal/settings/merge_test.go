@@ -452,6 +452,45 @@ func TestMerge(t *testing.T) {
 			wantNotices: []string{"TYPESAFE_API_KEY overrides the default profile's api_key"},
 		},
 		{
+			name: "should keep the default profile's key on ONESIE_BASE_URL set to the provider's own, slash and all",
+			reading: reading{
+				defaultProfile: "work", keyHeld: true, profile: map[string]string{"provider": "typesafe"},
+				env: map[string]string{"ONESIE_BASE_URL": "https://api.typesafe.ai/"},
+			},
+			want:        values{"api_key": settings.HeldKey{}},
+			wantSources: map[settings.Name]settings.Source{"api_key": settings.SourceDefaultProfile},
+		},
+		{
+			name: "should send no held key to a lookalike host",
+			reading: reading{
+				defaultProfile: "work", keyHeld: true, profile: map[string]string{"provider": "typesafe"},
+				env: map[string]string{"ONESIE_BASE_URL": "https://api.typesafe.ai.example.com"},
+			},
+			want: values{"api_key": nil},
+			wantNotices: []string{"ONESIE_BASE_URL overrides the default profile's api_key, since a key goes only " +
+				"with its own endpoint"},
+		},
+		{
+			name: "should send no held key to the provider's host on another path",
+			reading: reading{
+				defaultProfile: "work", keyHeld: true, profile: map[string]string{"provider": "typesafe"},
+				env: map[string]string{"ONESIE_BASE_URL": "https://api.typesafe.ai/proxy"},
+			},
+			want: values{"api_key": nil},
+			wantNotices: []string{"ONESIE_BASE_URL overrides the default profile's api_key, since a key goes only " +
+				"with its own endpoint"},
+		},
+		{
+			name: "should send no held key to the provider's host with userinfo",
+			reading: reading{
+				defaultProfile: "work", keyHeld: true, profile: map[string]string{"provider": "typesafe"},
+				env: map[string]string{"ONESIE_BASE_URL": "https://user@api.typesafe.ai"},
+			},
+			want: values{"api_key": nil},
+			wantNotices: []string{"ONESIE_BASE_URL overrides the default profile's api_key, since a key goes only " +
+				"with its own endpoint"},
+		},
+		{
 			name: "should leave a chosen profile with its own base_url and key alone",
 			reading: reading{
 				args: []string{"--profile", "work"}, keyHeld: true,
