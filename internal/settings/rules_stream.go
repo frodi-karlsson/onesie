@@ -1,0 +1,158 @@
+package settings
+
+import (
+	"errors"
+	"fmt"
+
+	"github.com/frodi-karlsson/onesie/internal/input"
+)
+
+const lineField = "line"
+
+func numberRangesRule() Rule {
+	return Rule{
+		ID:    "numbers-in-range",
+		Reads: checkedNames(),
+		Check: func(v View) error {
+			// Checked for every mode. A number is refused rather than clamped, and a typo in a shared
+			// alias is exactly as wrong outside a stream as inside one.
+			for _, row := range Table() {
+				if row.Check == nil || !typed(v, row.Name) {
+					continue
+				}
+
+				if err := row.Check(v.Merged.values[row.Name]); err != nil {
+					return err
+				}
+			}
+
+			return nil
+		},
+	}
+}
+
+func checkedNames() []Name {
+	var names []Name
+
+	for _, row := range Table() {
+		if row.Check != nil {
+			names = append(names, row.Name)
+		}
+	}
+
+	return names
+}
+
+func singleRecordRule() Rule {
+	return Rule{
+		ID: "streaming-flags-need-a-stream",
+		Reads: []Name{
+			Input.Name(), Unordered.Name(), StopOnError.Name(), StopOnAssert.Name(), SkipBlank.Name(), NoDedup.Name(),
+			ID.Name(), imageFieldName, imageName, State.Name(), StateFile.Name(), Jobs.Name(),
+		},
+		Check: singleRecordRefusal,
+		Warn: func(v View) []string {
+			// A resource hint rather than a semantic one, and it may reasonably come from a shared
+			// alias, so it warns and the run goes on.
+			jobs := Get(v.Merged, Jobs)
+			if inputModeOf(v).Streaming() || jobs <= 1 || singleRecordRefusal(v) != nil {
+				return nil
+			}
+
+			return []string{fmt.Sprintf("-j %d ignored. -i %s reads one record", jobs, inputName(v))}
+		},
+	}
+}
+
+func singleRecordRefusal(v View) error {
+	if inputModeOf(v).Streaming() {
+		return nil
+	}
+
+	for _, flag := range []struct {
+		name string
+		set  bool
+	}{
+		{"--unordered", Get(v.Merged, Unordered)},
+		{"--stop-on-error", Get(v.Merged, StopOnError)},
+		{"--stop-on-assert", Get(v.Merged, StopOnAssert)},
+		{"--skip-blank", Get(v.Merged, SkipBlank)},
+		{"--no-dedup", Get(v.Merged, NoDedup)},
+		{"--id", typed(v, ID.Name())},
+		{"--image-field", len(listOf(v, imageFieldName)) > 0},
+	} {
+		if flag.set {
+			return fmt.Errorf("%s applies to streaming input. -i %s reads one record", flag.name, inputName(v))
+		}
+	}
+
+	if typed(v, Input.Name()) && len(listOf(v, imageName)) > 0 && !typed(v, State.Name()) && !typed(v, StateFile.Name()) {
+		return fmt.Errorf("-i %s holds one record, which beside --image reads stdin only through "+
+			"--state -. Pass --state - to read the state from stdin", inputName(v))
+	}
+
+	return nil
+}
+
+func streamStateRule() Rule {
+	return Rule{
+		ID:    "stream-reads-its-own-state",
+		Reads: []Name{Input.Name(), State.Name(), StateFile.Name(), imageFieldName},
+		Check: func(v View) error {
+			mode := inputModeOf(v)
+			if !mode.Streaming() {
+				return nil
+			}
+
+			// The flag the user typed and the mode they gave. Naming --state for a --state-file mistake
+			// sends them to the wrong flag, and naming jsonl for a lines run sends them to the wrong mode.
+			switch {
+			case typed(v, State.Name()):
+				return fmt.Errorf("--state cannot be combined with -i %s", inputName(v))
+			case typed(v, StateFile.Name()):
+				return fmt.Errorf("--state-file cannot be combined with -i %s", inputName(v))
+			case mode == input.Lines && len(listOf(v, imageFieldName)) > 1:
+				return errors.New("-i lines takes one --image-field, since a line holds one path")
+			default:
+				return nil
+			}
+		},
+	}
+}
+
+func tableOnStreamRule() Rule {
+	return Rule{
+		ID:    "table-reads-one-record",
+		Reads: []Name{Output.Name(), Input.Name()},
+		Check: func(v View) error {
+			// A stream writes one line per input line. A table is several lines with a repeated header,
+			// and unlike raw it has no streaming form.
+			if inputModeOf(v).Streaming() && Get(v.Merged, Output) == "table" {
+				return fmt.Errorf("-o table reads one record. Drop -i %s or use -o json", inputName(v))
+			}
+
+			return nil
+		},
+	}
+}
+
+func lineFieldRule() Rule {
+	return Rule{
+		ID:    "line-field-reserved",
+		Reads: []Name{Input.Name()},
+		Check: func(v View) error {
+			if v.Plan == nil || inputModeOf(v) != input.Lines {
+				return nil
+			}
+
+			for _, question := range v.Plan.Questions {
+				if question.ID == lineField {
+					return fmt.Errorf("question id '%s' is reserved under -i lines, "+
+						"which writes the input line number as %s", lineField, lineField)
+				}
+			}
+
+			return nil
+		},
+	}
+}

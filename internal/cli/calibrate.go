@@ -13,7 +13,6 @@ import (
 
 	"github.com/frodi-karlsson/onesie/internal/argv"
 	"github.com/frodi-karlsson/onesie/internal/calibrate"
-	"github.com/frodi-karlsson/onesie/internal/input"
 	"github.com/frodi-karlsson/onesie/internal/jq"
 	"github.com/frodi-karlsson/onesie/internal/output"
 	"github.com/frodi-karlsson/onesie/internal/plan"
@@ -143,11 +142,9 @@ func runCalibrate(
 	}
 
 	inputMode := flags.inputMode
-
-	reqs, err := checkCalibrate(cmd, flags, calib)
-	if err != nil {
-		return err
-	}
+	flags.calibrate = &calib
+	flags.cutsSet = cmd.Flags().Changed(flagCuts)
+	flags.reportSet = cmd.Flags().Changed("output")
 
 	// A file's gate and policy are ignored, since calibrate reports every cut and a gated file is
 	// the one a user calibrates.
@@ -157,6 +154,11 @@ func runCalibrate(
 		return warnErr
 	}
 
+	if err != nil {
+		return err
+	}
+
+	reqs, err := parseRequirements(calib.requires)
 	if err != nil {
 		return err
 	}
@@ -197,79 +199,6 @@ func runCalibrate(
 	return calibrateRun(cmd, settings, flags, calib, inputMode, inv, scope, bound)
 }
 
-func checkCalibrate(cmd *cobra.Command, flags runConfig, calib calibrateFlags) ([]calibrate.Requirement, error) {
-	if err := checkCalibrateInput(flags); err != nil {
-		return nil, err
-	}
-
-	if err := checkOffline(flags, calib); err != nil {
-		return nil, err
-	}
-
-	if !flags.hasMap {
-		return nil, errors.New("calibrate needs --map. Without it the whole record, label included, " +
-			"would be the state, and the report would flatter the question")
-	}
-
-	switch calib.report {
-	case "", "auto", "table", "json":
-	default:
-		return nil, fmt.Errorf("calibrate -o takes table, json or auto, got %s", calib.report)
-	}
-
-	if flags.printRequest && cmd.Flags().Changed("output") {
-		return nil, errors.New("-o does not apply to --print-request, which writes a request body")
-	}
-
-	if cmd.Flags().Changed(flagCuts) {
-		if _, err := calibrate.ParseCuts(calib.cuts); err != nil {
-			return nil, fmt.Errorf("--cuts %w", err)
-		}
-	}
-
-	// A dry run is left to the flag rules, whose message drops --resume rather than asking for an
-	// --id it would then refuse as well.
-	if flags.resume && !flags.hasID && !flags.printRequest {
-		return nil, errors.New(
-			"calibrate resumes by id, since which records are asked follows the labels. Pass --id")
-	}
-
-	// A resume is left to the flag rules, whose message names --resume as the flag with nothing to
-	// do.
-	if flags.printRequest && flags.out != "" && !flags.resume {
-		return nil, errors.New("--print-request writes request bodies to stdout, " +
-			"so --out has no answers to hold. Drop --out")
-	}
-
-	// A dry run is left to the flag rules, whose message names --print-request as the reason.
-	if flags.usage && !flags.printRequest && flags.out == "" && calib.report != "json" {
-		return nil, errors.New("--usage adds token counts to the answers file or the json report, " +
-			"and this run writes neither")
-	}
-
-	return parseRequirements(calib.requires)
-}
-
-func checkOffline(flags runConfig, calib calibrateFlags) error {
-	switch {
-	case !calib.offline:
-		return nil
-	case flags.mockSpelled != "":
-		return fmt.Errorf("--offline reads every answer from --out, and %s answers from a file of "+
-			"its own. Drop one", flags.mockSpelled)
-	case flags.printRequest:
-		return errors.New("--offline reads answers, and --print-request sends no request. Drop one")
-	case flags.out == "":
-		return errors.New("--offline reads every answer from --out. Pass --out FILE --resume")
-	case !flags.resume:
-		return errors.New("--offline needs --resume, since it reads the answers --out already holds")
-	case flags.prune:
-		return errors.New("--offline never rewrites --out, so --prune has nothing to drop. Drop one")
-	}
-
-	return nil
-}
-
 func refusedOnCalibrate(root *cobra.Command, err error) error {
 	var unknown *pflag.NotExistError
 	if !errors.As(err, &unknown) {
@@ -292,20 +221,6 @@ func refusedOnCalibrate(root *cobra.Command, err error) error {
 	}
 
 	return &plainError{cause: err, message: fmt.Sprintf("%s, so %s does not apply. Drop it", reason, spelled)}
-}
-
-func checkCalibrateInput(flags runConfig) error {
-	if !flags.hasInput {
-		return errors.New("calibrate needs -i jsonl, csv or tsv, since only a record has fields to label")
-	}
-
-	switch flags.inputMode {
-	case input.JSONL, input.CSV, input.TSV:
-		return checkInputDelimiter(flags)
-	default:
-		return fmt.Errorf("calibrate needs -i jsonl, csv or tsv. -i %s carries no field to label",
-			inputName(flags.input))
-	}
 }
 
 func refuseUnlabelledBody(settings rootSettings, name string, scored *plan.Plan) error {

@@ -1,6 +1,7 @@
 package settings
 
 import (
+	"fmt"
 	"strconv"
 
 	"github.com/frodi-karlsson/onesie-go"
@@ -486,27 +487,86 @@ func requestRows() []Row {
 	return []Row{
 		{
 			Name: "jobs", Kind: Int(1, limits.MaxJobs), Default: 1, Modes: Modes(ModeStream, ModeRequest, ModeCalibrate),
-			Flag: FlagSpec{Long: "jobs", Short: "j", Commands: onRuns()},
-			Help: "records in flight at once",
+			Flag:  FlagSpec{Long: "jobs", Short: "j", Commands: onRuns()},
+			Check: jobsInRange,
+			Help:  "records in flight at once",
 		},
 		{
 			Name: "timeout", Kind: Int(1, limits.MaxSeconds), Default: int(limits.DefaultAttemptTimeout.Seconds()),
 			Modes: sending(),
 			Flag:  FlagSpec{Long: "timeout", Commands: onRuns()},
+			Check: secondsInRange("--timeout", "--timeout takes a positive number of seconds, got %d"),
 			Help: "seconds per attempt, " + strconv.Itoa(int(limits.AssetAttemptTimeout.Seconds())) +
 				" for a request with images unless given",
 		},
 		{
 			Name: "retries", Kind: Int(0, limits.MaxRetries), Default: limits.DefaultRetries, Modes: sending(),
-			Flag: FlagSpec{Long: "retries", Commands: onRuns()},
-			Help: "retries after a failed attempt",
+			Flag:  FlagSpec{Long: "retries", Commands: onRuns()},
+			Check: retriesInRange,
+			Help:  "retries after a failed attempt",
 		},
 		{
 			Name: "max_retry_after", Kind: Int(1, limits.MaxSeconds), Default: int(limits.DefaultMaxRetryAfter.Seconds()),
 			Modes: sending(),
 			Flag:  FlagSpec{Long: "max-retry-after", Commands: onRuns()},
-			Help:  "most seconds to wait out a server Retry-After",
+			Check: secondsInRange("--max-retry-after",
+				// Zero would have to mean either never honour the header or honour it without bound, so it
+				// is refused rather than given one of those meanings.
+				"--max-retry-after must be a positive number of seconds, got %d"),
+			Help: "most seconds to wait out a server Retry-After",
 		},
+	}
+}
+
+func jobsInRange(value any) error {
+	jobs, isInt := value.(int)
+	if !isInt {
+		return nil
+	}
+
+	switch {
+	case jobs < 1:
+		return fmt.Errorf("-j takes a positive number of records in flight, got %d", jobs)
+	case jobs > limits.MaxJobs:
+		return fmt.Errorf("-j takes at most %d records in flight, got %d", limits.MaxJobs, jobs)
+	default:
+		return nil
+	}
+}
+
+func secondsInRange(flag, notPositive string) func(any) error {
+	return func(value any) error {
+		seconds, isInt := value.(int)
+		if !isInt {
+			return nil
+		}
+
+		switch {
+		case seconds < 1:
+			return fmt.Errorf(notPositive, seconds)
+		case seconds > limits.MaxSeconds:
+			// Seconds become a time.Duration downstream, and past a point that multiplication wraps. A
+			// wrap to a positive value would hand a user who asked for centuries a fraction of a second.
+			return fmt.Errorf("%s takes at most %d seconds, got %d", flag, limits.MaxSeconds, seconds)
+		default:
+			return nil
+		}
+	}
+}
+
+func retriesInRange(value any) error {
+	retries, isInt := value.(int)
+	if !isInt {
+		return nil
+	}
+
+	switch {
+	case retries < 0:
+		return fmt.Errorf("--retries takes a retry count of zero or more, got %d", retries)
+	case retries > limits.MaxRetries:
+		return fmt.Errorf("--retries takes at most %d, got %d", limits.MaxRetries, retries)
+	default:
+		return nil
 	}
 }
 

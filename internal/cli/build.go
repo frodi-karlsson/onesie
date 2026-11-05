@@ -16,12 +16,6 @@ import (
 func build(settings rootSettings, flags runConfig, ignoreFileJudgment bool) (*invocation, []string, error) {
 	events, positional := flags.events, flags.positional
 
-	// Every mode except --list-models and -i request needs a question, and reporting that here
-	// rather than from Assemble keeps the message the same whichever source was missing.
-	if positional == "" && len(events) == 0 && flags.file == "" {
-		return nil, nil, errNoQuestion
-	}
-
 	file, err := readBuildFile(settings, flags, ignoreFileJudgment)
 	if err != nil {
 		return nil, nil, err
@@ -51,7 +45,7 @@ func build(settings rootSettings, flags runConfig, ignoreFileJudgment bool) (*in
 
 	built.LongContext = longContextOf(flags, file)
 
-	warnings, err := validatePlan(built, flags, file.facts)
+	warnings, err := validateRun(flags, file.facts, built)
 	if err != nil {
 		return nil, warnings, err
 	}
@@ -93,7 +87,7 @@ func readBuildFile(settings rootSettings, flags runConfig, ignoreFileJudgment bo
 		withoutJudgment(file.loaded)
 	}
 
-	file.facts = runFacts{assert: file.loaded.Assert, abstainIf: file.loaded.AbstainIf}
+	file.facts = runFacts{assert: file.loaded.Assert, abstainIf: file.loaded.AbstainIf, bodyState: file.loaded.HasState}
 
 	return file, nil
 }

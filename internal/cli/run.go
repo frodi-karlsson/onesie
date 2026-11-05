@@ -68,10 +68,6 @@ func run(
 		return err
 	}
 
-	if bodyErr := checkBodyState(flags, inv.loaded); bodyErr != nil {
-		return bodyErr
-	}
-
 	// Before the output mode, because a question file is not an output mode and -o has no meaning
 	// for it. After validation, because a dry run that accepted a plan the real run would reject
 	// would be worse than useless.
@@ -88,7 +84,7 @@ func run(
 
 func runListModels(cmd *cobra.Command, settings rootSettings, flags runConfig, out *answersfile.File) error {
 	// The only hint is -j on one record, which --list-models refuses and -i request never is.
-	if _, checkErr := checkFlags(flags, runFacts{}); checkErr != nil {
+	if _, checkErr := validateRun(flags, runFacts{}, nil); checkErr != nil {
 		return checkErr
 	}
 
@@ -102,7 +98,7 @@ func runListModels(cmd *cobra.Command, settings rootSettings, flags runConfig, o
 func runRequestBodies(
 	cmd *cobra.Command, settings rootSettings, flags runConfig, out *answersfile.File, resume answersfile.Resume,
 ) error {
-	if _, checkErr := checkFlags(flags, runFacts{}); checkErr != nil {
+	if _, checkErr := validateRun(flags, runFacts{}, nil); checkErr != nil {
 		return checkErr
 	}
 
@@ -282,27 +278,6 @@ func imagedState(sent any) (input.Resolved, error) {
 	return input.Resolved{Source: input.SourceImages, State: state, Raw: string(encoded), Wire: sent}, nil
 }
 
-func checkBodyState(flags runConfig, loaded *qfile.File) error {
-	if loaded == nil || !loaded.HasState {
-		return nil
-	}
-
-	var flag string
-
-	switch {
-	case flags.hasState:
-		flag = "--" + flagState
-	case flags.hasStateFile:
-		flag = "--" + flagStateFile
-	case len(flags.images) > 0:
-		flag = "--image"
-	default:
-		return nil
-	}
-
-	return fmt.Errorf("%s and the state in %s both give a state. Drop one", flag, flags.file)
-}
-
 func warnIgnoredBodyState(
 	w io.Writer, flags runConfig, loaded *qfile.File, sender string, images *imaging, questions onesie.Questions,
 ) error {
@@ -465,16 +440,6 @@ func asked(events []argv.Event) bool {
 	return false
 }
 
-func inputName(flag string) string {
-	// Reachable only by passing -i with an empty value, since the flag defaults to text. Every
-	// message that names the mode would otherwise read -i with nothing after it.
-	if flag == "" {
-		return "text"
-	}
-
-	return flag
-}
-
 func watched(stop func(line) bool, stopped *atomic.Bool) func(line) bool {
 	if stop == nil {
 		return nil
@@ -578,7 +543,7 @@ func rowLine(record output.Record, rec namedRecord) line {
 }
 
 func wrapsUnderKey(raw string, wire any, key string) bool {
-	return key == wrapKey && output.Wraps(raw, wire)
+	return key == setting.WrapKey && output.Wraps(raw, wire)
 }
 
 func hasKey(state any, key string) bool {
@@ -624,18 +589,6 @@ type line struct {
 	slot   int
 	halted bool
 	call   *sharedCall
-}
-
-func mergeName(flags runConfig) string {
-	if flags.merge {
-		return "--merge"
-	}
-
-	if flags.mergeKey != "" {
-		return "--merge-key"
-	}
-
-	return ""
 }
 
 func streamResult(result engine.Result, falseAsserts, abstains int) error {

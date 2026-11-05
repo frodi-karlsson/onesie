@@ -17,6 +17,7 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/jq"
 	"github.com/frodi-karlsson/onesie/internal/output"
 	"github.com/frodi-karlsson/onesie/internal/plan"
+	setting "github.com/frodi-karlsson/onesie/internal/settings"
 )
 
 func stream(cmd *cobra.Command, in streamInputs) error {
@@ -201,7 +202,7 @@ func (r *streamRun) mergeCollision(rec namedRecord) (line, error) {
 	overwrite := fmt.Errorf("--merge would overwrite the input's '%s' key, pass --merge-key", mergeKey(r.flags))
 
 	// The failure line wraps the record under state, so under that key it would repeat the key too.
-	if mergeKey(r.flags) == wrapKey {
+	if mergeKey(r.flags) == setting.WrapKey {
 		return r.halt(rec, overwrite)
 	}
 
@@ -243,7 +244,7 @@ func wrapRepeated(rec namedRecord) error {
 	}
 
 	return fmt.Errorf("--merge-key %s cannot write this failed record, since its line wraps under %s: %w",
-		wrapKey, wrapKey, cause)
+		setting.WrapKey, setting.WrapKey, cause)
 }
 
 func (r *streamRun) ask(ctx context.Context, rec namedRecord, sent any, assets onesie.Assets) (line, error) {

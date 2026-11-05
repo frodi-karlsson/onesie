@@ -14,7 +14,8 @@ const PositionalID = "answer"
 
 const defaultSeparator = ","
 
-const unnamedFile = "the question file"
+// UnnamedFile names a question file in a message when no -f value names it.
+const UnnamedFile = "the question file"
 
 // Assemble folds a recorded command line and any file questions into a Plan.
 func Assemble(src Source) (*Plan, error) {
@@ -40,7 +41,7 @@ func Assemble(src Source) (*Plan, error) {
 	if len(orphans) > 0 && len(built.Questions) == 1 {
 		if built.Questions[0].Origin == OriginBody {
 			for _, event := range orphans {
-				if !policyFlag(event.Name) {
+				if !PolicyFlag(event.Name) {
 					return nil, fmt.Errorf(
 						"--%s cannot reshape a request body's question. "+
 							"A body carries its own type and criteria", event.Name)
@@ -147,7 +148,7 @@ func merge(built *Plan, fromFile map[string]int, question Question, replace bool
 
 	if !replace {
 		if name == "" {
-			name = unnamedFile
+			name = UnnamedFile
 		}
 
 		source := "--ask"

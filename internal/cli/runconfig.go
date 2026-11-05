@@ -84,9 +84,14 @@ type runConfig struct {
 	longContextSet   bool
 	hasDelimiter     bool
 	parsedDelimiter  input.Delimiter
+
+	calibrate *calibrateFlags
+	cutsSet   bool
+	reportSet bool
 }
 
 type runFacts struct {
 	assert    string
 	abstainIf string
+	bodyState bool
 }

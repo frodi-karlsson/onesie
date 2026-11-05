@@ -342,16 +342,6 @@ func TestValidate(t *testing.T) {
 			},
 		},
 		{
-			name: "should reject a shape flag with no ask to bind to",
-			events: []argv.Event{
-				{Name: "pick", Value: "x,y"},
-				{Name: "ask", Value: "a=one"},
-				{Name: "ask", Value: "b=two"},
-				{Name: "ask", Value: "c=three"},
-			},
-			wantErr: "--pick given with no --ask to bind to and 3 questions asked",
-		},
-		{
 			name: "should reject two questions sharing an id",
 			events: []argv.Event{
 				{Name: "ask", Value: "a=one"},
@@ -381,49 +371,6 @@ func TestValidate(t *testing.T) {
 				{Name: "desc", Value: "minor=small"},
 				{Name: "desc", Value: "major=big"},
 			},
-		},
-		{
-			name: "should accept policy on an ask added beside a one question body",
-			file: bodyQuestions(1),
-			events: []argv.Event{
-				{Name: "ask", Value: "extra=second"},
-				{Name: "threshold", Value: "0.8"},
-			},
-		},
-		{
-			name: "should accept a one question body with no policy at all",
-			file: bodyQuestions(1),
-		},
-		{
-			name:   "should reject a policy flag aimed at a two question body",
-			file:   bodyQuestions(2),
-			events: []argv.Event{{Name: "threshold", Value: "0.8"}},
-			wantErr: "policy flags apply to a request body only when it has one question. " +
-				"the question file has 2, freeze with --print-questions first",
-		},
-		{
-			name: "should count only the body's own questions in the policy error",
-			file: bodyQuestions(2),
-			events: []argv.Event{
-				{Name: "threshold", Value: "0.8"},
-				{Name: "ask", Value: "extra=second"},
-			},
-			wantErr: "the question file has 2",
-		},
-		{
-			name: "should reject policy carried by a body question itself",
-			file: append(bodyQuestions(1), plan.Question{
-				ID: "b2", Shape: plan.Noul, Instructions: "q", Origin: plan.OriginBody,
-				Policy: plan.Policy{Threshold: pointerTo(0.8)},
-			}),
-			wantErr: "the question file has 2",
-		},
-		{
-			name:     "should name the body's file in the policy error",
-			file:     bodyQuestions(2),
-			events:   []argv.Event{{Name: "threshold", Value: "0.8"}},
-			fileName: "triage.json",
-			wantErr:  "triage.json has 2",
 		},
 		{
 			name:    "should reject the reserved assert id",
@@ -657,7 +604,7 @@ func TestValidate(t *testing.T) {
 				t.Fatalf("assembling: %v", err)
 			}
 
-			warnings, err := plan.Validate(built, tc.fileName)
+			warnings, err := plan.Validate(built)
 			assertWarning(t, warnings, tc.wantWarning, tc.wantErr != "" || tc.wantExact != "")
 
 			if tc.wantExact != "" {
@@ -770,18 +717,4 @@ func bodyLevels(n int) []plan.Question {
 		ID: "bq", Shape: plan.Rate, Instructions: "q", Origin: plan.OriginBody,
 		Levels: levels,
 	}}
-}
-
-func bodyQuestions(n int) []plan.Question {
-	questions := make([]plan.Question, 0, n)
-	for i := range n {
-		questions = append(questions, plan.Question{
-			ID:           "b" + strconv.Itoa(i),
-			Shape:        plan.Noul,
-			Instructions: "q",
-			Origin:       plan.OriginBody,
-		})
-	}
-
-	return questions
 }

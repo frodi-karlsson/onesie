@@ -19,16 +19,8 @@ var reservedIDs = []string{
 }
 
 // Validate checks the questions of a plan and returns the non fatal warnings plus the first fatal
-// error. fileName is the -f value a body policy refusal names.
-func Validate(p *Plan, fileName string) ([]string, error) {
-	if err := checkBodyPolicy(p, fileName); err != nil {
-		return nil, err
-	}
-
-	if err := checkOrphans(p); err != nil {
-		return nil, err
-	}
-
+// error.
+func Validate(p *Plan) ([]string, error) {
 	if err := checkSources(p); err != nil {
 		return nil, err
 	}
@@ -53,87 +45,13 @@ func Validate(p *Plan, fileName string) ([]string, error) {
 	return warnings, nil
 }
 
-func checkBodyPolicy(p *Plan, name string) error {
-	body := 0
-
-	for _, question := range p.Questions {
-		if question.Origin == OriginBody {
-			body++
-		}
-	}
-
-	if body <= 1 {
-		return nil
-	}
-
-	// A policy flag that found no question to bind to is still a policy flag aimed at the body,
-	// since Assemble only binds top level flags when exactly one question was asked.
-	for _, event := range p.Orphans {
-		if policyFlag(event.Name) {
-			return bodyPolicyError(name, body)
-		}
-	}
-
-	for _, question := range p.Questions {
-		if question.Origin != OriginBody {
-			continue
-		}
-
-		if question.Policy.Threshold != nil || question.Policy.MinConfidence != nil ||
-			question.Policy.Fallback != nil {
-			return bodyPolicyError(name, body)
-		}
-	}
-
-	return nil
-}
-
-func policyFlag(name string) bool {
+// PolicyFlag reports whether the group flag name sets a question's policy.
+func PolicyFlag(name string) bool {
 	switch name {
 	case "threshold", "min-confidence", "fallback":
 		return true
 	default:
 		return false
-	}
-}
-
-func bodyPolicyError(name string, questions int) error {
-	if name == "" {
-		name = unnamedFile
-	}
-
-	return fmt.Errorf(
-		"policy flags apply to a request body only when it has one question. "+
-			"%s has %d, freeze with --print-questions first", name, questions)
-}
-
-func checkOrphans(p *Plan) error {
-	if len(p.Orphans) == 0 {
-		return nil
-	}
-
-	orphan := p.Orphans[0].Name
-	err := fmt.Errorf("--%s given with no --ask to bind to and %d questions asked",
-		orphan, len(p.Questions))
-
-	keys := fileKeysFor(orphan)
-	if keys == "" || !slices.ContainsFunc(p.Questions, func(q Question) bool { return q.Origin == OriginFile }) {
-		return err
-	}
-
-	return fmt.Errorf("%w. Set %s on a question in the -f file instead", err, keys)
-}
-
-func fileKeysFor(flag string) string {
-	switch flag {
-	case "threshold":
-		return "threshold"
-	case "min-confidence":
-		return "min_confidence and fallback"
-	case "fallback":
-		return "fallback"
-	default:
-		return ""
 	}
 }
 
