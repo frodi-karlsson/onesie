@@ -897,8 +897,10 @@ func (o *File) completeRows(
 			return rows, length, reader.Comma, nil
 		}
 
-		if found, foreign := foreignSeparator(cells, delimiter); rows == 0 && foreign {
-			return 0, 0, 0, &SeparatorError{Path: o.path, Given: reader.Comma, Found: found}
+		if rows == 0 {
+			if found, foreign := foreignSeparator(cells, delimiter); foreign {
+				return 0, 0, 0, &SeparatorError{Path: o.path, Given: reader.Comma, Found: found}
+			}
 		}
 
 		rows++

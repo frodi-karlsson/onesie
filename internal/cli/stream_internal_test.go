@@ -2050,9 +2050,14 @@ func TestStream(t *testing.T) {
 				name string
 				args []string
 			}{
-				{name: "should refuse it by --id", args: asking()},
+				{name: "should refuse it by --id", args: asking("--merge")},
 				{
 					name: "should refuse it by position",
+					args: []string{"is it urgent", "-i", "csv", "--map", ".text", "--mock", mock, "--merge"},
+				},
+				{name: "should refuse it by --id under plain -o csv", args: asking()},
+				{
+					name: "should refuse it by position under plain -o csv",
 					args: []string{"is it urgent", "-i", "csv", "--map", ".text", "--mock", mock},
 				},
 			}
@@ -2062,7 +2067,7 @@ func TestStream(t *testing.T) {
 					t.Parallel()
 
 					answers := filepath.Join(t.TempDir(), "answers.csv")
-					args := append(slices.Clone(tc.args), "--delimiter", "auto", "-o", "csv", "--merge", "--out", answers)
+					args := append(slices.Clone(tc.args), "--delimiter", "auto", "-o", "csv", "--out", answers)
 
 					first := "id;text\n1;a\n2;b\n3;c\n"
 					if _, errOut, code := runMocked(t, t.Context(), args, first, nil, nil); code != ExitOK {

@@ -342,7 +342,8 @@ onesie calibrate -f shell-safety -i jsonl --map .command --id .id \
   `-i csv --delimiter ';' -o tsv` reads semicolons and writes tabs. A run with neither `-i csv` nor
   `-o csv` refuses the flag with exit 2, as in `-i jsonl -o tsv --delimiter ';'`.
 - `--resume` under `--delimiter` refuses with exit 2 a csv answers file whose header row another
-  separator wrote, so its rows never mix two separators.
+  separator wrote, so its rows never mix two separators. Under `--delimiter auto` it also refuses a
+  file whose separator differs from the one read from the input.
 - `--merge` folds the answers into an input that is an object. Any other input, such as a text
   state, a line of `-i lines`, a jsonl string or a line onesie could not read, merges as
   `{"state":INPUT,"answers":ANSWERS}`, so `--merge-key state` exits 2: before any request under
