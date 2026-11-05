@@ -28,7 +28,9 @@ func TestModeRefusals(t *testing.T) {
 						continue
 					}
 
-					if row.Modes.Has(mode) {
+					// -i request refuses -m, whose bodies carry their own model, and still sends a body that
+					// names none with the model a profile or TYPESAFE_DEFAULT_MODEL gives.
+					if row.Modes.Has(mode) && (mode != ModeRequest || rule.setting != Model.Name()) {
 						t.Errorf("mode %d refuses %s, whose row has an effect in it", mode, rule.setting)
 					}
 				}

@@ -50,6 +50,7 @@ func mergeRow(merged *Merged, row Row, ranked []Layer) []Notice {
 
 	winner := candidates[0]
 	merged.Set(row.Name, winner.value, winner.layer.Source)
+	merged.spelled(row.Name, originOf(winner.layer, row).Spelled)
 
 	var notices []Notice
 
@@ -276,6 +277,7 @@ func readFromFile(c candidate) bool {
 type Merged struct {
 	values    map[Name]any
 	sources   map[Name]Source
+	spellings map[Name]string
 	questions map[string]map[Name]any
 }
 
@@ -290,6 +292,14 @@ func (m *Merged) Set(name Name, value any, source Source) {
 	}
 
 	m.values[name], m.sources[name] = value, source
+}
+
+func (m *Merged) spelled(name Name, spelling string) {
+	if m.spellings == nil {
+		m.spellings = map[Name]string{}
+	}
+
+	m.spellings[name] = spelling
 }
 
 func (m *Merged) setFor(questionID string, name Name, value any) {
@@ -337,6 +347,15 @@ func (m *Merged) Source(name Name) Source {
 	}
 
 	return m.sources[name]
+}
+
+// Origin is where name's value came from, as a notice or a message names it.
+func (m *Merged) Origin(name Name) Origin {
+	if m == nil {
+		return Origin{}
+	}
+
+	return Origin{Source: m.sources[name], Spelled: m.spellings[name]}
 }
 
 // Source ranks where a value came from, the higher one winning.

@@ -34,7 +34,7 @@ Anything typed into the conversation is sent to the model and kept in the transc
 
 ### Ask which account the user has, TypeSafe, OpenRouter, Berget, Levanto or Cloudflare, before storing a key.
 
-A profile names its provider, so `onesie profile create work --provider openrouter` makes an OpenRouter profile. The first profile becomes the default, and a run with no `--profile` uses the default. To switch to another profile, run `onesie profile use NAME`. Do not export `ONESIE_PROVIDER` for a stored key, since `--provider` and `ONESIE_PROVIDER` run without a profile and read only the provider's key variable. For cloudflare, pass the account too, as in `onesie profile create cf --provider cloudflare --account-id ACCOUNT_ID`. `--model` stores the model a run uses when it names none.
+A profile names its provider, so `onesie profile create work --provider openrouter` makes an OpenRouter profile. The first profile becomes the default, and a run with no `--profile` uses the default. An exported key variable, `ONESIE_BASE_URL` or `TYPESAFE_DEFAULT_MODEL` beats the default profile, with a notice on stderr, so set `ONESIE_PROFILE=NAME` to keep the profile ahead of them. To switch to another profile, run `onesie profile use NAME`. Do not export `ONESIE_PROVIDER` for a stored key, since `--provider` and `ONESIE_PROVIDER` run without a profile and read only the provider's key variable. For cloudflare, pass the account too, as in `onesie profile create cf --provider cloudflare --account-id ACCOUNT_ID`. `--model` stores the model a run uses when it names none.
 
 ### End the setup with onesie profile test, not profile show.
 

@@ -106,7 +106,7 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *Root {
 
 	root.AddCommand(newVersionCmd(info))
 	root.AddCommand(newProfileCmd(settings, flags))
-	calibrate := newCalibrateCmd(settings, flags)
+	calibrate := newCalibrateCmd(settings, flags, root.PersistentFlags())
 	root.AddCommand(calibrate)
 	root.AddCommand(newQuestionsCmd(settings))
 	root.AddCommand(newCacheCmd(settings))
@@ -185,8 +185,10 @@ func runRoot(
 	cmd *cobra.Command, args []string, info BuildInfo, settings rootSettings, flags *runFlags,
 	recorder *argv.Recorder,
 ) (err error) {
+	var ready staged
+
 	defer func() {
-		err = withKeyHint(withDashQuestionHint(err, cmd.Flags(), settings.args, args), settings, flags.mock)
+		err = withKeyHint(withDashQuestionHint(err, cmd.Flags(), settings.args, args), settings, ready.config)
 	}()
 
 	// Not cobra's own version flag, which prints before any argument is checked.
@@ -220,7 +222,7 @@ func runRoot(
 		return printSchema(cmd.OutOrStdout())
 	}
 
-	ready, err := validated(cmd, settings, recorder.Events(), positional, flags)
+	ready, err = validated(cmd, settings, recorder.Events(), positional, flags)
 	if err != nil {
 		return err
 	}

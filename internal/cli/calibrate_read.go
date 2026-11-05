@@ -22,7 +22,7 @@ func calibrateRequests(
 	cmd *cobra.Command, settings rootSettings, flags runConfig, inputMode input.Mode, inv *invocation,
 	scope calibrateScope,
 ) error {
-	chosen, err := settings.holder.resolved()
+	chosen, err := connected(settings, flags)
 	if err != nil {
 		return err
 	}
@@ -32,7 +32,7 @@ func calibrateRequests(
 		return err
 	}
 
-	model := chosen.modelFor(scope.scored.Model, settings.lookupEnv)
+	model := chosen.modelFor(scope.scored.Model)
 	questions := plan.WireAll(scope.scored.Questions)
 
 	for _, rec := range set.records {

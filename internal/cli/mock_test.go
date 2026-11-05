@@ -931,7 +931,7 @@ func TestMockAnswers(t *testing.T) {
 						"is it urgent", "-o", "json", "-i", "jsonl", "--provider", tc.provider, "--out", out, "--resume",
 						"--mock", writeMock(t, "{\"answer\":0.2}\n{\"answer\":0.3}\n{\"answer\":0.4}\n"),
 					}
-					env := map[string]string{"CLOUDFLARE_ACCOUNT_ID": "acct"}
+					env := map[string]string{"CLOUDFLARE_ACCOUNT_ID": testAccountID}
 					stdin := "\"one\"\n\"two\"\n\"three\"\n"
 
 					// A clean run writes the fingerprint. The file then holds the refusal followed by an
@@ -1073,7 +1073,9 @@ func TestMockSource(t *testing.T) {
 		flag     bool
 		wantCode int
 		wantOut  *string
+		contains []string
 		stderr   []string
+		silent   bool
 	}{
 		{
 			name:     "should answer from ONESIE_MOCK with the command unchanged",
@@ -1104,25 +1106,26 @@ func TestMockSource(t *testing.T) {
 			wantCode: ExitUsage,
 		},
 		{
-			name:     "should refuse --print-request under ONESIE_MOCK",
+			name:     "should skip ONESIE_MOCK silently under --print-request",
 			args:     []string{"is it urgent", "--state", "x", "--print-request"},
 			env:      func(path string) map[string]string { return map[string]string{envMock: path} },
-			stderr:   []string{"onesie: ONESIE_MOCK answers requests, and --print-request sends none. Unset it or drop --print-request"},
-			wantCode: ExitUsage,
+			contains: []string{`"questions"`},
+			silent:   true,
+			wantCode: ExitOK,
 		},
 		{
-			name:     "should refuse -i request under ONESIE_MOCK",
-			args:     []string{"-i", "request"},
+			name:     "should skip ONESIE_MOCK silently under -i request",
+			args:     []string{"-i", "request", "--print-request"},
 			env:      func(path string) map[string]string { return map[string]string{envMock: path} },
-			stderr:   []string{"onesie: -i request sends each body as written, so ONESIE_MOCK has nothing to answer. Unset it or drop -i request"},
-			wantCode: ExitUsage,
+			silent:   true,
+			wantCode: ExitOK,
 		},
 		{
-			name:     "should refuse --list-models under ONESIE_MOCK",
-			args:     []string{"--list-models"},
-			env:      func(path string) map[string]string { return map[string]string{envMock: path} },
-			stderr:   []string{"onesie: --list-models asks no question, so ONESIE_MOCK has nothing to answer. Unset it or drop --list-models"},
-			wantCode: ExitUsage,
+			name:     "should skip a malformed ONESIE_MOCK path silently under --print-request",
+			args:     []string{"is it urgent", "--state", "x", "--print-request"},
+			env:      func(string) map[string]string { return map[string]string{envMock: "/nonexistent/answers.json"} },
+			silent:   true,
+			wantCode: ExitOK,
 		},
 		{
 			name: "should refuse calibrate --print-request under ONESIE_MOCK",
@@ -1158,7 +1161,11 @@ func TestMockSource(t *testing.T) {
 
 			out, errOut, code := runMocked(t, t.Context(), args, "", tc.env(path), nil)
 
-			checkMocked(t, out, errOut, code, tc.wantCode, tc.wantOut, nil, nil, tc.stderr)
+			checkMocked(t, out, errOut, code, tc.wantCode, tc.wantOut, tc.contains, nil, tc.stderr)
+
+			if tc.silent && errOut != "" {
+				t.Errorf("stderr = %q, want none", errOut)
+			}
 		})
 	}
 }

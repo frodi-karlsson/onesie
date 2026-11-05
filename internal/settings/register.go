@@ -154,6 +154,10 @@ type Given struct {
 
 // Inherit adds set, the persistent flags of a parent command, to the sets the flags are looked up in.
 func (g *Given) Inherit(set *pflag.FlagSet) {
+	if g == nil {
+		return
+	}
+
 	g.sets = append(g.sets, set)
 }
 

@@ -39,7 +39,7 @@ var refusedReasons = map[string]string{
 	flagStateFile:     "calibrate reads each state from its input through --map",
 }
 
-func newCalibrateCmd(settings rootSettings, flags *runFlags) *cobra.Command {
+func newCalibrateCmd(settings rootSettings, flags *runFlags, persistent *pflag.FlagSet) *cobra.Command {
 	recorder := argv.New()
 	calib := &calibrateFlags{}
 
@@ -58,7 +58,7 @@ func newCalibrateCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) (err error) {
 			defer func() {
-				err = withKeyHint(withDashQuestionHint(err, cmd.Flags(), settings.args, args), settings, flags.mock)
+				err = withDashQuestionHint(err, cmd.Flags(), settings.args, args)
 			}()
 
 			positional := ""
@@ -76,6 +76,7 @@ func newCalibrateCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 
 	given = setting.Register(cmd.Flags(), nil, setting.Table(), recorder, setting.CommandCalibrate,
 		calibrateTargets(flags, calib))
+	given.Inherit(persistent)
 
 	return cmd
 }
@@ -134,16 +135,16 @@ func calibrateLong() string {
 func runCalibrate(
 	cmd *cobra.Command, settings rootSettings, parsed *runFlags, calib calibrateFlags, given *setting.Given,
 	events []argv.Event, positional string,
-) error {
+) (err error) {
 	// Only the refusal is read here. runConfig holds the values the run uses.
-	if _, err := setting.ParseRun(setting.Table(), given, setting.CommandCalibrate); err != nil {
+	if _, err = setting.ParseRun(setting.Table(), given, setting.CommandCalibrate); err != nil {
 		return err
 	}
 
 	own := *parsed
 	own.input = calib.input
 
-	flags, err := newRunConfig(cmd, settings.lookupEnv, own, events, positional)
+	flags, err := newRunConfig(cmd, own, events, positional)
 	if err != nil {
 		return err
 	}
@@ -155,14 +156,24 @@ func runCalibrate(
 
 	// A file's gate and policy are ignored, since calibrate reports every cut and a gated file is
 	// the one a user calibrates.
-	inv, warnings, err := build(settings, flags, true)
+	inv, ready, err := build(settings, flags, given, setting.CommandCalibrate, true)
 
-	if warnErr := warnAll(cmd.ErrOrStderr(), warnings); warnErr != nil {
+	if warnErr := warnAll(cmd.ErrOrStderr(), ready.warnings); warnErr != nil {
 		return warnErr
 	}
 
 	if err != nil {
 		return err
+	}
+
+	flags = ready.config
+
+	defer func() {
+		err = withKeyHint(err, settings, flags)
+	}()
+
+	if noticeErr := announce(cmd.ErrOrStderr(), ready.notices); noticeErr != nil {
+		return noticeErr
 	}
 
 	reqs, err := parseRequirements(calib.requires)

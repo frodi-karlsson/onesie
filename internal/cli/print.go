@@ -127,14 +127,14 @@ func streamRequests(
 	inv *invocation,
 	resume answersfile.Resume,
 ) error {
-	chosen, err := settings.holder.resolved()
+	chosen, err := connected(settings, flags)
 	if err != nil {
 		return err
 	}
 
 	run := &requestRun{
 		built: inv.plan, mapper: inv.mapper, images: inv.images, provider: chosen.provider,
-		model: chosen.modelFor(inv.plan.Model, settings.lookupEnv), questions: plan.WireAll(inv.plan.Questions),
+		model: chosen.modelFor(inv.plan.Model), questions: plan.WireAll(inv.plan.Questions),
 	}
 	source := records(cmd.Context(), settings, flags.inputMode, flags, inv.namer, nil, resume, output.JSON)
 

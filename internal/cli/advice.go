@@ -84,13 +84,13 @@ func adviseBox(err error, boxed bool, boxModel string) error {
 	return &advisedError{cause: err, note: note}
 }
 
-func withKeyHint(err error, settings rootSettings, mockFlag string) error {
+func withKeyHint(err error, settings rootSettings, flags runConfig) error {
 	// A mock run sends no key, so naming where one came from would send the reader to the wrong place.
-	if path, _ := mockSource(settings.lookupEnv, mockFlag); !keyRefused(err) || path != "" {
+	if !keyRefused(err) || flags.mockPath != "" {
 		return err
 	}
 
-	chosen, resolveErr := settings.holder.resolved()
+	chosen, resolveErr := connected(settings, flags)
 	if resolveErr != nil {
 		return err
 	}
@@ -117,7 +117,7 @@ func keyNote(chosen resolution) string {
 		return "No key was sent, since none resolves and the base URL is custom. Set " + chosen.provider.EnvAPIKey()
 	}
 
-	if chosen.profile != "" {
+	if chosen.profile != "" && chosen.keyFrom != sourceEnv {
 		return "Replace the key with onesie profile update " + creds.QuotedName(chosen.profile) + " --key"
 	}
 

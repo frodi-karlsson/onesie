@@ -19,6 +19,7 @@ import (
 
 	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/creds"
+	setting "github.com/frodi-karlsson/onesie/internal/settings"
 )
 
 func TestClientBuilder(t *testing.T) {
@@ -236,8 +237,39 @@ func TestClientBuilder(t *testing.T) {
 		wantErr   []string
 	}{
 		{
-			name: "should send the profile's key and not the provider's variable", profiles: fileWork,
-			args: asking(), env: map[string]string{onesie.TypeSafe().EnvAPIKey(): "SECRET-ENV", onesie.TypeSafe().EnvBaseURL(): "{other}"},
+			name: "should send a chosen profile's held key over the provider key variable", profiles: fileWork,
+			args: asking("--profile", "work"),
+			env:  map[string]string{onesie.TypeSafe().EnvAPIKey(): "SECRET-ENV", onesie.TypeSafe().EnvBaseURL(): "{other}"},
+			wantErr: []string{
+				"onesie: the profile's base_url overrides TYPESAFE_BASE_URL\n",
+				"onesie: the profile's api_key overrides TYPESAFE_API_KEY\n",
+			},
+			wantAuth: "Bearer SECRET-WORK", wantModel: onesie.TypeSafe().DefaultModel(),
+		},
+		{
+			name:     "should take the provider key variable over the default profile's key, with a notice",
+			profiles: fileWork, args: asking(), env: map[string]string{onesie.TypeSafe().EnvAPIKey(): "SECRET-ENV"},
+			wantErr:  []string{"onesie: TYPESAFE_API_KEY overrides the default profile's api_key\n"},
+			wantAuth: "Bearer SECRET-ENV", wantModel: onesie.TypeSafe().DefaultModel(),
+		},
+		{
+			name:     "should send no key variable beside a keyless default profile",
+			profiles: `{"default":"local","profiles":{"local":{"provider":"typesafe","base_url":"{url}"}}}`,
+			args:     asking(), env: map[string]string{onesie.TypeSafe().EnvAPIKey(): "SECRET-ENV"},
+			wantAuth: "absent", wantModel: onesie.TypeSafe().DefaultModel(),
+		},
+		{
+			name: "should send ONESIE_BASE_URL over the default profile's base_url, with a notice",
+			profiles: `{"default":"work","profiles":{"work":{"provider":"typesafe","api_key":"SECRET-WORK",` +
+				`"base_url":"{other}"}}}`,
+			args: asking(), env: map[string]string{envBaseURL: "{url}"},
+			wantErr:  []string{"onesie: ONESIE_BASE_URL overrides the default profile's base_url\n"},
+			wantAuth: "Bearer SECRET-WORK", wantModel: onesie.TypeSafe().DefaultModel(),
+		},
+		{
+			name: "should keep a chosen profile's base_url over ONESIE_BASE_URL", profiles: fileWork,
+			args: asking("--profile", "work"), env: map[string]string{envBaseURL: "{other}"},
+			wantErr:  []string{"onesie: the profile's base_url overrides ONESIE_BASE_URL\n"},
 			wantAuth: "Bearer SECRET-WORK", wantModel: onesie.TypeSafe().DefaultModel(),
 		},
 		{
@@ -256,9 +288,16 @@ func TestClientBuilder(t *testing.T) {
 			wantAuth: "Bearer SECRET-WORK", wantModel: "other",
 		},
 		{
-			name: "should let the profile's model beat TYPESAFE_DEFAULT_MODEL", profiles: pinnedWork, args: asking(),
-			env:      map[string]string{onesie.TypeSafe().EnvDefaultModel(): "env-model"},
+			name: "should let a chosen profile's model beat TYPESAFE_DEFAULT_MODEL", profiles: pinnedWork,
+			args: asking("--profile", "work"), env: map[string]string{onesie.TypeSafe().EnvDefaultModel(): "env-model"},
+			wantErr:  []string{"onesie: the profile's model overrides TYPESAFE_DEFAULT_MODEL\n"},
 			wantAuth: "Bearer SECRET-WORK", wantModel: "jev-1.13.0",
+		},
+		{
+			name:     "should take TYPESAFE_DEFAULT_MODEL over the default profile's model, with a notice",
+			profiles: pinnedWork, args: asking(), env: map[string]string{onesie.TypeSafe().EnvDefaultModel(): "env-model"},
+			wantErr:  []string{"onesie: TYPESAFE_DEFAULT_MODEL overrides the default profile's model\n"},
+			wantAuth: "Bearer SECRET-WORK", wantModel: "env-model",
 		},
 		{
 			name: "should take TYPESAFE_DEFAULT_MODEL when the profile names no model", profiles: fileWork,
@@ -285,8 +324,16 @@ func TestClientBuilder(t *testing.T) {
 			wantAuth: "Bearer SECRET-WORK", wantModel: "jev-1.13.0",
 		},
 		{
-			name: "should keep the profile's base_url ahead of TYPESAFE_BASE_URL", profiles: fileWork, args: asking(),
-			env:      map[string]string{onesie.TypeSafe().EnvBaseURL(): "{other}"},
+			name: "should keep a chosen profile's base_url ahead of TYPESAFE_BASE_URL", profiles: fileWork,
+			args: asking("--profile", "work"), env: map[string]string{onesie.TypeSafe().EnvBaseURL(): "{other}"},
+			wantAuth: "Bearer SECRET-WORK", wantModel: onesie.TypeSafe().DefaultModel(),
+		},
+		{
+			name: "should send TYPESAFE_BASE_URL over the default profile's base_url, with a notice",
+			profiles: `{"default":"work","profiles":{"work":{"provider":"typesafe","api_key":"SECRET-WORK",` +
+				`"base_url":"{other}"}}}`,
+			args: asking(), env: map[string]string{onesie.TypeSafe().EnvBaseURL(): "{url}"},
+			wantErr:  []string{"onesie: TYPESAFE_BASE_URL overrides the default profile's base_url\n"},
 			wantAuth: "Bearer SECRET-WORK", wantModel: onesie.TypeSafe().DefaultModel(),
 		},
 		{
@@ -624,15 +671,42 @@ func TestClientBuilder(t *testing.T) {
 		}
 	})
 
+	t.Run("should read no environment past the table", func(t *testing.T) {
+		t.Parallel()
+
+		settings := defaultSettings(BuildInfo{})
+		settings.lookupEnv = func(name string) (string, bool) {
+			t.Errorf("the client builder read %s", name)
+
+			return "", false
+		}
+
+		build := clientBuilder(BuildInfo{}, &runFlags{}, settings)
+
+		client, err := build(t.Context(), resolution{
+			provider: onesie.TypeSafe(), keyFrom: sourceEnv, key: "SECRET-ENV", model: "merged-model",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if client.DefaultModel() != "merged-model" || client.BaseURL() != onesie.TypeSafe().DefaultBaseURL() {
+			t.Errorf("client = model %q at %q, want the merged model at the provider's own", client.DefaultModel(),
+				client.BaseURL())
+		}
+	})
+
 	t.Run("should build a keyless client on a custom URL", func(t *testing.T) {
 		t.Parallel()
 
 		settings := defaultSettings(BuildInfo{})
 		settings.lookupEnv = lookupFrom(nil)
 
-		build := clientBuilder(BuildInfo{}, &runFlags{baseURL: "https://local.example"}, settings)
+		build := clientBuilder(BuildInfo{}, &runFlags{}, settings)
 
-		client, err := build(t.Context(), resolution{provider: onesie.TypeSafe(), keyFrom: sourceNone})
+		client, err := build(t.Context(), resolution{
+			provider: onesie.TypeSafe(), keyFrom: sourceNone, baseURL: "https://local.example", endpointFrom: "--base-url",
+		})
 		if err != nil || client.SendsKey() {
 			t.Fatalf("error = %v, want a client that sends no key", err)
 		}
@@ -656,9 +730,12 @@ func TestClientBuilder(t *testing.T) {
 		settings.lookupEnv = lookupFrom(map[string]string{onesie.TypeSafe().EnvAPIKey(): "SECRET-ENV"})
 		settings.holder = &holder{stderr: func() io.Writer { return stderr }}
 
-		build := clientBuilder(BuildInfo{}, &runFlags{allowHTTP: true, baseURL: "http://proxy.example/v1"}, settings)
+		build := clientBuilder(BuildInfo{}, &runFlags{allowHTTP: true}, settings)
 
-		_, err := build(t.Context(), resolution{provider: onesie.TypeSafe()})
+		_, err := build(t.Context(), resolution{
+			provider: onesie.TypeSafe(), keyFrom: sourceEnv, key: "SECRET-ENV", baseURL: "http://proxy.example/v1",
+			endpointFrom: "--base-url",
+		})
 
 		if err == nil || err.Error() != "write 1 failed" {
 			t.Errorf("error = %v, want write 1 failed", err)
@@ -886,15 +963,6 @@ func TestProfileKey(t *testing.T) {
 func TestBaseURLFrom(t *testing.T) {
 	t.Parallel()
 
-	profileOf := func(profile creds.Profile) resolution {
-		run, err := profileRun("p", profile, "--profile")
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		return run
-	}
-
 	bare, err := providerRun("typesafe", "nothing", lookupFrom(nil))
 	if err != nil {
 		t.Fatal(err)
@@ -905,26 +973,37 @@ func TestBaseURLFrom(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	baseURL := setting.EndpointValue{BaseURL: "https://local.example"}
+	account := setting.EndpointValue{AccountID: testAccountID}
+
 	tests := []struct {
-		name   string
-		source onesie.BaseURLSource
-		run    resolution
-		flag   string
-		env    map[string]string
-		want   string
+		name     string
+		source   onesie.BaseURLSource
+		run      resolution
+		from     setting.Source
+		spelled  string
+		endpoint setting.EndpointValue
+		want     string
 	}{
 		{
 			name: "should name ONESIE_BASE_URL", source: onesie.BaseURLFromOption, run: bare,
-			env: map[string]string{envBaseURL: "https://local.example"}, want: envBaseURL,
+			from: setting.SourceEnv, spelled: envBaseURL, endpoint: baseURL, want: envBaseURL,
 		},
 		{
-			name: "should name --base-url when the flag was given", source: onesie.BaseURLFromOption,
-			run:  profileOf(creds.Profile{Provider: "typesafe", APIKey: "SECRET-P", BaseURL: "https://p.example"}),
-			flag: " https://flag.example ", want: "--base-url",
+			name: "should name TYPESAFE_BASE_URL", source: onesie.BaseURLFromOption, run: bare,
+			from: setting.SourceEnv, spelled: "TYPESAFE_BASE_URL", endpoint: baseURL, want: "TYPESAFE_BASE_URL",
 		},
 		{
-			name: "should name the profile's base_url without the flag", source: onesie.BaseURLFromOption,
-			run:  profileOf(creds.Profile{Provider: "typesafe", APIKey: "SECRET-P", BaseURL: "https://p.example"}),
+			name: "should name --base-url when the flag was given", source: onesie.BaseURLFromOption, run: bare,
+			from: setting.SourceFlag, spelled: "--base-url", endpoint: baseURL, want: "--base-url",
+		},
+		{
+			name: "should name a chosen profile's base_url", source: onesie.BaseURLFromOption, run: bare,
+			from: setting.SourceChosenProfile, spelled: "base_url", endpoint: baseURL, want: "the profile's base_url",
+		},
+		{
+			name: "should name the default profile's base_url as the profile's", source: onesie.BaseURLFromOption,
+			run: bare, from: setting.SourceDefaultProfile, spelled: "base_url", endpoint: baseURL,
 			want: "the profile's base_url",
 		},
 		{
@@ -933,12 +1012,12 @@ func TestBaseURLFrom(t *testing.T) {
 		},
 		{
 			name: "should name the profile's account_id when the profile has one", source: onesie.BaseURLFromAccount,
-			run:  profileOf(creds.Profile{Provider: "cloudflare", APIKey: "SECRET-P", AccountID: testAccountID}),
+			run: cloudflare, from: setting.SourceChosenProfile, spelled: "account_id", endpoint: account,
 			want: "the profile's account_id",
 		},
 		{
 			name: "should name the account variable otherwise", source: onesie.BaseURLFromAccount, run: cloudflare,
-			want: "CLOUDFLARE_ACCOUNT_ID",
+			from: setting.SourceEnv, spelled: "CLOUDFLARE_ACCOUNT_ID", endpoint: account, want: "CLOUDFLARE_ACCOUNT_ID",
 		},
 		{name: "should name the provider's default", source: onesie.BaseURLFromDefault, run: bare, want: "the provider's default"},
 		{name: "should name a base URL of unknown source plainly", source: onesie.BaseURLSourceUnknown, run: bare, want: "the base URL"},
@@ -948,7 +1027,17 @@ func TestBaseURLFrom(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			if got := baseURLFrom(tc.source, tc.flag, tc.run, lookupFrom(tc.env)); got != tc.want {
+			var layers []setting.Layer
+			if tc.spelled != "" {
+				layers = append(layers, setting.Layer{
+					Source: tc.from, Values: map[setting.Name]any{"endpoint": tc.endpoint},
+					Spelled: map[setting.Name]string{"endpoint": tc.spelled},
+				})
+			}
+
+			merged, _ := setting.Merge(setting.Table(), layers, nil)
+
+			if got := baseURLFrom(tc.source, tc.run.merged(merged)); got != tc.want {
 				t.Errorf("baseURLFrom = %q, want %q", got, tc.want)
 			}
 		})

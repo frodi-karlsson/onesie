@@ -8,7 +8,7 @@ import (
 
 func liveAnswers(settings rootSettings, flags runConfig) answererFactory {
 	return func(ctx context.Context, stats *collector) (answerer, error) {
-		chosen, err := settings.holder.resolved()
+		chosen, err := connected(settings, flags)
 		if err != nil {
 			return nil, err
 		}

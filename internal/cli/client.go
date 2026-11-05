@@ -27,7 +27,7 @@ func clientBuilder(info BuildInfo, flags *runFlags, settings rootSettings) clien
 		opts := []onesie.Option{
 			onesie.WithProvider(chosen.provider),
 			onesie.WithUserAgent("onesie/" + info.Version),
-			onesie.WithEnv(settings.lookupEnv),
+			onesie.WithEnv(noEnvironment),
 			onesie.WithOptionalAPIKey(),
 		}
 
@@ -37,7 +37,7 @@ func clientBuilder(info BuildInfo, flags *runFlags, settings rootSettings) clien
 
 		opts = append(opts, onesie.WithHTTPClient(&http.Client{Transport: pooled(settings.transport, flags.jobs)}))
 
-		opts = append(opts, chosen.options(flags.baseURL, profileKey(settings, chosen), settings.lookupEnv)...)
+		opts = append(opts, chosen.options(profileKey(settings, chosen))...)
 
 		opts = append(opts, onesie.WithRetry(retryPolicy(*flags)), onesie.WithClock(settings.clock))
 
@@ -47,7 +47,7 @@ func clientBuilder(info BuildInfo, flags *runFlags, settings rootSettings) clien
 
 		client, err := onesie.New(opts...)
 		if err != nil {
-			return nil, explained(settings, flags.baseURL, chosen, err)
+			return nil, explained(settings, chosen, err)
 		}
 
 		var printErr error
@@ -60,7 +60,7 @@ func clientBuilder(info BuildInfo, flags *runFlags, settings rootSettings) clien
 		}
 
 		if segment, repeats := client.BaseURLRepeatsPath(); repeats {
-			source := baseURLFrom(client.BaseURLSource(), flags.baseURL, chosen, settings.lookupEnv)
+			source := baseURLFrom(client.BaseURLSource(), chosen)
 
 			doubled.Do(func() {
 				warning := source + " ends in /" + segment + " and onesie adds the API path itself, so questions go to " +
@@ -129,10 +129,10 @@ func profileKey(settings rootSettings, chosen resolution) func() (string, error)
 	}
 }
 
-func explained(settings rootSettings, baseURLFlag string, chosen resolution, err error) error {
+func explained(settings rootSettings, chosen resolution, err error) error {
 	var refused *onesie.BaseURLError
 	if errors.As(err, &refused) {
-		return baseURLRefusal(refused, baseURLFrom(refused.Source, baseURLFlag, chosen, settings.lookupEnv), sendPlainHTTP)
+		return baseURLRefusal(refused, baseURLFrom(refused.Source, chosen), sendPlainHTTP)
 	}
 
 	if errors.Is(err, onesie.ErrNoAccountID) {
@@ -159,22 +159,12 @@ func explained(settings rootSettings, baseURLFlag string, chosen resolution, err
 	return missingKeyHint(err, chosen, opened.Profiles)
 }
 
-func baseURLFrom(
-	source onesie.BaseURLSource, baseURLFlag string, chosen resolution, lookupEnv func(string) (string, bool),
-) string {
+func baseURLFrom(source onesie.BaseURLSource, chosen resolution) string {
 	switch source {
-	case onesie.BaseURLFromOption:
-		name, _ := chosen.givenBaseURL(baseURLFlag, lookupEnv)
-
-		return name
+	case onesie.BaseURLFromOption, onesie.BaseURLFromAccount:
+		return chosen.endpointFrom
 	case onesie.BaseURLFromEnv:
 		return chosen.provider.EnvBaseURL()
-	case onesie.BaseURLFromAccount:
-		if chosen.accountID != "" {
-			return "the profile's account_id"
-		}
-
-		return chosen.provider.EnvAccountID()
 	case onesie.BaseURLFromDefault:
 		return providersOwn
 	}
@@ -229,11 +219,20 @@ func pooled(base http.RoundTripper, jobs int) http.RoundTripper {
 
 type clientFactory func(ctx context.Context, chosen resolution, opts ...onesie.Option) (*onesie.Client, error)
 
-func resolveModel(settings rootSettings, model string) (string, error) {
-	chosen, err := settings.holder.resolved()
+func resolveModel(settings rootSettings, flags runConfig, model string) (string, error) {
+	chosen, err := connected(settings, flags)
 	if err != nil {
 		return "", err
 	}
 
-	return chosen.modelFor(model, settings.lookupEnv), nil
+	return chosen.modelFor(model), nil
+}
+
+func connected(settings rootSettings, flags runConfig) (resolution, error) {
+	chosen, err := settings.holder.resolved()
+	if err != nil {
+		return resolution{}, err
+	}
+
+	return chosen.merged(flags.merged), nil
 }

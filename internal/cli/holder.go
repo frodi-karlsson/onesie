@@ -5,7 +5,9 @@ import (
 	"path/filepath"
 	"sync"
 
+	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/creds"
+	setting "github.com/frodi-karlsson/onesie/internal/settings"
 )
 
 func newHolder(settings rootSettings, flags *runFlags, stderr func() io.Writer) *holder {
@@ -13,11 +15,21 @@ func newHolder(settings rootSettings, flags *runFlags, stderr func() io.Writer) 
 		return openProfiles(settings, stderr())
 	})
 
+	loaded := sync.OnceValues(func() (loadedRun, error) {
+		return loadRun(flags, settings.lookupEnv, opened)
+	})
+
 	return &holder{
 		stderr: stderr,
 		opened: opened,
+		loaded: loaded,
 		resolved: sync.OnceValues(func() (resolution, error) {
-			return resolveRun(flags, settings.lookupEnv, opened)
+			run, err := loaded()
+			if err != nil {
+				return resolution{}, err
+			}
+
+			return resolveRun(run, settings.lookupEnv, opened)
 		}),
 	}
 }
@@ -25,39 +37,77 @@ func newHolder(settings rootSettings, flags *runFlags, stderr func() io.Writer) 
 type holder struct {
 	stderr   func() io.Writer
 	opened   func() (creds.Opened, error)
+	loaded   func() (loadedRun, error)
 	resolved func() (resolution, error)
 }
 
-func resolveRun(
+func loadRun(
 	flags *runFlags, lookupEnv func(string) (string, bool), open func() (creds.Opened, error),
-) (resolution, error) {
+) (loadedRun, error) {
 	chosen, err := choose(flags, lookupEnv)
 	if err != nil {
-		return resolution{}, err
+		return loadedRun{}, err
 	}
 
-	// A run that names its provider and succeeds never opens the file, so CI that names one stays
-	// apart from any file on the machine. Only a failure reads it, for the hint.
+	// A run that names its provider never opens the file, so CI that names one stays apart from any
+	// file on the machine.
 	if chosen.provider != "" {
-		bare, bareErr := providerRun(chosen.provider, chosen.by, lookupEnv)
-		if bareErr == nil {
-			return bare, nil
-		}
-
-		opened, openErr := open()
-		if openErr != nil {
-			return resolution{}, bareErr
-		}
-
-		return resolution{}, providerIsProfileHint(bareErr, chosen, opened.Profiles)
+		return loadedRun{chosen: chosen}, nil
 	}
 
 	opened, err := open()
 	if err != nil {
+		return loadedRun{}, err
+	}
+
+	return profileOf(chosen, opened.Profiles)
+}
+
+func resolveRun(
+	run loadedRun, lookupEnv func(string) (string, bool), open func() (creds.Opened, error),
+) (resolution, error) {
+	if run.chosen.provider == "" {
+		if run.name == "" {
+			return providerRun(onesie.TypeSafe().Name(), byNothing, lookupEnv)
+		}
+
+		return profileRun(run.name, run.profile, run.by)
+	}
+
+	bare, err := providerRun(run.chosen.provider, run.chosen.by, lookupEnv)
+	if err == nil {
+		return bare, nil
+	}
+
+	// Only a failure reads the file, for the hint.
+	opened, openErr := open()
+	if openErr != nil {
 		return resolution{}, err
 	}
 
-	return resolveProfile(chosen, opened.Profiles, lookupEnv)
+	return resolution{}, providerIsProfileHint(err, run.chosen, opened.Profiles)
+}
+
+type loadedRun struct {
+	chosen   choice
+	name     string
+	by       string
+	profile  creds.Profile
+	fallback string
+}
+
+func (r loadedRun) values() *setting.ProfileValues {
+	if r.name == "" {
+		return nil
+	}
+
+	return &setting.ProfileValues{
+		Members: map[string]string{
+			"provider": r.profile.Provider, "model": r.profile.Model,
+			"base_url": r.profile.BaseURL, "account_id": r.profile.AccountID,
+		},
+		KeyHeld: !holdsNoKey(r.profile),
+	}
 }
 
 func openProfiles(settings rootSettings, stderr io.Writer) (creds.Opened, error) {

@@ -20,18 +20,6 @@ const (
 	mockBaseURL = "https://mock.invalid"
 )
 
-func mockSource(lookupEnv func(string) (string, bool), flag string) (path, spelled string) {
-	if flag != "" {
-		return flag, flagMock
-	}
-
-	if value, found := lookupEnv(envMock); found && value != "" {
-		return value, envMock
-	}
-
-	return "", ""
-}
-
 func mockAnswers(
 	settings rootSettings, flags runConfig, provider onesie.Provider, built *plan.Plan, known []plan.Question,
 ) (answererFactory, error) {
@@ -69,7 +57,7 @@ func mockClient(
 ) (*onesie.Client, error) {
 	opts := []onesie.Option{
 		onesie.WithProvider(provider),
-		onesie.WithEnv(settings.lookupEnv),
+		onesie.WithEnv(noEnvironment),
 		onesie.WithAPIKey(mockKey),
 		onesie.WithBaseURL(mockBaseURL),
 		onesie.WithHTTPClient(&http.Client{Transport: settings.mockTransport(provider)}),

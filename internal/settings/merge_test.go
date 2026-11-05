@@ -390,6 +390,37 @@ func TestMerge(t *testing.T) {
 			check: wantThreshold("urgent", 0.9),
 		},
 		{
+			name: "should merge a profile's key as HeldKey with its rank",
+			reading: reading{
+				defaultProfile: "work", keyHeld: true, profile: map[string]string{"provider": "typesafe"},
+			},
+			want:        values{"api_key": settings.HeldKey{}},
+			wantSources: map[settings.Name]settings.Source{"api_key": settings.SourceDefaultProfile},
+		},
+		{
+			name:    "should map ONESIE_CACHE_TTL=0 to no alias lifetime",
+			reading: reading{env: map[string]string{"ONESIE_CACHE_TTL": "0"}},
+			check: func(t *testing.T, merged *settings.Merged) {
+				t.Helper()
+
+				view := settings.NewView(merged, nil, settings.Facts{})
+				if got := settings.Derived(view, settings.CacheTTL); got != settings.NoAliasTTL {
+					t.Errorf("Derived(cache_ttl) = %v, want NoAliasTTL", got)
+				}
+			},
+		},
+		{
+			name: "should keep an unset ONESIE_CACHE_TTL at zero",
+			check: func(t *testing.T, merged *settings.Merged) {
+				t.Helper()
+
+				view := settings.NewView(merged, nil, settings.Facts{})
+				if got := settings.Derived(view, settings.CacheTTL); got != 0 {
+					t.Errorf("Derived(cache_ttl) = %v, want 0", got)
+				}
+			},
+		},
+		{
 			name: "should merge layers given in any order",
 			layers: []settings.Layer{
 				{Source: settings.SourceEnv, Values: map[settings.Name]any{"model": "e"}, Spelled: map[settings.Name]string{

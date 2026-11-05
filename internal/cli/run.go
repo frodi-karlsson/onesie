@@ -2,7 +2,6 @@ package cli
 
 import (
 	"bytes"
-	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -39,7 +38,7 @@ func validated(
 		return staged{}, err
 	}
 
-	flags, err := newRunConfig(cmd, settings.lookupEnv, *parsed, events, positional)
+	flags, err := newRunConfig(cmd, *parsed, events, positional)
 	if err != nil {
 		return staged{}, err
 	}
@@ -49,20 +48,45 @@ func validated(
 	// Both modes sit ahead of the plan, since neither has a question and failing for want of one
 	// would send the user to the wrong flag. They validate with no plan.
 	if flags.listModels || flags.inputMode == input.Request {
-		_, err = validateRun(flags, runFacts{}, nil)
+		merged, mergeErr := mergeRun(settings, flags, parsed.given, setting.CommandRoot, nil)
+		if mergeErr != nil {
+			return staged{}, mergeErr
+		}
 
-		return staged{config: flags}, err
+		if _, err = validateRun(merged.config, runFacts{}, nil); err != nil {
+			return staged{}, err
+		}
+
+		if merged.refusal != nil {
+			return staged{}, merged.refusal
+		}
+
+		return staged{config: merged.config}, announce(cmd.ErrOrStderr(), merged.notices)
 	}
 
-	built, file, warnings, err := assemble(settings, flags, false)
+	ready, err := assemble(settings, flags, parsed.given, setting.CommandRoot, false)
 
 	// Warnings print whether or not validation succeeded, so a run that fails for one reason still
 	// reports the others.
-	if warnErr := warnAll(cmd.ErrOrStderr(), warnings); warnErr != nil {
+	if warnErr := warnAll(cmd.ErrOrStderr(), ready.warnings); warnErr != nil {
 		return staged{}, warnErr
 	}
 
-	return staged{config: flags, plan: built, file: file}, err
+	if err != nil {
+		return staged{}, err
+	}
+
+	return staged{config: ready.config, plan: ready.plan, file: ready.file}, announce(cmd.ErrOrStderr(), ready.notices)
+}
+
+func announce(w io.Writer, notices []setting.Notice) error {
+	for _, notice := range notices {
+		if err := output.Notice(w, notice.String()); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 type staged struct {
@@ -141,7 +165,7 @@ func runPlan(
 ) error {
 	built, gate, abstain, inputMode := inv.plan, inv.gate, inv.abstain, flags.inputMode
 
-	model, err := resolveModel(settings, built.Model)
+	model, err := resolveModel(settings, flags, built.Model)
 	if err != nil {
 		return err
 	}
@@ -234,12 +258,12 @@ func runOne(
 
 	// After the state is resolved, so the body carries the state a real run would send.
 	if flags.printRequest {
-		chosen, err := settings.holder.resolved()
+		chosen, err := connected(settings, flags)
 		if err != nil {
 			return err
 		}
 
-		model := chosen.modelFor(built.Model, settings.lookupEnv)
+		model := chosen.modelFor(built.Model)
 		req := requestFor(built, model, plan.WireAll(built.Questions), sent, assets)
 
 		return printRequest(cmd.OutOrStdout(), chosen.provider, req, resolved.Source != input.SourceNone)
@@ -387,7 +411,7 @@ func outFingerprint(
 }
 
 func runInputs(settings rootSettings, flags runConfig, inputs answersfile.FingerprintInputs) (answersfile.FingerprintInputs, error) {
-	chosen, err := settings.holder.resolved()
+	chosen, err := connected(settings, flags)
 	if err != nil {
 		return answersfile.FingerprintInputs{}, err
 	}
@@ -409,23 +433,21 @@ func runInputs(settings rootSettings, flags runConfig, inputs answersfile.Finger
 
 	// A mock run ignores the base URL and the account.
 	if !inputs.Mock {
-		inputs.BaseURL, inputs.AccountID = endpointOf(chosen, flags.baseURL, settings.lookupEnv)
+		inputs.BaseURL, inputs.AccountID = endpointOf(chosen)
 	}
 
 	return inputs, nil
 }
 
-func endpointOf(chosen resolution, baseURLFlag string, lookupEnv func(string) (string, bool)) (baseURL, account string) {
-	_, given := chosen.givenBaseURL(baseURLFlag, lookupEnv)
-
-	resolved, source, err := chosen.provider.ResolveBaseURL(given, chosen.accountID, lookupEnv)
+func endpointOf(chosen resolution) (baseURL, account string) {
+	resolved, source, err := chosen.provider.ResolveBaseURL(chosen.baseURL, chosen.accountID, noEnvironment)
 
 	switch {
 	case err != nil:
 		// The client refuses the same base URL before any request, so this fingerprint is never kept.
-		return strings.TrimSpace(given), ""
+		return strings.TrimSpace(chosen.baseURL), ""
 	case source == onesie.BaseURLFromAccount:
-		return "", cmp.Or(chosen.accountID, setVariable(lookupEnv, chosen.provider.EnvAccountID()))
+		return "", chosen.accountID
 	case chosen.provider.CustomBaseURL(resolved) || chosen.provider.EnvAccountID() != "":
 		// A cloudflare account URL given whole is the provider's own, yet it names the account.
 		return resolved, ""
@@ -689,7 +711,7 @@ func ask(
 
 	questions := plan.WireAll(built.Questions)
 
-	model, err := resolveModel(settings, built.Model)
+	model, err := resolveModel(settings, flags, built.Model)
 	if err != nil {
 		return err
 	}
@@ -706,7 +728,7 @@ func ask(
 		// for, so a shell guard reads a decision. An interrupt is skipped, since a transport record
 		// written into the pipe the caller was closing reports a fault that never happened.
 		if !errors.Is(err, context.Canceled) {
-			record.Failure.Sentence = sentence(withKeyHint(err, settings, flags.mock))
+			record.Failure.Sentence = sentence(withKeyHint(err, settings, flags))
 
 			if writeErr := writeFailure(cmd, settings, outputMode, flags, inv, state.resolved, record); writeErr != nil {
 				return writeErr

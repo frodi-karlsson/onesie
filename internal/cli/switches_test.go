@@ -1,16 +1,18 @@
 package cli
 
 import (
+	"io"
 	"testing"
 	"time"
 
 	"github.com/spf13/cobra"
 
+	"github.com/frodi-karlsson/onesie/internal/argv"
 	"github.com/frodi-karlsson/onesie/internal/cache"
 	setting "github.com/frodi-karlsson/onesie/internal/settings"
 )
 
-func TestReadSwitches(t *testing.T) {
+func TestMergeRun(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -27,6 +29,12 @@ func TestReadSwitches(t *testing.T) {
 			env:  map[string]string{envCache: "true", envLongContext: "1", envCacheTTL: "90m"},
 			want: switches{cache: true, cacheFrom: setting.SourceEnv, longContext: true, aliasTTL: 90 * time.Minute},
 		},
+		{
+			name: "should accept ONESIE_CACHE and ONESIE_CACHE_TTL with spaces around them",
+			env:  map[string]string{envCache: " 1", envCacheTTL: " 90m "},
+			want: switches{cache: true, cacheFrom: setting.SourceEnv, aliasTTL: 90 * time.Minute},
+		},
+		{name: "should read a blank variable as unset", env: map[string]string{envCache: "  ", envCacheTTL: "\t"}},
 		{name: "should read ONESIE_CACHE_TTL=0 as no alias lifetime", env: map[string]string{envCacheTTL: "0"}, want: switches{aliasTTL: cache.NoAliasTTL}},
 		{name: "should be on under --cache", args: []string{"--cache"}, want: switches{cache: true, cacheFrom: setting.SourceFlag}},
 		{name: "should let --cache=false win over ONESIE_CACHE=1", env: map[string]string{envCache: "1"}, args: []string{"--cache=false"}, want: switches{cacheFrom: setting.SourceFlag}},
@@ -34,6 +42,10 @@ func TestReadSwitches(t *testing.T) {
 		{
 			name: "should let --long-context=false win over ONESIE_LONG_CONTEXT=1",
 			env:  map[string]string{envLongContext: "1"}, args: []string{"--long-context=false"},
+		},
+		{
+			name: "should skip a malformed ONESIE_CACHE under --print-request",
+			env:  map[string]string{envCache: "maybe", envCacheTTL: "soon"}, args: []string{"--print-request"},
 		},
 		{
 			name:    "should refuse an ONESIE_LONG_CONTEXT the flag would not take",
@@ -64,48 +76,74 @@ func TestReadSwitches(t *testing.T) {
 
 			flags := &runFlags{}
 			cmd := &cobra.Command{Use: "onesie"}
-			cmd.Flags().BoolVar(&flags.cache, flagCache, false, "")
-			cmd.Flags().BoolVar(&flags.longContext, flagLongContext, false, "")
+			flags.given = setting.Register(cmd.Flags(), cmd.PersistentFlags(), setting.Table(), argv.New(),
+				setting.CommandRoot, runTargets(flags))
+			cmd.Flags().AddFlagSet(cmd.PersistentFlags())
 
 			if err := cmd.Flags().Parse(tc.args); err != nil {
 				t.Fatal(err)
 			}
 
-			got, err := readSwitches(cmd, lookupFrom(tc.env), *flags)
+			settings := defaultSettings(BuildInfo{})
+			settings.lookupEnv = lookupFrom(tc.env)
+			settings.holder = newHolder(settings, flags, func() io.Writer { return io.Discard })
+
+			merged, err := mergeRun(settings, runConfig{runFlags: *flags}, flags.given, setting.CommandRoot, nil)
+			got := merged.config
 
 			if tc.wantErr != "" {
 				if err == nil || err.Error() != tc.wantErr || Classify(err) != ExitUsage {
-					t.Fatalf("readSwitches = %v, want the usage error %q", err, tc.wantErr)
+					t.Fatalf("mergeRun = %v, want the usage error %q", err, tc.wantErr)
 				}
 
 				return
 			}
 
-			if err != nil || got != tc.want {
-				t.Errorf("readSwitches = %+v, %v, want %+v", got, err, tc.want)
+			if err != nil || got.env != tc.want {
+				t.Errorf("mergeRun switches = %+v, %v, want %+v", got.env, err, tc.want)
 			}
 		})
 	}
 }
 
-func TestLongContext(t *testing.T) {
+func TestCheckEnvSwitches(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name string
-		on   bool
+		name    string
+		env     map[string]string
+		wantErr string
 	}{
-		{name: "should report long context on when the switches turned it on", on: true},
-		{name: "should report long context off when the switches left it off"},
+		{name: "should accept no variable"},
+		{name: "should accept values with spaces around them", env: map[string]string{envCache: " 1 ", envCacheTTL: " 90m"}},
+		{
+			name:    "should refuse an ONESIE_LONG_CONTEXT the flag would not take",
+			env:     map[string]string{envLongContext: "garbage"},
+			wantErr: "ONESIE_LONG_CONTEXT=garbage is not a value --long-context takes. Use 1 or 0",
+		},
+		{
+			name:    "should refuse an ONESIE_CACHE_TTL that is no duration",
+			env:     map[string]string{envCacheTTL: "soon"},
+			wantErr: "ONESIE_CACHE_TTL=soon is not a duration of zero or more, such as 90m or 72h",
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			if got := longContext(runConfig{env: switches{longContext: tc.on}}); got != tc.on {
-				t.Errorf("longContext = %t, want %t", got, tc.on)
+			err := checkEnvSwitches(lookupFrom(tc.env))
+			if got := errText(err); got != tc.wantErr {
+				t.Errorf("checkEnvSwitches = %q, want %q", got, tc.wantErr)
 			}
 		})
 	}
+}
+
+func errText(err error) string {
+	if err == nil {
+		return ""
+	}
+
+	return err.Error()
 }

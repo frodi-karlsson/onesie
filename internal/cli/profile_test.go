@@ -2041,11 +2041,19 @@ func TestProfileTest(t *testing.T) {
 		{
 			name:     "should exit 3 for an empty keychain item rather than read the variable",
 			profiles: keychainWork,
-			args:     []string{"profile", "test"},
+			args:     []string{"profile", "test", "work"},
 			env:      map[string]string{onesie.TypeSafe().EnvAPIKey(): "SECRET-ENV"},
 			items:    map[string]string{"work@abc": ""},
 			wantCode: ExitAuth,
 			wantErr:  "the keychain holds no key",
+		},
+		{
+			name:     "should test the provider key variable over the default profile's key, as a run sends it",
+			profiles: keychainWork,
+			args:     []string{"profile", "test"},
+			env:      map[string]string{onesie.TypeSafe().EnvAPIKey(): "SECRET-ENV"},
+			items:    map[string]string{"work@abc": ""},
+			wantOut:  "profile: work\nprovider: typesafe\nkey: env TYPESAFE_API_KEY\nmodels: 2\n",
 		},
 		{
 			name: "should leave the userinfo out of a base url the client refuses",

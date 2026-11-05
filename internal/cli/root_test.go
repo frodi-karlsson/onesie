@@ -2048,36 +2048,6 @@ func TestNewRootCmd(t *testing.T) {
 
 				return []string{"--out", t.TempDir()}
 			}},
-			{name: "should report a flag clash before an exposed profiles.json", config: func(t *testing.T, dir string) []string {
-				t.Helper()
-
-				if runtime.GOOS == "windows" {
-					t.Skip("windows has no group or other mode bits to expose the file through")
-				}
-
-				path := filepath.Join(dir, "profiles.json")
-				stored := `{"default":"work","profiles":{"work":{"provider":"typesafe","api_key":"k"}}}`
-
-				if err := os.WriteFile(path, []byte(stored), 0o644); err != nil {
-					t.Fatalf("writing profiles.json: %v", err)
-				}
-
-				// A umask may trim the mode WriteFile asks for.
-				if err := os.Chmod(path, 0o644); err != nil {
-					t.Fatalf("exposing profiles.json: %v", err)
-				}
-
-				return nil
-			}},
-			{name: "should report a flag clash before a broken profiles.json", config: func(t *testing.T, dir string) []string {
-				t.Helper()
-
-				if err := os.WriteFile(filepath.Join(dir, "profiles.json"), []byte("{"), 0o600); err != nil {
-					t.Fatalf("writing profiles.json: %v", err)
-				}
-
-				return nil
-			}},
 		}
 
 		for _, tc := range tests {
@@ -2090,6 +2060,57 @@ func TestNewRootCmd(t *testing.T) {
 				out, code := runWithEnv(t, map[string]string{"ONESIE_CONFIG_DIR": dir, "TYPESAFE_API_KEY": "k"}, args)
 				if code != cli.ExitUsage || out != clash {
 					t.Errorf("exit %d, output %q, want exit %d and only %q", code, out, cli.ExitUsage, clash)
+				}
+			})
+		}
+	})
+
+	t.Run("should report a broken or exposed profiles.json before a flag clash", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name     string
+			mode     os.FileMode
+			stored   string
+			unixOnly bool
+			wantCode int
+			want     string
+		}{
+			{
+				name: "should report an exposed profiles.json first", mode: 0o644, unixOnly: true, wantCode: cli.ExitAuth,
+				stored: `{"default":"work","profiles":{"work":{"provider":"typesafe","api_key":"k"}}}`,
+				want:   "is readable or writable by its group or others, mode 644",
+			},
+			{
+				name: "should report a broken profiles.json first", mode: 0o600, stored: "{", wantCode: cli.ExitUsage,
+				want: "is not valid JSON",
+			},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				if tc.unixOnly && runtime.GOOS == "windows" {
+					t.Skip("windows has no group or other mode bits to expose the file through")
+				}
+
+				dir := t.TempDir()
+				path := filepath.Join(dir, "profiles.json")
+
+				if err := os.WriteFile(path, []byte(tc.stored), tc.mode); err != nil {
+					t.Fatalf("writing profiles.json: %v", err)
+				}
+
+				// A umask may trim the mode WriteFile asks for.
+				if err := os.Chmod(path, tc.mode); err != nil {
+					t.Fatalf("setting the mode of profiles.json: %v", err)
+				}
+
+				out, code := runWithEnv(t, map[string]string{"ONESIE_CONFIG_DIR": dir, "TYPESAFE_API_KEY": "k"},
+					[]string{"is this urgent", "-i", "jsonl", "-o", "table"})
+				if code != tc.wantCode || !strings.Contains(out, tc.want) || strings.Contains(out, "reads one record") {
+					t.Errorf("exit %d, output %q, want exit %d naming %q and no clash", code, out, tc.wantCode, tc.want)
 				}
 			})
 		}

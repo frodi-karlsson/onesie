@@ -337,6 +337,58 @@ func TestGiven_Spelled(t *testing.T) {
 	}
 }
 
+func TestGiven_Inherit(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		run  func(t *testing.T)
+	}{
+		{
+			name: "should read a persistent flag of the parent",
+			run: func(t *testing.T) {
+				t.Helper()
+
+				root := register(settings.CommandRoot)
+				calibrate := register(settings.CommandCalibrate)
+				calibrate.persistent = root.persistent
+				calibrate.given.Inherit(root.persistent)
+				calibrate.parse(t, "--profile", "work")
+
+				layers, err := settings.Read(settings.Table(), settings.Sources{
+					Given: calibrate.given, Facts: settings.Facts{Command: settings.CommandCalibrate},
+				})
+				if err != nil {
+					t.Fatalf("Read: %v", err)
+				}
+
+				wantValue(t, layerAt(t, layers, settings.SourceFlag), "profile", "work", "--profile")
+			},
+		},
+		{
+			name: "should do nothing on a nil Given",
+			run: func(t *testing.T) {
+				t.Helper()
+
+				var given *settings.Given
+
+				given.Inherit(pflag.NewFlagSet("persistent", pflag.ContinueOnError))
+
+				if got := given.Count("profile"); got != 0 {
+					t.Errorf("Count = %d, want 0", got)
+				}
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			tc.run(t)
+		})
+	}
+}
+
 func register(command settings.Command) registered {
 	rows := settings.Table()
 	r := registered{

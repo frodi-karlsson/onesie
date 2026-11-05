@@ -3,6 +3,7 @@ package settings
 import (
 	"fmt"
 	"strconv"
+	"time"
 
 	"github.com/frodi-karlsson/onesie-go"
 
@@ -27,6 +28,10 @@ const (
 	profileAllowHTTPHelp = "store a plain http --base-url to a host other than this machine. Every run on the " +
 		"profile then needs --allow-http too"
 )
+
+// NoAliasTTL is the cache_ttl a run takes from ONESIE_CACHE_TTL=0, a lifetime under which an entry for
+// a model alias is neither read nor stored. It equals the cache's own.
+const NoAliasTTL time.Duration = -1
 
 // Table returns every setting, grouped by topic with the mode switches first, so --version is the
 // first flag root registers.
@@ -436,13 +441,14 @@ func endpointRows() []Row {
 	return append([]Row{
 		{
 			Name: "model", Kind: NonEmptyText(),
-			Modes:    Modes(ModeAsk, ModeStream, ModePrintRequest, ModeCalibrate, ModeProfile),
+			Modes:    Modes(ModeAsk, ModeStream, ModeRequest, ModePrintRequest, ModeCalibrate, ModeProfile),
 			FileKey:  "model",
 			InBody:   true,
 			FileHelp: "The model a request body asks, unless -m names one.",
 			Env: []EnvSpec{{
 				Name: "TYPESAFE_DEFAULT_MODEL", Provider: providerTS, Order: 3,
-				Help: "the model on typesafe when neither `-m`, a request body nor the profile names one",
+				Help: "the model on typesafe when neither `-m`, a chosen profile nor a request body names one. It " +
+					"beats the default profile's `model`",
 			}},
 			Profile: []ProfileMember{{Key: "model"}},
 			Flag: FlagSpec{
@@ -458,12 +464,14 @@ func endpointRows() []Row {
 			Name: "endpoint", Kind: Endpoint(), Modes: connecting(),
 			Env: []EnvSpec{
 				{Name: "ONESIE_BASE_URL", Order: 4, Half: HalfBaseURL, Help: "the API root on every provider when " +
-					"neither `--base-url`, the profile's `base_url` nor its `account_id` names one"},
+					"neither `--base-url` nor a chosen profile's `base_url` or `account_id` names one. It beats the " +
+					"default profile's"},
 				{Name: "TYPESAFE_BASE_URL", Provider: providerTS, Order: 5, Half: HalfBaseURL, Help: "the API root on " +
-					"typesafe when neither `--base-url`, the profile's `base_url` nor `ONESIE_BASE_URL` names one, so " +
-					"`ONESIE_BASE_URL` wins"},
+					"typesafe when neither `--base-url`, a chosen profile nor `ONESIE_BASE_URL` names one, so " +
+					"`ONESIE_BASE_URL` wins. It beats the default profile's"},
 				{Name: "CLOUDFLARE_ACCOUNT_ID", Provider: providerCF, Order: 2, Half: HalfAccount, Help: "the " +
-					"Cloudflare account when no flag or profile names one, as in Profiles and providers"},
+					"Cloudflare account when no flag, chosen profile or base URL variable names one. It beats the default " +
+					"profile's, as in What a run uses"},
 			},
 			Profile: []ProfileMember{{Key: "base_url", Half: HalfBaseURL}, {Key: "account_id", Half: HalfAccount}},
 			Flag: FlagSpec{Long: "base-url", Commands: onProfileWriters(onRuns()...), PerCommand: map[Command]CommandFlag{
@@ -486,19 +494,20 @@ func endpointRows() []Row {
 func answerSourceRows() []Row {
 	return []Row{
 		{
-			Name: "long_context", Kind: Bool(), Modes: Modes(ModeAsk, ModeStream, ModePrintRequest, ModeCalibrate),
+			Name: "long_context", Kind: Bool(), Modes: Modes(ModeAsk, ModeStream, ModeRequest, ModePrintRequest, ModeCalibrate),
 			FileKey:  "long_context",
 			InBody:   true,
 			FileHelp: "Raises the context limits of the request body. Only true has an effect.",
 			Env: []EnvSpec{{Name: "ONESIE_LONG_CONTEXT", Order: 13, Help: "`1` or `true` raises the context limits, " +
-				"as `--long-context`. It takes the values the flag takes, and anything else exits 2"}},
+				"as `--long-context`. It takes the values the flag takes, and anything else exits 2 where it applies"}},
 			Flag: FlagSpec{Long: "long-context", Commands: onRuns()},
 			Help: "raise the context limits to 262k tokens, slower and less accurate. Also ONESIE_LONG_CONTEXT=1. " +
 				experimental,
 		},
 		{
 			Name: "mock", Kind: NonEmptyText(), Modes: answering(),
-			Env:  []EnvSpec{{Name: "ONESIE_MOCK", Order: 9, Help: "a file to answer from, as `--mock`"}},
+			Env: []EnvSpec{{Name: "ONESIE_MOCK", Order: 9, Help: "a file to answer from, as `--mock`. Skipped beside " +
+				"`--list-models`, `-i request` and `--print-request`"}},
 			Flag: FlagSpec{Long: "mock", Commands: onRuns()},
 			Help: "answer from this file instead of the API. Also ONESIE_MOCK. The file is an object keyed by " +
 				`question id, as {"answer":0.9,"team":"billing"}, or one line per record in the shape -o json ` +
@@ -659,7 +668,7 @@ func envRows() []Row {
 			Profile: []ProfileMember{{Key: "api_key"}},
 		},
 		{
-			Name: "cache_ttl", Kind: Duration(), Modes: answering(),
+			Name: "cache_ttl", Kind: Duration(), Modes: answering(), Derive: aliasLifetime,
 			Env: []EnvSpec{{Name: "ONESIE_CACHE_TTL", Order: 12, Help: "how long a cached answer for a model alias " +
 				"lives, `24h` unless set"}},
 			Help: "how long a cached answer for a model alias lives",
@@ -678,13 +687,22 @@ func envRows() []Row {
 	}
 }
 
+func aliasLifetime(v View) (any, bool) {
+	if v.Merged.Source(CacheTTL.Name()) == SourceDefault || Get(v.Merged, CacheTTL) != 0 {
+		return nil, false
+	}
+
+	return NoAliasTTL, true
+}
+
 func keyVariables() []EnvSpec {
 	var variables []EnvSpec
 
 	for _, provider := range onesie.Providers() {
 		variables = append(variables, EnvSpec{
 			Name: provider.EnvAPIKey(), Provider: provider.Name(), Order: 1,
-			Help: "the key for each provider on a run without a profile, as in Profiles and providers",
+			Help: "the key for each provider. It beats the default profile's key, and a chosen profile's beats it, " +
+				"as in What a run uses",
 		})
 	}
 

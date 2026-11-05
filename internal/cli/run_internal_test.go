@@ -18,6 +18,7 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/input"
 	"github.com/frodi-karlsson/onesie/internal/output"
 	"github.com/frodi-karlsson/onesie/internal/plan"
+	setting "github.com/frodi-karlsson/onesie/internal/settings"
 )
 
 func TestJudge(t *testing.T) {
@@ -377,13 +378,15 @@ func TestRunInputs(t *testing.T) {
 
 	account := strings.Repeat("ab", 16)
 	other := strings.Repeat("cd", 16)
+	wholeAccount := "https://api.cloudflare.com/client/v4/accounts/" + other + "/ai"
 
 	tests := []struct {
-		name   string
-		chosen resolution
-		flags  runConfig
-		env    map[string]string
-		want   answersfile.FingerprintInputs
+		name     string
+		chosen   resolution
+		flags    runConfig
+		from     setting.Source
+		endpoint setting.EndpointValue
+		want     answersfile.FingerprintInputs
 	}{
 		{
 			name:   "should leave the base URL empty for the provider's own",
@@ -392,67 +395,54 @@ func TestRunInputs(t *testing.T) {
 		},
 		{
 			name:   "should leave the base URL empty when --base-url names the provider's own",
-			chosen: resolution{provider: onesie.TypeSafe()},
-			flags:  runConfig{runFlags: runFlags{baseURL: onesie.TypeSafe().DefaultBaseURL() + "/"}},
-			want:   answersfile.FingerprintInputs{Provider: "typesafe"},
+			chosen: resolution{provider: onesie.TypeSafe()}, from: setting.SourceFlag,
+			endpoint: setting.EndpointValue{BaseURL: onesie.TypeSafe().DefaultBaseURL() + "/"},
+			want:     answersfile.FingerprintInputs{Provider: "typesafe"},
 		},
 		{
 			name:   "should fingerprint --base-url",
-			chosen: resolution{provider: onesie.TypeSafe()},
-			flags:  runConfig{runFlags: runFlags{baseURL: "https://onesie.example.com/"}},
-			want:   answersfile.FingerprintInputs{Provider: "typesafe", BaseURL: "https://onesie.example.com"},
+			chosen: resolution{provider: onesie.TypeSafe()}, from: setting.SourceFlag,
+			endpoint: setting.EndpointValue{BaseURL: "https://onesie.example.com/"},
+			want:     answersfile.FingerprintInputs{Provider: "typesafe", BaseURL: "https://onesie.example.com"},
 		},
 		{
 			name:   "should fingerprint ONESIE_BASE_URL",
-			chosen: resolution{provider: onesie.TypeSafe()},
-			env:    map[string]string{envBaseURL: "https://onesie.example.com"},
-			want:   answersfile.FingerprintInputs{Provider: "typesafe", BaseURL: "https://onesie.example.com"},
+			chosen: resolution{provider: onesie.TypeSafe()}, from: setting.SourceEnv,
+			endpoint: setting.EndpointValue{BaseURL: "https://onesie.example.com"},
+			want:     answersfile.FingerprintInputs{Provider: "typesafe", BaseURL: "https://onesie.example.com"},
 		},
 		{
 			name:   "should fingerprint a profile's base URL and name",
-			chosen: resolution{provider: onesie.TypeSafe(), profile: "work", baseURL: "https://onesie.example.com"},
+			chosen: resolution{provider: onesie.TypeSafe(), profile: "work"}, from: setting.SourceChosenProfile,
+			endpoint: setting.EndpointValue{BaseURL: "https://onesie.example.com"},
 			want: answersfile.FingerprintInputs{
 				Provider: "typesafe", Profile: "work", BaseURL: "https://onesie.example.com",
 			},
 		},
 		{
 			name:   "should fingerprint the cloudflare account from the environment",
-			chosen: resolution{provider: onesie.Cloudflare()},
-			env:    map[string]string{"CLOUDFLARE_ACCOUNT_ID": account},
-			want:   answersfile.FingerprintInputs{Provider: "cloudflare", AccountID: account},
+			chosen: resolution{provider: onesie.Cloudflare()}, from: setting.SourceEnv,
+			endpoint: setting.EndpointValue{AccountID: account},
+			want:     answersfile.FingerprintInputs{Provider: "cloudflare", AccountID: account},
 		},
 		{
-			name:   "should fingerprint a profile's cloudflare account over the environment's",
-			chosen: resolution{provider: onesie.Cloudflare(), profile: "edge", accountID: other},
-			env:    map[string]string{"CLOUDFLARE_ACCOUNT_ID": account},
-			want:   answersfile.FingerprintInputs{Provider: "cloudflare", Profile: "edge", AccountID: other},
+			name:   "should fingerprint a profile's cloudflare account",
+			chosen: resolution{provider: onesie.Cloudflare(), profile: "edge"}, from: setting.SourceChosenProfile,
+			endpoint: setting.EndpointValue{AccountID: other},
+			want:     answersfile.FingerprintInputs{Provider: "cloudflare", Profile: "edge", AccountID: other},
 		},
 		{
 			name:   "should fingerprint a whole cloudflare account URL as the base URL",
-			chosen: resolution{provider: onesie.Cloudflare()},
-			flags: runConfig{runFlags: runFlags{
-				baseURL: "https://api.cloudflare.com/client/v4/accounts/" + other + "/ai",
-			}},
-			env: map[string]string{"CLOUDFLARE_ACCOUNT_ID": account},
-			want: answersfile.FingerprintInputs{
-				Provider: "cloudflare", BaseURL: "https://api.cloudflare.com/client/v4/accounts/" + other + "/ai",
-			},
-		},
-		{
-			name:   "should fingerprint --base-url over a profile's base URL",
-			chosen: resolution{provider: onesie.TypeSafe(), profile: "work", baseURL: "https://profile.example.com"},
-			flags:  runConfig{runFlags: runFlags{baseURL: "https://flag.example.com"}},
-			want: answersfile.FingerprintInputs{
-				Provider: "typesafe", Profile: "work", BaseURL: "https://flag.example.com",
-			},
+			chosen: resolution{provider: onesie.Cloudflare()}, from: setting.SourceFlag,
+			endpoint: setting.EndpointValue{BaseURL: wholeAccount},
+			want:     answersfile.FingerprintInputs{Provider: "cloudflare", BaseURL: wholeAccount},
 		},
 		{
 			name:   "should leave out the base URL a mock run ignores",
-			chosen: resolution{provider: onesie.TypeSafe()},
-			flags: runConfig{
-				runFlags: runFlags{baseURL: "https://onesie.example.com"}, mockPath: "m.json", mockSpelled: "--mock",
-			},
-			want: answersfile.FingerprintInputs{Provider: "typesafe", Mock: true},
+			chosen: resolution{provider: onesie.TypeSafe()}, from: setting.SourceFlag,
+			endpoint: setting.EndpointValue{BaseURL: "https://onesie.example.com"},
+			flags:    runConfig{mockPath: "m.json", mockSpelled: "--mock"},
+			want:     answersfile.FingerprintInputs{Provider: "typesafe", Mock: true},
 		},
 		{
 			name:   "should leave --usage to the caller, since calibrate does not fingerprint it",
@@ -466,12 +456,22 @@ func TestRunInputs(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			settings := rootSettings{
-				holder:    &holder{resolved: func() (resolution, error) { return tc.chosen, nil }},
-				lookupEnv: lookupFrom(tc.env),
+			var layers []setting.Layer
+			if tc.from != setting.SourceDefault {
+				layers = append(layers, setting.Layer{
+					Source: tc.from, Values: map[setting.Name]any{"endpoint": tc.endpoint},
+				})
 			}
 
-			got, err := runInputs(settings, tc.flags, answersfile.FingerprintInputs{})
+			flags := tc.flags
+			flags.merged, _ = setting.Merge(setting.Table(), layers, nil)
+
+			settings := rootSettings{
+				holder:    &holder{resolved: func() (resolution, error) { return tc.chosen, nil }},
+				lookupEnv: lookupFrom(nil),
+			}
+
+			got, err := runInputs(settings, flags, answersfile.FingerprintInputs{})
 			if err != nil {
 				t.Fatal(err)
 			}

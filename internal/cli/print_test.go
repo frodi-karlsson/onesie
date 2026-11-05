@@ -733,10 +733,11 @@ func TestPrintRequest(t *testing.T) {
 			stdout:   []string{`"long_context":true`},
 		},
 		{
-			name:     "should print no long_context for --long-context=false on a body with true",
+			name:     "should print no long_context for --long-context=false on a body with true, with a notice",
 			args:     []string{"-f", longBody, "--state", "x", "--long-context=false", "--print-request"},
 			wantCode: ExitOK,
 			stdout:   []string{`"questions":{"urgent":`},
+			stderr:   []string{"onesie: --long-context overrides the request body's long_context\n"},
 			absent:   []string{`"long_context"`},
 		},
 		{

@@ -150,7 +150,7 @@ func TestRead(t *testing.T) {
 			reading: reading{
 				args: []string{"--provider", "cloudflare"}, env: map[string]string{"CLOUDFLARE_ACCOUNT_ID": "nope"},
 			},
-			wantErr: "CLOUDFLARE_ACCOUNT_ID takes an account id of 32 hexadecimal characters, got 'nope'",
+			wantErr: "CLOUDFLARE_ACCOUNT_ID must be 32 hexadecimal characters",
 		},
 		{
 			name:    "should refuse a flag its kind refuses",
@@ -462,6 +462,52 @@ func TestRead(t *testing.T) {
 				t.Helper()
 
 				wantNoValue(t, layerAt(t, layers, settings.SourceChosenProfile), "api_key")
+			},
+		},
+		{
+			name: "should read no key variable beside a profile that holds no key",
+			reading: reading{
+				defaultProfile: "local", profile: map[string]string{"provider": "typesafe", "base_url": "http://localhost:1"},
+				env: map[string]string{"TYPESAFE_API_KEY": "secret"},
+			},
+			check: func(t *testing.T, layers []settings.Layer) {
+				t.Helper()
+
+				for _, layer := range layers {
+					wantNoValue(t, layer, "api_key")
+				}
+			},
+		},
+		{
+			name: "should read the key variable beside a profile that holds a key",
+			reading: reading{
+				defaultProfile: "work", keyHeld: true, profile: map[string]string{"provider": "typesafe"},
+				env: map[string]string{"TYPESAFE_API_KEY": "secret"},
+			},
+			check: func(t *testing.T, layers []settings.Layer) {
+				t.Helper()
+
+				wantValue(t, layerAt(t, layers, settings.SourceEnv), "api_key", "secret", "TYPESAFE_API_KEY")
+			},
+		},
+		{
+			name: "should never read api_key as a profile member",
+			reading: reading{
+				defaultProfile: "work", keyHeld: true,
+				profile: map[string]string{"provider": "typesafe", "api_key": "secret"},
+			},
+			check: func(t *testing.T, layers []settings.Layer) {
+				t.Helper()
+
+				wantValue(t, layerAt(t, layers, settings.SourceDefaultProfile), "api_key", settings.HeldKey{}, "api_key")
+
+				for _, layer := range layers {
+					for name, value := range layer.Values {
+						if value == "secret" {
+							t.Errorf("layer %d %s holds the key", layer.Source, name)
+						}
+					}
+				}
 			},
 		},
 		{

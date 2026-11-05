@@ -392,13 +392,10 @@ func TestRootExecute(t *testing.T) {
 			want:     "onesie: --assert does not apply to -i request, which forwards raw responses\n",
 		},
 		{
-			name:     "should name ONESIE_MOCK when it is set beside -i request",
-			args:     []string{"-i", "request"},
-			env:      map[string]string{"ONESIE_MOCK": "{dir}{/}m.json"},
-			files:    map[string]string{"m.json": `{"q":0.9}`},
-			wantCode: ExitUsage,
-			want: "onesie: -i request sends each body as written, so ONESIE_MOCK has nothing to answer. " +
-				"Unset it or drop -i request\n",
+			name:  "should skip ONESIE_MOCK silently beside -i request",
+			args:  []string{"-i", "request", "--print-request"},
+			env:   map[string]string{"ONESIE_MOCK": "{dir}{/}m.json"},
+			files: map[string]string{"m.json": `{"q":0.9}`},
 		},
 		{
 			name:     "should name the file's abstain_if key when it has no assertion beside it",

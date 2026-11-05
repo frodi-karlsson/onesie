@@ -63,7 +63,7 @@ func newStreamRun(cmd *cobra.Command, in streamInputs) (*streamRun, error) {
 		return nil, err
 	}
 
-	model, err := resolveModel(in.settings, inv.plan.Model)
+	model, err := resolveModel(in.settings, in.flags, inv.plan.Model)
 	if err != nil {
 		return nil, err
 	}

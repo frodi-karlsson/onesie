@@ -524,7 +524,7 @@ func TestCachedAnswers(t *testing.T) {
 		// machine, even one that ignores the profile.
 		env := cacheEnv(t)
 		env[onesie.TypeSafe().EnvBaseURL()] = stray.URL
-		args := []string{"is this urgent", "-r", "--cache", "--state", "the server is down"}
+		args := []string{"is this urgent", "-r", "--cache", "--state", "the server is down", "--profile", "p"}
 
 		profileAt := func(base string) {
 			writeConfig(t, env["ONESIE_CONFIG_DIR"], "profiles.json",
@@ -554,7 +554,7 @@ func TestCachedAnswers(t *testing.T) {
 		}
 
 		if got := len(strayAuths()); got != 0 {
-			t.Errorf("TYPESAFE_BASE_URL took %d requests, want none, since the profile's base_url beats it", got)
+			t.Errorf("TYPESAFE_BASE_URL took %d requests, want none, since a chosen profile's base_url beats it", got)
 		}
 	})
 }

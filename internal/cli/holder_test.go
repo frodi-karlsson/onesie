@@ -415,7 +415,7 @@ func TestResolveRun(t *testing.T) {
 
 				open := func() (creds.Opened, error) { return creds.Opened{Profiles: profiles}, nil }
 
-				got, err := resolveRun(&tc.flags, lookupFrom(tc.env), open)
+				got, err := loadAndResolve(&tc.flags, lookupFrom(tc.env), open)
 				if tc.wantErr != "" {
 					if err == nil || text(err) != tc.wantErr {
 						t.Errorf("error = %v, want %q", err, tc.wantErr)
@@ -452,7 +452,7 @@ func TestResolveRun(t *testing.T) {
 				return creds.Opened{}, nil
 			}
 
-			if _, err := resolveRun(&runFlags{provider: "berget", providerSet: true}, lookupFrom(nil), open); err != nil {
+			if _, err := loadAndResolve(&runFlags{provider: "berget", providerSet: true}, lookupFrom(nil), open); err != nil {
 				t.Errorf("resolveRun returned an error: %v", err)
 			}
 		})
@@ -462,7 +462,7 @@ func TestResolveRun(t *testing.T) {
 
 			open := func() (creds.Opened, error) { return creds.Opened{}, unreadable }
 
-			_, err := resolveRun(&runFlags{provider: "work", providerSet: true}, lookupFrom(nil), open)
+			_, err := loadAndResolve(&runFlags{provider: "work", providerSet: true}, lookupFrom(nil), open)
 			if err == nil || errors.Is(err, unreadable) || strings.Contains(err.Error(), "is a profile") {
 				t.Errorf("error = %v, want the unknown provider error alone", err)
 			}
@@ -473,7 +473,7 @@ func TestResolveRun(t *testing.T) {
 
 			open := func() (creds.Opened, error) { return creds.Opened{}, unreadable }
 
-			if _, err := resolveRun(&runFlags{}, lookupFrom(nil), open); !errors.Is(err, unreadable) {
+			if _, err := loadAndResolve(&runFlags{}, lookupFrom(nil), open); !errors.Is(err, unreadable) {
 				t.Errorf("error = %v, want %v", err, unreadable)
 			}
 		})
@@ -486,4 +486,15 @@ func linesOf(text string) []string {
 	}
 
 	return strings.Split(strings.TrimSuffix(text, "\n"), "\n")
+}
+
+func loadAndResolve(
+	flags *runFlags, lookupEnv func(string) (string, bool), open func() (creds.Opened, error),
+) (resolution, error) {
+	run, err := loadRun(flags, lookupEnv, open)
+	if err != nil {
+		return resolution{}, err
+	}
+
+	return resolveRun(run, lookupEnv, open)
 }
