@@ -653,7 +653,7 @@ func profileTest(cmd *cobra.Command, settings rootSettings, flags *runFlags, arg
 		return err
 	}
 
-	tested, err := testedConnection(settings, shown, len(args) == 1)
+	tested, err := testedConnection(settings, shown)
 	if err != nil {
 		return err
 	}
@@ -674,7 +674,7 @@ func profileTest(cmd *cobra.Command, settings rootSettings, flags *runFlags, arg
 	return printErr
 }
 
-func testedConnection(settings rootSettings, shown resolution, named bool) (resolution, error) {
+func testedConnection(settings rootSettings, shown resolution) (resolution, error) {
 	run := loadedRun{}
 	choosing := map[string]string{}
 
@@ -700,10 +700,10 @@ func testedConnection(settings rootSettings, shown resolution, named bool) (reso
 		return resolution{}, err
 	}
 
-	// A profile named on profile test, or chosen for the run, ranks as a chosen one. Read sees only
-	// the name it is handed, so it ranks every profile as the default.
+	// Every profile ranks as a chosen one, so profile test reads the profile ahead of the environment,
+	// as profile show does. Read sees only the name it is handed, so it ranks it as the default.
 	for i := range layers {
-		if layers[i].Source == setting.SourceDefaultProfile && (named || shown.by != byDefault) {
+		if layers[i].Source == setting.SourceDefaultProfile {
 			layers[i].Source = setting.SourceChosenProfile
 		}
 	}
