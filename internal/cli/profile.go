@@ -513,6 +513,12 @@ func profileShow(cmd *cobra.Command, settings rootSettings, flags *runFlags, arg
 
 	custom := invalid == nil && shown.provider.CustomBaseURL(baseURL)
 
+	// The key line reads the key a run would send to that base URL, as profile test does. A variable
+	// the connection read refuses leaves the profile's own key line.
+	if tested, testErr := testedConnection(settings, shown); testErr == nil {
+		shown.keyFrom, shown.key, shown.account, shown.keyEnd = tested.keyFrom, tested.key, tested.account, tested.keyEnd
+	}
+
 	lines := []string{
 		"profile: " + cmp.Or(shown.profile, noProfile),
 		"provider: " + shown.provider.Name(),

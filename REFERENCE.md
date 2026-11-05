@@ -633,7 +633,9 @@ on the provider's key variable alone.
 - `create` and `update` check the rules below, the base URL and the account id before they read the
   key, so a typo costs nothing. A bad value from a flag is named by its flag, as in
   `--account-id must be 32 hexadecimal characters`.
-- `show` never reads the keychain or prints a key. `key:` is `keychain` or `file`, with
+- `show` never reads the keychain or prints a key. `key:` names the key a run would send to the
+  base URL `show` reports, so a profile's key off its own endpoint shows as the key variable or
+  `none`. It is `keychain` or `file`, with
   `, ends in XXXX` when the key has 16 characters or more, `env` and the key variable for a run
   without a profile, or `none`. With no key on a custom base URL it is
   `none, not needed for a custom base URL`. A converted keychain key shows no ending until
