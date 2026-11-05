@@ -74,12 +74,20 @@ func (l *failureLog) keepFirst(failure, later error) error {
 		return later
 	}
 
+	l.note(later)
+
+	return failure
+}
+
+func (l *failureLog) note(later error) {
+	if later == nil {
+		return
+	}
+
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
 	l.failures = append(l.failures, later)
-
-	return failure
 }
 
 func (l *failureLog) drain() []error {

@@ -46,10 +46,9 @@ func answersFor(
 			return
 		}
 
-		// The answer is already in hand, so a warning that cannot print fails nothing.
-		if printErr := output.Warning(cmd.ErrOrStderr(), err.Error()); printErr != nil {
-			return
-		}
+		// The answer is already in hand, so a warning that cannot print follows the run's outcome
+		// instead of failing it.
+		settings.laterFailures.note(output.Warning(cmd.ErrOrStderr(), err.Error()))
 	}
 
 	return cachedAnswers(settings, flags, model, warn), nil
