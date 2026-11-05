@@ -463,6 +463,13 @@ func TestRootExecute(t *testing.T) {
 			want:     "onesie: ONESIE_CACHE=maybe is not a value --cache takes. Use 1 or 0\n",
 		},
 		{
+			name:     "should name a bad -o before an ONESIE_CACHE value it cannot read",
+			args:     []string{"--state", "s", "is it urgent", "-o", "jsno"},
+			env:      map[string]string{"ONESIE_CACHE": "maybe"},
+			wantCode: ExitUsage,
+			want:     "onesie: -o takes auto, json, values, table, raw, csv, tsv or markdown, got 'jsno'\n",
+		},
+		{
 			name: "should warn that -j is ignored for one record",
 			args: []string{"-j", "4", "--print-request", "--state", "s", "is it urgent"},
 			want: "onesie: warning: -j 4 ignored. -i text reads one record\n",

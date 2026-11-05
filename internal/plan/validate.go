@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math"
 	"slices"
 	"strconv"
 	"strings"
@@ -19,8 +18,8 @@ var reservedIDs = []string{
 }
 
 // Validate checks the questions of a plan and returns the non fatal warnings plus the first fatal
-// error.
-func Validate(p *Plan) ([]string, error) {
+// error. numbers bound the policy numbers.
+func Validate(p *Plan, numbers Numbers) ([]string, error) {
 	if err := checkSources(p); err != nil {
 		return nil, err
 	}
@@ -32,7 +31,7 @@ func Validate(p *Plan) ([]string, error) {
 	var warnings []string
 
 	for i := range p.Questions {
-		hint, err := checkQuestion(&p.Questions[i])
+		hint, err := checkQuestion(&p.Questions[i], numbers)
 		if err != nil {
 			return warnings, err
 		}
@@ -101,7 +100,7 @@ func checkDuplicateIDs(p *Plan) error {
 	return nil
 }
 
-func checkQuestion(q *Question) (string, error) {
+func checkQuestion(q *Question, numbers Numbers) (string, error) {
 	// The positional question is keyed answer by design, so the reserved list only applies to an
 	// id the user chose. A request body may carry answer, since --print-request writes a positional
 	// question under it and -f reads that body back.
@@ -125,13 +124,13 @@ func checkQuestion(q *Question) (string, error) {
 
 	switch q.Shape {
 	case Pick:
-		return checkPick(q)
+		return checkPick(q, numbers)
 	case Rate:
-		return "", checkRate(q)
+		return "", checkRate(q, numbers)
 	case Box:
 		return "", checkBox(q)
 	default:
-		return "", checkNoul(q)
+		return "", checkNoul(q, numbers)
 	}
 }
 
@@ -182,7 +181,7 @@ func notText(origin Origin) string {
 	return "an 'ask' that is not text or a mapping"
 }
 
-func checkPick(q *Question) (string, error) {
+func checkPick(q *Question, numbers Numbers) (string, error) {
 	names := make([]string, 0, len(q.Options))
 	for _, option := range q.Options {
 		names = append(names, option.Name)
@@ -210,7 +209,7 @@ func checkPick(q *Question) (string, error) {
 		return "", err
 	}
 
-	if err := checkPolicy(q, false); err != nil {
+	if err := checkPolicy(q, false, numbers); err != nil {
 		return "", err
 	}
 
@@ -223,7 +222,7 @@ func checkPick(q *Question) (string, error) {
 	return describedHint(q, names, described(q)), nil
 }
 
-func checkRate(q *Question) error {
+func checkRate(q *Question, numbers Numbers) error {
 	var labels []string
 
 	// A body's levels carry no labels at all, so every rule written around them is skipped and
@@ -250,7 +249,7 @@ func checkRate(q *Question) error {
 		}
 	}
 
-	return checkPolicy(q, false)
+	return checkPolicy(q, false, numbers)
 }
 
 func checkBlankNames(q *Question, shape, noun string, names []string) error {
@@ -318,7 +317,7 @@ func questionClause(q *Question) string {
 	return " in question '" + q.ID + "'"
 }
 
-func checkNoul(q *Question) error {
+func checkNoul(q *Question, numbers Numbers) error {
 	for _, key := range q.DescOrder {
 		if key != "yes" && key != "no" {
 			return fmt.Errorf(
@@ -326,7 +325,7 @@ func checkNoul(q *Question) error {
 		}
 	}
 
-	return checkPolicy(q, true)
+	return checkPolicy(q, true, numbers)
 }
 
 func checkBox(q *Question) error {
@@ -364,7 +363,7 @@ func countTrue(conditions ...bool) int {
 	return count
 }
 
-func checkPolicy(q *Question, yesNo bool) error {
+func checkPolicy(q *Question, yesNo bool, numbers Numbers) error {
 	policy := q.Policy
 	threshold := Spelling(q.Origin, "--threshold")
 	confidence := Spelling(q.Origin, "--min-confidence")
@@ -382,7 +381,7 @@ func checkPolicy(q *Question, yesNo bool) error {
 				threshold, q.ID, noun, confidence, fallback)
 		}
 
-		if outsideUnit(*policy.Threshold) {
+		if outOfRange(numbers.Threshold, *policy.Threshold) {
 			return fmt.Errorf("%s must be between 0 and 1, got %s",
 				threshold, strconv.FormatFloat(*policy.Threshold, 'g', -1, 64))
 		}
@@ -397,7 +396,7 @@ func checkPolicy(q *Question, yesNo bool) error {
 				Spelling(q.Origin, "--pick"), Spelling(q.Origin, "--rate"))
 		}
 
-		if outsideUnit(*policy.MinConfidence) {
+		if outOfRange(numbers.MinConfidence, *policy.MinConfidence) {
 			return fmt.Errorf("%s must be between 0 and 1, got %s",
 				confidence, strconv.FormatFloat(*policy.MinConfidence, 'g', -1, 64))
 		}
@@ -419,8 +418,10 @@ func checkPolicy(q *Question, yesNo bool) error {
 	return nil
 }
 
-func outsideUnit(value float64) bool {
-	return math.IsNaN(value) || value < 0 || value > 1
+func outOfRange(number Number, value float64) bool {
+	_, err := number.FromFile(value)
+
+	return err != nil
 }
 
 func checkUnknownDesc(q *Question, vocabulary []string, shape string) error {

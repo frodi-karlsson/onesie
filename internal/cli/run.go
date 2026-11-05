@@ -40,10 +40,16 @@ func run(
 	out *answersfile.File,
 	resume answersfile.Resume,
 ) error {
+	if _, err := setting.ParseRun(setting.Table(), parsed.given, setting.CommandRoot); err != nil {
+		return err
+	}
+
 	flags, err := newRunConfig(cmd, settings.lookupEnv, *parsed, events, positional)
 	if err != nil {
 		return err
 	}
+
+	flags.stdoutTTY = settings.stdoutTTY
 
 	// Both branches sit ahead of the plan, since neither has a question and failing for want of one
 	// would send the user to the wrong flag. --list-models comes first, so it names itself rather
@@ -136,9 +142,7 @@ func runPlan(
 		return err
 	}
 
-	// Both modes are parsed before the request, so a mistyped flag costs nothing.
-	outputMode, err := output.ParseMode(
-		outputName(flags), settings.stdoutTTY && flags.out == "", inputMode.Streaming(), merging(flags))
+	outputMode, err := output.ParseMode(setting.Derived(viewOf(flags, runFacts{}, built), setting.Output))
 	if err != nil {
 		return err
 	}
@@ -1060,14 +1064,6 @@ func quietResult(question plan.Question, a *answer.Answer) error {
 	}
 
 	return nil
-}
-
-func outputName(flags runConfig) string {
-	if flags.raw {
-		return "raw"
-	}
-
-	return flags.output
 }
 
 type runFlags struct {

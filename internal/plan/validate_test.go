@@ -9,6 +9,7 @@ import (
 
 	"github.com/frodi-karlsson/onesie/internal/argv"
 	"github.com/frodi-karlsson/onesie/internal/plan"
+	"github.com/frodi-karlsson/onesie/internal/settings"
 )
 
 func TestValidate(t *testing.T) {
@@ -599,12 +600,13 @@ func TestValidate(t *testing.T) {
 				File:       tc.file,
 				Positional: tc.positional,
 				ReadFile:   readFile,
+				Numbers:    settings.PolicyNumbers(),
 			})
 			if err != nil {
 				t.Fatalf("assembling: %v", err)
 			}
 
-			warnings, err := plan.Validate(built)
+			warnings, err := plan.Validate(built, settings.PolicyNumbers())
 			assertWarning(t, warnings, tc.wantWarning, tc.wantErr != "" || tc.wantExact != "")
 
 			if tc.wantExact != "" {

@@ -78,6 +78,38 @@ func TestNewRootCmd(t *testing.T) {
 			absent:   []string{`{"`},
 		},
 		{
+			name:     "should name -o for -o jsno --threshold 2",
+			args:     []string{"is this urgent", "-o", "jsno", "--threshold", "2"},
+			stdin:    "site down",
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: -o takes auto, json, values, table, raw, csv, tsv or markdown, got 'jsno'\n"},
+			absent:   []string{"threshold"},
+		},
+		{
+			name:     "should name -o before -i, in table order",
+			args:     []string{"is this urgent", "-i", "bogus", "-o", "jsno"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: -o takes auto, json, values, table, raw, csv, tsv or markdown, got 'jsno'\n"},
+		},
+		{
+			name:     "should name a bad -o before a flag clash",
+			args:     []string{"is this urgent", "-o", "jsno", "-i", "jsonl", "--state", "x"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: -o takes auto, json, values, table, raw, csv, tsv or markdown, got 'jsno'\n"},
+		},
+		{
+			name:     "should name a number out of range before a mode refusal",
+			args:     []string{"is this urgent", "--print-questions", "-j", "0"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: -j takes a positive number of records in flight, got 0\n"},
+		},
+		{
+			name:     "should name a bad --delimiter before a bad -i",
+			args:     []string{"is this urgent", "--delimiter", "ab", "-i", "bogus"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: --delimiter takes auto or one character, got 'ab'\n"},
+		},
+		{
 			name:     "should refuse -q under -o markdown",
 			args:     []string{"is this urgent", "-o", "markdown", "-q"},
 			stdin:    "site down",

@@ -370,37 +370,20 @@ func TestParseMode(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name      string
-		flag      string
-		tty       bool
-		streaming bool
-		merge     bool
-		want      output.Mode
-		wantErr   bool
+		name    string
+		flag    string
+		want    output.Mode
+		wantErr bool
 	}{
-		{name: "should default to table on a terminal", flag: "", tty: true, want: output.Table},
-		{name: "should default to json off a terminal", flag: "", want: output.JSON},
-		{
-			name: "should default to json when streaming even on a terminal",
-			flag: "", tty: true, streaming: true, want: output.JSON,
-		},
-		{
-			name: "should default to json under merge even on a terminal",
-			flag: "", tty: true, merge: true, want: output.JSON,
-		},
-		{
-			name: "should resolve an explicit auto under merge to json",
-			flag: "auto", tty: true, merge: true, want: output.JSON,
-		},
+		{name: "should accept json", flag: "json", want: output.JSON},
 		{name: "should accept an explicit mode", flag: "values", want: output.Values},
+		{name: "should accept a table", flag: "table", want: output.Table},
+		{name: "should accept raw", flag: "raw", want: output.Raw},
 		{name: "should accept csv", flag: "csv", want: output.CSV},
 		{name: "should accept tsv", flag: "tsv", want: output.TSV},
 		{name: "should accept markdown", flag: "markdown", want: output.Markdown},
 		{name: "should accept md as the short form of markdown", flag: "md", want: output.Markdown},
-		{
-			name: "should never pick markdown for auto on a terminal",
-			flag: "auto", tty: true, want: output.Table,
-		},
+		{name: "should refuse auto, which the settings resolve first", flag: "auto", wantErr: true},
 		{name: "should reject an unknown mode", flag: "yaml", wantErr: true},
 	}
 
@@ -408,7 +391,7 @@ func TestParseMode(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := output.ParseMode(tc.flag, tc.tty, tc.streaming, tc.merge)
+			got, err := output.ParseMode(tc.flag)
 
 			if tc.wantErr {
 				if err == nil {

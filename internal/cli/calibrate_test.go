@@ -183,6 +183,14 @@ func TestNewCalibrateCmd(t *testing.T) {
 			contains: []string{"so --merge-key does not apply. Drop it"},
 		},
 		{
+			name: "should name a number out of range before what calibrate needs",
+			args: []string{
+				"calibrate", "--ask", "urgent=is it urgent", "-i", "jsonl", "--label", "urgent=.u", "-j", "0",
+			},
+			wantCode: ExitUsage,
+			contains: []string{"onesie: -j takes a positive number of records in flight, got 0\n"},
+		},
+		{
 			name:     "should refuse -q naming both spellings",
 			args:     with("-q"),
 			wantCode: ExitUsage,

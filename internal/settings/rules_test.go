@@ -288,104 +288,9 @@ func TestValidate(t *testing.T) {
 			wantWarning: "-j 8 ignored. -i text reads one record",
 		},
 		{
-			name:       "should reject a zero job count",
-			positional: "is this urgent",
-			set:        values{"jobs": 0, "input": "lines"},
-			typed:      []settings.Name{"jobs"},
-			wantErr:    "-j takes a positive number",
-		},
-		{
-			name:       "should reject a negative job count",
-			positional: "is this urgent",
-			set:        values{"jobs": -2, "input": "lines"},
-			typed:      []settings.Name{"jobs"},
-			wantErr:    "-j takes a positive number",
-		},
-		{
 			name:       "should accept a config that never set jobs",
 			positional: "is this urgent",
 			set:        values{"input": "lines"},
-		},
-		{
-			name:       "should reject a timeout of zero",
-			positional: "is this urgent",
-			set:        values{"timeout": 0, "input": "text"},
-			typed:      []settings.Name{"timeout"},
-			wantErr:    "--timeout takes a positive number of seconds, got 0",
-		},
-		{
-			name:       "should reject a negative retry count",
-			positional: "is this urgent",
-			set:        values{"retries": -1, "input": "text"},
-			typed:      []settings.Name{"retries"},
-			wantErr:    "--retries takes a retry count of zero or more, got -1",
-		},
-		{
-			name:       "should reject a retry count above the ceiling",
-			positional: "is this urgent",
-			set:        values{"retries": 100001, "input": "text"},
-			typed:      []settings.Name{"retries"},
-			wantErr:    "--retries takes at most 100, got 100001",
-		},
-		{
-			name:       "should accept a retry count at the ceiling",
-			positional: "is this urgent",
-			set:        values{"retries": 100, "input": "text"},
-			typed:      []settings.Name{"retries"},
-		},
-		{
-			name:       "should reject a max retry after of zero",
-			positional: "is this urgent",
-			set:        values{"max_retry_after": 0, "input": "text"},
-			typed:      []settings.Name{"max_retry_after"},
-			wantErr:    "--max-retry-after must be a positive number of seconds, got 0",
-		},
-		{
-			name:       "should reject a negative max retry after",
-			positional: "is this urgent",
-			set:        values{"max_retry_after": -5, "input": "text"},
-			typed:      []settings.Name{"max_retry_after"},
-			wantErr:    "--max-retry-after must be a positive number of seconds, got -5",
-		},
-		{
-			name:       "should reject a timeout above the ceiling",
-			positional: "is this urgent",
-			set:        values{"timeout": 86401, "input": "text"},
-			typed:      []settings.Name{"timeout"},
-			wantErr:    "--timeout takes at most 86400 seconds, got 86401",
-		},
-		{
-			name:       "should reject a timeout that would wrap a duration to a fraction",
-			positional: "is this urgent",
-			set:        values{"timeout": 18446744074, "input": "text"},
-			typed:      []settings.Name{"timeout"},
-			wantErr:    "--timeout takes at most 86400 seconds, got 18446744074",
-		},
-		{
-			name:       "should reject a max retry after above the ceiling",
-			positional: "is this urgent",
-			set:        values{"max_retry_after": 86401, "input": "text"},
-			typed:      []settings.Name{"max_retry_after"},
-			wantErr:    "--max-retry-after takes at most 86400 seconds, got 86401",
-		},
-		{
-			name:       "should reject a max retry after that would wrap a duration to a fraction",
-			positional: "is this urgent",
-			set:        values{"max_retry_after": 18446744074, "input": "text"},
-			typed:      []settings.Name{"max_retry_after"},
-			wantErr:    "--max-retry-after takes at most 86400 seconds, got 18446744074",
-		},
-		{
-			name:       "should accept a timeout at the ceiling",
-			positional: "is this urgent",
-			set:        values{"timeout": 86400, "input": "text"},
-			typed:      []settings.Name{"timeout"},
-		},
-		{
-			name:       "should accept a retry count of zero",
-			positional: "is this urgent",
-			set:        values{"retries": 0, "input": "text"},
-			typed:      []settings.Name{"retries"},
 		},
 		{
 			name: "should reject a shape flag with no ask to bind to",
@@ -451,13 +356,6 @@ func TestValidate(t *testing.T) {
 			positional: "is this urgent",
 			set:        values{"prune": true, "resume": true},
 			wantExact:  "--resume needs --out, the file it picks up from",
-		},
-		{
-			name:       "should report a number out of range before a streaming flag on one record",
-			positional: "is this urgent",
-			set:        values{"jobs": 0, "unordered": true},
-			typed:      []settings.Name{"jobs"},
-			wantExact:  "-j takes a positive number of records in flight, got 0",
 		},
 		{
 			name:       "should report the dry run before --delimiter",
@@ -935,12 +833,6 @@ func TestValidate(t *testing.T) {
 				set:  values{"input": "text", "output": "json", "usage": true, "jobs": 1},
 			},
 			{
-				name:    "should reject -j above the cap",
-				set:     values{"input": "jsonl", "jobs": 2000000},
-				typed:   []settings.Name{"jobs"},
-				wantErr: "-j takes at most 256 records in flight, got 2000000",
-			},
-			{
 				name:    "should reject --resume without --out",
 				set:     values{"input": "jsonl", "resume": true},
 				wantErr: "--resume needs --out, the file it picks up from",
@@ -1094,12 +986,6 @@ func TestValidate(t *testing.T) {
 				name:    "should reject -q with -i request",
 				set:     values{"input": "request", "jobs": 1, "quiet": true},
 				wantErr: "-q needs a policy to report, which -i request has none of",
-			},
-			{
-				name:    "should still reject -j 0 with -i request",
-				set:     values{"input": "request", "jobs": 0},
-				typed:   []settings.Name{"jobs"},
-				wantErr: "-j takes a positive number of records in flight, got 0",
 			},
 			{
 				name:    "should reject -r with -o outside request mode",
@@ -1333,7 +1219,7 @@ func TestRules(t *testing.T) {
 					"prune-needs-resume-and-id", "dry-run-and-request", "delimiter-needs-csv", "abstain-needs-assert",
 					"raw-and-output", "quiet-without-markdown", "state-and-state-file", "replace-needs-file",
 					"merge-needs-mergeable-output", "merge-key-not-wrapped", "delimited-output", "quiet-without-usage",
-					"usage-needs-a-usage-column", "numbers-in-range", "streaming-flags-need-a-stream",
+					"usage-needs-a-usage-column", "streaming-flags-need-a-stream",
 					"stream-reads-its-own-state", "quiet-reads-one-record", "table-reads-one-record",
 					"stop-on-assert-needs-assert", "columns-unique", "line-field-reserved",
 					"body-policy-needs-one-question", "group-flags-bind", "questions-valid", "quiet-needs-one-question",
@@ -1550,12 +1436,6 @@ func ruleCases() []ruleCase {
 			wantErr: "--usage does not apply to -o values, which writes only the answers. Use -o json",
 		},
 		{
-			rule:    "numbers-in-range",
-			refused: run{set: values{"timeout": 0}, typed: []settings.Name{"timeout"}},
-			passed:  run{set: values{"timeout": 30}, typed: []settings.Name{"timeout"}},
-			wantErr: "--timeout takes a positive number of seconds, got 0",
-		},
-		{
 			rule:    "streaming-flags-need-a-stream",
 			refused: run{set: values{"unordered": true}},
 			passed:  run{set: values{"unordered": true, "input": "jsonl"}},
@@ -1705,7 +1585,7 @@ func (r run) view(t *testing.T) settings.View {
 
 	built, err := plan.Assemble(plan.Source{
 		Events: r.events, File: r.file, Positional: r.positional,
-		ReadFile: func(string) ([]byte, error) { return nil, nil },
+		ReadFile: func(string) ([]byte, error) { return nil, nil }, Numbers: settings.PolicyNumbers(),
 	})
 	if err != nil {
 		t.Fatalf("assembling: %v", err)

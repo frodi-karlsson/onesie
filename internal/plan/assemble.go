@@ -2,7 +2,6 @@ package plan
 
 import (
 	"fmt"
-	"strconv"
 	"strings"
 
 	"github.com/frodi-karlsson/onesie/internal/argv"
@@ -25,7 +24,7 @@ func Assemble(src Source) (*Plan, error) {
 	fromFile := positions(src.File)
 
 	for _, g := range groups {
-		question, err := build(g, src.ReadFile)
+		question, err := build(g, src)
 		if err != nil {
 			return nil, err
 		}
@@ -49,7 +48,7 @@ func Assemble(src Source) (*Plan, error) {
 			}
 		}
 
-		if err := applyEvents(&built.Questions[0], orphans, src.ReadFile); err != nil {
+		if err := applyEvents(&built.Questions[0], orphans, src); err != nil {
 			return nil, err
 		}
 
@@ -73,6 +72,20 @@ type Source struct {
 	Replace  bool
 	// ReadFile resolves @FILE references, injected so tests need nothing on disk.
 	ReadFile func(string) ([]byte, error)
+	// Numbers parse the policy numbers. Only a plan with --threshold or --min-confidence reads them.
+	Numbers Numbers
+}
+
+// Numbers parse and bound a question's policy numbers. The settings rows' kinds fill it.
+type Numbers struct {
+	Threshold, MinConfidence Number
+}
+
+// Number reads a policy number from flag text, and bounds one a question file gave. Parse returns
+// the number it read beside a range refusal.
+type Number interface {
+	Parse(raw string) (any, error)
+	FromFile(raw any) (any, error)
 }
 
 func split(events []argv.Event, positional string, hasFile bool) ([]group, []argv.Event) {
@@ -110,7 +123,7 @@ func split(events []argv.Event, positional string, hasFile bool) ([]group, []arg
 	return groups, leading
 }
 
-func build(g group, readFile func(string) ([]byte, error)) (Question, error) {
+func build(g group, src Source) (Question, error) {
 	question := Question{ID: g.id, Instructions: g.text, Origin: OriginPositional}
 
 	if g.asked {
@@ -119,7 +132,7 @@ func build(g group, readFile func(string) ([]byte, error)) (Question, error) {
 			return question, fmt.Errorf("--ask takes NAME=QUESTION, got '%s'", g.ask)
 		}
 
-		resolved, err := resolve(text, readFile)
+		resolved, err := resolve(text, src.ReadFile)
 		if err != nil {
 			return question, err
 		}
@@ -129,7 +142,7 @@ func build(g group, readFile func(string) ([]byte, error)) (Question, error) {
 		question.Origin = OriginFlag
 	}
 
-	if err := applyEvents(&question, g.events, readFile); err != nil {
+	if err := applyEvents(&question, g.events, src); err != nil {
 		return question, err
 	}
 
@@ -178,7 +191,7 @@ func positions(questions []Question) map[string]int {
 	return byID
 }
 
-func applyEvents(question *Question, events []argv.Event, readFile func(string) ([]byte, error)) error {
+func applyEvents(question *Question, events []argv.Event, src Source) error {
 	separator := defaultSeparator
 	descriptions := map[string]any{}
 
@@ -216,7 +229,7 @@ func applyEvents(question *Question, events []argv.Event, readFile func(string) 
 
 			key = strings.TrimSpace(key)
 
-			resolved, err := resolve(text, readFile)
+			resolved, err := resolve(text, src.ReadFile)
 			if err != nil {
 				return err
 			}
@@ -227,7 +240,7 @@ func applyEvents(question *Question, events []argv.Event, readFile func(string) 
 
 			descriptions[key] = resolved
 		default:
-			if err := applyPolicy(question, event); err != nil {
+			if err := applyPolicy(question, event, src.Numbers); err != nil {
 				return err
 			}
 		}
@@ -252,21 +265,19 @@ func applyEvents(question *Question, events []argv.Event, readFile func(string) 
 	return nil
 }
 
-func applyPolicy(question *Question, event argv.Event) error {
-	// Only the text is parsed here. Ranges are checked during validation, so that every user
-	// facing message lives in one file.
+func applyPolicy(question *Question, event argv.Event, numbers Numbers) error {
 	switch event.Name {
 	case "threshold":
-		value, err := strconv.ParseFloat(event.Value, 64)
+		value, err := policyNumber(numbers.Threshold, event)
 		if err != nil {
-			return fmt.Errorf("--threshold takes a number, got '%s'", event.Value)
+			return err
 		}
 
 		question.Policy.Threshold = &value
 	case "min-confidence":
-		value, err := strconv.ParseFloat(event.Value, 64)
+		value, err := policyNumber(numbers.MinConfidence, event)
 		if err != nil {
-			return fmt.Errorf("--min-confidence takes a number, got '%s'", event.Value)
+			return err
 		}
 
 		question.Policy.MinConfidence = &value
@@ -275,6 +286,19 @@ func applyPolicy(question *Question, event argv.Event) error {
 	}
 
 	return nil
+}
+
+func policyNumber(number Number, event argv.Event) (float64, error) {
+	parsed, err := number.Parse(event.Value)
+
+	// A number out of range is kept, since validation words the range for flag and file values
+	// alike, after the shape checks that come first.
+	value, isNumber := parsed.(float64)
+	if err != nil && !isNumber {
+		return 0, fmt.Errorf("--%s takes a number, got '%s'", event.Name, event.Value)
+	}
+
+	return value, nil
 }
 
 func attach(question *Question, descriptions map[string]any) {

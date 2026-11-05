@@ -7,6 +7,7 @@ import (
 	"github.com/frodi-karlsson/onesie-go"
 
 	"github.com/frodi-karlsson/onesie/internal/argv"
+	"github.com/frodi-karlsson/onesie/internal/input"
 	"github.com/frodi-karlsson/onesie/internal/limits"
 	"github.com/frodi-karlsson/onesie/internal/plan"
 	"github.com/frodi-karlsson/onesie/internal/providers"
@@ -183,7 +184,8 @@ func outputRows() []Row {
 					Kind: Enum([]string{"table", "json", "auto"}, nil),
 				},
 			}},
-			Help: "auto, json, values, table, raw, csv, tsv or markdown",
+			Derive: autoOutput,
+			Help:   "auto, json, values, table, raw, csv, tsv or markdown",
 		},
 		{
 			Name: "raw", Kind: Bool(), Modes: Modes(ModeAsk, ModeStream),
@@ -232,6 +234,22 @@ func outputRows() []Row {
 	}, reportRows()...)
 }
 
+func autoOutput(v View) (any, bool) {
+	if Get(v.Merged, Raw) {
+		return "raw", true
+	}
+
+	if name := Get(v.Merged, Output); name != "" && name != "auto" {
+		return nil, false
+	}
+
+	if v.Facts.StdoutTTY && Get(v.Merged, Out) == "" && !inputModeOf(v).Streaming() && !merging(v) {
+		return "table", true
+	}
+
+	return "json", true
+}
+
 func outputModes() Kind {
 	return Enum(
 		[]string{"auto", "json", "values", "table", "raw", "csv", "tsv", "markdown"},
@@ -254,7 +272,7 @@ func reportRows() []Row {
 			Help: "write a one line summary of the run to stderr at exit",
 		},
 		{
-			Name: "delimiter", Kind: Text(), Modes: Modes(ModeStream, ModeCalibrate),
+			Name: "delimiter", Kind: Text(), Modes: Modes(ModeStream, ModeCalibrate), Check: delimiterParses,
 			Flag: FlagSpec{Long: "delimiter", Commands: onRuns(), PerCommand: map[Command]CommandFlag{
 				CommandCalibrate: {Help: "field separator for -i csv: auto, or one character. Defaults to a comma"},
 			}},
@@ -262,6 +280,19 @@ func reportRows() []Row {
 				"one it detects, or one character. Defaults to a comma",
 		},
 	}
+}
+
+func delimiterParses(value any) error {
+	text, isText := value.(string)
+	if !isText {
+		return nil
+	}
+
+	if _, err := input.ParseDelimiter(text); err != nil {
+		return fmt.Errorf("--delimiter %w", err)
+	}
+
+	return nil
 }
 
 func inputRows() []Row {

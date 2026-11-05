@@ -9,6 +9,7 @@ import (
 
 	"github.com/frodi-karlsson/onesie/internal/argv"
 	"github.com/frodi-karlsson/onesie/internal/plan"
+	"github.com/frodi-karlsson/onesie/internal/settings"
 )
 
 func TestAssemble(t *testing.T) {
@@ -436,6 +437,7 @@ func TestAssemble(t *testing.T) {
 				Events:     tc.events,
 				Positional: tc.positional,
 				ReadFile:   readFile,
+				Numbers:    settings.PolicyNumbers(),
 			})
 
 			if tc.wantErr {
@@ -803,7 +805,10 @@ func TestAssemble(t *testing.T) {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 
-				got, err := plan.Assemble(tc.src)
+				src := tc.src
+				src.Numbers = settings.PolicyNumbers()
+
+				got, err := plan.Assemble(src)
 
 				if tc.wantErr != "" {
 					if err == nil {

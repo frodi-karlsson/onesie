@@ -274,10 +274,10 @@ func openOut(settings rootSettings, flags runFlags, readOnly bool) (*answersfile
 }
 
 func answersDelimiter(flags runFlags) input.Delimiter {
-	outputMode, outputErr := output.ParseMode(flags.output, false, true, true)
+	outputMode, outputErr := output.ParseMode(flags.output)
 	delimiter, delimiterErr := input.ParseDelimiter(flags.delimiter)
 
-	// Commas, for no --delimiter at all and for a value the run refuses before it writes anything.
+	// Commas, for no --delimiter at all and for -o auto, which never resolves to csv.
 	if errors.Join(outputErr, delimiterErr) != nil {
 		return input.Delimiter{}
 	}

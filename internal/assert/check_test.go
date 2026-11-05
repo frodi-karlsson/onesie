@@ -12,6 +12,7 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/argv"
 	"github.com/frodi-karlsson/onesie/internal/output"
 	"github.com/frodi-karlsson/onesie/internal/plan"
+	"github.com/frodi-karlsson/onesie/internal/settings"
 )
 
 func TestCheck(t *testing.T) {
@@ -861,12 +862,12 @@ func assembledPlan(t *testing.T) *plan.Plan {
 		{Name: "fallback", Value: "human"},
 		{Name: "ask", Value: "severity=how severe is this"},
 		{Name: "rate", Value: "low,high,critical"},
-	}})
+	}, Numbers: settings.PolicyNumbers()})
 	if err != nil {
 		t.Fatalf("Assemble error = %v, want no error", err)
 	}
 
-	if _, err := plan.Validate(built); err != nil {
+	if _, err := plan.Validate(built, settings.PolicyNumbers()); err != nil {
 		t.Fatalf("Validate error = %v, want no error", err)
 	}
 

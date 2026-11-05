@@ -43,6 +43,8 @@ func newCalibrateCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 	recorder := argv.New()
 	calib := &calibrateFlags{}
 
+	var given *setting.Given
+
 	cmd := &cobra.Command{
 		Use:   "calibrate [question]",
 		Short: "Score questions against records whose answers are known",
@@ -68,11 +70,11 @@ func newCalibrateCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 				return cmd.Help()
 			}
 
-			return runCalibrate(cmd, settings, flags, *calib, recorder.Events(), positional)
+			return runCalibrate(cmd, settings, flags, *calib, given, recorder.Events(), positional)
 		},
 	}
 
-	setting.Register(cmd.Flags(), nil, setting.Table(), recorder, setting.CommandCalibrate,
+	given = setting.Register(cmd.Flags(), nil, setting.Table(), recorder, setting.CommandCalibrate,
 		calibrateTargets(flags, calib))
 
 	return cmd
@@ -130,9 +132,13 @@ func calibrateLong() string {
 }
 
 func runCalibrate(
-	cmd *cobra.Command, settings rootSettings, parsed *runFlags, calib calibrateFlags,
+	cmd *cobra.Command, settings rootSettings, parsed *runFlags, calib calibrateFlags, given *setting.Given,
 	events []argv.Event, positional string,
 ) error {
+	if _, err := setting.ParseRun(setting.Table(), given, setting.CommandCalibrate); err != nil {
+		return err
+	}
+
 	own := *parsed
 	own.input = calib.input
 

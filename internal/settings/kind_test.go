@@ -221,6 +221,24 @@ func TestInt(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("should return the number it read beside a range refusal", func(t *testing.T) {
+		t.Parallel()
+
+		got, err := settings.Int(1, 10).Parse("11")
+		if err == nil || got != 11 {
+			t.Errorf("Parse(11) = %v, %v, want 11 and a refusal", got, err)
+		}
+	})
+
+	t.Run("should return no value for text that is no number", func(t *testing.T) {
+		t.Parallel()
+
+		got, err := settings.Int(1, 10).Parse("x")
+		if err == nil || got != nil {
+			t.Errorf("Parse(x) = %v, %v, want no value and a refusal", got, err)
+		}
+	})
 }
 
 func TestProbability(t *testing.T) {
@@ -260,6 +278,32 @@ func TestProbability(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("should return the number it read beside a range refusal", func(t *testing.T) {
+		t.Parallel()
+
+		got, err := settings.Probability().Parse("2")
+		if err == nil || got != 2.0 {
+			t.Errorf("Parse(2) = %v, %v, want 2 and a refusal", got, err)
+		}
+	})
+
+	t.Run("should refuse NaN", func(t *testing.T) {
+		t.Parallel()
+
+		if got, err := settings.Probability().Parse("NaN"); err == nil {
+			t.Errorf("Parse(NaN) = %v, want a refusal", got)
+		}
+	})
+
+	t.Run("should return no value for text that is no number", func(t *testing.T) {
+		t.Parallel()
+
+		got, err := settings.Probability().Parse("high")
+		if err == nil || got != nil {
+			t.Errorf("Parse(high) = %v, %v, want no value and a refusal", got, err)
+		}
+	})
 
 	t.Run("should point its schema at the probability definition", func(t *testing.T) {
 		t.Parallel()

@@ -11,6 +11,7 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/output"
 	"github.com/frodi-karlsson/onesie/internal/plan"
 	"github.com/frodi-karlsson/onesie/internal/qfile"
+	setting "github.com/frodi-karlsson/onesie/internal/settings"
 )
 
 func build(settings rootSettings, flags runConfig, ignoreFileJudgment bool) (*invocation, []string, error) {
@@ -27,6 +28,7 @@ func build(settings rootSettings, flags runConfig, ignoreFileJudgment bool) (*in
 		FileName:   file.name,
 		Replace:    flags.replace,
 		ReadFile:   settings.readFile,
+		Numbers:    setting.PolicyNumbers(),
 	}
 
 	if file.loaded != nil {
