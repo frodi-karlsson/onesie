@@ -11,6 +11,7 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/output"
 	"github.com/frodi-karlsson/onesie/internal/plan"
 	"github.com/frodi-karlsson/onesie/internal/qfile"
+	setting "github.com/frodi-karlsson/onesie/internal/settings"
 )
 
 func build(settings rootSettings, flags runConfig, ignoreFileJudgment bool) (*invocation, []string, error) {
@@ -19,7 +20,7 @@ func build(settings rootSettings, flags runConfig, ignoreFileJudgment bool) (*in
 	// Every mode except --list-models and -i request needs a question, and reporting that here
 	// rather than from Assemble keeps the message the same whichever source was missing.
 	if positional == "" && len(events) == 0 && flags.file == "" {
-		return nil, nil, errNoQuestion
+		return nil, nil, setting.ErrNoQuestion
 	}
 
 	file, err := readBuildFile(settings, flags, ignoreFileJudgment)
@@ -51,7 +52,7 @@ func build(settings rootSettings, flags runConfig, ignoreFileJudgment bool) (*in
 
 	built.LongContext = longContextOf(flags, file)
 
-	warnings, err := validatePlan(built, flags, file.facts)
+	warnings, err := validateRun(flags, file.facts, built)
 	if err != nil {
 		return nil, warnings, err
 	}

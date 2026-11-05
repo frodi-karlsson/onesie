@@ -5,20 +5,10 @@ import (
 	setting "github.com/frodi-karlsson/onesie/internal/settings"
 )
 
-func validateRun(config runConfig, facts runFacts, built *plan.Plan, rules []setting.Rule) ([]string, error) {
-	warnings, _, err := setting.Validate(viewOf(config, facts, built), rules)
+func validateRun(config runConfig, facts runFacts, built *plan.Plan) ([]string, error) {
+	warnings, _, err := setting.Validate(viewOf(config, facts, built), setting.Rules())
 
 	return warnings, err
-}
-
-func modeRules(id string) []setting.Rule {
-	for _, rule := range setting.Rules() {
-		if rule.ID == id {
-			return []setting.Rule{rule}
-		}
-	}
-
-	return nil
 }
 
 func viewOf(config runConfig, facts runFacts, built *plan.Plan) setting.View {

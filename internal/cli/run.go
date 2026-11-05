@@ -88,7 +88,7 @@ func run(
 
 func runListModels(cmd *cobra.Command, settings rootSettings, flags runConfig, out *answersfile.File) error {
 	// The only hint is -j on one record, which --list-models refuses and -i request never is.
-	if _, checkErr := checkFlags(flags, runFacts{}); checkErr != nil {
+	if _, checkErr := validateRun(flags, runFacts{}, nil); checkErr != nil {
 		return checkErr
 	}
 
@@ -102,7 +102,7 @@ func runListModels(cmd *cobra.Command, settings rootSettings, flags runConfig, o
 func runRequestBodies(
 	cmd *cobra.Command, settings rootSettings, flags runConfig, out *answersfile.File, resume answersfile.Resume,
 ) error {
-	if _, checkErr := checkFlags(flags, runFacts{}); checkErr != nil {
+	if _, checkErr := validateRun(flags, runFacts{}, nil); checkErr != nil {
 		return checkErr
 	}
 
@@ -624,18 +624,6 @@ type line struct {
 	slot   int
 	halted bool
 	call   *sharedCall
-}
-
-func mergeName(flags runConfig) string {
-	if flags.merge {
-		return "--merge"
-	}
-
-	if flags.mergeKey != "" {
-		return "--merge-key"
-	}
-
-	return ""
 }
 
 func streamResult(result engine.Result, falseAsserts, abstains int) error {

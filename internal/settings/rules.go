@@ -15,7 +15,17 @@ const (
 
 // Rules returns every cross setting rule, in the order Validate runs them.
 func Rules() []Rule {
-	return []Rule{listModelsRule(), dryRunAndRequestRule()}
+	// The mode rules lead, so a flag a mode makes meaningless is named against the mode. A dry run is
+	// refused before anything it would have written reaches stdout, and a streaming -q reports the
+	// streaming message before the plan rules run.
+	return []Rule{
+		noQuestionRule(), listModelsRule(), resumeRule(), pruneRule(), dryRunAndRequestRule(), delimiterRule(),
+		abstainNeedsAssertRule(), rawAndOutputRule(), quietWithMarkdownRule(), stateAndStateFileRule(),
+		replaceNeedsFileRule(), mergeOutputRule(), mergeKeyWrapsRule(), delimitedOutputRule(), quietWithUsageRule(),
+		usageWritesAnswersRule(), numberRangesRule(), singleRecordRule(), streamStateRule(), quietOnStreamRule(),
+		tableOnStreamRule(), stopOnAssertNeedsAssertRule(), fallbackColumnsRule(), lineFieldRule(),
+		questionsValidRule(), quietNeedsAGateRule(), rawNeedsOneQuestionRule(),
+	}
 }
 
 // Validate runs rules in order on v. It returns the warnings and notices of the rules it reached, and
@@ -23,9 +33,7 @@ func Rules() []Rule {
 func Validate(v View, rules []Rule) (warnings []string, notices []Notice, err error) {
 	for _, rule := range rules {
 		if rule.Warn != nil {
-			if warning := rule.Warn(v); warning != "" {
-				warnings = append(warnings, warning)
-			}
+			warnings = append(warnings, rule.Warn(v)...)
 		}
 
 		if rule.Check != nil {
@@ -49,7 +57,7 @@ type Rule struct {
 	Reads  []Name
 	Check  func(View) error
 	Notice func(View) []Notice
-	Warn   func(View) string
+	Warn   func(View) []string
 }
 
 // Notice is a line a reporting rule writes to stderr once validation passes.
@@ -103,6 +111,16 @@ func inputModeOf(v View) input.Mode {
 	}
 
 	return mode
+}
+
+func inputName(v View) string {
+	// Reachable only by passing -i with an empty value, since the flag defaults to text. Every
+	// message that names the mode would otherwise read -i with nothing after it.
+	if name := Get(v.Merged, Input); name != "" {
+		return name
+	}
+
+	return "text"
 }
 
 func merging(v View) bool {
