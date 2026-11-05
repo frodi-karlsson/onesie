@@ -12,6 +12,8 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/frodi-karlsson/onesie/internal/creds"
 	"github.com/frodi-karlsson/onesie/internal/qfile"
@@ -31,7 +33,7 @@ func Generate(root string, files FS) error {
 			continue
 		}
 
-		if err := files.WriteFile(filepath.Join(root, out.name), out.content); err != nil {
+		if err := files.WriteFile(pathOf(root, out.name), out.content); err != nil {
 			return fmt.Errorf("onesie: %w", err)
 		}
 	}
@@ -96,7 +98,7 @@ func render(root string, files FS) ([]output, error) {
 	outputs := make([]output, 0, len(generated))
 
 	for _, file := range generated {
-		existing, err := files.ReadFile(filepath.Join(root, filepath.FromSlash(file.name)))
+		existing, err := files.ReadFile(pathOf(root, file.name))
 		missing := errors.Is(err, fs.ErrNotExist)
 
 		if err != nil && (file.mustExist || !missing) {
@@ -116,6 +118,10 @@ func render(root string, files FS) ([]output, error) {
 	return outputs, nil
 }
 
+func pathOf(root, name string) string {
+	return filepath.Join(root, filepath.FromSlash(name))
+}
+
 type output struct {
 	name    string
 	content []byte
@@ -126,15 +132,31 @@ func withBlocks(existing []byte) ([]byte, error) {
 	text := string(existing)
 	rows := settings.Table()
 
-	for _, block := range []struct {
-		name string
-		body string
+	blocks := []struct {
+		name   string
+		render func() (string, error)
 	}{
-		{name: "environment", body: environmentBlock(rows)},
-		{name: "question_keys", body: questionKeysBlock(rows)},
-		{name: "profile_members", body: profileMembersBlock(creds.FileMembers())},
-	} {
-		replaced, err := replaceBlock(text, block.name, block.body)
+		{name: "environment", render: func() (string, error) { return environmentBlock(rows) }},
+		{name: "question_keys", render: func() (string, error) { return questionKeysBlock(rows) }},
+		{name: "profile_members", render: func() (string, error) { return profileMembersBlock(creds.FileMembers()) }},
+	}
+
+	known := make([]string, 0, len(blocks))
+	for _, block := range blocks {
+		known = append(known, block.name)
+	}
+
+	if err := refuseUnknownMarkers(text, known); err != nil {
+		return nil, err
+	}
+
+	for _, block := range blocks {
+		body, err := block.render()
+		if err != nil {
+			return nil, fmt.Errorf("the settings:%s block: %w", block.name, err)
+		}
+
+		replaced, err := replaceBlock(text, block.name, body)
 		if err != nil {
 			return nil, err
 		}
@@ -143,6 +165,24 @@ func withBlocks(existing []byte) ([]byte, error) {
 	}
 
 	return []byte(text), nil
+}
+
+func refuseUnknownMarkers(text string, known []string) error {
+	const opening = "<!-- settings:"
+
+	for rest := text; ; {
+		at := strings.Index(rest, opening)
+		if at < 0 {
+			return nil
+		}
+
+		rest = rest[at+len(opening):]
+
+		name, _, _ := strings.Cut(rest, " ")
+		if !slices.Contains(known, name) {
+			return fmt.Errorf("the settings:%s marker names no block. The blocks are %s", name, strings.Join(known, ", "))
+		}
+	}
 }
 
 func replaceBlock(text, name, body string) (string, error) {
@@ -172,7 +212,7 @@ func marker(name, edge string) string {
 	return "<!-- settings:" + name + " " + edge + " -->"
 }
 
-func environmentBlock(rows []settings.Row) string {
+func environmentBlock(rows []settings.Row) (string, error) {
 	var variables []settings.EnvSpec
 	for _, row := range rows {
 		variables = append(variables, row.Env...)
@@ -182,7 +222,7 @@ func environmentBlock(rows []settings.Row) string {
 		return cmp.Compare(a.Order, b.Order)
 	})
 
-	table := tableHead("Variable", "What it does")
+	table := newTable("Variable", "What it does")
 
 	for i := 0; i < len(variables); {
 		names := []string{codeSpan(variables[i].Name)}
@@ -192,23 +232,23 @@ func environmentBlock(rows []settings.Row) string {
 			names = append(names, codeSpan(variables[next].Name))
 		}
 
-		table += tableRow(strings.Join(names, ", "), variables[i].Help)
+		table.row(strings.Join(names, ", "), variables[i].Help)
 		i = next
 	}
 
-	return table
+	return table.String()
 }
 
-func questionKeysBlock(rows []settings.Row) string {
-	table := tableHead("Key", "Where", "What it does")
+func questionKeysBlock(rows []settings.Row) (string, error) {
+	table := newTable("Key", "Where", "What it does")
 
 	for _, row := range rows {
 		if row.FileKey != "" {
-			table += tableRow(codeSpan(row.FileKey), keyPlace(row), row.FileHelp)
+			table.row(codeSpan(row.FileKey), keyPlace(row), asCell(row.FileHelp))
 		}
 	}
 
-	return table
+	return table.String()
 }
 
 func keyPlace(row settings.Row) string {
@@ -222,8 +262,19 @@ func keyPlace(row settings.Row) string {
 	}
 }
 
-func profileMembersBlock(members []creds.Member) string {
-	table := tableHead("Member", "Meaning")
+func asCell(sentence string) string {
+	sentence = strings.TrimSuffix(sentence, ".")
+	if sentence == "" {
+		return sentence
+	}
+
+	first, size := utf8.DecodeRuneInString(sentence)
+
+	return string(unicode.ToLower(first)) + sentence[size:]
+}
+
+func profileMembersBlock(members []creds.Member) (string, error) {
+	table := newTable("Member", "Meaning")
 
 	for _, member := range members {
 		keys := make([]string, 0, len(member.Keys))
@@ -231,23 +282,47 @@ func profileMembersBlock(members []creds.Member) string {
 			keys = append(keys, codeSpan(key))
 		}
 
-		table += tableRow(strings.Join(keys, ", "), member.Meaning)
+		table.row(strings.Join(keys, ", "), member.Meaning)
 	}
 
-	return table
+	return table.String()
 }
 
-func tableHead(headings ...string) string {
+func newTable(headings ...string) *table {
+	t := &table{}
+	t.row(headings...)
+
 	rules := make([]string, 0, len(headings))
 	for _, heading := range headings {
 		rules = append(rules, strings.Repeat("-", len(heading)+2))
 	}
 
-	return tableRow(headings...) + "|" + strings.Join(rules, "|") + "|\n"
+	t.text.WriteString("|" + strings.Join(rules, "|") + "|\n")
+
+	return t
 }
 
-func tableRow(cells ...string) string {
-	return "| " + strings.Join(cells, " | ") + " |\n"
+type table struct {
+	text strings.Builder
+	err  error
+}
+
+func (t *table) row(cells ...string) {
+	escaped := make([]string, 0, len(cells))
+
+	for _, cell := range cells {
+		if strings.ContainsAny(cell, "\r\n") && t.err == nil {
+			t.err = fmt.Errorf("a cell holds a newline, which ends a table row: %q", cell)
+		}
+
+		escaped = append(escaped, strings.ReplaceAll(cell, "|", `\|`))
+	}
+
+	t.text.WriteString("| " + strings.Join(escaped, " | ") + " |\n")
+}
+
+func (t *table) String() (string, error) {
+	return t.text.String(), t.err
 }
 
 func codeSpan(text string) string {

@@ -109,6 +109,37 @@ func TestGenerate(t *testing.T) {
 			},
 		},
 		{
+			name:      "should refuse a marker that names no known block",
+			reference: staleReference() + "<!-- settings:run-uses begin -->\n",
+			check: func(t *testing.T, files *memFS, err error) {
+				t.Helper()
+
+				if err == nil || !strings.Contains(err.Error(), "settings:run-uses") {
+					t.Errorf("Generate error = %v, want one naming settings:run-uses", err)
+				}
+
+				if len(files.writes) != 0 {
+					t.Errorf("Generate wrote %v despite the unknown marker", files.writes)
+				}
+			},
+		},
+		{
+			name:      "should write question key cells in the style of the other tables",
+			reference: staleReference(),
+			check: func(t *testing.T, files *memFS, err error) {
+				t.Helper()
+
+				if err != nil {
+					t.Fatalf("Generate: %v", err)
+				}
+
+				want := "| `fallback` | a question | the answer that stands in for one that falls short |\n"
+				if !strings.Contains(files.text("REFERENCE.md"), want) {
+					t.Errorf("REFERENCE.md lacks %q", want)
+				}
+			},
+		},
+		{
 			name:      "should not rewrite an unchanged file",
 			reference: staleReference(),
 			check: func(t *testing.T, files *memFS, err error) {

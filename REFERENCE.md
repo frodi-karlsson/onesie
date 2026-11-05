@@ -1005,22 +1005,22 @@ table, and `onesie calibrate --help` lists the codes calibrate uses.
 
 ### Question file keys
 
-A question in a question file holds its instructions in `ask`, and what a yes and a no mean in
-`yes_means` and `no_means`, or `true` and `false`. It takes the settings below as well. The file
-holds its gate at the top level, and a request body holds `model` and `long_context` beside its
-`questions`.
+A question holds its instructions in `ask`, and what a yes and a no mean in `yes_means` and
+`no_means`, or `true` and `false`. The keys below are settings, and the Where column says which
+level holds each. The file holds its gate at the top level, and a request body holds `model` and
+`long_context` beside its `questions`.
 
 <!-- settings:question_keys begin -->
 | Key | Where | What it does |
 |-----|-------|--------------|
-| `pick` | a question | The options, as a sequence of names or a mapping of name to description. |
-| `rate` | a question | The levels from lowest to highest, as names, one key mappings of name to description, or a mapping of name to description. |
-| `box` | a question | Makes this a box question, answered with the edges of what it finds in an image. |
-| `threshold` | a question | The yes probability a yes or no answer must reach, between 0 and 1. |
-| `min_confidence` | a question | The confidence a pick or rate answer must reach, between 0 and 1, or the fallback stands in. |
-| `fallback` | a question | The answer that stands in for one that falls short. |
-| `assert` | the file | A gate over every answer, as --assert takes it. |
-| `abstain_if` | the file | An abstain expression, as --abstain-if takes it. |
-| `model` | a request body | The model a request body asks, unless -m names one. |
-| `long_context` | a request body | Raises the context limits of the request body. Only true has an effect. |
+| `pick` | a question | the options, as a sequence of names or a mapping of name to description |
+| `rate` | a question | the levels from lowest to highest, as names, one key mappings of name to description, or a mapping of name to description |
+| `box` | a question | makes this a box question, answered with the edges of what it finds in an image |
+| `threshold` | a question | the yes probability a yes or no answer must reach, between 0 and 1 |
+| `min_confidence` | a question | the confidence a pick or rate answer must reach, between 0 and 1, or the fallback stands in |
+| `fallback` | a question | the answer that stands in for one that falls short |
+| `assert` | the file | a gate over every answer, as --assert takes it |
+| `abstain_if` | the file | an abstain expression, as --abstain-if takes it |
+| `model` | a request body | the model a request body asks, unless -m names one |
+| `long_context` | a request body | raises the context limits of the request body. Only true has an effect |
 <!-- settings:question_keys end -->
