@@ -90,6 +90,20 @@ func Get[T any](m *Merged, k Key[T]) T {
 	return value
 }
 
+// Derived returns k's value for the run as its row's Derive works it out from v, or the merged
+// value when the row derives none, such as -o auto resolved against the terminal.
+func Derived[T any](v View, k Key[T]) T {
+	if row, found := Lookup(k.name); found && row.Derive != nil {
+		if value, derives := row.Derive(v); derives {
+			if typed, fits := value.(T); fits {
+				return typed
+			}
+		}
+	}
+
+	return Get(v.Merged, k)
+}
+
 // GetFor returns the value k's setting takes for one question, and whether that question has one.
 func GetFor[T any](m *Merged, questionID string, k Key[T]) (T, bool) {
 	var value T

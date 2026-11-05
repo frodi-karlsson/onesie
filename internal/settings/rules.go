@@ -23,7 +23,7 @@ func Rules() []Rule {
 		noQuestionRule(), listModelsRule(), resumeRule(), pruneRule(), dryRunAndRequestRule(), delimiterRule(),
 		abstainNeedsAssertRule(), rawAndOutputRule(), quietWithMarkdownRule(), stateAndStateFileRule(),
 		replaceNeedsFileRule(), mergeOutputRule(), mergeKeyWrapsRule(), delimitedOutputRule(), quietWithUsageRule(),
-		usageWritesAnswersRule(), numberRangesRule(), singleRecordRule(), streamStateRule(), quietOnStreamRule(),
+		usageWritesAnswersRule(), singleRecordRule(), streamStateRule(), quietOnStreamRule(),
 		tableOnStreamRule(), stopOnAssertNeedsAssertRule(), fallbackColumnsRule(), lineFieldRule(),
 		bodyPolicyRule(), orphansRule(), questionsValidRule(), quietNeedsAGateRule(), rawNeedsOneQuestionRule(),
 		bodyStateRule(),
@@ -90,9 +90,9 @@ type View struct {
 	Facts  Facts
 }
 
-// Facts are what a rule reads about a run that no setting holds: the command, the question file's
-// gates and state, the group flags in the order typed, the positional question, and calibrate's -o
-// and whether it was typed.
+// Facts are what a rule or a derived default reads about a run that no setting holds: the command,
+// the question file's gates and state, the group flags in the order typed, the positional question,
+// calibrate's -o and whether it was typed, and whether stdout is a terminal.
 type Facts struct {
 	Command                   Command
 	FileAssert, FileAbstainIf string
@@ -101,6 +101,7 @@ type Facts struct {
 	Positional                string
 	Report                    string
 	ReportSet                 bool
+	StdoutTTY                 bool
 }
 
 func typed(v View, name Name) bool {

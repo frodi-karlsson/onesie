@@ -138,7 +138,7 @@ func questionsValidRule() Rule {
 				return nil, nil
 			}
 
-			return plan.Validate(v.Plan)
+			return plan.Validate(v.Plan, PolicyNumbers())
 		},
 	}
 }

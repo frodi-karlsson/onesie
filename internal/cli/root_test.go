@@ -25,6 +25,7 @@ import (
 	"github.com/spf13/pflag"
 
 	"github.com/frodi-karlsson/onesie-go"
+	"github.com/frodi-karlsson/onesie/internal/answersfile"
 	"github.com/frodi-karlsson/onesie/internal/cli"
 	"github.com/frodi-karlsson/onesie/internal/creds"
 	"github.com/frodi-karlsson/onesie/internal/limits"
@@ -76,6 +77,93 @@ func TestNewRootCmd(t *testing.T) {
 			wantCode: cli.ExitOK,
 			contains: []string{"answer"},
 			absent:   []string{`{"`},
+		},
+		{
+			name:     "should report a flag clash before a bad provider",
+			args:     []string{"is this urgent", "--provider", "bogus", "-i", "jsonl", "-o", "table"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: -o table reads one record. Drop -i jsonl or use -o json\n"},
+			absent:   []string{"unknown provider"},
+		},
+		{
+			name:     "should report a flag clash before --profile beside --provider",
+			args:     []string{"is this urgent", "--profile", "work", "--provider", "typesafe", "-i", "jsonl", "-o", "table"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: -o table reads one record. Drop -i jsonl or use -o json\n"},
+			absent:   []string{"--profile and --provider"},
+		},
+		{
+			name:     "should report a missing -f file before a bad provider",
+			args:     []string{"-f", "missing.yaml", "--provider", "bogus"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: reading missing.yaml: "},
+			absent:   []string{"unknown provider"},
+		},
+		{
+			name:     "should report a --print-questions refusal before a bad provider",
+			args:     []string{"is this urgent", "--print-questions", "--provider", "bogus", "-j", "2"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: -j does not apply to --print-questions, which makes no request\n"},
+			absent:   []string{"unknown provider"},
+		},
+		{
+			name:     "should report a --list-models refusal before a bad provider",
+			args:     []string{"--list-models", "--provider", "bogus", "-m", "x"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: -m names a model to ask, which --list-models does not do\n"},
+			absent:   []string{"unknown provider"},
+		},
+		{
+			name:     "should report a -i request refusal before a bad provider",
+			args:     []string{"-i", "request", "--provider", "bogus", "-m", "x"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: -m does not apply to -i request, whose bodies carry their own model\n"},
+			absent:   []string{"unknown provider"},
+		},
+		{
+			name:     "should warn about -j on one record before a bad provider",
+			args:     []string{"is this urgent", "--state", "s", "-j", "4", "--provider", "bogus"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: warning: -j 4 ignored. -i text reads one record\n", "onesie: unknown provider 'bogus'"},
+		},
+		{
+			name:     "should still print the version beside a bad provider",
+			args:     []string{"-V", "--provider", "bogus"},
+			wantCode: cli.ExitOK,
+			contains: []string{"onesie 1.2.3\n"},
+			absent:   []string{"unknown provider"},
+		},
+		{
+			name:     "should name -o for -o jsno --threshold 2",
+			args:     []string{"is this urgent", "-o", "jsno", "--threshold", "2"},
+			stdin:    "site down",
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: -o takes auto, json, values, table, raw, csv, tsv or markdown, got 'jsno'\n"},
+			absent:   []string{"threshold"},
+		},
+		{
+			name:     "should name -o before -i, in table order",
+			args:     []string{"is this urgent", "-i", "bogus", "-o", "jsno"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: -o takes auto, json, values, table, raw, csv, tsv or markdown, got 'jsno'\n"},
+		},
+		{
+			name:     "should name a bad -o before a flag clash",
+			args:     []string{"is this urgent", "-o", "jsno", "-i", "jsonl", "--state", "x"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: -o takes auto, json, values, table, raw, csv, tsv or markdown, got 'jsno'\n"},
+		},
+		{
+			name:     "should name a number out of range before a mode refusal",
+			args:     []string{"is this urgent", "--print-questions", "-j", "0"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: -j takes a positive number of records in flight, got 0\n"},
+		},
+		{
+			name:     "should name a bad --delimiter before a bad -i",
+			args:     []string{"is this urgent", "--delimiter", "ab", "-i", "bogus"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: --delimiter takes auto or one character, got 'ab'\n"},
 		},
 		{
 			name:     "should refuse -q under -o markdown",
@@ -1928,6 +2016,85 @@ func TestNewRootCmd(t *testing.T) {
 		})
 	}
 
+	t.Run("should report a flag clash before what the run would open", func(t *testing.T) {
+		t.Parallel()
+
+		const clash = "onesie: -o table reads one record. Drop -i jsonl or use -o json\n"
+
+		tests := []struct {
+			name   string
+			config func(t *testing.T, dir string) []string
+		}{
+			{name: "should report a flag clash before a locked --out", config: func(t *testing.T, dir string) []string {
+				t.Helper()
+
+				path := filepath.Join(dir, "answers.jsonl")
+
+				held, _, err := answersfile.Open(answersfile.Options{}, answersfile.Config{Path: path})
+				if err != nil {
+					t.Fatalf("holding the lock: %v", err)
+				}
+
+				t.Cleanup(func() {
+					if err := held.Release(); err != nil {
+						t.Errorf("releasing the held lock: %v", err)
+					}
+				})
+
+				return []string{"--out", path}
+			}},
+			{name: "should report a flag clash before --out names a directory", config: func(t *testing.T, dir string) []string {
+				t.Helper()
+
+				return []string{"--out", t.TempDir()}
+			}},
+			{name: "should report a flag clash before an exposed profiles.json", config: func(t *testing.T, dir string) []string {
+				t.Helper()
+
+				if runtime.GOOS == "windows" {
+					t.Skip("windows has no group or other mode bits to expose the file through")
+				}
+
+				path := filepath.Join(dir, "profiles.json")
+				stored := `{"default":"work","profiles":{"work":{"provider":"typesafe","api_key":"k"}}}`
+
+				if err := os.WriteFile(path, []byte(stored), 0o644); err != nil {
+					t.Fatalf("writing profiles.json: %v", err)
+				}
+
+				// A umask may trim the mode WriteFile asks for.
+				if err := os.Chmod(path, 0o644); err != nil {
+					t.Fatalf("exposing profiles.json: %v", err)
+				}
+
+				return nil
+			}},
+			{name: "should report a flag clash before a broken profiles.json", config: func(t *testing.T, dir string) []string {
+				t.Helper()
+
+				if err := os.WriteFile(filepath.Join(dir, "profiles.json"), []byte("{"), 0o600); err != nil {
+					t.Fatalf("writing profiles.json: %v", err)
+				}
+
+				return nil
+			}},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				dir := t.TempDir()
+				args := append([]string{"is this urgent", "-i", "jsonl", "-o", "table"}, tc.config(t, dir)...)
+
+				out, code := runWithEnv(t, map[string]string{"ONESIE_CONFIG_DIR": dir, "TYPESAFE_API_KEY": "k"}, args)
+				if code != cli.ExitUsage || out != clash {
+					t.Errorf("exit %d, output %q, want exit %d and only %q", code, out, cli.ExitUsage, clash)
+				}
+			})
+		}
+	})
+
 	t.Run("should bind --assert to no question group", func(t *testing.T) {
 		t.Parallel()
 
@@ -2493,7 +2660,7 @@ func TestNewRootCmd(t *testing.T) {
 				stdout:   string(qfile.Schema()),
 			},
 			{
-				name:     "should print the schema under a provider name onesie does not know",
+				name:     "should still print the schema beside a bad provider",
 				args:     []string{"--print-schema"},
 				env:      map[string]string{"ONESIE_PROVIDER": "bogus"},
 				wantCode: cli.ExitOK,

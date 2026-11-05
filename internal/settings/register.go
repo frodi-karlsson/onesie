@@ -3,6 +3,7 @@ package settings
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/spf13/pflag"
@@ -284,6 +285,10 @@ func (l nonEmptyList) Set(value string) error {
 	*l.values = append(*l.values, value)
 
 	return nil
+}
+
+func (l nonEmptyList) GetSlice() []string {
+	return slices.Clone(*l.values)
 }
 
 func (l nonEmptyList) String() string {

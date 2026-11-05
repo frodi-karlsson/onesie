@@ -7,6 +7,7 @@ import (
 
 	"github.com/frodi-karlsson/onesie/internal/argv"
 	"github.com/frodi-karlsson/onesie/internal/input"
+	setting "github.com/frodi-karlsson/onesie/internal/settings"
 )
 
 func TestNewRunConfig(t *testing.T) {
@@ -125,4 +126,55 @@ func TestNewRunConfig(t *testing.T) {
 			tc.check(t, got)
 		})
 	}
+
+	t.Run("should hold the values ParseRun parses for the same flags", func(t *testing.T) {
+		t.Parallel()
+
+		for _, args := range [][]string{
+			{"-j", "4", "--timeout", "7", "-o", "md"},
+			{"-o", "values"},
+			{},
+		} {
+			flags := &runFlags{}
+			cmd := &cobra.Command{Use: "onesie"}
+			flags.given = setting.Register(cmd.Flags(), cmd.PersistentFlags(), setting.Table(), argv.New(),
+				setting.CommandRoot, runTargets(flags))
+
+			cmd.Flags().AddFlagSet(cmd.PersistentFlags())
+
+			if err := cmd.Flags().Parse(args); err != nil {
+				t.Fatal(err)
+			}
+
+			parsed, err := setting.ParseRun(setting.Table(), flags.given, setting.CommandRoot)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			config, err := newRunConfig(cmd, lookupFrom(nil), *flags, nil, "is it urgent")
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if got := setting.Get(parsed, setting.Jobs); got != config.jobs {
+				t.Errorf("%v: ParseRun -j = %d, runConfig = %d", args, got, config.jobs)
+			}
+
+			if got := setting.Get(parsed, setting.Timeout); got != config.timeout {
+				t.Errorf("%v: ParseRun --timeout = %d, runConfig = %d", args, got, config.timeout)
+			}
+
+			if got, want := setting.Get(parsed, setting.Output), canonicalOutput(config.output); got != want {
+				t.Errorf("%v: ParseRun -o = %q, runConfig = %q", args, got, want)
+			}
+		}
+	})
+}
+
+func canonicalOutput(name string) string {
+	if name == "md" {
+		return "markdown"
+	}
+
+	return name
 }

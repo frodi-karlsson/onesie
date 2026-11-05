@@ -63,7 +63,7 @@ func viewOf(config runConfig, facts runFacts, built *plan.Plan) setting.View {
 
 	viewFacts := setting.Facts{
 		Command: setting.CommandRoot, FileAssert: facts.assert, FileAbstainIf: facts.abstainIf,
-		BodyState: facts.bodyState, Events: config.events, Positional: config.positional,
+		BodyState: facts.bodyState, Events: config.events, Positional: config.positional, StdoutTTY: config.stdoutTTY,
 	}
 
 	if calib := config.calibrate; calib != nil {

@@ -220,7 +220,13 @@ func runRoot(
 		return printSchema(cmd.OutOrStdout())
 	}
 
-	// Ahead of run, since a dry run builds no client and would otherwise never look at it.
+	ready, err := validated(cmd, settings, recorder.Events(), positional, flags)
+	if err != nil {
+		return err
+	}
+
+	// After validation, so a flag clash is named before a provider or an --out that would fail. Ahead
+	// of run, since a dry run builds no client and would otherwise never look at the choice.
 	// --print-questions prints no provider and no model, so it checks the choice without the file.
 	if flags.printQuestions {
 		if refused := checkChoice(flags, settings.lookupEnv); refused != nil {
@@ -241,12 +247,12 @@ func runRoot(
 	}
 
 	if out == nil {
-		return run(cmd, settings, recorder.Events(), positional, flags, nil, resume)
+		return run(cmd, settings, ready, nil, resume)
 	}
 
 	cmd.SetOut(out)
 
-	runErr := run(cmd, settings, recorder.Events(), positional, flags, out, resume)
+	runErr := run(cmd, settings, ready, out, resume)
 
 	return settings.laterFailures.keepFirst(runErr, out.Finish(runErr))
 }
@@ -274,10 +280,10 @@ func openOut(settings rootSettings, flags runFlags, readOnly bool) (*answersfile
 }
 
 func answersDelimiter(flags runFlags) input.Delimiter {
-	outputMode, outputErr := output.ParseMode(flags.output, false, true, true)
+	outputMode, outputErr := output.ParseMode(flags.output)
 	delimiter, delimiterErr := input.ParseDelimiter(flags.delimiter)
 
-	// Commas, for no --delimiter at all and for a value the run refuses before it writes anything.
+	// Commas, for no --delimiter at all and for -o auto, which never resolves to csv.
 	if errors.Join(outputErr, delimiterErr) != nil {
 		return input.Delimiter{}
 	}

@@ -9,40 +9,6 @@ import (
 
 const lineField = "line"
 
-func numberRangesRule() Rule {
-	return Rule{
-		ID:    "numbers-in-range",
-		Reads: checkedNames(),
-		Check: func(v View) error {
-			// Checked for every mode. A number is refused rather than clamped, and a typo in a shared
-			// alias is exactly as wrong outside a stream as inside one.
-			for _, row := range Table() {
-				if row.Check == nil || !typed(v, row.Name) {
-					continue
-				}
-
-				if err := row.Check(v.Merged.values[row.Name]); err != nil {
-					return err
-				}
-			}
-
-			return nil
-		},
-	}
-}
-
-func checkedNames() []Name {
-	var names []Name
-
-	for _, row := range Table() {
-		if row.Check != nil {
-			names = append(names, row.Name)
-		}
-	}
-
-	return names
-}
-
 func singleRecordRule() Rule {
 	return Rule{
 		ID: "streaming-flags-need-a-stream",

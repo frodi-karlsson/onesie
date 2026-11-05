@@ -64,3 +64,55 @@ func TestGet(t *testing.T) {
 		})
 	}
 }
+
+func TestDerived(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		set  values
+		tty  bool
+		want string
+	}{
+		{name: "should default to table on a terminal", tty: true, want: "table"},
+		{name: "should default to json off a terminal", want: "json"},
+		{
+			name: "should default to json when streaming even on a terminal",
+			set:  values{"input": "jsonl"}, tty: true, want: "json",
+		},
+		{name: "should default to json under merge even on a terminal", set: values{"merge": true}, tty: true, want: "json"},
+		{
+			name: "should resolve an explicit auto under merge to json",
+			set:  values{"output": "auto", "merge_key": "x"}, tty: true, want: "json",
+		},
+		{name: "should resolve an explicit auto on a terminal to table", set: values{"output": "auto"}, tty: true, want: "table"},
+		{
+			name: "should default to json on a terminal when --out takes the answers",
+			set:  values{"out": "answers.jsonl"}, tty: true, want: "json",
+		},
+		{name: "should take raw from -r", set: values{"raw": true}, tty: true, want: "raw"},
+		{name: "should keep an explicit mode", set: values{"output": "values"}, tty: true, want: "values"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			view := run{set: tc.set, facts: settings.Facts{StdoutTTY: tc.tty}}.view(t)
+
+			if got := settings.Derived(view, settings.Output); got != tc.want {
+				t.Errorf("Derived(output) = %q, want %q", got, tc.want)
+			}
+		})
+	}
+
+	t.Run("should return the merged value of a row that derives nothing", func(t *testing.T) {
+		t.Parallel()
+
+		view := run{set: values{"jobs": 4}}.view(t)
+
+		if got := settings.Derived(view, settings.Jobs); got != 4 {
+			t.Errorf("Derived(jobs) = %d, want 4", got)
+		}
+	})
+}

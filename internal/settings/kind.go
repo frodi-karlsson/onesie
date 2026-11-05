@@ -21,7 +21,8 @@ var (
 )
 
 // Kind is the type of a setting's value: how it parses, how a question file gives it, its zero
-// value, the schema fragment that describes it and the name help shows for it.
+// value, the schema fragment that describes it and the name help shows for it. A number kind's Parse
+// returns the number it read beside a range refusal, so a caller can word that refusal itself.
 type Kind interface {
 	Parse(raw string) (any, error)
 	FromFile(raw any) (any, error)
@@ -198,7 +199,7 @@ type intKind struct {
 func (k intKind) Parse(raw string) (any, error) {
 	n, err := strconv.Atoi(raw)
 	if err != nil {
-		return 0, fmt.Errorf("takes a whole number, got '%s'", raw)
+		return nil, fmt.Errorf("takes a whole number, got '%s'", raw)
 	}
 
 	return k.inRange(n)
@@ -206,7 +207,7 @@ func (k intKind) Parse(raw string) (any, error) {
 
 func (k intKind) inRange(n int) (any, error) {
 	if n < k.least || n > k.most {
-		return 0, fmt.Errorf("takes a whole number from %d to %d, got %d", k.least, k.most, n)
+		return n, fmt.Errorf("takes a whole number from %d to %d, got %d", k.least, k.most, n)
 	}
 
 	return n, nil
@@ -215,7 +216,7 @@ func (k intKind) inRange(n int) (any, error) {
 func (k intKind) FromFile(raw any) (any, error) {
 	n, ok := fileNumber(raw)
 	if !ok || n != math.Trunc(n) || n < math.MinInt32 || n > math.MaxInt32 {
-		return 0, errors.New("takes a whole number")
+		return nil, errors.New("takes a whole number")
 	}
 
 	return k.inRange(int(n))
@@ -259,15 +260,15 @@ type probabilityKind struct{}
 func (k probabilityKind) Parse(raw string) (any, error) {
 	p, err := strconv.ParseFloat(raw, 64)
 	if err != nil {
-		return 0.0, fmt.Errorf("takes a number between 0 and 1, got '%s'", raw)
+		return nil, fmt.Errorf("takes a number between 0 and 1, got '%s'", raw)
 	}
 
 	return k.inRange(p)
 }
 
 func (probabilityKind) inRange(p float64) (any, error) {
-	if p < 0 || p > 1 {
-		return 0.0, fmt.Errorf("takes a number between 0 and 1, got %v", p)
+	if math.IsNaN(p) || p < 0 || p > 1 {
+		return p, fmt.Errorf("takes a number between 0 and 1, got %v", p)
 	}
 
 	return p, nil
@@ -276,7 +277,7 @@ func (probabilityKind) inRange(p float64) (any, error) {
 func (k probabilityKind) FromFile(raw any) (any, error) {
 	p, ok := fileNumber(raw)
 	if !ok {
-		return 0.0, errors.New("takes a number between 0 and 1")
+		return nil, errors.New("takes a number between 0 and 1")
 	}
 
 	return k.inRange(p)

@@ -9,6 +9,7 @@ import (
 
 	"github.com/frodi-karlsson/onesie/internal/argv"
 	"github.com/frodi-karlsson/onesie/internal/plan"
+	"github.com/frodi-karlsson/onesie/internal/settings"
 )
 
 func TestAssemble(t *testing.T) {
@@ -436,6 +437,7 @@ func TestAssemble(t *testing.T) {
 				Events:     tc.events,
 				Positional: tc.positional,
 				ReadFile:   readFile,
+				Numbers:    settings.PolicyNumbers(),
 			})
 
 			if tc.wantErr {
@@ -454,6 +456,15 @@ func TestAssemble(t *testing.T) {
 		})
 	}
 
+	t.Run("should refuse a zero Numbers, which the caller has to fill", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := plan.Assemble(plan.Source{Positional: "is this urgent", ReadFile: readFile})
+		if !errors.Is(err, plan.ErrNoNumbers) {
+			t.Errorf("Assemble error = %v, want ErrNoNumbers", err)
+		}
+	})
+
 	t.Run("should wrap a file read error", func(t *testing.T) {
 		t.Parallel()
 
@@ -463,6 +474,7 @@ func TestAssemble(t *testing.T) {
 			_, err := plan.Assemble(plan.Source{
 				Events:   []argv.Event{{Name: "ask", Value: "a=@gone.txt"}},
 				ReadFile: func(string) ([]byte, error) { return nil, os.ErrNotExist },
+				Numbers:  settings.PolicyNumbers(),
 			})
 
 			if !errors.Is(err, os.ErrNotExist) {
@@ -803,7 +815,10 @@ func TestAssemble(t *testing.T) {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 
-				got, err := plan.Assemble(tc.src)
+				src := tc.src
+				src.Numbers = settings.PolicyNumbers()
+
+				got, err := plan.Assemble(src)
 
 				if tc.wantErr != "" {
 					if err == nil {

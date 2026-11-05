@@ -31,23 +31,55 @@ import (
 var errWrapRepeated = errors.New("--merge wraps an input that is not an object under 'state', " +
 	"so --merge-key state would repeat that key. Pass another --merge-key")
 
+func validated(
+	cmd *cobra.Command, settings rootSettings, events []argv.Event, positional string, parsed *runFlags,
+) (staged, error) {
+	// Only the refusal is read here. runConfig holds the values the run uses.
+	if _, err := setting.ParseRun(setting.Table(), parsed.given, setting.CommandRoot); err != nil {
+		return staged{}, err
+	}
+
+	flags, err := newRunConfig(cmd, settings.lookupEnv, *parsed, events, positional)
+	if err != nil {
+		return staged{}, err
+	}
+
+	flags.stdoutTTY = settings.stdoutTTY
+
+	// Both modes sit ahead of the plan, since neither has a question and failing for want of one
+	// would send the user to the wrong flag. They validate with no plan.
+	if flags.listModels || flags.inputMode == input.Request {
+		_, err = validateRun(flags, runFacts{}, nil)
+
+		return staged{config: flags}, err
+	}
+
+	built, file, warnings, err := assemble(settings, flags, false)
+
+	// Warnings print whether or not validation succeeded, so a run that fails for one reason still
+	// reports the others.
+	if warnErr := warnAll(cmd.ErrOrStderr(), warnings); warnErr != nil {
+		return staged{}, warnErr
+	}
+
+	return staged{config: flags, plan: built, file: file}, err
+}
+
+type staged struct {
+	config runConfig
+	plan   *plan.Plan
+	file   buildFile
+}
+
 func run(
 	cmd *cobra.Command,
 	settings rootSettings,
-	events []argv.Event,
-	positional string,
-	parsed *runFlags,
+	ready staged,
 	out *answersfile.File,
 	resume answersfile.Resume,
 ) error {
-	flags, err := newRunConfig(cmd, settings.lookupEnv, *parsed, events, positional)
-	if err != nil {
-		return err
-	}
+	flags := ready.config
 
-	// Both branches sit ahead of the plan, since neither has a question and failing for want of one
-	// would send the user to the wrong flag. --list-models comes first, so it names itself rather
-	// than the mode it was combined with.
 	if flags.listModels {
 		return runListModels(cmd, settings, flags, out)
 	}
@@ -56,14 +88,7 @@ func run(
 		return runRequestBodies(cmd, settings, flags, out, resume)
 	}
 
-	inv, warnings, err := build(settings, flags, false)
-
-	// Warnings print whether or not validation succeeded, so a run that fails for one reason still
-	// reports the others.
-	if warnErr := warnAll(cmd.ErrOrStderr(), warnings); warnErr != nil {
-		return warnErr
-	}
-
+	inv, err := invocationOf(settings, flags, ready.plan, ready.file)
 	if err != nil {
 		return err
 	}
@@ -83,11 +108,6 @@ func run(
 }
 
 func runListModels(cmd *cobra.Command, settings rootSettings, flags runConfig, out *answersfile.File) error {
-	// The only hint is -j on one record, which --list-models refuses and -i request never is.
-	if _, checkErr := validateRun(flags, runFacts{}, nil); checkErr != nil {
-		return checkErr
-	}
-
 	out.BindWithoutFingerprint()
 
 	return withStats(cmd, settings.now, flags, func(stats *collector) error {
@@ -98,10 +118,6 @@ func runListModels(cmd *cobra.Command, settings rootSettings, flags runConfig, o
 func runRequestBodies(
 	cmd *cobra.Command, settings rootSettings, flags runConfig, out *answersfile.File, resume answersfile.Resume,
 ) error {
-	if _, checkErr := validateRun(flags, runFacts{}, nil); checkErr != nil {
-		return checkErr
-	}
-
 	// Each body names its own model or takes the run's, and the fingerprint holds no model, as
 	// it holds nothing else a body carries.
 	if bindErr := bindOut(out, settings, flags, nil, answersfile.FingerprintInputs{
@@ -136,9 +152,7 @@ func runPlan(
 		return err
 	}
 
-	// Both modes are parsed before the request, so a mistyped flag costs nothing.
-	outputMode, err := output.ParseMode(
-		outputName(flags), settings.stdoutTTY && flags.out == "", inputMode.Streaming(), merging(flags))
+	outputMode, err := output.ParseMode(setting.Derived(viewOf(flags, runFacts{}, built), setting.Output))
 	if err != nil {
 		return err
 	}
@@ -1060,14 +1074,6 @@ func quietResult(question plan.Question, a *answer.Answer) error {
 	}
 
 	return nil
-}
-
-func outputName(flags runConfig) string {
-	if flags.raw {
-		return "raw"
-	}
-
-	return flags.output
 }
 
 type runFlags struct {
