@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"io/fs"
 	"net/http"
@@ -1015,7 +1014,7 @@ func TestPrintRequest(t *testing.T) {
 		}
 	})
 
-	t.Run("should warn once that a stream ignores a body's state", func(t *testing.T) {
+	t.Run("should note once that the input records override a body's state", func(t *testing.T) {
 		t.Parallel()
 
 		path := filepath.Join(t.TempDir(), "body.json")
@@ -1024,17 +1023,15 @@ func TestPrintRequest(t *testing.T) {
 			t.Fatalf("writing the body: %v", err)
 		}
 
-		const warning = "onesie: warning: ignoring the state in %s, since %s sends each record as its state\n"
+		const notice = "onesie: the input records override the request body's state\n"
 
 		tests := []struct {
-			name   string
-			sender string
-			args   []string
+			name string
+			args []string
 		}{
-			{name: "should warn under -i jsonl", sender: "a stream", args: []string{"-f", path, "-i", "jsonl", "--print-request"}},
+			{name: "should note it under -i jsonl", args: []string{"-f", path, "-i", "jsonl", "--print-request"}},
 			{
-				name:   "should warn under calibrate",
-				sender: "calibrate",
+				name: "should note it under calibrate",
 				args: []string{
 					"calibrate", "-f", path, "-i", "jsonl", "--map", ".body", "--label", "urgent=.u",
 					"--print-request",
@@ -1056,8 +1053,8 @@ func TestPrintRequest(t *testing.T) {
 					t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, ExitOK, errOut)
 				}
 
-				if want := fmt.Sprintf(warning, path, tc.sender); errOut != want {
-					t.Errorf("stderr = %q, want %q", errOut, want)
+				if errOut != notice {
+					t.Errorf("stderr = %q, want %q", errOut, notice)
 				}
 
 				if strings.Contains(printed, "from the body") || !strings.Contains(printed, `"state":"line two"`) {

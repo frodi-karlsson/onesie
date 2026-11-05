@@ -63,12 +63,14 @@ func assemble(
 	built.Model = setting.Get(flags.merged, setting.Model)
 	built.LongContext = flags.env.longContext
 
-	warnings, err := validateRun(flags, file.facts, built)
+	warnings, typedTwice, err := validateRun(flags, file.facts, built, commandLine{given: given, args: settings.args})
 	if err == nil {
 		err = merged.refusal
 	}
 
-	return assembled{config: flags, plan: built, file: file, warnings: warnings, notices: merged.notices}, err
+	return assembled{
+		config: flags, plan: built, file: file, warnings: warnings, notices: append(typedTwice, merged.notices...),
+	}, err
 }
 
 type assembled struct {

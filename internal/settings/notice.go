@@ -1,7 +1,10 @@
 package settings
 
+import "strconv"
+
 // Notice says one source of a setting won over another. Values holds the two values, which print only
-// for a setting typed twice, and the names a choice of provider or profile prints.
+// for a setting typed twice, and the names a choice of provider or profile prints. Times counts a
+// setting typed more than twice.
 type Notice struct {
 	Setting  Name
 	Winner   Origin
@@ -9,6 +12,7 @@ type Notice struct {
 	Question string
 	Verb     Verb
 	Values   [2]string
+	Times    int
 }
 
 // String words the notice, without the onesie: prefix output.Notice adds.
@@ -22,7 +26,7 @@ func (n Notice) String() string {
 	case VerbSets:
 		return n.winner() + " sets " + n.Loser.String() + forQuestion
 	case VerbGivenTwice:
-		return n.Winner.Spelled + " is given twice" + forQuestion + ", " + n.Values[0] + " overrides " + n.Values[1]
+		return n.Winner.Spelled + " is given " + n.times() + forQuestion + ", " + n.Values[0] + " overrides " + n.Values[1]
 	case VerbRunsWithout:
 		return n.winner() + " runs without the default profile '" + n.Values[1] + "'"
 	case VerbPairs:
@@ -32,6 +36,14 @@ func (n Notice) String() string {
 	default:
 		return n.winner() + " overrides " + n.Loser.String() + forQuestion
 	}
+}
+
+func (n Notice) times() string {
+	if n.Times > 2 {
+		return strconv.Itoa(n.Times) + " times"
+	}
+
+	return "twice"
 }
 
 func (n Notice) winner() string {

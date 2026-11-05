@@ -731,7 +731,13 @@ Each setting takes the first source that gives it, in this order:
 - A higher source that replaces a different value prints one notice on stderr, as in
   `onesie: TYPESAFE_DEFAULT_MODEL overrides the default profile's model` or
   `onesie: --model overrides the request body's model`. A notice names both sources and never a
-  value. Equal values and built in defaults print nothing, and a refused run prints only its
+  value.
+- A run setting typed twice keeps the last value, so an alias such as `alias ons='onesie -m a'`
+  still takes `ons -m b`. It prints a notice that spells the flag as it was typed and names both
+  values, since the user typed both, as in `onesie: -m is given twice, jev-preview overrides jev-1.13.0`.
+  The same value typed twice prints nothing. A flag repeatable by design is no duplicate: `--assert`,
+  `--abstain-if`, `--image`, `--image-field` and `--ask` add to each other, and `--pick` and `--rate`
+  add options. Equal values and built in defaults print nothing, and a refused run prints only its
   refusal. A run that sends nothing, under `--mock` or `--print-request`, prints no base URL or key
   notice.
 - A key goes only with its own endpoint. When a run's base URL is custom, not the provider's own,
@@ -1020,9 +1026,10 @@ table, and `onesie calibrate --help` lists the codes calibrate uses.
   never reads stdin. `--state` or `--state-file` beside such a body exits 2, naming both.
   `-i request` refuses both flags the same way, since each body there holds its own state. A stream
   and `calibrate` read their records from stdin as usual and send each one as its state, so they use
-  the body only for its questions, and say on stderr that its state is ignored. A body's `assets`
-  are sent with it. When its state is ignored, an asset only that state named is dropped, and the
-  warning counts it.
+  the body only for its questions, with the notice
+  `onesie: the input records override the request body's state` on stderr. A body's `assets` are
+  sent with it. When the records override its state, an asset only that state named is dropped, and
+  the notice counts it, as in `and its 1 asset`.
 - `--print-schema` prints the JSON Schema for a question file. The first line `--print-questions`
   writes is `# yaml-language-server: $schema=URL`, which an editor running the YAML language server
   reads, such as VS Code with the Red Hat YAML extension, to check each key and value as you type.

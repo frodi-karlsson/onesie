@@ -5,10 +5,18 @@ import (
 	setting "github.com/frodi-karlsson/onesie/internal/settings"
 )
 
-func validateRun(config runConfig, facts runFacts, built *plan.Plan) ([]string, error) {
-	warnings, _, err := setting.Validate(viewOf(config, facts, built), setting.Rules())
+func validateRun(
+	config runConfig, facts runFacts, built *plan.Plan, typed commandLine,
+) ([]string, []setting.Notice, error) {
+	view := viewOf(config, facts, built)
+	view.Facts.Given, view.Facts.Args = typed.given, typed.args
 
-	return warnings, err
+	return setting.Validate(view, setting.Rules())
+}
+
+type commandLine struct {
+	given *setting.Given
+	args  []string
 }
 
 func viewOf(config runConfig, facts runFacts, built *plan.Plan) setting.View {
