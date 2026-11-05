@@ -209,6 +209,7 @@ type resolution struct {
 	baseURL      string
 	accountID    string
 	endpointFrom string
+	keyAside     bool
 }
 
 func (r resolution) merged(m *setting.Merged) resolution {
@@ -222,6 +223,9 @@ func (r resolution) merged(m *setting.Merged) resolution {
 	case string:
 		r.keyFrom, r.key, r.account, r.keyEnd = sourceEnv, setting.Get(m, setting.APIKey), "", ""
 	default:
+		aside, set := m.SetAside(setting.APIKey.Name())
+		r.keyAside = set && r.profile != "" &&
+			(aside.Source == setting.SourceChosenProfile || aside.Source == setting.SourceDefaultProfile)
 		r.keyFrom, r.key, r.account, r.keyEnd = sourceNone, "", "", ""
 	}
 

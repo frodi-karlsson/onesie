@@ -656,7 +656,9 @@ on the provider's key variable alone.
 - A key the server refuses exits 3, on a run or on `test`. On a profile the message names
   `onesie profile update NAME --key`, and without one it names the provider's key variable. A server
   that wants a key from a keyless run answers 401, which exits 3 with
-  `No key was sent, since none resolves and the base URL is custom`. A run
+  `No key was sent, since none resolves and the base URL is custom`. When a profile's key stayed
+  with its own endpoint, it says so and names `onesie profile update NAME --base-url URL` and
+  `--base-url`. A run
   with no key and no profile for its provider names
   `onesie profile create NAME --provider PROVIDER`.
 - `test` proves the key on every provider. On berget it also asks one tiny question with the
@@ -715,7 +717,9 @@ Each setting takes the first source that gives it, in this order:
 | model | `-m`, then the chosen profile's `model`, then the `model` of a `-f` request body, then `TYPESAFE_DEFAULT_MODEL` on typesafe, then the default profile's `model`, then the provider's default |
 | base_url or account | `--base-url`, then the chosen profile's `base_url` or `account_id`, then `ONESIE_BASE_URL`, then `TYPESAFE_BASE_URL` on typesafe, then `CLOUDFLARE_ACCOUNT_ID` on cloudflare, then the default profile's `base_url` or `account_id`, then the provider's own |
 
-- A chosen profile keeps its key, model and base URL ahead of every variable. The default profile
+- A chosen profile keeps its key, model and base URL ahead of every variable. Its key goes only
+  with its own endpoint, so a proxy in front of it belongs in the profile's `base_url` or in
+  `--base-url`, not in `ONESIE_BASE_URL` or `TYPESAFE_BASE_URL`. The default profile
   ranks below the environment, so an exported `ONESIE_BASE_URL`, `TYPESAFE_DEFAULT_MODEL` or key
   variable beats it. `ONESIE_PROFILE=NAME` chooses the default profile by name and puts it ahead of
   the environment again.

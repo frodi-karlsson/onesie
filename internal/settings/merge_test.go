@@ -461,6 +461,23 @@ func TestMerge(t *testing.T) {
 			wantSources: map[settings.Name]settings.Source{"api_key": settings.SourceDefaultProfile},
 		},
 		{
+			name: "should record the key it sets aside",
+			reading: reading{
+				defaultProfile: "work", keyHeld: true, profile: map[string]string{"provider": "typesafe"},
+				env: map[string]string{"ONESIE_BASE_URL": "https://env.example"},
+			},
+			wantNotices: []string{"ONESIE_BASE_URL overrides the default profile's api_key, since a key goes only " +
+				"with its own endpoint"},
+			check: func(t *testing.T, merged *settings.Merged) {
+				t.Helper()
+
+				aside, set := merged.SetAside(settings.APIKey.Name())
+				if want := (settings.Origin{Source: settings.SourceDefaultProfile, Spelled: "api_key"}); !set || aside != want {
+					t.Errorf("SetAside(api_key) = %+v, %t, want %+v", aside, set, want)
+				}
+			},
+		},
+		{
 			name: "should send no held key to a lookalike host",
 			reading: reading{
 				defaultProfile: "work", keyHeld: true, profile: map[string]string{"provider": "typesafe"},

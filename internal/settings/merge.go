@@ -87,6 +87,7 @@ func pairKey(merged *Merged, ranked []Layer, notices []Notice) []Notice {
 	delete(merged.values, apiKeyName)
 	delete(merged.sources, apiKeyName)
 	delete(merged.spellings, apiKeyName)
+	merged.setAside = map[Name]Origin{apiKeyName: dropped}
 
 	for _, paired := range holding(ranked, apiKeyName) {
 		if slices.Contains(pairs, paired.layer.Source) {
@@ -344,6 +345,7 @@ type Merged struct {
 	values    map[Name]any
 	sources   map[Name]Source
 	spellings map[Name]string
+	setAside  map[Name]Origin
 	questions map[string]map[Name]any
 }
 
@@ -422,6 +424,18 @@ func (m *Merged) Origin(name Name) Origin {
 	}
 
 	return Origin{Source: m.sources[name], Spelled: m.spellings[name]}
+}
+
+// SetAside is where a value came from that the merge set aside after it won, as a key from another
+// source than the endpoint it would go to.
+func (m *Merged) SetAside(name Name) (Origin, bool) {
+	if m == nil {
+		return Origin{}, false
+	}
+
+	origin, set := m.setAside[name]
+
+	return origin, set
 }
 
 // Source ranks where a value came from, the higher one winning.
