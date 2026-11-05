@@ -163,6 +163,38 @@ func TestRegister(t *testing.T) {
 				t.Errorf("profile update --provider '' error = %v, want ErrEmptyValue", err)
 			}
 		}},
+		{name: "should refuse an empty and a blank value on exactly the pinned flags of each command", run: func(t *testing.T) {
+			runs := []string{"base-url", "file", "id", "image-field", "input", "map", "mock", "model", "out", "output"}
+			root := sorted(append(slices.Clone(runs), "merge-key", "profile", "provider", "state-file"))
+			calibrate := sorted(append(slices.Clone(runs), "label"))
+
+			for _, pin := range []struct {
+				command      settings.Command
+				empty, blank []string
+			}{
+				{command: settings.CommandRoot, empty: sorted(append(slices.Clone(root), "sep")), blank: root},
+				{command: settings.CommandCalibrate, empty: sorted(append(slices.Clone(calibrate), "sep")), blank: calibrate},
+				{
+					command: settings.CommandProfileCreate,
+					empty:   []string{"account-id", "base-url", "model"}, blank: []string{"account-id", "base-url", "model"},
+				},
+				{command: settings.CommandProfileUpdate, empty: []string{"provider"}, blank: []string{"provider"}},
+			} {
+				for value, want := range map[string][]string{"": pin.empty, " ": pin.blank} {
+					var got []string
+
+					for _, name := range register(pin.command).names() {
+						if errors.Is(register(pin.command).parseErr("--"+name+"="+value), settings.ErrEmptyValue) {
+							got = append(got, name)
+						}
+					}
+
+					if !slices.Equal(got, want) {
+						t.Errorf("%s refuses %q on %v, want %v", pin.command, value, got, want)
+					}
+				}
+			}
+		}},
 		{name: "should keep pflag's own message for a bad int", run: func(t *testing.T) {
 			err := register(settings.CommandRoot).parseErr("-j", "x")
 
