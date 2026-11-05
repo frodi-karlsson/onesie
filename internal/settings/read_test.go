@@ -2,6 +2,7 @@ package settings_test
 
 import (
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -417,15 +418,95 @@ func TestRead(t *testing.T) {
 			wantErr: "--profile and --provider both choose what the run uses. Pass one",
 		},
 		{
-			name:    "should order the layers from the highest source down",
-			reading: reading{args: []string{"-m", "a"}, env: map[string]string{"ONESIE_CACHE": "1"}},
+			name: "should order the layers from the highest source down",
+			reading: reading{
+				args: []string{"-m", "a"}, env: map[string]string{"ONESIE_CACHE": "1"}, defaultProfile: "work",
+				profile: map[string]string{"provider": "typesafe", "model": "p"},
+				file:    &settings.FileValues{Body: true, TopLevel: map[string]any{"model": "b"}},
+			},
 			check: func(t *testing.T, layers []settings.Layer) {
 				t.Helper()
 
-				for i := 1; i < len(layers); i++ {
-					if layers[i-1].Source <= layers[i].Source {
-						t.Errorf("layer %d is %d after %d, want the highest first", i, layers[i].Source, layers[i-1].Source)
+				got := make([]settings.Source, 0, len(layers))
+				for _, layer := range layers {
+					got = append(got, layer.Source)
+				}
+
+				want := []settings.Source{
+					settings.SourceFlag, settings.SourceFile, settings.SourceEnv, settings.SourceDefaultProfile,
+					settings.SourceDefault,
+				}
+				if !slices.Equal(got, want) {
+					t.Errorf("layer sources = %v, want %v", got, want)
+				}
+			},
+		},
+		{
+			name: "should read that a chosen profile holds a key, never the key",
+			reading: reading{
+				args: []string{"--profile", "work"}, keyHeld: true,
+				profile: map[string]string{"provider": "typesafe", "api_key": "secret"},
+			},
+			check: func(t *testing.T, layers []settings.Layer) {
+				t.Helper()
+
+				wantValue(t, layerAt(t, layers, settings.SourceChosenProfile), "api_key", settings.HeldKey{}, "api_key")
+			},
+		},
+		{
+			name: "should read no key from a profile that holds none",
+			reading: reading{
+				args: []string{"--profile", "work"}, profile: map[string]string{"provider": "typesafe", "api_key": "secret"},
+			},
+			check: func(t *testing.T, layers []settings.Layer) {
+				t.Helper()
+
+				wantNoValue(t, layerAt(t, layers, settings.SourceChosenProfile), "api_key")
+			},
+		},
+		{
+			name: "should read no profile when nothing names one",
+			reading: reading{
+				profile: map[string]string{"provider": "cloudflare", "model": "p"},
+				env:     map[string]string{"TYPESAFE_DEFAULT_MODEL": "e"},
+			},
+			check: func(t *testing.T, layers []settings.Layer) {
+				t.Helper()
+
+				for _, source := range []settings.Source{settings.SourceChosenProfile, settings.SourceDefaultProfile} {
+					if layer, found := layerOf(layers, source); found {
+						t.Errorf("profile layer %d = %#v, want none", source, layer.Values)
 					}
+				}
+
+				wantValue(t, layerAt(t, layers, settings.SourceEnv), "model", "e", "TYPESAFE_DEFAULT_MODEL")
+			},
+		},
+		{
+			name: "should read --profile on calibrate from root's persistent flags",
+			reading: reading{
+				command: settings.CommandCalibrate, args: []string{"--profile", "work"},
+				profile: map[string]string{"provider": "typesafe", "model": "p"},
+			},
+			check: func(t *testing.T, layers []settings.Layer) {
+				t.Helper()
+
+				wantValue(t, layerAt(t, layers, settings.SourceFlag), "profile", "work", "--profile")
+				wantValue(t, layerAt(t, layers, settings.SourceChosenProfile), "model", "p", "model")
+			},
+		},
+		{
+			name: "should keep a profile command off the run choice",
+			reading: reading{
+				command: settings.CommandProfileUpdate, args: []string{"--provider", "openrouter"},
+				env: map[string]string{"ONESIE_PROFILE": "work", "ONESIE_PROVIDER": "levanto"},
+			},
+			check: func(t *testing.T, layers []settings.Layer) {
+				t.Helper()
+
+				for _, layer := range layers {
+					wantNoValue(t, layer, "provider")
+					wantNoValue(t, layer, "profile")
 				}
 			},
 		},
@@ -480,6 +561,28 @@ func TestChoose(t *testing.T) {
 			name:    "should choose the provider --provider names",
 			reading: reading{args: []string{"--provider", "openrouter"}, defaultProfile: "home"},
 			want:    settings.Choice{Provider: "openrouter", ProviderBy: settings.SourceFlag, DefaultProfile: "home"},
+		},
+		{
+			name: "should choose the profile --profile names on calibrate",
+			reading: reading{
+				command: settings.CommandCalibrate, args: []string{"--profile", "work"}, defaultProfile: "home",
+			},
+			want: settings.Choice{Profile: "work", ProfileBy: settings.SourceFlag, DefaultProfile: "home"},
+		},
+		{
+			name: "should choose the provider --provider names on calibrate",
+			reading: reading{
+				command: settings.CommandCalibrate, args: []string{"--provider", "openrouter"},
+			},
+			want: settings.Choice{Provider: "openrouter", ProviderBy: settings.SourceFlag},
+		},
+		{
+			name: "should keep profile update's --provider off the run choice beside ONESIE_PROFILE",
+			reading: reading{
+				command: settings.CommandProfileUpdate, args: []string{"--provider", "openrouter"},
+				env: map[string]string{"ONESIE_PROFILE": "work"}, defaultProfile: "home",
+			},
+			want: settings.Choice{DefaultProfile: "home"},
 		},
 		{
 			name:    "should choose the profile ONESIE_PROFILE names",
@@ -560,6 +663,7 @@ type reading struct {
 	env            map[string]string
 	file           *settings.FileValues
 	profile        map[string]string
+	keyHeld        bool
 	defaultProfile string
 }
 
@@ -572,6 +676,12 @@ func (r reading) sources(t *testing.T) settings.Sources {
 	}
 
 	registered := register(command)
+	if command == settings.CommandCalibrate {
+		root := register(settings.CommandRoot)
+		registered.persistent = root.persistent
+		registered.given.Inherit(root.persistent)
+	}
+
 	registered.parse(t, r.args...)
 
 	src := settings.Sources{
@@ -587,7 +697,7 @@ func (r reading) sources(t *testing.T) settings.Sources {
 	}
 
 	if r.profile != nil {
-		src.Profile = &settings.ProfileValues{Members: r.profile}
+		src.Profile = &settings.ProfileValues{Members: r.profile, KeyHeld: r.keyHeld}
 	}
 
 	return src

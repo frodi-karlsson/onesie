@@ -1,8 +1,10 @@
 package settings
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/frodi-karlsson/onesie-go"
@@ -15,6 +17,7 @@ const (
 	fileName     Name = "file"
 	profileName  Name = "profile"
 	providerName Name = "provider"
+	apiKeyName   Name = "api_key"
 )
 
 // Read reads every source of rows into one layer each, the highest first. A file, variable or profile
@@ -43,7 +46,7 @@ func Read(rows []Row, src Sources) ([]Layer, error) {
 		return nil, err
 	}
 
-	env, err := readEnv(rows, src.LookupEnv, runProvider(choice, src.Profile), mode)
+	env, err := readEnv(rows, src.LookupEnv, runProvider(choice, src.Profile), mode, src.Facts.Command)
 	if err != nil {
 		return nil, err
 	}
@@ -56,7 +59,7 @@ func Read(rows []Row, src Sources) ([]Layer, error) {
 		}
 	}
 
-	return layers, nil
+	return highestFirst(layers), nil
 }
 
 // Choose resolves the rows that pick a source rather than set a value: the question file, the
@@ -97,9 +100,14 @@ type QuestionValues struct {
 }
 
 // ProfileValues is the members of the profile Choose named, keyed as profiles.json spells them.
+// KeyHeld says the profile holds a key, in the file or the keychain, and Read never reads the key.
 type ProfileValues struct {
 	Members map[string]string
+	KeyHeld bool
 }
+
+// HeldKey is the value of a key a profile holds, standing in for the key itself.
+type HeldKey struct{}
 
 // Layer is what one source gives: a value per row, how the source spells each row, and per question
 // values keyed by question id. Body marks a file layer read from a request body.
@@ -126,8 +134,8 @@ func readFlags(rows []Row, given *Given, command Command) (Layer, error) {
 	}
 
 	for _, row := range rows {
-		bound, registered := row.FlagOn(command)
-		if !registered || !parsedPerRun(row, command) {
+		bound, registered := boundOn(row, command)
+		if !registered || !parsedPerRun(row, command) || offTheChoice(row, command) {
 			continue
 		}
 
@@ -149,6 +157,24 @@ func readFlags(rows []Row, given *Given, command Command) (Layer, error) {
 	}
 
 	return layer, nil
+}
+
+func boundOn(row Row, command Command) (BoundFlag, bool) {
+	if bound, registered := row.FlagOn(command); registered || command == CommandRoot {
+		return bound, registered
+	}
+
+	bound, registered := row.FlagOn(CommandRoot)
+
+	return bound, registered && bound.Persistent
+}
+
+func offTheChoice(row Row, command Command) bool {
+	return choosesSource(row.Name) && profileCommand(command)
+}
+
+func profileCommand(command Command) bool {
+	return command == CommandProfileCreate || command == CommandProfileUpdate
 }
 
 func choosesSource(name Name) bool {
@@ -177,11 +203,11 @@ func readDefaults(rows []Row, command Command) Layer {
 	layer := Layer{Source: SourceDefault}
 
 	for _, row := range rows {
-		if row.Scope != ScopeRun {
+		if row.Scope != ScopeRun || offTheChoice(row, command) {
 			continue
 		}
 
-		if bound, registered := row.FlagOn(command); registered {
+		if bound, registered := boundOn(row, command); registered {
 			if parsedPerRun(row, command) {
 				layer.set(row.Name, untyped(row, bound), "")
 			}
@@ -246,8 +272,18 @@ func runMode(command Command, flags, defaults Layer) Mode {
 	}
 }
 
+func highestFirst(layers []Layer) []Layer {
+	return slices.SortedStableFunc(slices.Values(layers), func(a, b Layer) int {
+		return cmp.Compare(b.Source, a.Source)
+	})
+}
+
 func choose(rows []Row, src Sources, flags Layer, mode Mode) (Choice, error) {
 	chosen := Choice{File: textIn(flags, fileName), DefaultProfile: src.DefaultProfile}
+	if profileCommand(src.Facts.Command) {
+		return chosen, nil
+	}
+
 	profileFlag, providerFlag := textIn(flags, profileName), textIn(flags, providerName)
 	profileEnv, profileVariable := ambientText(rows, profileName, src.LookupEnv, mode)
 	providerEnv, providerVariable := ambientText(rows, providerName, src.LookupEnv, mode)
@@ -324,12 +360,20 @@ func readProfile(rows []Row, profile *ProfileValues, chosen Choice, mode Mode) (
 		layer.set(profileName, chosen.Profile, "")
 	}
 
-	if profile == nil {
+	if profile == nil || chosen.Profile == "" {
 		return layer, nil
 	}
 
 	for _, row := range rows {
 		if !row.Modes.Has(mode) {
+			continue
+		}
+
+		if row.Name == apiKeyName {
+			if profile.KeyHeld {
+				layer.set(apiKeyName, HeldKey{}, string(apiKeyName))
+			}
+
 			continue
 		}
 
@@ -370,7 +414,7 @@ func runProvider(chosen Choice, profile *ProfileValues) string {
 	switch {
 	case chosen.Provider != "":
 		return chosen.Provider
-	case profile != nil && strings.TrimSpace(profile.Members["provider"]) != "":
+	case chosen.Profile != "" && profile != nil && strings.TrimSpace(profile.Members["provider"]) != "":
 		return strings.TrimSpace(profile.Members["provider"])
 	default:
 		return onesie.TypeSafe().Name()
@@ -454,14 +498,16 @@ func readQuestion(rows []Row, question QuestionValues, body bool, mode Mode) (ma
 	return values, nil
 }
 
-func readEnv(rows []Row, lookupEnv func(string) (string, bool), provider string, mode Mode) (Layer, error) {
+func readEnv(
+	rows []Row, lookupEnv func(string) (string, bool), provider string, mode Mode, command Command,
+) (Layer, error) {
 	layer := Layer{Source: SourceEnv}
 	if lookupEnv == nil {
 		return layer, nil
 	}
 
 	for _, row := range rows {
-		if !row.Modes.Has(mode) {
+		if !row.Modes.Has(mode) || offTheChoice(row, command) {
 			continue
 		}
 

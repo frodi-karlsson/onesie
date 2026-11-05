@@ -656,6 +656,7 @@ func envRows() []Row {
 	return []Row{
 		{
 			Name: "api_key", Kind: NonEmptyText(), Modes: connecting(), Env: keyVariables(),
+			Profile: []ProfileMember{{Key: "api_key"}},
 		},
 		{
 			Name: "cache_ttl", Kind: Duration(), Modes: answering(),

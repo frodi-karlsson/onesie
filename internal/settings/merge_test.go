@@ -124,6 +124,70 @@ func TestMerge(t *testing.T) {
 			wantSources: map[settings.Name]settings.Source{"jobs": settings.SourceDefault},
 		},
 		{
+			name: "should keep a chosen profile's key over the provider key variable",
+			reading: reading{
+				args: []string{"--profile", "work"}, keyHeld: true, env: map[string]string{"TYPESAFE_API_KEY": "env"},
+				profile: map[string]string{"provider": "typesafe"},
+			},
+			want:        values{"api_key": settings.HeldKey{}},
+			wantSources: map[settings.Name]settings.Source{"api_key": settings.SourceChosenProfile},
+			wantNotices: []string{"the profile's api_key overrides TYPESAFE_API_KEY"},
+		},
+		{
+			name: "should let the provider key variable beat the default profile's key, with a notice",
+			reading: reading{
+				defaultProfile: "work", keyHeld: true, env: map[string]string{"TYPESAFE_API_KEY": "env"},
+				profile: map[string]string{"provider": "typesafe"},
+			},
+			want:        values{"api_key": "env"},
+			wantSources: map[settings.Name]settings.Source{"api_key": settings.SourceEnv},
+			wantNotices: []string{"TYPESAFE_API_KEY overrides the default profile's api_key"},
+		},
+		{
+			name: "should note each lower source of -m under a chosen profile, a body and TYPESAFE_DEFAULT_MODEL",
+			reading: reading{
+				args: []string{"--profile", "work", "-m", "x"}, env: map[string]string{"TYPESAFE_DEFAULT_MODEL": "e"},
+				profile: map[string]string{"provider": "typesafe", "model": "p"},
+				file:    &settings.FileValues{Body: true, TopLevel: map[string]any{"model": "b"}},
+			},
+			want: values{"model": "x"},
+			wantNotices: []string{
+				"--model overrides the profile's model", "--model overrides the request body's model",
+				"--model overrides TYPESAFE_DEFAULT_MODEL",
+			},
+		},
+		{
+			name:        "should fall back to typesafe as the provider",
+			reading:     reading{},
+			want:        values{"provider": "typesafe"},
+			wantSources: map[settings.Name]settings.Source{"provider": settings.SourceDefault},
+		},
+		{
+			name:        "should fall back to typesafe as the provider on calibrate",
+			reading:     reading{command: settings.CommandCalibrate},
+			want:        values{"provider": "typesafe"},
+			wantSources: map[settings.Name]settings.Source{"provider": settings.SourceDefault},
+		},
+		{
+			name: "should fall back to typesafe under a profile that names no provider",
+			reading: reading{
+				args: []string{"--profile", "work"}, profile: map[string]string{"model": "p"},
+			},
+			want:        values{"provider": "typesafe", "profile": "work"},
+			wantSources: map[settings.Name]settings.Source{"provider": settings.SourceDefault},
+		},
+		{
+			name: "should run the profile --profile names on calibrate",
+			reading: reading{
+				command: settings.CommandCalibrate, args: []string{"--profile", "work"},
+				profile: map[string]string{"provider": "cloudflare", "model": "p"},
+			},
+			want: values{"profile": "work", "provider": "cloudflare", "model": "p"},
+			wantSources: map[settings.Name]settings.Source{
+				"profile": settings.SourceFlag, "provider": settings.SourceChosenProfile,
+			},
+		},
+		{
 			name: "should take the endpoint whole from the higher source",
 			reading: reading{
 				defaultProfile: "cf", env: map[string]string{"ONESIE_BASE_URL": "https://e.test"},

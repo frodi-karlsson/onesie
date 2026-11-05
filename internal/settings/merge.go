@@ -1,9 +1,10 @@
 package settings
 
 import (
-	"cmp"
 	"reflect"
 	"slices"
+
+	"github.com/frodi-karlsson/onesie-go"
 
 	"github.com/frodi-karlsson/onesie/internal/plan"
 )
@@ -11,9 +12,7 @@ import (
 // Merge takes each row's value, and each value of every question built asks, from the highest layer
 // that gives one, with a notice for each value a higher source replaced. Derived works out the rest.
 func Merge(rows []Row, layers []Layer, built *plan.Plan) (*Merged, []Notice) {
-	ranked := slices.SortedStableFunc(slices.Values(layers), func(a, b Layer) int {
-		return cmp.Compare(b.Source, a.Source)
-	})
+	ranked := highestFirst(layers)
 	merged := &Merged{}
 
 	var notices []Notice
@@ -126,9 +125,15 @@ func mergeChoice(merged *Merged, ranked []Layer) []Notice {
 	}
 
 	fallBack(merged, ranked, profileName)
-	fallBack(merged, ranked, providerName)
+	defaultProvider(merged)
 
 	return nil
+}
+
+func defaultProvider(merged *Merged) {
+	if _, holds := merged.values[providerName]; !holds {
+		merged.Set(providerName, onesie.TypeSafe().Name(), SourceDefault)
+	}
 }
 
 func profileChosen(merged *Merged, ranked []Layer, at int, name string) []Notice {
@@ -141,7 +146,7 @@ func profileChosen(merged *Merged, ranked []Layer, at int, name string) []Notice
 		}
 	}
 
-	fallBack(merged, ranked, providerName)
+	defaultProvider(merged)
 
 	winner := Origin{Source: chooser.Source, Spelled: chooser.Spelled[profileName]}
 

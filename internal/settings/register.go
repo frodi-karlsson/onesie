@@ -152,6 +152,11 @@ type Given struct {
 	sets      []*pflag.FlagSet
 }
 
+// Inherit adds set, the persistent flags of a parent command, to the sets the flags are looked up in.
+func (g *Given) Inherit(set *pflag.FlagSet) {
+	g.sets = append(g.sets, set)
+}
+
 // Count is how many times the flag of name was set. A repeatable flag counts nothing.
 func (g *Given) Count(name Name) int {
 	if g == nil {
