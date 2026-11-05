@@ -433,14 +433,32 @@ func TestMerge(t *testing.T) {
 				"its own endpoint"},
 		},
 		{
-			name: "should send no held key to the account CLOUDFLARE_ACCOUNT_ID names",
+			name: "should keep a default cloudflare profile's token beside a different CLOUDFLARE_ACCOUNT_ID",
 			reading: reading{
-				defaultProfile: "cf", keyHeld: true, profile: map[string]string{"provider": "cloudflare"},
-				env: map[string]string{"CLOUDFLARE_ACCOUNT_ID": strings.Repeat("b", 32)},
+				defaultProfile: "cf", keyHeld: true,
+				profile: map[string]string{"provider": "cloudflare", "account_id": strings.Repeat("a", 32)},
+				env:     map[string]string{"CLOUDFLARE_ACCOUNT_ID": strings.Repeat("b", 32)},
 			},
-			want: values{"api_key": nil},
-			wantNotices: []string{"CLOUDFLARE_ACCOUNT_ID overrides the default profile's api_key, since a key goes " +
-				"only with its own endpoint"},
+			want:        values{"api_key": settings.HeldKey{}},
+			wantSources: map[settings.Name]settings.Source{"endpoint": settings.SourceEnv},
+			wantNotices: []string{"CLOUDFLARE_ACCOUNT_ID overrides the default profile's account_id"},
+		},
+		{
+			name: "should keep a default cloudflare profile's token beside an equal CLOUDFLARE_ACCOUNT_ID",
+			reading: reading{
+				defaultProfile: "cf", keyHeld: true,
+				profile: map[string]string{"provider": "cloudflare", "account_id": strings.Repeat("a", 32)},
+				env:     map[string]string{"CLOUDFLARE_ACCOUNT_ID": strings.Repeat("a", 32)},
+			},
+			want: values{"api_key": settings.HeldKey{}},
+		},
+		{
+			name: "should keep a default cloudflare profile's token on a whole account URL from --base-url",
+			reading: reading{
+				args:           []string{"--base-url", "https://api.cloudflare.com/client/v4/accounts/" + strings.Repeat("c", 32) + "/ai"},
+				defaultProfile: "cf", keyHeld: true, profile: map[string]string{"provider": "cloudflare"},
+			},
+			want: values{"api_key": settings.HeldKey{}},
 		},
 		{
 			name: "should rank the key freely on the provider's own base URL",

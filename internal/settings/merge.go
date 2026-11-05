@@ -104,13 +104,13 @@ func pairKey(merged *Merged, ranked []Layer, notices []Notice) []Notice {
 }
 
 func ownEndpoint(merged *Merged, endpoint EndpointValue) bool {
-	// An endpoint on a provider with accounts names an account, so it always pairs with its key.
+	// An account is the provider's own endpoint, and so is a whole account URL given as a base URL.
 	provider, err := onesie.ProviderNamed(textOf(merged.values[providerName]))
-	if err != nil || endpoint.AccountID != "" || provider.EnvAccountID() != "" {
+	if err != nil {
 		return false
 	}
 
-	return !provider.CustomBaseURL(endpoint.BaseURL)
+	return endpoint.AccountID != "" || !provider.CustomBaseURL(endpoint.BaseURL)
 }
 
 func keySources(endpoint Source) []Source {

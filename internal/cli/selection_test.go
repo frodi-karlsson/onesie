@@ -487,11 +487,11 @@ func TestResolution_merged(t *testing.T) {
 			wantModel: onesie.Cloudflare().DefaultModel(), wantKey: "SECRET-KEY",
 		},
 		{
-			name: "should take CLOUDFLARE_ACCOUNT_ID with its token over the profile's key", chosen: true,
+			name: "should take CLOUDFLARE_ACCOUNT_ID with the profile's key", chosen: true,
 			profile: &creds.Profile{Provider: "cloudflare", APIKey: "SECRET-P"},
 			env:     map[string]string{"CLOUDFLARE_ACCOUNT_ID": otherAccount, "CLOUDFLARE_API_TOKEN": "SECRET-ENV"},
 			wantURL: cloudflareURL(otherAccount), wantFrom: "CLOUDFLARE_ACCOUNT_ID",
-			wantModel: onesie.Cloudflare().DefaultModel(), wantKey: "SECRET-ENV",
+			wantModel: onesie.Cloudflare().DefaultModel(), wantKey: "SECRET-KEY",
 		},
 		{
 			name: "should fall back to the built in URL and model", chosen: true,

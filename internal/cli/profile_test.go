@@ -1682,12 +1682,11 @@ func TestProfileShow(t *testing.T) {
 			wantCode: ExitUsage,
 		},
 		{
-			name: "should name CLOUDFLARE_ACCOUNT_ID as the account",
-			file: shown,
-			env:  map[string]string{"CLOUDFLARE_ACCOUNT_ID": testAccountID},
-			args: []string{"profile", "show", "cf"},
-			wantOut: strings.Replace(cfShown, "key: file, ends in 6789", "key: none", 1) + "base_url: " + accountURL +
-				", CLOUDFLARE_ACCOUNT_ID\naccount: CLOUDFLARE_ACCOUNT_ID\n",
+			name:    "should name CLOUDFLARE_ACCOUNT_ID as the account",
+			file:    shown,
+			env:     map[string]string{"CLOUDFLARE_ACCOUNT_ID": testAccountID},
+			args:    []string{"profile", "show", "cf"},
+			wantOut: cfShown + "base_url: " + accountURL + ", CLOUDFLARE_ACCOUNT_ID\naccount: CLOUDFLARE_ACCOUNT_ID\n",
 		},
 		{
 			name: "should name account_id as the account",
