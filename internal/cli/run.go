@@ -141,7 +141,7 @@ func runPlan(
 
 	// Both modes are parsed before the request, so a mistyped flag costs nothing.
 	outputMode, err := output.ParseMode(
-		outputName(flags), settings.stdoutTTY, inputMode.Streaming(), merging(flags))
+		outputName(flags), settings.stdoutTTY && flags.out == "", inputMode.Streaming(), merging(flags))
 	if err != nil {
 		return err
 	}

@@ -74,6 +74,7 @@ func TestOpenOut(t *testing.T) {
 		env         map[string]string
 		bare        bool
 		questions   string
+		tty         bool
 
 		emptySidecar     bool
 		sidecarDir       bool
@@ -675,6 +676,18 @@ func TestOpenOut(t *testing.T) {
 			wantErr:     "the questions, model or flags changed since",
 		},
 		{
+			name:     "should write json to --out on a terminal under -o auto",
+			noFile:   true,
+			tty:      true,
+			bare:     true,
+			args:     []string{"is this urgent", "--state", "the server is down", "-o", "auto"},
+			wantFile: "{\"model\":\"m\",\"answer\":{\"value\":0.5}}\n",
+			wantSidecar: fingerprintWith(t, plan.Source{Positional: "is this urgent"}, answersfile.FingerprintInputs{
+				Provider: "typesafe", Model: onesie.TypeSafe().DefaultModel(), Output: "json", Input: "text",
+			}),
+			wantCalls: 1,
+		},
+		{
 			name:     "should write no fingerprint beside a question file",
 			existing: "stale\n",
 			sidecar:  matching,
@@ -745,7 +758,7 @@ func TestOpenOut(t *testing.T) {
 				BuildInfo{Version: "1.2.3"},
 				WithStdin(strings.NewReader(tc.stdin)),
 				WithStdinTTY(false),
-				WithStdoutTTY(false),
+				WithStdoutTTY(tc.tty),
 				withKeychain(noKeychain()),
 				WithLookupEnv(lookupFrom(tc.env)),
 				WithClientFactory(stubFactory(baseFor(srv.URL, tc.unreached))),

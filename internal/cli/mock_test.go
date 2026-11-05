@@ -639,7 +639,7 @@ func TestMockAnswers(t *testing.T) {
 		}
 	})
 
-	t.Run("should keep the stderr line when --out takes the terminal row", func(t *testing.T) {
+	t.Run("should keep the stderr line when --out takes the error line on a terminal", func(t *testing.T) {
 		t.Parallel()
 
 		answers := filepath.Join(t.TempDir(), "answers.txt")
@@ -650,8 +650,9 @@ func TestMockAnswers(t *testing.T) {
 			t.Errorf("exit %d and stderr %q, want exit %d and the stderr line", code, errOut, ExitAuth)
 		}
 
-		if got := readText(t, answers); got != "error: the key was rejected, status 401\n" {
-			t.Errorf("--out holds %q, want the terminal row", got)
+		want := `{"error":{"kind":"auth","status":401,"message":"401 status code, no body"}}` + "\n"
+		if got := readText(t, answers); got != want {
+			t.Errorf("--out holds %q, want the json error line", got)
 		}
 	})
 

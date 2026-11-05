@@ -66,7 +66,17 @@ func TestNewRootCmd(t *testing.T) {
 		contains []string
 		absent   []string
 		sends    []string
+		tty      bool
 	}{
+		{
+			name:     "should keep a table on a terminal with no --out",
+			args:     []string{"is this urgent", "--state", "site down"},
+			response: answered,
+			tty:      true,
+			wantCode: cli.ExitOK,
+			contains: []string{"answer"},
+			absent:   []string{`{"`},
+		},
 		{
 			name:     "should refuse -q under -o markdown",
 			args:     []string{"is this urgent", "-o", "markdown", "-q"},
@@ -1807,7 +1817,7 @@ func TestNewRootCmd(t *testing.T) {
 				}),
 				cli.WithStdin(strings.NewReader(tc.stdin)),
 				cli.WithStdinTTY(false),
-				cli.WithStdoutTTY(false),
+				cli.WithStdoutTTY(tc.tty),
 				cli.WithArgs(tc.args),
 				cli.WithLookupEnv(func(string) (string, bool) { return "", false }),
 				cli.WithReadFile(func(name string) ([]byte, error) {

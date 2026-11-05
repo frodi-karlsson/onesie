@@ -11,6 +11,9 @@ prints the built in limits.
   Under `--threshold` the table writes the decision with the probability after it, as in
   `answer: yes (0.93)`, and `-o markdown` writes the decision as `yes` or `no` beside the
   probability. An answer a fallback replaced reads `answer: no (fallback)` in the table.
+- `-o auto`, the default, follows where the output goes. It writes the table when one record's
+  answers go to a terminal, and json lines otherwise: through a pipe, on a stream, under `--merge`
+  and into an `--out` file, even when stdout is a terminal.
 - Every output format writes each number of an answer as `-o json` does. A number the provider
   sent prints as sent, never rounded. A number onesie computes itself, such as `norm` or a mock's
   `p` and `score`, is rounded to four places. A printed number is the one a gate compares.
