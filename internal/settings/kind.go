@@ -1,8 +1,10 @@
 package settings
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"regexp"
 	"strconv"
 	"strings"
@@ -182,6 +184,10 @@ func (k intKind) Parse(raw string) (any, error) {
 		return 0, fmt.Errorf("takes a whole number, got '%s'", raw)
 	}
 
+	return k.inRange(n)
+}
+
+func (k intKind) inRange(n int) (any, error) {
 	if n < k.least || n > k.most {
 		return 0, fmt.Errorf("takes a whole number from %d to %d, got %d", k.least, k.most, n)
 	}
@@ -190,12 +196,31 @@ func (k intKind) Parse(raw string) (any, error) {
 }
 
 func (k intKind) FromFile(raw any) (any, error) {
-	n, ok := raw.(int)
-	if !ok {
+	n, ok := fileNumber(raw)
+	if !ok || n != math.Trunc(n) || n < math.MinInt32 || n > math.MaxInt32 {
 		return 0, errors.New("takes a whole number")
 	}
 
-	return k.Parse(strconv.Itoa(n))
+	return k.inRange(int(n))
+}
+
+func fileNumber(raw any) (float64, bool) {
+	switch n := raw.(type) {
+	case json.Number:
+		parsed, err := n.Float64()
+
+		return parsed, err == nil
+	case float64:
+		return n, true
+	case int64:
+		return float64(n), true
+	case uint64:
+		return float64(n), true
+	case int:
+		return float64(n), true
+	default:
+		return 0, false
+	}
 }
 
 func (intKind) Zero() any {
@@ -232,14 +257,12 @@ func (probabilityKind) inRange(p float64) (any, error) {
 }
 
 func (k probabilityKind) FromFile(raw any) (any, error) {
-	switch p := raw.(type) {
-	case float64:
-		return k.inRange(p)
-	case int:
-		return k.inRange(float64(p))
-	default:
+	p, ok := fileNumber(raw)
+	if !ok {
 		return 0.0, errors.New("takes a number between 0 and 1")
 	}
+
+	return k.inRange(p)
 }
 
 func (probabilityKind) Zero() any {

@@ -1,6 +1,7 @@
 package settings_test
 
 import (
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
@@ -179,6 +180,84 @@ func TestEndpoint(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			tc.run(t)
+		})
+	}
+}
+
+func TestInt(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		raw     any
+		want    int
+		wantErr bool
+	}{
+		{name: "should read a json.Number from a JSON file", raw: json.Number("4"), want: 4},
+		{name: "should read an int64 from a YAML file", raw: int64(3), want: 3},
+		{name: "should read a uint64 from a YAML file", raw: uint64(5), want: 5},
+		{name: "should read a whole float64", raw: 2.0, want: 2},
+		{name: "should refuse a float64 with a fraction", raw: 2.5, wantErr: true},
+		{name: "should refuse a json.Number with a fraction", raw: json.Number("2.5"), wantErr: true},
+		{name: "should refuse a number out of range", raw: uint64(11), wantErr: true},
+		{name: "should refuse a string", raw: "4", wantErr: true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := settings.Int(1, 10).FromFile(tc.raw)
+			if tc.wantErr {
+				if err == nil {
+					t.Errorf("FromFile(%#v) = %v, want an error", tc.raw, got)
+				}
+
+				return
+			}
+
+			if err != nil || got != tc.want {
+				t.Errorf("FromFile(%#v) = %v, %v, want %d", tc.raw, got, err, tc.want)
+			}
+		})
+	}
+}
+
+func TestProbability(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		raw     any
+		want    float64
+		wantErr bool
+	}{
+		{name: "should read a json.Number from a JSON file", raw: json.Number("0.25"), want: 0.25},
+		{name: "should read a float64 from a YAML file", raw: 0.5, want: 0.5},
+		{name: "should read an int64 from a YAML file", raw: int64(0), want: 0},
+		{name: "should read a uint64 from a YAML file", raw: uint64(1), want: 1},
+		{name: "should refuse a number above 1", raw: json.Number("1.5"), wantErr: true},
+		{name: "should refuse a negative int64", raw: int64(-1), wantErr: true},
+		{name: "should refuse a json.Number that is no number", raw: json.Number("x"), wantErr: true},
+		{name: "should refuse a string", raw: "0.5", wantErr: true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := settings.Probability().FromFile(tc.raw)
+			if tc.wantErr {
+				if err == nil {
+					t.Errorf("FromFile(%#v) = %v, want an error", tc.raw, got)
+				}
+
+				return
+			}
+
+			if err != nil || got != tc.want {
+				t.Errorf("FromFile(%#v) = %v, %v, want %v", tc.raw, got, err, tc.want)
+			}
 		})
 	}
 }
