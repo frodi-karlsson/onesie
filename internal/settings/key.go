@@ -27,6 +27,7 @@ var (
 	ID             = Key[string]{name: "id"}
 	Model          = Key[string]{name: "model"}
 	APIEndpoint    = Key[EndpointValue]{name: "endpoint"}
+	APIKey         = Key[string]{name: "api_key"}
 	AllowHTTP      = Key[bool]{name: "allow_http"}
 	LongContext    = Key[bool]{name: "long_context"}
 	File           = Key[string]{name: "file"}
@@ -62,7 +63,7 @@ func Keys() []Keyed {
 	return []Keyed{
 		Version, Output, Raw, Quiet, Input, State, StateFile, Provider, Profile, PrintQuestions, PrintSchema,
 		ListModels, Unordered, StopOnError, StopOnAssert, NoDedup, MergeInput, MergeKey, Map, ID, Model,
-		APIEndpoint, AllowHTTP, LongContext, File, Replace, Jobs, Timeout, Retries, MaxRetryAfter, Out, Resume,
+		APIEndpoint, APIKey, AllowHTTP, LongContext, File, Replace, Jobs, Timeout, Retries, MaxRetryAfter, Out, Resume,
 		Prune, SkipBlank, Delimiter, Stats, Usage, PrintRequest, Cache, Mock, Cuts, Offline, CacheTTL, ConfigDir,
 		CacheDir, Sep, Box, Threshold, MinConfidence, FallbackAnswer,
 	}

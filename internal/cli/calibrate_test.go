@@ -656,6 +656,32 @@ func TestNewCalibrateCmd(t *testing.T) {
 			}
 		})
 	})
+
+	t.Run("should run on the profile calibrate --profile X names", func(t *testing.T) {
+		t.Parallel()
+
+		dir := configWith(t, `{"default":"home","profiles":{`+
+			`"home":{"provider":"typesafe","api_key":"SECRET-HOME","model":"home-model"},`+
+			`"work":{"provider":"typesafe","api_key":"SECRET-WORK","model":"work-model"}}}`)
+
+		for _, args := range [][]string{
+			{"calibrate", "--profile", "work"},
+			{"--profile", "work", "calibrate"},
+		} {
+			args = append(args, "--ask", "u=is it urgent", "-i", "jsonl", "--map", ".body", "--label", "u=.u",
+				"--print-request")
+
+			out, errOut, code := runInConfig(t, dir, args, "{\"body\":\"x\",\"u\":true}\n",
+				map[string]string{"TYPESAFE_DEFAULT_MODEL": "env-model"})
+			if code != ExitOK || !strings.Contains(out, `"model":"work-model"`) {
+				t.Errorf("%v: exit %d\nstdout:\n%s\nstderr:\n%s", args, code, out, errOut)
+			}
+
+			if want := "onesie: the profile's model overrides TYPESAFE_DEFAULT_MODEL\n"; errOut != want {
+				t.Errorf("%v: stderr = %q, want %q", args, errOut, want)
+			}
+		}
+	})
 }
 
 func writeCalibrateFile(t *testing.T, dir, name, content string) string {

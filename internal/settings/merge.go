@@ -27,6 +27,8 @@ func Merge(rows []Row, layers []Layer, built *plan.Plan) (*Merged, []Notice) {
 		}
 	}
 
+	notices = pairKey(merged, ranked, notices)
+
 	if built == nil {
 		return merged, notices
 	}
@@ -50,6 +52,7 @@ func mergeRow(merged *Merged, row Row, ranked []Layer) []Notice {
 
 	winner := candidates[0]
 	merged.Set(row.Name, winner.value, winner.layer.Source)
+	merged.spelled(row.Name, originOf(winner.layer, row).Spelled)
 
 	var notices []Notice
 
@@ -64,6 +67,75 @@ func mergeRow(merged *Merged, row Row, ranked []Layer) []Notice {
 	}
 
 	return notices
+}
+
+func pairKey(merged *Merged, ranked []Layer, notices []Notice) []Notice {
+	endpoint, holds := merged.values[endpointName].(EndpointValue)
+	if !holds || merged.sources[endpointName] == SourceDefault || ownEndpoint(merged, endpoint) {
+		return notices
+	}
+
+	pairs := keySources(merged.sources[endpointName])
+	if source, held := merged.sources[apiKeyName]; !held || slices.Contains(pairs, source) {
+		return notices
+	}
+
+	row, _ := Lookup(apiKeyName)
+	dropped := merged.Origin(apiKeyName)
+	notice := Notice{Setting: apiKeyName, Winner: merged.Origin(endpointName), Loser: dropped, Verb: VerbPairs}
+
+	delete(merged.values, apiKeyName)
+	delete(merged.sources, apiKeyName)
+	delete(merged.spellings, apiKeyName)
+	merged.setAside = map[Name]Origin{apiKeyName: dropped}
+
+	for _, paired := range holding(ranked, apiKeyName) {
+		if slices.Contains(pairs, paired.layer.Source) {
+			merged.Set(apiKeyName, paired.value, paired.layer.Source)
+			merged.spelled(apiKeyName, originOf(paired.layer, row).Spelled)
+
+			break
+		}
+	}
+
+	kept := slices.DeleteFunc(notices, func(n Notice) bool { return n.Setting == apiKeyName })
+
+	return append(kept, notice)
+}
+
+func ownEndpoint(merged *Merged, endpoint EndpointValue) bool {
+	// An account is the provider's own endpoint, and so is a whole account URL given as a base URL.
+	provider, err := onesie.ProviderNamed(textOf(merged.values[providerName]))
+	if err != nil {
+		return false
+	}
+
+	if endpoint.BaseURL != "" {
+		return !provider.CustomBaseURL(endpoint.BaseURL)
+	}
+
+	return endpoint.AccountID != ""
+}
+
+func keySources(endpoint Source) []Source {
+	switch endpoint {
+	case SourceEnv:
+		return []Source{SourceEnv}
+	case SourceFlag:
+		// A typed --base-url is meant for this run, so it takes a key chosen for this run or one from
+		// the environment, as a run without a profile always has, and never the default profile's.
+		return []Source{SourceChosenProfile, SourceEnv}
+	default:
+		return []Source{endpoint}
+	}
+}
+
+func textOf(value any) string {
+	if text, isText := value.(string); isText {
+		return text
+	}
+
+	return ""
 }
 
 func holding(ranked []Layer, name Name) []candidate {
@@ -276,6 +348,8 @@ func readFromFile(c candidate) bool {
 type Merged struct {
 	values    map[Name]any
 	sources   map[Name]Source
+	spellings map[Name]string
+	setAside  map[Name]Origin
 	questions map[string]map[Name]any
 }
 
@@ -290,6 +364,14 @@ func (m *Merged) Set(name Name, value any, source Source) {
 	}
 
 	m.values[name], m.sources[name] = value, source
+}
+
+func (m *Merged) spelled(name Name, spelling string) {
+	if m.spellings == nil {
+		m.spellings = map[Name]string{}
+	}
+
+	m.spellings[name] = spelling
 }
 
 func (m *Merged) setFor(questionID string, name Name, value any) {
@@ -337,6 +419,27 @@ func (m *Merged) Source(name Name) Source {
 	}
 
 	return m.sources[name]
+}
+
+// Origin is where name's value came from, as a notice or a message names it.
+func (m *Merged) Origin(name Name) Origin {
+	if m == nil {
+		return Origin{}
+	}
+
+	return Origin{Source: m.sources[name], Spelled: m.spellings[name]}
+}
+
+// SetAside is where a value came from that the merge set aside after it won, as a key from another
+// source than the endpoint it would go to.
+func (m *Merged) SetAside(name Name) (Origin, bool) {
+	if m == nil {
+		return Origin{}, false
+	}
+
+	origin, set := m.setAside[name]
+
+	return origin, set
 }
 
 // Source ranks where a value came from, the higher one winning.

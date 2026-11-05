@@ -36,8 +36,8 @@ func TestGenerate(t *testing.T) {
 				for _, want := range []string{
 					"<!-- settings:environment begin -->\n| Variable | What it does |\n",
 					"| `TYPESAFE_API_KEY`, `OPENROUTER_API_KEY`, `BERGET_API_KEY`, `LEVANTO_API_KEY`, `CLOUDFLARE_API_TOKEN` |",
-					"| `ONESIE_MOCK` | a file to answer from, as `--mock` |\n",
-					"anything else exits 2 |\n<!-- settings:environment end -->",
+					"| `ONESIE_MOCK` | a file to answer from, as `--mock`. Skipped beside `--list-models`, `-i request` and `--print-request` |\n",
+					"anything else exits 2 where it applies |\n<!-- settings:environment end -->",
 					"<!-- settings:question_keys begin -->\n| Key | Where | What it does |\n",
 					"| `min_confidence` | a question |",
 					"| `assert` | the file |",

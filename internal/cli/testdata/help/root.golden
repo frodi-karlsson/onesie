@@ -68,8 +68,8 @@ Flags:
       --print-questions           write a question file to stdout and exit, its first line naming the schema --print-schema prints
       --print-request             write api shaped request bodies to stdout and exit
       --print-schema              write the JSON Schema for a question file to stdout and exit
-      --profile string            the profile a run uses, from profiles.json in the config dir. Also ONESIE_PROFILE, and otherwise the default profile, which onesie profile use sets
-      --provider string           run on this provider without a profile, typesafe, openrouter, berget, levanto or cloudflare. Overrides ONESIE_PROVIDER
+      --profile string            the profile a run uses, from profiles.json in the config dir. Overrides ONESIE_PROFILE and ONESIE_PROVIDER, and otherwise the default profile runs, which onesie profile use sets
+      --provider string           run on this provider without a profile, typesafe, openrouter, berget, levanto or cloudflare. Overrides ONESIE_PROVIDER and the default profile. Refused beside --profile or ONESIE_PROFILE
       --prune                     with --resume and --id, drop the answered ids the input no longer has
   -q, --quiet                     suppress output, the exit code carries the answer
       --rate string               comma separated levels in ascending order, making this a score question. A repeated --rate adds levels after the earlier ones. Its score is the level index averaged over p, from 0, and norm is score over the top index, from 0 to 1

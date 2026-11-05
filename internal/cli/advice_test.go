@@ -917,6 +917,28 @@ func TestWithKeyHint(t *testing.T) {
 				"custom. Set TYPESAFE_API_KEY",
 		},
 		{
+			name:     "should say the default profile's key stayed home when ONESIE_BASE_URL took the run",
+			profiles: `{"default":"work","profiles":{"work":{"provider":"typesafe","api_key":"SECRET-WORK"}}}`,
+			args:     []string{"is this urgent", "--state", "x", "-r"},
+			env:      map[string]string{envBaseURL: "{url}"},
+			status:   http.StatusUnauthorized,
+			wantCode: ExitAuth,
+			wantErr: "onesie: 401 the key was refused. No key was sent, since the profile's key goes only with its " +
+				"own endpoint, and the base URL came from ONESIE_BASE_URL. Put the URL in the profile's base_url " +
+				"with onesie profile update 'work' --base-url URL, or pass --profile 'work' --base-url URL",
+			notErr: "--key",
+		},
+		{
+			name:     "should say the default profile's key stayed home under --base-url",
+			profiles: `{"default":"work","profiles":{"work":{"provider":"typesafe","api_key":"SECRET-WORK"}}}`,
+			args:     []string{"is this urgent", "--state", "x", "-r", "--base-url", "{url}"},
+			status:   http.StatusUnauthorized,
+			wantCode: ExitAuth,
+			wantErr: "No key was sent, since the profile's key goes only with its own endpoint, and the base URL " +
+				"came from --base-url. Put the URL in the profile's base_url with onesie profile update 'work' " +
+				"--base-url URL, or pass --profile 'work' --base-url URL",
+		},
+		{
 			name: "should leave a 402 without the key hint",
 			profiles: `{"default":"work","profiles":{"work":{"provider":"typesafe","api_key":"SECRET-WORK",` +
 				`"base_url":"{url}"}}}`,
@@ -944,7 +966,12 @@ func TestWithKeyHint(t *testing.T) {
 				args = append(args, fill(arg))
 			}
 
-			out, errOut, code := runInConfig(t, dir, args, `{"body":"x","u":true}`+"\n", tc.env)
+			env := map[string]string{}
+			for name, value := range tc.env {
+				env[name] = fill(value)
+			}
+
+			out, errOut, code := runInConfig(t, dir, args, `{"body":"x","u":true}`+"\n", env)
 
 			assertNoSecret(t, out, errOut)
 
@@ -989,6 +1016,16 @@ func TestKeyHint(t *testing.T) {
 			chosen: resolution{provider: onesie.TypeSafe(), profile: "local", keyFrom: sourceNone},
 			want: refused.Error() + ". No key was sent, since none resolves and the base URL is custom. " +
 				"Store one with onesie profile update 'local' --key",
+		},
+		{
+			name: "should name --base-url when a chosen profile's key stayed home", err: refused,
+			chosen: resolution{
+				provider: onesie.TypeSafe(), profile: "work", by: "--profile", keyFrom: sourceNone, keyAside: true,
+				endpointFrom: "TYPESAFE_BASE_URL",
+			},
+			want: refused.Error() + ". No key was sent, since the profile's key goes only with its own endpoint, " +
+				"and the base URL came from TYPESAFE_BASE_URL. Put the URL in the profile's base_url with onesie " +
+				"profile update 'work' --base-url URL, or pass --base-url URL",
 		},
 		{
 			name: "should name the key variable on a keyed 401", err: refused,

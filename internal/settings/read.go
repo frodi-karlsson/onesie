@@ -18,6 +18,7 @@ const (
 	profileName  Name = "profile"
 	providerName Name = "provider"
 	apiKeyName   Name = "api_key"
+	endpointName Name = "endpoint"
 )
 
 // Read reads every source of rows into one layer each, the highest first. A file, variable or profile
@@ -46,7 +47,8 @@ func Read(rows []Row, src Sources) ([]Layer, error) {
 		return nil, err
 	}
 
-	env, err := readEnv(rows, src.LookupEnv, runProvider(choice, src.Profile), mode, src.Facts.Command)
+	env, err := readEnv(rows, src.LookupEnv, runProvider(choice, src.Profile), mode, src.Facts.Command,
+		keyless(choice, src.Profile))
 	if err != nil {
 		return nil, err
 	}
@@ -498,8 +500,12 @@ func readQuestion(rows []Row, question QuestionValues, body bool, mode Mode) (ma
 	return values, nil
 }
 
+func keyless(chosen Choice, profile *ProfileValues) bool {
+	return chosen.Provider == "" && chosen.Profile != "" && profile != nil && !profile.KeyHeld
+}
+
 func readEnv(
-	rows []Row, lookupEnv func(string) (string, bool), provider string, mode Mode, command Command,
+	rows []Row, lookupEnv func(string) (string, bool), provider string, mode Mode, command Command, keyless bool,
 ) (Layer, error) {
 	layer := Layer{Source: SourceEnv}
 	if lookupEnv == nil {
@@ -507,7 +513,9 @@ func readEnv(
 	}
 
 	for _, row := range rows {
-		if !row.Modes.Has(mode) || offTheChoice(row, command) {
+		// A profile that holds no key runs keyless, as on a server of its own, so the provider's key
+		// variable never reaches its base URL.
+		if !row.Modes.Has(mode) || offTheChoice(row, command) || (keyless && row.Name == apiKeyName) {
 			continue
 		}
 
@@ -523,7 +531,7 @@ func readEnv(
 
 			value, err := parseHalf(row, raw, variable.Half)
 			if err != nil {
-				return Layer{}, envError(row, variable.Name, raw, err)
+				return Layer{}, envError(row, variable, raw, err)
 			}
 
 			layer.set(row.Name, value, variable.Name)
@@ -535,13 +543,19 @@ func readEnv(
 	return layer, nil
 }
 
-func envError(row Row, variable, raw string, err error) error {
+func envError(row Row, variable EnvSpec, raw string, err error) error {
 	switch row.Kind.(type) {
 	case boolKind:
-		return fmt.Errorf("%s=%s is not a value --%s takes. Use 1 or 0", variable, raw, row.Flag.Long)
+		return fmt.Errorf("%s=%s is not a value --%s takes. Use 1 or 0", variable.Name, raw, row.Flag.Long)
 	case durationKind:
-		return fmt.Errorf("%s=%s is not a duration of zero or more, such as 90m or 72h", variable, raw)
+		return fmt.Errorf("%s=%s is not a duration of zero or more, such as 90m or 72h", variable.Name, raw)
+	case EndpointKind:
+		if variable.Half == HalfAccount {
+			return fmt.Errorf("%s must be 32 hexadecimal characters", variable.Name)
+		}
+
+		return fmt.Errorf("%s %w", variable.Name, err)
 	default:
-		return fmt.Errorf("%s %w", variable, err)
+		return fmt.Errorf("%s %w", variable.Name, err)
 	}
 }

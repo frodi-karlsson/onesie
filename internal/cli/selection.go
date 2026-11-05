@@ -10,6 +10,7 @@ import (
 
 	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/creds"
+	setting "github.com/frodi-karlsson/onesie/internal/settings"
 )
 
 const (
@@ -41,30 +42,28 @@ func checkChoice(flags *runFlags, lookupEnv func(string) (string, bool)) error {
 }
 
 func choose(flags *runFlags, lookupEnv func(string) (string, bool)) (choice, error) {
-	if flags.profileChosen() && flags.providerChosen() {
-		return choice{}, errors.New("--profile and --provider both choose what the run uses. Pass one")
-	}
+	chosen, err := setting.Choose(setting.Table(), setting.Sources{
+		Given: flags.given, LookupEnv: lookupEnv, Facts: setting.Facts{Command: setting.CommandRoot},
+	})
 
 	switch {
-	case flags.profileChosen():
-		return choice{profile: strings.TrimSpace(flags.profile), by: "--" + flagProfile}, nil
-	case flags.providerChosen():
-		return choice{provider: strings.TrimSpace(flags.provider), by: "--" + flagProvider}, nil
+	case err != nil:
+		return choice{}, err
+	case chosen.Profile != "":
+		return choice{profile: chosen.Profile, by: chooser(chosen.ProfileBy, flagProfile, envProfile)}, nil
+	case chosen.Provider != "":
+		return choice{provider: chosen.Provider, by: chooser(chosen.ProviderBy, flagProvider, envProvider)}, nil
+	default:
+		return choice{}, nil
+	}
+}
+
+func chooser(by setting.Source, flag, variable string) string {
+	if by == setting.SourceFlag {
+		return "--" + flag
 	}
 
-	profile, provider := setVariable(lookupEnv, envProfile), setVariable(lookupEnv, envProvider)
-
-	switch {
-	case profile != "" && provider != "":
-		return choice{}, fmt.Errorf(
-			"%s and %s are both set, and each chooses what the run uses. Unset one", envProfile, envProvider)
-	case profile != "":
-		return choice{profile: profile, by: envProfile}, nil
-	case provider != "":
-		return choice{provider: provider, by: envProvider}, nil
-	}
-
-	return choice{}, nil
+	return variable
 }
 
 type choice struct {
@@ -73,30 +72,28 @@ type choice struct {
 	by       string
 }
 
-func resolveProfile(
-	chosen choice, profiles creds.Profiles, lookupEnv func(string) (string, bool),
-) (resolution, error) {
+func profileOf(chosen choice, profiles creds.Profiles) (loadedRun, error) {
 	name, by := chosen.profile, chosen.by
 	if name == "" {
 		name, by = profiles.Default, byDefault
 	}
 
 	if name == "" && len(profiles.Profiles) > 0 {
-		return resolution{}, errors.New("no profile is the default and nothing chose one. " +
+		return loadedRun{}, errors.New("no profile is the default and nothing chose one. " +
 			"Run onesie profile use NAME, or pass --profile NAME or --provider NAME")
 	}
 
 	if name == "" {
-		return providerRun(onesie.TypeSafe().Name(), byNothing, lookupEnv)
+		return loadedRun{chosen: chosen}, nil
 	}
 
 	profile, found := profiles.Profiles[name]
 	if !found {
-		return resolution{}, providerNameHint(fmt.Errorf("%s names profile %s, which does not exist. %s",
+		return loadedRun{}, providerNameHint(fmt.Errorf("%s names profile %s, which does not exist. %s",
 			by, creds.QuotedName(name), knownProfiles(profiles)), name, by)
 	}
 
-	return profileRun(name, profile, by)
+	return loadedRun{chosen: chosen, name: name, by: by, profile: profile, fallback: profiles.Default}, nil
 }
 
 func providerNameHint(err error, name, by string) error {
@@ -201,62 +198,82 @@ func holdsNoKey(profile creds.Profile) bool {
 }
 
 type resolution struct {
-	provider  onesie.Provider
-	profile   string
-	by        string
-	keyFrom   string
-	key       string
-	account   string
-	keyEnd    string
-	model     string
-	baseURL   string
-	accountID string
+	provider     onesie.Provider
+	profile      string
+	by           string
+	keyFrom      string
+	key          string
+	account      string
+	keyEnd       string
+	model        string
+	baseURL      string
+	accountID    string
+	endpointFrom string
+	keyAside     bool
 }
 
-func (r resolution) options(
-	baseURLFlag string, key func() (string, error), lookupEnv func(string) (string, bool),
-) []onesie.Option {
-	var opts []onesie.Option
+func (r resolution) merged(m *setting.Merged) resolution {
+	endpoint := setting.Get(m, setting.APIEndpoint)
+	r.baseURL, r.accountID = endpoint.BaseURL, endpoint.AccountID
+	r.endpointFrom = endpointName(m.Origin(setting.APIEndpoint.Name()), endpoint)
+	r.model = setting.Get(m, setting.Model)
 
-	if _, baseURL := r.givenBaseURL(baseURLFlag, lookupEnv); baseURL != "" {
-		opts = append(opts, onesie.WithBaseURL(baseURL))
+	switch m.Value(setting.APIKey.Name()).(type) {
+	case setting.HeldKey:
+	case string:
+		r.keyFrom, r.key, r.account, r.keyEnd = sourceEnv, setting.Get(m, setting.APIKey), "", ""
+	default:
+		aside, set := m.SetAside(setting.APIKey.Name())
+		r.keyAside = set && r.profile != "" &&
+			(aside.Source == setting.SourceChosenProfile || aside.Source == setting.SourceDefaultProfile)
+		r.keyFrom, r.key, r.account, r.keyEnd = sourceNone, "", "", ""
 	}
 
-	if r.profile == "" {
-		return opts
-	}
+	return r
+}
 
-	opts = append(opts, onesie.WithAPIKeyFunc(key), onesie.WithDefaultModel(r.modelFor("", lookupEnv)))
+func endpointName(origin setting.Origin, endpoint setting.EndpointValue) string {
+	switch origin.Source {
+	case setting.SourceChosenProfile, setting.SourceDefaultProfile:
+		if endpoint.AccountID != "" {
+			return "the profile's account_id"
+		}
+
+		return profileBaseURL
+	case setting.SourceDefault:
+		return ""
+	default:
+		return origin.Spelled
+	}
+}
+
+func (r resolution) options(key func() (string, error)) []onesie.Option {
+	opts := []onesie.Option{onesie.WithDefaultModel(r.model)}
+
+	if r.baseURL != "" {
+		opts = append(opts, onesie.WithBaseURL(r.baseURL))
+	}
 
 	if r.accountID != "" {
 		opts = append(opts, onesie.WithAccountID(r.accountID))
 	}
 
+	switch r.keyFrom {
+	case sourceFile, sourceKeychain:
+		opts = append(opts, onesie.WithAPIKeyFunc(key))
+	case sourceEnv:
+		opts = append(opts, onesie.WithAPIKey(r.key))
+	}
+
 	return opts
 }
 
-func (r resolution) givenBaseURL(baseURLFlag string, lookupEnv func(string) (string, bool)) (name, given string) {
-	if flag := strings.TrimSpace(baseURLFlag); flag != "" {
-		return "--" + flagBaseURL, flag
-	}
-
-	if r.baseURL != "" || r.accountID != "" {
-		return profileBaseURL, r.baseURL
-	}
-
-	if variable := setVariable(lookupEnv, envBaseURL); variable != "" {
-		return envBaseURL, variable
-	}
-
-	return profileBaseURL, r.baseURL
+func (r resolution) modelFor(model string) string {
+	return r.provider.ResolveModel(model, noEnvironment)
 }
 
-func (r resolution) modelFor(explicit string, lookupEnv func(string) (string, bool)) string {
-	if strings.TrimSpace(explicit) == "" {
-		explicit = r.model
-	}
-
-	return r.provider.ResolveModel(explicit, lookupEnv)
+func noEnvironment(string) (string, bool) {
+	return "", false
 }
 
 func (r resolution) GoString() string {

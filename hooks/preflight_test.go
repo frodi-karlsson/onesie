@@ -63,6 +63,13 @@ func TestPreflight(t *testing.T) {
 				"base_url: http://localhost:11435.\n",
 		},
 		{
+			name: "should report no key for a profile whose key stays off an ONESIE_BASE_URL",
+			show: "profile: work\nprovider: typesafe\nchosen by: the default\nkey: none, not needed for a custom base URL\n" +
+				"model: jev-latest, the provider's default\nbase_url: https://proxy.example, ONESIE_BASE_URL\n",
+			want: "onesie is on PATH and needs no key, since its base URL is custom, profile: work, provider: typesafe, " +
+				"base_url: https://proxy.example.\n",
+		},
+		{
 			name: "should add the plain http line for a keyless remote http base URL",
 			show: "profile: local\nprovider: typesafe\nchosen by: the default\nkey: none, not needed for a custom base URL\n" +
 				"model: winnow:e4b, profile\nbase_url: http://gpu.example:11435, the profile's base_url\n" +

@@ -2,10 +2,12 @@ package cli
 
 import (
 	"testing"
+	"time"
 
 	"github.com/spf13/cobra"
 
 	"github.com/frodi-karlsson/onesie/internal/argv"
+	"github.com/frodi-karlsson/onesie/internal/cache"
 	"github.com/frodi-karlsson/onesie/internal/input"
 	setting "github.com/frodi-karlsson/onesie/internal/settings"
 )
@@ -16,7 +18,6 @@ func TestNewRunConfig(t *testing.T) {
 	tests := []struct {
 		name    string
 		args    []string
-		env     map[string]string
 		check   func(t *testing.T, got runConfig)
 		wantErr string
 	}{
@@ -39,42 +40,14 @@ func TestNewRunConfig(t *testing.T) {
 					t.Errorf("timing = %d set %v, want 30 set and nothing else set", got.timeout, got.timeoutSet)
 				}
 
-				if !got.longContextSet || !got.env.longContext {
-					t.Errorf("long context = set %v on %v, want set and on", got.longContextSet, got.env.longContext)
+				if !got.longContextSet || !got.longContext {
+					t.Errorf("long context = set %v on %v, want set and on", got.longContextSet, got.longContext)
 				}
 
 				if got.positional != "is it urgent" || len(got.events) != 1 || got.events[0].Name != "ask" {
 					t.Errorf("positional %q events %v, want the question and the ask event", got.positional, got.events)
 				}
 			},
-		},
-		{
-			name: "should read the mock file from --mock first",
-			args: []string{"--mock", "flag.json"},
-			env:  map[string]string{envMock: "env.json"},
-			check: func(t *testing.T, got runConfig) {
-				t.Helper()
-
-				if got.mockPath != "flag.json" || got.mockSpelled != flagMock {
-					t.Errorf("mock = %q from %q, want flag.json from --mock", got.mockPath, got.mockSpelled)
-				}
-			},
-		},
-		{
-			name: "should read the mock file from ONESIE_MOCK without --mock",
-			env:  map[string]string{envMock: "env.json"},
-			check: func(t *testing.T, got runConfig) {
-				t.Helper()
-
-				if got.mockPath != "env.json" || got.mockSpelled != envMock {
-					t.Errorf("mock = %q from %q, want env.json from ONESIE_MOCK", got.mockPath, got.mockSpelled)
-				}
-			},
-		},
-		{
-			name:    "should refuse an ONESIE_CACHE the flag would not take",
-			env:     map[string]string{envCache: "maybe"},
-			wantErr: "ONESIE_CACHE=maybe is not a value --cache takes. Use 1 or 0",
 		},
 		{
 			name:    "should refuse an input mode it does not know",
@@ -109,7 +82,7 @@ func TestNewRunConfig(t *testing.T) {
 
 			events := []argv.Event{{Name: "ask", Value: "a=x"}}
 
-			got, err := newRunConfig(cmd, lookupFrom(tc.env), *flags, events, "is it urgent")
+			got, err := newRunConfig(cmd, *flags, events, "is it urgent")
 
 			if tc.wantErr != "" {
 				if err == nil || err.Error() != tc.wantErr {
@@ -151,7 +124,7 @@ func TestNewRunConfig(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			config, err := newRunConfig(cmd, lookupFrom(nil), *flags, nil, "is it urgent")
+			config, err := newRunConfig(cmd, *flags, nil, "is it urgent")
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -169,6 +142,74 @@ func TestNewRunConfig(t *testing.T) {
 			}
 		}
 	})
+}
+
+func TestRunConfig_withMerged(t *testing.T) {
+	t.Parallel()
+
+	layer := func(source setting.Source, values map[setting.Name]any, spelled string) setting.Layer {
+		spellings := map[setting.Name]string{}
+		for name := range values {
+			spellings[name] = spelled
+		}
+
+		return setting.Layer{Source: source, Values: values, Spelled: spellings}
+	}
+
+	tests := []struct {
+		name   string
+		layers []setting.Layer
+		check  func(t *testing.T, got runConfig)
+	}{
+		{
+			name: "should read the mock file from --mock first",
+			layers: []setting.Layer{
+				layer(setting.SourceFlag, map[setting.Name]any{"mock": "flag.json"}, "--mock"),
+				layer(setting.SourceEnv, map[setting.Name]any{"mock": "env.json"}, envMock),
+			},
+			check: func(t *testing.T, got runConfig) {
+				t.Helper()
+
+				if got.mockPath != "flag.json" || got.mockSpelled != flagMock {
+					t.Errorf("mock = %q from %q, want flag.json from --mock", got.mockPath, got.mockSpelled)
+				}
+			},
+		},
+		{
+			name:   "should read the mock file from ONESIE_MOCK without --mock",
+			layers: []setting.Layer{layer(setting.SourceEnv, map[setting.Name]any{"mock": "env.json"}, envMock)},
+			check: func(t *testing.T, got runConfig) {
+				t.Helper()
+
+				if got.mockPath != "env.json" || got.mockSpelled != envMock {
+					t.Errorf("mock = %q from %q, want env.json from ONESIE_MOCK", got.mockPath, got.mockSpelled)
+				}
+			},
+		},
+		{
+			name: "should take the cache and its source, long context and the alias lifetime",
+			layers: []setting.Layer{layer(setting.SourceEnv, map[setting.Name]any{
+				"cache": true, "long_context": true, "cache_ttl": time.Duration(0),
+			}, "ONESIE_X")},
+			check: func(t *testing.T, got runConfig) {
+				t.Helper()
+
+				want := switches{cache: true, cacheFrom: setting.SourceEnv, longContext: true, aliasTTL: cache.NoAliasTTL}
+				if got.env != want {
+					t.Errorf("switches = %+v, want %+v", got.env, want)
+				}
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			merged, _ := setting.Merge(setting.Table(), tc.layers, nil)
+			tc.check(t, runConfig{}.withMerged(merged))
+		})
+	}
 }
 
 func canonicalOutput(name string) string {

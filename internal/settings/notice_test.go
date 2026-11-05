@@ -175,6 +175,14 @@ func TestNotice_String(t *testing.T) {
 			},
 			want: "--provider keeps the profile's model",
 		},
+		{
+			name: "should say an endpoint sets aside a key from another source, naming no key",
+			notice: settings.Notice{
+				Setting: "api_key", Winner: settings.Origin{Source: settings.SourceEnv, Spelled: "ONESIE_BASE_URL"},
+				Loser: settings.Origin{Source: settings.SourceDefaultProfile, Spelled: "api_key"}, Verb: settings.VerbPairs,
+			},
+			want: "ONESIE_BASE_URL overrides the default profile's api_key, since a key goes only with its own endpoint",
+		},
 	}
 
 	for _, tc := range tests {

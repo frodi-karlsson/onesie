@@ -14,24 +14,33 @@ import (
 	setting "github.com/frodi-karlsson/onesie/internal/settings"
 )
 
-func build(settings rootSettings, flags runConfig, ignoreFileJudgment bool) (*invocation, []string, error) {
-	built, file, warnings, err := assemble(settings, flags, ignoreFileJudgment)
+func build(
+	settings rootSettings, flags runConfig, given *setting.Given, command setting.Command, ignoreFileJudgment bool,
+) (*invocation, assembled, error) {
+	ready, err := assemble(settings, flags, given, command, ignoreFileJudgment)
 	if err != nil {
-		return nil, warnings, err
+		return nil, ready, err
 	}
 
-	inv, err := invocationOf(settings, flags, built, file)
+	inv, err := invocationOf(settings, ready.config, ready.plan, ready.file)
 
-	return inv, warnings, err
+	return inv, ready, err
 }
 
 func assemble(
-	settings rootSettings, flags runConfig, ignoreFileJudgment bool,
-) (*plan.Plan, buildFile, []string, error) {
+	settings rootSettings, flags runConfig, given *setting.Given, command setting.Command, ignoreFileJudgment bool,
+) (assembled, error) {
 	file, err := readBuildFile(settings, flags, ignoreFileJudgment)
 	if err != nil {
-		return nil, buildFile{}, nil, err
+		return assembled{}, err
 	}
+
+	merged, err := mergeRun(settings, flags, given, command, file.loaded)
+	if err != nil {
+		return assembled{}, err
+	}
+
+	flags = merged.config
 
 	source := plan.Source{
 		Events:     flags.events,
@@ -48,28 +57,26 @@ func assemble(
 
 	built, err := plan.Assemble(source)
 	if err != nil {
-		return nil, buildFile{}, nil, err
+		return assembled{}, err
 	}
 
-	built.Model = flags.model
-	if built.Model == "" && file.loaded != nil {
-		built.Model = file.loaded.Model
-	}
-
-	built.LongContext = longContextOf(flags, file)
+	built.Model = setting.Get(flags.merged, setting.Model)
+	built.LongContext = flags.env.longContext
 
 	warnings, err := validateRun(flags, file.facts, built)
-
-	return built, file, warnings, err
-}
-
-func longContextOf(flags runConfig, file buildFile) bool {
-	if flags.longContextSet {
-		return flags.longContext
+	if err == nil {
+		err = merged.refusal
 	}
 
-	// A body's false cannot be told from no key, so only its true counts.
-	return flags.env.longContext || (file.loaded != nil && file.loaded.LongContext)
+	return assembled{config: flags, plan: built, file: file, warnings: warnings, notices: merged.notices}, err
+}
+
+type assembled struct {
+	config   runConfig
+	plan     *plan.Plan
+	file     buildFile
+	warnings []string
+	notices  []setting.Notice
 }
 
 func readBuildFile(settings rootSettings, flags runConfig, ignoreFileJudgment bool) (buildFile, error) {

@@ -1616,6 +1616,7 @@ func TestProfileShow(t *testing.T) {
 		typesafeOwn = "base_url: https://api.typesafe.ai, the provider's default\n"
 		tsFile      = `{"default":"ts","profiles":{"ts":{"provider":"typesafe","api_key":"SECRET-TS-0123456789"}}}`
 		tsShown     = "profile: ts\nprovider: typesafe\nchosen by: the default\nkey: file, ends in 6789\n"
+		tsKeyless   = "profile: ts\nprovider: typesafe\nchosen by: the default\nkey: none, not needed for a custom base URL\n"
 		cfNoKey     = "onesie: no API key. Set CLOUDFLARE_API_TOKEN, or store one with " +
 			"onesie profile create NAME --provider cloudflare\n"
 		cfNoAccount = "onesie: no cloudflare account id. Set CLOUDFLARE_ACCOUNT_ID, or store it with " +
@@ -1623,6 +1624,28 @@ func TestProfileShow(t *testing.T) {
 	)
 
 	tests := []profileCase{
+		{
+			name:    "should show no key when ONESIE_BASE_URL takes the profile's key off its endpoint",
+			file:    tsFile,
+			args:    []string{"profile", "show"},
+			env:     map[string]string{envBaseURL: "https://env.example"},
+			wantOut: tsKeyless + "model: jev-latest, the provider's default\nbase_url: https://env.example, ONESIE_BASE_URL\n",
+		},
+		{
+			name: "should show the key variable when ONESIE_BASE_URL takes the profile's key off its endpoint",
+			file: tsFile,
+			args: []string{"profile", "show"},
+			env:  map[string]string{envBaseURL: "https://env.example", "TYPESAFE_API_KEY": "SECRET-ENV"},
+			wantOut: "profile: ts\nprovider: typesafe\nchosen by: the default\nkey: env TYPESAFE_API_KEY\n" +
+				"model: jev-latest, the provider's default\nbase_url: https://env.example, ONESIE_BASE_URL\n",
+		},
+		{
+			name:    "should show the profile's key on the provider's own base URL",
+			file:    tsFile,
+			args:    []string{"profile", "show"},
+			env:     map[string]string{envBaseURL: "https://api.typesafe.ai/", "TYPESAFE_API_KEY": "SECRET-ENV"},
+			wantOut: tsShown + "model: jev-latest, the provider's default\nbase_url: https://api.typesafe.ai, ONESIE_BASE_URL\n",
+		},
 		{
 			name:    "should show what a run would use, chosen by the default",
 			file:    shown,
@@ -1762,7 +1785,7 @@ func TestProfileShow(t *testing.T) {
 			file:    tsFile,
 			env:     map[string]string{"TYPESAFE_DEFAULT_MODEL": "jev-env", "TYPESAFE_BASE_URL": "https://env.example/"},
 			args:    []string{"profile", "show"},
-			wantOut: tsShown + "model: jev-env, env TYPESAFE_DEFAULT_MODEL\nbase_url: https://env.example, TYPESAFE_BASE_URL\n",
+			wantOut: tsKeyless + "model: jev-env, env TYPESAFE_DEFAULT_MODEL\nbase_url: https://env.example, TYPESAFE_BASE_URL\n",
 		},
 		{
 			name: "should keep the profile's model and base_url ahead of the variables",
@@ -1828,7 +1851,7 @@ func TestProfileShow(t *testing.T) {
 			file: tsFile,
 			env:  map[string]string{"TYPESAFE_BASE_URL": "http://127.0.0.1:8080"},
 			args: []string{"profile", "show"},
-			wantOut: tsShown + "model: jev-latest, the provider's default\n" +
+			wantOut: tsKeyless + "model: jev-latest, the provider's default\n" +
 				"base_url: http://127.0.0.1:8080, TYPESAFE_BASE_URL\n",
 		},
 		{

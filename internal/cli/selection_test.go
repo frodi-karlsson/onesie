@@ -3,12 +3,17 @@ package cli
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"strings"
 	"testing"
 
+	"github.com/spf13/cobra"
+
 	"github.com/frodi-karlsson/onesie-go"
+	"github.com/frodi-karlsson/onesie/internal/argv"
 	"github.com/frodi-karlsson/onesie/internal/creds"
+	setting "github.com/frodi-karlsson/onesie/internal/settings"
 )
 
 const testAccountID = "76a0a6ac260b32ec3c8703ba592e769f"
@@ -18,26 +23,26 @@ func TestChoose(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		flags   runFlags
+		args    []string
 		env     map[string]string
 		want    choice
 		wantErr string
 	}{
 		{name: "should choose nothing when nothing is given", want: choice{}},
 		{
-			name:  "should choose the profile --profile names",
-			flags: runFlags{profile: "work", profileSet: true},
-			want:  choice{profile: "work", by: "--profile"},
+			name: "should choose the profile --profile names",
+			args: []string{"--profile", "work"},
+			want: choice{profile: "work", by: "--profile"},
 		},
 		{
-			name:  "should choose the provider --provider names",
-			flags: runFlags{provider: "openrouter", providerSet: true},
-			want:  choice{provider: "openrouter", by: "--provider"},
+			name: "should choose the provider --provider names",
+			args: []string{"--provider", "openrouter"},
+			want: choice{provider: "openrouter", by: "--provider"},
 		},
 		{
-			name:  "should trim the name a flag gives",
-			flags: runFlags{profile: " work ", profileSet: true},
-			want:  choice{profile: "work", by: "--profile"},
+			name: "should trim the name a flag gives",
+			args: []string{"--profile", " work "},
+			want: choice{profile: "work", by: "--profile"},
 		},
 		{
 			name: "should choose the profile ONESIE_PROFILE names",
@@ -50,38 +55,38 @@ func TestChoose(t *testing.T) {
 			want: choice{provider: "berget", by: "ONESIE_PROVIDER"},
 		},
 		{
-			name:  "should let --profile beat ONESIE_PROVIDER",
-			flags: runFlags{profile: "work", profileSet: true},
-			env:   map[string]string{"ONESIE_PROVIDER": "berget"},
-			want:  choice{profile: "work", by: "--profile"},
+			name: "should let --profile beat ONESIE_PROVIDER",
+			args: []string{"--profile", "work"},
+			env:  map[string]string{"ONESIE_PROVIDER": "berget"},
+			want: choice{profile: "work", by: "--profile"},
 		},
 		{
-			name:  "should let --provider beat ONESIE_PROFILE",
-			flags: runFlags{provider: "levanto", providerSet: true},
-			env:   map[string]string{"ONESIE_PROFILE": "work"},
-			want:  choice{provider: "levanto", by: "--provider"},
+			name:    "should refuse --provider with ONESIE_PROFILE",
+			args:    []string{"--provider", "levanto"},
+			env:     map[string]string{"ONESIE_PROFILE": "work"},
+			wantErr: "--provider and ONESIE_PROFILE both choose what the run uses. Drop --provider or unset ONESIE_PROFILE",
 		},
 		{
-			name:  "should let --profile beat ONESIE_PROFILE",
-			flags: runFlags{profile: "home", profileSet: true},
-			env:   map[string]string{"ONESIE_PROFILE": "work"},
-			want:  choice{profile: "home", by: "--profile"},
+			name: "should let --profile beat ONESIE_PROFILE",
+			args: []string{"--profile", "home"},
+			env:  map[string]string{"ONESIE_PROFILE": "work"},
+			want: choice{profile: "home", by: "--profile"},
 		},
 		{
-			name:  "should let --provider beat ONESIE_PROVIDER",
-			flags: runFlags{provider: "typesafe", providerSet: true},
-			env:   map[string]string{"ONESIE_PROVIDER": "berget"},
-			want:  choice{provider: "typesafe", by: "--provider"},
+			name: "should let --provider beat ONESIE_PROVIDER",
+			args: []string{"--provider", "typesafe"},
+			env:  map[string]string{"ONESIE_PROVIDER": "berget"},
+			want: choice{provider: "typesafe", by: "--provider"},
 		},
 		{
-			name:  "should let --profile win over both variables",
-			flags: runFlags{profile: "work", profileSet: true},
-			env:   map[string]string{"ONESIE_PROFILE": "home", "ONESIE_PROVIDER": "berget"},
-			want:  choice{profile: "work", by: "--profile"},
+			name: "should let --profile win over both variables",
+			args: []string{"--profile", "work"},
+			env:  map[string]string{"ONESIE_PROFILE": "home", "ONESIE_PROVIDER": "berget"},
+			want: choice{profile: "work", by: "--profile"},
 		},
 		{
 			name:    "should refuse --profile beside --provider",
-			flags:   runFlags{profile: "work", profileSet: true, provider: "typesafe", providerSet: true},
+			args:    []string{"--profile", "work", "--provider", "typesafe"},
 			wantErr: "--profile and --provider both choose what the run uses. Pass one",
 		},
 		{
@@ -101,9 +106,9 @@ func TestChoose(t *testing.T) {
 			want: choice{},
 		},
 		{
-			name:  "should leave an unknown provider for the resolution to refuse",
-			flags: runFlags{provider: "nope", providerSet: true},
-			want:  choice{provider: "nope", by: "--provider"},
+			name: "should leave an unknown provider for the resolution to refuse",
+			args: []string{"--provider", "nope"},
+			want: choice{provider: "nope", by: "--provider"},
 		},
 	}
 
@@ -111,7 +116,7 @@ func TestChoose(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := choose(&tc.flags, lookupFrom(tc.env))
+			got, err := choose(flagsFrom(t, tc.args...), lookupFrom(tc.env))
 			if tc.wantErr != "" {
 				if err == nil || err.Error() != tc.wantErr {
 					t.Errorf("error = %v, want %q", err, tc.wantErr)
@@ -136,19 +141,19 @@ func TestCheckChoice(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		flags   runFlags
+		args    []string
 		env     map[string]string
 		wantErr string
 	}{
-		{name: "should pass a known provider", flags: runFlags{provider: "berget", providerSet: true}},
+		{name: "should pass a known provider", args: []string{"--provider", "berget"}},
 		{name: "should pass nothing chosen"},
 		{
-			name:  "should pass a profile without checking that it exists",
-			flags: runFlags{profile: "missing", profileSet: true},
+			name: "should pass a profile without checking that it exists",
+			args: []string{"--profile", "missing"},
 		},
 		{
 			name:    "should refuse an unknown provider",
-			flags:   runFlags{provider: "nope", providerSet: true},
+			args:    []string{"--provider", "nope"},
 			wantErr: "onesie: unknown provider 'nope'",
 		},
 		{
@@ -158,7 +163,7 @@ func TestCheckChoice(t *testing.T) {
 		},
 		{
 			name:    "should refuse two choices of the same strength",
-			flags:   runFlags{profile: "x", profileSet: true, provider: "typesafe", providerSet: true},
+			args:    []string{"--profile", "x", "--provider", "typesafe"},
 			wantErr: "both choose what the run uses",
 		},
 	}
@@ -167,7 +172,7 @@ func TestCheckChoice(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			err := checkChoice(&tc.flags, lookupFrom(tc.env))
+			err := checkChoice(flagsFrom(t, tc.args...), lookupFrom(tc.env))
 			if tc.wantErr == "" {
 				if err != nil {
 					t.Errorf("checkChoice returned an error: %v", err)
@@ -239,7 +244,7 @@ func TestCheckChoice(t *testing.T) {
 	})
 }
 
-func TestResolveProfile(t *testing.T) {
+func TestProfileOf(t *testing.T) {
 	t.Parallel()
 
 	withDefault := creds.Profiles{
@@ -328,7 +333,13 @@ func TestResolveProfile(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := resolveProfile(tc.chosen, tc.profiles, lookupFrom(tc.env))
+			run, err := profileOf(tc.chosen, tc.profiles)
+
+			var got resolution
+			if err == nil {
+				got, err = resolveRun(run, lookupFrom(tc.env), nil)
+			}
+
 			if tc.wantErr != "" {
 				if err == nil || err.Error() != tc.wantErr {
 					t.Errorf("error = %v, want %q", err, tc.wantErr)
@@ -338,7 +349,7 @@ func TestResolveProfile(t *testing.T) {
 			}
 
 			if err != nil {
-				t.Fatalf("resolveProfile returned an error: %v", err)
+				t.Fatalf("profileOf returned an error: %v", err)
 			}
 
 			if got.profile != tc.wantProfile || got.provider.Name() != tc.wantProvider || got.by != tc.wantBy ||
@@ -426,141 +437,102 @@ func TestProfileRun(t *testing.T) {
 	})
 }
 
-func TestResolutionModelFor(t *testing.T) {
+func TestResolution_merged(t *testing.T) {
 	t.Parallel()
 
-	pinned, err := profileRun("work", creds.Profile{Provider: "typesafe", APIKey: "SECRET-W", Model: "jev-1.13.0"}, "--profile")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	unpinned, err := profileRun("work", creds.Profile{Provider: "typesafe", APIKey: "SECRET-W"}, "--profile")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	berget, err := providerRun("berget", "--provider", lookupFrom(nil))
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	tests := []struct {
-		name     string
-		run      resolution
-		explicit string
-		env      map[string]string
-		want     string
-	}{
-		{name: "should let -m or the question file beat the profile's model", run: pinned, explicit: "other", want: "other"},
-		{name: "should take the profile's model over a blank explicit one", run: pinned, explicit: "  ", want: "jev-1.13.0"},
-		{
-			name: "should let the profile's model beat TYPESAFE_DEFAULT_MODEL", run: pinned,
-			env: map[string]string{onesie.TypeSafe().EnvDefaultModel(): "env-model"}, want: "jev-1.13.0",
-		},
-		{
-			name: "should take TYPESAFE_DEFAULT_MODEL when the profile names none", run: unpinned,
-			env: map[string]string{onesie.TypeSafe().EnvDefaultModel(): "env-model"}, want: "env-model",
-		},
-		{name: "should fall back to the built in default", run: unpinned, want: onesie.TypeSafe().DefaultModel()},
-		{name: "should fall back to the provider's own default", run: berget, want: onesie.Berget().DefaultModel()},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			if got := tc.run.modelFor(tc.explicit, lookupFrom(tc.env)); got != tc.want {
-				t.Errorf("modelFor = %q, want %q", got, tc.want)
-			}
-		})
-	}
-}
-
-func TestResolutionOptions(t *testing.T) {
-	t.Parallel()
-
-	profileOf := func(profile creds.Profile) resolution {
-		run, err := profileRun("p", profile, "--profile")
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		return run
-	}
+	const otherAccount = "0123456789abcdef0123456789abcdef"
 
 	cloudflareURL := func(account string) string {
 		return "https://api.cloudflare.com/client/v4/accounts/" + account + "/ai"
 	}
 
-	const otherAccount = "0123456789abcdef0123456789abcdef"
-
-	bareRun, err := providerRun("typesafe", "nothing", lookupFrom(nil))
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	tests := []struct {
-		name string
-		run  resolution
-		flag string
-		env  map[string]string
-		want string
+		name      string
+		args      []string
+		env       map[string]string
+		profile   *creds.Profile
+		chosen    bool
+		wantURL   string
+		wantFrom  string
+		wantModel string
+		wantKey   string
 	}{
 		{
-			name: "should keep --base-url ahead of the profile's base_url",
-			run:  profileOf(creds.Profile{Provider: "typesafe", APIKey: "SECRET-P", BaseURL: "https://profile.example"}),
-			flag: "https://flag.example", want: "https://flag.example",
+			name: "should keep --base-url ahead of a chosen profile's base_url", chosen: true,
+			profile: &creds.Profile{Provider: "typesafe", APIKey: "SECRET-P", BaseURL: "https://profile.example"},
+			args:    []string{"--base-url", "https://flag.example"}, wantURL: "https://flag.example", wantFrom: "--base-url",
+			wantModel: onesie.TypeSafe().DefaultModel(), wantKey: "SECRET-KEY",
 		},
 		{
-			name: "should keep the profile's base_url ahead of TYPESAFE_BASE_URL",
-			run:  profileOf(creds.Profile{Provider: "typesafe", APIKey: "SECRET-P", BaseURL: "https://profile.example"}),
-			env:  map[string]string{onesie.TypeSafe().EnvBaseURL(): "https://env.example"}, want: "https://profile.example",
+			name: "should keep a chosen profile's base_url ahead of TYPESAFE_BASE_URL", chosen: true,
+			profile: &creds.Profile{Provider: "typesafe", APIKey: "SECRET-P", BaseURL: "https://profile.example"},
+			env:     map[string]string{onesie.TypeSafe().EnvBaseURL(): "https://env.example"},
+			wantURL: "https://profile.example", wantFrom: "the profile's base_url",
+			wantModel: onesie.TypeSafe().DefaultModel(), wantKey: "SECRET-KEY",
 		},
 		{
-			name: "should take TYPESAFE_BASE_URL when the profile has no base_url",
-			run:  profileOf(creds.Profile{Provider: "typesafe", APIKey: "SECRET-P"}),
-			env:  map[string]string{onesie.TypeSafe().EnvBaseURL(): "https://env.example"}, want: "https://env.example",
+			name:    "should let TYPESAFE_BASE_URL beat the default profile's base_url, with its key variable",
+			profile: &creds.Profile{Provider: "typesafe", APIKey: "SECRET-P", BaseURL: "https://profile.example"},
+			env: map[string]string{
+				onesie.TypeSafe().EnvBaseURL(): "https://env.example", onesie.TypeSafe().EnvAPIKey(): "SECRET-ENV",
+			},
+			wantURL: "https://env.example", wantFrom: "TYPESAFE_BASE_URL",
+			wantModel: onesie.TypeSafe().DefaultModel(), wantKey: "SECRET-ENV",
 		},
 		{
-			name: "should keep the profile's account_id ahead of CLOUDFLARE_ACCOUNT_ID",
-			run:  profileOf(creds.Profile{Provider: "cloudflare", APIKey: "SECRET-P", AccountID: testAccountID}),
-			env:  map[string]string{"CLOUDFLARE_ACCOUNT_ID": otherAccount}, want: cloudflareURL(testAccountID),
+			name: "should keep a chosen profile's account_id ahead of CLOUDFLARE_ACCOUNT_ID", chosen: true,
+			profile: &creds.Profile{Provider: "cloudflare", APIKey: "SECRET-P", AccountID: testAccountID},
+			env:     map[string]string{"CLOUDFLARE_ACCOUNT_ID": otherAccount},
+			wantURL: cloudflareURL(testAccountID), wantFrom: "the profile's account_id",
+			wantModel: onesie.Cloudflare().DefaultModel(), wantKey: "SECRET-KEY",
 		},
 		{
-			name: "should take CLOUDFLARE_ACCOUNT_ID when the profile has no account",
-			run:  profileOf(creds.Profile{Provider: "cloudflare", APIKey: "SECRET-P"}),
-			env:  map[string]string{"CLOUDFLARE_ACCOUNT_ID": otherAccount}, want: cloudflareURL(otherAccount),
+			name: "should take CLOUDFLARE_ACCOUNT_ID with the profile's key", chosen: true,
+			profile: &creds.Profile{Provider: "cloudflare", APIKey: "SECRET-P"},
+			env:     map[string]string{"CLOUDFLARE_ACCOUNT_ID": otherAccount, "CLOUDFLARE_API_TOKEN": "SECRET-ENV"},
+			wantURL: cloudflareURL(otherAccount), wantFrom: "CLOUDFLARE_ACCOUNT_ID",
+			wantModel: onesie.Cloudflare().DefaultModel(), wantKey: "SECRET-KEY",
 		},
 		{
-			name: "should keep --base-url ahead of the profile's account_id",
-			run:  profileOf(creds.Profile{Provider: "cloudflare", APIKey: "SECRET-P", AccountID: testAccountID}),
-			flag: "https://flag.example", want: "https://flag.example",
+			name: "should fall back to the built in URL and model", chosen: true,
+			profile: &creds.Profile{Provider: "openrouter", APIKey: "SECRET-P"},
+			wantURL: onesie.OpenRouter().DefaultBaseURL(), wantModel: onesie.OpenRouter().DefaultModel(),
+			wantKey: "SECRET-KEY",
 		},
 		{
-			name: "should fall back to the built in URL",
-			run:  profileOf(creds.Profile{Provider: "openrouter", APIKey: "SECRET-P"}),
-			want: onesie.OpenRouter().DefaultBaseURL(),
-		},
-		{
-			name: "should pass ONESIE_BASE_URL as the base URL on a run without a profile",
-			run:  bareRun,
+			name: "should pass ONESIE_BASE_URL ahead of TYPESAFE_BASE_URL on a run without a profile",
 			env: map[string]string{
 				onesie.TypeSafe().EnvAPIKey(): "SECRET-ENV", envBaseURL: "https://local.example",
 				onesie.TypeSafe().EnvBaseURL(): "https://env.example",
 			},
-			want: "https://local.example",
+			wantURL: "https://local.example", wantFrom: envBaseURL, wantModel: onesie.TypeSafe().DefaultModel(),
+			wantKey: "SECRET-ENV",
 		},
 		{
-			name: "should pass ONESIE_BASE_URL as the base URL on a profile",
-			run:  profileOf(creds.Profile{Provider: "typesafe", APIKey: "SECRET-P"}),
-			env:  map[string]string{envBaseURL: "https://local.example"}, want: "https://local.example",
+			name: "should take the profile's model over TYPESAFE_DEFAULT_MODEL on a chosen profile", chosen: true,
+			profile: &creds.Profile{Provider: "typesafe", APIKey: "SECRET-P", Model: "jev-1.13.0"},
+			env:     map[string]string{onesie.TypeSafe().EnvDefaultModel(): "env-model"},
+			wantURL: onesie.TypeSafe().DefaultBaseURL(), wantModel: "jev-1.13.0", wantKey: "SECRET-KEY",
 		},
 		{
-			name: "should take --base-url on a run without a profile",
-			run:  bareRun,
-			flag: "https://flag.example",
-			env:  map[string]string{onesie.TypeSafe().EnvAPIKey(): "SECRET-ENV"},
-			want: "https://flag.example",
+			name:    "should take TYPESAFE_DEFAULT_MODEL over the default profile's model",
+			profile: &creds.Profile{Provider: "typesafe", APIKey: "SECRET-P", Model: "jev-1.13.0"},
+			env:     map[string]string{onesie.TypeSafe().EnvDefaultModel(): "env-model"},
+			wantURL: onesie.TypeSafe().DefaultBaseURL(), wantModel: "env-model", wantKey: "SECRET-KEY",
+		},
+		{
+			name:    "should send the provider key variable over the default profile's key",
+			profile: &creds.Profile{Provider: "typesafe", APIKey: "SECRET-P"},
+			env:     map[string]string{onesie.TypeSafe().EnvAPIKey(): "SECRET-ENV"},
+			wantURL: onesie.TypeSafe().DefaultBaseURL(), wantModel: onesie.TypeSafe().DefaultModel(),
+			wantKey: "SECRET-ENV",
+		},
+		{
+			name: "should send a chosen profile's key over the provider key variable", chosen: true,
+			profile: &creds.Profile{Provider: "typesafe", APIKey: "SECRET-P"},
+			env:     map[string]string{onesie.TypeSafe().EnvAPIKey(): "SECRET-ENV"},
+			wantURL: onesie.TypeSafe().DefaultBaseURL(), wantModel: onesie.TypeSafe().DefaultModel(),
+			wantKey: "SECRET-KEY",
 		},
 	}
 
@@ -568,45 +540,111 @@ func TestResolutionOptions(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			lookup := lookupFrom(tc.env)
+			run, merged := mergedRun(t, tc.args, tc.env, tc.profile, tc.chosen)
+			if run.endpointFrom != tc.wantFrom {
+				t.Errorf("endpointFrom = %q, want %q", run.endpointFrom, tc.wantFrom)
+			}
 
-			// The options clientBuilder adds ahead of these, so the order is the one a real run builds.
-			opts := []onesie.Option{onesie.WithProvider(tc.run.provider), onesie.WithEnv(lookup)}
+			if got := run.modelFor(setting.Get(merged, setting.Model)); got != tc.wantModel {
+				t.Errorf("model = %q, want %q", got, tc.wantModel)
+			}
 
-			client, err := onesie.New(append(opts, tc.run.options(tc.flag, staticKey("SECRET-KEY"), lookup)...)...)
+			client, err := onesie.New(append([]onesie.Option{
+				onesie.WithProvider(run.provider), onesie.WithEnv(noEnvironment),
+			}, run.options(staticKey("SECRET-KEY"))...)...)
 			if err != nil {
 				t.Fatalf("building the client: %v", err)
 			}
 
-			if got := client.BaseURL(); got != tc.want {
-				t.Errorf("base url = %q, want %q", got, tc.want)
+			if got := client.BaseURL(); got != tc.wantURL {
+				t.Errorf("base url = %q, want %q", got, tc.wantURL)
+			}
+
+			if got := client.DefaultModel(); got != tc.wantModel {
+				t.Errorf("default model = %q, want %q", got, tc.wantModel)
+			}
+
+			sent := "SECRET-KEY"
+			if run.keyFrom == sourceEnv {
+				sent = run.key
+			}
+
+			if !client.SendsKey() || sent != tc.wantKey {
+				t.Errorf("key = %q sent %v, want %q", sent, client.SendsKey(), tc.wantKey)
 			}
 		})
 	}
 
-	t.Run("should add nothing for a run without a profile or --base-url", func(t *testing.T) {
+	t.Run("should send no key from a keyless profile", func(t *testing.T) {
 		t.Parallel()
 
-		if got := bareRun.options("", staticKey(""), lookupFrom(nil)); len(got) != 0 {
-			t.Errorf("options = %d, want none", len(got))
-		}
-	})
+		run, _ := mergedRun(t, nil, nil, &creds.Profile{Provider: "openrouter"}, true)
 
-	t.Run("should keep a profile run with an empty key off the provider's key variable", func(t *testing.T) {
-		t.Parallel()
-
-		run := profileOf(creds.Profile{Provider: "openrouter", APIKey: "SECRET-OR"})
-		lookup := lookupFrom(map[string]string{"OPENROUTER_API_KEY": "SECRET-ENV"})
-
-		_, err := onesie.New(append([]onesie.Option{onesie.WithProvider(run.provider), onesie.WithEnv(lookup)},
-			run.options("", staticKey(""), lookup)...)...)
+		_, err := onesie.New(append([]onesie.Option{onesie.WithProvider(run.provider), onesie.WithEnv(noEnvironment)},
+			run.options(staticKey("SECRET-KEY"))...)...)
 		if !errors.Is(err, onesie.ErrNoAPIKey) {
 			t.Errorf("error = %v, want onesie.ErrNoAPIKey", err)
 		}
 	})
 }
 
-func TestResolutionGivenBaseURL(t *testing.T) {
+func mergedRun(
+	t *testing.T, args []string, env map[string]string, profile *creds.Profile, chosen bool,
+) (resolution, *setting.Merged) {
+	t.Helper()
+
+	lookup := maps.Clone(env)
+	if lookup == nil {
+		lookup = map[string]string{}
+	}
+
+	run := loadedRun{}
+	if profile != nil {
+		run = loadedRun{name: "p", by: byDefault, profile: *profile, fallback: "p"}
+	}
+
+	if chosen {
+		args = append(args, "--profile", "p")
+		run.by = "--profile"
+	}
+
+	flags := flagsFrom(t, args...)
+
+	layers, err := setting.Read(setting.Table(), setting.Sources{
+		Given: flags.given, LookupEnv: lookupFrom(lookup), Profile: run.values(), DefaultProfile: run.fallback,
+		Facts: setting.Facts{Command: setting.CommandRoot},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	merged, _ := setting.Merge(setting.Table(), layers, nil)
+
+	resolved, err := resolveRun(run, lookupFrom(lookup), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	return resolved.merged(merged), merged
+}
+
+func flagsFrom(t *testing.T, args ...string) *runFlags {
+	t.Helper()
+
+	flags := &runFlags{}
+	cmd := &cobra.Command{Use: "onesie"}
+	flags.given = setting.Register(cmd.Flags(), cmd.PersistentFlags(), setting.Table(), argv.New(),
+		setting.CommandRoot, runTargets(flags))
+	cmd.Flags().AddFlagSet(cmd.PersistentFlags())
+
+	if err := cmd.Flags().Parse(args); err != nil {
+		t.Fatal(err)
+	}
+
+	return flags
+}
+
+func TestShownBaseURL(t *testing.T) {
 	t.Parallel()
 
 	profile := resolution{profile: "work", baseURL: "https://profile.example"}
@@ -615,7 +653,6 @@ func TestResolutionGivenBaseURL(t *testing.T) {
 	tests := []struct {
 		name       string
 		run        resolution
-		flag       string
 		env        map[string]string
 		wantURL    string
 		wantSource string
@@ -629,10 +666,6 @@ func TestResolutionGivenBaseURL(t *testing.T) {
 			wantURL: "https://profile.example", wantSource: "the profile's base_url",
 		},
 		{
-			name: "should prefer --base-url", run: resolution{}, env: local,
-			flag: "https://flag.example", wantURL: "https://flag.example", wantSource: "--base-url",
-		},
-		{
 			name: "should skip it when the profile has an account_id", env: local,
 			run:        resolution{profile: "cf", accountID: "0123456789abcdef0123456789abcdef"},
 			wantSource: "the profile's base_url",
@@ -640,18 +673,6 @@ func TestResolutionGivenBaseURL(t *testing.T) {
 		{
 			name: "should ignore a blank value", run: resolution{},
 			env: map[string]string{envBaseURL: "  "}, wantSource: "the profile's base_url",
-		},
-		{
-			name: "should take --base-url ahead of the profile's base_url", run: profile,
-			flag: "https://flag.example", wantURL: "https://flag.example", wantSource: "--base-url",
-		},
-		{
-			name: "should trim the space around --base-url", run: profile,
-			flag: "  https://flag.example ", wantURL: "https://flag.example", wantSource: "--base-url",
-		},
-		{
-			name: "should take the profile's base_url when --base-url is blank", run: profile,
-			flag: " ", wantURL: "https://profile.example", wantSource: "the profile's base_url",
 		},
 		{
 			name: "should give no URL when neither is set", run: resolution{profile: "work"},
@@ -663,9 +684,9 @@ func TestResolutionGivenBaseURL(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			source, url := tc.run.givenBaseURL(tc.flag, lookupFrom(tc.env))
+			source, url := shownBaseURL(tc.run, lookupFrom(tc.env))
 			if source != tc.wantSource || url != tc.wantURL {
-				t.Errorf("givenBaseURL = %q, %q, want %q, %q", source, url, tc.wantSource, tc.wantURL)
+				t.Errorf("shownBaseURL = %q, %q, want %q, %q", source, url, tc.wantSource, tc.wantURL)
 			}
 		})
 	}

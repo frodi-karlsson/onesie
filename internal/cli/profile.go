@@ -489,9 +489,9 @@ func profileShow(cmd *cobra.Command, settings rootSettings, flags *runFlags, arg
 
 	// Resolved as a run resolves it, which checks a hand edited profiles.json and the provider's base
 	// URL variable too, since neither passed through create.
-	_, given := shown.givenBaseURL("", settings.lookupEnv)
+	_, given := shownBaseURL(shown, settings.lookupEnv)
 	baseURL, source, invalid := shown.provider.ResolveBaseURL(given, shown.accountID, settings.lookupEnv)
-	sourceName := baseURLFrom(source, "", shown, settings.lookupEnv)
+	sourceName := shownBaseURLFrom(source, shown, settings.lookupEnv)
 
 	var refused *onesie.BaseURLError
 	if errors.As(invalid, &refused) {
@@ -513,12 +513,18 @@ func profileShow(cmd *cobra.Command, settings rootSettings, flags *runFlags, arg
 
 	custom := invalid == nil && shown.provider.CustomBaseURL(baseURL)
 
+	// The key line reads the key a run would send to that base URL, as profile test does. A variable
+	// the connection read refuses leaves the profile's own key line.
+	if tested, testErr := testedConnection(settings, shown); testErr == nil {
+		shown.keyFrom, shown.key, shown.account, shown.keyEnd = tested.keyFrom, tested.key, tested.account, tested.keyEnd
+	}
+
 	lines := []string{
 		"profile: " + cmp.Or(shown.profile, noProfile),
 		"provider: " + shown.provider.Name(),
 		"chosen by: " + shown.by,
 		"key: " + shown.keyLine(custom),
-		"model: " + output.Printable(shown.modelFor("", settings.lookupEnv)) + ", " +
+		"model: " + output.Printable(shown.provider.ResolveModel(shown.model, settings.lookupEnv)) + ", " +
 			modelOrigin(shown, settings.lookupEnv),
 		"base_url: " + baseURLLine,
 	}
@@ -538,6 +544,35 @@ func profileShow(cmd *cobra.Command, settings rootSettings, flags *runFlags, arg
 	return showRefusals(cmd, settings, shown, invalid, account, custom)
 }
 
+func shownBaseURL(shown resolution, lookupEnv func(string) (string, bool)) (name, given string) {
+	if shown.baseURL != "" || shown.accountID != "" {
+		return profileBaseURL, shown.baseURL
+	}
+
+	if variable := setVariable(lookupEnv, envBaseURL); variable != "" {
+		return envBaseURL, variable
+	}
+
+	return profileBaseURL, shown.baseURL
+}
+
+func shownBaseURLFrom(source onesie.BaseURLSource, shown resolution, lookupEnv func(string) (string, bool)) string {
+	switch source {
+	case onesie.BaseURLFromOption:
+		name, _ := shownBaseURL(shown, lookupEnv)
+
+		return name
+	case onesie.BaseURLFromAccount:
+		if shown.accountID != "" {
+			return "the profile's account_id"
+		}
+
+		return shown.provider.EnvAccountID()
+	default:
+		return baseURLFrom(source, shown)
+	}
+}
+
 func showRefusals(
 	cmd *cobra.Command, settings rootSettings, shown resolution, accountErr error, account string, custom bool,
 ) error {
@@ -552,7 +587,7 @@ func showRefusals(
 	}
 
 	// Checked as a run checks them, after the report, so a reader of the key line still finds it.
-	if _, switchErr := envSwitches(settings.lookupEnv); switchErr != nil {
+	if switchErr := checkEnvSwitches(settings.lookupEnv); switchErr != nil {
 		refusals = append(refusals, switchErr)
 	}
 
@@ -619,7 +654,12 @@ func newProfileTestCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 }
 
 func profileTest(cmd *cobra.Command, settings rootSettings, flags *runFlags, args []string) error {
-	tested, err := shownResolution(settings, flags, args, "test")
+	shown, err := shownResolution(settings, flags, args, "test")
+	if err != nil {
+		return err
+	}
+
+	tested, err := testedConnection(settings, shown)
 	if err != nil {
 		return err
 	}
@@ -638,6 +678,62 @@ func profileTest(cmd *cobra.Command, settings rootSettings, flags *runFlags, arg
 		cmp.Or(tested.profile, noProfile), tested.provider.Name(), tested.keyLine(!client.SendsKey()), len(models))
 
 	return printErr
+}
+
+func testedConnection(settings rootSettings, shown resolution) (resolution, error) {
+	run := loadedRun{}
+	choosing := map[string]string{}
+
+	switch {
+	case shown.profile != "":
+		opened, err := settings.holder.opened()
+		if err != nil {
+			return resolution{}, err
+		}
+
+		run.name, run.profile, run.fallback = shown.profile, opened.Profiles.Profiles[shown.profile], shown.profile
+	case shown.by != byNothing:
+		choosing[envProvider] = shown.provider.Name()
+	}
+
+	layers, err := setting.Read(setting.Table(), setting.Sources{
+		LookupEnv:      connectionEnv(settings.lookupEnv, choosing),
+		Profile:        run.values(),
+		DefaultProfile: run.fallback,
+		Facts:          setting.Facts{Command: setting.CommandRoot},
+	})
+	if err != nil {
+		return resolution{}, err
+	}
+
+	// Every profile ranks as a chosen one, so profile test reads the profile ahead of the environment,
+	// as profile show does. Read sees only the name it is handed, so it ranks it as the default.
+	for i := range layers {
+		if layers[i].Source == setting.SourceDefaultProfile {
+			layers[i].Source = setting.SourceChosenProfile
+		}
+	}
+
+	merged, _ := setting.Merge(setting.Table(), layers, nil)
+
+	return shown.merged(merged), nil
+}
+
+func connectionEnv(lookupEnv func(string) (string, bool), choosing map[string]string) func(string) (string, bool) {
+	return func(name string) (string, bool) {
+		if value, chosen := choosing[name]; chosen {
+			return value, true
+		}
+
+		for _, key := range []setting.Name{setting.Model.Name(), setting.APIEndpoint.Name(), setting.APIKey.Name()} {
+			row, _ := setting.Lookup(key)
+			if slices.ContainsFunc(row.Env, func(variable setting.EnvSpec) bool { return variable.Name == name }) {
+				return lookupEnv(name)
+			}
+		}
+
+		return "", false
+	}
 }
 
 func shownResolution(settings rootSettings, flags *runFlags, args []string, command string) (resolution, error) {

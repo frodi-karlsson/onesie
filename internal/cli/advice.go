@@ -84,13 +84,13 @@ func adviseBox(err error, boxed bool, boxModel string) error {
 	return &advisedError{cause: err, note: note}
 }
 
-func withKeyHint(err error, settings rootSettings, mockFlag string) error {
+func withKeyHint(err error, settings rootSettings, flags runConfig) error {
 	// A mock run sends no key, so naming where one came from would send the reader to the wrong place.
-	if path, _ := mockSource(settings.lookupEnv, mockFlag); !keyRefused(err) || path != "" {
+	if !keyRefused(err) || flags.mockPath != "" {
 		return err
 	}
 
-	chosen, resolveErr := settings.holder.resolved()
+	chosen, resolveErr := connected(settings, flags)
 	if resolveErr != nil {
 		return err
 	}
@@ -107,6 +107,17 @@ func keyHint(err error, chosen resolution) error {
 }
 
 func keyNote(chosen resolution) string {
+	if chosen.keyAside {
+		pass := "--base-url URL"
+		if chosen.by == byDefault {
+			pass = "--profile " + creds.QuotedName(chosen.profile) + " --base-url URL"
+		}
+
+		return "No key was sent, since the profile's key goes only with its own endpoint, and the base URL came " +
+			"from " + chosen.endpointFrom + ". Put the URL in the profile's base_url with onesie profile update " +
+			creds.QuotedName(chosen.profile) + " --base-url URL, or pass " + pass
+	}
+
 	// New accepts a missing key only on a custom base URL, so a refusal with none was sent there.
 	if chosen.keyFrom == sourceNone && chosen.profile != "" {
 		return "No key was sent, since none resolves and the base URL is custom. Store one with onesie profile " +
@@ -117,7 +128,7 @@ func keyNote(chosen resolution) string {
 		return "No key was sent, since none resolves and the base URL is custom. Set " + chosen.provider.EnvAPIKey()
 	}
 
-	if chosen.profile != "" {
+	if chosen.profile != "" && chosen.keyFrom != sourceEnv {
 		return "Replace the key with onesie profile update " + creds.QuotedName(chosen.profile) + " --key"
 	}
 

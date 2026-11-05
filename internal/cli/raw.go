@@ -62,14 +62,14 @@ func streamRaw(
 
 func newRawRun(cmd *cobra.Command, settings rootSettings, flags runConfig, stats *collector) (*rawRun, error) {
 	// --print-request needs the resolution too, to print the model a body with none is sent with.
-	chosen, err := settings.holder.resolved()
+	chosen, err := connected(settings, flags)
 	if err != nil {
 		return nil, err
 	}
 
 	run := &rawRun{
 		flags: flags, stats: stats, provider: chosen.provider,
-		defaultModel: chosen.modelFor("", settings.lookupEnv), long: flags.env.longContext,
+		defaultModel: chosen.modelFor(chosen.model), long: flags.env.longContext,
 	}
 
 	// Built only when the run makes a request, so -i request --print-request needs no key.

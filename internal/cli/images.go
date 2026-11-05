@@ -14,6 +14,7 @@ import (
 	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/patherr"
 	"github.com/frodi-karlsson/onesie/internal/plan"
+	setting "github.com/frodi-karlsson/onesie/internal/settings"
 )
 
 const (
@@ -210,12 +211,12 @@ func (m *imaging) load(path string) (string, onesie.Image, error) {
 }
 
 func checkProviderNeeds(settings rootSettings, flags runConfig, built *plan.Plan, images *imaging) error {
-	chosen, err := settings.holder.resolved()
+	chosen, err := connected(settings, flags)
 	if err != nil {
 		return err
 	}
 
-	model := chosen.modelFor(built.Model, settings.lookupEnv)
+	model := chosen.modelFor(built.Model)
 
 	return longContextCause(chosen.provider.Refuse(model, onesie.Needs{
 		Images:      sendsAssets(images),
@@ -227,8 +228,8 @@ func checkProviderNeeds(settings rootSettings, flags runConfig, built *plan.Plan
 func longContextCause(refusal error, flags runConfig) error {
 	// The variable is easy to forget once it is exported, so a refusal it caused says so.
 	var lacking *onesie.CapabilityError
-	if !errors.As(refusal, &lacking) || !lacking.Missing.LongContext || flags.longContextSet ||
-		!longContext(flags) {
+	if !errors.As(refusal, &lacking) || !lacking.Missing.LongContext ||
+		flags.merged.Source(setting.LongContext.Name()) != setting.SourceEnv {
 		return refusal
 	}
 

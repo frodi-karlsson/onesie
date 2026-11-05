@@ -22,6 +22,7 @@ import (
 	"testing"
 
 	"github.com/frodi-karlsson/onesie-go"
+	setting "github.com/frodi-karlsson/onesie/internal/settings"
 )
 
 func TestImagingAttach(t *testing.T) {
@@ -594,12 +595,9 @@ func TestRun(t *testing.T) {
 			emptyOut: true,
 		},
 		{
-			name:     "should refuse a bad ONESIE_CACHE under --print-request",
-			args:     []string{"--state", "s", "q", "--print-request"},
-			env:      map[string]string{"ONESIE_CACHE": "garbage"},
-			wantCode: ExitUsage,
-			wantErr:  "onesie: ONESIE_CACHE=garbage is not a value --cache takes. Use 1 or 0\n",
-			emptyOut: true,
+			name: "should skip a malformed ONESIE_CACHE under --print-request",
+			args: []string{"--state", "s", "q", "--print-request"},
+			env:  map[string]string{"ONESIE_CACHE": "garbage"},
 		},
 		{
 			name:     "should refuse a bad ONESIE_CACHE_TTL under --mock",
@@ -1154,25 +1152,27 @@ func TestLongContextCause(t *testing.T) {
 	refusal := onesie.Cloudflare().Refuse(onesie.Cloudflare().DefaultModel(), onesie.Needs{LongContext: true})
 
 	tests := []struct {
-		name  string
-		flags runConfig
-		want  string
+		name string
+		from setting.Source
+		want string
 	}{
 		{
-			name: "should name ONESIE_LONG_CONTEXT when it turned long context on", flags: runConfig{env: switches{longContext: true}},
+			name: "should name ONESIE_LONG_CONTEXT when it turned long context on", from: setting.SourceEnv,
 			want: refused + ". ONESIE_LONG_CONTEXT turned it on, so unset it or pass --long-context=false",
 		},
-		{
-			name:  "should leave a refusal --long-context caused alone",
-			flags: runConfig{env: switches{longContext: true}, longContextSet: true}, want: refused,
-		},
+		{name: "should leave a refusal --long-context caused alone", from: setting.SourceFlag, want: refused},
+		{name: "should leave a refusal a request body caused alone", from: setting.SourceFile, want: refused},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			if got := text(longContextCause(refusal, tc.flags)); got != tc.want {
+			merged, _ := setting.Merge(setting.Table(), []setting.Layer{
+				{Source: tc.from, Values: map[setting.Name]any{"long_context": true}},
+			}, nil)
+
+			if got := text(longContextCause(refusal, runConfig{}.withMerged(merged))); got != tc.want {
 				t.Errorf("text = %q, want %q", got, tc.want)
 			}
 		})

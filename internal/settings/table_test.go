@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/frodi-karlsson/onesie-go"
+	"github.com/frodi-karlsson/onesie/internal/cache"
 	"github.com/frodi-karlsson/onesie/internal/creds"
 	"github.com/frodi-karlsson/onesie/internal/settings"
 )
@@ -279,4 +280,16 @@ func TestLookup(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestNoAliasTTL(t *testing.T) {
+	t.Parallel()
+
+	t.Run("should equal the cache's own no alias lifetime", func(t *testing.T) {
+		t.Parallel()
+
+		if settings.NoAliasTTL != cache.NoAliasTTL {
+			t.Errorf("settings.NoAliasTTL = %v, cache.NoAliasTTL = %v, want them equal", settings.NoAliasTTL, cache.NoAliasTTL)
+		}
+	})
 }

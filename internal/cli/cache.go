@@ -24,7 +24,7 @@ func answersFor(
 	model string,
 ) (answererFactory, error) {
 	if flags.mockPath != "" {
-		chosen, err := settings.holder.resolved()
+		chosen, err := connected(settings, flags)
 		if err != nil {
 			return nil, err
 		}
@@ -63,14 +63,14 @@ func caching(flags runConfig) bool {
 
 func cachedAnswers(settings rootSettings, flags runConfig, model string, warn func(error)) answererFactory {
 	return func(ctx context.Context, stats *collector) (answerer, error) {
-		chosen, err := settings.holder.resolved()
+		chosen, err := connected(settings, flags)
 		if err != nil {
 			return nil, err
 		}
 
 		client, err := settings.newClient(ctx, chosen, runOptions(flags, stats)...)
 		if err != nil {
-			return nil, noKeyForCache(settings, err)
+			return nil, noKeyForCache(settings, flags, err)
 		}
 
 		return &cachedAnswerer{
@@ -84,12 +84,12 @@ func cachedAnswers(settings rootSettings, flags runConfig, model string, warn fu
 	}
 }
 
-func noKeyForCache(settings rootSettings, err error) error {
+func noKeyForCache(settings rootSettings, flags runConfig, err error) error {
 	if !errors.Is(err, onesie.ErrNoAPIKey) {
 		return err
 	}
 
-	chosen, resolveErr := settings.holder.resolved()
+	chosen, resolveErr := connected(settings, flags)
 	if resolveErr != nil || chosen.keyFrom != sourceNone {
 		return err
 	}

@@ -48,6 +48,17 @@ func TestGet(t *testing.T) {
 		},
 	}
 
+	t.Run("should return an empty string for a HeldKey", func(t *testing.T) {
+		t.Parallel()
+
+		merged := &settings.Merged{}
+		merged.Set(settings.APIKey.Name(), settings.HeldKey{}, settings.SourceChosenProfile)
+
+		if got := settings.Get(merged, settings.APIKey); got != "" {
+			t.Errorf("Get(api_key) = %q, want an empty string", got)
+		}
+	})
+
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

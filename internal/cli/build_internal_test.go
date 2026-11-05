@@ -1,10 +1,14 @@
 package cli
 
 import (
+	"io"
 	"strings"
 	"testing"
 
+	"github.com/spf13/cobra"
+
 	"github.com/frodi-karlsson/onesie/internal/argv"
+	setting "github.com/frodi-karlsson/onesie/internal/settings"
 )
 
 func TestBuild(t *testing.T) {
@@ -16,7 +20,6 @@ func TestBuild(t *testing.T) {
 	)
 
 	longBody := `{"long_context":true,"questions":{"urgent":{"type":"noul","instructions":"is it urgent"}}}`
-	off := false
 
 	twoAsks := []argv.Event{{Name: "ask", Value: "a=x"}, {Name: "ask", Value: "b=y"}}
 
@@ -29,13 +32,13 @@ func TestBuild(t *testing.T) {
 		wantErr      string
 		wantGate     bool
 		wantSetAside fileGate
-		longContext  *bool
+		args         []string
 		wantLong     bool
 	}{
 		{
-			name:        "should send no long context when --long-context=false meets a body with true",
-			file:        longBody,
-			longContext: &off,
+			name: "should send no long context when --long-context=false meets a body with true",
+			file: longBody,
+			args: []string{"--long-context=false"},
 		},
 		{
 			name:     "should keep a body's true with no flag",
@@ -74,19 +77,28 @@ func TestBuild(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
+			parsed := &runFlags{}
+			cmd := &cobra.Command{Use: "onesie"}
+			parsed.given = setting.Register(cmd.Flags(), cmd.PersistentFlags(), setting.Table(), argv.New(),
+				setting.CommandRoot, runTargets(parsed))
+			cmd.Flags().AddFlagSet(cmd.PersistentFlags())
+
+			args := append([]string{"-f", "gated.yaml"}, tc.args...)
+			if tc.quiet {
+				args = append(args, "-q")
+			}
+
+			if err := cmd.Flags().Parse(args); err != nil {
+				t.Fatal(err)
+			}
+
 			settings := defaultSettings(BuildInfo{})
+			settings.lookupEnv = lookupFrom(nil)
 			settings.readFile = func(string) ([]byte, error) { return []byte(tc.file), nil }
-			flags := runConfig{
-				runFlags: runFlags{file: "gated.yaml", input: "text", jobs: 1, quiet: tc.quiet},
-				events:   tc.events,
-			}
+			settings.holder = newHolder(settings, parsed, func() io.Writer { return io.Discard })
+			flags := runConfig{runFlags: *parsed, events: tc.events}
 
-			if tc.longContext != nil {
-				flags.longContext, flags.longContextSet = *tc.longContext, true
-				flags.env.longContext = *tc.longContext
-			}
-
-			inv, _, err := build(settings, flags, tc.ignoreJudged)
+			inv, _, err := build(settings, flags, parsed.given, setting.CommandRoot, tc.ignoreJudged)
 			if tc.wantErr != "" {
 				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
 					t.Fatalf("build error = %v, want one naming %q", err, tc.wantErr)
