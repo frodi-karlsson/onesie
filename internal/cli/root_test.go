@@ -2281,7 +2281,7 @@ func TestNewRootCmd(t *testing.T) {
 		}
 	})
 
-	t.Run("should print the root and calibrate help as pinned", func(t *testing.T) {
+	t.Run("should print the help of every command as pinned", func(t *testing.T) {
 		t.Parallel()
 
 		for _, pin := range []struct {
@@ -2290,6 +2290,18 @@ func TestNewRootCmd(t *testing.T) {
 		}{
 			{args: []string{"--help"}, golden: "root.golden"},
 			{args: []string{"calibrate", "--help"}, golden: "calibrate.golden"},
+			{args: []string{"version", "--help"}, golden: "version.golden"},
+			{args: []string{"profile", "--help"}, golden: "profile.golden"},
+			{args: []string{"profile", "create", "--help"}, golden: "profile-create.golden"},
+			{args: []string{"profile", "update", "--help"}, golden: "profile-update.golden"},
+			{args: []string{"profile", "delete", "--help"}, golden: "profile-delete.golden"},
+			{args: []string{"profile", "use", "--help"}, golden: "profile-use.golden"},
+			{args: []string{"profile", "list", "--help"}, golden: "profile-list.golden"},
+			{args: []string{"profile", "show", "--help"}, golden: "profile-show.golden"},
+			{args: []string{"profile", "test", "--help"}, golden: "profile-test.golden"},
+			{args: []string{"questions", "--help"}, golden: "questions.golden"},
+			{args: []string{"cache", "--help"}, golden: "cache.golden"},
+			{args: []string{"cache", "clear", "--help"}, golden: "cache-clear.golden"},
 		} {
 			want, err := os.ReadFile(filepath.Join("testdata", "help", pin.golden))
 			if err != nil {

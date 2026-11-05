@@ -1,0 +1,24 @@
+Store a new profile, and read its key from a hidden prompt on a terminal, or from stdin otherwise. The key is never a flag, since a flag lands in shell history.
+
+Stdin must hold the key alone. pass show and its siblings print metadata after the secret, so pipe them through head -n 1.
+
+The key goes to the OS keychain, or to profiles.json with --file. An empty key stores a profile with no key when --base-url is not the provider's own. A name is 1 to 64 lowercase letters, digits, - or _, does not start with -, and is not none. The first profile becomes the default.
+
+Usage:
+  onesie profile create NAME [flags]
+
+Examples:
+  pass show openrouter | head -n 1 | onesie profile create work --provider openrouter
+  onesie profile create cf --provider cloudflare --account-id 0123456789abcdef0123456789abcdef
+
+Flags:
+      --account-id string   cloudflare only, the account id, 32 hexadecimal characters
+      --allow-http          store a plain http --base-url to a host other than this machine. Every run on the profile then needs --allow-http too
+      --base-url string     the api root the profile's runs use
+      --file                store the key in profiles.json, not the OS keychain
+  -h, --help                help for create
+      --model string        the model a run uses when it names none
+      --provider string     the profile's provider, typesafe, openrouter, berget, levanto or cloudflare. Required
+
+Global Flags:
+      --profile string   the profile a run uses, from profiles.json in the config dir. Also ONESIE_PROFILE, and otherwise the default profile, which onesie profile use sets

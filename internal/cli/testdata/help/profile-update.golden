@@ -1,0 +1,23 @@
+Change only the members named. An empty value clears one, as in --model "".
+
+--key reads a new key as create does, into the OS keychain, or into profiles.json with --file. --provider needs --key, since a key belongs to one provider, and drops account_id off cloudflare. There is no rename. Delete the profile and create it again.
+
+Usage:
+  onesie profile update NAME [flags]
+
+Examples:
+  onesie profile update work --model typesafe/jev-1.13
+  pass show work | head -n 1 | onesie profile update work --key
+
+Flags:
+      --account-id string   cloudflare only, the account id, 32 hexadecimal characters
+      --allow-http          store a plain http --base-url to a host other than this machine. Every run on the profile then needs --allow-http too
+      --base-url string     the api root the profile's runs use
+      --file                with --key, store the new key in profiles.json, not the OS keychain
+  -h, --help                help for update
+      --key                 read a new key from a prompt or stdin
+      --model string        the model a run uses when it names none
+      --provider string     a new provider for the profile, which needs --key
+
+Global Flags:
+      --profile string   the profile a run uses, from profiles.json in the config dir. Also ONESIE_PROFILE, and otherwise the default profile, which onesie profile use sets
