@@ -1,0 +1,19 @@
+questions lists every name -f takes in place of a path, with the file it resolves to.
+
+-f NAME looks in the nearest .onesie/questions at or above the working directory, then in questions under the config dir that holds profiles.json, and tries NAME.yaml, NAME.yml and NAME.json. Last it takes the starter sets built into onesie, which list as built in. A name in more than one place lists only the first, which is the one -f uses, so a saved copy of a built in set wins. A name with two files in one directory is listed once per file and marked as a clash, which -f refuses.
+
+Usage:
+  onesie questions [flags]
+
+Examples:
+  mkdir -p .onesie/questions
+  onesie --ask urgent='is this urgent' --print-questions > .onesie/questions/triage.yaml
+  onesie questions
+
+Flags:
+  -h, --help            help for questions
+  -o, --output string   table, json or auto, which means table
+
+Global Flags:
+      --profile string    the profile a run uses, from profiles.json in the config dir. Also ONESIE_PROFILE, and otherwise the default profile, which onesie profile use sets
+      --provider string   run on this provider without a profile, typesafe, openrouter, berget, levanto or cloudflare. Overrides ONESIE_PROVIDER

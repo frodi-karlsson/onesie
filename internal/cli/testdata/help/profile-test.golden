@@ -1,0 +1,14 @@
+Call the provider's models endpoint with the key of the named profile, or of what a run would use when given no name, which costs no tokens.
+
+On openrouter profile test also reads /v1/key under the base URL, which costs nothing and refuses a bad key, so a proxy set as the base URL must serve it too. Berget lists its models to any key, so on berget profile test also asks one small question with the profile's model, which spends a few tokens.
+
+Usage:
+  onesie profile test [NAME] [flags]
+
+Flags:
+      --allow-http   send the request, and any API key, over a plain http base URL to a host other than this machine. Without it such a base URL exits 2 before any request
+  -h, --help         help for test
+
+Global Flags:
+      --profile string    the profile a run uses, from profiles.json in the config dir. Also ONESIE_PROFILE, and otherwise the default profile, which onesie profile use sets
+      --provider string   run on this provider without a profile, typesafe, openrouter, berget, levanto or cloudflare. Overrides ONESIE_PROVIDER

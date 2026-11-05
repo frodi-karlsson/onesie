@@ -13,8 +13,6 @@ import (
 )
 
 const (
-	allowHTTPHelp = "send the request, and any API key, over a plain http base URL to a host other than this " +
-		"machine. Without it such a base URL exits 2 before any request"
 	plainHTTPReason = ", so the request, and any API key, would cross the network unencrypted"
 	sendPlainHTTP   = ". Use https, or pass --" + flagAllowHTTP + " to send it anyway"
 	storePlainHTTP  = ". Use https, or pass --" + flagAllowHTTP + " to store it, and every run on the profile " +

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"slices"
 	"strings"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/jq"
 	"github.com/frodi-karlsson/onesie/internal/output"
 	"github.com/frodi-karlsson/onesie/internal/plan"
+	setting "github.com/frodi-karlsson/onesie/internal/settings"
 )
 
 const flagCuts = "cuts"
@@ -71,43 +73,20 @@ func newCalibrateCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 		},
 	}
 
-	for _, name := range []string{"ask", "pick", "rate", "box", "desc", "sep"} {
-		cmd.Flags().Var(groupFlag(recorder, name), name, groupFlagHelp[name])
-	}
-
-	cmd.Flags().Lookup("box").NoOptDefVal = argv.Bare
-
-	cmd.Flags().Var(nonEmptyList{values: &calib.labels}, "label",
-		"[ID=]EXPR, a jq expression run on the record, not on the mapped state, whose result is the "+
-			"right answer for question ID. A question with none is skipped. With one question ID= may be "+
-			"left out")
-	cmd.Flags().StringVar(&calib.cuts, flagCuts, "",
-		"comma separated cuts between 0 and 1. Defaults to 0.05 to 0.95 in steps of 0.05")
-	cmd.Flags().StringArrayVar(&calib.requires, "require", nil,
-		"[lower|upper](ID.MEASURE) OP NUMBER [at CUT], a requirement the report must meet, or calibrate "+
-			"exits 1. Repeatable")
-	cmd.Flags().BoolVar(&calib.offline, "offline", false,
-		"with --out and --resume, read every answer from the file and ask nothing, needing no key")
-	cmd.Flags().StringVarP(&calib.report, "output", "o", "", "the report, table, json or auto, which means table")
-	refuseEmpty(cmd.Flags(), "output")
-	cmd.Flags().StringVarP(&calib.input, flagInput, "i", "", "required, jsonl, csv or tsv")
-	refuseEmpty(cmd.Flags(), flagInput)
-
-	addRunFlags(cmd.Flags(), flags, runFlagHelp{
-		image:      "NAME=PATH, repeatable, puts a PNG or JPEG in every record's state under NAME. Experimental on TypeSafe's side",
-		imageField: "repeatable, a state key whose value is a path to a PNG or JPEG, read per record. Experimental on TypeSafe's side",
-		mapSource: "jq expression run on each record, whose result is the state sent. Map only the text a person " +
-			"would read",
-		idSource:  "jq expression run on each record, whose string or number result names it",
-		out:       "write the answers to this file as -o json lines",
-		resume:    "with --out and --id, skip the ids the file already answers",
-		prune:     "with --resume, drop the answered ids the input no longer has",
-		skipBlank: "drop blank lines",
-		usage:     "add the api usage object to the answers file and the json report",
-		delimiter: "field separator for -i csv: auto, or one character. Defaults to a comma",
-	})
+	setting.Register(cmd.Flags(), nil, setting.Table(), recorder, setting.CommandCalibrate,
+		calibrateTargets(flags, calib))
 
 	return cmd
+}
+
+func calibrateTargets(flags *runFlags, calib *calibrateFlags) map[setting.Name]any {
+	targets := runTargets(flags)
+	maps.Copy(targets, map[setting.Name]any{
+		setting.Output.Name(): &calib.report, setting.Input.Name(): &calib.input, "label": &calib.labels,
+		setting.Cuts.Name(): &calib.cuts, "require": &calib.requires, setting.Offline.Name(): &calib.offline,
+	})
+
+	return targets
 }
 
 func calibrateLong() string {

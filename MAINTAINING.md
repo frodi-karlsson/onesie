@@ -79,6 +79,7 @@ internal/formula/     renders the Homebrew formula for a release from its checks
 internal/input/       resolves where the state comes from and reads it
 internal/interrupt/   stops waiting on a read that has no deadline when the run is interrupted
 internal/jq/          compiles and runs the jq expressions --map and --id take
+internal/jsonschema/  the JSON Schema nodes the question file schema is built from, with properties kept in order
 internal/limits/      the constants --version reports
 internal/mock/        reads a file of canned answers and checks it against the questions a run asks
 internal/num/         writes and rounds the numbers onesie prints, the same in every output mode
@@ -88,6 +89,7 @@ internal/plan/        folds a recorded command line into a validated invocation
 internal/proseblocks/ splits Go comments and Markdown into blocks of prose, one per comment group, paragraph or list item
 internal/qfile/       loads and writes a question file or a raw request body
 internal/release/     orders release tags by semver and edits the plugin manifests in place
+internal/settings/    every run setting as one row: its flags, variables, file key, profile members, kind and help
 internal/skillcheck/  dry runs each skill rule's bad and good example, and checks the prose flags against --help and the punctuation of the docs
 internal/skilleval/   extracts and grades the commands of a plugin eval run
 internal/skillgen/    decodes and validates skill.json and renders the skill files

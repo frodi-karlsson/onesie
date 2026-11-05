@@ -1,0 +1,11 @@
+Remove a profile from profiles.json, then its keychain item, unless another profile names the same item. Deleting the default leaves no default, and deleting the last profile removes the file.
+
+Usage:
+  onesie profile delete NAME [flags]
+
+Flags:
+  -h, --help   help for delete
+
+Global Flags:
+      --profile string    the profile a run uses, from profiles.json in the config dir. Also ONESIE_PROFILE, and otherwise the default profile, which onesie profile use sets
+      --provider string   run on this provider without a profile, typesafe, openrouter, berget, levanto or cloudflare. Overrides ONESIE_PROVIDER
