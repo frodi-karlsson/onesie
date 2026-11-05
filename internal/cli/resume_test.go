@@ -47,6 +47,24 @@ func TestResumed(t *testing.T) {
 
 	runResumeCases(t, []resumeCase{
 		{
+			name:  "should refuse a resume after --usage was added",
+			stdin: idRecords(1, 2),
+			runs: []resumeRun{
+				{
+					args:     []string{"-i", "jsonl", "-o", "json"},
+					input:    idRecords(1, 1),
+					wantFile: "{\"model\":\"m\",\"answer\":{\"value\":0.5}}\n",
+					wantSent: []string{`{"id":1}`},
+				},
+				{
+					args:       []string{"-i", "jsonl", "-o", "json", "--resume", "--usage"},
+					wantCode:   ExitUsage,
+					wantFile:   "{\"model\":\"m\",\"answer\":{\"value\":0.5}}\n",
+					wantStderr: "--usage changed since",
+				},
+			},
+		},
+		{
 			name:  "should ask a trailing stored error line again under --stop-on-error and carry on",
 			stdin: idRecords(1, 4),
 			runs: []resumeRun{

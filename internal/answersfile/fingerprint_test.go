@@ -103,6 +103,8 @@ func TestFingerprint(t *testing.T) {
 			Provider: "typesafe", Model: "m", MapSource: ".body", IDSource: ".id", Output: "csv", Input: "csv",
 			MergeKey: "onesie", Assert: "urgent", AbstainIf: "urgent > 0.5", SkipBlank: true,
 			Images: []string{"square.png"}, Delimiter: input.Delimiter{Comma: ';'}, LongContext: true, Mock: true,
+			BaseURL: "https://onesie.example.com/v1", AccountID: strings.Repeat("ab", 16), Profile: "work",
+			Usage: true,
 		}
 
 		got, err := Fingerprint(questions, wired, every)
@@ -135,6 +137,67 @@ func TestFingerprint(t *testing.T) {
 
 		if got.olderColumns == "" || got.Matches(got.olderColumns) {
 			t.Errorf("older columns sum %q, want one that is set and is not a match", got.olderColumns)
+		}
+	})
+
+	sumChanges := []struct {
+		name   string
+		change func(*FingerprintInputs)
+		part   string
+	}{
+		{name: "should change the sum when the base URL changes", change: func(in *FingerprintInputs) {
+			in.BaseURL = "https://onesie.example.com"
+		}, part: "base_url"},
+		{name: "should change the sum when the cloudflare account changes", change: func(in *FingerprintInputs) {
+			in.AccountID = strings.Repeat("ab", 16)
+		}, part: "account_id"},
+		{name: "should change the sum when usage is turned on", change: func(in *FingerprintInputs) {
+			in.Usage = true
+		}, part: "usage"},
+		{name: "should change the sum when the profile changes", change: func(in *FingerprintInputs) {
+			in.Profile = "work"
+		}, part: "profile"},
+	}
+
+	for _, tc := range sumChanges {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			changed := inputs
+			tc.change(&changed)
+
+			before, err := Fingerprint(questions, wired, inputs)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			after, err := Fingerprint(questions, wired, changed)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if got := after.changedFrom(sumsOf(t, before)); !reflect.DeepEqual(got, []string{partLabel(tc.part)}) {
+				t.Errorf("changed = %q, want only %q", got, partLabel(tc.part))
+			}
+
+			if partLabel(tc.part) == "" {
+				t.Errorf("part %s has no label for the stale message", tc.part)
+			}
+		})
+	}
+
+	t.Run("should leave the sum alone for the provider's own base URL", func(t *testing.T) {
+		t.Parallel()
+
+		got, err := Fingerprint(questions, wired, inputs)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		for _, part := range []string{"base_url=", "account_id=", "profile=", "usage="} {
+			if strings.Contains(got.String(), part) {
+				t.Errorf("fingerprint %q carries %s, want none for a run on the defaults", got, part)
+			}
 		}
 	})
 
@@ -309,4 +372,15 @@ func TestStaleAnswersError(t *testing.T) {
 			}
 		})
 	}
+}
+
+func sumsOf(t *testing.T, fingerprint Print) map[string]string {
+	t.Helper()
+
+	_, sums, ok := parsePrint(fingerprint.String())
+	if !ok {
+		t.Fatalf("parsing the fingerprint %q", fingerprint)
+	}
+
+	return sums
 }

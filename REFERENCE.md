@@ -342,11 +342,15 @@ onesie calibrate -f shell-safety -i jsonl --map .command --id .id \
   the first such record, which ends the run. A record that already has the key `state` ends it too.
 - `--out` writes to a file with a fingerprint beside it, and a lock so two runs cannot share it.
 - `--resume` refuses with exit 2 when a change would alter what a record is asked or what its line
-  holds: the questions or their policy flags, the provider, the model, the images, long context,
-  `--mock`, the input or output format, `--delimiter`, `--map`, `--id`, `--merge-key`, `--assert`
-  or `--abstain-if`. `--skip-blank` counts too when a resume counts lines, which is without `--id`
-  on any input but csv and tsv. The refusal names each of them that changed, as in
-  `the model and -o changed since answers.jsonl was written`.
+  holds: the questions or their policy flags, the provider, the profile, the base URL, the
+  cloudflare account, the model, the images, long context, `--mock`, `--usage`, the input or output
+  format, `--delimiter`, `--map`, `--id`, `--merge-key`, `--assert` or `--abstain-if`. `--skip-blank`
+  counts too when a resume counts lines, which is without `--id` on any input but csv and tsv. The
+  refusal names each of them that changed, as in `the model and -o changed since answers.jsonl was
+  written`.
+- The base URL counts only when it is custom, and the cloudflare account counts wherever it came
+  from, a profile or `CLOUDFLARE_ACCOUNT_ID`. A mock run counts neither, since it ignores both.
+  `calibrate` leaves `--usage` out, so a calibration resumes with or without it.
 - The fingerprint keeps one sum for each of them. A fingerprint with one sum for all three resumes
   when nothing changed, and a change there reads `the questions, model or flags changed`. `-j`,
   `--timeout`, `--retries`, `--cache` and `--unordered` can change between runs.

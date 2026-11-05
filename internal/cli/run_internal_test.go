@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"reflect"
 	"runtime"
 	"strings"
 	"testing"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/answer"
+	"github.com/frodi-karlsson/onesie/internal/answersfile"
 	"github.com/frodi-karlsson/onesie/internal/assert"
 	"github.com/frodi-karlsson/onesie/internal/engine"
 	"github.com/frodi-karlsson/onesie/internal/input"
@@ -368,4 +370,96 @@ func (resultAnswerer) salt(recordKey) (string, bool) {
 
 type resultAnswerer struct {
 	result func() *onesie.Result
+}
+
+func TestRunInputs(t *testing.T) {
+	t.Parallel()
+
+	account := strings.Repeat("ab", 16)
+	other := strings.Repeat("cd", 16)
+
+	tests := []struct {
+		name   string
+		chosen resolution
+		flags  runConfig
+		env    map[string]string
+		want   answersfile.FingerprintInputs
+	}{
+		{
+			name:   "should leave the base URL empty for the provider's own",
+			chosen: resolution{provider: onesie.TypeSafe()},
+			want:   answersfile.FingerprintInputs{Provider: "typesafe"},
+		},
+		{
+			name:   "should leave the base URL empty when --base-url names the provider's own",
+			chosen: resolution{provider: onesie.TypeSafe()},
+			flags:  runConfig{runFlags: runFlags{baseURL: onesie.TypeSafe().DefaultBaseURL() + "/"}},
+			want:   answersfile.FingerprintInputs{Provider: "typesafe"},
+		},
+		{
+			name:   "should fingerprint --base-url",
+			chosen: resolution{provider: onesie.TypeSafe()},
+			flags:  runConfig{runFlags: runFlags{baseURL: "https://onesie.example.com/"}},
+			want:   answersfile.FingerprintInputs{Provider: "typesafe", BaseURL: "https://onesie.example.com"},
+		},
+		{
+			name:   "should fingerprint ONESIE_BASE_URL",
+			chosen: resolution{provider: onesie.TypeSafe()},
+			env:    map[string]string{envBaseURL: "https://onesie.example.com"},
+			want:   answersfile.FingerprintInputs{Provider: "typesafe", BaseURL: "https://onesie.example.com"},
+		},
+		{
+			name:   "should fingerprint a profile's base URL and name",
+			chosen: resolution{provider: onesie.TypeSafe(), profile: "work", baseURL: "https://onesie.example.com"},
+			want: answersfile.FingerprintInputs{
+				Provider: "typesafe", Profile: "work", BaseURL: "https://onesie.example.com",
+			},
+		},
+		{
+			name:   "should fingerprint the cloudflare account from the environment",
+			chosen: resolution{provider: onesie.Cloudflare()},
+			env:    map[string]string{"CLOUDFLARE_ACCOUNT_ID": account},
+			want:   answersfile.FingerprintInputs{Provider: "cloudflare", AccountID: account},
+		},
+		{
+			name:   "should fingerprint a profile's cloudflare account over the environment's",
+			chosen: resolution{provider: onesie.Cloudflare(), profile: "edge", accountID: other},
+			env:    map[string]string{"CLOUDFLARE_ACCOUNT_ID": account},
+			want:   answersfile.FingerprintInputs{Provider: "cloudflare", Profile: "edge", AccountID: other},
+		},
+		{
+			name:   "should leave out the base URL a mock run ignores",
+			chosen: resolution{provider: onesie.TypeSafe()},
+			flags: runConfig{
+				runFlags: runFlags{baseURL: "https://onesie.example.com"}, mockPath: "m.json", mockSpelled: "--mock",
+			},
+			want: answersfile.FingerprintInputs{Provider: "typesafe", Mock: true},
+		},
+		{
+			name:   "should leave --usage to the caller, since calibrate does not fingerprint it",
+			chosen: resolution{provider: onesie.TypeSafe()},
+			flags:  runConfig{runFlags: runFlags{usage: true}},
+			want:   answersfile.FingerprintInputs{Provider: "typesafe"},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			settings := rootSettings{
+				holder:    &holder{resolved: func() (resolution, error) { return tc.chosen, nil }},
+				lookupEnv: lookupFrom(tc.env),
+			}
+
+			got, err := runInputs(settings, tc.flags, answersfile.FingerprintInputs{})
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if !reflect.DeepEqual(got, tc.want) {
+				t.Errorf("inputs = %+v, want %+v", got, tc.want)
+			}
+		})
+	}
 }

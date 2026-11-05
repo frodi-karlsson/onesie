@@ -88,6 +88,10 @@ func printedRun(questions []plan.Question, wired json.Marshaler, inputs Fingerpr
 
 		FallbackColumns: !inputs.withoutFallbackColumns && delimitedOutput(inputs.Output) && hasFallback(questions),
 		Mock:            inputs.Mock,
+		BaseURL:         inputs.BaseURL,
+		AccountID:       inputs.AccountID,
+		Profile:         inputs.Profile,
+		Usage:           inputs.Usage,
 	}
 }
 
@@ -125,6 +129,12 @@ type runPrint struct {
 	FallbackColumns bool `json:"fallback_columns,omitempty"`
 	// A mock run and a real run never resume each other's file.
 	Mock bool `json:"mock,omitempty"`
+	// Empty on the defaults, so a file written on the provider's own base URL with no profile and no
+	// usage keeps its sum.
+	BaseURL   string `json:"base_url,omitempty"`
+	AccountID string `json:"account_id,omitempty"`
+	Profile   string `json:"profile,omitempty"`
+	Usage     bool   `json:"usage,omitempty"`
 }
 
 func partSums(encoded []byte) ([]partSum, error) {
@@ -223,6 +233,12 @@ type FingerprintInputs struct {
 
 	LongContext bool
 	Mock        bool
+	// BaseURL is empty for the provider's own base URL. AccountID is the cloudflare account the
+	// base URL is built from.
+	BaseURL   string
+	AccountID string
+	Profile   string
+	Usage     bool
 
 	withoutFallbackColumns bool
 }
@@ -341,6 +357,14 @@ func partLabel(name string) string {
 		return "--mock"
 	case "delimiter":
 		return "--delimiter"
+	case "base_url":
+		return "the base URL"
+	case "account_id":
+		return "the account id"
+	case "profile":
+		return "the profile"
+	case "usage":
+		return "--usage"
 	default:
 		return ""
 	}
