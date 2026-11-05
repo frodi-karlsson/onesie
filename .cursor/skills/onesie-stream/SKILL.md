@@ -46,7 +46,7 @@ Output keeps input order under any `-j`, so line N answers record N. A failed re
 
 ### Under --merge read answers from .answers, and rename it with --merge-key if the record has one.
 
-Answers sit at the top level keyed by question id. `--merge` folds them under an `answers` key instead, and `--merge-key` renames that key, which matters when the record already has one called `answers`. Folding only means something in a structured output, so `-o table`, `-o raw` and `-o markdown` are rejected under `--merge`.
+Answers sit at the top level keyed by question id. `--merge` folds them under an `answers` key instead, and `--merge-key` renames that key, which matters when the record already has one called `answers`. A record that is not an object merges as `{"state":RECORD,"answers":ANSWERS}`, so `--merge-key state` exits 2 on it. Folding only means something in a structured output, so `-o table`, `-o raw` and `-o markdown` are rejected under `--merge`.
 
 ### On live input, filter each line on its answer, since a stream's exit code arrives only at the end.
 
@@ -114,7 +114,7 @@ onesie 'is this urgent' -i jsonl --map '.body' --id '.id'
 
 ### Write a long stream with --out and rerun it with --resume and --id after a failure.
 
-Pass `--resume` from the first run, since a missing or empty `--out` file starts fresh. After a failure, rerun with the same `--out` and `--id`: the run skips every id the file answers and asks the rest, failed records included. `-j`, `--timeout` and `--retries` may change between runs. Exit 2 names what changed, such as the model or `--map`, so put it back, or drop `--resume` and start over. A record whose content changed under the same id keeps its old answer. The rest is under Streams in [REFERENCE.md](https://github.com/frodi-karlsson/onesie/blob/main/REFERENCE.md#streams). A full resume: `onesie 'is this urgent' -i jsonl -j 8 --map '.body' --id '.id' --out answers.jsonl --resume < tickets.jsonl`.
+Pass `--resume` from the first run, since a missing or empty `--out` file starts fresh. After a failure, rerun with the same `--out` and `--id`: the run skips every id the file answers and asks the rest, failed records included. `-j`, `--timeout` and `--retries` may change between runs. Exit 2 names what changed, such as the model, `--map`, the profile, a custom base URL, the cloudflare account or `--usage`, so put it back, or drop `--resume` and start over. A record whose content changed under the same id keeps its old answer. The rest is under Streams in [REFERENCE.md](https://github.com/frodi-karlsson/onesie/blob/main/REFERENCE.md#streams). A full resume: `onesie 'is this urgent' -i jsonl -j 8 --map '.body' --id '.id' --out answers.jsonl --resume < tickets.jsonl`.
 
 ### Dedup shares a request within one run, --cache shares it across runs, and --resume skips the ids an --out file already answers.
 

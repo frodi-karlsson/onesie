@@ -2,11 +2,13 @@ package cli
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 	"sync/atomic"
 
 	"github.com/spf13/cobra"
@@ -24,6 +26,9 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/plan"
 	"github.com/frodi-karlsson/onesie/internal/qfile"
 )
+
+var errWrapRepeated = errors.New("--merge wraps an input that is not an object under 'state', " +
+	"so --merge-key state would repeat that key. Pass another --merge-key")
 
 func run(
 	cmd *cobra.Command,
@@ -103,7 +108,7 @@ func runRequestBodies(
 	// Each body names its own model or takes the run's, and the fingerprint holds no model, as
 	// it holds nothing else a body carries.
 	if bindErr := bindOut(out, settings, flags, nil, answersfile.FingerprintInputs{
-		Input: flags.inputMode.String(), LongContext: flags.env.longContext,
+		Input: flags.inputMode.String(), LongContext: flags.env.longContext, Usage: flags.usage,
 	}); bindErr != nil {
 		return bindErr
 	}
@@ -136,7 +141,7 @@ func runPlan(
 
 	// Both modes are parsed before the request, so a mistyped flag costs nothing.
 	outputMode, err := output.ParseMode(
-		outputName(flags), settings.stdoutTTY, inputMode.Streaming(), merging(flags))
+		outputName(flags), settings.stdoutTTY && flags.out == "", inputMode.Streaming(), merging(flags))
 	if err != nil {
 		return err
 	}
@@ -146,6 +151,7 @@ func runPlan(
 	bindErr := bindOut(out, settings, flags, built.Questions, answersfile.FingerprintInputs{
 		Model: model, Output: outputMode.String(), Input: inputMode.String(), Assert: gate.Source(),
 		AbstainIf: abstain.Source(), Images: inv.images.fingerprint(), LongContext: built.LongContext,
+		Usage: flags.usage,
 	})
 	if bindErr != nil {
 		return bindErr
@@ -233,6 +239,10 @@ func runOne(
 		return fmt.Errorf(
 			"--merge would overwrite the input's '%s' key. Pass --merge-key",
 			mergeKey(flags))
+	}
+
+	if merging(flags) && wrapsUnderKey(resolved.Raw, resolved.Wire, mergeKey(flags)) {
+		return errWrapRepeated
 	}
 
 	return withStats(cmd, settings.now, flags, func(stats *collector) error {
@@ -405,8 +415,33 @@ func runInputs(settings rootSettings, flags runConfig, inputs answersfile.Finger
 	inputs.SkipBlank = flags.skipBlank && !resumesByID(flags.runFlags) && !delimitedInput(inputs.Input)
 	inputs.Mock = flags.mockPath != ""
 	inputs.Delimiter = flags.parsedDelimiter
+	inputs.Profile = chosen.profile
+
+	// A mock run ignores the base URL and the account.
+	if !inputs.Mock {
+		inputs.BaseURL, inputs.AccountID = endpointOf(chosen, flags.baseURL, settings.lookupEnv)
+	}
 
 	return inputs, nil
+}
+
+func endpointOf(chosen resolution, baseURLFlag string, lookupEnv func(string) (string, bool)) (baseURL, account string) {
+	_, given := chosen.givenBaseURL(baseURLFlag, lookupEnv)
+
+	resolved, source, err := chosen.provider.ResolveBaseURL(given, chosen.accountID, lookupEnv)
+
+	switch {
+	case err != nil:
+		// The client refuses the same base URL before any request, so this fingerprint is never kept.
+		return strings.TrimSpace(given), ""
+	case source == onesie.BaseURLFromAccount:
+		return "", cmp.Or(chosen.accountID, setVariable(lookupEnv, chosen.provider.EnvAccountID()))
+	case chosen.provider.CustomBaseURL(resolved) || chosen.provider.EnvAccountID() != "":
+		// A cloudflare account URL given whole is the provider's own, yet it names the account.
+		return resolved, ""
+	default:
+		return "", ""
+	}
 }
 
 func resumesByID(flags runFlags) bool {
@@ -541,6 +576,10 @@ func rowLine(record output.Record, rec namedRecord) line {
 	return line{record: record, raw: rec.Raw, state: rec.Wire, header: rec.Header, fields: fields}
 }
 
+func wrapsUnderKey(raw string, wire any, key string) bool {
+	return key == wrapKey && output.Wraps(raw, wire)
+}
+
 func hasKey(state any, key string) bool {
 	object, ok := state.(map[string]any)
 	if !ok {
@@ -642,7 +681,25 @@ func stoppedAtInput(cause error) bool {
 func aborting(err error) bool {
 	// Every later record would fail the same way, so a bad key is reported on one line for the
 	// whole run.
-	return authFailure(err) || halting(err)
+	return authFailure(err) || halting(err) || repeatsKey(err)
+}
+
+func repeatsKey(err error) bool {
+	var repeated *repeatedKeyError
+
+	return errors.As(err, &repeated)
+}
+
+type repeatedKeyError struct {
+	cause error
+}
+
+func (e *repeatedKeyError) Error() string {
+	return e.cause.Error()
+}
+
+func (e *repeatedKeyError) Unwrap() error {
+	return e.cause
 }
 
 func ask(

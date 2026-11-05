@@ -74,6 +74,7 @@ func TestOpenOut(t *testing.T) {
 		env         map[string]string
 		bare        bool
 		questions   string
+		tty         bool
 
 		emptySidecar     bool
 		sidecarDir       bool
@@ -645,12 +646,12 @@ func TestOpenOut(t *testing.T) {
 		{
 			name:        "should say a newer onesie wrote a fingerprint of a later version",
 			existing:    "keep me\n",
-			sidecar:     "v4:" + strings.Repeat("0", 64),
+			sidecar:     "v5:" + strings.Repeat("0", 64),
 			args:        []string{"is this urgent", "-i", "jsonl", "--resume"},
 			stdin:       input,
 			wantCode:    ExitUsage,
 			wantFile:    "keep me\n",
-			wantSidecar: "v4:" + strings.Repeat("0", 64),
+			wantSidecar: "v5:" + strings.Repeat("0", 64),
 			wantErr:     "a newer onesie wrote",
 		},
 		{
@@ -673,6 +674,18 @@ func TestOpenOut(t *testing.T) {
 			wantFile:    "keep me\n",
 			wantSidecar: "v2:" + strings.Repeat("0", 64),
 			wantErr:     "the questions, model or flags changed since",
+		},
+		{
+			name:     "should write json to --out on a terminal under -o auto",
+			noFile:   true,
+			tty:      true,
+			bare:     true,
+			args:     []string{"is this urgent", "--state", "the server is down", "-o", "auto"},
+			wantFile: "{\"model\":\"m\",\"answer\":{\"value\":0.5}}\n",
+			wantSidecar: fingerprintWith(t, plan.Source{Positional: "is this urgent"}, answersfile.FingerprintInputs{
+				Provider: "typesafe", Model: onesie.TypeSafe().DefaultModel(), Output: "json", Input: "text",
+			}),
+			wantCalls: 1,
 		},
 		{
 			name:     "should write no fingerprint beside a question file",
@@ -745,7 +758,7 @@ func TestOpenOut(t *testing.T) {
 				BuildInfo{Version: "1.2.3"},
 				WithStdin(strings.NewReader(tc.stdin)),
 				WithStdinTTY(false),
-				WithStdoutTTY(false),
+				WithStdoutTTY(tc.tty),
 				withKeychain(noKeychain()),
 				WithLookupEnv(lookupFrom(tc.env)),
 				WithClientFactory(stubFactory(baseFor(srv.URL, tc.unreached))),
@@ -927,7 +940,7 @@ func TestFingerprint(t *testing.T) {
 				Assert:    "answer.p.billing > 0.5",
 				AbstainIf: "answer.p.billing > 0.2",
 			},
-			want: "v3:questions=4f579ab51a6fa46b,policies=ec9e72eadbbaf292," +
+			want: "v4:questions=4f579ab51a6fa46b,policies=ec9e72eadbbaf292," +
 				"provider=6a454e47a7eb49a1,model=93d926fb5a12ad7d,map=26404ed58953e2d4," +
 				"id=5152f15b7c76274f,output=82cacb7d3298441d,input=fd309d2a6fbf0a72," +
 				"merge_key=e1f273b2f00df9f2,assert=9147762d071485b5," +
@@ -947,7 +960,7 @@ func TestFingerprint(t *testing.T) {
 			inputs: answersfile.FingerprintInputs{
 				Provider: "typesafe", Model: "jev-latest", Output: "json", Input: "jsonl", MergeKey: "answers",
 			},
-			want: "v3:questions=4f579ab51a6fa46b,policies=ec9e72eadbbaf292," +
+			want: "v4:questions=4f579ab51a6fa46b,policies=ec9e72eadbbaf292," +
 				"provider=6a454e47a7eb49a1,model=93d926fb5a12ad7d,map=12ae32cb1ec02d01," +
 				"id=12ae32cb1ec02d01,output=4e23b392048439ac,input=fd309d2a6fbf0a72," +
 				"merge_key=e1f273b2f00df9f2,assert=12ae32cb1ec02d01," +
@@ -958,7 +971,7 @@ func TestFingerprint(t *testing.T) {
 			name:   "should keep a csv fingerprint with no fallback",
 			source: plan.Source{Positional: "is this urgent"},
 			inputs: answersfile.FingerprintInputs{Provider: "typesafe", Model: "jev-latest", Output: "csv", Input: "csv"},
-			want: "v3:questions=f842cc73c9dd84a0,policies=f99b13fd4eeef9c6," +
+			want: "v4:questions=f842cc73c9dd84a0,policies=f99b13fd4eeef9c6," +
 				"provider=6a454e47a7eb49a1,model=93d926fb5a12ad7d,map=12ae32cb1ec02d01," +
 				"id=12ae32cb1ec02d01,output=82cacb7d3298441d,input=82cacb7d3298441d," +
 				"merge_key=12ae32cb1ec02d01,assert=12ae32cb1ec02d01," +

@@ -146,6 +146,11 @@ func (r *streamRun) evaluate(ctx context.Context, rec namedRecord) (line, error)
 }
 
 func (r *streamRun) lineFor(ctx context.Context, rec namedRecord) (line, error) {
+	// Ahead of the failures below, since their lines wrap the record under state too.
+	if merging(r.flags) && !r.delimited && wrapsUnderKey(rec.Raw, rec.Wire, mergeKey(r.flags)) {
+		return r.halt(rec, wrapRepeated(rec))
+	}
+
 	if rec.Err != nil {
 		// A line onesie could not read is a record that never became a request, and it
 		// carried no questions to the wire either.
@@ -194,6 +199,13 @@ func (r *streamRun) failed(rec namedRecord, cause error) (line, error) {
 }
 
 func (r *streamRun) mergeCollision(rec namedRecord) (line, error) {
+	overwrite := fmt.Errorf("--merge would overwrite the input's '%s' key, pass --merge-key", mergeKey(r.flags))
+
+	// The failure line wraps the record under state, so under that key it would repeat the key too.
+	if mergeKey(r.flags) == wrapKey {
+		return r.halt(rec, overwrite)
+	}
+
 	r.stats.recordFailure(nil, false, 0)
 
 	// Detected here rather than inside Write, since the engine counts a failure from the evaluator's
@@ -201,10 +213,7 @@ func (r *streamRun) mergeCollision(rec namedRecord) (line, error) {
 	//
 	// A LineError gets kind input rather than the transport default from describe, so --stop-on-error
 	// reaches the row, and the line number comes along without a onesie prefix inside the JSON.
-	taken := &input.LineError{
-		Line: rec.Line,
-		Err:  fmt.Errorf("--merge would overwrite the input's '%s' key, pass --merge-key", mergeKey(r.flags)),
-	}
+	taken := &input.LineError{Line: rec.Line, Err: overwrite}
 
 	return line{
 		record: failureRecord(r.built, taken),
@@ -213,6 +222,29 @@ func (r *streamRun) mergeCollision(rec namedRecord) (line, error) {
 		// survives.
 		state: json.RawMessage(compact(rec.Raw)),
 	}, taken
+}
+
+func (r *streamRun) halt(rec namedRecord, cause error) (line, error) {
+	r.stats.recordFailure(nil, false, 0)
+
+	return line{halted: true}, &input.LineError{Line: rec.Line, Err: &repeatedKeyError{cause: cause}}
+}
+
+func wrapRepeated(rec namedRecord) error {
+	var cause error
+
+	switch {
+	case rec.Err != nil:
+		// The line number comes from the halt, so the record's own one is dropped.
+		cause = rec.Err.Err
+	case rec.idErr != nil:
+		cause = rec.idErr
+	default:
+		return errWrapRepeated
+	}
+
+	return fmt.Errorf("--merge-key %s cannot write this failed record, since its line wraps under %s: %w",
+		wrapKey, wrapKey, cause)
 }
 
 func (r *streamRun) ask(ctx context.Context, rec namedRecord, sent any, assets onesie.Assets) (line, error) {

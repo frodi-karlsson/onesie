@@ -45,7 +45,60 @@ func TestResumed(t *testing.T) {
 		Assert: "answer.value > 0.9", AbstainIf: "answer.value > 0.6",
 	})
 
+	jsonPrint := fingerprintWith(t, plan.Source{Positional: "is this urgent"}, answersfile.FingerprintInputs{
+		Provider: "typesafe", Model: onesie.TypeSafe().DefaultModel(), Output: "json", Input: "jsonl",
+	})
+	firstMock, secondMock := writeMock(t, `{"answer": 0.1}`), writeMock(t, `{"answer": 0.2}`)
+	jsonLine := "{\"model\":\"m\",\"answer\":{\"value\":0.5}}\n"
+
 	runResumeCases(t, []resumeCase{
+		{
+			name:     "should resume a version 3 file under --usage",
+			existing: &jsonLine,
+			sidecar:  "v3:" + strings.TrimPrefix(jsonPrint, "v4:"),
+			stdin:    idRecords(1, 2),
+			runs: []resumeRun{
+				{
+					args: []string{"-i", "jsonl", "-o", "json", "--resume", "--usage"},
+					wantFile: jsonLine +
+						"{\"model\":\"m\",\"usage\":{\"input_tokens\":0,\"output_tokens\":0},\"answer\":{\"value\":0.5}}\n",
+					wantSent: []string{`{"id":2}`},
+				},
+			},
+		},
+		{
+			name:  "should resume with a different --mock file",
+			stdin: idRecords(1, 2),
+			runs: []resumeRun{
+				{
+					args:     []string{"-i", "jsonl", "-o", "values", "--mock", firstMock},
+					input:    idRecords(1, 1),
+					wantFile: "{\"answer\":0.1}\n",
+				},
+				{
+					args:     []string{"-i", "jsonl", "-o", "values", "--resume", "--mock", secondMock},
+					wantFile: "{\"answer\":0.1}\n{\"answer\":0.2}\n",
+				},
+			},
+		},
+		{
+			name:  "should refuse a resume after --usage was added",
+			stdin: idRecords(1, 2),
+			runs: []resumeRun{
+				{
+					args:     []string{"-i", "jsonl", "-o", "json"},
+					input:    idRecords(1, 1),
+					wantFile: "{\"model\":\"m\",\"answer\":{\"value\":0.5}}\n",
+					wantSent: []string{`{"id":1}`},
+				},
+				{
+					args:       []string{"-i", "jsonl", "-o", "json", "--resume", "--usage"},
+					wantCode:   ExitUsage,
+					wantFile:   "{\"model\":\"m\",\"answer\":{\"value\":0.5}}\n",
+					wantStderr: "--usage changed since",
+				},
+			},
+		},
 		{
 			name:  "should ask a trailing stored error line again under --stop-on-error and carry on",
 			stdin: idRecords(1, 4),

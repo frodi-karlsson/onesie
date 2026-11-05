@@ -26,7 +26,7 @@ func TestFingerprint(t *testing.T) {
 		}
 
 		names := []string{}
-		for _, part := range strings.Split(strings.TrimPrefix(got.String(), "v3:"), ",") {
+		for _, part := range strings.Split(strings.TrimPrefix(got.String(), "v4:"), ",") {
 			name, sum, _ := strings.Cut(part, "=")
 			if len(sum) != 2*partSumLength {
 				t.Errorf("part %s has the sum %q, want %d hex digits", name, sum, 2*partSumLength)
@@ -103,6 +103,8 @@ func TestFingerprint(t *testing.T) {
 			Provider: "typesafe", Model: "m", MapSource: ".body", IDSource: ".id", Output: "csv", Input: "csv",
 			MergeKey: "onesie", Assert: "urgent", AbstainIf: "urgent > 0.5", SkipBlank: true,
 			Images: []string{"square.png"}, Delimiter: input.Delimiter{Comma: ';'}, LongContext: true, Mock: true,
+			BaseURL: "https://onesie.example.com/v1", AccountID: strings.Repeat("ab", 16), Profile: "work",
+			Usage: true,
 		}
 
 		got, err := Fingerprint(questions, wired, every)
@@ -135,6 +137,118 @@ func TestFingerprint(t *testing.T) {
 
 		if got.olderColumns == "" || got.Matches(got.olderColumns) {
 			t.Errorf("older columns sum %q, want one that is set and is not a match", got.olderColumns)
+		}
+	})
+
+	sumChanges := []struct {
+		name   string
+		change func(*FingerprintInputs)
+		part   string
+	}{
+		{name: "should change the sum when the base URL changes", change: func(in *FingerprintInputs) {
+			in.BaseURL = "https://onesie.example.com"
+		}, part: "base_url"},
+		{name: "should change the sum when the cloudflare account changes", change: func(in *FingerprintInputs) {
+			in.AccountID = strings.Repeat("ab", 16)
+		}, part: "account_id"},
+		{name: "should change the sum when usage is turned on", change: func(in *FingerprintInputs) {
+			in.Usage = true
+		}, part: "usage"},
+		{name: "should change the sum when the profile changes", change: func(in *FingerprintInputs) {
+			in.Profile = "work"
+		}, part: "profile"},
+	}
+
+	for _, tc := range sumChanges {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			changed := inputs
+			tc.change(&changed)
+
+			before, err := Fingerprint(questions, wired, inputs)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			after, err := Fingerprint(questions, wired, changed)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if got := after.changedFrom(sumsOf(t, before), fingerprintVersion); !reflect.DeepEqual(got, []string{partLabel(tc.part)}) {
+				t.Errorf("changed = %q, want only %q", got, partLabel(tc.part))
+			}
+
+			if partLabel(tc.part) == "" {
+				t.Errorf("part %s has no label for the stale message", tc.part)
+			}
+		})
+	}
+
+	versions := []struct {
+		name      string
+		stored    func(Print) string
+		wantMatch bool
+		wantStale []string
+	}{
+		{
+			name:      "should resume a version 3 file under a profile",
+			stored:    func(p Print) string { return "v3:" + strings.TrimPrefix(p.String(), "v4:") },
+			wantMatch: true,
+		},
+		{
+			name:      "should resume a version 2 file under a profile",
+			stored:    func(p Print) string { return p.older },
+			wantMatch: true,
+		},
+		{
+			name:      "should refuse a changed profile on a version 4 file",
+			stored:    Print.String,
+			wantStale: []string{"the profile"},
+		},
+	}
+
+	for _, tc := range versions {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			before, err := Fingerprint(questions, wired, inputs)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			profiled := inputs
+			profiled.Profile = "work"
+
+			current, err := Fingerprint(questions, wired, profiled)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			stored := tc.stored(before)
+			if got := current.Matches(stored); got != tc.wantMatch {
+				t.Errorf("Matches(%q) = %v, want %v", stored, got, tc.wantMatch)
+			}
+
+			if _, changed, _ := staleReason(stored, true, current); !reflect.DeepEqual(changed, tc.wantStale) {
+				t.Errorf("changed = %q, want %q", changed, tc.wantStale)
+			}
+		})
+	}
+
+	t.Run("should leave the sum alone for the provider's own base URL", func(t *testing.T) {
+		t.Parallel()
+
+		got, err := Fingerprint(questions, wired, inputs)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		for _, part := range []string{"base_url=", "account_id=", "profile=", "usage="} {
+			if strings.Contains(got.String(), part) {
+				t.Errorf("fingerprint %q carries %s, want none for a run on the defaults", got, part)
+			}
 		}
 	})
 
@@ -193,6 +307,11 @@ func TestStaleReason(t *testing.T) {
 			want:   ForeignFingerprint, wantStale: true,
 		},
 		{
+			name: "should refuse a version 3 fingerprint that names a part version 4 added", found: true,
+			stored: "v3:questions=" + strings.Repeat("ab", 8) + ",profile=" + strings.Repeat("cd", 8),
+			want:   ForeignFingerprint, wantStale: true,
+		},
+		{
 			name: "should accept the run's own fingerprint written in uppercase hex", found: true,
 			stored: "v3:questions=" + strings.Repeat("AB", 8) + ",model=" + strings.Repeat("CD", 8),
 		},
@@ -204,7 +323,7 @@ func TestStaleReason(t *testing.T) {
 			name: "should refuse an older version", stored: "v1:" + strings.Repeat("ab", 32), found: true,
 			want: OlderFingerprint, wantStale: true,
 		},
-		{name: "should refuse a newer version", stored: "v4:x", found: true, want: NewerFingerprint, wantStale: true},
+		{name: "should refuse a newer version", stored: "v5:x", found: true, want: NewerFingerprint, wantStale: true},
 		{
 			name: "should name the older columns when a version 2 sum is theirs", stored: current.olderColumns,
 			found: true, want: OlderColumns, wantStale: true,
@@ -309,4 +428,15 @@ func TestStaleAnswersError(t *testing.T) {
 			}
 		})
 	}
+}
+
+func sumsOf(t *testing.T, fingerprint Print) map[string]string {
+	t.Helper()
+
+	_, sums, ok := parsePrint(fingerprint.String())
+	if !ok {
+		t.Fatalf("parsing the fingerprint %q", fingerprint)
+	}
+
+	return sums
 }

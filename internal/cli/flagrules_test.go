@@ -486,6 +486,20 @@ func TestCheckFlags(t *testing.T) {
 			wantErr: "--merge-key does not apply to -o tsv, which puts the answers in columns",
 		},
 		{
+			name:    "should refuse --merge-key state under -i text",
+			flags:   runFlags{mergeKey: "state", input: "text", jobs: 1},
+			wantErr: "--merge-key state does not apply to -i text, which wraps every record under a state key",
+		},
+		{
+			name:    "should refuse --merge-key state under -i lines",
+			flags:   runFlags{mergeKey: "state", input: "lines", jobs: 1},
+			wantErr: "--merge-key state does not apply to -i lines, which wraps every record under a state key",
+		},
+		{
+			name:  "should accept --merge-key state under -i jsonl",
+			flags: runFlags{mergeKey: "state", input: "jsonl", jobs: 1},
+		},
+		{
 			name:    "should reject --usage with -q",
 			flags:   runFlags{input: "text", quiet: true, usage: true, jobs: 1},
 			wantErr: "--usage does not apply to -q, which suppresses output",

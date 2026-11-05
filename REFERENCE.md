@@ -11,6 +11,9 @@ prints the built in limits.
   Under `--threshold` the table writes the decision with the probability after it, as in
   `answer: yes (0.93)`, and `-o markdown` writes the decision as `yes` or `no` beside the
   probability. An answer a fallback replaced reads `answer: no (fallback)` in the table.
+- `-o auto`, the default, follows where the output goes. It writes the table when one record's
+  answers go to a terminal, and json lines otherwise: through a pipe, on a stream, under `--merge`
+  and into an `--out` file, even when stdout is a terminal.
 - Every output format writes each number of an answer as `-o json` does. A number the provider
   sent prints as sent, never rounded. A number onesie computes itself, such as `norm` or a mock's
   `p` and `score`, is rounded to four places. A printed number is the one a gate compares.
@@ -336,16 +339,29 @@ onesie calibrate -f shell-safety -i jsonl --map .command --id .id \
   separated by definition and the rest have no delimiter. `-o csv --merge` from `-i csv` writes with
   the input's separator, given or detected, while plain `-o csv` and a merge from `-i tsv` keep
   commas.
+- `--merge` folds the answers into an input that is an object. Any other input, such as a text
+  state, a line of `-i lines`, a jsonl string or a line onesie could not read, merges as
+  `{"state":INPUT,"answers":ANSWERS}`, so `--merge-key state` exits 2: before any request under
+  `-i text` and `-i lines`, and otherwise at the first such record, which ends the run. A record
+  that already has the key `state` ends it too.
 - `--out` writes to a file with a fingerprint beside it, and a lock so two runs cannot share it.
 - `--resume` refuses with exit 2 when a change would alter what a record is asked or what its line
-  holds: the questions or their policy flags, the provider, the model, the images, long context,
-  `--mock`, the input or output format, `--delimiter`, `--map`, `--id`, `--merge-key`, `--assert`
-  or `--abstain-if`. `--skip-blank` counts too when a resume counts lines, which is without `--id`
-  on any input but csv and tsv. The refusal names each of them that changed, as in
-  `the model and -o changed since answers.jsonl was written`.
+  holds: the questions or their policy flags, the provider, the profile, the base URL, the
+  cloudflare account, the model, the images, long context, `--mock`, `--usage`, the input or output
+  format, `--delimiter`, `--map`, `--id`, `--merge-key`, `--assert` or `--abstain-if`. `--skip-blank`
+  counts too when a resume counts lines, which is without `--id` on any input but csv and tsv. The
+  refusal names each of them that changed, as in `the model and -o changed since answers.jsonl was
+  written`.
+- The base URL counts only when it is custom, and the cloudflare account counts wherever it came
+  from, a profile or `CLOUDFLARE_ACCOUNT_ID`. A mock run counts neither, since it ignores both.
+  `calibrate` leaves `--usage` out, so a calibration resumes with or without it.
 - The fingerprint keeps one sum for each of them. A fingerprint with one sum for all three resumes
   when nothing changed, and a change there reads `the questions, model or flags changed`. `-j`,
   `--timeout`, `--retries`, `--cache` and `--unordered` can change between runs.
+- A fingerprint without a sum for the profile, the base URL, the cloudflare account and `--usage`
+  resumes without comparing those four, and a resumed run writes a fingerprint with all of them in
+  its place. A fingerprint with them compares each, so a profile set on one run and not the other
+  counts as a change.
 - A resume needs a fingerprint format this onesie reads. Any other format is refused with exit 2,
   and the message names the fingerprint file. A csv or tsv file also needs the fallback columns,
   below.
@@ -963,11 +979,11 @@ table, and `onesie calibrate --help` lists the codes calibrate uses.
 - `--long-context`, or `ONESIE_LONG_CONTEXT=1`, raises the context limits to 262k tokens, which is
   slower and less accurate. It is written into a printed body as `long_context`, so a replay keeps
   it, and a `-f` body's `long_context: true` turns it on with no flag. A body's `false` does not
-  turn off the flag or the variable. The flag wins over the variable, so `--long-context=false`
-  turns it off for one run under `ONESIE_LONG_CONTEXT=1`, as `--cache=false` does for the cache.
-  It does not turn off a body's `long_context: true`, from `-f` or under `-i request`, since the
-  body asks for it itself. Set that key to `false` in the body, or remove it, to run without it.
-  `-i request` follows the same order for each body it replays, and under `--print-request` it
+  turn off the flag or the variable. The flag wins over the variable and over a `-f` body, so
+  `--long-context=false` turns it off for one run under `ONESIE_LONG_CONTEXT=1` or on a body with
+  `long_context: true`, as `--cache=false` does for the cache. `-i request` forwards each body as
+  it is, so a body's `long_context: true` holds there whatever the flag says. Set that key to
+  `false` in the body, or remove it, to run without it. Under `--print-request`, `-i request`
   writes `"long_context":true` into a body the flag or the variable turns it on for. A provider
   that takes no long context refuses the run with exit 2, `--print-request` included, and when
   `ONESIE_LONG_CONTEXT` turned it on, the message says so. It is experimental.

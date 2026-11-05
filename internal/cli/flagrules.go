@@ -14,7 +14,10 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
-const lineField = "line"
+const (
+	lineField = "line"
+	wrapKey   = "state"
+)
 
 var errNoQuestion = errors.New("no question given. Pass a question, --ask, or -f")
 
@@ -474,8 +477,8 @@ func abstainFlag(config runConfig, facts runFacts) string {
 
 func checkStreaming(config runConfig) (string, error) {
 	// Checked for every mode, since --merge applies to the non streaming ones too.
-	if merging(config) && !mergeable(config) {
-		return "", fmt.Errorf("%s needs -o json, values, csv or tsv", mergeName(config))
+	if err := checkMerge(config); err != nil {
+		return "", err
 	}
 
 	if err := checkDelimited(config); err != nil {
@@ -564,6 +567,19 @@ func checkStreaming(config runConfig) (string, error) {
 	}
 
 	return "", nil
+}
+
+func checkMerge(config runConfig) error {
+	if merging(config) && !mergeable(config) {
+		return fmt.Errorf("%s needs -o json, values, csv or tsv", mergeName(config))
+	}
+
+	if config.mergeKey != wrapKey || (config.input != "text" && config.input != "lines") {
+		return nil
+	}
+
+	return fmt.Errorf("--merge-key %s does not apply to -i %s, which wraps every record under a %s key",
+		wrapKey, config.input, wrapKey)
 }
 
 func tooManySeconds(flag string, seconds int, set bool) error {

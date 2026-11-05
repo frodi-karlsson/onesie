@@ -18,7 +18,8 @@ import (
 )
 
 const (
-	fingerprintVersion = 3
+	fingerprintVersion = 4
+	partsVersion       = 3
 	olderVersion       = 2
 	partSumLength      = 8
 )
@@ -50,10 +51,15 @@ func Fingerprint(questions []plan.Question, wired json.Marshaler, inputs Fingerp
 		return Print{}, fmt.Errorf("fingerprinting the run: %w", err)
 	}
 
-	fingerprint := Print{parts: parts, older: olderSum(encoded)}
+	older, err := json.Marshal(printedRun(questions, wired, beforeVersion4(inputs)))
+	if err != nil {
+		return Print{}, fmt.Errorf("fingerprinting the run: %w", err)
+	}
+
+	fingerprint := Print{parts: parts, older: olderSum(older)}
 
 	if delimitedOutput(inputs.Output) && hasFallback(questions) {
-		without := inputs
+		without := beforeVersion4(inputs)
 		without.withoutFallbackColumns = true
 
 		encoded, err = json.Marshal(printedRun(questions, wired, without))
@@ -65,6 +71,12 @@ func Fingerprint(questions []plan.Question, wired json.Marshaler, inputs Fingerp
 	}
 
 	return fingerprint, nil
+}
+
+func beforeVersion4(inputs FingerprintInputs) FingerprintInputs {
+	inputs.BaseURL, inputs.AccountID, inputs.Profile, inputs.Usage = "", "", "", false
+
+	return inputs
 }
 
 func printedRun(questions []plan.Question, wired json.Marshaler, inputs FingerprintInputs) runPrint {
@@ -88,6 +100,10 @@ func printedRun(questions []plan.Question, wired json.Marshaler, inputs Fingerpr
 
 		FallbackColumns: !inputs.withoutFallbackColumns && delimitedOutput(inputs.Output) && hasFallback(questions),
 		Mock:            inputs.Mock,
+		BaseURL:         inputs.BaseURL,
+		AccountID:       inputs.AccountID,
+		Profile:         inputs.Profile,
+		Usage:           inputs.Usage,
 	}
 }
 
@@ -125,6 +141,11 @@ type runPrint struct {
 	FallbackColumns bool `json:"fallback_columns,omitempty"`
 	// A mock run and a real run never resume each other's file.
 	Mock bool `json:"mock,omitempty"`
+	// Added in version 4. A file of an older version resumes without comparing them.
+	BaseURL   string `json:"base_url,omitempty"`
+	AccountID string `json:"account_id,omitempty"`
+	Profile   string `json:"profile,omitempty"`
+	Usage     bool   `json:"usage,omitempty"`
 }
 
 func partSums(encoded []byte) ([]partSum, error) {
@@ -176,7 +197,7 @@ type Print struct {
 	olderColumns string
 }
 
-// String writes each part's sum after the version, as v3:assert=SUM,id=SUM, in the order the run's
+// String writes each part's sum after the version, as v4:assert=SUM,id=SUM, in the order the run's
 // parts come in.
 func (p Print) String() string {
 	written := make([]string, 0, len(p.parts))
@@ -223,6 +244,12 @@ type FingerprintInputs struct {
 
 	LongContext bool
 	Mock        bool
+	// BaseURL is empty for the provider's own base URL. AccountID is the cloudflare account the
+	// base URL is built from.
+	BaseURL   string
+	AccountID string
+	Profile   string
+	Usage     bool
 
 	withoutFallbackColumns bool
 }
@@ -276,20 +303,24 @@ func staleReason(stored string, found bool, current Print) (StaleReason, []strin
 		return ChangedRun, nil, true
 	}
 
-	if changed := current.changedFrom(sums); len(changed) > 0 {
+	if changed := current.changedFrom(sums, version); len(changed) > 0 {
 		return ChangedRun, changed, true
 	}
 
 	return 0, nil, false
 }
 
-func (p Print) changedFrom(stored map[string]string) []string {
+func (p Print) changedFrom(stored map[string]string, version int) []string {
 	var changed []string
 
 	seen := make(map[string]bool, len(p.parts))
 
 	for _, part := range p.parts {
 		seen[part.name] = true
+
+		if version < fingerprintVersion && addedInVersion4(part.name) {
+			continue
+		}
 
 		if stored[part.name] != part.sum {
 			changed = append(changed, partLabel(part.name))
@@ -341,6 +372,14 @@ func partLabel(name string) string {
 		return "--mock"
 	case "delimiter":
 		return "--delimiter"
+	case "base_url":
+		return "the base URL"
+	case "account_id":
+		return "the cloudflare account"
+	case "profile":
+		return "the profile"
+	case "usage":
+		return "--usage"
 	default:
 		return ""
 	}
@@ -429,8 +468,8 @@ func parsePrint(stored string) (version int, sums map[string]string, ok bool) {
 		decoded, err := hex.DecodeString(rest)
 
 		return version, nil, err == nil && len(decoded) == sha256.Size
-	case fingerprintVersion:
-		sums, ok := parseSums(rest)
+	case partsVersion, fingerprintVersion:
+		sums, ok := parseSums(rest, version)
 
 		return version, sums, ok
 	}
@@ -438,14 +477,15 @@ func parsePrint(stored string) (version int, sums map[string]string, ok bool) {
 	return version, nil, true
 }
 
-func parseSums(written string) (map[string]string, bool) {
+func parseSums(written string, version int) (map[string]string, bool) {
 	sums := map[string]string{}
 
 	for _, part := range strings.Split(written, ",") {
 		name, sum, found := strings.Cut(part, "=")
 		decoded, err := hex.DecodeString(sum)
 
-		if !found || partLabel(name) == "" || err != nil || len(decoded) != partSumLength {
+		known := partLabel(name) != "" && (version >= fingerprintVersion || !addedInVersion4(name))
+		if !found || !known || err != nil || len(decoded) != partSumLength {
 			return nil, false
 		}
 
@@ -457,4 +497,13 @@ func parseSums(written string) (map[string]string, bool) {
 	}
 
 	return sums, true
+}
+
+func addedInVersion4(name string) bool {
+	switch name {
+	case "base_url", "account_id", "profile", "usage":
+		return true
+	default:
+		return false
+	}
 }

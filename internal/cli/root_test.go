@@ -66,7 +66,17 @@ func TestNewRootCmd(t *testing.T) {
 		contains []string
 		absent   []string
 		sends    []string
+		tty      bool
 	}{
+		{
+			name:     "should keep a table on a terminal with no --out",
+			args:     []string{"is this urgent", "--state", "site down"},
+			response: answered,
+			tty:      true,
+			wantCode: cli.ExitOK,
+			contains: []string{"answer"},
+			absent:   []string{`{"`},
+		},
 		{
 			name:     "should refuse -q under -o markdown",
 			args:     []string{"is this urgent", "-o", "markdown", "-q"},
@@ -201,6 +211,107 @@ func TestNewRootCmd(t *testing.T) {
 			response: answered,
 			wantCode: cli.ExitUsage,
 			contains: []string{"onesie: --merge-key is empty. Name one, or leave the flag out"},
+		},
+		{
+			name:     "should refuse --merge-key state on a text state",
+			args:     []string{"is this urgent", "--state", "hi", "--merge-key", "state"},
+			response: answered,
+			wantCode: cli.ExitUsage,
+			contains: []string{
+				"onesie: --merge-key state does not apply to -i text, which wraps every record under a state key",
+			},
+			absent: []string{`"state":"hi"`},
+		},
+		{
+			name:     "should refuse --merge-key state on a json state that is not an object",
+			args:     []string{"is this urgent", "-i", "json", "--state", `"hi"`, "--merge-key", "state"},
+			response: answered,
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: --merge wraps an input that is not an object under 'state', " +
+				"so --merge-key state would repeat that key. Pass another --merge-key"},
+			absent: []string{`"state":"hi"`},
+		},
+		{
+			name:     "should refuse --merge-key state on a jsonl object that has a state key",
+			args:     []string{"is this urgent", "-i", "jsonl", "--merge-key", "state"},
+			stdin:    "{\"state\":1}\n",
+			response: answered,
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: line 1: --merge would overwrite the input's 'state' key, pass --merge-key"},
+			absent:   []string{`{"state":{"state":1}`},
+		},
+		{
+			name:     "should refuse --merge-key state on a jsonl record that is not an object",
+			args:     []string{"is this urgent", "-i", "jsonl", "--merge-key", "state"},
+			stdin:    "{\"a\":1}\n\"hello\"\n",
+			response: answered,
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: line 2: --merge wraps an input that is not an object under 'state', " +
+				"so --merge-key state would repeat that key. Pass another --merge-key"},
+			absent: []string{`"state":"hello"`},
+		},
+		{
+			name:     "should refuse --merge-key state on a jsonl line onesie could not read",
+			args:     []string{"is this urgent", "-i", "jsonl", "--merge-key", "state"},
+			stdin:    "{\"a\":\n",
+			response: answered,
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: line 1: --merge-key state cannot write this failed record, since its line " +
+				"wraps under state: line is not one complete JSON value"},
+			absent: []string{`"state":{"error"`},
+		},
+		{
+			name:     "should refuse --merge-key state on a scalar whose --id fails",
+			args:     []string{"is this urgent", "-i", "jsonl", "--id", ".id", "--merge-key", "state"},
+			stdin:    "\"hello\"\n",
+			response: answered,
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: line 1: --merge-key state cannot write this failed record, since its line " +
+				"wraps under state: --id fails: expected an object"},
+			absent: []string{`"state":{"error"`},
+		},
+		{
+			name:     "should refuse --merge-key state on a csv row onesie could not read",
+			args:     []string{"is this urgent", "-i", "csv", "-o", "json", "--merge-key", "state"},
+			stdin:    "a,b\n\"1,2\n",
+			response: answered,
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: line 2: --merge-key state cannot write this failed record, since its line " +
+				"wraps under state: row is not valid csv"},
+			absent: []string{`"state":{"error"`},
+		},
+		{
+			name:     "should merge a csv row under --merge-key state",
+			args:     []string{"is this urgent", "-i", "csv", "-o", "json", "--merge-key", "state"},
+			stdin:    "a,b\n1,2\n",
+			response: answered,
+			wantCode: cli.ExitOK,
+			contains: []string{`"state":{`},
+		},
+		{
+			name:     "should merge --map .body on an object under --merge-key state",
+			args:     []string{"is this urgent", "-i", "jsonl", "--map", ".body", "--merge-key", "state"},
+			stdin:    "{\"body\":\"hi\"}\n",
+			response: answered,
+			wantCode: cli.ExitOK,
+			contains: []string{`{"body":"hi","state":{`},
+		},
+		{
+			name:     "should refuse --map on a scalar record under --merge-key state",
+			args:     []string{"is this urgent", "-i", "jsonl", "--map", ".", "--merge-key", "state"},
+			stdin:    "\"hello\"\n",
+			response: answered,
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: line 1: --merge wraps an input that is not an object under 'state'"},
+			absent:   []string{`"state":"hello"`},
+		},
+		{
+			name:     "should merge --merge-key state into a jsonl object",
+			args:     []string{"is this urgent", "-i", "jsonl", "--merge-key", "state"},
+			stdin:    "{\"a\":1}\n",
+			response: answered,
+			wantCode: cli.ExitOK,
+			contains: []string{`{"a":1,"state":{`},
 		},
 		{
 			name:     "should refuse an empty --map on a stream",
@@ -1761,7 +1872,7 @@ func TestNewRootCmd(t *testing.T) {
 				}),
 				cli.WithStdin(strings.NewReader(tc.stdin)),
 				cli.WithStdinTTY(false),
-				cli.WithStdoutTTY(false),
+				cli.WithStdoutTTY(tc.tty),
 				cli.WithArgs(tc.args),
 				cli.WithLookupEnv(func(string) (string, bool) { return "", false }),
 				cli.WithReadFile(func(name string) ([]byte, error) {

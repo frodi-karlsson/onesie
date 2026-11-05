@@ -49,7 +49,7 @@ func build(settings rootSettings, flags runConfig, ignoreFileJudgment bool) (*in
 		built.Model = file.loaded.Model
 	}
 
-	built.LongContext = flags.env.longContext || (file.loaded != nil && file.loaded.LongContext)
+	built.LongContext = longContextOf(flags, file)
 
 	warnings, err := validatePlan(built, flags, file.facts)
 	if err != nil {
@@ -59,6 +59,15 @@ func build(settings rootSettings, flags runConfig, ignoreFileJudgment bool) (*in
 	inv, err := invocationOf(settings, flags, built, file)
 
 	return inv, warnings, err
+}
+
+func longContextOf(flags runConfig, file buildFile) bool {
+	if flags.longContextSet {
+		return flags.longContext
+	}
+
+	// A body's false cannot be told from no key, so only its true counts.
+	return flags.env.longContext || (file.loaded != nil && file.loaded.LongContext)
 }
 
 func readBuildFile(settings rootSettings, flags runConfig, ignoreFileJudgment bool) (buildFile, error) {
