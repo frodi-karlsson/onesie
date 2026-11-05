@@ -17,9 +17,8 @@ const (
 	providerName Name = "provider"
 )
 
-// Read reads every source of rows into one layer per source, the highest source first. A value from
-// a file, a variable or a profile whose row has no effect in the run's mode is left out, while a
-// typed flag is kept for the rules to refuse.
+// Read reads every source of rows into one layer each, the highest first. A file, variable or profile
+// value whose row has no effect in the run's mode is left out, and a typed flag is kept.
 func Read(rows []Row, src Sources) ([]Layer, error) {
 	flags, err := readFlags(rows, src.Given, src.Facts.Command)
 	if err != nil {

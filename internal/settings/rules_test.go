@@ -424,11 +424,23 @@ func TestValidate(t *testing.T) {
 			name       string
 			set        values
 			typed      []settings.Name
+			fromFile   []settings.Name
 			events     []argv.Event
 			positional string
 			facts      settings.Facts
 			wantErr    string
 		}{
+			{
+				name:     "should ignore an assertion the merge took from the file with --print-request",
+				set:      values{"assert": []string{"answer.value > 0.5"}, "print_request": true, "file": "q.yaml", "input": "text"},
+				fromFile: []settings.Name{"assert"},
+			},
+			{
+				name:     "should name the file's key when the merge took the abstain expression from the file",
+				set:      values{"abstain_if": []string{"answer.value > 0.4"}, "file": "q.yaml", "input": "text"},
+				fromFile: []settings.Name{"abstain_if"},
+				wantErr:  "'abstain_if' needs --assert, since without one every record is a yes",
+			},
 			{
 				name:    "should refuse --image with -i request",
 				set:     values{"image": []string{"photo=photo.png"}, "input": "request", "jobs": 1},
@@ -1030,7 +1042,10 @@ func TestValidate(t *testing.T) {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 
-				given := run{set: tc.set, typed: tc.typed, events: tc.events, positional: tc.positional, facts: tc.facts}
+				given := run{
+					set: tc.set, typed: tc.typed, fromFile: tc.fromFile, events: tc.events, positional: tc.positional,
+					facts: tc.facts,
+				}
 
 				warnings, _, err := settings.Validate(given.view(t), settings.Rules())
 
@@ -1554,6 +1569,7 @@ type run struct {
 	set        values
 	typed      []settings.Name
 	fromEnv    []settings.Name
+	fromFile   []settings.Name
 	events     []argv.Event
 	positional string
 	file       []plan.Question
@@ -1570,7 +1586,7 @@ func (r run) view(t *testing.T) settings.View {
 		merged.Set(name, value, r.sourceOf(name))
 	}
 
-	for _, name := range slices.Concat(r.typed, r.fromEnv) {
+	for _, name := range slices.Concat(r.typed, r.fromEnv, r.fromFile) {
 		if _, set := r.set[name]; !set {
 			merged.Set(name, nil, r.sourceOf(name))
 		}
@@ -1600,6 +1616,8 @@ func (r run) sourceOf(name settings.Name) settings.Source {
 		return settings.SourceFlag
 	case slices.Contains(r.fromEnv, name):
 		return settings.SourceEnv
+	case slices.Contains(r.fromFile, name):
+		return settings.SourceFile
 	default:
 		return settings.SourceDefault
 	}
