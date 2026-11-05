@@ -3,6 +3,8 @@ package settings
 import (
 	"strconv"
 
+	"github.com/frodi-karlsson/onesie-go"
+
 	"github.com/frodi-karlsson/onesie/internal/argv"
 	"github.com/frodi-karlsson/onesie/internal/limits"
 	"github.com/frodi-karlsson/onesie/internal/plan"
@@ -562,6 +564,10 @@ func profileRows() []Row {
 func envRows() []Row {
 	return []Row{
 		{
+			Name: "api_key", Kind: NonEmptyText(), Modes: connecting(), Env: keyVariables(),
+			Help: "the key for the provider a run without a profile uses",
+		},
+		{
 			Name: "cache_ttl", Kind: Duration(), Modes: answering(),
 			Env: []EnvSpec{{Name: "ONESIE_CACHE_TTL", Order: 12, Help: "how long a cached answer for a model alias " +
 				"lives, `24h` unless set"}},
@@ -579,6 +585,19 @@ func envRows() []Row {
 			Help: "where the response cache lives",
 		},
 	}
+}
+
+func keyVariables() []EnvSpec {
+	var variables []EnvSpec
+
+	for _, provider := range onesie.Providers() {
+		variables = append(variables, EnvSpec{
+			Name: provider.EnvAPIKey(), Provider: provider.Name(), Order: 1,
+			Help: "the key for each provider on a run without a profile, as in Profiles and providers",
+		})
+	}
+
+	return variables
 }
 
 func onRoot() []Command {

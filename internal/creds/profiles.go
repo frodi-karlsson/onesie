@@ -324,6 +324,35 @@ type Profile struct {
 	Model     string `json:"model,omitempty"`
 }
 
+// FileMembers returns every member of profiles.json with its meaning, in the order Profiles and
+// Profile declare them. Members that only make sense together share one entry.
+func FileMembers() []Member {
+	return []Member{
+		{Keys: []string{"default"}, Meaning: "the profile a run uses when nothing else chooses one. Optional"},
+		{Keys: []string{"profiles"}, Meaning: "name to profile. May be empty"},
+		{Keys: []string{"provider"}, Meaning: providers.CodeNames() + ". Required"},
+		{Keys: []string{"api_key"}, Meaning: "the key, held in the file"},
+		{
+			Keys:    []string{"store", "account"},
+			Meaning: "`keychain` and the keychain item's name, for a key held in the keychain",
+		},
+		{
+			Keys: []string{"key_end"},
+			Meaning: "the last four characters of a keychain key of 16 characters or more, so `profile show` " +
+				"tells two keys apart without reading the keychain",
+		},
+		{Keys: []string{"base_url"}, Meaning: "the API root the profile's runs use"},
+		{Keys: []string{"account_id"}, Meaning: providers.WithAccounts() + " only, the account, 32 hexadecimal characters"},
+		{Keys: []string{"model"}, Meaning: "the model a run uses when it names none"},
+	}
+}
+
+// Member is one entry of the profiles.json member table: the members it names and what they mean.
+type Member struct {
+	Keys    []string
+	Meaning string
+}
+
 // InvalidProfilesError means a profiles file, or a credential file being converted, does not parse
 // or breaks a rule. Kind names the file. It names the rule, never a key.
 type InvalidProfilesError struct {

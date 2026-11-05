@@ -2,8 +2,11 @@ package settings_test
 
 import (
 	"fmt"
+	"slices"
 	"testing"
 
+	"github.com/frodi-karlsson/onesie-go"
+	"github.com/frodi-karlsson/onesie/internal/creds"
 	"github.com/frodi-karlsson/onesie/internal/settings"
 )
 
@@ -111,11 +114,11 @@ func TestTable(t *testing.T) {
 			},
 		},
 		{
-			name: "should keep env names unique per provider and their order unique",
+			name: "should keep env names unique per provider, and give an order to one row and one help",
 			check: func(rows []settings.Row) []string {
 				var problems []string
 
-				names, orders := map[string]settings.Name{}, map[int]string{}
+				names, orders := map[string]settings.Name{}, map[int]settings.Row{}
 
 				for _, row := range rows {
 					for _, env := range row.Env {
@@ -126,11 +129,13 @@ func TestTable(t *testing.T) {
 
 						names[spelled] = row.Name
 
-						if other, taken := orders[env.Order]; taken {
-							problems = append(problems, fmt.Sprintf("order %d is both %s and %s", env.Order, other, env.Name))
+						if other, taken := orders[env.Order]; taken && other.Name != row.Name {
+							problems = append(problems, fmt.Sprintf("order %d is both %s and %s", env.Order, other.Name, row.Name))
+						} else if taken && !sharesHelp(other, env) {
+							problems = append(problems, fmt.Sprintf("order %d of %s holds two helps", env.Order, row.Name))
 						}
 
-						orders[env.Order] = env.Name
+						orders[env.Order] = row
 
 						if env.Help == "" {
 							problems = append(problems, env.Name+" has no help")
@@ -149,6 +154,48 @@ func TestTable(t *testing.T) {
 				for _, row := range rows {
 					if row.FileKey != "" && row.FileHelp == "" {
 						problems = append(problems, fmt.Sprintf("%s has file key %s and no file help", row.Name, row.FileKey))
+					}
+				}
+
+				return problems
+			},
+		},
+		{
+			name: "should name only members FileMembers holds",
+			check: func(rows []settings.Row) []string {
+				var problems []string
+
+				var members []string
+				for _, member := range creds.FileMembers() {
+					members = append(members, member.Keys...)
+				}
+
+				for _, row := range rows {
+					for _, member := range row.Profile {
+						if !slices.Contains(members, member.Key) {
+							problems = append(problems, fmt.Sprintf("%s names %s, which FileMembers lacks", row.Name, member.Key))
+						}
+					}
+				}
+
+				return problems
+			},
+		},
+		{
+			name: "should give every provider's key variable to the api_key row",
+			check: func(rows []settings.Row) []string {
+				var problems []string
+
+				row, found := settings.Lookup("api_key")
+				if !found || len(row.Env) == 0 {
+					return []string{"no api_key row with variables"}
+				}
+
+				for _, provider := range onesie.Providers() {
+					if !slices.Contains(row.Env, settings.EnvSpec{
+						Name: provider.EnvAPIKey(), Provider: provider.Name(), Order: row.Env[0].Order, Help: row.Env[0].Help,
+					}) {
+						problems = append(problems, provider.EnvAPIKey()+" is not a variable of the api_key row")
 					}
 				}
 
@@ -198,6 +245,16 @@ func TestTable(t *testing.T) {
 			}
 		})
 	}
+}
+
+func sharesHelp(row settings.Row, env settings.EnvSpec) bool {
+	for _, other := range row.Env {
+		if other.Order == env.Order && other.Help != env.Help {
+			return false
+		}
+	}
+
+	return true
 }
 
 func TestLookup(t *testing.T) {

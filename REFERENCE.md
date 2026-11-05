@@ -751,6 +751,7 @@ The format is stable, and the file may be written by hand. It lives in the confi
 `$ONESIE_CONFIG_DIR`, then `$XDG_CONFIG_HOME/onesie`, then `%APPDATA%\onesie` on Windows, then
 `~/.config/onesie`.
 
+<!-- settings:profile_members begin -->
 | Member | Meaning |
 |--------|---------|
 | `default` | the profile a run uses when nothing else chooses one. Optional |
@@ -762,6 +763,7 @@ The format is stable, and the file may be written by hand. It lives in the confi
 | `base_url` | the API root the profile's runs use |
 | `account_id` | cloudflare only, the account, 32 hexadecimal characters |
 | `model` | the model a run uses when it names none |
+<!-- settings:profile_members end -->
 
 - A file that does not parse or breaks a rule exits 2, naming the rule and the profile, never a key.
   A file cut short or holding a syntax error is `not valid JSON`, and valid JSON of another shape
@@ -869,6 +871,7 @@ table, and `onesie calibrate --help` lists the codes calibrate uses.
 
 ## Environment
 
+<!-- settings:environment begin -->
 | Variable | What it does |
 |----------|--------------|
 | `TYPESAFE_API_KEY`, `OPENROUTER_API_KEY`, `BERGET_API_KEY`, `LEVANTO_API_KEY`, `CLOUDFLARE_API_TOKEN` | the key for each provider on a run without a profile, as in Profiles and providers |
@@ -884,6 +887,7 @@ table, and `onesie calibrate --help` lists the codes calibrate uses.
 | `ONESIE_CACHE_DIR` | where the response cache lives |
 | `ONESIE_CACHE_TTL` | how long a cached answer for a model alias lives, `24h` unless set |
 | `ONESIE_LONG_CONTEXT` | `1` or `true` raises the context limits, as `--long-context`. It takes the values the flag takes, and anything else exits 2 |
+<!-- settings:environment end -->
 
 ## More
 
@@ -998,3 +1002,25 @@ table, and `onesie calibrate --help` lists the codes calibrate uses.
 - A flag onesie does not know exits 2, naming the closest one when one is near. A flag that belongs
   to a run, given to a subcommand, says so. `-V` takes no question, so a word beside it exits 2.
   `onesie help calibrate` prints a subcommand's help, and a topic that names no subcommand exits 2.
+
+### Question file keys
+
+A question in a question file holds its instructions in `ask`, and what a yes and a no mean in
+`yes_means` and `no_means`, or `true` and `false`. It takes the settings below as well. The file
+holds its gate at the top level, and a request body holds `model` and `long_context` beside its
+`questions`.
+
+<!-- settings:question_keys begin -->
+| Key | Where | What it does |
+|-----|-------|--------------|
+| `pick` | a question | The options, as a sequence of names or a mapping of name to description. |
+| `rate` | a question | The levels from lowest to highest, as names, one key mappings of name to description, or a mapping of name to description. |
+| `box` | a question | Makes this a box question, answered with the edges of what it finds in an image. |
+| `threshold` | a question | The yes probability a yes or no answer must reach, between 0 and 1. |
+| `min_confidence` | a question | The confidence a pick or rate answer must reach, between 0 and 1, or the fallback stands in. |
+| `fallback` | a question | The answer that stands in for one that falls short. |
+| `assert` | the file | A gate over every answer, as --assert takes it. |
+| `abstain_if` | the file | An abstain expression, as --abstain-if takes it. |
+| `model` | a request body | The model a request body asks, unless -m names one. |
+| `long_context` | a request body | Raises the context limits of the request body. Only true has an effect. |
+<!-- settings:question_keys end -->

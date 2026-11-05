@@ -191,7 +191,7 @@ func TestSchema(t *testing.T) {
 				}
 
 				if !bytes.Equal(qfile.Schema(), want) {
-					t.Errorf("%s is out of date, run go test ./internal/qfile/ -run TestSchema -update", committed)
+					t.Errorf("%s is out of date, run make settings", committed)
 				}
 			},
 		},
