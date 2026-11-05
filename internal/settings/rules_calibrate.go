@@ -25,6 +25,7 @@ func calibrateRules() []Rule {
 			return errors.New("calibrate needs --map. Without it the whole record, label included, " +
 				"would be the state, and the report would flatter the question")
 		}),
+		// Output is the report on calibrate, which reaches the rule as Facts.Report.
 		calibrating("calibrate-report", []Name{Output.Name(), PrintRequest.Name()}, checkReport),
 		calibrating("cuts-parse", []Name{Cuts.Name()}, func(v View) error {
 			if !typed(v, Cuts.Name()) {
@@ -128,7 +129,7 @@ func checkReport(v View) error {
 		return fmt.Errorf("calibrate -o takes table, json or auto, got %s", v.Facts.Report)
 	}
 
-	if Get(v.Merged, PrintRequest) && v.Facts.Report != "" {
+	if Get(v.Merged, PrintRequest) && v.Facts.ReportSet {
 		return errors.New("-o does not apply to --print-request, which writes a request body")
 	}
 

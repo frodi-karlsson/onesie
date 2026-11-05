@@ -87,6 +87,7 @@ type runConfig struct {
 
 	calibrate *calibrateFlags
 	cutsSet   bool
+	reportSet bool
 }
 
 type runFacts struct {

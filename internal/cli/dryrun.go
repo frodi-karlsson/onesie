@@ -4,10 +4,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const wrapKey = "state"
-
-// DryRunRules returns the command tree, then by long name the flags both dry runs refuse and the
-// ones only --print-questions refuses, so a tool that builds a dry run knows what to strip.
+// DryRunRules returns the command tree, then by long name the flags a tool strips before either dry
+// run and the ones it strips only before --print-questions.
 func DryRunRules() (root *cobra.Command, always, questionsOnly []string) {
 	always = []string{"output", "raw", "quiet", "usage", "merge", "merge-key", "stats", "stop-on-assert", "mock"}
 	questionsOnly = []string{

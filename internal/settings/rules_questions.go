@@ -63,7 +63,7 @@ func bodyPolicyRule() Rule {
 			// A policy flag that found no question to bind to is still a policy flag aimed at the
 			// body, since Assemble binds top level flags only when exactly one question was asked.
 			for _, event := range v.Plan.Orphans {
-				if policyFlag(event.Name) {
+				if plan.PolicyFlag(event.Name) {
 					return bodyPolicyError(Get(v.Merged, File), body)
 				}
 			}
@@ -81,18 +81,9 @@ func bodyPolicyRule() Rule {
 	}
 }
 
-func policyFlag(name string) bool {
-	switch name {
-	case "threshold", "min-confidence", "fallback":
-		return true
-	default:
-		return false
-	}
-}
-
 func bodyPolicyError(name string, questions int) error {
 	if name == "" {
-		name = "the question file"
+		name = plan.UnnamedFile
 	}
 
 	return fmt.Errorf(
@@ -142,27 +133,12 @@ func questionsValidRule() Rule {
 	return Rule{
 		ID:    "questions-valid",
 		Reads: []Name{"ask", File.Name()},
-		Check: func(v View) error {
+		Inspect: func(v View) ([]string, error) {
 			if v.Plan == nil {
-				return nil
+				return nil, nil
 			}
 
-			_, err := plan.Validate(v.Plan)
-
-			return err
-		},
-		Warn: func(v View) []string {
-			if v.Plan == nil {
-				return nil
-			}
-
-			warnings, err := plan.Validate(v.Plan)
-			if err != nil {
-				// Check reports the refusal. The warnings of the questions ahead of it still print.
-				return warnings
-			}
-
-			return warnings
+			return plan.Validate(v.Plan)
 		},
 	}
 }

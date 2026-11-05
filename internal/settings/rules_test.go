@@ -1247,6 +1247,20 @@ func TestValidate(t *testing.T) {
 		}
 	})
 
+	t.Run("should refuse a typed calibrate -o beside --print-request whatever its value", func(t *testing.T) {
+		t.Parallel()
+
+		given := run{
+			facts: settings.Facts{Command: settings.CommandCalibrate, ReportSet: true},
+			set:   values{"print_request": true},
+		}
+
+		_, _, err := settings.Validate(given.view(t), []settings.Rule{ruleByID(t, "calibrate-report")})
+		if want := "-o does not apply to --print-request, which writes a request body"; err == nil || err.Error() != want {
+			t.Errorf("error = %v, want %q", err, want)
+		}
+	})
+
 	t.Run("should leave calibrate's rules to calibrate", func(t *testing.T) {
 		t.Parallel()
 
@@ -1357,8 +1371,8 @@ func TestRules(t *testing.T) {
 				t.Helper()
 
 				for _, rule := range rules {
-					if rule.Check == nil && rule.Warn == nil && rule.Notice == nil {
-						t.Errorf("rule %s has no Check, Warn or Notice", rule.ID)
+					if rule.Check == nil && rule.Warn == nil && rule.Notice == nil && rule.Inspect == nil {
+						t.Errorf("rule %s has no Check, Warn, Notice or Inspect", rule.ID)
 					}
 				}
 			},

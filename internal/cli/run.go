@@ -543,7 +543,7 @@ func rowLine(record output.Record, rec namedRecord) line {
 }
 
 func wrapsUnderKey(raw string, wire any, key string) bool {
-	return key == wrapKey && output.Wraps(raw, wire)
+	return key == setting.WrapKey && output.Wraps(raw, wire)
 }
 
 func hasKey(state any, key string) bool {

@@ -10,7 +10,7 @@ import (
 func listModelsRule() Rule {
 	return Rule{
 		ID:    "list-models-alone",
-		Reads: readsOf([]Name{ListModels.Name()}, modeRefusals(ModeListModels)),
+		Reads: readsOf(append([]Name{ListModels.Name()}, groupNames()...), modeRefusals(ModeListModels)),
 		Check: func(v View) error {
 			if !Get(v.Merged, ListModels) {
 				return nil
@@ -79,13 +79,29 @@ func firstRefusal(v View, refusals []refusal) error {
 func readsOf(reads []Name, tables ...[]refusal) []Name {
 	for _, table := range tables {
 		for _, rule := range table {
-			if rule.setting != "" {
+			switch rule.setting {
+			case "":
+			case MergeInput.Name():
+				reads = append(reads, MergeInput.Name(), MergeKey.Name())
+			default:
 				reads = append(reads, rule.setting)
 			}
 		}
 	}
 
 	return reads
+}
+
+func groupNames() []Name {
+	var names []Name
+
+	for _, row := range Table() {
+		if row.Flag.Group {
+			names = append(names, row.Name)
+		}
+	}
+
+	return names
 }
 
 func modeRefusals(mode Mode) []refusal {
@@ -109,7 +125,7 @@ func listModelsRefusals() []refusal {
 
 	return []refusal{
 		{"", positionalGiven, says("--list-models asks no question. Drop the question argument")},
-		{"ask", anyEvent, func(v View) string {
+		{"", anyEvent, func(v View) string {
 			return "--list-models asks no question. Drop --" + v.Facts.Events[0].Name
 		}},
 		{File.Name(), filled(File), says("-f does not apply to --list-models, which asks no question")},

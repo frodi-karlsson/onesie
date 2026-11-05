@@ -144,6 +144,7 @@ func runCalibrate(
 	inputMode := flags.inputMode
 	flags.calibrate = &calib
 	flags.cutsSet = cmd.Flags().Changed(flagCuts)
+	flags.reportSet = cmd.Flags().Changed("output")
 
 	// A file's gate and policy are ignored, since calibrate reports every cut and a gated file is
 	// the one a user calibrates.

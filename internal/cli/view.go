@@ -67,7 +67,7 @@ func viewOf(config runConfig, facts runFacts, built *plan.Plan) setting.View {
 	}
 
 	if calib := config.calibrate; calib != nil {
-		viewFacts.Command, viewFacts.Report = setting.CommandCalibrate, calib.report
+		viewFacts.Command, viewFacts.Report, viewFacts.ReportSet = setting.CommandCalibrate, calib.report, config.reportSet
 		merged.Set(setting.Cuts.Name(), calib.cuts, sourceOf(config.cutsSet))
 		merged.Set("require", calib.requires, sourceOf(len(calib.requires) > 0))
 		merged.Set(setting.Offline.Name(), calib.offline, sourceOf(calib.offline))

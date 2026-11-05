@@ -1,5 +1,7 @@
 package settings
 
+import "slices"
+
 // Merged holds the value each setting takes for a run and the source that gave it, and the values
 // each question takes.
 type Merged struct {
@@ -19,6 +21,32 @@ func (m *Merged) Set(name Name, value any, source Source) {
 	}
 
 	m.values[name], m.sources[name] = value, source
+}
+
+// Names lists every setting the merge holds a value for.
+func (m *Merged) Names() []Name {
+	if m == nil {
+		return nil
+	}
+
+	names := make([]Name, 0, len(m.values))
+	for name := range m.values {
+		names = append(names, name)
+	}
+
+	slices.Sort(names)
+
+	return names
+}
+
+// Value is name's value as stored, for a caller with no Key, such as a check that every value fits
+// its row.
+func (m *Merged) Value(name Name) any {
+	if m == nil {
+		return nil
+	}
+
+	return m.values[name]
 }
 
 // Source is where name's value came from, SourceDefault when nothing gave it.

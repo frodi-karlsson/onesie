@@ -15,10 +15,10 @@ const (
 
 // Rules returns every cross setting rule, in the order Validate runs them.
 func Rules() []Rule {
-	// Calibrate's own needs lead, then the mode rules, so a flag a mode makes meaningless is named
-	// against the mode. A dry run is
-	// refused before anything it would have written reaches stdout, and a streaming -q reports the
-	// streaming message before the plan rules run.
+	// Calibrate's needs lead, so a calibration is told what it lacks first. The mode rules come next,
+	// so a flag a mode makes meaningless is named against the mode, and a dry run is refused before
+	// the output rules. The rules on one record and on a stream come before the plan rules, so a
+	// streaming -q reports the streaming message, and a second state is refused last.
 	return append(calibrateRules(),
 		noQuestionRule(), listModelsRule(), resumeRule(), pruneRule(), dryRunAndRequestRule(), delimiterRule(),
 		abstainNeedsAssertRule(), rawAndOutputRule(), quietWithMarkdownRule(), stateAndStateFileRule(),
@@ -38,6 +38,13 @@ func Validate(v View, rules []Rule) (warnings []string, notices []Notice, err er
 			warnings = append(warnings, rule.Warn(v)...)
 		}
 
+		if rule.Inspect != nil {
+			found, refusal := rule.Inspect(v)
+			if warnings = append(warnings, found...); refusal != nil {
+				return warnings, notices, refusal
+			}
+		}
+
 		if rule.Check != nil {
 			if err = rule.Check(v); err != nil {
 				return warnings, notices, err
@@ -52,14 +59,15 @@ func Validate(v View, rules []Rule) (warnings []string, notices []Notice, err er
 	return warnings, notices, nil
 }
 
-// Rule is one cross setting check. Reads names the rows it reads, Check refuses, and Warn and Notice
-// report without refusing.
+// Rule is one cross setting check. Reads names the rows it reads, Check refuses, Warn and Notice
+// report without refusing, and Inspect warns and refuses in one pass.
 type Rule struct {
-	ID     string
-	Reads  []Name
-	Check  func(View) error
-	Notice func(View) []Notice
-	Warn   func(View) []string
+	ID      string
+	Reads   []Name
+	Check   func(View) error
+	Notice  func(View) []Notice
+	Warn    func(View) []string
+	Inspect func(View) ([]string, error)
 }
 
 // Notice is a line a reporting rule writes to stderr once validation passes.
@@ -83,7 +91,8 @@ type View struct {
 }
 
 // Facts are what a rule reads about a run that no setting holds: the command, the question file's
-// gates and state, the group flags in the order typed, the positional question and calibrate's -o.
+// gates and state, the group flags in the order typed, the positional question, and calibrate's -o
+// and whether it was typed.
 type Facts struct {
 	Command                   Command
 	FileAssert, FileAbstainIf string
@@ -91,6 +100,7 @@ type Facts struct {
 	Events                    []argv.Event
 	Positional                string
 	Report                    string
+	ReportSet                 bool
 }
 
 func typed(v View, name Name) bool {

@@ -10,7 +10,8 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
-const wrapKey = "state"
+// WrapKey is the key a text or lines record wraps under, so --merge-key cannot take it there.
+const WrapKey = "state"
 
 func delimiterRule() Rule {
 	return Rule{
@@ -94,12 +95,12 @@ func mergeKeyWrapsRule() Rule {
 		Reads: []Name{MergeKey.Name(), Input.Name()},
 		Check: func(v View) error {
 			name := Get(v.Merged, Input)
-			if Get(v.Merged, MergeKey) != wrapKey || (name != "text" && name != "lines") {
+			if Get(v.Merged, MergeKey) != WrapKey || (name != "text" && name != "lines") {
 				return nil
 			}
 
 			return fmt.Errorf("--merge-key %s does not apply to -i %s, which wraps every record under a %s key",
-				wrapKey, name, wrapKey)
+				WrapKey, name, WrapKey)
 		},
 	}
 }

@@ -45,7 +45,8 @@ func Validate(p *Plan) ([]string, error) {
 	return warnings, nil
 }
 
-func policyFlag(name string) bool {
+// PolicyFlag reports whether the group flag name sets a question's policy.
+func PolicyFlag(name string) bool {
 	switch name {
 	case "threshold", "min-confidence", "fallback":
 		return true

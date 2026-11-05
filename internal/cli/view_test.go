@@ -3,6 +3,7 @@ package cli
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -654,6 +655,43 @@ func TestViewOf(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("should set only names of real rows, each holding a value its row's kind yields", func(t *testing.T) {
+		t.Parallel()
+
+		keys := map[setting.Name]setting.Keyed{}
+		for _, key := range setting.Keys() {
+			keys[key.Name()] = key
+		}
+
+		config := runConfig{calibrate: &calibrateFlags{}}
+		merged := viewOf(config, runFacts{}, nil).Merged
+
+		for _, name := range merged.Names() {
+			row, found := setting.Lookup(name)
+			if !found {
+				t.Errorf("viewOf sets %s, which no row is", name)
+
+				continue
+			}
+
+			if key, keyed := keys[name]; keyed {
+				if !key.Fits(row.Kind) {
+					t.Errorf("the key of %s does not fit its row's kind", name)
+				}
+
+				if got, want := reflect.TypeOf(merged.Value(name)), reflect.TypeOf(row.Kind.Zero()); got != want {
+					t.Errorf("viewOf sets %s to a %v, want a %v", name, got, want)
+				}
+
+				continue
+			}
+
+			if _, isList := merged.Value(name).([]string); !isList || !row.Flag.Repeat {
+				t.Errorf("viewOf sets %s, which has no key, to a %T", name, merged.Value(name))
+			}
+		}
+	})
 
 	t.Run("should refuse the cache beside a mode only when --cache is typed", func(t *testing.T) {
 		t.Parallel()
