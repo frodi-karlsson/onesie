@@ -30,6 +30,30 @@ func TestNames(t *testing.T) {
 	}
 }
 
+func TestCodeNames(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		want string
+	}{
+		{
+			name: "should join every provider as a code span with or before the last",
+			want: "`typesafe`, `openrouter`, `berget`, `levanto` or `cloudflare`",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := providers.CodeNames(); got != tc.want {
+				t.Errorf("CodeNames = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestKeyVariables(t *testing.T) {
 	t.Parallel()
 

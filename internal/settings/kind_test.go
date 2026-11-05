@@ -260,4 +260,117 @@ func TestProbability(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("should point its schema at the probability definition", func(t *testing.T) {
+		t.Parallel()
+
+		if got := settings.Probability().Schema(); got.Ref != "#/definitions/probability" {
+			t.Errorf("Schema() = %+v, want a $ref to #/definitions/probability", got)
+		}
+	})
+}
+
+func TestOptions(t *testing.T) {
+	t.Parallel()
+
+	checkListKind(t, settings.Options(), "#/definitions/pick")
+}
+
+func TestLevels(t *testing.T) {
+	t.Parallel()
+
+	checkListKind(t, settings.Levels(), "#/definitions/rate")
+}
+
+func checkListKind(t *testing.T, kind settings.Kind, ref string) {
+	t.Helper()
+
+	tests := []struct {
+		name    string
+		check   func() bool
+		explain string
+	}{
+		{
+			name:    "should read comma separated text as it is",
+			check:   func() bool { got, err := kind.Parse("a,b"); return err == nil && got == "a,b" },
+			explain: "Parse(a,b) is not a,b",
+		},
+		{
+			name:    "should take an empty text, as --pick and --rate do",
+			check:   func() bool { _, err := kind.Parse(""); return err == nil },
+			explain: "Parse refuses an empty text",
+		},
+		{
+			name: "should take a sequence or a mapping from a file",
+			check: func() bool {
+				_, seqErr := kind.FromFile([]any{"a", "b"})
+				_, mapErr := kind.FromFile(map[string]any{"a": "x"})
+
+				return seqErr == nil && mapErr == nil
+			},
+			explain: "FromFile refuses a sequence or a mapping",
+		},
+		{
+			name:    "should refuse a number from a file",
+			check:   func() bool { _, err := kind.FromFile(3); return err != nil },
+			explain: "FromFile takes a number",
+		},
+		{
+			name:    "should point its schema at its definition",
+			check:   func() bool { return kind.Schema().Ref == ref },
+			explain: "Schema() is no $ref to " + ref,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if !tc.check() {
+				t.Error(tc.explain)
+			}
+		})
+	}
+}
+
+func TestTrueOnly(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		raw     any
+		wantErr bool
+	}{
+		{name: "should take true from a file", raw: true},
+		{name: "should refuse false from a file", raw: false, wantErr: true},
+		{name: "should refuse a string from a file", raw: "true", wantErr: true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := settings.TrueOnly().FromFile(tc.raw)
+			if (err != nil) != tc.wantErr || (err == nil && got != true) {
+				t.Errorf("FromFile(%#v) = %v, %v, want an error %v", tc.raw, got, err, tc.wantErr)
+			}
+		})
+	}
+
+	t.Run("should parse a flag value as Bool does", func(t *testing.T) {
+		t.Parallel()
+
+		got, err := settings.TrueOnly().Parse("false")
+		if err != nil || got != false {
+			t.Errorf("Parse(false) = %v, %v, want false", got, err)
+		}
+	})
+
+	t.Run("should describe the one value true", func(t *testing.T) {
+		t.Parallel()
+
+		if got := settings.TrueOnly().Schema(); got.Const != true {
+			t.Errorf("Schema() = %+v, want const true", got)
+		}
+	})
 }

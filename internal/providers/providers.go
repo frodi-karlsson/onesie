@@ -15,6 +15,13 @@ func Names() string {
 	return joined(onesie.Providers(), onesie.Provider.Name)
 }
 
+// CodeNames joins every provider's name as a markdown code span, in the order Names gives.
+func CodeNames() string {
+	return joined(onesie.Providers(), func(provider onesie.Provider) string {
+		return "`" + provider.Name() + "`"
+	})
+}
+
 // KeyVariables joins every provider's API key variable, in the order Names gives.
 func KeyVariables() string {
 	return joined(onesie.Providers(), onesie.Provider.EnvAPIKey)

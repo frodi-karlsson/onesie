@@ -976,6 +976,58 @@ func oneProfile(key string) creds.Profiles {
 	return creds.Profiles{Profiles: map[string]creds.Profile{"work": {Provider: "typesafe", APIKey: key}}}
 }
 
+func TestFileMembers(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		check func(t *testing.T, members []creds.Member)
+	}{
+		{
+			name: "should name every json member of Profiles and Profile, in order",
+			check: func(t *testing.T, members []creds.Member) {
+				t.Helper()
+
+				var want []string
+				for _, shape := range []reflect.Type{reflect.TypeFor[creds.Profiles](), reflect.TypeFor[creds.Profile]()} {
+					for field := range shape.Fields() {
+						want = append(want, strings.Split(field.Tag.Get("json"), ",")[0])
+					}
+				}
+
+				var got []string
+				for _, member := range members {
+					got = append(got, member.Keys...)
+				}
+
+				if !reflect.DeepEqual(got, want) {
+					t.Errorf("FileMembers names %v, want %v", got, want)
+				}
+			},
+		},
+		{
+			name: "should give every member a meaning",
+			check: func(t *testing.T, members []creds.Member) {
+				t.Helper()
+
+				for _, member := range members {
+					if member.Meaning == "" {
+						t.Errorf("%v has no meaning", member.Keys)
+					}
+				}
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			tc.check(t, creds.FileMembers())
+		})
+	}
+}
+
 func TestQuotedName(t *testing.T) {
 	t.Parallel()
 

@@ -8,7 +8,8 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
-// Row is one setting and every way to give it.
+// Row is one setting and every way to give it. InBody marks a FileKey that a request body holds,
+// not a question file.
 type Row struct {
 	Name     Name
 	Scope    Scope
@@ -16,6 +17,7 @@ type Row struct {
 	Env      []EnvSpec
 	FileKey  string
 	FileHelp string
+	InBody   bool
 	Profile  []ProfileMember
 	Kind     Kind
 	Default  any

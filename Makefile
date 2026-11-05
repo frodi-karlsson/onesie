@@ -11,7 +11,7 @@ LDFLAGS := -s -w \
 	-X main.date=$(DATE) \
 	-X main.tag=$(EXACT_TAG)
 
-.PHONY: help build run install test test-race test-integration cover bench lint lint-fix fmt tidy vuln check tools clean skills skills-check skills-eval fuzz fuzz-check release examples-answers examples-image schema
+.PHONY: help build run install test test-race test-integration cover bench lint lint-fix fmt tidy vuln check tools clean skills skills-check skills-eval fuzz fuzz-check release examples-answers examples-image schema settings settings-check
 
 build: ## Build the onesie binary into bin/
 	@mkdir -p bin
@@ -108,8 +108,13 @@ tidy: ## Tidy and verify module dependencies
 vuln: ## Scan dependencies for known vulnerabilities
 	go tool govulncheck ./...
 
-schema: ## Regenerate schema/questions.json
-	go run ./cmd/onesie --print-schema > schema/questions.json
+settings: ## Generate schema/questions.json and the REFERENCE.md settings blocks from the settings rows
+	go run ./cmd/settingsgen
+
+settings-check: ## Check the files make settings writes are current, writing nothing
+	go run ./cmd/settingsgen -check
+
+schema: settings ## Regenerate schema/questions.json, an alias of make settings
 
 examples-answers: ## Regenerate the starter answers files, run by hand with a key
 	go run ./cmd/examplesanswers

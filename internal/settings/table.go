@@ -3,6 +3,8 @@ package settings
 import (
 	"strconv"
 
+	"github.com/frodi-karlsson/onesie-go"
+
 	"github.com/frodi-karlsson/onesie/internal/argv"
 	"github.com/frodi-karlsson/onesie/internal/limits"
 	"github.com/frodi-karlsson/onesie/internal/plan"
@@ -88,14 +90,14 @@ func questionRows() []Row {
 			Help: "NAME=QUESTION, repeatable, opens a question group",
 		},
 		{
-			Name: "pick", Scope: ScopeQuestion, Kind: Text(), Modes: shaping(), Shapes: []plan.Shape{plan.Pick},
+			Name: "pick", Scope: ScopeQuestion, Kind: Options(), Modes: shaping(), Shapes: []plan.Shape{plan.Pick},
 			FileKey:  "pick",
 			FileHelp: "The options, as a sequence of names or a mapping of name to description.",
 			Flag:     FlagSpec{Long: "pick", Group: true, Commands: onRuns()},
 			Help:     "comma separated options, making this a choice question. A repeated --pick adds to the options",
 		},
 		{
-			Name: "rate", Scope: ScopeQuestion, Kind: Text(), Modes: shaping(), Shapes: []plan.Shape{plan.Rate},
+			Name: "rate", Scope: ScopeQuestion, Kind: Levels(), Modes: shaping(), Shapes: []plan.Shape{plan.Rate},
 			FileKey: "rate",
 			FileHelp: "The levels from lowest to highest, as names, one key mappings of name to description, or " +
 				"a mapping of name to description.",
@@ -117,7 +119,7 @@ func questionRows() []Row {
 			Help:   "separator for --pick and --rate that follow it",
 		},
 		{
-			Name: "box", Scope: ScopeQuestion, Kind: Bool(), Modes: shaping(), Shapes: []plan.Shape{plan.Box},
+			Name: "box", Scope: ScopeQuestion, Kind: TrueOnly(), Modes: shaping(), Shapes: []plan.Shape{plan.Box},
 			FileKey:  "box",
 			FileHelp: "Makes this a box question, answered with the edges of what it finds in an image.",
 			Flag:     FlagSpec{Long: "box", NoOptDefVal: argv.Bare, Group: true, Commands: onRuns()},
@@ -404,6 +406,7 @@ func endpointRows() []Row {
 			Name: "model", Kind: NonEmptyText(),
 			Modes:    Modes(ModeAsk, ModeStream, ModePrintRequest, ModeCalibrate, ModeProfile),
 			FileKey:  "model",
+			InBody:   true,
 			FileHelp: "The model a request body asks, unless -m names one.",
 			Env: []EnvSpec{{
 				Name: "TYPESAFE_DEFAULT_MODEL", Provider: providerTS, Order: 3,
@@ -453,6 +456,7 @@ func answerSourceRows() []Row {
 		{
 			Name: "long_context", Kind: Bool(), Modes: Modes(ModeAsk, ModeStream, ModePrintRequest, ModeCalibrate),
 			FileKey:  "long_context",
+			InBody:   true,
 			FileHelp: "Raises the context limits of the request body. Only true has an effect.",
 			Env: []EnvSpec{{Name: "ONESIE_LONG_CONTEXT", Order: 13, Help: "`1` or `true` raises the context limits, " +
 				"as `--long-context`. It takes the values the flag takes, and anything else exits 2"}},
@@ -560,6 +564,9 @@ func profileRows() []Row {
 func envRows() []Row {
 	return []Row{
 		{
+			Name: "api_key", Kind: NonEmptyText(), Modes: connecting(), Env: keyVariables(),
+		},
+		{
 			Name: "cache_ttl", Kind: Duration(), Modes: answering(),
 			Env: []EnvSpec{{Name: "ONESIE_CACHE_TTL", Order: 12, Help: "how long a cached answer for a model alias " +
 				"lives, `24h` unless set"}},
@@ -577,6 +584,19 @@ func envRows() []Row {
 			Help: "where the response cache lives",
 		},
 	}
+}
+
+func keyVariables() []EnvSpec {
+	var variables []EnvSpec
+
+	for _, provider := range onesie.Providers() {
+		variables = append(variables, EnvSpec{
+			Name: provider.EnvAPIKey(), Provider: provider.Name(), Order: 1,
+			Help: "the key for each provider on a run without a profile, as in Profiles and providers",
+		})
+	}
+
+	return variables
 }
 
 func onRoot() []Command {

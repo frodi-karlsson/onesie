@@ -16,6 +16,8 @@ make cover      # coverage report at bin/coverage.html
 make vuln       # govulncheck
 make fuzz       # fuzz every target in turn, FUZZTIME=1m each by default
 make fuzz SHARD=0 SHARDS=4 FUZZTIME=10s # fuzz one of four partitions
+make settings   # write schema/questions.json and the REFERENCE.md settings blocks from the settings rows
+make settings-check # check those files are current, writing nothing
 ```
 
 `golangci-lint` is expected on `PATH`, at the version `GOLANGCI_VERSION` names in
@@ -63,6 +65,7 @@ cmd/examplesimage/    writes examples/images/square.png, for make examples-image
 cmd/formulagen/       writes the Homebrew formula for a release from its checksums.txt
 cmd/proseblocks/      writes the Go and Markdown prose a diff adds as JSON lines, for the history lessons check
 cmd/releaseprep/      checks a release tag and bumps the plugin manifests, for scripts/release.sh
+cmd/settingsgen/      writes schema/questions.json and the REFERENCE.md settings blocks, for make settings, or checks them with -check
 cmd/skillcheck/       dry runs every example in every skill against the built binary, and checks the prose flags and punctuation
 cmd/skilleval/        dry runs every onesie command an agent wrote in a plugin eval run
 cmd/skillgen/         generates the per client skill files from skills/
@@ -90,6 +93,7 @@ internal/proseblocks/ splits Go comments and Markdown into blocks of prose, one 
 internal/qfile/       loads and writes a question file or a raw request body
 internal/release/     orders release tags by semver and edits the plugin manifests in place
 internal/settings/    every run setting as one row: its flags, variables, file key, profile members, kind and help
+internal/settingsgen/ renders the files the settings rows generate and rewrites only those that changed
 internal/skillcheck/  dry runs each skill rule's bad and good example, and checks the prose flags against --help and the punctuation of the docs
 internal/skilleval/   extracts and grades the commands of a plugin eval run
 internal/skillgen/    decodes and validates skill.json and renders the skill files
@@ -99,7 +103,7 @@ examples/images/      the example image the docs and skills use
 examples/questions/   the starter question sets built into onesie, which -f finds by name
 evals/                the plugin eval cases make skills-eval runs
 hooks/                the session start hook that checks onesie is on PATH and a key resolves
-schema/               the JSON Schema for a question file, written by make schema
+schema/               the JSON Schema for a question file, written by make settings
 skills/               the skill sources make skills renders into .agents/, .cursor/ and each skill's SKILL.md
 scripts/release.sh    the steps behind make release
 ```
