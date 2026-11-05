@@ -256,8 +256,9 @@ func TestNewRootCmd(t *testing.T) {
 			stdin:    "{\"a\":\n",
 			response: answered,
 			wantCode: cli.ExitUsage,
-			contains: []string{"onesie: line 1: --merge wraps an input that is not an object under 'state'"},
-			absent:   []string{`"state":{"error"`},
+			contains: []string{"onesie: line 1: --merge-key state cannot write this failed record, since its line " +
+				"wraps under state: line is not one complete JSON value"},
+			absent: []string{`"state":{"error"`},
 		},
 		{
 			name:     "should refuse --merge-key state on a scalar whose --id fails",
@@ -265,8 +266,9 @@ func TestNewRootCmd(t *testing.T) {
 			stdin:    "\"hello\"\n",
 			response: answered,
 			wantCode: cli.ExitUsage,
-			contains: []string{"onesie: line 1: --merge wraps an input that is not an object under 'state'"},
-			absent:   []string{`"state":{"error"`},
+			contains: []string{"onesie: line 1: --merge-key state cannot write this failed record, since its line " +
+				"wraps under state: --id fails: expected an object"},
+			absent: []string{`"state":{"error"`},
 		},
 		{
 			name:     "should refuse --merge-key state on a csv row onesie could not read",
@@ -274,8 +276,9 @@ func TestNewRootCmd(t *testing.T) {
 			stdin:    "a,b\n\"1,2\n",
 			response: answered,
 			wantCode: cli.ExitUsage,
-			contains: []string{"--merge wraps an input that is not an object under 'state'"},
-			absent:   []string{`"state":{"error"`},
+			contains: []string{"onesie: line 2: --merge-key state cannot write this failed record, since its line " +
+				"wraps under state: row is not valid csv"},
+			absent: []string{`"state":{"error"`},
 		},
 		{
 			name:     "should merge a csv row under --merge-key state",

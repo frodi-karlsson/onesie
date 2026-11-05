@@ -148,7 +148,7 @@ func (r *streamRun) evaluate(ctx context.Context, rec namedRecord) (line, error)
 func (r *streamRun) lineFor(ctx context.Context, rec namedRecord) (line, error) {
 	// Ahead of the failures below, since their lines wrap the record under state too.
 	if merging(r.flags) && !r.delimited && wrapsUnderKey(rec.Raw, rec.Wire, mergeKey(r.flags)) {
-		return r.halt(rec, errWrapRepeated)
+		return r.halt(rec, wrapRepeated(rec))
 	}
 
 	if rec.Err != nil {
@@ -228,6 +228,23 @@ func (r *streamRun) halt(rec namedRecord, cause error) (line, error) {
 	r.stats.recordFailure(nil, false, 0)
 
 	return line{halted: true}, &input.LineError{Line: rec.Line, Err: &repeatedKeyError{cause: cause}}
+}
+
+func wrapRepeated(rec namedRecord) error {
+	var cause error
+
+	switch {
+	case rec.Err != nil:
+		// The line number comes from the halt, so the record's own one is dropped.
+		cause = rec.Err.Err
+	case rec.idErr != nil:
+		cause = rec.idErr
+	default:
+		return errWrapRepeated
+	}
+
+	return fmt.Errorf("--merge-key %s cannot write this failed record, since its line wraps under %s: %w",
+		wrapKey, wrapKey, cause)
 }
 
 func (r *streamRun) ask(ctx context.Context, rec namedRecord, sent any, assets onesie.Assets) (line, error) {

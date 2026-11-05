@@ -77,7 +77,7 @@ Exit 3 also covers these:
 | `a row is longer than the limit`, with no error line | a csv row over `max-line-bytes` from `onesie -V`. It stops the run, since csv cannot find the next row after it. In tsv it is an error line instead |
 | `--usage does not apply to` | `-o values`, `-o raw` and `-r` write only the answers, so the message says to use `-o json`. `-o csv` and `-o tsv` have no column for it, and `-q` suppresses output |
 | `--merge-key does not apply to` | `-o csv` and `-o tsv` put the answers in columns, so they refuse `--merge-key` even beside `--merge` |
-| `wraps every record under a state key` or `would repeat that key` | `--merge` writes an input that is not an object as `{"state":INPUT,"answers":ANSWERS}`, so `--merge-key state` would write `state` twice. Pick another key |
+| `wraps every record under a state key`, `would repeat that key` or `cannot write this failed record` | `--merge` writes an input that is not an object, or a record that failed, as `{"state":INPUT,"answers":ANSWERS}`, so `--merge-key state` would write `state` twice. A failed record's own error follows the colon. Pick another key |
 | `has the name of an output column` | under `--merge`, an input column clashes with a question id or the `error` column, or with the `assert` column under a gate. An input `id` column never clashes |
 | `model '...' not found` | the provider does not serve that model id. Try `--list-models` |
 | `each side must be`, `an image must be PNG or JPEG` or `an image is at most` | onesie refused an `--image` file before any request, naming the limit `onesie -V` lists. Resize it to at most 1568 pixels a side, or convert it to PNG or a smaller JPEG. An `--image-field` file is an error line instead |
