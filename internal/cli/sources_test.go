@@ -2,6 +2,7 @@ package cli
 
 import (
 	"errors"
+	"io"
 	"io/fs"
 	"net/http"
 	"net/http/httptest"
@@ -10,6 +11,13 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/spf13/cobra"
+
+	"github.com/frodi-karlsson/onesie/internal/argv"
+	"github.com/frodi-karlsson/onesie/internal/cache"
+	setting "github.com/frodi-karlsson/onesie/internal/settings"
 )
 
 func TestNewRootCmd(t *testing.T) {
@@ -216,6 +224,24 @@ func TestNewRootCmd(t *testing.T) {
 		}
 	})
 
+	t.Run("should print no base URL or key notice for a run that sends nothing", func(t *testing.T) {
+		t.Parallel()
+
+		env := map[string]string{envBaseURL: "https://env.example", "TYPESAFE_API_KEY": "SECRET-ENV"}
+
+		for _, args := range [][]string{
+			{"is it urgent", "--state", "x", "--mock", writeMock(t, `{"answer":0.9}`)},
+			{"calibrate", "--ask", "u=is it urgent", "-i", "jsonl", "--map", ".body", "--label", "u=.u", "--print-request"},
+		} {
+			out, errOut, code := runInConfig(t, configWith(t, profiles), args, "{\"body\":\"x\",\"u\":true}\n", env)
+			assertNoSecret(t, out, errOut)
+
+			if code != ExitOK || errOut != "" {
+				t.Errorf("%v: exit code = %d, stderr = %q, want %d and none", args, code, errOut, ExitOK)
+			}
+		}
+	})
+
 	t.Run("should skip ONESIE_MOCK silently under --list-models", func(t *testing.T) {
 		t.Parallel()
 
@@ -243,4 +269,138 @@ func TestNewRootCmd(t *testing.T) {
 			t.Errorf("exit code = %d, stderr = %q, want %d and the account refusal", code, errOut, ExitUsage)
 		}
 	})
+}
+
+func TestMergeRun(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		env     map[string]string
+		args    []string
+		want    switches
+		wantErr string
+	}{
+		{name: "should read no variable as every switch off"},
+		{name: "should read empty variables as unset", env: map[string]string{envCache: "", envLongContext: "", envCacheTTL: ""}},
+		{
+			name: "should read what the flags take",
+			env:  map[string]string{envCache: "true", envLongContext: "1", envCacheTTL: "90m"},
+			want: switches{cache: true, cacheFrom: setting.SourceEnv, longContext: true, aliasTTL: 90 * time.Minute},
+		},
+		{
+			name: "should accept ONESIE_CACHE and ONESIE_CACHE_TTL with spaces around them",
+			env:  map[string]string{envCache: " 1", envCacheTTL: " 90m "},
+			want: switches{cache: true, cacheFrom: setting.SourceEnv, aliasTTL: 90 * time.Minute},
+		},
+		{name: "should read a blank variable as unset", env: map[string]string{envCache: "  ", envCacheTTL: "\t"}},
+		{name: "should read ONESIE_CACHE_TTL=0 as no alias lifetime", env: map[string]string{envCacheTTL: "0"}, want: switches{aliasTTL: cache.NoAliasTTL}},
+		{name: "should be on under --cache", args: []string{"--cache"}, want: switches{cache: true, cacheFrom: setting.SourceFlag}},
+		{name: "should let --cache=false win over ONESIE_CACHE=1", env: map[string]string{envCache: "1"}, args: []string{"--cache=false"}, want: switches{cacheFrom: setting.SourceFlag}},
+		{name: "should let --cache win over ONESIE_CACHE=0", env: map[string]string{envCache: "0"}, args: []string{"--cache"}, want: switches{cache: true, cacheFrom: setting.SourceFlag}},
+		{
+			name: "should let --long-context=false win over ONESIE_LONG_CONTEXT=1",
+			env:  map[string]string{envLongContext: "1"}, args: []string{"--long-context=false"},
+		},
+		{
+			name: "should skip a malformed ONESIE_CACHE under --print-request",
+			env:  map[string]string{envCache: "maybe", envCacheTTL: "soon"}, args: []string{"--print-request"},
+		},
+		{
+			name:    "should refuse an ONESIE_LONG_CONTEXT the flag would not take",
+			env:     map[string]string{envLongContext: "garbage"},
+			wantErr: "ONESIE_LONG_CONTEXT=garbage is not a value --long-context takes. Use 1 or 0",
+		},
+		{
+			name:    "should refuse an ONESIE_CACHE the flag would not take, even beside the flag",
+			env:     map[string]string{envCache: "yes"},
+			args:    []string{"--cache"},
+			wantErr: "ONESIE_CACHE=yes is not a value --cache takes. Use 1 or 0",
+		},
+		{
+			name:    "should refuse a negative ONESIE_CACHE_TTL",
+			env:     map[string]string{envCacheTTL: "-1h"},
+			wantErr: "ONESIE_CACHE_TTL=-1h is not a duration of zero or more, such as 90m or 72h",
+		},
+		{
+			name:    "should refuse an ONESIE_CACHE_TTL that is no duration",
+			env:     map[string]string{envCacheTTL: "soon"},
+			wantErr: "ONESIE_CACHE_TTL=soon is not a duration of zero or more, such as 90m or 72h",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			flags := &runFlags{}
+			cmd := &cobra.Command{Use: "onesie"}
+			flags.given = setting.Register(cmd.Flags(), cmd.PersistentFlags(), setting.Table(), argv.New(),
+				setting.CommandRoot, runTargets(flags))
+			cmd.Flags().AddFlagSet(cmd.PersistentFlags())
+
+			if err := cmd.Flags().Parse(tc.args); err != nil {
+				t.Fatal(err)
+			}
+
+			settings := defaultSettings(BuildInfo{})
+			settings.lookupEnv = lookupFrom(tc.env)
+			settings.holder = newHolder(settings, flags, func() io.Writer { return io.Discard })
+
+			merged, err := mergeRun(settings, runConfig{runFlags: *flags}, flags.given, setting.CommandRoot, nil)
+			got := merged.config
+
+			if tc.wantErr != "" {
+				if err == nil || err.Error() != tc.wantErr || Classify(err) != ExitUsage {
+					t.Fatalf("mergeRun = %v, want the usage error %q", err, tc.wantErr)
+				}
+
+				return
+			}
+
+			if err != nil || got.env != tc.want {
+				t.Errorf("mergeRun switches = %+v, %v, want %+v", got.env, err, tc.want)
+			}
+		})
+	}
+}
+
+func TestConnectionEnv(t *testing.T) {
+	t.Parallel()
+
+	env := lookupFrom(map[string]string{
+		"TYPESAFE_API_KEY": "SECRET-ENV", "ONESIE_BASE_URL": "https://env.example", "TYPESAFE_DEFAULT_MODEL": "m",
+		"CLOUDFLARE_ACCOUNT_ID": "acct", "ONESIE_PROFILE": "work", "ONESIE_PROVIDER": "levanto", "ONESIE_CACHE": "1",
+	})
+
+	tests := []struct {
+		name     string
+		variable string
+		choosing map[string]string
+		want     string
+		found    bool
+	}{
+		{name: "should pass a key variable through", variable: "TYPESAFE_API_KEY", want: "SECRET-ENV", found: true},
+		{name: "should pass a base URL variable through", variable: "ONESIE_BASE_URL", want: "https://env.example", found: true},
+		{name: "should pass the model variable through", variable: "TYPESAFE_DEFAULT_MODEL", want: "m", found: true},
+		{name: "should pass the account variable through", variable: "CLOUDFLARE_ACCOUNT_ID", want: "acct", found: true},
+		{name: "should hide ONESIE_PROFILE", variable: "ONESIE_PROFILE"},
+		{name: "should hide a variable no connection row reads", variable: "ONESIE_CACHE"},
+		{name: "should hide ONESIE_PROVIDER unless the test chooses it", variable: "ONESIE_PROVIDER"},
+		{
+			name: "should give the provider the test chooses", variable: "ONESIE_PROVIDER",
+			choosing: map[string]string{"ONESIE_PROVIDER": "openrouter"}, want: "openrouter", found: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, found := connectionEnv(env, tc.choosing)(tc.variable)
+			if got != tc.want || found != tc.found {
+				t.Errorf("connectionEnv(%s) = %q, %t, want %q, %t", tc.variable, got, found, tc.want, tc.found)
+			}
+		})
+	}
 }

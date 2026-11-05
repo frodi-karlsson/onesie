@@ -723,7 +723,8 @@ Each setting takes the first source that gives it, in this order:
   `onesie: TYPESAFE_DEFAULT_MODEL overrides the default profile's model` or
   `onesie: --model overrides the request body's model`. A notice names both sources and never a
   value. Equal values and built in defaults print nothing, and a refused run prints only its
-  refusal.
+  refusal. A run that sends nothing, under `--mock` or `--print-request`, prints no base URL or key
+  notice.
 - A key goes only with its own endpoint. When the base URL or account a run uses is not the
   provider's own default, the key comes from the source that gave the endpoint: a profile's
   `base_url` or `account_id` takes that profile's key and no key variable, and `ONESIE_BASE_URL`,
@@ -836,6 +837,8 @@ the config dir converts it once:
 - `typesafe` becomes the default when there is a typesafe entry. Otherwise no profile is the
   default, so a run with no choice exits 2, even with `TYPESAFE_API_KEY` set, and names
   `onesie profile use NAME`, `--profile NAME` and `--provider NAME`.
+- A run converts it when it reads `profiles.json`, before it checks its flags against each other,
+  so a run refused for a clash of flags has converted it too.
 - onesie writes `profiles.json`, removes `credentials.json` and says so on stderr, as in
   `onesie: converted credentials.json into profiles.json, with profiles 'levanto' and 'typesafe'. 'typesafe' is the default`.
   Under `ONESIE_PROVIDER` a second line says the run uses no profile, and how to use a stored key.

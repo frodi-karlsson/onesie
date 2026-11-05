@@ -44,8 +44,9 @@ func mergeRun(
 	}
 
 	merged, notices := setting.Merge(rows, layers, nil)
+	config := flags.withMerged(merged)
 
-	return readSettings{config: flags.withMerged(merged), notices: announced(notices)}, nil
+	return readSettings{config: config, notices: announced(notices, config.printRequest || config.mockPath != "")}, nil
 }
 
 type readSettings struct {
@@ -103,7 +104,7 @@ func fileValues(loaded *qfile.File) *setting.FileValues {
 	return values
 }
 
-func announced(notices []setting.Notice) []setting.Notice {
+func announced(notices []setting.Notice, sendsNothing bool) []setting.Notice {
 	var kept []setting.Notice
 
 	for _, notice := range notices {
@@ -111,10 +112,18 @@ func announced(notices []setting.Notice) []setting.Notice {
 			continue
 		}
 
+		if sendsNothing && connects(notice.Setting) {
+			continue
+		}
+
 		kept = append(kept, notice)
 	}
 
 	return kept
+}
+
+func connects(name setting.Name) bool {
+	return name == setting.APIEndpoint.Name() || name == setting.APIKey.Name()
 }
 
 func choosesRun(name setting.Name) bool {
