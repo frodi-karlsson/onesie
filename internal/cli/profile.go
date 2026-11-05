@@ -17,6 +17,7 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/creds"
 	"github.com/frodi-karlsson/onesie/internal/output"
 	"github.com/frodi-karlsson/onesie/internal/providers"
+	setting "github.com/frodi-karlsson/onesie/internal/settings"
 )
 
 const (
@@ -30,7 +31,7 @@ const (
 	fromProfile    = "profile"
 )
 
-func newProfileCmd(settings rootSettings, flags *runFlags) *cobra.Command {
+func newProfileCmd(settings rootSettings, flags *runFlags, given *setting.Given) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "profile",
 		Short: "Create, inspect and remove the named connections a run uses",
@@ -48,6 +49,8 @@ func newProfileCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 			return cmd.Help()
 		},
 		PersistentPreRunE: func(*cobra.Command, []string) error {
+			noteChosen(flags, given)
+
 			return refuseMock(settings.lookupEnv)
 		},
 	}
@@ -95,13 +98,7 @@ func newProfileCreateCmd(settings rootSettings, flags *runFlags) *cobra.Command 
 		},
 	}
 
-	cmd.Flags().StringVar(&fields.provider, flagProvider, "",
-		"the profile's provider, "+providers.Names()+". Required")
-	addMemberFlags(cmd, fields, flags)
-	refuseEmpty(cmd.Flags(), flagModel)
-	refuseEmpty(cmd.Flags(), flagBaseURL)
-	refuseEmpty(cmd.Flags(), flagAccountID)
-	cmd.Flags().BoolVar(&fields.toFile, flagToFile, false, "store the key in profiles.json, not the OS keychain")
+	setting.Register(cmd.Flags(), nil, setting.Table(), nil, setting.CommandProfileCreate, profileTargets(fields, flags))
 
 	return cmd
 }
@@ -177,12 +174,7 @@ func newProfileUpdateCmd(settings rootSettings, flags *runFlags) *cobra.Command 
 		},
 	}
 
-	cmd.Flags().StringVar(&fields.provider, flagProvider, "", "a new provider for the profile, which needs --key")
-	refuseEmpty(cmd.Flags(), flagProvider)
-	addMemberFlags(cmd, fields, flags)
-	cmd.Flags().BoolVar(&fields.key, flagKey, false, "read a new key from a prompt or stdin")
-	cmd.Flags().BoolVar(&fields.toFile, flagToFile, false,
-		"with --key, store the new key in profiles.json, not the OS keychain")
+	setting.Register(cmd.Flags(), nil, setting.Table(), nil, setting.CommandProfileUpdate, profileTargets(fields, flags))
 
 	return cmd
 }
@@ -622,7 +614,7 @@ func newProfileTestCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 		},
 	}
 
-	cmd.Flags().BoolVar(&flags.allowHTTP, flagAllowHTTP, false, allowHTTPHelp)
+	cmd.Flags().BoolVar(&flags.allowHTTP, flagAllowHTTP, false, rowHelp(setting.AllowHTTP.Name()))
 
 	return cmd
 }
@@ -681,14 +673,12 @@ func shownResolution(settings rootSettings, flags *runFlags, args []string, comm
 	return profileRun(name, profile, by)
 }
 
-func addMemberFlags(cmd *cobra.Command, fields *profileFlags, flags *runFlags) {
-	cmd.Flags().StringVar(&fields.model, flagModel, "", "the model a run uses when it names none")
-	cmd.Flags().StringVar(&fields.baseURL, flagBaseURL, "", "the api root the profile's runs use")
-	cmd.Flags().BoolVar(&flags.allowHTTP, flagAllowHTTP, false,
-		"store a plain http --base-url to a host other than this machine. Every run on the profile then "+
-			"needs --allow-http too")
-	cmd.Flags().StringVar(&fields.accountID, flagAccountID, "",
-		providers.WithAccounts()+" only, the account id, 32 hexadecimal characters")
+func profileTargets(fields *profileFlags, flags *runFlags) map[setting.Name]any {
+	return map[setting.Name]any{
+		"provider": &fields.provider, "model": &fields.model, "endpoint": &fields.baseURL,
+		"allow_http": &flags.allowHTTP, "account_id": &fields.accountID, "key": &fields.key,
+		"to_file": &fields.toFile,
+	}
 }
 
 func alreadySet(profile creds.Profile, changed func(string) bool) string {

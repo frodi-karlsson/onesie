@@ -63,7 +63,8 @@ func Enum(values []string, aliases map[string]string) Kind {
 	return enumKind{values: values, aliases: aliases}
 }
 
-// Expr is a setting that takes an expression, a jq program or an assertion.
+// Expr is a setting that takes a boolean expression over the record, as --assert takes it. The
+// expression is checked where it is compiled, not here.
 func Expr() Kind {
 	return exprKind{}
 }
@@ -261,7 +262,7 @@ type enumKind struct {
 }
 
 func (k enumKind) Parse(raw string) (any, error) {
-	if raw == "" {
+	if strings.TrimSpace(raw) == "" {
 		return "", ErrEmptyValue
 	}
 
@@ -310,10 +311,6 @@ func (enumKind) ValueName() string {
 type exprKind struct{}
 
 func (exprKind) Parse(raw string) (any, error) {
-	if strings.TrimSpace(raw) == "" {
-		return "", ErrEmptyValue
-	}
-
 	return raw, nil
 }
 

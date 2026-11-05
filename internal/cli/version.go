@@ -10,6 +10,7 @@ import (
 
 	"github.com/frodi-karlsson/onesie/internal/limits"
 	"github.com/frodi-karlsson/onesie/internal/output"
+	setting "github.com/frodi-karlsson/onesie/internal/settings"
 )
 
 func newVersionCmd(info BuildInfo) *cobra.Command {
@@ -51,7 +52,7 @@ func newVersionCmd(info BuildInfo) *cobra.Command {
 	}
 
 	cmd.Flags().StringVarP(&format, "output", "o", "", "json prints the same as one JSON object")
-	refuseEmpty(cmd.Flags(), "output")
+	setting.RefuseEmpty(cmd.Flags(), "output")
 
 	return cmd
 }
