@@ -15,16 +15,27 @@ import (
 )
 
 func build(settings rootSettings, flags runConfig, ignoreFileJudgment bool) (*invocation, []string, error) {
-	events, positional := flags.events, flags.positional
+	built, file, warnings, err := assemble(settings, flags, ignoreFileJudgment)
+	if err != nil {
+		return nil, warnings, err
+	}
 
+	inv, err := invocationOf(settings, flags, built, file)
+
+	return inv, warnings, err
+}
+
+func assemble(
+	settings rootSettings, flags runConfig, ignoreFileJudgment bool,
+) (*plan.Plan, buildFile, []string, error) {
 	file, err := readBuildFile(settings, flags, ignoreFileJudgment)
 	if err != nil {
-		return nil, nil, err
+		return nil, buildFile{}, nil, err
 	}
 
 	source := plan.Source{
-		Events:     events,
-		Positional: positional,
+		Events:     flags.events,
+		Positional: flags.positional,
 		FileName:   file.name,
 		Replace:    flags.replace,
 		ReadFile:   settings.readFile,
@@ -37,7 +48,7 @@ func build(settings rootSettings, flags runConfig, ignoreFileJudgment bool) (*in
 
 	built, err := plan.Assemble(source)
 	if err != nil {
-		return nil, nil, err
+		return nil, buildFile{}, nil, err
 	}
 
 	built.Model = flags.model
@@ -48,13 +59,8 @@ func build(settings rootSettings, flags runConfig, ignoreFileJudgment bool) (*in
 	built.LongContext = longContextOf(flags, file)
 
 	warnings, err := validateRun(flags, file.facts, built)
-	if err != nil {
-		return nil, warnings, err
-	}
 
-	inv, err := invocationOf(settings, flags, built, file)
-
-	return inv, warnings, err
+	return built, file, warnings, err
 }
 
 func longContextOf(flags runConfig, file buildFile) bool {

@@ -329,7 +329,7 @@ func TestRootExecute(t *testing.T) {
 		{
 			name: "should prefix both lines of a resume failure followed by a release failure",
 			args: []string{
-				"--mock", "{dir}{/}m.json", "--out", "{dir}{/}answers.jsonl", "--resume", "--state", "x", "is it urgent",
+				"--mock", "{dir}{/}m.json", "--out", "{dir}{/}answers.jsonl", "--resume", "-i", "lines", "is it urgent",
 			},
 			files:    map[string]string{"m.json": `{"q":0.9}`},
 			prepare:  stalePartAndFailingRelease,
@@ -468,6 +468,19 @@ func TestRootExecute(t *testing.T) {
 			env:      map[string]string{"ONESIE_CACHE": "maybe"},
 			wantCode: ExitUsage,
 			want:     "onesie: -o takes auto, json, values, table, raw, csv, tsv or markdown, got 'jsno'\n",
+		},
+		{
+			name:     "should name a bad -o alone, before any warning",
+			args:     []string{"-j", "4", "--state", "s", "is it urgent", "-o", "jsno"},
+			wantCode: ExitUsage,
+			want:     "onesie: -o takes auto, json, values, table, raw, csv, tsv or markdown, got 'jsno'\n",
+		},
+		{
+			name:     "should refuse an ONESIE_CACHE value it cannot read before a bad provider",
+			args:     []string{"--state", "s", "is it urgent", "--provider", "bogus"},
+			env:      map[string]string{"ONESIE_CACHE": "maybe"},
+			wantCode: ExitUsage,
+			want:     "onesie: ONESIE_CACHE=maybe is not a value --cache takes. Use 1 or 0\n",
 		},
 		{
 			name: "should warn that -j is ignored for one record",
