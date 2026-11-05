@@ -14,9 +14,8 @@ import (
 // suggest it belongs to a run.
 const AnnotationAsksNothing = "onesie-asks-nothing"
 
-// Register adds every row command registers to set, or to persistent for a row the command marks
-// persistent. A group row records through recorder, and every other row fills its entry in targets,
-// a *string, *bool, *int or *[]string, with pflag's own parsing.
+// Register adds command's rows to set, or to persistent where marked. A group row records through
+// recorder, and every other row fills its *string, *bool, *int or *[]string entry in targets.
 func Register(
 	set, persistent *pflag.FlagSet, rows []Row, recorder *argv.Recorder, command Command, targets map[Name]any,
 ) *Given {
@@ -34,6 +33,10 @@ func Register(
 		into := set
 		if bound.Persistent {
 			into = persistent
+		}
+
+		if into == nil {
+			panic(fmt.Sprintf("settings: %s on %s is persistent, and no persistent flag set was given", row.Name, command))
 		}
 
 		flag := addFlag(into, row, bound, recorder, targets[row.Name], command)
@@ -62,6 +65,10 @@ func addFlag(
 	rule := emptyRuleOf(bound.Kind)
 
 	if row.Flag.Group {
+		if recorder == nil {
+			panic(fmt.Sprintf("settings: %s on %s is a group flag, and no recorder was given", row.Name, command))
+		}
+
 		value := recorder.Flag(bound.Long)
 		if _, isSwitch := bound.Kind.Zero().(bool); isSwitch {
 			value = recorder.Switch(bound.Long)
@@ -146,12 +153,15 @@ type Given struct {
 
 // Count is how many times the flag of name was set. A repeatable flag counts nothing.
 func (g *Given) Count(name Name) int {
+	if g == nil {
+		return 0
+	}
+
 	return g.counts[name]
 }
 
-// Spelled returns each spelling of name's flag in args, in order, as pflag reads args: a value
-// after a flag that takes one is a value, a cluster such as -qm holds several shorthands, and --
-// ends the flags.
+// Spelled returns each spelling of name's flag in args in order, reading args as pflag does, so
+// a cluster such as -qm holds several shorthands, a flag's value is no flag, and -- ends the flags.
 func (g *Given) Spelled(args []string, name Name) []string {
 	bound, known := g.spellings[name]
 	if !known {

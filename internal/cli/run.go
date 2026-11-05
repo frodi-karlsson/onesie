@@ -25,6 +25,7 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/output"
 	"github.com/frodi-karlsson/onesie/internal/plan"
 	"github.com/frodi-karlsson/onesie/internal/qfile"
+	setting "github.com/frodi-karlsson/onesie/internal/settings"
 )
 
 var errWrapRepeated = errors.New("--merge wraps an input that is not an object under 'state', " +
@@ -1166,4 +1167,14 @@ type runFlags struct {
 	images        []string
 	imageFields   []string
 	longContext   bool
+
+	given *setting.Given
+}
+
+func (f *runFlags) providerChosen() bool {
+	return f.providerSet || f.given.Count(setting.Provider.Name()) > 0
+}
+
+func (f *runFlags) profileChosen() bool {
+	return f.profileSet || f.given.Count(setting.Profile.Name()) > 0
 }

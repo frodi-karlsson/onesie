@@ -2,6 +2,7 @@ package settings_test
 
 import (
 	"errors"
+	"fmt"
 	"maps"
 	"slices"
 	"strconv"
@@ -258,6 +259,28 @@ func TestRegister(t *testing.T) {
 			if *calibrate.targets["jobs"].(*int) != 1 || *calibrate.targets["input"].(*string) != "" ||
 				*root.targets["input"].(*string) != "text" {
 				t.Error("jobs is not 1, or -i does not default to text on root and to nothing on calibrate")
+			}
+		}},
+		{name: "should panic with a named message when a row has no flag set or recorder to go to", run: func(t *testing.T) {
+			for _, tc := range []struct {
+				recorder   *argv.Recorder
+				persistent *pflag.FlagSet
+				want       string
+			}{
+				{recorder: argv.New(), want: "provider on onesie is persistent"},
+				{persistent: pflag.NewFlagSet("persistent", pflag.ContinueOnError), want: "ask on onesie is a group flag"},
+			} {
+				func() {
+					defer func() {
+						if got := fmt.Sprint(recover()); !strings.Contains(got, tc.want) {
+							t.Errorf("panic = %q, want it to hold %q", got, tc.want)
+						}
+					}()
+
+					rows := settings.Table()
+					settings.Register(pflag.NewFlagSet("onesie", pflag.ContinueOnError), tc.persistent, rows,
+						tc.recorder, settings.CommandRoot, targetsFor(rows, settings.CommandRoot))
+				}()
 			}
 		}},
 		{name: "should mark the flags that ask nothing", run: func(t *testing.T) {

@@ -41,14 +41,14 @@ func checkChoice(flags *runFlags, lookupEnv func(string) (string, bool)) error {
 }
 
 func choose(flags *runFlags, lookupEnv func(string) (string, bool)) (choice, error) {
-	if flags.profileSet && flags.providerSet {
+	if flags.profileChosen() && flags.providerChosen() {
 		return choice{}, errors.New("--profile and --provider both choose what the run uses. Pass one")
 	}
 
 	switch {
-	case flags.profileSet:
+	case flags.profileChosen():
 		return choice{profile: strings.TrimSpace(flags.profile), by: "--" + flagProfile}, nil
-	case flags.providerSet:
+	case flags.providerChosen():
 		return choice{provider: strings.TrimSpace(flags.provider), by: "--" + flagProvider}, nil
 	}
 

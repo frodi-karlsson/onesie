@@ -31,7 +31,7 @@ const (
 	fromProfile    = "profile"
 )
 
-func newProfileCmd(settings rootSettings, flags *runFlags, given *setting.Given) *cobra.Command {
+func newProfileCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "profile",
 		Short: "Create, inspect and remove the named connections a run uses",
@@ -49,8 +49,6 @@ func newProfileCmd(settings rootSettings, flags *runFlags, given *setting.Given)
 			return cmd.Help()
 		},
 		PersistentPreRunE: func(*cobra.Command, []string) error {
-			noteChosen(flags, given)
-
 			return refuseMock(settings.lookupEnv)
 		},
 	}
@@ -614,7 +612,8 @@ func newProfileTestCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 		},
 	}
 
-	cmd.Flags().BoolVar(&flags.allowHTTP, flagAllowHTTP, false, rowHelp(setting.AllowHTTP.Name()))
+	allowHTTP, _ := setting.Lookup(setting.AllowHTTP.Name())
+	cmd.Flags().BoolVar(&flags.allowHTTP, flagAllowHTTP, false, allowHTTP.Help)
 
 	return cmd
 }
@@ -675,9 +674,9 @@ func shownResolution(settings rootSettings, flags *runFlags, args []string, comm
 
 func profileTargets(fields *profileFlags, flags *runFlags) map[setting.Name]any {
 	return map[setting.Name]any{
-		"provider": &fields.provider, "model": &fields.model, "endpoint": &fields.baseURL,
-		"allow_http": &flags.allowHTTP, "account_id": &fields.accountID, "key": &fields.key,
-		"to_file": &fields.toFile,
+		setting.Provider.Name(): &fields.provider, setting.Model.Name(): &fields.model,
+		setting.APIEndpoint.Name(): &fields.baseURL, setting.AllowHTTP.Name(): &flags.allowHTTP,
+		"account_id": &fields.accountID, "key": &fields.key, "to_file": &fields.toFile,
 	}
 }
 
@@ -736,11 +735,11 @@ type profileFlags struct {
 }
 
 func refuseChosen(flags *runFlags, command string, provider bool) error {
-	if flags.profileSet {
+	if flags.profileChosen() {
 		return fmt.Errorf("--profile does not apply to profile %s", command)
 	}
 
-	if provider && flags.providerSet {
+	if provider && flags.providerChosen() {
 		return fmt.Errorf("--provider does not apply to profile %s", command)
 	}
 

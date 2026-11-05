@@ -82,8 +82,8 @@ func newCalibrateCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 func calibrateTargets(flags *runFlags, calib *calibrateFlags) map[setting.Name]any {
 	targets := runTargets(flags)
 	maps.Copy(targets, map[setting.Name]any{
-		"output": &calib.report, "input": &calib.input, "label": &calib.labels, "cuts": &calib.cuts,
-		"require": &calib.requires, "offline": &calib.offline,
+		setting.Output.Name(): &calib.report, setting.Input.Name(): &calib.input, "label": &calib.labels,
+		setting.Cuts.Name(): &calib.cuts, "require": &calib.requires, setting.Offline.Name(): &calib.offline,
 	})
 
 	return targets

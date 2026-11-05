@@ -101,16 +101,11 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *Root {
 		},
 	}
 
-	given := setting.Register(root.Flags(), root.PersistentFlags(), setting.Table(), recorder, setting.CommandRoot,
-		runTargets(flags))
-	root.PersistentPreRunE = func(*cobra.Command, []string) error {
-		noteChosen(flags, given)
-
-		return nil
-	}
+	flags.given = setting.Register(root.Flags(), root.PersistentFlags(), setting.Table(), recorder,
+		setting.CommandRoot, runTargets(flags))
 
 	root.AddCommand(newVersionCmd(info))
-	root.AddCommand(newProfileCmd(settings, flags, given))
+	root.AddCommand(newProfileCmd(settings, flags))
 	calibrate := newCalibrateCmd(settings, flags)
 	root.AddCommand(calibrate)
 	root.AddCommand(newQuestionsCmd(settings))
@@ -139,37 +134,28 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *Root {
 
 func runTargets(flags *runFlags) map[setting.Name]any {
 	return map[setting.Name]any{
-		"version": &flags.version, "print_questions": &flags.printQuestions, "print_schema": &flags.printSchema,
-		"list_models": &flags.listModels, "print_request": &flags.printRequest,
-		"assert": &flags.assert, "abstain_if": &flags.abstainIf,
-		"output": &flags.output, "raw": &flags.raw, "quiet": &flags.quiet, "out": &flags.out,
-		"resume": &flags.resume, "prune": &flags.prune, "merge": &flags.merge, "merge_key": &flags.mergeKey,
-		"usage": &flags.usage, "stats": &flags.stats, "delimiter": &flags.delimiter,
-		"input": &flags.input, "state": &flags.state, "state_file": &flags.stateFile, "image": &flags.images,
-		"image_field": &flags.imageFields, "map": &flags.mapSource, "id": &flags.idSource,
-		"skip_blank": &flags.skipBlank, "unordered": &flags.unordered, "stop_on_error": &flags.stopOnError,
-		"stop_on_assert": &flags.stopOnAssert, "no_dedup": &flags.noDedup,
-		"file": &flags.file, "replace": &flags.replace, "provider": &flags.provider, "profile": &flags.profile,
-		"model": &flags.model, "endpoint": &flags.baseURL, "allow_http": &flags.allowHTTP,
-		"long_context": &flags.longContext, "mock": &flags.mock, "cache": &flags.cache,
-		"jobs": &flags.jobs, "timeout": &flags.timeout, "retries": &flags.retries,
-		"max_retry_after": &flags.maxRetryAfter,
+		setting.Version.Name(): &flags.version, setting.PrintQuestions.Name(): &flags.printQuestions,
+		setting.PrintSchema.Name(): &flags.printSchema, setting.ListModels.Name(): &flags.listModels,
+		setting.PrintRequest.Name(): &flags.printRequest,
+		"assert":                    &flags.assert, "abstain_if": &flags.abstainIf,
+		setting.Output.Name(): &flags.output, setting.Raw.Name(): &flags.raw, setting.Quiet.Name(): &flags.quiet,
+		setting.Out.Name(): &flags.out, setting.Resume.Name(): &flags.resume, setting.Prune.Name(): &flags.prune,
+		setting.MergeInput.Name(): &flags.merge, setting.MergeKey.Name(): &flags.mergeKey,
+		setting.Usage.Name(): &flags.usage, setting.Stats.Name(): &flags.stats,
+		setting.Delimiter.Name(): &flags.delimiter, setting.Input.Name(): &flags.input,
+		setting.State.Name(): &flags.state, setting.StateFile.Name(): &flags.stateFile,
+		"image": &flags.images, "image_field": &flags.imageFields,
+		setting.Map.Name(): &flags.mapSource, setting.ID.Name(): &flags.idSource,
+		setting.SkipBlank.Name(): &flags.skipBlank, setting.Unordered.Name(): &flags.unordered,
+		setting.StopOnError.Name(): &flags.stopOnError, setting.StopOnAssert.Name(): &flags.stopOnAssert,
+		setting.NoDedup.Name(): &flags.noDedup, setting.File.Name(): &flags.file,
+		setting.Replace.Name(): &flags.replace, setting.Provider.Name(): &flags.provider,
+		setting.Profile.Name(): &flags.profile, setting.Model.Name(): &flags.model,
+		setting.APIEndpoint.Name(): &flags.baseURL, setting.AllowHTTP.Name(): &flags.allowHTTP,
+		setting.LongContext.Name(): &flags.longContext, setting.Mock.Name(): &flags.mock,
+		setting.Cache.Name(): &flags.cache, setting.Jobs.Name(): &flags.jobs, setting.Timeout.Name(): &flags.timeout,
+		setting.Retries.Name(): &flags.retries, setting.MaxRetryAfter.Name(): &flags.maxRetryAfter,
 	}
-}
-
-func noteChosen(flags *runFlags, given *setting.Given) {
-	flags.providerSet = given.Count(setting.Provider.Name()) > 0
-	flags.profileSet = given.Count(setting.Profile.Name()) > 0
-}
-
-func rowHelp(name setting.Name) string {
-	for _, row := range setting.Table() {
-		if row.Name == name {
-			return row.Help
-		}
-	}
-
-	return ""
 }
 
 func rootLong() string {

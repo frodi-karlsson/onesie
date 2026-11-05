@@ -39,6 +39,17 @@ func Table() []Row {
 	return rows
 }
 
+// Lookup returns the row called name, and whether there is one.
+func Lookup(name Name) (Row, bool) {
+	for _, row := range Table() {
+		if row.Name == name {
+			return row, true
+		}
+	}
+
+	return Row{}, false
+}
+
 func modeRows() []Row {
 	return []Row{
 		{

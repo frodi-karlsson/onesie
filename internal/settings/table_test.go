@@ -87,9 +87,23 @@ func TestTable(t *testing.T) {
 			check: func(rows []settings.Row) []string {
 				var problems []string
 
-				for _, match := range everyKey() {
-					if problem := match(rows); problem != "" {
-						problems = append(problems, problem)
+				seen := map[settings.Name]bool{}
+
+				for _, key := range settings.Keys() {
+					if seen[key.Name()] {
+						problems = append(problems, fmt.Sprintf("Keys lists %s twice", key.Name()))
+					}
+
+					seen[key.Name()] = true
+
+					row, found := settings.Lookup(key.Name())
+
+					switch {
+					case !found:
+						problems = append(problems, fmt.Sprintf("key %s has no row", key.Name()))
+					case !key.Fits(row.Kind):
+						problems = append(problems, fmt.Sprintf("key %s does not fit its row's kind, which yields a %T",
+							key.Name(), row.Kind.Zero()))
 					}
 				}
 
@@ -172,41 +186,26 @@ func TestTable(t *testing.T) {
 	}
 }
 
-func everyKey() []func([]settings.Row) string {
-	return []func([]settings.Row) string{
-		matches(settings.Version), matches(settings.Output), matches(settings.Raw), matches(settings.Quiet),
-		matches(settings.Input), matches(settings.State), matches(settings.StateFile), matches(settings.Provider),
-		matches(settings.Profile), matches(settings.PrintQuestions), matches(settings.PrintSchema),
-		matches(settings.ListModels), matches(settings.Unordered), matches(settings.StopOnError),
-		matches(settings.StopOnAssert), matches(settings.NoDedup), matches(settings.MergeInput),
-		matches(settings.MergeKey), matches(settings.Map), matches(settings.ID), matches(settings.Model),
-		matches(settings.APIEndpoint), matches(settings.AllowHTTP), matches(settings.LongContext),
-		matches(settings.File), matches(settings.Replace), matches(settings.Jobs), matches(settings.Timeout),
-		matches(settings.Retries), matches(settings.MaxRetryAfter), matches(settings.Out), matches(settings.Resume),
-		matches(settings.Prune), matches(settings.SkipBlank), matches(settings.Delimiter), matches(settings.Stats),
-		matches(settings.Usage), matches(settings.PrintRequest), matches(settings.Cache), matches(settings.Mock),
-		matches(settings.Cuts), matches(settings.Offline), matches(settings.CacheTTL), matches(settings.ConfigDir),
-		matches(settings.CacheDir), matches(settings.Sep), matches(settings.Box), matches(settings.Threshold),
-		matches(settings.MinConfidence), matches(settings.FallbackAnswer),
+func TestLookup(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		row       settings.Name
+		wantFound bool
+	}{
+		{name: "should find a row by its name", row: "allow_http", wantFound: true},
+		{name: "should find no row for an unknown name", row: "allow-http"},
 	}
-}
 
-func matches[T any](key settings.Key[T]) func([]settings.Row) string {
-	return func(rows []settings.Row) string {
-		for _, row := range rows {
-			if row.Name != key.Name() {
-				continue
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			row, found := settings.Lookup(tc.row)
+			if found != tc.wantFound || (found && row.Name != tc.row) {
+				t.Errorf("Lookup(%s) = %s, %v, want found %v", tc.row, row.Name, found, tc.wantFound)
 			}
-
-			if _, ok := row.Kind.Zero().(T); !ok {
-				var want T
-
-				return fmt.Sprintf("key %s is a %T, and its row's kind yields a %T", key.Name(), want, row.Kind.Zero())
-			}
-
-			return ""
-		}
-
-		return fmt.Sprintf("key %s has no row", key.Name())
+		})
 	}
 }
