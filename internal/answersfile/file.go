@@ -885,7 +885,8 @@ func (o *File) completeRows(
 	// only counts once its closing newline is on disk, which is what tells a finished row from one
 	// cut off at a field boundary.
 	for {
-		if _, readErr := reader.Read(); readErr != nil {
+		cells, readErr := reader.Read()
+		if readErr != nil {
 			return rows, length, reader.Comma, nil
 		}
 
@@ -896,9 +897,38 @@ func (o *File) completeRows(
 			return rows, length, reader.Comma, nil
 		}
 
+		if found, foreign := foreignSeparator(cells, delimiter); rows == 0 && foreign {
+			return 0, 0, 0, &SeparatorError{Path: o.path, Given: reader.Comma, Found: found}
+		}
+
 		rows++
 		length = offset
 	}
+}
+
+func foreignSeparator(header []string, delimiter input.Delimiter) (rune, bool) {
+	// Under a comma the fingerprint refuses a file another separator wrote, since it records every
+	// separator but the comma. Every header holds the error column beside another, so a header the
+	// given separator wrote splits into more than one cell.
+	if delimiter.Detect || delimiter.Comma == 0 || delimiter.Comma == ',' || len(header) != 1 {
+		return 0, false
+	}
+
+	found := input.DetectDelimiter(header[0])
+
+	return found, found != delimiter.Comma && strings.ContainsRune(header[0], found)
+}
+
+// SeparatorError reports a csv answers file whose header row another separator wrote.
+type SeparatorError struct {
+	Path  string
+	Given rune
+	Found rune
+}
+
+// Error names the file and both separators.
+func (e *SeparatorError) Error() string {
+	return fmt.Sprintf("%s uses '%c', not '%c'", e.Path, e.Found, e.Given)
 }
 
 func (o *File) completeLines() (lines int, length int64, err error) {

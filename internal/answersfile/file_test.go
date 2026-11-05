@@ -13,6 +13,7 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/frodi-karlsson/onesie/internal/input"
 	"github.com/frodi-karlsson/onesie/internal/output"
 	"github.com/frodi-karlsson/onesie/internal/plan"
 )
@@ -133,6 +134,57 @@ func TestOpen(t *testing.T) {
 			assertLocked(t, path, false)
 		})
 	}
+
+	t.Run("should refuse a csv file whose header the given separator does not split", func(t *testing.T) {
+		t.Parallel()
+
+		semicolon := input.Delimiter{Comma: ';'}
+
+		tests := []struct {
+			name      string
+			written   string
+			delimiter input.Delimiter
+			wantErr   string
+		}{
+			{
+				name: "should refuse a comma file under a semicolon", written: "id,answer,error\n1,0.9,\n",
+				delimiter: semicolon, wantErr: "uses ',', not ';'",
+			},
+			{name: "should resume a semicolon file under a semicolon", written: "id;answer;error\n1;0.9;\n", delimiter: semicolon},
+			{name: "should resume a comma file under no separator", written: "id,answer,error\n1,0.9,\n"},
+			{name: "should resume a file holding no complete header", written: "id,ans", delimiter: semicolon},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				path := filepath.Join(resolvedTempDir(t), "answers.csv")
+				if err := os.WriteFile(path, []byte(tc.written), 0o600); err != nil {
+					t.Fatal(err)
+				}
+
+				out, _, err := Open(Options{}, Config{Path: path, Resume: true, Output: "csv", Delimiter: tc.delimiter})
+				if out != nil {
+					defer func() {
+						if releaseErr := out.Release(); releaseErr != nil {
+							t.Errorf("releasing: %v", releaseErr)
+						}
+					}()
+				}
+
+				var separator *SeparatorError
+
+				switch {
+				case tc.wantErr == "" && err != nil:
+					t.Errorf("Open error = %v, want none", err)
+				case tc.wantErr != "" && (!errors.As(err, &separator) || separator.Path != path ||
+					err.Error() != path+" "+tc.wantErr):
+					t.Errorf("Open error = %v, want a SeparatorError %q", err, path+" "+tc.wantErr)
+				}
+			})
+		}
+	})
 }
 
 func resolvedTempDir(t *testing.T) string {

@@ -55,6 +55,24 @@ func TestDelimited(t *testing.T) {
 			want:  "answer,error\n0.5,\n",
 		},
 		{
+			name:  "should write semicolons for -o csv --delimiter ';' from jsonl",
+			args:  []string{"is this urgent", "-i", "jsonl", "-o", "csv", "--delimiter", ";"},
+			stdin: `{"body":"site down"}` + "\n" + `{"body":"refund"}` + "\n",
+			want:  "answer;error\n0.5;\n0.5;\n",
+		},
+		{
+			name:  "should write one record with the given --delimiter",
+			args:  []string{"is this urgent", "-o", "csv", "--delimiter", ";"},
+			stdin: "the site is down",
+			want:  "answer;error\n0.5;\n",
+		},
+		{
+			name:  "should write a plain -o csv from -i csv with the given --delimiter",
+			args:  []string{"--ask", "urgent=is this urgent", "-i", "csv", "-o", "csv", "--delimiter", ";"},
+			stdin: "id;body\n1;the site is down\n",
+			want:  "urgent;error\n0.5;\n",
+		},
+		{
 			name:  "should add a fallback column for a question that has a fallback",
 			args:  []string{"--ask", "urgent=is this urgent", "--fallback", "no", "-o", "csv"},
 			stdin: "the site is down",

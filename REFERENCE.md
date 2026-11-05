@@ -333,12 +333,15 @@ onesie calibrate -f shell-safety -i jsonl --map .command --id .id \
   run that the delimiter may not match the file, since `-i tsv` reads a comma separated file as one
   column, and `-i csv` a semicolon separated one. `calibrate` says so beside the first record's
   error.
-- `--delimiter` sets the field separator of `-i csv`: one character, or `auto`, which picks a comma,
-  a semicolon or a tab from the header row, as a spreadsheet export in many locales uses semicolons.
-  Without it `-i csv` splits on commas. Any other `-i` refuses it with exit 2, since tsv is tab
-  separated by definition and the rest have no delimiter. `-o csv --merge` from `-i csv` writes with
-  the input's separator, given or detected, while plain `-o csv` and a merge from `-i tsv` keep
-  commas.
+- `--delimiter` sets the field separator of the run's csv, both ways: `-i csv` reads with it and
+  `-o csv` writes with it, with or without `--merge`. It takes one character, or `auto`, which picks
+  a comma, a semicolon or a tab from the header row, as a spreadsheet export in many locales uses
+  semicolons, and writes the separator it picked. Without it, `-i csv` splits on commas and `-o csv`
+  writes them. Beside another `-i`, `-o csv` takes one character to set the output separator, as in
+  `-i jsonl -o csv --delimiter ';'`. `auto` needs `-i csv`, and `-o tsv` refuses the flag, since tsv
+  is tab separated by definition. A run with neither `-i csv` nor `-o csv` refuses it with exit 2.
+- `--resume` under `--delimiter` refuses with exit 2 a csv answers file whose header row another
+  separator wrote, so its rows never mix two separators.
 - `--merge` folds the answers into an input that is an object. Any other input, such as a text
   state, a line of `-i lines`, a jsonl string or a line onesie could not read, merges as
   `{"state":INPUT,"answers":ANSWERS}`, so `--merge-key state` exits 2: before any request under

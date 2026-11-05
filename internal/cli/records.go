@@ -56,7 +56,7 @@ func records(
 func appendedTo(flags runConfig, resume answersfile.Resume, outputMode output.Mode) *appendedCSV {
 	// Only a detected comma can differ from the one the file was written with, since a given one
 	// also reads the file back.
-	if !resume.Header || !flags.parsedDelimiter.Detect || !mergesCSV(merging(flags), outputMode, flags.inputMode) {
+	if !resume.Header || !flags.parsedDelimiter.Detect || outputMode != output.CSV {
 		return nil
 	}
 

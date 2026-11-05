@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"cmp"
 	"strings"
 	"testing"
 
@@ -1071,27 +1072,50 @@ func TestCheckFlags(t *testing.T) {
 		})
 	}
 
-	t.Run("should refuse --delimiter beside every input but -i csv", func(t *testing.T) {
+	t.Run("should refuse --delimiter where no csv reads or writes it", func(t *testing.T) {
 		t.Parallel()
 
+		const elsewhere = "--delimiter applies to -i csv and -o csv. "
+
 		tests := []struct {
-			input   string
-			wantErr string
+			name      string
+			input     string
+			output    string
+			delimiter string
+			wantErr   string
 		}{
-			{input: "csv"},
-			{input: "tsv", wantErr: "--delimiter applies to -i csv. -i tsv is tab separated by definition"},
-			{input: "jsonl", wantErr: "--delimiter applies to -i csv. -i jsonl has no delimiter"},
-			{input: "json", wantErr: "--delimiter applies to -i csv. -i json has no delimiter"},
-			{input: "lines", wantErr: "--delimiter applies to -i csv. -i lines has no delimiter"},
-			{input: "text", wantErr: "--delimiter applies to -i csv. -i text has no delimiter"},
-			{input: "request", wantErr: "--delimiter applies to -i csv. -i request has no delimiter"},
+			{name: "should accept --delimiter with -i csv", input: "csv"},
+			{name: "should accept --delimiter auto with -i csv -o csv", input: "csv", output: "csv", delimiter: "auto"},
+			{name: "should accept --delimiter with -i jsonl -o csv", input: "jsonl", output: "csv"},
+			{name: "should accept --delimiter with -i tsv -o csv", input: "tsv", output: "csv"},
+			{name: "should accept --delimiter with -o csv from text", output: "csv"},
+			{
+				name: "should refuse --delimiter beside -i tsv", input: "tsv",
+				wantErr: elsewhere + "-i tsv is tab separated by definition",
+			},
+			{name: "should refuse --delimiter beside -i jsonl", input: "jsonl", wantErr: elsewhere + "-i jsonl has no delimiter"},
+			{name: "should refuse --delimiter beside -i json", input: "json", wantErr: elsewhere + "-i json has no delimiter"},
+			{name: "should refuse --delimiter beside -i lines", input: "lines", wantErr: elsewhere + "-i lines has no delimiter"},
+			{name: "should refuse --delimiter beside -i text", input: "text", wantErr: elsewhere + "-i text has no delimiter"},
+			{
+				name: "should refuse --delimiter beside -i request", input: "request",
+				wantErr: elsewhere + "-i request has no delimiter",
+			},
+			{
+				name: "should refuse --delimiter auto without -i csv", input: "jsonl", output: "csv", delimiter: "auto",
+				wantErr: "--delimiter auto needs -i csv, since it reads the separator from the input's header row",
+			},
+			{
+				name: "should refuse --delimiter with -o tsv", input: "csv", output: "tsv",
+				wantErr: "--delimiter does not apply to -o tsv, which is tab separated by definition",
+			},
 		}
 
 		for _, tc := range tests {
-			t.Run("should answer -i "+tc.input, func(t *testing.T) {
+			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 
-				flags := runFlags{input: tc.input, delimiter: ";"}
+				flags := runFlags{input: tc.input, output: tc.output, delimiter: cmp.Or(tc.delimiter, ";")}
 
 				_, err := checkFlags(testConfig(flags, []string{flagInput, flagDelimiter}, nil, ""), runFacts{})
 				if tc.wantErr == "" && err != nil || tc.wantErr != "" && (err == nil || err.Error() != tc.wantErr) {
@@ -1611,6 +1635,7 @@ func testConfig(flags runFlags, given []string, events []argv.Event, positional 
 			config.maxRetryAfterSet = true
 		case flagDelimiter:
 			config.hasDelimiter = true
+			config.parsedDelimiter, _ = input.ParseDelimiter(flags.delimiter)
 		}
 	}
 

@@ -194,16 +194,39 @@ func flagChecks(config runConfig) []func(runConfig, runFacts) error {
 }
 
 func checkDelimiter(config runConfig, _ runFacts) error {
+	if !config.hasDelimiter {
+		return nil
+	}
+
+	switch {
+	case config.output == "tsv":
+		return fmt.Errorf("--%s does not apply to -o tsv, which is tab separated by definition", flagDelimiter)
+	case config.parsedDelimiter.Detect && config.inputMode != input.CSV:
+		return fmt.Errorf("--%s auto needs -i csv, since it reads the separator from the input's header row",
+			flagDelimiter)
+	case config.inputMode == input.CSV || config.output == "csv":
+		return nil
+	default:
+		return fmt.Errorf("--%s applies to -i csv and -o csv. -i %s %s",
+			flagDelimiter, inputName(config.input), delimiterlessReason(config.inputMode))
+	}
+}
+
+func checkInputDelimiter(config runConfig) error {
 	if !config.hasDelimiter || config.inputMode == input.CSV {
 		return nil
 	}
 
-	reason := "has no delimiter"
-	if config.inputMode == input.TSV {
-		reason = "is tab separated by definition"
+	return fmt.Errorf("--%s applies to -i csv. -i %s %s",
+		flagDelimiter, inputName(config.input), delimiterlessReason(config.inputMode))
+}
+
+func delimiterlessReason(mode input.Mode) string {
+	if mode == input.TSV {
+		return "is tab separated by definition"
 	}
 
-	return fmt.Errorf("--%s applies to -i csv. -i %s %s", flagDelimiter, inputName(config.input), reason)
+	return "has no delimiter"
 }
 
 func checkListModels(config runConfig, facts runFacts) error {

@@ -848,7 +848,8 @@ func writeRecord(
 	}
 
 	if mode == output.CSV || mode == output.TSV {
-		return delimited(cmd.OutOrStdout(), mode, inv.plan, inv.gate != nil, false, false, 0).Write(record, nil, nil)
+		return delimited(cmd.OutOrStdout(), mode, inv.plan, inv.gate != nil, false, false, flags.parsedDelimiter.Comma).
+			Write(record, nil, nil)
 	}
 
 	if merging(flags) {

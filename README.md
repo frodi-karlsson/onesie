@@ -156,8 +156,8 @@ esac
 onesie --ask urgent='does `body` convey urgency' -i csv -o csv --merge < tickets.csv > triaged.csv
 ```
 
-A spreadsheet export separated by semicolons reads with `--delimiter auto`, and the merged rows keep
-its semicolons.
+A spreadsheet export separated by semicolons reads with `--delimiter auto`, and `-o csv` writes
+semicolons back, merged or not.
 
 **Run a big batch you can resume.** `--map` sends only the body, `--id` names each answer, and
 `--resume` skips every id the file already answers and asks the rest, failed ones included.
