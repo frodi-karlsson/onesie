@@ -199,8 +199,6 @@ func checkDelimiter(config runConfig, _ runFacts) error {
 	}
 
 	switch {
-	case config.output == "tsv":
-		return fmt.Errorf("--%s does not apply to -o tsv, which is tab separated by definition", flagDelimiter)
 	case config.parsedDelimiter.Detect && config.inputMode != input.CSV:
 		return fmt.Errorf("--%s auto needs -i csv, since it reads the separator from the input's header row",
 			flagDelimiter)

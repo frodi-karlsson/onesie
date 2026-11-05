@@ -1051,6 +1051,13 @@ func TestNewRootCmd(t *testing.T) {
 			contains: []string{"onesie: --usage does not apply to -q, which suppresses output"},
 		},
 		{
+			name:     "should read a semicolon csv and write tsv under --delimiter ';'",
+			args:     []string{"is this urgent", "-i", "csv", "--map", ".body", "--delimiter", ";", "-o", "tsv", "--mock", "m.json"},
+			files:    map[string]string{"m.json": `{"answer":0.9}`},
+			stdin:    "id;body\n1;site down, now\n",
+			contains: []string{"answer\terror\n0.9\t\n"},
+		},
+		{
 			name:     "should write the detected separator for -i csv --delimiter auto -o csv",
 			args:     []string{"is this urgent", "-i", "csv", "--map", ".body", "--delimiter", "auto", "-o", "csv", "--mock", "m.json"},
 			files:    map[string]string{"m.json": `{"answer":0.9}`},

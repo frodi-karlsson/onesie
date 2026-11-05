@@ -1105,9 +1105,10 @@ func TestCheckFlags(t *testing.T) {
 				name: "should refuse --delimiter auto without -i csv", input: "jsonl", output: "csv", delimiter: "auto",
 				wantErr: "--delimiter auto needs -i csv, since it reads the separator from the input's header row",
 			},
+			{name: "should accept --delimiter with -i csv -o tsv", input: "csv", output: "tsv"},
 			{
-				name: "should refuse --delimiter with -o tsv", input: "csv", output: "tsv",
-				wantErr: "--delimiter does not apply to -o tsv, which is tab separated by definition",
+				name: "should refuse --delimiter with -i jsonl -o tsv", input: "jsonl", output: "tsv",
+				wantErr: elsewhere + "-i jsonl has no delimiter",
 			},
 		}
 
