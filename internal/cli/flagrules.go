@@ -1,11 +1,7 @@
 package cli
 
 import (
-	"fmt"
-
 	"github.com/spf13/cobra"
-
-	"github.com/frodi-karlsson/onesie/internal/input"
 )
 
 const wrapKey = "state"
@@ -19,21 +15,4 @@ func DryRunRules() (root *cobra.Command, always, questionsOnly []string) {
 	}
 
 	return NewRootCmd(BuildInfo{}).Command, always, questionsOnly
-}
-
-func checkInputDelimiter(config runConfig) error {
-	if !config.hasDelimiter || config.inputMode == input.CSV {
-		return nil
-	}
-
-	return fmt.Errorf("--%s applies to -i csv. -i %s %s",
-		flagDelimiter, inputName(config.input), delimiterlessReason(config.inputMode))
-}
-
-func delimiterlessReason(mode input.Mode) string {
-	if mode == input.TSV {
-		return "is tab separated by definition"
-	}
-
-	return "has no delimiter"
 }

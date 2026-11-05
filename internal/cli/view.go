@@ -61,9 +61,19 @@ func viewOf(config runConfig, facts runFacts, built *plan.Plan) setting.View {
 
 	merged.Set(setting.Mock.Name(), config.mockPath, mockSourceOf(config.mockSpelled))
 
-	return setting.NewView(merged, built, setting.Facts{
-		FileAssert: facts.assert, FileAbstainIf: facts.abstainIf, Events: config.events, Positional: config.positional,
-	})
+	viewFacts := setting.Facts{
+		Command: setting.CommandRoot, FileAssert: facts.assert, FileAbstainIf: facts.abstainIf,
+		BodyState: facts.bodyState, Events: config.events, Positional: config.positional,
+	}
+
+	if calib := config.calibrate; calib != nil {
+		viewFacts.Command, viewFacts.Report = setting.CommandCalibrate, calib.report
+		merged.Set(setting.Cuts.Name(), calib.cuts, sourceOf(config.cutsSet))
+		merged.Set("require", calib.requires, sourceOf(len(calib.requires) > 0))
+		merged.Set(setting.Offline.Name(), calib.offline, sourceOf(calib.offline))
+	}
+
+	return setting.NewView(merged, built, viewFacts)
 }
 
 func sourceOf(typed bool) setting.Source {

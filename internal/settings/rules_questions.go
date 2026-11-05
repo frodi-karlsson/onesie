@@ -2,6 +2,8 @@ package settings
 
 import (
 	"errors"
+	"fmt"
+	"slices"
 
 	"github.com/frodi-karlsson/onesie/internal/plan"
 )
@@ -37,6 +39,105 @@ func replaceNeedsFileRule() Rule {
 	}
 }
 
+func bodyPolicyRule() Rule {
+	return Rule{
+		ID:    "body-policy-needs-one-question",
+		Reads: []Name{"threshold", "min_confidence", "fallback", File.Name()},
+		Check: func(v View) error {
+			if v.Plan == nil {
+				return nil
+			}
+
+			body := 0
+
+			for _, question := range v.Plan.Questions {
+				if question.Origin == plan.OriginBody {
+					body++
+				}
+			}
+
+			if body <= 1 {
+				return nil
+			}
+
+			// A policy flag that found no question to bind to is still a policy flag aimed at the
+			// body, since Assemble binds top level flags only when exactly one question was asked.
+			for _, event := range v.Plan.Orphans {
+				if policyFlag(event.Name) {
+					return bodyPolicyError(Get(v.Merged, File), body)
+				}
+			}
+
+			for _, question := range v.Plan.Questions {
+				policy := question.Policy
+				if question.Origin == plan.OriginBody &&
+					(policy.Threshold != nil || policy.MinConfidence != nil || policy.Fallback != nil) {
+					return bodyPolicyError(Get(v.Merged, File), body)
+				}
+			}
+
+			return nil
+		},
+	}
+}
+
+func policyFlag(name string) bool {
+	switch name {
+	case "threshold", "min-confidence", "fallback":
+		return true
+	default:
+		return false
+	}
+}
+
+func bodyPolicyError(name string, questions int) error {
+	if name == "" {
+		name = "the question file"
+	}
+
+	return fmt.Errorf(
+		"policy flags apply to a request body only when it has one question. "+
+			"%s has %d, freeze with --print-questions first", name, questions)
+}
+
+func orphansRule() Rule {
+	return Rule{
+		ID:    "group-flags-bind",
+		Reads: []Name{"ask", "pick", "rate", "box", "desc", "sep", "threshold", "min_confidence", "fallback"},
+		Check: func(v View) error {
+			if v.Plan == nil || len(v.Plan.Orphans) == 0 {
+				return nil
+			}
+
+			orphan := v.Plan.Orphans[0].Name
+			err := fmt.Errorf("--%s given with no --ask to bind to and %d questions asked",
+				orphan, len(v.Plan.Questions))
+
+			keys := fileKeysFor(orphan)
+			if keys == "" || !slices.ContainsFunc(v.Plan.Questions, func(q plan.Question) bool {
+				return q.Origin == plan.OriginFile
+			}) {
+				return err
+			}
+
+			return fmt.Errorf("%w. Set %s on a question in the -f file instead", err, keys)
+		},
+	}
+}
+
+func fileKeysFor(flag string) string {
+	switch flag {
+	case "threshold":
+		return "threshold"
+	case "min-confidence":
+		return "min_confidence and fallback"
+	case "fallback":
+		return "fallback"
+	default:
+		return ""
+	}
+}
+
 func questionsValidRule() Rule {
 	return Rule{
 		ID:    "questions-valid",
@@ -46,7 +147,7 @@ func questionsValidRule() Rule {
 				return nil
 			}
 
-			_, err := plan.Validate(v.Plan, Get(v.Merged, File))
+			_, err := plan.Validate(v.Plan)
 
 			return err
 		},
@@ -55,7 +156,7 @@ func questionsValidRule() Rule {
 				return nil
 			}
 
-			warnings, err := plan.Validate(v.Plan, Get(v.Merged, File))
+			warnings, err := plan.Validate(v.Plan)
 			if err != nil {
 				// Check reports the refusal. The warnings of the questions ahead of it still print.
 				return warnings

@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -486,6 +488,89 @@ func TestValidateRun(t *testing.T) {
 
 				if !strings.Contains(errOut, tc.want) {
 					t.Errorf("stderr = %q, want it to contain %q", errOut, tc.want)
+				}
+			})
+		}
+	})
+
+	t.Run("should report in the order of the one stage", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		body := filepath.Join(dir, "body.json")
+		broken := filepath.Join(dir, "broken.yaml")
+		missing := filepath.Join(dir, "missing.yaml")
+
+		for path, content := range map[string]string{
+			body:   `{"questions":{"urgent":{"type":"noul","instructions":"is this urgent"}},"state":"hello"}`,
+			broken: "urgent: [unclosed\n",
+		} {
+			if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+				t.Fatal(err)
+			}
+		}
+
+		bodyClash := "onesie: --state and the state in " + body + " both give a state. Drop one"
+
+		tests := []struct {
+			name    string
+			args    []string
+			wantErr string
+		}{
+			{
+				name:    "should refuse a body's second state before parsing --assert",
+				args:    []string{"-f", body, "--state", "x", "--assert", "urgent.value >"},
+				wantErr: bodyClash,
+			},
+			{
+				name:    "should refuse a body's second state before parsing --abstain-if",
+				args:    []string{"-f", body, "--state", "x", "--assert", "urgent.value > 0.5", "--abstain-if", "("},
+				wantErr: bodyClash,
+			},
+			{
+				name:    "should refuse a body's second state before compiling --map",
+				args:    []string{"-f", body, "--state", "x", "--map", ".[", "--print-request"},
+				wantErr: bodyClash,
+			},
+			{
+				name:    "should refuse a body's second state before reading --image",
+				args:    []string{"-f", body, "--image", "photo=" + filepath.Join(dir, "missing.png"), "--print-request"},
+				wantErr: "onesie: --image and the state in " + body + " both give a state. Drop one",
+			},
+			{
+				name:    "should report a missing -f file before calibrate's needs",
+				args:    []string{"calibrate", "-f", missing},
+				wantErr: "onesie: reading " + missing + ": no such file or directory",
+			},
+			{
+				name:    "should report a broken -f file before calibrate's needs",
+				args:    []string{"calibrate", "-f", broken, "--offline"},
+				wantErr: "onesie: " + broken + ": [1:9] sequence end token ']' not found",
+			},
+			{
+				name:    "should report a malformed --ask before calibrate's needs",
+				args:    []string{"calibrate", "--ask", "noequals", "--cuts", " "},
+				wantErr: "onesie: --ask takes NAME=QUESTION, got 'noequals'",
+			},
+			{
+				name:    "should still report calibrate's needs before a missing question",
+				args:    []string{"calibrate", "--cuts", "0.5"},
+				wantErr: "onesie: calibrate needs -i jsonl, csv or tsv, since only a record has fields to label",
+			},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				out, errOut, code := runOffline(t, tc.args)
+
+				if code != ExitUsage {
+					t.Fatalf("exit code = %d, want %d\nstdout:\n%s\nstderr:\n%s", code, ExitUsage, out, errOut)
+				}
+
+				if first, _, _ := strings.Cut(errOut, "\n"); first != tc.wantErr {
+					t.Errorf("stderr first line = %q, want %q", first, tc.wantErr)
 				}
 			})
 		}

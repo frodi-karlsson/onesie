@@ -11,17 +11,10 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/output"
 	"github.com/frodi-karlsson/onesie/internal/plan"
 	"github.com/frodi-karlsson/onesie/internal/qfile"
-	setting "github.com/frodi-karlsson/onesie/internal/settings"
 )
 
 func build(settings rootSettings, flags runConfig, ignoreFileJudgment bool) (*invocation, []string, error) {
 	events, positional := flags.events, flags.positional
-
-	// Every mode except --list-models and -i request needs a question, and reporting that here
-	// rather than from Assemble keeps the message the same whichever source was missing.
-	if positional == "" && len(events) == 0 && flags.file == "" {
-		return nil, nil, setting.ErrNoQuestion
-	}
 
 	file, err := readBuildFile(settings, flags, ignoreFileJudgment)
 	if err != nil {
@@ -94,7 +87,7 @@ func readBuildFile(settings rootSettings, flags runConfig, ignoreFileJudgment bo
 		withoutJudgment(file.loaded)
 	}
 
-	file.facts = runFacts{assert: file.loaded.Assert, abstainIf: file.loaded.AbstainIf}
+	file.facts = runFacts{assert: file.loaded.Assert, abstainIf: file.loaded.AbstainIf, bodyState: file.loaded.HasState}
 
 	return file, nil
 }

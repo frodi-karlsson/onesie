@@ -3,6 +3,7 @@ package settings_test
 import (
 	"cmp"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -385,6 +386,59 @@ func TestValidate(t *testing.T) {
 			positional: "is this urgent",
 			set:        values{"retries": 0, "input": "text"},
 			typed:      []settings.Name{"retries"},
+		},
+		{
+			name: "should reject a shape flag with no ask to bind to",
+			events: []argv.Event{
+				{Name: "pick", Value: "x,y"},
+				{Name: "ask", Value: "a=one"},
+				{Name: "ask", Value: "b=two"},
+				{Name: "ask", Value: "c=three"},
+			},
+			wantErr: "--pick given with no --ask to bind to and 3 questions asked",
+		},
+		{
+			name: "should accept policy on an ask added beside a one question body",
+			file: bodyQuestions(1),
+			events: []argv.Event{
+				{Name: "ask", Value: "extra=second"},
+				{Name: "threshold", Value: "0.8"},
+			},
+		},
+		{
+			name: "should accept a one question body with no policy at all",
+			file: bodyQuestions(1),
+		},
+		{
+			name:   "should reject a policy flag aimed at a two question body",
+			file:   bodyQuestions(2),
+			events: []argv.Event{{Name: "threshold", Value: "0.8"}},
+			wantErr: "policy flags apply to a request body only when it has one question. " +
+				"the question file has 2, freeze with --print-questions first",
+		},
+		{
+			name: "should count only the body's own questions in the policy error",
+			file: bodyQuestions(2),
+			events: []argv.Event{
+				{Name: "threshold", Value: "0.8"},
+				{Name: "ask", Value: "extra=second"},
+			},
+			wantErr: "the question file has 2",
+		},
+		{
+			name: "should reject policy carried by a body question itself",
+			file: append(bodyQuestions(1), plan.Question{
+				ID: "b2", Shape: plan.Noul, Instructions: "q", Origin: plan.OriginBody,
+				Policy: plan.Policy{Threshold: pointerTo(0.8)},
+			}),
+			wantErr: "the question file has 2",
+		},
+		{
+			name:    "should name the body's file in the policy error",
+			file:    bodyQuestions(2),
+			events:  []argv.Event{{Name: "threshold", Value: "0.8"}},
+			set:     values{"file": "triage.json"},
+			wantErr: "triage.json has 2",
 		},
 	}
 
@@ -1142,6 +1196,29 @@ func TestValidate(t *testing.T) {
 		}
 	})
 
+	t.Run("should leave calibrate's rules to calibrate", func(t *testing.T) {
+		t.Parallel()
+
+		given := run{facts: settings.Facts{Command: settings.CommandRoot}, positional: "is this urgent", planned: true}
+
+		if _, _, err := settings.Validate(given.view(t), settings.Rules()); err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("should leave a body's state to the run, which calibrate only warns about", func(t *testing.T) {
+		t.Parallel()
+
+		given := run{
+			facts: settings.Facts{Command: settings.CommandCalibrate, BodyState: true},
+			set:   values{"file": "body.json"}, typed: []settings.Name{"state"},
+		}
+
+		if _, _, err := settings.Validate(given.view(t), []settings.Rule{ruleByID(t, "one-state")}); err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+	})
+
 	t.Run("should cover every rule in Rules", func(t *testing.T) {
 		t.Parallel()
 
@@ -1219,8 +1296,66 @@ func TestRules(t *testing.T) {
 
 func ruleCases() []ruleCase {
 	two := []argv.Event{{Name: "ask", Value: "a=one"}, {Name: "ask", Value: "b=two"}}
+	calibrating := settings.Facts{Command: settings.CommandCalibrate}
 
 	return []ruleCase{
+		{
+			rule:    "calibrate-reads-records",
+			refused: run{facts: calibrating},
+			passed:  run{facts: calibrating, set: values{"input": "jsonl"}, typed: []settings.Name{"input"}},
+			wantErr: "calibrate needs -i jsonl, csv or tsv, since only a record has fields to label",
+		},
+		{
+			rule:    "offline-reads-out",
+			refused: run{facts: calibrating, set: values{"offline": true, "print_request": true}},
+			passed:  run{facts: calibrating, set: values{"offline": true, "out": "answers.jsonl", "resume": true}},
+			wantErr: "--offline reads answers, and --print-request sends no request. Drop one",
+		},
+		{
+			rule:    "calibrate-needs-map",
+			refused: run{facts: calibrating},
+			passed:  run{facts: calibrating, typed: []settings.Name{"map"}},
+			wantErr: "calibrate needs --map. Without it the whole record, label included, " +
+				"would be the state, and the report would flatter the question",
+		},
+		{
+			rule:    "calibrate-report",
+			refused: run{facts: settings.Facts{Command: settings.CommandCalibrate, Report: "csv"}},
+			passed:  run{facts: settings.Facts{Command: settings.CommandCalibrate, Report: "json"}},
+			wantErr: "calibrate -o takes table, json or auto, got csv",
+		},
+		{
+			rule:    "cuts-parse",
+			refused: run{facts: calibrating, set: values{"cuts": " "}, typed: []settings.Name{"cuts"}},
+			passed:  run{facts: calibrating, set: values{"cuts": "0.5"}, typed: []settings.Name{"cuts"}},
+			wantErr: "--cuts takes a comma separated list of numbers between 0 and 1, got nothing",
+		},
+		{
+			rule:    "calibrate-resumes-by-id",
+			refused: run{facts: calibrating, set: values{"resume": true}},
+			passed:  run{facts: calibrating, set: values{"resume": true}, typed: []settings.Name{"id"}},
+			wantErr: "calibrate resumes by id, since which records are asked follows the labels. Pass --id",
+		},
+		{
+			rule:    "calibrate-dry-run-out",
+			refused: run{facts: calibrating, set: values{"print_request": true, "out": "answers.jsonl"}},
+			passed: run{
+				facts: calibrating, set: values{"print_request": true, "out": "answers.jsonl", "resume": true},
+			},
+			wantErr: "--print-request writes request bodies to stdout, so --out has no answers to hold. Drop --out",
+		},
+		{
+			rule:    "calibrate-usage",
+			refused: run{facts: calibrating, set: values{"usage": true}},
+			passed:  run{facts: settings.Facts{Command: settings.CommandCalibrate, Report: "json"}, set: values{"usage": true}},
+			wantErr: "--usage adds token counts to the answers file or the json report, and this run writes neither",
+		},
+		{
+			rule:    "requires-parse",
+			refused: run{facts: calibrating, set: values{"require": []string{"nonsense"}}},
+			passed:  run{facts: calibrating, set: values{"require": []string{"urgent.catches >= 0.9"}}},
+			wantErr: "--require 'nonsense' needs an operator, >=, >, <= or <, in 'nonsense'",
+		},
 		{
 			rule:    "needs-a-question",
 			refused: run{planned: true},
@@ -1381,6 +1516,23 @@ func ruleCases() []ruleCase {
 			wantErr: "question id 'a' is given twice",
 		},
 		{
+			rule: "body-policy-needs-one-question",
+			refused: run{
+				planned: true, file: bodyQuestions(2), events: []argv.Event{{Name: "threshold", Value: "0.8"}},
+			},
+			passed: run{
+				planned: true, file: bodyQuestions(1), events: []argv.Event{{Name: "threshold", Value: "0.8"}},
+			},
+			wantErr: "policy flags apply to a request body only when it has one question. " +
+				"the question file has 2, freeze with --print-questions first",
+		},
+		{
+			rule:    "group-flags-bind",
+			refused: run{planned: true, events: append([]argv.Event{{Name: "pick", Value: "x,y"}}, two...)},
+			passed:  run{planned: true, events: two},
+			wantErr: "--pick given with no --ask to bind to and 2 questions asked",
+		},
+		{
 			rule:    "quiet-needs-one-question",
 			refused: run{planned: true, set: values{"quiet": true}, events: two},
 			passed:  run{planned: true, set: values{"quiet": true, "assert": []string{"answer.value > 0.5"}}, events: two},
@@ -1391,6 +1543,14 @@ func ruleCases() []ruleCase {
 			refused: run{planned: true, set: values{"raw": true}, events: two},
 			passed:  run{planned: true, set: values{"raw": true}, positional: "is this urgent"},
 			wantErr: "-r needs a single question. 'a', 'b' were asked",
+		},
+		{
+			rule: "one-state",
+			refused: run{
+				facts: settings.Facts{BodyState: true}, set: values{"file": "body.json"}, typed: []settings.Name{"state"},
+			},
+			passed:  run{facts: settings.Facts{BodyState: true}, set: values{"file": "body.json"}},
+			wantErr: "--state and the state in body.json both give a state. Drop one",
 		},
 	}
 }
@@ -1472,6 +1632,21 @@ func (r run) sourceOf(name settings.Name) settings.Source {
 }
 
 type values = map[settings.Name]any
+
+func bodyQuestions(n int) []plan.Question {
+	questions := make([]plan.Question, 0, n)
+	for i := range n {
+		questions = append(questions, plan.Question{
+			ID: "b" + strconv.Itoa(i), Shape: plan.Noul, Instructions: "q", Origin: plan.OriginBody,
+		})
+	}
+
+	return questions
+}
+
+func pointerTo[T any](value T) *T {
+	return &value
+}
 
 func assertWarning(t *testing.T, warnings []string, want string, failing bool) {
 	t.Helper()

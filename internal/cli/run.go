@@ -68,10 +68,6 @@ func run(
 		return err
 	}
 
-	if bodyErr := checkBodyState(flags, inv.loaded); bodyErr != nil {
-		return bodyErr
-	}
-
 	// Before the output mode, because a question file is not an output mode and -o has no meaning
 	// for it. After validation, because a dry run that accepted a plan the real run would reject
 	// would be worse than useless.
@@ -282,27 +278,6 @@ func imagedState(sent any) (input.Resolved, error) {
 	return input.Resolved{Source: input.SourceImages, State: state, Raw: string(encoded), Wire: sent}, nil
 }
 
-func checkBodyState(flags runConfig, loaded *qfile.File) error {
-	if loaded == nil || !loaded.HasState {
-		return nil
-	}
-
-	var flag string
-
-	switch {
-	case flags.hasState:
-		flag = "--" + flagState
-	case flags.hasStateFile:
-		flag = "--" + flagStateFile
-	case len(flags.images) > 0:
-		flag = "--image"
-	default:
-		return nil
-	}
-
-	return fmt.Errorf("%s and the state in %s both give a state. Drop one", flag, flags.file)
-}
-
 func warnIgnoredBodyState(
 	w io.Writer, flags runConfig, loaded *qfile.File, sender string, images *imaging, questions onesie.Questions,
 ) error {
@@ -463,16 +438,6 @@ func asked(events []argv.Event) bool {
 	}
 
 	return false
-}
-
-func inputName(flag string) string {
-	// Reachable only by passing -i with an empty value, since the flag defaults to text. Every
-	// message that names the mode would otherwise read -i with nothing after it.
-	if flag == "" {
-		return "text"
-	}
-
-	return flag
 }
 
 func watched(stop func(line) bool, stopped *atomic.Bool) func(line) bool {

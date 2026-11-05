@@ -15,17 +15,19 @@ const (
 
 // Rules returns every cross setting rule, in the order Validate runs them.
 func Rules() []Rule {
-	// The mode rules lead, so a flag a mode makes meaningless is named against the mode. A dry run is
+	// Calibrate's own needs lead, then the mode rules, so a flag a mode makes meaningless is named
+	// against the mode. A dry run is
 	// refused before anything it would have written reaches stdout, and a streaming -q reports the
 	// streaming message before the plan rules run.
-	return []Rule{
+	return append(calibrateRules(),
 		noQuestionRule(), listModelsRule(), resumeRule(), pruneRule(), dryRunAndRequestRule(), delimiterRule(),
 		abstainNeedsAssertRule(), rawAndOutputRule(), quietWithMarkdownRule(), stateAndStateFileRule(),
 		replaceNeedsFileRule(), mergeOutputRule(), mergeKeyWrapsRule(), delimitedOutputRule(), quietWithUsageRule(),
 		usageWritesAnswersRule(), numberRangesRule(), singleRecordRule(), streamStateRule(), quietOnStreamRule(),
 		tableOnStreamRule(), stopOnAssertNeedsAssertRule(), fallbackColumnsRule(), lineFieldRule(),
-		questionsValidRule(), quietNeedsAGateRule(), rawNeedsOneQuestionRule(),
-	}
+		bodyPolicyRule(), orphansRule(), questionsValidRule(), quietNeedsAGateRule(), rawNeedsOneQuestionRule(),
+		bodyStateRule(),
+	)
 }
 
 // Validate runs rules in order on v. It returns the warnings and notices of the rules it reached, and
@@ -80,12 +82,15 @@ type View struct {
 	Facts  Facts
 }
 
-// Facts are what a rule reads about a run that no setting holds: the question file's gates, the
-// group flags in the order typed, and the positional question.
+// Facts are what a rule reads about a run that no setting holds: the command, the question file's
+// gates and state, the group flags in the order typed, the positional question and calibrate's -o.
 type Facts struct {
+	Command                   Command
 	FileAssert, FileAbstainIf string
+	BodyState                 bool
 	Events                    []argv.Event
 	Positional                string
+	Report                    string
 }
 
 func typed(v View, name Name) bool {
