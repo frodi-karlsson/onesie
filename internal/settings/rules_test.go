@@ -440,6 +440,57 @@ func TestValidate(t *testing.T) {
 			set:     values{"file": "triage.json"},
 			wantErr: "triage.json has 2",
 		},
+		{
+			name:       "should report a streaming -q before -o table",
+			positional: "is this urgent",
+			set:        values{"quiet": true, "output": "table", "input": "jsonl"},
+			wantExact:  "-q reads one record. Drop -i jsonl or use -o values and filter the stream",
+		},
+		{
+			name:       "should report --resume without --out before --prune",
+			positional: "is this urgent",
+			set:        values{"prune": true, "resume": true},
+			wantExact:  "--resume needs --out, the file it picks up from",
+		},
+		{
+			name:       "should report a number out of range before a streaming flag on one record",
+			positional: "is this urgent",
+			set:        values{"jobs": 0, "unordered": true},
+			typed:      []settings.Name{"jobs"},
+			wantExact:  "-j takes a positive number of records in flight, got 0",
+		},
+		{
+			name:       "should report the dry run before --delimiter",
+			positional: "is this urgent",
+			set:        values{"print_request": true, "input": "jsonl", "delimiter": "x", "raw": true},
+			typed:      []settings.Name{"input", "delimiter"},
+			wantExact:  "-r does not apply to --print-request, which writes a request body",
+		},
+		{
+			name:       "should report --delimiter before --abstain-if without an assertion",
+			positional: "is this urgent",
+			set:        values{"abstain_if": []string{"answer.value > 0.4"}, "input": "jsonl", "delimiter": ";"},
+			typed:      []settings.Name{"input", "delimiter"},
+			wantExact:  "--delimiter applies to -i csv and -o csv. -i jsonl has no delimiter",
+		},
+		{
+			name:       "should report the dry run before the output rules",
+			positional: "is this urgent",
+			set:        values{"print_request": true, "raw": true, "output": "json"},
+			wantExact:  "-o does not apply to --print-request, which writes a request body",
+		},
+		{
+			name:      "should report a streaming -q before the plan rules",
+			events:    []argv.Event{{Name: "ask", Value: "a=one"}, {Name: "ask", Value: "b=two"}},
+			set:       values{"quiet": true, "input": "jsonl"},
+			wantExact: "-q reads one record. Drop -i jsonl or use -o values and filter the stream",
+		},
+		{
+			name:       "should report --stop-on-assert on one record before its missing assertion",
+			positional: "is this urgent",
+			set:        values{"stop_on_assert": true},
+			wantExact:  "--stop-on-assert applies to streaming input. -i text reads one record",
+		},
 	}
 
 	for _, tc := range tests {
@@ -1253,6 +1304,35 @@ func TestRules(t *testing.T) {
 							t.Errorf("rule %s reads %s, which no row is", rule.ID, name)
 						}
 					}
+				}
+			},
+		},
+		{
+			name: "should run the rules in the order of the one stage",
+			check: func(t *testing.T, rules []settings.Rule) {
+				t.Helper()
+
+				want := []string{
+					"calibrate-reads-records", "offline-reads-out", "calibrate-needs-map", "calibrate-report",
+					"cuts-parse", "calibrate-resumes-by-id", "calibrate-dry-run-out", "calibrate-usage",
+					"requires-parse", "needs-a-question", "list-models-alone", "resume-needs-a-stream",
+					"prune-needs-resume-and-id", "dry-run-and-request", "delimiter-needs-csv", "abstain-needs-assert",
+					"raw-and-output", "quiet-without-markdown", "state-and-state-file", "replace-needs-file",
+					"merge-needs-mergeable-output", "merge-key-not-wrapped", "delimited-output", "quiet-without-usage",
+					"usage-needs-a-usage-column", "numbers-in-range", "streaming-flags-need-a-stream",
+					"stream-reads-its-own-state", "quiet-reads-one-record", "table-reads-one-record",
+					"stop-on-assert-needs-assert", "columns-unique", "line-field-reserved",
+					"body-policy-needs-one-question", "group-flags-bind", "questions-valid", "quiet-needs-one-question",
+					"raw-needs-one-question", "one-state",
+				}
+
+				got := make([]string, 0, len(rules))
+				for _, rule := range rules {
+					got = append(got, rule.ID)
+				}
+
+				if !slices.Equal(got, want) {
+					t.Errorf("Rules IDs = %q\nwant %q", got, want)
 				}
 			},
 		},
