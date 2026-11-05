@@ -340,9 +340,10 @@ onesie calibrate -f shell-safety -i jsonl --map .command --id .id \
   the input's separator, given or detected, while plain `-o csv` and a merge from `-i tsv` keep
   commas.
 - `--merge` folds the answers into an input that is an object. Any other input, such as a text
-  state, a line of `-i lines` or a jsonl string, merges as `{"state":INPUT,"answers":ANSWERS}`, so
-  `--merge-key state` exits 2: before any request under `-i text` and `-i lines`, and otherwise at
-  the first such record, which ends the run. A record that already has the key `state` ends it too.
+  state, a line of `-i lines`, a jsonl string or a line onesie could not read, merges as
+  `{"state":INPUT,"answers":ANSWERS}`, so `--merge-key state` exits 2: before any request under
+  `-i text` and `-i lines`, and otherwise at the first such record, which ends the run. A record
+  that already has the key `state` ends it too.
 - `--out` writes to a file with a fingerprint beside it, and a lock so two runs cannot share it.
 - `--resume` refuses with exit 2 when a change would alter what a record is asked or what its line
   holds: the questions or their policy flags, the provider, the profile, the base URL, the

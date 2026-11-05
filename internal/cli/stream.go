@@ -146,6 +146,11 @@ func (r *streamRun) evaluate(ctx context.Context, rec namedRecord) (line, error)
 }
 
 func (r *streamRun) lineFor(ctx context.Context, rec namedRecord) (line, error) {
+	// Ahead of the failures below, since their lines wrap the record under state too.
+	if merging(r.flags) && !r.delimited && wrapsUnderKey(rec.Raw, rec.Wire, mergeKey(r.flags)) {
+		return r.halt(rec, errWrapRepeated)
+	}
+
 	if rec.Err != nil {
 		// A line onesie could not read is a record that never became a request, and it
 		// carried no questions to the wire either.
@@ -160,10 +165,6 @@ func (r *streamRun) lineFor(ctx context.Context, rec namedRecord) (line, error) 
 
 	if rec.idErr != nil {
 		return r.failed(rec, rec.idErr)
-	}
-
-	if merging(r.flags) && !r.delimited && wrapsUnderKey(rec.Raw, rec.Wire, mergeKey(r.flags)) {
-		return r.halt(rec, errWrapRepeated)
 	}
 
 	if merging(r.flags) && !r.delimited && hasKey(rec.State, mergeKey(r.flags)) {
@@ -197,12 +198,6 @@ func (r *streamRun) failed(rec namedRecord, cause error) (line, error) {
 	return rowLine(failureRecord(r.built, bad), rec), bad
 }
 
-func (r *streamRun) halt(rec namedRecord, cause error) (line, error) {
-	r.stats.recordFailure(nil, false, 0)
-
-	return line{halted: true}, &input.LineError{Line: rec.Line, Err: &repeatedKeyError{cause: cause}}
-}
-
 func (r *streamRun) mergeCollision(rec namedRecord) (line, error) {
 	overwrite := fmt.Errorf("--merge would overwrite the input's '%s' key, pass --merge-key", mergeKey(r.flags))
 
@@ -227,6 +222,12 @@ func (r *streamRun) mergeCollision(rec namedRecord) (line, error) {
 		// survives.
 		state: json.RawMessage(compact(rec.Raw)),
 	}, taken
+}
+
+func (r *streamRun) halt(rec namedRecord, cause error) (line, error) {
+	r.stats.recordFailure(nil, false, 0)
+
+	return line{halted: true}, &input.LineError{Line: rec.Line, Err: &repeatedKeyError{cause: cause}}
 }
 
 func (r *streamRun) ask(ctx context.Context, rec namedRecord, sent any, assets onesie.Assets) (line, error) {
