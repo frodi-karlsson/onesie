@@ -1873,9 +1873,19 @@ func TestStream(t *testing.T) {
 				wantOut: "id;text;answer;error\n1;refund, please;0.9;\n2;hello;0.9;\n",
 			},
 			{
-				name: "should keep commas for plain -o csv", stdin: semicolons,
+				name: "should write semicolons for plain -o csv", stdin: semicolons,
 				args:    asking("--delimiter", ";", "-o", "csv"),
-				wantOut: "id,answer,error\n1,0.9,\n2,0.9,\n",
+				wantOut: "id;answer;error\n1;0.9;\n2;0.9;\n",
+			},
+			{
+				name: "should write the detected separator for plain -o csv", stdin: semicolons,
+				args:    asking("--delimiter", "auto", "-o", "csv"),
+				wantOut: "id;answer;error\n1;0.9;\n2;0.9;\n",
+			},
+			{
+				name: "should keep commas both ways with no --delimiter", stdin: "id,text\n1,a\n",
+				args:    asking("-o", "csv"),
+				wantOut: "id,answer,error\n1,0.9,\n",
 			},
 			{
 				name: "should detect a semicolon file under --delimiter auto", stdin: semicolons,
@@ -1936,6 +1946,86 @@ func TestStream(t *testing.T) {
 			}
 		})
 
+		t.Run("should resume a plain -o csv file under the given --delimiter", func(t *testing.T) {
+			t.Parallel()
+
+			answers := filepath.Join(t.TempDir(), "answers.csv")
+			args := asking("--delimiter", ";", "-o", "csv", "--out", answers, "--resume")
+
+			if _, errOut, code := runMocked(t, t.Context(), args, semicolons, nil, nil); code != ExitOK {
+				t.Fatalf("first run exit %d\nstderr:\n%s", code, errOut)
+			}
+
+			_, errOut, code := runMocked(t, t.Context(), append(args, "--stats"), semicolons+"3;late\n", nil, nil)
+			if code != ExitOK || !strings.Contains(errOut, "2 skipped") {
+				t.Fatalf("resume exit %d, want 0 with the two stored records skipped\nstderr:\n%s", code, errOut)
+			}
+
+			written, err := os.ReadFile(answers)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			want := "id;answer;error\n1;0.9;\n2;0.9;\n3;0.9;\n"
+			if string(written) != want {
+				t.Errorf("answers file = %q, want %q", written, want)
+			}
+		})
+
+		t.Run("should refuse to resume a comma file under --delimiter ';'", func(t *testing.T) {
+			t.Parallel()
+
+			tests := []struct {
+				name string
+				args []string
+			}{
+				{name: "should refuse it by --id", args: asking()},
+				{
+					name: "should refuse it by position",
+					args: []string{"is it urgent", "-i", "csv", "--map", ".text", "--mock", mock},
+				},
+			}
+
+			for _, tc := range tests {
+				t.Run(tc.name, func(t *testing.T) {
+					t.Parallel()
+
+					answers := filepath.Join(t.TempDir(), "answers.csv")
+					args := append(slices.Clone(tc.args), "--delimiter", ";", "-o", "csv", "--out", answers)
+
+					if _, errOut, code := runMocked(t, t.Context(), args, semicolons, nil, nil); code != ExitOK {
+						t.Fatalf("first run exit %d\nstderr:\n%s", code, errOut)
+					}
+
+					written, err := os.ReadFile(answers)
+					if err != nil {
+						t.Fatal(err)
+					}
+
+					commas := strings.ReplaceAll(string(written), ";", ",")
+					if writeErr := os.WriteFile(answers, []byte(commas), 0o600); writeErr != nil {
+						t.Fatal(writeErr)
+					}
+
+					_, errOut, code := runMocked(t, t.Context(), append(args, "--resume"), semicolons+"3;late\n", nil, nil)
+
+					want := "--delimiter ';' writes ';', and " + answers + " uses ','. Drop --resume to start over"
+					if code != ExitUsage || !strings.Contains(errOut, want) {
+						t.Errorf("resume exit %d, want 2 with %q\nstderr:\n%s", code, want, errOut)
+					}
+
+					after, err := os.ReadFile(answers)
+					if err != nil {
+						t.Fatal(err)
+					}
+
+					if string(after) != commas {
+						t.Errorf("answers file = %q, want it left as %q", after, commas)
+					}
+				})
+			}
+		})
+
 		t.Run("should resume a file --delimiter , wrote without the flag", func(t *testing.T) {
 			t.Parallel()
 
@@ -1960,9 +2050,14 @@ func TestStream(t *testing.T) {
 				name string
 				args []string
 			}{
-				{name: "should refuse it by --id", args: asking()},
+				{name: "should refuse it by --id", args: asking("--merge")},
 				{
 					name: "should refuse it by position",
+					args: []string{"is it urgent", "-i", "csv", "--map", ".text", "--mock", mock, "--merge"},
+				},
+				{name: "should refuse it by --id under plain -o csv", args: asking()},
+				{
+					name: "should refuse it by position under plain -o csv",
 					args: []string{"is it urgent", "-i", "csv", "--map", ".text", "--mock", mock},
 				},
 			}
@@ -1972,7 +2067,7 @@ func TestStream(t *testing.T) {
 					t.Parallel()
 
 					answers := filepath.Join(t.TempDir(), "answers.csv")
-					args := append(slices.Clone(tc.args), "--delimiter", "auto", "-o", "csv", "--merge", "--out", answers)
+					args := append(slices.Clone(tc.args), "--delimiter", "auto", "-o", "csv", "--out", answers)
 
 					first := "id;text\n1;a\n2;b\n3;c\n"
 					if _, errOut, code := runMocked(t, t.Context(), args, first, nil, nil); code != ExitOK {

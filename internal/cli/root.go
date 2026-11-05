@@ -323,6 +323,8 @@ func rootRunFlagHelp() runFlagHelp {
 		prune:     "with --resume and --id, drop the answered ids the input no longer has",
 		skipBlank: "streaming only, drop blank lines with no output line",
 		usage:     "add the api usage object to json output",
+		delimiter: "field separator that -i csv reads and -o csv writes: auto, which needs -i csv and writes " +
+			"the one it detects, or one character. Defaults to a comma",
 	}
 }
 
@@ -349,30 +351,23 @@ func openOut(settings rootSettings, flags runFlags, readOnly bool) (*answersfile
 }
 
 func answersDelimiter(flags runFlags) input.Delimiter {
-	inputMode, inputErr := input.ParseMode(flags.input)
 	outputMode, outputErr := output.ParseMode(flags.output, false, true, true)
 	delimiter, delimiterErr := input.ParseDelimiter(flags.delimiter)
 
 	// Commas, for no --delimiter at all and for a value the run refuses before it writes anything.
-	if errors.Join(inputErr, outputErr, delimiterErr) != nil {
+	if errors.Join(outputErr, delimiterErr) != nil {
 		return input.Delimiter{}
 	}
 
-	return answersFileDelimiter(flags.merge || flags.mergeKey != "", outputMode, inputMode, delimiter)
+	return answersFileDelimiter(outputMode, delimiter)
 }
 
-func answersFileDelimiter(merge bool, out output.Mode, in input.Mode, delimiter input.Delimiter) input.Delimiter {
-	// Only a merge from csv into csv writes with the input's delimiter, and every other answers file
-	// uses commas.
-	if !mergesCSV(merge, out, in) {
+func answersFileDelimiter(out output.Mode, delimiter input.Delimiter) input.Delimiter {
+	if out != output.CSV {
 		return input.Delimiter{}
 	}
 
 	return delimiter
-}
-
-func mergesCSV(merge bool, out output.Mode, in input.Mode) bool {
-	return merge && out == output.CSV && in == input.CSV
 }
 
 func wordAnswersError(err error) error {
@@ -380,6 +375,7 @@ func wordAnswersError(err error) error {
 		notRegular *answersfile.NotRegularError
 		directory  *answersfile.DirectoryError
 		stale      *answersfile.StaleAnswersError
+		separator  *answersfile.SeparatorError
 	)
 
 	switch {
@@ -388,6 +384,12 @@ func wordAnswersError(err error) error {
 			"--resume needs --out to name a regular file, and %s is not one", notRegular.Path)}
 	case errors.As(err, &directory):
 		return &plainError{cause: err, message: fmt.Sprintf("--out %s is a directory", directory.Path)}
+	case errors.As(err, &separator):
+		given := escaped(string(separator.Given))
+
+		return &plainError{cause: err, message: fmt.Sprintf(
+			"--%s '%s' writes '%s', and %s uses '%s'. Drop --resume to start over",
+			flagDelimiter, given, given, separator.Path, escaped(string(separator.Found)))}
 	case errors.As(err, &stale) && stale.Reason == answersfile.OlderColumns:
 		return &plainError{cause: err, message: text(err) + ". Regenerate it without --resume, or write to a new --out"}
 	case errors.As(err, &stale), errors.Is(err, answersfile.ErrNoLock):
@@ -463,8 +465,7 @@ func addRunFlags(set *pflag.FlagSet, flags *runFlags, help runFlagHelp) {
 	set.BoolVar(&flags.resume, "resume", false, help.resume)
 	set.BoolVar(&flags.prune, "prune", false, help.prune)
 	set.BoolVar(&flags.skipBlank, "skip-blank", false, help.skipBlank)
-	set.StringVar(&flags.delimiter, flagDelimiter, "",
-		"field separator for -i csv: auto, or one character. Defaults to a comma")
+	set.StringVar(&flags.delimiter, flagDelimiter, "", help.delimiter)
 	set.BoolVar(&flags.stats, "stats", false, "write a one line summary of the run to stderr at exit")
 	set.BoolVar(&flags.usage, "usage", false, help.usage)
 	set.BoolVar(&flags.printRequest, "print-request", false, "write api shaped request bodies to stdout and exit")
@@ -486,6 +487,7 @@ type runFlagHelp struct {
 	prune      string
 	skipBlank  string
 	usage      string
+	delimiter  string
 }
 
 func flagError(root, calibrate *cobra.Command) func(*cobra.Command, error) error {

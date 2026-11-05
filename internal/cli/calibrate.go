@@ -104,6 +104,7 @@ func newCalibrateCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 		prune:     "with --resume, drop the answered ids the input no longer has",
 		skipBlank: "drop blank lines",
 		usage:     "add the api usage object to the answers file and the json report",
+		delimiter: "field separator for -i csv: auto, or one character. Defaults to a comma",
 	})
 
 	return cmd
@@ -321,7 +322,7 @@ func checkCalibrateInput(flags runConfig) error {
 
 	switch flags.inputMode {
 	case input.JSONL, input.CSV, input.TSV:
-		return checkDelimiter(flags, runFacts{})
+		return checkInputDelimiter(flags)
 	default:
 		return fmt.Errorf("calibrate needs -i jsonl, csv or tsv. -i %s carries no field to label",
 			inputName(flags.input))

@@ -488,30 +488,24 @@ func TestAnswersFileDelimiter(t *testing.T) {
 
 	tests := []struct {
 		name   string
-		merge  bool
 		out    output.Mode
-		in     input.Mode
 		given  input.Delimiter
 		wanted input.Delimiter
 	}{
+		{name: "should keep the delimiter for a plain -o csv", out: output.CSV, given: semicolon, wanted: semicolon},
 		{
-			name: "should keep the input's delimiter for a merge from csv into csv", merge: true,
-			out: output.CSV, in: input.CSV, given: semicolon, wanted: semicolon,
+			name: "should keep detection for -i csv -o csv", out: output.CSV,
+			given: input.Delimiter{Detect: true}, wanted: input.Delimiter{Detect: true},
 		},
-		{
-			name: "should keep detection for a merge from csv into csv", merge: true,
-			out: output.CSV, in: input.CSV, given: input.Delimiter{Detect: true}, wanted: input.Delimiter{Detect: true},
-		},
-		{name: "should use commas for a plain -o csv", out: output.CSV, in: input.CSV, given: semicolon},
-		{name: "should use commas for a merge from tsv", merge: true, out: output.CSV, in: input.TSV, given: semicolon},
-		{name: "should use commas for a merge into json", merge: true, out: output.JSON, in: input.CSV, given: semicolon},
+		{name: "should use commas for -o csv with no --delimiter", out: output.CSV},
+		{name: "should use commas for -o json", out: output.JSON, given: semicolon},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			if got := answersFileDelimiter(tc.merge, tc.out, tc.in, tc.given); got != tc.wanted {
+			if got := answersFileDelimiter(tc.out, tc.given); got != tc.wanted {
 				t.Errorf("answersFileDelimiter = %+v, want %+v", got, tc.wanted)
 			}
 		})

@@ -69,8 +69,7 @@ func newStreamRun(cmd *cobra.Command, in streamInputs) (*streamRun, error) {
 
 	format := answersfile.Format{
 		Mode: in.outputMode, Merge: merging(in.flags), MergeKey: mergeKey(in.flags), Namer: inv.namer, Gated: inv.gate != nil,
-		Delimiter: answersFileDelimiter(
-			merging(in.flags), in.outputMode, in.flags.inputMode, in.flags.parsedDelimiter),
+		Delimiter: answersFileDelimiter(in.outputMode, in.flags.parsedDelimiter),
 	}
 
 	book, err := answersfile.ResumeLedger(cmd.Context(), in.answers, format)
@@ -333,11 +332,14 @@ func (r *streamRun) writeLine(l line) error {
 }
 
 func (r *streamRun) tableComma() rune {
-	if !mergesCSV(merging(r.flags), r.outputMode, r.flags.inputMode) {
+	switch {
+	case r.outputMode != output.CSV:
 		return 0
+	case r.flags.inputMode == input.CSV:
+		return r.source.comma()
+	default:
+		return r.flags.parsedDelimiter.Comma
 	}
-
-	return r.source.comma()
 }
 
 func (r *streamRun) finish(ctx context.Context, result engine.Result, err error) error {
