@@ -70,12 +70,6 @@ type Rule struct {
 	Inspect func(View) ([]string, error)
 }
 
-// Notice is a line a reporting rule writes to stderr once validation passes.
-type Notice struct {
-	Setting Name
-	Text    string
-}
-
 // NewView returns what the rules read about one run. built is nil for a run that builds no plan,
 // such as --list-models and -i request.
 func NewView(merged *Merged, built *plan.Plan, facts Facts) View {
@@ -163,7 +157,7 @@ func hasAbstainIf(v View) bool {
 }
 
 func assertFlag(v View) string {
-	if len(listOf(v, assertName)) == 0 && v.Facts.FileAssert != "" {
+	if givenByFile(v, assertName, v.Facts.FileAssert) {
 		return plan.Spelling(plan.OriginFile, "--assert")
 	}
 
@@ -171,11 +165,19 @@ func assertFlag(v View) string {
 }
 
 func abstainFlag(v View) string {
-	if len(listOf(v, abstainIfName)) == 0 && v.Facts.FileAbstainIf != "" {
+	if givenByFile(v, abstainIfName, v.Facts.FileAbstainIf) {
 		return plan.Spelling(plan.OriginFile, "--abstain-if")
 	}
 
 	return "--abstain-if"
+}
+
+func givenByFile(v View, name Name, fileFact string) bool {
+	if v.Merged.Source(name) == SourceFile {
+		return true
+	}
+
+	return len(listOf(v, name)) == 0 && fileFact != ""
 }
 
 func eventGiven(v View, flag string) bool {

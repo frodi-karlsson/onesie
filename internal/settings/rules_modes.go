@@ -299,7 +299,7 @@ func typedRow(name Name) func(View) bool {
 }
 
 func listed(name Name) func(View) bool {
-	return func(v View) bool { return len(listOf(v, name)) > 0 }
+	return func(v View) bool { return len(listOf(v, name)) > 0 && v.Merged.Source(name) != SourceFile }
 }
 
 func event(flag string) func(View) bool {
