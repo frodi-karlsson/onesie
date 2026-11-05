@@ -1609,21 +1609,55 @@ func TestProfileShow(t *testing.T) {
 			`"cfa":{"provider":"cloudflare","api_key":"SECRET-CF-0123456789","account_id":"` + testAccountID + `"}}}`
 		openRouterOwn = "base_url: https://openrouter.ai/api, the provider's default\n"
 		accountURL    = "https://api.cloudflare.com/client/v4/accounts/" + testAccountID + "/ai"
-		workShown     = "profile: work\nprovider: openrouter\nchosen by: the default\nkey: keychain, ends in 3f9a\n" +
+		workShown     = "profile: work, the default profile\nprovider: openrouter\nchosen by: the default\nkey: keychain, ends in 3f9a\n" +
 			"model: typesafe/jev, profile\n" + openRouterOwn
-		cfShown = "profile: cf\nprovider: cloudflare\nchosen by: not active\nkey: file, ends in 6789\n" +
+		cfShown = "profile: cf, a chosen profile\nprovider: cloudflare\nchosen by: not active\nkey: file, ends in 6789\n" +
 			"model: typesafe/jev, the provider's default\n"
 		typesafeOwn = "base_url: https://api.typesafe.ai, the provider's default\n"
 		tsFile      = `{"default":"ts","profiles":{"ts":{"provider":"typesafe","api_key":"SECRET-TS-0123456789"}}}`
-		tsShown     = "profile: ts\nprovider: typesafe\nchosen by: the default\nkey: file, ends in 6789\n"
-		tsKeyless   = "profile: ts\nprovider: typesafe\nchosen by: the default\nkey: none, not needed for a custom base URL\n"
-		cfNoKey     = "onesie: no API key. Set CLOUDFLARE_API_TOKEN, or store one with " +
+		proxied     = `{"default":"ts","profiles":{"ts":{"provider":"typesafe","api_key":"SECRET-TS-0123456789",` +
+			`"base_url":"https://proxy.example"}}}`
+		tsShown   = "profile: ts, the default profile\nprovider: typesafe\nchosen by: the default\nkey: file, ends in 6789\n"
+		tsKeyless = "profile: ts, the default profile\nprovider: typesafe\nchosen by: the default\nkey: none, not needed for a custom base URL\n"
+		cfNoKey   = "onesie: no API key. Set CLOUDFLARE_API_TOKEN, or store one with " +
 			"onesie profile create NAME --provider cloudflare\n"
 		cfNoAccount = "onesie: no cloudflare account id. Set CLOUDFLARE_ACCOUNT_ID, or store it with " +
 			"onesie profile create NAME --provider cloudflare --account-id ACCOUNT_ID\n"
 	)
 
 	tests := []profileCase{
+		{
+			name: "should show ONESIE_BASE_URL and its source over the default profile",
+			file: proxied,
+			args: []string{"profile", "show"},
+			env:  map[string]string{envBaseURL: "https://env.example"},
+			wantOut: tsKeyless + "model: jev-latest, the provider's default\n" +
+				"base_url: https://env.example, ONESIE_BASE_URL\n",
+		},
+		{
+			name: "should keep a chosen profile's base_url",
+			file: proxied,
+			args: []string{"--profile", "ts", "profile", "show"},
+			env:  map[string]string{envBaseURL: "https://env.example"},
+			wantOut: "profile: ts, a chosen profile\nprovider: typesafe\nchosen by: --profile\nkey: file, ends in 6789\n" +
+				"model: jev-latest, the provider's default\nbase_url: https://proxy.example, the profile's base_url\n",
+		},
+		{
+			name: "should name the rank of the profile",
+			file: proxied,
+			args: []string{"profile", "show"},
+			env:  map[string]string{"ONESIE_PROFILE": "ts"},
+			wantOut: "profile: ts, a chosen profile\nprovider: typesafe\nchosen by: ONESIE_PROFILE\nkey: file, ends in 6789\n" +
+				"model: jev-latest, the provider's default\nbase_url: https://proxy.example, the profile's base_url\n",
+		},
+		{
+			name: "should rank a named profile a run uses by default as the default profile",
+			file: proxied,
+			args: []string{"profile", "show", "ts"},
+			env:  map[string]string{envBaseURL: "https://env.example"},
+			wantOut: tsKeyless + "model: jev-latest, the provider's default\n" +
+				"base_url: https://env.example, ONESIE_BASE_URL\n",
+		},
 		{
 			name:    "should show no key when ONESIE_BASE_URL takes the profile's key off its endpoint",
 			file:    tsFile,
@@ -1636,15 +1670,26 @@ func TestProfileShow(t *testing.T) {
 			file: tsFile,
 			args: []string{"profile", "show"},
 			env:  map[string]string{envBaseURL: "https://env.example", "TYPESAFE_API_KEY": "SECRET-ENV"},
-			wantOut: "profile: ts\nprovider: typesafe\nchosen by: the default\nkey: env TYPESAFE_API_KEY\n" +
+			wantOut: "profile: ts, the default profile\nprovider: typesafe\nchosen by: the default\nkey: env TYPESAFE_API_KEY\n" +
 				"model: jev-latest, the provider's default\nbase_url: https://env.example, ONESIE_BASE_URL\n",
 		},
 		{
-			name:    "should show the profile's key on the provider's own base URL",
-			file:    tsFile,
-			args:    []string{"profile", "show"},
-			env:     map[string]string{envBaseURL: "https://api.typesafe.ai/", "TYPESAFE_API_KEY": "SECRET-ENV"},
-			wantOut: tsShown + "model: jev-latest, the provider's default\nbase_url: https://api.typesafe.ai, ONESIE_BASE_URL\n",
+			name: "should show the key variable over the default profile's key on the provider's own base URL",
+			file: tsFile,
+			args: []string{"profile", "show"},
+			env:  map[string]string{envBaseURL: "https://api.typesafe.ai/", "TYPESAFE_API_KEY": "SECRET-ENV"},
+			wantOut: "profile: ts, the default profile\nprovider: typesafe\nchosen by: the default\nkey: env TYPESAFE_API_KEY\n" +
+				"model: jev-latest, the provider's default\nbase_url: https://api.typesafe.ai, ONESIE_BASE_URL\n",
+		},
+		{
+			name: "should show a chosen profile's key over the key variable on the provider's own base URL",
+			file: tsFile,
+			args: []string{"profile", "show"},
+			env: map[string]string{
+				envBaseURL: "https://api.typesafe.ai/", "TYPESAFE_API_KEY": "SECRET-ENV", "ONESIE_PROFILE": "ts",
+			},
+			wantOut: "profile: ts, a chosen profile\nprovider: typesafe\nchosen by: ONESIE_PROFILE\nkey: file, ends in 6789\n" +
+				"model: jev-latest, the provider's default\nbase_url: https://api.typesafe.ai, ONESIE_BASE_URL\n",
 		},
 		{
 			name:    "should show what a run would use, chosen by the default",
@@ -1663,7 +1708,7 @@ func TestProfileShow(t *testing.T) {
 			name: "should show a named profile that is not active",
 			file: shown,
 			args: []string{"profile", "show", "personal"},
-			wantOut: "profile: personal\nprovider: openrouter\nchosen by: not active\nkey: keychain\n" +
+			wantOut: "profile: personal, a chosen profile\nprovider: openrouter\nchosen by: not active\nkey: keychain\n" +
 				"model: jev-latest, the provider's default\n" + openRouterOwn,
 		},
 		{
@@ -1671,7 +1716,7 @@ func TestProfileShow(t *testing.T) {
 			file: shown,
 			env:  map[string]string{"ONESIE_PROFILE": "personal"},
 			args: []string{"profile", "show", "personal"},
-			wantOut: "profile: personal\nprovider: openrouter\nchosen by: ONESIE_PROFILE\nkey: keychain\n" +
+			wantOut: "profile: personal, a chosen profile\nprovider: openrouter\nchosen by: ONESIE_PROFILE\nkey: keychain\n" +
 				"model: jev-latest, the provider's default\n" + openRouterOwn,
 		},
 		{
@@ -1692,7 +1737,7 @@ func TestProfileShow(t *testing.T) {
 			name: "should name account_id as the account",
 			file: shown,
 			args: []string{"profile", "show", "cfa"},
-			wantOut: "profile: cfa\nprovider: cloudflare\nchosen by: not active\nkey: file, ends in 6789\n" +
+			wantOut: "profile: cfa, a chosen profile\nprovider: cloudflare\nchosen by: not active\nkey: file, ends in 6789\n" +
 				"model: typesafe/jev, the provider's default\nbase_url: " + accountURL + ", the profile's account_id\naccount: account_id\n",
 		},
 		{
@@ -1717,7 +1762,7 @@ func TestProfileShow(t *testing.T) {
 			file: `{"default":"cfk","profiles":{"cfk":{"provider":"cloudflare","store":"keychain",` +
 				`"account":"cfk@{hash}"}}}`,
 			args: []string{"profile", "show"},
-			wantOut: "profile: cfk\nprovider: cloudflare\nchosen by: the default\nkey: keychain\n" +
+			wantOut: "profile: cfk, the default profile\nprovider: cloudflare\nchosen by: the default\nkey: keychain\n" +
 				"model: typesafe/jev, the provider's default\nbase_url: none\naccount: none\n",
 			wantCode: ExitUsage,
 			wantStderr: "onesie: no cloudflare account id. Set CLOUDFLARE_ACCOUNT_ID, " +
@@ -1788,18 +1833,29 @@ func TestProfileShow(t *testing.T) {
 			wantOut: tsKeyless + "model: jev-env, env TYPESAFE_DEFAULT_MODEL\nbase_url: https://env.example, TYPESAFE_BASE_URL\n",
 		},
 		{
-			name: "should keep the profile's model and base_url ahead of the variables",
+			name: "should show the variables over the default profile's model and base_url",
 			file: `{"default":"ts","profiles":{"ts":{"provider":"typesafe","api_key":"SECRET-TS-0123456789",` +
 				`"model":"jev-1.13.0","base_url":"https://proxy.example"}}}`,
 			env:     map[string]string{"TYPESAFE_DEFAULT_MODEL": "jev-env", "TYPESAFE_BASE_URL": "https://env.example"},
 			args:    []string{"profile", "show"},
-			wantOut: tsShown + "model: jev-1.13.0, profile\nbase_url: https://proxy.example, the profile's base_url\n",
+			wantOut: tsKeyless + "model: jev-env, env TYPESAFE_DEFAULT_MODEL\nbase_url: https://env.example, TYPESAFE_BASE_URL\n",
+		},
+		{
+			name: "should keep a chosen profile's model and base_url ahead of the variables",
+			file: `{"default":"ts","profiles":{"ts":{"provider":"typesafe","api_key":"SECRET-TS-0123456789",` +
+				`"model":"jev-1.13.0","base_url":"https://proxy.example"}}}`,
+			env: map[string]string{
+				"TYPESAFE_DEFAULT_MODEL": "jev-env", "TYPESAFE_BASE_URL": "https://env.example", "ONESIE_PROFILE": "ts",
+			},
+			args: []string{"profile", "show"},
+			wantOut: "profile: ts, a chosen profile\nprovider: typesafe\nchosen by: ONESIE_PROFILE\nkey: file, ends in 6789\n" +
+				"model: jev-1.13.0, profile\nbase_url: https://proxy.example, the profile's base_url\n",
 		},
 		{
 			name: "should print none, not needed for a custom base URL for a keyless profile",
 			file: `{"default":"local","profiles":{"local":{"provider":"typesafe","base_url":"http://localhost:11435"}}}`,
 			args: []string{"profile", "show"},
-			wantOut: "profile: local\nprovider: typesafe\nchosen by: the default\nkey: none, not needed for a custom base URL\n" +
+			wantOut: "profile: local, the default profile\nprovider: typesafe\nchosen by: the default\nkey: none, not needed for a custom base URL\n" +
 				"model: jev-latest, the provider's default\nbase_url: http://localhost:11435, the profile's base_url\n",
 		},
 		{
@@ -1926,6 +1982,42 @@ func TestProfileShow(t *testing.T) {
 			runProfileCase(t, tc)
 		})
 	}
+
+	t.Run("should show the key and base URL a run on the default profile sends, beside ONESIE_BASE_URL and "+
+		"TYPESAFE_API_KEY", func(t *testing.T) {
+		t.Parallel()
+
+		wanted, sent := modelServer(t)
+		unwanted, strays := modelServer(t)
+		dir := configWith(t, `{"default":"work","profiles":{"work":{"provider":"typesafe","api_key":"SECRET-WORK",`+
+			`"base_url":"`+unwanted.URL+`"}}}`)
+		env := map[string]string{envBaseURL: wanted.URL, onesie.TypeSafe().EnvAPIKey(): "SECRET-ENV"}
+
+		out, errOut, code := runInConfig(t, dir, []string{"profile", "show"}, "", env)
+		if code != ExitOK {
+			t.Fatalf("profile show exit code = %d, want %d\nstderr:\n%s", code, ExitOK, errOut)
+		}
+
+		for _, want := range []string{"key: env TYPESAFE_API_KEY\n", "base_url: " + wanted.URL + ", ONESIE_BASE_URL\n"} {
+			if !strings.Contains(out, want) {
+				t.Errorf("profile show printed %q, want a line %q", out, want)
+			}
+		}
+
+		_, errOut, code = runInConfig(t, dir, []string{"is this urgent", "-r", "--state", "the server is down"}, "", env)
+		if code != ExitOK {
+			t.Fatalf("run exit code = %d, want %d\nstderr:\n%s", code, ExitOK, errOut)
+		}
+
+		// Compared, never printed, since the header carries the key.
+		if got := sent(); len(got) != 1 || got[0].auth != "Bearer SECRET-ENV" {
+			t.Errorf("the run sent %d requests, want one to ONESIE_BASE_URL with the key variable's key", len(got))
+		}
+
+		if len(strays()) != 0 {
+			t.Error("the default profile's base_url took a request")
+		}
+	})
 }
 
 func TestProfileTest(t *testing.T) {
@@ -1978,6 +2070,15 @@ func TestProfileTest(t *testing.T) {
 			args:     []string{"profile", "test"},
 			wantOut:  "profile: work\nprovider: typesafe\nkey: file, ends in 6789\nmodels: 2\n",
 			wantAuth: "Bearer " + fileKey,
+		},
+		{
+			name: "should test the key a run on the default profile would send",
+			profiles: `{"default":"work","profiles":{"work":{"provider":"typesafe","api_key":"` + fileKey +
+				`","base_url":"https://proxy.invalid"}}}`,
+			args:     []string{"profile", "test"},
+			env:      map[string]string{"ONESIE_BASE_URL": "{url}", onesie.TypeSafe().EnvAPIKey(): "SECRET-ENV"},
+			wantOut:  "profile: work\nprovider: typesafe\nkey: env TYPESAFE_API_KEY\nmodels: 2\n",
+			wantAuth: "Bearer SECRET-ENV",
 		},
 		{
 			name:     "should send the key the keychain holds",

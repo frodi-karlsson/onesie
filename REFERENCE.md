@@ -610,7 +610,7 @@ on the provider's key variable alone.
 | `profile delete NAME` | removes the profile and its keychain item. Deleting the default leaves no default, and deleting the last profile removes `profiles.json` |
 | `profile use NAME` | makes the profile the default |
 | `profile list` | lists each profile's provider, key store and model, with `*` on the one a run would use now. When a run would use none, a stderr line says why, as in `onesie: active: ONESIE_PROVIDER=openrouter, no profile` |
-| `profile show [NAME]` | prints what a run would use now, or what the named profile holds, never the key |
+| `profile show [NAME]` | prints what a run would use now, or what a run on the named profile would use, never the key |
 | `profile test [NAME]` | lists the provider's models with the key, which costs no tokens, and prints `profile`, `provider`, `key` and `models` lines. With no key on a custom base URL it lists them with none |
 
 - A name is 1 to 64 lowercase letters, digits, `-` or `_`, does not start with `-`, and is not
@@ -641,9 +641,12 @@ on the provider's key variable alone.
   `none, not needed for a custom base URL`. A converted keychain key shows no ending until
   `onesie profile update NAME --key`. `chosen by:` is `--profile`, `ONESIE_PROFILE`, `the default`,
   `--provider`, `ONESIE_PROVIDER` or `nothing`, and `not active` for a named profile a run would not
-  use. `model:` and `base_url:` give the profile's own value ahead of any variable, then where it
-  comes from. A run on the default profile takes an exported variable over it instead, as in
-  [What a run uses](#what-a-run-uses). The model comes from `profile`, `env TYPESAFE_DEFAULT_MODEL` or `the
+  use. `profile:` names the profile's rank after it, as in `profile: work, the default profile` for
+  the default a run falls back to, or `profile: work, a chosen profile` for one `--profile` or
+  `ONESIE_PROFILE` names. `show NAME` ranks the profile as a run uses it now, and as `--profile NAME`
+  would when no run uses it. `key:`, `model:` and `base_url:` give the value a run would use, then
+  where it comes from, in the order of [What a run uses](#what-a-run-uses), so an exported variable
+  beats the default profile's value and loses to a chosen profile's. The model comes from `profile`, `env TYPESAFE_DEFAULT_MODEL` or `the
   provider's default`, as in `model: jev-latest, the provider's default`. The base URL comes from
   `the profile's base_url`, `the profile's account_id`, `ONESIE_BASE_URL`, `TYPESAFE_BASE_URL`,
   `CLOUDFLARE_ACCOUNT_ID` or `the provider's default`, the words a run's messages use. `base_url:` is `none` on cloudflare

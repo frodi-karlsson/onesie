@@ -456,6 +456,7 @@ func TestResolution_merged(t *testing.T) {
 		wantFrom  string
 		wantModel string
 		wantKey   string
+		modelFrom string
 	}{
 		{
 			name: "should keep --base-url ahead of a chosen profile's base_url", chosen: true,
@@ -497,7 +498,7 @@ func TestResolution_merged(t *testing.T) {
 			name: "should fall back to the built in URL and model", chosen: true,
 			profile: &creds.Profile{Provider: "openrouter", APIKey: "SECRET-P"},
 			wantURL: onesie.OpenRouter().DefaultBaseURL(), wantModel: onesie.OpenRouter().DefaultModel(),
-			wantKey: "SECRET-KEY",
+			wantKey: "SECRET-KEY", modelFrom: "the provider's default",
 		},
 		{
 			name: "should pass ONESIE_BASE_URL ahead of TYPESAFE_BASE_URL on a run without a profile",
@@ -513,12 +514,20 @@ func TestResolution_merged(t *testing.T) {
 			profile: &creds.Profile{Provider: "typesafe", APIKey: "SECRET-P", Model: "jev-1.13.0"},
 			env:     map[string]string{onesie.TypeSafe().EnvDefaultModel(): "env-model"},
 			wantURL: onesie.TypeSafe().DefaultBaseURL(), wantModel: "jev-1.13.0", wantKey: "SECRET-KEY",
+			modelFrom: "profile",
 		},
 		{
 			name:    "should take TYPESAFE_DEFAULT_MODEL over the default profile's model",
 			profile: &creds.Profile{Provider: "typesafe", APIKey: "SECRET-P", Model: "jev-1.13.0"},
 			env:     map[string]string{onesie.TypeSafe().EnvDefaultModel(): "env-model"},
 			wantURL: onesie.TypeSafe().DefaultBaseURL(), wantModel: "env-model", wantKey: "SECRET-KEY",
+			modelFrom: "env TYPESAFE_DEFAULT_MODEL",
+		},
+		{
+			name: "should name -m as where the model came from", args: []string{"-m", "flag-model"},
+			profile: &creds.Profile{Provider: "typesafe", APIKey: "SECRET-P", Model: "jev-1.13.0"},
+			wantURL: onesie.TypeSafe().DefaultBaseURL(), wantModel: "flag-model", wantKey: "SECRET-KEY",
+			modelFrom: "--model",
 		},
 		{
 			name:    "should send the provider key variable over the default profile's key",
@@ -547,6 +556,10 @@ func TestResolution_merged(t *testing.T) {
 
 			if got := run.modelFor(setting.Get(merged, setting.Model)); got != tc.wantModel {
 				t.Errorf("model = %q, want %q", got, tc.wantModel)
+			}
+
+			if tc.modelFrom != "" && run.modelFrom != tc.modelFrom {
+				t.Errorf("modelFrom = %q, want %q", run.modelFrom, tc.modelFrom)
 			}
 
 			client, err := onesie.New(append([]onesie.Option{
@@ -642,54 +655,6 @@ func flagsFrom(t *testing.T, args ...string) *runFlags {
 	}
 
 	return flags
-}
-
-func TestShownBaseURL(t *testing.T) {
-	t.Parallel()
-
-	profile := resolution{profile: "work", baseURL: "https://profile.example"}
-	local := map[string]string{envBaseURL: "http://localhost:11435"}
-
-	tests := []struct {
-		name       string
-		run        resolution
-		env        map[string]string
-		wantURL    string
-		wantSource string
-	}{
-		{
-			name: "should return ONESIE_BASE_URL when nothing else names one", run: resolution{}, env: local,
-			wantURL: "http://localhost:11435", wantSource: envBaseURL,
-		},
-		{
-			name: "should prefer the profile's base_url", run: profile, env: local,
-			wantURL: "https://profile.example", wantSource: "the profile's base_url",
-		},
-		{
-			name: "should skip it when the profile has an account_id", env: local,
-			run:        resolution{profile: "cf", accountID: "0123456789abcdef0123456789abcdef"},
-			wantSource: "the profile's base_url",
-		},
-		{
-			name: "should ignore a blank value", run: resolution{},
-			env: map[string]string{envBaseURL: "  "}, wantSource: "the profile's base_url",
-		},
-		{
-			name: "should give no URL when neither is set", run: resolution{profile: "work"},
-			wantSource: "the profile's base_url",
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			source, url := shownBaseURL(tc.run, lookupFrom(tc.env))
-			if source != tc.wantSource || url != tc.wantURL {
-				t.Errorf("shownBaseURL = %q, %q, want %q, %q", source, url, tc.wantSource, tc.wantURL)
-			}
-		})
-	}
 }
 
 func staticKey(key string) func() (string, error) {
@@ -788,7 +753,16 @@ func TestResolutionAccountSource(t *testing.T) {
 		want string
 	}{
 		{name: "should name nothing off cloudflare", run: resolution{provider: onesie.OpenRouter()}},
-		{name: "should name account_id", run: resolution{provider: onesie.Cloudflare(), accountID: testAccountID}, want: "account_id"},
+		{
+			name: "should name account_id",
+			run:  resolution{provider: onesie.Cloudflare(), accountID: testAccountID, endpointFrom: profileAccountID},
+			want: "account_id",
+		},
+		{
+			name: "should name CLOUDFLARE_ACCOUNT_ID for an account the merge took from it",
+			run:  resolution{provider: onesie.Cloudflare(), accountID: testAccountID, endpointFrom: "CLOUDFLARE_ACCOUNT_ID"},
+			want: "CLOUDFLARE_ACCOUNT_ID",
+		},
 		{name: "should name base_url", run: resolution{provider: onesie.Cloudflare(), baseURL: "https://proxy.example"}, want: "base_url"},
 		{
 			name: "should name CLOUDFLARE_ACCOUNT_ID", run: resolution{provider: onesie.Cloudflare()},

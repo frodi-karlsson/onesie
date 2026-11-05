@@ -48,6 +48,30 @@ func TestPreflight(t *testing.T) {
 			want: "onesie is on PATH and a key resolves, profile: work, provider: openrouter, key: keychain.\n",
 		},
 		{
+			name: "should print the bare profile name when show adds its rank",
+			show: "profile: work, the default profile\nprovider: openrouter\nchosen by: the default\n" +
+				"key: keychain, ends in 3f9a\nmodel: typesafe/jev, profile\n" +
+				"base_url: https://openrouter.ai/api, the provider's default\n",
+			want: "onesie is on PATH and a key resolves, profile: work, provider: openrouter, key: keychain.\n",
+		},
+		{
+			name: "should print the bare profile name of a chosen profile that needs no key",
+			show: "profile: local, a chosen profile\nprovider: typesafe\nchosen by: ONESIE_PROFILE\n" +
+				"key: none, not needed for a custom base URL\nmodel: winnow:e4b, profile\n" +
+				"base_url: http://localhost:11435, the profile's base_url\n",
+			want: "onesie is on PATH and needs no key, since its base URL is custom, profile: local, provider: typesafe, " +
+				"base_url: http://localhost:11435.\n",
+		},
+		{
+			name: "should print the bare profile name in the account hint when show adds its rank",
+			show: "profile: cfk, the default profile\nprovider: cloudflare\nchosen by: the default\nkey: keychain\n" +
+				"model: typesafe/jev, the provider's default\nbase_url: none\naccount: none\n",
+			code: 2,
+			want: "onesie is on PATH and a key resolves for profile cfk, but no account does. Every request fails " +
+				"until the user runs onesie profile update cfk --account-id ACCOUNT_ID or sets CLOUDFLARE_ACCOUNT_ID. " +
+				"The onesie-setup skill walks them through it.\n",
+		},
+		{
 			name: "should say every run needs --allow-http when show reports it",
 			show: "profile: work\nprovider: typesafe\nchosen by: the default\nkey: file\n" +
 				"model: jev-latest, the provider's default\nbase_url: http://proxy.example, profile\n" +

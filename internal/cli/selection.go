@@ -28,6 +28,8 @@ const (
 	sourceFile     = "file"
 	sourceKeychain = "keychain"
 	sourceNone     = "none"
+
+	profileAccountID = "the profile's account_id"
 )
 
 func checkChoice(flags *runFlags, lookupEnv func(string) (string, bool)) error {
@@ -209,7 +211,23 @@ type resolution struct {
 	baseURL      string
 	accountID    string
 	endpointFrom string
+	modelFrom    string
 	keyAside     bool
+}
+
+func (r resolution) chosenProfile() bool {
+	return r.profile != "" && r.by != byDefault
+}
+
+func (r resolution) rankedProfile() string {
+	switch {
+	case r.profile == "":
+		return noProfile
+	case r.chosenProfile():
+		return r.profile + ", a chosen profile"
+	default:
+		return r.profile + ", the default profile"
+	}
 }
 
 func (r resolution) merged(m *setting.Merged) resolution {
@@ -217,6 +235,7 @@ func (r resolution) merged(m *setting.Merged) resolution {
 	r.baseURL, r.accountID = endpoint.BaseURL, endpoint.AccountID
 	r.endpointFrom = endpointName(m.Origin(setting.APIEndpoint.Name()), endpoint)
 	r.model = setting.Get(m, setting.Model)
+	r.modelFrom = modelSource(m.Origin(setting.Model.Name()))
 
 	switch m.Value(setting.APIKey.Name()).(type) {
 	case setting.HeldKey:
@@ -232,11 +251,24 @@ func (r resolution) merged(m *setting.Merged) resolution {
 	return r
 }
 
+func modelSource(origin setting.Origin) string {
+	switch origin.Source {
+	case setting.SourceChosenProfile, setting.SourceDefaultProfile:
+		return "profile"
+	case setting.SourceEnv:
+		return sourceEnv + " " + origin.Spelled
+	case setting.SourceDefault:
+		return providersOwn
+	default:
+		return origin.String()
+	}
+}
+
 func endpointName(origin setting.Origin, endpoint setting.EndpointValue) string {
 	switch origin.Source {
 	case setting.SourceChosenProfile, setting.SourceDefaultProfile:
 		if endpoint.AccountID != "" {
-			return "the profile's account_id"
+			return profileAccountID
 		}
 
 		return profileBaseURL
@@ -367,7 +399,7 @@ func (r resolution) accountSource(source onesie.BaseURLSource, resolveErr error)
 		return sourceNone
 	case source != onesie.BaseURLFromAccount:
 		return "base_url"
-	case r.accountID != "":
+	case r.endpointFrom == profileAccountID:
 		return "account_id"
 	}
 

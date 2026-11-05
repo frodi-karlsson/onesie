@@ -28,7 +28,6 @@ const (
 	noProfile      = "none"
 	notActive      = "not active"
 	providersOwn   = "the provider's default"
-	fromProfile    = "profile"
 )
 
 func newProfileCmd(settings rootSettings, flags *runFlags) *cobra.Command {
@@ -460,11 +459,13 @@ func newProfileShowCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 	return &cobra.Command{
 		Use:   "show [NAME]",
 		Short: "Report a profile, or what a run would use, never the key",
-		Long: "With a name, report that profile. Without one, report what a run would use now, profile or " +
-			"not, as --profile, --provider and their variables choose. It prints profile, provider, chosen " +
-			"by, key, model and base_url lines, and an account line on " + providers.WithAccounts() + ". The " +
-			"model and base_url lines give the value a run would use and where it comes from. The model comes " +
-			"from profile, an env " +
+		Long: "With a name, report what a run on that profile would use, as --profile NAME runs it unless a " +
+			"run uses it now. Without one, report what a run would use now, profile or not, as --profile, " +
+			"--provider and their variables choose. It prints profile, provider, chosen by, key, model and " +
+			"base_url lines, and an account line on " + providers.WithAccounts() + ". The profile line names " +
+			"its rank, the default profile, which the environment beats, or a chosen profile, which beats the " +
+			"environment. The model and base_url lines give the value a run would use and where it comes " +
+			"from. The model comes from profile, an env " +
 			"variable such as TYPESAFE_DEFAULT_MODEL, or the provider's default. The base_url comes from the " +
 			"profile's base_url, the profile's account_id, " + envBaseURL + ", a variable such as TYPESAFE_BASE_URL, " +
 			providers.AccountVariables() + ", or the provider's default. An allow_http line says a run needs " +
@@ -482,20 +483,25 @@ func newProfileShowCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 }
 
 func profileShow(cmd *cobra.Command, settings rootSettings, flags *runFlags, args []string) error {
-	shown, err := shownResolution(settings, flags, args, "show")
+	chosen, err := shownResolution(settings, flags, args, "show")
 	if err != nil {
 		return err
 	}
 
-	// Resolved as a run resolves it, which checks a hand edited profiles.json and the provider's base
-	// URL variable too, since neither passed through create.
-	_, given := shownBaseURL(shown, settings.lookupEnv)
-	baseURL, source, invalid := shown.provider.ResolveBaseURL(given, shown.accountID, settings.lookupEnv)
-	sourceName := shownBaseURLFrom(source, shown, settings.lookupEnv)
+	// Merged as a run merges it, so every line reports what a run sends, the default profile ranking
+	// below the environment.
+	shown, err := testedConnection(settings, chosen)
+	if err != nil {
+		return err
+	}
+
+	// Resolved as a run resolves it, which checks a hand edited profiles.json and the base URL
+	// variables too, since neither passed through create.
+	baseURL, source, invalid := shown.provider.ResolveBaseURL(shown.baseURL, shown.accountID, noEnvironment)
 
 	var refused *onesie.BaseURLError
 	if errors.As(invalid, &refused) {
-		return baseURLRefusal(refused, sourceName, sendPlainHTTP)
+		return baseURLRefusal(refused, baseURLFrom(source, shown), sendPlainHTTP)
 	}
 
 	// A run refuses a malformed account, so show refuses it too. A missing account prints as none
@@ -508,24 +514,17 @@ func profileShow(cmd *cobra.Command, settings rootSettings, flags *runFlags, arg
 
 	baseURLLine := sourceNone
 	if invalid == nil {
-		baseURLLine = output.Printable(baseURL) + ", " + sourceName
+		baseURLLine = output.Printable(baseURL) + ", " + baseURLFrom(source, shown)
 	}
 
 	custom := invalid == nil && shown.provider.CustomBaseURL(baseURL)
 
-	// The key line reads the key a run would send to that base URL, as profile test does. A variable
-	// the connection read refuses leaves the profile's own key line.
-	if tested, testErr := testedConnection(settings, shown); testErr == nil {
-		shown.keyFrom, shown.key, shown.account, shown.keyEnd = tested.keyFrom, tested.key, tested.account, tested.keyEnd
-	}
-
 	lines := []string{
-		"profile: " + cmp.Or(shown.profile, noProfile),
+		"profile: " + shown.rankedProfile(),
 		"provider: " + shown.provider.Name(),
 		"chosen by: " + shown.by,
 		"key: " + shown.keyLine(custom),
-		"model: " + output.Printable(shown.provider.ResolveModel(shown.model, settings.lookupEnv)) + ", " +
-			modelOrigin(shown, settings.lookupEnv),
+		"model: " + output.Printable(shown.modelFor(shown.model)) + ", " + shown.modelFrom,
 		"base_url: " + baseURLLine,
 	}
 
@@ -542,35 +541,6 @@ func profileShow(cmd *cobra.Command, settings rootSettings, flags *runFlags, arg
 	}
 
 	return showRefusals(cmd, settings, shown, invalid, account, custom)
-}
-
-func shownBaseURL(shown resolution, lookupEnv func(string) (string, bool)) (name, given string) {
-	if shown.baseURL != "" || shown.accountID != "" {
-		return profileBaseURL, shown.baseURL
-	}
-
-	if variable := setVariable(lookupEnv, envBaseURL); variable != "" {
-		return envBaseURL, variable
-	}
-
-	return profileBaseURL, shown.baseURL
-}
-
-func shownBaseURLFrom(source onesie.BaseURLSource, shown resolution, lookupEnv func(string) (string, bool)) string {
-	switch source {
-	case onesie.BaseURLFromOption:
-		name, _ := shownBaseURL(shown, lookupEnv)
-
-		return name
-	case onesie.BaseURLFromAccount:
-		if shown.accountID != "" {
-			return "the profile's account_id"
-		}
-
-		return shown.provider.EnvAccountID()
-	default:
-		return baseURLFrom(source, shown)
-	}
 }
 
 func showRefusals(
@@ -618,17 +588,6 @@ func missingKey(settings rootSettings, shown resolution) error {
 	}
 
 	return missingKeyHint(noKey, shown, opened.Profiles)
-}
-
-func modelOrigin(shown resolution, lookupEnv func(string) (string, bool)) string {
-	switch {
-	case strings.TrimSpace(shown.model) != "":
-		return fromProfile
-	case shown.provider.EnvDefaultModel() != "" && setVariable(lookupEnv, shown.provider.EnvDefaultModel()) != "":
-		return sourceEnv + " " + shown.provider.EnvDefaultModel()
-	}
-
-	return providersOwn
 }
 
 func newProfileTestCmd(settings rootSettings, flags *runFlags) *cobra.Command {
@@ -691,7 +650,12 @@ func testedConnection(settings rootSettings, shown resolution) (resolution, erro
 			return resolution{}, err
 		}
 
-		run.name, run.profile, run.fallback = shown.profile, opened.Profiles.Profiles[shown.profile], shown.profile
+		run.name, run.profile = shown.profile, opened.Profiles.Profiles[shown.profile]
+		if shown.chosenProfile() {
+			choosing[envProfile] = shown.profile
+		} else {
+			run.fallback = shown.profile
+		}
 	case shown.by != byNothing:
 		choosing[envProvider] = shown.provider.Name()
 	}
@@ -704,14 +668,6 @@ func testedConnection(settings rootSettings, shown resolution) (resolution, erro
 	})
 	if err != nil {
 		return resolution{}, err
-	}
-
-	// Every profile ranks as a chosen one, so profile test reads the profile ahead of the environment,
-	// as profile show does. Read sees only the name it is handed, so it ranks it as the default.
-	for i := range layers {
-		if layers[i].Source == setting.SourceDefaultProfile {
-			layers[i].Source = setting.SourceChosenProfile
-		}
 	}
 
 	merged, _ := setting.Merge(setting.Table(), layers, nil)
