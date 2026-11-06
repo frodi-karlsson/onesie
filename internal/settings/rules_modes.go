@@ -129,109 +129,95 @@ func groupNames() []Name {
 }
 
 func modeRefusals(mode Mode) []refusal {
-	// In a fixed order, so a command line with several offenders reports a predictable one.
 	switch mode {
-	case ModeListModels:
-		return listModelsRefusals()
-	case ModeRequest:
-		return requestRefusals()
-	case ModePrintRequest:
-		return printRequestRefusals()
-	case ModePrintQuestions:
-		return printQuestionsRefusals()
+	case ModeListModels, ModeRequest, ModePrintRequest, ModePrintQuestions:
 	default:
 		return nil
 	}
+
+	var rules []refusal
+	if mode == ModeListModels || mode == ModeRequest {
+		rules = append(rules, refusal{"", positionalGiven, spelled("the question argument")})
+	}
+	if mode == ModeListModels {
+		rules = append(rules, refusal{"", anyEvent, func(v View) string { return "--" + v.Facts.Events[0].Name }})
+	}
+
+	rows := Table()
+	for _, name := range refusalOrder(mode) {
+		for i, row := range rows {
+			if row.Name == name {
+				rules = appendModeRefusal(rules, row, mode)
+				rows = append(rows[:i], rows[i+1:]...)
+				break
+			}
+		}
+	}
+	for _, row := range rows {
+		rules = appendModeRefusal(rules, row, mode)
+	}
+
+	return rules
 }
 
-func listModelsRefusals() []refusal {
-	return []refusal{
-		{"", positionalGiven, spelled("the question argument")},
-		{"", anyEvent, func(v View) string { return "--" + v.Facts.Events[0].Name }},
-		{File.Name(), filled(File), spelled("-f")},
-		{Replace.Name(), on(Replace), spelled("--replace")},
-		{State.Name(), typedRow(State.Name()), spelled("--state")},
-		{StateFile.Name(), typedRow(StateFile.Name()), spelled("--state-file")},
-		{Input.Name(), typedRow(Input.Name()), spelled("-i")},
-		{Map.Name(), typedRow(Map.Name()), spelled("--map")},
-		{ID.Name(), typedRow(ID.Name()), spelled("--id")},
-		{Output.Name(), filled(Output), spelled("-o")},
-		{Raw.Name(), on(Raw), spelled("-r")},
-		{Quiet.Name(), on(Quiet), spelled("-q")},
-		{assertName, hasAssert, spelled("--assert")},
-		{abstainIfName, hasAbstainIf, spelled("--abstain-if")},
-		{Usage.Name(), on(Usage), spelled("--usage")},
-		{MergeInput.Name(), merging, mergeName},
-		{Jobs.Name(), typedRow(Jobs.Name()), spelled("-j")},
-		{Model.Name(), typedRow(Model.Name()), spelled("-m")},
-		{Unordered.Name(), on(Unordered), spelled("--unordered")},
-		{StopOnError.Name(), on(StopOnError), spelled("--stop-on-error")},
-		{StopOnAssert.Name(), on(StopOnAssert), spelled("--stop-on-assert")},
-		{SkipBlank.Name(), on(SkipBlank), spelled("--skip-blank")},
-		{PrintRequest.Name(), on(PrintRequest), spelled("--print-request")},
-		{PrintQuestions.Name(), on(PrintQuestions), spelled("--print-questions")},
-		{Mock.Name(), mocked, mockSpelled},
-		{Cache.Name(), typedOn(Cache), spelled("--cache")},
+func refusalOrder(mode Mode) []Name {
+	if mode == ModePrintRequest {
+		return []Name{
+			"mock", "print_questions", "output", "raw", "quiet", "assert", "abstain_if",
+			"threshold", "min_confidence", "fallback", "cache", "usage", "merge", "stop_on_assert", "stats",
+		}
+	}
+
+	return []Name{
+		"ask", "file", "for", "replace", "pick", "rate", "box", "desc", "sep", "threshold",
+		"min_confidence", "fallback", "state", "state_file", "input", "image", "image_field", "map", "id",
+		"output", "raw", "quiet", "assert", "abstain_if", "usage", "merge", "jobs", "model", "unordered",
+		"stop_on_error", "stop_on_assert", "skip_blank", "print_request", "print_questions", "stats", "mock", "cache",
 	}
 }
 
-func requestRefusals() []refusal {
-	return []refusal{
-		{"", positionalGiven, spelled("the question argument")},
-		{"ask", event("ask"), spelled("--ask")},
-		{File.Name(), filled(File), spelled("-f")},
-		{"for", event("for"), spelled("--for")},
-		{Replace.Name(), on(Replace), spelled("--replace")},
-		{"pick", event("pick"), spelled("--pick")},
-		{"rate", event("rate"), spelled("--rate")},
-		{"box", event("box"), spelled("--box")},
-		{"desc", event("desc"), spelled("--desc")},
-		{"sep", event("sep"), spelled("--sep")},
-		{"threshold", event("threshold"), spelled("--threshold")},
-		{"min_confidence", event("min-confidence"), spelled("--min-confidence")},
-		{"fallback", event("fallback"), spelled("--fallback")},
-		{State.Name(), typedRow(State.Name()), spelled("--state")},
-		{StateFile.Name(), typedRow(StateFile.Name()), spelled("--state-file")},
-		{imageName, listed(imageName), spelled("--image")},
-		{imageFieldName, listed(imageFieldName), spelled("--image-field")},
-		{Map.Name(), typedRow(Map.Name()), spelled("--map")},
-		{ID.Name(), typedRow(ID.Name()), spelled("--id")},
-		{Output.Name(), filled(Output), spelled("-o")},
-		{Raw.Name(), on(Raw), spelled("-r")},
-		{Quiet.Name(), on(Quiet), spelled("-q")},
-		{assertName, hasAssert, spelled("--assert")},
-		{abstainIfName, hasAbstainIf, spelled("--abstain-if")},
-		{Usage.Name(), on(Usage), spelled("--usage")},
-		{MergeInput.Name(), merging, mergeName},
-		{Model.Name(), typedRow(Model.Name()), spelled("-m")},
-		{StopOnAssert.Name(), on(StopOnAssert), spelled("--stop-on-assert")},
-		{PrintQuestions.Name(), on(PrintQuestions), spelled("--print-questions")},
-		{Mock.Name(), mocked, mockSpelled},
-		{Cache.Name(), typedOn(Cache), spelled("--cache")},
+func appendModeRefusal(rules []refusal, row Row, mode Mode) []refusal {
+	bound, registered := row.FlagOn(CommandRoot)
+	if !registered || row.Modes.Has(mode) && (mode != ModeRequest || row.Name != Model.Name()) {
+		return rules
 	}
+
+	given, name := modeException(row, bound, mode)
+	return append(rules, refusal{row.Name, func(v View) bool {
+		return typed(v, row.Name) || given(v)
+	}, name})
 }
 
-func printRequestRefusals() []refusal {
-	return []refusal{
-		{Mock.Name(), mocked, mockSpelled},
-		{PrintQuestions.Name(), on(PrintQuestions), spelled("--print-questions")},
-		{Output.Name(), filled(Output), spelled("-o")},
-		{Raw.Name(), on(Raw), spelled("-r")},
-		{Quiet.Name(), on(Quiet), spelled("-q")},
-		// A gate or a policy only the file carries is left alone, so a gated file can be dry run as it
-		// stands. A typed one would have no effect.
-		{assertName, listed(assertName), assertFlag},
-		{abstainIfName, listed(abstainIfName), abstainFlag},
-		{"threshold", event("threshold"), spelled("--threshold")},
-		{"min_confidence", event("min-confidence"), spelled("--min-confidence")},
-		{"fallback", event("fallback"), spelled("--fallback")},
-		{Cache.Name(), typedOn(Cache), spelled("--cache")},
-		{Usage.Name(), on(Usage), spelled("--usage")},
-		{MergeInput.Name(), merging, mergeName},
-		// --stop-on-error and --unordered are absent because a dry run stream honours both. Only the
-		// assertion is a judgment a dry run never makes, so only its stop condition is refused.
-		{StopOnAssert.Name(), on(StopOnAssert), spelled("--stop-on-assert")},
-		{Stats.Name(), on(Stats), spelled("--stats")},
+func modeException(row Row, bound BoundFlag, mode Mode) (func(View) bool, func(View) string) {
+	name := spelled(spelling(bound))
+	if row.Flag.Group {
+		return event(bound.Long), name
+	}
+
+	switch row.Name {
+	case File.Name(), Output.Name():
+		return func(v View) bool { return Get(v.Merged, Key[string]{name: row.Name}) != "" }, name
+	case Replace.Name(), Raw.Name(), Quiet.Name(), Usage.Name(), Unordered.Name(), StopOnError.Name(),
+		StopOnAssert.Name(), SkipBlank.Name(), PrintRequest.Name(), PrintQuestions.Name(), Stats.Name():
+		return func(v View) bool { return Get(v.Merged, Key[bool]{name: row.Name}) }, name
+	case assertName, abstainIfName:
+		if mode == ModePrintRequest {
+			return listed(row.Name), name
+		}
+		return func(v View) bool { return len(listOf(v, row.Name)) > 0 }, name
+	case MergeInput.Name():
+		return merging, func(v View) string {
+			if merging(v) {
+				return mergeName(v)
+			}
+			return spelling(bound)
+		}
+	case imageName, imageFieldName:
+		return listed(row.Name), name
+	case Mock.Name():
+		return mocked, mockSpelled
+	default:
+		return func(View) bool { return false }, name
 	}
 }
 
@@ -244,26 +230,6 @@ func judging(setting Name) bool {
 	}
 }
 
-func printQuestionsRefusals() []refusal {
-	return []refusal{
-		{State.Name(), typedRow(State.Name()), spelled("--state")},
-		{StateFile.Name(), typedRow(StateFile.Name()), spelled("--state-file")},
-		{Input.Name(), typedRow(Input.Name()), spelled("-i")},
-		{Map.Name(), typedRow(Map.Name()), spelled("--map")},
-		{ID.Name(), typedRow(ID.Name()), spelled("--id")},
-		{Output.Name(), filled(Output), spelled("-o")},
-		{Raw.Name(), on(Raw), spelled("-r")},
-		{Quiet.Name(), on(Quiet), spelled("-q")},
-		{Usage.Name(), on(Usage), spelled("--usage")},
-		{MergeInput.Name(), merging, mergeName},
-		{Jobs.Name(), typedRow(Jobs.Name()), spelled("-j")},
-		{Model.Name(), typedRow(Model.Name()), spelled("-m")},
-		{Stats.Name(), on(Stats), spelled("--stats")},
-		{Mock.Name(), mocked, mockSpelled},
-		{Cache.Name(), typedOn(Cache), spelled("--cache")},
-	}
-}
-
 type refusal struct {
 	setting Name
 	given   func(View) bool
@@ -272,22 +238,6 @@ type refusal struct {
 
 func spelled(flag string) func(View) string {
 	return func(View) string { return flag }
-}
-
-func on(k Key[bool]) func(View) bool {
-	return func(v View) bool { return Get(v.Merged, k) }
-}
-
-func typedOn(k Key[bool]) func(View) bool {
-	return func(v View) bool { return typed(v, k.Name()) && Get(v.Merged, k) }
-}
-
-func filled(k Key[string]) func(View) bool {
-	return func(v View) bool { return Get(v.Merged, k) != "" }
-}
-
-func typedRow(name Name) func(View) bool {
-	return func(v View) bool { return typed(v, name) }
 }
 
 func listed(name Name) func(View) bool {

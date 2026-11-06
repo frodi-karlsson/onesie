@@ -82,7 +82,7 @@ func modeRows() []Row {
 			Help: "write the available models to stdout and exit",
 		},
 		{
-			Name: "print_request", Kind: Bool(), Modes: Modes(ModePrintRequest),
+			Name: "print_request", Kind: Bool(), Modes: Modes(ModeRequest, ModePrintRequest),
 			Flag: FlagSpec{Long: "print-request", Commands: onRuns()},
 			Help: "write api shaped request bodies to stdout and exit",
 		},
@@ -217,14 +217,14 @@ func outputRows() []Row {
 			Help: "suppress output, the exit code carries the answer",
 		},
 		{
-			Name: "out", Kind: NonEmptyText(), Modes: answering(),
+			Name: "out", Kind: NonEmptyText(), Modes: Modes(ModeAsk, ModeStream, ModeRequest, ModePrintRequest, ModePrintQuestions, ModeListModels, ModeCalibrate),
 			Flag: FlagSpec{Long: "out", Commands: onRuns(), PerCommand: map[Command]CommandFlag{
 				CommandCalibrate: {Help: "write the answers to this file as -o json lines"},
 			}},
 			Help: "write the answers to this file rather than stdout",
 		},
 		{
-			Name: "resume", Kind: Bool(), Modes: Modes(ModeStream, ModeCalibrate),
+			Name: "resume", Kind: Bool(), Modes: Modes(ModeStream, ModeRequest, ModeCalibrate),
 			Flag: FlagSpec{Long: "resume", Commands: onRuns(), PerCommand: map[Command]CommandFlag{
 				CommandCalibrate: {Help: "with --out and --id, skip the ids the file already answers"},
 			}},
@@ -286,12 +286,12 @@ func reportRows() []Row {
 			Help: "add the api usage object to json output",
 		},
 		{
-			Name: "stats", Kind: Bool(), Modes: Modes(ModeAsk, ModeStream, ModeRequest, ModeCalibrate),
+			Name: "stats", Kind: Bool(), Modes: Modes(ModeAsk, ModeStream, ModeRequest, ModeListModels, ModeCalibrate),
 			Flag: FlagSpec{Long: "stats", Commands: onRuns()},
 			Help: "write a one line summary of the run to stderr at exit",
 		},
 		{
-			Name: "delimiter", Kind: Text(), Modes: Modes(ModeStream, ModeCalibrate), Check: delimiterParses,
+			Name: "delimiter", Kind: Text(), Modes: Modes(ModeStream, ModePrintRequest, ModeCalibrate), Check: delimiterParses,
 			Flag: FlagSpec{Long: "delimiter", Commands: onRuns(), PerCommand: map[Command]CommandFlag{
 				CommandCalibrate: {Help: "field separator for -i csv: auto, or one character. Defaults to a comma"},
 			}},
@@ -385,19 +385,19 @@ func inputModes() Kind {
 func streamRows() []Row {
 	return []Row{
 		{
-			Name: "skip_blank", Kind: Bool(), Modes: Modes(ModeStream, ModeCalibrate),
+			Name: "skip_blank", Kind: Bool(), Modes: Modes(ModeStream, ModeRequest, ModePrintRequest, ModeCalibrate),
 			Flag: FlagSpec{Long: "skip-blank", Commands: onRuns(), PerCommand: map[Command]CommandFlag{
 				CommandCalibrate: {Help: "drop blank lines"},
 			}},
 			Help: "streaming only, drop blank lines with no output line",
 		},
 		{
-			Name: "unordered", Kind: Bool(), Modes: Modes(ModeStream),
+			Name: "unordered", Kind: Bool(), Modes: Modes(ModeStream, ModeRequest, ModePrintRequest),
 			Flag: FlagSpec{Long: "unordered", Commands: onRoot()},
 			Help: "streaming only, emit records as they complete",
 		},
 		{
-			Name: "stop_on_error", Kind: Bool(), Modes: Modes(ModeStream),
+			Name: "stop_on_error", Kind: Bool(), Modes: Modes(ModeStream, ModeRequest, ModePrintRequest),
 			Flag: FlagSpec{Long: "stop-on-error", Commands: onRoot()},
 			Help: "streaming only, end the run at the first failure, with its exit code, or 6 for a line onesie " +
 				"could not read",
@@ -543,7 +543,7 @@ func answerSourceRows() []Row {
 func requestRows() []Row {
 	return []Row{
 		{
-			Name: "jobs", Kind: Int(1, limits.MaxJobs), Default: 1, Modes: Modes(ModeStream, ModeRequest, ModeCalibrate),
+			Name: "jobs", Kind: Int(1, limits.MaxJobs), Default: 1, Modes: Modes(ModeStream, ModeRequest, ModePrintRequest, ModeCalibrate),
 			Flag:  FlagSpec{Long: "jobs", Short: "j", Commands: onRuns()},
 			Check: jobsInRange,
 			Help:  "records in flight at once",

@@ -863,7 +863,8 @@ func TestAsk(t *testing.T) {
 				env[name] = strings.ReplaceAll(value, "MOCK", mockFile)
 			}
 
-			args := []string{"--ask", "u=is it urgent", "--state", "site down", "--base-url", stub.url}
+			env["ONESIE_BASE_URL"] = stub.url
+			args := []string{"--ask", "u=is it urgent", "--state", "site down"}
 			for _, arg := range tc.args {
 				args = append(args, strings.ReplaceAll(arg, "MOCK", mockFile))
 			}
