@@ -4,7 +4,7 @@ import (
 	"testing"
 )
 
-func TestCheckEnvSwitches(t *testing.T) {
+func TestCheckEnvSettings(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -30,9 +30,9 @@ func TestCheckEnvSwitches(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			err := checkEnvSwitches(lookupFrom(tc.env))
+			err := checkEnvSettings(lookupFrom(tc.env), "cache", "long_context", "cache_ttl")
 			if got := errText(err); got != tc.wantErr {
-				t.Errorf("checkEnvSwitches = %q, want %q", got, tc.wantErr)
+				t.Errorf("checkEnvSettings = %q, want %q", got, tc.wantErr)
 			}
 		})
 	}

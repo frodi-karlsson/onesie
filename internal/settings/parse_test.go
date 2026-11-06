@@ -194,7 +194,7 @@ func TestParseRun(t *testing.T) {
 
 			if command == settings.CommandCalibrate {
 				for _, name := range []settings.Name{"output", "input"} {
-					if slices.Contains(merged.Names(), name) {
+					if merged.Value(name) != nil {
 						t.Errorf("calibrate holds %s, want it left to calibrate's rules", name)
 					}
 				}
@@ -230,7 +230,7 @@ func checkParsed(t *testing.T, merged *settings.Merged, want values, typed, unty
 	}
 
 	for _, name := range untyped {
-		if !slices.Contains(merged.Names(), name) {
+		if merged.Value(name) == nil {
 			t.Errorf("no value for %s, want its default", name)
 		}
 

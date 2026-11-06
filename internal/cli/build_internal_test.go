@@ -36,6 +36,16 @@ func TestBuild(t *testing.T) {
 		wantLong     bool
 	}{
 		{
+			name:    "should reject a whitespace only file assertion",
+			file:    "assert: '   '\nurgent:\n  ask: is it urgent\n",
+			wantErr: "'assert': the expression is empty",
+		},
+		{
+			name:    "should reject a whitespace only file abstain expression",
+			file:    "assert: urgent.value > 0.5\nabstain_if: '   '\nurgent:\n  ask: is it urgent\n",
+			wantErr: "'abstain_if': the expression is empty",
+		},
+		{
 			name: "should send no long context when --long-context=false meets a body with true",
 			file: longBody,
 			args: []string{"--long-context=false"},
@@ -56,14 +66,6 @@ func TestBuild(t *testing.T) {
 			name:    "should name the file's abstain_if when nothing asserts",
 			file:    abstaining,
 			wantErr: "'abstain_if' needs --assert",
-		},
-		{
-			name:         "should refuse -q over several questions once the file's gate is set aside",
-			file:         gated,
-			quiet:        true,
-			events:       twoAsks,
-			ignoreJudged: true,
-			wantErr:      "-q needs a single question, or --assert to gate several",
 		},
 		{
 			name:         "should set the file's gate aside and build no gate when judgment is ignored",
@@ -98,7 +100,12 @@ func TestBuild(t *testing.T) {
 			settings.holder = newHolder(settings, parsed, func() io.Writer { return io.Discard })
 			flags := runConfig{runFlags: *parsed, events: tc.events}
 
-			inv, _, err := build(settings, flags, parsed.given, setting.CommandRoot, tc.ignoreJudged)
+			command := setting.CommandRoot
+			if tc.ignoreJudged {
+				command = setting.CommandCalibrate
+			}
+
+			inv, _, err := build(settings, flags, parsed.given, command, tc.ignoreJudged)
 			if tc.wantErr != "" {
 				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
 					t.Fatalf("build error = %v, want one naming %q", err, tc.wantErr)

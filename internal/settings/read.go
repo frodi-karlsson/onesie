@@ -11,7 +11,6 @@ import (
 
 	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/input"
-	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
 const (
@@ -60,7 +59,7 @@ func Read(rows []Row, src Sources) ([]Layer, error) {
 	var layers []Layer
 
 	for _, layer := range []Layer{flags, profile, file, env, defaults} {
-		if len(layer.Values) > 0 || len(layer.Questions) > 0 {
+		if len(layer.Values) > 0 {
 			layers = append(layers, layer)
 		}
 	}
@@ -93,16 +92,8 @@ type Sources struct {
 // FileValues is what a question file or a request body gives, keyed as the file spells each key.
 // TopLevel holds only the keys the file holds.
 type FileValues struct {
-	Body      bool
-	TopLevel  map[string]any
-	Questions []QuestionValues
-}
-
-// QuestionValues is what one question of a file gives, keyed as the file spells each key.
-type QuestionValues struct {
-	ID     string
-	Shape  plan.Shape
-	Values map[string]any
+	Body     bool
+	TopLevel map[string]any
 }
 
 // ProfileValues is the members of the profile Choose named, keyed as profiles.json spells them.
@@ -115,14 +106,12 @@ type ProfileValues struct {
 // HeldKey is the value of a key a profile holds, standing in for the key itself.
 type HeldKey struct{}
 
-// Layer is what one source gives: a value per row, how the source spells each row, and per question
-// values keyed by question id. Body marks a file layer read from a request body.
+// Layer holds each value and its spelling from one source. Body marks a request body.
 type Layer struct {
-	Source    Source
-	Values    map[Name]any
-	Spelled   map[Name]string
-	Questions map[string]map[Name]any
-	Body      bool
+	Source  Source
+	Values  map[Name]any
+	Spelled map[Name]string
+	Body    bool
 }
 
 // Choice is the question file, profile and provider a run uses, and the source that chose each.
@@ -477,45 +466,7 @@ func readFile(rows []Row, file *FileValues, mode Mode) (Layer, error) {
 		layer.set(row.Name, value, row.FileKey)
 	}
 
-	for _, question := range file.Questions {
-		values, err := readQuestion(rows, question, file.Body, mode)
-		if err != nil {
-			return Layer{}, err
-		}
-
-		if layer.Questions == nil {
-			layer.Questions = map[string]map[Name]any{}
-		}
-
-		layer.Questions[question.ID] = values
-	}
-
 	return layer, nil
-}
-
-func readQuestion(rows []Row, question QuestionValues, body bool, mode Mode) (map[Name]any, error) {
-	values := map[Name]any{}
-
-	for _, row := range rows {
-		if row.Scope != ScopeQuestion || row.FileKey == "" || !row.Modes.Has(mode) {
-			continue
-		}
-
-		raw, found := question.Values[row.FileKey]
-		if !found {
-			continue
-		}
-
-		value, err := row.Kind.FromFile(raw)
-		if err != nil {
-			return nil, fmt.Errorf("%s for '%s' %w",
-				Origin{Source: SourceFile, Spelled: row.FileKey, Body: body}, question.ID, err)
-		}
-
-		values[row.Name] = value
-	}
-
-	return values, nil
 }
 
 func keyless(chosen Choice, profile *ProfileValues) bool {

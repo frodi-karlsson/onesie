@@ -2141,7 +2141,7 @@ func (r run) view(t *testing.T) settings.View {
 		t.Fatalf("assembling: %v", err)
 	}
 
-	settings.MergeQuestions(merged, built, r.events)
+	settings.MergeQuestions(built, r.events)
 
 	return settings.NewView(merged, built, facts)
 }

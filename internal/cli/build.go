@@ -63,7 +63,7 @@ func assemble(
 
 	built.Model = setting.Get(flags.merged, setting.Model)
 	built.LongContext = flags.env.longContext
-	refined := setting.MergeQuestions(flags.merged, built, flags.events)
+	refined := setting.MergeQuestions(built, flags.events)
 
 	warnings, typedTwice, err := validateRun(flags, file.facts, built, commandLine{given: given, args: settings.args})
 	if err == nil {
@@ -134,11 +134,13 @@ func readBuildFile(settings rootSettings, flags runConfig, ignoreFileJudgment bo
 
 	if ignoreFileJudgment {
 		file.setAside = fileGate{assert: file.loaded.Assert, abstainIf: file.loaded.AbstainIf}
-		withoutJudgment(file.loaded)
+		for i := range file.loaded.Questions {
+			file.loaded.Questions[i].Policy = plan.Policy{}
+		}
 	}
 
 	file.facts = runFacts{
-		name: path, assert: file.loaded.Assert, abstainIf: file.loaded.AbstainIf, bodyState: file.loaded.HasState,
+		name: path, bodyState: file.loaded.HasState,
 	}
 
 	return file, nil
@@ -155,12 +157,12 @@ func invocationOf(settings rootSettings, flags runConfig, built *plan.Plan, file
 	// After validation, since the checker reads a plan the run has accepted, and before any mode
 	// dispatches, since the assertion is checked against the plan and every check runs before any
 	// network call.
-	gate, err := gateOf("--assert", file.facts.assert, flags.assert, built)
+	gate, err := gateOf("assert", flags.merged, built)
 	if err != nil {
 		return nil, err
 	}
 
-	abstain, err := gateOf("--abstain-if", file.facts.abstainIf, flags.abstainIf, built)
+	abstain, err := gateOf("abstain_if", flags.merged, built)
 	if err != nil {
 		return nil, err
 	}
@@ -202,21 +204,15 @@ func warnAll(w io.Writer, warnings []string) error {
 	return nil
 }
 
-func withoutJudgment(loaded *qfile.File) {
-	loaded.Assert, loaded.AbstainIf = "", ""
-
-	for i := range loaded.Questions {
-		loaded.Questions[i].Policy = plan.Policy{}
+func gateOf(name setting.Name, merged *setting.Merged, built *plan.Plan) (*assert.Expr, error) {
+	sources, holds := merged.Value(name).([]string)
+	if !holds {
+		return nil, nil
 	}
-}
-
-func gateOf(flag, fileSource string, typed []string, built *plan.Plan) (*assert.Expr, error) {
-	// A typed flag replaces the file's key, and several typed ones combine by and. The file's key is
-	// spelled the way the file spells it, which is the rule plan holds every other message to that
-	// names where a setting came from.
-	sources, named := typed, flag
-	if len(typed) == 0 && fileSource != "" {
-		sources, named = []string{fileSource}, plan.Spelling(plan.OriginFile, flag)
+	origin := merged.Origin(name)
+	named := origin.Spelled
+	if origin.Source == setting.SourceFile {
+		named = "'" + named + "'"
 	}
 
 	exprs := make([]*assert.Expr, 0, len(sources))

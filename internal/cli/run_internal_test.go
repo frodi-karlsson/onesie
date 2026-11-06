@@ -464,7 +464,7 @@ func TestRunInputs(t *testing.T) {
 			}
 
 			flags := tc.flags
-			flags.merged, _ = setting.Merge(setting.Table(), layers, nil)
+			flags.merged, _ = setting.Merge(setting.Table(), layers)
 
 			settings := rootSettings{
 				holder:    &holder{resolved: func() (resolution, error) { return tc.chosen, nil }},

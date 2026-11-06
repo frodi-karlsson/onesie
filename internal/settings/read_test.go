@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/frodi-karlsson/onesie/internal/plan"
 	"github.com/frodi-karlsson/onesie/internal/settings"
 )
 
@@ -225,75 +224,15 @@ func TestRead(t *testing.T) {
 			wantErr: "the request body's model takes a string",
 		},
 		{
-			name: "should key file question values by question id",
-			reading: reading{file: &settings.FileValues{Questions: []settings.QuestionValues{
-				{ID: "urgent", Shape: plan.Noul, Values: map[string]any{"threshold": 0.7, "fallback": true}},
-				{ID: "team", Shape: plan.Pick, Values: map[string]any{"pick": []any{"sales", "support"}}},
-				{ID: "plain", Shape: plan.Noul},
-			}}},
+			name: "should drop calibrate file gates by mode",
+			reading: reading{command: settings.CommandCalibrate, file: &settings.FileValues{
+				TopLevel: map[string]any{"assert": "urgent", "abstain_if": "unsure"},
+			}},
 			check: func(t *testing.T, layers []settings.Layer) {
 				t.Helper()
-
-				file := layerAt(t, layers, settings.SourceFile)
-				want := map[string]map[settings.Name]any{
-					"urgent": {"threshold": 0.7, "fallback": "true"},
-					"team":   {"pick": []any{"sales", "support"}},
-					"plain":  {},
-				}
-
-				if !reflect.DeepEqual(file.Questions, want) {
-					t.Errorf("Questions = %#v, want %#v", file.Questions, want)
-				}
-			},
-		},
-		{
-			name: "should read every number type a question file yields",
-			reading: reading{file: &settings.FileValues{Questions: []settings.QuestionValues{
-				{ID: "a", Values: map[string]any{"threshold": int64(0)}},
-				{ID: "b", Values: map[string]any{"threshold": uint64(1)}},
-				{ID: "c", Values: map[string]any{"min_confidence": float64(0.5)}},
-			}}},
-			check: func(t *testing.T, layers []settings.Layer) {
-				t.Helper()
-
-				file := layerAt(t, layers, settings.SourceFile)
-				for id, want := range map[string]map[settings.Name]any{
-					"a": {"threshold": 0.0}, "b": {"threshold": 1.0}, "c": {"min_confidence": 0.5},
-				} {
-					if !reflect.DeepEqual(file.Questions[id], want) {
-						t.Errorf("Questions[%s] = %#v, want %#v", id, file.Questions[id], want)
-					}
-				}
-			},
-		},
-		{
-			name: "should refuse a question value out of range",
-			reading: reading{file: &settings.FileValues{Questions: []settings.QuestionValues{
-				{ID: "urgent", Values: map[string]any{"threshold": 1.5}},
-			}}},
-			wantErr: "the question file's threshold for 'urgent' takes a number between 0 and 1, got 1.5",
-		},
-		{
-			name: "should drop a calibrate file's assert, abstain_if and policy by Modes",
-			reading: reading{
-				command: settings.CommandCalibrate,
-				file: &settings.FileValues{
-					TopLevel: map[string]any{"assert": "urgent", "abstain_if": "unsure"},
-					Questions: []settings.QuestionValues{{ID: "team", Shape: plan.Pick, Values: map[string]any{
-						"pick": []any{"sales"}, "min_confidence": 0.5, "fallback": "human",
-					}}},
-				},
-			},
-			check: func(t *testing.T, layers []settings.Layer) {
-				t.Helper()
-
-				file := layerAt(t, layers, settings.SourceFile)
-				wantNoValue(t, file, "assert")
-				wantNoValue(t, file, "abstain_if")
-
-				want := map[settings.Name]any{"pick": []any{"sales"}}
-				if !reflect.DeepEqual(file.Questions["team"], want) {
-					t.Errorf("Questions[team] = %#v, want %#v", file.Questions["team"], want)
+				if file, found := layerOf(layers, settings.SourceFile); found {
+					wantNoValue(t, file, "assert")
+					wantNoValue(t, file, "abstain_if")
 				}
 			},
 		},
