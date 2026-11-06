@@ -215,10 +215,6 @@ type resolution struct {
 	keyAside     bool
 }
 
-func (r resolution) chosenProfile() bool {
-	return r.profile != "" && r.by != byDefault
-}
-
 func (r resolution) rankedProfile() string {
 	switch {
 	case r.profile == "":
@@ -228,6 +224,10 @@ func (r resolution) rankedProfile() string {
 	default:
 		return r.profile + ", the default profile"
 	}
+}
+
+func (r resolution) chosenProfile() bool {
+	return r.profile != "" && r.by != byDefault
 }
 
 func (r resolution) merged(m *setting.Merged) resolution {

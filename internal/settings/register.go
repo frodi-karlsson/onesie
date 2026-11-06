@@ -197,18 +197,6 @@ func (g *Given) Values(name Name) []string {
 	return slices.Clone(owner.values[name])
 }
 
-func (g *Given) owning(name Name) *Given {
-	if g == nil {
-		return nil
-	}
-
-	if _, own := g.spellings[name]; own || g.parent == nil {
-		return g
-	}
-
-	return g.parent.owning(name)
-}
-
 // Spelled returns each spelling of name's flag in args in order, reading args as pflag does, so
 // a cluster such as -qm holds several shorthands, a flag's value is no flag, and -- ends the flags.
 func (g *Given) Spelled(args []string, name Name) []string {
@@ -250,6 +238,18 @@ func (g *Given) Spelled(args []string, name Name) []string {
 	}
 
 	return spelled
+}
+
+func (g *Given) owning(name Name) *Given {
+	if g == nil {
+		return nil
+	}
+
+	if _, own := g.spellings[name]; own || g.parent == nil {
+		return g
+	}
+
+	return g.parent.owning(name)
 }
 
 func (g *Given) spelledInCluster(shorthands, short string, spelled []string) ([]string, bool) {
