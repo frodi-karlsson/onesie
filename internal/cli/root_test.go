@@ -141,28 +141,29 @@ func TestNewRootCmd(t *testing.T) {
 			name:     "should report a --print-questions refusal before a bad provider",
 			args:     []string{"is this urgent", "--print-questions", "--provider", "bogus", "-j", "2"},
 			wantCode: cli.ExitUsage,
-			contains: []string{"onesie: -j does not apply to --print-questions, which makes no request\n"},
+			contains: []string{"onesie: -j does not apply to --print-questions, which reads no input and writes the questions as a question file\n"},
 			absent:   []string{"unknown provider"},
 		},
 		{
 			name:     "should report a --list-models refusal before a bad provider",
 			args:     []string{"--list-models", "--provider", "bogus", "-m", "x"},
 			wantCode: cli.ExitUsage,
-			contains: []string{"onesie: -m names a model to ask, which --list-models does not do\n"},
+			contains: []string{"onesie: -m does not apply to --list-models, which only lists the models a provider serves\n"},
 			absent:   []string{"unknown provider"},
 		},
 		{
 			name:     "should report a -i request refusal before a bad provider",
 			args:     []string{"-i", "request", "--provider", "bogus", "-m", "x"},
 			wantCode: cli.ExitUsage,
-			contains: []string{"onesie: -m does not apply to -i request, whose bodies carry their own model\n"},
+			contains: []string{"onesie: -m does not apply to -i request, which sends each body as written and prints each raw response\n"},
 			absent:   []string{"unknown provider"},
 		},
 		{
-			name:     "should warn about -j on one record before a bad provider",
+			name:     "should refuse -j on one record before a bad provider",
 			args:     []string{"is this urgent", "--state", "s", "-j", "4", "--provider", "bogus"},
 			wantCode: cli.ExitUsage,
-			contains: []string{"onesie: warning: -j 4 ignored. -i text reads one record\n", "onesie: unknown provider 'bogus'"},
+			contains: []string{"onesie: -j applies to streaming input. -i text reads one record. Pass -i jsonl, -i lines, -i csv or -i tsv, or drop -j\n"},
+			absent:   []string{"unknown provider"},
 		},
 		{
 			name:     "should still print the version beside a bad provider",
@@ -1799,7 +1800,7 @@ func TestNewRootCmd(t *testing.T) {
 		},
 		{
 			name:     "should name --for for --min-confidence beside a file of several questions",
-			args:     []string{"-f", "two.yaml", "--min-confidence", "0.5", "--fallback", "x", "--print-request"},
+			args:     []string{"-f", "two.yaml", "--min-confidence", "0.5", "--fallback", "x", "--print-questions"},
 			files:    map[string]string{"two.yaml": "a:\n  ask: which\n  pick: [x, y]\nb:\n  ask: which too\n  pick: [x, y]\n"},
 			stdin:    "s",
 			wantCode: cli.ExitUsage,
@@ -1810,7 +1811,7 @@ func TestNewRootCmd(t *testing.T) {
 		},
 		{
 			name:     "should name --for for --threshold beside a file of several questions",
-			args:     []string{"-f", "two.yaml", "--threshold", "0.5", "--print-request"},
+			args:     []string{"-f", "two.yaml", "--threshold", "0.5", "--print-questions"},
 			files:    map[string]string{"two.yaml": "a: is it a\nb: is it b\n"},
 			stdin:    "s",
 			wantCode: cli.ExitUsage,
@@ -2407,9 +2408,9 @@ func TestNewRootCmd(t *testing.T) {
 			},
 			{
 				name:     "should print the warnings when validation fails",
-				args:     []string{"-j", "8", "--pick", "billing"},
+				args:     []string{"--pick", "a,b", "--desc", "a=first", "-q"},
 				code:     cli.ExitUsage,
-				contains: "onesie: warning: -j 8 ignored. -i text reads one record",
+				contains: "onesie: warning: 'answer' describes a but not b",
 			},
 			{
 				name: "should reach the request with every flag in range",
@@ -3107,11 +3108,11 @@ func TestNewRootCmd(t *testing.T) {
 		}{
 			{
 				name: "should refuse --cache beside -i request", args: []string{"--cache", "-i", "request"},
-				wantCode: cli.ExitUsage, want: "onesie: -i request sends each body as written, so --cache has nothing to store. Drop one",
+				wantCode: cli.ExitUsage, want: "onesie: --cache does not apply to -i request, which sends each body as written and prints each raw response",
 			},
 			{
 				name: "should refuse --cache beside --list-models", args: []string{"--cache", "--list-models"},
-				wantCode: cli.ExitUsage, want: "onesie: --list-models asks no question, so --cache has nothing to store. Drop one",
+				wantCode: cli.ExitUsage, want: "onesie: --cache does not apply to --list-models, which only lists the models a provider serves",
 			},
 			{name: "should run -i request under --cache=false", args: []string{"--cache=false", "-i", "request"}},
 			{name: "should run --list-models under --cache=false", args: []string{"--cache=false", "--list-models"}},

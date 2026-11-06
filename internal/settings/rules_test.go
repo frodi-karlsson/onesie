@@ -314,22 +314,36 @@ func TestValidate(t *testing.T) {
 			set:        values{"output": "table", "input": "text"},
 		},
 		{
-			name:        "should warn about jobs outside a stream",
-			positional:  "is this urgent",
-			set:         values{"jobs": 8, "input": "text"},
-			typed:       []settings.Name{"jobs"},
-			wantWarning: "-j 8 ignored. -i text reads one record",
+			name:       "should refuse -j 4 on one record",
+			positional: "is this urgent",
+			set:        values{"jobs": 4, "input": "text"},
+			typed:      []settings.Name{"jobs"},
+			wantExact:  "-j applies to streaming input. -i text reads one record. Pass -i jsonl, -i lines, -i csv or -i tsv, or drop -j",
 		},
 		{
-			name:       "should report the warnings alongside a fatal error",
-			positional: "which team",
+			name:       "should accept -j 1 on one record",
+			positional: "is this urgent",
+			set:        values{"jobs": 1, "input": "text"},
+			typed:      []settings.Name{"jobs"},
+		},
+		{
+			name:       "should accept -j 4 on a stream",
+			positional: "is this urgent",
+			set:        values{"jobs": 4, "input": "jsonl"},
+			typed:      []settings.Name{"jobs"},
+		},
+		{
+			name: "should report the warnings alongside a fatal error",
 			events: []argv.Event{
-				{Name: "pick", Value: "billing"},
+				{Name: "ask", Value: "team=which team"},
+				{Name: "pick", Value: "billing,support"},
+				{Name: "desc", Value: "billing=money"},
+				{Name: "ask", Value: "tier=which tier"},
+				{Name: "pick", Value: "gold"},
 			},
-			set:         values{"jobs": 8, "input": "text"},
-			typed:       []settings.Name{"jobs"},
-			wantErr:     "--pick needs at least two options, got 1: billing",
-			wantWarning: "-j 8 ignored. -i text reads one record",
+			set:         values{"input": "text"},
+			wantErr:     "--pick needs at least two options in question 'tier', got 1: gold",
+			wantWarning: "'team' describes billing but not support",
 		},
 		{
 			name:       "should accept a config that never set jobs",
@@ -501,7 +515,7 @@ func TestValidate(t *testing.T) {
 			positional: "is this urgent",
 			set:        values{"print_request": true, "input": "jsonl", "delimiter": "x", "raw": true},
 			typed:      []settings.Name{"input", "delimiter"},
-			wantExact:  "-r does not apply to --print-request, which writes a request body",
+			wantExact:  "-r does not apply to --print-request, which writes the request bodies and sends none",
 		},
 		{
 			name:       "should report --delimiter before --abstain-if without an assertion",
@@ -514,13 +528,63 @@ func TestValidate(t *testing.T) {
 			name:       "should report the dry run before the output rules",
 			positional: "is this urgent",
 			set:        values{"print_request": true, "raw": true, "output": "json"},
-			wantExact:  "-o does not apply to --print-request, which writes a request body",
+			wantExact:  "-o does not apply to --print-request, which writes the request bodies and sends none",
 		},
 		{
 			name:      "should report a streaming -q before the plan rules",
 			events:    []argv.Event{{Name: "ask", Value: "a=one"}, {Name: "ask", Value: "b=two"}},
 			set:       values{"quiet": true, "input": "jsonl"},
 			wantExact: "-q reads one record. Drop -i jsonl or use -o values and filter the stream",
+		},
+		{
+			name:       "should refuse -q with -r",
+			positional: "is this urgent",
+			set:        values{"quiet": true, "raw": true},
+			wantExact:  "-q suppresses output, which leaves -r nothing to write",
+		},
+		{
+			name:       "should refuse -q with -o json",
+			positional: "is this urgent",
+			set:        values{"quiet": true, "output": "json"},
+			typed:      []settings.Name{"output"},
+			wantExact:  "-q suppresses output, which leaves -o json nothing to write",
+		},
+		{
+			name:       "should refuse -q with -o auto",
+			positional: "is this urgent",
+			set:        values{"quiet": true, "output": "auto"},
+			typed:      []settings.Name{"output"},
+			wantExact:  "-q suppresses output, which leaves -o auto nothing to write",
+		},
+		{
+			name:       "should refuse -q with --merge",
+			positional: "is this urgent",
+			set:        values{"quiet": true, "merge": true},
+			wantExact:  "-q suppresses output, which leaves --merge nothing to write",
+		},
+		{
+			name:       "should refuse -q with --merge-key",
+			positional: "is this urgent",
+			set:        values{"quiet": true, "merge_key": "answers"},
+			wantExact:  "-q suppresses output, which leaves --merge-key nothing to write",
+		},
+		{
+			name:       "should refuse -q with --out and leave no file",
+			positional: "is this urgent",
+			set:        values{"quiet": true, "out": "answers.jsonl"},
+			typed:      []settings.Name{"out"},
+			wantExact:  "-q suppresses output, which leaves --out nothing to write",
+		},
+		{
+			name:      "should keep the gate message for -q with -o raw on two questions",
+			events:    []argv.Event{{Name: "ask", Value: "a=one"}, {Name: "ask", Value: "b=two"}},
+			set:       values{"quiet": true, "output": "raw"},
+			wantExact: "-q needs a single question, or --assert to gate several. 'a', 'b' were asked",
+		},
+		{
+			name:       "should accept -q alone",
+			positional: "is this urgent",
+			set:        values{"quiet": true},
 		},
 		{
 			name:       "should report --stop-on-assert on one record before its missing assertion",
@@ -790,6 +854,7 @@ func TestValidate(t *testing.T) {
 			name       string
 			set        values
 			typed      []settings.Name
+			fromEnv    []settings.Name
 			fromFile   []settings.Name
 			events     []argv.Event
 			positional string
@@ -810,119 +875,112 @@ func TestValidate(t *testing.T) {
 			{
 				name:    "should refuse --image with -i request",
 				set:     values{"image": []string{"photo=photo.png"}, "input": "request", "jobs": 1},
-				wantErr: "--image does not apply to -i request, whose bodies carry their own state",
+				wantErr: "--image does not apply to -i request, which sends each body as written and prints each raw response",
 			},
 			{
 				name:    "should refuse --image-field with -i request",
 				set:     values{"input": "request", "jobs": 1, "image_field": []string{"photo"}},
-				wantErr: "--image-field does not apply to -i request, whose bodies carry their own state",
+				wantErr: "--image-field does not apply to -i request, which sends each body as written and prints each raw response",
 			},
 			{
 				name:    "should refuse --box with -i request",
 				set:     values{"input": "request", "jobs": 1},
 				events:  []argv.Event{{Name: "box", Value: "x"}},
-				wantErr: "-i request carries its own questions. Drop --box",
+				wantErr: "--box does not apply to -i request, which sends each body as written and prints each raw response",
 			},
 			{
 				name:       "should reject a positional question with -i request",
 				set:        values{"input": "request", "jobs": 1},
 				positional: "is it urgent",
-				wantErr: "-i request carries its own questions. " +
-					"Drop the question argument",
+				wantErr:    "the question argument does not apply to -i request, which sends each body as written and prints each raw response",
 			},
 			{
 				name:    "should reject --ask with -i request",
 				set:     values{"input": "request", "jobs": 1},
 				events:  []argv.Event{{Name: "ask", Value: "a=x"}},
-				wantErr: "-i request carries its own questions. Drop --ask",
+				wantErr: "--ask does not apply to -i request, which sends each body as written and prints each raw response",
 			},
 			{
-				name: "should reject -f with -i request",
-				set:  values{"input": "request", "jobs": 1, "file": "q.yaml"},
-				wantErr: "-f does not apply to -i request, " +
-					"which carries its own questions",
+				name:    "should reject -f with -i request",
+				set:     values{"input": "request", "jobs": 1, "file": "q.yaml"},
+				wantErr: "-f does not apply to -i request, which sends each body as written and prints each raw response",
 			},
 			{
 				name:    "should reject --replace with -i request",
 				set:     values{"input": "request", "jobs": 1, "replace": true},
-				wantErr: "--replace applies to -f, which -i request does not accept",
+				wantErr: "--replace does not apply to -i request, which sends each body as written and prints each raw response",
 			},
 			{
 				name:    "should reject --pick with -i request",
 				set:     values{"input": "request", "jobs": 1},
 				events:  []argv.Event{{Name: "pick", Value: "x"}},
-				wantErr: "-i request carries its own questions. Drop --pick",
+				wantErr: "--pick does not apply to -i request, which sends each body as written and prints each raw response",
 			},
 			{
 				name:    "should reject --rate with -i request",
 				set:     values{"input": "request", "jobs": 1},
 				events:  []argv.Event{{Name: "rate", Value: "x"}},
-				wantErr: "-i request carries its own questions. Drop --rate",
+				wantErr: "--rate does not apply to -i request, which sends each body as written and prints each raw response",
 			},
 			{
 				name:    "should reject --desc with -i request",
 				set:     values{"input": "request", "jobs": 1},
 				events:  []argv.Event{{Name: "desc", Value: "x"}},
-				wantErr: "-i request carries its own questions. Drop --desc",
+				wantErr: "--desc does not apply to -i request, which sends each body as written and prints each raw response",
 			},
 			{
 				name:    "should reject --sep with -i request",
 				set:     values{"input": "request", "jobs": 1},
 				events:  []argv.Event{{Name: "sep", Value: "x"}},
-				wantErr: "-i request carries its own questions. Drop --sep",
+				wantErr: "--sep does not apply to -i request, which sends each body as written and prints each raw response",
 			},
 			{
-				name:   "should reject --threshold with -i request",
-				set:    values{"input": "request", "jobs": 1},
-				events: []argv.Event{{Name: "threshold", Value: "x"}},
-				wantErr: "--threshold does not apply to -i request, " +
-					"which carries no policy",
+				name:    "should reject --threshold with -i request",
+				set:     values{"input": "request", "jobs": 1},
+				events:  []argv.Event{{Name: "threshold", Value: "x"}},
+				wantErr: "--threshold does not apply to -i request, which sends each body as written and prints each raw response",
 			},
 			{
-				name:   "should reject --min-confidence with -i request",
-				set:    values{"input": "request", "jobs": 1},
-				events: []argv.Event{{Name: "min-confidence", Value: "x"}},
-				wantErr: "--min-confidence does not apply to -i request, " +
-					"which carries no policy",
+				name:    "should reject --min-confidence with -i request",
+				set:     values{"input": "request", "jobs": 1},
+				events:  []argv.Event{{Name: "min-confidence", Value: "x"}},
+				wantErr: "--min-confidence does not apply to -i request, which sends each body as written and prints each raw response",
 			},
 			{
-				name:   "should reject --fallback with -i request",
-				set:    values{"input": "request", "jobs": 1},
-				events: []argv.Event{{Name: "fallback", Value: "x"}},
-				wantErr: "--fallback does not apply to -i request, " +
-					"which carries no policy",
+				name:    "should reject --fallback with -i request",
+				set:     values{"input": "request", "jobs": 1},
+				events:  []argv.Event{{Name: "fallback", Value: "x"}},
+				wantErr: "--fallback does not apply to -i request, which sends each body as written and prints each raw response",
 			},
 			{
-				name:  "should reject --state with -i request",
-				set:   values{"input": "request", "jobs": 1},
-				typed: []settings.Name{"state"},
-				wantErr: "--state does not apply to -i request, " +
-					"whose bodies carry their own state",
+				name:    "should reject --state with -i request",
+				set:     values{"input": "request", "jobs": 1},
+				typed:   []settings.Name{"state"},
+				wantErr: "--state does not apply to -i request, which sends each body as written and prints each raw response",
 			},
 			{
-				name:  "should reject --state-file with -i request",
-				set:   values{"input": "request", "jobs": 1},
-				typed: []settings.Name{"state_file"},
-				wantErr: "--state-file does not apply to -i request, " +
-					"whose bodies carry their own state",
+				name:    "should reject --state-file with -i request",
+				set:     values{"input": "request", "jobs": 1},
+				typed:   []settings.Name{"state_file"},
+				wantErr: "--state-file does not apply to -i request, which sends each body as written and prints each raw response",
 			},
 			{
 				name:    "should reject --map with -i request",
 				set:     values{"input": "request", "jobs": 1},
 				typed:   []settings.Name{"map"},
-				wantErr: "--map does not apply to -i request, whose bodies carry their own state",
+				wantErr: "--map does not apply to -i request, which sends each body as written and prints each raw response",
 			},
 			{
 				name:    "should reject --map with --list-models",
 				set:     values{"list_models": true, "input": "text"},
 				typed:   []settings.Name{"map"},
-				wantErr: "--map does not apply to --list-models, which reads no state",
+				wantErr: "--map does not apply to --list-models, which only lists the models a provider serves",
 			},
 			{
 				name:    "should reject --map with --print-questions",
 				set:     values{"print_questions": true, "input": "text"},
 				typed:   []settings.Name{"map"},
-				wantErr: "--map does not apply to --print-questions, which reads no state",
+				wantErr: "--map does not apply to --print-questions, which reads no input and writes the questions as a question file",
 			},
 			{
 				name:  "should accept --map with --print-request",
@@ -933,19 +991,19 @@ func TestValidate(t *testing.T) {
 				name:    "should reject --id with -i request",
 				set:     values{"input": "request", "jobs": 1},
 				typed:   []settings.Name{"id"},
-				wantErr: "--id does not apply to -i request, which forwards raw responses",
+				wantErr: "--id does not apply to -i request, which sends each body as written and prints each raw response",
 			},
 			{
 				name:    "should reject --id with --list-models",
 				set:     values{"list_models": true, "input": "text"},
 				typed:   []settings.Name{"id"},
-				wantErr: "--id does not apply to --list-models, which reads no input",
+				wantErr: "--id does not apply to --list-models, which only lists the models a provider serves",
 			},
 			{
 				name:    "should reject --id with --print-questions",
 				set:     values{"print_questions": true, "input": "text"},
 				typed:   []settings.Name{"id"},
-				wantErr: "--id does not apply to --print-questions, which reads no input",
+				wantErr: "--id does not apply to --print-questions, which reads no input and writes the questions as a question file",
 			},
 			{
 				name:  "should accept --id with --print-request",
@@ -955,42 +1013,38 @@ func TestValidate(t *testing.T) {
 			{
 				name:    "should reject -o with -i request",
 				set:     values{"input": "request", "jobs": 1, "output": "json"},
-				wantErr: "-o does not apply to -i request, which forwards raw responses",
+				wantErr: "-o does not apply to -i request, which sends each body as written and prints each raw response",
 			},
 			{
 				name:    "should reject -r with -i request",
 				set:     values{"input": "request", "jobs": 1, "raw": true},
-				wantErr: "-r does not apply to -i request, which forwards raw responses",
+				wantErr: "-r does not apply to -i request, which sends each body as written and prints each raw response",
 			},
 			{
-				name: "should reject --usage with -i request",
-				set:  values{"input": "request", "jobs": 1, "usage": true},
-				wantErr: "--usage does not apply to -i request, " +
-					"whose response bodies already carry usage",
+				name:    "should reject --usage with -i request",
+				set:     values{"input": "request", "jobs": 1, "usage": true},
+				wantErr: "--usage does not apply to -i request, which sends each body as written and prints each raw response",
 			},
 			{
 				name:    "should reject --merge with -i request",
 				set:     values{"merge": true, "input": "request", "jobs": 1},
-				wantErr: "--merge does not apply to -i request, which forwards raw responses",
+				wantErr: "--merge does not apply to -i request, which sends each body as written and prints each raw response",
 			},
 			{
-				name: "should name --merge-key when that is the flag given",
-				set:  values{"merge_key": "verdict", "input": "request", "jobs": 1},
-				wantErr: "--merge-key does not apply to -i request, " +
-					"which forwards raw responses",
+				name:    "should name --merge-key when that is the flag given",
+				set:     values{"merge_key": "verdict", "input": "request", "jobs": 1},
+				wantErr: "--merge-key does not apply to -i request, which sends each body as written and prints each raw response",
 			},
 			{
-				name:  "should reject -m with -i request",
-				set:   values{"input": "request", "jobs": 1},
-				typed: []settings.Name{"model"},
-				wantErr: "-m does not apply to -i request, " +
-					"whose bodies carry their own model",
+				name:    "should reject -m with -i request",
+				set:     values{"input": "request", "jobs": 1},
+				typed:   []settings.Name{"model"},
+				wantErr: "-m does not apply to -i request, which sends each body as written and prints each raw response",
 			},
 			{
-				name: "should reject --print-questions with -i request",
-				set:  values{"input": "request", "jobs": 1, "print_questions": true},
-				wantErr: "--print-questions needs questions of its own, " +
-					"which -i request does not build",
+				name:    "should reject --print-questions with -i request",
+				set:     values{"input": "request", "jobs": 1, "print_questions": true},
+				wantErr: "--print-questions does not apply to -i request, which sends each body as written and prints each raw response",
 			},
 			{
 				name:  "should accept the streaming flags with -i request",
@@ -998,43 +1052,39 @@ func TestValidate(t *testing.T) {
 				typed: []settings.Name{"jobs"},
 			},
 			{
-				name: "should reject both print flags at once",
-				set:  values{"print_request": true, "print_questions": true, "input": "text"},
-				wantErr: "--print-request and --print-questions each write a different " +
-					"thing to stdout. Pass one",
+				name:    "should reject both print flags at once",
+				set:     values{"print_request": true, "print_questions": true, "input": "text"},
+				wantErr: "--print-questions does not apply to --print-request, which writes the request bodies and sends none",
 			},
 			{
 				name:    "should reject -o with --print-questions",
 				set:     values{"print_questions": true, "output": "json", "input": "text"},
-				wantErr: "-o does not apply to --print-questions, which writes a question file",
+				wantErr: "-o does not apply to --print-questions, which reads no input and writes the questions as a question file",
 			},
 			{
 				name:    "should reject -r with --print-request",
 				set:     values{"print_request": true, "raw": true, "input": "text"},
-				wantErr: "-r does not apply to --print-request, which writes a request body",
+				wantErr: "-r does not apply to --print-request, which writes the request bodies and sends none",
 			},
 			{
-				name: "should name --merge-key when that is the spelling given",
-				set:  values{"merge_key": "verdict", "print_request": true, "input": "text"},
-				wantErr: "--merge-key needs answers to fold in, " +
-					"which --print-request does not produce",
+				name:    "should name --merge-key when that is the spelling given",
+				set:     values{"merge_key": "verdict", "print_request": true, "input": "text"},
+				wantErr: "--merge-key does not apply to --print-request, which writes the request bodies and sends none",
 			},
 			{
 				name:    "should reject -q with --print-request",
 				set:     values{"print_request": true, "quiet": true, "input": "text"},
-				wantErr: "-q suppresses output, which leaves --print-request nothing to write",
+				wantErr: "-q does not apply to --print-request, which writes the request bodies and sends none",
 			},
 			{
-				name: "should reject --stats with --print-questions",
-				set:  values{"print_questions": true, "stats": true, "input": "text"},
-				wantErr: "--stats has nothing to report with --print-questions, " +
-					"which makes no request",
+				name:    "should reject --stats with --print-questions",
+				set:     values{"print_questions": true, "stats": true, "input": "text"},
+				wantErr: "--stats does not apply to --print-questions, which reads no input and writes the questions as a question file",
 			},
 			{
-				name: "should reject --stats with --print-request under -i request",
-				set:  values{"input": "request", "jobs": 1, "print_request": true, "stats": true},
-				wantErr: "--stats has nothing to report with --print-request, " +
-					"which makes no request",
+				name:    "should reject --stats with --print-request under -i request",
+				set:     values{"input": "request", "jobs": 1, "print_request": true, "stats": true},
+				wantErr: "--stats does not apply to --print-request, which writes the request bodies and sends none",
 			},
 			{
 				name: "should accept --stats on its own under -i request",
@@ -1043,35 +1093,33 @@ func TestValidate(t *testing.T) {
 			{
 				name:    "should blame the dry run rather than the mode for -o under -i request",
 				set:     values{"input": "request", "jobs": 1, "print_request": true, "output": "json"},
-				wantErr: "-o does not apply to --print-request, which writes a request body",
+				wantErr: "-o does not apply to --print-request, which writes the request bodies and sends none",
 			},
 			{
-				name: "should blame the dry run rather than the mode for --usage under -i request",
-				set:  values{"input": "request", "jobs": 1, "print_request": true, "usage": true},
-				wantErr: "--usage reports the tokens a question cost, " +
-					"which --print-request does not ask",
+				name:    "should blame the dry run rather than the mode for --usage under -i request",
+				set:     values{"input": "request", "jobs": 1, "print_request": true, "usage": true},
+				wantErr: "--usage does not apply to --print-request, which writes the request bodies and sends none",
 			},
 			{
 				name:    "should keep the request mode reason for a flag the dry run has no rule for",
 				set:     values{"input": "request", "jobs": 1, "print_request": true},
 				events:  []argv.Event{{Name: "ask", Value: "a=x"}},
-				wantErr: "-i request carries its own questions. Drop --ask",
+				wantErr: "--ask does not apply to -i request, which sends each body as written and prints each raw response",
 			},
 			{
-				name: "should reject --assert with -i request",
-				set:  values{"assert": []string{"answer.value > 0.5"}, "input": "request", "jobs": 1},
-				wantErr: "--assert does not apply to -i request, " +
-					"which forwards raw responses",
+				name:    "should reject --assert with -i request",
+				set:     values{"assert": []string{"answer.value > 0.5"}, "input": "request", "jobs": 1},
+				wantErr: "--assert does not apply to -i request, which sends each body as written and prints each raw response",
 			},
 			{
 				name:    "should reject --assert with --list-models",
 				set:     values{"assert": []string{"answer.value > 0.5"}, "list_models": true, "input": "text"},
-				wantErr: "--assert judges an answer, which --list-models does not produce",
+				wantErr: "--assert does not apply to --list-models, which only lists the models a provider serves",
 			},
 			{
 				name:    "should reject --assert with --print-request",
 				set:     values{"assert": []string{"answer.value > 0.5"}, "print_request": true, "input": "text"},
-				wantErr: "--assert judges an answer, which --print-request does not produce",
+				wantErr: "--assert does not apply to --print-request, which writes the request bodies and sends none. Rehearse the whole command with --mock, or see the questions with --print-questions",
 			},
 			{
 				name:  "should ignore a file's assertion with --print-request",
@@ -1086,44 +1134,42 @@ func TestValidate(t *testing.T) {
 			{
 				name:    "should reject --assert typed beside a file's assertion with --print-request",
 				set:     values{"assert": []string{"answer.value > 0.5"}, "print_request": true, "file": "q.yaml", "input": "text"},
-				wantErr: "--assert judges an answer, which --print-request does not produce",
+				wantErr: "--assert does not apply to --print-request, which writes the request bodies and sends none. Rehearse the whole command with --mock, or see the questions with --print-questions",
 			},
 			{
 				name:    "should reject --abstain-if typed beside a file's gates with --print-request",
 				set:     values{"abstain_if": []string{"answer.value > 0.4"}, "print_request": true, "file": "q.yaml", "input": "text"},
 				facts:   settings.Facts{FileAssert: "answer.value > 0.5"},
-				wantErr: "--abstain-if judges an answer, which --print-request does not produce",
+				wantErr: "--abstain-if does not apply to --print-request, which writes the request bodies and sends none. Rehearse the whole command with --mock, or see the questions with --print-questions",
 			},
 			{
 				name: "should accept --assert with --print-questions",
 				set:  values{"assert": []string{"answer.value > 0.5"}, "print_questions": true, "input": "text"},
 			},
 			{
-				name: "should reject --stop-on-assert with --print-request",
-				set:  values{"print_request": true, "stop_on_assert": true, "input": "lines"},
-				wantErr: "--stop-on-assert ends a stream on a false assertion, " +
-					"which --print-request does not produce",
+				name:    "should reject --stop-on-assert with --print-request",
+				set:     values{"print_request": true, "stop_on_assert": true, "input": "lines"},
+				wantErr: "--stop-on-assert does not apply to --print-request, which writes the request bodies and sends none",
 			},
 			{
 				name:    "should reject --abstain-if with --list-models",
 				set:     values{"abstain_if": []string{"answer.value > 0.4"}, "list_models": true, "input": "text"},
-				wantErr: "--abstain-if judges an answer, which --list-models does not produce",
+				wantErr: "--abstain-if does not apply to --list-models, which only lists the models a provider serves",
 			},
 			{
-				name: "should reject --abstain-if with -i request",
-				set:  values{"abstain_if": []string{"answer.value > 0.4"}, "input": "request", "jobs": 1},
-				wantErr: "--abstain-if does not apply to -i request, " +
-					"which forwards raw responses",
+				name:    "should reject --abstain-if with -i request",
+				set:     values{"abstain_if": []string{"answer.value > 0.4"}, "input": "request", "jobs": 1},
+				wantErr: "--abstain-if does not apply to -i request, which sends each body as written and prints each raw response",
 			},
 			{
 				name:    "should name --assert first when --print-request is given both gates",
 				set:     values{"assert": []string{"answer.value > 0.5"}, "abstain_if": []string{"answer.value > 0.4"}, "print_request": true, "input": "text"},
-				wantErr: "--assert judges an answer, which --print-request does not produce",
+				wantErr: "--assert does not apply to --print-request, which writes the request bodies and sends none. Rehearse the whole command with --mock, or see the questions with --print-questions",
 			},
 			{
 				name:    "should reject --abstain-if with --print-request",
 				set:     values{"abstain_if": []string{"answer.value > 0.4"}, "print_request": true, "input": "text"},
-				wantErr: "--abstain-if judges an answer, which --print-request does not produce",
+				wantErr: "--abstain-if does not apply to --print-request, which writes the request bodies and sends none. Rehearse the whole command with --mock, or see the questions with --print-questions",
 			},
 			{
 				name: "should accept --abstain-if with --print-questions",
@@ -1132,6 +1178,84 @@ func TestValidate(t *testing.T) {
 			{
 				name: "should accept --stop-on-error with --print-request",
 				set:  values{"print_request": true, "stop_on_error": true, "input": "lines"},
+			},
+			{
+				name:    "should refuse --threshold beside --print-request",
+				set:     values{"print_request": true, "input": "text"},
+				events:  []argv.Event{{Name: "threshold", Value: "0.9"}},
+				wantErr: "--threshold does not apply to --print-request, which writes the request bodies and sends none. Rehearse the whole command with --mock, or see the questions with --print-questions",
+			},
+			{
+				name:    "should refuse --min-confidence beside --print-request",
+				set:     values{"print_request": true, "input": "text"},
+				events:  []argv.Event{{Name: "ask", Value: "team=which"}, {Name: "min-confidence", Value: "0.6"}},
+				wantErr: "--min-confidence does not apply to --print-request, which writes the request bodies and sends none. Rehearse the whole command with --mock, or see the questions with --print-questions",
+			},
+			{
+				name:    "should refuse --fallback typed in a --for group beside --print-request",
+				set:     values{"print_request": true, "input": "text", "file": "q.yaml"},
+				events:  []argv.Event{{Name: "for", Value: "tone"}, {Name: "fallback", Value: "human"}},
+				wantErr: "--fallback does not apply to --print-request, which writes the request bodies and sends none. Rehearse the whole command with --mock, or see the questions with --print-questions",
+			},
+			{
+				name: "should accept a file's policy with --print-request",
+				set:  values{"print_request": true, "input": "text", "file": "q.yaml", "threshold": 0.9},
+			},
+			{
+				name:   "should accept --threshold with --print-questions",
+				set:    values{"print_questions": true, "input": "text"},
+				events: []argv.Event{{Name: "threshold", Value: "0.9"}},
+			},
+			{
+				name:    "should refuse --cache beside --print-questions",
+				set:     values{"print_questions": true, "input": "text", "cache": true},
+				typed:   []settings.Name{"cache"},
+				wantErr: "--cache does not apply to --print-questions, which reads no input and writes the questions as a question file",
+			},
+			{
+				name:    "should refuse --mock beside --print-questions",
+				set:     values{"print_questions": true, "input": "text", "mock": "m.json"},
+				typed:   []settings.Name{"mock"},
+				wantErr: "--mock does not apply to --print-questions, which reads no input and writes the questions as a question file",
+			},
+			{
+				name:    "should skip ONESIE_CACHE beside --print-questions",
+				set:     values{"print_questions": true, "input": "text", "cache": true},
+				fromEnv: []settings.Name{"cache"},
+			},
+			{
+				name:    "should refuse --cache beside --print-request",
+				set:     values{"print_request": true, "input": "text", "cache": true},
+				typed:   []settings.Name{"cache"},
+				wantErr: "--cache does not apply to --print-request, which writes the request bodies and sends none",
+			},
+			{
+				name:    "should skip ONESIE_CACHE beside --print-request",
+				set:     values{"print_request": true, "input": "text", "cache": true},
+				fromEnv: []settings.Name{"cache"},
+			},
+			{
+				name:    "should refuse --cache beside --mock",
+				set:     values{"input": "text", "cache": true, "mock": "m.json"},
+				typed:   []settings.Name{"cache", "mock"},
+				wantErr: "--cache stores answers from the API, which --mock replaces. Drop one",
+			},
+			{
+				name:    "should skip a typed --cache beside an ambient ONESIE_MOCK",
+				set:     values{"input": "text", "cache": true, "mock": "m.json"},
+				typed:   []settings.Name{"cache"},
+				fromEnv: []settings.Name{"mock"},
+			},
+			{
+				name:    "should skip ONESIE_CACHE beside --mock",
+				set:     values{"input": "text", "cache": true, "mock": "m.json"},
+				typed:   []settings.Name{"mock"},
+				fromEnv: []settings.Name{"cache"},
+			},
+			{
+				name:  "should accept --cache=false beside --mock",
+				set:   values{"input": "text", "cache": false, "mock": "m.json"},
+				typed: []settings.Name{"cache", "mock"},
 			},
 			{
 				name:    "should refuse --image-field on one record",
@@ -1363,7 +1487,7 @@ func TestValidate(t *testing.T) {
 			{
 				name:    "should reject -q with -i request",
 				set:     values{"input": "request", "jobs": 1, "quiet": true},
-				wantErr: "-q needs a policy to report, which -i request has none of",
+				wantErr: "-q does not apply to -i request, which sends each body as written and prints each raw response",
 			},
 			{
 				name:    "should reject -r with -o outside request mode",
@@ -1409,8 +1533,8 @@ func TestValidate(t *testing.T) {
 				t.Parallel()
 
 				given := run{
-					set: tc.set, typed: tc.typed, fromFile: tc.fromFile, events: tc.events, positional: tc.positional,
-					facts: tc.facts,
+					set: tc.set, typed: tc.typed, fromEnv: tc.fromEnv, fromFile: tc.fromFile, events: tc.events,
+					positional: tc.positional, facts: tc.facts,
 				}
 
 				warnings, _, err := settings.Validate(given.view(t), settings.Rules())
@@ -1523,7 +1647,7 @@ func TestValidate(t *testing.T) {
 		}
 
 		_, _, err := settings.Validate(given.view(t), []settings.Rule{ruleByID(t, "calibrate-report")})
-		if want := "-o does not apply to --print-request, which writes a request body"; err == nil || err.Error() != want {
+		if want := "-o does not apply to --print-request, which writes the request bodies and sends none"; err == nil || err.Error() != want {
 			t.Errorf("error = %v, want %q", err, want)
 		}
 	})
@@ -1598,7 +1722,7 @@ func TestRules(t *testing.T) {
 					"calibrate-reads-records", "offline-reads-out", "calibrate-needs-map", "calibrate-report",
 					"cuts-parse", "calibrate-resumes-by-id", "calibrate-dry-run-out", "calibrate-usage",
 					"requires-parse", "needs-a-question", "list-models-alone", "resume-needs-a-stream",
-					"prune-needs-resume-and-id", "dry-run-and-request", "delimiter-needs-csv", "abstain-needs-assert",
+					"prune-needs-resume-and-id", "dry-run-and-request", "cache-beside-mock", "delimiter-needs-csv", "abstain-needs-assert",
 					"raw-and-output", "quiet-without-markdown", "state-and-state-file", "replace-needs-file",
 					"for-selects-a-file-question", "file-question-shape",
 					"merge-needs-mergeable-output", "merge-key-not-wrapped", "delimited-output", "quiet-without-usage",
@@ -1606,7 +1730,7 @@ func TestRules(t *testing.T) {
 					"stream-reads-its-own-state", "quiet-reads-one-record", "table-reads-one-record",
 					"stop-on-assert-needs-assert", "columns-unique", "line-field-reserved",
 					"policy-binding", "questions-valid", "quiet-needs-one-question",
-					"raw-needs-one-question", "one-state", "setting-given-twice",
+					"raw-needs-one-question", "one-state", "quiet-writes-nothing", "setting-given-twice",
 				}
 
 				got := make([]string, 0, len(rules))
@@ -1640,7 +1764,7 @@ func TestRules(t *testing.T) {
 				t.Helper()
 
 				for _, rule := range rules {
-					if rule.Check == nil && rule.Warn == nil && rule.Notice == nil && rule.Inspect == nil {
+					if rule.Check == nil && rule.Notice == nil && rule.Inspect == nil {
 						t.Errorf("rule %s has no Check, Warn, Notice or Inspect", rule.ID)
 					}
 				}
@@ -1729,7 +1853,7 @@ func ruleCases() []ruleCase {
 			rule:    "list-models-alone",
 			refused: run{set: values{"list_models": true}, typed: []settings.Name{"model"}},
 			passed:  run{set: values{"list_models": true, "stats": true}},
-			wantErr: "-m names a model to ask, which --list-models does not do",
+			wantErr: "-m does not apply to --list-models, which only lists the models a provider serves",
 		},
 		{
 			rule:    "resume-needs-a-stream",
@@ -1745,9 +1869,15 @@ func ruleCases() []ruleCase {
 		},
 		{
 			rule:    "dry-run-and-request",
-			refused: run{set: values{"print_request": true, "mock": "answers.jsonl"}, fromEnv: []settings.Name{"mock"}},
+			refused: run{set: values{"print_request": true, "mock": "answers.jsonl"}, typed: []settings.Name{"mock"}},
 			passed:  run{set: values{"print_request": true, "input": "request", "stop_on_error": true}},
-			wantErr: "ONESIE_MOCK answers requests, and --print-request sends none. Unset it or drop --print-request",
+			wantErr: "--mock does not apply to --print-request, which writes the request bodies and sends none",
+		},
+		{
+			rule:    "cache-beside-mock",
+			refused: run{set: values{"cache": true, "mock": "m.json"}, typed: []settings.Name{"cache", "mock"}},
+			passed:  run{set: values{"cache": true, "mock": "m.json"}, typed: []settings.Name{"mock"}, fromEnv: []settings.Name{"cache"}},
+			wantErr: "--cache stores answers from the API, which --mock replaces. Drop one",
 		},
 		{
 			rule:    "delimiter-needs-csv",
@@ -1773,7 +1903,7 @@ func ruleCases() []ruleCase {
 		{
 			rule:    "quiet-without-markdown",
 			refused: run{set: values{"quiet": true, "output": "md"}},
-			passed:  run{set: values{"quiet": true, "output": "json"}},
+			passed:  run{set: values{"quiet": true}},
 			wantErr: "-q suppresses output, which leaves -o md nothing to write",
 		},
 		{
@@ -1925,6 +2055,12 @@ func ruleCases() []ruleCase {
 			},
 			passed:  run{facts: settings.Facts{BodyState: true}, set: values{"file": "body.json"}},
 			wantErr: "--state and the state in body.json both give a state. Drop one",
+		},
+		{
+			rule:    "quiet-writes-nothing",
+			refused: run{set: values{"quiet": true, "raw": true}},
+			passed:  run{set: values{"quiet": true}},
+			wantErr: "-q suppresses output, which leaves -r nothing to write",
 		},
 	}
 }

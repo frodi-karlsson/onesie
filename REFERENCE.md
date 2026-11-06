@@ -113,7 +113,8 @@ onesie --ask urgent='is this urgent' --assert 'urgnet.value < 0.5'
   gives `calibrate` no cut, so a `--require` that reads its cut from one says so and needs
   `at CUT`.
 - A false assertion exits 1 and still prints the record with `"assert": false`. `-q` prints nothing
-  and leaves the exit code to the assertion. Repeated flags combine with `and`. A typed `--assert`
+  and leaves the exit code to the assertion. Since it writes nothing, `-q` beside `-r`, any `-o`,
+  `--out`, `--merge` or `--merge-key` exits 2. Repeated flags combine with `and`. A typed `--assert`
   replaces a question file's `assert`, and a typed `--abstain-if` its `abstain_if`, each with a
   notice such as `onesie: --assert overrides the question file's assert`, whatever the number of
   questions.
@@ -128,8 +129,10 @@ onesie --ask urgent='is this urgent' --assert 'urgnet.value < 0.5'
 - `min`, `max`, `sum` and `avg` take numbers and nest. `==` rarely matches a `sum` or `avg`, so use
   `>=` or `<=`. There are no arithmetic operators, so weighting answers is a job for `jq`.
 - A question file carries the same expressions as `assert` and `abstain_if`. `--print-request`
-  checks a file's gate and then ignores it, so a gated file can be dry run. `--assert` or
-  `--abstain-if` typed beside `--print-request` exits 2.
+  checks a file's gate and policy and then ignores them, so a gated file can be dry run. `--assert`,
+  `--abstain-if`, `--threshold`, `--min-confidence` or `--fallback` typed beside `--print-request`
+  exits 2, since the requests it prints carry none of them. `--print-questions` shows them,
+  and `--mock` rehearses the whole command, as the message says.
 
 ## Testing a gate
 
@@ -210,8 +213,8 @@ ONESIE_MOCK=answers.json ./gate.sh
 - `calibrate --mock` works, so a calibration can be tested too. Its `-o json` report carries
   `"mocked":true`. An entry may also answer the questions `calibrate` skips, so one mock file for a
   whole question file serves any set of labels. `--mock` is refused beside `--print-request`,
-  `-i request` and `--list-models`, and `ONESIE_MOCK` is skipped silently beside them, since none of
-  them asks a question. `calibrate --print-request` refuses both, and every `profile` subcommand
+  `--print-questions`, `-i request` and `--list-models`, and `ONESIE_MOCK` is skipped silently
+  beside them, since none of them asks a question. `calibrate --print-request` refuses both, and every `profile` subcommand
   refuses `ONESIE_MOCK`. The flag wins over the variable, with a notice when they differ, and an
   empty or blank `ONESIE_MOCK` is ignored.
 
@@ -333,6 +336,11 @@ onesie calibrate -f shell-safety -i jsonl --map .command --id .id \
 
 - A record that fails prints a line with an `error` key, and the run exits 6. `--stop-on-error`
   ends at the first failure, and `--unordered` trades input order for throughput.
+- `-j`, `--unordered`, `--stop-on-error`, `--stop-on-assert`, `--skip-blank`, `--no-dedup`, `--id`
+  and `--image-field` act on a stream only, so beside one record each exits 2 and names the `-i`
+  that reads it. `-j` also says what to do, as in
+  `-j applies to streaming input. -i text reads one record. Pass -i jsonl, -i lines, -i csv or -i tsv, or drop -j`.
+  `-j 1` is the default, so one record takes it.
 - The `error` object holds `kind`, `status` and `message`. Its `kind` is `input` for a record that
   never became a request, `transport` for a connection that failed or timed out, `response` for a
   2xx response onesie could not use, `auth` for a key or account the provider refused, and `http`
@@ -566,10 +574,12 @@ again.
   parallel runs can share one cache.
 - The cache holds about `max-cache-bytes`, 100 MB, which `onesie -V` lists beside `cache-ttl`. Past
   that it evicts the least recently used answers first, and a hit counts as a use.
-- `--mock` answers from its file and never reads or fills the cache. `--print-request` sends
-  nothing, `calibrate --offline` asks nothing, and a run that `--resume` finds fully answered asks
-  nothing, so none of them opens the cache. `-i request` and `--list-models` never go through it, so
-  `--cache` beside either exits 2. `--cache=false` beside them is fine, and `ONESIE_CACHE=1` is
+- `--mock` answers from its file, and `--print-request` and `--print-questions` send nothing, so
+  none of them reads or fills the cache, and `--cache` beside any of them exits 2. Beside `ONESIE_MOCK` the mock
+  answers and `--cache` is skipped silently, since the variable is ambient.
+  `calibrate --offline` asks nothing, and a run that `--resume` finds fully answered asks nothing,
+  so neither opens the cache. `-i request` and `--list-models` never go through it, so `--cache`
+  beside either exits 2. `--cache=false` beside any of them is fine, and `ONESIE_CACHE=1` is
   ignored there.
 - A cached run still needs a key, unless the base URL is custom, even though a hit sends nothing.
   Under `--cache`, the no key message says so. An answer from a custom base URL is never pinned, so
@@ -989,7 +999,7 @@ table, and `onesie calibrate --help` lists the codes calibrate uses.
 | `ONESIE_PROFILE` | the profile a run uses when `--profile` is not given. Beside `--provider`, it exits 2 |
 | `ONESIE_PROVIDER` | runs without a profile on this provider when neither `--profile` nor `--provider` is given. Set beside `ONESIE_PROFILE`, it exits 2 |
 | `ONESIE_CONFIG_DIR` | where `profiles.json` and the saved question files live |
-| `ONESIE_MOCK` | a file to answer from, as `--mock`. Skipped beside `--list-models`, `-i request` and `--print-request` |
+| `ONESIE_MOCK` | a file to answer from, as `--mock`. Skipped beside `--list-models`, `-i request`, `--print-request` and `--print-questions` |
 | `ONESIE_CACHE` | `1` turns the response cache on, as `--cache` |
 | `ONESIE_CACHE_DIR` | where the response cache lives |
 | `ONESIE_CACHE_TTL` | how long a cached answer for a model alias lives, `24h` unless set |

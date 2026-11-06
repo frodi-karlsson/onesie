@@ -794,9 +794,57 @@ func TestAsk(t *testing.T) {
 		args []string
 		env  map[string]string
 	}{
-		{name: "should answer from --mock and leave the cache dir absent", args: []string{"--cache", "--mock", "MOCK"}},
+		{name: "should answer from --mock under ONESIE_CACHE=1 and leave the cache dir absent", args: []string{"--mock", "MOCK"}, env: map[string]string{envCache: "1"}},
 		{name: "should answer from ONESIE_MOCK under ONESIE_CACHE=1 and leave the cache dir absent", env: map[string]string{envCache: "1", envMock: "MOCK"}},
-		{name: "should leave the cache dir absent under --print-request --cache", args: []string{"--cache", "--print-request"}},
+		{name: "should answer from ONESIE_MOCK under a typed --cache and leave the cache dir absent", args: []string{"--cache"}, env: map[string]string{envMock: "MOCK"}},
+		{name: "should leave the cache dir absent under --print-request with ONESIE_CACHE=1", args: []string{"--print-request"}, env: map[string]string{envCache: "1"}},
+	}
+
+	refused := []struct {
+		name string
+		args []string
+		env  map[string]string
+		want string
+	}{
+		{
+			name: "should refuse --cache beside --mock", args: []string{"--cache", "--mock", "MOCK"},
+			want: "onesie: --cache stores answers from the API, which --mock replaces. Drop one\n",
+		},
+		{
+			name: "should refuse --cache beside --print-request", args: []string{"--cache", "--print-request"},
+			want: "onesie: --cache does not apply to --print-request, which writes the request bodies and sends none\n",
+		},
+	}
+
+	for _, tc := range refused {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			stub := newAnswerStub(t)
+			env := cacheEnv(t)
+			mockFile := filepath.Join(t.TempDir(), "answers.json")
+
+			for name, value := range tc.env {
+				env[name] = strings.ReplaceAll(value, "MOCK", mockFile)
+			}
+
+			args := []string{"--ask", "u=is it urgent", "--state", "site down", "--base-url", stub.url}
+			for _, arg := range tc.args {
+				args = append(args, strings.ReplaceAll(arg, "MOCK", mockFile))
+			}
+
+			if _, errOut, code := runCached(t, env, args, ""); code != ExitUsage || errOut != tc.want {
+				t.Fatalf("exit %d, stderr %q\nwant exit %d, stderr %q", code, errOut, ExitUsage, tc.want)
+			}
+
+			if _, err := os.Stat(env["ONESIE_CACHE_DIR"]); !errors.Is(err, os.ErrNotExist) {
+				t.Errorf("the cache dir exists: %v", err)
+			}
+
+			if got := stub.requests.Load(); got != 0 {
+				t.Errorf("%d requests, want none", got)
+			}
+		})
 	}
 
 	for _, tc := range skipping {

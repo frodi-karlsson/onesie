@@ -130,7 +130,9 @@ func checkReport(v View) error {
 	}
 
 	if Get(v.Merged, PrintRequest) && v.Facts.ReportSet {
-		return errors.New("-o does not apply to --print-request, which writes a request body")
+		name, reason := modeWording(ModePrintRequest)
+
+		return fmt.Errorf("-o does not apply to %s, which %s", name, reason)
 	}
 
 	return nil

@@ -27,6 +27,37 @@ func markdownOutput(v View) bool {
 	return output == "markdown" || output == "md"
 }
 
+func quietWritesNothingRule() Rule {
+	return Rule{
+		ID:    "quiet-writes-nothing",
+		Reads: []Name{Quiet.Name(), Raw.Name(), Output.Name(), Out.Name(), MergeInput.Name(), MergeKey.Name()},
+		Check: func(v View) error {
+			if !Get(v.Merged, Quiet) {
+				return nil
+			}
+
+			if dropped := droppedByQuiet(v); dropped != "" {
+				return fmt.Errorf("-q suppresses output, which leaves %s nothing to write", dropped)
+			}
+
+			return nil
+		},
+	}
+}
+
+func droppedByQuiet(v View) string {
+	switch {
+	case Get(v.Merged, Raw):
+		return "-r"
+	case Get(v.Merged, Output) != "":
+		return "-o " + Get(v.Merged, Output)
+	case Get(v.Merged, Out) != "":
+		return "--out"
+	default:
+		return mergeName(v)
+	}
+}
+
 func quietWithUsageRule() Rule {
 	return Rule{
 		ID:    "quiet-without-usage",

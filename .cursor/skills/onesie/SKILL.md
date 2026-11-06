@@ -182,7 +182,7 @@ onesie 'is this urgent' --state 'the server is down' --stats --usage -o json
 
 ### Turn on --cache for a script or loop that asks the same thing again.
 
-`--cache`, or `ONESIE_CACHE=1` in the environment of every run, stores each successful response on disk and answers a repeated request from it, with no request and zero tokens. A change to the state, the questions, the model, the provider or the base URL asks again, while `--timeout`, `--retries`, `--assert` and the output flags do not. On the `typesafe` provider a model name ending in a version, such as `jev-1.13.0`, is pinned and its answers live until they are evicted. Every other model is an alias, such as `jev-latest`, and so is every model on any other provider, as [Caching](https://github.com/frodi-karlsson/onesie/blob/main/REFERENCE.md#caching) lists, so its answers expire after 24 hours, or after `ONESIE_CACHE_TTL`. `--cache=false` turns it off for one run under `ONESIE_CACHE=1`, so that run asks the API again. Cached answers stay on disk until they expire, are evicted or `onesie cache clear` removes them.
+`--cache`, or `ONESIE_CACHE=1` in the environment of every run, stores each successful response on disk and answers a repeated request from it, with no request and zero tokens. A change to the state, the questions, the model, the provider or the base URL asks again, while `--timeout`, `--retries`, `--assert` and the output flags do not. On the `typesafe` provider a model name ending in a version, such as `jev-1.13.0`, is pinned and its answers live until they are evicted. Every other model is an alias, such as `jev-latest`, and so is every model on any other provider, as [Caching](https://github.com/frodi-karlsson/onesie/blob/main/REFERENCE.md#caching) lists, so its answers expire after 24 hours, or after `ONESIE_CACHE_TTL`. `--cache=false` turns it off for one run under `ONESIE_CACHE=1`, so that run asks the API again. `--mock`, `--print-request` and `--print-questions` send no request, so `--cache` beside any of them exits 2, while `ONESIE_CACHE=1` is skipped there. Cached answers stay on disk until they expire, are evicted or `onesie cache clear` removes them.
 
 **Good:**
 
@@ -192,7 +192,7 @@ onesie --cache -f shell-safety --state 'rm -rf /'
 
 ### Run it once with --print-request before running it for real.
 
-`--print-request` and `--print-questions` make no network call and need no key. `--print-request` shows the exact body, the state and the model, but a body carries no policy, so a `--threshold` or `--fallback` does not show there. It checks and then ignores the gate in a `-f` file, so a gated file can be dry run, and it exits 2 on `--assert` or `--abstain-if` typed as a flag. `--print-questions` shows every question with the policy flags that bound to it and the assertion, and reads no state.
+`--print-request` and `--print-questions` make no network call and need no key. `--print-request` writes the exact request bodies without sending them, with the state and the model, to inspect or to replay later with `-i request`. A body carries no policy and no gate, so it checks and then ignores the policy and the gate in a `-f` file, so a gated file can be dry run, and it exits 2 on `--threshold`, `--min-confidence`, `--fallback`, `--assert` or `--abstain-if` typed as a flag. See those with `--print-questions`, and rehearse the whole command, gate and exit code included, with `--mock`. `--print-questions` shows every question with the policy flags that bound to it and the assertion, and reads no state.
 
 **Good:**
 

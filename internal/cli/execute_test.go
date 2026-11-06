@@ -383,13 +383,13 @@ func TestRootExecute(t *testing.T) {
 			args:     []string{"--list-models", "--mock", "{dir}{/}m.json"},
 			files:    map[string]string{"m.json": `{"q":0.9}`},
 			wantCode: ExitUsage,
-			want:     "onesie: --list-models asks no question, so --mock has nothing to answer. Drop one\n",
+			want:     "onesie: --mock does not apply to --list-models, which only lists the models a provider serves\n",
 		},
 		{
 			name:     "should refuse --assert beside -i request before reading a body",
 			args:     []string{"-i", "request", "--assert", "a"},
 			wantCode: ExitUsage,
-			want:     "onesie: --assert does not apply to -i request, which forwards raw responses\n",
+			want:     "onesie: --assert does not apply to -i request, which sends each body as written and prints each raw response\n",
 		},
 		{
 			name:  "should skip ONESIE_MOCK silently beside -i request",
@@ -413,7 +413,7 @@ func TestRootExecute(t *testing.T) {
 			name:     "should refuse --assert beside --print-request",
 			args:     []string{"--print-request", "--assert", "a", "--state", "x", "is it urgent"},
 			wantCode: ExitUsage,
-			want:     "onesie: --assert judges an answer, which --print-request does not produce\n",
+			want:     "onesie: --assert does not apply to --print-request, which writes the request bodies and sends none. Rehearse the whole command with --mock, or see the questions with --print-questions\n",
 		},
 		{
 			name:     "should refuse -q on a stream",
@@ -480,9 +480,10 @@ func TestRootExecute(t *testing.T) {
 			want:     "onesie: ONESIE_CACHE=maybe is not a value --cache takes. Use 1 or 0\n",
 		},
 		{
-			name: "should warn that -j is ignored for one record",
-			args: []string{"-j", "4", "--print-request", "--state", "s", "is it urgent"},
-			want: "onesie: warning: -j 4 ignored. -i text reads one record\n",
+			name:     "should refuse -j on one record",
+			args:     []string{"-j", "4", "--print-request", "--state", "s", "is it urgent"},
+			wantCode: ExitUsage,
+			want:     "onesie: -j applies to streaming input. -i text reads one record. Pass -i jsonl, -i lines, -i csv or -i tsv, or drop -j\n",
 		},
 		{
 			name: "should refuse --offline beside --mock in calibrate",

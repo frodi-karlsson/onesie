@@ -36,13 +36,13 @@ Under `-q` the exit code tracks the answer, not safety. A question phrased in th
 **Bad:**
 
 ```sh
-onesie 'is this command destructive' -q --threshold 0.5 --state 'rm -rf ./build'
+onesie --ask destructive='is this command destructive' -q --threshold 0.5 --state 'rm -rf ./build'
 ```
 
 **Good:**
 
 ```sh
-onesie 'is this command safe to run' -q --threshold 0.5 --state 'rm -rf ./build'
+onesie --ask safe='is this command safe to run' -q --threshold 0.5 --state 'rm -rf ./build'
 ```
 
 ### Beside --assert, -q only silences the output. The assertion alone sets the exit code.
@@ -190,6 +190,8 @@ onesie --ask 'needs review'='is review needed' --assert '["needs review"].value 
 | `--fallback` | any shape | on a yes or no question it takes `true`, `false`, `yes` or `no`, and the decision stays a boolean. Alone it does not gate, it only fills `.decision` when the request fails |
 | `-q` | a yes or no question | nothing else. It exits 0 when the probability is at least `--threshold`, 0.5 by default |
 | `-q` | a pick or rate question | `--min-confidence` with `--fallback`, or an `--assert` |
+
+`-q` writes nothing, so beside `-r`, any `-o`, `--out`, `--merge` or `--merge-key` it exits 2.
 
 A request that fails after retries still prints the record under a fallback, with `.error` beside
 the answer, `.fallback` set to `error` and `.decision` set to the fallback. The exit code stays

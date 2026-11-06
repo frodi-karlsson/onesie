@@ -378,15 +378,14 @@ func TestAsk(t *testing.T) {
 				t.Run(name, func(t *testing.T) {
 					t.Parallel()
 
-					args := []string{
-						"is this urgent", "-o", "values", "--stats",
-						"--assert", tc.gate, "--abstain-if", tc.abstain,
-					}
+					args := []string{"is this urgent", "--stats", "--assert", tc.gate, "--abstain-if", tc.abstain}
 
 					want := tc.wantOut
 					if quiet {
 						args = append(args, "-q")
 						want = ""
+					} else {
+						args = append(args, "-o", "values")
 					}
 
 					out, errOut, _ := runAsserted(t, args, 0, urgent, tc.wantCode)

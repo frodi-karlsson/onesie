@@ -151,13 +151,15 @@ func TestOpenOut(t *testing.T) {
 			wantFile:    "keep me\n",
 		},
 		{
-			name:        "should leave the file untouched when the run fails before any answer",
+			name:        "should leave the file untouched when -q refuses --out",
 			existing:    "keep me\n",
 			sidecar:     "keep this too",
 			wantSidecar: "keep this too",
 			args:        []string{"is this urgent", "-q"},
+			bare:        true,
 			stdin:       "the site is down",
-			wantCode:    ExitTransport,
+			wantCode:    ExitUsage,
+			wantErr:     "onesie: -q suppresses output, which leaves --out nothing to write",
 			wantFile:    "keep me\n",
 			unreached:   true,
 		},
@@ -858,6 +860,42 @@ func TestOpenOut(t *testing.T) {
 			wantErr:  "is a directory",
 		},
 	}
+
+	t.Run("should refuse -q with --out and leave no file", func(t *testing.T) {
+		t.Parallel()
+
+		path := filepath.Join(t.TempDir(), "answers.jsonl")
+
+		var out, errOut bytes.Buffer
+
+		root := NewRootCmd(
+			BuildInfo{Version: "1.2.3"},
+			WithStdin(strings.NewReader("site down")),
+			WithStdinTTY(false),
+			WithStdoutTTY(false),
+			withKeychain(noKeychain()),
+			WithLookupEnv(lookupFrom(nil)),
+			WithClientFactory(stubFactory(baseFor("http://127.0.0.1:1", true))),
+		)
+
+		root.Command.SetOut(&out)
+		root.Command.SetErr(&errOut)
+		root.Command.SetArgs([]string{"is this urgent", "-q", "--out", path})
+
+		if code := root.Execute(t.Context()); code != ExitUsage {
+			t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, ExitUsage, errOut.String())
+		}
+
+		if want := "onesie: -q suppresses output, which leaves --out nothing to write\n"; errOut.String() != want {
+			t.Errorf("stderr = %q, want %q", errOut.String(), want)
+		}
+
+		for _, written := range []string{path, path + ".onesie"} {
+			if _, err := os.Stat(written); !errors.Is(err, os.ErrNotExist) {
+				t.Errorf("stat %s = %v, want it never written", written, err)
+			}
+		}
+	})
 
 	for _, tc := range specials {
 		t.Run(tc.name, func(t *testing.T) {

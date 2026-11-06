@@ -17,16 +17,6 @@ func singleRecordRule() Rule {
 			ID.Name(), imageFieldName, imageName, State.Name(), StateFile.Name(), Jobs.Name(),
 		},
 		Check: singleRecordRefusal,
-		Warn: func(v View) []string {
-			// A resource hint rather than a semantic one, and it may reasonably come from a shared
-			// alias, so it warns and the run goes on.
-			jobs := Get(v.Merged, Jobs)
-			if inputModeOf(v).Streaming() || jobs <= 1 || singleRecordRefusal(v) != nil {
-				return nil
-			}
-
-			return []string{fmt.Sprintf("-j %d ignored. -i %s reads one record", jobs, inputName(v))}
-		},
 	}
 }
 
@@ -50,6 +40,11 @@ func singleRecordRefusal(v View) error {
 		if flag.set {
 			return fmt.Errorf("%s applies to streaming input. -i %s reads one record", flag.name, inputName(v))
 		}
+	}
+
+	if typed(v, Jobs.Name()) && Get(v.Merged, Jobs) > 1 {
+		return fmt.Errorf("-j applies to streaming input. -i %s reads one record. "+
+			"Pass -i jsonl, -i lines, -i csv or -i tsv, or drop -j", inputName(v))
 	}
 
 	if typed(v, Input.Name()) && len(listOf(v, imageName)) > 0 && !typed(v, State.Name()) && !typed(v, StateFile.Name()) {

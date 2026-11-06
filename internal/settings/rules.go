@@ -18,15 +18,16 @@ func Rules() []Rule {
 	// Calibrate's needs lead, so a calibration is told what it lacks first. The mode rules come next,
 	// so a flag a mode makes meaningless is named against the mode, and a dry run is refused before
 	// the output rules. The rules on one record and on a stream come before the plan rules, so a
-	// streaming -q reports the streaming message, and a second state is refused last.
+	// streaming -q reports the streaming message. A second state and the output -q drops are refused
+	// last, so a command line refused for another reason keeps that reason.
 	return append(calibrateRules(),
-		noQuestionRule(), listModelsRule(), resumeRule(), pruneRule(), dryRunAndRequestRule(), delimiterRule(),
+		noQuestionRule(), listModelsRule(), resumeRule(), pruneRule(), dryRunAndRequestRule(), cacheBesideMockRule(), delimiterRule(),
 		abstainNeedsAssertRule(), rawAndOutputRule(), quietWithMarkdownRule(), stateAndStateFileRule(),
 		replaceNeedsFileRule(), forSelectsRule(), fileQuestionShapeRule(), mergeOutputRule(), mergeKeyWrapsRule(), delimitedOutputRule(), quietWithUsageRule(),
 		usageWritesAnswersRule(), singleRecordRule(), streamStateRule(), quietOnStreamRule(),
 		tableOnStreamRule(), stopOnAssertNeedsAssertRule(), fallbackColumnsRule(), lineFieldRule(),
 		policyBindingRule(), questionsValidRule(), quietNeedsAGateRule(), rawNeedsOneQuestionRule(),
-		bodyStateRule(), givenTwiceRule(),
+		bodyStateRule(), quietWritesNothingRule(), givenTwiceRule(),
 	)
 }
 
@@ -34,10 +35,6 @@ func Rules() []Rule {
 // the first refusal.
 func Validate(v View, rules []Rule) (warnings []string, notices []Notice, err error) {
 	for _, rule := range rules {
-		if rule.Warn != nil {
-			warnings = append(warnings, rule.Warn(v)...)
-		}
-
 		if rule.Inspect != nil {
 			found, refusal := rule.Inspect(v)
 			if warnings = append(warnings, found...); refusal != nil {
@@ -59,14 +56,13 @@ func Validate(v View, rules []Rule) (warnings []string, notices []Notice, err er
 	return warnings, notices, nil
 }
 
-// Rule is one cross setting check. Reads names the rows it reads, Check refuses, Warn and Notice
-// report without refusing, and Inspect warns and refuses in one pass.
+// Rule is one cross setting check. Reads names the rows it reads, Check refuses, Notice reports
+// without refusing, and Inspect warns and refuses in one pass.
 type Rule struct {
 	ID      string
 	Reads   []Name
 	Check   func(View) error
 	Notice  func(View) []Notice
-	Warn    func(View) []string
 	Inspect func(View) ([]string, error)
 }
 
@@ -203,12 +199,4 @@ func mockSpelled(v View) string {
 	default:
 		return ""
 	}
-}
-
-func mockAdvice(v View, flag string) string {
-	if mockSpelled(v) == "--mock" {
-		return "Drop one"
-	}
-
-	return "Unset it or drop " + flag
 }
