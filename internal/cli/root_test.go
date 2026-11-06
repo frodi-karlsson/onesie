@@ -1694,6 +1694,13 @@ func TestNewRootCmd(t *testing.T) {
 			contains: []string{"onesie: --for selects a question from -f, which was not given\n"},
 		},
 		{
+			name:     "should refuse --for without -f before the values after it",
+			args:     []string{"--ask", "a=is it a", "--for", "a", "--threshold", "high", "--print-questions"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: --for selects a question from -f, which was not given\n"},
+			absent:   []string{"takes a number"},
+		},
+		{
 			name:     "should refuse --for beside --replace",
 			args:     []string{"-f", "two.yaml", "--replace", "--for", "a", "--threshold", "0.9", "--print-questions"},
 			files:    map[string]string{"two.yaml": "a: is it a\nb: is it b\n"},

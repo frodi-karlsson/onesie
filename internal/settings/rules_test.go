@@ -123,6 +123,13 @@ func TestValidate(t *testing.T) {
 			wantErr: "--for selects a question from -f, which was not given",
 		},
 		{
+			name: "should refuse --for without -f before checking the values after it",
+			events: []argv.Event{
+				{Name: "ask", Value: "a=q"}, {Name: "for", Value: "a"}, {Name: "threshold", Value: "high"},
+			},
+			wantExact: "--for selects a question from -f, which was not given",
+		},
+		{
 			name:   "should refuse --for naming no file question, listing the file's",
 			file:   fileNouls("urgent", "spam"),
 			set:    values{"file": "two.yaml"},

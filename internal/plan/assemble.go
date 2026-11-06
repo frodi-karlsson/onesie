@@ -66,6 +66,11 @@ func Assemble(src Source) (*Plan, error) {
 	}
 
 	for i, selection := range built.Selections {
+		// A group naming no question from the file is refused for that by validation, ahead of its flags.
+		if !slices.ContainsFunc(src.File, func(q Question) bool { return q.ID == selection.ID }) {
+			continue
+		}
+
 		prepared, err := prepare(selection.Events, src)
 		if err != nil {
 			return nil, err

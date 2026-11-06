@@ -659,6 +659,22 @@ func TestAssemble(t *testing.T) {
 				wantErr: "--threshold takes a number, got 'high'",
 			},
 			{
+				name: "should leave a --for group naming no file question to validation",
+				src: plan.Source{
+					File:     fileQuestions(),
+					Events:   []argv.Event{{Name: "for", Value: "nope"}, {Name: "threshold", Value: "high"}},
+					ReadFile: readFile,
+				},
+				check: func(t *testing.T, p *plan.Plan) {
+					t.Helper()
+
+					want := []plan.Selection{{ID: "nope", Events: []argv.Event{{Name: "threshold", Value: "high"}}}}
+					if !reflect.DeepEqual(p.Selections, want) {
+						t.Errorf("selections = %+v, want %+v", p.Selections, want)
+					}
+				},
+			},
+			{
 				name: "should refuse a --for group's desc with no equals",
 				src: plan.Source{
 					File:     fileQuestions(),
