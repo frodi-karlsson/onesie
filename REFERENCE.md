@@ -113,7 +113,8 @@ onesie --ask urgent='is this urgent' --assert 'urgnet.value < 0.5'
   gives `calibrate` no cut, so a `--require` that reads its cut from one says so and needs
   `at CUT`.
 - A false assertion exits 1 and still prints the record with `"assert": false`. `-q` prints nothing
-  and leaves the exit code to the assertion. Repeated flags combine with `and`. A typed `--assert`
+  and leaves the exit code to the assertion. Since it writes nothing, `-q` beside `-r`, any `-o`,
+  `--out`, `--merge` or `--merge-key` exits 2. Repeated flags combine with `and`. A typed `--assert`
   replaces a question file's `assert`, and a typed `--abstain-if` its `abstain_if`, each with a
   notice such as `onesie: --assert overrides the question file's assert`, whatever the number of
   questions.

@@ -18,7 +18,8 @@ func Rules() []Rule {
 	// Calibrate's needs lead, so a calibration is told what it lacks first. The mode rules come next,
 	// so a flag a mode makes meaningless is named against the mode, and a dry run is refused before
 	// the output rules. The rules on one record and on a stream come before the plan rules, so a
-	// streaming -q reports the streaming message, and a second state is refused last.
+	// streaming -q reports the streaming message. A second state and the output -q drops are refused
+	// last, so a command line refused for another reason keeps that reason.
 	return append(calibrateRules(),
 		noQuestionRule(), listModelsRule(), resumeRule(), pruneRule(), dryRunAndRequestRule(), delimiterRule(),
 		abstainNeedsAssertRule(), rawAndOutputRule(), quietWithMarkdownRule(), stateAndStateFileRule(),
@@ -26,7 +27,7 @@ func Rules() []Rule {
 		usageWritesAnswersRule(), singleRecordRule(), streamStateRule(), quietOnStreamRule(),
 		tableOnStreamRule(), stopOnAssertNeedsAssertRule(), fallbackColumnsRule(), lineFieldRule(),
 		policyBindingRule(), questionsValidRule(), quietNeedsAGateRule(), rawNeedsOneQuestionRule(),
-		bodyStateRule(), givenTwiceRule(),
+		bodyStateRule(), quietWritesNothingRule(), givenTwiceRule(),
 	)
 }
 

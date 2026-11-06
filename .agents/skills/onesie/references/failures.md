@@ -79,6 +79,7 @@ Exit 3 also covers these:
 | `the header` | the csv or tsv header is not valid, or has a blank or repeated column name |
 | `every record's --id was null` | `-i csv` read a tab separated file, or `-i tsv` a comma separated one, so the header is one column and `--id` finds nothing. Pass the other `-i`. A mistyped `--id` also gives null ids, but then each record fails with `got null` and no hint. Check that `--id` names a header column |
 | `a row is longer than the limit`, with no error line | a csv row over `max-line-bytes` from `onesie -V`. It stops the run, since csv cannot find the next row after it. In tsv it is an error line instead |
+| `-q suppresses output, which leaves` | `-q` writes nothing, so it refuses `-r`, any `-o`, `--out`, `--merge` and `--merge-key`, which would only shape that output. Drop `-q` to keep the output, or drop the other flag to gate on the exit code alone |
 | `--usage does not apply to` | `-o values`, `-o raw` and `-r` write only the answers, so the message says to use `-o json`. `-o csv` and `-o tsv` have no column for it, and `-q` suppresses output |
 | `--merge-key does not apply to` | `-o csv` and `-o tsv` put the answers in columns, so they refuse `--merge-key` even beside `--merge` |
 | `wraps every record under a state key`, `would repeat that key` or `cannot write this failed record` | `--merge` writes an input that is not an object, or a record that failed, as `{"state":INPUT,"answers":ANSWERS}`, so `--merge-key state` would write `state` twice. A failed record's own error follows the colon. Pick another key |

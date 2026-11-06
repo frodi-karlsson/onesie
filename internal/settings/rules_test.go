@@ -523,6 +523,56 @@ func TestValidate(t *testing.T) {
 			wantExact: "-q reads one record. Drop -i jsonl or use -o values and filter the stream",
 		},
 		{
+			name:       "should refuse -q with -r",
+			positional: "is this urgent",
+			set:        values{"quiet": true, "raw": true},
+			wantExact:  "-q suppresses output, which leaves -r nothing to write",
+		},
+		{
+			name:       "should refuse -q with -o json",
+			positional: "is this urgent",
+			set:        values{"quiet": true, "output": "json"},
+			typed:      []settings.Name{"output"},
+			wantExact:  "-q suppresses output, which leaves -o json nothing to write",
+		},
+		{
+			name:       "should refuse -q with -o auto",
+			positional: "is this urgent",
+			set:        values{"quiet": true, "output": "auto"},
+			typed:      []settings.Name{"output"},
+			wantExact:  "-q suppresses output, which leaves -o auto nothing to write",
+		},
+		{
+			name:       "should refuse -q with --merge",
+			positional: "is this urgent",
+			set:        values{"quiet": true, "merge": true},
+			wantExact:  "-q suppresses output, which leaves --merge nothing to write",
+		},
+		{
+			name:       "should refuse -q with --merge-key",
+			positional: "is this urgent",
+			set:        values{"quiet": true, "merge_key": "answers"},
+			wantExact:  "-q suppresses output, which leaves --merge-key nothing to write",
+		},
+		{
+			name:       "should refuse -q with --out and leave no file",
+			positional: "is this urgent",
+			set:        values{"quiet": true, "out": "answers.jsonl"},
+			typed:      []settings.Name{"out"},
+			wantExact:  "-q suppresses output, which leaves --out nothing to write",
+		},
+		{
+			name:      "should keep the gate message for -q with -o raw on two questions",
+			events:    []argv.Event{{Name: "ask", Value: "a=one"}, {Name: "ask", Value: "b=two"}},
+			set:       values{"quiet": true, "output": "raw"},
+			wantExact: "-q needs a single question, or --assert to gate several. 'a', 'b' were asked",
+		},
+		{
+			name:       "should accept -q alone",
+			positional: "is this urgent",
+			set:        values{"quiet": true},
+		},
+		{
 			name:       "should report --stop-on-assert on one record before its missing assertion",
 			positional: "is this urgent",
 			set:        values{"stop_on_assert": true},
@@ -1606,7 +1656,7 @@ func TestRules(t *testing.T) {
 					"stream-reads-its-own-state", "quiet-reads-one-record", "table-reads-one-record",
 					"stop-on-assert-needs-assert", "columns-unique", "line-field-reserved",
 					"policy-binding", "questions-valid", "quiet-needs-one-question",
-					"raw-needs-one-question", "one-state", "setting-given-twice",
+					"raw-needs-one-question", "one-state", "quiet-writes-nothing", "setting-given-twice",
 				}
 
 				got := make([]string, 0, len(rules))
@@ -1773,7 +1823,7 @@ func ruleCases() []ruleCase {
 		{
 			rule:    "quiet-without-markdown",
 			refused: run{set: values{"quiet": true, "output": "md"}},
-			passed:  run{set: values{"quiet": true, "output": "json"}},
+			passed:  run{set: values{"quiet": true}},
 			wantErr: "-q suppresses output, which leaves -o md nothing to write",
 		},
 		{
@@ -1925,6 +1975,12 @@ func ruleCases() []ruleCase {
 			},
 			passed:  run{facts: settings.Facts{BodyState: true}, set: values{"file": "body.json"}},
 			wantErr: "--state and the state in body.json both give a state. Drop one",
+		},
+		{
+			rule:    "quiet-writes-nothing",
+			refused: run{set: values{"quiet": true, "raw": true}},
+			passed:  run{set: values{"quiet": true}},
+			wantErr: "-q suppresses output, which leaves -r nothing to write",
 		},
 	}
 }
