@@ -95,6 +95,7 @@ func FuzzParseLabel(f *testing.F) {
 		{0, "", 2, "1"},
 		{0, "", 2, "1.0e0"},
 		{0, "", 2, "1.00000000000000001"},
+		{0, "", 2, "6E-767"},
 		{0, "", 3, "0"},
 		{0, "", 4, "true"},
 		{0, "", 5, "null"},
@@ -243,9 +244,10 @@ func jsonNumberRat(number json.Number) *big.Rat {
 		return exact
 	}
 
-	// A fraction goes through a float64, as jq reads it, so 1.00000000000000001 is the label 1.
+	// A fraction goes through a float64, as jq reads it, so 1.00000000000000001 is the label 1. One
+	// that underflows to zero is out of range for jq.ID, so it is no label at all.
 	approx, err := strconv.ParseFloat(number.String(), 64)
-	if err != nil {
+	if err != nil || approx == 0 {
 		return nil
 	}
 
