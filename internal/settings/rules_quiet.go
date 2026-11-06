@@ -25,15 +25,6 @@ func markdownOutput(v View) bool {
 	return Get(v.Merged, Output) == "markdown"
 }
 
-func outputTyped(v View) string {
-	// The merge holds an alias by the mode it names, and a message names -o as it was typed.
-	if typed := v.Facts.Given.Values(Output.Name()); len(typed) > 0 {
-		return typed[len(typed)-1]
-	}
-
-	return Get(v.Merged, Output)
-}
-
 func quietWritesNothingRule() Rule {
 	return Rule{
 		ID:    "quiet-writes-nothing",
@@ -63,6 +54,15 @@ func droppedByQuiet(v View) string {
 	default:
 		return mergeName(v)
 	}
+}
+
+func outputTyped(v View) string {
+	// The merge holds an alias by the mode it names, and a message names -o as it was typed.
+	if typed := v.Facts.Given.Values(Output.Name()); len(typed) > 0 {
+		return typed[len(typed)-1]
+	}
+
+	return Get(v.Merged, Output)
 }
 
 func quietWithUsageRule() Rule {

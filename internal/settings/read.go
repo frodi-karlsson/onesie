@@ -165,10 +165,6 @@ func readFlags(rows []Row, given *Given, command Command) (Layer, error) {
 	return layer, nil
 }
 
-func readPerRun(row Row) bool {
-	return row.Scope == ScopeRun && !row.Flag.Group
-}
-
 func flagValue(row Row, bound BoundFlag, flag *pflag.Flag, command Command) (any, error) {
 	if parsedPerRun(row, command) {
 		return parseFlag(row, bound, flag)
@@ -241,6 +237,10 @@ func readDefaults(rows []Row, command Command) Layer {
 	}
 
 	return layer
+}
+
+func readPerRun(row Row) bool {
+	return row.Scope == ScopeRun && !row.Flag.Group
 }
 
 func runMode(command Command, flags, defaults Layer) Mode {
