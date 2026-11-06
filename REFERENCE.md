@@ -131,7 +131,8 @@ onesie --ask urgent='is this urgent' --assert 'urgnet.value < 0.5'
 - A question file carries the same expressions as `assert` and `abstain_if`. `--print-request`
   checks a file's gate and policy and then ignores them, so a gated file can be dry run. `--assert`,
   `--abstain-if`, `--threshold`, `--min-confidence` or `--fallback` typed beside `--print-request`
-  exits 2, since the requests it prints carry none of them. `--print-questions` shows them.
+  exits 2, since the requests it prints carry none of them. `--print-questions` shows them,
+  and `--mock` rehearses the whole command, as the message says.
 
 ## Testing a gate
 

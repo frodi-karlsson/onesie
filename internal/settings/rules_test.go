@@ -1119,7 +1119,7 @@ func TestValidate(t *testing.T) {
 			{
 				name:    "should reject --assert with --print-request",
 				set:     values{"assert": []string{"answer.value > 0.5"}, "print_request": true, "input": "text"},
-				wantErr: "--assert does not apply to --print-request, which writes the request bodies and sends none",
+				wantErr: "--assert does not apply to --print-request, which writes the request bodies and sends none. Rehearse the whole command with --mock, or see the questions with --print-questions",
 			},
 			{
 				name:  "should ignore a file's assertion with --print-request",
@@ -1134,13 +1134,13 @@ func TestValidate(t *testing.T) {
 			{
 				name:    "should reject --assert typed beside a file's assertion with --print-request",
 				set:     values{"assert": []string{"answer.value > 0.5"}, "print_request": true, "file": "q.yaml", "input": "text"},
-				wantErr: "--assert does not apply to --print-request, which writes the request bodies and sends none",
+				wantErr: "--assert does not apply to --print-request, which writes the request bodies and sends none. Rehearse the whole command with --mock, or see the questions with --print-questions",
 			},
 			{
 				name:    "should reject --abstain-if typed beside a file's gates with --print-request",
 				set:     values{"abstain_if": []string{"answer.value > 0.4"}, "print_request": true, "file": "q.yaml", "input": "text"},
 				facts:   settings.Facts{FileAssert: "answer.value > 0.5"},
-				wantErr: "--abstain-if does not apply to --print-request, which writes the request bodies and sends none",
+				wantErr: "--abstain-if does not apply to --print-request, which writes the request bodies and sends none. Rehearse the whole command with --mock, or see the questions with --print-questions",
 			},
 			{
 				name: "should accept --assert with --print-questions",
@@ -1164,12 +1164,12 @@ func TestValidate(t *testing.T) {
 			{
 				name:    "should name --assert first when --print-request is given both gates",
 				set:     values{"assert": []string{"answer.value > 0.5"}, "abstain_if": []string{"answer.value > 0.4"}, "print_request": true, "input": "text"},
-				wantErr: "--assert does not apply to --print-request, which writes the request bodies and sends none",
+				wantErr: "--assert does not apply to --print-request, which writes the request bodies and sends none. Rehearse the whole command with --mock, or see the questions with --print-questions",
 			},
 			{
 				name:    "should reject --abstain-if with --print-request",
 				set:     values{"abstain_if": []string{"answer.value > 0.4"}, "print_request": true, "input": "text"},
-				wantErr: "--abstain-if does not apply to --print-request, which writes the request bodies and sends none",
+				wantErr: "--abstain-if does not apply to --print-request, which writes the request bodies and sends none. Rehearse the whole command with --mock, or see the questions with --print-questions",
 			},
 			{
 				name: "should accept --abstain-if with --print-questions",
@@ -1183,19 +1183,19 @@ func TestValidate(t *testing.T) {
 				name:    "should refuse --threshold beside --print-request",
 				set:     values{"print_request": true, "input": "text"},
 				events:  []argv.Event{{Name: "threshold", Value: "0.9"}},
-				wantErr: "--threshold does not apply to --print-request, which writes the request bodies and sends none",
+				wantErr: "--threshold does not apply to --print-request, which writes the request bodies and sends none. Rehearse the whole command with --mock, or see the questions with --print-questions",
 			},
 			{
 				name:    "should refuse --min-confidence beside --print-request",
 				set:     values{"print_request": true, "input": "text"},
 				events:  []argv.Event{{Name: "ask", Value: "team=which"}, {Name: "min-confidence", Value: "0.6"}},
-				wantErr: "--min-confidence does not apply to --print-request, which writes the request bodies and sends none",
+				wantErr: "--min-confidence does not apply to --print-request, which writes the request bodies and sends none. Rehearse the whole command with --mock, or see the questions with --print-questions",
 			},
 			{
 				name:    "should refuse --fallback typed in a --for group beside --print-request",
 				set:     values{"print_request": true, "input": "text", "file": "q.yaml"},
 				events:  []argv.Event{{Name: "for", Value: "tone"}, {Name: "fallback", Value: "human"}},
-				wantErr: "--fallback does not apply to --print-request, which writes the request bodies and sends none",
+				wantErr: "--fallback does not apply to --print-request, which writes the request bodies and sends none. Rehearse the whole command with --mock, or see the questions with --print-questions",
 			},
 			{
 				name: "should accept a file's policy with --print-request",

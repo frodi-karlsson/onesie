@@ -68,9 +68,16 @@ func firstRefusal(v View, mode Mode) error {
 	name, reason := modeWording(mode)
 
 	for _, rule := range modeRefusals(mode) {
-		if rule.given(v) {
-			return fmt.Errorf("%s does not apply to %s, which %s", rule.spelled(v), name, reason)
+		if !rule.given(v) {
+			continue
 		}
+
+		// A judgment the dry run cannot show has a run that can, so the refusal names it.
+		if mode == ModePrintRequest && judging(rule.setting) {
+			return fmt.Errorf("%s does not apply to %s, which %s. %s", rule.spelled(v), name, reason, rehearse)
+		}
+
+		return fmt.Errorf("%s does not apply to %s, which %s", rule.spelled(v), name, reason)
 	}
 
 	return nil
@@ -90,6 +97,8 @@ func modeWording(mode Mode) (name, reason string) {
 		return "", ""
 	}
 }
+
+const rehearse = "Rehearse the whole command with --mock, or see the questions with --print-questions"
 
 func readsOf(reads []Name, tables ...[]refusal) []Name {
 	for _, table := range tables {
@@ -223,6 +232,15 @@ func printRequestRefusals() []refusal {
 		// assertion is a judgment a dry run never makes, so only its stop condition is refused.
 		{StopOnAssert.Name(), on(StopOnAssert), spelled("--stop-on-assert")},
 		{Stats.Name(), on(Stats), spelled("--stats")},
+	}
+}
+
+func judging(setting Name) bool {
+	switch setting {
+	case assertName, abstainIfName, "threshold", "min_confidence", "fallback":
+		return true
+	default:
+		return false
 	}
 }
 

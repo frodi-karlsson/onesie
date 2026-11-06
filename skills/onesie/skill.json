@@ -91,7 +91,7 @@
     {
       "id": "iterate-for-free",
       "short": "Run it once with --print-request before running it for real.",
-      "why": "`--print-request` and `--print-questions` make no network call and need no key. `--print-request` shows the exact body, the state and the model. A body carries no policy and no gate, so it checks and then ignores the policy and the gate in a `-f` file, so a gated file can be dry run, and it exits 2 on `--threshold`, `--min-confidence`, `--fallback`, `--assert` or `--abstain-if` typed as a flag. Dry run those with `--print-questions`. `--print-questions` shows every question with the policy flags that bound to it and the assertion, and reads no state.",
+      "why": "`--print-request` and `--print-questions` make no network call and need no key. `--print-request` writes the exact request bodies without sending them, with the state and the model, to inspect or to replay later with `-i request`. A body carries no policy and no gate, so it checks and then ignores the policy and the gate in a `-f` file, so a gated file can be dry run, and it exits 2 on `--threshold`, `--min-confidence`, `--fallback`, `--assert` or `--abstain-if` typed as a flag. See those with `--print-questions`, and rehearse the whole command, gate and exit code included, with `--mock`. `--print-questions` shows every question with the policy flags that bound to it and the assertion, and reads no state.",
       "good": "onesie --ask urgent='is this urgent' --ask team='which team owns this' --pick billing,shipping,support --state 'my package never arrived' --print-request"
     },
     {

@@ -222,7 +222,9 @@ tables.
   Cloudflare needs an account id beside its token.
 - **Caching.** `--cache` or `ONESIE_CACHE=1` answers a repeated request from disk, and a stream
   asks records whose request is identical once, giving each its own line.
-- **Dry runs.** `--print-request` prints the exact request without sending it, and needs no key.
+- **Dry runs.** `--print-request` writes the exact request bodies without sending them, to inspect
+  or to replay later with `-i request`, and needs no key. `--mock` rehearses a whole command,
+  gates and exit codes included, from a file of answers.
 - **Images.** `--image photo=door.jpg` puts a PNG or JPEG in the state, and `--box` asks where
   something is in it. Both are experimental on TypeSafe's side.
 

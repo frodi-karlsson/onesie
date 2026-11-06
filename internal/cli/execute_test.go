@@ -413,7 +413,7 @@ func TestRootExecute(t *testing.T) {
 			name:     "should refuse --assert beside --print-request",
 			args:     []string{"--print-request", "--assert", "a", "--state", "x", "is it urgent"},
 			wantCode: ExitUsage,
-			want:     "onesie: --assert does not apply to --print-request, which writes the request bodies and sends none\n",
+			want:     "onesie: --assert does not apply to --print-request, which writes the request bodies and sends none. Rehearse the whole command with --mock, or see the questions with --print-questions\n",
 		},
 		{
 			name:     "should refuse -q on a stream",

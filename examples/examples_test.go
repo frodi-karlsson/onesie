@@ -248,7 +248,7 @@ func refuseTypedGate(t *testing.T, set examples.Set) {
 		t.Fatalf("exit %d, want %d, stderr: %s", code, cli.ExitUsage, stderr)
 	}
 
-	if want := "onesie: --assert does not apply to --print-request, which writes the request bodies and sends none"; !strings.Contains(stderr, want) {
+	if want := "onesie: --assert does not apply to --print-request, which writes the request bodies and sends none. Rehearse the whole command with --mock, or see the questions with --print-questions"; !strings.Contains(stderr, want) {
 		t.Errorf("stderr = %q, want it to contain %q", stderr, want)
 	}
 }
