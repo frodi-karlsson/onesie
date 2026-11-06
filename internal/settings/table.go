@@ -433,9 +433,11 @@ func choiceRows() []Row {
 			Env:     []EnvSpec{{Name: "ONESIE_PROVIDER", Order: 7, Help: providerEnvHelp}},
 			Profile: []ProfileMember{{Key: "provider"}},
 			Flag: FlagSpec{Long: "provider", Commands: onProfileWriters(CommandRoot), PerCommand: map[Command]CommandFlag{
-				CommandRoot:          {Persistent: true},
-				CommandProfileCreate: {Help: "the profile's provider, " + providers.Names() + ". Required", Kind: Text()},
-				CommandProfileUpdate: {Help: "a new provider for the profile, which needs --key"},
+				CommandRoot: {Persistent: true},
+				CommandProfileCreate: {
+					Help: "the profile's provider, " + providers.Names() + ". Required", Kind: Text(), Member: ProfileMember{Key: "provider"},
+				},
+				CommandProfileUpdate: {Help: "a new provider for the profile. On a profile that holds a key it needs --key", Member: ProfileMember{Key: "provider"}},
 			}},
 			Help: "run on this provider without a profile, " + providers.Names() + ". Overrides ONESIE_PROVIDER and the " +
 				"default profile. Refused beside --profile or ONESIE_PROFILE",
@@ -469,8 +471,8 @@ func endpointRows() []Row {
 			Flag: FlagSpec{
 				Long: "model", Short: "m", Commands: onProfileWriters(onRuns()...),
 				PerCommand: map[Command]CommandFlag{
-					CommandProfileCreate: {Help: profileModelHelp, NoShort: true},
-					CommandProfileUpdate: {Help: profileModelHelp, Kind: Text(), NoShort: true},
+					CommandProfileCreate: {Help: profileModelHelp, NoShort: true, Member: ProfileMember{Key: "model"}},
+					CommandProfileUpdate: {Help: profileModelHelp, Kind: Text(), NoShort: true, Member: ProfileMember{Key: "model"}},
 				},
 			},
 			Help: "model override",
@@ -490,8 +492,8 @@ func endpointRows() []Row {
 			},
 			Profile: []ProfileMember{{Key: "base_url", Half: HalfBaseURL}, {Key: "account_id", Half: HalfAccount}},
 			Flag: FlagSpec{Long: "base-url", Commands: onProfileWriters(onRuns()...), PerCommand: map[Command]CommandFlag{
-				CommandProfileCreate: {Help: profileBaseURLHelp, Kind: NonEmptyText()},
-				CommandProfileUpdate: {Help: profileBaseURLHelp, Kind: Text()},
+				CommandProfileCreate: {Help: profileBaseURLHelp, Kind: NonEmptyText(), Member: ProfileMember{Key: "base_url", Half: HalfBaseURL}},
+				CommandProfileUpdate: {Help: profileBaseURLHelp, Kind: Text(), Member: ProfileMember{Key: "base_url", Half: HalfBaseURL}},
 			}},
 			Help: "api root override. Also ONESIE_BASE_URL",
 		},
@@ -657,7 +659,8 @@ func profileRows() []Row {
 		{
 			Name: "account_id", Kind: NonEmptyText(), Modes: Modes(ModeProfile),
 			Flag: FlagSpec{Long: "account-id", Commands: onProfileWriters(), PerCommand: map[Command]CommandFlag{
-				CommandProfileUpdate: {Kind: Text()},
+				CommandProfileCreate: {Member: ProfileMember{Key: "account_id", Half: HalfAccount}},
+				CommandProfileUpdate: {Kind: Text(), Member: ProfileMember{Key: "account_id", Half: HalfAccount}},
 			}},
 			Help: providers.WithAccounts() + " only, the account id, 32 hexadecimal characters",
 		},

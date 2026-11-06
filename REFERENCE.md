@@ -645,7 +645,7 @@ on the provider's key variable alone.
 | Command | What it does |
 |---------|--------------|
 | `profile create NAME --provider P [--model M] [--base-url U] [--account-id A] [--file]` | stores a new profile and reads its key. The first profile becomes the default |
-| `profile update NAME [--provider P] [--model M] [--base-url U] [--account-id A] [--key] [--file]` | changes only the members named, and an empty value clears one, as in `--model ""`. `--key` reads a new key. `--provider` needs `--key`, since a key belongs to one provider, and `--file` needs `--key` too |
+| `profile update NAME [--provider P] [--model M] [--base-url U] [--account-id A] [--key] [--file]` | changes only the members named, and an empty value clears one, as in `--model ""`. The result is checked as a whole profile. `--key` reads a new key. `--provider` keeps `base_url`, `account_id` and `model`, and on a profile that holds a key it needs `--key`, since a key belongs to one provider. `--file` needs `--key` too |
 | `profile delete NAME` | removes the profile and its keychain item. Deleting the default leaves no default, and deleting the last profile removes `profiles.json` |
 | `profile use NAME` | makes the profile the default |
 | `profile list` | lists each profile's provider, key store and model, with `*` on the one a run would use now. When a run would use none, a stderr line says why, as in `onesie: active: ONESIE_PROVIDER=openrouter, no profile` |
@@ -672,6 +672,13 @@ on the provider's key variable alone.
 - `create` and `update` check the rules below, the base URL and the account id before they read the
   key, so a typo costs nothing. A bad value from a flag is named by its flag, as in
   `--account-id must be 32 hexadecimal characters`.
+- `update` applies the flags given, then checks the result as a whole profile. `--provider` keeps
+  `base_url`, `account_id` and `model`, and names on stderr the ones it keeps, as in
+  `onesie: profile 'work' keeps its base_url and model on openrouter`. A profile that holds no key
+  changes provider with no `--key`. An `account_id` kept on a provider that takes none exits 2 with
+  `Clear it with --account-id "" in the same update`. A `base_url` beside an `account_id`, typed or
+  stored, exits 2 with `has both base_url and account_id. Keep one`, and names the flag that clears
+  the other.
 - `show` never reads the keychain or prints a key. `key:` names the key a run would send to the
   base URL `show` reports, so a profile's key off its own endpoint shows as the key variable or
   `none`. It is `keychain` or `file`, with
